@@ -8,14 +8,20 @@ module each one loaded.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 
 import pytest
+from fastapi import FastAPI
 
+import app_lifespan
 from execution import warm
+from practice import broker as practice_broker
 
 BACKEND = Path(__file__).resolve().parents[1]
 
@@ -36,15 +42,17 @@ from execution import service
 from execution.models import ExecutionCommand
 from execution.warm import warm_order_path
 from ibkr import client, safety
-from practice.broker import for_venue
 from sim.fill_model import Reference
 
 failed = warm_order_path()
+from practice import broker as practice_broker
+
+paper = practice_broker.loaded("paper")   # the warm-up opened it; the probe never does
 mode.set_venue("paper", persist=False)
 client.is_enabled = lambda: True
 client.is_connected = lambda: True
 book = {"ask": 4.02}
-reference = for_venue("paper").reference
+reference = paper.reference if paper is not None else practice_broker.for_venue("paper").reference
 reference.reference = lambda symbol: Reference(4.0, 3.99, book["ask"], live=True)
 reference.admission = lambda symbol: (True, "OK", None)
 safety.arm(True, actor="operator")
@@ -70,7 +78,7 @@ async def run():
                     "loaded": sorted(set(sys.modules) - before)})
     return out
 
-print("PROBE " + json.dumps({"failed": failed, "orders": asyncio.run(run())}))
+print("PROBE " + json.dumps({"failed": failed, "paper_open": paper is not None, "orders": asyncio.run(run())}))
 """
 
 
@@ -85,6 +93,7 @@ def _probe() -> dict:
 def test_the_first_order_after_a_start_loads_no_module():
     got = _probe()
     assert got["failed"] == []
+    assert got["paper_open"] is True, "the warm-up did not open the Paper account; the first order would"
     rests, fills, cancel = got["orders"]
     assert (rests["ok"], rests["broker_status"]) == (True, "Submitted"), rests
     assert (fills["ok"], fills["broker_status"]) == (True, "Filled"), fills
@@ -96,19 +105,79 @@ def test_the_first_order_after_a_start_loads_no_module():
 
 def test_a_module_that_will_not_load_is_named_and_the_rest_still_load(monkeypatch, caplog):
     loaded: list[str] = []
+    opened: list[str] = []
+
+    class Broker:
+        @staticmethod
+        def for_venue(venue):
+            opened.append(venue)
+            raise OSError("ledger unreadable")
 
     def load(name: str):
         if name == "sim.execution":
             raise ImportError("broken on purpose")
         loaded.append(name)
+        return Broker
 
     monkeypatch.setattr(warm, "import_module", load)
     with caplog.at_level("ERROR", logger="execution.warm"):
-        assert warm.warm_order_path() == ["sim.execution"]
-    assert loaded == [m for m in warm.ORDER_PATH_MODULES if m != "sim.execution"]
+        assert warm.warm_order_path() == ["sim.execution", warm.PAPER_BROKER]
+    assert loaded[:-1] == [m for m in warm.ORDER_PATH_MODULES if m != "sim.execution"]
+    assert opened == ["paper"]
     assert "could not load sim.execution before the first order" in caplog.text
+    assert "could not open the Paper account before the first order" in caplog.text
 
 
 @pytest.mark.parametrize("name", warm.ORDER_PATH_MODULES)
 def test_every_warmed_module_exists(name):
     assert (BACKEND / (name.replace(".", "/") + ".py")).is_file() or (BACKEND / name.replace(".", "/") / "__init__.py").is_file()
+
+
+def test_two_threads_asking_for_the_paper_broker_get_one(monkeypatch):
+    """Startup opens Paper off the request loop while the loop may ask for it: one ledger, read once."""
+    reads, gate = [], threading.Event()
+    real = practice_broker._paper_ledger
+
+    def slow_ledger(path, now):
+        reads.append(path)
+        gate.wait(5)
+        return real(path, now)
+
+    practice_broker.reset_for_tests("paper")
+    monkeypatch.setattr(practice_broker, "_paper_ledger", slow_ledger)
+    got: list = []
+    threads = [threading.Thread(target=lambda: got.append(practice_broker.for_venue("paper"))) for _ in range(2)]
+    for t in threads:
+        t.start()
+    time.sleep(0.05)
+    gate.set()
+    for t in threads:
+        t.join(5)
+    try:
+        assert len(got) == 2 and got[0] is got[1]
+        assert len(reads) == 1
+    finally:
+        practice_broker.reset_for_tests("paper")
+
+
+def test_startup_warms_the_trading_path_before_restore_databases_and_ibkr(monkeypatch):
+    order: list[str] = []
+    monkeypatch.setattr(app_lifespan, "init_sentry", lambda: order.append("sentry"))
+    monkeypatch.setattr(app_lifespan, "_warm_trading_path", lambda took: order.append("warm"))
+    monkeypatch.setattr(app_lifespan, "_restore_caches", lambda: order.append("restore"))
+    monkeypatch.setattr(app_lifespan, "_init_databases", lambda took: order.append("db"))
+
+    async def body() -> None:
+        reached = asyncio.Event()
+
+        async def ibkr_side() -> None:   # the API health mark, then IBKR's connect, come after the local startup
+            order.append("network")
+            reached.set()
+            await asyncio.Event().wait()
+
+        monkeypatch.setattr(app_lifespan, "_mark_nova_api_health", ibkr_side)
+        async with app_lifespan.lifespan(FastAPI()):
+            await asyncio.wait_for(reached.wait(), 3.0)
+
+    asyncio.run(body())
+    assert order == ["sentry", "warm", "restore", "db", "network"]

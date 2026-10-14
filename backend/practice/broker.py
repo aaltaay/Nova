@@ -21,6 +21,7 @@ and every order a fill or a cancel closes with it has its watch told.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from typing import Any
 
@@ -632,6 +633,9 @@ class PracticeBroker:
 
 # ------------------------------------------------------------------ venues
 _brokers: dict[str, PracticeBroker] = {}
+# One broker per venue, whichever thread asks first: startup builds Paper's off the request loop
+# (execution.warm) while the loop may ask for it too, and two would mean two ledgers.
+_brokers_lock = threading.RLock()
 
 
 def _paper_ledger(path: str, now: float) -> Ledger:
@@ -654,6 +658,14 @@ def for_venue(venue: str) -> PracticeBroker:
     broker = _brokers.get(key)
     if broker is not None:
         return broker
+    with _brokers_lock:
+        broker = _brokers.get(key)
+        if broker is None:
+            broker = _brokers[key] = _new_broker(key, venue)
+    return broker
+
+
+def _new_broker(key: str, venue: str) -> PracticeBroker:
     if key == PRACTICE_VENUE_SIM:
         # Sim's live half is Paper's class, resolved here so one test seam covers both venues.
         ref: MarketReference = SimReference(live=LiveReference())
@@ -668,7 +680,6 @@ def for_venue(venue: str) -> PracticeBroker:
         broker = PracticeBroker(ref, ledger, PRACTICE_ACCOUNT_ID_PAPER, venue=key, persist_path=path)
     else:
         raise ValueError(f"unknown practice venue {venue!r}")
-    _brokers[key] = broker
     return broker
 
 
