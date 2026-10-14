@@ -263,8 +263,8 @@ images again with each answer.
   no price, with why), P/L per share and %, held, proof. A past day reads "Open at the day's end" and "Closed". A
   time not seen reads "by HH:MM:SS" (open when capture started) or a window, and its trade unscored. A trader with no
   trade that day shows the card alone. A ticker -- on an OPEN tile, a closed row (in the list of all closed trades
-  too) and a Proof's title -- opens the stock in the Trader, as a symbol does on the Market and Records pages; an
-  Activity line stays one button that opens the trade's Proof.
+  too), a Proof's title and an Activity line -- opens the stock in the Trader, as a symbol does on the Market and
+  Records pages. A trade's Proof stays its own link on the tile and the row.
 - **When it does not fit**, closed rows drop to one line, then each trader's oldest closed trades fold into "+N
   earlier closed trades", which opens them all over the stack; open tiles never shrink or fold. A window too small
   even for that scrolls the stack rather than hide a trade.
@@ -285,8 +285,8 @@ images again with each answer.
   (`frontend/electron/streamPlayer.mjs`).
 - **Activity**, under the stream, newest first, one line per event built from the day's trades: time, photo, opened
   (or holding, already open when capture started), added to (the average before and after), closed (held). No
-  screenshots: clicking an event opens its trade's Proof, which has them. Events that do not fit fold into "+N
-  earlier", which opens the whole list.
+  screenshots: clicking an event opens its stock in the Trader (operator, 2026-10-13); a desk with no Trader to open
+  opens the trade's Proof, which has them. Events that do not fit fold into "+N earlier", which opens the whole list.
 - **Proof** of one trade: the entry and exit images, what was read at each (`/reads`), and every read in between
   that differed from the trade and was ignored. Nova never edits the feed: no button drops or confirms a trade.
 - **Calendar**: a month with a dot on each of the feed's `dates`, weekends dimmed, future days disabled; picking a

@@ -104,6 +104,7 @@ export const FT_RECORD_PENDING = 'exits still being read from IBKR';
 
 export const FT_ACTIVITY = 'Activity';
 export const FT_ACTIVITY_HINT = 'Newest first · click an event for its Proof';
+export const FT_ACTIVITY_HINT_TRADER = 'Newest first · click an event to open it in the Trader';
 export const FT_ALL_ACTIVITY = 'The whole day’s Activity';
 export const FT_NO_ACTIVITY = 'Nothing happened on the bar this day.';
 export const FT_ALREADY_OPEN = 'Already open when capture started';

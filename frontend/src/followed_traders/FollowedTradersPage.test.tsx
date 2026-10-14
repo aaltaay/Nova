@@ -125,8 +125,18 @@ describe('FollowedTradersPage', () => {
     expect(q('ft-row-o1')!.querySelector('.ft-tile__ticker')!.textContent).toBe('ABCD');
   });
 
-  it('opens an Activity event on its trade’s proof', async () => {
+  it('opens an Activity event’s stock in the Trader', async () => {
+    const opened = vi.fn();
+    await show(day(), () => undefined, opened);
+    expect(q('ft-activity')!.textContent).toContain('click an event to open it in the Trader');
+    await click(container.querySelector('[data-testid="ft-activity-c1|out"]'));
+    expect(opened).toHaveBeenCalledWith('EFGH');
+    expect(q('ft-proof')).toBeNull();
+  });
+
+  it('opens an Activity event on its trade’s proof when the desk gives the page no Trader', async () => {
     await show(day());
+    expect(q('ft-activity')!.textContent).toContain('click an event for its Proof');
     await click(container.querySelector('[data-testid="ft-activity-c1|out"]'));
     expect(q('ft-proof')).not.toBeNull();
   });
