@@ -1,6 +1,7 @@
 """Chart knowledge boundary for SIM; never expose final, unfinished OHLCV."""
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import datetime, timedelta, timezone
 from decimal import ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP, Decimal
 from zoneinfo import ZoneInfo
@@ -153,15 +154,24 @@ def extend_flat_tail(buckets: list[dict], seconds: int, through: float) -> list[
     return out
 
 
-def aggregate_prints(prints: list[dict], seconds: int) -> list[dict]:
+def aggregate_prints(prints: Iterable[dict], seconds: int) -> list[dict]:
     """Build cached full buckets; callers still gate them by interval end."""
+    return _aggregate(((row["ts"], row.get("price"), row.get("size")) for row in prints), seconds)
+
+
+def aggregate_columns(ts: Iterable[float], price: Iterable[float], size: Iterable[float], seconds: int) -> list[dict]:
+    """``aggregate_prints`` over a ``PrintTable``'s columns (a NaN price or size counts as none)."""
+    return _aggregate(zip(ts, price, size, strict=True), seconds)
+
+
+def _aggregate(prints: Iterable[tuple], seconds: int) -> list[dict]:
     buckets: dict[int, dict] = {}
-    for row in prints:
-        price = float(row.get("price") or 0)
-        if price <= 0:
+    for ts, price, size in prints:
+        price = float(price or 0)
+        if not price > 0:
             continue
-        bucket = int(float(row["ts"]) // seconds) * seconds
-        size = max(0, float(row.get("size") or 0))
+        bucket = int(float(ts) // seconds) * seconds
+        size = max(0, float(size or 0))
         if bucket not in buckets:
             buckets[bucket] = dict(ts=bucket, open=price, high=price, low=price,
                                    close=price, volume=size)

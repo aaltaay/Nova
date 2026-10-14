@@ -13,8 +13,11 @@
  *   number of times before it hands the Retry button back.
  * - A day in the operator's Massive files loads by itself on an empty desk, for
  *   the tab in front -- as the agent's `show` already did (operator, 2026-10-09:
- *   the Sim treats Massive as its data). Never over a loaded replay, never an
- *   IBKR download (paced, and the operator's to start), once per stock-day.
+ *   the Sim treats Massive as its data): read from the files when it has not
+ *   been, loaded straight away when it has (operator, 2026-10-14: after a restart
+ *   OFAL sat under "No replay loaded" over its finished import). Never over a
+ *   loaded replay, never an IBKR download (paced, and the operator's to start),
+ *   once per stock-day.
  * - A day in the files is one import (ADR 046 amendment, 2026-10-09): a scrub on
  *   that day while it runs, or after it, follows the same import -- no second read.
  */
@@ -170,6 +173,16 @@ export function useSimReplayOffer(
     // `window` is rebuilt every render; `key` is its identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deskEmpty, front, key, readsFiles, kind, requestDownload]);
+
+  // ...and a day already read from the files loads straight away (a load the backend may follow with a new read,
+  // for a day cut under a smaller cap; the desk's quiet re-select then folds the whole day in).
+  const imported = base?.kind === 'ready' && Boolean(base.imported);
+  useEffect(() => {
+    if (!deskEmpty || !front || !window || !key || !imported || autoLoaded.has(key)) return;
+    autoLoaded.add(key);
+    void load(window);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deskEmpty, front, key, imported, load]);
 
   // Heal: a Gateway-unreachable failure retries itself once a port answers.
   useEffect(() => {

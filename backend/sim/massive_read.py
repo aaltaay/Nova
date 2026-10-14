@@ -38,6 +38,8 @@ from constants_sim import (
     SIM_MASSIVE_TRADES,
 )
 from sim import massive_files as files, massive_index, massive_store as store
+from sim.history_quotes import QuoteSeries
+from sim.print_table import PrintTable
 
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
@@ -52,13 +54,15 @@ class _Kept:
 
     ``over`` is shared by the readers. The first to pass its cap sets it (``passed``), and each reader trims
     what it holds to the focus the next time it adds a row, and once more when the reading ends. ``count``
-    is every row of the span read, kept or not: the day's size, for the job to state.
+    is every row of the span read, kept or not: the day's size, for the job to state. ``rows`` is compact
+    from the first row on -- a ``PrintTable`` or a ``QuoteSeries`` -- so the read holds a whole busy day in
+    tens of megabytes, not a dict or tuple per row.
     """
 
     def __init__(self, what: str, limit: int, span: tuple[float, float], focus: tuple[float, float],
-                 over: threading.Event, ts):
+                 over: threading.Event, ts, rows: PrintTable | QuoteSeries):
         self.what, self.limit, self.span, self.focus, self.over, self.ts = what, limit, span, focus, over, ts
-        self.rows: list = []
+        self.rows = rows
         self.count = 0
         self.passed = self.trimmed = False
 
@@ -84,7 +88,7 @@ class _Kept:
     def trim(self) -> None:
         if not self.trimmed:
             self.trimmed = True
-            self.rows = [row for row in self.rows if self.focus[0] <= self.ts(row) < self.focus[1]]
+            self.rows = self.rows.within(*self.focus)
 
 
 def _hhmm(ts: float) -> str:
@@ -204,8 +208,10 @@ def _import(job: dict, reads: dict, stop: threading.Event | None) -> dict:
     store.update(job_id, stage="reading", scan_pct=0.0, stages=dict.fromkeys(paths, 0.0))
     began = time.time()
     over = threading.Event()
-    trades = _Kept("printed over", SIM_HISTORY_MAX_SELECTION_PRINTS, (start, end), focus, over, lambda p: p["ts"])
-    quoted = _Kept("quoted over", SIM_MASSIVE_MAX_SELECTION_QUOTES, (start, end), focus, over, lambda q: q[0])
+    trades = _Kept("printed over", SIM_HISTORY_MAX_SELECTION_PRINTS, (start, end), focus, over, lambda p: p["ts"],
+                   PrintTable())
+    quoted = _Kept("quoted over", SIM_MASSIVE_MAX_SELECTION_QUOTES, (start, end), focus, over, lambda q: q[0],
+                   QuoteSeries())
     # The NBBO standing when the span opens, and when the focus opens: whichever is kept starts with it.
     opening: dict[str, tuple | None] = dict(span=None, focus=None)
 
@@ -234,22 +240,24 @@ def _import(job: dict, reads: dict, stop: threading.Event | None) -> dict:
         trades.trim()                                   # a reader that saw no row after another passed its cap
         quoted.trim()
     lo, hi = focus if capped else (start, end)
-    prints = sorted(trades.rows, key=lambda p: (p["ns"], p["sequence"]))
+    prints = trades.rows.sorted_by("ns", "sequence")
     # The ticker's whole day of 1-minute bars, not only the window's: the charts draw the day before the
     # window from them (premarket, the open, the run that led in), never past the playhead (operator, 2026-10-09).
     bars = sorted(results.get(SIM_MASSIVE_MINUTES, []), key=files.minute_start)
-    quotes: list[tuple] = []
+    quotes = QuoteSeries()
     if quotes_file is not None:
         # The first prints kept are judged against the quote standing when they open, never a later one.
         first = opening["focus" if capped else "span"]
-        quotes = ([first] if first is not None else []) + sorted(quoted.rows, key=lambda q: q[0])
+        if first is not None:
+            quotes.append(first)
+        quotes.extend(quoted.rows.in_time_order())
     quote_status = "not_downloaded" if quotes_file is None else ("complete" if quotes else "none")
     over_cap = next((kept for kept in (trades, quoted) if kept.passed), None)
     cap = None if over_cap is None else dict(what="prints" if over_cap is trades else "quotes", count=over_cap.count,
                                              limit=over_cap.limit)
     store.update(job_id, stage="saving", scan_pct=99.0)
     dropped = store.replace_window(job_id, prints, bars, quotes, drop_held=(symbol, day, lo, hi))
-    volume = sum(p["size"] for p in prints if p["sets_price"])
+    volume = sum(prints.where_fields(lambda fields: fields.get("sets_price")).values("size"))
     indexed = ", ".join(name for name, read in reads.items() if read.indexed) or "none"
     logger.info("Massive import %s %s kept %s-%s%s: %d prints, %d bars, %d quotes (%s) in %.0f s (read through an "
                 "index: %s); %d older imports dropped", symbol, day, _hhmm(lo), _hhmm(hi),
@@ -258,6 +266,7 @@ def _import(job: dict, reads: dict, stop: threading.Event | None) -> dict:
     return store.update(job_id, status="complete", stage=None, stages=None, scan_pct=100.0, ranges=[[lo, hi]],
                         cursor=hi, count=len(prints), volume=volume, bar_count=len(bars), quote_count=len(quotes),
                         quote_status=quote_status, error=None, kept_start=_hhmm(lo), kept_end=_hhmm(hi), capped=cap,
+                        packed=True,
                         minutes_scope=MINUTES_SCOPE_DAY if minutes_file is not None else None,
                         elapsed_sec=round(time.time() - began, 1),
                         files=dict(trades=True, quotes=quotes_file is not None, minute_aggs=minutes_file is not None))
