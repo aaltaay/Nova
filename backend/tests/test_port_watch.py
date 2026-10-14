@@ -16,8 +16,8 @@ NOW = 1_791_990_000.0
 EST, TIME_WAIT = 5, 11
 
 
-def conn(port: int, pid: int, state: int = EST) -> tcp.Conn:
-    return tcp.Conn(state, port, pid)
+def conn(port: int, pid: int, state: int = EST, family: int = tcp.AF_INET) -> tcp.Conn:
+    return tcp.Conn(state, port, pid, family)
 
 
 @pytest.fixture(autouse=True)
@@ -32,13 +32,15 @@ def test_a_reading_counts_the_dynamic_ports_and_the_connections_closed_programs_
     conns = [
         conn(8000, 20, tcp.MIB_TCP_STATE_LISTEN),       # a listener holds no outgoing port
         conn(50000, 10), conn(50001, 11), conn(50002, 20),
-        conn(50003, 777), conn(50004, 777), conn(50005, 778),   # their programs have closed
+        conn(50003, 777, family=tcp.AF_INET6), conn(50004, 777, family=tcp.AF_INET6),   # their programs have closed
+        conn(50005, 778),
         conn(50006, 0, TIME_WAIT),                      # owned by nobody: in use, never "closed"
         conn(3000, 20),                                  # outside the dynamic range
     ]
     read = port_watch.reading(now=NOW, conns=conns, procs=procs, dyn=DYN)
     assert read["kind"] == "ports" and read["schema_version"] == 1
     assert read["in_use"] == 7 and read["pct"] == 0
+    assert read["in_use_by_family"] == {"ipv4": 5, "ipv6": 2}     # one pool, each family's share kept
     assert read["closed"] == {"connections": 3, "pids": 2}
     assert read["top"] == [{"name": "msedge.exe", "count": 2}, {"name": "python.exe", "count": 2}]
     assert read["range"] == {"start": 49152, "count": 16384, "source": "netsh"}

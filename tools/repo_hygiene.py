@@ -16,6 +16,11 @@ Usage:
   py -3 tools/repo_hygiene.py status [--json]
   py -3 tools/repo_hygiene.py fix [--dry-run] [--max-age-hours 24]
   py -3 tools/repo_hygiene.py stop-gate      # Claude Code Stop hook (stdin JSON)
+  py -3 tools/repo_hygiene.py install-push-guard [--uninstall]   # opt-in git pre-push hook
+  py -3 tools/repo_hygiene.py push-guard <remote> <url>          # what that hook runs
+
+The stop-gate and the pre-push hook also refuse commits added to a branch whose PR
+is already merged (push_guard.py); without gh they fail open and say so.
 """
 
 from __future__ import annotations
@@ -45,6 +50,7 @@ from repo_hygiene_lib import (  # noqa: E402
     summarize,
 )
 from branch_cleanup import contained_tip  # noqa: E402
+import push_guard  # noqa: E402
 
 GH_TIMEOUT_SEC = 8
 EXIT_CLEAN = 0
@@ -269,6 +275,22 @@ def _stop_state(stop_hook_active: bool) -> dict | None:
     }
 
 
+def _late_push(state: dict) -> str:
+    """push_guard's refusal for this branch, or "" (nothing late, or the check could not run)."""
+    branch = state.get("branch")
+    if state.get("stop_hook_active") or not branch or branch in push_guard.PROTECTED:
+        return ""
+    if _git_ok("rev-parse", "--verify", "--quiet", "origin/master") and not state.get("ahead_of_master"):
+        return ""  # nothing on this branch that master lacks: no gh call
+    verdict = push_guard.check(branch, "HEAD")
+    if verdict.unknown:
+        print(f"repo_hygiene stop-gate: merged-PR check skipped ({verdict.unknown}).", file=sys.stderr)
+    if not verdict.late:
+        return ""
+    pushed = bool(state.get("has_upstream")) and not state.get("ahead")
+    return push_guard.refusal(verdict.late, pushed=pushed)
+
+
 def cmd_stop_gate(_args: argparse.Namespace) -> int:
     try:
         raw = sys.stdin.read() if not sys.stdin.isatty() else ""
@@ -279,6 +301,7 @@ def cmd_stop_gate(_args: argparse.Namespace) -> int:
         state = _stop_state(bool(payload.get("stop_hook_active")))
         if state is None:
             return 0
+        state["late_push"] = _late_push(state)
         block, reason = classify_stop(state)
     except Exception:
         return 0  # fail-open: a broken hook must never trap a session
@@ -286,6 +309,22 @@ def cmd_stop_gate(_args: argparse.Namespace) -> int:
         print(reason, file=sys.stderr)
         return 2
     return 0
+
+
+def cmd_push_guard(_args: argparse.Namespace) -> int:
+    """git pre-push hook body: 1 refuses the push, anything else lets it through."""
+    try:
+        stdin = sys.stdin.read() if not sys.stdin.isatty() else ""
+        return push_guard.run_pre_push(stdin, err=lambda msg: print(msg, file=sys.stderr))
+    except Exception as exc:  # fail-open: a broken guard must never block a push
+        print(f"push-guard: check failed ({type(exc).__name__}); pushing anyway.", file=sys.stderr)
+        return 0
+
+
+def cmd_install_push_guard(args: argparse.Namespace) -> int:
+    code, message = push_guard.install(uninstall=args.uninstall)
+    print(message, file=sys.stderr if code else sys.stdout)
+    return code
 
 
 def format_session_brief_lines() -> list[str]:
@@ -318,6 +357,13 @@ def main(argv: list[str] | None = None) -> int:
     p_fix.set_defaults(func=cmd_fix)
     p_stop = sub.add_parser("stop-gate", help="Claude Code Stop hook")
     p_stop.set_defaults(func=cmd_stop_gate)
+    p_guard = sub.add_parser("push-guard", help="git pre-push hook: refuse commits after a merged PR")
+    p_guard.add_argument("remote", nargs="?")
+    p_guard.add_argument("url", nargs="?")
+    p_guard.set_defaults(func=cmd_push_guard)
+    p_install = sub.add_parser("install-push-guard", help="opt-in: install the pre-push hook")
+    p_install.add_argument("--uninstall", action="store_true")
+    p_install.set_defaults(func=cmd_install_push_guard)
     args = parser.parse_args(argv)
     os.chdir(Path(os.getcwd()))
     return int(args.func(args))

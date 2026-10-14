@@ -36,6 +36,7 @@ from constants_perf import (
 logger = logging.getLogger(__name__)
 
 LISTEN = 2                              # MIB_TCP_STATE_LISTEN
+AF_INET6 = 23
 _IDLE_PIDS = {0, 4}                     # TIME_WAIT rows and the kernel: owned by nobody that could have closed
 
 _lock = threading.Lock()
@@ -47,10 +48,15 @@ _pressure = False                       # inside an episode (warned once)
 
 def reading(*, now: float, conns: Iterable[Any], procs: Iterable[Any], dyn: tuple[int, int, str]) -> dict[str, Any]:
     """One reading from the TCP tables (``winapi.tcp.Conn``), the process list (``winapi.processes.Proc``) and the
-    dynamic range. Pure."""
+    dynamic range. Pure.
+
+    IPv4 and IPv6 connections count against one range: Windows handed both their ports from one pool on
+    2026-10-14 -- IPv4 connects to 127.0.0.1 failed with ~3,600 IPv4 and ~12,800 IPv6 connections open, which
+    two separate 16,384-port pools would have left ~12,000 IPv4 ports to spare. Each family's count is kept
+    beside it (``in_use_by_family``) so a reading can show otherwise."""
     start, count, source = dyn
     names = {int(p.pid): str(p.name) for p in procs}
-    in_use = closed = 0
+    in_use = closed = v6 = 0
     closed_pids: set[int] = set()
     held: Counter[str] = Counter()
     for c in conns:
@@ -58,6 +64,7 @@ def reading(*, now: float, conns: Iterable[Any], procs: Iterable[Any], dyn: tupl
             continue
         if start <= c.local_port < start + count:
             in_use += 1
+            v6 += c.family == AF_INET6
         if c.pid in _IDLE_PIDS:
             continue
         name = names.get(c.pid)
@@ -69,7 +76,8 @@ def reading(*, now: float, conns: Iterable[Any], procs: Iterable[Any], dyn: tupl
     return {
         "kind": "ports", "schema_version": PERF_PORTS_SCHEMA_VERSION, "ts": round(now, 3),
         "range": {"start": start, "count": count, "source": source},
-        "in_use": in_use, "pct": round(100 * in_use / count) if count else 0,
+        "in_use": in_use, "in_use_by_family": {"ipv4": in_use - v6, "ipv6": v6},
+        "pct": round(100 * in_use / count) if count else 0,
         "closed": {"connections": closed, "pids": len(closed_pids)},
         "top": [{"name": n, "count": k} for n, k in held.most_common(PERF_PORTS_TOP)],
     }

@@ -169,6 +169,12 @@ def flush(timeout: float = 5.0) -> bool:
     return not _writer.q.unfinished_tasks
 
 
+def pending() -> int:
+    """Lines not on disk yet: the queued ones and the batch the writer has taken and is writing -- what
+    ``flush`` waits on, and what a hard exit would lose."""
+    return int(_writer.q.unfinished_tasks)
+
+
 def status() -> dict[str, Any]:
     return {"enabled": enabled(), "dir": str(journal_dir()), "written": _writer.written, "dropped": _writer.dropped,
             "queued": _writer.q.qsize(), "last_error": _writer.last_error, "last_write_ts": _writer.last_write_ts}

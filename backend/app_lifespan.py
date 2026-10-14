@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import threading
 import time
 from contextlib import asynccontextmanager
 from importlib import import_module
@@ -151,10 +152,6 @@ def _init_databases(took: dict[str, float]) -> None:
          "execution ledger: init_db failed")
     step("round_trip", lambda: import_module("journal.round_trip").rebuild_from_ledger(),
          "journal.round_trip: ledger rebuild failed")
-    step("order_path", lambda: import_module("execution.warm").warm_order_path(),
-         "execution: order path warm-up failed")
-    step("short_tests", lambda: import_module("setup_scanner.short_tests").warm(),
-         "short tests: first read failed")
     _hod_momo.set_blocklist_changed_hook(invalidate_universe_cache)
 
 
@@ -198,15 +195,42 @@ def _warn_if_env_missing() -> None:
         )
 
 
+def _warm_trading_path(took: dict[str, float]) -> None:
+    """The first order finds its path loaded and the Paper account open (``execution.warm``): first in the
+    local startup, before cache restore and the databases, and before IBKR is asked to connect -- no Paper
+    or Live order is taken until IBKR answers. The short setups' results are read on a thread of their own:
+    their drive can be slow, and the rest of startup need not wait on it."""
+    t = time.perf_counter()
+    try:
+        from execution.warm import warm_order_path
+
+        warm_order_path()
+    except Exception:
+        logger.exception("execution: order path warm-up failed")
+    took["order_path"] = (time.perf_counter() - t) * 1000
+    threading.Thread(target=_read_short_tests, name="short-tests-warm", daemon=True).start()
+
+
+def _read_short_tests() -> None:
+    try:
+        from setup_scanner.short_tests import warm
+
+        warm()
+    except Exception:
+        logger.exception("short tests: first read failed")
+
+
 def _local_startup() -> None:
-    """Sentry + disk restore + DB init. After HTTP yield, off the loop."""
+    """Sentry + the trading path + disk restore + DB init. After HTTP yield, off the loop."""
     t0 = time.perf_counter()
     init_sentry()
     _warn_if_env_missing()
+    took: dict[str, float] = {}
+    t_w = time.perf_counter()
+    _warm_trading_path(took)
     t_s = time.perf_counter()
     _restore_caches()
     t_c = time.perf_counter()
-    took: dict[str, float] = {}
     _init_databases(took)
     t_d = time.perf_counter()
     try:
@@ -237,7 +261,7 @@ def _local_startup() -> None:
         logger.exception("news.lexicon: Loughran-McDonald warm failed to start")
     logger.info(
         "lifespan: local startup sentry=%.0fms cache=%.0fms db=%.0fms (%s)",
-        (t_s - t0) * 1000, (t_c - t_s) * 1000, (time.perf_counter() - t_c) * 1000,
+        (t_w - t0) * 1000, (t_c - t_s) * 1000, (time.perf_counter() - t_c) * 1000,
         " ".join(f"{k}={v:.0f}ms" for k, v in took.items()),
     )
 

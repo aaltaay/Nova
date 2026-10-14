@@ -71,9 +71,23 @@ def test_flush_before_exit_drains_the_journal_then_the_log_queue(monkeypatch):
     import types
 
     order: list[str] = []
-    journal = types.SimpleNamespace(flush=lambda timeout: order.append(f"journal {timeout}"))
+    journal = types.SimpleNamespace(flush=lambda timeout: order.append(f"journal {timeout}") or True)
     setup = types.SimpleNamespace(shutdown_logging=lambda: order.append("logs"))
     monkeypatch.setitem(sys.modules, "eyes.journal", journal)
     monkeypatch.setitem(sys.modules, "logging_setup", setup)
     guard._flush_before_exit()
-    assert order == ["journal 1.0", "logs"]
+    assert order == [f"journal {guard.JOURNAL_FLUSH_SEC}", "logs"]
+
+
+def test_a_journal_that_cannot_drain_says_how_many_lines_the_exit_loses(monkeypatch, caplog):
+    import sys
+    import types
+
+    caplog.set_level("ERROR", logger=guard.logger.name)
+    # The writer's in-flight batch counts: status()["queued"] can read 0 while pending() does not (review).
+    journal = types.SimpleNamespace(flush=lambda timeout: False, pending=lambda: 37, status=lambda: {"queued": 0})
+    monkeypatch.setitem(sys.modules, "eyes.journal", journal)
+    monkeypatch.setitem(sys.modules, "logging_setup", types.SimpleNamespace(shutdown_logging=lambda: None))
+    guard._flush_before_exit()
+    [rec] = caplog.records
+    assert "37 line(s) not on disk" in rec.getMessage() and "lost" in rec.getMessage()

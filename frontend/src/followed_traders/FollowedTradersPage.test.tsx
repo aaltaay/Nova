@@ -63,6 +63,14 @@ describe('FollowedTradersPage', () => {
     await act(async () => { (el as HTMLElement).click(); });
     await flush();
   };
+  const hover = async (el: Element, type: 'mouseover' | 'mouseout', ms: number) => {
+    await act(async () => {
+      el.dispatchEvent(new MouseEvent(type, { bubbles: true, relatedTarget: document.body }));
+      await new Promise((r) => setTimeout(r, ms));
+    });
+    await flush();
+  };
+  const card = (id: string) => document.querySelector(`[data-testid="ft-proof-card-${id}"]`) as HTMLElement | null;
 
   it("labels each slot with the read's time when the feed reads the stream's past, never 'now'", async () => {
     await show(day({ capture: { ...day().capture!, clock: '09:40:00', traders: ['ALPHA'] } }));
@@ -92,6 +100,13 @@ describe('FollowedTradersPage', () => {
     expect(q('ft-off-air-close-o1')!.textContent).toBe('off air');
     // BRAVO is on the bar: as before.
     expect(q('ft-trader-BRAVO')!.textContent).toContain('On air');
+    // Its exit has a time but no picture of a close: both proofs say why (review of PR #954).
+    await hover(q('ft-proof-o1')!, 'mouseover', FOLLOWED_PROOF_HOVER_OPEN_MS + 30);
+    expect(card('o1')!.textContent).toContain('Closed when they left the bar');
+    expect(card('o1')!.querySelector('img[alt="ALPHA\'s position bar at the exit"]')).toBeNull();
+    await click(card('o1'));
+    expect(q('ft-proof')!.textContent).toContain('Closed when they left the bar');
+    expect(q('ft-proof')!.querySelector('img[alt="ALPHA\'s position bar at the exit"]')).toBeNull();
   });
 
   it('says the feed is not configured on a 404, never an empty list', async () => {
@@ -267,14 +282,6 @@ describe('FollowedTradersPage', () => {
 
   it('shows a trade’s screenshots when Proof is hovered, and the whole Proof on a click of the card', async () => {
     await show(day());
-    const hover = async (el: Element, type: 'mouseover' | 'mouseout', ms: number) => {
-      await act(async () => {
-        el.dispatchEvent(new MouseEvent(type, { bubbles: true, relatedTarget: document.body }));
-        await new Promise((r) => setTimeout(r, ms));
-      });
-      await flush();
-    };
-    const card = (id: string) => document.querySelector(`[data-testid="ft-proof-card-${id}"]`) as HTMLElement | null;
     await hover(q('ft-proof-c1')!, 'mouseover', FOLLOWED_PROOF_HOVER_OPEN_MS + 30);
     const peek = card('c1')!;
     expect(peek.textContent).toContain('ALPHA');

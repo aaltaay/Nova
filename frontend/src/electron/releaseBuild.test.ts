@@ -6,13 +6,18 @@
  * its head's commit count, and any failure says exactly what the dialog said
  * before, with one line in update.log.
  */
+import fs from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  RELEASE_BUILD_PACK_JOB,
+  RELEASE_BUILD_PACK_RUNNER,
+  RELEASE_BUILD_REQUIRED_CHECKS,
   RELEASE_BUILD_TIMEOUT_MS,
   commitCount,
   createReleaseBuild,
+  jobsUrl,
   masterRuns,
-  pushRunPacks,
+  runWillPublish,
   runsUrl,
 } from '../../electron/releaseBuild.mjs';
 import { buildingDetail, manualCheckResult } from '../../electron/updateCopy.mjs';
@@ -37,7 +42,19 @@ const run = (over: Record<string, unknown> = {}) => ({
 const linkTo = (count: number) =>
   `<https://api.github.com/repositories/1210849735/commits?sha=${SHA}&per_page=1&page=2>; rel="next", `
   + `<https://api.github.com/repositories/1210849735/commits?sha=${SHA}&per_page=1&page=${count}>; rel="last"`;
-const job = (name: string, labels: string[]) => ({ name, status: 'in_progress', labels });
+const job = (name: string, labels: string[], over: Record<string, unknown> = {}) => ({
+  id: 1,
+  run_attempt: 1,
+  name,
+  status: 'in_progress',
+  conclusion: null,
+  labels,
+  ...over,
+});
+const red = { status: 'completed', conclusion: 'failure' };
+const green = { status: 'completed', conclusion: 'success' };
+// PR delivery's run while it packs: the pack on Windows, Release checks still running.
+const packing = { jobs: [job('Desktop pack', ['windows-latest']), job('Release checks / Backend tests', ['ubuntu-latest'])] };
 
 type Answer = { status?: number; body?: unknown; link?: string | null };
 type Route = Answer | ((init?: { signal?: AbortSignal }) => Promise<unknown>);
@@ -88,14 +105,64 @@ describe('which run is a release being built', () => {
     expect(() => masterRuns({ message: 'API rate limit exceeded' })).toThrow('list of workflow runs');
   });
 
-  it("knows a push run packs only once its Desktop pack job runs on Windows", () => {
-    expect(pushRunPacks({ jobs: [job('changes / Select affected checks', ['ubuntu-latest']), job('Desktop pack', ['windows-latest'])] })).toBe(true);
+  it('counts a dispatch run while its Release can still be published', () => {
+    const dispatch = run();
+    expect(runWillPublish(dispatch, packing)).toBe(true);
+    // Queued: no job has started yet.
+    expect(runWillPublish(dispatch, { jobs: [] })).toBe(true);
+    expect(runWillPublish(dispatch, { jobs: [job('Desktop pack', ['windows-latest'], green)] })).toBe(true);
+  });
+
+  it('drops a run whose pack or a required check finished red, though the run is still in progress (Codex review)', () => {
+    const dispatch = run();
+    expect(runWillPublish(dispatch, { jobs: [job('Desktop pack', ['windows-latest'], red)] })).toBe(false);
+    for (const check of RELEASE_BUILD_REQUIRED_CHECKS) {
+      for (const caller of ['Release checks', 'verify']) {
+        const jobs = [job('Desktop pack', ['windows-latest']), job(`${caller} / ${check}`, ['ubuntu-latest'], red)];
+        expect(runWillPublish(dispatch, { jobs }), `${caller} / ${check}`).toBe(false);
+      }
+    }
+    for (const conclusion of ['cancelled', 'timed_out', 'skipped']) {
+      const jobs = [job('Desktop pack', ['windows-latest'], { status: 'completed', conclusion })];
+      expect(runWillPublish(dispatch, { jobs }), conclusion).toBe(false);
+    }
+    // A check outside the gate's list (a security scan is warning-only) holds nothing.
+    const scan = job('Release checks / CodeQL', ['ubuntu-latest'], red);
+    expect(runWillPublish(dispatch, { jobs: [...packing.jobs, scan] })).toBe(true);
+  });
+
+  it("reads each job's newest attempt, so a re-run of a red pack counts again", () => {
+    const jobs = [
+      job('Desktop pack', ['windows-latest'], { id: 10, run_attempt: 1, ...red }),
+      job('Desktop pack', ['windows-latest'], { id: 20, run_attempt: 2 }),
+    ];
+    expect(runWillPublish(run(), { jobs })).toBe(true);
+    expect(runWillPublish(run(), { jobs: [...jobs].reverse() })).toBe(true);
+  });
+
+  it('knows a push run packs only once its Desktop pack job runs on Windows', () => {
+    const push = run({ event: 'push' });
+    const changes = job('changes / Select affected checks', ['ubuntu-latest'], green);
+    expect(runWillPublish(push, { jobs: [changes, job('Desktop pack', ['windows-latest'])] })).toBe(true);
     // A docs-only push packs nothing: the job runs on Linux and the commit gets a tag, no Release.
-    expect(pushRunPacks({ jobs: [job('Desktop pack', ['ubuntu-latest'])] })).toBe(false);
+    expect(runWillPublish(push, { jobs: [job('Desktop pack', ['ubuntu-latest'], green)] })).toBe(false);
     // Before `changes` answers, the job is not listed with a runner: not counted.
-    expect(pushRunPacks({ jobs: [job('changes / Select affected checks', ['ubuntu-latest'])] })).toBeNull();
-    expect(pushRunPacks({ jobs: [job('Desktop pack', [])] })).toBeNull();
-    expect(() => pushRunPacks({})).toThrow('list of jobs');
+    expect(runWillPublish(push, { jobs: [changes] })).toBeNull();
+    expect(runWillPublish(push, { jobs: [job('Desktop pack', [])] })).toBeNull();
+    expect(runWillPublish(run({ event: 'schedule' }), packing)).toBe(false);
+    expect(() => runWillPublish(push, {})).toThrow('list of jobs');
+  });
+
+  it('names the same jobs as the release gate and the workflow', () => {
+    const gate = fs.readFileSync(new URL('../../../tools/release_gate.py', import.meta.url), 'utf8');
+    const tuple = /REQUIRED_CHECKS: tuple\[str, \.\.\.\] = \(([^)]*)\)/.exec(gate)?.[1] ?? '';
+    expect([...tuple.matchAll(/"([^"]+)"/g)].map((m) => m[1])).toEqual([...RELEASE_BUILD_REQUIRED_CHECKS]);
+    expect(gate).toContain('CHECKS_PREFIX = "Release checks"');
+    expect(gate).toContain(`PACK_CHECK = "${RELEASE_BUILD_PACK_JOB}"`);
+    const workflow = fs.readFileSync(new URL('../../../.github/workflows/desktop-pack.yml', import.meta.url), 'utf8');
+    expect(workflow).toMatch(new RegExp(`name: ${RELEASE_BUILD_PACK_JOB}\\r?\\n`));
+    expect(workflow).toMatch(/name: Release checks\r?\n/);
+    expect(workflow).toContain(`'${RELEASE_BUILD_PACK_RUNNER}'`);
   });
 
   it("reads a commit's vNNN from the last page of a one-commit-a-page list", () => {
@@ -109,10 +176,16 @@ describe('createReleaseBuild', () => {
   it('names the release PR delivery is packing, and when it started', async () => {
     const gh = github({
       'status=in_progress': { body: { total_count: 1, workflow_runs: [run()] } },
+      '/runs/38477662219/jobs': { body: packing },
       [`/commits?sha=${SHA}&per_page=1`]: { link: linkTo(1276) },
     });
     expect(await watch(gh.fetch).find('v1275')).toEqual({ tag: 'v1276', status: 'in_progress', startedAt: MERGED_AT });
-    expect(gh.calls).toEqual([runsUrl('in_progress'), `${API}/commits?sha=${SHA}&per_page=1`]);
+    expect(gh.calls).toEqual([
+      runsUrl('in_progress'),
+      `${API}/actions/runs/38477662219/jobs?filter=latest&per_page=100`,
+      `${API}/commits?sha=${SHA}&per_page=1`,
+    ]);
+    expect(jobsUrl(38477662219)).toBe(gh.calls[1]);
     expect(gh.calls[0]).toBe(
       `${API}/actions/workflows/desktop-pack.yml/runs?branch=master&status=in_progress&exclude_pull_requests=true&per_page=5`,
     );
@@ -127,9 +200,21 @@ describe('createReleaseBuild', () => {
     const gh = github({
       'status=in_progress': { body: { workflow_runs: [docs, run()] } },
       '/runs/2/jobs': { body: { jobs: [job('Desktop pack', ['ubuntu-latest'])] } },
+      '/jobs': { body: packing },
       [`/commits?sha=${SHA}`]: { link: linkTo(1276) },
     });
     expect((await watch(gh.fetch).find('v1275'))?.tag).toBe('v1276');
+  });
+
+  it('skips a run whose pack already failed, and says nothing when no other is building', async () => {
+    const gh = github({
+      'status=in_progress': { body: { workflow_runs: [run()] } },
+      '/jobs': { body: { jobs: [job('Desktop pack', ['windows-latest'], red), job('Release checks / Frontend E2E', [])] } },
+      'status=queued': { body: { workflow_runs: [] } },
+    });
+    expect(await watch(gh.fetch).find('v1275')).toBeNull();
+    expect(gh.calls.some((url) => url.includes('/commits?'))).toBe(false);
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 
   it('names a human push that packs', async () => {
@@ -145,6 +230,7 @@ describe('createReleaseBuild', () => {
     const gh = github({
       'status=in_progress': { body: { workflow_runs: [] } },
       'status=queued': { body: { workflow_runs: [run({ status: 'queued', run_started_at: undefined })] } },
+      '/jobs': { body: { jobs: [] } },
       [`/commits?sha=${SHA}`]: { link: linkTo(1276) },
     });
     expect(await watch(gh.fetch).find('v1275')).toEqual({ tag: 'v1276', status: 'queued', startedAt: MERGED_AT });
@@ -163,6 +249,7 @@ describe('createReleaseBuild', () => {
   it('says nothing for a run of the installed release or an older one', async () => {
     const gh = github({
       'status=in_progress': { body: { workflow_runs: [run({ head_sha: OLD_SHA })] } },
+      '/jobs': { body: packing },
       [`/commits?sha=${OLD_SHA}`]: { link: linkTo(1275) },
     });
     expect(await watch(gh.fetch).find('v1275')).toBeNull();
@@ -173,7 +260,7 @@ describe('createReleaseBuild', () => {
     ['an answer of another shape', { 'status=in_progress': { body: [] } }, 'list of workflow runs'],
     [
       'no commit count',
-      { 'status=in_progress': { body: { workflow_runs: [run()] } }, '/commits?': { link: null } },
+      { 'status=in_progress': { body: { workflow_runs: [run()] } }, '/jobs': { body: packing }, '/commits?': { link: null } },
       'no commit count for c7dc401d',
     ],
   ])('falls back on %s, with one line in update.log', async (_name, routes, reason) => {
