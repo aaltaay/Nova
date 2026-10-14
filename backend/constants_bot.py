@@ -198,6 +198,9 @@ BOT_BREAKER_STEP_USD = 5.0
 BOT_BREAKER_VENUES = ("live", "paper", "sim")
 BOT_REASON_BREAKER_INVALID = "BOT_BREAKER_INVALID"
 BOT_FLATTEN_RETRIES = 1
+# The breakers' notice names the order that opened what a flatten sold (``bot.flatten.opened_by``), read
+# from this many of the newest execution records (2026-10-14, GENK: "I don't think there was an order").
+BOT_FLATTEN_OPENED_BY_SCAN = 200
 BOT_BREAKER_POLL_SEC = 1.0
 BOT_TTL_POLL_SEC = 0.5
 BOT_EYES_PUSH_SEC = 0.25

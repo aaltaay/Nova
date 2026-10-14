@@ -6,12 +6,18 @@ locked", and nothing on record said which stock, when or why: the desk judged th
 Each flip now lands in the log beside the IBKR lines that explain it ("our audit trails should be very
 clear to the eye"). Log only: nothing is stored, and the backend's own order gate (``market_view.gate``)
 is unchanged.
+
+GET /api/market-view/gate?symbol= -- the backend's own answer for a symbol now (ADR 045 amendment
+2026-10-14, "one funnel"): ``{schema_version, symbol, locked, code, text, checked_at}``, from the same
+``market_view.gate.desk_lock`` the order door refuses with.
 """
 from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter
+import time
+
+from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
 router = APIRouter(tags=["market-view"])
@@ -38,3 +44,22 @@ async def post_lock_flip(body: LockFlip) -> dict:
         held = f"{body.locked_for_ms / 1000:.1f} s" if body.locked_for_ms is not None else "an unknown time"
         logger.info("order lock OFF %s -- open again after %s", symbol, held)
     return {"ok": True}
+
+
+@router.get("/api/market-view/gate")
+def get_gate(symbol: str = Query(..., min_length=1, max_length=16)) -> dict:
+    """Whether new orders on *symbol* are locked right now, and why, in the door's own words."""
+    from constants_market_view import MARKET_VIEW_SCHEMA_VERSION
+    from market_view.gate import desk_lock
+
+    sym = symbol.strip().upper()
+    now = time.time()
+    lock = desk_lock(sym, now=now)
+    return {
+        "schema_version": MARKET_VIEW_SCHEMA_VERSION,
+        "symbol": sym,
+        "locked": lock is not None,
+        "code": lock["code"] if lock else None,
+        "text": lock["text"] if lock else None,
+        "checked_at": now,
+    }

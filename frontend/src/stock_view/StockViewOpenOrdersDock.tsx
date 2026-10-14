@@ -226,7 +226,7 @@ export const StockViewOpenOrdersDock = memo(function StockViewOpenOrdersDock({
                 <PositionsPanel
                   summary={summary}
                   positions={positions}
-                  orders={[]}
+                  orders={orders}
                   error={accountError}
                   selectedSymbol={symbolKey}
                   onSelectSymbol={onSelectSymbol}

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { WS_BASE_URL } from '../constants';
 import { upsertTapePrint10SecBar } from '../chart/barsStore';
+import { forgetBackendGate, noteBackendGate } from '../market_view';
 import { SAMPLE_LIVE_FEED_ABSENT } from '../sample_data/sampleCopy';
 import { onSampleDesk } from '../sample_data/sampleOrderGuard';
 import { createRafCoalesce } from '../utils/rafCoalesce';
@@ -63,7 +64,9 @@ export interface TapeOptions {
  * moment as the tab's Level 2.
  *
  * A live line with no print for a while (#722): each idle `ping` carries the backend's reading
- * (`silence`: halted, silent or quiet), and any print clears it.
+ * (`silence`: halted, silent or quiet), and any print clears it. Each ping, and a `gate` frame whenever it
+ * changes, also carries the order gate's answer for the symbol (ADR 045 amendment 2026-10-14): the market view
+ * registry locks the ticket with the door's own words while Time & Sales misses trades.
  */
 export function useIbkrTape(symbol: string | null, uiActive = true, options: TapeOptions = {}): TapeState {
   const traderTab = options.traderTab === true;
@@ -168,9 +171,16 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
             line.answered();
           }
 
+          // The order gate's own answer for this stock (ADR 045 amendment 2026-10-14): the ticket locks with it.
+          if (msg.type === 'gate') {
+            noteBackendGate(symKey!, msg.gate ?? null);
+            return;
+          }
+
           if (msg.type !== 'ping') silenceRef.current = null;  // a print, or any word on the line, ends a silence
 
           if (msg.type === 'ping') {
+            noteBackendGate(symKey!, msg.gate);
             const next = parseTapeSilence(msg.silence);
             const prev = silenceRef.current;
             if (next?.state !== prev?.state || next?.since !== prev?.since || next?.text !== prev?.text) {
@@ -252,6 +262,7 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
         if (!mountedRef.current || ws !== wsRef.current) return;
         connectedRef.current = false;
         silenceRef.current = null;
+        forgetBackendGate(symKey!);
         // Lent: never by the backoff -- when the loan ends (the poll), or now if this pane is in front.
         const lent = line.closed();
         if (uiActiveRef.current) commitUi();
@@ -276,6 +287,7 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
       const ws = wsRef.current;
       wsRef.current = null;
       ws?.close();
+      forgetBackendGate(symKey);
     };
   }, [symbol, traderTab]);
 

@@ -133,6 +133,18 @@ def _persist(row: dict[str, Any]) -> None:
         logger.warning("IBKR notice %s: could not queue it for the perf record", row.get("code"), exc_info=True)
 
 
+def record_connectivity(code: int, notice: str, message: str, now: float | None = None) -> None:
+    """IBKR's connectivity loss or restore (1100 / 1101 / 1102) into the perf day file as an ``ib_notice``.
+
+    ``ibkr.session_errors`` owns what they do to the session; this keeps them beside the farm notices as
+    the evidence for IBKR (ADR 045 amendment 2026-10-14, ``tools/ibkr_feed_report.py``): on 2026-10-14
+    the Gateway lost IBKR six times before 09:25 and only the text log said so.
+    """
+    ts = time.time() if now is None else float(now)
+    _persist({"ts": round(ts, 3), "code": int(code), "notice": notice, "farm": None, "farm_type": None,
+              "message": (message or "").strip(), "req_id": None, "symbol": None})
+
+
 def view() -> dict[str, Any]:
     """Each farm's last word and the notices kept, newest last (memory only)."""
     with _lock:

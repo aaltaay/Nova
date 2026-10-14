@@ -39,7 +39,17 @@ kept with IBKR's row rules; #540). Fills follow the same rules
 below with `fill_basis` `live_quote` (a quote was present) or `live_print`
 (last print only); resting orders fill on live tape prints that set a price
 and arrive after they were placed, which needs the symbol's tape line open --
-the practice broker holds one while an order rests. The venue never changes the bot -- gating is identical on Paper,
+the practice broker holds one while an order rests. **While that line misses
+trades** (`ibkr.tape_silence.missed_trades`: its Level 1 shows a trade 3 s or
+more after its last print; ADR 045 amendment 2026-10-14) the live matcher also
+hands the broker IBKR's Level 1 Last -- tick 4, reportable trades only, never
+the prior close -- once a pass, stamped with IBKR's Last Timestamp, as one print
+(`fill_basis: "l1_last"`, the same rules): a resting order fills when Live's
+would. Each Level 1 trade is handed over once; one stamped at or before the
+order's placement never fills it. On 2026-10-14 GENK's tape printed nothing
+from 09:25:11 to 09:28:25 while its Level 1 traded 2.7592 at 09:25:22; a Paper
+buy limit at 2.76 sat unfilled for three minutes and filled on the first print
+back, at once, and the bot trip sold it 0.8 s later. The venue never changes the bot -- gating is identical on Paper,
 Live and Sim. Fees and buying power: `architecture/practice-account.md`.
 
 ## The live edge (ADR 020 amendment, operator decision 2026-09-21 evening)
@@ -121,6 +131,7 @@ be unknown:
 | `STP` already through the market on arrival | the touch | `stop_trigger` |
 | `STP` resting, a later print crosses the stop | that print | `stop_trigger` |
 | Protective close with the replay unloaded, or in a gap / undownloaded stretch | the last known mark | `last_mark` |
+| Paper (and Sim at the live edge): `LMT` / `STP` resting while the symbol's Time & Sales misses trades, and IBKR's Level 1 Last (tick 4) reaches it | the limit / that trade | `l1_last` |
 
 A resting order only ever fills on prints **after** it was placed, so scrubbing
 backwards can never fill it, and moving the playhead forward fills it at the

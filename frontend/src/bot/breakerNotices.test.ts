@@ -95,3 +95,35 @@ describe('the loss breakers\' notice', () => {
     expect(pushed).toEqual([expect.objectContaining({ tone: 'bad', title: 'Bot trip sold your positions' })]);
   });
 });
+
+// 2026-10-14 09:28:27 ET: the Paper bot trip sold 1,000 GENK that a 3-minute-old buy had bought 0.8 s earlier,
+// and the operator was sure there had been no order.
+describe('the trip names the order behind what it sold', () => {
+  const GENK_TRIP = 1791984507.42;
+
+  it('says which order opened the position, when it was placed and when it filled', () => {
+    const trip = breakerTripOf(line({
+      timestamp: GENK_TRIP,
+      inputs: {
+        flatten_ok: true, threshold: -405, pnl: -425.34, venue: 'paper', flatten_error: null,
+        closes: [{
+          symbol: 'GENK', side: 'SELL', qty: 1000, ok: true, order_id: 256, error: null,
+          opened_by: {
+            order_id: 255, source: 'manual', side: 'BUY', qty: 1000, order_type: 'LMT', price: 2.76,
+            placed_ts: 1791984319.81, filled_ts: 1791984506.6,
+          },
+        }],
+      },
+    }))!;
+    const body = breakerTripBody(trip).split('\n');
+    expect(body[1]).toBe('Sold 1,000 GENK · order 256');
+    expect(body[2]).toBe(
+      'It came from your order 255: Buy 1,000 GENK LMT 2.76, placed 09:25:19 ET, filled 09:28:26 ET.',
+    );
+  });
+
+  it('says nothing more when the backend could not tell, or the close failed', () => {
+    const trip = breakerTripOf(line())!;
+    expect(breakerTripBody(trip).split('\n')[2]).toMatch(/^The bot is Off/);
+  });
+});

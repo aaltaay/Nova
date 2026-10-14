@@ -34,6 +34,7 @@ from constants import (
     IBKR_ERROR_READ_ONLY_API,
     IBKR_READ_ONLY_API_MARKERS,
 )
+from ibkr import farm_notices as _farm_notices
 from ibkr import reference_errors as _reference
 from ibkr import session_state as _session
 
@@ -294,6 +295,7 @@ def _on_ib_error(
         except Exception:
             logger.debug("session_errors: set_degraded failed", exc_info=True)
         _publish_reason("connectivity_lost")
+        _farm_notices.record_connectivity(code, "connectivity_lost", msg, now)
         _wake_reconnect()
         return
 
@@ -306,6 +308,7 @@ def _on_ib_error(
         _last_connectivity_ts = now
         _restore_pending = "data_lost"
         _publish_reason("connectivity_data_lost")
+        _farm_notices.record_connectivity(code, "restored_data_lost", msg, now)
         _wake_reconnect()
         return
 
@@ -318,6 +321,7 @@ def _on_ib_error(
         _last_connectivity_ts = now
         _restore_pending = "data_kept"
         _publish_reason("connectivity_restored")
+        _farm_notices.record_connectivity(code, "restored_data_kept", msg, now)
         _wake_reconnect()
         return
 

@@ -26,8 +26,17 @@ export const LEVEL2_REFUSED_LEAD = 'No Level 2 for';
 export const LEVEL2_REFUSED_TAIL = 'Orders are locked until a Level 2 is live. Flatten and cancels still work.';
 export const TICKET_LEVEL2_REFUSED_LABEL = 'No Level 2 · locked';
 
+/**
+ * The backend's own lock (ADR 045 amendment 2026-10-14, "one funnel"): the Time & Sales socket sends the order
+ * gate's answer for the symbol (`market_view.gate.desk_lock`), and the ticket locks with the door's own words.
+ * GENK, 2026-10-14: the tape missed every trade from 09:25:11 while an order went out at 09:25:19.
+ */
+export const TAPE_STALE_CODE = 'TAPE_STALE';
+export const TICKET_TAPE_LOCKED_LABEL = 'Time & Sales behind · locked';
+export const TICKET_FEED_LOCKED_LABEL = 'Nova behind the market · locked';
+
 /** Each lock flip is written to the backend log (`backend/routes/market_view_lock.py`). */
 export const VIEW_LOCK_REPORT_PATH = '/market-view/lock';
 
 /** The backend's refusal codes (`market_view.gate`). */
-export const VIEW_REFUSAL_CODES = ['VIEW_STALE', 'ORDER_LATE', 'FEED_STALE', 'VIEW_MISSING'] as const;
+export const VIEW_REFUSAL_CODES = ['VIEW_STALE', 'ORDER_LATE', 'FEED_STALE', 'TAPE_STALE', 'VIEW_MISSING'] as const;

@@ -165,8 +165,12 @@ adds `day_lock: {active, until, tripped_at, pnl, venue, threshold, text}`,
 breakers compare nothing and `breakers.note` says so. The Bots page drags the two markers on the desk venue's bar (it asks
 before loosening Live), and the Account page's Risk block reads the same pair. A trip's flatten carries
 its origin (`bot_trip` / `all_stop`, "Who sent it" under the execution command), and its audit line
-(`breaker_soft` / `breaker_hard`) adds `inputs.closes: [{symbol, side, qty, ok, order_id, error}]` (what
-the flatten sold, one line per position) and `inputs.flatten_error`. **Every desk window says so**
+(`breaker_soft` / `breaker_hard`) adds `inputs.closes: [{symbol, side, qty, ok, order_id, error, opened_by}]`
+(what the flatten sold, one line per position) and `inputs.flatten_error`. `opened_by` (2026-10-14, ADR 045
+amendment) is the newest filled order on the other side of that close on the trip's venue, from the execution
+record (`bot.flatten.opened_by`): `{order_id, source, side, qty, order_type, price (the order's own limit or
+stop, never a guessed fill), placed_ts, filled_ts} | null`; the notice adds "It came from your order 255: Buy
+1,000 GENK LMT 2.76, placed 09:25:19 ET, filled 09:28:26 ET." under the close. **Every desk window says so**
 (operator report 2026-10-01: the trip had been visible only on the Bots and Account pages): the bot's
 notices (`frontend/src/bot/breakerNotices.ts`) read the polled audit stream and raise one notice per trip
 younger than 10 minutes -- "Bot trip sold your positions", the venue, the day P&L against the limit, the

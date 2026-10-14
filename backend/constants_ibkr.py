@@ -492,6 +492,14 @@ IBKR_IBC_COMMAND_HOST = "127.0.0.1"
 IBKR_IBC_COMMAND_TIMEOUT_SEC = 5.0
 # Asked before a RESTART: with no internet a restarted Gateway cannot log back in.
 IBKR_GATEWAY_INTERNET_PROBE_HOST = "www.interactivebrokers.com"
+# Owner: ibkr/tape_recovery.py (#722, ADR 045 amendment 2026-10-14). A Time & Sales line that reads
+# dead makes Nova send IBC's RECONNECTDATA (the Gateway's Reconnect Data, Ctrl-Alt-F: data farms only,
+# the order connection stays), at most this often. On 2026-10-14 GENK's, BEZ's and MXCT's tapes stopped
+# at 09:25:11 with IBKR's chart history and came back 0.8 s after IBKR's own reset of that farm at 09:28:24.
+IBKR_RECONNECT_DATA_COOLDOWN_SEC = 300.0
+# ...and this long after asking it records which of the dead lines printed again (measured, never claimed).
+IBKR_RECONNECT_DATA_VERIFY_SEC = 30.0
+IBKR_RECONNECT_DATA_COMMAND = "RECONNECTDATA"
 
 # ── Market-data discovery provider (gappers / gainers / losers source) ────────
 # Product lock: IBKR is the only scanner discovery source. Alpaca scanner

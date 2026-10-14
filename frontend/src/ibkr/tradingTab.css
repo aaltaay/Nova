@@ -393,6 +393,13 @@
   font-weight: 600;
 }
 
+/* No position, but an order works (ADR 045 amendment 2026-10-14): never read as "nothing going on". */
+.ibkr-empty__working {
+  margin-top: 4px;
+  color: var(--amber, #f59e0b);
+  font-weight: 600;
+}
+
 .ibkr-order-actions {
   display: flex;
   flex-wrap: wrap;

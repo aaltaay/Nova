@@ -25,6 +25,19 @@ const VENUES: Record<string, string> = { live: 'Live', paper: 'Paper', sim: 'Sim
 
 export type BreakerKind = 'bot_trip' | 'all_stop';
 
+/** The order that opened what a close sold (backend `bot.flatten.opened_by`, since 2026-10-14). */
+export type BreakerOpenedBy = {
+  orderId: number | null;
+  source: string | null;
+  side: string | null;
+  qty: number | null;
+  orderType: string | null;
+  price: number | null;
+  /** Epoch seconds. */
+  placedAt: number | null;
+  filledAt: number | null;
+};
+
 export type BreakerClose = {
   symbol: string;
   side: string | null;
@@ -32,6 +45,8 @@ export type BreakerClose = {
   ok: boolean;
   orderId: number | null;
   error: string | null;
+  /** Null when the backend did not say (older lines) or could not tell. */
+  openedBy: BreakerOpenedBy | null;
 };
 
 export type BreakerTrip = {
@@ -57,6 +72,21 @@ function text(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
+function parseOpenedBy(value: unknown): BreakerOpenedBy | null {
+  if (!value || typeof value !== 'object') return null;
+  const row = value as Record<string, unknown>;
+  return {
+    orderId: num(row.order_id),
+    source: text(row.source),
+    side: text(row.side),
+    qty: num(row.qty),
+    orderType: text(row.order_type),
+    price: num(row.price),
+    placedAt: num(row.placed_ts),
+    filledAt: num(row.filled_ts),
+  };
+}
+
 function parseCloses(value: unknown): BreakerClose[] | null {
   if (!Array.isArray(value)) return null;
   return value
@@ -68,6 +98,7 @@ function parseCloses(value: unknown): BreakerClose[] | null {
       ok: row.ok === true,
       orderId: num(row.order_id),
       error: text(row.error),
+      openedBy: parseOpenedBy(row.opened_by),
     }));
 }
 
@@ -118,6 +149,26 @@ export function breakerCloseLine(close: BreakerClose): string {
   return `${verb} ${qty}${close.symbol}${close.orderId != null ? ` · order ${close.orderId}` : ''}`;
 }
 
+const OPENERS: Record<string, string> = { manual: 'your', bot: "the bot's" };
+
+/**
+ * "It came from your order 255: Buy 1,000 GENK LMT 2.76, placed 09:25:19 ET, filled 09:28:26 ET." -- so a trip
+ * never sells a position the operator cannot place (GENK, 2026-10-14: "I don't think there was an order").
+ */
+export function breakerOpenedLine(close: BreakerClose): string | null {
+  const by = close.openedBy;
+  if (!close.ok || !by || by.orderId == null) return null;
+  const whose = (by.source && OPENERS[by.source]) || 'the';
+  const side = by.side === 'SELL' ? 'Sell' : 'Buy';
+  const qty = by.qty != null ? `${formatShareQty(by.qty)} ` : '';
+  const type = (by.orderType ?? '').toUpperCase();
+  const price = by.price != null ? ` ${type ? `${type} ` : ''}${by.price}` : '';
+  const placed = etClock(by.placedAt);
+  const filled = etClock(by.filledAt);
+  const when = [placed && `placed ${placed} ET`, filled && `filled ${filled} ET`].filter(Boolean).join(', ');
+  return `It came from ${whose} order ${by.orderId}: ${side} ${qty}${close.symbol}${price}${when ? `, ${when}` : ''}.`;
+}
+
 /** The notice's lines: what tripped and when, what was sold, and what follows. */
 export function breakerTripBody(trip: BreakerTrip): string {
   const facts: string[] = [];
@@ -132,7 +183,13 @@ export function breakerTripBody(trip: BreakerTrip): string {
   const lines = [facts.join(' · ')];
   if (trip.closes == null) lines.push('Every open position was sold. The Orders table lists them.');
   else if (!trip.closes.length) lines.push('Nothing was held, so nothing was sold.');
-  else lines.push(...trip.closes.map(breakerCloseLine));
+  else {
+    for (const close of trip.closes) {
+      lines.push(breakerCloseLine(close));
+      const opened = breakerOpenedLine(close);
+      if (opened) lines.push(opened);
+    }
+  }
   if (trip.flattenOk === false && trip.flattenError) lines.push(trip.flattenError);
   if (trip.kind === 'all_stop') {
     const venue = trip.venue ? VENUES[trip.venue] ?? trip.venue : 'this venue';

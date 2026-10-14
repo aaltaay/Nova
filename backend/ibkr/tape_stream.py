@@ -59,9 +59,10 @@ IBKR_TAPE_RESUBSCRIBE_GUARD_SEC = 16.0  # IB requires 15s gap; add 1s margin
 # Last WS viewer left -- keep the IB line up so Scanner/Trader remounts reuse it.
 IBKR_TAPE_LINGER_SEC = 16.0
 IBKR_TAPE_QUEUE_MAXSIZE = 2048          # cap buffer per symbol
-# Yield None when no prints arrive. Each idle ping carries the line's silence reading (#722), so this
-# is also how late the Trader can learn its tape stopped: 15 s held LINE DOWN back that long.
-TAPE_STREAM_HEARTBEAT_SEC = 5.0
+# Yield None when no prints arrive. Each idle ping carries the line's silence reading (#722) and the
+# order gate's answer (ADR 045 amendment 2026-10-14), so this is also how late the Trader's ticket can
+# learn its tape stopped: 15 s held LINE DOWN back that long, and 5 s let GENK's order through.
+TAPE_STREAM_HEARTBEAT_SEC = 1.0
 
 
 def _load_ib_types() -> bool:

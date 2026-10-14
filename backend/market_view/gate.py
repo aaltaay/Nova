@@ -4,7 +4,8 @@
 through the desk's routes (it carries ``client_timing``) also carries ``view``: when the operator
 acted and which Level 2 book and quote the screen showed. ``check`` judges it against what Nova
 knows now, before anything is validated or sent; ``late_at_send`` checks the clock again just
-before the broker send. Flatten, KILL, cancels and Nova's own senders are exempt: they do not
+before the broker send. ``desk_lock`` is the part it judges without the screen -- the feed, the IB loop
+and the symbol's Time & Sales -- and the one answer the desk shows (amendment 2026-10-14). Flatten, KILL, cancels and Nova's own senders are exempt: they do not
 price from the operator's screen, and getting flat must always work. On a Sim desk off the live
 edge the market is the replay, so IBKR's feed health is not judged there.
 
@@ -29,6 +30,7 @@ from constants_market_view import (
     ORDER_MAX_IB_STALL_MS,
     ORDER_MAX_SEND_MS,
     ORDER_VIEW_MAX_LAG_MS,
+    TAPE_STALE,
     VIEW_GATE_EXEMPT_TEXT,
     VIEW_MISSING,
     VIEW_STALE,
@@ -184,6 +186,7 @@ def check(cmd: Any, *, now: float | None = None) -> Check:
     arrival = (ingress_ns / 1e6) if ingress_ns else t * 1000.0
     measures: dict[str, Any] = {
         "arrival_ms": None, "book_lag_ms": None, "quote_lag_ms": None, "feed_gap": False, "ib_stall_ms": None,
+        "tape_missing_since": None,
     }
 
     def refuse(code: str, text: str) -> Check:
@@ -230,21 +233,54 @@ def check(cmd: Any, *, now: float | None = None) -> Check:
             f"Your order reached Nova {_secs(arrival - act)} after your click (the desk or Nova was busy). Prices "
             f"move in that time, so it was not sent: place it again. {VIEW_GATE_EXEMPT_TEXT}"
         ))
+    lock = desk_lock(symbol, now=t, measures=measures)
+    if lock is not None:
+        return refuse(lock["code"], f"{lock['reason']} Nothing was sent. {VIEW_GATE_EXEMPT_TEXT}")
+    return Check("ok", measures=measures)
+
+
+def desk_lock(symbol: str, *, now: float | None = None,
+              measures: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    """The backend's own answer for *symbol* right now: ``{code, reason, text}`` while orders on it are locked, else None.
+
+    One judge (ADR 045 amendment 2026-10-14): the door refuses with these words, ``GET /api/market-view/gate``
+    returns them and the Time & Sales socket sends them, so the desk's lock says what the door would. It judges
+    what Nova knows without the operator's screen -- the feed, the IB loop, the symbol's Time & Sales; the screen's
+    own versions are ``check``'s. Nothing on a Sim desk off the live edge: its market is the replay.
+    """
+    out = measures if measures is not None else {}
     if _replay_desk():
-        measures["feed_gap"] = None             # a replay order's market is the recording
-        return Check("ok", measures=measures)
+        out["feed_gap"] = None                  # a replay order's market is the recording
+        return None
+    t = time.time() if now is None else now
     behind = _feed_behind(t)
     stall = _ib_stall_ms()
-    measures["feed_gap"] = behind is not None
-    measures["ib_stall_ms"] = stall
+    out["feed_gap"] = behind is not None
+    out["ib_stall_ms"] = stall
     if behind is None and stall is not None and stall > ORDER_MAX_IB_STALL_MS:
         behind = f"its IBKR thread has been stuck for {_secs(stall)}"
     if behind is not None:
-        return refuse(FEED_STALE, (
-            f"Nova is behind the market right now ({behind}), so new orders wait until it catches up. "
-            f"Nothing was sent. {VIEW_GATE_EXEMPT_TEXT}"
-        ))
-    return Check("ok", measures=measures)
+        return _lock(FEED_STALE, f"Nova is behind the market right now ({behind}), so new orders wait until it catches up.")
+    tape = _tape_missing(symbol, t)
+    out["tape_missing_since"] = tape["since"] if tape else None
+    if tape is not None:
+        return _lock(TAPE_STALE, f"{tape['text']} New orders on it wait until its prints are back.")
+    return None
+
+
+def _lock(code: str, reason: str) -> dict[str, Any]:
+    """``reason`` is the door's (it adds "Nothing was sent."); ``text`` is the desk's, before any click."""
+    return {"code": code, "reason": reason, "text": f"{reason} {VIEW_GATE_EXEMPT_TEXT}"}
+
+
+def _tape_missing(symbol: str, now: float) -> dict[str, Any] | None:
+    try:
+        from ibkr import tape_silence
+
+        return tape_silence.missed_trades(symbol, now=now)
+    except Exception:
+        logger.exception("view gate: %s's Time & Sales could not be judged", symbol)
+        return {"since": None, "text": f"Nova could not tell whether {symbol}'s Time & Sales is current."}
 
 
 def send_deadline(cmd: Any) -> float | None:

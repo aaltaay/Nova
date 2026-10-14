@@ -186,6 +186,40 @@ def read(
     }
 
 
+def missed_trades(symbol: str, *, now: float | None = None) -> dict[str, Any] | None:
+    """The symbol's AllLast line is missing trades right now, or None (ADR 045 amendment 2026-10-14).
+
+    The order gate's and Paper's question, not the badge's: the Level 1 line reported a trade at least
+    TAPE_DEAD_L1_LEAD_SEC after the line's last print (or its opening) by IBKR's second, with no wait
+    for TAPE_SILENT_SEC. ``{since, last_print_ts, l1_trade_ts, text}``. None with no line on this IBKR
+    session (no tape to judge), while the symbol is halted, or while the tape keeps up. Memory only.
+    """
+    from ibkr import halt_status, tape_stream
+    from ibkr.tape_recording import producer_status
+
+    sym = (symbol or "").strip().upper()
+    if not sym or not tape_stream.is_subscribed(sym):
+        return None
+    producer = producer_status(sym)
+    last = _num(producer.get("last_print_ts"))
+    opened = _num(producer.get("line_since"))
+    trade = l1_trade_at(sym)
+    if not l1_shows_trade_after(l1_trade_at=trade, last_print_exchange_ts=producer.get("last_print_exchange_ts"),
+                                last_print_ts=last, line_since=opened):
+        return None
+    ts = time.time() if now is None else float(now)
+    if halt_status.halted_now([sym], now=ts).get(sym) is True:
+        return None
+    no_print = f"its last print came at {_clock(last)}" if last else "it has printed nothing since it opened"
+    return {
+        "since": silence_start(last_print_ts=last, line_since=opened),
+        "last_print_ts": last,
+        "l1_trade_ts": trade,
+        "text": (f"{sym}'s Time & Sales is missing trades: {no_print}, while IBKR's Level 1 shows trades "
+                 f"up to {_clock(trade)}."),
+    }
+
+
 def silence_start(*, last_print_ts: float | None, line_since: float | None,
                   halt_seen_at: float | None = None) -> float:
     """The newest of the last print, the line's opening and the reopening; 0.0 when none is known (pure)."""
@@ -291,7 +325,21 @@ def reading(symbol: str, *, now: float | None = None, halt_seen_at: float | None
     if out is None or out["state"] not in (DEAD, SILENT):
         return out
     _note(sym, out, ts)
-    return out
+    return _with_recovery(sym, out, ts)
+
+
+def _with_recovery(symbol: str, out: dict[str, Any], now: float) -> dict[str, Any]:
+    """A dead line asks IB Gateway for its data back (``ibkr.tape_recovery``, cooldown there); the words join."""
+    try:
+        from ibkr import tape_recovery
+
+        if out["state"] == DEAD:
+            tape_recovery.line_dead(symbol, out, now=now)
+        said = tape_recovery.words_since(out.get("since"))
+    except Exception:
+        logger.exception("IBKR tape: %s's dead line could not be handed to the recovery", symbol)
+        return out
+    return {**out, "text": f"{out['text']} {said}"} if said else out
 
 
 def _note(symbol: str, out: dict[str, Any], now: float) -> None:

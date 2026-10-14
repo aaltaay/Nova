@@ -22,6 +22,11 @@ print stays a ``print`` frame), so a backlog after a stall reaches the pane at o
 Each idle ``ping`` (no print for TAPE_STREAM_HEARTBEAT_SEC) on a live line carries ``silence``:
 ``ibkr.tape_silence``'s reading, or ``null`` (#722). The pane says LINE DOWN, HALTED, SILENT or QUIET
 with its words instead of reading LIVE over a tape that stopped.
+
+Each ping also carries ``gate``: the order gate's own answer for the symbol now (``market_view.gate.desk_lock``,
+``{code, text}`` or ``null``), and while prints flow a ``{"type": "gate", ...}`` frame goes out whenever
+that answer changes (checked every MARKET_VIEW_GATE_SEND_SEC). The ticket locks with the words the door
+would refuse with (ADR 045 amendment 2026-10-14, "one funnel").
 """
 from __future__ import annotations
 
@@ -31,6 +36,7 @@ import time
 
 from fastapi import WebSocket, WebSocketDisconnect
 
+from constants_market_view import FEED_STALE, MARKET_VIEW_GATE_SEND_SEC, VIEW_GATE_EXEMPT_TEXT
 from ibkr import tape_silence
 from ibkr import tape_stream as _tape
 from line_lending import socket_gate
@@ -100,6 +106,8 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
             logger.debug("SIM tape: capture seed skipped", exc_info=True)
 
         halt_seen_at: float | None = None  # the last ping that found the symbol halted
+        gate_sent: dict | None = None      # the order gate's answer the socket last sent
+        gate_at = 0.0
         async for batch in _tape.stream_batches(queue):
             if batch is None:
                 silence = None
@@ -107,12 +115,19 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
                     silence = _silence(symbol, halt_seen_at)
                     if silence is not None and silence.get("halted") is True:
                         halt_seen_at = time.time()
-                await websocket.send_text(json.dumps({"type": "ping", "symbol": symbol, "silence": silence}))
+                gate_sent, gate_at = _gate(symbol), time.time()
+                await websocket.send_text(json.dumps({"type": "ping", "symbol": symbol, "silence": silence,
+                                                      "gate": gate_sent}))
                 if not is_replay_desk() and not _tape.is_subscribed(symbol):
                     socket_gate.line_down(symbol)  # down with no word from IBKR: ask again all the same
                 continue
             if not await _send_batch(websocket, symbol, batch):
                 break
+            if time.time() - gate_at >= MARKET_VIEW_GATE_SEND_SEC:
+                gate, gate_at = _gate(symbol), time.time()
+                if gate != gate_sent:
+                    gate_sent = gate
+                    await websocket.send_text(json.dumps({"type": "gate", "symbol": symbol, "gate": gate}))
     except WebSocketDisconnect:
         logger.debug("IBKR tape WS disconnected: %s", symbol)
     except Exception as exc:
@@ -180,6 +195,17 @@ async def _send_batch(websocket: WebSocket, symbol: str, batch: list[dict]) -> b
             prints.append(item)
     await _send_prints(websocket, symbol, prints)
     return True
+
+
+def _gate(symbol: str) -> dict | None:
+    """The order gate's answer for the symbol now (``{code, text}``), or None while orders may go."""
+    try:
+        from market_view.gate import desk_lock
+
+        return desk_lock(symbol)
+    except Exception:
+        logger.exception("IBKR tape WS: the order gate could not be read for %s", symbol)
+        return {"code": FEED_STALE, "text": f"Nova could not check this stock's market right now. {VIEW_GATE_EXEMPT_TEXT}"}
 
 
 def _silence(symbol: str, halt_seen_at: float | None) -> dict | None:
