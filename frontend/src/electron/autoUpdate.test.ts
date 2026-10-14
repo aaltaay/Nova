@@ -493,9 +493,12 @@ describe('Help > Check for Updates while a newer release is being built (operato
     json: async () => body,
     headers: { get: (name: string) => (name.toLowerCase() === 'link' ? link : null) },
   });
-  // PR delivery's Desktop pack run for v832, started 22:25:10 UTC.
-  const building = (url: string) =>
-    url.includes('status=in_progress')
+  // PR delivery's Desktop pack run for v832, started 22:25:10 UTC, packing on Windows.
+  const building = (url: string) => {
+    if (url.includes('/jobs')) {
+      return reply({ jobs: [{ id: 1, run_attempt: 1, name: 'Desktop pack', status: 'in_progress', labels: ['windows-latest'] }] });
+    }
+    return url.includes('status=in_progress')
       ? reply({
         workflow_runs: [{
           id: 1,
@@ -508,6 +511,7 @@ describe('Help > Check for Updates while a newer release is being built (operato
         }],
       })
       : reply([{ sha: SHA }], `<https://api.github.com/repositories/1/commits?sha=${SHA}&per_page=1&page=832>; rel="last"`);
+  };
 
   async function clickCheck() {
     const row = h.menu.find((r) => r.role === 'help')?.submenu?.find((r) => r.label === 'Check for Updates…');
@@ -524,7 +528,7 @@ describe('Help > Check for Updates while a newer release is being built (operato
     expect(h.boxes).toEqual([]);
     expect(h.github).not.toHaveBeenCalled();
     await clickCheck();
-    expect(h.github).toHaveBeenCalledTimes(2); // the runs in progress, then the head's commit count
+    expect(h.github).toHaveBeenCalledTimes(3); // the runs in progress, that run's jobs, its head's commit count
     expect(h.boxes).toHaveLength(1);
     expect(h.boxes[0]).toMatchObject({
       message: 'Nova v831 is the latest release.',
