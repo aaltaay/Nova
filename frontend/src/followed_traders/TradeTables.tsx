@@ -2,13 +2,15 @@
  * A trader's trades, as the approved page drew them (2026-10-13, "E2"): each open position an OPEN tile, and the
  * closed trades a table striped by result. A time the feed did not see reads "by HH:MM:SS" (open when capture
  * started) or a window; an exit seen only in a window is IBKR's low–high, marked est.; a price Nova has not got says
- * why on hover. Closed rows drop to one line (`compact`) and their oldest fold into "+N earlier" when the page would
- * not fit otherwise. Nothing here places an order.
+ * why on hover, and Proof shows the trade's screenshots on hover (ProofLink). Closed rows drop to one line
+ * (`compact`) and their oldest fold into "+N earlier" when the page would not fit otherwise. Nothing here places an
+ * order.
  */
 import { tipProps } from '../ux/hoverTip';
 import { FT_EST, FT_EST_TIP, FT_EXIT_PENDING, FT_NOW, FT_OPEN_CHIP, FT_PROOF } from './constants';
 import { DASH, entered, etTime, exitPrice, exited, held, price } from './format';
 import { PlCell, ResultWord, SideChip } from './parts';
+import { ProofLink } from './ProofLink';
 import type { FollowedTrade } from './types';
 
 function TimeIn({ t }: { t: FollowedTrade }) {
@@ -61,15 +63,6 @@ function Now({ t }: { t: FollowedTrade }) {
   return <span className="ft-mono ft-muted" {...tipProps(why)}>{now?.state === 'waiting' ? '…' : DASH}</span>;
 }
 
-function ProofButton({ t, onProof }: { t: FollowedTrade; onProof: (id: string) => void }) {
-  return (
-    <button type="button" className="ft-link" onClick={() => onProof(t.id)} data-testid={`ft-proof-${t.id}`}
-      aria-label={`${FT_PROOF}: ${t.trader} ${t.side} ${t.symbol}`}>
-      {FT_PROOF}
-    </button>
-  );
-}
-
 /** One open position: what they hold, the price now and what it is worth per share, how long. */
 export function OpenTile({ t, onProof }: { t: FollowedTrade; onProof: (id: string) => void }) {
   return (
@@ -88,7 +81,7 @@ export function OpenTile({ t, onProof }: { t: FollowedTrade; onProof: (id: strin
       <div className="ft-tile__row ft-xs">
         <span className="ft-muted">in <TimeIn t={t} /></span>
         {t.entry.first_price !== t.entry.avg_price && <span className="ft-note ft-note--warn">avg, was {price(t.entry.first_price)}</span>}
-        <span className="ft-tile__proof"><ProofButton t={t} onProof={onProof} /></span>
+        <span className="ft-tile__proof"><ProofLink t={t} onProof={onProof} /></span>
       </div>
     </div>
   );
@@ -128,7 +121,7 @@ export function ClosedTable({ trades, onProof, compact = false, folded = 0, onSh
             <td><span className="ft-prices"><Entry t={t} compact={compact} /> → <Exit t={t} /></span></td>
             <td><PlCell trade={t} inline /></td>
             <td>{held(t.held)}</td>
-            <td className="ft-right"><ProofButton t={t} onProof={onProof} /></td>
+            <td className="ft-right"><ProofLink t={t} onProof={onProof} /></td>
           </tr>
         ))}
         {folded > 0 && (

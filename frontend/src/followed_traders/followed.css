@@ -4,7 +4,8 @@
    followed_traders/FollowedTradersPage.tsx. */
 
 .ft-page,
-.ft-toasts {
+.ft-toasts,
+.ft-peek {
   --ft-up: var(--nova-bid, #30d158);
   --ft-down: var(--nova-ask, #ff453a);
   --ft-warn: #ffd60a;
@@ -500,6 +501,33 @@
 .ft-proof__card { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 .ft-proof__card-head { display: flex; justify-content: space-between; align-items: baseline; }
 .ft-proof__img { width: 100%; height: auto; border-radius: 8px; display: block; }
+/* The Proof card (ProofLink.tsx): a trade's entry and exit screenshots beside its Proof link, in a portal on the
+   body, so it carries the page's tokens itself. */
+.ft-peek {
+  position: fixed;
+  z-index: 10000;
+  box-sizing: border-box;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--ft-card);
+  color: var(--nova-text);
+  border: 1px solid var(--ft-line);
+  border-radius: 10px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
+  font-size: 13px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.ft-peek__head { display: flex; align-items: center; gap: 8px; }
+.ft-peek__shot { display: flex; flex-direction: column; gap: 6px; }
+.ft-peek__label { display: flex; justify-content: space-between; align-items: baseline; }
+.ft-peek__img { width: 100%; height: auto; border-radius: 6px; display: block; }
+.ft-peek__img.ft-img-missing { min-height: 72px; }
 .ft-read-grid { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 6px 12px; }
 .ft-mark { padding: 1px 5px; border-radius: 4px; }
 .ft-mark--new { color: var(--ft-up); background: color-mix(in srgb, var(--ft-up) 16%, transparent); }
