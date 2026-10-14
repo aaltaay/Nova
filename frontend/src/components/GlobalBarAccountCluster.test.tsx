@@ -50,6 +50,7 @@ const LIVE_SUMMARY: IbkrAccountSummary = {
   BuyingPower: 7117.06,
   ExcessLiquidity: 3000,
   UnrealizedPnL: -0.17,
+  UnrealizedAtBid: -0.42,
   RealizedPnL: 12.5,
   GrossPositionValue: 1.02,
 };
@@ -92,13 +93,19 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('GlobalBarAccountCluster -- Live (the IBKR account)', () => {
+  it('Unrealized P/L reads blank, never zero, while a held stock has no bid / ask', () => {
+    mount({ summary: { ...LIVE_SUMMARY, UnrealizedAtBid: null } });
+    expect(screen.getByTestId('global-bar-unrealized').textContent).not.toContain('$0.00');
+  });
+
   it("renders Day's | Working | TAV | pill on one row, in that order", () => {
     mount({
       orders: [{ order_id: 1, symbol: 'AAPL', side: 'BUY', qty: 1, order_type: 'MKT', status: 'Submitted' }],
     });
     const cluster = screen.getByTestId('global-bar-cluster');
     const day = screen.getByTestId('global-bar-account-trigger');
-    expect(day.textContent).toContain("Day's");
+    expect(day.textContent).toContain('P/L');
+    expect(screen.getByTestId('global-bar-unrealized').textContent).toBe('-$0.42');
     expect(day.textContent).toContain('+$12.33');
     expect(screen.getByTestId('global-bar-day-pct').textContent).toBe('+0.35%');
     expect(screen.getByTestId('global-bar-working-trigger').textContent).toContain('1');
@@ -123,6 +130,12 @@ describe('GlobalBarAccountCluster -- Live (the IBKR account)', () => {
     mount();
     click('global-bar-account-trigger');
     const card = screen.getByTestId('global-bar-day-card');
+    // The card opens under its own button, not at the cluster's right edge.
+    expect(card.closest('.global-app-bar__metric-anchor')).toBe(
+      screen.getByTestId('global-bar-account-trigger').parentElement,
+    );
+    expect(card.textContent).toContain('Unrealized P/L (bid)');
+    expect(card.textContent).toContain('-$0.42');
     expect(card.textContent).toContain('Open P&L');
     expect(card.textContent).toContain('-$0.17');
     expect(card.textContent).toContain("Day's P&L");

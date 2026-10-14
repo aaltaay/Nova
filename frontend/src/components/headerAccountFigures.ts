@@ -17,6 +17,8 @@ export type HeaderAccountSource = 'ibkr' | 'practice';
 export interface HeaderAccountFigures {
   source: HeaderAccountSource;
   openPnl: number | null;
+  /** Open P&L at the bid (a short at the ask) -- the header's Unrealized P/L. */
+  unrealizedAtBid: number | null;
   realizedPnl: number | null;
   dayPnl: number | null;
   /** Total Account Value -- IBKR NetLiquidation / practice net_liquidation. */
@@ -44,6 +46,7 @@ export function figuresFromSummary(summary: IbkrAccountSummary | null): HeaderAc
   return {
     source: 'ibkr',
     openPnl: finite(summary?.UnrealizedPnL),
+    unrealizedAtBid: finite(summary?.UnrealizedAtBid),
     realizedPnl: finite(summary?.RealizedPnL),
     dayPnl: dayPnlFromSummary(summary?.RealizedPnL, summary?.UnrealizedPnL),
     netLiquidation: finite(summary?.NetLiquidation),
@@ -61,6 +64,7 @@ export function figuresFromPractice(account: PracticeAccount): HeaderAccountFigu
   return {
     source: 'practice',
     openPnl: finite(account.unrealized_pnl),
+    unrealizedAtBid: finite(account.unrealized_at_bid),
     // Today's realized (QA W3): realized_pnl is the ledger's lifetime figure.
     realizedPnl: finite(account.realized_today),
     dayPnl: dayPnlOf(account),

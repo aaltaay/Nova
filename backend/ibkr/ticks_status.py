@@ -100,6 +100,16 @@ def last_quotes(
     return out
 
 
+def bid_ask(subs: dict[str, dict[str, Any]], symbol: str) -> tuple[float | None, float | None]:
+    """The L1 line's own bid / ask (IBKR ticks 1 / 2), whether or not it has a last yet."""
+    ticker = (subs.get((symbol or "").strip().upper()) or {}).get("ticker")
+    out = []
+    for side in ("bid", "ask"):
+        px = _as_float(getattr(ticker, side, None))
+        out.append(px if px is not None and px > 0 else None)
+    return out[0], out[1]
+
+
 def get_day_high(subs: dict[str, dict[str, Any]], symbol: str) -> float | None:
     """IBKR L1 tick-6 day High for a subscribed symbol, if known."""
     sub = subs.get((symbol or "").strip().upper())

@@ -232,16 +232,16 @@
 .sim-strip__tag {
   position: absolute;
   z-index: 1;
-  top: -15px;
+  top: -26px;
   transform: translateX(8px);
   padding: 0 5px;
   border-radius: 3px;
   background: var(--nova-panel, var(--panel-bg));
   border: 1px solid var(--nova-border-strong, var(--border-color));
   color: var(--nova-text, var(--text-primary));
-  font-size: 10px;
+  font-size: 20px;
   font-weight: 600;
-  line-height: 11px;
+  line-height: 22px;
   white-space: nowrap;
   pointer-events: none;
 }

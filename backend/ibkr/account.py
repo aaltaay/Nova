@@ -14,7 +14,7 @@ import logging
 import time
 
 from ibkr import client as _client
-from ibkr.account_marks import apply_l1_marks, live_l1_last, overlay_account_summary
+from ibkr.account_marks import apply_l1_marks, live_l1_last, marked_account_summary
 from ibkr.account_summary import (
     account_values_items,
     overlay_missing_tags,
@@ -203,7 +203,7 @@ def account_summary_for_ui() -> dict:
     sim = summary_if_sim()
     if sim is not None:
         return sim
-    return overlay_account_summary(get_account_summary(), positions_for_ui())
+    return marked_account_summary(get_account_summary(), positions_for_ui())
 
 
 def get_account_summary() -> dict:
