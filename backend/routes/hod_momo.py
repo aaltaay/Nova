@@ -96,9 +96,12 @@ def hod_momo_history_snapshot(date: str, until: float | None = None):
     day["source"] = "recorded" if day["recorded"] else None
     day["rebuild"] = None
     if not day["recorded"]:
-        from hod_momo_rebuild import playback as rebuild_playback
+        from hod_momo_rebuild import playback as rebuild_playback, store as rebuild_store
 
-        day.update(rebuild_playback.answer(date))
+        try:
+            day.update(rebuild_playback.answer(rebuild_store.day_key(date)))
+        except ValueError:
+            return {}                          # not a calendar day (2026-02-30)
     if until is not None:
         from hod_momo_history_filter import raised_by
 
@@ -109,11 +112,13 @@ def hod_momo_history_snapshot(date: str, until: float | None = None):
 @router.post("/api/hod-momo/history/{date}/rebuild")
 def hod_momo_history_rebuild(date: str):
     """Ask for a day's HOD Momo alerts rebuilt from its Massive trades: the job's state, or why it cannot be."""
-    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
-        return {"status": "unavailable", "reason": "date must be YYYY-MM-DD"}
-    from hod_momo_rebuild import job as rebuild_job
+    from hod_momo_rebuild import job as rebuild_job, store as rebuild_store
 
-    return rebuild_job.request(date)
+    try:
+        day = rebuild_store.day_key(date)
+    except ValueError:
+        return {"status": "unavailable", "reason": "date must be YYYY-MM-DD"}
+    return rebuild_job.request(day)
 
 
 @router.get("/api/hod-momo/config")

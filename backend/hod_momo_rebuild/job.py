@@ -112,6 +112,7 @@ class _ThreadHandle(_Handle):
 
 
 def worker_command(day: str) -> list[str]:
+    day = store.day_key(day)
     if getattr(sys, "frozen", False):
         return [sys.executable, "--hod-rebuild", "--date", day]
     return [sys.executable, "-m", "hod_momo_rebuild.worker", "--date", day]
@@ -263,9 +264,10 @@ def request(day: str) -> dict[str, Any]:
                               started_ts=time.time(), finished_ts=None, error=None, summary=None, fingerprint=None)
         try:
             _running[day] = launch(day)
-        except Exception as exc:  # noqa: BLE001 -- the job says why the build could not start
+        except Exception:  # noqa: BLE001 -- logged with its trace; the job says it could not start
             logger.exception("HOD rebuild: the build of %s could not start", day)
-            return store.write_job(day, status=LEADERBOARD_SECONDS_FAILED, error=f"The rebuild could not start: {exc}")
+            return store.write_job(day, status=LEADERBOARD_SECONDS_FAILED,
+                                   error="The rebuild could not start; the reason is in the backend log")
         return job
 
 

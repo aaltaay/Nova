@@ -239,3 +239,14 @@ def test_a_recorded_day_and_a_day_without_files_are_never_rebuilt(day):
     cache.save_hod_momo_snapshot_for_date(DAY, [], time.time())
     assert job.request(DAY) == {"status": "unavailable", "reason": job.RECORDED}
     assert job.request("2026-09-15")["status"] == "unavailable"
+
+
+def test_only_a_calendar_day_ever_names_a_file_or_the_workers_command(day):
+    assert store.day_key("2026-09-18") == "2026-09-18"
+    for junk in ("../../etc", "2026-02-30", "2026-9-18x", "latest", "2026-09-18/../x"):
+        with pytest.raises(ValueError):
+            store.data_path(junk)
+    assert job.worker_command("2026-09-18")[-1] == "2026-09-18"
+    client = _client()
+    assert client.post("/api/hod-momo/history/2026-02-30/rebuild").json()["status"] == "unavailable"
+    assert client.get("/api/hod-momo/history/2026-02-30").json() == {}

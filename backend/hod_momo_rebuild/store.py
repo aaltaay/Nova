@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import time
+from datetime import date as date_cls
 from pathlib import Path
 from typing import Any
 
@@ -29,16 +30,34 @@ _REPLACE_TRIES = 50
 _REPLACE_PAUSE_SEC = 0.1
 
 
+def day_key(day: str) -> str:
+    """``day`` as ``YYYY-MM-DD``, rebuilt from its numbers -- the only form a file name, a path or the worker's
+    command line is made from. Anything that is not a calendar day raises ``ValueError``."""
+    parts = str(day).split("-")
+    if len(parts) != 3 or not all(part.isdigit() for part in parts):
+        raise ValueError("a day is YYYY-MM-DD")
+    year, month, mday = (int(part) for part in parts)
+    return date_cls(year, month, mday).isoformat()
+
+
 def folder() -> Path:
     return board_store.root() / HOD_MOMO_REBUILD_SUBDIR
 
 
+def _inside(name: str) -> Path:
+    base = os.path.realpath(folder())
+    target = os.path.realpath(os.path.join(base, name))
+    if not target.startswith(base + os.sep):
+        raise ValueError("a rebuild file stays inside its folder")
+    return Path(target)
+
+
 def data_path(day: str) -> Path:
-    return folder() / f"{day}.alerts.json"
+    return _inside(f"{day_key(day)}.alerts.json")
 
 
 def job_path(day: str) -> Path:
-    return folder() / f"{day}.job.json"
+    return _inside(f"{day_key(day)}.job.json")
 
 
 def _write(path: Path, payload: dict[str, Any]) -> None:
