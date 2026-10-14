@@ -76,6 +76,20 @@ def test_the_journal_writes_one_line_per_observation_by_eastern_day(monkeypatch,
     assert journal.status()["queued"] == 0 and journal.status()["enabled"] is False
 
 
+def test_pending_counts_the_batch_the_writer_has_taken_not_only_the_queue(monkeypatch, tmp_path):
+    # A writer stuck on a blocked disk has already taken its batch off the queue: qsize says 0 while the
+    # whole batch is still not on disk (review of #955).
+    monkeypatch.setenv("NOVA_EYES_DIR", str(tmp_path))
+    journal.reset_for_tests()
+    for i in range(3):
+        journal._writer.q.put((1.0, f"line {i}"))
+    taken = [journal._writer.q.get() for _ in range(3)]      # the writer's batch, mid-write
+    assert journal.status()["queued"] == 0 and journal.pending() == 3
+    for _ in taken:
+        journal._writer.q.task_done()
+    assert journal.pending() == 0
+
+
 def test_the_reader_folds_lines_into_setups_and_skips_unknown_schemas(tmp_path):
     path = tmp_path / "2026-09-21.jsonl"
     rows = [

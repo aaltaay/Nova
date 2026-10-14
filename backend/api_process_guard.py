@@ -64,8 +64,10 @@ def _flush_before_exit() -> None:
     if journal is not None:
         try:
             if not journal.flush(JOURNAL_FLUSH_SEC):
-                logger.error("api_process_guard: the eyes' journal still had %s line(s) queued after %.0fs -- "
-                             "they are lost with this exit", journal.status().get("queued", "?"), JOURNAL_FLUSH_SEC)
+                # pending(), not status()["queued"]: a batch the writer took and is stuck writing is no longer
+                # in the queue, and is lost all the same.
+                logger.error("api_process_guard: the eyes' journal still had %s line(s) not on disk after %.0fs -- "
+                             "they are lost with this exit", journal.pending(), JOURNAL_FLUSH_SEC)
         except Exception:
             logger.warning("api_process_guard: the eyes' journal did not flush before exit", exc_info=True)
     setup = sys.modules.get("logging_setup")

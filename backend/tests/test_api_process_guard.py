@@ -84,9 +84,10 @@ def test_a_journal_that_cannot_drain_says_how_many_lines_the_exit_loses(monkeypa
     import types
 
     caplog.set_level("ERROR", logger=guard.logger.name)
-    journal = types.SimpleNamespace(flush=lambda timeout: False, status=lambda: {"queued": 37})
+    # The writer's in-flight batch counts: status()["queued"] can read 0 while pending() does not (review).
+    journal = types.SimpleNamespace(flush=lambda timeout: False, pending=lambda: 37, status=lambda: {"queued": 0})
     monkeypatch.setitem(sys.modules, "eyes.journal", journal)
     monkeypatch.setitem(sys.modules, "logging_setup", types.SimpleNamespace(shutdown_logging=lambda: None))
     guard._flush_before_exit()
     [rec] = caplog.records
-    assert "37 line(s) queued" in rec.getMessage() and "lost" in rec.getMessage()
+    assert "37 line(s) not on disk" in rec.getMessage() and "lost" in rec.getMessage()
