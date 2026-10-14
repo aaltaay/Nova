@@ -63,6 +63,8 @@ export function startScreenRecorder({
   const recorderWindows = new WeakSet();
   const states = new Map(); // display id -> monitor state
   const segments = new Map(); // segment id -> segment
+  const closing = new Set(); // file closes and end rows still in flight; `stop()` settles after them
+  let drained = null;
   let win = null;
   let ready = false;
   let stopped = false;
@@ -176,34 +178,48 @@ export function startScreenRecorder({
     send({ cmd: 'stop', id: seg.id });
   }
 
-  async function finalize(seg) {
+  /** Keep `work` until it settles, so `stop()` can wait for it after the segment has left `segments`. */
+  function track(work) {
+    const done = work
+      .catch((err) => logger.warn(`[nova] screen recording file not closed: ${errLine(err)}`))
+      .finally(() => closing.delete(done));
+    closing.add(done);
+  }
+
+  /** Close the segment's file, then write its end row; once per segment, however often it is asked. */
+  function finalize(seg) {
     if (seg.closed) return;
     seg.closed = true;
     segments.delete(seg.id);
-    const bytes = seg.file ? await seg.file.close() : 0;
-    if (seg.dayDir) {
-      const failed = appendManifest(seg.dayDir, {
-        event: 'end',
-        segment_id: seg.id,
-        file: path.basename(seg.file.file),
-        ended_ts: sec(now()),
-        bytes,
-        reason: seg.stopping || 'error',
-        error: seg.stopError ?? seg.file?.error ?? null,
-      });
-      if (failed) logger.warn(`[nova] screen recording manifest not written: ${failed}`);
-    }
-    publish();
+    track((async () => {
+      const bytes = seg.file ? await seg.file.close() : 0;
+      if (seg.dayDir) {
+        const failed = appendManifest(seg.dayDir, {
+          event: 'end',
+          segment_id: seg.id,
+          file: path.basename(seg.file.file),
+          ended_ts: sec(now()),
+          bytes,
+          reason: seg.stopping || 'error',
+          error: seg.stopError ?? seg.file?.error ?? null,
+        });
+        if (failed) logger.warn(`[nova] screen recording manifest not written: ${failed}`);
+      }
+      publish();
+    })());
   }
 
-  /** Every segment still open is closed now, synchronously -- the process is exiting. */
+  /**
+   * Every segment still open ends now and its end row is written synchronously -- the process is
+   * exiting and may not wait. Its file still closes on its own time, tracked like any other.
+   */
   function finalizeNow() {
     for (const seg of [...segments.values()]) {
       if (seg.closed) continue;
       seg.closed = true;
       segments.delete(seg.id);
       if (!seg.file) continue;
-      seg.file.stream.end();
+      track(seg.file.close());
       appendManifest(seg.dayDir, {
         event: 'end',
         segment_id: seg.id,
@@ -306,7 +322,7 @@ export function startScreenRecorder({
       if (state?.pending === seg) state.pending = null;
       scheduleReplan();
     }
-    void finalize(seg);
+    finalize(seg);
   }
 
   function onError(ev) {
@@ -417,7 +433,7 @@ export function startScreenRecorder({
       if (state?.pending === seg) state.pending = null;
       seg.stopping = seg.stopping || 'recorder_gone';
       seg.stopError = seg.stopError || why;
-      void finalize(seg);
+      finalize(seg);
     }
     logger.warn(`[nova] screen recorder page: ${why}`);
     if (!page.isDestroyed()) page.destroy();
@@ -482,7 +498,7 @@ export function startScreenRecorder({
     const t = now();
     for (const seg of [...segments.values()]) {
       if (seg.stopping) {
-        if (t - seg.stopRequestedAt > P.SCREEN_RECORD_STOP_TIMEOUT_MS) void finalize(seg);
+        if (t - seg.stopRequestedAt > P.SCREEN_RECORD_STOP_TIMEOUT_MS) finalize(seg);
         continue;
       }
       const state = states.get(seg.key);
@@ -608,9 +624,16 @@ export function startScreenRecorder({
       if (stopped || suspended || !state?.active) return false;
       return send({ cmd: 'sample', reqId, sourceId: state.plan.sourceId, rect, width: size.width, height: size.height });
     },
-    /** Quitting: stop every capture and close every file; the last timeslice may not reach the disk. */
+    /**
+     * Quitting: stop every capture and close every file; the last timeslice may not reach the disk.
+     * Everything that decides happens now, synchronously, and every open file's end row is written
+     * before this returns, so a quit that cannot wait loses nothing more (main.mjs does not wait).
+     * The promise settles once every file is closed and every end row written -- including a
+     * segment that was already closing when the stop came -- so nothing touches the folder after
+     * it (#927). Never rejects; asking again returns the same promise and writes nothing more.
+     */
     stop(reason = 'quit') {
-      if (stopped) return;
+      if (stopped) return drained;
       for (const seg of [...segments.values()]) stopSegment(seg, reason);
       stopped = true;
       timers.clearInterval(interval);
@@ -625,6 +648,8 @@ export function startScreenRecorder({
       ipcMain.removeListener(SCREEN_REC_EVENT_CHANNEL, onEventMsg);
       finalizeNow();
       publish();
+      drained = Promise.all([...closing]).then(() => undefined);
+      return drained;
     },
   };
 }
