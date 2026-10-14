@@ -151,6 +151,25 @@ describe('FollowedTradersPage', () => {
     expect(q('ft-stream')).toBeNull();
   });
 
+  it('turns the stream OFFLINE when the backend stops answering, never playing on from a kept answer', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
+    try {
+      let down = false;
+      await show(() => {
+        if (down) throw new TypeError('Failed to fetch');
+        return new Response(JSON.stringify(day({ capture: { ...day().capture!, video_id: 'R5YIugCJar0' } })));
+      });
+      expect(q('ft-stream-frame')).not.toBeNull();
+      down = true;
+      await act(async () => { vi.advanceTimersByTime(62_000); });
+      await flush();
+      expect(q('ft-stream-frame')).toBeNull();
+      expect(q('ft-stream-offline')).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('says when today resets: 04:00 ET, the desk’s own day', async () => {
     const resetsAt = Date.UTC(2026, 9, 14, 8, 0, 0) / 1000; // 04:00 ET, 2026-10-14
     await show(day({ resets_at: resetsAt }));

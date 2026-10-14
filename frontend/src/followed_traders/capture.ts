@@ -50,10 +50,19 @@ export function captureStopped(c: FollowedCapture): boolean {
   return stale || (c.problem !== null && (!c.live || c.updated_at === null));
 }
 
-/** The stream is on air: the feed is reading it live right now. Only then does the page play it (operator,
- *  2026-10-13: an ended stream's recording is never shown as if it were live). */
+/** The stream is on air: the feed is reading it live right now, with a time to prove it. Only then does the page
+ *  play it (operator, 2026-10-13: an ended stream's recording is never shown as if it were live). */
 export function onAir(c: FollowedCapture | null | undefined): boolean {
-  return !!c && c.live && !captureStopped(c);
+  return !!c && c.live && c.updated_at !== null && c.age_sec !== null && !captureStopped(c);
+}
+
+/** The day as of `nowMs`: the capture's age advanced by the time since the answer arrived (`receivedAtMs`), so a
+ *  page whose reads have stopped -- the backend down, the last answer kept -- still sees the capture go stale. */
+export function asOf(day: FollowedDay, receivedAtMs: number | null, nowMs: number): FollowedDay {
+  const c = day.capture;
+  const since = receivedAtMs === null ? 0 : (nowMs - receivedAtMs) / 1000;
+  if (!c || c.age_sec === null || since <= 0) return day;
+  return { ...day, capture: { ...c, age_sec: c.age_sec + since } };
 }
 
 /** Why the stream is offline: waiting for one, or when the feed last read it and its own reason. */
