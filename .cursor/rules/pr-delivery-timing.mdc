@@ -1,6 +1,6 @@
 ---
 description: When a ready PR merges -- the five-minute age floor, the in-flight review wait, and why both live in decide()
-globs: tools/pr_delivery.py,tools/pr_delivery_actions.py,tools/pr_review_status.py,.github/workflows/pr-delivery.yml,.github/workflows/deploy.yml
+globs: tools/stranded_commits.py,.github/workflows/stranded-commits.yml,tools/pr_delivery.py,tools/pr_delivery_actions.py,tools/pr_review_status.py,.github/workflows/pr-delivery.yml,.github/workflows/deploy.yml
 alwaysApply: false
 ---
 
@@ -86,6 +86,24 @@ the same run, and that wait is capped when the head keeps moving; a held PR
 never waits; an unknown age never holds; a zero floor restores instant merge;
 the PR query asks for `createdAt` and `commits`. A change to merge timing
 changes those tests first.
+
+## A push after the merge
+
+Neither gate can see a push that has not happened yet. A review fix pushed a
+few minutes after the merge lands on a branch with no open PR, and on
+2026-10-14 seven fixes sat there unseen for up to two days; two were redone by
+later sessions that never knew they existed. So:
+
+- **Before you push to a PR's branch, check the PR is still open**
+  (`gh pr view <n> --json state`). Merged? Branch from `origin/master`,
+  cherry-pick your commits, open a new PR.
+- **The backstop:** `.github/workflows/stranded-commits.yml` runs
+  `tools/stranded_commits.py` on every push to a branch other than master, and hourly.
+  Commits after a merged PR's head become a ready `recover/<branch>` PR (CI dispatched
+  on it, merged green like any other), or a P1 issue when they do not apply.
+  Commits a later PR already redid are dropped. A `stranded-tip: <sha>` marker in a
+  PR body (a squash merge keeps it on master) or `git cherry-pick -x`'s trailer
+  marks a tip as handled. `tools/test_stranded_commits.py` pins it.
 
 ## Related
 

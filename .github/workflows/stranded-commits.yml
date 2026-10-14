@@ -1,0 +1,61 @@
+# Land commits pushed to a PR's branch after Actions merged it (operator report 2026-10-14).
+#
+# Actions merges a ready PR the moment it is green. A review fix pushed to the
+# same branch a few minutes later has no open PR, so it never reached master
+# or a Release: seven fixes sat stranded that way on 2026-10-14. On a push to
+# any branch but master, and hourly as a backstop, tools/stranded_commits.py
+# carries such commits to master as a ready `recover/<branch>` PR (CI is
+# dispatched on it, since a GITHUB_TOKEN PR starts none), or opens a P1 issue
+# when they do not apply.
+
+name: Stranded commits
+
+on:
+  push:
+    branches-ignore:
+      - master
+      - "recover/**"
+  schedule:
+    - cron: "42 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
+concurrency:
+  # One sweep at a time: two would both open a recovery PR for the same tip.
+  group: stranded-commits
+  cancel-in-progress: false
+
+jobs:
+  land:
+    name: Land stranded commits
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Sweep merged PRs' branches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ github.event_name == 'push' && github.ref_name || '' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -n "$BRANCH" ]; then
+            # A push that is about to open its own PR (a reused branch name) gets the time to do it.
+            sleep 90
+            python3 tools/stranded_commits.py sweep --branch "$BRANCH"
+          else
+            python3 tools/stranded_commits.py sweep
+          fi
