@@ -56,13 +56,29 @@ def _side(quotes: Any, ts: float, price: float) -> str | None:
     return None if side == TAPE_SIDE_UNKNOWN else side
 
 
-def _prints(rows: tuple, quotes: Any, sets_price: Any) -> list[dict]:
+def _prints(rows: Any, quotes: Any, sets_price: Any) -> list[dict]:
+    from sim.print_table import PrintTable
+
+    if isinstance(rows, PrintTable):
+        return _table_prints(rows, quotes, sets_price)
     out: list[dict] = []
     for row in rows:
         ts, price = float(row["ts"]), float(row["price"])
         out.append({"ts": ts, "price": price, "size": row.get("size"), "exchange": row.get("exchange"),
                     "side": _side(quotes, ts, price) if quotes is not None and len(quotes) else None,
                     "sets_price": bool(sets_price(row))})
+    return out
+
+
+def _table_prints(table: Any, quotes: Any, sets_price: Any) -> list[dict]:
+    """``_prints`` read off a selection's columns: the same small rows, no full dict per print on the way."""
+    sided = quotes is not None and len(quotes)
+    exchanges = table.judged(lambda fields: fields.get("exchange"))
+    priced = table.judged(lambda fields: bool(sets_price(fields)))
+    out: list[dict] = []
+    for i, (ts, price, size) in enumerate(zip(table.values("ts"), table.values("price"), table.values("size"), strict=True)):
+        out.append({"ts": ts, "price": price, "size": size if size == size else None, "exchange": exchanges[i],
+                    "side": _side(quotes, ts, price) if sided else None, "sets_price": priced[i]})
     return out
 
 

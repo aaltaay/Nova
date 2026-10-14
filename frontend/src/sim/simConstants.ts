@@ -1,4 +1,8 @@
-/** SIM session + historical replay tunables (mirror backend/constants_sim.py). */
+/**
+ * SIM session + historical replay tunables (mirror backend/constants_sim.py), and the Sim desk's wording.
+ *
+ * maintainer: one-concern the Sim feature's constants table, as constantGroups/ tables are (exempt from 400)
+ */
 import { replayDayLabel } from '../utils/replayMoment';
 
 export const SIM_SESSION_OPEN_LABEL = '04:00';
@@ -198,10 +202,13 @@ export const simTabOfferImportBusy = (runningLabel: string): string =>
 /** An import's identity is the stock-day's whole session (backend constants_sim SIM_MASSIVE_DAY_START / _END). */
 export const SIM_MASSIVE_DAY_START = '04:00';
 export const SIM_MASSIVE_DAY_END = '20:00';
+const capNoun = (what: string) => (what === 'quotes' ? 'bid/ask changes' : 'trades');
 /** Why a stock-day's import kept only a window: the day's count of one dataset, over what a replay holds. */
 export const simMassiveCapWords = (cap: { what: string; count: number; limit: number }): string =>
-  `${cap.count.toLocaleString()} ${cap.what === 'quotes' ? 'bid/ask changes' : 'prints'}; a replay holds `
-  + cap.limit.toLocaleString();
+  `${cap.count.toLocaleString()} ${capNoun(cap.what)}; a replay holds ${cap.limit.toLocaleString()}`;
+/** The cap an import was cut under, as a limit: "500,000 trades". */
+export const simMassiveLimitWords = (cap: { what: string; limit: number }): string =>
+  `${cap.limit.toLocaleString()} ${capNoun(cap.what)}`;
 /** A capped day whose import holds another window than the playhead's. */
 export const simTabOfferImportCapped = (day: string, kept: string, around: string, cap: string): string =>
   `${day} is too busy to replay whole (${cap}), so it loads a window at a time: ${kept} ET is imported. `
@@ -209,9 +216,19 @@ export const simTabOfferImportCapped = (day: string, kept: string, around: strin
 /** The Historical replay panel's line under a capped stock-day's import. */
 export const simMassiveCappedHolds = (start: string, end: string, cap: string): string =>
   `Holds ${start} - ${end} only: the day is too busy to replay whole (${cap}).`;
-/** A capped day's import that holds the playhead's window: it loads, and says it is not the whole day. */
+/**
+ * A capped day's import that holds the playhead's window: it loads, and says it is not the whole day
+ * (operator 2026-10-14, over "OFAL ... is imported. The day is too busy to replay whole": "What the hell is this?").
+ */
 export const simTabOfferReadyCapped = (label: string, instead: boolean, cap: string): string =>
-  `${label} is imported${instead ? ' -- load it instead?' : '.'} The day is too busy to replay whole (${cap}).`;
+  `${label} is ready to play${instead ? ' -- load it instead?' : '.'} Only these hours fit: the whole day is too `
+  + `busy to replay (${cap}).`;
+/** A day cut under a smaller cap than today's (500,000 trades before 2026-10-14): loading it reads the day again. */
+export const simTabOfferReadyCappedAgain = (label: string, instead: boolean, limit: string): string =>
+  `${label} is ready to play${instead ? ' -- load it instead?' : '.'} It was cut to these hours when a replay held `
+  + `${limit}; loading it also reads the whole day again from your files.`;
+export const simTabOfferImportCappedAgain = (day: string, kept: string, limit: string): string =>
+  `${day} was cut to ${kept} ET when a replay held ${limit}. Read the whole day again from your files?`;
 /**
  * A day newer than the Massive files (operator, 2026-10-09): Massive publishes a day once it has ended, so
  * until it lands the tab's Download is IBKR's -- trades only, no bid/ask.

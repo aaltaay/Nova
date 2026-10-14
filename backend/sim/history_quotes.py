@@ -23,6 +23,7 @@ from collections.abc import Iterable
 from constants_sim import SIM_MASSIVE_EXCHANGES, SIM_MASSIVE_QUOTE_SOURCE, SIM_MASSIVE_SIDE_SOURCE
 
 _NAN = float("nan")
+_COLUMNS = ("ts", "bid", "bid_size", "bid_x", "ask", "ask_size", "ask_x")
 
 
 def _num(value) -> float:
@@ -34,25 +35,87 @@ def _out(value: float) -> float | None:
 
 
 class QuoteSeries:
-    """One window's NBBO rows in time order."""
+    """One window's NBBO rows in time order (an import builds one in file order and sorts it once)."""
 
-    __slots__ = ("ts", "bid", "bid_size", "bid_x", "ask", "ask_size", "ask_x")
+    __slots__ = _COLUMNS
 
-    def __init__(self, rows: Iterable[tuple]):
-        """``rows``: ``(ts, bid, bid_size, bid_x, ask, ask_size, ask_x)``, oldest first; a missing side is ``None``."""
+    def __init__(self, rows: Iterable[tuple] = ()):
+        """``rows``: ``(ts, bid, bid_size, bid_x, ask, ask_size, ask_x, ...)``, oldest first; a missing side is
+        ``None``. Fields past the seventh (the files' conditions and indicators) are not kept."""
         self.ts, self.bid, self.bid_size, self.ask, self.ask_size = (array("d") for _ in range(5))
         self.bid_x, self.ask_x = array("h"), array("h")
-        for ts, bid, bid_size, bid_x, ask, ask_size, ask_x in rows:
-            self.ts.append(float(ts))
-            self.bid.append(_num(bid))
-            self.bid_size.append(_num(bid_size))
-            self.bid_x.append(int(bid_x or 0))
-            self.ask.append(_num(ask))
-            self.ask_size.append(_num(ask_size))
-            self.ask_x.append(int(ask_x or 0))
+        for row in rows:
+            self.append(row)
+
+    def append(self, row: tuple) -> None:
+        ts, bid, bid_size, bid_x, ask, ask_size, ask_x = row[:7]
+        self.ts.append(float(ts))
+        self.bid.append(_num(bid))
+        self.bid_size.append(_num(bid_size))
+        self.bid_x.append(int(bid_x or 0))
+        self.ask.append(_num(ask))
+        self.ask_size.append(_num(ask_size))
+        self.ask_x.append(int(ask_x or 0))
 
     def __len__(self) -> int:
         return len(self.ts)
+
+    def rows(self) -> list[tuple]:
+        """Every row as ``(ts, bid, bid_size, bid_x, ask, ask_size, ask_x)``, a missing side ``None`` again."""
+        return [(self.ts[i], _out(self.bid[i]), _out(self.bid_size[i]), self.bid_x[i], _out(self.ask[i]),
+                 _out(self.ask_size[i]), self.ask_x[i]) for i in range(len(self))]
+
+    def take(self, positions: Iterable[int]) -> QuoteSeries:
+        """A series of the rows at ``positions``, in that order."""
+        at = list(positions)
+        out = QuoteSeries()
+        for name in _COLUMNS:
+            col = getattr(self, name)
+            setattr(out, name, array(col.typecode, (col[i] for i in at)))
+        return out
+
+    def span(self, lo: int, hi: int) -> QuoteSeries:
+        out = QuoteSeries()
+        for name in _COLUMNS:
+            setattr(out, name, getattr(self, name)[lo:hi])
+        return out
+
+    def within(self, start: float, end: float) -> QuoteSeries:
+        """The rows with ``start <= ts < end``, in series order."""
+        return self.take(i for i, t in enumerate(self.ts) if start <= t < end)
+
+    def between(self, start: float, end: float) -> QuoteSeries:
+        """A time-ordered series' rows in ``[start, end)``, after the one standing at ``start`` (if any)."""
+        lo, hi = bisect.bisect_left(self.ts, start), bisect.bisect_left(self.ts, end)
+        return self.span(max(0, lo - 1), max(hi, lo))
+
+    def in_time_order(self) -> QuoteSeries:
+        """This series ordered by ``ts`` (stable); itself when already in order."""
+        ts = self.ts
+        if all(ts[i - 1] <= ts[i] for i in range(1, len(ts))):
+            return self
+        return self.take(sorted(range(len(ts)), key=ts.__getitem__))
+
+    def extend(self, other: QuoteSeries) -> None:
+        for name in _COLUMNS:
+            getattr(self, name).extend(getattr(other, name))
+
+    def pack(self) -> bytes:
+        from sim.print_table import pack_columns
+
+        return pack_columns({name: getattr(self, name) for name in _COLUMNS}, {})
+
+    @classmethod
+    def unpack(cls, blob: bytes) -> QuoteSeries:
+        from sim.print_table import unpack_columns
+
+        columns, _extra = unpack_columns(blob)
+        out = cls()
+        for name in _COLUMNS:
+            setattr(out, name, columns[name])
+        if any(len(getattr(out, name)) != len(out.ts) for name in _COLUMNS):
+            raise ValueError("a packed quote series' columns differ in length")
+        return out
 
     def _row(self, i: int) -> dict | None:
         if i < 0:

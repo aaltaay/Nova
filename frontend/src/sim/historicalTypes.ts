@@ -77,6 +77,8 @@ export interface HistoricalJob extends HistoricalWindow {
   kept_end?: string | null;
   /** The day was over a cap, so only the focus was kept. */
   capped?: MassiveCap | null;
+  /** A capped import whose cap has been raised since (2026-10-14): its next load reads the whole day again. */
+  cap_raised?: boolean;
 }
 /** Which of a stock-day's datasets passed what a replay holds: the day's count of it, and the cap. */
 export interface MassiveCap { what: 'prints' | 'quotes'; count: number; limit: number }

@@ -173,9 +173,11 @@ ADR 017's canonical engine publishes an immutable selection only after its disk
 reads and indexes finish outside the playback lock (ADR 001/003 extraction).
 Readers retain that selection for the duration of a response. A selection/clear
 revision fences obsolete loads; publishing selection and session clock is atomic.
-The maximum is 500,000 prints per selection; SQL stops at limit + one and refuses
-larger selections without dropping prints. Narrow the requested window to load
-more of a large archive. This is a memory guard, not a retention policy.
+The maximum is 4,000,000 prints per selection (500,000 before 2026-10-14, when a
+selection started holding its prints as columns, `sim/print_table.py`, about 52
+bytes a print); an IBKR selection stops reading at limit + one and refuses larger
+selections without dropping prints. Narrow the requested window to load more of a
+large archive. This is a memory guard, not a retention policy.
 
 One selection owns bounded archive/timeframe and event-second result caches.
 Selected-symbol archive candles and prior close (including a miss) stay fixed until explicit

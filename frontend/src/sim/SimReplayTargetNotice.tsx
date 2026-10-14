@@ -13,7 +13,7 @@ import { useCallback, useState, useSyncExternalStore } from 'react';
 import { useWorkspace } from '../workspace';
 import { durationLabel } from './historicalProgress';
 import { useSimReplayTarget } from './useSimReplayTarget';
-import { landedLabel, offerCopy, offerDateLabel, type OfferAction } from './simReplayOffer';
+import { landedLabel, offerCopy, offerDateLabel, type OfferAction } from './simReplayOfferCopy';
 import { useSimReplayOffer } from './useSimReplayOffer';
 import { etDateToday, ownRecordingFor } from './ownRecording';
 import { capturesResource } from './useSimSessionController';
@@ -41,6 +41,7 @@ import {
   SIM_WHY_TAB_STOPPING_OTHER,
   SIM_WHY_WINDOW_LOADING,
   simMassiveCapWords,
+  simMassiveLimitWords,
   simTabGoToReplayLabel,
   simTabFilesNoIndex,
   simTabFilesNotOut,
@@ -53,6 +54,7 @@ import {
   simTabOfferImport,
   simTabOfferImportBusy,
   simTabOfferImportCapped,
+  simTabOfferImportCappedAgain,
   simTabOfferImportFailed,
   simTabOfferImporting,
   simTabOfferImportStopped,
@@ -60,6 +62,7 @@ import {
   simTabOfferNotAnsweringGaveUp,
   simTabOfferReady,
   simTabOfferReadyCapped,
+  simTabOfferReadyCappedAgain,
   simTabOfferRetrying,
   simTabOfferStopped,
   simTabOtherSymbolLead,
@@ -75,7 +78,10 @@ const COPY = {
   importBusy: simTabOfferImportBusy,
   importCapped: simTabOfferImportCapped,
   readyCapped: simTabOfferReadyCapped,
+  importCappedAgain: simTabOfferImportCappedAgain,
+  readyCappedAgain: simTabOfferReadyCappedAgain,
   capWords: simMassiveCapWords,
+  limitWords: simMassiveLimitWords,
   download: simTabOfferDownload,
   ready: simTabOfferReady,
   downloading: simTabOfferDownloading,

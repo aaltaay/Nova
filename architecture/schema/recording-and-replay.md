@@ -357,7 +357,9 @@ desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
   stock-day) and adds `focus_start` / `focus_end` (`HH:MM`, the window asked for, kept only over a cap),
   `kept_start` / `kept_end` (`HH:MM`, what it holds; `ranges` is the same span in epoch seconds; null until it
   completes) and `capped: {what: "prints" | "quotes", count, limit} | null` (the day's count of that dataset,
-  over `limit`, so only the focus was kept). An older import has none of these, and holds its own window. `status` is `queued | running | complete | failed | paused | interrupted` (a running job
+  over `limit`, so only the focus was kept), `cap_raised: boolean` (capped under a smaller cap than the import
+  applies now, so its next load reads the day again; 2026-10-14) and `packed: true` once stored as packed columns
+  (schema 2; absent on an import stored as rows). An older import has none of these, and holds its own window. `status` is `queued | running | complete | failed | paused | interrupted` (a running job
   rewritten by no live import for 60 s). The listing adds `massive: {available, reason, root, store,
   trade_days, quote_days, first, last, last_landed, store_error, seek_index}` -- `last_landed` the epoch seconds `last`'s
   trades file was finished on disk (its modified time; null when unknown), `store_error` names why the import
@@ -384,10 +386,15 @@ desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
   kept span's prints (typed), the ticker's whole day of 1-minute bars (operator 2026-10-09; only the window's
   before) and the kept span's NBBO rows -- plus the quote standing at its start -- are written in one
   transaction, which also drops the older imports of that symbol-day (not running) whose ranges the new one
-  holds. The kept span is the whole session while every reader counts the day within 500,000 prints
-  (`SIM_HISTORY_MAX_SELECTION_PRINTS`) and 4,000,000 quotes (`SIM_MASSIVE_MAX_SELECTION_QUOTES`). As soon as one
-  passes its cap, every reader keeps only the focus window and goes on counting. A focus window over a cap
-  by itself is refused with the reason before anything is written. A day without its
+  holds. The kept span is the whole session while every reader counts the day within 4,000,000 prints
+  (`SIM_HISTORY_MAX_SELECTION_PRINTS`; 500,000 before 2026-10-14) and 8,000,000 quotes
+  (`SIM_MASSIVE_MAX_SELECTION_QUOTES`; 4,000,000 before). As soon as one passes its cap, every reader keeps only
+  the focus window and goes on counting. A focus window over a cap by itself is refused with the reason before
+  anything is written. The readers hold what they keep compactly from the first row (a `PrintTable`, a
+  `QuoteSeries`), so the read holds a whole busy day in tens of megabytes. **Read again on its next load**
+  (2026-10-14): an import capped under a smaller cap than the one `massive_read` applies now (`cap_raised`) --
+  it may now hold its whole day -- and one stored as rows before schema 2, which loads slowly; what it holds
+  keeps playing until the new read replaces it. A day without its
   quotes file imports trades and bars with `quote_status: "not_downloaded"`; a download or selection after
   that file arrives imports the window again, and the window imported before keeps playing until the new one
   replaces it; so does a window imported before `minutes_scope: "day"` once its day's bars file is on disk. Pause ends the process (`paused`); a process that ends otherwise leaves `failed` with its exit
@@ -449,11 +456,30 @@ desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
   as `index_build`) says `died` for a `running` file whose process is gone or that stopped writing for 3
   minutes -- a run that was killed or crashed cannot say so itself -- and `unreadable` for an unknown
   `schema_version`, never reading it as this one.
-- **The store.** `<root>/sim/replay.sqlite3`, its own `PRAGMA user_version = 1` (unknown versions refuse):
-  `jobs (id, payload)`, `prints (job_id, ordinal, ts, ns, price, size, exchange, exchange_id, conditions,
-  correction, trf_id, sequence, tape, sets_price)`, `candles (job_id, ts, payload)`, `quotes (job_id, ordinal,
-  ts, bid, bid_size, bid_x, ask, ask_size, ask_x, conditions, indicators)`. The IBKR download store is never
-  touched.
+- **The store.** `<root>/sim/replay.sqlite3`, its own `PRAGMA user_version = 2` (2026-10-14; a version-1 store
+  gains the `packed` table and keeps every import, any other version refuses): `jobs (id, payload)`, `packed
+  (job_id, name, data)`, `candles (job_id, ts, payload)`, and -- read for imports stored before schema 2, never
+  written -- `prints (job_id, ordinal, ts, ns, price, size, exchange, exchange_id, conditions, correction,
+  trf_id, sequence, tape, sets_price)` and `quotes (job_id, ordinal, ts, bid, bid_size, bid_x, ask, ask_size,
+  ask_x, conditions, indicators)`. `packed` holds one blob per import and `name`: `prints` (the kept prints in
+  SIP time order, each with `seq` = its ordinal) and `quotes` (the NBBO rows, the one standing at their start
+  first; the files' quote `conditions` and `indicators` are no longer kept -- nothing read them). A blob
+  (`print_table.pack_columns`): a 4-byte little-endian header length, a JSON header `{schema_version: 1,
+  byteorder, columns: [[name, typecode, length]], extra}`, then each column's bytes in that order; prints add
+  `extra.shapes`, the distinct combinations of every non-number field (below). A blob of another
+  `schema_version`, or cut short, is refused; another byte order is swapped on read. The IBKR download store
+  is never touched.
+- **A replay holds its prints as columns** (operator ask 2026-10-14, after OFAL 2026-08-12 -- 728,489 prints --
+  loaded as 06:45-09:00 only under "The day is too busy to replay whole": "What the hell is this?"). Owner
+  `sim/print_table.py`. A selection's prints are a `PrintTable`: `ts`, `price`, `size` (float) and `ns`,
+  `sequence`, `seq` (int) in arrays, and every other field of a print as one code into the distinct
+  combinations of those fields -- about 52 bytes a print instead of a dict's 736. A print is a dict again only
+  when a reader asks for one (the tape's last `SIM_HISTORY_TAPE_ROWS`), equal to the one it was built from, keys
+  in order; a value that is not a number of its column's kind is kept with the rest, never coerced. Price-setting
+  prints are a view of the same columns; candles, last / volume / high / low and practice fills read the
+  columns. OFAL's whole day (728,489 prints, 650,300 quotes) loads in 0.8 s and holds 82 MB with its quotes;
+  its slice took 17 s and 303 MB before. An IBKR download's selection is a `PrintTable` too, filled one stored
+  print at a time.
 - **Prints.** `ts` is the SIP time in epoch seconds (float), `ns` the nanoseconds; each adds `exchange_id`,
   `correction`, `trf_id`, `sequence`, `tape`, `sets_price` and `unreported: false`. `sets_price` is true when the
   conditions miss `SIM_MASSIVE_NO_PRICE_CONDITIONS` (2, 7, 10, 13, 15, 16, 20, 21, 22, 29, 32, 33, 37, 38, 52, 53;
@@ -498,9 +524,12 @@ desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
   the Sim has LNKS loaded. Load SUNE to chart it." Desk wording only: no wire or persisted shape changes.
 - **It loads by itself on an empty desk** (operator 2026-10-09: "i dont think the entire nova app recognize
   massive as data recap for the sim"). With nothing loaded, the Trader tab on screen on a day in the files
-  imports and loads its window without a click, as the agent's `show` does; never over a loaded replay, never
-  an IBKR download, once per stock-day (a failed or stopped one, or a capped day's other window, waits for
-  the operator). A day newer than the
+  imports and loads its window without a click, as the agent's `show` does -- and a window already imported
+  loads straight away (2026-10-14: after a restart OFAL sat under "No replay loaded" over its finished import);
+  never over a loaded replay, never an IBKR download, once per stock-day (a failed or stopped one, or a capped
+  day's other window, waits for the operator). A capped day's tab says it plainly: "OFAL · Wed, Aug 12 ·
+  06:45–09:00 ET is ready to play. Only these hours fit: the whole day is too busy to replay (N trades; a replay
+  holds 4,000,000)", and one cut under a smaller cap than today's says the load also reads the whole day again. A day newer than the
   files says so on the tab -- "Fri, Oct 9 is not in your Massive files yet: they end at Thu, Oct 8, which
   landed Fri 03:37 ET" (Massive publishes a day once it has ended) -- and that until it lands a download is
   IBKR's.

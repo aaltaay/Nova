@@ -439,6 +439,82 @@ def test_a_capped_day_keeps_an_older_import_of_the_window_asked_for(root, monkey
     assert massive_import.wants_import(_window(), massive_import.availability(DAY)) is False
 
 
+def test_a_day_capped_under_a_smaller_cap_is_read_again_whole(root, monkeypatch):
+    """Operator ask 2026-10-14: OFAL 2026-08-12 (728,489 prints) was kept as 06:45-09:00 under the 500,000 cap.
+    Once the cap is raised, the next load reads the day again, whole; until then its window plays."""
+    monkeypatch.setattr(massive_read, "SIM_HISTORY_MAX_SELECTION_PRINTS", 5)
+    window = _window()
+    massive_import.begin(window)
+    capped = _wait_day(window)
+    assert capped["capped"] == dict(what="prints", count=6, limit=5) and capped["packed"] is True
+    assert massive_import.wants_import(window, massive_import.availability(DAY)) is False        # the same cap
+    monkeypatch.setattr(massive_read, "SIM_HISTORY_MAX_SELECTION_PRINTS", 6)
+    assert massive_import.wants_import(window, massive_import.availability(DAY)) is True
+    assert massive_import.begin(window)["status"] == "running"
+    whole = _wait_day(window)
+    assert whole["capped"] is None and (whole["kept_start"], whole["kept_end"]) == ("04:00", "20:00")
+    assert whole["count"] == 6 and massive_import.wants_import(window, massive_import.availability(DAY)) is False
+
+
+_V1_TABLES = """
+CREATE TABLE jobs (id TEXT PRIMARY KEY, payload TEXT NOT NULL);
+CREATE TABLE prints (job_id TEXT NOT NULL, ordinal INTEGER NOT NULL, ts REAL NOT NULL, ns INTEGER NOT NULL,
+    price REAL NOT NULL, size REAL NOT NULL, exchange TEXT, exchange_id INTEGER, conditions TEXT, correction INTEGER,
+    trf_id INTEGER, sequence INTEGER, tape INTEGER, sets_price INTEGER NOT NULL, PRIMARY KEY(job_id, ordinal));
+CREATE TABLE candles (job_id TEXT NOT NULL, ts INTEGER NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(job_id, ts));
+CREATE TABLE quotes (job_id TEXT NOT NULL, ordinal INTEGER NOT NULL, ts REAL NOT NULL, bid REAL, bid_size REAL,
+    bid_x INTEGER, ask REAL, ask_size REAL, ask_x INTEGER, conditions TEXT, indicators TEXT, PRIMARY KEY(job_id, ordinal));
+PRAGMA user_version=1;
+"""
+
+
+def test_a_store_of_version_1_keeps_playing_its_rows_and_reads_them_again_packed(root):
+    """Schema 2 (2026-10-14): a version-1 store gains the packed table and keeps every import; one stored as rows
+    plays from them, and its next load reads the day again into packed columns."""
+    import json
+    import sqlite3
+
+    window = _window()
+    day = massive_import.day_spec(window)
+    job = dict(massive_store.new_job(day), status="complete", ranges=[[day["start_ts"], day["end_ts"]]], count=2,
+               quote_count=1, quote_status="complete", kept_start="04:00", kept_end="20:00", minutes_scope="day")
+    path = massive_store.path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(path) as db:
+        db.executescript(_V1_TABLES)
+        db.execute("INSERT INTO jobs VALUES (?,?)", (job["id"], json.dumps(job)))
+        db.executemany("INSERT INTO prints VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)", [
+            (job["id"], 0, _sec("09:30:00") + 0.1, _ns("09:30:00", 100), 10.0, 100.0, "NASDAQ", 12, "", 0, 0, 2, 3, 1),
+            (job["id"], 1, _sec("09:30:00") + 0.2, _ns("09:30:00", 200), 9.5, 10.0, "NASDAQ", 12, "37", 0, 0, 3, 3, 0)])
+        db.execute("INSERT INTO quotes VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                   (job["id"], 0, _sec("09:29:59"), 9.98, 500.0, 12, 10.0, 300.0, 12, "1", "1"))
+    selected = playback.select(massive_import.held_spec(job))
+    assert selected["trade_count"] == 2 and selected["quote_count"] == 1
+    assert playback.prints_between("IMCC", 0, _sec("09:31:00")) == [(_sec("09:30:00") + 0.1, 10.0)]
+    assert [p["seq"] for p in massive_store.read_prints(job["id"], "IMCC")] == [0, 1]
+    with sqlite3.connect(path) as db:
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 2
+    assert massive_import.wants_import(window, massive_import.availability(DAY)) is True       # stored as rows
+    massive_import.begin(window)
+    again = _wait_day(window)
+    assert again["packed"] is True and again["count"] == 6
+    with sqlite3.connect(path) as db:
+        assert db.execute("SELECT COUNT(*) FROM prints").fetchone()[0] == 0                     # the rows went with it
+        assert db.execute("SELECT COUNT(*) FROM packed WHERE job_id=?", (job["id"],)).fetchone()[0] == 2
+    assert [p["sequence"] for p in massive_store.read_prints(job["id"], "IMCC")] == [1, 2, 3, 4, 5, 7]
+
+
+def test_a_store_of_an_unknown_version_is_refused(root):
+    import sqlite3
+
+    path = massive_store.path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(path) as db:
+        db.execute("PRAGMA user_version=9")
+    with pytest.raises(sqlite3.DatabaseError, match="Unsupported Massive replay store version 9"):
+        massive_store.jobs()
+
+
 def test_gap_reads_the_windows_own_0930_bar_never_the_ibkr_chart_store(root, monkeypatch):
     import bars_store
 

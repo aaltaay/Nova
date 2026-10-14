@@ -9,8 +9,9 @@ from datetime import datetime, timezone
 from constants_sim import SIM_HISTORY_ARCHIVE_CACHE_ENTRIES, SIM_HISTORY_RESULT_CACHE_ENTRIES
 from sim import history_coverage as coverage, history_store as store
 from sim.chart_replay import (
-    INTERVAL_SECONDS, aggregate_prints, extend_flat_tail, fill_flat_buckets, penny_bar,
+    INTERVAL_SECONDS, aggregate_columns, extend_flat_tail, fill_flat_buckets, penny_bar,
 )
+from sim.print_table import PrintTable
 
 
 def timestamp(row):
@@ -33,7 +34,8 @@ class CandleCache:
     charts draw the day before the window from them (operator, 2026-10-09); past the
     window's end nothing is drawn, as before, and never past the playhead.
     """
-    def __init__(self, spec: dict, prints: tuple, eligible: tuple, keys, *, minutes: list[dict] | None = None):
+    def __init__(self, spec: dict, prints: PrintTable, eligible: PrintTable, keys, *,
+                 minutes: list[dict] | None = None):
         self.spec, self.prints, self.eligible, self.keys = spec, prints, eligible, keys
         self.minutes = minutes
         self.lock = threading.RLock()
@@ -99,7 +101,7 @@ class CandleCache:
             for a, b in self._ranges():
                 lo, hi = bisect.bisect_left(self.keys, a), bisect.bisect_left(self.keys, b)
                 rows = fill_flat_buckets(
-                    [penny_bar(row) for row in aggregate_prints(self.eligible[lo:hi], seconds)], seconds)
+                    [penny_bar(row) for row in self._aggregate(lo, hi, seconds)], seconds)
                 for row in extend_flat_tail(rows, seconds, b):
                     if row['ts'] >= a and row['ts'] + seconds <= b:
                         built[row['ts']] = row
@@ -130,16 +132,21 @@ class CandleCache:
                 current = cutoff // seconds * seconds
                 in_range = coverage.range_at(self._ranges(), cutoff)
                 if in_range and in_range[0] <= current:
-                    reached = self.eligible[bisect.bisect_left(self.keys, current):
-                                            bisect.bisect_right(self.keys, cutoff)]
-                    result += [self._out(penny_bar(row), seconds, cutoff)
-                               for row in aggregate_prints(reached, seconds)]
+                    reached = self._aggregate(bisect.bisect_left(self.keys, current),
+                                              bisect.bisect_right(self.keys, cutoff), seconds)
+                    result += [self._out(penny_bar(row), seconds, cutoff) for row in reached]
             else:
                 result = [dict(row) for ts, row in archive if ts + seconds <= cutoff]
             result.sort(key=timestamp)
             value = tuple(result[-max(1, int(limit)):])
             bounded_put(self.results, key, value, SIM_HISTORY_RESULT_CACHE_ENTRIES)
             return [dict(row) for row in value]
+
+    def _aggregate(self, lo: int, hi: int, seconds: int) -> list[dict]:
+        """The price-setting prints ``lo``..``hi`` as buckets, read off their columns (no dict per print)."""
+        eligible = self.eligible
+        return aggregate_columns(eligible.values('ts', lo, hi), eligible.values('price', lo, hi),
+                                 eligible.values('size', lo, hi), seconds)
 
     @staticmethod
     def _out(row, seconds, cutoff):

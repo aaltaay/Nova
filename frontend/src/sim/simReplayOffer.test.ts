@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  filesNotOut, gatewayReachable, landedLabel, offerCopy, offerDateLabel, offerWindow, replayOffer, windowJob,
-  type ReplayOffer,
+  filesNotOut, gatewayReachable, offerWindow, replayOffer, windowJob, type ReplayOffer,
 } from './simReplayOffer';
+import { landedLabel, offerCopy, offerDateLabel } from './simReplayOfferCopy';
 import { simTabOfferNotAnswering, simTabOfferNotAnsweringGaveUp } from './simConstants';
 import type { HistoricalJob, HistoricalWindow } from './historicalTypes';
 
@@ -226,7 +226,7 @@ describe('replayOffer on a day in the Massive files (ADR 046)', () => {
     const running = replayOffer(W, [imported({ progress_pct: 40, eta_seconds: 30 })], false, files);
     expect(running).toMatchObject({ kind: 'downloading', hasCoverage: false, fromFiles: files });
     expect(offerCopy(running, false, t)).toEqual({ text: expect.stringContaining('importing'), action: 'stop' });
-    expect(replayOffer(W, [imported({ status: 'complete' })], false, files)).toEqual({ kind: 'ready', window: W });
+    expect(replayOffer(W, [imported({ status: 'complete' })], false, files)).toEqual({ kind: 'ready', window: W, imported: true });
     expect(offerCopy(replayOffer(W, [imported({ status: 'failed', error: 'disk' })], true, files), false, t))
       .toEqual({ text: 'import failed disk', action: 'import' });
   });
@@ -272,7 +272,10 @@ describe('one import per stock-day (ADR 046 amendment, 2026-10-09)', () => {
     importBusy: (l: string) => `busy ${l}`,
     importCapped: (d: string, kept: string, around: string, cap: string) => `capped ${d} kept ${kept} read ${around} (${cap})`,
     readyCapped: (l: string, _i: boolean, cap: string) => `ready capped ${l} (${cap})`,
+    importCappedAgain: (d: string, kept: string, limit: string) => `cut ${d} to ${kept} under ${limit}: read again`,
+    readyCappedAgain: (l: string, _i: boolean, limit: string) => `ready ${l}, cut under ${limit}: load reads again`,
     capWords: (cap: { count: number; limit: number }) => `${cap.count}/${cap.limit}`,
+    limitWords: (cap: { limit: number }) => `${cap.limit}`,
     download: () => 'download', ready: (l: string) => `ready ${l}`, downloading: () => 'downloading',
     stopped: () => 'stopped', failed: () => 'failed', busy: () => 'busy', gatewayDown: () => 'gateway down',
     gatewayWaiting: () => 'waiting', retrying: () => 'retrying', notAnswering: () => 'not answering',
@@ -292,7 +295,7 @@ describe('one import per stock-day (ADR 046 amendment, 2026-10-09)', () => {
     const done = dayJob({ status: 'complete', kept_start: '04:00', kept_end: '20:00', coverage: [[1, 2]] });
     for (const window of [W, { ...W, start: '04:00', end: '06:15' }, { ...W, start: '17:45', end: '20:00' }]) {
       expect(replayOffer(window, [done], true, files)).toEqual({
-        kind: 'ready', window, held: { ...W, start: '04:00', end: '20:00' },
+        kind: 'ready', window, held: { ...W, start: '04:00', end: '20:00' }, imported: true,
       });
     }
     expect(offerCopy(replayOffer(W, [done], true, files), false, t).text).toBe('ready IMCC · Fri, Sep 18 · 04:00–20:00 ET');
@@ -303,7 +306,7 @@ describe('one import per stock-day (ADR 046 amendment, 2026-10-09)', () => {
     const done = dayJob({ status: 'complete', kept_start: '04:00', kept_end: '20:00' });
     expect(windowJob(W, [older, done], files)).toBe(done);
     expect(windowJob(W, [older], files)).toBe(older);
-    expect(replayOffer(W, [older], true, files)).toEqual({ kind: 'ready', window: W });
+    expect(replayOffer(W, [older], true, files)).toEqual({ kind: 'ready', window: W, imported: true });
   });
 
   it('another stock-day still holds the one import slot, named by its day', () => {
@@ -317,13 +320,27 @@ describe('one import per stock-day (ADR 046 amendment, 2026-10-09)', () => {
     const capped = dayJob({ status: 'complete', kept_start: '06:45', kept_end: '09:00', capped: CAP });
     const inside = { ...W, start: '06:45', end: '09:00' };
     const ready = replayOffer(inside, [capped], true, files);
-    expect(ready).toEqual({ kind: 'ready', window: inside, held: inside, capped: CAP });
+    expect(ready).toEqual({ kind: 'ready', window: inside, held: inside, capped: CAP, imported: true });
     expect(offerCopy(ready, false, t)).toEqual({
       text: 'ready capped IMCC · Fri, Sep 18 · 06:45–09:00 ET (812345/500000)', action: 'load' });
     const outside = replayOffer(W, [capped], true, files);
     expect(outside).toEqual({ kind: 'download', window: W, fromFiles: files, held: inside, capped: CAP });
     expect(offerCopy(outside, false, t)).toEqual({
       text: 'capped IMCC · Fri, Sep 18 kept 06:45–09:00 read 09:15–11:30 (812345/500000)', action: 'import' });
+  });
+
+  it('a day cut under a smaller cap than today\'s says so, and its load or read takes the whole day again', () => {
+    // OFAL 2026-08-12 (operator 2026-10-14): 728,489 prints kept as 06:45-09:00 when a replay held 500,000.
+    const cut = dayJob({ status: 'complete', kept_start: '06:45', kept_end: '09:00', capped: CAP, cap_raised: true });
+    const inside = { ...W, start: '06:45', end: '09:00' };
+    const ready = replayOffer(inside, [cut], true, files);
+    expect(ready).toEqual({ kind: 'ready', window: inside, held: inside, capped: CAP, capRaised: true, imported: true });
+    expect(offerCopy(ready, false, t)).toEqual({
+      text: 'ready IMCC · Fri, Sep 18 · 06:45–09:00 ET, cut under 500000: load reads again', action: 'load' });
+    const outside = replayOffer(W, [cut], true, files);
+    expect(outside).toEqual({ kind: 'download', window: W, fromFiles: files, held: inside, capped: CAP, capRaised: true });
+    expect(offerCopy(outside, false, t)).toEqual({
+      text: 'cut IMCC · Fri, Sep 18 to 06:45–09:00 under 500000: read again', action: 'import' });
   });
 
   it('names the stock-day on every files offer, not the playhead window', () => {
