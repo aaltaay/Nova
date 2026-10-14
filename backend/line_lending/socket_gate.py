@@ -59,12 +59,12 @@ def opened(symbol: str, *, tab: bool, front: bool, kind: str = DEPTH) -> int | N
         return None
 
 
-def line_down(symbol: str) -> None:
+def line_down(symbol: str, *, silence: dict | None = None) -> None:
     """A Time & Sales socket found its line down: ``tape_heal`` brings it back (#698)."""
     try:
         from line_lending import tape_heal
 
-        tape_heal.line_down(symbol)
+        tape_heal.line_down(symbol, silence=silence)
     except Exception:
         logger.exception("IBKR tape: could not start bringing %s's Time & Sales line back", symbol)
 

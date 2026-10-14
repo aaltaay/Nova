@@ -1384,7 +1384,13 @@
             "backend/ibkr/tape_silence.py",
             "backend/line_lending/tape_heal.py",
             "backend/routes/trading_tape_ws.py",
-            "architecture/schema/market-data.md"
+            "architecture/schema/market-data.md",
+            "backend/constants_tape.py",
+            "backend/line_lending/socket_gate.py",
+            "backend/tests/test_ibkr_stray_lines.py",
+            "backend/tests/test_line_lending_tape_heal.py",
+            "backend/tests/test_tape_lifecycle_contract.py",
+            "backend/tests/test_dead_tape_locks_orders.py"
           ]
         },
         {

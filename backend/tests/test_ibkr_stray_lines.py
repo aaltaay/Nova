@@ -84,7 +84,7 @@ def _cancelled_tape_line(ib: IB, sent: dict, symbol: str = "NB", con_id: int = 6
     contract = _stock(symbol, con_id)
     ib.reqTickByTickData(contract, "AllLast")
     req_id = sent["tape"][-1]
-    stray_lines.note_cancelled(stray_lines.TAPE, req_id, symbol)
+    stray_lines.note_cancelled(stray_lines.TAPE, req_id, symbol, ib=ib)
     ib.cancelTickByTickData(contract, "AllLast")
     assert sent["tape_cancel"] == [req_id]
     return req_id
@@ -249,3 +249,78 @@ def test_a_ladder_whose_line_was_refused_before_its_socket_was_ready_hears_why(m
         assert ws.receive_json() == {"type": "error", "symbol": "JBDI", "message": why, "evicted": True}
         with pytest.raises(WebSocketDisconnect):
             ws.receive_json()
+
+
+def test_never_printing_cancel_only_proves_local_removal_and_dispatch(clock):
+    ib, sent = _ib()
+    req = _cancelled_tape_line(ib, sent)
+    assert ib.wrapper.subscriptions.get_ticker(req) is None
+    stray_lines.note_cancel_result(ib, req, error=None)
+    row = stray_lines.view()["cancellations"][-1]
+    assert row["cancel_sent"] is True and row["last_stray_at"] is None
+    assert "capacity" not in row and sent["tape_cancel"] == [req]
+
+
+def test_sdk_removes_registration_even_when_cancel_send_fails(clock):
+    ib, sent = _ib()
+    contract = _stock("NB", 620917098)
+    ib.reqTickByTickData(contract, "AllLast")
+    req = sent["tape"][-1]
+    stray_lines.note_cancelled(stray_lines.TAPE, req, "NB", ib=ib)
+
+    def fail(_req):
+        raise OSError("socket send failed")
+
+    ib.client.cancelTickByTickData = fail
+    with pytest.raises(OSError):
+        ib.cancelTickByTickData(contract, "AllLast")
+    stray_lines.note_cancel_result(ib, req, error="socket send failed")
+    assert ib.wrapper.subscriptions.get_ticker(req) is None
+    row = stray_lines.view()["cancellations"][-1]
+    assert row["cancel_sent"] is False and row["cancel_error"] == "socket send failed"
+
+
+def test_notes_do_not_cross_wrappers_or_connection_request_id_reuse(clock):
+    old, sent = _ib()
+    req = _cancelled_tape_line(old, sent, "OLD")
+    new, new_sent = _ib()
+    stray_lines.install(new)
+    _print(new, req)
+    assert new_sent["tape_cancel"] == [req]
+    assert stray_lines.view()["last"]["symbol"] is None
+
+
+def test_failed_recancels_reported_and_throttled_until_a_later_print(clock):
+    ib, sent = _ib()
+    stray_lines.install(ib)
+    req = _cancelled_tape_line(ib, sent)
+    attempts = []
+
+    def fail(req_id):
+        attempts.append(req_id)
+        raise OSError("socket send failed")
+
+    ib.client.cancelTickByTickData = fail
+    clock.now += 21
+    for _ in range(50):
+        _print(ib, req)
+    assert attempts == [req] and stray_lines.view()["recancelled"]["tape"] == 0
+    row = stray_lines.view()["cancellations"][-1]
+    assert row["recancel_sent"] is False and row["recancel_error"] == "socket send failed"
+    clock.now += IBKR_STRAY_LINE_RECANCEL_SEC
+    ib.client.cancelTickByTickData = lambda r: sent["tape_cancel"].append(r)
+    _print(ib, req)
+    assert stray_lines.view()["recancelled"]["tape"] == 1
+
+
+def test_request_id_reuse_on_same_wrapper_resets_cancel_grace_and_retry_cooldown(clock):
+    ib, sent = _ib()
+    stray_lines.install(ib)
+    req = _cancelled_tape_line(ib, sent, "OLD")
+    clock.now += 21
+    _print(ib, req)
+    assert stray_lines.view()["last"]["symbol"] == "OLD"
+    ib.client._startTime += 1                       # the pinned client resets its ids on a new connection
+    _print(ib, req)
+    assert sent["tape_cancel"] == [req, req, req]
+    assert stray_lines.view()["last"]["symbol"] is None

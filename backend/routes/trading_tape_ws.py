@@ -118,8 +118,8 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
                 gate_sent, gate_at = _gate(symbol), time.time()
                 await websocket.send_text(json.dumps({"type": "ping", "symbol": symbol, "silence": silence,
                                                       "gate": gate_sent}))
-                if not is_replay_desk() and not _tape.is_subscribed(symbol):
-                    socket_gate.line_down(symbol)  # down with no word from IBKR: ask again all the same
+                if not is_replay_desk():
+                    socket_gate.line_down(symbol, silence=silence)
                 continue
             if not await _send_batch(websocket, symbol, batch):
                 break
@@ -211,7 +211,13 @@ def _gate(symbol: str) -> dict | None:
 def _silence(symbol: str, halt_seen_at: float | None) -> dict | None:
     """The line's silence for the ping (memory only); None when it cannot be read."""
     try:
-        return tape_silence.reading(symbol, halt_seen_at=halt_seen_at)
+        from line_lending import tape_heal
+
+        reading = tape_silence.reading(symbol, halt_seen_at=halt_seen_at)
+        recovery = tape_heal.silent_status(symbol)
+        if reading is not None and recovery is not None:
+            return {**reading, "recovery": recovery, "text": f"{reading['text']} {recovery['text']}"}
+        return reading
     except Exception:
         logger.exception("IBKR tape WS: silence reading failed for %s", symbol)
         return None

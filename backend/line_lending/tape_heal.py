@@ -20,15 +20,22 @@ one task per symbol brings it back:
 
 A recording's own line is the keepalive's (``capture.tape_watch``); a loan's is ``loan_tape``'s.
 A replay desk opens no line, so nothing is asked there.
+
+Registered-dead Trader lines (#722) hold through a shared stall, then make one re-ask when a
+sibling returns. Shared recording holds delegate to the keepalive. Only a print confirms return;
+a subscribe without prints ends as failed and never starts repeated silence-driven cancellation.
 """
 from __future__ import annotations
 
 import asyncio
 import logging
 import time
+from collections import OrderedDict
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from constants_ibkr import IBKR_TAPE_LINE_REQ_KEEP
+from constants_tape import TAPE_RECOVERY_HOLD_SEC, TAPE_RECOVERY_VERIFY_SEC
 from line_lending import sockets
 from line_lending.constants_line_lending import (
     LINE_LENDING_TAPE_CAP_CODES,
@@ -41,6 +48,7 @@ logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
 
 _tasks: dict[str, asyncio.Task] = {}
+_silent: OrderedDict[str, dict] = OrderedDict()
 
 
 def reset_for_tests() -> None:
@@ -48,6 +56,7 @@ def reset_for_tests() -> None:
         if not task.done():
             task.cancel()
     _tasks.clear()
+    _silent.clear()
 
 
 def healing(symbol: str) -> bool:
@@ -59,16 +68,153 @@ def watched(symbol: str) -> bool:
     return sockets.count(symbol, sockets.TAPE) > 0
 
 
-def line_down(symbol: str) -> None:
+def line_down(symbol: str, *, silence: dict | None = None) -> None:
     """A socket found its line down (IBKR's error, or a heartbeat): bring it back unless already."""
     sym = symbol.upper()
-    if healing(sym) or not watched(sym) or not _down(sym):
+    from sim.mode import is_replay_desk
+
+    if healing(sym) or not watched(sym) or is_replay_desk():
         return
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:  # maintainer: allow-swallow no loop means no socket to heal for
         return
-    _tasks[sym] = loop.create_task(_heal(sym))
+    if _down(sym):
+        _tasks[sym] = loop.create_task(_heal(sym))
+    elif silence is not None and silence.get("state") == "dead":
+        _start_silent(sym, silence, loop)
+
+
+def silent_status(symbol: str) -> dict | None:
+    """The silence watch's outcome; a subscribed line alone never reads resumed."""
+    row = _silent.get(symbol.upper())
+    from ibkr import client
+    from ibkr.tape_recording import producer_status
+
+    if row is None or row["generation"] != client.current_generation():
+        return None
+    last = producer_status(symbol.upper()).get("last_print_ts")
+    if row.get("asked_at") is not None and last is not None and last >= row["asked_at"]:
+        row.update(state="resumed", text="Prints arrived after the tape re-ask.")
+    return {key: row.get(key) for key in ("state", "since", "asked_at", "text")}
+
+
+def _silent_say(sym: str, row: dict, state: str, text: str, *, retry_at: float | None = None) -> None:
+    row.update(state=state, text=text)
+    logger.warning("IBKR tape: %s -- %s", sym, text)
+    if state == "resumed":
+        from ibkr import tape_stream
+
+        tape_stream._push_queue(sym, {"type": "subscribed", "symbol": sym})
+    else:
+        _say(sym, text, retry_at)
+
+
+def _start_silent(sym: str, silence: dict, loop: asyncio.AbstractEventLoop) -> None:
+    from capture import feed_hold
+    from ibkr import client
+    from ibkr.tape_recording import producer_status
+
+    row = _silent.get(sym)
+    if row and row["generation"] == client.current_generation():
+        last = producer_status(sym).get("last_print_ts")
+        if last is not None and last >= row["seen_at"]:
+            row = None                         # a new silence after prints returned
+        elif row.get("attempted"):
+            return                             # one cancel/re-ask per uninterrupted outage
+        elif row["state"] == "holding" and set(row["peers"]) <= set(silence.get("pipeline") or ()):
+            return                             # the bounded watch expired; still the same shared stall
+    else:
+        row = None
+    if row is None:
+        row = {"since": silence["since"], "seen_at": time.time(), "asked_at": None,
+               "generation": client.current_generation(), "peers": list(silence.get("pipeline") or ())}
+        _silent[sym] = row
+        _silent.move_to_end(sym)
+        while len(_silent) > IBKR_TAPE_LINE_REQ_KEEP:
+            _silent.popitem(last=False)
+    if feed_hold.held(sym):
+        if row.get("state") != "delegated":
+            _silent_say(sym, row, "delegated", "The recording owns this shared tape line; its watchdog handles recovery.")
+        return
+    _tasks[sym] = loop.create_task(_heal_silent(sym, row))
+
+
+async def _heal_silent(sym: str, row: dict) -> None:
+    """Hold the original line through a shared stall, then make at most one silence-driven re-ask."""
+    from capture import feed_hold
+    from ibkr import client, tape_silence, tape_stream
+    from ibkr.tape_recording import producer_status
+
+    try:
+        hold_until = row["seen_at"] + TAPE_RECOVERY_HOLD_SEC
+        while watched(sym) and tape_stream.is_subscribed(sym):
+            if client.current_generation() != row["generation"]:
+                _silent.pop(sym, None)           # session renewal belongs to line_session
+                return
+            last = producer_status(sym).get("last_print_ts")
+            if last is not None and last >= row["seen_at"]:
+                _silent_say(sym, row, "resumed", "Prints returned without a re-ask; kept the original tape line.")
+                return
+            if feed_hold.held(sym):
+                _silent_say(sym, row, "delegated", "The recording owns this shared tape line; its watchdog handles recovery.")
+                return
+            if tape_silence.missed_trades(sym) is None:
+                _silent_say(sym, row, "waiting", "No current missing-trades proof; keeping the tape line.")
+                return
+            peers = tape_silence.pipeline_peers(sym)
+            if not row["peers"] or not set(row["peers"]) <= set(peers):
+                break
+            if row.get("state") != "holding":
+                _silent_say(sym, row, "holding", "Holding the original tape line while the shared tape is stalled.")
+            if time.time() >= hold_until:
+                _silent_say(sym, row, "holding", "The shared tape is still stalled; keeping its original line, with no repeated re-asks.")
+                return
+            await asyncio.sleep(LINE_LENDING_TAPE_HEAL_POLL_SEC)
+        if not watched(sym) or not tape_stream.is_subscribed(sym):
+            return
+        if not client.is_ready():
+            _silent_say(sym, row, "waiting", "IBKR is not ready; keeping the original tape line.")
+            return
+        row["attempted"] = True
+        tape_stream.end_line(sym, "registered tape line is missing trades; one bounded re-ask", notify=False)
+        _silent_say(sym, row, "attempting", "Re-asking for the missing tape after IBKR's same-instrument guard; return is unproven.",
+                    retry_at=time.time() + tape_stream.guard_remaining(sym))
+        if not await _wait(sym, tape_stream.guard_remaining(sym), guard_until=float("inf")):
+            return
+        if client.current_generation() != row["generation"]:
+            _silent.pop(sym, None)
+            return
+        row["asked_at"] = time.time()
+        result = await tape_stream.subscribe_async(sym)
+        if not result.get("ok"):
+            _silent_say(sym, row, "failed", f"Tape re-ask failed: {result.get('error') or 'IBKR did not open the line'}.")
+            return
+        until = time.time() + TAPE_RECOVERY_VERIFY_SEC
+        _silent_say(sym, row, "attempting", "Tape re-asked; waiting for prints to verify its return.")
+        while watched(sym) and time.time() < until:
+            if client.current_generation() != row["generation"]:
+                _silent.pop(sym, None)
+                return
+            last = producer_status(sym).get("last_print_ts")
+            if last is not None and last >= row["asked_at"]:
+                _silent_say(sym, row, "resumed", "Prints arrived after the tape re-ask.")
+                return
+            if not tape_stream.is_subscribed(sym):
+                _silent_say(sym, row, "failed", "IBKR ended the re-asked tape line; its refusal healer will handle it.")
+                return
+            await asyncio.sleep(LINE_LENDING_TAPE_HEAL_POLL_SEC)
+        if watched(sym):
+            _silent_say(sym, row, "failed", "The tape re-ask brought no prints; no further silence-driven re-ask will be made until prints return.")
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        logger.exception("IBKR tape: %s's registered-silent recovery failed", sym)
+        row["attempted"] = True
+        _silent_say(sym, row, "failed", "Nova could not complete the tape recovery attempt; return is unproven.")
+    finally:
+        if _tasks.get(sym) is asyncio.current_task():
+            _tasks.pop(sym, None)
 
 
 def _down(sym: str) -> bool:
@@ -133,7 +279,7 @@ async def _make_room(sym: str) -> str | None:
     return f"auto-record gave back {victim}'s recording line" if victim else None
 
 
-def _say(sym: str, message: str, retry_at: float) -> None:
+def _say(sym: str, message: str, retry_at: float | None) -> None:
     from ibkr import tape_stream
 
     tape_stream._push_queue(sym, {"type": "error", "symbol": sym, "message": message,

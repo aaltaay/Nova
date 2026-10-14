@@ -177,6 +177,17 @@ the day before. Meanwhile the ladder read "Waiting for book data…" for good, b
   after Nova's own cancel, is a line IBKR kept: cancelled again, and the print is dropped. At most once per id
   per `IBKR_STRAY_LINE_RECANCEL_SEC`; the first time is a WARNING that names the symbol. Whether that frees the
   line at IBKR is not proven (for Level 2 it does not).
+  - Tape release is immediate, before or after the first print, including a quiet or never-printing
+    request. There is no tape grant to wait for. Nova drops local ownership and attempts the SDK cancel;
+    a refusal uses this same release path. Local removal and a sent cancel never prove broker capacity.
+  - Cancellation notes belong to the SDK wrapper and connection start time, not just a request id.
+    `/api/ibkr/status.stray_lines` adds bounded `cancellations` rows with `symbol`, `req_id`,
+    `cancelled_at`, `cancel_sent` (null while dispatching), `cancel_error`, `last_stray_at`,
+    `recancelled_at`, `recancel_sent`, and `recancel_error`. A failed send is a warning and a stated
+    failure; even if the SDK removed its registration, release at IBKR remains unknown. Late prints
+    stay dropped and retry sending at the existing bounded rate. No print means no late-print witness
+    and no extra hold or timer-driven cancel. Failed re-cancels are rate-limited too. A new connection
+    cannot inherit an earlier request's symbol, grace window or retry cooldown.
 - **A refused Level 2 line is not open** (owner `ibkr/depth/handlers.py`). Error 309 on a line's own request
   ends the line without a cancel, since IBKR never opened it. Every viewer gets the socket's `error` frame
   with `evicted: true`, and the socket closes. The ladder shows the message and asks again on its refused
@@ -291,7 +302,19 @@ kept arriving, so this is not a feed gap (above).
   same witness: Level 1 trades after the last print make it dead, Level 1 updating with no trade since makes
   it quiet (no ask), and a line in the same silence as others (`pipeline`: silent in the same second, or
   opened into their silence and never printed) is held, not asked for, until one of them prints again (`CAPTURE_TAPE_PIPELINE_HOLD_MAX_SEC` at most), then asked for if still dead. The Trader's own
-  line is only read, never asked for again, here.
+  line also has a bounded recovery contract (`line_lending/tape_heal.py`): a `dead` reading starts one
+  watch per symbol. Record holds delegate to the recording watchdog. Trader-only lines hold during
+  a shared stall for at most `TAPE_RECOVERY_HOLD_SEC` (600); if it persists, they state the hold and
+  leave the original line alone. Once a sibling prints or closes, a still-dead line is cancelled once
+  through `tape_line`, preserving all viewer queues/references, and re-asked through `tape_stream`
+  after its same-instrument guard. No extra line or recording is reclaimed for a silence alone.
+  A print arriving without a re-ask ends the watch. Halts, quiet/uncertain readings, replay desks and
+  changed IB sessions are excluded. A successful subscribe states only an attempt: an actual print
+  within `TAPE_RECOVERY_VERIFY_SEC` (30) confirms return, otherwise the outcome says no prints returned
+  and no further silence-driven cancellation is made until a print arrives. Explicit refusals still
+  use the existing cap-aware healer. The ping's optional `silence.recovery` is
+  `{state, since, asked_at, text}`; `state` is `holding`, `delegated`, `waiting`, `attempting`,
+  `failed` or `resumed`. None of these outcomes proves an upstream cure or changes order arming.
 - **IBKR's farm and line notices** (owner `ibkr/farm_notices.py`, via `session_errors`): farm broken 2103 /
   2105 / 2157, OK 2104 / 2106 / 2158, inactive 2107 / 2108 (the farm is the text after the last colon, or
   after "upon demand." for the inactive pair), depth halted 316 and competing live session 10197 are each
