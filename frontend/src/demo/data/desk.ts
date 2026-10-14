@@ -70,7 +70,9 @@ export function ibkrStatus(venue: Venue, nowS: number) {
 const PAPER = {
   venue: 'paper', account_id: 'NOVA-PAPER', starting_cash: 25000, cash: 24505.25, buying_power: 98021.0,
   net_liquidation: 26905.25, gross_position_value: 2400.0, realized_pnl: 1864.25, realized_today: 409.35,
-  unrealized_pnl: 41.0, unrealized_at_bid: 28.5, day_pnl: 450.35, // GAPX bid 1.91 day_started_et: '2026-09-30T04:00:00-04:00', commissions_today: 14.5,
+  // unrealized_at_bid: GAPX at its 1.91 bid.
+  unrealized_pnl: 41.0, unrealized_at_bid: 28.5, day_pnl: 450.35,
+  day_started_et: '2026-09-30T04:00:00-04:00', commissions_today: 14.5,
   positions: [{ symbol: 'GAPX', qty: 1250, avg_cost: 1.8872, mark: 1.92, unrealized: 41.0 }],
   working: [], fills_today: 7, schema_version: 1, updated_at: '2026-09-30T09:41:26-04:00',
 };

@@ -141,8 +141,8 @@ def live_l1_bid_ask(symbol: str) -> tuple[float | None, float | None]:
         return None, None
     from ibkr import ticks as _ticks
 
-    row = _ticks.last_quotes([sym]).get(sym) or {}
-    bid, ask = finite_last(row.get("bid")), finite_last(row.get("ask"))
+    l1_bid, l1_ask = _ticks.bid_ask(sym)
+    bid, ask = finite_last(l1_bid), finite_last(l1_ask)
     if bid is not None and ask is not None:
         return bid, ask
     from ibkr.depth import state as depth_state
