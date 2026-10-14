@@ -78,7 +78,7 @@ describe('FollowedTradersPage', () => {
     expect(q('ft-capture-pill')!.textContent).toBe('Live · 6s behind the stream · bar read 10:09:54 ET');
     // The bar's read is on the slot; the slot is the live one while capture reads the bar.
     expect(q('ft-slot-ALPHA')!.getAttribute('title')).toBe('Read as: LONG ABCD 2.00');
-    expect(q('ft-slot-ALPHA')!.textContent).toBe('Their slot now');
+    expect(q('ft-slot-ALPHA')!.querySelector('figcaption')!.textContent).toBe('Their slot now');
     // No live image for BRAVO: their newest evidence stands in, with its time.
     expect(q('ft-slot-BRAVO')!.textContent).toContain('Their slot at their last change · 09:59:00 ET');
     expect(q('ft-trader-ALPHA')!.textContent).toContain('On air');
@@ -129,6 +129,12 @@ describe('FollowedTradersPage', () => {
     await click(q('ft-stream-close'));
     expect(q('ft-stream')).toBeNull();
     await click(q('ft-watch-live'));
+    expect(q('ft-stream')).not.toBeNull();
+  });
+
+  it('keeps the stream on a past day: it is the feed’s now, whatever day is shown', async () => {
+    await show(day({ date: '2026-10-09', capture: { ...day().capture!, video_id: 'R5YIugCJar0' } }));
+    expect((q('ft-watch-live') as HTMLButtonElement).disabled).toBe(false);
     expect(q('ft-stream')).not.toBeNull();
   });
 

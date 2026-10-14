@@ -76,7 +76,8 @@ function DayBody({ day, error, proofId, range, onRange, onPickDate, onProof }: D
   const records = useFollowedRecord(range, day.date);
   const streamOpen = useStreamOpen();
   const c = day.capture;
-  const videoId = isToday ? streamId(c?.video_id) : null;
+  // The stream is the feed's now, whatever day is shown: watching it never depends on the day picked.
+  const videoId = streamId(c?.video_id);
   const hasOpen = day.traders.some((t) => t.open.length > 0);
   const pricesWhy = isToday && hasOpen && day.prices && day.prices.state !== 'live' ? day.prices.why : null;
   const recordFor = (name: string, own: FollowedRecord): FollowedRecord | null =>
