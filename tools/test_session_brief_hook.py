@@ -45,12 +45,12 @@ def test_roadmap_next_parses_the_live_ledger(hook):
     assert hook._roadmap_next(), "Nova-Roadmap-Status.md has no `- **Product NEXT:**` line"
 
 
-def test_build_brief_carries_the_next_move_seed(hook, monkeypatch):
+def test_build_brief_carries_the_next_move_picks(hook, monkeypatch):
     import next_moves
 
-    monkeypatch.setattr(next_moves, "session_brief_lines", lambda: ["Next-move seed (as of t, source=live):", "- ship= K3"])
+    monkeypatch.setattr(next_moves, "session_brief_lines", lambda: ["Next-move picks (as of t, source=live):", "1. [85] Fix #913"])
     brief = hook.build_brief()
-    assert brief and "Next-move seed" in brief and "- ship= K3" in brief
+    assert brief and "Next-move picks" in brief and "1. [85] Fix #913" in brief
 
 
 def test_build_brief_fails_open_when_seed_raises(hook, monkeypatch):
@@ -61,7 +61,7 @@ def test_build_brief_fails_open_when_seed_raises(hook, monkeypatch):
 
     monkeypatch.setattr(next_moves, "session_brief_lines", _boom)
     brief = hook.build_brief()
-    assert brief and "Next-move seed: unavailable" in brief
+    assert brief and "Next-move picks: unavailable" in brief
 
 
 def test_roadmap_next_missing_file(hook, tmp_path, monkeypatch):

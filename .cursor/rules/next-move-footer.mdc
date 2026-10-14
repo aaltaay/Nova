@@ -1,68 +1,47 @@
 ---
-description: Next-move footer -- every substantive reply ends with a numbered, product-grounded menu the operator answers with a digit (template, lanes, modes, seed, lint)
+description: Next-move picks -- a reply that ends a task ends with the best six next moves, ranked from live state and worded in plain English; a clickable card in the Claude desktop app, a numbered menu elsewhere
 alwaysApply: true
 ---
 
-# Next-move footer -- mandatory for every user-facing reply
+# Next-move picks -- the end of every reply that finishes a task
 
-AGENTS.md §5 requires it; this rule holds the template. The menu exists so the
-operator's next hour goes to **getting Nova out the door**, not to whatever
-the agent just touched. Constants (`LANES`, word caps, forbidden phrases) and
-the lint live in `tools/next_moves.py`; the seed keeps issue numbers, package
-slugs and PR titles out of the agent's memory.
+AGENTS.md §5 requires it. The picks send the operator's next hour to the most
+valuable work, not to whatever the agent just touched. `tools/next_moves.py`
+ranks every candidate from live GitHub state -- red PRs, open P0/P1 bugs
+(untriaged ones too), the backlog's next batch, the inbox, the decision that
+frees the most work, the roadmap's human steps; one score table in
+`tools/next_move_picks.py` -- and renders the top six. Never write a pick from memory.
 
-## Template
+## How to end a reply
 
-```text
-**Better ask:** <one sentence: the sharper version of the ask + one thing the operator did not know, with a file / #issue / command reference> (omit when nothing real)
+1. **Your own next step**, when this conversation has a real one (your PR to merge, the failure to fix, the step the operator asked for next), goes in as `--thread 'Title|one-line reason|prompt'` and is ranked with the rest (above a P1). A reply that reports a failure passes the root-cause fix, or opening the `deferred` issue when it cannot be fixed this session.
+2. **Say it plainly** (operator, 2026-10-13: "barely English"). The seed lists each pick's id (`bug-913`, `pr-933`). Reword every shown pick for the operator with `--say id='Headline|Why'`: a headline of at most six words and one sentence on what is wrong or waiting and what it means for trading or shipping. Everyday words; no copied issue or PR titles, no jargon (`P1`, `HTTP loop`, `depth line`). The prompt behind the button stays the tool's.
+3. **Claude desktop app** (you have the `show_widget` tool; call its `read_me` once first): run `py -3 tools/next_moves.py card [--thread ...] [--say ...]` and pass the output unchanged to `show_widget` (title `next_moves`) as the reply's last element, with no text menu beside it. Each button sends its pick's prompt as the operator's next message.
+4. **Everywhere else** (Cursor, Codex, CLI): end with the output of `py -3 tools/next_moves.py menu [--thread ...] [--say ...]`. A digit runs that pick: restate it, then do it (a `Needs you` pick shows the question and waits). `0` is a fresh ask.
+5. The tool prints `nothing worth offering`: end without a menu. Never pad.
+6. **First reply of a chat** (operator ask 2026-10-14): it also *opens* with the card (or menu), from the brief's seed, before the answer, so every Nova chat starts with the best next moves.
 
-**Next move** (reply with a number; `3 go` starts it; `1 3` for several; `0` = other):
-1. `[thread]` <verb + scope (file / #NNN / slug) + artifact it produces; done when <criterion>>
-2. `[ship]` <seed `ship=`: the human-only roadmap step, or "verify PR #N merged" when this session opened one>
-3. `[backlog]` <seed `backlog=`: Claim `<slug>` batch <n> and open its PR: "<title>" (#a, #b).>
-4. `[decide]` <seed `decide=`: Answer #NNN (<question>?) -- unblocks N issues.>
-```
-
-Exactly one line is prefixed `★ ` and ends with `-- <reason, <=8 words>`. Star
-the line that gets the product out the door soonest: an unmerged PR this
-session produced > the `[ship]` human step > `[backlog]`. Never star `[decide]`.
+An optional **Better ask:** above the menu: one sentence, at most 35 words, a real gap plus one fact the operator did not know.
 
 ## Rules
 
-1. **Lanes and numbers are fixed**: `[thread]`, `[ship]`, `[backlog]`, then `[decide]`. Three to five options; `[decide]` is the only optional lane. An empty lane says `none`, it does not shift the numbers.
-2. **Every line is a pasteable prompt**: verb + scope + artifact + done-criterion, at most 30 words. Never "you could also ask about X", never a question to the agent.
-3. **Seed, never recall.** `[ship]`, `[backlog]`, `[decide]` are copied from the `Next-move seed` block the session brief injected (or `py -3 tools/next_moves.py seed`). Re-run the seed after you open or merge a PR, close an issue, claim or release a batch, or edit the roadmap ledger. If the seed says `unavailable`, print that -- do not guess an issue number.
-4. **Never offer** `auto_live`, a live-gate flip, an order outside gated `backend/ibkr/`, a claimed or gated batch, or a per-issue PR. The seed withholds these; the lint rejects them.
-5. **Reply semantics.** A bare digit returns the plan or checklist (for `[decide]`: draft the issue comment and wait for the operator's answer, never implement). `N go` executes it -- for `[backlog]` that means `backlog_triage.py claim`, then the §5.1 clean start. `1 3` runs in order; `0` is a fresh ask; `4: <text>` is the operator's own question. On any digit, restate the chosen prompt verbatim first.
-6. **Failure mode.** When the reply reports a failed build, test or run, lines 1-2 become `[fix]` (root-cause prompt) and `[park]` (open a `deferred` issue with Symptom / Cause-so-far); `[backlog]` and `[decide]` follow. Never skip the menu on a failure.
-7. **Question mode.** When the reply itself ends by asking the operator something, render `**Your call** (reply with a number; `0` = other):` with the answer choices as the options, star the recommended answer, and omit Better ask.
-8. **Better ask** is one sentence, at most 35 words, only when there is a real gap plus one fact the operator did not know. No flattery; omit rather than pad.
-9. **Budget**: the whole block is at most 180 words; no prose between lines; nothing after it.
-10. **Audience**: the parent, user-facing reply that ends a task. Mid-task progress messages carry nothing. Specialist subagent reports end with the `**Lifecycle:**` line (`docs/agent-operations.md`) and never this menu.
+- Never offer `auto_live`, a live-gate flip, an order outside gated `backend/ibkr/`, a claimed or gated batch, or a per-issue PR. The picks withhold them; the lint rejects them.
+- Picks are read live (about 2 s): run the tool again after you open or merge a PR, close an issue, or claim or release a batch.
+- **Question mode.** A reply that ends by asking the operator something ends with `**Your call** (reply with a number; `0` = other):` and the answer choices, the recommended one starred.
+- **Audience**: the parent reply that ends a task. Mid-task progress lines carry nothing; specialist reports end with the `**Lifecycle:**` line (`docs/agent-operations.md`), never picks.
+- **Skip** only trivial exchanges: pings, tiny confirmations, status polls.
 
-## Skip
-
-Only trivial exchanges: one-word pings, tiny confirmations, pure status polls,
-mid-task progress lines. When skipping, write nothing -- no stub.
-
-## Example (this rule's own PR, real state on 2026-09-20)
+## Example (text menu after `--say`, real state on 2026-10-13, three of six shown)
 
 ```text
-**Better ask:** Name the clients that must render it and cap the words; you did not know the session brief silently dropped the roadmap line when it switched to `**Product NEXT:**`.
-
-**Next move** (reply with a number; `3 go` starts it; `1 3` for several; `0` = other):
-1. ★ `[thread]` Review the next-move footer PR and merge it; done when CI is green and the head branch is gone. -- finishes this task
-2. `[ship]` Phase L research: review the available strategy results and record their assumptions; done when the chosen result is in Bot-Trading-Plan.
-3. `[backlog]` Claim `state-truth` batch 0 and open its PR: "fix(sim): server-owned recording state; an empty capture refuses instead of fabricating prints" (#316, #317).
-4. `[decide]` Answer #340 (keep `backend/sim/history_*` as the single replay surface?) -- unblocks 6 issues, incl. P0 #315.
+**Next move** (reply with a number; `0` = other):
+1. ★ **Stop orders on an empty book** -- You can still send an order when Level 2 shows no book, and the desk waits forever for depth that never comes. *(Urgent · touches orders)*
+2. **Restart silent Time & Sales** -- When a stock's prints stop while its quotes keep coming, Nova does not restart the prints. *(Urgent)*
+3. **Sort the new issues** -- 39 issues have no package yet, so no agent will pick them up, including three urgent bugs. *(Unblocks the backlog)*
 ```
 
-The CLI emits UTF-8 even when Windows pipes default to a legacy code page; roadmap symbols must not crash seed output. A subprocess regression forces a legacy output encoding.
-
-Check a draft: `py -3 tools/next_moves.py lint <file|->`. `tools/test_next_moves.py`
-pins this example, the lane order in AGENTS.md §5, and the forbidden phrases.
+Check a hand-edited menu: `py -3 tools/next_moves.py lint <file|->`. `tools/test_next_moves.py` pins this example and the scoring.
 
 ## Related
 
-- `AGENTS.md` §5 (requirement) · `tools/next_moves.py` (seed + lint) · `tools/session_brief_hook.py` (injects the seed)
-- `.cursor/rules/deferred-log.mdc` (what `[park]` opens) · GitHub Issues/milestones (what `[backlog]` claims) · `Nova-Roadmap-Status.md` (where `[ship]` comes from)
+`AGENTS.md` §5 · `tools/next_moves.py` (`card`, `menu`, `seed`, `lint`) · `tools/next_move_picks.py` (score table) · `tools/next_move_render.py` · `tools/session_brief_hook.py` (injects `seed`) · `.cursor/rules/claim-resolution.mdc`
