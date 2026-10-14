@@ -22,6 +22,7 @@ from constants_leaderboard import (
     LEADERBOARD_SECONDS_ACTIVE,
     LEADERBOARD_SECONDS_BOARD,
     LEADERBOARD_SECONDS_FAILED,
+    LEADERBOARD_SECONDS_FINGERPRINT_TTL_SEC,
     LEADERBOARD_SECONDS_NONE,
     LEADERBOARD_SECONDS_QUEUED,
     LEADERBOARD_SECONDS_READY,
@@ -40,6 +41,10 @@ BOARD = LEADERBOARD_SECONDS_BOARD
 _BACKEND_DIR = Path(__file__).resolve().parents[2]
 _lock = threading.RLock()
 _running: dict[str, "_Handle"] = {}
+
+# The stored rebuilt day's fingerprint per day: (read at, fingerprint), reused for FINGERPRINT_TTL_SEC.
+_fingerprints: dict[str, tuple[float, str | None]] = {}
+STALE = "The rebuilt day changed since this was built; asking again builds it again"
 
 RECORDED = ("Nova recorded this day: its Gappers are the list the desk showed, kept per minute")
 NOT_REBUILT = "This day has no rebuilt Gappers list to fill in"
@@ -199,9 +204,21 @@ def _stored_fingerprint(day: str) -> str | None:
     if db is None:
         return None
     try:
-        return inputs.fingerprint(db, day)
+        mark = inputs.fingerprint(db, day)
     finally:
         db.close()
+    _fingerprints[day] = (time.monotonic(), mark)
+    return mark
+
+
+def current(job: dict[str, Any], day: str) -> bool:
+    """Whether a ready job was built from the rebuilt day as it is stored now (checked at most every TTL)."""
+    held = _fingerprints.get(day)
+    if held is None or time.monotonic() - held[0] > LEADERBOARD_SECONDS_FINGERPRINT_TTL_SEC:
+        mark = _stored_fingerprint(day)
+    else:
+        mark = held[1]
+    return job.get("fingerprint") == mark
 
 
 def status(day: str) -> dict[str, Any]:
@@ -266,3 +283,4 @@ def reset_for_tests() -> None:
     stop_all()
     with _lock:
         _running.clear()
+    _fingerprints.clear()

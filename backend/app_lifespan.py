@@ -333,6 +333,8 @@ async def lifespan(app: FastAPI):
         await bootstrap_task
     except asyncio.CancelledError:
         pass
+    except Exception:  # a failed bootstrap must not skip the teardown below
+        logger.exception("lifespan: the deferred bootstrap had failed; shutting down anyway")
     global _bootstrap_complete
     _bootstrap_complete = False
 
