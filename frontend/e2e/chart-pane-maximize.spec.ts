@@ -13,7 +13,8 @@ test.describe('Trader chart pane maximize', () => {
     await page.goto('/?view=sample&symbol=SMPL');
     const grid = page.getByTestId('chart-grid');
     const cell = page.getByTestId('chart-grid-cell-5Min');
-    await expect(grid).toBeVisible();
+    // Initial lazy-module readiness only, see architecture/frontend-live-render-contract.md.
+    await expect(grid).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('stock-view-rail')).toBeVisible();
 
     await cell.locator('.chart-body').dblclick({ position: PLOT_POINT });
@@ -42,7 +43,8 @@ test.describe('Trader chart pane maximize', () => {
     await page.goto('/?view=sample&symbol=SMPL');
     const grid = page.getByTestId('chart-grid');
     const cell = page.getByTestId('chart-grid-cell-10Sec');
-    await expect(grid).toBeVisible();
+    // Initial lazy-module readiness only, see architecture/frontend-live-render-contract.md.
+    await expect(grid).toBeVisible({ timeout: 20_000 });
     await expect(cell).toBeVisible();
 
     const expand = cell.getByTestId('chart-expand-btn');

@@ -1484,7 +1484,11 @@
               "frontend/e2e/fixtures/desk-freezes.html",
               "frontend/e2e/fixtures/deskFreezes.tsx",
               "frontend/e2e/desk-freezes.spec.ts",
-              "frontend/e2e/baseline.spec.ts"
+              "frontend/e2e/baseline.spec.ts",
+              "frontend/e2e/chart-pane-maximize.spec.ts",
+              "frontend/e2e/chart-trendline.spec.ts",
+              "frontend/e2e/fund-account.spec.ts",
+              "frontend/e2e/scanner-account-dock.spec.ts"
           ]
         },
         {

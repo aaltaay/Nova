@@ -9,7 +9,8 @@ test.describe('Scanner account dock', () => {
     await page.goto('/?view=sample');
 
     const desk = page.getByTestId('scanner-desk');
-    await expect(desk).toBeVisible();
+    // Initial lazy-module readiness only, see architecture/frontend-live-render-contract.md.
+    await expect(desk).toBeVisible({ timeout: 20_000 });
     const dock = scannerOrdersDock(page);
     await expect(dock).toBeVisible();
     await dock.getByTestId('stock-view-dock-tab-positions').click();
@@ -26,7 +27,8 @@ test.describe('Scanner account dock', () => {
     await page.goto('/?view=sample');
 
     const badge = page.getByTestId('sample-data-badge');
-    await expect(badge).toBeVisible();
+    // Initial lazy-module readiness only, see architecture/frontend-live-render-contract.md.
+    await expect(badge).toBeVisible({ timeout: 20_000 });
     await expect(badge).toContainText('Nova Marketing Sample Data');
 
     // The header must not contradict its own GATEWAY-connected chip.
@@ -62,7 +64,7 @@ test.describe('Scanner account dock', () => {
     });
 
     await page.goto('/?view=sample');
-    await expect(page.getByTestId('sample-data-badge')).toBeVisible();
+    await expect(page.getByTestId('sample-data-badge')).toBeVisible({ timeout: 20_000 });
 
     await page.getByTestId('global-bar-emergency-kill').click();
 

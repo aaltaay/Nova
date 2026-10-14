@@ -51,8 +51,17 @@ hot-list polling, and changed book/annotation frames exercise visible values and
 displayed-view stamps without a broker or production desk.
 
 The baseline's first navigation waits up to 20 seconds for the nav rail to
-mount. A traced cold Vite load spent 8.3 seconds after `page.goto` resolved
-loading the lazy App module graph before the rail appeared; the former generic
+mount. A traced cold Vite load spent 8.3 seconds in the first readiness assertion
+loading the lazy App module graph before the rail appeared (9.4 seconds from
+navigation start); the former generic
 5-second assertion ended with modules still pending, without a page exception.
-This bound applies only to initial browser-test readiness. Subsequent interaction
+The observed initial grid, toolbar and sample-badge waits in the chart-pane,
+trendline, scanner-account and Fund account specs use the same bound when a fresh page still
+shows the lazy Loading status. This bound applies only to initial browser-test
+readiness. Subsequent interaction
 assertions, product timing, market freshness and order deadlines are unchanged.
+
+The Fund account browser spec fulfills the intended Client Portal destination
+through a context route and asserts that exact navigation. It verifies Nova's
+link behavior, with no dependency on the remote broker website's availability
+and no account access or login.
