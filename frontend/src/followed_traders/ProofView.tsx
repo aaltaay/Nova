@@ -146,8 +146,10 @@ export function ProofView({ trade, face, date, generatedAt, onBack }: Props) {
             <span className="ft-mono ft-muted ft-small">{trade.exit && out !== null ? exited(trade.exit) : ''}</span></div>
           {out === null ? <div className="ft-empty">{noExitImage(trade)}</div> : (
             <>
-              <FeedImage path={trade.evidence.exit} className="ft-proof__img" missing={FT_NO_EVIDENCE}
-                alt={`${trade.trader}'s position bar at the exit`} />
+              {/* Closed when they left the bar: an exit time, but no close was seen, so no picture of one. */}
+              {trade.left_bar ? <div className="ft-empty">{noExitImage(trade)}</div>
+                : <FeedImage path={trade.evidence.exit} className="ft-proof__img" missing={FT_NO_EVIDENCE}
+                  alt={`${trade.trader}'s position bar at the exit`} />}
               <span className="ft-eyebrow">{FT_WHAT_WAS_READ}</span>
               {readsNote !== null ? <span className="ft-muted ft-small">{readsNote}</span>
                 : <ReadGrid read={data ? readAt(data.reads, out) : null} trade={trade} kind="gone" loggedAt={etTime(out)} />}

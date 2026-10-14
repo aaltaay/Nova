@@ -55,7 +55,7 @@ export function ProofPeek({ t }: { t: FollowedTrade }) {
       <div className="ft-peek__shot">
         <div className="ft-peek__label"><span className="ft-eyebrow ft-eyebrow--exit">{FT_EXIT}</span>
           <span className="ft-mono ft-muted ft-xs">{t.exit && out !== null ? exited(t.exit) : ''}</span></div>
-        {out === null ? <div className="ft-empty ft-small">{noExitImage(t)}</div>
+        {out === null || t.left_bar ? <div className="ft-empty ft-small">{noExitImage(t)}</div>
           : <FeedImage path={t.evidence.exit} className="ft-peek__img" missing={FT_NO_EVIDENCE}
             alt={`${t.trader}'s position bar at the exit`} />}
       </div>
