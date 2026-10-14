@@ -78,6 +78,16 @@ def test_a_paper_market_buy_fills_at_the_live_ask_with_fees_and_attribution(pape
     assert paper.broker.positions()[0]["qty"] == 100
 
 
+def test_unrealized_at_bid_marks_a_long_at_the_live_bid_and_reads_unknown_when_dark(paper) -> None:
+    paper.broker.place("IMCC", "BUY", 100, "MKT")  # filled at the 10.02 ask
+    assert paper.broker.snapshot()["unrealized_at_bid"] == pytest.approx((9.98 - 10.02) * 100)
+    assert paper.broker.account_summary()["UnrealizedAtBid"] == pytest.approx(-4.0)
+    paper.ref.ref = Reference(10.0, 10.10, 10.12, live=True)  # the bid moves; the next read follows it
+    assert paper.broker.snapshot()["unrealized_at_bid"] == pytest.approx(8.0)
+    paper.ref.dark = True
+    assert paper.broker.snapshot()["unrealized_at_bid"] is None
+
+
 def test_paper_persists_every_change_and_the_next_process_reloads_it(paper) -> None:
     paper.broker.place("IMCC", "BUY", 100, "MKT")
     path = paper.broker.persist_path

@@ -67,7 +67,11 @@ export const GLOBAL_BAR_NAV_TRADER_DISABLED_TITLE =
  * Compact account cluster, Webull order: Day's | Working | TAV | account pill.
  * One row on every venue; the cards under Day's / TAV hold the rest.
  */
-export const GLOBAL_BAR_DAY_PNL_LABEL = "Day's";
+export const GLOBAL_BAR_DAY_PNL_LABEL = 'P/L';
+/** Beside P/L: every open position marked at the bid (a short at the ask), from the account poll. */
+export const GLOBAL_BAR_UNREALIZED_LABEL = 'Unrealized P/L';
+export const GLOBAL_BAR_UNREALIZED_TITLE =
+  'Unrealized P/L -- each open position marked at the price that closes it now: a long at the bid, a short at the ask. Blank while a held stock has no live bid / ask.';
 /**
  * The Day's title on Live (and the sample desk): IBKR's RealizedPnL +
  * UnrealizedPnL (globalBarMoney.dayPnlFromSummary). IBKR's unrealized runs from
@@ -94,7 +98,8 @@ export const GLOBAL_BAR_OFFLINE_PLACEHOLDER = '--';
 
 /** Card under Day's. */
 export const GLOBAL_BAR_DAY_CARD_ARIA = "Day's P&L details";
-export const GLOBAL_BAR_CARD_OPEN_PNL = 'Open P&L';
+export const GLOBAL_BAR_CARD_OPEN_PNL = 'Open P&L (last)';
+export const GLOBAL_BAR_CARD_UNREALIZED_PNL = 'Unrealized P/L (bid)';
 export const GLOBAL_BAR_CARD_DAY_PNL = "Day's P&L";
 export const GLOBAL_BAR_CARD_REALIZED_PNL = "Day's Realized P&L";
 /** Card under TAV. Excess Liquidity is IBKR-only and omitted when IBKR does not report it. */

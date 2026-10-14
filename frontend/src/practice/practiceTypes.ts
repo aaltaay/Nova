@@ -20,6 +20,8 @@ export interface PracticeAccount {
   gross_position_value: number;
   realized_pnl: number;
   unrealized_pnl: number;
+  /** Open P&L at the price that closes each position now (long: bid, short: ask); null when a quote is missing. */
+  unrealized_at_bid?: number | null;
   day_pnl: number;
   /** Realized P&L (net of fees) since the 04:00 ET practice-day boundary. */
   realized_today?: number | null;
