@@ -5,15 +5,26 @@
   "updated": "2026-10-13",
   "items": [
     {
+      "id": "#940",
+      "title": "Clip capture shutdown must await its file closes before the clip fixture removes its folder",
+      "kind": "bug",
+      "severity": "P3",
+      "status": "open",
+      "domain": "frontend",
+      "number": "940",
+      "url": "https://github.com/aaltaay/Nova/issues/940",
+      "state": "OPEN"
+    },
+    {
       "id": "#927",
       "title": "Screen recorder teardown must await native file closes and in-flight finalizers",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "frontend",
       "number": "927",
       "url": "https://github.com/aaltaay/Nova/issues/927",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#925",
@@ -2191,17 +2202,6 @@
       "domain": "market-feed | execution",
       "number": "37",
       "url": "https://github.com/aaltaay/Nova/issues/37",
-      "state": "CLOSED"
-    },
-    {
-      "id": "D-013",
-      "title": "Order UI: Place enabled while spend is locked; backend `detail` dropped; unknown status tone",
-      "kind": "bug",
-      "severity": "P2",
-      "status": "done",
-      "domain": "execution",
-      "number": "36",
-      "url": "https://github.com/aaltaay/Nova/issues/36",
       "state": "CLOSED"
     }
   ]
