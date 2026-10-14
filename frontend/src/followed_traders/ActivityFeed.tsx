@@ -1,13 +1,24 @@
 /**
  * The Activity column: every entry, add and exit of the day, newest first, one line each with the trader's photo. No
- * screenshots (operator, 2026-10-13): an event opens its trade's Proof, which has them. Only the newest events that
- * fit are drawn; the rest fold into "+N earlier", which opens the whole day's list over the column.
+ * screenshots (operator, 2026-10-13): an event opens its stock in the Trader, or, on a desk with no Trader, its trade's
+ * Proof, which has them. Only the newest events that fit are drawn; the rest fold into "+N earlier", which opens the
+ * whole day's list over the column.
  */
-import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import { useContext, useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import { tipProps } from '../ux/hoverTip';
 import { activity, type ActivityItem, type ActivityVerb } from './activity';
-import { FT_ACTIVITY, FT_ACTIVITY_HINT, FT_ALL_ACTIVITY, FT_CLOSE_LIST, FT_FOLD_LINE_PX, FT_NO_ACTIVITY } from './constants';
+import {
+  FT_ACTIVITY,
+  FT_ACTIVITY_HINT,
+  FT_ACTIVITY_HINT_TRADER,
+  FT_ALL_ACTIVITY,
+  FT_CLOSE_LIST,
+  FT_FOLD_LINE_PX,
+  FT_NO_ACTIVITY,
+  FT_OPEN_IN_TRADER,
+} from './constants';
 import { etTime, price } from './format';
-import { Face, SideChip } from './parts';
+import { Face, OpenTraderContext, SideChip } from './parts';
 import type { FollowedTrader } from './types';
 
 const VERB_CLASS: Record<ActivityVerb, string> = {
@@ -18,8 +29,10 @@ const VERB_CLASS: Record<ActivityVerb, string> = {
 };
 
 function Event({ e, face, onProof }: { e: ActivityItem; face: string | null; onProof: (id: string) => void }) {
+  const open = useContext(OpenTraderContext);
   return (
-    <button type="button" className="ft-event" onClick={() => onProof(e.tradeId)} data-testid={`ft-activity-${e.key}`}>
+    <button type="button" className="ft-event" onClick={() => (open ? open(e.symbol) : onProof(e.tradeId))}
+      data-testid={`ft-activity-${e.key}`} {...tipProps(open ? `${FT_OPEN_IN_TRADER}: ${e.symbol}` : null)}>
       <span className="ft-mono ft-muted ft-event__time">{etTime(e.ts)}</span>
       <Face path={face} name={e.trader} size="xs" />
       <span className={`ft-verb ${VERB_CLASS[e.verb]}`}>{e.trader} {e.verb}</span>
@@ -59,6 +72,7 @@ function useFitCount(ref: RefObject<HTMLDivElement | null>, total: number, shape
 
 export function ActivityFeed({ traders, onProof }: { traders: FollowedTrader[]; onProof: (id: string) => void }) {
   const items = activity(traders);
+  const hint = useContext(OpenTraderContext) ? FT_ACTIVITY_HINT_TRADER : FT_ACTIVITY_HINT;
   const faces = new Map(traders.map((t) => [t.name, t.face]));
   const list = useRef<HTMLDivElement>(null);
   const [all, setAll] = useState(false);
@@ -69,7 +83,7 @@ export function ActivityFeed({ traders, onProof }: { traders: FollowedTrader[]; 
     <section className="ft-card ft-activity" aria-labelledby="ft-activity" data-testid="ft-activity">
       <div className="ft-activity__head">
         <h2 id="ft-activity" className="ft-eyebrow">{FT_ACTIVITY}</h2>
-        <span className="ft-muted ft-xs">{FT_ACTIVITY_HINT}</span>
+        <span className="ft-muted ft-xs">{hint}</span>
       </div>
       <div className="ft-activity__list" ref={list}>
         {items.length === 0 && <div className="ft-activity__empty ft-muted">{FT_NO_ACTIVITY}</div>}

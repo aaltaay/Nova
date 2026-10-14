@@ -86,6 +86,20 @@
 }
 .ft-link:hover { text-decoration: underline; }
 
+/* A ticker that opens the Trader: it keeps the ticker's own size and weight (`:where` yields to them) and reads as a
+   link only under the pointer. */
+:where(.ft-ticker-link) {
+  font: inherit;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+}
+.ft-ticker-link { cursor: pointer; text-underline-offset: 3px; }
+.ft-ticker-link:hover { color: var(--ft-accent); text-decoration: underline; }
+/* A narrow closed table cuts the ticker as it cut the text: the cell's own ellipsis cannot reach into a button. */
+.ft-table--closed .ft-ticker-link { max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: top; }
+
 .ft-btn {
   font: inherit;
   display: inline-flex;

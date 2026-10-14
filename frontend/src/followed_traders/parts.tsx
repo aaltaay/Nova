@@ -1,12 +1,31 @@
-/** Small pieces the Followed traders page repeats: the side chip, a trader's photo, a record, a P/L, a result. */
+/**
+ * Small pieces the Followed traders page repeats: the side chip, a ticker that opens the Trader, a trader's photo, a
+ * record, a P/L, a result.
+ */
+import { createContext, useContext } from 'react';
 import { tipProps } from '../ux/hoverTip';
-import { FT_RESULT_WORDS, FT_UNSCORED_TIP } from './constants';
+import { FT_OPEN_IN_TRADER, FT_RESULT_WORDS, FT_UNSCORED_TIP } from './constants';
 import { FeedImage } from './FeedImage';
 import { plPct, plPerShare, plTone } from './format';
 import type { FollowedRecord, FollowedTrade, TradeResult } from './types';
 
 export function SideChip({ side }: { side: 'long' | 'short' }) {
   return <span className={`ft-side ft-side--${side}`}>{side.toUpperCase()}</span>;
+}
+
+/** The desk's "open this symbol in the Trader", provided by the page; null where there is no Trader to open. */
+export const OpenTraderContext = createContext<((symbol: string) => void) | null>(null);
+
+/** A trade's ticker: clicking it opens the stock in the Trader. Plain text when the desk gave the page no Trader. */
+export function Ticker({ symbol, className }: { symbol: string; className: string }) {
+  const open = useContext(OpenTraderContext);
+  if (!open) return <span className={className}>{symbol}</span>;
+  return (
+    <button type="button" className={`${className} ft-ticker-link`} onClick={() => open(symbol)}
+      aria-label={`${FT_OPEN_IN_TRADER}: ${symbol}`} {...tipProps(FT_OPEN_IN_TRADER)}>
+      {symbol}
+    </button>
+  );
 }
 
 /** The trader's photo from the stream, or their name's first letter when the feed has none. */

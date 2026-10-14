@@ -100,6 +100,7 @@ export const FT_NO_CLOSED = 'No closed trades that day';
 export const FT_ON_AIR = 'On air';
 export const FT_PROOF = 'Proof';
 export const FT_PROOF_CLICK_HINT = 'Click for every read of the slot during this trade';
+export const FT_OPEN_IN_TRADER = 'Open in the Trader';
 export const FT_EST = 'est.';
 export const FT_EST_TIP = 'The exit happened while the feed could not see the bar, so this is the low–high of IBKR’s trades in that window, never one invented fill.';
 
@@ -110,6 +111,7 @@ export const FT_RECORD_PENDING = 'exits still being read from IBKR';
 
 export const FT_ACTIVITY = 'Activity';
 export const FT_ACTIVITY_HINT = 'Newest first · click an event for its Proof';
+export const FT_ACTIVITY_HINT_TRADER = 'Newest first · click an event to open it in the Trader';
 export const FT_ALL_ACTIVITY = 'The whole day’s Activity';
 export const FT_NO_ACTIVITY = 'Nothing happened on the bar this day.';
 export const FT_ALREADY_OPEN = 'Already open when capture started';
