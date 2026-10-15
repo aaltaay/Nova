@@ -49,7 +49,7 @@ _lock = threading.Lock()
 _wake = Wake()
 _snapshot: dict[str, Any] | None = None
 _answers: dict[str, bool] = {}
-_stale_said: set[str] = set()           # "pos id|outcome": a position from an earlier day, said once per outcome
+_stale_said: set[str] = set()           # "pos id|opened_ts|outcome": an earlier day's position, said once per outcome
 _status: dict[str, Any] = {"running": False, "pass_ts": None, "answer": None, "waits": {}, "can_open": None,
                            "idle": True, "names": [], "names_day": None}
 
@@ -283,11 +283,16 @@ async def _sell_earlier_days(now: float) -> None:
     today = _desk_day(now)
     book.roll_day(today)
     hold = keys_hold(keys())
-    for pos in list(book.positions().values()):
+    positions = list(book.positions().values())
+    # One instance per position: a stock the host trades again on a later day is said again; a closed one forgotten.
+    live = {f"{p['id']}|{p.get('opened_ts')}" for p in positions}
+    for said in [k for k in _stale_said if k.rsplit("|", 1)[0] not in live]:
+        _stale_said.discard(said)
+    for pos in positions:
         if pos["state"] == "closing" or _desk_day(float(pos.get("opened_ts") or now)) >= today:
             continue
         held = hold(pos["host"])
-        said = f"{pos['id']}|{held[0] if held else 'sell'}"
+        said = f"{pos['id']}|{pos.get('opened_ts')}|{held[0] if held else 'sell'}"
         if said not in _stale_said:
             _stale_said.add(said)
             act.note({"kind": "stale_day", "host": pos["host"], "row_id": pos["row_id"], "symbol": pos["symbol"],

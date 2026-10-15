@@ -423,8 +423,8 @@ def _keys_held(trade: dict[str, Any], now: float) -> tuple[str, str] | None:
     from constants_bot import BOT_FAMILY_STRATEGY, BOT_SKIP_SETUP_NOT_STRATEGY
 
     held = family_keys.hold(BOT_FAMILY_STRATEGY, trade.get("venue"))
-    setup = trade.get("setup_type")
-    if held is None and setup and int(own_levels(load_session()).get(setup) or 0) < BOT_LEVEL_STRATEGY:
+    setup = trade.get("setup_type") or BOT_SETUP_FIRST_PULLBACK     # a trade saved before setup types: the first pullback
+    if held is None and int(own_levels(load_session()).get(setup) or 0) < BOT_LEVEL_STRATEGY:
         held = (BOT_SKIP_SETUP_NOT_STRATEGY, f"the {label(setup)} is not On: its trade places no order, not even a "
                                              "sell")
     if held is None:
