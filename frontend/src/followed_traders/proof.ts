@@ -4,6 +4,7 @@
  * feed logged then, or was a read the feed ignored. Pure.
  */
 import { FT_CLOSE_NOT_SEEN, FT_CLOSED_ON_LEAVING, FT_STILL_OPEN } from './constants';
+import { gluedRead } from './ticker';
 import type { BarPosition, FollowedRead, FollowedTrade } from './types';
 
 export type ReadVerdict = 'entry' | 'held' | 'ignored' | 'not_seen' | 'exit' | 'before' | 'after';
@@ -19,9 +20,13 @@ export function expectedPrice(t: FollowedTrade, ts: number): number {
   return p;
 }
 
+/** The read shows the trade at the price the feed logged then: as its ticker, or that ticker glued to its price
+ *  (SOFI 14.03 read SOF 114.03), which is the same position read wrong, not one the feed ignored. */
 export function holdsTrade(read: FollowedRead, t: FollowedTrade, ts: number): boolean {
   const want = expectedPrice(t, ts);
-  return read.positions.some((p) => p.side === t.side && p.symbol === t.symbol && p.price === want);
+  const glued = gluedRead(t.symbol, want);
+  return read.positions.some((p) => p.side === t.side && ((p.symbol === t.symbol && p.price === want)
+    || (glued !== null && p.symbol === glued.symbol && p.price === glued.price)));
 }
 
 /** When the trade left the bar (its exit's end), or null while it is open or its close was never seen. */

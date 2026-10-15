@@ -1,13 +1,21 @@
 /**
- * Small pieces the Followed traders page repeats: the side chip, a ticker that opens the Trader, a trader's photo, a
- * record, a P/L, a result.
+ * Small pieces the Followed traders page repeats: the side chip, a ticker that opens the Trader and the mark of a
+ * ticker read glued to its price, a trader's photo, a record, a P/L, a result.
  */
 import { createContext, useContext } from 'react';
 import { tipProps } from '../ux/hoverTip';
-import { FT_OPEN_IN_TRADER, FT_RESULT_WORDS, FT_UNSCORED_TIP } from './constants';
+import {
+  FT_OPEN_IN_TRADER,
+  FT_RESULT_WORDS,
+  FT_TICKER_CHECK,
+  FT_TICKER_CHECK_MARK,
+  FT_TICKER_FIXED,
+  FT_UNSCORED_TIP,
+} from './constants';
 import { FeedImage } from './FeedImage';
 import { plPct, plPerShare, plTone } from './format';
-import type { FollowedRecord, FollowedTrade, TradeResult } from './types';
+import { tickerUnsettled } from './ticker';
+import type { FollowedRecord, FollowedTicker, FollowedTrade, TradeResult } from './types';
 
 export function SideChip({ side }: { side: 'long' | 'short' }) {
   return <span className={`ft-side ft-side--${side}`}>{side.toUpperCase()}</span>;
@@ -25,6 +33,19 @@ export function Ticker({ symbol, className }: { symbol: string; className: strin
       aria-label={`${FT_OPEN_IN_TRADER}: ${symbol}`} {...tipProps(FT_OPEN_IN_TRADER)}>
       {symbol}
     </button>
+  );
+}
+
+/** Beside a ticker the feed may have read glued to its price: "?" while it is not settled, "fixed" once IBKR's tape
+ *  put it back on the longer ticker; the hover says why. Nothing for a ticker as read. */
+export function TickerMark({ ticker }: { ticker?: FollowedTicker | null }) {
+  if (!ticker || ticker.state === 'as_read') return null;
+  const fixed = ticker.state === 'corrected';
+  return (
+    <span className={`ft-note ft-ticker-mark${fixed ? '' : ' ft-note--warn'}`} data-testid="ft-ticker-mark"
+      {...tipProps(ticker.why ?? FT_TICKER_CHECK)}>
+      {fixed ? FT_TICKER_FIXED : FT_TICKER_CHECK_MARK}
+    </span>
   );
 }
 
@@ -61,8 +82,17 @@ export function RecordChips({ record, testId }: { record: FollowedRecord | null;
   );
 }
 
-/** P/L per share and %, stacked, or on one line (`inline`) in a closed trade's row. */
+/** P/L per share and %, stacked, or on one line (`inline`) in a closed trade's row. A trade whose ticker may be glued
+ *  to its price has none: "ticker check", with why on hover. */
 export function PlCell({ trade, inline = false, big = false }: { trade: FollowedTrade; inline?: boolean; big?: boolean }) {
+  if (tickerUnsettled(trade)) {
+    return (
+      <span className={`ft-pl ft-pl--check${inline ? ' ft-pl--inline' : ''}`} data-testid={`ft-ticker-check-${trade.id}`}
+        {...tipProps(trade.ticker?.why ?? null)}>
+        {FT_TICKER_CHECK}
+      </span>
+    );
+  }
   const tone = plTone(trade.pl);
   return (
     <span className={`ft-pl ft-pl--${tone}${inline ? ' ft-pl--inline' : ''}${big ? ' ft-pl--big' : ''}`}>

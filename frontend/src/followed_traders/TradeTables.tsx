@@ -9,7 +9,7 @@
 import { tipProps } from '../ux/hoverTip';
 import { FT_EST, FT_EST_TIP, FT_EXIT_PENDING, FT_NOW, FT_OFF_AIR_CLOSE, FT_OFF_AIR_CLOSE_TIP, FT_OPEN_CHIP, FT_PROOF } from './constants';
 import { DASH, entered, etTime, exitPrice, exited, held, price } from './format';
-import { PlCell, ResultWord, SideChip, Ticker } from './parts';
+import { PlCell, ResultWord, SideChip, Ticker, TickerMark } from './parts';
 import { ProofLink } from './ProofLink';
 import type { FollowedTrade } from './types';
 
@@ -74,6 +74,7 @@ export function OpenTile({ t, onProof }: { t: FollowedTrade; onProof: (id: strin
       <div className="ft-tile__row">
         <span className="ft-open-chip">{FT_OPEN_CHIP}</span>
         <Ticker symbol={t.symbol} className="ft-tile__ticker" />
+        <TickerMark ticker={t.ticker} />
         <SideChip side={t.side} />
         <span className="ft-tile__held ft-muted ft-xs">held {held(t.held)}</span>
       </div>
@@ -119,7 +120,7 @@ export function ClosedTable({ trades, onProof, compact = false, folded = 0, onSh
         {shown.map((t) => (
           <tr key={t.id} className={`ft-closed ft-closed--${t.result ?? 'unscored'}`} data-testid={`ft-row-${t.id}`}>
             <td><ResultWord result={t.result} /></td>
-            <td><Ticker symbol={t.symbol} className="ft-ticker" /></td>
+            <td><Ticker symbol={t.symbol} className="ft-ticker" /><TickerMark ticker={t.ticker} /></td>
             <td><SideChip side={t.side} /></td>
             <td><TimeIn t={t} /> → <TimeOut t={t} /></td>
             <td><span className="ft-prices"><Entry t={t} compact={compact} /> → <Exit t={t} /></span></td>

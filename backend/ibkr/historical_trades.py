@@ -33,6 +33,10 @@ PACING_KEY = "ticks:TRADES"
 BARS_KEY = "bars:1min:TRADES"
 
 
+class UnknownContract(ValueError):
+    """IBKR qualified no US stock for the symbol: there is no such ticker (still a ValueError, as before)."""
+
+
 def _blocked(symbol: str, page_end: float, headroom: int, key: str = PACING_KEY) -> str | None:
     """Why the next request may not go now, or None."""
     if open_chart_busy():
@@ -60,7 +64,8 @@ async def recent_trades(symbol: str, end: float, back_sec: float, *, max_pages: 
     ``{trades: [{ts, price, exchange, conditions, sets_price}], since, complete, pages, minutes, minutes_note}``.
     ``since`` is how far back they reach (``end - back_sec`` when ``complete``). ``minutes`` are IBKR's 1-minute bars
     from ``end - back_sec`` to ``since`` when the trades stop short: ``[{ts, average, count}]``, ``ts`` the minute's
-    start; ``minutes_note`` says why there are none. Must run on the IB connect-loop."""
+    start; ``minutes_note`` says why there are none. ``UnknownContract`` when IBKR has no such stock. Must run on the
+    IB connect-loop."""
     assert_ib_loop()
     from ib_async import Stock
 
@@ -78,7 +83,7 @@ async def recent_trades(symbol: str, end: float, back_sec: float, *, max_pages: 
     qualified = await ib.qualifyContractsAsync(Stock(sym, "SMART", "USD"))
     contract = next((c for c in qualified or [] if c is not None), None)
     if contract is None:
-        raise ValueError(f"IBKR could not qualify {sym}")
+        raise UnknownContract(f"IBKR could not qualify {sym}")
     pacing, slots = budget()
     rows: list[dict[str, Any]] = []
     page_end, pages, complete = end, 0, False

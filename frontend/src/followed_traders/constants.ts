@@ -19,6 +19,9 @@ export const FOLLOWED_TOAST_POLL_MS = 5_000;
 export const FOLLOWED_TOAST_TTL_MS = 20_000;
 /** At most this many toasts show at once (the oldest leaves first). */
 export const FOLLOWED_TOAST_MAX = 4;
+/** A trade whose ticker is being checked (it may be glued to its price) is not news until the check ends or this long
+ *  after its entry, so its toast names the ticker as checked. */
+export const FOLLOWED_TOAST_TICKER_WAIT_SEC = 60;
 /** The gate probe asks again this soon when the backend did not answer at all (still starting). */
 export const FOLLOWED_PROBE_RETRY_MS = 10_000;
 /** The feed's capture reads stale when its status is older than this. */
@@ -168,6 +171,11 @@ export const FT_EXIT_PENDING = 'reading tape…';
 export const FT_EXIT_WAITING = 'waiting for IBKR';
 export const FT_EXIT_UNAVAILABLE = 'no price';
 export const FT_UNSCORED = 'unscored';
+/** In place of the P/L of a trade whose ticker may be glued to its price (checking, or neither reading fits IBKR). */
+export const FT_TICKER_CHECK = 'ticker check';
+export const FT_TICKER_CHECK_MARK = '?';
+/** Beside a ticker read glued to its price and put back on the one IBKR's tape fits. */
+export const FT_TICKER_FIXED = 'fixed';
 export const FT_UNSCORED_TIP = 'Not scored: the exit is not one known price (a window, not read yet, or a close the feed never saw).';
 export const FT_TOAST_REGION = 'Followed traders';
 export const FT_TOAST_DISMISS = 'Dismiss';

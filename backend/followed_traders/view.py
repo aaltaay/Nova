@@ -1,13 +1,15 @@
 """``GET /api/followed-traders/day``'s answer, put together from the feed's day and the prices. Pure.
 
-The price now and the exit come in as callables (``lines.quotes``, ``exits.view`` in the route; fakes in tests),
-so nothing here touches IBKR or the clock. Shapes: architecture/schema/followed-traders.md.
+The price now, the exit and the ticker check come in as callables (``lines.quotes``, ``exits.view`` and
+``tickers.check`` over ``exits.view`` in the route; fakes in tests), so nothing here touches IBKR or the clock. A trade
+whose ticker may be glued to its price is shown as the check says (``tickers.shown``), and never priced while it is
+not settled. Shapes: architecture/schema/followed-traders.md.
 """
 from __future__ import annotations
 
 from typing import Any, Callable
 
-from followed_traders import pricing, scoring
+from followed_traders import pricing, scoring, tickers
 from followed_traders.constants_followed import FOLLOWED_SCHEMA_VERSION
 from followed_traders.exits import stated as exit_stated
 from followed_traders.feed import evidence_name
@@ -15,6 +17,7 @@ from followed_traders.lines import now_state
 
 NowFor = Callable[[dict[str, Any]], dict[str, Any]]
 ExitFor = Callable[[dict[str, Any]], dict[str, Any]]
+TickerFor = Callable[[dict[str, Any]], dict[str, Any] | None]
 EVIDENCE_PATH = "/api/followed-traders/evidence/{date}/frames/{name}.jpg"
 LIVE_PATH = "/api/followed-traders/live/{name}.jpg"
 FACE_PATH = "/api/followed-traders/faces/{date}/{name}.jpg"
@@ -29,7 +32,7 @@ def feed_down(state: str, error: str, date: str | None, now: float) -> dict[str,
 
 def compose(day: dict[str, Any], *, now: float, prices: dict[str, Any], now_for: NowFor,
             exit_for: ExitFor, resets_at: float | None = None,
-            seen: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
+            seen: dict[str, dict[str, Any]] | None = None, ticker_for: TickerFor | None = None) -> dict[str, Any]:
     """``day["today"]`` is the desk's trading day and ``resets_at`` the epoch second it ends (the route's
     ``desk_day``); ``seen`` each trader's sighting on the bar (``sightings.sightings``), None when not read: a
     trader who left the bar has closed every trade (``closed_on_leaving``)."""
@@ -37,7 +40,8 @@ def compose(day: dict[str, Any], *, now: float, prices: dict[str, Any], now_for:
     traders: dict[str, dict[str, list]] = {}
     for trade in day["trades"]:
         trade = closed_on_leaving(trade, left_bar(seen, trade["trader"]))
-        row = trade_row(trade, day["date"], now=now, prices=prices, now_for=now_for, exit_for=exit_for)
+        row = trade_row(trade, day["date"], now=now, prices=prices, now_for=now_for, exit_for=exit_for,
+                        ticker_for=ticker_for)
         group = traders.setdefault(trade["trader"], {"open": [], "closed": []})
         group["open" if trade["status"] == "open" else "closed"].append(row)
     out = []
@@ -55,7 +59,8 @@ def compose(day: dict[str, Any], *, now: float, prices: dict[str, Any], now_for:
 
 
 def records(got: dict[str, Any], *, span: str, now: float, exit_for: ExitFor,
-            seen_by_date: dict[str, dict[str, dict[str, Any]]] | None = None) -> dict[str, Any]:
+            seen_by_date: dict[str, dict[str, dict[str, Any]]] | None = None,
+            ticker_for: TickerFor | None = None) -> dict[str, Any]:
     """``GET /api/followed-traders/record``: each trader's record over the feed's trades from ``got["from"]`` to
     ``got["to"]``, and everyone's. Open trades are not priced here; ``pending`` counts exits not read yet. A trader
     who left the bar on a day (``seen_by_date``) closed that day's trades when they left, as on the day."""
@@ -64,7 +69,7 @@ def records(got: dict[str, Any], *, span: str, now: float, exit_for: ExitFor,
     for trade in got["trades"]:
         trade = closed_on_leaving(trade, left_bar(seen_by_date.get(trade["date"]), trade["trader"]))
         row = trade_row(trade, trade["date"], now=now, prices={"state": "off", "why": None},
-                        now_for=lambda t: now_state("off"), exit_for=exit_for)
+                        now_for=lambda t: now_state("off"), exit_for=exit_for, ticker_for=ticker_for)
         rows.setdefault(trade["trader"], []).append(row)
     every = [r for group in rows.values() for r in group]
     return {"schema_version": FOLLOWED_SCHEMA_VERSION, "generated_at": round(now, 3),
@@ -130,21 +135,32 @@ def closed_on_leaving(t: dict[str, Any], gone: dict[str, Any] | None) -> dict[st
 
 
 def trade_row(t: dict[str, Any], date: str, *, now: float, prices: dict[str, Any], now_for: NowFor,
-              exit_for: ExitFor) -> dict[str, Any]:
+              exit_for: ExitFor, ticker_for: TickerFor | None = None) -> dict[str, Any]:
+    ticker = ticker_for(t) if ticker_for else None
+    # The ticker as first read keeps the id: neither the feed's correction nor Nova's check makes a trade new.
+    row_id = f"{t['trader']}|{t['side']}|{t.get('read_as') or t['symbol']}|{t['entry_ts']:.0f}"
+    t = tickers.shown(t, ticker)
+    settled = tickers.settled(ticker)
     side, avg = t["side"], t["price"]
     row: dict[str, Any] = {
-        "id": f"{t['trader']}|{side}|{t['symbol']}|{t['entry_ts']:.0f}",
+        "id": row_id,
         "trader": t["trader"], "side": side, "symbol": t["symbol"], "status": t["status"],
         "entry": {"first_price": t["entry_price"], "avg_price": avg, "ts": t["entry_ts"],
                   "since_ts": t["entry_since_ts"], "known": t["entry_known"]},
         "adds": [dict(a) for a in t["adds"]],
         "left_bar": bool(t.get("left_bar")),
+        "ticker": ticker,
         "now": None, "exit": None, "pl": None,
         "evidence": {"entry": evidence_path(date, t["entry_evidence"]),
                      "exit": evidence_path(date, t["exit_evidence"])},
     }
     if t["status"] == "open":
-        current = now_for(t) if prices["state"] == "live" else now_state("off", why=prices.get("why"))
+        if not settled:  # no line and no P/L from a ticker that may be wrong
+            current = now_state("no_line", why=ticker["why"])
+        elif prices["state"] == "live":
+            current = now_for(t)
+        else:
+            current = now_state("off", why=prices.get("why"))
         row["now"] = current
         if current["state"] == "live":
             row["pl"] = pricing.pl_point(side, avg, current["price"])
@@ -152,7 +168,9 @@ def trade_row(t: dict[str, Any], date: str, *, now: float, prices: dict[str, Any
         row["result"] = None
         return row
     if t["status"] == "closed" and t["exit_ts"] is not None:
-        out = exit_for(t)
+        out = exit_for(t) if settled else exit_stated(
+            "pending" if ticker["state"] == "checking" else "unavailable", from_ts=t["exit_since_ts"],
+            to_ts=t["exit_ts"], why=ticker["why"])
         row["held"] = pricing.held(t["entry_ts"], t["entry_since_ts"], t["entry_known"], t["exit_ts"],
                                    t["exit_since_ts"])
     else:

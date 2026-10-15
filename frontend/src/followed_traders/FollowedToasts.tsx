@@ -6,12 +6,14 @@
  * the Following page on that trade. Nothing here places or stages an order.
  */
 import { useEffect, useRef, useState } from 'react';
+import { tipProps } from '../ux/hoverTip';
 import { setNavPage } from '../workspace';
 import {
   FOLLOWED_TOAST_MAX,
   FOLLOWED_TOAST_POLL_MS,
   FOLLOWED_TOAST_TTL_MS,
   FT_PROOF,
+  FT_TICKER_CHECK,
   FT_TITLE,
   FT_TOAST_DISMISS,
   FT_TOAST_REGION,
@@ -44,6 +46,7 @@ function Toast({ toast, onDismiss, onProof }: { toast: TradeToast; onDismiss: ()
         <span className="ft-strong">
           {toast.trader} {toast.verb} <span className={`ft-side-text ft-side-text--${toast.side}`}>{toast.side.toUpperCase()}</span>{' '}
           {toast.symbol}{toast.price !== null ? ` @ ${price(toast.price)}` : ''}
+          {toast.check && <span className="ft-note ft-note--warn ft-ticker-mark" {...tipProps(toast.check)}>{FT_TICKER_CHECK}</span>}
         </span>
         <span className="ft-small ft-muted">{etTime(toast.ts)} ET · {FT_TITLE}</span>
       </div>

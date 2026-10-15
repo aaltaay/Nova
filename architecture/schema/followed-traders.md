@@ -52,8 +52,13 @@ Nova reads two routes of the feed and one folder of images, and nothing else:
   dates[], trades[]}`: the same trades as above from every day in the range, oldest first, each with its `date`.
 - `GET {url}/files/<date>/<evidence>` answers the evidence image (JPEG).
 
-Four more pieces are optional: a feed that does not have them is read as before, and the page says what is missing
-(amendment, 2026-10-13, for the approved page):
+Five more pieces are optional: a feed that does not have them is read as before, and the page says what is missing
+(amendment, 2026-10-13, for the approved page; `read_as` 2026-10-14):
+
+- `read_as` on a trade: `{symbol, price, until_ts} | null`, set when the feed confirmed the position under a ticker
+  OCR glued to its price and later read it whole (the feed's `correct` event, "A ticker glued to its price" below):
+  `symbol` and `price` are what it read until `until_ts`, and the trade's own `symbol` and prices are the ones the bar
+  showed. Nova reads only `read_as.symbol` (a string), for the trade's `id`. Absent or null: never corrected.
 
 - `status.positions`: `{<trader>: {"<side>:<symbol>": price}}`, each trader's bar as the feed last confirmed it (the
   same read on consecutive frames). Absent: Nova shows no "on their bar right now" read.
@@ -125,6 +130,7 @@ A trade on this wire:
  entry: {first_price, avg_price, ts, since_ts, known},
  adds: [{ts, price, prev_price}],
  left_bar: bool,            // closed because the trader left the bar (below)
+ ticker: {...} | null,      // a read that may be a ticker glued to its price, checked against IBKR (below)
  now: {...} | null,         // open trades only
  exit: {...} | null,        // closed trades only
  pl: {...} | null,
@@ -133,7 +139,8 @@ A trade on this wire:
  evidence: {entry: url | null, exit: url | null}}
 ```
 
-- `id`: `<trader>|<side>|<symbol>|<entry_ts>`, stable for the trade's life.
+- `id`: `<trader>|<side>|<symbol as first read>|<entry_ts>`, stable for the trade's life: the symbol is the feed's
+  `read_as.symbol` when the feed corrected the trade, else its `symbol`, never the one Nova's ticker check shows.
 - `entry.first_price` is the feed's `entry_price`; `entry.avg_price` its `price`, the latest average (equal to the
   first unless the trader added). P/L is always against `avg_price`, the trader's cost as the feed last saw it.
 - `left_bar`: true for a trade Nova closed because the trader left the bar holding it (below, "A trader who left
@@ -158,8 +165,8 @@ A trade on this wire:
     with `FOLLOWED_EXIT_HEADROOM` requests left for charts (`ibkr.historical_trades`, `ibkr.historical_service`),
     newest exit first, so today's come before a record's history. An `at` or `range` once read is kept (below).
   - `unavailable`: `why` says what (no trade before the exit in `FOLLOWED_EXIT_LOOKBACK_SEC`, IBKR refused,
-    `FOLLOWED_EXIT_MAX_TRIES` failures). An `unknown`-status trade's exit is `unavailable` with `why` "the feed never
-    saw it close".
+    `FOLLOWED_EXIT_MAX_TRIES` failures, "IBKR has no such ticker" -- said at once, never asked again before a
+    restart). An `unknown`-status trade's exit is `unavailable` with `why` "the feed never saw it close".
   - Times are epoch seconds. `source` is `"ibkr_trades" | "ibkr_1min_bars" | null`.
 - `pl`: per share, since the feed has no size. `{per_share, pct}` from `now.price` (open, `live`) or `exit.price`
   (`at`); `{low_per_share, high_per_share, low_pct, high_pct}` from an exit `range`; `null` when there is no price.
@@ -176,6 +183,37 @@ A trade on this wire:
 A **record** is `{wins, losses, scratches, unscored, open, win_rate}`: counts of `result`, `open` the trades with
 none, and `win_rate` wins over wins plus losses in percent points (one decimal), `null` when there is neither.
 Scratches and unscored trades are left out of the win rate.
+
+### A ticker glued to its price (2026-10-14)
+
+With no space between a ticker and its price on the stream's bar, the feed's OCR can take the ticker's last letter for
+a digit, and the text alone cannot tell the two apart: on 2026-10-14 the feed read the bar's "SOFI 14.03" as SOF 114.03
+37 times, and on 2026-10-13 "JBDI 8.67" as JBD 18.67. When the ticker one letter shorter is a real stock trading near
+the true one's price, a position read glued from first frame to last would be priced against it at a gain or loss that
+never happened. The feed puts a glued read back when the trader's own reads show the longer ticker (its `correct` event
+and `read_as`, above). A position read glued from first frame to last stays as read, and Nova checks it
+(`followed_traders/tickers.py`):
+
+- **Which trades.** One whose read could be glued: the feed's `symbol` with the first digit of its `entry_price` put
+  back on it as the letter OCR takes it for -- I for 1, S for 5, B for 8, the feed's own pairs (a glued O the feed's
+  reader puts back itself) -- is still a ticker of at most 5 letters, and the rest still a price as the bar writes one
+  (`tickers.unglued`: SOF 114.03 could be SOFI 14.03; JYD 1.29 and NVDL 35.41 cannot be glued). Any other trade has
+  `ticker: null` and reads as before.
+- **The check.** IBKR's tape at the entry, read as an exit's is (`exits`, kept the same way): the last price-setting
+  trade at or before `entry_ts`, or the low and high of the trades over `entry_since_ts`..`entry_ts`. A price fits it
+  within `FOLLOWED_TICKER_FIT_PCT` (1.5%) of that trade, or of that range widened by as much. The ticker as read fits
+  its first price: as read. Else the longer ticker's tape at the same time: IBKR has no such ticker, as read (no glued
+  reading exists); it fits the unglued price, corrected; anything else, unchecked.
+- `ticker`: `{state: "checking" | "as_read" | "corrected" | "unchecked", read_symbol, read_price, other_symbol,
+  other_price, why}`. `read_*` is what the feed read (its `symbol` and `entry_price`), `other_*` the glued reading
+  (SOFI, 14.03). `why`: what the check waits on while `checking`; IBKR's tape at the entry for both tickers when
+  `corrected` or `unchecked`; null when `as_read`.
+- **Corrected**: the trade's `symbol` is the longer ticker, and `entry.first_price`, `entry.avg_price` and each add's
+  prices are the feed's read back the same way. Its line, exit and P/L are that ticker's.
+- **Checking or unchecked**: no line is held and no exit is read for it. `now` is `no_line` and `exit` is `pending`
+  (checking) or `unavailable` (unchecked), each with `ticker.why`; `pl` is null and a closed one is `unscored`. A
+  ticker that may be wrong never gives a number.
+- `/record` checks the same way; an exit that waits on its ticker counts in `pending`.
 
 ### A trader who left the bar (operator decisions 2026-10-14)
 
@@ -227,7 +265,9 @@ the day route, with `overall: null` and no traders.
 
 `followed-exits.json` in the operator cache (`FOLLOWED_EXITS_FILE`; owner `followed_traders/exits.py`):
 `{schema_version: 1, exits: [{symbol, exit_ts, exit_since_ts, exit}]}`, `exit` as on the wire, only `at` and
-`range` -- an exit's tape is a fixed fact, so a past day's is asked of IBKR once. Written after each such read (a
+`range` -- an exit's tape is a fixed fact, so a past day's is asked of IBKR once. A row is IBKR's tape for `symbol` at
+`exit_ts` (or over `exit_since_ts`..`exit_ts`), whichever asked for it: a trade's exit, or an entry checked for a
+glued ticker ("A ticker glued to its price"); the tape at one time is the same fact either way. Written after each such read (a
 temp file, then replaced); read on first use. No invalidation by time; a `schema_version` other than 1 is refused
 loud (logged, not read, never overwritten), and an unreadable file the same.
 
@@ -269,7 +309,8 @@ Open positions on today are priced from IBKR Level 1 lines owned by `followed`
 like any line no scanner owner holds, so the scanner plans its rows around it, and IBKR's refusal is said as
 `no_line`. The lines are asked for in the background on the IB loop (the route never waits) and are all
 released when no request came for `FOLLOWED_WANTED_SEC`, so a closed page holds none. A Sim replay desk, a past
-day or an IBKR that is not ready asks for none, and a trade closed when its trader left the bar holds none.
+day or an IBKR that is not ready asks for none, and a trade closed when its trader left the bar holds none. A trade
+whose ticker is checking or unchecked holds none; a corrected one holds the longer ticker's.
 
 ### On the desk
 
@@ -308,7 +349,10 @@ images again with each answer.
   time not seen reads "by HH:MM:SS" (open when capture started) or a window, and its trade unscored. A trader with no
   trade that day shows the card alone. A ticker -- on an OPEN tile, a closed row (in the list of all closed trades
   too), a Proof's title and an Activity line -- opens the stock in the Trader, as a symbol does on the Market and
-  Records pages. A trade's Proof stays its own link on the tile and the row.
+  Records pages. A trade's Proof stays its own link on the tile and the row. A trade whose `ticker` is checking or
+  unchecked reads **ticker check** in place of its P/L, with `ticker.why` on hover, and its ticker, on a tile, a row
+  or an Activity line, carries a "?" mark saying the same; a corrected ticker carries a "fixed" mark whose hover says
+  what the bar was read as and IBKR's tape for both tickers (`ticker.why`).
 - **When it does not fit**, closed rows drop to one line, then each trader's oldest closed trades fold into "+N
   earlier closed trades", which opens them all over the stack; open tiles never shrink or fold. A window too small
   even for that scrolls the stack rather than hide a trade.
@@ -337,12 +381,16 @@ images again with each answer.
   time; an exit not yet seen reads "Still open" or "The feed never saw it close". The pointer can move into the card;
   Escape closes it. The images are asked for only once the card shows. Clicking the link or the card opens the Proof.
 - **Proof** of one trade: the entry and exit images, what was read at each (`/reads`), and every read in between
-  that differed from the trade and was ignored. Nova never edits the feed: no button drops or confirms a trade.
+  that differed from the trade and was ignored. A read of the trade's ticker glued to its price (its last letter as
+  the digit OCR reads it, in front of the price: SOFI 14.03 as SOF 114.03) shows the trade, not an ignored read. Nova
+  never edits the feed: no button drops or confirms a trade.
 - **Calendar**: a month with a dot on each of the feed's `dates`, weekends dimmed, future days disabled; picking a
   day shows its traders, tickers and counts from that day's `/day` before opening it.
 - **Toasts**: while the feed is configured and Alerts are on (a per-window setting kept in local storage, on by
   default), the main desk window asks `/day?quotes=0` every `FOLLOWED_TOAST_POLL_MS` and raises "CHERIF opened LONG JZ
   @ 1.55" / "added to" / "closed" for a change since its last answer (none for what it found on its first); a toast
-  opens the page on that trade's proof.
+  opens the page on that trade's proof. A trade whose ticker is `checking` is not news until the check ends or
+  `FOLLOWED_TOAST_TICKER_WAIT_SEC` (60) has passed since its entry, so its "opened" names the ticker as checked; a
+  toast raised while the ticker is still checking or unchecked says "ticker check" beside it.
 
 The tab is placed after Cryptos on the rail, and the focus report names it `followed` (`book-watch-and-luld.md`).

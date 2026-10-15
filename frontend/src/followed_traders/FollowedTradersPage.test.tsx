@@ -8,7 +8,7 @@ import { resetFeedImagesForTests } from './FeedImage';
 import { resetFollowedStoresForTests } from './followedStores';
 import { resetStreamForTests } from './stream';
 import { FOLLOWED_PROOF_HOVER_CLOSE_MS, FOLLOWED_PROOF_HOVER_OPEN_MS } from './constants';
-import { day, T } from './followedTestData';
+import { closed, day, T, trade } from './followedTestData';
 import { FollowedTradersPage } from './FollowedTradersPage';
 import type { FollowedDay } from './types';
 
@@ -79,7 +79,7 @@ describe('FollowedTradersPage', () => {
   });
 
   it('shows a trader who left the bar with every trade closed when they left, marked off air', async () => {
-    // Operator, 2026-10-14: NEAL's show ended at 11:00 with BAC on the bar, and the page still said Holding now;
+    // Operator, 2026-10-14: ALPHA's show ended at 11:00 with BAC on the bar, and the page still said Holding now;
     // "if they are off air then all trades are closed!"
     const d = day();
     const alpha = d.traders[0];
@@ -152,6 +152,28 @@ describe('FollowedTradersPage', () => {
     expect(q('ft-activity')!.querySelector('img[alt*="position bar"]')).toBeNull();
     expect(asked).toContain('/api/followed-traders/live/ALPHA.jpg');
     expect(asked).toContain('/api/followed-traders/faces/2026-10-13/ALPHA.jpg');
+  });
+
+  it('never prices a ticker that may be glued to its price, and marks one IBKR put back', async () => {
+    // The bar's "XYZI 14.03" read XYZ 114.03 (made-up stocks, both near $14): until IBKR's tape at the entry says
+    // which, no P/L, never the +87% short XYZ at 114.03 would show.
+    const ticker = { read_symbol: 'XYZ', read_price: 114.03, other_symbol: 'XYZI', other_price: 14.03 };
+    const answer = day();
+    answer.traders[0].open = [trade({ id: 'g1', symbol: 'XYZ', side: 'short',
+      entry: { first_price: 114.03, avg_price: 114.03, ts: T, since_ts: null, known: true },
+      now: { state: 'no_line', price: null, trade_ts: null, why: 'neither fits' },
+      ticker: { ...ticker, state: 'unchecked', why: 'the bar read XYZ 114.03; IBKR at the entry: XYZ 14.00, XYZI 16.40: neither fits' } })];
+    answer.traders[0].closed = [closed({ id: 'g2', symbol: 'XYZI', side: 'short',
+      ticker: { ...ticker, state: 'corrected', why: 'the bar read XYZ 114.03; IBKR at the entry: XYZ 14.00, XYZI 14.05: the ticker was read glued to its price' } })];
+    await show(answer);
+    const tile = q('ft-row-g1')!;
+    expect(q('ft-ticker-check-g1')!.textContent).toBe('ticker check');
+    expect(tile.textContent).not.toMatch(/%/);
+    expect(tile.querySelector('[data-testid="ft-ticker-mark"]')!.textContent).toBe('?');
+    const row = q('ft-row-g2')!;
+    expect(row.textContent).toContain('XYZI');
+    expect(row.querySelector('[data-testid="ft-ticker-mark"]')!.textContent).toBe('fixed');
+    expect(q('ft-activity')!.querySelectorAll('[data-testid="ft-ticker-mark"]').length).toBeGreaterThan(0);
   });
 
   it('opens a ticker in the Trader: an OPEN tile, a closed row and a proof', async () => {

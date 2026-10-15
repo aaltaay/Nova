@@ -19,7 +19,7 @@ import {
 } from './constants';
 import { FeedImage } from './FeedImage';
 import { entered, exited } from './format';
-import { SideChip } from './parts';
+import { SideChip, TickerMark } from './parts';
 import { exitTs, noExitImage } from './proof';
 import type { FollowedTrade } from './types';
 
@@ -45,6 +45,7 @@ export function ProofPeek({ t }: { t: FollowedTrade }) {
     <>
       <div className="ft-peek__head">
         <span className="ft-strong">{t.trader}</span><SideChip side={t.side} /><span className="ft-strong">{t.symbol}</span>
+        <TickerMark ticker={t.ticker} />
       </div>
       <div className="ft-peek__shot">
         <div className="ft-peek__label"><span className="ft-eyebrow ft-eyebrow--long">{FT_ENTRY}</span>

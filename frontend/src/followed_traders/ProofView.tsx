@@ -17,12 +17,14 @@ import {
   FT_READS_LOADING,
   FT_READS_NONE,
   FT_READS_TITLE,
+  FT_TICKER_CHECK,
   FT_WHAT_WAS_READ,
 } from './constants';
 import { FeedImage } from './FeedImage';
 import { duration, entered, etTime, exitPrice, exited, held, plPct, plPerShare, price } from './format';
-import { Face, SideChip, Ticker } from './parts';
+import { Face, SideChip, Ticker, TickerMark } from './parts';
 import { exitTs, judgeReads, noExitImage, readAt, sideRow, type JudgedRead } from './proof';
+import { tickerUnsettled } from './ticker';
 import type { BarPosition, FollowedRead, FollowedTrade } from './types';
 import { useFollowedReads } from './useFollowedFetch';
 
@@ -114,6 +116,7 @@ export function ProofView({ trade, face, date, generatedAt, onBack }: Props) {
   }
   facts.push(`held ${held(trade.held)}`);
   if (trade.pl) facts.push(`P/L ${plPerShare(trade.pl, trade.entry.avg_price)} (${plPct(trade.pl)})`);
+  if (tickerUnsettled(trade)) facts.push(`${FT_TICKER_CHECK}: ${trade.ticker?.why ?? ''}`);
   return (
     <div className="ft-proof" data-testid="ft-proof">
       <div className="ft-proof__top">
@@ -125,7 +128,8 @@ export function ProofView({ trade, face, date, generatedAt, onBack }: Props) {
         <div className="ft-stack">
           <div className="ft-proof__title">
             <span className="ft-strong">{trade.trader}</span><SideChip side={trade.side} />
-            <Ticker symbol={trade.symbol} className="ft-strong" /><span className="ft-mono">{price(trade.entry.avg_price)}</span>
+            <Ticker symbol={trade.symbol} className="ft-strong" /><TickerMark ticker={trade.ticker} />
+            <span className="ft-mono">{price(trade.entry.avg_price)}</span>
           </div>
           <span className="ft-muted">{facts.join(' · ')}</span>
         </div>
