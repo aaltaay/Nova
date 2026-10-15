@@ -239,12 +239,12 @@ def test_load_does_not_block_snapshots_and_clear_fences_inflight_load(monkeypatc
     import threading
     spec = prepare()
     entered, release = threading.Event(), threading.Event()
-    real_read = store.read_prints
+    real_read = store.iter_prints
     def slow_read(*args, **kwargs):
         entered.set()
         assert release.wait(3)
         return real_read(*args, **kwargs)
-    monkeypatch.setattr(store, 'read_prints', slow_read)
+    monkeypatch.setattr(store, 'iter_prints', slow_read)
     with ThreadPoolExecutor(max_workers=2) as executor:
         pending = executor.submit(playback.select, spec)
         try:

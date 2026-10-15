@@ -17,6 +17,7 @@ starts the day's import, which drops it when it completes holding that window.
 A day whose quotes file was not on disk at the first import says so
 (``quote_status: "not_downloaded"``); asking again once that file is down imports
 the window again, now with its bid and ask, while the stored window keeps playing.
+What an import holds, and when it is read again, are ``massive_rules``.
 
 Once its job is complete, an import's process builds the indexes of the day files
 it read without one (``massive_index``). It holds no slot then: an import of the
@@ -39,10 +40,11 @@ import time
 from pathlib import Path
 
 from constants_sim import (
-    SIM_MASSIVE_DAY_END, SIM_MASSIVE_DAY_START, SIM_MASSIVE_MINUTES, SIM_MASSIVE_MINUTES_SCOPE_DAY, SIM_MASSIVE_QUOTES,
-    SIM_MASSIVE_SOURCE, SIM_MASSIVE_TRADES,
+    SIM_MASSIVE_DAY_END, SIM_MASSIVE_DAY_START, SIM_MASSIVE_MINUTES, SIM_MASSIVE_QUOTES, SIM_MASSIVE_SOURCE,
+    SIM_MASSIVE_TRADES,
 )
 from sim import history_store, massive_files as files, massive_store as store
+from sim.massive_rules import cap_raised, holds, import_again
 from sim.massive_read import TooLarge, run  # noqa: F401  (``run`` is looked up here, so a test can stand in for it)
 
 logger = logging.getLogger(__name__)
@@ -177,23 +179,6 @@ def day_job(window: dict) -> dict | None:
     return store.find(wanted)
 
 
-def kept_bounds(job: dict) -> tuple[float, float] | None:
-    """What an import holds, epoch seconds: its ``ranges`` (the day, or a capped day's focus); None before it completes."""
-    ranges = job.get("ranges") or []
-    if not ranges:
-        return None
-    return min(a for a, _b in ranges), max(b for _a, b in ranges)
-
-
-def holds(job: dict | None, window: dict) -> bool:
-    """The import holds ``window``, read up to the import's own bounds (nothing trades outside the session)."""
-    kept = kept_bounds(job) if job is not None else None
-    if kept is None:
-        return False
-    lo, hi = max(window["start_ts"], job["start_ts"]), min(window["end_ts"], job["end_ts"])
-    return kept[0] <= lo and hi <= kept[1]
-
-
 def holder(window: dict) -> tuple[dict | None, dict | None]:
     """``(holder, job)``: the import that holds a Massive window -- an older import of exactly it, else its
     stock-day's -- and the import whose status the window shows meanwhile (the holder, else the day's)."""
@@ -265,9 +250,10 @@ def progress(job: dict, now: float | None = None) -> dict:
         elapsed = max(0.0, job["updated"] - started)
         eta = math.ceil(elapsed * (100 - pct) / pct) if elapsed > 0 else None
     age = max(0.0, now - job.get("updated", now))
+    # ``cap_raised``: a capped import whose cap has been raised since -- its next load reads the day again.
     return dict(job, status=status, coverage=ranges, covered_seconds=covered,
                 downloaded_through=end if status == "complete" else start, progress_pct=round(pct, 2),
-                age_seconds=round(age, 1), stale=status == "interrupted", eta_seconds=eta)
+                age_seconds=round(age, 1), stale=status == "interrupted", eta_seconds=eta, cap_raised=cap_raised(job))
 
 
 def list_jobs() -> list[dict]:
@@ -298,7 +284,7 @@ def begin(window: dict) -> dict:
                 return progress(store.get(job_id) or store.new_job(wanted))
             raise ValueError("Another Massive import is running; it finishes in seconds to minutes -- try again then")
         job = store.get(job_id)
-        if job and job["status"] == "complete" and holds(job, window) and not _more_on_disk(job, found):
+        if job and job["status"] == "complete" and holds(job, window) and not import_again(job, found):
             return progress(job)
         for handle in [h for h in _indexing if (store.get(h.job_id) or {}).get("date") != window["date"]]:
             handle.stop()                   # another day's index: the day asked for now comes first
@@ -312,23 +298,9 @@ def begin(window: dict) -> dict:
     return progress(job)
 
 
-def _quotes_arrived(job: dict, found: dict) -> bool:
-    """A window imported before its day's quotes were on disk, whose quotes now are."""
-    return job.get("quote_status") == "not_downloaded" and found["quotes"]
-
-
-def _day_minutes_missing(job: dict, found: dict) -> bool:
-    """A window imported when an import kept only its own 1-minute bars, whose day's bars file is on disk."""
-    return job.get("minutes_scope") != SIM_MASSIVE_MINUTES_SCOPE_DAY and found["minute_aggs"]
-
-
-def _more_on_disk(job: dict, found: dict) -> bool:
-    return _quotes_arrived(job, found) or _day_minutes_missing(job, found)
-
-
 def wants_import(window: dict, found: dict) -> bool:
     """Would ``begin`` start an import for ``window``: the day is on disk, and its stock-day's import is not
-    running and does not hold the window, or lacks something now on disk -- its quotes, or the day's 1-minute bars.
+    running and does not hold the window, or is to be read again (``massive_rules.import_again``).
 
     On a day over a cap, an older import of exactly ``window`` (one window at a time, before stock-days)
     already holds it, and is not read again.
@@ -341,13 +313,13 @@ def wants_import(window: dict, found: dict) -> bool:
     status = effective_status(day)
     if status in store.ACTIVE:
         return False
-    if status != "complete" or _more_on_disk(day, found):
+    if status != "complete" or import_again(day, found):
         return True
     if holds(day, window):
         return False
     older = store.find(spec(window)) if day.get("capped") else None
     return not (older is not None and older["id"] != day["id"] and effective_status(older) == "complete"
-                and older.get("ranges") and not _more_on_disk(older, found))
+                and older.get("ranges") and not import_again(older, found))
 
 
 def pause(job_id: str) -> dict:

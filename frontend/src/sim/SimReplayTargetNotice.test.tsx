@@ -337,6 +337,37 @@ describe('SimReplayTargetNotice on the Massive files (operator, 2026-10-09)', ()
     expect(posts).toHaveLength(count);
   });
 
+  it('a day already read from the files loads by itself too, once, and a cut one says what it holds', async () => {
+    // OFAL 2026-08-12 (operator 2026-10-14): after a restart the tab sat under "No replay loaded" over its import.
+    onDisk();
+    const cut = job({ id: 'day', source: 'massive', status: 'complete', start: '04:00', end: '20:00',
+      kept_start: '09:15', kept_end: '11:30', coverage: [[1, 2]],
+      capped: { what: 'prints', count: 728_489, limit: 500_000 }, cap_raised: true });
+    mocks.front = 'SPY';                    // a tab in the background: offered, never loaded by itself
+    setClock({ sim: true, replay_source: 'none', session_date: '2026-09-18' });
+    await mount();
+    await pollFiles([cut]);
+    await tick();
+    expect(posts).toEqual([]);
+    expect(body()).toBe('IMCC · Fri, Sep 18 · 09:15–11:30 ET is ready to play. It was cut to these hours when a '
+      + 'replay held 500,000 trades; loading it also reads the whole day again from your files.');
+    expect(action()?.textContent).toBe('Load');
+    mocks.front = 'IMCC';
+    await rerender();
+    await tick();
+    expect(posts).toEqual([{ url: expect.stringMatching(/\/history\/select$/), body: WINDOW }]);
+    await rerender();
+    await tick();
+    expect(posts).toHaveLength(1);
+    cleanup();
+    resetSimAutoLoads();
+    mocks.front = 'SPY';
+    await mount();
+    await pollFiles([{ ...cut, cap_raised: false, capped: { what: 'prints', count: 6_658_075, limit: 4_000_000 } }]);
+    expect(body()).toBe('IMCC · Fri, Sep 18 · 09:15–11:30 ET is ready to play. Only these hours fit: the whole day '
+      + 'is too busy to replay (6,658,075 trades; a replay holds 4,000,000).');
+  });
+
   it('a scrub on the same stock-day follows its one import: no Stop it & start this, no second read', async () => {
     // WFF 2026-09-09 (2026-10-09): imported while premarket, the playhead moved to 10:05, a second read followed.
     onDisk();

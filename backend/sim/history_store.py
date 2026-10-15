@@ -1,6 +1,7 @@
 """Durable historical replay jobs and ordered prints in the capture archive."""
 from __future__ import annotations
 
+from collections.abc import Iterator
 from contextlib import contextmanager
 import hashlib
 import json
@@ -300,10 +301,16 @@ def read_prints(job_id: str, *, through: int | None = None, limit: int = -1) -> 
     across pages, so ordinal still preserves IBKR's order within one. ``seq`` is
     the stored ordinal -- the print's stable identity within the job.
     """
+    return list(iter_prints(job_id, through=through, limit=limit))
+
+
+def iter_prints(job_id: str, *, through: int | None = None, limit: int = -1) -> Iterator[dict]:
+    """``read_prints`` one print at a time, so a replay's ``PrintTable`` is filled without a list of them all."""
     with connect() as db:
-        return [dict(json.loads(r[1]), seq=r[0]) for r in db.execute(
-            "SELECT ordinal, payload FROM prints WHERE job_id=? AND (? IS NULL OR ts<?) "
-            "ORDER BY ts, ordinal LIMIT ?", (job_id, through, through, limit))]
+        for ordinal, payload in db.execute(
+                "SELECT ordinal, payload FROM prints WHERE job_id=? AND (? IS NULL OR ts<?) "
+                "ORDER BY ts, ordinal LIMIT ?", (job_id, through, through, limit)):
+            yield dict(json.loads(payload), seq=ordinal)
 
 
 def reserve_send() -> float:

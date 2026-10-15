@@ -119,7 +119,7 @@ def load_fixture(session_date: str, fixture_dir: str | None = None) -> ReplayFix
     )
 
 
-class _ReplayClock:
+class ReplayClock:
     def __init__(self, start_ts: float) -> None:
         self.now = float(start_ts)
 
@@ -131,7 +131,7 @@ class _ReplayClock:
 
 
 @contextlib.contextmanager
-def _pinned_clock(clock: _ReplayClock) -> Iterator[None]:
+def pinned_clock(clock: ReplayClock) -> Iterator[None]:
     """Pin wall clock + ET session clock to replay time (restored on exit)."""
     orig_time = time.time
     orig_now_et = _clock_market.now_et
@@ -145,7 +145,7 @@ def _pinned_clock(clock: _ReplayClock) -> Iterator[None]:
 
 
 @contextlib.contextmanager
-def _quiet_trade_log() -> Iterator[None]:
+def quiet_trade_log() -> Iterator[None]:
     # The decision journal is the live desk's record: a replay writes neither log.
     logs = [logging.getLogger("hod_momo.trades"), logging.getLogger("hod_momo.decisions")]
     origs = [log.level for log in logs]
@@ -232,7 +232,7 @@ def prime_symbol(
     )
 
 
-def _flush_due(state, now_ts: float, sink: list[dict]) -> None:
+def flush_due(state, now_ts: float, sink: list[dict]) -> None:
     """flush_consolidated_loop's emit path, shared through ``take_due`` (no disk/WS/notify)."""
     for primary in take_due(state, now_ts):
         state.today_alerts.insert(0, primary)
@@ -315,13 +315,13 @@ def replay_session(
         for sym in first_ts_by_symbol
     }
 
-    clock = _ReplayClock(tape[0]["ts"])
+    clock = ReplayClock(tape[0]["ts"])
     result.first_ts = tape[0]["ts"]
     result.last_ts = tape[-1]["ts"]
     ticks: dict[str, int] = defaultdict(int)
     emitted: list[dict] = []
 
-    with _pinned_clock(clock), _quiet_trade_log():
+    with pinned_clock(clock), quiet_trade_log():
         for row in tape:
             sym = row["symbol"]
             ts = float(row["ts"])
@@ -344,7 +344,7 @@ def replay_session(
                 day_high=running_high[sym],
             )
             ticks[sym] += 1
-            _flush_due(state, ts, emitted)
+            flush_due(state, ts, emitted)
 
     result.alerts = emitted
     result.ticks_per_symbol = dict(ticks)

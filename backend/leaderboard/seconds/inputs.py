@@ -188,7 +188,7 @@ def _prior_session(day: str) -> str | None:
     return None
 
 
-def _splits() -> list[tuple[str, str, float, float]]:
+def splits() -> list[tuple[str, str, float, float]]:
     """Massive's split list plus the SEC-confirmed ones (Massive's entry wins a tie), as the rebuild reads them."""
     from chart_events.constants_chart_events import CHART_EVENTS_CONFIRMED_SPLITS_SCHEMA_VERSION
     from chart_events.split_sources import list_paths
@@ -237,7 +237,7 @@ def outside_prior_closes(day: str, symbols: list[str]) -> dict[str, float]:
     closes = massive_daily.closes(prior)
     wanted = set(symbols)
     factor = {s: 1.0 for s in wanted}
-    for ticker, executed, split_from, split_to in _splits():
+    for ticker, executed, split_from, split_to in splits():
         if ticker in wanted and prior < executed <= day:
             factor[ticker] *= split_from / split_to
     return {s: closes[s] * factor[s] for s in wanted if s in closes}

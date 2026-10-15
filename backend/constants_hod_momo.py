@@ -394,3 +394,29 @@ HOD_MOMO_STRATEGY_DEFAULTS: dict[int, dict] = {
 # the fix) is that fill-in and is restored as unknown. Later alerts are read
 # as stored.
 HOD_MOMO_INVENTED_CHANGE_BEFORE_TS = 1_790_136_000
+
+# ── A rebuilt day's HOD Momo alerts (ADR 023 amendment 2026-10-14) ────────────
+# The real engine replayed over a Massive-rebuilt Sim day: the active set chosen from
+# each minute's rebuilt boards, fed L1-like ticks made from the day's trades.
+# Shapes: architecture/schema/scanner.md, "A rebuilt day's HOD Momo alerts".
+HOD_MOMO_REBUILD_SUBDIR = "hod_momo"                 # under the leaderboard root
+HOD_MOMO_REBUILD_SCHEMA_VERSION = 1                  # the data and job files
+# Bumped when the rebuild's own logic changes, so a day built by older code is built again.
+HOD_MOMO_REBUILD_LOGIC_VERSION = 1
+HOD_MOMO_REBUILD_JOB_KEY = "hod_momo"                # the job file's board name
+# IBKR's L1 stream conflates a stock's prints to one last-price tick per interval.
+HOD_MOMO_REBUILD_L1_TICK_SEC = 0.25
+# Rows of the live Gainers scan (IBKR_SCAN_MAX_ROWS): a rebuilt `market` board holds 100.
+HOD_MOMO_REBUILD_GAINER_ROWS = 50
+# yfinance's averageVolume is a 3-month average; fiftyTwoWeekHigh spans 52 weeks.
+HOD_MOMO_REBUILD_AVG_VOLUME_SESSIONS = 63
+HOD_MOMO_REBUILD_52WK_SESSIONS = 252
+# How far back day-bar files are looked for, in calendar days (252 sessions plus holidays).
+HOD_MOMO_REBUILD_DAILY_LOOKBACK_DAYS = 380
+HOD_MOMO_REBUILD_FLOAT_WORKERS = 4                   # Yahoo lookups at once
+HOD_MOMO_REBUILD_PROGRESS_EVERY_SEC = 1.0
+HOD_MOMO_REBUILD_STALE_SEC = 60.0                    # a building job nobody rewrote this long died
+HOD_MOMO_REBUILD_STOP_WAIT_SEC = 10.0
+HOD_MOMO_REBUILD_FINGERPRINT_TTL_SEC = 30.0
+# What the float on a rebuilt alert is: Yahoo's float now, as the live desk reads it.
+HOD_MOMO_REBUILD_FLOAT_BASIS = "yahoo_now"
