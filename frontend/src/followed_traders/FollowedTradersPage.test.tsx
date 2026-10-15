@@ -288,6 +288,14 @@ describe('FollowedTradersPage', () => {
     expect(q('bots-live-traders')).toBeNull();
   });
 
+  it("shows today's Live Trader panel while the day's read fails", async () => {
+    await show(() => new Response('', { status: 503 }));
+    await act(async () => { await vi.dynamicImportSettled(); });
+    await flush();
+    expect(q('ft-state')).not.toBeNull();
+    expect(q('bots-live-traders')).not.toBeNull();
+  });
+
   it("keeps today's Live Trader panel when the feed is down and names no date", async () => {
     await show(day({ date: null, today: null, feed: { ...day().feed, state: 'unreachable' } }));
     await act(async () => { await vi.dynamicImportSettled(); });

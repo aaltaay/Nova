@@ -1,6 +1,6 @@
 /**
- * One TraderTV host's bot on the Bots page (ADR 055, mockup v1 approved 2026-10-14): its key, who enters and who
- * exits (the stock's own Entry / Exit switch and words, ADR 037), what it asks you, what it may spend and has
+ * One TraderTV host's bot on the TraderTV LIVE page (ADR 055, mockup v1 approved 2026-10-14): its key, who enters
+ * and who exits (the stock's own Entry / Exit switch and words, ADR 037), what it asks you, what it may spend and has
  * spent, what it holds, and its newest steps and skips with their reasons. Turning the key off while it holds
  * positions asks first, then sells them (operator, 2026-10-14). Every write is the backend's to accept.
  */
@@ -51,7 +51,7 @@ function Side({ label, value, onPick, disabled, why, testId }: {
   return (
     <span className="lt-who__side">
       <span className="lt-label">{label}</span>
-      <span className="bots-mini-seg" role="radiogroup" aria-label={label} data-testid={testId}>
+      <span className="lt-seg" role="radiogroup" aria-label={label} data-testid={testId}>
         {(['you', 'nova'] as const).map(side => (
           <button key={side} type="button" role="radio" aria-checked={value === side} disabled={disabled}
             {...whyProps(disabled, why)} data-testid={`${testId}-${side}`}
@@ -133,9 +133,9 @@ export function LiveTraderHostCard({ host, sellAllAt, busy, onPatch, onAnswer }:
             <span className="lt-ask__text">{prose(ask.text)}</span>
             <span className="lt-ask__left">{ask.answered === true || ask.approved ? 'approved' : `${ask.seconds_left} s left`}</span>
             <span className="lt-ask__acts">
-              <button type="button" className="bots-btn" disabled={locked} {...whyProps(locked, why)}
+              <button type="button" className="lt-btn" disabled={locked} {...whyProps(locked, why)}
                 data-testid={`lt-ask-skip-${ask.id}`} onClick={() => void onAnswer(name, ask, false)}>{LT_SKIP}</button>
-              <button type="button" className="bots-btn bots-btn--primary" disabled={locked} {...whyProps(locked, why)}
+              <button type="button" className="lt-btn lt-btn--primary" disabled={locked} {...whyProps(locked, why)}
                 data-testid={`lt-ask-approve-${ask.id}`} onClick={() => void onAnswer(name, ask, true)}>{LT_APPROVE}</button>
             </span>
           </div>
@@ -189,7 +189,7 @@ export function LiveTraderHostCard({ host, sellAllAt, busy, onPatch, onAnswer }:
 
       <div className="lt-rules">
         {ruleChips(st, sellAllAt).map(chip => <span key={chip} className="lt-chip">{chip}</span>)}
-        <button type="button" className="bots-linkbtn lt-rules__edit" data-testid={`lt-change-${name}`}
+        <button type="button" className="lt-linkbtn lt-rules__edit" data-testid={`lt-change-${name}`}
           onClick={() => setEditing(v => !v)}>{editing ? LT_DONE : LT_CHANGE}</button>
       </div>
       {editing ? <LiveTraderSettings name={name} settings={st} busy={busy} onPatch={onPatch} /> : null}
