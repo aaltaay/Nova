@@ -127,7 +127,9 @@ export function errorText(err) {
  *
  * `auto` (operator ask 2026-10-14): null while the release waits for the
  * operator's click, else `{waiting: string[]}` -- Nova downloads or installs it
- * by itself once `waiting` is empty (autoInstall.mjs).
+ * by itself once `waiting` is empty (autoInstall.mjs). `hiddenVersion` is the
+ * one whose download the operator hid (the notice's Hide): its notice stays
+ * hidden like Later's, but unlike Later it does not stop Nova installing it.
  */
 export const INITIAL_UPDATE_STATE = Object.freeze({
   phase: 'idle',
@@ -139,6 +141,7 @@ export const INITIAL_UPDATE_STATE = Object.freeze({
   checkError: '',
   offeredVersion: '',
   dismissedVersion: '',
+  hiddenVersion: '',
   consentVersion: '',
   auto: null,
 });
@@ -186,6 +189,7 @@ export function reduceUpdateState(state, event) {
         consentVersion: version,
         offeredVersion: version,
         dismissedVersion: '',
+        hiddenVersion: '',
         error: '',
         failedStage: '',
         retry: 0,
@@ -224,9 +228,12 @@ export function reduceUpdateState(state, event) {
       return { ...state, offeredVersion: String(event.version || '') };
     case 'dismissed':
       return { ...state, dismissedVersion: String(event.version || '') };
+    case 'hidden':
+      // Hide on a download: the notice goes, the download and the install by itself do not.
+      return { ...state, hiddenVersion: String(event.version || '') };
     case 'reoffer':
       // A Help-menu request: raise the notice again even after Later.
-      return { ...state, offeredVersion: '', dismissedVersion: '' };
+      return { ...state, offeredVersion: '', dismissedVersion: '', hiddenVersion: '' };
     case 'installing':
       return ready ? { ...state, phase: 'installing', error: '' } : state;
     case 'install-failed':
@@ -359,8 +366,9 @@ export function noticeFor(state) {
     installing: 'installing',
     failed: stoppedDownload(state) ? 'stopped' : '',
   }[state.phase];
-  // Installing is the operator's own click; it shows even after an earlier Later.
-  if (!stage || (stage !== 'installing' && state.dismissedVersion === version)) return null;
+  // Installing is the operator's own click; it shows even after an earlier Later or Hide.
+  const hidden = state.dismissedVersion === version || state.hiddenVersion === version;
+  if (!stage || (stage !== 'installing' && hidden)) return null;
   return {
     stage,
     tag: displayTag(version),

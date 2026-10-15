@@ -862,6 +862,31 @@ describe('automatic updates (operator ask 2026-10-14: "I want an auto update")',
     expect(h.updater?.downloadUpdate).toHaveBeenCalled();
   });
 
+  it('Hide on an automatic download hides the notice and the install still follows (PR #978 review)', async () => {
+    vi.setSystemTime(EVENING);
+    h.idleSeconds = 600;
+    h.resumable = true;
+    let finish: () => void = () => {};
+    h.downloads = [
+      (opts) => new Promise<string>((resolve) => {
+        finish = () => resolve(`${opts.cacheDir}/pending/Nova-Setup.exe`);
+      }),
+    ];
+    await start({ engine: () => engine([]) });
+    subscribe();
+    await vi.advanceTimersByTimeAsync(UPDATE_FIRST_CHECK_DELAY_MS);
+    expect(lastView().notice).toMatchObject({ stage: 'downloading' });
+    await answer('later'); // the notice's Hide while downloading
+    expect(lastView().notice).toBeNull();
+    finish();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(lastView().notice).toBeNull(); // downloaded, still hidden
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(h.installs).toEqual([[true, true]]);
+    // Installing shows even after Hide, as after Later.
+    expect(lastView().notice).toMatchObject({ stage: 'installing' });
+  });
+
   it('a desk whose backend says nothing waits, and never reads that as nothing open', async () => {
     vi.setSystemTime(EVENING);
     await start();

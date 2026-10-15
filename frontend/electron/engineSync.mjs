@@ -291,6 +291,14 @@ export function createEngineSync({
       return (await box(cannotFollowPrompt(tag, pulled.reason)))?.response === 1;
     }
     if (pulled.pulled) record('pulled', `Brought ${owner} to ${pulled.to ?? tag} (was ${pulled.from ?? '?'})`);
+    if (automatic) {
+      // The pull can take two minutes: a trade placed meanwhile holds the install until the next look.
+      const late = await autoHolds();
+      if (late.length) {
+        logger.info(`automatic update to ${tag} waits: ${late.join('; ')}`);
+        return false;
+      }
+    }
     if (home && home.release_tag !== tag) {
       writeFollow(userData, { tag, repoRoot: owner, now: now() });
       handoff = { tag };

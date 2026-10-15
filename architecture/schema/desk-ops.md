@@ -486,12 +486,15 @@ own automatic restart reads it (`engineFollow.autoRestartHolds`: a position, a
 working order, a bot trade, a stock mode, a history download, the opening bell,
 a reader that failed, or a backend that did not answer); and, for the install,
 "5 minutes with no keyboard or mouse input". The install is Restart to update's
-own, with no dialog: the backend's checkout is brought to the release and the
-restart check is read again first; a hold that appeared meanwhile waits for the
-next look, and anything else that stops it -- the checkout cannot follow, the
-engine would not stop -- leaves that version to the operator's click for the
-session, said in `update.log`. A version the operator answered Later for, or
-one an install left, is the operator's (`auto: null`) until the next launch.
+own, with no dialog: the restart check is read again before the backend's
+checkout is brought to the release and once more after (a pull can take two
+minutes); a hold that appeared meanwhile waits for the next look, and anything
+else that stops it -- the checkout cannot follow, the engine would not stop --
+leaves that version to the operator's click for the session, said in
+`update.log`. A version the operator answered Later for, or one an install
+left, is the operator's (`auto: null`) until the next launch. Hide (the
+notice's button while a download runs) only hides the notice: the download goes
+on and the install by itself still follows (PR #978 review).
 A release found in trading hours by a ping or a re-check raises no notice until
 16:00 (as before); the launch check and Help > Check for Updates show theirs at
 once, with `auto` saying it waits. `NOVA_UPDATE_AUTO_INSTALL` (`0` / `false` /

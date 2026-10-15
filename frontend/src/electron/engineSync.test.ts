@@ -404,6 +404,24 @@ describe('createEngineSync', () => {
       expect(await waits.s.autoHolds()).toEqual(['Paper: long 100 GENK']);
     });
 
+    it('an automatic install reads what is open again after the pull: a trade placed meanwhile waits (PR #978 review)', async () => {
+      const box = vi.fn();
+      const position = { schema_version: 1, safe: false, unknown: [], open: [{ kind: 'practice', text: 'Paper: long 100 GENK' }] };
+      let checks = 0;
+      const fetchJson = async (url: string) => {
+        if (url.endsWith('/api/health')) return answers('v1025')(url);
+        checks += 1;
+        return checks === 1 ? nothingOpen : position;
+      };
+      const { git, calls } = releaseGit();
+      const { s, follows } = sync({ git, fetchJson });
+      expect(await s.prepareForDesk('v1029', { box, automatic: true })).toBe(false);
+      expect(calls).toContain(`merge --ff-only --quiet ${SHA}`);
+      expect(checks).toBe(2);
+      expect(follows).toEqual([]);
+      expect(box).not.toHaveBeenCalled();
+    });
+
     it('an automatic install whose backend cannot come along waits for the click, asking nothing', async () => {
       const box = vi.fn();
       const { git } = releaseGit([[/^status --porcelain/, { code: 0, stdout: ' M x\n' }]]);

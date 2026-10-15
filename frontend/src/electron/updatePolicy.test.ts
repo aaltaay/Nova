@@ -405,6 +405,17 @@ describe('the automatic install (operator ask 2026-10-14)', () => {
     expect(AUTO_WAIT_IDLE).toBe(`${UPDATE_AUTO_IDLE_MS / 60_000} minutes with no keyboard or mouse input`);
   });
 
+  it('Hide on a download only hides the notice; Later is what stops the install by itself (PR #978 review)', () => {
+    const hidden = reduceUpdateState(downloadingAt('0.1.832'), { type: 'hidden', version: '0.1.832' });
+    expect(noticeFor(hidden)).toBeNull();
+    const done = reduceUpdateState(hidden, { type: 'downloaded', version: '0.1.832' });
+    expect(noticeFor(done)).toBeNull();
+    expect(autoAllowed(done, { enabled: true })).toBe(true);
+    // Help > Check for Updates raises it again, and so does a new download.
+    expect(noticeFor(reduceUpdateState(done, { type: 'reoffer' }))).toBeNull(); // not offered until the check finds it
+    expect(reduceUpdateState(done, { type: 'reoffer' }).hiddenVersion).toBe('');
+  });
+
   it("checks on GitHub's release ping unless busy, even with an older release downloaded", () => {
     expect(shouldPingCheck(readyAt('0.1.832'), AUTO)).toBe(true);
     expect(shouldPingCheck(foundAt('0.1.832'), AUTO)).toBe(true);

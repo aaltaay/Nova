@@ -209,8 +209,14 @@ async function offer() {
   }
 }
 
+/** Later -- or Hide, its label while downloading, which only hides: Nova still installs it by itself. */
 function later() {
   if (!state.version) return;
+  if (state.phase === 'downloading') {
+    logger.info(`${displayTag(state.version)} download hidden by operator`);
+    dispatch({ type: 'hidden', version: state.version });
+    return;
+  }
   logger.info(`${displayTag(state.version)} postponed by operator`);
   dispatch({ type: 'dismissed', version: state.version });
 }
