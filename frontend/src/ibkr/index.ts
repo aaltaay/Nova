@@ -48,3 +48,5 @@ export { fmtBand } from './luld';
 export { readLuldTrail } from './luldTrail';
 export type { LuldStep, LuldTrail } from './luldTrail';
 export type { AutoRecordStatus } from './types';
+// The desk says each fill out loud (desk-ops.md, "The desk's voice and the header mute").
+export { FillVoiceHost } from './FillVoiceHost';

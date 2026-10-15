@@ -9,6 +9,7 @@ import {
   _resetIbkrAccountPollerForTests,
   configureIbkrAccountPoller,
   getIbkrAccountSnapshot,
+  refreshIbkrOrdersNow,
   subscribeIbkrAccount,
 } from './ibkrAccountPoller';
 import { _resetDeskPollShareForTests } from './deskSharedPoll';
@@ -63,6 +64,27 @@ describe('ibkrAccountPoller venue', () => {
     expect(getIbkrAccountSnapshot().venue).toBe('live');
     await settle();
     expect(getIbkrAccountSnapshot().positions).toEqual([]);
+    off();
+  });
+
+  it('says when both order lists answered on this venue (the voice seeds on it)', async () => {
+    let closedDown = true;
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (String(url).includes('/orders/closed') && closedDown) return { ok: false, status: 503, json: async () => ({}) };
+      return { ok: true, json: async () => answer(String(url)) };
+    }));
+    configureIbkrAccountPoller({ connected: true, sample: false, venue: 'paper' });
+    const off = subscribeIbkrAccount(() => {});
+    await settle();
+    expect(getIbkrAccountSnapshot().orders.map((o) => o.order_id)).toEqual([12]);
+    expect(getIbkrAccountSnapshot().ordersRead).toBe(false); // closed orders did not answer: not a full read
+    closedDown = false;
+    refreshIbkrOrdersNow();
+    await settle();
+    expect(getIbkrAccountSnapshot().ordersRead).toBe(true);
+
+    configureIbkrAccountPoller({ connected: true, sample: false, venue: 'live' });
+    expect(getIbkrAccountSnapshot().ordersRead).toBe(false); // a new venue starts unread
     off();
   });
 

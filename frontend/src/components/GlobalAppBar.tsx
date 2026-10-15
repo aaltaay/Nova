@@ -5,7 +5,7 @@
  *   wordmark · session chip · ET clock · connection chip · venue pills · REC
  *   chips · CLIP chips (ADR 039) · screen recording chip (ADR 035) · [ticker search, centred] ·
  *   Emergency KILL · Day's / Working / TAV
- *   / bot pill / account pill · padlock · gear
+ *   / bot pill / account pill · mute · padlock · gear
  *
  * Reload backend, the theme toggle, the full Gateway & feed status cluster and
  * the sample-data door live under the gear (GlobalBarGearMenu); the Scanner's
@@ -14,7 +14,8 @@
  * ADR 027 moved the level and Activate to the Bots page hero); the Trader tab
  * row sits under it, above the chart. The watch list's toasts ("XYZ hit HOD
  * Momo", "XYZ: bull flag armed") mount here too, so they reach every page of
- * the main desk once.
+ * the main desk once. So does the voice that says each fill (FillVoiceHost); the
+ * mute beside the padlock silences it and every other Nova sound (sound/).
  */
 import { GLOBAL_BAR_BRAND } from '../constants';
 import { RecordingChip } from '../capture/RecordingChip';
@@ -25,7 +26,7 @@ import { GlobalBarBotPill } from '../bot/GlobalBarBotPill';
 import { GlobalBarBotRow } from '../bot/GlobalBarBotRow';
 import { CloseReminders } from '../close_reminder';
 import { useClosedOrders } from '../closed_orders/useClosedOrders';
-import { useIbkrStatus } from '../ibkr';
+import { FillVoiceHost, useIbkrStatus } from '../ibkr';
 import { GatewayModeCapsule } from '../ibkr/GatewayModeCapsule';
 import { useIbkrAccountContext } from '../ibkr/IbkrAccountContext';
 import { TradingSessionLockButton } from '../ibkr/TradingSessionLockButton';
@@ -49,6 +50,7 @@ import type { GlobalAppBarScanner } from './globalAppBarScanner';
 import { useRenderCount } from '../perf/useRenderCount';
 import { WatchListToasts } from '../watch_list/WatchListToasts';
 import { FollowedToasts } from '../followed_traders';
+import { DeskMuteButton } from '../sound';
 
 export type { GlobalAppBarScanner };
 
@@ -112,6 +114,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
       <RecordingSignals onOpenSymbol={openStockView} />
       <WatchListToasts onOpenSymbol={openStockView} />
       <FollowedToasts onOpenPage={leaveTraderToScanner} />
+      {!isSampleView() && <FillVoiceHost />}
       {!isSampleView() && (
         <CloseReminders positions={positions} venue={deskVenue} stale={accountStale} liveCover={liveShortCover}
           onOpenSymbol={openStockView} />
@@ -165,6 +168,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
             venue={deskVenue}
             beforePill={<GlobalBarBotPill />}
           />
+          <DeskMuteButton />
           <TradingSessionLockButton />
           <GlobalBarGearMenu
             scanner={scanner}

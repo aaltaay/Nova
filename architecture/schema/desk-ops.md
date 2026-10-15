@@ -637,6 +637,51 @@ version is ignored. On Live the rows may be last-known (the Gateway dropped) and
 Nothing here places, stages or cancels an order.
 
 
+## The desk's voice and the header mute (operator ask, 2026-10-14)
+
+Operator: "when we execute a trade, I want the speaker to say, 'Purchased 100 shares' ... When we sell,
+I want it to say that as well. I don't want it to embarrass me, though, so I do really want to master
+the mute button on the header." Owners: `frontend/src/sound/` (the switch and the voice),
+`frontend/src/ibkr/fillVoice.ts` (what a fill says; `FillVoiceHost.tsx` speaks it) and `frontend/electron/deskSound.mjs` (the desktop
+windows). Display only: the voice reads the order rows the desk already polls, after the fact; it never
+sits on the order path and never places, stages, cancels or delays an order.
+
+- **The header's mute** (a speaker, left of the padlock) is one switch for every sound Nova makes: the
+  voice, the HOD Momo ping, the Setups ping, the Trader's call ping, the Nova OS alarm and the TraderTV
+  stream. Muting stops a sentence mid-word. On the desktop it also mutes every Nova window's audio, the
+  stream's pop-out included (`webContents.setAudioMuted`, applied to windows opened later too). Each
+  source's own switch still works under it; while the header mute is on, each says so on hover, and the
+  in-page stream's Sound on button is disabled with that reason. `localStorage` `nova.desk.sound.muted`
+  (a `prefStore` envelope, `{schema_version: 1, value: boolean}`), shared by every window: a click in
+  one window reaches the others through the `storage` event. Missing, or an unknown version, reads as
+  sound on.
+- **What speaks: fills, on the desk's venue.** From the working and closed order rows
+  (`/api/ibkr/orders`, `/api/ibkr/orders/closed`, as `ibkr/ibkrAccountPoller.ts` reads them): an order
+  whose `filled_qty` grew says the shares filled since the last read -- "Bought 100 shares of A B C."
+  (the ticker spelled letter by letter), "Sold", "Shorted" (a SELL with `short_entry`), "Covered" (a BUY
+  whose `effect` is `closes`). Before the verb: "Bot" when a bot sent it (`bot_id`, or an `order_origin`
+  of `bot`, `auto_entry`, `approve`, `bot_api`, `bot_trip` or `nova_exit`). Before the sentence:
+  "Flatten." for the ticket's Flatten and KILL (`order_origin` `ticket_flatten`, `emergency_kill`,
+  `all_stop`), "Stop hit." for a stop that closes (a `STP` order type or `leg_role` `stop`, not a buy
+  stop that opens), "Target hit." for a `target` / `target2` leg. ", partial." while the order still
+  works. Fills of one symbol and one sentence in one read are said once with their shares added; more
+  than three sentences in one read say the first two and "And N more fills."
+- **Order rejected.** An order the ticket, a hotkey or the action bar sends and the backend refuses says
+  "Order rejected." beside its pop-up (`ibkr/notifyOrderRejected.ts`; the soft warnings it skips stay
+  silent).
+- **Never spoken:** fills already on the rows when the desk first reads a venue (the snapshot's
+  `ordersRead` turns true at the first read in which both lists answered, and that read seeds silently,
+  after a start or a venue change alike); shares a Sim rewind takes back (a row whose fill shrank is
+  re-based, not spoken); cancels (a cancel that lost the race is a fill, and the fill speaks); an order
+  placed or working; anything on the sample desk.
+- **One voice.** Only the window that polls the account (the desk poll leader, `ibkr/deskSharedPoll.ts`)
+  speaks; the others follow the rows silently. A position that changes (the 1 s account poll) asks for
+  the order rows at once, so the voice follows a fill by about a second, not the 5 s order poll.
+- **The voice is the computer's own** (`speechSynthesis`, an English voice installed on the PC). Nothing
+  is sent anywhere. A window that cannot speak (no voice, or the browser's first-click rule) says why on
+  the mute button's hover.
+
+
 ## Who may reach the API: Host names and socket origins (security alerts, 2026-10-09)
 
 Owner `backend/request_guard/`, a pure ASGI middleware that sees every HTTP

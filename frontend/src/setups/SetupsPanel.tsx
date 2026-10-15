@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { BOT_SETUP_IDS, BOT_SETUP_NEXT } from '../constantGroups/bot';
 import { SETUPS_FILTER_ALL, SETUPS_FILTER_TIP, SETUPS_LEVEL_WORDS } from '../constantGroups/setups';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
+import { DESK_MUTE_REASON, useDeskMuted } from '../sound';
 import { tipProps } from '../ux/hoverTip';
 import { SetupsBoard } from './SetupsBoard';
 import { SetupsScoreboard } from './SetupsScoreboard';
@@ -86,6 +87,7 @@ export function SetupsPanel({ selectedSymbol, onSelectSymbol, onOpenTrading }: P
   const [view, setView] = useState<View>('board');
   const [days, setDays] = useState(5);
   const [sound, setSound] = useSoundSwitch();
+  const deskMuted = useDeskMuted();
   const [filter, setFilter] = useSetupsFilter();
   const scanned = scannedSetups(board);
   const active = filter !== ALL_SETUPS && scanned.includes(filter) ? filter : ALL_SETUPS;
@@ -129,7 +131,8 @@ export function SetupsPanel({ selectedSymbol, onSelectSymbol, onOpenTrading }: P
           type="button"
           className="setups-link"
           onClick={() => setSound(!sound)}
-          title={sound ? 'Mute the proposal ping (the alert card still shows)' : 'Ping when the bot raises a proposal'}
+          title={deskMuted ? DESK_MUTE_REASON
+            : sound ? 'Mute the proposal ping (the alert card still shows)' : 'Ping when the bot raises a proposal'}
         >
           {sound ? 'Sound on' : 'Sound off'}
         </button>

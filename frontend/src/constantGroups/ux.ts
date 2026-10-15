@@ -30,6 +30,8 @@ export const IBKR_VERIFICATION_CONFIRMED_LABEL =
 
 /** Place/flatten rejects -- pop-up titles (inline ticket footer is too easy to miss). */
 export const ORDER_REJECT_DEFAULT_TITLE = 'Order rejected';
+/** Said by the desk's voice beside the reject pop-up (sound/; the header mute silences it). */
+export const ORDER_REJECTED_SPOKEN = 'Order rejected.';
 export const ORDER_REJECT_TITLES: Record<string, string> = {
   BUYING_POWER: 'Not enough buying power',
   BUYING_POWER_UNKNOWN: 'Buying power unavailable',

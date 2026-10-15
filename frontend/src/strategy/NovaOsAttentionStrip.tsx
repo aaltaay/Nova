@@ -1,5 +1,6 @@
 /** Header attention strip for Nova OS events — mute silences sound only. */
 import { useEffect, useState } from 'react';
+import { DESK_MUTE_REASON, useDeskMuted } from '../sound';
 import {
   dismissNovaOsAttention,
   isNovaOsAttentionMuted,
@@ -20,6 +21,9 @@ interface Props {
 export function NovaOsAttentionStrip({ global = false }: Props = {}) {
   const [events, setEvents] = useState<NovaOsAttentionEvent[]>([]);
   const [muted, setMuted] = useState(isNovaOsAttentionMuted);
+  const deskMuted = useDeskMuted();
+  const soundTitle = deskMuted ? DESK_MUTE_REASON
+    : muted ? 'Unmute attention sounds' : 'Mute attention sounds (visuals stay on)';
 
   useEffect(() => subscribeNovaOsAttention(setEvents), []);
 
@@ -36,7 +40,7 @@ export function NovaOsAttentionStrip({ global = false }: Props = {}) {
             setNovaOsAttentionMuted(next);
             setMuted(next);
           }}
-          title={muted ? 'Unmute attention sounds' : 'Mute attention sounds (visuals stay on)'}
+          title={soundTitle}
         >
           {muted ? 'Sound off' : 'Sound on'}
         </button>
@@ -63,6 +67,7 @@ export function NovaOsAttentionStrip({ global = false }: Props = {}) {
             setNovaOsAttentionMuted(next);
             setMuted(next);
           }}
+          title={soundTitle}
         >
           {muted ? 'Sound off' : 'Sound on'}
         </button>
