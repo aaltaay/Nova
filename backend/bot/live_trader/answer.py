@@ -38,12 +38,13 @@ def read(now: float) -> dict[str, Any]:
     seen = routes.seen(base, day, now)
     ready = routes.ibkr_ready()
     ticker_for = routes.ticker_for(now, ready)
+    bars = _bars(status)
     hosts: dict[str, dict[str, Any]] = {}
     for t in day["trades"]:
         gone = view.left_bar(seen, t["trader"])
         trade = view.closed_on_leaving(t, gone)
         host = hosts.setdefault(t["trader"], {"left_ts": gone["left_ts"] if gone else None, "rows": []})
-        host["rows"].append(_row(trade, ticker_for, tickers))
+        host["rows"].append(_row(trade, ticker_for, tickers, bars))
     on_bar = [*((status or {}).get("traders") or []), *(h["trader"] for h in (status or {}).get("positions") or [])]
     for name in on_bar:                      # a host on the bar with nothing open is watched too
         if name not in hosts:
@@ -59,13 +60,23 @@ def read(now: float) -> dict[str, Any]:
             "faces": sorted(day.get("faces") or ())}
 
 
-def _row(t: dict[str, Any], ticker_for: Any, tickers: Any) -> dict[str, Any]:
-    """A trade as ``decide`` reads it: the page's id, the ticker and prices as the check settled them."""
+def _bars(status: dict[str, Any] | None) -> dict[str, set[str]] | None:
+    """Each host's bar as the feed last confirmed it, ``{host: {"side:SYMBOL"}}``; None when the feed sends none."""
+    held = (status or {}).get("positions")
+    if held is None:
+        return None
+    return {h["trader"]: {f"{p['side']}:{p['symbol']}" for p in h["positions"]} for h in held}
+
+
+def _row(t: dict[str, Any], ticker_for: Any, tickers: Any, bars: dict[str, set[str]] | None) -> dict[str, Any]:
+    """A trade as ``decide`` reads it: the page's id, the ticker and prices as the check settled them, and whether
+    the host's bar shows it now (``on_bar``: None when the feed sends no bar)."""
     row_id = f"{t['trader']}|{t['side']}|{t.get('read_as') or t['symbol']}|{t['entry_ts']:.0f}"
+    on_bar = None if bars is None else f"{t['side']}:{t['symbol']}" in bars.get(t["trader"], set())
     ticker = ticker_for(t) if t["status"] == "open" else None
     shown = tickers.shown(t, ticker)
     return {"id": row_id, "host": t["trader"], "side": t["side"], "symbol": shown["symbol"], "status": t["status"],
             "price": shown["price"], "entry_price": shown["entry_price"], "entry_ts": t["entry_ts"],
             "known": bool(t["entry_known"]), "adds": [dict(a) for a in shown["adds"]], "exit_ts": t.get("exit_ts"),
-            "left_bar": bool(t.get("left_bar")),
+            "left_bar": bool(t.get("left_bar")), "on_bar": on_bar,
             "ticker": None if ticker is None else {"state": ticker["state"], "why": ticker.get("why")}}

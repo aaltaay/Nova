@@ -75,6 +75,11 @@ def verdict(kind: str, code: str | None = None, text: str | None = None,
     return {"verdict": kind, "code": code, "text": text, "plan": plan}
 
 
+def waited(code: str, wait_text: str, skip_text: str, since: float | None, now: float) -> dict[str, Any]:
+    """A wait, or its skip once it has lasted ``LT_WAIT_SEC``."""
+    return _waited(code, wait_text, skip_text, since, now)
+
+
 def _waited(code: str, wait_text: str, skip_text: str, since: float | None, now: float) -> dict[str, Any]:
     if since is not None and now - since >= LT_WAIT_SEC:
         return verdict(SKIP, code, skip_text)

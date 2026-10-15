@@ -61,6 +61,7 @@ LT_ENTRY_OFFSET_USD = 0.02              # a long buys at the ask plus this; a sh
 LT_CLOSE_RETRY_SEC = 5.0                # a close not filled (or refused) is sent again after this
 LT_CLOSE_MAX_TRIES = 5                  # then the card says to close it by hand, loud
 LT_EVENTS_SHOWN = 8                     # a host card's newest events
+LT_AUDIT_TAIL_BYTES = 1_000_000         # the cards read the bot audit file's last MB, never the whole file
 LT_SKIPS_REMEMBERED = 2000              # skip lines written once per position, step and code (in memory)
 
 # -- skip codes (bot.md "The Live Trader bot", Audit) ----------------------------------------------
@@ -88,6 +89,7 @@ LT_ALREADY_OPEN = "LT_ALREADY_OPEN"
 LT_OFF_AIR = "LT_OFF_AIR"
 LT_HIDDEN = "LT_HIDDEN"
 LT_DAY_LOCK = "LT_DAY_LOCK"
+LT_NOT_ON_BAR = "LT_NOT_ON_BAR"
 
 # -- route errors ---------------------------------------------------------------------------------
 LT_ERR_INVALID = "LIVE_TRADER_INVALID"

@@ -120,7 +120,7 @@ async def step(a: dict[str, Any], now: float, *, short_blocks: Any) -> str | Non
     held = book.get(a["pos_id"])
     n = (held["adds_followed"] + 1) if (held and a["step"] == "add") else ""
     try:
-        receipt = await orders.send_step(a, n)
+        receipt = await orders.send_step(a, n, now)
     except Exception as exc:
         logger.exception("Live Trader bot: the %s step on %s did not go out", a["step"], a["symbol"])
         audit("error", a, why=f"the order did not go out: {type(exc).__name__}: {exc}", now=now)
@@ -187,7 +187,7 @@ async def close(a: dict[str, Any], now: float) -> None:
         return
     tries = int((pos.get("close") or {}).get("tries") or 0) + 1
     try:
-        receipt = await orders.close(pos, qty, tries=tries)
+        receipt = await orders.close(pos, qty, tries=tries, now=now)
     except Exception as exc:
         logger.exception("Live Trader bot: the close of %s did not go out", pos["symbol"])
         receipt, error = None, f"{type(exc).__name__}: {exc}"

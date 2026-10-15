@@ -93,9 +93,17 @@ class Feed:
         raw = {"date": date, "today": date, "dates": [date],
                "status": {"video": {"id": "abcdefghijk", "title": "Live show"}, "live": self.live,
                           "clock": hms(self.clock), "updated_at": iso(self.clock + self.read_lag),
-                          "bar_visible": self.visible, "traders": [HOST, OTHER], "positions": {}},
+                          "bar_visible": self.visible, "traders": [HOST, OTHER], "positions": self.bar_now()},
                "trades": copy.deepcopy(self.trades), "events": []}
         return feed.parse_day(raw)
+
+    def bar_now(self) -> dict:
+        """Each host's bar as the feed confirms it: their open positions (``status.positions``)."""
+        out: dict[str, dict] = {}
+        for t in self.trades:
+            if t["status"] == "open":
+                out.setdefault(t["trader"], {})[f"{t['side']}:{t['symbol']}"] = t["price"]
+        return out
 
     def reads(self, base, date, *, timeout=None):
         if not self.log:
@@ -272,6 +280,24 @@ def test_off_air_sells_when_another_host_has_held_the_bar_a_minute(desk):
     assert held(desk, "XYZ") == 0
     (done,) = lt_book.closed_today()
     assert done["kind"] == "off_air" and "went off air" in done["why"]
+
+
+def test_back_on_air_the_same_position_is_taken_again_with_a_new_order_and_a_new_close(desk):
+    desk.feed.bar(at("10:29:00"), **{HOST: 1, OTHER: 1})
+    run(desk, "10:30:00")
+    t = desk.feed.open("XYZ", 100.00, at("10:30:10"))
+    run(desk, "10:30:11")
+    desk.feed.bar(at("10:40:00"), **{NEXT: 1})
+    run(desk, "10:41:30")
+    assert held(desk, "XYZ") == 0                                  # off air: sold
+    desk.feed.bar(at("14:00:00"), **{HOST: 1, OTHER: 1})
+    run(desk, "14:00:05")
+    assert held(desk, "XYZ") == 4                                  # back on air with XYZ on the bar: taken again
+    desk.feed.close(t, at("14:05:00"))
+    run(desk, "14:05:01")
+    assert held(desk, "XYZ") == 0                                  # and sold for real, not a replayed receipt
+    sends = [r for r in desk.broker.closed_orders() if r["order_origin"] == "live_trader"]
+    assert len(sends) == 4 and len({r["order_id"] for r in sends}) == 4
 
 
 def test_the_bar_hidden_ten_minutes_sells(desk):

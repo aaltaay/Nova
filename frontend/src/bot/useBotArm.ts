@@ -37,8 +37,8 @@ export function useBotArm() {
   /** Turn the Bot on or off, as the backend would accept it: refused with its reason, or after the bot trip, asked first. */
   async function onSwitch(next: boolean) {
     if (!next) {
-      // The Live Trader bot's positions are sold when you turn the bot off (ADR 055): asked first, by name.
-      const held = await liveTraderHeld();
+      // The Live Trader bot's positions are sold when you turn Paper's bot off (ADR 055): asked first, by name.
+      const held = session?.level_venue === 'paper' ? await liveTraderHeld() : [];
       if (held.length) {
         const yes = await confirmApp({
           title: LT_BOT_OFF_TITLE,

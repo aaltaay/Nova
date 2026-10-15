@@ -596,3 +596,17 @@ def test_rules_shares_and_prices():
     assert rules.shares(500.0, 712.12) == 1
     assert rules.limits("long", {"bid": 0.501, "ask": 0.5033, "last": 0.502}, 5.0) == (0.5233, None)
     assert rules.limits("short", {"bid": 20.0, "ask": 20.02, "last": 20.01}, 5.0) == (19.98, 20.98)
+
+
+def test_already_open_waits_for_the_bar_to_show_it_then_skips():
+    from bot.live_trader.constants_live_trader import LT_NOT_ON_BAR
+
+    w = World()
+    stale = dict(row(entry_ts=NOW - 600), on_bar=False)            # the feed still holds it open; the bar does not
+    out = w.run(answer({HOST: [stale]}))
+    assert kinds(out, "step") == [] and out["waits"]
+    out = w.at(31).run(answer({HOST: [stale]}, feed_now=NOW + 31))
+    (skip,) = kinds(out, "skip")
+    assert skip["code"] == LT_NOT_ON_BAR and "not on TRADER1's bar now" in skip["why"]
+    w = World()
+    assert kinds(w.run(answer({HOST: [dict(row(entry_ts=NOW - 600), on_bar=True)]})), "step")

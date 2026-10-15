@@ -569,7 +569,9 @@ back where it started is none) is one more step up to `adds`; the position leavi
 the bot's whole position; off air (`traders[].seen.left_ts`, 60 s), the bar hidden `LT_HIDDEN_SEC` (600 s;
 also a feed that has not answered or read for as long), and the sell-all time (`sell_all_at`, 15:55 ET; 12:55
 on an early close) sell everything; an entry first seen `LT_OPEN_FRESH_SEC` (60) after it happened, on the
-first answer of a watch, or when the host comes back on air is already open (`take_open`). Opens and adds
+first answer of a watch, or when the host comes back on air is already open (`take_open`), taken only while the
+host's bar shows it (`status.positions`; a trade the feed still holds open from before they left can be gone from
+it: `LT_NOT_ON_BAR` after the wait). Opens and adds
 skip, each with its reason: the feed `LT_FEED_BEHIND_SEC` (30) behind the stream or silent as long, a ticker
 check not settled, the host's average over `LT_MISREAD_PCT` (1.5%) from the market (the mid, else the last),
 a market cap under `LARGE_CAP_MIN` ($10B) or unknown, no fresh quote, the allowance, the adds, shorts off,
@@ -633,7 +635,8 @@ buy stop or a breaker did) leave the position, said once.
 
   `hosts` lists every host the feed read today and every host with settings or positions, in the feed's
   order. `face` is the TraderTV LIVE page's photo path, or null. `events` are the host's newest
-  `live_trader` audit lines (8). `today.pl_usd` is realized plus unrealized at the last, from the bot's own
+  `live_trader` audit lines (8), read from the audit file's last MB (`LT_AUDIT_TAIL_BYTES`) and again only when
+  the file changed. `today.pl_usd` is realized plus unrealized at the last, from the bot's own
   fills; `series` its points at each fill.
 - `GET /api/bot/live-traders/asks` answers `{schema_version: 1, generated_at, asks: [{...an ask, host,
   seconds_left}], held: [{host, symbol, side, qty, state}]}` from memory only: every desk window polls it for
@@ -648,7 +651,9 @@ buy stop or a breaker did) leave the position, said once.
   every rule again on the next pass before it is sent.
 
 **Orders** (ADR 055 decision 5): every one through `execution.service.execute`, `origin: "live_trader"`,
-`setup: "live_trader:<NAME>"`, idempotency key `bot:lt:paper:<position id>:<step><n>`. A long entry or add
+`setup: "live_trader:<NAME>"`, an idempotency key unique to each send (`bot:lt:paper:<row id>:<step><n>:<ms>`:
+the same trade can be taken again after the host comes back on air, and a reused key would replay the earlier
+send's receipt). A long entry or add
 is a `place` BUY `LMT` at the ask plus `LT_ENTRY_OFFSET_USD` (2 cents; the last when no ask), source `bot`,
 `expected_venue: "paper"`; a short one a `bracket` SELL `LMT` at the bid less 2 cents (over the bid while
 SSR is on or unknown, as the setup bot prices it) with `short_entry` and a BUY stop `short_stop_pct` over
@@ -670,13 +675,13 @@ time of the change. A skip is written once per position, step and code. Codes: `
 `LT_FEED_DOWN`, `LT_TICKER_UNSETTLED`, `LT_MISREAD`, `LT_SMALL_CAP`, `LT_CAP_UNKNOWN`, `LT_NO_QUOTE`,
 `LT_ALLOWANCE`, `LT_ADDS_DONE`, `LT_SHORTS_OFF`, `LT_AGAINST`, `LT_NOT_HELD`, `LT_VENUE`, `LT_BOT_OFF`,
 `LT_FROZEN`, `LT_AFTER_SELL_ALL`, `LT_SHORT_HOURS`, `LT_NOT_PRICEABLE`, `LT_ASK_EXPIRED`, `LT_ASK_SKIPPED`,
-`LT_ALREADY_OPEN`, `LT_OFF_AIR`, `LT_HIDDEN`, `LT_DAY_LOCK`.
+`LT_ALREADY_OPEN`, `LT_OFF_AIR`, `LT_HIDDEN`, `LT_DAY_LOCK`, `LT_NOT_ON_BAR`.
 
 **The Bot switch** counts a host key on as a strategy On on Paper (`BOT_NO_SETUP_AT_STRATEGY`: "no
 strategy is On and no Live Trader key is on"); `GET /api/bot/session`'s `setups` gate adds
-`live_traders: [NAME]`. The operator's OFF (`POST /api/bot/session/switch {on: false}`) while the Live
-Trader bot holds positions sells them on the next pass (the desk asks first); a `live_trader` `closed` line
-names `bot_off`.
+`live_traders: [NAME]`. The operator's OFF (`POST /api/bot/session/switch {on: false}`) on Paper while the
+Live Trader bot holds positions sells them on the next pass (the desk asks first); a `live_trader` `closed` line
+names `bot_off`. Sim's and Live's switches never touch the Paper bot's shares.
 
 **On the desk.** The section's cards (mockup v1, approved 2026-10-14): the host's photo or initial, on air
 and how old the read is, the key, Entry You | Bot and Exit You | Bot with the mode in words, the allowance

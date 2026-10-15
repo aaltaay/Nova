@@ -45,15 +45,17 @@ def _outside_rth() -> bool:
     return not regular_hours_now()
 
 
-def key(row_id: str, step: str, n: int | str = "") -> str:
-    """The step's idempotency key: a repeated send (a restart mid-step) replays its receipt, never places twice."""
-    return f"{LT_KEY_PREFIX}{row_id}:{step}{n}"
+def key(row_id: str, step: str, n: int | str, now: float) -> str:
+    """A send's idempotency key, unique to this send: the same trade can be taken again (back on air, after the
+    bar was hidden), and a key reused from an earlier send would replay that send's receipt -- a step or a close
+    the door never placed."""
+    return f"{LT_KEY_PREFIX}{row_id}:{step}{n}:{int(now * 1000)}"
 
 
 # -- sends -------------------------------------------------------------------------------------------
-async def send_step(action: dict[str, Any], n: int) -> Any:
+async def send_step(action: dict[str, Any], n: int | str, now: float) -> Any:
     """The step ``action`` (``decide``'s): a long's BUY limit or a short's bracket, source ``bot``."""
-    common = {"idempotency_key": key(action["row_id"], action["step"], n), "source": "bot", "origin": LT_ORIGIN,
+    common = {"idempotency_key": key(action["row_id"], action["step"], n, now), "source": "bot", "origin": LT_ORIGIN,
               "symbol": action["symbol"], "qty": float(action["qty"]), "order_type": "LMT",
               "limit_price": round(float(action["limit"]), 4), "reference_price": round(float(action["limit"]), 4),
               "outside_rth": _outside_rth(), "setup": f"{LT_SETUP_PREFIX}{action['host']}", "skip_risk": True,
@@ -72,7 +74,7 @@ async def cancel(order_id: int, symbol: str, host: str) -> Any:
         setup=f"{LT_SETUP_PREFIX}{host}"))
 
 
-async def close(pos: dict[str, Any], qty: float, *, tries: int) -> Any:
+async def close(pos: dict[str, Any], qty: float, *, tries: int, now: float) -> Any:
     """Sell (or cover) ``qty`` of the bot's shares at market on Paper: the day cover's own close.
 
     While the desk is on Paper the close also carries ``intent: "flatten"``, so the door holds it, under its
@@ -81,7 +83,7 @@ async def close(pos: dict[str, Any], qty: float, *, tries: int) -> Any:
 
     side = "SELL" if pos["side"] == "long" else "BUY"
     return await _execute(ExecutionCommand(
-        operation="place", idempotency_key=f"{LT_KEY_PREFIX}{pos['row_id']}:close{tries}", source="flatten",
+        operation="place", idempotency_key=key(pos["row_id"], "close", tries, now), source="flatten",
         symbol=pos["symbol"], side=side, qty=float(qty), order_type="MKT", outside_rth=True, skip_risk=True,
         target_venue=LT_VENUE, origin=LT_ORIGIN, setup=f"{LT_SETUP_PREFIX}{pos['host']}",
         intent="flatten" if venue() == LT_VENUE else None))

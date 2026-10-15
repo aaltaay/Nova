@@ -114,10 +114,11 @@ def _live_trader(*, on: bool) -> None:
     """The operator's OFF sells what the Live Trader bot holds (ADR 055; the desk asked first); ON keeps it."""
     try:
         from bot.live_trader import watcher
+        from sim.mode import venue
 
         if on:
             watcher.cancel_sell_all()
-        elif watcher.holds_positions():
+        elif venue() == "paper" and watcher.holds_positions():      # the bot trades Paper only
             watcher.request_sell_all("bot_off")
     except Exception:
         logger.exception("bot: the Live Trader bot was not told the Bot switch turned %s", "on" if on else "off")

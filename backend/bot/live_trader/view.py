@@ -13,6 +13,7 @@ from typing import Any
 from bot.live_trader import book, market, settings, watcher
 from bot.live_trader.constants_live_trader import (
     LT_AUDIT_ACTION,
+    LT_AUDIT_TAIL_BYTES,
     LT_EVENTS_SHOWN,
     LT_SCHEMA_VERSION,
     LT_VENUE,
@@ -27,12 +28,20 @@ TONES = {"order": "ok", "filled": "ok", "closed": "ok", "skipped": "warn", "refu
 FACE_PATH = "/api/followed-traders/faces/{date}/{name}.jpg"
 
 
-def _events(limit_lines: int = 600) -> dict[str, list[dict[str, Any]]]:
-    from bot.audit import list_entries
+_events_cache: dict[str, Any] = {"sig": None, "out": {}}
 
+
+def _events() -> dict[str, list[dict[str, Any]]]:
+    """Each host's ``live_trader`` lines, newest first, from the audit file's last ``LT_AUDIT_TAIL_BYTES`` -- read
+    again only when the file changed (the whole file is months of every bot's lines)."""
+    from bot.persist import audit_signature, read_audit_tail
+
+    sig = audit_signature()
+    if sig is not None and sig == _events_cache["sig"]:
+        return _events_cache["out"]
     out: dict[str, list[dict[str, Any]]] = {}
     try:
-        lines = list_entries(limit=limit_lines)
+        lines, _whole = read_audit_tail(LT_AUDIT_TAIL_BYTES)
     except Exception:
         logger.warning("Live Trader bot: the audit stream could not be read for the cards", exc_info=True)
         return out
@@ -49,6 +58,7 @@ def _events(limit_lines: int = 600) -> dict[str, list[dict[str, Any]]]:
                                          "late_sec": inputs.get("late_sec")})
     for rows in out.values():
         rows.sort(key=lambda r: r["ts"] or 0, reverse=True)
+    _events_cache.update(sig=sig, out=out)
     return out
 
 

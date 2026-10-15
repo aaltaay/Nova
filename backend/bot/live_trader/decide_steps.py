@@ -22,6 +22,7 @@ from bot.live_trader.constants_live_trader import (
     LT_ASK_SEC,
     LT_ASK_SKIPPED,
     LT_HIDDEN,
+    LT_NOT_ON_BAR,
     LT_OFF_AIR,
     LT_OPEN_FRESH_SEC,
 )
@@ -217,7 +218,14 @@ class _Pass:
             rs["fate"] = "skipped"
             self.skip(name, r, pid, step, LT_ALREADY_OPEN, "already open when watching began, not taken", change)
             return
-        v = self.check(name, st, r["side"], r["symbol"], r["price"], r.get("ticker"), rs.get("since"), entry=True)
+        if step == "already_open" and r.get("on_bar") is False:
+            # A trade the feed still holds open from before the host left can be gone from their bar: taken only
+            # once the bar shows it (the feed closes it otherwise).
+            v = rules.waited(LT_NOT_ON_BAR, f"waiting for {name}'s bar to show {r['symbol']}",
+                             f"{r['symbol']} is not on {name}'s bar now", rs.get("since"), self.now)
+        else:
+            v = self.check(name, st, r["side"], r["symbol"], r["price"], r.get("ticker"), rs.get("since"),
+                           entry=True)
         if v["verdict"] == rules.WAIT:
             rs["fate"], rs["since"] = "waiting", rs.get("since") or self.now
             self.wait(pid, r, v)

@@ -16,9 +16,12 @@ const confirmApp = vi.fn(async () => true);
 vi.mock('../ux/appDialogApi', () => ({ confirmApp: (...args: unknown[]) => confirmApp(...(args as [])) }));
 vi.mock('../followed_traders', () => ({ useFollowedTradersEnabled: () => true }));
 const setSwitch = vi.fn(async () => null);
+const botSession: { level_venue: string } = { level_venue: 'paper' };
 vi.mock('./useBotSession', () => ({
-  useBotSession: () => ({ session: null, proposals: [], audit: [], error: null, busy: false, setSwitch, patch: vi.fn() }),
+  useBotSession: () => ({ session: botSession, proposals: [], audit: [], error: null, busy: false, setSwitch,
+    patch: vi.fn() }),
 }));
+vi.mock('./botSwitch', () => ({ botOn: () => true, switchLock: () => null, tripLatch: () => null, reenableWords: () => '' }));
 
 const NOW = Date.now() / 1000;
 
@@ -210,6 +213,17 @@ describe('the Bot switch', () => {
     expect(setSwitch).not.toHaveBeenCalled();
     confirmApp.mockImplementation(async () => true);
     await act(async () => { await result.current.onSwitch(false); });
+    expect(setSwitch).toHaveBeenCalledWith(false);
+  });
+
+  it('never asks on Sim or Live: the Live Trader bot trades Paper only', async () => {
+    const { useBotArm } = await import('./useBotArm');
+    asksNow = { asks: [], held: [{ host: 'ALPHA', symbol: 'XYZ', side: 'long', qty: 4, state: 'open' }] };
+    botSession.level_venue = 'sim';
+    const { result } = renderHook(() => useBotArm());
+    await act(async () => { await result.current.onSwitch(false); });
+    botSession.level_venue = 'paper';
+    expect(confirmApp).not.toHaveBeenCalled();
     expect(setSwitch).toHaveBeenCalledWith(false);
   });
 
