@@ -31,6 +31,7 @@ import { CatalystMark } from './CatalystMark';
 import { CheckRow } from './WhyMovingSection';
 import './catalystCell.css';
 import './whyMoving.css';
+import { TickerLink } from './TickerLink';
 
 const ET = 'America/New_York';
 
@@ -100,7 +101,7 @@ function ReadAt({ symbol, read }: { symbol: string; read: WhyMovingRead }) {
   return (
     <div className="cx-readat" data-testid="catalyst-read-at" data-priced-by={f.priced_by ?? ''}>
       <span>
-        {symbol} read at <b>{fmtPrice(f.price)} ({fmtPct(f.change_pct, '?')})</b>
+        <TickerLink symbol={symbol} /> read at <b>{fmtPrice(f.price)} ({fmtPct(f.change_pct, '?')})</b>
         {how ? ` -- ${how}` : ''}{board ? ` (${board})` : ''}
       </span>
       {trade && (

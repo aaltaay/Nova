@@ -15,9 +15,10 @@ export const TRADER_DEFAULT_SYMBOLS = ['SPY', 'QQQ', 'IWM'] as const;
 /** Open this when Trader is clicked with no selected symbol (S&P 500 ETF). */
 export const TRADER_DEFAULT_SYMBOL = TRADER_DEFAULT_SYMBOLS[0];
 
-/** Shared ticker hover copy for add-or-activate (never silent-replace). */
+/** The hover on every ticker (workspace/TickerLink): what a click does, as openStockView does it (ADR 011,
+ * amended 2026-09-22) -- it opens into the preview tab, or activates the symbol's tab already open. */
 export const TICKER_OPEN_TRADER_TITLE =
-  'Click to open Trader here -- adds a tab or activates one already open.';
+  'Click to open it in the Trader -- in the preview tab, or its own tab if one is already open.';
 
 /** Row-body hover copy for tables where the ticker (not the row) opens
  * Trader. While Trader is already showing, the row adds or activates that

@@ -24,6 +24,7 @@ import type { StockModeRow } from './stockModesApi';
 import { allStops, changeSource, daySummary, GATE_TIPS, orderTickers, resultWords, sidesOf, splitReasons, WHO_WORDS, type Side, type Stop } from './tickerTable';
 import { fetchTriggers, type Cells, type TickerMarket, type TickerRow, type TriggersView } from './triggersApi';
 import type { SetupRow } from '../setups';
+import { TickerLink } from '../components/TickerLink';
 
 const TRIGGERS_POLL_MS = 15_000;
 
@@ -177,7 +178,7 @@ export function BotTickersTable({ today, modes, onModesChanged, boardRows, onOpe
             onClick={() => void (isListed ? hotListActions.unstar(t.symbol) : hotListActions.star(t.symbol)).then(e => setRowError(e ? { symbol: t.symbol, text: e } : null))}>
             {isListed && entry?.how !== 'auto' ? '★' : '☆'}
           </button>
-          <button type="button" className="bots-linkbtn bots-tk__sym" onClick={() => onOpenSymbol(t.symbol)}>{t.symbol}</button>
+          <TickerLink symbol={t.symbol} look="own" className="bots-linkbtn bots-tk__sym" onOpen={onOpenSymbol} />
           {entry ? <span className={`bots-tag bots-tag--${entry.how === 'auto' ? 'auto' : 'pin'}`}>{entry.how === 'auto' ? `auto ${etTime(entry.at)}` : `★ ${etTime(entry.at)}`}</span> : null}
           {entry && entry.followed !== true ? (
             <span className="bots-tag bots-tag--warn" data-testid={`bots-tk-unfollowed-${t.symbol}`}

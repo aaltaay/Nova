@@ -38,7 +38,7 @@ function Row({ positions, side, mark, kind }: { positions: BarPosition[]; side: 
         <span key={p.symbol}>
           {i > 0 && ' · '}
           <span className={p.symbol === mark ? `ft-mark ft-mark--${kind}` : undefined}>
-            {p.symbol} {price(p.price)}{p.symbol === mark ? ` ${kind}` : ''}
+            <Ticker symbol={p.symbol} className="" /> {price(p.price)}{p.symbol === mark ? ` ${kind}` : ''}
           </span>
         </span>
       ))}

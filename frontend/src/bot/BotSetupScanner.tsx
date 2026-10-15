@@ -29,6 +29,7 @@ import {
 import { SortTh, useTableSort, type SortColumns, type TableSort } from '../table_sort';
 import { tipProps } from '../ux/hoverTip';
 import { openBotSymbolMenu } from './botSymbolMenuStore';
+import { TickerLink } from '../components/TickerLink';
 
 interface Props {
   setup: string;
@@ -127,7 +128,7 @@ export function BotSetupScanner({ setup, rows, allRows, connected, onOpenSymbol,
               onPointerLeave={() => onHover(null)}
             >
               <td className="bots-scan__sym">
-                <b>{row.symbol}</b>
+                <b><TickerLink symbol={row.symbol} onOpen={onOpenSymbol} /></b>
                 {row.proposal ? (
                   <span className="bots-scan__proposed"
                     {...tipProps('This setup raised a proposal: near the trigger with the tape at GO. It is in the inbox; you press Place.', 'Proposed')}>

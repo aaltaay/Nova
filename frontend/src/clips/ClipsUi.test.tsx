@@ -178,7 +178,7 @@ describe('Records › Video clips', () => {
     expect((rows[0]).textContent).toMatch('44 MB');
     expect((rows[1]).textContent).toMatch(/Exporting 45%/);
     expect((rows[2]).textContent).toMatch(/Export failed: F: was full/);
-    fireEvent.click(rows[1].querySelector('button')!);
+    fireEvent.click(rows[1].querySelector('button:not(.ticker-link)')!);
     await waitFor(() => expect(act_).toHaveBeenCalledWith({ action: 'cancel_export', export_id: 'e2' }));
   });
 

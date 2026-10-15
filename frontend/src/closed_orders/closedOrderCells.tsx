@@ -16,6 +16,7 @@ import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';
 import { formatClosedOrderId } from './formatClosedOrderId';
 import type { ClosedOrder } from './types';
+import { TickerLink } from '../components/TickerLink';
 
 export type ClosedCellCtx = {
   statusLabel: string;
@@ -56,7 +57,7 @@ export function renderClosedOrderCell(
           title={ctx.sideLabel}
           data-side={o.side}
         >
-          {o.symbol}
+          <TickerLink symbol={o.symbol} look="own" />
         </td>
       );
     case 'qty':

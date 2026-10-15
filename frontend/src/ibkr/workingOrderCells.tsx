@@ -19,6 +19,7 @@ import { remainingShares } from './orderQtyMath';
 import type { WorkingOrderColumnId } from './orderTableColumns';
 import type { IbkrOrder } from './types';
 import { workingOrderStatusDisplay } from './workingOrderFillability';
+import { TickerLink } from '../components/TickerLink';
 
 export type WorkingCellCtx = {
   statusLabel: string;
@@ -49,7 +50,7 @@ export function renderWorkingOrderCell(
           title={ctx.sideLabel}
           data-side={o.side}
         >
-          {o.symbol}
+          <TickerLink symbol={o.symbol} look="own" />
         </td>
       );
     case 'qty':

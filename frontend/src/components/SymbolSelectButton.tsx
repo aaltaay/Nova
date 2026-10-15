@@ -1,7 +1,7 @@
-/** Symbol button: click opens Trader and replaces the active tab (ADR 011).
- * Double-click has no special action. Optional listing exchange renders
+/** Symbol button for a table row: click selects the row's symbol and opens Trader (ADR 011), through the desk's one
+ * ticker link (workspace/TickerLink). Double-click has no special action. Optional listing exchange renders
  * under the ticker (same secondary stack style as dollar change under %). */
-import { TICKER_OPEN_TRADER_TITLE } from '../constants';
+import { TickerLink } from './TickerLink';
 
 interface Props {
   symbol: string;
@@ -22,18 +22,16 @@ export function SymbolSelectButton({
 }: Props) {
   return (
     <span className="cell-stack symbol-cell">
-      <button
-        type="button"
-        className={`symbol-btn${selected ? ' active' : ''}${className ? ` ${className}` : ''}`}
-        onClick={e => {
-          e.stopPropagation();
+      <TickerLink
+        symbol={symbol}
+        className={`${selected ? 'active' : ''}${className ? ` ${className}` : ''}`.trim()}
+        onOpen={() => {
           onSelect(symbol);
           onOpenTrading(symbol);
         }}
-        title={TICKER_OPEN_TRADER_TITLE}
       >
         {symbol}
-      </button>
+      </TickerLink>
       {exchange ? (
         <span className="cell-stack-secondary" title={`Listed on ${exchange}`}>
           {exchange}

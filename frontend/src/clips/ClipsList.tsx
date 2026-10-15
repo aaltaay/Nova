@@ -25,6 +25,7 @@ import {
 } from './clipsConstants';
 import { actClip, openClipExport, pushClipToast, useClips } from './clipsStore';
 import type { ClipRowView } from './clipsView';
+import { TickerLink } from '../components/TickerLink';
 
 function Row({ row, now, onOpenTrader, onError }: { row: ClipRowView; now: number; onOpenTrader: (s: string) => void; onError: (e: string | null) => void }) {
   const [busy, setBusy] = useState(false);
@@ -53,7 +54,7 @@ function Row({ row, now, onOpenTrader, onError }: { row: ClipRowView; now: numbe
   return (
     <tr data-testid="clip-row" data-status={row.status}>
       <td>{etClock(row.startedTs)} – {row.endedTs ? etClock(row.endedTs) : 'now'}</td>
-      <td>{row.symbol}</td>
+      <td><TickerLink symbol={row.symbol} onOpen={onOpenTrader} /></td>
       <td className="is-num">{length}</td>
       <td>{picture.text}{picture.warn ? <span className="clip-warn-text"> · {picture.warn}</span> : null}</td>
       <td>{row.status === 'recording' ? (row.hqSec > 0 ? 'High quality · 30 fps' : 'Cut · 15 fps') : sourcesWords(row)}</td>

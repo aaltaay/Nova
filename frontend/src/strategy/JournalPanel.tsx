@@ -15,6 +15,7 @@ import type {
   JournalTradeRow,
   RiskStatus,
 } from './types';
+import { TickerLink } from '../components/TickerLink';
 
 /** The setup as the table shows it, so the column sorts A to Z by its label. */
 /** The walk-away rules gate nothing: every sender passes skip_risk (spec D, 2026-09-30). */
@@ -181,7 +182,7 @@ function TradesTable({
               className={t.is_mock ? 'row-mock' : ''}
             >
               <td className="hod-time-cell">{t.closed_ts ? fmtTime(t.closed_ts) : '\u2014'}</td>
-              <td>{t.symbol}{t.is_mock ? <span className="mock-tag" title="Synthetic demo row — not a real trade.">DEMO</span> : null}</td>
+              <td><TickerLink symbol={t.symbol} onOpen={s => { onSelectSymbol(s); onOpenTrading(s); }} />{t.is_mock ? <span className="mock-tag" title="Synthetic demo row — not a real trade.">DEMO</span> : null}</td>
               <td><span className="pillar-chip pillar-pass">{SETUP_LABELS[t.setup ?? ''] ?? t.setup ?? '\u2014'}</span></td>
               <td>{t.side}</td>
               <td>{formatShareQty(t.qty)}</td>
@@ -292,7 +293,7 @@ export function JournalPanel({
                   onOpenTrading={onOpenTrading}
                 >
                   <td className="hod-time-cell">{fmtTime(s.ts)}</td>
-                  <td>{s.symbol}</td>
+                  <td><TickerLink symbol={s.symbol} onOpen={sym => { onSelectSymbol(sym); onOpenTrading(sym); }} /></td>
                   <td><span className="pillar-chip pillar-pass">{SETUP_LABELS[s.setup] ?? s.setup}</span></td>
                   <td>{fmtPrice(s.entry_price)}</td>
                   <td>{fmtPrice(s.stop_price)}</td>

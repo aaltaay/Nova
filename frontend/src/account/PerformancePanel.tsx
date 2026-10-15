@@ -45,6 +45,7 @@ import type { PracticeHistory } from './accountHistoryTypes';
 import type { AccountPosition } from './accountPositions';
 import { EquityCurve, type CurveMarker } from './EquityCurve';
 import { rangeSeries, tickDecimals } from './equityPath';
+import { TickerLink } from '../components/TickerLink';
 
 export type PerfTab = 'account' | 'symbol' | 'source';
 
@@ -225,7 +226,7 @@ function SymbolTable({ history, positions }: { history: PracticeHistory; positio
         <tbody>
           {sorted.map((row) => (
             <tr key={row.symbol} data-testid={`account-symbol-row-${row.symbol}`}>
-              <td>{row.symbol}</td>
+              <td><TickerLink symbol={row.symbol} /></td>
               <td className="r"><Money value={row.realized} signed /></td>
               <td className="r">{row.open == null ? <span className="acct-muted">—</span> : <Money value={row.open} signed />}</td>
               <td className="r"><Money value={-row.costs} signed={row.costs !== 0} kind="cost" /></td>

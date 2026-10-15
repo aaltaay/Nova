@@ -22,6 +22,7 @@ import type { IbkrPosition, IbkrOrder, IbkrAccountSummary, IbkrMode } from './ty
 import { useOrderTableColumnOrder } from './useOrderTableColumnOrder';
 import { WorkingOrdersPanel } from './WorkingOrdersPanel';
 import { positionsEmptyWorkingLine } from './positionsEmptyWorking';
+import { TickerLink } from '../components/TickerLink';
 
 interface Props {
   summary: IbkrAccountSummary | null;
@@ -70,7 +71,7 @@ function renderPositionCell(
     case 'symbol':
       return (
         <td key={col} className={`ibkr-col--text ibkr-symbol ${sideCls}`} title={sideTitle}>
-          {p.symbol}
+          <TickerLink symbol={p.symbol} look="own" />
         </td>
       );
     case 'qty':

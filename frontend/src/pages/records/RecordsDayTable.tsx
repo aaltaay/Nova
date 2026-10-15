@@ -76,6 +76,7 @@ import {
   type DayRecord,
   type RecordsFilter,
 } from './recordsModel';
+import { TickerLink } from '../../components/TickerLink';
 
 interface Props {
   byDay: Record<string, CaptureSessionRow[]>;
@@ -118,7 +119,7 @@ function RecordRow({ rec, axis, nowSec, sim, replayBusy, onReplay, onOpenTrader 
   const l2 = counted(row.l2);
   return (
     <tr className={live ? 'is-live' : undefined} data-testid={`records-row-${date}-${row.symbol}`}>
-      <td className="records-table__sym">{live && <span className="records-pulse" aria-hidden="true" />}{row.symbol}</td>
+      <td className="records-table__sym">{live && <span className="records-pulse" aria-hidden="true" />}<TickerLink symbol={row.symbol} look="own" /></td>
       <td className="records-table__cov">
         <CoverageBar spans={row.spans ?? []} missing={missing} planned={planned} axis={axis} live={live} nowSec={nowSec} />
       </td>

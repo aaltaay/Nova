@@ -7,6 +7,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { tipProps } from '../ux/hoverTip';
+import { TickerLink } from '../components/TickerLink';
 import { setNavPage } from '../workspace';
 import {
   FOLLOWED_TOAST_MAX,
@@ -16,6 +17,7 @@ import {
   FT_TICKER_CHECK,
   FT_TITLE,
   FT_TOAST_DISMISS,
+  FT_TOAST_OPEN,
   FT_TOAST_REGION,
 } from './constants';
 import { useFollowedTradersEnabled } from './enabledStore';
@@ -43,19 +45,19 @@ function Toast({ toast, onDismiss, onOpen, onProof }: ToastProps) {
     <div className={`ft-toast ft-toast--${toast.verb === 'closed' ? 'close' : 'open'}`} role="status"
       onMouseEnter={() => setHeld(true)} onMouseLeave={() => setHeld(false)} onFocus={() => setHeld(true)}
       onBlur={() => setHeld(false)} data-testid={`ft-toast-${toast.key}`}
-      // The padding and gaps open the page too; each button answers its own click (the open button for the keyboard).
+      // A click anywhere opens the page; each button answers its own click (the face is the keyboard's way in).
       onClick={(e) => { if (!(e.target as HTMLElement).closest('button')) onOpen(); }}>
-      <button type="button" className="ft-toast__open" onClick={onOpen}>
+      <button type="button" className="ft-toast__open" aria-label={FT_TOAST_OPEN} onClick={onOpen}>
         <Face path={toast.face} name={toast.trader} />
-        <span className="ft-toast__body">
-          <span className="ft-strong">
-            {toast.trader} {toast.verb} <span className={`ft-side-text ft-side-text--${toast.side}`}>{toast.side.toUpperCase()}</span>{' '}
-            {toast.symbol}{toast.price !== null ? ` @ ${price(toast.price)}` : ''}
-            {toast.check && <span className="ft-note ft-note--warn ft-ticker-mark" {...tipProps(toast.check)}>{FT_TICKER_CHECK}</span>}
-          </span>
-          <span className="ft-small ft-muted">{etTime(toast.ts)} ET · {FT_TITLE}</span>
-        </span>
       </button>
+      <div className="ft-toast__body">
+        <span className="ft-strong">
+          {toast.trader} {toast.verb} <span className={`ft-side-text ft-side-text--${toast.side}`}>{toast.side.toUpperCase()}</span>{' '}
+          <TickerLink symbol={toast.symbol} look="own" />{toast.price !== null ? ` @ ${price(toast.price)}` : ''}
+          {toast.check && <span className="ft-note ft-note--warn ft-ticker-mark" {...tipProps(toast.check)}>{FT_TICKER_CHECK}</span>}
+        </span>
+        <span className="ft-small ft-muted">{etTime(toast.ts)} ET · {FT_TITLE}</span>
+      </div>
       <button type="button" className="ft-link" onClick={onProof}>{FT_PROOF}</button>
       <button type="button" className="ft-toast__x" aria-label={FT_TOAST_DISMISS} onClick={onDismiss}>×</button>
     </div>
