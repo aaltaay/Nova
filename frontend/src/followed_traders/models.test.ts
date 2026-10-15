@@ -4,7 +4,7 @@ import { dayLabel, monthCells, neighbourDay, shiftMonth } from './calendar';
 import { asOf, behindStream, capturePill, offAirWhy, onAir } from './capture';
 import { capture, closed, day, T, trade } from './followedTestData';
 import { judgeReads, readAt } from './proof';
-import { gluedRead, tickerUnsettled } from './ticker';
+import { doubledRead, gluedRead, tickerUnsettled } from './ticker';
 import { toastStep, tradeToasts } from './toastModel';
 import type { FollowedRead } from './types';
 
@@ -134,6 +134,13 @@ describe('proof', () => {
       read(4, [{ side: 'short', symbol: 'XYZ', price: 14.03 }])];
     expect(judgeReads(t, reads).reads.map((r) => r.verdict)).toEqual(['entry', 'held', 'ignored']);
   });
+
+  it('counts a read with the last letter read twice as the trade (RGTI 12.08 read RGTI 112.08, 2026-10-15)', () => {
+    const t = trade({ symbol: 'RGTI', entry: { first_price: 12.08, avg_price: 12.08, ts: T, since_ts: null, known: true } });
+    const reads = [read(0, [{ side: 'long', symbol: 'RGTI', price: 12.08 }]), read(2, [{ side: 'long', symbol: 'RGTI', price: 112.08 }]),
+      read(4, [{ side: 'long', symbol: 'RGT', price: 112.08 }]), read(6, [{ side: 'long', symbol: 'RGTI', price: 12.5 }])];
+    expect(judgeReads(t, reads).reads.map((r) => r.verdict)).toEqual(['entry', 'held', 'held', 'ignored']);
+  });
 });
 
 describe('a ticker glued to its price', () => {
@@ -142,7 +149,11 @@ describe('a ticker glued to its price', () => {
     expect(gluedRead('BAS', 1.2)).toEqual({ symbol: 'BA', price: 51.2 });
     expect(gluedRead('ABCI', 0.5432)).toEqual({ symbol: 'ABC', price: 10.5432 });
     expect(gluedRead('NVDL', 35.41)).toBeNull();
-    const ticker = { read_symbol: 'XYZ', read_price: 114.03, other_symbol: 'XYZI', other_price: 14.03, why: null };
+    expect(doubledRead('RGTI', 12.08)).toEqual({ symbol: 'RGTI', price: 112.08 });
+    expect(doubledRead('ABCS', 5.2)).toEqual({ symbol: 'ABCS', price: 55.2 });
+    expect(doubledRead('NVDL', 35.41)).toBeNull();
+    expect(doubledRead('ABCO', 1.5)).toBeNull();
+    const ticker ={ read_symbol: 'XYZ', read_price: 114.03, other_symbol: 'XYZI', other_price: 14.03, why: null };
     expect(tickerUnsettled(trade({ ticker: { ...ticker, state: 'checking' } }))).toBe(true);
     expect(tickerUnsettled(trade({ ticker: { ...ticker, state: 'unchecked' } }))).toBe(true);
     expect(tickerUnsettled(trade({ ticker: { ...ticker, state: 'corrected' } }))).toBe(false);
