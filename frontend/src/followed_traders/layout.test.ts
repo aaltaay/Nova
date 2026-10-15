@@ -42,7 +42,7 @@ describe('stream', () => {
     expect(streamId('x')).toBeNull();
     expect(streamId('R5YIugCJar0"><script>')).toBeNull();
     expect(streamId(undefined)).toBeNull();
-    expect(embedUrl('R5YIugCJar0')).toMatch(/^https:\/\/www\.youtube-nocookie\.com\/embed\/R5YIugCJar0\?autoplay=1&mute=1&/);
+    expect(embedUrl('R5YIugCJar0')).toMatch(/^https:\/\/www\.youtube\.com\/embed\/R5YIugCJar0\?autoplay=1&mute=1&/);
     expect(watchUrl('R5YIugCJar0')).toBe('https://www.youtube.com/watch?v=R5YIugCJar0');
     expect(JSON.parse(playerCommand('unMute'))).toEqual({ event: 'command', func: 'unMute', args: [] });
   });

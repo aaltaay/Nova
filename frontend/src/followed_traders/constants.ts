@@ -40,8 +40,11 @@ export const FOLLOWED_IMAGE_CACHE = 80;
 export const FOLLOWED_ALERTS_KEY = 'nova.followed.alerts';
 /** Local storage key of the stream player's open / closed (a per-window convenience; open by default). */
 export const FOLLOWED_STREAM_KEY = 'nova.followed.stream';
-/** The stream plays from YouTube's privacy-enhanced host, muted to start; Open on YouTube opens its watch page. */
-export const YOUTUBE_EMBED_BASE = 'https://www.youtube-nocookie.com/embed/';
+/**
+ * The stream plays from YouTube's ordinary embed, muted to start; Open on YouTube opens its watch page. Not the
+ * privacy-enhanced host: it never carries the desk's YouTube sign-in, so the bot check came back every time (2026-10-15).
+ */
+export const YOUTUBE_EMBED_BASE = 'https://www.youtube.com/embed/';
 export const YOUTUBE_WATCH_BASE = 'https://www.youtube.com/watch?v=';
 /** Proof shows its card this long after the pointer arrives, and keeps it this long after it leaves (time to move in). */
 export const FOLLOWED_PROOF_HOVER_OPEN_MS = 150;
