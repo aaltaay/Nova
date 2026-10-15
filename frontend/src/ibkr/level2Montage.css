@@ -115,7 +115,7 @@
   border-radius: 0 2px 2px 0;
 }
 
-.das-l2-row--tiered > :not(.das-l2-gauge):not(.das-l2-marker):not(.das-l2-pullmarks) {
+.das-l2-row--tiered > :not(.das-l2-gauge):not(.das-l2-marker):not(.das-l2-pullmarks):not(.das-l2-bigtag):not(.das-l2-bigbar) {
   position: relative;
   top: -1px;
 }
@@ -411,4 +411,118 @@
 .das-l2-pulls__hidden {
   color: #a78bfa;
   font-weight: 700;
+}
+
+/* Big sellers and buyers (#984): resting size much larger than the book around it, at or just past the price.
+   Its rows turn into a dark block with white digits and a white frame -- none of the eight price tiers is black
+   or white (orange is one of them), amber already means pulled and violet hidden. Its tag sits over the venue
+   column of the block's top edge, never over a size or a price, and what traded there fills a slate bar along
+   its last row. The banner over the side's column head takes no height. */
+.das-l2-row--big { box-shadow: inset 2px 0 0 #fff, inset -2px 0 0 #fff; }
+.das-l2-row--big-first { box-shadow: inset 2px 0 0 #fff, inset -2px 0 0 #fff, inset 0 2px 0 #fff; }
+.das-l2-row--big-last { box-shadow: inset 2px 0 0 #fff, inset -2px 0 0 #fff, inset 0 -2px 0 #fff; }
+.das-l2-row--big-first.das-l2-row--big-last { box-shadow: inset 0 0 0 2px #fff; }
+
+.das-l2-row--tiered.das-l2-row--big .das-l2-mm,
+.das-l2-row--tiered.das-l2-row--big .das-l2-size,
+.das-l2-row--tiered.das-l2-row--big .das-l2-price {
+  color: #ffffff;
+}
+
+.das-l2-bigtag {
+  position: absolute;
+  top: -6px;
+  z-index: 3;
+  padding: 0 4px;
+  border-radius: 2px;
+  background: #ffffff;
+  color: #0a0a0a;
+  font-family: system-ui, sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.das-l2-side--bid .das-l2-bigtag { left: 4px; }
+.das-l2-side--ask .das-l2-bigtag { right: 4px; }
+
+.das-l2-bigbar {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  bottom: 3px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.18);
+  pointer-events: none;
+}
+
+.das-l2-bigbar > span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: #94a3b8;
+}
+
+.das-l2-bigbanner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  height: 1.3rem;
+  padding: 0 3px;
+  pointer-events: none;
+  transition: opacity 250ms linear;
+}
+
+.das-l2-side--bid .das-l2-bigbanner { justify-content: flex-end; }
+.das-l2-side--ask .das-l2-bigbanner { justify-content: flex-start; }
+
+.das-l2-bigbanner__chip {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0 5px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  font-family: system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+
+.das-l2-bigbanner__chip--holding { background: #f3f4f6; color: #0a0a0a; }
+.das-l2-bigbanner__chip--taken { background: rgba(10, 10, 12, 0.92); border-color: #cbd5e1; color: #cbd5e1; }
+.das-l2-bigbanner__chip--pulled { background: rgba(10, 10, 12, 0.92); border: 1px dashed #f59e0b; color: #f59e0b; }
+.das-l2-bigbanner__chip--approach { background: #f59e0b; border-color: #f59e0b; color: #111111; }
+.das-l2-bigbanner__chip--lost { background: rgba(10, 10, 12, 0.92); border-color: #6b7280; color: #9ca3af; }
+
+/* A narrower ladder keeps who and how big (a side holds about half the pane): under 750 px it drops the seconds of
+   volume and "back", under 560 px "left · taken", under 380 px the price and the float. The Trader rail's (under
+   300 px, about 100 px a side) reads "Big seller · 48.2K" or "✕ Big seller pulled", and the block goes untagged.
+   The hover always has all of it. */
+@container md-pane (max-width: 749px) {
+  .das-l2-bigbanner__part--pace { display: none; }
+}
+
+@container md-pane (max-width: 559px) {
+  .das-l2-bigbanner__part--detail { display: none; }
+}
+
+@container md-pane (max-width: 379px) {
+  .das-l2-bigbanner__part--price,
+  .das-l2-bigbanner__part--float { display: none; }
+}
+
+@container md-pane (max-width: 299px) {
+  .das-l2-bigtag { display: none; }
+  .das-l2-bigbanner { padding: 0 1px; }
+  .das-l2-bigbanner__chip { padding: 0 3px; font-size: 9px; }
 }

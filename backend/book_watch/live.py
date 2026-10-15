@@ -209,6 +209,8 @@ def ladder_view(symbol: str, after_seq: int | None, now: float | None = None,
             "seq": watch.drop_seq,
             "hidden_seq": watch.hidden.seq,
             "hidden": hidden,
+            "big_version": watch.big.version,
+            "big_holding": watch.big.holding(),
             "watching": watch.last_book_ts is not None and now - watch.last_book_ts <= BOOK_WATCH_IDLE_SEC,
             "window_sec": BOOK_WATCH_STATS_WINDOW_SEC,
             "sides": watch.side_totals(now),
@@ -228,6 +230,18 @@ def big_reading(symbol: str, now: float | None = None) -> dict[str, Any] | None:
         return {"since": watch.since, "last_book_ts": watch.last_book_ts,
                 "last_book_age_sec": None if age is None else round(age, 3),
                 "watching": age is not None and age <= BOOK_WATCH_IDLE_SEC, **watch.big.reading(now)}
+
+
+def big_items(symbol: str, now: float | None = None) -> list[dict[str, Any]] | None:
+    """The line's big sellers then big buyers in the reading's item shape, for the Level 2 ladder (#984); None
+    when the watcher has not seen a book for the symbol."""
+    now = time.time() if now is None else now
+    with _lock:
+        watch = _watches.get((symbol or "").upper())
+        if watch is None:
+            return None
+        got = watch.big.reading(now)
+    return got["sellers"] + got["buyers"]
 
 
 def flags_since(since: float, symbol: str | None = None) -> list[dict[str, Any]]:

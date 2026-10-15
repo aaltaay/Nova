@@ -222,7 +222,7 @@ describe('FollowedTradersPage', () => {
   it('plays the stream the feed reads, closes it, and Watch live brings it back', async () => {
     await show(day({ capture: { ...day().capture!, video_id: 'R5YIugCJar0' } }));
     const frame = q('ft-stream-frame') as HTMLIFrameElement;
-    expect(frame.src).toBe('https://www.youtube-nocookie.com/embed/R5YIugCJar0?autoplay=1&mute=1&playsinline=1&rel=0&enablejsapi=1');
+    expect(frame.src).toBe('https://www.youtube.com/embed/R5YIugCJar0?autoplay=1&mute=1&playsinline=1&rel=0&enablejsapi=1');
     expect(q('ft-stream')!.textContent).toContain('LIVE');
     await click(q('ft-stream-close'));
     expect(q('ft-stream')).toBeNull();
