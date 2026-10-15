@@ -242,8 +242,10 @@ def _image_names(obj: dict, key: str, where: str, path_re: re.Pattern) -> set[st
 
 def parse_reads(text: str) -> list[dict[str, Any]]:
     """``reads.jsonl`` as ``[{clock, traders: {name: {positions: [...], unparsed: [...]}}}]``, in the file's order;
-    a line whose ``clock`` is null is skipped."""
+    a line whose ``clock`` is null is skipped. The line after one or more skipped lines carries
+    ``unread_before: True``: the bar was read somewhere between it and the line before, at times the log cannot say."""
     out = []
+    skipped = False
     for n, line in enumerate(text.splitlines(), start=1):
         if not line.strip():
             continue
@@ -255,10 +257,12 @@ def parse_reads(text: str) -> list[dict[str, Any]]:
         rec = _obj(raw, where)
         clock = _str(rec, "clock", where, optional=True)
         if clock is None:
+            skipped = True
             continue  # a frame the feed could not read at all: no time to place it at
         if not CLOCK_RE.match(clock):
             raise _bad(f"{where}.clock", f"{clock!r}, not HH:MM:SS")
         if not _time_of_day(clock):
+            skipped = True
             continue  # a screen clock read impossibly (09:34:97): no time to place the line at
         traders = {}
         for name, read in _obj(rec.get("traders"), f"{where}.traders").items():
@@ -267,7 +271,8 @@ def parse_reads(text: str) -> list[dict[str, Any]]:
                         for i, u in enumerate(_list(read, "unparsed", f"{where}.traders.{name}"))]
             traders[name] = {"positions": _positions(read.get("positions"), f"{where}.traders.{name}.positions"),
                              "unparsed": unparsed}
-        out.append({"clock": clock, "traders": traders})
+        out.append({"clock": clock, "traders": traders, **({"unread_before": True} if skipped else {})})
+        skipped = False
     return out
 
 
