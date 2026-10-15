@@ -7,7 +7,9 @@
 import { useState } from 'react';
 import {
   LT_ALLOWANCE_LABEL,
+  LT_ANSWERED_WHY,
   LT_APPROVE,
+  LT_BUSY_WHY,
   LT_CHANGE,
   LT_DONE,
   LT_ENTRY_LABEL,
@@ -27,7 +29,7 @@ import {
   ltSellAndOff,
 } from '../constantGroups/live_trader';
 import { MODE_SIDES } from '../stock_read';
-import { tipProps } from '../ux';
+import { tipProps, whyProps } from '../ux';
 import { confirmApp } from '../ux/appDialogApi';
 import { etClock, prose } from './botsPageFormat';
 import { allowancePct, px, ruleChips, signedUsd, sparkPoints, usd } from './liveTraderFormat';
@@ -42,8 +44,8 @@ interface Props {
   onAnswer: (name: string, ask: LtAsk, approve: boolean) => Promise<void>;
 }
 
-function Side({ label, value, onPick, disabled, testId }: {
-  label: string; value: LtSide; onPick: (side: LtSide) => void; disabled: boolean; testId: string;
+function Side({ label, value, onPick, disabled, why, testId }: {
+  label: string; value: LtSide; onPick: (side: LtSide) => void; disabled: boolean; why: string; testId: string;
 }) {
   return (
     <span className="lt-who__side">
@@ -51,7 +53,8 @@ function Side({ label, value, onPick, disabled, testId }: {
       <span className="bots-mini-seg" role="radiogroup" aria-label={label} data-testid={testId}>
         {(['you', 'nova'] as const).map(side => (
           <button key={side} type="button" role="radio" aria-checked={value === side} disabled={disabled}
-            data-testid={`${testId}-${side}`} onClick={() => { if (value !== side) onPick(side); }}>
+            {...whyProps(disabled, why)} data-testid={`${testId}-${side}`}
+            onClick={() => { if (value !== side) onPick(side); }}>
             {side === 'you' ? 'You' : 'Bot'}
           </button>
         ))}
@@ -105,32 +108,38 @@ export function LiveTraderHostCard({ host, sellAllAt, busy, onPatch, onAnswer }:
           </span>
         </div>
         <button type="button" role="switch" aria-checked={st.key} className={`lt-key${st.key ? ' is-on' : ''}`}
-          disabled={busy} data-testid={`lt-key-${name}`} {...tipProps(st.key ? LT_KEY_TIP_ON : LT_KEY_TIP_OFF, LT_KEY_LABEL)}
+          disabled={busy} {...whyProps(busy, LT_BUSY_WHY)} data-testid={`lt-key-${name}`}
+          {...tipProps(st.key ? LT_KEY_TIP_ON : LT_KEY_TIP_OFF, LT_KEY_LABEL)}
           onClick={() => void onKey()}>
           <span className="lt-label">{LT_KEY_LABEL}</span><span className="lt-key__track" aria-hidden="true" />
         </button>
       </div>
 
       <div className="lt-who">
-        <Side label={LT_ENTRY_LABEL} value={st.entry} disabled={busy} testId={`lt-entry-${name}`}
+        <Side label={LT_ENTRY_LABEL} value={st.entry} disabled={busy} why={LT_BUSY_WHY} testId={`lt-entry-${name}`}
           onPick={side => void onPatch(name, { entry: side })} />
-        <Side label={LT_EXIT_LABEL} value={st.exit} disabled={busy} testId={`lt-exit-${name}`}
+        <Side label={LT_EXIT_LABEL} value={st.exit} disabled={busy} why={LT_BUSY_WHY} testId={`lt-exit-${name}`}
           onPick={side => void onPatch(name, { exit: side })} />
         <span className="lt-who__mode" data-testid={`lt-mode-${name}`}>{MODE_SIDES[st.mode]}</span>
       </div>
 
-      {host.asks.map(ask => (
-        <div key={ask.id} className="lt-ask" data-testid={`lt-ask-${ask.id}`}>
-          <span className="lt-ask__text">{prose(ask.text)}</span>
-          <span className="lt-ask__left">{ask.answered === true || ask.approved ? 'approved' : `${ask.seconds_left} s left`}</span>
-          <span className="lt-ask__acts">
-            <button type="button" className="bots-btn" disabled={busy || ask.answered != null || ask.approved}
-              data-testid={`lt-ask-skip-${ask.id}`} onClick={() => void onAnswer(name, ask, false)}>{LT_SKIP}</button>
-            <button type="button" className="bots-btn bots-btn--primary" disabled={busy || ask.answered != null || ask.approved}
-              data-testid={`lt-ask-approve-${ask.id}`} onClick={() => void onAnswer(name, ask, true)}>{LT_APPROVE}</button>
-          </span>
-        </div>
-      ))}
+      {host.asks.map(ask => {
+        const answered = ask.answered != null || ask.approved;
+        const locked = busy || answered;
+        const why = busy ? LT_BUSY_WHY : LT_ANSWERED_WHY;
+        return (
+          <div key={ask.id} className="lt-ask" data-testid={`lt-ask-${ask.id}`}>
+            <span className="lt-ask__text">{prose(ask.text)}</span>
+            <span className="lt-ask__left">{ask.answered === true || ask.approved ? 'approved' : `${ask.seconds_left} s left`}</span>
+            <span className="lt-ask__acts">
+              <button type="button" className="bots-btn" disabled={locked} {...whyProps(locked, why)}
+                data-testid={`lt-ask-skip-${ask.id}`} onClick={() => void onAnswer(name, ask, false)}>{LT_SKIP}</button>
+              <button type="button" className="bots-btn bots-btn--primary" disabled={locked} {...whyProps(locked, why)}
+                data-testid={`lt-ask-approve-${ask.id}`} onClick={() => void onAnswer(name, ask, true)}>{LT_APPROVE}</button>
+            </span>
+          </div>
+        );
+      })}
 
       <div className="lt-alw">
         <span className="lt-label">{LT_ALLOWANCE_LABEL}</span>

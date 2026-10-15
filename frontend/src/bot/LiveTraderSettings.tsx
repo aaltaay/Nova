@@ -4,7 +4,8 @@
  * checks it against its bounds and says why when it refuses (never clamped in silence).
  */
 import { useEffect, useState } from 'react';
-import { LT_ADDS_CHOICES, LT_SIDES_WORDS, LT_TAKE_OPEN_WORDS, ltAddsWords } from '../constantGroups/live_trader';
+import { LT_ADDS_CHOICES, LT_BUSY_WHY, LT_SIDES_WORDS, LT_TAKE_OPEN_WORDS, ltAddsWords } from '../constantGroups/live_trader';
+import { whyProps } from '../ux';
 import type { LtPatch, LtSettings } from './liveTraderTypes';
 
 interface Props {
@@ -31,7 +32,8 @@ function Money({ label, value, field, name, busy, onPatch, suffix = '' }: {
   return (
     <label className="lt-edit__item">
       <span className="lt-label">{label}</span>
-      <input type="number" inputMode="decimal" value={draft} disabled={busy} data-testid={`lt-edit-${field}-${name}`}
+      <input type="number" inputMode="decimal" value={draft} disabled={busy} {...whyProps(busy, LT_BUSY_WHY)}
+        data-testid={`lt-edit-${field}-${name}`}
         onChange={e => setDraft(e.target.value)} onBlur={commit}
         onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
       {suffix ? <span className="lt-muted">{suffix}</span> : null}
@@ -49,7 +51,8 @@ function Seg<T>({ label, value, options, words, onPick, busy, testId }: {
       <span className="bots-mini-seg" role="radiogroup" aria-label={label}>
         {options.map(opt => (
           <button key={String(opt)} type="button" role="radio" aria-checked={value === opt} disabled={busy}
-            data-testid={`${testId}-${String(opt)}`} onClick={() => { if (value !== opt) onPick(opt); }}>
+            {...whyProps(busy, LT_BUSY_WHY)} data-testid={`${testId}-${String(opt)}`}
+            onClick={() => { if (value !== opt) onPick(opt); }}>
             {words(opt)}
           </button>
         ))}

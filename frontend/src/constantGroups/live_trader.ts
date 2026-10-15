@@ -39,6 +39,9 @@ export const LT_DONE = 'Done';
 export const LT_APPROVE = 'Approve';
 export const LT_SKIP = 'Skip';
 export const LT_EVENTS_SHOWN = 4;
+/** Why a control is locked (ux/whyTip.ts): every control works or says why not. */
+export const LT_BUSY_WHY = 'Saving your change…';
+export const LT_ANSWERED_WHY = 'Answered: the bot checks every rule again before it sends anything';
 
 /** Turning a key, or the Bot switch, off while the bot holds positions asks first (operator, 2026-10-14). */
 export const ltKeyOffTitle = (name: string): string => `Turn ${name}'s bot off?`;

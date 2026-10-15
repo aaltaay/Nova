@@ -6,8 +6,9 @@
  * backend checks every rule again before an approved step goes out.
  */
 import { useEffect, useState, type ReactNode } from 'react';
-import { LT_APPROVE, LT_SKIP } from '../constantGroups/live_trader';
+import { LT_ANSWERED_WHY, LT_APPROVE, LT_BUSY_WHY, LT_SKIP } from '../constantGroups/live_trader';
 import { useFollowedTradersEnabled } from '../followed_traders';
+import { whyProps } from '../ux';
 import { prose } from './botsPageFormat';
 import { answerLiveTraderAsk } from './liveTraderApi';
 import { secondsLeft } from './liveTraderFormat';
@@ -18,6 +19,8 @@ function AskToast({ ask, now }: { ask: LtAsk; now: number }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const answered = ask.answered != null || ask.approved;
+  const locked = busy || answered;
+  const why = busy ? LT_BUSY_WHY : LT_ANSWERED_WHY;
 
   async function answer(approve: boolean) {
     setBusy(true);
@@ -42,9 +45,9 @@ function AskToast({ ask, now }: { ask: LtAsk; now: number }) {
         </span>
         {error ? <span className="bot-notice__body lt-ask-toast__error">{error}</span> : null}
         <span className="lt-ask-toast__acts">
-          <button type="button" className="bots-btn" disabled={busy || answered}
+          <button type="button" className="bots-btn" disabled={locked} {...whyProps(locked, why)}
             data-testid={`lt-ask-toast-skip-${ask.id}`} onClick={() => void answer(false)}>{LT_SKIP}</button>
-          <button type="button" className="bots-btn bots-btn--primary" disabled={busy || answered}
+          <button type="button" className="bots-btn bots-btn--primary" disabled={locked} {...whyProps(locked, why)}
             data-testid={`lt-ask-toast-approve-${ask.id}`} onClick={() => void answer(true)}>{LT_APPROVE}</button>
         </span>
       </div>
