@@ -175,12 +175,16 @@ private_mb} | null}}`.
   desk never logs the notice.
 - **The desk** (`frontend/src/pc_health/`): the main window only (not a
   Trader pop-out or the sample desk) reads the route every `PC_MEMORY_POLL_MS`
-  (30 s) and draws a strip under the header beside the update and backend
+  (30 s), one read at a time, each given up after `PC_MEMORY_READ_TIMEOUT_MS`
+  (10 s) so a request a paging PC stalls never stops the next one (Codex
+  review), and draws a strip under the header beside the update and backend
   notices -- amber for `low` and `easing`, red for `nearly_out` -- with the
   text, the hint and **Later** (the key and level it hid at, for this window's
   life). It never takes keyboard focus and has no control that acts on a
-  program. An answer it cannot read, a failed read and
-  a backend older than the route (404) draw nothing.
+  program. A read it gave up on keeps what the strip shows: a backend too slow
+  to answer is what the strip warns about. An answer without a notice, an
+  answer it cannot read, a refused connection and a backend older than the
+  route (404) draw nothing.
 
 **PC network ports** (operator report 2026-10-14: the PC ran out of ports at 11:45 ET and the backend
 restarted 19 times in 40 minutes; "just make sure no leakage happens"). The `process` group carries the

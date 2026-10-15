@@ -18,14 +18,12 @@ interface Props {
   activeTool: string | null;
   focusedLabel: string;
   focusedIndicators: ChartIndicatorId[];
-  showOptional: boolean;
   maximized: boolean;
   selection?: DrawingSelectionState | null;
   onToolClick: (toolId: string) => void;
   onClearAll: () => void;
   onColorChange?: (color: string) => void;
   onIndicatorToggle: (id: ChartIndicatorId) => void;
-  onToggleOptional: () => void;
   onRestore: () => void;
   /** The page's own switches, after the focused pane's name. */
   extra?: ReactNode;
@@ -35,14 +33,12 @@ export function ChartGridToolbar({
   activeTool,
   focusedLabel,
   focusedIndicators,
-  showOptional,
   maximized,
   selection = null,
   onToolClick,
   onClearAll,
   onColorChange,
   onIndicatorToggle,
-  onToggleOptional,
   onRestore,
   extra = null,
 }: Props) {
@@ -84,15 +80,6 @@ export function ChartGridToolbar({
             {CHART_GRID_RESTORE_LABEL}
           </button>
         )}
-        <button
-          type="button"
-          className="chart-grid__optional-toggle"
-          onClick={onToggleOptional}
-          aria-pressed={showOptional}
-          data-testid="chart-grid-optional-toggle"
-        >
-          {showOptional ? 'Hide 10-Second' : 'Show 10-Second'}
-        </button>
       </div>
     </div>
   );
