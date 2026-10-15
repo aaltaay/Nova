@@ -343,6 +343,8 @@ def steps(snap: dict[str, Any], answer: dict[str, Any], book: dict[str, dict[str
         run.expire_asks()                      # an ask times out with no read of the feed too
         return
     closing = {a["pos_id"] for a in out["actions"] if a["kind"] in ("close", "rekey")}
+    # A row a held position follows is never a new entry -- one back under its glued ticker included (#1010).
+    followed = {p["row_id"] for p in book.values()} | {a["row_id"] for a in out["actions"] if a["kind"] == "rekey"}
     no_reentry = ctx.get("no_reentry") or set()
     for name in answer.get("order") or []:
         h = answer["hosts"][name]
@@ -387,7 +389,7 @@ def steps(snap: dict[str, Any], answer: dict[str, Any], book: dict[str, dict[str
                 if pos["row_id"] == r["id"] and pid not in closing:
                     run.add(name, st, r, rs, pos, blocked, unread)
                 continue
-            if pid in closing or r["id"] in no_reentry:
+            if pid in closing or r["id"] in no_reentry or r["id"] in followed:
                 continue
             run.entry(name, st, r, rs, pid, blocked, unread)
 
