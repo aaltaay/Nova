@@ -85,21 +85,106 @@ last reading (`perf.memory_watch.status()`; its shape is in `performance.md`,
 <limit> GB committed. Nova <total> GB (API a, Sim import b, desk c, Gateway d),
 <share>% of it; other programs <n> GB` (parts holding nothing left out); the
 other programs are named only in the fix -- `The biggest others: <image name>
-xN <GB> (largest pid P, <GB>); ...`, at most three -- because an issue filed
+xN <GB> (largest pid P, <GB>); ...`, at most three, then the one process
+holding the most in the low-memory notice's words (`Biggest: <name>, PID P,
+holds <GB>, running <age>.`, below) -- because an issue filed
 from the desk prints a row's detail and cause, never its fix or a `process`
 row's evidence, and what else runs on the operator's PC is not Nova's to
 publish. States: `fail` when a Nova part holds past its leak line (the API
 `PERF_MEMORY_API_LEAK_MB` 5,000 MB, the desk's processes together
 `PERF_MEMORY_DESK_LEAK_MB` 4,500 MB; the week to 2026-10-11 peaked at 3,433 and
 2,763) -- "Nova's <part> holds X GB, past its Y GB line", cause a leak in Nova,
-fix the heap census and Report an issue -- or when the commit charge reaches
-`PERF_MEMORY_CRITICAL_PCT` (97%) of its limit, where any program's next
-allocation fails; `warn` at `PERF_MEMORY_PRESSURE_PCT` (90%) of RAM in use or
+fix the heap census and Report an issue -- or when RAM in use or the commit
+charge reaches `PERF_MEMORY_CRITICAL_PCT` (97%; `pressure_pct`, the higher of
+the two), where paging stalls the PC and any program's next allocation can
+fail; `warn` at `PERF_MEMORY_PRESSURE_PCT` (90%) of RAM in use or
 of the commit limit, its cause "Nova holds most of it." when Nova's share of
 the commit charge is half or more, else that other programs do; `ok` below;
 `unknown` before the first reading (20 s after start) or when the last is older
 than `PERF_MEMORY_STALE_SEC` (300 s); `off` off Windows. `evidence` is the
 reading.
+
+**The low-memory notice** (operator ask 2026-10-15). At 08:45 ET a one-off
+analysis script grew past 175 GB on the 96 GB desk PC; free RAM went from
+48 GB to 0.1 GB in two minutes, Windows paged, and at 09:02 the TraderTV LIVE
+page went blank. The memory watch read it every minute and the `pc_memory`
+row said "nearly out" from 08:47 -- inside a checklist nobody had open. The
+operator wants it on the desk before it stalls, with the culprit named, and
+warn only. Their picks (multiple choice, the recommendations): the row's own
+line -- under about 10 GB free (90% of RAM in use on this PC) or the commit
+charge at 90% of its limit -- and a strip under the header. Owner
+`perf/memory_notice.py` (pure) beside the watch's episode
+(`perf/memory_watch.py`). `GET /api/perf/memory-notice` (read-only) answers
+`{schema_version: 1, generated_at, in_session: boolean, notice: null | {level:
+"low" | "nearly_out" | "easing", key, since, ts, text, hint, pc: {load_pct,
+ram_total_mb, ram_free_mb, commit_limit_mb, commit_used_mb}, biggest: {name,
+pid, private_mb, started_at, run_sec, role} | null, group: {name, count,
+private_mb} | null}}`.
+
+- **The episode** (process-local, never persisted; `memory_watch.status()`
+  adds `episode: {since, last_low_at, pid} | null`). It opens at a reading at
+  or over `PERF_MEMORY_PRESSURE_PCT` (`pressure_pct`, 90%), and each such
+  reading moves `last_low_at` and `pid` (the biggest process then). Under the
+  line it stays open for `PERF_MEMORY_NOTICE_HOLD_SEC` (300 s) after
+  `last_low_at` -- on 2026-10-15 free RAM came back for a minute or two three
+  times while the script still held 126 GB -- and closes at once when the
+  process that held the most at `last_low_at` is no longer the biggest (it
+  exited or let go). A reading without the PC's numbers leaves it as it was.
+- **When there is a notice**: during Nova's trading session only
+  (`market.in_trading_session`: 04:00-20:00 ET on a weekday that is not an
+  NYSE holiday; `in_session` says which), from a reading no older than
+  `PERF_MEMORY_STALE_SEC` (300 s), while an episode is open. `notice` is null
+  otherwise -- the watch off (not Windows, `NOVA_PERF=0`) or not read yet, a
+  stale reading, no episode, or outside the session; the `pc_memory` row keeps
+  saying what it says at any hour.
+- **level**: `nearly_out` when the reading is at or over
+  `PERF_MEMORY_CRITICAL_PCT` (97%), `low` at or over the 90% line, `easing`
+  under it while the episode holds. **key** is `<since>|<pid>`, the episode
+  and its biggest process: Later hides the strip while the key holds and the
+  level is no worse than when it was hidden (`nearly_out` is worse than `low`
+  and `easing`, which rank alike) -- on 2026-10-15 the level went from nearly
+  out to low or easing and back four times in one episode. **since** is the episode's
+  first reading at the line, **ts** the reading the notice is judged from,
+  **pc** that reading's numbers.
+- **biggest** is the reading's single process holding the most private bytes,
+  Nova's own included (`role` its Nova part `api` / `children` / `desk` /
+  `gateway`, null for another program), with `run_sec` from its `started_at`
+  to now (null when Windows will not say when it started). **group** is the
+  other program, by image name, whose processes together hold at least
+  `PERF_MEMORY_GROUP_OUTWEIGHS` (2) times the biggest process (the 32 GB PC of
+  2026-10-12 to 14 was full of one program's dozens of 1-2 GB processes);
+  null otherwise, and only another program's (not Nova's) processes count.
+- **text**: low -- `PC memory low: <free> GB of <total> GB free.` when RAM is
+  over the line, else `PC memory low: <used> of <limit> GB committed.`; nearly
+  out -- `PC memory nearly out: <free> GB of <total> GB free, <used> of <limit>
+  GB committed.`; easing -- `PC memory was low <N> min ago: <free> GB of
+  <total> GB free now.` (`under a minute ago` under 60 s). The free size and a
+  process's or group's size carry one decimal, the RAM total and the committed
+  sizes none. **hint**: `Biggest: <name>, PID
+  <pid>, holds <GB>, running <age>.` (`Nova's <API | Sim import | desk |
+  Gateway> (<name>)` for Nova's own; `<age>` is `under a minute`, `N min`,
+  `H h M min` or `D d H h`; `start time unknown` without `run_sec`), then
+  `It is one of <n> <name> processes, <GB> together.` or `<n> <name>
+  processes hold <GB> together.` when there is a group, then `Nova only warns:
+  it never stops a program. Task Manager > Details, by PID.` No program could
+  be read: `Biggest: no process could be read.`
+- **It only warns.** Nothing in Nova stops, pauses, suspends, re-prioritises
+  or trims another program because of memory. The strip names a program only
+  on the desk: it is not a diagnostics row, so an issue filed from the desk
+  never carries it; the API log's pressure warning keeps the counts only; the
+  desk never logs the notice.
+- **The desk** (`frontend/src/pc_health/`): the main window only (not a
+  Trader pop-out or the sample desk) reads the route every `PC_MEMORY_POLL_MS`
+  (30 s), one read at a time, each given up after `PC_MEMORY_READ_TIMEOUT_MS`
+  (10 s) so a request a paging PC stalls never stops the next one (Codex
+  review), and draws a strip under the header beside the update and backend
+  notices -- amber for `low` and `easing`, red for `nearly_out` -- with the
+  text, the hint and **Later** (the key and level it hid at, for this window's
+  life). It never takes keyboard focus and has no control that acts on a
+  program. A read it gave up on keeps what the strip shows: a backend too slow
+  to answer is what the strip warns about. An answer without a notice, an
+  answer it cannot read, a refused connection and a backend older than the
+  route (404) draw nothing.
 
 **PC network ports** (operator report 2026-10-14: the PC ran out of ports at 11:45 ET and the backend
 restarted 19 times in 40 minutes; "just make sure no leakage happens"). The `process` group carries the

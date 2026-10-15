@@ -24,7 +24,7 @@ from constants_perf import (
     PERF_SCHEMA_VERSION,
     PERF_STALLS_DIR_NAME,
 )
-from perf import heap, recorder
+from perf import heap, memory_notice, recorder
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +119,13 @@ async def perf_heap() -> dict:
     """Heap census (#619). Walking the heap pauses the process about as long as one full
     collection, so a census younger than PERF_HEAP_MIN_GAP_SEC is answered instead."""
     return await asyncio.to_thread(heap.latest, PERF_HEAP_MIN_GAP_SEC, recorder.persist)
+
+
+@router.get("/memory-notice")
+async def perf_memory_notice() -> dict:
+    """The desk's low-memory strip (operator ask 2026-10-15): the memory watch's last reading and episode, judged
+    in Nova's trading session. Reads memory only; never acts on a process."""
+    return memory_notice.view()
 
 
 @router.get("/stalls")

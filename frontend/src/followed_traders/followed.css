@@ -323,6 +323,8 @@
 .ft-segmented button.is-on { color: var(--nova-text); background: color-mix(in srgb, var(--ft-accent) 22%, transparent); }
 
 /* The body: the traders' stack beside the stream and the Activity */
+/* The Live Trader bots' panel (bot/, ADR 055) on top: capped, so the board below always keeps room. */
+.ft-lt { flex: none; max-height: 45vh; overflow-y: auto; min-height: 0; }
 .ft-main { flex: 1 1 0; min-height: 0; display: flex; gap: 12px; }
 .ft-main--proof { overflow-y: auto; }
 .ft-board { position: relative; flex: 1 1 0; min-width: 0; min-height: 0; display: flex; }
@@ -617,7 +619,17 @@
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
   font-size: 13px;
   pointer-events: auto;
+  cursor: pointer;
 }
+.ft-toast__open {
+  flex: 0 0 auto;
+  display: flex;
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+}
+.ft-toast:hover .ft-strong { text-decoration: underline; }
 .ft-toast__body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .ft-toast__x { font: inherit; font-size: 16px; line-height: 1; border: 0; background: none; color: var(--nova-text-muted); cursor: pointer; padding: 2px 4px; }
 

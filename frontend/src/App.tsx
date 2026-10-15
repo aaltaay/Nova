@@ -41,6 +41,7 @@ import { AdviseProvider } from './advise/AdviseContext';
 import { AppDialogHost } from './ux';
 import { DesktopUpdateHost } from './desktop_update';
 import { IssueReportHost } from './issue_report';
+import { PcMemoryNotice } from './pc_health';
 import { useFocusReport } from './focus_report/useFocusReport';
 import { TraderDockLayer } from './workspace/traderDesk/TraderDockLayer';
 import { useWorkspace, WorkspaceProvider } from './workspace/WorkspaceContext';
@@ -98,6 +99,8 @@ function AppShell() {
             {!detached && <GatewayDisconnectedBannerHost />}
             {/* Desktop app only: a newer Nova is out, and what the last update brought. */}
             {!detached && <DesktopUpdateHost />}
+            {/* The PC is low on memory in the trading session: who holds the most. Warns only. */}
+            {!detached && <PcMemoryNotice />}
             {!detached && <IssueReportHost />}
             {/* An agent's show / move runs here (ADR 050); the main window only. */}
             {!detached && <AgentDeskHost />}

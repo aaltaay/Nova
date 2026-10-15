@@ -5,7 +5,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetFeedImagesForTests } from './FeedImage';
-import { resetFollowedStoresForTests } from './followedStores';
+import { requestFollowedToday, resetFollowedStoresForTests } from './followedStores';
 import { resetStreamForTests } from './stream';
 import { FOLLOWED_PROOF_HOVER_CLOSE_MS, FOLLOWED_PROOF_HOVER_OPEN_MS } from './constants';
 import { closed, day, T, trade } from './followedTestData';
@@ -276,6 +276,33 @@ describe('FollowedTradersPage', () => {
     expect(reset.getAttribute('data-tip')).toContain('Today runs until 4:00 AM ET on Wed, Oct 14, the premarket');
   });
 
+  it("puts the Live Trader bots' panel on top of today's board, and none on a past day", async () => {
+    await show(day());
+    await act(async () => { await vi.dynamicImportSettled(); });
+    await flush();
+    expect(q('bots-live-traders')).not.toBeNull();
+    expect(asked).toContain('/api/bot/live-traders');
+    act(() => root.unmount());
+    root = createRoot(container);
+    await show(day({ date: '2026-10-09' }));
+    expect(q('bots-live-traders')).toBeNull();
+  });
+
+  it("shows today's Live Trader panel while the day's read fails", async () => {
+    await show(() => new Response('', { status: 503 }));
+    await act(async () => { await vi.dynamicImportSettled(); });
+    await flush();
+    expect(q('ft-state')).not.toBeNull();
+    expect(q('bots-live-traders')).not.toBeNull();
+  });
+
+  it("keeps today's Live Trader panel when the feed is down and names no date", async () => {
+    await show(day({ date: null, today: null, feed: { ...day().feed, state: 'unreachable' } }));
+    await act(async () => { await vi.dynamicImportSettled(); });
+    await flush();
+    expect(q('bots-live-traders')).not.toBeNull();
+  });
+
   it('names no reset on a past day', async () => {
     await show(day({ date: '2026-10-09', resets_at: Date.UTC(2026, 9, 14, 8, 0, 0) / 1000 }));
     expect(q('ft-day-reset')).toBeNull();
@@ -418,5 +445,19 @@ describe('FollowedTradersPage', () => {
     expect(asked).toContain('/api/followed-traders/day?date=2026-10-09&quotes=0');
     await click(q('ft-prev-day'));
     expect(asked).toContain('/api/followed-traders/day?date=2026-10-09');
+  });
+
+  it('goes back to today when a toast asks, whatever past day it was showing', async () => {
+    const resetsAt = Date.UTC(2026, 9, 14, 8, 0, 0) / 1000;
+    await show(day({ resets_at: resetsAt }), (url) => {
+      const date = url.searchParams.get('date');
+      if (url.pathname !== '/api/followed-traders/day' || !date) return undefined;
+      return new Response(JSON.stringify(day({ date, resets_at: resetsAt })));
+    });
+    await click(q('ft-prev-day'));
+    expect(q('ft-day-reset')).toBeNull();
+    await act(async () => { requestFollowedToday(); });
+    await flush();
+    expect(q('ft-day-reset')).not.toBeNull();
   });
 });

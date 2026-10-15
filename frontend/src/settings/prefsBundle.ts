@@ -30,7 +30,6 @@ export const PREFS_BUNDLE_KEYS = [
   'nova.ibkr.orderTable.sort.v1.closed',
   'nova_exchange_filter_v1',
   SCANNER_ACTIVE_TAB_STORAGE_KEY,
-  'nova.chartGrid.show10Sec',
   'nova.hodMomo.strip.v1',
   'nova_os_attention_muted',
   TAPE_MIN_SIZE_STORAGE_KEY,

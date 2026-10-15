@@ -48,7 +48,7 @@ function Seg<T>({ label, value, options, words, onPick, busy, testId }: {
   return (
     <span className="lt-edit__item">
       <span className="lt-label">{label}</span>
-      <span className="bots-mini-seg" role="radiogroup" aria-label={label}>
+      <span className="lt-seg" role="radiogroup" aria-label={label}>
         {options.map(opt => (
           <button key={String(opt)} type="button" role="radio" aria-checked={value === opt} disabled={busy}
             {...whyProps(busy, LT_BUSY_WHY)} data-testid={`${testId}-${String(opt)}`}

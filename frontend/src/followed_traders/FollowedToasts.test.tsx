@@ -75,6 +75,23 @@ describe('FollowedToasts', () => {
     expect(q('[data-testid="ft-toast-n1|in"]')).toBeNull();
   });
 
+  it('opens the TraderTV LIVE page on today on a click anywhere on the toast, its padding too', async () => {
+    const next = day();
+    next.traders[0].open.push(trade({ id: 'n2', symbol: 'NEW',
+      entry: { first_price: 3.1, avg_price: 3.1, ts: T + 620, since_ts: null, known: true } }));
+    answers = [day(), next];
+    const onOpenPage = vi.fn();
+    await act(async () => { root.render(<><FollowedToasts onOpenPage={onOpenPage} /><Probe /></>); });
+    await tick(0);
+    await tick(FOLLOWED_TOAST_POLL_MS);
+    const toast = q('[data-testid="ft-toast-n2|in"]')!;
+    await act(async () => { toast.click(); });
+    expect(onOpenPage).toHaveBeenCalledTimes(1);
+    expect(getNavPage()).toBe('followed');
+    expect(lastRequest).toEqual({ date: null, tradeId: null });
+    expect(q('[data-testid="ft-toast-n2|in"]')).toBeNull();
+  });
+
   it('asks nothing while Alerts are off or no feed is configured', async () => {
     setFollowedAlerts(false);
     await act(async () => { root.render(<FollowedToasts />); });

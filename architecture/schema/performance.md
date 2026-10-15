@@ -140,7 +140,8 @@ reading, written to the day file and kept for the `pc_memory` diagnostics row (`
 
 `{kind: "memory", schema_version: 1, ts, pc: {load_pct, ram_total_mb, ram_free_mb, commit_limit_mb,
 commit_used_mb} | null, nova: {total_mb, parts: {api, children, desk, gateway}, processes: [{role, pid, name,
-private_mb}]}, others: [{name, count, private_mb, largest_pid, largest_mb}], others_total_mb, unreadable}`
+private_mb}]}, others: [{name, count, private_mb, largest_pid, largest_mb}], others_total_mb, unreadable,
+biggest: {name, pid, private_mb, started_at, role} | null}`
 
 - Sizes are **private bytes** in MB, the memory a process committed for itself: what a leak grows, never
   trimmed. `load_pct` is Windows' own RAM in use (Task Manager's Memory %); an allocation fails, in any
@@ -154,6 +155,11 @@ private_mb}]}, others: [{name, count, private_mb, largest_pid, largest_mb}], oth
 - `others` groups every other process by image name, the biggest `PERF_MEMORY_TOP` (5) kept;
   `others_total_mb` is all of them. A process Windows will not open (a protected one) is counted in
   `unreadable`, never as 0. No command line is read.
+- `biggest` (added 2026-10-15; absent on older lines, read as unknown) is the one process holding the most
+  private bytes, Nova's own included: `role` is its Nova part or null for another program, `started_at`
+  its start (epoch seconds, `GetProcessTimes`) or null when Windows will not say; null when no process
+  could be read. The low-memory notice (`desk-ops.md`, "The low-memory notice") names it, with how long it
+  has run, and the watch's process-local `episode` decides when that notice shows.
 - The API log warns once per episode when RAM in use or the commit charge reaches `PERF_MEMORY_PRESSURE_PCT`
   (90%; the episode ends under `PERF_MEMORY_REARM_PCT`, 85%), with Nova's parts and the other programs' total
   -- never their names, since an issue dump prints the log -- and once per run when a Nova part passes its

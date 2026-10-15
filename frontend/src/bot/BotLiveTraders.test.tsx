@@ -1,14 +1,16 @@
 /**
  * @vitest-environment jsdom
  *
- * The Live Trader cards on the Bots page (ADR 055, mockup v1 approved 2026-10-14): every control is a real one --
- * a host's key (asks first when it holds positions), Entry and Exit, an ask's Approve and Skip on the card and as a
- * toast in every window, the money rules' editors -- and every blocker is said. Made-up hosts and tickers.
+ * The Live Trader panel (ADR 055, mockup v1 approved 2026-10-14; on the TraderTV LIVE page since the ADR 044
+ * amendment of 2026-10-15): every control is a real one -- a host's key (asks first when it holds positions), Entry
+ * and Exit, an ask's Approve and Skip on the card and as a toast in every window, the money rules' editors -- and
+ * every blocker is said, with a link to the Bots page when its control is there. Made-up hosts and tickers.
  */
 import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BotLiveTradersCard } from './BotLiveTradersCard';
 import { BotNotices } from './BotNotices';
+import { getNavPage, resetNavRailStoreForTests } from '../workspace/navRailStore';
 import { _resetLiveTraderPollsForTests } from './liveTraderStore';
 import type { LiveTradersView, LtAsk, LtHost } from './liveTraderTypes';
 
@@ -122,10 +124,27 @@ describe('the Live Trader cards', () => {
     expect(screen.getByTestId('lt-host-ALPHA').textContent).toContain('Longs and shorts · 5% buy stop');
   });
 
-  it('say what stops every host now', async () => {
+  it('say what stops every host now, and link to the Bots page when the switch is there', async () => {
+    resetNavRailStoreForTests();
     current = view({ can_trade: { ok: false, code: 'LT_BOT_OFF', why: 'the Bot switch is off: turn it on to let the hosts\' bots trade' } });
     await renderCard();
     expect(screen.getByTestId('lt-blocker').textContent).toContain('the Bot switch is off');
+    fireEvent.click(screen.getByTestId('lt-open-bots'));
+    expect(getNavPage()).toBe('bots');
+  });
+
+  it('link no page the Bots page cannot fix: the desk venue, a book that cannot be written', async () => {
+    current = view({ can_trade: { ok: false, code: 'LT_VENUE', why: 'the desk is on Live: the Live Trader bot trades Paper only' } });
+    await renderCard();
+    expect(screen.getByTestId('lt-blocker').textContent).toContain('trades Paper only');
+    expect(screen.queryByTestId('lt-open-bots')).toBeNull();
+    cleanup();
+    _resetLiveTraderPollsForTests();
+    current = view({ book_error: 'the holdings file cannot be written', can_trade: { ok: false, code: 'LT_BOT_OFF',
+      why: 'the holdings file cannot be written' } });
+    await renderCard();
+    expect(screen.getByTestId('lt-blocker')).toBeTruthy();
+    expect(screen.queryByTestId('lt-open-bots')).toBeNull();
   });
 
   it('ask before a key turns off while its bot holds positions, and send nothing on "Keep it on"', async () => {

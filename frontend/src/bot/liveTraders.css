@@ -1,17 +1,77 @@
-/* The Live Trader cards on the Bots page (ADR 055, mockup v1 approved 2026-10-14). Owner: bot/BotLiveTradersCard.tsx.
-   The page's tokens (--bots-*) come from botsPage.css; the atoms (.bots-card, .bots-btn, .bots-mini-seg) are shared. */
+/* The Live Trader panel (ADR 055, mockup v1 approved 2026-10-14), at the top of the TraderTV LIVE page since
+   2026-10-15 (ADR 044 amendment). Owner: bot/BotLiveTradersCard.tsx. Self-contained: the Bots page's sheets load
+   only with that page, so the panel carries its own tokens (the Bots page's values) and atoms. */
 
-.lt-card { display: flex; flex-direction: column; gap: 8px; }
-.lt-card__head { align-items: baseline; }
+.lt-card {
+  --bots-green: var(--nova-success, #30d158);
+  --bots-red: var(--nova-danger, #ff453a);
+  --bots-amber: #f5a524;
+  --bots-blue: var(--nova-accent, #0a84ff);
+  --bots-hair: color-mix(in srgb, var(--nova-border) 70%, transparent);
+  --bots-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  container: lt-card / inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--nova-panel);
+  border: 1px solid var(--nova-border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  min-width: 0;
+  color: var(--nova-text);
+  font-size: 13px;
+}
+.lt-card__head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.lt-card__head h3 { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.lt-card__sub { color: var(--nova-text-muted); font-size: 12px; }
 .lt-card__head .lt-chip--paper { margin-left: auto; }
 .lt-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-@container main-col (max-width: 1100px) { .lt-grid { grid-template-columns: minmax(0, 1fr); } }
+@container lt-card (max-width: 720px) { .lt-grid { grid-template-columns: minmax(0, 1fr); } }
 
 .lt-muted { margin: 0; color: var(--nova-text-muted); font-size: 12px; }
 .lt-mono { font-family: var(--bots-mono); }
 .lt-label { font-size: 10.5px; color: var(--nova-text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
-.is-up { color: var(--bots-green); }
-.is-down { color: var(--bots-red); }
+.lt-card .is-up { color: var(--bots-green); }
+.lt-card .is-down { color: var(--bots-red); }
+
+/* -- buttons and the small two-way choice ------------------------------------------------------------- */
+.lt-btn {
+  font: inherit;
+  font-size: 12.5px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--nova-border-strong, var(--nova-border));
+  background: transparent;
+  color: var(--nova-text);
+  cursor: pointer;
+}
+.lt-btn:hover:not(:disabled) { background: var(--hover-bg, rgba(255, 255, 255, 0.06)); }
+.lt-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.lt-btn--primary { background: var(--bots-blue); border-color: var(--bots-blue); color: #fff; font-weight: 600; }
+.lt-btn--primary:hover:not(:disabled) { background: var(--accent-hover, var(--bots-blue)); }
+.lt-btn--primary:disabled { background: color-mix(in srgb, var(--nova-text-muted) 18%, transparent); border-color: var(--nova-border); color: var(--nova-text-muted); opacity: 1; }
+
+.lt-linkbtn { font: inherit; font-size: 12px; border: 0; background: none; padding: 0; color: var(--bots-blue); cursor: pointer; }
+.lt-linkbtn:hover:not(:disabled) { text-decoration: underline; }
+.lt-linkbtn:disabled { color: var(--nova-text-muted); opacity: 0.7; }
+
+.lt-seg { display: inline-flex; flex: none; border: 1px solid var(--nova-border); border-radius: 6px; overflow: hidden; }
+.lt-seg button {
+  font: inherit;
+  font-size: 11.5px;
+  line-height: 20px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--nova-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.lt-seg button + button { border-left: 1px solid var(--nova-border); }
+.lt-seg button:hover:not(:disabled) { color: var(--nova-text); }
+.lt-seg button[aria-checked='true'] { background: var(--bots-blue); color: #fff; }
+.lt-seg button:disabled { cursor: not-allowed; opacity: 0.55; }
+.lt-seg button[aria-checked='true']:disabled { opacity: 0.8; }
 
 .lt-warn {
   margin: 0;

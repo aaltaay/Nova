@@ -197,3 +197,4 @@ export const FT_TICKER_FIXED = 'fixed';
 export const FT_UNSCORED_TIP = 'Not scored: the exit is not one known price (a window, not read yet, or a close the feed never saw).';
 export const FT_TOAST_REGION = 'Followed traders';
 export const FT_TOAST_DISMISS = 'Dismiss';
+export const FT_TOAST_OPEN = `Open ${FOLLOWED_CHANNEL}`;

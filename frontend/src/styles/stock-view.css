@@ -621,10 +621,6 @@ body:has(.nova-shell--ticker-detail) #root .app-shell-host {
   overflow: hidden;
 }
 
-.chart-grid__row--single {
-  grid-template-columns: 1fr;
-}
-
 .chart-grid__row--top {
   flex: 0 0 var(--chart-row-top-pct, 50%);
 }

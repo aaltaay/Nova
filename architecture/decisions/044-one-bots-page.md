@@ -88,3 +88,7 @@ The toasts (`architecture/schema/desk-ops.md`, "Which toasts come"):
 - Each toast is scored: what the price did five minutes later, by 1-minute bars, shown on the Hot list tab with what was held back and why.
 
 Rejected: removing auto stars (they keep the leaders followed, and their join toast is still news); a time-only quiet period with no way through (a setup's next stage is the thing worth knowing); scoring with the toast's own later alerts (they are not a price series).
+
+## Amendment, 2026-10-15: the Live Trader bots live on the TraderTV LIVE page
+
+Operator ask (ADR 055 amendment of the same date): the "Live Traders · TraderTV" panel moves to the top of the TraderTV LIVE page, beside the host rows it copies. The Bots page keeps everything that governs every bot -- the Bot switch per venue, Freeze all orders, the breakers and Activity -- so it is still the one place that turns bots on or off; only the hosts' own cards moved.
