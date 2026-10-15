@@ -178,9 +178,43 @@ export const hodReplayNoHistory = (date: string): string =>
   `No HOD Momo alert history for ${date} -- Nova kept no HOD Momo record that day`;
 export const HOD_REPLAY_NO_HISTORY_COUNT = 'no alert history';
 export const HOD_REPLAY_NO_HISTORY_TITLE = 'Nova keeps HOD Momo alerts only for days it ran HOD Momo. '
-  + 'A day rebuilt from downloaded market data has its Scanner boards, not its alerts, '
-  + 'so this strip cannot say which alerts would have fired.';
+  + 'A day rebuilt from downloaded market data has its Scanner boards, and its alerts are rebuilt from the day\'s '
+  + 'trades (the Massive files) when they are on disk.';
 export const hodReplayError = (error: string): string => `Alert history did not load: ${error}`;
+
+/**
+ * A day Nova kept no HOD Momo record of, rebuilt from its Massive trades (ADR 023 amendment 2026-10-14): HOD Momo's
+ * own engine run over the stocks it would have watched, on the day's clock. Asked for once the history says the
+ * day has no record; its state is read again while it runs, even with the playhead paused.
+ */
+export const hodMomoRebuildPath = (date: string): string =>
+  `/api/hod-momo/history/${encodeURIComponent(date)}/rebuild`;
+export const HOD_REBUILD_REQUEST_FAILED = 'HOD Momo rebuild request failed';
+export const HOD_REBUILD_POLL_MS = 2_000;
+/** A rebuild that is not running (never asked, out of date, stopped) is asked for again at most this often. */
+export const HOD_REBUILD_ASK_AGAIN_MS = 5_000;
+export const hodReplayRebuiltFeedLabel = (clock: string): string => `rebuilt ${clock}`;
+export const HOD_REPLAY_REBUILT_FEED_TITLE = 'Rebuilt: Nova kept no HOD Momo record of this day, so these alerts '
+  + 'come from HOD Momo\'s own engine run over the day\'s trades (the Massive files), watching the stocks it would '
+  + 'have watched on the rebuilt Scanner lists, with your HOD settings now. Average volume and the 52-week high are '
+  + 'as of that day; the float is Yahoo\'s float today, as the live desk reads it.';
+export const HOD_REBUILD_STAGE_WORD: Record<string, string> = {
+  inputs: 'reading the day',
+  index: 'indexing the day\'s trades file',
+  trades: 'reading trades',
+  engine: 'running HOD Momo',
+  writing: 'saving',
+};
+export const hodReplayRebuilding = (date: string, stage: string | null, done: number | null, total: number | null): string => {
+  const word = (stage && HOD_REBUILD_STAGE_WORD[stage]) || 'starting';
+  const pct = done != null && total ? ` ${Math.floor((100 * done) / total)}%` : '';
+  return `Rebuilding HOD Momo alerts from ${date}'s trades: ${word}${pct}…`;
+};
+export const HOD_REPLAY_REBUILDING_COUNT = 'rebuilding alerts';
+export const hodReplayRebuildFailed = (error: string | null): string =>
+  `HOD Momo rebuild failed${error ? `: ${error}` : ''}`;
+export const hodReplayRebuildUnavailable = (date: string, reason: string | null): string =>
+  `${hodReplayNoHistory(date)}${reason ? ` (${reason})` : ''}`;
 export const HOD_REPLAY_CLEAR_TITLE = 'Past alerts are history -- nothing to clear while Sim replays.';
 
 /** REC chip card: a recording auto-record started (07:00-10:00 ET leaders). */

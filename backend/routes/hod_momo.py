@@ -9,6 +9,7 @@ Endpoints:
   GET  /api/hod-momo/alerts
   GET  /api/hod-momo/history/dates
   GET  /api/hod-momo/history/{date}
+  POST /api/hod-momo/history/{date}/rebuild
   GET  /api/hod-momo/config
   POST /api/hod-momo/config
   GET  /api/hod-momo/blocklist
@@ -80,21 +81,44 @@ def hod_momo_history_dates():
 
 @router.get("/api/hod-momo/history/{date}")
 def hod_momo_history_snapshot(date: str, until: float | None = None):
-    """HOD Momo alerts for a date (YYYY-MM-DD): ``{date, recorded, alerts, error}``.
+    """HOD Momo alerts for a date (YYYY-MM-DD): ``{date, recorded, source, alerts, error, rebuild}``.
 
     ``recorded`` is False when Nova kept no HOD Momo record that day -- an
-    absence, never "no alerts raised". ``until`` is the Sim playhead (ADR 023):
+    absence, never "no alerts raised". Such a day serves its rebuilt alerts
+    once a rebuild is ready (``source: "rebuilt"``; ``rebuild`` says where the
+    rebuild is, or why there is none). ``until`` is the Sim playhead (ADR 023):
     it keeps the alerts raised at or before it, so the strip never shows an
     alert Nova had not raised yet. An alert with no time of its own is left out.
     """
     if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
         return {}
     day = _hod_momo.get_history_day(date)
+    day["source"] = "recorded" if day["recorded"] else None
+    day["rebuild"] = None
+    if not day["recorded"]:
+        from hod_momo_rebuild import playback as rebuild_playback, store as rebuild_store
+
+        try:
+            day.update(rebuild_playback.answer(rebuild_store.day_key(date)))
+        except ValueError:
+            return {}                          # not a calendar day (2026-02-30)
     if until is not None:
         from hod_momo_history_filter import raised_by
 
         day["alerts"] = raised_by(day["alerts"], float(until))
     return {"date": date, **day}
+
+
+@router.post("/api/hod-momo/history/{date}/rebuild")
+def hod_momo_history_rebuild(date: str):
+    """Ask for a day's HOD Momo alerts rebuilt from its Massive trades: the job's state, or why it cannot be."""
+    from hod_momo_rebuild import job as rebuild_job, store as rebuild_store
+
+    try:
+        day = rebuild_store.day_key(date)
+    except ValueError:
+        return {"status": "unavailable", "reason": "date must be YYYY-MM-DD"}
+    return rebuild_job.request(day)
 
 
 @router.get("/api/hod-momo/config")
