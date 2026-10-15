@@ -1,7 +1,8 @@
 """The Live Trader bot's watcher: a background task of the backend, like the feed's keeper (ADR 055 decision 6).
 
-Idle -- nothing asked of the feed -- while no host's key is on, the bot holds nothing and no ask waits (every
-``LT_IDLE_SEC``); otherwise every ``LT_POLL_SEC``, and at once when the operator acts on the Bots page (``Wake``):
+Idle -- only the day's host names asked of the feed, so each host's card and key show (``_feed_names``) -- while no
+host's key is on, the bot holds nothing and no ask waits (every ``LT_IDLE_SEC``); otherwise every ``LT_POLL_SEC``,
+and at once when the operator acts on the Bots page (``Wake``):
 
 1. the desk's day (04:00 ET): a position held from another day is sold at once (``book.roll_day``);
 2. the orders in flight to their ends (a step past the Paper sleeve's TTL is cancelled) and Paper's shares checked
@@ -45,7 +46,7 @@ _snapshot: dict[str, Any] | None = None
 _requests: dict[str, Any] = {"sell_hosts": {}, "sell_all": None}
 _answers: dict[str, bool] = {}
 _status: dict[str, Any] = {"running": False, "pass_ts": None, "answer": None, "waits": {}, "can_open": None,
-                           "idle": True}
+                           "idle": True, "names": [], "names_day": None}
 
 
 def reset_for_tests() -> None:
@@ -54,7 +55,8 @@ def reset_for_tests() -> None:
         _snapshot = None
         _requests = {"sell_hosts": {}, "sell_all": None}
         _answers = {}
-        _status = {"running": False, "pass_ts": None, "answer": None, "waits": {}, "can_open": None, "idle": True}
+        _status = {"running": False, "pass_ts": None, "answer": None, "waits": {}, "can_open": None, "idle": True,
+                   "names": [], "names_day": None}
     act.reset_for_tests()
     answer.reset_for_tests()
 
@@ -243,8 +245,12 @@ async def tick(now: float | None = None) -> bool:
     waiting = bool((_snapshot or {}).get("asks"))
     if not (settings.hosts_on() or positions or waiting):
         lines.want([], now)
+        day, names, down = await asyncio.to_thread(_feed_names, now)
         with _lock:
-            _status.update(idle=True, pass_ts=now, answer=None, waits={}, can_open=None)
+            if names is None:                  # a read that failed keeps the names last read that day
+                names = _status["names"] if _status.get("names_day") == day else []
+            _status.update(idle=True, pass_ts=now, answer=None if down is None else summary(down), waits={},
+                           can_open=None, names=names, names_day=day)
         return False
     got = await asyncio.to_thread(answer.read, now)
     ctx = _context(now, positions)
@@ -261,6 +267,28 @@ async def tick(now: float | None = None) -> bool:
         _status.update(idle=False, pass_ts=now, answer=summary(got), waits=dict(out["waits"]),
                        can_open=ctx["can_open"])
     return True
+
+
+def _feed_names(now: float) -> tuple[str, list[str] | None, dict[str, Any] | None]:
+    """``(the desk's day, the hosts the feed read that day in its order, None)``, asked while the bot is idle so each
+    host's card -- and its key -- shows before any key is on (``view.build``). No feed set up, or a read that fails:
+    ``(day, None, the feed's state as an answer)``, so the card says why and the names last read that day stay."""
+    from followed_traders import config, feed
+    from followed_traders.routes import desk_day
+
+    today = desk_day(now)[0]
+    base = config.feed_url()
+    if base is None:
+        return today, None, answer.down("off", "NOVA_FOLLOW_FEED_URL is not set: there is no TraderTV feed to read")
+    try:
+        day = feed.fetch_day(base, today)
+    except feed.FeedError as exc:
+        logger.info("Live Trader bot: the feed's hosts were not read while idle (%s)", exc.message)
+        return today, None, answer.down(exc.state, exc.message)
+    status = day.get("status") or {}
+    names = [t["trader"] for t in day["trades"]]
+    names += [*(status.get("traders") or []), *(p["trader"] for p in status.get("positions") or [])]
+    return today, list(dict.fromkeys(names)), None
 
 
 def summary(got: dict[str, Any]) -> dict[str, Any]:
