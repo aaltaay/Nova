@@ -290,64 +290,6 @@
 .bots-slider input[type='range']:disabled { opacity: 0.5; cursor: not-allowed; }
 .bots-slider--toggle .bots-switch { margin-top: 6px; }
 
-.bots-breakers { margin-top: 16px; font-size: 12px; }
-.bots-breakers__head { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
-.bots-breakers__head > span[data-tip] { cursor: help; }
-.bots-breakers__lock { color: var(--nova-text-muted); font-size: 11.5px; text-align: right; }
-.bots-breakers__bar {
-  position: relative;
-  height: 6px;
-  border-radius: 3px;
-  margin: 0 8px;
-  background: color-mix(in srgb, var(--bots-green) 55%, transparent);
-  touch-action: none;
-}
-.bots-breakers__zone { position: absolute; top: 0; bottom: 0; }
-.bots-breakers__zone--hard { background: color-mix(in srgb, var(--bots-red) 75%, transparent); border-radius: 3px 0 0 3px; }
-.bots-breakers__zone--soft { background: color-mix(in srgb, var(--bots-amber) 60%, transparent); }
-/* A marker the operator drags: a tall handle over the bar, a bigger hit area around it. */
-.bots-breakers__knob {
-  position: absolute;
-  top: 50%;
-  width: 14px;
-  height: 22px;
-  transform: translate(-50%, -50%);
-  border-radius: 4px;
-  border: 2px solid var(--nova-panel);
-  cursor: ew-resize;
-  z-index: 1;
-  touch-action: none;
-}
-.bots-breakers__knob::after { content: ''; position: absolute; inset: -6px -6px; }
-.bots-breakers__knob--hard { background: var(--bots-red); }
-.bots-breakers__knob--soft { background: #fff; }
-.bots-breakers__knob:focus-visible { outline: 2px solid var(--bots-blue); outline-offset: 2px; }
-.bots-breakers__knob:hover:not([aria-disabled='true']) { box-shadow: 0 0 0 3px color-mix(in srgb, var(--bots-blue) 35%, transparent); }
-.bots-breakers__knob[aria-disabled='true'] { cursor: not-allowed; opacity: 0.6; }
-.bots-breakers__now {
-  position: absolute;
-  top: 50%;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  background: var(--bots-green);
-  border: 2px solid var(--nova-panel);
-  z-index: 2;
-  pointer-events: auto;
-}
-.bots-breakers__now.is-warn { background: var(--bots-amber); }
-.bots-breakers__now.is-bad { background: var(--bots-red); }
-.bots-breakers__labels { position: relative; margin: 10px 8px 0; min-height: 16px; color: var(--nova-text-muted); }
-.bots-breakers__lbl { position: absolute; transform: translateX(-50%); white-space: nowrap; }
-.bots-breakers__labels b.is-bad { color: var(--bots-red); }
-.bots-breakers__labels b.is-warn { color: var(--bots-amber); }
-.bots-breakers__foot { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-top: 8px; }
-.bots-breakers__today { color: var(--nova-text-muted); }
-.bots-breakers__today b { color: var(--nova-text); }
-.bots-breakers__today.is-ok b { color: var(--bots-green); }
-.bots-breakers__today.is-bad b { color: var(--bots-red); }
-
 /* -- Proposals -------------------------------------------------------------- */
 .bots-prop { border: 1px solid var(--nova-border); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; font-size: 12.5px; }
 .bots-prop--closed { opacity: 0.55; }
@@ -419,7 +361,7 @@
   .bots-strat-grid, .bots-sleeve, .bots-kpis { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* -- Who trades, the sleeve per venue, the breakers' day, the inbox's verdicts (ADR 042) -- */
+/* -- Who trades, the sleeve per venue, the inbox's verdicts (ADR 042) -- */
 .bots-symbols__note { margin: -4px 0 6px; line-height: 1.45; }
 .bots-symbols__entries { margin: 0 0 8px; font-size: 12.5px; font-family: var(--bots-mono); }
 .bots-mode--bot { color: var(--bots-blue); border-color: color-mix(in srgb, var(--bots-blue) 45%, transparent); }
@@ -430,10 +372,6 @@
 /* What a short adds to the one sleeve (ADR 049): the tag in words, then the rules. */
 .bots-sleeve__short { margin: 4px 0 8px; font-size: 12px; line-height: 1.5; }
 .bots-sleeve__kinds { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; min-width: 0; grid-column: 1 / -1; }
-.bots-breakers__status { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; font-size: 12px; line-height: 1.45; }
-.bots-breakers__status p { margin: 0; }
-.bots-breakers__status .is-bad { color: var(--bots-red); }
-.bots-breakers__status .is-warn { color: var(--bots-amber); }
 .bots-prop__verdict { margin: 2px 0 0; font-size: 12px; color: var(--bots-blue); font-weight: 600; }
 .bots-prop__verdict--bad { color: var(--bots-amber); }
 .bots-today__pick { display: flex; align-items: center; gap: 8px; margin: -4px 0 8px; font-size: 12px; }

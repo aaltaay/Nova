@@ -97,7 +97,9 @@ describe('AccountPage', () => {
     expect(screen.getByTestId('account-ledger-foot').textContent).toContain('practice-paper.json');
     expect(screen.getByTestId('account-comp-ring-realized').getAttribute('data-share')).toBe((97.5 / 162.9).toFixed(3));
     expect(screen.getByTestId('account-calendar-grid')).toBeTruthy();
-    expect(screen.getByTestId('account-breakers').textContent).toMatch(/not exposed/);
+    // ADR 056: the bot trip and the all-stop are gone; the Risk block says where the one daily loss limit is set.
+    expect(screen.queryByTestId('account-breakers')).toBeNull();
+    expect(screen.getByTestId('account-loss-limit').textContent).toBe('Settings > Loss limits');
     expect(screen.queryByTestId('account-page-tab-broker')).toBeNull();
     expect(screen.getByTestId('account-reset-button')).toBeTruthy();
     // No history request goes out for Live and none is fabricated here: every call names a practice venue.
@@ -211,7 +213,7 @@ describe('AccountPage', () => {
   });
 
   it('shows the bot cap as the size of each bot order and the largest position as every source\'s (W11)', async () => {
-    mocks.bot.session = { caps: { max_shares: 1 }, soft_breaker_fired: false, day_lock_active: false };
+    mocks.bot.session = { caps: { max_shares: 1 } };
     render(<AccountPage onOpenTrader={() => {}} />);
     await waitFor(() => expect(screen.getByTestId('account-largest-position').textContent).toBe('400 sh GRML · every source'));
     expect(screen.getByTestId('account-bot-order-size').textContent).toBe('1 sh per bot order');

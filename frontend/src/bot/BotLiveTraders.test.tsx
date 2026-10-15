@@ -23,7 +23,7 @@ vi.mock('./useBotSession', () => ({
   useBotSession: () => ({ session: botSession, proposals: [], audit: [], error: null, busy: false, setSwitch,
     patch: vi.fn() }),
 }));
-vi.mock('./botSwitch', () => ({ botOn: () => true, switchLock: () => null, tripLatch: () => null, reenableWords: () => '' }));
+vi.mock('./botSwitch', () => ({ botOn: () => true, switchLock: () => null }));
 
 const NOW = Date.now() / 1000;
 

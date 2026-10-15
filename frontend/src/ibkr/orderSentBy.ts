@@ -1,18 +1,18 @@
 /**
  * Who sent an order: the Orders table's "Sent by" column (operator report 2026-10-01: "I don't
- * remember selling it" -- the bot trip sold 100 ACN on Paper and the row read like any other
- * market sell).
+ * remember selling it" -- one of Nova's old loss rules sold 100 ACN on Paper and the row read like
+ * any other market sell).
  *
  * Read from the row's own stamps, never inferred from its side, price or time:
  * - `order_origin`: which part of Nova sent it (the backend's `EXECUTION_ORIGINS`; ADR 048 adds the
- *   day cover and the margin call);
+ *   day cover and the margin call, ADR 056 the daily loss limit's Auto sell);
  * - `order_source`: the ADR 007 command source, for rows placed before origins were recorded;
  * - `source: 'ib_recovered'`: IBKR knows the order and Nova never placed it.
  * A row with none of them says so rather than guessing "You".
  */
 import type { IbkrOrder } from './types';
 
-/** `breaker`: a loss breaker or KILL sold for you -- the rows to notice. */
+/** `breaker`: Nova sold or covered for you (KILL, the daily loss limit, the day cover, a margin call) -- the rows to notice. */
 export type SentByTone = 'you' | 'nova' | 'breaker' | 'outside' | 'unknown';
 
 export type SentBy = { label: string; tip: string; tone: SentByTone };
@@ -30,19 +30,27 @@ const BY_ORIGIN: Record<string, SentBy> = {
     tone: 'breaker',
     tip: "The header's Emergency KILL: it cancelled every working order and sold every position.",
   },
+  loss_limit: {
+    label: 'Loss limit',
+    tone: 'breaker',
+    tip:
+      "The daily loss limit's Auto sell: today's loss reached your limit, so Nova sold every position " +
+      'opened today, at market. You set the limit in Settings > Loss limits.',
+  },
+  // Rows from before ADR 056 keep the names of the two loss rules it replaced.
   bot_trip: {
     label: 'Bot trip',
     tone: 'breaker',
     tip:
-      "The bot trip: the day's P&L reached your bot trip limit, so Nova sold every position and " +
-      'turned the bot Off. You set the limit on the Bots page.',
+      "The bot trip, a loss rule retired on 2026-10-15: the day's P&L reached its limit, so Nova sold every " +
+      'position and turned the bot Off. The daily loss limit in Settings > Loss limits replaced it.',
   },
   all_stop: {
     label: 'All-stop',
     tone: 'breaker',
     tip:
-      "The all-stop: the day's P&L reached your all-stop limit, so Nova sold every position and " +
-      'locked buys until 04:00 ET. You set the limit on the Bots page.',
+      "The all-stop, a loss rule retired on 2026-10-15: the day's P&L reached its limit, so Nova sold every " +
+      'position and locked buys until 04:00 ET. The daily loss limit in Settings > Loss limits replaced it.',
   },
   bot: {
     label: 'Bot',
@@ -107,8 +115,8 @@ const BY_SOURCE: Record<string, SentBy> = {
     label: 'Flatten',
     tone: 'unknown',
     tip:
-      "A flatten: your Flatten, the header's KILL, a loss breaker (bot trip or all-stop) or the " +
-      "bot's last-resort close. It was placed before Nova recorded which one; newer orders say.",
+      "A flatten: your Flatten, the header's KILL, a sell after a daily loss or the bot's last-resort " +
+      'close. It was placed before Nova recorded which one; newer orders say.',
   },
   benchmark: {
     label: 'Benchmark',

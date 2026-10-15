@@ -24,10 +24,11 @@ export const LT_PAPER_CHIP = 'Paper';
 export const LT_LOADING = 'Reading the Live Trader bot…';
 export const LT_FEED_OFF = 'No TraderTV feed is set up on this desk (NOVA_FOLLOW_FEED_URL), so there is no host to copy.';
 export const LT_NO_HOSTS = 'No host has been read on the TraderTV bar today yet.';
-/** A blocker whose control is on the Bots page (the Bot switch, Freeze all orders, the loss breakers) links there. */
-export const LT_BOTS_PAGE_CODES: readonly string[] = ['LT_BOT_OFF', 'LT_FROZEN', 'LT_DAY_LOCK'];
+/** A blocker whose control is on the Bots page (the Bot switch, Freeze all orders) links there. The daily loss limit's
+ * (`LT_LOSS_LIMIT`, ADR 056) lives in Settings > Loss limits, and its words say so. */
+export const LT_BOTS_PAGE_CODES: readonly string[] = ['LT_BOT_OFF', 'LT_FROZEN'];
 export const LT_OPEN_BOTS = 'Open the Bots page';
-export const LT_OPEN_BOTS_TIP = 'The Bot switch, Freeze all orders and the loss breakers are on the Bots page.';
+export const LT_OPEN_BOTS_TIP = 'The Bot switch and Freeze all orders are on the Bots page.';
 
 export const LT_KEY_LABEL = 'Bot key';
 export const LT_KEY_TIP_ON = 'On: this host\'s bot copies them on Paper while the Bot switch is on. Click to turn it off.';

@@ -5,7 +5,7 @@
  * reuses. Nothing here decides whether a gate is open: the backend does. `activate`-stage
  * gates are what the Bot switch needs; `fire`-stage gates are what each order still meets.
  */
-import { BOT_GATE_COMMISSIONS_HELD, BOT_GATE_LABELS, BOT_GATE_TIPS, BOT_SOFT_BREAKER_USD } from '../constantGroups/bot';
+import { BOT_GATE_COMMISSIONS_HELD, BOT_GATE_LABELS, BOT_GATE_TIPS } from '../constantGroups/bot';
 import {
   BOTS_GATE_ADD_SYMBOL,
   BOTS_GATE_OPEN_L2,
@@ -15,7 +15,7 @@ import {
   BOTS_VENUE_NAMES,
 } from '../constantGroups/bots_page';
 import { setupLabelOf, setupNames } from './botLevels';
-import { etTime, etUntil, usdCents } from './botWhen';
+import { etTime, etUntil } from './botWhen';
 import type { BotGate, BotSession } from './types';
 
 /** How many missing depth lines a chip names before "+N more". */
@@ -46,12 +46,8 @@ export interface GateLine {
 }
 
 export interface GateContext {
-  /** The venue's day P&L the breakers compare; null when unknown. */
-  dayPnl?: number | null;
   /** Why the desk's own gate refuses places: `pin` (the padlock), `disconnected`, `spend`. */
   blockers?: readonly string[];
-  /** The desk venue's bot trip (ADR 032); the default when the API keeps none. */
-  softUsd?: number;
   /** The desk venue ("live" | "paper" | "sim"), for the words. */
   venue?: string | null;
 }
@@ -72,14 +68,9 @@ function venueName(v: unknown): string {
   return BOTS_VENUE_NAMES[String(v ?? '')] ?? 'this venue';
 }
 
-/** Whole dollars with a real minus: -50 -> "−$50". */
-function wholeUsd(v: number): string {
-  return `${v < 0 ? '−' : ''}$${Math.abs(v).toLocaleString('en-US')}`;
-}
-
-/** The gate context the hero draws with: the day P&L, the desk's blockers, the venue's bot trip. */
-export function gateContext(session: BotSession, dayPnl: number | null, blockers?: readonly string[]): GateContext {
-  return { dayPnl, blockers, softUsd: session.breakers?.soft_usd, venue: session.breakers?.venue ?? session.level_venue ?? null };
+/** The gate context the hero draws with: the desk's blockers and the venue. */
+export function gateContext(session: BotSession, blockers?: readonly string[]): GateContext {
+  return { blockers, venue: session.level_venue ?? null };
 }
 
 type Words = Pick<GateLine, 'text' | 'why'> & { actions?: GateAction[]; more?: number };
@@ -152,6 +143,21 @@ function capWords(ok: boolean, d: Record<string, unknown>): Words {
     why: `Nova's automatic entries on this venue today reached the cap (${of}); a missed entry gives the day back.` };
 }
 
+/**
+ * The daily loss limit's No new buys (ADR 056, Settings > Loss limits): the backend's own words when it holds
+ * this venue, else when it lifts.
+ */
+function lossLimitWords(ok: boolean, d: Record<string, unknown>, ctx: GateContext): Words {
+  if (ok) return { text: 'Under the daily loss limit', why: null };
+  const own = text(d.text);
+  const until = etUntil(d.until as string | number | null);
+  const venue = venueName(d.venue ?? ctx.venue);
+  const at = etTime(d.tripped_at as string | number | null);
+  const fallback = `The daily loss limit was reached on ${venue}${at ? ` at ${at}` : ''}: no new buys`
+    + `${until ? ` until ${until}` : ' until 04:00 ET'}. Raise it or uncheck No new buys in Settings > Loss limits to buy again.`;
+  return { text: `Loss limit reached on ${venue}${until ? ` · no new buys until ${until}` : ''}`, why: own ?? fallback };
+}
+
 function wordsFor(g: BotGate, ctx: GateContext): Words {
   const d = g.detail ?? {};
   const ok = Boolean(g.ok);
@@ -183,23 +189,8 @@ function wordsFor(g: BotGate, ctx: GateContext): Words {
     }
     case 'depth_lines':
       return depthWords(ok, d);
-    case 'bot_trip': {
-      if (ok) {
-        const pnl = ctx.dayPnl == null ? '—' : usdCents(ctx.dayPnl);
-        return { text: `Bot trip clear (${pnl} / ${wholeUsd(ctx.softUsd ?? BOT_SOFT_BREAKER_USD)})`, why: null };
-      }
-      const when = etTime(d.fired_at as string | number | null);
-      const pnl = usdCents(num(d.pnl));
-      return { text: `Bot trip fired${when ? ` ${when}` : ''}${pnl ? ` (${pnl})` : ''} — turning the Bot on asks you first`,
-        why: `The bot trip fired${when ? ` at ${when}` : ''}${pnl ? ` (P&L ${pnl})` : ''}.` };
-    }
-    case 'day_lock': {
-      if (ok) return { text: 'No day lock', why: null };
-      const until = etUntil(d.until as string | number | null);
-      const venue = venueName(d.venue ?? ctx.venue);
-      return { text: `Day lock on ${venue}${until ? ` until ${until}` : ''}`,
-        why: `The all-stop locked buys on ${venue}${until ? ` until ${until}` : ' until 04:00 ET'}.` };
-    }
+    case 'loss_limit':
+      return lossLimitWords(ok, d, ctx);
     case 'kill_switch':
       return ok ? { text: 'Orders not frozen', why: null }
         : { text: 'Orders frozen', why: 'Every order is frozen: new orders, yours and Nova\'s, are refused on every venue until you unfreeze them (Flatten and cancels still work).',

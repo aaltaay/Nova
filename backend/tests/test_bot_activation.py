@@ -23,14 +23,13 @@ from constants_bot import (
     BOT_REASON_NO_SETUP_AT_STRATEGY,
     BOT_REASON_PADLOCK_LOCKED,
     BOT_REASON_REPLAY_DESK,
-    BOT_REASON_TRIP_LATCHED,
     BOT_REASON_VENUE_UNKNOWN,
 )
 from main import app
 from tests.bot_helpers import headers, on_practice
 
 client = TestClient(app)
-GATE_IDS = ["venue", "level", "setups", "padlock", "allowlist", "depth_lines", "bot_trip", "day_lock",
+GATE_IDS = ["venue", "level", "setups", "padlock", "allowlist", "depth_lines", "loss_limit",
             "kill_switch", "window", "daily_cap", "extended_hours", "commissions"]
 
 
@@ -100,24 +99,6 @@ def test_activate_with_the_padlock_locked_is_refused(api_key, monkeypatch):
     assert "unlock it" in res.json()["detail"]["error"]
 
 
-def test_a_bot_trip_needs_reenable_said_in_words(api_key):
-    from bot.clock import lock_until_date
-
-    on_practice()
-    _strategy()
-    row = load_session()
-    row.update(soft_breaker_fired=True, soft_breaker_until=lock_until_date(), soft_breaker_at=1_790_000_000.0,
-               soft_breaker_pnl=-55.0)
-    save_session(row)
-    res = _arm(api_key)
-    assert res.status_code == 409 and res.json()["detail"]["reason"] == BOT_REASON_TRIP_LATCHED
-    error = res.json()["detail"]["error"]
-    assert "The bot trip fired at" in error and "(P&L -$55.00)" in error and "re-enable" in error
-    ok = _arm(api_key, reenable=True)
-    assert ok.status_code == 200 and ok.json()["active"] is True
-    assert ok.json()["soft_breaker"]["fired"] is False
-
-
 def test_activate_turns_it_on_and_says_so(api_key):
     on_practice()
     _strategy()
@@ -184,15 +165,22 @@ def test_deactivate_by_the_operator(api_key):
     assert res.json()["deactivated"]["reason"] == "operator"
 
 
-def test_a_trip_deactivates_with_its_reason():
-    from bot.autonomy import drop_to_l0
+def test_the_daily_loss_limit_never_turns_the_bot_off(api_key):
+    """ADR 056: No new buys holds the bot's entries at the door; the bot stays on, its gate says why."""
+    import time
+
+    from loss_limit import state
+    from sim.mode import venue
 
     on_practice()
     _strategy()
-    issue_arm_token()
-    drop_to_l0(keep_soft_latch=True, reason="all_stop")
-    row = load_session()
-    assert row["level"] == 1 and row["deactivated"]["reason"] == "all_stop"     # ADR 044: off at Eyes
+    assert _arm(api_key).status_code == 200
+    state.write(venue(), {"tripped_at": time.time(), "tripped_loss": 2100.0, "limit_usd": 2000})
+    view = get_session()
+    assert view["active"] is True
+    gate = next(g for g in view["gates"] if g["id"] == "loss_limit")
+    assert gate["ok"] is False and "Daily loss limit reached" in gate["detail"]["text"]
+    assert view["ready"] is False
 
 
 # -- ready and the gates -------------------------------------------------------------------

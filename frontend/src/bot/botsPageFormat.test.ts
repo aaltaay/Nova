@@ -4,12 +4,10 @@ import { botHeaderState } from './botHeaderState';
 import { effectiveLevel, ownLevel, strategySetups } from './botLevels';
 import { closedProposals, proposalWhy } from './botProposalsModel';
 import { botPnlOn } from './useBotPnlToday';
-import { dayPnlParts } from './useBotDayPnl';
-import { breakerFloor, breakerLimits, breakerPct, markerRange, valueAt } from './breakerScale';
 import { deactivatedLine, fmtUsdCents, nextTradeLine, tradeLine } from './botsPageFormat';
-import { offWords, reenableWords, switchLock, tripLatch, BOT_SWITCH_LIVE_WHY } from './botSwitch';
+import { offWords, switchLock, BOT_SWITCH_LIVE_WHY } from './botSwitch';
 import { etTime, etUntil } from './botWhen';
-import { breakers, gates, openGates, session, strategySession } from './botsPageFixtures';
+import { gates, openGates, session, strategySession } from './botsPageFixtures';
 import type { BotAuditEntry } from './types';
 import type { HistoryFill } from '../account/accountHistoryTypes';
 
@@ -67,14 +65,20 @@ describe('gate chips (bot/gates.py facts, ADR 042 C)', () => {
     expect(gateLine(gate('daily_cap', false, { count: 1, cap: 1 }, 'fire')).text).toBe('Daily cap used · 1 / 1 today');
   });
 
-  it('reads the trip, the day lock, the windows, the kill switch and the commissions', () => {
-    expect(gateLine(gate('bot_trip', true), { dayPnl: 12.5 }).text).toBe('Bot trip clear ($12.50 / −$50)');
-    expect(gateLine(gate('bot_trip', true)).text).toBe('Bot trip clear (— / −$50)');
-    expect(gateLine(gate('bot_trip', true), { dayPnl: -12, softUsd: -120 }).text).toBe('Bot trip clear (−$12.00 / −$120)');
-    expect(gateLine(gate('bot_trip', false, { fired_at: AT_0942, pnl: -52.1 })).text)
-      .toBe('Bot trip fired 09:42 ET (−$52.10) — turning the Bot on asks you first');
-    const lock = gateLine(gate('day_lock', false, { until: '2026-10-01T04:00:00-04:00', venue: 'paper' }, 'fire'));
-    expect(lock.text).toBe('Day lock on Paper until 04:00 ET on Oct 1');
+  it('reads the daily loss limit, the windows, the kill switch and the commissions', () => {
+    // ADR 056: the daily loss limit's No new buys, in the backend's own words when it sends them.
+    expect(gateLine(gate('loss_limit', true, {}, 'fire')).text).toBe('Under the daily loss limit');
+    const text = 'Daily loss limit reached on Paper at 09:42 ET (down $451.03 against your $405 limit): no new buys '
+      + 'until 04:00 ET Thu Oct 1.';
+    const stopped = gateLine(gate('loss_limit', false,
+      { text, until: '2026-10-01T04:00:00-04:00', tripped_at: AT_0942, loss: 451.03, limit_usd: 405, venue: 'paper' }, 'fire'));
+    expect(stopped.text).toBe('Loss limit reached on Paper · no new buys until 04:00 ET on Oct 1');
+    expect(stopped.why).toBe(text);
+    expect(stopped.tip).toMatch(/^No new buys after the daily loss limit \(Settings > Loss limits\)/);
+    // Without the backend's words it still says what holds and how to buy again.
+    expect(gateLine(gate('loss_limit', false, { until: null, tripped_at: AT_0942, venue: 'paper' }, 'fire')).why)
+      .toBe('The daily loss limit was reached on Paper at 09:42 ET: no new buys until 04:00 ET. Raise it or uncheck '
+        + 'No new buys in Settings > Loss limits to buy again.');
     const windows = { setups: [{ setup: 'first_pullback', start: '07:00', end: '10:00', open: false, clipped: false },
       { setup: 'red_to_green', start: '09:30', end: '10:00', open: false, clipped: true }] };
     expect(gateLine(gate('window', false, windows, 'fire')).text)
@@ -104,19 +108,15 @@ describe('the Bot switch\'s words (ADR 044)', () => {
     expect(botHeaderState(session({ bot_on: true })).on).toBe(true);
   });
 
-  it('says why it is off: the bot trip and when it lifts, the backend\'s reason, or plain off', () => {
+  it('says why it is off: the backend\'s reason, or plain off', () => {
     expect(offWords(session())).toBe('Off. The strategies at Eyes or On still alert you.');
     expect(offWords(session({ deactivated: { at: AT_0942, reason: 'restart', text: null } })))
       .toBe('Turned off at 09:42 ET — the backend restarted.');
-    expect(offWords(session({ switch: { on: false, venue: 'paper', why_off: 'You turned it off -- at 09:42', latched: null } })))
+    expect(offWords(session({ switch: { on: false, venue: 'paper', why_off: 'You turned it off -- at 09:42' } })))
       .toBe('You turned it off — at 09:42');
-    const tripped = session({ soft_breaker: { fired: true, at: AT_0942, pnl: -52.1, until: '2026-10-01T04:00:00-04:00' } });
-    expect(offWords(tripped)).toBe('Off since the bot trip at 09:42 ET. It lifts at 04:00 ET on Oct 1.');
-    expect(reenableWords(tripLatch(tripped)!))
-      .toBe('The bot trip fired at 09:42 ET when the day\'s P&L hit −$52.10. Turn the bot back on for the rest of today?');
-    // An older backend says the trip only on its gate.
-    const fromGate = strategySession({ gates: openGates({ bot_trip: { ok: false, detail: { fired_at: AT_0942, pnl: -51, until: null } } }) });
-    expect(tripLatch(fromGate)).toEqual({ at: AT_0942, pnl: -51, until: null });
+    // A stamp from before ADR 056 (the retired bot trip) reads as a plain off, never its old code.
+    expect(offWords(session({ deactivated: { at: AT_0942, reason: 'bot_trip', text: null } })))
+      .toBe('Turned off at 09:42 ET — Nova turned it off.');
   });
 
   it('locks turning it on on Live and on a replay, never turning it off', () => {
@@ -217,7 +217,7 @@ describe('header pill, nav dot and rail card (ADR 044)', () => {
     const restarted = botHeaderState(strategySession({ deactivated: { at: null, reason: 'restart', text: null } }));
     expect(restarted.reason).toBe('Turned off — the backend restarted.');
     const closed = botHeaderState(session({ level: 2, active: true, gates: gates() }));
-    expect(closed.title).toMatch(/2 of 13 gates closed: level, setups/);
+    expect(closed.title).toMatch(/2 of 12 gates closed: level, setups/);
   });
 });
 
@@ -246,37 +246,7 @@ describe('proposals model', () => {
   });
 });
 
-describe('the figure the breakers compare (ADR 042 D)', () => {
-  it('says how the day P&L was reached, and what is unknown', () => {
-    expect(dayPnlParts({ day_pnl: -9.54, meter: { source: 'practice_ledger_day_pnl', commissions: 0 } }))
-      .toMatch(/^The practice ledger's day P&L: net liquidation less the 04:00 ET equity/);
-    expect(dayPnlParts({ day_pnl: -12.5, meter: { source: 'account_summary', fallback: true,
-      fallback_reason: 'Daily P&L pending', RealizedPnL: -10, UnrealizedPnL: '-2.5', commissions: 1, commissions_in_figure: true } }))
-      .toContain('Fallback');
-    expect(dayPnlParts({ day_pnl: -60, meter: { source: 'ibkr_daily_pnl', day_pnl: -60,
-      compares: 'IBKR daily P&L, commissions already included.', commissions_unknown: true,
-      commissions_error: 'OperationalError: locked' } }))
-      .toBe('IBKR daily P&L, commissions already included. Commissions unreadable (OperationalError: locked); new Live bot entries held.');
-    expect(dayPnlParts({ day_pnl: null, meter: {} })).toBeNull();
-    expect(dayPnlParts(null)).toBeNull();
-  });
-
-  it('states broker reset ownership and does not subtract commissions again', () => {
-    const parts = dayPnlParts({ day_pnl: 0, meter: { source: 'ibkr_daily_pnl', day_pnl: 0,
-      compares: 'IBKR daily P&L, commissions already included.', reset_semantics: 'IBKR owns the reset; its time is not reported.',
-      commissions: 5, commissions_in_figure: true } });
-    expect(parts).toBe('IBKR daily P&L, commissions already included. IBKR owns the reset; its time is not reported.');
-    expect(parts).not.toContain('− commissions');
-    const fallback = dayPnlParts({ day_pnl: -250, meter: { source: 'account_summary', fallback: true,
-      fallback_reason: 'Daily subscription unavailable', compares: 'Fallback includes lifetime unrealized P&L.',
-      reset_semantics: 'The summary is not a daily-reset figure.', commissions: 1 } });
-    expect(fallback).toContain('Fallback includes lifetime');
-    expect(fallback).toContain('Daily subscription unavailable');
-    expect(fallback).not.toContain('− commissions');
-  });
-});
-
-describe('bot P&L and the breaker scale', () => {
+describe('bot P&L', () => {
   const fill = (partial: Partial<HistoryFill>): HistoryFill => ({
     ts: Date.parse('2026-09-22T14:00:00Z') / 1000, order_id: 1, symbol: 'GRML', side: 'SELL', qty: 1, price: 8.9,
     source: 'bot', bot_id: null, commission: 0.35, fees: 0.01, realized: 0.17, fill_estimated: true, fill_basis: 'quote',
@@ -287,29 +257,5 @@ describe('bot P&L and the breaker scale', () => {
     const fills = [fill({}), fill({ source: 'manual', realized: 5 }), fill({ ts: Date.parse('2026-09-21T14:00:00Z') / 1000 })];
     expect(botPnlOn(fills, '2026-09-22')).toBeCloseTo(-0.18, 6);
     expect(botPnlOn([fill({ source: null, bot_id: 'b1' })], '2026-09-22')).toBeCloseTo(-0.18, 6);
-  });
-
-  it('places a dollar amount on a bar that has room past the all-stop and today\'s loss', () => {
-    expect(breakerFloor(-200, null)).toBe(-250);
-    expect(breakerFloor(-200, -300)).toBe(-500);
-    expect(breakerFloor(-1000, null)).toBe(-2000);
-    expect(breakerFloor(-5000, null)).toBe(-7000);
-    expect(breakerFloor(-200, -9_000)).toBe(-10_000);
-    expect(breakerPct(-250, -250)).toBe(0);
-    expect(breakerPct(-50, -250)).toBe(80);
-    expect(breakerPct(0, -250)).toBe(100);
-    expect(breakerPct(40, -250)).toBe(100);
-  });
-
-  it('keeps each marker in its bounds, on $5 steps, and the bot trip above the all-stop (ADR 032)', () => {
-    const lim = breakerLimits(breakers({ soft_usd: -50, hard_usd: -200 }));
-    expect(markerRange('soft', lim, -200)).toEqual([-195, -5]);
-    expect(markerRange('hard', lim, -50)).toEqual([-5000, -55]);
-    expect(valueAt(0.5, -250, 5, markerRange('soft', lim, -200))).toBe(-125);
-    expect(valueAt(0.513, -250, 5, markerRange('soft', lim, -200))).toBe(-120);
-    expect(valueAt(0, -250, 5, markerRange('soft', lim, -200))).toBe(-195);     // never under the all-stop
-    expect(valueAt(1, -250, 5, markerRange('hard', lim, -50))).toBe(-55);       // never over the bot trip
-    // An API older than ADR 032 keeps the fixed pair and its bounds.
-    expect(breakerLimits(undefined)).toMatchObject({ soft: -50, hard: -200, step: 5 });
   });
 });

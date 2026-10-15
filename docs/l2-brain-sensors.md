@@ -69,7 +69,7 @@ Sim practice: [sim-mode.md](sim-mode.md).
 | 11 | Liquidity | `/sensors/liquidity?symbol=` | **live** | Cache-only ADV, current spread, bot `symbol_allowlist`. |
 | 12 | EMA 9/20/200 | `/sensors/emas?symbol=` | **live** | 1Min closes. EMA 200 stays `ready=false` until 200 bars exist. |
 | 13 | News / catalyst | `/sensors/news?symbol=` | **live** (wired to Advice) | `advise.service.latest` only. Stance maps LONG/SHORT/HOLD to bullish/bearish/neutral. |
-| 14 | Risk | `/sensors/risk` | **live** | `strategy.risk` + bot soft/hard breaker session. |
+| 14 | Risk | `/sensors/risk` | **live** | `strategy.risk` + the daily loss limit (ADR 056). |
 | 15 | Halt / LULD | `/sensors/halt?symbol=` | **live** | `ibkr.halt_status.snapshot`. |
 | 16 | Brain memory | `/sensors/memory?symbol=` | **stub** | New local store `l2-brain-memory.json`. Write: `POST /sensors/memory`. |
 | 17 | Regime | `/sensors/regime?symbol=` | **computed_stub** | trending / mean-reverting / chopping from 1Min closes. Unknown until enough bars. |
@@ -172,12 +172,12 @@ Advice UI). Do not add a Finnhub, RSS, or other news key for this sensor.
 ### 14. Risk state -- live
 
 Daily loss limit remaining; whether daily loss limit is hit; cooldown
-after consecutive losses; current streak of losses/wins. Also echoes bot
-soft breaker / hard lock date.
+after consecutive losses; current streak of losses/wins. Also echoes the
+daily loss limit's No new buys on the desk's venue (`loss_limit_no_new_buys`, null while buys are open).
 
 `GET /sensors/risk` (optional `?symbol=`)
 
-**Source:** `backend/strategy/risk.py` + `backend/bot/breakers.py` session.
+**Source:** `backend/strategy/risk.py` + `backend/loss_limit/gate.py`.
 Do not add a second risk engine.
 
 ### 15. Halt / LULD status -- live

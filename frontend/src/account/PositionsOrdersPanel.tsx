@@ -70,7 +70,7 @@ interface Props {
  * The Source cell: the row's own ADR 007 stamp (practice rows carry
  * `order_source` / `bot_id`), else a fill's, else who placed it on Live --
  * never a blanket "Nova" for a working or out-of-range order (QA W9). A row
- * that names the part of Nova that sent it (`order_origin`: Bot trip, KILL,
+ * that names the part of Nova that sent it (`order_origin`: Loss limit, KILL,
  * Auto-entry ...) reads as the Orders table's Sent by does (2026-10-01).
  */
 export function orderSourceCell(order: IbkrOrder, fill: { source: string | null; botId: string | null } | undefined): { label: string; bot: boolean } {

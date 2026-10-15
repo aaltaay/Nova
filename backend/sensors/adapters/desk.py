@@ -28,13 +28,14 @@ def read_risk(symbol: str | None = None) -> dict[str, Any]:
     cooldown = bool(state.halted) or state.consecutive_losses >= RISK_MAX_CONSECUTIVE_LOSSES
     bot_row: dict[str, Any] = {}
     try:
-        from bot.clock import soft_latched
         from bot.persist import load_session
+        from loss_limit.gate import stopped
+        from sim.mode import venue
 
         session = load_session()
         bot_row = {
-            "soft_breaker_fired": soft_latched(session),
-            "hard_lock_until_date": session.get("hard_lock_until_date"),
+            # ADR 056: the daily loss limit's No new buys on the desk's venue (null while buys are open).
+            "loss_limit_no_new_buys": stopped(venue()),
             "bot_level": session.get("level"),
         }
     except Exception:
@@ -51,7 +52,7 @@ def read_risk(symbol: str | None = None) -> dict[str, Any]:
         "halt_reason": row["halt_reason"],
         "session_date": row["session_date"],
         **bot_row,
-        "note": "Wired to strategy.risk + bot breaker session. No second risk engine.",
+        "note": "Wired to strategy.risk + the daily loss limit (ADR 056). No second risk engine.",
     }
     if symbol:
         data["symbol"] = symbol

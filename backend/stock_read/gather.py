@@ -96,7 +96,6 @@ def _prints_per_minute(sym: str, now: float) -> int | None:
 
 def _bot(sym: str) -> dict[str, Any]:
     from bot.arming import is_desk_active
-    from bot.breaker_limits import limits
     from bot.eligibility import eligible_symbols, holds_depth_line
     from bot.persist import load_session
     from bot.setup_levels import levels_of
@@ -109,7 +108,7 @@ def _bot(sym: str) -> dict[str, Any]:
     trade = row.get("trade") if isinstance(row.get("trade"), dict) else None
     return {"level": int(row.get("level") or 0), "active": bool(is_desk_active(row)), "chosen": both["chosen"],
             "levels": both["levels"], "allowlisted": sym in eligible_symbols(row),
-            "depth_line": holds_depth_line(sym), "venue": where, "breakers": limits(row, where),
+            "depth_line": holds_depth_line(sym), "venue": where,
             "risk_usd": sleeve_of(row).get("risk_usd"),
             "trade": trade if trade and str(trade.get("symbol") or "").upper() == sym else None}
 

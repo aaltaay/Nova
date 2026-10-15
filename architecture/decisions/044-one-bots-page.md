@@ -1,6 +1,6 @@
 # ADR 044 -- One Bots page: the Bot switch, today's hot list, the squares by ticker, Eyes, and lent Level 2 lines
 
-**Status:** Accepted · **Date:** 2026-10-01
+**Status:** Accepted · **Date:** 2026-10-01 · **Amended by:** [[056-one-daily-loss-limit]] (decision 1: no trip turns the Bot switch off; the breaker bar leaves the Bots page)
 **Amends:** [[042-one-owner-for-novas-buys]] (the master ceiling and Activate become one Bot switch; a trip leaves Eyes running) · [[037-who-trades-the-stock]] (who trades is the stock's switch only; the bot list becomes today's hot list) · [[041-signal-trials]] (auto-record never took a line from the operator) · [[036-the-bots-read-on-one-stock]] (one Eyes switch for Nova's drawings) · [[032-loss-breakers-per-venue]] (the bot trip drops to Eyes, not Off) · [[023-scanner-leaderboard]] (the leaders rule also fills the hot list)
 **Decided by:** the operator, 2026-10-01, after AISP ran to its high of day at 10:22 and Nova bought none of its three triggers:
 - "I definitely don't like it if we have redundancies ... I still believe we should put everything on one page and categorize them better."

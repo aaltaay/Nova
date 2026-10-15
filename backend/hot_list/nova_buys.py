@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from constants_bot import BOT_BREAKER_VENUES
+from constants_bot import BOT_VENUES
 from constants_stock_mode import STOCK_MODE_BOT, STOCK_MODE_NAMES
 
 logger = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ def _lists(row: dict[str, Any]) -> list[tuple[str | None, list[str]]]:
 
     own = row.get("level_venue")
     out: list[tuple[str | None, list[str]]] = [(own, normalize_symbols(row.get("symbol_allowlist")))]
-    for venue in BOT_BREAKER_VENUES:
+    for venue in BOT_VENUES:
         if venue != own:
             out.append((venue, normalize_symbols((stored_raw(row, venue) or {}).get("symbol_allowlist"))))
     return out

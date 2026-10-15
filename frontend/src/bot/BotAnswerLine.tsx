@@ -6,20 +6,18 @@
  * then what a short needs (ADR 049, #778 step 5): a margin account, $2,000 of equity, the short hours and
  * Live -- they hold the short strategies only, never a long.
  */
-import { BOTS_VENUE_NAMES, botsDayLocked } from '../constantGroups/bots_page';
 import { tipProps } from '../ux';
 import { BOT_CARD_ANCHOR } from './BotSwitchCard';
 import { ownStrategySetups } from './botLevels';
 import { botOn, offWords } from './botSwitch';
 import { gateLine, type GateContext } from './botGateWords';
 import { prose } from './botsPageFormat';
-import { etTime, etUntil, usdCents } from './botWhen';
 import type { TriggersView } from './triggersApi';
 import type { BotSession, ShortChip } from './types';
 
 /** The gates that hold for every stock at once: one of them closed means no ticker can be bought. */
-const DESK_WIDE = ['venue', 'padlock', 'kill_switch', 'day_lock', 'commissions', 'setups', 'window', 'daily_cap', 'extended_hours'];
-const CHIPS: [string, string][] = [['venue', 'Venue'], ['padlock', 'Padlock'], ['kill_switch', 'Orders not frozen'], ['day_lock', 'All-stop clear']];
+const DESK_WIDE = ['venue', 'padlock', 'kill_switch', 'loss_limit', 'commissions', 'setups', 'window', 'daily_cap', 'extended_hours'];
+const CHIPS: [string, string][] = [['venue', 'Venue'], ['padlock', 'Padlock'], ['kill_switch', 'Orders not frozen'], ['loss_limit', 'Under loss limit']];
 /** The short chips (``GET /api/bot/session`` ``shorts``), in the spec's order. */
 const SHORT_CHIPS: [keyof NonNullable<BotSession['shorts']>, string][] = [
   ['margin_account', 'Margin account'], ['equity', 'Equity ≥ $2,000'], ['hours', 'Shorts until 15:50'],
@@ -29,15 +27,6 @@ const SHORT_UNREAD = 'This backend does not report what a short needs (it predat
 
 export type AnswerFix = 'bot' | 'strategies' | 'unlock';
 export interface AnswerReason { id: string; text: string; fix: { kind: AnswerFix; label: string } | null }
-
-/** The all-stop in full: when, at what P&L, and that it locks your own buys too. */
-function dayLockWords(session: BotSession): string | null {
-  const lock = session.day_lock;
-  if (!lock?.active && !session.day_lock_active) return null;
-  const venue = BOTS_VENUE_NAMES[String(lock?.venue ?? session.breakers?.venue ?? '')] ?? 'this venue';
-  return botsDayLocked(venue, etTime(lock?.tripped_at ?? null), usdCents(lock?.pnl ?? null),
-    etUntil(lock?.until ?? session.hard_lock_until_date));
-}
 
 /** The gates read from the strategies' effective levels: while the Bot is off the master is at Eyes, so they
  * read closed whatever the strategies are -- the switch is the reason then, said once. */
@@ -54,7 +43,7 @@ export function answerReasons(session: BotSession, ctx: GateContext): AnswerReas
   for (const g of session.gates ?? []) {
     if (g.ok || !DESK_WIDE.includes(g.id) || (!on && FROM_EFFECTIVE.has(g.id))) continue;
     const line = gateLine(g, ctx);
-    const text = (g.id === 'day_lock' ? dayLockWords(session) : null) ?? prose(line.why ?? line.text);
+    const text = prose(line.why ?? line.text);
     const fix = g.id === 'window' || g.id === 'setups' ? { kind: 'strategies' as const, label: g.id === 'window' ? 'Widen a window' : 'Set one to On' }
       : g.id === 'padlock' ? { kind: 'unlock' as const, label: 'Unlock the padlock' } : null;
     out.push({ id: g.id, text, fix });

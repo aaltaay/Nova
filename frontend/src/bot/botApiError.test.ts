@@ -30,8 +30,8 @@ describe('messageFromBotApiBody', () => {
     })).toBe('bot is Level 0 -- fully dark');
     // ADR 042: the Activate refusals and the stock-mode rules answer the same shape.
     expect(messageFromBotApiBody(409, {
-      detail: { reason: 'BOT_TRIP_LATCHED', error: 'The bot trip fired at 09:42 ET (P&L -$52.10). Activate with re-enable to trade again today.' },
-    })).toBe('The bot trip fired at 09:42 ET (P&L -$52.10). Activate with re-enable to trade again today.');
+      detail: { reason: 'LOSS_LIMIT_NO_NEW_BUYS', error: 'Daily loss limit reached on Paper at 09:32 ET (down $451.03 against your $405 limit): no new buys until 04:00 ET Fri Oct 16.' },
+    })).toBe('Daily loss limit reached on Paper at 09:32 ET (down $451.03 against your $405 limit): no new buys until 04:00 ET Fri Oct 16.');
     expect(messageFromBotApiBody(409, {
       detail: { reason: 'STOCK_MODE_LIVE', error: 'Nova places for a stock only on Paper and Sim', field: 'buy' },
     })).toBe('Nova places for a stock only on Paper and Sim');

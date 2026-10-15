@@ -14,7 +14,7 @@ and at once when the operator acts on the Bots page (``Wake``):
 
 It keeps the last decision's snapshot -- the hosts' open rows and what was decided for each -- in memory, a few KB,
 never growing past the day's trades; what it holds is ``book``'s. Every order goes through the execution door, so the
-kill switch (Freeze all orders), the padlock and the day lock stop it as they stop any bot.
+kill switch (Freeze all orders), the padlock and the daily loss limit's No new buys stop it as they stop any bot.
 """
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ from typing import Any
 from bot.live_trader import act, answer, book, decide, lines, market, orders, settings
 from bot.live_trader.constants_live_trader import (
     LT_BOT_OFF,
-    LT_DAY_LOCK,
+    LT_LOSS_LIMIT,
     LT_FROZEN,
     LT_IDLE_SEC,
     LT_NO_QUOTE,
@@ -162,7 +162,6 @@ def can_open() -> dict[str, Any]:
     """Whether the bot may open or add now, else the first reason (``decide``'s ``can_open``)."""
     import kill_switch
     from bot import switch
-    from bot.buy_lock import buy_refusal
     from bot.persist import load_session
     from ibkr import client
     from sim.mode import venue
@@ -179,9 +178,11 @@ def can_open() -> dict[str, Any]:
         return no(LT_BOT_OFF, "the Bot switch is off: turn it on to let the hosts' bots trade")
     if kill_switch.is_tripped():
         return no(LT_FROZEN, "Freeze all orders is on: no new orders")
+    from loss_limit.gate import buy_refusal
+
     lock = buy_refusal("BUY", "bot", LT_VENUE)
     if lock is not None:
-        return no(LT_DAY_LOCK, str(lock["text"]))
+        return no(LT_LOSS_LIMIT, str(lock["text"]))
     if not client.is_ready():
         return no(LT_NO_QUOTE, "IBKR is not connected: Paper fills on IBKR's live feed")
     return {"ok": True, "code": None, "why": None}

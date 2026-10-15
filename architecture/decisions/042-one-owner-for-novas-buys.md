@@ -1,6 +1,6 @@
 # ADR 042 -- One owner for Nova's buys: a level per setup under a master ceiling, one Activate, one sleeve, and no silent blocks
 
-**Status:** Accepted · **Date:** 2026-09-30
+**Status:** Accepted · **Date:** 2026-09-30 · **Amended by:** [[056-one-daily-loss-limit]] (decisions 2, 3, 8: no bot trip or day lock; the `loss_limit` gate)
 **Amends:** [[027-bot-playbook-readout-gate]] (one setup plays; the read-out gates Live) · [[030-first-pullback-bot-on-paper]] (the bot's trade, its watched stop, Live waits on the read-out) · [[031-a-scanner-for-every-setup]] (the chosen setup; only it reaches Strategy) · [[032-loss-breakers-per-venue]] (the day lock is one for the desk; locks lift at midnight) · [[037-who-trades-the-stock]] (Auto-entry's own rules and risk; the bot list outside the switch; trades in memory) · [[029-setup-templates-eyes-journal]] (the bot's entry rules inside every template)
 **Decided by:** the operator, 2026-09-30:
 - On the Bots page: "why is it a radio button? We are already choosing if it's off, eyes only, or strategy independently in each strategy, so why do we have this radio button that says 'bot trade this'?"

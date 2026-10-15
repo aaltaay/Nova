@@ -4,8 +4,8 @@
  * The Bots page cards (ADR 044, approved mockup v8): every control is a real one -- each
  * strategy's own Off / Eyes / On and its bot rules, the add-a-setup door, IBKR's Level 2
  * lines and lending, Tickers today (the hot list, Buy / Sell per stock, the squares), the
- * sleeve per venue that saves once let go, the breakers' day, proposals that say who
- * takes them, the timeline and today's numbers.
+ * sleeve per venue that saves once let go, proposals that say who takes them, the
+ * timeline and today's numbers.
  */
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -19,7 +19,7 @@ import { resetHotListForTests } from '../hot_list';
 import { _resetBotSessionPollerForTests } from './botSessionPoller';
 import { BotsPage } from './BotsPage';
 import {
-  botsFetchRouter, breakers, caps, hotListView, linesView, refusal, session, setupRow, strategySession, templatesPayload,
+  botsFetchRouter, caps, hotListView, linesView, refusal, session, setupRow, strategySession, templatesPayload,
   triggersView,
   type BotsFetchOpts,
 } from './botsPageFixtures';
@@ -46,7 +46,6 @@ vi.mock('../setups/SetupsStreamContext', () => ({ useSetupsBoard: () => setups }
 
 const NOW = Date.now() / 1000;
 /** 2026-09-30 09:42 ET. */
-const AT_0942 = Date.UTC(2026, 8, 30, 13, 42) / 1000;
 
 const counts = (partial: Partial<SetupCounts> = {}): SetupCounts => ({
   watching: 40, forming: 1, armed: 2, near: 1, triggered: 0, failed: 0, filtered: 0, proposed: 1, ...partial,
@@ -383,7 +382,6 @@ describe('Strategies card (ADR 044: Off / Eyes / On per strategy)', () => {
       { id: 'micro_pullback', scanner: false },
     ] });
     delete old.setup_levels;
-    delete old.breakers;
     const templates = templatesPayload();
     templates.setups = templates.setups.filter(s => s.id !== 'bull_flag');
     mockFetch({ session: old, templates });
@@ -672,69 +670,15 @@ describe('Risk sleeve (ADR 042 E: one per venue)', () => {
     expect(screen.getByTestId('bots-risk').textContent).toMatch(/Nova trades nothing by itself on Live/);
   });
 
-  it('draws the desk venue\'s breakers and today\'s P&L on one bar (ADR 032)', async () => {
-    mockFetch({ dayPnl: -9.54 });
+  it('draws no loss breakers and sends none: the one daily loss limit is in Settings (ADR 056)', async () => {
+    const fetchMock = mockFetch();
     await renderPage();
-    const bar = screen.getByTestId('bot-strategy-breakers').textContent ?? '';
-    expect(bar).toMatch(/Paper · drag to move · defaults/);
-    expect(screen.getByTestId('bots-breaker-hard-label').textContent).toBe('−$200 all-stop');
-    expect(screen.getByTestId('bots-breaker-soft-label').textContent).toBe('−$50 bot trip');
-    expect(screen.getByTestId('bots-breaker-today').textContent).toBe('−$9.54 today');
-    expect(parseFloat((screen.getByTestId('bots-breaker-now') as HTMLElement).style.left)).toBeCloseTo(96.184, 3);
-    expect(parseFloat((screen.getByTestId('bots-breaker-soft') as HTMLElement).style.left)).toBeCloseTo(80, 6);
-    expect(screen.getByTestId('bots-breaker-soft').getAttribute('data-tip')).toMatch(/^Bot trip: when this venue's day P&L/);
-    expect(screen.queryByTestId('bots-breaker-status')).toBeNull();
-  });
-
-  it('says when the bot trip fired, at what P&L, when it clears -- and that a replay compares nothing', async () => {
-    mockFetch({ session: session({
-      soft_breaker: { fired: true, at: AT_0942, pnl: -52.1, until: '2026-10-01T04:00:00-04:00' },
-      breakers: breakers({ note: 'A Sim replay is not today -- the breakers compare nothing here' }),
-    }) });
-    await renderPage();
-    expect(screen.getByTestId('bots-breaker-soft-fired').textContent).toBe('Bot trip fired at 09:42 ET at −$52.10: the bot '
-      + 'is off on this venue until 04:00 ET on Oct 1; turning it back on asks you first.');
-    expect(screen.getByTestId('bots-breaker-note').textContent).toBe('A Sim replay is not today — the breakers compare nothing here');
-  });
-
-  it('drags the bot trip and saves the venue\'s pair on release', async () => {
-    const fetchMock = mockFetch({ onPatch: body => {
-      const b = body.breakers as { soft_usd: number };
-      return session({ breakers: breakers({ soft_usd: b.soft_usd, custom: true }) });
-    } });
-    await renderPage();
-    const bar = screen.getByTestId('bot-strategy-breakers').querySelector('.bots-breakers__bar') as HTMLElement;
-    bar.getBoundingClientRect = () => ({ left: 0, width: 250, top: 0, height: 6, right: 250, bottom: 6, x: 0, y: 0,
-      toJSON: () => ({}) }) as DOMRect;
-    const soft = screen.getByTestId('bots-breaker-soft');
-    await act(async () => {
-      fireEvent.pointerDown(soft, { button: 0, clientX: 200, pointerId: 1 });
-      fireEvent.pointerMove(soft, { clientX: 150, pointerId: 1 });
-      fireEvent.pointerMove(soft, { clientX: 125, pointerId: 1 });
-      fireEvent.pointerUp(soft, { clientX: 125, pointerId: 1 });
-      await flush();
-    });
-    expect(patches(fetchMock)).toEqual([{ breakers: { venue: 'paper', soft_usd: -125 } }]);
-    expect(screen.getByTestId('bots-breaker-soft-label').textContent).toBe('−$125 bot trip');
-    expect(screen.getByTestId('bots-breakers-venue').textContent).toMatch(/Paper · drag to move · yours/);
-  });
-
-  it('asks before loosening Live, and keeps the old value when the answer is no', async () => {
-    confirmApp.mockImplementationOnce(async () => false);
-    const fetchMock = mockFetch({ session: session({ breakers: breakers({ venue: 'live' }) }) });
-    await renderPage();
-    const soft = screen.getByTestId('bots-breaker-soft');
-    await act(async () => {
-      soft.focus();
-      fireEvent.keyDown(soft, { key: 'ArrowLeft' });
-      fireEvent.blur(soft);
-      await new Promise(r => setTimeout(r, 450));
-      await flush();
-    });
-    expect(confirmApp).toHaveBeenCalledTimes(1);
-    expect(JSON.stringify(confirmApp.mock.calls[0])).toMatch(/Loosen Live/);
-    expect(patches(fetchMock)).toEqual([]);
-    expect(screen.getByTestId('bots-breaker-soft-label').textContent).toBe('−$50 bot trip');
+    expect(screen.queryByTestId('bot-strategy-breakers')).toBeNull();
+    expect(screen.queryByTestId('bots-breakers')).toBeNull();
+    expect(document.querySelector('[class*="bots-breakers"]')).toBeNull();
+    expect(screen.getByTestId('bots-page').textContent).not.toMatch(/bot trip|all-stop|Loss breakers/i);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/bot/pnl'))).toBe(false);
+    expect(patches(fetchMock).some(body => 'breakers' in body)).toBe(false);
   });
 });
 

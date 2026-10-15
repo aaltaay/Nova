@@ -47,7 +47,7 @@ describe('the view on the wire', () => {
     const view = normalizeStockMode({
       symbol: 'PFSA', mode: 'bot', buy: 'nova', sell: 'nova', venue: 'paper', locks: { buy: null, sell: null },
       notes: [{ id: 'window', tone: 'warn', text: 'The window is closed' }, { id: 'odd', tone: 'loud', text: 'x' },
-        { id: 'sim_waits', tone: 'info', text: 'A Sim trade waits' }, { id: 'day_lock', tone: 'bad', text: 'Locked' }],
+        { id: 'sim_waits', tone: 'info', text: 'A Sim trade waits' }, { id: 'loss_limit', tone: 'bad', text: 'No new buys' }],
       size: { qty: 10, by_risk: 200, capped_by: 'max_shares', text: '$20 over 0.10, capped at 10' },
       entries_today: { count: 1, cap: 1 },
       bot: { on_list: true, playing: false, reason: 'not active', setup_at_strategy: true, active: false },

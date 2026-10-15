@@ -51,7 +51,7 @@ Everything runs on your PC. The engine binds to `127.0.0.1`, your keys stay in y
     </td>
     <td valign="top">
       <b>Bots on a leash</b><br />
-      Off, Eyes or Strategy per setup, loss breakers and a kill switch. Nova's bot trades practice venues only.
+      Off, Eyes or Strategy per setup, a daily loss limit and a kill switch. Nova's bot trades practice venues only.
     </td>
     <td valign="top">
       <b>Local-first and open</b><br />
@@ -124,8 +124,8 @@ Four setup scanners (first pullback, bull flag, flat-top breakout and red to gre
 <img src="docs/readme/bots.webp" alt="The Bots control panel: Active on Paper, the master level (Off, Eyes, Strategy), every gate that must be open to activate and to place, Deactivate and the kill switch" width="100%" />
 
 - **Three levels per setup.** Off watches and scores in silence, Eyes proposes trades, and Strategy lets Nova's bot trade its signals once you press Activate.
-- **Every gate is visible.** Venue, level, padlock, bot list, depth lines, trading window, daily cap and breakers are each shown with their reason. A bot never buys silently.
-- **Loss breakers and a kill switch.** A soft bot trip and a hard all-stop per venue, plus a kill switch that refuses every new order until you reset it.
+- **Every gate is visible.** Venue, level, padlock, bot list, depth lines, trading window, daily cap and the daily loss limit are each shown with their reason. A bot never buys silently.
+- **A daily loss limit and a kill switch.** One dollar limit in Settings > Loss limits, for you and the bots alike: it warns, stops new buys, and (if you check Auto sell) sells what was opened today. The kill switch refuses every new order until you reset it.
 - **Practice only.** Nova's bot trades Paper and Sim. A localhost API lets your own bot use the same door and the same rules.
 
 ### And the rest of the desk

@@ -139,17 +139,20 @@ describe('Can Nova buy right now? (ADR 044)', () => {
     expect(screen.queryByTestId('bots-answer-bot')).toBeNull();
   });
 
-  it('offers the padlock from a locked padlock, and says the all-stop in full', async () => {
+  it('offers the padlock from a locked padlock, and says the daily loss limit in the backend\'s words', async () => {
     ibkrStatus.armed = false;
+    const text = 'Daily loss limit reached on Paper at 09:32 ET (down $451.03 against your $405 limit): no new buys until 04:00 ET Fri Oct 16. Selling what you hold, covering a short, cancels, Flatten and KILL still work. To buy again, raise the limit or uncheck No new buys in Settings > Loss limits.';
     mockFetch({ session: strategySession({
       bot_on: true, active: true,
-      gates: openGates({ padlock: { ok: false, detail: { reason: null } }, day_lock: { ok: false, detail: { venue: 'paper' } } }),
-      day_lock: { active: true, until: '2026-10-01T04:00:00-04:00', tripped_at: AT_0942, pnl: -212.4, venue: 'paper' },
+      gates: openGates({
+        padlock: { ok: false, detail: { reason: null } },
+        loss_limit: { ok: false, detail: { text, until: AT_0942 + 18 * 3600, tripped_at: AT_0942, loss: 451.03, limit_usd: 405, venue: 'paper' } },
+      }),
     }) });
     await renderPage();
-    expect(screen.getByTestId('bots-answer-day_lock').textContent).toBe('All-stop fired at 09:42 ET at −$212.40: bot and '
-      + 'manual buys on Paper are locked until 04:00 ET on Oct 1. Flatten and cancel still work.');
-    expect(screen.getByTestId('bots-answer-chip-day_lock').className).toContain('is-no');
+    expect(screen.getByTestId('bots-answer-loss_limit').textContent).toBe(text);
+    expect(screen.getByTestId('bots-answer-chip-loss_limit').className).toContain('is-no');
+    expect(screen.queryByTestId('bots-answer-day_lock')).toBeNull();
     expect(screen.getByTestId('bots-answer-chip-padlock').className).toContain('is-no');
     await press('bots-answer-fix-padlock');
     expect(screen.getByRole('dialog')).toBeTruthy();
@@ -184,17 +187,13 @@ describe('the Bot switch (ADR 044)', () => {
     expect(switchBodies(fetchMock)).toEqual([]);
   });
 
-  it('after the bot trip, asks in words, and sends reenable only after a yes', async () => {
-    const fetchMock = mockFetch({ session: strategySession({ soft_breaker: { fired: true, at: AT_0942, pnl: -52.1, until: null } }) });
+  it('an old bot trip stamp reads as a plain off, and the switch turns on in one press (ADR 056)', async () => {
+    const fetchMock = mockFetch({ session: strategySession({ deactivated: { at: AT_0942, reason: 'bot_trip', text: null } }) });
     await renderPage();
-    expect(screen.getByTestId('bots-switch-why').textContent).toBe('Off since the bot trip at 09:42 ET. It lifts at 04:00.');
-    confirmApp.mockImplementationOnce(async () => false);
+    expect(screen.getByTestId('bots-switch-why').textContent).toBe('Turned off at 09:42 ET — Nova turned it off.');
     await press('bots-switch');
-    expect(String(JSON.stringify(confirmApp.mock.calls[0])))
-      .toMatch(/The bot trip fired at 09:42 ET when the day's P&L hit −\$52\.10\. Turn the bot back on for the rest of today\?/);
-    expect(switchBodies(fetchMock)).toEqual([]);
-    await press('bots-switch');
-    expect(switchBodies(fetchMock)).toEqual(['{"on":true,"reenable":true}']);
+    expect(confirmApp).not.toHaveBeenCalled();
+    expect(switchBodies(fetchMock)).toEqual(['{"on":true}']);
   });
 
   it('shows the backend\'s refusal in its own words', async () => {

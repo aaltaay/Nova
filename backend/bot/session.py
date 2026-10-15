@@ -2,7 +2,8 @@
 
 ``public_view`` is ``GET /api/bot/session`` (ADR 042's wire contract): the desk venue's
 dial -- the master ``level``, each setup's own and effective level, the sleeve, the bot's
-stocks, the trips and the lock -- with ``active`` / ``ready`` and every gate and its reason.
+stocks -- with ``active`` / ``ready`` and every gate and its reason (the daily loss limit's No new
+buys is the ``loss_limit`` gate, ADR 056).
 """
 from __future__ import annotations
 
@@ -11,7 +12,6 @@ from typing import Any
 
 from bot import persist
 from bot.arming import has_desk_arm, heartbeat_is_fresh, is_desk_active
-from bot.clock import soft_latched
 from bot.eligibility import normalize_symbols
 from bot.errors import BotError
 from constants_bot import (
@@ -48,7 +48,7 @@ def get_session() -> dict[str, Any]:
 
 def public_view(row: dict[str, Any]) -> dict[str, Any]:
     from bot import activation, sleeve, switch
-    from bot.gates import day_lock, first_closed, gates
+    from bot.gates import first_closed, gates
     from bot.setup_levels import effective, master, own_levels
     from ibkr.trading_allowed import places_allowed
 
@@ -66,13 +66,11 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
     ready_reason = None if ready else ("the bot is not active: turn the Bot switch on" if not active
                                        else str(closed["detail"].get("text") or closed["id"]))
     caps = sleeve.view(row.get("caps"), venue)
-    lock = day_lock(row, venue)
     daily = next((g["detail"] for g in gate_list if g["id"] == "daily_cap"), {})
-    tripped = soft_latched(row)
     return {
         "level": level,
         "active": active,
-        # ADR 044: the Bot switch -- ON is the master at Strategy and Active; why it is off, the trip's latch.
+        # ADR 044: the Bot switch -- ON is the master at Strategy and Active, and why it is off.
         **switch.view(row, venue),
         "armed": active,                         # LEGACY alias of ``active`` (one release)
         "has_desk_arm": has_desk_arm(row),
@@ -97,18 +95,9 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
         "brain_alive": alive,
         "trading_allowed": places_ok,
         "trading_allowed_reason": None if places_ok else places_reason or None,
-        "soft_breaker_fired": tripped,
-        "soft_breaker": {"fired": tripped, "at": row.get("soft_breaker_at"), "pnl": row.get("soft_breaker_pnl"),
-                         "until": row.get("soft_breaker_until")},
-        # The loss breakers' thresholds, per venue (operator ask 2026-09-24).
-        "breakers": _breakers_view(row, venue),
         # The dial is per venue too (operator report 2026-09-30): ``level`` is the desk's own.
         "level_venue": row.get("level_venue"),
         "levels_by_venue": _levels_by_venue(row),
-        "day_lock": lock,
-        "day_locks": _day_locks(row),
-        "hard_lock_until_date": lock.get("until"),       # LEGACY (this venue's)
-        "day_lock_active": bool(lock.get("active")),     # LEGACY (this venue's)
         "focus": list(row.get("focus") or []),
         "trader_live": list(row.get("trader_live") or []),
         "working": list(row.get("working") or []),
@@ -155,25 +144,10 @@ def _entries_today(venue: str | None, daily: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def _breakers_view(row: dict[str, Any], venue: str | None) -> dict[str, Any]:
-    from bot.breaker_limits import view
-
-    out = dict(view(row, venue))
-    out.setdefault("note", None)
-    return out
-
-
 def _levels_by_venue(row: dict[str, Any]) -> dict[str, int]:
     from bot.venue_levels import by_venue
 
     return by_venue(row)
-
-
-def _day_locks(row: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    from bot.gates import day_lock
-    from constants_bot import BOT_BREAKER_VENUES
-
-    return {v: day_lock(row, v) for v in BOT_BREAKER_VENUES}
 
 
 def _trade_view(trade: Any, venue: str | None) -> dict[str, Any] | None:

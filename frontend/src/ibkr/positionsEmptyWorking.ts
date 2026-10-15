@@ -3,7 +3,7 @@
  *
  * GENK, 2026-10-14: a Paper buy of 1,000 at 2.76 worked for three minutes while the Positions tab said only
  * "No open positions." -- the operator read it as nothing going on ("It seems like there was a hidden working
- * order or a hidden position"), and the order filled and the bot trip sold it within a second. The empty state
+ * order or a hidden position"), and the order filled and a loss rule sold it within a second. The empty state
  * now names every working order: side, size, symbol, price and since when.
  */
 import { formatShareQty } from '../utils/formatShareQty';

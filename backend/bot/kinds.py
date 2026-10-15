@@ -32,7 +32,7 @@ def is_cover_kind(kind: str) -> bool:
 
 
 def is_entry_kind(kind: str) -> bool:
-    """A kind that opens a position, either side: the day's cap counts it and the day lock holds it."""
+    """A kind that opens a position, either side: the day's cap counts it and the daily loss limit's No new buys holds it."""
     return (kind or "").strip() in BOT_ENTRY_KINDS
 
 

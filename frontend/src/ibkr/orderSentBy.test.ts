@@ -2,14 +2,22 @@ import { describe, expect, it } from 'vitest';
 import { orderSentBy } from './orderSentBy';
 
 describe('orderSentBy (operator report 2026-10-01: "I don\'t remember selling it")', () => {
-  it('names the loss breaker that sold, not just "a flatten"', () => {
+  it('names the loss rule that sold, not just "a flatten"', () => {
     expect(orderSentBy({ order_source: 'flatten', order_origin: 'bot_trip' })).toMatchObject({
       label: 'Bot trip',
       tone: 'breaker',
     });
     expect(orderSentBy({ order_source: 'flatten', order_origin: 'all_stop' }).label).toBe('All-stop');
     expect(orderSentBy({ order_source: 'flatten', order_origin: 'emergency_kill' }).label).toBe('KILL');
-    expect(orderSentBy({ order_source: 'flatten', order_origin: 'bot_trip' }).tip).toMatch(/Bots page/);
+    // Rows from before ADR 056 keep their names; their tips point at where the one limit is set now.
+    expect(orderSentBy({ order_source: 'flatten', order_origin: 'bot_trip' }).tip).toMatch(/Settings > Loss limits/);
+    expect(orderSentBy({ order_source: 'flatten', order_origin: 'bot_trip' }).tip).not.toMatch(/Bots page/);
+  });
+
+  it('names the daily loss limit\'s Auto sell (ADR 056)', () => {
+    const by = orderSentBy({ order_source: 'flatten', order_origin: 'loss_limit' });
+    expect(by).toMatchObject({ label: 'Loss limit', tone: 'breaker' });
+    expect(by.tip).toMatch(/Settings > Loss limits/);
   });
 
   it('tells your own orders from Nova\'s', () => {
@@ -28,7 +36,7 @@ describe('orderSentBy (operator report 2026-10-01: "I don\'t remember selling it
     const by = orderSentBy({ order_source: 'flatten', order_origin: null });
     expect(by).toMatchObject({ label: 'Flatten', tone: 'unknown' });
     expect(by.tip).toMatch(/KILL/);
-    expect(by.tip).toMatch(/loss breaker/);
+    expect(by.tip).toMatch(/daily loss/);
   });
 
   it('marks orders placed outside Nova, and rows with no sender recorded', () => {

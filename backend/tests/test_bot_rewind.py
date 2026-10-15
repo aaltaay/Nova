@@ -2,7 +2,7 @@
 
 When the scratch account unwinds behind a backward scrub, a ``practice_rewind``
 event -- ``{venue, playhead_ts, dropped_orders, dropped_fills}`` -- goes out on
-the bot audit stream (the channel breaker and TTL events already use) and is
+the bot audit stream (the channel TTL events already use) and is
 kept as ``last_rewind`` on the session payload for pollers. A forward move, or
 a backward move that dropped nothing, tells nobody: the ledger did not change.
 """

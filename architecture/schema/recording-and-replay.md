@@ -563,8 +563,8 @@ when any held stock has no such quote, never a partial sum (operator ask 2026-10
 `/api/ibkr/account` carries the same figure as `UnrealizedAtBid`, from the L1 line's bid / ask, else the live book's top); Sim adds `replay_key` -- the ledger's replay binding as a list `[source, symbol, date, start?, end?]`, e.g. `["historical", "GDC", "2026-09-21", "09:15", "11:30"]` or `["capture", "GRML", "2026-09-21"]`, `null` with nothing loaded; never a string a client may call string methods on); `/api/ibkr/account`
 and `/api/ibkr/positions` answer from it on the practice venues, where the
 summary's `RealizedPnL` is **today's** realized (IBKR's own daily meaning) and
-`DayPnL` is the ledger's day P&L -- the figure the bot breakers compare with
-the day lock there, with no commission subtracted twice (QA W2);
+`DayPnL` is the ledger's day P&L -- what the day P&L meter reads there, with no
+commission subtracted twice (QA W2; the daily loss limit counts trades opened today, ADR 056);
 `/api/ibkr/status` adds `venue` and reports `account_id` `NOVA-PAPER` /
 `NOVA-SIM` there. A filled practice row carries `fill_estimated: true` and
 `fill_basis: "quote" | "last_print" | "print_cross" | "stop_trigger" |

@@ -7,7 +7,7 @@ Nova tells it twice:
 
 * **push** -- a ``practice_rewind`` entry on the bot audit stream
   (``ws://127.0.0.1:8000/ws/bot/audit``, the channel that already carries
-  breaker and TTL events), with the event under ``inputs``;
+  TTL events), with the event under ``inputs``;
 * **poll** -- ``last_rewind`` on ``GET /api/bot/session``.
 
 Either way the instruction is the same: re-read positions and working orders

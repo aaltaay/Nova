@@ -26,8 +26,8 @@ describe('bot playbook copy (ADR 027)', () => {
   });
 
   it('labels and explains every gate backend/bot/gates.py returns (ADR 042 C)', () => {
-    const ids = ['allowlist', 'bot_trip', 'commissions', 'daily_cap', 'day_lock', 'depth_lines', 'extended_hours',
-      'kill_switch', 'level', 'padlock', 'setups', 'venue', 'window'];
+    const ids = ['allowlist', 'commissions', 'daily_cap', 'depth_lines', 'extended_hours',
+      'kill_switch', 'level', 'loss_limit', 'padlock', 'setups', 'venue', 'window'];
     expect(Object.keys(BOT_GATE_LABELS).sort()).toEqual(ids);
     expect(Object.keys(BOT_GATE_TIPS).sort()).toEqual(ids);
   });

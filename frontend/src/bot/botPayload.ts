@@ -11,11 +11,10 @@
  *
  * ADR 042 renamed two facts and kept the old names one release: `active` (was
  * `armed`) and `ready` (was `live_fire_ready`); the sleeve's `api_kinds` (was
- * `caps.allowlist`); the day lock's `day_lock` (was `day_lock_active` /
- * `hard_lock_until_date`). Each is folded both ways here, so the page reads the
- * new name and an older reader the old one -- never one without the other.
+ * `caps.allowlist`). Each is folded both ways here, so the page reads the new
+ * name and an older reader the old one -- never one without the other.
  */
-import type { BotAuditEntry, BotDayLock, BotProposal, BotSession, BotSoftBreaker } from './types';
+import type { BotAuditEntry, BotProposal, BotSession } from './types';
 
 type Loose = Record<string, unknown>;
 
@@ -28,8 +27,6 @@ const asStrings = (value: unknown): string[] =>
   asList(value).filter((v): v is string => typeof v === 'string');
 const asNum = (value: unknown): number | null =>
   (typeof value === 'number' && Number.isFinite(value) ? value : null);
-const asWhen = (value: unknown): string | number | null =>
-  (typeof value === 'string' && value.trim() ? value : asNum(value));
 
 /** "Bot session: Nova answered an unreadable response (HTTP 200)". */
 export function botUnreadableMessage(label: string, status: number): string {
@@ -59,35 +56,6 @@ function deactivated(raw: unknown): Loose | null {
   return { at: asNum(raw.at), reason: raw.reason, text: typeof raw.text === 'string' ? raw.text : null };
 }
 
-/** The desk venue's day lock: the new block, else the legacy pair it replaced. */
-function dayLock(body: Loose): BotDayLock {
-  const raw = body.day_lock;
-  if (isPlainObject(raw)) {
-    return {
-      active: raw.active === true,
-      until: asWhen(raw.until),
-      tripped_at: asWhen(raw.tripped_at),
-      pnl: asNum(raw.pnl),
-      venue: typeof raw.venue === 'string' ? raw.venue : null,
-    };
-  }
-  return {
-    active: body.day_lock_active === true,
-    until: asWhen(body.hard_lock_until_date),
-    tripped_at: null,
-    pnl: null,
-    venue: null,
-  };
-}
-
-function softBreaker(body: Loose): BotSoftBreaker {
-  const raw = body.soft_breaker;
-  if (isPlainObject(raw)) {
-    return { fired: raw.fired === true, at: asWhen(raw.at), pnl: asNum(raw.pnl), until: asWhen(raw.until) };
-  }
-  return { fired: body.soft_breaker_fired === true, at: null, pnl: null, until: null };
-}
-
 function entriesToday(raw: unknown): Loose | undefined {
   if (!isPlainObject(raw)) return undefined;
   const count = asNum(raw.count);
@@ -107,8 +75,6 @@ export function parseBotSession(body: unknown): BotSession | null {
   if (!isPlainObject(body) || !isPlainObject(body.caps)) return null;
   const active = typeof body.active === 'boolean' ? body.active : body.armed === true;
   const ready = typeof body.ready === 'boolean' ? body.ready : body.live_fire_ready === true;
-  const lock = dayLock(body);
-  const soft = softBreaker(body);
   const out: Loose = {
     ...body,
     caps: caps(body.caps),
@@ -118,11 +84,6 @@ export function parseBotSession(body: unknown): BotSession | null {
     live_fire_ready: ready,
     ready_reason: typeof body.ready_reason === 'string' ? body.ready_reason : null,
     deactivated: deactivated(body.deactivated),
-    day_lock: lock,
-    day_lock_active: lock.active,
-    hard_lock_until_date: typeof body.hard_lock_until_date === 'string' ? body.hard_lock_until_date : null,
-    soft_breaker: soft,
-    soft_breaker_fired: soft.fired,
   };
   const byVenue = capsByVenue(body.caps_by_venue);
   if (byVenue) out.caps_by_venue = byVenue;

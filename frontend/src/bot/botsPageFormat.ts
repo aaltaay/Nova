@@ -12,12 +12,12 @@ import type { BotDeactivated, BotSession, BotTrade } from './types';
 /**
  * "Paper" / "Sim" / "Live" for the desk venue the session is the dial of; "this venue" when
  * unknown. The venue gate is the backend's word on the desk venue now; then the venue whose
- * dial the session's fields are (`level_venue`), the sleeve's and the breakers'.
+ * dial the session's fields are (`level_venue`), then the sleeve's.
  */
 export function sessionVenueName(session: BotSession): string {
   const gate = (session.gates ?? []).find(g => g.id === 'venue');
   const fromGate = typeof gate?.detail?.venue === 'string' ? gate.detail.venue : null;
-  const v = fromGate ?? session.level_venue ?? session.caps?.venue ?? session.breakers?.venue ?? '';
+  const v = fromGate ?? session.level_venue ?? session.caps?.venue ?? '';
   return BOTS_VENUE_NAMES[String(v)] ?? 'this venue';
 }
 
@@ -28,15 +28,15 @@ const DEACTIVATED_WORDS: Record<string, string> = {
   venue: 'the desk changed venue',
   level: 'the Bot was switched off',
   no_setup: 'no strategy was left at On',
-  bot_trip: 'the bot trip fired',
-  all_stop: 'the all-stop fired',
   operator: 'you turned it off',
 };
+/** A reason this desk does not name (an old session's, from before ADR 056): a plain off. */
+const DEACTIVATED_OTHER = 'Nova turned it off';
 
 /** "Turned off at 09:41 ET — the backend restarted"; empty when the backend says nothing. */
 export function deactivatedLine(d: BotDeactivated | null | undefined): string {
   if (!d) return '';
-  const raw = d.text ?? DEACTIVATED_WORDS[d.reason] ?? d.reason.replace(/_/g, ' ');
+  const raw = d.text ?? DEACTIVATED_WORDS[d.reason] ?? DEACTIVATED_OTHER;
   const words = prose(raw).replace(/^Not active\s*[—-]+\s*/i, '');
   const at = etTime(d.at);
   return `Turned off${at ? ` at ${at}` : ''} — ${words}`;

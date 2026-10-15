@@ -92,7 +92,25 @@ const caps = (venue: string) => ({
   venue, risk_usd: 50, max_shares: 10, bp_budget_usd: 50, working_ttl_sec: 3, extended_hours: true,
   entries_per_day: 3, api_kinds: [], allowlist: [],
 });
-const PAIR = { soft_usd: -50, hard_usd: -200 };
+
+/** The daily loss limit's defaults (ADR 056): $2,000, Warn me and No new buys on, Auto sell off. */
+const LOSS_LIMIT_USD = 2000;
+
+/** `GET /api/loss-limit` on the sample morning: the defaults, and neither account near the limit. */
+export function lossLimitView(nowS: number) {
+  const account = (name: string, pnl: number) => ({
+    name, counted_at: nowS - 1, pnl, loss: Math.max(0, -pnl), unknown: null, stocks: [], held_before: [],
+    costs_unknown: 0, warned_at: null, warned_loss: null, tripped_at: null, tripped_loss: null, limit_usd: null,
+    sold: null, sell_error: null, no_new_buys: null,
+  });
+  return {
+    schema_version: 1,
+    settings: { limit_usd: LOSS_LIMIT_USD, warn: true, no_new_buys: true, auto_sell: false, set_at: null, source: 'default', error: null },
+    day: DAY, until: nowS + 3600 * 12, error: null,
+    accounts: { paper: account('Paper', 450.35), sim: account('Sim', 0) },
+    rules: { min_usd: 10, max_usd: 1_000_000, warn_fraction: 0.8, confirm_sec: 10 },
+  };
+}
 
 export function botSession(nowS: number, venue: string) {
   return {
@@ -130,20 +148,14 @@ export function botSession(nowS: number, venue: string) {
       gate('setups', 'activate', { at_strategy: ['first_pullback'] }),
       gate('padlock', 'activate', { reason: null }),
       gate('allowlist', 'fire', { count: 3, auto_entry: 0 }),
-      gate('bot_trip', 'activate', { fired_at: null, pnl: null, until: null }),
       gate('depth_lines', 'fire', { held: ['SMPL', 'GAPX'], missing: [], max_lines: 3 }),
-      gate('day_lock', 'fire', { until: null, tripped_at: null, pnl: null, venue }),
+      gate('loss_limit', 'fire', { text: null, until: null, tripped_at: null, loss: null, limit_usd: LOSS_LIMIT_USD, venue }),
       gate('kill_switch', 'fire'),
       gate('window', 'fire', { setups: [{ setup: 'first_pullback', start: '07:00', end: '11:30', open: true, clipped: false }], venue_time: null }),
       gate('daily_cap', 'fire', { count: 1, cap: 3, venue_day: DAY }),
       gate('extended_hours', 'fire'),
       gate('commissions', 'fire'),
     ],
-    breakers: {
-      venue, ...PAIR, custom: false, defaults: { ...PAIR },
-      by_venue: { live: { ...PAIR }, paper: { ...PAIR }, sim: { ...PAIR } },
-      bounds: { soft_usd: [-1000, -5], hard_usd: [-5000, -10], step_usd: 5 }, note: null,
-    },
     runner: { brain_id: 'nova-first-pullback', playing: true, reason: null },
     trade: {
       setup_id: 'SMPL-2026-09-30-0834', setup_type: 'first_pullback', symbol: 'SMPL', venue: 'paper', venue_day: DAY,
@@ -160,10 +172,6 @@ export function botSession(nowS: number, venue: string) {
       count: 1, cap: 3, venue_day: DAY,
       entries: [{ symbol: 'SMPL', setup_type: 'first_pullback', by: 'bot', ts: at(8, 52, 3), outcome: 'filled' }], approved: 0,
     },
-    day_lock: { active: false, until: null, tripped_at: null, pnl: null, venue, threshold: -200, text: null },
-    day_locks: {},
-    soft_breaker: { fired: false, at: null, pnl: null, until: null },
-    soft_breaker_fired: false, hard_lock_until_date: null, day_lock_active: false,
     brain_session_id: 'nova-first-pullback', brain_heartbeat_ts: nowS - 1, brain_alive: true,
     trading_allowed: true, trading_allowed_reason: null, focus: [], trader_live: ['SMPL'], working: [], updated_ts: nowS - 1,
     last_rewind: null,

@@ -1,6 +1,6 @@
 /**
  * Whole-account MKT flatten -- HTTP door for bot.flatten.flatten_account_with_retry.
- * Same market-close path breakers already use (execution source=flatten).
+ * Same market-close path the daily loss limit's Auto sell uses (execution source=flatten).
  * Not a second place stack.
  */
 import { novaFetch } from '../api/novaFetch';

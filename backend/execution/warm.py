@@ -25,8 +25,9 @@ ORDER_PATH_MODULES = (
     "short_sale.check",
     "execution.practice_checks",  # the session gate and validation: the practice venue's checks
     "kill_switch",                # the kill switch, read before any spend
-    "bot.buy_lock",               # the buy lock, after validation
-    "bot.breaker_limits",
+    "loss_limit.gate",            # the daily loss limit's No new buys, after validation (ADR 056)
+    "loss_limit.settings",
+    "loss_limit.state",
     "sim.execution",              # the practice send
     "practice.broker",            # the practice venue and its ledger file
     "practice.persist",

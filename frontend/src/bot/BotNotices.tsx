@@ -1,20 +1,18 @@
 /**
  * The bot's notices as toasts (bot/botNoticeStore.ts, ADR 042's visibility rule): a
  * refused "Let the bot trade", Nova's entries cancelled when the desk left a venue, and
- * a loss breaker that sold your positions (bot/breakerNotices.ts, 2026-10-01).
- * Mounted once per window with the symbol menu host, so a refusal raised from a
- * pop-out shows in that pop-out, and a breaker's sale shows in every window. A refusal
- * or a breaker's sale stays until dismissed; the rest leave after BOT_NOTICE_TTL_MS
- * unless pointed at. The day cover's alarm (bot/DayCoverAlarms.tsx, ADR 048 step 6)
- * rides here too, so a short Nova could not cover reaches every window.
+ * the daily loss limit's warning and trip (ADR 056, loss_limit/). Mounted once per
+ * window with the symbol menu host, so a refusal raised from a pop-out shows in that
+ * pop-out, and the loss limit's notices show in every window. A refusal or a trip stays
+ * until dismissed; the rest leave after BOT_NOTICE_TTL_MS unless pointed at. The day
+ * cover's alarm (bot/DayCoverAlarms.tsx, ADR 048 step 6) rides here too, so a short
+ * Nova could not cover reaches every window.
  */
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { DESK_BOT_POLL_MS } from '../constants';
-import { noteBreakerTrips } from './breakerNotices';
+import { useLossLimitNotices } from '../loss_limit';
 import { DayCoverAlarms } from './DayCoverAlarms';
 import { dismissBotNotice, getBotNotices, pushBotNotice, subscribeBotNotices, type BotNotice } from './botNoticeStore';
 import { useLiveTraderAskToasts } from './LiveTraderAsks';
-import { useBotSession } from './useBotSession';
 import './botNotices.css';
 
 const BOT_NOTICE_TTL_MS = 15_000;
@@ -41,16 +39,8 @@ function NoticeCard({ notice }: { notice: BotNotice }) {
   );
 }
 
-/** The bot audit stream the desk already polls, read for loss-breaker trips. */
-function useBreakerTripNotices(): void {
-  const { audit } = useBotSession(DESK_BOT_POLL_MS);
-  useEffect(() => {
-    noteBreakerTrips(audit, pushBotNotice);
-  }, [audit]);
-}
-
 export function BotNotices() {
-  useBreakerTripNotices();
+  useLossLimitNotices(pushBotNotice);
   const notices = useSyncExternalStore(subscribeBotNotices, getBotNotices, getBotNotices);
   const asks = useLiveTraderAskToasts();      // the Live Trader bot's asks (ADR 055) stack with the notices
   return (

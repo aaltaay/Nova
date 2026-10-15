@@ -30,8 +30,7 @@ import ibkr.safety as safety_mod
 import ibkr.shortability as short_mod
 import kill_switch
 import strategy.risk as risk_mod
-from bot.buy_lock import buy_refusal
-from bot.persist import load_session, save_session
+from loss_limit.gate import buy_refusal
 from execution import validate
 from execution.models import ExecutionCommand
 from execution.venue_door import commit_position
@@ -221,8 +220,14 @@ def test_a_short_is_refused_while_the_account_holds_the_stock_long(live):
 
 
 # ---------------------------------------------------------------- gap 3: covers are never locked
-def test_a_cover_is_never_locked_by_the_day_lock():
+def test_a_cover_is_never_refused_by_the_daily_loss_limit():
+    import time
+
+    from loss_limit import state
+
+    state.write("live", {"tripped_at": time.time(), "tripped_loss": 2500.0, "limit_usd": 2000})
     assert buy_refusal("BUY", "manual", "live", covers=True) is None
+    assert buy_refusal("BUY", "manual", "live")["code"] == "LOSS_LIMIT_NO_NEW_BUYS"
 
 
 def test_a_cover_skips_buying_power_but_never_buys_past_the_short(live):
@@ -236,23 +241,24 @@ def test_a_cover_skips_buying_power_but_never_buys_past_the_short(live):
     assert _check(_cover(qty=10))[2] == "BUYING_POWER"
 
 
-def test_the_door_lets_a_cover_through_the_all_stop(live, monkeypatch):
+def test_the_door_lets_a_cover_through_the_daily_loss_limit(live, monkeypatch):
+    import time
+
+    from loss_limit import state
+    from sim.mode import venue
+
     live["positions"] = [{"symbol": SYMBOL, "qty": -416, "avg_cost": 5.77, "market_value": None}]
-    row = load_session()
-    row["hard_lock_until_date"] = "2099-01-01"
-    save_session(row)
+    state.write(venue(), {"tripped_at": time.time(), "tripped_loss": 2500.0, "limit_usd": 2000})
     try:
         calls = _spy_place(monkeypatch)
         cover = asyncio.run(exec_svc.execute(_cover("door-cover", qty=416), wait_ack=False))
         assert cover.ok is True, cover.error
         live["positions"] = []
         buy = asyncio.run(exec_svc.execute(_cover("door-buy", qty=10), wait_ack=False))
-        assert (buy.ok, buy.reason_code) == (False, "BOT_DAY_LOCK")
+        assert (buy.ok, buy.reason_code) == (False, "LOSS_LIMIT_NO_NEW_BUYS")
         assert len(calls) == 1
     finally:
-        row = load_session()
-        row["hard_lock_until_date"] = None
-        save_session(row)
+        state.clear()
 
 
 # ---------------------------------------------------------------- gap 4: borrow from the cache

@@ -115,7 +115,7 @@ def list_session_placed(*, since_ts: float, limit: int = 300) -> list[dict]:
 def session_commission_by_symbol(*, since_ts: float) -> dict[str, float]:
     """Sum real CommissionReport dollars per symbol this session. Never invent.
 
-    The account / positions polls and the Live bot breaker ask every second on
+    The account / positions polls and the Live commission hold ask every second on
     the HTTP loop, so the sum is kept in memory until the next write to the
     ledger, another session start or another ledger file -- exact, no TTL
     (#554, ``execution.ledger_generation``).

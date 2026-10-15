@@ -23,7 +23,7 @@ from bot.kinds import default_allowlist
 from constants_bot import (
     BOT_BP_BUDGET_HARD_MAX_USD,
     BOT_BP_BUDGET_MIN_USD,
-    BOT_BREAKER_VENUES,
+    BOT_VENUES,
     BOT_DEFAULT_BP_BUDGET_USD,
     BOT_DEFAULT_MAX_SHARES,
     BOT_DEFAULT_RISK_USD,
@@ -150,4 +150,4 @@ def by_venue(row: dict[str, Any]) -> dict[str, dict[str, Any]]:
     """``{VENUE: caps}`` -- the desk's own and every other venue's stored sleeve."""
     from bot.venue_levels import dial_of
 
-    return {v: view(dial_of(row, v).get("caps"), v) for v in BOT_BREAKER_VENUES}
+    return {v: view(dial_of(row, v).get("caps"), v) for v in BOT_VENUES}
