@@ -459,3 +459,33 @@ def test_the_cards_answer_the_bots_page(desk, monkeypatch):
     bad = TestClient(app).patch(f"/api/bot/live-traders/{HOST}", json={"step_usd": 5},
                                 headers={"X-Nova-Api-Key": "lt-test-key"})
     assert bad.status_code == 400 and bad.json()["detail"]["reason"] == "LIVE_TRADER_INVALID"
+
+
+def test_the_report_puts_every_order_beside_the_change_that_caused_it(desk):
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from tools import live_trader_report
+
+    run(desk, "10:30:00")
+    t = desk.feed.open("XYZ", 100.00, at("10:30:10"))
+    run(desk, "10:30:11")
+    desk.market.caps["QQQQ"] = 2e9
+    desk.market.px["QQQQ"] = [5.0, 4.99, 5.01]
+    desk.feed.open("QQQQ", 5.00, at("10:30:20"))
+    run(desk, "10:30:21")
+    desk.feed.close(t, at("10:31:00"))
+    run(desk, "10:31:01")
+    lines = list_entries(limit=400)
+    today = live_trader_report.desk_day(time.time())       # audit lines carry the wall clock; the test pins its own
+    rows = live_trader_report.orders(lines, today)
+    assert [(r["step"], r["change"], r["filled"]) for r in rows] == [("entry", "open", True), ("close", "close", True)]
+    entry, close = rows
+    assert entry["late_sec"] == pytest.approx(3.0) and entry["fill_price"] == pytest.approx(100.02)
+    assert entry["ibkr_last"] == 100.0 and entry["fill_minus_last"] == pytest.approx(0.02)
+    assert close["fill_price"] == pytest.approx(99.98) and close["late_sec"] == pytest.approx(3.0)
+    (skip,) = live_trader_report.skips(lines, today)
+    assert skip["code"] == "LT_SMALL_CAP"
+    text = live_trader_report.markdown(today, rows, [skip])
+    assert "| ALPHA | entry | XYZ long | open 100.00 |" in text and "LT_SMALL_CAP: 1" in text

@@ -216,6 +216,14 @@ def rekey(a: dict[str, Any], now: float) -> None:
           "why": f"the feed reopened {a['host']}'s {a['symbol']}: the same position, nothing sent"}, now)
 
 
+def market_now(symbol: str) -> dict[str, Any] | None:
+    """IBKR's last print and quote as the fill was read: what the report holds the fill against."""
+    q = market.quote(symbol)
+    if not q:
+        return None
+    return {"last": q.get("last"), "last_ts": q.get("last_ts"), "bid": q.get("bid"), "ask": q.get("ask")}
+
+
 # -- orders in flight ------------------------------------------------------------------------------
 def follow_step(pos_id: str, now: float, *, ttl: float | None = None) -> str | None:
     """The step in flight to its end: ``"cancel"`` when it has worked past ``ttl`` (the caller cancels it)."""
@@ -239,6 +247,7 @@ def follow_step(pos_id: str, now: float, *, ttl: float | None = None) -> str | N
          "step": order["step"], "qty": order["qty"], "limit": order["limit"], "change": order.get("change")}
     if filled > EPS:
         audit("filled", a, now=now, order_id=order["id"], fill_price=price, fill_basis=(row or {}).get("fill_basis"),
+              fill_ts=(row or {}).get("fill_ts"), ibkr=market_now(pos["symbol"]),
               why=f"{_verb(pos['side'])} {filled:g} {pos['symbol']} at {price_text(price)}")
     else:
         why = (row or {}).get("error") or ("not filled in time" if state == "dead" else "Paper has no such order")
@@ -269,7 +278,8 @@ def follow_close(pos_id: str, now: float) -> None:
                                  kind=close_.get("kind") or "close", why=close_.get("why") or "")
         pl = f" (P/L {done['pl_usd']:+.2f})" if done and done.get("pl_usd") is not None else ""
         audit("filled", {**a, "qty": qty}, now=now, order_id=close_["order_id"], fill_price=price,
-              fill_basis=(row or {}).get("fill_basis"),
+              fill_basis=(row or {}).get("fill_basis"), fill_ts=(row or {}).get("fill_ts"),
+              ibkr=market_now(pos["symbol"]),
               why=f"{_verb(pos['side'], close=True)} {qty:g} {pos['symbol']} at {price_text(price)}{pl}")
         return
     error = (row or {}).get("error") or "Paper has no such order"

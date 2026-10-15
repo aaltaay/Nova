@@ -49,8 +49,9 @@ def quote(symbol: str) -> dict[str, Any] | None:
     last = row.get("price")
     if row.get("quote_quality") == IBKR_QUOTE_QUALITY_CLOSE_FALLBACK:
         last, fresh = None, False
+    traded = row.get("last_trade_ts")
     return {"last": _num(last), "bid": _num(bid) or _num(l1_bid), "ask": _num(ask) or _num(l1_ask),
-            "fresh": bool(fresh)}
+            "fresh": bool(fresh), "last_ts": float(traded) if isinstance(traded, (int, float)) else None}
 
 
 def _num(value: Any) -> float | None:
