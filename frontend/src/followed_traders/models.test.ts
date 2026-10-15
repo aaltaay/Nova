@@ -21,6 +21,29 @@ describe('capture pill', () => {
       tone: 'down', text: 'The feed is not answering · timed out after 3 s' });
   });
 
+  it('says when the backend started the feed again, and why, for a while after', () => {
+    const down = { state: 'unreachable' as const, error: 'could not connect' };
+    const ranAt = Date.UTC(2026, 9, 15, 1, 15, 55) / 1000; // 21:15:55 ET
+    const keeper = { task: 'Feed Task', next_at: null,
+      last: { at: ranAt, why: 'the feed did not answer for 30 s', ok: true, error: null } };
+    const pill = capturePill(day({ feed: down, keeper, generated_at: ranAt + 60 }))!;
+    expect(pill.text).toBe('The feed is not answering · could not connect · Nova started Feed Task 21:15:55 ET');
+    expect(pill.title).toBe(`${pill.text}
+Nova ran Feed Task because the feed did not answer for 30 s`);
+    // Stale after FOLLOWED_KEEPER_SHOWN_SEC: the pill says only what is true now.
+    expect(capturePill(day({ feed: down, keeper, generated_at: ranAt + 901 }))).toEqual({
+      tone: 'down', text: 'The feed is not answering · could not connect' });
+    // Task Scheduler refused: said with its words.
+    const refused = { ...keeper, last: { ...keeper.last, ok: false, error: 'ERROR: no such task' } };
+    expect(capturePill(day({ feed: down, keeper: refused, generated_at: ranAt + 60 }))!.text)
+      .toBe('The feed is not answering · could not connect · Nova could not start Feed Task: ERROR: no such task');
+    // A stopped capture the backend started again says so too.
+    const stopped = capturePill(day({ capture: capture({ age_sec: 900 }), keeper, generated_at: ranAt + 60 }))!;
+    expect(stopped.text).toBe('Capture stopped · last read 10:09:54 ET · Nova started Feed Task 21:15:55 ET');
+    // A backend without the keeper sends none.
+    expect(capturePill(day({ feed: down }))!.title).toBeUndefined();
+  });
+
   it("warns when the bar read is the stream's past, never Live", () => {
     // 2026-10-14: the feed read the stream 29 minutes behind; the pill said Live and every slot "Their slot now".
     expect(capturePill(day({ capture: capture({ clock: '09:40:00' }) }))).toEqual({

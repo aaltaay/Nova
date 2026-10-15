@@ -116,7 +116,7 @@ export function PageHead({ day, onPickDate, records, pricesWhy, stream }: Props)
     <div className="ft-head">
       <h1 className="ft-head__title">{FT_TITLE}</h1>
       {pill && (
-        <span className={`ft-status ft-status--${pill.tone}`} data-testid="ft-capture-pill" role="status">
+        <span className={`ft-status ft-status--${pill.tone}`} data-testid="ft-capture-pill" role="status" title={pill.title}>
           <span className="ft-status__dot" aria-hidden="true" />
           <span className="ft-ellipsis">{pill.text}</span>
         </span>

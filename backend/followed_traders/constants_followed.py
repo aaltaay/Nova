@@ -53,6 +53,23 @@ FOLLOWED_TICKER_FIT_PCT = 1.5
 # An exit or entry tape asked for a ticker IBKR does not know reads unavailable with this, at once.
 FOLLOWED_NO_SUCH_TICKER = "IBKR has no such ticker"
 
+# -- starting the feed again when it stops (keeper.py) ---------------------------------------------
+# The Windows scheduled task that starts the feed (e.g. "TraderTV Feed"). Unset: Nova starts nothing.
+FOLLOWED_FEED_TASK_ENV = "NOVA_FOLLOW_FEED_TASK"
+FOLLOWED_KEEPER_TICK_SEC = 30.0
+# Not answering this long (two asks in a row) is a stopped feed.
+FOLLOWED_KEEPER_DOWN_SEC = 25.0
+# Weekdays from..until ET the capture should be reading: from just after the task's own 07:55 start to the capture's
+# own 16:30 end of day. In those hours a capture with no sign of life for this long is started again.
+FOLLOWED_KEEPER_CAPTURE_FROM_ET = "07:56"
+FOLLOWED_KEEPER_CAPTURE_UNTIL_ET = "16:30"
+FOLLOWED_KEEPER_STALE_SEC = 600.0
+# At most one run this often: each start of the capture asks YouTube for the stream, and asks close together get the
+# network a "confirm you're not a bot" wall.
+FOLLOWED_KEEPER_COOLDOWN_SEC = 600.0
+FOLLOWED_KEEPER_RUN_TIMEOUT_SEC = 15.0
+FOLLOWED_KEEPER_HOSTS = ("127.0.0.1", "localhost", "::1")
+
 # -- records ------------------------------------------------------------------------------------
 FOLLOWED_RECORD_RANGES = ("day", "week", "all")
 FOLLOWED_RECORD_WEEK_DAYS = 7        # "week": the seven calendar days ending on the day asked

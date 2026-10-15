@@ -16,7 +16,7 @@ from typing import Any
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse, Response
 
-from followed_traders import config, exits, feed, lines, pricing, reads, sightings, tickers, view
+from followed_traders import config, exits, feed, keeper, lines, pricing, reads, sightings, tickers, view
 from followed_traders.constants_followed import (
     FOLLOWED_ERR_BAD_DATE,
     FOLLOWED_ERR_BAD_RANGE,
@@ -60,7 +60,7 @@ async def get_day(date: str | None = None, quotes: int = 1):
         # The desk's today is asked by name: the feed's own default turns at midnight, the desk's at 04:00 ET.
         day = await asyncio.to_thread(feed.fetch_day, base, date or today)
     except feed.FeedError as exc:
-        return view.feed_down(exc.state, exc.message, date, now)
+        return {**view.feed_down(exc.state, exc.message, date, now), "keeper": keeper.view(now)}
     day = {**day, "today": today}
     prices = prices_state(day) if quotes else {"state": "not_asked", "why": "asked without prices"}
     seen = await asyncio.to_thread(_seen, base, day, now)
@@ -90,7 +90,7 @@ async def get_day(date: str | None = None, quotes: int = 1):
     body = view.compose(day, now=now, prices=prices, now_for=now_for, exit_for=_exit_for(now, ready),
                         resets_at=resets_at, seen=seen, ticker_for=ticker_for)
     exits.pump(now, ibkr_ready=ready)
-    return body
+    return {**body, "keeper": keeper.view(now)}
 
 
 def _seen(base: str, day: dict[str, Any], now: float) -> dict[str, dict[str, Any]] | None:
