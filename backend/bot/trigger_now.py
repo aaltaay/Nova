@@ -4,7 +4,8 @@ The same gates as a trigger (``bot.trigger_cells``), read from the desk as it st
 venue's dial, the strategies' rules today, the live setup board, the Who trades switch, the depth
 lines held and the day's Nova entries:
 
-- ``bot_on``: the Bot switch reads ON (``bot.switch``), else why not;
+- ``bot_on``: the Bot switch reads ON (``bot.switch``) and the Strategy Bots key is on (``bot.family_keys``),
+  else why not;
 - ``strategy_on``: a strategy is On;
 - ``grade``: ``null`` unless a setup of a strategy that is On is armed or near on the stock -- then its
   grade against the strategy's ``bot_grades`` and NOT A TRADE's checks (grade C, too thin);
@@ -213,6 +214,18 @@ def _long_can(sym: str, desk: Desk, todays: list[dict[str, Any]],
     return False
 
 
+def _bot_on(row: dict[str, Any], venue: str | None) -> dict[str, Any]:
+    """The Bot switch and the Strategy Bots key, both on (bot.md, "The three keys")."""
+    from bot import family_keys
+    from bot.switch import is_on, why_off
+    from constants_bot import BOT_FAMILY_STRATEGY
+
+    if not is_on(row):
+        return cell(False, str(why_off(row)))
+    on, why = family_keys.state(BOT_FAMILY_STRATEGY, venue)
+    return cell(True, "the bot is on, and the Strategy Bots key") if on else cell(False, str(why))
+
+
 def _unread(said: str) -> dict[str, Any]:
     """A ``now`` row Nova could not read: never a yes."""
     return {"cells": {g: cell(None, said) for g in GATE_IDS}, "answer": "no", "reasons": [said]}
@@ -220,15 +233,13 @@ def _unread(said: str) -> dict[str, Any]:
 
 def row(desk: Desk | None, sym: str, todays: list[dict[str, Any]]) -> dict[str, Any]:
     """``{cells, answer, reasons}`` for one stock now (``todays``: the day's triggers so far)."""
-    from bot.switch import is_on, why_off
-
     if desk is None:
         return _unread("the bot's session could not be read (the backend log has the error)")
     try:
         sides = {setup_side(s) for s in desk.on}
         against = trigger_short.against_now(sym, sides)
         cells = {
-            "bot_on": cell(True, "the bot is on") if is_on(desk.row) else cell(False, str(why_off(desk.row))),
+            "bot_on": _bot_on(desk.row, desk.venue),
             "strategy_on": (cell(True, "On: " + ", ".join(strategy_rules.name(s) for s in desk.on)) if desk.on
                             else cell(False, "no strategy is On: turn one On")),
             "grade": _grade(sym, desk, _lanes(sym)),

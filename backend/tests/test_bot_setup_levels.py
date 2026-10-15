@@ -100,7 +100,9 @@ def test_lowering_the_master_below_strategy_deactivates_with_the_reason():
     assert line["inputs"]["reason"] == "level"
 
 
-def test_leaving_no_setup_at_strategy_deactivates_with_the_reason():
+def test_leaving_no_setup_at_strategy_leaves_the_bot_switch_on():
+    """The Bot switch is the top of three keys (2026-10-15): a strategy turned Off never turns it off, since with it
+    off no bot places any order -- that would also stop the other family's exits."""
     on_practice()
     apply_patch({"level": 2, "setup_levels": {"first_pullback": 2, "bull_flag": 2}}, desk=True)
     issue_arm_token()
@@ -108,7 +110,7 @@ def test_leaving_no_setup_at_strategy_deactivates_with_the_reason():
     assert is_desk_active(load_session())                      # the bull flag still plays
     apply_patch({"setup_levels": {"bull_flag": 0}}, desk=True)
     row = load_session()
-    assert not is_desk_active(row) and row["deactivated"]["reason"] == "no_setup"
+    assert is_desk_active(row) and row.get("deactivated") is None
 
 
 def test_the_session_route_takes_every_level(api_key):

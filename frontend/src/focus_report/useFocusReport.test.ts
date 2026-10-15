@@ -47,6 +47,9 @@ describe('what a window shows', () => {
   it('Account and Bots show no symbol', () => {
     expect(focusViewOf({ ...BASE, scannerTab: 'trading' })).toMatchObject({ page: 'account', symbol: null });
     expect(focusViewOf({ ...BASE, navPage: 'bots' })).toMatchObject({ page: 'bots', symbol: null });
+    // Every page of the Bots group reads as the sensor's "bots" (2026-10-15).
+    expect(focusViewOf({ ...BASE, navPage: 'bots-live-trader' }).page).toBe('bots');
+    expect(focusViewOf({ ...BASE, navPage: 'bots-strategy' }).page).toBe('bots');
     expect(focusViewOf({ ...BASE, navPage: 'records' }).page).toBe('records');
     expect(focusViewOf({ ...BASE, navPage: 'cryptos' }).page).toBe('cryptos');
   });

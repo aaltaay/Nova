@@ -35,8 +35,10 @@ export function focusViewOf(parts: FocusViewParts): FocusView {
     const symbol = parts.selectedSymbol;
     return { page: 'scanner', tab: parts.scannerTab, symbol, symbolSource: symbol ? 'scanner_row' : null, traderTabs: tabs };
   }
-  // Market, Cryptos, Followed traders, Account, Bots and Records are shell pages with no symbol of their own.
-  const page = parts.navPage === 'dashboard' ? 'account' : parts.navPage;
+  // Market, Cryptos, Followed traders, Account, Bots and Records are shell pages with no symbol of their own. Every
+  // page of the Bots group reads as "bots" (the sensor's own page names, constants_sensors.FOCUS_PAGES).
+  const page = parts.navPage === 'dashboard' ? 'account'
+    : parts.navPage === 'bots-live-trader' || parts.navPage === 'bots-strategy' ? 'bots' : parts.navPage;
   return { page, tab: null, symbol: null, symbolSource: null, traderTabs: tabs };
 }
 

@@ -77,7 +77,7 @@ describe('what Nova promises on the chart (ADR 042 draft)', () => {
     expect(notStrategy?.call).toMatchObject({ title: 'THE BOT WILL NOT TRADE THIS', tone: 'wait',
       detail: 'The first pullback is not at Strategy: the bot trades only setups at Strategy.' });
     const notActive = momentOf(inputs({ read: armed, who: bot({ active: false, playing: false, reason: 'not active' }) }));
-    expect(notActive?.call?.detail).toBe('The bot is not active: press Activate on the Bots page.');
+    expect(notActive?.call?.detail).toBe('The bot is not active: turn on the Bot switch in the header.');
     expect(notActive?.call?.more).toBeUndefined();          // "not playing" is not said twice
     const unknown = momentOf(inputs({ read: armed, who: bot({ setup_at_strategy: null, active: null }) }));
     expect(unknown?.call?.title).toBe('THE BOT WILL NOT TRADE THIS');   // unknown is never a promise
@@ -110,7 +110,7 @@ describe('what Nova promises on the chart (ADR 042 draft)', () => {
       detail: capUsedText(used) });
     const idle = auto({ bot: { ...BOT_READY, on_list: false, active: false } });
     expect(novaBlockers(idle, armed.plan)).toEqual([
-      'The bot is not active: Auto-entry enters only while it is. Press Activate on the Bots page.',
+      'The bot is not active: Auto-entry enters only while it is. Turn on the Bot switch in the header.',
     ]);
     // Signal only and Approve: the operator decides, Nova promises nothing by itself.
     expect(novaBlockers(pfsaView('approve', { notes: [{ id: 'x', tone: 'warn', text: 'y' }] }), armed.plan)).toEqual([]);

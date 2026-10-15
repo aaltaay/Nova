@@ -285,31 +285,12 @@ describe('FollowedTradersPage', () => {
     expect(reset.getAttribute('data-tip')).toContain('Today runs until 4:00 AM ET on Wed, Oct 14, the premarket');
   });
 
-  it("puts the Live Trader bots' panel on top of today's board, and none on a past day", async () => {
+  it("shows the hosts only: the Live Trader bots live under Bots > LiveTrader Bots (2026-10-15)", async () => {
     await show(day());
-    await act(async () => { await vi.dynamicImportSettled(); });
     await flush();
-    expect(q('bots-live-traders')).not.toBeNull();
-    expect(asked).toContain('/api/bot/live-traders');
-    act(() => root.unmount());
-    root = createRoot(container);
-    await show(day({ date: '2026-10-09' }));
     expect(q('bots-live-traders')).toBeNull();
-  });
-
-  it("shows today's Live Trader panel while the day's read fails", async () => {
-    await show(() => new Response('', { status: 503 }));
-    await act(async () => { await vi.dynamicImportSettled(); });
-    await flush();
-    expect(q('ft-state')).not.toBeNull();
-    expect(q('bots-live-traders')).not.toBeNull();
-  });
-
-  it("keeps today's Live Trader panel when the feed is down and names no date", async () => {
-    await show(day({ date: null, today: null, feed: { ...day().feed, state: 'unreachable' } }));
-    await act(async () => { await vi.dynamicImportSettled(); });
-    await flush();
-    expect(q('bots-live-traders')).not.toBeNull();
+    expect(asked.some(path => path.startsWith('/api/bot/live-traders'))).toBe(false);
+    expect(container.textContent).not.toMatch(/Bot switch is off/);
   });
 
   it('names no reset on a past day', async () => {

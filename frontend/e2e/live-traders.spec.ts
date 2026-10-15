@@ -3,9 +3,10 @@ import { NOW_S } from '../src/demo/data/market';
 import { botSession } from '../src/demo/data/pages';
 
 /**
- * The Live Trader cards (ADR 055) in a browser, every API reply mocked: a host's card as the approved mockup draws
- * it, the key's question before it sells, and an ask answered from its toast. Nothing reaches a backend or a
- * broker: every write is recorded and answered here. Made-up hosts and tickers.
+ * Bots > LiveTrader Bots (ADR 055; its own page since 2026-10-15) in a browser, every API reply mocked: the
+ * LiveTrader Bots key on top, a host's card as the approved mockup draws it, a host's key turned off in one press
+ * (off sells nothing, so nothing asks), and an ask answered from its toast. Nothing reaches a backend or a broker:
+ * every write is recorded and answered here. Made-up hosts and tickers.
  */
 const NOW = Date.now() / 1000;
 
@@ -49,7 +50,7 @@ function cards(hosts: unknown[]) {
   };
 }
 
-test('the Live Trader cards: a host as drawn, the key asks before it sells, an ask answered from its toast', async ({ page }) => {
+test('LiveTrader Bots: its key on top, a host as drawn, a key off in one press, an ask answered from its toast', async ({ page }) => {
   const errors: string[] = [];
   const writes: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -58,12 +59,19 @@ test('the Live Trader cards: a host as drawn, the key asks before it sells, an a
     unrealized_usd: 0, trades: 1, skipped: 1, series: [[NOW - 600, -2.1]] }, allowance: { used_usd: 0, of_usd: 2500 },
     settings: { ...hostCard().settings, entry: 'you', mode: 'approve' } });
   let asks = [ASK];
+  let familyOn = true;
+  const session = () => ({ ...botSession(NOW_S, 'paper'), keys: { venue: 'paper', error: null,
+    strategy: { on: true, why_off: null }, live_trader: { on: familyOn, why_off: familyOn ? null : 'off' } } });
   const json = (route: Route, body: unknown, status = 200) => route.fulfill({ status, json: body });
   await page.route('http://127.0.0.1:8999/**', async route => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
     if (req.method() !== 'GET') {
       writes.push(`${req.method()} ${path} ${req.postData() ?? ''}`);
+      if (path === '/api/bot/session/keys') {
+        familyOn = JSON.parse(req.postData() ?? '{}').on === true;
+        return json(route, session());
+      }
       if (path.endsWith('/live-traders/ALPHA')) alpha = hostCard({ settings: { ...alpha.settings, key: false }, positions: [] });
       if (path.includes('/asks/')) asks = [];
       return json(route, cards([alpha, { ...bravo, asks }]));
@@ -71,7 +79,9 @@ test('the Live Trader cards: a host as drawn, the key asks before it sells, an a
     if (path === '/api/followed-traders/config') return json(route, { schema_version: 1, enabled: true });
     if (path === '/api/bot/live-traders/asks') return json(route, { schema_version: 1, generated_at: NOW, asks, held: [] });
     if (path === '/api/bot/live-traders') return json(route, cards([alpha, { ...bravo, asks }]));
-    if (path === '/api/bot/session') return json(route, botSession(NOW_S, 'paper'));
+    if (path === '/api/bot/session') return json(route, session());
+    // The bot's session is read only once the desk's venue is confirmed (its key reads that venue).
+    if (path === '/api/ibkr/status') return json(route, { enabled: true, connected: true, mode: 'paper', venue: 'paper' });
     if (path === '/api/bot/proposals') return json(route, { proposals: [] });
     if (path === '/api/bot/audit') return json(route, { entries: [] });
     return json(route, {});
@@ -80,7 +90,11 @@ test('the Live Trader cards: a host as drawn, the key asks before it sells, an a
   await page.goto('/e2e/fixtures/live-traders.html');
   const section = page.getByTestId('bots-live-traders');
   await expect(section, `browser errors: ${errors.join('; ')}`).toContainText('Live Traders · TraderTV');
-  // Drawn by its own sheet on the TraderTV LIVE page: the card and the chosen Entry are styled without the Bots page's.
+  // The family's key sits on top of the page, above the cards.
+  const key = page.getByTestId('bot-key-live_trader');
+  await expect(key).toContainText('LiveTrader Bots');
+  await expect(key).toContainText('On: LiveTrader Bots may place orders on Paper.');
+  // The panel's own sheet: the card and the chosen Entry are styled by it.
   await expect(section).toHaveCSS('border-radius', '8px');
   await expect(page.getByTestId('lt-entry-ALPHA-nova')).toHaveCSS('color', 'rgb(255, 255, 255)');
   await expect(page.getByTestId('lt-state-ALPHA')).toHaveText('On air · read 2 s ago');
@@ -90,14 +104,10 @@ test('the Live Trader cards: a host as drawn, the key asks before it sells, an a
   await expect(page.getByTestId('lt-events-ALPHA')).toContainText('large caps only');
   await expect(page.getByTestId('lt-ask-bravo-3')).toContainText('BRAVO shorted FADE at 40.00');
 
-  // The key asks first, names what it sells, and sends nothing until "Sell 2 and turn off".
+  // A host's key turns off in one press while its bot holds positions: off sells nothing, so nothing asks.
   await page.getByTestId('lt-key-ALPHA').click();
-  const dialog = page.getByTestId('app-dialog');
-  await expect(dialog).toContainText('XYZ 4 shares, ABCD 3 shares');
-  await expect(page.getByTestId('app-dialog-confirm')).toHaveText('Sell 2 and turn off');
-  expect(writes).toEqual([]);
-  await page.getByTestId('app-dialog-confirm').click();
   await expect(page.getByTestId('lt-key-ALPHA')).toHaveAttribute('aria-checked', 'false');
+  await expect(page.getByTestId('app-dialog')).toHaveCount(0);
   expect(writes).toEqual(['PATCH /api/bot/live-traders/ALPHA {"key":false}']);
 
   // The ask is a toast in the window too; Approve answers it.
@@ -106,5 +116,10 @@ test('the Live Trader cards: a host as drawn, the key asks before it sells, an a
   await toast.getByTestId('lt-ask-toast-approve-bravo-3').click();
   await expect(toast).toHaveCount(0);
   expect(writes[1]).toBe('POST /api/bot/live-traders/BRAVO/asks/bravo-3 {"approve":true}');
+
+  // The family key turns every host's bot off: off, they cannot place orders or sell.
+  await page.getByTestId('bot-key-live_trader-switch').click();
+  await expect(key).toContainText("Off: bots can't place orders or sell.");
+  expect(writes[2]).toBe('POST /api/bot/session/keys {"family":"live_trader","on":false}');
   expect(errors).toEqual([]);
 });

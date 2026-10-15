@@ -4,10 +4,15 @@
  */
 import type { DeskVenue } from './desk_venue';
 
-export const BOTS_PAGE_TITLE = 'Bots';
+/** Bots > Strategy Bots (2026-10-15): the page that was Bots. */
+export const BOTS_PAGE_TITLE = 'Strategy Bots';
 export const BOTS_PAGE_SUB =
   'Your playbook, run by the bot: what it watches, what it may risk, what it proposed and did.';
 export const BOTS_PAGE_LOADING = 'Loading the bot session…';
+/** Bots > LiveTrader Bots, and Bots itself -- empty for now (operator, 2026-10-15: "keep it empty for now"). */
+export const LT_BOTS_PAGE_TITLE = 'LiveTrader Bots';
+export const BOTS_GROUP_TITLE = 'Bots';
+export const BOTS_GROUP_EMPTY = 'Open LiveTrader Bots or Strategy Bots on the left.';
 export const BOTS_PAGE_SAVING = 'Saving…';
 
 /** The venue chip's second half: whose money the bot would be spending. */
@@ -248,7 +253,21 @@ export const BOTS_STATUS_ORDER_KINDS = 'Order kinds (the localhost bot API):';
 
 /* ---------- Header pill and the Trader rail card ---------- */
 export const BOTS_PILL_LABEL = 'Bot';
-export const BOTS_PILL_TITLE = 'Open the Bots page';
+export const BOTS_PILL_TITLE = 'Open Strategy Bots';
+
+/* ---------- The three keys (operator decisions 2026-10-15) ---------- */
+/** A bot places orders only while the header's Bot switch, its family's key and its own key are all on; off at any
+ *  level, it places none -- "Bots can not place order or sell orders". */
+export const BOT_FAMILY_NAMES = { strategy: 'Strategy Bots', live_trader: 'LiveTrader Bots' } as const;
+export const BOT_KEY_OFF_LINE = "Off: bots can't place orders or sell.";
+export const botKeyOnLine = (name: string, venue: string): string => `On: ${name} may place orders on ${venue}.`;
+export const BOT_KEY_LIVE_WHY = 'Bots never trade Live.';
+export const botKeyTip = (name: string): string =>
+  `The ${name} key. A bot places orders only while the Bot switch in the header, this key and its own key are all `
+  + 'on. Off at any level, it places none, not even a sell: what it holds stays until you sell it or turn the keys '
+  + 'back on. Orders already resting at the broker (a stop, a target) still fill.';
+export const BOT_HEADER_KEY_TIP =
+  'The Bot switch: every bot on this venue. Off, no bot places an order, not even a sell. Click to turn it on or off.';
 export const botsStrategiesOn = (n: number): string => (n === 1 ? '1 strategy On' : `${n} strategies On`);
 
 /* ---------- Strategy buckets (ADR 049, #778 step 5): one bot, both sides ---------- */

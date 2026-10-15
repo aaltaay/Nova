@@ -58,7 +58,7 @@ def require_matching_arm_token(row: dict[str, Any], arm_token: str | None) -> st
     incoming = (arm_token or "").strip()
     if not held or not incoming or not hmac.compare_digest(incoming, held):
         raise BotError(
-            "this needs an Activate token from the Bots page",
+            "this needs an Activate token from the Bot switch in the header",
             403,
             BOT_REASON_ARM_REQUIRED,
         )

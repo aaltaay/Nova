@@ -1325,7 +1325,7 @@
         "step": null,
         "choices": [],
         "nullable": false,
-        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Bots page).",
+        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Strategy Bots).",
         "live": true,
         "affects_readout": false
        },
@@ -2915,7 +2915,7 @@
         "step": null,
         "choices": [],
         "nullable": false,
-        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Bots page).",
+        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Strategy Bots).",
         "live": true,
         "affects_readout": false
        },
@@ -4497,7 +4497,7 @@
         "step": null,
         "choices": [],
         "nullable": false,
-        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Bots page).",
+        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Strategy Bots).",
         "live": true,
         "affects_readout": false
        },
@@ -6102,7 +6102,7 @@
         "step": null,
         "choices": [],
         "nullable": false,
-        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Bots page).",
+        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Strategy Bots).",
         "live": true,
         "affects_readout": false
        },
@@ -7473,7 +7473,7 @@
         "step": null,
         "choices": [],
         "nullable": false,
-        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Bots page).",
+        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Strategy Bots).",
         "live": true,
         "affects_readout": false
        },
@@ -8831,7 +8831,7 @@
         "step": null,
         "choices": [],
         "nullable": false,
-        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Bots page).",
+        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Strategy Bots).",
         "live": true,
         "affects_readout": false
        },
@@ -13078,7 +13078,7 @@
         "step": null,
         "choices": [],
         "nullable": false,
-        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Bots page).",
+        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Strategy Bots).",
         "live": true,
         "affects_readout": false
        },
@@ -14604,7 +14604,7 @@
         "step": null,
         "choices": [],
         "nullable": false,
-        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Bots page).",
+        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Strategy Bots).",
         "live": true,
         "affects_readout": false
        },
@@ -16071,7 +16071,7 @@
         "step": null,
         "choices": [],
         "nullable": false,
-        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Bots page).",
+        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Strategy Bots).",
         "live": true,
         "affects_readout": false
        },
@@ -17454,7 +17454,7 @@
         "step": null,
         "choices": [],
         "nullable": false,
-        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Bots page).",
+        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Strategy Bots).",
         "live": true,
         "affects_readout": false
        },
@@ -18823,7 +18823,7 @@
         "step": null,
         "choices": [],
         "nullable": false,
-        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Bots page).",
+        "help": "No bot entry at or after this time. The bot's entries a day are the sleeve's (Strategy Bots).",
         "live": true,
         "affects_readout": false
        },

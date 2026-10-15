@@ -1,12 +1,14 @@
 """When the Live Trader bot sells or covers what it holds (ADR 055 decision 2). Pure; ``decide`` calls it first.
 
-A position is closed -- all of it -- for the first of: the operator turned its host's key off, or the Bot switch
-off; the sell-all time passed (never overnight); the feed has not read the bar for ``LT_HIDDEN_SEC``; the bar
-has been hidden that long; the host went off air; the host's trade left the bar. A feed row the feed reopened for
+A position is closed -- all of it -- for the first of: the sell-all time passed (never overnight); the feed has not
+read the bar for ``LT_HIDDEN_SEC``; the bar has been hidden that long; the host went off air; the host's trade left
+the bar. With a key off -- the Bot switch, the LiveTrader Bots key or the host's own (``ctx["keys_hold"]``) -- no
+close is sent, not even this one (operator decision 2026-10-15: off places no order at all): it is said once and
+made when the keys are back on, if its reason still stands. A feed row the feed reopened for
 the same stock (its old one ``unknown`` or gone) is the same position, re-keyed, never sold and bought again; so
 is one back at its very average after the whole bar went blank (``decide_bar``), whose sell waits for the bar.
 The host's own reasons follow the Exit switch: with Exit on You the bot says so once and keeps the shares; the
-operator's and the clock's always close. Shapes: architecture/schema/bot.md ("The Live Trader bot").
+clock's always close. Shapes: architecture/schema/bot.md ("The Live Trader bot").
 """
 from __future__ import annotations
 
@@ -50,11 +52,7 @@ def _row_reason(pos: dict[str, Any], host: dict[str, Any] | None, now: float) ->
 
 def _reason(pos: dict[str, Any], answer: dict[str, Any], ctx: dict[str, Any], flags: dict[str, Any],
             snap: dict[str, Any]) -> tuple | None:
-    now, req = ctx["now"], ctx.get("requests") or {}
-    if pos["host"] in (req.get("sell_hosts") or {}):
-        return "key_off", f"you turned {pos['host']}'s key off", now
-    if req.get("sell_all"):
-        return "bot_off", "you turned the Bot switch off", now
+    now = ctx["now"]
     sell_ts = ctx.get("sell_all_ts")
     if sell_ts is not None and now >= sell_ts:
         return "sell_all", f"it is {hms(sell_ts)[:5]} ET: the bot never holds overnight", sell_ts
@@ -67,6 +65,20 @@ def _reason(pos: dict[str, Any], answer: dict[str, Any], ctx: dict[str, Any], fl
         return None                                   # no read to judge the bar by: hold until there is one
     # A late read is still a true one: what the feed saw close, closed (a close is never held for a doubt).
     return _row_reason(pos, (answer.get("hosts") or {}).get(pos["host"]), now)
+
+
+def _no_hold(_host: str) -> None:
+    return None
+
+
+def _tell_once(snap: dict[str, Any], out: dict[str, Any], pos: dict[str, Any], change: dict[str, Any], key: str,
+               why: str) -> None:
+    """A close the bot does not make, said once per position, reason and cause."""
+    if key in snap["told"]:
+        return
+    snap["told"] = (snap["told"] + [key])[-TOLD_KEEP:]
+    out["actions"].append({"kind": "tell", "host": pos["host"], "pos_id": pos["id"], "row_id": pos["row_id"],
+                           "symbol": pos["symbol"], "side": pos["side"], "change": change, "why": why})
 
 
 def minutes(sec: float) -> str:
@@ -104,15 +116,17 @@ def closes(snap: dict[str, Any], answer: dict[str, Any], book: dict[str, dict[st
                                    "symbol": pos["symbol"], "side": pos["side"], "why": why})
             continue
         change = {"kind": kind, "ts": ts, "price": None}
+        hold = (ctx.get("keys_hold") or _no_hold)(pos["host"])
+        if hold is not None:
+            # A key is off: no order at all, not even this sell. Said once; the next pass with the keys on decides
+            # again (operator decision 2026-10-15).
+            out["waits"][pos["id"]] = {"symbol": pos["symbol"], "code": hold[0], "text": f"not sold: {hold[1]}"}
+            _tell_once(snap, out, pos, change, f"{pos['id']}|{pos['row_id']}|{kind}|{hold[0]}",
+                       f"{words}: not sold -- {hold[1]}")
+            continue
         if kind in HOST_REASONS and ctx["settings"](pos["host"])["exit"] == "you":
-            key = f"{pos['id']}|{pos['row_id']}|{kind}"
-            if key not in snap["told"]:
-                snap["told"] = (snap["told"] + [key])[-TOLD_KEEP:]
-                out["actions"].append({"kind": "tell", "host": pos["host"], "pos_id": pos["id"],
-                                       "row_id": pos["row_id"], "symbol": pos["symbol"], "side": pos["side"],
-                                       "change": change,
-                                       "why": f"{words}: the exit is yours (Exit: You) -- the bot keeps its "
-                                              f"{pos['qty']:g} shares"})
+            _tell_once(snap, out, pos, change, f"{pos['id']}|{pos['row_id']}|{kind}",
+                       f"{words}: the exit is yours (Exit: You) -- the bot keeps its {pos['qty']:g} shares")
             continue
         out["actions"].append({"kind": "close", "host": pos["host"], "pos_id": pos["id"], "row_id": pos["row_id"],
                                "symbol": pos["symbol"], "side": pos["side"], "qty": pos["qty"], "why": words,

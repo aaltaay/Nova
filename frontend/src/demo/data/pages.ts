@@ -147,6 +147,7 @@ export function botSession(nowS: number, venue: string) {
       gate('level', 'activate', { level: 2 }),
       gate('setups', 'activate', { at_strategy: ['first_pullback'] }),
       gate('padlock', 'activate', { reason: null }),
+      gate('strategy_key', 'fire', { venue }),
       gate('allowlist', 'fire', { count: 3, auto_entry: 0 }),
       gate('depth_lines', 'fire', { held: ['SMPL', 'GAPX'], missing: [], max_lines: 3 }),
       gate('loss_limit', 'fire', { text: null, until: null, tripped_at: null, loss: null, limit_usd: LOSS_LIMIT_USD, venue }),
@@ -165,6 +166,8 @@ export function botSession(nowS: number, venue: string) {
       exit_why: null, closed_ts: at(9, 3, 31), slippage: 0, r: 2.0, size_text: '10 shares (max shares)', waiting: null, note: null,
     },
     symbol_allowlist: ['SMPL', 'GAPX', 'RUNR'],
+    // The family keys under the Bot switch (2026-10-15): both on.
+    keys: { venue, error: null, strategy: { on: true, why_off: null }, live_trader: { on: true, why_off: null } },
     caps: caps(venue),
     caps_bounds: { risk_usd: [1, 10000], max_shares: [1, 10], bp_budget_usd: [0.01, 50], working_ttl_sec: [1, 10], entries_per_day: [1, 3] },
     caps_by_venue: { paper: caps('paper'), sim: caps('sim'), live: caps('live') },

@@ -12,7 +12,11 @@
   PIN (``ibkr.safety.arm_requires_pin``). OFF leaves the padlock as it is: the operator's own orders
   still need it.
 - **OFF** (``turn(False)``) deactivates (``deactivated.reason: "operator"``) and puts the master at
-  Eyes, so the strategies at Eyes or On keep proposing. No loss limit turns it off (ADR 056).
+  Eyes, so the strategies at Eyes or On keep proposing. While it is off no bot places any order, not even a
+  sell (operator decision 2026-10-15; bot.md, "The three keys"): turning it off sells nothing. No loss limit
+  turns it off (ADR 056).
+- It is the top of three keys, in the header beside the padlock: under it each family has its key
+  (``bot.family_keys``) and each bot its own.
 - Each change is one ``bot_switch`` audit line, ``inputs: {on, from_level, to_level}``; pressing the
   switch into the state it is already in changes nothing and writes nothing.
 - ``view(row)`` is the session view's ``bot_on`` (active with the master at Strategy) and
@@ -92,7 +96,6 @@ def turn(on: bool) -> str | None:
         save_session(row)
         token = issue_arm_token()
         _audit(True, before, BOT_LEVEL_STRATEGY, unlocked=unlocked)
-        _live_trader(on=True)
         return token
     if not is_desk_active(row) and before == BOT_LEVEL_EYES:
         return None
@@ -100,22 +103,7 @@ def turn(on: bool) -> str | None:
     row["level"] = BOT_LEVEL_EYES
     save_session(row)
     _audit(False, before, BOT_LEVEL_EYES)
-    _live_trader(on=False)
     return None
-
-
-def _live_trader(*, on: bool) -> None:
-    """The operator's OFF sells what the Live Trader bot holds (ADR 055; the desk asked first); ON keeps it."""
-    try:
-        from bot.live_trader import watcher
-        from sim.mode import venue
-
-        if on:
-            watcher.cancel_sell_all()
-        elif venue() == "paper" and watcher.holds_positions():      # the bot trades Paper only
-            watcher.request_sell_all("bot_off")
-    except Exception:
-        logger.exception("bot: the Live Trader bot was not told the Bot switch turned %s", "on" if on else "off")
 
 
 def _unlock() -> bool:
@@ -144,7 +132,7 @@ def _audit(on: bool, before: int, after: int, *, unlocked: bool = False) -> None
         said = ("the bot is on: Nova may buy the go triggers of the strategies that are On"
                 + (" (it unlocked the padlock)" if unlocked else ""))
     else:
-        said = "the bot is off: Eyes keep proposing, Nova buys nothing by itself"
+        said = "the bot is off: Eyes keep proposing, no bot places any order, not even a sell"
     try:
         record(action=BOT_AUDIT_ACTION_SWITCH, outcome="on" if on else "off", reason=said,
                inputs={"on": on, "from_level": before, "to_level": after})

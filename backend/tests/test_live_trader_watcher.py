@@ -19,7 +19,7 @@ from fastapi.testclient import TestClient
 
 import ibkr.shortability as short_mod
 import kill_switch
-from bot import switch
+from bot import family_keys, switch
 from bot.audit import list_entries
 from bot.live_trader import book as lt_book
 from bot.live_trader import lines as lt_lines
@@ -401,25 +401,64 @@ def _app():
     return app
 
 
-def test_turning_the_key_off_sells_and_the_bot_switch_off_sells(desk, monkeypatch):
+def _key_off(which: str):
+    """Turn one of the three keys off (operator decision 2026-10-15); returns how to turn it back on."""
+    if which == "host_key":
+        lt_settings.patch_host(HOST, {"key": False})
+        return lambda: lt_settings.patch_host(HOST, {"key": True})
+    if which == "family":
+        family_keys.turn("live_trader", False)
+        return lambda: family_keys.turn("live_trader", True)
+    switch.turn(False)
+    return lambda: switch.turn(True)
+
+
+@pytest.mark.parametrize("which", ["host_key", "family", "bot_switch"])
+def test_with_a_key_off_the_bot_places_no_order_not_even_the_hosts_close(desk, monkeypatch, which):
     monkeypatch.setenv("NOVA_API_KEY", "lt-test-key")
     client = TestClient(_app())
     run(desk, "10:30:00")
-    desk.feed.open("XYZ", 100.00, at("10:30:10"))
+    t = desk.feed.open("XYZ", 100.00, at("10:30:10"))
     run(desk, "10:30:11")
-    got = client.patch(f"/api/bot/live-traders/{HOST}", json={"key": False}, headers={"X-Nova-Api-Key": "lt-test-key"})
-    assert got.status_code == 200, got.text
+    assert held(desk, "XYZ") == 4                                  # $500 at 100.02: 4 shares
+    if which == "host_key":                                        # through the route the card uses
+        got = client.patch(f"/api/bot/live-traders/{HOST}", json={"key": False},
+                           headers={"X-Nova-Api-Key": "lt-test-key"})
+        assert got.status_code == 200, got.text
+        back_on = lambda: lt_settings.patch_host(HOST, {"key": True})  # noqa: E731
+    else:
+        back_on = _key_off(which)
     run(desk, "10:30:20")
-    assert held(desk, "XYZ") == 0 and lt_book.closed_today()[0]["kind"] == "key_off"
+    assert held(desk, "XYZ") == 4                                  # turning a key off sold nothing
+    desk.feed.open("ABCD", 50.00, at("10:30:25"))
+    desk.feed.close(t, at("10:30:30"))
+    desk.feed.clock = at("10:30:31")
+    run(desk, "10:30:31")
+    run(desk, "10:30:33")
+    assert held(desk, "XYZ") == 4 and held(desk, "ABCD") == 0      # no sell, no buy
+    assert desk.broker.ledger.working_orders() == []               # nothing sent and left working either
+    said = [r for r in lines_() if r["outcome"] == "note" and "not sold" in (r.get("reason") or "")]
+    assert len(said) == 1                                          # said once
+    back_on()
+    run(desk, "10:30:40")
+    assert held(desk, "XYZ") == 0                                  # on again: the host's close is made
+    assert lt_book.closed_today()[0]["kind"] == "close"
 
-    lt_settings.patch_host(HOST, {"key": True})
-    switch.turn(True)
-    desk.feed.open("ABCD", 50.00, at("10:31:00"))
-    run(desk, "10:31:01")
-    assert held(desk, "ABCD") == 9                                 # $500 at 50.03: 9 shares
+
+def test_with_every_key_off_your_own_cover_of_the_bots_short_goes_through(desk):
+    """Keys stop the bots, never you: a cover is a close at the door, and the bot's stale stop is taken back."""
+    run(desk, "10:30:00")
+    desk.feed.open("FADE", 40.00, at("10:30:10"), side="short")
+    run(desk, "10:30:11")
+    (stop_id,) = lt_book.positions()[f"{HOST}|short|FADE"]["stop_order_ids"]
+    lt_settings.patch_host(HOST, {"key": False})
+    family_keys.turn("live_trader", False)
     switch.turn(False)
-    run(desk, "10:31:10")
-    assert held(desk, "ABCD") == 0 and lt_book.closed_today()[-1]["kind"] == "bot_off"
+    desk.broker.place("FADE", "BUY", 12, order_type="MKT", source="manual")     # you covered all of it
+    run(desk, "10:30:20")
+    assert held(desk, "FADE") == 0
+    assert desk.broker.ledger.order_row(stop_id)["status"] == "Cancelled"     # a cancel places nothing
+    assert lt_book.positions() == {}
 
 
 def test_freeze_all_orders_stops_new_steps_but_not_the_close(desk):

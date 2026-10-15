@@ -21,7 +21,9 @@ from bot.live_trader.constants_live_trader import (
     LT_BLANK_HOLD_SEC,
     LT_BOT_OFF,
     LT_CAP_UNKNOWN,
+    LT_FAMILY_OFF,
     LT_FEED_BEHIND,
+    LT_KEY_OFF,
     LT_MISREAD,
     LT_NO_CLOCK,
     LT_NO_QUOTE,
@@ -35,6 +37,7 @@ from bot.live_trader.constants_live_trader import (
     LT_TICKER_UNSETTLED,
 )
 from bot.live_trader.decide import decide
+from bot.live_trader.watcher import keys_hold
 
 NOW = 1_790_000_000.0
 HOST, OTHER = "TRADER1", "TRADER2"
@@ -81,14 +84,15 @@ class World:
         self.held: dict[tuple[str, str], float] = {}
         self.can = {"ok": True, "code": None, "why": None}
         self.sell_all_ts = None
-        self.requests: dict = {}
+        self.keys = {"ok": True, "code": None, "why": None}     # the Bot switch and the LiveTrader Bots key
         self.answers: dict = {}
         self.short_closed = None
         self.no_reentry: set = set()
 
     def ctx(self):
-        return {"now": self.now, "settings": lambda n: self.st.get(n, settings(key=False)), "can_open": self.can,
-                "sell_all_ts": self.sell_all_ts, "requests": self.requests, "quote": self.quotes.get,
+        of = lambda n: self.st.get(n, settings(key=False))  # noqa: E731 -- the watcher's settings.of
+        return {"now": self.now, "settings": of, "can_open": self.can, "sell_all_ts": self.sell_all_ts,
+                "keys_hold": keys_hold(self.keys, of), "quote": self.quotes.get,
                 "cap": lambda s: self.caps.get(s, 50e9), "held": lambda s, side: self.held.get((s, side), 0.0),
                 "short_closed": lambda now: self.short_closed, "answers": self.answers,
                 "no_reentry": self.no_reentry}
@@ -97,7 +101,6 @@ class World:
         out = decide(self.snap, ans, self.book, self.ctx())
         self.snap = out["snapshot"]
         self.answers = {}
-        self.requests = {}
         for a in out["actions"]:
             if a["kind"] == "step" and fill:
                 pos = self.book.get(a["pos_id"])
@@ -547,17 +550,85 @@ def test_entry_and_exit_on_you_only_watches():
 
 
 # -- the operator's switches and the desk ----------------------------------------------------------
-def test_turning_a_key_off_or_the_bot_off_sells():
+KEYS = {"bot_switch": (LT_BOT_OFF, "the Bot switch in the header is off"),
+        "family": (LT_FAMILY_OFF, "the LiveTrader Bots key is off"),
+        "host_key": (LT_KEY_OFF, None)}
+
+
+def turn(w, which, on):
+    """One of the three keys a host's bot reads (operator decision 2026-10-15): the Bot switch, the LiveTrader Bots
+    key, the host's own. A switch or family key off also stops opens (``can_open`` reads them first)."""
+    if which == "host_key":
+        w.st[HOST]["key"] = on
+        return
+    code, why = KEYS[which]
+    w.keys = w.can = {"ok": True, "code": None, "why": None} if on else {"ok": False, "code": code, "why": why}
+
+
+@pytest.mark.parametrize("which", list(KEYS))
+def test_a_key_off_sells_nothing_and_places_no_order(which):
+    """Off at any level places no order, not even the host's close: said once, made when the keys are back on."""
     w = World()
     watching(w, row(entry_ts=NOW))
-    w.requests = {"sell_hosts": {HOST: "key_off"}}
-    out = w.at(5).run(answer({HOST: [row(entry_ts=NOW)]}, feed_now=NOW + 5))
-    assert kinds(out, "close")[0]["change"]["kind"] == "key_off"
+    assert len(w.book) == 1
+    turn(w, which, False)
+    closed = row(entry_ts=NOW, status="closed", exit_ts=NOW + 4)
+    out = w.at(5).run(answer({HOST: [closed]}, feed_now=NOW + 5))
+    assert kinds(out, "close") == [] and kinds(out, "step") == [] and len(w.book) == 1
+    (tell,) = kinds(out, "tell")
+    assert "not sold" in tell["why"] and (KEYS[which][0] if which != "host_key" else "Bot key") in (
+        tell["why"] + str(out["waits"]))
+    out = w.at(7).run(answer({HOST: [closed]}, feed_now=NOW + 7))
+    assert kinds(out, "tell") == [] and kinds(out, "close") == []        # said once
+    turn(w, which, True)
+    out = w.at(9).run(answer({HOST: [closed]}, feed_now=NOW + 9))
+    assert kinds(out, "close")[0]["change"]["kind"] == "close" and w.book == {}
+
+
+@pytest.mark.parametrize("which", list(KEYS))
+def test_a_key_off_holds_even_the_sell_all_time(which):
     w = World()
     watching(w, row(entry_ts=NOW))
-    w.requests = {"sell_all": "bot_off"}
+    turn(w, which, False)
+    w.sell_all_ts = NOW + 4
     out = w.at(5).run(answer({HOST: [row(entry_ts=NOW)]}, feed_now=NOW + 5))
-    assert kinds(out, "close")[0]["change"]["kind"] == "bot_off"
+    assert kinds(out, "close") == [] and len(w.book) == 1
+    turn(w, which, True)
+    out = w.at(6).run(answer({HOST: [row(entry_ts=NOW)]}, feed_now=NOW + 6))
+    assert kinds(out, "close")[0]["change"]["kind"] == "sell_all"
+
+
+@pytest.mark.parametrize("which", list(KEYS))
+def test_an_add_made_while_a_key_is_off_is_skipped_and_never_bought_later(which):
+    w = World()
+    base = row(entry_ts=NOW)
+    watching(w, base)
+    turn(w, which, False)
+    added = dict(base, price=99.5, adds=[_add(NOW + 30, 99.5, 100.0)])
+    w.quotes["XYZ"] = {"last": 99.4, "bid": 99.38, "ask": 99.42, "fresh": True}
+    out = w.at(36).run(answer({HOST: [added]}, feed_now=NOW + 36))
+    assert kinds(out, "step") == []
+    if which == "host_key":
+        assert [s["code"] for s in kinds(out, "skip")] == [LT_KEY_OFF]
+    else:
+        assert [s["code"] for s in kinds(out, "skip")] == [KEYS[which][0]]
+    turn(w, which, True)
+    out = w.at(40).run(answer({HOST: [added]}, feed_now=NOW + 40))
+    assert kinds(out, "step") == []                                      # the add made while off stays skipped
+    assert w.book[next(iter(w.book))]["adds_followed"] == 0
+
+
+def test_all_three_keys_on_is_the_only_way_a_host_bot_buys():
+    for switch in (True, False):
+        for family in (True, False):
+            for own in (True, False):
+                w = World(key=own)
+                if not switch:
+                    turn(w, "bot_switch", False)
+                elif not family:
+                    turn(w, "family", False)
+                steps = kinds(watching(w, row(entry_ts=NOW)), "step")
+                assert bool(steps) == (switch and family and own), (switch, family, own)
 
 
 def test_a_bot_that_cannot_open_skips_once_and_takes_it_already_open_later():
@@ -922,13 +993,14 @@ def test_the_clock_and_the_operator_never_wait_on_a_blank_bar():
     assert {c["change"]["kind"] for c in kinds(out, "close")} == {"sell_all"} and len(kinds(out, "close")) == 2
     assert kinds(out, "note") == [] and out["waits"] == {}             # no word of a wait for a sell already sent
 
-    w2 = World()
+    w2 = World()                                                        # a key off: nothing is sold, blank or not
     a, b = two_held(w2)
     gone = blanked([a, b], NOW + 100)
     w2.at(101).run(answer({HOST: gone}, feed_now=NOW + 101, bars={HOST: []}))
-    w2.requests = {"sell_hosts": {HOST: True}}
+    w2.st[HOST]["key"] = False
+    w2.sell_all_ts = NOW + 102
     out = w2.at(103).run(answer({HOST: gone}, feed_now=NOW + 103, bars={HOST: []}))
-    assert {c["change"]["kind"] for c in kinds(out, "close")} == {"key_off"} and len(kinds(out, "close")) == 2
+    assert kinds(out, "close") == [] and len(w2.book) == 2
 
 
 @pytest.mark.parametrize("case", ["apart", "one_left", "bar_not_empty", "no_bar"])

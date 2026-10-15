@@ -114,7 +114,7 @@ export const NOVA_OS_ATTENTION_MUTED_DEFAULT = false;
 /** Plain-language subtitles for the attention strip event kinds. */
 export const NOVA_OS_ATTENTION_COPY: Record<string, string> = {
   risk_halt: 'Walk-away rule hit — see Journal › Risk. It does not block manual or bot orders.',
-  kill: 'Kill switch tripped — every new order is blocked until you reset it on the Bots page.',
+  kill: 'Kill switch tripped — every new order is blocked until you reset it on Strategy Bots.',
   archive_fail: 'Archive upload failed for a prior day — see Archive health.',
 };
 

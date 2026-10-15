@@ -10,10 +10,12 @@ import {
 import {
   armBotSession,
   disarmBotSession,
+  setBotFamilyKey,
   switchBotSession,
   patchBotSession,
   resolveProposal,
 } from './api';
+import type { BotFamily } from './types';
 
 const EMPTY = {
   session: null,
@@ -87,6 +89,19 @@ export function useBotSession(pollMs = 0) {
     }
   }, []);
 
+  /** A family's key (2026-10-15). A refusal (Live, an unreadable file) comes back in the backend's words. */
+  const setKey = useCallback(async (family: BotFamily, on: boolean) => {
+    setBusy(true);
+    try {
+      return await runBotSessionWrite(() => setBotFamilyKey(family, on));
+    } catch (err) {
+      setBotSessionError(err instanceof Error ? err.message : 'bot key failed');
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
   const resolve = useCallback(async (id: string, action: 'accept' | 'reject') => {
     setBusy(true);
     try {
@@ -110,6 +125,7 @@ export function useBotSession(pollMs = 0) {
     activate,
     stop,
     setSwitch,
+    setKey,
     resolve,
   };
 }

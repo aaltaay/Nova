@@ -121,7 +121,8 @@
   gap: 8px;
 }
 
-.nav-rail__child .scanner-side-nav__icon-svg {
+.nav-rail__child .scanner-side-nav__icon-svg,
+.nav-rail__child .nav-rail__icon-svg {
   width: 15px;
   height: 15px;
 }
@@ -301,7 +302,8 @@
   height: 20px;
 }
 
-.nav-rail--collapsed .nav-rail__child .scanner-side-nav__icon-svg {
+.nav-rail--collapsed .nav-rail__child .scanner-side-nav__icon-svg,
+.nav-rail--collapsed .nav-rail__child .nav-rail__icon-svg {
   width: 17px;
   height: 17px;
 }

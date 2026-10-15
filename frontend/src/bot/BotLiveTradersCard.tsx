@@ -1,10 +1,9 @@
 /**
- * "Live Traders · TraderTV" (ADR 055, mockup v1 approved 2026-10-14), at the very top of the TraderTV LIVE page
- * above the hosts' blocks (ADR 044 amendment, 2026-10-15; the bot barrel's lazy `LiveTradersPanel`): one
- * card per host the TraderTV bar shows, each a bot of its own -- Paper only, never Live. Above the cards, one line
- * says what stops every host's bot now (the desk off Paper, the Bot switch off, Freeze all orders, the feed), so no
- * blocker is silent; when its control is on the Bots page, the line links there. A desk with no TraderTV feed says
- * so in one line.
+ * "Live Traders · TraderTV" (ADR 055, mockup v1 approved 2026-10-14) on Bots > LiveTrader Bots, under the LiveTrader
+ * Bots key (operator decision 2026-10-15): one card per host the TraderTV bar shows, each a bot of its own -- Paper
+ * only, never Live. Above the cards, one line says what stops every host's bot now (the desk off Paper, the Bot switch
+ * in the header, the LiveTrader Bots key, Freeze all orders, the feed), so no blocker is silent; Freeze all orders is
+ * on Strategy Bots, so that line links there. A desk with no TraderTV feed says so in one line.
  */
 import { useState } from 'react';
 import {
@@ -51,7 +50,7 @@ export function BotLiveTradersCard() {
     write(name, () => answerLiveTraderAsk(name, ask.id, approve));
 
   const blocker = view && view.enabled && !view.can_trade.ok ? view.can_trade.why : null;
-  // A book that cannot be written also reads LT_BOT_OFF; its own alert says so, and the Bots page cannot fix it.
+  // Freeze all orders is on Strategy Bots: that blocker links there. A book that cannot be written says so itself.
   const onBotsPage = blocker && !view?.book_error && LT_BOTS_PAGE_CODES.includes(view?.can_trade.code ?? '');
   return (
     <section className="lt-card" id={LT_ANCHOR} data-testid="bots-live-traders">
@@ -71,7 +70,7 @@ export function BotLiveTradersCard() {
           {onBotsPage ? (
             <>
               {' '}
-              <button type="button" className="lt-linkbtn" data-testid="lt-open-bots" onClick={() => setNavPage('bots')}
+              <button type="button" className="lt-linkbtn" data-testid="lt-open-bots" onClick={() => setNavPage('bots-strategy')}
                 {...tipProps(LT_OPEN_BOTS_TIP, LT_OPEN_BOTS)}>
                 {LT_OPEN_BOTS}
               </button>

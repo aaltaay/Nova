@@ -29,7 +29,7 @@ from main import app
 from tests.bot_helpers import headers, on_practice
 
 client = TestClient(app)
-GATE_IDS = ["venue", "level", "setups", "padlock", "allowlist", "depth_lines", "loss_limit",
+GATE_IDS = ["venue", "level", "setups", "padlock", "strategy_key", "allowlist", "depth_lines", "loss_limit",
             "kill_switch", "window", "daily_cap", "extended_hours", "commissions"]
 
 
