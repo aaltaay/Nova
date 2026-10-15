@@ -575,7 +575,9 @@ check not settled, the host's average over `LT_MISREAD_PCT` (1.5%) from the mark
 a market cap under `LARGE_CAP_MIN` ($10B) or unknown, no fresh quote, the allowance, the adds, shorts off,
 the account holding the other side (or the bot holding the other side for another host), outside the short
 hours, the desk off Paper, the Bot switch off, Freeze all orders, after the sell-all time. A wait (the quote
-line, the market cap, the ticker check) turns into its skip after `LT_WAIT_SEC` (30). Closes are never held.
+line, the market cap, the ticker check) turns into its skip after `LT_WAIT_SEC` (30). Closes are never held
+for a doubt -- a late read is still a true one; with no answer at all they wait for one, and `LT_HIDDEN_SEC`
+without a read sells everything.
 
 **Settings** (`live-trader-bots.json` in the operator cache; owner `bot/live_trader/settings.py`; written
 through a temp file and a rename; an unknown version or an unreadable file refuses loud: every host reads

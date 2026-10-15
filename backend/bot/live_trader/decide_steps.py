@@ -1,0 +1,340 @@
+"""The Live Trader bot's steps: an entry, a position already open, an add -- or a skip or an ask (ADR 055). Pure.
+
+``decide`` calls it after the closes. Per host with its key on, in the feed's order, each open row the bot does
+not hold is one entry decision, remembered in the snapshot so it is made once: ``taken``, ``skipped``, ``noted``
+(Entry and Exit on You: the bot only watches), ``asked`` (Entry on You, Exit on Bot: the operator approves),
+``waiting`` (a quote, a market cap or a ticker check), ``blocked`` (the bot could not open when the row was
+first seen) or ``released`` (the bot sold it off air or while the bar was hidden). A blocked or released row,
+and every open row when the key turns on or the host comes back on air, is already open: ``take_open`` decides.
+A held position follows its host's adds, one settled add at a time (``feed_rows.add_groups``), up to ``adds``.
+Shapes: architecture/schema/bot.md ("The Live Trader bot").
+"""
+from __future__ import annotations
+
+from typing import Any
+
+from bot.live_trader import feed_rows, rules
+from bot.live_trader.constants_live_trader import (
+    LT_ADDS_DONE,
+    LT_AFTER_SELL_ALL,
+    LT_ALREADY_OPEN,
+    LT_ASK_EXPIRED,
+    LT_ASK_SEC,
+    LT_ASK_SKIPPED,
+    LT_HIDDEN,
+    LT_OFF_AIR,
+    LT_OPEN_FRESH_SEC,
+)
+from bot.live_trader.decide_closes import hms
+from constants_stock_mode import STOCK_MODE_APPROVE, STOCK_MODE_SIGNAL
+from followed_traders.pricing import priceable
+from stock_mode.model import mode_of
+
+STEP_KINDS = ("entry", "already_open", "add")
+
+
+def used_by_host(book: dict[str, dict[str, Any]]) -> dict[str, float]:
+    """Each host's dollars in the market: what its positions cost, and its steps in flight at their limits."""
+    out: dict[str, float] = {}
+    for p in book.values():
+        cost = float(p.get("cost_usd") or 0.0)
+        order = p.get("order") or {}
+        if order.get("step") in STEP_KINDS and order.get("qty") and order.get("limit"):
+            cost += float(order["qty"]) * float(order["limit"])
+        out[p["host"]] = out.get(p["host"], 0.0) + cost
+    return out
+
+
+def verb(side: str, past: bool = False) -> str:
+    if side == "short":
+        return "shorted" if past else "short"
+    return "bought" if past else "buy"
+
+
+def _blocked(ctx: dict[str, Any], flags: dict[str, Any], on_air: bool, name: str) -> tuple[str, str] | None:
+    can = ctx["can_open"]
+    if not can["ok"]:
+        return can["code"], can["why"]
+    sell_ts = ctx.get("sell_all_ts")
+    if sell_ts is not None and ctx["now"] >= sell_ts:
+        return LT_AFTER_SELL_ALL, f"it is past {hms(sell_ts)[:5]} ET: no new positions until the next session"
+    if flags["doubt"] is not None:
+        return flags["doubt"]
+    if flags["bar_hidden"]:
+        return LT_HIDDEN, "the bar is hidden: no read of it now"
+    if not on_air:
+        return LT_OFF_AIR, f"{name} is off air"
+    return None
+
+
+def _against(book: dict[str, dict[str, Any]], ctx: dict[str, Any], side: str, symbol: str) -> str | None:
+    other = "short" if side == "long" else "long"
+    for p in book.values():
+        if p["symbol"] == symbol and p["side"] == other:
+            return f"the bot holds {symbol} {other} for {p['host']}: Nova never holds both sides"
+    held = ctx["held"](symbol, other)
+    if held is None:
+        return f"Paper's {symbol} position could not be read, so the bot cannot tell it is not against one"
+    if held > 0:
+        return f"you hold {symbol} {other} on Paper ({held:g} shares): the bot never trades against a position"
+    return None
+
+
+class _Pass:
+    """One pass's steps for one host: the context, the snapshot and the running allowance."""
+
+    def __init__(self, snap, answer, book, ctx, out, used):
+        self.snap, self.answer, self.book, self.ctx, self.out, self.used = snap, answer, book, ctx, out, used
+        self.now = ctx["now"]
+        self.feed_now = answer.get("feed_now")
+
+    # -- shared --------------------------------------------------------------------------------------
+    def check(self, name, st, side, symbol, their_price, ticker, since, *, entry: bool) -> dict[str, Any]:
+        self.out["symbols"].add(symbol)
+        self.out["caps"].add(symbol)
+        return rules.check(side=side, symbol=symbol, their_price=their_price, settings=st,
+                           quote=self.ctx["quote"](symbol), cap=self.ctx["cap"](symbol), ticker=ticker,
+                           used_usd=self.used.get(name, 0.0),
+                           against=_against(self.book, self.ctx, side, symbol) if entry else None,
+                           short_closed=self.ctx["short_closed"](self.now) if side == "short" else None,
+                           priceable=priceable(symbol), now=self.now, wait_since=since)
+
+    def skip(self, name, r, pid, step, code, why, change) -> None:
+        self.out["actions"].append({"kind": "skip", "host": name, "pos_id": pid, "row_id": r["id"],
+                                    "symbol": r["symbol"], "side": r["side"], "step": step, "code": code,
+                                    "why": why, "change": change})
+
+    def wait(self, pid, r, v) -> None:
+        self.out["waits"][pid] = {"symbol": r["symbol"], "code": v["code"], "text": v["text"]}
+
+    def send(self, name, r, pid, step, plan, change, *, approved: bool) -> None:
+        self.used[name] = self.used.get(name, 0.0) + plan["cost_usd"]
+        self.out["actions"].append({"kind": "step", "host": name, "pos_id": pid, "row_id": r["id"],
+                                    "symbol": r["symbol"], "side": r["side"], "step": step,
+                                    "qty": plan["qty"], "limit": plan["limit"], "stop": plan["stop"],
+                                    "cost_usd": plan["cost_usd"], "their_price": change["price"],
+                                    "change": change, "approved": approved})
+
+    def note(self, name, r, pid, step, plan, change) -> None:
+        stop = f" with a buy stop {rules.price_text(plan['stop'])}" if plan.get("stop") else ""
+        self.out["actions"].append({"kind": "note", "host": name, "pos_id": pid, "row_id": r["id"],
+                                    "symbol": r["symbol"], "side": r["side"], "step": step, "change": change,
+                                    "why": f"would {verb(r['side'])} {plan['qty']} at {rules.price_text(plan['limit'])}"
+                                           f"{stop} -- Entry and Exit are You: the bot only watches"})
+
+    def ask(self, name, r, pid, step, plan, change) -> str:
+        self.snap["seq"] = int(self.snap.get("seq") or 0) + 1
+        ask_id = f"{name.lower()}-{self.snap['seq']}"
+        price, sym = rules.price_text(change["price"]), r["symbol"]
+        lead = {"entry": f"{name} {verb(r['side'], True)} {sym} at {price}",
+                "already_open": f"{name} holds {sym} {r['side']} at {price} (already open)",
+                "add": f"{name} added to {sym} (average {price})"}[step]
+        stop = f", buy stop {rules.price_text(plan['stop'])}" if plan.get("stop") else ""
+        more = " more" if step == "add" else ""
+        ask = {"id": ask_id, "host": name, "row_id": r["id"], "pos_id": pid, "symbol": sym, "side": r["side"],
+               "step": step, "their_price": change["price"], "qty": plan["qty"], "limit": plan["limit"],
+               "stop": plan["stop"], "created_ts": self.now, "expires_ts": self.now + LT_ASK_SEC,
+               "change": change, "approved": False,
+               "text": f"{lead}: {verb(r['side'])} {plan['qty']}{more} at {rules.price_text(plan['limit'])}{stop}?"}
+        self.snap["asks"][ask_id] = ask
+        self.out["actions"].append({"kind": "ask", "ask": dict(ask)})
+        return ask_id
+
+    def expire_asks(self) -> None:
+        """Asks the operator has not answered in ``LT_ASK_SEC``, said as skips."""
+        for ask_id, ask in list(self.snap["asks"].items()):
+            if ask["approved"] or (self.ctx.get("answers") or {}).get(ask_id) is not None:
+                continue
+            if self.now >= ask["expires_ts"]:
+                why = f"not approved in {LT_ASK_SEC:.0f} s"
+                self.drop_ask(ask_id, why)
+                self.out["actions"].append({"kind": "skip", "host": ask["host"], "pos_id": ask["pos_id"],
+                                            "row_id": ask["row_id"], "symbol": ask["symbol"], "side": ask["side"],
+                                            "step": ask["step"], "code": LT_ASK_EXPIRED, "why": why,
+                                            "change": ask["change"]})
+
+    def drop_ask(self, ask_id: str, why: str) -> None:
+        ask = self.snap["asks"].pop(ask_id, None)
+        if ask is not None:
+            self.out["actions"].append({"kind": "drop_ask", "ask_id": ask_id, "host": ask["host"], "why": why})
+
+    def follow_ask(self, name, st, r, pid, ask_id, blocked, *, entry: bool) -> str:
+        """``taken`` | ``skipped`` | ``asked`` (still waiting on the operator, or approved and waiting)."""
+        ask = self.snap["asks"].get(ask_id or "")
+        if ask is None:
+            return "skipped"
+        change, step = ask["change"], ask["step"]
+        answered = (self.ctx.get("answers") or {}).get(ask_id)
+        if answered is False:
+            self.drop_ask(ask_id, "you skipped it")
+            self.skip(name, r, pid, step, LT_ASK_SKIPPED, "you skipped it", change)
+            return "skipped"
+        if answered is True or ask["approved"]:
+            ask["approved"] = True
+            if blocked:
+                self.drop_ask(ask_id, blocked[1])
+                self.skip(name, r, pid, step, blocked[0], blocked[1], change)
+                return "skipped"
+            v = self.check(name, st, r["side"], r["symbol"], change["price"], r.get("ticker") if entry else None,
+                           ask.get("since"), entry=entry)
+            if v["verdict"] == rules.WAIT:
+                ask["since"] = ask.get("since") or self.now
+                self.wait(pid, r, v)
+                return "asked"
+            self.drop_ask(ask_id, "approved" if v["verdict"] == rules.GO else v["text"])
+            if v["verdict"] == rules.SKIP:
+                self.skip(name, r, pid, step, v["code"], v["text"], change)
+                return "skipped"
+            self.send(name, r, pid, step, v["plan"], change, approved=True)
+            return "taken"
+        if self.now >= ask["expires_ts"]:
+            self.drop_ask(ask_id, f"not approved in {LT_ASK_SEC:.0f} s")
+            self.skip(name, r, pid, step, LT_ASK_EXPIRED, f"not approved in {LT_ASK_SEC:.0f} s", change)
+            return "skipped"
+        return "asked"
+
+    # -- an entry ------------------------------------------------------------------------------------
+    def entry(self, name, st, r, rs, pid, blocked) -> None:
+        change = {"kind": "open" if rs["kind"] == "open" else "already_open", "ts": r["entry_ts"],
+                  "price": r["price"]}
+        step = "entry" if rs["kind"] == "open" else "already_open"
+        if rs["fate"] in ("taken", "skipped", "noted"):
+            return
+        if rs["fate"] == "asked":
+            rs["fate"] = self.follow_ask(name, st, r, pid, rs.get("ask_id"), blocked, entry=True)
+            if rs["fate"] == "taken":
+                self.taken(r, rs)
+            return
+        if blocked:
+            if rs["fate"] not in ("blocked", "released"):
+                self.skip(name, r, pid, step, blocked[0], blocked[1], change)
+                rs["fate"] = "blocked"
+            return
+        if rs["fate"] in ("blocked", "released"):
+            rs.update(fate=None, kind="already_open", since=None)
+            step, change = "already_open", {**change, "kind": "already_open"}
+        if step == "already_open" and not st["take_open"]:
+            rs["fate"] = "skipped"
+            self.skip(name, r, pid, step, LT_ALREADY_OPEN, "already open when watching began, not taken", change)
+            return
+        v = self.check(name, st, r["side"], r["symbol"], r["price"], r.get("ticker"), rs.get("since"), entry=True)
+        if v["verdict"] == rules.WAIT:
+            rs["fate"], rs["since"] = "waiting", rs.get("since") or self.now
+            self.wait(pid, r, v)
+            return
+        if v["verdict"] == rules.SKIP:
+            rs["fate"] = "skipped"
+            self.skip(name, r, pid, step, v["code"], v["text"], change)
+            return
+        mode = mode_of(st["entry"], st["exit"])
+        if mode == STOCK_MODE_SIGNAL:
+            rs["fate"] = "noted"
+            self.note(name, r, pid, step, v["plan"], change)
+        elif mode == STOCK_MODE_APPROVE:
+            rs["fate"], rs["ask_id"] = "asked", self.ask(name, r, pid, step, v["plan"], change)
+        else:
+            rs["fate"] = "taken"
+            self.send(name, r, pid, step, v["plan"], change, approved=False)
+            self.taken(r, rs)
+
+    def taken(self, r, rs) -> None:
+        groups, _pending = feed_rows.add_groups(r["adds"], r["entry_ts"], self.feed_now)
+        rs["groups_done"] = len(groups)        # adds made before the bot held it are not followed
+
+    # -- an add --------------------------------------------------------------------------------------
+    def add(self, name, st, r, rs, pos, blocked) -> None:
+        groups, _pending = feed_rows.add_groups(r["adds"], r["entry_ts"], self.feed_now)
+        if rs.get("groups_done") is None:
+            rs["groups_done"] = len(groups)    # first sight of a held position (a restart): no old add is new
+        if pos["state"] != "open":
+            return                             # its order is in flight: the next pass
+        pid = pos["id"]
+        if rs.get("add_ask_id"):
+            fate = self.follow_ask(name, st, r, pid, rs["add_ask_id"], blocked, entry=False)
+            if fate != "asked":
+                rs["add_ask_id"] = None
+                rs["groups_done"] += 1
+            return
+        if rs["groups_done"] >= len(groups):
+            return
+        g = groups[rs["groups_done"]]
+        change = {"kind": "add", "ts": g["last_ts"], "price": g["to_price"]}
+        limit = st["adds"]
+        if blocked or (limit is not None and pos["adds_followed"] >= limit):
+            code, why = blocked or (LT_ADDS_DONE, f"{name} added to {r['symbol']}: this bot follows "
+                                                  f"{limit} add{'' if limit == 1 else 's'}")
+            rs["groups_done"] += 1
+            self.skip(name, r, pid, "add", code, why, change)
+            return
+        v = self.check(name, st, r["side"], r["symbol"], g["to_price"], None, rs.get("add_since"), entry=False)
+        if v["verdict"] == rules.WAIT:
+            rs["add_since"] = rs.get("add_since") or self.now
+            self.wait(pid, r, v)
+            return
+        rs["add_since"] = None
+        if v["verdict"] == rules.SKIP:
+            rs["groups_done"] += 1
+            self.skip(name, r, pid, "add", v["code"], v["text"], change)
+            return
+        mode = mode_of(st["entry"], st["exit"])
+        if mode == STOCK_MODE_APPROVE:
+            rs["add_ask_id"] = self.ask(name, r, pid, "add", v["plan"], change)
+            return
+        rs["groups_done"] += 1
+        if mode == STOCK_MODE_SIGNAL:
+            self.note(name, r, pid, "add", v["plan"], change)
+        else:
+            self.send(name, r, pid, "add", v["plan"], change, approved=False)
+
+
+def _host_state() -> dict[str, Any]:
+    return {"rows": {}, "keyed": False, "on_air": None}
+
+
+def steps(snap: dict[str, Any], answer: dict[str, Any], book: dict[str, dict[str, Any]], ctx: dict[str, Any],
+          flags: dict[str, Any], out: dict[str, Any]) -> None:
+    run = _Pass(snap, answer, book, ctx, out, used_by_host(book))
+    if answer["state"] != "ok":
+        run.expire_asks()                      # an ask times out with no read of the feed too
+        return
+    closing = {a["pos_id"] for a in out["actions"] if a["kind"] in ("close", "rekey")}
+    no_reentry = ctx.get("no_reentry") or set()
+    for name in answer.get("order") or []:
+        h = answer["hosts"][name]
+        st = ctx["settings"](name)
+        hs = snap["hosts"].setdefault(name, _host_state())
+        on_air = h.get("left_ts") is None
+        came_back = hs.get("on_air") is False and on_air
+        first = bool(st["key"]) and not hs.get("keyed")
+        hs.update(on_air=on_air, keyed=bool(st["key"]))
+        ids = {r["id"] for r in h["rows"]}
+        hs["rows"] = {k: v for k, v in hs["rows"].items() if k in ids}     # today's rows only: memory stays small
+        open_rows = sorted((r for r in h["rows"] if r["status"] == "open" and not r.get("left_bar")),
+                           key=lambda r: r["entry_ts"])
+        open_ids = {r["id"] for r in open_rows}
+        for ask_id, ask in list(snap["asks"].items()):
+            if ask["host"] == name and (not st["key"] or ask["row_id"] not in open_ids):
+                run.drop_ask(ask_id, "the key is off" if not st["key"] else
+                             f"{name} closed {ask['symbol']} before you answered")
+        if not st["key"]:
+            continue
+        blocked = _blocked(ctx, flags, on_air, name)
+        for r in open_rows:
+            pid = feed_rows.position_id(name, r["side"], r["symbol"])
+            rs = hs["rows"].get(r["id"])
+            if rs is None:
+                late = not r["known"] or (run.feed_now is not None
+                                          and run.feed_now - r["entry_ts"] > LT_OPEN_FRESH_SEC)
+                rs = hs["rows"][r["id"]] = {"fate": None, "since": None, "groups_done": None, "ask_id": None,
+                                            "kind": "already_open" if (first or came_back or late) else "open"}
+            elif (first or came_back) and rs["fate"] in (None, "blocked", "released", "waiting"):
+                rs.update(fate=None, kind="already_open", since=None)
+            pos = book.get(pid)
+            if pos is not None:
+                if pos["row_id"] == r["id"] and pid not in closing:
+                    run.add(name, st, r, rs, pos, blocked)
+                continue
+            if pid in closing or r["id"] in no_reentry:
+                continue
+            run.entry(name, st, r, rs, pid, blocked)
+
