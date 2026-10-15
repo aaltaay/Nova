@@ -150,7 +150,7 @@ describe('who trades APUS, above Level 2', () => {
   it('shows every note, toned, the day\'s shared count and the last event -- none hidden behind the first', async () => {
     view = modeWire('bot', {
       notes: [
-        { id: 'not_active', tone: 'warn', text: 'The bot is not active: press Activate on the Bots page.' },
+        { id: 'not_active', tone: 'warn', text: 'The bot is not active: turn on the Bot switch in the header.' },
         { id: 'window', tone: 'warn', text: "The bull flag's bot window is closed (07:00-10:00 ET)." },
         { id: 'sim_waits', tone: 'info', text: 'A Sim trade waits while the desk shows another venue.' },
       ],

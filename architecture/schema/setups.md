@@ -776,7 +776,8 @@ overlap); both add `template: {id, rev, name} | null`.
 when F: is mounted, else `<cache>/eyes`; the file is the wall clock's Eastern
 date), one line per observation: `{schema_version: 1, wall_ts, ts, date,
 source: "live" | "sim" | "backtest", event, symbol, template, rev, playing,
-bot: {level, active, venue} | null, replay?: {date, symbol}, ...}`, where
+bot: {level, active, venue, strategy_key?} | null, replay?: {date, symbol}, ...}`
+(`strategy_key`, the venue's Strategy Bots key, since 2026-10-15: `bot.md`, "The three keys"), where
 `event` is `session | lanes | watch | beat | leg | state | armed | filtered |
 rearmed | near | tape | price | triggered | failed | disarmed | proposal |
 scored` and carries its own fields (`setup` levels, `grade`, `pillars`,

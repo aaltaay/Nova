@@ -39,10 +39,10 @@ function proposingWords(board: Board): string {
   // A setup's own level is capped by the Bots page's master level (ADR 042 draft).
   const known = setups.filter(s => typeof s.effective === 'number');
   if (known.length && known.every(s => (s.effective ?? 0) < 1)) {
-    return 'the Bots page\'s master level is Off: no setup proposes, every one scores in silence';
+    return 'the Bot\'s master level is Off: no setup proposes, every one scores in silence';
   }
   if (known.some(s => (s.effective ?? 0) >= 1)) return 'no proposals on a replay desk';
-  return 'no setup proposes now: the Bots page\'s master level is Off, or this desk replays another moment';
+  return 'no setup proposes now: the Bot\'s master level is Off, or this desk replays another moment';
 }
 
 function statusLine(board: Board | null, connected: boolean, summary: SetupSummary | null): string {

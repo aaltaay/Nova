@@ -11,7 +11,7 @@ import { SAMPLE_WRITE_REFUSAL } from '../sample_data/sampleCopy';
 import { onSampleDesk } from '../sample_data/sampleOrderGuard';
 import { messageFromBotApiBody } from './botApiError';
 import { botUnreadableMessage, parseBotAudit, parseBotProposals, parseBotSession } from './botPayload';
-import type { BotAuditEntry, BotProposal, BotSession } from './types';
+import type { BotAuditEntry, BotFamily, BotProposal, BotSession } from './types';
 
 const BOT = `${API_URL}/bot`;
 
@@ -104,6 +104,17 @@ export async function switchBotSession(on: boolean): Promise<BotSession> {
   if (next.desk_arm_token) writeDeskArmToken(next.desk_arm_token);
   if (!on) writeDeskArmToken(null);
   return next;
+}
+
+/** A family's key on the desk venue (bot.md, "The three keys"): off, its bots place no order, not even a sell. */
+export async function setBotFamilyKey(family: BotFamily, on: boolean): Promise<BotSession> {
+  refuseOnSampleDesk();
+  const res = await novaFetch(`${BOT}/session/keys`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ family, on }),
+  });
+  return (await readJson(res, BOT_LABEL_SESSION)) as BotSession;
 }
 
 export async function disarmBotSession(): Promise<BotSession> {

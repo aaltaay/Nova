@@ -74,7 +74,7 @@ _NO_R_TARGET = ("The R-multiple target left the templates (#845): Target 1, Targ
                 "stop_kind) replaced it.")
 RETIRED: dict[str, str] = {
     "bot_entries_per_day": ("Bot entries a day left the template: one daily cap now covers every Nova automatic "
-                            "entry on a venue -- the sleeve's entries a day (entries_per_day) on the Bots page."),
+                            "entry on a venue -- the sleeve's entries a day (entries_per_day) on Strategy Bots."),
     "target_mode": _NO_R_TARGET,
     "target_r": _NO_R_TARGET,
     "r2g_target_hod": _NO_R_TARGET,

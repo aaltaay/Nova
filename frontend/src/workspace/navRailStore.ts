@@ -15,8 +15,14 @@ import { NAV_RAIL_SELECT_TAB_EVENT } from '../constantGroups/nav_rail';
 import { DEFAULT_ACTIVE_TAB } from './defaultTab';
 import { getModule, isTabModuleId, type ActiveTab, type ModuleCountKey } from './registry';
 
-/** What the dashboard slot shows while Trader is not up. */
-export type NavPage = 'dashboard' | 'market' | 'records' | 'account' | 'bots' | 'cryptos' | 'followed';
+/** What the dashboard slot shows while Trader is not up. Bots is a group (operator decision 2026-10-15): the parent
+ *  page (empty for now) and its two children, LiveTrader Bots and Strategy Bots. */
+export type NavPage =
+  | 'dashboard' | 'market' | 'records' | 'account' | 'bots' | 'bots-live-trader' | 'bots-strategy' | 'cryptos'
+  | 'followed';
+
+/** Every page of the Bots group. */
+export const BOTS_PAGES: readonly NavPage[] = ['bots', 'bots-live-trader', 'bots-strategy'];
 
 /** The registry id the Bots page kept from when it was a dashboard tab (persisted state, visibility). */
 export const BOTS_MODULE_ID = 'strategy';
@@ -113,9 +119,9 @@ export function clearScannerNavState(): void {
  */
 export function requestScannerTab(tab: ActiveTab): void {
   if (!isTabModuleId(tab)) return;
-  // Bots is a shell page now (approved mockup v4): an old request for its tab opens the page.
+  // Bots is a shell page now (approved mockup v4): an old request for its tab opens Strategy Bots, the page it was.
   if (tab === BOTS_MODULE_ID) {
-    setNavPage('bots');
+    setNavPage('bots-strategy');
     return;
   }
   pendingTab = tab;

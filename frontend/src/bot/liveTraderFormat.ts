@@ -12,7 +12,7 @@ import {
   ltShortStopWords,
   ltStepWords,
 } from '../constantGroups/live_trader';
-import type { LtHeld, LtHost, LtSettings } from './liveTraderTypes';
+import type { LtHost, LtSettings } from './liveTraderTypes';
 
 export function usd(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return '—';
@@ -55,11 +55,6 @@ export function sparkPoints(series: [number | null, number][], w: number, h: num
   const step = w / (ys.length - 1);
   const y = (v: number) => Math.round((h - 2 - ((v - lo) / span) * (h - 4)) * 10) / 10;
   return { points: ys.map((v, i) => `${Math.round(i * step)},${y(v)}`).join(' '), zeroY: y(0) };
-}
-
-/** What the bot holds for ``host`` (or every host), for a key's or the Bot switch's question. */
-export function heldBy(held: LtHeld[] | undefined, host?: string): LtHeld[] {
-  return (held ?? []).filter(h => h.qty > 0 && (host === undefined || h.host === host));
 }
 
 export function secondsLeft(expires: number, now: number): number {

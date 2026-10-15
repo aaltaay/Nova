@@ -103,11 +103,11 @@ describe('BotAutonomyCard', () => {
     expect(switches()).toEqual(['{"on":true}']);
   });
 
-  it('opens the Bots page from the Trader', async () => {
+  it('opens Strategy Bots from the Trader', async () => {
     mockFetch(strategySession());
     await mount();
     await click('bot-card-open');
     expect(workspace.showScannerView).toHaveBeenCalledTimes(1);
-    expect(getNavPage()).toBe('bots');
+    expect(getNavPage()).toBe('bots-strategy');
   });
 });

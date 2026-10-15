@@ -2,8 +2,8 @@
 
 ``level`` is the master ceiling and ``setup_levels`` each setup's own (``bot.setup_levels``);
 raising either is configuration, not "go": it needs no Activate token. Lowering the master
-below Strategy, or leaving no setup at Strategy, deactivates an active bot and says why
-(``bot.activation``). The bot's stock list is not written here: it goes through
+below Strategy deactivates an active bot and says why (``bot.activation``); leaving no setup at
+Strategy no longer does (2026-10-15: the Bot switch is the top of three keys, bot.md "The three keys"). The bot's stock list is not written here: it goes through
 ``stock_mode`` (``bot.allowlist``), whose rules every desk button meets.
 """
 from __future__ import annotations
@@ -53,7 +53,6 @@ def apply_patch(
     ``arm_token`` is accepted and ignored (configuration needs no Activate token, ADR 042)."""
     del arm_token
     from bot import activation
-    from bot.setup_levels import at_strategy
 
     if "armed" in body:
         raise BotError(
@@ -88,11 +87,11 @@ def apply_patch(
     if "caps" in body and isinstance(body["caps"], dict):
         changes.extend(("caps", c) for c in _apply_caps(row, body["caps"]))
     deactivated = None
+    # A strategy turned Off no longer turns the Bot switch off (2026-10-15): the switch is the top of three keys, and
+    # with a key off no bot places any order -- a lower key flipping it would also stop the other family's exits.
     if was_active:
         if "level" in body and int(row.get("level") or BOT_LEVEL_OFF) < BOT_LEVEL_STRATEGY:
             deactivated = "level"
-        elif ("level" in body or "setup_levels" in body) and not at_strategy(row)                 and not activation.live_trader_keys():
-            deactivated = "no_setup"
         if deactivated:
             activation.deactivate(row, deactivated)
     saved = save_session(row)
@@ -218,7 +217,7 @@ def assert_can_fire(row: dict[str, Any] | None = None) -> dict[str, Any]:
         )
     if not is_desk_active(current):
         raise BotError(
-            "the bot is not active -- press Activate on the Bots page",
+            "the bot is not active -- turn on the Bot switch in the header",
             409,
             BOT_REASON_NOT_ACTIVE,
         )

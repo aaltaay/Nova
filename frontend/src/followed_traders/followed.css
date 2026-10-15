@@ -323,8 +323,6 @@
 .ft-segmented button.is-on { color: var(--nova-text); background: color-mix(in srgb, var(--ft-accent) 22%, transparent); }
 
 /* The body: the traders' stack beside the stream and the Activity */
-/* The Live Trader bots' panel (bot/, ADR 055) on top: capped, so the board below always keeps room. */
-.ft-lt { flex: none; max-height: 45vh; overflow-y: auto; min-height: 0; }
 .ft-main { flex: 1 1 0; min-height: 0; display: flex; gap: 12px; }
 .ft-main--proof { overflow-y: auto; }
 .ft-board { position: relative; flex: 1 1 0; min-width: 0; min-height: 0; display: flex; }

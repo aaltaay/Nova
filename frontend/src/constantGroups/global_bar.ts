@@ -205,7 +205,7 @@ export const GLOBAL_BAR_EMERGENCY_KILL_TITLE =
 export const GLOBAL_BAR_EMERGENCY_KILL_CONFIRM_TITLE = 'Emergency KILL?';
 export const GLOBAL_BAR_EMERGENCY_KILL_CONFIRM_BODY = [
   'The bot goes to Off and the padlock locks first, so nothing re-enters while the cancel and the flatten run -- then both again after.',
-  'It acts on the venue the desk shows. The kill switch on the Bots page cancels every venue\'s working orders.',
+  'It acts on the venue the desk shows. Freeze all orders on Strategy Bots cancels every venue\'s working orders.',
   '',
   ...GLOBAL_BAR_EMERGENCY_KILL_OPS.map((op) => `- ${op}`),
   '',

@@ -69,7 +69,7 @@ def test_session_get_l0_open_without_key(bot_iso):
                  "hard_lock_until_date"):                     # ADR 056: the loss breakers are gone
         assert gone not in body
     assert [g["id"] for g in body["gates"]] == [
-        "venue", "level", "setups", "padlock", "allowlist", "depth_lines", "loss_limit",
+        "venue", "level", "setups", "padlock", "strategy_key", "allowlist", "depth_lines", "loss_limit",
         "kill_switch", "window", "daily_cap", "extended_hours", "commissions"]
     assert set(body["caps_by_venue"]) == {"live", "paper", "sim"}
     assert body["entries_today"]["count"] == 0 and body["entries_today"]["cap"] == 1

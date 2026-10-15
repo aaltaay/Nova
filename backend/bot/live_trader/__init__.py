@@ -7,5 +7,5 @@ rows and the checks before a step; ``decide`` compares one answer with the last 
 ask, with no clock or I/O of its own; ``orders`` sends through the execution door (ADR 007, origin
 ``live_trader``) and reads Paper's ledger; ``lines`` holds the bot's Level 1 lines (``ibkr.ticks``); ``market``
 reads quotes and market caps; ``watcher`` is the backend loop that ties them; ``view`` and ``routes`` serve the
-Bots page. Schema: architecture/schema/bot.md ("The Live Trader bot").
+Bots > LiveTrader Bots page. Schema: architecture/schema/bot.md ("The Live Trader bot").
 """

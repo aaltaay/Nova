@@ -168,7 +168,9 @@ function wordsFor(g: BotGate, ctx: GateContext): Words {
     case 'level':
       // The master at Strategy is the Bot switch's on (ADR 044).
       return ok ? { text: `${label} on`, why: null }
-        : { text: `${label} off`, why: 'The Bot is off: turn it on in the Bot card.' };
+        : { text: `${label} off`, why: 'The Bot is off: turn the Bot switch on in the header, beside the padlock.' };
+    case 'strategy_key':
+      return ok ? { text: `${label} on`, why: null } : { text: `${label} off`, why: text(d.text) ?? `${label} is off.` };
     case 'setups': {
       const ids = list(d.at_strategy);
       return ok ? { text: `At On · ${setupNames(ids)}`, why: null }

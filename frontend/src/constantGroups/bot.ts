@@ -56,8 +56,8 @@ export const BOT_API_KEY_HINT = 'Need Nova API key to change the bot';
 export const BOT_API_KEY_SAVE = 'Save';
 export const BOT_ERROR_NEED_API_KEY =
   'Need Nova API key -- Desktop and Vite read the same repo NOVA_API_KEY, or save it here';
-export const BOT_ERROR_ARM_REQUIRED = 'The Bot is off -- turn it on on the Bots page first';
-export const BOT_ERROR_NOT_ACTIVE = 'The Bot is off -- turn it on on the Bots page first';
+export const BOT_ERROR_ARM_REQUIRED = 'The Bot is off -- turn on the Bot switch in the header first';
+export const BOT_ERROR_NOT_ACTIVE = 'The Bot is off -- turn on the Bot switch in the header first';
 
 /* ---------- The playbook (ADR 027): the operator's setups ---------- */
 /** Mirrors backend/constants_bot.py BOT_SETUPS. */
@@ -248,6 +248,7 @@ export const BOT_GATE_LABELS: Record<string, string> = {
   level: 'Bot switch',
   setups: 'Strategies at On',
   padlock: 'Padlock',
+  strategy_key: 'Strategy Bots key',
   allowlist: 'Nova-buy stocks',
   depth_lines: 'Depth line',
   loss_limit: 'Loss limit',
@@ -260,7 +261,8 @@ export const BOT_GATE_LABELS: Record<string, string> = {
 /** What each gate checks, on its chip's hover. */
 export const BOT_GATE_TIPS: Record<string, string> = {
   venue: 'Nova\'s bot trades Paper, and Sim at the live edge (the playhead on the wall clock). Live trading by a bot is not built, and a Sim replay is the past, so the bot never trades there. The Bot switch needs this.',
-  level: 'The Bot switch: on, Nova may act on the strategies at On; off, they alert you like Eyes. Each venue keeps its own.',
+  level: 'The Bot switch, in the header beside the padlock: on, Nova may act on the strategies at On; off, no bot places an order and the strategies alert you like Eyes. Each venue keeps its own.',
+  strategy_key: 'The Strategy Bots key, at the top of this page: off, the strategies\' bot and Auto-entry place no order, not even a sell. Each venue keeps its own. Checked on every order.',
   setups: 'At least one strategy set to On on its card. Nova acts only on those strategies\' GO triggers. The Bot switch needs this.',
   padlock: 'The desk padlock (spend arming). It is locked at every start and when anyone locks it, and locking it turns the Bot off. While locked nothing places an order. The Bot switch needs this.',
   allowlist: 'The stocks whose Buy is Bot on this venue (Tickers today, or Who trades on a Trader tab). The bot buys nothing else; the scanners and Eyes still watch every HOD Momo name.',

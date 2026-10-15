@@ -250,7 +250,7 @@ async def execute(
                 return _reject(
                     execution_id, cmd, timings,
                     "Kill switch tripped — every new order on every venue is refused until you reset it "
-                    "on the Bots page. Flatten and cancels still work.",
+                    "on Strategy Bots (Freeze all orders). Flatten and cancels still work.",
                     "KILL_SWITCH",
                 )
             from loss_limit.gate import buy_refusal

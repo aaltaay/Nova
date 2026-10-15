@@ -95,20 +95,6 @@ def test_a_host_key_counts_as_a_strategy_on_paper_only():
     assert activation.live_trader_keys("sim") == []
 
 
-def test_the_operators_off_asks_the_bot_to_sell_and_on_keeps(monkeypatch):
-    asked: list[str] = []
-    monkeypatch.setattr(watcher, "holds_positions", lambda: True)
-    monkeypatch.setattr(watcher, "request_sell_all", lambda reason="bot_off": asked.append(reason))
-    monkeypatch.setattr(watcher, "cancel_sell_all", lambda: asked.append("kept"))
-    set_venue("sim")
-    switch._live_trader(on=False)                 # Sim's switch: the Paper bot's shares are not its own
-    assert asked == []
-    set_venue("paper")
-    switch._live_trader(on=False)
-    switch._live_trader(on=True)
-    assert asked == ["bot_off", "kept"]
-
-
 # -- the files ----------------------------------------------------------------------------------------
 def test_settings_default_to_the_operators_answers_and_check_every_field():
     st = lt_settings.of("ALPHA")

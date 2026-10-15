@@ -17,8 +17,9 @@ The backend clears Activate -- with a ``deactivate`` audit line and the session'
 ``deactivated: {at, reason, text}`` -- on every process start (``clear_on_load`` /
 ``note_start``: spend arming never survives a start either, ADR 018), when anyone locks
 the padlock (``on_disarm``, called from ``ibkr.safety``), on a venue change
-(``bot.venue_levels``), with the master below Strategy or no setup left at Strategy
-(``bot.autonomy``) and by the operator.
+(``bot.venue_levels``), with the master below Strategy (``bot.autonomy``) and by the operator. No setup
+left at Strategy no longer clears it (2026-10-15): the Bot switch is the top of three keys, and with any key off no
+bot places an order, so a lower key must not flip it (bot.md, "The three keys"). Older lines may read ``no_setup``.
 
 ADR 044: the desk shows one Bot switch per venue instead of the master dial and Activate
 (``bot.switch``): ON is the master at Strategy and Activate in one step, refused with

@@ -103,3 +103,12 @@ ABA transitions, queued refresh, sample isolation and explicit Live on the legac
 Paper Gateway. Existing account, Who-trades, confirmation and protective-leg
 checks remain neighbors. This amendment changes frontend ownership, not backend
 spending gates or the held Live-bot decision.
+
+## Amendment, 2026-10-15: nothing left at Strategy no longer clears Activate
+
+Decision 2's "and when nothing is left at Strategy" is withdrawn (ADR 044 amendment of the same date, "the three
+keys"). The Bot switch is now the top of three keys, and with any key off no bot places an order, not even a sell; a
+strategy turned Off (or the last Live Trader host key turned off) clearing Activate would also stop the other bot
+family's exits. Activate is still refused with no setup at Strategy and no host key on, and still cleared on every
+start, a locked padlock, a venue change and the master below Strategy. Older `deactivated` stamps and audit lines may
+read `no_setup`.

@@ -187,7 +187,14 @@ def blockers(event: dict[str, Any], row: dict[str, Any], *, now: float,
     if move is not None:
         out.append((BOT_SKIP_VENUE_CHANGING, leaving_text(move)))
     if not is_desk_active(row):
-        out.append((BOT_SKIP_NOT_ACTIVE, "the bot is not active: turn the Bot switch on (Bots page)"))
+        out.append((BOT_SKIP_NOT_ACTIVE, "the bot is not active: turn the Bot switch on (in the header)"))
+    if readable and venue is not None:
+        from bot import family_keys
+        from constants_bot import BOT_FAMILY_STRATEGY
+
+        family = family_keys.block(BOT_FAMILY_STRATEGY, venue)
+        if family is not None:
+            out.append(family)
     setup_type = setup_of(event)
     level = _level_block(row, setup_type)
     if level is not None:
@@ -343,10 +350,15 @@ def taker(sym: str, setup_type: str) -> str | None:
     from bot.persist import load_session
     from bot.setup_levels import effective
 
+    from bot import family_keys
+    from constants_bot import BOT_FAMILY_STRATEGY
+
     row = load_session()
     if not is_desk_active(row) or effective(row).get(setup_type, 0) < BOT_LEVEL_STRATEGY:
         return None
     if activation.venue_block(*activation.venue_state()) is not None:
+        return None
+    if not family_keys.is_on(BOT_FAMILY_STRATEGY):
         return None
     sym = (sym or "").strip().upper()
     if day_reset() is not None:

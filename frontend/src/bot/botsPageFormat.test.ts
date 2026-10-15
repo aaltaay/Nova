@@ -93,10 +93,10 @@ describe('gate chips (bot/gates.py facts, ADR 042 C)', () => {
   it('explains every gate on hover, and a closed one says why now', () => {
     const open = gateLine(gate('level', true, { level: 2 }));
     expect(open.text).toBe('Bot switch on');
-    expect(open.tip).toMatch(/^The Bot switch: on, Nova may act/);
+    expect(open.tip).toMatch(/^The Bot switch, in the header beside the padlock: on, Nova may act/);
     expect(open.tip).not.toMatch(/Now:/);
     const closed = gateLine(gate('level', false, { level: 1 }));
-    expect(closed.tip).toMatch(/Now: The Bot is off: turn it on in the Bot card\.$/);
+    expect(closed.tip).toMatch(/Now: The Bot is off: turn the Bot switch on in the header, beside the padlock\.$/);
   });
 });
 
@@ -217,7 +217,7 @@ describe('header pill, nav dot and rail card (ADR 044)', () => {
     const restarted = botHeaderState(strategySession({ deactivated: { at: null, reason: 'restart', text: null } }));
     expect(restarted.reason).toBe('Turned off — the backend restarted.');
     const closed = botHeaderState(session({ level: 2, active: true, gates: gates() }));
-    expect(closed.title).toMatch(/2 of 12 gates closed: level, setups/);
+    expect(closed.title).toMatch(/2 of 13 gates closed: level, setups/);
   });
 });
 

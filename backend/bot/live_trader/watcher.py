@@ -15,6 +15,9 @@ and at once when the operator acts on the Bots page (``Wake``):
 It keeps the last decision's snapshot -- the hosts' open rows and what was decided for each -- in memory, a few KB,
 never growing past the day's trades; what it holds is ``book``'s. Every order goes through the execution door, so the
 kill switch (Freeze all orders), the padlock and the daily loss limit's No new buys stop it as they stop any bot.
+With a key off -- the Bot switch, the LiveTrader Bots key or the host's own -- it places no order, not even a sell
+(``keys``; operator decision 2026-10-15): what it holds waits, said once, until the keys are back on or the operator
+sells it. It still takes back its own orders (a step past its TTL, the stops of a position that holds nothing).
 """
 from __future__ import annotations
 
@@ -27,9 +30,11 @@ from typing import Any
 from bot.live_trader import act, answer, book, decide, lines, market, orders, settings
 from bot.live_trader.constants_live_trader import (
     LT_BOT_OFF,
+    LT_FAMILY_OFF,
     LT_LOSS_LIMIT,
     LT_FROZEN,
     LT_IDLE_SEC,
+    LT_KEY_OFF,
     LT_NO_QUOTE,
     LT_POLL_SEC,
     LT_VENUE,
@@ -43,17 +48,15 @@ VENUE_WORDS = {"live": "Live", "paper": "Paper", "sim": "Sim"}
 _lock = threading.Lock()
 _wake = Wake()
 _snapshot: dict[str, Any] | None = None
-_requests: dict[str, Any] = {"sell_hosts": {}, "sell_all": None}
 _answers: dict[str, bool] = {}
 _status: dict[str, Any] = {"running": False, "pass_ts": None, "answer": None, "waits": {}, "can_open": None,
                            "idle": True, "names": [], "names_day": None}
 
 
 def reset_for_tests() -> None:
-    global _snapshot, _requests, _answers, _status
+    global _snapshot, _answers, _status
     with _lock:
         _snapshot = None
-        _requests = {"sell_hosts": {}, "sell_all": None}
         _answers = {}
         _status = {"running": False, "pass_ts": None, "answer": None, "waits": {}, "can_open": None, "idle": True,
                    "names": [], "names_day": None}
@@ -61,24 +64,10 @@ def reset_for_tests() -> None:
     answer.reset_for_tests()
 
 
-# -- what the routes and the Bot switch ask ----------------------------------------------------------
-def request_sell_host(name: str) -> None:
-    """A host's key turned off: its positions are sold on the next pass."""
-    with _lock:
-        _requests["sell_hosts"][name] = "key_off"
+# -- what the routes ask ------------------------------------------------------------------------------
+def wake() -> None:
+    """A key or a setting changed on the desk: the next pass now."""
     _wake.set()
-
-
-def request_sell_all(reason: str = "bot_off") -> None:
-    """The operator turned the Bot switch off: every position is sold on the next pass."""
-    with _lock:
-        _requests["sell_all"] = reason
-    _wake.set()
-
-
-def cancel_sell_all() -> None:
-    with _lock:
-        _requests["sell_all"] = None
 
 
 def answer_ask(ask_id: str, approve: bool) -> bool:
@@ -100,10 +89,6 @@ def asks() -> list[dict[str, Any]]:
 def status() -> dict[str, Any]:
     with _lock:
         return {**_status, "hosts_state": dict(((_snapshot or {}).get("hosts") or {}))}
-
-
-def holds_positions() -> bool:
-    return bool(book.positions())
 
 
 # -- the loop --------------------------------------------------------------------------------------
@@ -158,33 +143,61 @@ async def manage(now: float) -> None:
     await act.clear_stops(now)
 
 
-def can_open() -> dict[str, Any]:
-    """Whether the bot may open or add now, else the first reason (``decide``'s ``can_open``)."""
-    import kill_switch
-    from bot import switch
-    from bot.persist import load_session
-    from ibkr import client
-    from sim.mode import venue
+def _no(code: str, why: str) -> dict[str, Any]:
+    return {"ok": False, "code": code, "why": why}
 
-    def no(code: str, why: str) -> dict[str, Any]:
-        return {"ok": False, "code": code, "why": why}
+
+def keys() -> dict[str, Any]:
+    """Whether the hosts' bots may send any order now -- the desk on Paper, the Bot switch and the LiveTrader Bots
+    key on -- else the first that is not. With one off they place nothing, not even a sell (operator decision
+    2026-10-15); each host's own key is the third (``keys_hold``)."""
+    from bot import family_keys
+    from constants_bot import BOT_FAMILY_LIVE_TRADER, BOT_SKIP_FAMILY_OFF
+    from sim.mode import venue
 
     desk = venue()
     if desk != LT_VENUE:
-        return no(LT_VENUE_CODE, f"the desk is on {VENUE_WORDS.get(desk, desk)}: the Live Trader bot trades Paper only")
+        return _no(LT_VENUE_CODE, f"the desk is on {VENUE_WORDS.get(desk, desk)}: the Live Trader bot trades Paper "
+                                  "only")
+    held = family_keys.hold(BOT_FAMILY_LIVE_TRADER, LT_VENUE)
+    if held is not None:
+        return _no(LT_FAMILY_OFF if held[0] == BOT_SKIP_FAMILY_OFF else LT_BOT_OFF, held[1])
+    return {"ok": True, "code": None, "why": None}
+
+
+def keys_hold(acts: dict[str, Any], settings_of: Any = None) -> Any:
+    """``hold(host)``: ``(code, why)`` while that host's bot may place no order -- ``acts`` (``keys``) not ok, or
+    its own key off -- else None. ``decide`` reads it before every close."""
+    read = settings_of or settings.of
+
+    def hold(host: str) -> tuple[str, str] | None:
+        if not acts["ok"]:
+            return acts["code"], acts["why"]
+        if not read(host)["key"]:
+            return LT_KEY_OFF, f"{host}'s Bot key is off: its bot places no order, not even a sell"
+        return None
+    return hold
+
+
+def can_open() -> dict[str, Any]:
+    """Whether the bot may open or add now, else the first reason (``decide``'s ``can_open``)."""
+    import kill_switch
+    from ibkr import client
+
+    acts = keys()
+    if not acts["ok"]:
+        return acts
     if book.error():
-        return no(LT_BOT_OFF, str(book.error()))
-    if not switch.is_on(load_session()):
-        return no(LT_BOT_OFF, "the Bot switch is off: turn it on to let the hosts' bots trade")
+        return _no(LT_BOT_OFF, str(book.error()))
     if kill_switch.is_tripped():
-        return no(LT_FROZEN, "Freeze all orders is on: no new orders")
+        return _no(LT_FROZEN, "Freeze all orders is on: no new orders")
     from loss_limit.gate import buy_refusal
 
     lock = buy_refusal("BUY", "bot", LT_VENUE)
     if lock is not None:
-        return no(LT_LOSS_LIMIT, str(lock["text"]))
+        return _no(LT_LOSS_LIMIT, str(lock["text"]))
     if not client.is_ready():
-        return no(LT_NO_QUOTE, "IBKR is not connected: Paper fills on IBKR's live feed")
+        return _no(LT_NO_QUOTE, "IBKR is not connected: Paper fills on IBKR's live feed")
     return {"ok": True, "code": None, "why": None}
 
 
@@ -215,17 +228,12 @@ def _short_blocks(a: dict[str, Any]) -> list[tuple[str, str]]:
             if not v.get("ok")]
 
 
-def _context(now: float, positions: dict[str, dict[str, Any]]) -> dict[str, Any]:
+def _context(now: float) -> dict[str, Any]:
     with _lock:
-        holders = {p["host"] for p in positions.values()}
-        _requests["sell_hosts"] = {h: r for h, r in _requests["sell_hosts"].items() if h in holders}
-        if not positions:
-            _requests["sell_all"] = None
-        requests = {"sell_hosts": dict(_requests["sell_hosts"]), "sell_all": _requests["sell_all"]}
         answers = dict(_answers)
         _answers.clear()
     return {"now": now, "settings": settings.of, "can_open": can_open(), "sell_all_ts": sell_all_ts(now),
-            "requests": requests, "quote": market.quote, "cap": market.cap, "held": orders.held,
+            "keys_hold": keys_hold(keys()), "quote": market.quote, "cap": market.cap, "held": orders.held,
             "short_closed": market.short_closed, "answers": answers, "no_reentry": book.no_reentry()}
 
 
@@ -233,10 +241,15 @@ async def tick(now: float | None = None) -> bool:
     """One pass; True while the bot is busy (a key on, a position held, an ask waiting)."""
     global _snapshot
     now = time.time() if now is None else now
+    hold = keys_hold(keys())
     for pos in book.roll_day(_desk_day(now)):
+        held = hold(pos["host"])
         act.note({"kind": "stale_day", "host": pos["host"], "row_id": pos["row_id"], "symbol": pos["symbol"],
                   "side": pos["side"], "step": "stale_day",
-                  "why": "held from an earlier day: sold at once, the bot never holds overnight"}, now)
+                  "why": "held from an earlier day: sold at once, the bot never holds overnight" if held is None
+                  else f"held from an earlier day: not sold -- {held[1]}"}, now)
+        if held is not None:
+            continue                           # sold once the keys are back on: its row is not on today's bar
         await act.close({"kind": "close", "host": pos["host"], "pos_id": pos["id"], "row_id": pos["row_id"],
                          "symbol": pos["symbol"], "side": pos["side"], "qty": pos["qty"],
                          "why": "held from an earlier day: never overnight",
@@ -251,10 +264,13 @@ async def tick(now: float | None = None) -> bool:
             if names is None:                  # a read that failed keeps the names last read that day
                 names = _status["names"] if _status.get("names_day") == day else []
             _status.update(idle=True, pass_ts=now, answer=None if down is None else summary(down), waits={},
-                           can_open=None, names=names, names_day=day)
+                           names=names, names_day=day)
+        can = can_open()                       # idle too: the cards say what would stop a key turned on
+        with _lock:
+            _status["can_open"] = can
         return False
     got = await asyncio.to_thread(answer.read, now)
-    ctx = _context(now, positions)
+    ctx = _context(now)
     out = decide.decide(_snapshot, got, positions, ctx)
     with _lock:
         _snapshot = out["snapshot"]

@@ -10,7 +10,7 @@ import { drawnPast, pastCounts } from './pastSetups';
 import type { StockReadContextValue } from './StockReadContext';
 import type { SetupLane } from './types';
 
-const STRATEGY_OFF_WHY = 'This strategy is Off on the Bots page: Nova draws nothing for it. Set it to Eyes or On there.';
+const STRATEGY_OFF_WHY = 'This strategy is Off on Strategy Bots: Nova draws nothing for it. Set it to Eyes or On there.';
 
 /** A lane earns a chip on the legend's row while it is doing something, or is the plan's: shown, not hidden,
  * and its strategy not Off. */

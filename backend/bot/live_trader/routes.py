@@ -1,8 +1,8 @@
 """The Live Trader bot's routes (ADR 055): its cards, the hosts' settings, the answers to its asks. Thin handlers.
 
 Loopback only, like every bot route; writes need the API key. Each answers the cards (``view.build``). A host's key
-turned off while its bot holds positions sells them on the watcher's next pass -- the desk asks first. Shapes:
-architecture/schema/bot.md ("The Live Trader bot").
+turned off sells nothing: its bot places no order at all until it is on again (operator decision 2026-10-15).
+Shapes: architecture/schema/bot.md ("The Live Trader bot").
 """
 from __future__ import annotations
 
@@ -50,18 +50,6 @@ def _audit_settings(host: str, before: dict[str, Any], after: dict[str, Any], ke
         logger.warning("Live Trader bot: the settings line for %s was not written", host, exc_info=True)
 
 
-def _keys_left() -> None:
-    """With no strategy On and no host key left on, the Bot switch goes off, as it does for a strategy (ADR 042)."""
-    from bot import activation
-    from bot.arming import is_desk_active
-    from bot.persist import load_session
-    from bot.setup_levels import at_strategy
-
-    row = load_session()
-    if is_desk_active(row) and not at_strategy(row) and not activation.live_trader_keys():
-        activation.deactivate_now("no_setup", "no strategy is On and no Live Trader key is on any more")
-
-
 @router.get("/api/bot/live-traders")
 def live_traders() -> dict[str, Any]:
     return view.build()
@@ -69,7 +57,7 @@ def live_traders() -> dict[str, Any]:
 
 @router.get("/api/bot/live-traders/asks")
 def live_trader_asks() -> dict[str, Any]:
-    """What every desk window polls for the asks' toasts and the Bot switch's question: memory reads only."""
+    """What every desk window polls for the asks' toasts: memory reads only."""
     return view.asks_now()
 
 
@@ -80,11 +68,9 @@ def patch_host(name: str, body: dict[str, Any] = Body(...)) -> Any:  # noqa: B00
     except SettingsError as exc:
         return _error(exc.status, exc.code, exc.message, exc.field)
     host = name.strip().upper()
-    if before["key"] and not after["key"]:
-        watcher.request_sell_host(host)     # what its bot holds is sold on the next pass (the desk asked first)
     _audit_settings(host, before, after)
-    if before["key"] and not after["key"]:
-        _keys_left()
+    if before["key"] != after["key"]:
+        watcher.wake()                      # off places no order, not even a sell (2026-10-15): the cards now
     return view.build()
 
 

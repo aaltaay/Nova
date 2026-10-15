@@ -1,6 +1,7 @@
 /**
  * Picks what the dashboard slot shows while Trader is not up: the dashboard
- * (children), or the Market / Records / Account / Bots / Cryptos / Followed traders pages the nav rail routes to.
+ * (children), or the Market / Records / Account / Bots (Bots, LiveTrader Bots, Strategy Bots) / Cryptos / Followed
+ * traders pages the nav rail routes to.
  */
 import { lazy, Suspense, type ReactNode } from 'react';
 import { TabLazyFallback } from '../components/TabLazyFallback';
@@ -9,6 +10,10 @@ import { RecordsPage } from './RecordsPage';
 
 const AccountPage = lazy(() => import('./AccountPage').then((m) => ({ default: m.AccountPage })));
 const BotsPage = lazy(() => import('../bot/BotsPage').then((m) => ({ default: m.BotsPage })));
+const BotsGroupPage = lazy(() => import('../bot/BotsGroupPage').then((m) => ({ default: m.BotsGroupPage })));
+const LiveTraderBotsPage = lazy(() =>
+  import('../bot/LiveTraderBotsPage').then((m) => ({ default: m.LiveTraderBotsPage })),
+);
 const CryptosPage = lazy(() => import('../cryptos').then((m) => ({ default: m.CryptosPage })));
 const FollowedTradersPage = lazy(() =>
   import('../followed_traders').then((m) => ({ default: m.FollowedTradersPage })),
@@ -51,7 +56,22 @@ export function NavPageHost({ onOpenTrader, children }: Props) {
       </Suspense>
     );
   }
+  // Bots is a group (operator decision 2026-10-15): Bots itself is empty for now; Strategy Bots is the page that was Bots.
   if (page === 'bots') {
+    return (
+      <Suspense fallback={<TabLazyFallback />}>
+        <BotsGroupPage />
+      </Suspense>
+    );
+  }
+  if (page === 'bots-live-trader') {
+    return (
+      <Suspense fallback={<TabLazyFallback />}>
+        <LiveTraderBotsPage />
+      </Suspense>
+    );
+  }
+  if (page === 'bots-strategy') {
     return (
       <Suspense fallback={<TabLazyFallback />}>
         <BotsPage />
