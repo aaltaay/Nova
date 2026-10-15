@@ -17,6 +17,8 @@ from bot.live_trader.constants_live_trader import (
     LT_ALREADY_OPEN,
     LT_ASK_EXPIRED,
     LT_ASK_SKIPPED,
+    LT_BLANK_BAR,
+    LT_BLANK_HOLD_SEC,
     LT_BOT_OFF,
     LT_CAP_UNKNOWN,
     LT_FEED_BEHIND,
@@ -24,6 +26,8 @@ from bot.live_trader.constants_live_trader import (
     LT_NO_CLOCK,
     LT_NO_QUOTE,
     LT_OTHER_HOST,
+    LT_RETURN_HOLD_SEC,
+    LT_RETURN_SWITCH,
     LT_ROW_UNREAD,
     LT_SHORT_HOURS,
     LT_SHORTS_OFF,
@@ -43,12 +47,15 @@ def row(symbol="XYZ", *, host=HOST, side="long", price=100.0, entry_ts=NOW - 3, 
             "adds": [dict(a) for a in adds], "exit_ts": exit_ts, "left_bar": left_bar, "ticker": ticker}
 
 
-def answer(hosts=None, *, left=None, feed_now=None, age=1.0, behind=2.0, visible=True, live=True, state="ok"):
+def answer(hosts=None, *, left=None, feed_now=None, age=1.0, behind=2.0, visible=True, live=True, state="ok",
+           bars=None):
+    """``bars``: each host's bar as the feed confirmed it (``["side:SYMBOL"]``; absent: the feed sends none)."""
     hosts = {HOST: []} if hosts is None else hosts
     return {"state": state, "error": None if state == "ok" else "could not connect", "date": "2026-10-15",
             "feed_now": NOW if feed_now is None else feed_now, "read_age_sec": age, "behind_sec": behind,
             "live": live, "bar_visible": visible, "order": list(hosts),
-            "hosts": {n: {"left_ts": (left or {}).get(n), "rows": rows} for n, rows in hosts.items()}}
+            "hosts": {n: {"left_ts": (left or {}).get(n), "rows": rows, "bar": (bars or {}).get(n)}
+                      for n, rows in hosts.items()}}
 
 
 def settings(**over):
@@ -330,7 +337,7 @@ def test_off_air_sells_every_position_of_that_host():
     assert all(a["change"]["kind"] == "off_air" for a in kinds(out, "close"))
 
 
-def test_back_on_air_their_bar_is_already_open():
+def test_back_on_air_their_bar_is_already_open_once_the_switch_wait_ends():
     w = World()
     r = row(entry_ts=NOW)
     watching(w, r)
@@ -338,6 +345,10 @@ def test_back_on_air_their_bar_is_already_open():
                          feed_now=NOW + 170))
     assert w.book == {}
     out = w.at(400).run(answer({HOST: [r]}, feed_now=NOW + 400))
+    assert kinds(out, "step") == [] and {v["code"] for v in out["waits"].values()} == {LT_RETURN_SWITCH}
+    (said,) = kinds(out, "note")
+    assert "previous host's rows" in said["why"]
+    out = w.at(400 + LT_RETURN_HOLD_SEC).run(answer({HOST: [r]}, feed_now=NOW + 400 + LT_RETURN_HOLD_SEC))
     (step,) = kinds(out, "step")
     assert step["step"] == "already_open"
 
@@ -823,3 +834,147 @@ def test_other_host_matches_any_average_to_the_cent():
     assert feed_rows.other_host(HOST, mine, hosts, set()) == (OTHER, 100.0)
     assert feed_rows.other_host(HOST, dict(mine, side="short"), hosts, set()) is None
     assert feed_rows.other_host(HOST, mine, {HOST: {"rows": [mine]}}, {("long", "XYZ", 100.0)}) == (None, 100.0)
+
+
+# -- the bar's own moves (decide_bar): a blank bar, a hand-over that lingers --------------------------
+def two_held(w):
+    w.quotes["ABCD"] = {"last": 50.0, "bid": 49.99, "ask": 50.01, "fresh": True}
+    a, b = row(entry_ts=NOW), row("ABCD", price=50.0, entry_ts=NOW + 5)
+    watching(w, a, b, after=6)
+    assert set(w.book) == {f"{HOST}|long|XYZ", f"{HOST}|long|ABCD"}
+    return a, b
+
+
+def blanked(rows, ts):
+    """Every row closed within the same second: the bar went blank."""
+    return [dict(r, status="closed", exit_ts=ts + i * 0.5) for i, r in enumerate(rows)]
+
+
+def test_a_whole_bar_blank_holds_the_sells_and_positions_back_at_their_averages_are_the_same():
+    w = World()
+    a, b = two_held(w)
+    gone = blanked([a, b], NOW + 100)
+    out = w.at(101).run(answer({HOST: gone}, feed_now=NOW + 101, bars={HOST: []}))
+    assert kinds(out, "close") == [] and len(w.book) == 2
+    assert {v["code"] for v in out["waits"].values()} == {LT_BLANK_BAR}
+    assert {n["symbol"] for n in kinds(out, "note")} == {"XYZ", "ABCD"}
+    assert all("went blank" in n["why"] for n in kinds(out, "note"))
+    assert kinds(w.at(150).run(answer({HOST: gone}, feed_now=NOW + 150, bars={HOST: []})), "close") == []
+
+    a2, b2 = row(entry_ts=NOW + 160), row("ABCD", price=50.0, entry_ts=NOW + 160.5)
+    back = answer({HOST: gone + [a2, b2]}, feed_now=NOW + 161, bars={HOST: ["long:ABCD", "long:XYZ"]})
+    first = w.at(161).run(back)
+    assert kinds(first, "close") == [] and kinds(first, "step") == []     # the rest get a moment to come back
+    out = w.at(166).run(dict(back, feed_now=NOW + 166))
+    assert kinds(out, "close") == [] and kinds(out, "step") == []
+    assert {r["row_id"] for r in kinds(out, "rekey")} == {a2["id"], b2["id"]}
+    assert all("very average" in r["why"] for r in kinds(out, "rekey"))
+    later = w.at(170).run(dict(back, feed_now=NOW + 170))
+    assert kinds(later, "close") == [] and kinds(later, "step") == []    # not bought again either
+
+    added = dict(a2, price=99.7, adds=[{"ts": NOW + 200, "price": 99.7, "prev_price": 100.0}])
+    out = w.at(210).run(answer({HOST: gone + [added, b2]}, feed_now=NOW + 210, bars={HOST: ["long:XYZ"]}))
+    (step,) = kinds(out, "step")
+    assert step["step"] == "add" and step["symbol"] == "XYZ"            # the same position follows its adds
+
+
+def test_after_a_blank_a_position_not_back_at_its_average_is_sold_when_the_bar_returns():
+    w = World()
+    a, b = two_held(w)
+    gone = blanked([a, b], NOW + 100)
+    w.at(101).run(answer({HOST: gone}, feed_now=NOW + 101, bars={HOST: []}))
+    a2, b2 = row(entry_ts=NOW + 160), row("ABCD", price=50.40, entry_ts=NOW + 160)
+    out = w.at(170).run(answer({HOST: gone + [a2, b2]}, feed_now=NOW + 170,
+                               bars={HOST: ["long:ABCD", "long:XYZ"]}))
+    (close,) = kinds(out, "close")
+    assert close["symbol"] == "ABCD" and "without ABCD long at 50.00" in close["why"]
+    (rekey,) = kinds(out, "rekey")
+    assert rekey["symbol"] == "XYZ" and rekey["row_id"] == a2["id"]
+
+
+def test_a_bar_that_stays_blank_past_the_limit_is_sold():
+    w = World()
+    a, b = two_held(w)
+    gone = blanked([a, b], NOW + 100)
+    w.at(101).run(answer({HOST: gone}, feed_now=NOW + 101, bars={HOST: []}))
+    early = NOW + 100 + LT_BLANK_HOLD_SEC - 2
+    assert kinds(w.at(early - NOW).run(answer({HOST: gone}, feed_now=early, bars={HOST: []})), "close") == []
+    late = NOW + 101 + LT_BLANK_HOLD_SEC
+    out = w.at(late - NOW).run(answer({HOST: gone}, feed_now=late, bars={HOST: []}))
+    assert {c["symbol"] for c in kinds(out, "close")} == {"XYZ", "ABCD"}
+    assert all("stayed empty" in c["why"] for c in kinds(out, "close")) and w.book == {}
+
+
+def test_the_clock_and_the_operator_never_wait_on_a_blank_bar():
+    w = World()
+    a, b = two_held(w)
+    gone = blanked([a, b], NOW + 100)
+    w.at(101).run(answer({HOST: gone}, feed_now=NOW + 101, bars={HOST: []}))
+    w.sell_all_ts = NOW + 110
+    out = w.at(111).run(answer({HOST: gone}, feed_now=NOW + 111, bars={HOST: []}))
+    assert {c["symbol"] for c in kinds(out, "close")} == {"XYZ", "ABCD"}
+    assert all(c["change"]["kind"] == "sell_all" for c in kinds(out, "close"))
+
+    w3 = World()                                                        # a blank first seen as the sell-all comes
+    a, b = two_held(w3)
+    w3.sell_all_ts = NOW + 100
+    out = w3.at(101).run(answer({HOST: blanked([a, b], NOW + 100)}, feed_now=NOW + 101, bars={HOST: []}))
+    assert {c["change"]["kind"] for c in kinds(out, "close")} == {"sell_all"} and len(kinds(out, "close")) == 2
+    assert kinds(out, "note") == [] and out["waits"] == {}             # no word of a wait for a sell already sent
+
+    w2 = World()
+    a, b = two_held(w2)
+    gone = blanked([a, b], NOW + 100)
+    w2.at(101).run(answer({HOST: gone}, feed_now=NOW + 101, bars={HOST: []}))
+    w2.requests = {"sell_hosts": {HOST: True}}
+    out = w2.at(103).run(answer({HOST: gone}, feed_now=NOW + 103, bars={HOST: []}))
+    assert {c["change"]["kind"] for c in kinds(out, "close")} == {"key_off"} and len(kinds(out, "close")) == 2
+
+
+@pytest.mark.parametrize("case", ["apart", "one_left", "bar_not_empty", "no_bar"])
+def test_closes_that_are_not_a_whole_bar_blank_sell_at_once(case):
+    w = World()
+    a, b = two_held(w)
+    rows = blanked([a, b], NOW + 100)
+    bars = {HOST: []}
+    if case == "apart":
+        rows[1]["exit_ts"] = NOW + 103                                   # three seconds apart: the host's own sells
+    elif case == "one_left":
+        rows.append(row("EFGH", price=20.0, entry_ts=NOW + 6))           # a position stayed on the bar
+        bars = {HOST: ["long:EFGH"]}
+    elif case == "bar_not_empty":
+        bars = {HOST: ["long:ABCD"]}
+    else:
+        bars = None                                                     # the feed sends no bar: no blank to see
+    out = w.at(104).run(answer({HOST: rows}, feed_now=NOW + 104, bars=bars))
+    assert {c["symbol"] for c in kinds(out, "close")} == {"XYZ", "ABCD"}
+
+
+def test_after_a_return_the_rows_on_the_bar_wait_for_every_slot_to_switch():
+    w = World()
+    w.quotes["ABCD"] = {"last": 50.0, "bid": 49.99, "ask": 50.01, "fresh": True}
+    w.quotes["EFGH"] = {"last": 20.0, "bid": 19.99, "ask": 20.01, "fresh": True}
+    w.run(answer())
+    w.at(10).run(answer({HOST: []}, left={HOST: NOW + 5}, feed_now=NOW + 10))      # off air (the lunch break)
+    stale = [row(entry_ts=NOW + 100), row("ABCD", price=50.0, entry_ts=NOW + 100)]  # another show's rows, this tag
+    out = w.at(101).run(answer({HOST: stale}, feed_now=NOW + 101))
+    assert kinds(out, "step") == [] and {v["code"] for v in out["waits"].values()} == {LT_RETURN_SWITCH}
+    assert kinds(w.at(250).run(answer({HOST: stale}, feed_now=NOW + 250)), "step") == []
+
+    # Every slot switches in one second: the old rows close and the host's own open as they do.
+    switched = blanked(stale, NOW + 300) + [row("EFGH", price=20.0, entry_ts=NOW + 300.2)]
+    out = w.at(301).run(answer({HOST: switched}, feed_now=NOW + 301, bars={HOST: ["long:EFGH"]}))
+    assert kinds(out, "step") == []                                     # a moment for every slot to switch
+    out = w.at(306).run(answer({HOST: switched}, feed_now=NOW + 306, bars={HOST: ["long:EFGH"]}))
+    (step,) = kinds(out, "step")
+    assert step["symbol"] == "EFGH" and step["step"] == "already_open"   # their position, already open
+    assert not any(a["kind"] == "step" and a["symbol"] in ("XYZ", "ABCD") for a in out["actions"])
+
+
+def test_rows_that_fill_an_empty_bar_together_are_already_open():
+    w = World(take_open=False)
+    w.quotes["ABCD"] = {"last": 50.0, "bid": 49.99, "ask": 50.01, "fresh": True}
+    out = watching(w, row(entry_ts=NOW), row("ABCD", price=50.0, entry_ts=NOW + 0.5))
+    assert kinds(out, "step") == [] and {a["code"] for a in kinds(out, "skip")} == {LT_ALREADY_OPEN}
+    alone = watching(World(take_open=False), row(entry_ts=NOW))
+    assert kinds(alone, "step")[0]["step"] == "entry"                  # one row on its own is a new trade

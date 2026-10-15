@@ -570,7 +570,8 @@ back where it started is none) is one more step up to `adds`; the position leavi
 the bot's whole position; off air (`traders[].seen.left_ts`, 60 s), the bar hidden `LT_HIDDEN_SEC` (600 s;
 also a feed that has not answered or read for as long), and the sell-all time (`sell_all_at`, 15:55 ET; 12:55
 on an early close) sell everything; an entry first seen `LT_OPEN_FRESH_SEC` (60) after it happened, on the
-first answer of a watch, or when the host comes back on air is already open (`take_open`), taken only while the
+first answer of a watch, when the host comes back on air, or that fills an empty bar together with others ("The
+bar's own moves" below) is already open (`take_open`), taken only while the
 host's bar shows it (`status.positions`; a trade the feed still holds open from before they left can be gone from
 it: `LT_NOT_ON_BAR` after the wait). Opens and adds
 skip, each with its reason: the feed `LT_FEED_BEHIND_SEC` (30) behind the stream or silent as long, a ticker
@@ -604,6 +605,33 @@ read, the sell-all time). Beyond the rules above, each with its reason:
   clock reads. It is not a silent feed: it never counts toward `LT_HIDDEN_SEC`.
 - A read the bot cannot make sense of at all (an answer it cannot fold) is a feed that is not answering
   (`LT_FEED_DOWN`, `state: "bad_answer"`): closes wait for a read, and `LT_HIDDEN_SEC` of it sells everything.
+
+**The bar's own moves** (operator, 2026-10-15: hold the sells while a whole bar blanks, up to 90 s; owner
+`bot/live_trader/decide_bar.py`, state in the decision's snapshot, memory only). The bar can change on screen
+without the host trading. The answer carries each host's `bar` as the feed last confirmed it (`status.positions`:
+`["side:SYMBOL"]`, `[]` when it reads empty on both sides, null when the feed sends none).
+
+- **A blank bar** (`LT_BLANK_BAR`): every open position of a host -- two or more -- closes in the feed within
+  `LT_SWITCH_SEC` (1 s) of each other, no other row of theirs open, while their `bar` reads `[]` (or is already
+  back). That is a display refresh: the same positions come back about a minute later at their very averages. The
+  closes of those rows wait, said once per position (a `note`), up to `LT_BLANK_HOLD_SEC` (90 s, the stream's clock
+  or the wall's, whichever is further). Once the bar's first row is back and `LT_BLANK_SETTLE_SEC` (4 s) has passed,
+  a position back at its very average -- side, stock, and its last average to the cent equal to the new row's entry
+  or average -- is the same position: re-keyed to the new row (`rekey`), nothing sold, nothing bought, its adds
+  followed from the new row, and every row back inherits its old row's decision (a skip is not said twice). A
+  position not back is sold then ("the bar came back after the blank without ..."). The bar still empty at the limit:
+  everything is sold ("stayed empty 90 s"). A bar not read empty, closes further apart, a position left open beside
+  them, or no `bar` from the feed: the closes sell at once, as before. While a host's bar is blank, no take of theirs
+  is made. Off air, `LT_HIDDEN_SEC`, the sell-all time, the key and the Bot switch never wait: they sell at once. A
+  real flatten-all that the host makes in one second reads the same way and is sold up to 90 s late.
+- **A hand-over that lingers** (`LT_RETURN_SWITCH`): after a host comes back on air the bar can show the previous
+  host's rows under their name tag until every slot switches at once. The rows the bar shows in the first
+  `LT_RETURN_FIRST_SEC` (30 s) after the return -- until one of them closes -- are not taken (a `note` each) until
+  every one of them has closed (the switch), or `LT_RETURN_HOLD_SEC` (480 s) passes; then they are already open
+  (`take_open`), as any row is. Rows that open later, and rows of a host on air all along, are judged as before.
+- **Rows that fill an empty bar together are already open** (`feed_rows.filled_together`): two or more slots
+  changing within `LT_SWITCH_SEC` onto an empty bar -- rows opening together while every older row of the host has
+  closed by then (a bar back after a blank, the slots switching at a hand-over) -- were already open, not entered.
 
 **Settings** (`live-trader-bots.json` in the operator cache; owner `bot/live_trader/settings.py`; written
 through a temp file and a rename; an unknown version or an unreadable file refuses loud: every host reads
@@ -714,7 +742,8 @@ time of the change. A skip is written once per position, step and code. Codes: `
 `LT_ALLOWANCE`, `LT_ADDS_DONE`, `LT_SHORTS_OFF`, `LT_AGAINST`, `LT_NOT_HELD`, `LT_VENUE`, `LT_BOT_OFF`,
 `LT_FROZEN`, `LT_AFTER_SELL_ALL`, `LT_SHORT_HOURS`, `LT_NOT_PRICEABLE`, `LT_ASK_EXPIRED`, `LT_ASK_SKIPPED`,
 `LT_ALREADY_OPEN`, `LT_OFF_AIR`, `LT_HIDDEN`, `LT_DAY_LOCK`, `LT_NOT_ON_BAR`, `LT_OTHER_HOST`, `LT_ROW_UNREAD`,
-`LT_ADD_IMPLAUSIBLE`, `LT_NO_CLOCK`.
+`LT_ADD_IMPLAUSIBLE`, `LT_NO_CLOCK`. `LT_BLANK_BAR` and `LT_RETURN_SWITCH` are waits, said as `note` lines
+(`step` `blank` for a held sell, `lt_blank_bar` / `lt_return_switch` for a held take), never skips.
 
 **The Bot switch** counts a host key on as a strategy On on Paper (`BOT_NO_SETUP_AT_STRATEGY`: "no
 strategy is On and no Live Trader key is on"); `GET /api/bot/session`'s `setups` gate adds

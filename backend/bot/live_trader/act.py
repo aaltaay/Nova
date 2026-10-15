@@ -213,7 +213,8 @@ async def close(a: dict[str, Any], now: float) -> None:
 def rekey(a: dict[str, Any], now: float) -> None:
     book.rekey(a["pos_id"], a["row_id"])
     note({**a, "kind": "rekey", "step": "rekey",
-          "why": f"the feed reopened {a['host']}'s {a['symbol']}: the same position, nothing sent"}, now)
+          "why": a.get("why") or f"the feed reopened {a['host']}'s {a['symbol']}: the same position, nothing sent"},
+         now)
 
 
 def market_now(symbol: str) -> dict[str, Any] | None:
