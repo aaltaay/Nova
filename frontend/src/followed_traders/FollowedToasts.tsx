@@ -6,12 +6,14 @@
  * the Following page on that trade. Nothing here places or stages an order.
  */
 import { useEffect, useRef, useState } from 'react';
+import { tipProps } from '../ux/hoverTip';
 import { setNavPage } from '../workspace';
 import {
   FOLLOWED_TOAST_MAX,
   FOLLOWED_TOAST_POLL_MS,
   FOLLOWED_TOAST_TTL_MS,
   FT_PROOF,
+  FT_TICKER_CHECK,
   FT_TITLE,
   FT_TOAST_DISMISS,
   FT_TOAST_REGION,
@@ -20,7 +22,7 @@ import { useFollowedTradersEnabled } from './enabledStore';
 import { requestFollowedProof, useFollowedAlerts } from './followedStores';
 import { etTime, price } from './format';
 import { Face } from './parts';
-import { tradeToasts, type TradeToast } from './toastModel';
+import { toastStep, type TradeToast } from './toastModel';
 import type { FollowedDay } from './types';
 import { useFollowedDay } from './useFollowedDay';
 import './followed.css';
@@ -44,6 +46,7 @@ function Toast({ toast, onDismiss, onProof }: { toast: TradeToast; onDismiss: ()
         <span className="ft-strong">
           {toast.trader} {toast.verb} <span className={`ft-side-text ft-side-text--${toast.side}`}>{toast.side.toUpperCase()}</span>{' '}
           {toast.symbol}{toast.price !== null ? ` @ ${price(toast.price)}` : ''}
+          {toast.check && <span className="ft-note ft-note--warn ft-ticker-mark" {...tipProps(toast.check)}>{FT_TICKER_CHECK}</span>}
         </span>
         <span className="ft-small ft-muted">{etTime(toast.ts)} ET · {FT_TITLE}</span>
       </div>
@@ -59,16 +62,22 @@ export function FollowedToasts({ onOpenPage }: { onOpenPage?: () => void }) {
   const active = enabled && alertsOn;
   const { data } = useFollowedDay(null, { quotes: false, everyMs: FOLLOWED_TOAST_POLL_MS, enabled: active });
   const prev = useRef<FollowedDay | null>(null);
+  const held = useRef<ReadonlySet<string>>(new Set()); // trades held back while their ticker is checked
   const [toasts, setToasts] = useState<TradeToast[]>([]);
 
   useEffect(() => {
-    if (!active) prev.current = null; // switched back on: what happened meanwhile is not news
+    if (!active) { // switched back on: what happened meanwhile is not news
+      prev.current = null;
+      held.current = new Set();
+    }
   }, [active]);
 
   useEffect(() => {
     if (!active || !data) return;
-    const fresh = tradeToasts(prev.current, data);
+    const step = toastStep(prev.current, data, held.current);
+    const fresh = step.toasts;
     prev.current = data;
+    held.current = step.held;
     if (fresh.length) setToasts((list) => [...list, ...fresh.filter((f) => !list.some((t) => t.key === f.key))].slice(-FOLLOWED_TOAST_MAX));
   }, [data, active]);
 

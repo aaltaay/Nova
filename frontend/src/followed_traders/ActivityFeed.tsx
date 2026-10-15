@@ -18,7 +18,7 @@ import {
   FT_OPEN_IN_TRADER,
 } from './constants';
 import { etTime, price } from './format';
-import { Face, OpenTraderContext, SideChip } from './parts';
+import { Face, OpenTraderContext, SideChip, TickerMark } from './parts';
 import type { FollowedTrader } from './types';
 
 const VERB_CLASS: Record<ActivityVerb, string> = {
@@ -38,6 +38,7 @@ function Event({ e, face, onProof }: { e: ActivityItem; face: string | null; onP
       <span className={`ft-verb ${VERB_CLASS[e.verb]}`}>{e.trader} {e.verb}</span>
       <SideChip side={e.side} />
       <span className="ft-ticker">{e.symbol}</span>
+      <TickerMark ticker={e.ticker} />
       {e.verb !== 'closed' && e.price !== null && <span className="ft-mono">{price(e.price)}</span>}
       {e.note && <span className="ft-event__note ft-muted ft-small">{e.note}</span>}
     </button>

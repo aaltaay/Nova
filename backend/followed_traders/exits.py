@@ -1,5 +1,8 @@
 """The tape at each closed trade's exit, read from IBKR's history in the background and kept.
 
+The same read answers the tape at an entry whose ticker the feed may have read glued to its price (``tickers``): the
+tape for one symbol at one time is the same fact, whichever trade asks.
+
 ``view`` answers what is known now (``pending`` until read) and remembers the exit as wanted; ``pump`` sends the
 next wanted read when none is in flight. One read at a time, on the IB loop (``spawn_ib``), through IBKR's
 historical budget with ``FOLLOWED_EXIT_HEADROOM`` left for charts (``ibkr.historical_trades``):
@@ -11,7 +14,8 @@ historical budget with ``FOLLOWED_EXIT_HEADROOM`` left for charts (``ibkr.histor
 
 The newest exit is read first, so today's come before a record's history. Shed by pacing or an open chart, a read
 is asked again after ``FOLLOWED_EXIT_RETRY_SEC``; failed, after ``FOLLOWED_EXIT_FAIL_RETRY_SEC``, and after
-``FOLLOWED_EXIT_MAX_TRIES`` failures it reads ``unavailable`` until the process restarts.
+``FOLLOWED_EXIT_MAX_TRIES`` failures it reads ``unavailable`` until the process restarts. A ticker IBKR does not know
+reads ``unavailable`` with ``FOLLOWED_NO_SUCH_TICKER`` at once: asking again would not make one.
 
 Persisted: ``followed-exits.json`` in the operator cache (``FOLLOWED_EXITS_FILE``), every exit read as one price
 (``at``) or a range (``range``), so a past day's exit is asked of IBKR once. Owner: this module (reads it on first
@@ -41,6 +45,7 @@ from followed_traders.constants_followed import (
     FOLLOWED_EXIT_MAX_TRIES,
     FOLLOWED_EXIT_PAGE_TIMEOUT_SEC,
     FOLLOWED_EXIT_RETRY_SEC,
+    FOLLOWED_NO_SUCH_TICKER,
 )
 
 logger = logging.getLogger(__name__)
@@ -166,11 +171,14 @@ def _spawn_ib(name: str, factory: Callable[[], Any]) -> None:
 
 async def _job(key: Key) -> None:
     from ibkr.historical_service import HistoricalShed
+    from ibkr.historical_trades import UnknownContract
 
     try:
         result = await read(key)
     except HistoricalShed as exc:
         _finish(key, "shed", str(exc))
+    except UnknownContract:
+        _finish(key, "done", stated("unavailable", from_ts=key[2], to_ts=key[1], why=FOLLOWED_NO_SUCH_TICKER))
     except Exception as exc:  # any IBKR failure: stated on the row and asked again later
         logger.warning("followed traders: the exit of %s at %s could not be read: %s", key[0], key[1], exc)
         _finish(key, "failed", f"{type(exc).__name__}: {exc}")

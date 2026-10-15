@@ -46,6 +46,13 @@ FOLLOWED_EXIT_BARS_LIMIT = 1200      # 1-minute bars asked of the chart's store 
 FOLLOWED_EXITS_FILE = "followed-exits.json"
 FOLLOWED_EXITS_SCHEMA_VERSION = 1
 
+# -- a ticker the feed may have read glued to its price (tickers.py) -------------------------------
+# A trade's first price fits IBKR's tape at its entry within this many percent (the price at that second, or the
+# range of an entry window widened as much). A glued reading is 2x or more away from the true one.
+FOLLOWED_TICKER_FIT_PCT = 1.5
+# An exit or entry tape asked for a ticker IBKR does not know reads unavailable with this, at once.
+FOLLOWED_NO_SUCH_TICKER = "IBKR has no such ticker"
+
 # -- records ------------------------------------------------------------------------------------
 FOLLOWED_RECORD_RANGES = ("day", "week", "all")
 FOLLOWED_RECORD_WEEK_DAYS = 7        # "week": the seven calendar days ending on the day asked

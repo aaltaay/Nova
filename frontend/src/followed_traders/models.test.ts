@@ -4,7 +4,8 @@ import { dayLabel, monthCells, neighbourDay, shiftMonth } from './calendar';
 import { asOf, behindStream, capturePill, offAirWhy, onAir } from './capture';
 import { capture, closed, day, T, trade } from './followedTestData';
 import { judgeReads, readAt } from './proof';
-import { tradeToasts } from './toastModel';
+import { gluedRead, tickerUnsettled } from './ticker';
+import { toastStep, tradeToasts } from './toastModel';
 import type { FollowedRead } from './types';
 
 describe('capture pill', () => {
@@ -102,6 +103,28 @@ describe('proof', () => {
     const reads = [read(0, held), read(50, [{ side: 'long', symbol: 'ABCD', price: 1.9 }]), read(60, held)];
     expect(judgeReads(t, reads).reads.map((r) => r.verdict)).toEqual(['entry', 'held', 'ignored']);
   });
+
+  it('counts a read of the ticker glued to its price as the trade, not an ignored read', () => {
+    // The bar's "XYZI 14.03" read XYZ 114.03: the same position, read wrong.
+    const t = trade({ symbol: 'XYZI', side: 'short', entry: { first_price: 14.03, avg_price: 14.03, ts: T, since_ts: null, known: true } });
+    const reads = [read(0, [{ side: 'short', symbol: 'XYZI', price: 14.03 }]), read(2, [{ side: 'short', symbol: 'XYZ', price: 114.03 }]),
+      read(4, [{ side: 'short', symbol: 'XYZ', price: 14.03 }])];
+    expect(judgeReads(t, reads).reads.map((r) => r.verdict)).toEqual(['entry', 'held', 'ignored']);
+  });
+});
+
+describe('a ticker glued to its price', () => {
+  it('reads a ticker glued to its price as OCR does, and says when nothing may be priced', () => {
+    expect(gluedRead('XYZI', 14.03)).toEqual({ symbol: 'XYZ', price: 114.03 });
+    expect(gluedRead('BAS', 1.2)).toEqual({ symbol: 'BA', price: 51.2 });
+    expect(gluedRead('ABCI', 0.5432)).toEqual({ symbol: 'ABC', price: 10.5432 });
+    expect(gluedRead('NVDL', 35.41)).toBeNull();
+    const ticker = { read_symbol: 'XYZ', read_price: 114.03, other_symbol: 'XYZI', other_price: 14.03, why: null };
+    expect(tickerUnsettled(trade({ ticker: { ...ticker, state: 'checking' } }))).toBe(true);
+    expect(tickerUnsettled(trade({ ticker: { ...ticker, state: 'unchecked' } }))).toBe(true);
+    expect(tickerUnsettled(trade({ ticker: { ...ticker, state: 'corrected' } }))).toBe(false);
+    expect(tickerUnsettled(trade())).toBe(false);   // an older backend sends no ticker
+  });
 });
 
 describe('calendar', () => {
@@ -134,5 +157,56 @@ describe('toasts', () => {
       'added to ABCD 1.95', 'opened NEW 3.1']);
     expect(tradeToasts(first, moved).map((t) => `${t.trader} ${t.verb} ${t.symbol}`)).toEqual(['ALPHA closed ABCD']);
     expect(tradeToasts(first, day({ date: '2026-10-14' }))).toEqual([]);
+  });
+
+  it('waits for a ticker being checked, so the toast names the ticker as checked, never the glued one', () => {
+    const ticker = { read_symbol: 'XYZ', read_price: 114.03, other_symbol: 'XYZI', other_price: 14.03, why: 'reading' };
+    const entry = { first_price: 114.03, avg_price: 114.03, ts: T + 590, since_ts: null, known: true };
+    const withTrade = (t: ReturnType<typeof trade>, at: number) => {
+      const d = day({ generated_at: at });
+      d.traders[0].open = [...d.traders[0].open, t];
+      return d;
+    };
+    const checking = trade({ id: 'ALPHA|short|XYZ|1', symbol: 'XYZ', side: 'short', entry, ticker: { ...ticker, state: 'checking' } });
+    const fixed = { ...checking, symbol: 'XYZI', entry: { ...entry, first_price: 14.03, avg_price: 14.03 },
+      ticker: { ...ticker, state: 'corrected' as const, why: 'the ticker was read glued to its price' } };
+    const first = day();
+    const waiting = withTrade(checking, T + 600);
+    const step = toastStep(first, waiting);
+    expect(step.toasts).toEqual([]);                                                   // not news yet
+    expect([...step.held]).toEqual([checking.id]);
+    const settled = toastStep(waiting, withTrade(fixed, T + 605), step.held);
+    expect(settled.toasts.map((t) => `${t.verb} ${t.symbol} ${t.price} ${t.check}`)).toEqual(['opened XYZI 14.03 null']);
+    expect(settled.held.size).toBe(0);
+    // Still checking a minute after the entry: raised, saying the ticker is not checked.
+    const late = toastStep(waiting, withTrade(checking, T + 650), step.held);
+    expect(late.toasts.map((t) => `${t.verb} ${t.symbol} ${t.check}`)).toEqual(['opened XYZ reading']);
+    expect(toastStep(withTrade(checking, T + 650), withTrade(fixed, T + 655), late.held).toasts).toEqual([]); // never twice
+  });
+
+  it('never announces a trade twice when its ticker is checked again (PR #972 review)', () => {
+    // Announced as read, then checked once more inside its first minute (the feed corrected its ticker, or a restart
+    // forgot an answer), then settled: no second "opened", no add or close announced again.
+    const ticker = { read_symbol: 'XYZ', read_price: 114.03, other_symbol: 'XYZI', other_price: 14.03, why: 'reading' };
+    const entry = { first_price: 114.03, avg_price: 114.03, ts: T + 590, since_ts: null, known: true };
+    const asRead = trade({ id: 'ALPHA|short|XYZ|1', symbol: 'XYZ', side: 'short', entry, ticker: { ...ticker, state: 'as_read' },
+      adds: [{ ts: T + 595, price: 114.1, prev_price: 114.03 }] });
+    const at = (t: ReturnType<typeof trade>, when: number) => {
+      const d = day({ generated_at: when });
+      d.traders[0].open = [...d.traders[0].open, t];
+      return d;
+    };
+    const announced = toastStep(day(), at(asRead, T + 596));
+    expect(announced.toasts.map((t) => t.verb)).toEqual(['opened', 'added to']);
+    const again = toastStep(at(asRead, T + 596), at({ ...asRead, ticker: { ...ticker, state: 'checking' } }, T + 600),
+      announced.held);
+    expect(again.toasts).toEqual([]);
+    expect(again.held.size).toBe(0);
+    const back = toastStep(at({ ...asRead, ticker: { ...ticker, state: 'checking' } }, T + 600), at(asRead, T + 605), again.held);
+    expect(back.toasts).toEqual([]);
+    // A trade already there in the first answer, its ticker being checked, is not news when the check ends either.
+    const there = at({ ...asRead, ticker: { ...ticker, state: 'checking' } }, T + 600);
+    const baseline = toastStep(null, there);
+    expect(toastStep(there, at(asRead, T + 605), baseline.held).toasts).toEqual([]);
   });
 });
