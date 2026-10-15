@@ -55,6 +55,7 @@ the backend packages.
 | `nova_news/` | feature | The Nova News page: headline desk with masthead, lead story, columns and story filtering. |
 | `orders_today/` | feature | The Orders (Today) view: Working / Filled / Canceled / Partial segments in the Stock View footer dock. |
 | `pages/` | app | Page composition: Dashboard, Account, Records (its pieces in `pages/records/`), Stock View and sample pages, plus the nav-rail page host. |
+| `pc_health/` | feature | The PC's own warnings on the desk (operator ask, 2026-10-15): the low-memory strip under the header in Nova's trading session, naming the process holding the most -- name, PID, size and how long it has run. It only warns. |
 | `perf/` | shared | The performance recorder's client side (ADR 026): frame meter, long frames, counters, render counts, the `/api/perf/client` reporter. |
 | `practice/` | feature | The practice account (ADR 020): Paper / Sim account model, buying power, reset, fixtures, the Sim account clock. |
 | `reports/` | feature | The Reports tab: P&L calendar, month detail, drawdown, R-multiples, tag performance, journal import. |

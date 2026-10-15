@@ -16,6 +16,10 @@ Each reading is one ``kind: "memory"`` line in the perf day file, the last one a
 ``pc_memory`` diagnostics row, and the API log warns once per episode when the PC passes
 ``PERF_MEMORY_PRESSURE_PCT`` or once per run when a Nova part passes its leak line. A process
 Windows will not open is counted as unreadable, never as 0. No command line is read.
+
+The reading also names the one process holding the most, and when it started; the low-memory
+episode (``next_episode``) decides when the desk's notice shows (``perf.memory_notice``, operator
+ask 2026-10-15). The watch measures and never acts on a process.
 """
 from __future__ import annotations
 
@@ -33,6 +37,7 @@ from constants_perf import (
     PERF_MEMORY_DESK_LEAK_MB,
     PERF_MEMORY_EVERY_SEC,
     PERF_MEMORY_FIRST_AFTER_SEC,
+    PERF_MEMORY_NOTICE_HOLD_SEC,
     PERF_MEMORY_PRESSURE_PCT,
     PERF_MEMORY_REARM_PCT,
     PERF_MEMORY_SCHEMA_VERSION,
@@ -48,6 +53,7 @@ _MB = 2**20
 
 _lock = threading.Lock()
 _last: dict[str, Any] | None = None
+_episode: dict[str, Any] | None = None  # the low-memory episode the desk's notice shows (``next_episode``)
 _running = False
 _pressure = False                       # inside a pressure episode (warned once)
 _leak_warned: set[str] = set()          # Nova parts warned about in this run
@@ -96,7 +102,8 @@ def gateway_pids(view: dict[str, Any]) -> set[int]:
 def reading(*, now: float, api_pid: int, procs: list[Any], private_of: Callable[[int], int | None],
             created: Callable[[int], float | None], desk: set[int], gateway: set[int],
             pc: dict[str, int] | None) -> dict[str, Any]:
-    """One reading: the PC, Nova's processes by part, and the biggest other programs by image name.
+    """One reading: the PC, Nova's processes by part, the biggest other programs by image name, and the
+    one process holding the most (``biggest``, Nova's own included, with when it started).
 
     A process has one part, the first that claims it: Gateway, the API, what the API started, then
     the desk with what its processes started (the packaged desk starts the API, which stays the API)."""
@@ -110,6 +117,7 @@ def reading(*, now: float, api_pid: int, procs: list[Any], private_of: Callable[
     nova: list[dict[str, Any]] = []
     others: dict[str, dict[str, Any]] = {}
     unreadable = 0
+    top: tuple[int, str, int, str | None] | None = None   # (pid, name, private_mb, role) of the biggest so far
     for p in procs:
         if p.pid == 0:
             continue
@@ -119,6 +127,8 @@ def reading(*, now: float, api_pid: int, procs: list[Any], private_of: Callable[
             continue
         mb = round(size / _MB)
         role = role_of.get(p.pid)
+        if top is None or mb > top[2]:
+            top = (p.pid, p.name, mb, role)
         if role is not None:
             nova.append({"role": role, "pid": p.pid, "name": p.name, "private_mb": mb})
             continue
@@ -131,6 +141,12 @@ def reading(*, now: float, api_pid: int, procs: list[Any], private_of: Callable[
             group["largest_pid"], group["largest_mb"] = p.pid, mb
     parts = {part: sum(n["private_mb"] for n in nova if n["role"] == part) for part in PARTS}
     ranked = sorted(others.values(), key=lambda g: -g["private_mb"])
+    biggest = None
+    if top is not None:
+        pid, name, mb, role = top
+        born = created(pid)
+        biggest = {"name": name, "pid": pid, "private_mb": mb,
+                   "started_at": round(born, 3) if born is not None else None, "role": role}
     return {
         "kind": "memory",
         "schema_version": PERF_MEMORY_SCHEMA_VERSION,
@@ -141,6 +157,7 @@ def reading(*, now: float, api_pid: int, procs: list[Any], private_of: Callable[
         "others": ranked[:PERF_MEMORY_TOP],
         "others_total_mb": sum(g["private_mb"] for g in ranked),
         "unreadable": unreadable,
+        "biggest": biggest,
     }
 
 
@@ -150,6 +167,26 @@ def pressure_pct(pc: dict[str, int] | None) -> int | None:
         return None
     commit = round(100 * pc["commit_used_mb"] / pc["commit_limit_mb"]) if pc.get("commit_limit_mb") else 0
     return max(int(pc.get("load_pct") or 0), commit)
+
+
+def next_episode(prev: dict[str, Any] | None, read: dict[str, Any]) -> dict[str, Any] | None:
+    """The low-memory episode after ``read``: ``{since, last_low_at, pid}`` or None. Pure.
+
+    A reading at or over PERF_MEMORY_PRESSURE_PCT opens it or moves ``last_low_at`` and ``pid`` (the
+    biggest process then). Under the line it stays open PERF_MEMORY_NOTICE_HOLD_SEC after ``last_low_at``
+    -- on 2026-10-15 free RAM came back for a minute or two three times while one script still held
+    126 GB -- and closes at once when that process is no longer the biggest (it exited or let go). A
+    reading without the PC's numbers leaves it as it was."""
+    pct = pressure_pct(read.get("pc"))
+    if pct is None:
+        return prev
+    ts = float(read["ts"])
+    pid = (read.get("biggest") or {}).get("pid")
+    if pct >= PERF_MEMORY_PRESSURE_PCT:
+        return {"since": prev["since"] if prev else ts, "last_low_at": ts, "pid": pid}
+    if prev is None or ts - prev["last_low_at"] >= PERF_MEMORY_NOTICE_HOLD_SEC or pid != prev["pid"]:
+        return None
+    return prev
 
 
 def gb(mb: float) -> str:
@@ -196,8 +233,9 @@ def _warn(read: dict[str, Any]) -> None:
 
 
 def tick(now: float | None = None) -> dict[str, Any] | None:
-    """Take one reading, keep it, write it to the day file and warn as due. None off Windows."""
-    global _last
+    """Take one reading, keep it with the episode it leaves, write it to the day file and warn as due. None
+    off Windows."""
+    global _last, _episode
     from winapi import available, memory, processes
 
     if not available():
@@ -211,17 +249,20 @@ def tick(now: float | None = None) -> dict[str, Any] | None:
                    gateway=gateway_pids(trading_path.view()), pc=memory.pc_memory())
     with _lock:
         _last = read
+        _episode = next_episode(_episode, read)
     recorder.persist(read)
     _warn(read)
     return read
 
 
 def status() -> dict[str, Any]:
-    """The ``pc_memory`` row's input: whether the watch runs here, and its last reading."""
+    """The ``pc_memory`` row's and the low-memory notice's input: whether the watch runs here, its last
+    reading and the episode that reading left."""
     from winapi import available
 
     with _lock:
-        return {"available": available(), "running": _running, "every_sec": PERF_MEMORY_EVERY_SEC, "last": _last}
+        return {"available": available(), "running": _running, "every_sec": PERF_MEMORY_EVERY_SEC, "last": _last,
+                "episode": dict(_episode) if _episode else None}
 
 
 async def run() -> None:
@@ -241,8 +282,8 @@ async def run() -> None:
 
 
 def reset_for_tests() -> None:
-    global _last, _running, _pressure
+    global _last, _episode, _running, _pressure
     with _lock:
-        _last = None
+        _last = _episode = None
     _running = _pressure = False
     _leak_warned.clear()
