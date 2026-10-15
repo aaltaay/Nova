@@ -74,8 +74,9 @@ def _load_locked() -> dict[str, Any]:
         return _state
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        _error = f"{path.name} could not be read ({type(exc).__name__}): every family key reads off until it is fixed"
+    except (OSError, ValueError):
+        _error = (f"{path.name} could not be read (the backend log has the error): every family key reads off until "
+                  "it is fixed")
         logger.exception("bot keys: %s", _error)
         return _state
     if not isinstance(raw, dict) or raw.get("schema_version") != BOT_KEYS_SCHEMA_VERSION:
@@ -209,8 +210,9 @@ def turn(family: str, on: bool) -> bool:
             _save_locked(state)
         except OSError as exc:
             row[family] = before
-            raise BotError(f"{BOT_KEYS_FILENAME} could not be written ({type(exc).__name__}): the key is unchanged",
-                           409, BOT_REASON_KEYS_UNREADABLE) from exc
+            logger.exception("bot keys: %s could not be written", BOT_KEYS_FILENAME)
+            raise BotError(f"{BOT_KEYS_FILENAME} could not be written (the backend log has the error): the key is "
+                           "unchanged", 409, BOT_REASON_KEYS_UNREADABLE) from exc
     _audit(family, venue, bool(on))
     return True
 

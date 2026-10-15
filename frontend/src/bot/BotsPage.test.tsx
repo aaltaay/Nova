@@ -294,6 +294,14 @@ describe('the Strategy Bots key (2026-10-15)', () => {
     expect(keyBodies(fetchMock)).toEqual([]);
   });
 
+  it('says a keys answer it cannot read, never drawing it as on or off', async () => {
+    mockFetch({ session: strategySession({ keys: { venue: 'paper', error: null } as never }) });
+    await renderPage();
+    expect(screen.getByTestId('bot-key-strategy').textContent).toBe(
+      "The Strategy Bots key could not be read from the backend's answer: its bots count as off until it reads.");
+    expect(screen.queryByTestId('bot-key-strategy-switch')).toBeNull();
+  });
+
   it('shows the backend\'s refusal under the key', async () => {
     mockFetch({ session: strategySession(), onKey: () => refusal(409, 'BOT_KEYS_UNREADABLE', 'bot-keys.json could not be read') });
     await renderPage();

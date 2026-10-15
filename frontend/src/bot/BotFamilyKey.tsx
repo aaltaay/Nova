@@ -10,6 +10,7 @@ import {
   BOT_KEY_LIVE_WHY,
   BOT_KEY_OFF_LINE,
   BOTS_BUSY_WHY,
+  botKeyUnreadable,
   BOTS_VENUE_NAMES,
   botKeyOnLine,
   botKeyTip,
@@ -27,7 +28,16 @@ export function BotFamilyKey({ family }: { family: BotFamily }) {
   const keys = session?.keys;
   if (!keys) return null;                       // the sample desk, or an older backend: no family keys
   const name = BOT_FAMILY_NAMES[family];
-  const on = keys[family].on;
+  const row = keys[family];
+  if (!row || typeof row.on !== 'boolean') {
+    // A partial or skewed answer is said, never drawn as on or off (Codex review, PR #1006).
+    return (
+      <section className="bot-key" data-testid={`bot-key-${family}`}>
+        <p className="bot-key__error" role="alert">{botKeyUnreadable(name)}</p>
+      </section>
+    );
+  }
+  const on = row.on;
   const lock = busy ? BOTS_BUSY_WHY : keys.venue === 'live' ? BOT_KEY_LIVE_WHY : keys.error ? prose(keys.error) : null;
   const venue = keys.venue ? BOTS_VENUE_NAMES[keys.venue] ?? keys.venue : '?';
 

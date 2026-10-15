@@ -414,14 +414,19 @@ async def _manage(trade: dict[str, Any], now: float) -> None:
 
 
 def _keys_held(trade: dict[str, Any], now: float) -> tuple[str, str] | None:
-    """Why the bot may place no order for its trade now -- the Bot switch or the Strategy Bots key off, else None.
-    Off places nothing, not even a sell (operator decision 2026-10-15): the bracket's stop and target rest at the
-    broker and still fill, while the time stop, the flush exit, a tightened stop and a close wait for the keys.
-    Said once per trade and key."""
+    """Why the bot may place no order for its trade now -- the Bot switch, the Strategy Bots key or the trade's own
+    strategy below On, else None. Off places nothing, not even a sell (operator decision 2026-10-15): the bracket's
+    stop and target rest at the broker and still fill, while the time stop, the flush exit, a tightened stop and a
+    close wait for the keys. Said once per trade and key."""
     from bot import family_keys
-    from constants_bot import BOT_FAMILY_STRATEGY
+    from bot.setup_levels import own_levels
+    from constants_bot import BOT_FAMILY_STRATEGY, BOT_SKIP_SETUP_NOT_STRATEGY
 
     held = family_keys.hold(BOT_FAMILY_STRATEGY, trade.get("venue"))
+    setup = trade.get("setup_type") or BOT_SETUP_FIRST_PULLBACK     # a trade saved before setup types: the first pullback
+    if held is None and int(own_levels(load_session()).get(setup) or 0) < BOT_LEVEL_STRATEGY:
+        held = (BOT_SKIP_SETUP_NOT_STRATEGY, f"the {label(setup)} is not On: its trade places no order, not even a "
+                                             "sell")
     if held is None:
         for said in [k for k in _held_said if k.startswith(f"{trade['setup_id']}|")]:
             _held_said.discard(said)     # the keys are back on: a later off is said again

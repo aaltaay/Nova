@@ -445,6 +445,28 @@ def test_with_a_key_off_the_bot_places_no_order_not_even_the_hosts_close(desk, m
     assert lt_book.closed_today()[0]["kind"] == "close"
 
 
+@pytest.mark.parametrize("exit_mode", ["nova", "you"])
+def test_a_position_from_an_earlier_day_a_key_held_is_sold_when_the_key_is_back_on(desk, monkeypatch, exit_mode):
+    """The day rolls over while a key is off: nothing is sold then, and the pass the key is back on sells it -- with
+    Exit: You too, the clock's exit is never the host's (Codex review, PR #1006)."""
+    run(desk, "10:30:00")
+    desk.feed.open("XYZ", 100.00, at("10:30:10"))
+    run(desk, "10:30:11")
+    assert held(desk, "XYZ") == 4
+    lt_settings.patch_host(HOST, {"key": False, "exit": exit_mode})
+    later = at("10:31:00")
+    real = watcher._desk_day
+    monkeypatch.setattr(watcher, "_desk_day", lambda ts: "2026-10-08" if ts >= later else real(ts))  # the next day
+    asyncio.run(watcher._sell_earlier_days(later))
+    asyncio.run(watcher._sell_earlier_days(later + 2))
+    assert held(desk, "XYZ") == 4                                     # a key off: no order, not even this sell
+    said = [r for r in lines_("note") if "earlier day: not sold" in (r.get("reason") or "")]
+    assert len(said) == 1                                             # said once
+    lt_settings.patch_host(HOST, {"key": True})
+    asyncio.run(watcher._sell_earlier_days(later + 4))
+    assert held(desk, "XYZ") == 0
+
+
 def test_with_every_key_off_your_own_cover_of_the_bots_short_goes_through(desk):
     """Keys stop the bots, never you: a cover is a close at the door, and the bot's stale stop is taken back."""
     run(desk, "10:30:00")

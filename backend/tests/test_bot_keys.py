@@ -147,6 +147,34 @@ def test_with_a_key_off_the_bot_sends_no_exit_but_the_brokers_stop_still_fills(p
     assert trade["state"] == "closed" and trade["exit_reason"] == "stop"
 
 
+def test_the_strategy_turned_off_holds_its_own_trade_too(paper):  # noqa: F811
+    """A strategy's own level is its trade's third key: below On, the trade places no order (Codex review, #1006)."""
+    runner.submit(trigger())
+    tick(paper)
+    apply_patch({"setup_levels": {"first_pullback": 1}}, desk=True)
+    trade = tick(paper, NOW + BOT_FP_TIME_STOP_MIN * 60 + 1)
+    assert trade["state"] == "open" and paper.broker.ledger.held_qty(SYM) == 1.0
+    (said,) = [r for r in trade_rows("note") if "is not On" in r["reason"]]
+    assert said["inputs"]["code"] == "BOT_SETUP_NOT_STRATEGY"
+    apply_patch({"setup_levels": {"first_pullback": 2}}, desk=True)
+    trade = tick(paper, NOW + BOT_FP_TIME_STOP_MIN * 60 + 2)
+    assert trade["state"] == "exiting" and trade["exit_why"] == "time"
+
+
+def test_a_trade_saved_without_its_setup_type_is_the_first_pullbacks(paper):  # noqa: F811
+    """An older trade with no setup type is the first pullback's, and its strategy's level holds it (Codex, #1008)."""
+    from bot.persist import save_session
+
+    runner.submit(trigger())
+    tick(paper)
+    row = load_session()
+    row["trade"] = {k: v for k, v in row["trade"].items() if k != "setup_type"}
+    save_session(row)
+    apply_patch({"setup_levels": {"first_pullback": 1}}, desk=True)
+    trade = tick(paper, NOW + BOT_FP_TIME_STOP_MIN * 60 + 1)
+    assert trade["state"] == "open" and paper.broker.ledger.held_qty(SYM) == 1.0
+
+
 def test_the_keys_back_on_the_held_exit_goes(paper):  # noqa: F811
     runner.submit(trigger())
     tick(paper)

@@ -139,3 +139,29 @@ def test_a_book_from_another_day_is_sold_and_an_unknown_one_refused():
     lt_book.reset_for_tests()
     path.write_text(json.dumps({"schema_version": 7}), encoding="utf-8")
     assert "schema_version 7" in lt_book.error()
+
+
+def test_the_rollover_says_each_position_once_and_forgets_it_once_closed(monkeypatch):
+    """A position held from an earlier day is said once per instance: the same stock opened again on a later day is a
+    new instance, and a closed one leaves the memory (Codex review, PR #1008)."""
+    import asyncio
+
+    watcher.reset_for_tests()
+    notes: list[str] = []
+    pos = {"id": "ALPHA|long|XYZ", "host": "ALPHA", "row_id": "r1", "symbol": "XYZ", "side": "long", "qty": 4.0,
+           "state": "open", "opened_ts": 1.0}
+    held_now = {pos["id"]: pos}
+    monkeypatch.setattr(watcher.book, "roll_day", lambda today: [])
+    monkeypatch.setattr(watcher.book, "positions", lambda: dict(held_now))
+    monkeypatch.setattr(watcher, "keys", lambda: {"ok": False, "code": "LT_BOT_OFF", "why": "the Bot switch is off"})
+    monkeypatch.setattr(watcher, "_desk_day", lambda ts: "2026-10-08" if ts >= 100 else "2026-10-07")
+    monkeypatch.setattr(watcher.act, "note", lambda a, now, **kw: notes.append(a["why"]))
+    asyncio.run(watcher._sell_earlier_days(100.0))
+    asyncio.run(watcher._sell_earlier_days(101.0))
+    assert notes == ["held from an earlier day: not sold -- the Bot switch is off"]
+    held_now.clear()                                                   # sold, or covered outside
+    asyncio.run(watcher._sell_earlier_days(102.0))
+    assert watcher._stale_said == set()
+    held_now[pos["id"]] = {**pos, "opened_ts": 50.0}                   # the same stock, another day's position
+    asyncio.run(watcher._sell_earlier_days(103.0))
+    assert len(notes) == 2

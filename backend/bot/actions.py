@@ -118,6 +118,14 @@ async def fire(
     row = assert_can_fire()      # Live / a replay desk refuse first (BOT_LIVE_NOT_BUILT)
     require_l2_brain(brain_session_id, claim=True)
     kind = assert_kind(str(body.get("kind") or body.get("action") or ""), row)
+    if kind != "cancel_symbol":
+        # The Strategy Bots key (2026-10-15): with it off a bot places no order, not even a sell; a cancel places none.
+        from bot import family_keys
+        from constants_bot import BOT_FAMILY_STRATEGY
+
+        family = family_keys.block(BOT_FAMILY_STRATEGY)
+        if family is not None:
+            raise BotError(family[1], 409, family[0])
     symbol = assert_symbol_can_fire(str(body.get("symbol") or ""), row)
     if is_entry_kind(kind):
         from bot.gates import current_venue, loss_limit
