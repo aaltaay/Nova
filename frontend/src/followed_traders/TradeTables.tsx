@@ -7,7 +7,7 @@
  * stock in the Trader. Nothing here places an order.
  */
 import { tipProps } from '../ux/hoverTip';
-import { FT_EST, FT_EST_TIP, FT_EXIT_PENDING, FT_NOW, FT_OFF_AIR_CLOSE, FT_OFF_AIR_CLOSE_TIP, FT_OPEN_CHIP, FT_PROOF } from './constants';
+import { FT_EST, FT_EST_TIP, FT_EXIT_PENDING, FT_NOW, FT_OFF_AIR_CLOSE, FT_OFF_AIR_CLOSE_TIP, FT_OPEN_CHIP, FT_PL_COLUMN, FT_PROOF } from './constants';
 import { DASH, entered, etTime, exitPrice, exited, held, price } from './format';
 import { PlCell, ResultWord, SideChip, Ticker, TickerMark } from './parts';
 import { ProofLink } from './ProofLink';
@@ -112,7 +112,7 @@ export function ClosedTable({ trades, onProof, compact = false, folded = 0, onSh
       </colgroup>
       <thead>
         <tr>
-          <th>Result</th><th>Ticker</th><th>Side</th><th>In → Out</th><th>Entry → Exit</th><th>P/L per share</th>
+          <th>Result</th><th>Ticker</th><th>Side</th><th>In → Out</th><th>Entry → Exit</th><th>{FT_PL_COLUMN}</th>
           <th>Held</th><th><span className="ft-sr">{FT_PROOF}</span></th>
         </tr>
       </thead>

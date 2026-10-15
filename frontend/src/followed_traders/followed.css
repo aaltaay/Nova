@@ -450,10 +450,12 @@
 .ft-pl--check { color: var(--ft-warn); font-size: 12px; font-weight: 600; }
 .ft-window { text-decoration: underline dotted var(--ft-warn); text-underline-offset: 3px; }
 .ft-est { font-size: 11px; color: var(--ft-warn); font-family: inherit; }
-.ft-pl { display: inline-flex; flex-direction: column; }
-.ft-pl--inline { flex-direction: row; align-items: baseline; gap: 6px; }
-.ft-pl__pct { font-size: 11px; opacity: 0.85; }
-.ft-pl--big .ft-pl__share { font-size: 17px; font-weight: 700; }
+/* Dollars at the stake on top, the cents per share and the % under them (operator pick 2026-10-15). */
+.ft-pl { display: inline-flex; flex-direction: column; gap: 1px; }
+.ft-pl--inline { align-items: flex-start; }
+.ft-pl__usd { font-weight: 600; }
+.ft-pl__sub { font-size: 11px; opacity: 0.85; }
+.ft-pl--big .ft-pl__usd { font-size: 17px; font-weight: 700; }
 .ft-pl--up { color: var(--ft-up); }
 .ft-pl--down { color: var(--ft-down); }
 .ft-table--reads tr.is-ignored td { color: var(--ft-warn); }
