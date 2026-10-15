@@ -238,23 +238,59 @@ and `read_as`, above). A position read glued from first frame to last stays as r
 - **Which trades.** One whose read could be glued: the feed's `symbol` with the first digit of its `entry_price` put
   back on it as the letter OCR takes it for -- I for 1, S for 5, B for 8, the feed's own pairs (a glued O the feed's
   reader puts back itself) -- is still a ticker of at most 5 letters, and the rest still a price as the bar writes one
-  (`tickers.unglued`: SOF 114.03 could be SOFI 14.03; JYD 1.29 and NVDL 35.41 cannot be glued). Any other trade has
-  `ticker: null` and reads as before.
+  (`tickers.unglued`: SOF 114.03 could be SOFI 14.03; JYD 1.29 and NVDL 35.41 cannot be glued) -- or the same ticker
+  with its own last letter read twice ("The letter read twice" below). Any other trade has `ticker: null` and reads as
+  before, unless one of its averages is put back or no add could make it (below).
 - **The check.** IBKR's tape at the entry, read as an exit's is (`exits`, kept the same way): the last price-setting
   trade at or before `entry_ts`, or the low and high of the trades over `entry_since_ts`..`entry_ts`. A price fits it
   within `FOLLOWED_TICKER_FIT_PCT` (1.5%) of that trade, or of that range widened by as much. The ticker as read fits
-  its first price: as read. Else the longer ticker's tape at the same time: IBKR has no such ticker, as read (no glued
-  reading exists); it fits the unglued price, corrected; anything else, unchecked.
+  its first price: as read. Else the letter read twice on the same tape, when the read has that reading: it fits,
+  corrected. Else the longer ticker's tape at the same time: IBKR has no such ticker, as read (no glued reading
+  exists) -- unless the letter read twice is nearer IBKR's price than the read, then unchecked; it fits the unglued
+  price, corrected; anything else, unchecked.
 - `ticker`: `{state: "checking" | "as_read" | "corrected" | "unchecked", read_symbol, read_price, other_symbol,
   other_price, why}`. `read_*` is what the feed read (its `symbol` and `entry_price`), `other_*` the glued reading
-  (SOFI, 14.03). `why`: what the check waits on while `checking`; IBKR's tape at the entry for both tickers when
-  `corrected` or `unchecked`; null when `as_read`.
-- **Corrected**: the trade's `symbol` is the longer ticker, and `entry.first_price`, `entry.avg_price` and each add's
-  prices are the feed's read back the same way. Its line, exit and P/L are that ticker's.
+  (SOFI, 14.03; for the letter read twice the same ticker, RGTI 12.08; the same as read when only an average was put
+  back). `why`: what the check waits on while `checking`; IBKR's tape at the entry for both tickers when `corrected`
+  or `unchecked` -- or, for an average, what was read and when; null when `as_read`.
+- **Corrected**: the trade's `symbol` and `entry.first_price` are the glued reading's, and `entry.avg_price` and each
+  add's prices are the feed's read back as "Every average" below says. Its line, exit and P/L are that ticker's.
 - **Checking or unchecked**: no line is held and no exit is read for it. `now` is `no_line` and `exit` is `pending`
   (checking) or `unavailable` (unchecked), each with `ticker.why`; `pl` is null and a closed one is `unscored`. A
   ticker that may be wrong never gives a number.
 - `/record` checks the same way; an exit that waits on its ticker counts in `pending`.
+
+### The letter read twice, and a glued average (operator report 2026-10-15)
+
+"Something about this number is extremely wrong": CHERIF's day read -$7,296.50 at $1,000 a trade. His bar showed
+"RGTI 12.08" from 12:30 to 13:27 ET, and the feed read it three ways, flipping every few seconds: RGT 112.08 (the glue
+above), RGTI 112.08 -- the I read twice, once as the ticker's last letter and once as a 1 in front of the price -- and
+only now and then RGTI 12.08. The feed took each RGTI 112.08 for an add (the average 12.08 -> 112.08) and closed and
+opened the position again each time the reading flipped: one trade became ten, eight of them priced against 112.08 at
+-89% each, -$7,138.90 of the figure; his other trades made -$158.00. The check above read only the first price, and
+took RGTI 112.08 as read because IBKR knows no RGTII. Three rules close it (`followed_traders/tickers.py`, `view.py`):
+
+- **The letter read twice.** A read whose price's first digit is the one OCR reads the ticker's own last letter as
+  (RGTI 112.08: I and 1), with a price the bar writes left once that digit is taken off, has a second glued reading:
+  the same ticker at the rest (RGTI 12.08; `tickers.doubled`). The check tries it on the tape it already read for the
+  ticker as read, before the longer ticker (above). The shape alone proves nothing -- NEAL's real SOFI 14.03 and RGTI
+  14.03 have it too -- so only IBKR's tape puts an entry back.
+- **Every average, not only the first.** P/L is against the latest average, so each add's average is read in order,
+  from the first price as shown: kept when it is within `FOLLOWED_AVG_FACTOR` (2) of the average before it -- an add
+  moves an average toward the price paid, and in the feed's first ten days (251 trades) none doubled or halved one but
+  these misreads; else its glued reading (the letter read twice; for a trade corrected to the longer ticker, that
+  ticker's) when that one is within it; else the trade is `unchecked`, `why` "an average no add could make" with both
+  numbers. An add whose average, put back, is the one before it is the same average read again: no add, left out. The
+  trade's latest average is read the same way. A trade with an average put back is `corrected`, `why` naming what the
+  bar was read as and when.
+- **One position read two ways.** A trade the feed closed and, in the same second, opened again for the same trader,
+  side and stock as the check shows it -- both settled, no window at either end -- never left the bar: the page and
+  `/record` show one trade, with the first's id, entry and entry image, the last's exit and exit image, and an add where
+  the average shown changed between them. In the feed's first ten days only that RGTI did this; every other close and
+  open in one second is two stocks (one row taking another's place).
+
+The Live Trader bot reads trades through `tickers.shown`, so it sees the averages put back; its own rules (`bot.md`,
+"Bad reads") are unchanged.
 
 ### A trader who left the bar (operator decisions 2026-10-14)
 
@@ -450,7 +486,8 @@ images again with each answer.
   Escape closes it. The images are asked for only once the card shows. Clicking the link or the card opens the Proof.
 - **Proof** of one trade: the entry and exit images, what was read at each (`/reads`), and every read in between
   that differed from the trade and was ignored. A read of the trade's ticker glued to its price (its last letter as
-  the digit OCR reads it, in front of the price: SOFI 14.03 as SOF 114.03) shows the trade, not an ignored read. Nova
+  the digit OCR reads it, in front of the price: SOFI 14.03 as SOF 114.03), or with that letter read twice (RGTI 12.08
+  as RGTI 112.08), shows the trade, not an ignored read. Nova
   never edits the feed: no button drops or confirms a trade.
 - **Calendar**: a month with a dot on each of the feed's `dates`, weekends dimmed, future days disabled; picking a
   day shows its traders, tickers and counts from that day's `/day` before opening it.
