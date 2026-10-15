@@ -22,6 +22,9 @@ vi.mock('../cryptos', () => ({
 vi.mock('../followed_traders', () => ({
   FollowedTradersPage: () => <div data-testid="followed-page-stub" />,
 }));
+vi.mock('../bot/BotsGroupPage', () => ({ BotsGroupPage: () => <div data-testid="bots-group-stub" /> }));
+vi.mock('../bot/LiveTraderBotsPage', () => ({ LiveTraderBotsPage: () => <div data-testid="lt-bots-stub" /> }));
+vi.mock('../bot/BotsPage', () => ({ BotsPage: () => <div data-testid="strategy-bots-stub" /> }));
 
 describe('NavPageHost', () => {
   let container: HTMLDivElement;
@@ -113,6 +116,27 @@ describe('NavPageHost', () => {
     });
     expect(container.querySelector('[data-testid="cryptos-page-stub"]')).toBeTruthy();
     expect(container.querySelector('[data-testid="dashboard-stub"]')).toBeNull();
+  });
+
+  it('routes the Bots group: Bots (empty for now), LiveTrader Bots and Strategy Bots (2026-10-15)', async () => {
+    await act(async () => {
+      root.render(
+        <NavPageHost onOpenTrader={() => {}}>
+          <div data-testid="dashboard-stub" />
+        </NavPageHost>,
+      );
+    });
+    for (const [page, stub] of [['bots', 'bots-group-stub'], ['bots-live-trader', 'lt-bots-stub'],
+      ['bots-strategy', 'strategy-bots-stub']] as const) {
+      await act(async () => {
+        setNavPage(page);
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(container.querySelector(`[data-testid="${stub}"]`)).toBeTruthy();
+      expect(container.querySelector('[data-testid="dashboard-stub"]')).toBeNull();
+    }
   });
 
   it('routes the Market page (lazy) from the store', async () => {

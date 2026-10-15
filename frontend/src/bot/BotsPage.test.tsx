@@ -11,10 +11,12 @@ import { _resetDeskPollShareForTests } from '../ibkr/deskSharedPoll';
 import { resetHotListForTests } from '../hot_list';
 import { _resetBotSessionPollerForTests } from './botSessionPoller';
 import { BotsPage } from './BotsPage';
+import { GlobalBarBotKey } from './GlobalBarBotKey';
 import { BOT_SWITCH_LIVE_WHY } from './botSwitch';
 import {
   botsFetchRouter,
   openGates,
+  keysView,
   refusal,
   session,
   strategySession,
@@ -95,6 +97,15 @@ async function renderPage() {
   await act(async () => { await flush(); });
 }
 
+/** The header's Bot switch beside Strategy Bots, as the desk shows them (the switch left the Bot card, 2026-10-15). */
+async function renderDesk() {
+  await act(async () => {
+    render(<><GlobalBarBotKey /><BotsPage /></>);
+    await flush();
+  });
+  await act(async () => { await flush(); });
+}
+
 const called = (fetchMock: ReturnType<typeof mockFetch>, part: string, method?: string) =>
   fetchMock.mock.calls.some(([url, init]) => String(url).includes(part)
     && (!method || (init as RequestInit | undefined)?.method === method));
@@ -113,7 +124,7 @@ describe('Can Nova buy right now? (ADR 044)', () => {
     mockFetch({ session: session() });
     await renderPage();
     expect(screen.getByTestId('bots-answer-headline').textContent).toBe('No, on any ticker:');
-    expect(screen.getByTestId('bots-answer-bot').textContent).toMatch(/^the Bot is off: Off\. The strategies at Eyes or On still alert you\.Turn on…$/);
+    expect(screen.getByTestId('bots-answer-bot').textContent).toMatch(/^the Bot is off: Off\. The strategies at Eyes or On still alert you\.Turn on in the header$/);
     // A strategy is at On: with the Bot off the switch is the reason, said once -- not "no strategy at On".
     expect(screen.queryByTestId('bots-answer-setups')).toBeNull();
     expect(screen.queryByTestId('bots-answer-window')).toBeNull();
@@ -159,60 +170,65 @@ describe('Can Nova buy right now? (ADR 044)', () => {
   });
 });
 
-describe('the Bot switch (ADR 044)', () => {
-  it('turns on with one press -- no dial, no Activate -- and off again', async () => {
+describe('the Bot switch (ADR 044), in the header beside the padlock since 2026-10-15', () => {
+  it('turns on with one press -- no dial, no Activate -- and off again, asking nothing', async () => {
     const fetchMock = mockFetch({ session: strategySession() });
-    await renderPage();
-    const sw = screen.getByTestId('bots-switch');
+    await renderDesk();
+    const sw = screen.getByTestId('global-bar-bot-key');
     expect(sw.getAttribute('aria-checked')).toBe('false');
+    expect(screen.queryByTestId('bots-switch')).toBeNull();          // the Bot card holds no switch any more
     expect(screen.queryByTestId('bots-activate')).toBeNull();
     expect(screen.queryByTestId('bots-level-2')).toBeNull();
-    await press('bots-switch');
+    await press('global-bar-bot-key');
     expect(switchBodies(fetchMock)).toEqual(['{"on":true}']);
-    expect(screen.getByTestId('bots-switch').getAttribute('aria-checked')).toBe('true');
-    expect(screen.getByTestId('bots-switch-why').textContent).toMatch(/^On for Paper\./);
-    await press('bots-switch');
+    expect(screen.getByTestId('global-bar-bot-key').getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByTestId('bots-switch-why').textContent).toMatch(/^The Bot switch is on for Paper\./);
+    await press('global-bar-bot-key');
     expect(switchBodies(fetchMock)).toEqual(['{"on":true}', '{"on":false}']);
     expect(called(fetchMock, '/session/arm')).toBe(false);
-    expect(confirmApp).not.toHaveBeenCalled();
+    expect(confirmApp).not.toHaveBeenCalled();                        // off sells nothing, so it asks nothing
+    expect(called(fetchMock, '/live-traders/asks')).toBe(false);
   });
 
   it('is locked on Live with the reason, and never presses', async () => {
     const fetchMock = mockFetch({ session: strategySession({ level_venue: 'live' }) });
-    await renderPage();
-    const sw = screen.getByTestId('bots-switch') as HTMLButtonElement;
+    await renderDesk();
+    const sw = screen.getByTestId('global-bar-bot-key') as HTMLButtonElement;
     expect(sw.disabled).toBe(true);
     expect(sw.getAttribute('data-why')).toBe(BOT_SWITCH_LIVE_WHY);
-    await press('bots-switch');
+    await press('global-bar-bot-key');
     expect(switchBodies(fetchMock)).toEqual([]);
   });
 
   it('an old bot trip stamp reads as a plain off, and the switch turns on in one press (ADR 056)', async () => {
     const fetchMock = mockFetch({ session: strategySession({ deactivated: { at: AT_0942, reason: 'bot_trip', text: null } }) });
-    await renderPage();
-    expect(screen.getByTestId('bots-switch-why').textContent).toBe('Turned off at 09:42 ET — Nova turned it off.');
-    await press('bots-switch');
+    await renderDesk();
+    expect(screen.getByTestId('bots-switch-why').textContent)
+      .toBe('The Bot switch (in the header, beside the padlock) is off. Turned off at 09:42 ET — Nova turned it off.');
+    await press('global-bar-bot-key');
     expect(confirmApp).not.toHaveBeenCalled();
     expect(switchBodies(fetchMock)).toEqual(['{"on":true}']);
   });
 
-  it('shows the backend\'s refusal in its own words', async () => {
+  it('shows the backend\'s refusal in its own words, under the switch and on the page', async () => {
     mockFetch({ session: strategySession(), onSwitch: () => refusal(409, 'BOT_PADLOCK_LOCKED', 'The padlock is locked -- unlock it first') });
-    await renderPage();
-    await press('bots-switch');
+    await renderDesk();
+    await press('global-bar-bot-key');
+    expect(screen.getByTestId('global-bar-bot-key-refused').textContent).toBe('The padlock is locked — unlock it first');
     expect(screen.getByTestId('bots-error').textContent).toBe('The padlock is locked — unlock it first');
-    expect(screen.getByTestId('bots-switch').getAttribute('aria-checked')).toBe('false');
+    expect(screen.getByTestId('global-bar-bot-key').getAttribute('aria-checked')).toBe('false');
   });
 
   it('says why the backend turned it off, and why an on Bot is not trading now', async () => {
     mockFetch({ session: strategySession({ deactivated: { at: AT_0942, reason: 'restart', text: 'Not active -- the backend restarted' } }) });
     await renderPage();
-    expect(screen.getByTestId('bots-switch-why').textContent).toBe('Turned off at 09:42 ET — the backend restarted.');
+    expect(screen.getByTestId('bots-switch-why').textContent)
+      .toBe('The Bot switch (in the header, beside the padlock) is off. Turned off at 09:42 ET — the backend restarted.');
     cleanup();
     _resetBotSessionPollerForTests();
     mockFetch({ session: strategySession({ bot_on: true, active: true, ready: false, ready_reason: 'every bot window is closed' }) });
     await renderPage();
-    expect(screen.getByTestId('bots-switch-why').textContent).toBe('On for Paper. One bot for both sides: each strategy at On trades its own side. Not trading now — every bot window is closed.');
+    expect(screen.getByTestId('bots-switch-why').textContent).toBe('The Bot switch is on for Paper. One bot for both sides: each strategy at On trades its own side. Not trading now — every bot window is closed.');
   });
 
   it('shows the bot\'s own trade', async () => {
@@ -226,8 +242,8 @@ describe('the Bot switch (ADR 044)', () => {
 
   it('offers the API key field when a write needs the key', async () => {
     mockFetch({ session: strategySession(), onSwitch: () => ({ ok: false, status: 401, json: async () => ({ detail: 'Invalid or missing X-Nova-Api-Key' }) }) });
-    await renderPage();
-    await press('bots-switch');
+    await renderDesk();
+    await press('global-bar-bot-key');
     expect(screen.getByTestId('bots-error').textContent).toMatch(/Need Nova API key/i);
     expect(screen.getByTestId('bots-api-key')).toBeTruthy();
   });
@@ -235,9 +251,54 @@ describe('the Bot switch (ADR 044)', () => {
   it('never turns the Bot off from the page when the padlock reads locked: the backend does', async () => {
     ibkrStatus.armed = false;
     const fetchMock = mockFetch({ session: strategySession({ bot_on: true, active: true }) });
-    await renderPage();
+    await renderDesk();
     expect(switchBodies(fetchMock)).toEqual([]);
     expect(called(fetchMock, '/session/disarm')).toBe(false);
+  });
+});
+
+describe('the Strategy Bots key (2026-10-15)', () => {
+  const keyBodies = (fetchMock: ReturnType<typeof mockFetch>) =>
+    fetchMock.mock.calls.filter(([url]) => String(url).includes('/session/keys'))
+      .map(([, init]) => String((init as RequestInit | undefined)?.body ?? ''));
+
+  it('sits on top of the page and turns the family off and on: off, its bots cannot place orders or sell', async () => {
+    const fetchMock = mockFetch({ session: strategySession({ bot_on: true, active: true }) });
+    await renderPage();
+    const key = screen.getByTestId('bot-key-strategy');
+    expect(key.compareDocumentPosition(screen.getByTestId('bots-answer')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByTestId('bot-key-strategy-line').textContent).toBe('On: Strategy Bots may place orders on Paper.');
+    await press('bot-key-strategy-switch');
+    expect(keyBodies(fetchMock)).toEqual(['{"family":"strategy","on":false}']);
+    expect(screen.getByTestId('bot-key-strategy-switch').getAttribute('aria-checked')).toBe('false');
+    expect(screen.getByTestId('bot-key-strategy-line').textContent).toBe("Off: bots can't place orders or sell.");
+    await press('bot-key-strategy-switch');
+    expect(keyBodies(fetchMock)).toEqual(['{"family":"strategy","on":false}', '{"family":"strategy","on":true}']);
+    expect(confirmApp).not.toHaveBeenCalled();
+  });
+
+  it('says why when the key is off on the answer line, and is locked on Live', async () => {
+    mockFetch({ session: strategySession({ bot_on: true, active: true, keys: keysView({ strategy: false }),
+      gates: openGates({ strategy_key: { ok: false, detail: { text: 'the Strategy Bots key is off: turn it on at the top of Bots > Strategy Bots' } } }) }) });
+    await renderPage();
+    expect(screen.getByTestId('bots-answer-strategy_key').textContent)
+      .toBe('the Strategy Bots key is off: turn it on at the top of Bots > Strategy BotsTurn it on above');
+    cleanup();
+    _resetBotSessionPollerForTests();
+    const fetchMock = mockFetch({ session: strategySession({ level_venue: 'live', keys: keysView({ venue: 'live', strategy: false }) }) });
+    await renderPage();
+    const sw = screen.getByTestId('bot-key-strategy-switch') as HTMLButtonElement;
+    expect(sw.disabled).toBe(true);
+    expect(screen.getByTestId('bot-key-strategy-line').textContent).toBe('Bots never trade Live.');
+    await press('bot-key-strategy-switch');
+    expect(keyBodies(fetchMock)).toEqual([]);
+  });
+
+  it('shows the backend\'s refusal under the key', async () => {
+    mockFetch({ session: strategySession(), onKey: () => refusal(409, 'BOT_KEYS_UNREADABLE', 'bot-keys.json could not be read') });
+    await renderPage();
+    await press('bot-key-strategy-switch');
+    expect(screen.getByTestId('bot-key-strategy-error').textContent).toBe('bot-keys.json could not be read');
   });
 });
 
@@ -277,7 +338,8 @@ describe('the page', () => {
   it('lays the sections out in the approved order, with nothing of the old hero', async () => {
     mockFetch();
     await renderPage();
-    const order = ['bots-answer', 'bots-bot-card', 'bots-strategies', 'bots-lines', 'bots-tickers', 'bots-today', 'bots-activity']
+    const order = ['bot-key-strategy', 'bots-answer', 'bots-bot-card', 'bots-strategies', 'bots-lines', 'bots-tickers', 'bots-today',
+      'bots-activity']
       .map(id => screen.getByTestId(id));
     for (let i = 1; i < order.length; i += 1) {
       expect(order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

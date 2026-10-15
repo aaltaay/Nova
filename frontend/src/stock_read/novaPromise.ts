@@ -59,7 +59,7 @@ export function novaBlockers(who: StockModeView | null, plan: StockPlan | null):
         : `The desk cannot tell whether ${setup} is at Strategy, so it promises no bot trade.`);
     }
     if (bot.active !== true && !has(SAYS_ACTIVE)) {
-      out.push(bot.active === false ? 'The bot is not active: press Activate on the Bots page.' : OLDER);
+      out.push(bot.active === false ? 'The bot is not active: turn on the Bot switch in the header.' : OLDER);
     }
     if (!bot.playing && !has(SAYS_PLAYING) && out.length === 0) {
       out.push(`The bot is not playing: ${bot.reason ?? 'it gave no reason'}.`);
@@ -70,7 +70,7 @@ export function novaBlockers(who: StockModeView | null, plan: StockPlan | null):
       out.push(`${capital(setup)} is not at Strategy: Auto-entry enters only a setup at Strategy.`);
     }
     if (bot.active === false && !has(SAYS_ACTIVE)) {
-      out.push('The bot is not active: Auto-entry enters only while it is. Press Activate on the Bots page.');
+      out.push('The bot is not active: Auto-entry enters only while it is. Turn on the Bot switch in the header.');
     }
   }
   return [...new Set(out)];

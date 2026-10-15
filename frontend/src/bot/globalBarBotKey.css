@@ -1,0 +1,102 @@
+/* The Bot switch in the header, beside the padlock (2026-10-15). Owner: bot/GlobalBarBotKey.tsx. It is the master
+   key over every bot, so it never leaves the bar: on a narrow bar it keeps the switch and drops the word ON / OFF. */
+
+.global-bar-bot-key-slot {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+
+.global-bar-bot-key {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: none;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid var(--nova-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--nova-text);
+  font: inherit;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.global-bar-bot-key:hover:not(:disabled) {
+  background: var(--hover-bg);
+  border-color: var(--nova-border-strong, var(--nova-border));
+}
+.global-bar-bot-key:disabled { cursor: not-allowed; opacity: 0.65; }
+.global-bar-bot-key:focus-visible { outline: 2px solid var(--nova-accent, #0a84ff); outline-offset: 2px; }
+
+.global-bar-bot-key__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+  background: #f5a524;
+}
+.global-bar-bot-key--on .global-bar-bot-key__dot {
+  background: var(--nova-success);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--nova-success) 30%, transparent);
+}
+.global-bar-bot-key--off .global-bar-bot-key__dot {
+  background: color-mix(in srgb, var(--nova-text-muted) 70%, transparent);
+}
+
+.global-bar-bot-key__label { color: var(--nova-text-muted); }
+
+.global-bar-bot-key__track {
+  position: relative;
+  width: 26px;
+  height: 15px;
+  border-radius: 8px;
+  flex: none;
+  background: color-mix(in srgb, var(--nova-text-muted) 35%, transparent);
+  transition: background 0.15s;
+}
+.global-bar-bot-key__track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s;
+}
+.global-bar-bot-key[aria-checked='true'] .global-bar-bot-key__track { background: var(--nova-success); }
+.global-bar-bot-key[aria-checked='true'] .global-bar-bot-key__track::after { transform: translateX(11px); }
+
+.global-bar-bot-key__name { font-weight: 650; min-width: 2.2em; }
+
+.global-bar-bot-key__refused {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 60;
+  width: max-content;
+  max-width: 340px;
+  padding: 6px 9px;
+  border: 1px solid color-mix(in srgb, var(--nova-danger, #ff453a) 60%, var(--nova-border));
+  border-radius: 6px;
+  background: var(--nova-panel);
+  color: var(--nova-text);
+  font-size: 12px;
+  line-height: 1.35;
+  white-space: normal;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 35%);
+}
+
+/* Under 1880px, or while a symbol records, the switch's track says ON / OFF alone: the word goes, as the old
+   pill's words did, so the search keeps its room (global-app-bar-responsive.css). */
+@media (max-width: 1879px) {
+  .global-bar-bot-key__name { display: none; }
+}
+
+.global-app-bar__primary:has(.global-app-bar__rec) .global-bar-bot-key__name {
+  display: none;
+}

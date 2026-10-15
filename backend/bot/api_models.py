@@ -35,6 +35,13 @@ class SwitchBody(BaseModel):
     brain_session_id: str | None = None
 
 
+class KeyBody(BaseModel):
+    """A family key (bot.md, "The three keys"): ``strategy`` or ``live_trader``, on or off, on the desk venue."""
+    family: str
+    on: bool
+    brain_session_id: str | None = None
+
+
 class HeartbeatBody(BaseModel):
     brain_session_id: str | None = None
 

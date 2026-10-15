@@ -96,7 +96,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(halts_router)
     app.include_router(symbols_router)
     app.include_router(bot_router)
-    app.include_router(live_trader_router)  # ADR 055: the Live Trader bot's cards on the Bots page
+    app.include_router(live_trader_router)  # ADR 055: the Live Trader bot's cards on Bots > LiveTrader Bots
     app.include_router(bot_ws_router)
     app.include_router(sim_router)
     app.include_router(capture_router)

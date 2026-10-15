@@ -1,16 +1,15 @@
 /**
- * The Bot card (ADR 044): the one Bot switch for this venue, Freeze all orders, and what the bot may risk.
- * One bot for both sides (ADR 049, #778 step 5): each strategy at On trades its own side, and the trade line
- * names it (▲ long or ▼ short).
- * The switch replaces the master dial and Activate: on is the master at Strategy with Activate, off leaves
- * the master at Eyes so alerts keep coming. On Live it is locked and says why. The day's loss is capped by
- * the one daily loss limit in Settings > Loss limits (ADR 056), not here. Nothing here places an order.
+ * The Bot card (ADR 044): Freeze all orders, the bot's trade, and what the bot may risk. The Bot switch it held is
+ * in the header beside the padlock since 2026-10-15 (the master key over every bot); the Strategy Bots key is at the
+ * top of this page. One bot for both sides (ADR 049, #778 step 5): each strategy at On trades its own side, and the
+ * trade line names it (▲ long or ▼ short). The day's loss is capped by the one daily loss limit in Settings > Loss
+ * limits (ADR 056), not here. Nothing here places an order.
  */
 import { useState, type ReactNode } from 'react';
 import { writeNovaApiKey } from '../api/novaFetch';
 import { BOT_API_KEY_HINT, BOT_API_KEY_SAVE } from '../constantGroups/bot';
 import { BOTS_KEY_EMPTY_WHY } from '../constantGroups/bots_page';
-import { tipProps, whyProps } from '../ux';
+import { whyProps } from '../ux';
 import { BotKillSwitch } from './BotKillSwitch';
 import { botHeaderState } from './botHeaderState';
 import { nextTradeLine, prose, sessionVenueName, tradeLine } from './botsPageFormat';
@@ -20,10 +19,7 @@ import type { KillSwitchControl } from './useKillSwitch';
 
 export const BOT_CARD_ANCHOR = 'bots-bot-card';
 
-const ON_TIP = 'On: the bot may act on the GO triggers of strategies at On, on the stocks whose Entry is Bot -- '
-  + 'a long strategy buys, a short strategy shorts. Click to turn it off; Eyes keep running.';
-const OFF_TIP = 'Off: the bot trades nothing by itself. Strategies at Eyes or On still alert you. Click to turn it on.';
-/** The one-bot words under the switch (#778 step 5). */
+/** The one-bot words on the card (#778 step 5). */
 const BOTH_SIDES = 'One bot for both sides: each strategy at On trades its own side.';
 
 /** A write the backend refused for want of the desk's API key: save it here (it stays in this desk). */
@@ -45,7 +41,7 @@ export function BotSwitchCard({ arm, killSwitch, children }: {
   killSwitch: KillSwitchControl;
   children: ReactNode;
 }) {
-  const { session, error, on, lock, onSwitch, showKeyField } = arm;
+  const { session, error, on, showKeyField } = arm;
   if (!session) return null;
   const notReady = on ? botHeaderState(session).reason : null;
   const trade = tradeLine(session.trade);
@@ -54,23 +50,10 @@ export function BotSwitchCard({ arm, killSwitch, children }: {
     <section className="bots-card bots-botcard" id={BOT_CARD_ANCHOR} data-testid="bots-bot-card">
       <div className="bots-botcard__left">
         <h3 className="bots-botcard__title">Bot</h3>
-        <button
-          type="button"
-          className={`bots-switch${on ? ' is-on' : ''}`}
-          role="switch"
-          aria-checked={on}
-          disabled={lock !== null}
-          {...(lock ? whyProps(true, lock) : tipProps(on ? ON_TIP : OFF_TIP, 'Bot'))}
-          onClick={() => void onSwitch(!on)}
-          data-testid="bots-switch"
-        >
-          <span className="bots-switch__track" aria-hidden="true" />
-          <span className="bots-switch__txt">
-            <b>Bot is {on ? 'on' : 'off'}</b>
-            <small data-testid="bots-switch-why">{on ? `On for ${sessionVenueName(session)}. ${BOTH_SIDES}${notReady ? ` ${notReady}.` : ''}` : offWords(session)}</small>
-          </span>
-          <span className={`bots-switch__state${on ? ' is-on' : ''}`}>{on ? 'ON' : 'OFF'}</span>
-        </button>
+        <p className="bots-botcard__trade" data-testid="bots-switch-why">
+          {on ? `The Bot switch is on for ${sessionVenueName(session)}. ${BOTH_SIDES}${notReady ? ` ${notReady}.` : ''}`
+            : `The Bot switch (in the header, beside the padlock) is off. ${offWords(session)}`}
+        </p>
         {trade ? <p className="bots-botcard__trade" data-testid="bots-trade">{trade}</p> : null}
         {next ? <p className="bots-botcard__trade bots-botcard__next" data-testid="bots-next-trade">{next}</p> : null}
         <p className="bots-botcard__note">The bot trades on Paper and Sim. On Live, your PIN unlocks your own orders; the bot never trades Live.</p>

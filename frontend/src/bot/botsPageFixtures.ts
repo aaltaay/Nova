@@ -21,6 +21,7 @@ export function gates(overrides: Partial<Record<string, Partial<BotGate>>> = {})
     { id: 'level', ok: false, stage: 'activate', detail: { level: 1 } },
     { id: 'setups', ok: false, stage: 'activate', detail: { at_strategy: [] } },
     { id: 'padlock', ok: true, stage: 'activate', detail: { reason: null } },
+    { id: 'strategy_key', ok: true, stage: 'fire', detail: { venue: 'paper', text: 'the Strategy Bots key is on' } },
     { id: 'allowlist', ok: true, stage: 'fire', detail: { count: 2, auto_entry: 0 } },
     { id: 'depth_lines', ok: true, stage: 'fire', detail: { held: ['GRML'], missing: ['IMCC'], max_lines: 3 } },
     { id: 'loss_limit', ok: true, stage: 'fire', detail: { text: null, until: null, tripped_at: null, loss: null, limit_usd: 2000, venue: 'paper' } },
@@ -106,8 +107,23 @@ export function session(partial: Partial<BotSession> = {}): BotSession {
     caps_by_venue: { paper: caps('paper'), sim: caps('sim'), live: caps('live') },
     entries_today: { count: 0, cap: 1, venue_day: '2026-09-30', entries: [], approved: 0 },
     level_venue: 'paper',
+    // The family keys (2026-10-15): both on by default, as a key the file does not hold reads.
+    keys: keysView(),
     focus: [], trader_live: [], working: [],
     ...partial,
+  };
+}
+
+/** `keys` on the session view: Paper's family keys, both on unless said. */
+export function keysView(partial: { venue?: string | null; strategy?: boolean; live_trader?: boolean; error?: string | null } = {}) {
+  const key = (on: boolean, name: string) => ({
+    on, why_off: on ? null : `the ${name} key is off: turn it on at the top of Bots > ${name}`,
+  });
+  return {
+    venue: partial.venue === undefined ? 'paper' : partial.venue,
+    error: partial.error ?? null,
+    strategy: key(partial.strategy ?? true, 'Strategy Bots'),
+    live_trader: key(partial.live_trader ?? true, 'LiveTrader Bots'),
   };
 }
 
@@ -164,6 +180,8 @@ export interface BotsFetchOpts {
   onTemplate?: (method: string, href: string, body: Record<string, unknown>) => Json | undefined;
   /** `POST /api/bot/session/switch` (ADR 044): the session after it, or a refusal. */
   onSwitch?: (body: Record<string, unknown>) => BotSession | Json;
+  /** `POST /api/bot/session/keys` (2026-10-15): the session after it (default: that key flipped), or a refusal. */
+  onKey?: (body: Record<string, unknown>) => BotSession | Json | undefined;
   /** `GET /api/bot/triggers`: Tickers today and the answer line read it. */
   triggers?: unknown;
   /** `GET /api/hot-list`; a write answers `onHotList` (else the same view). */
@@ -298,6 +316,15 @@ export function botsFetchRouter(opts: BotsFetchOpts = {}) {
       const on = body.on === true;
       const next = opts.onSwitch?.(body) ?? { ...current, bot_on: on, active: on, armed: on, level: on ? 2 : 1,
         has_desk_arm: on, deactivated: null, ...(on ? { desk_arm_token: 'desk-token-1' } : {}) };
+      if (isJson(next)) return next;
+      current = next;
+      return ok(current);
+    }
+    if (href.includes('/session/keys')) {
+      const family = String(body.family) as 'strategy' | 'live_trader';
+      const keys = current.keys ?? keysView();
+      const next = opts.onKey?.(body)
+        ?? { ...current, keys: { ...keys, [family]: { on: body.on === true, why_off: body.on === true ? null : 'off' } } };
       if (isJson(next)) return next;
       current = next;
       return ok(current);

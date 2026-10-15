@@ -536,7 +536,7 @@ describe('the legend on the 1-minute chart', () => {
     const off = within(card).getByTestId('stock-read-menu-flat_top_breakout') as HTMLButtonElement;
     expect(off.disabled).toBe(true);
     expect(off.textContent).toContain('Off');
-    expect(off.getAttribute('data-why')).toContain('Off on the Bots page');
+    expect(off.getAttribute('data-why')).toContain('Off on Strategy Bots');
 
     // Hiding the forming bull flag moves it into the menu, which stays open; showing it brings its chip back.
     fireEvent.click(within(card).getByTestId('stock-read-menu-bull_flag'));

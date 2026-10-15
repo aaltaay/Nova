@@ -20,7 +20,7 @@ export function BotAutonomyCard() {
   const view = session ? botHeaderState(session) : null;
   const openBots = () => {
     if (traderViewActive) showScannerView();
-    setNavPage('bots');
+    setNavPage('bots-strategy');
   };
   return (
     <section
@@ -42,7 +42,7 @@ export function BotAutonomyCard() {
       </div>
       {view?.reason ? <p className="bot-card__reason" data-testid="bot-card-reason">{prose(view.reason)}</p> : null}
       <button type="button" className="bot-card__link" data-testid="bot-card-open" onClick={openBots}>
-        Strategies, hot list and every gate: Bots page ↗
+        Strategies, hot list and every gate: Strategy Bots ↗
       </button>
       {error ? <p className="bot-card__error" data-testid="bot-card-error" role="alert">{prose(error)}</p> : null}
       {showKeyField ? <ApiKeyField className="bot-card__key" testId="bot-card-api-key" /> : null}

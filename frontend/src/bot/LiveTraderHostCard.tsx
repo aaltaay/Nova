@@ -1,8 +1,9 @@
 /**
- * One TraderTV host's bot on the TraderTV LIVE page (ADR 055, mockup v1 approved 2026-10-14): its key, who enters
+ * One TraderTV host's bot on Bots > LiveTrader Bots (ADR 055, mockup v1 approved 2026-10-14): its key, who enters
  * and who exits (the stock's own Entry / Exit switch and words, ADR 037), what it asks you, what it may spend and has
- * spent, what it holds, and its newest steps and skips with their reasons. Turning the key off while it holds
- * positions asks first, then sells them (operator, 2026-10-14). Every write is the backend's to accept.
+ * spent, what it holds, and its newest steps and skips with their reasons. Its key off, the bot places no order, not
+ * even a sell: nothing is sold when it turns off, so there is nothing to ask (operator decision 2026-10-15). Every
+ * write is the backend's to accept.
  */
 import { useState } from 'react';
 import {
@@ -15,7 +16,6 @@ import {
   LT_ENTRY_LABEL,
   LT_EVENTS_SHOWN,
   LT_EXIT_LABEL,
-  LT_KEEP_ON,
   LT_KEY_LABEL,
   LT_KEY_TIP_OFF,
   LT_KEY_TIP_ON,
@@ -24,13 +24,9 @@ import {
   LT_SKIPPED_LABEL,
   LT_TODAY_LABEL,
   LT_TRADES_LABEL,
-  ltKeyOffMessage,
-  ltKeyOffTitle,
-  ltSellAndOff,
 } from '../constantGroups/live_trader';
 import { MODE_SIDES } from '../stock_read';
 import { tipProps, whyProps } from '../ux';
-import { confirmApp } from '../ux/appDialogApi';
 import { etClock, prose } from './botsPageFormat';
 import { allowancePct, px, ruleChips, signedUsd, sparkPoints, usd } from './liveTraderFormat';
 import { LiveTraderSettings } from './LiveTraderSettings';
@@ -79,20 +75,9 @@ function Spark({ series }: { series: LtHost['today']['series'] }) {
 export function LiveTraderHostCard({ host, sellAllAt, busy, onPatch, onAnswer }: Props) {
   const [editing, setEditing] = useState(false);
   const st = host.settings;
-  const held = host.positions.filter(p => p.qty > 0);
   const name = host.name;
 
   async function onKey() {
-    if (st.key && held.length) {
-      const yes = await confirmApp({
-        title: ltKeyOffTitle(name),
-        message: ltKeyOffMessage(held.map(p => ({ symbol: p.symbol, qty: p.qty, side: p.side }))),
-        confirmLabel: ltSellAndOff(held.length),
-        cancelLabel: LT_KEEP_ON,
-        tone: 'warning',
-      });
-      if (!yes) return;
-    }
     await onPatch(name, { key: !st.key });
   }
 

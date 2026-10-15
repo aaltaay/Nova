@@ -171,6 +171,23 @@ export interface BotSwitchState {
   why_off: string | null;
 }
 
+/** The bot families under the Bot switch, each with its key per venue (bot.md, "The three keys", 2026-10-15). */
+export type BotFamily = 'strategy' | 'live_trader';
+
+/** One family's key on the desk venue: off, its bots place no order, not even a sell. */
+export interface BotFamilyKeyState {
+  on: boolean;
+  why_off: string | null;
+}
+
+/** `keys` on the session view: the desk venue's family keys; every key reads off on Live. */
+export interface BotKeysState {
+  venue: string | null;
+  error: string | null;
+  strategy: BotFamilyKeyState;
+  live_trader: BotFamilyKeyState;
+}
+
 export type BotSession = {
   /** The master ceiling: the most any setup may do on this venue. */
   level: BotLevel | 3;
@@ -206,6 +223,8 @@ export type BotSession = {
   bot_on?: boolean;
   /** ADR 044: the switch's own words: why it is off. */
   switch?: BotSwitchState;
+  /** The family keys under the switch (2026-10-15); absent from an older backend. */
+  keys?: BotKeysState;
   brain_session_id: string | null;
   brain_heartbeat_ts?: number | null;
   brain_alive?: boolean;

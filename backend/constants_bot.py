@@ -322,6 +322,21 @@ BOT_SKIP_SHORT_PRICE = "BOT_SKIP_SHORT_PRICE"
 # ADR 049 section 12: a short setup is On only once its five-year test passed on the rules in play.
 # The Bot switch: ON is the master at Strategy and Activate in one step; OFF is the master at Eyes.
 BOT_AUDIT_ACTION_SWITCH = "bot_switch"
+# The three keys (operator decisions 2026-10-15; bot.md "The three keys"): a key per bot family, per practice
+# venue, under the Bot switch. A bot buys only while the Bot switch, its family's key and its own key are all on;
+# off stops new buys only. Owner of the file: ``bot.family_keys``.
+BOT_KEYS_FILENAME = "bot-keys.json"
+BOT_KEYS_SCHEMA_VERSION = 1
+BOT_FAMILY_STRATEGY = "strategy"
+BOT_FAMILY_LIVE_TRADER = "live_trader"
+BOT_FAMILIES = (BOT_FAMILY_STRATEGY, BOT_FAMILY_LIVE_TRADER)
+BOT_FAMILY_NAMES = {BOT_FAMILY_STRATEGY: "Strategy Bots", BOT_FAMILY_LIVE_TRADER: "LiveTrader Bots"}
+BOT_KEYS_VENUES = ("paper", "sim")       # Live has no family keys: bots never trade Live
+BOT_KEY_DEFAULT_ON = True                 # a key the file does not hold: the day before the keys traded this way
+BOT_AUDIT_ACTION_KEY = "bot_key"
+BOT_REASON_KEYS_UNREADABLE = "BOT_KEYS_UNREADABLE"
+BOT_REASON_KEY_UNKNOWN = "BOT_KEY_UNKNOWN"
+BOT_SKIP_FAMILY_OFF = "BOT_SKIP_FAMILY_OFF"
 # The squares, by ticker (``GET /api/bot/triggers``): the gates in the order Nova runs them.
 BOT_TRIGGERS_SCHEMA_VERSION = 1
 BOT_TRIGGER_GATES = (

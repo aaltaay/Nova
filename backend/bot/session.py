@@ -47,7 +47,7 @@ def get_session() -> dict[str, Any]:
 
 
 def public_view(row: dict[str, Any]) -> dict[str, Any]:
-    from bot import activation, sleeve, switch
+    from bot import activation, family_keys, sleeve, switch
     from bot.gates import first_closed, gates
     from bot.setup_levels import effective, master, own_levels
     from ibkr.trading_allowed import places_allowed
@@ -72,6 +72,8 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
         "active": active,
         # ADR 044: the Bot switch -- ON is the master at Strategy and Active, and why it is off.
         **switch.view(row, venue),
+        # The family keys under the Bot switch (bot.md, "The three keys"): the desk venue's.
+        "keys": family_keys.view(venue),
         "armed": active,                         # LEGACY alias of ``active`` (one release)
         "has_desk_arm": has_desk_arm(row),
         "deactivated": _deactivated(row.get("deactivated")),
@@ -187,7 +189,7 @@ def require_l2_brain(brain_session_id: str | None, *, claim: bool = True) -> str
     desk_token = (row.get("desk_arm_token") or "").strip()
     if not is_desk_active(row):
         raise BotError(
-            "Activate on the Bots page before a brain can claim",
+            "Activate (the Bot switch in the header) before a brain can claim",
             409,
             BOT_REASON_ARM_REQUIRED,
         )

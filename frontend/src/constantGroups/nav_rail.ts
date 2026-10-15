@@ -14,6 +14,9 @@ export const NAV_RAIL_LABEL_TRADER = 'Trader';
 export const NAV_RAIL_LABEL_SCANNER = 'Scanner';
 export const NAV_RAIL_LABEL_ACCOUNT = 'Account';
 export const NAV_RAIL_LABEL_BOTS = 'Bots';
+/** Bots is a group (operator decision 2026-10-15): its two children, a key on top of each. */
+export const NAV_RAIL_LABEL_BOTS_LIVE_TRADER = 'LiveTrader Bots';
+export const NAV_RAIL_LABEL_BOTS_STRATEGY = 'Strategy Bots';
 export const NAV_RAIL_LABEL_RECORDS = 'Records';
 export const NAV_RAIL_LABEL_CRYPTOS = 'Cryptos';
 /** The followed traders page is named after the channel its feed reads (operator ask 2026-10-14: rename it "from
@@ -28,7 +31,10 @@ export const NAV_RAIL_TITLE_TRADER =
 export const NAV_RAIL_TITLE_SCANNER = 'Scanner lists and signals';
 export const NAV_RAIL_TITLE_ACCOUNT =
   'Account overview -- positions, orders, and trading habit reports';
-export const NAV_RAIL_TITLE_BOTS = 'Bots -- strategy and bot autonomy';
+export const NAV_RAIL_TITLE_BOTS = 'Bots -- LiveTrader Bots and Strategy Bots';
+export const NAV_RAIL_TITLE_BOTS_LIVE_TRADER = 'LiveTrader Bots -- one bot per TraderTV host, on Paper, and their key';
+export const NAV_RAIL_TITLE_BOTS_STRATEGY =
+  'Strategy Bots -- the strategies Off / Eyes / On, Level 2 lines, tickers, and their key';
 export const NAV_RAIL_TITLE_RECORDS = 'Records -- Session Records';
 export const NAV_RAIL_TITLE_CRYPTOS = 'Cryptos -- the 24/7 crypto market, and the stocks it moves';
 export const NAV_RAIL_TITLE_FOLLOWED =

@@ -1,10 +1,10 @@
 /**
  * @vitest-environment jsdom
  *
- * The Live Trader panel (ADR 055, mockup v1 approved 2026-10-14; on the TraderTV LIVE page since the ADR 044
- * amendment of 2026-10-15): every control is a real one -- a host's key (asks first when it holds positions), Entry
- * and Exit, an ask's Approve and Skip on the card and as a toast in every window, the money rules' editors -- and
- * every blocker is said, with a link to the Bots page when its control is there. Made-up hosts and tickers.
+ * The Live Trader panel (ADR 055, mockup v1 approved 2026-10-14; on Bots > LiveTrader Bots since 2026-10-15): every
+ * control is a real one -- a host's key (off places no order and sells nothing, so it asks nothing), Entry and Exit,
+ * an ask's Approve and Skip on the card and as a toast in every window, the money rules' editors -- and every blocker
+ * is said, linking Strategy Bots for Freeze all orders. Made-up hosts and tickers.
  */
 import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -124,13 +124,26 @@ describe('the Live Trader cards', () => {
     expect(screen.getByTestId('lt-host-ALPHA').textContent).toContain('Longs and shorts · 5% buy stop');
   });
 
-  it('say what stops every host now, and link to the Bots page when the switch is there', async () => {
+  it("say what stops every host now: the header's switch and the key above in words, Freeze all orders by a link", async () => {
     resetNavRailStoreForTests();
-    current = view({ can_trade: { ok: false, code: 'LT_BOT_OFF', why: 'the Bot switch is off: turn it on to let the hosts\' bots trade' } });
+    current = view({ can_trade: { ok: false, code: 'LT_BOT_OFF',
+      why: 'the Bot switch in the header is off: bots place no order, not even a sell' } });
     await renderCard();
-    expect(screen.getByTestId('lt-blocker').textContent).toContain('the Bot switch is off');
+    expect(screen.getByTestId('lt-blocker').textContent).toContain('the Bot switch in the header is off');
+    expect(screen.queryByTestId('lt-open-bots')).toBeNull();          // it is in the header, on every page
+    cleanup();
+    _resetLiveTraderPollsForTests();
+    current = view({ can_trade: { ok: false, code: 'LT_FAMILY_OFF',
+      why: 'the LiveTrader Bots key is off: turn it on at the top of Bots > LiveTrader Bots: its bots place no order, not even a sell' } });
+    await renderCard();
+    expect(screen.getByTestId('lt-blocker').textContent).toContain('the LiveTrader Bots key is off');
+    expect(screen.queryByTestId('lt-open-bots')).toBeNull();          // the key is on this page
+    cleanup();
+    _resetLiveTraderPollsForTests();
+    current = view({ can_trade: { ok: false, code: 'LT_FROZEN', why: 'Freeze all orders is on: no new orders' } });
+    await renderCard();
     fireEvent.click(screen.getByTestId('lt-open-bots'));
-    expect(getNavPage()).toBe('bots');
+    expect(getNavPage()).toBe('bots-strategy');
   });
 
   it('link no page the Bots page cannot fix: the desk venue, a book that cannot be written', async () => {
@@ -147,19 +160,11 @@ describe('the Live Trader cards', () => {
     expect(screen.queryByTestId('lt-open-bots')).toBeNull();
   });
 
-  it('ask before a key turns off while its bot holds positions, and send nothing on "Keep it on"', async () => {
-    confirmApp.mockImplementation(async () => false);
+  it('turn a key off in one press while its bot holds positions: it sells nothing, so it asks nothing', async () => {
     await renderCard();
     await act(async () => { fireEvent.click(screen.getByTestId('lt-key-ALPHA')); });
     await flush();
-    expect(confirmApp).toHaveBeenCalledTimes(1);
-    const opts = (confirmApp.mock.calls[0] as unknown as [{ message: string; confirmLabel: string }])[0];
-    expect(opts.message).toContain('XYZ 4 shares');
-    expect(opts.confirmLabel).toBe('Sell 1 and turn off');
-    expect(writes).toEqual([]);
-    confirmApp.mockImplementation(async () => true);
-    await act(async () => { fireEvent.click(screen.getByTestId('lt-key-ALPHA')); });
-    await flush();
+    expect(confirmApp).not.toHaveBeenCalled();
     expect(writes).toEqual([{ url: expect.stringContaining('/api/bot/live-traders/ALPHA'), method: 'PATCH', body: { key: false } }]);
   });
 
@@ -221,27 +226,11 @@ describe('the asks as toasts', () => {
 });
 
 describe('the Bot switch', () => {
-  it('asks before it turns off while the Live Trader bot holds positions', async () => {
+  it('turns off in one press while the Live Trader bot holds positions: off sells nothing (2026-10-15)', async () => {
     const { useBotArm } = await import('./useBotArm');
     asksNow = { asks: [], held: [{ host: 'ALPHA', symbol: 'XYZ', side: 'long', qty: 4, state: 'open' }] };
-    confirmApp.mockImplementation(async () => false);
     const { result } = renderHook(() => useBotArm());
     await act(async () => { await result.current.onSwitch(false); });
-    expect(confirmApp).toHaveBeenCalledTimes(1);
-    expect((confirmApp.mock.calls[0] as unknown as [{ message: string }])[0].message).toContain('XYZ 4 shares');
-    expect(setSwitch).not.toHaveBeenCalled();
-    confirmApp.mockImplementation(async () => true);
-    await act(async () => { await result.current.onSwitch(false); });
-    expect(setSwitch).toHaveBeenCalledWith(false);
-  });
-
-  it('never asks on Sim or Live: the Live Trader bot trades Paper only', async () => {
-    const { useBotArm } = await import('./useBotArm');
-    asksNow = { asks: [], held: [{ host: 'ALPHA', symbol: 'XYZ', side: 'long', qty: 4, state: 'open' }] };
-    botSession.level_venue = 'sim';
-    const { result } = renderHook(() => useBotArm());
-    await act(async () => { await result.current.onSwitch(false); });
-    botSession.level_venue = 'paper';
     expect(confirmApp).not.toHaveBeenCalled();
     expect(setSwitch).toHaveBeenCalledWith(false);
   });

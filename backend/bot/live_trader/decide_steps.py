@@ -27,6 +27,7 @@ from bot.live_trader.constants_live_trader import (
     LT_ASK_SEC,
     LT_ASK_SKIPPED,
     LT_HIDDEN,
+    LT_KEY_OFF,
     LT_NO_CLOCK,
     LT_NOT_ON_BAR,
     LT_OFF_AIR,
@@ -316,6 +317,21 @@ class _Pass:
             self.send(name, r, pid, "add", v["plan"], change, approved=False)
 
 
+def _key_off_adds(run: _Pass, name: str, st: dict[str, Any], open_rows: list[dict[str, Any]], hs: dict[str, Any],
+                  book: dict[str, dict[str, Any]], closing: set[str]) -> None:
+    """The host's key is off: its bot places no order, and each add of what it holds is a skip (``LT_KEY_OFF``),
+    so turning the key back on never buys an add made while it was off (operator decision 2026-10-15)."""
+    off = (LT_KEY_OFF, f"{name}'s Bot key is off: its bot places no order")
+    for r in open_rows:
+        pid = feed_rows.position_id(name, r["side"], r["symbol"])
+        pos = book.get(pid)
+        if pos is None or pos["row_id"] != r["id"] or pid in closing:
+            continue
+        rs = hs["rows"].setdefault(r["id"], {"fate": None, "since": None, "groups_done": None, "ask_id": None,
+                                             "kind": "open"})
+        run.add(name, st, r, rs, pos, off, set())
+
+
 def _host_state() -> dict[str, Any]:
     return {"rows": {}, "keyed": False, "on_air": None}
 
@@ -347,6 +363,7 @@ def steps(snap: dict[str, Any], answer: dict[str, Any], book: dict[str, dict[str
                 run.drop_ask(ask_id, "the key is off" if not st["key"] else
                              f"{name} closed {ask['symbol']} before you answered")
         if not st["key"]:
+            _key_off_adds(run, name, st, open_rows, hs, book, closing)
             continue
         blocked = _blocked(ctx, flags, on_air, name)
         unread = set(h.get("unread") or ())

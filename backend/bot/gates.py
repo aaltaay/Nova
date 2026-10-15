@@ -77,13 +77,13 @@ def _setups_words(strategy: list[str], hosts: list[str]) -> str:
 
 
 def gates(row: dict[str, Any], venue_now: tuple[str | None, bool, bool] | None = None) -> list[dict[str, Any]]:
-    from bot import activation, entry_rules
+    from bot import activation, entry_rules, family_keys
     from bot.day_pnl import commission_hold
     from bot.eligibility import holds_depth_line, normalize_symbols
     from bot.setup_levels import at_strategy, master
     from bot.sleeve import of as sleeve_of
     from constants import IBKR_MAX_DEPTH_SYMBOLS
-    from constants_bot import BOT_LEVEL_STRATEGY
+    from constants_bot import BOT_FAMILY_STRATEGY, BOT_LEVEL_STRATEGY
     import kill_switch
 
     venue, edge, readable = venue_now or activation.venue_state()
@@ -105,6 +105,8 @@ def gates(row: dict[str, Any], venue_now: tuple[str | None, bool, bool] | None =
     late = _safe(lambda: entry_rules.extended_hours_block(caps), "the venue's clock is unreadable",
                  "regular hours")
     hold = commission_hold(venue)     # #564: Live only; never raises
+    strategy_key = _safe(lambda: family_keys.state(BOT_FAMILY_STRATEGY, venue), (False, "the Strategy Bots key could "
+                         "not be read (the backend log has the error)"), "the Strategy Bots key")
     return [
         _gate("venue", blocked is None, "activate", blocked[1] if blocked is not None else _venue_words(venue, edge),
               venue=venue, live_edge=edge),
@@ -116,6 +118,8 @@ def gates(row: dict[str, Any], venue_now: tuple[str | None, bool, bool] | None =
         _gate("padlock", padlock_ok, "activate",
               "the desk padlock is unlocked" if padlock_ok else f"the desk padlock is locked: {padlock_why}",
               reason=padlock_why),
+        _gate("strategy_key", strategy_key[0], "fire",
+              "the Strategy Bots key is on" if strategy_key[0] else str(strategy_key[1]), venue=venue),
         _gate("allowlist", bool(symbols) or bool(auto), "fire",
               _stocks_text(len(symbols), len(auto)), count=len(symbols), auto_entry=len(auto)),
         _gate("depth_lines", bool(held), "fire",

@@ -5,7 +5,8 @@ ADR 042: the bot's stock list is written only through stock mode's rules
 localhost API refuses every kind on Live and on a replay desk (``bot.actions``).
 
 ADR 044: the Bot switch (``POST /api/bot/session/switch``, ``bot.switch``) is the desk's one
-control -- ``PATCH {level}`` and ``POST /arm`` stay for the localhost API -- and the squares
+control -- ``PATCH {level}`` and ``POST /arm`` stay for the localhost API; each bot family has its key under it
+(``POST /api/bot/session/keys``, ``bot.family_keys``) -- and the squares
 (``GET /api/bot/triggers``, ``bot.trigger_audit``) say, by ticker, why Nova bought or did not.
 """
 from __future__ import annotations
@@ -23,6 +24,7 @@ from bot.api_models import (
     ArmBody,
     FocusBody,
     HeartbeatBody,
+    KeyBody,
     LiveSyncBody,
     ProposalBody,
     SessionPatch,
@@ -121,6 +123,21 @@ def bot_switch(request: Request, body: SwitchBody) -> dict:
     if token:
         view["desk_arm_token"] = token
     return view
+
+
+@router.post("/api/bot/session/keys", dependencies=_write)
+@router.post("/bot/session/keys", dependencies=_write)
+def bot_family_key(request: Request, body: KeyBody) -> dict:
+    """A family key (bot.md, "The three keys"): off stops that family's new buys only, nothing is sold."""
+    from bot import family_keys
+
+    payload = body.model_dump(exclude_none=True)
+    try:
+        assert_desk_activate(brain_id(request, payload))
+        family_keys.turn(body.family, body.on)
+    except BotError as exc:
+        raise http_error(exc) from exc
+    return get_session()
 
 
 @router.post("/api/bot/session/disarm", dependencies=_write)

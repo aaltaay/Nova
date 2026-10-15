@@ -7,8 +7,7 @@
  * the Trader (`onOpenTrader`). Schema: architecture/schema/followed-traders.md. Nothing here places, stages or cancels
  * an order.
  */
-import { Suspense, useEffect, useRef, useState } from 'react';
-import { LiveTradersPanel } from '../bot';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityFeed } from './ActivityFeed';
 import { asOf, offAirWhy, onAir, readingBehind } from './capture';
 import {
@@ -82,23 +81,13 @@ function DayView(props: DayViewProps) {
   // The last answer ages while no new one comes, so a backend that stops answering never keeps the stream on air.
   const now = useNowMs(FOLLOWED_REFRESH_MS);
   if (off) return <p className="ft-state" data-testid="ft-state">{FT_OFF}</p>;
-  if (!data) {
-    // The bots' panel never waits on the day's read: while it loads or fails, today still shows today's bots.
-    return (
-      <>
-        <p className="ft-state" data-testid="ft-state">{error ? `${FT_READ_FAILED} ${error}` : FT_LOADING}</p>
-        {props.date === null && !props.proofId ? <BotsPanel /> : null}
-      </>
-    );
-  }
+  if (!data) return <p className="ft-state" data-testid="ft-state">{error ? `${FT_READ_FAILED} ${error}` : FT_LOADING}</p>;
   return <DayBody day={asOf(data, receivedAt, now)} error={error} {...props} />;
 }
 
-function DayBody({ day, error, date, proofId, range, onRange, onPickDate, onProof }: DayViewProps & { day: FollowedDay; error: string | null }) {
+function DayBody({ day, error, proofId, range, onRange, onPickDate, onProof }: DayViewProps & { day: FollowedDay; error: string | null }) {
   const ok = day.feed.state === 'ok';
   const isToday = day.date !== null && day.date === day.today;
-  // A feed that is down names no day: today asked for still shows today's bots (their panel says the feed is down).
-  const showsToday = isToday || (date === null && day.date === null);
   const records = useFollowedRecord(range, day.date);
   const streamOpen = useStreamOpen();
   const c = day.capture;
@@ -120,7 +109,6 @@ function DayBody({ day, error, date, proofId, range, onRange, onPickDate, onProo
         records={ok ? { range, onRange, overall: range === 'day' ? day.overall : records.data?.overall ?? null,
           pl: pl.everyone, plWhy: pl.why, error: records.error, pending: records.data?.pending ?? 0 } : null} />
       {error && <p className="ft-state ft-state--warn">{FT_READ_FAILED} {error} · showing the last answer</p>}
-      {showsToday && !proofTrade ? <BotsPanel /> : null}
       {ok && proofTrade && proofOwner && day.date ? (
         <div className="ft-main ft-main--proof">
           <ProofView trade={proofTrade} face={proofOwner.face} date={day.date} generatedAt={day.generated_at}
@@ -139,11 +127,6 @@ function DayBody({ day, error, date, proofId, range, onRange, onPickDate, onProo
       )}
     </>
   );
-}
-
-/** The Live Trader bots' panel (bot/, ADR 055) on top of today: capped in height, so the board below keeps room. */
-function BotsPanel() {
-  return <div className="ft-lt"><Suspense fallback={null}><LiveTradersPanel /></Suspense></div>;
 }
 
 interface BoardProps {
