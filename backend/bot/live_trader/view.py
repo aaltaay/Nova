@@ -129,7 +129,7 @@ def build() -> dict[str, Any]:
     events = _events()
     used = used_by_host(positions)
     asks = watcher.asks()
-    names = list(dict.fromkeys([*(got.get("order") or []), *settings.named(),
+    names = list(dict.fromkeys([*(got.get("order") or []), *(status.get("names") or []), *settings.named(),
                                 *(p["host"] for p in positions.values()), *(c["host"] for c in closed)]))
     their = got.get("prices") or {}
     lefts = got.get("left") or {}

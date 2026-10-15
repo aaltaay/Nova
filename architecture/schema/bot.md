@@ -667,7 +667,9 @@ without a stop for exactly its shares, and a stale stop can never buy past flat 
    defaults, bounds}
   ```
 
-  `hosts` lists every host the feed read today and every host with settings or positions, in the feed's
+  `hosts` lists every host the feed read today -- read every `LT_IDLE_SEC` (15) while no key is on, so each
+  host's card and its key show before any key is on (a desk with no settings would otherwise list none and offer
+  no key to turn on) -- and every host with settings or positions, in the feed's
   order. `face` is the TraderTV LIVE page's photo path, or null. `events` are the host's newest
   `live_trader` audit lines (8), read from the audit file's last MB (`LT_AUDIT_TAIL_BYTES`) and again only when
   the file changed. `today.pl_usd` is realized plus unrealized at the last, from the bot's own

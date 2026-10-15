@@ -505,6 +505,26 @@ def test_the_report_puts_every_order_beside_the_change_that_caused_it(desk):
 
 
 # -- bad reads and the review's two findings ---------------------------------------------------------------
+def test_a_fresh_desk_lists_the_feeds_hosts_with_their_keys_off(desk):
+    """No Live Trader settings yet (a fresh desk): the idle bot still lists the hosts the feed read today, so each
+    card -- and its key -- is there to turn on (found at the first live check, 2026-10-15)."""
+    from bot.live_trader import view as lt_view
+
+    lt_settings._path().unlink()
+    lt_settings.reset_for_tests()
+    desk.feed.open("XYZ", 100.00, at("10:29:00"), host=OTHER)
+    run(desk, "10:30:00")
+    got = lt_view.build()
+    assert got["watcher"]["idle"] is True
+    assert [h["name"] for h in got["hosts"]] == [OTHER, HOST]
+    assert not any(h["settings"]["key"] for h in got["hosts"])
+    assert held(desk, "XYZ") == 0                                  # idle: it reads names, it never trades
+    lt_settings.patch_host(HOST, {"key": True})
+    desk.feed.open("ABCD", 50.00, at("10:30:10"))
+    run(desk, "10:30:11")
+    assert held(desk, "ABCD") == 9
+
+
 def test_a_side_whose_reads_carry_an_unparsed_price_opens_nothing_until_it_reads(desk):
     """The read log's unparsed text, as the page reads it: a long row the reader could not read whole."""
     run(desk, "10:30:00")
