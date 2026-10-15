@@ -381,11 +381,20 @@ def test_a_short_is_a_bracket_with_its_buy_stop_and_covered_when_the_host_covers
 
 
 # -- the operator's switches ------------------------------------------------------------------------
-def test_turning_the_key_off_sells_and_the_bot_switch_off_sells(desk, monkeypatch):
-    from main import app
+def _app():
+    """The Live Trader routes alone: importing the desk's app here would build it with the feed's routes on."""
+    from fastapi import FastAPI
 
+    from bot.live_trader.routes import router
+
+    app = FastAPI()
+    app.include_router(router)
+    return app
+
+
+def test_turning_the_key_off_sells_and_the_bot_switch_off_sells(desk, monkeypatch):
     monkeypatch.setenv("NOVA_API_KEY", "lt-test-key")
-    client = TestClient(app)
+    client = TestClient(_app())
     run(desk, "10:30:00")
     desk.feed.open("XYZ", 100.00, at("10:30:10"))
     run(desk, "10:30:11")
@@ -442,8 +451,7 @@ def test_a_restart_resumes_what_the_bot_holds(desk):
 
 
 def test_the_cards_answer_the_bots_page(desk, monkeypatch):
-    from main import app
-
+    app = _app()
     run(desk, "10:30:00")
     desk.feed.open("XYZ", 100.00, at("10:30:10"))
     run(desk, "10:30:11")
