@@ -101,8 +101,17 @@ export interface SceneDot {
   fill: string;
   label?: string | null;
   labelColor?: string;
+  /** The label under the ring (a low's), not over it. */
+  labelBelow?: boolean;
   /** What the pane reports as hovered over the ring: its setup's story. */
   hoverId?: string;
+}
+
+/** A line through points on candles -- an ABCD's swings -- straight from each to the next. */
+export interface ScenePath {
+  points: { t: Time; price: number }[];
+  color: string;
+  dashed: boolean;
 }
 
 /** A trend line (ADR 036 amendment 2026-10-12): straight from its first touch to its last, dashed on to the pane's
@@ -217,6 +226,8 @@ export interface Scene {
   dots?: SceneDot[];
   /** The chart's trend lines. */
   trends?: SceneTrend[];
+  /** Lines through points: an ABCD's swings. */
+  paths?: ScenePath[];
   /** A setup's plan with only the plan behind it, in place of zones and lines across the pane (1-minute pane). */
   strategy?: SceneStrategy | null;
   /** Nova's LULD band (1-minute pane). */

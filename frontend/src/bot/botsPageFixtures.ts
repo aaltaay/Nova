@@ -86,6 +86,13 @@ export const DIP: NonNullable<BotSession['setups']>[number] = {
     + 'proposal, no bot, no Auto-entry, no Approve (#847)',
 };
 
+/** The watch-only ABCD, at Off, its On locked for good. */
+export const ABCD: NonNullable<BotSession['setups']>[number] = {
+  id: 'abcd', scanner: true, level: 0, effective: 0, side: 'long', test: null, watch_only: true,
+  locked: "On is locked: watch only: Nova's eyes draw and score the abcd, and Nova never trades it -- no "
+    + 'proposal, no bot, no Auto-entry, no Approve (#847)',
+};
+
 export function session(partial: Partial<BotSession> = {}): BotSession {
   return {
     level: 1, active: false, armed: false, has_desk_arm: false, deactivated: null,
@@ -98,11 +105,12 @@ export function session(partial: Partial<BotSession> = {}): BotSession {
       { id: 'red_to_green', scanner: true, level: 0, effective: 0 },
       { id: 'gap_and_go', scanner: true, level: 0, effective: 0 },
       DIP,
+      ABCD,
       ...SHORT_SETUPS,
       { id: 'micro_pullback', scanner: false, level: null, effective: null },
     ],
     setup_levels: { first_pullback: 2, bull_flag: 1, flat_top_breakout: 0, flat_top_5m: 0, red_to_green: 0,
-      gap_and_go: 0, pullback_dip: 0 },
+      gap_and_go: 0, pullback_dip: 0, abcd: 0 },
     ready: false, ready_reason: null, live_fire_ready: false,
     breakers: breakers(),
     gates: gates(),
@@ -133,6 +141,7 @@ export function strategySession(partial: Partial<BotSession> = {}): BotSession {
       { id: 'red_to_green', scanner: true, level: 0, effective: 0 },
       { id: 'gap_and_go', scanner: true, level: 0, effective: 0 },
       DIP,
+      ABCD,
       ...SHORT_SETUPS,
       { id: 'micro_pullback', scanner: false, level: null, effective: null },
     ],

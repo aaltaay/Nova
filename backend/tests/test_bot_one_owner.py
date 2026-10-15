@@ -94,7 +94,7 @@ def test_a_v4_session_migrates_its_chosen_setup_sleeve_list_and_lock_into_every_
         assert gone not in row
     assert row["schema_version"] == 5 and row["level_venue"] == "paper"
     assert row["setup_levels"] == {"first_pullback": 1, "bull_flag": 2, "flat_top_breakout": 0, "flat_top_5m": 0,
-                                   "red_to_green": 0, "gap_and_go": 0, "pullback_dip": 0,
+                                   "red_to_green": 0, "gap_and_go": 0, "pullback_dip": 0, "abcd": 0,
                                    **{sid: 0 for sid in BOT_SHORT_SETUPS}}   # every short setup starts Off (ADR 049)
     live = dial_of(row, "live")
     assert live["level"] == 1 and live["setup_levels"]["bull_flag"] == 1 and live["setup_levels"]["red_to_green"] == 1

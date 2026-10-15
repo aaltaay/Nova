@@ -40,6 +40,9 @@ BOT_SETUP_MICRO_PULLBACK = "micro_pullback"
 # #847 (operator ask 2026-10-12): the pullback bought at its bottom -- the candle that bottoms it, a bottoming wick
 # or the first candle to close green: the material's pullback-bottom entries. WATCH ONLY (below).
 BOT_SETUP_PULLBACK_DIP = "pullback_dip"
+# Operator ask 2026-10-15: the ABCD -- a squeeze to the high, a pullback (A), a push that fails to clear the high
+# (B), a higher low (C), bought on the break of B (D). WATCH ONLY (below): never tested.
+BOT_SETUP_ABCD = "abcd"
 # ADR 049 (#778 step 4): the five short setups, the long ones mirrored, plus the SSR bounce. A short setup sells
 # at its entry and covers under it. Since step 5 the strategy that triggers decides the side: one bot, one list.
 BOT_SETUP_BACKSIDE = "backside_lower_high"
@@ -66,6 +69,7 @@ BOT_SETUPS = (
     BOT_SETUP_RED_TO_GREEN,
     BOT_SETUP_GAP_AND_GO,
     BOT_SETUP_PULLBACK_DIP,
+    BOT_SETUP_ABCD,
     *BOT_SHORT_SETUPS,
     BOT_SETUP_MICRO_PULLBACK,
 )
@@ -78,12 +82,13 @@ BOT_SCANNER_SETUPS = (
     BOT_SETUP_RED_TO_GREEN,
     BOT_SETUP_GAP_AND_GO,
     BOT_SETUP_PULLBACK_DIP,
+    BOT_SETUP_ABCD,
     *BOT_SHORT_SETUPS,
 )
 BOT_SETUPS_WITH_SCANNER = frozenset(BOT_SCANNER_SETUPS)
 # Watch only (#847): a scanner, templates, rows, scores and drawings -- never a proposal, a trigger to Nova's bot or
 # Auto-entry, an Approve, or On. ``setup_scanner.trade_verdict`` reads NOT A TRADE on it everywhere it is asked.
-BOT_WATCH_ONLY_SETUPS = frozenset({BOT_SETUP_PULLBACK_DIP})
+BOT_WATCH_ONLY_SETUPS = frozenset({BOT_SETUP_PULLBACK_DIP, BOT_SETUP_ABCD})
 BOT_WATCH_ONLY_TEXT = ("watch only: Nova's eyes draw and score the {name}, and Nova never trades it -- no proposal, "
                        "no bot, no Auto-entry, no Approve (#847)")
 SIDE_LONG = "long"

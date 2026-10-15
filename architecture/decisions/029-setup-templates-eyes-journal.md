@@ -161,3 +161,13 @@ design is the agent's, under the operator's standing grant.
   watched at once, so a `wick` and a `green` template score side by side.
 - Its lane's journal lines are every lane's (`setup_type: "pullback_dip"`, `playing` true for its template in play),
   so the journal, the Sim eyes, a backtest and the past setups carry it with no new line.
+
+## Amendment 2026-10-15 -- the ABCD's template
+
+- The watch-only ABCD (ADR 022 amendment 2026-10-15) has a template like every setup with a scanner
+  (`setup_templates/params_abcd.py`, built-in revision 1): its pattern (`abcd_swing_pct` 3, `abcd_b_over_pct` 0.5,
+  `abcd_c_under_pct` 0.5, `abcd_tol_dollars` 0.01, `abcd_bounce_pct` 50, `abcd_max_minutes` 20), the EMA and MACD,
+  the entry and its window (07:00-15:30), the near band, the risk (`stop_cap` 0.30, `abcd_stop_offset` 0.01) and the
+  menu with `target1_kind` `hod`. No bot group: nothing buys it. Every template is watched at once, so tolerances
+  score side by side.
+
