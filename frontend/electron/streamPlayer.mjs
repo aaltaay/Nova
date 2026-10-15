@@ -9,7 +9,11 @@
  * - YouTube asks this desk's network to sign in before it plays ("confirm you're not a bot"). `openYouTubeSignIn`
  *   opens Google's own sign-in page in a window of its own on the desk's session, where the operator signs in
  *   themselves; Nova never sees what is typed there. The player's own Sign in button is sent there too
- *   (`isYouTubeSignInUrl`). When the window reaches YouTube again it closes and the desk's players reload.
+ *   (`isYouTubeSignInUrl`). The window closes as soon as it is on YouTube signed in -- read from the session's own
+ *   YouTube login cookie, so a desk already signed in closes it at once -- and the desk's players reload.
+ * - The players are YouTube's ordinary embed (`www.youtube.com/embed`), not the privacy-enhanced one: that one never
+ *   carries the YouTube sign-in, so it asked to sign in again however often the operator did (operator report,
+ *   2026-10-15). The sign-in lives in the desk's persistent session, so it survives restarts until Google ends it.
  *
  * Schema: architecture/schema/followed-traders.md, "On the desk". Owner: main.mjs wires it.
  */
@@ -19,13 +23,15 @@ const VIDEO_ID_RE = /^[A-Za-z0-9_-]{11}$/;
 export const STREAM_REFERER = 'https://nova.altaystudio.com/';
 export const YOUTUBE_PLAYER_URLS = ['https://www.youtube-nocookie.com/*', 'https://www.youtube.com/*'];
 const PLAYER_HOSTS = new Set(['www.youtube-nocookie.com', 'www.youtube.com']);
+/** YouTube's ordinary embed: the one that carries the desk session's YouTube sign-in. */
+export const STREAM_EMBED_BASE = 'https://www.youtube.com/embed/';
 
 export function isStreamVideoId(id) {
   return typeof id === 'string' && VIDEO_ID_RE.test(id);
 }
 
 export function streamEmbedUrl(id) {
-  return `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&playsinline=1&rel=0`;
+  return `${STREAM_EMBED_BASE}${id}?autoplay=1&playsinline=1&rel=0`;
 }
 
 /** Headers for a request to YouTube's player hosts: a Referer when it has none, never a replaced one. */
@@ -66,7 +72,7 @@ export async function openStreamWindow(BrowserWindow, id, { icon } = {}) {
     });
     streamWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     streamWindow.webContents.on('will-navigate', (event, url) => {
-      if (!url.startsWith('https://www.youtube-nocookie.com/embed/')) event.preventDefault();
+      if (!url.startsWith(STREAM_EMBED_BASE)) event.preventDefault();
     });
     streamWindow.on('closed', () => {
       streamWindow = null;
@@ -102,6 +108,20 @@ export function isYouTubeSignInUrl(url) {
   return new URL(url).pathname.startsWith('/signin') || new URL(url).pathname.startsWith('/ServiceLogin');
 }
 
+/** YouTube's own cookies that exist only while signed in. */
+const YOUTUBE_SIGNED_IN_COOKIES = ['LOGIN_INFO', 'SID', '__Secure-3PSID'];
+
+/** Is this session signed in to YouTube? Read from its cookies; a cookie store that fails reads as not signed in. */
+export async function isSignedInToYouTube(session) {
+  try {
+    const cookies = await session.cookies.get({ url: 'https://www.youtube.com/' });
+    return cookies.some((c) => YOUTUBE_SIGNED_IN_COOKIES.includes(c.name));
+  } catch (err) {
+    console.warn('[nova] YouTube sign-in check failed', err);
+    return false;
+  }
+}
+
 let signInWindow = null;
 
 /** One sign-in window; `onDone(signedIn)` runs when it closes. */
@@ -110,7 +130,6 @@ export function openYouTubeSignIn(BrowserWindow, { icon, onDone } = {}) {
     signInWindow.focus();
     return true;
   }
-  let sawGoogle = false;
   let signedIn = false;
   const win = new BrowserWindow({
     width: 520,
@@ -125,13 +144,15 @@ export function openYouTubeSignIn(BrowserWindow, { icon, onDone } = {}) {
   win.webContents.on('will-navigate', (event, url) => {
     if (!isGoogleOrYouTube(hostOf(url))) event.preventDefault();
   });
+  // Google sends a desk that is already signed in straight to YouTube, with no sign-in page on the way.
   win.webContents.on('did-navigate', (_event, url) => {
     const host = hostOf(url);
-    if (host === 'accounts.google.com') sawGoogle = true;
-    else if (sawGoogle && (host === 'www.youtube.com' || host === 'youtube.com')) {
+    if (host !== 'www.youtube.com' && host !== 'youtube.com') return;
+    void isSignedInToYouTube(win.webContents.session).then((yes) => {
+      if (!yes || win.isDestroyed()) return;
       signedIn = true;
       win.close();
-    }
+    });
   });
   win.on('closed', () => {
     signInWindow = null;
