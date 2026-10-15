@@ -8,7 +8,8 @@
  *
  * The venue is the status's own `venue` (C26); the sample desk shows only the
  * Nova Marketing Sample Data summary its provider hands in and never polls a
- * practice account (V4). Hover opens a card, a click pins it (V15).
+ * practice account (V4). Hover opens a card, a click pins it (V15), and each
+ * card opens under its own button (GlobalBarMenuAnchor).
  */
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { ClosedOrder } from '../closed_orders/types';
@@ -39,7 +40,8 @@ import { usePracticeAccount } from '../practice/practiceAccountResource';
 import { useSampleRoute } from '../sample_data/useSampleRoute';
 import { AccountPillButton, AccountPillMenu } from './GlobalBarAccountPill';
 import { DayPnlButton } from './GlobalBarDayPnl';
-import { TavButton, TavCard } from './GlobalBarTav';
+import { GlobalBarMenuAnchor } from './GlobalBarMenuAnchor';
+import { TavButton } from './GlobalBarTav';
 import { GlobalWorkingMenu } from './GlobalWorkingMenu';
 import { resolvePracticeChromeState, type AccountChromeState } from './globalBarAccountChrome';
 import {
@@ -167,13 +169,23 @@ export function GlobalBarAccountCluster({
       {beforePill}
       {pill && <span className="global-app-bar__sep" aria-hidden />}
       {pill && (
-        <AccountPillButton
-          view={pill}
+        <GlobalBarMenuAnchor
+          kind="pill"
           open={openMenu === 'pill'}
-          menuId={pillMenuId}
-          onToggle={toggle('pill')}
-          onHover={hover('pill')}
-        />
+          cardId={pillMenuId}
+          align="end"
+          button={
+            <AccountPillButton
+              view={pill}
+              open={openMenu === 'pill'}
+              menuId={pillMenuId}
+              onToggle={toggle('pill')}
+              onHover={hover('pill')}
+            />
+          }
+        >
+          <AccountPillMenu view={pill} />
+        </GlobalBarMenuAnchor>
       )}
     </>
   );
@@ -197,22 +209,38 @@ export function GlobalBarAccountCluster({
             onHover={hover('day')}
           />
           <span className="global-app-bar__sep" aria-hidden />
-          <button
-            type="button"
-            className="global-app-bar__metric-btn global-app-bar__metric--working"
-            aria-expanded={openMenu === 'working'}
-            aria-controls={workingMenuId}
-            aria-label={GLOBAL_BAR_WORKING_MENU_TITLE}
-            data-testid="global-bar-working-trigger"
-            onClick={toggle('working')}
-            onMouseEnter={hover('working')}
+          <GlobalBarMenuAnchor
+            kind="working"
+            open={openMenu === 'working'}
+            cardId={workingMenuId}
+            button={
+              <button
+                type="button"
+                className="global-app-bar__metric-btn global-app-bar__metric--working"
+                aria-expanded={openMenu === 'working'}
+                aria-controls={workingMenuId}
+                aria-label={GLOBAL_BAR_WORKING_MENU_TITLE}
+                data-testid="global-bar-working-trigger"
+                onClick={toggle('working')}
+                onMouseEnter={hover('working')}
+              >
+                <label>{GLOBAL_BAR_WORKING_LABEL}</label>
+                <span className="global-app-bar__working-count">{orders.length}</span>
+                <span className="global-app-bar__caret" aria-hidden>
+                  {openMenu === 'working' ? '▴' : '▾'}
+                </span>
+              </button>
+            }
           >
-            <label>{GLOBAL_BAR_WORKING_LABEL}</label>
-            <span className="global-app-bar__working-count">{orders.length}</span>
-            <span className="global-app-bar__caret" aria-hidden>
-              {openMenu === 'working' ? '▴' : '▾'}
-            </span>
-          </button>
+            <GlobalWorkingMenu
+              workingOrders={orders}
+              closedOrders={closedOrders}
+              traderActive={traderActive}
+              closeTraderView={closeTraderView}
+              onRefresh={refresh}
+              onClose={() => setOpenMenu(null)}
+            />
+          </GlobalBarMenuAnchor>
           <span className="global-app-bar__sep" aria-hidden />
           <TavButton
             figures={figures}
@@ -242,28 +270,6 @@ export function GlobalBarAccountCluster({
             <span>{GLOBAL_BAR_OFFLINE_PLACEHOLDER}</span>
           </span>
           {pillControl}
-        </div>
-      )}
-      {openMenu === 'tav' && ready && (
-        <div id={tavCardId}>
-          <TavCard figures={figures} />
-        </div>
-      )}
-      {openMenu === 'working' && ready && (
-        <div id={workingMenuId}>
-          <GlobalWorkingMenu
-            workingOrders={orders}
-            closedOrders={closedOrders}
-            traderActive={traderActive}
-            closeTraderView={closeTraderView}
-            onRefresh={refresh}
-            onClose={() => setOpenMenu(null)}
-          />
-        </div>
-      )}
-      {openMenu === 'pill' && pill && (
-        <div id={pillMenuId}>
-          <AccountPillMenu view={pill} />
         </div>
       )}
     </div>

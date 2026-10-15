@@ -20,6 +20,7 @@ import {
   PRACTICE_REPLAY_KEY_TITLE,
 } from '../constantGroups/practice';
 import { GlobalBarCardRow } from './GlobalBarCardRow';
+import { GlobalBarMenuAnchor } from './GlobalBarMenuAnchor';
 import { headerMoney, type HeaderAccountFigures } from './headerAccountFigures';
 
 interface ButtonProps {
@@ -31,8 +32,9 @@ interface ButtonProps {
   onHover: () => void;
 }
 
+/** The TAV button and, while open, its card directly under it. */
 export function TavButton({ figures, open, cardId, title, onToggle, onHover }: ButtonProps) {
-  return (
+  const button = (
     <button
       type="button"
       className="global-app-bar__metric-btn global-app-bar__metric--tav"
@@ -49,6 +51,11 @@ export function TavButton({ figures, open, cardId, title, onToggle, onHover }: B
         {open ? '▴' : '▾'}
       </span>
     </button>
+  );
+  return (
+    <GlobalBarMenuAnchor kind="tav" open={open} cardId={cardId} button={button}>
+      <TavCard figures={figures} />
+    </GlobalBarMenuAnchor>
   );
 }
 

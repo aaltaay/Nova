@@ -7,14 +7,16 @@
      1500  tab-strip hint, wordmark, session chip (the Scanner session line
            and the clock say the phase)
      1400  REC elapsed time, BP, ET clock
-     1280  Day's
+     1280  P/L
      1100  TAV (and the search narrows)
       900  the REC word
+   P/L and TAV leave as their whole anchor (GlobalBarMenuAnchor `kind`), so
+   an open card leaves with its button, and the separator beside them too.
    Recording adds a chip per symbol on the left, so a recording desk gives the
    clock's room up first, and every further chip moves the order up (QA D1,
    2026-09-22: with two or three recordings the search sat under the KILL stop
    sign at 1440 / 1280 and the padlock and gear left the screen):
-     two or more chips   1600  REC times, Day's    1280  TAV
+     two or more chips   1600  REC times, P/L      1280  TAV
      three chips         1920  REC times           1440  the REC word
    The bot pill (bot/globalBarBotPill.css) sheds its setup and state at 1880
    or with any REC chip, and leaves at 1600 or with two -- the rail's Bots
@@ -36,8 +38,8 @@
   }
 
   .global-app-bar__primary:has(.global-app-bar__rec ~ .global-app-bar__rec) .global-app-bar__rec-time,
-  .global-app-bar__primary:has(.global-app-bar__rec ~ .global-app-bar__rec) .global-app-bar__metric--day,
-  .global-app-bar__primary:has(.global-app-bar__rec ~ .global-app-bar__rec) .global-app-bar__metric--day + .global-app-bar__sep {
+  .global-app-bar__primary:has(.global-app-bar__rec ~ .global-app-bar__rec) .global-app-bar__metric-anchor--day,
+  .global-app-bar__primary:has(.global-app-bar__rec ~ .global-app-bar__rec) .global-app-bar__metric-anchor--day + .global-app-bar__sep {
     display: none;
   }
 }
@@ -67,13 +69,15 @@
 
 @media (max-width: 1280px) {
   .global-app-bar__session,
-  .global-app-bar__metric--day,
-  .global-app-bar__metric--day + .global-app-bar__sep {
+  .global-app-bar__metric-anchor--day,
+  .global-app-bar__metric-anchor--day + .global-app-bar__sep {
     display: none;
   }
 
   .global-app-bar__primary:has(.global-app-bar__rec ~ .global-app-bar__rec) .global-app-bar__metric--tav,
-  .global-app-bar__primary:has(.global-app-bar__rec ~ .global-app-bar__rec) .global-app-bar__sep:has(+ .global-app-bar__metric--tav) {
+  .global-app-bar__primary:has(.global-app-bar__rec ~ .global-app-bar__rec) .global-app-bar__metric-anchor--tav,
+  .global-app-bar__primary:has(.global-app-bar__rec ~ .global-app-bar__rec) .global-app-bar__sep:has(+ .global-app-bar__metric--tav),
+  .global-app-bar__primary:has(.global-app-bar__rec ~ .global-app-bar__rec) .global-app-bar__sep:has(+ .global-app-bar__metric-anchor--tav) {
     display: none;
   }
 }
@@ -81,7 +85,9 @@
 @media (max-width: 1100px) {
   .global-app-bar__primary .header-market-clock,
   .global-app-bar__metric--tav,
-  .global-app-bar__sep:has(+ .global-app-bar__metric--tav) {
+  .global-app-bar__metric-anchor--tav,
+  .global-app-bar__sep:has(+ .global-app-bar__metric--tav),
+  .global-app-bar__sep:has(+ .global-app-bar__metric-anchor--tav) {
     display: none;
   }
 

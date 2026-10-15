@@ -19,6 +19,7 @@ import {
 } from '../constantGroups/global_bar';
 import { PRACTICE_CARD_FEES_LABEL } from '../constantGroups/practice';
 import { GlobalBarCardRow } from './GlobalBarCardRow';
+import { GlobalBarMenuAnchor } from './GlobalBarMenuAnchor';
 import { formatSignedMoney, formatSignedPercent, pnlToneClass } from './globalBarMoney';
 import { dayPnlPercent, headerMoney, type HeaderAccountFigures } from './headerAccountFigures';
 
@@ -35,41 +36,39 @@ export function DayPnlButton({ figures, open, cardId, title, onToggle, onHover }
   const pct = dayPnlPercent(figures.dayPnl, figures.netLiquidation);
   const tone = pnlToneClass(figures.dayPnl);
   const openTone = pnlToneClass(figures.unrealizedAtBid);
-  return (
-    <span className="global-app-bar__metric-anchor">
-      <button
-        type="button"
-        className="global-app-bar__metric-btn global-app-bar__metric--day"
-        aria-expanded={open}
-        aria-controls={cardId}
-        title={title}
-        data-testid="global-bar-account-trigger"
-        onClick={onToggle}
-        onMouseEnter={onHover}
-      >
-        <label>{GLOBAL_BAR_DAY_PNL_LABEL}</label>
-        <span className={`global-app-bar__metric-value ${tone}`}>{formatSignedMoney(figures.dayPnl)}</span>
-        {pct != null && (
-          <span className={`global-app-bar__pct ${tone}`} data-testid="global-bar-day-pct">
-            {formatSignedPercent(pct)}
-          </span>
-        )}
-        <span className="global-app-bar__metric-sub" title={GLOBAL_BAR_UNREALIZED_TITLE}>
-          <label>{GLOBAL_BAR_UNREALIZED_LABEL}</label>
-          <span className={`global-app-bar__metric-value ${openTone}`} data-testid="global-bar-unrealized">
-            {formatSignedMoney(figures.unrealizedAtBid)}
-          </span>
+  const button = (
+    <button
+      type="button"
+      className="global-app-bar__metric-btn global-app-bar__metric--day"
+      aria-expanded={open}
+      aria-controls={cardId}
+      title={title}
+      data-testid="global-bar-account-trigger"
+      onClick={onToggle}
+      onMouseEnter={onHover}
+    >
+      <label>{GLOBAL_BAR_DAY_PNL_LABEL}</label>
+      <span className={`global-app-bar__metric-value ${tone}`}>{formatSignedMoney(figures.dayPnl)}</span>
+      {pct != null && (
+        <span className={`global-app-bar__pct ${tone}`} data-testid="global-bar-day-pct">
+          {formatSignedPercent(pct)}
         </span>
-        <span className="global-app-bar__caret" aria-hidden>
-          {open ? '▴' : '▾'}
-        </span>
-      </button>
-      {open && (
-        <div id={cardId}>
-          <DayPnlCard figures={figures} />
-        </div>
       )}
-    </span>
+      <span className="global-app-bar__metric-sub" title={GLOBAL_BAR_UNREALIZED_TITLE}>
+        <label>{GLOBAL_BAR_UNREALIZED_LABEL}</label>
+        <span className={`global-app-bar__metric-value ${openTone}`} data-testid="global-bar-unrealized">
+          {formatSignedMoney(figures.unrealizedAtBid)}
+        </span>
+      </span>
+      <span className="global-app-bar__caret" aria-hidden>
+        {open ? '▴' : '▾'}
+      </span>
+    </button>
+  );
+  return (
+    <GlobalBarMenuAnchor kind="day" open={open} cardId={cardId} button={button}>
+      <DayPnlCard figures={figures} />
+    </GlobalBarMenuAnchor>
   );
 }
 

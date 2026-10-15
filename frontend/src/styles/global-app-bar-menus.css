@@ -1,4 +1,4 @@
-/* The account cluster (Day's | Working | TAV | account pill) and every
+/* The account cluster (P/L | Working | TAV | account pill) and every
    dropdown the global bar owns: the Day's / TAV cards, the Working menu, the
    account pill menu and the gear menu. The row itself: global-app-bar.css. */
 
@@ -69,15 +69,28 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* P/L's card opens under its own button: anchored here, not at the cluster's right edge. */
+/* Every cluster card opens under its own button (GlobalBarMenuAnchor), never
+   at the cluster's right edge: left edges line up, and the account pill's
+   card lines up its right edge with the pill's, the last control before the
+   window's edge. max-content keeps each card as wide as its rows, not as
+   narrow as its button. */
 .global-app-bar__metric-anchor {
   position: relative;
   display: inline-flex;
 }
 
 .global-app-bar__metric-anchor > div > .global-app-bar__card {
+  width: max-content;
+}
+
+.global-app-bar__metric-anchor--start > div > .global-app-bar__card {
   left: 0;
   right: auto;
+}
+
+.global-app-bar__metric-anchor--end > div > .global-app-bar__card {
+  left: auto;
+  right: 0;
 }
 
 /* Unrealized P/L beside P/L, inside the same button. */
@@ -238,13 +251,11 @@
 }
 
 .global-app-bar__working-menu {
-  right: 0;
   min-width: 13.5rem;
 }
 
 /* Account pill menu: the managed accounts on the login, the active one marked. */
 .global-app-bar__pill-menu {
-  right: 0;
   min-width: 16rem;
   max-width: 24rem;
 }

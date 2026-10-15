@@ -23,6 +23,7 @@ import { fitPlan, maxFitLevel, useFitLevel } from './fit';
 import { clearFollowedProofRequest, useFollowedProofRequest } from './followedStores';
 import { PageHead } from './PageHead';
 import { OpenTraderContext } from './parts';
+import { dayPl, recordPl, type SpanPl } from './plSummary';
 import { ProofView } from './ProofView';
 import { roster } from './roster';
 import { streamId, useStreamOpen } from './stream';
@@ -98,6 +99,7 @@ function DayBody({ day, error, proofId, range, onRange, onPickDate, onProof }: D
   const pricesWhy = isToday && hasOpen && day.prices && day.prices.state !== 'live' ? day.prices.why : null;
   const recordFor = (name: string, own: FollowedRecord): FollowedRecord | null =>
     range === 'day' ? own : records.data?.traders.find((t) => t.name === name)?.record ?? null;
+  const pl = range === 'day' ? dayPl(day.traders) : recordPl(records.data, records.error);
   const proofOwner = proofId ? day.traders.find((t) => [...t.open, ...t.closed].some((x) => x.id === proofId)) : null;
   const proofTrade = proofOwner ? [...proofOwner.open, ...proofOwner.closed].find((x) => x.id === proofId) ?? null : null;
   return (
@@ -105,7 +107,7 @@ function DayBody({ day, error, proofId, range, onRange, onPickDate, onProof }: D
       <PageHead day={day} onPickDate={onPickDate} pricesWhy={pricesWhy} stream={{ id: videoId, open: streamOpen, live: streamLive,
         offAirWhy: c && !streamLive ? offAirWhy(c) : null }}
         records={ok ? { range, onRange, overall: range === 'day' ? day.overall : records.data?.overall ?? null,
-          error: records.error, pending: records.data?.pending ?? 0 } : null} />
+          pl: pl.everyone, plWhy: pl.why, error: records.error, pending: records.data?.pending ?? 0 } : null} />
       {error && <p className="ft-state ft-state--warn">{FT_READ_FAILED} {error} · showing the last answer</p>}
       {ok && proofTrade && proofOwner && day.date ? (
         <div className="ft-main ft-main--proof">
@@ -114,7 +116,7 @@ function DayBody({ day, error, proofId, range, onRange, onPickDate, onProof }: D
         </div>
       ) : ok && (
         <div className="ft-main">
-          <Board day={day} isToday={isToday} recordFor={recordFor} onProof={onProof} />
+          <Board day={day} isToday={isToday} recordFor={recordFor} pl={pl} onProof={onProof} />
           <aside className="ft-rail">
             {videoId && streamOpen && c && (
               <StreamPlayer videoId={videoId} title={c.title} offAir={streamLive ? null : offAirWhy(c)} />
@@ -131,11 +133,12 @@ interface BoardProps {
   day: FollowedDay;
   isToday: boolean;
   recordFor: (name: string, own: FollowedRecord) => FollowedRecord | null;
+  pl: SpanPl;
   onProof: (id: string) => void;
 }
 
 /** Every trader's block, top to bottom, shrunk and folded until it fits (fit.ts); a list over it shows one's all. */
-function Board({ day, isToday, recordFor, onProof }: BoardProps) {
+function Board({ day, isToday, recordFor, pl, onProof }: BoardProps) {
   const stack = useRef<HTMLDivElement>(null);
   const [showAll, setShowAll] = useState<string | null>(null);
   const people = roster(day, isToday);
@@ -153,7 +156,7 @@ function Board({ day, isToday, recordFor, onProof }: BoardProps) {
         {people.length === 0 && <div className="ft-empty">{FT_NO_TRADES}</div>}
         {people.map((e) => (
           <TraderBlock key={e.name} entry={e} isToday={isToday}
-            record={e.trader ? recordFor(e.name, e.trader.record) : null}
+            record={e.trader ? recordFor(e.name, e.trader.record) : null} pl={pl.of(e.name)} plWhy={pl.why}
             onAir={isToday && live && (c?.traders.includes(e.name) ?? false)} captureVersion={c?.updated_at ?? null}
             lastRead={lastRead} compact={plan.compact} folded={plan.folded[e.name] ?? 0} onShowAll={setShowAll}
             onProof={onProof} />
