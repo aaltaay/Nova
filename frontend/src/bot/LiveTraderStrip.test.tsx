@@ -206,6 +206,24 @@ describe("a host's bot in the host's card", () => {
     expect(screen.queryByTestId('lt-rules-card-ALPHA')).toBeNull();
   });
 
+  it('keeps its rules card under Rules when the page scrolls, and closes it once Rules scrolls out of the window', async () => {
+    // Codex review, PR #1009: the stack scrolls, not the window, so a card placed once floats over the wrong host.
+    await renderStrip();
+    const rules = screen.getByTestId('lt-rules-ALPHA');
+    const at = (top: number) => ({ top, bottom: top + 20, left: 400, right: 440, width: 40, height: 20, x: 400, y: top,
+      toJSON: () => ({}) }) as DOMRect;
+    rules.getBoundingClientRect = () => at(100);
+    fireEvent.click(rules);
+    const card = screen.getByTestId('lt-rules-card-ALPHA');
+    expect(card.style.top).toBe('126px');
+    rules.getBoundingClientRect = () => at(300);
+    act(() => { document.body.dispatchEvent(new Event('scroll')); });   // an ancestor's scroll, seen in capture
+    expect(card.style.top).toBe('326px');
+    rules.getBoundingClientRect = () => at(-80);
+    act(() => { document.body.dispatchEvent(new Event('scroll')); });
+    expect(screen.queryByTestId('lt-rules-card-ALPHA')).toBeNull();
+  });
+
   it('says a write the backend refused, in its second line', async () => {
     await renderStrip();
     vi.stubGlobal('fetch', vi.fn(async () => json({ detail: { reason: 'LIVE_TRADER_INVALID', error: 'step_usd is a number from 50 to 10000' } }, 400)));

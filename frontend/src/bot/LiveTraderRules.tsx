@@ -1,7 +1,8 @@
 /**
  * A host bot's rules in a card under its Rules button (LiveTraderStrip): the rules as chips, then their editor
  * (LiveTraderSettings), Paper only. Drawn over the page (a portal), since the host's card clips what overflows it;
- * it opens below the button, or above when there is no room, and closes on Done, Escape or a click elsewhere.
+ * it opens below the button, or above when there is no room, follows the button when the page scrolls, and closes
+ * on Done, Escape, a click elsewhere, or the button scrolling out of the window.
  */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -29,6 +30,11 @@ export function LiveTraderRules({ anchor, host, sellAllAt, busy, onPatch, onClos
   useLayoutEffect(() => {
     const place = () => {
       const a = anchor.getBoundingClientRect();
+      // Scrolled out of the window (the stack scrolls when the hosts do not fit): the card has nothing to sit under.
+      if (a.bottom < 0 || a.top > window.innerHeight) {
+        onClose();
+        return;
+      }
       const box = card.current?.getBoundingClientRect();
       const w = box?.width ?? 0;
       const h = box?.height ?? 0;
@@ -38,9 +44,15 @@ export function LiveTraderRules({ anchor, host, sellAllAt, busy, onPatch, onClos
       setAt((prev) => (prev && prev.left === left && prev.top === top ? prev : { left, top }));
     };
     place();
+    // The page's stack and the page itself scroll rather than the window (Codex review, PR #1009): a scroll anywhere
+    // moves the button, so the card follows it. Scroll events do not bubble; the capture phase sees every one.
     window.addEventListener('resize', place);
-    return () => window.removeEventListener('resize', place);
-  }, [anchor, host]);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [anchor, host, onClose]);
 
   useEffect(() => {
     const away = (e: MouseEvent) => {

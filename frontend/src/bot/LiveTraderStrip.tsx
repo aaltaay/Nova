@@ -6,7 +6,7 @@
  * whose host row is gone shows there too; one whose row is open is a chip on that row (LiveTraderBadge). Its key off,
  * the bot places no order, not even a sell. Every write is the backend's to accept.
  */
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   LT_ALLOWANCE_LABEL,
   LT_ANSWERED_WHY,
@@ -130,6 +130,7 @@ export function LiveTraderStrip({ name, open }: { name: string; open: readonly F
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [rulesAt, setRulesAt] = useState<HTMLElement | null>(null);
+  const closeRules = useCallback(() => setEditing(false), []);
   const host = view?.enabled ? view.hosts.find(h => h.name === name) ?? null : null;
   if (!view || !host) return null;
   const st = host.settings;
@@ -174,7 +175,7 @@ export function LiveTraderStrip({ name, open }: { name: string; open: readonly F
           : <StateLine host={host} open={open} />}
       {editing && rulesAt ? (
         <LiveTraderRules anchor={rulesAt} host={host} sellAllAt={view.sell_all_at} busy={busy} onPatch={onPatch}
-          onClose={() => setEditing(false)} />
+          onClose={closeRules} />
       ) : null}
     </div>
   );
