@@ -70,6 +70,28 @@ describe('the update notice', () => {
     expect(bridge.act).toHaveBeenLastCalledWith({ action: 'later' });
   });
 
+  it('says Nova installs it by itself, and what it waits for (operator ask 2026-10-14)', () => {
+    const { bridge, send } = fakeBridge();
+    render(<DesktopUpdateHost bridge={bridge} />);
+    send({ notice: notice('available', { auto: { waiting: ['Paper: long 100 GENK'] } }) });
+    const bar = screen.getByTestId('update-notice');
+    expect(bar.textContent).toContain('Nova downloads and installs it by itself once clear — waiting for: Paper: long 100 GENK.');
+    expect(bar.textContent).toContain('Update starts the download now.');
+    send({ notice: notice('ready', { auto: { waiting: ['5 minutes with no keyboard or mouse input'] } }) });
+    expect(screen.getByTestId('update-notice').textContent).toContain(
+      'Nova installs it by itself once clear — waiting for: 5 minutes with no keyboard or mouse input.',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Restart to update' }));
+    expect(bridge.act).toHaveBeenLastCalledWith({ action: 'restart' });
+  });
+
+  it("keeps the offer-only words when the release is the operator's", () => {
+    const { bridge, send } = fakeBridge();
+    render(<DesktopUpdateHost bridge={bridge} />);
+    send({ notice: notice('available', { auto: null }) });
+    expect(screen.getByTestId('update-notice').textContent).toContain('Nova restarts only when you choose Restart to update');
+  });
+
   it('opens what the update would bring, newest first, without touching the desk', () => {
     const { bridge, send } = fakeBridge();
     render(<DesktopUpdateHost bridge={bridge} />);

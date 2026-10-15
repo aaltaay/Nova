@@ -3,12 +3,14 @@
  *
  * A check that finds a newer release tells the operator, with that release's
  * notes, in a notice on the desk: Update / Later (operator ask, 2026-09-23).
- * Nothing downloads until Update, and nothing installs until Restart to update;
  * Update downloads the newest release, checking again when the offer is old
- * (newestRelease.mjs).
- * autoInstallOnAppQuit is off, the only timer re-checks (every two hours while
- * the desk stays open, never in weekday trading hours), and a failed check or
- * download only changes the Help menu. After an update, the first launch shows
+ * (newestRelease.mjs), and Restart to update installs it. Since 2026-10-14 the
+ * desk also checks the moment GitHub's release ping arrives (releasePing.mjs),
+ * and a found release downloads and installs by itself once nothing is at stake
+ * (autoInstall.mjs) unless NOVA_UPDATE_AUTO_INSTALL is off.
+ * autoInstallOnAppQuit is off, the re-check runs every two hours while the desk
+ * stays open (never in weekday trading hours), and a failed check or download
+ * only changes the Help menu. After an update, the first launch shows
  * What's new (whatsNew.mjs). Decisions live in updatePolicy.mjs, words in
  * updateCopy.mjs, reaching the operator (notice, Help menu, dialogs) in
  * updateAsk.mjs, the renderer link in updateBridge.mjs, the release still being
@@ -29,7 +31,9 @@
  * keeps running on the version it has.
  */
 import fs from 'node:fs';
-import { app, ipcMain, net, shell } from 'electron';
+import { app, ipcMain, net, powerMonitor, shell } from 'electron';
+import { isOlderTag } from './appTitle.mjs';
+import { createAutoInstall } from './autoInstall.mjs';
 import { readEnvValue } from './envMerge.mjs';
 import { downloadRelease } from './releaseDownload.mjs';
 import { createReleaseInstaller } from './releaseInstall.mjs';
@@ -38,6 +42,7 @@ import { createNewestRelease } from './newestRelease.mjs';
 import { createReleaseBuild } from './releaseBuild.mjs';
 import { isReleaseLink, notesText } from './releaseNotes.mjs';
 import { createNotesSource } from './releaseNotesSource.mjs';
+import { createReleasePing } from './releasePing.mjs';
 import { createUpdateAsk } from './updateAsk.mjs';
 import { createUpdateBridge } from './updateBridge.mjs';
 import {
@@ -51,8 +56,11 @@ import {
 import { createUpdateLogger } from './updateLog.mjs';
 import {
   INITIAL_UPDATE_STATE,
+  UPDATE_AUTO_INSTALL_ENV,
+  UPDATE_AUTO_TICK_MS,
   UPDATE_CHECK_ENV,
   UPDATE_FIRST_CHECK_DELAY_MS,
+  UPDATE_PING_MIN_GAP_MS,
   UPDATE_RECHECK_TICK_MS,
   displayTag,
   errorText,
@@ -64,8 +72,10 @@ import {
   resolveUpdateSetting,
   shouldAutoCheck,
   shouldOfferNow,
+  shouldPingCheck,
   shouldRecheck,
   taskbarProgress,
+  updateCheckSetting,
   updateGate,
 } from './updatePolicy.mjs';
 import { createWhatsNew } from './whatsNew.mjs';
@@ -96,6 +106,14 @@ let installer = null;
 let requestIssueForm = null;
 // The release on offer: electron-updater's info from the check that found it.
 let pendingInfo = null;
+// NOVA_UPDATE_AUTO_INSTALL: a found release downloads and installs by itself once nothing is at stake.
+let autoInstallOn = false;
+let auto = null;
+// The download under way was Nova's own (autoInstall.mjs): its end asks nothing -- it installs by itself.
+let downloadByItself = false;
+// GitHub's release ping (releasePing.mjs): when it last caused a check, and the check a ping inside the gap waits for.
+let lastPingCheckAt = 0;
+let pingTimer = null;
 const newest = createNewestRelease({ getUpdater: () => updater, logger });
 const builds = createReleaseBuild({ fetch: (url, init) => net.fetch(url, init), logger });
 let hooks = {
@@ -103,23 +121,33 @@ let hooks = {
   envPath: () => '',
   stopEngine: async () => true,
   restartEngine: async () => {},
-  // The backend follows the release being installed (engineSync.mjs); false: the operator waits.
-  prepareInstall: async () => true,
+  // The backend's sync (engineSync.mjs), once the desk attached it; null for a desk that has none.
+  engine: () => null,
+  // The backend follows the release being installed; false: the operator waits.
+  prepareInstall: (tag, ui) => hooks.engine()?.prepareForDesk(tag, ui) ?? Promise.resolve(true),
   // ...and restarts onto it while the installer runs (engineSync.handOffForInstall).
-  handOffEngine: async () => {},
+  handOffEngine: () => hooks.engine()?.handOffForInstall() ?? Promise.resolve(),
+  // What holds an automatic install (engineFollow.autoRestartHolds); null reads as a backend that did not answer.
+  autoHolds: () => hooks.engine()?.autoHolds() ?? Promise.resolve(null),
 };
 
-function readSetting() {
+/** A desk setting: the process env wins, else the desk .env. */
+function readSetting(name) {
   let fileValue = '';
   const envPath = hooks.envPath();
   try {
     if (envPath && fs.existsSync(envPath)) {
-      fileValue = readEnvValue(fs.readFileSync(envPath, 'utf8'), UPDATE_CHECK_ENV);
+      fileValue = readEnvValue(fs.readFileSync(envPath, 'utf8'), name);
     }
   } catch (err) {
-    logger.warn(`cannot read ${UPDATE_CHECK_ENV} from ${envPath}: ${errorText(err)}`);
+    logger.warn(`cannot read ${name} from ${envPath}: ${errorText(err)}`);
   }
-  return resolveUpdateSetting({ processValue: process.env[UPDATE_CHECK_ENV], fileValue });
+  return resolveUpdateSetting({ processValue: process.env[name], fileValue });
+}
+
+/** Windows' time since the last keyboard or mouse input. */
+function idleMs() {
+  return powerMonitor.getSystemIdleTime() * 1000;
 }
 
 function liveWindow() {
@@ -181,8 +209,14 @@ async function offer() {
   }
 }
 
+/** Later -- or Hide, its label while downloading, which only hides: Nova still installs it by itself. */
 function later() {
   if (!state.version) return;
+  if (state.phase === 'downloading') {
+    logger.info(`${displayTag(state.version)} download hidden by operator`);
+    dispatch({ type: 'hidden', version: state.version });
+    return;
+  }
   logger.info(`${displayTag(state.version)} postponed by operator`);
   dispatch({ type: 'dismissed', version: state.version });
 }
@@ -192,8 +226,13 @@ async function promptRestart() {
   else later();
 }
 
-/** Update (or Resume): download the newest release. A stopped download is re-checked first. */
-async function startDownload() {
+const BY_ITSELF = 'by itself';
+
+/**
+ * Update (or Resume): download the newest release. A stopped download is re-checked first.
+ * `how` says in update.log who asked: the operator, or Nova BY_ITSELF (autoInstall.mjs).
+ */
+async function startDownload(how = "at the operator's request") {
   if (!updater || newest.isChecking()) return;
   if (state.phase === 'failed' && state.failedStage === 'download') {
     // The check finds the same release and resumes it: the operator already chose it.
@@ -216,7 +255,8 @@ async function startDownload() {
   dispatch({ type: 'download', version: pendingInfo.version });
   // A newer release than the notice named: its notes run through the new one.
   if (state.version !== onOffer) void ask.notesFor(displayTag(state.version));
-  logger.info(`downloading ${displayTag(state.version)} at the operator's request`);
+  downloadByItself = how === BY_ITSELF;
+  logger.info(`downloading ${displayTag(state.version)} ${how}`);
   await fetchUpdate(pendingInfo);
 }
 
@@ -224,10 +264,43 @@ async function restartToUpdate() {
   await installer?.install();
 }
 
+/** Nova may download and install by itself: automatic checks on, and NOVA_UPDATE_AUTO_INSTALL not off. */
+function autoEnabled() {
+  return Boolean(updater && gate.automatic && autoInstallOn);
+}
+
+/** How a check chooses: the operator's asks anything not busy; a ping, one newer release; the rest, the startup rule. */
+function checkAction(origin) {
+  if (origin === 'manual') return manualCheckAction(state, gate);
+  if (origin === 'ping') return shouldPingCheck(state, gate) ? 'check' : 'skip';
+  return shouldAutoCheck(state, gate) ? 'check' : 'skip';
+}
+
+/**
+ * GitHub's release ping named `tag`: check now when it is newer than this desk and than the
+ * release in hand, at most once per UPDATE_PING_MIN_GAP_MS (a ping inside the gap checks after it).
+ */
+function onReleasePing(tag) {
+  if (!isOlderTag(currentTag, tag)) return;
+  if (state.version && !isOlderTag(displayTag(state.version), tag)) return;
+  const wait = lastPingCheckAt + UPDATE_PING_MIN_GAP_MS - Date.now();
+  const run = () => {
+    pingTimer = null;
+    lastPingCheckAt = Date.now();
+    logger.info(`GitHub says ${tag} is out; checking now`);
+    void checkNow('ping');
+  };
+  if (wait <= 0) run();
+  else if (!pingTimer) {
+    pingTimer = setTimeout(run, wait);
+    pingTimer.unref?.();
+  }
+}
+
 /**
  * One check at a time. Help > Check for Updates asks GitHub even with a release
  * on offer or downloaded, and what it finds raises the notice again.
- * @param {'launch' | 'manual' | 'recheck'} origin
+ * @param {'launch' | 'manual' | 'recheck' | 'ping'} origin
  */
 async function checkNow(origin) {
   if (!updater) return;
@@ -242,8 +315,7 @@ async function checkNow(origin) {
   }
   // Update's own check (newestRelease.mjs) is running: the download it leads to is the answer.
   if (newest.isChecking()) return;
-  const action = manual ? manualCheckAction(state, gate) : shouldAutoCheck(state, gate) ? 'check' : 'skip';
-  if (action !== 'check') return;
+  if (checkAction(origin) !== 'check') return;
   manualPending = manual;
   checkOrigin = origin;
   lastCheckAt = Date.now();
@@ -269,6 +341,8 @@ async function checkNow(origin) {
   }
   // Asked from the menu: raise the notice again, even after Later.
   if (checkOrigin === 'manual') dispatch({ type: 'reoffer' });
+  // Nothing at stake: it downloads now, and the notice follows the download.
+  if (autoEnabled() && (await auto.step())) return;
   if (shouldOfferNow(state, { origin: checkOrigin, now: Date.now() })) await offer();
   else if (needsOffer(state)) logger.info(`${displayTag(state.version)} found; the notice waits until trading hours end`);
 }
@@ -305,9 +379,9 @@ function wireEvents(instance) {
   instance.on('update-downloaded', (info) => {
     manualPending = false;
     dispatch({ type: 'downloaded', version: info?.version });
-    // The operator chose Update: the notice turns to Restart to update, or the dialog asks.
+    // The notice turns to Restart to update, or the dialog asks -- unless Nova fetched it by itself.
     if (bridge.hasListener()) ask.attention();
-    else void promptRestart();
+    else if (!downloadByItself) void promptRestart();
   });
   on('error', (err) => {
     const wasInstalling = state.phase === 'installing';
@@ -385,7 +459,7 @@ async function startUnguarded(deps) {
     getUpdater: () => updater,
     getState: () => state,
     dispatch,
-    prepare: (tag) => hooks.prepareInstall(tag, { box: ask.box }),
+    prepare: (tag, options) => hooks.prepareInstall(tag, { box: ask.box, ...options }),
     stopEngine: () => hooks.stopEngine(),
     handOff: () => hooks.handOffEngine(),
     restartEngine: () => hooks.restartEngine(),
@@ -393,11 +467,22 @@ async function startUnguarded(deps) {
     logsDir: () => appDir('logs'),
     logger,
   });
-  gate = updateGate({ isPackaged: app.isPackaged, platform: process.platform, setting: readSetting() });
+  gate = updateGate({ isPackaged: app.isPackaged, platform: process.platform, setting: readSetting(UPDATE_CHECK_ENV) });
   if (!gate.updater) {
     logger.info(`in-app updates off: ${gate.reason}`);
     return;
   }
+  autoInstallOn = updateCheckSetting(readSetting(UPDATE_AUTO_INSTALL_ENV));
+  auto = createAutoInstall({
+    getState: () => state,
+    dispatch,
+    enabled: autoEnabled,
+    holds: () => hooks.autoHolds(),
+    idleMs,
+    download: () => startDownload(BY_ITSELF),
+    install: () => installer.install({ automatic: true }),
+    logger,
+  });
   currentTag = displayTag(app.getVersion());
   bridge.set('installed', currentTag);
   whatsNew = createWhatsNew({ bridge, notesSource, dir: userData, installedTag: currentTag, logger, showDialog: ask.box });
@@ -419,6 +504,14 @@ async function startUnguarded(deps) {
   timer.unref?.();
   const clock = setInterval(tick, UPDATE_RECHECK_TICK_MS);
   clock.unref?.();
+  // GitHub cannot call the desk; the desk keeps a line open to the topic Desktop pack posts to.
+  createReleasePing({ fetch: (url, init) => net.fetch(url, init), onRelease: onReleasePing, logger }).start();
+  logger.info(autoInstallOn
+    ? 'a newer release downloads and installs by itself once nothing is at stake'
+    : `${UPDATE_AUTO_INSTALL_ENV} is off: a newer release waits for Update and Restart to update`);
+  if (!autoInstallOn) return;
+  const autoClock = setInterval(() => void auto.step(), UPDATE_AUTO_TICK_MS);
+  autoClock.unref?.();
 }
 
 /** The open desk's clock: a re-check that is due, or a re-check's held notice once trading hours end. */

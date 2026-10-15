@@ -66,7 +66,7 @@ export function DayPnlButton({ figures, open, cardId, title, onToggle, onHover }
     </button>
   );
   return (
-    <GlobalBarMenuAnchor open={open} cardId={cardId} button={button}>
+    <GlobalBarMenuAnchor kind="day" open={open} cardId={cardId} button={button}>
       <DayPnlCard figures={figures} />
     </GlobalBarMenuAnchor>
   );

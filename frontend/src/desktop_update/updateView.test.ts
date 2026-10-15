@@ -52,6 +52,16 @@ describe('readUpdateView', () => {
     expect(view?.whatsNew).toMatchObject({ mode: 'updated', tag: 'v975', since: 'v970' });
   });
 
+  it('reads what the automatic install waits for, and nothing it cannot read', () => {
+    const read = (auto: unknown) =>
+      readUpdateView({ schema_version: 1, installed: 'v975', notice: { stage: 'ready', tag: 'v976', auto } })?.notice?.auto;
+    expect(read({ waiting: ['Paper: long 100 GENK', '', 7] })).toEqual({ waiting: ['Paper: long 100 GENK'] });
+    expect(read({ waiting: [] })).toEqual({ waiting: [] });
+    expect(read(null)).toBeNull();
+    expect(read({ waiting: 'no' })).toBeNull();
+    expect(read(undefined)).toBeNull();
+  });
+
   it('reads nothing from another schema version or a malformed part', () => {
     expect(readUpdateView({ schema_version: 2, notice: null })).toBeNull();
     expect(readUpdateView(null)).toBeNull();

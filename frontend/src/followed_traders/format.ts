@@ -49,6 +49,11 @@ function signed(x: number, digits: number, suffix = ''): string {
   return `${x > 0 ? '+' : MINUS}${s}${suffix}`;
 }
 
+/** A percent with its sign: "+8.82%", "−0.96%", "0.00%". */
+export function signedPct(x: number): string {
+  return signed(x, 2, '%');
+}
+
 export function isRangePl(pl: PointPl | RangePl): pl is RangePl {
   return 'low_per_share' in pl;
 }

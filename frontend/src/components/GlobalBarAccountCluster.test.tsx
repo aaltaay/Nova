@@ -170,16 +170,18 @@ describe('GlobalBarAccountCluster -- Live (the IBKR account)', () => {
   });
 
   // Operator report, 2026-10-14: every card opened at the cluster's right edge.
+  // The kind class is what a narrow header hides, card and all (global-app-bar-responsive.css).
   it.each([
-    ['global-bar-account-trigger', 'global-bar-day-card', 'start'],
-    ['global-bar-working-trigger', 'global-working-menu', 'start'],
-    ['global-bar-tav-trigger', 'global-bar-tav-card', 'start'],
-    ['global-bar-account-pill', 'global-bar-account-pill-menu', 'end'],
-  ])('%s opens its card under its own button', (trigger, cardId, align) => {
+    ['global-bar-account-trigger', 'global-bar-day-card', 'day', 'start'],
+    ['global-bar-working-trigger', 'global-working-menu', 'working', 'start'],
+    ['global-bar-tav-trigger', 'global-bar-tav-card', 'tav', 'start'],
+    ['global-bar-account-pill', 'global-bar-account-pill-menu', 'pill', 'end'],
+  ])('%s opens its card under its own button', (trigger, cardId, kind, align) => {
     mount();
     click(trigger);
     const anchor = screen.getByTestId(cardId).closest('.global-app-bar__metric-anchor');
     expect(anchor).toBe(screen.getByTestId(trigger).parentElement);
+    expect(anchor!.classList).toContain(`global-app-bar__metric-anchor--${kind}`);
     expect(anchor!.classList).toContain(`global-app-bar__metric-anchor--${align}`);
   });
 

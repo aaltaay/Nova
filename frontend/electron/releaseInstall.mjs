@@ -12,6 +12,11 @@
  * would not stop, the installer would not start, electron-updater reported an
  * error while installing) takes the window down and restarts the engine; the
  * downloaded installer stays offered.
+ *
+ * The automatic install (autoInstall.mjs, operator ask 2026-10-14) is this same
+ * install with `automatic`: the backend is prepared without a dialog (anything
+ * it would ask about means wait), and nothing it says goes up as a box -- nobody
+ * is at the desk -- only into update.log.
  */
 import path from 'node:path';
 import { UPDATE_LOG_FILE } from './updateLog.mjs';
@@ -20,7 +25,8 @@ import { showUpdateSplash } from './updateSplash.mjs';
 
 /**
  * @param {{ getUpdater: () => any, getState: () => { phase: string, version: string },
- *   dispatch: (event: object) => void, prepare?: (tag: string) => Promise<boolean>,
+ *   dispatch: (event: object) => void,
+ *   prepare?: (tag: string, options: { automatic: boolean }) => Promise<boolean>,
  *   stopEngine: () => Promise<boolean>, handOff?: () => Promise<void>,
  *   restartEngine: () => Promise<void>, box: (options: object) => Promise<unknown>,
  *   logsDir: () => string, logger: { info: Function, error: Function } }} deps
@@ -58,22 +64,25 @@ export function createReleaseInstaller({
     }
   }
 
-  async function install() {
+  /** Install the downloaded release: true once the installer runs, false when nothing was installed. */
+  async function install({ automatic = false } = {}) {
     const updater = getUpdater();
-    if (!updater || getState().phase !== 'ready' || preparing) return;
+    if (!updater || getState().phase !== 'ready' || preparing) return false;
     const { version } = getState();
     preparing = true;
     let go = false;
     try {
-      go = await prepare(displayTag(version));
+      go = await prepare(displayTag(version), { automatic });
     } catch (err) {
       logger.error(`preparing the backend for ${displayTag(version)} failed: ${errorText(err)}`);
     } finally {
       preparing = false;
     }
     if (!go || getState().phase !== 'ready') {
-      logger.info(`${displayTag(version)} not installed: the operator chose to wait`);
-      return;
+      logger.info(automatic
+        ? `${displayTag(version)} not installed by itself: the backend could not be prepared without asking`
+        : `${displayTag(version)} not installed: the operator chose to wait`);
+      return false;
     }
     dispatch({ type: 'installing' });
     const logs = logsDir();
@@ -92,6 +101,10 @@ export function createReleaseInstaller({
     if (!stopped) {
       dispatch({ type: 'install-failed', message: 'local engine did not stop; nothing was installed' });
       await recover();
+      if (automatic) {
+        logger.error(`${displayTag(version)} not installed by itself: the local engine did not stop`);
+        return false;
+      }
       await box({
         type: 'warning',
         title: 'Nova update not installed',
@@ -100,7 +113,7 @@ export function createReleaseInstaller({
         buttons: ['OK'],
         noLink: true,
       });
-      return;
+      return false;
     }
     try {
       await handOff();
@@ -108,14 +121,16 @@ export function createReleaseInstaller({
       // The new desk restarts the backend instead (engineFollow.mjs): never a reason not to install.
       logger.error(`backend restart for ${displayTag(version)} failed: ${errorText(err)}`);
     }
-    logger.info(`installing ${displayTag(version)} at the operator's request`);
+    logger.info(`installing ${displayTag(version)} ${automatic ? 'by itself' : "at the operator's request"}`);
     try {
       // Silent NSIS install into the existing location, then relaunch the new
       // version, which starts its own matching engine. Settings live in userData.
       updater.quitAndInstall(true, true);
+      return true;
     } catch (err) {
       dispatch({ type: 'install-failed', message: errorText(err) });
       await recover();
+      return false;
     }
   }
 

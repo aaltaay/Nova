@@ -674,6 +674,51 @@ def test_compose_scores_rows_and_keeps_records():
     assert body["overall"] == {"wins": 1, "losses": 1, "scratches": 0, "unscored": 0, "open": 1, "win_rate": 50.0}
 
 
+def test_scored_lists_the_won_lost_and_scratched_trades_by_exit_time():
+    # Operator ask 2026-10-14: what each trader made, per share in %. Only a trade with one exit price counts.
+    rows = [
+        {"result": "loss", "exit": {"to_ts": 300.0}, "pl": {"per_share": -0.1, "pct": -5.0}},
+        {"result": "win", "exit": {"to_ts": 100.0}, "pl": {"per_share": 0.2, "pct": 10.0}},
+        {"result": "scratch", "exit": {"to_ts": 200.0}, "pl": {"per_share": 0.0, "pct": 0.0}},
+        {"result": "unscored", "exit": {"to_ts": 150.0},
+         "pl": {"low_per_share": -1, "high_per_share": 1, "low_pct": -1, "high_pct": 1}},
+        {"result": None, "exit": None, "pl": {"per_share": 0.5, "pct": 25.0}},
+    ]
+    assert scoring.scored(rows) == [{"ts": 100.0, "pct": 10.0}, {"ts": 200.0, "pct": 0.0},
+                                    {"ts": 300.0, "pct": -5.0}]
+    assert scoring.scored([]) == []
+
+
+def test_records_send_each_traders_scored_trades_beside_the_record():
+    got = feed.parse_range({"from": "2026-10-12", "to": "2026-10-13", "dates": ["2026-10-12", "2026-10-13"],
+                            "trades": [
+        _trade("ALPHA", symbol="AAA", status="closed", exit_clock="10:20:00") | {"date": "2026-10-13"},
+        _trade("ALPHA", symbol="BBB", status="closed", exit_clock="10:10:00") | {"date": "2026-10-13"},
+        _trade("ALPHA", symbol="CCC", status="closed", exit_clock="10:30:00", exit_since="10:25:00")
+        | {"date": "2026-10-13"},
+        _trade("ALPHA", symbol="DDD") | {"date": "2026-10-13"},
+        _trade("BRAVO", side="short", symbol="EEE", status="closed", exit_clock="10:15:00") | {"date": "2026-10-12"},
+    ]})
+    prices = {"AAA": 2.10, "BBB": 1.90, "EEE": 1.90}
+
+    def exit_for(t):
+        if t["exit_since_ts"] is not None:  # a window: low-high, unscored
+            return exits.stated("range", low=1.9, high=2.2, from_ts=t["exit_since_ts"], to_ts=t["exit_ts"],
+                                source="ibkr_trades")
+        return exits.stated("at", price=prices[t["symbol"]], trade_ts=t["exit_ts"] - 1, to_ts=t["exit_ts"],
+                            source="ibkr_trades")
+
+    body = view.records(got, span="week", now=_epoch("16:00:00"), exit_for=exit_for)
+    alpha, bravo = body["traders"]
+    assert alpha["record"] == {"wins": 1, "losses": 1, "scratches": 0, "unscored": 1, "open": 1, "win_rate": 50.0}
+    # Oldest exit first; the window exit (CCC) and the open trade (DDD) are not there.
+    assert alpha["scored"] == [{"ts": _epoch("10:10:00"), "pct": -5.0}, {"ts": _epoch("10:20:00"), "pct": 5.0}]
+    assert bravo["scored"] == [{"ts": _epoch("10:15:00"), "pct": 5.0}]
+    scored = sum(len(t["scored"]) for t in body["traders"])
+    assert scored == body["overall"]["wins"] + body["overall"]["losses"] + body["overall"]["scratches"]
+    assert view.records_down("unreachable", "down", "week", 0.0)["traders"] == []
+
+
 # -- exits kept on disk -----------------------------------------------------------------------------
 
 
@@ -743,7 +788,7 @@ def test_route_record(client, monkeypatch):
     assert asked == [("2026-10-07", "2026-10-13")]
     assert body["range"] == "week" and body["pending"] == 1
     assert body["traders"] == [{"name": "ALPHA", "record": {"wins": 0, "losses": 0, "scratches": 0, "unscored": 1,
-                                                            "open": 1, "win_rate": None}}]
+                                                            "open": 1, "win_rate": None}, "scored": []}]
     assert client.get("/api/followed-traders/record?range=month").json()["detail"]["reason"] == "FOLLOWED_BAD_RANGE"
 
     def down(base, start, end):

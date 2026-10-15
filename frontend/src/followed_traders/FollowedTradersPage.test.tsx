@@ -367,6 +367,46 @@ describe('FollowedTradersPage', () => {
     expect(q('ft-records')!.textContent).toContain('2 exits still being read from IBKR');
   });
 
+  it('shows what each trader and everyone made, per share in %, leaving unscored trades out', async () => {
+    // Operator ask 2026-10-14: "we can see the PL per share in terms of percentage"; their pick, "Added up".
+    await show(day());
+    const alpha = q('ft-pl-ALPHA')!;
+    expect(alpha.textContent).toBe('+10.00%per share · 1 trade');
+    expect(alpha.className).toContain('ft-plfig--up');
+    expect(alpha.querySelector('svg.ft-spark')).not.toBeNull();
+    expect(alpha.getAttribute('data-tip')).toContain('P/L per share in %, added up over 1 closed trade');
+    expect(alpha.getAttribute('data-tip')).toContain('the feed never shows their size');
+    // BRAVO's only trade is unscored: a dash that says why, never 0%.
+    const bravo = q('ft-pl-BRAVO')!;
+    expect(bravo.textContent).toBe('—P/L per share');
+    expect(bravo.getAttribute('data-tip')).toContain('No closed trade with one known exit price');
+    expect(bravo.getAttribute('data-tip')).toContain('Left out: 1 unscored trade');
+    expect(q('ft-pl-everyone')!.textContent).toBe('+10.00%');
+  });
+
+  it('adds up a Week from the record’s scored trades, and says when a backend sends none', async () => {
+    const week = { schema_version: 1, generated_at: T, feed: { state: 'ok', error: null }, range: 'week',
+      from: '2026-10-07', to: '2026-10-13', dates: [], pending: 0,
+      overall: { wins: 2, losses: 1, scratches: 0, unscored: 1, open: 0, win_rate: 66.7 },
+      traders: [
+        { name: 'ALPHA', record: { wins: 2, losses: 0, scratches: 0, unscored: 0, open: 0, win_rate: 100 },
+          scored: [{ ts: T - 900, pct: 1.25 }, { ts: T - 300, pct: 0.5 }] },
+        { name: 'BRAVO', record: { wins: 0, losses: 1, scratches: 0, unscored: 1, open: 0, win_rate: 0 },
+          scored: [{ ts: T - 600, pct: -0.4 }] },
+      ] };
+    let answer: object = week;
+    await show(day(), (url) => url.pathname === '/api/followed-traders/record' ? new Response(JSON.stringify(answer)) : undefined);
+    await click(q('ft-range-week'));
+    expect(q('ft-pl-ALPHA')!.textContent).toBe('+1.75%per share · 2 trades');
+    expect(q('ft-pl-BRAVO')!.textContent).toBe('−0.40%per share · 1 trade');
+    expect(q('ft-pl-BRAVO')!.className).toContain('ft-plfig--down');
+    expect(q('ft-pl-everyone')!.textContent).toBe('+1.35%');
+    answer = { ...week, traders: week.traders.map(({ name, record }) => ({ name, record })) };
+    await click(q('ft-range-all'));
+    expect(q('ft-pl-ALPHA')!.textContent).toBe('—P/L per share');
+    expect(q('ft-pl-everyone')!.getAttribute('data-tip')).toContain('restart it on the desk’s release');
+  });
+
   it('steps to the previous day and opens the calendar with a preview', async () => {
     await show(day());
     expect((q('ft-next-day') as HTMLButtonElement).disabled).toBe(true);

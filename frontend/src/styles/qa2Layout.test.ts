@@ -51,12 +51,29 @@ describe('D1: the header sheds per REC chip, never the KILL, search, pill, padlo
     expect(block(responsive, '@media (max-width: 1920px) {')).toContain(`${THREE_RECS} .global-app-bar__rec-time`);
     const at1600 = block(responsive, '@media (max-width: 1600px) {');
     expect(at1600).toContain(`${TWO_RECS} .global-app-bar__rec-time`);
-    expect(at1600).toContain(`${TWO_RECS} .global-app-bar__metric--day`);
+    expect(at1600).toContain(`${TWO_RECS} .global-app-bar__metric-anchor--day,`);
+    expect(at1600).toContain(`${TWO_RECS} .global-app-bar__metric-anchor--day + .global-app-bar__sep`);
   });
 
   it('drops the REC word with three at 1440 and TAV with two at 1280', () => {
     expect(block(responsive, '@media (max-width: 1440px) {')).toContain(`${THREE_RECS} .global-app-bar__rec-role`);
-    expect(block(responsive, '@media (max-width: 1280px) {')).toContain(`${TWO_RECS} .global-app-bar__metric--tav`);
+    const at1280 = block(responsive, '@media (max-width: 1280px) {');
+    expect(at1280).toContain(`${TWO_RECS} .global-app-bar__metric-anchor--tav,`);
+    expect(at1280).toContain(`${TWO_RECS} .global-app-bar__sep:has(+ .global-app-bar__metric-anchor--tav)`);
+  });
+
+  // PR #975 review: P/L and TAV sit in a GlobalBarMenuAnchor with their card.
+  // Hiding only the inner button left the separator and an open card behind.
+  it('hides P/L at 1280 and TAV at 1100 as whole anchors, separator and all', () => {
+    const at1280 = block(responsive, '@media (max-width: 1280px) {');
+    expect(at1280).toMatch(/\n {2}\.global-app-bar__metric-anchor--day,\n/);
+    expect(at1280).toContain('\n  .global-app-bar__metric-anchor--day + .global-app-bar__sep {');
+    const at1100 = block(responsive, '@media (max-width: 1100px) {');
+    expect(at1100).toContain('\n  .global-app-bar__metric-anchor--tav,');
+    expect(at1100).toContain('\n  .global-app-bar__sep:has(+ .global-app-bar__metric-anchor--tav) {');
+    // The bare selectors are only for the offline cluster's TAV span; a button
+    // inside an anchor is never the thing a breakpoint hides.
+    expect(responsive).not.toMatch(/metric--day\b/);
   });
 
   it('keeps the chip dot and symbol: no rule hides a whole REC chip', () => {

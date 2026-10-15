@@ -61,9 +61,10 @@ def compose(day: dict[str, Any], *, now: float, prices: dict[str, Any], now_for:
 def records(got: dict[str, Any], *, span: str, now: float, exit_for: ExitFor,
             seen_by_date: dict[str, dict[str, dict[str, Any]]] | None = None,
             ticker_for: TickerFor | None = None) -> dict[str, Any]:
-    """``GET /api/followed-traders/record``: each trader's record over the feed's trades from ``got["from"]`` to
-    ``got["to"]``, and everyone's. Open trades are not priced here; ``pending`` counts exits not read yet. A trader
-    who left the bar on a day (``seen_by_date``) closed that day's trades when they left, as on the day."""
+    """``GET /api/followed-traders/record``: each trader's record and scored trades (``scoring.scored``) over the
+    feed's trades from ``got["from"]`` to ``got["to"]``, and everyone's record. Open trades are not priced here;
+    ``pending`` counts exits not read yet. A trader who left the bar on a day (``seen_by_date``) closed that day's
+    trades when they left, as on the day."""
     seen_by_date = seen_by_date or {}
     rows: dict[str, list[dict[str, Any]]] = {}
     for trade in got["trades"]:
@@ -77,7 +78,8 @@ def records(got: dict[str, Any], *, span: str, now: float, exit_for: ExitFor,
             "dates": list(got["dates"]),
             "pending": sum(1 for r in every if (r["exit"] or {}).get("state") == "pending"),
             "overall": scoring.record(every),
-            "traders": [{"name": name, "record": scoring.record(group)} for name, group in rows.items()]}
+            "traders": [{"name": name, "record": scoring.record(group), "scored": scoring.scored(group)}
+                        for name, group in rows.items()]}
 
 
 def records_down(state: str, error: str, span: str, now: float) -> dict[str, Any]:
