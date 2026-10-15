@@ -262,6 +262,8 @@ export const BOT_FAMILY_NAMES = { strategy: 'Strategy Bots', live_trader: 'LiveT
 export const BOT_KEY_OFF_LINE = "Off: bots can't place orders or sell.";
 export const botKeyOnLine = (name: string, venue: string): string => `On: ${name} may place orders on ${venue}.`;
 export const BOT_KEY_LIVE_WHY = 'Bots never trade Live.';
+export const botKeyUnreadable = (name: string): string =>
+  `The ${name} key could not be read from the backend's answer: its bots count as off until it reads.`;
 export const botKeyTip = (name: string): string =>
   `The ${name} key. A bot places orders only while the Bot switch in the header, this key and its own key are all `
   + 'on. Off at any level, it places none, not even a sell: what it holds stays until you sell it or turn the keys '

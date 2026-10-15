@@ -292,7 +292,10 @@ position does, "No orders at all"). A bot places an order only while all three o
 - The session view adds `keys: {venue, error: string | null, strategy: {on, why_off}, live_trader: {on, why_off}}`
   for the desk venue (`why_off` null while on).
 - **Strategy Bots off**: the bot and Auto-entry skip a go trigger `BOT_SKIP_FAMILY_OFF`, the runner does not play, the
-  bot's open trade is only read (above), and the session's `gates` add `strategy_key` (stage `fire`). The squares' `bot_on` square is green only with the Bot
+  bot's open trade is only read (above), the localhost bot API (`POST /api/bot/action`) refuses every order kind 409
+  `BOT_SKIP_FAMILY_OFF` (`cancel_symbol` still goes), and the session's `gates` add `strategy_key` (stage `fire`).
+- **A strategy below On** is its trade's own key off: the bot's open trade of that strategy is only read, said once
+  (`BOT_SETUP_NOT_STRATEGY`), until it is On again. The squares' `bot_on` square is green only with the Bot
   switch and the Strategy Bots key both on; a past trigger reads the key from the journal's `bot` stamp
   (`strategy_key`; a line without it is judged by the Bot switch alone).
 - **LiveTrader Bots off**: `LT_FAMILY_OFF` ("The Live Trader bot" below).
@@ -602,7 +605,9 @@ hours, the desk off Paper, the Bot switch off, the LiveTrader Bots key off, Free
 time. With the Bot switch, the LiveTrader Bots key or the host's own key off, the host's bot places no order at all
 ("The three keys"): each add of what it holds is a skip (`LT_KEY_OFF` for the host's key), so turning a key back on
 never buys an add made while it was off, and each close it would have sent is said once ("not sold -- ...", with
-the position's wait) and sent when the keys are back on if its reason still stands. A wait (the quote
+the position's wait) and sent when the keys are back on if its reason still stands. A position held from an earlier
+desk day is judged from its own open time on every pass, so one a key held back at the rollover is sold the pass the
+keys are back on, whatever its Exit. A wait (the quote
 line, the market cap, the ticker check) turns into its skip after `LT_WAIT_SEC` (30). Closes are never held
 for a doubt -- a late read is still a true one; with no answer at all they wait for one, and `LT_HIDDEN_SEC`
 without a read sells everything.

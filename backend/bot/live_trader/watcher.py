@@ -49,6 +49,7 @@ _lock = threading.Lock()
 _wake = Wake()
 _snapshot: dict[str, Any] | None = None
 _answers: dict[str, bool] = {}
+_stale_said: set[str] = set()           # "pos id|outcome": a position from an earlier day, said once per outcome
 _status: dict[str, Any] = {"running": False, "pass_ts": None, "answer": None, "waits": {}, "can_open": None,
                            "idle": True, "names": [], "names_day": None}
 
@@ -58,6 +59,7 @@ def reset_for_tests() -> None:
     with _lock:
         _snapshot = None
         _answers = {}
+        _stale_said.clear()
         _status = {"running": False, "pass_ts": None, "answer": None, "waits": {}, "can_open": None, "idle": True,
                    "names": [], "names_day": None}
     act.reset_for_tests()
@@ -241,19 +243,7 @@ async def tick(now: float | None = None) -> bool:
     """One pass; True while the bot is busy (a key on, a position held, an ask waiting)."""
     global _snapshot
     now = time.time() if now is None else now
-    hold = keys_hold(keys())
-    for pos in book.roll_day(_desk_day(now)):
-        held = hold(pos["host"])
-        act.note({"kind": "stale_day", "host": pos["host"], "row_id": pos["row_id"], "symbol": pos["symbol"],
-                  "side": pos["side"], "step": "stale_day",
-                  "why": "held from an earlier day: sold at once, the bot never holds overnight" if held is None
-                  else f"held from an earlier day: not sold -- {held[1]}"}, now)
-        if held is not None:
-            continue                           # sold once the keys are back on: its row is not on today's bar
-        await act.close({"kind": "close", "host": pos["host"], "pos_id": pos["id"], "row_id": pos["row_id"],
-                         "symbol": pos["symbol"], "side": pos["side"], "qty": pos["qty"],
-                         "why": "held from an earlier day: never overnight",
-                         "change": {"kind": "stale_day", "ts": now, "price": None}}, now)
+    await _sell_earlier_days(now)
     await manage(now)
     positions = book.positions()
     waiting = bool((_snapshot or {}).get("asks"))
@@ -284,6 +274,32 @@ async def tick(now: float | None = None) -> bool:
         _status.update(idle=False, pass_ts=now, answer=summary(got), waits=dict(out["waits"]),
                        can_open=ctx["can_open"])
     return True
+
+
+async def _sell_earlier_days(now: float) -> None:
+    """Every position held from an earlier desk day (04:00 ET) is sold at once: the bot never holds overnight. Judged
+    from each position's own open time on every pass, so one a key held back is sold the pass the keys are back on
+    (Codex review, PR #1006); each is said once per outcome."""
+    today = _desk_day(now)
+    book.roll_day(today)
+    hold = keys_hold(keys())
+    for pos in list(book.positions().values()):
+        if pos["state"] == "closing" or _desk_day(float(pos.get("opened_ts") or now)) >= today:
+            continue
+        held = hold(pos["host"])
+        said = f"{pos['id']}|{held[0] if held else 'sell'}"
+        if said not in _stale_said:
+            _stale_said.add(said)
+            act.note({"kind": "stale_day", "host": pos["host"], "row_id": pos["row_id"], "symbol": pos["symbol"],
+                      "side": pos["side"], "step": "stale_day",
+                      "why": "held from an earlier day: sold at once, the bot never holds overnight" if held is None
+                      else f"held from an earlier day: not sold -- {held[1]}"}, now)
+        if held is not None:
+            continue
+        await act.close({"kind": "close", "host": pos["host"], "pos_id": pos["id"], "row_id": pos["row_id"],
+                         "symbol": pos["symbol"], "side": pos["side"], "qty": pos["qty"],
+                         "why": "held from an earlier day: never overnight",
+                         "change": {"kind": "stale_day", "ts": now, "price": None}}, now)
 
 
 def _feed_names(now: float) -> tuple[str, list[str] | None, dict[str, Any] | None]:
