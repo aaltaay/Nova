@@ -18,7 +18,6 @@ from constants_bot import (
     BOT_REASON_LIVE_NOT_BUILT,
     BOT_REASON_NO_SETUP_AT_STRATEGY,
     BOT_REASON_PADLOCK_LOCKED,
-    BOT_REASON_TRIP_LATCHED,
 )
 from main import app
 from tests.bot_helpers import headers, on_practice
@@ -45,15 +44,6 @@ def _a_strategy_on() -> None:
     apply_patch({"setup_levels": {"first_pullback": 2}}, desk=True)
 
 
-def _latch() -> None:
-    from bot.clock import lock_until_date
-
-    row = load_session()
-    row.update(soft_breaker_fired=True, soft_breaker_until=lock_until_date(), soft_breaker_at=1_790_000_000.0,
-               soft_breaker_pnl=-55.0)
-    save_session(row)
-
-
 # -- ON ----------------------------------------------------------------------------------
 def test_on_puts_the_master_at_strategy_and_activates_in_one_step(api_key):
     on_practice()
@@ -62,7 +52,7 @@ def test_on_puts_the_master_at_strategy_and_activates_in_one_step(api_key):
     assert res.status_code == 200
     body = res.json()
     assert body["level"] == 2 and body["active"] is True and body["bot_on"] is True
-    assert body["switch"] == {"on": True, "venue": "paper", "why_off": None, "latched": None}
+    assert body["switch"] == {"on": True, "venue": "paper", "why_off": None}
     assert body["desk_arm_token"]                    # Activate's token, as POST /arm answers it
     [line] = _lines()
     assert line["outcome"] == "on" and line["inputs"] == {"on": True, "from_level": 0, "to_level": 2}
@@ -153,24 +143,6 @@ def test_an_unlocked_desk_that_cannot_place_refuses_on(api_key, monkeypatch):
     assert "Gateway not ready" in res.json()["detail"]["error"] and _lines() == []
 
 
-def test_a_bot_trip_needs_reenable_which_clears_the_latch(api_key):
-    on_practice()
-    _a_strategy_on()
-    _latch()
-    view = get_session()
-    assert view["switch"]["latched"] == {"at": 1_790_000_000.0, "pnl": -55.0,
-                                         "until": load_session()["soft_breaker_until"]}
-    assert "Turn the bot on with re-enable" in view["switch"]["why_off"]
-    refused = _switch(api_key, True)
-    assert refused.status_code == 409 and refused.json()["detail"]["reason"] == BOT_REASON_TRIP_LATCHED
-    assert "(P&L -$55.00)" in refused.json()["detail"]["error"]
-    ok = _switch(api_key, True, reenable=True)
-    assert ok.status_code == 200 and ok.json()["bot_on"] is True
-    assert ok.json()["switch"]["latched"] is None and ok.json()["soft_breaker"]["fired"] is False
-    [line] = _lines()
-    assert "re-enabled" in line["reason"]
-
-
 def test_a_brain_cannot_turn_the_bot_on(api_key):
     on_practice()
     _a_strategy_on()
@@ -214,23 +186,23 @@ def test_off_on_live_works_and_on_live_says_why_it_is_off(api_key):
     assert get_session()["switch"]["why_off"].startswith("Nova's bot trades Paper and Sim only")
 
 
-# -- the trip and the old controls -----------------------------------------------------------
-@pytest.mark.asyncio
-async def test_a_bot_trip_leaves_the_switch_off_at_eyes_and_latched(api_key, monkeypatch):
-    from bot.breakers import trip_soft
+# -- the loss limit and the old controls -----------------------------------------------------
+def test_the_daily_loss_limit_leaves_the_switch_on_and_patch_breakers_is_refused(api_key):
+    """ADR 056: the limit never turns the bot off; the retired breakers are refused out loud."""
+    import time
 
-    async def flat(*, origin=None):
-        return {"ok": True, "attempt": 1}
+    from loss_limit import state
+    from sim.mode import venue
 
-    monkeypatch.setattr("bot.breakers.flatten_account_with_retry", flat)
     on_practice()
     _a_strategy_on()
     _switch(api_key, True)
-    await trip_soft(pnl=-61.5)
+    state.write(venue(), {"tripped_at": time.time(), "tripped_loss": 451.0, "limit_usd": 405})
     view = get_session()
-    assert view["level"] == 1 and view["bot_on"] is False
-    assert view["switch"]["latched"]["pnl"] == -61.5
-    assert view["setups"][0]["effective"] == 1          # Eyes keep proposing
+    assert view["bot_on"] is True and "latched" not in view["switch"]
+    refused = client.patch("/api/bot/session", json={"breakers": {"soft_usd": -100}}, headers=headers(api_key))
+    assert refused.status_code == 400 and refused.json()["detail"]["reason"] == "BOT_BREAKERS_RETIRED"
+    assert "Settings > Loss limits" in refused.json()["detail"]["error"]
 
 
 def test_patch_level_and_activate_still_work_for_the_localhost_api(api_key):

@@ -29,7 +29,7 @@ import { strategySetups } from './botLevels';
 import { BotLinesCard } from './BotLinesCard';
 import { BotLiveTradersCard } from './BotLiveTradersCard';
 import { BotProposalsInbox } from './BotProposalsInbox';
-import { BotBreakerBlock, BotRiskCard } from './BotRiskCard';
+import { BotRiskCard } from './BotRiskCard';
 import { BotsPageHeader } from './BotsPageHeader';
 import { BotsStatusBar } from './BotsStatusBar';
 import { BotStrategiesCard } from './BotStrategiesCard';
@@ -37,7 +37,6 @@ import { BotSwitchCard } from './BotSwitchCard';
 import { BotTickersTable, useTriggers } from './BotTickersTable';
 import { BotTodayCard } from './BotTodayCard';
 import { useBotArm } from './useBotArm';
-import { useBotDayPnl } from './useBotDayPnl';
 import { useBotPnlToday } from './useBotPnlToday';
 import { useBotsVenue } from './useBotsVenue';
 import { useKillSwitch } from './useKillSwitch';
@@ -72,7 +71,6 @@ function LiveBotsPage() {
   const { session, proposals, audit, error, busy, patch, resolve } = arm;
   const { openStockView } = useWorkspace();
   const killSwitch = useKillSwitch();
-  const { pnl: dayPnl, parts: pnlParts } = useBotDayPnl(session != null);
   const venue = useBotsVenue();
   const botPnl = useBotPnlToday(venue.practiceVenue, venue.today);
   const modes = useStockModes(session != null);
@@ -101,11 +99,10 @@ function LiveBotsPage() {
               <p className="bots-empty bots-page__loading" role="status">{error || BOTS_PAGE_LOADING}</p>
             ) : (
               <>
-                <BotAnswerLine session={session} ctx={gateContext(session, dayPnl)} triggers={today.view}
+                <BotAnswerLine session={session} ctx={gateContext(session)} triggers={today.view}
                   strategiesAnchor={BOTS_STRATEGIES_ANCHOR} onUnlock={() => void ensureUnlocked()} />
-                <BotSwitchCard arm={arm} killSwitch={killSwitch}
-                  breakers={<BotBreakerBlock session={session} patch={patch} busy={busy} dayPnl={dayPnl} pnlParts={pnlParts} />}>
-                  <BotRiskCard session={session} patch={patch} busy={busy} dayPnl={dayPnl} pnlParts={pnlParts} breakers={false} />
+                <BotSwitchCard arm={arm} killSwitch={killSwitch}>
+                  <BotRiskCard session={session} patch={patch} busy={busy} />
                 </BotSwitchCard>
                 <BotStrategiesCard session={session} busy={busy}
                   onSetupLevel={(id, n) => void patch({ setup_levels: { [id]: n } })}

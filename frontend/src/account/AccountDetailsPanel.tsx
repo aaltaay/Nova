@@ -2,7 +2,8 @@
  * Left column -- Webull's full-height "Account Details" side column bent to
  * what Nova can state: TAV with the eye, the event-marked equity curve, the
  * two cards, the rows that add up to Day's P&L, the cash-vs-positions donut
- * and the Risk Level block driven by Nova's own breakers.
+ * and the Risk block: the bot's order size, the largest position, and where the
+ * daily loss limit is set (Settings > Loss limits, ADR 056).
  */
 import {
   ACCOUNT_CARD_CASH,
@@ -26,17 +27,12 @@ import {
   ACCOUNT_LEGEND_UNSETTLED_LIVE,
   ACCOUNT_LEGEND_UNSETTLED_NA,
   ACCOUNT_LIVE_NO_LEDGER,
-  ACCOUNT_RISK_BREAKERS,
-  ACCOUNT_RISK_BREAKERS_NOT_EXPOSED,
-  ACCOUNT_RISK_DAY_LOCK,
   ACCOUNT_RISK_BOT_ORDER_SIZE,
   ACCOUNT_RISK_BOT_ORDER_SIZE_NONE,
   ACCOUNT_RISK_LARGEST_POSITION,
-  ACCOUNT_RISK_LOCKED,
-  ACCOUNT_RISK_SAFE,
-  ACCOUNT_RISK_SOFT,
+  ACCOUNT_RISK_LOSS_LIMIT,
+  ACCOUNT_RISK_LOSS_LIMIT_WHERE,
   ACCOUNT_RISK_TITLE,
-  ACCOUNT_RISK_UNKNOWN,
   ACCOUNT_COMMISSIONS_PENDING_LIVE,
   ACCOUNT_DAY_PNL_LIVE_NOTE,
   ACCOUNT_ROWS_NO_HISTORY,
@@ -59,13 +55,9 @@ import {
   ACCOUNT_TAV_LABEL,
   ACCOUNT_TODAY_SUFFIX,
   accountRiskBotOrderSize,
-  accountRiskBreakers,
-  accountRiskHardLine,
   accountRiskLargestPosition,
-  accountRiskSoftLine,
   type AccountRange,
 } from '../constantGroups/account_page';
-import { BOT_HARD_BREAKER_USD, BOT_SOFT_BREAKER_USD } from '../constantGroups/bot';
 import type { DeskVenue } from '../constantGroups/desk_venue';
 import { formatSignedMoney, formatSignedPercent } from '../components/globalBarMoney';
 import { dayPnlPercent, type HeaderAccountFigures } from '../components/headerAccountFigures';
@@ -78,14 +70,6 @@ import { largestPosition, longMarketValue, positionSymbols, shortMarketValue, ty
 import { EquityCurve } from './EquityCurve';
 import { rangeSeries, tickDecimals } from './equityPath';
 
-export interface RiskBreakers {
-  tripped: number;
-  armed: number;
-  /** The desk venue's own thresholds (ADR 032): the bot trip and the all-stop, negative dollars. */
-  soft: number;
-  hard: number;
-}
-
 interface Props {
   venue: DeskVenue;
   figures: HeaderAccountFigures;
@@ -94,7 +78,6 @@ interface Props {
   history: PracticeHistory | null;
   range: AccountRange;
   onRange: (range: AccountRange) => void;
-  breakers: RiskBreakers | null;
   maxSharesCap: number | null;
   hidden: boolean;
   onToggleHidden: () => void;
@@ -111,17 +94,6 @@ function valueTick(value: number, step: number): string {
   return value.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 
-export function riskLevel(
-  dayPnl: number | null,
-  soft: number = BOT_SOFT_BREAKER_USD,
-  hard: number = BOT_HARD_BREAKER_USD,
-): { label: string; tone: 'up' | 'down' | 'flat' | 'muted' } {
-  if (dayPnl == null) return { label: ACCOUNT_RISK_UNKNOWN, tone: 'muted' };
-  if (dayPnl <= hard) return { label: ACCOUNT_RISK_LOCKED, tone: 'down' };
-  if (dayPnl <= soft) return { label: ACCOUNT_RISK_SOFT, tone: 'flat' };
-  return { label: ACCOUNT_RISK_SAFE, tone: 'up' };
-}
-
 function Row({ label, children, note }: { label: string; children: React.ReactNode; note?: boolean }) {
   return (
     <div className={`acct-row${note ? ' acct-row--note' : ''}`}>
@@ -132,7 +104,7 @@ function Row({ label, children, note }: { label: string; children: React.ReactNo
 }
 
 export function AccountDetailsPanel({
-  venue, figures, rows, positions, history, range, onRange, breakers, maxSharesCap, hidden, onToggleHidden, nowTs,
+  venue, figures, rows, positions, history, range, onRange, maxSharesCap, hidden, onToggleHidden, nowTs,
   absence = null, sample = false,
 }: Props) {
   const practice = venue !== 'live';
@@ -146,10 +118,6 @@ export function AccountDetailsPanel({
   const posValue = figures.grossPositionValue ?? longMarketValue(positions);
   const donutTotal = cash != null && posValue != null ? cash + posValue : null;
   const cashShare = donutTotal && donutTotal > 0 && cash != null ? cash / donutTotal : null;
-  // The venue's own thresholds (ADR 032); the defaults while the bot session has not answered.
-  const soft = breakers?.soft ?? BOT_SOFT_BREAKER_USD;
-  const hard = breakers?.hard ?? BOT_HARD_BREAKER_USD;
-  const risk = riskLevel(figures.dayPnl, soft, hard);
   const largest = largestPosition(positions);
   const longValue = longMarketValue(positions);
   const shortValue = shortMarketValue(positions);
@@ -161,13 +129,6 @@ export function AccountDetailsPanel({
   const r = 37;
   const c = 2 * Math.PI * r;
   const cashArc = cashShare == null ? 0 : c * cashShare;
-
-  // Day P&L meter: the hard lock sits at the left edge, zero at the middle.
-  const span = Math.abs(hard);
-  const dayPos = figures.dayPnl == null ? null : Math.max(-span, Math.min(span, figures.dayPnl));
-  const meterLeft = dayPos == null ? 50 : dayPos >= 0 ? 50 : 50 + (dayPos / span) * 50;
-  const meterWidth = dayPos == null ? 0 : (Math.abs(dayPos) / span) * 50;
-  const softMark = 50 + (soft / span) * 50;
 
   return (
     <section className="acct-panel acct-panel--details" data-testid="account-details" aria-label={ACCOUNT_DETAILS_TITLE}>
@@ -294,22 +255,8 @@ export function AccountDetailsPanel({
 
       <div className="acct-sub">
         <h3>{ACCOUNT_RISK_TITLE}</h3>
-        <span className={`acct-risk__level ${toneClass(risk.tone)}`} data-testid="account-risk-level">● {risk.label}</span>
       </div>
       <div className="acct-risk" data-testid="account-risk">
-        <div className="acct-rrow">
-          <div className="acct-rrow__kv"><span className="acct-row__k">{ACCOUNT_RISK_DAY_LOCK}</span><Money value={figures.dayPnl} signed /></div>
-          <div className="acct-meter">
-            <i style={{ left: `${meterLeft}%`, width: `${meterWidth}%` }} />
-            <em style={{ left: '0%' }} />
-            <em style={{ left: `${softMark}%` }} />
-            <em className="is-zero" style={{ left: '50%' }} />
-          </div>
-          <div className="acct-risk__lines">
-            {accountRiskSoftLine(formatSignedMoney(soft, 0))}<br />
-            {accountRiskHardLine(formatSignedMoney(hard, 0))}
-          </div>
-        </div>
         {/* The cap sizes each bot order; it is not a position limit, so no meter compares the two (W11). */}
         <div className="acct-rrow">
           <div className="acct-rrow__kv">
@@ -327,10 +274,8 @@ export function AccountDetailsPanel({
         </div>
         <div className="acct-rrow">
           <div className="acct-rrow__kv">
-            <span className="acct-row__k">{ACCOUNT_RISK_BREAKERS}</span>
-            <span className={breakers ? 'acct-num' : 'acct-muted'} data-testid="account-breakers">
-              {breakers ? accountRiskBreakers(breakers.tripped, breakers.armed) : ACCOUNT_RISK_BREAKERS_NOT_EXPOSED}
-            </span>
+            <span className="acct-row__k">{ACCOUNT_RISK_LOSS_LIMIT}</span>
+            <span className="acct-muted" data-testid="account-loss-limit">{ACCOUNT_RISK_LOSS_LIMIT_WHERE}</span>
           </div>
         </div>
       </div>

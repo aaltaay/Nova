@@ -6,7 +6,7 @@ The account checks of ``execution.validate`` hand a plain SELL, a BUY and a long
   past the long less the sells already in flight (a short opens only with ``short_entry``, through
   ``short_sale.door``);
 - **a BUY while the account is short** is a cover, a close (``covers_short``): held to the short
-  less the covers in flight (``OVERCOVER``), never to buying power and never locked by the day lock
+  less the covers in flight (``OVERCOVER``), never to buying power and never refused by the daily loss limit
   (ADR 048 gap 3);
 - **a long bracket** is refused while short: its SELL exits would open the short again
   (``BRACKET_WHILE_SHORT``).
@@ -41,7 +41,7 @@ def position_qty(symbol: str) -> float:
 def covers_short(cmd: ExecutionCommand) -> bool:
     """A BUY place while the account is short the stock: a cover, a close (ADR 048 gap 3).
 
-    The all-stop's day lock reads it (``execution.service``): a cover is never locked, like selling
+    The daily loss limit's No new buys reads it (``execution.service``): a cover is never locked, like selling
     what you hold. A position Nova cannot read is not a cover here -- the account check then
     refuses the order ``POSITION_UNAVAILABLE`` and says why.
     """

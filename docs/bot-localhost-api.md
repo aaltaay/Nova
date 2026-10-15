@@ -96,7 +96,7 @@ cancels are never held by either.
 
 `gates: [{id, ok, stage, detail}]` on the session lists every gate the Bots
 page draws: `level`, `allowlist`, `desk_armed`, `depth_lines`, `readout`,
-`bot_trip`, `day_lock`, `kill_switch`, `window`.
+`loss_limit` (the daily loss limit's No new buys, ADR 056), `kill_switch`, `window`.
 
 ## Symbol gate
 
@@ -129,7 +129,7 @@ anything, Nova publishes a `practice_rewind` event:
 ```
 
 - **Push:** an entry on the bot audit stream (`ws://127.0.0.1:8000/ws/bot/audit`,
-  the same channel breaker and TTL events use) with `action: "practice_rewind"`,
+  the same channel TTL events use) with `action: "practice_rewind"`,
   `outcome: "ok"` and the event under `inputs`. It is also in `GET /api/bot/audit`.
 - **Poll:** `GET /api/bot/session` carries `last_rewind` -- the same event plus
   `ts` (when it was published), or `null` until one happens. Process-local: a
@@ -166,12 +166,13 @@ Action-kind allowlist: `buy_market`, `buy_limit_ask_offset`,
 - TTL auto-cancel default 3s (1-10). Nova cancels, not the brain.
 - Extended hours off unless the session enables it.
 
-## Breakers (whole-account Day P&L)
+## The daily loss limit (ADR 056)
 
-- `-$50`: MKT flatten all then L0. Desk may still trade. Header Activate
-  re-enables the same day.
-- `-$200`: flatten all, then lock bot **and** manual BUY until the next
-  America/New_York midnight. Flatten / kill / cancel_working still spend.
+The bot has no loss breaker of its own any more. One daily loss limit in Settings > Loss limits
+counts the trades opened today -- yours and the bots' alike -- on each account; at the limit it can
+warn, stop new buys (a bot's `buy_*` kinds are refused `409 LOSS_LIMIT_NO_NEW_BUYS`) and, if the
+operator checked Auto sell, sell what was opened today. It never turns the bot off; a bot's own
+exits are never held. Schema: `architecture/schema/loss-limit.md`.
 
 ## Your own brain
 

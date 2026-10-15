@@ -30,12 +30,12 @@ describe('the stock\'s own answer (ADR 044, amended 2026-10-06: the hot list is 
 
   it('names the first thing that keeps the bot from acting, and how many more', () => {
     const notes = [
-      { id: 'bot_trip', tone: 'warn', text: 'the bot trip fired at 09:43' },
+      { id: 'loss_limit', tone: 'warn', text: 'the daily loss limit was reached at 09:43' },
       { id: 'window', tone: 'warn', text: 'the bot window closed at 10:00' },
       { id: 'info', tone: 'info', text: 'an info line' },
     ];
     expect(whoAnswer('AISP', view({ notes } as Partial<StockModeView>))?.text)
-      .toBe('Bot may trade AISP: no · the bot trip fired at 09:43 (and 1 more below)');
+      .toBe('Bot may trade AISP: no · the daily loss limit was reached at 09:43 (and 1 more below)');
   });
 
   it('says yes when Buy is Bot and nothing stands in the way, starred or not', () => {

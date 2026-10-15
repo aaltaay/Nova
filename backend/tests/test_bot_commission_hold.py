@@ -5,9 +5,10 @@ sends no new entry until a read succeeds again -- the unreadable file is the
 execution ledger every order is written to. Exits, cancels, flatten and kill
 are never held; Paper and Sim read no commissions and are never held.
 
-Spec D (2026-09-30): the breakers compare IBKR's realized + unrealized P&L,
+Spec D (2026-09-30): the day P&L meter reads IBKR's realized + unrealized P&L,
 which already counts every commission, so a failed commission read no longer
-makes the day P&L unknown -- the breakers keep comparing it.
+makes the day P&L unknown. Since ADR 056 nothing compares it; the commission
+loop (``bot.loops.commission_loop``) keeps the hold current.
 """
 from __future__ import annotations
 
@@ -18,7 +19,6 @@ import pytest
 
 from bot import day_pnl
 from bot.actions import fire
-from bot.breakers import poll_once
 from bot.entry_rules import assert_entry_allowed
 from bot.errors import BotError
 from bot.session import get_session
@@ -95,7 +95,7 @@ def test_a_failed_read_is_logged_and_held_and_the_day_pnl_stays_ibkrs(ledger, cl
     assert day_pnl.day_pnl_usd(dict(LIVE_SUMMARY)) == -45.0
     assert len(_warnings(caplog)) == 1
 
-    # The breaker polls every second: the log does not flood.
+    # The commission loop reads every second: the log does not flood.
     for _ in range(5):
         day_pnl.read_account_day_pnl()
     assert len(_warnings(caplog)) == 1
@@ -200,21 +200,3 @@ def test_paper_and_sim_are_never_held(ledger, venue, monkeypatch):
         assert ledger["calls"] == calls
     finally:
         reset_venue()
-
-
-# -- the breakers ----------------------------------------------------------------
-@pytest.mark.asyncio
-async def test_a_failed_commission_read_never_blinds_the_breakers(ledger, monkeypatch):
-    """The breakers compare IBKR's figure, which a failed commission read does not change."""
-    tripped: list[float] = []
-
-    async def fake_soft(**kwargs):
-        tripped.append(kwargs["pnl"])
-        return {"tripped": "soft"}
-
-    monkeypatch.setattr("bot.breakers.trip_soft", fake_soft)
-    monkeypatch.setattr("ibkr.account.get_account_summary",
-                        lambda: {"RealizedPnL": -55.0, "UnrealizedPnL": -5.0})
-    assert (await poll_once())["tripped"] == "soft"
-    assert tripped == [-60.0]
-    assert day_pnl.commission_hold() is not None                   # the entries hold stands (#564)

@@ -75,14 +75,16 @@ EXECUTION_SOURCES = (
 )
 # Which part of Nova sent an order (operator report 2026-10-01: "I don't remember selling it" --
 # the bot trip's flatten read like any other sell). The source says what kind of order it is; the
-# origin says who: your Flatten, the header's KILL, a loss breaker, Nova's bot, Auto-entry,
-# Approve or the localhost bot API. None: the operator's own ticket, or an order placed before
-# origins were recorded. Rows carry it as ``order_origin``.
+# origin says who: your Flatten, the header's KILL, the daily loss limit's Auto sell, Nova's bot,
+# Auto-entry, Approve or the localhost bot API. None: the operator's own ticket, or an order placed
+# before origins were recorded. Rows carry it as ``order_origin``; rows from before ADR 056 may
+# still read ``bot_trip`` / ``all_stop`` (the retired loss breakers), which nothing sends now.
 EXECUTION_ORIGINS = (
     "ticket_flatten",
     "emergency_kill",
-    "bot_trip",
-    "all_stop",
+    "bot_trip",       # retired (ADR 056): kept so rows from before it still read; nothing sends it
+    "all_stop",       # retired (ADR 056): kept so rows from before it still read; nothing sends it
+    "loss_limit",     # ADR 056: the daily loss limit's Auto sell
     "bot",
     "auto_entry",
     "approve",

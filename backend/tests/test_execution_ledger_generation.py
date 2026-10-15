@@ -1,6 +1,6 @@
 """The session commission read is kept in memory until the ledger changes (#554).
 
-The account / positions polls and the Live bot breaker read this session's
+The account / positions polls and the Live commission hold read this session's
 CommissionReport dollars about once a second on the HTTP loop. The sum is kept
 until the next write to ``executions`` (``execution.ledger_generation``), another
 session start or another ledger file -- exact, no TTL. These tests pin all
@@ -90,9 +90,9 @@ def test_a_repeat_read_opens_no_connection(opens):
     assert opens["n"] == 0
 
 
-def test_the_positions_poll_and_the_breaker_read_memory(opens, monkeypatch):
+def test_the_positions_poll_and_the_commission_hold_read_memory(opens, monkeypatch):
     """The callers #554 names: ``/api/ibkr/account`` and ``/positions`` (through
-    ``attach_session_commissions``) and the Live bot breaker."""
+    ``attach_session_commissions``) and the Live commission hold."""
     from bot.day_pnl import session_commission_total
     from ibkr.position_commission import attach_session_commissions
 

@@ -18,10 +18,11 @@ from typing import Any
 
 from constants_bot import (
     BOT_AUDIT_FILENAME,
-    BOT_BREAKER_VENUES,
+    BOT_VENUES,
     BOT_LEVEL_OFF,
     BOT_LEVEL_UNRESTRICTED,
     BOT_PROPOSALS_FILENAME,
+    BOT_RETIRED_BREAKER_KEYS,
     BOT_RETIRED_SESSION_KEYS,
     BOT_RETIRED_V5_KEYS,
     BOT_SCHEMA_VERSION,
@@ -65,8 +66,6 @@ def default_session() -> dict[str, Any]:
         "symbol_allowlist": [],
         "caps": sleeve_defaults(),
         "deactivated": None,
-        "soft_breaker_fired": False,
-        "hard_lock_until_date": None,
         "bot_qty": {},
         "working": [],
         "focus": [],
@@ -142,6 +141,7 @@ def load_session() -> dict[str, Any]:
             _migrate_v5(merged)
         for key in BOT_RETIRED_V5_KEYS:       # ADR 042: no chosen setup, strategy or advise budget
             merged.pop(key, None)
+        _drop_breakers(merged)
         merged["schema_version"] = BOT_SCHEMA_VERSION
         _refuse_parked_level(merged)
         _session = merged
@@ -153,13 +153,25 @@ def load_session() -> dict[str, Any]:
         return _session
 
 
+def _drop_breakers(row: dict[str, Any]) -> None:
+    """ADR 056: the loss breakers are gone; their fields leave the row and every venue's stored dial."""
+    for key in BOT_RETIRED_BREAKER_KEYS:
+        row.pop(key, None)
+    stored = row.get("venue_levels")
+    if isinstance(stored, dict):
+        for dial in stored.values():
+            if isinstance(dial, dict):
+                for key in BOT_RETIRED_BREAKER_KEYS:
+                    dial.pop(key, None)
+
+
 def _migrate_v5(row: dict[str, Any]) -> None:
-    """Schema 4 -> 5 (ADR 042): the chosen setup's level, the sleeve, the bot list and the day
-    lock move into each venue's dial (``bot.venue_levels.migrate_v5``)."""
+    """Schema 4 -> 5 (ADR 042): the chosen setup's level, the sleeve and the bot list move into each
+    venue's dial (``bot.venue_levels.migrate_v5``)."""
     from bot.venue_levels import migrate_v5
 
     here = row.get("level_venue")
-    if here not in BOT_BREAKER_VENUES:
+    if here not in BOT_VENUES:
         try:
             from sim.mode import venue
 

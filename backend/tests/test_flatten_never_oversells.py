@@ -7,7 +7,7 @@ check now lives in the execution door, inside the execution lock, and
 subtracts the closes already working; the practice broker also cancels a SELL
 that would fill past what is held.
 
-R45: the breaker's first poll of a new practice day read yesterday's day P&L,
+R45: the retired breaker's first poll of a new practice day read yesterday's day P&L,
 because nothing had rolled the ledger yet. The account summary rolls first.
 """
 from __future__ import annotations

@@ -341,15 +341,8 @@
 
 /* ---------- risk ---------- */
 .acct-risk { padding-top: 6px; }
-.acct-risk__level { font-weight: 600; }
 .acct-rrow { padding: 4px 0; border-top: 1px solid var(--acct-hair); font-size: 11px; }
 .acct-rrow:first-child { border-top: 0; padding-top: 0; }
 .acct-rrow__kv { display: flex; justify-content: space-between; gap: 6px; white-space: nowrap; }
 .acct-rrow__kv + .acct-rrow__kv { margin-top: 3px; }
 .acct-rrow__kv > :last-child { white-space: normal; text-align: right; min-width: 0; }
-.acct-risk__lines { color: var(--nova-text-muted); font-size: 10px; margin-top: 3px; line-height: 12px; }
-
-.acct-meter { height: 4px; background: var(--nova-raised); border-radius: 2px; position: relative; margin-top: 4px; }
-.acct-meter i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 2px; background: var(--nova-accent); }
-.acct-meter em { position: absolute; top: -3px; width: 1px; height: 10px; background: var(--nova-text-muted); }
-.acct-meter em.is-zero { background: var(--nova-text); }

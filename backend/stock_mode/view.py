@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 _BOT_STATES = {"entering": STOCK_MODE_TRADE_ENTERING, "open": STOCK_MODE_TRADE_HOLDING,
                "exiting": STOCK_MODE_TRADE_HOLDING, "closed": STOCK_MODE_TRADE_CLOSED,
                "missed": STOCK_MODE_TRADE_MISSED, "handed": STOCK_MODE_TRADE_HANDED}
-_DESK_NOTE_IDS = {"DESK_DISARMED": "padlock", "KILL_SWITCH": "kill", "BOT_DAY_LOCK": "day_lock", "BOT_TRIP": "bot_trip"}
+_DESK_NOTE_IDS = {"DESK_DISARMED": "padlock", "KILL_SWITCH": "kill", "LOSS_LIMIT_NO_NEW_BUYS": "loss_limit"}
 _NOVA_BUYS = (STOCK_MODE_BOT, STOCK_MODE_AUTO_ENTRY)
 _BOT_UNREADABLE = "the bot session could not be read"
 

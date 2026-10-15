@@ -641,7 +641,7 @@
   min-width: 4.6rem;
 }
 
-/* Sent by (2026-10-01): who placed the order. A breaker's or KILL's sell stands out. */
+/* Sent by (2026-10-01): who placed the order. A sell Nova made for you (KILL, the loss limit) stands out. */
 .ibkr-table--orders th.ibkr-col--sent-by,
 .ibkr-table--orders td.ibkr-col--sent-by {
   width: 5.75rem;

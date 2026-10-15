@@ -15,26 +15,23 @@ class SessionPatch(BaseModel):
     setup: str | None = None
     # ADR 031 / 042: Off (0), Eyes (1) or Strategy (2) for every setup with a scanner.
     setup_levels: dict[str, Any] | None = None
-    # The loss breakers, per venue (operator ask 2026-09-24): {venue?, soft_usd?, hard_usd?}.
+    # Retired (ADR 056): kept so a PATCH that sends it is refused out loud (400 BOT_BREAKERS_RETIRED).
     breakers: dict[str, Any] | None = None
     # This venue's Bot stocks, through stock mode's rules (the answer adds ``refused``).
     symbol_allowlist: list[str] | None = None
     # One venue's sleeve (ADR 042 E): {venue?, risk_usd?, max_shares?, ...}.
     caps: dict[str, Any] | None = None
-    reenable: bool | None = None
     brain_session_id: str | None = None
     desk_arm_token: str | None = None
 
 
 class ArmBody(BaseModel):
-    reenable: bool = False
     brain_session_id: str | None = None
 
 
 class SwitchBody(BaseModel):
     """The Bot switch (ADR 044): ``on`` is the master at Strategy and Activate; off, the master at Eyes."""
     on: bool
-    reenable: bool = False
     brain_session_id: str | None = None
 
 

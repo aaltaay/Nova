@@ -311,32 +311,6 @@ async def test_while_the_tape_keeps_up_only_prints_fill(paper):
     assert broker.working_orders()
 
 
-# ── the trip names the order it sold ──────────────────────────────────────
-
-
-def test_the_trip_names_the_order_that_opened_what_it_sold(monkeypatch):
-    from bot import flatten
-    from execution import store
-
-    rows = [
-        {"order_id": 256, "symbol": "GENK", "operation": "place", "status": "filled", "source": "flatten",
-         "mode": "paper", "created_ts": T0 + 196, "updated_ts": T0 + 196, "payload": {"side": "SELL", "qty": 1000}},
-        {"order_id": 900, "symbol": "GENK", "operation": "place", "status": "filled", "source": "manual",
-         "mode": "live", "created_ts": T0 + 100, "updated_ts": T0 + 101, "payload": {"side": "BUY", "qty": 1}},
-        {"order_id": 255, "symbol": "GENK", "operation": "place", "status": "filled", "source": "manual",
-         "mode": "paper", "created_ts": T0 + 8, "updated_ts": T0 + 195,
-         "payload": {"side": "BUY", "sent_qty": 1000, "order_type": "LMT", "requested_price": 2.76}},
-    ]
-    monkeypatch.setattr(store, "list_recent", lambda limit=100: rows)
-    result = {"results": [{"symbol": "GENK", "qty": 1000, "side": "SELL", "close": {"ok": True, "order_id": 256}}]}
-    [close] = flatten.closes_sold(result, venue="paper")
-    assert close["order_id"] == 256
-    assert close["opened_by"] == {"order_id": 255, "source": "manual", "side": "BUY", "qty": 1000,
-                                  "order_type": "LMT", "price": 2.76, "placed_ts": T0 + 8, "filled_ts": T0 + 195}
-    monkeypatch.setattr(store, "list_recent", lambda limit=100: [])
-    assert flatten.closes_sold(result, venue="paper")[0]["opened_by"] is None
-
-
 # ── the Time & Sales socket carries the gate's answer ─────────────────────
 
 

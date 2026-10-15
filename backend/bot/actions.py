@@ -19,7 +19,6 @@ from typing import Any
 
 from bot.audit import record as audit
 from bot.autonomy import assert_can_fire
-from bot.buy_lock import day_lock_active
 from bot.errors import BotError
 from bot.kinds import is_entry_kind
 from bot.risk import (
@@ -41,8 +40,8 @@ from bot.session import require_l2_brain
 from constants_bot import (
     BOT_DEFAULT_ASK_OFFSET_USD,
     BOT_DEFAULT_SHORT_STOP_OFFSET_USD,
-    BOT_REASON_DAY_LOCK,
 )
+from constants_loss_limit import LOSS_LIMIT_REASON_NO_NEW_BUYS
 from execution.models import ExecutionCommand
 from execution.service import execute
 
@@ -120,10 +119,13 @@ async def fire(
     require_l2_brain(brain_session_id, claim=True)
     kind = assert_kind(str(body.get("kind") or body.get("action") or ""), row)
     symbol = assert_symbol_can_fire(str(body.get("symbol") or ""), row)
-    if day_lock_active() and is_entry_kind(kind):
-        from bot.gates import current_venue, day_lock, lock_text
+    if is_entry_kind(kind):
+        from bot.gates import current_venue, loss_limit
 
-        raise BotError(lock_text(day_lock(row, current_venue())), 409, BOT_REASON_DAY_LOCK)
+        # ADR 056: the daily loss limit's No new buys holds this venue (the door refuses it too).
+        stopped = loss_limit(current_venue())
+        if stopped is not None:
+            raise BotError(stopped["text"], 409, LOSS_LIMIT_REASON_NO_NEW_BUYS)
     assert_entry_allowed(kind)  # the Strategy setups' windows, extended hours, the shared daily cap
 
     assert_no_working_buy(kind, row)

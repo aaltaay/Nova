@@ -20,7 +20,6 @@ import { _resetBotSessionPollerForTests, getBotSessionSnapshot, pollBotSessionOn
 const SESSION = {
   level: 0, armed: false, strategy: null, brain_session_id: null,
   caps: { max_shares: 1, bp_budget_usd: 50, working_ttl_sec: 3, extended_hours: false, allowlist: [] },
-  soft_breaker_fired: false, hard_lock_until_date: null, day_lock_active: false,
   focus: [], trader_live: ['GRML'], working: [],
 };
 
@@ -59,10 +58,9 @@ describe('bot answers the page cannot render are refused, not rendered (C12 / C7
     expect(parseBotSession({ ...SESSION, ready: false, live_fire_ready: true })).toMatchObject({ ready: false, live_fire_ready: false });
     const kinds = parseBotSession({ ...SESSION, caps: { ...SESSION.caps, allowlist: ['buy_market'] } });
     expect(kinds?.caps).toMatchObject({ api_kinds: ['buy_market'], allowlist: ['buy_market'] });
-    const legacy = parseBotSession({ ...SESSION, day_lock_active: true, hard_lock_until_date: '2026-09-30' });
-    expect(legacy?.day_lock).toEqual({ active: true, until: '2026-09-30', tripped_at: null, pnl: null, venue: null });
-    const lock = { active: true, until: '2026-10-01T04:00:00-04:00', tripped_at: 1_790_000_000, pnl: -212.4, venue: 'paper' };
-    expect(parseBotSession({ ...SESSION, day_lock: lock })).toMatchObject({ day_lock: lock, day_lock_active: true });
+    // ADR 056: a backend from before the daily loss limit may still send the retired loss rules; they parse,
+    // and nothing reads them.
+    expect(parseBotSession({ ...SESSION, day_lock_active: true, soft_breaker_fired: true, breakers: {} })).not.toBeNull();
     expect(parseBotSession({ ...SESSION, deactivated: { at: 5, reason: 'restart', text: 'Not active -- the backend restarted' } })?.deactivated)
       .toEqual({ at: 5, reason: 'restart', text: 'Not active -- the backend restarted' });
     expect(parseBotSession({ ...SESSION, deactivated: { at: 5 } })?.deactivated).toBeNull();

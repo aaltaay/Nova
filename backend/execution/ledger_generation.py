@@ -1,6 +1,6 @@
 """Execution ledger write generation, and the session commission read it keeps (#554).
 
-The account and positions polls and the Live bot breaker each ask for this
+The account and positions polls and the Live commission hold each ask for this
 session's CommissionReport dollars about once a second, on the HTTP loop. The
 answer only changes when the ``executions`` table does, so it is kept in memory
 and served until the ledger is written again -- exactly, with no TTL.

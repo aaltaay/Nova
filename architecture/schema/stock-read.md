@@ -688,7 +688,7 @@ release), size: {qty, by_risk, capped_by, text} | null, last_event: {ts, tone: "
 - `locks.buy` / `locks.sell` say why Nova cannot take that side now (`null` means it can): Live, a
   replay desk, or a venue Nova cannot read.
 - `notes` name **every** thing that will keep Nova from acting although the switch is set (ADR
-  042, not only the first): the venue, the padlock, the kill switch, the day lock, the bot trip, the
+  042, not only the first): the venue, the padlock, the kill switch, the daily loss limit (ADR 056), the
   bot not active, the plan's setup not at Strategy, its window, extended hours, no depth line, NOT A
   TRADE, a stock the scanner does not follow, the day's Nova entries used, and what could not be
   read (`bot_unreadable`, `trades_unreadable`, `scanner_unreadable`).
@@ -797,7 +797,7 @@ before the desk moves, every Nova entry still working on the venue it leaves -- 
 Auto-entry's, an approved bracket's -- is cancelled there (a `missed`); no new entry starts while it
 runs (`BOT_VENUE_CHANGING`); `POST /api/desk/venue` answers `left: [{venue, symbol, order_id, by,
 text, ok}]` and the desk toasts each. Open positions keep their resting exits.
-Sell: You means Nova never sells the trade; the loss breakers and KILL still flatten every position.
+Sell: You means Nova never sells the trade; KILL still flattens every position, and the daily loss limit's Auto sell (when checked) sells what was opened today.
 
 **On the desk** (owner `frontend/src/stock_read/`, with the stock read):
 - The "Who trades" row sits directly above Level 2. The same switch is a chip under the plan's badge

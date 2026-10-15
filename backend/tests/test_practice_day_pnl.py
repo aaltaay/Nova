@@ -1,4 +1,4 @@
-"""QA W2 / W3 (2026-09-22): the breaker compares today's practice P&L, not the lifetime realized."""
+"""QA W2 / W3 (2026-09-22): the day P&L meter reads today's practice P&L, not the lifetime realized."""
 from __future__ import annotations
 
 from datetime import datetime
@@ -42,7 +42,7 @@ def test_realized_today_resets_at_the_practice_day_boundary():
     assert snap["realized_pnl"] < -59  # the lifetime figure stays for the Account page
 
 
-def test_a_ledger_down_60_since_reset_does_not_trip_the_breaker_on_a_flat_new_day():
+def test_a_ledger_down_60_since_reset_reads_flat_on_a_new_day():
     from bot.day_pnl import day_pnl_usd
 
     ledger = _losing_day_one()

@@ -9,18 +9,16 @@ import logging
 
 from constants_sim import DESK_PRACTICE_VENUES
 from constants_stock_mode import (
-    STOCK_MODE_BLOCK_BOT_TRIP,
     STOCK_MODE_BOT,
-    STOCK_MODE_BLOCK_DAY_LOCK,
     STOCK_MODE_BLOCK_DISARMED,
     STOCK_MODE_BLOCK_KILL,
+    STOCK_MODE_BLOCK_LOSS_LIMIT,
     STOCK_MODE_LIVE,
     STOCK_MODE_REPLAY,
-    STOCK_MODE_WHY_BOT_TRIP,
-    STOCK_MODE_WHY_DAY_LOCK,
     STOCK_MODE_WHY_DISARMED,
     STOCK_MODE_WHY_KILL,
     STOCK_MODE_WHY_LIVE_BUY,
+    STOCK_MODE_WHY_LOSS_LIMIT,
     STOCK_MODE_WHY_REPLAY,
     STOCK_MODE_WHY_VENUE_UNKNOWN,
 )
@@ -68,26 +66,17 @@ def venue_block(venue: str | None, replay: bool, mode: str | None = None,
     return None
 
 
-def _soft_breaker_fired() -> bool:
-    from bot.persist import load_session
-
-    from bot.clock import soft_latched
-
-    return soft_latched(load_session())
-
-
 def desk_blocks() -> list[tuple[str, str]]:
     """Every desk gate that keeps Nova from sending a buy now: ``[(code, why)]`` (empty: none).
 
-    The padlock (``places_allowed``), the kill switch, this venue's day lock and bot trip. The
+    The padlock (``places_allowed``), the kill switch, this venue's daily loss limit (ADR 056). The
     execution door checks the padlock and the kill switch again; asking first lets the runner skip
     with the reason instead of sending into a refusal. A gate that cannot be read counts as closed.
     """
     checks = (
         (STOCK_MODE_BLOCK_DISARMED, STOCK_MODE_WHY_DISARMED, _disarmed),
         (STOCK_MODE_BLOCK_KILL, STOCK_MODE_WHY_KILL, _kill_tripped),
-        (STOCK_MODE_BLOCK_DAY_LOCK, STOCK_MODE_WHY_DAY_LOCK, _day_locked),
-        (STOCK_MODE_BLOCK_BOT_TRIP, STOCK_MODE_WHY_BOT_TRIP, _soft_breaker_fired),
+        (STOCK_MODE_BLOCK_LOSS_LIMIT, STOCK_MODE_WHY_LOSS_LIMIT, _loss_limit_stopped),
     )
     out: list[tuple[str, str]] = []
     for code, why, blocked in checks:
@@ -119,10 +108,13 @@ def _kill_tripped() -> bool:
     return bool(kill_switch.is_tripped())
 
 
-def _day_locked() -> bool:
-    from bot.buy_lock import day_lock_active
+def _loss_limit_stopped() -> bool:
+    from loss_limit.gate import buys_stopped
 
-    return bool(day_lock_active())
+    venue, _replay = venue_state()
+    if venue is None:
+        raise RuntimeError("the desk's venue could not be read")
+    return buys_stopped(venue)
 
 
 def followed(symbol: str) -> bool | None:

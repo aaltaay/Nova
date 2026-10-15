@@ -25,7 +25,7 @@ export const WALK_AWAY_TRIPPED = 'Tripped \u2014 walk away';
 export const WALK_AWAY_STATUS_TITLE =
   'Whether a walk-away rule tripped today: the daily max loss, 3 losses in a row, or giving back half '
   + 'of today\'s peak profit. Advisory only: no order checks these rules -- the ticket, hotkeys and the '
-  + 'bot all place regardless. The loss breakers on the Bots page are what stop trading. Resets at 4 AM ET.';
+  + 'bot all place regardless. The daily loss limit in Settings > Loss limits is what stops buying. Resets at 4 AM ET.';
 export const WALK_AWAY_CARD_TITLE =
   'The walk-away rules\' state from backend/strategy/risk.py -- real, not demo data. Every closed round '
   + 'trip of a position Nova placed (ticket, hotkeys, the bot) updates it; it reads all-zero until one closes.';

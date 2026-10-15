@@ -1,9 +1,9 @@
 /**
  * The Bot switch as a quiet card at the bottom of the Trader's right rail (ADR 044): the same one switch
  * as the Bots page, for this venue, with why it is off (or not trading now) and how many strategies are
- * On. Same rules as the Bots page (`useBotArm`): off always goes, on is locked with the reason where the
- * bot cannot trade, and after the bot trip it asks first. Who trades this stock is the Who trades row
- * above Level 2; the strategies and the hot list are on the Bots page.
+ * On. Same rules as the Bots page (`useBotArm`): off always goes, and on is locked with the reason where
+ * the bot cannot trade. Who trades this stock is the Who trades row above Level 2; the strategies and the
+ * hot list are on the Bots page.
  */
 import { BOT_CARD_TITLE } from '../constantGroups/trader_chrome';
 import { tipProps, whyProps } from '../ux';

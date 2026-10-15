@@ -13,7 +13,7 @@ describe('flattenAccount', () => {
     novaFetch.mockReset();
   });
 
-  it('POSTs the existing breaker flatten door', async () => {
+  it('POSTs the existing whole-account flatten door', async () => {
     novaFetch.mockResolvedValue({
       ok: true,
       json: async () => ({ ok: true, attempt: 1, results: [], error: null }),

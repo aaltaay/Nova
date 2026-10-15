@@ -2,9 +2,9 @@
  * The Bots page timeline as lines (pure): the bot audit stream (proposals,
  * fires and refusals, the bot's trades and every skip with its reason -- ADR 030,
  * ADR 042 -- the master level and each setup's own Off / Eyes / Strategy, Activate
- * and why the backend turned it off, who trades each stock -- ADR 037 -- and the
- * breakers, fired or moved -- ADR 032) and the setup scanners' own record of the day
- * (armed, near, triggered, failed, scored -- setups.db).
+ * and why the backend turned it off, and who trades each stock -- ADR 037) and the
+ * setup scanners' own record of the day (armed, near, triggered, failed, scored --
+ * setups.db).
  * Categories drive the Activity filter chips; scanner events show under All.
  */
 import { BOT_ACTION_KINDS, BOT_LEVEL_LABELS, BOT_SETUP_LABELS, BOT_SETUP_SHORT } from '../constantGroups/bot';
@@ -84,10 +84,9 @@ const DEACTIVATE_WORDS: Record<string, string> = {
   venue: 'the desk changed venue',
   level: 'the master level went below Strategy',
   no_setup: 'no setup was left at Strategy',
-  bot_trip: 'the bot trip fired',
-  all_stop: 'the all-stop fired',
   operator: 'you pressed Deactivate',
 };
+const DEACTIVATE_RETIRED = 'Nova turned it off';
 const VERDICT_TAGS: Record<string, [string, ActivityTone]> = {
   go: ['Go', 'good'],
   wait: ['Wait', 'warn'],
@@ -134,13 +133,6 @@ function sideOf(row: BotAuditEntry): string {
 function tradeWhat(row: BotAuditEntry): string {
   const side = sideOf(row);
   return `${sym(row)}${side ? ` ${side}` : ''}${setupOf(row) ? ` · ${setupOf(row)}` : ''}`;
-}
-
-/** Whole dollars with a real minus: -50 -> "−$50". */
-function usd(v: unknown): string {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return '?';
-  return `${n < 0 ? '−' : ''}$${Math.abs(n).toLocaleString('en-US')}`;
 }
 
 function px(v: number | null | undefined): string {
@@ -205,36 +197,22 @@ export function activityLine(row: BotAuditEntry, index: number): ActivityLine | 
       text: `${levelName(row.inputs?.from)} → ${levelName(row.inputs?.to)}`, note: base.note || 'from the desk' };
   }
   if (action === 'activate') {
-    const again = row.inputs?.reenable === true ? ' · re-enabled after the bot trip' : '';
-    return { ...base, tag: 'Activated', tone: 'accent', category: 'system', text: `the bot${again}`,
+    return { ...base, tag: 'Activated', tone: 'accent', category: 'system', text: 'the bot',
       note: base.note && base.note !== 'desk' ? base.note : 'from the desk' };
   }
   if (action === 'deactivate') {
     // The reason is a code in `inputs.reason` or in the line's own `reason`; plain words pass through.
     const code = typeof row.inputs?.reason === 'string' ? row.inputs.reason : row.reason ?? '';
     const why = DEACTIVATE_WORDS[code];
-    const words = why ?? (base.note && base.note !== 'desk' ? base.note : DEACTIVATE_WORDS.operator);
+    // A code this desk no longer names (an old line, from before ADR 056) reads as a plain off.
+    const retired = !why && code !== 'desk' && /^[a-z_]+$/.test(code);
+    const words = why ?? (retired ? DEACTIVATE_RETIRED : base.note && base.note !== 'desk' ? base.note : DEACTIVATE_WORDS.operator);
     return { ...base, tag: 'Stopped', tone: 'warn', category: 'system', text: 'the bot', note: words };
   }
   if (action === 'venue') {
     return { ...base, tag: 'Venue', tone: 'plain', category: 'system',
       text: `${String(row.inputs?.from ?? '?')} → ${String(row.inputs?.to ?? row.venue ?? '?')}`,
       note: base.note || 'the Bot turned off: the switch never carries into another venue' };
-  }
-  if (action === 'breaker_soft' || action === 'breaker_hard') {
-    const at = row.inputs?.threshold ?? (action === 'breaker_hard' ? -200 : -50);
-    return { ...base, tag: 'Breaker', tone: 'bad', category: 'system',
-      text: action === 'breaker_hard' ? `${usd(at)} all-stop` : `${usd(at)} bot trip` };
-  }
-  if (action === 'breakers') {
-    const before = (row.inputs?.before ?? {}) as Record<string, unknown>;
-    const after = (row.inputs?.after ?? {}) as Record<string, unknown>;
-    const venue = String(row.inputs?.venue ?? row.outcome ?? '');
-    const moved = [
-      before.soft_usd !== after.soft_usd ? `bot trip ${usd(before.soft_usd)} → ${usd(after.soft_usd)}` : '',
-      before.hard_usd !== after.hard_usd ? `all-stop ${usd(before.hard_usd)} → ${usd(after.hard_usd)}` : '',
-    ].filter(Boolean).join(', ');
-    return { ...base, tag: 'Breakers', tone: 'warn', category: 'system', text: `${venue} ${moved}`.trim(), note: '' };
   }
   if (action === 'setup') {
     // Before ADR 042 the bot traded one chosen setup; old lines still read.

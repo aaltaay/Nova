@@ -1,0 +1,92 @@
+/* Settings > Loss limits (ADR 056): the v4 mockup -- two words a row, the rule in a hover tip. */
+.loss-limits {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 460px;
+}
+
+.loss-limit-row {
+  display: grid;
+  grid-template-columns: 150px auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.loss-limit-dollars {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.loss-limit-dollars input {
+  width: 110px;
+}
+
+.loss-limit-rule {
+  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  margin: 2px 0;
+}
+
+.loss-limit-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.loss-limit-check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.loss-limit-note {
+  color: var(--text-muted, #9a9ca3);
+  font-size: 13px;
+}
+
+.loss-limit-tip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: help;
+}
+
+.loss-limit-tip-icon {
+  color: var(--text-muted, #7d8088);
+  flex: none;
+}
+
+.loss-limit-tip-text {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  width: 290px;
+  z-index: 20;
+  padding: 9px 11px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: #2b2c31;
+  color: #d6d7db;
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.5;
+  transition: opacity 0.12s;
+  pointer-events: none;
+}
+
+.loss-limit-tip:hover .loss-limit-tip-text,
+.loss-limit-tip:focus .loss-limit-tip-text {
+  visibility: visible;
+  opacity: 1;
+}
+
+.loss-limit-error {
+  color: var(--danger, #f19a94);
+  font-size: 13px;
+  margin: 0;
+}

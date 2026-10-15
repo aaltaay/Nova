@@ -25,8 +25,8 @@ a scanner) and `setup_levels`; `PATCH /api/bot/session {setup_levels: {SETUP:
 (configuration is not "go"). `PATCH {setup}` is refused `400
 BOT_SETUP_RETIRED`. The v4 -> v5 migration gives the old chosen setup the old
 `level`, keeps the others' 0 / 1, drops `setup`, `strategy` and the `advise`
-budget (and `/api/bot/advise*`, which nothing called), and moves the sleeve, the
-bot list and the day lock into each venue's dial (below). A watch-only setup (#847,
+budget (and `/api/bot/advise*`, which nothing called), and moves the sleeve and the
+bot list into each venue's dial (below). A watch-only setup (#847,
 the pullback dip, and the ABCD; setups.md "The pullback dip: a watch-only setup", "The ABCD: a
 watch-only setup") is never
 Strategy: `PATCH` refuses its 2 with 409 `BOT_SETUP_WATCH_ONLY`, an older 2 reads
@@ -71,8 +71,9 @@ BOT_COMMISSIONS_UNKNOWN` until a read succeeds again (the unreadable file is the
 execution ledger every order is written to). Exits, cancels, flatten and kill
 are never held, and Paper and Sim never are; a venue that cannot be read counts
 as Live. The failure is logged (at once, then at most every
-`BOT_COMMISSIONS_WARN_EVERY_SEC`), never read as $0. **The breakers compare
-IBKR's own figure** (ADR 042 / #664): on Live, the finite `dailyPnL` from
+`BOT_COMMISSIONS_WARN_EVERY_SEC`), never read as $0. The commission loop (`bot.loops.commission_loop`,
+every `BOT_COMMISSION_POLL_SEC`) keeps the hold current. **The day P&L meter reads
+IBKR's own figure** (ADR 042 / #664; nothing compares it since ADR 056): on Live, the finite `dailyPnL` from
 `reqPnL` for the current READY IB instance, generation and account. IBKR owns
 that figure's reset (the TWS configuration, not Nova's 04:00 ET lock boundary);
 the API supplies no reset timestamp, so the meter never invents one. Pending,
@@ -80,16 +81,15 @@ failed, disconnected or superseded subscriptions cannot supply cached daily
 P&L. While it is unavailable, the stated fallback is `RealizedPnL + UnrealizedPnL`,
 which can include an overnight position's lifetime move. Both broker figures
 already include commissions (TWS Users' Guide, Profit and Loss) -- until
-2026-09-30 the breakers subtracted the session's commissions again and tripped
-that many dollars early; on Paper and Sim at the live edge, the practice
+2026-09-30 the retired breakers subtracted the session's commissions again; on Paper and Sim at the live edge, the practice
 ledger's `DayPnL`; on a replay desk nothing (a replay's P&L is not today's).
 `GET /api/bot/pnl`'s meter says which: `{compares, source, venue, compared,
 note, error, day_pnl, commissions, commissions_in_figure, commissions_unknown,
 commissions_error, fallback, fallback_reason, reset_semantics, reset_time,
 daily_pnl_updated_at, ...}`. The fallback and its limitation are visible; no
 session commission is subtracted again. A commission read failure still holds
-new Live bot entries without invalidating the known P&L. Practice day boundaries,
-breaker thresholds, existing latches and trading authorization are unchanged.
+new Live bot entries without invalidating the known P&L. Practice day boundaries
+and trading authorization are unchanged.
 Proposals are accepted at Eyes and Strategy. **Every gate is drawn with its
 reason** (owner `bot/gates.py`): `gates: [{id, ok, stage: "activate" | "fire",
 detail: {..., text}}]` are `venue` (Paper, or Sim at its live edge), `level`
@@ -97,25 +97,25 @@ detail: {..., text}}]` are `venue` (Paper, or Sim at its live edge), `level`
 (stocks set to Bot or to Auto-entry on this venue; stage `fire`, so it never
 locks Activate -- Auto-entry needs the bot Active), `depth_lines` (ok while at
 least one Bot stock holds a depth line, `held`, `missing`, `max_lines`; each
-trigger still needs its own), `bot_trip`, `day_lock`, `kill_switch`, `window`
+trigger still needs its own), `loss_limit` (stage `fire`: the daily loss limit's No new
+buys on this venue, `detail: {text, until, tripped_at, loss, limit_usd, venue}`; `loss-limit.md`), `kill_switch`, `window`
 (per Strategy setup: `setups: [{setup, start, end, open, clipped, error}]`),
 `daily_cap` (`count`, `cap`, `venue_day`), `extended_hours` and `commissions`;
 the session adds `ready` / `ready_reason` (the bot would trade a go trigger now)
 with `live_fire_ready` as a one-release alias.
 
 **Activate: one control, one meaning, never carried** (ADR 042, owner
-`bot/activation.py`). `POST /api/bot/session/arm {reenable?}` refuses, `409`
+`bot/activation.py`). `POST /api/bot/session/arm` refuses, `409`
 with a plain reason: `BOT_LIVE_NOT_BUILT` (Live), `BOT_REPLAY_DESK` (Sim off the
 live edge with nothing loaded; a loaded replay is traded, ADR 052), `BOT_VENUE_UNKNOWN`, `BOT_LEVEL_NOT_STRATEGY`,
-`BOT_NO_SETUP_AT_STRATEGY`, `BOT_PADLOCK_LOCKED` and `BOT_TRIP_LATCHED` (the
-bot trip fired on this venue today; the desk confirms in words, then sends
-`reenable: true`). Choosing Strategy never activates. The backend clears
+`BOT_NO_SETUP_AT_STRATEGY` and `BOT_PADLOCK_LOCKED`. No loss limit refuses Activate or turns
+the bot off (ADR 056). Choosing Strategy never activates. The backend clears
 Activate -- a `deactivate` audit line and `deactivated: {at, reason, text}`,
-`reason` one of `restart | padlock | venue | level | no_setup | bot_trip |
-all_stop | operator` -- on every process start (like spend arming, ADR 018),
+`reason` one of `restart | padlock | venue | level | no_setup | operator` (a saved
+`bot_trip` / `all_stop` from before ADR 056 keeps its own `text`) -- on every process start (like spend arming, ADR 018),
 when anyone locks the padlock (`ibkr.safety.set_armed` calls
 `activation.on_disarm`; it used to be only a page effect), on a venue change,
-with the master below Strategy or no setup left at Strategy, and on a trip. The
+and with the master below Strategy or no setup left at Strategy. The
 session's `active` is the truth (`armed` a one-release alias; `has_desk_arm`,
 the token's presence, stays).
 
@@ -137,68 +137,30 @@ entry timeout**: `working_ttl_sec` for the bot, Auto-entry and Approve.
 the bot and Auto-entry. `entries_today: {count, cap, venue_day, entries:
 [{symbol, setup_type, by, ts, outcome}], approved, error?}`.
 
-**Loss breakers per venue** (ADR 032, operator ask 2026-09-24). The bot trip
-(soft: flatten, the bot to L0) and the all-stop (hard: flatten, bot and manual
-buys on that venue locked until the next 04:00 ET -- ADR 042: the practice
-day's own boundary; at midnight they had lifted while the practice day's P&L
-still read yesterday's loss, and tripped again) compare the whole account's day P&L with
-the desk venue's own thresholds (owner `bot/breaker_limits.py`): the session
-keeps `breakers: {VENUE: {soft_usd, hard_usd}}` for `live` / `paper` / `sim`
-(an optional key of schema 4; a venue with none reads -50 / -200; a venue Nova
-cannot read reads Live's). `GET /api/bot/session` adds `breakers: {venue,
-soft_usd, hard_usd, custom, defaults: {soft_usd, hard_usd}, by_venue: {VENUE:
-{soft_usd, hard_usd}}, bounds: {soft_usd: [loosest, tightest], hard_usd:
-[loosest, tightest], step_usd}}`; `PATCH /api/bot/session {breakers: {venue?,
-soft_usd?, hard_usd?}}` changes the named venue (else the desk's) within -5 to
--1,000 (bot trip) and -10 to -5,000 (all-stop), the bot trip above the
-all-stop, snapped to $5 -- `400 BOT_BREAKER_INVALID` otherwise -- and records a
-`breakers` audit line; a venue moved back onto -50 / -200 keeps no pair of its
-own (`custom: false`). Moving a threshold never clears a fired bot trip or a
-day lock. A trip writes its record on the dial of the venue whose P&L tripped:
-`hard_lock_until_date` (an ISO datetime of the next 04:00 ET; a legacy
-`YYYY-MM-DD` still lifts at that date's 00:00 ET), `hard_lock_at`,
-`hard_lock_pnl`, `hard_lock_usd`, and the bot trip's `soft_breaker_at`,
-`soft_breaker_pnl`, `soft_breaker_usd`; `bot.buy_lock.lock_for(row, venue)` reads
-any venue's, `execution.service` asks with the door's own venue, and the session
-adds `day_lock: {active, until, tripped_at, pnl, venue, threshold, text}`,
-`day_locks` and `soft_breaker: {fired, at, pnl, until}` (`hard_lock_until_date`
-/ `day_lock_active` stay one release, the desk venue's). On a replay desk the
-breakers compare nothing and `breakers.note` says so. The Bots page drags the two markers on the desk venue's bar (it asks
-before loosening Live), and the Account page's Risk block reads the same pair. A trip's flatten carries
-its origin (`bot_trip` / `all_stop`, "Who sent it" under the execution command), and its audit line
-(`breaker_soft` / `breaker_hard`) adds `inputs.closes: [{symbol, side, qty, ok, order_id, error, opened_by}]`
-(what the flatten sold, one line per position) and `inputs.flatten_error`. `opened_by` (2026-10-14, ADR 045
-amendment) is the newest filled order on the other side of that close on the trip's venue, from the execution
-record (`bot.flatten.opened_by`): `{order_id, source, side, qty, order_type, price (the order's own limit or
-stop, never a guessed fill), placed_ts, filled_ts} | null`; the notice adds "It came from your order 255: Buy
-1,000 GENK LMT 2.76, placed 09:25:19 ET, filled 09:28:26 ET." under the close. **Every desk window says so**
-(operator report 2026-10-01: the trip had been visible only on the Bots and Account pages): the bot's
-notices (`frontend/src/bot/breakerNotices.ts`) read the polled audit stream and raise one notice per trip
-younger than 10 minutes -- "Bot trip sold your positions", the venue, the day P&L against the limit, the
-time, each position sold with its order id (or why it was not), and what follows -- which stays until it
-is dismissed; a failed sell reads "the sell failed -- close your positions yourself". `bot-session.json` and `bot-proposals.json` are written through a
-temp file and a rename.
+**No loss breaker** (ADR 056, superseding ADR 032). The bot trip and the all-stop are gone, with
+their thresholds (`breakers`), the bot trip's latch (`soft_breaker_*`), the all-stop's day lock
+(`hard_lock_*`, `day_lock`, `day_locks`, `day_lock_active`), the `bot_trip` / `day_lock` gates,
+`BOT_TRIP_LATCHED`, `reenable`, `switch.latched` and the breaker notices. `PATCH /api/bot/session
+{breakers}` is refused `400 BOT_BREAKERS_RETIRED` with the words "The bot trip and the all-stop are
+gone: set the daily loss limit in Settings > Loss limits (ADR 056)". A saved session with any of their
+fields -- on the row or in a venue's dial -- loads with them dropped (`BOT_RETIRED_BREAKER_KEYS`). The
+one loss limit is the operator's, in Settings, for you and the bots alike (`loss-limit.md`); it never
+turns the bot off, and the bot meets its No new buys at the execution door and in its `loss_limit` gate.
+`bot-session.json` and `bot-proposals.json` are written through a temp file and a rename.
 
 **The level belongs to a venue** (operator report 2026-09-30: "When I switch
 between L0 and L2 in the paper, it stays persistent when I switch to live, and
 I feel like that shouldn't happen"; owner `bot/venue_levels.py`). Each venue
-keeps its own dial -- `level`, `setup_levels`, the bot trip's latch and record,
-the all-stop's day lock (ADR 042, #658 option b: Live's lock follows Live and
-switching away and back does not escape it), the sleeve (`caps`), the bot list
+keeps its own dial -- `level`, `setup_levels`, the sleeve (`caps`), the bot list
 (`symbol_allowlist`; Live's starts empty: Nova never buys on Live) and the bot's
 `working` orders and `bot_qty` -- the session's fields being the dial of
 the venue in `level_venue` and the others waiting in `venue_levels: {VENUE:
-dial}` (optional keys of schema 4; a venue with none starts Off, its bot trip
-clear). `sim.mode.set_venue` puts the old venue's dial away, takes the new
+dial}` (optional keys of schema 4; a venue with none starts Off). `sim.mode.set_venue` puts the old venue's dial away, takes the new
 one's and deactivates the bot (a `venue` audit line): Activate never carries
 into another venue, like spend arming. A session loaded on another venue than
 its `level_venue` takes that venue's dial; one without the stamp belongs to the
 venue the desk showed. `GET /api/bot/session` adds `level_venue` and
-`levels_by_venue: {live, paper, sim}`. The bot trip's latch adds
-`soft_breaker_until` and lapses at the next 04:00 ET like the day lock
-(`bot.clock.soft_latched`; a latch without it has lapsed), and the all-stop
-trips again once an earlier day's lock has lifted -- it read the stale date as
-"locked" and never tripped a second time. Leaving a venue first cancels Nova's
+`levels_by_venue: {live, paper, sim}`. Leaving a venue first cancels Nova's
 working entries there ("Who trades the stock" below). Every bot audit line
 carries `venue`, and the daily entry cap counts this
 venue's entries (a line without it counts on every venue). A TTL cancel and a
@@ -215,7 +177,7 @@ trade at a time, then the shared daily cap. It takes the first of a setup on a
 symbol that day (its kind without `second_`) with the tape at go and the plan a
 trade (NOT A TRADE is one rule, below), after every gate (`admit.for_bot`): the
 venue, Activate, the setup's level and window, extended hours, a held depth
-line, the padlock, the kill switch, this venue's day lock and bot trip, the
+line, the padlock, the kill switch, this venue's daily loss limit (ADR 056), the
 working block, the sleeve's size and the daily cap; a trigger it does not take
 is a `bot_trade` `skipped` line with every reason (`inputs.codes` /
 `reasons`) and the stock's last event on its Trader tab. Its entry is a
@@ -267,10 +229,10 @@ triggers went unbought for five reasons no screen showed together. ADR 044 amend
 036, 032 and 023 as below.
 
 **The Bot switch.** One per venue, on the desk in place of the master dial and Activate. `POST
-/api/bot/session/switch {on: boolean, reenable?: boolean}` (API key) answers the session view.
+/api/bot/session/switch {on: boolean}` (API key) answers the session view.
 - **ON** puts the venue's master `level` at Strategy (2) and activates. It is refused like Activate:
-  409 `BOT_LIVE_NOT_BUILT`, `BOT_REPLAY_DESK`, `BOT_VENUE_UNKNOWN`, `BOT_NO_SETUP_AT_STRATEGY` (no
-  strategy is On), and `BOT_TRIP_LATCHED` unless `reenable`. A successful ON returns `desk_arm_token`,
+  409 `BOT_LIVE_NOT_BUILT`, `BOT_REPLAY_DESK`, `BOT_VENUE_UNKNOWN` and `BOT_NO_SETUP_AT_STRATEGY` (no
+  strategy is On). A successful ON returns `desk_arm_token`,
   as `/arm` does.
 - **ON unlocks the padlock** (ADR 044 amendment, 2026-10-12). Once every other rule passes, ON arms the
   desk through the padlock's one rule, `ibkr.safety.arm(True, actor="operator")` (ADR 018), so it
@@ -283,11 +245,11 @@ triggers went unbought for five reasons no screen showed together. ADR 044 amend
   turns the bot off (`activation.on_disarm`).
 - **OFF** deactivates (`deactivated.reason: "operator"`) and puts the master at Eyes (1), so setups
   at Eyes or On still propose.
-- **The bot trip** (`bot/autonomy.drop_to_eyes`, `drop_to_l0` kept as its alias) also leaves the master at
-  Eyes (1), not Off; its `breaker_soft` line's outcome reads `eyes`.
+- No loss limit turns the switch off (ADR 056): the daily loss limit's No new buys holds the bot's
+  entries at the door and in its `loss_limit` gate.
 - Each change is a `bot_switch` audit line, outcome `on` | `off`, `inputs: {on, from_level, to_level}`.
 - The session view adds `bot_on: boolean` (active with the master at Strategy) and `switch: {on, venue,
-  why_off: string | null, latched: {at, pnl, until} | null}`.
+  why_off: string | null}`.
 - The localhost bot API's `level` stays readable, and `PATCH {level}` stays for it.
 
 **Strategies: Off · Eyes · On** are `setup_levels` 0 / 1 / 2 under new names on the desk.
@@ -671,7 +633,7 @@ day: a stop is off the list only when Paper says it is gone.
 is the same position, re-keyed to the new `row_id`, never bought twice). `closed` keeps today's (at most
 200); a day other than today's is sold at once on load ("held from DAY: never overnight") and cleared.
 Each pass reconciles with Paper's ledger: shares the account no longer holds (the operator sold them, a
-buy stop or a breaker did) leave the position, said once. A short's buy stops cover what it held: when shares
+buy stop or the loss limit's Auto sell did) leave the position, said once. A short's buy stops cover what it held: when shares
 of a short leave it that way, what the bot still holds of it is covered (change `kind: "outside"`), and once the
 position holds nothing its stops wait on `retire` until Paper shows them cancelled -- a bot short never holds
 without a stop for exactly its shares, and a stale stop can never buy past flat or cover a later short. A book that cannot be written stops every new step
@@ -741,7 +703,7 @@ time of the change. A skip is written once per position, step and code. Codes: `
 `LT_FEED_DOWN`, `LT_TICKER_UNSETTLED`, `LT_MISREAD`, `LT_SMALL_CAP`, `LT_CAP_UNKNOWN`, `LT_NO_QUOTE`,
 `LT_ALLOWANCE`, `LT_ADDS_DONE`, `LT_SHORTS_OFF`, `LT_AGAINST`, `LT_NOT_HELD`, `LT_VENUE`, `LT_BOT_OFF`,
 `LT_FROZEN`, `LT_AFTER_SELL_ALL`, `LT_SHORT_HOURS`, `LT_NOT_PRICEABLE`, `LT_ASK_EXPIRED`, `LT_ASK_SKIPPED`,
-`LT_ALREADY_OPEN`, `LT_OFF_AIR`, `LT_HIDDEN`, `LT_DAY_LOCK`, `LT_NOT_ON_BAR`, `LT_OTHER_HOST`, `LT_ROW_UNREAD`,
+`LT_ALREADY_OPEN`, `LT_OFF_AIR`, `LT_HIDDEN`, `LT_LOSS_LIMIT`, `LT_NOT_ON_BAR`, `LT_OTHER_HOST`, `LT_ROW_UNREAD`,
 `LT_ADD_IMPLAUSIBLE`, `LT_NO_CLOCK`. `LT_BLANK_BAR` and `LT_RETURN_SWITCH` are waits, said as `note` lines
 (`step` `blank` for a held sell, `lt_blank_bar` / `lt_return_switch` for a held take), never skips.
 

@@ -2,7 +2,7 @@
 
 Every ledger read calls ``store.init_db``; re-running the schema script, the
 column check and the evidence migrations each time was the performance
-recorder's top HTTP-loop stall frame (account / positions polls, bot breakers).
+recorder's top HTTP-loop stall frame (account / positions polls, the commission hold).
 """
 from __future__ import annotations
 

@@ -25,22 +25,6 @@ export type BotSetupInfo = {
   watch_only?: boolean;
 };
 
-/** One venue's loss breakers (ADR 032): negative dollars, the bot trip above the all-stop. */
-export type BotBreakerPair = { soft_usd: number; hard_usd: number };
-
-/** The loss breakers the Bots page draws (ADR 032): the desk venue's, every venue's, and the bounds. */
-export type BotBreakers = BotBreakerPair & {
-  venue: 'live' | 'paper' | 'sim' | string;
-  /** The operator moved this venue's pair (false: the defaults). */
-  custom: boolean;
-  defaults: BotBreakerPair;
-  by_venue: Record<string, BotBreakerPair>;
-  /** [loosest, tightest] for each, and the step the backend snaps to. */
-  bounds: { soft_usd: [number, number]; hard_usd: [number, number]; step_usd: number };
-  /** Why the breakers compare nothing now (a Sim replay's P&L is not today's), or null. */
-  note?: string | null;
-};
-
 /** One gate between the bot and a trade (backend bot/gates.py). */
 export type BotGate = {
   id: string;
@@ -116,10 +100,13 @@ export type BotShortsView = {
   error?: string;
 };
 
-/** Why Activate was cleared (ADR 042): the backend clears it and says so. */
+/**
+ * Why Activate was cleared (ADR 042): the backend clears it and says so. A session saved before ADR 056 may
+ * still carry an old reason; it reads as a plain off reason.
+ */
 export type BotDeactivated = {
   at: number | null;
-  reason: 'restart' | 'padlock' | 'venue' | 'level' | 'no_setup' | 'bot_trip' | 'all_stop' | 'operator' | string;
+  reason: 'restart' | 'padlock' | 'venue' | 'level' | 'no_setup' | 'operator' | string;
   text: string | null;
 };
 
@@ -161,23 +148,6 @@ export type BotEntriesToday = {
   approved: number;
 };
 
-/** The all-stop's lock on one venue: buys wait until `until` (the next 04:00 ET). */
-export type BotDayLock = {
-  active: boolean;
-  until: string | number | null;
-  tripped_at: string | number | null;
-  pnl: number | null;
-  venue: string | null;
-};
-
-/** The bot trip on this venue today: when it fired, at what P&L, and when it clears. */
-export type BotSoftBreaker = {
-  fired: boolean;
-  at: string | number | null;
-  pnl: number | null;
-  until: string | number | null;
-};
-
 export type BotWorkingOrder = {
   order_id: number;
   symbol: string;
@@ -199,7 +169,6 @@ export interface BotSwitchState {
   on: boolean;
   venue: string | null;
   why_off: string | null;
-  latched: { at: string | number | null; pnl: number | null; until: string | number | null } | null;
 }
 
 export type BotSession = {
@@ -221,8 +190,6 @@ export type BotSession = {
   /** LEGACY alias of `ready`. */
   live_fire_ready?: boolean;
   gates?: BotGate[];
-  /** ADR 032: the loss breakers, per venue. */
-  breakers?: BotBreakers;
   runner?: BotRunner;
   trade?: BotTrade | null;
   /** ADR 049 (#778 step 5): the answer line's short chips. */
@@ -233,17 +200,11 @@ export type BotSession = {
   caps_bounds?: BotCapsBounds;
   caps_by_venue?: Record<string, BotCaps>;
   entries_today?: BotEntriesToday;
-  day_lock?: BotDayLock;
-  soft_breaker?: BotSoftBreaker;
-  soft_breaker_fired: boolean;
-  /** LEGACY (this venue's): read `day_lock`. */
-  hard_lock_until_date: string | null;
-  day_lock_active: boolean;
   level_venue?: string | null;
   levels_by_venue?: Record<string, number>;
   /** ADR 044: the Bot switch is on (active with the master at Strategy); absent from an older backend. */
   bot_on?: boolean;
-  /** ADR 044: the switch's own words: why it is off, and the bot trip's latch when one holds it. */
+  /** ADR 044: the switch's own words: why it is off. */
   switch?: BotSwitchState;
   brain_session_id: string | null;
   brain_heartbeat_ts?: number | null;

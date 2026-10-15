@@ -174,22 +174,6 @@ export const BOTS_EH_HINT = 'Off: the bot and Auto-entry skip triggers outside 0
 export const BOTS_KINDS_LABEL = 'Order kinds (the localhost bot API)';
 export const BOTS_KINDS_TIP =
   'What an external bot on the localhost bot API may send on Paper and Sim. Nova\'s own bot and Auto-entry use their own entry and bracket. The API refuses Live.';
-export const BOTS_BREAKERS_TITLE = 'Loss breakers';
-/** ADR 032: the breakers are the operator's, per venue. */
-export const BOTS_BREAKERS_VENUE = (venue: string): string => `${venue} · drag to move`;
-export const BOTS_BREAKERS_DEFAULTS = 'defaults';
-export const BOTS_BREAKERS_CUSTOM = 'yours';
-export const BOTS_BREAKERS_OLD_API =
-  'This API keeps the breakers fixed at −$50 / −$200 -- restart the backend to move them';
-export const BOTS_BREAKERS_RESET = 'Reset to −$50 / −$200';
-export const BOTS_BREAKERS_SAVING = 'Saving…';
-export const BOTS_BREAKER_TODAY = 'today';
-export const BOTS_BREAKER_TODAY_UNKNOWN = 'today unknown';
-export const BOTS_BOT_PNL_POLL_MS = 5_000;
-export const botsSoftFired = (when: string, pnl: string, until: string): string =>
-  `Bot trip fired${when ? ` at ${when}` : ''}${pnl ? ` at ${pnl}` : ''}: the bot is off on this venue${until ? ` until ${until}` : ' until 04:00 ET'}; turning it back on asks you first.`;
-export const botsDayLocked = (venue: string, when: string, pnl: string, until: string): string =>
-  `All-stop fired${when ? ` at ${when}` : ''}${pnl ? ` at ${pnl}` : ''}: bot and manual buys on ${venue} are locked${until ? ` until ${until}` : ' until 04:00 ET'}. Flatten and cancel still work.`;
 
 /* ---------- Proposals ---------- */
 export const BOTS_PROPOSALS_TITLE = 'Proposals';

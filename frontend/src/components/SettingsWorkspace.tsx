@@ -19,6 +19,7 @@ import {
 } from '../settings/settingsNav';
 import { TradeSettingsSection } from '../settings/TradeSettingsSection';
 import { SensorBoard } from '../sensors/SensorBoard';
+import { LossLimitsSection } from '../loss_limit';
 
 export type SettingsSection = SettingsSectionId;
 
@@ -128,6 +129,7 @@ export function SettingsWorkspace(props: SettingsWorkspaceProps) {
               <AccountSettingsSection onClose={props.onCancel} />
             )}
             {section === 'sensors' && <SensorBoard />}
+            {section === 'loss_limits' && <LossLimitsSection />}
           </div>
         </div>
       </div>

@@ -118,13 +118,13 @@ export type ColumnMeta = {
   title?: string;
 };
 
-/** "Sent by" (operator report 2026-10-01): who placed the order -- you, KILL, a breaker or a bot. */
+/** "Sent by" (operator report 2026-10-01): who placed the order -- you, KILL, the loss limit or a bot. */
 const SENT_BY_META: ColumnMeta = {
   id: 'sent_by',
   label: 'Sent by',
   className: 'ibkr-col--text ibkr-col--sent-by',
   title:
-    "Who sent the order: You, KILL, the bot trip, the all-stop, Nova's bot, Auto-entry, Approve or a bot through the API. Hover a cell for more · Drag headers to reorder",
+    "Who sent the order: You, KILL, the daily loss limit, Nova's bot, Auto-entry, Approve or a bot through the API. Hover a cell for more · Drag headers to reorder",
 };
 
 export const WORKING_COLUMN_META: Record<WorkingOrderColumnId, ColumnMeta> = {

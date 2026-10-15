@@ -3,8 +3,8 @@
  * One bot for both sides (ADR 049, #778 step 5): each strategy at On trades its own side, and the trade line
  * names it (▲ long or ▼ short).
  * The switch replaces the master dial and Activate: on is the master at Strategy with Activate, off leaves
- * the master at Eyes so alerts keep coming. After the bot trip it asks first, in words, before it turns
- * on again. On Live it is locked and says why. Nothing here places an order.
+ * the master at Eyes so alerts keep coming. On Live it is locked and says why. The day's loss is capped by
+ * the one daily loss limit in Settings > Loss limits (ADR 056), not here. Nothing here places an order.
  */
 import { useState, type ReactNode } from 'react';
 import { writeNovaApiKey } from '../api/novaFetch';
@@ -40,11 +40,9 @@ export function ApiKeyField({ className = 'bots-hero__key', testId = 'bots-api-k
   );
 }
 
-export function BotSwitchCard({ arm, killSwitch, breakers, children }: {
+export function BotSwitchCard({ arm, killSwitch, children }: {
   arm: BotArm;
   killSwitch: KillSwitchControl;
-  /** The loss breakers: what turns the Bot off (the bot trip) and locks every buy (the all-stop). */
-  breakers?: ReactNode;
   children: ReactNode;
 }) {
   const { session, error, on, lock, onSwitch, showKeyField } = arm;
@@ -77,7 +75,6 @@ export function BotSwitchCard({ arm, killSwitch, breakers, children }: {
         {next ? <p className="bots-botcard__trade bots-botcard__next" data-testid="bots-next-trade">{next}</p> : null}
         <p className="bots-botcard__note">The bot trades on Paper and Sim. On Live, your PIN unlocks your own orders; the bot never trades Live.</p>
         <p className="bots-botcard__note">Off or on, the radars, the Eyes alerts and the chart's setups and levels keep running.</p>
-        {breakers ? <div className="bots-botcard__breakers" data-testid="bots-breakers">{breakers}</div> : null}
         <div className="bots-freeze" data-testid="bots-freeze">
           <BotKillSwitch killSwitch={killSwitch} />
         </div>

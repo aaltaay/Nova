@@ -1,8 +1,8 @@
-"""The day P&L the breakers compare: IBKR's realized + unrealized on Live, never less commissions again.
+"""The day P&L meter (``/api/bot/pnl``): IBKR's realized + unrealized on Live, never less commissions again.
 
 IBKR counts every commission in both figures (TWS: realized P&L is "(execution price + commissions
 to open) - (execution price + commissions to close)", and the average cost behind unrealized P&L
-is "(execution price + commission) / quantity"). Until spec D (2026-09-30) the breakers subtracted
+is "(execution price + commission) / quantity"). Until spec D (2026-09-30) the retired breakers subtracted
 the session's commission reports a second time and tripped that many dollars early.
 """
 from __future__ import annotations
