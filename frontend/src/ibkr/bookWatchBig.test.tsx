@@ -112,7 +112,11 @@ describe('the banner', () => {
   it('says how it ended: taken, pulled, pulled as the price came, out of view', () => {
     const end = (over: Record<string, unknown>) => state({ big: [wall({ ended_ts: NOW_S - 1, ...over })] });
     const left = { before: 48_200, after: 0, filled: 7_200 };
-    expect(text(end({ state: 'eaten', traded: 47_000 }))).toBe('✓ Big seller 3.45 taken · 47.0K traded');
+    expect(text(end({ state: 'eaten', traded: 47_000, how: 'traded' }))).toBe('✓ Big seller 3.45 taken · 47.0K traded');
+    // A print through its price takes it at once; what traded at the price says nothing of how much of it went.
+    const through = end({ state: 'eaten', traded: 0, how: 'through' });
+    expect(text(through)).toBe('✓ Big seller 3.45 taken · traded through');
+    expect(bigBanner(through, 'ask', NOW_MS)?.tip).toContain('How much of it traded is not known.');
     expect(text(end({ state: 'pulled', on_approach: false, left }))).toBe('✕ Big seller 3.45 pulled · 41.0K untraded');
     expect(text(end({ state: 'pulled', on_approach: true, left }))).toBe('✕ Big seller 3.45 pulled as price came · 41.0K untraded');
     expect(text(end({ state: 'lost' }))).toBe('Big seller 3.45 out of view · unknown');

@@ -111,7 +111,11 @@ export function bigTip(w: HeldBig, float: BigFloat | null, nowMs: number): strin
     lines.push(`A big ${ONE[w.side]} at ${p} was pulled ${w.back.pulled === 1 ? 'once' : `${w.back.pulled} times`} in the ${L2_BIG_BACK_MIN} minutes before; the last (${markShares(w.back.lastSize)}) left ${ago(nowMs - w.back.lastEndedMs)}. Not necessarily the same ${ONE[w.side]}.`);
   }
   const kind = LIVE.has(w.state) ? null : endKind(w);
-  if (kind === 'taken') lines.push(`Taken: prints at ${p} took at least half of what left, or a print went through it.`);
+  if (kind === 'taken') {
+    lines.push(w.how === 'through'
+      ? `Taken: a print went through ${p} while the book still showed ${markWhole(w.sizeNow)} there. How much of it traded is not known.`
+      : `Taken: prints at ${p} took at least half of what left.`);
+  }
   if (kind === 'pulled') lines.push(`Pulled: it left the book and prints at ${p} took less than half of it (${markWhole(untraded(w))} left untraded).`);
   if (kind === 'approach') lines.push(`Pulled as the price came closer to it: ${markWhole(untraded(w))} left untraded. A hint consistent with spoofing, never a detection.`);
   if (kind === 'lost') lines.push(`Out of view: the book stopped showing ${p} (past the rows shown, or the line restarted). Unknown, never called pulled.`);
@@ -182,7 +186,7 @@ export function bigBanner(state: BookWatchState | null, side: BookSide, nowMs: n
   const mark: Record<typeof kind, string> = { taken: '✓ ', pulled: '✕ ', approach: '✕ ', lost: '' };
   const verdict: Record<typeof kind, string> = { taken: 'taken', pulled: 'pulled', approach: 'pulled', lost: 'out of view' };
   const result: Record<typeof kind, string> = {
-    taken: `${markShares(w.traded)} traded`,
+    taken: w.how === 'through' ? 'traded through' : `${markShares(w.traded)} traded`,
     pulled: `${markShares(untraded(w))} untraded`,
     approach: `${markShares(untraded(w))} untraded`,
     lost: 'unknown',

@@ -76,15 +76,29 @@ class Recorded:
 
 
 def read(directory: Path, *, spans: list[tuple[float, float]] | None = None, num_rows: int = 10,
-         on_events: Callable[[list[dict[str, Any]]], None] | None = None) -> Recorded:
+         on_events: Callable[[list[dict[str, Any]]], None] | None = None,
+         gaps: Iterable[tuple[float, float]] = ()) -> Recorded:
     """Run the watcher over one recording directory with every stretch traced. ``on_events`` hears every event
-    the watcher raises on the way (the big-seller study keeps its ``big`` events)."""
+    the watcher raises on the way (the big-seller study keeps its ``big`` events). ``gaps`` are where the recorder
+    was down (``recording_gaps``): across each the watcher judges what the recorded tape can, judges nothing on
+    the half of a window the gap took, and starts afresh, so nothing it saw before a gap -- a book to compare, a
+    wall's hold -- is carried across it."""
     directory = Path(directory)
     history: list[Stretch] = []
     watch = SymbolWatch(directory.name.upper(), num_rows=num_rows, hidden=_TRACE_ONLY, hidden_history=history)
     rec = Recorded(directory.parent.name, directory.name.upper(), history, [], [], [])
     first = last = last_book = None
+    ahead = sorted(gaps)
     for ts, _order, kind, row in merged_rows(directory):
+        stopped = None
+        while ahead and ts >= ahead[0][1]:
+            start = ahead.pop(0)[0]
+            stopped = start if stopped is None else stopped  # the tape is whole up to the first gap crossed
+        if stopped is not None and first is not None:
+            events = _across_gap(watch, max(stopped, last))
+            if on_events is not None and events:
+                on_events(events)
+            last_book = None
         first = ts if first is None else first
         last = ts
         events = feed(watch, kind, ts, row)
@@ -118,6 +132,23 @@ def read(directory: Path, *, spans: list[tuple[float, float]] | None = None, num
     rec.first_ts, rec.last_ts = first, last
     rec.spans = spans if spans is not None else ([(first, last)] if first is not None else [])
     return rec
+
+
+def _across_gap(watch: SymbolWatch, ts: float) -> list[dict[str, Any]]:
+    """The recorder stopped at ``ts``: judge what waited on prints and is due by then (the tape is whole up to
+    it); what is due later would be judged on half its window, so a big wall that left is lost and a drop is
+    forgotten; then start the watcher afresh, as on a line's restart."""
+    out = watch.tick(ts)
+    watch.pending.clear()
+    return out + watch.big.lose_waiting("gap") + watch.reset()
+
+
+def recording_gaps(manifest: dict[str, Any], directory: Path) -> list[tuple[float, float]]:
+    """``(stopped, resumed)`` per gap in the recording, from its manifest (``read``'s ``gaps``). Data written past
+    the last segment only lengthens the last stretch, so no event time is needed here."""
+    from capture.segments import gap_rows, recorded_segments
+
+    return [(a, b) for a, b, _reason in gap_rows(recorded_segments(manifest, Path(directory), live=False))]
 
 
 def _span_end(rec: Recorded, ts: float) -> float | None:
