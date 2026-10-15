@@ -86,6 +86,16 @@ def lock_text(lock: dict[str, Any]) -> str:
     return f"the all-stop fired{when}{said}: buys on {lock.get('venue')} are locked until {lock.get('until')}"
 
 
+def _setups_words(strategy: list[str], hosts: list[str]) -> str:
+    """The setups gate in words: the strategies at Strategy and the Live Trader keys on (ADR 055)."""
+    parts = []
+    if strategy:
+        parts.append(f"at Strategy: {', '.join(s.replace('_', ' ') for s in strategy)}")
+    if hosts:
+        parts.append(f"Live Trader keys on: {', '.join(hosts)}")
+    return "; ".join(parts) or "no setup is at Strategy: set one setup's level to Strategy"
+
+
 def gates(row: dict[str, Any], venue_now: tuple[str | None, bool, bool] | None = None) -> list[dict[str, Any]]:
     from bot import activation, entry_rules
     from bot.clock import soft_latched
@@ -101,6 +111,7 @@ def gates(row: dict[str, Any], venue_now: tuple[str | None, bool, bool] | None =
     blocked = activation.venue_block(venue, edge, readable)
     level = master(row)
     strategy = at_strategy(row)
+    hosts = activation.live_trader_keys(venue)
     symbols = normalize_symbols(row.get("symbol_allowlist"))
     held = [s for s in symbols if _safe(lambda s=s: holds_depth_line(s), False, f"{s}'s depth line")]
     missing = [s for s in symbols if s not in held]
@@ -122,9 +133,8 @@ def gates(row: dict[str, Any], venue_now: tuple[str | None, bool, bool] | None =
         _gate("level", level >= BOT_LEVEL_STRATEGY, "activate",
               "the master level is at Strategy" if level >= BOT_LEVEL_STRATEGY
               else "the master level is below Strategy: no setup can trade", level=level),
-        _gate("setups", bool(strategy), "activate",
-              (f"at Strategy: {', '.join(s.replace('_', ' ') for s in strategy)}" if strategy
-               else "no setup is at Strategy: set one setup's level to Strategy"), at_strategy=strategy),
+        _gate("setups", bool(strategy) or bool(hosts), "activate", _setups_words(strategy, hosts),
+              at_strategy=strategy, live_traders=hosts),
         _gate("padlock", padlock_ok, "activate",
               "the desk padlock is unlocked" if padlock_ok else f"the desk padlock is locked: {padlock_why}",
               reason=padlock_why),

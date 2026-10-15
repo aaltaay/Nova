@@ -97,7 +97,7 @@ def apply_patch(
     if was_active:
         if "level" in body and int(row.get("level") or BOT_LEVEL_OFF) < BOT_LEVEL_STRATEGY:
             deactivated = "level"
-        elif ("level" in body or "setup_levels" in body) and not at_strategy(row):
+        elif ("level" in body or "setup_levels" in body) and not at_strategy(row)                 and not activation.live_trader_keys():
             deactivated = "no_setup"
         if deactivated:
             activation.deactivate(row, deactivated)

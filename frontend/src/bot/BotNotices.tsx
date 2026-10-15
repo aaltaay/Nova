@@ -13,6 +13,7 @@ import { DESK_BOT_POLL_MS } from '../constants';
 import { noteBreakerTrips } from './breakerNotices';
 import { DayCoverAlarms } from './DayCoverAlarms';
 import { dismissBotNotice, getBotNotices, pushBotNotice, subscribeBotNotices, type BotNotice } from './botNoticeStore';
+import { useLiveTraderAskToasts } from './LiveTraderAsks';
 import { useBotSession } from './useBotSession';
 import './botNotices.css';
 
@@ -51,11 +52,13 @@ function useBreakerTripNotices(): void {
 export function BotNotices() {
   useBreakerTripNotices();
   const notices = useSyncExternalStore(subscribeBotNotices, getBotNotices, getBotNotices);
+  const asks = useLiveTraderAskToasts();      // the Live Trader bot's asks (ADR 055) stack with the notices
   return (
     <>
       <DayCoverAlarms />
-      {notices.length > 0 ? (
+      {notices.length > 0 || asks.length > 0 ? (
         <div className="bot-notices" aria-label="Bot notices" data-testid="bot-notices">
+          {asks}
           {notices.map(n => <NoticeCard key={n.id} notice={n} />)}
         </div>
       ) : null}

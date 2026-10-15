@@ -93,6 +93,20 @@ async def get_day(date: str | None = None, quotes: int = 1):
     return {**body, "keeper": keeper.view(now)}
 
 
+def seen(base: str, day: dict[str, Any], now: float) -> dict[str, dict[str, Any]] | None:
+    """The page's own sightings for ``day`` -- the Live Trader bot reads the same (ADR 055)."""
+    return _seen(base, day, now)
+
+
+def ticker_for(now: float, ready: bool):
+    """The page's own ticker check for an answer -- the Live Trader bot reads the same (ADR 055)."""
+    return _ticker_for(now, ready)
+
+
+def ibkr_ready() -> bool:
+    return _ibkr_ready()
+
+
 def _seen(base: str, day: dict[str, Any], now: float) -> dict[str, dict[str, Any]] | None:
     """Each of the day's traders' sighting on the bar, from the feed's read log; None without one."""
     log = _read_log(base, day["date"], now, final=day["date"] < day["today"])

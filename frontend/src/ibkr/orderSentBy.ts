@@ -77,6 +77,12 @@ const BY_ORIGIN: Record<string, SentBy> = {
       'The day cover: Nova covers every short still open at 15:55 ET (12:55 on an early close), so no ' +
       "short is held overnight. It cancelled the stock's working orders first.",
   },
+  live_trader: {
+    label: 'Live Trader',
+    tone: 'nova',
+    tip: "The Live Trader bot (ADR 055): it copied a TraderTV host's position on Paper -- a step when they opened or "
+      + 'added, the sale when they closed, went off air, or the sell-all time came.',
+  },
   margin_call: {
     label: 'Margin call',
     tone: 'breaker',

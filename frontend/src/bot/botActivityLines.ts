@@ -64,6 +64,19 @@ const STOCK_MODE_TAGS: Record<string, [string, ActivityTone, ActivityLine['categ
   handed: ['Handed to you', 'warn', 'fired'],
   refused: ['Refused', 'bad', 'refused'],
 };
+/** The Live Trader bot (ADR 055): each step, skip, ask and close it makes for a TraderTV host. */
+const LIVE_TRADER_TAGS: Record<string, [string, ActivityTone, ActivityLine['category']]> = {
+  order: ['Sent', 'good', 'fired'],
+  filled: ['Filled', 'good', 'fired'],
+  closed: ['Closed', 'plain', 'fired'],
+  skipped: ['Skipped', 'muted', 'refused'],
+  asked: ['Asked you', 'warn', 'proposals'],
+  answered: ['Answered', 'muted', 'proposals'],
+  refused: ['Refused', 'bad', 'refused'],
+  error: ['Error', 'bad', 'refused'],
+  settings: ['Settings', 'plain', 'system'],
+  note: ['Note', 'muted', 'system'],
+};
 /** Why the backend turned the bot off (ADR 042 B), when the line carries no words of its own. */
 const DEACTIVATE_WORDS: Record<string, string> = {
   restart: 'the backend restarted',
@@ -238,6 +251,13 @@ export function activityLine(row: BotAuditEntry, index: number): ActivityLine | 
   }
   if (action === 'ttl_cancel') {
     return { ...base, tag: 'Cancelled', tone: 'muted', category: 'system', text: `${sym(row)} working order past its TTL` };
+  }
+  if (action === 'live_trader') {
+    // The Live Trader bot (ADR 055): a host's step, a skip with its reason, a close, its settings.
+    const [tag, tone, category] = LIVE_TRADER_TAGS[row.outcome] ?? [row.outcome, 'muted', 'system'];
+    const host = typeof row.inputs?.host === 'string' ? row.inputs.host : 'host';
+    const what = row.inputs?.symbol ? `${sym(row)} · ${host}` : host;
+    return { ...base, tag, tone, category, text: `Live Trader · ${what}` };
   }
   return { ...base, tag: action, tone: 'muted', category: 'system', text: row.outcome };
 }

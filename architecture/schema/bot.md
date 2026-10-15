@@ -555,3 +555,139 @@ side: `backend/bot/replay_desk.py`; of the lanes: `backend/eyes/sim_eyes.py`, `e
   this replay. `past-setups` answers the Sim eyes' setups that ended (#815, `stock-read.md` "Setups that
   ended"); `decisions` answers empty with `replay: true` and a `note`; `history` adds `replay` and reads
   only the days before; `flush` reads `blind`.
+
+## The Live Trader bot (ADR 055, operator ask 2026-10-14)
+
+One bot per TraderTV host (`followed-traders.md`): it copies the host's bar on **Paper only**, never Live and
+never Sim. Owner `backend/bot/live_trader/` (constants in `bot/live_trader/constants_live_trader.py`); the
+Bots page's "Live Traders · TraderTV" section, under Strategies (`frontend/src/bot/`). On only while
+`NOVA_FOLLOW_FEED_URL` is set: unset, the watcher asks nothing and the view says the feed is off.
+
+**The rules** (ADR 055 decisions 2-4): a position on the host's bar is one step in their direction; an
+add (their average moves; changes `LT_ADD_MERGE_SEC` 4 s apart are one add, acted on once settled, and one
+back where it started is none) is one more step up to `adds`; the position leaving the bar sells or covers
+the bot's whole position; off air (`traders[].seen.left_ts`, 60 s), the bar hidden `LT_HIDDEN_SEC` (600 s;
+also a feed that has not answered or read for as long), and the sell-all time (`sell_all_at`, 15:55 ET; 12:55
+on an early close) sell everything; an entry first seen `LT_OPEN_FRESH_SEC` (60) after it happened, on the
+first answer of a watch, or when the host comes back on air is already open (`take_open`), taken only while the
+host's bar shows it (`status.positions`; a trade the feed still holds open from before they left can be gone from
+it: `LT_NOT_ON_BAR` after the wait). Opens and adds
+skip, each with its reason: the feed `LT_FEED_BEHIND_SEC` (30) behind the stream or silent as long, a ticker
+check not settled, the host's average over `LT_MISREAD_PCT` (1.5%) from the market (the mid, else the last),
+a stock's market cap under `LARGE_CAP_MIN` ($10B) or unknown (an ETF always passes: Yahoo's `quote_type`
+`"ETF"`, operator 2026-10-14), no fresh quote, the allowance, the adds, shorts off,
+the account holding the other side (or the bot holding the other side for another host), outside the short
+hours, the desk off Paper, the Bot switch off, Freeze all orders, after the sell-all time. A wait (the quote
+line, the market cap, the ticker check) turns into its skip after `LT_WAIT_SEC` (30). Closes are never held
+for a doubt -- a late read is still a true one; with no answer at all they wait for one, and `LT_HIDDEN_SEC`
+without a read sells everything.
+
+**Settings** (`live-trader-bots.json` in the operator cache; owner `bot/live_trader/settings.py`; written
+through a temp file and a rename; an unknown version or an unreadable file refuses loud: every host reads
+off and writes answer 409 `LIVE_TRADER_SETTINGS_UNREADABLE`):
+
+```
+{schema_version: 1, sell_all_at: "HH:MM" (ET, 09:30-15:55),
+ hosts: {NAME: {key: bool, entry: "you" | "nova", exit: "you" | "nova", step_usd: 50-10000,
+                adds: 0 | 2 | 4 | null (every add), allowance_usd: 100-50000, sides: "long" | "both",
+                short_stop_pct: 1-20, take_open: bool, updated_at: epoch}}}
+```
+
+A host missing from the file reads key off with the defaults: `entry`/`exit` `"nova"`, `step_usd` 500,
+`adds` 2, `allowance_usd` 2,500, `sides` `"both"`, `short_stop_pct` 5, `take_open` true. `NAME` is 1-16 of
+`A-Z0-9`. `entry`/`exit` are stock mode's wire values (ADR 037): the mode is `stock_mode.model.mode_of`.
+
+**What the bot holds** (`live-trader-book.json` in the operator cache; owner `bot/live_trader/book.py`;
+temp file and rename; unknown version refuses loud, and the bot then opens nothing until it is fixed):
+
+```
+{schema_version: 1, day: "YYYY-MM-DD" (the desk's day, 04:00 ET),
+ positions: [{id, host, row_id, symbol, side: "long" | "short", venue: "paper", qty, cost_usd, steps,
+              adds_seen, adds_followed, opened_ts, state: "entering" | "open" | "closing",
+              order: {id, step: "entry" | "add" | "already_open" | "close", sent_ts, qty, limit, stop} | null,
+              stop_order_ids: [int], fills: [{step, qty, price, ts, order_id}], feed: {ts, price}}],
+ closed: [{...the position, closed_ts, why, exit_fills: [{qty, price, ts, order_id}], pl_usd}]}
+```
+
+`id` is `host|side|symbol`: one position per host, side and stock (a feed row reopened for the same stock
+is the same position, re-keyed to the new `row_id`, never bought twice). `closed` keeps today's (at most
+200); a day other than today's is sold at once on load ("held from DAY: never overnight") and cleared.
+Each pass reconciles with Paper's ledger: shares the account no longer holds (the operator sold them, a
+buy stop or a breaker did) leave the position, said once.
+
+**Routes** (owner `bot/live_trader/routes.py`, under the bot router: loopback; writes need the API key):
+
+- `GET /api/bot/live-traders` answers
+
+  ```
+  {schema_version: 1, generated_at, enabled: bool, venue: "paper", desk_venue,
+   can_trade: {ok, why}, sell_all_at, sell_all_ts,
+   watcher: {running, pass_ts, feed: {state: "ok" | "unreachable" | "bad_answer" | "off", error,
+             read_age_sec, behind_sec, bar_visible, live}, text},
+   hosts: [{name, face, on_air: bool | null, left_ts, settings: {...as stored, mode},
+            state: {tone: "ok" | "warn" | "bad" | "off", text}, allowance: {used_usd, of_usd},
+            today: {pl_usd, realized_usd, unrealized_usd, trades, skipped, series: [[ts, pl_usd]]},
+            positions: [{id, row_id, symbol, side, qty, avg_cost, their_avg, now, pl_usd, steps,
+                         adds_followed, opened_ts, state, order_id, note}],
+            asks: [{id, row_id, symbol, side, step, their_price, qty, limit, stop, created_ts, expires_ts, text}],
+            events: [{ts, tone, text, why}]}],
+   defaults, bounds}
+  ```
+
+  `hosts` lists every host the feed read today and every host with settings or positions, in the feed's
+  order. `face` is the TraderTV LIVE page's photo path, or null. `events` are the host's newest
+  `live_trader` audit lines (8), read from the audit file's last MB (`LT_AUDIT_TAIL_BYTES`) and again only when
+  the file changed. `today.pl_usd` is realized plus unrealized at the last, from the bot's own
+  fills; `series` its points at each fill.
+- `GET /api/bot/live-traders/asks` answers `{schema_version: 1, generated_at, asks: [{...an ask, host,
+  seconds_left}], held: [{host, symbol, side, qty, state}]}` from memory only: every desk window polls it for
+  the asks' toasts, and the Bot switch reads `held` before it asks to sell.
+- `PATCH /api/bot/live-traders {sell_all_at}` and `PATCH /api/bot/live-traders/{name} {key?, entry?, exit?,
+  step_usd?, adds?, allowance_usd?, sides?, short_stop_pct?, take_open?}` answer the view; a value out of
+  bounds is 400 `LIVE_TRADER_INVALID` with `field`, never clamped. `key: false` while the host's bot holds
+  positions sells them on the next pass (the desk asks first). Each change is a `live_trader` `settings`
+  audit line `{host, from, to}`.
+- `POST /api/bot/live-traders/{name}/asks/{ask_id} {approve: bool}` answers the view; an ask that expired,
+  was answered or was withdrawn (the host closed) is 409 `LIVE_TRADER_ASK_GONE`. An approved step meets
+  every rule again on the next pass before it is sent.
+
+**Orders** (ADR 055 decision 5): every one through `execution.service.execute`, `origin: "live_trader"`,
+`setup: "live_trader:<NAME>"`, an idempotency key unique to each send (`bot:lt:paper:<row id>:<step><n>:<ms>`:
+the same trade can be taken again after the host comes back on air, and a reused key would replay the earlier
+send's receipt). A long entry or add
+is a `place` BUY `LMT` at the ask plus `LT_ENTRY_OFFSET_USD` (2 cents; the last when no ask), source `bot`,
+`expected_venue: "paper"`; a short one a `bracket` SELL `LMT` at the bid less 2 cents (over the bid while
+SSR is on or unknown, as the setup bot prices it) with `short_entry` and a BUY stop `short_stop_pct` over
+it, no target. Working after the Paper sleeve's `working_ttl_sec`, it is cancelled. A close cancels the
+position's buy stops (source `cancel_working`) and sends the protective flatten (source `flatten`, the
+practice market ticket) for the bot's shares, never more than the account holds; both name
+`target_venue: "paper"`. `live_trader` is one of the door's Nova-close origins on Paper and Sim only
+(`execution.md`, "Who sent it").
+
+**Lines.** `ibkr.ticks.set_owner_symbols("live_trader", ...)` holds a Level 1 line on every stock the bot
+holds, is entering or waits to enter; never a Level 2 line (ADR 055 decision 3).
+
+**Audit** (the bot's stream): action `live_trader`, outcome `order` (a step sent) | `filled` | `closed` (a
+close sent) | `skipped` | `asked` | `answered` | `refused` (the door's words) | `settings` | `note` |
+`error`; `inputs: {host, row_id, symbol, side, step, qty, limit, stop, order_id, code, why, change: {kind:
+"open" | "add" | "already_open" | "close" | "off_air" | "hidden" | "sell_all" | "key_off" | "bot_off" |
+"stale_day", ts, price}, late_sec, venue: "paper"}`. `late_sec` is the send's wall time less the feed's
+time of the change. A skip is written once per position, step and code. Codes: `LT_FEED_BEHIND`,
+`LT_FEED_DOWN`, `LT_TICKER_UNSETTLED`, `LT_MISREAD`, `LT_SMALL_CAP`, `LT_CAP_UNKNOWN`, `LT_NO_QUOTE`,
+`LT_ALLOWANCE`, `LT_ADDS_DONE`, `LT_SHORTS_OFF`, `LT_AGAINST`, `LT_NOT_HELD`, `LT_VENUE`, `LT_BOT_OFF`,
+`LT_FROZEN`, `LT_AFTER_SELL_ALL`, `LT_SHORT_HOURS`, `LT_NOT_PRICEABLE`, `LT_ASK_EXPIRED`, `LT_ASK_SKIPPED`,
+`LT_ALREADY_OPEN`, `LT_OFF_AIR`, `LT_HIDDEN`, `LT_DAY_LOCK`, `LT_NOT_ON_BAR`.
+
+**The Bot switch** counts a host key on as a strategy On on Paper (`BOT_NO_SETUP_AT_STRATEGY`: "no
+strategy is On and no Live Trader key is on"); `GET /api/bot/session`'s `setups` gate adds
+`live_traders: [NAME]`. The operator's OFF (`POST /api/bot/session/switch {on: false}`) on Paper while the
+Live Trader bot holds positions sells them on the next pass (the desk asks first); a `live_trader` `closed` line
+names `bot_off`. Sim's and Live's switches never touch the Paper bot's shares.
+
+**On the desk.** The section's cards (mockup v1, approved 2026-10-14): the host's photo or initial, on air
+and how old the read is, the key, Entry You | Bot and Exit You | Bot with the mode in words, the allowance
+bar, today's P/L, trades and skips with a line of the day's P/L, the positions (shares, the bot's cost, the
+host's average, now, P/L), the last events with their reasons, and the settings as chips that open their
+editors. A line above the cards says what stops every host now (`can_trade.why`). An ask is a line on its
+card and a toast in every desk window (`bot/BotNotices.tsx`) with Skip and Approve and its seconds left.
+Turning a key off, or the Bot switch off, while positions are held asks "Sell N and turn off".

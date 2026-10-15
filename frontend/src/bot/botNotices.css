@@ -42,3 +42,19 @@
   padding: 0 2px;
 }
 .bot-notice__x:hover { color: var(--text-primary, #f5f5f7); }
+
+/* The Live Trader bot's asks (bot/LiveTraderAsks.tsx, ADR 055): Skip and Approve in every window. */
+.lt-ask-toast__acts { display: inline-flex; gap: 6px; margin-top: 4px; }
+.lt-ask-toast__acts button {
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--nova-border-strong, rgba(255, 255, 255, 0.22));
+  background: transparent;
+  color: var(--text-primary, #f5f5f7);
+  cursor: pointer;
+}
+.lt-ask-toast__acts button.bots-btn--primary { background: #0a84ff; border-color: #0a84ff; color: #fff; font-weight: 600; }
+.lt-ask-toast__acts button:disabled { opacity: 0.5; cursor: not-allowed; }
+.lt-ask-toast__error { color: #ff453a; }

@@ -25,7 +25,7 @@ the backend packages.
 | `agent_desk/` | app | The desk side of the agent endpoints (ADR 050): the main window takes an agent's show / move by a long poll and runs it with the desk's own steps (venue, Sim day, Trader tab, the window from the Massive files, the playhead), with a notice of what it is doing. |
 | `api/` | shared | HTTP plumbing: the `novaFetch` wrapper that attaches the Nova API key, plus the sensor REST client. |
 | `assets/` | shared | Static images: a hero image and the default Vite / React logos (scaffold leftovers). |
-| `bot/` | feature | The Bots page: level, arm / allowlist, risk and kill-switch cards, proposals inbox, playbook, session polling. |
+| `bot/` | feature | The Bots page: level, arm / allowlist, risk and kill-switch cards, proposals inbox, playbook, session polling, and the Live Trader bots' cards and asks (ADR 055). |
 | `capture/` | feature | Session Record state on screen: the recording chip, top-edge hairline, stop toast and hold-to-stop button. |
 | `clips/` | feature | Share clips (ADR 039): the red ● Record button and Record menu on a Trader tab, the header's CLIP chips, the clip's frame, toasts, the export dialog and its trim timeline, Records › Video clips, the tab reporter, and the hidden export page (`export_page/`) the desktop app runs. |
 | `chart/` | feature | The ticker chart: chart instance, bars store, drawings, context menu, position overlay, VWAP and session shading, the candle hover card, and the earnings and split marks on daily panes. |

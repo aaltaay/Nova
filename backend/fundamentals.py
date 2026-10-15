@@ -47,6 +47,7 @@ _EMPTY: dict = {
     "country": None,
     "country_code": None,
     "market_cap": None,
+    "quote_type": None,
     "shares_outstanding": None,
     "float_shares": None,
     "held_percent_insiders": None,
@@ -318,6 +319,8 @@ def fetch_fundamentals(symbol: str) -> dict:
             "country": info.get("country") or None,
             "country_code": country_code(info.get("country")),
             "market_cap": info.get("marketCap"),
+            # Yahoo's kind of security ("EQUITY", "ETF", ...): an ETF has no market cap (ADR 055).
+            "quote_type": info.get("quoteType") or None,
             "shares_outstanding": info.get("sharesOutstanding"),
             "float_shares": info.get("floatShares"),
             # A fraction (0.128 = 12.8%), as Yahoo gives it.

@@ -31,6 +31,7 @@ from routes.advise import router as advise_router, ws_router as advise_ws_router
 from routes.halts import router as halts_router
 from routes.symbols import router as symbols_router
 from routes.bot import router as bot_router
+from bot.live_trader.routes import router as live_trader_router
 from routes.bot_ws import ws_router as bot_ws_router
 from sim.routes import router as sim_router
 from capture.routes import router as capture_router
@@ -94,6 +95,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(halts_router)
     app.include_router(symbols_router)
     app.include_router(bot_router)
+    app.include_router(live_trader_router)  # ADR 055: the Live Trader bot's cards on the Bots page
     app.include_router(bot_ws_router)
     app.include_router(sim_router)
     app.include_router(capture_router)
