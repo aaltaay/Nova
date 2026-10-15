@@ -14,6 +14,9 @@ eyes, and the summary splits on them:
 - pace RVOL's expected volume follows the small-cap volume curve (65c1ba40, 2026-10-13), so grades
   before then used another RVOL.
 
+The setup rules change too: a live line names its template and revision, and ``same_rules`` sums only
+the triggers whose lane ran the revision the replay runs today.
+
 A replay can only match a trigger whose price stream and candles it rebuilds. The live eyes follow
 IBKR's L1 last, which a Session Record does not hold, so a replay steps on the recorded prints and the
 archive's candles; triggers at another level or second read another tape.
@@ -43,6 +46,7 @@ SAME_SECOND = 2.0         # the live stamp is IBKR's whole second; the replay's 
 READ_ON_ARRIVAL_SINCE = dt.datetime(2026, 10, 1, 4, 9, 42, tzinfo=dt.UTC).timestamp()     # f3d2cb0e
 PACE_CURVE_SINCE = dt.datetime(2026, 10, 13, 15, 8, 6, tzinfo=dt.UTC).timestamp()        # 65c1ba40
 WARMUP_SEC = 300.0        # a trigger in the recording's first minutes has no recorded run-up to rebuild
+LEGACY_SETUP = "first_pullback"   # a line from before ADR 031 names no setup: the first pullback was the only one
 
 
 def _main_checkout() -> Path:
@@ -75,15 +79,22 @@ def et(ts: float | None) -> str | None:
 
 
 # -- pure: reading lines, matching, summing ---------------------------------------------------------
+def rules_of(template: Any, rev: Any) -> str:
+    return f"{template}@{rev}"
+
+
 def trigger_of(event: dict[str, Any], grade: str | None) -> dict[str, Any]:
-    return {"ts": float(event["ts"]), "setup_type": event.get("setup_type"),
+    return {"ts": float(event["ts"]), "setup_type": event.get("setup_type") or LEGACY_SETUP,
             "trigger": (event.get("setup") or {}).get("trigger"),
-            "tape": (event.get("tape") or {}).get("verdict"), "grade": grade}
+            "tape": (event.get("tape") or {}).get("verdict"), "grade": grade,
+            "rules": rules_of(event.get("template"), event.get("rev"))}
 
 
 def live_triggers(lines: Iterable[str], recorded: set[str]) -> dict[str, list[dict[str, Any]]]:
     """The live eyes' triggers by symbol (only symbols in ``recorded``), each with the newest grade the
-    live eyes gave its setup before it; a line the journal holds twice counts once."""
+    live eyes gave its setup before it. Only the lane in play counts -- the one whose triggers reach the
+    bot; a template watched beside it (a chart-only 5-minute lane) journals its own; a line the journal
+    holds twice counts once."""
     grades: dict[tuple, str] = {}
     out: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for line in lines:
@@ -93,8 +104,8 @@ def live_triggers(lines: Iterable[str], recorded: set[str]) -> dict[str, list[di
             e = json.loads(line)
         except ValueError:
             continue
-        sym, setup = e.get("symbol"), e.get("setup_type")
-        if not sym or not setup:
+        sym, setup = e.get("symbol"), e.get("setup_type") or LEGACY_SETUP
+        if not sym or e.get("playing") is False:
             continue
         if e.get("grade"):
             grades[(sym, setup)] = e["grade"]
@@ -106,13 +117,16 @@ def live_triggers(lines: Iterable[str], recorded: set[str]) -> dict[str, list[di
     return out
 
 
-def compare(day: str, symbol: str, lives: list[dict], replays: list[dict], *, inside) -> list[dict[str, Any]]:
-    """One row per live trigger: the nearest replay trigger of its setup within ``MATCH_SEC``, or none."""
+def compare(day: str, symbol: str, lives: list[dict], replays: list[dict], *, inside,
+            rules: dict[str, str]) -> list[dict[str, Any]]:
+    """One row per live trigger: the nearest replay trigger of its setup within ``MATCH_SEC``, or none.
+    ``same_rules``: the live lane ran the template and revision the replay runs today (``rules``)."""
     rows = []
     for lv in lives:
         near = [r for r in replays if r["setup_type"] == lv["setup_type"] and abs(r["ts"] - lv["ts"]) <= MATCH_SEC]
         best = min(near, key=lambda r: abs(r["ts"] - lv["ts"])) if near else None
         rows.append({"day": day, "symbol": symbol, "setup": lv["setup_type"], "inside": bool(inside(lv["ts"])),
+                     "same_rules": lv["rules"] == rules.get(lv["setup_type"]),
                      "live_ts": lv["ts"], "live_at": et(lv["ts"]), "replay_at": et(best["ts"]) if best else None,
                      "dt": round(best["ts"] - lv["ts"], 1) if best else None,
                      "live_trigger": lv["trigger"], "replay_trigger": best["trigger"] if best else None,
@@ -122,6 +136,11 @@ def compare(day: str, symbol: str, lives: list[dict], replays: list[dict], *, in
 
 
 def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """The sums over every live trigger inside a recording, and over those whose lane ran today's rules."""
+    return {"all": _sums(rows), "same_rules": _sums([r for r in rows if r["same_rules"]])}
+
+
+def _sums(rows: list[dict[str, Any]]) -> dict[str, Any]:
     inside = [r for r in rows if r["inside"]]
     found = [r for r in inside if r["replay_at"] is not None]
     aligned = [r for r in found if r["live_trigger"] == r["replay_trigger"] and abs(r["dt"]) <= SAME_SECOND]
@@ -156,6 +175,8 @@ def replay_triggers(rec: Any, templates: list, playing: dict) -> list[dict[str, 
     grades: dict[str, str] = {}
 
     def journal(event: dict) -> None:
+        if event.get("playing") is False:
+            return
         if event.get("grade") and event.get("setup_type"):
             grades[event["setup_type"]] = event["grade"]
         if event.get("event") == "triggered":
@@ -176,7 +197,9 @@ def run(days: list[str] | None) -> list[dict[str, Any]]:
 
     store = get_store()
     templates = [t for s in BOT_SCANNER_SETUPS for t in store.templates(s) if not t.error]
-    playing = {s: store.in_play(s).id for s in BOT_SCANNER_SETUPS}
+    in_play = {s: store.in_play(s) for s in BOT_SCANNER_SETUPS}
+    playing = {s: t.id for s, t in in_play.items()}
+    rules = {s: rules_of(t.id, t.rev) for s, t in in_play.items()}
     root, journals = capture_root(), journal_dir()
     rows: list[dict[str, Any]] = []
     for day in days or sorted(p.stem for p in journals.glob("*.jsonl")):
@@ -195,7 +218,7 @@ def run(days: list[str] | None) -> list[dict[str, Any]]:
             def inside(ts: float, rec=rec) -> bool:
                 return rec.recorded_at(ts) and rec.first_ts is not None and ts - rec.first_ts > WARMUP_SEC
 
-            rows += compare(day, symbol, its, replay_triggers(rec, templates, playing), inside=inside)
+            rows += compare(day, symbol, its, replay_triggers(rec, templates, playing), inside=inside, rules=rules)
             print(f"{day} {symbol}: {len(its)} live trigger(s)", file=sys.stderr)
     return rows
 

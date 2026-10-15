@@ -55,17 +55,6 @@ def test_a_recorded_daily_average_rvol_is_read_as_the_live_pace_rvol():
     assert grade(p)[1]["rvol"] is True
 
 
-def test_a_recorded_row_from_before_the_basis_column_is_the_daily_average():
-    from leaderboard import store as lb_store
-
-    row = _store(source="recorded", rvol=0.99, rvol_basis=LEADERBOARD_RVOL_BASIS_DAILY)
-    with lb_store.connect() as db:                  # a row written before rows carried their basis
-        db.execute("UPDATE rows SET rvol_basis = NULL WHERE symbol = 'ZZVEEA'")
-        db.commit()
-    at = MINUTE + 8
-    assert _pillars(row, at)["rvol"] == round(0.99 / volume_day_elapsed_fraction(datetime.fromtimestamp(at, ET)), 2)
-
-
 def test_a_rebuilt_time_of_day_rvol_is_a_pace_measure_already():
     row = _store(source="reconstructed", rvol=7.5, rvol_basis=LEADERBOARD_RVOL_BASIS_TOD)
     assert _pillars(row, MINUTE + 8)["rvol"] == 7.5

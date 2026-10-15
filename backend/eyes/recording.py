@@ -225,8 +225,7 @@ def live_rvol(row: dict | None, ts: float) -> float | None:
     rvol = (row or {}).get("rvol")
     if rvol is None:
         return None
-    basis = row.get("rvol_basis") or (LEADERBOARD_RVOL_BASIS_DAILY if row.get("source") == "recorded" else None)
-    if basis != LEADERBOARD_RVOL_BASIS_DAILY or not HOD_MOMO_RVOL_USE_PACE:
+    if row.get("rvol_basis") != LEADERBOARD_RVOL_BASIS_DAILY or not HOD_MOMO_RVOL_USE_PACE:
         return float(rvol)
     return round(float(rvol) / volume_day_elapsed_fraction(datetime.fromtimestamp(ts, ET)), 2)
 
