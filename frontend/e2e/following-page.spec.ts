@@ -10,7 +10,7 @@ async function open(page: Page, answer: FollowedDay) {
   const mutations: string[] = [];
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.route('https://www.youtube-nocookie.com/**', (route) => route.fulfill({ contentType: 'text/html', body: '<body style="background:#111"></body>' }));
+  await page.route('https://www.youtube.com/embed/**', (route) => route.fulfill({ contentType: 'text/html', body: '<body style="background:#111"></body>' }));
   await page.route('http://127.0.0.1:8999/**', async (route) => {
     const req = route.request();
     if (req.method() !== 'GET') mutations.push(req.url());
@@ -77,12 +77,12 @@ test.describe('Following page', () => {
     await expect(page.getByTestId('ft-trader-ALPHA')).toBeVisible();
   });
 
-  test('plays the stream from YouTube’s privacy-enhanced host, closes it, and Watch live brings it back', async ({ page }) => {
+  test('plays the stream from YouTube’s ordinary embed (it carries the sign-in), closes it, and Watch live brings it back', async ({ page }) => {
     await page.setViewportSize({ width: 1720, height: 1104 });
     const d = day();
     d.capture = { ...d.capture!, video_id: 'R5YIugCJar0' };
     await open(page, d);
-    await expect(page.getByTestId('ft-stream-frame')).toHaveAttribute('src', /^https:\/\/www\.youtube-nocookie\.com\/embed\/R5YIugCJar0\?autoplay=1&mute=1/);
+    await expect(page.getByTestId('ft-stream-frame')).toHaveAttribute('src', /^https:\/\/www\.youtube\.com\/embed\/R5YIugCJar0\?autoplay=1&mute=1/);
     expect((await fit(page)).page).toBe(0);
     await page.getByTestId('ft-stream-close').click();
     await expect(page.getByTestId('ft-stream')).toHaveCount(0);
