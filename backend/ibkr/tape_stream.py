@@ -1,6 +1,8 @@
 """
 IBKR tick-by-tick Time & Sales stream.
 
+maintainer: one-concern the shared AllLast stream's subscribe, viewer and linger lifecycle stays together
+
 Uses reqTickByTickData("AllLast") — every print as it appears in the TWS
 Time & Sales window. One stream per open symbol, refcounted like depth.py.
 
@@ -26,6 +28,7 @@ from ibkr import depth as _depth
 from ibkr import line_session as _line_session
 from ibkr import tape_exchange_time as _tape_exchange_time
 from ibkr import tape_line as _tape_line
+from ibkr import tape_admission as _admission
 from ibkr.tape_events import warm_10sec_fill as _warm_10sec_fill
 from market_view.viewer_queues import PrintQueue
 from metrics.op_metrics import timed_sync
@@ -138,6 +141,7 @@ def reset_for_tests() -> None:
     _error_hooked_ib_ids.clear()
     _subscribe_locks.clear()
     _tape_line.reset_for_tests()
+    _admission.reset_for_tests()
 
 
 def prune_idle_maps(now: float | None = None) -> dict[str, int]:
@@ -198,7 +202,7 @@ def _schedule_linger(symbol: str) -> None:
     _linger_tasks[symbol] = loop.create_task(_later())
 
 
-async def subscribe_async(symbol: str) -> dict:
+async def subscribe_async(symbol: str, *, automatic: bool = False) -> dict:
     """Subscribe to tick-by-tick AllLast for a symbol.
 
     Returns {"ok": True/False, "error": None/"..."}.
@@ -212,6 +216,9 @@ async def subscribe_async(symbol: str) -> dict:
     if not _load_ib_types():
         return {"ok": False, "error": "ib_async not available"}
 
+    if any(_line_session.is_stale(sub.get("generation")) for sub in _tickers.values()):
+        _line_session.settle()
+
     if _joinable(symbol):
         return {"ok": True, "error": None}
 
@@ -221,7 +228,15 @@ async def subscribe_async(symbol: str) -> dict:
     prune_idle_maps()
     lock = _subscribe_locks.setdefault(symbol, asyncio.Lock())
     async with lock:
-        return await _subscribe_locked(symbol, ib)
+        if _joinable(symbol):
+            return {"ok": True, "error": None}
+        reservation, error = _admission.reserve(symbol, automatic=automatic)
+        if reservation is None:
+            return {"ok": False, "error": error}
+        try:
+            return await _subscribe_locked(symbol, ib, reservation)
+        finally:
+            _admission.abandon(reservation)
 
 
 def _joinable(symbol: str) -> bool:
@@ -231,7 +246,9 @@ def _joinable(symbol: str) -> bool:
     return symbol in _tickers
 
 
-async def _subscribe_locked(symbol: str, ib: Any) -> dict:
+async def _subscribe_locked(symbol: str, ib: Any, reservation: _admission.Reservation) -> dict:
+    if reservation.ib is not ib:
+        return {"ok": False, "error": "IBKR session changed while waiting to subscribe"}
     if _joinable(symbol):
         return {"ok": True, "error": None}
 
@@ -253,6 +270,9 @@ async def _subscribe_locked(symbol: str, ib: Any) -> dict:
     if not qualified:
         return {"ok": False, "error": f"Could not qualify contract for {symbol}"}
 
+    if not _admission.current(reservation):
+        return {"ok": False, "error": "IBKR session changed while qualifying the tape request"}
+
     contract = qualified[0]
     _contracts[symbol] = contract
     _install_error_hook(ib)
@@ -273,7 +293,8 @@ async def _subscribe_locked(symbol: str, ib: Any) -> dict:
             _on_tape_update(t, sym)
 
         ticker.updateEvent += handler
-        _tickers[symbol] = {"ticker": ticker, "handler": handler, "generation": _line_session.generation()}
+        _tickers[symbol] = {"ticker": ticker, "handler": handler, "generation": reservation.generation}
+        _admission.requested(reservation)
         from ibkr.tape_recording import subscribed
         subscribed(symbol)
         req_id = _tape_line.note_subscribed(symbol, ib, contract)

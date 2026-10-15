@@ -119,7 +119,7 @@ def drop_line(symbol: str, why: str) -> bool:
     A line of an ended IBKR session is gone with it (#562): nothing is cancelled
     and IB's 15 s rule does not start. Viewers keep their queues.
     """
-    from ibkr import client, tape_stream
+    from ibkr import client, tape_admission, tape_stream
 
     tape_stream._cancel_linger(symbol)
     sub = tape_stream._tickers.pop(symbol, None)
@@ -136,6 +136,7 @@ def drop_line(symbol: str, why: str) -> bool:
             logger.debug("IBKR tape: handler detach failed for %s: %s", symbol, exc)
     held = (not line_session.is_stale(sub.get("generation"))
             or line_session.fate(ib, contract, IBKR_TAPE_TICK_TYPE, ticker) != line_session.GONE)
+    cancel_sent = not held
     if held:
         if ib and contract is not None:
             from ibkr import stray_lines
@@ -150,7 +151,9 @@ def drop_line(symbol: str, why: str) -> bool:
                                "but IBKR release is unknown: %s", symbol, req_id, exc)
             else:
                 stray_lines.note_cancel_result(ib, req_id, error=None)
+                cancel_sent = True
         tape_stream._cancelled_at[symbol] = time.time()
+    tape_admission.released(symbol, sub.get("generation"), sent=cancel_sent)
     tape_stream.prune_idle_maps()
     note_dropped(symbol, why, cancelled=held)
     return True
@@ -212,6 +215,10 @@ def drop_stale() -> list[str]:
         fate = line_session.fate(ib, tape_stream._contracts.get(sym), IBKR_TAPE_TICK_TYPE, sub.get("ticker"))
         if fate == line_session.KEPT:
             sub["generation"] = line_session.generation()
+            from ibkr import tape_admission
+
+            tape_admission.adopt(sym)
+            note_subscribed(sym, ib, tape_stream._contracts[sym])
             logger.info("IBKR tape: %s's AllLast line survived the connectivity restore (IBKR kept it)", sym)
             continue
         drop_line(sym, f"the IBKR session it was opened on ended ({fate})")
@@ -276,7 +283,17 @@ def on_ib_error(reqId: int, errorCode: int, errorString: str, contract: Any = No
                    "req_id": reqId if reqId in _req_symbol else None}
     why = f"IB error {code}: {message}"
     logger.warning("IBKR tape: IBKR ended the AllLast line of %s (reqId %s) -- %s", sym, reqId, why)
-    _on_http_loop(end_line, sym, why)
+    from ibkr import tape_admission, tape_stream
+
+    if code == 10190:
+        tape_admission.refused(sym)
+    sub, generation = tape_stream._tickers.get(sym), _generation()
+
+    def finish() -> None:
+        if _generation() == generation and tape_stream._tickers.get(sym) is sub:
+            end_line(sym, why)
+
+    _on_http_loop(finish)
 
 
 def _running_loop() -> asyncio.AbstractEventLoop | None:

@@ -44,6 +44,16 @@ def held_symbols() -> list[str]:
     return list(_held)
 
 
+def automatic_tape_only(symbol: str) -> bool:
+    """A shared operator viewer makes renewal an operator request, even on an auto recording."""
+    from ibkr import tape_stream
+    from leaderboard import auto_record
+
+    sym = symbol.upper()
+    own_viewer = int(bool((_held.get(sym) or {}).get("tape")))
+    return sym in auto_record.held_symbols() and tape_stream.viewer_count(sym) <= own_viewer
+
+
 def orphans(recording: Iterable[str], now: float | None = None) -> list[str]:
     """Holds no recording uses -- e.g. the recorder stopped itself on a disk error.
 
@@ -58,7 +68,7 @@ def orphans(recording: Iterable[str], now: float | None = None) -> list[str]:
             if sym not in wanted and stamp - _taken_at.get(sym, 0.0) >= CAPTURE_HOLD_ORPHAN_GRACE_SEC]
 
 
-async def acquire(symbol: str) -> str | None:
+async def acquire(symbol: str, *, automatic: bool = False) -> str | None:
     """Open (or join) the tape and depth lines and hold them; return an error or None.
 
     Idempotent per symbol. A tape failure refuses the recording -- there is
@@ -70,7 +80,8 @@ async def acquire(symbol: str) -> str | None:
     if sym in _held:
         return None
     if not tape_stream.is_subscribed(sym):
-        result = await tape_stream.subscribe_async(sym)
+        options = {"automatic": True} if automatic else {}
+        result = await tape_stream.subscribe_async(sym, **options)
         if not result.get("ok"):
             return result.get("error") or f"Could not open the IBKR tape for {sym}"
     tape_stream.ws_viewer_opened(sym)
@@ -103,11 +114,13 @@ async def renew_tape(symbol: str) -> str | None:
     from ibkr import tape_stream
 
     sym = symbol.strip().upper()
+    automatic = automatic_tape_only(sym)
     if sym not in _held:
-        return await acquire(sym)
+        return await acquire(sym, automatic=automatic)
     if tape_stream.is_subscribed(sym):
         return None
-    result = await tape_stream.subscribe_async(sym)
+    options = {"automatic": True} if automatic else {}
+    result = await tape_stream.subscribe_async(sym, **options)
     if result.get("ok"):
         logger.warning("RECORD: re-requested the IBKR tape line for %s", sym)
         return None

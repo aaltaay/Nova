@@ -16,12 +16,14 @@ from capture import feed_hold
 class FakeTape:
     def __init__(self, ok=True):
         self.ok, self.subscribed, self.viewers, self.calls = ok, set(), {}, []
+        self.automatic = []
 
     def is_subscribed(self, sym):
         return sym in self.subscribed
 
-    async def subscribe_async(self, sym):
+    async def subscribe_async(self, sym, *, automatic=False):
         self.calls.append(("subscribe", sym))
+        self.automatic.append(automatic)
         if not self.ok:
             return {"ok": False, "error": "IBKR tape transport down -- Gateway not connected"}
         self.subscribed.add(sym)
@@ -29,6 +31,9 @@ class FakeTape:
 
     def ws_viewer_opened(self, sym):
         self.viewers[sym] = self.viewers.get(sym, 0) + 1
+
+    def viewer_count(self, sym):
+        return self.viewers.get(sym, 0)
 
     def ws_viewer_closed(self, sym):
         self.viewers[sym] -= 1
@@ -78,6 +83,33 @@ def test_record_opens_and_holds_both_lines_like_a_viewer(lines):
     # Depth is asked for LIVE: on a Sim desk a plain subscribe is a replay slot.
     assert ("subscribe", "IMCC", True) in lines.depth.calls
     assert feed_hold.held("IMCC") == {"tape": True, "depth": True}
+
+
+def test_automatic_renewals_keep_their_admission_class_until_operator_takes_over(lines, monkeypatch):
+    from leaderboard import auto_record
+
+    monkeypatch.setitem(auto_record._auto, "IMCC", 1.0)
+    assert asyncio.run(feed_hold.acquire("IMCC", automatic=True)) is None
+    lines.tape.subscribed.clear()
+    assert asyncio.run(feed_hold.renew_tape("IMCC")) is None
+    assert lines.tape.automatic == [True, True]
+    auto_record._auto.pop("IMCC")  # manual takeover: keep the held reference, change only ownership
+    lines.tape.subscribed.clear()
+    assert asyncio.run(feed_hold.renew_tape("IMCC")) is None
+    assert lines.tape.automatic == [True, True, False]
+    assert lines.tape.viewers["IMCC"] == 1
+
+
+def test_an_operator_viewer_sharing_auto_record_keeps_renewal_priority(lines, monkeypatch):
+    from leaderboard import auto_record
+
+    monkeypatch.setitem(auto_record._auto, "IMCC", 1.0)
+    assert asyncio.run(feed_hold.acquire("IMCC", automatic=True)) is None
+    lines.tape.ws_viewer_opened("IMCC")
+    lines.tape.subscribed.clear()
+    assert asyncio.run(feed_hold.renew_tape("IMCC")) is None
+    assert lines.tape.automatic == [True, False]
+    assert lines.tape.viewers["IMCC"] == 2
 
 
 def test_a_panel_closing_cannot_pull_the_recording_feed(lines):
