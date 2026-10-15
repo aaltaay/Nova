@@ -1,0 +1,61 @@
+/* The low-memory strip under the header: the update notice's shape, amber while low, red when nearly out. */
+
+.pc-memory-notice {
+  --pc-memory-color: #f59e0b;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.78rem;
+  color: var(--nova-text);
+  background: color-mix(in srgb, var(--pc-memory-color) 14%, var(--nova-panel));
+  border-bottom: 1px solid color-mix(in srgb, var(--pc-memory-color) 50%, transparent);
+}
+
+.pc-memory-notice[data-level='nearly_out'] {
+  --pc-memory-color: #ef4444;
+}
+
+.pc-memory-notice__mark {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 50%;
+  font-weight: 700;
+  color: #fff;
+  background: var(--pc-memory-color);
+}
+
+.pc-memory-notice__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.pc-memory-notice__hint {
+  font-weight: 400;
+  color: var(--nova-text-muted);
+}
+
+.pc-memory-notice__btn {
+  flex: 0 0 auto;
+  padding: 0.2rem 0.65rem;
+  font: inherit;
+  font-weight: 600;
+  color: var(--nova-text);
+  background: var(--nova-raised);
+  border: 1px solid var(--nova-border-strong);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pc-memory-notice__btn:hover {
+  background: var(--hover-bg);
+}
