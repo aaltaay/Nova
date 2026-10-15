@@ -1,5 +1,6 @@
 import { memo, useEffect, useLayoutEffect, type CSSProperties, type ReactNode } from 'react';
 import {
+  L2_BIG_ROW_BG,
   L2_DAS_HEADERS,
   L2_DAS_MM_FALLBACK,
   L2_DAS_SIZE_BAR,
@@ -23,7 +24,8 @@ import { isOvernightOnlyBook } from './depthBookGuards';
 import { formatDepthNumber, formatDepthPrice } from './depthNumberFormat';
 import { priceKey, pulledHere, pullMarks, type BookWatchState, type PulledHere } from './bookWatch';
 import { hiddenHere, hiddenMarks } from './bookWatchHidden';
-import { PullMarksAt, PullsStrip, useBookWatchClock } from './BookWatchParts';
+import { bigRows, type BigRow } from './bookWatchBig';
+import { BigBannerAt, BigRowParts, PullMarksAt, PullsStrip, useBookWatchClock } from './BookWatchParts';
 import { placeMarkers, splitMarkers, type DepthMarker, type PlacedMarker } from './depthMarkers';
 import { luldMarkers } from './luld';
 import { withBands } from './LuldRows';
@@ -63,6 +65,7 @@ function fmtSize(s: number | null | undefined) {
 
 const NO_MARKERS: { bid: DepthMarker[]; ask: DepthMarker[] } = { bid: [], ask: [] };
 const NO_PULLED_HERE: ReadonlyMap<string, PulledHere> = new Map();
+const NO_BIG_ROWS: ReadonlyMap<number, BigRow> = new Map();
 
 function mmLabel(level: DepthLevel | null): string {
   if (!level) return '';
@@ -103,7 +106,7 @@ function MarkerLine({ marker, at }: { marker: PlacedMarker; at: 'edge' | 'first'
  * on a row without any, so only those rows and the rows that changed render again.
  */
 const L2Row = memo(function L2Row({
-  isBid, empty, price, size, mm, bg, gauge, pulledHere: pulled, hiddenHere: hidden, tip, tipTitle, inner,
+  isBid, empty, price, size, mm, bg, gauge, pulledHere: pulled, hiddenHere: hidden, big, tip, tipTitle, inner,
 }: {
   isBid: boolean;
   empty: boolean;
@@ -114,18 +117,21 @@ const L2Row = memo(function L2Row({
   gauge: number;
   pulledHere: boolean;
   hiddenHere: boolean;
+  /** A row of a big seller's or buyer's block (#984): dark, framed in white, its digits white. */
+  big?: BigRow;
   tip: string | null;
   tipTitle: string | null;
   inner: ReactNode;
 }) {
   return (
     <div
-      className={`das-l2-row ${empty ? 'das-l2-row--empty' : 'das-l2-row--tiered'}${pulled ? ' das-l2-row--pulled-here' : ''}${hidden ? ' das-l2-row--hidden-here' : ''}`}
-      style={{ backgroundColor: bg }}
-      {...(tip ? tipProps(tip, tipTitle) : {})}
+      className={`das-l2-row ${empty ? 'das-l2-row--empty' : 'das-l2-row--tiered'}${pulled ? ' das-l2-row--pulled-here' : ''}${hidden ? ' das-l2-row--hidden-here' : ''}${big ? ` das-l2-row--big${big.first ? ' das-l2-row--big-first' : ''}${big.last ? ' das-l2-row--big-last' : ''}` : ''}`}
+      style={{ backgroundColor: big ? L2_BIG_ROW_BG : bg }}
+      {...(big ? tipProps(big.tip, big.title) : tip ? tipProps(tip, tipTitle) : {})}
     >
       {inner}
-      {gauge > 0 && (
+      {big && <BigRowParts row={big} />}
+      {gauge > 0 && !big && (
         <span
           className="das-l2-gauge"
           style={{ width: `${gauge}%`, backgroundColor: L2_DAS_SIZE_BAR }}
@@ -177,6 +183,7 @@ export function MontageSide({
   const marks = watch && shown ? [...hiddenMarks(watch, side, rows, nowMs), ...pullMarks(watch, side, rows, nowMs)] : [];
   const here = watch && shown ? pulledHere(watch, side, rows, nowMs) : NO_PULLED_HERE;
   const hiddenAt = watch && shown ? hiddenHere(watch, side, rows, nowMs) : NO_PULLED_HERE;
+  const bigAt = watch && shown ? bigRows(watch, side, rows, nowMs) : NO_BIG_ROWS;
   // Nothing at a place makes no element: a book renders about 20 times a second, most places carry no
   // mark, and an empty one per row was most of the ladder's work (#707).
   const lines = (before: number, at: 'edge' | 'first' | 'end' | 'flow') => {
@@ -220,6 +227,7 @@ export function MontageSide({
           </>
         )}
       </div>
+      {watch && <BigBannerAt watch={watch} side={side} nowMs={nowMs} />}
       {shown === 0 && lines(0, 'flow')}
       {shown > 0 && pulls(0, 'head')}
       {withBands(padded, shown, bands, isBid, (level, i) => {
@@ -241,6 +249,7 @@ export function MontageSide({
             gauge={gauge}
             pulledHere={Boolean(pulledAt)}
             hiddenHere={Boolean(hiddenRow)}
+            big={bigAt.get(i)}
             tip={rowTip?.tip ?? null}
             tipTitle={rowTip?.title ?? null}
             inner={inRow(i)}
