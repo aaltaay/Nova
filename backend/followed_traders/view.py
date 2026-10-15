@@ -2,8 +2,9 @@
 
 The price now, the exit and the ticker check come in as callables (``lines.quotes``, ``exits.view`` and
 ``tickers.check`` over ``exits.view`` in the route; fakes in tests), so nothing here touches IBKR or the clock. A trade
-whose ticker may be glued to its price is shown as the check says (``tickers.shown``), and never priced while it is
-not settled. Shapes: architecture/schema/followed-traders.md.
+whose ticker or averages may be glued to a price is shown as the check says (``tickers.shown``), and never priced
+while it is not settled; a position the feed read two ways in turn is one trade (``joined``). Shapes:
+architecture/schema/followed-traders.md.
 """
 from __future__ import annotations
 
@@ -38,12 +39,11 @@ def compose(day: dict[str, Any], *, now: float, prices: dict[str, Any], now_for:
     trader who left the bar has closed every trade (``closed_on_leaving``)."""
     seen = seen or {}
     traders: dict[str, dict[str, list]] = {}
-    for trade in day["trades"]:
-        trade = closed_on_leaving(trade, left_bar(seen, trade["trader"]))
-        row = trade_row(trade, day["date"], now=now, prices=prices, now_for=now_for, exit_for=exit_for,
-                        ticker_for=ticker_for)
+    trades = [closed_on_leaving(t, left_bar(seen, t["trader"])) for t in day["trades"]]
+    for trade, shown, ticker in joined(trades, ticker_for):
+        row = row_of(trade, shown, ticker, day["date"], now=now, prices=prices, now_for=now_for, exit_for=exit_for)
         group = traders.setdefault(trade["trader"], {"open": [], "closed": []})
-        group["open" if trade["status"] == "open" else "closed"].append(row)
+        group["open" if shown["status"] == "open" else "closed"].append(row)
     out = []
     for name, group in traders.items():
         group["open"].sort(key=lambda r: r["entry"]["ts"], reverse=True)
@@ -67,10 +67,10 @@ def records(got: dict[str, Any], *, span: str, now: float, exit_for: ExitFor,
     trades when they left, as on the day."""
     seen_by_date = seen_by_date or {}
     rows: dict[str, list[dict[str, Any]]] = {}
-    for trade in got["trades"]:
-        trade = closed_on_leaving(trade, left_bar(seen_by_date.get(trade["date"]), trade["trader"]))
-        row = trade_row(trade, trade["date"], now=now, prices={"state": "off", "why": None},
-                        now_for=lambda t: now_state("off"), exit_for=exit_for, ticker_for=ticker_for)
+    trades = [closed_on_leaving(t, left_bar(seen_by_date.get(t["date"]), t["trader"])) for t in got["trades"]]
+    for trade, shown, ticker in joined(trades, ticker_for):
+        row = row_of(trade, shown, ticker, trade["date"], now=now, prices={"state": "off", "why": None},
+                     now_for=lambda t: now_state("off"), exit_for=exit_for)
         rows.setdefault(trade["trader"], []).append(row)
     every = [r for group in rows.values() for r in group]
     return {"schema_version": FOLLOWED_SCHEMA_VERSION, "generated_at": round(now, 3),
@@ -136,12 +136,63 @@ def closed_on_leaving(t: dict[str, Any], gone: dict[str, Any] | None) -> dict[st
             "exit_evidence": None, "left_bar": True}
 
 
+def joined(trades: list[dict[str, Any]],
+           ticker_for: TickerFor | None) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, Any] | None]]:
+    """``(trade, shown, ticker)`` for each of the feed's trades in its order: the trade as the feed has it (its id),
+    as Nova shows it (``tickers.shown``) and its check. A position the feed closed and opened again in the same
+    second, for the same trader, side and stock as shown, never left the bar -- the feed read it two ways
+    (2026-10-15: RGTI 12.08 read RGTI 112.08 and RGT 112.08 in turn made one trade ten) -- and is joined back into
+    the trade it was (``_joins``, ``_join``)."""
+    out: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any] | None]] = []
+    for t in trades:
+        ticker = ticker_for(t) if ticker_for else None
+        part = (t, tickers.shown(t, ticker), ticker)
+        at = next((i for i in range(len(out) - 1, -1, -1) if _joins(out[i], part)), None)
+        if at is None:
+            out.append(part)
+        else:
+            out[at] = _join(out[at], part)
+    return out
+
+
+def _joins(first: tuple, then: tuple) -> bool:
+    (a, shown_a, ticker_a), (b, shown_b, ticker_b) = first, then
+    return (a["trader"] == b["trader"] and shown_a["side"] == shown_b["side"]
+            and shown_a["symbol"] == shown_b["symbol"] and tickers.settled(ticker_a) and tickers.settled(ticker_b)
+            and shown_a["status"] == "closed" and not shown_a.get("left_bar") and shown_a["exit_since_ts"] is None
+            and shown_a["exit_ts"] is not None and shown_b["entry_since_ts"] is None and shown_b["entry_known"]
+            and int(shown_a["exit_ts"]) == int(shown_b["entry_ts"]))
+
+
+def _join(first: tuple, then: tuple) -> tuple:
+    """One trade from two parts: the first's id, entry and entry image, the last's exit and exit image, and an add
+    where the average shown changed between them. A corrected ticker of either part names what was read."""
+    (a, shown_a, ticker_a), (_b, shown_b, ticker_b) = first, then
+    adds = [dict(x) for x in shown_a["adds"]]
+    if tickers.price_text(shown_b["entry_price"]) != tickers.price_text(shown_a["price"]):
+        adds.append({"ts": shown_b["entry_ts"], "price": shown_b["entry_price"], "prev_price": shown_a["price"]})
+    adds += [dict(x) for x in shown_b["adds"]]
+    shown = {**shown_a, "price": shown_b["price"], "adds": adds, "status": shown_b["status"],
+             "exit_ts": shown_b["exit_ts"], "exit_since_ts": shown_b["exit_since_ts"],
+             "exit_evidence": shown_b["exit_evidence"], "left_bar": bool(shown_b.get("left_bar"))}
+    fixed = next((t for t in (ticker_a, ticker_b) if t and t["state"] == "corrected"), None)
+    return a, shown, fixed or ticker_a
+
+
 def trade_row(t: dict[str, Any], date: str, *, now: float, prices: dict[str, Any], now_for: NowFor,
               exit_for: ExitFor, ticker_for: TickerFor | None = None) -> dict[str, Any]:
     ticker = ticker_for(t) if ticker_for else None
+    return row_of(t, tickers.shown(t, ticker), ticker, date, now=now, prices=prices, now_for=now_for,
+                  exit_for=exit_for)
+
+
+def row_of(t: dict[str, Any], shown: dict[str, Any], ticker: dict[str, Any] | None, date: str, *, now: float,
+           prices: dict[str, Any], now_for: NowFor, exit_for: ExitFor) -> dict[str, Any]:
+    """A trade's row: ``t`` as the feed has it gives the id, ``shown`` (``tickers.shown``, or a joined trade)
+    everything else."""
     # The ticker as first read keeps the id: neither the feed's correction nor Nova's check makes a trade new.
     row_id = f"{t['trader']}|{t['side']}|{t.get('read_as') or t['symbol']}|{t['entry_ts']:.0f}"
-    t = tickers.shown(t, ticker)
+    t = shown
     settled = tickers.settled(ticker)
     side, avg = t["side"], t["price"]
     row: dict[str, Any] = {

@@ -52,6 +52,9 @@ FOLLOWED_EXITS_SCHEMA_VERSION = 1
 FOLLOWED_TICKER_FIT_PCT = 1.5
 # An exit or entry tape asked for a ticker IBKR does not know reads unavailable with this, at once.
 FOLLOWED_NO_SUCH_TICKER = "IBKR has no such ticker"
+# An add moves a trader's average toward the price they paid, so it never doubles or halves it (the feed's own
+# GLUE_PRICE_FACTOR): an average read this far from the one before it is a glued read put back, or a misread.
+FOLLOWED_AVG_FACTOR = 2.0
 
 # -- starting the feed again when it stops (keeper.py) ---------------------------------------------
 # The Windows scheduled task that starts the feed (e.g. "TraderTV Feed"). Unset: Nova starts nothing.
