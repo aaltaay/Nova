@@ -16,6 +16,8 @@ interface Window {
     youtubeSignIn?: () => Promise<boolean>;
     /** Called when that window closes, true when it reached YouTube signed in; returns the unsubscribe. */
     onYoutubeSignedIn?: (cb: (signedIn: boolean) => void) => () => void;
+    /** Electron IPC: the header mute (sound/) -- every Nova window's audio, the stream's pop-out included. */
+    setSoundMuted?: (muted: boolean) => void;
     /** Electron IPC: stop + start the local FastAPI sidecar, then wait for health. */
     /** `from` / `to`: the backend's revision before and after (null when it does not say). */
     restartApi?: () => Promise<{ ok: boolean; error?: string; from?: string | null; to?: string | null }>;

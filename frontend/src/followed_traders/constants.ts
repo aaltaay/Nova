@@ -135,6 +135,11 @@ export const FT_RECORDS = 'Records';
 export const FT_RECORD_RANGES = { day: 'Day', week: 'Week', all: 'All' } as const;
 export const FT_EVERYONE = 'Everyone';
 export const FT_RECORD_PENDING = 'exits still being read from IBKR';
+/** What they made over the span, P/L per share in % (PlFigure.tsx): their dollars are unknown, the feed shows no size. */
+export const FT_PL_PER_SHARE = 'per share';
+export const FT_PL_WAITING = 'Reading the record…';
+export const FT_PL_OLD_BACKEND = 'This backend sends no P/L for a Week or All span: restart it on the desk’s release.';
+export const FT_PL_NO_SIZE = 'Their dollars are unknown: the feed never shows their size.';
 
 export const FT_ACTIVITY = 'Activity';
 export const FT_ACTIVITY_HINT = 'Newest first · click an event for its Proof';

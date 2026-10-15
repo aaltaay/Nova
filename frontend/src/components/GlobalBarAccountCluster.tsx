@@ -170,6 +170,7 @@ export function GlobalBarAccountCluster({
       {pill && <span className="global-app-bar__sep" aria-hidden />}
       {pill && (
         <GlobalBarMenuAnchor
+          kind="pill"
           open={openMenu === 'pill'}
           cardId={pillMenuId}
           align="end"
@@ -209,6 +210,7 @@ export function GlobalBarAccountCluster({
           />
           <span className="global-app-bar__sep" aria-hidden />
           <GlobalBarMenuAnchor
+            kind="working"
             open={openMenu === 'working'}
             cardId={workingMenuId}
             button={

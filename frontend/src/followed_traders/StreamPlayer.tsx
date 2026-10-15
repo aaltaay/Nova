@@ -6,11 +6,13 @@
  * you're not a bot"): on the desktop, Sign in to YouTube opens Google's own page in a window of its own, and the player
  * reloads when it closes (electron/streamPlayer.mjs). It plays only while the feed is reading the stream live; off air
  * it keeps its size and shows OFFLINE with why in place of the video, so an ended stream's recording never plays as if
- * it were live (operator, 2026-10-13: "dont shrink the display keep it just have icon that says OFFLINE"). Nothing here
- * reads or trades anything.
+ * it were live (operator, 2026-10-13: "dont shrink the display keep it just have icon that says OFFLINE"). The header
+ * mute (sound/) mutes the player and holds its Sound on button, saying why. Nothing here reads or trades anything.
  */
 import { useEffect, useRef, useState } from 'react';
+import { DESK_MUTE_REASON, useDeskMuted } from '../sound';
 import { tipProps } from '../ux/hoverTip';
+import { whyProps } from '../ux/whyTip';
 import {
   FT_LAST_STREAM,
   FT_STREAM_CLOSE,
@@ -59,6 +61,13 @@ export function StreamPlayer({ videoId, title, offAir }: Props) {
     setLoad((n) => n + 1);
   }), []);
   const signIn = window.novaDesktop?.youtubeSignIn;
+  const deskMuted = useDeskMuted();
+  // The header mute silences the stream as it does every Nova sound.
+  useEffect(() => {
+    if (!deskMuted || muted) return;
+    frame.current?.contentWindow?.postMessage(playerCommand('mute'), '*');
+    setMuted(true);
+  }, [deskMuted, muted]);
   const toggleSound = () => {
     frame.current?.contentWindow?.postMessage(playerCommand(muted ? 'unMute' : 'mute'), '*');
     setMuted(!muted);
@@ -87,7 +96,8 @@ export function StreamPlayer({ videoId, title, offAir }: Props) {
           {live && (
             <>
               <button type="button" className="ft-btn ft-btn--overlay" onClick={toggleSound} aria-pressed={!muted}
-                {...tipProps(muted ? FT_STREAM_UNMUTE : FT_STREAM_MUTE)} data-testid="ft-stream-sound">
+                disabled={deskMuted} {...whyProps(deskMuted, DESK_MUTE_REASON)}
+                {...(deskMuted ? {} : tipProps(muted ? FT_STREAM_UNMUTE : FT_STREAM_MUTE))} data-testid="ft-stream-sound">
                 {muted ? `🔇 ${FT_STREAM_MUTED}` : `🔊 ${FT_STREAM_SOUND_ON}`}
               </button>
               <button type="button" className="ft-btn ft-btn--overlay" onClick={reload} aria-label={FT_STREAM_RELOAD}

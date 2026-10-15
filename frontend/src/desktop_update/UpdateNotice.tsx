@@ -1,9 +1,12 @@
 /**
  * The update notice: a strip under the header that says a newer Nova is out and
  * asks -- Update or Later -- then follows the download to Restart to update.
- * Nothing downloads before Update and nothing restarts before Restart to update
- * (electron/updatePolicy.mjs). It never takes keyboard focus, so a hot key
- * pressed while it appears still reaches the desk.
+ * When Nova downloads and installs it by itself (`notice.auto`, operator ask
+ * 2026-10-14; electron/autoInstall.mjs) the hint says so and what it waits for,
+ * and the buttons still do it now; otherwise nothing downloads before Update and
+ * nothing restarts before Restart to update (electron/updatePolicy.mjs). It
+ * never takes keyboard focus, so a hot key pressed while it appears still
+ * reaches the desk.
  */
 import { useState } from 'react';
 import { ReleaseNotesList } from './ReleaseNotesList';
@@ -37,11 +40,21 @@ const HINTS: Partial<Record<Notice['stage'], string>> = {
   ready: 'Restart closes Nova and its engine, installs the update and reopens Nova, usually within a minute; an "Updating Nova" window shows each step.',
 };
 
+/** Nova goes by itself: say when, and what the button does meanwhile. */
+function autoHint(notice: Notice): string | undefined {
+  const { stage, auto } = notice;
+  if (!auto || (stage !== 'available' && stage !== 'ready')) return HINTS[stage];
+  const what = stage === 'ready' ? 'installs' : 'downloads and installs';
+  const when = auto.waiting.length ? ` once clear — waiting for: ${auto.waiting.join('; ')}` : ' now';
+  const now = stage === 'ready' ? 'Restart to update installs it now (about a minute).' : 'Update starts the download now.';
+  return `Nova ${what} it by itself${when}. ${now}`;
+}
+
 export function UpdateNotice({ notice, act }: Props) {
   const [showNotes, setShowNotes] = useState(false);
   const { stage, notes } = notice;
   const listed = notes && !notes.loading ? notes.releases.length : 0;
-  const hint = HINTS[stage];
+  const hint = autoHint(notice);
   return (
     <div className="nova-update-notice" role="status" data-stage={stage} data-testid="update-notice">
       <div className="nova-update-notice__row">

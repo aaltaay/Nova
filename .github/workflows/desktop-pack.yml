@@ -390,6 +390,18 @@ jobs:
           fi
           echo "Released \`$TAG\` (latest: $LATEST)." >> "$GITHUB_STEP_SUMMARY"
 
+      # Operator ask 2026-10-14: GitHub cannot call the desk (no public address), so the desk keeps a
+      # line open to this ntfy.sh topic (RELEASE_PING_TOPIC, frontend/electron/releasePing.mjs) and asks
+      # GitHub as soon as a tag arrives. A hint, never a source: the installer still comes from the
+      # Release. Never fails the job -- the Release is already out, and the desk's own checks find it.
+      - name: Tell open desks the release is out
+        env:
+          TAG: ${{ needs.desktop-pack.outputs.tag }}
+        run: |
+          curl -fsS --max-time 20 -H "Title: Nova $TAG" -d "$TAG" "https://ntfy.sh/nova-aaltaay-desk-releases" > /dev/null \
+            && echo "Pinged open desks about \`$TAG\`." >> "$GITHUB_STEP_SUMMARY" \
+            || echo "::warning::could not ping open desks about $TAG; they find it at their next check"
+
       # This Release carries every commit before it: a `Release held` issue for this tag or an older one is done.
       # Never fails the job -- the Release is already out.
       - name: Close the held-release issues this Release covers

@@ -42,6 +42,11 @@ export type UpdateNotice = {
   retry: number;
   error: string;
   notes: ReleaseNotes | null;
+  /**
+   * Nova downloads or installs this release by itself (operator ask 2026-10-14) once `waiting` is
+   * empty; it lists, in the operator's words, what it waits for. null: it waits for the click.
+   */
+  auto: { waiting: string[] } | null;
 };
 
 export type WhatsNew = {
@@ -161,7 +166,14 @@ function readNotice(value: unknown): UpdateNotice | null {
     retry: count(raw.retry),
     error: str(raw.error),
     notes: readReleaseNotes(raw.notes),
+    auto: readAuto(raw.auto),
   };
+}
+
+function readAuto(value: unknown): UpdateNotice['auto'] {
+  const raw = obj(value);
+  if (!raw || !Array.isArray(raw.waiting)) return null;
+  return { waiting: raw.waiting.filter((line): line is string => typeof line === 'string' && line !== '') };
 }
 
 function readWhatsNew(value: unknown): WhatsNew | null {

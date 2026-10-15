@@ -1,12 +1,14 @@
 /**
  * Nova OS attention framework (P3) — muteable toast strip + short Web Audio cues.
  * Kill/risk visuals must remain visible even when muted (sound only is silenced).
+ * The header mute (sound/) silences the cue too.
  */
 import {
   NOVA_OS_ATTENTION_COPY,
   NOVA_OS_ATTENTION_MUTE_STORAGE_KEY,
   NOVA_OS_ATTENTION_MUTED_DEFAULT,
 } from '../constants';
+import { isDeskMuted } from '../sound';
 
 /** The verdict, staged-ticket, fill and mode-reset kinds went with the Nova OS
  * verdict and the executor (ADR 025); these three still come from the event log. */
@@ -47,7 +49,7 @@ function emit() {
 
 /** One low alarm tone: every remaining kind (kill, risk halt, archive failure) is a warning. */
 function playCue() {
-  if (muted) return;
+  if (muted || isDeskMuted()) return;
   try {
     if (!audioCtx) audioCtx = new AudioContext();
     const ctx = audioCtx;

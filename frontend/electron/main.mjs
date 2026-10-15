@@ -35,6 +35,7 @@ import { createScreenSampler } from './graphicsWatch.mjs';
 import { attachRendererGuards, recoverWindowIfErrorPage } from './rendererGuards.mjs';
 import { applySingleInstance, focusExistingWindow } from './singleInstance.mjs';
 import { skipApiSidecar } from './sidecarSkip.mjs';
+import { wireDeskSound } from './deskSound.mjs';
 import { engineStep, openStartupSplash, STARTUP_STEPS } from './startupSplash.mjs';
 import { isAllowedRendererUrl, loadHostWindow } from './traderWindowLoad.mjs';
 import { openOrFocusTraderWindow } from './traderWindows.mjs';
@@ -265,6 +266,8 @@ ipcMain.handle('nova:openStockView', (_event, url) => {
 
 ipcMain.handle('nova:openStream', (_event, videoId) => openStreamWindow(BrowserWindow, videoId, { icon: APP_ICON }));
 ipcMain.handle('nova:youtubeSignIn', () => signInToYouTube());
+// The header mute: every Nova window's audio, the stream's pop-out included.
+wireDeskSound({ ipcMain, app, BrowserWindow });
 
 ipcMain.handle('nova:openExternal', async (_event, url) => {
   const parsed = new URL(String(url));
@@ -352,8 +355,8 @@ if (
         apiKey: getDesktopApiKey,
       });
       app.on('will-quit', stopFocusSensor);
-      // Packaged Windows only; downloads in the background, installs only on
-      // the operator's "Restart to update" (#347). Never throws.
+      // Packaged Windows only (#347); installs on "Restart to update", or by itself once nothing is
+      // at stake (autoInstall.mjs). Never throws.
       // One version for desk and backend: the backend's checkout follows the desk's release.
       let engineSync = null;
       void startAutoUpdate({
@@ -361,8 +364,7 @@ if (
         envPath: getDesktopEnvPath,
         stopEngine: stopApiSidecarForUpdate,
         restartEngine: restartApiSidecar,
-        prepareInstall: (tag, ui) => (engineSync ? engineSync.prepareForDesk(tag, ui) : Promise.resolve(true)),
-        handOffEngine: () => (engineSync ? engineSync.handOffForInstall() : Promise.resolve()),
+        engine: () => engineSync,
         // ADR 038 (amended): remember the backend's checkout; bring it to this desk's release.
         onBridge: (bridge, logger) => {
           if (!app.isPackaged) return; // a dev desk runs from the checkout it would pull

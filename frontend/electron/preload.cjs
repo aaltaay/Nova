@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld('novaDesktop', {
     ipcRenderer.on('nova:youtube:signedIn', listener);
     return () => ipcRenderer.removeListener('nova:youtube:signedIn', listener);
   },
+  /** The header mute (electron/deskSound.mjs): every Nova window's audio follows it. Channel repeated (sandboxed preload). */
+  setSoundMuted: (muted) => ipcRenderer.send('nova:sound:muted', muted === true),
   /** Kill + restart the local FastAPI sidecar when the UI shows Backend unreachable. */
   restartApi: () => ipcRenderer.invoke('nova:restartApi'),
   /**

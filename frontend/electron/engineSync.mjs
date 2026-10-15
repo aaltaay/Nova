@@ -258,17 +258,26 @@ export function createEngineSync({
   /**
    * Restart to update, before the installer runs: list what a backend restart would interrupt,
    * bring the backend's checkout to `tag`, and leave the new desk the promise to restart it.
-   * False when the operator chose to wait; true to install.
+   * False when the operator chose to wait; true to install. `automatic` (the install Nova makes by
+   * itself, autoInstall.mjs): no dialog -- what is open is read as the backend's own automatic restart
+   * reads it (a recording passes), and anything it would ask about means wait.
    * @param {string} tag the release being installed
-   * @param {{ box: (options: object) => Promise<{response: number}> }} ui
+   * @param {{ box: (options: object) => Promise<{response: number}>, automatic?: boolean }} ui
    */
-  async function prepareForDesk(tag, { box }) {
+  async function prepareForDesk(tag, { box, automatic = false }) {
     handoff = null;
     const home = await look();
     // A bundled engine is replaced by the installer itself; another checkout's engine is not ours.
     if (home && !attached) return true;
     if (!owner) return true;
-    if (home) {
+    if (automatic) {
+      // A backend that does not answer holds it too (autoRestartHolds): never read as nothing open.
+      const holds = await autoHolds();
+      if (holds.length) {
+        logger.info(`automatic update to ${tag} waits: ${holds.join('; ')}`);
+        return false;
+      }
+    } else if (home) {
       const check = restartCheckLines(await fetchJson(`${apiBase}${RESTART_CHECK_PATH}`, RESTART_CHECK_TIMEOUT_MS));
       if (check.safe !== true && (await box(openNowPrompt(tag, check.lines)))?.response !== 0) {
         logger.info(`update to ${tag} put off: something is open on the backend`);
@@ -278,9 +287,18 @@ export function createEngineSync({
     const pulled = await exclusive(() => step('pull', () => syncToRelease(owner, tag, git)));
     if (!pulled.ok) {
       record('failed', `Not updated to ${tag}: ${pulled.reason}`);
+      if (automatic) return false;
       return (await box(cannotFollowPrompt(tag, pulled.reason)))?.response === 1;
     }
     if (pulled.pulled) record('pulled', `Brought ${owner} to ${pulled.to ?? tag} (was ${pulled.from ?? '?'})`);
+    if (automatic) {
+      // The pull can take two minutes: a trade placed meanwhile holds the install until the next look.
+      const late = await autoHolds();
+      if (late.length) {
+        logger.info(`automatic update to ${tag} waits: ${late.join('; ')}`);
+        return false;
+      }
+    }
     if (home && home.release_tag !== tag) {
       writeFollow(userData, { tag, repoRoot: owner, now: now() });
       handoff = { tag };
@@ -433,15 +451,19 @@ export function createEngineSync({
     }),
     syncNow: guard('Updating the backend', syncNow),
     // A failure here must not stop the desk's own update: the operator is told, then asked.
+    // Nobody is asked about an automatic install: it waits for the operator's click.
     prepareForDesk: async (tag, ui) => {
       try {
         return await prepareForDesk(tag, ui);
       } catch (err) {
         running = null;
         record('failed', `Could not prepare the backend for ${tag}: ${message(err)}`);
+        if (ui?.automatic) return false;
         return (await ui.box(cannotFollowPrompt(tag, message(err))))?.response === 1;
       }
     },
+    // What holds an automatic update or backend restart now ([] when nothing does); never throws.
+    autoHolds: () => autoHolds().catch((err) => [`Could not read what is open: ${message(err)}`]),
     // Never holds up the install: a failure here is the new desk's to retry.
     handOffForInstall: guard('Restarting the backend for the install', handOffForInstall),
     followIfAsked: guard('Updating the backend', followIfAsked),

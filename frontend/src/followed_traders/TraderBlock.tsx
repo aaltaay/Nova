@@ -31,6 +31,8 @@ import {
 import { FeedImage } from './FeedImage';
 import { etTime, price } from './format';
 import { Face, RecordChips } from './parts';
+import { PlFigure } from './PlFigure';
+import type { PlSummary } from './plSummary';
 import { newestEvidence, type RosterEntry } from './roster';
 import { ClosedTable, OpenTile } from './TradeTables';
 import type { FollowedBarSlot, FollowedRecord } from './types';
@@ -71,6 +73,9 @@ function Slot({ entry, version, lastRead }: { entry: RosterEntry; version: numbe
 interface Props {
   entry: RosterEntry;
   record: FollowedRecord | null;
+  /** What they made over the span, P/L per share in %; null with `plWhy` while it cannot be said. */
+  pl: PlSummary | null;
+  plWhy: string | null;
   isToday: boolean;
   onAir: boolean;
   /** When the feed last updated its capture: the live slot image is asked again with it. */
@@ -84,7 +89,7 @@ interface Props {
   onProof: (tradeId: string) => void;
 }
 
-export function TraderBlock({ entry, record, isToday, onAir, captureVersion, lastRead, compact, folded, onShowAll, onProof }: Props) {
+export function TraderBlock({ entry, record, pl, plWhy, isToday, onAir, captureVersion, lastRead, compact, folded, onShowAll, onProof }: Props) {
   const { name, trader } = entry;
   const left = trader?.seen?.left_ts ?? null;
   const air = left !== null
@@ -102,6 +107,7 @@ export function TraderBlock({ entry, record, isToday, onAir, captureVersion, las
           {trader ? <RecordChips record={record} testId={`ft-record-${name}`} />
             : <span className="ft-pill-chip ft-muted" data-testid={`ft-record-${name}`}>{isToday ? FT_NO_TRADES_TODAY : FT_NO_TRADES_THAT_DAY}</span>}
         </div>
+        {trader && <PlFigure summary={pl} unscored={record?.unscored ?? 0} why={plWhy} testId={`ft-pl-${name}`} />}
         <Slot entry={entry} version={captureVersion} lastRead={lastRead} />
       </div>
       {trader && (

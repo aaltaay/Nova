@@ -344,7 +344,7 @@ describe('GlobalAppBar', () => {
     onLookup: () => {},
   };
 
-  it('lays the row out to the mockup: brand · session · clock · connection · venue · REC | search | KILL · account · lock · gear', () => {
+  it('lays the row out to the mockup: brand · session · clock · connection · venue · REC | search | KILL · account · mute · lock · gear', () => {
     act(() => {
       root.render(<GlobalAppBar scanner={scannerProps} />);
     });
@@ -389,9 +389,11 @@ describe('GlobalAppBar', () => {
     expect(rightKids[0].getAttribute('aria-label')).toBe(GLOBAL_BAR_EMERGENCY_KILL_LABEL);
     expect(rightKids[0].querySelector('[data-testid="stop-sign-icon"]')).toBeTruthy();
     expect(rightKids[1].dataset.testid).toBe('global-bar-account');
-    expect(rightKids[2].dataset.testid).toBe('global-bar-trade-lock');
-    expect(rightKids[3].querySelector('[data-testid="global-bar-gear"]')).toBeTruthy();
-    expect(rightKids).toHaveLength(4);
+    // The header mute (operator ask 2026-10-14): every Nova sound, left of the padlock.
+    expect(rightKids[2].dataset.testid).toBe('global-bar-mute');
+    expect(rightKids[3].dataset.testid).toBe('global-bar-trade-lock');
+    expect(rightKids[4].querySelector('[data-testid="global-bar-gear"]')).toBeTruthy();
+    expect(rightKids).toHaveLength(5);
   });
 
   it('Enter in the ticker search opens the symbol in the Trader', () => {

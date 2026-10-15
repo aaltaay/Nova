@@ -10,6 +10,7 @@ import {
   setSetupsSoundEnabled,
   subscribeSetupsSound,
 } from './setupsSound';
+import { setDeskMuted } from '../sound';
 
 describe('setupsSound', () => {
   beforeEach(() => {
@@ -38,6 +39,13 @@ describe('setupsSound', () => {
     expect(noteSetupProposal('p1')).toBe('pinged');
     expect(noteSetupProposal('p1')).toBe('duplicate');
     expect(start).toHaveBeenCalledTimes(1);
+  });
+
+  it('stays quiet while the header mute is on', () => {
+    setDeskMuted(true);
+    expect(isSetupsSoundEnabled()).toBe(true);
+    expect(noteSetupProposal('p9')).toBe('muted');
+    setDeskMuted(false);
   });
 
   it('says so when the page has no audio', () => {

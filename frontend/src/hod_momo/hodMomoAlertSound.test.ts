@@ -12,6 +12,7 @@ import {
   setHodMomoAlertSoundEnabled,
 } from './hodMomoAlertSound';
 import type { AlertObject } from './types';
+import { setDeskMuted } from '../sound';
 
 const start = vi.fn();
 const stop = vi.fn();
@@ -86,6 +87,14 @@ describe('hodMomoAlertSound', () => {
     expect(isHodMomoAlertSoundEnabled()).toBe(false);
     expect(noteHodMomoLiveAlert(alert(), 1_000)).toBe('muted');
     expect(start).not.toHaveBeenCalled();
+  });
+
+  it('does not ping while the header mute is on, under its own switch', () => {
+    setDeskMuted(true);
+    expect(isHodMomoAlertSoundEnabled()).toBe(true);
+    expect(noteHodMomoLiveAlert(alert(), 1_000)).toBe('muted');
+    expect(start).not.toHaveBeenCalled();
+    setDeskMuted(false);
   });
 
   it('does not ping a duplicate id or a reconnect snapshot replay', () => {
