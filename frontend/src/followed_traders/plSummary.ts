@@ -6,7 +6,7 @@
  * exit seen only in a window, not read yet, a close the feed never saw) has no one price, so it is left out, never
  * guessed, and an open position has no exit yet. Pure. Schema: architecture/schema/followed-traders.md.
  */
-import { FT_PL_OLD_BACKEND, FT_PL_WAITING } from './constants';
+import { FT_BAD_ANSWER, FT_PL_OLD_BACKEND, FT_PL_WAITING, FT_UNREACHABLE } from './constants';
 import { isRangePl } from './format';
 import type { FollowedRecords, FollowedTrade, FollowedTrader, ScoredPoint } from './types';
 
@@ -79,9 +79,18 @@ export function dayPl(traders: readonly FollowedTrader[]): SpanPl {
   return span(new Map(traders.map((t) => [t.name, scoredPoints(t.closed)])));
 }
 
-/** A Week or All span's, from `/record`; none while it is read, or from a backend that sends no `scored`. */
+function none(why: string): SpanPl {
+  return { of: () => null, everyone: null, why };
+}
+
+/** A Week or All span's, from `/record`; none while it is read, while the feed is down (its own words, never an empty
+ *  span read as no trades), or from a backend that sends no `scored`. */
 export function recordPl(records: FollowedRecords | null, error: string | null): SpanPl {
-  if (!records) return { of: () => null, everyone: null, why: error ?? FT_PL_WAITING };
-  if (records.traders.some((t) => !Array.isArray(t.scored))) return { of: () => null, everyone: null, why: FT_PL_OLD_BACKEND };
+  if (!records) return none(error ?? FT_PL_WAITING);
+  if (records.feed.state !== 'ok') {
+    const said = records.feed.state === 'unreachable' ? FT_UNREACHABLE : FT_BAD_ANSWER;
+    return none(records.feed.error ? `${said} · ${records.feed.error}` : said);
+  }
+  if (records.traders.some((t) => !Array.isArray(t.scored))) return none(FT_PL_OLD_BACKEND);
   return span(new Map(records.traders.map((t) => [t.name, t.scored ?? []])));
 }

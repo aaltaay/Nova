@@ -458,8 +458,8 @@ number and line alone. Up is green and down red, as the P/L is elsewhere on the 
   every trader's trades on one list, so its total is the traders' totals added up. Each `pct` has two decimals, so the
   total does too.
 - **None:** a span with no scored trade -- nothing closed yet, or only unscored trades -- shows a dash, never 0%, and
-  its hover says why. While a Week or All record is read, or from a backend that sends no `scored`, the dash's hover
-  says that.
+  its hover says why. While a Week or All record is read, while the feed is down (`feed.state` off `ok`: its own
+  words, never read as a span with no trades), or from a backend that sends no `scored`, the dash's hover says that.
 - **Hover:** what the number is, its average a trade, that their dollars are unknown because the feed shows no size,
   and what is left out (the unscored count, open positions).
 

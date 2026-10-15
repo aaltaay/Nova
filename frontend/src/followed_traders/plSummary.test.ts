@@ -85,9 +85,15 @@ describe('what a followed trader made, per share in %', () => {
     expect(mergePoints([[{ ts: 3, pct: 1 }], [{ ts: 1, pct: 2 }, { ts: 2, pct: 3 }]]).map((p) => p.ts)).toEqual([1, 2, 3]);
   });
 
-  it('says why a Week or All span has no figure: still read, or a backend that sends none', () => {
+  it('says why a Week or All span has no figure: still read, the feed down, or a backend that sends none', () => {
     expect(recordPl(null, null)).toMatchObject({ everyone: null, why: FT_PL_WAITING });
     expect(recordPl(null, 'HTTP 500')).toMatchObject({ everyone: null, why: 'HTTP 500' });
+    // The feed down answers 200 with no traders: that is no record, never a span with no trades.
+    const down = recordPl({ ...records([]), feed: { state: 'unreachable', error: 'timed out after 3 s' }, overall: null }, null);
+    expect(down).toMatchObject({ everyone: null, why: 'The feed is not answering · timed out after 3 s' });
+    expect(down.of('ALPHA')).toBeNull();
+    expect(recordPl({ ...records([]), feed: { state: 'bad_answer', error: 'trades[0].side' }, overall: null }, null).why)
+      .toBe('The feed answered something Nova cannot read · trades[0].side');
     const old = recordPl(records([{ name: 'ALPHA', record: RECORD }]), null);
     expect(old).toMatchObject({ everyone: null, why: FT_PL_OLD_BACKEND });
     expect(old.of('ALPHA')).toBeNull();
