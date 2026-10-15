@@ -115,23 +115,14 @@ describe('ChartGrid', () => {
     expect(byTitle('10-Second')?.dataset.indicators ?? '').not.toContain('emas');
   });
 
-  it('can hide the 10-Second pane; 1m moves to top-right; Full Day stays bottom', () => {
+  it('always shows the 10-Second pane: no hide switch, and an old saved "hidden" is ignored', () => {
+    localStorage.setItem('nova.chartGrid.show10Sec', JSON.stringify({ schema_version: 1, value: false }));
     act(() => {
       root.render(<ChartGrid symbol="SDOT" />);
     });
-    const toggle = container.querySelector(
-      '[data-testid="chart-grid-optional-toggle"]',
-    ) as HTMLButtonElement;
-    act(() => {
-      toggle.click();
-    });
-    expect(chartTitles(container)).toEqual([
-      '5-Minute',
-      '1-Minute',
-      'Full Day',
-    ]);
-    expect(JSON.parse(localStorage.getItem('nova.chartGrid.show10Sec') ?? '').value).toBe(false);
-    expect(toggle.textContent).toBe('Show 10-Second');
+    expect(chartTitles(container)).toEqual(['5-Minute', '10-Second', 'Full Day', '1-Minute']);
+    expect(container.querySelector('[data-testid="chart-grid-optional-toggle"]')).toBeNull();
+    expect(container.textContent).not.toMatch(/(Show|Hide) 10-Second/);
   });
 
   it('never labels the 10s pane as live tape on a Sim desk', () => {
@@ -238,28 +229,6 @@ describe('ChartGrid', () => {
     expect(clearDrawings).toHaveBeenCalledWith('drawings:SDOT');
     const charts = [...container.querySelectorAll<HTMLElement>('[data-testid="ticker-chart"]')];
     expect(charts.every((el) => el.dataset.activeTool === '')).toBe(true);
-  });
-
-  it('hiding 10-Second while it is focused falls back to the first pane', () => {
-    act(() => {
-      root.render(<ChartGrid symbol="SDOT" />);
-    });
-    const byTitle = (label: string) =>
-      [...container.querySelectorAll<HTMLElement>('[data-testid="ticker-chart"]')].find(
-        (el) => el.textContent === label,
-      ) as HTMLElement;
-    act(() => {
-      byTitle('10-Second').click();
-    });
-    expect(
-      container.querySelector('[data-testid="chart-desk-toolbar-target"]')?.textContent,
-    ).toBe('10-Second');
-    act(() => {
-      (container.querySelector('[data-testid="chart-grid-optional-toggle"]') as HTMLButtonElement).click();
-    });
-    expect(
-      container.querySelector('[data-testid="chart-desk-toolbar-target"]')?.textContent,
-    ).toBe('5-Minute');
   });
 
   it('double-click maximizes one pane inside the chart grid and keeps its indicators', () => {
@@ -375,29 +344,6 @@ describe('ChartGrid', () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     });
     expect(grid().dataset.maximizedPane).toBe('');
-  });
-
-  it('clears maximize when the expanded 10-Second pane is hidden', () => {
-    act(() => {
-      root.render(<ChartGrid symbol="TNON" />);
-    });
-    act(() => {
-      (container.querySelector('[data-testid="chart-grid-cell-10Sec"]') as HTMLElement)
-        .dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
-    });
-    expect(
-      (container.querySelector('[data-testid="chart-grid"]') as HTMLElement).dataset
-        .maximizedPane,
-    ).toBe('10Sec');
-    act(() => {
-      (container.querySelector('[data-testid="chart-grid-optional-toggle"]') as HTMLButtonElement)
-        .click();
-    });
-    expect(
-      (container.querySelector('[data-testid="chart-grid"]') as HTMLElement).dataset
-        .maximizedPane,
-    ).toBe('');
-    expect(container.querySelector('[data-testid="chart-grid-cell-10Sec"]')).toBeNull();
   });
 
   it('header expand does not grid-maximize', () => {

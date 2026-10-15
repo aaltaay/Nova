@@ -13,8 +13,6 @@ import { useResizableHeight } from '../hooks/useResizableHeight';
 import {
   buildChartGridPanels,
   CHART_DEFAULT_INDICATORS,
-  CHART_GRID_OPTIONAL_DEFAULT_ON,
-  CHART_GRID_OPTIONAL_STORAGE_KEY,
   CHART_GRID_PANE_INDICATORS,
   CHART_GRID_REGION_ARIA,
   STOCK_VIEW_CHART_ROW_SPLIT_KEY,
@@ -23,7 +21,6 @@ import {
   STOCK_VIEW_CHART_ROW_SPLIT_PCT,
   type ChartIndicatorId,
 } from '../constants';
-import { parseBoolFlag, readPref, writePref } from '../utils/prefStore';
 import { ensureBarsBatch } from '../chart/barsStore';
 import { clearDrawings, drawingsKey } from '../chart/chartDrawingsStore';
 import { toggleIndicator } from '../chartIndicators';
@@ -44,18 +41,10 @@ interface Props {
   toolbarExtra?: ReactNode;
 }
 
-function readOptionalEnabled(): boolean {
-  return readPref(
-    CHART_GRID_OPTIONAL_STORAGE_KEY,
-    CHART_GRID_OPTIONAL_DEFAULT_ON,
-    parseBoolFlag,
-  );
-}
-
 /** Every pane the grid can show, seeded with its per-timeframe defaults. */
 function defaultIndicatorsByPane(): Record<string, ChartIndicatorId[]> {
   return Object.fromEntries(
-    buildChartGridPanels(true).map((p) => [
+    buildChartGridPanels().map((p) => [
       p.id,
       [...(CHART_GRID_PANE_INDICATORS[p.id] ?? CHART_DEFAULT_INDICATORS)],
     ]),
@@ -75,16 +64,14 @@ export const ChartGrid = memo(function ChartGrid({
     containerRef: gridRef,
   });
   const sim = useIbkrStatus().mode === 'sim';
-  const [showOptional, setShowOptional] = useState(readOptionalEnabled);
   const [activeTool, setActiveTool] = useState<string | null>(null);
   const [focusedPaneId, setFocusedPaneId] = useState<string | null>(null);
   const [indicatorsByPane, setIndicatorsByPane] = useState(defaultIndicatorsByPane);
 
-  const panels = useMemo(() => buildChartGridPanels(showOptional), [showOptional]);
+  const panels = useMemo(() => buildChartGridPanels(), []);
   const panelIds = useMemo(() => panels.map((p) => p.id), [panels]);
   const { maximizedPaneId, onCellDoubleClick, restore } =
     useChartGridMaximize(panelIds, activeTool, setActiveTool);
-  // A hidden 10-Second pane cannot stay the toggle target.
   const focusedPane =
     panels.find((p) => p.id === focusedPaneId) ?? panels[0];
 
@@ -102,14 +89,6 @@ export const ChartGrid = memo(function ChartGrid({
     });
     return () => controller.abort();
   }, [symbol, panels, chartActive]);
-
-  const toggleOptional = () => {
-    setShowOptional((prev) => {
-      const next = !prev;
-      writePref(CHART_GRID_OPTIONAL_STORAGE_KEY, next);
-      return next;
-    });
-  };
 
   const toggleIndicatorFor = useCallback((paneId: string, id: ChartIndicatorId) => {
     setIndicatorsByPane((prev) => ({
@@ -200,12 +179,10 @@ export const ChartGrid = memo(function ChartGrid({
         activeTool={activeTool}
         focusedLabel={focusedPane.label}
         focusedIndicators={indicatorsByPane[focusedPane.id] ?? CHART_DEFAULT_INDICATORS}
-        showOptional={showOptional}
         maximized={Boolean(maximizedPaneId)}
         onToolClick={handleToolClick}
         onClearAll={handleClearAll}
         onIndicatorToggle={(id) => toggleIndicatorFor(focusedPane.id, id)}
-        onToggleOptional={toggleOptional}
         onRestore={restore}
         extra={toolbarExtra}
       />
@@ -219,11 +196,7 @@ export const ChartGrid = memo(function ChartGrid({
           onDoubleClick={reset}
           label="Resize chart rows"
         />
-        <div
-          className={`chart-grid__row chart-grid__row--bottom${
-            bottomPanels.length === 1 ? ' chart-grid__row--single' : ''
-          }`}
-        >
+        <div className="chart-grid__row chart-grid__row--bottom">
           {bottomPanels.map(renderPane)}
         </div>
       </ChartToolbarExtra.Provider>

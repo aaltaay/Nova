@@ -7,17 +7,22 @@
  */
 import { useState } from 'react';
 import { novaFetch } from '../api/novaFetch';
-import { PC_MEMORY_LATER_LABEL, PC_MEMORY_POLL_MS } from './pcHealthConstants';
+import { PC_MEMORY_LATER_LABEL, PC_MEMORY_POLL_MS, PC_MEMORY_READ_TIMEOUT_MS } from './pcHealthConstants';
 import { hiddenByLater, usePcMemoryNotice, type PcMemoryLater } from './memoryNoticeRead';
 import './pcHealth.css';
 
 interface Props {
   pollMs?: number;
   fetchImpl?: typeof fetch;
+  timeoutMs?: number;
 }
 
-export function PcMemoryNotice({ pollMs = PC_MEMORY_POLL_MS, fetchImpl = novaFetch }: Props = {}) {
-  const notice = usePcMemoryNotice(pollMs, fetchImpl);
+export function PcMemoryNotice({
+  pollMs = PC_MEMORY_POLL_MS,
+  fetchImpl = novaFetch,
+  timeoutMs = PC_MEMORY_READ_TIMEOUT_MS,
+}: Props = {}) {
+  const notice = usePcMemoryNotice(pollMs, fetchImpl, timeoutMs);
   const [later, setLater] = useState<PcMemoryLater | null>(null);
   if (!notice || hiddenByLater(notice, later)) return null;
   return (
