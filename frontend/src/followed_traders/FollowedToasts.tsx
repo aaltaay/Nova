@@ -7,6 +7,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { tipProps } from '../ux/hoverTip';
+import { TickerLink } from '../components/TickerLink';
 import { setNavPage } from '../workspace';
 import {
   FOLLOWED_TOAST_MAX,
@@ -45,7 +46,7 @@ function Toast({ toast, onDismiss, onProof }: { toast: TradeToast; onDismiss: ()
       <div className="ft-toast__body">
         <span className="ft-strong">
           {toast.trader} {toast.verb} <span className={`ft-side-text ft-side-text--${toast.side}`}>{toast.side.toUpperCase()}</span>{' '}
-          {toast.symbol}{toast.price !== null ? ` @ ${price(toast.price)}` : ''}
+          <TickerLink symbol={toast.symbol} look="own" />{toast.price !== null ? ` @ ${price(toast.price)}` : ''}
           {toast.check && <span className="ft-note ft-note--warn ft-ticker-mark" {...tipProps(toast.check)}>{FT_TICKER_CHECK}</span>}
         </span>
         <span className="ft-small ft-muted">{etTime(toast.ts)} ET · {FT_TITLE}</span>

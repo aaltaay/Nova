@@ -5,6 +5,7 @@ import { API_BASE_URL, QUOTE_CARD_TITLE } from '../constants';
 import type { TickerDetail } from '../types/ticker';
 import { fmtPct, fmtTimestamp } from '../utils/quoteFormat';
 import { confirmApp } from '../ux';
+import { TickerLink } from '../components/TickerLink';
 import { useWorkspace } from '../workspace';
 import { computeQuoteMetrics } from './quoteMetrics';
 
@@ -83,7 +84,7 @@ export function QuoteHeaderPanel({
           <div className="cq-section-title cq-card-title">{QUOTE_CARD_TITLE}</div>
           <div className="cq-header">
             <div className="cq-symbol-row">
-              <span className="cq-symbol">{detail.symbol}</span>
+              <span className="cq-symbol"><TickerLink symbol={detail.symbol} look="own" /></span>
               {(m.mainChangeAbs != null || m.extChangeAbs != null) && (
                 <span className="cq-trend">{m.isPositive ? '▲' : '▼'}</span>
               )}

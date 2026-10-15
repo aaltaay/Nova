@@ -387,6 +387,21 @@
 
 /* ── Clickable symbol button ─────────────────────────────────────────────── */
 
+/* workspace/TickerLink: every ticker opens the Trader. `.ticker-link` alone is the
+   bare button (a caller's class draws it); `.symbol-btn` is the desk's link look. */
+.ticker-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.ticker-link:hover {
+  text-decoration: underline;
+}
+
 .symbol-btn {
   background: none;
   border: none;

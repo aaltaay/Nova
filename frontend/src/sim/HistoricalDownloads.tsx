@@ -8,6 +8,7 @@ import {
 } from './simConstants';
 import { isMassive, type HistoricalJob } from './historicalTypes';
 import { heldWindow } from './simReplayOffer';
+import { TickerLink } from '../components/TickerLink';
 
 /** "12,345" / "--": a job count the payload did not carry is unknown, never a crash (C7). */
 const countLabel = (value: number | null | undefined): string =>
@@ -30,7 +31,7 @@ function MassiveImport({ job, busy, onPick, onAction }: {
   // A stock-day's import over a cap holds only its focus (ADR 046, 2026-10-09): that is the window to use.
   const held = job.status === 'complete' ? heldWindow(job) : job;
   return <li aria-label={jobLabel(job)} className="sim-download" data-source="massive">
-    <strong>{job.symbol}  -  {job.date}  -  {job.start} - {job.end}</strong>
+    <strong><TickerLink symbol={job.symbol} />  -  {job.date}  -  {job.start} - {job.end}</strong>
     <div role="status" aria-live="polite">{jobSummary(job)}  -  Massive files{job.status === 'complete' ? `: ${importContentsLabel(job)}` : ''}</div>
     {job.capped && <div className="sim-muted">{simMassiveCappedHolds(held.start, held.end, simMassiveCapWords(job.capped))}</div>}
     {running && percent != null && <progress aria-label={`Import progress: ${jobLabel(job)}`} value={percent} max={100} />}
@@ -65,7 +66,7 @@ export function HistoricalDownloads({ jobs, busy, onPick, onAction }: {
     // A failed job starts again from its checkpoint: a retry, not a resume (R28).
     const actionLabel = action === 'pause' ? 'Pause download' : job.status === 'failed' ? 'Retry download' : 'Resume download';
     return <li key={job.id} aria-label={jobLabel(job)} className="sim-download">
-      <strong>{job.symbol}  -  {job.date}  -  {job.start} - {job.end}</strong>
+      <strong><TickerLink symbol={job.symbol} />  -  {job.date}  -  {job.start} - {job.end}</strong>
       <div role="status" aria-live="polite">{jobSummary(job)}  -  {job.kind}: {countLabel(job.count)} {job.kind === 'trades' ? 'prints' : 'candles'}  -  {countLabel(job.pages)} pages</div>
       {percent != null && <progress aria-label={`Download progress: ${jobLabel(job)}`} value={percent} max={100} />}
       <div className="sim-muted">

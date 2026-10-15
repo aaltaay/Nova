@@ -35,6 +35,7 @@ import { etClock, prose } from './botsPageFormat';
 import { allowancePct, px, ruleChips, signedUsd, sparkPoints, usd } from './liveTraderFormat';
 import { LiveTraderSettings } from './LiveTraderSettings';
 import type { LtAsk, LtHost, LtPatch, LtSide } from './liveTraderTypes';
+import { TickerLink } from '../components/TickerLink';
 
 interface Props {
   host: LtHost;
@@ -161,7 +162,7 @@ export function LiveTraderHostCard({ host, sellAllAt, busy, onPatch, onAnswer }:
           <tbody>
             {host.positions.map(p => (
               <tr key={p.id} title={p.note ?? undefined}>
-                <td className="lt-pos__sym">{p.symbol}</td>
+                <td className="lt-pos__sym"><TickerLink symbol={p.symbol} /></td>
                 <td><span className={`lt-tag lt-tag--${p.side}`}>{p.side === 'short' ? 'SHORT' : 'LONG'}</span></td>
                 <td className="lt-mono">{p.qty}</td>
                 <td className="lt-mono">{px(p.avg_cost)}</td>

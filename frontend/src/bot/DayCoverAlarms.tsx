@@ -17,6 +17,7 @@ import { prose } from './botsPageFormat';
 import type { CoverAlarm } from './types';
 import { useBotSession } from './useBotSession';
 import './dayCoverAlarms.css';
+import { TickerLink } from '../components/TickerLink';
 
 /** The alarms this window shows now: every one, less those hidden here until a moment still ahead. */
 export function shownAlarms(alarms: readonly CoverAlarm[], hidden: Readonly<Record<string, number>>, now: number): CoverAlarm[] {
@@ -41,7 +42,7 @@ export function DayCoverAlarms() {
         <div key={a.id} className="day-cover-alarm" data-testid="day-cover-alarm" data-venue={a.venue}
           data-kind={a.kind}>
           <strong className="day-cover-alarm__title">
-            {DAY_COVER_ALARM_TITLE} · {DAY_COVER_ALARM_VENUES[a.venue] ?? a.venue} · {a.symbol} {a.qty} ▼ SHORT
+            {DAY_COVER_ALARM_TITLE} · {DAY_COVER_ALARM_VENUES[a.venue] ?? a.venue} · <TickerLink symbol={a.symbol} /> {a.qty} ▼ SHORT
           </strong>
           <span className="day-cover-alarm__text">{prose(a.text)}</span>
           <button type="button" className="day-cover-alarm__hide" data-testid="day-cover-alarm-hide"
