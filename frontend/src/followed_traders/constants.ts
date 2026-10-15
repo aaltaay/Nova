@@ -148,6 +148,8 @@ export const FT_PL_COLUMN = 'P/L at $1,000';
 export const FT_PL_PER_SHARE_UNIT = '/sh';
 export const FT_PL_STAKE_TIP = 'What $1,000 in this trade would have made: their own average in, the market price when it left '
   + 'their bar out. Under it, the P/L per share and in %.';
+export const FT_PL_STAKE_OPEN_TIP = 'What $1,000 in this position is up or down now: their own average in, IBKR’s last '
+  + 'price now. Under it, the P/L per share and in %.';
 export const FT_PL_WAITING = 'Reading the record…';
 export const FT_PL_OLD_BACKEND = 'This backend sends no P/L for a Week or All span: restart it on the desk’s release.';
 export const FT_PL_NO_SIZE = 'Their dollars are unknown: the feed never shows their size.';

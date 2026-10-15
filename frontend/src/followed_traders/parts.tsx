@@ -6,6 +6,7 @@ import { createContext, useContext } from 'react';
 import { tipProps } from '../ux/hoverTip';
 import {
   FT_PL_PER_SHARE_UNIT,
+  FT_PL_STAKE_OPEN_TIP,
   FT_PL_STAKE_TIP,
   FT_RESULT_WORDS,
   FT_TICKER_CHECK,
@@ -94,7 +95,7 @@ export function PlCell({ trade, inline = false, big = false }: { trade: Followed
   const tone = plTone(trade.pl);
   return (
     <span className={`ft-pl ft-pl--${tone}${inline ? ' ft-pl--inline' : ''}${big ? ' ft-pl--big' : ''}`}
-      {...tipProps(trade.pl ? FT_PL_STAKE_TIP : null)}>
+      {...tipProps(trade.pl ? (trade.status === 'open' ? FT_PL_STAKE_OPEN_TIP : FT_PL_STAKE_TIP) : null)}>
       <span className="ft-mono ft-pl__usd">{plAtStake(trade.pl)}</span>
       {trade.pl && (
         <span className="ft-mono ft-pl__sub">

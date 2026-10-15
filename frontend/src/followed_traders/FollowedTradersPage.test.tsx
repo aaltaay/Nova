@@ -146,7 +146,10 @@ describe('FollowedTradersPage', () => {
     expect(tile.textContent).toContain('OPEN');
     expect(tile.textContent).toContain('2.00 → 2.50');
     expect(tile.textContent).toContain('+0.50');
+    // An open position's dollars are from the price now, a closed trade's from when it left their bar (review).
+    expect(tile.querySelector('.ft-pl')!.getAttribute('data-tip')).toContain('IBKR’s last price now');
     const win = q('ft-row-c1')!;
+    expect(win.querySelector('.ft-pl')!.getAttribute('data-tip')).toContain('when it left their bar');
     expect(win.className).toContain('ft-closed--win');
     expect(win.textContent).toContain('WIN');
     expect(win.textContent).toContain('2.00 → 2.20');
