@@ -53,7 +53,7 @@ export function TavButton({ figures, open, cardId, title, onToggle, onHover }: B
     </button>
   );
   return (
-    <GlobalBarMenuAnchor open={open} cardId={cardId} button={button}>
+    <GlobalBarMenuAnchor kind="tav" open={open} cardId={cardId} button={button}>
       <TavCard figures={figures} />
     </GlobalBarMenuAnchor>
   );
