@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { act } from 'react';
+import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetNavRailStoreForTests, setNavPage } from '../workspace/navRailStore';
@@ -20,7 +20,10 @@ vi.mock('../cryptos', () => ({
   CryptosPage: () => <div data-testid="cryptos-page-stub" />,
 }));
 vi.mock('../followed_traders', () => ({
-  FollowedTradersPage: () => <div data-testid="followed-page-stub" />,
+  FollowedTradersPage: ({ top }: { top?: ReactNode }) => <div data-testid="followed-page-stub">{top}</div>,
+}));
+vi.mock('../bot/BotLiveTradersCard', () => ({
+  BotLiveTradersCard: () => <section data-testid="live-traders-stub" />,
 }));
 
 describe('NavPageHost', () => {
@@ -95,6 +98,11 @@ describe('NavPageHost', () => {
     });
     expect(container.querySelector('[data-testid="followed-page-stub"]')).toBeTruthy();
     expect(container.querySelector('[data-testid="dashboard-stub"]')).toBeNull();
+    // The Live Trader bots' panel rides at its top (ADR 044 amendment, 2026-10-15); it loads on its own.
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[data-testid="followed-page-stub"] [data-testid="live-traders-stub"]')).toBeTruthy();
   });
 
   it('routes the Cryptos page (lazy) from the store', async () => {

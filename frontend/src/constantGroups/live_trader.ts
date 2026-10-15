@@ -1,11 +1,12 @@
 /**
- * The Live Trader bot's cards on the Bots page (ADR 055, mockup v1 approved 2026-10-14): their words and tunables.
+ * The Live Trader bot's panel on the TraderTV LIVE page (ADR 055, mockup v1 approved 2026-10-14): its words and
+ * tunables.
  * Mirrors backend/bot/live_trader/constants_live_trader.py (the defaults are the operator's answers of 2026-10-14;
  * the backend's view also sends its own `defaults` and `bounds`, which win).
  */
 export const LT_PATH = '/bot/live-traders';
 export const LT_ASKS_PATH = '/bot/live-traders/asks';
-/** The cards' poll while the Bots page is open; the asks' toasts poll every window, less often. */
+/** The cards' poll while the TraderTV LIVE page is open; the asks' toasts poll every window, less often. */
 export const LT_POLL_MS = 2_500;
 export const LT_ASKS_POLL_MS = 3_000;
 export const LT_ANCHOR = 'bots-live-traders';
@@ -23,6 +24,10 @@ export const LT_PAPER_CHIP = 'Paper';
 export const LT_LOADING = 'Reading the Live Trader bot…';
 export const LT_FEED_OFF = 'No TraderTV feed is set up on this desk (NOVA_FOLLOW_FEED_URL), so there is no host to copy.';
 export const LT_NO_HOSTS = 'No host has been read on the TraderTV bar today yet.';
+/** A blocker whose control is on the Bots page (the Bot switch, Freeze all orders, the loss breakers) links there. */
+export const LT_BOTS_PAGE_CODES: readonly string[] = ['LT_BOT_OFF', 'LT_FROZEN', 'LT_DAY_LOCK'];
+export const LT_OPEN_BOTS = 'Open the Bots page';
+export const LT_OPEN_BOTS_TIP = 'The Bot switch, Freeze all orders and the loss breakers are on the Bots page.';
 
 export const LT_KEY_LABEL = 'Bot key';
 export const LT_KEY_TIP_ON = 'On: this host\'s bot copies them on Paper while the Bot switch is on. Click to turn it off.';

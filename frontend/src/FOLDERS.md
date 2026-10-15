@@ -25,7 +25,7 @@ the backend packages.
 | `agent_desk/` | app | The desk side of the agent endpoints (ADR 050): the main window takes an agent's show / move by a long poll and runs it with the desk's own steps (venue, Sim day, Trader tab, the window from the Massive files, the playhead), with a notice of what it is doing. |
 | `api/` | shared | HTTP plumbing: the `novaFetch` wrapper that attaches the Nova API key, plus the sensor REST client. |
 | `assets/` | shared | Static images: a hero image and the default Vite / React logos (scaffold leftovers). |
-| `bot/` | feature | The Bots page: level, arm / allowlist, risk and kill-switch cards, proposals inbox, playbook, session polling, and the Live Trader bots' cards and asks (ADR 055). |
+| `bot/` | feature | The Bots page: level, arm / allowlist, risk and kill-switch cards, proposals inbox, playbook, session polling, and the Live Trader bots' panel and asks (ADR 055; the panel is shown on the TraderTV LIVE page, composed in by `pages/NavPageHost.tsx`). |
 | `capture/` | feature | Session Record state on screen: the recording chip, top-edge hairline, stop toast and hold-to-stop button. |
 | `clips/` | feature | Share clips (ADR 039): the red ● Record button and Record menu on a Trader tab, the header's CLIP chips, the clip's frame, toasts, the export dialog and its trim timeline, Records › Video clips, the tab reporter, and the hidden export page (`export_page/`) the desktop app runs. |
 | `chart/` | feature | The ticker chart: chart instance, bars store, drawings, context menu, position overlay, VWAP and session shading, the candle hover card, and the earnings and split marks on daily panes. |
@@ -39,7 +39,7 @@ the backend packages.
 | `earnings/` | feature | The Earnings tab: the earnings calendar with day bands and before-open / after-close lanes. |
 | `electron/` | app | Tests only: Vitest suites for the Electron main-process modules in `frontend/electron/*.mjs`. |
 | `execution_latency/` | feature | The execution latency dashboard: operation / segment timings, order-hop and fill evidence, browser timing samples. |
-| `followed_traders/` | feature | The Followed traders page: a followed traders feed's open positions, closed trades and records per trader, priced with Nova's IBKR data (the price now, the tape at the exit, per-share P/L), shown only when the backend has a feed configured (`NOVA_FOLLOW_FEED_URL`). A placeholder until the operator approves its design. |
+| `followed_traders/` | feature | The Followed traders page: a followed traders feed's open positions, closed trades and records per trader, priced with Nova's IBKR data (the price now, the tape at the exit, per-share P/L), shown only when the backend has a feed configured (`NOVA_FOLLOW_FEED_URL`); named TraderTV LIVE on the desk. Its `top` slot holds the Live Trader bots' panel, which the app passes in (it never imports `bot/`). |
 | `focus_report/` | app | The operator's focus report (ADR 033): each window posts its page, symbol, Windows focus and last input to `POST /sensors/focus`, read back as sensor 19. |
 | `hod_momo/` | feature | The HOD Momo scanner: alert stream, dock and strip, strategy configurator, master gate, blocklist, debug panel, Running Up tab. |
 | `hooks/` | shared | Cross-feature React hooks: scanner data and price stream, ticker stream, news impact, catalysts, alert channels, resizable panels. |

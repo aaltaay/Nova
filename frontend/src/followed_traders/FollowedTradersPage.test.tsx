@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { act } from 'react';
+import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetFeedImagesForTests } from './FeedImage';
@@ -37,7 +37,7 @@ describe('FollowedTradersPage', () => {
   });
 
   async function show(dayAnswer: FollowedDay | (() => Response), extra: Route = () => undefined,
-    onOpenTrader?: (symbol: string) => void) {
+    onOpenTrader?: (symbol: string) => void, top?: ReactNode) {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const url = new URL(String(input), 'http://desk');
       asked.push(url.pathname + url.search);
@@ -51,7 +51,7 @@ describe('FollowedTradersPage', () => {
       return new Response('', { status: 404 });
     }));
     await act(async () => {
-      root.render(<FollowedTradersPage onOpenTrader={onOpenTrader} />);
+      root.render(<FollowedTradersPage onOpenTrader={onOpenTrader} top={top} />);
     });
     await flush();
   }
@@ -119,6 +119,33 @@ describe('FollowedTradersPage', () => {
       prices: null, overall: null, dates: [] }));
     expect(q('ft-capture-pill')!.textContent).toBe('The feed is not answering · timed out after 3 s');
     expect(q('ft-trader-ALPHA')).toBeNull();
+  });
+
+  // Operator, 2026-10-15: the Live Trader bots' panel moves here, "at the very top, before ... he is on air".
+  const panel = <section data-testid="lt-panel-stub">Live Traders · TraderTV</section>;
+
+  it('puts the Live Trader panel at the very top of the left column, above the traders', async () => {
+    await show(day({ capture: { ...day().capture!, traders: ['ALPHA'] } }), undefined, undefined, panel);
+    const top = q('lt-panel-stub')!;
+    const stack = q('ft-stack')!;
+    expect(top.compareDocumentPosition(stack) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(top.compareDocumentPosition(q('ft-trader-ALPHA')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(top.closest('.ft-col')).toBe(stack.closest('.ft-col'));
+    // The stream and the Activity keep the right column.
+    expect(top.closest('.ft-rail')).toBeNull();
+  });
+
+  it('keeps the Live Trader panel when the feed is down: the bot does not wait on the page', async () => {
+    await show(day({ feed: { state: 'unreachable', error: 'timed out after 3 s' }, traders: [], capture: null,
+      prices: null, overall: null, dates: [] }), undefined, undefined, panel);
+    expect(q('ft-capture-pill')!.textContent).toBe('The feed is not answering · timed out after 3 s');
+    expect(q('lt-panel-stub')).not.toBeNull();
+  });
+
+  it('keeps the Live Trader panel when the day cannot be read, and while it loads', async () => {
+    await show(() => new Response('boom', { status: 500 }), undefined, undefined, panel);
+    expect(q('ft-state')!.textContent).toContain('did not answer');
+    expect(q('lt-panel-stub')).not.toBeNull();
   });
 
   it('draws each trader: their card, an OPEN tile per position, closed rows by result, and the activity', async () => {

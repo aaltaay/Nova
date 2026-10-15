@@ -88,3 +88,16 @@ The toasts (`architecture/schema/desk-ops.md`, "Which toasts come"):
 - Each toast is scored: what the price did five minutes later, by 1-minute bars, shown on the Hot list tab with what was held back and why.
 
 Rejected: removing auto stars (they keep the leaders followed, and their join toast is still news); a time-only quiet period with no way through (a setup's next stage is the thing worth knowing); scoring with the toast's own later alerts (they are not a price series).
+
+
+## Amendment, 2026-10-15: the Live Trader bots live on the TraderTV LIVE page
+
+**Decided by:** the operator, 2026-10-15, watching the hosts with the Live Trader bots (ADR 055) on Paper: "I want this to be moved inside Trader TV Live. At the very top, before we start populating Neil, he is on air. I want to see those."
+
+The "Live Traders · TraderTV" panel leaves the Bots page. It sits at the very top of the TraderTV LIVE page, above the hosts' blocks, with the stream and the Activity beside it. Every control, route and poll is unchanged (one card per host: the key, Entry and Exit, the asks, the allowance, today, what it holds, the rules). It shows whatever the page's own read of the day says, because the bot does not wait on that read. The app composes the panel into the page (`pages/NavPageHost.tsx`), so neither feature imports the other.
+
+The Bot switch stays on the Bots page and is still the one master: a host's bot acts only while its key and the Bot switch are on. When the panel's blocker line names a control on the Bots page (the Bot switch off, Freeze all orders, the loss breakers' day lock), it links there. The header's Bot pill, on every view, still opens the Bots page. Turning the Bot switch off while a Live Trader bot holds positions still asks first and names them, on the Bots page.
+
+Decision 1's "one place answers 'will Nova buy'" now has this exception: for the hosts' bots, the answer is on the page that shows the hosts.
+
+Rejected: keeping a one-line pointer to the panel on the Bots page. The operator asked for the panel to be moved, and the header's Bot pill already links the two pages. Also rejected: showing the panel on both pages, which would put one control in two places.

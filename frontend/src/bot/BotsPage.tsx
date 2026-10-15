@@ -1,11 +1,12 @@
 /**
  * The Bots page (ADR 044, approved mockup v8): everything that decides whether Nova trades, long or short, on one page.
  * Top to bottom: "Can Nova buy right now?" in one line for every ticker; the Bot card (the one switch,
- * Freeze all orders, what the bot may risk); the strategies, each Off / Eyes / On with its bot rules; the Live
- * Trader bots, one per TraderTV host (ADR 055, on a desk with that feed); IBKR's Level 2 lines and lending; Tickers today (the hot list and the squares by ticker); then today's
- * numbers, the proposals and the activity. A shell page like Account (nav rail -> NavPageHost). Nothing
- * here places an order except through the bot's own gated path, and nothing that keeps Nova from
- * buying is hidden.
+ * Freeze all orders, what the bot may risk); the strategies, each Off / Eyes / On with its bot rules; IBKR's Level 2
+ * lines and lending; Tickers today (the hot list and the squares by ticker); then today's numbers, the proposals and
+ * the activity. The Live Trader bots (ADR 055) are on the TraderTV LIVE page, above the hosts they copy (ADR 044
+ * amendment, 2026-10-15); the Bot switch here is still their master. A shell page like Account (nav rail ->
+ * NavPageHost). Nothing here places an order except through the bot's own gated path, and nothing that keeps Nova
+ * from buying is hidden.
  */
 import { useCallback } from 'react';
 import {
@@ -17,7 +18,6 @@ import {
 } from '../constantGroups/bots_page';
 import { SAMPLE_BOT_ABSENT } from '../sample_data/sampleCopy';
 import { useSampleRoute } from '../sample_data/useSampleRoute';
-import { useFollowedTradersEnabled } from '../followed_traders';
 import { useTradingPinGate } from '../ibkr';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import { requestScannerTab } from '../workspace';
@@ -27,7 +27,6 @@ import { BotAnswerLine } from './BotAnswerLine';
 import { gateContext } from './botGateWords';
 import { strategySetups } from './botLevels';
 import { BotLinesCard } from './BotLinesCard';
-import { BotLiveTradersCard } from './BotLiveTradersCard';
 import { BotProposalsInbox } from './BotProposalsInbox';
 import { BotBreakerBlock, BotRiskCard } from './BotRiskCard';
 import { BotsPageHeader } from './BotsPageHeader';
@@ -80,8 +79,6 @@ function LiveBotsPage() {
   const { rows: setupRows } = useSetupRows(board?.session_date ?? venue.today, BOTS_SETUP_ROWS_POLL_MS);
   const today = useTriggers(null, session != null);
   const { ensureUnlocked, pinDialog } = useTradingPinGate();
-  // The Live Trader bots (ADR 055) are only on a desk with a TraderTV feed.
-  const liveTraders = useFollowedTradersEnabled();
 
   // A stock's Level 2 opens pinned, so it never replaces the tab holding another line.
   const openPinned = useCallback((symbol: string) => openStockView(symbol, { pin: true }), [openStockView]);
@@ -110,7 +107,6 @@ function LiveBotsPage() {
                 <BotStrategiesCard session={session} busy={busy}
                   onSetupLevel={(id, n) => void patch({ setup_levels: { [id]: n } })}
                   onOpenBoard={openBoard} onOpenSymbol={openPinned} />
-                {liveTraders ? <BotLiveTradersCard /> : null}
                 <BotLinesCard />
                 <BotTickersTable today={today} modes={modes.rows} onModesChanged={modes.refresh}
                   boardRows={board?.rows ?? []} onOpenSymbol={openPinned} />

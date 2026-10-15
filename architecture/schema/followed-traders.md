@@ -362,8 +362,8 @@ whose ticker is checking or unchecked holds none; a corrected one holds the long
 The **TraderTV LIVE** page (named "Following" until 2026-10-14, when the operator asked for it to be renamed "to the
 name of the channel" the feed reads; the rail's label, the page's title and the proof's back link all read the
 channel's name, `FOLLOWED_CHANNEL`), as the operator approved it on 2026-10-13 (mockup "E2", after "i dont want the
-freakin scrolling bar"): it fills the window with no page scrollbar -- a head row, one block per trader stacked top to bottom,
-and a right column with the stream above the Activity. It asks `/day` every `FOLLOWED_REFRESH_MS` while it shows;
+freakin scrolling bar"): it fills the window with no page scrollbar -- a head row, the Live Trader bots' panel, one
+block per trader stacked top to bottom, and a right column with the stream above the Activity. It asks `/day` every `FOLLOWED_REFRESH_MS` while it shows;
 images are fetched with the desk's API key into blob URLs (an `<img src>` cannot carry the key) and the live slot
 images again with each answer.
 
@@ -379,6 +379,13 @@ images again with each answer.
   next; next and future days are disabled with why), on today when it resets ("Resets 4:00 AM ET" from `resets_at`,
   what starts again then in its hover), and Alerts. When open positions
   cannot be priced, a chip says why (`prices.why`).
+- **The Live Trader bots** (operator ask 2026-10-15: "At the very top, before we start populating Neil, he is on
+  air"; ADR 044 amendment): the "Live Traders · TraderTV" panel (`bot.md`, "The Live Trader bot") sits at the very
+  top of the left column, above the traders' blocks, with the stream and the Activity beside it; on a trade's Proof
+  it sits above the Proof. It reads the bot's own routes, not `/day`, so it shows while `/day` loads, fails or
+  says the feed is down; past about half the column's height it scrolls inside, so the traders always show. The
+  app composes it in (`pages/NavPageHost.tsx` passes it as the page's `top`), so `followed_traders/` never imports
+  the bot.
 - **One block per trader**: on today, everyone in `capture.bar` in the bar's order, then anyone else who
   traded that day in the order of their first trade; on a past day, those who traded. The card: photo (the trader's
   `face`, or the bar slot's; the name's first letter without one), name, on air or off air (today only), the record

@@ -4,10 +4,12 @@
  * trade on, and any past day the feed has. It fills the window with no page scrollbar: a head row, one block per
  * trader top to bottom, and the stream above the Activity on the right. Every state is said, never an empty list.
  * The rail shows it only when the backend has a feed configured (enabledStore). A trade's ticker opens the stock in
- * the Trader (`onOpenTrader`). Schema: architecture/schema/followed-traders.md. Nothing here places, stages or cancels
- * an order.
+ * the Trader (`onOpenTrader`). `top` is the Live Trader bots' panel (ADR 055; ADR 044 amendment 2026-10-15), composed
+ * in by the app: at the very top of the left column, above the traders' blocks, and shown whatever the day's read
+ * says, since the bot does not wait on it. Schema: architecture/schema/followed-traders.md. Nothing on this page
+ * itself places, stages or cancels an order; the panel's controls are the bot's own.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityFeed } from './ActivityFeed';
 import { asOf, offAirWhy, onAir, readingBehind } from './capture';
 import {
@@ -37,9 +39,11 @@ import './followed.css';
 
 interface Props {
   onOpenTrader?: (symbol: string) => void;
+  /** Shown at the very top of the left column, above the traders' blocks (the Live Trader bots' panel). */
+  top?: ReactNode;
 }
 
-export function FollowedTradersPage({ onOpenTrader }: Props) {
+export function FollowedTradersPage({ onOpenTrader, top = null }: Props) {
   // null: the feed's own today. Each day mounts its own reader, so two days' answers never mix.
   const [date, setDate] = useState<string | null>(null);
   const [proofId, setProofId] = useState<string | null>(null);
@@ -61,7 +65,7 @@ export function FollowedTradersPage({ onOpenTrader }: Props) {
     <OpenTraderContext.Provider value={onOpenTrader ?? null}>
       <div className="ft-page" data-testid="followed-traders-page">
         <DayView key={date ?? 'today'} date={date} proofId={proofId} range={range} onRange={setRange}
-          onPickDate={pick} onProof={setProofId} />
+          onPickDate={pick} onProof={setProofId} top={top} />
       </div>
     </OpenTraderContext.Provider>
   );
@@ -74,6 +78,7 @@ interface DayViewProps {
   onRange: (r: RecordRange) => void;
   onPickDate: (date: string | null) => void;
   onProof: (id: string | null) => void;
+  top: ReactNode;
 }
 
 function DayView(props: DayViewProps) {
@@ -81,11 +86,18 @@ function DayView(props: DayViewProps) {
   // The last answer ages while no new one comes, so a backend that stops answering never keeps the stream on air.
   const now = useNowMs(FOLLOWED_REFRESH_MS);
   if (off) return <p className="ft-state" data-testid="ft-state">{FT_OFF}</p>;
-  if (!data) return <p className="ft-state" data-testid="ft-state">{error ? `${FT_READ_FAILED} ${error}` : FT_LOADING}</p>;
+  if (!data) {
+    return (
+      <>
+        <p className="ft-state" data-testid="ft-state">{error ? `${FT_READ_FAILED} ${error}` : FT_LOADING}</p>
+        {props.top && <div className="ft-top">{props.top}</div>}
+      </>
+    );
+  }
   return <DayBody day={asOf(data, receivedAt, now)} error={error} {...props} />;
 }
 
-function DayBody({ day, error, proofId, range, onRange, onPickDate, onProof }: DayViewProps & { day: FollowedDay; error: string | null }) {
+function DayBody({ day, error, proofId, range, onRange, onPickDate, onProof, top }: DayViewProps & { day: FollowedDay; error: string | null }) {
   const ok = day.feed.state === 'ok';
   const isToday = day.date !== null && day.date === day.today;
   const records = useFollowedRecord(range, day.date);
@@ -102,6 +114,7 @@ function DayBody({ day, error, proofId, range, onRange, onPickDate, onProof }: D
   const pl = range === 'day' ? dayPl(day.traders) : recordPl(records.data, records.error);
   const proofOwner = proofId ? day.traders.find((t) => [...t.open, ...t.closed].some((x) => x.id === proofId)) : null;
   const proofTrade = proofOwner ? [...proofOwner.open, ...proofOwner.closed].find((x) => x.id === proofId) ?? null : null;
+  const topBox = top ? <div className="ft-top">{top}</div> : null;
   return (
     <>
       <PageHead day={day} onPickDate={onPickDate} pricesWhy={pricesWhy} stream={{ id: videoId, open: streamOpen, live: streamLive,
@@ -110,13 +123,19 @@ function DayBody({ day, error, proofId, range, onRange, onPickDate, onProof }: D
           pl: pl.everyone, plWhy: pl.why, error: records.error, pending: records.data?.pending ?? 0 } : null} />
       {error && <p className="ft-state ft-state--warn">{FT_READ_FAILED} {error} · showing the last answer</p>}
       {ok && proofTrade && proofOwner && day.date ? (
-        <div className="ft-main ft-main--proof">
-          <ProofView trade={proofTrade} face={proofOwner.face} date={day.date} generatedAt={day.generated_at}
-            onBack={() => onProof(null)} />
-        </div>
-      ) : ok && (
+        <>
+          {topBox}
+          <div className="ft-main ft-main--proof">
+            <ProofView trade={proofTrade} face={proofOwner.face} date={day.date} generatedAt={day.generated_at}
+              onBack={() => onProof(null)} />
+          </div>
+        </>
+      ) : ok ? (
         <div className="ft-main">
-          <Board day={day} isToday={isToday} recordFor={recordFor} pl={pl} onProof={onProof} />
+          <div className="ft-col">
+            {topBox}
+            <Board day={day} isToday={isToday} recordFor={recordFor} pl={pl} onProof={onProof} />
+          </div>
           <aside className="ft-rail">
             {videoId && streamOpen && c && (
               <StreamPlayer videoId={videoId} title={c.title} offAir={streamLive ? null : offAirWhy(c)} />
@@ -124,7 +143,7 @@ function DayBody({ day, error, proofId, range, onRange, onPickDate, onProof }: D
             <ActivityFeed traders={day.traders} onProof={onProof} />
           </aside>
         </div>
-      )}
+      ) : topBox}
     </>
   );
 }

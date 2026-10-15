@@ -322,9 +322,12 @@
 .ft-segmented button + button { border-left: 1px solid var(--ft-line); }
 .ft-segmented button.is-on { color: var(--nova-text); background: color-mix(in srgb, var(--ft-accent) 22%, transparent); }
 
-/* The body: the traders' stack beside the stream and the Activity */
+/* The body: the Live Trader bots' panel over the traders' stack, beside the stream and the Activity */
 .ft-main { flex: 1 1 0; min-height: 0; display: flex; gap: 12px; }
 .ft-main--proof { overflow-y: auto; }
+.ft-col { flex: 1 1 0; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+/* The panel keeps its height; past about half the column it scrolls inside, so the traders always show. */
+.ft-top { flex: none; min-height: 0; max-height: 55%; overflow-y: auto; }
 .ft-board { position: relative; flex: 1 1 0; min-width: 0; min-height: 0; display: flex; }
 .ft-stack { flex: 1 1 0; min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 12px; }
 .ft-stack.is-overflowing { overflow-y: auto; }
