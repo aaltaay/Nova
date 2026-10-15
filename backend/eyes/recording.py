@@ -216,9 +216,13 @@ def live_rvol(row: dict | None, ts: float) -> float | None:
     The live pillar is HOD Momo's pace RVOL: today's volume over the average day's volume expected by
     this clock time. A recorded row holds the desk's daily-average RVOL (today's volume over a whole
     average day: 0.99 for VEEA at 07:06 on 2026-10-09, when the live eyes read about 6), so it is
-    divided by the same share of the day. A rebuilt row's time-of-day RVOL is a pace measure already,
-    and so is the after-hours board's: it records a paced RVOL under the daily label
-    (``afterhours_discovery.reprice_afterhours_row_ibkr``), so it is read as it is.
+    divided by the same share of the day. A rebuilt row's time-of-day RVOL is a pace measure already.
+
+    An After Hours row's RVOL, recorded under the daily label too, is one of two things: the Gainers
+    row's daily RVOL copied over (``scanner_runners/afterhours.py``), or a paced RVOL the after-hours
+    runners measured (they never store a raw ratio). The copy only exists while the stock is on Gainers,
+    whose row the same minute holds the same value, so ``pillars_at`` reads any other board's row first;
+    an After Hours row it reads is the paced one, read as it is.
     """
     from constants_hod_momo import HOD_MOMO_RVOL_USE_PACE
     from constants_leaderboard import LEADERBOARD_BOARD_AFTERHOURS, LEADERBOARD_RVOL_BASIS_DAILY
@@ -263,6 +267,7 @@ def pillars_at(symbol: str, date: str, ts: float, *, last_price: float | None, p
     try:
         import sqlite3
 
+        from constants_leaderboard import LEADERBOARD_BOARD_AFTERHOURS
         from leaderboard import store as lb_store
 
         db = lb_store.read_only()
@@ -271,8 +276,9 @@ def pillars_at(symbol: str, date: str, ts: float, *, last_price: float | None, p
                 db.row_factory = sqlite3.Row
                 hit = db.execute(
                     "SELECT * FROM rows WHERE session_date = ? AND symbol = ? AND minute_ts <= ?"
-                    " ORDER BY minute_ts DESC, CASE source WHEN 'recorded' THEN 0 ELSE 1 END LIMIT 1",
-                    (date, symbol.upper(), int(ts))).fetchone()
+                    " ORDER BY minute_ts DESC, CASE source WHEN 'recorded' THEN 0 ELSE 1 END,"
+                    " CASE board WHEN ? THEN 1 ELSE 0 END LIMIT 1",
+                    (date, symbol.upper(), int(ts), LEADERBOARD_BOARD_AFTERHOURS)).fetchone()
                 row = dict(hit) if hit else None
             finally:
                 db.close()

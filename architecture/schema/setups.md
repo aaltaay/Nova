@@ -748,9 +748,11 @@ are the leaderboard's row at or before it, and its `rvol` is the measure the liv
 eyes grade (#966): HOD Momo's pace RVOL -- today's volume over the average day's
 volume expected by that clock time (`market.volume_day_elapsed_fraction`) -- so a
 recorded row's daily-average RVOL is divided by that share of the day at the
-moment read; a rebuilt row's `time_of_day_20` RVOL and the After Hours board's
-(recorded paced under the daily label), pace measures already, are read as they
-are. The leaderboard is opened read-only: a replay never creates or migrates it. The news pillar's catalyst verdict is the one known at that moment
+moment read; a rebuilt row's `time_of_day_20` RVOL, a pace measure already, is
+read as it is. An After Hours row (daily-labelled) holds either the Gainers row's
+daily RVOL copied over or a paced RVOL its runners measured, so any other board's
+row that minute is read first and an After Hours row read is the paced one, as it
+is. The leaderboard is opened read-only: a replay never creates or migrates it. The news pillar's catalyst verdict is the one known at that moment
 from the recorded feed (`catalysts.recorded.verdict_at`), else what the process
 holds in memory -- which knows only what the desk read since it started.
 `GET /api/eyes/journal`
