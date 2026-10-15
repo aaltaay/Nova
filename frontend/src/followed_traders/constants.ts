@@ -3,6 +3,8 @@
  * (FOLLOWED_SCHEMA_VERSION, FOLLOWED_CAPTURE_STALE_SEC). Schema: architecture/schema/followed-traders.md.
  */
 
+import { NAV_RAIL_LABEL_FOLLOWED } from '../constantGroups/nav_rail';
+
 export const FOLLOWED_SCHEMA_VERSION = 1;
 export const FOLLOWED_CONFIG_PATH = '/api/followed-traders/config';
 export const FOLLOWED_DAY_PATH = '/api/followed-traders/day';
@@ -50,10 +52,18 @@ export const FOLLOWED_PROOF_CARD_GAP_PX = 8;
 /** The room kept under the newest Activity events for the "+N earlier" line, in px. */
 export const FT_FOLD_LINE_PX = 34;
 
-export const FT_TITLE = 'Following';
+/** The channel the feed reads names the page, its rail entry and the proof's back link (operator ask 2026-10-14). */
+export const FOLLOWED_CHANNEL = NAV_RAIL_LABEL_FOLLOWED;
+export const FT_TITLE = FOLLOWED_CHANNEL;
 export const FT_LOADING = 'Asking the feed…';
 export const FT_OFF = 'The followed traders feed is not configured on this desk (NOVA_FOLLOW_FEED_URL in the backend’s .env).';
 export const FT_UNREACHABLE = 'The feed is not answering';
+/** The backend's keeper ran the feed's scheduled task (schema: "Starting the feed again when it stops"); the pill of a
+ *  feed not answering or a capture stopped says so for this long after the run. */
+export const FOLLOWED_KEEPER_SHOWN_SEC = 900;
+export const FT_KEEPER_STARTED = 'Nova started';
+export const FT_KEEPER_FAILED = 'Nova could not start';
+export const FT_KEEPER_RAN = 'Nova ran';
 export const FT_BAD_ANSWER = 'The feed answered something Nova cannot read';
 export const FT_READ_FAILED = 'Nova’s backend did not answer:';
 export const FT_NO_TRADES = 'The feed recorded no trades on this day.';
@@ -154,7 +164,7 @@ export const FT_FUTURE_DAY = 'That day has not happened yet';
 export const FT_PREV_MONTH = 'Previous month';
 export const FT_NEXT_MONTH = 'Next month';
 
-export const FT_BACK = 'Following';
+export const FT_BACK = FOLLOWED_CHANNEL;
 export const FT_CHECK_A_READ = 'Check a read';
 export const FT_ENTRY = 'Entry';
 export const FT_EXIT = 'Exit';

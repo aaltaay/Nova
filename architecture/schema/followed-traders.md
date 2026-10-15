@@ -25,6 +25,39 @@ and only a backend that did not answer at all is asked again (every `FOLLOWED_PR
 times). The sample desk asks nothing. The value must be an `http://` or `https://` URL; any other value is treated as
 unset and logged once. It is never sent to the browser.
 
+### Starting the feed again when it stops (operator ask, 2026-10-14)
+
+"What do we do in the situations where the server shuts down? We need an auto-recovery, a part of the backend with
+Nova" -- the feed's server had stopped with a power-off at 18:25 ET and nothing started it until the next morning, so
+the page read "The feed is not answering · could not connect".
+
+- `NOVA_FOLLOW_FEED_TASK` in the desk's `.env` names the Windows scheduled task that starts the feed (on the
+  operator's desk, `TraderTV Feed`). Unset -- the default, and every public install -- Nova starts nothing. It is
+  read only on Windows, and only while `NOVA_FOLLOW_FEED_URL` names this machine (`127.0.0.1`, `localhost`, `::1`);
+  otherwise it is logged once and ignored. Nova never runs the feed's code itself: the task runs outside Nova's
+  processes, so the feed outlives a restart or an update of Nova, and the task's own script starts whatever part of
+  the feed is not running (its server; its capture in the capture's hours) and leaves alone what is.
+- The keeper (`followed_traders/keeper.py`, a background loop started with the backend, page open or not) asks the
+  feed's `/api/day` every `FOLLOWED_KEEPER_TICK_SEC` (30) and runs the task (`schtasks /Run /TN <name>`, no window)
+  when:
+  - the feed has not answered (`unreachable`) for `FOLLOWED_KEEPER_DOWN_SEC` (25): two asks in a row; or
+  - on a weekday from `FOLLOWED_KEEPER_CAPTURE_FROM_ET` (07:56, after the task's own 07:55 start) to
+    `FOLLOWED_KEEPER_CAPTURE_UNTIL_ET` (16:30, when the capture ends its day) ET, the capture's last sign of life --
+    the newer of `status.updated_at` and `status.problem_at` -- is older than `FOLLOWED_KEEPER_STALE_SEC` (600), or
+    there is no status.
+
+  A `bad_answer` is not a stopped feed and starts nothing. At most one run every `FOLLOWED_KEEPER_COOLDOWN_SEC` (600):
+  each start of the capture asks YouTube for the stream, and asks close together get the network a "confirm you're
+  not a bot" wall.
+- `/day` carries `keeper`: `{task, last: {at, why, ok, error} | null, next_at} | null`. `null` when no task is set.
+  `last` is the newest run since the backend started: `at` epoch seconds, `why` Nova's words ("the feed did not
+  answer for 30 s", "the capture has read nothing for 12 min"), `ok` whether Task Scheduler accepted the run, `error`
+  its words when it did not. `next_at` is the earliest the task can run again (epoch seconds), `null` outside a
+  cooldown. A backend without the keeper sends no `keeper`, read as `null`.
+- On the page, the pill of a feed that is not answering, or of a capture that stopped, adds "Nova started TraderTV
+  Feed 21:15:55 ET" when the last run is less than `FOLLOWED_KEEPER_SHOWN_SEC` (900) old, or "Nova could not start
+  TraderTV Feed: <error>"; its hover says why the run was made.
+
 ### The feed Nova reads (the feed's own format; operator confirmed settled, 2026-10-13)
 
 Nova reads two routes of the feed and one folder of images, and nothing else:
@@ -86,7 +119,9 @@ field named; Nova never fills one in. Fields Nova does not read may come and go.
 line). Answers in about the feed's own time (the feed is asked with a
 `FOLLOWED_FEED_TIMEOUT_SEC` timeout); IBKR is never waited on:
 
-`{schema_version: 1, generated_at, feed, date, today, resets_at, dates[], capture, prices, overall, traders[]}`
+`{schema_version: 1, generated_at, feed, date, today, resets_at, dates[], capture, prices, overall, traders[], keeper}`
+
+(`keeper`: "Starting the feed again when it stops" above; sent whatever `feed.state` is.)
 
 - `generated_at`: epoch seconds.
 - `feed`: `{state: "ok" | "unreachable" | "bad_answer", error: string | null}`. `unreachable`: the feed did not
@@ -320,8 +355,10 @@ whose ticker is checking or unchecked holds none; a corrected one holds the long
 
 ### On the desk
 
-The **Following** page, as the operator approved it on 2026-10-13 (mockup "E2", after "i dont want the freakin
-scrolling bar"): it fills the window with no page scrollbar -- a head row, one block per trader stacked top to bottom,
+The **TraderTV LIVE** page (named "Following" until 2026-10-14, when the operator asked for it to be renamed "to the
+name of the channel" the feed reads; the rail's label, the page's title and the proof's back link all read the
+channel's name, `FOLLOWED_CHANNEL`), as the operator approved it on 2026-10-13 (mockup "E2", after "i dont want the
+freakin scrolling bar"): it fills the window with no page scrollbar -- a head row, one block per trader stacked top to bottom,
 and a right column with the stream above the Activity. It asks `/day` every `FOLLOWED_REFRESH_MS` while it shows;
 images are fetched with the desk's API key into blob URLs (an `<img src>` cannot carry the key) and the live slot
 images again with each answer.

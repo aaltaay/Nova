@@ -29,6 +29,7 @@ from bot.first_pullback import runner as _bot_first_pullback
 from bot.loops import breaker_loop, ttl_loop
 from stock_mode import runner as _stock_mode_runner
 from hot_list import auto as _hot_list_auto
+from followed_traders import keeper as _followed_keeper
 from capture import keepalive as _capture_keepalive
 from gc_policy import freeze as _gc_freeze
 from constants import IBKR_DETAIL_STREAM_FRESH_SEC, L2_RETENTION_SWEEP_INTERVAL_SEC
@@ -143,6 +144,9 @@ def spawn_runtime_tasks() -> list[asyncio.Task]:
         # #619: once startup settles, full collections stop walking the process's code and module state.
         ("gc_policy.freeze", _gc_freeze.freeze_after_startup),
     ]
+    # Followed traders: start the feed's scheduled task again when the feed stops (NOVA_FOLLOW_FEED_TASK).
+    if _followed_keeper.task_name():
+        factories.append(("followed_traders.keeper", _followed_keeper.run))
     if maintenance_enabled():
         factories.append(("archive.maintenance", archive_maintenance_loop))
         logger.info("archive.maintenance: enabled (ARCHIVE_MAINTENANCE_ENABLED)")
