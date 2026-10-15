@@ -28,6 +28,7 @@ export const lossLimitNotSoldLine = (qty: string, symbol: string, error: string)
   `${qty}${symbol} was not sold — ${error}`;
 
 export const LOSS_LIMIT_NOT_SOLD_UNKNOWN = 'the close was refused';
+export const LOSS_LIMIT_STILL_SELLING = 'Auto sell is still selling what was opened today: the Orders table shows each close.';
 
 /** The voice (desk-ops.md, "The desk's voice and the header mute"): numbers as whole dollars. */
 export const lossLimitWarnSpoken = (account: string, loss: string, limit: string): string =>

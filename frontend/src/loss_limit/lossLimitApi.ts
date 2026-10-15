@@ -35,6 +35,8 @@ export interface LossLimitAccount {
   tripped_at: number | null;
   tripped_loss: number | null;
   limit_usd: number | null;
+  /** Auto sell's progress: `pending` until its closes answered (a restart resumes it), then `done`. */
+  sell?: 'pending' | 'done' | null;
   sold: LossLimitClose[] | null;
   sell_error: string | null;
   no_new_buys: { text: string; until: number } | null;

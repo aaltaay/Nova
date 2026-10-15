@@ -35,7 +35,10 @@ the wait again. Each line acts once per account per day:
   closed for the shares its own ledger holds, as the Live Trader bot's closes are) -- at market on Paper and Sim, and on Live at market
   in regular hours and a marketable limit outside them (`execution.flatten_exit`), up to
   `LOSS_LIMIT_SELL_RETRIES` (3) tries each. `sold: [{symbol, side, qty, ok, order_id, error}]` and
-  `sell_error` (the first failure, or null) are written beside the trip.
+  `sell_error` (the first failure, or null) are written beside the trip. The trip is saved with `sell:
+  "pending"` before any order goes out and `"done"` once the closes answered: a sale a restart interrupted
+  is taken up again by the next pass that can count the account (it closes only what is still held from
+  today, adding to `sold`), and the desk holds the trip's notice while it reads `pending`.
 
 **No new buys** (`loss_limit/gate.py`). While it is checked and an account tripped today, the execution
 door refuses on that account every order that opens or adds -- a BUY that covers nothing, a SELL that
@@ -60,7 +63,7 @@ writes a fresh file.
 
 **Today's record** -- `loss-limit-state.json` in the operator cache (owner `loss_limit/state.py`):
 `{schema_version: 1, day: "YYYY-MM-DD", accounts: {ACCOUNT: {warned_at, warned_loss, tripped_at,
-tripped_loss, limit_usd, sold, sell_error}}}`, `ACCOUNT` one of `live` / `paper` / `sim`. A file from
+tripped_loss, limit_usd, sell, sold, sell_error}}}` (`sell`: `pending` | `done`, written only with Auto sell), `ACCOUNT` one of `live` / `paper` / `sim`. A file from
 an earlier desk day reads empty. A file Nova cannot read reads empty with `error` set: the watcher
 counts again within a second and trips again if the loss is still past the line. Any change to the
 setting clears today's records on every account.
@@ -70,7 +73,7 @@ setting clears today's records on every account.
 - `GET /api/loss-limit` -> `{schema_version: 1, settings: {limit_usd, warn, no_new_buys, auto_sell,
   set_at, source: "operator" | "default", error}, day, until (epoch of the next 04:00 ET), accounts:
   {ACCOUNT: {name, counted_at, pnl, loss, unknown, stocks: [{symbol, pnl, shares}], held_before:
-  [symbol], costs_unknown, warned_at, warned_loss, tripped_at, tripped_loss, limit_usd, sold,
+  [symbol], costs_unknown, warned_at, warned_loss, tripped_at, tripped_loss, limit_usd, sell, sold,
   sell_error, no_new_buys: {account, tripped_at, loss, limit_usd, until, text} | null}}, error, rules:
   {min_usd, max_usd, warn_fraction, confirm_sec}}`.
 - `PUT /api/loss-limit {limit_usd?, warn?, no_new_buys?, auto_sell?}` saves, clears today's records,

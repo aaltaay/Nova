@@ -142,6 +142,44 @@ def test_auto_sell_off_sells_nothing_and_on_sells_only_todays(monkeypatch):
     assert state.record("paper", NOW + 30)["sold"][0]["symbol"] == "WETO"
 
 
+def test_an_auto_sell_a_restart_interrupted_resumes_once(monkeypatch):
+    """PR #1003 review: the trip is saved as selling before any order goes out; the next pass finishes it."""
+    sold: list = []
+
+    async def fake_sell(account, stocks):
+        sold.append([s["symbol"] for s in stocks])
+        return [{"symbol": s["symbol"], "side": "SELL", "qty": s["shares"], "ok": True, "order_id": 9, "error": None}
+                for s in stocks]
+
+    monkeypatch.setattr("loss_limit.sell.sell_opened_today", fake_sell)
+    settings.update({"limit_usd": 405, "auto_sell": True})
+    # What a restart mid-sale leaves: the trip, marked selling, and nothing sold.
+    state.write("paper", {"tripped_at": NOW, "tripped_loss": 451.03, "limit_usd": 405, "sell": "pending"}, NOW)
+    stocks = [{"symbol": "WETO", "pnl": -451.03, "shares": 10_000.0}]
+    _run("paper", None, NOW + 1, stocks)                                     # an account it cannot count: waits
+    assert sold == []
+    _run("paper", -451.03, NOW + 2, stocks)
+    assert sold == [["WETO"]]
+    row = state.record("paper", NOW + 2)
+    assert row["sell"] == "done" and row["sold"][0]["symbol"] == "WETO" and row["tripped_at"] == NOW
+    _run("paper", -451.03, NOW + 3, stocks)
+    assert sold == [["WETO"]]                                                # done: never sold twice
+
+
+def test_a_trip_with_auto_sell_is_saved_as_selling_before_any_order(monkeypatch):
+    seen: list = []
+
+    async def fake_sell(account, stocks):
+        seen.append(state.record(account, NOW + 10).get("sell"))
+        return []
+
+    monkeypatch.setattr("loss_limit.sell.sell_opened_today", fake_sell)
+    settings.update({"limit_usd": 405, "auto_sell": True})
+    for t in (0, 10):
+        _run("paper", -451.03, NOW + t, [{"symbol": "WETO", "pnl": -451.03, "shares": 10_000.0}])
+    assert seen == ["pending"] and state.record("paper", NOW + 10)["sell"] == "done"
+
+
 def test_a_setting_change_clears_todays_trip_so_buys_open_again():
     settings.update({"limit_usd": 405})
     for t in (0, 10):
