@@ -17,7 +17,6 @@ import {
 } from '../constantGroups/bots_page';
 import { SAMPLE_BOT_ABSENT } from '../sample_data/sampleCopy';
 import { useSampleRoute } from '../sample_data/useSampleRoute';
-import { useFollowedTradersEnabled } from '../followed_traders';
 import { useTradingPinGate } from '../ibkr';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import { requestScannerTab } from '../workspace';
@@ -27,7 +26,6 @@ import { BotAnswerLine } from './BotAnswerLine';
 import { gateContext } from './botGateWords';
 import { strategySetups } from './botLevels';
 import { BotLinesCard } from './BotLinesCard';
-import { BotLiveTradersCard } from './BotLiveTradersCard';
 import { BotProposalsInbox } from './BotProposalsInbox';
 import { BotBreakerBlock, BotRiskCard } from './BotRiskCard';
 import { BotsPageHeader } from './BotsPageHeader';
@@ -81,7 +79,6 @@ function LiveBotsPage() {
   const today = useTriggers(null, session != null);
   const { ensureUnlocked, pinDialog } = useTradingPinGate();
   // The Live Trader bots (ADR 055) are only on a desk with a TraderTV feed.
-  const liveTraders = useFollowedTradersEnabled();
 
   // A stock's Level 2 opens pinned, so it never replaces the tab holding another line.
   const openPinned = useCallback((symbol: string) => openStockView(symbol, { pin: true }), [openStockView]);
@@ -110,7 +107,6 @@ function LiveBotsPage() {
                 <BotStrategiesCard session={session} busy={busy}
                   onSetupLevel={(id, n) => void patch({ setup_levels: { [id]: n } })}
                   onOpenBoard={openBoard} onOpenSymbol={openPinned} />
-                {liveTraders ? <BotLiveTradersCard /> : null}
                 <BotLinesCard />
                 <BotTickersTable today={today} modes={modes.rows} onModesChanged={modes.refresh}
                   boardRows={board?.rows ?? []} onOpenSymbol={openPinned} />

@@ -1,5 +1,6 @@
-/* The Live Trader cards on the Bots page (ADR 055, mockup v1 approved 2026-10-14). Owner: bot/BotLiveTradersCard.tsx.
-   The page's tokens (--bots-*) come from botsPage.css; the atoms (.bots-card, .bots-btn, .bots-mini-seg) are shared. */
+/* The Live Trader cards, at the top of the TraderTV LIVE page (ADR 055, mockup v1 approved 2026-10-14). Owner:
+   bot/BotLiveTradersCard.tsx. The tokens (--bots-*, set on .lt-card) come from botsPage.css; the atoms (.bots-card,
+   .bots-btn, .bots-mini-seg) are shared and imported by the card. */
 
 .lt-card { display: flex; flex-direction: column; gap: 8px; }
 .lt-card__head { align-items: baseline; }

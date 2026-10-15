@@ -43,6 +43,10 @@ The TraderTV LIVE page (`followed-traders.md`) reads the operator's feed program
 
 7. **Paper fills at the quote with no Level 2.** A Paper order on a stock with no Level 2 line filled marketable at the last print, because Paper's bid and ask came only from a depth book. Paper's market now takes IBKR's Level 1 bid and ask when the stock has no book side and its Level 1 line is fresh (`practice.reference.LiveReference`): a buy pays the ask and a sell gets the bid, as on Live. Every Paper order, the operator's own included (operator's choice, 2026-10-14).
 
+## Amendment 2026-10-15: the panel lives on the TraderTV LIVE page
+
+Operator ask, 2026-10-15: "I want this to be moved inside Trader TV Live. At the very top, before we start populating Neil, he is on air. I want to see those." The "Live Traders · TraderTV" panel (the hosts' cards, their keys, Entry/Exit switches, asks and the blocker line) moves off the Bots page to the very top of the TraderTV LIVE page, above the hosts' rows, while that page shows today (a past day or a trade's proof shows no panel: the panel is the bot now). Decision 1's "on the Bots page" is replaced; everything else in it stands -- the venue's Bot switch, on the Bots page, is still the one master, and ON still counts a host key as a strategy On. The component stays owned by `frontend/src/bot/` and reaches the page through the bot barrel, loaded on demand (ADR 005). ADR 044 has the matching amendment.
+
 ## Amendment 2026-10-15: bad reads never buy
 
 The operator, 2026-10-14 ~23:15 ET: "if the script reads like something extremely abnormal. It can flag it as a

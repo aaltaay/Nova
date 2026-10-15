@@ -1,5 +1,6 @@
 /**
- * "Live Traders · TraderTV" on the Bots page (ADR 055, mockup v1 approved 2026-10-14): one card per host the
+ * "Live Traders · TraderTV" at the top of the TraderTV LIVE page (ADR 055 and its 2026-10-15 amendment, mockup v1
+ * approved 2026-10-14; reached through the bot barrel's lazy `LiveTradersPanel`): one card per host the
  * TraderTV bar shows, each a bot of its own -- Paper only, never Live. Above the cards, one line says what stops
  * every host's bot now (the desk off Paper, the Bot switch off, Freeze all orders, the feed), so no blocker is
  * silent. A desk with no TraderTV feed says so in one line.
@@ -21,6 +22,8 @@ import { answerLiveTraderAsk, patchLiveTrader } from './liveTraderApi';
 import { useLiveTraders } from './liveTraderStore';
 import { LiveTraderHostCard } from './LiveTraderHostCard';
 import type { LtAsk, LtPatch } from './liveTraderTypes';
+import './botsPage.css';
+import './botsOnePage.css';
 import './liveTraders.css';
 
 export function BotLiveTradersCard() {

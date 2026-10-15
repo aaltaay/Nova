@@ -561,7 +561,9 @@ side: `backend/bot/replay_desk.py`; of the lanes: `backend/eyes/sim_eyes.py`, `e
 
 One bot per TraderTV host (`followed-traders.md`): it copies the host's bar on **Paper only**, never Live and
 never Sim. Owner `backend/bot/live_trader/` (constants in `bot/live_trader/constants_live_trader.py`); the
-Bots page's "Live Traders · TraderTV" section, under Strategies (`frontend/src/bot/`). On only while
+"Live Traders · TraderTV" panel at the very top of the TraderTV LIVE page, above the hosts' rows, on today's
+board (`frontend/src/bot/`, mounted through the bot barrel; ADR 055 amendment 2026-10-15, moved off the Bots
+page). The Bot switch it obeys stays on the Bots page. On only while
 `NOVA_FOLLOW_FEED_URL` is set: unset, the watcher asks nothing and the view says the feed is off.
 
 **The rules** (ADR 055 decisions 2-4): a position on the host's bar is one step in their direction; an
