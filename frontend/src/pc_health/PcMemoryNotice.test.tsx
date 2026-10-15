@@ -117,6 +117,26 @@ describe('PcMemoryNotice', () => {
     expect((await screen.findByTestId('pc-memory-notice')).getAttribute('data-level')).toBe('low');
   });
 
+  it('gives up a read the backend never answers, keeps the strip, and reads again on time', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(answer(LOW))
+      .mockImplementationOnce((_url: unknown, init?: RequestInit) => new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('The read was given up', 'AbortError')));
+      }))
+      .mockResolvedValue(answer(null));
+    render(<PcMemoryNotice fetchImpl={fetchImpl as unknown as typeof fetch} pollMs={1_000} timeoutMs={300} />);
+    await screen.findByTestId('pc-memory-notice');
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });  // the second read hangs
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    await act(async () => { await vi.advanceTimersByTimeAsync(300); });    // given up: the strip stays
+    expect((fetchImpl.mock.calls[1]?.[1] as RequestInit).signal?.aborted).toBe(true);
+    expect(screen.getByTestId('pc-memory-notice').getAttribute('data-level')).toBe('low');
+    await act(async () => { await vi.advanceTimersByTimeAsync(700); });    // the next read runs on time
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    expect(screen.queryByTestId('pc-memory-notice')).toBeNull();
+  });
+
   it('goes by itself when the backend has no notice any more', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const fetchImpl = fetchSequence(answer(LOW), answer(null));

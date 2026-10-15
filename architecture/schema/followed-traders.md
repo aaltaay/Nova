@@ -449,8 +449,9 @@ images again with each answer.
   day shows its traders, tickers and counts from that day's `/day` before opening it.
 - **Toasts**: while the feed is configured and Alerts are on (a per-window setting kept in local storage, on by
   default), the main desk window asks `/day?quotes=0` every `FOLLOWED_TOAST_POLL_MS` and raises "CHERIF opened LONG JZ
-  @ 1.55" / "added to" / "closed" for a change since its last answer (none for what it found on its first); a toast
-  opens the page on that trade's proof. A trade first seen while its ticker is `checking` is held back until the check
+  @ 1.55" / "added to" / "closed" for a change since its last answer (none for what it found on its first); a click
+  anywhere on a toast opens the TraderTV LIVE page on today (whatever day or proof it was showing), and its Proof opens the page on that trade's proof (operator ask
+  2026-10-15). A trade first seen while its ticker is `checking` is held back until the check
   ends or `FOLLOWED_TOAST_TICKER_WAIT_SEC` (60) has passed since its entry, so its "opened" names the ticker as checked;
   a toast raised while the ticker is still checking or unchecked says "ticker check" beside it. The window remembers
   which trades it held back, so a trade already announced, or already there in its first answer, is never news again

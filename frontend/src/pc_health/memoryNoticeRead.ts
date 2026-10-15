@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL } from '../constants';
-import { PC_MEMORY_NOTICE_PATH, PC_MEMORY_POLL_MS } from './pcHealthConstants';
+import { PC_MEMORY_NOTICE_PATH, PC_MEMORY_POLL_MS, PC_MEMORY_READ_TIMEOUT_MS } from './pcHealthConstants';
 
 export type PcMemoryLevel = 'low' | 'nearly_out' | 'easing';
 
@@ -47,12 +47,16 @@ export function parsePcMemoryNotice(body: unknown): PcMemoryNoticeModel | null {
 }
 
 /**
- * Read the notice now and every `pollMs`, one read at a time (a paging PC can answer slowly). A failed read
- * leaves no notice: the strip shows only what the backend said just now.
+ * Read the notice now and every `pollMs`, one read at a time, each given up after `timeoutMs` so a request a
+ * paging PC stalls never stops the next one (Codex review, PR #996). A read given up keeps what the strip shows:
+ * a backend too slow to answer is what the strip warns about, and blanking it then would hide the warning when it
+ * matters. An answer without a notice, an answer this desk cannot read, or a refused connection (the backend is
+ * down: its own banners say so) leaves no notice -- the strip never shows a guessed one.
  */
 export function usePcMemoryNotice(
   pollMs: number = PC_MEMORY_POLL_MS,
   fetchImpl: typeof fetch = novaFetch,
+  timeoutMs: number = PC_MEMORY_READ_TIMEOUT_MS,
 ): PcMemoryNoticeModel | null {
   const [notice, setNotice] = useState<PcMemoryNoticeModel | null>(null);
   useEffect(() => {
@@ -61,16 +65,19 @@ export function usePcMemoryNotice(
     const pull = async () => {
       if (reading) return;
       reading = true;
+      const gaveUp = new AbortController();
+      const timer = window.setTimeout(() => gaveUp.abort(), timeoutMs);
       let next: PcMemoryNoticeModel | null = null;
       try {
-        const res = await fetchImpl(`${API_BASE_URL}${PC_MEMORY_NOTICE_PATH}`, { cache: 'no-store' });
+        const res = await fetchImpl(`${API_BASE_URL}${PC_MEMORY_NOTICE_PATH}`, { cache: 'no-store', signal: gaveUp.signal });
         if (res.ok) next = parsePcMemoryNotice(await res.json());
       } catch {
-        next = null; // the backend is down or restarting: its own banners say so
+        next = null; // refused, or given up (below): never a guessed notice
       } finally {
+        window.clearTimeout(timer);
         reading = false;
       }
-      if (!cancelled) setNotice(next);
+      if (!cancelled && !gaveUp.signal.aborted) setNotice(next);
     };
     void pull();
     const id = window.setInterval(() => void pull(), pollMs);
@@ -78,6 +85,6 @@ export function usePcMemoryNotice(
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [fetchImpl, pollMs]);
+  }, [fetchImpl, pollMs, timeoutMs]);
   return notice;
 }
