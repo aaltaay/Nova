@@ -80,6 +80,9 @@ test('the Live Trader cards: a host as drawn, the key asks before it sells, an a
   await page.goto('/e2e/fixtures/live-traders.html');
   const section = page.getByTestId('bots-live-traders');
   await expect(section, `browser errors: ${errors.join('; ')}`).toContainText('Live Traders · TraderTV');
+  // Drawn by its own sheet on the TraderTV LIVE page: the card and the chosen Entry are styled without the Bots page's.
+  await expect(section).toHaveCSS('border-radius', '8px');
+  await expect(page.getByTestId('lt-entry-ALPHA-nova')).toHaveCSS('color', 'rgb(255, 255, 255)');
   await expect(page.getByTestId('lt-state-ALPHA')).toHaveText('On air · read 2 s ago');
   await expect(page.getByTestId('lt-mode-ALPHA')).toHaveText('bot enters · bot exits');
   await expect(page.getByTestId('lt-mode-BRAVO')).toHaveText('you approve · bot exits');

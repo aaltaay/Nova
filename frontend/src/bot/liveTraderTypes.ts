@@ -1,5 +1,5 @@
 /**
- * `GET /api/bot/live-traders` and `/asks` (ADR 055) as the Bots page reads them.
+ * `GET /api/bot/live-traders` and `/asks` (ADR 055) as the Live Trader panel reads them.
  * Shapes: architecture/schema/bot.md ("The Live Trader bot").
  */
 export type LtSide = 'you' | 'nova';
