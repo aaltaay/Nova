@@ -7,7 +7,8 @@
  * the Trader (`onOpenTrader`). Schema: architecture/schema/followed-traders.md. Nothing here places, stages or cancels
  * an order.
  */
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { LiveTradersPanel } from '../bot';
 import { ActivityFeed } from './ActivityFeed';
 import { asOf, offAirWhy, onAir, readingBehind } from './capture';
 import {
@@ -109,6 +110,7 @@ function DayBody({ day, error, proofId, range, onRange, onPickDate, onProof }: D
         records={ok ? { range, onRange, overall: range === 'day' ? day.overall : records.data?.overall ?? null,
           pl: pl.everyone, plWhy: pl.why, error: records.error, pending: records.data?.pending ?? 0 } : null} />
       {error && <p className="ft-state ft-state--warn">{FT_READ_FAILED} {error} · showing the last answer</p>}
+      {isToday && !proofTrade ? <Suspense fallback={null}><LiveTradersPanel /></Suspense> : null}
       {ok && proofTrade && proofOwner && day.date ? (
         <div className="ft-main ft-main--proof">
           <ProofView trade={proofTrade} face={proofOwner.face} date={day.date} generatedAt={day.generated_at}

@@ -2,7 +2,7 @@
    hero and the shared atoms. The cards' own styles are in botsPageCards.css.
    Owner: bot/BotsPage.tsx. Tokens from styles/tokens-shell.css. */
 
-.bots-page {
+.bots-page, .lt-card {
   --bots-green: var(--nova-success, #30d158);
   --bots-red: var(--nova-danger, #ff453a);
   --bots-amber: #f5a524;
@@ -10,6 +10,9 @@
   --bots-blue: var(--nova-accent, #0a84ff);
   --bots-hair: color-mix(in srgb, var(--nova-border) 70%, transparent);
   --bots-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+/* The Live Trader panel (.lt-card) carries the tokens itself: it shows on the TraderTV LIVE page. */
+.bots-page {
   display: flex;
   flex-direction: column;
   flex: 1 1 0;
