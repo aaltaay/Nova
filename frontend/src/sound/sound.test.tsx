@@ -104,6 +104,19 @@ describe('the desk voice', () => {
     expect(synth.cancel).toHaveBeenCalledTimes(1);
   });
 
+  it('a cancelled sentence that reports late never shortens the new queue', () => {
+    const { synth, said } = fakeSpeech();
+    for (let i = 0; i < DESK_VOICE_MAX_QUEUED; i += 1) speakDesk(`old ${i}`);
+    speakDesk('newest'); // a full queue: the old sentences are cancelled
+    expect(synth.cancel).toHaveBeenCalledTimes(1);
+    // Chromium reports each cancelled sentence after the cancel returns.
+    for (let i = 0; i < DESK_VOICE_MAX_QUEUED; i += 1) said[i].onerror?.({ error: 'canceled' });
+    for (let i = 1; i < DESK_VOICE_MAX_QUEUED; i += 1) speakDesk(`new ${i}`);
+    expect(synth.cancel).toHaveBeenCalledTimes(1); // 'newest' + 3 = a full queue, not yet over it
+    speakDesk('one more');
+    expect(synth.cancel).toHaveBeenCalledTimes(2);
+  });
+
   it('keeps why it could not speak, and clears it when a sentence ends', () => {
     const { said } = fakeSpeech();
     speakDesk('Order rejected.');
