@@ -1,13 +1,15 @@
 /**
  * What left the book, drawn on the Level 2 ladder (ADR 033 amendment, 2026-09-29): each side's line of
  * the last minute above the book, and the marks between its rows -- what left the book, and since
- * 2026-09-30 the hidden sellers and buyers (bookWatchHidden.ts). The verdicts are the backend book
- * watcher's (bookWatch.ts reads them); every piece explains itself on hover.
+ * 2026-09-30 the hidden sellers and buyers (bookWatchHidden.ts), and the big sellers and buyers' banner and
+ * block (bookWatchBig.ts, #984). The verdicts are the backend book watcher's (bookWatch.ts reads them); every
+ * piece explains itself on hover.
  */
 import { useEffect, useState } from 'react';
 import { L2_PULLS_NOT_WATCHED_LABEL, L2_PULL_MARK_TICK_MS } from '../constants';
 import { tipProps } from '../ux';
-import { bookWatchBusy, pullsLine, type BookWatchState, type PullMark } from './bookWatch';
+import { bookWatchBusy, pullsLine, type BookSide, type BookWatchState, type PullMark } from './bookWatch';
+import { bigBanner, type BigRow } from './bookWatchBig';
 
 /**
  * The clock the marks age by: now, redrawn every L2_PULL_MARK_TICK_MS while a mark or tag is still due
@@ -79,5 +81,45 @@ export function PullMarksAt({ marks, at }: { marks: readonly PullMark[]; at: 'he
         </span>
       ))}
     </div>
+  );
+}
+
+/**
+ * A big seller or buyer over its side's column head (#984), taking no height: the nearest that holds -- its
+ * size, share of the float and seconds of lit volume -- else how the newest ended, fading out.
+ */
+export function BigBannerAt({ watch, side, nowMs }: { watch: BookWatchState; side: BookSide; nowMs: number }) {
+  const banner = bigBanner(watch, side, nowMs);
+  if (!banner) return null;
+  return (
+    <div className="das-l2-bigbanner" style={{ opacity: banner.opacity }}>
+      <span
+        className={`das-l2-bigbanner__chip das-l2-bigbanner__chip--${banner.kind}`}
+        data-testid={`l2-big-${side}`}
+        role="status"
+        {...tipProps(banner.tip, banner.title)}
+      >
+        {banner.parts.map((part, i) => (
+          <span key={`${part.key}-${i}`} className={`das-l2-bigbanner__part das-l2-bigbanner__part--${part.key}`}>
+            {part.sep}
+            {part.text}
+          </span>
+        ))}
+      </span>
+    </div>
+  );
+}
+
+/** Inside a row of the block: the tag over the venue column of its top edge, and what traded there so far. */
+export function BigRowParts({ row }: { row: BigRow }) {
+  return (
+    <>
+      {row.tag && <span className="das-l2-bigtag" data-testid="l2-big-tag">{row.tag}</span>}
+      {row.takenPct !== null && (
+        <span className="das-l2-bigbar" aria-hidden="true">
+          <span style={{ width: `${row.takenPct}%` }} />
+        </span>
+      )}
+    </>
   );
 }

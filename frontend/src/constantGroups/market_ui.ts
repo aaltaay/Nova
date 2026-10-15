@@ -168,6 +168,19 @@ export const L2_HIDDEN_READ_SELLER =
   "In Nova's recordings, a minute after one the price was past the offer 37% of the time, against 46% after an offer that showed its size.";
 export const L2_HIDDEN_READ_BUYER = "In Nova's recordings a hidden buyer made no such difference to where the price went.";
 
+// ── Level 2: big sellers and buyers (the book watcher's big_seller.py, #846; on the ladder #984) ──
+/** The rows a big seller or buyer holds turn into a dark block with white digits and a white frame: none of the
+ * eight price-tier colours is black or white (orange is one), and amber already means pulled. */
+export const L2_BIG_ROW_BG = '#0b0b0b';
+/** An ended one stays in the column-head banner this long (mirrors BOOK_WATCH_BIG_SHOW_ENDED_SEC), fading over
+ * the last L2_BIG_FADE_MS. */
+export const L2_BIG_SHOW_ENDED_MS = 30_000;
+export const L2_BIG_FADE_MS = 10_000;
+/** "back · 2nd in 5 min": the minutes the watcher looks back for a pull at the same price (BOOK_WATCH_BIG_BACK_SEC). */
+export const L2_BIG_BACK_MIN = 5;
+export const L2_BIG_NOTE =
+  'Resting size much larger than the book around it, at or just past the price: one order or several at one price look the same here. A description of the book, shown, never acted on.';
+
 // ── Level 2: a hidden Trader tab lends its line (ADR 044 decision 6, backend line_lending/) ──
 /** Who holds each Level 2 line, and the loans. */
 export const L2_DEPTH_LINES_PATH = '/api/ibkr/depth/lines';

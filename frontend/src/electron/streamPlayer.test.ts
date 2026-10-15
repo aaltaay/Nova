@@ -1,12 +1,14 @@
 /**
- * The followed traders' stream on the desktop: a Referer only on YouTube's player hosts, never a replaced one, and a
- * Pop out window only for an 11-character video id.
+ * The followed traders' stream on the desktop: a Referer only on YouTube's player hosts, never a replaced one, a
+ * Pop out window only for an 11-character video id, the embed that carries the sign-in, and a sign-in window that
+ * closes once the session is signed in to YouTube.
  */
 import { describe, expect, it, vi } from 'vitest';
 import {
   STREAM_REFERER,
   YOUTUBE_SIGN_IN_URL,
   attachYouTubeReferer,
+  isSignedInToYouTube,
   isStreamVideoId,
   isYouTubeSignInUrl,
   openStreamWindow,
@@ -54,28 +56,66 @@ describe('stream player', () => {
     expect(win.webContents.setWindowOpenHandler.mock.calls[0][0]()).toEqual({ action: 'deny' });
   });
 
-  it('sends the player’s sign-in popup to Google’s page in a window of its own, and says when it is done', () => {
-    expect(isYouTubeSignInUrl('https://accounts.google.com/ServiceLogin?service=youtube')).toBe(true);
-    expect(isYouTubeSignInUrl('https://www.youtube.com/signin?action_handle_signin=true')).toBe(true);
-    expect(isYouTubeSignInUrl('https://www.youtube.com/watch?v=R5YIugCJar0')).toBe(false);
-    expect(isYouTubeSignInUrl('https://accounts.google.com.evil.example/x')).toBe(false);
+  it('plays YouTube’s ordinary embed, the one that carries the desk’s YouTube sign-in', () => {
+    expect(streamEmbedUrl('R5YIugCJar0')).toBe('https://www.youtube.com/embed/R5YIugCJar0?autoplay=1&playsinline=1&rel=0');
+  });
+
+  it('reads the sign-in from the session’s YouTube login cookie', async () => {
+    const session = (names: string[]) => ({ cookies: { get: vi.fn(async () => names.map((name) => ({ name }))) } });
+    expect(await isSignedInToYouTube(session(['VISITOR_INFO1_LIVE', 'LOGIN_INFO']))).toBe(true);
+    expect(await isSignedInToYouTube(session(['__Secure-3PSID']))).toBe(true);
+    expect(await isSignedInToYouTube(session(['VISITOR_INFO1_LIVE', 'YSC']))).toBe(false);
+    const broken = { cookies: { get: vi.fn(async () => { throw new Error('locked'); }) } };
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    expect(await isSignedInToYouTube(broken)).toBe(false);
+    warn.mockRestore();
+  });
+
+  function signInHarness(cookieNames: string[]) {
     const handlers: Record<string, (...a: unknown[]) => void> = {};
     const nav: Record<string, (...a: unknown[]) => void> = {};
+    const jar = { names: cookieNames };
+    let destroyed = false;
     const win = {
-      isDestroyed: () => false, focus: vi.fn(), close: vi.fn(() => handlers.closed()),
+      isDestroyed: () => destroyed, focus: vi.fn(),
+      close: vi.fn(() => { destroyed = true; handlers.closed(); }),
       loadURL: vi.fn(async () => undefined), on: (ev: string, fn: () => void) => { handlers[ev] = fn; },
-      webContents: { setWindowOpenHandler: vi.fn(), on: (ev: string, fn: () => void) => { nav[ev] = fn; } },
+      webContents: {
+        setWindowOpenHandler: vi.fn(), on: (ev: string, fn: () => void) => { nav[ev] = fn; },
+        session: { cookies: { get: vi.fn(async () => jar.names.map((name) => ({ name }))) } },
+      },
     };
     const BrowserWindow = vi.fn(function BrowserWindow() { return win; });
     const onDone = vi.fn();
     openYouTubeSignIn(BrowserWindow, { onDone });
+    return { win, nav, jar, onDone, BrowserWindow };
+  }
+
+  it('sends the player’s sign-in popup to Google’s page in a window of its own, and says when it is done', async () => {
+    expect(isYouTubeSignInUrl('https://accounts.google.com/ServiceLogin?service=youtube')).toBe(true);
+    expect(isYouTubeSignInUrl('https://www.youtube.com/signin?action_handle_signin=true')).toBe(true);
+    expect(isYouTubeSignInUrl('https://www.youtube.com/watch?v=R5YIugCJar0')).toBe(false);
+    expect(isYouTubeSignInUrl('https://accounts.google.com.evil.example/x')).toBe(false);
+    const { win, nav, jar, onDone } = signInHarness([]);
     expect(win.loadURL).toHaveBeenCalledWith(YOUTUBE_SIGN_IN_URL);
     const blocked = { preventDefault: vi.fn() };
     nav['will-navigate'](blocked, 'https://evil.example/phish');
     expect(blocked.preventDefault).toHaveBeenCalled();
     nav['did-navigate']({}, 'https://accounts.google.com/v3/signin/identifier');
+    // On YouTube but not signed in yet (the operator went back): the window stays.
     nav['did-navigate']({}, 'https://www.youtube.com/');
-    expect(win.close).toHaveBeenCalled();
+    await vi.waitFor(() => expect(win.webContents.session.cookies.get).toHaveBeenCalled());
+    expect(win.close).not.toHaveBeenCalled();
+    jar.names = ['LOGIN_INFO'];
+    nav['did-navigate']({}, 'https://www.youtube.com/');
+    await vi.waitFor(() => expect(win.close).toHaveBeenCalled());
+    expect(onDone).toHaveBeenCalledWith(true);
+  });
+
+  it('closes at once for a desk already signed in, which Google sends straight to YouTube', async () => {
+    const { win, nav, onDone } = signInHarness(['SID', 'LOGIN_INFO']);
+    nav['did-navigate']({}, 'https://www.youtube.com/');
+    await vi.waitFor(() => expect(win.close).toHaveBeenCalled());
     expect(onDone).toHaveBeenCalledWith(true);
   });
 });

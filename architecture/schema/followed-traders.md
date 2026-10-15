@@ -406,7 +406,7 @@ images again with each answer.
   earlier closed trades", which opens them all over the stack; open tiles never shrink or fold. A window too small
   even for that scrolls the stack rather than hide a trade.
 - **The stream**, above the Activity: the feed's video (`capture.video_id`) in an embedded YouTube player
-  (`youtube-nocookie.com`, muted to start), LIVE, mute / unmute, Pop out (a small window of its own on the desktop, a
+  (`www.youtube.com/embed`, muted to start), LIVE, mute / unmute, Pop out (a small window of its own on the desktop, a
   browser tab elsewhere), close, and Open on YouTube (the system browser). It plays **only while the stream is on
   air**: the capture live and read within `FOLLOWED_CAPTURE_STALE_SEC`, its `age_sec` advanced by the time since
   the answer arrived so a backend that stops answering never keeps it on air (amendment, operator 2026-10-13: "if we're on
@@ -419,7 +419,12 @@ images again with each answer.
   stream. Its place shows while the feed names a stream; closed,
   it stays closed in that window (local storage, a per-window convenience) until Watch live. A page loaded from a file (the installed desk) sends YouTube no Referer and YouTube refuses such an
   embed, so the desktop app names Nova's site as the Referer on YouTube's player requests only
-  (`frontend/electron/streamPlayer.mjs`).
+  (`frontend/electron/streamPlayer.mjs`). YouTube asks the desk's network to sign in before it plays; on the desktop,
+  Sign in to YouTube opens Google's own page in a window of its own on the desk's persistent session, which closes as
+  soon as it is on YouTube signed in (the session's YouTube login cookie -- a desk already signed in closes it at once)
+  and reloads the players. The player is YouTube's ordinary embed, not `youtube-nocookie.com`: the privacy-enhanced
+  one never carries that sign-in, so it asked again however often the operator signed in (operator report,
+  2026-10-15). The sign-in survives restarts until Google ends it.
 - **Activity**, under the stream, newest first, one line per event built from the day's trades: time, photo, opened
   (or holding, already open when capture started), added to (the average before and after), closed (held). No
   screenshots: clicking an event opens its stock in the Trader (operator, 2026-10-13); a desk with no Trader to open

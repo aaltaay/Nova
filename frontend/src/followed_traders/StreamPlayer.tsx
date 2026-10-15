@@ -1,6 +1,6 @@
 /**
  * The stream the feed reads, playing above the Activity (operator, 2026-10-13: "have a shortcut button to open that
- * channel ... or maybe inside Nova itself"). YouTube's privacy-enhanced player, muted to start; mute / unmute talks to
+ * channel ... or maybe inside Nova itself"). YouTube's embedded player, muted to start; mute / unmute talks to
  * it over YouTube's IFrame API. Pop out opens it in a window of its own, Open on YouTube in the browser, and close
  * hides it for this window until Watch live. YouTube asks the desk's network to sign in before it plays ("confirm
  * you're not a bot"): on the desktop, Sign in to YouTube opens Google's own page in a window of its own, and the player

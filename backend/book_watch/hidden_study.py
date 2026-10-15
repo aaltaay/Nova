@@ -26,7 +26,7 @@ import bisect
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 from book_watch.book import aggregate, lit_print
 from book_watch.constants_book_watch import (
@@ -75,8 +75,10 @@ class Recorded:
         return self.depth_sec / 3600.0
 
 
-def read(directory: Path, *, spans: list[tuple[float, float]] | None = None, num_rows: int = 10) -> Recorded:
-    """Run the watcher over one recording directory with every stretch traced."""
+def read(directory: Path, *, spans: list[tuple[float, float]] | None = None, num_rows: int = 10,
+         on_events: Callable[[list[dict[str, Any]]], None] | None = None) -> Recorded:
+    """Run the watcher over one recording directory with every stretch traced. ``on_events`` hears every event
+    the watcher raises on the way (the big-seller study keeps its ``big`` events)."""
     directory = Path(directory)
     history: list[Stretch] = []
     watch = SymbolWatch(directory.name.upper(), num_rows=num_rows, hidden=_TRACE_ONLY, hidden_history=history)
@@ -85,7 +87,9 @@ def read(directory: Path, *, spans: list[tuple[float, float]] | None = None, num
     for ts, _order, kind, row in merged_rows(directory):
         first = ts if first is None else first
         last = ts
-        feed(watch, kind, ts, row)
+        events = feed(watch, kind, ts, row)
+        if on_events is not None and events:
+            on_events(events)
         if kind == "book":
             rec.books += 1
             if last_book is not None:
@@ -108,7 +112,9 @@ def read(directory: Path, *, spans: list[tuple[float, float]] | None = None, num
         lo, hi = rec.second_range.get(sec, (price, price))
         rec.second_range[sec] = (min(lo, price), max(hi, price))
         rec.second_prints.setdefault(sec, []).append((ts, price))
-    watch.flush()
+    events = watch.flush()
+    if on_events is not None and events:
+        on_events(events)
     rec.first_ts, rec.last_ts = first, last
     rec.spans = spans if spans is not None else ([(first, last)] if first is not None else [])
     return rec
