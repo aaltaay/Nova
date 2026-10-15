@@ -23,6 +23,7 @@ from constants_diagnostics import (
 )
 from constants_perf import PERF_MEMORY_CRITICAL_PCT, PERF_MEMORY_PRESSURE_PCT, PERF_MEMORY_STALE_SEC
 from diagnostics.rows import row
+from perf.memory_notice import biggest_view, biggest_words
 from perf.memory_watch import LEAK_LINES, PART_WORDS, gb, nova_words, others_words, pressure_pct
 
 ROW_ID = "pc_memory"
@@ -72,10 +73,13 @@ def memory_rows(*, status: dict[str, Any], now: float | None = None) -> list[dic
     share = round(100 * read["nova"]["total_mb"] / pc["commit_used_mb"]) if pc.get("commit_used_mb") else 0
     who = f"{nova}, {share}% of it; other programs {gb(read['others_total_mb'])}"
     biggest = f"The biggest others: {rest}." if rest else "No other program could be read."
+    if read.get("biggest"):                         # readings from before 2026-10-15 have none
+        biggest += " " + biggest_words(biggest_view(read, t), None)
     if pct >= PERF_MEMORY_CRITICAL_PCT:
         return [row(**base, state=DIAG_STATE_FAIL, detail=f"{used}: nearly out. {who}",
-                    cause=("When the commit charge reaches its limit, any program's next allocation fails -- "
-                           "the API's, IB Gateway's and the desk's included."),
+                    cause=("With RAM this full Windows pages and every program slows (2026-10-15: the TraderTV "
+                           "page went blank); when the commit charge reaches its limit, any program's next "
+                           "allocation fails -- the API's, IB Gateway's and the desk's included."),
                     fix=f"{biggest} Close the biggest now (Task Manager > Details, by PID).")]
     if pct >= PERF_MEMORY_PRESSURE_PCT:
         nova_most = share >= 50
