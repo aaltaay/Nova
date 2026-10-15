@@ -84,9 +84,15 @@ def closes(snap: dict[str, Any], answer: dict[str, Any], book: dict[str, dict[st
         kind, words, ts = found
         bar = flags.get("bar") or {}
         if kind in ("close", "lost") and pos["row_id"] in bar.get("held", {}):
-            out["waits"][pos["id"]] = {"symbol": pos["symbol"], "code": LT_BLANK_BAR,
-                                       "text": bar["held"][pos["row_id"]]}
-            continue                                  # a whole bar blank: the sell waits for it to come back
+            # A whole bar blank: the sell waits for it to come back. Said here, after every exit that never waits
+            # (the operator's, the clock's, off air) has had its say -- never for a sell already sent.
+            why = bar["held"][pos["row_id"]]
+            out["waits"][pos["id"]] = {"symbol": pos["symbol"], "code": LT_BLANK_BAR, "text": why}
+            out["actions"].append({"kind": "note", "host": pos["host"], "pos_id": pos["id"], "row_id": pos["row_id"],
+                                   "symbol": pos["symbol"], "side": pos["side"], "step": "blank",
+                                   "change": {"kind": "close", "ts": ts, "price": None},
+                                   "why": f"{why} before selling {pos['symbol']}"})
+            continue
         if kind in ("close", "lost") and pos["row_id"] in bar.get("rekeys", {}):
             kind, (words, why) = "rekey", bar["rekeys"][pos["row_id"]]
         else:

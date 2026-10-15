@@ -915,6 +915,13 @@ def test_the_clock_and_the_operator_never_wait_on_a_blank_bar():
     assert {c["symbol"] for c in kinds(out, "close")} == {"XYZ", "ABCD"}
     assert all(c["change"]["kind"] == "sell_all" for c in kinds(out, "close"))
 
+    w3 = World()                                                        # a blank first seen as the sell-all comes
+    a, b = two_held(w3)
+    w3.sell_all_ts = NOW + 100
+    out = w3.at(101).run(answer({HOST: blanked([a, b], NOW + 100)}, feed_now=NOW + 101, bars={HOST: []}))
+    assert {c["change"]["kind"] for c in kinds(out, "close")} == {"sell_all"} and len(kinds(out, "close")) == 2
+    assert kinds(out, "note") == [] and out["waits"] == {}             # no word of a wait for a sell already sent
+
     w2 = World()
     a, b = two_held(w2)
     gone = blanked([a, b], NOW + 100)

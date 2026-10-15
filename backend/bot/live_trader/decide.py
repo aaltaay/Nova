@@ -83,7 +83,7 @@ def decide(prev: dict[str, Any] | None, answer: dict[str, Any], book: dict[str, 
 
     for pos in book.values():
         out["symbols"].add(pos["symbol"])          # the bot holds a line on every stock it holds
-    flags["bar"] = decide_bar.blanks(snap, answer, book, now, out["actions"])
+    flags["bar"] = decide_bar.blanks(snap, answer, now)
     decide_closes.closes(snap, answer, book, ctx, flags, out)
     if blind:
         snap["blind_done"] = True

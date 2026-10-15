@@ -79,10 +79,10 @@ def _same(old: dict[str, Any], r: dict[str, Any]) -> bool:
     return r["side"] == old["side"] and r["symbol"] == old["symbol"] and old["avg"] in shown
 
 
-def blanks(snap: dict[str, Any], answer: dict[str, Any], book: dict[str, dict[str, Any]], now: float,
-           actions: list[dict[str, Any]]) -> dict[str, Any]:
-    """This pass's blanks (``empty()``'s shape), the snapshot's ``blanks`` advanced; a note for each position whose
-    sell starts to wait. With no read of the feed nothing is judged: closes wait for a read anyway."""
+def blanks(snap: dict[str, Any], answer: dict[str, Any], now: float) -> dict[str, Any]:
+    """This pass's blanks (``empty()``'s shape), the snapshot's ``blanks`` advanced. ``decide_closes`` says each sell
+    that waits -- only once no exit that never waits applies. With no read of the feed nothing is judged: closes
+    wait for a read anyway."""
     out = empty()
     store = snap.setdefault("blanks", {})
     if answer["state"] != "ok":
@@ -95,8 +95,6 @@ def blanks(snap: dict[str, Any], answer: dict[str, Any], book: dict[str, dict[st
             # Only a bar read empty (or one already back) is a blank; anything else is the host's own closes.
             holding = h.get("bar") == [] or bool(_back(h, found))
             b = store[name] = {**found, "since": now, "back_seen": None, "state": "holding" if holding else "done"}
-            if holding:
-                _tell(name, b, book, actions)
         if b is None or b["state"] != "holding":
             continue
         back = _back(h, b)
@@ -121,16 +119,6 @@ def blanks(snap: dict[str, Any], answer: dict[str, Any], book: dict[str, dict[st
         for rid in b["rows"]:
             out["held"][rid] = why
     return out
-
-
-def _tell(name: str, b: dict[str, Any], book: dict[str, dict[str, Any]], actions: list[dict[str, Any]]) -> None:
-    for pos in book.values():
-        if pos["host"] == name and pos["row_id"] in b["rows"] and pos["state"] != "closing":
-            actions.append({"kind": "note", "host": name, "pos_id": pos["id"], "row_id": pos["row_id"],
-                            "symbol": pos["symbol"], "side": pos["side"], "step": "blank",
-                            "change": {"kind": "close", "ts": b["t0"], "price": None},
-                            "why": f"{name}'s whole bar went blank at {hms(b['t0'])} ET: the sell of "
-                                   f"{pos['symbol']} waits up to {LT_BLANK_HOLD_SEC:.0f} s for the bar to come back"})
 
 
 def _resolve(name: str, b: dict[str, Any], back: list[dict[str, Any]], snap: dict[str, Any],
