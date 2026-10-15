@@ -61,7 +61,12 @@ def _row_reason(pos: dict[str, Any], host: dict[str, Any] | None, now: float) ->
     rows = host.get("rows") or []
     row = next((r for r in rows if r["id"] == pos["row_id"]), None)
     if row is not None and row["status"] == "open" and not row.get("left_bar"):
-        return None
+        if _shows(row, sym):
+            return None
+        # A row re-keyed under its glued ticker whose check settled on the other stock: a hand-over after all, and
+        # the position's own row closed at that second (#1010).
+        return ("close", f"{name}'s row back at {hms(row['entry_ts'])} ET is {row['symbol']}, not {sym}: "
+                f"{name} closed {sym}", row["entry_ts"])
     again = next((r for r in rows if r["id"] != pos["row_id"] and r["status"] == "open" and not r.get("left_bar")
                   and r["side"] == pos["side"] and r["symbol"] == sym), None)
     if row is not None and row["status"] == "closed":

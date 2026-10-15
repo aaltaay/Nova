@@ -1141,3 +1141,20 @@ def test_another_stock_opened_in_the_same_second_is_a_hand_over_and_sells_the_ol
     out = w.run(answer({"CHERIF": [dict(first, status="closed", exit_ts=at), other, glued_other]}, feed_now=w.now))
     (close,) = kinds(out, "close")
     assert close["symbol"] == "RGTI" and kinds(out, "rekey") == []
+
+
+def test_a_glued_row_whose_check_settles_on_the_other_stock_sells_the_position_and_is_judged_on_its_own():
+    w, first = _cherif_world()
+    w.quotes["RGT"] = {"last": 112.08, "bid": 112.06, "ask": 112.10, "fresh": True}
+    at = _et("12:30:27")
+    back = _part("RGT", 112.08, at)
+    closed = dict(first, status="closed", exit_ts=at)
+    w.now = at + 1
+    out = w.run(answer({"CHERIF": [closed, back]}, feed_now=w.now))
+    assert [a["row_id"] for a in kinds(out, "rekey")] == [back["id"]] and kinds(out, "close") == []
+    rgt = dict(back, ticker={"state": "as_read", "why": None, "other_symbol": "RGTI"})   # RGT itself, at 112.08
+    w.now = at + 5
+    out = w.run(answer({"CHERIF": [closed, rgt]}, feed_now=w.now))
+    (close,) = kinds(out, "close")
+    assert close["symbol"] == "RGTI" and close["why"] == "CHERIF's row back at 12:30:27 ET is RGT, not RGTI: CHERIF closed RGTI"
+    assert [a["symbol"] for a in kinds(out, "step")] == ["RGT"]

@@ -676,9 +676,11 @@ without the host trading. The answer carries each host's `bar` as the feed last 
   left the bar, whose `entry_ts` is in the closed row's `exit_ts` second and whose stock is the position's -- or
   whose ticker check is still `checking` with the position's stock as its glued reading (`ticker.other_symbol`):
   for a few seconds after the flip the row back reads under the glued ticker. Found, it is the same position:
-  re-keyed (`rekey`, "the feed read X again in the same second"), nothing sold, nothing bought. A row a held position
-  follows is never a new entry, so the row back under the glued ticker opens nothing while its check settles. A
-  close with no same-second row back, and a different stock opened in that second (a hand-over), still sell. Off
+  re-keyed (`rekey`, "the feed read X again in the same second"), nothing sold, nothing bought. While its check runs,
+  the row back under the glued ticker opens nothing. Should the check settle on the other stock (the glued reading
+  was a real ticker at that price), it was a hand-over after all: the position sells ("the row back at T is RGT, not
+  RGTI") and the row is judged as any other. A close with no same-second row back, and a different stock opened in
+  that second (a hand-over), still sell. Off
   air, `LT_HIDDEN_SEC`, the sell-all time and the keys judge first, as for every close.
 - **Rows that fill an empty bar together are already open** (`feed_rows.filled_together`): two or more slots
   changing within `LT_SWITCH_SEC` onto an empty bar -- rows opening together while every older row of the host has
