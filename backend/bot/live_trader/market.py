@@ -63,11 +63,14 @@ def _num(value: Any) -> float | None:
 
 
 def cap(symbol: str) -> Any:
-    """The market cap in dollars, ``"pending"`` while it is read, None when it could not be read."""
+    """The market cap in dollars, ``"etf"`` for an ETF (always allowed, operator 2026-10-14), ``"pending"`` while
+    it is read, None when it could not be read."""
     import fundamentals
 
     sym = (symbol or "").strip().upper()
     cached = fundamentals.peek_cached(sym)
+    if cached is not None and str(cached.get("quote_type") or "").upper() == "ETF":
+        return "etf"
     if cached is not None and _num(cached.get("market_cap")) is not None:
         return float(cached["market_cap"])
     if fundamentals.fetch_failed(sym) or (cached is not None and cached.get("market_cap") is None):

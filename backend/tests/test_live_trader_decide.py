@@ -610,3 +610,23 @@ def test_already_open_waits_for_the_bar_to_show_it_then_skips():
     assert skip["code"] == LT_NOT_ON_BAR and "not on TRADER1's bar now" in skip["why"]
     w = World()
     assert kinds(w.run(answer({HOST: [dict(row(entry_ts=NOW - 600), on_bar=True)]})), "step")
+
+
+def test_an_etf_always_passes_the_large_cap_rule():
+    w = World()
+    w.caps["XYZ"] = "etf"                                          # Yahoo's quoteType ETF: no market cap needed
+    (step,) = kinds(watching(w, row(entry_ts=NOW)), "step")
+    assert step["step"] == "entry"
+
+
+def test_the_market_read_calls_an_etf_an_etf(monkeypatch):
+    import fundamentals
+
+    from bot.live_trader import market
+
+    rows = {"TQQQ": {"market_cap": None, "quote_type": "ETF"}, "BIGX": {"market_cap": 3e11, "quote_type": "EQUITY"},
+            "NONE": {"market_cap": None, "quote_type": "EQUITY"}}
+    monkeypatch.setattr(fundamentals, "peek_cached", lambda s: rows.get(s))
+    monkeypatch.setattr(fundamentals, "fetch_failed", lambda s: False)
+    assert (market.cap("TQQQ"), market.cap("BIGX"), market.cap("NONE"), market.cap("NEWX")) == ("etf", 3e11, None,
+                                                                                                "pending")

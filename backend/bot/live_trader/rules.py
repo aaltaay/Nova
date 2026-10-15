@@ -89,8 +89,8 @@ def _waited(code: str, wait_text: str, skip_text: str, since: float | None, now:
 def check(*, side: str, symbol: str, their_price: float, settings: dict[str, Any], quote: dict[str, Any] | None,
           cap: Any, ticker: dict[str, Any] | None, used_usd: float, against: str | None,
           short_closed: str | None, priceable: bool, now: float, wait_since: float | None) -> dict[str, Any]:
-    """One step's verdict. ``cap`` is the market cap in dollars, ``"pending"`` while it is read, or None when it
-    could not be read; ``ticker`` the trade's check (``{"state", "why"}``, None when none is needed);
+    """One step's verdict. ``cap`` is the market cap in dollars, ``"etf"`` for an ETF (always allowed),
+    ``"pending"`` while it is read, or None when it could not be read; ``ticker`` the trade's check (``{"state", "why"}``, None when none is needed);
     ``against`` the words for a position on the other side; ``short_closed`` why no short may open now."""
     if side == "short" and settings["sides"] == "long":
         return verdict(SKIP, LT_SHORTS_OFF, "a short: this bot copies longs only")
@@ -107,9 +107,11 @@ def check(*, side: str, symbol: str, their_price: float, settings: dict[str, Any
     if cap == "pending":
         return _waited(LT_CAP_UNKNOWN, "reading its market cap",
                        f"its market cap did not come in {LT_WAIT_SEC:.0f} s", wait_since, now)
-    if not isinstance(cap, (int, float)) or isinstance(cap, bool) or cap <= 0:
+    if cap == "etf":
+        pass                                          # an ETF is always allowed (operator, 2026-10-14)
+    elif not isinstance(cap, (int, float)) or isinstance(cap, bool) or cap <= 0:
         return verdict(SKIP, LT_CAP_UNKNOWN, "Nova could not read its market cap, so it cannot tell a large cap")
-    if cap < LT_MIN_MARKET_CAP_USD:
+    elif cap < LT_MIN_MARKET_CAP_USD:
         return verdict(SKIP, LT_SMALL_CAP, f"a small cap ({_cap_words(cap)}): this bot copies large caps only "
                                            f"({_cap_words(LT_MIN_MARKET_CAP_USD)} and up)")
     ref = feed_rows.reference_price(quote) if quote and quote.get("fresh") else None

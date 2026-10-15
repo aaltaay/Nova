@@ -574,7 +574,8 @@ host's bar shows it (`status.positions`; a trade the feed still holds open from 
 it: `LT_NOT_ON_BAR` after the wait). Opens and adds
 skip, each with its reason: the feed `LT_FEED_BEHIND_SEC` (30) behind the stream or silent as long, a ticker
 check not settled, the host's average over `LT_MISREAD_PCT` (1.5%) from the market (the mid, else the last),
-a market cap under `LARGE_CAP_MIN` ($10B) or unknown, no fresh quote, the allowance, the adds, shorts off,
+a stock's market cap under `LARGE_CAP_MIN` ($10B) or unknown (an ETF always passes: Yahoo's `quote_type`
+`"ETF"`, operator 2026-10-14), no fresh quote, the allowance, the adds, shorts off,
 the account holding the other side (or the bot holding the other side for another host), outside the short
 hours, the desk off Paper, the Bot switch off, Freeze all orders, after the sell-all time. A wait (the quote
 line, the market cap, the ticker check) turns into its skip after `LT_WAIT_SEC` (30). Closes are never held

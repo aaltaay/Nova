@@ -11,14 +11,14 @@ export const LT_ASKS_POLL_MS = 3_000;
 export const LT_ANCHOR = 'bots-live-traders';
 
 export const LT_TITLE = 'Live Traders · TraderTV';
-export const LT_SUB = 'Copies each host\'s bar on Paper. Large caps only. Never Live.';
+export const LT_SUB = 'Copies each host\'s bar on Paper. Large caps and ETFs. Never Live.';
 export const LT_SUB_TIP =
   'One bot per host on the TraderTV bar. With its key on and the Bot switch on, it copies the host on Paper: a step '
   + 'when a position appears, another when their average moves (up to the adds you allow), and it sells or covers '
   + 'everything when the position leaves their bar, when they go off air, when the bar is hidden 10 minutes, and at '
   + 'the sell-all time. It skips, and says why, when the feed reads behind the stream, a ticker may be misread, their '
-  + 'average is more than 1.5% from the market, the stock is not a large cap ($10B and up), or a step would pass the '
-  + 'allowance.';
+  + 'average is more than 1.5% from the market, a stock is not a large cap ($10B and up; an ETF always passes), or a '
+  + 'step would pass the allowance.';
 export const LT_PAPER_CHIP = 'Paper';
 export const LT_LOADING = 'Reading the Live Trader bot…';
 export const LT_FEED_OFF = 'No TraderTV feed is set up on this desk (NOVA_FOLLOW_FEED_URL), so there is no host to copy.';
@@ -63,4 +63,4 @@ export const ltStepWords = (usd: number): string => `$${usd.toLocaleString('en-U
 export const ltAllowanceWords = (usd: number): string => `$${usd.toLocaleString('en-US')} allowance`;
 export const ltShortStopWords = (pct: number): string => `${pct}% buy stop`;
 export const ltSellAllWords = (hhmm: string): string => `Sells all at ${hhmm}`;
-export const LT_LARGE_CAPS = 'Large caps only ($10B+)';
+export const LT_LARGE_CAPS = 'Large caps ($10B+) and ETFs';

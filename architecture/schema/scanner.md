@@ -232,6 +232,13 @@ float checks read unknown (below). The figure is still Yahoo's: `float_contradic
 setup grade, `LEADERS_RULES` and every max-float gate are unchanged, and nothing parses a share count out of a
 filing (PIPE shares may not trade until a resale registration, so the tradable float is not known either way).
 
+## The kind of security (ADR 055, operator 2026-10-14)
+
+Yahoo's fundamentals read (`fundamentals.fetch_fundamentals`, and so the ticker detail's `fundamentals`) adds
+`quote_type: string | null`, Yahoo's `quoteType` as Yahoo writes it (`"EQUITY"`, `"ETF"`, ...; `null` when Yahoo gives
+none or the read failed). The Live Trader bot reads it so an ETF -- which has no market cap -- passes its large-cap
+rule (`bot.md`, "The Live Trader bot"). Nothing else reads it.
+
 ## The company's country (operator ask, 2026-10-12)
 
 The operator: "i want to see if tickers are USA/Israeli/hongkong/chinese.. etc, elaborated by their own flag
