@@ -668,6 +668,20 @@ without the host trading. The answer carries each host's `bar` as the feed last 
   `LT_RETURN_FIRST_SEC` (30 s) after the return -- until one of them closes -- are not taken (a `note` each) until
   every one of them has closed (the switch), or `LT_RETURN_HOLD_SEC` (480 s) passes; then they are already open
   (`take_open`), as any row is. Rows that open later, and rows of a host on air all along, are judged as before.
+- **A stock the feed reads two ways** (#1010; operator OK 2026-10-15 for the rule "a row the feed closed and opened
+  again in the same second for the same stock is the same position, re-keyed, never sold and bought again"). A
+  misread that flips between two readings of one bar ("RGTI 12.08" read in turn as RGT 112.08, RGTI 112.08 and
+  RGTI 12.08) makes the feed close the trade and open the next in one second. The feed cannot close and open one
+  stock in one read, so before a closed row sells, the bot looks for an open row of the same host and side, not
+  left the bar, whose `entry_ts` is in the closed row's `exit_ts` second and whose stock is the position's -- or
+  whose ticker check is still `checking` with the position's stock as its glued reading (`ticker.other_symbol`):
+  for a few seconds after the flip the row back reads under the glued ticker. Found, it is the same position:
+  re-keyed (`rekey`, "the feed read X again in the same second"), nothing sold, nothing bought. While its check runs,
+  the row back under the glued ticker opens nothing. Should the check settle on the other stock (the glued reading
+  was a real ticker at that price), it was a hand-over after all: the position sells ("the row back at T is RGT, not
+  RGTI") and the row is judged as any other. A close with no same-second row back, and a different stock opened in
+  that second (a hand-over), still sell. Off
+  air, `LT_HIDDEN_SEC`, the sell-all time and the keys judge first, as for every close.
 - **Rows that fill an empty bar together are already open** (`feed_rows.filled_together`): two or more slots
   changing within `LT_SWITCH_SEC` onto an empty bar -- rows opening together while every older row of the host has
   closed by then (a bar back after a blank, the slots switching at a hand-over) -- were already open, not entered.
@@ -707,7 +721,8 @@ tried again (a `live_trader` `error` line says so once), and a restart keeps the
 day: a stop is off the list only when Paper says it is gone.
 
 `id` is `host|side|symbol`: one position per host, side and stock (a feed row reopened for the same stock
-is the same position, re-keyed to the new `row_id`, never bought twice). `closed` keeps today's (at most
+is the same position, re-keyed to the new `row_id`, never bought twice; so is one closed and opened again in
+the same second, "A stock the feed reads two ways"). `closed` keeps today's (at most
 200); a day other than today's is sold at once on load ("held from DAY: never overnight") and cleared.
 Each pass reconciles with Paper's ledger: shares the account no longer holds (the operator sold them, a
 buy stop or the loss limit's Auto sell did) leave the position, said once. A short's buy stops cover what it held: when shares

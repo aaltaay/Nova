@@ -1050,3 +1050,111 @@ def test_rows_that_fill_an_empty_bar_together_are_already_open():
     assert kinds(out, "step") == [] and {a["code"] for a in kinds(out, "skip")} == {LT_ALREADY_OPEN}
     alone = watching(World(take_open=False), row(entry_ts=NOW))
     assert kinds(alone, "step")[0]["step"] == "entry"                  # one row on its own is a new trade
+
+
+# -- a stock the feed reads two ways (#1010) ----------------------------------------------------------
+def _et(clock):
+    """2026-10-15 at ``clock`` ET, as the feed's epoch second."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    h, m, s = (int(p) for p in clock.split(":"))
+    return datetime(2026, 10, 15, h, m, s, tzinfo=ZoneInfo("America/New_York")).timestamp()
+
+
+# CHERIF's RGTI long on 2026-10-15: the bar showed "RGTI 12.08" and the feed read it in turn as RGT 112.08 (the I
+# glued to the price), RGTI 112.08 (the I read twice) and RGTI 12.08, splitting one position into ten trades.
+FLIPS = ["12:30:27", "12:31:33", "12:35:15", "12:35:55", "12:36:01", "12:37:07", "12:38:53", "12:42:09", "12:44:23"]
+READS = [("RGT", 112.08), ("RGTI", 112.08), ("RGTI", 12.08)]
+RGTI_QUOTE = {"last": 12.08, "bid": 12.07, "ask": 12.09, "fresh": True}
+
+
+def _part(symbol, price, at, host="CHERIF"):
+    if symbol == "RGT":                               # the glued read: checked against IBKR's tape first
+        return row("RGT", host=host, price=price, entry_ts=at,
+                   ticker={"state": "checking", "why": "reading IBKR's tape at the entry", "other_symbol": "RGTI"})
+    return row(symbol, host=host, price=price, entry_ts=at)
+
+
+def _settled(part):
+    """The part once its check settles: a glued RGT 112.08 put back as RGTI 12.08."""
+    if part["symbol"] != "RGT":
+        return part
+    return dict(part, symbol="RGTI", price=12.08, entry_price=12.08,
+                ticker={"state": "corrected", "why": "the ticker was read glued to its price", "other_symbol": "RGTI"})
+
+
+def _cherif_world():
+    w = World()
+    w.st["CHERIF"] = settings()
+    w.quotes["RGTI"] = dict(RGTI_QUOTE)
+    w.now = _et("12:29:00")
+    w.run(answer({"CHERIF": []}, feed_now=w.now))
+    first = row("RGTI", host="CHERIF", price=12.08, entry_ts=_et("12:29:58"))
+    w.now = _et("12:30:00")
+    out = w.run(answer({"CHERIF": [first]}, feed_now=w.now))
+    assert [a["symbol"] for a in kinds(out, "step")] == ["RGTI"]
+    return w, first
+
+
+def test_ten_parts_closing_and_reopening_in_one_second_are_one_position_never_sold():
+    w, part = _cherif_world()
+    done = []
+    for n, clock in enumerate(FLIPS):
+        at = _et(clock)
+        symbol, price = READS[n % len(READS)]
+        back = _part(symbol, price, at)
+        done.append(dict(_settled(part), status="closed", exit_ts=at, ticker=None))
+        w.now = at + 1                                    # the pass right after the flip: the check may still run
+        out = w.run(answer({"CHERIF": [*done, back]}, feed_now=w.now))
+        assert kinds(out, "close") == [] and kinds(out, "step") == [], clock
+        (rekey,) = kinds(out, "rekey")
+        assert rekey["row_id"] == back["id"] and rekey["symbol"] == "RGTI", clock
+        assert "the same second" in rekey["why"] and "nothing sold" in rekey["why"]
+        assert out["waits"] == {}, clock                  # the row back under RGT is no entry waiting on its check
+        part = _settled(back)
+        w.now = at + 5                                    # the check settled: still one position, nothing sent
+        out = w.run(answer({"CHERIF": [*done, part]}, feed_now=w.now))
+        assert [a for a in out["actions"] if a["kind"] in ("close", "step", "rekey")] == [], clock
+    assert list(w.book) == [feed_rows.position_id("CHERIF", "long", "RGTI")]
+    assert w.book[feed_rows.position_id("CHERIF", "long", "RGTI")]["row_id"] == part["id"]
+
+
+def test_a_close_with_no_reopen_in_that_second_still_sells():
+    w, first = _cherif_world()
+    at = _et("12:30:27")
+    later = row("RGTI", host="CHERIF", price=12.08, entry_ts=at + 1)    # the next second: not the same read
+    w.now = at + 2
+    out = w.run(answer({"CHERIF": [dict(first, status="closed", exit_ts=at), later]}, feed_now=w.now))
+    (close,) = kinds(out, "close")
+    assert close["symbol"] == "RGTI" and close["why"] == "CHERIF closed RGTI"
+    assert kinds(out, "rekey") == []
+
+
+def test_another_stock_opened_in_the_same_second_is_a_hand_over_and_sells_the_old_one():
+    w, first = _cherif_world()
+    at = _et("12:30:27")
+    other = row("XYZ", host="CHERIF", price=100.0, entry_ts=at)
+    glued_other = row("ABC", host="CHERIF", price=112.08, entry_ts=at,
+                      ticker={"state": "checking", "why": "reading IBKR's tape", "other_symbol": "ABCI"})
+    w.now = at + 1
+    out = w.run(answer({"CHERIF": [dict(first, status="closed", exit_ts=at), other, glued_other]}, feed_now=w.now))
+    (close,) = kinds(out, "close")
+    assert close["symbol"] == "RGTI" and kinds(out, "rekey") == []
+
+
+def test_a_glued_row_whose_check_settles_on_the_other_stock_sells_the_position_and_is_judged_on_its_own():
+    w, first = _cherif_world()
+    w.quotes["RGT"] = {"last": 112.08, "bid": 112.06, "ask": 112.10, "fresh": True}
+    at = _et("12:30:27")
+    back = _part("RGT", 112.08, at)
+    closed = dict(first, status="closed", exit_ts=at)
+    w.now = at + 1
+    out = w.run(answer({"CHERIF": [closed, back]}, feed_now=w.now))
+    assert [a["row_id"] for a in kinds(out, "rekey")] == [back["id"]] and kinds(out, "close") == []
+    rgt = dict(back, ticker={"state": "as_read", "why": None, "other_symbol": "RGTI"})   # RGT itself, at 112.08
+    w.now = at + 5
+    out = w.run(answer({"CHERIF": [closed, rgt]}, feed_now=w.now))
+    (close,) = kinds(out, "close")
+    assert close["symbol"] == "RGTI" and close["why"] == "CHERIF's row back at 12:30:27 ET is RGT, not RGTI: CHERIF closed RGTI"
+    assert [a["symbol"] for a in kinds(out, "step")] == ["RGT"]

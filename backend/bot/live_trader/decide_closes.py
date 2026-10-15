@@ -6,12 +6,15 @@ the bar. With a key off -- the Bot switch, the LiveTrader Bots key or the host's
 close is sent, not even this one (operator decision 2026-10-15: off places no order at all): it is said once and
 made when the keys are back on, if its reason still stands. A feed row the feed reopened for
 the same stock (its old one ``unknown`` or gone) is the same position, re-keyed, never sold and bought again; so
-is one back at its very average after the whole bar went blank (``decide_bar``), whose sell waits for the bar.
+is one the feed closed and opened again in the same second (``_flipped``: a misread flipping between two readings of
+one bar, #1010), and one back at its very average after the whole bar went blank (``decide_bar``), whose sell waits
+for the bar.
 The host's own reasons follow the Exit switch: with Exit on You the bot says so once and keeps the shares; the
 clock's always close. Shapes: architecture/schema/bot.md ("The Live Trader bot").
 """
 from __future__ import annotations
 
+import math
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -27,6 +30,26 @@ def hms(ts: float | None) -> str:
     return "?" if ts is None else datetime.fromtimestamp(ts, ET).strftime("%H:%M:%S")
 
 
+def _shows(r: dict[str, Any], sym: str) -> bool:
+    """The row's stock is ``sym``: as shown, or as the glued reading of a ticker check still ``checking`` (for a few
+    seconds after a flip the row back reads under the glued ticker, RGT 112.08 for RGTI 12.08)."""
+    ticker = r.get("ticker") or {}
+    return r["symbol"] == sym or (ticker.get("state") == "checking" and ticker.get("other_symbol") == sym)
+
+
+def _flipped(row: dict[str, Any], rows: list[dict[str, Any]], pos: dict[str, Any]) -> dict[str, Any] | None:
+    """The open row the feed opened in the very second it closed ``row``, for the position's side and stock: the same
+    position read again (the feed cannot close and open one stock in one read). None for a real close or a hand-over
+    to another stock."""
+    if row.get("exit_ts") is None:
+        return None
+    second = math.floor(row["exit_ts"])
+    return next((r for r in sorted(rows, key=lambda x: x["entry_ts"])
+                 if r["id"] != row["id"] and r["status"] == "open" and not r.get("left_bar")
+                 and r["side"] == pos["side"] and math.floor(r["entry_ts"]) == second
+                 and _shows(r, pos["symbol"])), None)
+
+
 def _row_reason(pos: dict[str, Any], host: dict[str, Any] | None, now: float) -> tuple | None:
     """Why the host's own bar closes ``pos``, a re-key, or None while its trade is still open."""
     name, sym = pos["host"], pos["symbol"]
@@ -38,10 +61,20 @@ def _row_reason(pos: dict[str, Any], host: dict[str, Any] | None, now: float) ->
     rows = host.get("rows") or []
     row = next((r for r in rows if r["id"] == pos["row_id"]), None)
     if row is not None and row["status"] == "open" and not row.get("left_bar"):
-        return None
+        if _shows(row, sym):
+            return None
+        # A row re-keyed under its glued ticker whose check settled on the other stock: a hand-over after all, and
+        # the position's own row closed at that second (#1010).
+        return ("close", f"{name}'s row back at {hms(row['entry_ts'])} ET is {row['symbol']}, not {sym}: "
+                f"{name} closed {sym}", row["entry_ts"])
     again = next((r for r in rows if r["id"] != pos["row_id"] and r["status"] == "open" and not r.get("left_bar")
                   and r["side"] == pos["side"] and r["symbol"] == sym), None)
     if row is not None and row["status"] == "closed":
+        back = _flipped(row, rows, pos)
+        if back is not None:
+            return "rekey", back["id"], (f"the feed closed {name}'s {sym} and opened it again at {hms(row['exit_ts'])} "
+                                         "ET, the same second: the same position read again -- nothing sold, "
+                                         "nothing bought")
         return "close", f"{name} closed {sym}", row.get("exit_ts") or now
     if again is not None:
         return "rekey", again["id"], None
@@ -107,6 +140,8 @@ def closes(snap: dict[str, Any], answer: dict[str, Any], book: dict[str, dict[st
             continue
         if kind in ("close", "lost") and pos["row_id"] in bar.get("rekeys", {}):
             kind, (words, why) = "rekey", bar["rekeys"][pos["row_id"]]
+        elif kind == "rekey":
+            why = ts                                  # the re-key's own words (``_row_reason``), or None
         else:
             why = None
             if kind in ("close", "lost"):

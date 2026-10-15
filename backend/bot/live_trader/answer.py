@@ -117,7 +117,8 @@ def _bars(status: dict[str, Any] | None) -> dict[str, set[str]] | None:
 
 def _row(t: dict[str, Any], ticker_for: Any, tickers: Any, bars: dict[str, set[str]] | None) -> dict[str, Any]:
     """A trade as ``decide`` reads it: the page's id, the ticker and prices as the check settled them, and whether
-    the host's bar shows it now (``on_bar``: None when the feed sends no bar)."""
+    the host's bar shows it now (``on_bar``: None when the feed sends no bar). ``ticker.other_symbol`` is the glued
+    reading the check weighs, so a row back under the glued ticker can be matched to the position (#1010)."""
     row_id = f"{t['trader']}|{t['side']}|{t.get('read_as') or t['symbol']}|{t['entry_ts']:.0f}"
     on_bar = None if bars is None else f"{t['side']}:{t['symbol']}" in bars.get(t["trader"], set())
     ticker = ticker_for(t) if t["status"] == "open" else None
@@ -126,4 +127,5 @@ def _row(t: dict[str, Any], ticker_for: Any, tickers: Any, bars: dict[str, set[s
             "price": shown["price"], "entry_price": shown["entry_price"], "entry_ts": t["entry_ts"],
             "known": bool(t["entry_known"]), "adds": [dict(a) for a in shown["adds"]], "exit_ts": t.get("exit_ts"),
             "left_bar": bool(t.get("left_bar")), "on_bar": on_bar,
-            "ticker": None if ticker is None else {"state": ticker["state"], "why": ticker.get("why")}}
+            "ticker": None if ticker is None else {"state": ticker["state"], "why": ticker.get("why"),
+                                                   "other_symbol": ticker.get("other_symbol")}}
