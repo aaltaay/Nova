@@ -4,7 +4,9 @@ Persisted: ``live-trader-book.json`` in the operator cache (``LT_BOOK_FILE``). O
 through a temp file and a rename after every change, so a restart resumes managing what the bot holds.
 Invalidation: the desk's day (04:00 ET): positions from another day are sold at once (never overnight) and today's
 closed list starts empty; a ``schema_version`` other than ``LT_BOOK_SCHEMA_VERSION``, or a file that cannot be read,
-is refused loud -- the bot then opens nothing (``error``) and the file is never overwritten.
+is refused loud -- the bot then opens nothing (``error``) and the file is never overwritten. A write that fails stops
+new steps too (``error``), until a write succeeds (``retry_save``, each pass): an order the book never recorded would
+otherwise be taken again after a restart.
 
 A position is one host, side and stock (``feed_rows.position_id``): the shares the bot's own fills hold, what they
 cost, its steps, the order in flight (an entry, an add or a close) and a short's buy stops. The shares are the bot's
@@ -31,12 +33,13 @@ NO_REENTRY_KINDS = ("outside", "stop")     # sold by someone else, or its buy st
 _lock = threading.RLock()
 _book: dict[str, Any] | None = None
 _error: str | None = None
+_save_error: str | None = None
 
 
 def reset_for_tests() -> None:
-    global _book, _error
+    global _book, _error, _save_error
     with _lock:
-        _book, _error = None, None
+        _book, _error, _save_error = None, None, None
 
 
 def _path() -> Path:
@@ -76,25 +79,44 @@ def _load_locked() -> dict[str, Any]:
 
 
 def _save_locked() -> None:
+    global _save_error
     if _error is not None or _book is None:
         return
     path = _path()
     payload = {"schema_version": LT_BOOK_SCHEMA_VERSION, "day": _book["day"],
                "positions": list(_book["positions"].values()), "closed": _book["closed"][-LT_CLOSED_KEEP:]}
+    tmp = None
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(payload, f)
         os.replace(tmp, path)
-    except OSError:
-        logger.exception("Live Trader bot: %s was not written -- what the bot holds is in memory only", path)
+    except (OSError, TypeError, ValueError) as exc:
+        _save_error = (f"{path.name} could not be written ({type(exc).__name__}): what the bot holds is in memory "
+                       "only, so it opens nothing until the file is written")
+        logger.exception("Live Trader bot: %s", _save_error)
+        if tmp is not None and os.path.exists(tmp):
+            try:
+                os.unlink(tmp)
+            except OSError:  # maintainer: allow-swallow a temp file left behind is harmless; the error is said above
+                pass
+        return
+    _save_error = None
 
 
 def error() -> str | None:
+    """Why the bot may open nothing: the file refused on load, or the last write failed; None when it is sound."""
     with _lock:
         _load_locked()
-        return _error
+        return _error or _save_error
+
+
+def retry_save() -> None:
+    """After a failed write, write again (each pass): new steps resume once the book is on disk."""
+    with _lock:
+        if _save_error is not None:
+            _save_locked()
 
 
 def positions() -> dict[str, dict[str, Any]]:

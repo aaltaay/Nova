@@ -9,16 +9,21 @@ architecture/schema/bot.md ("The Live Trader bot").
 """
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from bot.live_trader.constants_live_trader import LT_ADD_MERGE_SEC, LT_FLICKER_PCT
+from bot.live_trader.constants_live_trader import LT_ADD_MERGE_SEC, LT_FLICKER_PCT, LT_OTHER_HOST_SEC, LT_UNREAD_SEC
 
 ET = ZoneInfo("America/New_York")
 DAY_SEC = 86_400
 # The page's own allowance for a clock read a little ahead of the read's time (frontend FOLLOWED_CLOCK_AHEAD_SEC).
 CLOCK_AHEAD_SEC = 300
+SIDES = ("long", "short")
+# A price in text the reader could not parse: a row it did not read whole (a scroll, a cut or glued pair). Text
+# without one -- "no positions", a name tag -- is a side read empty, not a side read wrong.
+PRICE_IN_TEXT = re.compile(r"\d+\.\d+")
 
 
 def position_id(host: str, side: str, symbol: str) -> str:
@@ -72,14 +77,91 @@ def behind_sec(clock: str | None, updated_at: float | None) -> float | None:
     midnight read after it counts across it) -- the Following page's ``behindStream``; None when unknown."""
     if updated_at is None or not clock:
         return None
-    parts = clock.split(":")
-    if len(parts) != 3 or not all(p.isdigit() for p in parts):
+    hms = time_of_day(clock)
+    if hms is None:
         return None
-    shown = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+    shown = hms[0] * 3600 + hms[1] * 60 + hms[2]
     lag = _sec_of_day(updated_at) - shown
     if lag >= 0:
         return float(lag)
     return 0.0 if lag >= -CLOCK_AHEAD_SEC else float(lag + DAY_SEC)
+
+
+def time_of_day(clock: str) -> tuple[int, int, int] | None:
+    """``(h, m, s)`` of an ``HH:MM:SS`` clock, or None when it is no time of day (a misread screen: ``09:34:97``)."""
+    parts = clock.split(":")
+    if len(parts) != 3 or not all(p.isdigit() for p in parts):
+        return None
+    h, m, s = (int(p) for p in parts)
+    return (h, m, s) if h < 24 and m < 60 and s < 60 else None
+
+
+def cent(price: float) -> float:
+    """A price to the cent (a hundredth of a cent under $1): how a bar shows an average."""
+    return round(price, 2) if price >= 1 else round(price, 4)
+
+
+def averages(trade: dict[str, Any]) -> set[float]:
+    """Every average a trade or a row showed, to the cent: its entry's, its latest and each add's."""
+    prices = [trade.get("entry_price"), trade.get("price"), *(a.get("price") for a in trade.get("adds") or ())]
+    return {cent(float(p)) for p in prices if isinstance(p, (int, float)) and not isinstance(p, bool) and p > 0}
+
+
+def other_host(name: str, row: dict[str, Any], hosts: dict[str, dict[str, Any]],
+               previous: set[tuple[str, str, float]]) -> tuple[str | None, float] | None:
+    """Whose ``row`` is when it is not ``name``'s: ``(host, average)`` for another host's row of the same side and
+    stock that showed an average to the cent in common and was on the bar within ``LT_OTHER_HOST_SEC`` of it, or
+    ``(None, average)`` for a trade of the feed's previous day (``previous``: ``(side, symbol, average)``); None
+    when nothing else ever showed it. At a hand-over the bar can show one host's rows under the next host's name
+    tag for minutes, and two hosts never share an average to the cent."""
+    mine = averages(row)
+    if not mine:
+        return None
+    start = float(row["entry_ts"])
+    for other, host in hosts.items():
+        if other == name:
+            continue
+        for r in host.get("rows") or ():
+            if r["side"] != row["side"] or r["symbol"] != row["symbol"]:
+                continue
+            end = r.get("exit_ts") if r["status"] != "open" else None
+            if r["entry_ts"] > start + LT_OTHER_HOST_SEC or (end is not None and end < start - LT_OTHER_HOST_SEC):
+                continue
+            shared = mine & averages(r)
+            if shared:
+                return other, min(shared)
+    for price in sorted(mine):
+        if (row["side"], row["symbol"], price) in previous:
+            return None, price
+    return None
+
+
+def unread_sides(log: list[dict[str, Any]] | None, date: str, at_ts: float | None) -> dict[str, set[str]]:
+    """Each host whose reads in force over the ``LT_UNREAD_SEC`` before ``at_ts`` (the stream's time; the log's
+    newest when None) carried a price the reader could not parse: the sides that text names (``long:`` /
+    ``short:``), both when it names none. ``log`` is the feed's read log, oldest first (``feed.parse_reads``)."""
+    out: dict[str, set[str]] = {}
+    for line in reversed(log or ()):
+        ts = clock_ts(date, line["clock"])
+        if ts is None:
+            continue
+        if at_ts is None:
+            at_ts = ts
+        if ts > at_ts:
+            continue                                  # a read after the moment asked about
+        for name, read in (line.get("traders") or {}).items():
+            for text in read.get("unparsed") or ():
+                if PRICE_IN_TEXT.search(text):
+                    out.setdefault(name, set()).update(_sides_named(text))
+        if ts <= at_ts - LT_UNREAD_SEC:
+            break                                     # the read in force when the window began: nothing older
+    return out
+
+
+def _sides_named(text: str) -> set[str]:
+    head = text.strip().lower()
+    named = {s for s in SIDES if head.startswith(s)}
+    return named or set(SIDES)
 
 
 def reference_price(quote: dict[str, Any] | None) -> float | None:

@@ -56,6 +56,7 @@ def reset_for_tests() -> None:
         _answers = {}
         _status = {"running": False, "pass_ts": None, "answer": None, "waits": {}, "can_open": None, "idle": True}
     act.reset_for_tests()
+    answer.reset_for_tests()
 
 
 # -- what the routes and the Bot switch ask ----------------------------------------------------------
@@ -139,6 +140,7 @@ def _paper_ttl() -> float:
 
 async def manage(now: float) -> None:
     """Orders in flight to their ends; a step working past the Paper sleeve's TTL is cancelled."""
+    book.retry_save()
     ttl = _paper_ttl()
     for pos in book.positions().values():
         if pos.get("order"):
@@ -150,7 +152,7 @@ async def manage(now: float) -> None:
                 act.follow_step(pos["id"], now)
         elif pos["state"] == "closing":
             act.follow_close(pos["id"], now)
-    act.reconcile(now)
+    await act.reconcile(now)
 
 
 def can_open() -> dict[str, Any]:
@@ -263,7 +265,7 @@ async def tick(now: float | None = None) -> bool:
 def summary(got: dict[str, Any]) -> dict[str, Any]:
     """The answer as the cards read it: the feed's health, each host's off-air time and open rows' averages."""
     hosts = got.get("hosts") or {}
-    return {**{k: v for k, v in got.items() if k not in ("hosts", "faces")},
+    return {**{k: v for k, v in got.items() if k not in ("hosts", "faces", "previous")},
             "faces": sorted(got.get("faces") or ()),
             "left": {n: h.get("left_ts") for n, h in hosts.items()},
             "prices": {r["id"]: r["price"] for h in hosts.values() for r in h.get("rows") or []

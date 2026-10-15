@@ -68,7 +68,8 @@ Nova reads two routes of the feed and one folder of images, and nothing else:
   - `date` (the day answered), `today` (the feed's ET date), `dates[]` (days the feed has, newest first);
   - `status`: `{video: {title}, live, clock ("HH:MM:SS" ET, the last frame read), updated_at (ISO 8601 with
     offset), bar_visible, traders: string[], problem?, problem_at?} | null` -- `null` when the feed has never run;
-    `bar_visible` false means the feed cannot see positions right now and holds them as last seen. `problem` (a
+    `bar_visible` false means the feed cannot see positions right now and holds them as last seen. A `clock`
+    that is no time of day (`09:34:97`) reads as `null`. `problem` (a
     string) and `problem_at` (ISO 8601) are optional: the feed's own words for why it cannot read, cleared on its
     next good read. A status holding only `problem` and `problem_at` (the feed stalled before its first read) is
     read as not live, never read, with that problem. `video.id` is optional: the stream's YouTube video id, passed on
@@ -105,8 +106,9 @@ Five more pieces are optional: a feed that does not have them is read as before,
 - `GET {url}/files/<date>/reads.jsonl`, the feed's read log: one JSON object per line, `{clock: "HH:MM:SS" (ET),
   traders: {<name>: {positions: {"<side>:<symbol>": price}, unparsed: string[]}}}`, written each time a read differs
   from the one before, confirmed or not. A name read wrong (`TJOE`) is its own key. A line whose `clock` is null (a
-  frame the feed could not read at all) is skipped: it has no time to be placed at. A 404 means the feed keeps no
-  read log for that day.
+  frame the feed could not read at all) is skipped: it has no time to be placed at -- and so is one whose `clock` is
+  no time of day (`09:34:97`, a misread screen), so one bad frame never makes the whole log unreadable. A `clock`
+  not shaped `HH:MM:SS` is still a bad answer. A 404 means the feed keeps no read log for that day.
 
 `<NAME>` in those paths is 1 to 16 of `A-Z0-9`; anything else is never asked for.
 

@@ -66,6 +66,8 @@ class Feed:
         self.live = True
         self.down = False
         self.log: list[dict] = []
+        self.dates = [DATE]
+        self.days: dict[str, list[dict]] = {}     # another day's trades, by date
 
     def open(self, symbol, price, clock_ts, *, host=HOST, side="long", known=True) -> dict:
         t = {"trader": host, "side": side, "symbol": symbol, "entry_price": price, "price": price,
@@ -90,7 +92,10 @@ class Feed:
     def day(self, base, date, *, timeout=None):
         if self.down:
             raise feed.FeedError("unreachable", "could not connect")
-        raw = {"date": date, "today": date, "dates": [date],
+        if date != DATE:
+            return feed.parse_day({"date": date, "today": DATE, "dates": list(self.dates), "status": None,
+                                   "trades": copy.deepcopy(self.days.get(date, [])), "events": []})
+        raw = {"date": date, "today": date, "dates": list(self.dates),
                "status": {"video": {"id": "abcdefghijk", "title": "Live show"}, "live": self.live,
                           "clock": hms(self.clock), "updated_at": iso(self.clock + self.read_lag),
                           "bar_visible": self.visible, "traders": [HOST, OTHER], "positions": self.bar_now()},
@@ -497,3 +502,98 @@ def test_the_report_puts_every_order_beside_the_change_that_caused_it(desk):
     assert skip["code"] == "LT_SMALL_CAP"
     text = live_trader_report.markdown(today, rows, [skip])
     assert "| ALPHA | entry | XYZ long | open 100.00 |" in text and "LT_SMALL_CAP: 1" in text
+
+
+# -- bad reads and the review's two findings ---------------------------------------------------------------
+def test_a_side_whose_reads_carry_an_unparsed_price_opens_nothing_until_it_reads(desk):
+    """The read log's unparsed text, as the page reads it: a long row the reader could not read whole."""
+    run(desk, "10:30:00")
+    desk.feed.log.append({"clock": "10:30:09", "traders": {HOST: {"positions": {}, "unparsed": [
+        "long:7.32|ABCD50.01|EFGH5.58|IJK"]}}})
+    desk.feed.open("XYZ", 100.00, at("10:30:10"))
+    run(desk, "10:30:11")
+    assert held(desk, "XYZ") == 0
+    assert watcher.status()["waits"][f"{HOST}|long|XYZ"]["code"] == "LT_ROW_UNREAD"
+    desk.feed.bar(at("10:30:12"), **{HOST: {}})                    # it reads whole again
+    run(desk, "10:30:40")
+    assert held(desk, "XYZ") == 4
+
+
+def test_a_row_the_previous_day_showed_is_never_bought(desk):
+    desk.feed.dates = [DATE, "2026-10-06"]
+    desk.feed.days["2026-10-06"] = [{
+        "trader": OTHER, "side": "long", "symbol": "XYZ", "entry_price": 100.0, "price": 100.0,
+        "entry_ts": "2026-10-06T15:00:00-04:00", "entry_since_ts": None, "entry_known": True, "adds": [],
+        "exit_ts": "2026-10-06T15:40:00-04:00", "exit_since_ts": None, "status": "closed",
+        "entry_evidence": None, "exit_evidence": None}]
+    run(desk, "10:30:00")
+    desk.feed.open("XYZ", 100.00, at("10:30:10"))
+    run(desk, "10:30:11")
+    assert held(desk, "XYZ") == 0
+    (skip,) = lines_("skipped")
+    assert skip["inputs"]["code"] == "LT_OTHER_HOST" and "previous day" in skip["reason"]
+
+
+def test_a_clock_read_impossibly_never_stops_the_watcher(desk, monkeypatch):
+    """09:34:97 in the read log and on the status: the line is dropped, the pass goes on, nothing opens on it."""
+    run(desk, "10:30:00")
+    desk.feed.log.append({"clock": "10:29:97", "traders": {HOST: {"positions": {}, "unparsed": []}}})
+    t = desk.feed.open("XYZ", 100.00, at("10:30:10"))
+    run(desk, "10:30:11")
+    assert held(desk, "XYZ") == 4
+    real_day = desk.feed.day
+
+    def bad_clock(base, date, *, timeout=None):
+        got = real_day(base, date, timeout=timeout)
+        return {**got, "status": {**got["status"], "clock": None}}
+
+    monkeypatch.setattr(feed, "fetch_day", bad_clock)
+    routes._log_cache.clear()
+    desk.feed.close(t, at("10:31:00"))
+    run(desk, "10:31:01")
+    assert held(desk, "XYZ") == 0                                  # a close needs no clock
+
+
+def test_a_short_covered_in_part_outside_has_its_stop_cancelled_and_the_rest_covered(desk):
+    run(desk, "10:30:00")
+    desk.feed.open("FADE", 40.00, at("10:30:10"), side="short")
+    run(desk, "10:30:11")
+    (stop_id,) = lt_book.positions()[f"{HOST}|short|FADE"]["stop_order_ids"]
+    desk.broker.place("FADE", "BUY", 5, order_type="MKT", source="manual")      # you covered 5 of the bot's 12
+    run(desk, "10:30:20")
+    run(desk, "10:30:22")
+    assert held(desk, "FADE") == 0
+    assert desk.broker.ledger.order_row(stop_id)["status"] == "Cancelled"
+    assert lt_book.positions() == {}
+
+
+def test_a_short_covered_in_full_outside_leaves_no_stop_to_cover_the_next_short(desk):
+    run(desk, "10:30:00")
+    desk.feed.open("FADE", 40.00, at("10:30:10"), side="short")
+    run(desk, "10:30:11")
+    (stop_id,) = lt_book.positions()[f"{HOST}|short|FADE"]["stop_order_ids"]
+    desk.broker.place("FADE", "BUY", 12, order_type="MKT", source="manual")     # you covered all of it
+    run(desk, "10:30:20")
+    assert held(desk, "FADE") == 0
+    assert desk.broker.ledger.order_row(stop_id)["status"] == "Cancelled"
+
+
+def test_a_book_that_cannot_be_written_opens_nothing_until_it_can(desk, monkeypatch, tmp_path):
+    good = lt_book._path()
+    blocker = tmp_path / "not-a-folder"
+    blocker.write_text("x", encoding="utf-8")
+    run(desk, "10:30:00")
+    monkeypatch.setattr(lt_book, "_path", lambda: blocker / "live-trader-book.json")
+    desk.feed.open("XYZ", 100.00, at("10:30:10"))
+    run(desk, "10:30:11")
+    assert held(desk, "XYZ") == 4                                  # the order went out; its record did not
+    assert "could not be written" in (lt_book.error() or "")
+    desk.feed.open("ABCD", 50.00, at("10:30:20"))
+    run(desk, "10:30:21")
+    assert held(desk, "ABCD") == 0
+    assert watcher.status()["can_open"]["ok"] is False
+    monkeypatch.setattr(lt_book, "_path", lambda: good)
+    run(desk, "10:30:30")
+    assert lt_book.error() is None
+    run(desk, "10:30:32")
+    assert held(desk, "ABCD") == 9                                 # taken as already open once the book is sound

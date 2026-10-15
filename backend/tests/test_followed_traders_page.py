@@ -165,6 +165,14 @@ def test_parse_reads_and_name_a_bad_line():
         feed.parse_reads(json.dumps({"clock": "10:00", "traders": {}}))
     # A frame the feed could not read at all has no clock: skipped, never a bad answer (the feed's log, 2026-10-13).
     assert feed.parse_reads(json.dumps({"clock": None, "traders": {}})) == []
+    # A screen clock read impossibly (09:34:97) is no time of day: that line is skipped, the log still reads.
+    got = feed.parse_reads(_log_line("10:00:00") + "\n" + json.dumps({"clock": "09:34:97", "traders": {}}))
+    assert [line["clock"] for line in got] == ["10:00:00"]
+
+
+def test_a_status_clock_that_is_no_time_of_day_reads_as_none():
+    assert feed.parse_day(_raw_day(clock="09:34:97"))["status"]["clock"] is None
+    assert feed.parse_day(_raw_day())["status"]["clock"] == "10:30:00"
 
 
 def test_trader_reads_fold_and_window():

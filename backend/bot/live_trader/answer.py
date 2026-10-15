@@ -4,8 +4,12 @@ The bot reads what the TraderTV LIVE page reads, through ``followed_traders``: t
 (``feed.fetch_day``), each host's sighting on the bar (``routes.seen``: off air when another host's name tag has been
 on the bar 60 s) with ``view.closed_on_leaving``, and the glued-ticker check (``routes.ticker_for`` over IBKR's
 tape, advanced by ``exits.pump``). A trade's id is the page's (``view.trade_row``), and its ticker and prices the
-ones the check settled on (``tickers.shown``). Nothing here sends an order. Shapes: ``decide``'s answer,
-architecture/schema/bot.md ("The Live Trader bot").
+ones the check settled on (``tickers.shown``). For the bad-read rules (bot.md, "Bad reads") each host carries the
+sides its reads could not read whole (``unread``, from the page's read log) and the answer carries every trade of
+the feed's previous day as ``previous`` (side, stock, average), read once a day. An answer that cannot be folded
+is a feed that is not answering (``bad_answer``), never a failed pass. Nothing here sends an order. Shapes:
+``decide``'s answer, architecture/schema/bot.md ("The Live Trader bot"). Owner of ``_previous``: this module, in
+process memory (one day's keys; schema_version n/a).
 """
 from __future__ import annotations
 
@@ -13,8 +17,14 @@ import logging
 from typing import Any
 
 from bot.live_trader import feed_rows
+from bot.live_trader.constants_live_trader import LT_PREVIOUS_RETRY_SEC
 
 logger = logging.getLogger(__name__)
+_previous: dict[str, Any] = {"date": None, "keys": [], "retry_ts": None}
+
+
+def reset_for_tests() -> None:
+    _previous.update(date=None, keys=[], retry_ts=None)
 
 
 def down(state: str, error: str | None) -> dict[str, Any]:
@@ -23,7 +33,7 @@ def down(state: str, error: str | None) -> dict[str, Any]:
 
 
 def read(now: float) -> dict[str, Any]:
-    from followed_traders import config, exits, feed, routes, tickers, view
+    from followed_traders import config, feed, routes
 
     base = config.feed_url()
     if base is None:
@@ -33,7 +43,16 @@ def read(now: float) -> dict[str, Any]:
         day = feed.fetch_day(base, today)
     except feed.FeedError as exc:
         return down(exc.state, exc.message)
-    day = {**day, "today": today}
+    try:
+        return _fold(base, {**day, "today": today}, now)
+    except Exception as exc:
+        logger.exception("Live Trader bot: the feed's answer could not be folded")
+        return down("bad_answer", f"the feed's answer could not be read ({type(exc).__name__}: {exc})")
+
+
+def _fold(base: str, day: dict[str, Any], now: float) -> dict[str, Any]:
+    from followed_traders import exits, routes, tickers, view
+
     status = day.get("status")
     seen = routes.seen(base, day, now)
     ready = routes.ibkr_ready()
@@ -53,11 +72,37 @@ def read(now: float) -> dict[str, Any]:
     exits.pump(now, ibkr_ready=ready)
     updated = (status or {}).get("updated_at")
     clock = (status or {}).get("clock")
-    return {"state": "ok", "error": None, "date": day["date"], "feed_now": feed_rows.clock_ts(day["date"], clock),
+    feed_now = feed_rows.clock_ts(day["date"], clock)
+    unread = feed_rows.unread_sides(routes.read_log(base, day["date"], now), day["date"], feed_now)
+    for name, host in hosts.items():
+        host["unread"] = sorted(unread.get(name, ()))
+    return {"state": "ok", "error": None, "date": day["date"], "feed_now": feed_now,
             "read_age_sec": None if updated is None else round(max(0.0, now - updated), 1),
             "behind_sec": feed_rows.behind_sec(clock, updated), "live": bool((status or {}).get("live")),
             "bar_visible": bool((status or {}).get("bar_visible")), "order": list(hosts), "hosts": hosts,
-            "faces": sorted(day.get("faces") or ())}
+            "faces": sorted(day.get("faces") or ()), "previous": _previous_keys(base, day, now)}
+
+
+def _previous_keys(base: str, day: dict[str, Any], now: float) -> list[list[Any]]:
+    """Every trade of the feed's day before ``day`` as ``[side, symbol, average]`` (each average it showed, to the
+    cent), read once a day: a bar still showing an earlier show's rows is never taken for new positions."""
+    from followed_traders import feed
+
+    prev = next((d for d in day.get("dates") or () if d < day["date"]), None)
+    if prev is None:
+        return []
+    if _previous["date"] == prev and (_previous["retry_ts"] is None or now < _previous["retry_ts"]):
+        return _previous["keys"]
+    try:
+        got = feed.fetch_day(base, prev)
+    except feed.FeedError as exc:
+        logger.warning("Live Trader bot: the feed's %s could not be read (%s): asked again in %.0f s", prev,
+                       exc.message, LT_PREVIOUS_RETRY_SEC)
+        _previous.update(date=prev, keys=[], retry_ts=now + LT_PREVIOUS_RETRY_SEC)
+        return []
+    keys = sorted({(t["side"], t["symbol"], p) for t in got["trades"] for p in feed_rows.averages(t)})
+    _previous.update(date=prev, keys=[list(k) for k in keys], retry_ts=None)
+    return _previous["keys"]
 
 
 def _bars(status: dict[str, Any] | None) -> dict[str, set[str]] | None:
