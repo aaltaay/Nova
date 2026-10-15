@@ -338,9 +338,11 @@ order.
   over every Session Record: for each called wall, the mid's move toward a flush (down after a seller, up after a
   buyer) and whether a print went through it, 10 s to 5 min after the call and after its end, split by how it
   ended and by `clear_sec` (under 60 s against 60 s or more), beside the same recordings' every minute as the
-  baseline. The tracker starts afresh where a recorded stretch begins after a gap (the manifest's segments,
-  `hidden_study.recording_restarts`; `tools/hidden_study.py` too), so a wall is never held across one. A
-  description of the recordings, never a trading rule.
+  baseline. Across each gap in a recording (the manifest's segments, `hidden_study.recording_gaps`;
+  `tools/hidden_study.py` too) the tracker judges what the recorded tape can, then starts afresh: a wall is
+  never held across a gap, and one that left the book but still waited on its prints when the recorder stopped
+  is lost (`how: "gap"`), never judged taken or pulled on half its window. A description of the recordings,
+  never a trading rule.
 
 ## LULD bands on Level 2 (ADR 047, operator ask 2026-10-06)
 

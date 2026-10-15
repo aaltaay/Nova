@@ -226,6 +226,12 @@ class BigWallTracker:
         self.pace.reset()
         return out
 
+    def lose_waiting(self, how: str) -> list[dict[str, Any]]:
+        """Every wall that left and still waits on its prints, lost where it left: the tape that would judge it is
+        missing (a recording gap, ``hidden_study.read``; never live, where the tape runs on past a book restart)."""
+        waiting, self.pending = self.pending, []
+        return [e for d in waiting if d["wall"].state == LEFT for e in self._end(d["wall"], LOST, d["t1"], how)]
+
     # -- the rule ------------------------------------------------------------
 
     def _reference(self, views: dict[str, SideView] | None) -> float | None:

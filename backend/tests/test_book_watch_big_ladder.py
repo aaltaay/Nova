@@ -227,18 +227,13 @@ def test_the_study_measures_each_wall_from_its_call_and_its_end(tmp_path):
     assert answer["baseline_seller"]["10"]["flush_bp"]["n"] >= 1
 
 
-def test_the_study_never_holds_a_wall_across_a_recording_gap(tmp_path):
-    """Shown at 1000-1001, the recorder down, shown again from 1100: without the restart the tracker reads it as
-    held for 100 s and calls it; with it, the hold starts again after the gap."""
+def _gapped(tmp_path, books):
+    """A recording of ``books`` behind one print at 4.47, and a manifest with the recorder down 1004.2 - 1100."""
     import json
     from datetime import datetime, timezone
 
-    from book_watch import big_study
-    from book_watch.hidden_study import recording_restarts
-
     rec = tmp_path / "2026-10-14" / "XYZ"
     rec.mkdir(parents=True)
-    books = [{"ts": t, "bids": BIDS, "asks": asks()} for t in (1000.0, 1001.0, 1100.0, 1101.0)]
     prints = [{"ts": 999.5, "receive_ts": 999.5, "price": 4.47, "size": 100, "exchange": "NASDAQ", "conditions": ""}]
     (rec / "l2.jsonl").write_text("\n".join(json.dumps(b) for b in books) + "\n")
     (rec / "prints.jsonl").write_text("\n".join(json.dumps(p) for p in prints) + "\n")
@@ -246,9 +241,33 @@ def test_the_study_never_holds_a_wall_across_a_recording_gap(tmp_path):
     def iso(t):
         return datetime.fromtimestamp(t, timezone.utc).isoformat()
 
-    manifest = {"segments": [{"started_et": iso(999.0), "stopped_et": iso(1002.0)},
-                             {"started_et": iso(1100.0), "stopped_et": iso(1102.0)}]}
-    restarts = recording_restarts(manifest, rec)
-    assert restarts == [1100.0]
+    return rec, {"segments": [{"started_et": iso(999.0), "stopped_et": iso(1004.2)},
+                              {"started_et": iso(1100.0), "stopped_et": iso(1102.0)}]}
+
+
+def test_the_study_never_holds_a_wall_across_a_recording_gap(tmp_path):
+    """Shown at 1000-1001, the recorder down, shown again from 1100: without the gap the tracker reads it as held
+    for 100 s and calls it; with it, the hold starts again after the gap."""
+    from book_watch import big_study
+    from book_watch.hidden_study import recording_gaps
+
+    rec, manifest = _gapped(tmp_path, [{"ts": t, "bids": BIDS, "asks": asks()} for t in (1000.0, 1001.0, 1100.0, 1101.0)])
+    gaps = recording_gaps(manifest, rec)
+    assert gaps == [(1004.2, 1100.0)]
     assert [w["called_ts"] for w in big_study.read(rec).called] == [1100.0]
-    assert big_study.read(rec, restarts=restarts).called == []
+    assert big_study.read(rec, gaps=gaps).called == []
+
+
+def test_a_wall_that_left_just_before_a_gap_is_lost_not_judged_on_half_its_window(tmp_path):
+    """Called at 1003, gone from the book at 1004, its prints due at 1004.75 -- after the recorder stopped at
+    1004.2. Without the gap the first row after it judges the wall pulled on a tape that was not recorded."""
+    from book_watch import big_study
+    from book_watch.hidden_study import recording_gaps
+
+    books = [{"ts": 1000.0 + i, "bids": BIDS, "asks": asks()} for i in range(4)]
+    books += [{"ts": t, "bids": BIDS, "asks": asks(0)} for t in (1004.0, 1100.0, 1101.0)]
+    rec, manifest = _gapped(tmp_path, books)
+    (wall,) = big_study.read(rec).ended.values()
+    assert wall["state"] == "pulled"
+    (wall,) = big_study.read(rec, gaps=recording_gaps(manifest, rec)).ended.values()
+    assert wall["state"] == "lost" and wall["how"] == "gap" and wall["ended_ts"] == 1004.0
