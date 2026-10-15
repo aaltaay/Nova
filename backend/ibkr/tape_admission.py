@@ -81,11 +81,12 @@ def view() -> dict:
 
 
 def available(symbol: str | None = None) -> int | None:
-    """None: unknown budget. Joining a held symbol spends no additional tape slot."""
+    """None: unknown budget. Joining a held symbol spends no additional tape slot, so a malformed
+    budget never refuses it."""
     with _lock:
         state = view()
         row = _slots.get((symbol or "").upper())
-        if row is not None and row.state != "uncertain" and not state["error"]:
+        if row is not None and row.state != "uncertain":
             return None
         return state["free"]
 

@@ -201,6 +201,17 @@ def test_invalid_configuration_is_a_loud_auto_admission_failure(gateway, monkeyp
     assert gateway.requests == []
 
 
+def test_invalid_configuration_still_lets_a_held_symbol_join(gateway, monkeypatch):
+    from ibkr import tape_admission
+
+    assert run(tape.subscribe_async("AAA"))["ok"]
+    monkeypatch.setenv("IBKR_TAPE_MAX_LINES", "bogus")
+    assert tape_admission.available("AAA") is None  # a join opens no new AllLast request
+    assert tape_admission.available("BBB") == 0
+    assert run(tape.subscribe_async("AAA", automatic=True))["ok"]
+    assert len(gateway.requests) == 1
+
+
 @pytest.mark.parametrize("failure", ["exception", "empty", "request"])
 def test_failed_start_returns_its_reservation(gateway, monkeypatch, failure):
     monkeypatch.setenv("IBKR_TAPE_MAX_LINES", "1")
