@@ -32,7 +32,7 @@ def _desk(monkeypatch):
     keeper.reset_for_tests()
     monkeypatch.setenv(FOLLOWED_FEED_URL_ENV, "http://127.0.0.1:8787")
     monkeypatch.setenv(FOLLOWED_FEED_TASK_ENV, TASK)
-    monkeypatch.setattr(keeper.sys, "platform", "win32")
+    monkeypatch.setattr(keeper, "_is_windows", lambda: True)  # never sys.platform: asyncio reads it too
     yield
     keeper.reset_for_tests()
 
@@ -74,7 +74,7 @@ def test_a_feed_on_another_machine_is_not_ours_to_start(monkeypatch):
 
 
 def test_only_windows_has_scheduled_tasks(monkeypatch):
-    monkeypatch.setattr(keeper.sys, "platform", "linux")
+    monkeypatch.setattr(keeper, "_is_windows", lambda: False)
     assert keeper.task_name() is None
 
 
@@ -152,6 +152,19 @@ def test_an_answer_ends_the_streak(monkeypatch, runs):
     _feed(monkeypatch, feed.FeedError("unreachable", "timed out after 3 s"))
     keeper.tick(night + 60)
     assert runs == []
+
+
+def test_an_unreadable_answer_ends_the_streak(monkeypatch, runs):
+    night = _et("2026-10-14T21:11:00")
+    _feed(monkeypatch, feed.FeedError("unreachable", "could not connect"))
+    keeper.tick(night)
+    _feed(monkeypatch, feed.FeedError("bad_answer", "status.live is not a boolean"))
+    keeper.tick(night + 30)  # the server answered
+    _feed(monkeypatch, feed.FeedError("unreachable", "could not connect"))
+    keeper.tick(night + 600)  # one unanswered ask after it is the start of a new streak, not the old one
+    assert runs == []
+    keeper.tick(night + 630)
+    assert runs == [TASK]
 
 
 def test_an_unreadable_answer_starts_nothing(monkeypatch, runs):

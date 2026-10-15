@@ -55,7 +55,7 @@ def task_name() -> str | None:
     base = config.feed_url()
     if not name or base is None:
         return None
-    if sys.platform != "win32":
+    if not _is_windows():
         _warn_once("platform", "%s is set but Nova starts a scheduled task only on Windows", FOLLOWED_FEED_TASK_ENV)
         return None
     if (urlsplit(base).hostname or "").lower() not in FOLLOWED_KEEPER_HOSTS:
@@ -122,7 +122,8 @@ def tick(now: float) -> None:
         beat = heartbeat(day["status"])
     except feed.FeedError as exc:
         if exc.state != "unreachable":
-            return  # an answer Nova cannot read is not a stopped feed
+            _down_since = None  # it answered: an answer Nova cannot read is not a stopped feed, and ends the streak
+            return
         if _down_since is None:
             _down_since = now
     why = decide(now, down_since=_down_since, beat=beat, capture_hours=in_capture_hours(now),
@@ -157,6 +158,10 @@ def view(now: float | None = None) -> dict[str, Any] | None:
     next_at = _last["at"] + FOLLOWED_KEEPER_COOLDOWN_SEC if _last else None
     return {"task": name, "last": dict(_last) if _last else None,
             "next_at": next_at if next_at is not None and next_at > now else None}
+
+
+def _is_windows() -> bool:
+    return sys.platform == "win32"
 
 
 def _warn_once(key: str, msg: str, *args: Any) -> None:
