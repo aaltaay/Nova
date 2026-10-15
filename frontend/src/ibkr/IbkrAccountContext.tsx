@@ -55,6 +55,7 @@ const EMPTY_SNAP: IbkrAccountPollSnap = {
   stale: false,
   staleSince: null,
   venue: null,
+  ordersRead: false,
 };
 
 function noopSubscribe(_onStoreChange: () => void): () => void {

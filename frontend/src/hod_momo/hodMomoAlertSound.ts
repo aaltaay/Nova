@@ -15,6 +15,8 @@
  * Running Up (strategy 12) does not ping. WS `initial` / reconnect
  * snapshots seed seen keys and never ping.
  *
+ * The header mute (sound/) silences it too, under this switch.
+ *
  * Sim off the live edge (#486): the strip shows another moment, so a live
  * alert that arrives then is marked seen without a ping -- and, being seen,
  * never pings late once the desk is back at the live edge.
@@ -30,6 +32,7 @@ import {
 import { isRunningUpStrategy } from './scannerPartition';
 import type { AlertObject } from './types';
 import { parseBoolFlag, readPref, writePref } from '../utils/prefStore';
+import { isDeskMuted } from '../sound';
 
 export type HodMomoPingReason =
   | 'pinged'
@@ -116,7 +119,7 @@ export function unlockHodMomoAlertAudio(): void {
 }
 
 function playPing(): boolean {
-  if (!enabled) return false;
+  if (!enabled || isDeskMuted()) return false;
   try {
     const ctx = ensureAudioCtx();
     if (!ctx) return false;
@@ -152,7 +155,7 @@ export function noteHodMomoLiveAlert(
   seenKeys.add(key);
   if (replaying) return 'replaying';
   if (isRunningUpStrategy(alert.strategy_id)) return 'running_up';
-  if (!enabled) return 'muted';
+  if (!enabled || isDeskMuted()) return 'muted';
   if (lastPingAt > 0 && nowMs - lastPingAt < HOD_MOMO_ALERT_SOUND_COALESCE_MS) {
     return 'coalesced';
   }

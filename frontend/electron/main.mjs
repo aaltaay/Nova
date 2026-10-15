@@ -35,6 +35,7 @@ import { createScreenSampler } from './graphicsWatch.mjs';
 import { attachRendererGuards, recoverWindowIfErrorPage } from './rendererGuards.mjs';
 import { applySingleInstance, focusExistingWindow } from './singleInstance.mjs';
 import { skipApiSidecar } from './sidecarSkip.mjs';
+import { wireDeskSound } from './deskSound.mjs';
 import { engineStep, openStartupSplash, STARTUP_STEPS } from './startupSplash.mjs';
 import { isAllowedRendererUrl, loadHostWindow } from './traderWindowLoad.mjs';
 import { openOrFocusTraderWindow } from './traderWindows.mjs';
@@ -265,6 +266,8 @@ ipcMain.handle('nova:openStockView', (_event, url) => {
 
 ipcMain.handle('nova:openStream', (_event, videoId) => openStreamWindow(BrowserWindow, videoId, { icon: APP_ICON }));
 ipcMain.handle('nova:youtubeSignIn', () => signInToYouTube());
+// The header mute: every Nova window's audio, the stream's pop-out included.
+wireDeskSound({ ipcMain, app, BrowserWindow });
 
 ipcMain.handle('nova:openExternal', async (_event, url) => {
   const parsed = new URL(String(url));

@@ -4,6 +4,7 @@
  * ENTER NOW, SELL NOW, or what Nova just did, in words. The bell mutes the ping on every Trader tab.
  */
 import { useSyncExternalStore } from 'react';
+import { DESK_MUTE_REASON, useDeskMuted } from '../sound';
 import { tipProps } from '../ux';
 import { STEP_NAMES, type Moment, type MomentCall } from './momentModel';
 import { isStockReadSoundOn, setStockReadSound, subscribeStockReadSound } from './whoTradesSound';
@@ -29,6 +30,7 @@ const SHORT_STEPS = ['Forming', 'Trigger', 'Short'] as const;
 
 export function MomentTrack({ moment }: { moment: Moment }) {
   const sound = useSoundOn();
+  const deskMuted = useDeskMuted();
   const steps = [...(moment.side === 'short' ? SHORT_STEPS : STEP_NAMES), moment.exitLabel];
   return (
     <div className={`sr-track sr-track--${moment.tone}${moment.side === 'short' ? ' sr-track--short' : ''}`}
@@ -53,7 +55,8 @@ export function MomentTrack({ moment }: { moment: Moment }) {
         aria-pressed={sound}
         aria-label={sound ? 'Mute the ping' : 'Hear the ping'}
         onClick={() => setStockReadSound(!sound)}
-        {...tipProps(sound ? 'A ping sounds for ENTER NOW, SELL NOW and what Nova just did. Click to mute it on '
+        {...tipProps(deskMuted ? DESK_MUTE_REASON
+          : sound ? 'A ping sounds for ENTER NOW, SELL NOW and what Nova just did. Click to mute it on '
           + 'every Trader tab.' : 'The ping is muted on every Trader tab. Click to hear the calls again.', 'Ping')}
         data-testid="moment-bell"
       >

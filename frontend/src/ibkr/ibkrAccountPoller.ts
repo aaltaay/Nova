@@ -22,6 +22,7 @@ import { lastKnownAsOfMessage } from './disconnectCopy';
 import {
   claimDeskPollLeader,
   heartbeatDeskPollLeader,
+  isDeskPollLeader,
   publishDeskPollSnap,
   readDeskPollSnap,
   subscribeDeskPollSnap,
@@ -45,6 +46,8 @@ export interface IbkrAccountPollSnap {
   staleSince: number | null;
   /** The desk venue these rows came from (live | paper | sim); null before the status names one. */
   venue: string | null;
+  /** Both order lists answered at least once on this venue: `orders` / `closedOrders` are a read, not a default. */
+  ordersRead: boolean;
 }
 
 const EMPTY: IbkrAccountPollSnap = {
@@ -57,6 +60,7 @@ const EMPTY: IbkrAccountPollSnap = {
   stale: false,
   staleSince: null,
   venue: null,
+  ordersRead: false,
 };
 
 type Listener = () => void;
@@ -134,6 +138,7 @@ function applyRemote(remote: IbkrAccountPollSnap): void {
     positions: normalizePositionList(remote?.positions) ?? [],
     orders: normalizeOrderList(remote?.orders) ?? [],
     closedOrders: normalizeOrderList(remote?.closedOrders) ?? [],
+    ordersRead: remote?.ordersRead === true,
     stale: false,
   });
 }
@@ -198,6 +203,7 @@ async function tickOrders(): Promise<void> {
     const next = { ...snapshot };
     if (snap.orders) next.orders = snap.orders;
     if (snap.closedOrders) next.closedOrders = snap.closedOrders;
+    if (snap.orders && snap.closedOrders) next.ordersRead = true;
     orderFails = snap.failures;
     publishLocal({ ...next, error: mergeError() });
   } catch (err) {
@@ -330,6 +336,16 @@ export function getIbkrAccountSnapshot(): IbkrAccountPollSnap {
 export function refreshIbkrAccountNow(): void {
   void tickAccount();
   void tickOrders();
+}
+
+/** Read the order rows now (the desk's voice, after a position moved): the 5 s order poll is too slow to say a fill. */
+export function refreshIbkrOrdersNow(): void {
+  void tickOrders();
+}
+
+/** This window reads the account for every window: the one window the desk's voice speaks from. */
+export function isIbkrAccountPollLeader(): boolean {
+  return isDeskPollLeader(DESK_POLL_ACCOUNT_SHARE, DESK_POLL_LEADER_STALE_MS);
 }
 
 export function _resetIbkrAccountPollerForTests(): void {

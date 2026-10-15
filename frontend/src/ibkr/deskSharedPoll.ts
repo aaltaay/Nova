@@ -86,6 +86,14 @@ export function claimDeskPollLeader(
   return true;
 }
 
+/** Read-only: this tab holds the lead (or no storage, so every tab polls alone). Never claims. */
+export function isDeskPollLeader(name: string, staleMs: number, now?: number): boolean {
+  if (typeof localStorage === 'undefined') return true;
+  const current = readLeader(name);
+  if (!current) return true;
+  return current.owner === deskPollOwnerId() || nowMs(now) - current.ts >= staleMs;
+}
+
 export function heartbeatDeskPollLeader(name: string, now?: number): void {
   writeLeader(name, deskPollOwnerId(), nowMs(now));
 }

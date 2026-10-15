@@ -383,6 +383,12 @@
   color: var(--nova-success, #22c55e);
 }
 
+/* The header mute (sound/): muted is the state to notice -- fills and alerts are not heard. */
+.global-app-bar__mute.is-muted,
+.global-app-bar__mute.has-problem {
+  color: var(--gbar-warn);
+}
+
 .global-app-bar__trade-lock-icon,
 .global-app-bar__icon {
   width: 16px;

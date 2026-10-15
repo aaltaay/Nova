@@ -1,6 +1,7 @@
 /**
  * Loud pop-up for place/flatten rejects. The ticket footer span is too easy
- * to miss (BUYING_POWER was a one-line err under Place).
+ * to miss (BUYING_POWER was a one-line err under Place). The desk's voice says
+ * "Order rejected." beside it (sound/; the header mute silences it).
  */
 import {
   IBKR_CLIENT_PORTAL_URL,
@@ -8,9 +9,11 @@ import {
   IBKR_VERIFICATION_OPEN_PORTAL_LABEL,
   IBKR_VERIFICATION_REQUIRED_REASON,
   ORDER_REJECT_DEFAULT_TITLE,
+  ORDER_REJECTED_SPOKEN,
   ORDER_REJECT_SKIP_MESSAGES,
   ORDER_REJECT_TITLES,
 } from '../constants';
+import { speakDesk } from '../sound';
 import { alertApp, confirmApp } from '../ux';
 import { acknowledgeIbkrVerification } from './acknowledgeVerification';
 import { isSoftOrderWarning } from './orderFillHonesty';
@@ -60,6 +63,7 @@ export async function notifyOrderRejected(opts: {
   const message = (opts.message || '').trim();
   if (!message || ORDER_REJECT_SKIP_MESSAGES.includes(message)) return false;
   if (isSoftOrderWarning(message, opts.reasonCode)) return false;
+  speakDesk(ORDER_REJECTED_SPOKEN);
   const reason = inferOrderRejectReason(message, opts.reasonCode);
   try {
     if (reason === IBKR_VERIFICATION_REQUIRED_REASON) {

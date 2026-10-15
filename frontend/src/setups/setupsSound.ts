@@ -1,11 +1,13 @@
 /** One short ping when the bot raises a proposal (a setup near its trigger with
- * the tape saying go). Its own mute switch, separate from HOD Momo's. */
+ * the tape saying go). Its own mute switch, separate from HOD Momo's; the header
+ * mute (sound/) silences it too. */
 import {
   SETUPS_PING_GAIN,
   SETUPS_PING_HZ,
   SETUPS_PING_SEC,
   SETUPS_SOUND_STORAGE_KEY,
 } from '../constants';
+import { isDeskMuted } from '../sound';
 
 type Listener = (enabled: boolean) => void;
 
@@ -78,7 +80,7 @@ function ping(): boolean {
 export function noteSetupProposal(id: string): 'pinged' | 'duplicate' | 'muted' | 'silent' {
   if (heard.has(id)) return 'duplicate';
   heard.add(id);
-  if (!enabled) return 'muted';
+  if (!enabled || isDeskMuted()) return 'muted';
   return ping() ? 'pinged' : 'silent';
 }
 

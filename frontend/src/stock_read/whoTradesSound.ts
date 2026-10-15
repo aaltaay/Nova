@@ -1,9 +1,11 @@
 /**
  * The chart's ping (ADR 037): one short sound per call -- ENTER NOW, SELL NOW, what Nova just did --
  * keyed on the call's id, so a call that stays on screen pings once per page. Its own mute,
- * `nova.stockRead.sound` = `{schema_version: 1, value: boolean}`, shared by every Trader tab.
+ * `nova.stockRead.sound` = `{schema_version: 1, value: boolean}`, shared by every Trader tab. The header mute
+ * (sound/) silences it too.
  */
 import { readPref, writePref } from '../utils/prefStore';
+import { isDeskMuted } from '../sound';
 import { STOCK_MODE_SOUND_KEY } from './constants';
 import type { CallTone } from './momentModel';
 
@@ -86,7 +88,7 @@ function play(notes: number[]): boolean {
 export function pingCall(id: string, tone: CallTone): 'pinged' | 'duplicate' | 'muted' | 'silent' {
   if (heard.has(id)) return 'duplicate';
   heard.add(id);
-  if (!enabled) return 'muted';
+  if (!enabled || isDeskMuted()) return 'muted';
   const notes = NOTES[tone];
   return notes && play(notes) ? 'pinged' : 'silent';
 }

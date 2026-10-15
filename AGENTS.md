@@ -236,6 +236,7 @@ Every confirmed wire and persisted shape lives in `architecture/schema/`, one fi
 | Symbol directory for the header search (operator ask, 2026-09-23) | `architecture/schema/desk-ops.md` |
 | The operator's watch list and its toasts (operator asks, 2026-09-23 and 2026-09-24) | `architecture/schema/desk-ops.md` |
 | The close-of-day reminder (operator ask, 2026-10-01) | `architecture/schema/desk-ops.md` |
+| The desk's voice and the header mute (operator ask, 2026-10-14) | `architecture/schema/desk-ops.md` |
 | Short selling (ADR 048, operator decisions 2026-10-01 to 2026-10-07; #778) | `architecture/schema/short-selling.md` |
 | The short setups on the scanner (ADR 049, step 4 of #778) | `architecture/schema/short-selling.md` |
 | The bot trades both sides (ADR 049, step 5 of #778) | `architecture/schema/short-selling.md` |

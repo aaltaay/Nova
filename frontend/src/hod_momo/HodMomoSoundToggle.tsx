@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { DESK_MUTE_REASON, useDeskMuted } from '../sound';
 import {
   isHodMomoAlertSoundEnabled,
   setHodMomoAlertSoundEnabled,
@@ -14,7 +15,8 @@ export function HodMomoSoundToggle({ className = '' }: Props) {
 
   useEffect(() => subscribeHodMomoAlertSound(setOn), []);
 
-  const title = on ? 'Mute HOD alert ping' : 'Unmute HOD alert ping';
+  const deskMuted = useDeskMuted();
+  const title = `${on ? 'Mute HOD alert ping' : 'Unmute HOD alert ping'}${deskMuted ? ` -- ${DESK_MUTE_REASON}` : ''}`;
   return (
     <button
       type="button"
