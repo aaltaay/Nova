@@ -2,13 +2,17 @@
  * In-app update policy (#347) -- pure: no Electron, no electron-updater, no I/O.
  *
  * The installed desk checks for a newer release and tells the operator, with its
- * release notes, in a notice on the desk (operator ask, 2026-09-23). Nothing
- * downloads until the operator picks Update; nothing installs until they pick
- * Restart to update. It never installs or restarts on its own: not on quit, not
- * on a timer, not after a failed check. It checks shortly after launch and again
- * every two hours while it stays open, except in weekday trading hours, when a
- * re-check neither downloads nor asks. Update downloads the newest release: an
- * offer older than a minute is checked again at the click.
+ * release notes, in a notice on the desk (operator ask, 2026-09-23). It checks
+ * shortly after launch, again every two hours while it stays open, and as soon
+ * as GitHub's release ping arrives (releasePing.mjs). Since the operator's ask of
+ * 2026-10-14 ("I want an auto update") a newer release downloads and installs
+ * by itself, but only when nothing is at stake (autoInstall.mjs: outside weekday
+ * trading hours, nothing open on the backend, the desk untouched for a while);
+ * `NOVA_UPDATE_AUTO_INSTALL=0` keeps the offer-only desk, where nothing
+ * downloads until Update and nothing installs until Restart to update. It never
+ * installs on quit. A re-check or ping in weekday trading hours neither downloads
+ * nor asks. Update downloads the newest release: an offer older than a minute is
+ * checked again at the click.
  *
  * autoUpdate.mjs owns the electron-updater instance and feeds its events through
  * reduceUpdateState(); every decision about what to show or do lives here, and
@@ -18,6 +22,17 @@ import { releaseTagFromText } from './releaseTag.mjs';
 
 /** Desk setting (process env or the desk .env). `0` / `false` / `no` / `off` stops automatic checks. */
 export const UPDATE_CHECK_ENV = 'NOVA_UPDATE_CHECK';
+/** Desk setting, read the same way. Off: a found release waits for Update and Restart to update. */
+export const UPDATE_AUTO_INSTALL_ENV = 'NOVA_UPDATE_AUTO_INSTALL';
+/** A release installs by itself only after Windows saw no keyboard or mouse input for this long. */
+export const UPDATE_AUTO_IDLE_MS = 5 * 60_000;
+/** While a release waits to download or install by itself, the desk looks whether it may this often. */
+export const UPDATE_AUTO_TICK_MS = 30_000;
+/** GitHub's release ping makes the desk check at most this often (a ping inside the gap checks after it). */
+export const UPDATE_PING_MIN_GAP_MS = 60_000;
+/** What the automatic step waits for, in the operator's words (notice.auto.waiting). */
+export const AUTO_WAIT_TRADING_HOURS = 'trading hours (until 16:00 ET)';
+export const AUTO_WAIT_IDLE = `${UPDATE_AUTO_IDLE_MS / 60_000} minutes with no keyboard or mouse input`;
 /** Let the desk finish starting (engine, Gateway attach) before touching the network. */
 export const UPDATE_FIRST_CHECK_DELAY_MS = 15_000;
 /** While the desk stays open, ask GitHub again this often. */
@@ -109,6 +124,10 @@ export function errorText(err) {
  * raised again until the next launch or a Help-menu request), and
  * `consentVersion` the one they picked Update for -- a download of it that
  * stopped is resumed without asking again.
+ *
+ * `auto` (operator ask 2026-10-14): null while the release waits for the
+ * operator's click, else `{waiting: string[]}` -- Nova downloads or installs it
+ * by itself once `waiting` is empty (autoInstall.mjs).
  */
 export const INITIAL_UPDATE_STATE = Object.freeze({
   phase: 'idle',
@@ -121,6 +140,7 @@ export const INITIAL_UPDATE_STATE = Object.freeze({
   offeredVersion: '',
   dismissedVersion: '',
   consentVersion: '',
+  auto: null,
 });
 
 export function clampPercent(value) {
@@ -212,9 +232,33 @@ export function reduceUpdateState(state, event) {
     case 'install-failed':
       // The downloaded installer is still cached; the operator can try again.
       return { ...state, phase: 'ready', error: errorText(event.message), checkError: '' };
+    case 'auto': {
+      // What the automatic step waits for now; the same answer twice is no change.
+      const auto = readAuto(event.auto);
+      return JSON.stringify(auto) === JSON.stringify(state.auto) ? state : { ...state, auto };
+    }
     default:
       return state;
   }
+}
+
+function readAuto(value) {
+  if (!value || !Array.isArray(value.waiting)) return null;
+  return { waiting: value.waiting.map((line) => String(line ?? '')).filter(Boolean) };
+}
+
+/**
+ * May Nova download or install this release by itself (operator ask
+ * 2026-10-14)? Only when `enabled` (automatic checks and the automatic install
+ * both on), for a release found (`available`) or downloaded (`ready`) that the
+ * operator did not answer Later for and that an earlier automatic install did
+ * not leave to them (`leftVersion`). Whether it may go *now* is autoInstall.mjs's look.
+ */
+export function autoAllowed(state, { enabled, leftVersion = '' } = {}) {
+  if (!enabled) return false;
+  const { phase, version } = state;
+  if ((phase !== 'available' && phase !== 'ready') || !version) return false;
+  return state.dismissedVersion !== version && leftVersion !== version;
 }
 
 /** The startup check: only when allowed and nothing is already in hand or in flight. */
@@ -245,6 +289,16 @@ export function inUpdateQuietHours(nowMs) {
   return minute >= UPDATE_QUIET_START_MIN_ET && minute < UPDATE_QUIET_END_MIN_ET;
 }
 
+/**
+ * GitHub's release ping: check now, unless automatic checks are off or a check,
+ * download or install is under way. Unlike a re-check it also asks with a
+ * release already downloaded, since the ping names a newer one.
+ */
+export function shouldPingCheck(state, gate) {
+  if (!gate?.updater || !gate.automatic) return false;
+  return !BUSY_PHASES.has(state.phase);
+}
+
 /** A re-check while the desk stays open: as the startup check allows, once per interval, never in trading hours. */
 export function shouldRecheck(state, gate, { now, lastCheckAt } = {}) {
   if (!shouldAutoCheck(state, gate) || inUpdateQuietHours(now)) return false;
@@ -260,12 +314,13 @@ export function needsOffer(state) {
 
 /**
  * Raise the notice now? A launch or Help-menu check tells the operator at once
- * (they are starting up, or asked); a re-check's find waits out trading hours.
- * `origin`: 'launch' | 'manual' | 'recheck'.
+ * (they are starting up, or asked); a re-check's or a release ping's find waits
+ * out trading hours. `origin`: 'launch' | 'manual' | 'recheck' | 'ping'.
  */
 export function shouldOfferNow(state, { origin, now } = {}) {
   if (!needsOffer(state)) return false;
-  return origin !== 'recheck' || !inUpdateQuietHours(now);
+  const unasked = origin === 'recheck' || origin === 'ping';
+  return !unasked || !inUpdateQuietHours(now);
 }
 
 /** Update on a release found over UPDATE_OFFER_FRESH_MS ago checks GitHub again, and downloads the newest. */
@@ -312,6 +367,7 @@ export function noticeFor(state) {
     percent: Math.floor(clampPercent(state.percent)),
     retry: stage === 'downloading' ? state.retry : 0,
     error: stage === 'stopped' || stage === 'ready' ? state.error : '',
+    auto: stage === 'available' || stage === 'ready' ? state.auto : null,
   };
 }
 

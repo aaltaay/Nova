@@ -396,7 +396,10 @@ plus each `unknown`; a backend with no readable answer holds it too); `left`
 means Nova tried this pair of releases once and the backend is still behind,
 so the button is the operator's (`reason`: the failure, when there was one). `notice` is `null` or `{stage: "available" | "downloading"
 | "stopped" | "ready" | "installing", tag, installed, percent, retry, error,
-notes}`; `whats_new` is `null` or `{mode: "updated" | "recent", tag, since:
+notes, auto}`; `auto` (operator ask 2026-10-14) is `null` when the release
+waits for the operator's click, else `{waiting: string[]}` on an `available` or
+`ready` notice: Nova downloads or installs it by itself, and `waiting` lists in
+the operator's words what it waits for (`[]`: it goes now); `whats_new` is `null` or `{mode: "updated" | "recent", tag, since:
 string | null, notes}`. `notes` is `{loading, error: string | null,
 releases: [{tag, number, recorded, title, kind, scope, pr, pr_url, summary,
 points, published_at, url}], more, older_unlisted, page_url}` -- newest first,
@@ -446,6 +449,54 @@ a few minutes" past the usual time (`UPDATE_BUILD_TYPICAL_MINUTES`,
 deadline. Any failure -- offline, rate limit, an HTTP error, an answer of another
 shape, no `rel="last"` -- writes one WARN line to `update.log` and the dialog says
 exactly what it said before. Nothing is persisted.
+
+**The release ping and the automatic install (operator ask, 2026-10-14: "If a
+new release goes up in the cloud, how can the cloud communicate with us").**
+GitHub cannot call the desk: it has no public address and its API answers
+`127.0.0.1` only. So `Desktop pack` > `publish-release`, right after a Release
+is created or updated, posts its tag to a public ntfy.sh topic: `POST
+https://ntfy.sh/nova-aaltaay-desk-releases`, body `vNNN` (plain text), header
+`Title: Nova vNNN`; a post that fails warns and never fails the job. The
+installed desk keeps one outgoing connection to `GET
+https://ntfy.sh/nova-aaltaay-desk-releases/json` (`RELEASE_PING_TOPIC`,
+`frontend/electron/releasePing.mjs`; a test holds the workflow to the same
+topic): ntfy's stream, one JSON event per line, `{id, time, event: "open" |
+"keepalive" | "message" | ..., topic, message}`. A `message` whose text is a
+`vNNN` newer than the installed release makes the desk ask GitHub now (an
+automatic check, origin `ping`), at most once per `UPDATE_PING_MIN_GAP_MS` (60
+s; a ping inside the gap checks once it ends). Anyone can post to a public
+topic, so a ping is a hint, never a source: the installer still comes from the
+Release through electron-updater, checked against its sha512, and a false ping
+costs one check. A connection silent for `RELEASE_PING_SILENT_MS` (3 min; ntfy
+sends a keepalive every 45 s) is dropped; a dropped one opens again after 5 s,
+doubling to 5 min, and asks `?since=<time of the last event read>` so a release
+posted meanwhile still arrives. `NOVA_UPDATE_CHECK=0` opens no connection.
+Nothing is persisted; `update.log` says when it starts listening, when a
+connection drops (once per run of failures) and when it comes back.
+
+A newer release found by any check then goes by itself
+(`frontend/electron/autoInstall.mjs`), every `UPDATE_AUTO_TICK_MS` (30 s)
+looking whether it may: it downloads once nothing holds it, and installs once
+nothing holds it and Windows has seen no keyboard or mouse input for
+`UPDATE_AUTO_IDLE_MS` (5 min, Electron `powerMonitor.getSystemIdleTime`). What
+holds it, in `notice.auto.waiting`: weekday trading hours, 07:00-16:00 ET
+("trading hours (until 16:00 ET)"); every line `GET
+/api/diagnostics/restart-check` lists but a recording, read as the backend's
+own automatic restart reads it (`engineFollow.autoRestartHolds`: a position, a
+working order, a bot trade, a stock mode, a history download, the opening bell,
+a reader that failed, or a backend that did not answer); and, for the install,
+"5 minutes with no keyboard or mouse input". The install is Restart to update's
+own, with no dialog: the backend's checkout is brought to the release and the
+restart check is read again first; a hold that appeared meanwhile waits for the
+next look, and anything else that stops it -- the checkout cannot follow, the
+engine would not stop -- leaves that version to the operator's click for the
+session, said in `update.log`. A version the operator answered Later for, or
+one an install left, is the operator's (`auto: null`) until the next launch.
+A release found in trading hours by a ping or a re-check raises no notice until
+16:00 (as before); the launch check and Help > Check for Updates show theirs at
+once, with `auto` saying it waits. `NOVA_UPDATE_AUTO_INSTALL` (`0` / `false` /
+`no` / `off`, process env or the desk `.env`) turns the automatic download and
+install off: the offer-only desk of 2026-09-23, `auto` always `null`.
 
 **Persisted (userData, owner `frontend/electron/`).**
 `release-notes-cache.json` `{schema_version: 1, fetched_at, rows}` -- the last

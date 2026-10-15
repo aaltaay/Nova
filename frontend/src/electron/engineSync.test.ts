@@ -389,6 +389,30 @@ describe('createEngineSync', () => {
       expect(alone.follows).toEqual([]);
     });
 
+    it('an automatic install (operator ask 2026-10-14) asks nothing: a recording passes, a position waits', async () => {
+      const box = vi.fn();
+      const recording = { schema_version: 1, safe: false, unknown: [], open: [{ kind: 'recording', text: 'Recording MSGY' }] };
+      const passes = sync({ git: releaseGit().git, fetchJson: answers('v1025', recording) });
+      expect(await passes.s.prepareForDesk('v1029', { box, automatic: true })).toBe(true);
+      expect(passes.follows).toEqual([{ tag: 'v1029', repoRoot: ROOT, now: 1_000 }]);
+      const position = { schema_version: 1, safe: false, unknown: [], open: [{ kind: 'practice', text: 'Paper: long 100 GENK' }] };
+      const { git, calls } = releaseGit();
+      const waits = sync({ git, fetchJson: answers('v1025', position) });
+      expect(await waits.s.prepareForDesk('v1029', { box, automatic: true })).toBe(false);
+      expect(calls.some((c) => c.startsWith('fetch'))).toBe(false);
+      expect(box).not.toHaveBeenCalled();
+      expect(await waits.s.autoHolds()).toEqual(['Paper: long 100 GENK']);
+    });
+
+    it('an automatic install whose backend cannot come along waits for the click, asking nothing', async () => {
+      const box = vi.fn();
+      const { git } = releaseGit([[/^status --porcelain/, { code: 0, stdout: ' M x\n' }]]);
+      const { s, follows } = sync({ git });
+      expect(await s.prepareForDesk('v1029', { box, automatic: true })).toBe(false);
+      expect(box).not.toHaveBeenCalled();
+      expect(follows).toEqual([]);
+    });
+
     it('leaves a bundled backend to the installer', async () => {
       const packaged = { status: 'ok', frozen: true, release_tag: 'v1025' };
       const { git, calls } = releaseGit();

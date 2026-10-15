@@ -5,7 +5,7 @@ vi.mock('../../electron/updateSplash.mjs', () => ({ showUpdateSplash: () => ({ c
 import { createReleaseInstaller } from '../../electron/releaseInstall.mjs';
 
 function installer(
-  prepare: (tag: string) => Promise<boolean>,
+  prepare: (tag: string, options: { automatic: boolean }) => Promise<boolean>,
   { order = [] as string[], stopped = true, handOff = async () => { order.push('handOff'); } } = {},
 ) {
   const quitAndInstall = vi.fn(() => { order.push('install'); });
@@ -15,6 +15,7 @@ function installer(
     return stopped;
   });
   const handOffFn = vi.fn(handOff);
+  const box = vi.fn();
   const inst = createReleaseInstaller({
     getUpdater: () => ({ quitAndInstall }),
     getState: () => ({ phase: 'ready', version: '0.1.1051' }),
@@ -23,11 +24,11 @@ function installer(
     stopEngine,
     handOff: handOffFn,
     restartEngine: vi.fn(async () => undefined),
-    box: vi.fn(),
+    box,
     logsDir: () => '',
     logger: { info: vi.fn(), error: vi.fn() },
   });
-  return { inst, quitAndInstall, dispatch, stopEngine, handOff: handOffFn };
+  return { inst, quitAndInstall, dispatch, stopEngine, handOff: handOffFn, box };
 }
 
 describe('Restart to update carries the backend first (one version)', () => {
@@ -35,7 +36,7 @@ describe('Restart to update carries the backend first (one version)', () => {
     const prepare = vi.fn(async () => true);
     const { inst, quitAndInstall } = installer(prepare);
     await inst.install();
-    expect(prepare).toHaveBeenCalledWith('v1051');
+    expect(prepare).toHaveBeenCalledWith('v1051', { automatic: false });
     expect(quitAndInstall).toHaveBeenCalledWith(true, true);
   });
 
@@ -84,5 +85,36 @@ describe('Restart to update carries the backend first (one version)', () => {
     await first;
     expect(prepare).toHaveBeenCalledTimes(1);
     expect(quitAndInstall).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the install Nova makes by itself (operator ask 2026-10-14)', () => {
+  it('prepares the backend as automatic and says the installer runs', async () => {
+    const prepare = vi.fn(async () => true);
+    const { inst, quitAndInstall } = installer(prepare);
+    expect(await inst.install({ automatic: true })).toBe(true);
+    expect(prepare).toHaveBeenCalledWith('v1051', { automatic: true });
+    expect(quitAndInstall).toHaveBeenCalledWith(true, true);
+  });
+
+  it('a backend that could not be prepared installs nothing and says so', async () => {
+    const { inst, quitAndInstall, box } = installer(async () => false);
+    expect(await inst.install({ automatic: true })).toBe(false);
+    expect(quitAndInstall).not.toHaveBeenCalled();
+    expect(box).not.toHaveBeenCalled();
+  });
+
+  it('an engine that will not stop puts up no dialog: nobody is at the desk', async () => {
+    const { inst, quitAndInstall, box, dispatch } = installer(async () => true, { stopped: false });
+    expect(await inst.install({ automatic: true })).toBe(false);
+    expect(quitAndInstall).not.toHaveBeenCalled();
+    expect(box).not.toHaveBeenCalled();
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'install-failed' }));
+  });
+
+  it("the operator's own install still warns when the engine will not stop", async () => {
+    const { inst, box } = installer(async () => true, { stopped: false });
+    expect(await inst.install()).toBe(false);
+    expect(box).toHaveBeenCalledWith(expect.objectContaining({ title: 'Nova update not installed' }));
   });
 });

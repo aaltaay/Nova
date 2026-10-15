@@ -55,7 +55,37 @@ const h = vi.hoisted(() => ({
   stopCalls: 0,
   // GitHub Actions and commit-count answers for a release still being built, by URL; null: none building.
   github: null as null | ((url: string) => unknown),
+  // Windows' seconds since the last keyboard or mouse input (powerMonitor).
+  idleSeconds: 0,
+  // Each connection the desk opens to the release ping topic: push an ntfy line, or null to end it.
+  pings: [] as { url: string; push: (line: string | null) => void }[],
 }));
+
+/** One ntfy stream the desk reads: lines pushed by the test arrive as they would from ntfy.sh. */
+function pingStream(url: string) {
+  const chunks: (string | null)[] = [];
+  let wake: (() => void) | null = null;
+  const push = (line: string | null) => {
+    chunks.push(line);
+    wake?.();
+  };
+  h.pings.push({ url, push });
+  const enc = new TextEncoder();
+  return {
+    ok: true,
+    status: 200,
+    body: {
+      getReader: () => ({
+        read: async () => {
+          while (!chunks.length) await new Promise<void>((resolve) => { wake = resolve; });
+          wake = null;
+          const next = chunks.shift();
+          return next == null ? { done: true, value: undefined } : { done: false, value: enc.encode(next) };
+        },
+      }),
+    },
+  };
+}
 
 vi.mock('electron', () => ({
   app: { isPackaged: true, getVersion: () => '0.1.831', getPath: () => '' },
@@ -71,8 +101,10 @@ vi.mock('electron', () => ({
       h.menu = m;
     },
   },
+  powerMonitor: { getSystemIdleTime: () => h.idleSeconds },
   net: {
     fetch: vi.fn(async (url: string) => {
+      if (url.startsWith('https://ntfy.sh/')) return pingStream(url);
       if (!/\/actions\/|\/commits\?/.test(url)) return { ok: true, status: 200, json: async () => h.releases };
       const answer = h.github?.(url) ?? { ok: true, status: 200, json: async () => ({ workflow_runs: [] }) };
       if (answer instanceof Error) throw answer;
@@ -262,6 +294,8 @@ beforeEach(() => {
   h.splashes.length = 0;
   h.stopCalls = 0;
   h.github = null;
+  h.idleSeconds = 0;
+  h.pings = [];
   win.setProgressBar.mockClear();
   contents.send.mockClear();
   Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
@@ -271,6 +305,7 @@ afterEach(() => {
   vi.useRealTimers();
   Object.defineProperty(process, 'platform', { value: realPlatform, configurable: true });
   delete process.env.NOVA_UPDATE_CHECK;
+  delete process.env.NOVA_UPDATE_AUTO_INSTALL;
 });
 
 describe('startAutoUpdate', () => {
@@ -743,5 +778,127 @@ describe('resumable installer download', () => {
     await startAndCheck();
     expect(h.updater?.downloadUpdate).toHaveBeenCalledTimes(1);
     expect(h.boxes.at(-1)?.buttons).toEqual(['Restart to update', 'Later']);
+  });
+});
+
+describe('automatic updates (operator ask 2026-10-14: "I want an auto update")', () => {
+  const EVENING = new Date('2026-09-23T21:00:00Z'); // Wednesday 17:00 ET
+  const ping = (tag: string, time = 1_758_661_200) =>
+    `${JSON.stringify({ id: tag, time, event: 'message', topic: 'nova-aaltaay-desk-releases', message: tag })}\n`;
+  /** The backend's sync (engineSync.mjs): what it says is open, and its part of the install. */
+  const engine = (holds: string[] | null = []) => ({
+    prepareForDesk: vi.fn(async () => true),
+    handOffForInstall: vi.fn(async () => {}),
+    autoHolds: vi.fn(async () => holds),
+  });
+
+  it("GitHub's ping makes the desk check now, and an evening release downloads and installs by itself", async () => {
+    vi.setSystemTime(EVENING);
+    h.available.push(false); // the launch check: nothing newer yet
+    h.idleSeconds = 600;
+    const backend = engine([]);
+    await startAndCheck({ engine: () => backend });
+    expect(h.updater?.checkForUpdates).toHaveBeenCalledTimes(1);
+    expect(h.pings[0]?.url).toBe('https://ntfy.sh/nova-aaltaay-desk-releases/json');
+    h.pings[0].push(`${JSON.stringify({ id: 'o', time: 1, event: 'open' })}\n`);
+    h.pings[0].push(ping('v832'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.updater?.checkForUpdates).toHaveBeenCalledTimes(2);
+    expect(h.updater?.downloadUpdate).toHaveBeenCalled();
+    // No question: nothing open, nobody at the keyboard, outside trading hours.
+    expect(h.boxes).toEqual([]);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(backend.prepareForDesk).toHaveBeenCalledWith('v832', expect.objectContaining({ automatic: true }));
+    expect(h.installs).toEqual([[true, true]]);
+  });
+
+  it('a ping for a release this desk already runs, or a word that is no tag, checks nothing', async () => {
+    vi.setSystemTime(EVENING);
+    h.available.push(false);
+    await startAndCheck({ engine: () => engine([]) });
+    h.pings[0].push(ping('v831'));
+    h.pings[0].push(`${JSON.stringify({ id: 'x', time: 2, event: 'message', message: 'hello' })}\n`);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.updater?.checkForUpdates).toHaveBeenCalledTimes(1);
+  });
+
+  it('pings close together check once, then once more after the gap', async () => {
+    vi.setSystemTime(EVENING);
+    h.available.push(false, false, false);
+    await startAndCheck({ engine: () => engine(['Paper: long 100 GENK']) });
+    h.pings[0].push(ping('v832'));
+    await vi.advanceTimersByTimeAsync(0);
+    h.pings[0].push(ping('v833'));
+    h.pings[0].push(ping('v834'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.updater?.checkForUpdates).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(h.updater?.checkForUpdates).toHaveBeenCalledTimes(3);
+  });
+
+  it('downloads while the operator is at the desk, and the notice says the install waits for them', async () => {
+    vi.setSystemTime(EVENING);
+    const backend = engine([]);
+    await start({ engine: () => backend });
+    subscribe();
+    await vi.advanceTimersByTimeAsync(UPDATE_FIRST_CHECK_DELAY_MS);
+    expect(h.updater?.downloadUpdate).toHaveBeenCalled();
+    expect(lastView().notice).toMatchObject({ stage: 'ready', auto: { waiting: ['5 minutes with no keyboard or mouse input'] } });
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(h.installs).toEqual([]);
+    h.idleSeconds = 301;
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(h.installs).toEqual([[true, true]]);
+  });
+
+  it('something open holds it, and the notice names it; Update still downloads now', async () => {
+    vi.setSystemTime(EVENING);
+    await start({ engine: () => engine(['Paper: long 100 GENK']) });
+    subscribe();
+    await vi.advanceTimersByTimeAsync(UPDATE_FIRST_CHECK_DELAY_MS);
+    expect(h.updater?.downloadUpdate).not.toHaveBeenCalled();
+    expect(lastView().notice).toMatchObject({ stage: 'available', auto: { waiting: ['Paper: long 100 GENK'] } });
+    await answer('download');
+    expect(h.updater?.downloadUpdate).toHaveBeenCalled();
+  });
+
+  it('a desk whose backend says nothing waits, and never reads that as nothing open', async () => {
+    vi.setSystemTime(EVENING);
+    await start();
+    subscribe();
+    await vi.advanceTimersByTimeAsync(UPDATE_FIRST_CHECK_DELAY_MS + 60_000);
+    expect(h.updater?.downloadUpdate).not.toHaveBeenCalled();
+    expect(lastView().notice?.stage).toBe('available');
+    expect((lastView().notice as unknown as { auto: { waiting: string[] } }).auto.waiting[0]).toContain('did not say what is open');
+  });
+
+  it('Later leaves that version to the click for the session', async () => {
+    vi.setSystemTime(EVENING);
+    await start({ engine: () => engine(['Paper: long 100 GENK']) });
+    subscribe();
+    await vi.advanceTimersByTimeAsync(UPDATE_FIRST_CHECK_DELAY_MS);
+    await answer('later');
+    h.idleSeconds = 600;
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    expect(h.updater?.downloadUpdate).not.toHaveBeenCalled();
+  });
+
+  it('NOVA_UPDATE_AUTO_INSTALL=0 keeps the offer-only desk', async () => {
+    vi.setSystemTime(EVENING);
+    process.env.NOVA_UPDATE_AUTO_INSTALL = '0';
+    h.idleSeconds = 600;
+    h.responses.push(LATER);
+    await startAndCheck({ engine: () => engine([]) });
+    expect(h.boxes[0]?.buttons).toEqual(['Update', 'Later']);
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    expect(h.updater?.downloadUpdate).not.toHaveBeenCalled();
+    expect(h.installs).toEqual([]);
+  });
+
+  it('NOVA_UPDATE_CHECK=0 opens no ping connection', async () => {
+    process.env.NOVA_UPDATE_CHECK = '0';
+    await start();
+    await vi.advanceTimersByTimeAsync(UPDATE_FIRST_CHECK_DELAY_MS);
+    expect(h.pings).toEqual([]);
   });
 });

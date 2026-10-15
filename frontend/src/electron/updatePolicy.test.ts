@@ -11,9 +11,12 @@ import {
   updateMenuItems,
 } from '../../electron/updateCopy.mjs';
 import {
+  AUTO_WAIT_IDLE,
   INITIAL_UPDATE_STATE,
+  UPDATE_AUTO_IDLE_MS,
   UPDATE_OFFER_FRESH_MS,
   UPDATE_RECHECK_INTERVAL_MS,
+  autoAllowed,
   displayTag,
   easternClock,
   errorText,
@@ -27,6 +30,7 @@ import {
   resolveUpdateSetting,
   shouldAutoCheck,
   shouldOfferNow,
+  shouldPingCheck,
   shouldRecheck,
   taskbarProgress,
   updateCheckSetting,
@@ -235,7 +239,7 @@ describe('the notice', () => {
     expect(noticeFor(found)).toBeNull(); // not raised yet
     const offered = reduceUpdateState(found, { type: 'offered', version: '0.1.832' });
     expect(needsOffer(offered)).toBe(false);
-    expect(noticeFor(offered)).toEqual({ stage: 'available', tag: 'v832', percent: 0, retry: 0, error: '' });
+    expect(noticeFor(offered)).toEqual({ stage: 'available', tag: 'v832', percent: 0, retry: 0, error: '', auto: null });
     const later = reduceUpdateState(offered, { type: 'dismissed', version: '0.1.832' });
     expect(noticeFor(later)).toBeNull();
     expect(needsOffer(later)).toBe(false);
@@ -369,5 +373,51 @@ describe('labels', () => {
     expect(manualCheckResult(run({ type: 'not-available' }), 'v831')?.message).toBe(
       'Nova v831 is the latest release.',
     );
+  });
+});
+
+describe('the automatic install (operator ask 2026-10-14)', () => {
+  const at = (iso: string) => Date.parse(iso);
+
+  it('goes by itself only for a found or downloaded release nobody answered Later for', () => {
+    expect(autoAllowed(foundAt('0.1.832'), { enabled: true })).toBe(true);
+    expect(autoAllowed(readyAt('0.1.832'), { enabled: true })).toBe(true);
+    expect(autoAllowed(downloadingAt('0.1.832'), { enabled: true })).toBe(false); // already under way
+    expect(autoAllowed(INITIAL_UPDATE_STATE, { enabled: true })).toBe(false);
+    expect(autoAllowed(foundAt('0.1.832'), { enabled: false })).toBe(false);
+    const later = reduceUpdateState(offeredAt('0.1.832'), { type: 'dismissed', version: '0.1.832' });
+    expect(autoAllowed(later, { enabled: true })).toBe(false);
+    // An install that could not go ahead by itself leaves that version to the click; a newer one goes again.
+    expect(autoAllowed(readyAt('0.1.832'), { enabled: true, leftVersion: '0.1.832' })).toBe(false);
+    expect(autoAllowed(foundAt('0.1.833'), { enabled: true, leftVersion: '0.1.832' })).toBe(true);
+  });
+
+  it('keeps what it waits for on the state, and on an available or ready notice only', () => {
+    const waiting = { waiting: ['1 position on Paper', AUTO_WAIT_IDLE] };
+    const offered = reduceUpdateState(offeredAt('0.1.832'), { type: 'auto', auto: waiting } as UpdateEvent);
+    expect(offered.auto).toEqual(waiting);
+    expect(noticeFor(offered)?.auto).toEqual(waiting);
+    // The same answer twice is no new state, so the desk is not re-sent the notice every look.
+    expect(reduceUpdateState(offered, { type: 'auto', auto: { waiting: [...waiting.waiting] } } as UpdateEvent)).toBe(offered);
+    expect(reduceUpdateState(offered, { type: 'auto', auto: null } as UpdateEvent).auto).toBeNull();
+    const downloading = reduceUpdateState(offered, { type: 'download' });
+    expect(noticeFor(downloading)?.auto).toBeNull();
+    expect(AUTO_WAIT_IDLE).toBe(`${UPDATE_AUTO_IDLE_MS / 60_000} minutes with no keyboard or mouse input`);
+  });
+
+  it("checks on GitHub's release ping unless busy, even with an older release downloaded", () => {
+    expect(shouldPingCheck(readyAt('0.1.832'), AUTO)).toBe(true);
+    expect(shouldPingCheck(foundAt('0.1.832'), AUTO)).toBe(true);
+    expect(shouldPingCheck(downloadingAt('0.1.832'), AUTO)).toBe(false);
+    expect(shouldPingCheck(INITIAL_UPDATE_STATE, { ...AUTO, automatic: false })).toBe(false);
+  });
+
+  it("holds a ping's notice through weekday trading hours, like a re-check's", () => {
+    const found = foundAt('0.1.832');
+    const tradingHours = at('2026-09-23T14:00:00Z'); // Wednesday 10:00 ET
+    const evening = at('2026-09-23T21:00:00Z'); // Wednesday 17:00 ET
+    expect(shouldOfferNow(found, { origin: 'ping', now: tradingHours })).toBe(false);
+    expect(shouldOfferNow(found, { origin: 'ping', now: evening })).toBe(true);
+    expect(shouldOfferNow(found, { origin: 'launch', now: tradingHours })).toBe(true);
   });
 });
