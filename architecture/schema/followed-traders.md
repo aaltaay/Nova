@@ -107,7 +107,9 @@ Five more pieces are optional: a feed that does not have them is read as before,
   traders: {<name>: {positions: {"<side>:<symbol>": price}, unparsed: string[]}}}`, written each time a read differs
   from the one before, confirmed or not. A name read wrong (`TJOE`) is its own key. A line whose `clock` is null (a
   frame the feed could not read at all) is skipped: it has no time to be placed at -- and so is one whose `clock` is
-  no time of day (`09:34:97`, a misread screen), so one bad frame never makes the whole log unreadable. A `clock`
+  no time of day (`09:34:97`, a misread screen), so one bad frame never makes the whole log unreadable. Nova marks
+  the line after one or more skipped lines `unread_before: true` (its own mark, not the feed's): the bar was read
+  between it and the line before, at times the log cannot say ("A trader who left the bar" uses it). A `clock`
   not shaped `HH:MM:SS` is still a bad answer. A 404 means the feed keeps no read log for that day.
 
 `<NAME>` in those paths is 1 to 16 of `A-Z0-9`; anything else is never asked for.
@@ -267,7 +269,10 @@ someone else"): whoever the bar reads is who is on it.
 
 - `seen`: `{last_ts, left_ts} | null`, from the feed's read log (`reads.jsonl`, above). `last_ts` is when the feed last
   read the trader's slot: the time of the line after the last line that read their name, or the newest read time when
-  that line is the newest. `left_ts` is the time of the first line after that which read anyone else on the bar -- a
+  that line is the newest. When the feed could not read the bar right after that last line (the next line is
+  `unread_before`), `last_ts` is that last line's own time: they were last seen then, and when they left is not known
+  from there on (2026-10-15: a feed restart read nothing from 10:54 to 11:04 while the morning show ended, and every
+  position its hosts still held was priced at 11:04:37 as if they had left then). `left_ts` is the time of the first line after that which read anyone else on the bar -- a
   name tag of 2 to 16 letters and digits, starting with a letter, so a new host with no trade yet counts and the
   reader's empty reads of a guest's caption do not -- counted only once the newest read time is
   `FOLLOWED_LEFT_BAR_SEC` (60) past it, so a name tag misread for a frame is never a departure. It is `null` while
@@ -385,14 +390,16 @@ images again with each answer.
   for the span picked with the scratches and unscored beside it, what they made over it (below), and their slot image
   on the right (the live slot,
   labelled "now" only while the capture reads the stream live and within `FOLLOWED_CAPTURE_BEHIND_SEC` of it and with
-  the read's time otherwise, or the newest evidence stand-in labelled with its time, never passed off as now). A trader with a trade that day
+  the read's time otherwise, or the newest evidence stand-in -- the picture of their last open or close, which adds do
+  not have -- labelled "Their slot at their last open or close" with its time, never passed off as now). A trader with a trade that day
   has, under the card, **Holding now** on the left -- an OPEN tile per open position: ticker, side, entry -> now,
   unrealised P/L per share and %, held, time in, proof -- and **Closed today** on the right: the count, won and lost,
   and one row per closed trade, newest exit first, striped by its result (WIN green, LOSS red, scratch and unscored
   grey): result, ticker, side, in -> out, entry (the average, with the first price when the trader added) -> exit
   (IBKR's last trade at the exit; a low-high range marked est. for a window; reading the tape or waiting for IBKR;
   no price, with why), P/L per share and %, held, proof. A trader who left the bar (`seen.left_ts`) reads "Left the
-  bar HH:MM:SS" in place of on air or off air, and each trade closed then has "off air" beside its out time, saying
+  bar HH:MM:SS" in place of on air or off air -- "Left the bar HH:MM:SS–HH:MM:SS" when `last_ts` is before `left_ts`,
+  the bar not read between -- and each trade closed then has "off air" beside its out time, saying
   why it closed; its Proof's exit reads "Closed when they left the bar". A past day reads "Open at the day's end" and
   "Closed". A
   time not seen reads "by HH:MM:SS" (open when capture started) or a window, and its trade unscored. A trader with no
@@ -457,7 +464,7 @@ the PL per share in terms of percentage." The feed has no size, so a trader's do
 card, and Everyone in the head, shows over the span picked (Day, Week, All) **their scored trades' P/L per share in %,
 added up** (the operator's pick from a mockup on the real page, over the average a trade and both): what the same
 money in every trade would have made. Under it a small line draws that total trade by trade, oldest exit first, from 0
-before the first and ending on the number, over a dashed zero; on the card "per share · N trades", in the head the
+before the first and ending on the number, over a dashed zero; on the card "per share, added up · N trades", in the head the
 number and line alone. Up is green and down red, as the P/L is elsewhere on the page.
 
 - **Which trades:** those scored `win`, `loss` or `scratch` -- one known exit price -- the same trades as the W / L

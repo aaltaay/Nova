@@ -7,7 +7,10 @@ it, or an unknown one, starts the wait again. Each line acts once per account pe
 - 80%: with Warn me, a warning (``warned_at``) the desk turns into a notice and a voice line.
 - the limit: the trip (``tripped_at``) -- No new buys reads it (``loss_limit.gate``) and the desk
   says it -- and with Auto sell, the stocks opened today are closed (``loss_limit.sell``) and what
-  was sold is written beside it (``sold``, ``sell_error``).
+  was sold is written beside it (``sold``, ``sell_error``). The trip is saved with ``sell: "pending"``
+  before any order goes out and ``"done"`` once the closes answered, so a sale a restart interrupted
+  is taken up again by the next pass (it closes only what is still held from today) and the desk
+  waits for the answer before it says what was sold.
 
 The last count per account is kept in memory for ``GET /api/loss-limit``.
 """
@@ -31,6 +34,7 @@ logger = logging.getLogger(__name__)
 
 _last: dict[str, dict[str, Any]] = {}            # account -> {at, pnl, loss, unknown, stocks, held_before, ...}
 _since: dict[tuple[str, str], float] = {}        # (account, "warn" | "trip") -> first second past that line
+_selling: set[str] = set()                       # accounts whose Auto sell is running in this process
 
 
 def last_counts() -> dict[str, dict[str, Any]]:
@@ -52,20 +56,41 @@ def reset_waits() -> None:
 
 
 async def _trip(account: str, loss: float, limit: int, count: Count, now: float, auto_sell: bool) -> None:
-    state.write(account, {"tripped_at": now, "tripped_loss": round(loss, 2), "limit_usd": limit}, now)
+    fields: dict[str, Any] = {"tripped_at": now, "tripped_loss": round(loss, 2), "limit_usd": limit}
+    if auto_sell:
+        fields["sell"] = "pending"           # saved before any order goes out: a restart resumes it
+    state.write(account, fields, now)
     logger.warning("LOSS LIMIT: %s is down %.2f against the %s limit -- tripped%s", account, loss, limit,
                    ", Auto sell closes what was opened today" if auto_sell else "")
-    if not auto_sell:
-        return
+    if auto_sell:
+        await _sell(account, count, now)
+
+
+async def _sell(account: str, count: Count, now: float) -> None:
+    """Auto sell what ``count`` holds open from today, then mark the sale done.
+
+    Each close is added to ``sold`` the moment it answers (PR #1004 review): a restart after one close
+    of several keeps it, and the resumed sale adds only what is still held."""
     from loss_limit.sell import sell_opened_today
 
+    if account in _selling:
+        return
+    _selling.add(account)
+
+    def saved(close: dict[str, Any]) -> None:
+        previous = state.record(account, now).get("sold") or []
+        state.write(account, {"sold": list(previous) + [close]}, now)
+
     try:
-        sold = await sell_opened_today(account, count.opened_today())
-        error = next((s["error"] for s in sold if not s["ok"]), None)
-    except Exception as exc:
-        logger.exception("LOSS LIMIT: Auto sell on %s failed", account)
-        sold, error = [], f"{type(exc).__name__}: {exc}"
-    state.write(account, {"sold": sold, "sell_error": error}, now)
+        try:
+            sold = await sell_opened_today(account, count.opened_today(), on_close=saved)
+            error = next((s["error"] for s in sold if not s["ok"]), None)
+        except Exception as exc:
+            logger.exception("LOSS LIMIT: Auto sell on %s failed", account)
+            error = f"{type(exc).__name__}: {exc}"
+        state.write(account, {"sell_error": error, "sell": "done"}, now)
+    finally:
+        _selling.discard(account)
 
 
 async def check(account: str, count: Count, now: float) -> None:
@@ -83,6 +108,10 @@ async def check(account: str, count: Count, now: float) -> None:
         state.write(account, {"warned_at": now, "warned_loss": round(loss, 2), "limit_usd": limit}, now)
     if _held_for((account, "trip"), trip_past, now) and not row.get("tripped_at"):
         await _trip(account, loss, limit, count, now, bool(current["auto_sell"]))
+    elif row.get("sell") == "pending" and count.pnl is not None and account not in _selling:
+        # A sale a restart (or a failed save) left unfinished: close what is still held from today.
+        logger.warning("LOSS LIMIT: resuming the Auto sell on %s that did not finish", account)
+        await _sell(account, count, now)
 
 
 async def pass_once(now: float | None = None) -> None:
@@ -111,3 +140,4 @@ async def watch_loop() -> None:
 def reset_for_tests() -> None:
     _last.clear()
     _since.clear()
+    _selling.clear()

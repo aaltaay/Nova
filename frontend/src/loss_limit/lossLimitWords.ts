@@ -5,6 +5,8 @@ export const LOSS_LIMIT_API_PATH = '/api/loss-limit';
 export const LOSS_LIMIT_POLL_MS = 3000;
 /** A warning or trip older than this is not announced (the Settings page and the Orders table still say it). */
 export const LOSS_LIMIT_NOTICE_MAX_AGE_SEC = 600;
+/** A trip whose Auto sell is still selling waits this long for the answer before it is said without it. */
+export const LOSS_LIMIT_SELL_WAIT_SEC = 30;
 
 export const LOSS_LIMIT_DAILY_LABEL = 'Daily loss limit';
 export const LOSS_LIMIT_WARN_LABEL = 'Warn me';

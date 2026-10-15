@@ -42,7 +42,8 @@ def view(now: float | None = None) -> dict[str, Any]:
             "held_before": last.get("held_before", []), "costs_unknown": last.get("costs_unknown", 0),
             "warned_at": row.get("warned_at"), "warned_loss": row.get("warned_loss"),
             "tripped_at": row.get("tripped_at"), "tripped_loss": row.get("tripped_loss"),
-            "limit_usd": row.get("limit_usd"), "sold": row.get("sold"), "sell_error": row.get("sell_error"),
+            "limit_usd": row.get("limit_usd"), "sell": row.get("sell"), "sold": row.get("sold"),
+            "sell_error": row.get("sell_error"),
             "no_new_buys": gate.stopped(account, ts),
         }
     return {"schema_version": 1, "settings": settings.current(), "day": day, "until": state.until(ts),

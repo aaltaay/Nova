@@ -2,7 +2,7 @@
 
 The file ``loss-limit-state.json`` in the operator cache (``architecture/schema/loss-limit.md``):
 ``{schema_version: 1, day: "YYYY-MM-DD", accounts: {ACCOUNT: {warned_at, warned_loss, tripped_at,
-tripped_loss, limit_usd, sold, sell_error}}}``. Owner: this module. Invalidation: a file from an
+tripped_loss, limit_usd, sell, sold, sell_error}}}`` (``sell``: ``pending`` | ``done``, Auto sell only). Owner: this module. Invalidation: a file from an
 earlier desk day (04:00 ET, ``practice.clock``) reads empty; any change to the setting clears today's
 records (``clear``). An unreadable file or an unknown version reads as no trip -- logged and stated
 in ``error`` -- because the watcher reads the loss again within a second and trips again if it is

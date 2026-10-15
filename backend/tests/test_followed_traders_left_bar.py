@@ -178,6 +178,48 @@ def test_a_bar_unread_before_the_others_came_on_is_an_exit_window():
     assert view.closed_on_leaving(done, gone) is done
 
 
+def _unread():
+    return json.dumps({"clock": None, "traders": {}})
+
+
+def test_the_line_after_frames_the_feed_could_not_read_says_so():
+    log = feed.parse_reads("\n".join([
+        _line("10:00:00", ALPHA={}), _unread(), _line("10:00:05", ALPHA={}),
+        json.dumps({"clock": "10:00:97", "traders": {}}), _line("10:00:09", ALPHA={}), _line("10:00:11", ALPHA={})]))
+    assert [(line["clock"], line.get("unread_before", False)) for line in log] == [
+        ("10:00:00", False), ("10:00:05", True), ("10:00:09", True), ("10:00:11", False)]
+
+
+def test_a_host_gone_after_a_stretch_the_feed_could_not_read_left_somewhere_in_it():
+    # 2026-10-15: the feed restarted at 10:55 onto a stream it could not read (one clock-less line), came back at 11:04
+    # on the next show, and Nova priced every position the morning's hosts still held at 11:04:37, ten minutes after
+    # they were last seen. When they left is only known to be after their last line.
+    log = "\n".join([_line("10:54:26", ALPHA={"short:QRST": 14.3}, BRAVO={"long:WXYZ": 344.55}), _unread(),
+                     _line("11:04:37", CHARLIE={"long:MNOP": 6.5}, DELTA={})])
+    seen = sightings.sightings(feed.parse_reads(log), date=DATE, traders=["ALPHA", "BRAVO", "CHARLIE"],
+                               latest_clock="11:10:00", left_after_sec=FOLLOWED_LEFT_BAR_SEC)
+    assert seen["ALPHA"] == {"last_ts": _epoch("10:54:26"), "left_ts": _epoch("11:04:37")}
+    trade = {**_trade("ALPHA", "short", "QRST", 14.3, "10:15:59"), "entry_ts": _epoch("10:15:59")}
+    closed = view.closed_on_leaving(trade, seen["ALPHA"])
+    assert (closed["exit_since_ts"], closed["exit_ts"]) == (_epoch("10:54:26"), _epoch("11:04:37"))
+    # Priced as a window (IBKR's low and high in it), so it is unscored, never a loss at the moment the feed came back.
+    row = view.trade_row(closed, DATE, now=_epoch("11:10:00"), prices={"state": "live", "why": None},
+                         now_for=lambda t: lines.now_state("off"),
+                         exit_for=lambda t: exits.stated("range", low=14.2, high=14.55, from_ts=t["exit_since_ts"],
+                                                         to_ts=t["exit_ts"], source="ibkr_1min_bars"))
+    assert row["exit"]["state"] == "range" and row["result"] == "unscored"
+    assert row["pl"] == {"low_per_share": -0.25, "high_per_share": 0.1, "low_pct": -1.75, "high_pct": 0.7}
+
+
+def test_a_frame_the_feed_could_not_read_while_the_host_stayed_on_changes_nothing():
+    log = "\n".join([_line("10:00:00", ALPHA={"short:QRST": 14.3}), _unread(),
+                     _line("10:00:03", ALPHA={"short:QRST": 14.3}), _line("10:40:00", CHARLIE={})])
+    seen = sightings.sightings(feed.parse_reads(log), date=DATE, traders=["ALPHA", "CHARLIE"], latest_clock="10:45:00",
+                               left_after_sec=FOLLOWED_LEFT_BAR_SEC)
+    # Read again after the blank frame, so they were on the bar until the next line, as before: one exit second.
+    assert seen["ALPHA"] == {"last_ts": _epoch("10:40:00"), "left_ts": _epoch("10:40:00")}
+
+
 def test_without_a_read_log_the_day_reads_as_before():
     day = feed.parse_day(_raw_day())
     body = view.compose(day, now=_epoch("13:14:30"), prices={"state": "live", "why": None},

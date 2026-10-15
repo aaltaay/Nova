@@ -15,6 +15,7 @@ import {
   FT_HOLDING,
   FT_HOLDING_END,
   FT_LEFT_BAR,
+  FT_LEFT_BAR_WINDOW_TIP,
   FT_LEFT_BAR_TIP,
   FT_NEWEST_FIRST_SHORT,
   FT_NO_CLOSED,
@@ -92,8 +93,13 @@ interface Props {
 export function TraderBlock({ entry, record, pl, plWhy, isToday, onAir, captureVersion, lastRead, compact, folded, onShowAll, onProof }: Props) {
   const { name, trader } = entry;
   const left = trader?.seen?.left_ts ?? null;
+  const last = trader?.seen?.last_ts ?? null;
+  // Last seen before they were seen gone, with the bar not read between: when they left is a window, said as one.
+  const leftWindow = left !== null && last !== null && last < left;
+  const leftTip = leftWindow ? `${FT_LEFT_BAR_TIP}\n${FT_LEFT_BAR_WINDOW_TIP}` : FT_LEFT_BAR_TIP;
   const air = left !== null
-    ? <span className="ft-off-air" data-testid={`ft-left-${name}`} {...tipProps(FT_LEFT_BAR_TIP)}>{FT_LEFT_BAR} {etTime(left)}</span>
+    ? <span className="ft-off-air" data-testid={`ft-left-${name}`} {...tipProps(leftTip)}>
+        {FT_LEFT_BAR} {leftWindow ? `${etTime(last)}–${etTime(left)}` : etTime(left)}</span>
     : onAir ? <span className="ft-on-air">{FT_ON_AIR}</span> : <span className="ft-off-air">{FT_OFF_AIR}</span>;
   return (
     <section className="ft-card ft-trader" aria-label={name} data-testid={`ft-trader-${name}`}>

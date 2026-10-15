@@ -6,7 +6,7 @@
  * 0%.
  */
 import { tipProps } from '../ux/hoverTip';
-import { FT_PL_NO_SIZE, FT_PL_PER_SHARE } from './constants';
+import { FT_PL_ADDED_UP, FT_PL_NO_SIZE, FT_PL_PER_SHARE } from './constants';
 import { DASH, signedPct } from './format';
 import type { PlSummary } from './plSummary';
 
@@ -83,7 +83,7 @@ export function PlFigure({ summary, unscored, why = null, inline = false, testId
     <span className={`${cls} ft-plfig--${tone(summary.sumPct)}`} data-testid={testId} {...tipProps(plTip(summary, unscored))}>
       <span className="ft-plfig__num">{signedPct(summary.sumPct)}</span>
       <Spark curve={summary.curve} w={inline ? 64 : 132} h={inline ? 18 : 28} />
-      {!inline && <span className="ft-plfig__note ft-muted">{FT_PL_PER_SHARE} · {plural(summary.count, 'trade')}</span>}
+      {!inline && <span className="ft-plfig__note ft-muted">{FT_PL_PER_SHARE}, {FT_PL_ADDED_UP} · {plural(summary.count, 'trade')}</span>}
     </span>
   );
 }

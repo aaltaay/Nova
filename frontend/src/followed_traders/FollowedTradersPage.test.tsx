@@ -78,6 +78,15 @@ describe('FollowedTradersPage', () => {
     expect(q('ft-slot-ALPHA')!.querySelector('figcaption')!.textContent).toBe('Their slot as last read · 09:40:00 ET');
   });
 
+  it('says when they left as a window when the bar was not read between their last sighting and the next', async () => {
+    // 2026-10-15: a feed restart read nothing for ten minutes while the morning show ended.
+    const d = day();
+    const left = T + 120;
+    const gone = { ...d.traders[0], seen: { last_ts: left - 600, left_ts: left }, open: [] };
+    await show({ ...d, capture: { ...d.capture!, traders: ['BRAVO'] }, traders: [gone, d.traders[1]] });
+    expect(q('ft-left-ALPHA')!.textContent).toBe('Left the bar 09:52:00–10:02:00');
+  });
+
   it('shows a trader who left the bar with every trade closed when they left, marked off air', async () => {
     // Operator, 2026-10-14: ALPHA's show ended at 11:00 with BAC on the bar, and the page still said Holding now;
     // "if they are off air then all trades are closed!"
@@ -128,7 +137,7 @@ describe('FollowedTradersPage', () => {
     expect(q('ft-slot-ALPHA')!.getAttribute('title')).toBe('Read as: LONG ABCD 2.00');
     expect(q('ft-slot-ALPHA')!.querySelector('figcaption')!.textContent).toBe('Their slot now');
     // No live image for BRAVO: their newest evidence stands in, with its time.
-    expect(q('ft-slot-BRAVO')!.textContent).toContain('Their slot at their last change · 09:59:00 ET');
+    expect(q('ft-slot-BRAVO')!.textContent).toContain('Their slot at their last open or close · 09:59:00 ET');
     expect(q('ft-trader-ALPHA')!.textContent).toContain('On air');
     expect(q('ft-trader-BRAVO')!.textContent).toContain('Off air');
     expect(q('ft-record-ALPHA')!.textContent).toContain('1W / 0L · 1 open · Win rate 100%');
@@ -379,7 +388,7 @@ describe('FollowedTradersPage', () => {
     // Operator ask 2026-10-14: "we can see the PL per share in terms of percentage"; their pick, "Added up".
     await show(day());
     const alpha = q('ft-pl-ALPHA')!;
-    expect(alpha.textContent).toBe('+10.00%per share · 1 trade');
+    expect(alpha.textContent).toBe('+10.00%per share, added up · 1 trade');
     expect(alpha.className).toContain('ft-plfig--up');
     expect(alpha.querySelector('svg.ft-spark')).not.toBeNull();
     expect(alpha.getAttribute('data-tip')).toContain('P/L per share in %, added up over 1 closed trade');
@@ -405,8 +414,8 @@ describe('FollowedTradersPage', () => {
     let answer: object = week;
     await show(day(), (url) => url.pathname === '/api/followed-traders/record' ? new Response(JSON.stringify(answer)) : undefined);
     await click(q('ft-range-week'));
-    expect(q('ft-pl-ALPHA')!.textContent).toBe('+1.75%per share · 2 trades');
-    expect(q('ft-pl-BRAVO')!.textContent).toBe('−0.40%per share · 1 trade');
+    expect(q('ft-pl-ALPHA')!.textContent).toBe('+1.75%per share, added up · 2 trades');
+    expect(q('ft-pl-BRAVO')!.textContent).toBe('−0.40%per share, added up · 1 trade');
     expect(q('ft-pl-BRAVO')!.className).toContain('ft-plfig--down');
     expect(q('ft-pl-everyone')!.textContent).toBe('+1.35%');
     answer = { ...week, traders: week.traders.map(({ name, record }) => ({ name, record })) };

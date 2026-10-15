@@ -76,6 +76,26 @@ describe('the daily loss limit\'s notices (ADR 056)', () => {
     expect(push).toHaveBeenCalledTimes(1);
   });
 
+  it('waits for Auto sell to answer, then says what was sold (PR #1003 review)', () => {
+    const push = vi.fn();
+    const trip = { tripped_at: AT_1012, tripped_loss: 2040, limit_usd: 2000 };
+    const selling = view({ paper: account({ ...trip, sell: 'pending' }) });
+    expect(noteLossLimit(selling, push, null, AT_1012 + 2)).toBe(0);             // still selling: not seen yet
+    const done = view({ paper: account({ ...trip, sell: 'done',
+      sold: [{ symbol: 'WETO', side: 'SELL', qty: 10000, ok: true, order_id: 259, error: null }] }) });
+    expect(noteLossLimit(done, push, null, AT_1012 + 5)).toBe(1);
+    expect(push.mock.calls[0][0].text).toContain('Sold 10,000 WETO · order 259');
+    expect(noteLossLimit(done, push, null, AT_1012 + 8)).toBe(0);                 // once
+  });
+
+  it('says a trip whose Auto sell is slow after 30 s, and that it is still selling', () => {
+    const push = vi.fn();
+    const slow = view({ paper: account({ tripped_at: AT_1012, tripped_loss: 2040, limit_usd: 2000, sell: 'pending' }) });
+    expect(noteLossLimit(slow, push, null, AT_1012 + 29)).toBe(0);
+    expect(noteLossLimit(slow, push, null, AT_1012 + 31)).toBe(1);
+    expect(push.mock.calls[0][0].text).toContain('Auto sell is still selling');
+  });
+
   it('says why nothing was sold when the sale could not start', () => {
     const push = vi.fn();
     const v = view({ live: account({ name: 'Live', tripped_at: AT_1012, tripped_loss: 2010, limit_usd: 2000,
