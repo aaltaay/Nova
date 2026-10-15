@@ -43,6 +43,7 @@ def _recordings(root: Path, sessions: list[str] | None) -> list[Path]:
 
 def _load(folder: Path):
     from book_watch.hidden_study import read
+    from book_watch.hidden_study import recording_restarts
     from capture.schema import read_manifest
     from capture.sessions import is_ibkr_source
     from sim.capture_spans import load_spans
@@ -50,7 +51,7 @@ def _load(folder: Path):
     manifest, _legacy = read_manifest(folder)
     if not is_ibkr_source(manifest):
         raise ValueError("not an IBKR recording")
-    rec = read(folder)
+    rec = read(folder, restarts=recording_restarts(manifest, folder))
     if rec.first_ts is None:
         raise ValueError("no rows")
     _segments, spans = load_spans(manifest, folder, live=False, first_ts=rec.first_ts, last_ts=rec.last_ts)

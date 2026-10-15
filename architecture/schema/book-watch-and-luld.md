@@ -328,8 +328,9 @@ order.
   size now). Over the side's column head a banner names the nearest one that holds -- "Big seller 3.45 · 48.2K ·
   1.9% of float · 40 s of lit volume" (the float share from `big_float`, "?" after it when the float is
   contradicted, left out with no float; the seconds from `clear_sec`), "back · 2nd in 5 min" when it came back --
-  and, with none holding, the newest one that ended: taken (slate, "✓"), pulled (amber, "✕"), pulled as the price
-  came (solid amber), out of view (grey: unknown, never pulled), fading over its last 10 s. A narrow ladder drops
+  and, with none holding, the newest one that ended: taken (slate, "✓", with what traded at its price, or "traded
+  through" when a print went through it -- how much of it traded is then unknown), pulled (amber, "✕"), pulled as
+  the price came (solid amber), out of view (grey: unknown, never pulled), fading over its last 10 s. A narrow ladder drops
   the seconds, then the float, from the banner; the hover always gives all of it and the note. Nothing is added to
   the ladder's height. The drop marks under the rows are the watcher's own and stay as they are. On a replay desk
   the ladder carries no book-watch frames, so none is drawn there (the held card still reads `big_replay`).
@@ -337,7 +338,9 @@ order.
   over every Session Record: for each called wall, the mid's move toward a flush (down after a seller, up after a
   buyer) and whether a print went through it, 10 s to 5 min after the call and after its end, split by how it
   ended and by `clear_sec` (under 60 s against 60 s or more), beside the same recordings' every minute as the
-  baseline. A description of the recordings, never a trading rule.
+  baseline. The tracker starts afresh where a recorded stretch begins after a gap (the manifest's segments,
+  `hidden_study.recording_restarts`; `tools/hidden_study.py` too), so a wall is never held across one. A
+  description of the recordings, never a trading rule.
 
 ## LULD bands on Level 2 (ADR 047, operator ask 2026-10-06)
 

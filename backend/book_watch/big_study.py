@@ -50,14 +50,17 @@ class BigRecorded:
         return self.rec.symbol
 
 
-def read(directory: Path, *, spans: list[tuple[float, float]] | None = None, num_rows: int = 10) -> BigRecorded:
-    """Run the watcher over one recording directory, keeping every big seller's and buyer's call and end."""
+def read(directory: Path, *, spans: list[tuple[float, float]] | None = None, num_rows: int = 10,
+         restarts: Iterable[float] = ()) -> BigRecorded:
+    """Run the watcher over one recording directory, keeping every big seller's and buyer's call and end. At each
+    of ``restarts`` (``hidden_study.recording_restarts``) the watcher starts afresh: a wall seen before a recording
+    gap is never held across it -- one shown at 10:00 and again at 10:20 would read as held for 20 minutes."""
     walls: list[dict[str, Any]] = []
 
     def keep(events: list[dict[str, Any]]) -> None:
         walls.extend(e for e in events if e.get("event") == "big")
 
-    rec = read_recording(Path(directory), spans=spans, num_rows=num_rows, on_events=keep)
+    rec = read_recording(Path(directory), spans=spans, num_rows=num_rows, on_events=keep, restarts=restarts)
     out = BigRecorded(rec)
     for w in walls:
         if w["state"] == "holding":

@@ -76,15 +76,28 @@ class Recorded:
 
 
 def read(directory: Path, *, spans: list[tuple[float, float]] | None = None, num_rows: int = 10,
-         on_events: Callable[[list[dict[str, Any]]], None] | None = None) -> Recorded:
+         on_events: Callable[[list[dict[str, Any]]], None] | None = None,
+         restarts: Iterable[float] = ()) -> Recorded:
     """Run the watcher over one recording directory with every stretch traced. ``on_events`` hears every event
-    the watcher raises on the way (the big-seller study keeps its ``big`` events)."""
+    the watcher raises on the way (the big-seller study keeps its ``big`` events). ``restarts`` are where a
+    recorded stretch began after a gap (``recording_restarts``): the watcher starts afresh there, as on a live
+    line's restart, so nothing it saw before a gap -- a book to compare, a wall's hold -- is carried across it."""
     directory = Path(directory)
     history: list[Stretch] = []
     watch = SymbolWatch(directory.name.upper(), num_rows=num_rows, hidden=_TRACE_ONLY, hidden_history=history)
     rec = Recorded(directory.parent.name, directory.name.upper(), history, [], [], [])
     first = last = last_book = None
+    pending = sorted(restarts)
     for ts, _order, kind, row in merged_rows(directory):
+        crossed = False
+        while pending and ts >= pending[0]:
+            pending.pop(0)
+            crossed = True
+        if crossed and first is not None:
+            events = watch.reset()
+            if on_events is not None and events:
+                on_events(events)
+            last_book = None
         first = ts if first is None else first
         last = ts
         events = feed(watch, kind, ts, row)
@@ -118,6 +131,14 @@ def read(directory: Path, *, spans: list[tuple[float, float]] | None = None, num
     rec.first_ts, rec.last_ts = first, last
     rec.spans = spans if spans is not None else ([(first, last)] if first is not None else [])
     return rec
+
+
+def recording_restarts(manifest: dict[str, Any], directory: Path) -> list[float]:
+    """Where each recorded stretch after a gap began, from the recording's manifest (``read``'s ``restarts``).
+    Data written past the last segment only lengthens the last stretch, so no event time is needed here."""
+    from capture.segments import gap_rows, recorded_segments
+
+    return [stop for _start, stop, _reason in gap_rows(recorded_segments(manifest, Path(directory), live=False))]
 
 
 def _span_end(rec: Recorded, ts: float) -> float | None:
