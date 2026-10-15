@@ -185,6 +185,7 @@ Every confirmed wire and persisted shape lives in `architecture/schema/`, one fi
 | The 5-minute flat top (ADR 031 amendment, operator ask 2026-10-06) | `architecture/schema/setups.md` |
 | Targets replace 2R: the menu, two halves, every choice scored (#845, operator decisions 2026-10-09 and 2026-10-12) | `architecture/schema/setups.md` |
 | The pullback dip: a watch-only setup (#847, operator ask 2026-10-12) | `architecture/schema/setups.md` |
+| The ABCD: a watch-only setup (operator ask 2026-10-15) | `architecture/schema/setups.md` |
 | One row per trigger (ADR 022 amendment, 2026-10-02) | `architecture/schema/setups.md` |
 | Too thin to trade (ADR 022 amendment, operator decision 2026-10-01) | `architecture/schema/setups.md` |
 | The 5-minute chart on a 1-minute setup (trial T8, operator decision 2026-09-30) | `architecture/schema/setups.md` |

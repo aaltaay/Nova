@@ -72,6 +72,8 @@ export const BOT_ERROR_NOT_ACTIVE = 'The Bot is off -- turn it on on the Bots pa
 export const BOT_SETUP_FIRST_PULLBACK = 'first_pullback';
 /** The pullback dip (#847): watch only -- drawn and scored, never traded. */
 export const BOT_SETUP_PULLBACK_DIP = 'pullback_dip';
+/** The ABCD (operator ask 2026-10-15): watch only -- drawn and scored, never traded. */
+export const BOT_SETUP_ABCD = 'abcd';
 /** In the backend's order (constants_bot.BOT_SETUPS): the six long setups with a scanner, the watch-only pullback
  * dip (#847), the five shorts (ADR 049), then the one without a scanner. */
 export const BOT_SETUP_IDS = [
@@ -82,6 +84,7 @@ export const BOT_SETUP_IDS = [
   'red_to_green',
   'gap_and_go',
   'pullback_dip',
+  'abcd',
   ...SHORT_SETUP_IDS,
   'micro_pullback',
 ] as const;
@@ -89,7 +92,7 @@ export type BotSetupId = (typeof BOT_SETUP_IDS)[number];
 
 /** Mirrors backend constants_bot.BOT_WATCH_ONLY_SETUPS (#847): the eyes watch, score and draw them; Nova never
  * trades them -- no proposal, no bot, no Auto-entry, no Approve, and On is locked. */
-export const BOT_WATCH_ONLY_SETUP_IDS: readonly string[] = [BOT_SETUP_PULLBACK_DIP];
+export const BOT_WATCH_ONLY_SETUP_IDS: readonly string[] = [BOT_SETUP_PULLBACK_DIP, BOT_SETUP_ABCD];
 export const isWatchOnlySetup = (id: string | null | undefined): boolean =>
   id != null && BOT_WATCH_ONLY_SETUP_IDS.includes(id);
 /** A watch-only strategy's Eyes: it draws and scores, and never alerts. */
@@ -110,6 +113,7 @@ export const BOT_SETUP_LABELS: Record<string, string> = {
   flat_top_5m: '5-minute flat top',
   red_to_green: 'Red to green',
   pullback_dip: 'Pullback dip',
+  abcd: 'ABCD',
   micro_pullback: 'Micro pullback',
   ...SHORT_SETUP_LABELS,
 };
@@ -123,6 +127,7 @@ export const BOT_SETUP_SHORT: Record<string, string> = {
   flat_top_5m: '5m flat top',
   red_to_green: 'Red to green',
   pullback_dip: 'Dip',
+  abcd: 'ABCD',
   micro_pullback: 'Micro pullback',
   ...SHORT_SETUP_TAGS,
 };
@@ -136,6 +141,7 @@ export const BOT_SETUP_BLURBS: Record<string, string> = {
   flat_top_5m: 'The same flat top on the 5-minute chart, bought the way the material trades it: the first 1-minute candle that holds the break.',
   red_to_green: 'Trades below the 09:30 open, then back through it — buy the reclaim, one try a day.',
   pullback_dip: 'Watch only: the first pullback\'s run and pullback, bought at the candle that bottoms it — a bottoming wick or the first green close — with the pullback\'s high as target 1.',
+  abcd: 'Watch only: a squeeze to the high, a pullback (A), a push that fails under the high (B), a higher low (C) — bought on the break of B, target 1 the high of day.',
   micro_pullback: 'A 1-2 candle dip inside a fast move, read on seconds.',
   ...SHORT_SETUP_BLURBS,
 };
@@ -175,6 +181,11 @@ export const BOT_SETUP_RESEARCH: Record<string, { verdict: 'failed' | 'not_teste
     verdict: 'not_tested',
     text: 'Never tested: watch only. Its rows and side-by-side target scores are its first evidence (#847).',
     detail: 'watch only: its rows and target scores are its first evidence (#847)',
+  },
+  abcd: {
+    verdict: 'not_tested',
+    text: 'Never tested: watch only. Its rows and side-by-side target scores are its first evidence.',
+    detail: 'watch only: its rows and target scores are its first evidence',
   },
   micro_pullback: {
     verdict: 'not_tested', text: 'Not tested -- planned on one-second bars (S5).', detail: 'planned on one-second bars (S5)',

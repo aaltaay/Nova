@@ -25,6 +25,9 @@ export interface HeldBig {
   /** Walls pulled at this price in the minutes before it was called; never a claim it is the same order. */
   back: { pulled: number; lastEndedMs: number; lastSize: number } | null;
   left: { before: number; after: number; filled: number } | null;
+  /** The watcher's word for how it ended: `through` (a print went through its price), `traded` (prints at its
+   * price took at least half of what left), `no_prints`, or why it went out of view; null while it holds. */
+  how: string | null;
   /** Big in the first book Nova read: it may have been there longer. */
   seenFromStart: boolean;
   /** When it was first seen big and, once it ended, when -- on this page's clock. */
@@ -78,6 +81,7 @@ function readWall(raw: unknown, atOf: (ts: number) => number): HeldBig | null {
       ? { pulled: num(back.pulled) ?? 1, lastEndedMs: atOf(backEnded), lastSize: num(back.last_size) ?? 0 }
       : null,
     left: left ? { before: num(left.before) ?? 0, after: num(left.after) ?? 0, filled: num(left.filled) ?? 0 } : null,
+    how: typeof w.how === 'string' ? w.how : null,
     seenFromStart: w.seen_from_start === true,
     firstSeenMs: atOf(firstSeen),
     endedMs: ended === null ? null : atOf(ended),

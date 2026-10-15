@@ -19,6 +19,7 @@ import type {
   SceneDot,
   SceneEdgeTag,
   SceneMark,
+  ScenePath,
   ScenePin,
   SceneSegment,
   SceneTrend,
@@ -67,6 +68,8 @@ export interface Px {
   dots: { x: number; y: number; d: SceneDot }[];
   /** The trend lines: each one's first touch, its last, and where it runs on the pane's newest candle. */
   trends: TrendPx[];
+  /** Lines through points (an ABCD's swings), in pixels. */
+  paths?: { pts: { x: number; y: number }[]; p: ScenePath }[];
   /** A setup's strategy box (`strategyBoxRender.ts`). */
   strategy?: StrategyPx | null;
   /** Nova's LULD band (`luldRender.ts`). */
@@ -120,6 +123,21 @@ export function columnItems(px: ColumnPx, height: number): ColumnItem[] {
 export function shownLevels(px: ColumnPx, height: number): LevelPx[] {
   const { folded } = columnOf(px, height);
   return folded.size === 0 ? px.levels : px.levels.filter(l => !folded.has(l));
+}
+
+/** A line through points, straight from each to the next (an ABCD's swings). */
+function drawPath(ctx: CanvasRenderingContext2D, pts: { x: number; y: number }[], p: ScenePath): void {
+  if (pts.length < 2) return;
+  ctx.save();
+  ctx.strokeStyle = p.color;
+  ctx.lineWidth = 2;
+  ctx.lineJoin = 'round';
+  ctx.setLineDash(p.dashed ? [5, 4] : []);
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (const pt of pts.slice(1)) ctx.lineTo(pt.x, pt.y);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function columnOf(px: ColumnPx, height: number): { items: ColumnItem[]; folded: Set<LevelPx> } {
@@ -269,6 +287,7 @@ export class LineRenderer implements IPrimitivePaneRenderer {
       const measure = labelMeasure(ctx);
       const tickHits = drawLevels(ctx, shownLevels(this.px, height), this.px.ticks, width, height);
       for (const t of this.px.trends ?? []) drawTrend(ctx, t);
+      for (const path of this.px.paths ?? []) drawPath(ctx, path.pts, path.p);
       if (this.px.luld) drawLuld(ctx, this.px.luld);
       ctx.lineWidth = 1;
       for (const { x1, x2, y1, y2, b } of this.px.boxes) {
@@ -308,7 +327,8 @@ export class LineRenderer implements IPrimitivePaneRenderer {
       for (const { x, y, d } of this.px.dots) {
         drawRing(ctx, x, y, d);
         if (d.label) {
-          fixed.push({ text: d.label, x, y: y - RING_R_PX - RING_LABEL_GAP_PX, color: d.labelColor ?? d.color,
+          const gap = RING_R_PX + RING_LABEL_GAP_PX;
+          fixed.push({ text: d.label, x, y: d.labelBelow ? y + gap : y - gap, color: d.labelColor ?? d.color,
             align: 'center' });
         }
       }

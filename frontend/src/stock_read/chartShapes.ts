@@ -49,7 +49,7 @@ import {
   boxedPlan, formingPlan, strategyOf, strategyOnBars, strategyWords, triggeredPlan, triggerMark,
 } from './strategyBox';
 import { trendScene } from './trendLines';
-import type { Scene, SceneBox, SceneDot, SceneMark, SceneWord } from './sceneTypes';
+import type { Scene, SceneBox, SceneDot, SceneMark, ScenePath, SceneWord } from './sceneTypes';
 import type { StockReadLayers } from './StockReadContext';
 import type { SetupLane, SetupLeg, StockPlan, StockRead } from './types';
 import { levelTitle, type OrderLevel, type OrderLevels } from './whoTradesModel';
@@ -122,8 +122,10 @@ export function paneKind(timeframe: string): PaneKind {
 }
 
 /** A lane's rings, marks and edge words (the flat top's) into the pane's scene. */
-function mergeExtras(scene: Scene, s: { dots?: SceneDot[]; marks?: SceneMark[]; words?: SceneWord[] }): void {
+function mergeExtras(scene: Scene, s: { dots?: SceneDot[]; marks?: SceneMark[]; words?: SceneWord[];
+  paths?: ScenePath[] }): void {
   if (s.dots?.length) scene.dots = [...(scene.dots ?? []), ...s.dots];
+  if (s.paths?.length) scene.paths = [...(scene.paths ?? []), ...s.paths];
   if (s.marks?.length) scene.marks = [...(scene.marks ?? []), ...s.marks];
   if (s.words?.length) scene.words = [...(scene.words ?? []), ...s.words];
 }
@@ -371,7 +373,8 @@ export type LaneChipState = 'forming' | 'live' | 'done' | 'idle' | 'failed';
 export function laneChip(lane: SetupLane): { text: string; name: string; word: string; state: LaneChipState } {
   const short: Record<string, string> = {
     first_pullback: '1st pullback', bull_flag: 'Bull flag', flat_top_breakout: 'Flat top', flat_top_5m: '5m flat top',
-    red_to_green: 'Red→green', gap_and_go: 'Gap & Go', pullback_dip: 'Dip (watch)', ...SHORT_SETUP_CHIPS,
+    red_to_green: 'Red→green', gap_and_go: 'Gap & Go', pullback_dip: 'Dip (watch)', abcd: 'ABCD (watch)',
+    ...SHORT_SETUP_CHIPS,
   };
   const name = short[lane.setup_type] ?? setupName(lane.setup_type);
   const chip = (word: string, state: LaneChipState) => ({ text: word ? `${name} ${word}` : name, name, word, state });

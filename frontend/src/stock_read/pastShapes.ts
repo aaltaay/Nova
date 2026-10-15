@@ -6,9 +6,10 @@
  * came next (`pastSetups.ts` has the words). Pure: episodes in, boxes out; every box carries its hover id.
  * Every label makes room (`sceneLabels.ts`): a trigger's result first, then the newest setup's, and how
  * one ended before any leg. A past flat top keeps its touches as faint rings (`pastRings`); a past pullback dip
- * (#847, watch only) that bought keeps its pullback in faint pink.
+ * (#847, watch only) that bought keeps its pullback in faint pink, and a past ABCD its range from A in faint cyan.
  */
-import { DIP_PAST, FLAT_TOP_PAST_RING, PAST_COLORS, PAST_SHORT } from './constants';
+import { ABCD_PAST, DIP_PAST, FLAT_TOP_PAST_RING, PAST_COLORS, PAST_SHORT } from './constants';
+import { isAbcdLane } from './abcdShapes';
 import { isDipLane } from './dipShapes';
 import { flatTopTouches, isFlatTop } from './flatTopShapes';
 import type { SceneBox, SceneDot } from './sceneTypes';
@@ -119,6 +120,10 @@ export function pastShapes(episodes: Episode[], o: PastDrawOptions): SceneBox[] 
       const openT = ep.setup?.detail?.open_t;
       box(typeof openT === 'number' ? openT : ep.started_at, end, low ?? leg.low, high, tone.fill, tone.stroke,
         `PMH · ${label}`, tone.ink, outcome, true);
+    } else if (isAbcdLane(type)) {
+      // A past ABCD (watch only): its range from A, between A's low and B's high (the high of day before a B).
+      box(leg.t, Math.max(end, leg.t + bar), leg.low, ep.setup?.trigger ?? leg.high, ABCD_PAST.fill, ABCD_PAST.stroke,
+        `ABCD · ${label}`, tone.ink, outcome, true);
     } else if (isDipLane(type) && ep.setup) {
       // A dip it bought (#847, watch only): its pullback in faint pink, from the leg high to the candle that bottomed
       // it. A dip that died bought nothing and has no levels: the first pullback's past box shows that leg.

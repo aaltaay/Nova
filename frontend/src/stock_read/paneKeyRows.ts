@@ -13,7 +13,7 @@ import { LULD_APPROX_MARK, LULD_COLOR } from '../constantGroups/luld';
 import { SHORT_SETUP_COLORS } from '../constantGroups/short_setups';
 import type { PaneKind } from './chartShapes';
 import {
-  DIP_COLORS, FLAT_TOP_COLORS, LEVEL_COLORS, LEVEL_ROUND_LINE_ALPHA, SETUP_COLORS, STRATEGY_BOX, STRATEGY_BOX_LIVE, TREND_COLORS,
+  ABCD_COLORS, DIP_COLORS, FLAT_TOP_COLORS, LEVEL_COLORS, LEVEL_ROUND_LINE_ALPHA, SETUP_COLORS, STRATEGY_BOX, STRATEGY_BOX_LIVE, TREND_COLORS,
 } from './constants';
 import { alpha } from './levelRender';
 
@@ -157,6 +157,20 @@ function dipRows(): KeySection {
   };
 }
 
+/** The ABCD's drawing: watch only -- drawn and scored, never traded. */
+function abcdRows(): KeySection {
+  const c = ABCD_COLORS;
+  return {
+    title: 'ABCD (watch only: never traded)',
+    rows: [
+      { swatch: 'rise', color: c.line, label: 'A · B · C', text: 'the swings: the high, the pullback low A, the push B that failed under the high, the higher low C (dashed while it forms)' },
+      { swatch: 'box', color: c.line, fill: c.fill, label: 'Range', text: 'from A, between the low of A and the high of B' },
+      { swatch: 'band', color: c.band, label: 'Tolerance', text: 'how far B may double-top the high, and C sit under A' },
+      { swatch: 'up', color: c.go, label: 'D', text: 'the candle that broke B: bought 1c over B' },
+    ],
+  };
+}
+
 function fiveMinuteRows(): KeySection {
   return {
     title: '5-minute setups (labels start "5m")',
@@ -221,7 +235,7 @@ export function chartKey(kind: PaneKind, layers: KeyLayers): KeySection[] {
   if (kind === 'none') return [];
   const out: KeySection[] = [];
   if (kind === 'full') {
-    if (layers.setups) out.push(setupRows(), flatTopRows(), dipRows());
+    if (layers.setups) out.push(setupRows(), flatTopRows(), dipRows(), abcdRows());
     out.push(planRows(true));
     if (layers.levels) out.push(minuteRows(), trendRows('1-minute'));
     if (layers.setups) out.push(fiveOnMinuteRows());

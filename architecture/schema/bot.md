@@ -27,7 +27,8 @@ BOT_SETUP_RETIRED`. The v4 -> v5 migration gives the old chosen setup the old
 `level`, keeps the others' 0 / 1, drops `setup`, `strategy` and the `advise`
 budget (and `/api/bot/advise*`, which nothing called), and moves the sleeve, the
 bot list and the day lock into each venue's dial (below). A watch-only setup (#847,
-the pullback dip; setups.md "The pullback dip: a watch-only setup") is never
+the pullback dip, and the ABCD; setups.md "The pullback dip: a watch-only setup", "The ABCD: a
+watch-only setup") is never
 Strategy: `PATCH` refuses its 2 with 409 `BOT_SETUP_WATCH_ONLY`, an older 2 reads
 as Eyes in `effective`, and its `setups[]` entry adds `watch_only: true` and
 `locked` (why); its Eyes draws and never proposes.
