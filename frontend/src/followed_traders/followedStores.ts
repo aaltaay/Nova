@@ -1,7 +1,7 @@
 /**
  * Two small per-window stores for the Followed traders page: the Alerts switch (kept in local storage, a per-window
- * convenience, on by default; storage that throws reads as on) and a request to open one trade's proof (a toast
- * asks, the page takes it).
+ * convenience, on by default; storage that throws reads as on) and a request to open the page on today or on one
+ * trade's proof (a toast asks, the page takes it).
  */
 import { useSyncExternalStore } from 'react';
 import { FOLLOWED_ALERTS_KEY } from './constants';
@@ -48,15 +48,21 @@ export function useFollowedAlerts(): boolean {
   return useSyncExternalStore(alerts.subscribe, alerts.get, alerts.get);
 }
 
+/** `date` null: the feed's own today; `tradeId` null: no proof open. */
 export interface ProofRequest {
-  date: string;
-  tradeId: string;
+  date: string | null;
+  tradeId: string | null;
 }
 
 const proof = store<ProofRequest | null>(null);
 
 export function requestFollowedProof(req: ProofRequest): void {
   proof.set(req);
+}
+
+/** Open the page on today with no proof, whatever day it was showing. */
+export function requestFollowedToday(): void {
+  proof.set({ date: null, tradeId: null });
 }
 
 export function clearFollowedProofRequest(): void {
