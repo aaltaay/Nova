@@ -210,7 +210,7 @@ export const BOT_NO_SCANNER_TITLE = 'No scanner yet -- it cannot watch, propose 
 /** The setups this build has a scanner for -- mirrors backend constants_bot.BOT_SCANNER_SETUPS (ADR 031). */
 export const BOT_SCANNER_SETUP_IDS: readonly string[] = [
   'first_pullback', 'bull_flag', 'flat_top_breakout', 'flat_top_5m', 'red_to_green', 'gap_and_go', 'pullback_dip',
-  ...SHORT_SETUP_IDS,
+  'abcd', ...SHORT_SETUP_IDS,
 ];
 /* A backend older than ADR 031 runs the first pullback only. The page says the backend needs a
    reload -- never "No scanner yet", which would say the feature is missing when it is not loaded. */

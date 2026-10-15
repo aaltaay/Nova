@@ -1,6 +1,7 @@
 /** Wire -> types for the stock read (ADR 036). A field the wire lacks or mistypes is dropped or null
  * -- never guessed; a payload that is not a read is null. */
 import type {
+  AbcdPoints,
   DecisionEvent,
   FormingLevels,
   LaneSeries,
@@ -212,7 +213,24 @@ export function normalizeLeg(raw: unknown): SetupLeg | null {
   if (touches.length) leg.touches = touches;
   const zone = num(l.zone);
   if (zone !== null) leg.zone = zone;
+  // An ABCD's points and tolerances (2026-10-15); absent from every other setup and from an older backend.
+  const abcd = normalizeAbcd(l.abcd);
+  if (abcd) leg.abcd = abcd;
   return leg;
+}
+
+function point(raw: unknown): [number, number] | null {
+  const at = Array.isArray(raw) && raw.length === 2 ? num(raw[0]) : null;
+  const px = Array.isArray(raw) && raw.length === 2 ? num(raw[1]) : null;
+  return at !== null && px !== null ? [at, px] : null;
+}
+
+/** An ABCD's `{high, a, b, c, b_max, a_floor}`, or null without a readable high. */
+export function normalizeAbcd(raw: unknown): AbcdPoints | null {
+  const a = obj(raw);
+  const high = point(a?.high);
+  if (!a || !high) return null;
+  return { high, a: point(a.a), b: point(a.b), c: point(a.c), b_max: num(a.b_max) ?? high[1], a_floor: num(a.a_floor) };
 }
 
 function series(raw: unknown): LaneSeries | null {

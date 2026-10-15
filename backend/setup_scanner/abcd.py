@@ -11,8 +11,8 @@ The shape is ``abcd_shape.py``'s, read after every completed candle:
   near       price within the near band of B
   triggered  a live price over B (the first pullback's trigger, ADR 022): the bar's open when it gapped over, and no
              trade when that gap pushes the risk over the cap
-  failed     a low undercut A (stair-stepping down), or ``max_minutes`` from A passed without the break; the next
-             ABCD needs a new high
+  failed     a low undercut A (stair-stepping down), or ``max_minutes`` from A passed without the break -- with B
+             in or still awaited; the next ABCD needs a new high
 
 Targets are the menu's (``targets.py``): by default the first half 1c under the high of day -- the material's first
 target, a retest of the high -- and the second the next level past it. At most ``max_per_symbol_day`` ABCDs trigger
@@ -134,11 +134,12 @@ class AbcdDetector(TriggerDetector):
         self.leg = self._leg(shape)
         if shape.stage == "broken":
             return self._fail(prev, high_t, shape.why or "a low undercut A")
+        # The window runs from A, whether B has come yet or not.
+        if shape.a is not None and bars[last].t + self.p.bar_sec - s.t[shape.a.i] > self.p.max_minutes * 60 + EPS:
+            words = "a break of B" if shape.stage == "formed" else "a B that fails under the high"
+            return self._fail(prev, high_t, f"{_min(self.p.max_minutes)} from A without {words}: too slow")
         if shape.stage != "formed":
             return self._wait(prev, shape)
-        a_t = s.t[shape.a.i]
-        if bars[last].t + self.p.bar_sec - a_t > self.p.max_minutes * 60 + EPS:
-            return self._fail(prev, high_t, f"{_min(self.p.max_minutes)} from A without a break of B: too slow")
         return self._arm(bars, last, shape, prev)
 
     # -- the shape's leg ------------------------------------------------------

@@ -366,8 +366,8 @@ didn't even make it to the top"), dips to a higher low (C), and is bought on the
   when MACD (`macd_positive`: the newest candle's histogram above zero), the window (07:00-15:30) or the risk
   (`stop_cap` 0.30, `min_stop` 0.03, `risk_slippage` 0.01) holds it back (`forming.blocked`); `near` within the
   near band of B; `triggered` on a live price over B (section 1's trigger: the bar's open when it gapped over, no
-  trade when that gap takes the risk over the cap); `failed` when a low undercut A or the window ran out -- a live
-  price over B after the window fails it too. A failed or triggered ABCD's high is done: the next one needs a new
+  trade when that gap takes the risk over the cap); `failed` when a low undercut A or the window ran out -- while it still waits for B too, and a
+  live price over B after the window fails it. A failed or triggered ABCD's high is done: the next one needs a new
   high.
 - **On the wire.** Its `leg` is every setup's (`t` A's candle once A is in -- the setup's key --, `high` the high,
   `low` A, `pct` the drop to A, `bars` candles since the high) and adds `abcd`: `{high, a, b, c}` each `[candle time,

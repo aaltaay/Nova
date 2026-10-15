@@ -159,6 +159,12 @@ def test_no_break_within_the_window_fails_it_as_too_slow():
     assert det.state == "failed" and "too slow" in det.reason
 
 
+def test_waiting_for_b_past_the_window_fails_it_too():
+    det = detector(abcd_max_minutes=6)
+    feed(det, day(SQUEEZE, PULLBACK, PUSH[:1], [(4.44, 4.46, 4.42, 4.44)] * 6))
+    assert det.state == "failed" and "without a B that fails under the high: too slow" in det.reason
+
+
 def test_a_weak_push_is_not_b_yet():
     det = detector(abcd_bounce_pct=90)
     feed(det, day(SQUEEZE, PULLBACK, PUSH, DIP))
