@@ -289,12 +289,18 @@ Each trader's record over a span ending on `date` (default: the desk's today, as
 `FOLLOWED_RECORD_WEEK_DAYS` (7) calendar days ending on it, `all` every day the feed has. Read from the feed's
 `/api/trades`; another `range` is 400 `FOLLOWED_BAD_RANGE`, a bad `date` 400 `FOLLOWED_BAD_DATE`. Answers:
 
-`{schema_version: 1, generated_at, feed, range, from, to, dates[], pending, overall, traders: [{name, record}]}`
+`{schema_version: 1, generated_at, feed, range, from, to, dates[], pending, overall, traders: [{name, record, scored}]}`
 
 `traders[]` in the order of their first trade in the span; `pending` counts the exits not read yet (each is asked
 for in the background like the day's, so a record fills in as they are read; until then they are `unscored`). Open
 positions are not priced here; a trade still open at the end of its day counts as `open`. The feed down reads as on
 the day route, with `overall: null` and no traders.
+
+`scored` (2026-10-14, "What they made, per share in %" below): the trader's trades the record counts as `win`,
+`loss` or `scratch`, oldest exit first, `[{ts, pct}]` -- `ts` the exit's `to_ts` (epoch seconds) and `pct` the trade's
+`pl.pct` as on the day route. An unscored trade (no one exit price, its exit still pending, a ticker not settled) and
+an open one are not in it; a pending exit joins it once read, as it joins the record. A desk whose backend sends no
+`scored` says so beside the figure and shows none.
 
 ### The exits Nova keeps
 
@@ -364,14 +370,16 @@ images again with each answer.
   showing the last read; waiting for the stream; capture stopped with the feed's own reason; the feed not answering
   or not readable), the stream's title ("Last stream:" before it while the stream is not on air), **Watch
   live** (opens the player; disabled with why when the feed names no stream, or "Offline" and why off air), the record
-  span (Day from `/day`, Week and All from `/record`) with everyone's record for it, the day (previous / a calendar /
+  span (Day from `/day`, Week and All from `/record`) with everyone's record for it and everyone's P/L per share in %
+  ("What they made, per share in %" below), the day (previous / a calendar /
   next; next and future days are disabled with why), on today when it resets ("Resets 4:00 AM ET" from `resets_at`,
   what starts again then in its hover), and Alerts. When open positions
   cannot be priced, a chip says why (`prices.why`).
 - **One block per trader**: on today, everyone in `capture.bar` in the bar's order, then anyone else who
   traded that day in the order of their first trade; on a past day, those who traded. The card: photo (the trader's
   `face`, or the bar slot's; the name's first letter without one), name, on air or off air (today only), the record
-  for the span picked with the scratches and unscored beside it, and their slot image on the right (the live slot,
+  for the span picked with the scratches and unscored beside it, what they made over it (below), and their slot image
+  on the right (the live slot,
   labelled "now" only while the capture reads the stream live and within `FOLLOWED_CAPTURE_BEHIND_SEC` of it and with
   the read's time otherwise, or the newest evidence stand-in labelled with its time, never passed off as now). A trader with a trade that day
   has, under the card, **Holding now** on the left -- an OPEN tile per open position: ticker, side, entry -> now,
@@ -431,5 +439,28 @@ images again with each answer.
   a toast raised while the ticker is still checking or unchecked says "ticker check" beside it. The window remembers
   which trades it held back, so a trade already announced, or already there in its first answer, is never news again
   when its ticker is checked once more (the feed corrected it, or a restart forgot an answer).
+
+### What they made, per share in % (operator ask 2026-10-14)
+
+"For each one, how much they make money. We're not going to be able to know how much they made money, but we can see
+the PL per share in terms of percentage." The feed has no size, so a trader's dollars cannot be known. Each trader's
+card, and Everyone in the head, shows over the span picked (Day, Week, All) **their scored trades' P/L per share in %,
+added up** (the operator's pick from a mockup on the real page, over the average a trade and both): what the same
+money in every trade would have made. Under it a small line draws that total trade by trade, oldest exit first, from 0
+before the first and ending on the number, over a dashed zero; on the card "per share · N trades", in the head the
+number and line alone. Up is green and down red, as the P/L is elsewhere on the page.
+
+- **Which trades:** those scored `win`, `loss` or `scratch` -- one known exit price -- the same trades as the W / L
+  beside it. An unscored trade (an exit seen only in a window, not read yet, a close the feed never saw, a ticker not
+  settled) has no one price, so it is left out and still counted as "N unscored"; nothing is guessed from a range. An
+  open position counts once it closes.
+- **Where from:** Day from the day's own `closed[]` (`/day`); Week and All from `/record`'s `scored`. Everyone is
+  every trader's trades on one list, so its total is the traders' totals added up. Each `pct` has two decimals, so the
+  total does too.
+- **None:** a span with no scored trade -- nothing closed yet, or only unscored trades -- shows a dash, never 0%, and
+  its hover says why. While a Week or All record is read, while the feed is down (`feed.state` off `ok`: its own
+  words, never read as a span with no trades), or from a backend that sends no `scored`, the dash's hover says that.
+- **Hover:** what the number is, its average a trade, that their dollars are unknown because the feed shows no size,
+  and what is left out (the unscored count, open positions).
 
 The tab is placed after Cryptos on the rail, and the focus report names it `followed` (`book-watch-and-luld.md`).

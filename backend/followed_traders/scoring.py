@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 RESULTS = ("win", "loss", "scratch", "unscored")
+SCORED = ("win", "loss", "scratch")
 
 
 def result(row: dict[str, Any]) -> str | None:
@@ -36,3 +37,13 @@ def record(rows: list[dict[str, Any]]) -> dict[str, Any]:
     return {"wins": counts["win"], "losses": counts["loss"], "scratches": counts["scratch"],
             "unscored": counts["unscored"], "open": counts[None],
             "win_rate": round(counts["win"] / decided * 100.0, 1) if decided else None}
+
+
+def scored(rows: list[dict[str, Any]]) -> list[dict[str, float]]:
+    """``[{ts, pct}]``: the trades a record counts as won, lost or scratched -- the exit's ``to_ts`` and the P/L per
+    share in percent points -- oldest exit first. Unscored and open trades have no one exit price, so none is here."""
+    out = []
+    for row in rows:
+        if (row.get("result") if "result" in row else result(row)) in SCORED:
+            out.append({"ts": row["exit"]["to_ts"], "pct": row["pl"]["pct"]})
+    return sorted(out, key=lambda p: p["ts"])

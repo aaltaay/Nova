@@ -346,6 +346,23 @@
   padding: 2px 6px;
   border-radius: 4px;
 }
+/* What they made over the span, P/L per share in %: the number over its line (PlFigure.tsx). */
+.ft-plfig { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; cursor: default; }
+.ft-plfig__num { font-size: 22px; font-weight: 700; line-height: 1.1; letter-spacing: -0.01em; }
+.ft-plfig--up .ft-plfig__num { color: var(--ft-up); }
+.ft-plfig--down .ft-plfig__num { color: var(--ft-down); }
+.ft-plfig__note { font-size: 11px; }
+.ft-plfig--inline { flex-direction: row; align-items: center; gap: 6px; }
+.ft-plfig--inline .ft-plfig__num { font-size: 14px; }
+.ft-spark { display: block; overflow: visible; }
+.ft-spark__zero { stroke: var(--nova-border-strong, var(--ft-line)); stroke-width: 1; stroke-dasharray: 2 3; }
+.ft-spark__line { fill: none; stroke: var(--nova-text-muted); stroke-width: 1.75; stroke-linejoin: round; stroke-linecap: round; }
+.ft-spark__dot { fill: var(--nova-text-muted); }
+.ft-spark--up .ft-spark__line { stroke: var(--ft-up); }
+.ft-spark--up .ft-spark__dot { fill: var(--ft-up); }
+.ft-spark--down .ft-spark__line { stroke: var(--ft-down); }
+.ft-spark--down .ft-spark__dot { fill: var(--ft-down); }
+
 .ft-slot { flex: none; width: var(--ft-slot-w); margin: 0; display: flex; flex-direction: column; gap: 3px; }
 /* The feed cuts every slot 746 x 119 or so; the box keeps that shape before the picture arrives, so nothing moves. */
 .ft-slot__img { width: 100%; aspect-ratio: 746 / 119; min-height: 0; object-fit: contain; display: block; border-radius: 7px; }
