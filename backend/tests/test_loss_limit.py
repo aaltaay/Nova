@@ -78,6 +78,18 @@ def test_an_unknown_version_reads_the_defaults_and_says_so():
 
 
 # -- the watcher -----------------------------------------------------------------------------------
+def _closes(stocks, on_close, order_id: int = 7) -> list:
+    """What a fake sale answers, told close by close as ``sell_opened_today`` does."""
+    out = []
+    for s in stocks:
+        close = {"symbol": s["symbol"], "side": "SELL", "qty": s["shares"], "ok": True, "order_id": order_id,
+                 "error": None}
+        out.append(close)
+        if on_close is not None:
+            on_close(close)
+    return out
+
+
 def _run(account: str, pnl: float | None, at: float, stocks=None):
     got = Count(pnl=pnl, unknown=None if pnl is not None else "unknown", stocks=stocks or [])
     asyncio.run(watch.check(account, got, at))
@@ -122,10 +134,9 @@ def test_warn_me_off_writes_no_warning_but_the_trip_still_records():
 def test_auto_sell_off_sells_nothing_and_on_sells_only_todays(monkeypatch):
     sold: list = []
 
-    async def fake_sell(account, stocks):
+    async def fake_sell(account, stocks, on_close=None):
         sold.append((account, stocks))
-        return [{"symbol": s["symbol"], "side": "SELL", "qty": s["shares"], "ok": True, "order_id": 7, "error": None}
-                for s in stocks]
+        return _closes(stocks, on_close)
 
     monkeypatch.setattr("loss_limit.sell.sell_opened_today", fake_sell)
     stocks = [{"symbol": "WETO", "pnl": -451.03, "shares": 10_000.0}, {"symbol": "DONE", "pnl": -5.0, "shares": 0.0}]
@@ -146,10 +157,9 @@ def test_an_auto_sell_a_restart_interrupted_resumes_once(monkeypatch):
     """PR #1003 review: the trip is saved as selling before any order goes out; the next pass finishes it."""
     sold: list = []
 
-    async def fake_sell(account, stocks):
+    async def fake_sell(account, stocks, on_close=None):
         sold.append([s["symbol"] for s in stocks])
-        return [{"symbol": s["symbol"], "side": "SELL", "qty": s["shares"], "ok": True, "order_id": 9, "error": None}
-                for s in stocks]
+        return _closes(stocks, on_close, 9)
 
     monkeypatch.setattr("loss_limit.sell.sell_opened_today", fake_sell)
     settings.update({"limit_usd": 405, "auto_sell": True})
@@ -166,10 +176,39 @@ def test_an_auto_sell_a_restart_interrupted_resumes_once(monkeypatch):
     assert sold == [["WETO"]]                                                # done: never sold twice
 
 
+def test_a_close_sent_before_a_restart_stays_in_sold(monkeypatch):
+    """PR #1004 review: each close is saved as it answers, so a restart after the first of two keeps it."""
+    settings.update({"limit_usd": 405, "auto_sell": True})
+    two = [{"symbol": "WETO", "pnl": -300.0, "shares": 10_000.0}, {"symbol": "AMC", "pnl": -151.0, "shares": 500.0}]
+
+    async def dies_after_the_first(account, stocks, on_close=None):
+        _closes(stocks[:1], on_close, 259)
+        raise SystemExit("the process stopped")                     # a restart, mid-sale
+
+    monkeypatch.setattr("loss_limit.sell.sell_opened_today", dies_after_the_first)
+    with pytest.raises(SystemExit):
+        for t in (0, 10):
+            _run("paper", -451.0, NOW + t, two)
+    row = state.record("paper", NOW + 10)
+    assert row["sell"] == "pending" and [c["symbol"] for c in row["sold"]] == ["WETO"]
+    watch.reset_for_tests()                                          # the new process
+    resumed: list = []
+
+    async def finishes(account, stocks, on_close=None):
+        resumed.append([s["symbol"] for s in stocks])
+        return _closes(stocks, on_close, 260)
+
+    monkeypatch.setattr("loss_limit.sell.sell_opened_today", finishes)
+    _run("paper", -451.0, NOW + 20, two[1:])                         # WETO is no longer held
+    row = state.record("paper", NOW + 20)
+    assert resumed == [["AMC"]] and row["sell"] == "done"
+    assert [(c["symbol"], c["order_id"]) for c in row["sold"]] == [("WETO", 259), ("AMC", 260)]
+
+
 def test_a_trip_with_auto_sell_is_saved_as_selling_before_any_order(monkeypatch):
     seen: list = []
 
-    async def fake_sell(account, stocks):
+    async def fake_sell(account, stocks, on_close=None):
         seen.append(state.record(account, NOW + 10).get("sell"))
         return []
 

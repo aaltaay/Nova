@@ -38,7 +38,8 @@ the wait again. Each line acts once per account per day:
   `sell_error` (the first failure, or null) are written beside the trip. The trip is saved with `sell:
   "pending"` before any order goes out and `"done"` once the closes answered: a sale a restart interrupted
   is taken up again by the next pass that can count the account (it closes only what is still held from
-  today, adding to `sold`), and the desk holds the trip's notice while it reads `pending`.
+  today), and the desk holds the trip's notice while it reads `pending`. Each close is added to `sold` the
+  moment it answers, so a close sent before a restart is kept.
 
 **No new buys** (`loss_limit/gate.py`). While it is checked and an account tripped today, the execution
 door refuses on that account every order that opens or adds -- a BUY that covers nothing, a SELL that

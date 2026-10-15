@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Any
+from typing import Any, Callable
 
 from constants_loss_limit import LOSS_LIMIT_ORIGIN, LOSS_LIMIT_SELL_RETRIES
 
@@ -98,8 +98,12 @@ async def _close(account: str, stock: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-async def sell_opened_today(account: str, stocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Close every stock in ``stocks`` (the count's ``opened_today``) on ``account``."""
+async def sell_opened_today(account: str, stocks: list[dict[str, Any]],
+                            on_close: Callable[[dict[str, Any]], None] | None = None) -> list[dict[str, Any]]:
+    """Close every stock in ``stocks`` (the count's ``opened_today``) on ``account``.
+
+    ``on_close`` hears each close's answer as soon as it has one, so the caller can save it before
+    the next close is sent: a restart mid-sale never loses a close that already went out."""
     if not stocks:
         return []
     symbols = {s["symbol"].upper() for s in stocks}
@@ -109,4 +113,10 @@ async def sell_opened_today(account: str, stocks: list[dict[str, Any]]) -> list[
     except Exception:
         # The closes still go: the door holds each to what is not already being closed.
         logger.exception("LOSS LIMIT: working orders on %s could not be read or cancelled", account)
-    return [await _close(account, stock) for stock in stocks]
+    out: list[dict[str, Any]] = []
+    for stock in stocks:
+        result = await _close(account, stock)
+        out.append(result)
+        if on_close is not None:
+            on_close(result)
+    return out

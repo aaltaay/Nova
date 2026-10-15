@@ -67,21 +67,28 @@ async def _trip(account: str, loss: float, limit: int, count: Count, now: float,
 
 
 async def _sell(account: str, count: Count, now: float) -> None:
-    """Auto sell what ``count`` holds open from today, then mark the sale done with what it answered."""
+    """Auto sell what ``count`` holds open from today, then mark the sale done.
+
+    Each close is added to ``sold`` the moment it answers (PR #1004 review): a restart after one close
+    of several keeps it, and the resumed sale adds only what is still held."""
     from loss_limit.sell import sell_opened_today
 
     if account in _selling:
         return
     _selling.add(account)
+
+    def saved(close: dict[str, Any]) -> None:
+        previous = state.record(account, now).get("sold") or []
+        state.write(account, {"sold": list(previous) + [close]}, now)
+
     try:
         try:
-            sold = await sell_opened_today(account, count.opened_today())
+            sold = await sell_opened_today(account, count.opened_today(), on_close=saved)
             error = next((s["error"] for s in sold if not s["ok"]), None)
         except Exception as exc:
             logger.exception("LOSS LIMIT: Auto sell on %s failed", account)
-            sold, error = [], f"{type(exc).__name__}: {exc}"
-        previous = state.record(account, now).get("sold") or []
-        state.write(account, {"sold": list(previous) + sold, "sell_error": error, "sell": "done"}, now)
+            error = f"{type(exc).__name__}: {exc}"
+        state.write(account, {"sell_error": error, "sell": "done"}, now)
     finally:
         _selling.discard(account)
 
