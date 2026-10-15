@@ -12,8 +12,10 @@ price, and when a position opened, changed or closed. It knows no size, stop, ta
 feed's open positions and closed trades on a page of their own and prices them with Nova's own IBKR data: the price
 now for an open position, and the tape at the exit for a closed one. Owners `backend/followed_traders/` (read-only;
 constants in `followed_traders/constants_followed.py`) and `frontend/src/followed_traders/`. Nothing here places,
-stages or cancels an order, and nothing here feeds a scanner row, a chart, HOD Momo, a setup lane or a bot. Copying a
-trade is a later, Paper-only bot, never Live; it is not built here.
+stages or cancels an order, and nothing here feeds a scanner row, a chart, HOD Momo or a setup lane. Copying a host's
+trades is the Live Trader bot's (ADR 055; `bot.md`, "The Live Trader bot"): Paper only, never Live. It reads the feed
+through this package -- `feed.fetch_day`, the page's sightings (`routes.seen`) with `view.closed_on_leaving`, and the
+ticker check (`routes.ticker_for` over `exits.view`, advanced by `exits.pump`) -- and orders nothing through it.
 
 ### The gate
 

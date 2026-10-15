@@ -542,7 +542,8 @@ the live feed** (ADR 020): orders enter `execution.service.execute` unchanged
 and are filled by the practice broker against the live reference (the L1
 last only when it traded inside `PRACTICE_LIVE_FRESH_SEC` by IBKR's Last
 Timestamp -- never the prior close a line carries before its first trade --,
-live top of book, live tape prints that set a price for resting orders); the account is
+live top of book -- IBKR's Level 1 bid / ask for a side no book holds, while that
+line is fresh (ADR 055) --, live tape prints that set a price for resting orders); the account is
 the persistent ledger `practice-paper.json` (operator cache, `schema_version`)
 with IBKR-like commissions and fees, enforced buying power, day P&L rolling at
 04:00 ET and per-source attribution. **Sim trades the loaded replay** (ADR

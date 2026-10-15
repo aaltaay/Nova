@@ -35,7 +35,10 @@ guess), `last` is the L1 last when it traded within `PRACTICE_LIVE_FRESH_SEC`
 not a trade, and a line with no trade today carries IBKR's prior close, which
 is never a price; #541), else the newest tape print that sets a price inside
 the same window, and `bid` / `ask` the live top of book (Nova's own book,
-kept with IBKR's row rules; #540). Fills follow the same rules
+kept with IBKR's row rules; #540) -- or, for a side no book holds (no Level 2
+line on the stock), IBKR's Level 1 bid / ask while that line is fresh
+(`PRACTICE_LIVE_FRESH_SEC`; ADR 055 decision 7, operator's choice 2026-10-14:
+a marketable buy had filled at the last print, not the ask). Fills follow the same rules
 below with `fill_basis` `live_quote` (a quote was present) or `live_print`
 (last print only); resting orders fill on live tape prints that set a price
 and arrive after they were placed, which needs the symbol's tape line open --
