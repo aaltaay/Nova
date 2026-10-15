@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL } from '../constants';
 import { SortTh, useTableSort, type SortColumns } from '../table_sort';
+import { TickerLink } from '../components/TickerLink';
 
 interface BacktestDaysResponse {
   days: string[];
@@ -237,7 +238,7 @@ export function BacktestPanel({ active }: { active: boolean }) {
                 <tbody>
                   {trades.rows.map((t, i) => (
                     <tr key={`${t.symbol}-${i}`}>
-                      <td>{t.symbol}</td>
+                      <td><TickerLink symbol={t.symbol} /></td>
                       <td>{t.setup}</td>
                       <td className={t.pnl_dollars >= 0 ? 'positive' : 'negative'}>
                         {t.pnl_dollars.toFixed(2)}

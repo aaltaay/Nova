@@ -5,12 +5,13 @@
  *   wordmark · session chip · ET clock · connection chip · venue pills · REC
  *   chips · CLIP chips (ADR 039) · screen recording chip (ADR 035) · [ticker search, centred] ·
  *   Emergency KILL · Day's / Working / TAV
- *   / bot pill / account pill · mute · padlock · gear
+ *   / account pill · mute · Bot switch · padlock · gear
  *
  * Reload backend, the theme toggle, the full Gateway & feed status cluster and
  * the sample-data door live under the gear (GlobalBarGearMenu); the Scanner's
  * history-date picker moved to the board header's session line. View
- * navigation is the nav rail's. Bot row = BotSymbolMenuHost only (issue #230;
+ * navigation is the nav rail's. The Bot switch -- the master key over every
+ * bot -- sits beside the padlock (operator decision 2026-10-15). Bot row = BotSymbolMenuHost only (issue #230;
  * ADR 027 moved the level and Activate to the Bots page hero); the Trader tab
  * row sits under it, above the chart. The watch list's toasts ("XYZ hit HOD
  * Momo", "XYZ: bull flag armed") mount here too, so they reach every page of
@@ -22,7 +23,7 @@ import { RecordingChip } from '../capture/RecordingChip';
 import { RecordingSignals } from '../capture/RecordingSignals';
 import { ScreenRecordChip } from '../screen_record';
 import { ClipChips, ClipExportHost, ClipToasts } from '../clips';
-import { GlobalBarBotPill } from '../bot/GlobalBarBotPill';
+import { GlobalBarBotKey } from '../bot/GlobalBarBotKey';
 import { GlobalBarBotRow } from '../bot/GlobalBarBotRow';
 import { CloseReminders } from '../close_reminder';
 import { useClosedOrders } from '../closed_orders/useClosedOrders';
@@ -166,9 +167,9 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
             closeTraderView={leaveTraderToScanner}
             refresh={refresh}
             venue={deskVenue}
-            beforePill={<GlobalBarBotPill />}
           />
           <DeskMuteButton />
+          {!isSampleView() && <GlobalBarBotKey />}
           <TradingSessionLockButton />
           <GlobalBarGearMenu
             scanner={scanner}

@@ -5,11 +5,12 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetFeedImagesForTests } from './FeedImage';
-import { resetFollowedStoresForTests } from './followedStores';
+import { requestFollowedToday, resetFollowedStoresForTests } from './followedStores';
 import { resetStreamForTests } from './stream';
 import { FOLLOWED_PROOF_HOVER_CLOSE_MS, FOLLOWED_PROOF_HOVER_OPEN_MS } from './constants';
 import { closed, day, T, trade } from './followedTestData';
 import { FollowedTradersPage } from './FollowedTradersPage';
+import type { FollowedSlots } from './slots';
 import type { FollowedDay } from './types';
 
 type Route = (url: URL) => Response | undefined;
@@ -37,7 +38,7 @@ describe('FollowedTradersPage', () => {
   });
 
   async function show(dayAnswer: FollowedDay | (() => Response), extra: Route = () => undefined,
-    onOpenTrader?: (symbol: string) => void) {
+    onOpenTrader?: (symbol: string) => void, slots?: FollowedSlots) {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const url = new URL(String(input), 'http://desk');
       asked.push(url.pathname + url.search);
@@ -51,7 +52,7 @@ describe('FollowedTradersPage', () => {
       return new Response('', { status: 404 });
     }));
     await act(async () => {
-      root.render(<FollowedTradersPage onOpenTrader={onOpenTrader} />);
+      root.render(<FollowedTradersPage onOpenTrader={onOpenTrader} slots={slots} />);
     });
     await flush();
   }
@@ -78,6 +79,15 @@ describe('FollowedTradersPage', () => {
     expect(q('ft-slot-ALPHA')!.querySelector('figcaption')!.textContent).toBe('Their slot as last read · 09:40:00 ET');
   });
 
+  it('says when they left as a window when the bar was not read between their last sighting and the next', async () => {
+    // 2026-10-15: a feed restart read nothing for ten minutes while the morning show ended.
+    const d = day();
+    const left = T + 120;
+    const gone = { ...d.traders[0], seen: { last_ts: left - 600, left_ts: left }, open: [] };
+    await show({ ...d, capture: { ...d.capture!, traders: ['BRAVO'] }, traders: [gone, d.traders[1]] });
+    expect(q('ft-left-ALPHA')!.textContent).toBe('Left the bar 09:52:00–10:02:00');
+  });
+
   it('shows a trader who left the bar with every trade closed when they left, marked off air', async () => {
     // Operator, 2026-10-14: ALPHA's show ended at 11:00 with BAC on the bar, and the page still said Holding now;
     // "if they are off air then all trades are closed!"
@@ -93,7 +103,7 @@ describe('FollowedTradersPage', () => {
     await show({ ...d, capture: { ...d.capture!, traders: ['BRAVO'] }, traders: [gone, d.traders[1]] });
     expect(q('ft-left-ALPHA')!.textContent).toBe('Left the bar 10:02:00');
     expect(q('ft-trader-ALPHA')!.textContent).not.toContain('Off air');
-    expect(q('ft-trader-ALPHA')!.textContent).toContain('No open positions');
+    expect(q('ft-trader-ALPHA')!.querySelector('.ft-closed--open')).toBeNull();
     const row = q('ft-row-o1')!;
     expect(row.tagName).toBe('TR');
     expect(row.textContent).toContain('LOSS');
@@ -121,23 +131,30 @@ describe('FollowedTradersPage', () => {
     expect(q('ft-trader-ALPHA')).toBeNull();
   });
 
-  it('draws each trader: their card, an OPEN tile per position, closed rows by result, and the activity', async () => {
+  it('draws each trader: their card, one table with the open positions on top and closed rows by result, and the activity', async () => {
     await show(day({ capture: { ...day().capture!, traders: ['ALPHA'] } }));
     expect(q('ft-capture-pill')!.textContent).toBe('Live · 6s behind the stream · bar read 10:09:54 ET');
     // The bar's read is on the slot; the slot is the live one while capture reads the bar.
     expect(q('ft-slot-ALPHA')!.getAttribute('title')).toBe('Read as: LONG ABCD 2.00');
     expect(q('ft-slot-ALPHA')!.querySelector('figcaption')!.textContent).toBe('Their slot now');
     // No live image for BRAVO: their newest evidence stands in, with its time.
-    expect(q('ft-slot-BRAVO')!.textContent).toContain('Their slot at their last change · 09:59:00 ET');
+    expect(q('ft-slot-BRAVO')!.textContent).toContain('Their slot at their last open or close · 09:59:00 ET');
     expect(q('ft-trader-ALPHA')!.textContent).toContain('On air');
     expect(q('ft-trader-BRAVO')!.textContent).toContain('Off air');
     expect(q('ft-record-ALPHA')!.textContent).toContain('1W / 0L · 1 open · Win rate 100%');
+    // Operator, 2026-10-15, of the OPEN tiles: "make this more compact". One table: open rows first, striped blue.
+    expect(q('ft-trader-ALPHA')!.querySelector('.ft-trades__head')!.textContent).toMatch(/^Trades today21 open · 1 won · 0 lost/);
     const tile = q('ft-row-o1')!;
-    expect(tile.classList.contains('ft-tile')).toBe(true);
+    expect(tile.tagName).toBe('TR');
+    expect(tile.className).toContain('ft-closed--open');
+    expect(tile.parentElement!.firstElementChild).toBe(tile);
     expect(tile.textContent).toContain('OPEN');
-    expect(tile.textContent).toContain('2.00 → 2.50');
+    expect(tile.textContent).toContain('2.00 → 2.50now');
     expect(tile.textContent).toContain('+0.50');
+    // An open position's dollars are from the price now, a closed trade's from when it left their bar (review).
+    expect(tile.querySelector('.ft-pl')!.getAttribute('data-tip')).toContain('IBKR’s last price now');
     const win = q('ft-row-c1')!;
+    expect(win.querySelector('.ft-pl')!.getAttribute('data-tip')).toContain('when it left their bar');
     expect(win.className).toContain('ft-closed--win');
     expect(win.textContent).toContain('WIN');
     expect(win.textContent).toContain('2.00 → 2.20');
@@ -146,7 +163,7 @@ describe('FollowedTradersPage', () => {
     expect(range.textContent).toContain('by 09:40:00');
     expect(range.textContent).toContain('77.10–77.90 est.');
     expect(range.textContent).toContain('UNSCORED');
-    expect(q('ft-trader-BRAVO')!.textContent).toContain('No open positions');
+    expect(q('ft-trader-BRAVO')!.querySelector('.ft-closed--open')).toBeNull();
     // The Activity is one line per event: no screenshots.
     expect(q('ft-activity')!.textContent).toContain('ALPHA closed');
     expect(q('ft-activity')!.querySelector('img[alt*="position bar"]')).toBeNull();
@@ -176,7 +193,7 @@ describe('FollowedTradersPage', () => {
     expect(q('ft-activity')!.querySelectorAll('[data-testid="ft-ticker-mark"]').length).toBeGreaterThan(0);
   });
 
-  it('opens a ticker in the Trader: an OPEN tile, a closed row and a proof', async () => {
+  it('opens a ticker in the Trader: an open row, a closed row and a proof', async () => {
     const opened = vi.fn();
     await show(day(), () => undefined, opened);
     await click(q('ft-row-o1')!.querySelector('.ft-ticker-link'));
@@ -191,7 +208,38 @@ describe('FollowedTradersPage', () => {
   it('draws the ticker as plain text when the desk gives the page no Trader', async () => {
     await show(day());
     expect(q('ft-row-o1')!.querySelector('.ft-ticker-link')).toBeNull();
-    expect(q('ft-row-o1')!.querySelector('.ft-tile__ticker')!.textContent).toBe('ABCD');
+    expect(q('ft-row-o1')!.querySelector('.ft-ticker')!.textContent).toBe('ABCD');
+  });
+
+  it('draws what another feature gives it: after the title, in a card on today, beside an open row', async () => {
+    // Bots > LiveTrader Bots (operator, 2026-10-15): the LiveTrader Bots key, each host's bot, a copy's chip.
+    const slots: FollowedSlots = {
+      Head: () => <span data-testid="slot-head">key</span>,
+      Trader: ({ name, open }) => <span data-testid={`slot-trader-${name}`}>{open.map((t) => t.symbol).join(',')}</span>,
+      OpenBadge: ({ trade }) => <span data-testid={`slot-badge-${trade.id}`}>BOT</span>,
+    };
+    await show(day(), () => undefined, undefined, slots);
+    expect(q('slot-head')!.previousElementSibling!.textContent).toBe('LiveTrader Bots');
+    const card = q('ft-trader-ALPHA')!.querySelector('.ft-trader__card')!;
+    expect(card.className).toContain('ft-trader__card--slot');
+    expect(q('slot-trader-ALPHA')!.textContent).toBe('ABCD');
+    expect(q('slot-trader-ALPHA')!.previousElementSibling!.className).toBe('ft-trader__who');
+    expect(q('slot-trader-BRAVO')!.textContent).toBe('');
+    expect(q('ft-row-o1')!.querySelector('[data-testid="slot-badge-o1"]')).toBeTruthy();
+    expect(q('ft-row-c1')!.querySelector('[data-testid^="slot-badge"]')).toBeNull();
+  });
+
+  it('draws no card slot and no row chip on a past day: the bots are now, not then', async () => {
+    const slots: FollowedSlots = {
+      Trader: ({ name }) => <span data-testid={`slot-trader-${name}`} />,
+      OpenBadge: ({ trade }) => <span data-testid={`slot-badge-${trade.id}`} />,
+    };
+    const past = day({ date: '2026-10-12' });
+    await show(past, () => undefined, undefined, slots);
+    expect(q('slot-trader-ALPHA')).toBeNull();
+    expect(q('slot-badge-o1')).toBeNull();
+    expect(q('ft-trader-ALPHA')!.querySelector('.ft-trades__head')!.textContent).toMatch(/^Trades21 open/);
+    expect(q('ft-row-o1')!.textContent).not.toContain('now');
   });
 
   it('opens an Activity event’s stock in the Trader', async () => {
@@ -274,6 +322,14 @@ describe('FollowedTradersPage', () => {
     const reset = q('ft-day-reset')!;
     expect(reset.textContent).toBe('Resets 4:00 AM ET');
     expect(reset.getAttribute('data-tip')).toContain('Today runs until 4:00 AM ET on Wed, Oct 14, the premarket');
+  });
+
+  it("shows the hosts only: the Live Trader bots live under Bots > LiveTrader Bots (2026-10-15)", async () => {
+    await show(day());
+    await flush();
+    expect(q('bots-live-traders')).toBeNull();
+    expect(asked.some(path => path.startsWith('/api/bot/live-traders'))).toBe(false);
+    expect(container.textContent).not.toMatch(/Bot switch is off/);
   });
 
   it('names no reset on a past day', async () => {
@@ -367,21 +423,22 @@ describe('FollowedTradersPage', () => {
     expect(q('ft-records')!.textContent).toContain('2 exits still being read from IBKR');
   });
 
-  it('shows what each trader and everyone made, per share in %, leaving unscored trades out', async () => {
-    // Operator ask 2026-10-14: "we can see the PL per share in terms of percentage"; their pick, "Added up".
+  it('shows what each trader and everyone made at $1,000 a trade, leaving unscored trades out', async () => {
+    // Operator ask 2026-10-14: "we can see the PL per share in terms of percentage"; their pick, "Added up"; then
+    // 2026-10-15: "Show the P/L as dollars at $1,000 a trade, with the cents per share and % under each trade".
     await show(day());
     const alpha = q('ft-pl-ALPHA')!;
-    expect(alpha.textContent).toBe('+10.00%per share · 1 trade');
+    expect(alpha.textContent).toBe('+$100.00copied at $1,000 a trade · 1 trade');
     expect(alpha.className).toContain('ft-plfig--up');
     expect(alpha.querySelector('svg.ft-spark')).not.toBeNull();
-    expect(alpha.getAttribute('data-tip')).toContain('P/L per share in %, added up over 1 closed trade');
+    expect(alpha.getAttribute('data-tip')).toContain('What copying 1 closed trade with $1,000 each would have made');
     expect(alpha.getAttribute('data-tip')).toContain('the feed never shows their size');
-    // BRAVO's only trade is unscored: a dash that says why, never 0%.
+    // BRAVO's only trade is unscored: a dash that says why, never $0.
     const bravo = q('ft-pl-BRAVO')!;
-    expect(bravo.textContent).toBe('—P/L per share');
+    expect(bravo.textContent).toBe('—P/L copied at $1,000 a trade');
     expect(bravo.getAttribute('data-tip')).toContain('No closed trade with one known exit price');
     expect(bravo.getAttribute('data-tip')).toContain('Left out: 1 unscored trade');
-    expect(q('ft-pl-everyone')!.textContent).toBe('+10.00%');
+    expect(q('ft-pl-everyone')!.textContent).toBe('+$100.00');
   });
 
   it('adds up a Week from the record’s scored trades, and says when a backend sends none', async () => {
@@ -397,13 +454,13 @@ describe('FollowedTradersPage', () => {
     let answer: object = week;
     await show(day(), (url) => url.pathname === '/api/followed-traders/record' ? new Response(JSON.stringify(answer)) : undefined);
     await click(q('ft-range-week'));
-    expect(q('ft-pl-ALPHA')!.textContent).toBe('+1.75%per share · 2 trades');
-    expect(q('ft-pl-BRAVO')!.textContent).toBe('−0.40%per share · 1 trade');
+    expect(q('ft-pl-ALPHA')!.textContent).toBe('+$17.50copied at $1,000 a trade · 2 trades');
+    expect(q('ft-pl-BRAVO')!.textContent).toBe('−$4.00copied at $1,000 a trade · 1 trade');
     expect(q('ft-pl-BRAVO')!.className).toContain('ft-plfig--down');
-    expect(q('ft-pl-everyone')!.textContent).toBe('+1.35%');
+    expect(q('ft-pl-everyone')!.textContent).toBe('+$13.50');
     answer = { ...week, traders: week.traders.map(({ name, record }) => ({ name, record })) };
     await click(q('ft-range-all'));
-    expect(q('ft-pl-ALPHA')!.textContent).toBe('—P/L per share');
+    expect(q('ft-pl-ALPHA')!.textContent).toBe('—P/L copied at $1,000 a trade');
     expect(q('ft-pl-everyone')!.getAttribute('data-tip')).toContain('restart it on the desk’s release');
   });
 
@@ -418,5 +475,19 @@ describe('FollowedTradersPage', () => {
     expect(asked).toContain('/api/followed-traders/day?date=2026-10-09&quotes=0');
     await click(q('ft-prev-day'));
     expect(asked).toContain('/api/followed-traders/day?date=2026-10-09');
+  });
+
+  it('goes back to today when a toast asks, whatever past day it was showing', async () => {
+    const resetsAt = Date.UTC(2026, 9, 14, 8, 0, 0) / 1000;
+    await show(day({ resets_at: resetsAt }), (url) => {
+      const date = url.searchParams.get('date');
+      if (url.pathname !== '/api/followed-traders/day' || !date) return undefined;
+      return new Response(JSON.stringify(day({ date, resets_at: resetsAt })));
+    });
+    await click(q('ft-prev-day'));
+    expect(q('ft-day-reset')).toBeNull();
+    await act(async () => { requestFollowedToday(); });
+    await flush();
+    expect(q('ft-day-reset')).not.toBeNull();
   });
 });

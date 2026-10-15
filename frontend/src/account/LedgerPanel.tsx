@@ -52,6 +52,7 @@ import { sourceKind, sourceLabel } from './accountFigures';
 import { invalidateAccountHistory } from './accountHistoryResource';
 import type { PracticeHistory } from './accountHistoryTypes';
 import { ledgerRows, type LedgerRow } from './accountLedgerRows';
+import { TickerLink } from '../components/TickerLink';
 
 interface Props {
   venue: DeskVenue;
@@ -133,7 +134,7 @@ function RowCells({ row }: { row: LedgerRow }) {
       <>
         <td>{ACCOUNT_LEDGER_TYPE_FILL}</td>
         <td>
-          <span className={f.side === 'BUY' ? 'acct-side--buy' : 'acct-side--sell'}>{f.side}</span> {formatShareQty(f.qty)} {f.symbol} @ {f.price.toFixed(2)}<EstChip />
+          <span className={f.side === 'BUY' ? 'acct-side--buy' : 'acct-side--sell'}>{f.side}</span> {formatShareQty(f.qty)} <TickerLink symbol={f.symbol} /> @ {f.price.toFixed(2)}<EstChip />
           {' · '}<span className={`acct-src${kind === 'bot' ? ' is-bot' : ''}`}>{sourceLabel(f.source, f.bot_id)}</span>
           {(f.commission || f.fees) ? (
             <span className="acct-muted"> · {ACCOUNT_LEDGER_COMM} {formatMoney(f.commission)}{f.fees ? ` · ${ACCOUNT_LEDGER_FEES} ${formatMoney(f.fees)}` : ''}</span>

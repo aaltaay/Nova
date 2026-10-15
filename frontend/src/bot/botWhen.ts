@@ -1,8 +1,8 @@
 /**
  * When something happened or lifts, in Eastern time (ADR 042 D: one day boundary,
- * 04:00 ET). The backend sends epoch seconds or an ISO datetime; a legacy day lock
- * is a bare `YYYY-MM-DD`, which keeps its old meaning (it lifted at that date's
- * 00:00 ET). Unknown reads as empty -- the caller says what it does not know. Pure.
+ * 04:00 ET). The backend sends epoch seconds or an ISO datetime; an older backend's
+ * bare `YYYY-MM-DD` keeps its old meaning (it lifted at that date's 00:00 ET).
+ * Unknown reads as empty -- the caller says what it does not know. Pure.
  */
 const TZ = 'America/New_York';
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
@@ -28,7 +28,7 @@ function etDay(ms: number): string {
   return new Date(ms).toLocaleDateString('en-US', { timeZone: TZ, month: 'short', day: 'numeric' });
 }
 
-/** "04:00 ET on Oct 1" for when a lock or a latch lifts; a legacy date reads "00:00 ET on Sep 30". */
+/** "04:00 ET on Oct 1" for when a hold lifts (the loss limit's No new buys); a legacy date reads "00:00 ET on Sep 30". */
 export function etUntil(value: string | number | null | undefined): string {
   if (typeof value === 'string' && DATE_ONLY.test(value.trim())) {
     const [y, m, d] = value.trim().split('-').map(Number);

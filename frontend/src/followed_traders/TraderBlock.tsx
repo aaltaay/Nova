@@ -1,32 +1,30 @@
 /**
- * One followed trader on the Following page (approved 2026-10-13, "E2"): their card -- photo, name, on air or off
- * air, the record for the span picked, and their slot on the stream's bar -- and under it, when they traded that day,
- * Holding now (an OPEN tile per position) beside Closed today (a table striped by result). The slot is the live one
+ * One followed trader on the page (approved 2026-10-13, "E2"): their card -- photo, name, on air or off air, the
+ * record for the span picked, on today what another feature draws for them (their bot, slots.ts), what they made, and
+ * their slot on the stream's bar -- and under it, when they traded that day, one table: their open positions on top,
+ * then the closed trades striped by result (operator, 2026-10-15: "make this more compact"). The slot is the live one
  * the feed last saw, or their newest evidence image labelled with its time, never passed off as now. A trader who left
- * the bar (`seen.left_ts`) says so; off air every trade is closed, so theirs are all under Closed today.
+ * the bar (`seen.left_ts`) says so; off air every trade is closed, so none of theirs is open.
  */
 import { tipProps } from '../ux/hoverTip';
 import {
   FT_BAR_NO_IMAGE,
   FT_BAR_STAND_IN,
-  FT_CLOSED,
-  FT_CLOSED_TODAY,
   FT_EXIT_IS_IBKR,
-  FT_HOLDING,
-  FT_HOLDING_END,
   FT_LEFT_BAR,
+  FT_LEFT_BAR_WINDOW_TIP,
   FT_LEFT_BAR_TIP,
   FT_NEWEST_FIRST_SHORT,
-  FT_NO_CLOSED,
-  FT_NO_CLOSED_TODAY,
-  FT_NO_OPEN,
   FT_NO_POSITIONS,
   FT_NO_TRADES_THAT_DAY,
   FT_NO_TRADES_TODAY,
   FT_OFF_AIR,
   FT_ON_AIR,
+  FT_OPEN_COUNT,
   FT_SLOT_LAST_READ,
   FT_SLOT_NOW,
+  FT_TRADES,
+  FT_TRADES_TODAY,
 } from './constants';
 import { FeedImage } from './FeedImage';
 import { etTime, price } from './format';
@@ -34,8 +32,9 @@ import { Face, RecordChips } from './parts';
 import { PlFigure } from './PlFigure';
 import type { PlSummary } from './plSummary';
 import { newestEvidence, type RosterEntry } from './roster';
-import { ClosedTable, OpenTile } from './TradeTables';
-import type { FollowedBarSlot, FollowedRecord } from './types';
+import { useFollowedSlots } from './slots';
+import { TradesTable } from './TradeTables';
+import type { FollowedBarSlot, FollowedRecord, FollowedTrade } from './types';
 
 function readText(slot: FollowedBarSlot): string {
   if (slot.positions.length === 0) return FT_NO_POSITIONS;
@@ -70,6 +69,8 @@ function Slot({ entry, version, lastRead }: { entry: RosterEntry; version: numbe
   );
 }
 
+const NO_TRADES: readonly FollowedTrade[] = [];
+
 interface Props {
   entry: RosterEntry;
   record: FollowedRecord | null;
@@ -91,13 +92,19 @@ interface Props {
 
 export function TraderBlock({ entry, record, pl, plWhy, isToday, onAir, captureVersion, lastRead, compact, folded, onShowAll, onProof }: Props) {
   const { name, trader } = entry;
+  const { Trader: Bot } = useFollowedSlots();
   const left = trader?.seen?.left_ts ?? null;
+  const last = trader?.seen?.last_ts ?? null;
+  // Last seen before they were seen gone, with the bar not read between: when they left is a window, said as one.
+  const leftWindow = left !== null && last !== null && last < left;
+  const leftTip = leftWindow ? `${FT_LEFT_BAR_TIP}\n${FT_LEFT_BAR_WINDOW_TIP}` : FT_LEFT_BAR_TIP;
   const air = left !== null
-    ? <span className="ft-off-air" data-testid={`ft-left-${name}`} {...tipProps(FT_LEFT_BAR_TIP)}>{FT_LEFT_BAR} {etTime(left)}</span>
+    ? <span className="ft-off-air" data-testid={`ft-left-${name}`} {...tipProps(leftTip)}>
+        {FT_LEFT_BAR} {leftWindow ? `${etTime(last)}–${etTime(left)}` : etTime(left)}</span>
     : onAir ? <span className="ft-on-air">{FT_ON_AIR}</span> : <span className="ft-off-air">{FT_OFF_AIR}</span>;
   return (
     <section className="ft-card ft-trader" aria-label={name} data-testid={`ft-trader-${name}`}>
-      <div className="ft-trader__card">
+      <div className={`ft-trader__card${isToday && Bot ? ' ft-trader__card--slot' : ''}`}>
         <Face path={entry.face} name={name} size="xl" />
         <div className="ft-trader__who">
           <div className="ft-trader__name-row">
@@ -107,29 +114,23 @@ export function TraderBlock({ entry, record, pl, plWhy, isToday, onAir, captureV
           {trader ? <RecordChips record={record} testId={`ft-record-${name}`} />
             : <span className="ft-pill-chip ft-muted" data-testid={`ft-record-${name}`}>{isToday ? FT_NO_TRADES_TODAY : FT_NO_TRADES_THAT_DAY}</span>}
         </div>
+        {isToday && Bot && <Bot name={name} open={trader?.open ?? NO_TRADES} />}
         {trader && <PlFigure summary={pl} unscored={record?.unscored ?? 0} why={plWhy} testId={`ft-pl-${name}`} />}
         <Slot entry={entry} version={captureVersion} lastRead={lastRead} />
       </div>
       {trader && (
         <div className="ft-trader__trades">
-          <div className="ft-holding">
-            <h3 className="ft-block__title ft-block__title--open">{isToday ? FT_HOLDING : FT_HOLDING_END}</h3>
-            {trader.open.length === 0 ? <div className="ft-muted ft-small">{FT_NO_OPEN}</div>
-              : trader.open.map((t) => <OpenTile key={t.id} t={t} onProof={onProof} />)}
+          <div className="ft-trades__head">
+            <h3 className="ft-block__title">{isToday ? FT_TRADES_TODAY : FT_TRADES}</h3>
+            <span className="ft-count">{trader.open.length + trader.closed.length}</span>
+            <span className="ft-small">
+              {trader.open.length > 0 && <><b className="ft-open-text">{trader.open.length} {FT_OPEN_COUNT}</b> · </>}
+              <b className="ft-up-text">{trader.record.wins} won</b> · <b className="ft-down-text">{trader.record.losses} lost</b>
+            </span>
+            <span className="ft-muted ft-xs">{FT_EXIT_IS_IBKR} · {FT_NEWEST_FIRST_SHORT}</span>
           </div>
-          <div className="ft-closed-pane">
-            <div className="ft-closed-pane__head">
-              <h3 className="ft-block__title">{isToday ? FT_CLOSED_TODAY : FT_CLOSED}</h3>
-              <span className="ft-count">{trader.closed.length}</span>
-              <span className="ft-small">
-                <b className="ft-up-text">{trader.record.wins} won</b> · <b className="ft-down-text">{trader.record.losses} lost</b>
-              </span>
-              <span className="ft-muted ft-xs">{FT_EXIT_IS_IBKR} · {FT_NEWEST_FIRST_SHORT}</span>
-            </div>
-            {trader.closed.length === 0
-              ? <div className="ft-muted ft-small ft-closed-pane__empty">{isToday ? FT_NO_CLOSED_TODAY : FT_NO_CLOSED}</div>
-              : <ClosedTable trades={trader.closed} onProof={onProof} compact={compact} folded={folded} onShowAll={() => onShowAll(name)} />}
-          </div>
+          <TradesTable open={trader.open} trades={trader.closed} onProof={onProof} compact={compact} folded={folded}
+            onShowAll={() => onShowAll(name)} isToday={isToday} />
         </div>
       )}
     </section>

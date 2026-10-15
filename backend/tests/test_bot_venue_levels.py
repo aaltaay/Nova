@@ -97,47 +97,18 @@ def test_a_restart_on_another_venue_takes_that_venues_level(paper):
 
 
 # -- the rest of the bot's state follows the venue too (audit, 2026-09-30) ------------------
-async def _no_flatten(*, origin=None):
-    return {"ok": True, "attempt": 1}
-
-
-@pytest.mark.asyncio
-async def test_a_bot_trip_on_paper_never_silences_lives(paper, monkeypatch):
-    from bot.breakers import poll_once
-
-    monkeypatch.setattr("bot.breakers.flatten_account_with_retry", _no_flatten)
-    assert (await poll_once(pnl=-60.0))["tripped"] == "soft"          # Paper's trip
-    assert get_session()["soft_breaker_fired"] is True
-    set_venue("live", persist=False)
-    assert get_session()["soft_breaker_fired"] is False
-    assert (await poll_once(pnl=-60.0))["tripped"] == "soft"          # Live's own still fires
-    set_venue("paper", persist=False)
-    assert get_session()["soft_breaker_fired"] is True                # Paper's latch is Paper's
-
-
-@pytest.mark.asyncio
-async def test_a_bot_trip_latch_lapses_at_midnight(paper, monkeypatch):
-    from bot.breakers import poll_once
-
-    monkeypatch.setattr("bot.breakers.flatten_account_with_retry", _no_flatten)
+def test_an_old_session_loads_with_the_loss_breakers_dropped(paper):
+    """ADR 056: the bot trip's latch and the all-stop's lock leave the row and every stored dial."""
     row = load_session()
-    row.update(soft_breaker_fired=True, soft_breaker_until="2026-01-02")   # a trip from January
+    row.update(soft_breaker_fired=True, soft_breaker_until="2099-01-02", hard_lock_until_date="2099-01-02",
+               breakers={"paper": {"soft_usd": -405.0, "hard_usd": -2000.0}})
+    row["venue_levels"] = {"live": {"level": 1, "hard_lock_until_date": "2099-01-02", "soft_breaker_at": 1.0}}
     save_session(row)
-    assert get_session()["soft_breaker_fired"] is False
-    assert (await poll_once(pnl=-60.0))["tripped"] == "soft"
-
-
-@pytest.mark.asyncio
-async def test_the_all_stop_trips_again_after_an_earlier_days_lock_lifted(paper, monkeypatch):
-    from bot.breakers import poll_once
-
-    monkeypatch.setattr("bot.breakers.flatten_account_with_retry", _no_flatten)
-    row = load_session()
-    row["hard_lock_until_date"] = "2026-01-02"                        # it tripped once, in January
-    save_session(row)
-    result = await poll_once(pnl=-250.0)
-    assert result is not None and result["tripped"] == "hard"
-    assert get_session()["day_lock_active"] is True
+    persist._session = None                      # read the file again, as a restart does
+    again = load_session()
+    for key in ("soft_breaker_fired", "soft_breaker_until", "hard_lock_until_date", "breakers"):
+        assert key not in again
+    assert again["venue_levels"]["live"] == {"level": 1}
 
 
 def test_the_daily_entry_cap_counts_this_venues_entries(paper):

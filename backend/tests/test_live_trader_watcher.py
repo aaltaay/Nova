@@ -19,7 +19,7 @@ from fastapi.testclient import TestClient
 
 import ibkr.shortability as short_mod
 import kill_switch
-from bot import switch
+from bot import family_keys, switch
 from bot.audit import list_entries
 from bot.live_trader import book as lt_book
 from bot.live_trader import lines as lt_lines
@@ -105,9 +105,10 @@ class Feed:
     def bar_now(self) -> dict:
         """Each host's bar as the feed confirms it: their open positions (``status.positions``)."""
         out: dict[str, dict] = {}
-        for t in self.trades:
+        for t in self.trades:                 # a host the feed has read keeps an empty bar, as the feed's tracker does
+            out.setdefault(t["trader"], {})
             if t["status"] == "open":
-                out.setdefault(t["trader"], {})[f"{t['side']}:{t['symbol']}"] = t["price"]
+                out[t["trader"]][f"{t['side']}:{t['symbol']}"] = t["price"]
         return out
 
     def reads(self, base, date, *, timeout=None):
@@ -297,9 +298,12 @@ def test_back_on_air_the_same_position_is_taken_again_with_a_new_order_and_a_new
     assert held(desk, "XYZ") == 0                                  # off air: sold
     desk.feed.bar(at("14:00:00"), **{HOST: 1, OTHER: 1})
     run(desk, "14:00:05")
-    assert held(desk, "XYZ") == 4                                  # back on air with XYZ on the bar: taken again
-    desk.feed.close(t, at("14:05:00"))
-    run(desk, "14:05:01")
+    assert held(desk, "XYZ") == 0                                  # back on air: waits for the bar's switch
+    assert any("previous host's rows" in (r["inputs"].get("why") or "") for r in lines_("note"))
+    run(desk, "14:08:10")
+    assert held(desk, "XYZ") == 4                                  # no switch in 8 minutes: XYZ is theirs, taken
+    desk.feed.close(t, at("14:10:00"))
+    run(desk, "14:10:01")
     assert held(desk, "XYZ") == 0                                  # and sold for real, not a replayed receipt
     sends = [r for r in desk.broker.closed_orders() if r["order_origin"] == "live_trader"]
     assert len(sends) == 4 and len({r["order_id"] for r in sends}) == 4
@@ -397,25 +401,86 @@ def _app():
     return app
 
 
-def test_turning_the_key_off_sells_and_the_bot_switch_off_sells(desk, monkeypatch):
+def _key_off(which: str):
+    """Turn one of the three keys off (operator decision 2026-10-15); returns how to turn it back on."""
+    if which == "host_key":
+        lt_settings.patch_host(HOST, {"key": False})
+        return lambda: lt_settings.patch_host(HOST, {"key": True})
+    if which == "family":
+        family_keys.turn("live_trader", False)
+        return lambda: family_keys.turn("live_trader", True)
+    switch.turn(False)
+    return lambda: switch.turn(True)
+
+
+@pytest.mark.parametrize("which", ["host_key", "family", "bot_switch"])
+def test_with_a_key_off_the_bot_places_no_order_not_even_the_hosts_close(desk, monkeypatch, which):
     monkeypatch.setenv("NOVA_API_KEY", "lt-test-key")
     client = TestClient(_app())
     run(desk, "10:30:00")
+    t = desk.feed.open("XYZ", 100.00, at("10:30:10"))
+    run(desk, "10:30:11")
+    assert held(desk, "XYZ") == 4                                  # $500 at 100.02: 4 shares
+    if which == "host_key":                                        # through the route the card uses
+        got = client.patch(f"/api/bot/live-traders/{HOST}", json={"key": False},
+                           headers={"X-Nova-Api-Key": "lt-test-key"})
+        assert got.status_code == 200, got.text
+        back_on = lambda: lt_settings.patch_host(HOST, {"key": True})  # noqa: E731
+    else:
+        back_on = _key_off(which)
+    run(desk, "10:30:20")
+    assert held(desk, "XYZ") == 4                                  # turning a key off sold nothing
+    desk.feed.open("ABCD", 50.00, at("10:30:25"))
+    desk.feed.close(t, at("10:30:30"))
+    desk.feed.clock = at("10:30:31")
+    run(desk, "10:30:31")
+    run(desk, "10:30:33")
+    assert held(desk, "XYZ") == 4 and held(desk, "ABCD") == 0      # no sell, no buy
+    assert desk.broker.ledger.working_orders() == []               # nothing sent and left working either
+    said = [r for r in lines_() if r["outcome"] == "note" and "not sold" in (r.get("reason") or "")]
+    assert len(said) == 1                                          # said once
+    back_on()
+    run(desk, "10:30:40")
+    assert held(desk, "XYZ") == 0                                  # on again: the host's close is made
+    assert lt_book.closed_today()[0]["kind"] == "close"
+
+
+@pytest.mark.parametrize("exit_mode", ["nova", "you"])
+def test_a_position_from_an_earlier_day_a_key_held_is_sold_when_the_key_is_back_on(desk, monkeypatch, exit_mode):
+    """The day rolls over while a key is off: nothing is sold then, and the pass the key is back on sells it -- with
+    Exit: You too, the clock's exit is never the host's (Codex review, PR #1006)."""
+    run(desk, "10:30:00")
     desk.feed.open("XYZ", 100.00, at("10:30:10"))
     run(desk, "10:30:11")
-    got = client.patch(f"/api/bot/live-traders/{HOST}", json={"key": False}, headers={"X-Nova-Api-Key": "lt-test-key"})
-    assert got.status_code == 200, got.text
-    run(desk, "10:30:20")
-    assert held(desk, "XYZ") == 0 and lt_book.closed_today()[0]["kind"] == "key_off"
-
+    assert held(desk, "XYZ") == 4
+    lt_settings.patch_host(HOST, {"key": False, "exit": exit_mode})
+    later = at("10:31:00")
+    real = watcher._desk_day
+    monkeypatch.setattr(watcher, "_desk_day", lambda ts: "2026-10-08" if ts >= later else real(ts))  # the next day
+    asyncio.run(watcher._sell_earlier_days(later))
+    asyncio.run(watcher._sell_earlier_days(later + 2))
+    assert held(desk, "XYZ") == 4                                     # a key off: no order, not even this sell
+    said = [r for r in lines_("note") if "earlier day: not sold" in (r.get("reason") or "")]
+    assert len(said) == 1                                             # said once
     lt_settings.patch_host(HOST, {"key": True})
-    switch.turn(True)
-    desk.feed.open("ABCD", 50.00, at("10:31:00"))
-    run(desk, "10:31:01")
-    assert held(desk, "ABCD") == 9                                 # $500 at 50.03: 9 shares
+    asyncio.run(watcher._sell_earlier_days(later + 4))
+    assert held(desk, "XYZ") == 0
+
+
+def test_with_every_key_off_your_own_cover_of_the_bots_short_goes_through(desk):
+    """Keys stop the bots, never you: a cover is a close at the door, and the bot's stale stop is taken back."""
+    run(desk, "10:30:00")
+    desk.feed.open("FADE", 40.00, at("10:30:10"), side="short")
+    run(desk, "10:30:11")
+    (stop_id,) = lt_book.positions()[f"{HOST}|short|FADE"]["stop_order_ids"]
+    lt_settings.patch_host(HOST, {"key": False})
+    family_keys.turn("live_trader", False)
     switch.turn(False)
-    run(desk, "10:31:10")
-    assert held(desk, "ABCD") == 0 and lt_book.closed_today()[-1]["kind"] == "bot_off"
+    desk.broker.place("FADE", "BUY", 12, order_type="MKT", source="manual")     # you covered all of it
+    run(desk, "10:30:20")
+    assert held(desk, "FADE") == 0
+    assert desk.broker.ledger.order_row(stop_id)["status"] == "Cancelled"     # a cancel places nothing
+    assert lt_book.positions() == {}
 
 
 def test_freeze_all_orders_stops_new_steps_but_not_the_close(desk):
@@ -650,3 +715,35 @@ def test_a_book_that_cannot_be_written_opens_nothing_until_it_can(desk, monkeypa
     assert lt_book.error() is None
     run(desk, "10:30:32")
     assert held(desk, "ABCD") == 9                                 # taken as already open once the book is sound
+
+
+# -- the bar's own moves ---------------------------------------------------------------------------
+def test_a_whole_bar_blank_for_a_refresh_sells_nothing_and_buys_nothing_again(desk):
+    run(desk, "10:30:00")
+    a = desk.feed.open("XYZ", 100.00, at("10:30:10"))
+    b = desk.feed.open("ABCD", 50.00, at("10:30:20"))
+    run(desk, "10:30:21")
+    assert held(desk, "XYZ") == 4 and held(desk, "ABCD") == 9
+    sent = len(desk.broker.closed_orders())
+
+    desk.feed.close(a, at("10:40:00"))                             # the whole bar blank in one second
+    desk.feed.close(b, at("10:40:00"))
+    run(desk, "10:40:01")
+    run(desk, "10:40:40")
+    assert held(desk, "XYZ") == 4 and held(desk, "ABCD") == 9      # the sells wait for the bar
+    assert any("went blank" in (r["inputs"].get("why") or "") for r in lines_("note"))
+
+    a2 = desk.feed.open("XYZ", 100.00, at("10:41:00"))             # the same positions, their very averages
+    desk.feed.open("ABCD", 50.00, at("10:41:00"))
+    run(desk, "10:41:01")
+    run(desk, "10:41:06")
+    run(desk, "10:41:10")
+    assert held(desk, "XYZ") == 4 and held(desk, "ABCD") == 9
+    assert len(desk.broker.closed_orders()) == sent                # nothing sold, nothing bought
+    assert any("very average" in (r["inputs"].get("why") or "") for r in lines_("note"))
+    pos = lt_book.positions()[f"{HOST}|long|XYZ"]
+    assert pos["row_id"].endswith(f"{at('10:41:00'):.0f}") and pos["steps"] == 1
+
+    desk.feed.close(a2, at("10:45:00"))                            # and the host's real close still sells
+    run(desk, "10:45:01")
+    assert held(desk, "XYZ") == 0 and held(desk, "ABCD") == 9

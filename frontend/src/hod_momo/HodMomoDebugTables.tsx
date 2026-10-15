@@ -11,6 +11,7 @@ import {
   fmtVol,
   truncate,
 } from './hodMomoDebugFormat';
+import { TickerLink } from '../components/TickerLink';
 
 export interface DebugDecisionRow {
   ts: number;
@@ -103,7 +104,7 @@ export function RecentDecisionsTable({
                   className={d.gate_blocked ? 'dbg-row-blocked' : d.would_fire ? 'dbg-row-fired' : 'dbg-row-pass'}
                 >
                   <td className="dbg-mono">{fmtTs(d.ts)}</td>
-                  <td className="dbg-sym">{d.symbol}</td>
+                  <td className="dbg-sym"><TickerLink symbol={d.symbol} onOpen={s => { onSelectSymbol(s); onOpenTrading(s); }} /></td>
                   <td className="dbg-mono">{fmtUsd(d.price)}</td>
                   <td className="dbg-mono">{fmtTimes(d.rvol)}</td>
                   <td className="dbg-mono">{fmtPctPoints(d.gap_pct)}</td>
@@ -159,7 +160,7 @@ export function SnapsTable({
                   onSelect={onSelectSymbol}
                   onOpenTrading={onOpenTrading}
                 >
-                  <td className="dbg-sym">{s.symbol}</td>
+                  <td className="dbg-sym"><TickerLink symbol={s.symbol} onOpen={sym => { onSelectSymbol(sym); onOpenTrading(sym); }} /></td>
                   <td className="dbg-mono">{fmtUsd(s.price)}</td>
                   <td className="dbg-mono">{fmtTimes(s.rvol)}</td>
                   <td className="dbg-mono">{fmtVol(s.float_shares)}</td>

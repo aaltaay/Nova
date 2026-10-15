@@ -30,14 +30,14 @@ def test_every_setup_starts_off_and_its_effective_level_is_under_the_master():
     row = load_session()
     assert levels_of(row) == {"chosen": None, "master": 0,
                               "levels": {"first_pullback": 0, "bull_flag": 0, "flat_top_breakout": 0,
-                                         "flat_top_5m": 0, "red_to_green": 0, "gap_and_go": 0, "pullback_dip": 0, **SHORTS_OFF},
+                                         "flat_top_5m": 0, "red_to_green": 0, "gap_and_go": 0, "pullback_dip": 0, "abcd": 0, **SHORTS_OFF},
                               "own": {"first_pullback": 0, "bull_flag": 0, "flat_top_breakout": 0,
-                                      "flat_top_5m": 0, "red_to_green": 0, "gap_and_go": 0, "pullback_dip": 0, **SHORTS_OFF}}
+                                      "flat_top_5m": 0, "red_to_green": 0, "gap_and_go": 0, "pullback_dip": 0, "abcd": 0, **SHORTS_OFF}}
     apply_patch({"setup_levels": {"bull_flag": 2, "red_to_green": 1}}, desk=True)
     assert effective(load_session())["bull_flag"] == 0             # the master is Off: a ceiling
     apply_patch({"level": 1}, desk=True)
     assert effective(load_session()) == {"first_pullback": 0, "bull_flag": 1, "flat_top_breakout": 0,
-                                         "flat_top_5m": 0, "red_to_green": 1, "gap_and_go": 0, "pullback_dip": 0, **SHORTS_OFF}
+                                         "flat_top_5m": 0, "red_to_green": 1, "gap_and_go": 0, "pullback_dip": 0, "abcd": 0, **SHORTS_OFF}
     apply_patch({"level": 2}, desk=True)
     assert effective(load_session())["bull_flag"] == 2 and at_strategy(load_session()) == ["bull_flag"]
 
@@ -51,7 +51,7 @@ def test_the_wire_lists_own_and_effective_levels():
     assert setups["gap_and_go"]["scanner"] is True and setups["gap_and_go"]["level"] == 0   # Off until set
     assert setups["flat_top_5m"]["scanner"] is True and setups["flat_top_5m"]["level"] == 0  # a new strategy: Off
     assert view["setup_levels"] == {"first_pullback": 0, "bull_flag": 2, "flat_top_breakout": 0, "flat_top_5m": 0,
-                                    "red_to_green": 0, "gap_and_go": 0, "pullback_dip": 0, **SHORTS_OFF}
+                                    "red_to_green": 0, "gap_and_go": 0, "pullback_dip": 0, "abcd": 0, **SHORTS_OFF}
     assert "setup" not in view and "strategy" not in view and "readout" not in view and "advise" not in view
 
 
@@ -100,7 +100,9 @@ def test_lowering_the_master_below_strategy_deactivates_with_the_reason():
     assert line["inputs"]["reason"] == "level"
 
 
-def test_leaving_no_setup_at_strategy_deactivates_with_the_reason():
+def test_leaving_no_setup_at_strategy_leaves_the_bot_switch_on():
+    """The Bot switch is the top of three keys (2026-10-15): a strategy turned Off never turns it off, since with it
+    off no bot places any order -- that would also stop the other family's exits."""
     on_practice()
     apply_patch({"level": 2, "setup_levels": {"first_pullback": 2, "bull_flag": 2}}, desk=True)
     issue_arm_token()
@@ -108,7 +110,7 @@ def test_leaving_no_setup_at_strategy_deactivates_with_the_reason():
     assert is_desk_active(load_session())                      # the bull flag still plays
     apply_patch({"setup_levels": {"bull_flag": 0}}, desk=True)
     row = load_session()
-    assert not is_desk_active(row) and row["deactivated"]["reason"] == "no_setup"
+    assert is_desk_active(row) and row.get("deactivated") is None
 
 
 def test_the_session_route_takes_every_level(api_key):

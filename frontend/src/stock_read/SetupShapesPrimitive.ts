@@ -203,6 +203,15 @@ export class SetupShapesPrimitive implements ISeriesPrimitive<Time> {
       const yy = y(d.price);
       if (xx !== null && yy !== null) dots.push({ x: xx, y: yy, d });
     }
+    const paths: NonNullable<Px['paths']> = [];
+    for (const p of this.scene.paths ?? []) {
+      const pts: { x: number; y: number }[] = [];
+      for (const pt of p.points) {
+        const [xx, yy] = [x(pt.t), y(pt.price)];
+        if (xx !== null && yy !== null) pts.push({ x: xx, y: yy });
+      }
+      if (pts.length > 1) paths.push({ pts, p });
+    }
     // A trend line runs on from the last closed candle to the newest one, `slope` a candle, counted in the pane's
     // own candles as the backend read it.
     const trends: Px['trends'] = [];
@@ -267,7 +276,7 @@ export class SetupShapesPrimitive implements ISeriesPrimitive<Time> {
       luld = { steps, color: band.color };
     }
     this.px = { boxes, segments, vlines, tags, pins, labels: this.scene.labels, levels, ticks, words, reserves,
-      topInset: this.scene.topInset ?? 0, marks, dots, trends, strategy, luld };
+      topInset: this.scene.topInset ?? 0, marks, dots, trends, paths, strategy, luld };
   }
 
   paneViews(): readonly IPrimitivePaneView[] {

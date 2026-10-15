@@ -3,7 +3,7 @@
  * (FOLLOWED_SCHEMA_VERSION, FOLLOWED_CAPTURE_STALE_SEC). Schema: architecture/schema/followed-traders.md.
  */
 
-import { NAV_RAIL_LABEL_FOLLOWED } from '../constantGroups/nav_rail';
+import { NAV_RAIL_LABEL_BOTS_LIVE_TRADER } from '../constantGroups/nav_rail';
 
 export const FOLLOWED_SCHEMA_VERSION = 1;
 export const FOLLOWED_CONFIG_PATH = '/api/followed-traders/config';
@@ -55,9 +55,10 @@ export const FOLLOWED_PROOF_CARD_GAP_PX = 8;
 /** The room kept under the newest Activity events for the "+N earlier" line, in px. */
 export const FT_FOLD_LINE_PX = 34;
 
-/** The channel the feed reads names the page, its rail entry and the proof's back link (operator ask 2026-10-14). */
-export const FOLLOWED_CHANNEL = NAV_RAIL_LABEL_FOLLOWED;
-export const FT_TITLE = FOLLOWED_CHANNEL;
+/** The channel the feed reads (operator ask 2026-10-14): a toast names it as its source. */
+export const FOLLOWED_CHANNEL = 'TraderTV LIVE';
+/** The page is Bots > LiveTrader Bots (operator, 2026-10-15): its title and the proof's back link read so. */
+export const FT_TITLE = NAV_RAIL_LABEL_BOTS_LIVE_TRADER;
 export const FT_LOADING = 'Asking the feed…';
 export const FT_OFF = 'The followed traders feed is not configured on this desk (NOVA_FOLLOW_FEED_URL in the backend’s .env).';
 export const FT_UNREACHABLE = 'The feed is not answering';
@@ -79,19 +80,19 @@ export const FT_PILL_BEHIND = 'Reading';
 export const FT_PILL_BEHIND_NOTE = 'positions shown are from then';
 
 export const FT_BAR_NO_IMAGE = 'The feed sends no picture of this slot';
-export const FT_BAR_STAND_IN = 'Their slot at their last change';
+export const FT_BAR_STAND_IN = 'Their slot at their last open or close';
 export const FT_SLOT_NOW = 'Their slot now';
 export const FT_SLOT_LAST_READ = 'Their slot as last read';
 
-export const FT_HOLDING = 'Holding now';
-export const FT_HOLDING_END = 'Open at the day’s end';
 export const FT_OFF_AIR = 'Off air';
 export const FT_LEFT_BAR = 'Left the bar';
 export const FT_LEFT_BAR_TIP = 'The stream’s position bar has shown other traders without them since then: their show is over, or they '
   + 'stepped off it. Off air, every trade is closed: what they held then closed when they left.';
+export const FT_LEFT_BAR_WINDOW_TIP = 'Somewhere in this window: the feed did not read the bar between their last sighting '
+  + 'and the next one without them.';
 export const FT_OFF_AIR_CLOSE = 'off air';
 export const FT_OFF_AIR_CLOSE_TIP = 'They left the stream’s position bar holding this, and off air every trade is closed: the exit is IBKR’s '
-  + 'last trade when they left, not a close the feed saw.';
+  + 'last trade when they left, or its low–high when that is only known to a window, not a close the feed saw.';
 export const FT_NO_TRADES_TODAY = 'no trades today';
 export const FT_NO_TRADES_THAT_DAY = 'no trades that day';
 export const FT_EXIT_IS_IBKR = 'exit = IBKR’s last trade when it left their bar';
@@ -122,11 +123,12 @@ export const FT_STREAM_NOT_READING = 'the feed is not reading a live stream righ
 export const FT_STREAM_LIVE_ONLY = 'Only a live stream plays here, never a past broadcast. It comes back on its own when the feed reads the next one.';
 export const FT_LAST_STREAM = 'Last stream:';
 export const FT_RESETS = 'Resets';
-export const FT_CLOSED_TODAY = 'Closed today';
-export const FT_CLOSED = 'Closed';
-export const FT_NO_OPEN = 'No open positions';
-export const FT_NO_CLOSED_TODAY = 'No closed trades yet today';
-export const FT_NO_CLOSED = 'No closed trades that day';
+/** One table per trader, the open positions on top (operator, 2026-10-15: "make this more compact"). */
+export const FT_TRADES_TODAY = 'Trades today';
+export const FT_TRADES = 'Trades';
+export const FT_OPEN_COUNT = 'open';
+export const FT_OPEN_ROW_TIP = 'Still open: in at their own average, priced with IBKR’s last trade now.';
+export const FT_OPEN_END_TIP = 'Open at the day’s end: the feed never saw it close that day.';
 export const FT_ON_AIR = 'On air';
 export const FT_PROOF = 'Proof';
 export const FT_PROOF_CLICK_HINT = 'Click for every read of the slot during this trade';
@@ -138,8 +140,16 @@ export const FT_RECORDS = 'Records';
 export const FT_RECORD_RANGES = { day: 'Day', week: 'Week', all: 'All' } as const;
 export const FT_EVERYONE = 'Everyone';
 export const FT_RECORD_PENDING = 'exits still being read from IBKR';
-/** What they made over the span, P/L per share in % (PlFigure.tsx): their dollars are unknown, the feed shows no size. */
-export const FT_PL_PER_SHARE = 'per share';
+/** Their size is unknown, so every trade is shown as if copied with the same stake (operator pick 2026-10-15: "Show the
+ *  P/L as dollars at $1,000 a trade, with the cents per share and % under each trade"). Display only: the wire keeps %. */
+export const FT_STAKE_USD = 1000;
+export const FT_PL_AT_STAKE = 'copied at $1,000 a trade';
+export const FT_PL_COLUMN = 'P/L at $1,000';
+export const FT_PL_PER_SHARE_UNIT = '/sh';
+export const FT_PL_STAKE_TIP = 'What $1,000 in this trade would have made: their own average in, the market price when it left '
+  + 'their bar out. Under it, the P/L per share and in %.';
+export const FT_PL_STAKE_OPEN_TIP = 'What $1,000 in this position is up or down now: their own average in, IBKR’s last '
+  + 'price now. Under it, the P/L per share and in %.';
 export const FT_PL_WAITING = 'Reading the record…';
 export const FT_PL_OLD_BACKEND = 'This backend sends no P/L for a Week or All span: restart it on the desk’s release.';
 export const FT_PL_NO_SIZE = 'Their dollars are unknown: the feed never shows their size.';
@@ -167,7 +177,7 @@ export const FT_FUTURE_DAY = 'That day has not happened yet';
 export const FT_PREV_MONTH = 'Previous month';
 export const FT_NEXT_MONTH = 'Next month';
 
-export const FT_BACK = FOLLOWED_CHANNEL;
+export const FT_BACK = FT_TITLE;
 export const FT_CHECK_A_READ = 'Check a read';
 export const FT_ENTRY = 'Entry';
 export const FT_EXIT = 'Exit';
@@ -197,3 +207,4 @@ export const FT_TICKER_FIXED = 'fixed';
 export const FT_UNSCORED_TIP = 'Not scored: the exit is not one known price (a window, not read yet, or a close the feed never saw).';
 export const FT_TOAST_REGION = 'Followed traders';
 export const FT_TOAST_DISMISS = 'Dismiss';
+export const FT_TOAST_OPEN = `Open ${FOLLOWED_CHANNEL}`;

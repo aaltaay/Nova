@@ -1,5 +1,6 @@
 /** Left-rail categories for the Settings overlay. */
 import { PRACTICE_SETTINGS_SUBTAB_LABEL } from '../constantGroups/practice';
+import { LOSS_LIMIT_NAV_LABEL } from '../loss_limit';
 
 export type SettingsSectionId =
   | 'general'
@@ -7,7 +8,8 @@ export type SettingsSectionId =
   | 'trade'
   | 'alerts'
   | 'account'
-  | 'sensors';
+  | 'sensors'
+  | 'loss_limits';
 
 export type TradeSettingsSubTab = 'stocks' | 'order_preferences' | 'practice';
 
@@ -23,6 +25,8 @@ export const SETTINGS_NAV: readonly SettingsNavItem[] = [
   { id: 'alerts', label: 'Alerts' },
   { id: 'account', label: 'Account' },
   { id: 'sensors', label: 'Sensors' },
+  // ADR 056: one click from Settings, under Sensors.
+  { id: 'loss_limits', label: LOSS_LIMIT_NAV_LABEL },
 ] as const;
 
 export const TRADE_SETTINGS_SUB_TABS: readonly {

@@ -25,7 +25,7 @@ the backend packages.
 | `agent_desk/` | app | The desk side of the agent endpoints (ADR 050): the main window takes an agent's show / move by a long poll and runs it with the desk's own steps (venue, Sim day, Trader tab, the window from the Massive files, the playhead), with a notice of what it is doing. |
 | `api/` | shared | HTTP plumbing: the `novaFetch` wrapper that attaches the Nova API key, plus the sensor REST client. |
 | `assets/` | shared | Static images: a hero image and the default Vite / React logos (scaffold leftovers). |
-| `bot/` | feature | The Bots page: level, arm / allowlist, risk and kill-switch cards, proposals inbox, playbook, session polling, and the Live Trader bots' cards and asks (ADR 055). |
+| `bot/` | feature | The Bots page: level, arm / allowlist, risk and kill-switch cards, proposals inbox, playbook, session polling, and the Live Trader bots' cards and asks (ADR 055; the cards' panel shows on the TraderTV LIVE page through the barrel). |
 | `capture/` | feature | Session Record state on screen: the recording chip, top-edge hairline, stop toast and hold-to-stop button. |
 | `clips/` | feature | Share clips (ADR 039): the red ● Record button and Record menu on a Trader tab, the header's CLIP chips, the clip's frame, toasts, the export dialog and its trim timeline, Records › Video clips, the tab reporter, and the hidden export page (`export_page/`) the desktop app runs. |
 | `chart/` | feature | The ticker chart: chart instance, bars store, drawings, context menu, position overlay, VWAP and session shading, the candle hover card, and the earnings and split marks on daily panes. |
@@ -49,12 +49,14 @@ the backend packages.
 | `issue_report/` | feature | File an issue from the desk: the form (Bug / Feature, optional title and description, the desk details and a scrubbed diagnostics dump), opened from the What's new card and Help > File an Issue…; the backend files it on GitHub. |
 | `leaderboard/` | feature | The Scanner board replayed at the Sim playhead: per-minute leaderboard fetch, a rebuilt day's Gappers by the second, coverage, lanes, recorder toast. |
 | `lib/` | shared | The shadcn `cn()` class-merge helper only. |
+| `loss_limit/` | feature | The daily loss limit (ADR 056): Settings > Loss limits, its API, and the desk's warning and trip notices. |
 | `market_board/` | feature | Owns the Market page (ADR 053): the day's market health at a glance -- day read, futures and macro, sectors and industries, NYSE breadth, the small-cap climate and the top stocks by sector. Read-only. |
 | `market_view/` | shared | How fresh the market on screen is (ADR 045): each symbol's Level 2 frames, beats and drawn book, its quote version, the lock while the view lags, and the view every order carries. |
 | `modules/` | feature | Trader modules the registry mounts: Level 2, time & sales, charts, news, quote header, fundamentals, data sources, watchlist strip. |
 | `nova_news/` | feature | The Nova News page: headline desk with masthead, lead story, columns and story filtering. |
 | `orders_today/` | feature | The Orders (Today) view: Working / Filled / Canceled / Partial segments in the Stock View footer dock. |
 | `pages/` | app | Page composition: Dashboard, Account, Records (its pieces in `pages/records/`), Stock View and sample pages, plus the nav-rail page host. |
+| `pc_health/` | feature | The PC's own warnings on the desk (operator ask, 2026-10-15): the low-memory strip under the header in Nova's trading session, naming the process holding the most -- name, PID, size and how long it has run. It only warns. |
 | `perf/` | shared | The performance recorder's client side (ADR 026): frame meter, long frames, counters, render counts, the `/api/perf/client` reporter. |
 | `practice/` | feature | The practice account (ADR 020): Paper / Sim account model, buying power, reset, fixtures, the Sim account clock. |
 | `reports/` | feature | The Reports tab: P&L calendar, month detail, drawdown, R-multiples, tag performance, journal import. |

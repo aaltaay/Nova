@@ -40,7 +40,7 @@ def init_db() -> None:
 
     Every ledger read calls this. Re-running the schema script, the column
     check and the evidence migrations each time put a dozen SQLite round trips
-    on the HTTP loop per account / positions poll and bot breaker tick -- the
+    on the HTTP loop per account / positions poll and commission-hold tick -- the
     performance recorder's top stall frames, up to 3 s (2026-09-23). Two
     threads racing here both run the idempotent script.
     """

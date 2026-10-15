@@ -2,8 +2,8 @@
 
 ``level`` is the master ceiling and ``setup_levels`` each setup's own (``bot.setup_levels``);
 raising either is configuration, not "go": it needs no Activate token. Lowering the master
-below Strategy, or leaving no setup at Strategy, deactivates an active bot and says why
-(``bot.activation``). The bot's stock list is not written here: it goes through
+below Strategy deactivates an active bot and says why (``bot.activation``); leaving no setup at
+Strategy no longer does (2026-10-15: the Bot switch is the top of three keys, bot.md "The three keys"). The bot's stock list is not written here: it goes through
 ``stock_mode`` (``bot.allowlist``), whose rules every desk button meets.
 """
 from __future__ import annotations
@@ -21,6 +21,8 @@ from constants_bot import (
     BOT_LEVEL_UNRESTRICTED,
     BOT_REASON_ARM_REQUIRED,
     BOT_REASON_L3_PARKED,
+    BOT_BREAKERS_RETIRED_TEXT,
+    BOT_REASON_BREAKERS_RETIRED,
     BOT_REASON_SETUP_RETIRED,
     BOT_SETUP_RETIRED_TEXT,
 )
@@ -46,12 +48,11 @@ def apply_patch(
     desk: bool = True,
     arm_token: str | None = None,
 ) -> dict[str, Any]:
-    """Desk controls: the master level, each setup's level, the sleeve, the breakers, re-enable.
+    """Desk controls: the master level, each setup's level, the sleeve.
 
     ``arm_token`` is accepted and ignored (configuration needs no Activate token, ADR 042)."""
     del arm_token
     from bot import activation
-    from bot.setup_levels import at_strategy
 
     if "armed" in body:
         raise BotError(
@@ -61,6 +62,8 @@ def apply_patch(
         )
     if "setup" in body:
         raise BotError(BOT_SETUP_RETIRED_TEXT, 400, BOT_REASON_SETUP_RETIRED)
+    if "breakers" in body:
+        raise BotError(BOT_BREAKERS_RETIRED_TEXT, 400, BOT_REASON_BREAKERS_RETIRED)
     if "symbol_allowlist" in body:
         raise BotError("the bot's stocks are set through Who trades (stock mode) -- "
                        "PATCH /api/bot/session routes them there", 400, BOT_REASON_ARM_REQUIRED)
@@ -81,24 +84,14 @@ def apply_patch(
 
         for sid, (before, after) in sorted(apply_setup_levels(row, body.get("setup_levels")).items()):
             changes.append(("setup_level", (sid, before, after)))
-    if "breakers" in body:
-        from bot.breaker_limits import apply as apply_breakers
-        from bot.gates import current_venue
-
-        changed = apply_breakers(row, body.get("breakers"), current_venue())
-        if changed is not None:
-            changes.append(("breakers", changed))
     if "caps" in body and isinstance(body["caps"], dict):
         changes.extend(("caps", c) for c in _apply_caps(row, body["caps"]))
-    if body.get("reenable") and desk:
-        row["soft_breaker_fired"] = False
-        row["soft_breaker_until"] = None
     deactivated = None
+    # A strategy turned Off no longer turns the Bot switch off (2026-10-15): the switch is the top of three keys, and
+    # with a key off no bot places any order -- a lower key flipping it would also stop the other family's exits.
     if was_active:
         if "level" in body and int(row.get("level") or BOT_LEVEL_OFF) < BOT_LEVEL_STRATEGY:
             deactivated = "level"
-        elif ("level" in body or "setup_levels" in body) and not at_strategy(row)                 and not activation.live_trader_keys():
-            deactivated = "no_setup"
         if deactivated:
             activation.deactivate(row, deactivated)
     saved = save_session(row)
@@ -107,8 +100,6 @@ def apply_patch(
     for kind, change in changes:
         if kind == "setup_level":
             _audit_setup_level(*change)
-        elif kind == "breakers":
-            _audit_breakers(*change)
         else:
             _audit_caps(*change)
     if deactivated:
@@ -121,11 +112,11 @@ def _apply_caps(row: dict[str, Any], patch: dict[str, Any]) -> list[tuple[str, d
     from bot.gates import current_venue
     from bot.sleeve import apply as apply_sleeve
     from bot.venue_levels import dial_of, put
-    from constants_bot import BOT_BREAKER_VENUES, BOT_REASON_CAPS_INVALID
+    from constants_bot import BOT_VENUES, BOT_REASON_CAPS_INVALID
 
     venue = patch.get("venue") or current_venue()
-    if venue not in BOT_BREAKER_VENUES:
-        raise BotError(f"caps.venue is one of {', '.join(BOT_BREAKER_VENUES)}", 400, BOT_REASON_CAPS_INVALID)
+    if venue not in BOT_VENUES:
+        raise BotError(f"caps.venue is one of {', '.join(BOT_VENUES)}", 400, BOT_REASON_CAPS_INVALID)
     current = row.get("caps") if venue == row.get("level_venue") or row.get("level_venue") is None \
         else dial_of(row, venue).get("caps")
     after, changed = apply_sleeve(current, patch)
@@ -148,19 +139,6 @@ def _audit_level(before: int, row: dict[str, Any]) -> None:
                inputs={"from": before, "to": after})
     except Exception:
         logger.warning("bot audit: level change not recorded", exc_info=True)
-
-
-def _audit_breakers(venue: str, before: dict, after: dict) -> None:
-    """The timeline shows every change to a venue's loss breakers (operator ask 2026-09-24)."""
-    from bot.audit import record
-
-    try:
-        record(action="breakers", outcome=venue,
-               reason=(f"{venue}: bot trip {before['soft_usd']:g} -> {after['soft_usd']:g}, "
-                       f"all-stop {before['hard_usd']:g} -> {after['hard_usd']:g}"),
-               inputs={"venue": venue, "before": before, "after": after})
-    except Exception:
-        logger.warning("bot audit: breaker change not recorded", exc_info=True)
 
 
 def _audit_caps(venue: str, changed: dict[str, tuple[Any, Any]]) -> None:
@@ -198,32 +176,6 @@ def apply_desk_level(level: int, **extra: Any) -> dict[str, Any]:
     if int(level) >= BOT_LEVEL_STRATEGY:
         issue_arm_token()
     return load_session() if int(level) >= BOT_LEVEL_STRATEGY else saved
-
-
-def drop_to_eyes(*, keep_soft_latch: bool = True, reason: str = "bot_trip") -> dict[str, Any]:
-    """A loss breaker tripped: the bot is off, the way the Bot switch's OFF leaves it (ADR 044) -- the
-    master at Eyes, so the setups at Eyes or On keep proposing; Activate cleared (``reason``:
-    ``bot_trip`` or ``all_stop``), the bot's orders forgotten, the bot trip latched until 04:00 ET."""
-    from bot import activation
-
-    row = load_session()
-    row["level"] = BOT_LEVEL_EYES
-    was = activation.deactivate(row, reason)
-    row["bot_qty"] = {}
-    row["working"] = []
-    if keep_soft_latch:
-        from bot.clock import lock_until_date
-
-        row["soft_breaker_fired"] = True
-        row["soft_breaker_until"] = lock_until_date()
-    saved = save_session(row)
-    if was:
-        activation.record(reason)
-    return saved
-
-
-# The name the breakers and tests knew (ADR 032); since ADR 044 it drops to Eyes, not Off.
-drop_to_l0 = drop_to_eyes
 
 
 def assert_not_dark(row: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -265,7 +217,7 @@ def assert_can_fire(row: dict[str, Any] | None = None) -> dict[str, Any]:
         )
     if not is_desk_active(current):
         raise BotError(
-            "the bot is not active -- press Activate on the Bots page",
+            "the bot is not active -- turn on the Bot switch in the header",
             409,
             BOT_REASON_NOT_ACTIVE,
         )

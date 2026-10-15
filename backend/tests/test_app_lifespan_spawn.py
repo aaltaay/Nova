@@ -15,11 +15,13 @@ def test_runtime_task_targets_exist() -> None:
     assert "_executor." not in text
     assert "nasdaq_halt_rss" in text
     assert "bot.ttl" in text
-    assert "bot.breakers" in text
+    assert "bot.commission_hold" in text and "loss_limit.watch" in text
+    assert "bot.breakers" not in text                       # ADR 056: the loss breakers are gone
     assert hasattr(
         __import__("ibkr.nasdaq_halt_feed", fromlist=["poll_loop"]),
         "poll_loop",
     )
-    bot_loops = __import__("bot.loops", fromlist=["ttl_loop", "breaker_loop"])
+    bot_loops = __import__("bot.loops", fromlist=["ttl_loop", "commission_loop"])
     assert hasattr(bot_loops, "ttl_loop")
-    assert hasattr(bot_loops, "breaker_loop")
+    assert hasattr(bot_loops, "commission_loop")
+    assert hasattr(__import__("loss_limit.watch", fromlist=["watch_loop"]), "watch_loop")

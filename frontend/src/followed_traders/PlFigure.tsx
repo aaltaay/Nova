@@ -1,13 +1,13 @@
 /**
- * What a followed trader made over the span picked, as P/L per share in percent (plSummary.ts; operator's pick
- * 2026-10-14, "Added up"): one number -- each scored trade's % added together -- and under it a small line of that
- * total trade by trade, ending on the number. Their dollars are unknown -- the feed never shows their size -- so the
- * figure says "per share" and its hover says why, with the average a trade. No scored trade is a dash with why, never
- * 0%.
+ * What a followed trader made over the span picked, in dollars as if each scored trade were copied with
+ * `FT_STAKE_USD` (operator pick 2026-10-15: "Show the P/L as dollars at $1,000 a trade"; before it, the trades' %
+ * added up, 2026-10-14 -- the same number over 100 times the stake). Under it a small line of that total trade by
+ * trade, ending on the number. Their own dollars are unknown -- the feed never shows their size -- so the note says
+ * the stake and the hover says why, with the average a trade. No scored trade is a dash with why, never $0.
  */
 import { tipProps } from '../ux/hoverTip';
-import { FT_PL_NO_SIZE, FT_PL_PER_SHARE } from './constants';
-import { DASH, signedPct } from './format';
+import { FT_PL_AT_STAKE, FT_PL_NO_SIZE, FT_STAKE_USD } from './constants';
+import { DASH, signedPct, signedUsd } from './format';
 import type { PlSummary } from './plSummary';
 
 function plural(n: number, word: string): string {
@@ -26,11 +26,17 @@ export function plTip(s: PlSummary, unscored: number): string {
     return `No closed trade with one known exit price in this span, so nothing to add up. ${leftOut(unscored)}`;
   }
   return [
-    `P/L per share in %, added up over ${plural(s.count, 'closed trade')}: what the same money in every trade would `
-      + `have made (${signedPct(s.avgPct ?? 0)} a trade on average). The line is that total, trade by trade, oldest first.`,
+    `What copying ${plural(s.count, 'closed trade')} with $${FT_STAKE_USD.toLocaleString('en-US')} each would have made: `
+      + `their own average in, the market price when it left their bar out (${signedPct(s.avgPct ?? 0)} a trade on `
+      + 'average). The line is that total, trade by trade, oldest first.',
     FT_PL_NO_SIZE,
     leftOut(unscored),
   ].join('\n');
+}
+
+/** Percent points of the stake as dollars of it. */
+function atStake(pct: number): number {
+  return (pct / 100) * FT_STAKE_USD;
 }
 
 function tone(x: number): 'up' | 'down' | 'flat' {
@@ -75,15 +81,15 @@ export function PlFigure({ summary, unscored, why = null, inline = false, testId
     return (
       <span className={`${cls} ft-plfig--none`} data-testid={testId} {...tipProps(summary ? plTip(summary, unscored) : why)}>
         <span className="ft-plfig__num ft-muted">{DASH}</span>
-        {!inline && <span className="ft-plfig__note ft-muted">P/L {FT_PL_PER_SHARE}</span>}
+        {!inline && <span className="ft-plfig__note ft-muted">P/L {FT_PL_AT_STAKE}</span>}
       </span>
     );
   }
   return (
     <span className={`${cls} ft-plfig--${tone(summary.sumPct)}`} data-testid={testId} {...tipProps(plTip(summary, unscored))}>
-      <span className="ft-plfig__num">{signedPct(summary.sumPct)}</span>
+      <span className="ft-plfig__num">{signedUsd(atStake(summary.sumPct))}</span>
       <Spark curve={summary.curve} w={inline ? 64 : 132} h={inline ? 18 : 28} />
-      {!inline && <span className="ft-plfig__note ft-muted">{FT_PL_PER_SHARE} · {plural(summary.count, 'trade')}</span>}
+      {!inline && <span className="ft-plfig__note ft-muted">{FT_PL_AT_STAKE} · {plural(summary.count, 'trade')}</span>}
     </span>
   );
 }

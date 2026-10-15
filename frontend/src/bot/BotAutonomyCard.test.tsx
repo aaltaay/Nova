@@ -2,8 +2,8 @@
  * @vitest-environment jsdom
  *
  * The Trader rail's bot card (ADR 044): the one Bot switch for this venue, the same rules as the Bots
- * page -- off always goes, on is locked with the reason on Live, after the bot trip it asks first -- with
- * why it is off and a way to the Bots page. No master dial, no Activate, no bot list here.
+ * page -- off always goes, on is locked with the reason on Live -- with why it is off and a way to the
+ * Bots page. No master dial, no Activate, no bot list here.
  */
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -95,22 +95,19 @@ describe('BotAutonomyCard', () => {
     expect(sw.getAttribute('data-why')).toBe(BOT_SWITCH_LIVE_WHY);
   });
 
-  it('after the bot trip, asks first and sends reenable only on a yes', async () => {
-    mockFetch(strategySession({ soft_breaker: { fired: true, at: null, pnl: -51, until: null } }));
+  it('turns on in one press after an old bot trip: no question, no reenable (ADR 056)', async () => {
+    mockFetch(strategySession({ deactivated: { at: null, reason: 'bot_trip', text: null } }));
     await mount();
-    confirmApp.mockImplementationOnce(async () => false);
     await click('bot-card-switch');
-    expect(confirmApp).toHaveBeenCalledTimes(1);
-    expect(switches()).toEqual([]);
-    await click('bot-card-switch');
-    expect(switches()).toEqual(['{"on":true,"reenable":true}']);
+    expect(confirmApp).not.toHaveBeenCalled();
+    expect(switches()).toEqual(['{"on":true}']);
   });
 
-  it('opens the Bots page from the Trader', async () => {
+  it('opens Strategy Bots from the Trader', async () => {
     mockFetch(strategySession());
     await mount();
     await click('bot-card-open');
     expect(workspace.showScannerView).toHaveBeenCalledTimes(1);
-    expect(getNavPage()).toBe('bots');
+    expect(getNavPage()).toBe('bots-strategy');
   });
 });

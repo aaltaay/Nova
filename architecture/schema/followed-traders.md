@@ -107,7 +107,9 @@ Five more pieces are optional: a feed that does not have them is read as before,
   traders: {<name>: {positions: {"<side>:<symbol>": price}, unparsed: string[]}}}`, written each time a read differs
   from the one before, confirmed or not. A name read wrong (`TJOE`) is its own key. A line whose `clock` is null (a
   frame the feed could not read at all) is skipped: it has no time to be placed at -- and so is one whose `clock` is
-  no time of day (`09:34:97`, a misread screen), so one bad frame never makes the whole log unreadable. A `clock`
+  no time of day (`09:34:97`, a misread screen), so one bad frame never makes the whole log unreadable. Nova marks
+  the line after one or more skipped lines `unread_before: true` (its own mark, not the feed's): the bar was read
+  between it and the line before, at times the log cannot say ("A trader who left the bar" uses it). A `clock`
   not shaped `HH:MM:SS` is still a bad answer. A 404 means the feed keeps no read log for that day.
 
 `<NAME>` in those paths is 1 to 16 of `A-Z0-9`; anything else is never asked for.
@@ -236,23 +238,59 @@ and `read_as`, above). A position read glued from first frame to last stays as r
 - **Which trades.** One whose read could be glued: the feed's `symbol` with the first digit of its `entry_price` put
   back on it as the letter OCR takes it for -- I for 1, S for 5, B for 8, the feed's own pairs (a glued O the feed's
   reader puts back itself) -- is still a ticker of at most 5 letters, and the rest still a price as the bar writes one
-  (`tickers.unglued`: SOF 114.03 could be SOFI 14.03; JYD 1.29 and NVDL 35.41 cannot be glued). Any other trade has
-  `ticker: null` and reads as before.
+  (`tickers.unglued`: SOF 114.03 could be SOFI 14.03; JYD 1.29 and NVDL 35.41 cannot be glued) -- or the same ticker
+  with its own last letter read twice ("The letter read twice" below). Any other trade has `ticker: null` and reads as
+  before, unless one of its averages is put back or no add could make it (below).
 - **The check.** IBKR's tape at the entry, read as an exit's is (`exits`, kept the same way): the last price-setting
   trade at or before `entry_ts`, or the low and high of the trades over `entry_since_ts`..`entry_ts`. A price fits it
   within `FOLLOWED_TICKER_FIT_PCT` (1.5%) of that trade, or of that range widened by as much. The ticker as read fits
-  its first price: as read. Else the longer ticker's tape at the same time: IBKR has no such ticker, as read (no glued
-  reading exists); it fits the unglued price, corrected; anything else, unchecked.
+  its first price: as read. Else the letter read twice on the same tape, when the read has that reading: it fits,
+  corrected. Else the longer ticker's tape at the same time: IBKR has no such ticker, as read (no glued reading
+  exists) -- unless the letter read twice is nearer IBKR's price than the read, then unchecked; it fits the unglued
+  price, corrected; anything else, unchecked.
 - `ticker`: `{state: "checking" | "as_read" | "corrected" | "unchecked", read_symbol, read_price, other_symbol,
   other_price, why}`. `read_*` is what the feed read (its `symbol` and `entry_price`), `other_*` the glued reading
-  (SOFI, 14.03). `why`: what the check waits on while `checking`; IBKR's tape at the entry for both tickers when
-  `corrected` or `unchecked`; null when `as_read`.
-- **Corrected**: the trade's `symbol` is the longer ticker, and `entry.first_price`, `entry.avg_price` and each add's
-  prices are the feed's read back the same way. Its line, exit and P/L are that ticker's.
+  (SOFI, 14.03; for the letter read twice the same ticker, RGTI 12.08; the same as read when only an average was put
+  back). `why`: what the check waits on while `checking`; IBKR's tape at the entry for both tickers when `corrected`
+  or `unchecked` -- or, for an average, what was read and when; null when `as_read`.
+- **Corrected**: the trade's `symbol` and `entry.first_price` are the glued reading's, and `entry.avg_price` and each
+  add's prices are the feed's read back as "Every average" below says. Its line, exit and P/L are that ticker's.
 - **Checking or unchecked**: no line is held and no exit is read for it. `now` is `no_line` and `exit` is `pending`
   (checking) or `unavailable` (unchecked), each with `ticker.why`; `pl` is null and a closed one is `unscored`. A
   ticker that may be wrong never gives a number.
 - `/record` checks the same way; an exit that waits on its ticker counts in `pending`.
+
+### The letter read twice, and a glued average (operator report 2026-10-15)
+
+"Something about this number is extremely wrong": CHERIF's day read -$7,296.50 at $1,000 a trade. His bar showed
+"RGTI 12.08" from 12:30 to 13:27 ET, and the feed read it three ways, flipping every few seconds: RGT 112.08 (the glue
+above), RGTI 112.08 -- the I read twice, once as the ticker's last letter and once as a 1 in front of the price -- and
+only now and then RGTI 12.08. The feed took each RGTI 112.08 for an add (the average 12.08 -> 112.08) and closed and
+opened the position again each time the reading flipped: one trade became ten, eight of them priced against 112.08 at
+-89% each, -$7,138.90 of the figure; his other trades made -$158.00. The check above read only the first price, and
+took RGTI 112.08 as read because IBKR knows no RGTII. Three rules close it (`followed_traders/tickers.py`, `view.py`):
+
+- **The letter read twice.** A read whose price's first digit is the one OCR reads the ticker's own last letter as
+  (RGTI 112.08: I and 1), with a price the bar writes left once that digit is taken off, has a second glued reading:
+  the same ticker at the rest (RGTI 12.08; `tickers.doubled`). The check tries it on the tape it already read for the
+  ticker as read, before the longer ticker (above). The shape alone proves nothing -- NEAL's real SOFI 14.03 and RGTI
+  14.03 have it too -- so only IBKR's tape puts an entry back.
+- **Every average, not only the first.** P/L is against the latest average, so each add's average is read in order,
+  from the first price as shown: kept when it is within `FOLLOWED_AVG_FACTOR` (2) of the average before it -- an add
+  moves an average toward the price paid, and in the feed's first ten days (251 trades) none doubled or halved one but
+  these misreads; else its glued reading (the letter read twice; for a trade corrected to the longer ticker, that
+  ticker's) when that one is within it; else the trade is `unchecked`, `why` "an average no add could make" with both
+  numbers. An add whose average, put back, is the one before it is the same average read again: no add, left out. The
+  trade's latest average is read the same way. A trade with an average put back is `corrected`, `why` naming what the
+  bar was read as and when.
+- **One position read two ways.** A trade the feed closed and, in the same second, opened again for the same trader,
+  side and stock as the check shows it -- both settled, no window at either end -- never left the bar: the page and
+  `/record` show one trade, with the first's id, entry and entry image, the last's exit and exit image, and an add where
+  the average shown changed between them. In the feed's first ten days only that RGTI did this; every other close and
+  open in one second is two stocks (one row taking another's place).
+
+The Live Trader bot reads trades through `tickers.shown`, so it sees the averages put back; its own rules (`bot.md`,
+"Bad reads") are unchanged.
 
 ### A trader who left the bar (operator decisions 2026-10-14)
 
@@ -267,7 +305,10 @@ someone else"): whoever the bar reads is who is on it.
 
 - `seen`: `{last_ts, left_ts} | null`, from the feed's read log (`reads.jsonl`, above). `last_ts` is when the feed last
   read the trader's slot: the time of the line after the last line that read their name, or the newest read time when
-  that line is the newest. `left_ts` is the time of the first line after that which read anyone else on the bar -- a
+  that line is the newest. When the feed could not read the bar right after that last line (the next line is
+  `unread_before`), `last_ts` is that last line's own time: they were last seen then, and when they left is not known
+  from there on (2026-10-15: a feed restart read nothing from 10:54 to 11:04 while the morning show ended, and every
+  position its hosts still held was priced at 11:04:37 as if they had left then). `left_ts` is the time of the first line after that which read anyone else on the bar -- a
   name tag of 2 to 16 letters and digits, starting with a letter, so a new host with no trade yet counts and the
   reader's empty reads of a guest's caption do not -- counted only once the newest read time is
   `FOLLOWED_LEFT_BAR_SEC` (60) past it, so a name tag misread for a frame is never a departure. It is `null` while
@@ -359,15 +400,19 @@ whose ticker is checking or unchecked holds none; a corrected one holds the long
 
 ### On the desk
 
-The **TraderTV LIVE** page (named "Following" until 2026-10-14, when the operator asked for it to be renamed "to the
-name of the channel" the feed reads; the rail's label, the page's title and the proof's back link all read the
-channel's name, `FOLLOWED_CHANNEL`), as the operator approved it on 2026-10-13 (mockup "E2", after "i dont want the
+The followed traders' page is **Bots > LiveTrader Bots** (operator, 2026-10-15: "i want all content from the
+original tradertv live to be inside livetrader bots"; approved from a render of the desk on that day's answers, "i
+like it. build it."). It was "Following" until 2026-10-14, then **TraderTV LIVE**, its own rail item named "to the name
+of the channel" the feed reads; the rail no longer has that item, the page's title and the proof's back link read
+LiveTrader Bots, and a toast still names the channel it came from (`FOLLOWED_CHANNEL`). Each host's bot sits in their
+card ("The Live Trader bot", `bot.md`). As the operator approved it on 2026-10-13 (mockup "E2", after "i dont want the
 freakin scrolling bar"): it fills the window with no page scrollbar -- a head row, one block per trader stacked top to bottom,
 and a right column with the stream above the Activity. It asks `/day` every `FOLLOWED_REFRESH_MS` while it shows;
 images are fetched with the desk's API key into blob URLs (an `<img src>` cannot carry the key) and the live slot
 images again with each answer.
 
-- **Head**, one row: the capture pill (live with how far behind the stream and the bar's last read; reading behind
+- **Head**, one row: the title, then the LiveTrader Bots key and, while the hosts' bots cannot trade, one amber
+  line, "No orders · " and what stops them (`bot.md`, "The Live Trader bot"), then the capture pill (live with how far behind the stream and the bar's last read; reading behind
   the stream -- the bar's on-screen `clock` more than `FOLLOWED_CAPTURE_BEHIND_SEC` (30) behind `updated_at`, however far
   and across midnight (a clock up to `FOLLOWED_CLOCK_AHEAD_SEC` ahead is skew), a warning with how far, the read's time and that the positions shown are from then, never Live (operator report 2026-10-14:
   the feed read the stream 29 minutes behind and the page said Live and "Their slot now"); positions off screen,
@@ -382,28 +427,33 @@ images again with each answer.
 - **One block per trader**: on today, everyone in `capture.bar` in the bar's order, then anyone else who
   traded that day in the order of their first trade; on a past day, those who traded. The card: photo (the trader's
   `face`, or the bar slot's; the name's first letter without one), name, on air or off air (today only), the record
-  for the span picked with the scratches and unscored beside it, what they made over it (below), and their slot image
-  on the right (the live slot,
+  for the span picked with the scratches and unscored beside it, on today their bot in the space between (`bot.md`,
+  "The Live Trader bot"), what they made over it (below), and their slot image on the right (the live slot,
   labelled "now" only while the capture reads the stream live and within `FOLLOWED_CAPTURE_BEHIND_SEC` of it and with
-  the read's time otherwise, or the newest evidence stand-in labelled with its time, never passed off as now). A trader with a trade that day
-  has, under the card, **Holding now** on the left -- an OPEN tile per open position: ticker, side, entry -> now,
-  unrealised P/L per share and %, held, time in, proof -- and **Closed today** on the right: the count, won and lost,
-  and one row per closed trade, newest exit first, striped by its result (WIN green, LOSS red, scratch and unscored
-  grey): result, ticker, side, in -> out, entry (the average, with the first price when the trader added) -> exit
+  the read's time otherwise, or the newest evidence stand-in -- the picture of their last open or close, which adds do
+  not have -- labelled "Their slot at their last open or close" with its time, never passed off as now). A trader with a trade that day
+  has, under the card, one table, **Trades today** (operator, 2026-10-15, of the OPEN tiles that stood beside it:
+  "make this more compact ... no reason to take half of the screen like this"): the count of every trade, then open,
+  won and lost, and one row per trade. Open positions come first, newest first, striped blue: OPEN, ticker, side, in
+  -> now, entry (the average) -> the price now, unrealised P/L at $1,000 with the per share and % under it, held,
+  proof; a BOT chip beside the ticker while the host's bot holds a copy. Then one row per closed trade, newest exit
+  first, striped by its result (WIN green, LOSS red, scratch and unscored grey): result, ticker, side, in -> out,
+  entry (the average, with the first price when the trader added) -> exit
   (IBKR's last trade at the exit; a low-high range marked est. for a window; reading the tape or waiting for IBKR;
-  no price, with why), P/L per share and %, held, proof. A trader who left the bar (`seen.left_ts`) reads "Left the
-  bar HH:MM:SS" in place of on air or off air, and each trade closed then has "off air" beside its out time, saying
-  why it closed; its Proof's exit reads "Closed when they left the bar". A past day reads "Open at the day's end" and
-  "Closed". A
+  no price, with why), P/L at $1,000 (below) with the P/L per share and % under it, held, proof. A trader who left the bar (`seen.left_ts`) reads "Left the
+  bar HH:MM:SS" in place of on air or off air -- "Left the bar HH:MM:SS–HH:MM:SS" when `last_ts` is before `left_ts`,
+  the bar not read between -- and each trade closed then has "off air" beside its out time, saying
+  why it closed; its Proof's exit reads "Closed when they left the bar". On a past day the table reads "Trades", its
+  OPEN rows what was open at the day's end. A
   time not seen reads "by HH:MM:SS" (open when capture started) or a window, and its trade unscored. A trader with no
-  trade that day shows the card alone. A ticker -- on an OPEN tile, a closed row (in the list of all closed trades
+  trade that day shows the card alone. A ticker -- on an open or closed row (in the list of all closed trades
   too), a Proof's title and an Activity line -- opens the stock in the Trader, as a symbol does on the Market and
-  Records pages. A trade's Proof stays its own link on the tile and the row. A trade whose `ticker` is checking or
+  Records pages. A trade's Proof stays its own link on its row. A trade whose `ticker` is checking or
   unchecked reads **ticker check** in place of its P/L, with `ticker.why` on hover, and its ticker, on a tile, a row
   or an Activity line, carries a "?" mark saying the same; a corrected ticker carries a "fixed" mark whose hover says
   what the bar was read as and IBKR's tape for both tickers (`ticker.why`).
 - **When it does not fit**, closed rows drop to one line, then each trader's oldest closed trades fold into "+N
-  earlier closed trades", which opens them all over the stack; open tiles never shrink or fold. A window too small
+  earlier closed trades", which opens them all over the stack; open rows never fold. A window too small
   even for that scrolls the stack rather than hide a trade.
 - **The stream**, above the Activity: the feed's video (`capture.video_id`) in an embedded YouTube player
   (`www.youtube.com/embed`, muted to start), LIVE, mute / unmute, Pop out (a small window of its own on the desktop, a
@@ -430,34 +480,42 @@ images again with each answer.
   screenshots: clicking an event opens its stock in the Trader (operator, 2026-10-13); a desk with no Trader to open
   opens the trade's Proof, which has them. Events that do not fit fold into "+N earlier", which opens the whole list.
 - **Proof on hover** (operator ask 2026-10-13: "I want the proof to be a hover"): hovering or focusing a trade's
-  Proof link, on a closed row or an OPEN tile, shows its entry and exit images in a card under the link, right edges
+  Proof link, on an open or closed row, shows its entry and exit images in a card under the link, right edges
   aligned so the row it proves stays readable (above the link when there is no room under it). Each image carries its
   time; an exit not yet seen reads "Still open" or "The feed never saw it close". The pointer can move into the card;
   Escape closes it. The images are asked for only once the card shows. Clicking the link or the card opens the Proof.
 - **Proof** of one trade: the entry and exit images, what was read at each (`/reads`), and every read in between
   that differed from the trade and was ignored. A read of the trade's ticker glued to its price (its last letter as
-  the digit OCR reads it, in front of the price: SOFI 14.03 as SOF 114.03) shows the trade, not an ignored read. Nova
+  the digit OCR reads it, in front of the price: SOFI 14.03 as SOF 114.03), or with that letter read twice (RGTI 12.08
+  as RGTI 112.08), shows the trade, not an ignored read. Nova
   never edits the feed: no button drops or confirms a trade.
 - **Calendar**: a month with a dot on each of the feed's `dates`, weekends dimmed, future days disabled; picking a
   day shows its traders, tickers and counts from that day's `/day` before opening it.
 - **Toasts**: while the feed is configured and Alerts are on (a per-window setting kept in local storage, on by
   default), the main desk window asks `/day?quotes=0` every `FOLLOWED_TOAST_POLL_MS` and raises "CHERIF opened LONG JZ
-  @ 1.55" / "added to" / "closed" for a change since its last answer (none for what it found on its first); a toast
-  opens the page on that trade's proof. A trade first seen while its ticker is `checking` is held back until the check
+  @ 1.55" / "added to" / "closed" for a change since its last answer (none for what it found on its first); a click
+  anywhere on a toast opens Bots > LiveTrader Bots on today (whatever day or proof it was showing), and its Proof opens the page on that trade's proof (operator ask
+  2026-10-15). A trade first seen while its ticker is `checking` is held back until the check
   ends or `FOLLOWED_TOAST_TICKER_WAIT_SEC` (60) has passed since its entry, so its "opened" names the ticker as checked;
   a toast raised while the ticker is still checking or unchecked says "ticker check" beside it. The window remembers
   which trades it held back, so a trade already announced, or already there in its first answer, is never news again
   when its ticker is checked once more (the feed corrected it, or a restart forgot an answer).
 
-### What they made, per share in % (operator ask 2026-10-14)
+### What they made, at $1,000 a trade (operator asks 2026-10-14 and 2026-10-15)
 
 "For each one, how much they make money. We're not going to be able to know how much they made money, but we can see
 the PL per share in terms of percentage." The feed has no size, so a trader's dollars cannot be known. Each trader's
-card, and Everyone in the head, shows over the span picked (Day, Week, All) **their scored trades' P/L per share in %,
-added up** (the operator's pick from a mockup on the real page, over the average a trade and both): what the same
-money in every trade would have made. Under it a small line draws that total trade by trade, oldest exit first, from 0
-before the first and ending on the number, over a dashed zero; on the card "per share · N trades", in the head the
-number and line alone. Up is green and down red, as the P/L is elsewhere on the page.
+card, and Everyone in the head, shows over the span picked (Day, Week, All) **what copying each of their scored trades
+with $1,000 (`FT_STAKE_USD`) would have made** -- their scored trades' P/L per share in % added up (the operator's
+pick on 2026-10-14, over the average a trade and both), as dollars of the stake: the sum times 10. On 2026-10-15 the
+added-up % alone read as nonsense ("very confusing": a few cents on a stock under $1 counts as several percent), so
+the operator picked "Show the P/L as dollars at $1,000 a trade, with the cents per share and % under each
+trade". Under the figure a small line draws that total trade by trade, oldest exit first, from 0 before the first and
+ending on the number, over a dashed zero; on the card "copied at $1,000 a trade · N trades", in the head the number
+and line alone. Each trade's P/L, on an open or closed row, reads the same way: the dollars at $1,000 on top,
+the P/L per share ("/sh") and its % under them; a window exit's dollars are a range. The column reads "P/L at
+$1,000". Display only: the wire keeps `per_share` and `pct`. Up is green and down red, as the P/L is elsewhere on the
+page.
 
 - **Which trades:** those scored `win`, `loss` or `scratch` -- one known exit price -- the same trades as the W / L
   beside it. An unscored trade (an exit seen only in a window, not read yet, a close the feed never saw, a ticker not
@@ -466,10 +524,11 @@ number and line alone. Up is green and down red, as the P/L is elsewhere on the 
 - **Where from:** Day from the day's own `closed[]` (`/day`); Week and All from `/record`'s `scored`. Everyone is
   every trader's trades on one list, so its total is the traders' totals added up. Each `pct` has two decimals, so the
   total does too.
-- **None:** a span with no scored trade -- nothing closed yet, or only unscored trades -- shows a dash, never 0%, and
+- **None:** a span with no scored trade -- nothing closed yet, or only unscored trades -- shows a dash, never $0, and
   its hover says why. While a Week or All record is read, while the feed is down (`feed.state` off `ok`: its own
   words, never read as a span with no trades), or from a backend that sends no `scored`, the dash's hover says that.
-- **Hover:** what the number is, its average a trade, that their dollars are unknown because the feed shows no size,
+- **Hover:** what the number is (their own average in, the market price when it left their bar out), its average a
+  trade in %, that their dollars are unknown because the feed shows no size,
   and what is left out (the unscored count, open positions).
 
 The tab is placed after Cryptos on the rail, and the focus report names it `followed` (`book-watch-and-luld.md`).

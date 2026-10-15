@@ -5,11 +5,12 @@ The bot reads what the TraderTV LIVE page reads, through ``followed_traders``: t
 on the bar 60 s) with ``view.closed_on_leaving``, and the glued-ticker check (``routes.ticker_for`` over IBKR's
 tape, advanced by ``exits.pump``). A trade's id is the page's (``view.trade_row``), and its ticker and prices the
 ones the check settled on (``tickers.shown``). For the bad-read rules (bot.md, "Bad reads") each host carries the
-sides its reads could not read whole (``unread``, from the page's read log) and the answer carries every trade of
-the feed's previous day as ``previous`` (side, stock, average), read once a day. An answer that cannot be folded
-is a feed that is not answering (``bad_answer``), never a failed pass. Nothing here sends an order. Shapes:
-``decide``'s answer, architecture/schema/bot.md ("The Live Trader bot"). Owner of ``_previous``: this module, in
-process memory (one day's keys; schema_version n/a).
+sides its reads could not read whole (``unread``, from the page's read log) and its bar as the feed last confirmed
+it (``bar``: ``["side:SYMBOL"]``, empty when it reads empty on both sides, None when the feed sends none); the answer
+carries every trade of the feed's previous day as ``previous`` (side, stock, average), read once a day. An answer
+that cannot be folded is a feed that is not answering (``bad_answer``), never a failed pass. Nothing here sends an
+order. Shapes: ``decide``'s answer, architecture/schema/bot.md ("The Live Trader bot"). Owner of ``_previous``: this
+module, in process memory (one day's keys; schema_version n/a).
 """
 from __future__ import annotations
 
@@ -76,6 +77,7 @@ def _fold(base: str, day: dict[str, Any], now: float) -> dict[str, Any]:
     unread = feed_rows.unread_sides(routes.read_log(base, day["date"], now), day["date"], feed_now)
     for name, host in hosts.items():
         host["unread"] = sorted(unread.get(name, ()))
+        host["bar"] = None if bars is None or name not in bars else sorted(bars[name])
     return {"state": "ok", "error": None, "date": day["date"], "feed_now": feed_now,
             "read_age_sec": None if updated is None else round(max(0.0, now - updated), 1),
             "behind_sec": feed_rows.behind_sec(clock, updated), "live": bool((status or {}).get("live")),
@@ -115,7 +117,8 @@ def _bars(status: dict[str, Any] | None) -> dict[str, set[str]] | None:
 
 def _row(t: dict[str, Any], ticker_for: Any, tickers: Any, bars: dict[str, set[str]] | None) -> dict[str, Any]:
     """A trade as ``decide`` reads it: the page's id, the ticker and prices as the check settled them, and whether
-    the host's bar shows it now (``on_bar``: None when the feed sends no bar)."""
+    the host's bar shows it now (``on_bar``: None when the feed sends no bar). ``ticker.other_symbol`` is the glued
+    reading the check weighs, so a row back under the glued ticker can be matched to the position (#1010)."""
     row_id = f"{t['trader']}|{t['side']}|{t.get('read_as') or t['symbol']}|{t['entry_ts']:.0f}"
     on_bar = None if bars is None else f"{t['side']}:{t['symbol']}" in bars.get(t["trader"], set())
     ticker = ticker_for(t) if t["status"] == "open" else None
@@ -124,4 +127,5 @@ def _row(t: dict[str, Any], ticker_for: Any, tickers: Any, bars: dict[str, set[s
             "price": shown["price"], "entry_price": shown["entry_price"], "entry_ts": t["entry_ts"],
             "known": bool(t["entry_known"]), "adds": [dict(a) for a in shown["adds"]], "exit_ts": t.get("exit_ts"),
             "left_bar": bool(t.get("left_bar")), "on_bar": on_bar,
-            "ticker": None if ticker is None else {"state": ticker["state"], "why": ticker.get("why")}}
+            "ticker": None if ticker is None else {"state": ticker["state"], "why": ticker.get("why"),
+                                                   "other_symbol": ticker.get("other_symbol")}}

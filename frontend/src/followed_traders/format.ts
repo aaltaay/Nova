@@ -1,5 +1,5 @@
 /** How the Followed traders page writes its numbers and times. Unknown is an em dash, never 0. */
-import { FT_EXIT_PENDING, FT_EXIT_UNAVAILABLE, FT_EXIT_WAITING } from './constants';
+import { FT_EXIT_PENDING, FT_EXIT_UNAVAILABLE, FT_EXIT_WAITING, FT_STAKE_USD } from './constants';
 import type { FollowedExit, FollowedTrade, PointPl, RangePl } from './types';
 
 export const DASH = '—';
@@ -70,6 +70,22 @@ export function plPct(pl: PointPl | RangePl | null): string {
   if (!pl) return DASH;
   if (isRangePl(pl)) return `${signed(pl.low_pct, 2, '%')} to ${signed(pl.high_pct, 2, '%')}`;
   return signed(pl.pct, 2, '%');
+}
+
+/** Dollars with their sign and cents: "+$26.09", "−$72.38", "$0.00". */
+export function signedUsd(x: number): string {
+  const s = Math.abs(x).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (Number(Math.abs(x).toFixed(2)) === 0) return `$${s}`;
+  return `${x > 0 ? '+' : MINUS}$${s}`;
+}
+
+/** What `FT_STAKE_USD` in the trade would have made, from its P/L in %: "−$26.32", or "−$15.00 to +$5.00" for a
+ *  window exit. */
+export function plAtStake(pl: PointPl | RangePl | null): string {
+  if (!pl) return DASH;
+  const usd = (pct: number) => signedUsd((pct / 100) * FT_STAKE_USD);
+  if (isRangePl(pl)) return `${usd(pl.low_pct)} to ${usd(pl.high_pct)}`;
+  return usd(pl.pct);
 }
 
 /** Up, down or flat, for the P/L's colour; a range that straddles zero is flat. */

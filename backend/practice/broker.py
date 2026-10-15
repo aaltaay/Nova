@@ -464,7 +464,7 @@ class PracticeBroker:
     def account_summary(self) -> dict[str, Any]:
         """The shape ``/api/ibkr/account`` serves today, from the practice ledger."""
         self._refresh_marks()
-        self.rollover()  # the breakers compare DayPnL: never yesterday's (QA R45)
+        self.rollover()  # DayPnL is today's: never yesterday's (QA R45)
         ledger = self.ledger
         sim = self.venue == PRACTICE_VENUE_SIM
         return {
@@ -479,7 +479,7 @@ class PracticeBroker:
             # lifetime figure stays on /api/practice/account as realized_pnl.
             "RealizedPnL": round(ledger.realized_today(), 2),
             # The practice day's P&L: net liquidation less the 04:00 ET equity,
-            # already net of every fee. The bot breakers compare this (W2).
+            # already net of every fee (W2).
             "DayPnL": round(ledger.day_pnl(), 2),
             "GrossPositionValue": round(ledger.gross_position_value(), 2),
             # IBKR's own tags (ADR 048): every position's maintenance -- IBKR's what-if ratio over the

@@ -15,6 +15,7 @@ import { useConfirmedDeskVenue } from '../ibkr';
 import { tipProps } from '../ux/hoverTip';
 import { whyProps } from '../ux/whyTip';
 import { useWorkspace } from '../workspace/WorkspaceContext';
+import { TickerLink } from '../components/TickerLink';
 import { dismiss, dismissedProposals, subscribe } from './proposalDismissals';
 import { proposalStageLock, proposalStageSize, proposalVerdictLine, stageLimit } from './proposalVerdict';
 import { fmtCents, fmtPx } from './setupsFormat';
@@ -53,7 +54,7 @@ export function SetupsAlertCard({ board }: { board: SetupsBoard | null }) {
     <div className={`setups-alert${verdict ? ` setups-alert--${verdict.tone}` : ''}`} role="status" aria-live="polite"
       data-testid="setups-alert">
       <div className="setups-alert-body">
-        <strong>{top.symbol}</strong> {short ? <span className="setups-short-tag">▼ SHORT</span> : null}{short ? ' ' : ''}
+        <strong><TickerLink symbol={top.symbol} testId="setups-alert-symbol" /></strong> {short ? <span className="setups-short-tag">▼ SHORT</span> : null}{short ? ' ' : ''}
         {kind.toLowerCase()} near the {fmtPx(top.trigger)} {level}.
         {' '}{short ? 'Buy stop' : 'Stop'} {fmtPx(top.stop)}, risk {fmtCents(top.risk)}, {short ? 'cover' : 'target'} {fmtPx(top.target1)}
         {top.target2 != null ? ` then ${fmtPx(top.target2)}` : ''}.

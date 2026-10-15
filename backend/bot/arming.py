@@ -22,11 +22,11 @@ from constants_bot import (
 )
 
 
-def issue_arm_token(*, reenable: bool = False) -> str:
+def issue_arm_token() -> str:
     """Desk Activate. Rotates the token and drops any prior brain claim.
 
     The rules Activate meets first are ``bot.activation.assert_can_activate``'s; this only
-    turns it on. ``reenable`` clears this venue's bot trip latch (the operator confirmed it)."""
+    turns it on."""
     row = load_session()
     token = secrets.token_urlsafe(24)
     row["desk_arm_token"] = token
@@ -35,9 +35,6 @@ def issue_arm_token(*, reenable: bool = False) -> str:
     row["brain_session_id"] = None
     row["claim_arm_token"] = None
     row["brain_heartbeat_ts"] = None
-    if reenable:
-        row["soft_breaker_fired"] = False
-        row["soft_breaker_until"] = None
     save_session(row)
     return token
 
@@ -61,7 +58,7 @@ def require_matching_arm_token(row: dict[str, Any], arm_token: str | None) -> st
     incoming = (arm_token or "").strip()
     if not held or not incoming or not hmac.compare_digest(incoming, held):
         raise BotError(
-            "this needs an Activate token from the Bots page",
+            "this needs an Activate token from the Bot switch in the header",
             403,
             BOT_REASON_ARM_REQUIRED,
         )

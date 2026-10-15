@@ -42,6 +42,7 @@ from routes.desk import router as desk_router
 from diagnostics.routes import router as diagnostics_router
 from leaderboard.routes import router as leaderboard_router
 from leaderboard.auto_record_routes import router as auto_record_router
+from loss_limit.routes import router as loss_limit_router
 from setup_scanner.routes import router as setups_router
 from setup_templates.routes import install as install_setup_template_refusals
 from setup_templates.routes import router as setup_templates_router
@@ -95,7 +96,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(halts_router)
     app.include_router(symbols_router)
     app.include_router(bot_router)
-    app.include_router(live_trader_router)  # ADR 055: the Live Trader bot's cards on the Bots page
+    app.include_router(live_trader_router)  # ADR 055: the Live Trader bot's cards on Bots > LiveTrader Bots
     app.include_router(bot_ws_router)
     app.include_router(sim_router)
     app.include_router(capture_router)
@@ -106,6 +107,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(diagnostics_router)
     app.include_router(leaderboard_router)
     app.include_router(auto_record_router)
+    app.include_router(loss_limit_router)
     app.include_router(setups_router)
     app.include_router(setup_templates_router)
     install_setup_template_refusals(app)

@@ -34,7 +34,7 @@ GROUPS = (
 )
 SHORT_NAMES = {"first_pullback": "Pullback", "bull_flag": "Flag", "flat_top_breakout": "Flat top",
                "flat_top_5m": "5m flat top", "red_to_green": "Red to green", "gap_and_go": "Gap and Go",
-               "pullback_dip": "Dip", "backside_lower_high": "Backside", "bear_flag": "Bear flag", "failed_breakout": "Failed breakout",
+               "pullback_dip": "Dip", "abcd": "ABCD", "backside_lower_high": "Backside", "bear_flag": "Bear flag", "failed_breakout": "Failed breakout",
                "lost_vwap": "Lost VWAP", "ssr_bounce": "SSR bounce"}
 
 
@@ -69,7 +69,6 @@ def derive(f: dict[str, Any]) -> dict[str, Any]:
     pulls = f.get("pulls") or {}
     recent_flags = [fl for fl in pulls.get("flags") or [] if now - float(fl.get("ts") or 0) <= STOCK_READ_PULL_WINDOW_SEC]
     bid_flags = [fl for fl in recent_flags if fl.get("side") == "bid"]
-    bot = f.get("bot") or {}
     return {
         "now": now, "price": price, "prev_close": prev_close, "change_pct": change, "bars": bars,
         "levels": indicators.levels(bars, price=price, prev_close=prev_close),
@@ -81,7 +80,6 @@ def derive(f: dict[str, Any]) -> dict[str, Any]:
         "backside": indicators.backside(bars),
         "bid_pulls": len(bid_flags),
         "ask_pulls": sum(1 for fl in recent_flags if fl.get("side") == "ask"),   # a short's warning (ADR 048)
-        "breakers": bot.get("breakers"),
         # The 5-minute chart now, made from these minutes as the setup scanner makes it (trial T8).
         "tf5": five_minute.context([b for b in map(bar_from, bars) if b is not None], now),
     }

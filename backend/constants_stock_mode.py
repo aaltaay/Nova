@@ -96,16 +96,14 @@ STOCK_MODE_WHY_LIVE_EXIT = (
 # view's ``notes``).
 STOCK_MODE_BLOCK_DISARMED = "DESK_DISARMED"
 STOCK_MODE_BLOCK_KILL = "KILL_SWITCH"
-STOCK_MODE_BLOCK_DAY_LOCK = "BOT_DAY_LOCK"
-STOCK_MODE_BLOCK_BOT_TRIP = "BOT_TRIP"
+STOCK_MODE_BLOCK_LOSS_LIMIT = "LOSS_LIMIT_NO_NEW_BUYS"    # ADR 056 (constants_loss_limit's reason code)
 STOCK_MODE_BLOCK_TAPE = "TAPE_NOT_GO"
 STOCK_MODE_BLOCK_STALE = "TRIGGER_STALE"
 STOCK_MODE_BLOCK_WORKING = "ENTRY_WORKING"
 STOCK_MODE_WHY_DISARMED = "The padlock is locked: unlock it so Nova can place orders."
 STOCK_MODE_WHY_KILL = "The kill switch is tripped: nothing is sent until you reset it."
-STOCK_MODE_WHY_DAY_LOCK = "The all-stop tripped on this venue today: buys here are locked until 04:00 ET."
-STOCK_MODE_WHY_BOT_TRIP = ("The bot trip fired on this venue today: Nova buys nothing more here until you "
-                           "re-enable the bot (Activate on the Bots page) or 04:00 ET.")
+STOCK_MODE_WHY_LOSS_LIMIT = ("The daily loss limit was reached on this venue today: no new buys until 04:00 ET. "
+                             "Raise it or uncheck No new buys in Settings > Loss limits to buy again.")
 # ADR 049 (#778 step 4): the plan's setup is a short, which no Nova mode trades until step 5 (the view's note).
 STOCK_MODE_NOTE_NOT_FOLLOWED = (
     "The setup scanner does not follow {sym} (it follows the HOD Momo names): no setup can trigger here, "

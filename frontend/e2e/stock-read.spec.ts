@@ -182,7 +182,7 @@ test.describe("The bot's read on one stock", () => {
     await page.getByTestId('stock-read-legend-menu').click();
     const offLane = page.getByTestId('stock-read-menu-flat_top_breakout');
     await expect(offLane).toBeDisabled();
-    await expect(offLane).toHaveAttribute('data-why', /strategy is Off on the Bots page/);
+    await expect(offLane).toHaveAttribute('data-why', /strategy is Off on Strategy Bots/);
     await shot(page, 'setups-menu');
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('stock-read-legend-menu-card')).toHaveCount(0);

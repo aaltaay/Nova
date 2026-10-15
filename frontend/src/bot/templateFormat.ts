@@ -167,6 +167,20 @@ function pullbackDipLines(v: Values): [string, string][] {
   return [['Stock', stockLine(v)], ['Setup', setup], ['Entry', entry], ['Trade', trade]];
 }
 
+/** The ABCD: a high, A, a B that fails under it, a higher low C, bought on the break of B. Watch only: no bot. */
+function abcdLines(v: Values): [string, string][] {
+  const setup = `Swings of ≥ ${trim(num(v.abcd_swing_pct) ?? 0)}% · B fails the high (a double top up to `
+    + `${trim(num(v.abcd_b_over_pct) ?? 0)}% over it) and takes back ≥ ${trim(num(v.abcd_bounce_pct) ?? 0)}% of the `
+    + `drop to A · C holds A (up to ${trim(num(v.abcd_c_under_pct) ?? 0)}% under it) · A to the break within `
+    + `${num(v.abcd_max_minutes) ?? 0} min · each tolerance at least ${money(num(v.abcd_tol_dollars) ?? 0)}`
+    + (v.macd_positive ? ' · MACD above zero' : '');
+  const entry = `The break of B +${money(num(v.entry_offset) ?? 0)} · arms ${v.session_start}–${v.entry_cutoff}`;
+  const trade = `Stop ${money(num(v.abcd_stop_offset) ?? 0)} under C · risk `
+    + `${money(num(v.min_stop) ?? 0)}–${money(num(v.stop_cap) ?? 0).replace('$', '')} · ${exitsLine(v)} · watch only: `
+    + 'scored, never traded';
+  return [['Stock', stockLine(v)], ['Setup', setup], ['Entry', entry], ['Trade', trade]];
+}
+
 /** The setup card's rule lines, from the template in play (and its bot window, when the API sends it). */
 export function ruleLines(setup: string, v: Values, botWindow?: TemplateBotWindow | null): [string, string][] {
   switch (setup) {
@@ -184,6 +198,8 @@ export function ruleLines(setup: string, v: Values, botWindow?: TemplateBotWindo
       return gapAndGoLines(v, botWindow);
     case 'pullback_dip':
       return pullbackDipLines(v);
+    case 'abcd':
+      return abcdLines(v);
     default:
       return shortRuleLines(setup, v, botWindow) ?? [];
   }
@@ -214,6 +230,10 @@ export function ruleSummary(setup: string, v: Values): string {
       return `${v.dip_entry === 'green' ? 'First green close' : 'Bottoming wick'} in a `
         + `${bars(num(v.min_pullback_bars), num(v.max_pullback_bars))} candle pullback off a ${trim(num(v.leg_pct) ?? 0)}%+ `
         + 'leg · stop under the pullback low · watch only';
+    case 'abcd':
+      return `${trim(num(v.abcd_swing_pct) ?? 0)}% swings · B within ${trim(num(v.abcd_b_over_pct) ?? 0)}% of the high · `
+        + `C within ${trim(num(v.abcd_c_under_pct) ?? 0)}% of A · ${num(v.abcd_max_minutes) ?? 0} min · stop under C · `
+        + 'watch only';
     default:
       return shortRuleSummary(setup, v) ?? '';
   }

@@ -45,14 +45,6 @@ export const BOT_RISK_SLIDER_MAX_USD = 500;
 /** Nova's automatic entries a day per venue (bot + Auto-entry): bounds when the API sends none. */
 export const BOT_ENTRIES_PER_DAY_MIN = 1;
 export const BOT_ENTRIES_PER_DAY_MAX = 3;
-/** The loss breakers' defaults: a venue the operator never moved reads these (ADR 032). */
-export const BOT_SOFT_BREAKER_USD = -50;
-export const BOT_HARD_BREAKER_USD = -200;
-/** ADR 032 bounds, [loosest, tightest] -- mirrors backend/constants_bot.py (the backend checks again). */
-export const BOT_BREAKER_SOFT_BOUNDS: readonly [number, number] = [-1000, -5];
-export const BOT_BREAKER_HARD_BOUNDS: readonly [number, number] = [-5000, -10];
-export const BOT_BREAKER_STEP_USD = 5;
-
 export const BOT_LEVEL_LABELS = {
   0: 'Off',
   1: 'Eyes',
@@ -64,14 +56,16 @@ export const BOT_API_KEY_HINT = 'Need Nova API key to change the bot';
 export const BOT_API_KEY_SAVE = 'Save';
 export const BOT_ERROR_NEED_API_KEY =
   'Need Nova API key -- Desktop and Vite read the same repo NOVA_API_KEY, or save it here';
-export const BOT_ERROR_ARM_REQUIRED = 'The Bot is off -- turn it on on the Bots page first';
-export const BOT_ERROR_NOT_ACTIVE = 'The Bot is off -- turn it on on the Bots page first';
+export const BOT_ERROR_ARM_REQUIRED = 'The Bot is off -- turn on the Bot switch in the header first';
+export const BOT_ERROR_NOT_ACTIVE = 'The Bot is off -- turn on the Bot switch in the header first';
 
 /* ---------- The playbook (ADR 027): the operator's setups ---------- */
 /** Mirrors backend/constants_bot.py BOT_SETUPS. */
 export const BOT_SETUP_FIRST_PULLBACK = 'first_pullback';
 /** The pullback dip (#847): watch only -- drawn and scored, never traded. */
 export const BOT_SETUP_PULLBACK_DIP = 'pullback_dip';
+/** The ABCD (operator ask 2026-10-15): watch only -- drawn and scored, never traded. */
+export const BOT_SETUP_ABCD = 'abcd';
 /** In the backend's order (constants_bot.BOT_SETUPS): the six long setups with a scanner, the watch-only pullback
  * dip (#847), the five shorts (ADR 049), then the one without a scanner. */
 export const BOT_SETUP_IDS = [
@@ -82,6 +76,7 @@ export const BOT_SETUP_IDS = [
   'red_to_green',
   'gap_and_go',
   'pullback_dip',
+  'abcd',
   ...SHORT_SETUP_IDS,
   'micro_pullback',
 ] as const;
@@ -89,7 +84,7 @@ export type BotSetupId = (typeof BOT_SETUP_IDS)[number];
 
 /** Mirrors backend constants_bot.BOT_WATCH_ONLY_SETUPS (#847): the eyes watch, score and draw them; Nova never
  * trades them -- no proposal, no bot, no Auto-entry, no Approve, and On is locked. */
-export const BOT_WATCH_ONLY_SETUP_IDS: readonly string[] = [BOT_SETUP_PULLBACK_DIP];
+export const BOT_WATCH_ONLY_SETUP_IDS: readonly string[] = [BOT_SETUP_PULLBACK_DIP, BOT_SETUP_ABCD];
 export const isWatchOnlySetup = (id: string | null | undefined): boolean =>
   id != null && BOT_WATCH_ONLY_SETUP_IDS.includes(id);
 /** A watch-only strategy's Eyes: it draws and scores, and never alerts. */
@@ -110,6 +105,7 @@ export const BOT_SETUP_LABELS: Record<string, string> = {
   flat_top_5m: '5-minute flat top',
   red_to_green: 'Red to green',
   pullback_dip: 'Pullback dip',
+  abcd: 'ABCD',
   micro_pullback: 'Micro pullback',
   ...SHORT_SETUP_LABELS,
 };
@@ -123,6 +119,7 @@ export const BOT_SETUP_SHORT: Record<string, string> = {
   flat_top_5m: '5m flat top',
   red_to_green: 'Red to green',
   pullback_dip: 'Dip',
+  abcd: 'ABCD',
   micro_pullback: 'Micro pullback',
   ...SHORT_SETUP_TAGS,
 };
@@ -136,6 +133,7 @@ export const BOT_SETUP_BLURBS: Record<string, string> = {
   flat_top_5m: 'The same flat top on the 5-minute chart, bought the way the material trades it: the first 1-minute candle that holds the break.',
   red_to_green: 'Trades below the 09:30 open, then back through it — buy the reclaim, one try a day.',
   pullback_dip: 'Watch only: the first pullback\'s run and pullback, bought at the candle that bottoms it — a bottoming wick or the first green close — with the pullback\'s high as target 1.',
+  abcd: 'Watch only: a squeeze to the high, a pullback (A), a push that fails under the high (B), a higher low (C) — bought on the break of B, target 1 the high of day.',
   micro_pullback: 'A 1-2 candle dip inside a fast move, read on seconds.',
   ...SHORT_SETUP_BLURBS,
 };
@@ -176,6 +174,11 @@ export const BOT_SETUP_RESEARCH: Record<string, { verdict: 'failed' | 'not_teste
     text: 'Never tested: watch only. Its rows and side-by-side target scores are its first evidence (#847).',
     detail: 'watch only: its rows and target scores are its first evidence (#847)',
   },
+  abcd: {
+    verdict: 'not_tested',
+    text: 'Never tested: watch only. Its rows and side-by-side target scores are its first evidence.',
+    detail: 'watch only: its rows and target scores are its first evidence',
+  },
   micro_pullback: {
     verdict: 'not_tested', text: 'Not tested -- planned on one-second bars (S5).', detail: 'planned on one-second bars (S5)',
   },
@@ -199,13 +202,13 @@ export const BOT_NO_SCANNER_TITLE = 'No scanner yet -- it cannot watch, propose 
 /** The setups this build has a scanner for -- mirrors backend constants_bot.BOT_SCANNER_SETUPS (ADR 031). */
 export const BOT_SCANNER_SETUP_IDS: readonly string[] = [
   'first_pullback', 'bull_flag', 'flat_top_breakout', 'flat_top_5m', 'red_to_green', 'gap_and_go', 'pullback_dip',
-  ...SHORT_SETUP_IDS,
+  'abcd', ...SHORT_SETUP_IDS,
 ];
 /* A backend older than ADR 031 runs the first pullback only. The page says the backend needs a
    reload -- never "No scanner yet", which would say the feature is missing when it is not loaded. */
 export const BOT_STALE_BACKEND_BANNER =
   'Your backend is still running code from before the setup scanners, so only the first pullback is running. '
-  + 'Reload it to start the bull flag, flat-top and red to green scanners and to move the loss breakers. '
+  + 'Reload it to start the bull flag, flat-top and red to green scanners. '
   + 'A reload takes about half a minute, and a recording picks up where it left off.';
 export const BOT_STALE_BACKEND_STATUS = 'Not running yet: the backend needs a reload to start this scanner';
 export const BOT_STALE_BACKEND_WHY =
@@ -245,10 +248,10 @@ export const BOT_GATE_LABELS: Record<string, string> = {
   level: 'Bot switch',
   setups: 'Strategies at On',
   padlock: 'Padlock',
+  strategy_key: 'Strategy Bots key',
   allowlist: 'Nova-buy stocks',
   depth_lines: 'Depth line',
-  bot_trip: 'Bot trip',
-  day_lock: 'Day lock',
+  loss_limit: 'Loss limit',
   kill_switch: 'Freeze all orders',
   window: 'Bot window',
   daily_cap: 'Daily cap',
@@ -258,13 +261,13 @@ export const BOT_GATE_LABELS: Record<string, string> = {
 /** What each gate checks, on its chip's hover. */
 export const BOT_GATE_TIPS: Record<string, string> = {
   venue: 'Nova\'s bot trades Paper, and Sim at the live edge (the playhead on the wall clock). Live trading by a bot is not built, and a Sim replay is the past, so the bot never trades there. The Bot switch needs this.',
-  level: 'The Bot switch: on, Nova may act on the strategies at On; off, they alert you like Eyes. Each venue keeps its own.',
+  level: 'The Bot switch, in the header beside the padlock: on, Nova may act on the strategies at On; off, no bot places an order and the strategies alert you like Eyes. Each venue keeps its own.',
+  strategy_key: 'The Strategy Bots key, at the top of this page: off, the strategies\' bot and Auto-entry place no order, not even a sell. Each venue keeps its own. Checked on every order.',
   setups: 'At least one strategy set to On on its card. Nova acts only on those strategies\' GO triggers. The Bot switch needs this.',
   padlock: 'The desk padlock (spend arming). It is locked at every start and when anyone locks it, and locking it turns the Bot off. While locked nothing places an order. The Bot switch needs this.',
   allowlist: 'The stocks whose Buy is Bot on this venue (Tickers today, or Who trades on a Trader tab). The bot buys nothing else; the scanners and Eyes still watch every HOD Momo name.',
   depth_lines: 'Nova must hold a stock\'s Level 2 line to read its tape at the trigger (IBKR allows 3 at once). This is open while one bot stock has a line; a trigger on a stock without one is skipped, and the activity says so. Checked on every order.',
-  bot_trip: 'The soft loss breaker: when this venue\'s day P&L falls to its bot trip, Nova flattens and turns the Bot off. Turning it back on asks you first and re-enables it for today; it clears by itself at 04:00 ET.',
-  day_lock: 'The hard loss breaker on this venue: the all-stop flattened the account and locks bot and manual buys on this venue until 04:00 ET. Flatten and cancel still work. Checked on every order.',
+  loss_limit: 'No new buys after the daily loss limit (Settings > Loss limits): with No new buys checked, once this venue\'s day loss reaches your limit, buys -- yours and the bots\' -- are refused until 04:00 ET. Selling, Flatten and KILL still work. Checked on every order.',
   kill_switch: 'Freeze all orders cancels every working order on every venue and refuses every new order on every venue -- yours and Nova\'s, a sell included -- until you unfreeze them. Flatten and cancels still work. Checked on every order.',
   window: 'Each setup\'s bot window, from its template and inside its arming window: the bot buys only a trigger inside it. Open while any setup at Strategy is inside its window now. Checked on every order.',
   daily_cap: 'One count for Nova\'s automatic entries (the bot and Auto-entry) on this venue today, from the sleeve\'s "Nova entries a day". A missed entry gives the day back; Approve is yours and is counted, never capped. Checked on every order.',
@@ -329,23 +332,6 @@ export const SYMBOL_MENU_ALLOW_STATE = 'Bot';
 export const SYMBOL_MENU_BOT_BUSY_WHY = 'Asking Nova -- wait for the answer';
 /** Mirrors backend/constants_bot.py -- the bot's stocks, not the sleeve's order kinds. */
 export const BOT_SYMBOL_ALLOWLIST_CAP = 50;
-
-/* ---------- Loss breakers (ADR 032, ADR 042 D): per venue, one day boundary at 04:00 ET ---------- */
-export const BOT_BREAKER_SOFT_LABEL = 'Bot trip';
-export const BOT_BREAKER_HARD_LABEL = 'All-stop';
-export const BOT_BREAKER_HINT =
-  'Drag either marker to move it. Each venue keeps its own pair, saved in the bot session, so a restart keeps them. The bot trip flattens this venue and turns the bot off; the all-stop flattens and locks bot and manual buys on this venue until 04:00 ET. A Sim replay compares nothing: its P&L is not today\'s.';
-export const BOT_BREAKER_SOFT_TIP =
-  'Bot trip: when this venue\'s day P&L falls to this, Nova flattens and turns the Bot off. The desk can still trade; turning the Bot back on asks you first and re-enables it for today, and it clears at 04:00 ET.\nDrag to move it (in $5 steps). It always sits above the all-stop.';
-export const BOT_BREAKER_HARD_TIP =
-  'All-stop: when this venue\'s day P&L falls to this, Nova flattens and locks bot and manual buys on this venue until 04:00 ET. Flatten and cancel still work.\nDrag to move it (in $5 steps). It always sits below the bot trip.';
-export const BOT_BREAKER_NOW_TIP =
-  'This venue\'s day P&L for the whole account — the figure both breakers compare. On Live it is after commissions.';
-/** Moving a breaker never undoes one that fired (ADR 032). */
-export const BOT_BREAKER_FIRED_NOTE = 'Moving a breaker never clears one that already fired.';
-export const BOT_BREAKER_LOOSEN_LIVE = (which: string, from: string, to: string): string =>
-  `Loosen Live's ${which} from ${from} to ${to}? Real money: the account can lose more before Nova steps in. The change is saved and recorded on the bot audit.`;
-export const BOT_BREAKER_LOOSEN_LIVE_OK = 'Loosen Live';
 
 /* ---------- QA batch: orders / account / safety (2026-09-22) ---------- */
 /** Endpoint names in "unreadable response" errors (botPayload.botUnreadableMessage). */

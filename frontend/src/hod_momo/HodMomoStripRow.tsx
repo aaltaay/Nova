@@ -12,8 +12,8 @@
  */
 import { memo } from 'react';
 import { openBotSymbolMenu } from '../bot';
-import { TICKER_OPEN_TRADER_TITLE } from '../constants';
 import { useWatchHow, WatchMark, watchMarkTitle } from '../watch_list';
+import { TickerLink } from '../components/TickerLink';
 import {
   HOD_MOMO_STRIP_NEW_FLAG,
   HOD_MOMO_STRIP_ROW_TITLE,
@@ -138,19 +138,17 @@ export const HodMomoStripRow = memo(function HodMomoStripRow({
       }}
     >
       <span className="hod-strip__time">{fmtStripClock(lead)}</span>
-      <button
-        type="button"
-        className={`symbol-btn hod-strip__sym${selected ? ' active' : ''}`}
-        title={TICKER_OPEN_TRADER_TITLE}
-        onClick={(e) => {
-          e.stopPropagation();
+      <TickerLink
+        symbol={ticker}
+        className={`hod-strip__sym${selected ? ' active' : ''}`}
+        onOpen={() => {
           onSelect(ticker);
           onOpenTrading(ticker);
         }}
       >
         {ticker}
         {how !== null ? <WatchMark symbol={ticker} className="hod-strip__star" /> : null}
-      </button>
+      </TickerLink>
       <span className="hod-strip__price">{fmtStripPrice(lead.price)}</span>
       {!compact && <span className="hod-strip__new">{isNew ? HOD_MOMO_STRIP_NEW_FLAG : ''}</span>}
       {grouped

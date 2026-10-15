@@ -250,13 +250,14 @@ async def execute(
                 return _reject(
                     execution_id, cmd, timings,
                     "Kill switch tripped — every new order on every venue is refused until you reset it "
-                    "on the Bots page. Flatten and cancels still work.",
+                    "on Strategy Bots (Freeze all orders). Flatten and cancels still work.",
                     "KILL_SWITCH",
                 )
-            from bot.buy_lock import buy_refusal
+            from loss_limit.gate import buy_refusal
 
-            # This venue's all-stop (spec D): its own line, its own lock, until 04:00 ET. A cover is a
-            # close and is never locked (ADR 048 gap 3) -- an exit pair's BUYs only ever cover (#681).
+            # This venue's daily loss limit with No new buys checked (ADR 056): until 04:00 ET, or until the
+            # operator raises the limit or unchecks it. A cover is a close and is never refused (ADR 048
+            # gap 3) -- an exit pair's BUYs only ever cover (#681).
             locked = buy_refusal(cmd.side, cmd.source, send_venue, short_entry=bool(cmd.short_entry),
                                  covers=cmd.operation == "exit_oco" or _validate.covers_short(cmd))
             if locked is not None:

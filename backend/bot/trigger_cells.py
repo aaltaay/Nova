@@ -6,7 +6,8 @@ warm-up says the same trigger again), with its grade (its ``armed`` line) and it
 ``scored`` line). ``judge(trigger, ctx)`` meets it with the gates in the order Nova runs them
 (``BOT_TRIGGER_GATES``), from what was recorded at the trigger:
 
-- ``bot_on``: the bot's state the journal stamped on the line (``bot: {level, active, venue}``);
+- ``bot_on``: the bot's state the journal stamped on the line (``bot: {level, active, venue, strategy_key}``; a
+  line without ``strategy_key`` is judged by the Bot switch alone);
 - ``strategy_on`` / ``nova_buys`` ("Entry: Bot"): the strategy's own level and the stock's mode on the trigger's
   venue at its moment (``bot.trigger_timeline``);
 - ``grade``: the grade it armed with against the strategy's ``bot_grades``, and NOT A TRADE's
@@ -150,6 +151,8 @@ def _bot_on(bot: dict[str, Any] | None) -> dict[str, Any]:
     if level is None or active is None:
         return cell(None, "the journal did not record the bot's state at this trigger")
     if level >= BOT_LEVEL_STRATEGY and active:
+        if (bot or {}).get("strategy_key") is False:
+            return cell(False, "the Strategy Bots key was off")
         return cell(True, "the bot was on")
     said = {0: " (at Off)", 1: " (at Eyes)"}.get(int(level), " (not turned on)")
     return cell(False, f"the bot was off{said}")

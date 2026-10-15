@@ -17,6 +17,7 @@ from constants_bot import (
     BOT_SETUP_FIRST_PULLBACK,
     BOT_SETUP_FLAT_TOP,
     BOT_SETUP_FLAT_TOP_5M,
+    BOT_SETUP_ABCD,
     BOT_SETUP_GAP_AND_GO,
     BOT_SETUP_LOST_VWAP,
     BOT_SETUP_PULLBACK_DIP,
@@ -227,6 +228,22 @@ SETUPS_DIP_WICK_MIN_DOLLARS = 0.02      # ... and at least 2 cents of lower wick
 SETUPS_DIP_MIN_RED_BARS = 1             # the green entry comes after at least this many red pullback candles
 SETUPS_DIP_STOP_OFFSET_DOLLARS = 0.01   # the stop sits this far under the pullback's low. CHOSEN
 
+# -- The ABCD (operator ask 2026-10-15): the stock squeezes to the high of day, pulls back to A, pushes up and fails to
+# clear the high (B: a lower high, or a double top inside the tolerance), dips to a higher low (C), and is bought one
+# cent over B (D). The material draws it on 1-minute candles over 15, sometimes 20 minutes, stops it under C, and aims
+# at the high of day, then the next half or whole dollar. It states no tolerance: like the flat top's touch, each one
+# is a percentage or a cent, whichever is more. WATCH ONLY: never tested (``constants_bot.BOT_WATCH_ONLY_SETUPS``).
+SETUPS_ABCD_SWING_PCT = 0.03            # a swing (H to A, A to B, B to C) moves at least this far to count. CHOSEN
+SETUPS_ABCD_B_OVER_PCT = 0.005          # B may double-top the high by up to this (the flat top's touch). CHOSEN
+SETUPS_ABCD_C_UNDER_PCT = 0.005         # C may sit this far under A and still hold it. CHOSEN
+SETUPS_ABCD_TOL_DOLLARS = 0.01          # ... or a cent, whichever is more. CHOSEN
+SETUPS_ABCD_BOUNCE = 0.5                # B takes back at least this share of the high-to-A drop: a real push. CHOSEN
+SETUPS_ABCD_MAX_MINUTES = 20            # from A to the break of B, at most: the material's "15, sometimes 20"
+SETUPS_ABCD_STOP_OFFSET_DOLLARS = 0.01  # the stop sits this far under C. CHOSEN
+SETUPS_ABCD_STOP_CAP_DOLLARS = 0.30     # a stop under C is wider than a pullback's: the material names no cap. CHOSEN
+SETUPS_ABCD_ENTRY_CUTOFF_ET = "15:30"   # the material gives no time of day: the 5-minute flat top's 15:30. CHOSEN
+SETUPS_ABCD_MAX_PER_SYMBOL_DAY = 2      # the first ABCD, then the second
+
 # -- "Near": price this close to the trigger is the moment to read the tape. CHOSEN.
 SETUPS_NEAR_DOLLARS = 0.03
 SETUPS_NEAR_PCT = 0.003
@@ -340,6 +357,8 @@ SETUP_KIND_RED_TO_GREEN = "red_to_green"
 SETUP_KIND_GAP_AND_GO = "gap_and_go"
 SETUP_KIND_PULLBACK_DIP = "pullback_dip"
 SETUP_KIND_SECOND_PULLBACK_DIP = "second_pullback_dip"
+SETUP_KIND_ABCD = "abcd"
+SETUP_KIND_SECOND_ABCD = "second_abcd"
 # The read-out counts each setup's first-of-the-day kind (ADR 027, ADR 031).
 SETUPS_READOUT_KINDS = {
     BOT_SETUP_FIRST_PULLBACK: SETUP_KIND_FIRST_PULLBACK,
@@ -349,6 +368,7 @@ SETUPS_READOUT_KINDS = {
     BOT_SETUP_RED_TO_GREEN: SETUP_KIND_RED_TO_GREEN,
     BOT_SETUP_GAP_AND_GO: SETUP_KIND_GAP_AND_GO,
     BOT_SETUP_PULLBACK_DIP: SETUP_KIND_PULLBACK_DIP,
+    BOT_SETUP_ABCD: SETUP_KIND_ABCD,
     BOT_SETUP_BACKSIDE: SETUP_KIND_BACKSIDE,
     BOT_SETUP_BEAR_FLAG: SETUP_KIND_BEAR_FLAG,
     BOT_SETUP_FAILED_BREAKOUT: SETUP_KIND_FAILED_BREAKOUT,
@@ -400,6 +420,7 @@ SETUP_TEMPLATE_DEFAULT_REV = 2
 SETUP_TEMPLATE_DEFAULT_REVS: dict[str, int] = {
     BOT_SETUP_FLAT_TOP: 3,      # 2: the flat top counts its touches (ADR 031 amendment 2026-10-06); 3: #845
     BOT_SETUP_PULLBACK_DIP: 1,  # #847: a new setup, on the menu's targets from its first rows
+    BOT_SETUP_ABCD: 1,          # 2026-10-15: a new setup
 }
 
 

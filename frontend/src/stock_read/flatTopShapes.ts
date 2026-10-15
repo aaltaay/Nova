@@ -19,7 +19,7 @@ import { EDGE_PRIORITY } from '../chart';
 import { FLAT_TOP_COLORS, FLAT_TOP_DIM, FLAT_TOP_FADED } from './constants';
 import type { LaneDrawOptions } from './laneShapes';
 import { fmtPx, fmtStep } from './planMath';
-import type { SceneBox, SceneDot, SceneMark, SceneSegment, SceneWord } from './sceneTypes';
+import type { SceneBox, SceneDot, SceneMark, ScenePath, SceneSegment, SceneWord } from './sceneTypes';
 import { hhmmEt } from './timeWords';
 import type { SetupLane } from './types';
 
@@ -43,6 +43,8 @@ export interface LaneDraw {
   dots: SceneDot[];
   marks: SceneMark[];
   words: SceneWord[];
+  /** Lines through points: an ABCD's swings (`abcdShapes.ts`). */
+  paths?: ScenePath[];
 }
 
 export function emptyDraw(): LaneDraw {

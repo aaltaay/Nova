@@ -9,12 +9,18 @@ from __future__ import annotations
 # 5 (ADR 042): one owner for Nova's buys. The chosen setup is retired -- ``level`` is
 # the master ceiling and every setup with a scanner keeps its own level (0..2); each
 # venue's dial carries its sleeve (``caps``), its bot list (``symbol_allowlist``) and
-# its day lock; ``setup``, ``strategy`` and the ``advise`` budget are gone. A v1-4 file
+# (ADR 056) no loss breaker; ``setup``, ``strategy`` and the ``advise`` budget are gone. A v1-4 file
 # migrates on load (``bot.persist``); an unknown version refuses loudly.
 BOT_SCHEMA_VERSION = 5
 BOT_SCHEMA_VERSIONS = (1, 2, 3, 4, 5)
 BOT_RETIRED_SESSION_KEYS = ("active_pack", "pack_settings", "llm")
 BOT_RETIRED_V5_KEYS = ("setup", "strategy", "advise")
+# ADR 056: the bot trip and the all-stop are gone (the daily loss limit replaced them). A session saved with
+# their fields -- on the row or in a venue's dial -- loads with them dropped.
+BOT_RETIRED_BREAKER_KEYS = (
+    "breakers", "soft_breaker_fired", "soft_breaker_at", "soft_breaker_pnl", "soft_breaker_usd",
+    "soft_breaker_until", "hard_lock_until_date", "hard_lock_at", "hard_lock_pnl", "hard_lock_usd",
+)
 BOT_SESSION_FILENAME = "bot-session.json"
 BOT_PROPOSALS_FILENAME = "bot-proposals.json"
 BOT_AUDIT_FILENAME = "bot-audit.jsonl"
@@ -40,6 +46,9 @@ BOT_SETUP_MICRO_PULLBACK = "micro_pullback"
 # #847 (operator ask 2026-10-12): the pullback bought at its bottom -- the candle that bottoms it, a bottoming wick
 # or the first candle to close green: the material's pullback-bottom entries. WATCH ONLY (below).
 BOT_SETUP_PULLBACK_DIP = "pullback_dip"
+# Operator ask 2026-10-15: the ABCD -- a squeeze to the high, a pullback (A), a push that fails to clear the high
+# (B), a higher low (C), bought on the break of B (D). WATCH ONLY (below): never tested.
+BOT_SETUP_ABCD = "abcd"
 # ADR 049 (#778 step 4): the five short setups, the long ones mirrored, plus the SSR bounce. A short setup sells
 # at its entry and covers under it. Since step 5 the strategy that triggers decides the side: one bot, one list.
 BOT_SETUP_BACKSIDE = "backside_lower_high"
@@ -66,6 +75,7 @@ BOT_SETUPS = (
     BOT_SETUP_RED_TO_GREEN,
     BOT_SETUP_GAP_AND_GO,
     BOT_SETUP_PULLBACK_DIP,
+    BOT_SETUP_ABCD,
     *BOT_SHORT_SETUPS,
     BOT_SETUP_MICRO_PULLBACK,
 )
@@ -78,12 +88,13 @@ BOT_SCANNER_SETUPS = (
     BOT_SETUP_RED_TO_GREEN,
     BOT_SETUP_GAP_AND_GO,
     BOT_SETUP_PULLBACK_DIP,
+    BOT_SETUP_ABCD,
     *BOT_SHORT_SETUPS,
 )
 BOT_SETUPS_WITH_SCANNER = frozenset(BOT_SCANNER_SETUPS)
 # Watch only (#847): a scanner, templates, rows, scores and drawings -- never a proposal, a trigger to Nova's bot or
 # Auto-entry, an Approve, or On. ``setup_scanner.trade_verdict`` reads NOT A TRADE on it everywhere it is asked.
-BOT_WATCH_ONLY_SETUPS = frozenset({BOT_SETUP_PULLBACK_DIP})
+BOT_WATCH_ONLY_SETUPS = frozenset({BOT_SETUP_PULLBACK_DIP, BOT_SETUP_ABCD})
 BOT_WATCH_ONLY_TEXT = ("watch only: Nova's eyes draw and score the {name}, and Nova never trades it -- no proposal, "
                        "no bot, no Auto-entry, no Approve (#847)")
 SIDE_LONG = "long"
@@ -186,22 +197,10 @@ BOT_EXIT_PCTS = (25, 50)
 BOT_DEFAULT_ASK_OFFSET_USD = 0.05
 BOT_DEFAULT_BID_EXIT_OFFSET_USD = 0.03
 
-# Loss breakers on the whole account's day P&L (operator ask 2026-09-24): the
-# operator's settings per venue (``bot.breaker_limits``), these the defaults.
-BOT_SOFT_BREAKER_USD = -50.0            # the bot trip: flatten, the bot to L0
-BOT_HARD_BREAKER_USD = -200.0           # the all-stop: flatten, bot and manual buys on its venue locked to 04:00 ET
-BOT_SOFT_BREAKER_LOOSEST_USD = -1000.0
-BOT_SOFT_BREAKER_TIGHTEST_USD = -5.0
-BOT_HARD_BREAKER_LOOSEST_USD = -5000.0
-BOT_HARD_BREAKER_TIGHTEST_USD = -10.0
-BOT_BREAKER_STEP_USD = 5.0
-BOT_BREAKER_VENUES = ("live", "paper", "sim")
-BOT_REASON_BREAKER_INVALID = "BOT_BREAKER_INVALID"
+BOT_VENUES = ("live", "paper", "sim")
 BOT_FLATTEN_RETRIES = 1
-# The breakers' notice names the order that opened what a flatten sold (``bot.flatten.opened_by``), read
-# from this many of the newest execution records (2026-10-14, GENK: "I don't think there was an order").
-BOT_FLATTEN_OPENED_BY_SCAN = 200
-BOT_BREAKER_POLL_SEC = 1.0
+# #564: how often the commission hold re-reads the session's commissions (``bot.loops.commission_loop``).
+BOT_COMMISSION_POLL_SEC = 1.0
 BOT_TTL_POLL_SEC = 0.5
 BOT_EYES_PUSH_SEC = 0.25
 
@@ -222,7 +221,6 @@ BOT_REASON_FREE_FORM_QTY = "BOT_FREE_FORM_QTY"
 BOT_REASON_SHARES_CAP = "BOT_SHARES_CAP"
 BOT_REASON_BP_BUDGET = "BOT_BP_BUDGET"
 BOT_REASON_WORKING_BLOCK = "BOT_WORKING_BLOCK"
-BOT_REASON_DAY_LOCK = "BOT_DAY_LOCK"
 BOT_REASON_BRAIN_EXCLUSIVE = "BOT_BRAIN_EXCLUSIVE"
 BOT_REASON_NEEDS_DEPTH = "BOT_NEEDS_DEPTH"
 # ADR 020 second pass (2026-09-21): a bot fires only on an allowlisted symbol
@@ -251,6 +249,10 @@ BOT_REASON_SETUP_WATCH_ONLY = "BOT_SETUP_WATCH_ONLY"
 # ADR 042: there is no chosen setup any more (``PATCH {setup}``).
 BOT_REASON_SETUP_RETIRED = "BOT_SETUP_RETIRED"
 BOT_SETUP_RETIRED_TEXT = "There is no chosen setup any more: set each setup's own level (ADR 042)"
+# ADR 056: the loss breakers are gone (``PATCH {breakers}``); one daily loss limit lives in Settings.
+BOT_REASON_BREAKERS_RETIRED = "BOT_BREAKERS_RETIRED"
+BOT_BREAKERS_RETIRED_TEXT = ("The bot trip and the all-stop are gone: set the daily loss limit in Settings > "
+                             "Loss limits (ADR 056)")
 # Activate's refusals (ADR 042 B): each says what to do in plain words.
 BOT_REASON_LIVE_NOT_BUILT = "BOT_LIVE_NOT_BUILT"
 BOT_REASON_REPLAY_DESK = "BOT_REPLAY_DESK"
@@ -258,7 +260,6 @@ BOT_REASON_VENUE_UNKNOWN = "BOT_VENUE_UNKNOWN"
 BOT_REASON_LEVEL_NOT_STRATEGY = "BOT_LEVEL_NOT_STRATEGY"
 BOT_REASON_NO_SETUP_AT_STRATEGY = "BOT_NO_SETUP_AT_STRATEGY"
 BOT_REASON_PADLOCK_LOCKED = "BOT_PADLOCK_LOCKED"
-BOT_REASON_TRIP_LATCHED = "BOT_TRIP_LATCHED"
 BOT_LIVE_NOT_BUILT_TEXT = ("Nova's bot trades Paper and Sim only. Live trading by a bot is not built; "
                            "it waits on its own operator decision (ADR 042).")
 # Sim off its live edge with nothing loaded (ADR 052): a replay is what the bot trades there.
@@ -269,12 +270,11 @@ BOT_REASON_ALLOWLIST_FULL = "BOT_ALLOWLIST_FULL"
 # A sleeve value outside its bounds is refused with them, never clamped in silence.
 BOT_REASON_CAPS_INVALID = "BOT_CAPS_INVALID"
 # Why Activate was cleared (``deactivated.reason``).
-BOT_DEACTIVATED_REASONS = ("restart", "padlock", "venue", "level", "no_setup", "bot_trip", "all_stop", "operator")
-# #564 (operator decision 2026-09-24): on Live the breakers' day P&L subtracts
-# the session's commissions; while that read fails the day P&L is unknown and
-# no new bot entry is sent. Exits, cancels, flatten and kill are never held.
+BOT_DEACTIVATED_REASONS = ("restart", "padlock", "venue", "level", "no_setup", "operator")
+# #564 (operator decision 2026-09-24): while the session's commissions cannot be read on Live, no new
+# bot entry is sent. Exits, cancels, flatten and kill are never held.
 BOT_REASON_COMMISSIONS_UNKNOWN = "BOT_COMMISSIONS_UNKNOWN"
-# The breaker polls every second: a failing read is logged once, then at most this often.
+# The commission hold reads every second: a failing read is logged once, then at most this often.
 BOT_COMMISSIONS_WARN_EVERY_SEC = 60.0
 
 # -- ADR 030: Nova's own bot on Paper and Sim (backend/bot/first_pullback/). ADR 042: it
@@ -322,6 +322,21 @@ BOT_SKIP_SHORT_PRICE = "BOT_SKIP_SHORT_PRICE"
 # ADR 049 section 12: a short setup is On only once its five-year test passed on the rules in play.
 # The Bot switch: ON is the master at Strategy and Activate in one step; OFF is the master at Eyes.
 BOT_AUDIT_ACTION_SWITCH = "bot_switch"
+# The three keys (operator decisions 2026-10-15; bot.md "The three keys"): a key per bot family, per practice
+# venue, under the Bot switch. A bot buys only while the Bot switch, its family's key and its own key are all on;
+# off stops new buys only. Owner of the file: ``bot.family_keys``.
+BOT_KEYS_FILENAME = "bot-keys.json"
+BOT_KEYS_SCHEMA_VERSION = 1
+BOT_FAMILY_STRATEGY = "strategy"
+BOT_FAMILY_LIVE_TRADER = "live_trader"
+BOT_FAMILIES = (BOT_FAMILY_STRATEGY, BOT_FAMILY_LIVE_TRADER)
+BOT_FAMILY_NAMES = {BOT_FAMILY_STRATEGY: "Strategy Bots", BOT_FAMILY_LIVE_TRADER: "LiveTrader Bots"}
+BOT_KEYS_VENUES = ("paper", "sim")       # Live has no family keys: bots never trade Live
+BOT_KEY_DEFAULT_ON = True                 # a key the file does not hold: the day before the keys traded this way
+BOT_AUDIT_ACTION_KEY = "bot_key"
+BOT_REASON_KEYS_UNREADABLE = "BOT_KEYS_UNREADABLE"
+BOT_REASON_KEY_UNKNOWN = "BOT_KEY_UNKNOWN"
+BOT_SKIP_FAMILY_OFF = "BOT_SKIP_FAMILY_OFF"
 # The squares, by ticker (``GET /api/bot/triggers``): the gates in the order Nova runs them.
 BOT_TRIGGERS_SCHEMA_VERSION = 1
 BOT_TRIGGER_GATES = (

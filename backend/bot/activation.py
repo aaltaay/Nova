@@ -8,19 +8,22 @@ the press and after it:
   (a loaded replay is traded like Paper, ADR 052), ``BOT_VENUE_UNKNOWN`` when the venue cannot be read;
 - ``BOT_LEVEL_NOT_STRATEGY`` with the master below Strategy;
 - ``BOT_NO_SETUP_AT_STRATEGY`` with no setup at effective Strategy;
-- ``BOT_PADLOCK_LOCKED`` while the desk's padlock is locked;
-- ``BOT_TRIP_LATCHED`` while this venue's bot trip holds, unless re-enable is asked.
+- ``BOT_PADLOCK_LOCKED`` while the desk's padlock is locked.
+
+No loss limit turns the bot off (ADR 056): the daily loss limit's No new buys refuses entries at the
+execution door, and the ``loss_limit`` gate says so.
 
 The backend clears Activate -- with a ``deactivate`` audit line and the session's
 ``deactivated: {at, reason, text}`` -- on every process start (``clear_on_load`` /
 ``note_start``: spend arming never survives a start either, ADR 018), when anyone locks
 the padlock (``on_disarm``, called from ``ibkr.safety``), on a venue change
-(``bot.venue_levels``), with the master below Strategy or no setup left at Strategy
-(``bot.autonomy``), on a trip (``bot.autonomy.drop_to_eyes``) and by the operator.
+(``bot.venue_levels``), with the master below Strategy (``bot.autonomy``) and by the operator. No setup
+left at Strategy no longer clears it (2026-10-15): the Bot switch is the top of three keys, and with any key off no
+bot places an order, so a lower key must not flip it (bot.md, "The three keys"). Older lines may read ``no_setup``.
 
 ADR 044: the desk shows one Bot switch per venue instead of the master dial and Activate
 (``bot.switch``): ON is the master at Strategy and Activate in one step, refused with
-Activate's own codes (``refusal``); OFF and a trip leave the master at Eyes.
+Activate's own codes (``refusal``); OFF leaves the master at Eyes.
 
 Owner: this module (the rules; the session file is ``bot.persist``'s).
 """
@@ -39,7 +42,6 @@ from constants_bot import (
     BOT_REASON_NO_SETUP_AT_STRATEGY,
     BOT_REASON_PADLOCK_LOCKED,
     BOT_REASON_REPLAY_DESK,
-    BOT_REASON_TRIP_LATCHED,
     BOT_REASON_VENUE_UNKNOWN,
     BOT_REPLAY_NOTHING_LOADED_TEXT,
     BOT_TZ,
@@ -53,8 +55,6 @@ _TEXT = {
     "venue": "the desk moved to another venue: the bot never carries into another venue",
     "level": "the master level left Strategy",
     "no_setup": "no setup is at Strategy any more",
-    "bot_trip": "the bot trip fired: the bot is off, Eyes keep watching (ADR 044)",
-    "all_stop": "the all-stop fired: the bot is off, Eyes keep watching, and buys are locked for the day",
     "operator": "you turned the bot off",
 }
 # Set when the first load of this process found Activate on and cleared it (in memory);
@@ -143,20 +143,11 @@ def money(value: Any) -> str:
     return f"{'-' if v < 0 else ''}${abs(v):,.2f}"
 
 
-def trip_text(row: dict[str, Any], act: str = "Activate") -> str:
-    """The bot trip in words; ``act`` names the control that re-enables it (the Bot switch: ``Turn the bot on``)."""
-    at, pnl = row.get("soft_breaker_at"), row.get("soft_breaker_pnl")
-    when = f" at {hhmm(at)} ET" if at else " today"
-    said = f" (P&L {money(pnl)})" if isinstance(pnl, (int, float)) else ""
-    return f"The bot trip fired{when}{said}. {act} with re-enable to trade again today."
-
-
 # -- Activate ------------------------------------------------------------------------
-def refusal(row: dict[str, Any], *, reenable: bool = False, padlock_rule: bool = True) -> BotError | None:
+def refusal(row: dict[str, Any], *, padlock_rule: bool = True) -> BotError | None:
     """Why Activate refuses now (the first rule that fails), else None.
 
     ``padlock_rule=False`` leaves the padlock out, for a control that unlocks it itself (the Bot switch)."""
-    from bot.clock import soft_latched
     from bot.setup_levels import at_strategy, master
 
     venue, edge, readable = venue_state()
@@ -173,13 +164,11 @@ def refusal(row: dict[str, Any], *, reenable: bool = False, padlock_rule: bool =
     if not ok:
         return BotError(f"the desk padlock is locked ({why}) -- unlock it, then Activate", 409,
                         BOT_REASON_PADLOCK_LOCKED)
-    if soft_latched(row) and not reenable:
-        return BotError(trip_text(row), 409, BOT_REASON_TRIP_LATCHED)
     return None
 
 
-def assert_can_activate(row: dict[str, Any], *, reenable: bool = False) -> None:
-    refused = refusal(row, reenable=reenable)
+def assert_can_activate(row: dict[str, Any]) -> None:
+    refused = refusal(row)
     if refused is not None:
         raise refused
 

@@ -386,9 +386,4 @@ def halts_rows(f: dict[str, Any], d: dict[str, Any]) -> list[dict[str, Any]]:
     out.append(row("candle", "Normal 1-minute candle", f"{med:.2f}" if med is not None else "Not known",
                    "info" if med is not None else "unknown", "The median range of the last 20 closed candles",
                    "A stop inside one normal candle is easy to shake out." if med is not None else None))
-    bot = f.get("bot") or {}
-    br = d.get("breakers")
-    if br:
-        out.append(row("breakers", "Loss breakers", f"bot trip {br['soft_usd']:+,.0f} · all-stop {br['hard_usd']:+,.0f}",
-                       "info", f"The bot's breakers on {str(bot.get('venue') or '?').title()}"))
     return out

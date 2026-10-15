@@ -8,6 +8,7 @@ import {
   subscribeNovaOsAttention,
   type NovaOsAttentionEvent,
 } from './novaOsAttention';
+import { TickerLink } from '../components/TickerLink';
 
 interface Props {
   /** Mount once near the app root (App.tsx) so a kill switch or expired
@@ -55,7 +56,7 @@ export function NovaOsAttentionStrip({ global = false }: Props = {}) {
       role="status"
     >
       <div className="nova-os-attention-body">
-        {top.symbol && <strong>{top.symbol} </strong>}
+        {top.symbol && <strong><TickerLink symbol={top.symbol} /> </strong>}
         {top.message}
       </div>
       <div className="nova-os-attention-actions">

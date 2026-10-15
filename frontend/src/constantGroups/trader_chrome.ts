@@ -202,7 +202,7 @@ export const FOCUS_RAIL_CARD_REC_BODY =
 export const FOCUS_RAIL_CARD_BOT_HELD_HEAD = 'Bot trades it · watching';
 export const FOCUS_RAIL_CARD_BOT_HELD_BODY =
   'Set to Bot (bot buys and sells), and Nova holds its Level 2 line (an open Trader tab or a recording), so the bot can see it. '
-  + 'Any bot entry still passes the gates on the Bots page.';
+  + 'Any bot entry still passes the gates on Strategy Bots.';
 export const FOCUS_RAIL_CARD_BOT_QUIET_HEAD = 'Bot trades it · quiet';
 export const FOCUS_RAIL_CARD_BOT_QUIET_BODY =
   'Set to Bot, but Nova holds no Level 2 line for it, so the bot cannot act on it: it skips its triggers. '

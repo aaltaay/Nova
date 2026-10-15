@@ -340,3 +340,22 @@ for the last two.
 **Not changed.** Every other setup; the tape gate (it reads the tape at the dip's close, for the record); the
 scoring and the side-by-side target scores, which it gets like every setup. Schema: `architecture/schema/setups.md`,
 "The pullback dip: a watch-only setup".
+
+## Amendment 2026-10-15 -- the ABCD, a watch-only setup
+
+**Context.** Operator ask 2026-10-15: an ABCD pattern on the charts, with tolerances like the flat top's; the design
+(a PNG on the operator's drive) was approved, then "build the strategy into the charts". The operator's material
+draws it: a squeeze to the high, a pullback (A), a push that fails to make a new high (B), a higher low (C), bought
+on the break of B (D). It has never been tested.
+
+**Decision.**
+- A new setup, `abcd` (`setup_scanner/abcd_shape.py`, `setup_scanner/abcd.py`), on section 1's lanes. Its swings are a
+  zigzag of 3%; B may double-top the high by 0.5% (or 1c), C may sit 0.5% (or 1c) under A, B takes back half the drop
+  to A, and B breaks within 20 minutes of A. Entry 1c over B on a live price (section 1's trigger), stop 1c under C,
+  target 1 the high of day by default. Every number is a template parameter; the tolerances are chosen, the way the
+  flat top's touch is.
+- **Watch only**, exactly as the pullback dip (amendment 2026-10-12): no proposal, no listener, NOT A TRADE, On
+  refused. Whether any setting earns a trade is for research, never this scanner's rows.
+
+**Not changed.** Every other setup. Schema: `architecture/schema/setups.md`, "The ABCD: a watch-only setup".
+

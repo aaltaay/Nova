@@ -1,4 +1,8 @@
-"""The day P&L the loss breakers compare, and the meter that says exactly what it is.
+"""The account's day P&L meter (``GET /api/bot/pnl``) and the #564 commission hold.
+
+Nothing compares this figure any more: the loss breakers it fed are gone (ADR 056), and the daily
+loss limit counts only trades opened today (``loss_limit``). The meter stays read-only, and its Live
+read refreshes the commission hold every ``BOT_COMMISSION_POLL_SEC`` (``bot.loops.commission_loop``).
 
 - **Live**: IBKR's ``reqPnL.dailyPnL`` for the READY session/account (#664); a stated
   ``RealizedPnL`` + ``UnrealizedPnL`` summary fallback while daily P&L is unavailable.
@@ -8,12 +12,12 @@
   price + commissions to close the position)", and the average cost behind unrealized P&L is
   "cost (execution price + commission) / quantity" (TWS Users' Guide, Profit and Loss). Until
   2026-09-30 the breakers subtracted the session's commission reports again, so every commission
-  counted twice and a breaker tripped that many dollars early (spec D). The commissions are still
-  read -- for the meter and for the hold below -- and never subtracted.
+  counted twice (spec D). The commissions are still read -- for the meter and for the hold below --
+  and never subtracted.
 - **Paper, and Sim at the live edge**: the practice ledger's ``DayPnL`` -- net liquidation less
   the 04:00 ET equity, every fee already paid out of cash (QA W2).
-- **Sim off the live edge** (a replay): nothing. A replay's P&L is not today's, so the breakers
-  compare nothing there and the meter says so (``bot.breaker_limits.REPLAY_NOTE``).
+- **Sim off the live edge** (a replay): nothing. A replay's P&L is not today's, and the meter says
+  so (``REPLAY_NOTE``).
 
 #564 (operator decision 2026-09-24): a commission read that fails is a stated unknown, never $0.
 While it fails, the bot sends no new entry on Live (``commission_hold``, read by
@@ -42,11 +46,11 @@ LIVE_COMPARES = "IBKR's daily P&L for the account; commissions are already inclu
 LIVE_FALLBACK_COMPARES = ("Fallback: IBKR's realized + unrealized P&L for the account. "
                          "It includes an overnight position's lifetime unrealized P&L; "
                          "commissions are already inside both, so none is subtracted again.")
-LIVE_RESET = ("IBKR owns the daily reset, configured in TWS; the API does not report its time. "
-              "Nova's breaker locks still lift at 04:00 ET.")
+LIVE_RESET = "IBKR owns the daily reset, configured in TWS; the API does not report its time."
 FALLBACK_RESET = "The account-summary fallback has no daily-reset guarantee."
 PRACTICE_COMPARES = ("{venue}'s day P&L since 04:00 ET: net liquidation less the 04:00 equity, "
                      "every commission and fee already paid.")
+REPLAY_NOTE = "Sim replay: a replay's P&L is not today's, so the meter reads nothing here."
 
 _lock = threading.Lock()
 _hold: dict[str, Any] | None = None     # {"error", "since"} while the last commission read failed
@@ -122,10 +126,9 @@ def commission_hold(venue: str | None = None) -> dict[str, Any] | None:
         hold = dict(_hold) if _hold is not None else None
     if hold is None:
         return None
-    from bot.buy_lock import desk_venue
     from constants_sim import DESK_PRACTICE_VENUES
 
-    current = venue if venue is not None else desk_venue()
+    current = venue if venue is not None else _desk_venue()
     return None if current in DESK_PRACTICE_VENUES else hold
 
 
@@ -134,9 +137,7 @@ def practice_day_pnl(summary: dict[str, Any] | None) -> float | None:
 
     It is net liquidation less the 04:00 ET equity: today's realized plus the
     open positions' move since the boundary, every fee already paid out of
-    cash -- so no commission is subtracted again. The lifetime realized that
-    the summary used to carry could trip the breaker at the first poll of a
-    new day on a ledger that had lost $50 since its last reset.
+    cash -- so no commission is subtracted again.
     """
     if not summary or not summary.get("practice"):
         return None
@@ -152,7 +153,7 @@ def _ibkr_day(summary: dict[str, Any]) -> float | None:
 
 
 def day_pnl_usd(summary: dict[str, Any] | None) -> float | None:
-    """The practice ``DayPnL`` or Live summary fallback; the breaker uses ``read_account_day_pnl``."""
+    """The practice ``DayPnL`` or Live summary fallback; the meter uses ``read_account_day_pnl``."""
     if not summary:
         return None
     practice = practice_day_pnl(summary)
@@ -161,22 +162,39 @@ def day_pnl_usd(summary: dict[str, Any] | None) -> float | None:
     return _ibkr_day(summary)
 
 
-def _desk() -> tuple[str | None, bool]:
-    from bot.breaker_limits import replay_desk
-    from bot.buy_lock import desk_venue
+def _desk_venue() -> str | None:
+    """The desk venue, or None when it cannot be read (logged; the hold then counts it as Live)."""
+    try:
+        from sim.mode import venue
 
-    venue = desk_venue()
-    return venue, venue == "sim" and replay_desk()
+        return venue()
+    except Exception:
+        logger.warning("bot day P&L: the desk venue is unreadable -- read as Live", exc_info=True)
+        return None
+
+
+def _replay_desk() -> bool:
+    """Sim off the live edge; a live edge Nova cannot read counts as a replay (logged)."""
+    try:
+        from sim.mode import is_replay_desk
+
+        return bool(is_replay_desk())
+    except Exception:
+        logger.warning("bot day P&L: the Sim live edge is unreadable -- read as a replay", exc_info=True)
+        return True
+
+
+def _desk() -> tuple[str | None, bool]:
+    venue = _desk_venue()
+    return venue, venue == "sim" and _replay_desk()
 
 
 def read_account_day_pnl() -> tuple[float | None, dict[str, Any]]:
-    """``(day_pnl, meter)``: the figure the breakers compare now, and what it is in plain words.
+    """``(day_pnl, meter)``: the account's day P&L now, and what it is in plain words.
 
     The meter always says ``compares`` (the words), ``source`` and ``venue``; ``day_pnl`` is None
     when there is nothing to compare (a Sim replay, or neither broker figure known -- ``error``).
     """
-    from bot.breaker_limits import REPLAY_NOTE
-
     venue, replay = _desk()
     meter: dict[str, Any] = {"venue": venue, "compared": True, "note": None, "error": None,
                              "commissions": None, "commissions_in_figure": True,

@@ -4,8 +4,9 @@
  * collapsed it is a tray of child icons with a hairline between groups
  * (operator ask, 2026-09-22); it no longer folds (operator ask, 2026-09-23).
  * Shared by every view -- Market, Trader, Scanner (the registry's grouped tab
- * modules), Cryptos, Followed traders (only with a feed configured), Account, Bots,
- * Records, then Advise + Settings + collapse pinned at the foot.
+ * modules), Cryptos, Followed traders (only with a feed configured), Account, Bots
+ * (a group: LiveTrader Bots and Strategy Bots under it, NavRailBotsTree), Records,
+ * then Advise + Settings + collapse pinned at the foot.
  *
  * Routing: Trader is the workspace's Stock View; Market / Cryptos / Followed traders /
  * Records / Account / Bots are shell pages (navRailStore); Scanner children are dashboard tabs asked for
@@ -20,18 +21,14 @@ import {
   NAV_RAIL_COLLAPSE_TITLE,
   NAV_RAIL_EXPAND_TITLE,
   NAV_RAIL_GROUP_LABELS,
-  NAV_RAIL_LABEL_BOTS,
   NAV_RAIL_LABEL_CRYPTOS,
-  NAV_RAIL_LABEL_FOLLOWED,
   NAV_RAIL_LABEL_MARKET,
   NAV_RAIL_LABEL_RECORDS,
   NAV_RAIL_LABEL_SCANNER,
   NAV_RAIL_LABEL_SETTINGS,
   NAV_RAIL_LABEL_TRADER,
   NAV_RAIL_RECORDING_MAX,
-  NAV_RAIL_TITLE_BOTS,
   NAV_RAIL_TITLE_CRYPTOS,
-  NAV_RAIL_TITLE_FOLLOWED,
   NAV_RAIL_TITLE_MARKET,
   NAV_RAIL_TITLE_RECORDS,
   NAV_RAIL_TITLE_SCANNER,
@@ -42,20 +39,20 @@ import {
   navRailRecordingTitle,
 } from '../constantGroups/nav_rail';
 import { TRADER_DEFAULT_SYMBOL } from '../constants';
-import { useFollowedTradersEnabled } from '../followed_traders';
 import { formatScannerNavCount, scannerNavIcon } from '../scanner/scannerNavIcons';
 import {
   navRailCollapsedDefault,
   requestScannerTab,
   setNavPage,
   useNavRailSnapshot,
+  type NavPage,
 } from '../workspace/navRailStore';
 import { listScannerNavGroups, type ActiveTab } from '../workspace/registry';
 import { isDockTab } from '../workspace/scannerTabs';
 import { useModuleVisibility } from '../workspace/useModuleVisibility';
 import { useWorkspace } from '../workspace/WorkspaceContext';
-import { NavRailBotDot } from '../bot/NavRailBotDot';
 import { NavRailAccountItem } from './NavRailAccountItem';
+import { NavRailBotsTree } from './NavRailBotsTree';
 import { navRailIcon } from './navRailIcons';
 import { NavRailItem } from './NavRailItem';
 import { readNavRailPrefs, writeNavRailPrefs, type NavRailPrefs } from './navRailPersist';
@@ -84,16 +81,13 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
   const groups = useMemo(() => listScannerNavGroups(), []);
   // The guarded list: strings only, a stale status records nothing (QA C14 / C23).
   const recordingSymbols = useRecordingSymbols();
-  // Only a desk whose backend has a followed traders feed shows the item (NOVA_FOLLOW_FEED_URL).
-  const followedOn = useFollowedTradersEnabled();
 
   const dashboardUp = !traderActive && page === 'dashboard';
   // The Account page is a shell page; the legacy Account / Reports dashboard
   // tabs still light the item when something else selects them.
   const accountActive =
     (!traderActive && page === 'account') || (dashboardUp && isAccountTab(scanner.activeTab));
-  const botsActive = !traderActive && page === 'bots';
-  const scannerActive = dashboardUp && !accountActive && !botsActive;
+  const scannerActive = dashboardUp && !accountActive;
   // The list on the board keeps the highlight. HOD Momo / Running Up focus the
   // alert strip above it, so they get a quiet strip mark instead -- the rail
   // used to say "Running Up" over a board still reading "Losers" (QA V6).
@@ -113,7 +107,7 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
   const leaveTrader = () => {
     if (traderActive) onLeaveTrader();
   };
-  const goPage = (next: 'market' | 'records' | 'account' | 'bots' | 'cryptos' | 'followed') => {
+  const goPage = (next: Exclude<NavPage, 'dashboard'>) => {
     leaveTrader();
     setNavPage(next);
   };
@@ -210,29 +204,11 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
           active={!traderActive && page === 'cryptos'}
           onClick={() => goPage('cryptos')}
         />
-        {followedOn && (
-          <NavRailItem
-            testId="nav-rail-followed"
-            icon={navRailIcon('followed')}
-            label={NAV_RAIL_LABEL_FOLLOWED}
-            title={NAV_RAIL_TITLE_FOLLOWED}
-            active={!traderActive && page === 'followed'}
-            onClick={() => goPage('followed')}
-          />
-        )}
         {visibility.trading !== false && (
           <NavRailAccountItem active={accountActive} onOpen={() => goPage('account')} />
         )}
         {visibility.strategy !== false && (
-          <NavRailItem
-            testId="nav-rail-bots"
-            icon={navRailIcon('bots')}
-            label={NAV_RAIL_LABEL_BOTS}
-            title={NAV_RAIL_TITLE_BOTS}
-            active={botsActive}
-            onClick={() => goPage('bots')}
-            trailing={<NavRailBotDot />}
-          />
+          <NavRailBotsTree page={traderActive ? null : page} onOpen={goPage} />
         )}
         <NavRailItem
           testId="nav-rail-records"

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DASH, duration, entered, etTime, exitPrice, exited, held, plPct, plPerShare, plTone, price } from './format';
+import { DASH, duration, entered, etTime, exitPrice, exited, held, plAtStake, plPct, plPerShare, plTone, price, signedUsd } from './format';
 import type { FollowedExit } from './types';
 
 // 2026-10-13 10:42:07 EDT
@@ -33,6 +33,15 @@ describe('followed traders format', () => {
     expect(plTone(range)).toBe('flat');
     expect(plTone({ per_share: 0.2, pct: 1 })).toBe('up');
     expect(plPerShare(null, 2)).toBe(DASH);
+  });
+
+  it('writes what $1,000 in the trade would have made, a range as a range', () => {
+    expect(plAtStake({ per_share: -0.02, pct: -2.63 })).toBe('−$26.30');
+    expect(plAtStake({ per_share: 0.11, pct: 2.61 })).toBe('+$26.10');
+    expect(plAtStake({ low_per_share: -0.3, high_per_share: 0.1, low_pct: -15, high_pct: 5 })).toBe('−$150.00 to +$50.00');
+    expect(plAtStake({ per_share: 0, pct: 0 })).toBe('$0.00');
+    expect(plAtStake(null)).toBe(DASH);
+    expect(signedUsd(1234.5)).toBe('+$1,234.50');
   });
 
   it('writes how long it was held, saying what it cannot know', () => {

@@ -9,26 +9,31 @@ and every open row when the key turns on or the host comes back on air, is alrea
 A held position follows its host's adds, one settled add at a time (``feed_rows.add_groups``), up to ``adds``.
 A read in doubt opens and adds nothing (bot.md, "Bad reads"): a row another host showed (``LT_OTHER_HOST``), a side
 the reader could not read whole (``LT_ROW_UNREAD``), an add no add could make (``LT_ADD_IMPLAUSIBLE``), no stream
-clock (``LT_NO_CLOCK``). Shapes: architecture/schema/bot.md ("The Live Trader bot").
+clock (``LT_NO_CLOCK``). The bar's own moves (``decide_bar``) hold a take while a whole bar is blank
+(``LT_BLANK_BAR``) or just after a return (``LT_RETURN_SWITCH``), and rows that fill an empty bar together are
+already open (``feed_rows.filled_together``). Shapes: architecture/schema/bot.md ("The Live Trader bot").
 """
 from __future__ import annotations
 
 from typing import Any
 
-from bot.live_trader import feed_rows, rules
+from bot.live_trader import decide_bar, feed_rows, rules
 from bot.live_trader.constants_live_trader import (
     LT_ADDS_DONE,
     LT_AFTER_SELL_ALL,
+    LT_BLANK_BAR,
     LT_ALREADY_OPEN,
     LT_ASK_EXPIRED,
     LT_ASK_SEC,
     LT_ASK_SKIPPED,
     LT_HIDDEN,
+    LT_KEY_OFF,
     LT_NO_CLOCK,
     LT_NOT_ON_BAR,
     LT_OFF_AIR,
     LT_OPEN_FRESH_SEC,
     LT_OTHER_HOST,
+    LT_RETURN_SWITCH,
     LT_ROW_UNREAD,
     LT_WAIT_SEC,
 )
@@ -36,21 +41,6 @@ from bot.live_trader.decide_closes import hms
 from constants_stock_mode import STOCK_MODE_APPROVE, STOCK_MODE_SIGNAL
 from followed_traders.pricing import priceable
 from stock_mode.model import mode_of
-
-STEP_KINDS = ("entry", "already_open", "add")
-
-
-def used_by_host(book: dict[str, dict[str, Any]]) -> dict[str, float]:
-    """Each host's dollars in the market: what its positions cost, and its steps in flight at their limits."""
-    out: dict[str, float] = {}
-    for p in book.values():
-        cost = float(p.get("cost_usd") or 0.0)
-        order = p.get("order") or {}
-        if order.get("step") in STEP_KINDS and order.get("qty") and order.get("limit"):
-            cost += float(order["qty"]) * float(order["limit"])
-        out[p["host"]] = out.get(p["host"], 0.0) + cost
-    return out
-
 
 def verb(side: str, past: bool = False) -> str:
     if side == "short":
@@ -76,19 +66,6 @@ def _blocked(ctx: dict[str, Any], flags: dict[str, Any], on_air: bool, name: str
     return None
 
 
-def _against(book: dict[str, dict[str, Any]], ctx: dict[str, Any], side: str, symbol: str) -> str | None:
-    other = "short" if side == "long" else "long"
-    for p in book.values():
-        if p["symbol"] == symbol and p["side"] == other:
-            return f"the bot holds {symbol} {other} for {p['host']}: Nova never holds both sides"
-    held = ctx["held"](symbol, other)
-    if held is None:
-        return f"Paper's {symbol} position could not be read, so the bot cannot tell it is not against one"
-    if held > 0:
-        return f"you hold {symbol} {other} on Paper ({held:g} shares): the bot never trades against a position"
-    return None
-
-
 class _Pass:
     """One pass's steps for one host: the context, the snapshot and the running allowance."""
 
@@ -106,7 +83,7 @@ class _Pass:
         return rules.check(side=side, symbol=symbol, their_price=their_price, settings=st,
                            quote=self.ctx["quote"](symbol), cap=self.ctx["cap"](symbol), ticker=ticker,
                            used_usd=self.used.get(name, 0.0),
-                           against=_against(self.book, self.ctx, side, symbol) if entry else None,
+                           against=rules.against(self.book, self.ctx, side, symbol) if entry else None,
                            short_closed=self.ctx["short_closed"](self.now) if side == "short" else None,
                            priceable=priceable(symbol), now=self.now, wait_since=since, prev_price=prev_price)
 
@@ -136,6 +113,14 @@ class _Pass:
 
     def wait(self, pid, r, v) -> None:
         self.out["waits"][pid] = {"symbol": r["symbol"], "code": v["code"], "text": v["text"]}
+
+    def hold(self, name, r, pid, code, why) -> None:
+        """A take waiting on the bar's own move, said once (``act.note``) and on the card's waits."""
+        self.wait(pid, r, {"code": code, "text": why})
+        self.out["actions"].append({"kind": "note", "host": name, "pos_id": pid, "row_id": r["id"],
+                                    "symbol": r["symbol"], "side": r["side"], "step": code.lower(),
+                                    "change": {"kind": "already_open", "ts": r["entry_ts"], "price": r["price"]},
+                                    "why": f"not taking {r['symbol']} yet -- {why}"})
 
     def send(self, name, r, pid, step, plan, change, *, approved: bool) -> None:
         self.used[name] = self.used.get(name, 0.0) + plan["cost_usd"]
@@ -332,17 +317,35 @@ class _Pass:
             self.send(name, r, pid, "add", v["plan"], change, approved=False)
 
 
+def _key_off_adds(run: _Pass, name: str, st: dict[str, Any], open_rows: list[dict[str, Any]], hs: dict[str, Any],
+                  book: dict[str, dict[str, Any]], closing: set[str]) -> None:
+    """The host's key is off: its bot places no order, and each add of what it holds is a skip (``LT_KEY_OFF``),
+    so turning the key back on never buys an add made while it was off (operator decision 2026-10-15)."""
+    off = (LT_KEY_OFF, f"{name}'s Bot key is off: its bot places no order")
+    for r in open_rows:
+        pid = feed_rows.position_id(name, r["side"], r["symbol"])
+        pos = book.get(pid)
+        if pos is None or pos["row_id"] != r["id"] or pid in closing:
+            continue
+        rs = hs["rows"].setdefault(r["id"], {"fate": None, "since": None, "groups_done": None, "ask_id": None,
+                                             "kind": "open"})
+        run.add(name, st, r, rs, pos, off, set())
+
+
 def _host_state() -> dict[str, Any]:
     return {"rows": {}, "keyed": False, "on_air": None}
 
 
 def steps(snap: dict[str, Any], answer: dict[str, Any], book: dict[str, dict[str, Any]], ctx: dict[str, Any],
           flags: dict[str, Any], out: dict[str, Any]) -> None:
-    run = _Pass(snap, answer, book, ctx, out, used_by_host(book))
+    run = _Pass(snap, answer, book, ctx, out, rules.used_by_host(book))
     if answer["state"] != "ok":
         run.expire_asks()                      # an ask times out with no read of the feed too
         return
     closing = {a["pos_id"] for a in out["actions"] if a["kind"] in ("close", "rekey")}
+    # A row a held position follows under its glued ticker is no new entry while its check runs (#1010); settled on
+    # another stock, the position sells (``decide_closes``) and the row is judged as any other.
+    followed = {p["row_id"] for p in book.values()} | {a["row_id"] for a in out["actions"] if a["kind"] == "rekey"}
     no_reentry = ctx.get("no_reentry") or set()
     for name in answer.get("order") or []:
         h = answer["hosts"][name]
@@ -352,6 +355,7 @@ def steps(snap: dict[str, Any], answer: dict[str, Any], book: dict[str, dict[str
         came_back = hs.get("on_air") is False and on_air
         first = bool(st["key"]) and not hs.get("keyed")
         hs.update(on_air=on_air, keyed=bool(st["key"]))
+        returned = decide_bar.returning(hs, h, run.now, came_back)
         ids = {r["id"] for r in h["rows"]}
         hs["rows"] = {k: v for k, v in hs["rows"].items() if k in ids}     # today's rows only: memory stays small
         open_rows = sorted((r for r in h["rows"] if r["status"] == "open" and not r.get("left_bar")),
@@ -362,15 +366,21 @@ def steps(snap: dict[str, Any], answer: dict[str, Any], book: dict[str, dict[str
                 run.drop_ask(ask_id, "the key is off" if not st["key"] else
                              f"{name} closed {ask['symbol']} before you answered")
         if not st["key"]:
+            _key_off_adds(run, name, st, open_rows, hs, book, closing)
             continue
         blocked = _blocked(ctx, flags, on_air, name)
         unread = set(h.get("unread") or ())
+        blank = (flags.get("bar") or {}).get("hosts", {}).get(name)
         for r in open_rows:
             pid = feed_rows.position_id(name, r["side"], r["symbol"])
+            held = (LT_BLANK_BAR, blank) if blank else (LT_RETURN_SWITCH, returned.get(r["id"]))
+            if held[1] and pid not in book:   # the bar's own moves (decide_bar): no take until it settles
+                run.hold(name, r, pid, *held)
+                continue
             rs = hs["rows"].get(r["id"])
             if rs is None:
-                late = not r["known"] or (run.feed_now is not None
-                                          and run.feed_now - r["entry_ts"] > LT_OPEN_FRESH_SEC)
+                late = not r["known"] or feed_rows.filled_together(r, h["rows"]) or (
+                    run.feed_now is not None and run.feed_now - r["entry_ts"] > LT_OPEN_FRESH_SEC)
                 rs = hs["rows"][r["id"]] = {"fate": None, "since": None, "groups_done": None, "ask_id": None,
                                             "kind": "already_open" if (first or came_back or late) else "open"}
             elif (first or came_back) and rs["fate"] in (None, "blocked", "released", "waiting"):
@@ -380,7 +390,8 @@ def steps(snap: dict[str, Any], answer: dict[str, Any], book: dict[str, dict[str
                 if pos["row_id"] == r["id"] and pid not in closing:
                     run.add(name, st, r, rs, pos, blocked, unread)
                 continue
-            if pid in closing or r["id"] in no_reentry:
+            if pid in closing or r["id"] in no_reentry or (
+                    r["id"] in followed and (r.get("ticker") or {}).get("state") == "checking"):
                 continue
             run.entry(name, st, r, rs, pid, blocked, unread)
 

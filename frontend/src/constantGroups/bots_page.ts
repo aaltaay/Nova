@@ -4,10 +4,15 @@
  */
 import type { DeskVenue } from './desk_venue';
 
-export const BOTS_PAGE_TITLE = 'Bots';
+/** Bots > Strategy Bots (2026-10-15): the page that was Bots. */
+export const BOTS_PAGE_TITLE = 'Strategy Bots';
 export const BOTS_PAGE_SUB =
   'Your playbook, run by the bot: what it watches, what it may risk, what it proposed and did.';
 export const BOTS_PAGE_LOADING = 'Loading the bot session…';
+/** Bots > LiveTrader Bots, and Bots itself -- empty for now (operator, 2026-10-15: "keep it empty for now"). */
+export const LT_BOTS_PAGE_TITLE = 'LiveTrader Bots';
+export const BOTS_GROUP_TITLE = 'Bots';
+export const BOTS_GROUP_EMPTY = 'Open LiveTrader Bots or Strategy Bots on the left.';
 export const BOTS_PAGE_SAVING = 'Saving…';
 
 /** The venue chip's second half: whose money the bot would be spending. */
@@ -174,22 +179,6 @@ export const BOTS_EH_HINT = 'Off: the bot and Auto-entry skip triggers outside 0
 export const BOTS_KINDS_LABEL = 'Order kinds (the localhost bot API)';
 export const BOTS_KINDS_TIP =
   'What an external bot on the localhost bot API may send on Paper and Sim. Nova\'s own bot and Auto-entry use their own entry and bracket. The API refuses Live.';
-export const BOTS_BREAKERS_TITLE = 'Loss breakers';
-/** ADR 032: the breakers are the operator's, per venue. */
-export const BOTS_BREAKERS_VENUE = (venue: string): string => `${venue} · drag to move`;
-export const BOTS_BREAKERS_DEFAULTS = 'defaults';
-export const BOTS_BREAKERS_CUSTOM = 'yours';
-export const BOTS_BREAKERS_OLD_API =
-  'This API keeps the breakers fixed at −$50 / −$200 -- restart the backend to move them';
-export const BOTS_BREAKERS_RESET = 'Reset to −$50 / −$200';
-export const BOTS_BREAKERS_SAVING = 'Saving…';
-export const BOTS_BREAKER_TODAY = 'today';
-export const BOTS_BREAKER_TODAY_UNKNOWN = 'today unknown';
-export const BOTS_BOT_PNL_POLL_MS = 5_000;
-export const botsSoftFired = (when: string, pnl: string, until: string): string =>
-  `Bot trip fired${when ? ` at ${when}` : ''}${pnl ? ` at ${pnl}` : ''}: the bot is off on this venue${until ? ` until ${until}` : ' until 04:00 ET'}; turning it back on asks you first.`;
-export const botsDayLocked = (venue: string, when: string, pnl: string, until: string): string =>
-  `All-stop fired${when ? ` at ${when}` : ''}${pnl ? ` at ${pnl}` : ''}: bot and manual buys on ${venue} are locked${until ? ` until ${until}` : ' until 04:00 ET'}. Flatten and cancel still work.`;
 
 /* ---------- Proposals ---------- */
 export const BOTS_PROPOSALS_TITLE = 'Proposals';
@@ -264,7 +253,23 @@ export const BOTS_STATUS_ORDER_KINDS = 'Order kinds (the localhost bot API):';
 
 /* ---------- Header pill and the Trader rail card ---------- */
 export const BOTS_PILL_LABEL = 'Bot';
-export const BOTS_PILL_TITLE = 'Open the Bots page';
+export const BOTS_PILL_TITLE = 'Open Strategy Bots';
+
+/* ---------- The three keys (operator decisions 2026-10-15) ---------- */
+/** A bot places orders only while the header's Bot switch, its family's key and its own key are all on; off at any
+ *  level, it places none -- "Bots can not place order or sell orders". */
+export const BOT_FAMILY_NAMES = { strategy: 'Strategy Bots', live_trader: 'LiveTrader Bots' } as const;
+export const BOT_KEY_OFF_LINE = "Off: bots can't place orders or sell.";
+export const botKeyOnLine = (name: string, venue: string): string => `On: ${name} may place orders on ${venue}.`;
+export const BOT_KEY_LIVE_WHY = 'Bots never trade Live.';
+export const botKeyUnreadable = (name: string): string =>
+  `The ${name} key could not be read from the backend's answer: its bots count as off until it reads.`;
+export const botKeyTip = (name: string): string =>
+  `The ${name} key. A bot places orders only while the Bot switch in the header, this key and its own key are all `
+  + 'on. Off at any level, it places none, not even a sell: what it holds stays until you sell it or turn the keys '
+  + 'back on. Orders already resting at the broker (a stop, a target) still fill.';
+export const BOT_HEADER_KEY_TIP =
+  'The Bot switch: every bot on this venue. Off, no bot places an order, not even a sell. Click to turn it on or off.';
 export const botsStrategiesOn = (n: number): string => (n === 1 ? '1 strategy On' : `${n} strategies On`);
 
 /* ---------- Strategy buckets (ADR 049, #778 step 5): one bot, both sides ---------- */

@@ -1,6 +1,6 @@
 # ADR 044 -- One Bots page: the Bot switch, today's hot list, the squares by ticker, Eyes, and lent Level 2 lines
 
-**Status:** Accepted · **Date:** 2026-10-01
+**Status:** Accepted · **Date:** 2026-10-01 · **Amended by:** [[056-one-daily-loss-limit]] (decision 1: no trip turns the Bot switch off; the breaker bar leaves the Bots page)
 **Amends:** [[042-one-owner-for-novas-buys]] (the master ceiling and Activate become one Bot switch; a trip leaves Eyes running) · [[037-who-trades-the-stock]] (who trades is the stock's switch only; the bot list becomes today's hot list) · [[041-signal-trials]] (auto-record never took a line from the operator) · [[036-the-bots-read-on-one-stock]] (one Eyes switch for Nova's drawings) · [[032-loss-breakers-per-venue]] (the bot trip drops to Eyes, not Off) · [[023-scanner-leaderboard]] (the leaders rule also fills the hot list)
 **Decided by:** the operator, 2026-10-01, after AISP ran to its high of day at 10:22 and Nova bought none of its three triggers:
 - "I definitely don't like it if we have redundancies ... I still believe we should put everything on one page and categorize them better."
@@ -88,3 +88,31 @@ The toasts (`architecture/schema/desk-ops.md`, "Which toasts come"):
 - Each toast is scored: what the price did five minutes later, by 1-minute bars, shown on the Hot list tab with what was held back and why.
 
 Rejected: removing auto stars (they keep the leaders followed, and their join toast is still news); a time-only quiet period with no way through (a setup's next stage is the thing worth knowing); scoring with the toast's own later alerts (they are not a price series).
+
+## Amendment, 2026-10-15: the Live Trader bots live on the TraderTV LIVE page
+
+Operator ask (ADR 055 amendment of the same date): the "Live Traders · TraderTV" panel moves to the top of the TraderTV LIVE page, beside the host rows it copies. The Bots page keeps everything that governs every bot -- the Bot switch per venue, Freeze all orders, the breakers and Activity -- so it is still the one place that turns bots on or off; only the hosts' own cards moved.
+
+## Amendment, 2026-10-15: Bots is a group, the Bot switch is in the header, and each family has its key
+
+**Decided by:** the operator, 2026-10-15, after the Live Trader panel on the TraderTV LIVE page told them to turn on a switch that lived on another page: Bots as a group with LiveTrader Bots and Strategy Bots under it, "a key per family, and one super key by the header lock"; "keep it empty for now" (the parent page); "keep the design ... just change the tabs and make it parents and children"; and for what off means at every level, "Bots can not place order or sell orders! that's it" -- asked whether a held position still exits (multiple choice, the recommendation was "no new buys, exits run", with the overnight risk of the other said), "No orders at all".
+
+This replaces the morning's amendment above (the Live Trader bots on the TraderTV LIVE page):
+
+- **The nav rail's Bots is a group.** Bots itself is empty for now; under it, **LiveTrader Bots** holds the Live Traders panel (ADR 055) and **Strategy Bots** is the page this ADR built, unchanged but for its key on top and the switch leaving its Bot card. TraderTV LIVE shows the hosts only. Every link that opened the Bots page opens Strategy Bots.
+- **The Bot switch moves to the header**, beside the padlock, on every view. Its rules (decision 1 and the 2026-10-12 amendment) are unchanged: one per venue, ON unlocks the padlock where the padlock unlocks without the PIN, refused with Activate's codes.
+- **A key per family**, per venue (Paper and Sim each their own; none on Live): the Strategy Bots key at the top of Strategy Bots (the strategies' bot and Auto-entry) and the LiveTrader Bots key at the top of LiveTrader Bots. A bot buys only while the Bot switch, its family's key and its own key (a strategy's On, a host's Bot key) are all on. The keys are durable settings like a strategy's level (`bot-keys.json`, schema 1); only the Bot switch never survives a start. A key the file does not hold reads on, so the update changes nothing until the operator turns one off.
+- **Off places no order at all, at every level.** Nothing is sold when a key turns off, and while any key is off the bot sends nothing -- no entry, add, sell, cover or stop moved. What it holds stays until the keys are back on or the operator sells it; orders already resting at the broker (a bracket's stop and target, a short's buy stop) still fill, and the bot still reads them. A bot still takes back its own orders (cancelling an entry at its time to live, and the stops of a position that holds nothing), which places nothing. The strategy bot used to keep managing its trade whatever the switch said, and the Live Trader bot used to sell on its host's key or the Bot switch turning off after asking "Sell N and turn off"; both are replaced (ADR 055 amendment). The keys stop bots, never the operator: a cover of your own goes through with every key off. Header KILL and Freeze all orders are unchanged.
+- **The switch no longer follows the keys under it.** Turning the last strategy Off (ADR 042 B's `no_setup`) or the last host key off no longer turns the Bot switch off: with off meaning no order, a lower key would also stop the other family's exits.
+
+Rejected: a parent dashboard on the Bots page (drawn in the mockups, "keep it empty for now"); the family keys resetting at every start like the Bot switch (the super key is the arming; a family key is a setting, like a strategy's level); a key off selling what the bot holds, and off stopping new buys only while exits run (both put to the operator; "No orders at all").
+
+## Amendment, 2026-10-15 (afternoon): LiveTrader Bots is the TraderTV hosts' page
+
+**Decided by:** the operator, 2026-10-15, on the group as built: "i want all content from the original tradertv live to be inside livetrader bots", and of the panel, "all of this none sense Entry you/bot exit you/bot .. can all be compacted inside these empty spaces... includeing bot keys"; then, of the open tiles, "make this more compact"; approved from a render of the desk on that day's answers ("i like it. build it.").
+
+- **TraderTV LIVE leaves the rail.** Its page is Bots > LiveTrader Bots, titled so; every link that opened it (a toast, a proof) opens LiveTrader Bots.
+- **The Live Traders panel is gone.** Each host's bot -- its key, Entry and Exit, rules, allowance, today, skips, an ask -- sits in the empty middle of that host's card, and the LiveTrader Bots key with the one line saying what holds every host's bot sits in the page's head.
+- The three keys and what off means are unchanged.
+
+Rejected: the panel above the hosts (the morning's amendment) and on its own tab (the group as first built): either way the operator had two places to read one host.

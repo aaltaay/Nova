@@ -5,7 +5,8 @@ ADR 042: the bot's stock list is written only through stock mode's rules
 localhost API refuses every kind on Live and on a replay desk (``bot.actions``).
 
 ADR 044: the Bot switch (``POST /api/bot/session/switch``, ``bot.switch``) is the desk's one
-control -- ``PATCH {level}`` and ``POST /arm`` stay for the localhost API -- and the squares
+control -- ``PATCH {level}`` and ``POST /arm`` stay for the localhost API; each bot family has its key under it
+(``POST /api/bot/session/keys``, ``bot.family_keys``) -- and the squares
 (``GET /api/bot/triggers``, ``bot.trigger_audit``) say, by ticker, why Nova bought or did not.
 """
 from __future__ import annotations
@@ -23,6 +24,7 @@ from bot.api_models import (
     ArmBody,
     FocusBody,
     HeartbeatBody,
+    KeyBody,
     LiveSyncBody,
     ProposalBody,
     SessionPatch,
@@ -69,8 +71,8 @@ async def bot_session_patch(request: Request, body: SessionPatch) -> dict:
     payload = body.model_dump(exclude_none=True)
     if brain_id(request, payload):
         # Adapters never raise autonomy (ADR 016): the levels, the sleeve and the stocks are the desk's.
-        raise http_error(BotError("a brain cannot change the bot's levels, sleeve, breakers or stocks -- the desk "
-                                  "does", 403, BOT_REASON_ARM_DESK_ONLY))
+        raise http_error(BotError("a brain cannot change the bot's levels, sleeve or stocks -- the desk does", 403,
+                                  BOT_REASON_ARM_DESK_ONLY))
     symbols = payload.pop("symbol_allowlist", None)
     try:
         if payload:
@@ -88,18 +90,15 @@ async def bot_session_patch(request: Request, body: SessionPatch) -> dict:
 @router.post("/bot/session/arm", dependencies=_write)
 def bot_arm(request: Request, body: ArmBody | None = None) -> dict:
     """Activate (ADR 042 B): refused with a plain reason on Live, a replay desk, an unreadable venue,
-    the master below Strategy, no setup at Strategy, a locked padlock, or a bot trip without re-enable."""
+    the master below Strategy, no setup at Strategy, or a locked padlock."""
     from bot.activation import assert_can_activate
 
     payload = body.model_dump(exclude_none=True) if body else {}
-    reenable = bool(payload.get("reenable"))
     try:
         assert_desk_activate(brain_id(request, payload))
-        assert_can_activate(load_session(), reenable=reenable)
-        token = issue_arm_token(reenable=reenable)
-        audit_record(action="activate", outcome="ok",
-                     reason="the bot trip was re-enabled by you" if reenable else "Activated from the desk",
-                     inputs={"reenable": reenable})
+        assert_can_activate(load_session())
+        token = issue_arm_token()
+        audit_record(action="activate", outcome="ok", reason="Activated from the desk")
         view = get_session()
         view["desk_arm_token"] = token
         return view
@@ -111,19 +110,34 @@ def bot_arm(request: Request, body: ArmBody | None = None) -> dict:
 @router.post("/bot/session/switch", dependencies=_write)
 def bot_switch(request: Request, body: SwitchBody) -> dict:
     """The Bot switch (ADR 044): ON is the master at Strategy and Activate in one step, refused with
-    Activate's codes (``BOT_TRIP_LATCHED`` unless ``reenable``); OFF deactivates with the master at Eyes."""
+    Activate's codes; OFF deactivates with the master at Eyes."""
     from bot.switch import turn
 
     payload = body.model_dump(exclude_none=True)
     try:
         assert_desk_activate(brain_id(request, payload))
-        token = turn(body.on, reenable=body.reenable)
+        token = turn(body.on)
     except BotError as exc:
         raise http_error(exc) from exc
     view = get_session()
     if token:
         view["desk_arm_token"] = token
     return view
+
+
+@router.post("/api/bot/session/keys", dependencies=_write)
+@router.post("/bot/session/keys", dependencies=_write)
+def bot_family_key(request: Request, body: KeyBody) -> dict:
+    """A family key (bot.md, "The three keys"): off stops that family's new buys only, nothing is sold."""
+    from bot import family_keys
+
+    payload = body.model_dump(exclude_none=True)
+    try:
+        assert_desk_activate(brain_id(request, payload))
+        family_keys.turn(body.family, body.on)
+    except BotError as exc:
+        raise http_error(exc) from exc
+    return get_session()
 
 
 @router.post("/api/bot/session/disarm", dependencies=_write)
@@ -265,6 +279,7 @@ def bot_audit(limit: int = 200) -> dict:
 @router.get("/api/bot/pnl")
 @router.get("/bot/pnl")
 def bot_pnl() -> dict:
+    """The account's day P&L meter (read-only; nothing compares it since ADR 056)."""
     pnl, meter = read_account_day_pnl()
     return {"day_pnl": pnl, "meter": meter}
 

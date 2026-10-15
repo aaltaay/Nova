@@ -114,7 +114,7 @@ export const NOVA_OS_ATTENTION_MUTED_DEFAULT = false;
 /** Plain-language subtitles for the attention strip event kinds. */
 export const NOVA_OS_ATTENTION_COPY: Record<string, string> = {
   risk_halt: 'Walk-away rule hit — see Journal › Risk. It does not block manual or bot orders.',
-  kill: 'Kill switch tripped — every new order is blocked until you reset it on the Bots page.',
+  kill: 'Kill switch tripped — every new order is blocked until you reset it on Strategy Bots.',
   archive_fail: 'Archive upload failed for a prior day — see Archive health.',
 };
 
@@ -167,6 +167,19 @@ export const L2_HIDDEN_NOTE =
 export const L2_HIDDEN_READ_SELLER =
   "In Nova's recordings, a minute after one the price was past the offer 37% of the time, against 46% after an offer that showed its size.";
 export const L2_HIDDEN_READ_BUYER = "In Nova's recordings a hidden buyer made no such difference to where the price went.";
+
+// ── Level 2: big sellers and buyers (the book watcher's big_seller.py, #846; on the ladder #984) ──
+/** The rows a big seller or buyer holds turn into a dark block with white digits and a white frame: none of the
+ * eight price-tier colours is black or white (orange is one), and amber already means pulled. */
+export const L2_BIG_ROW_BG = '#0b0b0b';
+/** An ended one stays in the column-head banner this long (mirrors BOOK_WATCH_BIG_SHOW_ENDED_SEC), fading over
+ * the last L2_BIG_FADE_MS. */
+export const L2_BIG_SHOW_ENDED_MS = 30_000;
+export const L2_BIG_FADE_MS = 10_000;
+/** "back · 2nd in 5 min": the minutes the watcher looks back for a pull at the same price (BOOK_WATCH_BIG_BACK_SEC). */
+export const L2_BIG_BACK_MIN = 5;
+export const L2_BIG_NOTE =
+  'Resting size much larger than the book around it, at or just past the price: one order or several at one price look the same here. A description of the book, shown, never acted on.';
 
 // ── Level 2: a hidden Trader tab lends its line (ADR 044 decision 6, backend line_lending/) ──
 /** Who holds each Level 2 line, and the loans. */
@@ -530,32 +543,25 @@ export const CHART_GRID_PANELS: ChartGridPanel[] = [
   { id: '1Day', label: 'Full Day' },
   { id: '1Min', label: '1-Minute' },
 ];
-/** Optional pane -- IBKR 10s; placed top-right when shown. */
-export const CHART_GRID_OPTIONAL_PANEL: ChartGridPanel = {
+/** The 10-second pane -- IBKR 10s, top-right, always shown (operator, 2026-10-15: no hide switch). */
+export const CHART_GRID_10SEC_PANEL: ChartGridPanel = {
   id: '10Sec',
   label: '10-Second',
   note: 'IBKR 10s -- 4h history on open, live tape after',
   // True on both sides of the live edge, where a Sim tab is live (QA R35 / W25).
   simNote: 'Sim 10s -- follows the Sim clock: the replay off the live edge, the live tape at it',
 };
-export const CHART_GRID_OPTIONAL_STORAGE_KEY = 'nova.chartGrid.show10Sec';
-/** Fourth pane defaults ON (absent localStorage key means show). */
-export const CHART_GRID_OPTIONAL_DEFAULT_ON = true;
 
 /**
  * Trader 2x2 layout:
  *   [5-Minute] [10-Second]
  *   [Full Day] [1-Minute]
- * When 10Sec is hidden: top = 5m | 1m, bottom = Full Day (single).
  */
-export function buildChartGridPanels(show10Sec: boolean): ChartGridPanel[] {
+export function buildChartGridPanels(): ChartGridPanel[] {
   const five = CHART_GRID_PANELS.find((p) => p.id === '5Min')!;
   const day = CHART_GRID_PANELS.find((p) => p.id === '1Day')!;
   const one = CHART_GRID_PANELS.find((p) => p.id === '1Min')!;
-  if (show10Sec) {
-    return [five, CHART_GRID_OPTIONAL_PANEL, day, one];
-  }
-  return [five, one, day];
+  return [five, CHART_GRID_10SEC_PANEL, day, one];
 }
 /**
  * Per-timeframe REST bar limits (overrides CHART_DEFAULT_BARS on the wire).

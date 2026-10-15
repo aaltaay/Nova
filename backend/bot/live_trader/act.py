@@ -3,7 +3,7 @@
 Every send goes through ``orders`` (the execution door), every step and skip is a ``live_trader`` line on the bot's
 audit stream (``bot.audit``) and the stock's last event on its Trader tab (``stock_mode.store``), and the book
 (``book``) follows: a step's order to its fill, its TTL or its refusal; a close to its fill or its next try; shares
-that left Paper some other way -- the operator, a breaker, a short's buy stop, Nova's day cover -- out of the
+that left Paper some other way -- the operator, the loss limit's Auto sell, a short's buy stop, Nova's day cover -- out of the
 position, said once. A skip is written once per trade, step and code. Shapes: architecture/schema/bot.md.
 """
 from __future__ import annotations
@@ -213,7 +213,8 @@ async def close(a: dict[str, Any], now: float) -> None:
 def rekey(a: dict[str, Any], now: float) -> None:
     book.rekey(a["pos_id"], a["row_id"])
     note({**a, "kind": "rekey", "step": "rekey",
-          "why": f"the feed reopened {a['host']}'s {a['symbol']}: the same position, nothing sent"}, now)
+          "why": a.get("why") or f"the feed reopened {a['host']}'s {a['symbol']}: the same position, nothing sent"},
+         now)
 
 
 def market_now(symbol: str) -> dict[str, Any] | None:
@@ -289,7 +290,7 @@ def follow_close(pos_id: str, now: float) -> None:
 
 
 async def reconcile(now: float) -> None:
-    """Shares the bot holds that Paper no longer holds -- sold by the operator, a breaker or KILL, a short's buy
+    """Shares the bot holds that Paper no longer holds -- sold by the operator, the loss limit's Auto sell or KILL, a short's buy
     stop, Nova's day cover -- leave the position (the newest first), said once. A short that lost shares that way
     has its buy stops retired (``_retire_stops``)."""
     groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
@@ -378,4 +379,4 @@ def _left_how(pos: dict[str, Any], now: float) -> tuple[str, str, float | None, 
             return "stop", f"its buy stop filled at {price_text(price)}", price, oid
     if (pos.get("close") or {}).get("kind") == "day_cover":
         return "day_cover", "Nova's day cover covered it", None, None
-    return "outside", "sold outside the bot (by you, a breaker or KILL)", None, None
+    return "outside", "sold outside the bot (by you, the loss limit or KILL)", None, None

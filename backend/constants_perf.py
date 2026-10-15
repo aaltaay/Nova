@@ -112,7 +112,7 @@ PERF_MEMORY_EVERY_SEC = 60
 PERF_MEMORY_FIRST_AFTER_SEC = 20
 PERF_MEMORY_TOP = 5                     # the biggest other programs named
 PERF_MEMORY_PRESSURE_PCT = 90           # the PC's RAM in use, or its commit charge, at or above this: warn
-PERF_MEMORY_CRITICAL_PCT = 97           # commit this close to its limit: allocations start failing, anywhere
+PERF_MEMORY_CRITICAL_PCT = 97           # RAM or commit this full: paging stalls the PC, allocations start failing
 PERF_MEMORY_REARM_PCT = 85              # an episode ends under this; the API log warns once per episode
 PERF_MEMORY_STALE_SEC = 300             # a reading older than this is not shown as the PC now
 PERF_MEMORY_CLIENT_FRESH_SEC = 30       # a desk window's process list counts while it is this young
@@ -120,6 +120,11 @@ PERF_MEMORY_CLIENT_FRESH_SEC = 30       # a desk window's process list counts wh
 # desk's processes 2,763 MB together): past one, that part holds memory it should not, and the row fails.
 PERF_MEMORY_API_LEAK_MB = 5000
 PERF_MEMORY_DESK_LEAK_MB = 4500
+# The low-memory notice (``perf/memory_notice.py``; operator ask 2026-10-15): the strip under the desk's header
+# while the PC is past PERF_MEMORY_PRESSURE_PCT in the trading session, naming the process holding the most.
+PERF_MEMORY_NOTICE_SCHEMA_VERSION = 1
+PERF_MEMORY_NOTICE_HOLD_SEC = 300       # under the line, the episode stays open this long while the same process leads
+PERF_MEMORY_GROUP_OUTWEIGHS = 2         # one program's processes together this many times the biggest: named too
 
 # The port watch (``perf/port_watch.py``; operator report 2026-10-14: the PC ran out of network ports and the
 # backend restarted 19 times): once a minute, off the loops, the TCP connections in Windows' dynamic port range

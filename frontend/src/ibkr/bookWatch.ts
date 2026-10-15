@@ -4,9 +4,11 @@
  * its "pulled here" tags and its line of the last minute come out. The backend's book watcher judges
  * every drop; nothing here infers a verdict. Hints consistent with spoofing -- never a detection.
  * The frames also carry the watcher's hidden sellers and buyers (2026-09-30), folded here and drawn by
- * bookWatchHidden.ts.
+ * bookWatchHidden.ts, and its big sellers and buyers (#984), read by bookWatchBigRead.ts and drawn by
+ * bookWatchBig.ts.
  */
 import {
+  L2_BIG_SHOW_ENDED_MS,
   L2_BOOK_WATCH_SCHEMA_VERSION,
   L2_HIDDEN_STALE_MS,
   L2_PULLED_HERE_MEMORY_SEC,
@@ -19,6 +21,7 @@ import {
   L2_PULL_MARK_SHOW_MS,
 } from '../constants';
 import { fmtVolume } from '../utils/quoteFormat';
+import { NO_BIG, readBigFrame, type BigFloat, type HeldBig } from './bookWatchBigRead';
 import { markerPlace } from './depthMarkers';
 import { formatDepthNumber, formatDepthPrice } from './depthNumberFormat';
 import type { DepthLevel } from './types';
@@ -77,6 +80,10 @@ export interface BookWatchState {
   sides: Record<BookSide, SideTotals> | null;
   drops: HeldDrop[];
   hidden: HeldHidden[];
+  /** The line's big sellers and buyers, the watcher's whole list as last sent (#984). */
+  big: HeldBig[];
+  /** The symbol's float Nova already read, for "1.9% of float"; null when none is known. */
+  bigFloat: BigFloat | null;
 }
 
 export type PullMarkKind = 'pulled' | 'approach' | 'traded' | 'hidden';
@@ -223,6 +230,7 @@ export function applyBookWatchFrame(prev: BookWatchState | null, raw: unknown, n
     const had = h ? words.get(h.id) : undefined;
     if (h && (!had || had.seq < h.seq)) words.set(h.id, h);
   }
+  const big = readBigFrame(f, atOf, f.reset === true || !prev ? NO_BIG : { big: prev.big, bigFloat: prev.bigFloat });
   return {
     watching: f.watching === true,
     reason: typeof f.reason === 'string' && f.reason.trim() ? f.reason : null,
@@ -230,12 +238,14 @@ export function applyBookWatchFrame(prev: BookWatchState | null, raw: unknown, n
     sides: readSides(f.sides),
     drops: [...kept, ...incoming.filter(d => !seen.has(d.seq))].filter(d => nowMs - d.atMs <= MEMORY_MS),
     hidden: [...words.values()].filter(h => hiddenAlive(h, nowMs)),
+    ...big,
   };
 }
 
 /** Is anything on the ladder still due to fade or go? (The ladder redraws on its own while it is.) */
 export function bookWatchBusy(state: BookWatchState | null, nowMs: number): boolean {
-  return !!state && (state.drops.some(d => nowMs - d.atMs <= MEMORY_MS) || state.hidden.some(h => hiddenAlive(h, nowMs)));
+  return !!state && (state.drops.some(d => nowMs - d.atMs <= MEMORY_MS) || state.hidden.some(h => hiddenAlive(h, nowMs))
+    || state.big.some(b => b.endedMs !== null && nowMs - b.endedMs <= L2_BIG_SHOW_ENDED_MS));
 }
 
 function pulledTip(drops: HeldDrop[], side: BookSide, nowMs: number): { title: string; tip: string } {

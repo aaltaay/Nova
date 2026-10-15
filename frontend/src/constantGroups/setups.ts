@@ -47,6 +47,7 @@ export const SETUP_STATE_TITLES: Record<string, string> = {
 export const SETUP_TRIGGER_LEVEL_WORDS: Record<string, string> = {
   red_to_green: 'open', flat_top_breakout: 'high', flat_top_5m: 'high', gap_and_go: 'pre-market high',
   pullback_dip: 'dip candle\'s close',
+  abcd: 'B',
   ...SHORT_TRIGGER_LEVEL_WORDS,
 };
 
@@ -63,6 +64,8 @@ export const SETUP_KIND_LABELS: Record<string, string> = {
   gap_and_go: 'Gap and Go',
   pullback_dip: 'Pullback dip',
   second_pullback_dip: 'Second pullback dip',
+  abcd: 'ABCD',
+  second_abcd: 'Second ABCD',
   ...SHORT_KIND_LABELS,
 };
 
@@ -81,6 +84,7 @@ export const SETUP_TYPE_STATE_LABELS: Record<string, Partial<Record<string, stri
   red_to_green: { leg: 'Red', pullback: 'Red · held back', armed: 'Red', near: 'Near the open', triggered: 'Reclaimed' },
   gap_and_go: { pullback: 'Open · held back', armed: 'Under the PMH', near: 'Near the PMH', triggered: 'Broke the PMH' },
   pullback_dip: { leg: 'Leg up', pullback: 'Dipping', armed: 'Bottomed', triggered: 'Bought the dip' },
+  abcd: { leg: 'Forming', pullback: 'Held back', armed: 'Under B', near: 'Near B', triggered: 'Broke B' },
   ...SHORT_TYPE_STATE_LABELS,
 };
 
@@ -140,6 +144,14 @@ export const SETUP_TYPE_STATE_TIPS: Record<string, Partial<Record<string, string
     armed: 'Watch only. The candle that bottoms the pullback closed: bought a cent over its close, the stop a cent under the pullback\'s low, target 1 the pullback\'s high.',
     triggered: 'Watch only: bought the dip at the close of the candle that bottomed the pullback. Nova never trades it — the scoreboard follows it with the strategy\'s exit and scores every target choice beside it.',
     failed: 'The pullback broke a rule (a new high, half the leg given back, a close under the 9 EMA), ran too long without the entry candle, or its first green close came and went.',
+  },
+  abcd: {
+    leg: 'Watch only. A swing high at the high of day: the scanner waits for the pullback\'s low (A), then a push that fails to clear the high (B).',
+    pullback: 'Watch only. A, B and a higher low C are in, and one rule holds it back (MACD, risk or the time of day). The reason says which.',
+    armed: 'Watch only. A, B under the high, and a higher low C: a buy a cent over B, the stop a cent under C, target 1 the high of day.',
+    near: 'Watch only. Price is within a few cents of B: the break is close.',
+    triggered: 'Watch only: price broke B. Nova never trades it — the scoreboard follows it with the strategy\'s exit and scores every target choice beside it.',
+    failed: 'A low undercut A (stair-stepping down), or B did not break within the minutes the template allows. The next ABCD needs a new high.',
   },
   ...SHORT_TYPE_STATE_TIPS,
 };
@@ -203,6 +215,7 @@ export const SETUP_FUNNEL_WORDS: Record<string, { forming: string; armed: string
   red_to_green: { forming: 'red', armed: 'armed', near: 'near', triggered: 'reclaimed' },
   gap_and_go: { forming: 'held back', armed: 'under the PMH', near: 'near', triggered: 'broke out' },
   pullback_dip: { forming: 'dipping', armed: 'bottomed', near: 'near', triggered: 'bought the dip' },
+  abcd: { forming: 'forming', armed: 'under B', near: 'near B', triggered: 'broke B' },
   ...SHORT_FUNNEL_WORDS,
 };
 export const SETUP_FUNNEL_TIPS = {

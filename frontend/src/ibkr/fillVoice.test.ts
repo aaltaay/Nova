@@ -102,6 +102,35 @@ describe('fillVoice', () => {
     ]);
   });
 
+  it('says the daily loss limit\'s sell as the loss limit, never as the bot (ADR 056)', () => {
+    const state = seeded();
+    expect(readFills(state, snap([], [
+      order({ order_id: 1, symbol: 'WETO', side: 'SELL', qty: 10_000, order_type: 'MKT', order_origin: 'loss_limit',
+        order_source: 'flatten', filled_qty: 10_000 }),
+      // A bot's position: the loss limit sold it, so it is still not "Bot sold".
+      order({ order_id: 2, symbol: 'GME', side: 'SELL', order_type: 'MKT', order_origin: 'loss_limit',
+        order_source: 'flatten', bot_id: 'l2-first-pullback', filled_qty: 20 }),
+      order({ order_id: 3, symbol: 'AMC', side: 'BUY', order_type: 'MKT', order_origin: 'loss_limit',
+        order_source: 'flatten', filled_qty: 50 }),
+    ]))).toEqual([
+      'Loss limit. Sold 10,000 shares of W E T O.',
+      'Loss limit. Sold 20 shares of G M E.',
+      'Loss limit. Covered 50 shares of A M C.',
+    ]);
+  });
+
+  it('reads the retired loss rules\' old rows as flattens, never as the bot', () => {
+    const state = seeded();
+    const said = readFills(state, snap([], [
+      order({ order_id: 1, symbol: 'WETO', side: 'SELL', qty: 10_000, order_type: 'MKT', order_origin: 'bot_trip',
+        order_source: 'flatten', filled_qty: 10_000 }),
+      order({ order_id: 2, symbol: 'GME', side: 'SELL', order_type: 'MKT', order_origin: 'all_stop',
+        order_source: 'flatten', filled_qty: 20 }),
+    ]));
+    expect(said).toEqual(['Flatten. Sold 10,000 shares of W E T O.', 'Flatten. Sold 20 shares of G M E.']);
+    expect(said.join(' ')).not.toMatch(/Bot sold/);
+  });
+
   it('never calls a buy stop that opens a stop-out', () => {
     const state = seeded();
     expect(readFills(state, snap([], [order({ order_type: 'STP', filled_qty: 100 })])))

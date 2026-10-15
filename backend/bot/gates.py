@@ -52,38 +52,18 @@ def _gate(gid: str, ok: bool, stage: str, text: str, **detail: Any) -> dict[str,
     return {"id": gid, "ok": bool(ok), "stage": stage, "detail": {**detail, "text": text}}
 
 
-def day_lock(row: dict[str, Any], venue: str | None) -> dict[str, Any]:
-    """``{active, until, tripped_at, pnl, venue}`` -- this venue's all-stop lock.
+def loss_limit(venue: str | None) -> dict[str, Any] | None:
+    """The daily loss limit's No new buys on ``venue`` (ADR 056), or None while buys are open.
 
-    Read through ``bot.buy_lock.lock_for`` when it is there; else from the venue's dial."""
+    One that cannot be read counts as holding (logged): an unknown is never read as open."""
     try:
-        from bot import buy_lock
+        from loss_limit.gate import stopped
 
-        lock_for = getattr(buy_lock, "lock_for", None)
-        if lock_for is not None:
-            got = lock_for(row, venue)
-            if isinstance(got, dict):
-                return {"active": bool(got.get("active")), "until": got.get("until"),
-                        "tripped_at": got.get("tripped_at", got.get("at")), "pnl": got.get("pnl"), "venue": venue}
-    except Exception:
-        logger.warning("bot gates: bot.buy_lock.lock_for failed -- reading the dial", exc_info=True)
-    from bot.clock import lock_is_active
-    from bot.venue_levels import dial_of
-
-    dial = dial_of(row, venue) if venue is not None else row
-    until = dial.get("hard_lock_until_date")
-    return {"active": bool(lock_is_active(until)), "until": until, "tripped_at": dial.get("hard_lock_at"),
-            "pnl": dial.get("hard_lock_pnl"), "venue": venue}
-
-
-def lock_text(lock: dict[str, Any]) -> str:
-    from bot.activation import hhmm, money
-
-    if not lock.get("active"):
-        return "no all-stop lock on this venue"
-    when = f" at {hhmm(lock['tripped_at'])} ET" if lock.get("tripped_at") else ""
-    said = f" (P&L {money(lock['pnl'])})" if isinstance(lock.get("pnl"), (int, float)) else ""
-    return f"the all-stop fired{when}{said}: buys on {lock.get('venue')} are locked until {lock.get('until')}"
+        return stopped(venue)
+    except Exception as exc:
+        logger.warning("bot gates: the daily loss limit could not be read -- buys count as stopped", exc_info=True)
+        return {"text": f"the daily loss limit could not be read ({type(exc).__name__}): no new bot entry",
+                "until": None, "tripped_at": None, "loss": None, "limit_usd": None}
 
 
 def _setups_words(strategy: list[str], hosts: list[str]) -> str:
@@ -97,14 +77,13 @@ def _setups_words(strategy: list[str], hosts: list[str]) -> str:
 
 
 def gates(row: dict[str, Any], venue_now: tuple[str | None, bool, bool] | None = None) -> list[dict[str, Any]]:
-    from bot import activation, entry_rules
-    from bot.clock import soft_latched
+    from bot import activation, entry_rules, family_keys
     from bot.day_pnl import commission_hold
     from bot.eligibility import holds_depth_line, normalize_symbols
     from bot.setup_levels import at_strategy, master
     from bot.sleeve import of as sleeve_of
     from constants import IBKR_MAX_DEPTH_SYMBOLS
-    from constants_bot import BOT_LEVEL_STRATEGY
+    from constants_bot import BOT_FAMILY_STRATEGY, BOT_LEVEL_STRATEGY
     import kill_switch
 
     venue, edge, readable = venue_now or activation.venue_state()
@@ -117,8 +96,7 @@ def gates(row: dict[str, Any], venue_now: tuple[str | None, bool, bool] | None =
     missing = [s for s in symbols if s not in held]
     auto = _safe(_auto_entry_stocks, [], "the Auto-entry stocks")
     padlock_ok, padlock_why = activation.padlock()
-    tripped = soft_latched(row)
-    lock = day_lock(row, venue)
+    stopped = loss_limit(venue)
     killed = _safe(kill_switch.is_tripped, True, "the kill switch")
     now = entry_rules.venue_now()
     wins = entry_rules.windows(strategy, now)
@@ -127,6 +105,8 @@ def gates(row: dict[str, Any], venue_now: tuple[str | None, bool, bool] | None =
     late = _safe(lambda: entry_rules.extended_hours_block(caps), "the venue's clock is unreadable",
                  "regular hours")
     hold = commission_hold(venue)     # #564: Live only; never raises
+    strategy_key = _safe(lambda: family_keys.state(BOT_FAMILY_STRATEGY, venue), (False, "the Strategy Bots key could "
+                         "not be read (the backend log has the error)"), "the Strategy Bots key")
     return [
         _gate("venue", blocked is None, "activate", blocked[1] if blocked is not None else _venue_words(venue, edge),
               venue=venue, live_edge=edge),
@@ -138,19 +118,18 @@ def gates(row: dict[str, Any], venue_now: tuple[str | None, bool, bool] | None =
         _gate("padlock", padlock_ok, "activate",
               "the desk padlock is unlocked" if padlock_ok else f"the desk padlock is locked: {padlock_why}",
               reason=padlock_why),
+        _gate("strategy_key", strategy_key[0], "fire",
+              "the Strategy Bots key is on" if strategy_key[0] else str(strategy_key[1]), venue=venue),
         _gate("allowlist", bool(symbols) or bool(auto), "fire",
               _stocks_text(len(symbols), len(auto)), count=len(symbols), auto_entry=len(auto)),
         _gate("depth_lines", bool(held), "fire",
               (f"Level 2 held on {', '.join(held)}" if held
                else "no Bot stock holds a Level 2 line: open its Level 2 or record it"),
               held=held, missing=missing, max_lines=IBKR_MAX_DEPTH_SYMBOLS),
-        _gate("bot_trip", not tripped, "activate",
-              activation.trip_text(row) if tripped else "the bot trip has not fired on this venue today",
-              fired_at=row.get("soft_breaker_at") if tripped else None,
-              pnl=row.get("soft_breaker_pnl") if tripped else None,
-              until=row.get("soft_breaker_until") if tripped else None),
-        _gate("day_lock", not lock["active"], "fire", lock_text(lock), until=lock["until"],
-              tripped_at=lock["tripped_at"], pnl=lock["pnl"], venue=venue),
+        _gate("loss_limit", stopped is None, "fire",
+              stopped["text"] if stopped else "the daily loss limit has not stopped buys on this venue today",
+              until=(stopped or {}).get("until"), tripped_at=(stopped or {}).get("tripped_at"),
+              loss=(stopped or {}).get("loss"), limit_usd=(stopped or {}).get("limit_usd"), venue=venue),
         _gate("kill_switch", not killed, "fire",
               "the kill switch is tripped: nothing is sent until you reset it" if killed
               else "the kill switch is reset"),

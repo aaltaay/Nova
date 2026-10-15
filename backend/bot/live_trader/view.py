@@ -1,4 +1,5 @@
-"""``GET /api/bot/live-traders``: each host's card on the Bots page (ADR 055). Reads memory and the operator cache.
+"""``GET /api/bot/live-traders``: each host's card on Bots > LiveTrader Bots (ADR 055).
+Reads memory and the operator cache.
 
 One card per host the feed read on the last pass, then every host with settings, positions or closed trades today:
 its key and Entry / Exit, what it holds and makes, its allowance, its asks and its newest audit lines -- each a
@@ -19,7 +20,7 @@ from bot.live_trader.constants_live_trader import (
     LT_VENUE,
 )
 from bot.live_trader.decide_closes import hms
-from bot.live_trader.decide_steps import used_by_host
+from bot.live_trader.rules import used_by_host
 from stock_mode.model import mode_of
 
 logger = logging.getLogger(__name__)
@@ -101,10 +102,12 @@ def _today(name: str, positions: list[dict[str, Any]], closed: list[dict[str, An
 
 
 def _state(name: str, st: dict[str, Any], status: dict[str, Any], on_air: bool | None,
-           left_ts: float | None) -> dict[str, str]:
+           left_ts: float | None, held: int = 0) -> dict[str, str]:
     if settings.error():
         return {"tone": "bad", "text": str(settings.error())}
     if not st["key"]:
+        if held:
+            return {"tone": "warn", "text": f"Key off · no orders: {held} held, not sold until it is on"}
         return {"tone": "off", "text": "Key off"}
     got = status.get("answer") or {}
     if got.get("state") not in (None, "ok"):
@@ -146,7 +149,7 @@ def build() -> dict[str, Any]:
             "face": FACE_PATH.format(date=got.get("date"), name=name) if name in faces and got.get("date") else None,
             "on_air": on_air, "left_ts": lefts.get(name),
             "settings": {**st, "mode": mode_of(st["entry"], st["exit"])},
-            "state": _state(name, st, status, on_air, lefts.get(name)),
+            "state": _state(name, st, status, on_air, lefts.get(name), len(mine)),
             "allowance": {"used_usd": round(used.get(name, 0.0), 2), "of_usd": st["allowance_usd"]},
             "today": _today(name, mine, closed, ev),
             "positions": mine,

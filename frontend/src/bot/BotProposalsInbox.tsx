@@ -49,6 +49,7 @@ import { tipProps } from '../ux/hoverTip';
 import { closedProposals, proposalWhy } from './botProposalsModel';
 import { etClock, prose } from './botsPageFormat';
 import type { BotAuditEntry, BotProposal } from './types';
+import { TickerLink } from '../components/TickerLink';
 
 function kindLabel(kind: string | null | undefined): string {
   return (kind ? SETUP_KIND_LABELS[kind] ?? kind.replace(/_/g, ' ') : 'Setup').toUpperCase();
@@ -153,7 +154,7 @@ export function BotProposalsInbox({ proposals, audit, resolve, openTrader }: Pro
               <span className="bots-kind" {...tipProps(`Raised by the ${setupLabel(setupTypeOf(p))} scanner${p.template_name ? ` (template ${p.template_name})` : ''}.`)}>
                 {kindLabel(p.kind)}
               </span>
-              <b className="bots-prop__sym">{p.symbol}</b>
+              <b className="bots-prop__sym"><TickerLink symbol={p.symbol} /></b>
               {short ? <span className="bots-side bots-side--short">▼ SHORT</span> : <span className="bots-side bots-side--buy">BUY</span>}
               <span className="bots-prop__lv">
                 trigger <b>{fmtPx(p.trigger)}</b> · {short ? 'buy stop' : 'stop'} {fmtPx(p.stop)} · {short ? 'cover' : 'target'} {fmtPx(p.target1)}
@@ -189,7 +190,7 @@ export function BotProposalsInbox({ proposals, audit, resolve, openTrader }: Pro
         <article key={c.id} className="bots-prop bots-prop--closed" data-testid={`bots-closed-proposal-${c.symbol}`}>
           <div className="bots-prop__head">
             <span className="bots-kind">{kindLabel(c.kind)}</span>
-            <b className="bots-prop__sym">{c.symbol}</b>
+            <b className="bots-prop__sym"><TickerLink symbol={c.symbol} /></b>
             {isShortRow(c) ? <span className="bots-side bots-side--short">▼ SHORT</span> : <span className="bots-side bots-side--buy">BUY</span>}
             <span className="bots-prop__lv">trigger {fmtPx(c.trigger)} · {isShortRow(c) ? 'buy stop' : 'stop'} {fmtPx(c.stop)}</span>
             <span className="bots-prop__time bots-prop__time--end">{c.label} {etClock(c.closedAt).slice(0, 5)}</span>
@@ -201,7 +202,7 @@ export function BotProposalsInbox({ proposals, audit, resolve, openTrader }: Pro
         <article key={item.id} className="bots-prop" data-testid={`bots-bot-proposal-${item.id}`}>
           <div className="bots-prop__head">
             <span className="bots-kind">BOT</span>
-            <b className="bots-prop__sym">{item.symbol}</b>
+            <b className="bots-prop__sym"><TickerLink symbol={item.symbol} /></b>
             <span className={`bots-side bots-side--${item.side === 'BUY' ? 'buy' : 'sell'}`}>{item.side}</span>
             <span className="bots-prop__lv">{item.kind} × {item.preset_qty}</span>
           </div>

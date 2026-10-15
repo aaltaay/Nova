@@ -70,6 +70,13 @@ LT_UNREAD_SEC = 20.0                    # a side whose reads carried an unparsed
 LT_ADD_SLACK_PCT = 0.5                  # an add's new average may lie this far (of the market) outside old avg..market
 LT_PREVIOUS_RETRY_SEC = 300.0           # the feed's previous day not read: asked again after this
 
+# -- the bar's own moves (operator, 2026-10-15: hold the sells while a whole bar blanks) -------------
+LT_SWITCH_SEC = 1.0                     # slots that change this close together changed at once (a blank, a switch)
+LT_BLANK_HOLD_SEC = 90.0                # a whole bar blank this long is sold: the refresh comes back sooner
+LT_BLANK_SETTLE_SEC = 4.0               # the bar's first row back: the rest are given this long to come back too
+LT_RETURN_FIRST_SEC = 30.0              # rows the bar shows this soon after a host's return were there at it
+LT_RETURN_HOLD_SEC = 480.0              # already-open takes after a return wait this long at most for the switch
+
 # -- skip codes (bot.md "The Live Trader bot", Audit) ----------------------------------------------
 LT_FEED_BEHIND = "LT_FEED_BEHIND"
 LT_FEED_DOWN = "LT_FEED_DOWN"
@@ -84,7 +91,9 @@ LT_SHORTS_OFF = "LT_SHORTS_OFF"
 LT_AGAINST = "LT_AGAINST"
 LT_NOT_HELD = "LT_NOT_HELD"
 LT_VENUE_CODE = "LT_VENUE"
-LT_BOT_OFF = "LT_BOT_OFF"
+LT_BOT_OFF = "LT_BOT_OFF"              # the Bot switch (the header's) is off: no order at all
+LT_FAMILY_OFF = "LT_FAMILY_OFF"        # the LiveTrader Bots key is off: no order at all (2026-10-15)
+LT_KEY_OFF = "LT_KEY_OFF"              # the host's own Bot key is off: its bot places no order
 LT_FROZEN = "LT_FROZEN"
 LT_AFTER_SELL_ALL = "LT_AFTER_SELL_ALL"
 LT_SHORT_HOURS = "LT_SHORT_HOURS"
@@ -94,12 +103,14 @@ LT_ASK_SKIPPED = "LT_ASK_SKIPPED"
 LT_ALREADY_OPEN = "LT_ALREADY_OPEN"
 LT_OFF_AIR = "LT_OFF_AIR"
 LT_HIDDEN = "LT_HIDDEN"
-LT_DAY_LOCK = "LT_DAY_LOCK"
+LT_LOSS_LIMIT = "LT_LOSS_LIMIT"          # ADR 056: the daily loss limit stopped new buys on Paper
 LT_NOT_ON_BAR = "LT_NOT_ON_BAR"
 LT_OTHER_HOST = "LT_OTHER_HOST"
 LT_ROW_UNREAD = "LT_ROW_UNREAD"
 LT_ADD_IMPLAUSIBLE = "LT_ADD_IMPLAUSIBLE"
 LT_NO_CLOCK = "LT_NO_CLOCK"
+LT_BLANK_BAR = "LT_BLANK_BAR"
+LT_RETURN_SWITCH = "LT_RETURN_SWITCH"
 
 # -- route errors ---------------------------------------------------------------------------------
 LT_ERR_INVALID = "LIVE_TRADER_INVALID"

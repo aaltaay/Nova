@@ -25,9 +25,10 @@ a scanner) and `setup_levels`; `PATCH /api/bot/session {setup_levels: {SETUP:
 (configuration is not "go"). `PATCH {setup}` is refused `400
 BOT_SETUP_RETIRED`. The v4 -> v5 migration gives the old chosen setup the old
 `level`, keeps the others' 0 / 1, drops `setup`, `strategy` and the `advise`
-budget (and `/api/bot/advise*`, which nothing called), and moves the sleeve, the
-bot list and the day lock into each venue's dial (below). A watch-only setup (#847,
-the pullback dip; setups.md "The pullback dip: a watch-only setup") is never
+budget (and `/api/bot/advise*`, which nothing called), and moves the sleeve and the
+bot list into each venue's dial (below). A watch-only setup (#847,
+the pullback dip, and the ABCD; setups.md "The pullback dip: a watch-only setup", "The ABCD: a
+watch-only setup") is never
 Strategy: `PATCH` refuses its 2 with 409 `BOT_SETUP_WATCH_ONLY`, an older 2 reads
 as Eyes in `effective`, and its `setups[]` entry adds `watch_only: true` and
 `locked` (why); its Eyes draws and never proposes.
@@ -70,8 +71,9 @@ BOT_COMMISSIONS_UNKNOWN` until a read succeeds again (the unreadable file is the
 execution ledger every order is written to). Exits, cancels, flatten and kill
 are never held, and Paper and Sim never are; a venue that cannot be read counts
 as Live. The failure is logged (at once, then at most every
-`BOT_COMMISSIONS_WARN_EVERY_SEC`), never read as $0. **The breakers compare
-IBKR's own figure** (ADR 042 / #664): on Live, the finite `dailyPnL` from
+`BOT_COMMISSIONS_WARN_EVERY_SEC`), never read as $0. The commission loop (`bot.loops.commission_loop`,
+every `BOT_COMMISSION_POLL_SEC`) keeps the hold current. **The day P&L meter reads
+IBKR's own figure** (ADR 042 / #664; nothing compares it since ADR 056): on Live, the finite `dailyPnL` from
 `reqPnL` for the current READY IB instance, generation and account. IBKR owns
 that figure's reset (the TWS configuration, not Nova's 04:00 ET lock boundary);
 the API supplies no reset timestamp, so the meter never invents one. Pending,
@@ -79,16 +81,15 @@ failed, disconnected or superseded subscriptions cannot supply cached daily
 P&L. While it is unavailable, the stated fallback is `RealizedPnL + UnrealizedPnL`,
 which can include an overnight position's lifetime move. Both broker figures
 already include commissions (TWS Users' Guide, Profit and Loss) -- until
-2026-09-30 the breakers subtracted the session's commissions again and tripped
-that many dollars early; on Paper and Sim at the live edge, the practice
+2026-09-30 the retired breakers subtracted the session's commissions again; on Paper and Sim at the live edge, the practice
 ledger's `DayPnL`; on a replay desk nothing (a replay's P&L is not today's).
 `GET /api/bot/pnl`'s meter says which: `{compares, source, venue, compared,
 note, error, day_pnl, commissions, commissions_in_figure, commissions_unknown,
 commissions_error, fallback, fallback_reason, reset_semantics, reset_time,
 daily_pnl_updated_at, ...}`. The fallback and its limitation are visible; no
 session commission is subtracted again. A commission read failure still holds
-new Live bot entries without invalidating the known P&L. Practice day boundaries,
-breaker thresholds, existing latches and trading authorization are unchanged.
+new Live bot entries without invalidating the known P&L. Practice day boundaries
+and trading authorization are unchanged.
 Proposals are accepted at Eyes and Strategy. **Every gate is drawn with its
 reason** (owner `bot/gates.py`): `gates: [{id, ok, stage: "activate" | "fire",
 detail: {..., text}}]` are `venue` (Paper, or Sim at its live edge), `level`
@@ -96,25 +97,25 @@ detail: {..., text}}]` are `venue` (Paper, or Sim at its live edge), `level`
 (stocks set to Bot or to Auto-entry on this venue; stage `fire`, so it never
 locks Activate -- Auto-entry needs the bot Active), `depth_lines` (ok while at
 least one Bot stock holds a depth line, `held`, `missing`, `max_lines`; each
-trigger still needs its own), `bot_trip`, `day_lock`, `kill_switch`, `window`
+trigger still needs its own), `loss_limit` (stage `fire`: the daily loss limit's No new
+buys on this venue, `detail: {text, until, tripped_at, loss, limit_usd, venue}`; `loss-limit.md`), `kill_switch`, `window`
 (per Strategy setup: `setups: [{setup, start, end, open, clipped, error}]`),
 `daily_cap` (`count`, `cap`, `venue_day`), `extended_hours` and `commissions`;
 the session adds `ready` / `ready_reason` (the bot would trade a go trigger now)
 with `live_fire_ready` as a one-release alias.
 
 **Activate: one control, one meaning, never carried** (ADR 042, owner
-`bot/activation.py`). `POST /api/bot/session/arm {reenable?}` refuses, `409`
+`bot/activation.py`). `POST /api/bot/session/arm` refuses, `409`
 with a plain reason: `BOT_LIVE_NOT_BUILT` (Live), `BOT_REPLAY_DESK` (Sim off the
 live edge with nothing loaded; a loaded replay is traded, ADR 052), `BOT_VENUE_UNKNOWN`, `BOT_LEVEL_NOT_STRATEGY`,
-`BOT_NO_SETUP_AT_STRATEGY`, `BOT_PADLOCK_LOCKED` and `BOT_TRIP_LATCHED` (the
-bot trip fired on this venue today; the desk confirms in words, then sends
-`reenable: true`). Choosing Strategy never activates. The backend clears
+`BOT_NO_SETUP_AT_STRATEGY` and `BOT_PADLOCK_LOCKED`. No loss limit refuses Activate or turns
+the bot off (ADR 056). Choosing Strategy never activates. The backend clears
 Activate -- a `deactivate` audit line and `deactivated: {at, reason, text}`,
-`reason` one of `restart | padlock | venue | level | no_setup | bot_trip |
-all_stop | operator` -- on every process start (like spend arming, ADR 018),
+`reason` one of `restart | padlock | venue | level | no_setup | operator` (a saved
+`bot_trip` / `all_stop` from before ADR 056 keeps its own `text`) -- on every process start (like spend arming, ADR 018),
 when anyone locks the padlock (`ibkr.safety.set_armed` calls
 `activation.on_disarm`; it used to be only a page effect), on a venue change,
-with the master below Strategy or no setup left at Strategy, and on a trip. The
+and with the master below Strategy or no setup left at Strategy. The
 session's `active` is the truth (`armed` a one-release alias; `has_desk_arm`,
 the token's presence, stays).
 
@@ -136,68 +137,30 @@ entry timeout**: `working_ttl_sec` for the bot, Auto-entry and Approve.
 the bot and Auto-entry. `entries_today: {count, cap, venue_day, entries:
 [{symbol, setup_type, by, ts, outcome}], approved, error?}`.
 
-**Loss breakers per venue** (ADR 032, operator ask 2026-09-24). The bot trip
-(soft: flatten, the bot to L0) and the all-stop (hard: flatten, bot and manual
-buys on that venue locked until the next 04:00 ET -- ADR 042: the practice
-day's own boundary; at midnight they had lifted while the practice day's P&L
-still read yesterday's loss, and tripped again) compare the whole account's day P&L with
-the desk venue's own thresholds (owner `bot/breaker_limits.py`): the session
-keeps `breakers: {VENUE: {soft_usd, hard_usd}}` for `live` / `paper` / `sim`
-(an optional key of schema 4; a venue with none reads -50 / -200; a venue Nova
-cannot read reads Live's). `GET /api/bot/session` adds `breakers: {venue,
-soft_usd, hard_usd, custom, defaults: {soft_usd, hard_usd}, by_venue: {VENUE:
-{soft_usd, hard_usd}}, bounds: {soft_usd: [loosest, tightest], hard_usd:
-[loosest, tightest], step_usd}}`; `PATCH /api/bot/session {breakers: {venue?,
-soft_usd?, hard_usd?}}` changes the named venue (else the desk's) within -5 to
--1,000 (bot trip) and -10 to -5,000 (all-stop), the bot trip above the
-all-stop, snapped to $5 -- `400 BOT_BREAKER_INVALID` otherwise -- and records a
-`breakers` audit line; a venue moved back onto -50 / -200 keeps no pair of its
-own (`custom: false`). Moving a threshold never clears a fired bot trip or a
-day lock. A trip writes its record on the dial of the venue whose P&L tripped:
-`hard_lock_until_date` (an ISO datetime of the next 04:00 ET; a legacy
-`YYYY-MM-DD` still lifts at that date's 00:00 ET), `hard_lock_at`,
-`hard_lock_pnl`, `hard_lock_usd`, and the bot trip's `soft_breaker_at`,
-`soft_breaker_pnl`, `soft_breaker_usd`; `bot.buy_lock.lock_for(row, venue)` reads
-any venue's, `execution.service` asks with the door's own venue, and the session
-adds `day_lock: {active, until, tripped_at, pnl, venue, threshold, text}`,
-`day_locks` and `soft_breaker: {fired, at, pnl, until}` (`hard_lock_until_date`
-/ `day_lock_active` stay one release, the desk venue's). On a replay desk the
-breakers compare nothing and `breakers.note` says so. The Bots page drags the two markers on the desk venue's bar (it asks
-before loosening Live), and the Account page's Risk block reads the same pair. A trip's flatten carries
-its origin (`bot_trip` / `all_stop`, "Who sent it" under the execution command), and its audit line
-(`breaker_soft` / `breaker_hard`) adds `inputs.closes: [{symbol, side, qty, ok, order_id, error, opened_by}]`
-(what the flatten sold, one line per position) and `inputs.flatten_error`. `opened_by` (2026-10-14, ADR 045
-amendment) is the newest filled order on the other side of that close on the trip's venue, from the execution
-record (`bot.flatten.opened_by`): `{order_id, source, side, qty, order_type, price (the order's own limit or
-stop, never a guessed fill), placed_ts, filled_ts} | null`; the notice adds "It came from your order 255: Buy
-1,000 GENK LMT 2.76, placed 09:25:19 ET, filled 09:28:26 ET." under the close. **Every desk window says so**
-(operator report 2026-10-01: the trip had been visible only on the Bots and Account pages): the bot's
-notices (`frontend/src/bot/breakerNotices.ts`) read the polled audit stream and raise one notice per trip
-younger than 10 minutes -- "Bot trip sold your positions", the venue, the day P&L against the limit, the
-time, each position sold with its order id (or why it was not), and what follows -- which stays until it
-is dismissed; a failed sell reads "the sell failed -- close your positions yourself". `bot-session.json` and `bot-proposals.json` are written through a
-temp file and a rename.
+**No loss breaker** (ADR 056, superseding ADR 032). The bot trip and the all-stop are gone, with
+their thresholds (`breakers`), the bot trip's latch (`soft_breaker_*`), the all-stop's day lock
+(`hard_lock_*`, `day_lock`, `day_locks`, `day_lock_active`), the `bot_trip` / `day_lock` gates,
+`BOT_TRIP_LATCHED`, `reenable`, `switch.latched` and the breaker notices. `PATCH /api/bot/session
+{breakers}` is refused `400 BOT_BREAKERS_RETIRED` with the words "The bot trip and the all-stop are
+gone: set the daily loss limit in Settings > Loss limits (ADR 056)". A saved session with any of their
+fields -- on the row or in a venue's dial -- loads with them dropped (`BOT_RETIRED_BREAKER_KEYS`). The
+one loss limit is the operator's, in Settings, for you and the bots alike (`loss-limit.md`); it never
+turns the bot off, and the bot meets its No new buys at the execution door and in its `loss_limit` gate.
+`bot-session.json` and `bot-proposals.json` are written through a temp file and a rename.
 
 **The level belongs to a venue** (operator report 2026-09-30: "When I switch
 between L0 and L2 in the paper, it stays persistent when I switch to live, and
 I feel like that shouldn't happen"; owner `bot/venue_levels.py`). Each venue
-keeps its own dial -- `level`, `setup_levels`, the bot trip's latch and record,
-the all-stop's day lock (ADR 042, #658 option b: Live's lock follows Live and
-switching away and back does not escape it), the sleeve (`caps`), the bot list
+keeps its own dial -- `level`, `setup_levels`, the sleeve (`caps`), the bot list
 (`symbol_allowlist`; Live's starts empty: Nova never buys on Live) and the bot's
 `working` orders and `bot_qty` -- the session's fields being the dial of
 the venue in `level_venue` and the others waiting in `venue_levels: {VENUE:
-dial}` (optional keys of schema 4; a venue with none starts Off, its bot trip
-clear). `sim.mode.set_venue` puts the old venue's dial away, takes the new
+dial}` (optional keys of schema 4; a venue with none starts Off). `sim.mode.set_venue` puts the old venue's dial away, takes the new
 one's and deactivates the bot (a `venue` audit line): Activate never carries
 into another venue, like spend arming. A session loaded on another venue than
 its `level_venue` takes that venue's dial; one without the stamp belongs to the
 venue the desk showed. `GET /api/bot/session` adds `level_venue` and
-`levels_by_venue: {live, paper, sim}`. The bot trip's latch adds
-`soft_breaker_until` and lapses at the next 04:00 ET like the day lock
-(`bot.clock.soft_latched`; a latch without it has lapsed), and the all-stop
-trips again once an earlier day's lock has lifted -- it read the stale date as
-"locked" and never tripped a second time. Leaving a venue first cancels Nova's
+`levels_by_venue: {live, paper, sim}`. Leaving a venue first cancels Nova's
 working entries there ("Who trades the stock" below). Every bot audit line
 carries `venue`, and the daily entry cap counts this
 venue's entries (a line without it counts on every venue). A TTL cancel and a
@@ -214,7 +177,7 @@ trade at a time, then the shared daily cap. It takes the first of a setup on a
 symbol that day (its kind without `second_`) with the tape at go and the plan a
 trade (NOT A TRADE is one rule, below), after every gate (`admit.for_bot`): the
 venue, Activate, the setup's level and window, extended hours, a held depth
-line, the padlock, the kill switch, this venue's day lock and bot trip, the
+line, the padlock, the kill switch, this venue's daily loss limit (ADR 056), the
 working block, the sleeve's size and the daily cap; a trigger it does not take
 is a `bot_trade` `skipped` line with every reason (`inputs.codes` /
 `reasons`) and the stock's last event on its Trader tab. Its entry is a
@@ -265,11 +228,12 @@ the `setup_id`). A bot working order the bot cancels itself carries
 triggers went unbought for five reasons no screen showed together. ADR 044 amends ADR 042, 037, 041,
 036, 032 and 023 as below.
 
-**The Bot switch.** One per venue, on the desk in place of the master dial and Activate. `POST
-/api/bot/session/switch {on: boolean, reenable?: boolean}` (API key) answers the session view.
+**The Bot switch.** One per venue, on the desk in place of the master dial and Activate; since 2026-10-15 it is
+in the header beside the padlock, on every view (it was on the Bots page's Bot card). `POST
+/api/bot/session/switch {on: boolean}` (API key) answers the session view.
 - **ON** puts the venue's master `level` at Strategy (2) and activates. It is refused like Activate:
-  409 `BOT_LIVE_NOT_BUILT`, `BOT_REPLAY_DESK`, `BOT_VENUE_UNKNOWN`, `BOT_NO_SETUP_AT_STRATEGY` (no
-  strategy is On), and `BOT_TRIP_LATCHED` unless `reenable`. A successful ON returns `desk_arm_token`,
+  409 `BOT_LIVE_NOT_BUILT`, `BOT_REPLAY_DESK`, `BOT_VENUE_UNKNOWN` and `BOT_NO_SETUP_AT_STRATEGY` (no
+  strategy is On). A successful ON returns `desk_arm_token`,
   as `/arm` does.
 - **ON unlocks the padlock** (ADR 044 amendment, 2026-10-12). Once every other rule passes, ON arms the
   desk through the padlock's one rule, `ibkr.safety.arm(True, actor="operator")` (ADR 018), so it
@@ -281,13 +245,60 @@ triggers went unbought for five reasons no screen showed together. ADR 044 amend
   padlock)" when this press unlocked it. OFF leaves the padlock as it is; locking the padlock still
   turns the bot off (`activation.on_disarm`).
 - **OFF** deactivates (`deactivated.reason: "operator"`) and puts the master at Eyes (1), so setups
-  at Eyes or On still propose.
-- **The bot trip** (`bot/autonomy.drop_to_eyes`, `drop_to_l0` kept as its alias) also leaves the master at
-  Eyes (1), not Off; its `breaker_soft` line's outcome reads `eyes`.
+  at Eyes or On still propose. Turning it off sells nothing, and while it is off no bot of either family places
+  any order, not even a sell ("The three keys" below).
+- No loss limit turns the switch off (ADR 056): the daily loss limit's No new buys holds the bot's
+  entries at the door and in its `loss_limit` gate.
 - Each change is a `bot_switch` audit line, outcome `on` | `off`, `inputs: {on, from_level, to_level}`.
 - The session view adds `bot_on: boolean` (active with the master at Strategy) and `switch: {on, venue,
-  why_off: string | null, latched: {at, pnl, until} | null}`.
+  why_off: string | null}`.
 - The localhost bot API's `level` stays readable, and `PATCH {level}` stays for it.
+
+**The three keys** (operator decisions 2026-10-15: Bots as a group with "a key per family, and one super key by the
+header lock"; off at every level: "Bots can not place order or sell orders! that's it", then, asked what a held
+position does, "No orders at all"). A bot places an order only while all three of its keys are on, on its venue:
+
+1. **The Bot switch** (the super key, above): every bot on the venue.
+2. **Its family's key**: **Strategy Bots** (the setup strategies' bot and Auto-entry) at the top of Bots > Strategy
+   Bots; **LiveTrader Bots** (ADR 055) in the head of Bots > LiveTrader Bots. Each covers only its own family.
+3. **Its own key**: each strategy's Off · Eyes · On; each TraderTV host's Bot key.
+
+- **Off places no order at all, at every level** -- no entry, no add, no sell, no cover, no stop moved. Nothing is
+  sold when a key turns off, and what a bot holds stays until the keys are back on or the operator sells it: the Live
+  Trader bot neither follows the host's exits nor sells at off air, the 10-minute hidden rule, the sell-all time or a
+  day rollover; the strategy bot sends no time stop, flush exit or tightened stop and leaves a close under way as it
+  rests. What already rests at the broker still fills (a bracket's stop and target, a short's buy stop), and the bot
+  still reads those fills. Each held position says so once (a `note` line). When the keys are back on, an exit whose
+  reason still stands is sent then (past the sell-all time: at once).
+- **What a bot still does with a key off:** it takes back its own orders, which places nothing -- an entry not filled
+  by its time to live is cancelled, and the stops of a position that holds nothing are cancelled. One exception, so
+  that a bot's stop can never flip an account the wrong way: when the operator covers part of a Live Trader short by
+  hand, its bot still covers the rest, whose buy stop no longer matches (ADR 055, "bad reads" review).
+- The keys stop bots, never the operator: your own orders, a cover included, go through the door with every key off.
+  Header KILL and Freeze all orders are unchanged; bots never trade Live.
+- **The Bot switch no longer follows the keys under it** (2026-10-15): turning the last strategy Off, or the last
+  host key off, leaves it on -- with off at any level meaning no order, a lower key turning it off would also stop
+  the other family's exits. ON is still refused while no strategy is On and no host key is on
+  (`BOT_NO_SETUP_AT_STRATEGY`), and it still goes off at a start, a locked padlock and a venue change.
+- **The family keys' file** is `bot-keys.json` in the operator cache (owner `bot/family_keys.py`; a temp file and a
+  rename): `{schema_version: 1, venues: {paper | sim: {strategy: boolean, live_trader: boolean, at: epoch}}}`. Paper and
+  Sim each keep their own; Live has none (they read off: bots never trade Live). A venue or a family missing from the
+  file reads **on**, so the update trades as the day before until the operator turns one off. An unknown version or
+  an unreadable file reads every family key off with the reason and refuses writes 409 `BOT_KEYS_UNREADABLE`. A
+  process start and a venue change keep the keys; only the Bot switch never survives a start (ADR 042 B).
+- `POST /api/bot/session/keys {family: "strategy" | "live_trader", on: boolean}` (API key) answers the session view;
+  on Live it is 409 `BOT_LIVE_NOT_BUILT`, on an unreadable venue 409 `BOT_VENUE_UNKNOWN`. Each change is a `bot_key`
+  audit line, outcome `on` | `off`, `inputs: {family, venue, on}`; pressing a key into its own state writes nothing.
+- The session view adds `keys: {venue, error: string | null, strategy: {on, why_off}, live_trader: {on, why_off}}`
+  for the desk venue (`why_off` null while on).
+- **Strategy Bots off**: the bot and Auto-entry skip a go trigger `BOT_SKIP_FAMILY_OFF`, the runner does not play, the
+  bot's open trade is only read (above), the localhost bot API (`POST /api/bot/action`) refuses every order kind 409
+  `BOT_SKIP_FAMILY_OFF` (`cancel_symbol` still goes), and the session's `gates` add `strategy_key` (stage `fire`).
+- **A strategy below On** is its trade's own key off: the bot's open trade of that strategy is only read, said once
+  (`BOT_SETUP_NOT_STRATEGY`), until it is On again. The squares' `bot_on` square is green only with the Bot
+  switch and the Strategy Bots key both on; a past trigger reads the key from the journal's `bot` stamp
+  (`strategy_key`; a line without it is judged by the Bot switch alone).
+- **LiveTrader Bots off**: `LT_FAMILY_OFF` ("The Live Trader bot" below).
 
 **Strategies: Off · Eyes · On** are `setup_levels` 0 / 1 / 2 under new names on the desk.
 - Two template parameters join the bot group, which never restarts a read-out:
@@ -445,14 +456,22 @@ with a book and no prints would read WAIT, never GO.
   15 s same-instrument rule shows its Time & Sales resubscribing for those seconds; the 10-second chart,
   built from those prints, has a gap for the length of the loan.
 
-**On the desk.** The Bots page reads, top to bottom:
-1. one answer line ("Can Nova buy right now?" for every ticker at once, each red with its fix, the
+**On the desk.** The nav rail's **Bots** is a group (operator decision 2026-10-15): **Bots** itself, empty for now
+("keep it empty for now"), then its two children, **LiveTrader Bots** (the TraderTV hosts' page, each host's bot in their
+card, "The Live Trader bot" below) and **Strategy Bots**, the page that was Bots, unchanged but for the key on top. Strategy Bots reads, top to
+bottom:
+1. the Strategy Bots key;
+2. one answer line ("Can Nova buy right now?" for every ticker at once, each red with its fix, the
    desk's checks as chips);
-2. the Bot card (the switch, Freeze all orders, the venue's risk);
-3. the strategies, each Off · Eyes · On with its bot rules;
-4. Level 2 lines;
-5. Tickers today (the hot list and the squares);
-6. Today, Proposals and Activity.
+3. the Bot card (Freeze all orders, the venue's risk; its switch is the header's);
+4. the strategies, each Off · Eyes · On with its bot rules;
+5. Level 2 lines;
+6. Tickers today (the hot list and the squares);
+7. Today, Proposals and Activity.
+
+The header's Bot switch sits beside the padlock: Bot ON / OFF for the desk venue, a press turns it on or off, a
+refused press says why under it, and hover says why it is off. Every link that opened the Bots page opens Strategy
+Bots.
 
 Elsewhere:
 - **Freeze all orders** is the kill switch's name on the desk (`/api/kill-switch` unchanged). The
@@ -560,8 +579,23 @@ side: `backend/bot/replay_desk.py`; of the lanes: `backend/eyes/sim_eyes.py`, `e
 
 One bot per TraderTV host (`followed-traders.md`): it copies the host's bar on **Paper only**, never Live and
 never Sim. Owner `backend/bot/live_trader/` (constants in `bot/live_trader/constants_live_trader.py`); the
-Bots page's "Live Traders · TraderTV" section, under Strategies (`frontend/src/bot/`). On only while
-`NOVA_FOLLOW_FEED_URL` is set: unset, the watcher asks nothing and the view says the feed is off.
+desk, **Bots > LiveTrader Bots**: the followed traders' page (`followed-traders.md`, "On the desk"), with each
+host's bot in the middle of their card, between their record and their P/L (operator, 2026-10-15: "i want all content
+from the original tradertv live to be inside livetrader bots", and the panel's "Entry you/bot exit you/bot .. can all be
+compacted inside these empty spaces... includeing bot keys"; approved from a render, "i like it. build it."). The
+"Live Traders · TraderTV" panel that stood on its own on that tab is gone. On today, a host's bot reads in two lines:
+its Bot key, Entry You | Bot, Exit You | Bot and Rules (the rules on hover; a click opens their editor in a card
+under it); then the allowance used of its allowance, Today's P/L, trades and skips -- the skips' reasons on hover, by
+reason, from its newest events. An ask waiting on the operator takes the second line, with Skip, Approve and its
+seconds; a write refused takes it with why. A copy the bot holds is a BOT chip on the host's open row it copies
+(`row_id`), its shares, entry and P/L on hover; one whose row is gone (a key held its close) is a chip on the second
+line. A card narrower than 1300 px puts the two lines on one line of their own under the card's row. The page's
+head holds the LiveTrader Bots key and, while `can_trade` is not ok, one amber line, "No orders · "
+and the reason's first clause (all of it on hover); `LT_FROZEN` links to Strategy Bots, where Freeze all orders
+is, and `LT_LOSS_LIMIT` says Settings > Loss limits in its words (ADR 056); a window under 2100 px gives the key
+and that line a line of their own under the head's row. The keys it obeys are the header's Bot
+switch, that key and the host's own ("The three keys"). Its styles are its own (`bot/liveTraderStrip.css`). On only while `NOVA_FOLLOW_FEED_URL` is set: unset,
+the watcher asks nothing and the view says the feed is off.
 
 **The rules** (ADR 055 decisions 2-4): a position on the host's bar is one step in their direction; an
 add (their average moves; changes `LT_ADD_MERGE_SEC` 4 s apart are one add, acted on once settled, and one
@@ -569,7 +603,8 @@ back where it started is none) is one more step up to `adds`; the position leavi
 the bot's whole position; off air (`traders[].seen.left_ts`, 60 s), the bar hidden `LT_HIDDEN_SEC` (600 s;
 also a feed that has not answered or read for as long), and the sell-all time (`sell_all_at`, 15:55 ET; 12:55
 on an early close) sell everything; an entry first seen `LT_OPEN_FRESH_SEC` (60) after it happened, on the
-first answer of a watch, or when the host comes back on air is already open (`take_open`), taken only while the
+first answer of a watch, when the host comes back on air, or that fills an empty bar together with others ("The
+bar's own moves" below) is already open (`take_open`), taken only while the
 host's bar shows it (`status.positions`; a trade the feed still holds open from before they left can be gone from
 it: `LT_NOT_ON_BAR` after the wait). Opens and adds
 skip, each with its reason: the feed `LT_FEED_BEHIND_SEC` (30) behind the stream or silent as long, a ticker
@@ -577,7 +612,13 @@ check not settled, the host's average over `LT_MISREAD_PCT` (1.5%) from the mark
 a stock's market cap under `LARGE_CAP_MIN` ($10B) or unknown (an ETF always passes: Yahoo's `quote_type`
 `"ETF"`, operator 2026-10-14), no fresh quote, the allowance, the adds, shorts off,
 the account holding the other side (or the bot holding the other side for another host), outside the short
-hours, the desk off Paper, the Bot switch off, Freeze all orders, after the sell-all time. A wait (the quote
+hours, the desk off Paper, the Bot switch off, the LiveTrader Bots key off, Freeze all orders, after the sell-all
+time. With the Bot switch, the LiveTrader Bots key or the host's own key off, the host's bot places no order at all
+("The three keys"): each add of what it holds is a skip (`LT_KEY_OFF` for the host's key), so turning a key back on
+never buys an add made while it was off, and each close it would have sent is said once ("not sold -- ...", with
+the position's wait) and sent when the keys are back on if its reason still stands. A position held from an earlier
+desk day is judged from its own open time on every pass, so one a key held back at the rollover is sold the pass the
+keys are back on, whatever its Exit. A wait (the quote
 line, the market cap, the ticker check) turns into its skip after `LT_WAIT_SEC` (30). Closes are never held
 for a doubt -- a late read is still a true one; with no answer at all they wait for one, and `LT_HIDDEN_SEC`
 without a read sells everything.
@@ -603,6 +644,47 @@ read, the sell-all time). Beyond the rules above, each with its reason:
   clock reads. It is not a silent feed: it never counts toward `LT_HIDDEN_SEC`.
 - A read the bot cannot make sense of at all (an answer it cannot fold) is a feed that is not answering
   (`LT_FEED_DOWN`, `state: "bad_answer"`): closes wait for a read, and `LT_HIDDEN_SEC` of it sells everything.
+
+**The bar's own moves** (operator, 2026-10-15: hold the sells while a whole bar blanks, up to 90 s; owner
+`bot/live_trader/decide_bar.py`, state in the decision's snapshot, memory only). The bar can change on screen
+without the host trading. The answer carries each host's `bar` as the feed last confirmed it (`status.positions`:
+`["side:SYMBOL"]`, `[]` when it reads empty on both sides, null when the feed sends none).
+
+- **A blank bar** (`LT_BLANK_BAR`): every open position of a host -- two or more -- closes in the feed within
+  `LT_SWITCH_SEC` (1 s) of each other, no other row of theirs open, while their `bar` reads `[]` (or is already
+  back). That is a display refresh: the same positions come back about a minute later at their very averages. The
+  closes of those rows wait, said once per position (a `note`), up to `LT_BLANK_HOLD_SEC` (90 s, the stream's clock
+  or the wall's, whichever is further). Once the bar's first row is back and `LT_BLANK_SETTLE_SEC` (4 s) has passed,
+  a position back at its very average -- side, stock, and its last average to the cent equal to the new row's entry
+  or average -- is the same position: re-keyed to the new row (`rekey`), nothing sold, nothing bought, its adds
+  followed from the new row, and every row back inherits its old row's decision (a skip is not said twice). A
+  position not back is sold then ("the bar came back after the blank without ..."). The bar still empty at the limit:
+  everything is sold ("stayed empty 90 s"). A bar not read empty, closes further apart, a position left open beside
+  them, or no `bar` from the feed: the closes sell at once, as before. While a host's bar is blank, no take of theirs
+  is made. Off air, `LT_HIDDEN_SEC`, the sell-all time, the key and the Bot switch never wait: they sell at once. A
+  real flatten-all that the host makes in one second reads the same way and is sold up to 90 s late.
+- **A hand-over that lingers** (`LT_RETURN_SWITCH`): after a host comes back on air the bar can show the previous
+  host's rows under their name tag until every slot switches at once. The rows the bar shows in the first
+  `LT_RETURN_FIRST_SEC` (30 s) after the return -- until one of them closes -- are not taken (a `note` each) until
+  every one of them has closed (the switch), or `LT_RETURN_HOLD_SEC` (480 s) passes; then they are already open
+  (`take_open`), as any row is. Rows that open later, and rows of a host on air all along, are judged as before.
+- **A stock the feed reads two ways** (#1010; operator OK 2026-10-15 for the rule "a row the feed closed and opened
+  again in the same second for the same stock is the same position, re-keyed, never sold and bought again"). A
+  misread that flips between two readings of one bar ("RGTI 12.08" read in turn as RGT 112.08, RGTI 112.08 and
+  RGTI 12.08) makes the feed close the trade and open the next in one second. The feed cannot close and open one
+  stock in one read, so before a closed row sells, the bot looks for an open row of the same host and side, not
+  left the bar, whose `entry_ts` is in the closed row's `exit_ts` second and whose stock is the position's -- or
+  whose ticker check is still `checking` with the position's stock as its glued reading (`ticker.other_symbol`):
+  for a few seconds after the flip the row back reads under the glued ticker. Found, it is the same position:
+  re-keyed (`rekey`, "the feed read X again in the same second"), nothing sold, nothing bought. While its check runs,
+  the row back under the glued ticker opens nothing. Should the check settle on the other stock (the glued reading
+  was a real ticker at that price), it was a hand-over after all: the position sells ("the row back at T is RGT, not
+  RGTI") and the row is judged as any other. A close with no same-second row back, and a different stock opened in
+  that second (a hand-over), still sell. Off
+  air, `LT_HIDDEN_SEC`, the sell-all time and the keys judge first, as for every close.
+- **Rows that fill an empty bar together are already open** (`feed_rows.filled_together`): two or more slots
+  changing within `LT_SWITCH_SEC` onto an empty bar -- rows opening together while every older row of the host has
+  closed by then (a bar back after a blank, the slots switching at a hand-over) -- were already open, not entered.
 
 **Settings** (`live-trader-bots.json` in the operator cache; owner `bot/live_trader/settings.py`; written
 through a temp file and a rename; an unknown version or an unreadable file refuses loud: every host reads
@@ -639,10 +721,11 @@ tried again (a `live_trader` `error` line says so once), and a restart keeps the
 day: a stop is off the list only when Paper says it is gone.
 
 `id` is `host|side|symbol`: one position per host, side and stock (a feed row reopened for the same stock
-is the same position, re-keyed to the new `row_id`, never bought twice). `closed` keeps today's (at most
+is the same position, re-keyed to the new `row_id`, never bought twice; so is one closed and opened again in
+the same second, "A stock the feed reads two ways"). `closed` keeps today's (at most
 200); a day other than today's is sold at once on load ("held from DAY: never overnight") and cleared.
 Each pass reconciles with Paper's ledger: shares the account no longer holds (the operator sold them, a
-buy stop or a breaker did) leave the position, said once. A short's buy stops cover what it held: when shares
+buy stop or the loss limit's Auto sell did) leave the position, said once. A short's buy stops cover what it held: when shares
 of a short leave it that way, what the bot still holds of it is covered (change `kind: "outside"`), and once the
 position holds nothing its stops wait on `retire` until Paper shows them cancelled -- a bot short never holds
 without a stop for exactly its shares, and a stale stop can never buy past flat or cover a later short. A book that cannot be written stops every new step
@@ -671,7 +754,7 @@ without a stop for exactly its shares, and a stale stop can never buy past flat 
   host's card and its key show before any key is on (a desk with no settings would otherwise list none and offer
   no key to turn on; a read that fails keeps the names last read that day and `watcher.feed` says why) -- and
   every host with settings or positions, in the feed's
-  order. `face` is the TraderTV LIVE page's photo path, or null. `events` are the host's newest
+  order. `face` is the followed traders' photo path, or null. `events` are the host's newest
   `live_trader` audit lines (8), read from the audit file's last MB (`LT_AUDIT_TAIL_BYTES`) and again only when
   the file changed. `today.pl_usd` is realized plus unrealized at the last, from the bot's own
   fills; `series` its points at each fill.
@@ -680,8 +763,8 @@ without a stop for exactly its shares, and a stale stop can never buy past flat 
   the asks' toasts, and the Bot switch reads `held` before it asks to sell.
 - `PATCH /api/bot/live-traders {sell_all_at}` and `PATCH /api/bot/live-traders/{name} {key?, entry?, exit?,
   step_usd?, adds?, allowance_usd?, sides?, short_stop_pct?, take_open?}` answer the view; a value out of
-  bounds is 400 `LIVE_TRADER_INVALID` with `field`, never clamped. `key: false` while the host's bot holds
-  positions sells them on the next pass (the desk asks first). Each change is a `live_trader` `settings`
+  bounds is 400 `LIVE_TRADER_INVALID` with `field`, never clamped. `key: false` sells nothing: the host's
+  bot places no order until it is on again (2026-10-15; it used to sell them). Each change is a `live_trader` `settings`
   audit line `{host, from, to}`.
 - `POST /api/bot/live-traders/{name}/asks/{ask_id} {approve: bool}` answers the view; an ask that expired,
   was answered or was withdrawn (the host closed) is 409 `LIVE_TRADER_ASK_GONE`. An approved step meets
@@ -706,25 +789,25 @@ holds, is entering or waits to enter; never a Level 2 line (ADR 055 decision 3).
 **Audit** (the bot's stream): action `live_trader`, outcome `order` (a step sent) | `filled` | `closed` (a
 close sent) | `skipped` | `asked` | `answered` | `refused` (the door's words) | `settings` | `note` |
 `error`; `inputs: {host, row_id, symbol, side, step, qty, limit, stop, order_id, code, why, change: {kind:
-"open" | "add" | "already_open" | "close" | "off_air" | "hidden" | "sell_all" | "key_off" | "bot_off" |
-"stale_day" | "outside", ts, price}, late_sec, venue: "paper"}`. `late_sec` is the send's wall time less the feed's
+"open" | "add" | "already_open" | "close" | "off_air" | "hidden" | "sell_all" | "stale_day" | "outside", ts, price}, late_sec, venue: "paper"}`. `late_sec` is the send's wall time less the feed's
 time of the change. A skip is written once per position, step and code. Codes: `LT_FEED_BEHIND`,
 `LT_FEED_DOWN`, `LT_TICKER_UNSETTLED`, `LT_MISREAD`, `LT_SMALL_CAP`, `LT_CAP_UNKNOWN`, `LT_NO_QUOTE`,
 `LT_ALLOWANCE`, `LT_ADDS_DONE`, `LT_SHORTS_OFF`, `LT_AGAINST`, `LT_NOT_HELD`, `LT_VENUE`, `LT_BOT_OFF`,
 `LT_FROZEN`, `LT_AFTER_SELL_ALL`, `LT_SHORT_HOURS`, `LT_NOT_PRICEABLE`, `LT_ASK_EXPIRED`, `LT_ASK_SKIPPED`,
-`LT_ALREADY_OPEN`, `LT_OFF_AIR`, `LT_HIDDEN`, `LT_DAY_LOCK`, `LT_NOT_ON_BAR`, `LT_OTHER_HOST`, `LT_ROW_UNREAD`,
-`LT_ADD_IMPLAUSIBLE`, `LT_NO_CLOCK`.
+`LT_ALREADY_OPEN`, `LT_OFF_AIR`, `LT_HIDDEN`, `LT_LOSS_LIMIT`, `LT_NOT_ON_BAR`, `LT_OTHER_HOST`, `LT_ROW_UNREAD`,
+`LT_ADD_IMPLAUSIBLE`, `LT_NO_CLOCK`, `LT_FAMILY_OFF`, `LT_KEY_OFF`. Lines written before 2026-10-15 may carry the
+retired change kinds `key_off` and `bot_off` (a key or the Bot switch turned off sold everything then). `LT_BLANK_BAR` and `LT_RETURN_SWITCH` are waits, said as `note` lines
+(`step` `blank` for a held sell, `lt_blank_bar` / `lt_return_switch` for a held take), never skips.
 
 **The Bot switch** counts a host key on as a strategy On on Paper (`BOT_NO_SETUP_AT_STRATEGY`: "no
 strategy is On and no Live Trader key is on"); `GET /api/bot/session`'s `setups` gate adds
-`live_traders: [NAME]`. The operator's OFF (`POST /api/bot/session/switch {on: false}`) on Paper while the
-Live Trader bot holds positions sells them on the next pass (the desk asks first); a `live_trader` `closed` line
-names `bot_off`. Sim's and Live's switches never touch the Paper bot's shares.
+`live_traders: [NAME]`. OFF -- the Bot switch's, the LiveTrader Bots key's or a host's -- sells nothing, and the
+bot places no order while it is off ("The three keys").
 
 **On the desk.** The section's cards (mockup v1, approved 2026-10-14): the host's photo or initial, on air
 and how old the read is, the key, Entry You | Bot and Exit You | Bot with the mode in words, the allowance
 bar, today's P/L, trades and skips with a line of the day's P/L, the positions (shares, the bot's cost, the
 host's average, now, P/L), the last events with their reasons, and the settings as chips that open their
 editors. A line above the cards says what stops every host now (`can_trade.why`). An ask is a line on its
-card and a toast in every desk window (`bot/BotNotices.tsx`) with Skip and Approve and its seconds left.
-Turning a key off, or the Bot switch off, while positions are held asks "Sell N and turn off".
+card and a toast in every desk window (`bot/BotNotices.tsx`) with Skip and Approve and its seconds left. A host
+whose key is off while its bot holds positions reads "Key off · no orders: N held, not sold until it is on".

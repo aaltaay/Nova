@@ -55,24 +55,24 @@ def test_session_get_l0_open_without_key(bot_iso):
     # (2026-10-06) the 5-minute flat top have scanners.
     # ADR 049 (#778 step 4): the five short setups have scanners too, each Off until set.
     assert setups == {"first_pullback": True, "bull_flag": True, "flat_top_breakout": True, "flat_top_5m": True,
-                      "red_to_green": True, "gap_and_go": True, "pullback_dip": True, **dict.fromkeys(SHORTS, True),
+                      "red_to_green": True, "gap_and_go": True, "pullback_dip": True, "abcd": True, **dict.fromkeys(SHORTS, True),
                       "micro_pullback": False}
     levels = {row["id"]: (row["level"], row["effective"]) for row in body["setups"]}
     assert levels == {"first_pullback": (0, 0), "bull_flag": (0, 0), "flat_top_breakout": (0, 0),
-                      "flat_top_5m": (0, 0), "red_to_green": (0, 0), "gap_and_go": (0, 0), "pullback_dip": (0, 0),
+                      "flat_top_5m": (0, 0), "red_to_green": (0, 0), "gap_and_go": (0, 0), "pullback_dip": (0, 0), "abcd": (0, 0),
                       **dict.fromkeys(SHORTS, (0, 0)), "micro_pullback": (None, None)}
     sides = {row["id"]: row["side"] for row in body["setups"]}
     assert {sid for sid, side in sides.items() if side == "short"} == set(SHORTS)
     assert body["setup_levels"] == {"first_pullback": 0, "bull_flag": 0, "flat_top_breakout": 0, "flat_top_5m": 0,
-                                    "red_to_green": 0, "gap_and_go": 0, "pullback_dip": 0, **dict.fromkeys(SHORTS, 0)}
-    assert body["breakers"]["soft_usd"] == -50.0 and body["breakers"]["hard_usd"] == -200.0
+                                    "red_to_green": 0, "gap_and_go": 0, "pullback_dip": 0, "abcd": 0, **dict.fromkeys(SHORTS, 0)}
+    for gone in ("breakers", "soft_breaker", "soft_breaker_fired", "day_lock", "day_locks", "day_lock_active",
+                 "hard_lock_until_date"):                     # ADR 056: the loss breakers are gone
+        assert gone not in body
     assert [g["id"] for g in body["gates"]] == [
-        "venue", "level", "setups", "padlock", "allowlist", "depth_lines", "bot_trip", "day_lock",
+        "venue", "level", "setups", "padlock", "strategy_key", "allowlist", "depth_lines", "loss_limit",
         "kill_switch", "window", "daily_cap", "extended_hours", "commissions"]
     assert set(body["caps_by_venue"]) == {"live", "paper", "sim"}
     assert body["entries_today"]["count"] == 0 and body["entries_today"]["cap"] == 1
-    assert body["day_lock"]["active"] is False and set(body["day_locks"]) == {"live", "paper", "sim"}
-    assert body["soft_breaker"] == {"fired": False, "at": None, "pnl": None, "until": None}
     alias = client.get("/bot/session")
     assert alias.status_code == 200
 

@@ -294,7 +294,7 @@ def _bot(arm_start: str, arm_end: str) -> tuple[ParamSpec, ...]:
            help="At Strategy the bot sends an entry only inside this window (the venue's clock). It sits inside "
                 "the arming window; changing it never starts the read-out over."),
         _p("bot_window_end", BOT_GROUP, "Bot entries until", TIME, end, unit="ET", min="04:00", max="20:00",
-           help="No bot entry at or after this time. The bot's entries a day are the sleeve's (Bots page)."),
+           help="No bot entry at or after this time. The bot's entries a day are the sleeve's (Strategy Bots)."),
         _p("bot_grades", BOT_GROUP, "Grades Nova buys", CHOICE, BOT_GRADES_DEFAULT, choices=BOT_GRADES_CHOICES,
            help="Nova buys this setup only at these grades. C is never a trade."),
         _p("bot_setups_a_day", BOT_GROUP, "Setups a stock a day", INT, BOT_SETUPS_A_DAY_DEFAULT, unit="setups",

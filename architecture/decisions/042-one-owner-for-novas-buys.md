@@ -1,6 +1,6 @@
 # ADR 042 -- One owner for Nova's buys: a level per setup under a master ceiling, one Activate, one sleeve, and no silent blocks
 
-**Status:** Accepted · **Date:** 2026-09-30
+**Status:** Accepted · **Date:** 2026-09-30 · **Amended by:** [[056-one-daily-loss-limit]] (decisions 2, 3, 8: no bot trip or day lock; the `loss_limit` gate)
 **Amends:** [[027-bot-playbook-readout-gate]] (one setup plays; the read-out gates Live) · [[030-first-pullback-bot-on-paper]] (the bot's trade, its watched stop, Live waits on the read-out) · [[031-a-scanner-for-every-setup]] (the chosen setup; only it reaches Strategy) · [[032-loss-breakers-per-venue]] (the day lock is one for the desk; locks lift at midnight) · [[037-who-trades-the-stock]] (Auto-entry's own rules and risk; the bot list outside the switch; trades in memory) · [[029-setup-templates-eyes-journal]] (the bot's entry rules inside every template)
 **Decided by:** the operator, 2026-09-30:
 - On the Bots page: "why is it a radio button? We are already choosing if it's off, eyes only, or strategy independently in each strategy, so why do we have this radio button that says 'bot trade this'?"
@@ -103,3 +103,12 @@ ABA transitions, queued refresh, sample isolation and explicit Live on the legac
 Paper Gateway. Existing account, Who-trades, confirmation and protective-leg
 checks remain neighbors. This amendment changes frontend ownership, not backend
 spending gates or the held Live-bot decision.
+
+## Amendment, 2026-10-15: nothing left at Strategy no longer clears Activate
+
+Decision 2's "and when nothing is left at Strategy" is withdrawn (ADR 044 amendment of the same date, "the three
+keys"). The Bot switch is now the top of three keys, and with any key off no bot places an order, not even a sell; a
+strategy turned Off (or the last Live Trader host key turned off) clearing Activate would also stop the other bot
+family's exits. Activate is still refused with no setup at Strategy and no host key on, and still cleared on every
+start, a locked padlock, a venue change and the master below Strategy. Older `deactivated` stamps and audit lines may
+read `no_setup`.

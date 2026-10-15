@@ -20,7 +20,7 @@ requirement it liquidates. When a practice account's equity is under its mainten
 position that needs the most -- shorts first -- at market, one a pass, until the account fits.
 
 Every close is an ordinary order through the execution door (ADR 007): source ``flatten``
-(protective: never refused by the kill switch, the day lock or the arm latch), origin
+(protective: never refused by the kill switch, the daily loss limit or the arm latch), origin
 ``day_cover`` / ``margin_call`` (the Orders table's "Sent by"), sent to the venue it closes on
 (``target_venue``) whatever the desk shows. Each is a ``day_cover`` / ``margin_call`` line on the
 bot audit stream. A close the venue refuses is logged and tried again ``SHORT_CLOSE_RETRY_SEC``

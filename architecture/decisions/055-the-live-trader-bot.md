@@ -43,6 +43,10 @@ The TraderTV LIVE page (`followed-traders.md`) reads the operator's feed program
 
 7. **Paper fills at the quote with no Level 2.** A Paper order on a stock with no Level 2 line filled marketable at the last print, because Paper's bid and ask came only from a depth book. Paper's market now takes IBKR's Level 1 bid and ask when the stock has no book side and its Level 1 line is fresh (`practice.reference.LiveReference`): a buy pays the ask and a sell gets the bid, as on Live. Every Paper order, the operator's own included (operator's choice, 2026-10-14).
 
+## Amendment 2026-10-15: the panel lives on the TraderTV LIVE page
+
+Operator ask, 2026-10-15: "I want this to be moved inside Trader TV Live. At the very top, before we start populating Neil, he is on air. I want to see those." The "Live Traders · TraderTV" panel (the hosts' cards, their keys, Entry/Exit switches, asks and the blocker line) moves off the Bots page to the very top of the TraderTV LIVE page, above the hosts' rows, while that page shows today (a past day or a trade's proof shows no panel: the panel is the bot now). Decision 1's "on the Bots page" is replaced; everything else in it stands -- the venue's Bot switch, on the Bots page, is still the one master, and ON still counts a host key as a strategy On. The component stays owned by `frontend/src/bot/` and reaches the page through the bot barrel, loaded on demand (ADR 005). ADR 044 has the matching amendment.
+
 ## Amendment 2026-10-15: bad reads never buy
 
 The operator, 2026-10-14 ~23:15 ET: "if the script reads like something extremely abnormal. It can flag it as a
@@ -70,6 +74,31 @@ cancelled -- a refused cancel is tried again, across a restart -- so a stale sto
 a later short; and a book that cannot be written stops every new step until a write succeeds, so a restart can
 never take a position the bot already bought again.
 
+## Amendment 2026-10-15: the bar's own moves
+
+Two behaviours of the bar seen on recorded shows look like trades and are not. Both change the exit path, so the
+operator was asked first (multiple choice, recommendation marked): when a host's whole bar goes blank at once and
+the same positions come back about a minute later at their very averages (a display refresh), hold the sells up to
+~90 s to see whether they come back, or sell at once as before? The operator chose **hold up to 90 s** (the
+recommendation). Built (`bot.md`, "The bar's own moves"; `bot/live_trader/decide_bar.py`):
+
+- **A blank bar.** Every open position of a host (two or more) closing in the feed within one second while their
+  bar reads empty on both sides holds those closes up to 90 s. A position back at its very average (side, stock,
+  average to the cent) is the same position: re-keyed, no sell, no rebuy. One not back is sold when the bar returns;
+  a bar still empty at the limit is sold whole. Off air, the 10-minute rule, the sell-all time, the key and the Bot
+  switch still sell at once. Before this the bot sold every position and bought each back a minute later, a round
+  trip per position for nothing.
+- **After a break.** When a host comes back on air, the previous host's rows can sit under the returning host's
+  name tag for minutes until every slot switches in one second. The "another host's row" rule above catches them
+  only when the live feed saw those rows under the other host's tag nearby in time. The rows the bar shows just
+  after the return are now not taken until all of them have closed (the switch) or 8 minutes pass, and rows that
+  fill an empty bar together in one second are already open, not new entries. This only delays or relabels a take,
+  never a close; a host's real position on the bar at the return is taken up to 8 minutes late.
+
+Rejected: telling a refresh from a real flatten-all by the screen (the bar's animation over the name tag) -- the
+feed reports no such signal, and the 90 s hold bounds the cost of a real one; holding every close that follows a
+blank until the next read of the averages without a limit -- a bar that never returns would hold forever.
+
 ## Rejected
 
 - A per-host copy of the order path, its own risk checks or its own kill switch: the operator asked for one source of truth, and every gate already exists at the door.
@@ -84,3 +113,17 @@ never take a position the bot already bought again.
 - What the bot holds is the bot's: its fills carry its origin and setup, and its closes sell its own shares only, never the operator's, and never more than the account holds.
 - A feed misread costs at most a step: the 1.5% rule, the ticker check and the large-cap rule stand before every step.
 - Nothing here touches Live: the bot opens on Paper only, its closes name Paper, and the door refuses a `live_trader` close on Live.
+
+## Amendment 2026-10-15: LiveTrader Bots, its own key, and off places no order
+
+Operator decisions, 2026-10-15 (ADR 044's amendment of the same date): the Live Traders panel leaves the TraderTV LIVE page for its own tab, **Bots > LiveTrader Bots**, with a **LiveTrader Bots key** at its top; the Bot switch moves to the header beside the padlock. A host's bot buys only while the Bot switch, the LiveTrader Bots key and its own key are all on, and a blocker says which is off (`LT_BOT_OFF`, `LT_FAMILY_OFF`), on the page that holds the family's key -- the family no longer needs a switch on another page.
+
+Decision 5's last bullet is replaced: **off places no order** (operator: "Bots can not place order or sell orders! that's it", then "No orders at all" when asked whether held positions should still exit, with the overnight risk said). The host's key, the LiveTrader Bots key or the Bot switch turning off sells nothing and asks nothing, and while any is off the host's bot sends nothing: no step, no add, no close for the host's exit, off air, the 10-minute hidden rule, the sell-all time or a day rollover. Each close it would have sent is said once and sent when the keys are back on if its reason still stands (past the sell-all time: at once). A short's buy stop still rests at the broker and still fills. Each add made while a key is off is a skip (`LT_KEY_OFF` for the host's key, the blocker's code otherwise), so turning a key back on never buys an add made while it was off. The bot still cancels its own entries at their time to live and the stops of positions that hold nothing; and when the operator covers part of a bot short by hand, it still covers the rest, so a stop sized for the old shares can never buy past flat. Decision 5's "A restart, a locked padlock, a venue change ... stops new entries only" now reads: each turns the Bot switch off, so the bot places no order until it is on again. The audit's `key_off` and `bot_off` change kinds are retired (older lines keep them).
+
+Accepted risk, said to the operator before the choice: with a key off, a position the bot holds is not sold when the host exits or at 15:55, so it can be held overnight until the operator sells it or turns the keys back on.
+
+Rejected: keeping the sell-on-off for this bot alone, and off stopping new buys only while exits run (the operator chose one meaning for off at every level: no orders at all).
+
+## Amendment 2026-10-15 (afternoon): each host's bot in the host's card
+
+Operator, 2026-10-15 (ADR 044's amendment of the same afternoon): the TraderTV hosts' page is Bots > LiveTrader Bots, and each host's bot sits in the middle of that host's card in two lines -- its key, Entry, Exit and rules; its allowance, today and skips, the reasons on hover -- with an ask taking the second line. A copy the bot holds is a BOT chip on the host's open row it copies. The LiveTrader Bots key and the one line naming what stops every host's bot are in the page's head. The rules, the keys and the wire (`GET /api/bot/live-traders`) are unchanged; only where the desk draws them moved (`bot.md`, "The Live Trader bot").

@@ -146,18 +146,13 @@ describe('NavRail', () => {
     expect(q('nav-rail-settings')!.textContent).toMatch(/Settings/);
   });
 
-  it('shows Followed traders after Cryptos only when the backend has a feed, and routes to its page', () => {
-    render();
-    expect(q('nav-rail-followed')).toBeNull();
+  it('has no TraderTV LIVE item, feed or not: its page is Bots > LiveTrader Bots (operator, 2026-10-15)', () => {
     followed.current = true;
     render();
-    const top = testIds(container.querySelector('.nav-rail__list')!).filter((id) =>
-      ['nav-rail-cryptos', 'nav-rail-followed', 'nav-rail-account'].includes(id!),
-    );
-    expect(top).toEqual(['nav-rail-cryptos', 'nav-rail-followed', 'nav-rail-account']);
-    click('nav-rail-followed');
-    expect(getNavPage()).toBe('followed');
-    expect(q('nav-rail-followed')!.getAttribute('aria-current')).toBe('page');
+    expect(q('nav-rail-followed')).toBeNull();
+    expect(container.textContent).not.toContain('TraderTV LIVE');
+    click('nav-rail-bots-live-trader');
+    expect(getNavPage()).toBe('bots-live-trader');
   });
 
   it('builds the Scanner tree from the registry groups, in registry order, with group labels', () => {
@@ -243,6 +238,31 @@ describe('NavRail', () => {
     expect(q('nav-rail-trader')!.getAttribute('aria-current')).toBe('page');
     expect(q('nav-rail-bots')!.classList.contains('is-active')).toBe(false);
     expect(q('nav-rail-scanner')!.classList.contains('is-active')).toBe(false);
+  });
+
+  it('makes Bots a group: LiveTrader Bots and Strategy Bots under it, each its own page (2026-10-15)', () => {
+    render({ traderActive: true });
+    const tree = q('nav-rail-bots-tree')!;
+    const items = [...tree.querySelectorAll('button')].map(b => b.getAttribute('data-testid'));
+    expect(items).toEqual(['nav-rail-bots', 'nav-rail-bots-live-trader', 'nav-rail-bots-strategy']);
+    expect(q('nav-rail-bots-live-trader')!.textContent).toBe('LiveTrader Bots');
+    expect(q('nav-rail-bots-strategy')!.textContent).toBe('Strategy Bots');
+    expect(q('nav-rail-bots-live-trader')!.classList.contains('nav-rail__child')).toBe(true);
+    click('nav-rail-bots-live-trader');
+    expect(onLeaveTrader).toHaveBeenCalled();
+    expect(getNavPage()).toBe('bots-live-trader');
+    render();
+    // The child carries the bar; the parent reads active quietly, as the Scanner tree does.
+    expect(q('nav-rail-bots-live-trader')!.getAttribute('aria-current')).toBe('page');
+    expect(q('nav-rail-bots')!.classList.contains('is-active')).toBe(true);
+    expect(q('nav-rail-bots-strategy')!.classList.contains('is-active')).toBe(false);
+    click('nav-rail-bots-strategy');
+    expect(getNavPage()).toBe('bots-strategy');
+    expect(q('nav-rail-bots-strategy')!.classList.contains('is-active')).toBe(true);
+    expect(q('nav-rail-bots-live-trader')!.classList.contains('is-active')).toBe(false);
+    click('nav-rail-bots');
+    expect(getNavPage()).toBe('bots');
+    expect(q('nav-rail-bots-strategy')!.classList.contains('is-active')).toBe(false);
   });
 
   it('opens Trader for the selected symbol, SPY when none, and is a no-op while Trader is up', () => {

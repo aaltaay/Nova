@@ -150,3 +150,32 @@ def check(*, side: str, symbol: str, their_price: float, settings: dict[str, Any
 
 def _cap_words(cap: float) -> str:
     return f"${cap / 1e9:.1f}B" if cap >= 1e9 else f"${cap / 1e6:.0f}M"
+
+
+STEP_KINDS = ("entry", "already_open", "add")
+
+
+def used_by_host(book: dict[str, dict[str, Any]]) -> dict[str, float]:
+    """Each host's dollars in the market: what its positions cost, and its steps in flight at their limits."""
+    out: dict[str, float] = {}
+    for p in book.values():
+        cost = float(p.get("cost_usd") or 0.0)
+        order = p.get("order") or {}
+        if order.get("step") in STEP_KINDS and order.get("qty") and order.get("limit"):
+            cost += float(order["qty"]) * float(order["limit"])
+        out[p["host"]] = out.get(p["host"], 0.0) + cost
+    return out
+
+
+def against(book: dict[str, dict[str, Any]], ctx: dict[str, Any], side: str, symbol: str) -> str | None:
+    """Why an entry would trade against a position (the bot's for another host, or the account's); None when not."""
+    other = "short" if side == "long" else "long"
+    for p in book.values():
+        if p["symbol"] == symbol and p["side"] == other:
+            return f"the bot holds {symbol} {other} for {p['host']}: Nova never holds both sides"
+    held = ctx["held"](symbol, other)
+    if held is None:
+        return f"Paper's {symbol} position could not be read, so the bot cannot tell it is not against one"
+    if held > 0:
+        return f"you hold {symbol} {other} on Paper ({held:g} shares): the bot never trades against a position"
+    return None

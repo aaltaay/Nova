@@ -93,18 +93,10 @@ export const ACCOUNT_LEGEND_UNSETTLED = 'Unsettled';
 export const ACCOUNT_LEGEND_UNSETTLED_NA = 'n/a on practice';
 export const ACCOUNT_LEGEND_UNSETTLED_LIVE = 'not mirrored';
 
-export const ACCOUNT_RISK_TITLE = 'Risk Level';
-export const ACCOUNT_RISK_SAFE = 'Safe';
-export const ACCOUNT_RISK_SOFT = 'Soft lock';
-export const ACCOUNT_RISK_LOCKED = 'Locked';
-export const ACCOUNT_RISK_UNKNOWN = 'No day P&L';
-export const ACCOUNT_RISK_DAY_LOCK = 'Day P&L vs day lock';
-export const accountRiskSoftLine = (usd: string): string => `${usd} soft · flatten, drop to L0`;
-export const accountRiskHardLine = (usd: string): string => `${usd} hard · this venue's buys locked to 04:00 ET`;
-export const ACCOUNT_RISK_BREAKERS = 'Breakers';
-export const accountRiskBreakers = (tripped: number, armed: number): string =>
-  `${tripped} tripped · ${armed} armed`;
-export const ACCOUNT_RISK_BREAKERS_NOT_EXPOSED = 'not exposed · bot session unavailable';
+export const ACCOUNT_RISK_TITLE = 'Risk';
+/** ADR 056: one daily loss limit for every account, set in Settings. */
+export const ACCOUNT_RISK_LOSS_LIMIT = 'Daily loss limit';
+export const ACCOUNT_RISK_LOSS_LIMIT_WHERE = 'Settings > Loss limits';
 export const ACCOUNT_ROW_LONG_VALUE = 'Long market value';
 export const ACCOUNT_ROW_SHORT_VALUE = 'Short market value';
 

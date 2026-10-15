@@ -6,7 +6,7 @@ visibility rule): the venue (Paper, or Sim: its live edge or a loaded replay, AD
 effective Strategy, the strategy's bot rules (ADR 044, ``bot.strategy_rules``: the grades it
 buys and its setups a stock a day), the tape at go, NOT A TRADE
 (``setup_scanner.trade_verdict``), a fresh trigger, the padlock, the kill switch, this venue's
-day lock and bot trip, #564's commission hold, the setup's bot window, today's 04:00 reset of
+daily loss limit (ADR 056), #564's commission hold, the setup's bot window, today's 04:00 reset of
 yesterday's bot buys (``hot_list.day_reset_block``; being on the hot list is no rule: ADR 044,
 amended 2026-10-06), extended hours, the venue's shared daily cap and the sleeve's size. Then each taker's own:
 
@@ -34,14 +34,12 @@ from constants_bot import (
     BOT_LEVEL_STRATEGY,
     BOT_REASON_BRAIN_EXCLUSIVE,
     BOT_REASON_COMMISSIONS_UNKNOWN,
-    BOT_REASON_DAY_LOCK,
     BOT_REASON_DAY_TRADE_CAP,
     BOT_REASON_KIND_BLOCKED,
     BOT_REASON_NO_DEPTH_LINE,
     BOT_REASON_OUTSIDE_WINDOW,
     BOT_REASON_PADLOCK_LOCKED,
     BOT_REASON_SYMBOL_BLOCKED,
-    BOT_REASON_TRIP_LATCHED,
     BOT_REASON_WORKING_BLOCK,
     BOT_RUNNER_BRAIN_ID,
     BOT_SETUP_FIRST_PULLBACK,
@@ -114,10 +112,10 @@ def _level_block(row: dict[str, Any], setup_type: str) -> Blocker | None:
 
 
 def _desk_blocks(row: dict[str, Any], venue: str | None) -> list[Blocker]:
-    """The padlock, the kill switch, this venue's day lock and bot trip; an unreadable gate counts as closed."""
+    """The padlock, the kill switch, this venue's daily loss limit; an unreadable gate counts as closed."""
     from bot import activation
-    from bot.clock import soft_latched
-    from bot.gates import day_lock, lock_text
+    from bot.gates import loss_limit
+    from constants_loss_limit import LOSS_LIMIT_REASON_NO_NEW_BUYS
 
     out: list[Blocker] = []
     ok, why = activation.padlock()
@@ -134,11 +132,9 @@ def _desk_blocks(row: dict[str, Any], venue: str | None) -> list[Blocker]:
         exc_text = ""
     if killed:
         out.append(("KILL_SWITCH", f"the kill switch is tripped{exc_text}: nothing is sent until you reset it"))
-    lock = day_lock(row, venue)
-    if lock.get("active"):
-        out.append((BOT_REASON_DAY_LOCK, lock_text(lock)))
-    if soft_latched(row):
-        out.append((BOT_REASON_TRIP_LATCHED, activation.trip_text(row)))
+    stopped = loss_limit(venue)
+    if stopped is not None:
+        out.append((LOSS_LIMIT_REASON_NO_NEW_BUYS, stopped["text"]))
     return out
 
 
@@ -191,7 +187,14 @@ def blockers(event: dict[str, Any], row: dict[str, Any], *, now: float,
     if move is not None:
         out.append((BOT_SKIP_VENUE_CHANGING, leaving_text(move)))
     if not is_desk_active(row):
-        out.append((BOT_SKIP_NOT_ACTIVE, "the bot is not active: turn the Bot switch on (Bots page)"))
+        out.append((BOT_SKIP_NOT_ACTIVE, "the bot is not active: turn the Bot switch on (in the header)"))
+    if readable and venue is not None:
+        from bot import family_keys
+        from constants_bot import BOT_FAMILY_STRATEGY
+
+        family = family_keys.block(BOT_FAMILY_STRATEGY, venue)
+        if family is not None:
+            out.append(family)
     setup_type = setup_of(event)
     level = _level_block(row, setup_type)
     if level is not None:
@@ -347,10 +350,15 @@ def taker(sym: str, setup_type: str) -> str | None:
     from bot.persist import load_session
     from bot.setup_levels import effective
 
+    from bot import family_keys
+    from constants_bot import BOT_FAMILY_STRATEGY
+
     row = load_session()
     if not is_desk_active(row) or effective(row).get(setup_type, 0) < BOT_LEVEL_STRATEGY:
         return None
     if activation.venue_block(*activation.venue_state()) is not None:
+        return None
+    if not family_keys.is_on(BOT_FAMILY_STRATEGY):
         return None
     sym = (sym or "").strip().upper()
     if day_reset() is not None:

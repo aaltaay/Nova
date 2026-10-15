@@ -77,6 +77,7 @@ _clock: Callable[[], float] = replay_desk.venue_now
 _wall: Callable[[], float] = time.time
 _last_beat = 0.0
 _warned: set[str] = set()
+_held_said: set[str] = set()     # "setup_id|code": a trade whose keys are off, said once (2026-10-15)
 
 
 def submit(event: dict[str, Any]) -> None:
@@ -100,6 +101,12 @@ def playing(row: dict[str, Any], venue: tuple[str | None, bool, bool] | None = N
         return False, "the master level is not Strategy"
     if not is_desk_active(row):
         return False, "the bot is not active: turn the Bot switch on"
+    from bot import family_keys
+    from constants_bot import BOT_FAMILY_STRATEGY
+
+    family = family_keys.block(BOT_FAMILY_STRATEGY)
+    if family is not None:
+        return False, family[1]
     if not at_strategy(row):
         return False, "no setup is at Strategy"
     blocked = activation.venue_block(*(venue or activation.venue_state()))
@@ -393,16 +400,45 @@ async def _manage(trade: dict[str, Any], now: float) -> None:
         _warn_once(f"replay:{trade['setup_id']}", "Nova's bot: %s -- %s", waits, trade["symbol"])
         return
     state = trade["state"]
+    held = _keys_held(trade, now) if state in ("open", "exiting") else None
     try:
         if state == "entering":
-            await _manage_entry(trade, now)
+            await _manage_entry(trade, now)          # a fill, or its cancel at the TTL: takes back, places nothing
         elif state == "open":
-            await _manage_open(trade, now)
+            await _manage_open(trade, now, acts=held is None)
         elif state == "exiting":
-            await _manage_exit(trade, now)
+            await _manage_exit(trade, now, acts=held is None)
     except orders.ReadError as exc:
         _warn_once(f"read:{trade['setup_id']}:{state}", "Nova's bot: %s -- %s not managed this tick",
                    exc, trade["symbol"])
+
+
+def _keys_held(trade: dict[str, Any], now: float) -> tuple[str, str] | None:
+    """Why the bot may place no order for its trade now -- the Bot switch, the Strategy Bots key or the trade's own
+    strategy below On, else None. Off places nothing, not even a sell (operator decision 2026-10-15): the bracket's
+    stop and target rest at the broker and still fill, while the time stop, the flush exit, a tightened stop and a
+    close wait for the keys. Said once per trade and key."""
+    from bot import family_keys
+    from bot.setup_levels import own_levels
+    from constants_bot import BOT_FAMILY_STRATEGY, BOT_SKIP_SETUP_NOT_STRATEGY
+
+    held = family_keys.hold(BOT_FAMILY_STRATEGY, trade.get("venue"))
+    setup = trade.get("setup_type") or BOT_SETUP_FIRST_PULLBACK     # a trade saved before setup types: the first pullback
+    if held is None and int(own_levels(load_session()).get(setup) or 0) < BOT_LEVEL_STRATEGY:
+        held = (BOT_SKIP_SETUP_NOT_STRATEGY, f"the {label(setup)} is not On: its trade places no order, not even a "
+                                             "sell")
+    if held is None:
+        for said in [k for k in _held_said if k.startswith(f"{trade['setup_id']}|")]:
+            _held_said.discard(said)     # the keys are back on: a later off is said again
+        return None
+    key = f"{trade['setup_id']}|{held[0]}"
+    if key not in _held_said:
+        _held_said.add(key)
+        said = (f"{held[1]} -- what rests at the broker still fills; the time stop, the flush exit and any close wait "
+                "for the keys")
+        audit(action=BOT_AUDIT_ACTION_TRADE, outcome="note", reason=said, inputs={**_summary(trade), "code": held[0]})
+        _tell(trade["symbol"], now, "warn", f"Nova's bot holds {trade['symbol']} and places no order: {held[1]}")
+    return held
 
 
 async def _manage_entry(trade: dict[str, Any], now: float) -> None:
@@ -515,7 +551,9 @@ def _half(trade: dict[str, Any], now: float, leg: str, qty: float, price: float,
     _tell(trade["symbol"], now, "ok", f"Nova's bot {said}")
 
 
-async def _manage_open(trade: dict[str, Any], now: float) -> None:
+async def _manage_open(trade: dict[str, Any], now: float, *, acts: bool = True) -> None:
+    """The trade on: a resting exit's fill and shares that left outside are read whatever the keys say; with
+    ``acts`` False (a key off) nothing is sent -- no stop moved, no exit started."""
     symbol = trade["symbol"]
     done = _leg_fill(trade, now)
     if done is not None:
@@ -530,6 +568,8 @@ async def _manage_open(trade: dict[str, Any], now: float) -> None:
     if held + _EPS < float(trade["qty"]):
         trade["qty"] = held                     # someone closed part of it: the bot closes what is left
         _save(trade)
+    if not acts:
+        return
     last = orders.last_price(symbol)
     if _watches_stop(trade) and last is not None and _stop_printed(trade, last):
         where = "over" if orders.is_short(trade) else "under"
@@ -638,7 +678,9 @@ async def _send_close(trade: dict[str, Any], now: float) -> None:
               reason=f"could not close {trade['symbol']}: {out.get('error')} -- flatten it from the desk")
 
 
-async def _manage_exit(trade: dict[str, Any], now: float) -> None:
+async def _manage_exit(trade: dict[str, Any], now: float, *, acts: bool = True) -> None:
+    """A close under way: its fill is read whatever the keys say; with ``acts`` False (a key off) the close that
+    rests stays as it is -- neither cancelled nor sent again."""
     row = orders.order_row(trade.get("exit_order_id")) if trade.get("exit_order_id") else None
     state = orders.order_state(row)
     if state == "filled":
@@ -647,6 +689,8 @@ async def _manage_exit(trade: dict[str, Any], now: float) -> None:
     held = orders.held(trade)
     if held <= _EPS:
         _close(trade, now, "outside" if state != "working" else str(trade.get("exit_why")), None)
+        return
+    if not acts:
         return
     sent = float(trade.get("exit_sent_ts") or now)
     if state == "working":
@@ -728,6 +772,7 @@ def reset_for_tests(clock: Callable[[], float] | None = None) -> None:
     global _clock, _wall, _last_beat
     _inbox.clear()
     _warned.clear()
+    _held_said.clear()
     _last_beat = 0.0
     _clock = clock or replay_desk.venue_now
     _wall = clock or time.time

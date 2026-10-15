@@ -15,6 +15,7 @@ import type {
   JournalTradeRow,
   RiskStatus,
 } from './types';
+import { TickerLink } from '../components/TickerLink';
 
 /** The setup as the table shows it, so the column sorts A to Z by its label. */
 /** The walk-away rules gate nothing: every sender passes skip_risk (spec D, 2026-09-30). */
@@ -24,7 +25,7 @@ export const WALK_AWAY_TRIPPED = 'Tripped \u2014 walk away';
 export const WALK_AWAY_STATUS_TITLE =
   'Whether a walk-away rule tripped today: the daily max loss, 3 losses in a row, or giving back half '
   + 'of today\'s peak profit. Advisory only: no order checks these rules -- the ticket, hotkeys and the '
-  + 'bot all place regardless. The loss breakers on the Bots page are what stop trading. Resets at 4 AM ET.';
+  + 'bot all place regardless. The daily loss limit in Settings > Loss limits is what stops buying. Resets at 4 AM ET.';
 export const WALK_AWAY_CARD_TITLE =
   'The walk-away rules\' state from backend/strategy/risk.py -- real, not demo data. Every closed round '
   + 'trip of a position Nova placed (ticket, hotkeys, the bot) updates it; it reads all-zero until one closes.';
@@ -181,7 +182,7 @@ function TradesTable({
               className={t.is_mock ? 'row-mock' : ''}
             >
               <td className="hod-time-cell">{t.closed_ts ? fmtTime(t.closed_ts) : '\u2014'}</td>
-              <td>{t.symbol}{t.is_mock ? <span className="mock-tag" title="Synthetic demo row — not a real trade.">DEMO</span> : null}</td>
+              <td><TickerLink symbol={t.symbol} onOpen={s => { onSelectSymbol(s); onOpenTrading(s); }} />{t.is_mock ? <span className="mock-tag" title="Synthetic demo row — not a real trade.">DEMO</span> : null}</td>
               <td><span className="pillar-chip pillar-pass">{SETUP_LABELS[t.setup ?? ''] ?? t.setup ?? '\u2014'}</span></td>
               <td>{t.side}</td>
               <td>{formatShareQty(t.qty)}</td>
@@ -292,7 +293,7 @@ export function JournalPanel({
                   onOpenTrading={onOpenTrading}
                 >
                   <td className="hod-time-cell">{fmtTime(s.ts)}</td>
-                  <td>{s.symbol}</td>
+                  <td><TickerLink symbol={s.symbol} onOpen={sym => { onSelectSymbol(sym); onOpenTrading(sym); }} /></td>
                   <td><span className="pillar-chip pillar-pass">{SETUP_LABELS[s.setup] ?? s.setup}</span></td>
                   <td>{fmtPrice(s.entry_price)}</td>
                   <td>{fmtPrice(s.stop_price)}</td>

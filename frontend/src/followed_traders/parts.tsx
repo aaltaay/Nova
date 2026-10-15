@@ -5,15 +5,18 @@
 import { createContext, useContext } from 'react';
 import { tipProps } from '../ux/hoverTip';
 import {
-  FT_OPEN_IN_TRADER,
+  FT_PL_PER_SHARE_UNIT,
+  FT_PL_STAKE_OPEN_TIP,
+  FT_PL_STAKE_TIP,
   FT_RESULT_WORDS,
   FT_TICKER_CHECK,
   FT_TICKER_CHECK_MARK,
   FT_TICKER_FIXED,
   FT_UNSCORED_TIP,
 } from './constants';
+import { TickerLink } from '../components/TickerLink';
 import { FeedImage } from './FeedImage';
-import { plPct, plPerShare, plTone } from './format';
+import { plAtStake, plPct, plPerShare, plTone } from './format';
 import { tickerUnsettled } from './ticker';
 import type { FollowedRecord, FollowedTicker, FollowedTrade, TradeResult } from './types';
 
@@ -24,16 +27,12 @@ export function SideChip({ side }: { side: 'long' | 'short' }) {
 /** The desk's "open this symbol in the Trader", provided by the page; null where there is no Trader to open. */
 export const OpenTraderContext = createContext<((symbol: string) => void) | null>(null);
 
-/** A trade's ticker: clicking it opens the stock in the Trader. Plain text when the desk gave the page no Trader. */
+/** A trade's ticker: clicking it opens the stock in the Trader, through the desk's one ticker link
+ *  (workspace/TickerLink). Plain text when the desk gave the page no Trader. */
 export function Ticker({ symbol, className }: { symbol: string; className: string }) {
   const open = useContext(OpenTraderContext);
   if (!open) return <span className={className}>{symbol}</span>;
-  return (
-    <button type="button" className={`${className} ft-ticker-link`} onClick={() => open(symbol)}
-      aria-label={`${FT_OPEN_IN_TRADER}: ${symbol}`} {...tipProps(FT_OPEN_IN_TRADER)}>
-      {symbol}
-    </button>
-  );
+  return <TickerLink symbol={symbol} look="own" className={`${className} ft-ticker-link`.trim()} onOpen={open} />;
 }
 
 /** Beside a ticker the feed may have read glued to its price: "?" while it is not settled, "fixed" once IBKR's tape
@@ -82,9 +81,9 @@ export function RecordChips({ record, testId }: { record: FollowedRecord | null;
   );
 }
 
-/** P/L per share and %, stacked, or on one line (`inline`) in a closed trade's row. A trade whose ticker may be glued
+/** The P/L at $1,000 over its per share and %, stacked (`inline`: left-aligned, in a trade's row). A trade whose ticker may be glued
  *  to its price has none: "ticker check", with why on hover. */
-export function PlCell({ trade, inline = false, big = false }: { trade: FollowedTrade; inline?: boolean; big?: boolean }) {
+export function PlCell({ trade, inline = false }: { trade: FollowedTrade; inline?: boolean }) {
   if (tickerUnsettled(trade)) {
     return (
       <span className={`ft-pl ft-pl--check${inline ? ' ft-pl--inline' : ''}`} data-testid={`ft-ticker-check-${trade.id}`}
@@ -95,9 +94,14 @@ export function PlCell({ trade, inline = false, big = false }: { trade: Followed
   }
   const tone = plTone(trade.pl);
   return (
-    <span className={`ft-pl ft-pl--${tone}${inline ? ' ft-pl--inline' : ''}${big ? ' ft-pl--big' : ''}`}>
-      <span className="ft-mono ft-pl__share">{plPerShare(trade.pl, trade.entry.avg_price)}</span>
-      {trade.pl && <span className="ft-mono ft-pl__pct">{plPct(trade.pl)}</span>}
+    <span className={`ft-pl ft-pl--${tone}${inline ? ' ft-pl--inline' : ''}`}
+      {...tipProps(trade.pl ? (trade.status === 'open' ? FT_PL_STAKE_OPEN_TIP : FT_PL_STAKE_TIP) : null)}>
+      <span className="ft-mono ft-pl__usd">{plAtStake(trade.pl)}</span>
+      {trade.pl && (
+        <span className="ft-mono ft-pl__sub">
+          {plPerShare(trade.pl, trade.entry.avg_price)}{FT_PL_PER_SHARE_UNIT} · {plPct(trade.pl)}
+        </span>
+      )}
     </span>
   );
 }

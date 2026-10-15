@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { StrategyConfig } from './types';
 import { BoolField, ColorField, NumField } from './HodMomoConfigFields';
+import { TickerLink } from '../components/TickerLink';
 
 export function StrategyConfigurator({
   cfg,
@@ -111,7 +112,7 @@ export function StrategyConfigurator({
       <div className="hod-momo-list">
         {cfg.former_momo_list.map(sym => (
           <span key={sym} className="hod-momo-tag">
-            {sym}
+            <TickerLink symbol={sym} look="own" />
             <button className="hod-momo-tag-remove" onClick={() => removeMomo(sym)}>×</button>
           </span>
         ))}

@@ -1,16 +1,29 @@
 /**
- * A trader's trades, as the approved page drew them (2026-10-13, "E2"): each open position an OPEN tile, and the
- * closed trades a table striped by result. A time the feed did not see reads "by HH:MM:SS" (open when capture
+ * A trader's trades, as the approved page drew them (2026-10-13, "E2"), in one table since 2026-10-15 (operator: "make
+ * this more compact"): each open position an OPEN row on top, striped blue, then the closed trades striped by result. A time the feed did not see reads "by HH:MM:SS" (open when capture
  * started) or a window; an exit seen only in a window is IBKR's low–high, marked est.; a price Nova has not got says
  * why on hover, and Proof shows the trade's screenshots on hover (ProofLink). Closed rows drop to one line
- * (`compact`) and their oldest fold into "+N earlier" when the page would not fit otherwise. A ticker opens the
- * stock in the Trader. Nothing here places an order.
+ * (`compact`) and their oldest fold into "+N earlier" when the page would not fit otherwise; open rows never fold. A
+ * ticker opens the stock in the Trader; another feature may mark an open row (slots.ts). Nothing here places an order.
  */
 import { tipProps } from '../ux/hoverTip';
-import { FT_EST, FT_EST_TIP, FT_EXIT_PENDING, FT_NOW, FT_OFF_AIR_CLOSE, FT_OFF_AIR_CLOSE_TIP, FT_OPEN_CHIP, FT_PROOF } from './constants';
+import {
+  FT_EST,
+  FT_EST_TIP,
+  FT_EXIT_PENDING,
+  FT_NOW,
+  FT_OFF_AIR_CLOSE,
+  FT_OFF_AIR_CLOSE_TIP,
+  FT_OPEN_CHIP,
+  FT_OPEN_END_TIP,
+  FT_OPEN_ROW_TIP,
+  FT_PL_COLUMN,
+  FT_PROOF,
+} from './constants';
 import { DASH, entered, etTime, exitPrice, exited, held, price } from './format';
 import { PlCell, ResultWord, SideChip, Ticker, TickerMark } from './parts';
 import { ProofLink } from './ProofLink';
+import { useFollowedSlots } from './slots';
 import type { FollowedTrade } from './types';
 
 function TimeIn({ t }: { t: FollowedTrade }) {
@@ -67,41 +80,46 @@ function Now({ t }: { t: FollowedTrade }) {
   return <span className="ft-mono ft-muted" {...tipProps(why)}>{now?.state === 'waiting' ? '…' : DASH}</span>;
 }
 
-/** One open position: what they hold, the price now and what it is worth per share, how long. */
-export function OpenTile({ t, onProof }: { t: FollowedTrade; onProof: (id: string) => void }) {
+/** One open position, on top of the table: what they hold, the price now and what it is worth at $1,000, how long. On
+ *  a past day it is what was open at the day's end, with no "now". */
+function OpenRow({ t, onProof, compact, isToday }: { t: FollowedTrade; onProof: (id: string) => void; compact: boolean; isToday: boolean }) {
+  const { OpenBadge } = useFollowedSlots();
   return (
-    <div className="ft-tile" data-testid={`ft-row-${t.id}`}>
-      <div className="ft-tile__row">
-        <span className="ft-open-chip">{FT_OPEN_CHIP}</span>
-        <Ticker symbol={t.symbol} className="ft-tile__ticker" />
-        <TickerMark ticker={t.ticker} />
-        <SideChip side={t.side} />
-        <span className="ft-tile__held ft-muted ft-xs">held {held(t.held)}</span>
-      </div>
-      <div className="ft-tile__row">
-        <span className="ft-mono">{price(t.entry.avg_price)} → </span><Now t={t} />
-        <span className="ft-muted ft-xs">{FT_NOW}</span>
-        <span className="ft-tile__pl"><PlCell trade={t} inline big /></span>
-      </div>
-      <div className="ft-tile__row ft-xs">
-        <span className="ft-muted">in <TimeIn t={t} /></span>
-        {t.entry.first_price !== t.entry.avg_price && <span className="ft-note ft-note--warn">avg, was {price(t.entry.first_price)}</span>}
-        <span className="ft-tile__proof"><ProofLink t={t} onProof={onProof} /></span>
-      </div>
-    </div>
+    <tr className="ft-closed ft-closed--open" data-testid={`ft-row-${t.id}`}>
+      <td><span className="ft-result-word" {...tipProps(isToday ? FT_OPEN_ROW_TIP : FT_OPEN_END_TIP)}>{FT_OPEN_CHIP}</span></td>
+      <td>
+        <Ticker symbol={t.symbol} className="ft-ticker" /><TickerMark ticker={t.ticker} />
+        {isToday && OpenBadge && <OpenBadge trade={t} />}
+      </td>
+      <td><SideChip side={t.side} /></td>
+      <td><TimeIn t={t} /> → <span className="ft-muted">{isToday ? FT_NOW : DASH}</span></td>
+      <td>
+        <span className="ft-prices">
+          <Entry t={t} compact={compact} /> → <Now t={t} />{isToday && <span className="ft-muted ft-xs">{FT_NOW}</span>}
+        </span>
+      </td>
+      <td><PlCell trade={t} inline /></td>
+      <td>{held(t.held)}</td>
+      <td className="ft-right"><ProofLink t={t} onProof={onProof} /></td>
+    </tr>
   );
 }
 
-interface ClosedProps {
+interface TradesProps {
+  /** Open positions, drawn first and never folded. */
+  open?: FollowedTrade[];
   trades: FollowedTrade[];
   onProof: (tradeId: string) => void;
   compact?: boolean;
   /** How many of the oldest are folded into "+N earlier". */
   folded?: number;
   onShowAll?: () => void;
+  /** Today: an open row's price is now. */
+  isToday?: boolean;
 }
 
-export function ClosedTable({ trades, onProof, compact = false, folded = 0, onShowAll }: ClosedProps) {
+/** Open positions on top, then the closed trades, newest exit first. */
+export function TradesTable({ open = [], trades, onProof, compact = false, folded = 0, onShowAll, isToday = true }: TradesProps) {
   const shown = folded > 0 ? trades.slice(0, Math.max(0, trades.length - folded)) : trades;
   return (
     <table className={`ft-table ft-table--closed${compact ? ' is-compact' : ''}`}>
@@ -112,11 +130,12 @@ export function ClosedTable({ trades, onProof, compact = false, folded = 0, onSh
       </colgroup>
       <thead>
         <tr>
-          <th>Result</th><th>Ticker</th><th>Side</th><th>In → Out</th><th>Entry → Exit</th><th>P/L per share</th>
+          <th>Result</th><th>Ticker</th><th>Side</th><th>In → Out</th><th>Entry → Exit</th><th>{FT_PL_COLUMN}</th>
           <th>Held</th><th><span className="ft-sr">{FT_PROOF}</span></th>
         </tr>
       </thead>
       <tbody>
+        {open.map((t) => <OpenRow key={t.id} t={t} onProof={onProof} compact={compact} isToday={isToday} />)}
         {shown.map((t) => (
           <tr key={t.id} className={`ft-closed ft-closed--${t.result ?? 'unscored'}`} data-testid={`ft-row-${t.id}`}>
             <td><ResultWord result={t.result} /></td>

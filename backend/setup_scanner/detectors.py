@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any
 
 from constants_bot import (
+    BOT_SETUP_ABCD,
     BOT_SETUP_BACKSIDE,
     BOT_SETUP_BEAR_FLAG,
     BOT_SETUP_BULL_FLAG,
@@ -18,6 +19,7 @@ from constants_bot import (
     BOT_SETUP_RED_TO_GREEN,
     BOT_SETUP_SSR_BOUNCE,
 )
+from setup_scanner.abcd import AbcdDetector
 from setup_scanner.backside import BacksideDetector
 from setup_scanner.bear_flag import BearFlagDetector
 from setup_scanner.bull_flag import BullFlagDetector
@@ -40,6 +42,7 @@ DETECTORS: dict[str, type[TriggerDetector]] = {
     BOT_SETUP_RED_TO_GREEN: RedToGreenDetector,
     BOT_SETUP_GAP_AND_GO: GapAndGoDetector,
     BOT_SETUP_PULLBACK_DIP: PullbackDipDetector,    # #847: watch only (constants_bot.BOT_WATCH_ONLY_SETUPS)
+    BOT_SETUP_ABCD: AbcdDetector,                   # watch only, never tested
     # ADR 049: the short setups, the trigger read downward (``detector_short``).
     BOT_SETUP_BACKSIDE: BacksideDetector,
     BOT_SETUP_BEAR_FLAG: BearFlagDetector,

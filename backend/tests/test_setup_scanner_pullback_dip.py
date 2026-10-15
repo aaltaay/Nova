@@ -212,7 +212,7 @@ def test_its_template_is_the_first_pullbacks_run_with_its_own_entry_and_no_bot_r
 
 # -- watch only ------------------------------------------------------------------------------------
 def test_it_is_the_one_watch_only_setup_and_never_a_trade():
-    assert BOT_WATCH_ONLY_SETUPS == frozenset({DIP}) and watch_only(DIP) and not watch_only("first_pullback")
+    assert BOT_WATCH_ONLY_SETUPS == frozenset({DIP, "abcd"}) and watch_only(DIP) and not watch_only("first_pullback")
     judged = verdict(grade="A", pillars={"passed": 5, "known": 5, "total": 5}, setup_type=DIP)
     assert judged["ok"] is False and judged["reasons"][0].startswith("watch only")
     assert verdict(grade="A", setup_type="first_pullback")["ok"] is True

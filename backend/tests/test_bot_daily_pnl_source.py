@@ -1,4 +1,4 @@
-"""The breaker chooses today's broker P&L and states any fallback (#664)."""
+"""The day P&L meter chooses today's broker P&L and states any fallback (#664)."""
 from __future__ import annotations
 
 import json

@@ -131,6 +131,12 @@ BOOK_WATCH_BIG_KEEP = 100
 # On a Sim replay (a Session Record at the playhead) the reading runs the same tracker over this much of the
 # recorded book and tape before the playhead: a price there longer reads "held 3 min+".
 BOOK_WATCH_BIG_REPLAY_LOOKBACK_SEC = 180.0
+# A price called where a wall on its side was pulled this recently says it is back, and how often (#984).
+BOOK_WATCH_BIG_BACK_SEC = 300.0
+# How fast the stock trades, for "40 s of lit volume" (#984): lit shares over this window, odd lots counted.
+# Before BOOK_WATCH_BIG_PACE_MIN_SEC of watching there is no pace: a few seconds' prints are no minute's.
+BOOK_WATCH_BIG_PACE_SEC = 60.0
+BOOK_WATCH_BIG_PACE_MIN_SEC = 10.0
 BOOK_WATCH_BIG_NOTE = (
     "Resting size much larger than the book around it, at or just past the price: one order or several at "
     "one price look the same here. A description of the book, shown, never acted on."

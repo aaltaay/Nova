@@ -320,7 +320,7 @@ async def cancel_orders_for_symbol(
 
 @router.post("/flatten-account")
 async def flatten_account_route() -> dict:
-    """Whole-account MKT flatten -- same door bot breakers already use.
+    """Whole-account MKT flatten -- the KILL's, through the same door.
 
     Calls ``bot.flatten.flatten_account_with_retry`` (execution source=flatten).
     Not a second place / cancel stack. Its only desk caller is the header's

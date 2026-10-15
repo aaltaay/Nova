@@ -161,8 +161,8 @@ proof readiness never grant or refuse permission (2026-10-13 amendment), and a b
   `SHORT` with its limit (never as `SELL`: it spends no long, so a closing sell keeps its shares) until its
   order resolves; the borrow and margin checks count it.
 - **A cover is a close.** A BUY place while the account is short the stock (`execution.position_checks.covers_short`)
-  is held to the short less the covers in flight (`OVERCOVER`) and never to buying power, and the all-stop's
-  day lock never refuses it (`bot.buy_lock.buy_refusal(..., covers=True)`). A position Nova cannot read is no
+  is held to the short less the covers in flight (`OVERCOVER`) and never to buying power, and the daily loss limit's
+  No new buys never refuses it (`loss_limit.gate.buy_refusal(..., covers=True)`, ADR 056). A position Nova cannot read is no
   cover: the BUY then meets buying power and the position check, as before.
 - **What an order does** (`execution/order_side.py`; the Side column). Every order row, working and closed,
   on every venue, carries `position_side: "long" | "short" | null` and `effect: "opens" | "closes" | null`,
@@ -373,7 +373,7 @@ long strategy buys, a short strategy shorts. Paper and Sim only, as ADR 042 says
   never enter against a position the venue holds (`admit.against_held`, `BOT_SKIP_HELD_OTHER_SIDE`): after a trade
   is flat, the other side needs its own trigger. The bot holds one trade at a time overall. The daily cap
   ("Nova trades a day", the sleeve's `entries_per_day`) counts both sides (`BOT_ENTRY_KINDS`).
-- **One sleeve, one bot trip, one all-stop.** A short is sized by the same caps (`bot.sizing.size(..., side)`): its
+- **One sleeve, one daily loss limit.** A short is sized by the same caps (`bot.sizing.size(..., side)`): its
   risk a share is the buy stop minus the entry. `bot_qty` is signed: a short holds a negative count.
 - **A short trigger's own rules** (`short_side.py`), before anything is sent:
   - **The price.** Off SSR the short sells at the scanner's entry. Under SSR, on or not known, it sells at the

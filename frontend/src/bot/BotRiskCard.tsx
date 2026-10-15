@@ -1,10 +1,9 @@
 /**
  * What every Nova trade may risk -- the sleeve, one per venue (ADR 042 E), shared by
- * longs and shorts (ADR 049, with the line on what a short adds) -- and the two loss
- * breakers (approved mockup v4, ADR 032). The tabs pick the venue whose sleeve you
- * edit (the desk venue first); each slider PATCHes `{caps: {venue, field}}` once let
- * go. The breakers are the desk venue's own pair, dragged on their bar, with what
- * fired today and when it lifts (04:00 ET).
+ * longs and shorts (ADR 049, with the line on what a short adds). The tabs pick the
+ * venue whose sleeve you edit (the desk venue first); each slider PATCHes
+ * `{caps: {venue, field}}` once let go. The day's loss is capped by the one daily loss
+ * limit in Settings > Loss limits (ADR 056), not here.
  */
 import { useState } from 'react';
 import {
@@ -18,8 +17,6 @@ import {
 } from '../constantGroups/bots_page';
 import { SETUP_SIDE_TAG } from '../constantGroups/short_setups';
 import { tipProps } from '../ux/hoverTip';
-import { BotBreakerBar } from './BotBreakerBar';
-import { BotBreakerStatus } from './BotBreakerStatus';
 import { BotSleeve } from './BotSleeve';
 import type { BotCaps, BotSession } from './types';
 
@@ -27,25 +24,9 @@ type Patch = (body: Record<string, unknown>) => Promise<unknown>;
 
 const VENUES = ['paper', 'sim', 'live'] as const;
 
-/** The loss breakers on the desk venue's bar, and what they did today. */
-export function BotBreakerBlock({ session, patch, busy, dayPnl, pnlParts = null }: {
-  session: BotSession;
-  patch: Patch;
-  busy: boolean;
-  dayPnl: number | null;
-  pnlParts?: string | null;
-}) {
-  return (
-    <>
-      <BotBreakerBar breakers={session.breakers} dayPnl={dayPnl} pnlParts={pnlParts} busy={busy} patch={patch} />
-      <BotBreakerStatus session={session} />
-    </>
-  );
-}
-
 /** The desk venue the session is the dial of, else Paper. */
 function deskVenue(session: BotSession): string {
-  return String(session.caps.venue ?? session.breakers?.venue ?? session.level_venue ?? 'paper');
+  return String(session.caps.venue ?? session.level_venue ?? 'paper');
 }
 
 /** That venue's sleeve; the desk venue's `caps` when the API keeps one sleeve for all. */
@@ -53,15 +34,10 @@ function capsFor(session: BotSession, venue: string): BotCaps {
   return session.caps_by_venue?.[venue] ?? session.caps;
 }
 
-export function BotRiskCard({ session, patch, busy, dayPnl, pnlParts = null, breakers = true }: {
+export function BotRiskCard({ session, patch, busy }: {
   session: BotSession;
   patch: Patch;
   busy: boolean;
-  dayPnl: number | null;
-  /** How the day P&L the breakers compare was reached. */
-  pnlParts?: string | null;
-  /** The loss breakers under the sleeve; the Bots page draws them beside the Bot switch instead (ADR 044). */
-  breakers?: boolean;
 }) {
   const desk = deskVenue(session);
   const [picked, setPicked] = useState<string | null>(null);
@@ -91,8 +67,6 @@ export function BotRiskCard({ session, patch, busy, dayPnl, pnlParts = null, bre
         {...tipProps(BOTS_SLEEVE_SHORT_TIP, SETUP_SIDE_TAG.short)}>
         <span className="bots-sidetag bots-sidetag--short">{SETUP_SIDE_TAG.short}</span> {BOTS_SLEEVE_SHORT_LINE}
       </p>
-
-      {breakers ? <BotBreakerBlock session={session} patch={patch} busy={busy} dayPnl={dayPnl} pnlParts={pnlParts} /> : null}
     </section>
   );
 }

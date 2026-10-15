@@ -19,7 +19,6 @@ from execution.models import ExecutionCommand, Origin
 from practice import broker as practice_broker
 from practice.broker import for_venue, reset_for_tests
 from sim.fill_model import Reference
-from sim.mode import reset_for_tests as reset_venue, set_venue
 
 NOW = 1_700_000_000.0
 
@@ -145,56 +144,6 @@ async def test_a_flatten_close_carries_its_callers_origin(monkeypatch) -> None:
     monkeypatch.setattr("execution.service.execute", fake_execute)
     await flatten_mod._place_close("ACN", 100, "SELL", origin="bot_trip")
     assert (captured["cmd"].source, captured["cmd"].origin) == ("flatten", "bot_trip")
-
-
-def test_closes_sold_names_each_position_the_flatten_closed(monkeypatch) -> None:
-    from bot.flatten import closes_sold
-
-    # The order that opened each one comes from the execution record (2026-10-14); none on record here.
-    monkeypatch.setattr("execution.store.list_recent", lambda limit=100: [])
-    result = {"ok": False, "results": [
-        {"symbol": "ACN", "qty": 100.0, "side": "SELL", "close": {"ok": True, "order_id": 68, "error": None}},
-        {"symbol": "NXL", "qty": 5.0, "side": "SELL", "close": {"ok": False, "order_id": None, "error": "no mark"}},
-    ]}
-    assert closes_sold(result) == [
-        {"symbol": "ACN", "side": "SELL", "qty": 100.0, "ok": True, "order_id": 68, "error": None, "opened_by": None},
-        {"symbol": "NXL", "side": "SELL", "qty": 5.0, "ok": False, "order_id": None, "error": "no mark",
-         "opened_by": None},
-    ]
-    assert closes_sold({"ok": True, "results": []}) == []
-
-
-@pytest.fixture
-def paper_desk():
-    reset_venue()
-    set_venue("paper", persist=False)
-    yield
-    reset_venue()
-
-
-@pytest.mark.parametrize(("pnl", "action", "origin"), [(-60.0, "breaker_soft", "bot_trip"),
-                                                       (-250.0, "breaker_hard", "all_stop")])
-@pytest.mark.asyncio
-async def test_a_breaker_flattens_as_itself_and_lists_what_it_sold(paper_desk, monkeypatch, pnl, action, origin):
-    from bot.audit import list_entries
-    from bot.breakers import poll_once
-
-    asked: list = []
-
-    async def flatten(*, origin=None):
-        asked.append(origin)
-        return {"ok": True, "attempt": 1, "results": [
-            {"symbol": "ACN", "qty": 100.0, "side": "SELL", "close": {"ok": True, "order_id": 68, "error": None}},
-        ]}
-
-    monkeypatch.setattr("bot.breakers.flatten_account_with_retry", flatten)
-    monkeypatch.setattr("execution.store.list_recent", lambda limit=100: [])
-    await poll_once(pnl=pnl)
-    assert asked == [origin]
-    line = next(e for e in list_entries(limit=20) if e["action"] == action)
-    assert line["inputs"]["closes"] == [
-        {"symbol": "ACN", "side": "SELL", "qty": 100.0, "ok": True, "order_id": 68, "error": None, "opened_by": None}]
-    assert line["inputs"]["flatten_error"] is None and line["venue"] == "paper"
 
 
 def test_the_emergency_kill_flatten_reads_as_kill() -> None:

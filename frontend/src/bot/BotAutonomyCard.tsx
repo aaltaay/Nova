@@ -1,9 +1,9 @@
 /**
  * The Bot switch as a quiet card at the bottom of the Trader's right rail (ADR 044): the same one switch
  * as the Bots page, for this venue, with why it is off (or not trading now) and how many strategies are
- * On. Same rules as the Bots page (`useBotArm`): off always goes, on is locked with the reason where the
- * bot cannot trade, and after the bot trip it asks first. Who trades this stock is the Who trades row
- * above Level 2; the strategies and the hot list are on the Bots page.
+ * On. Same rules as the Bots page (`useBotArm`): off always goes, and on is locked with the reason where
+ * the bot cannot trade. Who trades this stock is the Who trades row above Level 2; the strategies and the
+ * hot list are on the Bots page.
  */
 import { BOT_CARD_TITLE } from '../constantGroups/trader_chrome';
 import { tipProps, whyProps } from '../ux';
@@ -20,7 +20,7 @@ export function BotAutonomyCard() {
   const view = session ? botHeaderState(session) : null;
   const openBots = () => {
     if (traderViewActive) showScannerView();
-    setNavPage('bots');
+    setNavPage('bots-strategy');
   };
   return (
     <section
@@ -42,7 +42,7 @@ export function BotAutonomyCard() {
       </div>
       {view?.reason ? <p className="bot-card__reason" data-testid="bot-card-reason">{prose(view.reason)}</p> : null}
       <button type="button" className="bot-card__link" data-testid="bot-card-open" onClick={openBots}>
-        Strategies, hot list and every gate: Bots page ↗
+        Strategies, hot list and every gate: Strategy Bots ↗
       </button>
       {error ? <p className="bot-card__error" data-testid="bot-card-error" role="alert">{prose(error)}</p> : null}
       {showKeyField ? <ApiKeyField className="bot-card__key" testId="bot-card-api-key" /> : null}

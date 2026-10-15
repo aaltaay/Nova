@@ -3,6 +3,7 @@ import { ADVISE_DISCLAIMER, ADVISE_STALE_NUDGE, ADVISE_WHY_BUSY } from './consta
 import { formatAdviseActualLine } from './estimateFormat';
 import { useAdvise } from './AdviseContext';
 import { stageAdviseTicket } from './ticketFromStance';
+import { TickerLink } from '../components/TickerLink';
 
 export function AdviseResultCard() {
   const { run, retryDebate, busy } = useAdvise();
@@ -19,7 +20,7 @@ export function AdviseResultCard() {
     <section className="advise-card" data-testid="advise-card">
       <header className="advise-card__head">
         <strong data-testid="advise-stance">{result?.stance || run.status}</strong>
-        <span>{run.symbol}</span>
+        <span><TickerLink symbol={run.symbol} /></span>
       </header>
       {run.stale ? (
         <p className="advise-stale" data-testid="advise-stale">{ADVISE_STALE_NUDGE}</p>

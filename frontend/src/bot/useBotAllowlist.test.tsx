@@ -41,7 +41,6 @@ describe('useBotAllowlist', () => {
       level: 0, armed: false, strategy: null, brain_session_id: null,
       level_venue: 'paper',
       caps: { max_shares: 1, bp_budget_usd: 50, working_ttl_sec: 3, extended_hours: false, allowlist: [] },
-      soft_breaker_fired: false, hard_lock_until_date: null, day_lock_active: false,
       focus: [], trader_live: [], working: [], symbol_allowlist: allow,
     });
     vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {

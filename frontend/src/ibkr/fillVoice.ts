@@ -29,8 +29,11 @@ export interface FillVoiceState {
 const MAX_SENTENCES = 3;
 const EPS = 1e-9;
 
-const FLATTEN_ORIGINS = new Set(['ticket_flatten', 'emergency_kill', 'all_stop']);
-const BOT_ORIGINS = new Set(['bot', 'auto_entry', 'approve', 'bot_api', 'bot_trip', 'nova_exit']);
+/** Sells that flatten what is held. `all_stop` / `bot_trip` are rows from before ADR 056: a flatten, never the bot's. */
+const FLATTEN_ORIGINS = new Set(['ticket_flatten', 'emergency_kill', 'all_stop', 'bot_trip']);
+/** The daily loss limit's Auto sell (ADR 056): it sells every position opened today, yours and the bots'. */
+const LOSS_LIMIT_ORIGIN = 'loss_limit';
+const BOT_ORIGINS = new Set(['bot', 'auto_entry', 'approve', 'bot_api', 'nova_exit']);
 const TARGET_ROLES = new Set(['target', 'target2']);
 
 export function newFillVoiceState(): FillVoiceState {
@@ -84,13 +87,19 @@ function describe(row: IbkrOrder, working: boolean, filled: number): Omit<Said, 
   const closes = side === 'SELL' ? !shortEntry : covers;
   const stop = closes && (legRole === 'stop' || (!legRole && orderType.startsWith('STP')));
 
+  const lossLimit = origin === LOSS_LIMIT_ORIGIN;
   let lead = '';
-  if (FLATTEN_ORIGINS.has(origin)) lead = 'Flatten.';
+  if (lossLimit) lead = 'Loss limit.';
+  else if (FLATTEN_ORIGINS.has(origin)) lead = 'Flatten.';
   else if (stop) lead = 'Stop hit.';
   else if (TARGET_ROLES.has(legRole)) lead = 'Target hit.';
 
-  let verb = side === 'SELL' ? (shortEntry ? 'Shorted' : 'Sold') : (covers ? 'Covered' : 'Bought');
-  const bot = Boolean(row.bot_id) || BOT_ORIGINS.has(origin) || String(row.order_source ?? '').toLowerCase() === 'bot';
+  // The loss limit only ever closes: its BUY covers a short.
+  let verb = side === 'SELL' ? (shortEntry ? 'Shorted' : 'Sold') : (covers || lossLimit ? 'Covered' : 'Bought');
+  // A flatten or the loss limit sold the account, whoever opened the position: never "Bot sold".
+  const flattens = lossLimit || FLATTEN_ORIGINS.has(origin);
+  const bot = !flattens
+    && (Boolean(row.bot_id) || BOT_ORIGINS.has(origin) || String(row.order_source ?? '').toLowerCase() === 'bot');
   if (bot) verb = `Bot ${verb.toLowerCase()}`;
 
   const qty = Number(row.qty);

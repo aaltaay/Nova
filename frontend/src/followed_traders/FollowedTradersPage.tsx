@@ -1,11 +1,11 @@
 /**
- * The Following page (operator ask 2026-10-13; redesign approved the same day, mockup "E2"): what each followed
- * trader holds now and closed that day, priced with Nova's IBKR data, the proof behind every trade, the stream they
- * trade on, and any past day the feed has. It fills the window with no page scrollbar: a head row, one block per
- * trader top to bottom, and the stream above the Activity on the right. Every state is said, never an empty list.
- * The rail shows it only when the backend has a feed configured (enabledStore). A trade's ticker opens the stock in
- * the Trader (`onOpenTrader`). Schema: architecture/schema/followed-traders.md. Nothing here places, stages or cancels
- * an order.
+ * The followed traders' page (operator ask 2026-10-13; redesign approved the same day, mockup "E2"), Bots >
+ * LiveTrader Bots since 2026-10-15: what each followed trader holds now and closed that day, priced with Nova's IBKR
+ * data, the proof behind every trade, the stream they trade on, and any past day the feed has. It fills the window
+ * with no page scrollbar: a head row, one block per trader top to bottom, and the stream above the Activity on the
+ * right. Every state is said, never an empty list. A trade's ticker opens the stock in the Trader (`onOpenTrader`).
+ * Another feature draws its own pieces in `slots` (the hosts' bots, slots.ts). Schema:
+ * architecture/schema/followed-traders.md. Nothing here places, stages or cancels an order.
  */
 import { useEffect, useRef, useState } from 'react';
 import { ActivityFeed } from './ActivityFeed';
@@ -26,9 +26,10 @@ import { OpenTraderContext } from './parts';
 import { dayPl, recordPl, type SpanPl } from './plSummary';
 import { ProofView } from './ProofView';
 import { roster } from './roster';
+import { FollowedSlotsContext, type FollowedSlots } from './slots';
 import { streamId, useStreamOpen } from './stream';
 import { StreamPlayer } from './StreamPlayer';
-import { ClosedTable } from './TradeTables';
+import { TradesTable } from './TradeTables';
 import { TraderBlock } from './TraderBlock';
 import type { FollowedDay, FollowedRecord, RecordRange } from './types';
 import { useFollowedDay, useNowMs } from './useFollowedDay';
@@ -37,9 +38,13 @@ import './followed.css';
 
 interface Props {
   onOpenTrader?: (symbol: string) => void;
+  /** What another feature draws in the head, a trader's card and an open row (slots.ts). */
+  slots?: FollowedSlots;
 }
 
-export function FollowedTradersPage({ onOpenTrader }: Props) {
+const NO_SLOTS: FollowedSlots = {};
+
+export function FollowedTradersPage({ onOpenTrader, slots = NO_SLOTS }: Props) {
   // null: the feed's own today. Each day mounts its own reader, so two days' answers never mix.
   const [date, setDate] = useState<string | null>(null);
   const [proofId, setProofId] = useState<string | null>(null);
@@ -59,10 +64,12 @@ export function FollowedTradersPage({ onOpenTrader }: Props) {
   };
   return (
     <OpenTraderContext.Provider value={onOpenTrader ?? null}>
-      <div className="ft-page" data-testid="followed-traders-page">
-        <DayView key={date ?? 'today'} date={date} proofId={proofId} range={range} onRange={setRange}
-          onPickDate={pick} onProof={setProofId} />
-      </div>
+      <FollowedSlotsContext.Provider value={slots}>
+        <div className="ft-page" data-testid="followed-traders-page">
+          <DayView key={date ?? 'today'} date={date} proofId={proofId} range={range} onRange={setRange}
+            onPickDate={pick} onProof={setProofId} />
+        </div>
+      </FollowedSlotsContext.Provider>
     </OpenTraderContext.Provider>
   );
 }
@@ -169,7 +176,7 @@ function Board({ day, isToday, recordFor, pl, onProof }: BoardProps) {
             <button type="button" className="ft-btn" onClick={() => setShowAll(null)}>{FT_CLOSE_LIST}</button>
           </div>
           <div className="ft-overlay__body">
-            <ClosedTable trades={listed.closed} onProof={(id) => { setShowAll(null); onProof(id); }} />
+            <TradesTable trades={listed.closed} onProof={(id) => { setShowAll(null); onProof(id); }} />
           </div>
         </div>
       )}

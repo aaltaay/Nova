@@ -1,14 +1,13 @@
 /**
  * Test data for the Bots page tests (approved mockup v4, ADR 042): a session in the
  * wire contract's shape -- the master level, a level per setup, Activate and why it
- * was cleared, the gates in two stages, the sleeve per venue, today's Nova entries, the
- * day lock and the bot trip -- and a fetch router that answers every endpoint the page
- * reads. Pure data -- the tests wrap `botsFetchRouter` in their own mock.
+ * was cleared, the gates in two stages, the sleeve per venue and today's Nova entries --
+ * and a fetch router that answers every endpoint the page reads. Pure data -- the tests wrap `botsFetchRouter` in their own mock.
  */
 import type { SetupStoreRow } from '../setups/useSetupRows';
 import templatesFixture from './setupTemplatesFixture.json';
 import type { TemplatesPayload } from './templateTypes';
-import type { BotAuditEntry, BotBreakers, BotCaps, BotGate, BotProposal, BotSession } from './types';
+import type { BotAuditEntry, BotCaps, BotGate, BotProposal, BotSession } from './types';
 
 /** The backend's own GET /api/setups/templates (default templates only), a fresh copy each call. */
 export function templatesPayload(): TemplatesPayload {
@@ -22,10 +21,10 @@ export function gates(overrides: Partial<Record<string, Partial<BotGate>>> = {})
     { id: 'level', ok: false, stage: 'activate', detail: { level: 1 } },
     { id: 'setups', ok: false, stage: 'activate', detail: { at_strategy: [] } },
     { id: 'padlock', ok: true, stage: 'activate', detail: { reason: null } },
+    { id: 'strategy_key', ok: true, stage: 'fire', detail: { venue: 'paper', text: 'the Strategy Bots key is on' } },
     { id: 'allowlist', ok: true, stage: 'fire', detail: { count: 2, auto_entry: 0 } },
-    { id: 'bot_trip', ok: true, stage: 'activate', detail: { fired_at: null, pnl: null, until: null } },
     { id: 'depth_lines', ok: true, stage: 'fire', detail: { held: ['GRML'], missing: ['IMCC'], max_lines: 3 } },
-    { id: 'day_lock', ok: true, stage: 'fire', detail: { until: null, tripped_at: null, pnl: null, venue: 'paper' } },
+    { id: 'loss_limit', ok: true, stage: 'fire', detail: { text: null, until: null, tripped_at: null, loss: null, limit_usd: 2000, venue: 'paper' } },
     { id: 'kill_switch', ok: true, stage: 'fire', detail: {} },
     { id: 'window', ok: true, stage: 'fire', detail: { setups: [], venue_time: null } },
     { id: 'daily_cap', ok: true, stage: 'fire', detail: { count: 0, cap: 1, venue_day: '2026-09-30' } },
@@ -43,18 +42,6 @@ export function openGates(overrides: Partial<Record<string, Partial<BotGate>>> =
     window: { ok: true, detail: { setups: [{ setup: 'first_pullback', start: '07:00', end: '10:00', open: true, clipped: false }], venue_time: null } },
     ...overrides,
   });
-}
-
-/** The loss breakers a session answers (ADR 032): the desk venue's pair, every venue's, the bounds. */
-export function breakers(partial: Partial<BotBreakers> = {}): BotBreakers {
-  const pair = { soft_usd: -50, hard_usd: -200 };
-  return {
-    venue: 'paper', ...pair, custom: false, defaults: { ...pair },
-    by_venue: { live: { ...pair }, paper: { ...pair }, sim: { ...pair } },
-    bounds: { soft_usd: [-1000, -5], hard_usd: [-5000, -10], step_usd: 5 },
-    note: null,
-    ...partial,
-  };
 }
 
 /** One venue's sleeve (ADR 042 E). */
@@ -86,6 +73,13 @@ export const DIP: NonNullable<BotSession['setups']>[number] = {
     + 'proposal, no bot, no Auto-entry, no Approve (#847)',
 };
 
+/** The watch-only ABCD, at Off, its On locked for good. */
+export const ABCD: NonNullable<BotSession['setups']>[number] = {
+  id: 'abcd', scanner: true, level: 0, effective: 0, side: 'long', test: null, watch_only: true,
+  locked: "On is locked: watch only: Nova's eyes draw and score the abcd, and Nova never trades it -- no "
+    + 'proposal, no bot, no Auto-entry, no Approve (#847)',
+};
+
 export function session(partial: Partial<BotSession> = {}): BotSession {
   return {
     level: 1, active: false, armed: false, has_desk_arm: false, deactivated: null,
@@ -98,13 +92,13 @@ export function session(partial: Partial<BotSession> = {}): BotSession {
       { id: 'red_to_green', scanner: true, level: 0, effective: 0 },
       { id: 'gap_and_go', scanner: true, level: 0, effective: 0 },
       DIP,
+      ABCD,
       ...SHORT_SETUPS,
       { id: 'micro_pullback', scanner: false, level: null, effective: null },
     ],
     setup_levels: { first_pullback: 2, bull_flag: 1, flat_top_breakout: 0, flat_top_5m: 0, red_to_green: 0,
-      gap_and_go: 0, pullback_dip: 0 },
+      gap_and_go: 0, pullback_dip: 0, abcd: 0 },
     ready: false, ready_reason: null, live_fire_ready: false,
-    breakers: breakers(),
     gates: gates(),
     symbol_allowlist: ['GRML', 'IMCC'],
     brain_session_id: null, brain_alive: false,
@@ -112,12 +106,24 @@ export function session(partial: Partial<BotSession> = {}): BotSession {
     caps_bounds: { risk_usd: [1, 10000], max_shares: [1, 10], bp_budget_usd: [0.01, 50], working_ttl_sec: [1, 10], entries_per_day: [1, 3] },
     caps_by_venue: { paper: caps('paper'), sim: caps('sim'), live: caps('live') },
     entries_today: { count: 0, cap: 1, venue_day: '2026-09-30', entries: [], approved: 0 },
-    day_lock: { active: false, until: null, tripped_at: null, pnl: null, venue: 'paper' },
-    soft_breaker: { fired: false, at: null, pnl: null, until: null },
-    soft_breaker_fired: false, hard_lock_until_date: null, day_lock_active: false,
     level_venue: 'paper',
+    // The family keys (2026-10-15): both on by default, as a key the file does not hold reads.
+    keys: keysView(),
     focus: [], trader_live: [], working: [],
     ...partial,
+  };
+}
+
+/** `keys` on the session view: Paper's family keys, both on unless said. */
+export function keysView(partial: { venue?: string | null; strategy?: boolean; live_trader?: boolean; error?: string | null } = {}) {
+  const key = (on: boolean, name: string) => ({
+    on, why_off: on ? null : `the ${name} key is off: turn it on at the top of Bots > ${name}`,
+  });
+  return {
+    venue: partial.venue === undefined ? 'paper' : partial.venue,
+    error: partial.error ?? null,
+    strategy: key(partial.strategy ?? true, 'Strategy Bots'),
+    live_trader: key(partial.live_trader ?? true, 'LiveTrader Bots'),
   };
 }
 
@@ -133,6 +139,7 @@ export function strategySession(partial: Partial<BotSession> = {}): BotSession {
       { id: 'red_to_green', scanner: true, level: 0, effective: 0 },
       { id: 'gap_and_go', scanner: true, level: 0, effective: 0 },
       DIP,
+      ABCD,
       ...SHORT_SETUPS,
       { id: 'micro_pullback', scanner: false, level: null, effective: null },
     ],
@@ -160,7 +167,6 @@ export interface BotsFetchOpts {
   proposals?: BotProposal[];
   audit?: BotAuditEntry[];
   setupRows?: SetupStoreRow[];
-  dayPnl?: number | null;
   killTripped?: boolean;
   /** The kill switch trip's answer (ADR 042 D): its sweep per venue. */
   killSweep?: unknown;
@@ -174,6 +180,8 @@ export interface BotsFetchOpts {
   onTemplate?: (method: string, href: string, body: Record<string, unknown>) => Json | undefined;
   /** `POST /api/bot/session/switch` (ADR 044): the session after it, or a refusal. */
   onSwitch?: (body: Record<string, unknown>) => BotSession | Json;
+  /** `POST /api/bot/session/keys` (2026-10-15): the session after it (default: that key flipped), or a refusal. */
+  onKey?: (body: Record<string, unknown>) => BotSession | Json | undefined;
   /** `GET /api/bot/triggers`: Tickers today and the answer line read it. */
   triggers?: unknown;
   /** `GET /api/hot-list`; a write answers `onHotList` (else the same view). */
@@ -312,10 +320,18 @@ export function botsFetchRouter(opts: BotsFetchOpts = {}) {
       current = next;
       return ok(current);
     }
+    if (href.includes('/session/keys')) {
+      const family = String(body.family) as 'strategy' | 'live_trader';
+      const keys = current.keys ?? keysView();
+      const next = opts.onKey?.(body)
+        ?? { ...current, keys: { ...keys, [family]: { on: body.on === true, why_off: body.on === true ? null : 'off' } } };
+      if (isJson(next)) return next;
+      current = next;
+      return ok(current);
+    }
     if (href.includes('/bot/proposals/')) return ok({});
     if (href.includes('/bot/proposals')) return ok({ proposals: opts.proposals ?? [] });
     if (href.includes('/bot/audit')) return ok({ entries: opts.audit ?? [] });
-    if (href.includes('/bot/pnl')) return ok({ day_pnl: opts.dayPnl ?? null, meter: {} });
     if (href.includes('/stock-mode/') && method === 'PUT') {
       const symbol = decodeURIComponent(href.split('/stock-mode/')[1] ?? '').split('?')[0];
       return opts.onStockModePut?.(symbol, body) ?? ok(stockModeView(symbol, String(body.buy), String(body.sell)));

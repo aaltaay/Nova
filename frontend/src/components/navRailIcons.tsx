@@ -27,19 +27,13 @@ export type NavRailIconId =
   | 'scanner'
   | 'account'
   | 'bots'
+  | 'botsLiveTrader'
+  | 'botsStrategy'
   | 'records'
   | 'cryptos'
-  | 'followed'
   | 'settings';
 
 const ICONS: Record<NavRailIconId, ReactNode> = {
-  followed: (
-    <Icon>
-      <circle cx="9" cy="8" r="3" />
-      <path d="M3.5 19a5.5 5.5 0 0 1 11 0" />
-      <path d="M15 11.5 17.5 9l3 3M17.5 9v8" />
-    </Icon>
-  ),
   market: (
     <Icon>
       <path d="M3 12h4l3-8 4 16 3-8h4" />
@@ -73,6 +67,21 @@ const ICONS: Record<NavRailIconId, ReactNode> = {
       <circle cx="9" cy="13.5" r="1" />
       <circle cx="15" cy="13.5" r="1" />
       <path d="M9 17h6" />
+    </Icon>
+  ),
+  // The Bots group's children (2026-10-15): a show on screen, and a target.
+  botsLiveTrader: (
+    <Icon>
+      <rect x="3" y="7" width="18" height="12" rx="2" />
+      <path d="M8.5 3.5 12 7l3.5-3.5" />
+      <circle cx="12" cy="13" r="2" />
+    </Icon>
+  ),
+  botsStrategy: (
+    <Icon>
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="12" r="4" />
+      <circle cx="12" cy="12" r="0.9" fill="currentColor" stroke="none" />
     </Icon>
   ),
   records: (

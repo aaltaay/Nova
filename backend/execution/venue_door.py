@@ -9,13 +9,14 @@ Two exceptions. The kill switch (spec D, #656): its sweep cancels every venue's 
 whatever the desk shows, so a ``kill`` cancel names its ``target_venue`` and is sent there
 (``resolve``). Nova's own closes (ADR 048): the day cover and the margin call close a position on
 the venue that holds it, so their ``cancel_working`` cancels and their protective ``flatten``
-closes name it too, and so do the Live Trader bot's closes and cancels on Paper (ADR 055). On Live only the day
-cover may (step 6) -- IBKR liquidates Live itself, so a margin call never goes there, and the Live Trader bot never
-trades Live -- and its close only as a market BUY carrying ``intent: "flatten"``,
-which the door checks against IBKR's own position (``execution.flatten_intent``), and only while IBKR's
-session is the Live Gateway on a live account: the legacy paper Gateway connects too, and its account is not
-the one Live's short is in (PR #792 review). Nothing else may name one -- any other place, buy or source is
-refused -- and Live only while IBKR, Live's broker, is connected.
+closes name it too, and so do the Live Trader bot's closes and cancels on Paper (ADR 055) and the daily loss
+limit's Auto sell on any venue (ADR 056). On Live only the day cover (step 6) and the loss limit's Auto sell may --
+IBKR liquidates Live itself, so a margin call never goes there, and the Live Trader bot never trades Live. The day
+cover's close is a market BUY; Auto sell's is the account flatten's ticket (market in regular hours, a marketable
+limit outside them). Both carry ``intent: "flatten"``, which the door checks against IBKR's own position
+(``execution.flatten_intent``), and only while IBKR's session is the Live Gateway on a live account: the legacy
+paper Gateway connects too, and its account is not Live's (PR #792 review). Nothing else may name one -- any other
+place, buy or source is refused -- and Live only while IBKR, Live's broker, is connected.
 
 Owner: this module (the rules; the lock and the send are ``execution.service``'s).
 """
@@ -26,8 +27,9 @@ from execution import inflight
 from execution.models import ExecutionCommand
 
 TARGET_REFUSED = "TARGET_VENUE_REFUSED"
-# ADR 048: the closes Nova makes on a venue whatever the desk shows; ADR 055: the Live Trader bot's, on Paper.
-NOVA_CLOSE_ORIGINS = ("day_cover", "margin_call", "live_trader")
+# ADR 048: the closes Nova makes on a venue whatever the desk shows; ADR 055: the Live Trader bot's, on Paper;
+# ADR 056: the daily loss limit's Auto sell, on the account that reached it.
+NOVA_CLOSE_ORIGINS = ("day_cover", "margin_call", "live_trader", "loss_limit")
 
 
 def current() -> str:
@@ -63,8 +65,9 @@ def target_refusal(cmd: ExecutionCommand) -> str | None:
         (cmd.operation == "cancel" and cmd.source == "cancel_working")
         or (cmd.operation == "place" and cmd.source == "flatten" and not cmd.short_entry))
     if not (kill_cancel or nova_close):
-        return ("only the kill switch's cancels and Nova's own closes (the day cover, a margin call) may name "
-                "a venue other than the desk's -- every other order is sent on the desk's venue")
+        return ("only the kill switch's cancels and Nova's own closes (the day cover, a margin call, the Live "
+                "Trader bot, the loss limit's Auto sell) may name a venue other than the desk's -- every other "
+                "order is sent on the desk's venue")
     if nova_close and target == DESK_VENUE_LIVE and (why := _live_close_refusal(cmd)):
         return why
     if target == DESK_VENUE_LIVE and not ibkr_connected():
@@ -84,15 +87,20 @@ def live_session_refusal() -> str | None:
 
 
 def _live_close_refusal(cmd: ExecutionCommand) -> str | None:
-    """Why a Nova close may not go to Live, or None: only the day cover, to the Live account, its close a market
-    BUY to flat."""
+    """Why a Nova close may not go to Live, or None: the day cover (a market BUY to flat) or the loss limit's
+    Auto sell (a flatten), to the Live account, each checked against IBKR's own position."""
     if cmd.origin == "live_trader":
         return "the Live Trader bot trades Paper only: its orders never go to Live; nothing was sent"
-    if cmd.origin != "day_cover":
+    if cmd.origin not in ("day_cover", "loss_limit"):
         return "a margin call never goes to Live -- IBKR liquidates Live itself; nothing was sent"
     if ibkr_connected() and (why := live_session_refusal()):
         return why
     if cmd.operation == "cancel":
+        return None
+    if cmd.origin == "loss_limit":
+        if getattr(cmd, "intent", None) != "flatten":
+            return ("the loss limit's Auto sell is a flatten checked against IBKR's own position (intent "
+                    "flatten) -- nothing was sent")
         return None
     if (cmd.side or "").upper() != "BUY" or cmd.order_type != "MKT" or getattr(cmd, "intent", None) != "flatten":
         return ("Live's day cover is a market BUY checked against IBKR's own short (intent flatten) -- "

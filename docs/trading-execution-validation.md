@@ -100,7 +100,7 @@ calls existing doors in this order:
    BroadcastChannel + `localStorage` (`TICKER_TRADE_UNLOCK_SYNC_KEY`).
 2. `cancelAllWorkingOrders` -- `DELETE /api/ibkr/orders?all_symbols=true`
 3. `flatten_account_with_retry` -- `POST /api/ibkr/flatten-account` (same
-   function bot loss breakers use; `source=flatten`). Flatten cancels leftover
+   function the bot's last-resort exit uses; `source=flatten`). Flatten cancels leftover
    working **before** placing closes so it cannot cancel those exits. Weekday
    RTH closes stay MKT (`outside_rth=false`). After hours / weekend / holiday
    uses an EH LMT at bid/ask/last (`outside_rth=true`) -- IBKR ignores
@@ -113,8 +113,7 @@ calls existing doors in this order:
    failed)
 
 Cancel and flatten still run if the bot PATCH fails. Unlock is the existing
-header lock, not `hard_lock_until_date` (that lock is the venue's all-stop
-only; it lifts at the next 04:00 ET, ADR 042). `auto_live` stays NO-GO. The confirm guard is taken before the
+header lock (the daily loss limit's No new buys is separate: Settings > Loss limits, ADR 056). `auto_live` stays NO-GO. The confirm guard is taken before the
 dialog so a double-click cannot enqueue two kill sequences.
 
 ## Stage latency (synthetic, 2026-07-23)

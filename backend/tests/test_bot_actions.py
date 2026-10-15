@@ -315,3 +315,27 @@ def test_exits_are_never_held_by_the_entry_rules():
     open_entry_window(hour=15, minute=30)
     for kind in ("exit_pos", "exit_pos_pct", "cancel_symbol", "sell_limit_bid_offset", "sell_pos_pct_ask"):
         assert_entry_allowed(kind)
+
+
+@pytest.mark.asyncio
+async def test_the_strategy_bots_key_off_refuses_every_order_but_a_cancel(monkeypatch, l2_brain):
+    """The localhost bot API is a strategy bot (2026-10-15): with its family's key off it places no order, not even a
+    sell; a cancel places none and still goes (Codex review, PR #1006)."""
+    from bot import family_keys
+    from constants_bot import BOT_SKIP_FAMILY_OFF
+
+    family_keys.turn("strategy", False)
+    for kind in ("buy_market", "exit_pos"):
+        with pytest.raises(BotError) as exc:
+            await fire({"kind": kind, "symbol": "ABCD"}, brain_session_id="brain-1")
+        assert exc.value.reason == BOT_SKIP_FAMILY_OFF and exc.value.status_code == 409
+    monkeypatch.setattr("ibkr.orders.open_orders", lambda: [{"symbol": "ABCD", "order_id": 9}])
+    cancelled = []
+
+    async def fake_execute(cmd, wait_ack=False):
+        cancelled.append(cmd.order_id)
+        return _ok(cmd.order_id or 0)
+
+    monkeypatch.setattr("bot.actions.execute", fake_execute)
+    assert (await fire({"kind": "cancel_symbol", "symbol": "ABCD"}, brain_session_id="brain-1"))["ok"] is True
+    assert cancelled == [9]

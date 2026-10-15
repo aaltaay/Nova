@@ -35,8 +35,12 @@ export function focusViewOf(parts: FocusViewParts): FocusView {
     const symbol = parts.selectedSymbol;
     return { page: 'scanner', tab: parts.scannerTab, symbol, symbolSource: symbol ? 'scanner_row' : null, traderTabs: tabs };
   }
-  // Market, Cryptos, Followed traders, Account, Bots and Records are shell pages with no symbol of their own.
-  const page = parts.navPage === 'dashboard' ? 'account' : parts.navPage;
+  // Market, Cryptos, Account, Bots and Records are shell pages with no symbol of their own (the sensor's own page
+  // names, constants_sensors.FOCUS_PAGES). LiveTrader Bots is the followed traders' page, so it reads as "followed",
+  // as it did as TraderTV LIVE; the rest of the Bots group reads as "bots".
+  const page = parts.navPage === 'dashboard' ? 'account'
+    : parts.navPage === 'bots-live-trader' ? 'followed'
+      : parts.navPage === 'bots-strategy' ? 'bots' : parts.navPage;
   return { page, tab: null, symbol: null, symbolSource: null, traderTabs: tabs };
 }
 

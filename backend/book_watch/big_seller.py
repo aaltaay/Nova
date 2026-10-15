@@ -17,9 +17,14 @@ A called price is followed through its life:
   a displayed price cannot be traded through, so its size traded (``how: "through"``); or lit prints at
   its price inside the matching window cover at least ``BOOK_WATCH_BIG_TAKEN_SHARE`` of the drop
   (``how: "traded"``). Either way the seller is gone.
-- ``pulled``: it left and the prints at its price do not cover that share (``how: "no_prints"``).
+- ``pulled``: it left and the prints at its price do not cover that share (``how: "no_prints"``) --
+  ``on_approach`` when the price was closer to it as it left than when it was called.
 - ``lost``: the book stopped showing that price -- it scrolled past the rows shown, the side collapsed
   at once, the book restarted: unknown, never pulled.
+
+A price called where one on its side was pulled in the last ``BOOK_WATCH_BIG_BACK_SEC`` carries ``back``
+(how many, when the last left) -- never a claim that it is the same seller. Each wall's ``clear_sec`` is
+its size over the lit shares printed in the last ``BOOK_WATCH_BIG_PACE_SEC`` (#984).
 
 Prints that prove nothing about the book -- off-exchange reports, crosses, volume-only prints and odd
 lots (``BOOK_WATCH_SWEEP_SKIP_CONDITIONS``) -- never take one. The tracker keeps its own copy of the lit
@@ -38,6 +43,7 @@ from typing import Any
 
 from book_watch.book import SideView, collapsed, in_view
 from book_watch.constants_book_watch import (
+    BOOK_WATCH_BIG_BACK_SEC,
     BOOK_WATCH_BIG_KEEP,
     BOOK_WATCH_BIG_MEDIAN_MULT,
     BOOK_WATCH_BIG_MIN_DOLLARS,
@@ -54,6 +60,7 @@ from book_watch.constants_book_watch import (
     BOOK_WATCH_SWEEP_SKIP_CONDITIONS,
 )
 from book_watch.matching import DEFAULT_MATCH, PRICE_EPS, MatchParams, claim
+from book_watch.pace import LitPace
 from sale_conditions import sets_price
 
 SIDES = ("ask", "bid")
@@ -73,6 +80,7 @@ class BigParams:
     window_max_pct: float = BOOK_WATCH_BIG_WINDOW_MAX_PCT
     taken_share: float = BOOK_WATCH_BIG_TAKEN_SHARE
     show_ended_sec: float = BOOK_WATCH_BIG_SHOW_ENDED_SEC
+    back_sec: float = BOOK_WATCH_BIG_BACK_SEC
 
     def floor(self, price: float) -> float:
         """The fewest shares at ``price`` that are big: the share floor, or the dollar floor's shares."""
@@ -101,6 +109,9 @@ class Wall:
     median: float | None = None   # the other levels' median when it was called
     called_size: float | None = None
     called_ts: float | None = None
+    dist_called: float | None = None  # how far past the price when it was called
+    back: dict[str, float] | None = None  # walls pulled at this price shortly before it was called
+    on_approach: bool | None = None  # pulled as the price came closer; None unless pulled
     state: str = HOLDING
     ended_ts: float | None = None
     how: str | None = None
@@ -133,12 +144,15 @@ class BigWallTracker:
         # (side, price) a print went through -> when: IBKR's book can trail its tape and show the size there for
         # seconds more, so no new candidate starts there until the book shows it gone or the sweep hold passes.
         self.spent: dict[tuple[str, float], float] = {}
+        self.pace = LitPace()                            # how fast it trades, for clear_sec (pace.py)
+        self.version = 0                                 # moves whenever a called wall says something new
 
     # -- input ---------------------------------------------------------------
 
     def on_book(self, ts: float, views: dict[str, SideView],
                 prev: dict[str, SideView] | None) -> list[dict[str, Any]]:
         out = self.tick(ts)
+        self.pace.on_book(ts)
         ref = self._reference(views)
         for side in SIDES:
             view = views[side]
@@ -163,6 +177,7 @@ class BigWallTracker:
         if sets_price(codes):
             self.last, self.last_ts = key, ts
         out = self.tick(ts)
+        self.pace.on_print(ts, shares, lit=lit, conditions=codes)
         if not lit or set(codes) & BOOK_WATCH_SWEEP_SKIP_CONDITIONS:
             return out
         self.prints.append([ts, key, shares])
@@ -179,6 +194,8 @@ class BigWallTracker:
                         out += self._end(wall, EATEN, ts, "through", ref=ref)
                 elif abs(key - price) <= PRICE_EPS:
                     wall.traded += shares
+                    if wall.called_ts is not None:
+                        self.version += 1
         return out
 
     def tick(self, now: float) -> list[dict[str, Any]]:
@@ -206,7 +223,14 @@ class BigWallTracker:
             out += self._lose_side(side, ts if ts is not None else (self.prev_ts or 0.0), "reset")
         self.views, self.fresh = None, True
         self.spent.clear()
+        self.pace.reset()
         return out
+
+    def lose_waiting(self, how: str) -> list[dict[str, Any]]:
+        """Every wall that left and still waits on its prints, lost where it left: the tape that would judge it is
+        missing (a recording gap, ``hidden_study.read``; never live, where the tape runs on past a book restart)."""
+        waiting, self.pending = self.pending, []
+        return [e for d in waiting if d["wall"].state == LEFT for e in self._end(d["wall"], LOST, d["t1"], how)]
 
     # -- the rule ------------------------------------------------------------
 
@@ -264,6 +288,8 @@ class BigWallTracker:
                                      "before": wall.size_now, "after": size, "drop": wall.size_now - size,
                                      "deadline": ts + self.match.settle_sec})
                 continue
+            if wall.called_ts is not None and size != wall.size_now:
+                self.version += 1
             wall.size_now = size
             wall.peak = max(wall.peak, size)
         return out
@@ -279,8 +305,21 @@ class BigWallTracker:
                 del self.walls[side][price]
             elif ts - wall.first_ts >= self.p.min_hold_sec:
                 wall.called_ts, wall.median, wall.called_size = ts, med, wall.size_now
+                wall.dist_called = _distance(side, price, ref)
+                wall.back = self._back(side, price, ts)
+                self.version += 1
                 out.append(self._event(wall, ts))
         return out
+
+    def _back(self, side: str, price: float, ts: float) -> dict[str, float] | None:
+        """The walls pulled at ``price`` on ``side`` in the ``back_sec`` before ``ts``, or None."""
+        gone = [w for w in self.ended if w.side == side and w.state == PULLED and abs(w.price - price) <= PRICE_EPS
+                and w.ended_ts is not None and w.ended_ts >= ts - self.p.back_sec]
+        if not gone:
+            return None
+        last = max(gone, key=lambda w: w.ended_ts or 0.0)
+        size = last.left["before"] if last.left else last.size_now
+        return {"pulled": len(gone), "last_ended_ts": round(last.ended_ts or 0.0, 3), "last_size": size}
 
     # -- ends ----------------------------------------------------------------
 
@@ -298,6 +337,11 @@ class BigWallTracker:
     def _end(self, wall: Wall, state: str, ts: float, how: str, *, ref: float | None = None) -> list[dict[str, Any]]:
         wall.state, wall.ended_ts, wall.how = state, ts, how
         wall.ref_at_end = ref if ref is not None else self._reference(self.views)
+        if state == PULLED:
+            dist = _distance(wall.side, wall.price, wall.ref_at_end)
+            wall.on_approach = (wall.dist_called is not None and dist is not None
+                                and dist < wall.dist_called - PRICE_EPS)
+        self.version += 1
         if self.walls[wall.side].get(wall.price) is wall:
             del self.walls[wall.side][wall.price]
         self.ended.append(wall)
@@ -305,7 +349,7 @@ class BigWallTracker:
 
     # -- readings ------------------------------------------------------------
 
-    def _wall(self, wall: Wall, now: float, ref: float | None) -> dict[str, Any]:
+    def _wall(self, wall: Wall, now: float, ref: float | None, per_sec: float | None = None) -> dict[str, Any]:
         at = wall.ended_ts if wall.ended_ts is not None else now
         dist = _distance(wall.side, wall.price, wall.ref_at_end if wall.ended_ts is not None else ref)
         base = wall.ref_at_end if wall.ended_ts is not None else ref
@@ -321,20 +365,28 @@ class BigWallTracker:
             "held_sec": round(max(0.0, at - wall.first_ts), 3),
             "distance": dist,
             "distance_pct": None if dist is None or not base else round(dist / base * 100, 3),
+            "distance_called": wall.dist_called, "on_approach": wall.on_approach, "back": wall.back,
+            "clear_sec": (round(wall.size_now / per_sec, 1) if per_sec and wall.ended_ts is None and wall.size_now > 0
+                          else None),
             "how": wall.how, "left": wall.left,
         }
 
     def _event(self, wall: Wall, ts: float) -> dict[str, Any]:
         return {"event": "big", "symbol": self.symbol, "ts": round(ts, 3),
-                **self._wall(wall, ts, self._reference(self.views))}
+                **self._wall(wall, ts, self._reference(self.views), self.pace.rate(ts)[1])}
+
+    def holding(self) -> bool:
+        """Is any called price still there (its ``clear_sec`` moves with the pace even when nothing else does)?"""
+        return any(w.called_ts is not None for walls in self.walls.values() for w in walls.values())
 
     def reading(self, now: float) -> dict[str, Any]:
         """Each side's called prices (nearest the price first), then those ended in the last
         ``show_ended_sec`` (newest first)."""
         ref = self._reference(self.views)
+        pace, per_sec = self.pace.rate(now)
         sides: dict[str, list[dict[str, Any]]] = {}
         for side in SIDES:
-            live = [self._wall(w, now, ref) for w in self.walls[side].values() if w.called_ts is not None]
+            live = [self._wall(w, now, ref, per_sec) for w in self.walls[side].values() if w.called_ts is not None]
             live.sort(key=lambda w: (w["distance"] if w["distance"] is not None else float("inf")))
             gone = [self._wall(w, now, ref) for w in reversed(self.ended)
                     if w.side == side and w.ended_ts is not None and w.ended_ts >= now - self.p.show_ended_sec]
@@ -342,7 +394,7 @@ class BigWallTracker:
         return {
             "last": self.last, "last_ts": None if self.last_ts is None else round(self.last_ts, 3),
             "reference": ref, "reference_source": None if ref is None else ("last" if self.last is not None else "mid"),
-            "window": None if ref is None else round(self.p.window(ref), 4),
+            "window": None if ref is None else round(self.p.window(ref), 4), "pace": pace,
             "sellers": sides["ask"], "buyers": sides["bid"],
             "sides": {s: {"levels": self.levels[s], "enough": self.levels[s] > self.p.min_other_levels} for s in SIDES},
         }

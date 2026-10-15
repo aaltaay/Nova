@@ -300,7 +300,7 @@ export function stockMode(symbol: string, mode = 'signal') {
   };
 }
 
-/** The book watcher's word on SMPL's ladder: a traded drop and a pulled one. */
+/** The book watcher's word on SMPL's ladder: a traded drop and a pulled one, and the big seller resting at 4.35 (#984). */
 export function bookWatch(nowS: number) {
   return {
     type: 'book_watch', symbol: 'SMPL',
@@ -315,6 +315,14 @@ export function bookWatch(nowS: number) {
         { seq: 40, ts: nowS - 2.4, side: 'ask', price: 4.36, pulled: 2_400, filled: 0, outcome: 'pulled', level_before: 3_000, level_after: 600, median_level: 900, distance_ticks: 3, distance_at_post_ticks: 5, lifetime_sec: 6.1, approached: true, large_pull: true, on_approach: true },
       ],
       hidden: [],
+      big: [{
+        id: `${Math.round((nowS - 48) * 1000)}-SMPL-ask-4.35`, kind: 'big_seller', side: 'ask', price: 4.35, state: 'holding',
+        size_first: 21_000, size_now: 21_000, size_peak: 21_000, traded: 6_300, median_level: 1_100, multiple: 19.1,
+        first_seen_ts: nowS - 48, seen_from_start: false, called_ts: nowS - 45, ended_ts: null, held_sec: 48,
+        distance: 0.02, distance_pct: 0.46, distance_called: 0.03, on_approach: null, back: null, clear_sec: 52.4,
+        how: null, left: null,
+      }],
+      big_float: { shares: 4_200_000, contradicted: false },
       note: 'A hint consistent with spoofing, never a detection.',
     },
   };

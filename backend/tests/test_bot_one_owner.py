@@ -77,7 +77,7 @@ def _write_v4(row: dict) -> None:
     persist._session = None
 
 
-def test_a_v4_session_migrates_its_chosen_setup_sleeve_list_and_lock_into_every_venue():
+def test_a_v4_session_migrates_its_chosen_setup_sleeve_and_list_into_every_venue():
     from bot.persist import load_session
     from bot.venue_levels import dial_of
     from sim.mode import set_venue
@@ -94,7 +94,7 @@ def test_a_v4_session_migrates_its_chosen_setup_sleeve_list_and_lock_into_every_
         assert gone not in row
     assert row["schema_version"] == 5 and row["level_venue"] == "paper"
     assert row["setup_levels"] == {"first_pullback": 1, "bull_flag": 2, "flat_top_breakout": 0, "flat_top_5m": 0,
-                                   "red_to_green": 0, "gap_and_go": 0, "pullback_dip": 0,
+                                   "red_to_green": 0, "gap_and_go": 0, "pullback_dip": 0, "abcd": 0,
                                    **{sid: 0 for sid in BOT_SHORT_SETUPS}}   # every short setup starts Off (ADR 049)
     live = dial_of(row, "live")
     assert live["level"] == 1 and live["setup_levels"]["bull_flag"] == 1 and live["setup_levels"]["red_to_green"] == 1
@@ -104,7 +104,8 @@ def test_a_v4_session_migrates_its_chosen_setup_sleeve_list_and_lock_into_every_
         caps = dial_of(row, venue)["caps"]
         assert (caps["max_shares"], caps["bp_budget_usd"], caps["api_kinds"]) == (4, 40.0, ["buy_market", "exit_pos"])
         assert caps["risk_usd"] == 20.0 and caps["entries_per_day"] == 1
-        assert dial_of(row, venue)["hard_lock_until_date"] == "2026-09-30"
+        assert "hard_lock_until_date" not in dial_of(row, venue)    # ADR 056: the day lock is gone
+    assert "hard_lock_until_date" not in row
 
 
 def test_an_unknown_version_still_refuses_loudly():

@@ -10,10 +10,12 @@ import {
 import {
   armBotSession,
   disarmBotSession,
+  setBotFamilyKey,
   switchBotSession,
   patchBotSession,
   resolveProposal,
 } from './api';
+import type { BotFamily } from './types';
 
 const EMPTY = {
   session: null,
@@ -49,15 +51,11 @@ export function useBotSession(pollMs = 0) {
     }
   }, []);
 
-  /**
-   * Activate (ADR 042 B). `reenable` is sent only when the caller asked the operator
-   * first -- after a bot trip the backend refuses Activate without it, and the page
-   * says so in words; it is never inferred from the session here.
-   */
-  const activate = useCallback(async (opts: { reenable?: boolean } = {}) => {
+  /** Activate (ADR 042 B). A refusal comes back in the backend's words. */
+  const activate = useCallback(async () => {
     setBusy(true);
     try {
-      return await runBotSessionWrite(() => armBotSession(opts.reenable ? { reenable: true } : {}));
+      return await runBotSessionWrite(() => armBotSession());
     } catch (err) {
       setBotSessionError(err instanceof Error ? err.message : 'bot activate failed');
       return null;
@@ -78,13 +76,26 @@ export function useBotSession(pollMs = 0) {
     }
   }, []);
 
-  /** ADR 044: the Bot switch. A refusal (a trip's latch, the padlock, Live) comes back in the backend's words. */
-  const setSwitch = useCallback(async (on: boolean, reenable = false) => {
+  /** ADR 044: the Bot switch. A refusal (the padlock, Live) comes back in the backend's words. */
+  const setSwitch = useCallback(async (on: boolean) => {
     setBusy(true);
     try {
-      return await runBotSessionWrite(() => switchBotSession(on, reenable));
+      return await runBotSessionWrite(() => switchBotSession(on));
     } catch (err) {
       setBotSessionError(err instanceof Error ? err.message : 'bot switch failed');
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  /** A family's key (2026-10-15). A refusal (Live, an unreadable file) comes back in the backend's words. */
+  const setKey = useCallback(async (family: BotFamily, on: boolean) => {
+    setBusy(true);
+    try {
+      return await runBotSessionWrite(() => setBotFamilyKey(family, on));
+    } catch (err) {
+      setBotSessionError(err instanceof Error ? err.message : 'bot key failed');
       return null;
     } finally {
       setBusy(false);
@@ -114,6 +125,7 @@ export function useBotSession(pollMs = 0) {
     activate,
     stop,
     setSwitch,
+    setKey,
     resolve,
   };
 }

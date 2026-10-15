@@ -241,7 +241,7 @@ export const wireBars = (bars: Bar[]) => bars.map((b) => ({ t: iso(b.t), o: b.o,
 
 const VENUES = ['NSDQ', 'ARCA', 'EDGX', 'BATS', 'MEMX', 'IEX', 'NYSE', 'EDGA', 'BYX', 'PEARL', 'LTSE', 'AMEX'];
 
-/** A Level 2 book around `last`; for SMPL, stacked bids at 4.30 and a seller at 4.40. */
+/** A Level 2 book around `last`; for SMPL, stacked bids at 4.30 and a big seller at 4.35. */
 export function sampleBook(last: number, seed = 3): { bids: BookRow[]; asks: BookRow[] } {
   const rand = rng(seed);
   const lot = (lo: number, hi: number) => Math.round(lo + rand() * (hi - lo)) * 100;
@@ -256,7 +256,7 @@ export function sampleBook(last: number, seed = 3): { bids: BookRow[]; asks: Boo
   }
   for (let i = 0; i < 16; i += 1) {
     const price = r2(bestAsk + Math.floor(i / 1.7) * 0.01);
-    const size = Math.abs(price - 4.4) < 0.001 && i % 2 === 0 ? 21_000 : lot(1, 22);
+    const size = Math.abs(price - 4.35) < 0.001 && i % 2 === 0 ? 21_000 : lot(1, 22);
     asks.push({ price, size, mm: VENUES[(i * 7 + 3) % VENUES.length], row: i });
   }
   return { bids, asks };

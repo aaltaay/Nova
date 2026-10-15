@@ -22,6 +22,7 @@ Origin = Literal[
     "emergency_kill",
     "bot_trip",
     "all_stop",
+    "loss_limit",
     "bot",
     "auto_entry",
     "approve",
@@ -79,12 +80,13 @@ class ExecutionCommand:
     # ``VENUE_CHANGED`` when the desk is elsewhere by the time it runs (audit 2026-09-30).
     expected_venue: str | None = None
     # The venue to send to instead of the desk's: the kill switch's sweep (spec D, #656) and Nova's
-    # own closes -- the day cover and the margin call (ADR 048) -- only: a ``kill`` cancel, or a
-    # ``cancel_working`` cancel or a protective ``flatten`` place with origin ``day_cover`` /
-    # ``margin_call``; Live only while IBKR is connected (``execution.venue_door.resolve``).
+    # own closes -- the day cover and the margin call (ADR 048), the Live Trader bot's (ADR 055) and
+    # the daily loss limit's Auto sell (ADR 056) -- only: a ``kill`` cancel, or a ``cancel_working``
+    # cancel or a protective ``flatten`` place with one of those origins; Live only while IBKR is
+    # connected (``execution.venue_door.resolve``).
     target_venue: str | None = None
     # Who in Nova sent it (``Origin``): recorded with the order and shown in the Orders table's
-    # "Sent by" so a breaker's or a bot's order never reads as the operator's own. None for the
+    # "Sent by" so a loss limit's or a bot's order never reads as the operator's own. None for the
     # operator's own ticket. A label, never a permission: no gate reads it.
     origin: Origin | None = None
     # What the operator's screen showed when they acted (ADR 045): ``action_wall_ms``, the Level 2

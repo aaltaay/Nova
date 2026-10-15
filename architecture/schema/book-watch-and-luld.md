@@ -271,13 +271,26 @@ order.
   nothing (`BOOK_WATCH_SWEEP_SKIP_CONDITIONS`). After a print goes through a price, no new candidate starts
   there until the book shows it under the floors or `BOOK_WATCH_SWEEP_HOLD_SEC` passes (the book can trail its
   tape). The tracker claims from its own copy of the lit prints, so the watcher's drop judgments are untouched.
+  A `pulled` one was **pulled as the price came** (`on_approach: true`) when the price was closer to it when it
+  left than when it was called -- the watcher's `pulled_on_approach` read on one wall; `null` unless pulled.
+- **Back again** (#984). A price called where a wall on the same side was pulled within
+  `BOOK_WATCH_BIG_BACK_SEC` (300 s) before carries `back: {pulled, last_ended_ts, last_size}` -- how many were
+  pulled there in that time, when the last one left and its size before it left; `null` otherwise. Never a
+  claim that it is the same seller.
+- **How fast it trades** (#984). The tracker keeps the lit shares printed in the last `BOOK_WATCH_BIG_PACE_SEC`
+  (60 s; odd lots counted, crosses and volume-only prints not) since its first book or a reset. `pace:
+  {window_sec, lit_shares} | null` (null before 10 s of watching); each wall's `clear_sec` is its size now over
+  that pace -- the seconds the last minute's lit volume would take to trade it -- `null` with no pace or no lit
+  print in it. A ratio of what Nova saw, never a forecast.
 - **Events.** `{event: "big", symbol, ts, id: "<first_seen_ms>-<SYMBOL>-<side>-<price>", kind: "big_seller" |
   "big_buyer", side: "ask" | "bid", price, state: "holding" | "left" | "eaten" | "pulled" | "lost", size_first
   (when first seen big), size_now, size_peak, traded (lit prints at its price since first seen), median_level
   and multiple (the other levels' median and size / median when it was called), first_seen_ts, seen_from_start
   (big in the first book the tracker saw: it may have been there longer), called_ts, ended_ts, held_sec,
   distance (signed: over the price for an ask, under it for a bid; 0 or less is at the price), distance_pct,
-  how, left: {before, after, filled} | null}` -- once when called and once when it ends; the journal keeps
+  distance_called (the distance when it was called), on_approach: boolean | null, back: {pulled, last_ended_ts,
+  last_size} | null, clear_sec: number | null, how, left: {before, after, filled} | null}` -- once when called
+  and once when it ends; the journal keeps
   them (`event: "big"`), and `book_watch/replay.py`'s result adds `big[]` (the last word on each).
 - **The reading.** `GET /api/book-watch/{symbol}/big-sellers` (owner `book_watch/routes.py` and `big_read.py`;
   sync, memory reads only) and `GET /sensors/big-sellers?symbol=` (sensor 21, the reading as `data`, `reason`
@@ -285,7 +298,8 @@ order.
   min_dollars, median_mult, min_other_levels, min_hold_sec, window_dollars, window_pct, window_max_pct,
   taken_share, show_ended_sec}, note, watching, reason: string | null, sellers[], buyers[]}`, and while
   watching also `since, last_book_ts, last_book_age_sec, last, last_ts, reference, reference_source: "last" |
-  "mid" | null, window, sides: {ask | bid: {levels, enough}}` (a replay adds `lookback_sec, books_per_sec`).
+  "mid" | null, window, pace: {window_sec, lit_shares} | null, sides: {ask | bid: {levels, enough}}` (a replay
+  adds `lookback_sec, books_per_sec`).
   `sellers` / `buyers` are the called prices still there (`holding`, `left`), nearest the price first, then
   those ended in the last `BOOK_WATCH_BIG_SHOW_ENDED_SEC` (30 s), newest first, each in the event's shape
   without `event`, `symbol` and `ts`. Never a guess: the watcher off, no depth line for the symbol, a line with
@@ -299,6 +313,36 @@ order.
   book recorded as Level 1 only (`l1_fallback`) resets it. One state in memory, not persisted. A downloaded
   (historical) replay keeps no book stream and says so.
 - The held-trade card reads it every second while you hold (`stock-read.md`, "Managing a trade you hold").
+- **On the Level 2 ladder** (#984, operator ask 2026-10-15: "an obvious indicator ... showing that there's a big
+  seller on level 2? Based on the float we could easily break this", then "what if he pulls that order?"). The
+  depth socket's `book_watch` frames add `big[]` -- the line's big sellers and buyers in the reading's item shape
+  (called and still there, then ended in the last `BOOK_WATCH_BIG_SHOW_ENDED_SEC`), the whole list on every frame
+  that changes it (an id, state, size or traded moved), `[]` on a `watching: false` frame -- and `big_float:
+  {shares, contradicted} | null`, the symbol's float from the fundamentals Nova already read (cache only, never a
+  fetch; null when none is cached; `contradicted` is the scanner's `float_contradicted`). Absent on an older
+  backend: the ladder draws none. On the ladder (`ibkr/bookWatchBig.ts`, pure, folded by
+  `ibkr/bookWatchBigRead.ts`): the rows at a price a big seller or buyer holds turn into a dark block with white
+  digits and a white frame (no other row is black or white: the eight price-tier colours include orange, and amber
+  already means pulled), tagged "Big seller" / "Big buyer" over the venue column of the boundary above it, never
+  over a size or a price; while prints trade into it a slate bar along its last row fills with traded / (traded +
+  size now). Over the side's column head a banner names the nearest one that holds -- "Big seller 3.45 · 48.2K ·
+  1.9% of float · 40 s of lit volume" (the float share from `big_float`, "?" after it when the float is
+  contradicted, left out with no float; the seconds from `clear_sec`), "back · 2nd in 5 min" when it came back --
+  and, with none holding, the newest one that ended: taken (slate, "✓", with what traded at its price, or "traded
+  through" when a print went through it -- how much of it traded is then unknown), pulled (amber, "✕"), pulled as
+  the price came (solid amber), out of view (grey: unknown, never pulled), fading over its last 10 s. A narrow ladder drops
+  the seconds, then the float, from the banner; the hover always gives all of it and the note. Nothing is added to
+  the ladder's height. The drop marks under the rows are the watcher's own and stay as they are. On a replay desk
+  the ladder carries no book-watch frames, so none is drawn there (the held card still reads `big_replay`).
+- **The study** (#984). `tools/big_seller_study.py` (read-only; owner `book_watch/big_study.py`) runs the tracker
+  over every Session Record: for each called wall, the mid's move toward a flush (down after a seller, up after a
+  buyer) and whether a print went through it, 10 s to 5 min after the call and after its end, split by how it
+  ended and by `clear_sec` (under 60 s against 60 s or more), beside the same recordings' every minute as the
+  baseline. Across each gap in a recording (the manifest's segments, `hidden_study.recording_gaps`;
+  `tools/hidden_study.py` too) the tracker judges what the recorded tape can, then starts afresh: a wall is
+  never held across a gap, and one that left the book but still waited on its prints when the recorder stopped
+  is lost (`how: "gap"`), never judged taken or pulled on half its window. A description of the recordings,
+  never a trading rule.
 
 ## LULD bands on Level 2 (ADR 047, operator ask 2026-10-06)
 
