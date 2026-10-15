@@ -60,6 +60,46 @@ def test_a_rebuilt_time_of_day_rvol_is_a_pace_measure_already():
     assert _pillars(row, MINUTE + 8)["rvol"] == 7.5
 
 
+def test_an_after_hours_only_row_is_paced_already():
+    """With the stock on no other board, the after-hours runners measured its RVOL paced (they never store a
+    raw ratio) under the daily label; pacing it again inflated it."""
+    from leaderboard import store as lb_store
+
+    row = make_row(symbol="ZZVEEA", minute_ts=MINUTE + 9 * 3600, board="afterhours", rank=1, price=5.65,
+                   prev_close=3.87, volume=9_000_000, source="recorded", rvol=6.2,
+                   rvol_basis=LEADERBOARD_RVOL_BASIS_DAILY)
+    with lb_store.connect() as db:
+        lb_store.write_batch(db, rows=[row])
+    assert _pillars(row, MINUTE + 9 * 3600 + 8)["rvol"] == 6.2
+
+
+def test_a_stock_on_gainers_too_reads_the_gainers_daily_rvol_and_paces_it():
+    """While the stock is on Gainers the After Hours row holds the Gainers row's daily RVOL copied over
+    (``scanner_runners/afterhours.py``): the Gainers row is read, and paced."""
+    from leaderboard import store as lb_store
+
+    minute = MINUTE + 9 * 3600
+    common = dict(symbol="ZZVEEA", minute_ts=minute, rank=1, price=5.65, prev_close=3.87, volume=9_000_000,
+                  source="recorded", rvol=1.4, rvol_basis=LEADERBOARD_RVOL_BASIS_DAILY)
+    rows = [make_row(board="afterhours", **common), make_row(board="gainers", **common)]
+    with lb_store.connect() as db:
+        lb_store.write_batch(db, rows=rows)
+    at = minute + 8
+    assert _pillars(rows[0], at)["rvol"] == round(1.4 / volume_day_elapsed_fraction(datetime.fromtimestamp(at, ET)), 2)
+
+
+def test_a_replay_never_creates_the_leaderboard(monkeypatch, tmp_path):
+    from leaderboard import store as lb_store
+
+    missing = tmp_path / "nowhere" / "leaderboard.sqlite3"
+    monkeypatch.setattr(lb_store, "path", lambda: missing)
+    from eyes.recording import pillars_at
+
+    p = pillars_at("ZZVEEA", "2026-10-09", MINUTE + 8, last_price=5.67, prev_close=3.87)
+    assert p["rvol"] is None and p["source"] == "recording"
+    assert not missing.parent.exists()
+
+
 def test_the_replay_follows_the_live_switch_off_pace(monkeypatch):
     import constants_hod_momo
 

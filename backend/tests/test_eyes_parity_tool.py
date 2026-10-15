@@ -76,6 +76,35 @@ def test_a_live_trigger_the_replay_never_made_reads_unmatched():
     assert row["same_rules"] is False       # PFSA 2026-09-24: live ran rev 1 of the rules the replay runs as rev 2
 
 
+def test_clock_times_are_eastern_in_winter_too():
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    january = datetime(2027, 1, 12, 9, 31, 5, tzinfo=ZoneInfo("America/New_York")).timestamp()
+    july = datetime(2026, 7, 14, 9, 31, 5, tzinfo=ZoneInfo("America/New_York")).timestamp()
+    assert eyes_parity.et(january) == eyes_parity.et(july) == "09:31:05"
+
+
+def test_it_creates_nothing_when_the_desk_data_is_missing(monkeypatch, tmp_path):
+    monkeypatch.setenv("NOVA_EYES_DIR", str(tmp_path / "no-eyes"))
+    monkeypatch.setenv("NOVA_SIM_CAPTURE_DIR", str(tmp_path / "no-captures"))
+    try:
+        eyes_parity.run(None)
+    except SystemExit as exc:
+        assert "creates none" in str(exc)
+    else:
+        raise AssertionError("it ran without the desk's data")
+    assert not (tmp_path / "no-eyes").exists() and not (tmp_path / "no-captures").exists()
+
+
+def test_capture_root_can_name_the_folder_without_making_it(monkeypatch, tmp_path):
+    from capture.storage import capture_root
+
+    monkeypatch.setenv("NOVA_SIM_CAPTURE_DIR", str(tmp_path / "later"))
+    assert capture_root(create=False) == tmp_path / "later" and not (tmp_path / "later").exists()
+    assert capture_root().is_dir()
+
+
 def test_summarize_judges_tape_only_where_the_trigger_lines_up_and_live_read_on_arrival():
     def row(ts, live_tape, replay_tape, *, level=5.68, dt=0.5, live_grade="B", replay_grade="B", inside=True):
         return {"inside": inside, "same_rules": ts >= T0, "live_ts": ts, "replay_at": "x", "dt": dt, "live_trigger": 5.68,

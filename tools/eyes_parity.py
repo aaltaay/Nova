@@ -26,7 +26,9 @@ Usage:
   py -3 tools/eyes_parity.py [--days 2026-10-09,2026-10-12] [--json OUT] [--env PATH]
 
 It reads the desk's ``.env`` (``--env``; else ``NOVA_ENV_PATH``; else the main checkout's, also from a
-worktree) for the data folders, and only its ``NOVA_*`` names. Nothing is written but ``--json``.
+worktree) for the data folders, and only its ``NOVA_*`` names. Nothing is written but ``--json``: the
+leaderboard and the catalyst feed open read-only, and it stops, creating nothing, when the eyes'
+journal, the Session Records or the bar archive is missing.
 """
 from __future__ import annotations
 
@@ -39,6 +41,7 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, Iterable
+from zoneinfo import ZoneInfo
 
 REPO = Path(__file__).resolve().parents[1]
 MATCH_SEC = 90.0          # a replay trigger of the same setup this close is the live one's
@@ -46,6 +49,7 @@ SAME_SECOND = 2.0         # the live stamp is IBKR's whole second; the replay's 
 READ_ON_ARRIVAL_SINCE = dt.datetime(2026, 10, 1, 4, 9, 42, tzinfo=dt.UTC).timestamp()     # f3d2cb0e
 PACE_CURVE_SINCE = dt.datetime(2026, 10, 13, 15, 8, 6, tzinfo=dt.UTC).timestamp()        # 65c1ba40
 WARMUP_SEC = 300.0        # a trigger in the recording's first minutes has no recorded run-up to rebuild
+ET = ZoneInfo("America/New_York")
 LEGACY_SETUP = "first_pullback"   # a line from before ADR 031 names no setup: the first pullback was the only one
 
 
@@ -75,7 +79,7 @@ def load_desk_env(path: str | None) -> None:
 
 
 def et(ts: float | None) -> str | None:
-    return dt.datetime.fromtimestamp(ts - 4 * 3600, dt.UTC).strftime("%H:%M:%S") if ts else None
+    return dt.datetime.fromtimestamp(ts, ET).strftime("%H:%M:%S") if ts else None
 
 
 # -- pure: reading lines, matching, summing ---------------------------------------------------------
@@ -190,17 +194,23 @@ def run(days: list[str] | None) -> list[dict[str, Any]]:
     sys.path.insert(0, str(REPO / "backend"))
     os.chdir(REPO / "backend")
     from capture.storage import capture_root
+    from constants import ARCHIVE_DB_FILENAME
     from constants_bot import BOT_SCANNER_SETUPS
     from eyes.journal import journal_dir
     from eyes.recording import load
+    from paths import cache_root
     from setup_templates.store import get_store
+
+    root, journals = capture_root(create=False), journal_dir()
+    missing = [str(p) for p in (journals, root, cache_root() / ARCHIVE_DB_FILENAME) if not p.exists()]
+    if missing:
+        raise SystemExit(f"eyes_parity reads the desk's data and creates none; missing: {', '.join(missing)}")
 
     store = get_store()
     templates = [t for s in BOT_SCANNER_SETUPS for t in store.templates(s) if not t.error]
     in_play = {s: store.in_play(s) for s in BOT_SCANNER_SETUPS}
     playing = {s: t.id for s, t in in_play.items()}
     rules = {s: rules_of(t.id, t.rev) for s, t in in_play.items()}
-    root, journals = capture_root(), journal_dir()
     rows: list[dict[str, Any]] = []
     for day in days or sorted(p.stem for p in journals.glob("*.jsonl")):
         if not (root / day).is_dir() or not (journals / f"{day}.jsonl").is_file():

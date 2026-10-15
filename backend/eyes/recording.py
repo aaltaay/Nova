@@ -216,16 +216,23 @@ def live_rvol(row: dict | None, ts: float) -> float | None:
     The live pillar is HOD Momo's pace RVOL: today's volume over the average day's volume expected by
     this clock time. A recorded row holds the desk's daily-average RVOL (today's volume over a whole
     average day: 0.99 for VEEA at 07:06 on 2026-10-09, when the live eyes read about 6), so it is
-    divided by the same share of the day; a rebuilt row's time-of-day RVOL is a pace measure already.
+    divided by the same share of the day. A rebuilt row's time-of-day RVOL is a pace measure already.
+
+    An After Hours row's RVOL, recorded under the daily label too, is one of two things: the Gainers
+    row's daily RVOL copied over (``scanner_runners/afterhours.py``), or a paced RVOL the after-hours
+    runners measured (they never store a raw ratio). The copy only exists while the stock is on Gainers,
+    whose row the same minute holds the same value, so ``pillars_at`` reads any other board's row first;
+    an After Hours row it reads is the paced one, read as it is.
     """
     from constants_hod_momo import HOD_MOMO_RVOL_USE_PACE
-    from constants_leaderboard import LEADERBOARD_RVOL_BASIS_DAILY
+    from constants_leaderboard import LEADERBOARD_BOARD_AFTERHOURS, LEADERBOARD_RVOL_BASIS_DAILY
     from market import volume_day_elapsed_fraction
 
     rvol = (row or {}).get("rvol")
     if rvol is None:
         return None
-    if row.get("rvol_basis") != LEADERBOARD_RVOL_BASIS_DAILY or not HOD_MOMO_RVOL_USE_PACE:
+    paced_already = row.get("board") == LEADERBOARD_BOARD_AFTERHOURS
+    if row.get("rvol_basis") != LEADERBOARD_RVOL_BASIS_DAILY or paced_already or not HOD_MOMO_RVOL_USE_PACE:
         return float(rvol)
     return round(float(rvol) / volume_day_elapsed_fraction(datetime.fromtimestamp(ts, ET)), 2)
 
@@ -252,19 +259,29 @@ def catalyst_at(symbol: str, ts: float) -> dict | None:
 
 
 def pillars_at(symbol: str, date: str, ts: float, *, last_price: float | None, prev_close: float | None) -> dict:
-    """The Five Pillars as the eyes could have read them at ``ts`` (point in time)."""
+    """The Five Pillars as the eyes could have read them at ``ts`` (point in time).
+
+    The leaderboard is opened read-only: a replay never creates the store, its tables or a migration
+    (#966). A store from before schema 3 reads its float check unknown."""
     row = None
     try:
+        import sqlite3
+
+        from constants_leaderboard import LEADERBOARD_BOARD_AFTERHOURS
         from leaderboard import store as lb_store
 
-        with lb_store.connect() as db:
-            hit = db.execute(
-                "SELECT price, change_pct, rvol, rvol_basis, volume, float_shares, float_contradicted,"
-                " shares_outstanding, source"
-                " FROM rows WHERE session_date = ? AND symbol = ?"
-                " AND minute_ts <= ? ORDER BY minute_ts DESC, CASE source WHEN 'recorded' THEN 0 ELSE 1 END LIMIT 1",
-                (date, symbol.upper(), int(ts))).fetchone()
-            row = dict(hit) if hit else None
+        db = lb_store.read_only()
+        if db is not None:
+            try:
+                db.row_factory = sqlite3.Row
+                hit = db.execute(
+                    "SELECT * FROM rows WHERE session_date = ? AND symbol = ? AND minute_ts <= ?"
+                    " ORDER BY minute_ts DESC, CASE source WHEN 'recorded' THEN 0 ELSE 1 END,"
+                    " CASE board WHEN ? THEN 1 ELSE 0 END LIMIT 1",
+                    (date, symbol.upper(), int(ts), LEADERBOARD_BOARD_AFTERHOURS)).fetchone()
+                row = dict(hit) if hit else None
+            finally:
+                db.close()
     except Exception:
         logger.debug("eyes: leaderboard unread for %s %s", symbol, date, exc_info=True)
     price = last_price if last_price is not None else (row or {}).get("price")

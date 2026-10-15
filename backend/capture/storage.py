@@ -14,7 +14,9 @@ _DATE = re.compile(CAPTURE_DATE_RE, re.ASCII)
 _SYMBOL = re.compile(CAPTURE_SYMBOL_RE, re.ASCII)
 
 
-def capture_root() -> Path:
+def capture_root(*, create: bool = True) -> Path:
+    """Where Session Records live. ``create=False`` names the folder without making it (a reader that must
+    not write, ``tools/eyes_parity.py``)."""
     from capture.constants_capture import DEFAULT_SIM_CAPTURE_ROOT_WIN
 
     override = (os.environ.get("NOVA_SIM_CAPTURE_DIR") or "").strip()
@@ -27,7 +29,8 @@ def capture_root() -> Path:
         root = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "Nova" / "sim_capture"
     else:
         root = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share") / "Nova" / "sim_capture"
-    root.mkdir(parents=True, exist_ok=True)
+    if create:
+        root.mkdir(parents=True, exist_ok=True)
     return root
 
 
