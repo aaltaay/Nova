@@ -294,7 +294,7 @@ The public revision is **`vNNN`**: `v` plus the git commit count. Git history is
 
 Every commit that lands on `master` is tagged `vNNN`, and an application-affecting one is published as a GitHub Release with the installer, its `.blockmap` and `latest.yml`, but only from a green build: the release run tests that exact commit in full and holds the Release if any check fails. The automatic Source code zip is not the app.
 
-The installed desk checks for a newer release shortly after launch, then re-checks every two hours while open (never 07:00 to 16:00 ET on a weekday). A newer release shows a notice with its release notes, **Update** or **Later**. Nothing downloads before Update and nothing installs before **Restart to update**. Set `NOVA_UPDATE_CHECK=0` to stop the automatic checks. Builds are unsigned, so SmartScreen warns on a fresh download.
+The installed desk hears about a new release within seconds: the release workflow posts its tag to a public ntfy.sh topic the desk listens on, and the desk then asks GitHub (it also checks at launch and every two hours). A newer release downloads and installs by itself outside 07:00 to 16:00 ET on a weekday, once Nova holds no position, working order or bot trade and nobody has touched the keyboard or mouse for 5 minutes. Until then a notice shows its release notes and what it waits for; **Update** or **Restart to update** does it now, and **Later** leaves it to your click. Set `NOVA_UPDATE_AUTO_INSTALL=0` to keep updates offer-only, or `NOVA_UPDATE_CHECK=0` to stop the automatic checks. Builds are unsigned, so SmartScreen warns on a fresh download.
 
 </details>
 

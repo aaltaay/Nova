@@ -352,8 +352,8 @@ if (
         apiKey: getDesktopApiKey,
       });
       app.on('will-quit', stopFocusSensor);
-      // Packaged Windows only; downloads in the background, installs only on
-      // the operator's "Restart to update" (#347). Never throws.
+      // Packaged Windows only (#347); installs on "Restart to update", or by itself once nothing is
+      // at stake (autoInstall.mjs). Never throws.
       // One version for desk and backend: the backend's checkout follows the desk's release.
       let engineSync = null;
       void startAutoUpdate({
@@ -361,8 +361,7 @@ if (
         envPath: getDesktopEnvPath,
         stopEngine: stopApiSidecarForUpdate,
         restartEngine: restartApiSidecar,
-        prepareInstall: (tag, ui) => (engineSync ? engineSync.prepareForDesk(tag, ui) : Promise.resolve(true)),
-        handOffEngine: () => (engineSync ? engineSync.handOffForInstall() : Promise.resolve()),
+        engine: () => engineSync,
         // ADR 038 (amended): remember the backend's checkout; bring it to this desk's release.
         onBridge: (bridge, logger) => {
           if (!app.isPackaged) return; // a dev desk runs from the checkout it would pull
