@@ -163,6 +163,11 @@
   overflow: hidden;
 }
 
+/* 10-Second hidden: Full Day is the bottom row's only pane and spans it (not half, beside a black hole). */
+.stock-view-page .stock-view-charts .chart-grid__row--single {
+  grid-template-columns: 1fr;
+}
+
 .stock-view-page .stock-view-charts .chart-grid__row--top {
   flex: 0 0 var(--chart-row-top-pct, 50%);
 }
@@ -762,5 +767,9 @@
 
   .stock-view-page .stock-view-charts .chart-grid__row {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .stock-view-page .stock-view-charts .chart-grid__row--single {
+    grid-template-columns: 1fr;
   }
 }
