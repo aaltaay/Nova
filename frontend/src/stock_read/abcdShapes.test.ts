@@ -4,6 +4,7 @@ import { laneChip } from './chartShapes';
 import { abcdPoints, abcdShapes, abcdStory, isAbcdLane } from './abcdShapes';
 import { ABCD_COLORS, ABCD_DIM, ABCD_FADED, ABCD_PAST } from './constants';
 import { laneShapes } from './laneShapes';
+import { normalizeLeg } from './normalize';
 import { chartKey } from './paneKeyRows';
 import { laneStory, type Episode } from './pastSetups';
 import { pastShapes } from './pastShapes';
@@ -86,6 +87,15 @@ describe('the ABCD on the 1-minute chart (watch only)', () => {
     expect(abcdPoints({ leg: { t: 1, high: 2, low: 1, pct: 0.5 }, setup: null })).toBeNull();
     expect(abcdShapes(lane({ leg: { t: 1, high: 2, low: 1, pct: 0.5 }, setup: null }), true, { toTime }, 'x').boxes)
       .toEqual([]);
+  });
+
+  it('keeps its points through the wire read, so a forming or failed ABCD (no setup yet) still draws', () => {
+    const wire = { ...LEG, abcd: { ...POINTS, b: ['x', 1], c: null, extra: 1 } };
+    const leg = normalizeLeg(wire);
+    expect(leg?.abcd).toEqual({ ...POINTS, b: null, c: null });
+    expect(normalizeLeg({ ...LEG, abcd: { high: null } })).not.toHaveProperty('abcd');
+    const d = abcdShapes(lane({ state: 'leg', setup: null, leg: leg! }), true, { toTime }, 'x');
+    expect(d.dots.map(x => x.label)).toEqual(['ABCD · waiting for B · high 5.30', 'A 4.88']);
   });
 
   it('tells its story under the pointer, its chip says watch, and the Key lists its marks', () => {
