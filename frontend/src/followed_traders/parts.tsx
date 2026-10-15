@@ -5,13 +5,13 @@
 import { createContext, useContext } from 'react';
 import { tipProps } from '../ux/hoverTip';
 import {
-  FT_OPEN_IN_TRADER,
   FT_RESULT_WORDS,
   FT_TICKER_CHECK,
   FT_TICKER_CHECK_MARK,
   FT_TICKER_FIXED,
   FT_UNSCORED_TIP,
 } from './constants';
+import { TickerLink } from '../components/TickerLink';
 import { FeedImage } from './FeedImage';
 import { plPct, plPerShare, plTone } from './format';
 import { tickerUnsettled } from './ticker';
@@ -24,16 +24,12 @@ export function SideChip({ side }: { side: 'long' | 'short' }) {
 /** The desk's "open this symbol in the Trader", provided by the page; null where there is no Trader to open. */
 export const OpenTraderContext = createContext<((symbol: string) => void) | null>(null);
 
-/** A trade's ticker: clicking it opens the stock in the Trader. Plain text when the desk gave the page no Trader. */
+/** A trade's ticker: clicking it opens the stock in the Trader, through the desk's one ticker link
+ *  (workspace/TickerLink). Plain text when the desk gave the page no Trader. */
 export function Ticker({ symbol, className }: { symbol: string; className: string }) {
   const open = useContext(OpenTraderContext);
   if (!open) return <span className={className}>{symbol}</span>;
-  return (
-    <button type="button" className={`${className} ft-ticker-link`} onClick={() => open(symbol)}
-      aria-label={`${FT_OPEN_IN_TRADER}: ${symbol}`} {...tipProps(FT_OPEN_IN_TRADER)}>
-      {symbol}
-    </button>
-  );
+  return <TickerLink symbol={symbol} look="own" className={`${className} ft-ticker-link`.trim()} onOpen={open} />;
 }
 
 /** Beside a ticker the feed may have read glued to its price: "?" while it is not settled, "fixed" once IBKR's tape

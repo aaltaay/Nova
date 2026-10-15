@@ -48,6 +48,7 @@ import {
 } from './recordsConstants';
 import { etClock, hm, etMinute, todayEasternDate } from './recordsModel';
 import type { AutoRecordSwitchControl } from './useAutoRecordSwitch';
+import { TickerLink } from '../../components/TickerLink';
 
 interface Props {
   status: IbkrClientStatus;
@@ -177,7 +178,7 @@ export function RecordingNowCard({ status, symbols, todayRows, nowMs, onOpenTrad
         return (
           <div key={symbol} className="records-now__row" data-testid={`records-now-${symbol}`}>
             <div className="records-now__sym">
-              <span className="records-pulse" aria-hidden="true" />{symbol}
+              <span className="records-pulse" aria-hidden="true" /><TickerLink symbol={symbol} look="own" />
               <span className={`records-tag ${isAuto ? 'is-auto' : 'is-you'}`}>{isAuto ? RECORDS_TAG_AUTO : RECORDS_TAG_YOU}</span>
             </div>
             <div className="records-now__who">

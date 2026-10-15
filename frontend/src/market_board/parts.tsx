@@ -1,5 +1,6 @@
 /** Small pieces the Market cards share: the line chart, the switches, a card frame. */
 import type { ReactNode } from 'react';
+import { TickerLink } from '../components/TickerLink';
 import { MARKET_PERIODS, PERIOD_LABEL } from './constants';
 import type { Period } from './types';
 
@@ -81,13 +82,5 @@ export function Card({ title, hint, extra, children, className = '', testId }: {
 export function Sym({ symbol, onOpen, muted = false }: { symbol: string; onOpen?: (s: string) => void; muted?: boolean }) {
   const cls = `mk-sym${muted ? ' mk-sym--muted' : ''}`;
   if (!onOpen) return <span className={cls}>{symbol}</span>;
-  return (
-    <button type="button" className={`${cls} mk-sym--link`} title={`Open ${symbol} in the Trader`}
-      onClick={(e) => {
-        e.stopPropagation();
-        onOpen(symbol);
-      }}>
-      {symbol}
-    </button>
-  );
+  return <TickerLink symbol={symbol} look="own" className={`${cls} mk-sym--link`} onOpen={onOpen} />;
 }

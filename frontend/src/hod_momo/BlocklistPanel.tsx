@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL } from '../constants';
+import { TickerLink } from '../components/TickerLink';
 
 const API = `${API_BASE_URL}/api`;
 
@@ -45,7 +46,7 @@ export function BlocklistPanel() {
       <div className="hod-momo-list">
         {symbols.map(sym => (
           <span key={sym} className="hod-momo-tag hod-block-tag">
-            {sym}
+            <TickerLink symbol={sym} look="own" />
             <button className="hod-momo-tag-remove" onClick={() => remove(sym)}>×</button>
           </span>
         ))}

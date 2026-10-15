@@ -50,6 +50,7 @@ import { EstChip, Money, etOrderStamp, etTime } from './accountBits';
 import { sourceKind, sourceLabel } from './accountFigures';
 import type { AccountFillRow } from './accountLive';
 import type { AccountPosition } from './accountPositions';
+import { TickerLink } from '../components/TickerLink';
 
 export type PosTab = 'positions' | 'orders' | 'fills';
 
@@ -227,7 +228,7 @@ export function PositionsOrdersPanel({ practice, venue, positions, working, clos
                 <tr><td colSpan={6} className="acct-muted">{ACCOUNT_POSITIONS_EMPTY}</td></tr>
               ) : positionSort.rows.map((p) => (
                 <tr key={p.symbol} data-testid={`account-position-${p.symbol}`}>
-                  <td>{p.symbol}</td>
+                  <td><TickerLink symbol={p.symbol} /></td>
                   <td className="r acct-num">{formatShareQty(p.qty)}</td>
                   <td className="r acct-num">{p.avgCost == null ? '—' : p.avgCost.toFixed(4)}{p.estimated && p.avgCost != null && <EstChip />}</td>
                   <td className="r acct-num">{p.mark == null ? '—' : p.mark.toFixed(2)}</td>
@@ -262,7 +263,7 @@ export function PositionsOrdersPanel({ practice, venue, positions, working, clos
                 return (
                   <tr key={orderKeys[orders.indexOf(o)]} data-testid={`account-order-${o.order_id}`} data-bucket={bucket}>
                     <td className="acct-num">{etOrderStamp(o.filled_at ?? o.updated_at ?? o.submitted_at, today)}</td>
-                    <td>{o.symbol}</td>
+                    <td><TickerLink symbol={o.symbol} /></td>
                     <td className={o.side === 'BUY' ? 'acct-side--buy' : 'acct-side--sell'}>{o.side}</td>
                     <td className="r acct-num">{formatShareQty(o.qty)}</td>
                     <td>{o.order_type}</td>
@@ -302,7 +303,7 @@ export function PositionsOrdersPanel({ practice, venue, positions, working, clos
               ) : fillSort.rows.map((f) => (
                 <tr key={f.key} data-testid={`account-fill-${f.orderId}`}>
                   <td className="acct-num">{etTime(f.ts)}</td>
-                  <td>{f.symbol}</td>
+                  <td><TickerLink symbol={f.symbol} /></td>
                   <td className={f.side === 'BUY' ? 'acct-side--buy' : 'acct-side--sell'}>{f.side}</td>
                   <td className="r acct-num">{formatShareQty(f.qty)}</td>
                   <td className="r acct-num">{f.price.toFixed(2)}{f.estimated && <EstChip />}</td>
