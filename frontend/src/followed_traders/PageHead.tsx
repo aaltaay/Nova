@@ -35,6 +35,8 @@ import {
 import { DayPicker } from './DayPicker';
 import { setFollowedAlerts, useFollowedAlerts } from './followedStores';
 import { RecordChips } from './parts';
+import { PlFigure } from './PlFigure';
+import type { PlSummary } from './plSummary';
 import { setStreamOpen } from './stream';
 import type { FollowedDay, FollowedRecord, RecordRange } from './types';
 
@@ -42,6 +44,9 @@ export interface RecordsHead {
   range: RecordRange;
   onRange: (r: RecordRange) => void;
   overall: FollowedRecord | null;
+  /** Everyone's P/L per share in % over the span; null with `plWhy` while it cannot be said. */
+  pl: PlSummary | null;
+  plWhy: string | null;
   error: string | null;
   pending: number;
 }
@@ -76,6 +81,7 @@ function Records({ r }: { r: RecordsHead }) {
       <span className="ft-records__everyone">
         <span className="ft-muted ft-small">{FT_EVERYONE}</span>
         <RecordChips record={r.overall} testId="ft-record-everyone" />
+        <PlFigure summary={r.pl} unscored={r.overall?.unscored ?? 0} why={r.plWhy} inline testId="ft-pl-everyone" />
       </span>
       {r.range !== 'day' && r.error && <span className="ft-small ft-warn-text">{r.error}</span>}
       {r.range !== 'day' && r.pending > 0 && <span className="ft-xs ft-muted">{r.pending} {FT_RECORD_PENDING}</span>}

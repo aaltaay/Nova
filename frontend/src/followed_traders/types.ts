@@ -153,6 +153,12 @@ export interface FollowedDay {
 
 export type RecordRange = 'day' | 'week' | 'all';
 
+/** A scored trade (won, lost or scratched): when it closed (epoch seconds) and its P/L per share in percent points. */
+export interface ScoredPoint {
+  ts: number;
+  pct: number;
+}
+
 /** `GET /api/followed-traders/record`. */
 export interface FollowedRecords {
   schema_version: number;
@@ -164,7 +170,8 @@ export interface FollowedRecords {
   dates: string[];
   pending: number;
   overall: FollowedRecord | null;
-  traders: { name: string; record: FollowedRecord }[];
+  /** `scored`: the trader's scored trades, oldest exit first (absent from an older backend). */
+  traders: { name: string; record: FollowedRecord; scored?: ScoredPoint[] }[];
 }
 
 export interface FollowedRead {
