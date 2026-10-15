@@ -174,7 +174,7 @@ def _status(st: dict) -> dict[str, Any]:
         "title": _str(video, "title", "status.video", optional=True),
         "video_id": _video_id(video),
         "live": _bool(st, "live", "status"),
-        "clock": _str(st, "clock", "status", optional=True),
+        "clock": _clock(st),
         "updated_at": _ts(st, "updated_at", "status", optional=True),
         "bar_visible": _bool(st, "bar_visible", "status"),
         "traders": [_str_value(n, f"status.traders[{i}]") for i, n in enumerate(traders)],
@@ -182,6 +182,17 @@ def _status(st: dict) -> dict[str, Any]:
         "slots": _image_names(st, "slots", "status", SLOT_RE),
         **problem,
     }
+
+
+def _time_of_day(clock: str) -> bool:
+    h, m, s = (int(p) for p in clock.split(":"))
+    return h < 24 and m < 60 and s < 60
+
+
+def _clock(st: dict) -> str | None:
+    """``status.clock``, or None when it is no time of day (a misread screen: ``09:34:97``)."""
+    clock = _str(st, "clock", "status", optional=True)
+    return clock if clock is not None and CLOCK_RE.match(clock) and _time_of_day(clock) else None
 
 
 def _video_id(video: dict) -> str | None:
@@ -247,6 +258,8 @@ def parse_reads(text: str) -> list[dict[str, Any]]:
             continue  # a frame the feed could not read at all: no time to place it at
         if not CLOCK_RE.match(clock):
             raise _bad(f"{where}.clock", f"{clock!r}, not HH:MM:SS")
+        if not _time_of_day(clock):
+            continue  # a screen clock read impossibly (09:34:97): no time to place the line at
         traders = {}
         for name, read in _obj(rec.get("traders"), f"{where}.traders").items():
             read = _obj(read, f"{where}.traders.{name}")

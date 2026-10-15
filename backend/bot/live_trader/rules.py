@@ -3,8 +3,8 @@
 ``check`` answers one step -- an entry, a position already open, or an add -- as ``go`` (with its plan),
 ``wait`` (a quote line opening, a market cap or a ticker check being read) or ``skip``, each with its code and
 the words the Bots page shows. A wait that has lasted ``LT_WAIT_SEC`` is its skip. The first rule that fails
-answers: the side, the short hours, the ticker, the market cap, the quote, the misread, a position against it,
-the allowance. Shapes: architecture/schema/bot.md ("The Live Trader bot").
+answers: the side, the short hours, the ticker, the market cap, the quote, the misread, an add's average that
+no add could make, a position against it, the allowance. Shapes: architecture/schema/bot.md ("The Live Trader bot").
 """
 from __future__ import annotations
 
@@ -13,6 +13,8 @@ from typing import Any
 
 from bot.live_trader import feed_rows
 from bot.live_trader.constants_live_trader import (
+    LT_ADD_IMPLAUSIBLE,
+    LT_ADD_SLACK_PCT,
     LT_ALLOWANCE,
     LT_CAP_UNKNOWN,
     LT_ENTRY_OFFSET_USD,
@@ -88,10 +90,12 @@ def _waited(code: str, wait_text: str, skip_text: str, since: float | None, now:
 
 def check(*, side: str, symbol: str, their_price: float, settings: dict[str, Any], quote: dict[str, Any] | None,
           cap: Any, ticker: dict[str, Any] | None, used_usd: float, against: str | None,
-          short_closed: str | None, priceable: bool, now: float, wait_since: float | None) -> dict[str, Any]:
+          short_closed: str | None, priceable: bool, now: float, wait_since: float | None,
+          prev_price: float | None = None) -> dict[str, Any]:
     """One step's verdict. ``cap`` is the market cap in dollars, ``"etf"`` for an ETF (always allowed),
     ``"pending"`` while it is read, or None when it could not be read; ``ticker`` the trade's check (``{"state", "why"}``, None when none is needed);
-    ``against`` the words for a position on the other side; ``short_closed`` why no short may open now."""
+    ``against`` the words for a position on the other side; ``short_closed`` why no short may open now;
+    ``prev_price`` an add's average before it (an add moves the average toward the market, never past it)."""
     if side == "short" and settings["sides"] == "long":
         return verdict(SKIP, LT_SHORTS_OFF, "a short: this bot copies longs only")
     if side == "short" and short_closed:
@@ -122,6 +126,12 @@ def check(*, side: str, symbol: str, their_price: float, settings: dict[str, Any
     if apart > LT_MISREAD_PCT:
         return verdict(SKIP, LT_MISREAD, f"their average {price_text(their_price)} is {apart:.1f}% from the market "
                                          f"{price_text(ref)}: a misread")
+    if prev_price is not None and prev_price > 0:
+        slack = ref * LT_ADD_SLACK_PCT / 100.0
+        if not min(prev_price, ref) - slack <= their_price <= max(prev_price, ref) + slack:
+            return verdict(SKIP, LT_ADD_IMPLAUSIBLE,
+                           f"their new average {price_text(their_price)} is not between their average before "
+                           f"{price_text(prev_price)} and the market {price_text(ref)}: a misread, not an add")
     if against:
         return verdict(SKIP, LT_AGAINST, against)
     limit, stop = limits(side, quote or {}, float(settings["short_stop_pct"]))

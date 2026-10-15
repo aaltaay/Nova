@@ -582,6 +582,28 @@ line, the market cap, the ticker check) turns into its skip after `LT_WAIT_SEC` 
 for a doubt -- a late read is still a true one; with no answer at all they wait for one, and `LT_HIDDEN_SEC`
 without a read sells everything.
 
+**Bad reads** (operator, 2026-10-14 ~23:15 ET: a read that looks "extremely abnormal" is flagged and waits for the
+next one -- "I don't want it to try to buy more or try to average more"). A doubtful read never opens or adds; a
+held position keeps its exits (the host's close as the feed confirmed it, off air, `LT_HIDDEN_SEC` without a
+read, the sell-all time). Beyond the rules above, each with its reason:
+
+- **Another host's row** (`LT_OTHER_HOST`): a row whose side, stock and average to the cent -- its entry's, its
+  latest or one after an add -- are those of a row of another host on the bar within `LT_OTHER_HOST_SEC` (600) of
+  it, or of any trade on the feed's previous day, is never opened, by either host's bot. At a hand-over the bar can
+  show one host's rows under the next host's name tag for minutes, and two hosts never share an average to the cent.
+- **A row the reader cannot read** (`LT_ROW_UNREAD`): while the host's reads in the read log (`followed-traders.md`,
+  `reads.jsonl`) carried unparsed text for a side in the last `LT_UNREAD_SEC` (20) -- a row that scrolls (three or
+  more positions on a side), cut or garbled -- nothing opens or adds on that side; the wait turns into its skip
+  after `LT_WAIT_SEC`. Unparsed text that names no side (`long:` / `short:`) counts for both. No read log: no rule.
+- **An implausible add** (`LT_ADD_IMPLAUSIBLE`): an add's new average lies between the host's average before it and
+  the market (the mid, else the last), give or take `LT_ADD_SLACK_PCT` (0.5%) of the market; outside, it is a
+  misread, skipped.
+- **No clock** (`LT_NO_CLOCK`): a read without the stream's on-screen clock -- none, or one read impossibly
+  (`09:34:97`, which the feed's parser drops) -- cannot say how far behind the stream it is: nothing opens until a
+  clock reads. It is not a silent feed: it never counts toward `LT_HIDDEN_SEC`.
+- A read the bot cannot make sense of at all (an answer it cannot fold) is a feed that is not answering
+  (`LT_FEED_DOWN`, `state: "bad_answer"`): closes wait for a read, and `LT_HIDDEN_SEC` of it sells everything.
+
 **Settings** (`live-trader-bots.json` in the operator cache; owner `bot/live_trader/settings.py`; written
 through a temp file and a rename; an unknown version or an unreadable file refuses loud: every host reads
 off and writes answer 409 `LIVE_TRADER_SETTINGS_UNREADABLE`):
@@ -606,14 +628,25 @@ temp file and rename; unknown version refuses loud, and the bot then opens nothi
               adds_seen, adds_followed, opened_ts, state: "entering" | "open" | "closing",
               order: {id, step: "entry" | "add" | "already_open" | "close", sent_ts, qty, limit, stop} | null,
               stop_order_ids: [int], fills: [{step, qty, price, ts, order_id}], feed: {ts, price}}],
- closed: [{...the position, closed_ts, why, exit_fills: [{qty, price, ts, order_id}], pl_usd}]}
+ closed: [{...the position, closed_ts, why, exit_fills: [{qty, price, ts, order_id}], pl_usd}],
+ retire: [{order_id, symbol, host, since_ts}]}
 ```
+
+`retire` (absent in an older file: empty) holds the buy stops of every position that holds no shares any more --
+closed by the bot, covered outside it, stopped out, covered by the day cover, or an entry that never filled --
+until Paper shows each one is not working: each pass cancels the ones still working, a refused cancel stays and is
+tried again (a `live_trader` `error` line says so once), and a restart keeps the list. It is never cleared by the
+day: a stop is off the list only when Paper says it is gone.
 
 `id` is `host|side|symbol`: one position per host, side and stock (a feed row reopened for the same stock
 is the same position, re-keyed to the new `row_id`, never bought twice). `closed` keeps today's (at most
 200); a day other than today's is sold at once on load ("held from DAY: never overnight") and cleared.
 Each pass reconciles with Paper's ledger: shares the account no longer holds (the operator sold them, a
-buy stop or a breaker did) leave the position, said once.
+buy stop or a breaker did) leave the position, said once. A short's buy stops cover what it held: when shares
+of a short leave it that way, what the bot still holds of it is covered (change `kind: "outside"`), and once the
+position holds nothing its stops wait on `retire` until Paper shows them cancelled -- a bot short never holds
+without a stop for exactly its shares, and a stale stop can never buy past flat or cover a later short. A book that cannot be written stops every new step
+(`can_trade.why` says so; closes go on) until a write succeeds; each pass tries again.
 
 **Routes** (owner `bot/live_trader/routes.py`, under the bot router: loopback; writes need the API key):
 
@@ -671,12 +704,13 @@ holds, is entering or waits to enter; never a Level 2 line (ADR 055 decision 3).
 close sent) | `skipped` | `asked` | `answered` | `refused` (the door's words) | `settings` | `note` |
 `error`; `inputs: {host, row_id, symbol, side, step, qty, limit, stop, order_id, code, why, change: {kind:
 "open" | "add" | "already_open" | "close" | "off_air" | "hidden" | "sell_all" | "key_off" | "bot_off" |
-"stale_day", ts, price}, late_sec, venue: "paper"}`. `late_sec` is the send's wall time less the feed's
+"stale_day" | "outside", ts, price}, late_sec, venue: "paper"}`. `late_sec` is the send's wall time less the feed's
 time of the change. A skip is written once per position, step and code. Codes: `LT_FEED_BEHIND`,
 `LT_FEED_DOWN`, `LT_TICKER_UNSETTLED`, `LT_MISREAD`, `LT_SMALL_CAP`, `LT_CAP_UNKNOWN`, `LT_NO_QUOTE`,
 `LT_ALLOWANCE`, `LT_ADDS_DONE`, `LT_SHORTS_OFF`, `LT_AGAINST`, `LT_NOT_HELD`, `LT_VENUE`, `LT_BOT_OFF`,
 `LT_FROZEN`, `LT_AFTER_SELL_ALL`, `LT_SHORT_HOURS`, `LT_NOT_PRICEABLE`, `LT_ASK_EXPIRED`, `LT_ASK_SKIPPED`,
-`LT_ALREADY_OPEN`, `LT_OFF_AIR`, `LT_HIDDEN`, `LT_DAY_LOCK`, `LT_NOT_ON_BAR`.
+`LT_ALREADY_OPEN`, `LT_OFF_AIR`, `LT_HIDDEN`, `LT_DAY_LOCK`, `LT_NOT_ON_BAR`, `LT_OTHER_HOST`, `LT_ROW_UNREAD`,
+`LT_ADD_IMPLAUSIBLE`, `LT_NO_CLOCK`.
 
 **The Bot switch** counts a host key on as a strategy On on Paper (`BOT_NO_SETUP_AT_STRATEGY`: "no
 strategy is On and no Live Trader key is on"); `GET /api/bot/session`'s `setups` gate adds

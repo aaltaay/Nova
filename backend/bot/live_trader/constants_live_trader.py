@@ -64,6 +64,12 @@ LT_EVENTS_SHOWN = 8                     # a host card's newest events
 LT_AUDIT_TAIL_BYTES = 1_000_000         # the cards read the bot audit file's last MB, never the whole file
 LT_SKIPS_REMEMBERED = 2000              # skip lines written once per position, step and code (in memory)
 
+# -- bad reads (operator, 2026-10-14: an abnormal read never buys or averages more) ----------------
+LT_OTHER_HOST_SEC = 600.0               # another host's row this near in time with the same average is theirs
+LT_UNREAD_SEC = 20.0                    # a side whose reads carried an unparsed price this recently opens nothing
+LT_ADD_SLACK_PCT = 0.5                  # an add's new average may lie this far (of the market) outside old avg..market
+LT_PREVIOUS_RETRY_SEC = 300.0           # the feed's previous day not read: asked again after this
+
 # -- skip codes (bot.md "The Live Trader bot", Audit) ----------------------------------------------
 LT_FEED_BEHIND = "LT_FEED_BEHIND"
 LT_FEED_DOWN = "LT_FEED_DOWN"
@@ -90,6 +96,10 @@ LT_OFF_AIR = "LT_OFF_AIR"
 LT_HIDDEN = "LT_HIDDEN"
 LT_DAY_LOCK = "LT_DAY_LOCK"
 LT_NOT_ON_BAR = "LT_NOT_ON_BAR"
+LT_OTHER_HOST = "LT_OTHER_HOST"
+LT_ROW_UNREAD = "LT_ROW_UNREAD"
+LT_ADD_IMPLAUSIBLE = "LT_ADD_IMPLAUSIBLE"
+LT_NO_CLOCK = "LT_NO_CLOCK"
 
 # -- route errors ---------------------------------------------------------------------------------
 LT_ERR_INVALID = "LIVE_TRADER_INVALID"

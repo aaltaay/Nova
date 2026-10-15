@@ -9,6 +9,7 @@ import pytest
 
 from bot.live_trader import feed_rows, rules
 from bot.live_trader.constants_live_trader import (
+    LT_ADD_IMPLAUSIBLE,
     LT_ADDS_DONE,
     LT_AFTER_SELL_ALL,
     LT_AGAINST,
@@ -20,7 +21,10 @@ from bot.live_trader.constants_live_trader import (
     LT_CAP_UNKNOWN,
     LT_FEED_BEHIND,
     LT_MISREAD,
+    LT_NO_CLOCK,
     LT_NO_QUOTE,
+    LT_OTHER_HOST,
+    LT_ROW_UNREAD,
     LT_SHORT_HOURS,
     LT_SHORTS_OFF,
     LT_SMALL_CAP,
@@ -630,3 +634,192 @@ def test_the_market_read_calls_an_etf_an_etf(monkeypatch):
     monkeypatch.setattr(fundamentals, "fetch_failed", lambda s: False)
     assert (market.cap("TQQQ"), market.cap("BIGX"), market.cap("NONE"), market.cap("NEWX")) == ("etf", 3e11, None,
                                                                                                 "pending")
+
+
+# -- bad reads (operator, 2026-10-14: an abnormal read never buys or averages more) -------------------------
+def _with(ans, name, **host):
+    ans["hosts"][name].update(host)
+    return ans
+
+
+def test_the_previous_hosts_rows_under_the_next_hosts_tag_are_never_bought():
+    """At a hand-over the bar can show the previous host's rows under the next host's name tag for minutes."""
+    w = World()
+    w.st[OTHER] = settings(key=False)
+    theirs = row("XYZ", host=OTHER, price=100.0, entry_ts=NOW - 900)
+    w.run(answer({OTHER: [theirs], HOST: []}))
+    gone = dict(theirs, status="closed", exit_ts=NOW + 1)
+    shown = row("XYZ", price=100.0, entry_ts=NOW + 2)
+    out = w.at(3).run(answer({OTHER: [gone], HOST: [shown]}, left={OTHER: NOW + 1}, feed_now=NOW + 3))
+    assert kinds(out, "step") == []
+    (skip,) = kinds(out, "skip")
+    assert skip["code"] == LT_OTHER_HOST and f"{OTHER}'s" in skip["why"] and "not copied" in skip["why"]
+
+
+def test_rows_shown_under_two_hosts_tags_are_bought_by_neither():
+    """The rows can switch to the next host's a few seconds before the name tags do: whose they are is unknown."""
+    w = World()
+    w.run(answer({HOST: [], OTHER: []}))
+    early = row("XYZ", price=100.0, entry_ts=NOW + 2)
+    theirs = row("XYZ", host=OTHER, price=100.0, entry_ts=NOW + 8)
+    out = w.at(10).run(answer({HOST: [early], OTHER: [theirs]}, feed_now=NOW + 10))
+    assert kinds(out, "step") == []
+    assert sorted(s["host"] for s in kinds(out, "skip") if s["code"] == LT_OTHER_HOST) == [HOST, OTHER]
+
+
+def test_a_row_the_feeds_previous_day_showed_is_never_bought():
+    w = World()
+    w.run(answer())
+    ans = answer({HOST: [row("XYZ", price=100.0, entry_ts=NOW)]}, feed_now=NOW + 2)
+    ans["previous"] = [["long", "XYZ", 100.0]]
+    out = w.at(2).run(ans)
+    assert kinds(out, "step") == []
+    (skip,) = kinds(out, "skip")
+    assert skip["code"] == LT_OTHER_HOST and "previous day" in skip["why"]
+
+
+def test_another_hosts_row_long_before_is_not_theirs():
+    w = World()
+    w.st[OTHER] = settings(key=False)
+    long_ago = row("XYZ", host=OTHER, price=100.0, entry_ts=NOW - 7200, status="closed", exit_ts=NOW - 3600)
+    w.run(answer({OTHER: [long_ago], HOST: []}))
+    out = w.at(2).run(answer({OTHER: [long_ago], HOST: [row("XYZ", price=100.0, entry_ts=NOW + 1)]},
+                             feed_now=NOW + 2))
+    (step,) = kinds(out, "step")
+    assert step["step"] == "entry"
+
+
+def test_a_side_the_reader_cannot_read_whole_waits_then_steps_once_it_reads():
+    """A row that scrolls (three or more positions) or a cut pair: nothing opens on that side until it reads."""
+    w = World()
+    w.run(answer())
+    fresh = row(entry_ts=NOW)
+    out = w.at(2).run(_with(answer({HOST: [fresh]}, feed_now=NOW + 2), HOST, unread=["long"]))
+    assert kinds(out, "step") == []
+    (wait,) = out["waits"].values()
+    assert wait["code"] == LT_ROW_UNREAD and "not reading whole" in wait["text"]
+    clean = w.at(6).run(answer({HOST: [fresh]}, feed_now=NOW + 6))
+    (step,) = kinds(clean, "step")
+    assert step["symbol"] == "XYZ"
+
+
+def test_a_side_unread_too_long_is_a_skip_and_the_other_side_is_untouched():
+    w = World()
+    w.run(answer())
+    fresh = row(entry_ts=NOW)
+    w.at(2).run(_with(answer({HOST: [fresh]}, feed_now=NOW + 2), HOST, unread=["long"]))
+    out = w.at(40).run(_with(answer({HOST: [fresh]}, feed_now=NOW + 40), HOST, unread=["long"]))
+    (skip,) = kinds(out, "skip")
+    assert skip["code"] == LT_ROW_UNREAD and "did not read whole" in skip["why"]
+    other = World()
+    other.run(answer())
+    shorts_unread = other.at(2).run(_with(answer({HOST: [row(entry_ts=NOW)]}, feed_now=NOW + 2), HOST,
+                                          unread=["short"]))
+    assert len(kinds(shorts_unread, "step")) == 1
+
+
+def test_an_unread_side_never_adds():
+    w = World()
+    base = row(entry_ts=NOW)
+    watching(w, base)
+    moved = dict(base, price=99.5, adds=[_add(NOW + 30, 99.5, 100.0)])
+    w.quotes["XYZ"] = {"last": 99.4, "bid": 99.38, "ask": 99.42, "fresh": True}
+    out = w.at(40).run(_with(answer({HOST: [moved]}, feed_now=NOW + 40), HOST, unread=["long"]))
+    assert kinds(out, "step") == [] and next(iter(out["waits"].values()))["code"] == LT_ROW_UNREAD
+
+
+def test_an_add_no_add_could_make_is_a_misread():
+    """An add moves their average toward the market: 100.00 -> 99.20 with the market at 100.50 is a misread."""
+    w = World()
+    base = row(entry_ts=NOW)
+    watching(w, base)
+    w.quotes["XYZ"] = {"last": 100.5, "bid": 100.48, "ask": 100.52, "fresh": True}
+    moved = dict(base, price=99.2, adds=[_add(NOW + 30, 99.2, 100.0)])
+    out = w.at(40).run(answer({HOST: [moved]}, feed_now=NOW + 40))
+    assert kinds(out, "step") == []
+    (skip,) = kinds(out, "skip")
+    assert skip["code"] == LT_ADD_IMPLAUSIBLE and "not between" in skip["why"]
+
+
+def test_an_add_between_the_old_average_and_the_market_is_followed():
+    w = World()
+    base = row(entry_ts=NOW)
+    watching(w, base)
+    w.quotes["XYZ"] = {"last": 100.5, "bid": 100.48, "ask": 100.52, "fresh": True}
+    moved = dict(base, price=100.3, adds=[_add(NOW + 30, 100.3, 100.0)])
+    out = w.at(40).run(answer({HOST: [moved]}, feed_now=NOW + 40))
+    (step,) = kinds(out, "step")
+    assert step["step"] == "add"
+
+
+def test_a_read_without_the_streams_clock_opens_nothing_but_still_closes():
+    w = World()
+    w.run(answer())
+    no_clock = answer({HOST: [row(entry_ts=NOW)]}, feed_now=NOW + 2)
+    no_clock["feed_now"] = None
+    out = w.at(2).run(no_clock)
+    assert kinds(out, "step") == []
+    (skip,) = kinds(out, "skip")
+    assert skip["code"] == LT_NO_CLOCK and "clock" in skip["why"]
+    back = w.at(4).run(answer({HOST: [row(entry_ts=NOW)]}, feed_now=NOW + 4))
+    (step,) = kinds(back, "step")
+    assert step["step"] == "already_open"          # blocked when first seen: taken as already open once it reads
+    held = World()
+    base = row(entry_ts=NOW)
+    watching(held, base)
+    closed = answer({HOST: [dict(base, status="closed", exit_ts=NOW + 20)]}, feed_now=NOW + 22)
+    closed["feed_now"] = None
+    (close,) = kinds(held.at(22).run(closed), "close")
+    assert close["symbol"] == "XYZ"
+
+
+def test_a_ticker_glued_to_its_price_is_far_from_the_market_and_skipped():
+    """XYZI 14.03 read as XYZ 114.03: the 1.5% rule stops it before any step."""
+    w = World()
+    w.quotes["XYZ"] = {"last": 14.03, "bid": 14.02, "ask": 14.04, "fresh": True}
+    out = watching(w, row("XYZ", price=114.03, entry_ts=NOW))
+    (skip,) = kinds(out, "skip")
+    assert skip["code"] == LT_MISREAD and kinds(out, "step") == []
+
+
+def test_a_ticker_a_scroll_cut_short_is_skipped_as_a_misread():
+    """ABCD 85.12 read as D 85.12 at a scrolling row's edge: D's own market is nowhere near it."""
+    w = World()
+    w.quotes["D"] = {"last": 60.0, "bid": 59.99, "ask": 60.01, "fresh": True}
+    out = watching(w, row("D", price=85.12, entry_ts=NOW))
+    (skip,) = kinds(out, "skip")
+    assert skip["code"] == LT_MISREAD and kinds(out, "step") == []
+
+
+def test_a_clock_that_is_no_time_of_day_reads_as_no_clock():
+    assert feed_rows.time_of_day("09:34:97") is None and feed_rows.time_of_day("24:00:00") is None
+    assert feed_rows.time_of_day("09:34:57") == (9, 34, 57)
+    assert feed_rows.clock_ts("2026-10-15", "09:34:97") is None
+    assert feed_rows.behind_sec("09:34:97", NOW) is None
+
+
+def test_unread_sides_count_only_text_holding_a_price_in_the_last_twenty_seconds():
+    date = "2026-10-15"
+
+    def line(clock, **unparsed):
+        return {"clock": clock, "traders": {n: {"positions": [], "unparsed": u} for n, u in unparsed.items()}}
+
+    log = [
+        line("09:59:00", **{HOST: ["long:7.32|ABCD350.94|EFGH5.58|IJK"]}),   # superseded before the window
+        line("10:00:00", **{HOST: []}),                                        # in force when the window began
+        line("10:00:30", **{HOST: ["long:nopositionsLONGnopositions"], OTHER: ["XYZ12.301"]}),
+        line("10:00:40", **{HOST: ["short:NAME SHORTXYZ259.47"]}),
+        line("10:00:50", **{HOST: ["long:ABCD350.941"]}),                     # after the moment asked about
+    ]
+    got = feed_rows.unread_sides(log, date, feed_rows.clock_ts(date, "10:00:45"))
+    assert got == {HOST: {"short"}, OTHER: {"long", "short"}}
+    assert feed_rows.unread_sides(None, date, None) == {}
+
+
+def test_other_host_matches_any_average_to_the_cent():
+    mine = row("XYZ", price=100.004, entry_ts=NOW)
+    theirs = row("XYZ", host=OTHER, price=101.0, entry_ts=NOW - 60, adds=[_add(NOW - 30, 100.0, 101.0)])
+    hosts = {HOST: {"rows": [mine]}, OTHER: {"rows": [theirs]}}
+    assert feed_rows.other_host(HOST, mine, hosts, set()) == (OTHER, 100.0)
+    assert feed_rows.other_host(HOST, dict(mine, side="short"), hosts, set()) is None
+    assert feed_rows.other_host(HOST, mine, {HOST: {"rows": [mine]}}, {("long", "XYZ", 100.0)}) == (None, 100.0)

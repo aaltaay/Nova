@@ -78,7 +78,8 @@ def decide(prev: dict[str, Any] | None, answer: dict[str, Any], book: dict[str, 
             hidden = now - snap["hidden_since"] >= LT_HIDDEN_SEC
     flags = {"doubt": doubtful, "blind": blind, "hidden": hidden, "silent": silent,
              "bar_hidden": snap["hidden_since"] is not None,
-             "visible": answer["state"] == "ok" and bool(answer.get("bar_visible"))}
+             "visible": answer["state"] == "ok" and bool(answer.get("bar_visible")),
+             "clock": answer.get("feed_now") is not None}
 
     for pos in book.values():
         out["symbols"].add(pos["symbol"])          # the bot holds a line on every stock it holds

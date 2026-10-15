@@ -4,12 +4,15 @@ Persisted: ``live-trader-book.json`` in the operator cache (``LT_BOOK_FILE``). O
 through a temp file and a rename after every change, so a restart resumes managing what the bot holds.
 Invalidation: the desk's day (04:00 ET): positions from another day are sold at once (never overnight) and today's
 closed list starts empty; a ``schema_version`` other than ``LT_BOOK_SCHEMA_VERSION``, or a file that cannot be read,
-is refused loud -- the bot then opens nothing (``error``) and the file is never overwritten.
+is refused loud -- the bot then opens nothing (``error``) and the file is never overwritten. A write that fails stops
+new steps too (``error``), until a write succeeds (``retry_save``, each pass): an order the book never recorded would
+otherwise be taken again after a restart.
 
 A position is one host, side and stock (``feed_rows.position_id``): the shares the bot's own fills hold, what they
 cost, its steps, the order in flight (an entry, an add or a close) and a short's buy stops. The shares are the bot's
-alone: the operator's own Paper shares in the same stock are never counted or sold. Shapes:
-architecture/schema/bot.md ("The Live Trader bot").
+alone: the operator's own Paper shares in the same stock are never counted or sold. When a position holds nothing
+any more, its buy stops move to ``retire`` and stay there until Paper shows each one is not working (``act``
+cancels them each pass), across a restart and a new day. Shapes: architecture/schema/bot.md ("The Live Trader bot").
 """
 from __future__ import annotations
 
@@ -31,12 +34,13 @@ NO_REENTRY_KINDS = ("outside", "stop")     # sold by someone else, or its buy st
 _lock = threading.RLock()
 _book: dict[str, Any] | None = None
 _error: str | None = None
+_save_error: str | None = None
 
 
 def reset_for_tests() -> None:
-    global _book, _error
+    global _book, _error, _save_error
     with _lock:
-        _book, _error = None, None
+        _book, _error, _save_error = None, None, None
 
 
 def _path() -> Path:
@@ -46,7 +50,7 @@ def _path() -> Path:
 
 
 def _empty(day: str | None) -> dict[str, Any]:
-    return {"day": day, "positions": {}, "closed": []}
+    return {"day": day, "positions": {}, "closed": [], "retire": []}
 
 
 def _load_locked() -> dict[str, Any]:
@@ -71,30 +75,51 @@ def _load_locked() -> dict[str, Any]:
         return _book
     positions = {p["id"]: p for p in raw.get("positions") or [] if isinstance(p, dict) and p.get("id")}
     _book = {"day": raw.get("day"), "positions": positions,
-             "closed": [c for c in raw.get("closed") or [] if isinstance(c, dict)][-LT_CLOSED_KEEP:]}
+             "closed": [c for c in raw.get("closed") or [] if isinstance(c, dict)][-LT_CLOSED_KEEP:],
+             "retire": [r for r in raw.get("retire") or [] if isinstance(r, dict) and r.get("order_id") is not None]}
     return _book
 
 
 def _save_locked() -> None:
+    global _save_error
     if _error is not None or _book is None:
         return
     path = _path()
     payload = {"schema_version": LT_BOOK_SCHEMA_VERSION, "day": _book["day"],
-               "positions": list(_book["positions"].values()), "closed": _book["closed"][-LT_CLOSED_KEEP:]}
+               "positions": list(_book["positions"].values()), "closed": _book["closed"][-LT_CLOSED_KEEP:],
+               "retire": _book["retire"]}
+    tmp = None
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(payload, f)
         os.replace(tmp, path)
-    except OSError:
-        logger.exception("Live Trader bot: %s was not written -- what the bot holds is in memory only", path)
+    except (OSError, TypeError, ValueError) as exc:
+        _save_error = (f"{path.name} could not be written ({type(exc).__name__}): what the bot holds is in memory "
+                       "only, so it opens nothing until the file is written")
+        logger.exception("Live Trader bot: %s", _save_error)
+        if tmp is not None and os.path.exists(tmp):
+            try:
+                os.unlink(tmp)
+            except OSError:  # maintainer: allow-swallow a temp file left behind is harmless; the error is said above
+                pass
+        return
+    _save_error = None
 
 
 def error() -> str | None:
+    """Why the bot may open nothing: the file refused on load, or the last write failed; None when it is sound."""
     with _lock:
         _load_locked()
-        return _error
+        return _error or _save_error
+
+
+def retry_save() -> None:
+    """After a failed write, write again (each pass): new steps resume once the book is on disk."""
+    with _lock:
+        if _save_error is not None:
+            _save_locked()
 
 
 def positions() -> dict[str, dict[str, Any]]:
@@ -188,6 +213,7 @@ def step_done(pos_id: str, *, filled: float, price: float | None, ts: float | No
             pos["adds_followed"] -= 1
         pos.update(state="open", order=None)
         if pos["qty"] <= EPS and not pos["fills"]:
+            _retire_locked(book, pos, ts)      # an entry that never filled: a bracket's stop must go with it
             del book["positions"][pos_id]
         _save_locked()
 
@@ -273,10 +299,36 @@ def _reduce_locked(book: dict[str, Any], pos: dict[str, Any], qty: float, *, kin
         return None
     done = {**copy.deepcopy(pos), "state": "closed", "closed_ts": ts, "kind": kind, "why": why,
             "pl_usd": realized(pos)}
+    _retire_locked(book, pos, ts)
     del book["positions"][pos["id"]]
     book["closed"] = (book["closed"] + [done])[-LT_CLOSED_KEEP:]
     _save_locked()
     return done
+
+
+def _retire_locked(book: dict[str, Any], pos: dict[str, Any], ts: float | None) -> None:
+    """A position that holds nothing any more: its buy stops wait on ``retire`` until Paper shows them gone."""
+    have = {int(r["order_id"]) for r in book["retire"]}
+    for oid in pos.get("stop_order_ids") or ():
+        if int(oid) not in have:
+            book["retire"].append({"order_id": int(oid), "symbol": pos["symbol"], "host": pos["host"],
+                                   "since_ts": ts})
+
+
+def retiring() -> list[dict[str, Any]]:
+    """The buy stops of positions that hold nothing any more, until Paper shows each one is not working."""
+    with _lock:
+        return copy.deepcopy(_load_locked()["retire"])
+
+
+def retired(order_id: int) -> None:
+    """Paper shows ``order_id`` is not working: off the list."""
+    with _lock:
+        book = _load_locked()
+        kept = [r for r in book["retire"] if int(r["order_id"]) != int(order_id)]
+        if len(kept) != len(book["retire"]):
+            book["retire"] = kept
+            _save_locked()
 
 
 def realized(pos: dict[str, Any]) -> float | None:

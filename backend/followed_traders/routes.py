@@ -107,6 +107,11 @@ def ibkr_ready() -> bool:
     return _ibkr_ready()
 
 
+def read_log(base: str, date: str, now: float) -> list[dict[str, Any]] | None:
+    """The day's read log as the page reads it (cached) -- the Live Trader bot reads the same (ADR 055)."""
+    return _read_log(base, date, now)
+
+
 def _seen(base: str, day: dict[str, Any], now: float) -> dict[str, dict[str, Any]] | None:
     """Each of the day's traders' sighting on the bar, from the feed's read log; None without one."""
     log = _read_log(base, day["date"], now, final=day["date"] < day["today"])

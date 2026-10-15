@@ -43,6 +43,33 @@ The TraderTV LIVE page (`followed-traders.md`) reads the operator's feed program
 
 7. **Paper fills at the quote with no Level 2.** A Paper order on a stock with no Level 2 line filled marketable at the last print, because Paper's bid and ask came only from a depth book. Paper's market now takes IBKR's Level 1 bid and ask when the stock has no book side and its Level 1 line is fresh (`practice.reference.LiveReference`): a buy pays the ask and a sell gets the bid, as on Live. Every Paper order, the operator's own included (operator's choice, 2026-10-14).
 
+## Amendment 2026-10-15: bad reads never buy
+
+The operator, 2026-10-14 ~23:15 ET: "if the script reads like something extremely abnormal. It can flag it as a
+mistake and wait for the next crop ... I don't want it to try to buy more or try to average more." The feed's
+reader was found tonight to make five kinds of misread on the recorded shows: a ticker glued to its price, a
+scrolling row whose edge cuts a ticker or leaves the row unread for minutes, an on-screen clock read impossibly,
+an average that flickers while an add fills in pieces, and -- at a hand-over -- the previous host's rows under the
+next host's name tag for up to minutes. The 1.5% rule, the ticker check and the add merge already met the first,
+the cut ticker and the flicker. Added (`bot.md`, "Bad reads"):
+
+- a row whose side, stock and average to the cent belong to another host's row nearby in time, or to the feed's
+  previous day, is never opened by either host's bot (`LT_OTHER_HOST`);
+- a side whose recent reads carried unreadable text opens and adds nothing (`LT_ROW_UNREAD`);
+- an add whose new average is not between the old average and the market is a misread (`LT_ADD_IMPLAUSIBLE`);
+- a read without a stream clock opens nothing (`LT_NO_CLOCK`); the feed's parser drops an impossible clock
+  instead of refusing the whole read log, and an answer the bot cannot fold is a feed that is not answering.
+
+A held position keeps its exits through any of these: the host's close as the feed confirmed it, off air,
+10 minutes without a read, the sell-all time. Whether bad reads while holding should sell at once instead is the
+operator's to answer; until then the bot holds (the recommendation put to them).
+
+Two review findings land with it: a short whose shares leave it some other way has the rest covered, and the
+buy stops of every position that holds nothing any more stay on a persisted list until Paper shows each one
+cancelled -- a refused cancel is tried again, across a restart -- so a stale stop never buys past flat or covers
+a later short; and a book that cannot be written stops every new step until a write succeeds, so a restart can
+never take a position the bot already bought again.
+
 ## Rejected
 
 - A per-host copy of the order path, its own risk checks or its own kill switch: the operator asked for one source of truth, and every gate already exists at the door.

@@ -7,7 +7,9 @@ not hold is one entry decision, remembered in the snapshot so it is made once: `
 first seen) or ``released`` (the bot sold it off air or while the bar was hidden). A blocked or released row,
 and every open row when the key turns on or the host comes back on air, is already open: ``take_open`` decides.
 A held position follows its host's adds, one settled add at a time (``feed_rows.add_groups``), up to ``adds``.
-Shapes: architecture/schema/bot.md ("The Live Trader bot").
+A read in doubt opens and adds nothing (bot.md, "Bad reads"): a row another host showed (``LT_OTHER_HOST``), a side
+the reader could not read whole (``LT_ROW_UNREAD``), an add no add could make (``LT_ADD_IMPLAUSIBLE``), no stream
+clock (``LT_NO_CLOCK``). Shapes: architecture/schema/bot.md ("The Live Trader bot").
 """
 from __future__ import annotations
 
@@ -22,9 +24,13 @@ from bot.live_trader.constants_live_trader import (
     LT_ASK_SEC,
     LT_ASK_SKIPPED,
     LT_HIDDEN,
+    LT_NO_CLOCK,
     LT_NOT_ON_BAR,
     LT_OFF_AIR,
     LT_OPEN_FRESH_SEC,
+    LT_OTHER_HOST,
+    LT_ROW_UNREAD,
+    LT_WAIT_SEC,
 )
 from bot.live_trader.decide_closes import hms
 from constants_stock_mode import STOCK_MODE_APPROVE, STOCK_MODE_SIGNAL
@@ -63,6 +69,8 @@ def _blocked(ctx: dict[str, Any], flags: dict[str, Any], on_air: bool, name: str
         return flags["doubt"]
     if flags["bar_hidden"]:
         return LT_HIDDEN, "the bar is hidden: no read of it now"
+    if not flags.get("clock", True):
+        return LT_NO_CLOCK, "the stream's clock could not be read, so how far behind the feed reads is unknown"
     if not on_air:
         return LT_OFF_AIR, f"{name} is off air"
     return None
@@ -88,9 +96,11 @@ class _Pass:
         self.snap, self.answer, self.book, self.ctx, self.out, self.used = snap, answer, book, ctx, out, used
         self.now = ctx["now"]
         self.feed_now = answer.get("feed_now")
+        self.previous = {(p[0], p[1], float(p[2])) for p in answer.get("previous") or ()}
 
     # -- shared --------------------------------------------------------------------------------------
-    def check(self, name, st, side, symbol, their_price, ticker, since, *, entry: bool) -> dict[str, Any]:
+    def check(self, name, st, side, symbol, their_price, ticker, since, *, entry: bool,
+              prev_price: float | None = None) -> dict[str, Any]:
         self.out["symbols"].add(symbol)
         self.out["caps"].add(symbol)
         return rules.check(side=side, symbol=symbol, their_price=their_price, settings=st,
@@ -98,7 +108,26 @@ class _Pass:
                            used_usd=self.used.get(name, 0.0),
                            against=_against(self.book, self.ctx, side, symbol) if entry else None,
                            short_closed=self.ctx["short_closed"](self.now) if side == "short" else None,
-                           priceable=priceable(symbol), now=self.now, wait_since=since)
+                           priceable=priceable(symbol), now=self.now, wait_since=since, prev_price=prev_price)
+
+    def read_doubt(self, name, r, since, unread, *, entry: bool) -> dict[str, Any] | None:
+        """A skip or a wait when the read of ``r`` is in doubt (bot.md, "Bad reads"); None when it reads clean."""
+        if entry:
+            found = feed_rows.other_host(name, r, self.answer.get("hosts") or {}, self.previous)
+            if found is not None:
+                whose, price = found
+                at = f"{r['symbol']} {r['side']} at {rules.price_text(price)}"
+                return rules.verdict(rules.SKIP, LT_OTHER_HOST, (
+                    f"{at} is also {whose}'s (the same stock, side and average to the cent): the bar showed one "
+                    f"host's rows under another's name tag -- not copied") if whose else (
+                    f"{at} was on the feed's previous day too (the same stock, side and average to the cent): "
+                    "the bar may be showing an earlier show's rows -- not copied"))
+        if r["side"] in unread:
+            return rules.waited(LT_ROW_UNREAD,
+                                f"{name}'s {r['side']} row is not reading whole (it scrolls, or a pair is cut)",
+                                f"{name}'s {r['side']} row did not read whole in {LT_WAIT_SEC:.0f} s", since,
+                                self.now)
+        return None
 
     def skip(self, name, r, pid, step, code, why, change) -> None:
         self.out["actions"].append({"kind": "skip", "host": name, "pos_id": pid, "row_id": r["id"],
@@ -123,7 +152,7 @@ class _Pass:
                                     "why": f"would {verb(r['side'])} {plan['qty']} at {rules.price_text(plan['limit'])}"
                                            f"{stop} -- Entry and Exit are You: the bot only watches"})
 
-    def ask(self, name, r, pid, step, plan, change) -> str:
+    def ask(self, name, r, pid, step, plan, change, *, prev_price: float | None = None) -> str:
         self.snap["seq"] = int(self.snap.get("seq") or 0) + 1
         ask_id = f"{name.lower()}-{self.snap['seq']}"
         price, sym = rules.price_text(change["price"]), r["symbol"]
@@ -135,7 +164,7 @@ class _Pass:
         ask = {"id": ask_id, "host": name, "row_id": r["id"], "pos_id": pid, "symbol": sym, "side": r["side"],
                "step": step, "their_price": change["price"], "qty": plan["qty"], "limit": plan["limit"],
                "stop": plan["stop"], "created_ts": self.now, "expires_ts": self.now + LT_ASK_SEC,
-               "change": change, "approved": False,
+               "change": change, "approved": False, "prev_price": prev_price,
                "text": f"{lead}: {verb(r['side'])} {plan['qty']}{more} at {rules.price_text(plan['limit'])}{stop}?"}
         self.snap["asks"][ask_id] = ask
         self.out["actions"].append({"kind": "ask", "ask": dict(ask)})
@@ -159,7 +188,7 @@ class _Pass:
         if ask is not None:
             self.out["actions"].append({"kind": "drop_ask", "ask_id": ask_id, "host": ask["host"], "why": why})
 
-    def follow_ask(self, name, st, r, pid, ask_id, blocked, *, entry: bool) -> str:
+    def follow_ask(self, name, st, r, pid, ask_id, blocked, unread, *, entry: bool) -> str:
         """``taken`` | ``skipped`` | ``asked`` (still waiting on the operator, or approved and waiting)."""
         ask = self.snap["asks"].get(ask_id or "")
         if ask is None:
@@ -176,8 +205,10 @@ class _Pass:
                 self.drop_ask(ask_id, blocked[1])
                 self.skip(name, r, pid, step, blocked[0], blocked[1], change)
                 return "skipped"
-            v = self.check(name, st, r["side"], r["symbol"], change["price"], r.get("ticker") if entry else None,
-                           ask.get("since"), entry=entry)
+            v = self.read_doubt(name, r, ask.get("since"), unread, entry=entry)
+            if v is None:
+                v = self.check(name, st, r["side"], r["symbol"], change["price"], r.get("ticker") if entry else None,
+                               ask.get("since"), entry=entry, prev_price=ask.get("prev_price"))
             if v["verdict"] == rules.WAIT:
                 ask["since"] = ask.get("since") or self.now
                 self.wait(pid, r, v)
@@ -195,14 +226,14 @@ class _Pass:
         return "asked"
 
     # -- an entry ------------------------------------------------------------------------------------
-    def entry(self, name, st, r, rs, pid, blocked) -> None:
+    def entry(self, name, st, r, rs, pid, blocked, unread) -> None:
         change = {"kind": "open" if rs["kind"] == "open" else "already_open", "ts": r["entry_ts"],
                   "price": r["price"]}
         step = "entry" if rs["kind"] == "open" else "already_open"
         if rs["fate"] in ("taken", "skipped", "noted"):
             return
         if rs["fate"] == "asked":
-            rs["fate"] = self.follow_ask(name, st, r, pid, rs.get("ask_id"), blocked, entry=True)
+            rs["fate"] = self.follow_ask(name, st, r, pid, rs.get("ask_id"), blocked, unread, entry=True)
             if rs["fate"] == "taken":
                 self.taken(r, rs)
             return
@@ -218,12 +249,13 @@ class _Pass:
             rs["fate"] = "skipped"
             self.skip(name, r, pid, step, LT_ALREADY_OPEN, "already open when watching began, not taken", change)
             return
-        if step == "already_open" and r.get("on_bar") is False:
+        v = self.read_doubt(name, r, rs.get("since"), unread, entry=True)
+        if v is None and step == "already_open" and r.get("on_bar") is False:
             # A trade the feed still holds open from before the host left can be gone from their bar: taken only
             # once the bar shows it (the feed closes it otherwise).
             v = rules.waited(LT_NOT_ON_BAR, f"waiting for {name}'s bar to show {r['symbol']}",
                              f"{r['symbol']} is not on {name}'s bar now", rs.get("since"), self.now)
-        else:
+        elif v is None:
             v = self.check(name, st, r["side"], r["symbol"], r["price"], r.get("ticker"), rs.get("since"),
                            entry=True)
         if v["verdict"] == rules.WAIT:
@@ -250,7 +282,7 @@ class _Pass:
         rs["groups_done"] = len(groups)        # adds made before the bot held it are not followed
 
     # -- an add --------------------------------------------------------------------------------------
-    def add(self, name, st, r, rs, pos, blocked) -> None:
+    def add(self, name, st, r, rs, pos, blocked, unread) -> None:
         groups, _pending = feed_rows.add_groups(r["adds"], r["entry_ts"], self.feed_now)
         if rs.get("groups_done") is None:
             rs["groups_done"] = len(groups)    # first sight of a held position (a restart): no old add is new
@@ -258,14 +290,16 @@ class _Pass:
             return                             # its order is in flight: the next pass
         pid = pos["id"]
         if rs.get("add_ask_id"):
-            fate = self.follow_ask(name, st, r, pid, rs["add_ask_id"], blocked, entry=False)
+            fate = self.follow_ask(name, st, r, pid, rs["add_ask_id"], blocked, unread, entry=False)
             if fate != "asked":
                 rs["add_ask_id"] = None
                 rs["groups_done"] += 1
             return
         if rs["groups_done"] >= len(groups):
             return
-        g = groups[rs["groups_done"]]
+        i = rs["groups_done"]
+        g = groups[i]
+        prev = g["from_price"] or (groups[i - 1]["to_price"] if i > 0 else r.get("entry_price"))
         change = {"kind": "add", "ts": g["last_ts"], "price": g["to_price"]}
         limit = st["adds"]
         if blocked or (limit is not None and pos["adds_followed"] >= limit):
@@ -274,7 +308,10 @@ class _Pass:
             rs["groups_done"] += 1
             self.skip(name, r, pid, "add", code, why, change)
             return
-        v = self.check(name, st, r["side"], r["symbol"], g["to_price"], None, rs.get("add_since"), entry=False)
+        v = self.read_doubt(name, r, rs.get("add_since"), unread, entry=False)
+        if v is None:
+            v = self.check(name, st, r["side"], r["symbol"], g["to_price"], None, rs.get("add_since"), entry=False,
+                           prev_price=prev)
         if v["verdict"] == rules.WAIT:
             rs["add_since"] = rs.get("add_since") or self.now
             self.wait(pid, r, v)
@@ -286,7 +323,7 @@ class _Pass:
             return
         mode = mode_of(st["entry"], st["exit"])
         if mode == STOCK_MODE_APPROVE:
-            rs["add_ask_id"] = self.ask(name, r, pid, "add", v["plan"], change)
+            rs["add_ask_id"] = self.ask(name, r, pid, "add", v["plan"], change, prev_price=prev)
             return
         rs["groups_done"] += 1
         if mode == STOCK_MODE_SIGNAL:
@@ -327,6 +364,7 @@ def steps(snap: dict[str, Any], answer: dict[str, Any], book: dict[str, dict[str
         if not st["key"]:
             continue
         blocked = _blocked(ctx, flags, on_air, name)
+        unread = set(h.get("unread") or ())
         for r in open_rows:
             pid = feed_rows.position_id(name, r["side"], r["symbol"])
             rs = hs["rows"].get(r["id"])
@@ -340,9 +378,9 @@ def steps(snap: dict[str, Any], answer: dict[str, Any], book: dict[str, dict[str
             pos = book.get(pid)
             if pos is not None:
                 if pos["row_id"] == r["id"] and pid not in closing:
-                    run.add(name, st, r, rs, pos, blocked)
+                    run.add(name, st, r, rs, pos, blocked, unread)
                 continue
             if pid in closing or r["id"] in no_reentry:
                 continue
-            run.entry(name, st, r, rs, pid, blocked)
+            run.entry(name, st, r, rs, pid, blocked, unread)
 
