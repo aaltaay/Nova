@@ -10,8 +10,9 @@ otherwise be taken again after a restart.
 
 A position is one host, side and stock (``feed_rows.position_id``): the shares the bot's own fills hold, what they
 cost, its steps, the order in flight (an entry, an add or a close) and a short's buy stops. The shares are the bot's
-alone: the operator's own Paper shares in the same stock are never counted or sold. Shapes:
-architecture/schema/bot.md ("The Live Trader bot").
+alone: the operator's own Paper shares in the same stock are never counted or sold. When a position holds nothing
+any more, its buy stops move to ``retire`` and stay there until Paper shows each one is not working (``act``
+cancels them each pass), across a restart and a new day. Shapes: architecture/schema/bot.md ("The Live Trader bot").
 """
 from __future__ import annotations
 
@@ -49,7 +50,7 @@ def _path() -> Path:
 
 
 def _empty(day: str | None) -> dict[str, Any]:
-    return {"day": day, "positions": {}, "closed": []}
+    return {"day": day, "positions": {}, "closed": [], "retire": []}
 
 
 def _load_locked() -> dict[str, Any]:
@@ -74,7 +75,8 @@ def _load_locked() -> dict[str, Any]:
         return _book
     positions = {p["id"]: p for p in raw.get("positions") or [] if isinstance(p, dict) and p.get("id")}
     _book = {"day": raw.get("day"), "positions": positions,
-             "closed": [c for c in raw.get("closed") or [] if isinstance(c, dict)][-LT_CLOSED_KEEP:]}
+             "closed": [c for c in raw.get("closed") or [] if isinstance(c, dict)][-LT_CLOSED_KEEP:],
+             "retire": [r for r in raw.get("retire") or [] if isinstance(r, dict) and r.get("order_id") is not None]}
     return _book
 
 
@@ -84,7 +86,8 @@ def _save_locked() -> None:
         return
     path = _path()
     payload = {"schema_version": LT_BOOK_SCHEMA_VERSION, "day": _book["day"],
-               "positions": list(_book["positions"].values()), "closed": _book["closed"][-LT_CLOSED_KEEP:]}
+               "positions": list(_book["positions"].values()), "closed": _book["closed"][-LT_CLOSED_KEEP:],
+               "retire": _book["retire"]}
     tmp = None
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -210,6 +213,7 @@ def step_done(pos_id: str, *, filled: float, price: float | None, ts: float | No
             pos["adds_followed"] -= 1
         pos.update(state="open", order=None)
         if pos["qty"] <= EPS and not pos["fills"]:
+            _retire_locked(book, pos, ts)      # an entry that never filled: a bracket's stop must go with it
             del book["positions"][pos_id]
         _save_locked()
 
@@ -295,10 +299,36 @@ def _reduce_locked(book: dict[str, Any], pos: dict[str, Any], qty: float, *, kin
         return None
     done = {**copy.deepcopy(pos), "state": "closed", "closed_ts": ts, "kind": kind, "why": why,
             "pl_usd": realized(pos)}
+    _retire_locked(book, pos, ts)
     del book["positions"][pos["id"]]
     book["closed"] = (book["closed"] + [done])[-LT_CLOSED_KEEP:]
     _save_locked()
     return done
+
+
+def _retire_locked(book: dict[str, Any], pos: dict[str, Any], ts: float | None) -> None:
+    """A position that holds nothing any more: its buy stops wait on ``retire`` until Paper shows them gone."""
+    have = {int(r["order_id"]) for r in book["retire"]}
+    for oid in pos.get("stop_order_ids") or ():
+        if int(oid) not in have:
+            book["retire"].append({"order_id": int(oid), "symbol": pos["symbol"], "host": pos["host"],
+                                   "since_ts": ts})
+
+
+def retiring() -> list[dict[str, Any]]:
+    """The buy stops of positions that hold nothing any more, until Paper shows each one is not working."""
+    with _lock:
+        return copy.deepcopy(_load_locked()["retire"])
+
+
+def retired(order_id: int) -> None:
+    """Paper shows ``order_id`` is not working: off the list."""
+    with _lock:
+        book = _load_locked()
+        kept = [r for r in book["retire"] if int(r["order_id"]) != int(order_id)]
+        if len(kept) != len(book["retire"]):
+            book["retire"] = kept
+            _save_locked()
 
 
 def realized(pos: dict[str, Any]) -> float | None:

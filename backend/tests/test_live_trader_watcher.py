@@ -578,6 +578,31 @@ def test_a_short_covered_in_full_outside_leaves_no_stop_to_cover_the_next_short(
     assert desk.broker.ledger.order_row(stop_id)["status"] == "Cancelled"
 
 
+def test_a_stop_whose_cancel_is_refused_is_cancelled_on_a_later_pass_even_after_a_restart(desk, monkeypatch):
+    from bot.live_trader import orders as lt_orders
+
+    run(desk, "10:30:00")
+    desk.feed.open("FADE", 40.00, at("10:30:10"), side="short")
+    run(desk, "10:30:11")
+    (stop_id,) = lt_book.positions()[f"{HOST}|short|FADE"]["stop_order_ids"]
+    real_cancel = lt_orders.cancel
+
+    async def refused(order_id, symbol, host):
+        return SimpleNamespace(ok=False, error="refused for the test", reason_code="TEST")
+
+    monkeypatch.setattr(lt_orders, "cancel", refused)
+    desk.broker.place("FADE", "BUY", 12, order_type="MKT", source="manual")     # you covered all of it
+    run(desk, "10:30:20")
+    assert desk.broker.ledger.order_row(stop_id)["status"] != "Cancelled"
+    assert [r["order_id"] for r in lt_book.retiring()] == [stop_id]
+    assert any("still working" in (line["reason"] or "") for line in lines_("error"))
+    lt_book.reset_for_tests()                                      # a restart: the list is read back from the file
+    monkeypatch.setattr(lt_orders, "cancel", real_cancel)
+    run(desk, "10:30:22")
+    assert desk.broker.ledger.order_row(stop_id)["status"] == "Cancelled"
+    assert lt_book.retiring() == []
+
+
 def test_a_book_that_cannot_be_written_opens_nothing_until_it_can(desk, monkeypatch, tmp_path):
     good = lt_book._path()
     blocker = tmp_path / "not-a-folder"

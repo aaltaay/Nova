@@ -628,17 +628,24 @@ temp file and rename; unknown version refuses loud, and the bot then opens nothi
               adds_seen, adds_followed, opened_ts, state: "entering" | "open" | "closing",
               order: {id, step: "entry" | "add" | "already_open" | "close", sent_ts, qty, limit, stop} | null,
               stop_order_ids: [int], fills: [{step, qty, price, ts, order_id}], feed: {ts, price}}],
- closed: [{...the position, closed_ts, why, exit_fills: [{qty, price, ts, order_id}], pl_usd}]}
+ closed: [{...the position, closed_ts, why, exit_fills: [{qty, price, ts, order_id}], pl_usd}],
+ retire: [{order_id, symbol, host, since_ts}]}
 ```
+
+`retire` (absent in an older file: empty) holds the buy stops of every position that holds no shares any more --
+closed by the bot, covered outside it, stopped out, covered by the day cover, or an entry that never filled --
+until Paper shows each one is not working: each pass cancels the ones still working, a refused cancel stays and is
+tried again (a `live_trader` `error` line says so once), and a restart keeps the list. It is never cleared by the
+day: a stop is off the list only when Paper says it is gone.
 
 `id` is `host|side|symbol`: one position per host, side and stock (a feed row reopened for the same stock
 is the same position, re-keyed to the new `row_id`, never bought twice). `closed` keeps today's (at most
 200); a day other than today's is sold at once on load ("held from DAY: never overnight") and cleared.
 Each pass reconciles with Paper's ledger: shares the account no longer holds (the operator sold them, a
 buy stop or a breaker did) leave the position, said once. A short's buy stops cover what it held: when shares
-of a short leave it that way, its working buy stops are cancelled, and what the bot still holds of it is covered
-(change `kind: "outside"`) -- a bot short never holds without a stop for exactly its shares, and a stale stop can
-never cover a later short in the same stock. A book that cannot be written stops every new step
+of a short leave it that way, what the bot still holds of it is covered (change `kind: "outside"`), and once the
+position holds nothing its stops wait on `retire` until Paper shows them cancelled -- a bot short never holds
+without a stop for exactly its shares, and a stale stop can never buy past flat or cover a later short. A book that cannot be written stops every new step
 (`can_trade.why` says so; closes go on) until a write succeeds; each pass tries again.
 
 **Routes** (owner `bot/live_trader/routes.py`, under the bot router: loopback; writes need the API key):

@@ -153,6 +153,7 @@ async def manage(now: float) -> None:
         elif pos["state"] == "closing":
             act.follow_close(pos["id"], now)
     await act.reconcile(now)
+    await act.clear_stops(now)
 
 
 def can_open() -> dict[str, Any]:

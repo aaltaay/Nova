@@ -321,22 +321,50 @@ async def reconcile(now: float) -> None:
 
 async def _retire_stops(pos: dict[str, Any], why: str, now: float) -> None:
     """A short's buy stops were sized for what it held: once shares leave it some other way they no longer match.
-    What the bot still holds of it is covered (``close`` cancels the stops first); nothing held, they are
-    cancelled -- so a stale stop never covers a later short in the same stock (review, PR #981)."""
+    What the bot still holds of it is covered; once it holds nothing, its stops wait on ``book.retiring`` until
+    Paper shows them cancelled (``clear_stops``) -- a stale stop never covers a later short (review, PR #981)."""
     left = book.get(pos["id"])
     if left is not None and left["qty"] > EPS:
         await close({"kind": "close", "host": pos["host"], "pos_id": pos["id"], "row_id": pos["row_id"],
                      "symbol": pos["symbol"], "side": "short", "qty": left["qty"],
                      "why": f"{why}: its buy stop no longer matches what it holds, so the bot covers the rest",
                      "change": {"kind": "outside", "ts": now, "price": None}}, now)
-        return
-    for oid in pos["stop_order_ids"]:
+
+
+async def clear_stops(now: float) -> None:
+    """Every buy stop of a position that holds nothing any more is cancelled until Paper shows it is not working.
+    A cancel refused or not read stays on the list (persisted: a restart keeps it) and is tried again next pass,
+    said once on the card -- a stale stop never buys past flat or covers a later short (review, PR #982)."""
+    for r in book.retiring():
+        oid, a = r["order_id"], {"host": r.get("host"), "symbol": r.get("symbol"), "side": "short", "step": "stop"}
         try:
-            if orders.order_state(orders.order_row(oid)) == "working":
-                await orders.cancel(oid, pos["symbol"], pos["host"])
-        except Exception:
-            logger.exception("Live Trader bot: %s's buy stop %s was not cancelled (tried again next pass)",
-                             pos["symbol"], oid)
+            state = orders.order_state(orders.order_row(oid))
+            if state == "working":
+                receipt = await orders.cancel(oid, r["symbol"], r["host"])
+                if receipt is None or not receipt.ok:
+                    _stop_left(a, oid, f"its cancel was refused ({orders.receipt_error(receipt)})", now)
+                    continue
+                state = orders.order_state(orders.order_row(oid))
+        except orders.ReadError as exc:
+            _stop_left(a, oid, f"Paper could not be read ({exc})", now)
+            continue
+        except Exception as exc:
+            logger.exception("Live Trader bot: %s's buy stop %s was not cancelled", r.get("symbol"), oid)
+            _stop_left(a, oid, f"{type(exc).__name__}: {exc}", now)
+            continue
+        if state == "working":
+            _stop_left(a, oid, "Paper still lists it working after the cancel", now)
+            continue
+        book.retired(oid)
+
+
+def _stop_left(a: dict[str, Any], oid: int, why: str, now: float) -> None:
+    logger.warning("Live Trader bot: %s's buy stop %s is still working: %s -- tried again next pass",
+                   a.get("symbol"), oid, why)
+    if once("stop_left", oid, why):
+        audit("error", a, now=now, order_id=oid,
+              why=f"the buy stop {oid} on {a.get('symbol')} is still working ({why}): the bot holds none of it, "
+                  "so Nova cancels it every pass until Paper shows it gone -- cancel it yourself if it stays")
 
 
 def _left_how(pos: dict[str, Any], now: float) -> tuple[str, str, float | None, int | None]:

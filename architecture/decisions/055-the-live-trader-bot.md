@@ -64,9 +64,11 @@ A held position keeps its exits through any of these: the host's close as the fe
 10 minutes without a read, the sell-all time. Whether bad reads while holding should sell at once instead is the
 operator's to answer; until then the bot holds (the recommendation put to them).
 
-Two review findings land with it: a short whose shares leave it some other way has its buy stops cancelled and
-the rest covered, so a stale stop never covers a later short; and a book that cannot be written stops every new
-step until a write succeeds, so a restart can never take a position the bot already bought again.
+Two review findings land with it: a short whose shares leave it some other way has the rest covered, and the
+buy stops of every position that holds nothing any more stay on a persisted list until Paper shows each one
+cancelled -- a refused cancel is tried again, across a restart -- so a stale stop never buys past flat or covers
+a later short; and a book that cannot be written stops every new step until a write succeeds, so a restart can
+never take a position the bot already bought again.
 
 ## Rejected
 
