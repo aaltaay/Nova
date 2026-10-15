@@ -135,6 +135,13 @@ export interface FollowedBarSlot {
   face?: string | null;
 }
 
+/** `/day`'s `keeper`: the feed's scheduled task the backend runs when the feed stops, and its newest run. */
+export interface FollowedKeeper {
+  task: string;
+  last: { at: number; why: string; ok: boolean; error: string | null } | null;
+  next_at: number | null;
+}
+
 export interface FollowedDay {
   schema_version: number;
   generated_at: number;
@@ -149,6 +156,8 @@ export interface FollowedDay {
   prices: { state: PricesState; why: string | null } | null;
   overall: FollowedRecord | null;
   traders: FollowedTrader[];
+  /** Null when no task is set; absent from a backend without the keeper. */
+  keeper?: FollowedKeeper | null;
 }
 
 export type RecordRange = 'day' | 'week' | 'all';

@@ -7,7 +7,11 @@ import {
   FOLLOWED_CAPTURE_BEHIND_SEC,
   FOLLOWED_CAPTURE_STALE_SEC,
   FOLLOWED_CLOCK_AHEAD_SEC,
+  FOLLOWED_KEEPER_SHOWN_SEC,
   FT_BAD_ANSWER,
+  FT_KEEPER_FAILED,
+  FT_KEEPER_RAN,
+  FT_KEEPER_STARTED,
   FT_NO_STATUS,
   FT_PILL_BEHIND,
   FT_PILL_BEHIND_NOTE,
@@ -25,6 +29,8 @@ export type PillTone = 'live' | 'warn' | 'idle' | 'down';
 export interface CapturePill {
   tone: PillTone;
   text: string;
+  /** The hover: why the backend's keeper ran the feed's task, when the pill names that run. */
+  title?: string;
 }
 
 const ET_SECONDS = new Intl.DateTimeFormat('en-US', {
@@ -92,9 +98,29 @@ export function offAirWhy(c: FollowedCapture): string {
   return parts.join(' · ');
 }
 
+/** The backend's keeper ran the feed's task less than FOLLOWED_KEEPER_SHOWN_SEC before this answer: what it did, and
+ *  why (schema: "Starting the feed again when it stops"); null otherwise. */
+export function keeperNote(day: FollowedDay): { text: string; why: string } | null {
+  const k = day.keeper;
+  const last = k?.last;
+  if (!k || !last || typeof last.at !== 'number' || day.generated_at - last.at > FOLLOWED_KEEPER_SHOWN_SEC) return null;
+  const text = last.ok
+    ? `${FT_KEEPER_STARTED} ${k.task} ${ET_SECONDS.format(new Date(last.at * 1000))} ET`
+    : `${FT_KEEPER_FAILED} ${k.task}: ${last.error ?? ''}`;
+  return { text, why: `${FT_KEEPER_RAN} ${k.task} because ${last.why}` };
+}
+
+function down(day: FollowedDay, parts: string[]): CapturePill {
+  const note = keeperNote(day);
+  if (!note) return { tone: 'down', text: parts.join(' · ') };
+  const text = [...parts, note.text].join(' · ');
+  return { tone: 'down', text, title: `${text}
+${note.why}` };
+}
+
 export function capturePill(day: FollowedDay | null): CapturePill | null {
   if (!day) return null;
-  if (day.feed.state === 'unreachable') return { tone: 'down', text: `${FT_UNREACHABLE} · ${day.feed.error ?? ''}` };
+  if (day.feed.state === 'unreachable') return down(day, [FT_UNREACHABLE, day.feed.error ?? '']);
   if (day.feed.state === 'bad_answer') return { tone: 'down', text: `${FT_BAD_ANSWER} · ${day.feed.error ?? ''}` };
   const c = day.capture;
   if (!c) return { tone: 'idle', text: FT_NO_STATUS };
@@ -103,7 +129,7 @@ export function capturePill(day: FollowedDay | null): CapturePill | null {
     if (c.clock) parts.push(`last read ${c.clock} ET`);
     else if (c.age_sec !== null) parts.push(`last read ${duration(c.age_sec)} ago`);
     if (c.problem) parts.push(c.problem);
-    return { tone: 'down', text: parts.join(' · ') };
+    return down(day, parts);
   }
   if (!c.live) return { tone: 'idle', text: FT_PILL_WAITING };
   if (!c.bar_visible) return { tone: 'warn', text: FT_PILL_HIDDEN };
