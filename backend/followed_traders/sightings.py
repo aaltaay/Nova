@@ -40,6 +40,10 @@ def sightings(log: list[dict[str, Any]], *, date: str, traders: Iterable[str], l
         if i is None:
             continue  # never read: no sighting, no claim
         last_ts = times[i + 1] if i + 1 < len(times) else newest
+        if i + 1 < len(log) and log[i + 1].get("unread_before"):
+            # The feed could not read the bar after their last line (a restart, a stream it could not use): they were
+            # last seen at that line, and when they left is not known from there on (2026-10-15, 10:54 to 11:04).
+            last_ts = times[i]
         # Every later line is without them, so any name on it is someone else on the bar.
         left_ts = next((times[j] for j in range(i + 1, len(read)) if read[j]), None)
         if left_ts is not None and (newest is None or newest - left_ts < left_after_sec):
