@@ -1,5 +1,5 @@
 /**
- * The page's head, one row: title, the capture pill, the stream's title and Watch live, the record span with
+ * The page's head, one row: title, what another feature draws after it (the LiveTrader Bots key, slots.ts), the capture pill, the stream's title and Watch live, the record span with
  * everyone's record, why open positions are not priced (when they are not), the day (previous / calendar / next
  * among the feed's days), when today resets (04:00 ET, the desk's own day) and the Alerts switch. Previous and next
  * step through days the feed has; one with nowhere to go is disabled and says why, as is Watch live when the feed
@@ -37,6 +37,7 @@ import { setFollowedAlerts, useFollowedAlerts } from './followedStores';
 import { RecordChips } from './parts';
 import { PlFigure } from './PlFigure';
 import type { PlSummary } from './plSummary';
+import { useFollowedSlots } from './slots';
 import { setStreamOpen } from './stream';
 import type { FollowedDay, FollowedRecord, RecordRange } from './types';
 
@@ -92,6 +93,7 @@ function Records({ r }: { r: RecordsHead }) {
 export function PageHead({ day, onPickDate, records, pricesWhy, stream }: Props) {
   const [open, setOpen] = useState(false);
   const alertsOn = useFollowedAlerts();
+  const { Head } = useFollowedSlots();
   const wrap = useRef<HTMLDivElement>(null);
   const pill = capturePill(day);
   const today = day.today;
@@ -121,6 +123,7 @@ export function PageHead({ day, onPickDate, records, pricesWhy, stream }: Props)
   return (
     <div className="ft-head">
       <h1 className="ft-head__title">{FT_TITLE}</h1>
+      {Head && <Head />}
       {pill && (
         <span className={`ft-status ft-status--${pill.tone}`} data-testid="ft-capture-pill" role="status" title={pill.title}>
           <span className="ft-status__dot" aria-hidden="true" />

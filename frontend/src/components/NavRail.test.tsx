@@ -146,18 +146,13 @@ describe('NavRail', () => {
     expect(q('nav-rail-settings')!.textContent).toMatch(/Settings/);
   });
 
-  it('shows Followed traders after Cryptos only when the backend has a feed, and routes to its page', () => {
-    render();
-    expect(q('nav-rail-followed')).toBeNull();
+  it('has no TraderTV LIVE item, feed or not: its page is Bots > LiveTrader Bots (operator, 2026-10-15)', () => {
     followed.current = true;
     render();
-    const top = testIds(container.querySelector('.nav-rail__list')!).filter((id) =>
-      ['nav-rail-cryptos', 'nav-rail-followed', 'nav-rail-account'].includes(id!),
-    );
-    expect(top).toEqual(['nav-rail-cryptos', 'nav-rail-followed', 'nav-rail-account']);
-    click('nav-rail-followed');
-    expect(getNavPage()).toBe('followed');
-    expect(q('nav-rail-followed')!.getAttribute('aria-current')).toBe('page');
+    expect(q('nav-rail-followed')).toBeNull();
+    expect(container.textContent).not.toContain('TraderTV LIVE');
+    click('nav-rail-bots-live-trader');
+    expect(getNavPage()).toBe('bots-live-trader');
   });
 
   it('builds the Scanner tree from the registry groups, in registry order, with group labels', () => {

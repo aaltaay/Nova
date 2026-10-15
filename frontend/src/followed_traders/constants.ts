@@ -3,7 +3,7 @@
  * (FOLLOWED_SCHEMA_VERSION, FOLLOWED_CAPTURE_STALE_SEC). Schema: architecture/schema/followed-traders.md.
  */
 
-import { NAV_RAIL_LABEL_FOLLOWED } from '../constantGroups/nav_rail';
+import { NAV_RAIL_LABEL_BOTS_LIVE_TRADER } from '../constantGroups/nav_rail';
 
 export const FOLLOWED_SCHEMA_VERSION = 1;
 export const FOLLOWED_CONFIG_PATH = '/api/followed-traders/config';
@@ -55,9 +55,10 @@ export const FOLLOWED_PROOF_CARD_GAP_PX = 8;
 /** The room kept under the newest Activity events for the "+N earlier" line, in px. */
 export const FT_FOLD_LINE_PX = 34;
 
-/** The channel the feed reads names the page, its rail entry and the proof's back link (operator ask 2026-10-14). */
-export const FOLLOWED_CHANNEL = NAV_RAIL_LABEL_FOLLOWED;
-export const FT_TITLE = FOLLOWED_CHANNEL;
+/** The channel the feed reads (operator ask 2026-10-14): a toast names it as its source. */
+export const FOLLOWED_CHANNEL = 'TraderTV LIVE';
+/** The page is Bots > LiveTrader Bots (operator, 2026-10-15): its title and the proof's back link read so. */
+export const FT_TITLE = NAV_RAIL_LABEL_BOTS_LIVE_TRADER;
 export const FT_LOADING = 'Asking the feed…';
 export const FT_OFF = 'The followed traders feed is not configured on this desk (NOVA_FOLLOW_FEED_URL in the backend’s .env).';
 export const FT_UNREACHABLE = 'The feed is not answering';
@@ -83,8 +84,6 @@ export const FT_BAR_STAND_IN = 'Their slot at their last open or close';
 export const FT_SLOT_NOW = 'Their slot now';
 export const FT_SLOT_LAST_READ = 'Their slot as last read';
 
-export const FT_HOLDING = 'Holding now';
-export const FT_HOLDING_END = 'Open at the day’s end';
 export const FT_OFF_AIR = 'Off air';
 export const FT_LEFT_BAR = 'Left the bar';
 export const FT_LEFT_BAR_TIP = 'The stream’s position bar has shown other traders without them since then: their show is over, or they '
@@ -124,11 +123,12 @@ export const FT_STREAM_NOT_READING = 'the feed is not reading a live stream righ
 export const FT_STREAM_LIVE_ONLY = 'Only a live stream plays here, never a past broadcast. It comes back on its own when the feed reads the next one.';
 export const FT_LAST_STREAM = 'Last stream:';
 export const FT_RESETS = 'Resets';
-export const FT_CLOSED_TODAY = 'Closed today';
-export const FT_CLOSED = 'Closed';
-export const FT_NO_OPEN = 'No open positions';
-export const FT_NO_CLOSED_TODAY = 'No closed trades yet today';
-export const FT_NO_CLOSED = 'No closed trades that day';
+/** One table per trader, the open positions on top (operator, 2026-10-15: "make this more compact"). */
+export const FT_TRADES_TODAY = 'Trades today';
+export const FT_TRADES = 'Trades';
+export const FT_OPEN_COUNT = 'open';
+export const FT_OPEN_ROW_TIP = 'Still open: in at their own average, priced with IBKR’s last trade now.';
+export const FT_OPEN_END_TIP = 'Open at the day’s end: the feed never saw it close that day.';
 export const FT_ON_AIR = 'On air';
 export const FT_PROOF = 'Proof';
 export const FT_PROOF_CLICK_HINT = 'Click for every read of the slot during this trade';
@@ -177,7 +177,7 @@ export const FT_FUTURE_DAY = 'That day has not happened yet';
 export const FT_PREV_MONTH = 'Previous month';
 export const FT_NEXT_MONTH = 'Next month';
 
-export const FT_BACK = FOLLOWED_CHANNEL;
+export const FT_BACK = FT_TITLE;
 export const FT_CHECK_A_READ = 'Check a read';
 export const FT_ENTRY = 'Entry';
 export const FT_EXIT = 'Exit';

@@ -4,7 +4,7 @@
  *
  * The rail lives in the app shell while the scanner tab state lives in
  * DashboardPage / SampleDashboardPage, which unmount on Trader and on the
- * shell pages (Market, Records, Account, Bots, Cryptos, Followed traders). So the dashboard publishes here (like ScannerBarBridge does for the
+ * shell pages (Market, Records, Account, Bots, Cryptos). So the dashboard publishes here (like ScannerBarBridge does for the
  * header) and the rail asks for a tab through a latch that survives a remount
  * -- the same shape as the old openTradingTabNav, generalised to any tab.
  */
@@ -16,10 +16,10 @@ import { DEFAULT_ACTIVE_TAB } from './defaultTab';
 import { getModule, isTabModuleId, type ActiveTab, type ModuleCountKey } from './registry';
 
 /** What the dashboard slot shows while Trader is not up. Bots is a group (operator decision 2026-10-15): the parent
- *  page (empty for now) and its two children, LiveTrader Bots and Strategy Bots. */
+ *  page (empty for now) and its two children, LiveTrader Bots (the TraderTV hosts' page, with their bots) and Strategy
+ *  Bots. */
 export type NavPage =
-  | 'dashboard' | 'market' | 'records' | 'account' | 'bots' | 'bots-live-trader' | 'bots-strategy' | 'cryptos'
-  | 'followed';
+  | 'dashboard' | 'market' | 'records' | 'account' | 'bots' | 'bots-live-trader' | 'bots-strategy' | 'cryptos';
 
 /** Every page of the Bots group. */
 export const BOTS_PAGES: readonly NavPage[] = ['bots', 'bots-live-trader', 'bots-strategy'];

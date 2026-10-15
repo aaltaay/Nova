@@ -260,7 +260,7 @@ position does, "No orders at all"). A bot places an order only while all three o
 
 1. **The Bot switch** (the super key, above): every bot on the venue.
 2. **Its family's key**: **Strategy Bots** (the setup strategies' bot and Auto-entry) at the top of Bots > Strategy
-   Bots; **LiveTrader Bots** (ADR 055) at the top of Bots > LiveTrader Bots. Each covers only its own family.
+   Bots; **LiveTrader Bots** (ADR 055) in the head of Bots > LiveTrader Bots. Each covers only its own family.
 3. **Its own key**: each strategy's Off · Eyes · On; each TraderTV host's Bot key.
 
 - **Off places no order at all, at every level** -- no entry, no add, no sell, no cover, no stop moved. Nothing is
@@ -457,8 +457,8 @@ with a book and no prints would read WAIT, never GO.
   built from those prints, has a gap for the length of the loan.
 
 **On the desk.** The nav rail's **Bots** is a group (operator decision 2026-10-15): **Bots** itself, empty for now
-("keep it empty for now"), then its two children, **LiveTrader Bots** (the Live Traders panel, "The Live Trader bot"
-below) and **Strategy Bots**, the page that was Bots, unchanged but for the key on top. Strategy Bots reads, top to
+("keep it empty for now"), then its two children, **LiveTrader Bots** (the TraderTV hosts' page, each host's bot in their
+card, "The Live Trader bot" below) and **Strategy Bots**, the page that was Bots, unchanged but for the key on top. Strategy Bots reads, top to
 bottom:
 1. the Strategy Bots key;
 2. one answer line ("Can Nova buy right now?" for every ticker at once, each red with its fix, the
@@ -579,11 +579,22 @@ side: `backend/bot/replay_desk.py`; of the lanes: `backend/eyes/sim_eyes.py`, `e
 
 One bot per TraderTV host (`followed-traders.md`): it copies the host's bar on **Paper only**, never Live and
 never Sim. Owner `backend/bot/live_trader/` (constants in `bot/live_trader/constants_live_trader.py`); the
-"Live Traders · TraderTV" panel on **Bots > LiveTrader Bots**, under the LiveTrader Bots key (operator decision
-2026-10-15; `frontend/src/bot/`). The TraderTV LIVE page shows the hosts only (the panel sat on top of it for part of
-2026-10-15). The keys it obeys are the header's Bot switch and the key above it ("The three keys"); a blocker says
-which, and `LT_FROZEN` links to Strategy Bots, where Freeze all orders is; `LT_LOSS_LIMIT` says Settings > Loss
-limits in its words (ADR 056). The panel carries its own styles. On only while `NOVA_FOLLOW_FEED_URL` is set: unset,
+desk, **Bots > LiveTrader Bots**: the followed traders' page (`followed-traders.md`, "On the desk"), with each
+host's bot in the middle of their card, between their record and their P/L (operator, 2026-10-15: "i want all content
+from the original tradertv live to be inside livetrader bots", and the panel's "Entry you/bot exit you/bot .. can all be
+compacted inside these empty spaces... includeing bot keys"; approved from a render, "i like it. build it."). The
+"Live Traders · TraderTV" panel that stood on its own on that tab is gone. On today, a host's bot reads in two lines:
+its Bot key, Entry You | Bot, Exit You | Bot and Rules (the rules on hover; a click opens their editor in a card
+under it); then the allowance used of its allowance, Today's P/L, trades and skips -- the skips' reasons on hover, by
+reason, from its newest events. An ask waiting on the operator takes the second line, with Skip, Approve and its
+seconds; a write refused takes it with why. A copy the bot holds is a BOT chip on the host's open row it copies
+(`row_id`), its shares, entry and P/L on hover; one whose row is gone (a key held its close) is a chip on the second
+line. A card narrower than 1300 px puts the two lines on one line of their own under the card's row. The page's
+head holds the LiveTrader Bots key and, while `can_trade` is not ok, one amber line, "No orders · "
+and the reason's first clause (all of it on hover); `LT_FROZEN` links to Strategy Bots, where Freeze all orders
+is, and `LT_LOSS_LIMIT` says Settings > Loss limits in its words (ADR 056); a window under 2100 px gives the key
+and that line a line of their own under the head's row. The keys it obeys are the header's Bot
+switch, that key and the host's own ("The three keys"). Its styles are its own (`bot/liveTraderStrip.css`). On only while `NOVA_FOLLOW_FEED_URL` is set: unset,
 the watcher asks nothing and the view says the feed is off.
 
 **The rules** (ADR 055 decisions 2-4): a position on the host's bar is one step in their direction; an
@@ -728,7 +739,7 @@ without a stop for exactly its shares, and a stale stop can never buy past flat 
   host's card and its key show before any key is on (a desk with no settings would otherwise list none and offer
   no key to turn on; a read that fails keeps the names last read that day and `watcher.feed` says why) -- and
   every host with settings or positions, in the feed's
-  order. `face` is the TraderTV LIVE page's photo path, or null. `events` are the host's newest
+  order. `face` is the followed traders' photo path, or null. `events` are the host's newest
   `live_trader` audit lines (8), read from the audit file's last MB (`LT_AUDIT_TAIL_BYTES`) and again only when
   the file changed. `today.pl_usd` is realized plus unrealized at the last, from the bot's own
   fills; `series` its points at each fill.

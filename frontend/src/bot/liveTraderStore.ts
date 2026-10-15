@@ -1,6 +1,6 @@
 /**
  * The Live Trader bot's two polls (ADR 055), shared by every component of a window: the cards
- * (`GET /api/bot/live-traders`, while the TraderTV LIVE page shows them) and the asks with what the bot holds
+ * (`GET /api/bot/live-traders`, while Bots > LiveTrader Bots shows them) and the asks with what the bot holds
  * (`GET /api/bot/live-traders/asks`, every desk window, for the toasts and the Bot switch's question). A poll runs
  * only while something reads it; a write's answer replaces the cards at once. In memory, per window.
  */

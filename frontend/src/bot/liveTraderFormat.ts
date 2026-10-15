@@ -1,6 +1,6 @@
 /**
- * The Live Trader cards' numbers in words (ADR 055): dollars, prices, the day's P/L line, the chips of a host's
- * rules, and the shares an approval or a confirmation names. Pure.
+ * The Live Trader bots' numbers in words (ADR 055): dollars, prices, the day's P/L line, the chips of a host's rules,
+ * the hovers of its skips, steps and copies, and which of a host's open trades a copy belongs to. Pure.
  */
 import {
   LT_LARGE_CAPS,
@@ -8,11 +8,13 @@ import {
   LT_TAKE_OPEN_WORDS,
   ltAddsWords,
   ltAllowanceWords,
+  ltNewestOf,
   ltSellAllWords,
   ltShortStopWords,
   ltStepWords,
 } from '../constantGroups/live_trader';
-import type { LtHost, LtSettings } from './liveTraderTypes';
+import { prose } from './botsPageFormat';
+import type { LtEvent, LtHost, LtPosition, LtSettings } from './liveTraderTypes';
 
 export function usd(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return '—';
@@ -31,7 +33,7 @@ export function px(v: number | null | undefined): string {
   return Math.abs(v) < 1 ? v.toFixed(4) : v.toFixed(2);
 }
 
-/** The settings as the card's chips, in the mockup's order. */
+/** The settings as chips, in the approved mockup's order. */
 export function ruleChips(st: LtSettings, sellAllAt: string): string[] {
   const sides = st.sides === 'both' ? `${LT_SIDES_WORDS.both} · ${ltShortStopWords(st.short_stop_pct)}` : LT_SIDES_WORDS.long;
   return [ltStepWords(st.step_usd), ltAddsWords(st.adds), ltAllowanceWords(st.allowance_usd), sides,
@@ -59,4 +61,51 @@ export function sparkPoints(series: [number | null, number][], w: number, h: num
 
 export function secondsLeft(expires: number, now: number): number {
   return Math.max(0, Math.round(expires - now));
+}
+
+/** A reason's first clause, for a line that has room for one: "the Bot switch in the header is off" of "...: bots place
+ *  no order". A clock (15:55) is not a clause break. */
+export function firstClause(text: string): string {
+  return text.split(': ')[0];
+}
+
+/** Eastern HH:MM of an epoch second; blank when unknown. */
+function etHm(ts: number | null): string {
+  if (!ts || !Number.isFinite(ts)) return '';
+  return new Date(ts * 1000).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour12: false, hour: '2-digit', minute: '2-digit' });
+}
+
+/** The newest skips, by reason, each with its stocks and times; null with none. `total` is the day's count. */
+export function skipsTip(events: readonly LtEvent[], total: number): string | null {
+  const skips = events.filter(e => e.outcome === 'skipped');
+  if (!skips.length) return null;
+  const byWhy = new Map<string, string[]>();
+  for (const e of skips) {
+    const why = prose(e.text ?? e.code ?? '');
+    byWhy.set(why, [...(byWhy.get(why) ?? []), [e.symbol, etHm(e.ts)].filter(Boolean).join(' ')]);
+  }
+  const lines = [...byWhy].map(([why, what]) => `${why}\n   ${what.join(' · ')}`);
+  if (skips.length < total) lines.push(`(${ltNewestOf(skips.length, total)})`);
+  return lines.join('\n');
+}
+
+/** The newest steps that are not skips (orders, fills, settings), newest first; null with none. */
+export function stepsTip(events: readonly LtEvent[]): string | null {
+  const steps = events.filter(e => e.outcome !== 'skipped' && e.text);
+  if (!steps.length) return null;
+  return steps.map(e => `${etHm(e.ts)}  ${prose(e.text)}`.trim()).join('\n');
+}
+
+/** Whether the bot's position copies this open trade of its host: its row, else the same stock and side. */
+export function copies(p: LtPosition, t: { id: string; symbol: string; side: string }): boolean {
+  return p.row_id === t.id || (p.symbol === t.symbol && p.side === t.side);
+}
+
+/** A copy the bot holds, in words: shares, its own entry, the host's average, the P/L now. */
+export function positionTip(p: LtPosition): string {
+  const parts = [`Holds ${p.qty} share${p.qty === 1 ? '' : 's'} of ${p.symbol} ${p.side === 'short' ? 'short' : 'long'}, in at ${px(p.avg_cost)}`];
+  if (p.their_avg != null) parts.push(`their average ${px(p.their_avg)}${p.adds_followed ? `, ${p.adds_followed} add${p.adds_followed === 1 ? '' : 's'} followed` : ''}`);
+  if (p.now != null) parts.push(`now ${px(p.now)}: ${signedUsd(p.pl_usd)}`);
+  if (p.state !== 'open') parts.push(p.state === 'entering' ? 'its entry is working' : 'its close is working');
+  return [parts.join(' · '), p.note ? prose(p.note) : null].filter(Boolean).join('\n');
 }
