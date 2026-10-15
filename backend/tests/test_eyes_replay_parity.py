@@ -60,6 +60,30 @@ def test_a_rebuilt_time_of_day_rvol_is_a_pace_measure_already():
     assert _pillars(row, MINUTE + 8)["rvol"] == 7.5
 
 
+def test_the_after_hours_board_is_paced_already():
+    """``afterhours_discovery`` records a paced RVOL under the daily label; pacing it again inflated it."""
+    from leaderboard import store as lb_store
+
+    row = make_row(symbol="ZZVEEA", minute_ts=MINUTE + 9 * 3600, board="afterhours", rank=1, price=5.65,
+                   prev_close=3.87, volume=9_000_000, source="recorded", rvol=6.2,
+                   rvol_basis=LEADERBOARD_RVOL_BASIS_DAILY)
+    with lb_store.connect() as db:
+        lb_store.write_batch(db, rows=[row])
+    assert _pillars(row, MINUTE + 9 * 3600 + 8)["rvol"] == 6.2
+
+
+def test_a_replay_never_creates_the_leaderboard(monkeypatch, tmp_path):
+    from leaderboard import store as lb_store
+
+    missing = tmp_path / "nowhere" / "leaderboard.sqlite3"
+    monkeypatch.setattr(lb_store, "path", lambda: missing)
+    from eyes.recording import pillars_at
+
+    p = pillars_at("ZZVEEA", "2026-10-09", MINUTE + 8, last_price=5.67, prev_close=3.87)
+    assert p["rvol"] is None and p["source"] == "recording"
+    assert not missing.parent.exists()
+
+
 def test_the_replay_follows_the_live_switch_off_pace(monkeypatch):
     import constants_hod_momo
 
