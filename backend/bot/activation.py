@@ -100,6 +100,21 @@ def venue_block(venue: str | None, live_edge: bool, readable: bool = True) -> tu
     return None
 
 
+def live_trader_keys(venue: str | None = None) -> list[str]:
+    """The Live Trader hosts whose key is on: on Paper each counts as a strategy On (ADR 055)."""
+    if venue is None:
+        venue = venue_state()[0]
+    if venue != "paper":
+        return []
+    try:
+        from bot.live_trader import settings
+
+        return settings.hosts_on()
+    except Exception:  # maintainer: allow-swallow unreadable keys count none On: the safe side, said in the log
+        logger.warning("bot: the Live Trader keys are unreadable -- none counts as On", exc_info=True)
+        return []
+
+
 def padlock() -> tuple[bool, str | None]:
     """Whether the desk's padlock is unlocked (spend armed on this venue), and why not."""
     try:
@@ -151,9 +166,9 @@ def refusal(row: dict[str, Any], *, reenable: bool = False, padlock_rule: bool =
     if master(row) < BOT_LEVEL_STRATEGY:
         return BotError("the master level is below Strategy -- raise it to Strategy, then Activate", 409,
                         BOT_REASON_LEVEL_NOT_STRATEGY)
-    if not at_strategy(row):
-        return BotError("no setup is at Strategy -- set at least one setup to Strategy, then Activate", 409,
-                        BOT_REASON_NO_SETUP_AT_STRATEGY)
+    if not at_strategy(row) and not live_trader_keys(venue):
+        return BotError("no setup is at Strategy and no Live Trader key is on -- set at least one setup to "
+                        "Strategy or turn a host's key on, then Activate", 409, BOT_REASON_NO_SETUP_AT_STRATEGY)
     ok, why = padlock() if padlock_rule else (True, None)
     if not ok:
         return BotError(f"the desk padlock is locked ({why}) -- unlock it, then Activate", 409,

@@ -29,6 +29,7 @@ Origin = Literal[
     "nova_exit",
     "day_cover",
     "margin_call",
+    "live_trader",
 ]
 
 

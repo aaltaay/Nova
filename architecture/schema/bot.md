@@ -635,6 +635,9 @@ buy stop or a breaker did) leave the position, said once.
   order. `face` is the TraderTV LIVE page's photo path, or null. `events` are the host's newest
   `live_trader` audit lines (8). `today.pl_usd` is realized plus unrealized at the last, from the bot's own
   fills; `series` its points at each fill.
+- `GET /api/bot/live-traders/asks` answers `{schema_version: 1, generated_at, asks: [{...an ask, host,
+  seconds_left}], held: [{host, symbol, side, qty, state}]}` from memory only: every desk window polls it for
+  the asks' toasts, and the Bot switch reads `held` before it asks to sell.
 - `PATCH /api/bot/live-traders {sell_all_at}` and `PATCH /api/bot/live-traders/{name} {key?, entry?, exit?,
   step_usd?, adds?, allowance_usd?, sides?, short_stop_pct?, take_open?}` answer the view; a value out of
   bounds is 400 `LIVE_TRADER_INVALID` with `field`, never clamped. `key: false` while the host's bot holds

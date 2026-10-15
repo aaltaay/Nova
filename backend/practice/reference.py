@@ -177,7 +177,22 @@ class LiveReference:
         if last is None:
             last = self.recent_print(sym)
         bid, ask = top_of_book(depth_state.current_book(sym))
+        if bid is None or ask is None:
+            l1_bid, l1_ask = self.l1_quote(sym)
+            bid = bid if bid is not None else l1_bid
+            ask = ask if ask is not None else l1_ask
         return Reference(last, bid, ask, live=True)
+
+    def l1_quote(self, symbol: str) -> tuple[float | None, float | None]:
+        """IBKR's Level 1 bid / ask, for a side no book holds (no Level 2 line on the stock), while the line is
+        fresh (ADR 055 decision 7, operator's choice 2026-10-14): a marketable buy then pays the ask, as on Live,
+        not the last print."""
+        from ibkr import ticks
+
+        if not ticks.is_fresh(symbol, self.fresh_sec):
+            return None, None
+        bid, ask = ticks.bid_ask(symbol)
+        return _price(bid), _price(ask)
 
     def admission(self, symbol: str) -> tuple[bool, str, str | None]:
         sym = (symbol or "").strip().upper()

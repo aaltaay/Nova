@@ -9,8 +9,9 @@ Two exceptions. The kill switch (spec D, #656): its sweep cancels every venue's 
 whatever the desk shows, so a ``kill`` cancel names its ``target_venue`` and is sent there
 (``resolve``). Nova's own closes (ADR 048): the day cover and the margin call close a position on
 the venue that holds it, so their ``cancel_working`` cancels and their protective ``flatten``
-closes name it too. On Live only the day cover may (step 6) -- IBKR liquidates Live itself, so a
-margin call never goes there -- and its close only as a market BUY carrying ``intent: "flatten"``,
+closes name it too, and so do the Live Trader bot's closes and cancels on Paper (ADR 055). On Live only the day
+cover may (step 6) -- IBKR liquidates Live itself, so a margin call never goes there, and the Live Trader bot never
+trades Live -- and its close only as a market BUY carrying ``intent: "flatten"``,
 which the door checks against IBKR's own position (``execution.flatten_intent``), and only while IBKR's
 session is the Live Gateway on a live account: the legacy paper Gateway connects too, and its account is not
 the one Live's short is in (PR #792 review). Nothing else may name one -- any other place, buy or source is
@@ -25,8 +26,8 @@ from execution import inflight
 from execution.models import ExecutionCommand
 
 TARGET_REFUSED = "TARGET_VENUE_REFUSED"
-# ADR 048: the closes Nova makes on a venue whatever the desk shows.
-NOVA_CLOSE_ORIGINS = ("day_cover", "margin_call")
+# ADR 048: the closes Nova makes on a venue whatever the desk shows; ADR 055: the Live Trader bot's, on Paper.
+NOVA_CLOSE_ORIGINS = ("day_cover", "margin_call", "live_trader")
 
 
 def current() -> str:
@@ -85,6 +86,8 @@ def live_session_refusal() -> str | None:
 def _live_close_refusal(cmd: ExecutionCommand) -> str | None:
     """Why a Nova close may not go to Live, or None: only the day cover, to the Live account, its close a market
     BUY to flat."""
+    if cmd.origin == "live_trader":
+        return "the Live Trader bot trades Paper only: its orders never go to Live; nothing was sent"
     if cmd.origin != "day_cover":
         return "a margin call never goes to Live -- IBKR liquidates Live itself; nothing was sent"
     if ibkr_connected() and (why := live_session_refusal()):

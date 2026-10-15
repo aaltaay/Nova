@@ -72,7 +72,7 @@ def refusal(row: dict[str, Any], *, reenable: bool = False) -> BotError | None:
         return None
     message = refused.message
     if refused.reason == BOT_REASON_NO_SETUP_AT_STRATEGY:
-        message = "no strategy is On -- turn one strategy On, then turn the bot on"
+        message = "no strategy is On and no Live Trader key is on -- turn one On, then turn the bot on"
     elif refused.reason == BOT_REASON_TRIP_LATCHED:
         message = activation.trip_text(row, _ON_WORDS)
     elif refused.reason == BOT_REASON_PADLOCK_LOCKED:
@@ -98,6 +98,7 @@ def turn(on: bool, *, reenable: bool = False) -> str | None:
         save_session(row)
         token = issue_arm_token(reenable=reenable)
         _audit(True, before, BOT_LEVEL_STRATEGY, reenable=reenable, unlocked=unlocked)
+        _live_trader(on=True)
         return token
     if not is_desk_active(row) and before == BOT_LEVEL_EYES:
         return None
@@ -105,7 +106,21 @@ def turn(on: bool, *, reenable: bool = False) -> str | None:
     row["level"] = BOT_LEVEL_EYES
     save_session(row)
     _audit(False, before, BOT_LEVEL_EYES)
+    _live_trader(on=False)
     return None
+
+
+def _live_trader(*, on: bool) -> None:
+    """The operator's OFF sells what the Live Trader bot holds (ADR 055; the desk asked first); ON keeps it."""
+    try:
+        from bot.live_trader import watcher
+
+        if on:
+            watcher.cancel_sell_all()
+        elif watcher.holds_positions():
+            watcher.request_sell_all("bot_off")
+    except Exception:
+        logger.exception("bot: the Live Trader bot was not told the Bot switch turned %s", "on" if on else "off")
 
 
 def _unlock() -> bool:
