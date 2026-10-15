@@ -5,6 +5,9 @@
 import { createContext, useContext } from 'react';
 import { tipProps } from '../ux/hoverTip';
 import {
+  FT_PL_PER_SHARE_UNIT,
+  FT_PL_STAKE_OPEN_TIP,
+  FT_PL_STAKE_TIP,
   FT_RESULT_WORDS,
   FT_TICKER_CHECK,
   FT_TICKER_CHECK_MARK,
@@ -13,7 +16,7 @@ import {
 } from './constants';
 import { TickerLink } from '../components/TickerLink';
 import { FeedImage } from './FeedImage';
-import { plPct, plPerShare, plTone } from './format';
+import { plAtStake, plPct, plPerShare, plTone } from './format';
 import { tickerUnsettled } from './ticker';
 import type { FollowedRecord, FollowedTicker, FollowedTrade, TradeResult } from './types';
 
@@ -91,9 +94,14 @@ export function PlCell({ trade, inline = false, big = false }: { trade: Followed
   }
   const tone = plTone(trade.pl);
   return (
-    <span className={`ft-pl ft-pl--${tone}${inline ? ' ft-pl--inline' : ''}${big ? ' ft-pl--big' : ''}`}>
-      <span className="ft-mono ft-pl__share">{plPerShare(trade.pl, trade.entry.avg_price)}</span>
-      {trade.pl && <span className="ft-mono ft-pl__pct">{plPct(trade.pl)}</span>}
+    <span className={`ft-pl ft-pl--${tone}${inline ? ' ft-pl--inline' : ''}${big ? ' ft-pl--big' : ''}`}
+      {...tipProps(trade.pl ? (trade.status === 'open' ? FT_PL_STAKE_OPEN_TIP : FT_PL_STAKE_TIP) : null)}>
+      <span className="ft-mono ft-pl__usd">{plAtStake(trade.pl)}</span>
+      {trade.pl && (
+        <span className="ft-mono ft-pl__sub">
+          {plPerShare(trade.pl, trade.entry.avg_price)}{FT_PL_PER_SHARE_UNIT} · {plPct(trade.pl)}
+        </span>
+      )}
     </span>
   );
 }
