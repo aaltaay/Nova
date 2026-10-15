@@ -2,8 +2,8 @@
  * The followed traders' toasts: "CHERIF opened LONG JZ @ 1.55" on any Nova page, mounted once with the app bar (the
  * main desk window, like the hot list's toasts, so two windows never announce one trade twice). Only while the
  * backend has a feed configured and Alerts are on; it reads the feed without prices (`quotes=0`), so it holds no
- * IBKR line. The first answer raises nothing. A toast leaves after FOLLOWED_TOAST_TTL_MS unless hovered; a click on it
- * opens the TraderTV LIVE page, and Proof opens that page on the trade. Nothing here places or stages an order.
+ * IBKR line. The first answer raises nothing. A toast leaves after FOLLOWED_TOAST_TTL_MS unless hovered; a click
+ * anywhere on it opens the TraderTV LIVE page on today, and Proof opens that page on the trade. Nothing here places or stages an order.
  */
 import { useEffect, useRef, useState } from 'react';
 import { tipProps } from '../ux/hoverTip';
@@ -19,7 +19,7 @@ import {
   FT_TOAST_REGION,
 } from './constants';
 import { useFollowedTradersEnabled } from './enabledStore';
-import { requestFollowedProof, useFollowedAlerts } from './followedStores';
+import { requestFollowedProof, requestFollowedToday, useFollowedAlerts } from './followedStores';
 import { etTime, price } from './format';
 import { Face } from './parts';
 import { toastStep, type TradeToast } from './toastModel';
@@ -42,7 +42,9 @@ function Toast({ toast, onDismiss, onOpen, onProof }: ToastProps) {
   return (
     <div className={`ft-toast ft-toast--${toast.verb === 'closed' ? 'close' : 'open'}`} role="status"
       onMouseEnter={() => setHeld(true)} onMouseLeave={() => setHeld(false)} onFocus={() => setHeld(true)}
-      onBlur={() => setHeld(false)} data-testid={`ft-toast-${toast.key}`}>
+      onBlur={() => setHeld(false)} data-testid={`ft-toast-${toast.key}`}
+      // The padding and gaps open the page too; each button answers its own click (the open button for the keyboard).
+      onClick={(e) => { if (!(e.target as HTMLElement).closest('button')) onOpen(); }}>
       <button type="button" className="ft-toast__open" onClick={onOpen}>
         <Face path={toast.face} name={toast.trader} />
         <span className="ft-toast__body">
@@ -95,7 +97,11 @@ export function FollowedToasts({ onOpenPage }: { onOpenPage?: () => void }) {
     <div className="ft-toasts" role="region" aria-label={FT_TOAST_REGION} data-testid="ft-toasts">
       {toasts.map((t) => (
         <Toast key={t.key} toast={t} onDismiss={() => dismiss(t.key)}
-          onOpen={() => { openPage(); dismiss(t.key); }}
+          onOpen={() => {
+            openPage();
+            requestFollowedToday();
+            dismiss(t.key);
+          }}
           onProof={() => {
             openPage();
             requestFollowedProof({ date: t.date, tradeId: t.tradeId });
