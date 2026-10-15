@@ -140,9 +140,14 @@ export const FT_RECORDS = 'Records';
 export const FT_RECORD_RANGES = { day: 'Day', week: 'Week', all: 'All' } as const;
 export const FT_EVERYONE = 'Everyone';
 export const FT_RECORD_PENDING = 'exits still being read from IBKR';
-/** What they made over the span, P/L per share in % (PlFigure.tsx): their dollars are unknown, the feed shows no size. */
-export const FT_PL_PER_SHARE = 'per share';
-export const FT_PL_ADDED_UP = 'added up';
+/** Their size is unknown, so every trade is shown as if copied with the same stake (operator pick 2026-10-15: "Show the
+ *  P/L as dollars at $1,000 a trade, with the cents per share and % under each trade"). Display only: the wire keeps %. */
+export const FT_STAKE_USD = 1000;
+export const FT_PL_AT_STAKE = 'copied at $1,000 a trade';
+export const FT_PL_COLUMN = 'P/L at $1,000';
+export const FT_PL_PER_SHARE_UNIT = '/sh';
+export const FT_PL_STAKE_TIP = 'What $1,000 in this trade would have made: their own average in, the market price when it left '
+  + 'their bar out. Under it, the P/L per share and in %.';
 export const FT_PL_WAITING = 'Reading the record…';
 export const FT_PL_OLD_BACKEND = 'This backend sends no P/L for a Week or All span: restart it on the desk’s release.';
 export const FT_PL_NO_SIZE = 'Their dollars are unknown: the feed never shows their size.';

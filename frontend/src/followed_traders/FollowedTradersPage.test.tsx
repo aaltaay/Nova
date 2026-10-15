@@ -403,21 +403,22 @@ describe('FollowedTradersPage', () => {
     expect(q('ft-records')!.textContent).toContain('2 exits still being read from IBKR');
   });
 
-  it('shows what each trader and everyone made, per share in %, leaving unscored trades out', async () => {
-    // Operator ask 2026-10-14: "we can see the PL per share in terms of percentage"; their pick, "Added up".
+  it('shows what each trader and everyone made at $1,000 a trade, leaving unscored trades out', async () => {
+    // Operator ask 2026-10-14: "we can see the PL per share in terms of percentage"; their pick, "Added up"; then
+    // 2026-10-15: "Show the P/L as dollars at $1,000 a trade, with the cents per share and % under each trade".
     await show(day());
     const alpha = q('ft-pl-ALPHA')!;
-    expect(alpha.textContent).toBe('+10.00%per share, added up · 1 trade');
+    expect(alpha.textContent).toBe('+$100.00copied at $1,000 a trade · 1 trade');
     expect(alpha.className).toContain('ft-plfig--up');
     expect(alpha.querySelector('svg.ft-spark')).not.toBeNull();
-    expect(alpha.getAttribute('data-tip')).toContain('P/L per share in %, added up over 1 closed trade');
+    expect(alpha.getAttribute('data-tip')).toContain('What copying 1 closed trade with $1,000 each would have made');
     expect(alpha.getAttribute('data-tip')).toContain('the feed never shows their size');
-    // BRAVO's only trade is unscored: a dash that says why, never 0%.
+    // BRAVO's only trade is unscored: a dash that says why, never $0.
     const bravo = q('ft-pl-BRAVO')!;
-    expect(bravo.textContent).toBe('—P/L per share');
+    expect(bravo.textContent).toBe('—P/L copied at $1,000 a trade');
     expect(bravo.getAttribute('data-tip')).toContain('No closed trade with one known exit price');
     expect(bravo.getAttribute('data-tip')).toContain('Left out: 1 unscored trade');
-    expect(q('ft-pl-everyone')!.textContent).toBe('+10.00%');
+    expect(q('ft-pl-everyone')!.textContent).toBe('+$100.00');
   });
 
   it('adds up a Week from the record’s scored trades, and says when a backend sends none', async () => {
@@ -433,13 +434,13 @@ describe('FollowedTradersPage', () => {
     let answer: object = week;
     await show(day(), (url) => url.pathname === '/api/followed-traders/record' ? new Response(JSON.stringify(answer)) : undefined);
     await click(q('ft-range-week'));
-    expect(q('ft-pl-ALPHA')!.textContent).toBe('+1.75%per share, added up · 2 trades');
-    expect(q('ft-pl-BRAVO')!.textContent).toBe('−0.40%per share, added up · 1 trade');
+    expect(q('ft-pl-ALPHA')!.textContent).toBe('+$17.50copied at $1,000 a trade · 2 trades');
+    expect(q('ft-pl-BRAVO')!.textContent).toBe('−$4.00copied at $1,000 a trade · 1 trade');
     expect(q('ft-pl-BRAVO')!.className).toContain('ft-plfig--down');
-    expect(q('ft-pl-everyone')!.textContent).toBe('+1.35%');
+    expect(q('ft-pl-everyone')!.textContent).toBe('+$13.50');
     answer = { ...week, traders: week.traders.map(({ name, record }) => ({ name, record })) };
     await click(q('ft-range-all'));
-    expect(q('ft-pl-ALPHA')!.textContent).toBe('—P/L per share');
+    expect(q('ft-pl-ALPHA')!.textContent).toBe('—P/L copied at $1,000 a trade');
     expect(q('ft-pl-everyone')!.getAttribute('data-tip')).toContain('restart it on the desk’s release');
   });
 

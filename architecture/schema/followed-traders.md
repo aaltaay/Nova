@@ -393,11 +393,11 @@ images again with each answer.
   the read's time otherwise, or the newest evidence stand-in -- the picture of their last open or close, which adds do
   not have -- labelled "Their slot at their last open or close" with its time, never passed off as now). A trader with a trade that day
   has, under the card, **Holding now** on the left -- an OPEN tile per open position: ticker, side, entry -> now,
-  unrealised P/L per share and %, held, time in, proof -- and **Closed today** on the right: the count, won and lost,
+  unrealised P/L at $1,000 with the per share and % under it, held, time in, proof -- and **Closed today** on the right: the count, won and lost,
   and one row per closed trade, newest exit first, striped by its result (WIN green, LOSS red, scratch and unscored
   grey): result, ticker, side, in -> out, entry (the average, with the first price when the trader added) -> exit
   (IBKR's last trade at the exit; a low-high range marked est. for a window; reading the tape or waiting for IBKR;
-  no price, with why), P/L per share and %, held, proof. A trader who left the bar (`seen.left_ts`) reads "Left the
+  no price, with why), P/L at $1,000 (below) with the P/L per share and % under it, held, proof. A trader who left the bar (`seen.left_ts`) reads "Left the
   bar HH:MM:SS" in place of on air or off air -- "Left the bar HH:MM:SS–HH:MM:SS" when `last_ts` is before `left_ts`,
   the bar not read between -- and each trade closed then has "off air" beside its out time, saying
   why it closed; its Proof's exit reads "Closed when they left the bar". A past day reads "Open at the day's end" and
@@ -457,15 +457,21 @@ images again with each answer.
   which trades it held back, so a trade already announced, or already there in its first answer, is never news again
   when its ticker is checked once more (the feed corrected it, or a restart forgot an answer).
 
-### What they made, per share in % (operator ask 2026-10-14)
+### What they made, at $1,000 a trade (operator asks 2026-10-14 and 2026-10-15)
 
 "For each one, how much they make money. We're not going to be able to know how much they made money, but we can see
 the PL per share in terms of percentage." The feed has no size, so a trader's dollars cannot be known. Each trader's
-card, and Everyone in the head, shows over the span picked (Day, Week, All) **their scored trades' P/L per share in %,
-added up** (the operator's pick from a mockup on the real page, over the average a trade and both): what the same
-money in every trade would have made. Under it a small line draws that total trade by trade, oldest exit first, from 0
-before the first and ending on the number, over a dashed zero; on the card "per share, added up · N trades", in the head the
-number and line alone. Up is green and down red, as the P/L is elsewhere on the page.
+card, and Everyone in the head, shows over the span picked (Day, Week, All) **what copying each of their scored trades
+with $1,000 (`FT_STAKE_USD`) would have made** -- their scored trades' P/L per share in % added up (the operator's
+pick on 2026-10-14, over the average a trade and both), as dollars of the stake: the sum times 10. On 2026-10-15 the
+added-up % alone read as nonsense ("very confusing": a few cents on a stock under $1 counts as several percent), so
+the operator picked "Show the P/L as dollars at $1,000 a trade, with the cents per share and % under each
+trade". Under the figure a small line draws that total trade by trade, oldest exit first, from 0 before the first and
+ending on the number, over a dashed zero; on the card "copied at $1,000 a trade · N trades", in the head the number
+and line alone. Each trade's P/L, on a closed row and an OPEN tile, reads the same way: the dollars at $1,000 on top,
+the P/L per share ("/sh") and its % under them; a window exit's dollars are a range. The column reads "P/L at
+$1,000". Display only: the wire keeps `per_share` and `pct`. Up is green and down red, as the P/L is elsewhere on the
+page.
 
 - **Which trades:** those scored `win`, `loss` or `scratch` -- one known exit price -- the same trades as the W / L
   beside it. An unscored trade (an exit seen only in a window, not read yet, a close the feed never saw, a ticker not
@@ -474,10 +480,11 @@ number and line alone. Up is green and down red, as the P/L is elsewhere on the 
 - **Where from:** Day from the day's own `closed[]` (`/day`); Week and All from `/record`'s `scored`. Everyone is
   every trader's trades on one list, so its total is the traders' totals added up. Each `pct` has two decimals, so the
   total does too.
-- **None:** a span with no scored trade -- nothing closed yet, or only unscored trades -- shows a dash, never 0%, and
+- **None:** a span with no scored trade -- nothing closed yet, or only unscored trades -- shows a dash, never $0, and
   its hover says why. While a Week or All record is read, while the feed is down (`feed.state` off `ok`: its own
   words, never read as a span with no trades), or from a backend that sends no `scored`, the dash's hover says that.
-- **Hover:** what the number is, its average a trade, that their dollars are unknown because the feed shows no size,
+- **Hover:** what the number is (their own average in, the market price when it left their bar out), its average a
+  trade in %, that their dollars are unknown because the feed shows no size,
   and what is left out (the unscored count, open positions).
 
 The tab is placed after Cryptos on the rail, and the focus report names it `followed` (`book-watch-and-luld.md`).
