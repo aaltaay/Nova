@@ -541,7 +541,8 @@ describe('GlobalAppBar', () => {
     expect(pill).toBeTruthy();
     expect(pill.textContent).toContain('Individual Margin (U1234567)');
     expect(pill.getAttribute('data-kind')).toBe('live');
-    expect(cluster.lastElementChild).toBe(pill);
+    // Last in the cluster, inside the anchor its menu opens under.
+    expect(cluster.lastElementChild).toBe(pill.parentElement);
     expect(Array.from(cluster.querySelectorAll('button')).map((b) => b.dataset.testid)).toEqual([
       'global-bar-account-trigger',
       'global-bar-working-trigger',
