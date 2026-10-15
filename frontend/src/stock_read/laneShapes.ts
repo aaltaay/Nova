@@ -4,11 +4,12 @@
  * says the rule it broke. ``bar`` is the pane's candle (a minute; the 5-minute lanes' five,
  * ``fiveMinuteShapes.ts``) and ``hoverId`` the id its boxes report under the pointer. The flat top draws its own
  * way (``flatTopShapes.ts``: its touches, the break, the hold), and so does the watch-only pullback dip
- * (``dipShapes.ts``: its pullback and the candle that bottomed it). Pure.
+ * (``dipShapes.ts``: its pullback and the candle that bottomed it), and the ABCD (``abcdShapes.ts``: its swings). Pure.
  */
 import type { Time } from 'lightweight-charts';
 import { isShortSetup } from '../constantGroups/short_setups';
 import { SETUP_COLORS } from './constants';
+import { abcdShapes, isAbcdLane } from './abcdShapes';
 import { dipShapes, isDipLane } from './dipShapes';
 import { flatTop5mOnMinute, flatTopShapes, isFlatTop, type LaneDraw } from './flatTopShapes';
 import { shortReason } from './pastSetups';
@@ -83,6 +84,8 @@ export function laneShapes(lane: SetupLane, lead: boolean, o: LaneDrawOptions, b
   if (isFlatTop(lane.setup_type)) return flatTopShapes(lane, lead, o, bar, hoverId, tag);
   // The pullback dip (#847, watch only): its pullback in pink and the candle that bottomed it.
   if (isDipLane(lane.setup_type)) return dipShapes(lane, bright, o, bar, hoverId);
+  // The ABCD (watch only): its swings through A, B and C in cyan, the range and the break of B.
+  if (isAbcdLane(lane.setup_type)) return abcdShapes(lane, lead, o, hoverId);
   // A short (ADR 049): orange, ▼ SHORT, its trigger under the pattern and its buy stop over it.
   if (lane.side === 'short' || isShortSetup(lane.setup_type)) return shortLaneShapes(lane, lead, o, bar, hoverId, tag);
   const lv = levelsOf(lane);

@@ -6,7 +6,7 @@ import type { TargetFields } from './targets';
 /** A setup with a scanner (ADR 031): every row, proposal and card names one. */
 export type SetupType =
   'first_pullback' | 'bull_flag' | 'flat_top_breakout' | 'flat_top_5m' | 'red_to_green' | 'gap_and_go'
-  | 'pullback_dip' | string;
+  | 'pullback_dip' | 'abcd' | string;
 
 /** ADR 049: which way a setup trades. A short setup sells at its entry and covers under it. */
 export type SetupSide = 'long' | 'short';

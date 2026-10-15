@@ -52,7 +52,7 @@ LIVE_STATES = (SETUP_STATE_NEAR, SETUP_STATE_ARMED, FILTERED)
 EPS = 1e-9
 _NAMES = {"first_pullback": "first pullback", "bull_flag": "bull flag", "flat_top_breakout": "flat-top breakout",
           "flat_top_5m": "5-minute flat top", "red_to_green": "red to green", "gap_and_go": "Gap and Go",
-          "pullback_dip": "pullback dip",
+          "pullback_dip": "pullback dip", "abcd": "ABCD",
           # ADR 049: the short setups.
           "backside_lower_high": "backside lower high", "bear_flag": "bear flag", "failed_breakout": "failed breakout",
           "lost_vwap": "lost VWAP", "ssr_bounce": "SSR bounce short"}
@@ -65,6 +65,7 @@ _ENTRY_RULES = {
     "gap_and_go": "1 cent over the pre-market high, from the open",
     "pullback_dip": "1 cent over the close of the candle that bottoms the pullback (a bottoming wick, or the first "
                     "green close)",
+    "abcd": "1 cent over B, the push that failed under the high",
     "backside_lower_high": "1 cent under the last bounce candle's low",
     "bear_flag": "1 cent under the last flag candle's low",
     "failed_breakout": "1 cent under the low of the candle that closed back under the flat top",
@@ -79,6 +80,7 @@ _STOP_RULES = {
     "red_to_green": "the lowest low since the open",
     "gap_and_go": "20 cents or 4% under the entry, whichever is smaller",
     "pullback_dip": "1 cent under the pullback's low",
+    "abcd": "1 cent under C, the higher low",
     "backside_lower_high": "1 cent over the bounce's high",
     "bear_flag": "1 cent over the flag's high",
     "failed_breakout": "1 cent over the poke's high",

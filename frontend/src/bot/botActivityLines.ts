@@ -283,6 +283,8 @@ function armedShape(r: SetupStoreRow): string {
     case 'pullback_dip':
       return [bars ? `bottomed after ${bars} pullback candle${s(bars)}` : '', leg ? `leg ${leg}` : '', 'watch only']
         .filter(Boolean).join(' · ');
+    case 'abcd':
+      return [bars ? `${bars} candle${s(bars)} from A to the break` : '', 'watch only'].filter(Boolean).join(' · ');
     case 'backside_lower_high':
       return [bars ? `bounce of ${bars} under the high of day` : '', drop ? `fade ${drop}` : ''].filter(Boolean).join(' · ');
     case 'bear_flag':

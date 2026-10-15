@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from constants_bot import (
+    BOT_SETUP_ABCD,
     BOT_SETUP_BACKSIDE,
     BOT_SETUP_BEAR_FLAG,
     BOT_SETUP_BULL_FLAG,
@@ -52,6 +53,7 @@ from setup_scanner.lane_params_short import (
     ssr_bounce_params,
 )
 from setup_scanner.flat_top import FlatTopParams
+from setup_scanner.abcd import AbcdParams
 from setup_scanner.gap_and_go import GapAndGoParams
 from setup_scanner.pullback import PullbackParams
 from setup_scanner.pullback_dip import DipParams
@@ -225,6 +227,18 @@ def gap_and_go_params(v: dict[str, Any]) -> GapAndGoParams:
     )
 
 
+def abcd_params(v: dict[str, Any]) -> AbcdParams:
+    """The ABCD: its swing and tolerances (``abcd_shape.py``), every setup's EMA, MACD, entry, near band and risk."""
+    return AbcdParams(
+        swing_pct=_pct(v["abcd_swing_pct"]), b_over_pct=_pct(v["abcd_b_over_pct"]),
+        c_under_pct=_pct(v["abcd_c_under_pct"]), tol_dollars=float(v["abcd_tol_dollars"]),
+        bounce=_pct(v["abcd_bounce_pct"]), max_minutes=int(v["abcd_max_minutes"]),
+        stop_offset=float(v["abcd_stop_offset"]), ema_period=int(v["ema_period"]), **_macd(v), **_risk(v),
+        targets=target_spec(v), session_start=str(v["session_start"]), entry_cutoff=str(v["entry_cutoff"]),
+        max_per_symbol_day=int(v["max_per_symbol_day"]),
+    )
+
+
 def pullback_dip_params(v: dict[str, Any]) -> DipParams:
     """The pullback dip (#847): the first pullback's run and pullback, its own entry candle and stop. No near band
     and no slippage: nothing triggers on a live price, and the entry's cent over the close stands for the slippage."""
@@ -251,6 +265,7 @@ PATTERNS = {
     BOT_SETUP_RED_TO_GREEN: red_to_green_params,
     BOT_SETUP_GAP_AND_GO: gap_and_go_params,
     BOT_SETUP_PULLBACK_DIP: pullback_dip_params,
+    BOT_SETUP_ABCD: abcd_params,
     BOT_SETUP_BACKSIDE: backside_params,
     BOT_SETUP_BEAR_FLAG: bear_flag_params,
     BOT_SETUP_FAILED_BREAKOUT: failed_breakout_params,

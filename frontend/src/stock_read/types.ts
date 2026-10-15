@@ -178,6 +178,18 @@ export interface SetupLeg {
   /** A flat top's touches, `[time, high]` oldest first, and the zone a high reached to touch it (2026-10-06). */
   touches?: [number, number][];
   zone?: number;
+  /** An ABCD's points, each `[candle time, price]` (null until it is in), and its two tolerances. */
+  abcd?: AbcdPoints;
+}
+
+export interface AbcdPoints {
+  high: [number, number] | null;
+  a: [number, number] | null;
+  b: [number, number] | null;
+  c: [number, number] | null;
+  /** The highest a B may reach (a double top), and the lowest any low after A may reach. */
+  b_max: number;
+  a_floor: number | null;
 }
 
 export interface LaneSeries {

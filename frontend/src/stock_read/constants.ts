@@ -230,6 +230,35 @@ export const DIP_FADED = {
 /** A past dip that triggered: its pullback faint and dashed, pink. */
 export const DIP_PAST = { stroke: 'rgba(244, 114, 182, 0.5)', fill: 'rgba(244, 114, 182, 0.04)' } as const;
 
+/** The ABCD (watch only): cyan, a colour no trade, level or other setup uses -- its swings through A, B and C, the
+ * range they make and the two tolerances (`abcdShapes.ts`). Dimmed when it is not the plan's; a failed one grey. */
+export const ABCD_COLORS = {
+  line: '#64d2ff',
+  fill: 'rgba(100, 210, 255, 0.06)',
+  band: 'rgba(100, 210, 255, 0.14)',
+  ring: '#0c0c0e',
+  text: '#9be3ff',
+  go: '#30d158',
+} as const;
+export const ABCD_DIM = {
+  line: 'rgba(100, 210, 255, 0.45)',
+  fill: 'rgba(100, 210, 255, 0.03)',
+  band: 'rgba(100, 210, 255, 0.06)',
+  ring: '#0c0c0e',
+  text: 'rgba(155, 227, 255, 0.7)',
+  go: 'rgba(48, 209, 88, 0.6)',
+} as const;
+export const ABCD_FADED = {
+  line: '#8e8e93',
+  fill: 'rgba(142, 142, 147, 0.05)',
+  band: 'rgba(142, 142, 147, 0.08)',
+  ring: '#0c0c0e',
+  text: '#aeaeb2',
+  go: '#8e8e93',
+} as const;
+/** A past ABCD: its range faint, cyan. */
+export const ABCD_PAST = { stroke: 'rgba(100, 210, 255, 0.45)', fill: 'rgba(100, 210, 255, 0.03)' } as const;
+
 /** A short setup that ended (ADR 049): its box orange and faint, its label ▼ SHORT in the outcome's ink. */
 export const PAST_SHORT = {
   stroke: 'rgba(249, 115, 22, 0.55)', fill: 'rgba(249, 115, 22, 0.05)',
@@ -252,6 +281,7 @@ export const LANE_LABELS: Record<string, string> = {
   red_to_green: 'R→G',
   gap_and_go: 'G&G',
   pullback_dip: 'DIP',
+  abcd: 'ABCD',
   backside_lower_high: '▼ BACKSIDE',
   bear_flag: '▼ BEAR FLAG',
   failed_breakout: '▼ FAILED BO',

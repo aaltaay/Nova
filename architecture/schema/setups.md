@@ -335,6 +335,64 @@ entry with the high of the pullback as the first target. Owners `setup_scanner/p
   A past dip that bought keeps its pullback in faint pink. Its hover, the Key's "Pullback dip" rows, the legend chip
   ("Dip (watch)"), the Setups rows and the Bots page card (WATCH ONLY, On locked, no bot rules) all say watch only.
 
+## The ABCD: a watch-only setup (ADR 022 / 029 amendments, operator ask 2026-10-15)
+
+"Design an ABCD pattern on the charts ... figure out a tolerance just like ... the flat top breakout", then, after the
+design was approved, "build the strategy into the charts". The operator's material draws it on 1-minute candles: the
+stock squeezes to the high, pulls back (A), pushes up and fails to make a new high (B: "either double-topped, or it
+didn't even make it to the top"), dips to a higher low (C), and is bought on the break of B (D). Owners
+`setup_scanner/abcd_shape.py` (the shape, pure), `setup_scanner/abcd.py` (the states),
+`setup_templates/params_abcd.py` (the template); on the desk `frontend/src/stock_read/abcdShapes.ts`.
+
+- **The setup.** `abcd` (kinds `abcd` / `second_abcd`, two a symbol a day), on the same lanes, journal, scoring and
+  Sim eyes as every setup.
+- **The shape**, read after every completed 1-minute candle of the day (from 04:00):
+  - *swings*: a zigzag. A high is a swing high once price came down `abcd_swing_pct` (3%) from it, a low a swing low
+    once price came up that far from it; smaller wiggles are inside one swing.
+  - *the high*: the newest swing high that is the high of day and clears the swing high before it by more than the
+    B tolerance.
+  - *A*: the first swing low after the high.
+  - *B*: the newest swing high after A. It may double-top the high by `abcd_b_over_pct` (0.5%) or `abcd_tol_dollars`
+    (1c), whichever is more -- past that it is a new high and the ABCD starts again from it -- and it takes back at
+    least `abcd_bounce_pct` (50%) of the high-to-A drop.
+  - *C*: the lowest low since B, so far. Every low after A stays at most `abcd_c_under_pct` (0.5%) or 1c, whichever
+    is more, under A; a lower low breaks it ("stair-stepping down").
+  - *the window*: from A's candle to the break of B within `abcd_max_minutes` (20; the material's "15, sometimes 20
+    minutes").
+  The tolerances are CHOSEN, the way the flat top's touch is: the material names none.
+- **The states.** `leg` (a swing high at the high of day: waiting for A, then for B, or B too weak yet -- the reason
+  says which); `armed` once B and C are in: trigger B's high, entry `entry_offset` (1c) over it, stop
+  `abcd_stop_offset` (1c) under C (the menu's round stop may replace it), re-armed while C goes lower; `pullback`
+  when MACD (`macd_positive`: the newest candle's histogram above zero), the window (07:00-15:30) or the risk
+  (`stop_cap` 0.30, `min_stop` 0.03, `risk_slippage` 0.01) holds it back (`forming.blocked`); `near` within the
+  near band of B; `triggered` on a live price over B (section 1's trigger: the bar's open when it gapped over, no
+  trade when that gap takes the risk over the cap); `failed` when a low undercut A or the window ran out -- a live
+  price over B after the window fails it too. A failed or triggered ABCD's high is done: the next one needs a new
+  high.
+- **On the wire.** Its `leg` is every setup's (`t` A's candle once A is in -- the setup's key --, `high` the high,
+  `low` A, `pct` the drop to A, `bars` candles since the high) and adds `abcd`: `{high, a, b, c}` each `[candle time,
+  price]` or null until it is in, `b_max` (the highest a B may reach) and `a_floor` (the lowest a low after A may
+  reach; null before A). Its armed `setup` is every setup's (`trigger` B, `pullback_bars` candles since A, `leg_*`)
+  and its `detail` is the same points and tolerances plus `stop_offset`, `max_minutes` and `deadline` (A's candle
+  plus the window, epoch seconds). The template's `targets` default the first half to `hod` (1c under the high of
+  day: the material's first target, a retest of the high) and the second to the menu's default, the next level past
+  it; every target choice is scored beside its exit like every setup's.
+- **Watch only** (`constants_bot.BOT_WATCH_ONLY_SETUPS`), exactly as the pullback dip above: it never proposes, its
+  trigger is told to no one, NOT A TRADE reads "watch only" on it, its On is refused (409 `BOT_SETUP_WATCH_ONLY`),
+  it takes no auto-record or lent line, and its rows carry no 5-minute read.
+- **Its template** (`params_abcd.py`, built-in revision 1): the stock filter, the pattern above, the 9 EMA (the
+  scoring exit's) and MACD, `max_per_symbol_day` 2, `entry_offset`, the window, the near band, `stop_cap` 0.30,
+  `min_stop`, `risk_slippage`, `abcd_stop_offset`, the target menu (`target1_kind` `hod`), `bailout_bars`, the tape
+  gate, the flow and the grade. No bot group.
+- **On the desk.** The 1-minute pane draws it in cyan, the approved design (2026-10-15): a line through the high, A,
+  B and C (dashed while it forms, solid to the break once it bought), a ring on each point with its letter and price
+  ("A 4.88", under a low) and on the high where it stands ("ABCD · buy over B · high 5.30", "ABCD · BOUGHT"), the
+  range from A between A's low and B's high, the two tolerances as faint bands (over the high, under A), B's high as a dashed line to the right edge while armed,
+  and a green triangle "D" on the candle that broke it. Not the plan's: dimmed, no words, no bands; failed: grey,
+  "ABCD · FAILED: <why>" on the high. A past ABCD keeps its range in faint cyan. Its hover, the Key's "ABCD" rows, the legend chip
+  ("ABCD (watch)"), the Setups rows and the Bots page card (WATCH ONLY, On locked) all say watch only. The scene
+  adds `paths` (a line through points on candles) and a ring's `labelBelow`.
+
 ## The flat top counts its touches (ADR 031 amendment, operator ask 2026-10-06)
 
 "Make it something special like this ... when it starts forming. I doubt real life is going to be perfect as this, so

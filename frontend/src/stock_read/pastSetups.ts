@@ -7,6 +7,7 @@
  * Nothing here is estimated: every price is the scanner's or the chart's own bars'.
  */
 import { list, normalizeLeg, normalizeSetupLevels, num, obj, str } from './normalize';
+import { abcdStory, isAbcdLane } from './abcdShapes';
 import { dipStory, isDipLane } from './dipShapes';
 import { flatTopStory, flatTopTouches, isFlatTop } from './flatTopShapes';
 import { fmtPx, setupName } from './planMath';
@@ -371,6 +372,7 @@ function afterLines(a: EpisodeAfter): string[] {
 export function laneStory(lane: SetupLane): { title: string; lines: string[] } {
   if (isFlatTop(lane.setup_type)) return flatTopStory(lane);
   if (isDipLane(lane.setup_type)) return dipStory(lane);
+  if (isAbcdLane(lane.setup_type)) return abcdStory(lane);
   const lines = [lane.reason || lane.state];
   const short = isShortEpisode(lane);
   if (lane.leg) {

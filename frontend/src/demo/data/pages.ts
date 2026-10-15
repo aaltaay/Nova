@@ -107,6 +107,8 @@ export function botSession(nowS: number, venue: string) {
       { id: 'gap_and_go', scanner: true, level: 0, effective: 0 },
       { id: 'pullback_dip', scanner: true, level: 1, effective: 1, side: 'long', test: null, watch_only: true,
         locked: 'On is locked: watch only -- Nova draws and scores the pullback dip, and never trades it (#847)' },
+      { id: 'abcd', scanner: true, level: 1, effective: 1, side: 'long', test: null, watch_only: true,
+        locked: 'On is locked: watch only -- Nova draws and scores the ABCD, and never trades it' },
       { id: 'backside_lower_high', scanner: true, level: 0, effective: 0, side: 'short', test: { state: 'queued', text: 'five-year test queued: run `py -3 research/shorts/test_shorts.py --setup backside_lower_high` on the desk', rules_hash: null, matches: null },
         locked: null },
       { id: 'bear_flag', scanner: true, level: 0, effective: 0, side: 'short', test: { state: 'queued', text: 'five-year test queued: run `py -3 research/shorts/test_shorts.py --setup bear_flag` on the desk', rules_hash: null, matches: null },
@@ -120,7 +122,7 @@ export function botSession(nowS: number, venue: string) {
       { id: 'micro_pullback', scanner: false, level: null, effective: null },
     ],
     setup_levels: { first_pullback: 2, bull_flag: 1, flat_top_breakout: 1, flat_top_5m: 0, red_to_green: 0, gap_and_go: 0,
-      pullback_dip: 1 },
+      pullback_dip: 1, abcd: 1 },
     ready: true, ready_reason: null, live_fire_ready: true,
     gates: [
       gate('venue', 'activate', { venue, live_edge: false, text: null }),
