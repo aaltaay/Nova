@@ -11,7 +11,9 @@ day, 04:00 on, less IBKR's zero-volume bars for minutes without a trade), else o
 prints -- never the bar buckets the recorder stored, which older recordings
 built from every print (#535) -- and ``bars_source`` says which. Pillars at a moment come from the scanner leaderboard's row for the
 symbol at or before it (ADR 023, point in time) and the catalyst verdict at it
-(ADR 024); what neither holds stays ``None`` -- unknown, never failed.
+(ADR 024); what neither holds stays ``None`` -- unknown, never failed. Its RVOL is
+read as the live eyes grade it, pace RVOL at that moment (``live_rvol``, #966), and
+the catalyst from the recorded feed as known then (``catalyst_at``).
 """
 from __future__ import annotations
 
@@ -208,6 +210,48 @@ def usable_sessions() -> list[tuple[str, str]]:
     return sorted(out)
 
 
+def live_rvol(row: dict | None, ts: float) -> float | None:
+    """The leaderboard row's RVOL as the live eyes grade it at ``ts`` (#966).
+
+    The live pillar is HOD Momo's pace RVOL: today's volume over the average day's volume expected by
+    this clock time. A recorded row holds the desk's daily-average RVOL (today's volume over a whole
+    average day: 0.99 for VEEA at 07:06 on 2026-10-09, when the live eyes read about 6), so it is
+    divided by the same share of the day; a rebuilt row's time-of-day RVOL is a pace measure already.
+    """
+    from constants_hod_momo import HOD_MOMO_RVOL_USE_PACE
+    from constants_leaderboard import LEADERBOARD_RVOL_BASIS_DAILY
+    from market import volume_day_elapsed_fraction
+
+    rvol = (row or {}).get("rvol")
+    if rvol is None:
+        return None
+    basis = row.get("rvol_basis") or (LEADERBOARD_RVOL_BASIS_DAILY if row.get("source") == "recorded" else None)
+    if basis != LEADERBOARD_RVOL_BASIS_DAILY or not HOD_MOMO_RVOL_USE_PACE:
+        return float(rvol)
+    return round(float(rvol) / volume_day_elapsed_fraction(datetime.fromtimestamp(ts, ET)), 2)
+
+
+def catalyst_at(symbol: str, ts: float) -> dict | None:
+    """The catalyst verdict as known at ``ts`` (#966): the recorded feed's (``catalysts.recorded``), else what
+    this process holds in memory. The memory holds only what the desk read since it started, so a past day's
+    news read unknown there (VEEA 2026-10-09: the live eyes' news pillar passed, the replay's was unknown)."""
+    try:
+        from catalysts import recorded
+
+        found = recorded.verdict_at(symbol, ts)
+        if found is not None:
+            return found
+    except Exception:
+        logger.debug("eyes: recorded catalyst verdict unread for %s at %s", symbol, ts, exc_info=True)
+    try:
+        from catalysts import live as catalyst_live
+
+        return catalyst_live.verdict_for(symbol, ts)
+    except Exception:
+        logger.debug("eyes: catalyst verdict unread for %s at %s", symbol, ts, exc_info=True)
+        return None
+
+
 def pillars_at(symbol: str, date: str, ts: float, *, last_price: float | None, prev_close: float | None) -> dict:
     """The Five Pillars as the eyes could have read them at ``ts`` (point in time)."""
     row = None
@@ -216,7 +260,8 @@ def pillars_at(symbol: str, date: str, ts: float, *, last_price: float | None, p
 
         with lb_store.connect() as db:
             hit = db.execute(
-                "SELECT price, change_pct, rvol, volume, float_shares, float_contradicted, shares_outstanding, source"
+                "SELECT price, change_pct, rvol, rvol_basis, volume, float_shares, float_contradicted,"
+                " shares_outstanding, source"
                 " FROM rows WHERE session_date = ? AND symbol = ?"
                 " AND minute_ts <= ? ORDER BY minute_ts DESC, CASE source WHEN 'recorded' THEN 0 ELSE 1 END LIMIT 1",
                 (date, symbol.upper(), int(ts))).fetchone()
@@ -229,13 +274,7 @@ def pillars_at(symbol: str, date: str, ts: float, *, last_price: float | None, p
         change = float(row["change_pct"]) * 100.0
     elif price is not None and prev_close:
         change = (float(price) / float(prev_close) - 1.0) * 100.0
-    catalyst = None
-    try:
-        from catalysts import live as catalyst_live
-
-        catalyst = catalyst_live.verdict_for(symbol, ts)
-    except Exception:
-        logger.debug("eyes: catalyst verdict unread for %s at %s", symbol, ts, exc_info=True)
+    catalyst = catalyst_at(symbol, ts)
     from setup_scanner.grade import news_pillar
 
     compact = None
@@ -244,7 +283,7 @@ def pillars_at(symbol: str, date: str, ts: float, *, last_price: float | None, p
 
         compact = catalyst_live.compact(catalyst)
     contradicted = (row or {}).get("float_contradicted")
-    return {"price": price, "change_pct": change, "rvol": (row or {}).get("rvol"), "volume": (row or {}).get("volume"),
+    return {"price": price, "change_pct": change, "rvol": live_rvol(row, ts), "volume": (row or {}).get("volume"),
             "float": (row or {}).get("float_shares"),
             "float_contradicted": None if contradicted is None else bool(contradicted),
             "shares_outstanding": (row or {}).get("shares_outstanding"), "news": news_pillar(catalyst),

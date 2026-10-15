@@ -743,7 +743,16 @@ edge every card at the playhead ("Recorded eyes in Sim" below).
 Session Record's prints (per second, the high then the last of the prints that
 set a price), its recorded books (sampled every 0.5 s) and the day's archive
 minute bars (else the recording's `bars_1m`) through the same lanes; outside a
-recorded stretch nothing is near and nothing triggers. `GET /api/eyes/journal`
+recorded stretch nothing is near and nothing triggers. The pillars at a moment
+are the leaderboard's row at or before it, and its `rvol` is the measure the live
+eyes grade (#966): HOD Momo's pace RVOL -- today's volume over the average day's
+volume expected by that clock time (`market.volume_day_elapsed_fraction`) -- so a
+recorded row's daily-average RVOL is divided by that share of the day at the
+moment read, and a rebuilt row's `time_of_day_20` RVOL, a pace measure already, is
+read as it is. The news pillar's catalyst verdict is the one known at that moment
+from the recorded feed (`catalysts.recorded.verdict_at`), else what the process
+holds in memory -- which knows only what the desk read since it started.
+`GET /api/eyes/journal`
 -> `{writer: {enabled, dir, written, dropped, queued, last_error,
 last_write_ts}, days: [{date, bytes, path}]}`; `GET /api/eyes/sim` -> `{target,
 loading, error, template, lanes, recording, now}`; `GET /api/eyes/backtests`
