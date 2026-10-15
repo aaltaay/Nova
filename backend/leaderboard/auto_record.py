@@ -162,7 +162,7 @@ def _tape_up(symbol: str) -> bool:
     return tape_stream.is_subscribed(symbol)
 
 
-def free_lines(now: float | None = None) -> int:
+def free_lines(now: float | None = None, *, symbol: str | None = None) -> int:
     """Lines auto-record may take: never one given back to the operator whose subscribe has not
     landed, nor a slot a restart's resume is bringing back (#698)."""
     ts = time.time() if now is None else now
@@ -170,7 +170,11 @@ def free_lines(now: float | None = None) -> int:
     held = [(s, kind) for s, (until, kind) in _reserved.items() if until > ts]
     if any(kind == "tape" and not _tape_up(s) for s, kind in held):
         return 0  # every start takes a tick-by-tick line: the operator's Time & Sales is waiting for one
+    from ibkr import tape_admission
+
+    tape_free = tape_admission.available(symbol)
     return max(0, min(
+        *([] if tape_free is None else [tape_free]),
         IBKR_MAX_DEPTH_SYMBOLS - len(busy) - sum(1 for s, _ in held if s not in busy),
         CAPTURE_MAX_CONCURRENT - len(recording) - sum(1 for s, kind in held if kind == "record" and s not in recording)
         - sum(1 for s in _resuming() if s not in recording),
@@ -215,7 +219,7 @@ async def _start(symbol: str, reason: str) -> bool:
     from capture.mode import set_capture_mode
 
     global _last_error
-    error = await feed_hold.acquire(symbol)
+    error = await feed_hold.acquire(symbol, automatic=True)
     if error:
         _last_error, _failed[symbol] = f"{symbol}: {error}", time.time()
         return False
@@ -395,7 +399,7 @@ async def tick(now: float | None = None) -> None:
                 continue
             if ts - _failed.get(sym, 0.0) < _RETRY_AFTER_FAILURE_SEC:
                 continue
-            if free_lines() <= 0:
+            if free_lines(symbol=sym) <= 0:
                 # A leader rotates in only once it held its place; a setup does not wait.
                 if reason == WHY_LEADER and ts - _candidate_since.get(sym, ts) < LEADERBOARD_AUTO_RECORD_MIN_HOLD_SEC:
                     continue
@@ -403,7 +407,7 @@ async def tick(now: float | None = None) -> None:
                 if victim is None:
                     continue
                 await _stop(victim, f"gave its line to {sym} ({reason})")
-                if free_lines() <= 0:
+                if free_lines(symbol=sym) <= 0:
                     continue
             if await _start(sym, reason):
                 _last_error = None
@@ -428,10 +432,13 @@ async def run() -> None:
 
 
 def status(now: float | None = None) -> dict[str, Any]:
+    from ibkr import tape_admission
+
     ts = time.time() if now is None else float(now)
     state = window_state(ts)
     return {
         "active": bool(enabled(ts) and state["open"] != OPEN_NONE),
+        "tape_capacity": tape_admission.view(),
         "window": window_label(state),
         "windows": state,
         "symbols": sorted(_auto),

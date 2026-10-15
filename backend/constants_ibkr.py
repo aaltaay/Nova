@@ -130,6 +130,8 @@ IBKR_DEPTH_REFUSAL_KEEP_SEC = 10.0
 # match an error by conId when its line's request id is unknown (ibkr/tape_line.py):
 # with the request id known, any non-warning error on it ends that line (#525).
 IBKR_ERROR_TICK_BY_TICK_CODES = frozenset({10089, 10189, 10190, 354})
+# Explicit account tape budget; unset means unknown, never the depth limit (#674).
+IBKR_TAPE_MAX_LINES_ENV = "IBKR_TAPE_MAX_LINES"
 # IB notices that ride a request id without ending it: ib_async's warning set
 # plus the 2100-2199 farm / status range (wrapper.error). Never end a tape line.
 IBKR_WARNING_CODES = frozenset({105, 110, 165, 321, 329, 399, 404, 434, 492, 10167, 10349})

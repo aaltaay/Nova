@@ -74,7 +74,7 @@ def desk(monkeypatch, tmp_path):
     from capture import feed_hold, keepalive, mode
     from ibkr import client
 
-    async def acquire(symbol):
+    async def acquire(symbol, *, automatic=False):
         return None
 
     async def release(symbol, at_once=False):
@@ -495,7 +495,7 @@ def test_a_start_ibkr_refuses_pauses_new_starts_instead_of_trying_the_next_stock
 
     tried: list[str] = []
 
-    async def refused(symbol):
+    async def refused(symbol, *, automatic=False):
         tried.append(symbol)
         return "IBKR refused the Time & Sales line (10190)"
 
@@ -507,7 +507,7 @@ def test_a_start_ibkr_refuses_pauses_new_starts_instead_of_trying_the_next_stock
     run(auto_record.tick(et(7, 5, 30)))
     assert tried == ["AAA"]
 
-    async def granted(symbol):
+    async def granted(symbol, *, automatic=False):
         return None
 
     monkeypatch.setattr(feed_hold, "acquire", granted)

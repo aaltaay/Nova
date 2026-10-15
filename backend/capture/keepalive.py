@@ -418,6 +418,9 @@ async def run() -> None:
     async def note(symbol: str, **kwargs: Any) -> None:
         await asyncio.to_thread(recorder.note_tape, symbol, **kwargs)  # the recorder lock can wait on disk
 
+    async def acquire(symbol: str) -> str | None:
+        return await feed_hold.acquire(symbol, automatic=feed_hold.automatic_tape_only(symbol))
+
     tape = TapeOps(end=lambda symbol, why: tape_stream.end_line(symbol, why, notify=False),
                    renew=feed_hold.renew_tape, note=note)
     while True:
@@ -429,7 +432,7 @@ async def run() -> None:
                 payload=payload,
                 recorder_status=recorder.status(),
                 ready=client.is_ready,
-                acquire=feed_hold.acquire,
+                acquire=acquire,
                 release=feed_hold.release,
                 start=start,
                 tape=tape,

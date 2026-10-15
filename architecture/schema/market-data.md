@@ -203,6 +203,28 @@ the day before. Meanwhile the ladder read "Waiting for book data…" for good, b
 - **Auto-record stops asking while IBKR is full** (owner `leaderboard/auto_record.py`). A start that fails
   ends the tick and pauses new starts for `LEADERBOARD_AUTO_RECORD_FAILED_START_PAUSE_SEC`. Each try opens and
   lets go of a Time & Sales and a Level 2 line, and the next stock would be refused the same way.
+- **Shared tape admission (#674)** (owner `ibkr/tape_admission.py`, memory only). AllLast requests reserve
+  one slot per distinct symbol before qualification, through the request and its cancellation dispatch.
+  Pending qualifications and quiet active lines count independently of depth and recording slots;
+  joining an existing symbol costs no extra slot. `IBKR_TAPE_MAX_LINES` is an optional positive integer
+  account budget explicitly supplied in `.env`; absent, the limit is unknown, never the depth limit.
+  A live request's 10190 learns a conservative local admission ceiling from the requests already sent
+  when that request was made, excluding the refused request. It is not a measurement of account capacity
+  or proof that other clients hold no lines. The smaller configured/learned ceiling governs automatic
+  requests; operator requests retain the existing refusal healer and priority over automatic recordings.
+  Automatic renewals retain that priority class, and cannot bypass admission as manual requests;
+  a shared operator viewer retains operator priority on renewal.
+  Failed qualifications, task cancellations and synchronous request failures return their reservation.
+  A successful cancellation dispatch releases local admission; a failed send remains counted as an
+  uncertain release until the connection generation changes. Neither outcome proves upstream release
+  (the late-print behavior remains owned by #922). Session changes discard pending work and learned
+  ceilings; lines IBKR kept on 1102 are counted again, and an old qualification/error cannot mutate a
+  replacement line. The 16-second same-instrument guard is unchanged.
+  `auto_record.tape_capacity` reports `{limit: integer | null, source: "unknown" | "configured" |
+  "refusal" | "configured+refusal", used: integer, pending: string[], active: string[],
+  uncertain: string[], free: integer | null, error: string | null}` (invalid configuration refuses
+  automatic requests with an explicit `error`). Known-full automatic work waits without opening a tape
+  or depth line; same-symbol joins remain available when depth/recording budgets permit.
 - **On the wire.**
   - `/api/ibkr/status` adds `stray_lines`: `{recancelled: {tape: integer}, last: {kind: "tape", symbol:
     string | null, req_id: integer, at: number} | null}`.

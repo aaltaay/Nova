@@ -173,7 +173,8 @@ def test_subscribe_warms_10sec_fill_exactly_once(monkeypatch):
 
     tape.reset_for_tests()
     op_metrics.reset_for_tests()
-    monkeypatch.setattr(tape._client, "get_ib", lambda: _IB())
+    ib = _IB()
+    monkeypatch.setattr(tape._client, "get_ib", lambda: ib)
     monkeypatch.setattr(tape, "_load_ib_types", lambda: True)
     monkeypatch.setattr(tape, "_Stock", _Stock)
 
@@ -211,7 +212,8 @@ def test_subscribe_skips_10sec_warm_when_store_already_settled(monkeypatch):
 
     tape.reset_for_tests()
     op_metrics.reset_for_tests()
-    monkeypatch.setattr(tape._client, "get_ib", lambda: _IB())
+    ib = _IB()
+    monkeypatch.setattr(tape._client, "get_ib", lambda: ib)
     monkeypatch.setattr(tape, "_load_ib_types", lambda: True)
     monkeypatch.setattr(tape, "_Stock", _Stock)
 
@@ -254,7 +256,8 @@ def test_subscribe_request_failure_is_measured(monkeypatch):
 
     tape.reset_for_tests()
     op_metrics.reset_for_tests()
-    monkeypatch.setattr(tape._client, "get_ib", lambda: _IB())
+    ib = _IB()
+    monkeypatch.setattr(tape._client, "get_ib", lambda: ib)
     monkeypatch.setattr(tape, "_load_ib_types", lambda: True)
     monkeypatch.setattr(tape, "_Stock", _Stock)
 
