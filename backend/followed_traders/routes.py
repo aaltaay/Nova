@@ -16,7 +16,7 @@ from typing import Any
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse, Response
 
-from followed_traders import config, exits, feed, lines, pricing, reads, sightings, view
+from followed_traders import config, exits, feed, lines, pricing, reads, sightings, tickers, view
 from followed_traders.constants_followed import (
     FOLLOWED_ERR_BAD_DATE,
     FOLLOWED_ERR_BAD_RANGE,
@@ -64,8 +64,13 @@ async def get_day(date: str | None = None, quotes: int = 1):
     day = {**day, "today": today}
     prices = prices_state(day) if quotes else {"state": "not_asked", "why": "asked without prices"}
     seen = await asyncio.to_thread(_seen, base, day, now)
-    # A trader who left the bar closed every trade then (view.closed_on_leaving): no line is held for those.
-    open_trades = sorted((t for t in day["trades"] if t["status"] == "open" and not view.left_bar(seen, t["trader"])),
+    ready = _ibkr_ready()
+    ticker_for = _ticker_for(now, ready)
+    # A trader who left the bar closed every trade then (view.closed_on_leaving): no line is held for those. Nor for a
+    # trade whose ticker may be glued to its price until the check settles it; a corrected one holds its own ticker's.
+    open_trades = sorted((tickers.shown(t, ticker_for(t)) for t in day["trades"]
+                          if t["status"] == "open" and not view.left_bar(seen, t["trader"])
+                          and tickers.settled(ticker_for(t))),
                          key=lambda t: t["entry_ts"], reverse=True)
     line_syms, over_cap = lines.plan([t["symbol"] for t in open_trades])
     quotes: dict[str, dict[str, Any]] = {}
@@ -82,9 +87,8 @@ async def get_day(date: str | None = None, quotes: int = 1):
             return lines.now_state("no_line", why=f"more than {FOLLOWED_MAX_LINES} open positions")
         return quotes.get(sym) or lines.now_state("waiting", why="opening IBKR's line")
 
-    ready = _ibkr_ready()
     body = view.compose(day, now=now, prices=prices, now_for=now_for, exit_for=_exit_for(now, ready),
-                        resets_at=resets_at, seen=seen)
+                        resets_at=resets_at, seen=seen, ticker_for=ticker_for)
     exits.pump(now, ibkr_ready=ready)
     return body
 
@@ -152,7 +156,8 @@ async def get_record(range: str = "week", date: str | None = None):  # noqa: A00
         return view.records_down(exc.state, exc.message, range, now)
     seen_by_date = await asyncio.to_thread(_seen_by_date, base, got["trades"], desk_day(now)[0], now)
     ready = _ibkr_ready()
-    body = view.records(got, span=range, now=now, exit_for=_exit_for(now, ready), seen_by_date=seen_by_date)
+    body = view.records(got, span=range, now=now, exit_for=_exit_for(now, ready), seen_by_date=seen_by_date,
+                        ticker_for=_ticker_for(now, ready))
     exits.pump(now, ibkr_ready=ready)
     return body
 
@@ -244,6 +249,24 @@ def _exit_for(now: float, ready: bool):
         return got
 
     return exit_for
+
+
+def _ticker_for(now: float, ready: bool):
+    """A trade's ticker check (``tickers.check``) over IBKR's tape at its entry, read and kept as an exit's is
+    (``exits.view``), once per trade in an answer; pending says why while IBKR is not connected."""
+    checked: dict[tuple, dict[str, Any] | None] = {}
+
+    def ticker_for(trade: dict[str, Any]) -> dict[str, Any] | None:
+        key = (trade["trader"], trade["side"], trade["symbol"], trade["entry_ts"])
+        if key not in checked:
+            def tape_at(symbol: str) -> dict[str, Any]:
+                got = exits.view(symbol, trade["entry_ts"], trade["entry_since_ts"], now)
+                return {**got, "why": "IBKR is not connected"} if got["state"] == "pending" and not ready else got
+
+            checked[key] = tickers.check(trade, tape_at)
+        return checked[key]
+
+    return ticker_for
 
 
 def desk_day(now: float) -> tuple[str, float]:

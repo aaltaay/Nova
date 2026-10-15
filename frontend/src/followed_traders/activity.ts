@@ -5,7 +5,7 @@
  */
 import { FT_ALREADY_OPEN } from './constants';
 import { etTime, held, price } from './format';
-import type { FollowedTrade, FollowedTrader } from './types';
+import type { FollowedTicker, FollowedTrade, FollowedTrader } from './types';
 
 export type ActivityVerb = 'opened' | 'holding' | 'added to' | 'closed';
 
@@ -16,6 +16,8 @@ export interface ActivityItem {
   verb: ActivityVerb;
   side: FollowedTrade['side'];
   symbol: string;
+  /** The trade's ticker check, for its mark: a ticker the feed may have read glued to its price. */
+  ticker: FollowedTicker | null;
   price: number | null;
   note: string | null;
   /** This API's evidence path, or null. */
@@ -28,7 +30,7 @@ function windowNote(from: number | null, to: number): string | null {
 }
 
 export function tradeActivity(t: FollowedTrade): ActivityItem[] {
-  const base = { trader: t.trader, side: t.side, symbol: t.symbol, tradeId: t.id };
+  const base = { trader: t.trader, side: t.side, symbol: t.symbol, ticker: t.ticker ?? null, tradeId: t.id };
   const out: ActivityItem[] = [{
     ...base,
     key: `${t.id}|in`,

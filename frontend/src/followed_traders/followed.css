@@ -428,6 +428,9 @@
 .ft-ticker { font-weight: 700; }
 .ft-note { font-size: 11px; }
 .ft-note--warn { color: var(--ft-warn); }
+/* A ticker the feed may have read glued to its price: its mark, and "ticker check" in place of a P/L. */
+.ft-ticker-mark { margin-left: 4px; }
+.ft-pl--check { color: var(--ft-warn); font-size: 12px; font-weight: 600; }
 .ft-window { text-decoration: underline dotted var(--ft-warn); text-underline-offset: 3px; }
 .ft-est { font-size: 11px; color: var(--ft-warn); font-family: inherit; }
 .ft-pl { display: inline-flex; flex-direction: column; }

@@ -38,6 +38,22 @@ export interface RangePl {
 
 export type TradeResult = 'win' | 'loss' | 'scratch' | 'unscored';
 
+export type TickerState = 'checking' | 'as_read' | 'corrected' | 'unchecked';
+
+/** A read that may be a ticker glued to its price (the bar's "SOFI 14.03" read SOF 114.03), checked against IBKR's
+ *  tape at the entry ("A ticker glued to its price"). Checking or unchecked: nothing about the trade is priced. */
+export interface FollowedTicker {
+  state: TickerState;
+  /** What the feed read: its ticker and first price. */
+  read_symbol: string;
+  read_price: number;
+  /** The glued reading: the price's first digit put back on the ticker as the letter OCR took it for. */
+  other_symbol: string;
+  other_price: number;
+  /** What the check waits on, or IBKR's tape at the entry for both tickers; null when as read. */
+  why: string | null;
+}
+
 export interface FollowedRecord {
   wins: number;
   losses: number;
@@ -58,6 +74,8 @@ export interface FollowedTrade {
   adds: { ts: number; price: number; prev_price: number | null }[];
   /** Closed because the trader left the bar holding it ("off air, every trade is closed"), not a close the feed saw. */
   left_bar: boolean;
+  /** Null when the read cannot be a ticker glued to its price (absent from an older backend). */
+  ticker?: FollowedTicker | null;
   now: FollowedNow | null;
   exit: FollowedExit | null;
   pl: PointPl | RangePl | null;

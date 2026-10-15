@@ -285,7 +285,16 @@ def _trade(t: dict, where: str) -> dict[str, Any]:
         "status": status,
         "entry_evidence": _str(t, "entry_evidence", where, optional=True),
         "exit_evidence": _str(t, "exit_evidence", where, optional=True),
+        "read_as": _read_as(t, where),
     }
+
+
+def _read_as(t: dict, where: str) -> str | None:
+    """The ticker the feed first read for a trade it later corrected (``read_as.symbol``); None when it never did."""
+    raw = t.get("read_as")
+    if raw is None:
+        return None
+    return _str(_obj(raw, f"{where}.read_as"), "symbol", f"{where}.read_as")
 
 
 def evidence_name(path: str | None) -> str | None:
