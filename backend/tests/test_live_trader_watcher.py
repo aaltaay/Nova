@@ -105,9 +105,10 @@ class Feed:
     def bar_now(self) -> dict:
         """Each host's bar as the feed confirms it: their open positions (``status.positions``)."""
         out: dict[str, dict] = {}
-        for t in self.trades:
+        for t in self.trades:                 # a host the feed has read keeps an empty bar, as the feed's tracker does
+            out.setdefault(t["trader"], {})
             if t["status"] == "open":
-                out.setdefault(t["trader"], {})[f"{t['side']}:{t['symbol']}"] = t["price"]
+                out[t["trader"]][f"{t['side']}:{t['symbol']}"] = t["price"]
         return out
 
     def reads(self, base, date, *, timeout=None):
@@ -297,9 +298,12 @@ def test_back_on_air_the_same_position_is_taken_again_with_a_new_order_and_a_new
     assert held(desk, "XYZ") == 0                                  # off air: sold
     desk.feed.bar(at("14:00:00"), **{HOST: 1, OTHER: 1})
     run(desk, "14:00:05")
-    assert held(desk, "XYZ") == 4                                  # back on air with XYZ on the bar: taken again
-    desk.feed.close(t, at("14:05:00"))
-    run(desk, "14:05:01")
+    assert held(desk, "XYZ") == 0                                  # back on air: waits for the bar's switch
+    assert any("previous host's rows" in (r["inputs"].get("why") or "") for r in lines_("note"))
+    run(desk, "14:08:10")
+    assert held(desk, "XYZ") == 4                                  # no switch in 8 minutes: XYZ is theirs, taken
+    desk.feed.close(t, at("14:10:00"))
+    run(desk, "14:10:01")
     assert held(desk, "XYZ") == 0                                  # and sold for real, not a replayed receipt
     sends = [r for r in desk.broker.closed_orders() if r["order_origin"] == "live_trader"]
     assert len(sends) == 4 and len({r["order_id"] for r in sends}) == 4
@@ -650,3 +654,35 @@ def test_a_book_that_cannot_be_written_opens_nothing_until_it_can(desk, monkeypa
     assert lt_book.error() is None
     run(desk, "10:30:32")
     assert held(desk, "ABCD") == 9                                 # taken as already open once the book is sound
+
+
+# -- the bar's own moves ---------------------------------------------------------------------------
+def test_a_whole_bar_blank_for_a_refresh_sells_nothing_and_buys_nothing_again(desk):
+    run(desk, "10:30:00")
+    a = desk.feed.open("XYZ", 100.00, at("10:30:10"))
+    b = desk.feed.open("ABCD", 50.00, at("10:30:20"))
+    run(desk, "10:30:21")
+    assert held(desk, "XYZ") == 4 and held(desk, "ABCD") == 9
+    sent = len(desk.broker.closed_orders())
+
+    desk.feed.close(a, at("10:40:00"))                             # the whole bar blank in one second
+    desk.feed.close(b, at("10:40:00"))
+    run(desk, "10:40:01")
+    run(desk, "10:40:40")
+    assert held(desk, "XYZ") == 4 and held(desk, "ABCD") == 9      # the sells wait for the bar
+    assert any("went blank" in (r["inputs"].get("why") or "") for r in lines_("note"))
+
+    a2 = desk.feed.open("XYZ", 100.00, at("10:41:00"))             # the same positions, their very averages
+    desk.feed.open("ABCD", 50.00, at("10:41:00"))
+    run(desk, "10:41:01")
+    run(desk, "10:41:06")
+    run(desk, "10:41:10")
+    assert held(desk, "XYZ") == 4 and held(desk, "ABCD") == 9
+    assert len(desk.broker.closed_orders()) == sent                # nothing sold, nothing bought
+    assert any("very average" in (r["inputs"].get("why") or "") for r in lines_("note"))
+    pos = lt_book.positions()[f"{HOST}|long|XYZ"]
+    assert pos["row_id"].endswith(f"{at('10:41:00'):.0f}") and pos["steps"] == 1
+
+    desk.feed.close(a2, at("10:45:00"))                            # and the host's real close still sells
+    run(desk, "10:45:01")
+    assert held(desk, "XYZ") == 0 and held(desk, "ABCD") == 9

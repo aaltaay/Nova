@@ -70,6 +70,31 @@ cancelled -- a refused cancel is tried again, across a restart -- so a stale sto
 a later short; and a book that cannot be written stops every new step until a write succeeds, so a restart can
 never take a position the bot already bought again.
 
+## Amendment 2026-10-15: the bar's own moves
+
+Two behaviours of the bar seen on recorded shows look like trades and are not. Both change the exit path, so the
+operator was asked first (multiple choice, recommendation marked): when a host's whole bar goes blank at once and
+the same positions come back about a minute later at their very averages (a display refresh), hold the sells up to
+~90 s to see whether they come back, or sell at once as before? The operator chose **hold up to 90 s** (the
+recommendation). Built (`bot.md`, "The bar's own moves"; `bot/live_trader/decide_bar.py`):
+
+- **A blank bar.** Every open position of a host (two or more) closing in the feed within one second while their
+  bar reads empty on both sides holds those closes up to 90 s. A position back at its very average (side, stock,
+  average to the cent) is the same position: re-keyed, no sell, no rebuy. One not back is sold when the bar returns;
+  a bar still empty at the limit is sold whole. Off air, the 10-minute rule, the sell-all time, the key and the Bot
+  switch still sell at once. Before this the bot sold every position and bought each back a minute later, a round
+  trip per position for nothing.
+- **After a break.** When a host comes back on air, the previous host's rows can sit under the returning host's
+  name tag for minutes until every slot switches in one second. The "another host's row" rule above catches them
+  only when the live feed saw those rows under the other host's tag nearby in time. The rows the bar shows just
+  after the return are now not taken until all of them have closed (the switch) or 8 minutes pass, and rows that
+  fill an empty bar together in one second are already open, not new entries. This only delays or relabels a take,
+  never a close; a host's real position on the bar at the return is taken up to 8 minutes late.
+
+Rejected: telling a refresh from a real flatten-all by the screen (the bar's animation over the name tag) -- the
+feed reports no such signal, and the 90 s hold bounds the cost of a real one; holding every close that follows a
+blank until the next read of the averages without a limit -- a bar that never returns would hold forever.
+
 ## Rejected
 
 - A per-host copy of the order path, its own risk checks or its own kill switch: the operator asked for one source of truth, and every gate already exists at the door.

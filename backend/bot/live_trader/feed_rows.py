@@ -14,7 +14,13 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from bot.live_trader.constants_live_trader import LT_ADD_MERGE_SEC, LT_FLICKER_PCT, LT_OTHER_HOST_SEC, LT_UNREAD_SEC
+from bot.live_trader.constants_live_trader import (
+    LT_ADD_MERGE_SEC,
+    LT_FLICKER_PCT,
+    LT_OTHER_HOST_SEC,
+    LT_SWITCH_SEC,
+    LT_UNREAD_SEC,
+)
 
 ET = ZoneInfo("America/New_York")
 DAY_SEC = 86_400
@@ -134,6 +140,24 @@ def other_host(name: str, row: dict[str, Any], hosts: dict[str, dict[str, Any]],
         if (row["side"], row["symbol"], price) in previous:
             return None, price
     return None
+
+
+def filled_together(row: dict[str, Any], rows: list[dict[str, Any]]) -> bool:
+    """True when ``row`` is one of two or more slots that changed within ``LT_SWITCH_SEC`` onto an empty bar: rows
+    opening together while every older row had closed by then (a bar back after a blank, or the slots switching at
+    a hand-over). Such rows were already open: the screen changed, not the host's trades."""
+    on_bar = [r for r in rows if not r.get("left_bar")]
+    peers = [r for r in on_bar if abs(r["entry_ts"] - row["entry_ts"]) <= LT_SWITCH_SEC]
+    start, end = min(r["entry_ts"] for r in peers), max(r["entry_ts"] for r in peers)
+    ids = {r["id"] for r in peers}
+    closing = 0
+    for r in on_bar:
+        if r["id"] in ids or r["entry_ts"] > start:
+            continue
+        if r["status"] == "open" or r.get("exit_ts") is None or r["exit_ts"] > end + LT_SWITCH_SEC:
+            return False                              # the bar was not empty: a row stayed open beside them
+        closing += r["exit_ts"] >= start - LT_SWITCH_SEC
+    return len(peers) + closing >= 2
 
 
 def unread_sides(log: list[dict[str, Any]] | None, date: str, at_ts: float | None) -> dict[str, set[str]]:

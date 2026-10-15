@@ -3,7 +3,8 @@
 A position is closed -- all of it -- for the first of: the operator turned its host's key off, or the Bot switch
 off; the sell-all time passed (never overnight); the feed has not read the bar for ``LT_HIDDEN_SEC``; the bar
 has been hidden that long; the host went off air; the host's trade left the bar. A feed row the feed reopened for
-the same stock (its old one ``unknown`` or gone) is the same position, re-keyed, never sold and bought again.
+the same stock (its old one ``unknown`` or gone) is the same position, re-keyed, never sold and bought again; so
+is one back at its very average after the whole bar went blank (``decide_bar``), whose sell waits for the bar.
 The host's own reasons follow the Exit switch: with Exit on You the bot says so once and keeps the shares; the
 operator's and the clock's always close. Shapes: architecture/schema/bot.md ("The Live Trader bot").
 """
@@ -13,7 +14,7 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from bot.live_trader.constants_live_trader import LT_HIDDEN_SEC
+from bot.live_trader.constants_live_trader import LT_BLANK_BAR, LT_HIDDEN_SEC
 
 ET = ZoneInfo("America/New_York")
 HOST_REASONS = ("close", "off_air", "hidden", "lost")
@@ -81,9 +82,20 @@ def closes(snap: dict[str, Any], answer: dict[str, Any], book: dict[str, dict[st
         if found is None:
             continue
         kind, words, ts = found
+        bar = flags.get("bar") or {}
+        if kind in ("close", "lost") and pos["row_id"] in bar.get("held", {}):
+            out["waits"][pos["id"]] = {"symbol": pos["symbol"], "code": LT_BLANK_BAR,
+                                       "text": bar["held"][pos["row_id"]]}
+            continue                                  # a whole bar blank: the sell waits for it to come back
+        if kind in ("close", "lost") and pos["row_id"] in bar.get("rekeys", {}):
+            kind, (words, why) = "rekey", bar["rekeys"][pos["row_id"]]
+        else:
+            why = None
+            if kind in ("close", "lost"):
+                words = bar.get("sold", {}).get(pos["row_id"], words)
         if kind == "rekey":
             out["actions"].append({"kind": "rekey", "pos_id": pos["id"], "row_id": words, "host": pos["host"],
-                                   "symbol": pos["symbol"], "side": pos["side"]})
+                                   "symbol": pos["symbol"], "side": pos["side"], "why": why})
             continue
         change = {"kind": kind, "ts": ts, "price": None}
         if kind in HOST_REASONS and ctx["settings"](pos["host"])["exit"] == "you":

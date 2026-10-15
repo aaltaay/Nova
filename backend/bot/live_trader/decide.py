@@ -7,7 +7,7 @@ callables -- fakes in tests), and answers ``{snapshot, actions, waits, symbols, 
 does no I/O of its own: the watcher sends what it says.
 
 Closes come first (``decide_closes``): a close only ever reduces what the bot holds, so no doubt about the feed
-holds one back. Steps -- an entry, a position already open, an add -- follow (``decide_steps``), each through
+holds one back -- only the bar's own moves (``decide_bar``: a whole bar blank for a refresh) delay one. Steps -- an entry, a position already open, an add -- follow (``decide_steps``), each through
 ``rules.check``. Rules: architecture/schema/bot.md ("The Live Trader bot"), ADR 055.
 """
 from __future__ import annotations
@@ -15,7 +15,7 @@ from __future__ import annotations
 import copy
 from typing import Any
 
-from bot.live_trader import decide_closes, decide_steps
+from bot.live_trader import decide_bar, decide_closes, decide_steps
 from bot.live_trader.constants_live_trader import (
     LT_FEED_BEHIND,
     LT_FEED_BEHIND_SEC,
@@ -26,7 +26,7 @@ from bot.live_trader.constants_live_trader import (
 
 def empty_snapshot() -> dict[str, Any]:
     return {"hosts": {}, "blind_since": None, "hidden_since": None, "blind_done": False, "hidden_done": False,
-            "asks": {}, "told": [], "seq": 0}
+            "asks": {}, "told": [], "seq": 0, "blanks": {}}
 
 
 def doubt(answer: dict[str, Any]) -> tuple[str, str] | None:
@@ -83,6 +83,7 @@ def decide(prev: dict[str, Any] | None, answer: dict[str, Any], book: dict[str, 
 
     for pos in book.values():
         out["symbols"].add(pos["symbol"])          # the bot holds a line on every stock it holds
+    flags["bar"] = decide_bar.blanks(snap, answer, book, now, out["actions"])
     decide_closes.closes(snap, answer, book, ctx, flags, out)
     if blind:
         snap["blind_done"] = True
