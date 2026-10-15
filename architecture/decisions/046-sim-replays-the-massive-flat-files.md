@@ -89,3 +89,18 @@ The operator now keeps Massive Stocks Advanced flat files under `E:\Nova\massive
 - An index takes about 15 MB for a quotes day and 5 MB for a trades day on E:. Deleting them only brings the slow reads back.
 - A research job reading the Massive files at the same time slows a first read and a build many times over; a read through an index is a seek or two and barely notices.
 - Not built here: indexing days before anyone opens them (as the downloader lands them, or overnight), #833.
+
+## Amendment -- a replay holds a busy day whole (2026-10-14)
+
+**Why.** OFAL 2026-08-12 printed 728,489 times. The import kept 06:45-09:00 and the Sim tab said "The day is too busy to replay whole (728,489 prints; a replay holds 500,000)" over an empty desk -- the operator: "What the hell is this?". The cap was memory: a selection held a dict per print, about 736 bytes, and turning OFAL's 430,966-print slice into dicts took 7.7 s after a 9.6 s cold read of its rows. Of 14,572 small-cap runner days 2021-2026 (prior close $0.50-$20, high +50%), 1,319 were over 500,000 prints.
+
+**Decided.**
+
+1. **A selection holds its prints as columns** (`sim/print_table.py`): `ts` / `price` / `size` / `ns` / `sequence` / `seq` in arrays and every other field as one code into the day's few dozen distinct combinations -- about 52 bytes a print. A print is a dict again only where a reader shows one (the tape's last 200). The import's readers hold what they keep the same way.
+2. **The store keeps one blob per import** for its prints and one for its quotes (`packed`, store version 2), so a load reads two blobs instead of a row per print. A version-1 store gains the table in place; its row imports still play, and are read again into blobs on their next load.
+3. **The caps rise to 4,000,000 prints and 8,000,000 quotes.** Four runner days in five years are over the print cap (the largest, AMC 2021-01-27, 6.7 M). An import capped under a smaller cap than today's is read again on its next load, its window playing meanwhile.
+4. **A day already imported loads by itself** on an empty desk, for the tab in front, once per stock-day, as an import the tab starts already did.
+
+**Checked.** OFAL's whole day (728,489 prints, 650,300 quotes) imported in 19.7 s through the seek index into a 64 MB store, loads in 0.8 s and holds 82 MB with its quotes.
+
+**Not changed here.** The Sim eyes copy a loaded replay's prints into their own list (`eyes/history_recording.py`), about 400 bytes a print: 293 MB for OFAL's day, built off the request path on the eyes' worker (#968).

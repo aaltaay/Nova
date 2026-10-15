@@ -140,7 +140,10 @@ SIM_TICK_INTERVAL_RTH_SEC = 0.08
 SIM_TICK_INTERVAL_EXT_SEC = 0.15
 
 # Selection and per-selection caches are bounded; downloads themselves are durable.
-SIM_HISTORY_MAX_SELECTION_PRINTS = 500_000
+# Prints a selection holds -- columns, about 52 bytes each (sim/print_table.py; operator ask 2026-10-14). At
+# 500,000 dicts it held 1 small-cap runner day in 11 short of whole (OFAL 2026-08-12: 728,489); 1,319 of 14,572
+# runner days 2021-2026 (prior close $0.50-$20, high +50%) were over it, 4 are over this (AMC 2021-01-27: 6.7M).
+SIM_HISTORY_MAX_SELECTION_PRINTS = 4_000_000
 SIM_HISTORY_ARCHIVE_CACHE_ENTRIES = 12
 SIM_HISTORY_RESULT_CACHE_ENTRIES = 12
 SIM_HISTORY_QUOTE_CANDLES = 2000
@@ -213,7 +216,8 @@ SIM_MASSIVE_DAY_END = "20:00"
 # everything from Massive stays on E:), in their own store and schema.
 SIM_MASSIVE_STORE_SUBDIR = "sim"
 SIM_MASSIVE_STORE_FILE = "replay.sqlite3"
-SIM_MASSIVE_SCHEMA_VERSION = 1
+# 2 (2026-10-14): an import's prints and quotes are one packed blob each (``packed``); 1's rows still read.
+SIM_MASSIVE_SCHEMA_VERSION = 2
 # Inflated bytes per read while streaming a day file to one ticker's rows (one buffer, reused). An index build
 # notes the ticker of one line per stretch this long: the map a later read finds its ticker in.
 SIM_MASSIVE_READ_CHUNK = 16 * 2**20
@@ -238,8 +242,9 @@ SIM_MASSIVE_INDEX_CHECK_SEC = 60.0
 # A running import rewrites its job at least this often: progress for the desk,
 # and the heartbeat that tells a live import from one a restart killed.
 SIM_MASSIVE_PROGRESS_EVERY_SEC = 1.0
-# Bid/ask rows a selection holds (compact arrays, about 44 bytes each).
-SIM_MASSIVE_MAX_SELECTION_QUOTES = 4_000_000
+# Bid/ask rows a selection holds (compact arrays, about 44 bytes each): twice the prints, as a busy day quotes
+# more often than it trades.
+SIM_MASSIVE_MAX_SELECTION_QUOTES = 8_000_000
 # The import process's hard cap on committed memory (``winapi.job_limit``; operator report 2026-10-11).
 # Past it the import fails with the reason and nothing is written; the PC keeps its memory. Measured:
 # VEEA 2026-10-09 (768,836 prints, over the print cap) peaked at 940 MB; a kept print is ~608 B and a

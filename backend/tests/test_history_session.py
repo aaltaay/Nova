@@ -93,7 +93,7 @@ def test_a_gap_over_the_open_is_not_bridged_by_a_later_print() -> None:
     store.commit_page(job["id"], a, [dict(ts=int(_at(4, 0, 10)), price=5.0, size=100)], int(_at(9, 0)), False)
     selected = playback._load(spec)
     ranges = [[int(a), int(_at(9, 0))], [int(_at(9, 40)), int(spec["end_ts"])]]
-    eligible = selected.eligible + (dict(ts=int(_at(9, 40, 5)), price=8.8, size=100),)
+    eligible = [*selected.eligible, dict(ts=int(_at(9, 40, 5)), price=8.8, size=100)]
     keys = list(selected.eligible_keys) + [int(_at(9, 40, 5))]
     assert history_session.session_open(spec, eligible, keys, ranges) is None
 

@@ -11,6 +11,10 @@ operator's Massive flat files (``massive_store``, nanosecond prints, the NBBO an
 1-minute bars). A Massive window answers bid and ask at the playhead, colours
 its prints from the NBBO and draws its candles from its own bars only -- never
 from the IBKR chart store.
+
+A selection holds its prints as columns (``print_table.PrintTable``, about 52 bytes
+a print; operator ask 2026-10-14): a whole busy stock-day fits, and a reader turns
+into dicts only what it shows -- the tape's last ``SIM_HISTORY_TAPE_ROWS``.
 """
 from __future__ import annotations
 
@@ -31,6 +35,7 @@ from sim import history_store as store
 from sim.chart_replay import INTERVAL_SECONDS
 from sim.history_cache import CandleCache
 from sim.history_session import session_open as _session_open, stats_scope as _stats_scope
+from sim.print_table import PrintTable
 from sim.prior_close import previous_close
 
 logger = logging.getLogger(__name__)
@@ -43,9 +48,10 @@ _generation = 0
 @dataclass(frozen=True)
 class Selection:
     spec: dict
-    prints: tuple
+    #: Every print of the window, in time order; ``eligible`` the ones that set a price (a view of the same columns).
+    prints: PrintTable
     keys: array
-    eligible: tuple
+    eligible: PrintTable
     eligible_keys: array
     volumes: array
     highs: array
@@ -139,7 +145,9 @@ def with_live_download_status(spec: dict, jobs: list[dict] | None = None) -> dic
 
 
 def _sets_price(row: dict) -> bool:
-    """Tape-eligible: an IBKR print not flagged ``unreported``; a Massive print whose conditions set a price."""
+    """Tape-eligible: an IBKR print not flagged ``unreported``; a Massive print whose conditions set a price.
+
+    Reads only fields a ``PrintTable`` keeps with the rest, so ``where_fields`` judges a selection with it."""
     return row.get('sets_price', True) is not False and not row.get('unreported')
 
 
@@ -149,7 +157,8 @@ def _load(spec: dict) -> Selection:
     job = store.find(spec, 'trades')
     # Every stored print is inside a downloaded range, so read them all, in time
     # order -- coverage may have gaps once the worker has jumped to the playhead.
-    rows = (store.read_prints(job['id'], limit=SIM_HISTORY_MAX_SELECTION_PRINTS + 1) if job else [])
+    rows = (PrintTable(store.iter_prints(job['id'], limit=SIM_HISTORY_MAX_SELECTION_PRINTS + 1)) if job
+            else PrintTable())
     ranges = coverage.job_ranges(job) if job else []
     return _build(spec, rows, ranges, job['status'] if job else 'missing', job['id'] if job else None)
 
@@ -166,45 +175,44 @@ def _load_massive(spec: dict) -> Selection:
     holder, job = massive_import.holder(spec)
     status = massive_import.effective_status(job) if job else 'missing'
     if holder is None:
-        return _build(spec, [], [], status, job['id'] if job else None, minutes=[],
+        return _build(spec, PrintTable(), [], status, job['id'] if job else None, minutes=[],
                       extra=dict(quote_status=None, quote_count=0, bar_count=0))
     between = (spec['start_ts'], spec['end_ts'])
-    rows = massive_store.read_prints(holder['id'], spec['symbol'], limit=SIM_HISTORY_MAX_SELECTION_PRINTS + 1,
-                                     between=between)
+    rows = massive_store.read_print_table(holder['id'], spec['symbol'], between=between)
     minutes = massive_store.read_candles(holder['id'])
     quote_status = holder.get('quote_status')
     quotes = None
     if quote_status in ('complete', 'none'):
-        quote_rows = massive_store.read_quotes(holder['id'], limit=SIM_MASSIVE_MAX_SELECTION_QUOTES + 1, between=between)
-        if len(quote_rows) > SIM_MASSIVE_MAX_SELECTION_QUOTES:
+        quotes = massive_store.read_quote_series(holder['id'], between=between)
+        if len(quotes) > SIM_MASSIVE_MAX_SELECTION_QUOTES:
             raise ValueError(f'Replay exceeds {SIM_MASSIVE_MAX_SELECTION_QUOTES:,} quotes; narrow the window')
-        quotes = history_quotes.QuoteSeries(quote_rows)
     return _build(spec, rows, [list(between)], status, holder['id'], minutes=minutes, quotes=quotes,
-                  extra=dict(quote_status=quote_status, quote_count=len(quote_rows) if quotes else 0,
+                  extra=dict(quote_status=quote_status, quote_count=len(quotes) if quotes else 0,
                              bar_count=holder.get('bar_count', 0)))
 
 
-def _build(spec: dict, rows: list[dict], ranges: list, status: str, job_id: str | None, *,
+def _build(spec: dict, rows: PrintTable, ranges: list, status: str, job_id: str | None, *,
            minutes: list[dict] | None = None, quotes: history_quotes.QuoteSeries | None = None,
            extra: dict | None = None) -> Selection:
     if len(rows) > SIM_HISTORY_MAX_SELECTION_PRINTS:
         raise ValueError(f'Replay exceeds {SIM_HISTORY_MAX_SELECTION_PRINTS:,} prints; narrow the window')
-    eligible = tuple(row for row in rows if _sets_price(row))
+    eligible = rows.where_fields(_sets_price)
     volumes, highs, lows = array('d'), array('d'), array('d')
-    total = 0
-    for row in eligible:
-        total += row['size']
+    total, high, low = 0.0, float('-inf'), float('inf')
+    for size, price in zip(eligible.values('size'), eligible.values('price'), strict=True):
+        total += size
+        high, low = max(high, price), min(low, price)
         volumes.append(total)
-        highs.append(max(highs[-1], row['price']) if highs else row['price'])
-        lows.append(min(lows[-1], row['price']) if lows else row['price'])
+        highs.append(high)
+        lows.append(low)
     selected = dict(spec, coverage=ranges, covered_seconds=coverage.covered_seconds(ranges),
                     coverage_through=coverage.contiguous_through(ranges, spec['start_ts']),
                     trade_count=len(rows), download_status=status, job_id=job_id, **(extra or {}))
     # Keys are float seconds: an IBKR print's whole second, a Massive print's SIP time to the nanosecond.
-    prints, eligible_keys = tuple(rows), array('d', (row['ts'] for row in eligible))
-    return Selection(selected, prints, array('d', (row['ts'] for row in rows)), eligible,
+    eligible_keys = eligible.values('ts')
+    return Selection(selected, rows, rows.values('ts'), eligible,
                      eligible_keys, volumes, highs, lows, previous_close(spec['symbol'], spec['date']),
-                     CandleCache(selected, prints, eligible, eligible_keys, minutes=minutes),
+                     CandleCache(selected, rows, eligible, eligible_keys, minutes=minutes),
                      _session_open(selected, eligible, eligible_keys, ranges, minutes), quotes)
 
 
@@ -289,7 +297,7 @@ def prints_between(symbol: str, after_ts: float, through_ts: float) -> list[tupl
     through = min(float(through_ts), selected.spec['end_ts'])
     lo = bisect.bisect_right(selected.eligible_keys, float(after_ts))
     hi = bisect.bisect_right(selected.eligible_keys, through)
-    return [(float(row['ts']), float(row['price'])) for row in selected.eligible[lo:hi]]
+    return list(zip(selected.eligible_keys[lo:hi], selected.eligible.values('price', lo, hi), strict=True))
 
 
 def bid_before(symbol: str, ts: float) -> float | None:
@@ -352,8 +360,8 @@ def snapshot(symbol: str):
         eligible_end = bisect.bisect_right(selected.eligible_keys, cutoff)
         reached = eligible_end - 1
         result.update(source='trades', volume=selected.volumes[reached] if eligible_end else 0,
-                      last=selected.eligible[reached]['price'] if eligible_end else None,
-                      open=selected.eligible[0]['price'] if eligible_end else None,
+                      last=selected.eligible.value('price', reached) if eligible_end else None,
+                      open=selected.eligible.value('price', 0) if eligible_end else None,
                       high=selected.highs[reached] if eligible_end else None,
                       low=selected.lows[reached] if eligible_end else None)
         # The tape is the playhead's own range only: it never runs across a gap,

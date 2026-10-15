@@ -195,6 +195,7 @@ function parseJob(value: Obj): HistoricalJob {
     kept_start: clockTime(value.kept_start),
     kept_end: clockTime(value.kept_end),
     capped: parseCap(value.capped),
+    cap_raised: flag(value.cap_raised),
   }) as HistoricalJob;
 }
 
