@@ -22,7 +22,7 @@ import { useFollowedTradersEnabled } from './enabledStore';
 import { requestFollowedProof, useFollowedAlerts } from './followedStores';
 import { etTime, price } from './format';
 import { Face } from './parts';
-import { tradeToasts, type TradeToast } from './toastModel';
+import { toastStep, type TradeToast } from './toastModel';
 import type { FollowedDay } from './types';
 import { useFollowedDay } from './useFollowedDay';
 import './followed.css';
@@ -62,16 +62,22 @@ export function FollowedToasts({ onOpenPage }: { onOpenPage?: () => void }) {
   const active = enabled && alertsOn;
   const { data } = useFollowedDay(null, { quotes: false, everyMs: FOLLOWED_TOAST_POLL_MS, enabled: active });
   const prev = useRef<FollowedDay | null>(null);
+  const held = useRef<ReadonlySet<string>>(new Set()); // trades held back while their ticker is checked
   const [toasts, setToasts] = useState<TradeToast[]>([]);
 
   useEffect(() => {
-    if (!active) prev.current = null; // switched back on: what happened meanwhile is not news
+    if (!active) { // switched back on: what happened meanwhile is not news
+      prev.current = null;
+      held.current = new Set();
+    }
   }, [active]);
 
   useEffect(() => {
     if (!active || !data) return;
-    const fresh = tradeToasts(prev.current, data);
+    const step = toastStep(prev.current, data, held.current);
+    const fresh = step.toasts;
     prev.current = data;
+    held.current = step.held;
     if (fresh.length) setToasts((list) => [...list, ...fresh.filter((f) => !list.some((t) => t.key === f.key))].slice(-FOLLOWED_TOAST_MAX));
   }, [data, active]);
 

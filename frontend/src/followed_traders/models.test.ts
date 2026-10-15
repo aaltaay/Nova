@@ -5,7 +5,7 @@ import { asOf, behindStream, capturePill, offAirWhy, onAir } from './capture';
 import { capture, closed, day, T, trade } from './followedTestData';
 import { judgeReads, readAt } from './proof';
 import { gluedRead, tickerUnsettled } from './ticker';
-import { tradeToasts } from './toastModel';
+import { toastStep, tradeToasts } from './toastModel';
 import type { FollowedRead } from './types';
 
 describe('capture pill', () => {
@@ -171,13 +171,42 @@ describe('toasts', () => {
     const fixed = { ...checking, symbol: 'XYZI', entry: { ...entry, first_price: 14.03, avg_price: 14.03 },
       ticker: { ...ticker, state: 'corrected' as const, why: 'the ticker was read glued to its price' } };
     const first = day();
-    const held = withTrade(checking, T + 600);
-    expect(tradeToasts(first, held)).toEqual([]);                                      // not news yet
-    expect(tradeToasts(held, withTrade(fixed, T + 605)).map((t) => `${t.verb} ${t.symbol} ${t.price} ${t.check}`))
-      .toEqual(['opened XYZI 14.03 null']);
+    const waiting = withTrade(checking, T + 600);
+    const step = toastStep(first, waiting);
+    expect(step.toasts).toEqual([]);                                                   // not news yet
+    expect([...step.held]).toEqual([checking.id]);
+    const settled = toastStep(waiting, withTrade(fixed, T + 605), step.held);
+    expect(settled.toasts.map((t) => `${t.verb} ${t.symbol} ${t.price} ${t.check}`)).toEqual(['opened XYZI 14.03 null']);
+    expect(settled.held.size).toBe(0);
     // Still checking a minute after the entry: raised, saying the ticker is not checked.
-    const late = tradeToasts(held, withTrade(checking, T + 650));
-    expect(late.map((t) => `${t.verb} ${t.symbol} ${t.check}`)).toEqual(['opened XYZ reading']);
-    expect(tradeToasts(withTrade(checking, T + 650), withTrade(fixed, T + 655))).toEqual([]);   // never twice
+    const late = toastStep(waiting, withTrade(checking, T + 650), step.held);
+    expect(late.toasts.map((t) => `${t.verb} ${t.symbol} ${t.check}`)).toEqual(['opened XYZ reading']);
+    expect(toastStep(withTrade(checking, T + 650), withTrade(fixed, T + 655), late.held).toasts).toEqual([]); // never twice
+  });
+
+  it('never announces a trade twice when its ticker is checked again (PR #972 review)', () => {
+    // Announced as read, then checked once more inside its first minute (the feed corrected its ticker, or a restart
+    // forgot an answer), then settled: no second "opened", no add or close announced again.
+    const ticker = { read_symbol: 'XYZ', read_price: 114.03, other_symbol: 'XYZI', other_price: 14.03, why: 'reading' };
+    const entry = { first_price: 114.03, avg_price: 114.03, ts: T + 590, since_ts: null, known: true };
+    const asRead = trade({ id: 'ALPHA|short|XYZ|1', symbol: 'XYZ', side: 'short', entry, ticker: { ...ticker, state: 'as_read' },
+      adds: [{ ts: T + 595, price: 114.1, prev_price: 114.03 }] });
+    const at = (t: ReturnType<typeof trade>, when: number) => {
+      const d = day({ generated_at: when });
+      d.traders[0].open = [...d.traders[0].open, t];
+      return d;
+    };
+    const announced = toastStep(day(), at(asRead, T + 596));
+    expect(announced.toasts.map((t) => t.verb)).toEqual(['opened', 'added to']);
+    const again = toastStep(at(asRead, T + 596), at({ ...asRead, ticker: { ...ticker, state: 'checking' } }, T + 600),
+      announced.held);
+    expect(again.toasts).toEqual([]);
+    expect(again.held.size).toBe(0);
+    const back = toastStep(at({ ...asRead, ticker: { ...ticker, state: 'checking' } }, T + 600), at(asRead, T + 605), again.held);
+    expect(back.toasts).toEqual([]);
+    // A trade already there in the first answer, its ticker being checked, is not news when the check ends either.
+    const there = at({ ...asRead, ticker: { ...ticker, state: 'checking' } }, T + 600);
+    const baseline = toastStep(null, there);
+    expect(toastStep(there, at(asRead, T + 605), baseline.held).toasts).toEqual([]);
   });
 });

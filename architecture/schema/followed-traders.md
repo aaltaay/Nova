@@ -389,8 +389,10 @@ images again with each answer.
 - **Toasts**: while the feed is configured and Alerts are on (a per-window setting kept in local storage, on by
   default), the main desk window asks `/day?quotes=0` every `FOLLOWED_TOAST_POLL_MS` and raises "CHERIF opened LONG JZ
   @ 1.55" / "added to" / "closed" for a change since its last answer (none for what it found on its first); a toast
-  opens the page on that trade's proof. A trade whose ticker is `checking` is not news until the check ends or
-  `FOLLOWED_TOAST_TICKER_WAIT_SEC` (60) has passed since its entry, so its "opened" names the ticker as checked; a
-  toast raised while the ticker is still checking or unchecked says "ticker check" beside it.
+  opens the page on that trade's proof. A trade first seen while its ticker is `checking` is held back until the check
+  ends or `FOLLOWED_TOAST_TICKER_WAIT_SEC` (60) has passed since its entry, so its "opened" names the ticker as checked;
+  a toast raised while the ticker is still checking or unchecked says "ticker check" beside it. The window remembers
+  which trades it held back, so a trade already announced, or already there in its first answer, is never news again
+  when its ticker is checked once more (the feed corrected it, or a restart forgot an answer).
 
 The tab is placed after Cryptos on the rail, and the focus report names it `followed` (`book-watch-and-luld.md`).
