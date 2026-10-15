@@ -543,32 +543,25 @@ export const CHART_GRID_PANELS: ChartGridPanel[] = [
   { id: '1Day', label: 'Full Day' },
   { id: '1Min', label: '1-Minute' },
 ];
-/** Optional pane -- IBKR 10s; placed top-right when shown. */
-export const CHART_GRID_OPTIONAL_PANEL: ChartGridPanel = {
+/** The 10-second pane -- IBKR 10s, top-right, always shown (operator, 2026-10-15: no hide switch). */
+export const CHART_GRID_10SEC_PANEL: ChartGridPanel = {
   id: '10Sec',
   label: '10-Second',
   note: 'IBKR 10s -- 4h history on open, live tape after',
   // True on both sides of the live edge, where a Sim tab is live (QA R35 / W25).
   simNote: 'Sim 10s -- follows the Sim clock: the replay off the live edge, the live tape at it',
 };
-export const CHART_GRID_OPTIONAL_STORAGE_KEY = 'nova.chartGrid.show10Sec';
-/** Fourth pane defaults ON (absent localStorage key means show). */
-export const CHART_GRID_OPTIONAL_DEFAULT_ON = true;
 
 /**
  * Trader 2x2 layout:
  *   [5-Minute] [10-Second]
  *   [Full Day] [1-Minute]
- * When 10Sec is hidden: top = 5m | 1m, bottom = Full Day (single).
  */
-export function buildChartGridPanels(show10Sec: boolean): ChartGridPanel[] {
+export function buildChartGridPanels(): ChartGridPanel[] {
   const five = CHART_GRID_PANELS.find((p) => p.id === '5Min')!;
   const day = CHART_GRID_PANELS.find((p) => p.id === '1Day')!;
   const one = CHART_GRID_PANELS.find((p) => p.id === '1Min')!;
-  if (show10Sec) {
-    return [five, CHART_GRID_OPTIONAL_PANEL, day, one];
-  }
-  return [five, one, day];
+  return [five, CHART_GRID_10SEC_PANEL, day, one];
 }
 /**
  * Per-timeframe REST bar limits (overrides CHART_DEFAULT_BARS on the wire).
