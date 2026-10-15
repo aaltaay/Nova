@@ -106,3 +106,13 @@ This replaces the morning's amendment above (the Live Trader bots on the TraderT
 - **The switch no longer follows the keys under it.** Turning the last strategy Off (ADR 042 B's `no_setup`) or the last host key off no longer turns the Bot switch off: with off meaning no order, a lower key would also stop the other family's exits.
 
 Rejected: a parent dashboard on the Bots page (drawn in the mockups, "keep it empty for now"); the family keys resetting at every start like the Bot switch (the super key is the arming; a family key is a setting, like a strategy's level); a key off selling what the bot holds, and off stopping new buys only while exits run (both put to the operator; "No orders at all").
+
+## Amendment, 2026-10-15 (afternoon): LiveTrader Bots is the TraderTV hosts' page
+
+**Decided by:** the operator, 2026-10-15, on the group as built: "i want all content from the original tradertv live to be inside livetrader bots", and of the panel, "all of this none sense Entry you/bot exit you/bot .. can all be compacted inside these empty spaces... includeing bot keys"; then, of the open tiles, "make this more compact"; approved from a render of the desk on that day's answers ("i like it. build it.").
+
+- **TraderTV LIVE leaves the rail.** Its page is Bots > LiveTrader Bots, titled so; every link that opened it (a toast, a proof) opens LiveTrader Bots.
+- **The Live Traders panel is gone.** Each host's bot -- its key, Entry and Exit, rules, allowance, today, skips, an ask -- sits in the empty middle of that host's card, and the LiveTrader Bots key with the one line saying what holds every host's bot sits in the page's head.
+- The three keys and what off means are unchanged.
+
+Rejected: the panel above the hosts (the morning's amendment) and on its own tab (the group as first built): either way the operator had two places to read one host.

@@ -3,7 +3,7 @@
  * main desk window, like the hot list's toasts, so two windows never announce one trade twice). Only while the
  * backend has a feed configured and Alerts are on; it reads the feed without prices (`quotes=0`), so it holds no
  * IBKR line. The first answer raises nothing. A toast leaves after FOLLOWED_TOAST_TTL_MS unless hovered; a click
- * anywhere on it opens the TraderTV LIVE page on today, and Proof opens that page on the trade. Nothing here places or stages an order.
+ * anywhere on it opens Bots > LiveTrader Bots on today, and Proof opens that page on the trade. Nothing here places or stages an order.
  */
 import { useEffect, useRef, useState } from 'react';
 import { tipProps } from '../ux/hoverTip';
@@ -93,7 +93,7 @@ export function FollowedToasts({ onOpenPage }: { onOpenPage?: () => void }) {
   const dismiss = (key: string) => setToasts((list) => list.filter((t) => t.key !== key));
   const openPage = () => {
     onOpenPage?.();
-    setNavPage('followed');
+    setNavPage('bots-live-trader');
   };
   return (
     <div className="ft-toasts" role="region" aria-label={FT_TOAST_REGION} data-testid="ft-toasts">

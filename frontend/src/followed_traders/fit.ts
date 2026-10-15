@@ -1,7 +1,7 @@
 /**
- * The Following page has no page scrollbar (operator, 2026-10-13). When the traders' blocks do not fit the window,
+ * The followed traders' page has no page scrollbar (operator, 2026-10-13). When the traders' blocks do not fit the window,
  * closed rows drop to one line first, then each trader's oldest closed trades fold into "+N earlier", one at a time
- * from whoever shows the most. Open positions never shrink or fold. `useFitLevel` finds the smallest level that
+ * from whoever shows the most. Open rows, on top of each table, never fold. `useFitLevel` finds the smallest level that
  * fits by measuring; `fitPlan` says what a level means. Pure apart from the hook.
  */
 import { useLayoutEffect, useState, type RefObject } from 'react';

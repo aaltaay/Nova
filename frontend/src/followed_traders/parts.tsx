@@ -81,9 +81,9 @@ export function RecordChips({ record, testId }: { record: FollowedRecord | null;
   );
 }
 
-/** P/L per share and %, stacked, or on one line (`inline`) in a closed trade's row. A trade whose ticker may be glued
+/** The P/L at $1,000 over its per share and %, stacked (`inline`: left-aligned, in a trade's row). A trade whose ticker may be glued
  *  to its price has none: "ticker check", with why on hover. */
-export function PlCell({ trade, inline = false, big = false }: { trade: FollowedTrade; inline?: boolean; big?: boolean }) {
+export function PlCell({ trade, inline = false }: { trade: FollowedTrade; inline?: boolean }) {
   if (tickerUnsettled(trade)) {
     return (
       <span className={`ft-pl ft-pl--check${inline ? ' ft-pl--inline' : ''}`} data-testid={`ft-ticker-check-${trade.id}`}
@@ -94,7 +94,7 @@ export function PlCell({ trade, inline = false, big = false }: { trade: Followed
   }
   const tone = plTone(trade.pl);
   return (
-    <span className={`ft-pl ft-pl--${tone}${inline ? ' ft-pl--inline' : ''}${big ? ' ft-pl--big' : ''}`}
+    <span className={`ft-pl ft-pl--${tone}${inline ? ' ft-pl--inline' : ''}`}
       {...tipProps(trade.pl ? (trade.status === 'open' ? FT_PL_STAKE_OPEN_TIP : FT_PL_STAKE_TIP) : null)}>
       <span className="ft-mono ft-pl__usd">{plAtStake(trade.pl)}</span>
       {trade.pl && (

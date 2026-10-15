@@ -1,19 +1,25 @@
 /**
- * Bots > LiveTrader Bots (operator decision 2026-10-15): the LiveTrader Bots key on top, then the Live Traders panel
- * (ADR 055) as it was -- one card per TraderTV host, each with its own Bot key. A host's bot places orders only while
- * the header's Bot switch, this key and its own key are all on; every block is said on the panel's blocker line, so the
- * family never needs a switch that lives on another page. A shell page (nav rail -> NavPageHost). The sample desk has
- * no bot: a stated absence, and nothing here polls.
+ * Bots > LiveTrader Bots (operator, 2026-10-15: "i want all content from the original tradertv live to be inside
+ * livetrader bots"; approved from a render): the followed traders' page -- the TraderTV hosts, what they hold and
+ * closed, the stream and the Activity -- with the LiveTrader Bots key in its head and each host's bot (ADR 055) in the
+ * middle of their card. A host's bot places orders only while the header's Bot switch, this key and its own key are
+ * all on, and the head says which is off. A shell page (nav rail -> NavPageHost). The sample desk has no bot and no
+ * feed: a stated absence, and nothing here polls.
  */
 import { BOTS_PAGE_SUB, LT_BOTS_PAGE_TITLE } from '../constantGroups/bots_page';
+import { FollowedTradersPage, type FollowedSlots } from '../followed_traders';
 import { SAMPLE_BOT_ABSENT } from '../sample_data/sampleCopy';
 import { useSampleRoute } from '../sample_data/useSampleRoute';
-import { BotFamilyKey } from './BotFamilyKey';
-import { BotLiveTradersCard } from './BotLiveTradersCard';
+import { LiveTraderBadge } from './LiveTraderBadge';
+import { LiveTraderHead } from './LiveTraderHead';
+import { LiveTraderStrip } from './LiveTraderStrip';
 import './botsPage.css';
 
-export function LiveTraderBotsPage() {
+const SLOTS: FollowedSlots = { Head: LiveTraderHead, Trader: LiveTraderStrip, OpenBadge: LiveTraderBadge };
+
+export function LiveTraderBotsPage({ onOpenTrader }: { onOpenTrader?: (symbol: string) => void }) {
   const sample = useSampleRoute();
+  if (!sample) return <FollowedTradersPage onOpenTrader={onOpenTrader} slots={SLOTS} />;
   return (
     <div className="nova-shell nova-shell--scanner">
       <div className="main-col main-col--scanner-stack">
@@ -21,16 +27,9 @@ export function LiveTraderBotsPage() {
           <div className="bots-page__scroll">
             <header className="bots-page__head">
               <h1>{LT_BOTS_PAGE_TITLE}</h1>
-              {sample ? <p className="bots-page__sub">{BOTS_PAGE_SUB}</p> : null}
+              <p className="bots-page__sub">{BOTS_PAGE_SUB}</p>
             </header>
-            {sample ? (
-              <p className="bots-empty bots-page__loading" role="status">{SAMPLE_BOT_ABSENT}</p>
-            ) : (
-              <>
-                <BotFamilyKey family="live_trader" />
-                <BotLiveTradersCard />
-              </>
-            )}
+            <p className="bots-empty bots-page__loading" role="status">{SAMPLE_BOT_ABSENT}</p>
           </div>
         </div>
       </div>

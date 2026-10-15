@@ -364,15 +364,19 @@ whose ticker is checking or unchecked holds none; a corrected one holds the long
 
 ### On the desk
 
-The **TraderTV LIVE** page (named "Following" until 2026-10-14, when the operator asked for it to be renamed "to the
-name of the channel" the feed reads; the rail's label, the page's title and the proof's back link all read the
-channel's name, `FOLLOWED_CHANNEL`), as the operator approved it on 2026-10-13 (mockup "E2", after "i dont want the
+The followed traders' page is **Bots > LiveTrader Bots** (operator, 2026-10-15: "i want all content from the
+original tradertv live to be inside livetrader bots"; approved from a render of the desk on that day's answers, "i
+like it. build it."). It was "Following" until 2026-10-14, then **TraderTV LIVE**, its own rail item named "to the name
+of the channel" the feed reads; the rail no longer has that item, the page's title and the proof's back link read
+LiveTrader Bots, and a toast still names the channel it came from (`FOLLOWED_CHANNEL`). Each host's bot sits in their
+card ("The Live Trader bot", `bot.md`). As the operator approved it on 2026-10-13 (mockup "E2", after "i dont want the
 freakin scrolling bar"): it fills the window with no page scrollbar -- a head row, one block per trader stacked top to bottom,
 and a right column with the stream above the Activity. It asks `/day` every `FOLLOWED_REFRESH_MS` while it shows;
 images are fetched with the desk's API key into blob URLs (an `<img src>` cannot carry the key) and the live slot
 images again with each answer.
 
-- **Head**, one row: the capture pill (live with how far behind the stream and the bar's last read; reading behind
+- **Head**, one row: the title, then the LiveTrader Bots key and, while the hosts' bots cannot trade, one amber
+  line, "No orders · " and what stops them (`bot.md`, "The Live Trader bot"), then the capture pill (live with how far behind the stream and the bar's last read; reading behind
   the stream -- the bar's on-screen `clock` more than `FOLLOWED_CAPTURE_BEHIND_SEC` (30) behind `updated_at`, however far
   and across midnight (a clock up to `FOLLOWED_CLOCK_AHEAD_SEC` ahead is skew), a warning with how far, the read's time and that the positions shown are from then, never Live (operator report 2026-10-14:
   the feed read the stream 29 minutes behind and the page said Live and "Their slot now"); positions off screen,
@@ -387,30 +391,33 @@ images again with each answer.
 - **One block per trader**: on today, everyone in `capture.bar` in the bar's order, then anyone else who
   traded that day in the order of their first trade; on a past day, those who traded. The card: photo (the trader's
   `face`, or the bar slot's; the name's first letter without one), name, on air or off air (today only), the record
-  for the span picked with the scratches and unscored beside it, what they made over it (below), and their slot image
-  on the right (the live slot,
+  for the span picked with the scratches and unscored beside it, on today their bot in the space between (`bot.md`,
+  "The Live Trader bot"), what they made over it (below), and their slot image on the right (the live slot,
   labelled "now" only while the capture reads the stream live and within `FOLLOWED_CAPTURE_BEHIND_SEC` of it and with
   the read's time otherwise, or the newest evidence stand-in -- the picture of their last open or close, which adds do
   not have -- labelled "Their slot at their last open or close" with its time, never passed off as now). A trader with a trade that day
-  has, under the card, **Holding now** on the left -- an OPEN tile per open position: ticker, side, entry -> now,
-  unrealised P/L at $1,000 with the per share and % under it, held, time in, proof -- and **Closed today** on the right: the count, won and lost,
-  and one row per closed trade, newest exit first, striped by its result (WIN green, LOSS red, scratch and unscored
-  grey): result, ticker, side, in -> out, entry (the average, with the first price when the trader added) -> exit
+  has, under the card, one table, **Trades today** (operator, 2026-10-15, of the OPEN tiles that stood beside it:
+  "make this more compact ... no reason to take half of the screen like this"): the count of every trade, then open,
+  won and lost, and one row per trade. Open positions come first, newest first, striped blue: OPEN, ticker, side, in
+  -> now, entry (the average) -> the price now, unrealised P/L at $1,000 with the per share and % under it, held,
+  proof; a BOT chip beside the ticker while the host's bot holds a copy. Then one row per closed trade, newest exit
+  first, striped by its result (WIN green, LOSS red, scratch and unscored grey): result, ticker, side, in -> out,
+  entry (the average, with the first price when the trader added) -> exit
   (IBKR's last trade at the exit; a low-high range marked est. for a window; reading the tape or waiting for IBKR;
   no price, with why), P/L at $1,000 (below) with the P/L per share and % under it, held, proof. A trader who left the bar (`seen.left_ts`) reads "Left the
   bar HH:MM:SS" in place of on air or off air -- "Left the bar HH:MM:SS–HH:MM:SS" when `last_ts` is before `left_ts`,
   the bar not read between -- and each trade closed then has "off air" beside its out time, saying
-  why it closed; its Proof's exit reads "Closed when they left the bar". A past day reads "Open at the day's end" and
-  "Closed". A
+  why it closed; its Proof's exit reads "Closed when they left the bar". On a past day the table reads "Trades", its
+  OPEN rows what was open at the day's end. A
   time not seen reads "by HH:MM:SS" (open when capture started) or a window, and its trade unscored. A trader with no
-  trade that day shows the card alone. A ticker -- on an OPEN tile, a closed row (in the list of all closed trades
+  trade that day shows the card alone. A ticker -- on an open or closed row (in the list of all closed trades
   too), a Proof's title and an Activity line -- opens the stock in the Trader, as a symbol does on the Market and
-  Records pages. A trade's Proof stays its own link on the tile and the row. A trade whose `ticker` is checking or
+  Records pages. A trade's Proof stays its own link on its row. A trade whose `ticker` is checking or
   unchecked reads **ticker check** in place of its P/L, with `ticker.why` on hover, and its ticker, on a tile, a row
   or an Activity line, carries a "?" mark saying the same; a corrected ticker carries a "fixed" mark whose hover says
   what the bar was read as and IBKR's tape for both tickers (`ticker.why`).
 - **When it does not fit**, closed rows drop to one line, then each trader's oldest closed trades fold into "+N
-  earlier closed trades", which opens them all over the stack; open tiles never shrink or fold. A window too small
+  earlier closed trades", which opens them all over the stack; open rows never fold. A window too small
   even for that scrolls the stack rather than hide a trade.
 - **The stream**, above the Activity: the feed's video (`capture.video_id`) in an embedded YouTube player
   (`www.youtube.com/embed`, muted to start), LIVE, mute / unmute, Pop out (a small window of its own on the desktop, a
@@ -437,7 +444,7 @@ images again with each answer.
   screenshots: clicking an event opens its stock in the Trader (operator, 2026-10-13); a desk with no Trader to open
   opens the trade's Proof, which has them. Events that do not fit fold into "+N earlier", which opens the whole list.
 - **Proof on hover** (operator ask 2026-10-13: "I want the proof to be a hover"): hovering or focusing a trade's
-  Proof link, on a closed row or an OPEN tile, shows its entry and exit images in a card under the link, right edges
+  Proof link, on an open or closed row, shows its entry and exit images in a card under the link, right edges
   aligned so the row it proves stays readable (above the link when there is no room under it). Each image carries its
   time; an exit not yet seen reads "Still open" or "The feed never saw it close". The pointer can move into the card;
   Escape closes it. The images are asked for only once the card shows. Clicking the link or the card opens the Proof.
@@ -450,7 +457,7 @@ images again with each answer.
 - **Toasts**: while the feed is configured and Alerts are on (a per-window setting kept in local storage, on by
   default), the main desk window asks `/day?quotes=0` every `FOLLOWED_TOAST_POLL_MS` and raises "CHERIF opened LONG JZ
   @ 1.55" / "added to" / "closed" for a change since its last answer (none for what it found on its first); a click
-  anywhere on a toast opens the TraderTV LIVE page on today (whatever day or proof it was showing), and its Proof opens the page on that trade's proof (operator ask
+  anywhere on a toast opens Bots > LiveTrader Bots on today (whatever day or proof it was showing), and its Proof opens the page on that trade's proof (operator ask
   2026-10-15). A trade first seen while its ticker is `checking` is held back until the check
   ends or `FOLLOWED_TOAST_TICKER_WAIT_SEC` (60) has passed since its entry, so its "opened" names the ticker as checked;
   a toast raised while the ticker is still checking or unchecked says "ticker check" beside it. The window remembers
@@ -468,7 +475,7 @@ added-up % alone read as nonsense ("very confusing": a few cents on a stock unde
 the operator picked "Show the P/L as dollars at $1,000 a trade, with the cents per share and % under each
 trade". Under the figure a small line draws that total trade by trade, oldest exit first, from 0 before the first and
 ending on the number, over a dashed zero; on the card "copied at $1,000 a trade · N trades", in the head the number
-and line alone. Each trade's P/L, on a closed row and an OPEN tile, reads the same way: the dollars at $1,000 on top,
+and line alone. Each trade's P/L, on an open or closed row, reads the same way: the dollars at $1,000 on top,
 the P/L per share ("/sh") and its % under them; a window exit's dollars are a range. The column reads "P/L at
 $1,000". Display only: the wire keeps `per_share` and `pct`. Up is green and down red, as the P/L is elsewhere on the
 page.

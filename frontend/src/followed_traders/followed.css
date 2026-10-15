@@ -17,7 +17,8 @@
   --ft-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Consolas, monospace;
   --ft-side-w: 520px;
   --ft-slot-w: 360px;
-  --ft-holding-w: 330px;
+  /* A trader's name and record, when another feature draws in the card beside them (slots.ts). */
+  --ft-who-w: 340px;
 }
 
 .ft-page {
@@ -143,7 +144,7 @@
 /* Head: one row; the stream's title gives way first */
 .ft-head { flex: none; display: flex; align-items: center; gap: 10px; min-width: 0; }
 .ft-head__title { flex: none; margin: 0 4px 0 0; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
-.ft-head__video { flex: 0 1 420px; min-width: 60px; }
+.ft-head__video { flex: 1 1 0; min-width: 0; }
 .ft-head__spacer { flex: 1 1 0; min-width: 0; }
 .ft-head__tools { flex: none; display: flex; align-items: center; gap: 8px; }
 .ft-watch { flex: none; }
@@ -331,9 +332,19 @@
 .ft-rail { position: relative; flex: none; width: var(--ft-side-w); min-height: 0; display: flex; flex-direction: column; gap: 12px; }
 
 /* One trader: the card, then Holding now beside Closed today */
-.ft-trader { flex: none; overflow: hidden; }
+.ft-trader { flex: none; overflow: hidden; container: ft-trader / inline-size; }
 .ft-trader__card { display: flex; align-items: center; gap: 16px; padding: 12px 14px; }
 .ft-trader__who { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.ft-trader__card--slot > .ft-trader__who { flex: 0 1 var(--ft-who-w); }
+/* A narrower card (a 1920 px window and under): the name column gives room first; under 1300 px what another feature
+   draws in the card (slots.ts) takes a line of its own under the card's row. */
+@container ft-trader (max-width: 1500px) {
+  .ft-trader__card--slot > .ft-trader__who { flex-basis: 240px; }
+}
+@container ft-trader (max-width: 1300px) {
+  .ft-trader__card--slot { flex-wrap: wrap; row-gap: 10px; }
+  .ft-trader__card--slot > .ft-trader__who { flex: 1 1 auto; }
+}
 .ft-trader__name-row { display: flex; align-items: center; gap: 8px; }
 .ft-trader__name { font-size: 18px; font-weight: 700; letter-spacing: 0.02em; }
 .ft-off-air {
@@ -367,46 +378,12 @@
 /* The feed cuts every slot 746 x 119 or so; the box keeps that shape before the picture arrives, so nothing moves. */
 .ft-slot__img { width: 100%; aspect-ratio: 746 / 119; min-height: 0; object-fit: contain; display: block; border-radius: 7px; }
 
-.ft-trader__trades { display: flex; border-top: 1px solid var(--ft-line); }
-.ft-holding {
-  flex: none;
-  width: var(--ft-holding-w);
-  padding: 10px 14px 14px;
-  border-right: 1px solid var(--ft-line);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.ft-closed-pane { flex: 1 1 0; min-width: 0; }
-.ft-closed-pane__head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 10px 14px 6px; }
-.ft-closed-pane__empty { padding: 4px 14px 14px; }
+/* Under the card, one table: open positions on top, then the closed trades (operator, 2026-10-15). */
+.ft-trader__trades { border-top: 1px solid var(--ft-line); }
+.ft-trades__head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 10px 14px 6px; }
 .ft-block__title { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--nova-text); }
-.ft-block__title--open { color: var(--ft-accent); }
 .ft-count { padding: 0 8px; border-radius: 999px; background: var(--ft-raised); font-size: 12px; }
-
-/* An open position */
-.ft-tile {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  padding: 9px 12px;
-  border: 1px solid var(--ft-accent);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--ft-accent) 8%, transparent);
-}
-.ft-tile__row { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
-.ft-tile__ticker { font-size: 18px; font-weight: 700; }
-.ft-tile__held, .ft-tile__pl, .ft-tile__proof { margin-left: auto; }
-.ft-open-chip {
-  align-self: center;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.07em;
-  padding: 2px 7px;
-  border-radius: 4px;
-  background: var(--ft-accent);
-  color: #fff;
-}
+.ft-open-text { color: var(--ft-accent); }
 
 /* Closed trades, striped by result */
 .ft-table { width: 100%; border-collapse: separate; border-spacing: 0; }
@@ -438,6 +415,7 @@
 .ft-closed--win { --ft-stripe: var(--ft-up); }
 .ft-closed--loss { --ft-stripe: var(--ft-down); }
 .ft-closed--scratch, .ft-closed--unscored { --ft-stripe: var(--nova-text-muted); }
+.ft-closed--open { --ft-stripe: var(--ft-accent); }
 .ft-result-word { font-size: 11px; font-weight: 800; letter-spacing: 0.06em; color: var(--ft-stripe, var(--nova-text-muted)); }
 .ft-prices { display: inline-flex; align-items: baseline; gap: 5px; }
 .ft-fold-row td { border-bottom: 0; padding: 5px 14px; }
@@ -455,7 +433,6 @@
 .ft-pl--inline { align-items: flex-start; }
 .ft-pl__usd { font-weight: 600; }
 .ft-pl__sub { font-size: 11px; opacity: 0.85; }
-.ft-pl--big .ft-pl__usd { font-size: 17px; font-weight: 700; }
 .ft-pl--up { color: var(--ft-up); }
 .ft-pl--down { color: var(--ft-down); }
 .ft-table--reads tr.is-ignored td { color: var(--ft-warn); }
@@ -633,12 +610,18 @@
 .ft-toast__body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .ft-toast__x { font: inherit; font-size: 16px; line-height: 1; border: 0; background: none; color: var(--nova-text-muted); cursor: pointer; padding: 2px 4px; }
 
+/* A head that does not fit one row wraps rather than squeeze what it says (what another feature draws there, slots.ts,
+   may take a line of its own). */
+@media (max-width: 2100px) {
+  .ft-head { flex-wrap: wrap; row-gap: 8px; }
+}
+
 @media (max-width: 1600px) {
-  .ft-page { --ft-side-w: 420px; --ft-slot-w: 300px; --ft-holding-w: 320px; }
+  .ft-page { --ft-side-w: 420px; --ft-slot-w: 300px; --ft-who-w: 270px; }
 }
 
 @media (max-width: 1300px) {
-  .ft-page { --ft-side-w: 340px; --ft-slot-w: 240px; --ft-holding-w: 280px; }
+  .ft-page { --ft-side-w: 340px; --ft-slot-w: 240px; --ft-who-w: 220px; }
   .ft-head { flex-wrap: wrap; }
 }
 

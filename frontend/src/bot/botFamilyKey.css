@@ -70,3 +70,13 @@
   font-size: 12px;
   color: var(--nova-danger, #ff453a);
 }
+
+/* The switch alone, its words on hover: the head of LiveTrader Bots (approved render, 2026-10-15). */
+.bot-key--compact { padding: 0; border: 0; background: none; gap: 7px; flex: none; flex-wrap: nowrap; }
+.bot-key--compact.is-on { border-color: transparent; }
+.bot-key--compact .bot-key__track { width: 36px; height: 20px; }
+.bot-key--compact .bot-key__track::after { width: 16px; height: 16px; }
+.bot-key--compact.is-on .bot-key__track::after { transform: translateX(16px); }
+.bot-key__label { font-size: 10.5px; color: var(--nova-text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.bot-key--compact .bot-key__state { cursor: default; }
+.bot-key--compact .bot-key__error { flex: none; white-space: nowrap; }

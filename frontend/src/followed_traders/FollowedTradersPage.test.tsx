@@ -10,6 +10,7 @@ import { resetStreamForTests } from './stream';
 import { FOLLOWED_PROOF_HOVER_CLOSE_MS, FOLLOWED_PROOF_HOVER_OPEN_MS } from './constants';
 import { closed, day, T, trade } from './followedTestData';
 import { FollowedTradersPage } from './FollowedTradersPage';
+import type { FollowedSlots } from './slots';
 import type { FollowedDay } from './types';
 
 type Route = (url: URL) => Response | undefined;
@@ -37,7 +38,7 @@ describe('FollowedTradersPage', () => {
   });
 
   async function show(dayAnswer: FollowedDay | (() => Response), extra: Route = () => undefined,
-    onOpenTrader?: (symbol: string) => void) {
+    onOpenTrader?: (symbol: string) => void, slots?: FollowedSlots) {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const url = new URL(String(input), 'http://desk');
       asked.push(url.pathname + url.search);
@@ -51,7 +52,7 @@ describe('FollowedTradersPage', () => {
       return new Response('', { status: 404 });
     }));
     await act(async () => {
-      root.render(<FollowedTradersPage onOpenTrader={onOpenTrader} />);
+      root.render(<FollowedTradersPage onOpenTrader={onOpenTrader} slots={slots} />);
     });
     await flush();
   }
@@ -102,7 +103,7 @@ describe('FollowedTradersPage', () => {
     await show({ ...d, capture: { ...d.capture!, traders: ['BRAVO'] }, traders: [gone, d.traders[1]] });
     expect(q('ft-left-ALPHA')!.textContent).toBe('Left the bar 10:02:00');
     expect(q('ft-trader-ALPHA')!.textContent).not.toContain('Off air');
-    expect(q('ft-trader-ALPHA')!.textContent).toContain('No open positions');
+    expect(q('ft-trader-ALPHA')!.querySelector('.ft-closed--open')).toBeNull();
     const row = q('ft-row-o1')!;
     expect(row.tagName).toBe('TR');
     expect(row.textContent).toContain('LOSS');
@@ -130,7 +131,7 @@ describe('FollowedTradersPage', () => {
     expect(q('ft-trader-ALPHA')).toBeNull();
   });
 
-  it('draws each trader: their card, an OPEN tile per position, closed rows by result, and the activity', async () => {
+  it('draws each trader: their card, one table with the open positions on top and closed rows by result, and the activity', async () => {
     await show(day({ capture: { ...day().capture!, traders: ['ALPHA'] } }));
     expect(q('ft-capture-pill')!.textContent).toBe('Live · 6s behind the stream · bar read 10:09:54 ET');
     // The bar's read is on the slot; the slot is the live one while capture reads the bar.
@@ -141,10 +142,14 @@ describe('FollowedTradersPage', () => {
     expect(q('ft-trader-ALPHA')!.textContent).toContain('On air');
     expect(q('ft-trader-BRAVO')!.textContent).toContain('Off air');
     expect(q('ft-record-ALPHA')!.textContent).toContain('1W / 0L · 1 open · Win rate 100%');
+    // Operator, 2026-10-15, of the OPEN tiles: "make this more compact". One table: open rows first, striped blue.
+    expect(q('ft-trader-ALPHA')!.querySelector('.ft-trades__head')!.textContent).toMatch(/^Trades today21 open · 1 won · 0 lost/);
     const tile = q('ft-row-o1')!;
-    expect(tile.classList.contains('ft-tile')).toBe(true);
+    expect(tile.tagName).toBe('TR');
+    expect(tile.className).toContain('ft-closed--open');
+    expect(tile.parentElement!.firstElementChild).toBe(tile);
     expect(tile.textContent).toContain('OPEN');
-    expect(tile.textContent).toContain('2.00 → 2.50');
+    expect(tile.textContent).toContain('2.00 → 2.50now');
     expect(tile.textContent).toContain('+0.50');
     // An open position's dollars are from the price now, a closed trade's from when it left their bar (review).
     expect(tile.querySelector('.ft-pl')!.getAttribute('data-tip')).toContain('IBKR’s last price now');
@@ -158,7 +163,7 @@ describe('FollowedTradersPage', () => {
     expect(range.textContent).toContain('by 09:40:00');
     expect(range.textContent).toContain('77.10–77.90 est.');
     expect(range.textContent).toContain('UNSCORED');
-    expect(q('ft-trader-BRAVO')!.textContent).toContain('No open positions');
+    expect(q('ft-trader-BRAVO')!.querySelector('.ft-closed--open')).toBeNull();
     // The Activity is one line per event: no screenshots.
     expect(q('ft-activity')!.textContent).toContain('ALPHA closed');
     expect(q('ft-activity')!.querySelector('img[alt*="position bar"]')).toBeNull();
@@ -188,7 +193,7 @@ describe('FollowedTradersPage', () => {
     expect(q('ft-activity')!.querySelectorAll('[data-testid="ft-ticker-mark"]').length).toBeGreaterThan(0);
   });
 
-  it('opens a ticker in the Trader: an OPEN tile, a closed row and a proof', async () => {
+  it('opens a ticker in the Trader: an open row, a closed row and a proof', async () => {
     const opened = vi.fn();
     await show(day(), () => undefined, opened);
     await click(q('ft-row-o1')!.querySelector('.ft-ticker-link'));
@@ -203,7 +208,38 @@ describe('FollowedTradersPage', () => {
   it('draws the ticker as plain text when the desk gives the page no Trader', async () => {
     await show(day());
     expect(q('ft-row-o1')!.querySelector('.ft-ticker-link')).toBeNull();
-    expect(q('ft-row-o1')!.querySelector('.ft-tile__ticker')!.textContent).toBe('ABCD');
+    expect(q('ft-row-o1')!.querySelector('.ft-ticker')!.textContent).toBe('ABCD');
+  });
+
+  it('draws what another feature gives it: after the title, in a card on today, beside an open row', async () => {
+    // Bots > LiveTrader Bots (operator, 2026-10-15): the LiveTrader Bots key, each host's bot, a copy's chip.
+    const slots: FollowedSlots = {
+      Head: () => <span data-testid="slot-head">key</span>,
+      Trader: ({ name, open }) => <span data-testid={`slot-trader-${name}`}>{open.map((t) => t.symbol).join(',')}</span>,
+      OpenBadge: ({ trade }) => <span data-testid={`slot-badge-${trade.id}`}>BOT</span>,
+    };
+    await show(day(), () => undefined, undefined, slots);
+    expect(q('slot-head')!.previousElementSibling!.textContent).toBe('LiveTrader Bots');
+    const card = q('ft-trader-ALPHA')!.querySelector('.ft-trader__card')!;
+    expect(card.className).toContain('ft-trader__card--slot');
+    expect(q('slot-trader-ALPHA')!.textContent).toBe('ABCD');
+    expect(q('slot-trader-ALPHA')!.previousElementSibling!.className).toBe('ft-trader__who');
+    expect(q('slot-trader-BRAVO')!.textContent).toBe('');
+    expect(q('ft-row-o1')!.querySelector('[data-testid="slot-badge-o1"]')).toBeTruthy();
+    expect(q('ft-row-c1')!.querySelector('[data-testid^="slot-badge"]')).toBeNull();
+  });
+
+  it('draws no card slot and no row chip on a past day: the bots are now, not then', async () => {
+    const slots: FollowedSlots = {
+      Trader: ({ name }) => <span data-testid={`slot-trader-${name}`} />,
+      OpenBadge: ({ trade }) => <span data-testid={`slot-badge-${trade.id}`} />,
+    };
+    const past = day({ date: '2026-10-12' });
+    await show(past, () => undefined, undefined, slots);
+    expect(q('slot-trader-ALPHA')).toBeNull();
+    expect(q('slot-badge-o1')).toBeNull();
+    expect(q('ft-trader-ALPHA')!.querySelector('.ft-trades__head')!.textContent).toMatch(/^Trades21 open/);
+    expect(q('ft-row-o1')!.textContent).not.toContain('now');
   });
 
   it('opens an Activity event’s stock in the Trader', async () => {

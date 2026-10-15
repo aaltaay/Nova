@@ -1,0 +1,223 @@
+/* The Live Trader bots on Bots > LiveTrader Bots (ADR 055; approved from a render, 2026-10-15): each host's bot in
+   the middle of their card, the LiveTrader Bots key's line in the page's head, a BOT chip on a row the bot copies, and
+   the rules' editor. Owner: bot/LiveTraderStrip.tsx. Self-contained: the followed traders' sheet knows nothing of it,
+   so these pieces carry their own tokens (the Bots page's values) and atoms. */
+
+.lt-strip,
+.lt-head,
+.lt-badge,
+.lt-pop {
+  --bots-green: var(--nova-success, #30d158);
+  --bots-red: var(--nova-danger, #ff453a);
+  --bots-amber: #f5a524;
+  --bots-blue: var(--nova-accent, #0a84ff);
+  --bots-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.lt-mono { font-family: var(--bots-mono); }
+.lt-label { font-size: 10.5px; color: var(--nova-text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.lt-muted { margin: 0; color: var(--nova-text-muted); font-size: 12px; }
+.lt-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--bots-amber); flex: none; }
+.lt-up { color: var(--bots-green); }
+.lt-down { color: var(--bots-red); }
+
+/* -- buttons, the two-way choice, the key ----------------------------------------------------------- */
+.lt-btn {
+  font: inherit;
+  font-size: 11.5px;
+  line-height: 18px;
+  padding: 1px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--nova-border-strong, var(--nova-border));
+  background: transparent;
+  color: var(--nova-text);
+  cursor: pointer;
+}
+.lt-btn:hover:not(:disabled) { background: var(--hover-bg, rgba(255, 255, 255, 0.06)); }
+.lt-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.lt-btn--primary { background: var(--bots-blue); border-color: var(--bots-blue); color: #fff; font-weight: 600; }
+.lt-btn--primary:disabled { background: color-mix(in srgb, var(--nova-text-muted) 18%, transparent); border-color: var(--nova-border); color: var(--nova-text-muted); opacity: 1; }
+
+.lt-linkbtn { font: inherit; font-size: 12px; border: 0; background: none; padding: 0; color: var(--bots-blue); cursor: pointer; }
+.lt-linkbtn:hover:not(:disabled) { text-decoration: underline; }
+.lt-linkbtn:disabled { color: var(--nova-text-muted); opacity: 0.7; }
+
+.lt-seg { display: inline-flex; flex: none; border: 1px solid var(--nova-border); border-radius: 6px; overflow: hidden; }
+.lt-seg button {
+  font: inherit;
+  font-size: 11.5px;
+  line-height: 20px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--nova-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.lt-seg button + button { border-left: 1px solid var(--nova-border); }
+.lt-seg button:hover:not(:disabled) { color: var(--nova-text); }
+.lt-seg button[aria-checked='true'] { background: var(--bots-blue); color: #fff; }
+.lt-seg button:disabled { cursor: not-allowed; opacity: 0.55; }
+.lt-seg button[aria-checked='true']:disabled { opacity: 0.8; }
+
+.lt-key { font: inherit; display: inline-flex; align-items: center; gap: 7px; border: 0; background: none; color: inherit; cursor: pointer; padding: 0; flex: none; }
+.lt-key:disabled { cursor: not-allowed; opacity: 0.6; }
+.lt-key__track {
+  width: 38px;
+  height: 22px;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--nova-text-muted) 35%, transparent);
+  position: relative;
+  transition: background 0.15s;
+}
+.lt-key__track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s;
+}
+.lt-key.is-on .lt-key__track { background: var(--bots-green); }
+.lt-key.is-on .lt-key__track::after { transform: translateX(16px); }
+.lt-key:focus-visible .lt-key__track { box-shadow: 0 0 0 2px var(--bots-blue); }
+
+.lt-bar { flex: 1 1 120px; min-width: 40px; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--nova-text-muted) 22%, transparent); overflow: hidden; }
+.lt-bar i { display: block; height: 100%; background: var(--bots-blue); }
+
+.lt-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11.5px;
+  line-height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--nova-border);
+  color: var(--nova-text);
+  white-space: nowrap;
+}
+
+/* -- a host's bot, in the middle of their card ---------------------------------------------------------- */
+.lt-strip {
+  flex: 1 1 auto;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 9px;
+  margin-left: 6px;
+  padding: 2px 0 2px 18px;
+  border-left: 1px solid var(--nova-border);
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--nova-text);
+}
+.lt-strip__row { display: flex; align-items: center; gap: 16px; white-space: nowrap; min-width: 0; }
+.lt-strip__side { display: inline-flex; align-items: center; gap: 6px; }
+.lt-strip__alw { display: inline-flex; align-items: center; gap: 8px; flex: 0 1 300px; min-width: 0; }
+.lt-strip__today { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.lt-strip__today b { font-size: 12.5px; }
+.lt-strip__skips { color: var(--bots-amber); }
+.lt-strip__skips[data-tip] { text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }
+.lt-strip__held { display: inline-flex; gap: 6px; min-width: 0; overflow: hidden; }
+.lt-strip__ask { gap: 10px; }
+.lt-strip__ask-text { font-weight: 600; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.lt-strip__acts { display: inline-flex; gap: 6px; flex: none; }
+.lt-strip__error { margin: 0; color: var(--bots-red); overflow: hidden; text-overflow: ellipsis; }
+/* The host's card is the followed traders' page's container `ft-trader` (followed.css). A narrower card keeps the
+   controls and the numbers, not their labels; under 1300 px the bot takes one line of its own under the card's row. */
+@container ft-trader (max-width: 1500px) {
+  .lt-strip__alw .lt-label, .lt-strip__today .lt-label { display: none; }
+  .lt-strip__row { gap: 12px; }
+}
+@container ft-trader (max-width: 1300px) {
+  .lt-strip {
+    order: 5;
+    flex: 1 0 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 8px 28px;
+    margin: 0;
+    padding: 9px 0 0;
+    border-left: 0;
+    border-top: 1px solid var(--nova-border);
+  }
+  .lt-strip__alw .lt-label, .lt-strip__today .lt-label { display: inline; }
+}
+
+/* -- the page's head: the LiveTrader Bots key and what holds every host's bot ---------------------------- */
+/* The reason shrinks with an ellipsis before the head's tools leave the window; all of it is on hover. */
+.lt-head { display: inline-flex; align-items: center; gap: 10px; flex: 0 1 auto; min-width: 0; }
+.lt-head__held { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: var(--bots-amber); font-size: 12px; white-space: nowrap; }
+.lt-head__why { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* A window under 2100 px has no room for it in the head's row: it takes a line of its own under it, the reason whole. */
+@media (max-width: 2100px) {
+  .lt-head { order: 10; flex: 1 0 100%; }
+}
+.lt-head__held.is-bad { color: var(--bots-red); }
+.lt-head__held.is-bad .lt-dot { background: var(--bots-red); }
+.lt-head__held.is-plain { color: var(--nova-text-muted); }
+.lt-head__held.is-plain .lt-dot { background: var(--nova-text-muted); }
+
+/* -- what the bot holds of a host's open row -------------------------------------------------------------- */
+.lt-badge {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: var(--bots-blue);
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin-left: 6px;
+  vertical-align: 1px;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.lt-badge__ticker { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+
+/* -- the rules' editor, a card under Rules --------------------------------------------------------------- */
+.lt-pop {
+  position: fixed;
+  z-index: 40;
+  max-width: min(760px, calc(100vw - 24px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--nova-border-strong, var(--nova-border));
+  border-radius: 8px;
+  background: var(--nova-panel);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  color: var(--nova-text);
+  font-size: 12px;
+}
+.lt-pop__head { display: flex; align-items: center; gap: 10px; }
+.lt-pop__head b { font-size: 13px; }
+.lt-pop__head .lt-linkbtn { margin-left: auto; }
+.lt-pop__chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.lt-edit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  border-top: 1px solid color-mix(in srgb, var(--nova-border) 70%, transparent);
+  padding-top: 9px;
+}
+.lt-edit__item { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+.lt-edit__item input {
+  width: 6.5rem;
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  border: 1px solid var(--nova-border);
+  background: var(--input-bg, transparent);
+  color: var(--nova-text);
+}

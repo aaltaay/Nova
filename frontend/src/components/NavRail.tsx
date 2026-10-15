@@ -22,7 +22,6 @@ import {
   NAV_RAIL_EXPAND_TITLE,
   NAV_RAIL_GROUP_LABELS,
   NAV_RAIL_LABEL_CRYPTOS,
-  NAV_RAIL_LABEL_FOLLOWED,
   NAV_RAIL_LABEL_MARKET,
   NAV_RAIL_LABEL_RECORDS,
   NAV_RAIL_LABEL_SCANNER,
@@ -30,7 +29,6 @@ import {
   NAV_RAIL_LABEL_TRADER,
   NAV_RAIL_RECORDING_MAX,
   NAV_RAIL_TITLE_CRYPTOS,
-  NAV_RAIL_TITLE_FOLLOWED,
   NAV_RAIL_TITLE_MARKET,
   NAV_RAIL_TITLE_RECORDS,
   NAV_RAIL_TITLE_SCANNER,
@@ -41,7 +39,6 @@ import {
   navRailRecordingTitle,
 } from '../constantGroups/nav_rail';
 import { TRADER_DEFAULT_SYMBOL } from '../constants';
-import { useFollowedTradersEnabled } from '../followed_traders';
 import { formatScannerNavCount, scannerNavIcon } from '../scanner/scannerNavIcons';
 import {
   navRailCollapsedDefault,
@@ -84,8 +81,6 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
   const groups = useMemo(() => listScannerNavGroups(), []);
   // The guarded list: strings only, a stale status records nothing (QA C14 / C23).
   const recordingSymbols = useRecordingSymbols();
-  // Only a desk whose backend has a followed traders feed shows the item (NOVA_FOLLOW_FEED_URL).
-  const followedOn = useFollowedTradersEnabled();
 
   const dashboardUp = !traderActive && page === 'dashboard';
   // The Account page is a shell page; the legacy Account / Reports dashboard
@@ -209,16 +204,6 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
           active={!traderActive && page === 'cryptos'}
           onClick={() => goPage('cryptos')}
         />
-        {followedOn && (
-          <NavRailItem
-            testId="nav-rail-followed"
-            icon={navRailIcon('followed')}
-            label={NAV_RAIL_LABEL_FOLLOWED}
-            title={NAV_RAIL_TITLE_FOLLOWED}
-            active={!traderActive && page === 'followed'}
-            onClick={() => goPage('followed')}
-          />
-        )}
         {visibility.trading !== false && (
           <NavRailAccountItem active={accountActive} onOpen={() => goPage('account')} />
         )}

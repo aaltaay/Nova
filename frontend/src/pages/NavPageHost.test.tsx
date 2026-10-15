@@ -19,11 +19,12 @@ vi.mock('./AccountPage', () => ({
 vi.mock('../cryptos', () => ({
   CryptosPage: () => <div data-testid="cryptos-page-stub" />,
 }));
-vi.mock('../followed_traders', () => ({
-  FollowedTradersPage: () => <div data-testid="followed-page-stub" />,
-}));
 vi.mock('../bot/BotsGroupPage', () => ({ BotsGroupPage: () => <div data-testid="bots-group-stub" /> }));
-vi.mock('../bot/LiveTraderBotsPage', () => ({ LiveTraderBotsPage: () => <div data-testid="lt-bots-stub" /> }));
+vi.mock('../bot/LiveTraderBotsPage', () => ({
+  LiveTraderBotsPage: ({ onOpenTrader }: { onOpenTrader?: (s: string) => void }) => (
+    <button type="button" data-testid="lt-bots-stub" onClick={() => onOpenTrader?.('XYZ')} />
+  ),
+}));
 vi.mock('../bot/BotsPage', () => ({ BotsPage: () => <div data-testid="strategy-bots-stub" /> }));
 
 describe('NavPageHost', () => {
@@ -82,21 +83,25 @@ describe('NavPageHost', () => {
     expect(container.querySelector('[data-testid="dashboard-stub"]')).toBeNull();
   });
 
-  it('routes the Followed traders page (lazy) from the store', async () => {
+  it("gives LiveTrader Bots, the followed traders' page, the desk's way to open a ticker in the Trader", async () => {
+    const opened: string[] = [];
     await act(async () => {
       root.render(
-        <NavPageHost onOpenTrader={() => {}}>
+        <NavPageHost onOpenTrader={(s) => opened.push(s)}>
           <div data-testid="dashboard-stub" />
         </NavPageHost>,
       );
     });
     await act(async () => {
-      setNavPage('followed');
+      setNavPage('bots-live-trader');
     });
     await act(async () => {
       await Promise.resolve();
     });
-    expect(container.querySelector('[data-testid="followed-page-stub"]')).toBeTruthy();
+    await act(async () => {
+      (container.querySelector('[data-testid="lt-bots-stub"]') as HTMLElement).click();
+    });
+    expect(opened).toEqual(['XYZ']);
     expect(container.querySelector('[data-testid="dashboard-stub"]')).toBeNull();
   });
 

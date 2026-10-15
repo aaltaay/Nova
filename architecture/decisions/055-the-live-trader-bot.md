@@ -123,3 +123,7 @@ Decision 5's last bullet is replaced: **off places no order** (operator: "Bots c
 Accepted risk, said to the operator before the choice: with a key off, a position the bot holds is not sold when the host exits or at 15:55, so it can be held overnight until the operator sells it or turns the keys back on.
 
 Rejected: keeping the sell-on-off for this bot alone, and off stopping new buys only while exits run (the operator chose one meaning for off at every level: no orders at all).
+
+## Amendment 2026-10-15 (afternoon): each host's bot in the host's card
+
+Operator, 2026-10-15 (ADR 044's amendment of the same afternoon): the TraderTV hosts' page is Bots > LiveTrader Bots, and each host's bot sits in the middle of that host's card in two lines -- its key, Entry, Exit and rules; its allowance, today and skips, the reasons on hover -- with an ask taking the second line. A copy the bot holds is a BOT chip on the host's open row it copies. The LiveTrader Bots key and the one line naming what stops every host's bot are in the page's head. The rules, the keys and the wire (`GET /api/bot/live-traders`) are unchanged; only where the desk draws them moved (`bot.md`, "The Live Trader bot").

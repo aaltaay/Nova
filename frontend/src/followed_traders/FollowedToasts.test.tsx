@@ -70,12 +70,12 @@ describe('FollowedToasts', () => {
     expect(toast.textContent).toContain('ALPHA opened LONG NEW @ 3.10');
     await act(async () => { (toast.querySelector('.ft-link') as HTMLElement).click(); });
     expect(onOpenPage).toHaveBeenCalled();
-    expect(getNavPage()).toBe('followed');
+    expect(getNavPage()).toBe('bots-live-trader');
     expect(lastRequest).toEqual({ date: '2026-10-13', tradeId: 'n1' });
     expect(q('[data-testid="ft-toast-n1|in"]')).toBeNull();
   });
 
-  it('opens the TraderTV LIVE page on today on a click anywhere on the toast, its padding too', async () => {
+  it('opens Bots > LiveTrader Bots on today on a click anywhere on the toast, its padding too', async () => {
     const next = day();
     next.traders[0].open.push(trade({ id: 'n2', symbol: 'NEW',
       entry: { first_price: 3.1, avg_price: 3.1, ts: T + 620, since_ts: null, known: true } }));
@@ -87,7 +87,7 @@ describe('FollowedToasts', () => {
     const toast = q('[data-testid="ft-toast-n2|in"]')!;
     await act(async () => { toast.click(); });
     expect(onOpenPage).toHaveBeenCalledTimes(1);
-    expect(getNavPage()).toBe('followed');
+    expect(getNavPage()).toBe('bots-live-trader');
     expect(lastRequest).toEqual({ date: null, tradeId: null });
     expect(q('[data-testid="ft-toast-n2|in"]')).toBeNull();
   });
