@@ -191,6 +191,9 @@ def _watcher_text(status: dict[str, Any], got: dict[str, Any]) -> str:
     if not status.get("running"):
         return "The watcher is not running"
     if status.get("idle"):
+        if got.get("state") not in (None, "ok"):
+            why = got.get("error") or got.get("state")
+            return f"Idle: no host's key is on -- the TraderTV feed is not answering ({why})"
         return "Idle: no host's key is on"
     if got.get("state") != "ok":
         return f"The TraderTV feed is not answering ({got.get('error') or got.get('state')})"

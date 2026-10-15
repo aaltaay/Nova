@@ -519,6 +519,14 @@ def test_a_fresh_desk_lists_the_feeds_hosts_with_their_keys_off(desk):
     assert [h["name"] for h in got["hosts"]] == [OTHER, HOST]
     assert not any(h["settings"]["key"] for h in got["hosts"])
     assert held(desk, "XYZ") == 0                                  # idle: it reads names, it never trades
+    desk.feed.down = True                                          # a read that fails keeps the day's names
+    run(desk, "10:30:05")
+    down = lt_view.build()
+    assert [h["name"] for h in down["hosts"]] == [OTHER, HOST]
+    assert down["watcher"]["feed"]["state"] == "unreachable" and "could not connect" in down["watcher"]["feed"]["error"]
+    said = lt_view._watcher_text({"running": True, "idle": True}, {"state": "unreachable", "error": "could not connect"})
+    assert said == "Idle: no host's key is on -- the TraderTV feed is not answering (could not connect)"
+    desk.feed.down = False
     lt_settings.patch_host(HOST, {"key": True})
     desk.feed.open("ABCD", 50.00, at("10:30:10"))
     run(desk, "10:30:11")
