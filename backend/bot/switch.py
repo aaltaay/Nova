@@ -114,9 +114,8 @@ def why_off(row: dict[str, Any]) -> str | None:
     if refused is not None:
         return refused.message
     stamp = row.get("deactivated")
-    if isinstance(stamp, dict) and stamp.get("text"):
-        return str(stamp["text"])
-    return _OFF_TEXT
+    said = activation.stamp_text(stamp) if isinstance(stamp, dict) else None
+    return said or _OFF_TEXT
 
 
 def view(row: dict[str, Any], venue: str | None) -> dict[str, Any]:

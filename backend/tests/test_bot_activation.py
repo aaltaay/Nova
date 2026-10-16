@@ -125,6 +125,21 @@ def test_locking_the_padlock_leaves_activate_on(api_key):
     assert not any(r["action"] == "deactivate" for r in list_entries(limit=20))
 
 
+def test_a_padlock_stamp_from_before_the_change_never_says_the_switch_unlocks_it():
+    from bot.persist import save_session
+    from bot.session import get_session
+
+    on_practice()
+    row = load_session()
+    row["deactivated"] = {"at": 1.0, "reason": "padlock", "text": "the padlock was locked, so the bot went off -- turn "
+                          "the Bot switch on again (it unlocks the padlock)"}
+    save_session(row)
+    view = get_session()
+    assert "unlocks the padlock" not in view["deactivated"]["text"]
+    assert "padlock is separate now" in view["deactivated"]["text"]
+    assert "unlocks the padlock" not in (view["switch"]["why_off"] or "")
+
+
 def test_a_venue_change_clears_activate_as_the_venues_not_the_padlocks():
     from sim.mode import set_venue
 

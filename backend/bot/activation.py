@@ -52,7 +52,9 @@ logger = logging.getLogger(__name__)
 
 _TEXT = {
     "restart": "Nova restarted: the bot never stays on across a restart -- turn the Bot switch on again",
-    "padlock": "the padlock was locked, so the bot went off -- turn the Bot switch on again (it unlocks the padlock)",
+    # Only rows written before 2026-10-16, when locking the padlock turned the bot off (``stamp_text``).
+    "padlock": "the padlock was locked, so the bot went off (the rule before 2026-10-16) -- turn the Bot switch on "
+               "again; the padlock is separate now and stays as you set it",
     "venue": "the desk moved to another venue: the bot never carries into another venue",
     "level": "the master level left Strategy",
     "no_setup": "no setup is at Strategy any more",
@@ -210,6 +212,15 @@ def deactivate_now(reason: str, text: str | None = None, **inputs: Any) -> bool:
         save_session(row)
         record(reason, text, **inputs)
     return was
+
+
+def stamp_text(stamp: dict[str, Any]) -> str | None:
+    """The words of a ``deactivated`` stamp. A ``padlock`` stamp is from before 2026-10-16 and its saved words said
+    the Bot switch unlocks the padlock, which it no longer does: it reads today's words (Codex review, PR #1019)."""
+    if stamp.get("reason") == "padlock":
+        return _TEXT["padlock"]
+    text = stamp.get("text")
+    return str(text) if text else None
 
 
 def clear_on_load(row: dict[str, Any]) -> None:

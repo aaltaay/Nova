@@ -108,14 +108,15 @@ with `live_fire_ready` as a one-release alias.
 `bot/activation.py`). `POST /api/bot/session/arm` refuses, `409`
 with a plain reason: `BOT_LIVE_NOT_BUILT` (Live), `BOT_REPLAY_DESK` (Sim off the
 live edge with nothing loaded; a loaded replay is traded, ADR 052), `BOT_VENUE_UNKNOWN`, `BOT_LEVEL_NOT_STRATEGY`,
-`BOT_NO_SETUP_AT_STRATEGY` and `BOT_PADLOCK_LOCKED`. No loss limit refuses Activate or turns
+`BOT_NO_SETUP_AT_STRATEGY` and `BOT_PADLOCK_LOCKED` (the legacy `/arm` alone still refuses a locked padlock; the Bot
+switch does not, "The Bot switch" below). No loss limit refuses Activate or turns
 the bot off (ADR 056). Choosing Strategy never activates. The backend clears
 Activate -- a `deactivate` audit line and `deactivated: {at, reason, text}`,
-`reason` one of `restart | padlock | venue | level | no_setup | operator` (a saved
+`reason` one of `restart | venue | level | operator` (older lines also `padlock` and `no_setup`; a saved
 `bot_trip` / `all_stop` from before ADR 056 keeps its own `text`) -- on every process start (like spend arming, ADR 018),
-when anyone locks the padlock (`ibkr.safety.set_armed` calls
-`activation.on_disarm`; it used to be only a page effect), on a venue change,
-and with the master below Strategy or no setup left at Strategy. The
+on a venue change, with the master below Strategy, and by the operator. Locking the padlock no longer clears it
+(operator decision 2026-10-16, "The Bot switch" below): while it is locked every bot holds instead. A saved `padlock`
+stamp from before that reads today's words (`activation.stamp_text`), never "it unlocks the padlock". The
 session's `active` is the truth (`armed` a one-release alias; `has_desk_arm`,
 the token's presence, stays).
 
