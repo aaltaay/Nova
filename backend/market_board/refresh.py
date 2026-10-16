@@ -106,6 +106,10 @@ def _due(job: Job, now: float, wanted: bool = True) -> bool:
     st = store()
     if job.gap_group and now - _group_last.get(job.gap_group, -FOREVER) < job.gap:
         return False
+    if job.whole is not None:
+        value = st.get(job.key, now, FOREVER)
+        if value is not None and not job.whole(value):
+            return st.due(job.key, now, 0.0)   # a pass cut short: the rest after its retry, not its TTL
     if job.fresh is None:
         return st.due(job.key, now, job.ttl_now(wanted))
     if not st.due(job.key, now, 0.0):
@@ -158,7 +162,7 @@ def _run(job: Job, now: float, error_key: str | None = None) -> None:
     _measure(job, started_ns, True, at, since is not None and (before is None or before < since))
     if error_key:
         st.put(error_key, job.source, None, at)
-    if job.fresh is not None and not job.fresh(value):
+    if (job.fresh is not None and not job.fresh(value)) or (job.whole is not None and not job.whole(value)):
         st.defer(job.key, at + job.retry)
 
 

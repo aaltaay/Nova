@@ -151,28 +151,37 @@ def stock_quotes(symbols: list[str]) -> dict[str, dict]:
 
 
 def bar_quotes(symbols: list[str], today: str) -> dict[str, dict]:
-    """``{SYM: {price, prev_close, no_trade, at}}`` from regular-session daily bars -- no market-data line.
+    """``{SYM: {price, prev_close, no_trade, date, at}}`` from regular-session daily bars -- no market-data line.
 
     Today's bar (once it exists, from 09:30) closes at the latest regular-session trade; the bar before it is the
-    prior close. Before the open a symbol reads no price. ``HistoricalShed`` on one symbol ends the read early
-    with what it has.
+    prior close. Before the open a symbol reads no price. ``HistoricalShed`` ends the read early with what it has
+    (the caller reads the rest next); any other failure is that symbol's ``error`` and the read goes on. Raises
+    when no symbol answered at all.
     """
     from ibkr import historical_service
 
     out: dict[str, dict] = {}
+    failed: Exception | None = None
     for sym in symbols:
         try:
             rows = _run(historical_service.request_daily_bars(sym, "3 D", use_rth=True),
                         MARKET_HISTORY_TIMEOUT_SEC * 2, "market_board.bar_quotes")
-        except Exception as exc:  # noqa: BLE001 -- a shed or a refusal ends this pass; the rest wait for the next
-            if out:
-                break
-            raise exc
+        except Exception as exc:  # noqa: BLE001 -- a shed ends this pass; a refusal is that symbol's, stated
+            if type(exc).__name__ == "HistoricalShed":
+                if out:
+                    break
+                raise
+            failed = exc
+            out[sym.upper()] = {"price": None, "prev_close": None, "no_trade": None, "date": today,
+                                "at": time.time(), "error": f"{exc}"[:200] or type(exc).__name__}
+            continue
         today_bar = next((r for r in rows or [] if r["date"] == today), None)
         prior = [r for r in rows or [] if r["date"] < today]
         out[sym.upper()] = {"price": today_bar["close"] if today_bar else None,
                             "prev_close": prior[-1]["close"] if prior else None,
-                            "no_trade": today_bar is None, "at": time.time()}
+                            "no_trade": today_bar is None, "date": today, "at": time.time()}
+    if failed is not None and all(q.get("error") for q in out.values()):
+        raise failed
     return out
 
 

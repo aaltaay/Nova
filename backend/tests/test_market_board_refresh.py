@@ -103,6 +103,86 @@ def test_every_read_is_timed_and_the_first_answer_after_the_page_opened(monkeypa
     assert op_metrics.totals()["market_board.first.quotes"][0] == 1
 
 
+# -- ETF prices from bars when no line is spare (2026-10-16) -------------------------------------------------------
+# At the open the historical service shed every pass after its first symbol; each pass stored only XLK, over the
+# rest, and started at XLK again five minutes later -- the 1D column stayed empty for 25 of 26 ETFs.
+
+def _shedding_bars(monkeypatch, per_pass: int, today: str, refused: frozenset[str] = frozenset()):
+    from ibkr import historical_service
+
+    asked: list[str] = []
+    budget = {"left": per_pass}
+
+    def run(sym, timeout, label):
+        if budget["left"] <= 0:
+            raise historical_service.HistoricalShed("open chart has priority")
+        budget["left"] -= 1
+        asked.append(sym)
+        if sym in refused:
+            raise RuntimeError(f"no security definition for {sym}")
+        return [{"date": "2026-10-15", "close": 100.0}, {"date": today, "close": 101.0}]
+
+    monkeypatch.setattr(historical_service, "request_daily_bars", lambda sym, duration, use_rth: sym)
+    monkeypatch.setattr(ibkr_reads, "_run", run)
+    monkeypatch.setattr(ibkr_reads, "headroom_ok", lambda: False)
+    return asked, budget
+
+
+def _etf_bars_job(now: float):
+    return next(j for j in jobs.history_jobs(now) if j.key == "etf_bars")
+
+
+def test_a_shed_bar_pass_keeps_what_it_read_and_reads_the_rest_next(monkeypatch):
+    now = time.time()
+    today = jobs.clock.trading_date(now).isoformat()
+    asked, budget = _shedding_bars(monkeypatch, 3, today)
+    etfs = list(jobs.SECTOR_ETFS + jobs.INDUSTRY_ETFS)
+    job = _etf_bars_job(now)
+    t, passes = now, 0
+    while not jobs._etf_bars_whole(store().get("etf_bars", t, jobs.FOREVER)):
+        budget["left"] = 3
+        assert refresh._due(job, t), "a pass cut short is read again after the shed retry"
+        refresh._run(job, t)
+        passes += 1
+        assert not refresh._due(job, t + cmb.MARKET_SHED_RETRY_SEC - 1)
+        t += cmb.MARKET_SHED_RETRY_SEC + 1
+        assert passes <= len(etfs)
+    value = store().get("etf_bars", t, jobs.FOREVER)
+    assert passes == -(-len(etfs) // 3)
+    # Every ETF read; the missing ones first, so none twice until all were read (the last pass refreshes the oldest).
+    assert set(asked[:len(etfs)]) == set(etfs)
+    assert all(value[s]["price"] == 101.0 and value[s]["prev_close"] == 100.0 for s in etfs)
+    # Whole now: the next pass waits for the TTL, and starts at the oldest answer.
+    assert not refresh._due(job, t)
+    oldest = min(etfs, key=lambda s: value[s]["at"])
+    asked.clear()
+    budget["left"] = 1
+    refresh._run(job, t + cmb.MARKET_BARS_QUOTES_TTL_SEC)
+    assert asked == [oldest] and len(store().get("etf_bars", t, jobs.FOREVER)) == len(etfs)
+
+
+def test_a_refused_etf_is_stated_and_the_others_still_price(monkeypatch):
+    now = time.time()
+    today = jobs.clock.trading_date(now).isoformat()
+    asked, _ = _shedding_bars(monkeypatch, 100, today, refused=frozenset({"XLK"}))
+    refresh._run(_etf_bars_job(now), now)
+    value = store().get("etf_bars", now, jobs.FOREVER)
+    assert value["XLK"]["price"] is None and "XLK" in value["XLK"]["error"]
+    assert value["XLE"]["price"] == 101.0
+    assert jobs._etf_bars_whole(value)
+
+
+def test_yesterdays_bar_prices_are_never_carried_into_today(monkeypatch):
+    now = time.time()
+    today = jobs.clock.trading_date(now).isoformat()
+    asked, _ = _shedding_bars(monkeypatch, 1, today)
+    store().put("etf_bars", "ibkr", {s: {"price": 50.0, "prev_close": 49.0, "date": "2026-10-15", "at": now - 9e4}
+                                     for s in jobs.SECTOR_ETFS + jobs.INDUSTRY_ETFS}, now - 9e4)
+    refresh._run(_etf_bars_job(now), now)
+    value = store().get("etf_bars", now, jobs.FOREVER)
+    assert list(value) == asked and value[asked[0]]["price"] == 101.0
+
+
 # -- the ETFs' quotes ----------------------------------------------------------------------------------------------
 
 def test_stock_quotes_read_prints_and_say_no_trade(monkeypatch):
