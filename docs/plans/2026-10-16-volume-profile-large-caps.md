@@ -10,14 +10,17 @@
 >   [anchored] volume profile ... On which chart? Which timeline?"
 > - **A research pass,** §9a. Operator: "We may need to do more research."
 
-![The 5-minute chart with volume profile: today's profile anchored at 09:30 in its own lane, yesterday's
-profile where its session ended, the zone in play, a pinned signal, the plan, and the read card
-(illustrative prices)](2026-10-16-volume-profile-large-caps.png)
+![Close-up of the 5-minute chart: today's profile in a blue box from the 09:30 anchor to now, its histogram
+outlined in its own lane, the value area shaded, the POC in red, and yesterday's profile in a grey box where its
+session ended (illustrative prices)](2026-10-16-volume-profile-large-caps-closeup.png)
+
+![The same chart on the whole desk: the zone in play, a pinned signal, the plan, the read card, and the Large Cap
+focus list (illustrative prices)](2026-10-16-volume-profile-large-caps.png)
 
 ![Settings › Features with the one switch and its three states, the Large Cap columns, and the chart's
 Profile menu (where today's profile measures from) (illustrative prices)](2026-10-16-volume-profile-large-caps-switch.png)
 
-*Both mockups:*
+*The mockups:*
 - They are drawn on Nova's own desk chrome and with Nova's chart library (lightweight-charts 5.1, the chart
   options in `chart/useChartInstance.ts`).
 - Prices are made up.
@@ -277,6 +280,29 @@ and an `index.ts` barrel. Mockup 1 shows every piece; the numbers below match it
    - Value-area rows brighter.
    - Labelled "TODAY'S PROFILE 09:30 → now".
    - Its POC (bold red) and VAH / VAL (blue) run from the anchor to the axis with coloured axis chips.
+
+**How each profile is framed,** so it can be seen at a glance (operator, 2026-10-16: "I can't even see it ... look
+at examples on the web, like borders"):
+- **A bordered box** over the span the profile measures: blue for today, from the anchor to the axis; grey for
+  yesterday.
+- **A title tab on the frame:** over the histogram for today, at the bottom for yesterday.
+- **A shaded value-area band** from VAH to VAL inside the box, edged by those lines.
+- **Bright value-area rows** and dim rows outside it.
+- **A white outline** traced along the histogram's edge, smoothed over 3 rows, so a P, b, D or thin shape reads
+  at phone size.
+- **A narrow red band** on the POC row.
+
+These follow the common conventions of other profile tools, though the session could not open their pages:
+- a value-area box from VAH to VAL across the range;
+- separate colours inside and outside the value area;
+- a bold POC with a narrow band, extended right;
+- NinjaTrader's grey outline around the profile.
+
+Search extracts of community and LuxAlgo scripts:
+[LuxAlgo fixed range](https://www.luxalgo.com/library/indicator/kIY0znXs-volume-profile-fixed-range),
+[ApexFlow FRVP](https://www.tradingview.com/script/MKcYFqdB-Fixed-Range-Volume-Profile-ApexFlow/),
+[ActiveQuants](https://www.tradingview.com/script/10UqNQSQ-Volume-Profile-ActiveQuants),
+[a NexusFi thread on outlines](https://nexusfi.com/showthread.php?p=672337).
 5. **Only the zone in play** gets a box.
    - It runs from the candle where price left the zone to the lane, with yellow edges (the entry lines) and
      the red POC through it, as in the operator's frame.
