@@ -784,8 +784,9 @@ without a stop for exactly its shares, and a stale stop can never buy past flat 
 the same trade can be taken again after the host comes back on air, and a reused key would replay the earlier
 send's receipt). A long entry or add
 is a `place` BUY `LMT` at the ask plus `LT_ENTRY_OFFSET_USD` (2 cents; the last when no ask), source `bot`,
-`expected_venue: "paper"`; a short one a `bracket` SELL `LMT` at the bid less 2 cents (over the bid while
-SSR is on or unknown, as the setup bot prices it) with `short_entry` and a BUY stop `short_stop_pct` over
+`expected_venue: "paper"`; a short one a `bracket` SELL `LMT` at the bid less 2 cents while SSR is off, and at the ask, which must be over
+the bid, while SSR is on or unknown (`short_sale.ssr.live`, as the setup bot prices it; no ask over the bid is
+`LT_NO_QUOTE`'s wait) with `short_entry` and a BUY stop `short_stop_pct` over
 it, no target. Working after the Paper sleeve's `working_ttl_sec`, it is cancelled. A close cancels the
 position's buy stops (source `cancel_working`) and sends the protective flatten (source `flatten`, the
 practice market ticket) for the bot's shares, never more than the account holds; both name

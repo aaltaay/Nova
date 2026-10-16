@@ -62,6 +62,20 @@ def _num(value: Any) -> float | None:
     return out if out == out and out > 0 else None
 
 
+def ssr(symbol: str) -> str:
+    """The stock's SSR now, ``"on"`` | ``"off"`` | ``"unknown"`` (``short_sale.ssr.live``, the short check's own
+    read), asking IBKR for its daily bars when due. Unknown counts as on: the short is priced above the bid."""
+    from short_sale import ssr as _ssr
+
+    sym = (symbol or "").strip().upper()
+    try:
+        _ssr.request_history(sym)
+        return _ssr.live(sym).state
+    except Exception:  # noqa: BLE001 -- an unread SSR is unknown, which prices the short as if SSR were on
+        logger.warning("Live Trader: SSR for %s not read", sym, exc_info=True)
+        return "unknown"
+
+
 def cap(symbol: str) -> Any:
     """The market cap in dollars, ``"etf"`` for an ETF (always allowed, operator 2026-10-14), ``"pending"`` while
     it is read, None when it could not be read."""
