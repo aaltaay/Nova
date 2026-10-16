@@ -21,6 +21,7 @@ from typing import Any
 from constants_ibkr import IBKR_BRIEF_LINE_BATCH, IBKR_BRIEF_LINE_WAIT_SEC, IBKR_QUOTE_QUALITY_CLOSE_FALLBACK
 from constants_market_board import (
     MARKET_CLOSES_DURATION,
+    MARKET_HISTORY_HEADROOM,
     MARKET_HISTORY_TIMEOUT_SEC,
     MARKET_IBKR_TIMEOUT_SEC,
     MARKET_INDUSTRY_GAP_SEC,
@@ -52,6 +53,20 @@ def ready() -> bool:
 def headroom_ok() -> bool:
     """Lines are spare for a brief read (``ibkr.brief_lines``); else the page reads prices from bars."""
     return brief_lines.headroom_ok()
+
+
+async def _paced(coro):
+    """``coro``, a historical request -- or ``HistoricalShed`` while ``MARKET_HISTORY_HEADROOM`` or fewer of the
+    10-minute budget are left: the page reads last, after charts, the TraderTV exits and LULD (2026-10-16). Checked
+    on the IB loop, where the budget is kept."""
+    from ibkr import historical_service
+
+    snap = historical_service.pacing_snapshot()
+    if snap["window_max"] - snap["window_used"] <= MARKET_HISTORY_HEADROOM:
+        coro.close()
+        raise historical_service.HistoricalShed(
+            f"fewer than {MARKET_HISTORY_HEADROOM + 1} historical requests left in IBKR's 10-minute budget")
+    return await coro
 
 
 def _run(coro, timeout: float, label: str):
@@ -171,7 +186,7 @@ def bar_quotes(symbols: list[str], today: str) -> dict[str, dict]:
     failed: Exception | None = None
     for sym in symbols:
         try:
-            rows = _run(historical_service.request_daily_bars(sym, "3 D", use_rth=True),
+            rows = _run(_paced(historical_service.request_daily_bars(sym, "3 D", use_rth=True)),
                         MARKET_HISTORY_TIMEOUT_SEC * 2, "market_board.bar_quotes")
         except Exception as exc:  # noqa: BLE001 -- the source stops the pass; a refusal is that symbol's, stated
             if _stops_pass(exc):
@@ -211,7 +226,7 @@ def prior_close(spec: dict, trading_date: str) -> dict:
             f"{spec['sec_type']}:{spec['symbol']}", contract, duration=MARKET_PRIOR_DURATION, bar_size="1 day",
             what_to_show=what, use_rth=spec["sec_type"] == "IND")
 
-    rows = _run(_ask(), MARKET_HISTORY_TIMEOUT_SEC * 2, "market_board.prior_close") or []
+    rows = _run(_paced(_ask()), MARKET_HISTORY_TIMEOUT_SEC * 2, "market_board.prior_close") or []
     from datetime import datetime, timezone
 
     prior = [r for r in rows if datetime.fromtimestamp(r["t"], timezone.utc).date().isoformat() < trading_date]
@@ -244,7 +259,7 @@ def line_bars(spec: dict, trading_date: str) -> list[list[float]]:
             duration=MARKET_LINE_DURATION_CRYPTO if spec["sec_type"] == "CRYPTO" else MARKET_LINE_DURATION,
             bar_size=MARKET_LINE_BAR, what_to_show=what, use_rth=False)
 
-    rows = _run(_ask(), MARKET_HISTORY_TIMEOUT_SEC * 2, "market_board.line_bars") or []
+    rows = _run(_paced(_ask()), MARKET_HISTORY_TIMEOUT_SEC * 2, "market_board.line_bars") or []
     return [[row["t"], row["close"]] for row in rows]
 
 
@@ -252,7 +267,7 @@ def rth_closes(symbol: str) -> list[list]:
     """``[[session date, regular-hours close]]`` oldest first; ``HistoricalShed`` when IBKR's budget says later."""
     from ibkr import historical_service
 
-    rows = _run(historical_service.request_rth_daily_closes(symbol, MARKET_CLOSES_DURATION),
+    rows = _run(_paced(historical_service.request_rth_daily_closes(symbol, MARKET_CLOSES_DURATION)),
                 MARKET_HISTORY_TIMEOUT_SEC * 2, "market_board.rth_closes")
     return [[day, close] for day, close in rows or []]
 

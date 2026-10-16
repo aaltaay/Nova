@@ -58,13 +58,22 @@ def shares(step_usd: float, price: float) -> int:
     return max(1, math.floor(step_usd / price + 1e-9))
 
 
-def limits(side: str, quote: dict[str, Any], stop_pct: float) -> tuple[float | None, float | None]:
+def limits(side: str, quote: dict[str, Any], stop_pct: float,
+           ssr: str = "off") -> tuple[float | None, float | None]:
     """``(limit, stop)``: a long buys at the ask plus ``LT_ENTRY_OFFSET_USD`` (the last when no ask) and has no
-    stop; a short sells at the bid less it (the last when no bid) with a buy stop ``stop_pct`` over that."""
+    stop; a short sells at the bid less it (the last when no bid) with a buy stop ``stop_pct`` over that -- while
+    SSR is ``"off"``. On or unknown (it counts as on), the short sells at the ask, which must be above the bid, as
+    the setup bot prices it (``first_pullback.short_side.price``): the short check refuses one at or below the bid
+    (2026-10-16: SHAWN's TSLA short, SSR unknown, refused at the bid less 2 cents)."""
     bid, ask, last = quote.get("bid"), quote.get("ask"), quote.get("last")
     if side == "long":
         base = ask if ask and ask > 0 else last
         return (tick_round(base + LT_ENTRY_OFFSET_USD) if base else None), None
+    if ssr != "off":
+        if not ask or ask <= 0 or (bid and ask <= bid):
+            return None, None
+        limit = tick_round(ask)
+        return limit, tick_round(limit * (1.0 + stop_pct / 100.0))
     base = bid if bid and bid > 0 else last
     if not base:
         return None, None
@@ -91,8 +100,8 @@ def _waited(code: str, wait_text: str, skip_text: str, since: float | None, now:
 def check(*, side: str, symbol: str, their_price: float, settings: dict[str, Any], quote: dict[str, Any] | None,
           cap: Any, ticker: dict[str, Any] | None, used_usd: float, against: str | None,
           short_closed: str | None, priceable: bool, now: float, wait_since: float | None,
-          prev_price: float | None = None) -> dict[str, Any]:
-    """One step's verdict. ``cap`` is the market cap in dollars, ``"etf"`` for an ETF (always allowed),
+          prev_price: float | None = None, ssr: str = "unknown") -> dict[str, Any]:
+    """One step's verdict. ``ssr`` is the stock's SSR for a short (``"on"`` | ``"off"`` | ``"unknown"``). ``cap`` is the market cap in dollars, ``"etf"`` for an ETF (always allowed),
     ``"pending"`` while it is read, or None when it could not be read; ``ticker`` the trade's check (``{"state", "why"}``, None when none is needed);
     ``against`` the words for a position on the other side; ``short_closed`` why no short may open now;
     ``prev_price`` an add's average before it (an add moves the average toward the market, never past it)."""
@@ -134,10 +143,11 @@ def check(*, side: str, symbol: str, their_price: float, settings: dict[str, Any
                            f"{price_text(prev_price)} and the market {price_text(ref)}: a misread, not an add")
     if against:
         return verdict(SKIP, LT_AGAINST, against)
-    limit, stop = limits(side, quote or {}, float(settings["short_stop_pct"]))
+    limit, stop = limits(side, quote or {}, float(settings["short_stop_pct"]), ssr)
     if limit is None:
+        missing = "ask" if side == "long" else "bid" if ssr == "off" else "ask above the bid (SSR on or not known)"
         return _waited(LT_NO_QUOTE, "waiting for a bid and an ask",
-                       f"no {'ask' if side == 'long' else 'bid'} from IBKR in {LT_WAIT_SEC:.0f} s", wait_since, now)
+                       f"no {missing} from IBKR in {LT_WAIT_SEC:.0f} s", wait_since, now)
     qty = shares(float(settings["step_usd"]), limit)
     cost = qty * limit
     allowance = float(settings["allowance_usd"])

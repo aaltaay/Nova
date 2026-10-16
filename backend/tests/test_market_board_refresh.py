@@ -123,9 +123,34 @@ def _shedding_bars(monkeypatch, per_pass: int, today: str, refused: frozenset[st
         return [{"date": "2026-10-15", "close": 100.0}, {"date": today, "close": 101.0}]
 
     monkeypatch.setattr(historical_service, "request_daily_bars", lambda sym, duration, use_rth: sym)
+    monkeypatch.setattr(ibkr_reads, "_paced", lambda coro: coro)
     monkeypatch.setattr(ibkr_reads, "_run", run)
     monkeypatch.setattr(ibkr_reads, "headroom_ok", lambda: False)
     return asked, budget
+
+
+def test_the_page_leaves_the_historical_budget_to_charts_and_the_tradertv_exits(monkeypatch):
+    """2026-10-16: with no line spare the page's ETF bars spent all 60 requests of the 10 minutes, and the
+    TraderTV exits (which leave 20) waited 30 minutes and more. The page sends nothing at 30 or fewer left."""
+    from ibkr import historical_service
+
+    sent: list[str] = []
+
+    async def bars(sym, duration, use_rth):
+        sent.append(sym)
+        return [{"date": "2026-10-15", "close": 100.0}]
+
+    used = {"n": 60 - cmb.MARKET_HISTORY_HEADROOM}
+    monkeypatch.setattr(historical_service, "pacing_snapshot", lambda: {"window_max": 60, "window_used": used["n"]})
+    monkeypatch.setattr(historical_service, "request_daily_bars", bars)
+    monkeypatch.setattr(ibkr_reads, "_run", lambda coro, timeout, label: asyncio.run(coro))
+    with pytest.raises(historical_service.HistoricalShed):
+        ibkr_reads.bar_quotes(["XLK"], "2026-10-16")
+    with pytest.raises(historical_service.HistoricalShed):
+        ibkr_reads.rth_closes("XLK")
+    assert sent == []
+    used["n"] -= 1
+    assert ibkr_reads.bar_quotes(["XLK"], "2026-10-16")["XLK"]["prev_close"] == 100.0 and sent == ["XLK"]
 
 
 def _etf_bars_job(now: float):
