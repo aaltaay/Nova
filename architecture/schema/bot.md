@@ -648,6 +648,12 @@ read, the sell-all time). Beyond the rules above, each with its reason:
 - **An implausible add** (`LT_ADD_IMPLAUSIBLE`): an add's new average lies between the host's average before it and
   the market (the mid, else the last), give or take `LT_ADD_SLACK_PCT` (0.5%) of the market; outside, it is a
   misread, skipped.
+- **A sale read as an add** (`LT_ADD_IS_SALE`; operator 2026-10-16, "the point is to emulate them as much as
+  possible"): an average that moved away from the market by more than `LT_ADD_DIRECTION_PCT` (0.1%) of it -- down
+  while the market is over it on a long, up while it is under it on a short -- is a partial sale the host's platform
+  folded into the average (each sale's profit lowers it), never a buy: skipped, nothing bought. SHAWN's TSLA,
+  2026-10-16: TSLA rose 365 -> 370 while his average fell 366.50 -> 365.02, and at 09:59 it fell 364.32 -> 364.02
+  with TSLA at 366.8; the bot had bought that as an add.
 - **No clock** (`LT_NO_CLOCK`): a read without the stream's on-screen clock -- none, or one read impossibly
   (`09:34:97`, which the feed's parser drops) -- cannot say how far behind the stream it is: nothing opens until a
   clock reads. It is not a silent feed: it never counts toward `LT_HIDDEN_SEC`.
@@ -805,7 +811,7 @@ time of the change. A skip is written once per position, step and code. Codes: `
 `LT_ALLOWANCE`, `LT_ADDS_DONE`, `LT_SHORTS_OFF`, `LT_AGAINST`, `LT_NOT_HELD`, `LT_VENUE`, `LT_BOT_OFF`,
 `LT_FROZEN`, `LT_AFTER_SELL_ALL`, `LT_SHORT_HOURS`, `LT_NOT_PRICEABLE`, `LT_ASK_EXPIRED`, `LT_ASK_SKIPPED`,
 `LT_ALREADY_OPEN`, `LT_OFF_AIR`, `LT_HIDDEN`, `LT_LOSS_LIMIT`, `LT_NOT_ON_BAR`, `LT_OTHER_HOST`, `LT_ROW_UNREAD`,
-`LT_ADD_IMPLAUSIBLE`, `LT_NO_CLOCK`, `LT_FAMILY_OFF`, `LT_KEY_OFF`. Lines written before 2026-10-15 may carry the
+`LT_ADD_IMPLAUSIBLE`, `LT_ADD_IS_SALE`, `LT_NO_CLOCK`, `LT_FAMILY_OFF`, `LT_KEY_OFF`. Lines written before 2026-10-15 may carry the
 retired change kinds `key_off` and `bot_off` (a key or the Bot switch turned off sold everything then). `LT_BLANK_BAR` and `LT_RETURN_SWITCH` are waits, said as `note` lines
 (`step` `blank` for a held sell, `lt_blank_bar` / `lt_return_switch` for a held take), never skips.
 
