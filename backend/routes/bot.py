@@ -76,7 +76,14 @@ async def bot_session_patch(request: Request, body: SessionPatch) -> dict:
     symbols = payload.pop("symbol_allowlist", None)
     try:
         if payload:
+            raised = _strategies_raised(payload)
             apply_patch(payload, desk=True, arm_token=desk_arm_token(request, payload))
+            if raised:
+                # On flows up (operator ask 2026-10-16): a strategy turned On turns Strategy Bots and the Bot switch on.
+                from bot.cascade import family_on
+                from constants_bot import BOT_FAMILY_STRATEGY
+
+                family_on(BOT_FAMILY_STRATEGY)
         refused = await set_list(symbols) if symbols is not None else []
     except BotError as exc:
         raise http_error(exc) from exc
@@ -84,6 +91,25 @@ async def bot_session_patch(request: Request, body: SessionPatch) -> dict:
     if symbols is not None:
         view["refused"] = refused
     return view
+
+
+def _strategies_raised(payload: dict) -> bool:
+    """Whether this PATCH turns a strategy On that is not On now."""
+    from bot.persist import load_session as _load
+    from bot.setup_levels import own_levels
+    from constants_bot import BOT_LEVEL_STRATEGY
+
+    levels = payload.get("setup_levels")
+    if not isinstance(levels, dict):
+        return False
+    before = own_levels(_load())
+    out = False
+    for sid, value in levels.items():
+        try:
+            out = out or (int(value) >= BOT_LEVEL_STRATEGY > int(before.get(sid) or 0))
+        except (TypeError, ValueError):  # maintainer: allow-swallow apply_patch refuses a bad level with its reason
+            continue
+    return out
 
 
 @router.post("/api/bot/session/arm", dependencies=_write)
@@ -128,7 +154,8 @@ def bot_switch(request: Request, body: SwitchBody) -> dict:
 @router.post("/api/bot/session/keys", dependencies=_write)
 @router.post("/bot/session/keys", dependencies=_write)
 def bot_family_key(request: Request, body: KeyBody) -> dict:
-    """A family key (bot.md, "The three keys"): off stops that family's new buys only, nothing is sold."""
+    """A family key (bot.md, "The three keys"): off, its bots place no order, nothing is sold; on turns the Bot
+    switch on too (``bot.cascade``)."""
     from bot import family_keys
 
     payload = body.model_dump(exclude_none=True)
@@ -137,7 +164,16 @@ def bot_family_key(request: Request, body: KeyBody) -> dict:
         family_keys.turn(body.family, body.on)
     except BotError as exc:
         raise http_error(exc) from exc
-    return get_session()
+    token = None
+    if body.on:
+        # On flows up (operator ask 2026-10-16): a family key turned on turns the Bot switch on.
+        from bot.cascade import switch_on
+
+        token, _why = switch_on()
+    view = get_session()
+    if token:
+        view["desk_arm_token"] = token
+    return view
 
 
 @router.post("/api/bot/session/disarm", dependencies=_write)

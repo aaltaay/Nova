@@ -235,15 +235,12 @@ in the header beside the padlock, on every view (it was on the Bots page's Bot c
   409 `BOT_LIVE_NOT_BUILT`, `BOT_REPLAY_DESK`, `BOT_VENUE_UNKNOWN` and `BOT_NO_SETUP_AT_STRATEGY` (no
   strategy is On). A successful ON returns `desk_arm_token`,
   as `/arm` does.
-- **ON unlocks the padlock** (ADR 044 amendment, 2026-10-12). Once every other rule passes, ON arms the
-  desk through the padlock's one rule, `ibkr.safety.arm(True, actor="operator")` (ADR 018), so it
-  follows the padlock's rule by venue: where the padlock unlocks without the PIN (Paper, Sim) the press
-  unlocks it; where it needs the PIN (`arm_requires_pin`, Live) ON is refused `BOT_PADLOCK_LOCKED`
-  until the operator unlocks it with the PIN, and `why_off` names the padlock only there. A refused ON
-  never unlocks. An unlocked desk that still cannot place (`places_allowed`) refuses
-  `BOT_PADLOCK_LOCKED` with its reason. The `bot_switch` line's `reason` adds "(it unlocked the
-  padlock)" when this press unlocked it. OFF leaves the padlock as it is; locking the padlock still
-  turns the bot off (`activation.on_disarm`).
+- **The padlock is separate** (operator decision 2026-10-16, replacing the 2026-10-12 amendment "ON unlocks the
+  padlock"): ON neither unlocks the padlock nor needs it, and locking the padlock -- by anyone -- leaves the switch
+  on. While it is locked no one places an order, a bot included: every bot reads it before each send
+  (`family_keys.hold`, code `BOT_PADLOCK_LOCKED`, a Live Trader skip `LT_BOT_OFF` with the padlock's words), and the
+  bots trade again the moment it is unlocked. Header KILL still turns the bot off (it drops the master to Off).
+  `deactivated.reason: "padlock"` is only on lines written before 2026-10-16.
 - **OFF** deactivates (`deactivated.reason: "operator"`) and puts the master at Eyes (1), so setups
   at Eyes or On still propose. Turning it off sells nothing, and while it is off no bot of either family places
   any order, not even a sell ("The three keys" below).
@@ -276,10 +273,19 @@ position does, "No orders at all"). A bot places an order only while all three o
   hand, its bot still covers the rest, whose buy stop no longer matches (ADR 055, "bad reads" review).
 - The keys stop bots, never the operator: your own orders, a cover included, go through the door with every key off.
   Header KILL and Freeze all orders are unchanged; bots never trade Live.
+- **On flows up** (operator ask 2026-10-16: "I don't want to be controlling 100 manual switches"; owner
+  `bot/cascade.py`): a TraderTV host's Bot key turned on (`PATCH /api/bot/live-traders/{name} {key: true}`) turns the
+  LiveTrader Bots key on, then the Bot switch; a strategy turned On through `PATCH /api/bot/session {setup_levels}`
+  turns the Strategy Bots key on, then the Bot switch; a family key turned on (`POST /api/bot/session/keys`) turns
+  the Bot switch on, and that answer carries `desk_arm_token` when it did. Each step is the same press with the same
+  rules and audit line as by hand. A parent that cannot follow (Live, a replay desk, an unreadable keys file, nothing
+  On under the switch) stays as it is and its own `why_off` says why; the press that asked still counts. Off never
+  flows up, and the padlock is never part of it.
 - **The Bot switch no longer follows the keys under it** (2026-10-15): turning the last strategy Off, or the last
   host key off, leaves it on -- with off at any level meaning no order, a lower key turning it off would also stop
   the other family's exits. ON is still refused while no strategy is On and no host key is on
-  (`BOT_NO_SETUP_AT_STRATEGY`), and it still goes off at a start, a locked padlock and a venue change.
+  (`BOT_NO_SETUP_AT_STRATEGY`), and it still goes off at a start and a venue change (no longer at a locked padlock,
+  2026-10-16).
 - **The family keys' file** is `bot-keys.json` in the operator cache (owner `bot/family_keys.py`; a temp file and a
   rename): `{schema_version: 1, venues: {paper | sim: {strategy: boolean, live_trader: boolean, at: epoch}}}`. Paper and
   Sim each keep their own; Live has none (they read off: bots never trade Live). A venue or a family missing from the
@@ -583,7 +589,9 @@ desk, **Bots > LiveTrader Bots**: the followed traders' page (`followed-traders.
 host's bot in the middle of their card, between their record and their P/L (operator, 2026-10-15: "i want all content
 from the original tradertv live to be inside livetrader bots", and the panel's "Entry you/bot exit you/bot .. can all be
 compacted inside these empty spaces... includeing bot keys"; approved from a render, "i like it. build it."). The
-"Live Traders · TraderTV" panel that stood on its own on that tab is gone. On today, a host's bot reads in two lines:
+"Live Traders · TraderTV" panel that stood on its own on that tab is gone. Under the hosts the page carries the
+desk's Positions / Orders · today dock -- the Scanner's own (`ScannerDesk`, `data-dock-host="bots"`), resizable and
+collapsible, its split kept apart (operator ask 2026-10-16: "I do want to see the positions tab"). On today, a host's bot reads in two lines:
 its Bot key, Entry You | Bot, Exit You | Bot and Rules (the rules on hover; a click opens their editor in a card
 under it); then the allowance used of its allowance, Today's P/L, trades and skips -- the skips' reasons on hover, by
 reason, from its newest events. An ask waiting on the operator takes the second line, with Skip, Approve and its

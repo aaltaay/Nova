@@ -159,6 +159,15 @@ def hold(family: str, venue: str | None = None, row: dict[str, Any] | None = Non
     venue = desk if venue is None else venue
     if venue is None or venue != desk or not switch.is_on(load_session() if row is None else row):
         return BOT_SKIP_NOT_ACTIVE, "the Bot switch in the header is off: bots place no order, not even a sell"
+    # The padlock is separate from the keys (operator decision 2026-10-16): locking it leaves the Bot switch on, and
+    # while it is locked no one places an order -- a bot's sell included -- until it is unlocked.
+    from bot.activation import padlock
+    from constants_bot import BOT_REASON_PADLOCK_LOCKED
+
+    unlocked, locked_why = padlock()
+    if not unlocked:
+        return BOT_REASON_PADLOCK_LOCKED, (f"the desk padlock is locked ({locked_why}): no one places an order, not "
+                                           "even a bot's sell, until it is unlocked")
     on, why = _read(family, venue)
     return None if on else (BOT_SKIP_FAMILY_OFF, f"{why}: its bots place no order, not even a sell")
 

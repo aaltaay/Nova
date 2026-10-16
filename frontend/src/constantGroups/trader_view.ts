@@ -97,6 +97,8 @@ export const TRADER_EXTRACT_BLOCKED_MESSAGE =
  * Independent of STOCK_VIEW_MAIN_ORDERS_SPLIT_* so Trader chart height stays put.
  */
 export const SCANNER_ACCOUNT_DOCK_SPLIT_KEY = 'nova.scanner.accountDockSplitPct';
+/** The same account dock under Bots > LiveTrader Bots (operator ask 2026-10-16), with its own split. */
+export const LT_BOTS_ACCOUNT_DOCK_SPLIT_KEY = 'nova.liveTraderBots.accountDockSplitPct';
 /** Tables share the column with HOD dock, so the account strip needs more than Trader's 22%. */
 export const SCANNER_ACCOUNT_DOCK_SPLIT_PCT = 58;
 export const SCANNER_ACCOUNT_DOCK_SPLIT_MIN_PCT = 40;

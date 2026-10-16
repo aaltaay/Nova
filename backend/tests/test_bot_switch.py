@@ -84,21 +84,21 @@ def test_on_is_refused_with_activates_codes_and_changes_nothing(api_key, setup, 
     assert row["level"] == 0 and not row.get("armed") and _lines() == []
 
 
-# -- ON unlocks the padlock (operator ask 2026-10-12) ---------------------------------------
+# -- The padlock is separate (operator decision 2026-10-16) --------------------------------
 @pytest.mark.parametrize("venue", ["paper", "sim"])
-def test_on_unlocks_a_locked_padlock_through_its_one_door(api_key, monkeypatch, venue):
+def test_on_leaves_a_locked_padlock_locked(api_key, monkeypatch, venue):
     from ibkr import safety
 
     monkeypatch.setattr("sim.mode.is_replay_desk", lambda: False)   # Sim at its live edge
     on_practice(venue)
     _a_strategy_on()
-    safety.arm(False, actor="operator")                 # a restart, or the operator locked it
+    safety.arm(False, actor="operator")
     assert "padlock" not in (get_session()["switch"]["why_off"] or "")   # ON is not locked by it
     res = _switch(api_key, True)
     assert res.status_code == 200 and res.json()["bot_on"] is True
-    assert safety.armed() and safety.armed_by() == "operator"
+    assert not safety.armed()                           # the padlock is the operator's alone
     [line] = _lines()
-    assert "it unlocked the padlock" in line["reason"]
+    assert "padlock" not in line["reason"]
 
 
 def test_on_with_the_padlock_already_unlocked_says_nothing_of_it(api_key):
@@ -119,28 +119,32 @@ def test_a_refused_on_leaves_the_padlock_locked(api_key):
     assert not safety.armed()
 
 
-def test_where_the_padlock_needs_the_pin_on_never_unlocks_it(api_key, monkeypatch):
-    from ibkr import safety
-
-    on_practice()
-    _a_strategy_on()
-    safety.arm(False, actor="operator")
-    monkeypatch.setattr("ibkr.safety.arm_requires_pin", lambda: True)
-    monkeypatch.setattr("ibkr.trading_allowed.places_allowed",        # the suite pins it True
-                        lambda: (safety.armed(), "" if safety.armed() else "Desk is disarmed"))
-    res = _switch(api_key, True)
-    assert res.status_code == 409 and res.json()["detail"]["reason"] == BOT_REASON_PADLOCK_LOCKED
-    assert "unlock it, then turn the bot on" in res.json()["detail"]["error"]
-    assert not safety.armed() and _lines() == []
-
-
-def test_an_unlocked_desk_that_cannot_place_refuses_on(api_key, monkeypatch):
+def test_a_desk_that_cannot_place_does_not_refuse_on(api_key, monkeypatch):
     on_practice()
     _a_strategy_on()
     monkeypatch.setattr("ibkr.trading_allowed.places_allowed", lambda: (False, "Gateway not ready"))
     res = _switch(api_key, True)
-    assert res.status_code == 409 and res.json()["detail"]["reason"] == BOT_REASON_PADLOCK_LOCKED
-    assert "Gateway not ready" in res.json()["detail"]["error"] and _lines() == []
+    assert res.status_code == 200 and res.json()["bot_on"] is True
+
+
+def test_locking_the_padlock_leaves_the_switch_on_and_holds_every_bot(api_key, monkeypatch):
+    from bot import family_keys
+    from ibkr import safety
+
+    on_practice()
+    _a_strategy_on()
+    assert _switch(api_key, True).status_code == 200
+    monkeypatch.setattr("ibkr.trading_allowed.places_allowed",        # the suite pins it True
+                        lambda: (safety.armed(), "" if safety.armed() else "Desk is disarmed"))
+    safety.arm(True, actor="operator")
+    assert family_keys.hold("strategy") is None and family_keys.hold("live_trader") is None
+    safety.arm(False, actor="operator")
+    assert get_session()["bot_on"] is True              # locking it no longer turns the bot off
+    for family in ("strategy", "live_trader"):
+        code, why = family_keys.hold(family)
+        assert code == BOT_REASON_PADLOCK_LOCKED and "padlock is locked" in why
+    safety.arm(True, actor="operator")                  # unlocked: the bots trade again at once
+    assert family_keys.hold("strategy") is None
 
 
 def test_a_brain_cannot_turn_the_bot_on(api_key):
@@ -207,8 +211,8 @@ def test_the_daily_loss_limit_leaves_the_switch_on_and_patch_breakers_is_refused
 
 def test_patch_level_and_activate_still_work_for_the_localhost_api(api_key):
     on_practice()
-    patched = client.patch("/api/bot/session", json={"level": 2, "setup_levels": {"first_pullback": 2}},
-                           headers=headers(api_key))
+    _a_strategy_on()                                 # internal: no cascade (bot.cascade is the routes')
+    patched = client.patch("/api/bot/session", json={"level": 2}, headers=headers(api_key))
     assert patched.status_code == 200 and patched.json()["level"] == 2 and patched.json()["bot_on"] is False
     armed = client.post("/api/bot/session/arm", json={}, headers=headers(api_key))
     assert armed.status_code == 200 and armed.json()["bot_on"] is True and armed.json()["switch"]["on"] is True

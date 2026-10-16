@@ -8,6 +8,7 @@ import { LT_ASKS_PATH, LT_PATH } from '../constantGroups/live_trader';
 import { SAMPLE_WRITE_REFUSAL } from '../sample_data/sampleCopy';
 import { onSampleDesk } from '../sample_data/sampleOrderGuard';
 import { messageFromBotApiBody } from './botApiError';
+import { refreshBotSessionNow } from './botSessionPoller';
 import type { LiveTraderAsksView, LiveTradersView, LtPatch } from './liveTraderTypes';
 
 const URL = `${API_URL}${LT_PATH}`;
@@ -36,7 +37,10 @@ export async function patchLiveTrader(name: string, body: LtPatch): Promise<Live
   const res = await novaFetch(`${URL}/${encodeURIComponent(name)}`, {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   });
-  return read<LiveTradersView>(res, 'settings');
+  const view = await read<LiveTradersView>(res, 'settings');
+  // On flows up (operator ask 2026-10-16): a host's key on turned LiveTrader Bots and the header's Bot switch on too.
+  if (body.key === true) refreshBotSessionNow();
+  return view;
 }
 
 export async function patchLiveTradersAll(body: { sell_all_at: string }): Promise<LiveTradersView> {

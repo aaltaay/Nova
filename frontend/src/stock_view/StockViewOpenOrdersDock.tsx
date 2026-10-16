@@ -60,7 +60,7 @@ type Props = {
   highlightOrderId?: number | null;
   onCollapsedChange?: (collapsed: boolean) => void;
   /** Which desk mounted this instance -- keep-alive can leave more than one in the tree. */
-  host: 'scanner' | 'trader';
+  host: 'scanner' | 'trader' | 'bots';
 };
 
 /**

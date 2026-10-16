@@ -111,7 +111,9 @@ def test_activate_turns_it_on_and_says_so(api_key):
 
 
 # -- the backend clears it -----------------------------------------------------------------
-def test_locking_the_padlock_clears_activate_in_the_backend(api_key):
+def test_locking_the_padlock_leaves_activate_on(api_key):
+    """The padlock is separate from the bot (operator decision 2026-10-16): locked, no one places an order (the
+    bots' ``family_keys.hold``), and the bot stays on to trade again the moment it is unlocked."""
     from ibkr import safety
 
     on_practice()
@@ -119,9 +121,8 @@ def test_locking_the_padlock_clears_activate_in_the_backend(api_key):
     assert _arm(api_key).status_code == 200
     safety.arm(False, actor="operator")
     row = load_session()
-    assert not is_desk_active(row)
-    assert row["deactivated"]["reason"] == "padlock" and "padlock" in row["deactivated"]["text"]
-    assert any(r["action"] == "deactivate" and r["inputs"].get("reason") == "padlock" for r in list_entries(limit=20))
+    assert is_desk_active(row) and not row.get("deactivated")
+    assert not any(r["action"] == "deactivate" for r in list_entries(limit=20))
 
 
 def test_a_venue_change_clears_activate_as_the_venues_not_the_padlocks():
