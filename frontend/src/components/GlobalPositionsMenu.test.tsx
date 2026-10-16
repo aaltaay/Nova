@@ -53,9 +53,22 @@ describe('GlobalPositionsMenu', () => {
     expect(onOpen).toHaveBeenCalledWith('SPCX');
   });
 
-  it('says so when nothing is held, and when the rows are last known', () => {
-    render(<GlobalPositionsMenu {...base} stale rows={[]} onOpenSymbol={() => {}} />);
+  it('says so when nothing is held', () => {
+    render(<GlobalPositionsMenu {...base} rows={[]} onOpenSymbol={() => {}} />);
     expect(screen.getByTestId('global-positions-empty').textContent).toContain('No open positions');
+  });
+
+  it('marks last-known rows, and never says nothing is held when it has no read', () => {
+    render(<GlobalPositionsMenu {...base} stale rows={heldPositionRows([pos('ABC', 10)])} onOpenSymbol={() => {}} />);
     expect(screen.getByTestId('global-positions-menu').textContent).toContain('Last known');
+    cleanup();
+    render(<GlobalPositionsMenu {...base} stale rows={[]} onOpenSymbol={() => {}} />);
+    expect(screen.getByTestId('global-positions-empty').textContent).toContain('Positions not read');
+    expect(screen.getByTestId('global-positions-empty').textContent).not.toContain('No open positions');
+  });
+
+  it('keeps a fractional IBKR leftover visible, never rounded to 0', () => {
+    render(<GlobalPositionsMenu {...base} rows={heldPositionRows([pos('FRAC', 0.0004)])} onOpenSymbol={() => {}} />);
+    expect(screen.getByTestId('global-position-FRAC').textContent).toContain('0.0004');
   });
 });

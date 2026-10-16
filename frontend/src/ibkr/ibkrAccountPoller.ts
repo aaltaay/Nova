@@ -48,6 +48,8 @@ export interface IbkrAccountPollSnap {
   venue: string | null;
   /** Both order lists answered at least once on this venue: `orders` / `closedOrders` are a read, not a default. */
   ordersRead: boolean;
+  /** The last positions read failed: `positions` are the last known (or none were ever read). */
+  positionsFailed?: boolean;
 }
 
 const EMPTY: IbkrAccountPollSnap = {
@@ -175,11 +177,12 @@ async function tickAccount(): Promise<void> {
       error: mergeError(),
       stale: false,
       staleSince: null,
+      positionsFailed: !snap.positions,
     });
   } catch (err) {
     console.error('[Nova] IBKR account/positions poll failed', err);
     accountFails = ['account/positions fetch failed -- retrying'];
-    applySnap({ ...snapshot, loading: false, error: mergeError() });
+    applySnap({ ...snapshot, loading: false, error: mergeError(), positionsFailed: true });
   } finally {
     accountInflight = false;
   }

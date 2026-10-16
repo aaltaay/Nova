@@ -10,10 +10,12 @@ import {
   GLOBAL_BAR_POSITIONS_OPEN_PNL,
   GLOBAL_BAR_POSITIONS_SHORT,
   GLOBAL_BAR_POSITIONS_STALE_NOTE,
+  GLOBAL_BAR_POSITIONS_UNREAD,
   GLOBAL_BAR_VIEW_ALL_POSITIONS,
   globalBarPositionOpenTitle,
 } from '../constantGroups/global_bar';
 import { formatMoney } from '../utils/formatMoney';
+import { formatShareQty } from '../utils/formatShareQty';
 import { formatSignedMoney, pnlToneClass } from './globalBarMoney';
 import type { HeldPositionRow } from './globalPositionsRows';
 import { requestOpenTradingTab } from './openTradingTabNav';
@@ -42,10 +44,10 @@ export function GlobalPositionsMenu({ rows, stale, onOpenSymbol, traderActive, c
       aria-label={GLOBAL_BAR_POSITIONS_MENU_TITLE}
       data-testid="global-positions-menu"
     >
-      {stale && <p className="global-app-bar__card-note">{GLOBAL_BAR_POSITIONS_STALE_NOTE}</p>}
+      {stale && rows.length > 0 && <p className="global-app-bar__card-note">{GLOBAL_BAR_POSITIONS_STALE_NOTE}</p>}
       {rows.length === 0 ? (
         <div className="global-app-bar__card-row is-empty" data-testid="global-positions-empty">
-          <span>{GLOBAL_BAR_POSITIONS_EMPTY}</span>
+          <span>{stale ? GLOBAL_BAR_POSITIONS_UNREAD : GLOBAL_BAR_POSITIONS_EMPTY}</span>
           <span />
         </div>
       ) : (
@@ -64,7 +66,7 @@ export function GlobalPositionsMenu({ rows, stale, onOpenSymbol, traderActive, c
           >
             <span className="global-app-bar__position-symbol">{r.symbol}</span>
             <span className="global-app-bar__position-qty">
-              {Math.abs(r.qty).toLocaleString('en-US')}
+              {formatShareQty(Math.abs(r.qty))}
               {r.qty < 0 && <em> {GLOBAL_BAR_POSITIONS_SHORT}</em>}
               {r.avgCost != null && <> @ {formatMoney(r.avgCost)}</>}
             </span>

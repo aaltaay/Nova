@@ -93,6 +93,8 @@ export const GLOBAL_BAR_POSITIONS_EMPTY = 'No open positions';
 export const GLOBAL_BAR_POSITIONS_OPEN_PNL = 'Open P&L';
 export const GLOBAL_BAR_POSITIONS_SHORT = 'short';
 export const GLOBAL_BAR_POSITIONS_STALE_NOTE = 'Last known -- the account has not answered lately.';
+/** Stale with no rows: Nova cannot say nothing is held, only that it has no read. */
+export const GLOBAL_BAR_POSITIONS_UNREAD = 'Positions not read -- the account has not answered.';
 export const GLOBAL_BAR_VIEW_ALL_POSITIONS = 'View All Positions';
 export const globalBarPositionOpenTitle = (symbol: string): string => `Open ${symbol} in the Trader`;
 

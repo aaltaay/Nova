@@ -36,6 +36,8 @@ export interface IbkrAccountState {
   /** True after Gateway drops; rows are last-good and must not drive Flatten. */
   stale: boolean;
   staleSince: number | null;
+  /** The last positions read failed while the account may still answer: `positions` are the last known. */
+  positionsFailed?: boolean;
   refresh: () => void;
 }
 

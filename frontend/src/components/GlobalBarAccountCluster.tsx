@@ -273,7 +273,9 @@ export function GlobalBarAccountCluster({
                 onMouseEnter={hover('positions')}
               >
                 <label>{GLOBAL_BAR_POSITIONS_LABEL}</label>
-                <span className="global-app-bar__positions-count">{held.length}</span>
+                <span className="global-app-bar__positions-count">
+                  {positionsStale && held.length === 0 ? GLOBAL_BAR_OFFLINE_PLACEHOLDER : held.length}
+                </span>
                 <span className="global-app-bar__caret" aria-hidden>
                   {openMenu === 'positions' ? '▴' : '▾'}
                 </span>

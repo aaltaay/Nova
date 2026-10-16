@@ -75,8 +75,10 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
     ibkrIntentionalMode,
     ibkrDisconnectHint,
   } = useWorkspace();
-  const { summary, orders, positions, refresh, stale: accountStale, loading: accountLoading, error: accountError } =
-    useIbkrAccountContext();
+  const {
+    summary, orders, positions, refresh, stale: accountStale, loading: accountLoading, error: accountError,
+    positionsFailed,
+  } = useIbkrAccountContext();
   const { orders: closedOrders } = useClosedOrders(ibkrConnected);
   // ADR 048 step 6: Nova covers Live shorts at 15:55 only while IBKR_SHORT_ENABLED is on; the close card says which.
   const liveShortCover = useIbkrStatus().short_enabled === true;
@@ -164,7 +166,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
             orders={orders}
             closedOrders={closedOrders}
             positions={positions}
-            positionsStale={accountStale}
+            positionsStale={accountStale || positionsFailed === true}
             onOpenSymbol={openStockView}
             traderActive={traderActive}
             closeTraderView={leaveTraderToScanner}
