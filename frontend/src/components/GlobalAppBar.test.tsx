@@ -213,7 +213,7 @@ describe('GlobalAppBar', () => {
     });
   }
 
-  it("shows P/L, Unrealized P/L, Working, TAV (no BP) on the one row when connected", () => {
+  it("shows R, U, Working, TAV (no BP) on the one row when connected", () => {
     account = baseAccount({
       orders: [
         {
@@ -230,8 +230,7 @@ describe('GlobalAppBar', () => {
     renderBar();
     const bar = container.querySelector('[data-testid="global-app-bar"]');
     expect(bar).toBeTruthy();
-    expect(bar!.textContent).toMatch(/P\/L.*Unrealized P\/L/);
-    expect(bar!.textContent).toMatch(/-\$0\.17/);
+    expect(bar!.textContent).toMatch(/R.*\$0\.00.*U/);
     expect(bar!.textContent).toMatch(/TAV/);
     expect(bar!.textContent).toMatch(/\$3,559\.55/);
     // Slim header: BP is not a primary-row metric.
@@ -622,7 +621,7 @@ describe('GlobalAppBar', () => {
     renderBar();
     const cluster = container.querySelector('[data-testid="global-bar-cluster"]') as HTMLElement;
     expect(cluster).toBeTruthy();
-    expect(cluster.textContent).toContain('+$250.25');
+    expect(cluster.textContent).toContain('+$350.25');
     expect(cluster.textContent).toContain('$101,200.25');
     expect(cluster.textContent).not.toContain('$3,559.55');
     const pill = cluster.querySelector('[data-testid="global-bar-account-pill"]') as HTMLElement;

@@ -123,7 +123,7 @@ describe('sample desk account chrome (real GlobalAppBar)', () => {
     expect(container.querySelector('[data-testid="global-bar-cluster"]')).toBeTruthy();
     expect(
       container.querySelector('[data-testid="global-bar-account-trigger"]')?.textContent,
-    ).toContain('+$230.00');
+    ).toMatch(/^R\$0\.00U\+\$228\.00/);
     expect(
       container.querySelector('.global-app-bar__metric--tav')?.textContent,
     ).toContain('$100,000.00');
@@ -135,7 +135,7 @@ describe('sample desk account chrome (real GlobalAppBar)', () => {
     expect(container.querySelector('[data-testid="global-bar-offline"]')).toBeNull();
     expect(
       container.querySelector('[data-testid="global-bar-account-trigger"]')?.textContent,
-    ).toContain('+$230.00');
+    ).toMatch(/^R\$0\.00U\+\$228\.00/);
   });
 
   it('still says IBKR offline on a live route with the same Gateway down', () => {

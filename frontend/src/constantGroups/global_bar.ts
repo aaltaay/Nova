@@ -67,9 +67,12 @@ export const GLOBAL_BAR_NAV_TRADER_DISABLED_TITLE =
  * Compact account cluster, Webull order: Day's | Working | TAV | account pill.
  * One row on every venue; the cards under Day's / TAV hold the rest.
  */
-export const GLOBAL_BAR_DAY_PNL_LABEL = 'P/L';
-/** Beside P/L: every open position marked at the bid (a short at the ask), from the account poll. */
-export const GLOBAL_BAR_UNREALIZED_LABEL = 'Unrealized P/L';
+/** "R: -$0.26 | U: +$10.60" (operator ask, 2026-10-16): today's realized, then open at the bid. */
+export const GLOBAL_BAR_REALIZED_LABEL = 'R';
+export const GLOBAL_BAR_REALIZED_TITLE =
+  "Realized P/L -- what today's closed trades made or lost. The day's total and its percent are in the card.";
+/** Beside R: every open position marked at the bid (a short at the ask), from the account poll. */
+export const GLOBAL_BAR_UNREALIZED_LABEL = 'U';
 export const GLOBAL_BAR_UNREALIZED_TITLE =
   'Unrealized P/L -- each open position marked at the price that closes it now: a long at the bid, a short at the ask. Blank while a held stock has no live bid / ask.';
 /**
