@@ -119,7 +119,7 @@ def _shedding_bars(monkeypatch, per_pass: int, today: str, refused: frozenset[st
         budget["left"] -= 1
         asked.append(sym)
         if sym in refused:
-            raise RuntimeError(f"no security definition for {sym}")
+            raise ValueError(f"IBKR could not qualify {sym}")   # historical_service's own refusal
         return [{"date": "2026-10-15", "close": 100.0}, {"date": today, "close": 101.0}]
 
     monkeypatch.setattr(historical_service, "request_daily_bars", lambda sym, duration, use_rth: sym)
@@ -170,6 +170,42 @@ def test_a_refused_etf_is_stated_and_the_others_still_price(monkeypatch):
     assert value["XLK"]["price"] is None and "XLK" in value["XLK"]["error"]
     assert value["XLE"]["price"] == 101.0
     assert jobs._etf_bars_whole(value)
+
+
+def test_a_refusal_before_a_shed_counts_as_progress(monkeypatch):
+    now = time.time()
+    today = jobs.clock.trading_date(now).isoformat()
+    etfs = list(jobs.SECTOR_ETFS + jobs.INDUSTRY_ETFS)
+    asked, budget = _shedding_bars(monkeypatch, 1, today, refused=frozenset({etfs[0]}))
+    job = _etf_bars_job(now)
+    refresh._run(job, now)
+    assert "error" in store().get("etf_bars", now, jobs.FOREVER)[etfs[0]]
+    budget["left"] = 1
+    refresh._run(job, now + cmb.MARKET_SHED_RETRY_SEC + 1)
+    assert asked == etfs[:2]                                # the next pass moved on, not back to the refusal
+
+
+@pytest.mark.parametrize("down", [ConnectionError("IBKR is not connected"), TimeoutError("bridge timed out")])
+def test_a_lost_connection_ends_the_pass_short_never_a_symbols_error(monkeypatch, down):
+    now = time.time()
+    today = jobs.clock.trading_date(now).isoformat()
+    _shedding_bars(monkeypatch, 100, today)
+    real = ibkr_reads._run
+    calls = {"n": 0}
+
+    def flaky(sym, timeout, label):
+        calls["n"] += 1
+        if calls["n"] > 1:
+            raise down
+        return real(sym, timeout, label)
+
+    monkeypatch.setattr(ibkr_reads, "_run", flaky)
+    job = _etf_bars_job(now)
+    refresh._run(job, now)
+    value = store().get("etf_bars", now, jobs.FOREVER)
+    assert len(value) == 1 and not any(q.get("error") for q in value.values())
+    assert not jobs._etf_bars_whole(value)
+    assert refresh._due(job, now + cmb.MARKET_SHED_RETRY_SEC + 1)   # read again after the retry, not the TTL
 
 
 def test_yesterdays_bar_prices_are_never_carried_into_today(monkeypatch):
