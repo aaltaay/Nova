@@ -8,6 +8,8 @@
  * The numbers reconcile with the SMPL sample position on purpose:
  *   NetLiquidation (100,000) = TotalCashValue (99,150) + GrossPositionValue (850)
  *   UnrealizedPnL (230)      = (4.25 market - 3.10 avg) * 200 shares
+ *   UnrealizedAtBid (228)    = (4.24 bid - 3.10 avg) * 200 shares -- the
+ *     header's U; the bid is sampleTicker's (price - 0.01)
  * Day P&L in the header is RealizedPnL + UnrealizedPnL
  * (components/globalBarMoney.dayPnlFromSummary), which returns `--` only when
  * BOTH are absent -- so `RealizedPnL: 0` is here because a sample desk that has
@@ -26,6 +28,7 @@ export const SAMPLE_SUMMARY: IbkrAccountSummary = {
   TotalCashValue: 99_150,
   GrossPositionValue: 850,
   UnrealizedPnL: 230,
+  UnrealizedAtBid: 228,
   RealizedPnL: 0,
   // Sample desk is a margin paper fixture so Side can show Short (#184).
   // Live desks use stamped account_class / shortSideVisible -- never AccountType=INDIVIDUAL.
