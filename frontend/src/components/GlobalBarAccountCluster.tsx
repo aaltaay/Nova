@@ -1,6 +1,6 @@
 /**
  * Compact account cluster for GlobalAppBar, in Webull's order:
- *   P/L: +$12.34 +0.12% Unrealized P/L: +$5.00 ▾ | Working: 0 ▾ | Positions: 1 ▾ | TAV: $100,000.00 ▾ | Individual Margin (U1234567) ▾
+ *   R: +$12.34 | U: +$5.00 ▾ | Working: 0 ▾ | Positions: 1 ▾ | TAV: $100,000.00 ▾ | Individual Margin (U1234567) ▾
  * One row on every venue. Live reads the IBKR summary; Paper / Sim read Nova's
  * practice ledger, which is THE account there even though Paper runs on the
  * live Gateway (ADR 020). Separate from the GATEWAY market-data chip -- never

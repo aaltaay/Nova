@@ -1,6 +1,7 @@
 /**
- * "P/L: +$12.34 +0.12% | Unrealized P/L: +$5.00 ▾" -- the first control of the
- * compact account cluster -- and its card: Unrealized P/L at the bid, Open P&L
+ * "R: +$12.34 | U: +$5.00 ▾" -- today's realized and the open positions at the
+ * bid, the first control of the compact account cluster -- and its card:
+ * Unrealized P/L at the bid, Open P&L
  * at the last, Day's P&L, Day's Realized P&L, plus Fees today on the practice
  * venues. The card opens under this button, never at the cluster's right edge.
  * Numbers arrive as HeaderAccountFigures with each account poll (nothing here
@@ -13,7 +14,8 @@ import {
   GLOBAL_BAR_CARD_REALIZED_PNL,
   GLOBAL_BAR_CARD_UNREALIZED_PNL,
   GLOBAL_BAR_DAY_CARD_ARIA,
-  GLOBAL_BAR_DAY_PNL_LABEL,
+  GLOBAL_BAR_REALIZED_LABEL,
+  GLOBAL_BAR_REALIZED_TITLE,
   GLOBAL_BAR_UNREALIZED_LABEL,
   GLOBAL_BAR_UNREALIZED_TITLE,
 } from '../constantGroups/global_bar';
@@ -33,8 +35,7 @@ interface ButtonProps {
 }
 
 export function DayPnlButton({ figures, open, cardId, title, onToggle, onHover }: ButtonProps) {
-  const pct = dayPnlPercent(figures.dayPnl, figures.netLiquidation);
-  const tone = pnlToneClass(figures.dayPnl);
+  const tone = pnlToneClass(figures.realizedPnl);
   const openTone = pnlToneClass(figures.unrealizedAtBid);
   const button = (
     <button
@@ -47,13 +48,12 @@ export function DayPnlButton({ figures, open, cardId, title, onToggle, onHover }
       onClick={onToggle}
       onMouseEnter={onHover}
     >
-      <label>{GLOBAL_BAR_DAY_PNL_LABEL}</label>
-      <span className={`global-app-bar__metric-value ${tone}`}>{formatSignedMoney(figures.dayPnl)}</span>
-      {pct != null && (
-        <span className={`global-app-bar__pct ${tone}`} data-testid="global-bar-day-pct">
-          {formatSignedPercent(pct)}
+      <span className="global-app-bar__metric-part" title={GLOBAL_BAR_REALIZED_TITLE}>
+        <label>{GLOBAL_BAR_REALIZED_LABEL}</label>
+        <span className={`global-app-bar__metric-value ${tone}`} data-testid="global-bar-realized">
+          {formatSignedMoney(figures.realizedPnl)}
         </span>
-      )}
+      </span>
       <span className="global-app-bar__metric-sub" title={GLOBAL_BAR_UNREALIZED_TITLE}>
         <label>{GLOBAL_BAR_UNREALIZED_LABEL}</label>
         <span className={`global-app-bar__metric-value ${openTone}`} data-testid="global-bar-unrealized">
@@ -73,6 +73,8 @@ export function DayPnlButton({ figures, open, cardId, title, onToggle, onHover }
 }
 
 export function DayPnlCard({ figures }: { figures: HeaderAccountFigures }) {
+  const pct = dayPnlPercent(figures.dayPnl, figures.netLiquidation);
+  const day = formatSignedMoney(figures.dayPnl);
   return (
     <div
       className="global-app-bar__card"
@@ -92,8 +94,9 @@ export function DayPnlCard({ figures }: { figures: HeaderAccountFigures }) {
       />
       <GlobalBarCardRow
         label={GLOBAL_BAR_CARD_DAY_PNL}
-        value={formatSignedMoney(figures.dayPnl)}
+        value={pct == null ? day : `${day} (${formatSignedPercent(pct)})`}
         tone={pnlToneClass(figures.dayPnl)}
+        testId="global-bar-card-day"
       />
       <GlobalBarCardRow
         label={GLOBAL_BAR_CARD_REALIZED_PNL}
