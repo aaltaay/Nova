@@ -548,6 +548,7 @@ describe('GlobalAppBar', () => {
     expect(Array.from(cluster.querySelectorAll('button')).map((b) => b.dataset.testid)).toEqual([
       'global-bar-account-trigger',
       'global-bar-working-trigger',
+      'global-bar-positions-trigger',
       'global-bar-tav-trigger',
       'global-bar-account-pill',
     ]);

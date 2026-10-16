@@ -85,6 +85,16 @@ export const GLOBAL_BAR_DAY_PNL_TITLE =
 export const GLOBAL_BAR_TAV_LABEL = 'TAV';
 export const GLOBAL_BAR_TAV_TITLE = 'Total Account Value -- IBKR NetLiquidation';
 export const GLOBAL_BAR_WORKING_LABEL = 'Working';
+export const GLOBAL_BAR_POSITIONS_LABEL = 'Positions';
+
+/** Card under Positions: every stock the venue's account holds now, long or short. */
+export const GLOBAL_BAR_POSITIONS_MENU_TITLE = 'Open positions';
+export const GLOBAL_BAR_POSITIONS_EMPTY = 'No open positions';
+export const GLOBAL_BAR_POSITIONS_OPEN_PNL = 'Open P&L';
+export const GLOBAL_BAR_POSITIONS_SHORT = 'short';
+export const GLOBAL_BAR_POSITIONS_STALE_NOTE = 'Last known -- the account has not answered lately.';
+export const GLOBAL_BAR_VIEW_ALL_POSITIONS = 'View All Positions';
+export const globalBarPositionOpenTitle = (symbol: string): string => `Open ${symbol} in the Trader`;
 
 /** Only when Gateway / market-data session is down. */
 export const GLOBAL_BAR_OFFLINE_CHIP = 'IBKR offline';

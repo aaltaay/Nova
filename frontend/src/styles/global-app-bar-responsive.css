@@ -84,6 +84,8 @@
 
 @media (max-width: 1100px) {
   .global-app-bar__primary .header-market-clock,
+  .global-app-bar__metric-anchor--positions,
+  .global-app-bar__sep:has(+ .global-app-bar__metric-anchor--positions),
   .global-app-bar__metric--tav,
   .global-app-bar__metric-anchor--tav,
   .global-app-bar__sep:has(+ .global-app-bar__metric--tav),

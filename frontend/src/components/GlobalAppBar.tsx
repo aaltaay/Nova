@@ -4,7 +4,7 @@
  *
  *   wordmark · session chip · ET clock · connection chip · venue pills · REC
  *   chips · CLIP chips (ADR 039) · screen recording chip (ADR 035) · [ticker search, centred] ·
- *   Emergency KILL · Day's / Working / TAV
+ *   Emergency KILL · Day's / Working / Positions / TAV
  *   / account pill · mute · Bot switch · padlock · gear
  *
  * Reload backend, the theme toggle, the full Gateway & feed status cluster and
@@ -163,6 +163,9 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
             summary={summary}
             orders={orders}
             closedOrders={closedOrders}
+            positions={positions}
+            positionsStale={accountStale}
+            onOpenSymbol={openStockView}
             traderActive={traderActive}
             closeTraderView={leaveTraderToScanner}
             refresh={refresh}

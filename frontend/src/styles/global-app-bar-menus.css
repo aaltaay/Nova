@@ -254,6 +254,49 @@
   min-width: 13.5rem;
 }
 
+.global-app-bar__positions-count {
+  color: var(--nova-text);
+  font-weight: 650;
+}
+
+/* Positions card: one row per held stock -- symbol, shares @ cost, open P&L. */
+.global-app-bar__positions-menu {
+  min-width: 17rem;
+  max-height: 22rem;
+  overflow-y: auto;
+}
+
+.global-app-bar__position-row {
+  display: grid;
+  grid-template-columns: 4rem 1fr auto;
+  align-items: baseline;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.35rem 0.75rem;
+  border: 0;
+  background: transparent;
+  color: var(--nova-text-muted);
+  font: inherit;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+  cursor: pointer;
+}
+
+.global-app-bar__position-row:hover {
+  background: var(--hover-bg);
+}
+
+.global-app-bar__position-symbol {
+  color: var(--nova-text);
+  font-weight: 650;
+}
+
+.global-app-bar__position-qty em {
+  color: var(--nova-danger);
+  font-style: normal;
+}
+
 /* Account pill menu: the managed accounts on the login, the active one marked. */
 .global-app-bar__pill-menu {
   min-width: 16rem;

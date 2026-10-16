@@ -98,7 +98,7 @@ describe('GlobalBarAccountCluster -- Live (the IBKR account)', () => {
     expect(screen.getByTestId('global-bar-unrealized').textContent).not.toContain('$0.00');
   });
 
-  it("renders Day's | Working | TAV | pill on one row, in that order", () => {
+  it("renders Day's | Working | Positions | TAV | pill on one row, in that order", () => {
     mount({
       orders: [{ order_id: 1, symbol: 'AAPL', side: 'BUY', qty: 1, order_type: 'MKT', status: 'Submitted' }],
     });
@@ -117,6 +117,7 @@ describe('GlobalBarAccountCluster -- Live (the IBKR account)', () => {
     expect(order).toEqual([
       'global-bar-account-trigger',
       'global-bar-working-trigger',
+      'global-bar-positions-trigger',
       'global-bar-tav-trigger',
       'global-bar-account-pill',
     ]);
@@ -174,6 +175,7 @@ describe('GlobalBarAccountCluster -- Live (the IBKR account)', () => {
   it.each([
     ['global-bar-account-trigger', 'global-bar-day-card', 'day', 'start'],
     ['global-bar-working-trigger', 'global-working-menu', 'working', 'start'],
+    ['global-bar-positions-trigger', 'global-positions-menu', 'positions', 'start'],
     ['global-bar-tav-trigger', 'global-bar-tav-card', 'tav', 'start'],
     ['global-bar-account-pill', 'global-bar-account-pill-menu', 'pill', 'end'],
   ])('%s opens its card under its own button', (trigger, cardId, kind, align) => {
@@ -183,6 +185,15 @@ describe('GlobalBarAccountCluster -- Live (the IBKR account)', () => {
     expect(anchor).toBe(screen.getByTestId(trigger).parentElement);
     expect(anchor!.classList).toContain(`global-app-bar__metric-anchor--${kind}`);
     expect(anchor!.classList).toContain(`global-app-bar__metric-anchor--${align}`);
+  });
+
+  it('Positions counts the stocks held now, beside Working', () => {
+    const p = { market_price: null, market_value: null, avg_cost: 1, unrealized_pnl: 0.5, realized_pnl: null };
+    mount({ positions: [{ symbol: 'SPCX', qty: 100, ...p }, { symbol: 'NXL', qty: -50, ...p }, { symbol: 'OLD', qty: 0, ...p }] });
+    expect(screen.getByTestId('global-bar-positions-trigger').textContent).toContain('2');
+    click('global-bar-positions-trigger');
+    expect(screen.getByTestId('global-position-SPCX')).toBeTruthy();
+    expect(screen.queryByTestId('global-position-OLD')).toBeNull();
   });
 
   it('one menu at a time; Escape closes it', () => {

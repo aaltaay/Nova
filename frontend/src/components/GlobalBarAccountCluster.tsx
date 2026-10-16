@@ -1,6 +1,6 @@
 /**
  * Compact account cluster for GlobalAppBar, in Webull's order:
- *   P/L: +$12.34 +0.12% Unrealized P/L: +$5.00 ▾ | Working: 0 ▾ | TAV: $100,000.00 ▾ | Individual Margin (U1234567) ▾
+ *   P/L: +$12.34 +0.12% Unrealized P/L: +$5.00 ▾ | Working: 0 ▾ | Positions: 1 ▾ | TAV: $100,000.00 ▾ | Individual Margin (U1234567) ▾
  * One row on every venue. Live reads the IBKR summary; Paper / Sim read Nova's
  * practice ledger, which is THE account there even though Paper runs on the
  * live Gateway (ADR 020). Separate from the GATEWAY market-data chip -- never
@@ -21,6 +21,8 @@ import {
   GLOBAL_BAR_DAY_PNL_TITLE,
   GLOBAL_BAR_OFFLINE_CHIP,
   GLOBAL_BAR_OFFLINE_PLACEHOLDER,
+  GLOBAL_BAR_POSITIONS_LABEL,
+  GLOBAL_BAR_POSITIONS_MENU_TITLE,
   GLOBAL_BAR_TAV_LABEL,
   GLOBAL_BAR_TAV_TITLE,
   GLOBAL_BAR_WORKING_LABEL,
@@ -33,7 +35,7 @@ import {
   practiceTavTitle,
 } from '../constantGroups/practice';
 import { resolveDeskVenue } from '../ibkr/deskVenue';
-import type { IbkrAccountSummary, IbkrMode, IbkrOrder } from '../ibkr/types';
+import type { IbkrAccountSummary, IbkrMode, IbkrOrder, IbkrPosition } from '../ibkr/types';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import { isPracticeVenue } from '../practice/practiceAccountModel';
 import { usePracticeAccount } from '../practice/practiceAccountResource';
@@ -42,6 +44,7 @@ import { AccountPillButton, AccountPillMenu } from './GlobalBarAccountPill';
 import { DayPnlButton } from './GlobalBarDayPnl';
 import { GlobalBarMenuAnchor } from './GlobalBarMenuAnchor';
 import { TavButton } from './GlobalBarTav';
+import { GlobalPositionsMenu } from './GlobalPositionsMenu';
 import { GlobalWorkingMenu } from './GlobalWorkingMenu';
 import { resolvePracticeChromeState, type AccountChromeState } from './globalBarAccountChrome';
 import {
@@ -51,6 +54,7 @@ import {
   type ClusterMenu,
 } from './globalBarMenuToggle';
 import { formatSignedMoney } from './globalBarMoney';
+import { heldPositionRows } from './globalPositionsRows';
 import { figuresFromPractice, figuresFromSummary, formatDayStartEt } from './headerAccountFigures';
 import { headerAccountPillView } from './headerAccountPill';
 
@@ -61,6 +65,12 @@ interface Props {
   summary: IbkrAccountSummary | null;
   orders: IbkrOrder[];
   closedOrders: ClosedOrder[];
+  /** The venue's held positions (IbkrAccountContext follows the venue, #657). */
+  positions?: IbkrPosition[];
+  /** True while the account rows are the last known, not fresh. */
+  positionsStale?: boolean;
+  /** Opens a held stock in the Trader. */
+  onOpenSymbol?: (symbol: string) => void;
   traderActive: boolean;
   closeTraderView: () => void;
   refresh: () => void;
@@ -97,6 +107,9 @@ export function GlobalBarAccountCluster({
   summary,
   orders,
   closedOrders,
+  positions = [],
+  positionsStale = false,
+  onOpenSymbol = () => {},
   traderActive,
   closeTraderView,
   refresh,
@@ -117,6 +130,7 @@ export function GlobalBarAccountCluster({
   const dayCardId = useId();
   const tavCardId = useId();
   const workingMenuId = useId();
+  const positionsMenuId = useId();
   const pillMenuId = useId();
 
   useEffect(() => {
@@ -161,6 +175,7 @@ export function GlobalBarAccountCluster({
     : GLOBAL_BAR_DAY_PNL_TITLE;
   const tavTitle = ledger && practiceVenue ? practiceTavTitle(practiceVenue, ledger.account_id) : GLOBAL_BAR_TAV_TITLE;
   const ready = chrome === 'ready';
+  const held = heldPositionRows(positions);
   const toggle = (which: ClusterMenu) => () => setMenu((cur) => clusterMenuOnClick(cur, which));
   const hover = (which: ClusterMenu) => () => setMenu((cur) => clusterMenuOnHover(cur, which));
 
@@ -238,6 +253,39 @@ export function GlobalBarAccountCluster({
               traderActive={traderActive}
               closeTraderView={closeTraderView}
               onRefresh={refresh}
+              onClose={() => setOpenMenu(null)}
+            />
+          </GlobalBarMenuAnchor>
+          <span className="global-app-bar__sep" aria-hidden />
+          <GlobalBarMenuAnchor
+            kind="positions"
+            open={openMenu === 'positions'}
+            cardId={positionsMenuId}
+            button={
+              <button
+                type="button"
+                className="global-app-bar__metric-btn global-app-bar__metric--positions"
+                aria-expanded={openMenu === 'positions'}
+                aria-controls={positionsMenuId}
+                aria-label={GLOBAL_BAR_POSITIONS_MENU_TITLE}
+                data-testid="global-bar-positions-trigger"
+                onClick={toggle('positions')}
+                onMouseEnter={hover('positions')}
+              >
+                <label>{GLOBAL_BAR_POSITIONS_LABEL}</label>
+                <span className="global-app-bar__positions-count">{held.length}</span>
+                <span className="global-app-bar__caret" aria-hidden>
+                  {openMenu === 'positions' ? '▴' : '▾'}
+                </span>
+              </button>
+            }
+          >
+            <GlobalPositionsMenu
+              rows={held}
+              stale={positionsStale}
+              onOpenSymbol={onOpenSymbol}
+              traderActive={traderActive}
+              closeTraderView={closeTraderView}
               onClose={() => setOpenMenu(null)}
             />
           </GlobalBarMenuAnchor>
