@@ -510,8 +510,8 @@ _EXIT_LEGS = (("target_order_id", "target", "target1"), ("target2_order_id", "ta
               ("stop_order_id", "stop", "stop"))
 
 
-def _leg_fill(trade: dict[str, Any], now: float | None = None) -> tuple[str, float | None, str] | None:
-    """``(reason, price, leg)`` when a resting exit sold the trade's last shares: the stop (its targets then
+def _leg_fill(trade: dict[str, Any], now: float | None = None) -> tuple[str, float | None, str, dict] | None:
+    """``(reason, price, leg, fill)`` when a resting exit sold the trade's last shares: the stop (its targets then
     cancelled), or the target that sold the rest. A first half that filled with shares left is booked
     (``_half``: the stop rests on for the rest, shrunk at the broker, #681); a leg that is gone is cleared,
     said on the timeline."""
@@ -527,9 +527,10 @@ def _leg_fill(trade: dict[str, Any], now: float | None = None) -> tuple[str, flo
         row = rows.pop(leg) or {}
         price = _num(row.get("avg_fill_price")) or float(trade[fallback])
         sold = float(row.get("filled_qty") or 0) or left
+        fill = fill_progress.block(row, phase="exit", leg=fallback, order_id=trade[leg])
         if reason == "stop" or sold >= left - _EPS:
-            return reason, price, leg
-        _half(trade, _clock() if now is None else now, fallback, sold, price, trade[leg])
+            return reason, price, leg, fill
+        _half(trade, _clock() if now is None else now, fallback, sold, price, trade[leg], fill)
         left = float(trade["qty"])
     for leg, reason, _fallback in _EXIT_LEGS:
         if leg in rows and orders.order_state(rows[leg]) in ("dead", "gone"):
@@ -541,7 +542,8 @@ def _leg_fill(trade: dict[str, Any], now: float | None = None) -> tuple[str, flo
     return None
 
 
-def _half(trade: dict[str, Any], now: float, leg: str, qty: float, price: float, order_id: Any) -> None:
+def _half(trade: dict[str, Any], now: float, leg: str, qty: float, price: float, order_id: Any,
+          fill: dict[str, Any] | None = None) -> None:
     """The first half sold (a short: covered) at its target; the trade holds the rest, the stop where it is."""
     from bot.risk import adjust_bot_qty
 
@@ -552,7 +554,8 @@ def _half(trade: dict[str, Any], now: float, leg: str, qty: float, price: float,
     _save(trade)
     said = (f"{'covered' if short else 'sold'} {qty:g} at {leg.replace('target', 'target ')} {price:g}; the "
             f"{'buy stop' if short else 'stop'} {float(trade['stop']):g} stays for the other {trade['qty']:g}")
-    audit(action=BOT_AUDIT_ACTION_TRADE, outcome="half", order_id=int(order_id), reason=said, inputs=_summary(trade))
+    audit(action=BOT_AUDIT_ACTION_TRADE, outcome="half", order_id=int(order_id), reason=said, inputs=_summary(trade),
+          fill=fill)
     _tell(trade["symbol"], now, "ok", f"Nova's bot {said}")
 
 
@@ -563,7 +566,7 @@ async def _manage_open(trade: dict[str, Any], now: float, *, acts: bool = True) 
     done = _leg_fill(trade, now)
     if done is not None:
         trade["exit_order_id"] = trade.get(done[2])          # the resting exit that filled
-        _close(trade, now, done[0], done[1], leg=done[2])
+        _close(trade, now, done[0], done[1], leg=done[2], fill=done[3])
         return
     held = orders.held(trade)
     if held <= _EPS:
@@ -646,7 +649,7 @@ async def _start_exit(trade: dict[str, Any], now: float, why: str, detail: str) 
         if orders.order_state(row) == "filled":   # it filled as the bot reached for it
             done = _leg_fill(trade, now)          # the last shares, or a first half (the rest still closes)
             if done is not None:
-                _close(trade, now, done[0], done[1], leg=done[2])
+                _close(trade, now, done[0], done[1], leg=done[2], fill=done[3])
                 return
             continue
         logger.warning("Nova's bot: cancelling the %s %s refused -- %s; closing anyway", leg, trade[leg],
@@ -690,7 +693,8 @@ async def _manage_exit(trade: dict[str, Any], now: float, *, acts: bool = True) 
     state = orders.order_state(row)
     fill_lines.progress(trade, row, state, "close", trade.get("exit_order_id"), _summary)
     if state == "filled":
-        _close(trade, now, str(trade.get("exit_why") or "time"), _num((row or {}).get("avg_fill_price")))
+        _close(trade, now, str(trade.get("exit_why") or "time"), _num((row or {}).get("avg_fill_price")),
+               fill=fill_progress.block(row, phase="exit", leg="close", order_id=trade.get("exit_order_id")))
         return
     held = orders.held(trade)
     if held <= _EPS:
@@ -708,7 +712,8 @@ async def _manage_exit(trade: dict[str, Any], now: float, *, acts: bool = True) 
     await _send_close(trade, now)
 
 
-def _close(trade: dict[str, Any], now: float, reason: str, price: float | None, *, leg: str | None = None) -> None:
+def _close(trade: dict[str, Any], now: float, reason: str, price: float | None, *, leg: str | None = None,
+           fill: dict[str, Any] | None = None) -> None:
     """The trade's last shares sold (``leg``: the resting exit that sold them): booked with any first half,
     so the exit price and R count every share (``halves.result``)."""
     from bot.risk import adjust_bot_qty
@@ -734,7 +739,7 @@ def _close(trade: dict[str, Any], now: float, reason: str, price: float | None, 
     parts = f" ({halves.words(trade)})" if len(halves.rows(trade)) > 1 else ""
     text = f"{said}{at}{parts}" + (f" · {r:+.2f}R" if r is not None else "")
     audit(action=BOT_AUDIT_ACTION_TRADE, outcome="closed", order_id=trade.get("exit_order_id"),
-          reason=text, inputs=_summary(trade))
+          reason=text, inputs=_summary(trade), fill=fill)     # the exit order's fill; none when sold outside
     _tell(trade["symbol"], now, "ok" if reason == "target" else ("bad" if reason == "stop" else "info"),
           f"Nova's bot closed {trade['symbol']}: {text}")
 
