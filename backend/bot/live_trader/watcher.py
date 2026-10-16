@@ -10,7 +10,8 @@ and at once when the operator acts on the Bots page (``Wake``):
 3. one read of the feed (``answer.read``, on a worker thread) and one decision (``decide``), carried out by ``act``:
    closes first, then re-keys, steps, asks and the lines said;
 4. its Level 1 lines on every stock it holds or waits to enter (``lines``), the market caps it waits on
-   (``market.want_caps``), and its heartbeat (``status``) for the Bots page.
+   (``market.want_caps``), IBKR's borrow of every stock it holds short kept fresh for the host's adds
+   (``market.keep_borrow``), and its heartbeat (``status``) for the Bots page.
 
 It keeps the last decision's snapshot -- the hosts' open rows and what was decided for each -- in memory, a few KB,
 never growing past the day's trades; what it holds is ``book``'s. Every order goes through the execution door, so the
@@ -261,6 +262,7 @@ async def tick(now: float | None = None) -> bool:
         return False
     got = await asyncio.to_thread(answer.read, now)
     market.note_prices({p["symbol"] for p in positions.values()}, now)
+    market.keep_borrow({p["symbol"] for p in positions.values() if p["side"] == "short"})
     ctx = _context(now)
     out = decide.decide(_snapshot, got, positions, ctx)
     with _lock:
@@ -366,10 +368,17 @@ async def _carry_out(out: dict[str, Any], now: float) -> list[dict[str, Any]]:
 
 
 def _rewait(steps: list[dict[str, Any]], now: float) -> None:
-    """A short whose borrow is being read waits for it, as a quote line does (``LT_WAIT_SEC``)."""
+    """A short whose borrow is being read waits for it, as a quote line does (``LT_WAIT_SEC``): an entry's row waits
+    again, and an add is judged again next pass (its settled add not counted yet; 2026-10-16, NEAL's IBIT add was
+    skipped on a borrow read 75 s old)."""
     with _lock:
         for a in steps:
             rows = (((_snapshot or {}).get("hosts") or {}).get(a["host"]) or {}).get("rows") or {}
             rs = rows.get(a["row_id"])
-            if rs is not None:
+            if rs is None:
+                continue
+            if a["step"] == "add":
+                rs["groups_done"] = max(0, int(rs.get("groups_done") or 0) - 1)
+                rs["add_since"] = rs.get("add_since") or now
+            else:
                 rs["fate"], rs["since"] = "waiting", rs.get("since") or now

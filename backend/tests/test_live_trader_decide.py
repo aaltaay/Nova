@@ -28,6 +28,7 @@ from bot.live_trader.constants_live_trader import (
     LT_MISREAD,
     LT_NO_CLOCK,
     LT_NO_QUOTE,
+    LT_OPEN_TOO_FAR,
     LT_OTHER_HOST,
     LT_RETURN_HOLD_SEC,
     LT_RETURN_SWITCH,
@@ -203,11 +204,22 @@ def test_the_feeds_unknown_entry_is_already_open():
     assert kinds(out, "step")[0]["step"] == "already_open"
 
 
-def test_already_open_far_from_the_market_is_a_misread():
+def test_already_open_far_from_the_market_is_too_late_to_take_not_a_misread():
+    """2026-10-16: a host's short held through the lunch break came back 2.8% in profit and the bot said "a misread"
+    -- it was theirs. Held before the bot saw it, the market moved on: too far to take, said as that."""
     w = World()
     out = w.run(answer({HOST: [row(price=103.0, entry_ts=NOW - 600)]}))
     (skip,) = kinds(out, "skip")
-    assert skip["code"] == LT_MISREAD and "3.0% from the market" in skip["why"]
+    assert skip["code"] == LT_OPEN_TOO_FAR and skip["step"] == "already_open"
+    assert "already open at 103.00, 3.0% from the market" in skip["why"] and "misread" not in skip["why"]
+
+
+def test_a_new_entry_far_from_the_market_is_still_a_misread():
+    w = World()
+    w.run(answer())
+    out = w.at(2).run(answer({HOST: [row(price=103.0, entry_ts=NOW + 1)]}, feed_now=w.now))
+    (skip,) = kinds(out, "skip")
+    assert skip["code"] == LT_MISREAD and skip["step"] == "entry" and "3.0% from the market" in skip["why"]
 
 
 # -- adds -------------------------------------------------------------------------------------------
@@ -518,6 +530,35 @@ def test_the_bot_never_trades_against_a_position():
     out = w.at(4).run(answer({HOST: [row(entry_ts=NOW + 3)], OTHER: [other]}, feed_now=NOW + 4))
     (skip,) = kinds(out, "skip")
     assert skip["code"] == LT_AGAINST and f"for {OTHER}" in skip["why"]
+
+
+def test_a_flip_waits_for_the_bots_own_sale_then_opens_the_other_side():
+    w = World()
+    long_row = row(entry_ts=NOW)
+    watching(w, long_row)
+    closed, short_row = dict(long_row, status="closed", exit_ts=NOW + 10), row(side="short", entry_ts=NOW + 10)
+    out = w.at(11).run(answer({HOST: [closed, short_row]}, feed_now=NOW + 11))
+    assert [a["pos_id"] for a in kinds(out, "close")] == [f"{HOST}|long|XYZ"]
+    assert kinds(out, "step") == [] and kinds(out, "skip") == []
+    assert out["waits"][f"{HOST}|short|XYZ"]["code"] == LT_AGAINST
+    out = w.at(13).run(answer({HOST: [closed, short_row]}, feed_now=NOW + 13))   # sold: the World filled it
+    (step,) = kinds(out, "step")                # one slot changing in one second reads as already open: taken
+    assert step["side"] == "short" and step["qty"] == 5 and step["pos_id"] == f"{HOST}|short|XYZ"   # $500 at 99.96
+
+
+def test_a_flip_whose_sale_does_not_fill_is_skipped_after_the_wait():
+    w = World()
+    long_row = row(entry_ts=NOW)
+    watching(w, long_row)
+    selling = dict(w.book[f"{HOST}|long|XYZ"], state="closing")
+    closed, short_row = dict(long_row, status="closed", exit_ts=NOW + 10), row(side="short", entry_ts=NOW + 10)
+    w.at(11).run(answer({HOST: [closed, short_row]}, feed_now=NOW + 11))
+    w.book[selling["id"]] = selling                           # its sale still on its way
+    out = w.at(30).run(answer({HOST: [closed, short_row]}, feed_now=NOW + 30))
+    assert kinds(out, "skip") == [] and out["waits"][f"{HOST}|short|XYZ"]["code"] == LT_AGAINST
+    out = w.at(45).run(answer({HOST: [closed, short_row]}, feed_now=NOW + 45))
+    (skip,) = kinds(out, "skip")
+    assert skip["code"] == LT_AGAINST and "did not close in 30 s" in skip["why"]
 
 
 # -- who trades: approve, watch only ----------------------------------------------------------------

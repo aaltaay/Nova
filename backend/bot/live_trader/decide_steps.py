@@ -2,7 +2,8 @@
 
 ``decide`` calls it after the closes. Per host with its key on, in the feed's order, each open row the bot does
 not hold is one entry decision, remembered in the snapshot so it is made once: ``taken``, ``skipped``, ``noted``
-(Entry and Exit on You: the bot only watches), ``asked`` (Entry on You, Exit on Bot: the operator approves),
+(Entry and Exit on You: the bot only watches), ``asked`` (Entry on You, Exit on Bot: the operator approves,
+``decide_asks``),
 ``waiting`` (a quote, a market cap or a ticker check), ``blocked`` (the bot could not open when the row was
 first seen) or ``released`` (the bot sold it off air or while the bar was hidden). A blocked or released row,
 and every open row when the key turns on or the host comes back on air, is already open: ``take_open`` decides.
@@ -17,16 +18,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from bot.live_trader import decide_bar, decide_held, feed_rows, rules
+from bot.live_trader import decide_asks, decide_bar, decide_held, feed_rows, rules
 from bot.live_trader.constants_live_trader import (
     LT_ADD_IS_SALE,
     LT_ADDS_DONE,
     LT_AFTER_SELL_ALL,
     LT_BLANK_BAR,
     LT_ALREADY_OPEN,
-    LT_ASK_EXPIRED,
-    LT_ASK_SEC,
-    LT_ASK_SKIPPED,
     LT_HIDDEN,
     LT_NO_CLOCK,
     LT_NOT_ON_BAR,
@@ -41,11 +39,6 @@ from bot.live_trader.decide_closes import hms
 from constants_stock_mode import STOCK_MODE_APPROVE, STOCK_MODE_SIGNAL
 from followed_traders.pricing import priceable
 from stock_mode.model import mode_of
-
-def verb(side: str, past: bool = False) -> str:
-    if side == "short":
-        return "shorted" if past else "short"
-    return "bought" if past else "buy"
 
 
 def _blocked(ctx: dict[str, Any], flags: dict[str, Any], on_air: bool, name: str) -> tuple[str, str] | None:
@@ -69,25 +62,28 @@ def _blocked(ctx: dict[str, Any], flags: dict[str, Any], on_air: bool, name: str
 class _Pass:
     """One pass's steps for one host: the context, the snapshot and the running allowance."""
 
-    def __init__(self, snap, answer, book, ctx, out, used):
+    def __init__(self, snap, answer, book, ctx, out, used, closing=frozenset()):
         self.snap, self.answer, self.book, self.ctx, self.out, self.used = snap, answer, book, ctx, out, used
+        self.closing = closing                 # positions whose close this pass sends (``decide_closes``)
         self.now = ctx["now"]
         self.feed_now = answer.get("feed_now")
         self.previous = {(p[0], p[1], float(p[2])) for p in answer.get("previous") or ()}
 
     # -- shared --------------------------------------------------------------------------------------
     def check(self, name, st, side, symbol, their_price, ticker, since, *, entry: bool,
-              prev_price: float | None = None, change_ts: float | None = None) -> dict[str, Any]:
+              prev_price: float | None = None, change_ts: float | None = None,
+              already_open: bool = False) -> dict[str, Any]:
         self.out["symbols"].add(symbol)
         self.out["caps"].add(symbol)
+        found = rules.against(self.book, self.ctx, side, symbol, self.closing) if entry else None
         return rules.check(side=side, symbol=symbol, their_price=their_price, settings=st,
                            quote=self.ctx["quote"](symbol), cap=self.ctx["cap"](symbol), ticker=ticker,
-                           used_usd=self.used.get(name, 0.0),
-                           against=rules.against(self.book, self.ctx, side, symbol) if entry else None,
+                           used_usd=self.used.get(name, 0.0), against=found[0] if found else None,
+                           against_wait=bool(found and found[1]),
                            short_closed=self.ctx["short_closed"](self.now) if side == "short" else None,
                            priceable=priceable(symbol), now=self.now, wait_since=since, prev_price=prev_price,
                            ssr=self.ctx["ssr"](symbol) if side == "short" else "off",
-                           market=decide_held.market_since(self, symbol, change_ts))
+                           market=decide_held.market_since(self, symbol, change_ts), already_open=already_open)
 
     def read_doubt(self, name, r, since, unread, *, entry: bool) -> dict[str, Any] | None:
         """A skip or a wait when the read of ``r`` is in doubt (bot.md, "Bad reads"); None when it reads clean."""
@@ -136,81 +132,9 @@ class _Pass:
         stop = f" with a buy stop {rules.price_text(plan['stop'])}" if plan.get("stop") else ""
         self.out["actions"].append({"kind": "note", "host": name, "pos_id": pid, "row_id": r["id"],
                                     "symbol": r["symbol"], "side": r["side"], "step": step, "change": change,
-                                    "why": f"would {verb(r['side'])} {plan['qty']} at {rules.price_text(plan['limit'])}"
-                                           f"{stop} -- Entry and Exit are You: the bot only watches"})
-
-    def ask(self, name, r, pid, step, plan, change, *, prev_price: float | None = None) -> str:
-        self.snap["seq"] = int(self.snap.get("seq") or 0) + 1
-        ask_id = f"{name.lower()}-{self.snap['seq']}"
-        price, sym = rules.price_text(change["price"]), r["symbol"]
-        lead = {"entry": f"{name} {verb(r['side'], True)} {sym} at {price}",
-                "already_open": f"{name} holds {sym} {r['side']} at {price} (already open)",
-                "add": f"{name} added to {sym} (average {price})"}[step]
-        stop = f", buy stop {rules.price_text(plan['stop'])}" if plan.get("stop") else ""
-        more = " more" if step == "add" else ""
-        ask = {"id": ask_id, "host": name, "row_id": r["id"], "pos_id": pid, "symbol": sym, "side": r["side"],
-               "step": step, "their_price": change["price"], "qty": plan["qty"], "limit": plan["limit"],
-               "stop": plan["stop"], "created_ts": self.now, "expires_ts": self.now + LT_ASK_SEC,
-               "change": change, "approved": False, "prev_price": prev_price,
-               "text": f"{lead}: {verb(r['side'])} {plan['qty']}{more} at {rules.price_text(plan['limit'])}{stop}?"}
-        self.snap["asks"][ask_id] = ask
-        self.out["actions"].append({"kind": "ask", "ask": dict(ask)})
-        return ask_id
-
-    def expire_asks(self) -> None:
-        """Asks the operator has not answered in ``LT_ASK_SEC``, said as skips."""
-        for ask_id, ask in list(self.snap["asks"].items()):
-            if ask["approved"] or (self.ctx.get("answers") or {}).get(ask_id) is not None:
-                continue
-            if self.now >= ask["expires_ts"]:
-                why = f"not approved in {LT_ASK_SEC:.0f} s"
-                self.drop_ask(ask_id, why)
-                self.out["actions"].append({"kind": "skip", "host": ask["host"], "pos_id": ask["pos_id"],
-                                            "row_id": ask["row_id"], "symbol": ask["symbol"], "side": ask["side"],
-                                            "step": ask["step"], "code": LT_ASK_EXPIRED, "why": why,
-                                            "change": ask["change"]})
-
-    def drop_ask(self, ask_id: str, why: str) -> None:
-        ask = self.snap["asks"].pop(ask_id, None)
-        if ask is not None:
-            self.out["actions"].append({"kind": "drop_ask", "ask_id": ask_id, "host": ask["host"], "why": why})
-
-    def follow_ask(self, name, st, r, pid, ask_id, blocked, unread, *, entry: bool) -> str:
-        """``taken`` | ``skipped`` | ``asked`` (still waiting on the operator, or approved and waiting)."""
-        ask = self.snap["asks"].get(ask_id or "")
-        if ask is None:
-            return "skipped"
-        change, step = ask["change"], ask["step"]
-        answered = (self.ctx.get("answers") or {}).get(ask_id)
-        if answered is False:
-            self.drop_ask(ask_id, "you skipped it")
-            self.skip(name, r, pid, step, LT_ASK_SKIPPED, "you skipped it", change)
-            return "skipped"
-        if answered is True or ask["approved"]:
-            ask["approved"] = True
-            if blocked:
-                self.drop_ask(ask_id, blocked[1])
-                self.skip(name, r, pid, step, blocked[0], blocked[1], change)
-                return "skipped"
-            v = self.read_doubt(name, r, ask.get("since"), unread, entry=entry)
-            if v is None:
-                v = self.check(name, st, r["side"], r["symbol"], change["price"], r.get("ticker") if entry else None,
-                               ask.get("since"), entry=entry, prev_price=ask.get("prev_price"))
-            if v["verdict"] == rules.WAIT:
-                ask["since"] = ask.get("since") or self.now
-                self.wait(pid, r, v)
-                return "asked"
-            self.drop_ask(ask_id, "approved" if v["verdict"] == rules.GO else v["text"])
-            if v["verdict"] == rules.SKIP:
-                self.skip(name, r, pid, step, v["code"], v["text"], change)
-                return "skipped"
-            self.send(name, r, pid, step, v["plan"], change, approved=True)
-            return "taken"
-        if self.now >= ask["expires_ts"]:
-            self.drop_ask(ask_id, f"not approved in {LT_ASK_SEC:.0f} s")
-            self.skip(name, r, pid, step, LT_ASK_EXPIRED, f"not approved in {LT_ASK_SEC:.0f} s", change)
-            return "skipped"
-        return "asked"
+                                    "why": f"would {rules.verb(r['side'])} {plan['qty']} at "
+                                           f"{rules.price_text(plan['limit'])}{stop} -- Entry and Exit are You: "
+                                           "the bot only watches"})
 
     # -- an entry ------------------------------------------------------------------------------------
     def entry(self, name, st, r, rs, pid, blocked, unread) -> None:
@@ -220,7 +144,7 @@ class _Pass:
         if rs["fate"] in ("taken", "skipped", "noted"):
             return
         if rs["fate"] == "asked":
-            rs["fate"] = self.follow_ask(name, st, r, pid, rs.get("ask_id"), blocked, unread, entry=True)
+            rs["fate"] = decide_asks.follow(self, name, st, r, pid, rs.get("ask_id"), blocked, unread, entry=True)
             if rs["fate"] == "taken":
                 self.taken(r, rs)
             return
@@ -244,7 +168,7 @@ class _Pass:
                              f"{r['symbol']} is not on {name}'s bar now", rs.get("since"), self.now)
         elif v is None:
             v = self.check(name, st, r["side"], r["symbol"], r["price"], r.get("ticker"), rs.get("since"),
-                           entry=True)
+                           entry=True, already_open=step == "already_open")
         if v["verdict"] == rules.WAIT:
             rs["fate"], rs["since"] = "waiting", rs.get("since") or self.now
             self.wait(pid, r, v)
@@ -258,7 +182,7 @@ class _Pass:
             rs["fate"] = "noted"
             self.note(name, r, pid, step, v["plan"], change)
         elif mode == STOCK_MODE_APPROVE:
-            rs["fate"], rs["ask_id"] = "asked", self.ask(name, r, pid, step, v["plan"], change)
+            rs["fate"], rs["ask_id"] = "asked", decide_asks.ask(self, name, r, pid, step, v["plan"], change)
         else:
             rs["fate"] = "taken"
             self.send(name, r, pid, step, v["plan"], change, approved=False)
@@ -279,7 +203,7 @@ class _Pass:
         if rs.get("trim_change") and not blocked:
             decide_held.trim(self, name, st, r, pos, rs.pop("trim_change"))   # held while a key was off
         if rs.get("add_ask_id"):
-            fate = self.follow_ask(name, st, r, pid, rs["add_ask_id"], blocked, unread, entry=False)
+            fate = decide_asks.follow(self, name, st, r, pid, rs["add_ask_id"], blocked, unread, entry=False)
             if fate != "asked":
                 rs["add_ask_id"] = None
                 rs["groups_done"] += 1
@@ -326,7 +250,7 @@ class _Pass:
             return
         mode = mode_of(st["entry"], st["exit"])
         if mode == STOCK_MODE_APPROVE:
-            rs["add_ask_id"] = self.ask(name, r, pid, "add", v["plan"], change, prev_price=prev)
+            rs["add_ask_id"] = decide_asks.ask(self, name, r, pid, "add", v["plan"], change, prev_price=prev)
             return
         rs["groups_done"] += 1
         if mode == STOCK_MODE_SIGNAL:
@@ -341,11 +265,12 @@ def _host_state() -> dict[str, Any]:
 
 def steps(snap: dict[str, Any], answer: dict[str, Any], book: dict[str, dict[str, Any]], ctx: dict[str, Any],
           flags: dict[str, Any], out: dict[str, Any]) -> None:
-    run = _Pass(snap, answer, book, ctx, out, rules.used_by_host(book))
-    if answer["state"] != "ok":
-        run.expire_asks()                      # an ask times out with no read of the feed too
-        return
     closing = {a["pos_id"] for a in out["actions"] if a["kind"] in ("close", "rekey")}
+    run = _Pass(snap, answer, book, ctx, out, rules.used_by_host(book),
+                {a["pos_id"] for a in out["actions"] if a["kind"] == "close" and not a.get("trim")})
+    if answer["state"] != "ok":
+        decide_asks.expire(run)                # an ask times out with no read of the feed too
+        return
     # A row a held position follows under its glued ticker is no new entry while its check runs (#1010); settled on
     # another stock, the position sells (``decide_closes``) and the row is judged as any other.
     followed = {p["row_id"] for p in book.values()} | {a["row_id"] for a in out["actions"] if a["kind"] == "rekey"}
@@ -366,8 +291,8 @@ def steps(snap: dict[str, Any], answer: dict[str, Any], book: dict[str, dict[str
         open_ids = {r["id"] for r in open_rows}
         for ask_id, ask in list(snap["asks"].items()):
             if ask["host"] == name and (not st["key"] or ask["row_id"] not in open_ids):
-                run.drop_ask(ask_id, "the key is off" if not st["key"] else
-                             f"{name} closed {ask['symbol']} before you answered")
+                decide_asks.drop(run, ask_id, "the key is off" if not st["key"] else
+                                 f"{name} closed {ask['symbol']} before you answered")
         if not st["key"]:
             decide_held.key_off_adds(run, name, st, open_rows, hs, book, closing)
             continue

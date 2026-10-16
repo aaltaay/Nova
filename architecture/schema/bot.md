@@ -617,10 +617,14 @@ bar's own moves" below) is already open (`take_open`), taken only while the
 host's bar shows it (`status.positions`; a trade the feed still holds open from before they left can be gone from
 it: `LT_NOT_ON_BAR` after the wait). Opens and adds
 skip, each with its reason: the feed `LT_FEED_BEHIND_SEC` (30) behind the stream or silent as long, a ticker
-check not settled, the host's average over `LT_MISREAD_PCT` (1.5%) from the market (the mid, else the last),
+check not settled, the host's average over `LT_MISREAD_PCT` (1.5%) from the market (the mid, else the last) --
+`LT_MISREAD`, or `LT_OPEN_TOO_FAR` for a position already open, the market gone on from the average the host held it
+at (2026-10-16: SHAWN's TSLA short held through the lunch break came back 2.8% in profit and read "a misread"),
 a stock's market cap under `LARGE_CAP_MIN` ($10B) or unknown (an ETF always passes: Yahoo's `quote_type`
 `"ETF"`, operator 2026-10-14), no fresh quote, the allowance, the adds, shorts off,
-the account holding the other side (or the bot holding the other side for another host), outside the short
+the account holding the other side (or the bot holding the other side for another host) -- while every such
+position of the bot is closing (its close sent that pass or in flight: a host's flip, long to short at once), the
+entry waits for the bot to be flat and turns into its skip after `LT_WAIT_SEC` -- outside the short
 hours, the desk off Paper, the Bot switch off, the LiveTrader Bots key off, Freeze all orders, after the sell-all
 time. With the Bot switch, the LiveTrader Bots key or the host's own key off, the host's bot places no order at all
 ("The three keys"): each add of what it holds is a skip (`LT_KEY_OFF` for the host's key), so turning a key back on
@@ -803,7 +807,11 @@ is a `place` BUY `LMT` at the ask plus `LT_ENTRY_OFFSET_USD` (2 cents; the last 
 `expected_venue: "paper"`; a short one a `bracket` SELL `LMT` at the bid less 2 cents while SSR is off, and at the ask, which must be over
 the bid, while SSR is on or unknown (`short_sale.ssr.live`, as the setup bot prices it; no ask over the bid is
 `LT_NO_QUOTE`'s wait) with `short_entry` and a BUY stop `short_stop_pct` over
-it, no target. Working after the Paper sleeve's `working_ttl_sec`, it is cancelled. A close cancels the
+it, no target. A short step -- an entry or an add -- the one short check refuses only for IBKR's borrow read
+(stale, none, unknown) waits `LT_WAIT_SEC` for a fresh read, asked of IBKR at once, before it is a skip; and every
+stock the bot holds short has its borrow read again before it goes stale (`shortability.refresh_due`, as an open
+Trader tab does), so the host's add finds it fresh (2026-10-16: an add 72 s after the short met a read 75 s old and
+was skipped). Working after the Paper sleeve's `working_ttl_sec`, it is cancelled. A close cancels the
 position's buy stops (source `cancel_working`) and sends the protective flatten (source `flatten`, the
 practice market ticket) for the bot's shares, never more than the account holds; both name
 `target_venue: "paper"`. `live_trader` is one of the door's Nova-close origins on Paper and Sim only
@@ -817,7 +825,7 @@ close sent) | `skipped` | `asked` | `answered` | `refused` (the door's words) | 
 `error`; `inputs: {host, row_id, symbol, side, step, qty, limit, stop, order_id, code, why, change: {kind:
 "open" | "add" | "already_open" | "close" | "trim" | "off_air" | "hidden" | "sell_all" | "stale_day" | "outside", ts, price}, late_sec, venue: "paper"}`. `late_sec` is the send's wall time less the feed's
 time of the change. A skip is written once per position, step and code. Codes: `LT_FEED_BEHIND`,
-`LT_FEED_DOWN`, `LT_TICKER_UNSETTLED`, `LT_MISREAD`, `LT_SMALL_CAP`, `LT_CAP_UNKNOWN`, `LT_NO_QUOTE`,
+`LT_FEED_DOWN`, `LT_TICKER_UNSETTLED`, `LT_MISREAD`, `LT_OPEN_TOO_FAR`, `LT_SMALL_CAP`, `LT_CAP_UNKNOWN`, `LT_NO_QUOTE`,
 `LT_ALLOWANCE`, `LT_ADDS_DONE`, `LT_SHORTS_OFF`, `LT_AGAINST`, `LT_NOT_HELD`, `LT_VENUE`, `LT_BOT_OFF`,
 `LT_FROZEN`, `LT_AFTER_SELL_ALL`, `LT_SHORT_HOURS`, `LT_NOT_PRICEABLE`, `LT_ASK_EXPIRED`, `LT_ASK_SKIPPED`,
 `LT_ALREADY_OPEN`, `LT_OFF_AIR`, `LT_HIDDEN`, `LT_LOSS_LIMIT`, `LT_NOT_ON_BAR`, `LT_OTHER_HOST`, `LT_ROW_UNREAD`,

@@ -162,6 +162,23 @@ def cover_ts(now: float) -> float | None:
     return hours.cover_ts if hours else None
 
 
+def keep_borrow(symbols: set[str]) -> None:
+    """Re-read IBKR's borrow of each stock before its read goes stale (``shortability.refresh_due``), as an open
+    Trader tab does: every stock the bot holds short, so the host's add finds a fresh read for the short check."""
+    try:
+        from ibkr.shortability import cached, refresh_due, request_refresh
+    except Exception:
+        logger.warning("Live Trader bot: the borrow read is not available", exc_info=True)
+        return
+    for sym in sorted(symbols):
+        try:
+            snap = cached(sym)
+            if snap is None or refresh_due(snap, float(snap.get("age_sec") or 0.0)):
+                request_refresh(sym)
+        except Exception:
+            logger.warning("Live Trader bot: %s's borrow was not kept fresh", sym, exc_info=True)
+
+
 def prewarm_borrow(symbols: set[str]) -> None:
     """Ask IBKR for the borrow of stocks the bot may short, so the short check finds it fresh."""
     try:

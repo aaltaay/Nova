@@ -127,6 +127,7 @@ class Market:
         self.caps: dict[str, object] = {}
         self.cover = at("15:55:00")
         self.lines: set[str] = set()
+        self.borrow_kept: set[str] = set()         # the shorts whose borrow the bot asked to keep fresh
 
     def reference(self, symbol: str) -> Reference:
         got = self.px.get(symbol)
@@ -198,6 +199,7 @@ def desk(monkeypatch, tmp_path, short_market_open):
     monkeypatch.setattr(lt_market, "want_caps", lambda symbols: None)
     monkeypatch.setattr(lt_market, "cover_ts", lambda now: m.cover)
     monkeypatch.setattr(lt_market, "prewarm_borrow", lambda symbols: None)
+    monkeypatch.setattr(lt_market, "keep_borrow", lambda symbols: m.borrow_kept.update(symbols))
     monkeypatch.setattr(lt_lines, "want", lambda symbols, now=None, spawn=None: m.lines.update(symbols))
     short_mod.remember_for_tests("FADE", short_mod.enrich_ibkr_listing(
         {"connected": True, "qualified": True, "shortable_shares": 50_000, "error": None}, fetched_at=time.time()))
@@ -411,6 +413,78 @@ def test_a_short_is_a_bracket_with_its_buy_stop_and_covered_when_the_host_covers
     run(desk, "10:31:01")
     assert held(desk, "FADE") == 0
     assert desk.broker.ledger.order_row(stop_id)["status"] == "Cancelled"
+
+
+_FADE_LISTING = {"connected": True, "qualified": True, "shortable_shares": 50_000, "error": None}
+
+
+def test_a_short_add_waits_for_a_fresh_borrow_read_then_goes(desk, monkeypatch):
+    """2026-10-16: a host added to a short 72 s after it opened and IBKR's borrow read was 75 s old -- the add was
+    skipped ("place the short again in a moment") and never tried again. An add now waits for the read as an entry
+    does, and the bot keeps the borrow of every short it holds fresh."""
+    asked: list[str] = []
+    monkeypatch.setattr(lt_market, "prewarm_borrow", lambda symbols: asked.extend(symbols))
+    monkeypatch.setattr(short_mod, "request_refresh", lambda sym: True)   # no IBKR here: the test sets the reads
+    run(desk, "10:30:00")
+    t = desk.feed.open("FADE", 40.00, at("10:30:10"), side="short")
+    run(desk, "10:30:11")
+    assert held(desk, "FADE") == -12
+    short_mod.remember_for_tests("FADE", short_mod.enrich_ibkr_listing(_FADE_LISTING, fetched_at=time.time() - 120))
+    desk.market.px["FADE"] = [40.20, 40.19, 40.21]
+    desk.feed.add(t, 40.10, at("10:31:00"))                    # shorted more as it rose: their average toward it
+    run(desk, "10:31:06")
+    assert held(desk, "FADE") == -12 and asked == ["FADE"]     # waiting on the read IBKR is asked for
+    assert "FADE" in desk.market.borrow_kept                   # held short: its borrow is kept fresh every pass
+    assert not [r for r in lines_("skipped") if r["inputs"]["step"] == "add"]
+    short_mod.remember_for_tests("FADE", short_mod.enrich_ibkr_listing(_FADE_LISTING, fetched_at=time.time()))
+    run(desk, "10:31:08")
+    assert held(desk, "FADE") == -24                           # the add went: $500 at 40.17, 12 more
+    assert lt_book.positions()[f"{HOST}|short|FADE"]["adds_followed"] == 1
+
+
+def test_a_short_add_whose_borrow_never_comes_is_skipped_after_the_wait(desk, monkeypatch):
+    monkeypatch.setattr(short_mod, "request_refresh", lambda sym: True)
+    run(desk, "10:30:00")
+    t = desk.feed.open("FADE", 40.00, at("10:30:10"), side="short")
+    run(desk, "10:30:11")
+    short_mod.remember_for_tests("FADE", short_mod.enrich_ibkr_listing(_FADE_LISTING, fetched_at=time.time() - 120))
+    desk.market.px["FADE"] = [40.20, 40.19, 40.21]
+    desk.feed.add(t, 40.10, at("10:31:00"))
+    run(desk, "10:31:06")
+    run(desk, "10:31:40")                                      # 34 s on, still stale: the add is skipped, once
+    (skip,) = [r for r in lines_("skipped") if r["inputs"]["step"] == "add"]
+    assert skip["inputs"]["code"] == "SHORT_STALE_BORROW"
+    run(desk, "10:31:50")
+    assert held(desk, "FADE") == -12 and len([r for r in lines_("skipped") if r["inputs"]["step"] == "add"]) == 1
+
+
+def test_keep_borrow_rereads_a_borrow_before_it_goes_stale(monkeypatch):
+    asked: list[str] = []
+    short_mod.reset_for_tests()
+    monkeypatch.setattr(short_mod, "request_refresh", lambda sym: asked.append(sym) or True)
+    short_mod.remember_for_tests("FRESH", short_mod.enrich_ibkr_listing(_FADE_LISTING, fetched_at=time.time() - 5))
+    short_mod.remember_for_tests("DUE", short_mod.enrich_ibkr_listing(_FADE_LISTING, fetched_at=time.time() - 25))
+    lt_market.keep_borrow({"FRESH", "DUE", "NEVER"})
+    assert asked == ["DUE", "NEVER"]
+    short_mod.reset_for_tests()
+
+
+def test_a_host_flipping_long_to_short_opens_the_short_once_the_long_is_sold(desk):
+    """2026-10-16: the host's bar went from long to short on one stock at once. The bot sold its long and skipped the
+    short ("Nova never holds both sides") while the sale was on its way; it now opens the short once it is flat."""
+    run(desk, "10:30:00")
+    t = desk.feed.open("FADE", 40.00, at("10:30:10"))
+    run(desk, "10:30:11")
+    assert held(desk, "FADE") == 12
+    desk.feed.close(t, at("10:31:00"))
+    desk.feed.open("FADE", 40.00, at("10:31:00"), side="short")
+    run(desk, "10:31:01")
+    assert held(desk, "FADE") == 0                             # sold; the short waits for the bot to be flat
+    assert not [r for r in lines_("skipped") if r["inputs"]["code"] == "LT_AGAINST"]
+    run(desk, "10:31:03")
+    assert held(desk, "FADE") == -12
+    pos = lt_book.positions()[f"{HOST}|short|FADE"]
+    assert pos["side"] == "short" and pos["stop_order_ids"]
 
 
 # -- the operator's switches ------------------------------------------------------------------------
