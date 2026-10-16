@@ -57,3 +57,33 @@ def test_a_background_chart_fill_leaves_the_last_requests(monkeypatch):
     monkeypatch.setattr(historical_service, "_left", lambda: 10)
     with pytest.raises(historical_service.HistoricalShed, match="kept for open charts"):
         asyncio.run(historical_service.request_bars("AAPL", "1Min", 100, priority="background"))
+
+
+def test_fills_admitted_together_recheck_the_reserve_before_they_send(monkeypatch):
+    """Codex review, PR #1021: fills that all passed the first check at 11 left must not spend the reserve."""
+    import bars_store
+    from ibkr import bars as ibkr_bars
+
+    historical_service.reset_for_testing()
+    monkeypatch.setattr(bars_store, "read", lambda *a, **k: None)
+    monkeypatch.setattr(bars_store, "write_payload", lambda *a, **k: None)   # never the desk's own bar store
+    monkeypatch.setattr(historical_service, "assert_ib_loop", lambda: None)
+    left = {"n": 11}
+    monkeypatch.setattr(historical_service, "_left", lambda: left["n"])
+    sent: list[str] = []
+
+    async def fetch(symbol, timeframe, limit, interactive=False):
+        sent.append(symbol)
+        left["n"] -= 1
+        return {"symbol": symbol, "timeframe": timeframe, "bars": []}
+
+    monkeypatch.setattr(ibkr_bars, "fetch_bars_async", fetch)
+
+    async def both():
+        return await asyncio.gather(
+            *(historical_service.request_bars(s, "1Min", 100, priority="background") for s in ("AAA", "BBB")),
+            return_exceptions=True)
+
+    got = asyncio.run(both())
+    assert sent == ["AAA"]
+    assert isinstance(got[1], historical_service.HistoricalShed)

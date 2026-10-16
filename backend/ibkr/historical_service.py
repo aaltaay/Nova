@@ -228,6 +228,12 @@ async def _run_fetch(
                 )
                 _reschedule_after_wait(symbol, timeframe, limit, priority, extra)
                 raise HistoricalShed(f"pacing wait {extra:.1f}s")
+            # Again here, holding the slot: fills admitted together must not spend the reserve between them.
+            if priority == "background" and _left() <= int(IBKR_HISTORY_TRADING_RESERVE):
+                logger.info("historical fill shed %s %s: %d left for open charts and SSR (in flight)",
+                            symbol, timeframe, _left())
+                raise HistoricalShed(f"{int(IBKR_HISTORY_TRADING_RESERVE)} or fewer historical requests left: "
+                                     "kept for open charts and the short check")
             _pacing.record(symbol, timeframe, duration)
             try:
                 result = await ibkr_bars.fetch_bars_async(
