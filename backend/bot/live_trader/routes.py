@@ -1,7 +1,8 @@
 """The Live Trader bot's routes (ADR 055): its cards, the hosts' settings, the answers to its asks. Thin handlers.
 
 Loopback only, like every bot route; writes need the API key. Each answers the cards (``view.build``). A host's key
-turned off sells nothing: its bot places no order at all until it is on again (operator decision 2026-10-15).
+turned off sells nothing: its bot places no order at all until it is on again (operator decision 2026-10-15); turned
+on, it turns the LiveTrader Bots key and the Bot switch on too (``bot.cascade``, operator ask 2026-10-16).
 Shapes: architecture/schema/bot.md ("The Live Trader bot").
 """
 from __future__ import annotations
@@ -69,6 +70,12 @@ def patch_host(name: str, body: dict[str, Any] = Body(...)) -> Any:  # noqa: B00
         return _error(exc.status, exc.code, exc.message, exc.field)
     host = name.strip().upper()
     _audit_settings(host, before, after)
+    if after["key"] and not before["key"]:
+        # On flows up (operator ask 2026-10-16): a host's key on turns LiveTrader Bots and the Bot switch on.
+        from bot.cascade import family_on
+        from constants_bot import BOT_FAMILY_LIVE_TRADER
+
+        family_on(BOT_FAMILY_LIVE_TRADER)
     if before["key"] != after["key"]:
         watcher.wake()                      # off places no order, not even a sell (2026-10-15): the cards now
     return view.build()

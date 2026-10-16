@@ -93,16 +93,21 @@
   right: 0;
 }
 
-/* Unrealized P/L beside P/L, inside the same button. */
+/* R (realized) and U (unrealized) inside the same button. */
+.global-app-bar__metric-part,
 .global-app-bar__metric-sub {
   display: inline-flex;
   align-items: baseline;
   gap: 0.3rem;
+}
+
+.global-app-bar__metric-sub {
   margin-left: 0.35rem;
   padding-left: 0.45rem;
   border-left: 1px solid var(--nova-border);
 }
 
+.global-app-bar__metric-part > label::after,
 .global-app-bar__metric-sub > label::after {
   content: ':';
 }
@@ -110,12 +115,6 @@
 .global-app-bar__metric--tav .global-app-bar__metric-value {
   font-weight: 650;
   color: var(--nova-text);
-}
-
-/* Day's percent rides beside the dollar figure in the same tone. */
-.global-app-bar__pct {
-  font-size: 0.72rem;
-  font-variant-numeric: tabular-nums;
 }
 
 .global-app-bar__sep {

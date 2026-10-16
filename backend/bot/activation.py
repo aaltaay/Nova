@@ -15,11 +15,12 @@ execution door, and the ``loss_limit`` gate says so.
 
 The backend clears Activate -- with a ``deactivate`` audit line and the session's
 ``deactivated: {at, reason, text}`` -- on every process start (``clear_on_load`` /
-``note_start``: spend arming never survives a start either, ADR 018), when anyone locks
-the padlock (``on_disarm``, called from ``ibkr.safety``), on a venue change
+``note_start``: spend arming never survives a start either, ADR 018), on a venue change
 (``bot.venue_levels``), with the master below Strategy (``bot.autonomy``) and by the operator. No setup
 left at Strategy no longer clears it (2026-10-15): the Bot switch is the top of three keys, and with any key off no
-bot places an order, so a lower key must not flip it (bot.md, "The three keys"). Older lines may read ``no_setup``.
+bot places an order, so a lower key must not flip it (bot.md, "The three keys"). Older lines may read ``no_setup``,
+and ``padlock`` (until 2026-10-16 locking the padlock turned the bot off; the padlock is separate now and blocks
+every order itself).
 
 ADR 044: the desk shows one Bot switch per venue instead of the master dial and Activate
 (``bot.switch``): ON is the master at Strategy and Activate in one step, refused with
@@ -51,7 +52,9 @@ logger = logging.getLogger(__name__)
 
 _TEXT = {
     "restart": "Nova restarted: the bot never stays on across a restart -- turn the Bot switch on again",
-    "padlock": "the padlock was locked, so the bot went off -- turn the Bot switch on again (it unlocks the padlock)",
+    # Only rows written before 2026-10-16, when locking the padlock turned the bot off (``stamp_text``).
+    "padlock": "the padlock was locked, so the bot went off (the rule before 2026-10-16) -- turn the Bot switch on "
+               "again; the padlock is separate now and stays as you set it",
     "venue": "the desk moved to another venue: the bot never carries into another venue",
     "level": "the master level left Strategy",
     "no_setup": "no setup is at Strategy any more",
@@ -147,7 +150,7 @@ def money(value: Any) -> str:
 def refusal(row: dict[str, Any], *, padlock_rule: bool = True) -> BotError | None:
     """Why Activate refuses now (the first rule that fails), else None.
 
-    ``padlock_rule=False`` leaves the padlock out, for a control that unlocks it itself (the Bot switch)."""
+    ``padlock_rule=False`` leaves the padlock out, for the Bot switch: the padlock is separate from it (2026-10-16)."""
     from bot.setup_levels import at_strategy, master
 
     venue, edge, readable = venue_state()
@@ -211,26 +214,13 @@ def deactivate_now(reason: str, text: str | None = None, **inputs: Any) -> bool:
     return was
 
 
-def on_disarm(reason: str = "") -> None:
-    """``ibkr.safety.set_armed``: the padlock went from unlocked to locked, by anyone.
-
-    A disarm that is part of a venue change is the venue's (``bot.venue_levels``, reason
-    ``venue``): at that moment the desk already shows the new venue while the session still
-    holds the old venue's dial."""
-    try:
-        from bot.persist import load_session
-        from sim.mode import venue
-
-        row = load_session()
-        if row.get("level_venue") not in (None, venue()):
-            return
-        deactivate_now("padlock", f"the padlock was locked ({reason or 'disarmed'}), so the bot went off -- "
-                                  "turn the Bot switch on again (it unlocks the padlock)",
-                       disarm=reason or None)
-    except Exception:
-        # The padlock is locked whatever happens here; the bot reads the padlock before every
-        # send too, so an unreadable session cannot fire. Said, never swallowed.
-        logger.exception("bot: Activate could not be cleared after the padlock was locked")
+def stamp_text(stamp: dict[str, Any]) -> str | None:
+    """The words of a ``deactivated`` stamp. A ``padlock`` stamp is from before 2026-10-16 and its saved words said
+    the Bot switch unlocks the padlock, which it no longer does: it reads today's words (Codex review, PR #1019)."""
+    if stamp.get("reason") == "padlock":
+        return _TEXT["padlock"]
+    text = stamp.get("text")
+    return str(text) if text else None
 
 
 def clear_on_load(row: dict[str, Any]) -> None:

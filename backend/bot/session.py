@@ -128,7 +128,9 @@ def _shorts(venue: str | None) -> dict[str, Any]:
 def _deactivated(value: Any) -> dict[str, Any] | None:
     if not isinstance(value, dict):
         return None
-    return {"at": value.get("at"), "reason": value.get("reason"), "text": value.get("text")}
+    from bot.activation import stamp_text
+
+    return {"at": value.get("at"), "reason": value.get("reason"), "text": stamp_text(value)}
 
 
 def _entries_today(venue: str | None, daily: dict[str, Any]) -> dict[str, Any]:

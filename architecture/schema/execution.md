@@ -17,7 +17,8 @@ arm with no PIN. A refusal is `403 {detail, code}` with `code` one of
 boolean` (the desk's venue needs the PIN), `live_arm_pin_set: boolean` and
 `armed_by: "operator" | "bot" | null`; `armed` is true only on the venue the latch
 was armed on. The PIN is never in the repository or the frontend. Locking the
-padlock -- by anyone -- also clears the bot's Activate, in the backend (ADR 042).
+padlock -- by anyone -- leaves the bot's Activate and Bot switch as they are (operator decision 2026-10-16; until
+then it cleared them): while it is locked no order is placed, a bot's included (`bot.md`, "The Bot switch").
 
 ## Account identity on `/api/ibkr/status` (operator ask, 2026-09-21)
 

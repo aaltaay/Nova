@@ -4,10 +4,12 @@
  * closed, the stream and the Activity -- with the LiveTrader Bots key in its head and each host's bot (ADR 055) in the
  * middle of their card. A host's bot places orders only while the header's Bot switch, this key and its own key are
  * all on, and the head says which is off. A shell page (nav rail -> NavPageHost). The sample desk has no bot and no
- * feed: a stated absence, and nothing here polls.
+ * feed: a stated absence, and nothing here polls. Under the hosts, the desk's Positions / Orders · today dock -- the
+ * Scanner's own, resizable and collapsible (operator ask 2026-10-16: "I do want to see the positions tab").
  */
 import { BOTS_PAGE_SUB, LT_BOTS_PAGE_TITLE } from '../constantGroups/bots_page';
 import { FollowedTradersPage, type FollowedSlots } from '../followed_traders';
+import { ScannerDesk } from '../scanner';
 import { SAMPLE_BOT_ABSENT } from '../sample_data/sampleCopy';
 import { useSampleRoute } from '../sample_data/useSampleRoute';
 import { LiveTraderBadge } from './LiveTraderBadge';
@@ -19,7 +21,13 @@ const SLOTS: FollowedSlots = { Head: LiveTraderHead, Trader: LiveTraderStrip, Op
 
 export function LiveTraderBotsPage({ onOpenTrader }: { onOpenTrader?: (symbol: string) => void }) {
   const sample = useSampleRoute();
-  if (!sample) return <FollowedTradersPage onOpenTrader={onOpenTrader} slots={SLOTS} />;
+  if (!sample) {
+    return (
+      <ScannerDesk host="bots" onOpenTrading={onOpenTrader}>
+        <FollowedTradersPage onOpenTrader={onOpenTrader} slots={SLOTS} />
+      </ScannerDesk>
+    );
+  }
   return (
     <div className="nova-shell nova-shell--scanner">
       <div className="main-col main-col--scanner-stack">

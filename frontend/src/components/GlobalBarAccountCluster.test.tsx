@@ -104,10 +104,14 @@ describe('GlobalBarAccountCluster -- Live (the IBKR account)', () => {
     });
     const cluster = screen.getByTestId('global-bar-cluster');
     const day = screen.getByTestId('global-bar-account-trigger');
-    expect(day.textContent).toContain('P/L');
+    // Operator ask, 2026-10-16: "R: -$0.26 | U: +$10.60" -- realized, then open at the bid.
+    expect(day.textContent).toMatch(/^R.*U/);
+    expect(day.textContent).not.toContain('P/L');
+    expect(screen.getByTestId('global-bar-realized').textContent).toBe('+$12.50');
     expect(screen.getByTestId('global-bar-unrealized').textContent).toBe('-$0.42');
-    expect(day.textContent).toContain('+$12.33');
-    expect(screen.getByTestId('global-bar-day-pct').textContent).toBe('+0.35%');
+    // The day's total and percent moved into the card.
+    expect(day.textContent).not.toContain('+$12.33');
+    expect(day.textContent).not.toContain('%');
     expect(screen.getByTestId('global-bar-working-trigger').textContent).toContain('1');
     expect(screen.getByTestId('global-bar-tav-trigger').textContent).toContain('$3,559.55');
     const pill = screen.getByTestId('global-bar-account-pill');
@@ -139,8 +143,7 @@ describe('GlobalBarAccountCluster -- Live (the IBKR account)', () => {
     expect(card.textContent).toContain('-$0.42');
     expect(card.textContent).toContain('Open P&L');
     expect(card.textContent).toContain('-$0.17');
-    expect(card.textContent).toContain("Day's P&L");
-    expect(card.textContent).toContain('+$12.33');
+    expect(screen.getByTestId('global-bar-card-day').textContent).toContain('+$12.33 (+0.35%)');
     expect(card.textContent).toContain("Day's Realized P&L");
     expect(card.textContent).toContain('+$12.50');
     expect(screen.queryByTestId('global-bar-card-fees')).toBeNull();
@@ -165,7 +168,8 @@ describe('GlobalBarAccountCluster -- Live (the IBKR account)', () => {
 
   it('omits Excess Liquidity when IBKR does not report it, and the percent when the base is not > 0', () => {
     mount({ summary: { ...LIVE_SUMMARY, ExcessLiquidity: null, NetLiquidation: 12.33 } });
-    expect(screen.queryByTestId('global-bar-day-pct')).toBeNull();
+    click('global-bar-account-trigger');
+    expect(screen.getByTestId('global-bar-card-day').textContent).not.toContain('%');
     click('global-bar-tav-trigger');
     expect(screen.queryByTestId('global-bar-card-excess')).toBeNull();
   });
@@ -243,8 +247,8 @@ describe('GlobalBarAccountCluster -- practice venues (ADR 020)', () => {
     mount({ venue: 'paper' });
     const cluster = screen.getByTestId('global-bar-cluster');
     expect(screen.getByTestId('global-bar-account').dataset.source).toBe('practice');
-    expect(screen.getByTestId('global-bar-account-trigger').textContent).toContain('+$250.25');
-    expect(screen.getByTestId('global-bar-day-pct').textContent).toBe('+0.25%');
+    // R is today's realized, never the ledger's lifetime figure.
+    expect(screen.getByTestId('global-bar-realized').textContent).toBe('+$350.25');
     expect(screen.getByTestId('global-bar-tav-trigger').textContent).toContain('$101,200.25');
     expect(cluster.textContent).not.toContain('$3,559.55');
     const pill = screen.getByTestId('global-bar-account-pill');
@@ -253,7 +257,7 @@ describe('GlobalBarAccountCluster -- practice venues (ADR 020)', () => {
     expect(pill.title).toMatch(/fake money/i);
     expect(pill.textContent).not.toContain('Individual');
     click('global-bar-account-trigger');
-    expect(screen.getByTestId('global-bar-day-card').textContent).toContain('+$350.25');
+    expect(screen.getByTestId('global-bar-card-day').textContent).toContain('+$250.25 (+0.25%)');
     expect(screen.getByTestId('global-bar-card-fees').textContent).toContain('$3.50');
     click('global-bar-tav-trigger');
     const tav = screen.getByTestId('global-bar-tav-card');
