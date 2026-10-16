@@ -95,7 +95,7 @@ from hod_momo_state import HodMomoState
 
 @pytest.fixture(autouse=True)
 def _reset_bot_persist():
-    from bot import day_pnl, entry_rules, family_keys, replay_desk
+    from bot import day_pnl, entry_rules, family_keys, fill_progress, replay_desk
     from bot.persist import reset_for_tests
     from setup_scanner import readout
     from tests.bot_helpers import open_entry_window, release_depth_lines
@@ -103,6 +103,7 @@ def _reset_bot_persist():
     reset_for_tests()
     family_keys.reset_for_tests()     # the family keys' file is read once per cache dir (bot.md, "The three keys")
     replay_desk.reset_for_tests()     # the bot's memory of a Sim replay is process-local (ADR 052)
+    fill_progress.reset_for_tests()   # the partial fills last said are process-local (2026-10-16)
     readout.reset_for_tests()
     day_pnl.reset_for_tests()   # #564: no commission hold carries between tests
     # The venue clock inside the entry window, so bot tests exercise their own

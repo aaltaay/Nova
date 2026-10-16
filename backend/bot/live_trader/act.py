@@ -5,6 +5,8 @@ audit stream (``bot.audit``) and the stock's last event on its Trader tab (``sto
 (``book``) follows: a step's order to its fill, its TTL or its refusal; a close to its fill or its next try; shares
 that left Paper some other way -- the operator, the loss limit's Auto sell, a short's buy stop, Nova's day cover -- out of the
 position, said once. A skip is written once per trade, step and code. Shapes: architecture/schema/bot.md.
+
+maintainer: one-concern every order the Live Trader bot has in flight, followed to its end, and each line it writes
 """
 from __future__ import annotations
 
@@ -12,6 +14,7 @@ import logging
 from collections import OrderedDict
 from typing import Any
 
+from bot import fill_progress
 from bot.live_trader import book, market, orders
 from bot.live_trader.constants_live_trader import (
     LT_AUDIT_ACTION,
@@ -52,9 +55,10 @@ def audit(outcome: str, a: dict[str, Any], *, why: str | None = None, now: float
               "step": a.get("step"), "qty": a.get("qty"), "limit": a.get("limit"), "stop": a.get("stop"),
               "code": a.get("code"), "why": why if why is not None else a.get("why"), "change": change or None,
               "late_sec": late, "venue": LT_VENUE, **extra}
+    fill = inputs.pop("fill", None)
     try:
         record(action=LT_AUDIT_ACTION, outcome=outcome, reason=inputs["why"], order_id=extra.get("order_id"),
-               inputs=inputs)
+               inputs=inputs, fill=fill)
     except Exception:
         logger.exception("Live Trader bot: the audit line (%s %s) was not written", outcome, a.get("symbol"))
 
@@ -242,16 +246,19 @@ def follow_step(pos_id: str, now: float, *, ttl: float | None = None) -> str | N
         logger.warning("Live Trader bot: %s", exc)
         return None
     state = orders.order_state(row)
+    a = {"host": pos["host"], "row_id": pos["row_id"], "symbol": pos["symbol"], "side": pos["side"],
+         "step": order["step"], "qty": order["qty"], "limit": order["limit"], "change": order.get("change")}
     if state == "working":
+        _partial(a, row, "entry", order["step"], order["id"], _verb(pos["side"]), now)
         return "cancel" if ttl is not None and now - order["sent_ts"] >= ttl else None
+    fill_progress.forget(order["id"])
     filled = float((row or {}).get("filled_qty") or 0.0)
     price = (row or {}).get("avg_fill_price")
     book.step_done(pos_id, filled=filled, price=None if price is None else float(price),
                    ts=(row or {}).get("fill_ts"), basis=(row or {}).get("fill_basis"))
-    a = {"host": pos["host"], "row_id": pos["row_id"], "symbol": pos["symbol"], "side": pos["side"],
-         "step": order["step"], "qty": order["qty"], "limit": order["limit"], "change": order.get("change")}
     if filled > EPS:
         audit("filled", a, now=now, order_id=order["id"], fill_price=price, fill_basis=(row or {}).get("fill_basis"),
+              fill=fill_progress.block(row, phase="entry", leg=order["step"], order_id=order["id"]),
               fill_ts=(row or {}).get("fill_ts"), ibkr=market_now(pos["symbol"]),
               why=f"{_verb(pos['side'])} {filled:g} {pos['symbol']} at {price_text(price)}")
     else:
@@ -271,10 +278,13 @@ def follow_close(pos_id: str, now: float) -> None:
         logger.warning("Live Trader bot: %s", exc)
         return
     state = orders.order_state(row)
-    if state == "working":
-        return
     a = {"host": pos["host"], "row_id": pos["row_id"], "symbol": pos["symbol"], "side": pos["side"], "step": "close",
          "change": {"kind": close_.get("kind"), "ts": close_.get("sent_ts"), "price": None}}
+    if state == "working":
+        _partial({**a, "qty": close_.get("qty")}, row, "exit", "close", close_["order_id"],
+                 _verb(pos["side"], close=True), now)
+        return
+    fill_progress.forget(close_["order_id"])
     if state == "filled":
         price = (row or {}).get("avg_fill_price")
         qty = float((row or {}).get("filled_qty") or close_.get("qty") or 0.0)
@@ -283,6 +293,7 @@ def follow_close(pos_id: str, now: float) -> None:
                                  kind=close_.get("kind") or "close", why=close_.get("why") or "")
         pl = f" (P/L {done['pl_usd']:+.2f})" if done and done.get("pl_usd") is not None else ""
         audit("filled", {**a, "qty": qty}, now=now, order_id=close_["order_id"], fill_price=price,
+              fill=fill_progress.block(row, phase="exit", leg="close", order_id=close_["order_id"]),
               fill_basis=(row or {}).get("fill_basis"), fill_ts=(row or {}).get("fill_ts"),
               ibkr=market_now(pos["symbol"]),
               why=f"{_verb(pos['side'], close=True)} {qty:g} {pos['symbol']} at {price_text(price)}{pl}")
@@ -291,6 +302,15 @@ def follow_close(pos_id: str, now: float) -> None:
     book.close_failed(pos_id, now=now, error=error)
     audit("refused", a, now=now, order_id=close_["order_id"],
           why=f"the close did not fill ({error}); tried again in {LT_CLOSE_RETRY_SEC:.0f} s")
+
+
+def _partial(a: dict[str, Any], row: dict[str, Any] | None, phase: str, leg: str, order_id: Any, verb: str,
+             now: float) -> None:
+    """A working step or close that filled more shares: a ``partial`` line (operator ask 2026-10-16)."""
+    fill = fill_progress.partial(row, phase=phase, leg=leg, order_id=order_id)
+    if fill is not None:
+        audit("partial", a, now=now, order_id=order_id, fill=fill,
+              why=fill_progress.words(fill, a.get("symbol") or "", verb))
 
 
 async def reconcile(now: float) -> None:

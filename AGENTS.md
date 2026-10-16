@@ -214,6 +214,7 @@ Every confirmed wire and persisted shape lives in `architecture/schema/`, one fi
 | The Live Trader bot: a TraderTV host copied on Paper (ADR 055, operator ask 2026-10-14) | `architecture/schema/bot.md` |
 | One Bots page (ADR 044, operator decisions 2026-10-01) | `architecture/schema/bot.md` |
 | The bot trades a Sim replay (ADR 052, operator ask 2026-10-09, #814) | `architecture/schema/bot.md` |
+| Fills on the bot audit stream (operator ask 2026-10-16) | `architecture/schema/bot.md` |
 | Release notes and the update notice (operator ask, 2026-09-23) | `architecture/schema/desk-ops.md` |
 | Filing an issue from the desk (operator ask, 2026-09-24) | `architecture/schema/desk-ops.md` |
 | Setup templates, the eyes' journal and replayed eyes (ADR 029, operator ask 2026-09-23) | `architecture/schema/setups.md` |

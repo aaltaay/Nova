@@ -24,7 +24,7 @@ from bot.live_trader.rules import used_by_host
 from stock_mode.model import mode_of
 
 logger = logging.getLogger(__name__)
-TONES = {"order": "ok", "filled": "ok", "closed": "ok", "skipped": "warn", "refused": "bad", "error": "bad",
+TONES = {"order": "ok", "partial": "ok", "filled": "ok", "closed": "ok", "skipped": "warn", "refused": "bad", "error": "bad",
          "asked": "warn", "answered": "plain", "note": "plain", "settings": "plain"}
 FACE_PATH = "/api/followed-traders/faces/{date}/{name}.jpg"
 

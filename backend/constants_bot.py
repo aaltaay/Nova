@@ -282,6 +282,14 @@ BOT_COMMISSIONS_WARN_EVERY_SEC = 60.0
 # so a running session keeps its claim.
 BOT_RUNNER_BRAIN_ID = "nova-first-pullback"
 BOT_AUDIT_ACTION_TRADE = "bot_trade"
+# The fixed outcome names of a bot trade line (operator ask 2026-10-16; architecture/schema/bot.md, "Fills on the
+# bot audit stream"): Nova's own bot's lines and the Live Trader's ("live_trader" is LT_AUDIT_ACTION).
+BOT_AUDIT_OUTCOME_PARTIAL = "partial"
+BOT_TRADE_AUDIT_ACTIONS = frozenset({BOT_AUDIT_ACTION_TRADE, BOT_KIND_SETUP_ENTRY, BOT_KIND_SETUP_SHORT, "live_trader"})
+BOT_TRADE_OUTCOMES = frozenset({
+    "ok", "failed", "order", BOT_AUDIT_OUTCOME_PARTIAL, "filled", "half", "closing", "closed", "missed", "handed",
+    "skipped", "asked", "answered", "refused", "settings", "note", "error",
+})
 BOT_FP_POLL_SEC = 0.5               # CHOSEN: the bot's loop
 BOT_FP_HEARTBEAT_SEC = 5.0          # CHOSEN: well inside BOT_HEARTBEAT_STALE_SEC
 BOT_FP_TRIGGER_MAX_AGE_SEC = 5.0    # CHOSEN: an older trigger (a restart, a warm-up) is not traded
