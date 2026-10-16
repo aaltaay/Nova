@@ -29,6 +29,9 @@ MARKET_HOLDINGS_QUOTES_TTL_SEC = 90.0            # the biggest names' snapshots 
 MARKET_CLOSES_RETRY_SEC = 900.0                  # daily closes not yet holding the last session
 MARKET_SHED_RETRY_SEC = 20.0                     # the historical service said "later"
 MARKET_HISTORY_GAP_SEC = 2.0                     # between two paced historical requests of this page
+MARKET_HISTORY_HEADROOM = 30                     # the page sends no historical request while this few of the 10-minute
+#   budget's 60 are left: charts, the TraderTV exits (20) and LULD come first. Without it the page's ETF bars
+#   spent all 60 when no line was spare (2026-10-16), and the TraderTV exits waited 30 minutes and more.
 MARKET_FILES_TTL_SEC = 12 * 3600.0               # BEA calendar, earnings
 MARKET_HOLDINGS_TTL_SEC = 20 * 3600.0            # a State Street holdings file
 MARKET_CLIMATE_TTL_SEC = 60.0                    # today's climate from the leaderboard store
