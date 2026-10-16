@@ -152,7 +152,10 @@ before, no price before 09:30), the movers ranked by IBKR's scan (a scan holds n
 (price `null`) when IBKR refused that symbol. A pass the historical service sheds part way keeps what it read on top
 of the earlier passes' answers for the same `date` (another day's are dropped), and the next pass, after
 `MARKET_SHED_RETRY_SEC` rather than the TTL, reads the symbols with no answer first, then the oldest (2026-10-16:
-every pass had started over at XLK, so 25 of 26 ETFs never priced). Breadth has no bar fallback: it reads `unavailable` with "waiting for spare
+every pass had started over at XLK, so 25 of 26 ETFs never priced). Every historical request of the page -- these bars, a tile's
+5-minute line and prior close, the daily closes -- is shed while `MARKET_HISTORY_HEADROOM` (30) or fewer of IBKR's 60
+requests of the 10 minutes are left: charts, the TraderTV exits (which leave 20) and LULD read first (2026-10-16: the
+page's bars spent all 60, and the TraderTV exits waited over 30 minutes). Breadth has no bar fallback: it reads `unavailable` with "waiting for spare
 market-data lines".
 
 **Fenced errors.** An IBKR error on a `FUT`, `CONTFUT`, `IND`, `CASH` or `CRYPTO` contract is the Market page's: it

@@ -87,13 +87,15 @@ class World:
         self.keys = {"ok": True, "code": None, "why": None}     # the Bot switch and the LiveTrader Bots key
         self.answers: dict = {}
         self.short_closed = None
+        self.ssr: dict = {}
         self.no_reentry: set = set()
 
     def ctx(self):
         of = lambda n: self.st.get(n, settings(key=False))  # noqa: E731 -- the watcher's settings.of
         return {"now": self.now, "settings": of, "can_open": self.can, "sell_all_ts": self.sell_all_ts,
                 "keys_hold": keys_hold(self.keys, of), "quote": self.quotes.get,
-                "cap": lambda s: self.caps.get(s, 50e9), "held": lambda s, side: self.held.get((s, side), 0.0),
+                "cap": lambda s: self.caps.get(s, 50e9),
+                "ssr": lambda s: self.ssr.get(s, "off"), "held": lambda s, side: self.held.get((s, side), 0.0),
                 "short_closed": lambda now: self.short_closed, "answers": self.answers,
                 "no_reentry": self.no_reentry}
 
@@ -675,6 +677,27 @@ def test_add_groups_fold_and_settle():
     assert len(settled) == 1 and settled[0]["to_price"] == 98.0 and pending is True
     settled, pending = feed_rows.add_groups(adds, NOW, NOW + 40)
     assert len(settled) == 2 and pending is False
+
+
+def test_a_large_cap_add_of_a_few_cents_is_an_add():
+    # SHAWN's TSLA, 2026-10-16: averaging down a $366 stock moves the average a few cents per add; a percent
+    # rule (0.05% = $0.18 there) dropped eight of them without a word. Only a cent-exact return is no add.
+    adds = [_add(NOW + 30, 366.07, 366.11), _add(NOW + 90, 365.91, 366.07), _add(NOW + 150, 365.91, 365.91)]
+    settled, pending = feed_rows.add_groups(adds, NOW, NOW + 200)
+    assert [g["to_price"] for g in settled] == [366.07, 365.91] and pending is False
+    # under $1 the bar shows a hundredth of a cent: 0.5000 -> 0.4997 is an add
+    settled, _ = feed_rows.add_groups([_add(NOW + 30, 0.4997, 0.5)], NOW, NOW + 60)
+    assert [g["to_price"] for g in settled] == [0.4997]
+
+
+def test_a_short_under_ssr_or_unknown_sells_at_the_ask():
+    # SHAWN's TSLA short, 2026-10-16: SSR unknown, priced at the bid less 2 cents -- the short check refused it.
+    q = {"bid": 361.50, "ask": 361.64, "last": 361.55}
+    assert rules.limits("short", q, 5.0, "off") == (361.48, rules.tick_round(361.48 * 1.05))
+    assert rules.limits("short", q, 5.0, "unknown") == (361.64, rules.tick_round(361.64 * 1.05))
+    assert rules.limits("short", q, 5.0, "on")[0] == 361.64
+    assert rules.limits("short", {"bid": 361.5, "ask": 361.5}, 5.0, "on") == (None, None)   # no ask above the bid
+    assert rules.limits("short", {"bid": 361.5, "last": 361.5}, 5.0, "unknown") == (None, None)
 
 
 def test_rules_shares_and_prices():

@@ -85,7 +85,8 @@ class _Pass:
                            used_usd=self.used.get(name, 0.0),
                            against=rules.against(self.book, self.ctx, side, symbol) if entry else None,
                            short_closed=self.ctx["short_closed"](self.now) if side == "short" else None,
-                           priceable=priceable(symbol), now=self.now, wait_since=since, prev_price=prev_price)
+                           priceable=priceable(symbol), now=self.now, wait_since=since, prev_price=prev_price,
+                           ssr=self.ctx["ssr"](symbol) if side == "short" else "off")
 
     def read_doubt(self, name, r, since, unread, *, entry: bool) -> dict[str, Any] | None:
         """A skip or a wait when the read of ``r`` is in doubt (bot.md, "Bad reads"); None when it reads clean."""
