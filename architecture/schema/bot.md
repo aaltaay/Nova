@@ -810,7 +810,8 @@ the bid, while SSR is on or unknown (`short_sale.ssr.live`, as the setup bot pri
 it, no target. A short step -- an entry or an add -- the one short check refuses only for IBKR's borrow read
 (stale, none, unknown) waits `LT_WAIT_SEC` for a fresh read, asked of IBKR at once, before it is a skip -- one the
 operator approved (Entry: You) keeps that yes through the wait and is sent once the read comes, never asked again
-(Codex review, PR #1025); and every
+(Codex review, PR #1025) -- the yes is spent then: the same trade taken again later (sold off air, back on the bar)
+is asked for again (Codex review, PR #1026); and every
 stock the bot holds short has its borrow read again before it goes stale (`shortability.refresh_due`, as an open
 Trader tab does), so the host's add finds it fresh (2026-10-16: an add 72 s after the short met a read 75 s old and
 was skipped). Working after the Paper sleeve's `working_ttl_sec`, it is cancelled. A close cancels the

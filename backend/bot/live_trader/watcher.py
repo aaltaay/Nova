@@ -371,7 +371,8 @@ def _rewait(steps: list[dict[str, Any]], now: float) -> None:
     """A short whose borrow is being read waits for it, as a quote line does (``LT_WAIT_SEC``): an entry's row waits
     again, and an add is judged again next pass (its settled add not counted yet; 2026-10-16, NEAL's IBIT add was
     skipped on a borrow read 75 s old). The operator's yes to it (Entry: You) is kept for that same change, so it is
-    sent, never asked again, once the read comes (Codex review, PR #1025)."""
+    sent, never asked again, once the read comes (Codex review, PR #1025) -- and spent then: the same trade taken
+    again later (sold off air, back on the bar) is asked for again (Codex review, PR #1026)."""
     with _lock:
         for a in steps:
             rows = (((_snapshot or {}).get("hosts") or {}).get(a["host"]) or {}).get("rows") or {}

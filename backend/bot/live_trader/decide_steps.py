@@ -178,7 +178,7 @@ class _Pass:
             self.skip(name, r, pid, step, v["code"], v["text"], change)
             return
         mode = mode_of(st["entry"], st["exit"])
-        approved = rs.get("approved_ts") == change["ts"]      # a yes kept while a short waited on its borrow
+        approved = rs.pop("approved_ts", None) == change["ts"]   # a yes kept through a borrow wait: used once
         if mode == STOCK_MODE_SIGNAL:
             rs["fate"] = "noted"
             self.note(name, r, pid, step, v["plan"], change)
@@ -250,7 +250,7 @@ class _Pass:
                 decide_held.trim(self, name, st, r, pos, change)
             return
         mode = mode_of(st["entry"], st["exit"])
-        approved = rs.get("add_approved_ts") == change["ts"]  # a yes kept while a short waited on its borrow
+        approved = rs.pop("add_approved_ts", None) == change["ts"]   # a yes kept through a borrow wait: used once
         if mode == STOCK_MODE_APPROVE and not approved:
             rs["add_ask_id"] = decide_asks.ask(self, name, r, pid, "add", v["plan"], change, prev_price=prev)
             return

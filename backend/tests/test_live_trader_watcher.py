@@ -504,6 +504,32 @@ def test_an_approved_short_add_waiting_on_its_borrow_is_sent_never_asked_again(d
     assert lt_book.positions()[f"{HOST}|short|FADE"]["adds_followed"] == 1
 
 
+def test_a_kept_approval_is_spent_once_the_short_is_sent(desk, monkeypatch):
+    """Codex review, PR #1026: the yes kept through a borrow wait is used once. Covered off air and back on the
+    host's bar, the same trade is a new take: it is asked for again, never sent on the old yes."""
+    monkeypatch.setattr(short_mod, "request_refresh", lambda sym: True)
+    lt_settings.patch_host(HOST, {"entry": "you", "exit": "nova"})
+    desk.feed.bar(at("10:29:00"), **{HOST: 1, OTHER: 1})
+    run(desk, "10:30:00")
+    desk.feed.open("FADE", 40.00, at("10:30:10"), side="short")
+    run(desk, "10:30:11")
+    short_mod.remember_for_tests("FADE", short_mod.enrich_ibkr_listing(_FADE_LISTING, fetched_at=time.time() - 120))
+    _approve_only_ask("entry")
+    run(desk, "10:30:13")
+    short_mod.remember_for_tests("FADE", short_mod.enrich_ibkr_listing(_FADE_LISTING, fetched_at=time.time()))
+    run(desk, "10:30:15")
+    assert held(desk, "FADE") == -12
+    desk.feed.bar(at("10:40:00"), **{NEXT: 1})
+    run(desk, "10:41:30")
+    assert held(desk, "FADE") == 0                                 # off air: covered
+    desk.feed.bar(at("14:00:00"), **{HOST: 1, OTHER: 1})
+    run(desk, "14:00:05")
+    run(desk, "14:08:10")                                          # no switch in 8 minutes: already open, theirs
+    assert held(desk, "FADE") == 0
+    (ask,) = watcher.asks()
+    assert ask["step"] == "already_open"
+
+
 def test_keep_borrow_rereads_a_borrow_before_it_goes_stale(monkeypatch):
     asked: list[str] = []
     short_mod.reset_for_tests()
