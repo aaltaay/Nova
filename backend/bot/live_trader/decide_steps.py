@@ -178,14 +178,15 @@ class _Pass:
             self.skip(name, r, pid, step, v["code"], v["text"], change)
             return
         mode = mode_of(st["entry"], st["exit"])
+        approved = rs.pop("approved_ts", None) == change["ts"]   # a yes kept through a borrow wait: used once
         if mode == STOCK_MODE_SIGNAL:
             rs["fate"] = "noted"
             self.note(name, r, pid, step, v["plan"], change)
-        elif mode == STOCK_MODE_APPROVE:
+        elif mode == STOCK_MODE_APPROVE and not approved:
             rs["fate"], rs["ask_id"] = "asked", decide_asks.ask(self, name, r, pid, step, v["plan"], change)
         else:
             rs["fate"] = "taken"
-            self.send(name, r, pid, step, v["plan"], change, approved=False)
+            self.send(name, r, pid, step, v["plan"], change, approved=approved)
             self.taken(r, rs)
 
     def taken(self, r, rs) -> None:
@@ -249,14 +250,15 @@ class _Pass:
                 decide_held.trim(self, name, st, r, pos, change)
             return
         mode = mode_of(st["entry"], st["exit"])
-        if mode == STOCK_MODE_APPROVE:
+        approved = rs.pop("add_approved_ts", None) == change["ts"]   # a yes kept through a borrow wait: used once
+        if mode == STOCK_MODE_APPROVE and not approved:
             rs["add_ask_id"] = decide_asks.ask(self, name, r, pid, "add", v["plan"], change, prev_price=prev)
             return
         rs["groups_done"] += 1
         if mode == STOCK_MODE_SIGNAL:
             self.note(name, r, pid, "add", v["plan"], change)
         else:
-            self.send(name, r, pid, "add", v["plan"], change, approved=False)
+            self.send(name, r, pid, "add", v["plan"], change, approved=approved)
 
 
 def _host_state() -> dict[str, Any]:
