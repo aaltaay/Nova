@@ -50,9 +50,9 @@ LT_IDLE_SEC = 15.0                      # otherwise: nothing is asked of the fee
 LT_FEED_BEHIND_SEC = 30.0               # the page's rule: the read this far behind the stream is doubtful
 LT_MISREAD_PCT = 1.5                    # the host's average this far from the market is a misread
 LT_ADD_MERGE_SEC = 4.0                  # average changes this close together are one add (an add filling in pieces)
-LT_FLICKER_USD = 0.01                   # an add whose average ends less than a cent from where it began is no add
-#   A cent, not a percent: a large cap averaged down moves its average a few cents per add (SHAWN's TSLA,
-#   2026-10-16: 366.11 -> 366.07), and a 0.05% rule ($0.18 there) dropped eight real adds without a word.
+# An add whose average ends where it began, as the bar shows it (`feed_rows.cent`: the cent, a hundredth of a cent
+#   under $1), is no add. Never a percent: a large cap averaged down moves its average a few cents per add (SHAWN's
+#   TSLA, 2026-10-16: 366.11 -> 366.07), and a 0.05% rule ($0.18 there) dropped eight real adds without a word.
 LT_HIDDEN_SEC = 600.0                   # the bar hidden (or the feed silent) this long: get flat
 LT_OPEN_FRESH_SEC = 60.0                # an entry first seen later than this after it happened is already open
 LT_WAIT_SEC = 30.0                      # a quote, a market cap or a ticker check waited for this long is a skip

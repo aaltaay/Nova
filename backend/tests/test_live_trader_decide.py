@@ -683,6 +683,9 @@ def test_a_large_cap_add_of_a_few_cents_is_an_add():
     adds = [_add(NOW + 30, 366.07, 366.11), _add(NOW + 90, 365.91, 366.07), _add(NOW + 150, 365.91, 365.91)]
     settled, pending = feed_rows.add_groups(adds, NOW, NOW + 200)
     assert [g["to_price"] for g in settled] == [366.07, 365.91] and pending is False
+    # under $1 the bar shows a hundredth of a cent: 0.5000 -> 0.4997 is an add
+    settled, _ = feed_rows.add_groups([_add(NOW + 30, 0.4997, 0.5)], NOW, NOW + 60)
+    assert [g["to_price"] for g in settled] == [0.4997]
 
 
 def test_rules_shares_and_prices():
