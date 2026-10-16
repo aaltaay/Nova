@@ -150,7 +150,8 @@ def _change_words(a: dict[str, Any]) -> str:
 
 
 async def close(a: dict[str, Any], now: float) -> None:
-    """Sell (or cover) the bot's whole position: its order in flight and a short's buy stops cancelled first."""
+    """Sell (or cover) the bot's whole position: its order in flight and a short's buy stops cancelled first.
+    A trim (``a["trim"]``, a long only) sells ``a["qty"]`` of it, once: the host sold part (``decide_steps.trim``)."""
     pos = book.get(a["pos_id"])
     if pos is None or pos["state"] == "closing":
         return
@@ -179,7 +180,9 @@ async def close(a: dict[str, Any], now: float) -> None:
     if held is None:
         audit("error", a, why="Paper's positions could not be read: the close was not sent (tried again)", now=now)
         return
-    qty = min(pos["qty"], held)
+    qty = min(float(a["qty"]) if a.get("trim") else pos["qty"], held)
+    if a.get("trim") and (pos["side"] != "long" or pos.get("trimmed") or qty >= pos["qty"] - EPS):
+        return                                 # a trim is half a long, once: never a whole close, never a short
     if qty <= EPS:
         done = book.forget(pos["id"], kind="outside", why="already gone from Paper before the close", ts=now)
         if done is not None:

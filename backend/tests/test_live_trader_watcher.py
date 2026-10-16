@@ -261,6 +261,30 @@ def test_open_add_and_close_follow_the_host_with_real_paper_fills(desk):
     assert lt_book.positions() == {}
 
 
+def test_a_host_selling_part_sells_half_the_bots_shares_once_on_paper(desk):
+    """Operator 2026-10-16, "Sell half, once": the host's average falls while the market rises -- they sold part
+    (SHAWN's TSLA). The bot buys nothing, sells half its shares at market on Paper, and never trims it again."""
+    run(desk, "10:30:00")
+    t = desk.feed.open("XYZ", 100.00, at("10:30:10"))
+    run(desk, "10:30:11")
+    assert held(desk, "XYZ") == 4
+    desk.market.px["XYZ"] = [101.00, 100.98, 101.02]           # the stock up, their average down: a sale
+    desk.feed.add(t, 99.80, at("10:31:00"))
+    run(desk, "10:31:06")
+    assert held(desk, "XYZ") == 2
+    pos = lt_book.positions()[f"{HOST}|long|XYZ"]
+    assert pos["qty"] == 2 and pos["trimmed"] and pos["state"] == "open" and pos["adds_followed"] == 0
+    assert any(r["inputs"]["code"] == "LT_ADD_IS_SALE" for r in lines_("skipped"))
+    desk.feed.add(t, 99.60, at("10:32:00"))                    # another sale: nothing more is sold
+    run(desk, "10:32:06")
+    assert held(desk, "XYZ") == 2
+    desk.feed.close(t, at("10:33:00"))
+    run(desk, "10:33:01")
+    assert held(desk, "XYZ") == 0
+    (done,) = lt_book.closed_today()
+    assert [f["kind"] for f in done["exit_fills"]] == ["trim", "close"]
+
+
 def test_the_bots_shares_are_its_own_never_yours(desk):
     run(desk, "10:30:00")
     desk.broker.place("XYZ", "BUY", 100, order_type="MKT", source="manual")      # the operator's own 100

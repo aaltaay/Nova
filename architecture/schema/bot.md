@@ -651,7 +651,13 @@ read, the sell-all time). Beyond the rules above, each with its reason:
 - **A sale read as an add** (`LT_ADD_IS_SALE`; operator 2026-10-16, "the point is to emulate them as much as
   possible"): an average that moved away from the market by more than `LT_ADD_DIRECTION_PCT` (0.1%) of it -- down
   while the market is over it on a long, up while it is under it on a short -- is a partial sale the host's platform
-  folded into the average (each sale's profit lowers it), never a buy: skipped, nothing bought. SHAWN's TSLA,
+  folded into the average (each sale's profit lowers it), never a buy: skipped, nothing bought -- judged before the
+  `adds` limit, so it is seen after every add is spent. The first such sale of a long the bot holds sells half its
+  shares (rounded down) at market, once per position (operator, "Sell half, once": the bar shows the average, never
+  the shares sold): a `close` with `trim: true`, change kind `trim`, its fill an `exit_fills` row of kind `trim`, and
+  the position then carries `trimmed: true` -- a later sale sells nothing more, the rest waits for the host's close.
+  A short keeps every share (Paper cannot shrink its buy stop to the shares left), a single share has no half, and
+  Exit: You keeps them; each is said as a `note`. The keys and the Bot switch hold a trim as they hold every order. SHAWN's TSLA,
   2026-10-16: TSLA rose 365 -> 370 while his average fell 366.50 -> 365.02, and at 09:59 it fell 364.32 -> 364.02
   with TSLA at 366.8; the bot had bought that as an add.
 - **No clock** (`LT_NO_CLOCK`): a read without the stream's on-screen clock -- none, or one read impossibly
@@ -722,7 +728,7 @@ temp file and rename; unknown version refuses loud, and the bot then opens nothi
 ```
 {schema_version: 1, day: "YYYY-MM-DD" (the desk's day, 04:00 ET),
  positions: [{id, host, row_id, symbol, side: "long" | "short", venue: "paper", qty, cost_usd, steps,
-              adds_seen, adds_followed, opened_ts, state: "entering" | "open" | "closing",
+              adds_seen, adds_followed, trimmed (absent: false), opened_ts, state: "entering" | "open" | "closing",
               order: {id, step: "entry" | "add" | "already_open" | "close", sent_ts, qty, limit, stop} | null,
               stop_order_ids: [int], fills: [{step, qty, price, ts, order_id}], feed: {ts, price}}],
  closed: [{...the position, closed_ts, why, exit_fills: [{qty, price, ts, order_id}], pl_usd}],
@@ -805,7 +811,7 @@ holds, is entering or waits to enter; never a Level 2 line (ADR 055 decision 3).
 **Audit** (the bot's stream): action `live_trader`, outcome `order` (a step sent) | `filled` | `closed` (a
 close sent) | `skipped` | `asked` | `answered` | `refused` (the door's words) | `settings` | `note` |
 `error`; `inputs: {host, row_id, symbol, side, step, qty, limit, stop, order_id, code, why, change: {kind:
-"open" | "add" | "already_open" | "close" | "off_air" | "hidden" | "sell_all" | "stale_day" | "outside", ts, price}, late_sec, venue: "paper"}`. `late_sec` is the send's wall time less the feed's
+"open" | "add" | "already_open" | "close" | "trim" | "off_air" | "hidden" | "sell_all" | "stale_day" | "outside", ts, price}, late_sec, venue: "paper"}`. `late_sec` is the send's wall time less the feed's
 time of the change. A skip is written once per position, step and code. Codes: `LT_FEED_BEHIND`,
 `LT_FEED_DOWN`, `LT_TICKER_UNSETTLED`, `LT_MISREAD`, `LT_SMALL_CAP`, `LT_CAP_UNKNOWN`, `LT_NO_QUOTE`,
 `LT_ALLOWANCE`, `LT_ADDS_DONE`, `LT_SHORTS_OFF`, `LT_AGAINST`, `LT_NOT_HELD`, `LT_VENUE`, `LT_BOT_OFF`,

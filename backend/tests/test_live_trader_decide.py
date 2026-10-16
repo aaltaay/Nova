@@ -117,6 +117,11 @@ class World:
                 pos["steps"] += 1
                 if a["step"] == "add":
                     pos["adds_followed"] += 1
+            elif a["kind"] == "close" and a.get("trim"):
+                pos = self.book[a["pos_id"]]                # half sold, once (book.close_filled, kind "trim")
+                pos["cost_usd"] *= (pos["qty"] - a["qty"]) / pos["qty"]
+                pos["qty"] -= a["qty"]
+                pos["trimmed"] = True
             elif a["kind"] == "close":
                 self.book.pop(a["pos_id"], None)
             elif a["kind"] == "rekey":
@@ -258,6 +263,8 @@ def test_adds_past_the_limit_are_skipped_and_said():
     adds = []
     for n, at in enumerate((30, 60, 90), start=1):
         adds.append(_add(NOW + at, 100.0 - n * 0.1, 100.0 - (n - 1) * 0.1))
+        low = 100.0 - n * 0.1 - 0.3            # averaging down: the market under the average it pulls down
+        w.quotes["XYZ"] = {"last": low, "bid": low - 0.02, "ask": low + 0.02, "fresh": True}
         out = w.at(at + 5).run(answer({HOST: [dict(base, price=100.0 - n * 0.1, adds=list(adds))]},
                                       feed_now=NOW + at + 5))
     (skip,) = kinds(out, "skip")
@@ -868,6 +875,53 @@ def test_an_average_moving_away_from_the_market_is_a_sale_never_bought():
     out2 = w2.at(40).run(answer({HOST: [moved]}, feed_now=NOW + 40))
     (step,) = kinds(out2, "step")
     assert step["step"] == "add"
+
+
+def _sale_world(side="long", qty_usd=1500.0):
+    """A held TSLA position whose host then sells part: their average 364.32 -> 364.02, TSLA at 366.8."""
+    w = World(step_usd=qty_usd, sides="both")
+    base = row(symbol="TSLA", side=side, price=364.32, entry_ts=NOW)
+    w.quotes["TSLA"] = {"last": 364.3, "bid": 364.28, "ask": 364.32, "fresh": True}
+    watching(w, base)
+    w.quotes["TSLA"] = {"last": 366.8, "bid": 366.78, "ask": 366.82, "fresh": True}
+    return w, base
+
+
+def test_a_host_sale_sells_half_the_bots_long_once():
+    """Operator 2026-10-16, "Sell half, once": the first sale sells half the bot's shares; a later one sells none."""
+    w, base = _sale_world()
+    pos = next(iter(w.book.values()))
+    assert pos["qty"] == 4
+    sold = dict(base, price=364.02, adds=[_add(NOW + 30, 364.02, 364.32)])
+    out = w.at(40).run(answer({HOST: [sold]}, feed_now=NOW + 40))
+    (close,) = kinds(out, "close")
+    assert close["trim"] is True and close["qty"] == 2 and "sells half, once" in close["why"]
+    assert kinds(out, "step") == [] and kinds(out, "skip")[0]["code"] == LT_ADD_IS_SALE
+    assert pos["qty"] == 2 and pos["trimmed"]
+    again = dict(sold, price=363.8, adds=[*sold["adds"], _add(NOW + 60, 363.8, 364.02)])
+    out = w.at(70).run(answer({HOST: [again]}, feed_now=NOW + 70))
+    assert kinds(out, "close") == [] and pos["qty"] == 2
+
+
+def test_a_host_sale_never_trims_a_short_or_a_single_share():
+    w, base = _sale_world(side="short")
+    sold = dict(base, price=364.62, adds=[_add(NOW + 30, 364.62, 364.32)])   # a short's average up, market under
+    w.quotes["TSLA"] = {"last": 362.0, "bid": 361.98, "ask": 362.02, "fresh": True}
+    out = w.at(40).run(answer({HOST: [sold]}, feed_now=NOW + 40))
+    assert kinds(out, "close") == [] and any("cannot shrink its buy stop" in n["why"] for n in kinds(out, "note"))
+    w1, base1 = _sale_world(qty_usd=500.0)
+    out = w1.at(40).run(answer({HOST: [dict(base1, price=364.02, adds=[_add(NOW + 30, 364.02, 364.32)])]},
+                               feed_now=NOW + 40))
+    assert kinds(out, "close") == [] and any("nothing to halve" in n["why"] for n in kinds(out, "note"))
+
+
+def test_a_sale_still_trims_after_every_add_is_spent():
+    w, base = _sale_world()
+    w.st[HOST] = dict(w.st[HOST], adds=0)
+    sold = dict(base, price=364.02, adds=[_add(NOW + 30, 364.02, 364.32)])
+    out = w.at(40).run(answer({HOST: [sold]}, feed_now=NOW + 40))
+    (close,) = kinds(out, "close")
+    assert close["trim"] and close["qty"] == 2
 
 
 def test_an_add_between_the_old_average_and_the_market_is_followed():

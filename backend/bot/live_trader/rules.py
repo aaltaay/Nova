@@ -83,6 +83,18 @@ def limits(side: str, quote: dict[str, Any], stop_pct: float,
     return limit, tick_round(limit * (1.0 + stop_pct / 100.0))
 
 
+def sale_text(prev_price: float | None, their_price: float, ref: float | None) -> str | None:
+    """Why an average change is a partial sale, not an add, or None: it moved away from the market by more than
+    ``LT_ADD_DIRECTION_PCT`` of it (a buy at the market can only pull the average toward it)."""
+    if not prev_price or prev_price <= 0 or not ref or ref <= 0:
+        return None
+    moved, toward = their_price - prev_price, ref - prev_price
+    if abs(toward) > ref * LT_ADD_DIRECTION_PCT / 100.0 and moved * toward < 0:
+        return (f"their average went {price_text(prev_price)} -> {price_text(their_price)}, away from the market "
+                f"{price_text(ref)}: a buy cannot do that -- they sold part, so the bot buys nothing")
+    return None
+
+
 def verdict(kind: str, code: str | None = None, text: str | None = None,
             plan: dict[str, Any] | None = None) -> dict[str, Any]:
     return {"verdict": kind, "code": code, "text": text, "plan": plan}
@@ -144,11 +156,9 @@ def check(*, side: str, symbol: str, their_price: float, settings: dict[str, Any
                            f"their new average {price_text(their_price)} is not between their average before "
                            f"{price_text(prev_price)} and the market {price_text(ref)}: a misread, not an add")
         # Inside the band but moved away from the market: a partial sale their platform folded into the average.
-        moved, toward = their_price - prev_price, ref - prev_price
-        if abs(toward) > ref * LT_ADD_DIRECTION_PCT / 100.0 and moved * toward < 0:
-            return verdict(SKIP, LT_ADD_IS_SALE,
-                           f"their average went {price_text(prev_price)} -> {price_text(their_price)}, away from the "
-                           f"market {price_text(ref)}: a buy cannot do that -- they sold part, so the bot buys nothing")
+        sold = sale_text(prev_price, their_price, ref)
+        if sold:
+            return verdict(SKIP, LT_ADD_IS_SALE, sold)
     if against:
         return verdict(SKIP, LT_AGAINST, against)
     limit, stop = limits(side, quote or {}, float(settings["short_stop_pct"]), ssr)

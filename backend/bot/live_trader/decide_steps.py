@@ -17,8 +17,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from bot.live_trader import decide_bar, feed_rows, rules
+from bot.live_trader import decide_bar, decide_held, feed_rows, rules
 from bot.live_trader.constants_live_trader import (
+    LT_ADD_IS_SALE,
     LT_ADDS_DONE,
     LT_AFTER_SELL_ALL,
     LT_BLANK_BAR,
@@ -27,7 +28,6 @@ from bot.live_trader.constants_live_trader import (
     LT_ASK_SEC,
     LT_ASK_SKIPPED,
     LT_HIDDEN,
-    LT_KEY_OFF,
     LT_NO_CLOCK,
     LT_NOT_ON_BAR,
     LT_OFF_AIR,
@@ -288,6 +288,8 @@ class _Pass:
         prev = g["from_price"] or (groups[i - 1]["to_price"] if i > 0 else r.get("entry_price"))
         change = {"kind": "add", "ts": g["last_ts"], "price": g["to_price"]}
         limit = st["adds"]
+        if not blocked and limit is not None and pos["adds_followed"] >= limit and                 decide_held.sale_past_limit(self, name, st, r, rs, pos, prev, g["to_price"], change):
+            return                             # every add is spent, but a sale still trims
         if blocked or (limit is not None and pos["adds_followed"] >= limit):
             code, why = blocked or (LT_ADDS_DONE, f"{name} added to {r['symbol']}: this bot follows "
                                                   f"{limit} add{'' if limit == 1 else 's'}")
@@ -306,6 +308,8 @@ class _Pass:
         if v["verdict"] == rules.SKIP:
             rs["groups_done"] += 1
             self.skip(name, r, pid, "add", v["code"], v["text"], change)
+            if v["code"] == LT_ADD_IS_SALE:
+                decide_held.trim(self, name, st, r, pos, change)
             return
         mode = mode_of(st["entry"], st["exit"])
         if mode == STOCK_MODE_APPROVE:
@@ -316,21 +320,6 @@ class _Pass:
             self.note(name, r, pid, "add", v["plan"], change)
         else:
             self.send(name, r, pid, "add", v["plan"], change, approved=False)
-
-
-def _key_off_adds(run: _Pass, name: str, st: dict[str, Any], open_rows: list[dict[str, Any]], hs: dict[str, Any],
-                  book: dict[str, dict[str, Any]], closing: set[str]) -> None:
-    """The host's key is off: its bot places no order, and each add of what it holds is a skip (``LT_KEY_OFF``),
-    so turning the key back on never buys an add made while it was off (operator decision 2026-10-15)."""
-    off = (LT_KEY_OFF, f"{name}'s Bot key is off: its bot places no order")
-    for r in open_rows:
-        pid = feed_rows.position_id(name, r["side"], r["symbol"])
-        pos = book.get(pid)
-        if pos is None or pos["row_id"] != r["id"] or pid in closing:
-            continue
-        rs = hs["rows"].setdefault(r["id"], {"fate": None, "since": None, "groups_done": None, "ask_id": None,
-                                             "kind": "open"})
-        run.add(name, st, r, rs, pos, off, set())
 
 
 def _host_state() -> dict[str, Any]:
@@ -367,7 +356,7 @@ def steps(snap: dict[str, Any], answer: dict[str, Any], book: dict[str, dict[str
                 run.drop_ask(ask_id, "the key is off" if not st["key"] else
                              f"{name} closed {ask['symbol']} before you answered")
         if not st["key"]:
-            _key_off_adds(run, name, st, open_rows, hs, book, closing)
+            decide_held.key_off_adds(run, name, st, open_rows, hs, book, closing)
             continue
         blocked = _blocked(ctx, flags, on_air, name)
         unread = set(h.get("unread") or ())
