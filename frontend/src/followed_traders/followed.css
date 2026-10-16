@@ -198,7 +198,7 @@
 .ft-calendar__legend > span { display: inline-flex; align-items: center; gap: 5px; }
 .ft-day {
   font: inherit;
-  height: 40px;
+  height: 44px;
   padding: 0;
   border-radius: 8px;
   border: 1px solid transparent;
@@ -220,13 +220,16 @@
 .ft-day.has-trades .ft-day__dot,
 .ft-day__dot--legend { background: var(--ft-accent); }
 .ft-day__dot--legend { display: inline-block; width: 6px; height: 6px; }
+.ft-day__pl { font-size: 10px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; color: var(--nova-text-muted); }
+.ft-day__pl--up { color: var(--ft-up); }
+.ft-day__pl--down { color: var(--ft-down); }
 
 .ft-preview { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .ft-preview__title { margin: 0; font-size: 16px; font-weight: 700; }
 .ft-preview__list { display: flex; flex-direction: column; gap: 8px; }
 .ft-preview__row {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) auto auto;
+  grid-template-columns: 36px minmax(0, 1fr) auto auto auto;
   gap: 10px;
   align-items: center;
   padding: 10px;

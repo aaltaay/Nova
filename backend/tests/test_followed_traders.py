@@ -684,8 +684,11 @@ def test_scored_lists_the_won_lost_and_scratched_trades_by_exit_time():
          "pl": {"low_per_share": -1, "high_per_share": 1, "low_pct": -1, "high_pct": 1}},
         {"result": None, "exit": None, "pl": {"per_share": 0.5, "pct": 25.0}},
     ]
-    assert scoring.scored(rows) == [{"ts": 100.0, "pct": 10.0}, {"ts": 200.0, "pct": 0.0},
-                                    {"ts": 300.0, "pct": -5.0}]
+    assert scoring.scored(rows) == [{"ts": 100.0, "pct": 10.0, "date": None}, {"ts": 200.0, "pct": 0.0, "date": None},
+                                    {"ts": 300.0, "pct": -5.0, "date": None}]
+    # Each trade's own day rides along (the day picker adds a day up from it, operator ask 2026-10-15).
+    days = ["2026-10-14", "2026-10-13", "2026-10-13", "2026-10-13", "2026-10-14"]
+    assert [p["date"] for p in scoring.scored(rows, days)] == ["2026-10-13", "2026-10-13", "2026-10-14"]
     assert scoring.scored([]) == []
 
 
@@ -712,8 +715,9 @@ def test_records_send_each_traders_scored_trades_beside_the_record():
     alpha, bravo = body["traders"]
     assert alpha["record"] == {"wins": 1, "losses": 1, "scratches": 0, "unscored": 1, "open": 1, "win_rate": 50.0}
     # Oldest exit first; the window exit (CCC) and the open trade (DDD) are not there.
-    assert alpha["scored"] == [{"ts": _epoch("10:10:00"), "pct": -5.0}, {"ts": _epoch("10:20:00"), "pct": 5.0}]
-    assert bravo["scored"] == [{"ts": _epoch("10:15:00"), "pct": 5.0}]
+    assert alpha["scored"] == [{"ts": _epoch("10:10:00"), "pct": -5.0, "date": "2026-10-13"},
+                               {"ts": _epoch("10:20:00"), "pct": 5.0, "date": "2026-10-13"}]
+    assert bravo["scored"] == [{"ts": _epoch("10:15:00"), "pct": 5.0, "date": "2026-10-12"}]
     scored = sum(len(t["scored"]) for t in body["traders"])
     assert scored == body["overall"]["wins"] + body["overall"]["losses"] + body["overall"]["scratches"]
     assert view.records_down("unreachable", "down", "week", 0.0)["traders"] == []
