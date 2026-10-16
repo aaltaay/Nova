@@ -67,6 +67,7 @@ class Job:
     fresh: Callable[[Any], bool] | None = None
     retry: float = 60.0
     idle: float | None = None   # the TTL while nobody looks (warm); None: the same as ``ttl``
+    whole: Callable[[Any], bool] | None = None   # False: the source cut the pass short, read the rest after ``retry``
 
     def ttl_now(self, wanted: bool) -> float:
         return self.ttl if wanted or self.idle is None else max(self.ttl, self.idle)
@@ -95,12 +96,42 @@ def _movers() -> dict[str, Any]:
     return {"symbols": picked, "quotes": ibkr_reads.stock_quotes(picked)}
 
 
+def _bars_pass(symbols: list[str], today: str, kept: dict[str, dict]) -> dict[str, dict]:
+    """One pass of ``bar_quotes`` on top of the last passes' answers for ``today``.
+
+    The historical service sheds a pass part way at the open (2026-10-16: only XLK of 26 ETFs priced, every pass
+    starting over at XLK), so a pass reads the symbols with no answer first, then the oldest, and keeps what it
+    did not reach.
+    """
+    have = {s: q for s, q in kept.items() if s in symbols and isinstance(q, dict) and q.get("date") == today}
+    order = sorted(symbols, key=lambda s: (s in have, (have.get(s) or {}).get("at") or 0.0))
+    return {**have, **ibkr_reads.bar_quotes(order, today)}
+
+
+def _kept(key: str) -> Any:
+    return store().get(key, time.time(), FOREVER)
+
+
+def _etf_bars(today: str) -> dict[str, dict]:
+    return _bars_pass(list(SECTOR_ETFS + INDUSTRY_ETFS), today, _kept("etf_bars") or {})
+
+
+def _etf_bars_whole(value: Any) -> bool:
+    return isinstance(value, dict) and all(s in value for s in SECTOR_ETFS + INDUSTRY_ETFS)
+
+
 def _movers_bars(today: str) -> dict[str, Any]:
     """The movers without a market-data line: IBKR's scan ranks them (a scan holds no line), bars price them."""
     ranked = ibkr_reads.movers_ranked()
     universe = set(_members(SECTOR_ETFS) + _members(tuple(e for _, e, has in MARKET_INDUSTRIES if has)))
     picked = [s for s in ranked if s in universe][:MARKET_BARS_MOVERS_MAX]
-    return {"symbols": picked, "quotes": ibkr_reads.bar_quotes(picked, today)}
+    kept = (_kept("movers_bars") or {}).get("quotes") or {}
+    return {"symbols": picked, "quotes": _bars_pass(picked, today, kept)}
+
+
+def _movers_bars_whole(value: Any) -> bool:
+    quotes = (value or {}).get("quotes") or {}
+    return all(s in quotes for s in (value or {}).get("symbols") or [])
 
 
 def ibkr_jobs(now: float) -> list[Job]:
@@ -148,13 +179,12 @@ def history_jobs(now: float) -> list[Job]:
     jobs: list[Job] = []
     if not lines_free:
         # No spare line: prices from bars, which hold none (the tiles' lines, ETFs' and movers' daily bars).
-        jobs.append(Job("etf_bars", ibkr_reads.SOURCE, MARKET_BARS_QUOTES_TTL_SEC,
-                        partial(ibkr_reads.bar_quotes, list(SECTOR_ETFS + INDUSTRY_ETFS), iso),
+        jobs.append(Job("etf_bars", ibkr_reads.SOURCE, MARKET_BARS_QUOTES_TTL_SEC, partial(_etf_bars, iso),
                         gap_group="history", gap=MARKET_HISTORY_GAP_SEC, retry=MARKET_SHED_RETRY_SEC,
-                        idle=MARKET_IDLE_BARS_TTL_SEC))
+                        idle=MARKET_IDLE_BARS_TTL_SEC, whole=_etf_bars_whole))
         jobs.append(Job("movers_bars", ibkr_reads.SOURCE, MARKET_BARS_QUOTES_TTL_SEC, partial(_movers_bars, iso),
                         gap_group="history", gap=MARKET_HISTORY_GAP_SEC, retry=MARKET_SHED_RETRY_SEC,
-                        idle=MARKET_IDLE_BARS_TTL_SEC))
+                        idle=MARKET_IDLE_BARS_TTL_SEC, whole=_movers_bars_whole))
     # Every tile's prior daily close, once a session, lines or not: IBKR's Cboe index snapshots (VIX, TNX) came back
     # with no last and no close on 2026-10-13 while their bars answered.
     line_ttl = MARKET_LINES_TTL_SEC if lines_free else MARKET_BARS_LINE_TTL_SEC

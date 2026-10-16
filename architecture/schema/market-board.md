@@ -148,7 +148,11 @@ no line: a tile's `last` is its last 5-minute bar's close (`data_type: "bars"`, 
 `MARKET_BARS_FRESH_SEC`; the same when a line gets no trade, e.g. CME's daily pause) and its `prev_close` the last daily bar before today (`prior:<id>`, once a
 day); ETFs and movers read their regular-session daily bars (`bar_quotes`: today's bar's close against the bar
 before, no price before 09:30), the movers ranked by IBKR's scan (a scan holds no line) and at most
-`MARKET_BARS_MOVERS_MAX` priced. Breadth has no bar fallback: it reads `unavailable` with "waiting for spare
+`MARKET_BARS_MOVERS_MAX` priced. Each symbol's answer is `{price, prev_close, no_trade, date, at}`, plus `error`
+(price `null`) when IBKR refused that symbol. A pass the historical service sheds part way keeps what it read on top
+of the earlier passes' answers for the same `date` (another day's are dropped), and the next pass, after
+`MARKET_SHED_RETRY_SEC` rather than the TTL, reads the symbols with no answer first, then the oldest (2026-10-16:
+every pass had started over at XLK, so 25 of 26 ETFs never priced). Breadth has no bar fallback: it reads `unavailable` with "waiting for spare
 market-data lines".
 
 **Fenced errors.** An IBKR error on a `FUT`, `CONTFUT`, `IND`, `CASH` or `CRYPTO` contract is the Market page's: it

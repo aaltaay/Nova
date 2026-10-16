@@ -150,29 +150,45 @@ def stock_quotes(symbols: list[str]) -> dict[str, dict]:
     return _run(_ask(), _budget(len(wanted)), "market_board.stock_quotes") or {}
 
 
+def _stops_pass(exc: Exception) -> bool:
+    """The historical service shed the request, or IBKR / the bridge is down: not this symbol's answer."""
+    # RuntimeError: the IB loop is not running, or a stale session (``ibkr.errors.StaleIbkrSessionError``).
+    return type(exc).__name__ == "HistoricalShed" or isinstance(exc, (ConnectionError, TimeoutError, RuntimeError))
+
+
 def bar_quotes(symbols: list[str], today: str) -> dict[str, dict]:
-    """``{SYM: {price, prev_close, no_trade, at}}`` from regular-session daily bars -- no market-data line.
+    """``{SYM: {price, prev_close, no_trade, date, at}}`` from regular-session daily bars -- no market-data line.
 
     Today's bar (once it exists, from 09:30) closes at the latest regular-session trade; the bar before it is the
-    prior close. Before the open a symbol reads no price. ``HistoricalShed`` on one symbol ends the read early
-    with what it has.
+    prior close. Before the open a symbol reads no price. A shed, a lost connection or a timeout ends the read
+    early with what it has, refusals included (the caller reads the rest next); any other failure is IBKR refusing
+    that symbol, its ``error``, and the read goes on. Raises when it ends before any answer, or when every symbol
+    was refused.
     """
     from ibkr import historical_service
 
     out: dict[str, dict] = {}
+    failed: Exception | None = None
     for sym in symbols:
         try:
             rows = _run(historical_service.request_daily_bars(sym, "3 D", use_rth=True),
                         MARKET_HISTORY_TIMEOUT_SEC * 2, "market_board.bar_quotes")
-        except Exception as exc:  # noqa: BLE001 -- a shed or a refusal ends this pass; the rest wait for the next
-            if out:
-                break
-            raise exc
+        except Exception as exc:  # noqa: BLE001 -- the source stops the pass; a refusal is that symbol's, stated
+            if _stops_pass(exc):
+                if out:
+                    return out
+                raise
+            failed = exc
+            out[sym.upper()] = {"price": None, "prev_close": None, "no_trade": None, "date": today,
+                                "at": time.time(), "error": f"{exc}"[:200] or type(exc).__name__}
+            continue
         today_bar = next((r for r in rows or [] if r["date"] == today), None)
         prior = [r for r in rows or [] if r["date"] < today]
         out[sym.upper()] = {"price": today_bar["close"] if today_bar else None,
                             "prev_close": prior[-1]["close"] if prior else None,
-                            "no_trade": today_bar is None, "at": time.time()}
+                            "no_trade": today_bar is None, "date": today, "at": time.time()}
+    if failed is not None and all(q.get("error") for q in out.values()):
+        raise failed
     return out
 
 
