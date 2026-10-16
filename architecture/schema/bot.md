@@ -661,7 +661,7 @@ read, the sell-all time). Beyond the rules above, each with its reason:
   the shares sold): a `close` with `trim: true`, change kind `trim`, its fill an `exit_fills` row of kind `trim`, and
   the position then carries `trimmed: true` -- a later sale sells nothing more, the rest waits for the host's close.
   A short keeps every share (Paper cannot shrink its buy stop to the shares left), a single share has no half, and
-  Exit: You keeps them; each is said as a `note`. The keys and the Bot switch hold a trim as they hold every order. SHAWN's TSLA,
+  Exit: You keeps them; each is said as a `note`. A sale is judged as every add is (`read_doubt`, the band, `rules.check`) before it trims. One that comes while a step is blocked -- a key, the Bot switch, Freeze all orders -- waits on its row (memory) and the half sells the pass they are back on, said once ("not sold -- ...; the bot sells half when it is back on"); a restart forgets it. SHAWN's TSLA,
   2026-10-16: TSLA rose 365 -> 370 while his average fell 366.50 -> 365.02, and at 09:59 it fell 364.32 -> 364.02
   with TSLA at 366.8; the bot had bought that as an add.
 - **No clock** (`LT_NO_CLOCK`): a read without the stream's on-screen clock -- none, or one read impossibly

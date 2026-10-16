@@ -276,6 +276,8 @@ class _Pass:
         if pos["state"] != "open":
             return                             # its order is in flight: the next pass
         pid = pos["id"]
+        if rs.get("trim_change") and not blocked:
+            decide_held.trim(self, name, st, r, pos, rs.pop("trim_change"))   # held while a key was off
         if rs.get("add_ask_id"):
             fate = self.follow_ask(name, st, r, pid, rs["add_ask_id"], blocked, unread, entry=False)
             if fate != "asked":
@@ -289,9 +291,19 @@ class _Pass:
         prev = g["from_price"] or (groups[i - 1]["to_price"] if i > 0 else r.get("entry_price"))
         change = {"kind": "add", "ts": g["last_ts"], "price": g["to_price"]}
         limit = st["adds"]
-        if not blocked and limit is not None and pos["adds_followed"] >= limit and                 decide_held.sale_past_limit(self, name, st, r, rs, pos, prev, g, change):
-            return                             # every add is spent, but a sale still trims
-        if blocked or (limit is not None and pos["adds_followed"] >= limit):
+        spent = limit is not None and pos["adds_followed"] >= limit
+        if blocked or spent:
+            # A sale is judged as any add is (bad reads, the band, the market since): it trims even with every add
+            # spent, and with a key or the Bot switch off it waits on this row for them (Codex review, PR #1024).
+            sold = decide_held.sale_of(self, name, st, r, rs, prev, g, unread)
+            if sold and not blocked:
+                rs["groups_done"] += 1
+                self.skip(name, r, pid, "add", LT_ADD_IS_SALE, sold, change)
+                decide_held.trim(self, name, st, r, pos, change)
+                return
+            if sold:
+                decide_held.hold_trim(self, name, r, rs, pos, change, blocked[1])
+        if blocked or spent:
             code, why = blocked or (LT_ADDS_DONE, f"{name} added to {r['symbol']}: this bot follows "
                                                   f"{limit} add{'' if limit == 1 else 's'}")
             rs["groups_done"] += 1

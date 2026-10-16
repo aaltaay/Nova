@@ -49,19 +49,29 @@ def market_since(run: Any, symbol: str, change_ts: float | None) -> tuple[float,
     return got(symbol, change_ts - LT_SALE_LEAD_SEC)
 
 
-def sale_past_limit(run: Any, name: str, st: dict[str, Any], r: dict[str, Any], rs: dict[str, Any],
-                    pos: dict[str, Any], prev: float | None, g: dict[str, Any], change: dict[str, Any]) -> bool:
-    """With every add this bot follows spent, a sale is still a sale: skipped and trimmed. True when it was one."""
-    quote = run.ctx["quote"](r["symbol"]) or {}
-    ref = feed_rows.reference_price(quote) if quote.get("fresh") else None
-    window = market_since(run, r["symbol"], g["first_ts"]) or (None if ref is None else (ref, ref))
-    sold = rules.sale_text(prev, g["to_price"], window)
-    if not sold:
-        return False
-    rs["groups_done"] += 1
-    run.skip(name, r, pos["id"], "add", LT_ADD_IS_SALE, sold, change)
-    trim(run, name, st, r, pos, change)
-    return True
+def sale_of(run: Any, name: str, st: dict[str, Any], r: dict[str, Any], rs: dict[str, Any],
+            prev: float | None, g: dict[str, Any], unread: set[str]) -> str | None:
+    """Why the add group ``g`` is the host's partial sale, or None -- judged as every add is: a read in doubt, a
+    misread, an average outside the band or no fresh quote is no sale (Codex review, PR #1024)."""
+    if run.read_doubt(name, r, rs.get("add_since"), unread, entry=False) is not None:
+        return None
+    v = run.check(name, st, r["side"], r["symbol"], g["to_price"], None, None, entry=False, prev_price=prev,
+                  change_ts=g["first_ts"])
+    return v["text"] if v["verdict"] == rules.SKIP and v["code"] == LT_ADD_IS_SALE else None
+
+
+def hold_trim(run: Any, name: str, r: dict[str, Any], rs: dict[str, Any], pos: dict[str, Any],
+              change: dict[str, Any], why: str) -> None:
+    """A sale while a key or the Bot switch is off: the half waits on the row (memory) and sells once they are back
+    on, as a held close does; said once."""
+    if pos.get("trimmed") or r["side"] != "long" or rs.get("trim_change"):
+        return
+    rs["trim_change"] = change
+    run.out["actions"].append({"kind": "note", "host": name, "pos_id": pos["id"], "row_id": r["id"],
+                               "symbol": r["symbol"], "side": r["side"], "step": "trim",
+                               "change": {**change, "kind": "trim"},
+                               "why": f"{name} sold part of {r['symbol']}: not sold -- {why}; the bot sells half "
+                                      "when it is back on"})
 
 
 def key_off_adds(run: Any, name: str, st: dict[str, Any], open_rows: list[dict[str, Any]], hs: dict[str, Any],

@@ -925,6 +925,33 @@ def test_an_add_whose_market_crossed_their_average_since_is_an_add_not_a_sale():
     assert kinds(out, "close")[0]["trim"] is True
 
 
+def test_a_sale_while_the_key_is_off_sells_half_once_it_is_back_on():
+    """Codex review, PR #1024: a key off holds the half as it holds a close; turning it on sells it, never loses it."""
+    w, base = _sale_world()
+    pos = next(iter(w.book.values()))
+    w.st[HOST]["key"] = False
+    sold = dict(base, price=364.02, adds=[_add(NOW + 30, 364.02, 364.32)])
+    out = w.at(40).run(answer({HOST: [sold]}, feed_now=NOW + 40))
+    assert kinds(out, "close") == [] and pos["qty"] == 4
+    assert any("not sold" in n["why"] and "sells half when it is back on" in n["why"] for n in kinds(out, "note"))
+    w.st[HOST]["key"] = True
+    out = w.at(45).run(answer({HOST: [sold]}, feed_now=NOW + 45))
+    (close,) = kinds(out, "close")
+    assert close["trim"] and close["qty"] == 2 and pos["trimmed"]
+    out = w.at(50).run(answer({HOST: [sold]}, feed_now=NOW + 50))
+    assert kinds(out, "close") == []
+
+
+def test_a_sale_past_the_add_limit_meets_the_bad_read_checks_first():
+    """Codex review, PR #1024: with every add spent, a side the reader could not read whole sells nothing."""
+    w, base = _sale_world()
+    w.st[HOST] = dict(w.st[HOST], adds=0)
+    sold = dict(base, price=364.02, adds=[_add(NOW + 30, 364.02, 364.32)])
+    out = w.at(40).run(_with(answer({HOST: [sold]}, feed_now=NOW + 40), HOST, unread=["long"]))
+    assert kinds(out, "close") == []
+    assert next(iter(w.book.values()))["qty"] == 4
+
+
 def test_the_market_since_a_change_is_sampled_each_pass(monkeypatch):
     from bot.live_trader import market
 
