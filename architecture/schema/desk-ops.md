@@ -889,3 +889,45 @@ their values (see "Public-safe by construction").
 The policy is read once, when `main.py` builds the app; a change to `.env`
 needs an API restart. The bot and agent routes keep their own loopback checks
 on the caller's address (`/bot/*`, `/api/bot/*`, `/ws/bot/*`, `/api/agent/*`).
+
+
+## IBKR capacity on the desk (operator ask, 2026-10-16)
+
+The operator, watching the Live Trader bots: "add, at the very bottom ... an entire banner with slots saying how many
+[stocks] we're currently watching, just to see the capacity of the API ... the user needs to also be aware of how many
+slots we're using, because we're only going to be adding more"; and "There must be a priority." IBKR caps four
+things this desk spends; the strip shows each as used of its cap, and who uses it.
+
+`GET /api/ibkr/capacity` (owner `ibkr/capacity.py`; loopback, read-only, memory reads) answers
+
+```
+{schema_version: 1, generated_at,
+ l1:      {used, cap, cap_learned: bool, reserve, refused, by_owner: {OWNER: n}},
+ l2:      {used, cap, symbols: [{symbol, held_by}]},
+ history: {used, cap, window_sec, next_free_sec, by_kind: {charts, tape, daily, market}},
+ tape:    {used, cap | null, symbols: [..]}}
+```
+
+- **l1**, Level 1 quote lines (`ibkr.ticks.ticker_budget_status`): `cap` is the cap IBKR taught Nova by refusing a
+  line (Error 101, `cap_learned` true) -- the login's lines are shared with every platform it is signed in to -- else
+  `IBKR_L1_STREAM_BUDGET`. `reserve` (`IBKR_L1_STREAM_RESERVE`) is kept free for an opening Trader tab. `by_owner`
+  counts a line once per owner (one line can serve several).
+- **l2**, Level 2 books (`line_lending.view`): `IBKR_MAX_DEPTH_SYMBOLS` (3).
+- **history**, IBKR's historical requests (`historical_service.pacing_snapshot`): 60 in 10 minutes. `by_kind` names
+  what spent the window: `charts` (chart bars), `tape` (trades read back: the TraderTV exits and ticker checks,
+  LULD), `daily` (daily bars: the short check's SSR, the Market page's ETFs, Cryptos), `market` (the Market page's
+  futures, indexes and crypto tiles). `next_free_sec` is 0 while one is free.
+- **tape**, Time & Sales lines (`ibkr.tape_admission.view`): `cap` null while IBKR has not said its cap.
+
+**Who comes first.** Level 1: the scanner and HOD Momo plan their lines inside what every other owner -- a Trader
+tab, the bots, the followed traders -- leaves (`l1_refused.plan_budget`), and a refused line is asked again in that
+order too: a Trader tab and the Live Trader bot first, the followed traders and the scanner next, HOD Momo last
+(`l1_refused._OWNER_RANK`). History, from first to last: an open chart and the short check's SSR read down to the last
+request; background chart fills stop while `IBKR_HISTORY_TRADING_RESERVE` (10) or fewer are left; the TraderTV exits,
+ticker checks and LULD at 20 or fewer (`FOLLOWED_EXIT_HEADROOM`, `LULD_BACKFILL_HEADROOM`); the Market page last.
+
+**On the desk** (`frontend/src/capacity/`): a strip at the very bottom of the main window, read every 5 s, one cell
+per cap -- "Level 1 48 / 53", "Level 2 3 / 3", "History 60 / 60 · next in 2:27", "Time & Sales 4" -- each with a
+bar of its slots, amber at 80% of the cap and red when full. A cell's hover lists who uses it. A read that fails
+says "Capacity: not read" with why; it never shows a guessed count.
+

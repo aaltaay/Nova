@@ -1,0 +1,88 @@
+/* The capacity strip at the very bottom of the desk: one cell per IBKR cap, amber from 80%, red when full. */
+
+.nova-capacity {
+  --cap-ok: #3b82f6;
+  --cap-warn: #f59e0b;
+  --cap-full: #ef4444;
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 1.25rem;
+  min-width: 0;
+  padding: 0.2rem 0.75rem;
+  font-size: 0.72rem;
+  color: var(--nova-text-muted);
+  background: var(--nova-panel);
+  border-top: 1px solid var(--nova-border);
+}
+
+.nova-capacity__cell {
+  --cap-color: var(--cap-ok);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.nova-capacity__cell[data-tone='warn'] {
+  --cap-color: var(--cap-warn);
+}
+
+.nova-capacity__cell[data-tone='full'] {
+  --cap-color: var(--cap-full);
+}
+
+.nova-capacity__label {
+  font-weight: 600;
+  color: var(--nova-text);
+}
+
+.nova-capacity__count {
+  font-variant-numeric: tabular-nums;
+  color: var(--nova-text);
+}
+
+.nova-capacity__cell[data-tone='warn'] .nova-capacity__count,
+.nova-capacity__cell[data-tone='full'] .nova-capacity__count {
+  color: var(--cap-color);
+  font-weight: 700;
+}
+
+.nova-capacity__note {
+  color: var(--cap-color);
+}
+
+.nova-capacity__bar {
+  position: relative;
+  display: inline-block;
+  width: 5rem;
+  height: 0.4rem;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--nova-border);
+}
+
+.nova-capacity__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--cap-color);
+}
+
+.nova-capacity__boxes {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.nova-capacity__box {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 2px;
+  border: 1px solid var(--nova-border-strong, var(--nova-border));
+}
+
+.nova-capacity__box--on {
+  border-color: var(--cap-color);
+  background: var(--cap-color);
+}

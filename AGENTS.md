@@ -172,6 +172,7 @@ Every confirmed wire and persisted shape lives in `architecture/schema/`, one fi
 | Massive flat files in Sim replay (ADR 046, operator ask 2026-10-06) | `architecture/schema/recording-and-replay.md` |
 | Agents find stock-days and show them in the Sim (ADR 050, operator ask 2026-10-06) | `architecture/schema/agent-desk.md` |
 | Desk diagnostics (ADR 021) | `architecture/schema/desk-ops.md` |
+| IBKR capacity on the desk (operator ask, 2026-10-16) | `architecture/schema/desk-ops.md` |
 | Which backend answers (operator report, 2026-09-24) | `architecture/schema/desk-ops.md` |
 | Who may reach the API: Host names and socket origins (security alerts, 2026-10-09) | `architecture/schema/desk-ops.md` |
 | Where Nova keeps its data (operator ask, 2026-09-24) | `architecture/schema/desk-ops.md` |

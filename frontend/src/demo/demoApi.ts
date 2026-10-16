@@ -71,6 +71,14 @@ function sharedRoutes(nowS: number): [RegExp, Handler][] {
       ibkr_connected: true, scanner_persistent_enabled: true, scanner_persistent_authoritative: false,
     })],
     [/^\/api\/ibkr\/status$/, () => ({ ...ibkrStatus(venue, nowS), ...(venue === 'sim' ? simStatus : {}) })],
+    // The capacity strip on the sample desk (desk-ops.md, "IBKR capacity on the desk").
+    [/^\/api\/ibkr\/capacity$/, () => ({
+      schema_version: 1, generated_at: nowS,
+      l1: { used: 34, cap: 100, cap_learned: false, reserve: 5, refused: 0, by_owner: { scanner: 28, hod: 14, detail: 2 } },
+      l2: { used: 1, cap: 3, symbols: [{ symbol: SMPL, held_by: 'tab' }] },
+      history: { used: 12, cap: 60, window_sec: 600, next_free_sec: 0, by_kind: { charts: 9, tape: 2, daily: 1, market: 0 } },
+      tape: { used: 1, cap: null, symbols: [SMPL] },
+    })],
     [/^\/api\/ibkr\/feed$/, () => ({
       schema_version: 1, now: nowS, connected: true, in_session: true, last_data_ts: nowS - 0.2, silent_sec: 0.2,
       gap: null, recent: [], rule: { gap_sec: 3, settle_sec: 5, busy_window_sec: 10, busy_fraction: 0.8 },

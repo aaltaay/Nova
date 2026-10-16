@@ -42,6 +42,7 @@ import { AppDialogHost } from './ux';
 import { DesktopUpdateHost } from './desktop_update';
 import { IssueReportHost } from './issue_report';
 import { PcMemoryNotice } from './pc_health';
+import { CapacityStrip } from './capacity';
 import { useFocusReport } from './focus_report/useFocusReport';
 import { TraderDockLayer } from './workspace/traderDesk/TraderDockLayer';
 import { useWorkspace, WorkspaceProvider } from './workspace/WorkspaceContext';
@@ -147,6 +148,8 @@ function AppShell() {
                 </div>
               )}
             </div>
+            {/* IBKR's caps, used of each: Level 1, Level 2, history, Time & Sales (operator ask, 2026-10-16). */}
+            {!detached && <CapacityStrip />}
             </div>
             </div>
           </SetupsStreamProvider>
