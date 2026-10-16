@@ -28,7 +28,7 @@ EPS = 1e-9
 STALE_BORROW = ("SHORT_STALE_BORROW", "SHORT_NO_BORROW", "SHORT_BORROW_UNKNOWN")
 
 _written: OrderedDict[tuple, None] = OrderedDict()
-_borrow_waits: dict[tuple[str, str], float] = {}      # a short step waiting on IBKR's borrow read: since when
+_borrow_waits: dict[tuple, float] = {}               # a short step waiting on IBKR's borrow read: since when
 
 
 def reset_for_tests() -> None:
@@ -107,16 +107,17 @@ async def step(a: dict[str, Any], now: float, *, short_blocks: Any) -> str | Non
     """Send one step; ``"wait"`` when a short's borrow is being read (the caller waits on it), else None."""
     if a["side"] == "short":
         found = short_blocks(a)
+        waiting = (a["row_id"], a["step"], (a.get("change") or {}).get("ts"))     # one per add, too
         if found:
             code, why = found[0]
-            began = _borrow_waits.setdefault((a["row_id"], a["step"]), now)
-            if code in STALE_BORROW and a["step"] != "add" and now - began < LT_WAIT_SEC:
+            began = _borrow_waits.setdefault(waiting, now)
+            if code in STALE_BORROW and now - began < LT_WAIT_SEC:
                 market.prewarm_borrow({a["symbol"]})
-                return "wait"                      # IBKR's borrow is being read: the step waits for it
-            _borrow_waits.pop((a["row_id"], a["step"]), None)
+                return "wait"                      # IBKR's borrow is being read: the step (an add too) waits for it
+            _borrow_waits.pop(waiting, None)
             skip({**a, "code": code, "why": why}, now)
             return None
-        _borrow_waits.pop((a["row_id"], a["step"]), None)
+        _borrow_waits.pop(waiting, None)
     held = book.get(a["pos_id"])
     n = (held["adds_followed"] + 1) if (held and a["step"] == "add") else ""
     try:

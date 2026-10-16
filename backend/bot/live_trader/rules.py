@@ -25,6 +25,7 @@ from bot.live_trader.constants_live_trader import (
     LT_MISREAD_PCT,
     LT_NO_QUOTE,
     LT_NOT_PRICEABLE,
+    LT_OPEN_TOO_FAR,
     LT_SHORT_HOURS,
     LT_SHORTS_OFF,
     LT_SMALL_CAP,
@@ -39,6 +40,12 @@ SETTLED_TICKERS = (None, "as_read", "corrected")
 
 def money(value: float) -> str:
     return f"${value:,.0f}" if abs(value) >= 100 else f"${value:,.2f}"
+
+
+def verb(side: str, past: bool = False) -> str:
+    if side == "short":
+        return "shorted" if past else "short"
+    return "bought" if past else "buy"
 
 
 def price_text(price: float | None) -> str:
@@ -123,11 +130,14 @@ def check(*, side: str, symbol: str, their_price: float, settings: dict[str, Any
           cap: Any, ticker: dict[str, Any] | None, used_usd: float, against: str | None,
           short_closed: str | None, priceable: bool, now: float, wait_since: float | None,
           prev_price: float | None = None, ssr: str = "unknown",
-          market: tuple[float, float] | None = None) -> dict[str, Any]:
+          market: tuple[float, float] | None = None, against_wait: bool = False,
+          already_open: bool = False) -> dict[str, Any]:
     """One step's verdict. ``ssr`` is the stock's SSR for a short (``"on"`` | ``"off"`` | ``"unknown"``). ``cap`` is the market cap in dollars, ``"etf"`` for an ETF (always allowed),
     ``"pending"`` while it is read, or None when it could not be read; ``ticker`` the trade's check (``{"state", "why"}``, None when none is needed);
-    ``against`` the words for a position on the other side; ``short_closed`` why no short may open now;
-    ``prev_price`` an add's average before it (an add moves the average toward the market, never past it)."""
+    ``against`` the words for a position on the other side, a wait while ``against_wait`` (the bot's own, closing:
+    a host's flip); ``short_closed`` why no short may open now; ``prev_price`` an add's average before it (an add
+    moves the average toward the market, never past it); ``already_open`` a position the host held before the bot
+    saw it, whose average that far from the market is a trade gone on without it (``LT_OPEN_TOO_FAR``)."""
     if side == "short" and settings["sides"] == "long":
         return verdict(SKIP, LT_SHORTS_OFF, "a short: this bot copies longs only")
     if side == "short" and short_closed:
@@ -155,6 +165,12 @@ def check(*, side: str, symbol: str, their_price: float, settings: dict[str, Any
         return _waited(LT_NO_QUOTE, "opening IBKR's quote line",
                        f"no fresh quote from IBKR in {LT_WAIT_SEC:.0f} s", wait_since, now)
     apart = feed_rows.apart_pct(their_price, ref)
+    if apart > LT_MISREAD_PCT and already_open:
+        # Held before the bot saw it: the market moved on from their average (2026-10-16, SHAWN's TSLA short at
+        # 359.80 back from lunch with TSLA at 350 read "a misread" -- it was his, held through the break).
+        return verdict(SKIP, LT_OPEN_TOO_FAR, f"already open at {price_text(their_price)}, {apart:.1f}% from the "
+                                              f"market {price_text(ref)}: the bot takes a position already open only "
+                                              f"within {LT_MISREAD_PCT:g}% of its average")
     if apart > LT_MISREAD_PCT:
         return verdict(SKIP, LT_MISREAD, f"their average {price_text(their_price)} is {apart:.1f}% from the market "
                                          f"{price_text(ref)}: a misread")
@@ -168,6 +184,8 @@ def check(*, side: str, symbol: str, their_price: float, settings: dict[str, Any
         sold = sale_text(prev_price, their_price, market or (ref, ref))
         if sold:
             return verdict(SKIP, LT_ADD_IS_SALE, sold)
+    if against and against_wait:
+        return _waited(LT_AGAINST, against, f"{against}, and it did not close in {LT_WAIT_SEC:.0f} s", wait_since, now)
     if against:
         return verdict(SKIP, LT_AGAINST, against)
     limit, stop = limits(side, quote or {}, float(settings["short_stop_pct"]), ssr)
@@ -204,15 +222,24 @@ def used_by_host(book: dict[str, dict[str, Any]]) -> dict[str, float]:
     return out
 
 
-def against(book: dict[str, dict[str, Any]], ctx: dict[str, Any], side: str, symbol: str) -> str | None:
-    """Why an entry would trade against a position (the bot's for another host, or the account's); None when not."""
+def against(book: dict[str, dict[str, Any]], ctx: dict[str, Any], side: str, symbol: str,
+            closing: set[str] | frozenset[str] = frozenset()) -> tuple[str, bool] | None:
+    """Why an entry would trade against a position (the bot's, or the account's), and whether it only waits; None
+    when not. Every position the bot holds on the other side closing -- its close sent this pass (``closing``) or in
+    flight -- is a wait: a host's flip opens the new side once the bot is flat (2026-10-16, SHAWN's AAPL long to
+    short: the short was skipped while the long's sale was on its way). Paper's position is read only when the bot
+    holds nothing on the other side: until its close fills, Paper still counts the bot's own shares."""
     other = "short" if side == "long" else "long"
-    for p in book.values():
-        if p["symbol"] == symbol and p["side"] == other:
-            return f"the bot holds {symbol} {other} for {p['host']}: Nova never holds both sides"
+    mine = [p for p in book.values() if p["symbol"] == symbol and p["side"] == other]
+    for p in mine:
+        if p["id"] not in closing and p.get("state") != "closing":
+            return f"the bot holds {symbol} {other} for {p['host']}: Nova never holds both sides", False
+    if mine:
+        return (f"the bot is closing its {symbol} {other} for {mine[0]['host']}: the {side} opens once it is flat",
+                True)
     held = ctx["held"](symbol, other)
     if held is None:
-        return f"Paper's {symbol} position could not be read, so the bot cannot tell it is not against one"
+        return f"Paper's {symbol} position could not be read, so the bot cannot tell it is not against one", False
     if held > 0:
-        return f"you hold {symbol} {other} on Paper ({held:g} shares): the bot never trades against a position"
+        return f"you hold {symbol} {other} on Paper ({held:g} shares): the bot never trades against a position", False
     return None
