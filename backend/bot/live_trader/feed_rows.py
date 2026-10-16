@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 
 from bot.live_trader.constants_live_trader import (
     LT_ADD_MERGE_SEC,
-    LT_FLICKER_PCT,
+    LT_FLICKER_USD,
     LT_OTHER_HOST_SEC,
     LT_SWITCH_SEC,
     LT_UNREAD_SEC,
@@ -57,7 +57,7 @@ def add_groups(adds: list[dict[str, Any]], entry_ts: float, feed_now: float | No
         if feed_now is None or feed_now - g["last_ts"] < LT_ADD_MERGE_SEC:
             pending = True                            # still moving: acted on once it settles
             continue
-        if g["from_price"] and abs(g["to_price"] / g["from_price"] - 1.0) * 100.0 < LT_FLICKER_PCT:
+        if g["from_price"] and round(abs(g["to_price"] - g["from_price"]), 4) < LT_FLICKER_USD:
             continue                                  # came back where it began: a misread, not an add
         settled.append(g)
     return settled, pending

@@ -677,6 +677,14 @@ def test_add_groups_fold_and_settle():
     assert len(settled) == 2 and pending is False
 
 
+def test_a_large_cap_add_of_a_few_cents_is_an_add():
+    # SHAWN's TSLA, 2026-10-16: averaging down a $366 stock moves the average a few cents per add; a percent
+    # rule (0.05% = $0.18 there) dropped eight of them without a word. Only a cent-exact return is no add.
+    adds = [_add(NOW + 30, 366.07, 366.11), _add(NOW + 90, 365.91, 366.07), _add(NOW + 150, 365.91, 365.91)]
+    settled, pending = feed_rows.add_groups(adds, NOW, NOW + 200)
+    assert [g["to_price"] for g in settled] == [366.07, 365.91] and pending is False
+
+
 def test_rules_shares_and_prices():
     assert rules.shares(500.0, 100.04) == 4
     assert rules.shares(500.0, 712.12) == 1

@@ -599,7 +599,7 @@ the watcher asks nothing and the view says the feed is off.
 
 **The rules** (ADR 055 decisions 2-4): a position on the host's bar is one step in their direction; an
 add (their average moves; changes `LT_ADD_MERGE_SEC` 4 s apart are one add, acted on once settled, and one
-back where it started is none) is one more step up to `adds`; the position leaving the bar sells or covers
+back where it started, to the cent, is none -- an add of a few cents on a large cap is an add) is one more step up to `adds`; the position leaving the bar sells or covers
 the bot's whole position; off air (`traders[].seen.left_ts`, 60 s), the bar hidden `LT_HIDDEN_SEC` (600 s;
 also a feed that has not answered or read for as long), and the sell-all time (`sell_all_at`, 15:55 ET; 12:55
 on an early close) sell everything; an entry first seen `LT_OPEN_FRESH_SEC` (60) after it happened, on the
