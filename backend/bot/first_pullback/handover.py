@@ -73,7 +73,7 @@ async def hand_over(symbol: str, now: float | None = None) -> dict[str, Any]:
         if orders.order_state(row) == "filled":      # it filled as the operator reached for it
             done = run._leg_fill(trade, now)         # the last shares -- or a first half, the rest still handed
             if done is not None:
-                run._close(trade, now, done[0], done[1], leg=done[2])
+                run._close(trade, now, done[0], done[1], leg=done[2], fill=done[3])
                 return dict(load_session().get("trade") or trade)
     refused = [(leg, r) for leg, r in refused if orders.order_state(orders.order_row(trade[leg])) != "filled"]
     if refused:

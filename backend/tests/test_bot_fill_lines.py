@@ -108,6 +108,33 @@ def test_a_resting_target_filling_in_part_is_an_exit_partial_and_the_entry_fill_
     assert part["reason"] == f"sold 0.4 of 1 {SYM} at 10.3, 0.6 still working (target1)"
 
 
+def test_a_target_that_fills_whole_puts_its_fill_on_the_closed_line(paper):
+    from bot.first_pullback import runner
+
+    runner.submit(trigger())
+    trade = tick(paper)
+    paper.broker.try_fill_working(SYM, [(NOW + 10, 10.35)])
+    tick(paper, NOW + 11)
+    [closed] = trade_rows("closed")
+    assert closed["fill"] == {"phase": "exit", "leg": "target1", "order_id": trade["target_order_id"], "qty": 1.0,
+                              "filled_qty": 1.0, "remaining_qty": 0.0, "avg_fill_price": 10.30, "status": "Filled"}
+    assert trade_rows("partial") == []
+
+
+def test_shares_sold_outside_close_with_no_fill_block(paper):
+    from bot.first_pullback import runner
+
+    runner.submit(trigger())
+    trade = tick(paper)
+    paper.broker.cancel(trade["target_order_id"])
+    paper.broker.place(SYM, "SELL", 1, "MKT")
+    tick(paper, NOW + 2)
+    tick(paper, NOW + 3)
+    [closed] = trade_rows("closed")
+    assert closed["inputs"]["exit_reason"] == "outside"
+    assert "fill" not in closed
+
+
 # -- the Live Trader bot -----------------------------------------------------------------------------
 def _lt_pos(**over) -> dict:
     pos = {"id": "p1", "host": "SHAWN", "row_id": "r1", "symbol": "TSLA", "side": "long", "state": "open",

@@ -874,8 +874,10 @@ were whatever each caller typed.
   `qty` less `filled_qty` when the row has none; `avg_fill_price` is null when the venue has not priced it.
   The order's end is still the line it always was (`filled`, `half`, `closed`, `missed`, ...), counting
   the shares that filled. A partial line never counts toward the daily entry cap.
-- **`fill` on `filled`.** A `filled` line carries the same block: Nova's own bot's entry, and the Live
-  Trader's step and close.
+- **`fill` on the full fill.** The line that ends a fill carries the same block: Nova's own bot's
+  `filled` (its entry), `half` (target 1 selling its part) and `closed` (the target, stop or close that
+  sold the last shares; none when the shares left outside the bot), and the Live Trader's `filled` (a step
+  or a close).
 - **Owner and invalidation.** `bot/fill_progress.py` keeps the filled shares last said for each working
   order, in memory, keyed by the order id and the venue row's own placed stamp (a Sim rewind can hand an
   id out again), and drops it when the order ends. A process start forgets them: an order still working
