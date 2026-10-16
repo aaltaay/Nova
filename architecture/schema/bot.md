@@ -649,9 +649,13 @@ read, the sell-all time). Beyond the rules above, each with its reason:
   the market (the mid, else the last), give or take `LT_ADD_SLACK_PCT` (0.5%) of the market; outside, it is a
   misread, skipped.
 - **A sale read as an add** (`LT_ADD_IS_SALE`; operator 2026-10-16, "the point is to emulate them as much as
-  possible"): an average that moved away from the market by more than `LT_ADD_DIRECTION_PCT` (0.1%) of it -- down
-  while the market is over it on a long, up while it is under it on a short -- is a partial sale the host's platform
-  folded into the average (each sale's profit lowers it), never a buy: skipped, nothing bought -- judged before the
+  possible"): an average that fell while the market stayed over the old one by more than `LT_ADD_DIRECTION_PCT`
+  (0.1%) of it the whole time since the change (rose while it stayed under, on a short) is a partial sale the host's
+  platform folded into the average (each sale's profit lowers it), never a buy: skipped, nothing bought. "The whole
+  time" is the market's low and high from `LT_SALE_LEAD_SEC` (5 s) before the change on (`market.range_since`: each
+  held stock's market sampled each pass, `LT_PRICE_KEEP_SEC` (180 s), memory only); a market that crossed their old
+  average since then could have made a real add, so it is judged as one (Codex review, PR #1022). Without samples
+  reaching back that far (a restart), the market now stands for the window. It is judged before the
   `adds` limit, so it is seen after every add is spent. The first such sale of a long the bot holds sells half its
   shares (rounded down) at market, once per position (operator, "Sell half, once": the bar shows the average, never
   the shares sold): a `close` with `trim: true`, change kind `trim`, its fill an `exit_fills` row of kind `trim`, and

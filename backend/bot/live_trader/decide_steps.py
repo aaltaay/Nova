@@ -77,7 +77,7 @@ class _Pass:
 
     # -- shared --------------------------------------------------------------------------------------
     def check(self, name, st, side, symbol, their_price, ticker, since, *, entry: bool,
-              prev_price: float | None = None) -> dict[str, Any]:
+              prev_price: float | None = None, change_ts: float | None = None) -> dict[str, Any]:
         self.out["symbols"].add(symbol)
         self.out["caps"].add(symbol)
         return rules.check(side=side, symbol=symbol, their_price=their_price, settings=st,
@@ -86,7 +86,8 @@ class _Pass:
                            against=rules.against(self.book, self.ctx, side, symbol) if entry else None,
                            short_closed=self.ctx["short_closed"](self.now) if side == "short" else None,
                            priceable=priceable(symbol), now=self.now, wait_since=since, prev_price=prev_price,
-                           ssr=self.ctx["ssr"](symbol) if side == "short" else "off")
+                           ssr=self.ctx["ssr"](symbol) if side == "short" else "off",
+                           market=decide_held.market_since(self, symbol, change_ts))
 
     def read_doubt(self, name, r, since, unread, *, entry: bool) -> dict[str, Any] | None:
         """A skip or a wait when the read of ``r`` is in doubt (bot.md, "Bad reads"); None when it reads clean."""
@@ -288,7 +289,7 @@ class _Pass:
         prev = g["from_price"] or (groups[i - 1]["to_price"] if i > 0 else r.get("entry_price"))
         change = {"kind": "add", "ts": g["last_ts"], "price": g["to_price"]}
         limit = st["adds"]
-        if not blocked and limit is not None and pos["adds_followed"] >= limit and                 decide_held.sale_past_limit(self, name, st, r, rs, pos, prev, g["to_price"], change):
+        if not blocked and limit is not None and pos["adds_followed"] >= limit and                 decide_held.sale_past_limit(self, name, st, r, rs, pos, prev, g, change):
             return                             # every add is spent, but a sale still trims
         if blocked or (limit is not None and pos["adds_followed"] >= limit):
             code, why = blocked or (LT_ADDS_DONE, f"{name} added to {r['symbol']}: this bot follows "
@@ -299,7 +300,7 @@ class _Pass:
         v = self.read_doubt(name, r, rs.get("add_since"), unread, entry=False)
         if v is None:
             v = self.check(name, st, r["side"], r["symbol"], g["to_price"], None, rs.get("add_since"), entry=False,
-                           prev_price=prev)
+                           prev_price=prev, change_ts=g["first_ts"])
         if v["verdict"] == rules.WAIT:
             rs["add_since"] = rs.get("add_since") or self.now
             self.wait(pid, r, v)

@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import Any
 
 from bot.live_trader import feed_rows, rules
-from bot.live_trader.constants_live_trader import LT_ADD_IS_SALE, LT_KEY_OFF
+from bot.live_trader.constants_live_trader import LT_ADD_IS_SALE, LT_KEY_OFF, LT_SALE_LEAD_SEC
 
 
 def trim(run: Any, name: str, st: dict[str, Any], r: dict[str, Any], pos: dict[str, Any],
@@ -40,12 +40,22 @@ def trim(run: Any, name: str, st: dict[str, Any], r: dict[str, Any], pos: dict[s
     run.out["actions"].append({**base, "kind": "note", "why": why})
 
 
+def market_since(run: Any, symbol: str, change_ts: float | None) -> tuple[float, float] | None:
+    """The market's ``(low, high)`` since the host's change (``market.range_since``), else None: ``rules.check``
+    then judges by the quote now."""
+    got = run.ctx.get("range_since")
+    if got is None or change_ts is None:
+        return None
+    return got(symbol, change_ts - LT_SALE_LEAD_SEC)
+
+
 def sale_past_limit(run: Any, name: str, st: dict[str, Any], r: dict[str, Any], rs: dict[str, Any],
-                    pos: dict[str, Any], prev: float | None, to_price: float, change: dict[str, Any]) -> bool:
+                    pos: dict[str, Any], prev: float | None, g: dict[str, Any], change: dict[str, Any]) -> bool:
     """With every add this bot follows spent, a sale is still a sale: skipped and trimmed. True when it was one."""
     quote = run.ctx["quote"](r["symbol"]) or {}
     ref = feed_rows.reference_price(quote) if quote.get("fresh") else None
-    sold = rules.sale_text(prev, to_price, ref)
+    window = market_since(run, r["symbol"], g["first_ts"]) or (None if ref is None else (ref, ref))
+    sold = rules.sale_text(prev, g["to_price"], window)
     if not sold:
         return False
     rs["groups_done"] += 1

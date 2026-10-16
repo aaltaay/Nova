@@ -74,6 +74,8 @@ LT_UNREAD_SEC = 20.0                    # a side whose reads carried an unparsed
 #   366.50 -> 365.02, and at 09:59 it fell 364.32 -> 364.02 with TSLA at 366.8 -- he was taking profit in pieces (his
 #   platform folds each sale's profit into the average), and the bot bought it as an add.
 LT_ADD_DIRECTION_PCT = 0.1
+LT_PRICE_KEEP_SEC = 180.0               # each held stock's market, sampled each pass, kept this long (the sale check)
+LT_SALE_LEAD_SEC = 5.0                  # the sale check's window opens this long before the host's change
 LT_ADD_SLACK_PCT = 0.5                  # an add's new average may lie this far (of the market) outside old avg..market
 LT_PREVIOUS_RETRY_SEC = 300.0           # the feed's previous day not read: asked again after this
 

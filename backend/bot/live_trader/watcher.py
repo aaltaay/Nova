@@ -235,7 +235,7 @@ def _context(now: float) -> dict[str, Any]:
         answers = dict(_answers)
         _answers.clear()
     return {"now": now, "settings": settings.of, "can_open": can_open(), "sell_all_ts": sell_all_ts(now),
-            "keys_hold": keys_hold(keys()), "quote": market.quote, "cap": market.cap, "ssr": market.ssr, "held": orders.held,
+            "keys_hold": keys_hold(keys()), "quote": market.quote, "cap": market.cap, "ssr": market.ssr, "range_since": market.range_since, "held": orders.held,
             "short_closed": market.short_closed, "answers": answers, "no_reentry": book.no_reentry()}
 
 
@@ -260,6 +260,7 @@ async def tick(now: float | None = None) -> bool:
             _status["can_open"] = can
         return False
     got = await asyncio.to_thread(answer.read, now)
+    market.note_prices({p["symbol"] for p in positions.values()}, now)
     ctx = _context(now)
     out = decide.decide(_snapshot, got, positions, ctx)
     with _lock:

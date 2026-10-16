@@ -13,18 +13,48 @@ import threading
 import time
 from typing import Any
 
-from bot.live_trader.constants_live_trader import LT_QUOTE_FRESH_SEC
+from collections import deque
+
+from bot.live_trader import feed_rows
+from bot.live_trader.constants_live_trader import LT_PRICE_KEEP_SEC, LT_QUOTE_FRESH_SEC
 
 logger = logging.getLogger(__name__)
 _CAP_RETRY_SEC = 120.0
 
 _lock = threading.Lock()
 _cap_reads: dict[str, float] = {}           # symbol -> when its read began (one read at a time per symbol)
+_prices: dict[str, deque] = {}              # symbol -> (ts, market) each pass, ``LT_PRICE_KEEP_SEC`` (memory only)
 
 
 def reset_for_tests() -> None:
     with _lock:
         _cap_reads.clear()
+        _prices.clear()
+
+
+def note_prices(symbols: set[str], now: float) -> None:
+    """Sample each stock's market now (its fresh quote's mid, else last), for ``range_since``."""
+    for sym in symbols:
+        q = quote(sym) or {}
+        ref = feed_rows.reference_price(q) if q.get("fresh") else None
+        with _lock:
+            kept = _prices.setdefault(sym, deque())
+            if ref is not None:
+                kept.append((now, float(ref)))
+            while kept and now - kept[0][0] > LT_PRICE_KEEP_SEC:
+                kept.popleft()
+            if not kept:
+                _prices.pop(sym, None)
+
+
+def range_since(symbol: str, since: float) -> tuple[float, float] | None:
+    """``(low, high)`` of the market sampled from ``since`` on, or None when the samples do not reach back to it."""
+    with _lock:
+        kept = list(_prices.get((symbol or "").strip().upper()) or ())
+    if not kept or kept[0][0] > since:
+        return None
+    seen = [p for ts, p in kept if ts >= since] or [kept[-1][1]]
+    return min(seen), max(seen)
 
 
 def quote(symbol: str) -> dict[str, Any] | None:

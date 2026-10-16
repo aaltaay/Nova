@@ -89,6 +89,7 @@ class World:
         self.answers: dict = {}
         self.short_closed = None
         self.ssr: dict = {}
+        self.ranges: dict = {}               # symbol -> the market's (low, high) since a change
         self.no_reentry: set = set()
 
     def ctx(self):
@@ -96,7 +97,8 @@ class World:
         return {"now": self.now, "settings": of, "can_open": self.can, "sell_all_ts": self.sell_all_ts,
                 "keys_hold": keys_hold(self.keys, of), "quote": self.quotes.get,
                 "cap": lambda s: self.caps.get(s, 50e9),
-                "ssr": lambda s: self.ssr.get(s, "off"), "held": lambda s, side: self.held.get((s, side), 0.0),
+                "ssr": lambda s: self.ssr.get(s, "off"),
+                "range_since": lambda s, since: self.ranges.get(s), "held": lambda s, side: self.held.get((s, side), 0.0),
                 "short_closed": lambda now: self.short_closed, "answers": self.answers,
                 "no_reentry": self.no_reentry}
 
@@ -901,6 +903,40 @@ def test_a_host_sale_sells_half_the_bots_long_once():
     again = dict(sold, price=363.8, adds=[*sold["adds"], _add(NOW + 60, 363.8, 364.02)])
     out = w.at(70).run(answer({HOST: [again]}, feed_now=NOW + 70))
     assert kinds(out, "close") == [] and pos["qty"] == 2
+
+
+def test_an_add_whose_market_crossed_their_average_since_is_an_add_not_a_sale():
+    """Codex review, PR #1022: a real buy at 99.90 pulls 100.00 to 99.95; by the time Nova reads it the market is
+    100.11. Judged by the market since the change (its low 99.90), it is an add -- never a sale, never a trim."""
+    w = World()
+    base = row(entry_ts=NOW)
+    watching(w, base)
+    w.quotes["XYZ"] = {"last": 100.11, "bid": 100.09, "ask": 100.13, "fresh": True}
+    w.ranges["XYZ"] = (99.90, 100.11)
+    moved = dict(base, price=99.95, adds=[_add(NOW + 30, 99.95, 100.0)])
+    out = w.at(40).run(answer({HOST: [moved]}, feed_now=NOW + 40))
+    (step,) = kinds(out, "step")
+    assert step["step"] == "add" and kinds(out, "close") == []
+    # The market over their old average the whole time: a sale, half sold.
+    w2, base2 = _sale_world()
+    w2.ranges["TSLA"] = (366.18, 367.16)
+    out = w2.at(40).run(answer({HOST: [dict(base2, price=364.02, adds=[_add(NOW + 30, 364.02, 364.32)])]},
+                               feed_now=NOW + 40))
+    assert kinds(out, "close")[0]["trim"] is True
+
+
+def test_the_market_since_a_change_is_sampled_each_pass(monkeypatch):
+    from bot.live_trader import market
+
+    market.reset_for_tests()
+    px = {"XYZ": 100.0}
+    monkeypatch.setattr(market, "quote", lambda s: {"last": px[s], "bid": px[s], "ask": px[s], "fresh": True})
+    for t, price in ((0, 100.0), (2, 99.9), (4, 100.2), (6, 100.1)):
+        px["XYZ"] = price
+        market.note_prices({"XYZ"}, NOW + t)
+    assert market.range_since("XYZ", NOW + 1) == (99.9, 100.2)
+    assert market.range_since("XYZ", NOW - 10) is None              # the samples do not reach back that far
+    market.reset_for_tests()
 
 
 def test_a_host_sale_never_trims_a_short_or_a_single_share():
