@@ -458,6 +458,52 @@ def test_a_short_add_whose_borrow_never_comes_is_skipped_after_the_wait(desk, mo
     assert held(desk, "FADE") == -12 and len([r for r in lines_("skipped") if r["inputs"]["step"] == "add"]) == 1
 
 
+def _approve_only_ask(step: str) -> None:
+    (ask,) = watcher.asks()
+    assert ask["step"] == step
+    assert watcher.answer_ask(ask["id"], True)
+
+
+def test_an_approved_short_waiting_on_its_borrow_is_sent_never_asked_again(desk, monkeypatch):
+    """Entry: You (Codex review, PR #1025): the operator approved a short and IBKR's borrow read was stale -- the
+    short waits for the read; once it comes, it is sent on that yes, never asked again."""
+    monkeypatch.setattr(short_mod, "request_refresh", lambda sym: True)
+    lt_settings.patch_host(HOST, {"entry": "you", "exit": "nova"})
+    run(desk, "10:30:00")
+    desk.feed.open("FADE", 40.00, at("10:30:10"), side="short")
+    run(desk, "10:30:11")
+    short_mod.remember_for_tests("FADE", short_mod.enrich_ibkr_listing(_FADE_LISTING, fetched_at=time.time() - 120))
+    _approve_only_ask("entry")
+    run(desk, "10:30:13")
+    assert held(desk, "FADE") == 0 and watcher.asks() == []      # approved: waiting on the borrow read
+    short_mod.remember_for_tests("FADE", short_mod.enrich_ibkr_listing(_FADE_LISTING, fetched_at=time.time()))
+    run(desk, "10:30:15")
+    assert held(desk, "FADE") == -12 and watcher.asks() == []
+    assert lines_("order")[-1]["inputs"]["approved"] is True
+
+
+def test_an_approved_short_add_waiting_on_its_borrow_is_sent_never_asked_again(desk, monkeypatch):
+    monkeypatch.setattr(short_mod, "request_refresh", lambda sym: True)
+    lt_settings.patch_host(HOST, {"entry": "you", "exit": "nova"})
+    run(desk, "10:30:00")
+    t = desk.feed.open("FADE", 40.00, at("10:30:10"), side="short")
+    run(desk, "10:30:11")
+    _approve_only_ask("entry")
+    run(desk, "10:30:13")
+    assert held(desk, "FADE") == -12
+    short_mod.remember_for_tests("FADE", short_mod.enrich_ibkr_listing(_FADE_LISTING, fetched_at=time.time() - 120))
+    desk.market.px["FADE"] = [40.20, 40.19, 40.21]
+    desk.feed.add(t, 40.10, at("10:31:00"))
+    run(desk, "10:31:06")
+    _approve_only_ask("add")
+    run(desk, "10:31:08")
+    assert held(desk, "FADE") == -12 and watcher.asks() == []      # approved: waiting on the borrow read
+    short_mod.remember_for_tests("FADE", short_mod.enrich_ibkr_listing(_FADE_LISTING, fetched_at=time.time()))
+    run(desk, "10:31:10")
+    assert held(desk, "FADE") == -24 and watcher.asks() == []
+    assert lt_book.positions()[f"{HOST}|short|FADE"]["adds_followed"] == 1
+
+
 def test_keep_borrow_rereads_a_borrow_before_it_goes_stale(monkeypatch):
     asked: list[str] = []
     short_mod.reset_for_tests()
