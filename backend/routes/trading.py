@@ -17,6 +17,7 @@ Endpoints:
   POST /api/ibkr/flatten-account  -- whole-account flatten (KILL)
   POST /api/ibkr/depth/subscribe  -- subscribe to L2 depth for a symbol
   POST /api/ibkr/depth/unsubscribe -- unsubscribe symbol
+  GET  /api/ibkr/capacity         -- Level 1 / Level 2 / history / Time & Sales used of IBKR's caps
   GET  /api/ibkr/depth            -- list currently subscribed depth symbols
   GET  /api/ibkr/depth/lines      -- who holds each Level 2 line, and the loans (line_lending/routes.py, ADR 044)
   PATCH /api/ibkr/depth/lending   -- line lending on / off (API key)
@@ -344,6 +345,18 @@ async def depth_unsubscribe(req: DepthSubscribeRequest) -> None:
     except Exception:
         logger.exception("l2.continuous: failed to stop for %s", symbol)
     _depth.unsubscribe(symbol)
+
+
+@router.get("/capacity")
+def capacity() -> dict:
+    """Level 1, Level 2, history and Time & Sales: used of IBKR's cap (desk-ops.md, "IBKR capacity on the desk")."""
+    from ibkr import capacity as _capacity
+
+    try:
+        return _capacity.view()
+    except Exception as exc:  # a part not read is said, never a guessed count
+        logger.warning("IBKR capacity not read: %s", exc, exc_info=True)
+        raise HTTPException(status_code=503, detail={"reason": "CAPACITY_UNREAD", "why": f"{exc}"[:200]}) from exc
 
 
 @router.get("/depth")

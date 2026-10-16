@@ -51,7 +51,7 @@ _cap: dict[str, float] = {}
 # IB objects whose errorEvent is heard here.
 _hooked_ib_ids: set[int] = set()
 # Who waits least for a line again: a Trader tab, the displayed rows, then HOD Momo's names.
-_OWNER_RANK = {"detail": 0, "depth": 0, "listing": 1, "scanner": 1, "hod": 2}
+_OWNER_RANK = {"detail": 0, "depth": 0, "live_trader": 0, "followed": 1, "listing": 1, "scanner": 1, "hod": 2}
 
 
 def reset_for_tests() -> None:

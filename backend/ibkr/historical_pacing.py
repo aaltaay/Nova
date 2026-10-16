@@ -6,7 +6,8 @@ Official limits (interactivebrokers.github.io/tws-api/historical_limitations.htm
 - identical request repeated within 15 seconds
 - 50 simultaneous open historical requests (Nova caps well below that)
 
-This module is a clock + counters. It does not talk to IB.
+This module is a clock + counters. It does not talk to IB. ``snapshot()['by_kind']`` names what spent the window
+(``kind_of``; the capacity strip, architecture/schema/desk-ops.md "IBKR capacity on the desk").
 """
 from __future__ import annotations
 
@@ -22,23 +23,43 @@ from constants import (
 )
 
 
+def kind_of(timeframe: str) -> str:
+    """What a request was for, from its pacing key: ``tape`` (trades read back: TraderTV exits and ticker checks,
+    LULD), ``daily`` (daily bars: SSR, the Market page's ETFs, Cryptos), ``market`` (the Market page's reference
+    tiles) or ``charts`` (chart bars)."""
+    key = str(timeframe or "")
+    if key.startswith(("ticks:", "bars:")):
+        return "tape"
+    if key.startswith("1Day:"):
+        return "daily"
+    if key.startswith("ref:"):
+        return "market"
+    return "charts"
+
+
+KINDS = ("charts", "tape", "daily", "market")
+
+
 class HistoricalPacing:
     """Sliding-window token budget for ``reqHistoricalData`` sends."""
 
     def __init__(self, now_fn=time.monotonic):
         self._now = now_fn
         self._all: list[float] = []
+        self._kinds: list[tuple[float, str]] = []
         self._contract: dict[str, list[float]] = defaultdict(list)
         self._identical: dict[tuple[str, str, str], float] = {}
 
     def reset(self) -> None:
         self._all.clear()
+        self._kinds.clear()
         self._contract.clear()
         self._identical.clear()
 
     def _prune(self, now: float) -> None:
         cutoff = now - float(IBKR_HISTORICAL_PACE_WINDOW_SEC)
         self._all = [t for t in self._all if t > cutoff]
+        self._kinds = [(t, k) for t, k in self._kinds if t > cutoff]
         ccut = now - float(IBKR_HISTORICAL_SAME_CONTRACT_WINDOW_SEC)
         for key, times in list(self._contract.items()):
             kept = [t for t in times if t > ccut]
@@ -78,6 +99,7 @@ class HistoricalPacing:
         now = float(self._now())
         self._prune(now)
         self._all.append(now)
+        self._kinds.append((now, kind_of(timeframe)))
         self._contract[symbol.upper()].append(now)
         self._identical[(symbol.upper(), timeframe, duration)] = now
 
@@ -104,4 +126,5 @@ class HistoricalPacing:
             "next_token_wait_sec": round(next_token_wait_sec, 1),
             "identical_keys": len(self._identical),
             "contract_hot": sorted(contract_hot),
+            "by_kind": {kind: sum(1 for _t, k in self._kinds if k == kind) for kind in KINDS},
         }

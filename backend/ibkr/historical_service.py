@@ -30,6 +30,7 @@ from constants import (
     CHART_DEFAULT_BARS,
     IBKR_BAR_DURATION,
     IBKR_HISTORICAL_MAX_CONCURRENT,
+    IBKR_HISTORY_TRADING_RESERVE,
 )
 from ibkr import historical_failures
 from ibkr.historical_derive import DERIVE_FROM_1MIN, derive_from_1min
@@ -81,6 +82,12 @@ def open_chart_busy() -> bool:
 def pacing_snapshot() -> dict:
     """Read-only view of the 60-req/10-min budget (see ``historical_pacing.py``)."""
     return _pacing.snapshot()
+
+
+def _left() -> int:
+    """Historical requests left in the 10-minute window."""
+    snap = _pacing.snapshot()
+    return int(snap["window_max"]) - int(snap["window_used"])
 
 
 def _semaphore() -> asyncio.Semaphore:
@@ -144,6 +151,13 @@ async def request_bars(
         if stored and stored.get("bars"):
             return stored
         raise HistoricalShed("open chart has priority")
+
+    if priority == "background" and _left() <= int(IBKR_HISTORY_TRADING_RESERVE):
+        logger.info("historical fill shed %s %s: %d left for open charts and SSR", symbol, timeframe, _left())
+        if stored and stored.get("bars"):
+            return stored
+        raise HistoricalShed(f"{int(IBKR_HISTORY_TRADING_RESERVE)} or fewer historical requests left: kept for "
+                             "open charts and the short check")
 
     backoff = historical_failures.backoff_remaining(symbol, timeframe)
     if backoff > 0:
