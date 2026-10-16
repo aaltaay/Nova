@@ -1,6 +1,6 @@
 /**
  * One header control and the card it opens, in one positioned box, so every
- * card -- P/L, Working, TAV, the account pill -- opens directly under its own
+ * card -- P/L, Working, Positions, TAV, the account pill -- opens directly under its own
  * button, never at the account cluster's right edge (operator report,
  * 2026-10-14). `align="end"` lines the card's right edge up with the button's,
  * for the account pill: the last control before the window's edge. `kind`
@@ -10,7 +10,7 @@
 import type { ReactNode } from 'react';
 
 interface Props {
-  kind: 'day' | 'working' | 'tav' | 'pill';
+  kind: 'day' | 'working' | 'positions' | 'tav' | 'pill';
   open: boolean;
   cardId: string;
   /** The trigger button. */

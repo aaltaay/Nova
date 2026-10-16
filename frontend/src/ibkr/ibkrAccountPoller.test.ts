@@ -92,4 +92,37 @@ describe('ibkrAccountPoller', () => {
     off();
     vi.useRealTimers();
   });
+
+  it('keeps the last positions but says they are last known when the positions read fails (PR #1017)', async () => {
+    vi.useFakeTimers();
+    let positionsOk = true;
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (String(url).includes('/account')) {
+        return { ok: true, json: async () => ({ connected: true, mode: 'paper', NetLiquidation: 42 }) };
+      }
+      if (String(url).includes('/positions')) {
+        return positionsOk
+          ? { ok: true, json: async () => [{ symbol: 'DAIC', qty: 1 }] }
+          : { ok: false, status: 503, json: async () => ({}) };
+      }
+      return { ok: true, json: async () => [] };
+    }));
+    configureIbkrAccountPoller({ connected: true, sample: false });
+    const off = subscribeIbkrAccount(() => {});
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getIbkrAccountSnapshot().positionsFailed).toBe(false);
+
+    positionsOk = false;
+    await vi.advanceTimersByTimeAsync(IBKR_ACCOUNT_POLL_MS);
+    const failed = getIbkrAccountSnapshot();
+    expect(failed.stale).toBe(false);
+    expect(failed.positionsFailed).toBe(true);
+    expect(failed.positions.map((p) => p.symbol)).toEqual(['DAIC']);
+
+    positionsOk = true;
+    await vi.advanceTimersByTimeAsync(IBKR_ACCOUNT_POLL_MS);
+    expect(getIbkrAccountSnapshot().positionsFailed).toBe(false);
+    off();
+    vi.useRealTimers();
+  });
 });

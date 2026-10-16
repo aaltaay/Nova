@@ -1,5 +1,5 @@
 /**
- * Open / pin state for the header account cards -- Day's, Working, TAV and
+ * Open / pin state for the header account cards -- Day's, Working, Positions, TAV and
  * the account pill (QA V15, 2026-09-22).
  *
  * Pointing at a trigger opens its card, and the click that follows used to
@@ -9,7 +9,7 @@
  * keyboard's Enter is a click, so the keyboard toggles as before). Pure: the
  * cluster keeps the state, these decide the next one.
  */
-export type ClusterMenu = 'day' | 'tav' | 'working' | 'pill';
+export type ClusterMenu = 'day' | 'tav' | 'working' | 'positions' | 'pill';
 
 export interface ClusterMenuState {
   open: ClusterMenu | null;
