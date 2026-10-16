@@ -1,10 +1,12 @@
 /**
  * Scanner middle stack: selected table on top, Trader account dock below.
- * Same Positions / Orders (Today) strip (WID-019 / 026 / 027).
+ * Same Positions / Orders (Today) strip (WID-019 / 026 / 027). Bots > LiveTrader Bots mounts the same stack around
+ * the hosts' page (`host="bots"`, its own split; operator ask 2026-10-16).
  */
 import { useCallback, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ResizeHandle } from '../components/ResizeHandle';
 import {
+  LT_BOTS_ACCOUNT_DOCK_SPLIT_KEY,
   SCANNER_ACCOUNT_DOCK_RESIZE_LABEL,
   SCANNER_ACCOUNT_DOCK_SPLIT_KEY,
   SCANNER_ACCOUNT_DOCK_SPLIT_MAX_PCT,
@@ -28,9 +30,11 @@ type Props = {
   children: ReactNode;
   /** Sample desk opens Trader via URL; live desk uses workspace.openStockView. */
   onOpenTrading?: (symbol: string) => void;
+  /** Which page mounts it (the dock's `data-dock-host`); each keeps its own split. */
+  host?: 'scanner' | 'bots';
 };
 
-export function ScannerDesk({ children, onOpenTrading }: Props) {
+export function ScannerDesk({ children, onOpenTrading, host = 'scanner' }: Props) {
   const { selectedSymbol, openStockView, selectRowSymbol } = useWorkspace();
   const { topOfBook } = useTopOfBook();
   const ibkrStatus = useIbkrStatus();
@@ -50,7 +54,7 @@ export function ScannerDesk({ children, onOpenTrading }: Props) {
     onDragStart,
     reset,
   } = useResizableHeight({
-    storageKey: SCANNER_ACCOUNT_DOCK_SPLIT_KEY,
+    storageKey: host === 'bots' ? LT_BOTS_ACCOUNT_DOCK_SPLIT_KEY : SCANNER_ACCOUNT_DOCK_SPLIT_KEY,
     defaultPct: SCANNER_ACCOUNT_DOCK_SPLIT_PCT,
     minPct: SCANNER_ACCOUNT_DOCK_SPLIT_MIN_PCT,
     maxPct: SCANNER_ACCOUNT_DOCK_SPLIT_MAX_PCT,
@@ -102,7 +106,7 @@ export function ScannerDesk({ children, onOpenTrading }: Props) {
         />
       )}
       <StockViewOpenOrdersDock
-        host="scanner"
+        host={host}
         symbol={symbol}
         orders={orders}
         positions={positions}

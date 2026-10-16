@@ -87,7 +87,8 @@ test('LiveTrader Bots: the key in the head, each host\'s bot in its card, a key 
     const req = route.request();
     const path = new URL(req.url()).pathname;
     if (req.method() !== 'GET') {
-      writes.push(`${req.method()} ${path} ${req.postData() ?? ''}`);
+      // The workspace's own focus sync (App.tsx's provider) is not the page's write.
+      if (path !== '/api/bot/focus/sync') writes.push(`${req.method()} ${path} ${req.postData() ?? ''}`);
       if (path === '/api/bot/session/keys') {
         familyOn = JSON.parse(req.postData() ?? '{}').on === true;
         return json(route, session());
@@ -112,6 +113,8 @@ test('LiveTrader Bots: the key in the head, each host\'s bot in its card, a key 
   await page.goto('/e2e/fixtures/live-traders.html');
   await expect(page.getByTestId('ft-trader-ALPHA'), `browser errors: ${errors.join('; ')}`).toBeVisible();
   await expect(page.locator('.ft-head__title')).toHaveText('LiveTrader Bots');
+  // The desk's Positions / Orders · today dock under the hosts (operator ask 2026-10-16).
+  await expect(page.locator('[data-testid="stock-view-open-orders-dock"][data-dock-host="bots"]')).toBeVisible();
   // The family's key sits in the head, its words on hover.
   const key = page.getByTestId('bot-key-live_trader');
   await expect(page.getByTestId('bot-key-live_trader-line')).toHaveText('ON');

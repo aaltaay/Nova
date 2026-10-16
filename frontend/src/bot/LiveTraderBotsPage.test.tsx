@@ -7,6 +7,7 @@
  * Bots itself, empty for now. The page itself is a stand-in here (its own tests are followed_traders'); this checks
  * what the bots give it. Made-up hosts.
  */
+import type React from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FollowedSlots } from '../followed_traders';
@@ -31,6 +32,13 @@ vi.mock('../followed_traders', () => ({
       </div>
     );
   },
+}));
+
+// The Scanner's account dock (Positions / Orders · today) wraps the page; its own tests are the scanner's.
+vi.mock('../scanner', () => ({
+  ScannerDesk: ({ children, host }: { children: React.ReactNode; host?: string }) => (
+    <div data-testid="account-dock-stack" data-host={host}>{children}<div data-testid="positions-dock-stub" /></div>
+  ),
 }));
 
 const NOW = Date.now() / 1000;
@@ -105,6 +113,16 @@ describe('LiveTrader Bots', () => {
     expect(bodies).toEqual(['{"family":"live_trader","on":true}']);
     expect(screen.getByTestId('bot-key-live_trader-line').textContent).toBe('ON');
     expect(screen.getByTestId('bot-key-live_trader-line').getAttribute('data-tip')).toBe('On: LiveTrader Bots may place orders on Paper.');
+  });
+
+  it('shows the Positions / Orders · today dock under the hosts (operator ask 2026-10-16)', async () => {
+    mockFetch(false);
+    render(<LiveTraderBotsPage onOpenTrader={opened} />);
+    await flush();
+    const stack = screen.getByTestId('account-dock-stack');
+    expect(stack.getAttribute('data-host')).toBe('bots');
+    expect(stack.contains(screen.getByTestId('followed-page-stub'))).toBe(true);
+    expect(screen.getByTestId('positions-dock-stub')).toBeTruthy();
   });
 
   it('opens a ticker in the Trader through the desk', async () => {

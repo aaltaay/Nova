@@ -4,13 +4,11 @@
   step. It is refused like Activate (``bot.activation.refusal``, with Activate's codes):
   ``BOT_LIVE_NOT_BUILT``, ``BOT_REPLAY_DESK``, ``BOT_VENUE_UNKNOWN`` and ``BOT_NO_SETUP_AT_STRATEGY``
   (no strategy is On). A refusal changes nothing.
-- **ON unlocks the padlock** (operator ask 2026-10-12: "if the user want to check 'bot is on' then it
-  should drive the locking mechanism to unlock", with one truth across Paper, Sim and Live). After
-  every other rule passes, ON arms through the padlock's one door, ``ibkr.safety.arm`` (ADR 018), as
-  the operator -- so it obeys the same rule by venue: Paper and Sim unlock in the press, a venue whose
-  padlock needs the PIN still refuses ``BOT_PADLOCK_LOCKED`` until the operator unlocks it with the
-  PIN (``ibkr.safety.arm_requires_pin``). OFF leaves the padlock as it is: the operator's own orders
-  still need it.
+- **The padlock is separate** (operator decision 2026-10-16, replacing 2026-10-12's "ON unlocks the padlock"): ON
+  neither unlocks nor needs it, and locking it leaves the switch on. Locked, no one places an order -- the bots'
+  gates read it before every send -- and they trade again the moment it is unlocked.
+- **On flows up** (``bot.cascade``, operator ask 2026-10-16): a strategy turned On, a host's key turned on or a
+  family key turned on turns this switch on, by the same rules as a press.
 - **OFF** (``turn(False)``) deactivates (``deactivated.reason: "operator"``) and puts the master at
   Eyes, so the strategies at Eyes or On keep proposing. While it is off no bot places any order, not even a
   sell (operator decision 2026-10-15; bot.md, "The three keys"): turning it off sells nothing. No loss limit
@@ -40,7 +38,6 @@ from constants_bot import (
     BOT_LEVEL_EYES,
     BOT_LEVEL_STRATEGY,
     BOT_REASON_NO_SETUP_AT_STRATEGY,
-    BOT_REASON_PADLOCK_LOCKED,
 )
 
 logger = logging.getLogger(__name__)
@@ -54,27 +51,17 @@ def is_on(row: dict[str, Any]) -> bool:
     return is_desk_active(row) and master(row) >= BOT_LEVEL_STRATEGY
 
 
-def unlocks_padlock() -> bool:
-    """ON unlocks the padlock itself where the padlock unlocks without the PIN (Paper and Sim)."""
-    from ibkr.safety import arm_requires_pin
-
-    return not arm_requires_pin()
-
-
 def refusal(row: dict[str, Any]) -> BotError | None:
-    """Why ON is refused now -- Activate's rules with the master already at Strategy -- in the switch's words.
-
-    The padlock refuses ON only where ON cannot unlock it (``unlocks_padlock``)."""
+    """Why ON is refused now -- Activate's rules with the master already at Strategy, the padlock left out (it is
+    separate) -- in the switch's words."""
     trial = dict(row)
     trial["level"] = BOT_LEVEL_STRATEGY
-    refused = activation.refusal(trial, padlock_rule=not unlocks_padlock())
+    refused = activation.refusal(trial, padlock_rule=False)
     if refused is None:
         return None
     message = refused.message
     if refused.reason == BOT_REASON_NO_SETUP_AT_STRATEGY:
         message = "no strategy is On and no Live Trader key is on -- turn one On, then turn the bot on"
-    elif refused.reason == BOT_REASON_PADLOCK_LOCKED:
-        message = message.replace("then Activate", "then turn the bot on")
     return BotError(message, refused.status_code, refused.reason)
 
 
@@ -91,11 +78,10 @@ def turn(on: bool) -> str | None:
         refused = refusal(row)
         if refused is not None:
             raise refused
-        unlocked = _unlock()
         row["level"] = BOT_LEVEL_STRATEGY
         save_session(row)
         token = issue_arm_token()
-        _audit(True, before, BOT_LEVEL_STRATEGY, unlocked=unlocked)
+        _audit(True, before, BOT_LEVEL_STRATEGY)
         return token
     if not is_desk_active(row) and before == BOT_LEVEL_EYES:
         return None
@@ -106,31 +92,11 @@ def turn(on: bool) -> str | None:
     return None
 
 
-def _unlock() -> bool:
-    """Unlock the padlock for ON through its one door (``ibkr.safety.arm``, ADR 018), then require the
-    desk to place. Returns whether this press unlocked it; raises ``BOT_PADLOCK_LOCKED`` otherwise."""
-    from ibkr import safety
-
-    unlocked = False
-    if not safety.armed():
-        code, why = safety.arm(True, actor="operator")
-        if code:
-            raise BotError(f"the desk padlock is locked ({why}) -- unlock it, then turn the bot on", 409,
-                           BOT_REASON_PADLOCK_LOCKED)
-        unlocked = True
-    ok, why = activation.padlock()
-    if not ok:
-        raise BotError(f"the desk padlock is unlocked but the desk cannot place ({why})", 409,
-                       BOT_REASON_PADLOCK_LOCKED)
-    return unlocked
-
-
-def _audit(on: bool, before: int, after: int, *, unlocked: bool = False) -> None:
+def _audit(on: bool, before: int, after: int) -> None:
     from bot.audit import record
 
     if on:
-        said = ("the bot is on: Nova may buy the go triggers of the strategies that are On"
-                + (" (it unlocked the padlock)" if unlocked else ""))
+        said = "the bot is on: Nova may buy the go triggers of the strategies that are On"
     else:
         said = "the bot is off: Eyes keep proposing, no bot places any order, not even a sell"
     try:
@@ -148,9 +114,8 @@ def why_off(row: dict[str, Any]) -> str | None:
     if refused is not None:
         return refused.message
     stamp = row.get("deactivated")
-    if isinstance(stamp, dict) and stamp.get("text"):
-        return str(stamp["text"])
-    return _OFF_TEXT
+    said = activation.stamp_text(stamp) if isinstance(stamp, dict) else None
+    return said or _OFF_TEXT
 
 
 def view(row: dict[str, Any], venue: str | None) -> dict[str, Any]:

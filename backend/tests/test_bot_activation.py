@@ -111,7 +111,9 @@ def test_activate_turns_it_on_and_says_so(api_key):
 
 
 # -- the backend clears it -----------------------------------------------------------------
-def test_locking_the_padlock_clears_activate_in_the_backend(api_key):
+def test_locking_the_padlock_leaves_activate_on(api_key):
+    """The padlock is separate from the bot (operator decision 2026-10-16): locked, no one places an order (the
+    bots' ``family_keys.hold``), and the bot stays on to trade again the moment it is unlocked."""
     from ibkr import safety
 
     on_practice()
@@ -119,9 +121,23 @@ def test_locking_the_padlock_clears_activate_in_the_backend(api_key):
     assert _arm(api_key).status_code == 200
     safety.arm(False, actor="operator")
     row = load_session()
-    assert not is_desk_active(row)
-    assert row["deactivated"]["reason"] == "padlock" and "padlock" in row["deactivated"]["text"]
-    assert any(r["action"] == "deactivate" and r["inputs"].get("reason") == "padlock" for r in list_entries(limit=20))
+    assert is_desk_active(row) and not row.get("deactivated")
+    assert not any(r["action"] == "deactivate" for r in list_entries(limit=20))
+
+
+def test_a_padlock_stamp_from_before_the_change_never_says_the_switch_unlocks_it():
+    from bot.persist import save_session
+    from bot.session import get_session
+
+    on_practice()
+    row = load_session()
+    row["deactivated"] = {"at": 1.0, "reason": "padlock", "text": "the padlock was locked, so the bot went off -- turn "
+                          "the Bot switch on again (it unlocks the padlock)"}
+    save_session(row)
+    view = get_session()
+    assert "unlocks the padlock" not in view["deactivated"]["text"]
+    assert "padlock is separate now" in view["deactivated"]["text"]
+    assert "unlocks the padlock" not in (view["switch"]["why_off"] or "")
 
 
 def test_a_venue_change_clears_activate_as_the_venues_not_the_padlocks():

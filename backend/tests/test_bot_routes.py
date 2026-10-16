@@ -228,7 +228,8 @@ def test_brain_cannot_arm_or_raise(bot_iso, api_key):
     on_practice()
     ok = client.patch("/bot/session", json={"level": 2, "setup_levels": {"first_pullback": 2}},
                       headers=headers(api_key))
-    assert ok.status_code == 200 and ok.json()["level"] == 2 and ok.json()["active"] is False
+    # A strategy turned On from the desk turns the Bot switch on too (bot.cascade, operator ask 2026-10-16).
+    assert ok.status_code == 200 and ok.json()["level"] == 2 and ok.json()["active"] is True
     armed = client.post("/api/bot/session/arm", headers=headers(api_key))
     assert armed.status_code == 200 and armed.json()["active"] is True and armed.json()["desk_arm_token"]
     assert "desk_arm_token" not in client.get("/api/bot/session").json()
