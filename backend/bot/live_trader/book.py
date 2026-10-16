@@ -261,6 +261,8 @@ def close_filled(pos_id: str, *, qty: float, price: float | None, ts: float | No
         if pos is None:
             return None
         pos["exit_fills"].append({"qty": qty, "price": price, "ts": ts, "order_id": order_id, "kind": kind})
+        if kind == "trim":
+            pos["trimmed"] = True              # half sold once: a later sale of the host's sells nothing more
         return _reduce_locked(book, pos, qty, kind=kind, why=why, ts=ts)
 
 

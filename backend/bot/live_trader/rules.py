@@ -83,6 +83,26 @@ def limits(side: str, quote: dict[str, Any], stop_pct: float,
     return limit, tick_round(limit * (1.0 + stop_pct / 100.0))
 
 
+def sale_text(prev_price: float | None, their_price: float, market: tuple[float, float] | None) -> str | None:
+    """Why an average change is a partial sale, not an add, or None. ``market`` is ``(low, high)`` since the change.
+
+    A buy only pulls the average toward the price it paid: an average that fell while the market stayed over the old
+    one by more than ``LT_ADD_DIRECTION_PCT`` -- its low included -- was a sale (rose while it stayed under, on a
+    short). A market that crossed the old average since the change could have been a real add: no sale (Codex
+    review, PR #1022: a buy at 99.90 pulling 100.00 to 99.95, the market at 100.11 by the time Nova reads it)."""
+    if not prev_price or prev_price <= 0 or market is None:
+        return None
+    low, high = market
+    tol = prev_price * LT_ADD_DIRECTION_PCT / 100.0
+    moved = their_price - prev_price
+    if (moved < 0 and low > prev_price + tol) or (moved > 0 and high < prev_price - tol):
+        edge = low if moved < 0 else high
+        return (f"their average went {price_text(prev_price)} -> {price_text(their_price)} while the market stayed at "
+                f"{price_text(edge)} or {'over' if moved < 0 else 'under'}: a buy cannot do that -- they sold part, "
+                "so the bot buys nothing")
+    return None
+
+
 def verdict(kind: str, code: str | None = None, text: str | None = None,
             plan: dict[str, Any] | None = None) -> dict[str, Any]:
     return {"verdict": kind, "code": code, "text": text, "plan": plan}
@@ -102,7 +122,8 @@ def _waited(code: str, wait_text: str, skip_text: str, since: float | None, now:
 def check(*, side: str, symbol: str, their_price: float, settings: dict[str, Any], quote: dict[str, Any] | None,
           cap: Any, ticker: dict[str, Any] | None, used_usd: float, against: str | None,
           short_closed: str | None, priceable: bool, now: float, wait_since: float | None,
-          prev_price: float | None = None, ssr: str = "unknown") -> dict[str, Any]:
+          prev_price: float | None = None, ssr: str = "unknown",
+          market: tuple[float, float] | None = None) -> dict[str, Any]:
     """One step's verdict. ``ssr`` is the stock's SSR for a short (``"on"`` | ``"off"`` | ``"unknown"``). ``cap`` is the market cap in dollars, ``"etf"`` for an ETF (always allowed),
     ``"pending"`` while it is read, or None when it could not be read; ``ticker`` the trade's check (``{"state", "why"}``, None when none is needed);
     ``against`` the words for a position on the other side; ``short_closed`` why no short may open now;
@@ -144,11 +165,9 @@ def check(*, side: str, symbol: str, their_price: float, settings: dict[str, Any
                            f"their new average {price_text(their_price)} is not between their average before "
                            f"{price_text(prev_price)} and the market {price_text(ref)}: a misread, not an add")
         # Inside the band but moved away from the market: a partial sale their platform folded into the average.
-        moved, toward = their_price - prev_price, ref - prev_price
-        if abs(toward) > ref * LT_ADD_DIRECTION_PCT / 100.0 and moved * toward < 0:
-            return verdict(SKIP, LT_ADD_IS_SALE,
-                           f"their average went {price_text(prev_price)} -> {price_text(their_price)}, away from the "
-                           f"market {price_text(ref)}: a buy cannot do that -- they sold part, so the bot buys nothing")
+        sold = sale_text(prev_price, their_price, market or (ref, ref))
+        if sold:
+            return verdict(SKIP, LT_ADD_IS_SALE, sold)
     if against:
         return verdict(SKIP, LT_AGAINST, against)
     limit, stop = limits(side, quote or {}, float(settings["short_stop_pct"]), ssr)
