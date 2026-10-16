@@ -13,7 +13,9 @@ from typing import Any
 
 from bot.live_trader import feed_rows
 from bot.live_trader.constants_live_trader import (
+    LT_ADD_DIRECTION_PCT,
     LT_ADD_IMPLAUSIBLE,
+    LT_ADD_IS_SALE,
     LT_ADD_SLACK_PCT,
     LT_ALLOWANCE,
     LT_CAP_UNKNOWN,
@@ -141,6 +143,12 @@ def check(*, side: str, symbol: str, their_price: float, settings: dict[str, Any
             return verdict(SKIP, LT_ADD_IMPLAUSIBLE,
                            f"their new average {price_text(their_price)} is not between their average before "
                            f"{price_text(prev_price)} and the market {price_text(ref)}: a misread, not an add")
+        # Inside the band but moved away from the market: a partial sale their platform folded into the average.
+        moved, toward = their_price - prev_price, ref - prev_price
+        if abs(toward) > ref * LT_ADD_DIRECTION_PCT / 100.0 and moved * toward < 0:
+            return verdict(SKIP, LT_ADD_IS_SALE,
+                           f"their average went {price_text(prev_price)} -> {price_text(their_price)}, away from the "
+                           f"market {price_text(ref)}: a buy cannot do that -- they sold part, so the bot buys nothing")
     if against:
         return verdict(SKIP, LT_AGAINST, against)
     limit, stop = limits(side, quote or {}, float(settings["short_stop_pct"]), ssr)

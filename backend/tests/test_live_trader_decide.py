@@ -10,6 +10,7 @@ import pytest
 from bot.live_trader import feed_rows, rules
 from bot.live_trader.constants_live_trader import (
     LT_ADD_IMPLAUSIBLE,
+    LT_ADD_IS_SALE,
     LT_ADDS_DONE,
     LT_AFTER_SELL_ALL,
     LT_AGAINST,
@@ -844,6 +845,29 @@ def test_an_add_no_add_could_make_is_a_misread():
     assert kinds(out, "step") == []
     (skip,) = kinds(out, "skip")
     assert skip["code"] == LT_ADD_IMPLAUSIBLE and "not between" in skip["why"]
+
+
+def test_an_average_moving_away_from_the_market_is_a_sale_never_bought():
+    """SHAWN's TSLA, 2026-10-16 09:59: his average 364.32 -> 364.02 with TSLA at 366.8. A buy there can only raise
+    it: he sold part, and his platform folded the profit into the average. The bot bought it as an add."""
+    w = World()
+    base = row(symbol="TSLA", price=364.32, entry_ts=NOW)
+    w.quotes["TSLA"] = {"last": 364.3, "bid": 364.28, "ask": 364.32, "fresh": True}
+    watching(w, base)
+    w.quotes["TSLA"] = {"last": 366.8, "bid": 366.78, "ask": 366.82, "fresh": True}
+    moved = dict(base, price=364.02, adds=[_add(NOW + 30, 364.02, 364.32)])
+    out = w.at(40).run(answer({HOST: [moved]}, feed_now=NOW + 40))
+    assert kinds(out, "step") == []
+    (skip,) = kinds(out, "skip")
+    assert skip["code"] == LT_ADD_IS_SALE and "sold part" in skip["why"]
+    # The same stock with the market under their average: an add that pulls it down is a real add, followed.
+    w2 = World()
+    w2.quotes["TSLA"] = {"last": 364.3, "bid": 364.28, "ask": 364.32, "fresh": True}
+    watching(w2, base)
+    w2.quotes["TSLA"] = {"last": 362.0, "bid": 361.98, "ask": 362.02, "fresh": True}
+    out2 = w2.at(40).run(answer({HOST: [moved]}, feed_now=NOW + 40))
+    (step,) = kinds(out2, "step")
+    assert step["step"] == "add"
 
 
 def test_an_add_between_the_old_average_and_the_market_is_followed():

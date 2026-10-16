@@ -51,8 +51,8 @@ LT_FEED_BEHIND_SEC = 30.0               # the page's rule: the read this far beh
 LT_MISREAD_PCT = 1.5                    # the host's average this far from the market is a misread
 LT_ADD_MERGE_SEC = 4.0                  # average changes this close together are one add (an add filling in pieces)
 # An add whose average ends where it began, as the bar shows it (`feed_rows.cent`: the cent, a hundredth of a cent
-#   under $1), is no add. Never a percent: a large cap averaged down moves its average a few cents per add (SHAWN's
-#   TSLA, 2026-10-16: 366.11 -> 366.07), and a 0.05% rule ($0.18 there) dropped eight real adds without a word.
+#   under $1), is no add. Never a percent: a real add on a large cap can move its average only a few cents, and a
+#   0.05% rule ($0.18 on a $366 stock) dropped such moves without a word (2026-10-16).
 LT_HIDDEN_SEC = 600.0                   # the bar hidden (or the feed silent) this long: get flat
 LT_OPEN_FRESH_SEC = 60.0                # an entry first seen later than this after it happened is already open
 LT_WAIT_SEC = 30.0                      # a quote, a market cap or a ticker check waited for this long is a skip
@@ -69,6 +69,11 @@ LT_SKIPS_REMEMBERED = 2000              # skip lines written once per position, 
 # -- bad reads (operator, 2026-10-14: an abnormal read never buys or averages more) ----------------
 LT_OTHER_HOST_SEC = 600.0               # another host's row this near in time with the same average is theirs
 LT_UNREAD_SEC = 20.0                    # a side whose reads carried an unparsed price this recently opens nothing
+# An average that moves away from the market by more than this (of the market) is a sale, not an add: a buy at the
+#   market can only pull the average toward it. SHAWN's TSLA, 2026-10-16: TSLA rose 365 -> 370 while his average fell
+#   366.50 -> 365.02, and at 09:59 it fell 364.32 -> 364.02 with TSLA at 366.8 -- he was taking profit in pieces (his
+#   platform folds each sale's profit into the average), and the bot bought it as an add.
+LT_ADD_DIRECTION_PCT = 0.1
 LT_ADD_SLACK_PCT = 0.5                  # an add's new average may lie this far (of the market) outside old avg..market
 LT_PREVIOUS_RETRY_SEC = 300.0           # the feed's previous day not read: asked again after this
 
@@ -110,6 +115,7 @@ LT_NOT_ON_BAR = "LT_NOT_ON_BAR"
 LT_OTHER_HOST = "LT_OTHER_HOST"
 LT_ROW_UNREAD = "LT_ROW_UNREAD"
 LT_ADD_IMPLAUSIBLE = "LT_ADD_IMPLAUSIBLE"
+LT_ADD_IS_SALE = "LT_ADD_IS_SALE"        # the average moved away from the market: they sold part, never bought
 LT_NO_CLOCK = "LT_NO_CLOCK"
 LT_BLANK_BAR = "LT_BLANK_BAR"
 LT_RETURN_SWITCH = "LT_RETURN_SWITCH"
