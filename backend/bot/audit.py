@@ -1,10 +1,18 @@
-"""Append-only bot audit stream."""
+"""Append-only bot audit stream.
+
+A bot trade line's outcome is one of ``BOT_TRADE_OUTCOMES`` (architecture/schema/bot.md, "Fills on the bot audit
+stream"); another name is logged as an error and the line is still written.
+"""
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
 
 from bot.persist import append_audit_line, load_session, read_audit_lines
+from constants_bot import BOT_TRADE_AUDIT_ACTIONS, BOT_TRADE_OUTCOMES
+
+logger = logging.getLogger(__name__)
 
 _SUBSCRIBERS: list[Any] = []
 
@@ -44,7 +52,10 @@ def record(
     level: int | None = None,
     strategy: str | None = None,
     brain_session_id: str | None = None,
+    fill: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    if action in BOT_TRADE_AUDIT_ACTIONS and outcome not in BOT_TRADE_OUTCOMES:
+        logger.error("bot audit: %s line with an outcome outside BOT_TRADE_OUTCOMES: %r", action, outcome)
     row = load_session()
     from bot.gates import current_venue
 
@@ -65,6 +76,8 @@ def record(
         "advise_spend": advise_spend,
         "outcome": outcome,
     }
+    if fill is not None:
+        entry["fill"] = dict(fill)    # a partial or full fill: shares filled, remaining, the average (2026-10-16)
     from bot.replay_desk import audit_stamp
 
     stamp = audit_stamp()

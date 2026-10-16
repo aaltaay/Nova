@@ -46,10 +46,10 @@ from typing import Any, Callable
 from bot.arming import is_desk_active
 from bot.audit import record as audit
 from bot.errors import BotError
-from bot.first_pullback import admit, flush, halves, orders, short_side, trade_record
+from bot.first_pullback import admit, fill_lines, flush, halves, orders, short_side, trade_record
 # The operator takes over the exit, and the desk leaves a venue (ADR 037, 042): re-exported.
 from bot.first_pullback.handover import hand_over, leave_venue
-from bot import replay_desk
+from bot import fill_progress, replay_desk
 from bot.persist import load_session, save_session
 from bot.wake import Wake
 from constants_bot import (
@@ -446,6 +446,7 @@ async def _manage_entry(trade: dict[str, Any], now: float) -> None:
 
     row = orders.order_row(trade["entry_order_id"])
     state = orders.order_state(row)
+    fill_lines.progress(trade, row, state, "entry", trade["entry_order_id"], _summary)
     filled = float((row or {}).get("filled_qty") or 0)
     if state == "filled" or (state in ("dead", "gone") and filled > _EPS):
         await _filled(trade, row or {}, now)
@@ -500,7 +501,8 @@ async def _filled(trade: dict[str, Any], row: dict[str, Any], now: float) -> Non
     _save(trade)
     did = "shorted" if short else "bought"
     audit(action=BOT_AUDIT_ACTION_TRADE, outcome="filled", order_id=trade["entry_order_id"], inputs=_summary(trade),
-          reason=f"{did} {qty:g} at {fill} (planned {trade['entry_planned']}); {plan}")
+          reason=f"{did} {qty:g} at {fill} (planned {trade['entry_planned']}); {plan}",
+          fill=fill_progress.block(row, phase="entry", leg="entry", order_id=trade["entry_order_id"]))
     _tell(trade["symbol"], now, "ok", f"Nova's bot {did} {qty:g} {trade['symbol']} at {fill}; {plan}")
 
 
@@ -515,6 +517,9 @@ def _leg_fill(trade: dict[str, Any], now: float | None = None) -> tuple[str, flo
     said on the timeline."""
     rows = {leg: orders.order_row(trade[leg]) for leg, _r, _f in _EXIT_LEGS
             if trade.get(leg) and not halves.booked(trade, trade[leg])}
+    for leg, _reason, name in _EXIT_LEGS:
+        if leg in rows:
+            fill_lines.progress(trade, rows[leg], orders.order_state(rows[leg]), name, trade[leg], _summary)
     left = float(trade["qty"])
     for leg, reason, fallback in _EXIT_LEGS:
         if leg not in rows or orders.order_state(rows[leg]) != "filled":
@@ -683,6 +688,7 @@ async def _manage_exit(trade: dict[str, Any], now: float, *, acts: bool = True) 
     rests stays as it is -- neither cancelled nor sent again."""
     row = orders.order_row(trade.get("exit_order_id")) if trade.get("exit_order_id") else None
     state = orders.order_state(row)
+    fill_lines.progress(trade, row, state, "close", trade.get("exit_order_id"), _summary)
     if state == "filled":
         _close(trade, now, str(trade.get("exit_why") or "time"), _num((row or {}).get("avg_fill_price")))
         return

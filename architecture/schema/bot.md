@@ -219,8 +219,8 @@ shares-weighted price of every sale in `halves` and `r` counts every share -- th
 leaves both null, as `outside` always did; the day P&L is the venue ledger's and counts every fill), kept in
 `bot-session.json` so a restart resumes it; a take-over whose cancel is refused
 keeps the trade and says the order still rests. Every step is on the bot audit stream as `bot_trade` (`skipped` |
-`missed` | `filled` | `closing` | `closed` | `note` | `error`, `inputs` with
-the `setup_id`). A bot working order the bot cancels itself carries
+`missed` | `partial` | `filled` | `half` | `closing` | `closed` | `handed` | `note` | `error`, `inputs` with
+the `setup_id`; the names and the `partial` line: "Fills on the bot audit stream" below). A bot working order the bot cancels itself carries
 `expire_ts: null` in `working`.
 
 ## One Bots page (ADR 044, operator decisions 2026-10-01)
@@ -823,7 +823,8 @@ practice market ticket) for the bot's shares, never more than the account holds;
 **Lines.** `ibkr.ticks.set_owner_symbols("live_trader", ...)` holds a Level 1 line on every stock the bot
 holds, is entering or waits to enter; never a Level 2 line (ADR 055 decision 3).
 
-**Audit** (the bot's stream): action `live_trader`, outcome `order` (a step sent) | `filled` | `closed` (a
+**Audit** (the bot's stream): action `live_trader`, outcome `order` (a step sent) | `partial` (a step or close
+filled in part: "Fills on the bot audit stream" below) | `filled` | `closed` (a
 close sent) | `skipped` | `asked` | `answered` | `refused` (the door's words) | `settings` | `note` |
 `error`; `inputs: {host, row_id, symbol, side, step, qty, limit, stop, order_id, code, why, change: {kind:
 "open" | "add" | "already_open" | "close" | "trim" | "off_air" | "hidden" | "sell_all" | "stale_day" | "outside", ts, price}, late_sec, venue: "paper"}`. `late_sec` is the send's wall time less the feed's
@@ -848,3 +849,36 @@ host's average, now, P/L), the last events with their reasons, and the settings 
 editors. A line above the cards says what stops every host now (`can_trade.why`). An ask is a line on its
 card and a toast in every desk window (`bot/BotNotices.tsx`) with Skip and Approve and its seconds left. A host
 whose key is off while its bot holds positions reads "Key off · no orders: N held, not sold until it is on".
+
+## Fills on the bot audit stream (operator ask 2026-10-16)
+
+"Do we have a way to get out of persistent event stream for partial fills, full fills, and failures when
+bots enter or exit trades?" The stream was there -- `bot-audit.jsonl` in the operator cache, read by
+`GET /api/bot/audit?limit=` and pushed live on `/ws/bot/audit` (loopback only; a snapshot of the last 50,
+then each line) -- but an order that filled in parts wrote nothing until it ended, and the outcome names
+were whatever each caller typed.
+
+- **Fixed outcome names.** A bot trade line -- action `bot_trade`, `buy_setup_limit` or `short_setup_limit`
+  (Nova's own bot) or `live_trader` (the Live Trader bot) -- carries one outcome of `BOT_TRADE_OUTCOMES`
+  (`constants_bot.py`): `ok` (an entry sent), `failed` (an entry refused), `order` (a Live Trader step
+  sent), `partial`, `filled`, `half`, `closing`, `closed`, `missed`, `handed`, `skipped`, `asked`,
+  `answered`, `refused`, `settings`, `note`, `error`. `bot.audit.record` logs an error for any other name
+  on those actions and still writes the line (a line is never dropped); a test holds every name the two
+  bots write to the set. Other actions' outcomes (`level`, `venue`, `hot_list`, ...) are unchanged.
+- **`partial`.** Each time a working order of a bot -- Nova's own bot's entry, a resting target or stop,
+  or its close; a Live Trader step or close -- shows more filled shares than were last said, one `partial`
+  line: `order_id` the order's, `reason` in words ("bought 40 of 100 PLTR at 25.10, 60 still working"),
+  and a top-level `fill: {phase: "entry" | "exit", leg, order_id, qty, filled_qty, remaining_qty,
+  avg_fill_price, status}`. `leg` is `entry` | `target1` | `target2` | `stop` | `close` on Nova's own bot
+  and the step (`open`, `add`, ...) or `close` on the Live Trader. `remaining_qty` is the venue row's, or
+  `qty` less `filled_qty` when the row has none; `avg_fill_price` is null when the venue has not priced it.
+  The order's end is still the line it always was (`filled`, `half`, `closed`, `missed`, ...), counting
+  the shares that filled. A partial line never counts toward the daily entry cap.
+- **`fill` on `filled`.** A `filled` line carries the same block: Nova's own bot's entry, and the Live
+  Trader's step and close.
+- **Owner and invalidation.** `bot/fill_progress.py` keeps the filled shares last said for each working
+  order, in memory, keyed by the order id and the venue row's own placed stamp (a Sim rewind can hand an
+  id out again), and drops it when the order ends. A process start forgets them: an order still working
+  that had filled part before the start is said once more, with the same numbers.
+- **Where partials come from.** Paper and Sim fill an order whole, so no `partial` line appears there
+  today; the rule reads the venue's order row, so it holds on any venue that fills a bot's order in parts.

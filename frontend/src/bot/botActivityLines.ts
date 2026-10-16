@@ -44,6 +44,7 @@ const TRADE = 'bot_trade';
 const TRADE_TAGS: Record<string, [string, ActivityTone, ActivityLine['category']]> = {
   skipped: ['Skipped', 'muted', 'refused'],
   missed: ['Missed', 'muted', 'fired'],
+  partial: ['Part filled', 'good', 'fired'],
   filled: ['Filled', 'good', 'fired'],
   closing: ['Closing', 'warn', 'fired'],
   note: ['Note', 'muted', 'system'],
@@ -67,6 +68,7 @@ const STOCK_MODE_TAGS: Record<string, [string, ActivityTone, ActivityLine['categ
 /** The Live Trader bot (ADR 055): each step, skip, ask and close it makes for a TraderTV host. */
 const LIVE_TRADER_TAGS: Record<string, [string, ActivityTone, ActivityLine['category']]> = {
   order: ['Sent', 'good', 'fired'],
+  partial: ['Part filled', 'good', 'fired'],
   filled: ['Filled', 'good', 'fired'],
   closed: ['Closed', 'plain', 'fired'],
   skipped: ['Skipped', 'muted', 'refused'],
