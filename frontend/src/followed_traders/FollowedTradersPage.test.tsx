@@ -8,7 +8,7 @@ import { resetFeedImagesForTests } from './FeedImage';
 import { requestFollowedToday, resetFollowedStoresForTests } from './followedStores';
 import { resetStreamForTests } from './stream';
 import { FOLLOWED_PROOF_HOVER_CLOSE_MS, FOLLOWED_PROOF_HOVER_OPEN_MS } from './constants';
-import { closed, day, T, trade } from './followedTestData';
+import { closed, day, RECORD, T, trade } from './followedTestData';
 import { FollowedTradersPage } from './FollowedTradersPage';
 import type { FollowedSlots } from './slots';
 import type { FollowedDay } from './types';
@@ -475,6 +475,24 @@ describe('FollowedTradersPage', () => {
     expect(asked).toContain('/api/followed-traders/day?date=2026-10-09&quotes=0');
     await click(q('ft-prev-day'));
     expect(asked).toContain('/api/followed-traders/day?date=2026-10-09');
+  });
+
+  it('shows each day’s result in its square and each trader’s in the preview, copied at $1,000 a trade', async () => {
+    // Operator ask 2026-10-15: "i wanna see the result of each for each day", "and the price in each square".
+    const all = { schema_version: 1, generated_at: T, feed: { state: 'ok', error: null }, range: 'all', from: null,
+      to: '2026-10-13', dates: ['2026-10-09', '2026-10-13'], pending: 0, overall: null,
+      traders: [{ name: 'ALPHA', record: RECORD, scored: [
+        { ts: T, pct: 12.5, date: '2026-10-09' }, { ts: T + 9, pct: -3, date: '2026-10-13' }] }] };
+    await show(day(), (url) => (url.pathname === '/api/followed-traders/record'
+      ? new Response(JSON.stringify(all)) : undefined));
+    await click(q('ft-day-button'));
+    expect(asked).toContain('/api/followed-traders/record?range=all&date=2026-10-13');
+    const sq = q('ft-day-pl-2026-10-09')!;
+    expect(sq.textContent).toBe('+$125');
+    expect(sq.className).toContain('ft-day__pl--up');
+    expect(q('ft-day-pl-2026-10-13')!.textContent).toBe('−$30');
+    await click(q('ft-day-2026-10-09'));
+    expect(q('ft-preview-pl-ALPHA')!.textContent).toBe('+$125.00');
   });
 
   it('goes back to today when a toast asks, whatever past day it was showing', async () => {

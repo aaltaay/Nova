@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DASH, duration, entered, etTime, exitPrice, exited, held, plAtStake, plPct, plPerShare, plTone, price, signedUsd } from './format';
+import { DASH, duration, entered, etTime, exitPrice, exited, held, plAtStake, plPct, plPerShare, plTone, price, shortUsd, signedUsd } from './format';
 import type { FollowedExit } from './types';
 
 // 2026-10-13 10:42:07 EDT
@@ -42,6 +42,9 @@ describe('followed traders format', () => {
     expect(plAtStake({ per_share: 0, pct: 0 })).toBe('$0.00');
     expect(plAtStake(null)).toBe(DASH);
     expect(signedUsd(1234.5)).toBe('+$1,234.50');
+    // A calendar square's: whole dollars, thousands as k.
+    expect([shortUsd(45.4), shortUsd(-30), shortUsd(1234.5), shortUsd(-12_345), shortUsd(0.3)])
+      .toEqual(['+$45', '−$30', '+$1.2k', '−$12k', '$0']);
   });
 
   it('writes how long it was held, saying what it cannot know', () => {

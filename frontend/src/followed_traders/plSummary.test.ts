@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { FT_PL_OLD_BACKEND, FT_PL_WAITING } from './constants';
+import { FT_PL_NO_DAY, FT_PL_OLD_BACKEND, FT_PL_WAITING } from './constants';
 import { closed, day, RECORD, T, trade } from './followedTestData';
-import { dayPl, mergePoints, recordPl, scoredPoints, summarize } from './plSummary';
+import { dayPl, daysPl, mergePoints, recordPl, scoredPoints, summarize } from './plSummary';
 import type { FollowedRecords, FollowedTrade, FollowedTrader } from './types';
 
 /** A closed trade that exited `at` one price `sec` after T with this P/L %. */
@@ -97,5 +97,36 @@ describe('what a followed trader made, per share in %', () => {
     const old = recordPl(records([{ name: 'ALPHA', record: RECORD }]), null);
     expect(old).toMatchObject({ everyone: null, why: FT_PL_OLD_BACKEND });
     expect(old.of('ALPHA')).toBeNull();
+  });
+});
+
+describe('each day in the picker (operator ask 2026-10-15: "the result of each for each day")', () => {
+  it('adds each day up from the record of every day: everyone in the square, each trader in the row', () => {
+    const pl = daysPl(records([
+      { name: 'ALPHA', record: RECORD, scored: [
+        { ts: 1, pct: 2, date: '2026-10-09' }, { ts: 5, pct: -1.5, date: '2026-10-13' }, { ts: 3, pct: 1, date: '2026-10-09' }] },
+      { name: 'BRAVO', record: RECORD, scored: [{ ts: 2, pct: -4, date: '2026-10-09' }] },
+    ]), null);
+    expect(pl.why).toBeNull();
+    expect(pl.day('2026-10-09')).toMatchObject({ count: 3, sumPct: -1, curve: [0, 2, -2, -1] });
+    expect(pl.day('2026-10-13')).toMatchObject({ count: 1, sumPct: -1.5 });
+    expect(pl.of('2026-10-09', 'ALPHA')).toMatchObject({ count: 2, sumPct: 3 });
+    expect(pl.of('2026-10-13', 'BRAVO')).toMatchObject({ count: 0 });
+    // A day with no scored trade has no figure in its square, never $0.
+    expect(pl.day('2026-10-12')).toBeNull();
+  });
+
+  it('shows no day figures while the record is read, or from a backend that sends no day', () => {
+    expect(daysPl(null, null)).toMatchObject({ why: FT_PL_WAITING });
+    // A refresh that failed after a good answer: no stale figures, the error says why.
+    const kept = records([{ name: 'ALPHA', record: RECORD, scored: [{ ts: 1, pct: 2, date: '2026-10-09' }] }]);
+    const failed = daysPl(kept, 'HTTP 500');
+    expect(failed.why).toBe('HTTP 500');
+    expect(failed.day('2026-10-09')).toBeNull();
+    expect(failed.of('2026-10-09', 'ALPHA')).toBeNull();
+    const old = daysPl(records([{ name: 'ALPHA', record: RECORD, scored: [{ ts: 1, pct: 2 }] }]), null);
+    expect(old.why).toBe(FT_PL_NO_DAY);
+    expect(old.day('2026-10-09')).toBeNull();
+    expect(old.of('2026-10-09', 'ALPHA')).toBeNull();
   });
 });

@@ -342,8 +342,9 @@ positions are not priced here; a trade still open at the end of its day counts a
 the day route, with `overall: null` and no traders.
 
 `scored` (2026-10-14, "What they made, per share in %" below): the trader's trades the record counts as `win`,
-`loss` or `scratch`, oldest exit first, `[{ts, pct}]` -- `ts` the exit's `to_ts` (epoch seconds) and `pct` the trade's
-`pl.pct` as on the day route. An unscored trade (no one exit price, its exit still pending, a ticker not settled) and
+`loss` or `scratch`, oldest exit first, `[{ts, pct, date}]` -- `ts` the exit's `to_ts` (epoch seconds), `pct` the trade's
+`pl.pct` as on the day route, and `date` the feed's day of the trade (2026-10-15: the day picker adds each day up from
+it, below; absent from an older backend, which then shows no day figures). An unscored trade (no one exit price, its exit still pending, a ticker not settled) and
 an open one are not in it; a pending exit joins it once read, as it joins the record. A desk whose backend sends no
 `scored` says so beside the figure and shows none.
 
@@ -530,5 +531,12 @@ page.
 - **Hover:** what the number is (their own average in, the market price when it left their bar out), its average a
   trade in %, that their dollars are unknown because the feed shows no size,
   and what is left out (the unscored count, open positions).
+- **In the day picker (operator ask 2026-10-15: "the result of each for each day", "and the price in each
+  square"):** the calendar reads `/record?range=all` once when it opens (again every `FOLLOWED_RECORD_REFRESH_MS`
+  while open) and adds `scored` up by its `date`. Each square with a scored trade shows everyone's total that day at
+  $1,000 a trade, short ("+$45", "−$1.2k"), green or red; a day with trades but none scored shows no figure, never
+  $0. Each trader's row under the day picked shows their own figure that day, the same as their card's Day figure
+  (dollars, line and the same hover). While the record is read, when it fails, or from a backend whose `scored` has no
+  `date`, the squares show no figure and the rows a dash with why.
 
 The tab is placed after Cryptos on the rail, and the focus report names it `followed` (`book-watch-and-luld.md`).

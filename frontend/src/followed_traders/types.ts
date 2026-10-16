@@ -166,6 +166,8 @@ export type RecordRange = 'day' | 'week' | 'all';
 export interface ScoredPoint {
   ts: number;
   pct: number;
+  /** The feed's day of the trade, on `/record` (absent from an older backend). */
+  date?: string | null;
 }
 
 /** `GET /api/followed-traders/record`. */

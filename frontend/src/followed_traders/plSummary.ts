@@ -6,7 +6,7 @@
  * exit seen only in a window, not read yet, a close the feed never saw) has no one price, so it is left out, never
  * guessed, and an open position has no exit yet. Pure. Schema: architecture/schema/followed-traders.md.
  */
-import { FT_BAD_ANSWER, FT_PL_OLD_BACKEND, FT_PL_WAITING, FT_UNREACHABLE } from './constants';
+import { FT_BAD_ANSWER, FT_PL_NO_DAY, FT_PL_OLD_BACKEND, FT_PL_WAITING, FT_UNREACHABLE } from './constants';
 import { isRangePl } from './format';
 import type { FollowedRecords, FollowedTrade, FollowedTrader, ScoredPoint } from './types';
 
@@ -93,4 +93,42 @@ export function recordPl(records: FollowedRecords | null, error: string | null):
   }
   if (records.traders.some((t) => !Array.isArray(t.scored))) return none(FT_PL_OLD_BACKEND);
   return span(new Map(records.traders.map((t) => [t.name, t.scored ?? []])));
+}
+
+/** Each day's figures, from `/record?range=all`, for the day picker: everyone's that day (the square; null with no
+ *  scored trade, so the square shows none, never $0) and each trader's (the row; none scored is a count of 0, which
+ *  the figure shows as a dash saying why). `why` says why there are none at all. */
+export interface DaysPl {
+  day: (date: string) => PlSummary | null;
+  of: (date: string, name: string) => PlSummary | null;
+  why: string | null;
+}
+
+export function daysPl(records: FollowedRecords | null, error: string | null): DaysPl {
+  const none = (why: string): DaysPl => ({ day: () => null, of: () => null, why });
+  // A refresh that failed keeps the last answer beside its error; the picker shows none rather than a stale one.
+  if (error) return none(error);
+  const all = recordPl(records, null);
+  if (all.why !== null) return none(all.why);
+  const traders = records?.traders ?? [];
+  if (traders.some((t) => (t.scored ?? []).some((p) => !p.date))) return none(FT_PL_NO_DAY);
+  const byDay = new Map<string, Map<string, ScoredPoint[]>>();
+  for (const t of traders) {
+    for (const p of t.scored ?? []) {
+      const date = p.date as string;
+      const day = byDay.get(date) ?? new Map<string, ScoredPoint[]>();
+      byDay.set(date, day);
+      day.set(t.name, [...(day.get(t.name) ?? []), p]);
+    }
+  }
+  return {
+    day: (date) => {
+      const day = byDay.get(date);
+      return day ? summarize(mergePoints([...day.values()])) : null;
+    },
+    of: (date, name) => {
+      return summarize(byExit(byDay.get(date)?.get(name) ?? []));
+    },
+    why: null,
+  };
 }

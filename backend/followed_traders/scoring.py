@@ -39,11 +39,12 @@ def record(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "win_rate": round(counts["win"] / decided * 100.0, 1) if decided else None}
 
 
-def scored(rows: list[dict[str, Any]]) -> list[dict[str, float]]:
-    """``[{ts, pct}]``: the trades a record counts as won, lost or scratched -- the exit's ``to_ts`` and the P/L per
-    share in percent points -- oldest exit first. Unscored and open trades have no one exit price, so none is here."""
+def scored(rows: list[dict[str, Any]], dates: list[str] | None = None) -> list[dict[str, Any]]:
+    """``[{ts, pct, date}]``: the trades a record counts as won, lost or scratched -- the exit's ``to_ts``, the P/L per
+    share in percent points and the feed's day of the trade (``dates[i]`` for ``rows[i]``; null without it) -- oldest
+    exit first. Unscored and open trades have no one exit price, so none is here."""
     out = []
-    for row in rows:
+    for i, row in enumerate(rows):
         if (row.get("result") if "result" in row else result(row)) in SCORED:
-            out.append({"ts": row["exit"]["to_ts"], "pct": row["pl"]["pct"]})
+            out.append({"ts": row["exit"]["to_ts"], "pct": row["pl"]["pct"], "date": dates[i] if dates else None})
     return sorted(out, key=lambda p: p["ts"])

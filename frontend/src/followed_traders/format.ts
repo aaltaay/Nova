@@ -79,6 +79,14 @@ export function signedUsd(x: number): string {
   return `${x > 0 ? '+' : MINUS}$${s}`;
 }
 
+/** Dollars short enough for a calendar square: "+$45", "−$1.2k", "$0". */
+export function shortUsd(x: number): string {
+  const a = Math.abs(x);
+  const body = a >= 1000 ? `${(a / 1000).toFixed(a >= 10_000 ? 0 : 1)}k` : a.toFixed(0);
+  if (body === '0') return '$0';
+  return `${x > 0 ? '+' : MINUS}$${body}`;
+}
+
 /** What `FT_STAKE_USD` in the trade would have made, from its P/L in %: "−$26.32", or "−$15.00 to +$5.00" for a
  *  window exit. */
 export function plAtStake(pl: PointPl | RangePl | null): string {

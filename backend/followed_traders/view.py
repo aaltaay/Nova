@@ -67,18 +67,20 @@ def records(got: dict[str, Any], *, span: str, now: float, exit_for: ExitFor,
     trades when they left, as on the day."""
     seen_by_date = seen_by_date or {}
     rows: dict[str, list[dict[str, Any]]] = {}
+    days: dict[str, list[str]] = {}
     trades = [closed_on_leaving(t, left_bar(seen_by_date.get(t["date"]), t["trader"])) for t in got["trades"]]
     for trade, shown, ticker in joined(trades, ticker_for):
         row = row_of(trade, shown, ticker, trade["date"], now=now, prices={"state": "off", "why": None},
                      now_for=lambda t: now_state("off"), exit_for=exit_for)
         rows.setdefault(trade["trader"], []).append(row)
+        days.setdefault(trade["trader"], []).append(trade["date"])
     every = [r for group in rows.values() for r in group]
     return {"schema_version": FOLLOWED_SCHEMA_VERSION, "generated_at": round(now, 3),
             "feed": {"state": "ok", "error": None}, "range": span, "from": got["from"], "to": got["to"],
             "dates": list(got["dates"]),
             "pending": sum(1 for r in every if (r["exit"] or {}).get("state") == "pending"),
             "overall": scoring.record(every),
-            "traders": [{"name": name, "record": scoring.record(group), "scored": scoring.scored(group)}
+            "traders": [{"name": name, "record": scoring.record(group), "scored": scoring.scored(group, days[name])}
                         for name, group in rows.items()]}
 
 
