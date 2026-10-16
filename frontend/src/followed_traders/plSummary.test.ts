@@ -118,6 +118,12 @@ describe('each day in the picker (operator ask 2026-10-15: "the result of each f
 
   it('shows no day figures while the record is read, or from a backend that sends no day', () => {
     expect(daysPl(null, null)).toMatchObject({ why: FT_PL_WAITING });
+    // A refresh that failed after a good answer: no stale figures, the error says why.
+    const kept = records([{ name: 'ALPHA', record: RECORD, scored: [{ ts: 1, pct: 2, date: '2026-10-09' }] }]);
+    const failed = daysPl(kept, 'HTTP 500');
+    expect(failed.why).toBe('HTTP 500');
+    expect(failed.day('2026-10-09')).toBeNull();
+    expect(failed.of('2026-10-09', 'ALPHA')).toBeNull();
     const old = daysPl(records([{ name: 'ALPHA', record: RECORD, scored: [{ ts: 1, pct: 2 }] }]), null);
     expect(old.why).toBe(FT_PL_NO_DAY);
     expect(old.day('2026-10-09')).toBeNull();

@@ -105,8 +105,10 @@ export interface DaysPl {
 }
 
 export function daysPl(records: FollowedRecords | null, error: string | null): DaysPl {
-  const all = recordPl(records, error);
   const none = (why: string): DaysPl => ({ day: () => null, of: () => null, why });
+  // A refresh that failed keeps the last answer beside its error; the picker shows none rather than a stale one.
+  if (error) return none(error);
+  const all = recordPl(records, null);
   if (all.why !== null) return none(all.why);
   const traders = records?.traders ?? [];
   if (traders.some((t) => (t.scored ?? []).some((p) => !p.date))) return none(FT_PL_NO_DAY);
