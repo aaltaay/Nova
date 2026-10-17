@@ -397,7 +397,10 @@ Search extracts of community and LuxAlgo scripts:
 ```
 
 - **Off:** `{"schema_version": 1, "enabled": false}`.
-- **Unknown or missing:** `null` with `error` in words. Never a zero.
+- **Unknown or missing:** the response keeps its shape. The profile fields (`poc`, `vah`, `val`, `histogram`,
+  `zones`, `shape`, `yesterday`) are `null`, and the top-level `error` says why in words. For example: `{"schema_version": 1,
+  "enabled": true, "symbol": "AAPL", "kind": "today", "source": null, "poc": null, ..., "error": "IBKR history did
+  not answer for AAPL 1-minute bars"}`. Never a zero, and never a bare `null` with no reason.
 - **Large Cap rows** add `vp: {shape, vs_yesterday, to_poc_pct, signal} | null`.
 - **Signals** use the setup row of `setups.md`, with kinds `va_reentry` and `vp_zone_edge`.
 
