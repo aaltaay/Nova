@@ -21,7 +21,7 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
 import { useBotAllowlist } from '../bot/useBotAllowlist';
 import { useWatchList } from '../watch_list';
-import { getRecordingSymbols, isTabRecording, subscribeSessionRecord } from '../capture/sessionRecordStore';
+import { getRecordingSymbols, isTabRecording, subscribeSessionRecord } from '../capture';
 import {
   FOCUS_RAIL_ARIA,
   FOCUS_RAIL_COLLAPSE,
@@ -45,16 +45,16 @@ import {
   HOD_MOMO_STRIP_EMPTY_CONNECTING, hodReplayNoHistoryText, useHodMomoOptional, useHodStripView,
   type HodMomoContextValue, type HodMomoReplayState, type HodStripView,
 } from '../hod_momo';
-import { useLiveScannerFeedOptional, type LiveScannerFeed } from '../scanner/ScannerDataContext';
-import { listAbsenceText } from '../scanner/listAbsence';
-import { replayListAbsence } from '../leaderboard/leaderboardRows';
-import { useSettingsOptional } from '../settings/SettingsContext';
-import { useSimReplayDesk } from '../sim/useSimReplayDesk';
+import { useLiveScannerFeedOptional, type LiveScannerFeed } from '../scanner';
+import { listAbsenceText } from '../scanner';
+import { replayListAbsence } from '../leaderboard';
+import { useSettingsOptional } from '../settings';
+import { useSimReplayDesk } from '../sim';
 import { consumeFocusListRequest, subscribeFocusListRequest } from '../workspace';
 import {
   isTabModuleId, listScannerListModules, tabUsesScannerPricePatch, type ActiveTab, type NovaModule,
-} from '../workspace/registry';
-import { useWorkspace } from '../workspace/WorkspaceContext';
+} from '../workspace';
+import { useWorkspace } from '../workspace';
 import type { ScannerRow } from '../types/scanner';
 import {
   SAVED_FOCUS_RAIL_STORE, focusRowsFor, isHodFocusList, routeFocusList, watchFocusRows,

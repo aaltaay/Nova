@@ -42,7 +42,7 @@ import {
   practiceResetDone,
 } from '../constantGroups/practice';
 import { formatSignedMoney } from '../components/globalBarMoney';
-import { resetPracticeAccount } from '../practice/practiceAccountResource';
+import { resetPracticeAccount } from '../practice';
 import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';

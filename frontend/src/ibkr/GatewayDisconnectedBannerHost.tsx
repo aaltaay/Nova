@@ -2,8 +2,8 @@
  * App-level host so Open live/paper stays visible when DashboardPage is
  * hidden (Trader view). Same workspace + settings the scanner banner used.
  */
-import { useSettings } from '../settings/SettingsContext';
-import { useWorkspace } from '../workspace/WorkspaceContext';
+import { useSettings } from '../settings';
+import { useWorkspace } from '../workspace';
 import { GatewayDisconnectedBanner } from './GatewayDisconnectedBanner';
 
 export function GatewayDisconnectedBannerHost() {

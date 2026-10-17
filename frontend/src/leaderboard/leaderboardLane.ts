@@ -5,8 +5,8 @@
  * gaps between as gaps with their reason. Nothing is drawn until the coverage
  * for the clock's day has answered: an unknown is never drawn as "not recorded".
  */
-import type { SimClockState } from '../sim/simClockTypes';
-import { clockWindow } from '../sim/simStripFormat';
+import type { SimClockState } from '../sim';
+import { clockWindow } from '../sim';
 import {
   LEADERBOARD_LANE_GAP_WORD,
   LEADERBOARD_SOURCE_WORD,

@@ -6,7 +6,7 @@ import {
   REL_VOLUME_HIGH,
 } from '../constants';
 import { QUOTE_GAP_OPEN_TITLE } from '../constantGroups/trader_view';
-import { computeQuoteMetrics } from '../modules/quoteMetrics';
+import { computeQuoteMetrics } from '../modules';
 import type { TickerDetail } from '../types/ticker';
 import { fmtSessionPrice, fmtVolume, pctToneClass } from '../utils/quoteFormat';
 import { replayDayLabel } from '../utils/replayMoment';

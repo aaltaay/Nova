@@ -20,7 +20,7 @@ import {
   TICKET_LEGS_OFFSET_ERROR,
 } from '../constantGroups/trade_defaults';
 import type { ManualOrderSide, ManualOrderType } from './orderEntry';
-import type { TradeDefaultsPrefs } from '../settings/tradeDefaultsPrefs';
+import type { TradeDefaultsPrefs } from '../settings';
 
 export type ProtectiveLegsPlan =
   | { kind: 'none'; note: string | null }

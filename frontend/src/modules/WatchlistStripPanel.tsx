@@ -1,6 +1,6 @@
 /** Watchlist pillars / scores strip for the open ticker. */
 import { TickerWatchlistStrip } from '../components/TickerWatchlistStrip';
-import type { WatchlistEntry } from '../strategy/types';
+import type { WatchlistEntry } from '../strategy';
 
 interface Props {
   entry?: WatchlistEntry | null;

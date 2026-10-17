@@ -4,7 +4,7 @@
  * was cleared, the gates in two stages, the sleeve per venue and today's Nova entries --
  * and a fetch router that answers every endpoint the page reads. Pure data -- the tests wrap `botsFetchRouter` in their own mock.
  */
-import type { SetupStoreRow } from '../setups/useSetupRows';
+import type { SetupStoreRow } from '../setups';
 import templatesFixture from './setupTemplatesFixture.json';
 import type { TemplatesPayload } from './templateTypes';
 import type { BotAuditEntry, BotCaps, BotGate, BotProposal, BotSession } from './types';

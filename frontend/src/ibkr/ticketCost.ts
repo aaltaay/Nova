@@ -17,7 +17,7 @@
  */
 import { SHORT_COST_NOTE } from '../constantGroups/short_ticket';
 import { TICKET_COST_NO_POSITION } from '../constantGroups/trader_chrome';
-import { practiceBuyingPowerAfter } from '../practice/practiceBuyingPower';
+import { practiceBuyingPowerAfter } from '../practice';
 import {
   resolveOrderQuantity,
   type ManualOrderValues,

@@ -6,10 +6,10 @@
  * ("12 SAMPLE").
  */
 import { useMemo } from 'react';
-import type { ClosedOrder } from '../closed_orders/types';
+import type { ClosedOrder } from '../closed_orders';
 import { ORDERS_TODAY_FILTERS, type OrdersTodayFilterId, type StockViewDockSurface } from '../constants';
-import { buildMockWorkingOrders } from '../ibkr/mockWorkingOrders';
-import type { IbkrOrder } from '../ibkr/types';
+import { buildMockWorkingOrders } from '../ibkr';
+import type { IbkrOrder } from '../ibkr';
 import { ordersTodayBadgeCount } from '../orders_today';
 import type { OrdersTodayFilter } from '../orders_today';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';

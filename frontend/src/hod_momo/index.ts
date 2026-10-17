@@ -13,6 +13,7 @@ export {
   isAlertDockMode,
   isRosterDockMode,
   SCANNER_DOCK_ROSTER_MODES,
+  type ScannerDockRosterMode,
 } from './scannerDockModes';
 export {
   isRunningUpStrategy,

@@ -8,9 +8,9 @@
  * up what IBKR reported -- a dash while a filled order still has no report,
  * never a guess. Pure.
  */
-import type { IbkrOrder } from '../ibkr/types';
-import { plausiblePrice } from '../ibkr/orderDisplay';
-import { uniqueOrders } from '../ibkr/orderIdentity';
+import type { IbkrOrder } from '../ibkr';
+import { plausiblePrice } from '../ibkr';
+import { uniqueOrders } from '../ibkr';
 import type { HistoryFill } from './accountHistoryTypes';
 
 const finite = (n: number | null | undefined): number | null =>

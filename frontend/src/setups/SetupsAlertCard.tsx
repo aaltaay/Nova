@@ -14,7 +14,7 @@ import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import { useConfirmedDeskVenue } from '../ibkr';
 import { tipProps } from '../ux/hoverTip';
 import { whyProps } from '../ux/whyTip';
-import { useWorkspace } from '../workspace/WorkspaceContext';
+import { useWorkspace } from '../workspace';
 import { TickerLink } from '../components/TickerLink';
 import { dismiss, dismissedProposals, subscribe } from './proposalDismissals';
 import { proposalStageLock, proposalStageSize, proposalVerdictLine, stageLimit } from './proposalVerdict';

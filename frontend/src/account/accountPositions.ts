@@ -2,8 +2,8 @@
  * One position shape whichever account is THE account on the venue: the
  * practice ledger's rows on Paper / Sim, IBKR's on Live. Pure.
  */
-import type { IbkrPosition } from '../ibkr/types';
-import type { PracticePosition } from '../practice/practiceTypes';
+import type { IbkrPosition } from '../ibkr';
+import type { PracticePosition } from '../practice';
 
 export interface AccountPosition {
   symbol: string;

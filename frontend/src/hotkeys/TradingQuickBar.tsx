@@ -13,7 +13,7 @@ import {
   QUICK_TRADES_CUSTOMIZE_ARIA,
   QUICK_TRADES_CUSTOMIZE_TITLE,
 } from '../constantGroups/trader_chrome';
-import { useSettingsOptional } from '../settings/SettingsContext';
+import { useSettingsOptional } from '../settings';
 import { formatKeyChord } from './htkFormat';
 import { useHotkeyDispatchOptional } from './HotkeyDispatchContext';
 import { QuickTradeGearIcon, QuickTradeIcon } from './quickTradeIcons';

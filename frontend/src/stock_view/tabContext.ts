@@ -12,7 +12,7 @@ import {
   TRADER_CATALYST_SPLIT,
 } from '../constantGroups/trader_chrome';
 import { SCANNER_QUOTE_CLOSE_FALLBACK } from '../constantGroups/market_ui';
-import type { ScannerDockRows } from '../scanner/useScannerDockRows';
+import type { ScannerDockRows } from '../scanner';
 import type { Catalyst } from '../types/catalyst';
 import type { CatalystVerdict } from '../types/catalystVerdict';
 import type { ScannerRow } from '../types/scanner';

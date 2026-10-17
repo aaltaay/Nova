@@ -5,7 +5,7 @@ import { SelectableTableRow } from '../components/SelectableTableRow';
 import { ScannerRowNumCell, ScannerRowNumHeader } from '../components/ScannerTable';
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
 import { useBotAllowlist } from '../bot/useBotAllowlist';
-import { useSetupsBoard } from '../setups/SetupsStreamContext';
+import { useSetupsBoard } from '../setups';
 import { rowRank } from '../setups';
 import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import {
@@ -34,7 +34,7 @@ import {
   type WatchlistFilter,
 } from './watchlistFormat';
 import type { WatchlistEntry, WatchlistReplay } from './types';
-import type { SetupRow } from '../setups/types';
+import type { SetupRow } from '../setups';
 import './watchlist.css';
 
 const FILTERS: WatchlistFilter[] = ['all', 'pillars5', 'setup_live', 'allowlist'];

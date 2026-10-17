@@ -1,4 +1,4 @@
-import type { DepthLevel } from '../ibkr/types';
+import type { DepthLevel } from '../ibkr';
 
 /**
  * A Level 2 book the local recorder archived for the replayed session (#309).

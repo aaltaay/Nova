@@ -11,7 +11,7 @@ import { API_BASE_URL } from '../constants';
 import { novaFetch } from '../api/novaFetch';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import { requestFocusList } from '../workspace';
-import { useWorkspace } from '../workspace/WorkspaceContext';
+import { useWorkspace } from '../workspace';
 import { alertApp, confirmApp } from '../ux';
 import { computeVisibleRowRange } from './HodMomoAlertTable';
 import { HodMomoDebugPanel } from './HodMomoDebugPanel';

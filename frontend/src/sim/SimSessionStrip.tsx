@@ -21,7 +21,7 @@ import {
   SIM_STRIP_TRANSPORT_FIRST,
   SIM_STRIP_TRANSPORT_FORWARD,
 } from '../constantGroups/trader_chrome';
-import { useWorkspace } from '../workspace/WorkspaceContext';
+import { useWorkspace } from '../workspace';
 import { historicalStatus } from './historicalStatusStore';
 import { etTime } from './historicalReplayFormat';
 import { SimPlaybackButton } from './SimPlaybackButton';
@@ -39,9 +39,9 @@ import {
   stripBandSegments, stripScale, todayEt,
 } from './simStripFormat';
 import { SimDayPicker } from './SimDayPicker';
-import { leaderboardLane } from '../leaderboard/leaderboardLane';
-import { useLeaderboardCoverage } from '../leaderboard/useLeaderboardCoverage';
-import { useLeaderboardDays } from '../leaderboard/useLeaderboardDays';
+import { leaderboardLane } from '../leaderboard';
+import { useLeaderboardCoverage } from '../leaderboard';
+import { useLeaderboardDays } from '../leaderboard';
 import { useMassiveDays } from './massiveDaysStore';
 import { useProgressiveReplay } from './useProgressiveReplay';
 import { useSimSessionController } from './useSimSessionController';

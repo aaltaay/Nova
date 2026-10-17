@@ -5,7 +5,7 @@
  * 026 / 027 data and actions unchanged). Shared with the Scanner desk.
  */
 import { memo, useEffect, useState } from 'react';
-import { useClosedOrders } from '../closed_orders/useClosedOrders';
+import { useClosedOrders } from '../closed_orders';
 import {
   ORDERS_TODAY_TITLE,
   STOCK_VIEW_MODULE_POSITIONS_TITLE,
@@ -18,7 +18,7 @@ import type {
   IbkrMode,
   IbkrOrder,
   IbkrPosition,
-} from '../ibkr/types';
+} from '../ibkr';
 import { OrdersTodayView } from '../orders_today';
 import type { OrdersTodayFilter } from '../orders_today';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';

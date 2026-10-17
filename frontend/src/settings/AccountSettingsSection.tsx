@@ -14,11 +14,11 @@ import {
   SETTINGS_ACCOUNT_TITLE,
   SETTINGS_ACCOUNT_VENUE_LABELS,
 } from '../constantGroups/trade_defaults';
-import { deskVenueOf } from '../ibkr/deskVenue';
-import { spendStatusLabel } from '../ibkr/spendLock';
-import { useIbkrStatus } from '../ibkr/useIbkrStatus';
-import { setNavPage } from '../workspace/navRailStore';
-import { useWorkspace } from '../workspace/WorkspaceContext';
+import { deskVenueOf } from '../ibkr';
+import { spendStatusLabel } from '../ibkr';
+import { useIbkrStatus } from '../ibkr';
+import { setNavPage } from '../workspace';
+import { useWorkspace } from '../workspace';
 
 interface Props {
   onClose: () => void;

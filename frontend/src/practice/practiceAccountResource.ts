@@ -14,8 +14,8 @@ import {
   practiceAccountPath,
   type PracticeVenue,
 } from '../constantGroups/practice';
-import { replayPollResource, type ReplayResourceState } from '../sim/replayPollResource';
-import { replayPost, replayRequest } from '../sim/replayRequest';
+import { replayPollResource, type ReplayResourceState } from '../sim';
+import { replayPost, replayRequest } from '../sim';
 import { isPracticeVenue } from './practiceAccountModel';
 import type { PracticeAccount } from './practiceTypes';
 
@@ -25,12 +25,17 @@ import type { PracticeAccount } from './practiceTypes';
  * from a dead poll, unmarked, as if current (QA 2026-09-22, C44).
  */
 const options = { failure: PRACTICE_ACCOUNT_REQUEST_FAILED, maxStaleMs: PRACTICE_ACCOUNT_STALE_MS };
-const resources = {
-  paper: replayPollResource<PracticeAccount>(practiceAccountPath('paper'), () => PRACTICE_ACCOUNT_POLL_MS, options),
-  sim: replayPollResource<PracticeAccount>(practiceAccountPath('sim'), () => PRACTICE_ACCOUNT_POLL_MS, options),
-} as const;
+type PracticeResource = ReturnType<typeof replayPollResource<PracticeAccount>>;
+const resources = new Map<PracticeVenue, PracticeResource>();
 
-export const practiceAccountResource = (venue: PracticeVenue) => resources[venue];
+export function practiceAccountResource(venue: PracticeVenue): PracticeResource {
+  let resource = resources.get(venue);
+  if (!resource) {
+    resource = replayPollResource<PracticeAccount>(practiceAccountPath(venue), () => PRACTICE_ACCOUNT_POLL_MS, options);
+    resources.set(venue, resource);
+  }
+  return resource;
+}
 
 const IDLE: ReplayResourceState<PracticeAccount> = { data: null, error: null };
 const idleSnapshot = () => IDLE;
@@ -40,10 +45,10 @@ const noop = () => {};
 export function usePracticeAccount(venue: string | null | undefined): ReplayResourceState<PracticeAccount> {
   const practice = isPracticeVenue(venue) ? venue : null;
   const subscribe = useCallback(
-    (listener: () => void) => (practice ? resources[practice].subscribe(listener) : noop),
+    (listener: () => void) => (practice ? practiceAccountResource(practice).subscribe(listener) : noop),
     [practice],
   );
-  const getSnapshot = practice ? resources[practice].getSnapshot : idleSnapshot;
+  const getSnapshot = practice ? practiceAccountResource(practice).getSnapshot : idleSnapshot;
   return useSyncExternalStore(subscribe, getSnapshot);
 }
 
@@ -52,7 +57,7 @@ export async function resetPracticeAccount(
   venue: PracticeVenue,
   startingCash: number | null,
 ): Promise<PracticeAccount> {
-  const resource = resources[venue];
+  const resource = practiceAccountResource(venue);
   resource.suspend();
   try {
     const body = startingCash == null ? { venue } : { venue, starting_cash: startingCash };

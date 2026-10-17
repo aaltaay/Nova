@@ -12,11 +12,11 @@ import {
   CLOSED_ORDERS_RECENT_ROW_TITLE,
   CLOSED_ORDERS_SAMPLE_BANNER,
 } from '../constants';
-import { lastKnownBanner } from '../ibkr/disconnectCopy';
+import { lastKnownBanner } from '../ibkr';
 import {
   OrderTableColumnHeader,
   OrderTableDnd,
-} from '../ibkr/OrderTableColumnHeader';
+} from '../ibkr';
 import {
   formatOrderSide,
   formatOrderStatus,
@@ -25,18 +25,18 @@ import {
   orderSideRowClass,
   orderStatusTone,
   orderSubmittedIso,
-} from '../ibkr/orderDisplay';
-import { displayFilledQty } from '../ibkr/orderFillHonesty';
-import { orderRowKeys } from '../ibkr/orderIdentity';
+} from '../ibkr';
+import { displayFilledQty } from '../ibkr';
+import { orderRowKeys } from '../ibkr';
 import {
   CLOSED_COLUMN_META,
   DEFAULT_CLOSED_ORDER_COLUMNS,
   normalizeColumnOrder,
   type ClosedOrderColumnId,
-} from '../ibkr/orderTableColumns';
-import { sortOrders } from '../ibkr/orderTableSort';
-import { useOrderTableColumnOrder } from '../ibkr/useOrderTableColumnOrder';
-import { useOrderTableSort } from '../ibkr/useOrderTableSort';
+} from '../ibkr';
+import { sortOrders } from '../ibkr';
+import { useOrderTableColumnOrder } from '../ibkr';
+import { useOrderTableSort } from '../ibkr';
 import { isClosedOrderRecent } from './closedOrderRecency';
 import { renderClosedOrderCell } from './closedOrderCells';
 import { filterClosedOrders } from './filterClosedOrders';

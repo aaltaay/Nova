@@ -6,7 +6,7 @@
  * damage never throws: a bad field is dropped (read as absent), a bad row is
  * skipped, and the views state the absence instead of crashing the desk.
  */
-import type { DepthLevel } from '../ibkr/types';
+import type { DepthLevel } from '../ibkr';
 import type {
   ExchangeBookCoverage, ExchangeBookVenue, HistoricalDepthBook, HistoricalJob, HistoricalSelection, HistoricalStatus,
   MassiveCap, MassiveDays, MassiveQuoteStatus, MassiveSummary,

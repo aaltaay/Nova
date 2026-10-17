@@ -1,4 +1,4 @@
-import { GatewayDoorTrail } from '../ibkr/GatewayDoorTrail';
+import { GatewayDoorTrail } from '../ibkr';
 import { ActivityPanel } from './ActivityPanel';
 import { ActivityTrail } from './ActivityTrail';
 import { useActivityLedger } from './useActivityLedger';

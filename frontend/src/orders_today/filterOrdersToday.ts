@@ -1,10 +1,10 @@
 /**
  * Orders (Today) bucket filters — Working / Filled / Canceled / Partial / All.
  */
-import { filterClosedOrders } from '../closed_orders/filterClosedOrders';
-import type { ClosedOrder, ClosedOrdersFilter } from '../closed_orders/types';
-import { formatOrderStatus } from '../ibkr/orderDisplay';
-import type { IbkrOrder } from '../ibkr/types';
+import { filterClosedOrders } from '../closed_orders';
+import type { ClosedOrder, ClosedOrdersFilter } from '../closed_orders';
+import { formatOrderStatus } from '../ibkr';
+import type { IbkrOrder } from '../ibkr';
 import type { OrdersTodayFilter } from './types';
 
 function statusLabel(o: IbkrOrder): string {

@@ -17,7 +17,7 @@ import {
   SIM_TAB_WINDOW_END,
   SIM_TAB_WINDOW_START,
 } from './simConstants';
-import type { IbkrStatus } from '../ibkr/types';
+import type { IbkrStatus } from '../ibkr';
 import {
   isMassive, type HistoricalJob, type HistoricalStatus, type HistoricalWindow, type MassiveCap, type MassiveSummary,
 } from './historicalTypes';

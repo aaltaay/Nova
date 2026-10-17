@@ -16,13 +16,13 @@ import {
   parseStockViewSymbol,
   replaceStockViewUrl,
 } from '../utils/stockViewNav';
-import { useWorkspace } from '../workspace/WorkspaceContext';
+import { useWorkspace } from '../workspace';
 import {
   allowTraderTabDrop,
   canExtractFromDesk,
   isForeignTabDrag,
   takeForeignTraderTabDrop,
-} from '../workspace/traderDesk';
+} from '../workspace';
 import { SimSessionStrip } from '../sim/SimSessionStrip';
 import { ClipFrame, useClipTabReport } from '../clips';
 import { FocusRail } from './FocusRail';

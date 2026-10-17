@@ -14,7 +14,7 @@ import { hmrStableContext } from '../utils/hmrStableContext';
 import { API_URL } from '../constants';
 import { useIbkrStatus } from '../ibkr';
 import type { DeskVenue } from '../constantGroups/desk_venue';
-import type { IbkrMode } from '../ibkr/types';
+import type { IbkrMode } from '../ibkr';
 import { ibkrStatusView } from './ibkrStatusView';
 import {
   useTraderDeskBinding,

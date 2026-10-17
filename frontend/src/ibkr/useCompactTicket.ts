@@ -17,7 +17,7 @@ import {
   writeTradeDefaultsPrefs,
   useTradeDefaultsPrefs,
 } from '../settings';
-import { marketFillPrice } from '../sim/useReplayQuote';
+import { marketFillPrice } from '../sim';
 import type { ManualOrderSide, ManualOrderType, QuantityMode } from './orderEntry';
 import { estimateTicketCost, type TicketCostEstimate } from './ticketCost';
 import type { IbkrAccountSummary, IbkrMode, IbkrPosition } from './types';

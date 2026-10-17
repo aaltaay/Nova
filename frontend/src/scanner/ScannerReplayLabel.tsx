@@ -5,11 +5,15 @@
  * stand (`Gappers by the second · 07:42:31 ET`, or the build's state) -- in place of `Today (Live) ▾` and today's
  * session countdown, which describe now, not the playhead.
  */
-import { bySecondNotice, LEADERBOARD_SECONDS_TITLE } from '../leaderboard';
-import { LEADERBOARD_LABEL_TITLE, LEADERBOARD_SOURCE_TITLE } from '../leaderboard/leaderboardConstants';
-import { replayLabel, replayNotice } from '../leaderboard/leaderboardRows';
-import type { ScannerReplay } from '../leaderboard/leaderboardTypes';
-import '../leaderboard/leaderboardPlayback.css';
+import {
+  bySecondNotice,
+  LEADERBOARD_LABEL_TITLE,
+  LEADERBOARD_SECONDS_TITLE,
+  LEADERBOARD_SOURCE_TITLE,
+  replayLabel,
+  replayNotice,
+  type ScannerReplay,
+} from '../leaderboard';
 
 export function ScannerReplayLabel({ replay }: { replay: ScannerReplay }) {
   const notice = replayNotice(replay);

@@ -10,7 +10,7 @@
 import { BOT_ACTION_KINDS, BOT_LEVEL_LABELS, BOT_SETUP_LABELS, BOT_SETUP_SHORT } from '../constantGroups/bot';
 import { SETUP_KIND_LABELS } from '../constantGroups/setups';
 import { isShortSetup } from '../constantGroups/short_setups';
-import type { SetupStoreRow } from '../setups/useSetupRows';
+import type { SetupStoreRow } from '../setups';
 import type { BotAuditEntry } from './types';
 
 export type ActivityFilter = 'all' | 'proposals' | 'fired' | 'refused' | 'system';

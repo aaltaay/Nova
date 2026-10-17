@@ -26,8 +26,8 @@ import {
   botsTodayArmedTip,
   botsTodayTriggeredTip,
 } from '../constantGroups/bots_page';
-import { todayPracticeDate } from '../account/accountFigures';
-import { useSetupsScoreboard } from '../setups/useSetupsScoreboard';
+import { todayPracticeDate } from '../account';
+import { useSetupsScoreboard } from '../setups';
 import type { Scoreboard } from '../setups';
 import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import { tipProps } from '../ux/hoverTip';

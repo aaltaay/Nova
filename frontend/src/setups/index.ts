@@ -1,7 +1,10 @@
 /** Public setup-scanner API -- cross-feature imports use this barrel (ADR 005). */
 
 export { useSetupsBoard, SetupsStreamProvider } from './SetupsStreamContext';
-export { useSetupRows } from './useSetupRows';
+export { SetupsPanel } from './SetupsPanel';
+export { SetupsTabCount } from './SetupsTabCount';
+export { useSetupRows, type SetupStoreRow } from './useSetupRows';
+export { useSetupsScoreboard } from './useSetupsScoreboard';
 export { shortStageOf, stageSetupTicket, stageVenueLock } from './stageSetupTicket';
 export { isShortRow } from './shortWords';
 export { etHms, isRecordedBoard, recordedEmptyText, simBoardLine, simBoardTip } from './simBoardWords';

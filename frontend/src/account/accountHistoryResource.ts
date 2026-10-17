@@ -13,8 +13,8 @@ import {
   type AccountRange,
 } from '../constantGroups/account_page';
 import type { PracticeVenue } from '../constantGroups/practice';
-import { isPracticeVenue } from '../practice/practiceAccountModel';
-import { replayPollResource, type ReplayResourceState } from '../sim/replayPollResource';
+import { isPracticeVenue } from '../practice';
+import { replayPollResource, type ReplayResourceState } from '../sim';
 import type { PracticeHistory } from './accountHistoryTypes';
 
 type HistoryResource = ReturnType<typeof replayPollResource<PracticeHistory>>;

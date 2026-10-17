@@ -3,7 +3,7 @@
  * parent desk. No GlobalAppBar / Bot Autonomy / Paper-Live-Sim.
  */
 import { TRADER_TAB_DOCK_ARIA, TRADER_TAB_DOCK_LABEL, TRADER_TAB_DOCK_TITLE } from '../constants';
-import { useWorkspace } from '../workspace/WorkspaceContext';
+import { useWorkspace } from '../workspace';
 
 export function FloatDeskChrome() {
   const {

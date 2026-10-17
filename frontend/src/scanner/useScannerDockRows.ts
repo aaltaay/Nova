@@ -4,15 +4,15 @@
 import { useMemo } from 'react';
 import { DISCOVERY_PROVIDER_DEFAULT } from '../constants';
 import type { ScannerTableMeta } from '../hooks/useScannerPriceStream';
-import type { ScannerDockRosterMode } from '../hod_momo/scannerDockModes';
+import type { ScannerDockRosterMode } from '../hod_momo';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
-import { useSettingsOptional } from '../settings/SettingsContext';
-import type { WatchlistEntry } from '../strategy/types';
+import { useSettingsOptional } from '../settings';
+import type { WatchlistEntry } from '../strategy';
 import type { Catalyst } from '../types/catalyst';
 import type { HealthStatus } from '../types/health';
 import type { MarketMode } from '../types/market';
 import type { Afterhours, Gapper, Mover } from '../types/scanner';
-import type { ActiveTab } from '../workspace/registry';
+import type { ActiveTab } from '../workspace';
 import { useLiveScannerFeedOptional } from './ScannerDataContext';
 
 export type ScannerDockRows = {

@@ -18,10 +18,10 @@ import {
   LEADERBOARD_PLAYBACK_RETRY_MS,
   hodMomoHistoryPath,
   hodMomoRebuildPath,
-} from '../leaderboard/leaderboardConstants';
-import { boardMinuteEnd, playheadSecond, useSimPlayheadMinute, useSimVenue } from '../leaderboard/simPlayhead';
-import { replayRequest } from '../sim/replayRequest';
-import { simClockResource } from '../sim/simClockResource';
+} from '../leaderboard';
+import { boardMinuteEnd, playheadSecond, useSimPlayheadMinute, useSimVenue } from '../leaderboard';
+import { replayRequest } from '../sim';
+import { simClockResource } from '../sim';
 import { uniqueAlerts } from './hodMomoWire';
 import type { AlertObject } from './types';
 

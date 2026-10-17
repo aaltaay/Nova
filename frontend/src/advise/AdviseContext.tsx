@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from 'react';
 import { hmrStableContext } from '../utils/hmrStableContext';
-import { useWorkspace } from '../workspace/WorkspaceContext';
+import { useWorkspace } from '../workspace';
 import {
   fetchAdviseEstimate,
   fetchAdviseHistory,

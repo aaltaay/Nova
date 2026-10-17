@@ -17,14 +17,14 @@ import {
 } from '../constants';
 import { useResizableHeight } from '../hooks/useResizableHeight';
 import { cancelIbkrOrderWithFeedback } from '../ibkr';
-import { confirmAndFillWorkingOrder } from '../ibkr/fillWorkingOrderImmediately';
-import type { IbkrOrder } from '../ibkr/types';
-import { useTopOfBook } from '../hotkeys/TopOfBookContext';
-import { useIbkrAccount } from '../ibkr/useIbkrAccount';
-import { useIbkrStatus } from '../ibkr/useIbkrStatus';
+import { confirmAndFillWorkingOrder } from '../ibkr';
+import type { IbkrOrder } from '../ibkr';
+import { useTopOfBook } from '../hotkeys';
+import { useIbkrAccount } from '../ibkr';
+import { useIbkrStatus } from '../ibkr';
 import { StockViewOpenOrdersDock } from '../stock_view/StockViewOpenOrdersDock';
 import { alertApp } from '../ux';
-import { useWorkspace } from '../workspace/WorkspaceContext';
+import { useWorkspace } from '../workspace';
 
 type Props = {
   children: ReactNode;

@@ -13,7 +13,7 @@ import {
   HOD_MOMO_STRIP_MENU_STRATEGIES,
 } from './hodMomoStripConstants';
 import { HOD_MOMENTUM_STRATEGY_META } from './scannerPartition';
-import { HOD_REPLAY_CLEAR_TITLE } from '../leaderboard/leaderboardConstants';
+import { HOD_REPLAY_CLEAR_TITLE } from '../leaderboard';
 
 type Props = {
   showStrategies: boolean;

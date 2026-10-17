@@ -41,7 +41,7 @@ import { useTicketPriceFollow } from './useTicketPriceFollow';
 import { useManualOrderSubmission } from './useManualOrderSubmission';
 import { useIbkrStatus } from './useIbkrStatus';
 import { useTradingPinGate } from './useTradingPinGate';
-import { useVenuePrice } from '../sim/useReplayQuote';
+import { useVenuePrice } from '../sim';
 import { getConfirmedDeskVenueSnapshot, subscribeConfirmedDeskVenue } from './confirmedDeskVenue';
 import { useTradeDefaultsPrefs } from '../settings';
 import { useTicketDefaultsSync } from './useTicketDefaultsSync';
