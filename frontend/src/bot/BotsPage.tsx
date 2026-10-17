@@ -18,7 +18,7 @@ import {
 import { SAMPLE_BOT_ABSENT } from '../sample_data/sampleCopy';
 import { useSampleRoute } from '../sample_data/useSampleRoute';
 import { useTradingPinGate } from '../ibkr';
-import { useWorkspace } from '../workspace/WorkspaceContext';
+import { useWorkspace } from '../workspace';
 import { requestScannerTab } from '../workspace';
 import { requestSetupsBoard, useSetupRows, useSetupsBoard } from '../setups';
 import { BotActivity } from './BotActivity';

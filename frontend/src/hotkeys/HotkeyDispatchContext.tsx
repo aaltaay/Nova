@@ -15,7 +15,7 @@ import {
 } from 'react';
 import { hmrStableContext } from '../utils/hmrStableContext';
 import { NOVA_ACTION_IN_FLIGHT_MESSAGE } from '../constants';
-import { notifyOrderRejected } from '../ibkr/notifyOrderRejected';
+import { notifyOrderRejected } from '../ibkr';
 import { chordToBinding, createHotkeyKeydownHandler } from '../hooks/hotkeyUtils';
 import { collectOccupiedSlots, getEffectiveMenuBinding } from './effectiveBindings';
 import {

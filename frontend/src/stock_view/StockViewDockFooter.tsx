@@ -17,7 +17,7 @@ import {
   DRAWER_UNREALIZED_UNKNOWN,
   drawerOpenPositions,
 } from '../constantGroups/trader_chrome';
-import type { IbkrMode, IbkrPosition } from '../ibkr/types';
+import type { IbkrMode, IbkrPosition } from '../ibkr';
 import { SAMPLE_MARKETING_LABEL } from '../sample_data/sampleCopy';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import { formatMoney } from '../utils/formatMoney';

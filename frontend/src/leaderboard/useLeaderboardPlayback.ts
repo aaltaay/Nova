@@ -9,8 +9,8 @@
  * day (plain playback); after a jump or across a gap nothing old is shown.
  */
 import { useEffect, useState } from 'react';
-import { replayRequest } from '../sim/replayRequest';
-import { simClockResource } from '../sim/simClockResource';
+import { replayRequest } from '../sim';
+import { simClockResource } from '../sim';
 import {
   LEADERBOARD_PLAYBACK_RETRY_MS,
   LEADERBOARD_REQUEST_FAILED,

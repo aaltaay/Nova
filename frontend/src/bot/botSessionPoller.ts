@@ -77,7 +77,7 @@ let pending = false;
 let applyEpoch = 0;
 let shareUnsub: (() => void) | null = null;
 let venueUnsub: (() => void) | null = null;
-let snapshotScope = getConfirmedDeskVenueSnapshot();
+let snapshotScope: ConfirmedDeskVenueSnapshot = { venue: null, generation: null };
 
 function bumpApplyEpoch(): number {
   applyEpoch += 1;

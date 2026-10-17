@@ -12,7 +12,7 @@ import { ClosePositionButton } from '../closed_orders';
 import type { ChartIndicatorId } from '../constants';
 import { CHART_INDICATORS } from '../constants';
 import { useOrderTicketListening } from '../ibkr';
-import type { IbkrMode, IbkrPosition } from '../ibkr/types';
+import type { IbkrMode, IbkrPosition } from '../ibkr';
 import { CHART_LINE_TOOLS } from './chartDrawingConfig';
 import {
   CHART_CONTEXT_MENU_EST_HEIGHT_PX,

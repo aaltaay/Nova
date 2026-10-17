@@ -2,7 +2,7 @@ import { defaultTicketQty, getConfirmedDeskVenueSnapshot } from '../ibkr';
 import {
   requestOrderTicketPrefill,
   type OrderTicketPrefill,
-} from '../ibkr/orderTicketPrefill';
+} from '../ibkr';
 import type { AdviseResult, AdviseTicketPrefill } from './types';
 
 export function adviseTicketPrefill(

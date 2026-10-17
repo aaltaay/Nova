@@ -9,7 +9,7 @@ import {
   TICKET_LAST_LABEL,
   TICKET_WHY_SENDING,
 } from '../constantGroups/trader_chrome';
-import { EstChip } from '../stock_view/EstChip';
+import { EstChip } from '../stock_view';
 import {
   GATEWAY_STATUS_KNOWN,
   gatewayLockWhy,

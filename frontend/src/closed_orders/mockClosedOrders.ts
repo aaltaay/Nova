@@ -12,7 +12,7 @@
  * make stamps crawl.
  */
 
-import { samplePriceAt } from '../ibkr/mockWorkingOrders';
+import { samplePriceAt } from '../ibkr';
 import type { ClosedOrder } from './types';
 
 /**

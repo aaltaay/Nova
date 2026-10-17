@@ -6,7 +6,7 @@ import {
   getIbkrStatusSnapshot,
   refreshIbkrStatusNow,
   subscribeIbkrStatus,
-} from '../ibkr/ibkrStatusPoller';
+} from '../ibkr';
 import { CAPTURE_COMMAND_PLAIN_ERROR_MAX_CHARS, CAPTURE_STATUS_FRESH_MS } from './constants';
 
 type Listener = () => void;

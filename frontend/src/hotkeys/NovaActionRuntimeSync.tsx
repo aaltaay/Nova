@@ -4,8 +4,8 @@
  */
 
 import { useEffect } from 'react';
-import { useIbkrStatus } from '../ibkr/useIbkrStatus';
-import type { IbkrPosition } from '../ibkr/types';
+import { useIbkrStatus } from '../ibkr';
+import type { IbkrPosition } from '../ibkr';
 import { useHotkeyDispatchOptional } from './HotkeyDispatchContext';
 
 interface Props {

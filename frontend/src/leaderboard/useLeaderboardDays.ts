@@ -4,7 +4,7 @@
  * picker mounts and again whenever it is opened -- never polled.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { replayRequest } from '../sim/replayRequest';
+import { replayRequest } from '../sim';
 import { LEADERBOARD_DAYS_PATH, LEADERBOARD_DAYS_REQUEST_FAILED } from './leaderboardConstants';
 import { parseLeaderboardDays } from './leaderboardParse';
 import type { LeaderboardDay } from './leaderboardTypes';

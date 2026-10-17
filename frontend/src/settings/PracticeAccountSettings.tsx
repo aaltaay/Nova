@@ -6,7 +6,7 @@ import {
   PRACTICE_SETTINGS_TITLE,
   PRACTICE_VENUES,
 } from '../constantGroups/practice';
-import { PracticeResetAction } from '../practice/PracticeResetAction';
+import { PracticeResetAction } from '../practice';
 
 export function PracticeAccountSettings() {
   return (

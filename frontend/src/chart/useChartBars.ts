@@ -29,7 +29,7 @@ import {
 } from '../tickerChartData';
 import { useWorkspace } from '../workspace';
 import { allowMockBarsFallback, chartEmptyText } from './chartBarsPolicy';
-import { useSimReplayTarget } from '../sim/useSimReplayTarget';
+import { useSimReplayTarget } from '../sim';
 import { paintBars } from './chartBarsPaint';
 import {
   snapshotChartViewport,
@@ -45,8 +45,8 @@ import {
 import { isCurrentBarsRequest } from './requestVersion';
 import type { ChartTradeUpdate } from './types';
 import { createRafCoalesce } from '../utils/rafCoalesce';
-import { matchesSimClockScrub, SIM_CLOCK_SCRUB_EVENT } from '../sim/simClockEvents';
-import { useIbkrStatus } from '../ibkr/useIbkrStatus';
+import { matchesSimClockScrub, SIM_CLOCK_SCRUB_EVENT } from '../sim';
+import { useIbkrStatus } from '../ibkr';
 import { invalidateReplayBars, subscribeReplayBarsRefresh } from './replayBarsRefresh';
 import { useSimChartReplays } from './simChartReplays';
 

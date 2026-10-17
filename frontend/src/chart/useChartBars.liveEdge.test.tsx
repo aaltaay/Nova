@@ -20,8 +20,9 @@ const clock = vi.hoisted(() => ({
 vi.mock('../ibkr/useIbkrStatus', () => ({ useIbkrStatus: () => ({ mode: 'sim' }) }));
 vi.mock('../ibkr/ibkrStatusPoller', () => ({ getIbkrStatusSnapshot: () => ({ mode: 'sim' }) }));
 vi.mock('../workspace', () => ({ useWorkspace: () => ({ discoveryProvider: 'ibkr' }) }));
-vi.mock('../sim/useSimReplayTarget', () => ({ useSimReplayTarget: () => ({ target: { kind: 'ok' } }) }));
-vi.mock('../sim', () => ({
+vi.mock('../sim', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../sim')>()),
+  useSimReplayTarget: () => ({ target: { kind: 'ok' } }),
   simClockResource: {
     getSnapshot: () => ({ data: clock.data, error: null }),
     subscribe: (listener: () => void) => {

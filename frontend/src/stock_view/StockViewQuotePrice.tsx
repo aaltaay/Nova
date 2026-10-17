@@ -10,8 +10,8 @@
 import type { TickerDetail } from '../types/ticker';
 import { fmtPct } from '../utils/quoteFormat';
 import { useWorkspace } from '../workspace';
-import { computeQuoteMetrics } from '../modules/quoteMetrics';
-import { useReplayQuote } from '../sim/useReplayQuote';
+import { computeQuoteMetrics } from '../modules';
+import { useReplayQuote } from '../sim';
 import { LiveText } from '../ux/LiveText';
 import { WatchMark } from '../watch_list';
 import { CountryFlag } from './CountryFlag';

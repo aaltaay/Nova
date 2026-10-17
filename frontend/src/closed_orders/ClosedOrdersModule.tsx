@@ -4,7 +4,7 @@
  */
 import { useMemo, useState } from 'react';
 import { CLOSED_ORDERS_MODULE_ID } from '../constants';
-import { useIbkrStatus } from '../ibkr/useIbkrStatus';
+import { useIbkrStatus } from '../ibkr';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import { ClosedOrdersPanel } from './ClosedOrdersPanel';
 import { buildMockClosedOrders } from './mockClosedOrders';

@@ -18,9 +18,9 @@ import {
 } from '../constants';
 import { captureBrowserAction } from '../execution_latency';
 import { flattenLabel } from '../ibkr';
-import { closeFullPosition } from '../ibkr/closeFullPosition';
-import { flattenSpendLockReason, isDisarmed } from '../ibkr/spendLock';
-import type { IbkrMode, IbkrPosition } from '../ibkr/types';
+import { closeFullPosition } from '../ibkr';
+import { flattenSpendLockReason, isDisarmed } from '../ibkr';
+import type { IbkrMode, IbkrPosition } from '../ibkr';
 import { alertApp, confirmApp } from '../ux';
 import { formatShareQty } from '../utils/formatShareQty';
 

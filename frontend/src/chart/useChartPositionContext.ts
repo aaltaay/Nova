@@ -4,9 +4,9 @@
  * connected / spend / stale-account rules.
  */
 import { CLOSE_POSITION_ACCOUNT_ERROR_TITLE, CLOSE_POSITION_STALE_WHY } from '../constants';
-import { useIbkrStatus } from '../ibkr/useIbkrStatus';
+import { useIbkrStatus } from '../ibkr';
 import { useOptionalIbkrAccountContext } from '../ibkr/IbkrAccountContext';
-import type { IbkrMode, IbkrPosition } from '../ibkr/types';
+import type { IbkrMode, IbkrPosition } from '../ibkr';
 import { findOpenIbkrPosition } from './positionOverlay';
 
 export interface ChartPositionContext {

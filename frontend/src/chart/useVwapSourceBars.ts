@@ -17,8 +17,8 @@ import {
 import { rawBarsToIndicatorBars, type IndicatorBar } from '../chartIndicators';
 import { ensureBars, getBarsEntry, isBarsEntryFresh, subscribeBars } from './barsStore';
 import { coversSessionOpen } from './vwapSession';
-import { useIbkrStatus } from '../ibkr/useIbkrStatus';
-import { matchesSimClockScrub, SIM_CLOCK_SCRUB_EVENT } from '../sim/simClockEvents';
+import { useIbkrStatus } from '../ibkr';
+import { matchesSimClockScrub, SIM_CLOCK_SCRUB_EVENT } from '../sim';
 
 import { invalidateReplayBars, subscribeReplayBarsRefresh } from './replayBarsRefresh';
 import { useSimChartReplays } from './simChartReplays';

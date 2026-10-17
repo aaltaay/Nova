@@ -9,10 +9,10 @@
  */
 import type { ReactNode } from 'react';
 import { shallowEqual, useTickerSelect } from '../hooks/useTickerStream';
-import { HaltEtaChip } from '../ibkr/HaltEtaChip';
-import { ShortabilityChip } from '../ibkr/ShortabilityChip';
-import { Level2Module } from '../modules/Level2Module';
-import { TimeSalesModule } from '../modules/TimeSalesModule';
+import { HaltEtaChip } from '../ibkr';
+import { ShortabilityChip } from '../ibkr';
+import { Level2Module } from '../modules';
+import { TimeSalesModule } from '../modules';
 import {
   STOCK_VIEW_MODULE_L2_TITLE,
   STOCK_VIEW_MODULE_QUOTE_TITLE,
@@ -23,19 +23,19 @@ import { useModuleVisibility, useWorkspace } from '../workspace';
 import { StockViewModuleCard } from './StockViewModuleCard';
 import { StockViewQuotePrice } from './StockViewQuotePrice';
 import { StockViewQuoteStats } from './StockViewQuoteStats';
-import { useHistoricalSnapshot } from '../sim/useHistoricalSnapshot';
+import { useHistoricalSnapshot } from '../sim';
 import { HistoricalTimeSales } from '../sim/HistoricalTimeSales';
 import { HistoricalDepth, HistoricalL2Chip } from '../sim/HistoricalDepth';
-import { captureQuoteDetail, historicalQuoteDetail, simEmptyQuoteDetail } from '../sim/historicalQuoteDetail';
-import { simRailNote } from '../sim/simReplayTarget';
+import { captureQuoteDetail, historicalQuoteDetail, simEmptyQuoteDetail } from '../sim';
+import { simRailNote } from '../sim';
 import { SimReplayTargetNotice } from '../sim/SimReplayTargetNotice';
-import { useSimReplayTarget } from '../sim/useSimReplayTarget';
-import { CaptureReplayL2Chip } from '../sim/CaptureReplayChip';
+import { useSimReplayTarget } from '../sim';
+import { CaptureReplayL2Chip } from '../sim';
 import {
   SIM_CAPTURE_TAPE_NOT_RECORDED,
   SIM_CAPTURE_TAPE_TITLE,
   SIM_REPLAY_TAPE_STATUS,
-} from '../sim/simConstants';
+} from '../sim';
 import { StockViewVenueTag } from './StockViewVenueTag';
 import { depthUnavailableHint } from './depthUnavailableHint';
 import { ShortChips, StockReadRail, WhoTradesRow, useLevel2Markers } from '../stock_read';

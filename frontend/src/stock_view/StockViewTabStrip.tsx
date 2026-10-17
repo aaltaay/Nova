@@ -23,17 +23,17 @@ import {
   startTraderTabDrag,
   takeForeignTraderTabDrop,
   type TraderTabDragPayload,
-} from '../workspace/traderDesk';
-import { openBotSymbolMenu } from '../bot/botSymbolMenuStore';
+} from '../workspace';
+import { openBotSymbolMenu } from '../bot';
 import { openClipFor, RecordButton, useClips } from '../clips';
 import {
   getRecordingSymbols,
   isTabRecording,
   subscribeSessionRecord,
-} from '../capture/sessionRecordStore';
-import { useScannerDockRows } from '../scanner/useScannerDockRows';
+} from '../capture';
+import { useScannerDockRows } from '../scanner';
 import type { TraderMoveLocks } from '../workspace';
-import { useSimReplayDesk } from '../sim/useSimReplayDesk';
+import { useSimReplayDesk } from '../sim';
 import { StockViewTab } from './StockViewTab';
 import { tabContextFor } from './tabContext';
 import { TRADER_DRAFT_SYMBOL } from './traderTabsState';

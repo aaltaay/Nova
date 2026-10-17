@@ -14,10 +14,10 @@ import {
   TRADER_VENUE_TAG_SIM,
   TRADER_VENUE_TAG_SIM_TITLE,
 } from '../constantGroups/trader_chrome';
-import { deskVenueOf } from '../ibkr/deskVenue';
-import { useIbkrStatus } from '../ibkr/useIbkrStatus';
-import { simVenueTagState } from '../sim/simReplayTarget';
-import { useSimReplayTarget } from '../sim/useSimReplayTarget';
+import { deskVenueOf } from '../ibkr';
+import { useIbkrStatus } from '../ibkr';
+import { simVenueTagState } from '../sim';
+import { useSimReplayTarget } from '../sim';
 import { EstChip } from './EstChip';
 
 export { EstChip } from './EstChip';

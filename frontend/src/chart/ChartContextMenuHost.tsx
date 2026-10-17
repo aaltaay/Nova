@@ -12,7 +12,7 @@ import type { IChartApi, ISeriesApi } from 'lightweight-charts';
 import type { ChartIndicatorId } from '../constants';
 import { defaultTicketQty, useConfirmedDeskVenue } from '../ibkr';
 import { useTradeDefaultsPrefs } from '../settings';
-import { requestStockViewDock } from '../stock_view/requestDockSurface';
+import { requestStockViewDock } from '../stock_view';
 import { ChartContextMenu } from './ChartContextMenu';
 import { chartContextMenuPortalTarget } from './chartContextMenuPortal';
 import { shouldOpenChartContextMenu } from './chartContextMenuItems';

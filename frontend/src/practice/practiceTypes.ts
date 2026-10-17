@@ -1,5 +1,5 @@
 /** Wire shape of GET /api/practice/account (ADR 020 "Contract"). */
-import type { IbkrOrder } from '../ibkr/types';
+import type { IbkrOrder } from '../ibkr';
 import type { PracticeVenue } from '../constantGroups/practice';
 
 export interface PracticePosition {

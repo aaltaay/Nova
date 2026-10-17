@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useSampleRoute } from '../sample_data/useSampleRoute';
-import { TRADER_DRAFT_SYMBOL } from '../stock_view/traderTabsState';
+import { TRADER_DRAFT_SYMBOL } from '../stock_view';
 import { syncTraderLive } from './api';
 
 /**

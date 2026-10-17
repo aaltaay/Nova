@@ -15,4 +15,8 @@ export {
   useRecordingSymbols,
 } from './sessionRecordStore';
 export { HoldToStopButton } from './HoldToStopButton';
-export { CAPTURE_STOP_HOLD_HINT, captureStopHoldLabel } from './constants';
+export {
+  CAPTURE_STOP_HOLD_HINT,
+  captureStopHoldLabel,
+  RECORDING_PLANNED_STOP_REASONS,
+} from './constants';

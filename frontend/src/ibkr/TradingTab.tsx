@@ -29,7 +29,7 @@ import { PaperTradingBanner } from './PaperTradingBanner';
 import { PositionsPanel } from './PositionsPanel';
 import { isSpendLocked, spendLockReason, spendStatusLabel } from './spendLock';
 const ReportsTab = lazy(() =>
-  import('../reports/ReportsTab').then(m => ({ default: m.ReportsTab })),
+  import('../reports').then(m => ({ default: m.ReportsTab })),
 );
 import { useTopOfBook } from '../hotkeys/TopOfBookContext';
 import { alertApp } from '../ux';

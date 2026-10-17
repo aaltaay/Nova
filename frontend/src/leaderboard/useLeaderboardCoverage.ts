@@ -5,7 +5,7 @@
  * runs, so it is re-read every LEADERBOARD_COVERAGE_TODAY_REFRESH_MS.
  */
 import { useEffect, useState } from 'react';
-import { replayRequest } from '../sim/replayRequest';
+import { replayRequest } from '../sim';
 import {
   LEADERBOARD_COVERAGE_REQUEST_FAILED,
   LEADERBOARD_COVERAGE_TODAY_REFRESH_MS,

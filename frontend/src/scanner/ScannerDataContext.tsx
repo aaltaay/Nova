@@ -11,14 +11,14 @@ import {
 } from 'react';
 import { hmrStableContext } from '../utils/hmrStableContext';
 import { useScannerData } from '../hooks/useScannerData';
-import type { ScannerReplay } from '../leaderboard/leaderboardTypes';
+import type { ScannerReplay } from '../leaderboard';
 import { useGappersBySecond, withGappersBySecond } from '../leaderboard';
-import { withScannerReplay } from '../leaderboard/scannerReplayFeed';
-import { useLeaderboardPlayback } from '../leaderboard/useLeaderboardPlayback';
-import { useSettings } from '../settings/SettingsContext';
-import { DEFAULT_ACTIVE_TAB, type ActiveTab } from '../workspace/registry';
-import { declaresScannerL1 } from '../workspace/scannerTabs';
-import { useWorkspace } from '../workspace/WorkspaceContext';
+import { withScannerReplay } from '../leaderboard';
+import { useLeaderboardPlayback } from '../leaderboard';
+import { useSettings } from '../settings';
+import { DEFAULT_ACTIVE_TAB, type ActiveTab } from '../workspace';
+import { declaresScannerL1 } from '../workspace';
+import { useWorkspace } from '../workspace';
 import { useRenderCount } from '../perf/useRenderCount';
 
 export type LiveScannerFeed = ReturnType<typeof useScannerData> & {

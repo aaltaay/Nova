@@ -3,14 +3,14 @@
  * (ADR 020), and the practice day on the venue's clock -- the replay playhead
  * on Sim, the wall clock elsewhere (QA C20 / V32).
  */
-import { todayPracticeDate } from '../account/accountFigures';
+import { todayPracticeDate } from '../account';
 import type { DeskVenue } from '../constantGroups/desk_venue';
 import type { PracticeVenue } from '../constantGroups/practice';
-import { resolveDeskVenue } from '../ibkr/deskVenue';
-import { useIbkrStatus } from '../ibkr/useIbkrStatus';
-import { isPracticeVenue } from '../practice/practiceAccountModel';
-import { useSimAccountClock } from '../practice/useSimAccountClock';
-import { useWorkspace } from '../workspace/WorkspaceContext';
+import { resolveDeskVenue } from '../ibkr';
+import { useIbkrStatus } from '../ibkr';
+import { isPracticeVenue } from '../practice';
+import { useSimAccountClock } from '../practice';
+import { useWorkspace } from '../workspace';
 
 export interface BotsVenue {
   venue: DeskVenue | null;

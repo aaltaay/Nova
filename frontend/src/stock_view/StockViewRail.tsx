@@ -11,8 +11,8 @@ import { tickerReady } from '../hooks/tickerStore';
 import { useTickerSelect } from '../hooks/useTickerStream';
 import type { GatewayStatusFact } from '../ibkr';
 import { TickerTradeActionBar } from '../ibkr/TickerTradeActionBar';
-import type { IbkrAccountSummary, IbkrMode, IbkrPosition } from '../ibkr/types';
-import type { PlaceOrderResult } from '../ibkr/placeOrder';
+import type { IbkrAccountSummary, IbkrMode, IbkrPosition } from '../ibkr';
+import type { PlaceOrderResult } from '../ibkr';
 import { computeQuoteMetrics } from '../modules';
 import { useWorkspace } from '../workspace';
 import {

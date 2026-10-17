@@ -3,16 +3,16 @@
  * Hosted by Stock View footer dock (Webull Orders → Today's Orders).
  */
 import { useMemo, useState } from 'react';
-import { ClosedOrdersPanel } from '../closed_orders/ClosedOrdersPanel';
-import { buildMockClosedOrders } from '../closed_orders/mockClosedOrders';
-import type { ClosedOrder } from '../closed_orders/types';
+import { ClosedOrdersPanel } from '../closed_orders';
+import { buildMockClosedOrders } from '../closed_orders';
+import type { ClosedOrder } from '../closed_orders';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import {
   ORDERS_TODAY_EMPTY_FILTER_MESSAGE,
   ORDERS_TODAY_EMPTY_MESSAGE,
 } from '../constants';
-import { WorkingOrdersPanel } from '../ibkr/WorkingOrdersPanel';
-import type { IbkrOrder } from '../ibkr/types';
+import { WorkingOrdersPanel } from '../ibkr';
+import type { IbkrOrder } from '../ibkr';
 import {
   closedFilterFromToday,
   closedRowsForToday,

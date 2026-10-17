@@ -6,7 +6,7 @@
  * the toast reports that, and offers Resume now for when it gave up.
  */
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { getIbkrStatusSnapshot } from '../ibkr/ibkrStatusPoller';
+import { getIbkrStatusSnapshot } from '../ibkr';
 import {
   RECORDING_DISMISS_LABEL,
   RECORDING_RESUME_ACTION,
@@ -21,7 +21,7 @@ import {
   recordingStoppedTitle,
 } from './constants';
 import { stoppedViews, type StoppedView } from './recordingSignalModel';
-import { LeaderboardRecorderToast } from '../leaderboard/LeaderboardRecorderToast';
+import { LeaderboardRecorderToast } from '../leaderboard';
 import {
   dismissRecordingStop,
   getRecordingSymbols,

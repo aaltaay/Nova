@@ -9,9 +9,9 @@
  */
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
-import { simClockResource } from '../sim/simClockResource';
-import type { SimClockState } from '../sim/simClockTypes';
-import { isReplayDesk } from '../sim/useSimReplayDesk';
+import { simClockResource } from '../sim';
+import type { SimClockState } from '../sim';
+import { isReplayDesk } from '../sim';
 import { LEADERBOARD_RECORD_SETTLE_SEC } from './leaderboardConstants';
 
 /** The playhead's epoch second, or null when the clock does not state a parseable time. */

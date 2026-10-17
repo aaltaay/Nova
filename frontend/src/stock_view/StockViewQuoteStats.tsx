@@ -9,7 +9,7 @@ import type { TickerDetail } from '../types/ticker';
 import { fmtSessionPrice, fmtVolume, pctToneClass } from '../utils/quoteFormat';
 import { floatHover } from '../utils/shareFacts';
 import { useWorkspace } from '../workspace';
-import { computeQuoteMetrics } from '../modules/quoteMetrics';
+import { computeQuoteMetrics } from '../modules';
 import { QUOTE_GAP_OPEN_TITLE } from '../constantGroups/trader_view';
 
 interface Props {

@@ -12,7 +12,7 @@ import {
 import { hmrStableContext } from '../utils/hmrStableContext';
 import { SAMPLE_IBKR_ACCOUNT_STATE } from '../sample_data/sampleAccount';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
-import { useWorkspace } from '../workspace/WorkspaceContext';
+import { useWorkspace } from '../workspace';
 import { deskVenueOf, practiceLedgerReachable } from './deskVenue';
 import { useIbkrStatus } from './useIbkrStatus';
 import {

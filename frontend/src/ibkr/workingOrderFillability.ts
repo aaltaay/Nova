@@ -1,7 +1,7 @@
 /**
  * Honest Working-row copy when a MKT cannot fill until the open.
  */
-import type { MarketSessionKind } from '../chart/sessionHighlight';
+import type { MarketSessionKind } from '../chart';
 import { remainingShares } from './orderQtyMath';
 import type { IbkrOrder } from './types';
 

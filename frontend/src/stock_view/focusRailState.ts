@@ -8,7 +8,7 @@
 import {
   FOCUS_RAIL_DEFAULT_LIST, FOCUS_RAIL_DEFAULT_LOWER_LIST, FOCUS_RAIL_STORAGE_KEY,
 } from '../constantGroups/trader_chrome';
-import type { LiveScannerFeed } from '../scanner/ScannerDataContext';
+import type { LiveScannerFeed } from '../scanner';
 import type { Catalyst } from '../types/catalyst';
 import type { CatalystVerdict } from '../types/catalystVerdict';
 import type { ScannerRow } from '../types/scanner';

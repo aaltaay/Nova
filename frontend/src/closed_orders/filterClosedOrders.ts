@@ -1,4 +1,4 @@
-import { formatOrderStatus } from '../ibkr/orderDisplay';
+import { formatOrderStatus } from '../ibkr';
 import type { ClosedOrder, ClosedOrdersFilter } from './types';
 
 /** Pure filter for Closed Orders tabs (all / filled / cancelled / partial). */

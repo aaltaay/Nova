@@ -8,8 +8,8 @@ const BacktestPanel = lazy(() =>
   import('./BacktestPanel').then(m => ({ default: m.BacktestPanel })),
 );
 import { JournalPanel } from './JournalPanel';
-import { SetupsPanel } from '../setups/SetupsPanel';
-import { SetupsTabCount } from '../setups/SetupsTabCount';
+import { SetupsPanel } from '../setups';
+import { SetupsTabCount } from '../setups';
 import { consumeSetupsBoardOpen, subscribeSetupsBoardOpen } from '../setups';
 import { WatchlistTable } from './WatchlistTable';
 import type { WatchlistEntry } from './types';

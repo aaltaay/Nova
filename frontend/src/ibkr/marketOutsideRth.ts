@@ -14,8 +14,8 @@ import {
   TICKER_TRADE_MARKET_OUTSIDE_RTH_REASON,
   TICKER_TRADE_SESSION_POLL_MS,
 } from '../constants';
-import { simClockResource } from '../sim/simClockResource';
-import type { SimClockState } from '../sim/simClockTypes';
+import { simClockResource } from '../sim';
+import type { SimClockState } from '../sim';
 import { isWeekdayRegularHoursNow } from './extendedSession';
 import type { IbkrMode } from './types';
 

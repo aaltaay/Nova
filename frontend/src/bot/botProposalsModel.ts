@@ -12,7 +12,7 @@ import {
   BOTS_PROPOSAL_CLOSED_MAX,
   BOTS_PROPOSAL_UNDER,
 } from '../constantGroups/bots_page';
-import type { SetupProposal, SetupRow } from '../setups/types';
+import type { SetupProposal, SetupRow } from '../setups';
 import type { BotAuditEntry } from './types';
 
 export interface ClosedProposal {

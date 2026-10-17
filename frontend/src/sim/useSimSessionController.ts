@@ -7,7 +7,7 @@ import { emitSimClockScrub, SIM_CLOCK_SCRUB_EVENT, SIM_SEEK_CANCEL_EVENT, type S
 import { SIM_CAPTURE_POLL_MS, SIM_SCRUB_KEYBOARD_MS } from './simConstants';
 import type { SimClockState } from './simClockTypes';
 import { parseCaptureSessions } from './captureSessionsParse';
-import { SIM_DAY_PICKER_FAILED } from '../leaderboard/leaderboardConstants';
+import { SIM_DAY_PICKER_FAILED } from '../leaderboard';
 /** One Session Record row of `GET /api/capture/sessions`, as parsed at the boundary. */
 export interface CaptureSessionRow {
   symbol: string;

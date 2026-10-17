@@ -7,7 +7,7 @@
  * with a reason until one is (#566).
  * Line Style and Chart Settings still have no surface -- omit.
  */
-import { formatSeedPrice } from '../ibkr/tradeDefaultSeed';
+import { formatSeedPrice } from '../ibkr';
 import { SHORT_WHY_LONG } from '../constantGroups/short_ticket';
 import { CHART_POSITION_MENU_VIEW_DETAILS } from './positionOverlayConstants';
 import {

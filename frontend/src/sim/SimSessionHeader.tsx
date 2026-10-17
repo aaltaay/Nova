@@ -1,8 +1,8 @@
 /** Sim clock composition; resource/controller ownership lives in the feature hook (ADR 005). */
 import { useCallback, useSyncExternalStore } from 'react';
-import { useNavRailSnapshot } from '../workspace/navRailStore';
-import type { ActiveTab } from '../workspace/registry';
-import { useWorkspace } from '../workspace/WorkspaceContext';
+import { useNavRailSnapshot } from '../workspace';
+import type { ActiveTab } from '../workspace';
+import { useWorkspace } from '../workspace';
 import { SimPlaybackButton } from './SimPlaybackButton';
 import type { SimClockState } from './simClockTypes';
 import { HistoricalReplayPanel } from './HistoricalReplayPanel';
@@ -16,9 +16,9 @@ import {
 import { etTime } from './historicalReplayFormat';
 import { clockWindow, formatClock, formatMinuteClock, stripBandSegments, stripScale, todayEt } from './simStripFormat';
 import { SimDayPicker } from './SimDayPicker';
-import { leaderboardLane } from '../leaderboard/leaderboardLane';
-import { useLeaderboardCoverage } from '../leaderboard/useLeaderboardCoverage';
-import { useLeaderboardDays } from '../leaderboard/useLeaderboardDays';
+import { leaderboardLane } from '../leaderboard';
+import { useLeaderboardCoverage } from '../leaderboard';
+import { useLeaderboardDays } from '../leaderboard';
 import { useMassiveDays } from './massiveDaysStore';
 import { simCaptureBandTitle, simCaptureGapTitle, simCaptureMissingLabel, simScrubberCoverageTitle } from './simConstants';
 import {
