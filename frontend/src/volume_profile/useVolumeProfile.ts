@@ -3,12 +3,12 @@
  * the price axis, room right of the last candle for today's lane, and the anchor the operator drags. The profiles come
  * from the backend (`volumeProfileApi.ts`); a drag snaps the anchor to a candle and reads today's profile again.
  */
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useSyncExternalStore, type RefObject } from 'react';
 import type { IChartApi, IPriceLine, ISeriesApi } from 'lightweight-charts';
 import { afterPaintSettles, edgeContents, isFollowingRightEdge, operatorOwnsView, subscribeEdge } from '../chart';
 import { etChartSeconds } from '../tickerChartData';
+import { useProfileAnswer, useSessionAnchor } from './useProfileAnswer';
 import type { VolumeProfile } from './volumeProfile';
-import { fetchVolumeProfile, type ProfileAnswer, type ProfileKind } from './volumeProfileApi';
 import { VolumeProfilePrimitive, type ProfileLayer } from './VolumeProfilePrimitive';
 import {
   VP_COLORS,
@@ -20,7 +20,6 @@ import {
   VP_LANE_GAP_PX,
   VP_LANE_MAX_PX,
   VP_LANE_SHARE,
-  VP_RETRY_MS,
   VP_TODAY_REFRESH_MS,
   VP_YESTERDAY_TITLE,
   vpMissingNote,
@@ -59,42 +58,6 @@ function layer(p: VolumeProfile, title: (start: number) => string): ProfileLayer
   return { profile: p, start, end: etChartSeconds(p.to * 1000), title: title(start) };
 }
 
-const NONE: ProfileAnswer = { profile: null, filling: false, error: null };
-
-/** One profile from the backend; asked again while it is `filling`, else every `refreshMs` (0: never). */
-function useProfile(
-  kind: ProfileKind, symbol: string, enabled: boolean, day: string | null, anchorEpoch: number | null, refreshMs: number,
-): ProfileAnswer {
-  const [answer, setAnswer] = useState<ProfileAnswer>(NONE);
-  useEffect(() => {
-    setAnswer(NONE);
-  }, [symbol, day]);
-  useEffect(() => {
-    if (!enabled || day == null || (kind === 'today' && anchorEpoch == null)) return undefined;
-    const ctrl = new AbortController();
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const ask = () => {
-      fetchVolumeProfile(symbol, kind, day, anchorEpoch, ctrl.signal)
-        .then((next) => {
-          setAnswer(next);
-          const again = next.filling ? VP_RETRY_MS : refreshMs;
-          if (again > 0 && !ctrl.signal.aborted) timer = setTimeout(ask, again);
-        })
-        .catch((err: unknown) => {
-          if (ctrl.signal.aborted) return;
-          console.warn(`Volume profile (${kind}) for ${symbol} failed:`, err);
-          setAnswer({ profile: null, filling: false, error: 'the backend did not answer' });
-        });
-    };
-    ask();
-    return () => {
-      ctrl.abort();
-      if (timer) clearTimeout(timer);
-    };
-  }, [kind, symbol, enabled, day, anchorEpoch, refreshMs]);
-  return answer;
-}
-
 /** The pane's last candle's ET date: the exchange day the pane calls today. */
 function dayOf(chartSec: number): string {
   return new Date(Math.floor(chartSec / DAY_SEC) * DAY_SEC * 1000).toISOString().slice(0, 10);
@@ -102,18 +65,16 @@ function dayOf(chartSec: number): string {
 
 export function useVolumeProfile({ symbol, chart, series, containerRef, barsRevision, enabled }: Options): void {
   const primitiveRef = useRef<VolumeProfilePrimitive | null>(null);
-  /** Chart seconds of the anchor candle; null is 09:30 on the pane's last day. */
-  const [anchor, setAnchor] = useState<number | null>(null);
   const last = enabled && series ? lastBarTime(series) : null;
   const dayStart = last == null ? null : Math.floor(last / DAY_SEC) * DAY_SEC;
+  const day = dayStart == null ? null : dayOf(dayStart);
+  /** Chart seconds of the anchor candle; null is 09:30 on the pane's last day. */
+  const [anchor, setAnchor] = useSessionAnchor(symbol, day);
   const anchorSec = anchor ?? (dayStart == null ? null : dayStart + VP_DEFAULT_ANCHOR_MIN_ET * 60);
 
-  useEffect(() => setAnchor(null), [symbol]);
-
-  const day = dayStart == null ? null : dayOf(dayStart);
-  const todayAnswer = useProfile('today', symbol, enabled, day, anchorSec == null ? null : chartToEpoch(anchorSec),
-    VP_TODAY_REFRESH_MS);
-  const yesterdayAnswer = useProfile('yesterday', symbol, enabled, day, null, 0);
+  const todayAnswer = useProfileAnswer('today', symbol, enabled, day,
+    anchorSec == null ? null : chartToEpoch(anchorSec), VP_TODAY_REFRESH_MS);
+  const yesterdayAnswer = useProfileAnswer('yesterday', symbol, enabled, day, null, 0);
   const today = todayAnswer.profile;
   const yesterday = yesterdayAnswer.profile;
   const notes = [
@@ -269,5 +230,5 @@ export function useVolumeProfile({ symbol, chart, series, containerRef, barsRevi
       el.removeEventListener('pointercancel', onUp, true);
       if (hovering) el.style.cursor = '';
     };
-  }, [enabled, chart, series, containerRef]);
+  }, [enabled, chart, series, containerRef, setAnchor]);
 }
