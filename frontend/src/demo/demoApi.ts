@@ -16,6 +16,7 @@ import {
 import { cryptoBoard } from './data/crypto';
 import { chartEvents } from './data/events';
 import { DAY, NOW_S } from './data/market';
+import { sampleProfile } from './data/profile';
 import { botAudit, botSession, hotList, lossLimitView, practiceHistory, setupRows, setupsBoard, stockModes } from './data/pages';
 import { decisions, history, pastSetups, stockMode, stockRead, targetChoices } from './data/read';
 import { hodHistory, leaderboardBoard, leaderboardCoverage, leaderboardDays, simClock, simStatus } from './data/sim';
@@ -89,6 +90,7 @@ function sharedRoutes(nowS: number): [RegExp, Handler][] {
     [/^\/api\/movers$/, () => envelope(nowS, { gainers: GAINERS, losers: LOSERS, loser_table_state: 'live', loser_roster_ts: nowS - 2 })],
     [/^\/api\/afterhours$/, () => envelope(nowS, { afterhours: [] })],
     [/^\/api\/large-cap$/, () => envelope(nowS, { large_cap: [] })],
+    [/^\/api\/volume-profile\/([^/]+)$/, (m, q) => sampleProfile(sym(m), q.get('kind'), q.get('anchor'))],
     [/^\/api\/news-catalysts$/, () => envelope(nowS, { catalysts: CATALYSTS, last_scan: nowS - 30 })],
     [/^\/api\/scan\/envelope$/, () => envelope(nowS, { tables: {} })],
     [/^\/api\/history\/dates$/, () => ({ dates: ['2026-09-29', '2026-09-28', '2026-09-25'] })],

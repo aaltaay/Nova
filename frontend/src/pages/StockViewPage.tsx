@@ -45,14 +45,25 @@ import {
   StockReadSheet,
   StockReadToolbar,
 } from '../stock_read';
+import { VolumeProfileChartLayer, VolumeProfileToolbar } from '../volume_profile';
 
-/** The bot's read on the symbol, drawn in every chart pane (ADR 036). */
+/** The bot's read on the symbol in every chart pane (ADR 036), and the volume profile on the 5-minute one (ADR 058). */
 function renderStockRead(props: ChartPaneOverlayProps) {
-  return <StockReadChartLayer {...props} />;
+  return (
+    <>
+      <StockReadChartLayer {...props} />
+      <VolumeProfileChartLayer {...props} />
+    </>
+  );
 }
 
 /** One element for every render, so the chart grid is not drawn again for a new toolbar element. */
-const STOCK_READ_TOOLBAR = <StockReadToolbar />;
+const STOCK_READ_TOOLBAR = (
+  <>
+    <StockReadToolbar />
+    <VolumeProfileToolbar />
+  </>
+);
 
 /** What the page reads of the ticker stream: whether the quote has come, never a price (#707). */
 function streamReadiness(state: TickerStreamState, symbol: string) {
