@@ -10,7 +10,8 @@ A window comes from one of two stores (ADR 046): an IBKR download
 operator's Massive flat files (``massive_store``, nanosecond prints, the NBBO and
 1-minute bars). A Massive window answers bid and ask at the playhead, colours
 its prints from the NBBO and draws its candles from its own bars only -- never
-from the IBKR chart store.
+from the IBKR chart store. Either may have a venue's own book imported for its
+day (``exchange_book``, ADR 057): drawn on Level 2 as that venue's, never a quote.
 
 A selection holds its prints as columns (``print_table.PrintTable``, about 52 bytes
 a print; operator ask 2026-10-14): a whole busy stock-day fits, and a reader turns
@@ -30,7 +31,7 @@ from constants_sim import (
     SIM_HISTORY_MAX_SELECTION_PRINTS, SIM_HISTORY_QUOTE_CANDLES, SIM_HISTORY_TAPE_ROWS,
     SIM_MASSIVE_MAX_SELECTION_QUOTES, SIM_MASSIVE_SOURCE,
 )
-from sim import history_coverage as coverage, history_depth, history_quotes, history_sides
+from sim import exchange_book, history_coverage as coverage, history_depth, history_quotes, history_sides
 from sim import history_store as store
 from sim.chart_replay import INTERVAL_SECONDS
 from sim.history_cache import CandleCache
@@ -327,7 +328,7 @@ def snapshot(symbol: str):
                   open=None, high=None, low=None, prev_close=None, session_open=None,
                   stats_scope='window', bid=None, ask=None, bid_size=None, ask_size=None,
                   bid_exchange=None, ask_exchange=None, quote_ts=None, quote_source=None, quote_status=None,
-                  depth_available=False, depth=None, sides_recorded=0, sides_nbbo=0)
+                  depth_available=False, depth=None, exchange_books=[], sides_recorded=0, sides_nbbo=0)
     if not result['active']:
         return result
     result['prev_close'] = selected.prev_close
@@ -343,13 +344,14 @@ def snapshot(symbol: str):
     probe = min(int(cutoff), int(spec['end_ts']) - 1)
     in_range = coverage.range_at(spec.get('coverage') or [], probe)
     result['covered'] = in_range is not None
-    # An IBKR download carries no book, so depth is whatever the local recorder
-    # happens to have archived for this second -- usually nothing (#309).
-    book = history_depth.book_at(symbol, cutoff)
+    # Depth, first answer wins: a venue's own book imported for the day (ADR 057, that venue's only), then what
+    # the local recorder archived for this second -- usually nothing for an IBKR download (#309).
+    book, result['exchange_books'] = exchange_book.at(symbol, spec['date'], cutoff)
+    book = book or history_depth.book_at(symbol, cutoff)
     massive = is_massive(spec)
     if massive:
         # The Massive files carry the NBBO, never depth: bid and ask at the playhead
-        # (ADR 046), and with no recorded book a one-level ladder flagged l1_fallback.
+        # (ADR 046), and with no other book a one-level ladder flagged l1_fallback.
         result.update(history_quotes.snapshot_fields(selected.quotes, cutoff, spec.get('quote_status')))
         if book is None:
             book = history_quotes.top_of_book(selected.quotes, symbol, cutoff)

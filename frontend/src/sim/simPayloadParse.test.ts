@@ -188,3 +188,38 @@ describe('the Massive fields (ADR 046)', () => {
     expect(() => parseMassiveDays(null)).toThrow();
   });
 });
+
+describe('the exchange book fields (ADR 057)', () => {
+  it("keeps a venue book's venues and the day's books with their spans; junk rows are dropped", () => {
+    const snap = parseHistoricalSnapshot({
+      active: true, symbol: 'XYZ', prints: [],
+      depth: { symbol: 'XYZ', ts: 1_790_000_000, age_sec: 1, source: 'exchange_book', l1_fallback: false,
+        bids: [{ price: 10, size: 300, orders: 2, mm: 'NASDAQ', exchange: 'NASDAQ' }], asks: [],
+        venues: [{ venue: 'NASDAQ', label: 'Nasdaq', dataset: 'XNAS.ITCH', ts: 1_790_000_000, maybe_bad_book: true },
+          { venue: 'ARCA' }, 'junk'] },
+      exchange_books: [
+        { venue: 'NASDAQ', label: 'Nasdaq', dataset: 'XNAS.ITCH', known_from: 100, known_to: 200, events: 4,
+          imported_at: 50, covered: true, book_ts: 150, maybe_bad_book: false },
+        { venue: 'ARCA', label: 'NYSE Arca', known_from: 300, known_to: 200 },
+        { venue: 'EDGX', label: 'Cboe EDGX', known_from: 100, known_to: 200, covered: 'yes', book_ts: 'x' },
+        null,
+      ],
+    });
+    expect(snap.depth?.venues).toEqual([
+      { venue: 'NASDAQ', label: 'Nasdaq', dataset: 'XNAS.ITCH', ts: 1_790_000_000, maybe_bad_book: true }]);
+    expect(snap.depth?.bids[0]).toMatchObject({ price: 10, size: 300, orders: 2, mm: 'NASDAQ', side: 'bid' });
+    expect(snap.exchange_books).toEqual([
+      { venue: 'NASDAQ', label: 'Nasdaq', dataset: 'XNAS.ITCH', known_from: 100, known_to: 200, events: 4,
+        imported_at: 50, covered: true, book_ts: 150, maybe_bad_book: false },
+      { venue: 'EDGX', label: 'Cboe EDGX', dataset: '', known_from: 100, known_to: 200, events: 0, imported_at: 0,
+        covered: false, book_ts: null, maybe_bad_book: false },
+    ]);
+  });
+
+  it('an older API, or a book of another source, carries none', () => {
+    const snap = parseHistoricalSnapshot({ active: true, symbol: 'XYZ', prints: [],
+      depth: { symbol: 'XYZ', ts: 1, source: 'l2_recorder', bids: [], asks: [] } });
+    expect(snap.exchange_books).toEqual([]);
+    expect(snap.depth && 'venues' in snap.depth).toBe(false);
+  });
+});

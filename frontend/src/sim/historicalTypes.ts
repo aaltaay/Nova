@@ -15,8 +15,42 @@ export interface HistoricalDepthBook {
   age_sec: number;
   l1_fallback: boolean;
   session_id?: string | null;
-  /** Which archive served it, e.g. `l2_recorder`. */
+  /** Which archive served it, e.g. `l2_recorder`, `massive_nbbo`, or `exchange_book` (ADR 057). */
   source: string;
+  /** An imported venue book's venues, each level's `mm` naming its own (ADR 057); absent for any other source. */
+  venues?: ExchangeBookVenue[];
+}
+
+/** `depth.source` of an exchange's own book imported for the day (ADR 057): one venue's orders, never the market's. */
+export const EXCHANGE_BOOK_SOURCE = 'exchange_book';
+
+/** A venue whose imported book the ladder shows at the playhead (ADR 057). */
+export interface ExchangeBookVenue {
+  /** The venue's code, as the tape names it (`NASDAQ`), and its name on the desk ("Nasdaq"). */
+  venue: string;
+  label: string;
+  dataset: string;
+  /** Epoch seconds of the venue's last event at or before the playhead. */
+  ts: number;
+  /** The venue flagged a gap in its own feed at that event: the book may be incomplete. */
+  maybe_bad_book: boolean;
+}
+
+/** A venue book imported for the loaded symbol-day (ADR 057), whether or not its span holds the playhead. */
+export interface ExchangeBookCoverage {
+  venue: string;
+  label: string;
+  dataset: string;
+  /** The span the import holds, epoch seconds, half-open. */
+  known_from: number;
+  known_to: number;
+  events: number;
+  imported_at: number;
+  /** The span holds the playhead. */
+  covered: boolean;
+  /** The event shown at the playhead; null when not covered. */
+  book_ts: number | null;
+  maybe_bad_book: boolean;
 }
 
 export interface HistoricalWindow { symbol: string; date: string; start: string; end: string }
