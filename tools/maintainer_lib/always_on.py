@@ -27,9 +27,11 @@ import subprocess
 from pathlib import Path
 
 # 139,179 bytes on 2026-10-07 after ADR 051's first cut (from 170,606); 139,161
-# on 2026-10-14 after the Next-move picks rule replaced the four-lane template.
+# on 2026-10-14 after the Next-move picks rule replaced the four-lane template;
+# 112,685 on 2026-10-16 after the AGENTS.md diet (§3 grouped by schema file,
+# §5/§7/§8 trimmed to headline laws + pointers).
 # The budget only ratchets down: when the total sits 5,000+ under it, lower it.
-ALWAYS_ON_BUDGET_BYTES = 143_500
+ALWAYS_ON_BUDGET_BYTES = 117_000
 ALWAYS_ON_FILES = ("AGENTS.md", "CLAUDE.md")
 RULES_DIR = ".cursor/rules"
 
