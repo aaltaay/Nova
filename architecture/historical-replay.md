@@ -167,6 +167,25 @@ same way, with these differences:
   import alone and the bid and ask stay null with that reason; asking again
   after the quotes file arrives imports the window again.
 
+## An exchange's own book (ADR 057, 2026-10-17)
+
+Neither source above carries depth. An exchange's own MBP-10 book for a
+symbol-day can be imported by hand, offline (`tools/import_exchange_book.py`
+into `<NOVA_MARKET_DATA_DIR>/sim/exchange_books.sqlite3`; the shapes are in
+`architecture/schema/recording-and-replay.md`), and a historical window of that
+symbol-day -- an IBKR download or a Massive import -- then draws it on Level 2:
+
+- **Depth's order at each playhead:** a venue book whose span holds it
+  (`sim/exchange_book.py`), else the recorded book (#309), else a Massive
+  window's NBBO as one level, else the stated absence. The venue's event is its
+  last at or before the playhead, never after; outside the book's span it gives
+  nothing.
+- **One venue's book, said everywhere:** every level carries its venue (`mm`),
+  the note reads "Nasdaq book only", a banner states what was imported and its
+  span and that it is not the whole market, and several venues are one montage
+  named together. It never becomes `bid` / `ask`, a practice fill, the bot's
+  depth line, the eyes' or the sensors' input.
+
 ## Bounded replay snapshots and progress (2026-09-20, #321/#324/#303)
 
 ADR 017's canonical engine publishes an immutable selection only after its disk

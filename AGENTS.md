@@ -170,6 +170,7 @@ Every confirmed wire and persisted shape lives in `architecture/schema/`, one fi
 | Recorded depth in historical replay (#309) | `architecture/schema/recording-and-replay.md` |
 | The replayed session's previous close (#542) | `architecture/schema/recording-and-replay.md` |
 | Massive flat files in Sim replay (ADR 046, operator ask 2026-10-06) | `architecture/schema/recording-and-replay.md` |
+| An exchange's own book in Sim replay (ADR 057, operator ask 2026-10-17) | `architecture/schema/recording-and-replay.md` |
 | Agents find stock-days and show them in the Sim (ADR 050, operator ask 2026-10-06) | `architecture/schema/agent-desk.md` |
 | Desk diagnostics (ADR 021) | `architecture/schema/desk-ops.md` |
 | IBKR capacity on the desk (operator ask, 2026-10-16) | `architecture/schema/desk-ops.md` |

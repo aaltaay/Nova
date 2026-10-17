@@ -276,3 +276,45 @@ SIM_MASSIVE_EXCHANGES = {
 # What the snapshot names as the source of its bid/ask and of a print's side.
 SIM_MASSIVE_QUOTE_SOURCE = "massive_nbbo"
 SIM_MASSIVE_SIDE_SOURCE = "nbbo"
+
+# --- An exchange's own book in Sim replay (ADR 057, operator ask 2026-10-17) ---------------------
+# One venue's order book for a symbol-day, imported by hand from a local MBP-10 file
+# (tools/import_exchange_book.py) and drawn on the Sim's Level 2 as that venue's book only.
+# Its store sits beside the Massive imports (<NOVA_MARKET_DATA_DIR>/sim/), with its own schema.
+SIM_EXCHANGE_BOOK_STORE_FILE = "exchange_books.sqlite3"
+SIM_EXCHANGE_BOOK_SCHEMA_VERSION = 1
+# What the snapshot names as the source of a venue's book (``depth.source``).
+SIM_EXCHANGE_BOOK_SOURCE = "exchange_book"
+# Levels a side an MBP-10 event carries, best first.
+SIM_EXCHANGE_BOOK_LEVELS = 10
+# Events per stored chunk of packed columns; a playhead inflates one chunk (about 0.7 MB at 2,048).
+SIM_EXCHANGE_BOOK_CHUNK_EVENTS = 2048
+# Chunks the replay holds inflated at once (the playhead moves through one at a time).
+SIM_EXCHANGE_BOOK_CHUNK_CACHE = 8
+# How long the replay trusts its list of a day's books before reading it again: an import runs in
+# another process while the day plays, and its book shows within this many seconds of finishing.
+SIM_EXCHANGE_BOOK_LIST_TTL_SEC = 5.0
+# A store read on the snapshot's path (the Level 2 panel polls it every second) never waits longer.
+SIM_EXCHANGE_BOOK_SQLITE_TIMEOUT_SEC = 2.0
+# Single-venue MBP-10 datasets the importer reads: dataset -> (the venue's code, as the tape names it in
+# SIM_MASSIVE_EXCHANGES; its name on the desk). Any other dataset -- a consolidated one included -- is refused.
+SIM_EXCHANGE_BOOK_VENUES = {
+    "XNAS.ITCH": ("NASDAQ", "Nasdaq"),
+    "XBOS.ITCH": ("BEX", "Nasdaq BX"),
+    "XPSX.ITCH": ("PSX", "Nasdaq PSX"),
+    "XNYS.PILLAR": ("NYSE", "NYSE"),
+    "ARCX.PILLAR": ("ARCA", "NYSE Arca"),
+    "XASE.PILLAR": ("AMEX", "NYSE American"),
+    "XCHI.PILLAR": ("CHX", "NYSE Chicago"),
+    "XCIS.PILLAR": ("NYSENAT", "NYSE National"),
+    "BATS.PITCH": ("BATS", "Cboe BZX"),
+    "BATY.PITCH": ("BYX", "Cboe BYX"),
+    "EDGA.PITCH": ("EDGEA", "Cboe EDGA"),
+    "EDGX.PITCH": ("EDGX", "Cboe EDGX"),
+    "MEMX.MEMOIR": ("MEMX", "MEMX"),
+    "EPRL.DOM": ("PEARL", "MIAX Pearl"),
+}
+# MBP-10's flags: the book is whole only on the record that ends an exchange event (F_LAST), and the
+# venue marks a book a gap in its own feed may have left incomplete (F_MAYBE_BAD_BOOK).
+SIM_EXCHANGE_BOOK_F_LAST = 0x80
+SIM_EXCHANGE_BOOK_F_MAYBE_BAD_BOOK = 0x04
