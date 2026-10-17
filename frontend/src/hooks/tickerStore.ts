@@ -158,8 +158,10 @@ function open(symKey: string, s: Stream): () => void {
         initialReceived = true;
         set({ ...LIVE, detail: seeded, loading: false, refreshing: false });
       })
-      .catch(() => {
-        /* WS may still deliver initial */
+      .catch((err) => {
+        if (!cancelled && !seedCtl.signal.aborted) {
+          console.warn(`Ticker HTTP seed failed for ${symKey} (WS may still deliver initial):`, err);
+        }
       });
   }, TICKER_WS_HTTP_SEED_MS);
 

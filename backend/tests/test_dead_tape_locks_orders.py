@@ -83,6 +83,21 @@ def test_a_line_that_never_printed_counts_from_its_opening(monkeypatch):
     assert out is not None and "it has printed nothing since it opened" in out["text"]
 
 
+def test_unverified_reask_keeps_the_order_gate_locked_across_guard_and_resubscribe(monkeypatch):
+    from line_lending import tape_heal
+
+    now = time.time()
+    outage = {"since": now - 40, "last_print_ts": now - 40, "last_print_exchange_ts": now - 40, "line_since": now - 300}
+    monkeypatch.setattr(tape_heal, "unverified_reask", lambda sym: outage)
+    # 1. During the 15 s same-instrument guard, is_subscribed is False.
+    _line(monkeypatch, subscribed=False, last=now - 40, exchange=now - 40, opened=now - 300, l1=now - 5)
+    assert gate.desk_lock("GENK", now=now)["code"] == TAPE_STALE
+    # 2. Right after subscribe_async succeeds, producer_status has last_print_ts=None and line_since=now,
+    #    and Level 1 has not ticked again since now - 5: still locked until an actual print arrives.
+    _line(monkeypatch, subscribed=True, last=None, exchange=None, opened=now, l1=now - 5)
+    assert gate.desk_lock("GENK", now=now)["code"] == TAPE_STALE
+
+
 # ── the gate: one judge ───────────────────────────────────────────────────
 
 

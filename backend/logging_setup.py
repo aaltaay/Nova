@@ -64,7 +64,7 @@ def shutdown_logging() -> None:
     if listener is not None:
         try:
             listener.stop()
-        except Exception:
+        except Exception:  # maintainer: allow-swallow tearing down the log listener itself; nowhere left to log
             pass
     _log_queue = None
     _configured = False
@@ -97,7 +97,7 @@ def configure_logging() -> None:
         root.removeHandler(existing)
         try:
             existing.close()
-        except Exception:
+        except Exception:  # maintainer: allow-swallow best-effort close of a detached handler before queue attach
             pass
 
     _log_queue = queue.SimpleQueue()

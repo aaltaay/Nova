@@ -87,16 +87,42 @@ def line_down(symbol: str, *, silence: dict | None = None) -> None:
 
 def silent_status(symbol: str) -> dict | None:
     """The silence watch's outcome; a subscribed line alone never reads resumed."""
-    row = _silent.get(symbol.upper())
+    sym = symbol.upper()
+    row = _silent.get(sym)
     from ibkr import client
     from ibkr.tape_recording import producer_status
 
     if row is None or row["generation"] != client.current_generation():
         return None
-    last = producer_status(symbol.upper()).get("last_print_ts")
+    last = producer_status(sym).get("last_print_ts")
     if row.get("asked_at") is not None and last is not None and last >= row["asked_at"]:
         row.update(state="resumed", text="Prints arrived after the tape re-ask.")
+    elif row.get("asked_at") is None and last is not None and last >= row["seen_at"]:
+        row.update(state="resumed", text="Prints returned without a re-ask; kept the original tape line.")
     return {key: row.get(key) for key in ("state", "since", "asked_at", "text")}
+
+
+def unverified_reask(symbol: str) -> dict | None:
+    """Preserved outage facts while a silence-driven re-ask is in flight or unverified by a print."""
+    sym = symbol.upper()
+    row = _silent.get(sym)
+    from ibkr import client
+    from ibkr.tape_recording import producer_status
+
+    if row is None or not row.get("attempted") or row["generation"] != client.current_generation():
+        return None
+    if not watched(sym):
+        return None
+    last = producer_status(sym).get("last_print_ts")
+    anchor = row.get("asked_at") or row["seen_at"]
+    if last is not None and last >= anchor:
+        return None
+    return {
+        "since": row["since"],
+        "last_print_ts": row.get("last_print_ts"),
+        "last_print_exchange_ts": row.get("last_print_exchange_ts"),
+        "line_since": row.get("line_since") or row["since"],
+    }
 
 
 def _silent_say(sym: str, row: dict, state: str, text: str, *, retry_at: float | None = None) -> None:
@@ -107,7 +133,7 @@ def _silent_say(sym: str, row: dict, state: str, text: str, *, retry_at: float |
 
         tape_stream._push_queue(sym, {"type": "subscribed", "symbol": sym})
     else:
-        _say(sym, text, retry_at)
+        _say(sym, text, retry_at, silent_recovery=state)
 
 
 def _start_silent(sym: str, silence: dict, loop: asyncio.AbstractEventLoop) -> None:
@@ -115,24 +141,35 @@ def _start_silent(sym: str, silence: dict, loop: asyncio.AbstractEventLoop) -> N
     from ibkr import client
     from ibkr.tape_recording import producer_status
 
+    producer = producer_status(sym)
     row = _silent.get(sym)
     if row and row["generation"] == client.current_generation():
-        last = producer_status(sym).get("last_print_ts")
+        last = producer.get("last_print_ts")
         if last is not None and last >= row["seen_at"]:
             row = None                         # a new silence after prints returned
         elif row.get("attempted"):
             return                             # one cancel/re-ask per uninterrupted outage
-        elif row["state"] == "holding" and set(row["peers"]) <= set(silence.get("pipeline") or ()):
+        elif row.get("state") == "holding" and set(row["peers"]) <= set(silence.get("pipeline") or ()):
             return                             # the bounded watch expired; still the same shared stall
     else:
         row = None
     if row is None:
-        row = {"since": silence["since"], "seen_at": time.time(), "asked_at": None,
-               "generation": client.current_generation(), "peers": list(silence.get("pipeline") or ())}
+        row = {
+            "since": silence["since"],
+            "seen_at": time.time(),
+            "asked_at": None,
+            "generation": client.current_generation(),
+            "peers": list(silence.get("pipeline") or ()),
+            "last_print_ts": silence.get("last_print_ts", producer.get("last_print_ts")),
+            "last_print_exchange_ts": producer.get("last_print_exchange_ts"),
+            "line_since": producer.get("line_since") or silence["since"],
+        }
         _silent[sym] = row
         _silent.move_to_end(sym)
         while len(_silent) > IBKR_TAPE_LINE_REQ_KEEP:
             _silent.popitem(last=False)
+    else:
+        row["peers"] = list(silence.get("pipeline") or ())
     if feed_hold.held(sym):
         if row.get("state") != "delegated":
             _silent_say(sym, row, "delegated", "The recording owns this shared tape line; its watchdog handles recovery.")
@@ -279,11 +316,14 @@ async def _make_room(sym: str) -> str | None:
     return f"auto-record gave back {victim}'s recording line" if victim else None
 
 
-def _say(sym: str, message: str, retry_at: float | None) -> None:
+def _say(sym: str, message: str, retry_at: float | None, *, silent_recovery: str | None = None) -> None:
     from ibkr import tape_stream
 
-    tape_stream._push_queue(sym, {"type": "error", "symbol": sym, "message": message,
-                                  "retry_at": retry_at, "healing": True})
+    frame = {"type": "error", "symbol": sym, "message": message,
+             "retry_at": retry_at, "healing": True}
+    if silent_recovery is not None:
+        frame["silent_recovery"] = silent_recovery
+    tape_stream._push_queue(sym, frame)
 
 
 def _words(sym: str, *, capped: bool, freed: str | None, error: str | None, retry_at: float) -> str:

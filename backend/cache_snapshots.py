@@ -168,7 +168,7 @@ def load_movers_snapshot() -> tuple[list[dict], list[dict], float]:
             if not losers and isinstance(legacy_losers, list):
                 losers, losers_ts = legacy_losers, legacy_ts
     except Exception:
-        pass
+        logger.warning("cache: load_movers_snapshot legacy fallback failed", exc_info=True)
     return gainers, losers, max(gainers_ts, losers_ts)
 
 
@@ -229,7 +229,8 @@ def load_hod_momo_highs() -> dict:
         if data.get("date") != _cache._today_et():
             return {}
         return data
-    except Exception:
+    except Exception:  # maintainer: allow-swallow logged; corrupt highs snapshot falls back to empty
+        logger.warning("cache: load_hod_momo_highs failed", exc_info=True)
         return {}
 
 
@@ -245,7 +246,10 @@ def load_hod_momo_configs() -> dict:
     try:
         with open(_cache.HOD_MOMO_CONFIG_FILE, encoding="utf-8") as f:
             return json.load(f)
-    except Exception:
+    except FileNotFoundError:  # maintainer: allow-swallow no saved config yet; caller uses defaults
+        return {}
+    except Exception:  # maintainer: allow-swallow logged; unreadable config falls back to defaults
+        logger.warning("cache: load_hod_momo_configs failed", exc_info=True)
         return {}
 
 
@@ -261,7 +265,10 @@ def load_large_cap_config() -> dict:
     try:
         with open(_cache.LARGE_CAP_CONFIG_FILE, encoding="utf-8") as f:
             return json.load(f)
-    except Exception:
+    except FileNotFoundError:  # maintainer: allow-swallow no saved config yet; caller uses defaults
+        return {}
+    except Exception:  # maintainer: allow-swallow logged; unreadable config falls back to defaults
+        logger.warning("cache: load_large_cap_config failed", exc_info=True)
         return {}
 
 
@@ -292,7 +299,7 @@ def load_desk_venue() -> dict:
     try:
         with open(_cache.DESK_VENUE_FILE, encoding="utf-8") as f:
             return json.load(f)
-    except FileNotFoundError:
+    except FileNotFoundError:  # maintainer: allow-swallow no desk venue saved yet; NOVA_BROKER bootstrap applies
         return {}
     except (OSError, ValueError):
         logger.warning(
@@ -316,7 +323,10 @@ def load_chart_drawings() -> dict:
     try:
         with open(_cache.CHART_DRAWINGS_FILE, encoding="utf-8") as f:
             return json.load(f)
-    except Exception:
+    except FileNotFoundError:  # maintainer: allow-swallow no saved drawings yet; starts empty
+        return {}
+    except Exception:  # maintainer: allow-swallow logged; unreadable drawings file falls back to empty
+        logger.warning("cache: load_chart_drawings failed", exc_info=True)
         return {}
 
 
@@ -347,7 +357,10 @@ def load_hod_momo_blocklist() -> list[str]:
         if not isinstance(raw, list):
             return []
         return [str(s) for s in raw]
-    except Exception:
+    except FileNotFoundError:  # maintainer: allow-swallow no saved blocklist yet; starts empty
+        return []
+    except Exception:  # maintainer: allow-swallow logged; unreadable blocklist falls back to empty
+        logger.warning("cache: load_hod_momo_blocklist failed", exc_info=True)
         return []
 
 

@@ -32,7 +32,7 @@ def alert_session_key(alert: AlertObject) -> str:
             dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00")).astimezone(ET)
             return session_key_et(dt)
         except ValueError:
-            pass
+            logger.debug("HOD Momo: unparseable alert timestamp %r; using current session", ts)
     return current_date_et()
 
 

@@ -198,9 +198,19 @@ def missed_trades(symbol: str, *, now: float | None = None) -> dict[str, Any] | 
     from ibkr.tape_recording import producer_status
 
     sym = (symbol or "").strip().upper()
-    if not sym or not tape_stream.is_subscribed(sym):
+    if not sym:
         return None
+    subscribed = tape_stream.is_subscribed(sym)
     producer = producer_status(sym)
+    reask = None
+    if not subscribed or producer.get("last_print_ts") is None:
+        from line_lending import tape_heal
+
+        reask = tape_heal.unverified_reask(sym)
+    if not subscribed and reask is None:
+        return None
+    if reask is not None:
+        producer = reask
     last = _num(producer.get("last_print_ts"))
     opened = _num(producer.get("line_since"))
     trade = l1_trade_at(sym)
@@ -297,6 +307,21 @@ def reading(symbol: str, *, now: float | None = None, halt_seen_at: float | None
     sym = (symbol or "").strip().upper()
     ts = time.time() if now is None else float(now)
     producer = producer_status(sym)
+    if producer.get("last_print_ts") is None:
+        from line_lending import tape_heal
+
+        reask = tape_heal.unverified_reask(sym)
+        if reask is not None:
+            producer = reask
+    else:
+        from ibkr import tape_stream
+
+        if not tape_stream.is_subscribed(sym):
+            from line_lending import tape_heal
+
+            reask = tape_heal.unverified_reask(sym)
+            if reask is not None:
+                producer = reask
     facts = {
         "now": ts,
         "last_print_ts": producer.get("last_print_ts"),

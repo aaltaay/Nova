@@ -5,7 +5,7 @@ Connects to a user-managed IB Gateway process.
 Nova does not auto-login (IBKR Mobile 2FA still requires the user).
 Users may start/focus Gateway via POST /api/ibkr/launch-gateway (header double-click).
 
-Port selection uses IBKR_GATEWAY_MODE (live→4001 default, paper→4002 fallback),
+Port selection uses IBKR_GATEWAY_MODE (live->4001 default, paper->4002 fallback),
 independent of IBKR_ORDERS_ENABLED / IBKR_LIVE_TRADING_CONFIRMED (see ibkr.safety).
 
 Self-heal follows the listening Gateway (probe-based): preferred dark +
@@ -13,14 +13,14 @@ alternate up attaches and persists mode (refuse, timeout-on-dark, or pre-dial
 probe). Timeout while preferred still listens is not heal-eligible (Error 326 /
 wedged handshake). After every connect, managedAccounts must match the mode.
 
-Intentional Paper↔Live switches set sticky intent in gateway_heal (not a
+Intentional Paper<->Live switches set sticky intent in gateway_heal (not a
 timer) so a failed switch cannot silently heal to the other mode mid-switch.
-Spend gates stay in ibkr.safety — heal never unlocks orders.
+Spend gates stay in ibkr.safety -- heal never unlocks orders.
 
 State:
-  _ib / _mode / _broker_account_kind — updated atomically via _set_session
+  _ib / _mode / _broker_account_kind -- updated atomically via _set_session
   _enabled  -- False when IBKR_ENABLED env var is absent/false (safe default)
-  _wake_reconnect — Event to interrupt reconnect_loop sleep on user request
+  _wake_reconnect -- Event to interrupt reconnect_loop sleep on user request
 """
 from __future__ import annotations
 
@@ -36,15 +36,16 @@ try:
 except ImportError:
     IB = None  # type: ignore[assignment,misc]
     _IB_AVAILABLE = False
-    logger.warning("ib_async not installed — IBKR module disabled")
+    logger.warning("ib_async not installed -- IBKR module disabled")
 
 from constants import (
     IBKR_AUTH_BACKOFF_SEC_INITIAL,
-    IBKR_MARKET_DATA_TYPE_DELAYED,
-    IBKR_MARKET_DATA_TYPE_LIVE,
+    IBKR_MARKET_DATA_TYPE_DELAYED,  # noqa: F401 -- re-export
+    IBKR_MARKET_DATA_TYPE_LIVE,  # noqa: F401 -- re-export
 )
 from ibkr import account_kind as _account_kind
 from ibkr import client_connect as _connect
+from ibkr import client_ready as _client_ready
 from ibkr.client_config import _resolve_config as _resolve_config  # noqa: F401 -- re-export
 from ibkr.client_config import reload_env_from_dotenv as reload_env_from_dotenv  # noqa: F401 -- re-export
 from ibkr import session_errors as _session_errors
@@ -67,7 +68,7 @@ _broker_account_kind: str = "unknown"
 # IB managedAccounts() of the connected session: what Nova is logged into.
 _managed_account_ids: list[str] = []
 _reconnect_task: asyncio.Task | None = None
-_loop: asyncio.AbstractEventLoop | None = None  # captured at startup() — where IB lives
+_loop: asyncio.AbstractEventLoop | None = None  # captured at startup() -- where IB lives
 _wake_reconnect: asyncio.Event | None = None
 # Set after READY requests live market data (None until first successful READY).
 _market_data_type: int | None = None
@@ -118,87 +119,33 @@ def _set_session(*, mode: str, broker_account_kind: str, account_ids: list[str] 
 
 
 def _clear_sticky_bridge_error_on_ready() -> None:
-    """Drop any ``ibkr_bridge_last_error`` recorded while the session was
-    down/degraded (see PROBLEM_LOG 2026-07-23 sticky-banner-after-reconnect).
-
-    A disconnect-window failure (``ib=none``) must not outlive reconnect —
-    once the session reaches READY, movers/L1 are live again, so an old
-    error string left over from the outage would otherwise paint Integrity
-    fail red indefinitely until the next successful movers refresh (or a
-    full API restart). This makes reconnect self-heal immediately.
-    """
-    try:
-        state = _get_runtime_state()
-    except Exception:
-        return
-    if getattr(state, "ibkr_bridge_last_error", ""):
-        state.ibkr_bridge_last_error = ""
-        state.ibkr_bridge_last_error_ts = 0.0
+    """Drop any ``ibkr_bridge_last_error`` recorded while the session was down/degraded."""
+    _client_ready.clear_sticky_bridge_error_on_ready(_get_runtime_state)
 
 
 async def _on_session_ready(ib: Any, *, reason: str) -> None:
-    """Side effects that must run at every READY transition (G1/G2/G4).
-
-    Lets go of the prior connection's L1 lines (#565: cancelling on ``ib`` the
-    ones a 1101 lost), installs the errorEvent hook, requests live market data.
-    """
+    """Side effects that must run at every READY transition (G1/G2/G4)."""
     global _market_data_type
-    try:
-        from ibkr import ticks as _ticks
-
-        await _ticks.clear_all_subscriptions(reason=reason, ib=ib)
-    except Exception:
-        logger.exception("IBKR: clear_all_subscriptions failed on READY (%s)", reason)
-    try:
-        from ibkr import discovery as _discovery, qualified_contracts as _qualified
-
-        _discovery.clear_inflight_scan_reqids(reason=reason)
-        _qualified.clear_qualified_contracts(reason=reason)
-    except Exception:
-        logger.exception("IBKR: clear_inflight_scan_reqids failed on READY (%s)", reason)
-    try:
-        _session_errors.install_error_hook(ib)
-    except Exception:
-        logger.exception("IBKR: session_errors hook install failed on READY (%s)", reason)
-    try:
-        _session_errors.reset_session_md_flags()
-        ib.reqMarketDataType(int(IBKR_MARKET_DATA_TYPE_LIVE))
-        _market_data_type = int(IBKR_MARKET_DATA_TYPE_LIVE)
-        logger.info(
-            "IBKR: requested market data type %s (%s)",
-            _market_data_type,
-            reason,
-        )
-    except Exception:
-        logger.exception("IBKR: reqMarketDataType failed on READY (%s)", reason)
+    md_type = await _client_ready.on_session_ready(
+        ib, reason=reason, session_errors=_session_errors,
+    )
+    if md_type is not None:
+        _market_data_type = md_type
 
 
 def maybe_fallback_to_delayed_market_data() -> bool:
-    """If Error 10089 blocked live API MD, switch to delayed (type 3).
-
-    Safe to call from manager loops (not from errorEvent handlers). Returns
-    True when a downgrade request was issued this call.
-    """
+    """If Error 10089 blocked live API MD, switch to delayed (type 3)."""
     global _market_data_type
-    if not _session_errors.live_market_data_blocked():
-        return False
-    if _market_data_type == int(IBKR_MARKET_DATA_TYPE_DELAYED):
-        return False
-    ib = get_ib()
-    if ib is None or not is_ready():
-        return False
-    try:
-        ib.reqMarketDataType(int(IBKR_MARKET_DATA_TYPE_DELAYED))
-        _market_data_type = int(IBKR_MARKET_DATA_TYPE_DELAYED)
-        logger.warning(
-            "IBKR: fell back to delayed market data type %s "
-            "(live API entitlement missing — Error 10089)",
-            _market_data_type,
-        )
+    md_type = _client_ready.fallback_to_delayed_market_data(
+        get_ib(),
+        ready=is_ready(),
+        current_md_type=_market_data_type,
+        session_errors=_session_errors,
+    )
+    if md_type is not None:
+        _market_data_type = md_type
         return True
-    except Exception:
-        logger.exception("IBKR: delayed market data fallback failed")
-        return False
+    return False
 
 
 def _ensure_wake_event() -> asyncio.Event:
@@ -239,7 +186,7 @@ def is_starting() -> bool:
 
 
 def is_connected() -> bool:
-    """Raw transport status — True as soon as the socket handshake completes,
+    """Raw transport status -- True as soon as the socket handshake completes,
     even while Nova is still validating account kind / warming caches. Use
     ``is_ready()`` (or ``get_ib()``) to gate actual market-data/account work."""
     return _ib is not None and _ib.isConnected()
@@ -260,32 +207,16 @@ def current_generation() -> int:
 
 def session_snapshot() -> dict[str, Any]:
     """Diagnostic snapshot for /readyz and PROBLEM_LOG-style evidence."""
-    from ibkr import ib_scheduler as _ib_scheduler
-    from ibkr import session_reconnect as _reconnect
-    from ibkr import session_usable as _session_usable
-
-    usable = is_ready()
-    task = _reconnect_task
-    return {
-        "state": _session.state(),
-        "generation": _session.generation(),
-        "ready": usable,
-        "usable": usable,
-        "connected": is_connected(),
-        "transport_up": is_connected(),
-        "reason": _session_reason,
-        "unusable_since": _session_errors.unusable_since(),
-        "last_connectivity_code": _session_errors.last_connectivity_code(),
-        "mode": account_mode(),
-        "enabled": is_enabled(),
-        # Diagnostics for the exact freeze this instrumentation was added
-        # for (PROBLEM_LOG 2026-08-31) -- one query instead of an hour of
-        # log archaeology next time.
-        "earn_in_flight": _session_usable.earn_in_flight(),
-        "ib_cold_inflight": _ib_scheduler.inflight_label() or None,
-        "dialer_alive": task is not None and not task.done(),
-        "dialer_heartbeat_age_sec": _reconnect.dialer_heartbeat_age_sec(),
-    }
+    return _client_ready.build_session_snapshot(
+        usable=is_ready(),
+        connected=is_connected(),
+        reason=_session_reason,
+        mode=account_mode(),
+        enabled=is_enabled(),
+        reconnect_task=_reconnect_task,
+        session_state=_session,
+        session_errors=_session_errors,
+    )
 
 
 def account_mode() -> str:
@@ -296,7 +227,7 @@ def account_mode() -> str:
 
 
 def broker_account_kind() -> str:
-    """paper | live | mixed | unknown — from IB managedAccounts after connect."""
+    """paper | live | mixed | unknown -- from IB managedAccounts after connect."""
     if not is_connected():
         return "unknown"
     return _broker_account_kind
@@ -346,7 +277,7 @@ async def _try_connect_alternate_port(
     client_id: int,
     preferred_reason: str,
 ) -> str | None:
-    """Test-facing wrapper — heal logic lives in client_connect."""
+    """Test-facing wrapper -- heal logic lives in client_connect."""
     return await _connect.try_connect_alternate_port(
         ib,
         host,
@@ -374,30 +305,29 @@ async def _maybe_heal_from_port_probes(
 
 
 async def _handle_transport_up_unusable(mode_label: str) -> None:
-    """Test-facing wrapper — recovery lives in session_reconnect."""
+    """Test-facing wrapper -- recovery lives in session_reconnect."""
     from ibkr import session_reconnect as _reconnect
-
     import ibkr.client as _self
 
     await _reconnect.handle_transport_up_unusable(_self, mode_label)
 
 
 async def reconnect_loop() -> None:
-    """Background dialer — implementation in ``session_reconnect``."""
+    """Background dialer -- implementation in ``session_reconnect``."""
     from ibkr.session_reconnect import reconnect_loop as _loop
 
     await _loop()
 
 
 async def force_reconnect() -> dict:
-    """Disconnect and await usable — implementation in ``client_ops``."""
+    """Disconnect and await usable -- implementation in ``client_ops``."""
     from ibkr.client_ops import force_reconnect as _force
 
     return await _force()
 
 
 async def request_gateway_mode(mode: str) -> dict:
-    """User-initiated Paper↔Live switch — implementation in ``client_ops``."""
+    """User-initiated Paper<->Live switch -- implementation in ``client_ops``."""
     from ibkr.client_ops import request_gateway_mode as _switch
 
     return await _switch(mode)

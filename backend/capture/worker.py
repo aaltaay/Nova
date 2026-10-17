@@ -110,7 +110,7 @@ def transition(operation: Callable[[], Any]) -> Any:
     global _accepting, _error, _generation
     try:
         asyncio.get_running_loop()
-    except RuntimeError:
+    except RuntimeError:  # maintainer: allow-swallow no running loop proves this sync transition is off the event loop
         pass
     else:
         raise RuntimeError("Capture lifecycle must be awaited with asyncio.to_thread")
