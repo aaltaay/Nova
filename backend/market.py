@@ -10,7 +10,7 @@ volume by this time of day.
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 from datetime import timedelta
@@ -32,15 +32,27 @@ def now_et() -> datetime:
     return datetime.now(ET)
 
 
+def is_exchange_day(day: date) -> bool:
+    """A weekday that is not an NYSE full-day holiday: a day with a trading session."""
+    return day.weekday() < 5 and day.isoformat() not in NOVA_OS_NYSE_HOLIDAYS
+
+
 def session_key_et(now: datetime | None = None) -> str:
     """04:00 ET-anchored trading-session key (ISO date, ``YYYY-MM-DD``).
 
     Midnight–03:59 ET belongs to the *prior* completed session — a restart
     in that window must not fabricate a new morning scan or resurrect a
     stale prior-session snapshot as today's live table (ADR 008).
+
+    A weekend or holiday has no session of its own: it belongs to the last
+    exchange day before it, so Saturday 04:00 is no rollover and Friday's
+    boards stay Friday's until Monday 04:00 (operator report, 2026-10-17).
     """
     now = (now or now_et()).astimezone(ET)
-    return (now - timedelta(hours=SESSION_PREMARKET_START_MIN_ET // 60)).date().isoformat()
+    day = (now - timedelta(hours=SESSION_PREMARKET_START_MIN_ET // 60)).date()
+    while not is_exchange_day(day):
+        day -= timedelta(days=1)
+    return day.isoformat()
 
 
 def _et_at_minutes(now: datetime, minutes: int) -> datetime:
@@ -54,14 +66,20 @@ def _et_at_minutes(now: datetime, minutes: int) -> datetime:
 
 
 def in_premarket() -> bool:
+    """04:00-09:30 ET on an exchange day. A weekend or holiday morning is closed, not premarket."""
     now = now_et()
+    if not is_exchange_day(now.date()):
+        return False
     start = _et_at_minutes(now, SESSION_PREMARKET_START_MIN_ET)
     open_ = _et_at_minutes(now, SESSION_RTH_OPEN_MIN_ET)
     return start <= now < open_
 
 
 def in_market_hours() -> bool:
+    """09:30-16:00 ET on an exchange day."""
     now = now_et()
+    if not is_exchange_day(now.date()):
+        return False
     open_ = _et_at_minutes(now, SESSION_RTH_OPEN_MIN_ET)
     close = _et_at_minutes(now, SESSION_RTH_CLOSE_MIN_ET)
     return open_ <= now < close
@@ -101,7 +119,10 @@ def regular_session_opened_at(when: datetime) -> bool:
 
 
 def in_after_hours() -> bool:
+    """16:00-20:00 ET on an exchange day."""
     now = now_et()
+    if not is_exchange_day(now.date()):
+        return False
     start = _et_at_minutes(now, SESSION_RTH_CLOSE_MIN_ET)
     end = _et_at_minutes(now, SESSION_AFTERHOURS_END_MIN_ET)
     return start <= now < end
@@ -131,8 +152,8 @@ def trading_session_bounds(ts: float) -> tuple[float, float] | None:
     midnight = datetime(day.year, day.month, day.day, tzinfo=ET)
     nxt = day + timedelta(days=1)
     bounds = None
-    if day.weekday() < 5 and day.isoformat() not in NOVA_OS_NYSE_HOLIDAYS:
-        bounds = (_et_at_minutes(midnight, SESSION_PREMARKET_START_MIN_ET).timestamp(),
+    if is_exchange_day(day):
+        bounds =(_et_at_minutes(midnight, SESSION_PREMARKET_START_MIN_ET).timestamp(),
                   _et_at_minutes(midnight, SESSION_AFTERHOURS_END_MIN_ET).timestamp())
     _session_day = (midnight.timestamp(), datetime(nxt.year, nxt.month, nxt.day, tzinfo=ET).timestamp(),
                     bounds)

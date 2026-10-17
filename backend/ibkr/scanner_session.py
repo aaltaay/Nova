@@ -17,7 +17,7 @@ from constants import (
     SESSION_RTH_CLOSE_MIN_ET,
     SESSION_RTH_OPEN_MIN_ET,
 )
-from market import ET, now_et, session_key_et
+from market import ET, is_exchange_day, now_et, session_key_et
 from runtime_state.state import (
     TABLE_STATE_FROZEN,
     TABLE_STATE_LIVE,
@@ -84,9 +84,17 @@ def _minutes_et(now: datetime) -> int:
     return local.hour * 60 + local.minute
 
 
+def _exchange_day(now: datetime) -> bool:
+    """A weekend or holiday has no session windows: every table stays as the last session left it."""
+    return is_exchange_day(now.astimezone(ET).date())
+
+
 def session_period(now: datetime | None = None) -> str:
     """Premarket / RTH / afterhours / closed for desired scanner leases."""
-    mins = _minutes_et(now or now_et())
+    now = now or now_et()
+    if not _exchange_day(now):
+        return PERIOD_CLOSED
+    mins = _minutes_et(now)
     if SESSION_PREMARKET_START_MIN_ET <= mins < SESSION_RTH_OPEN_MIN_ET:
         return PERIOD_PREMARKET
     if SESSION_RTH_OPEN_MIN_ET <= mins < SESSION_RTH_CLOSE_MIN_ET:
@@ -147,6 +155,8 @@ def table_is_live(table: str, now: datetime | None = None) -> bool:
     if table in _ALWAYS_LIVE:
         return True
     now = now or now_et()
+    if not _exchange_day(now):
+        return False
     mins = _minutes_et(now)
     start = _LIVE_FROM_MIN.get(table)
     end = _FREEZE_AT_MIN.get(table)
@@ -164,6 +174,8 @@ def table_should_be_frozen(table: str, now: datetime | None = None) -> bool:
     end = _FREEZE_AT_MIN.get(table)
     if end is None:
         return False
+    if not _exchange_day(now):
+        return True  # weekend / holiday: the last session is complete
     # Before the live window starts on a new session day, the prior freeze holds
     # until 04:00 rollover clears it — treat pre-live as "not actively live."
     start = _LIVE_FROM_MIN.get(table, 0)
