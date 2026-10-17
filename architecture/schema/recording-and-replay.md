@@ -541,8 +541,8 @@ desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
 
 The operator: replay historical exchange depth in the Sim, kept apart from the live desk. One venue's MBP-10
 book for a symbol-day, imported by hand, drawn on the Sim's Level 2 as that venue's book only (owners
-`sim/exchange_book_files.py` reading a file, `sim/exchange_book_import.py` the import, `sim/exchange_book_store.py`
-the store, `sim/exchange_book.py` the replay's read, `tools/import_exchange_book.py`; on the desk
+`sim/exchange_book_files.py` reading a file, `sim/exchange_book_streams.py` its bytes, plain, gzip or zstd,
+`sim/exchange_book_import.py` the import, `sim/exchange_book_store.py` the store, `sim/exchange_book.py` the replay's read, `tools/import_exchange_book.py`; on the desk
 `frontend/src/sim/HistoricalDepth.tsx` and `ExchangeBookNotes.tsx`).
 
 - **The import** (a command, never the desk; no network): `py -3 tools/import_exchange_book.py import FILE
@@ -556,12 +556,16 @@ the store, `sim/exchange_book.py` the replay's read, `tools/import_exchange_book
   then `bid_px_NN,ask_px_NN,bid_sz_NN,ask_sz_NN,bid_ct_NN,ask_ct_NN` for NN 00-09, and an optional `symbol`;
   times integer nanoseconds or ISO 8601, prices decimals or fixed-point integers (1e-9). An undefined price
   (`INT64_MAX`, or empty) is an empty level, never a zero; an undefined `ts_recv` takes `ts_event`. Which
-  records: MBP-10 for the symbol -- the instrument ids the metadata maps it to on that date, else the CSV's
+  records: MBP-10 for the symbol -- the instrument ids the metadata maps it to by a range holding that date (a
+  range of other dates never counts: an id can belong to another security on another day), else the CSV's
   `symbol`, else `--instrument-id`, else a file holding one instrument -- carrying `F_LAST` (`flags` & 128), from
   04:00 to 20:00 ET of the date, plus the last one before 04:00. Refused, writing nothing: a dataset outside
   `SIM_EXCHANGE_BOOK_VENUES`, a CSV without `--dataset`, a `--dataset` the file contradicts, MBO or any other
-  schema, a damaged or cut-short file, a second publisher, several instruments with nothing naming the symbol,
-  no event for the symbol inside the day. It prints, and `--json` returns, `{ok: true, book, read: {records,
+  schema, a symbol the metadata maps only on other dates, an `--instrument-id` it maps to another symbol that
+  day, a damaged or cut-short file (a decompressor's or decoder's error, a DBN record cut short, a zstd file
+  that ends inside a frame -- read frame by frame, since zstandard's stream reader would stop there silently),
+  a second publisher, several instruments with nothing naming the symbol, no event for the symbol inside the
+  day. It prints, and `--json` returns, `{ok: true, book, read: {records,
   mbp10, other_rtypes, other_instruments, not_last, before_day, after_day, kept, regressions, maybe_bad_book},
   seconds}` or `{ok: false, error}`; `list --json` returns `{ok, store, books: [payload]}`.
 - **Venues** (`SIM_EXCHANGE_BOOK_VENUES`, dataset -> code, name): `XNAS.ITCH` NASDAQ Nasdaq, `XBOS.ITCH` BEX

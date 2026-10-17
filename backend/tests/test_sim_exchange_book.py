@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import gzip
 import importlib.util
+import json
 import logging
 import sqlite3
 import struct
@@ -284,6 +285,45 @@ def test_a_refused_import_writes_nothing_and_keeps_the_book_it_would_replace(tmp
     assert importer.listing() == [first]
 
 
+def test_only_a_mapping_of_the_day_names_the_symbols_instrument(tmp_path):
+    """An instrument id can belong to another security on another day: a mapping of other dates never stands in."""
+    events = [Rec(ns("10:00:00")), Rec(ns("10:00:01"))]                         # instrument 42, on DAY
+    elsewhere = {"XYZ": [(20260917, 20260918, str(XYZ))]}
+    with pytest.raises(ExchangeBookError, match=r"maps XYZ only on other dates \(2026-09-17 to 2026-09-18"):
+        importer.run(write(tmp_path, "old.dbn", dbn(events, mappings=elsewhere)), "XYZ", DAY)
+    recycled = write(tmp_path, "recycled.dbn", dbn(events, mappings={**elsewhere,
+                                                                     "ABC": [(20260918, 20260919, str(XYZ))]}))
+    with pytest.raises(ExchangeBookError, match="maps XYZ only on other dates"):
+        importer.run(recycled, "XYZ", DAY)
+    with pytest.raises(ExchangeBookError, match="Instrument 42 is ABC in this file on 2026-09-18, not XYZ"):
+        importer.run(recycled, "XYZ", DAY, instrument_id=XYZ)
+    assert importer.listing() == []
+    assert importer.run(recycled, "ABC", DAY)["book"]["instrument_ids"] == [XYZ]    # the day's owner of 42
+
+
+@pytest.mark.parametrize("damage", ["gzip cut short", "gzip garbled", "zstd cut short"])
+def test_a_damaged_compressed_file_is_refused_never_read_short(tmp_path, damage):
+    if damage.startswith("zstd"):
+        zstandard = pytest.importorskip("zstandard")
+        body = zstandard.ZstdCompressor().compress(csv_text(day_records() * 40).encode())
+    else:
+        body = gzip.compress(dbn(day_records() * 40))
+    blob = body[:len(body) // 2] if "cut short" in damage else body[:12] + bytes(64) + body[76:]
+    kwargs = {"dataset": "XNAS.ITCH"} if damage.startswith("zstd") else {}
+    with pytest.raises(ExchangeBookError, match="cut short|damaged"):
+        importer.run(write(tmp_path, "bad.bin", blob), "XYZ", DAY, **kwargs)
+    assert importer.listing() == []
+
+
+def test_a_zstd_file_of_several_frames_reads_whole(tmp_path):
+    zstandard = pytest.importorskip("zstandard")
+    text = csv_text(day_records())
+    head, rows = text.split("\n", 1)
+    frames = b"".join(zstandard.ZstdCompressor().compress(part.encode()) for part in (head + "\n", rows))
+    report = importer.run(write(tmp_path, "frames.csv.zst", frames), "XYZ", DAY, dataset="XNAS.ITCH")
+    assert report["read"]["mbp10"] == 9 and report["book"]["events"] == 4
+
+
 def test_a_new_import_replaces_the_book_and_the_old_one_reads_until_it_commits(tmp_path, monkeypatch):
     first = importer.run(write(tmp_path, "a.dbn", dbn(day_records())), "XYZ", DAY)["book"]
     seen = []
@@ -499,3 +539,7 @@ def test_the_command_imports_lists_removes_and_says_why_it_refuses(tmp_path, cap
     assert "Refused: The file is XNAS.ITCH, not EDGX.PITCH" in capsys.readouterr().out
     assert tool.main(["remove", "--symbol", "XYZ", "--date", DAY, "--dataset", "XNAS.ITCH", "--json"]) == 0
     assert '"removed": true' in capsys.readouterr().out
+    garbled = write(tmp_path, "garbled.dbn.gz", gzip.compress(dbn(day_records()))[:-20])
+    assert tool.main(["import", str(garbled), "--symbol", "XYZ", "--date", DAY, "--json"]) == 1
+    answer = json.loads(capsys.readouterr().out)
+    assert answer["ok"] is False and "cut short or damaged" in answer["error"]
