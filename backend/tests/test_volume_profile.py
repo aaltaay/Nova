@@ -182,11 +182,110 @@ def test_yesterday_waits_while_the_budget_says_not_now(monkeypatch):
     assert ("AAPL", "2026-09-29") not in service._cache   # asked again next time
 
 
-def test_a_sim_replay_desk_draws_no_live_profile(monkeypatch):
+def _replay(monkeypatch, *, massive_symbol: str | None, bars: list[dict] | None = None, source: str = "massive"):
+    """A Sim replay desk: its chart's 1-minute bars, and which stock's Massive window is loaded."""
+    from ibkr.historical_derive import unix_to_iso
+
     monkeypatch.setattr("sim.mode.is_replay_desk", lambda: True)
-    monkeypatch.setattr(service, "_stored_minutes", lambda *_a: pytest.fail("a replay never reads live bars"))
-    out = asyncio.run(service.profile("AAPL", "today", TODAY, None))
-    assert out["histogram"] == [] and "Sim replay" in out["error"]
+    monkeypatch.setattr(service, "_stored_minutes", lambda *_a: pytest.fail("today on a replay never reads live bars"))
+    rows = bars if bars is not None else [
+        {"t": unix_to_iso(b.t), "o": b.o, "h": b.h, "l": b.l, "c": b.c, "v": b.v} for b in session_bars(TODAY, 90)]
+    asked = []
+
+    def replay_bars(symbol, timeframe, limit):
+        asked.append((symbol, timeframe))
+        return {"symbol": symbol, "timeframe": timeframe, "bars": rows, "source": source}
+
+    monkeypatch.setattr("sim.chart_replay.fetch_replay_bars", replay_bars)
+    spec = {"symbol": massive_symbol, "source": "massive"} if massive_symbol else None
+    monkeypatch.setattr("sim.history_playback.status", lambda: spec)
+    monkeypatch.setattr("sim.history_playback.is_massive", lambda s: bool(s))
+    return asked
+
+
+def test_today_on_a_replay_is_the_replays_own_bars(monkeypatch):
+    asked = _replay(monkeypatch, massive_symbol="AAPL")
+    out = asyncio.run(service.profile("AAPL", "today", TODAY, at(TODAY, 10, 0)))
+    assert asked == [("AAPL", "1Min")]
+    assert out["feed"] == "massive" and out["bars"] == 60      # 10:00 to the playhead's last bar (10:59)
+    assert out["from"] == at(TODAY, 10, 0)
+
+
+def test_yesterday_on_a_massive_replay_reads_the_same_massive_files(monkeypatch):
+    _replay(monkeypatch, massive_symbol="AAPL")
+    read = []
+
+    async def massive(symbol, day):
+        read.append((symbol, day))
+        return session_bars(day)
+
+    monkeypatch.setattr(service, "_massive_minutes", massive)
+    monkeypatch.setattr(service, "_ibkr_minutes", lambda *_a: pytest.fail("a Massive replay never asks IBKR"))
+    out = asyncio.run(service.profile("AAPL", "yesterday", TODAY, None))
+    assert read == [("AAPL", YESTERDAY)]
+    assert out["feed"] == "massive" and out["bars"] == 390 and out["day"] == "2026-09-29"
+    assert asyncio.run(service.profile("AAPL", "yesterday", TODAY, None)) is out     # kept in memory
+
+
+def test_a_slow_massive_read_says_filling_then_answers(monkeypatch):
+    _replay(monkeypatch, massive_symbol="AAPL")
+    monkeypatch.setattr(service, "VP_MASSIVE_WAIT_SEC", 0.01)
+    started = []
+
+    async def slow(symbol, day):
+        started.append(day)
+        await asyncio.sleep(0.05)
+        return session_bars(day)
+
+    monkeypatch.setattr(service, "_massive_minutes", slow)
+
+    async def ask_twice():
+        first = await service.profile("AAPL", "yesterday", TODAY, None)
+        await asyncio.sleep(0.1)
+        return first, await service.profile("AAPL", "yesterday", TODAY, None)
+
+    first, later = asyncio.run(ask_twice())
+    assert first["filling"] is True and "Massive files" in first["error"] and first["histogram"] == []
+    assert later["bars"] == 390 and started == [YESTERDAY]
+
+
+def test_a_missing_massive_day_is_a_stated_empty(monkeypatch):
+    _replay(monkeypatch, massive_symbol="AAPL")
+
+    async def none(*_a):
+        return None
+
+    monkeypatch.setattr(service, "_massive_minutes", none)
+    out = asyncio.run(service.profile("AAPL", "yesterday", TODAY, None))
+    assert out["filling"] is False and "no 1-minute bars for 2026-09-29" in out["error"]
+
+
+def test_yesterday_on_another_replay_is_ibkrs_as_live(monkeypatch):
+    _replay(monkeypatch, massive_symbol="MSFT", source="ibkr")
+    monkeypatch.setattr(service, "_stored_minutes", lambda *_a: session_bars(YESTERDAY))
+    monkeypatch.setattr(service, "_massive_minutes", lambda *_a: pytest.fail("AAPL is not the Massive window"))
+    out = asyncio.run(service.profile("AAPL", "yesterday", TODAY, None))
+    assert out["feed"] == "ibkr" and out["bars"] == 390
+
+
+def test_massive_minutes_reads_the_days_minute_file(tmp_path, monkeypatch):
+    import gzip
+
+    from volume_profile.massive_minutes import session_minutes
+
+    monkeypatch.setenv("NOVA_MARKET_DATA_DIR", str(tmp_path))
+    path = tmp_path / "minute_aggs_v1" / "2026" / "09" / "2026-09-29.csv.gz"
+    path.parent.mkdir(parents=True)
+    rows = [("AAPL", 9, 29, 330.0), ("AAPL", 9, 30, 331.0), ("AAPL", 15, 59, 332.0), ("AAPL", 16, 0, 333.0),
+            ("MSFT", 9, 30, 400.0)]
+    with gzip.open(path, "wt", encoding="utf-8") as fh:
+        fh.write("ticker,volume,open,close,high,low,window_start,transactions\n")
+        for ticker, h, m, price in rows:
+            fh.write(f"{ticker},500,{price},{price},{price + 0.1},{price - 0.1},{int(at(YESTERDAY, h, m)) * 10**9},3\n")
+    bars = session_minutes("aapl", YESTERDAY)
+    assert [b.t for b in bars] == [at(YESTERDAY, 9, 30), at(YESTERDAY, 15, 59)]     # 09:30-16:00 only, AAPL only
+    assert bars[0].c == 331.0 and bars[0].v == 500
+    assert session_minutes("AAPL", TODAY) is None                                      # that day's file is not on disk
 
 
 class _FakeBar:

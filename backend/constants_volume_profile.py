@@ -7,6 +7,11 @@ from __future__ import annotations
 
 VP_SCHEMA_VERSION = 1
 VP_SOURCE_BARS_1M = "bars_1m"
+# Who drew the bars (the wire's ``feed``): IBKR live, or the operator's Massive files on a Massive Sim replay.
+VP_FEED_IBKR = "ibkr"
+VP_FEED_MASSIVE = "massive"
+# How long an ask waits for a Massive file read before answering ``filling`` (the read goes on in its thread).
+VP_MASSIVE_WAIT_SEC = 2.0
 
 # The histogram: rows over the profile's price range, never thinner than a cent; the value area's share.
 VP_ROWS = 400

@@ -21,9 +21,9 @@ import {
   VP_LANE_MAX_PX,
   VP_LANE_SHARE,
   VP_TODAY_REFRESH_MS,
-  VP_YESTERDAY_TITLE,
   vpMissingNote,
   vpTodayTitle,
+  vpYesterdayTitle,
 } from './volumeProfileConstants';
 
 const DAY_SEC = 86_400;
@@ -72,11 +72,14 @@ export function useVolumeProfile({ symbol, chart, series, containerRef, barsRevi
   const [anchor, setAnchor] = useSessionAnchor(symbol, day);
   const anchorSec = anchor ?? (dayStart == null ? null : dayStart + VP_DEFAULT_ANCHOR_MIN_ET * 60);
 
+  // Today's follows the pane's candles too: a new candle, or a replay's playhead moving them, asks again.
   const todayAnswer = useProfileAnswer('today', symbol, enabled, day,
-    anchorSec == null ? null : chartToEpoch(anchorSec), VP_TODAY_REFRESH_MS);
+    anchorSec == null ? null : chartToEpoch(anchorSec), VP_TODAY_REFRESH_MS, barsRevision);
   const yesterdayAnswer = useProfileAnswer('yesterday', symbol, enabled, day, null, 0);
   const today = todayAnswer.profile;
   const yesterday = yesterdayAnswer.profile;
+  const todayFeed = todayAnswer.feed;
+  const yesterdayFeed = yesterdayAnswer.feed;
   const notes = [
     ...(today || !todayAnswer.error ? [] : [vpMissingNote("Today's", todayAnswer.error)]),
     ...(yesterday || !yesterdayAnswer.error ? [] : [vpMissingNote("Yesterday's", yesterdayAnswer.error)]),
@@ -106,14 +109,14 @@ export function useVolumeProfile({ symbol, chart, series, containerRef, barsRevi
   }, [enabled, chart, series]);
 
   useEffect(() => {
-    const t = today ? layer(today, (s) => vpTodayTitle(clock(s))) : null;
+    const t = today ? layer(today, (s) => vpTodayTitle(clock(s), todayFeed)) : null;
     primitiveRef.current?.setScene({
       today: t ? { ...t, anchor: clock(t.start) } : null,
-      yesterday: yesterday ? layer(yesterday, () => VP_YESTERDAY_TITLE) : null,
+      yesterday: yesterday ? layer(yesterday, () => vpYesterdayTitle(yesterdayFeed)) : null,
       rightInset,
       notes: notesKey ? notesKey.split('\n') : [],
     });
-  }, [today, yesterday, rightInset, notesKey, enabled, chart, series]);
+  }, [today, yesterday, todayFeed, yesterdayFeed, rightInset, notesKey, enabled, chart, series]);
 
   // The levels' prices on the axis, the way every other line on the desk shows its price.
   useEffect(() => {

@@ -18,3 +18,5 @@ export { useHistoricalSnapshot } from './useHistoricalSnapshot';
 export { useVenuePrice } from './useReplayQuote';
 // A rebuilt day's Gappers by the second asks the leaderboard routes the way replay reads do (ADR 023 amendment 2026-10-13).
 export { replayRequest } from './replayRequest';
+// A playhead commit: what was drawn from the replay up to the old playhead is dropped (the volume profile, ADR 058).
+export { SIM_CLOCK_SCRUB_EVENT, matchesSimClockScrub } from './simClockEvents';

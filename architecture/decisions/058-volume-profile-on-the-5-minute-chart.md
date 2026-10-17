@@ -46,8 +46,20 @@ A working prototype on the demo desk (2026-10-17) showed two things the plan had
    value area, a red POC, a white outline tracing each histogram's shape. When the operator's own zoom leaves no room
    right of the last candle, today's histogram lies faintly over the candles: Nova never moves a view the operator
    took.
-8. **Not on a Sim replay.** The profile reads live IBKR bars; a replay desk says so instead of drawing them under a
-   replayed chart (single-market-data-feed rule 1).
+8. ~~**Not on a Sim replay.**~~ Superseded by the amendment below.
+
+## Amendment 2026-10-17 -- the profile on a Sim replay
+
+**Decided by:** the operator, on a Massive replay of AAPL whose chart said the profile is not drawn on a Sim replay:
+"it doesn't work in the sim bro.. why it can't load data from data of massive we have? I still want a single source of
+truth, so the data needs to be the same. In the sim, we're still going to have the same data feed, but instead of IBKR,
+we're just injecting the data from Massive."
+
+On a replay desk the profile reads what the replay's chart reads -- one feed, the replay's: today's from the replay's
+own 1-minute bars up to the playhead (`sim.chart_replay.fetch_replay_bars`), yesterday's on a Massive replay from the
+same Massive files' minute bars for the exchange day before, and on any other replay as live (those bars are IBKR's).
+The answer names its `feed`, and the desk drops today's profile on every scrub so nothing after the playhead is drawn
+(`architecture/schema/volume-profile.md`, "On a Sim replay"). Live bars are still never drawn under a replayed chart.
 
 ## Consequences
 

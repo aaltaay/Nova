@@ -75,6 +75,8 @@ export const VP_TOGGLE_TITLE =
 export const VP_PREFS_KEY = 'nova.volumeProfile.shown.v1';
 
 export const vpMissingNote = (which: string, why: string) => `${which} profile: ${why}`;
-export const vpTodayTitle = (anchor: string) => `TODAY'S PROFILE  ${anchor} → now`;
-export const VP_YESTERDAY_TITLE = "YESTERDAY'S PROFILE  09:30 → 16:00";
+/** A profile drawn from another feed than IBKR's (a Massive Sim replay) says so on its tab. */
+const feedTag = (feed: string | null) => (feed && feed !== 'ibkr' ? `  ·  ${feed.toUpperCase()}` : '');
+export const vpTodayTitle = (anchor: string, feed: string | null = null) => `TODAY'S PROFILE  ${anchor} → now${feedTag(feed)}`;
+export const vpYesterdayTitle = (feed: string | null = null) => `YESTERDAY'S PROFILE  09:30 → 16:00${feedTag(feed)}`;
 export const vpAnchorLabel = (anchor: string) => `⇔  Anchor ${anchor}`;

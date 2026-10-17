@@ -34,7 +34,7 @@ Answer (200):
 ```json
 {
   "schema_version": 1, "enabled": true, "symbol": "AAPL", "kind": "today", "day": "2026-09-30",
-  "from": 1790861400, "to": 1790892000, "source": "bars_1m", "bars": 195,
+  "from": 1790861400, "to": 1790892000, "source": "bars_1m", "feed": "ibkr", "bars": 195,
   "row_size": 0.0234, "low": 330.14, "high": 339.5, "total_volume": 18690000,
   "poc": 337.36, "vah": 339.29, "val": 336.6, "poc_row": 308, "vah_row": 391, "val_row": 276,
   "histogram": [[330.14, 4100, 9800], "... [row's low price, up volume, down volume] x rows, lowest first"],
@@ -44,17 +44,18 @@ Answer (200):
 
 - `from` / `to`: the stretch measured, epoch seconds, `[from, to)`. `today`'s `to` is `day` 20:00 ET; it holds the
   minutes the store has so far.
-- `source`: `bars_1m` -- IBKR's 1-minute TRADES bars. A bar's volume is spread evenly over the rows its high-low range
-  covers. `up` is volume on bars that closed at or above their open, `down` the rest: colour only, never buyers vs
-  sellers.
+- `source`: `bars_1m` -- 1-minute bars. A bar's volume is spread evenly over the rows its high-low range covers. `up`
+  is volume on bars that closed at or above their open, `down` the rest: colour only, never buyers vs sellers.
+- `feed`: who drew those bars -- `ibkr` (the chart store or an IBKR request), `massive` (the operator's Massive files,
+  on a Massive Sim replay), `capture` (a Session Record's replay). The desk names a feed other than IBKR on the
+  profile's tab.
 - Rows: 400 over `low`-`high`, never thinner than $0.01. The POC is the busiest row (a tie goes to the row nearest
   the middle); the value area grows from it two rows at a time toward the heavier side until it holds 70%. `poc` is
   the POC row's middle, `vah` the value area's top, `val` its bottom.
 - **No profile** is a stated empty, never a zero: `histogram: []`, the price fields `null`, `error` in words. With
   `filling: true` the desk asks again in `VP_RETRY_MS` (yesterday's bars are being read from IBKR, or IBKR's budget
   said not now).
-- On a Sim replay desk (`sim.mode.is_replay_desk()`) the answer is empty with `error`: the profile reads live IBKR
-  bars, and a replay's chart is not those.
+- On a Sim replay desk (`sim.mode.is_replay_desk()`) the profile reads the replay's bars, never live ones (below).
 
 ### Where the bars come from
 
@@ -65,3 +66,20 @@ Answer (200):
   loads, while pacing asks for a wait, or with `IBKR_HISTORY_TRADING_RESERVE` or fewer requests left of the 10
   minutes. Those bars are not stored. The finished profile is kept in memory, per symbol and day, up to
   `VP_CACHE_MAX` of them; a restart reads them again. Nothing is persisted.
+
+### On a Sim replay (ADR 058 amendment, operator report 2026-10-17)
+
+One feed, whatever drew the replay: the profile reads what the replay's chart reads.
+
+- **Today:** the replay's own 1-minute bars (`sim.chart_replay.fetch_replay_bars`, the 5-minute pane's own source):
+  a Massive window's minutes, a Session Record's, or the store's for that day -- finished bars only, none after the
+  playhead. `feed` says which. Never cached: the playhead moves. The desk drops today's profile the moment the
+  playhead is scrubbed (`nova:sim-clock-scrub`) and asks again, so no bar from after it is ever drawn.
+- **Yesterday, on a Massive replay of this stock:** the exchange day before's regular session from the same Massive
+  files (`volume_profile/massive_minutes.py` through `sim.massive_files`: that day's `minute_aggs_v1` file, the
+  ticker's rows unaltered -- as traded, like the replay itself). A file without its seek index is streamed from the
+  start, which can take a while: the answer is `filling` until the read is done (one read per stock and day, in a
+  worker thread), then kept in memory like an IBKR one. The day's file not on disk is a stated empty.
+- **Yesterday, on any other replay** (an IBKR download, a Session Record, another stock than the Massive window's):
+  as live -- the chart store, else the one paced IBKR request -- since those replays' bars are IBKR's.
+- At the live edge (`live_edge`) the Sim desk reads the live feed, as Paper does.

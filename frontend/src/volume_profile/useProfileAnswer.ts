@@ -5,20 +5,37 @@
  * belongs to one stock's day: on another day or stock it is 09:30 again, never a time outside the day it measures.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { matchesSimClockScrub, SIM_CLOCK_SCRUB_EVENT } from '../sim';
 import { fetchVolumeProfile, type ProfileAnswer, type ProfileKind } from './volumeProfileApi';
 import { VP_RETRY_MS } from './volumeProfileConstants';
 
-const NONE: ProfileAnswer = { profile: null, filling: false, error: null };
+const NONE: ProfileAnswer = { profile: null, filling: false, error: null, feed: null };
 const NO_ANSWER = 'the backend did not answer';
 
-/** One profile; asked again while `filling` or after no answer, else every `refreshMs` (0: never). */
+/**
+ * One profile; asked again while `filling` or after no answer, else every `refreshMs` (0: never), and whenever
+ * `revision` changes (the pane's candles did). Today's is dropped the moment the Sim playhead is scrubbed and asked
+ * again, cancelling a request still in flight, so a profile with bars from after the playhead is never drawn.
+ */
 export function useProfileAnswer(
   kind: ProfileKind, symbol: string, enabled: boolean, day: string | null, anchorEpoch: number | null, refreshMs: number,
+  revision = 0,
 ): ProfileAnswer {
   const [answer, setAnswer] = useState<ProfileAnswer>(NONE);
+  const [scrubs, setScrubs] = useState(0);
   useEffect(() => {
     setAnswer(NONE);
   }, [symbol, day]);
+  useEffect(() => {
+    if (kind !== 'today') return undefined;
+    const onScrub = (event: Event) => {
+      if (!matchesSimClockScrub(event, symbol)) return;
+      setAnswer(NONE);
+      setScrubs((n) => n + 1);
+    };
+    window.addEventListener(SIM_CLOCK_SCRUB_EVENT, onScrub);
+    return () => window.removeEventListener(SIM_CLOCK_SCRUB_EVENT, onScrub);
+  }, [kind, symbol]);
   useEffect(() => {
     if (!enabled || day == null || (kind === 'today' && anchorEpoch == null)) return undefined;
     const ctrl = new AbortController();
@@ -35,7 +52,7 @@ export function useProfileAnswer(
         .catch((err: unknown) => {
           if (ctrl.signal.aborted) return;
           console.warn(`Volume profile (${kind}) for ${symbol} failed:`, err);
-          setAnswer({ profile: null, filling: false, error: NO_ANSWER });
+          setAnswer({ profile: null, filling: false, error: NO_ANSWER, feed: null });
           again(VP_RETRY_MS);
         });
     }
@@ -44,7 +61,7 @@ export function useProfileAnswer(
       ctrl.abort();
       if (timer) clearTimeout(timer);
     };
-  }, [kind, symbol, enabled, day, anchorEpoch, refreshMs]);
+  }, [kind, symbol, enabled, day, anchorEpoch, refreshMs, revision, scrubs]);
   return answer;
 }
 

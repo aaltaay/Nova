@@ -19,11 +19,11 @@ describe('the volume-profile wire', () => {
 
   it('reads an empty answer as a stated null with the backend reason, never a zero profile', () => {
     const empty = wireToAnswer({
-      schema_version: 1, enabled: true, histogram: [], poc: null, filling: true,
-      error: "Reading 2026-09-29's 1-minute bars from IBKR waits: an open chart is loading",
+      schema_version: 1, enabled: true, histogram: [], poc: null, filling: true, feed: 'massive',
+      error: "Reading 2026-09-29's 1-minute bars from the Massive files",
     });
     expect(empty).toEqual({
-      profile: null, filling: true, error: "Reading 2026-09-29's 1-minute bars from IBKR waits: an open chart is loading",
+      profile: null, filling: true, error: "Reading 2026-09-29's 1-minute bars from the Massive files", feed: 'massive',
     });
   });
 
@@ -37,6 +37,6 @@ describe('the volume-profile wire', () => {
     expect(url).toContain('anchor=1790869500');
     novaFetch.mockResolvedValueOnce(new Response(JSON.stringify({ detail: 'kind is today or yesterday' }), { status: 422 }));
     const refused = await fetchVolumeProfile('AAPL', 'yesterday', '2026-09-30', null, new AbortController().signal);
-    expect(refused).toEqual({ profile: null, filling: false, error: 'Volume profile: kind is today or yesterday' });
+    expect(refused).toEqual({ profile: null, filling: false, error: 'Volume profile: kind is today or yesterday', feed: null });
   });
 });
