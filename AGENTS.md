@@ -238,6 +238,7 @@ Every confirmed wire and persisted shape lives in `architecture/schema/`, one fi
 | The Cryptos page (ADR 040, operator ask 2026-09-30) | `architecture/schema/cryptos.md` |
 | Followed traders: another feed's positions, priced with IBKR (operator ask 2026-10-13) | `architecture/schema/followed-traders.md` |
 | The Market page (ADR 053, operator decisions 2026-10-12/13) | `architecture/schema/market-board.md` |
+| Volume profile on the 5-minute chart (ADR 058, operator decision 2026-10-17) | `architecture/schema/volume-profile.md` |
 | Symbol directory for the header search (operator ask, 2026-09-23) | `architecture/schema/desk-ops.md` |
 | The operator's watch list and its toasts (operator asks, 2026-09-23 and 2026-09-24) | `architecture/schema/desk-ops.md` |
 | The close-of-day reminder (operator ask, 2026-10-01) | `architecture/schema/desk-ops.md` |

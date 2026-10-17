@@ -80,5 +80,6 @@ the backend packages.
 | `utils/` | shared | Generic helpers (formatting, prefStore, sorting, rAF coalescing) plus backend / desktop glue (auto-heal, Gateway launch, window bounds). |
 | `ux/` | shared | The app-wide dialog service (the alert / confirm / prompt API and the `AppDialogHost` that renders it) and the two tips: why a control is locked (`whyTip`) and what a chip means (`hoverTip`); Ctrl+F, the find bar every window gets (`findBar`, searching with `findText`); and `LiveText`, a number that changes every tick and lays out only itself (#707). |
 | `volume_boost/` | feature | The Volume Boost scanner tab: exceptional L1 volume-rate spikes with age formatting. |
+| `volume_profile/` | feature | Volume profile on the Trader's 5-minute pane (ADR 058): today's profile from its draggable anchor and yesterday's regular session, their POC and value areas from `/api/volume-profile`, and the toolbar's Profile switch. A chart study; nothing trades on it. |
 | `watch_list/` | feature | The operator's hand-picked Watch list: the persisted list, the Watch list tab, the watch eye, and the toasts for watched symbols -- "hit HOD Momo" and a setup climbing its ladder on the setup scanner. |
 | `workspace/` | feature | The workspace shell: selected-symbol context, module registry, layout / visibility / nav-rail stores, scanner tabs, the pop-out window bus. |

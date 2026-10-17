@@ -1,6 +1,14 @@
 # Volume Profile for Large Caps Plan
 
-> **Status (2026-10-16): proposed, not built.** A plan and mockups only, as the operator asked
+> **Status (2026-10-17): the chart is built (ADR 058, `architecture/schema/volume-profile.md`); the rest is not.**
+> On the read card and plan card the operator said "I don't need all of that. I just need the chart", then "go ahead
+> and build it! fast forward". Built: §4's switch as the Trader toolbar's Profile button (off until turned on), §5.1's
+> engine in `backend/volume_profile/`, and §6.1's 5-minute pane -- today's profile from the draggable 09:30 anchor,
+> yesterday's regular session, the boxes, value areas, POC and outlines. Not built: the Settings section, §6.2's two
+> drawing tools (the anchor's handle does today's), §5.3-5.5 and §6.3 (zones, shape, reads, the read card, the Large
+> Cap columns), §8's signals and §9's research. §13 records the decisions as taken.
+>
+> **Earlier status (2026-10-16): proposed, not built.** A plan and mockups only, as the operator asked
 > ("prepare a complete plan ... do not build it", then "This is only planning phase no code").
 > Tracks #1014. Nothing here places, stages or blocks an order.
 >
@@ -567,11 +575,11 @@ Verified by.
 
 | # | Question | Recommendation |
 |---|---|---|
-| D1 | When it first ships, is the switch **off** (hidden until you turn it on)? | **Off.** |
-| D2 | What is a large cap: **$10B and up**, or only the Large Cap tab's $50B+? | **$10B.** |
-| D3 | Include SPY, QQQ and IWM? | **Yes.** |
+| D1 | When it first ships, is the switch **off** (hidden until you turn it on)? | **Decided 2026-10-17: off.** |
+| D2 | What is a large cap: **$10B and up**, or only the Large Cap tab's $50B+? | **Answered by the switch (2026-10-17):** the chart draws on every stock while it is on; a large-cap universe waits for the signals. |
+| D3 | Include SPY, QQQ and IWM? | **Answered by the switch**, as D2. |
 | D4 | ~~Which chart?~~ | **Decided 2026-10-16: the 5-minute chart only.** |
-| D5 | Where the switch lives: a new **Settings › Features**, or Settings › General? | **Settings › Features.** |
-| D6 | Show **short** signals too (watch-only)? | **Yes.** |
-| D7 | Today's profile measures from the **09:30 open** by default, or 04:00 pre-market? | **09:30**, as the research and the video use the regular session. |
-| D8 | Re-entry acceptance: the classic **two 30-minute periods**, or faster? | **The classic rule** as the primary; the faster ones as research cells. |
+| D5 | Where the switch lives: a new **Settings › Features**, or Settings › General? | **Decided 2026-10-17: the Trader toolbar's Profile button**, beside Eyes; no Settings section. |
+| D6 | Show **short** signals too (watch-only)? | Open: no signals are built. |
+| D7 | Today's profile measures from the **09:30 open** by default, or 04:00 pre-market? | **Decided 2026-10-17: 09:30**; the handle drags it to any candle from 04:00. |
+| D8 | Re-entry acceptance: the classic **two 30-minute periods**, or faster? | Open: no signals are built. |
