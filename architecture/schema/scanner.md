@@ -19,7 +19,10 @@ trade yet; the desk shows it as such and states no change.
 `tables: {gappers | gainers | losers | afterhours | large_cap: {table_state,
 roster_ts, last_scan}}` -- never rows. A persistent-authoritative desk (ADR
 008), whose rows follow `/ws/scanner`, polls it so mode, health and feed
-errors do not freeze at mount.
+errors do not freeze at mount. On a weekend or NYSE holiday `mode` is
+`closed` all day, every day-trade table reads `frozen` with the last exchange
+day's rows, and a table's `session_key` is that day's date (ADR 008 amendment,
+operator report 2026-10-17); Large Cap stays `live` (ADR 014).
 
 No socket frame on `/ws/scanner` or `/ws/hod-momo` carries a bare `NaN` /
 `Infinity`: a non-finite float is `null` (`scanner_wire.dumps_wire`,
