@@ -10,12 +10,12 @@ Units are the only conversion: a fixed-point price (1e-9 dollars) becomes dollar
 (``INT64_MAX``, or an empty CSV field) NaN -- an empty level, never a zero price -- and an undefined capture time
 takes the event's own. Every other value is the file's.
 
-Pure apart from reading the file; ``zstandard`` is imported only for a zstd-compressed file.
+Pure apart from reading the file. Its bytes come through ``sim.exchange_book_streams`` (plain, gzip or zstd), and
+a damaged or cut-short file is refused with the reason, never a traceback (PR #1036 review).
 """
 from __future__ import annotations
 
 import csv
-import gzip
 import io
 import math
 import re
@@ -28,9 +28,10 @@ from pathlib import Path
 from typing import NamedTuple
 
 from constants_sim import SIM_EXCHANGE_BOOK_LEVELS
+from sim.exchange_book_streams import READ_BYTES, ExchangeBookError, Prefixed, open_inflated, read_exact, unreadable
 
-_ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
-_GZIP_MAGIC = b"\x1f\x8b"
+__all__ = ["BookFile", "Event", "ExchangeBookError", "Header", "LEVEL_FIELDS", "is_empty_level"]
+
 _DBN_MAGIC = b"DBN"
 _DBN_VERSIONS = (1, 2, 3)
 # The metadata's fixed part is 100 bytes in every version; version 1 names symbols in 22-byte strings.
@@ -47,7 +48,6 @@ _UNDEF_TS = 2**64 - 1
 # bid_ct, ask_ct).
 _MBP10 = struct.Struct("<BBHIQ" + "qIccBBQiI" + "qqIIII" * SIM_EXCHANGE_BOOK_LEVELS)
 _LEVELS_AT = 14
-_READ_BYTES = 1 << 20
 _U32_MAX = 2**32 - 1
 _NAN = float("nan")
 
@@ -58,10 +58,6 @@ _CSV_LEVELS = tuple(f"{name}_{k:02d}" for k in range(SIM_EXCHANGE_BOOK_LEVELS)
                     for name in ("bid_px", "ask_px", "bid_sz", "ask_sz", "bid_ct", "ask_ct"))
 _CSV_REQUIRED = ("ts_recv", "ts_event", "rtype", "publisher_id", "instrument_id", "flags", *_CSV_LEVELS)
 _ISO = re.compile(r"(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:?\d{2})?")
-
-
-class ExchangeBookError(ValueError):
-    """A file the importer refuses, with the reason in the operator's words."""
 
 
 class Event(NamedTuple):
@@ -132,54 +128,6 @@ def _cstr(blob: bytes, at: int, width: int) -> str:
     return blob[at:at + width].split(b"\0", 1)[0].decode("ascii", "replace")
 
 
-class _Prefixed(io.RawIOBase):
-    """A stream that serves bytes already read before the rest of ``inner``."""
-
-    def __init__(self, head: bytes, inner):
-        self._head, self._inner = memoryview(head), inner
-
-    def readable(self) -> bool:
-        return True
-
-    def readinto(self, buffer) -> int:
-        if len(self._head):
-            n = min(len(buffer), len(self._head))
-            buffer[:n] = self._head[:n]
-            self._head = self._head[n:]
-            return n
-        data = self._inner.read(len(buffer))
-        buffer[:len(data)] = data
-        return len(data)
-
-
-def _inflated(raw) -> tuple[object, str | None]:
-    """``(stream, compression)``: ``raw``'s bytes inflated, whatever compressed them."""
-    head = raw.read(4)
-    raw.seek(0)
-    if head == _ZSTD_MAGIC:
-        try:
-            import zstandard
-        except ImportError:
-            raise ExchangeBookError("This file is zstd-compressed: install the zstandard package "
-                                    "(py -3 -m pip install zstandard) or decompress it first") from None
-        return zstandard.ZstdDecompressor().stream_reader(raw, read_across_frames=True, closefd=False), "zstd"
-    if head[:2] == _GZIP_MAGIC:
-        return gzip.GzipFile(fileobj=raw), "gzip"
-    return raw, None
-
-
-def _read_exact(stream, n: int) -> bytes:
-    """Up to ``n`` bytes: fewer only at the end of the stream (a decompressor may answer in pieces)."""
-    parts, have = [], 0
-    while have < n:
-        part = stream.read(n - have)
-        if not part:
-            break
-        parts.append(part)
-        have += len(part)
-    return b"".join(parts)
-
-
 class BookFile:
     """One open MBP-10 file: ``header`` is read on open, ``events()`` yields its MBP-10 records once."""
 
@@ -187,17 +135,25 @@ class BookFile:
         self.path = Path(path)
         self.counts: Counter = Counter()
         self.other_rtypes: Counter = Counter()
-        self._raw = open(self.path, "rb")
+        try:
+            self._raw = open(self.path, "rb")
+        except OSError as exc:
+            raise ExchangeBookError(f"The file cannot be opened ({exc})") from exc
         self._inner = None
         try:
-            self._inner, compression = _inflated(self._raw)
-            head = _read_exact(self._inner, 8)
-            self._stream = io.BufferedReader(_Prefixed(head, self._inner), buffer_size=_READ_BYTES)
-            if head[:3] == _DBN_MAGIC:
-                self.header = self._dbn_header(head, compression)
-            else:
-                self._csv = csv.reader(io.TextIOWrapper(self._stream, encoding="utf-8", newline=""))
-                self.header = self._csv_header(compression)
+            self._inner, compression, self._read_errors = open_inflated(self._raw)
+            try:
+                head = read_exact(self._inner, 8)
+                self._stream = io.BufferedReader(Prefixed(head, self._inner), buffer_size=READ_BYTES)
+                if head[:3] == _DBN_MAGIC:
+                    self.header = self._dbn_header(head, compression)
+                else:
+                    self._csv = csv.reader(io.TextIOWrapper(self._stream, encoding="utf-8", newline=""))
+                    self.header = self._csv_header(compression)
+            except ExchangeBookError:
+                raise
+            except self._read_errors as exc:
+                raise unreadable(exc, "at its start") from exc
         except BaseException:
             self.close()
             raise
@@ -266,7 +222,7 @@ class BookFile:
     def _dbn_events(self) -> Iterator[Event]:
         buffer = bytearray()
         offset_base = 0
-        while block := self._stream.read(_READ_BYTES):
+        while block := self._stream.read(READ_BYTES):
             buffer += block
             at, size_all = 0, len(buffer)
             while at < size_all:
@@ -345,7 +301,12 @@ class BookFile:
 
     def events(self) -> Iterator[Event]:
         """Each MBP-10 record in file order. ``counts`` and ``other_rtypes`` tally what was read so far."""
-        yield from (self._dbn_events() if self.header.format == "dbn" else self._csv_events())
+        try:
+            yield from (self._dbn_events() if self.header.format == "dbn" else self._csv_events())
+        except ExchangeBookError:
+            raise
+        except self._read_errors as exc:
+            raise unreadable(exc, f"after {self.counts['records']:,} records") from exc
 
 
 def is_empty_level(price: float, size: int) -> bool:

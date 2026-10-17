@@ -96,7 +96,8 @@ def main(argv: list[str] | None = None) -> int:
                           books=importer.listing(args.store, args.symbol, args.date))
         else:
             result = dict(ok=True, removed=importer.remove(args.symbol, args.date, args.dataset, args.store))
-    except (ExchangeBookError, sqlite3.Error) as exc:
+    except (ExchangeBookError, sqlite3.Error, OSError) as exc:
+        # Every refusal and every file or store that cannot be read answers in the same shape (--json included).
         result = dict(ok=False, error=str(exc))
     _print(result, args.json)
     return 0 if result["ok"] else 1

@@ -73,25 +73,42 @@ def venue_of(named: str | None, asked: str | None) -> tuple[str, str, str]:
     return dataset, code, label
 
 
+def _yyyymmdd(value: int) -> str:
+    return f"{value // 10000:04d}-{value // 100 % 100:02d}-{value % 100:02d}"
+
+
 def _instruments(header: Header, symbol: str, day: str, instrument_id: int | None) -> set[int] | None:
-    """The instrument ids that are ``symbol`` in this file, or None when the file's metadata does not say (then
-    the CSV's ``symbol`` column, or a file of one instrument, decides)."""
+    """The instrument ids that are ``symbol`` in this file on ``day``, or None when the file's metadata maps no
+    symbol to an instrument id (then the CSV's ``symbol`` column, or a file of one instrument, decides).
+
+    Only a mapping whose dates hold ``day`` counts. An id can belong to another security on another day, so a
+    mapping of other dates never stands in for the day's: the import refuses instead (PR #1036 review)."""
     when = int(day.replace("-", ""))
-    mapped: dict[str, set[int]] = {}
+    on_day: dict[str, set[int]] = {}
+    other_days: dict[str, list[tuple[int, int]]] = {}
     for raw, intervals in header.mappings.items():
-        on_day = [m for first, last, m in intervals if first <= when < last and m.isdigit()]
-        ids = {int(m) for m in on_day or [m for _, _, m in intervals if m.isdigit()]}
-        if ids:
-            mapped.setdefault(raw.strip().upper(), set()).update(ids)
+        name = raw.strip().upper()
+        for first, last, mapped in intervals:
+            if not mapped.isdigit():
+                continue
+            if first <= when < last:
+                on_day.setdefault(name, set()).add(int(mapped))
+            else:
+                other_days.setdefault(name, []).append((first, last))
     if instrument_id is not None:
-        others = sorted(raw for raw, ids in mapped.items() if instrument_id in ids and raw != symbol)
-        if others and instrument_id not in mapped.get(symbol, set()):
-            raise ExchangeBookError(f"Instrument {instrument_id} is {others[0]} in this file, not {symbol}")
+        others = sorted(raw for raw, ids in on_day.items() if instrument_id in ids and raw != symbol)
+        if others and instrument_id not in on_day.get(symbol, set()):
+            raise ExchangeBookError(f"Instrument {instrument_id} is {others[0]} in this file on {day}, not {symbol}")
         return {instrument_id}
-    if symbol in mapped:
-        return mapped[symbol]
-    if mapped:
-        raise ExchangeBookError(f"{symbol} is not in this file; it holds {', '.join(sorted(mapped)[:8])}")
+    if symbol in on_day:
+        return on_day[symbol]
+    if symbol in other_days:
+        spans = ", ".join(f"{_yyyymmdd(first)} to {_yyyymmdd(last)}" for first, last in sorted(other_days[symbol])[:3])
+        raise ExchangeBookError(f"This file maps {symbol} only on other dates ({spans}, the end not included), "
+                                f"not {day}: check --date")
+    if on_day or other_days:
+        raise ExchangeBookError(f"{symbol} is not in this file on {day}; it maps "
+                                f"{', '.join(sorted(on_day or other_days)[:8])}")
     return None
 
 
