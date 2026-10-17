@@ -22,6 +22,8 @@ export interface VolumeProfileWire {
   from?: number;
   to?: number;
   source?: string;
+  /** Who drew the bars: `ibkr`, `massive` (a Massive Sim replay) or `capture` (a Session Record). */
+  feed?: string;
   bars?: number;
   row_size?: number | null;
   low?: number | null;
@@ -43,6 +45,7 @@ export interface ProfileAnswer {
   /** The backend is still reading the bars (or IBKR's budget said not now): ask again. */
   filling: boolean;
   error: string | null;
+  feed: string | null;
 }
 
 export function profileToWire(symbol: string, kind: ProfileKind, p: VolumeProfile, source: string, day: string): VolumeProfileWire {
@@ -58,9 +61,10 @@ export function profileToWire(symbol: string, kind: ProfileKind, p: VolumeProfil
 export function wireToAnswer(w: VolumeProfileWire): ProfileAnswer {
   const filling = !!w.filling;
   const error = w.error ?? null;
+  const feed = w.feed ?? null;
   if (!w.enabled || !w.histogram?.length || w.low == null || w.high == null || w.row_size == null
     || w.poc == null || w.vah == null || w.val == null) {
-    return { profile: null, filling, error: error ?? (w.enabled ? 'No profile' : null) };
+    return { profile: null, filling, error: error ?? (w.enabled ? 'No profile' : null), feed };
   }
   return {
     profile: {
@@ -71,6 +75,7 @@ export function wireToAnswer(w: VolumeProfileWire): ProfileAnswer {
     },
     filling: false,
     error: null,
+    feed,
   };
 }
 
@@ -84,7 +89,7 @@ export async function fetchVolumeProfile(
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { detail?: unknown } | null;
     const detail = typeof body?.detail === 'string' ? body.detail : `the desk answered ${res.status}`;
-    return { profile: null, filling: false, error: `Volume profile: ${detail}` };
+    return { profile: null, filling: false, error: `Volume profile: ${detail}`, feed: null };
   }
   return wireToAnswer((await res.json()) as VolumeProfileWire);
 }

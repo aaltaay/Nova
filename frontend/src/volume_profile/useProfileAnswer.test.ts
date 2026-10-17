@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { SIM_CLOCK_SCRUB_EVENT } from '../sim';
 import { VP_RETRY_MS } from './volumeProfileConstants';
 
 const fetchVolumeProfile = vi.fn();
@@ -28,6 +29,47 @@ describe('a profile the desk asks for', () => {
     });
     expect(fetchVolumeProfile).toHaveBeenCalledTimes(2);
     expect(result.current).toEqual(drawn);
+  });
+
+  it("drops today's profile on a Sim scrub and asks again, cancelling the request in flight", async () => {
+    const before = { profile: null, filling: false, error: 'before the scrub', feed: 'massive' };
+    const after = { profile: null, filling: false, error: 'after the scrub', feed: 'massive' };
+    const signals: AbortSignal[] = [];
+    fetchVolumeProfile.mockImplementation((...a: unknown[]) => {
+      signals.push(a[4] as AbortSignal);
+      return Promise.resolve(signals.length === 1 ? before : after);
+    });
+    const { result } = renderHook(() => useProfileAnswer('today', 'AAPL', true, '2026-09-10', 1789047000, 0));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.error).toBe('before the scrub');
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent(SIM_CLOCK_SCRUB_EVENT, { detail: { symbol: 'MSFT' } }));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(fetchVolumeProfile).toHaveBeenCalledTimes(1);         // another stock's scrub
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent(SIM_CLOCK_SCRUB_EVENT, { detail: { symbol: 'AAPL' } }));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(signals[0].aborted).toBe(true);
+    expect(fetchVolumeProfile).toHaveBeenCalledTimes(2);
+    expect(result.current.error).toBe('after the scrub');
+  });
+
+  it('asks again when the pane\'s candles change', async () => {
+    fetchVolumeProfile.mockResolvedValue({ profile: null, filling: false, error: 'x', feed: null });
+    const { rerender } = renderHook(({ rev }) => useProfileAnswer('today', 'AAPL', true, '2026-09-10', 1789047000, 0, rev),
+      { initialProps: { rev: 1 } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    rerender({ rev: 2 });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(fetchVolumeProfile).toHaveBeenCalledTimes(2);
   });
 });
 
