@@ -229,19 +229,20 @@
   box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.22);
 }
 
+/* The tag's 12 px line plus borders fits the 14 px lane reserved above the track. */
 .sim-strip__tag {
   position: absolute;
   z-index: 1;
-  top: -26px;
+  top: -14px;
   transform: translateX(8px);
   padding: 0 5px;
   border-radius: 3px;
   background: var(--nova-panel, var(--panel-bg));
   border: 1px solid var(--nova-border-strong, var(--border-color));
   color: var(--nova-text, var(--text-primary));
-  font-size: 20px;
+  font-size: 11px;
   font-weight: 600;
-  line-height: 22px;
+  line-height: 12px;
   white-space: nowrap;
   pointer-events: none;
 }

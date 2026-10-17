@@ -1,4 +1,6 @@
 import { createRoot } from 'react-dom/client';
+import '../../src/index.css';
+import '../../src/stock_view/stockViewTabs.css';
 import { SimSessionHeader } from '../../src/sim/SimSessionHeader';
 import { SimSessionStrip } from '../../src/sim/SimSessionStrip';
 import { WorkspaceProvider, useWorkspace } from '../../src/workspace/WorkspaceContext';
@@ -16,7 +18,9 @@ function Desk() {
     <output data-testid="desk-tabs">{traderTabs.join(',')}</output>
     <output data-testid="desk-active">{activeTraderSymbol}</output>
     <SimSessionHeader active />
-    {traderViewActive && <SimSessionStrip />}
+    {traderViewActive && <div className="sv-tab-strip" data-testid="sim-trader-context">
+      <div className="sv-tab-strip__trailing"><SimSessionStrip /></div>
+    </div>}
   </>;
 }
 

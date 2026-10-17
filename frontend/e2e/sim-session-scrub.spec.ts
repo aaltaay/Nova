@@ -1,13 +1,15 @@
 import { expect, test } from '@playwright/test';
 
 test('scrubbing preserves IMCC with AAPL closed; explicit replay picks still navigate', async ({ page }) => {
-  let minute = 120;
+  let minute = 351;
   let replaySymbol = 'AAPL';
   let scrubPosts = 0;
   let paused = false;
   const clock = () => ({
     sim: true, paused, replay_source: 'capture', replay_date: '2026-09-19',
     replay_symbol: replaySymbol, minute_from_open: minute, minute_max: 960,
+    session_date: '2026-09-19',
+    sim_time_et: new Date(Date.parse('2026-09-19T04:00:00-04:00') + minute * 60_000).toISOString(),
   });
   await page.route('http://127.0.0.1:8999/**', async route => {
     const path = new URL(route.request().url()).pathname;
@@ -40,11 +42,31 @@ test('scrubbing preserves IMCC with AAPL closed; explicit replay picks still nav
     }
     await route.fulfill({ json: body });
   });
+  await page.clock.setFixedTime(new Date('2026-10-17T12:00:00Z'));
+  const pageErrors: string[] = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
   await page.goto('/e2e/fixtures/sim-session.html');
   await page.getByRole('button', { name: 'Open AAPL', exact: true }).click();
   await page.getByRole('button', { name: 'Open IMCC', exact: true }).click();
   await page.getByRole('button', { name: 'Close AAPL', exact: true }).click();
   await expect(page.getByTestId('desk-tabs')).toHaveText('IMCC');
+  // Use the production 36 px, overflow-hidden context row: a visible DOM
+  // node alone did not catch a tall timestamp being cut off above this row.
+  const tag = page.getByTestId('sim-strip-playhead-tag');
+  const context = page.getByTestId('sim-trader-context');
+  const expectTagInsideRow = async () => {
+    const rowBox = (await context.boundingBox())!;
+    const tagBox = (await tag.boundingBox())!;
+    expect(tagBox.y).toBeGreaterThanOrEqual(rowBox.y);
+    expect(tagBox.y + tagBox.height).toBeLessThanOrEqual(rowBox.y + rowBox.height);
+    expect(tagBox.x).toBeGreaterThanOrEqual(rowBox.x);
+    expect(tagBox.x + tagBox.width).toBeLessThanOrEqual(rowBox.x + rowBox.width);
+  };
+  await expect(tag).toHaveText('09:51:00 · Sep 19');
+  for (const width of [900, 1634]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expectTagInsideRow();
+  }
   // The Ticker picker sits in the Trader strip's ⋯ menu; the transport and the
   // band are on the strip itself, so the menu is closed before touching them.
   const menu = page.getByTestId('sim-strip-menu');
@@ -80,4 +102,10 @@ test('scrubbing preserves IMCC with AAPL closed; explicit replay picks still nav
   await expect(page.getByRole('button', { name: 'Play Sim time' })).toBeVisible();
   await page.getByRole('button', { name: 'Play Sim time' }).click();
   await expect(page.getByRole('button', { name: 'Pause Sim time' })).toBeVisible();
+  // The long past-day tag also stays inside the row when it flips at the close.
+  await slider.focus();
+  await page.keyboard.press('End');
+  await expect(tag).toHaveClass(/sim-strip__tag--flip/);
+  await expectTagInsideRow();
+  expect(pageErrors).toEqual([]);
 });
