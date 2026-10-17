@@ -44,4 +44,18 @@ describe("today's anchor", () => {
     rerender({ symbol: 'MSFT', day: '2026-10-01' });
     expect(result.current[0]).toBeNull();
   });
+
+  it('does not come back when the pane returns to the day or stock it was dragged on', () => {
+    const { result, rerender } = renderHook(({ symbol, day }) => useSessionAnchor(symbol, day), {
+      initialProps: { symbol: 'AAPL', day: '2026-09-30' as string | null },
+    });
+    act(() => result.current[1](1790779500));
+    rerender({ symbol: 'AAPL', day: '2026-10-01' });
+    rerender({ symbol: 'AAPL', day: '2026-09-30' });
+    expect(result.current[0]).toBeNull();
+    act(() => result.current[1](1790779500));
+    rerender({ symbol: 'MSFT', day: '2026-09-30' });
+    rerender({ symbol: 'AAPL', day: '2026-09-30' });
+    expect(result.current[0]).toBeNull();
+  });
 });

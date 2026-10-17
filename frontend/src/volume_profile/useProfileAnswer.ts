@@ -57,6 +57,10 @@ export function useSessionAnchor(symbol: string, day: string | null): [number | 
   const keyRef = useRef(key);
   keyRef.current = key;
   const [held, setHeld] = useState<{ key: string; anchor: number | null }>({ key, anchor: null });
+  // Dropped on every change, so a return to the day or stock it was dragged on starts at 09:30 again.
+  useEffect(() => {
+    setHeld((prev) => (prev.key === key ? prev : { key, anchor: null }));
+  }, [key]);
   const set = useCallback((next: AnchorUpdate) => {
     setHeld((prev) => {
       const now = keyRef.current;
