@@ -114,21 +114,38 @@ def test_registered_missing_trades_and_late_old_prints_never_imply_recovery(sdk,
         assert tape._viewer_queues[target] == [queue1, queue2]
         assert ib.wrapper.subscriptions.get_ticker(old_req) is None
         assert stray_lines.view()["cancellations"][-1]["cancel_sent"] is True
+        # During the same-instrument guard, the line is temporarily unsubscribed, yet the outage
+        # anchor and missing-trades order gate stay in force.
+        assert not tape.is_subscribed(target)
+        assert tape_heal.unverified_reask(target)["since"] == reading["since"]
+        assert tape_silence.missed_trades(target)["since"] == reading["since"]
+        assert tape_silence.reading(target)["state"] == "dead"
+        assert tape_silence.reading(target)["since"] == reading["since"]
+
         clock["now"] += 16                             # the real same-instrument guard, on the fixture clock
         await _until(lambda: len(requests) == 4)
         await _until(lambda: tape_heal.silent_status(target)["text"] ==
                      "Tape re-asked; waiting for prints to verify its return.")
         assert tape_heal.silent_status(target)["state"] == "attempting"
         assert tape_recording.producer_status(target)["last_print_ts"] is None
+        # A successful subscribe alone is never evidence that prints resumed: before 30 s pass,
+        # the line still reads dead from the original outage start and missing-trades stays locked.
+        assert tape_silence.missed_trades(target)["since"] == reading["since"]
+        assert tape_silence.reading(target)["state"] == "dead"
+        assert tape_silence.reading(target)["since"] == reading["since"]
         _print(ib, old_req)                             # a late cancelled-id print cannot confirm the new line
         assert tape_recording.producer_status(target)["last_print_ts"] is None
         clock["now"] += 31
         await _until(lambda: tape_heal.silent_status(target)["state"] == "failed")
         assert tape.is_subscribed(target)              # registered, still genuinely missing L1 trades
         assert tape_silence.reading(target)["state"] == "dead"
+        assert tape_silence.missed_trades(target)["since"] == reading["since"]
         tape_heal.line_down(target, silence=tape_silence.reading(target))
         assert not tape_heal.healing(target) and len(requests) == 4
         _print(ib, requests[-1])                        # only an actual print is evidence of return
         assert tape_recording.producer_status(target)["healthy"] is True
+        assert tape_heal.silent_status(target)["state"] == "resumed"
+        assert tape_silence.missed_trades(target) is None
+        assert tape_silence.reading(target) is None
 
     asyncio.run(scenario())

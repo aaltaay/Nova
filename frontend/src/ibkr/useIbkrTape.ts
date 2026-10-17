@@ -177,13 +177,24 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
             return;
           }
 
-          if (msg.type !== 'ping') silenceRef.current = null;  // a print, or any word on the line, ends a silence
+          if (msg.type !== 'ping' && !(msg.type === 'error' && typeof msg.silent_recovery === 'string')) {
+            silenceRef.current = null;  // a print, or any non-silence word on the line, ends a silence
+          }
 
           if (msg.type === 'ping') {
             noteBackendGate(symKey!, msg.gate);
             const next = parseTapeSilence(msg.silence);
             const prev = silenceRef.current;
-            if (next?.state !== prev?.state || next?.since !== prev?.since || next?.text !== prev?.text) {
+            if (next != null && (!connectedRef.current && errorRef.current == null)) {
+              connectedRef.current = true;
+            }
+            if (
+              next?.state !== prev?.state ||
+              next?.since !== prev?.since ||
+              next?.text !== prev?.text ||
+              next?.recovery?.state !== prev?.recovery?.state ||
+              next?.recovery?.text !== prev?.recovery?.text
+            ) {
               silenceRef.current = next;
               if (uiActiveRef.current) commitUi();
             }
@@ -248,9 +259,31 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
             raf.cancel();
             if (uiActiveRef.current) commitUi();
           } else if (msg.type === 'error') {
+            const retryAt = typeof msg.retry_at === 'number' && Number.isFinite(msg.retry_at) ? msg.retry_at : null;
+            if (typeof msg.silent_recovery === 'string' && silenceRef.current != null) {
+              // Registered-silent recovery (#722): keep existing prints and LINE DOWN badge visible.
+              const recText = typeof msg.message === 'string' ? msg.message : '';
+              const cur = silenceRef.current;
+              const baseText = cur.recovery?.text && cur.text.endsWith(` ${cur.recovery.text}`)
+                ? cur.text.slice(0, -(cur.recovery.text.length + 1))
+                : cur.text;
+              silenceRef.current = {
+                ...cur,
+                text: recText && !baseText.endsWith(recText) ? `${baseText} ${recText}` : baseText,
+                recovery: {
+                  state: msg.silent_recovery as NonNullable<TapeSilence['recovery']>['state'],
+                  since: cur.since,
+                  askedAt: cur.recovery?.askedAt ?? null,
+                  text: recText,
+                },
+              };
+              retryAtRef.current = retryAt;
+              if (uiActiveRef.current) commitUi();
+              return;
+            }
             connectedRef.current = false;
             errorRef.current = typeof msg.message === 'string' ? msg.message : 'Tape error';
-            retryAtRef.current = typeof msg.retry_at === 'number' && Number.isFinite(msg.retry_at) ? msg.retry_at : null;
+            retryAtRef.current = retryAt;
             if (uiActiveRef.current) commitUi();
           }
         } catch {
