@@ -348,3 +348,170 @@ def test_the_door_refuses_a_stale_view_before_anything_is_sent(monkeypatch):
     inflight.reset_for_tests()
     telemetry.reset_for_tests()
     reset_venue()
+
+
+# ── #867: Sim replay suppresses live trade_update frames and quote-version bumps ──
+
+
+class _FakeSocket:
+    def __init__(self) -> None:
+        self.frames: list[dict] = []
+
+    async def send_text(self, payload: str) -> None:
+        import json
+
+        self.frames.append(json.loads(payload))
+
+
+def test_replay_suppresses_live_stream_and_snapshot_broadcaster_without_bumping_quote_version(monkeypatch):
+    import sim.mode
+    import ticker as ticker_mod
+    from market_view.quote_push import broadcast_trade_update
+
+    ws = _FakeSocket()
+    ticker_mod._ticker_ws_clients["SUNE"] = {ws}
+    try:
+        monkeypatch.setattr(sim.mode, "is_replay_desk", lambda: True)
+        # Initial replay quote version 1 from a recorded sim print.
+        asyncio.run(broadcast_trade_update("SUNE", 3.02, 100, "2026-09-09T12:03:00Z", source="sim"))
+        assert len(ws.frames) == 1
+        assert ws.frames[0]["source"] == "sim" and ws.frames[0]["seq"] == 1
+        assert versions.latest(versions.QUOTE, "SUNE").seq == 1
+
+        # Live stream and snapshot updates (with or without producer-supplied seq) are rejected.
+        asyncio.run(broadcast_trade_update("SUNE", 2.27, 50, "2026-10-12T21:55:56Z", source="stream"))
+        asyncio.run(broadcast_trade_update("SUNE", 2.27, None, "2026-10-12T21:55:56Z", source="snapshot"))
+        asyncio.run(
+            broadcast_trade_update("SUNE", 2.27, 50, "2026-10-12T21:55:56Z", source="stream", seq=9, at=999.0)
+        )
+        assert len(ws.frames) == 1
+        assert versions.latest(versions.QUOTE, "SUNE").seq == 1
+    finally:
+        ticker_mod._ticker_ws_clients.pop("SUNE", None)
+
+
+def test_ibkr_detail_tick_on_replay_keeps_listeners_but_suppresses_quote_version_and_frame(monkeypatch):
+    import ibkr.loop_supervisor as sup
+    import sim.mode
+    import ticker as ticker_mod
+    from ibkr import feed_pulse, ticks
+    from market_view.quote_push import broadcast_trade_update
+
+    ws = _FakeSocket()
+    ticker_mod._ticker_ws_clients["SUNE"] = {ws}
+    ticks._subs.clear()
+    ticks._subs["SUNE"] = {
+        "owners": {ticks.OWNER_SCANNER, ticks.OWNER_DETAIL},
+        "last_price": None,
+        "last_update_ts": None,
+    }
+    heard: list[tuple[str, float]] = []
+    pulses: list[float] = []
+    monkeypatch.setattr(ticks, "_quote_listeners", [lambda sym, price, *_a, **_kw: heard.append((sym, price))])
+    monkeypatch.setattr(ticks, "_broadcast", broadcast_trade_update)
+    monkeypatch.setattr(feed_pulse, "note", lambda ts: pulses.append(ts))
+    monkeypatch.setattr(sup, "is_ib_loop", lambda: False)
+    monkeypatch.setattr(sim.mode, "is_replay_desk", lambda: True)
+    try:
+        async def run():
+            t = SimpleNamespace(
+                last=2.27, close=2.28, volume=52005, high=2.40,
+                lastTimestamp=1_790_000_000, rtTime=None, time=None,
+                lastSize=100, rtVolume=52005, ticks=[SimpleNamespace(tickType=4, price=2.27, size=100)],
+            )
+            ticks._on_ticker_update(t, "SUNE")
+            await asyncio.sleep(0)
+
+        asyncio.run(run())
+        assert heard == [("SUNE", 2.27)]
+        assert len(pulses) == 1
+        assert ws.frames == []
+        assert versions.latest(versions.QUOTE, "SUNE") is None
+    finally:
+        ticks._subs.clear()
+        ticker_mod._ticker_ws_clients.pop("SUNE", None)
+
+
+def test_queued_live_frame_crossing_live_edge_to_replay_leaves_no_version_divergence(monkeypatch):
+    import ibkr.loop_supervisor as sup
+    import sim.mode
+    import ticker as ticker_mod
+    from ibkr import ticks
+    from market_view.quote_push import broadcast_trade_update
+
+    ws = _FakeSocket()
+    ticker_mod._ticker_ws_clients["SUNE"] = {ws}
+    ticks._subs.clear()
+    ticks._subs["SUNE"] = {
+        "owners": {ticks.OWNER_DETAIL},
+        "last_price": None,
+        "last_update_ts": None,
+    }
+    scheduled: list = []
+    replaying = {"on": False}
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr("scanner_push.broadcast_halt_patch", AsyncMock())
+    monkeypatch.setattr(ticks, "_quote_listeners", [])
+    monkeypatch.setattr(ticks, "_broadcast", broadcast_trade_update)
+    monkeypatch.setattr(sup, "is_ib_loop", lambda: True)
+    monkeypatch.setattr(sup, "publish_to_http", lambda fn: scheduled.append(fn))
+    monkeypatch.setattr(sim.mode, "is_replay_desk", lambda: replaying["on"])
+
+    def make_tick(price: float):
+        return SimpleNamespace(
+            last=price, close=2.00, volume=1000, high=price,
+            lastTimestamp=1_790_000_000, rtTime=None, time=None,
+            lastSize=10, rtVolume=1000, ticks=[SimpleNamespace(tickType=4, price=price, size=10)],
+        )
+
+    try:
+        async def run():
+            # 1. At the live edge, tick 1 is queued and delivered.
+            ticks._on_ticker_update(make_tick(3.00), "SUNE")
+            while scheduled:
+                scheduled.pop(0)()
+            await asyncio.sleep(0)
+            assert len(ws.frames) == 1 and ws.frames[0]["seq"] == 1
+            assert versions.latest(versions.QUOTE, "SUNE").seq == 1
+
+            # 2. Still at the live edge, tick 2 runs on the IB loop and queues its HTTP broadcast.
+            ticks._on_ticker_update(make_tick(3.15), "SUNE")
+            assert len(scheduled) >= 1
+            assert versions.latest(versions.QUOTE, "SUNE").seq == 2
+
+            # 3. Desk scrubs off the live edge into replay BEFORE the queued HTTP callback runs.
+            replaying["on"] = True
+            while scheduled:
+                scheduled.pop(0)()
+            await asyncio.sleep(0)
+
+            # Frame was suppressed AND its pending version bump was rolled back: no divergence.
+            assert len(ws.frames) == 1
+            assert versions.latest(versions.QUOTE, "SUNE").seq == 1
+
+            # 4. A manual Sim replay order carrying seq=1 is not falsely refused as VIEW_STALE.
+            act = time.time() * 1000.0 + 2000.0
+            cmd = _cmd(act_ms=act, arrival_ms=act + 20.0)
+            cmd.symbol = "SUNE"
+            cmd.view["symbol"] = "SUNE"
+            cmd.view["quote"] = {"seq": 1, "at": ws.frames[0]["at"], "price": 3.00}
+            verdict = gate.check(cmd, now=act / 1000.0)
+            assert verdict.verdict == "ok" and verdict.measures["quote_lag_ms"] == 0.0
+
+            # 5. A newer recorded sim print advances seq to 2, and a genuinely stale seq=1 view refuses.
+            await broadcast_trade_update("SUNE", 3.25, 100, "2026-09-09T12:04:00Z", source="sim")
+            assert len(ws.frames) == 2 and ws.frames[1]["seq"] == 2
+            later_act = (ws.frames[1]["at"] + 2.0) * 1000.0
+            stale_cmd = _cmd(act_ms=later_act, arrival_ms=later_act + 20.0)
+            stale_cmd.symbol = "SUNE"
+            stale_cmd.view["symbol"] = "SUNE"
+            stale_cmd.view["quote"] = {"seq": 1, "at": ws.frames[0]["at"], "price": 3.00}
+            stale_verdict = gate.check(stale_cmd, now=later_act / 1000.0)
+            assert stale_verdict.code == VIEW_STALE
+
+        asyncio.run(run())
+    finally:
+        ticks._subs.clear()
+        ticker_mod._ticker_ws_clients.pop("SUNE", None)
+

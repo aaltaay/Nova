@@ -33,6 +33,12 @@ REPLAY_BOARD_ORDER: tuple[str, ...] = (
     LEADERBOARD_BOARD_GAPPERS, LEADERBOARD_BOARD_GAINERS, LEADERBOARD_BOARD_MARKET, LEADERBOARD_BOARD_LOSERS,
     LEADERBOARD_BOARD_AFTERHOURS, LEADERBOARD_BOARD_LARGE_CAP,
 )
+# Contenders boards on a replayed day: Gainers (or rebuilt ``market``) + Gappers, with Gappers winning collisions.
+REPLAY_WATCHLIST_BOARDS: tuple[str, ...] = (
+    LEADERBOARD_BOARD_MARKET,
+    LEADERBOARD_BOARD_GAINERS,
+    LEADERBOARD_BOARD_GAPPERS,
+)
 # Why a replayed symbol has no grade: no board at the playhead (the gap's own reason), or not on it.
 REPLAY_ABSENT_NOT_ON_BOARD = "not_on_board"
 
@@ -47,7 +53,7 @@ def board_row(symbol: str, board: dict[str, Any]) -> tuple[dict | None, str | No
     return None, None
 
 
-def candidate(row: dict) -> dict:
+def candidate(row: dict, *, as_of_ts: float | None = None) -> dict:
     """The grader's candidate from a board row; every fact the row lacks stays None.
 
     ``rel_volume`` is the desk's daily-average RVOL only; a time-of-day RVOL rides as
@@ -55,7 +61,7 @@ def candidate(row: dict) -> dict:
     """
     basis = row.get("rvol_basis")
     rvol = row.get("rvol")
-    return {
+    out = {
         "symbol": str(row.get("symbol") or "").upper(),
         "price": row.get("price"),
         "prev_close": row.get("prev_close"),
@@ -69,6 +75,9 @@ def candidate(row: dict) -> dict:
         "has_news": row.get("has_news"),
         "catalyst": row.get("catalyst"),
     }
+    if as_of_ts is not None:
+        out["as_of_ts"] = float(as_of_ts)
+    return out
 
 
 def replay_view(symbol: str, day: str, at: float, board: dict[str, Any]) -> tuple[dict | None, dict]:
@@ -91,4 +100,34 @@ def replay_view(symbol: str, day: str, at: float, board: dict[str, Any]) -> tupl
         "rvol_basis": row.get("rvol_basis") if row else None,
         "absent": None if row else (gap.get("reason") or REPLAY_ABSENT_NOT_ON_BOARD),
     }
-    return (candidate(row) if row else None), replay
+    return (candidate(row, as_of_ts=at) if row else None), replay
+
+
+def replay_watchlist(day: str, at: float, board: dict[str, Any]) -> tuple[list[dict], dict[str, Any]]:
+    """``(candidates, replay)`` for the whole Contenders list on ``board`` at ``at`` (#881).
+
+    Uses only the replayed day's ``gappers`` and ``gainers`` (``market`` on a rebuilt day) rows at
+    ``at``; ``gappers`` wins when a symbol is on both, matching the live Contenders universe.
+    When ``board`` is not covered (a gap or outside the session), ``candidates`` is empty and
+    ``replay["absent"]`` names why.
+    """
+    covered = bool(board.get("covered"))
+    gap = board.get("gap") or {}
+    boards = board.get("boards") or {}
+    seen: dict[str, dict] = {}
+    if covered:
+        for name in REPLAY_WATCHLIST_BOARDS:
+            for row in (boards.get(name) or {}).get("rows") or ():
+                sym = str(row.get("symbol") or "").upper()
+                if sym:
+                    seen[sym] = candidate(row, as_of_ts=at)
+    replay = {
+        "session_date": day,
+        "at": float(at),
+        "minute_ts": board.get("minute_ts"),
+        "board_source": board.get("source"),
+        "covered": covered,
+        "absent": None if covered else (gap.get("reason") or "not_recorded"),
+    }
+    return list(seen.values()), replay
+

@@ -85,7 +85,12 @@ def _float_score(candidate: dict) -> float:
     return _clamp((1 - float_shares / FIVE_PILLARS_MAX_FLOAT_SHARES) * 100)
 
 
-def _catalyst_score(has_news: bool | None, newest_headline_at: str | None) -> float:
+def _catalyst_score(
+    has_news: bool | None,
+    newest_headline_at: str | None,
+    *,
+    now_ts: float | None = None,
+) -> float:
     if not has_news:
         return 0.0
     if not newest_headline_at:
@@ -95,7 +100,12 @@ def _catalyst_score(has_news: bool | None, newest_headline_at: str | None) -> fl
         published = datetime.fromisoformat(str(newest_headline_at).replace("Z", "+00:00"))
     except ValueError:
         return 100.0
-    age_minutes = (datetime.now(timezone.utc) - published).total_seconds() / 60.0
+    ref = (
+        datetime.fromtimestamp(float(now_ts), timezone.utc)
+        if isinstance(now_ts, (int, float)) and not isinstance(now_ts, bool)
+        else datetime.now(timezone.utc)
+    )
+    age_minutes = max(0.0, (ref - published).total_seconds() / 60.0)
     if age_minutes <= WATCHLIST_CATALYST_FRESH_MINUTES:
         return 100.0
     if age_minutes >= WATCHLIST_CATALYST_STALE_MINUTES:
@@ -104,14 +114,14 @@ def _catalyst_score(has_news: bool | None, newest_headline_at: str | None) -> fl
     return _clamp(100.0 * (1 - (age_minutes - WATCHLIST_CATALYST_FRESH_MINUTES) / span))
 
 
-def _verdict_score(catalyst: dict) -> float:
+def _verdict_score(catalyst: dict, *, now_ts: float | None = None) -> float:
     """Aged like a headline, but only a classified catalyst scores (ADR 024): a market wrap scores 0."""
     if catalyst.get("verdict") != "catalyst":
         return 0.0
     ts = catalyst.get("published_ts")
     if not isinstance(ts, (int, float)):
         return 100.0
-    return _catalyst_score(True, datetime.fromtimestamp(float(ts), timezone.utc).isoformat())
+    return _catalyst_score(True, datetime.fromtimestamp(float(ts), timezone.utc).isoformat(), now_ts=now_ts)
 
 
 def score_watchlist_entry(candidate: dict) -> WatchlistEntry:
@@ -120,12 +130,16 @@ def score_watchlist_entry(candidate: dict) -> WatchlistEntry:
     pillars = evaluate_five_pillars(candidate)
 
     change_pct = candidate.get("change_pct", candidate.get("gap_percent"))
+    as_of_ts = candidate.get("as_of_ts")
     sub_scores = {
         "change_pct": _change_pct_score(change_pct),
         "relative_volume": _rel_volume_score(candidate.get("rel_volume")),
         "float": _float_score(candidate),
-        "catalyst": (_verdict_score(candidate["catalyst"]) if catalyst_read(candidate.get("catalyst"))
-                     else _catalyst_score(candidate.get("has_news"), candidate.get("newest_headline_at"))),
+        "catalyst": (
+            _verdict_score(candidate["catalyst"], now_ts=as_of_ts)
+            if catalyst_read(candidate.get("catalyst"))
+            else _catalyst_score(candidate.get("has_news"), candidate.get("newest_headline_at"), now_ts=as_of_ts)
+        ),
     }
     composite = (
         sub_scores["change_pct"] * WATCHLIST_WEIGHT_CHANGE_PCT

@@ -25,6 +25,7 @@ from constants import (
 from ibkr import brief_lines as _brief_lines
 from ibkr import discovery as _ibkr_discovery
 from ibkr import quote_rows as _quote_rows
+from market_view.quote_push import replay_desk_suppresses_live
 from metrics.op_metrics import record_since
 
 logger = logging.getLogger(__name__)
@@ -67,7 +68,7 @@ def reprice_detail_symbols(
     entirely (ticks.py already owns its broadcasts). A quiet stream is read
     from its own line (no request); a symbol with no line gets one for a moment.
     """
-    if not detail_symbols:
+    if not detail_symbols or replay_desk_suppresses_live():
         return
     backstop_symbols = (
         [s for s in detail_symbols if not is_stream_fresh(s)]
@@ -79,7 +80,7 @@ def reprice_detail_symbols(
     # Injected run_ibkr must accept a single coro (tests); production bridge
     # defaults on_error="none" so failures are None, not [].
     quotes = run_ibkr(_backstop_quotes(backstop_symbols))
-    if not isinstance(quotes, dict):
+    if not isinstance(quotes, dict) or replay_desk_suppresses_live():
         return
     for sym in backstop_symbols:
         row = find_cache_row(sym)
