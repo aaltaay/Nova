@@ -159,7 +159,7 @@ async def _spawn(run_id: int) -> None:
                 reader.cancel()
                 try:
                     await reader
-                except asyncio.CancelledError:
+                except asyncio.CancelledError:  # maintainer: allow-swallow we cancelled the stdout reader two lines up
                     pass
         run = book.get_run(run_id)
         if run is None or run["status"] in ("cancelled", "complete", "failed"):

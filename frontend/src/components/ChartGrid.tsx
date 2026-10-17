@@ -84,8 +84,10 @@ export const ChartGrid = memo(function ChartGrid({
     const tfs = panels.map((p) => p.id);
     if (tfs.length === 0) return;
     const controller = new AbortController();
-    void ensureBarsBatch(symbol, tfs, controller.signal).catch(() => {
-      /* panes fetch individually on miss */
+    void ensureBarsBatch(symbol, tfs, controller.signal).catch((err) => {
+      if (!controller.signal.aborted) {
+        console.warn(`ChartGrid batch warm failed for ${symbol}; panes will fetch individually:`, err);
+      }
     });
     return () => controller.abort();
   }, [symbol, panels, chartActive]);

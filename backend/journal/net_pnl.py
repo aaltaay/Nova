@@ -69,7 +69,8 @@ def parse_fill_ids(raw: object) -> list[str]:
         return [str(i).strip() for i in raw if str(i).strip()]
     try:
         parsed = json.loads(str(raw))
-    except (TypeError, ValueError, json.JSONDecodeError):
+    except (TypeError, ValueError, json.JSONDecodeError):  # maintainer: allow-swallow logged; corrupt fill_ids falls back to close_key
+        logger.warning("journal.net_pnl: invalid fill_ids JSON %r", raw)
         return []
     if not isinstance(parsed, list):
         return []

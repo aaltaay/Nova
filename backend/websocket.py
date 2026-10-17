@@ -317,7 +317,7 @@ async def stream_loop() -> None:
                                         None,
                                         TRADE_UPDATE_SOURCE_STREAM,
                                     ))
-                    except asyncio.TimeoutError:
+                    except asyncio.TimeoutError:  # maintainer: allow-swallow 1s recv poll checks resubscribe and provider state
                         pass
 
         except asyncio.CancelledError:

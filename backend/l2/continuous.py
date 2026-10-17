@@ -94,7 +94,7 @@ async def stop(symbol: str) -> None:
     task.cancel()
     try:
         await task
-    except asyncio.CancelledError:
+    except asyncio.CancelledError:  # maintainer: allow-swallow we cancelled this recording task two lines up
         pass
     _sessions.end_session(state["session_id"])
     from l2 import batch as _batch

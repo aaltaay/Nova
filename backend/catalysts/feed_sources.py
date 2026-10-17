@@ -52,7 +52,7 @@ def _ts(text: str | None) -> float | None:
     raw = text.strip()
     try:
         return parsedate_to_datetime(raw).timestamp()
-    except (TypeError, ValueError, IndexError):
+    except (TypeError, ValueError, IndexError):  # maintainer: allow-swallow not RFC 2822; falls through to ISO 8601 below
         pass
     try:
         return datetime.fromisoformat(raw.replace("Z", "+00:00")).timestamp()
