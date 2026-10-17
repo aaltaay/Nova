@@ -1,11 +1,12 @@
 /**
- * Draws the volume profiles on the 5-minute pane (plan §6.1).
+ * Places the volume profiles on the 5-minute pane (ADR 058) and draws them in two layers (`profileCanvas.ts` draws).
  * - Today's: a blue box from its anchor to the axis, its value area shaded, the POC in red, and its histogram in a lane
- *   right of the last candle.
+ *   right of the last candle and left of the pane's tag column.
  * - Yesterday's regular session: a grey box, its histogram growing right from its 16:00 close, and its value area
  *   carried into today as dashed lines.
- * A white outline traces each histogram so a P, b, D or thin shape reads at a glance. Under the candles go the boxes,
- * bands and lines; over them the histograms, outlines, tabs and the anchor's handle.
+ * Under the candles go the boxes, bands and lines; over them the histograms, outlines, tabs, notes and the anchor's
+ * handle. With no room right of the last candle (the operator's own zoom), today's histogram lies faintly over the
+ * candles: the view is the operator's and is never moved here.
  */
 import type { CanvasRenderingTarget2D } from 'fancy-canvas';
 import type {
@@ -20,34 +21,25 @@ import type {
   SeriesType,
   Time,
 } from 'lightweight-charts';
-import type { VolumeProfile } from './volumeProfile';
+import { hLine, histogram, levelName, note, tag, type HandleRect, type LayerGeometry, type ProfileLayer } from './profileCanvas';
 import {
   VP_COLORS,
-  VP_LABEL_FONT,
   VP_LANE_GAP_PX,
   VP_LANE_MAX_PX,
   VP_LANE_MIN_PX,
   VP_LANE_SHARE,
-  VP_OUTLINE_SMOOTH_ROWS,
   VP_OVERLAY_ALPHA_SCALE,
   VP_ROW_ALPHA_IN,
   VP_ROW_ALPHA_OUT,
-  VP_TAG_FONT,
   VP_YESTERDAY_ALPHA_IN,
   VP_YESTERDAY_ALPHA_OUT,
   VP_YESTERDAY_LANE_MAX_PX,
   vpAnchorLabel,
 } from './volumeProfileConstants';
 
-const BAR_SEC = 300;
+export type { HandleRect, ProfileLayer } from './profileCanvas';
 
-export interface ProfileLayer {
-  profile: VolumeProfile;
-  /** Chart seconds (ET wall clock read as UTC) where the measured stretch starts and ends. */
-  start: number;
-  end: number;
-  title: string;
-}
+const BAR_SEC = 300;
 
 export interface ProfileScene {
   /** `anchor` is the handle's clock, e.g. "09:30". */
@@ -57,26 +49,6 @@ export interface ProfileScene {
   rightInset: number;
   /** Why a profile is not drawn, in the backend's words. */
   notes: string[];
-}
-
-export interface HandleRect {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
-interface LayerGeometry {
-  layer: ProfileLayer;
-  left: number;
-  end: number;
-  yHigh: number;
-  yLow: number;
-  yPoc: number;
-  yVah: number;
-  yVal: number;
-  rowTop: number[];
-  rowBottom: number[];
 }
 
 interface Geometry {
@@ -89,96 +61,6 @@ interface Geometry {
 }
 
 const EMPTY: Geometry = { today: null, yesterday: null, rightInset: 0, lastRight: 0, notes: [] };
-
-function smoothed(rows: number[], k: number): number[] {
-  return rows.map((_, i) => {
-    let sum = 0;
-    let n = 0;
-    for (let j = Math.max(0, i - k); j <= Math.min(rows.length - 1, i + k); j += 1) {
-      sum += rows[j];
-      n += 1;
-    }
-    return sum / n;
-  });
-}
-
-function tag(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, align: 'left' | 'right' | 'center', bg: string): HandleRect {
-  ctx.font = VP_TAG_FONT;
-  const w = ctx.measureText(text).width + 12;
-  const h = 15;
-  const left = align === 'left' ? x : align === 'right' ? x - w : x - w / 2;
-  ctx.fillStyle = bg;
-  ctx.beginPath();
-  ctx.roundRect(left, y, w, h, 3);
-  ctx.fill();
-  ctx.fillStyle = VP_COLORS.label;
-  ctx.textBaseline = 'middle';
-  ctx.textAlign = 'left';
-  ctx.fillText(text, left + 6, y + h / 2 + 0.5);
-  return { x: left, y, w, h };
-}
-
-function hLine(ctx: CanvasRenderingContext2D, y: number, x0: number, x1: number, color: string, width: number, dash: number[] = []): void {
-  ctx.strokeStyle = color;
-  ctx.lineWidth = width;
-  ctx.setLineDash(dash);
-  ctx.beginPath();
-  ctx.moveTo(x0, Math.round(y) + 0.5);
-  ctx.lineTo(x1, Math.round(y) + 0.5);
-  ctx.stroke();
-  ctx.setLineDash([]);
-}
-
-/** A level's name at the start of its line, on a backing so a candle never covers it. */
-function levelName(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, color: string): void {
-  ctx.font = VP_LABEL_FONT;
-  const w = ctx.measureText(text).width;
-  ctx.fillStyle = VP_COLORS.labelBacking;
-  ctx.beginPath();
-  ctx.roundRect(x - 3, y - 14, w + 6, 12, 2);
-  ctx.fill();
-  ctx.fillStyle = color;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'bottom';
-  ctx.fillText(text, x, y - 3);
-}
-
-/** One histogram: rows grow from `base` toward `dir` (-1 left, +1 right), up volume next to the base. */
-function histogram(ctx: CanvasRenderingContext2D, g: LayerGeometry, base: number, dir: 1 | -1, width: number, alphaIn: number, alphaOut: number): void {
-  const p = g.layer.profile;
-  const totals = p.up.map((u, i) => u + p.down[i]);
-  const max = Math.max(...totals);
-  if (max <= 0) return;
-  for (let i = 0; i < totals.length; i += 1) {
-    const top = g.rowTop[i];
-    const h = Math.max(1, g.rowBottom[i] - top);
-    const wUp = (p.up[i] / max) * width;
-    const wDown = (p.down[i] / max) * width;
-    ctx.globalAlpha = i >= p.valRow && i <= p.vahRow ? alphaIn : alphaOut;
-    ctx.fillStyle = VP_COLORS.up;
-    ctx.fillRect(dir < 0 ? base - wUp : base, top, wUp, h);
-    ctx.fillStyle = VP_COLORS.down;
-    ctx.fillRect(dir < 0 ? base - wUp - wDown : base + wUp, top, wDown, h);
-  }
-  ctx.globalAlpha = 1;
-  const s = smoothed(totals, VP_OUTLINE_SMOOTH_ROWS);
-  ctx.strokeStyle = VP_COLORS.outline;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  s.forEach((v, i) => {
-    const x = base + dir * (v / max) * width;
-    const y = (g.rowTop[i] + g.rowBottom[i]) / 2;
-    if (i === 0) ctx.moveTo(x, g.rowBottom[i]);
-    ctx.lineTo(x, y);
-  });
-  ctx.lineTo(base + dir * (s[s.length - 1] / max) * width, g.rowTop[s.length - 1]);
-  ctx.stroke();
-  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
-  ctx.beginPath();
-  ctx.moveTo(base, g.yHigh);
-  ctx.lineTo(base, g.yLow);
-  ctx.stroke();
-}
 
 class ProfileRenderer implements IPrimitivePaneRenderer {
   private readonly g: Geometry;
@@ -210,18 +92,7 @@ class ProfileRenderer implements IPrimitivePaneRenderer {
       if (yesterday) this.yesterdayOver(ctx, yesterday, yLaneW);
       if (today) this.todayOver(ctx, today, W, H, laneW, rightInset, fits ? 1 : VP_OVERLAY_ALPHA_SCALE);
       else this.onHandle(null);
-      this.g.notes.forEach((note, i) => {
-        ctx.font = VP_TAG_FONT;
-        const w = ctx.measureText(note).width + 10;
-        const x = W - rightInset - 6 - w;
-        const y = H - 44 - i * 17;
-        ctx.fillStyle = VP_COLORS.labelBacking;
-        ctx.fillRect(x, y, w, 14);
-        ctx.fillStyle = VP_COLORS.yesterday;
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(note, x + 5, y + 7.5);
-      });
+      this.g.notes.forEach((text, i) => note(ctx, text, W - rightInset - 6, H - 44 - i * 17));
     });
   }
 
