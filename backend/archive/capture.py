@@ -4,47 +4,47 @@ Loss-aware local capture APIs for Nova OS P6.
 Write path into ``archive.db``. Callers should treat failures as non-fatal for
 live UI (log + gap marker) so a disk issue never blanks the quote panel.
 
-L2 depth is NOT captured through ``record_l2_snapshot`` below — that function
-is an unwired, in-memory-only stub with no production caller (see its
-docstring). The real, durable L2 + tape capture is the pre-existing
-``l2/continuous.py`` sampler (1 Hz while a depth session is open) writing to
-``l2/db.py``'s ``l2_snapshots``/``tape_trades`` tables. ``archive/l2_bridge.py``
-exports that data into the same checksummed cold-archive + R2 pattern used
-here for bars/tape_ibkr (see ``archive.compact``/``archive.r2``). If you are
-looking for "is L2 durably archived", the answer lives in ``l2_bridge``, not
-in this module.
+L2 depth is NOT captured through ``record_l2_snapshot`` (re-exported from
+``archive.capture_gaps``) -- that function is an unwired, in-memory-only stub
+with no production caller. The real, durable L2 + tape capture is the
+pre-existing ``l2/continuous.py`` sampler (1 Hz while a depth session is open)
+writing to ``l2/db.py``'s ``l2_snapshots``/``tape_trades`` tables.
+``archive/l2_bridge.py`` exports that data into the same checksummed
+cold-archive + R2 pattern used here for bars/tape_ibkr (see ``archive.compact``
+/ ``archive.r2``).
 """
 from __future__ import annotations
 
-import json
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
 from archive import db as archive_db
+from archive.capture_gaps import (  # noqa: F401 -- compatibility re-exports (ADR 004)
+    _L2_STUB_ROWS,
+    clear_l2_stub_for_tests,
+    l2_stub_count,
+    mark_incomplete_window,
+    parse_iso_to_unix,
+    record_gap,
+    record_l2_snapshot,
+)
 from constants import (
     ARCHIVE_COUNTER_BARS_1D,
     ARCHIVE_COUNTER_BARS_1M,
-    ARCHIVE_COUNTER_GAPS,
-    ARCHIVE_COUNTER_INCOMPLETE_WINDOWS,
     ARCHIVE_COUNTER_ENRICHMENT_SNAPSHOTS,
     ARCHIVE_COUNTER_L1_TICKS,
-    ARCHIVE_COUNTER_L2_SNAPSHOTS,
     ARCHIVE_COUNTER_TAPE_RECEIVED,
     ARCHIVE_SOURCE_IBKR,
     ARCHIVE_STREAM_BARS_1D,
     ARCHIVE_STREAM_BARS_1M,
-    ARCHIVE_STREAM_L2,
 )
 
 logger = logging.getLogger(__name__)
 
 _ET = ZoneInfo("America/New_York")
-
-# Optional in-process L2 snapshot store until a dedicated table is justified.
-_L2_STUB_ROWS: list[dict[str, Any]] = []
 
 
 def session_date_for_ts(ts: float | None = None) -> str:
@@ -286,133 +286,3 @@ def load_enrichment_snapshot(
     if row is None:
         return None
     return dict(row)
-
-
-def record_gap(
-    *,
-    stream: str,
-    start_ts: float,
-    end_ts: float,
-    symbol: str | None = None,
-    reason: str = "",
-    session_date: str | None = None,
-) -> None:
-    """Mark an explicit missing window (loss-aware integrity)."""
-    marked = time.time()
-    day = session_date or session_date_for_ts(start_ts)
-    conn = archive_db.get_connection()
-    try:
-        conn.execute(
-            """
-            INSERT INTO capture_gaps
-                (stream, symbol, start_ts, end_ts, reason, marked_ts, session_date)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                stream,
-                symbol.upper() if symbol else None,
-                float(start_ts),
-                float(end_ts),
-                reason or "",
-                marked,
-                day,
-            ),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-    bump_counter(ARCHIVE_COUNTER_GAPS)
-
-
-def mark_incomplete_window(
-    *,
-    stream: str,
-    start_ts: float,
-    end_ts: float,
-    symbol: str | None = None,
-    note: str = "",
-    session_date: str | None = None,
-) -> None:
-    """Flag a session window that must not be treated as complete for trim."""
-    marked = time.time()
-    day = session_date or session_date_for_ts(start_ts)
-    conn = archive_db.get_connection()
-    try:
-        conn.execute(
-            """
-            INSERT INTO incomplete_windows
-                (stream, symbol, start_ts, end_ts, note, marked_ts, session_date)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                stream,
-                symbol.upper() if symbol else None,
-                float(start_ts),
-                float(end_ts),
-                note or "",
-                marked,
-                day,
-            ),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-    bump_counter(ARCHIVE_COUNTER_INCOMPLETE_WINDOWS)
-
-
-def record_l2_snapshot(
-    *,
-    symbol: str,
-    ts: float,
-    bids: list[dict[str, Any]] | None = None,
-    asks: list[dict[str, Any]] | None = None,
-    source: str = ARCHIVE_SOURCE_IBKR,
-    session_date: str | None = None,
-) -> None:
-    """
-    Unwired stub for a future changed-book (not just 1 Hz sampled) L2 capture
-    path. No production code calls this — rows never leave process memory
-    and are capped/dropped on restart. Do not treat calls to this function or
-    increments of ``ARCHIVE_COUNTER_L2_SNAPSHOTS`` as evidence that L2 data
-    is durably archived; see the module docstring and ``archive/l2_bridge.py``
-    for the real path (``l2/continuous.py`` -> ``l2/db.py`` -> l2_bridge cold
-    export + R2).
-    """
-    symbol = symbol.upper()
-    day = session_date or session_date_for_ts(ts)
-    _L2_STUB_ROWS.append({
-        "symbol": symbol,
-        "ts": float(ts),
-        "bids": bids or [],
-        "asks": asks or [],
-        "source": source,
-        "session_date": day,
-        "payload": json.dumps({"bids": bids or [], "asks": asks or []}),
-    })
-    # Cap stub memory so an accidental hot loop cannot OOM.
-    if len(_L2_STUB_ROWS) > 10_000:
-        del _L2_STUB_ROWS[:5_000]
-    bump_counter(ARCHIVE_COUNTER_L2_SNAPSHOTS)
-    _ = ARCHIVE_STREAM_L2
-
-
-def clear_l2_stub_for_tests() -> None:
-    _L2_STUB_ROWS.clear()
-
-
-def l2_stub_count() -> int:
-    return len(_L2_STUB_ROWS)
-
-
-def parse_iso_to_unix(ts_iso: str) -> float:
-    """Best-effort ISO-8601 → unix seconds (UTC)."""
-    raw = ts_iso.strip()
-    if raw.endswith("Z"):
-        raw = raw[:-1] + "+00:00"
-    try:
-        dt = datetime.fromisoformat(raw)
-    except ValueError:
-        return time.time()
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.timestamp()

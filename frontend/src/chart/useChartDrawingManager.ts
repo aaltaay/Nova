@@ -1,6 +1,6 @@
 /**
- * ADR 005 — drawing-manager attach/detach and active-tool interaction.
- * ADR 015 — drawings are shared across every timeframe pane and persisted.
+ * ADR 005 -- drawing-manager attach/detach and active-tool interaction.
+ * ADR 015 -- drawings are shared across every timeframe pane and persisted.
  *
  * The manager itself stays per-pane (it owns hit testing against one canvas),
  * but its contents come from `chartDrawingsStore` keyed by symbol. So a level
@@ -14,12 +14,6 @@ import {
   type IDrawing,
 } from 'lightweight-charts-drawing';
 import type { IChartApi, ISeriesApi } from 'lightweight-charts';
-import {
-  CHART_DRAWING_STYLE,
-  CHART_DRAWING_OPTIONS,
-  CHART_SINGLE_ANCHOR_TOOLS,
-  CHART_TWO_ANCHOR_TOOLS,
-} from './chartDrawingConfig';
 export type { DrawingSelectionState } from './chartDrawingColor';
 import { applyChartHostInteraction } from './chartDrawingInteraction';
 import { bindHandleEditPointer } from './chartDrawingHandle';
@@ -35,20 +29,16 @@ import {
 import {
   bindArmedToolPointer,
   chartAnchorFromPoint,
-  placeArmedToolClick,
   type ChartPlacePoint,
 } from './chartDrawingPlace';
 import {
-  deleteSelectedDrawingOnKey,
-  ownsChartDrawingHotkeyFocus,
-  releaseChartDrawingHotkeyFocus,
-  resolveChartDrawingHotkey,
-} from './chartDrawingKeys';
+  bindDrawingManagerEvents,
+  placeDrawingAtAnchor,
+} from './chartDrawingEvents';
 import { toStorableDrawing } from './chartDrawingTime';
 import {
   drawingFactory,
   seriesTimeIndex,
-  shouldDisarmToolOnDrawingAdded,
   shouldHydrateDrawings,
   snapAll,
   type HydrateState,
@@ -65,7 +55,6 @@ import {
   upsertDrawing,
 } from './chartDrawingsStore';
 import {
-  selectionStateFromDrawing,
   applyDrawingColor,
   type DrawingSelectionState,
 } from './chartDrawingColor';
@@ -194,37 +183,15 @@ export function useChartDrawingManager({
 
     const anchor = chartAnchorFromPoint(chart, series, point);
     if (!anchor) return;
-    const result = placeArmedToolClick({
+    placeDrawingAtAnchor({
       tool,
-      pending: pendingAnchorRef.current,
       anchor,
-      twoAnchorTool: Boolean(CHART_TWO_ANCHOR_TOOLS[tool]),
-      singleAnchorTool: Boolean(CHART_SINGLE_ANCHOR_TOOLS[tool]),
+      pendingAnchorRef,
+      manager,
+      host: containerRef.current,
+      startOrMovePreview,
+      clearPlacePreview,
     });
-    pendingAnchorRef.current = result.pending;
-    if (result.action === 'wait') {
-      startOrMovePreview(anchor, anchor);
-    } else if (result.action === 'two') {
-      clearPlacePreview();
-      const DrawingClass = CHART_TWO_ANCHOR_TOOLS[tool];
-      if (!DrawingClass) return;
-      manager.addDrawing(
-        new DrawingClass(
-          `${tool.toLowerCase()}-${Date.now()}`, result.anchors, CHART_DRAWING_STYLE, CHART_DRAWING_OPTIONS,
-        ),
-      );
-    } else if (result.action === 'one') {
-      clearPlacePreview();
-      const DrawingClass = CHART_SINGLE_ANCHOR_TOOLS[tool];
-      if (!DrawingClass) return;
-      manager.addDrawing(
-        new DrawingClass(
-          `${tool.toLowerCase()}-${Date.now()}`, result.anchors, CHART_DRAWING_STYLE, CHART_DRAWING_OPTIONS,
-        ),
-      );
-    }
-    const host = containerRef.current;
-    if (host) host.dataset.drawingCount = String(manager.getAllDrawings().length);
   }, [chartRef, candleSeriesRef, containerRef, startOrMovePreview, clearPlacePreview]);
 
   const previewFromPoint = useCallback((point: ChartPlacePoint) => {
@@ -345,49 +312,18 @@ export function useChartDrawingManager({
   useEffect(() => {
     const manager = managerRef.current;
     if (!manager) return;
-
-    const unsubAdded = manager.on('drawing:added', (event) => {
-      if (shouldDisarmToolOnDrawingAdded(applyingRef.current)) {
-        setActiveTool(null);
-      }
-      storeDrawing(event.drawing);
+    return bindDrawingManagerEvents({
+      manager,
+      managerRef,
+      applyingRef,
+      symbolRef,
+      hotkeyOwner,
+      setActiveTool,
+      setSelection,
+      storeDrawing,
+      persist,
+      removeDrawing,
     });
-    // Fires per mousemove while dragging an anchor; the store debounces the PUT.
-    const unsubUpdated = manager.on('drawing:updated', (event) => {
-      storeDrawing(event.drawing);
-    });
-    const unsubRemoved = manager.on('drawing:removed', (event) => {
-      const id = event.drawingId;
-      if (applyingRef.current || !id) return;
-      persist(() => removeDrawing(symbolRef.current, id));
-    });
-    const unsubSelected = manager.on('drawing:selected', (event) => {
-      setSelection(selectionStateFromDrawing(event.drawing));
-    });
-    const unsubDeselected = manager.on('drawing:deselected', () => {
-      setSelection(null);
-    });
-
-    const onDeleteKey = (event: KeyboardEvent) => {
-      const current = managerRef.current;
-      if (!current) return;
-      if (deleteSelectedDrawingOnKey(current, event)) return;
-      if (!ownsChartDrawingHotkeyFocus(hotkeyOwner)) return;
-      const tool = resolveChartDrawingHotkey(event);
-      if (!tool) return;
-      event.preventDefault();
-      setActiveTool(tool);
-    };
-    window.addEventListener('keydown', onDeleteKey);
-    return () => {
-      unsubAdded();
-      unsubUpdated();
-      unsubRemoved();
-      unsubSelected();
-      unsubDeselected();
-      window.removeEventListener('keydown', onDeleteKey);
-      releaseChartDrawingHotkeyFocus(hotkeyOwner);
-    };
   }, [hotkeyOwner, managerEpoch, persist, setActiveTool, storeDrawing]);
 
   function handleToolClick(toolId: string) {

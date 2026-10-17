@@ -33,7 +33,7 @@ from constants import (
 from ibkr import client as _client
 from ibkr import scanner_hydrate as _hydrate
 from ibkr import scanner_session as _session
-from metrics.op_metrics import record_since, timed_sync
+from metrics.op_metrics import timed_sync
 from runtime_state import get_runtime_state
 
 logger = logging.getLogger(__name__)
@@ -111,30 +111,7 @@ def _load_types() -> bool:
         return False
 
 
-def _symbols_from_rows(rows: list) -> tuple[list[str], dict[str, str]]:
-    """Ranked symbols plus a symbol -> normalized exchange map.
-
-    IB's scan result already carries ``contract.primaryExchange`` for every
-    row, so listing exchange is free here -- no extra IB round trip.
-    """
-    import exchanges as _exchanges
-
-    out: list[str] = []
-    exchanges: dict[str, str] = {}
-    seen: set[str] = set()
-    for row in rows:
-        try:
-            contract = row.contractDetails.contract
-            sym = contract.symbol
-        except AttributeError:
-            continue
-        if sym and sym not in seen:
-            seen.add(sym)
-            out.append(sym)
-        exch = _exchanges.normalize_ib_exchange(getattr(contract, "primaryExchange", None))
-        if sym and exch:
-            exchanges[sym] = exch
-    return out, exchanges
+_symbols_from_rows = _hydrate.symbols_from_rows
 
 
 def _on_batch(lease: _Lease, rows: list) -> None:
@@ -175,33 +152,12 @@ async def _hydrate_pending() -> None:
     await asyncio.sleep(0)
     pending = dict(_pending_hydrate)
     _pending_hydrate.clear()
-    for table, (symbols, row_exchanges, started_ns) in pending.items():
-        lease = _leases.get(table)
-        if lease is None:
-            continue
-        try:
-            committed = await _hydrate.commit_table(
-                table=table,
-                symbols=symbols,
-                exchanges=row_exchanges,
-                lease_generation=lease.generation,
-                lease_epoch=lease.epoch,
-                lease_session_key=lease.session_key,
-                epoch=_epoch,
-                shadow=_shadow,
-            )
-        except Exception as exc:
-            record_since("ibkr.scanner.pipeline", started_ns, ok=False)
-            logger.exception("scanner_stream: hydrate failed for %s", table)
-            # Surface it on /api/gappers + /api/movers as feed_error. A commit
-            # that never lands used to leave the roster clock at 0 with no
-            # visible reason (2026-08-24).
-            get_runtime_state().ibkr_bridge_last_error = (
-                f"{table} roster commit failed: {type(exc).__name__}"
-            )
-        else:
-            if committed is not None:
-                record_since("ibkr.scanner.pipeline", started_ns, ok=committed)
+    await _hydrate.commit_pending_batches(
+        pending,
+        leases=_leases,
+        epoch=_epoch,
+        shadow=_shadow,
+    )
 
 
 async def _open_lease(spec: "_session.LeaseSpec") -> _Lease | None:
