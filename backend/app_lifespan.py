@@ -359,7 +359,7 @@ async def lifespan(app: FastAPI):
     bootstrap_task.cancel()
     try:
         await bootstrap_task
-    except asyncio.CancelledError:
+    except asyncio.CancelledError:  # maintainer: allow-swallow we cancelled the bootstrap task on shutdown
         pass
     except Exception:  # a failed bootstrap must not skip the teardown below
         logger.exception("lifespan: the deferred bootstrap had failed; shutting down anyway")
@@ -376,7 +376,7 @@ async def lifespan(app: FastAPI):
     for t in list(_runtime_tasks):
         try:
             await t
-        except asyncio.CancelledError:
+        except asyncio.CancelledError:  # maintainer: allow-swallow we cancelled these tasks two lines up
             pass
     _runtime_tasks = []
     # Again: a last consolidation tick may have queued a save after the first

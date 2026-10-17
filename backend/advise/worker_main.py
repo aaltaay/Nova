@@ -76,8 +76,8 @@ def main(argv: list[str] | None = None) -> int:
         event = make_event("error", message=reason)
         try:
             append_event(run["id"], event)
-        except Exception:
-            pass
+        except Exception as append_exc:
+            sys.stderr.write(f"advise worker: append_event failed for run {run['id']}: {append_exc}\n")
         _persist_usage(run["id"], usage)
         update_status(run["id"], "failed", fail_reason=reason, finished=True)
         _emit_stdout(event)

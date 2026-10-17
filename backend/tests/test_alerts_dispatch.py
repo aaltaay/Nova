@@ -100,6 +100,24 @@ def test_send_telegram_success(mock_urlopen):
     assert err is None
 
 
+@patch("alerts.telegram.urllib.request.urlopen")
+def test_send_telegram_non_json_2xx_logs_debug_without_token(mock_urlopen, caplog):
+    resp = MagicMock()
+    resp.status = 200
+    resp.read.return_value = b"not-json"
+    resp.__enter__ = MagicMock(return_value=resp)
+    resp.__exit__ = MagicMock(return_value=False)
+    mock_urlopen.return_value = resp
+
+    with caplog.at_level("DEBUG", logger="alerts.telegram"):
+        ok, err = send_telegram("123456789:SECRET_TOKEN", "999", "hello")
+    assert ok is True
+    assert err is None
+    assert any("non-JSON 2xx body" in r.message for r in caplog.records)
+    assert "SECRET_TOKEN" not in caplog.text
+
+
+
 @patch("alerts.generic_webhook.urllib.request.urlopen")
 def test_send_webhook_posts_json(mock_urlopen, _public_webhook_dns):
     resp = MagicMock()

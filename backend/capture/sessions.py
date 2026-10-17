@@ -42,7 +42,7 @@ def _live_sessions() -> dict[str, dict[str, Any]]:
         from capture.recorder import status as recorder_status
 
         sessions = recorder_status().get("sessions") or {}
-    except Exception:
+    except Exception:  # maintainer: allow-swallow logged; on-disk manifests still list when live status fails
         logger.warning("CAPTURE: recorder status unavailable; listing without live counts", exc_info=True)
         return {}
     return {

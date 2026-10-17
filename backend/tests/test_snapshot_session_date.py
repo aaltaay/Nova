@@ -86,3 +86,35 @@ def test_retention_prunes_large_cap_snapshots_too(tmp_path, monkeypatch):
     cache_mod.cleanup_old_snapshots(retention_days=30)
     assert not (tmp_path / "large_cap-2020-01-02.json").exists()
     assert not (tmp_path / "gappers-2020-01-02.json").exists()
+
+
+def test_corrupt_config_and_snapshot_loaders_warn_while_missing_files_stay_quiet(
+    tmp_path, monkeypatch, caplog,
+):
+    _at(monkeypatch, tmp_path, "2026-09-22")
+    monkeypatch.setattr("cache.HOD_MOMO_CONFIG_FILE", str(tmp_path / "hod-config.json"))
+    monkeypatch.setattr("cache.LARGE_CAP_CONFIG_FILE", str(tmp_path / "lc-config.json"))
+    monkeypatch.setattr("cache.CHART_DRAWINGS_FILE", str(tmp_path / "drawings.json"))
+    monkeypatch.setattr("cache.HOD_MOMO_BLOCKLIST_FILE", str(tmp_path / "blocklist.json"))
+
+    with caplog.at_level("WARNING", logger="cache"):
+        assert cache_mod.load_hod_momo_configs() == {}
+        assert cache_mod.load_large_cap_config() == {}
+        assert cache_mod.load_chart_drawings() == {}
+        assert cache_mod.load_hod_momo_blocklist() == []
+    assert caplog.records == []
+
+    for name in ("hod-config.json", "lc-config.json", "drawings.json", "blocklist.json"):
+        (tmp_path / name).write_text("{corrupt", encoding="utf-8")
+
+    with caplog.at_level("WARNING", logger="cache"):
+        assert cache_mod.load_hod_momo_configs() == {}
+        assert cache_mod.load_large_cap_config() == {}
+        assert cache_mod.load_chart_drawings() == {}
+        assert cache_mod.load_hod_momo_blocklist() == []
+    messages = " ".join(r.message for r in caplog.records)
+    assert "load_hod_momo_configs failed" in messages
+    assert "load_large_cap_config failed" in messages
+    assert "load_chart_drawings failed" in messages
+    assert "load_hod_momo_blocklist failed" in messages
+
