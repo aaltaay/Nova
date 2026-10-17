@@ -63,7 +63,7 @@ the order reached the backend 2-3 s after the click and rested above the market.
   (`IBKR_TAPE_QUEUE_MAXSIZE`, oldest dropped and counted in `tape.viewer_dropped`) with the same wake-up; two or
   more waiting prints go as one `{"type": "prints", "symbol", "items": [print...], "sent"}` frame, a single one
   as the `print` frame it was.
-- **Quote** (`/ws/ticker/{symbol}`): `trade_update` adds `seq` and `at`, the symbol's quote version.
+- **Quote** (`/ws/ticker/{symbol}`): `trade_update` adds `seq` and `at`, the symbol's quote version. Off the live edge on a Sim desk (`sim.mode.is_replay_desk()`), live `stream` and `snapshot` `trade_update` publication and quote-version bumps are suppressed in `ibkr/ticks_handler.py`, `ibkr/reprice.py` and `market_view/quote_push.py` (including a producer-supplied sequence or a pending live frame queued before leaving the live edge, which is unbumped so `QUOTE` never diverges from the socket), while recorded `source: "sim"` updates advance `QUOTE` and reach the socket (#867). Live feed ingestion, scanner listeners and recording continue.
 - **The view an order carries.** `POST /api/ibkr/order` and `PATCH /api/ibkr/order/{id}` accept `view:
   {schema_version: 1, symbol, action_wall_ms, instance: string | null, book: {seq, at, bid, ask} | null, quote:
   {seq, at, price} | null, desk: {silent_ms, transit_ms, undrawn_ms} | null}` -- when the operator acted

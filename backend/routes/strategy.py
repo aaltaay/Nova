@@ -29,7 +29,7 @@ from strategy.gap_and_go import evaluate_gap_and_go
 from strategy.risk import get_state as _get_risk_state, validate_trade_plan
 from strategy.setups import evaluate_setups
 from strategy.symbol_pillars import SOURCE_QUOTE, find_board_row, live_quote, quote_row, raw_boards, with_catalyst
-from strategy.replay_pillars import replay_view
+from strategy.replay_pillars import replay_view, replay_watchlist
 from strategy.watchlist import build_watchlist, score_watchlist_entry
 from strategy.watchlist_catalyst import attach as _attach_catalysts, compact as _compact_catalyst
 from runtime_state import get_runtime_state
@@ -134,13 +134,19 @@ def watchlist() -> dict:
 
     All-pillars-pass symbols are always ranked first; the composite score
     (change %, relative volume, float tightness, catalyst freshness) breaks
-    ties within each group. See strategy/watchlist.py for the formula.
+    ties within each group. On a Sim replay desk off the live edge, ranks the
+    replayed day's board at the playhead instead of today's live caches (#881).
     """
+    at = _replay_playhead()
+    if at is not None:
+        return _replay_watchlist(at)
     entries = build_watchlist(_watchlist_universe())
     return {
         "note": _TRANSPARENCY_NOTE,
         "count": len(entries),
         "entries": _attach_catalysts([e.to_dict() for e in entries]),
+        "source": "live",
+        "replay": None,
     }
 
 
@@ -197,6 +203,35 @@ def _replay_pillars(sym: str, at: float) -> dict:
         entry["catalyst"] = _compact_catalyst(found.get("catalyst"))
     return {"note": _TRANSPARENCY_NOTE, "symbol": sym, "source": "replay", "rank": None, "entry": entry,
             "replay": replay}
+
+
+def _replay_watchlist(at: float) -> dict:
+    """The whole Contenders list on a Sim replay desk (#881): the replayed day's board at ``at``.
+
+    Uses only the leaderboard store's rows and catalysts at the playhead -- never today's
+    scanner caches, fundamentals or live catalyst verdicts.
+    """
+    from leaderboard import playback
+    from leaderboard.rows import session_date_for
+
+    day = session_date_for(at)
+    candidates, replay = replay_watchlist(day, at, playback.board_at(day, at))
+    by_sym = {c["symbol"]: c for c in candidates}
+    graded = build_watchlist([_graded(c) for c in candidates])
+    entries: list[dict] = []
+    for item in graded:
+        row = item.to_dict()
+        cand = by_sym.get(item.symbol) or {}
+        row["catalyst"] = _compact_catalyst(cand.get("catalyst"))
+        entries.append(row)
+    return {
+        "note": _TRANSPARENCY_NOTE,
+        "count": len(entries),
+        "entries": entries,
+        "source": "replay",
+        "replay": replay,
+    }
+
 
 
 @router.get("/setups/{symbol}")

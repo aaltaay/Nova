@@ -19,7 +19,9 @@ import {
 import { CatalystCell } from '../components/CatalystCell';
 import { CatalystPlayheadSync } from '../hooks/useCatalystRead';
 import { fmtPct, fmtRvol, fmtVolume, pctToneClass } from '../utils/quoteFormat';
+import { replayMomentLabel } from '../utils/replayMoment';
 import { floatHover } from '../utils/shareFacts';
+import { useWatchlistReplay } from './useWatchlist';
 import {
   applyFilter,
   newsCell,
@@ -31,15 +33,65 @@ import {
   type Cell,
   type WatchlistFilter,
 } from './watchlistFormat';
-import type { WatchlistEntry } from './types';
+import type { WatchlistEntry, WatchlistReplay } from './types';
 import type { SetupRow } from '../setups/types';
 import './watchlist.css';
 
 const FILTERS: WatchlistFilter[] = ['all', 'pillars5', 'setup_live', 'allowlist'];
 
+const REPLAY_GAP_WORDS: Record<string, string> = {
+  not_running: 'Nova was not running',
+  feed_down: 'the IBKR feed was down',
+  not_recorded: 'not recorded',
+  outside_session: 'outside the 04:00-20:00 session',
+};
+
 function fmtLast(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return '—';
   return v < 1 ? v.toFixed(4) : v.toFixed(2);
+}
+
+function replaySourceLabel(source: string | null | undefined): string {
+  if (source === 'recorded') return 'recorded';
+  if (source === 'reconstructed') return 'reconstructed (rebuilt)';
+  return source || 'replay';
+}
+
+function watchlistReplayProvenance(replay: WatchlistReplay): string {
+  const moment = replayMomentLabel(replay.session_date, replay.minute_ts ?? replay.at);
+  return `Replay · ${moment} (${replay.session_date}) · ${replaySourceLabel(replay.board_source)} board`;
+}
+
+function watchlistEmptyStateText(
+  loading: boolean,
+  entriesLength: number,
+  replay: WatchlistReplay | null,
+): string {
+  if (loading) return 'Loading Contenders…';
+  if (replay) {
+    const moment = replayMomentLabel(replay.session_date, replay.minute_ts ?? replay.at);
+    const sourceWord = replay.board_source ?? 'replay';
+    if (replay.absent || replay.covered === false) {
+      const reason = replay.absent ? (REPLAY_GAP_WORDS[replay.absent] ?? replay.absent) : 'not recorded';
+      return (
+        `Historical Contenders ranking unavailable at ${moment} (${replay.session_date}) -- `
+        + `no ${sourceWord} board (${reason}). Today's live Contenders are not shown on a replay.`
+      );
+    }
+    if (entriesLength === 0) {
+      return `No candidates on the ${moment} (${replay.session_date}) ${sourceWord} board meet scanning criteria.`;
+    }
+  }
+  return entriesLength === 0 ? 'No candidates currently meet scanning criteria.' : 'Nothing matches this filter.';
+}
+
+function rvolCellTitle(entry: WatchlistEntry): string | undefined {
+  if (entry.rvol_source) return `RVOL over the ${entry.rvol_source} average daily volume`;
+  return entry.five_pillars.pillars.find(p => p.name === 'relative_volume')?.detail;
+}
+
+function floatCellTitle(entry: WatchlistEntry): string | undefined {
+  return floatHover(entry.float_shares) ?? entry.five_pillars.pillars.find(p => p.name === 'float')?.detail;
 }
 
 function PillarLetters({ entry }: { entry: WatchlistEntry }) {
@@ -91,10 +143,10 @@ function WatchlistRow({ entry, index, setup, following, allowed, onToggleBot, se
       <td><PillarLetters entry={entry} /></td>
       <td className="num">{fmtLast(entry.price)}</td>
       <td className={`num ${pctToneClass(entry.change_pct)}`}>{fmtPct(entry.change_pct ?? null, '—')}</td>
-      <td className="num" title={entry.rvol_source ? `RVOL over the ${entry.rvol_source} average daily volume` : undefined}>
+      <td className="num" title={rvolCellTitle(entry)}>
         {rvol ?? '—'}
       </td>
-      <td className="num" title={floatHover(entry.float_shares)}>{fmtVolume(entry.float_shares)}</td>
+      <td className="num" title={floatCellTitle(entry)}>{fmtVolume(entry.float_shares)}</td>
       <td className="wl-catalyst-cell"><CatalystCell symbol={entry.symbol} board={null} fallback={<ToneCell cell={newsCell(entry)} />} /></td>
       <td className="wl-score-cell" title="Weighted 0-100 composite of % change, RVOL, float and news freshness">
         <span className="wl-score-bar"><i style={{ width: `${Math.max(0, Math.min(100, entry.composite_score))}%` }} /></span>
@@ -124,13 +176,23 @@ interface Props {
   entries: WatchlistEntry[];
   loading: boolean;
   error: string | null;
+  replay?: WatchlistReplay | null;
   selectedSymbol: string | null;
   onSelectSymbol: (symbol: string) => void;
   onOpenTrading: (symbol: string) => void;
 }
 
-export function WatchlistTable({ entries, loading, error, selectedSymbol, onSelectSymbol, onOpenTrading }: Props) {
+export function WatchlistTable({
+  entries,
+  loading,
+  error,
+  replay,
+  selectedSymbol,
+  onSelectSymbol,
+  onOpenTrading,
+}: Props) {
   const [filter, setFilter] = useState<WatchlistFilter>('all');
+  const activeReplay = useWatchlistReplay(replay);
   const stream = useSetupsBoard();
   const { isAllowed, add, remove } = useBotAllowlist();
   const setups = useMemo(() => setupsBySymbol(stream?.board?.rows), [stream?.board?.rows]);
@@ -163,6 +225,11 @@ export function WatchlistTable({ entries, loading, error, selectedSymbol, onSele
     <div className="wl-table">
       <div className="wl-toolbar">
         <div className="wl-summary" data-testid="watchlist-summary">
+          {activeReplay && (
+            <span className="wl-replay-provenance" data-testid="watchlist-replay-provenance">
+              {watchlistReplayProvenance(activeReplay)}
+            </span>
+          )}
           <span><b>{sum.total}</b> gappers &amp; gainers</span>
           <span><b>{sum.allPass}</b> pass all five pillars</span>
           <span><b>{sum.setupsLive}</b> setups live · <b>{sum.near}</b> near trigger</span>
@@ -182,16 +249,12 @@ export function WatchlistTable({ entries, loading, error, selectedSymbol, onSele
           ))}
         </div>
       </div>
-      {error && <div className="empty-state">{error}</div>}
+      {error && <div className="empty-state" data-testid="watchlist-error">{error}</div>}
       {!error && shown.length === 0 ? (
         <div className="empty-state">
-          {loading
-            ? 'Loading Contenders…'
-            : entries.length === 0
-              ? 'No candidates currently meet scanning criteria.'
-              : 'Nothing matches this filter.'}
+          {watchlistEmptyStateText(loading, entries.length, activeReplay)}
         </div>
-      ) : (
+      ) : !error ? (
         <div className="table-wrapper">
           <CatalystPlayheadSync />
           <table className="wl-grid">
@@ -228,7 +291,7 @@ export function WatchlistTable({ entries, loading, error, selectedSymbol, onSele
             </tbody>
           </table>
         </div>
-      )}
+      ) : null}
       <div className="wl-footnote">{WATCHLIST_FOOTNOTE}</div>
     </div>
   );

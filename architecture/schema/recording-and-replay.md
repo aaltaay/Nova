@@ -519,8 +519,11 @@ desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
   quote is the Trader's empty Sim quote: no live price, change, volume or daily bar over a replay, only static
   listing context such as sector. Float and other mutable fundamentals are the replay day's recorded facts
   when available, otherwise absent; today's values are not identity facts. This follows `scanner.md`, "The
-  rest of that quote panel off the live edge"; the remaining Trader/Contenders implementation gap is #881
-  (triage, 2026-10-13). An empty chart names both symbols: "No SUNE bars on this replay day --
+  rest of that quote panel and the Trader quote off the live edge": the Trader quote helpers (`historicalQuoteDetail`,
+  `captureQuoteDetail`, `simEmptyQuoteDetail`), `StockViewQuoteStats`, `TickerBrokerGrid` and the Contenders tab
+  (`GET /api/strategy/watchlist`, `useWatchlist`, `WatchlistTable`) enforce the same replay-only contract (#881), and
+  `/ws/ticker/{symbol}` suppresses live `stream` and `snapshot` `trade_update` frames and quote-version bumps off the
+  live edge (#867). An empty chart names both symbols: "No SUNE bars on this replay day --
   the Sim has LNKS loaded. Load SUNE to chart it." Desk wording only: no wire or persisted shape changes.
 - **It loads by itself on an empty desk** (operator 2026-10-09: "i dont think the entire nova app recognize
   massive as data recap for the sim"). With nothing loaded, the Trader tab on screen on a day in the files

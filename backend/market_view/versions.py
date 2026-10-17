@@ -41,19 +41,20 @@ class Replaced:
 
 
 class _Track:
-    __slots__ = ("seq", "times")
+    __slots__ = ("seq", "times", "pending")
 
     def __init__(self) -> None:
         self.seq = 0
         # times[i] is when version (seq - len(times) + 1 + i) was applied.
         self.times: deque[float] = deque(maxlen=MARKET_VIEW_HISTORY_KEEP)
+        self.pending: set[int] = set()
 
 
 _lock = threading.Lock()
 _tracks: dict[tuple[str, str], _Track] = {}
 
 
-def bump(stream: str, symbol: str, at: float | None = None) -> Version:
+def bump(stream: str, symbol: str, at: float | None = None, *, pending: bool = False) -> Version:
     """A new version of ``symbol``'s ``stream``: the next ``seq``, applied at ``at`` (now by default)."""
     when = time.time() if at is None else float(at)
     key = (stream, symbol.upper())
@@ -63,7 +64,41 @@ def bump(stream: str, symbol: str, at: float | None = None) -> Version:
             track = _tracks[key] = _Track()
         track.seq += 1
         track.times.append(when)
+        if pending:
+            track.pending.add(track.seq)
         return Version(track.seq, when)
+
+
+def commit(stream: str, symbol: str, seq: int) -> None:
+    """Mark a pre-bumped ``seq`` as delivered so a later replay transition cannot unbump it."""
+    with _lock:
+        track = _tracks.get((stream, symbol.upper()))
+        if track is not None:
+            track.pending.discard(seq)
+
+
+def unbump(stream: str, symbol: str, seq: int, at: float | None = None) -> bool:
+    """Roll back an undelivered ``pending`` version when its frame is suppressed on replay (#867)."""
+    key = (stream, symbol.upper())
+    with _lock:
+        track = _tracks.get(key)
+        if track is None or not track.times or seq not in track.pending:
+            return False
+        oldest = track.seq - len(track.times) + 1
+        if seq < oldest or seq > track.seq:
+            track.pending.discard(seq)
+            return False
+        idx = seq - oldest
+        if at is not None and track.times[idx] != float(at):
+            return False
+        while len(track.times) > idx:
+            track.pending.discard(track.seq)
+            track.times.pop()
+            track.seq -= 1
+        if track.seq <= 0 or not track.times:
+            _tracks.pop(key, None)
+        return True
+
 
 
 def latest(stream: str, symbol: str) -> Version | None:
