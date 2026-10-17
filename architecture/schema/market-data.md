@@ -333,10 +333,17 @@ kept arriving, so this is not a feed gap (above).
   A print arriving without a re-ask ends the watch. Halts, quiet/uncertain readings, replay desks and
   changed IB sessions are excluded. A successful subscribe states only an attempt: an actual print
   within `TAPE_RECOVERY_VERIFY_SEC` (30) confirms return, otherwise the outcome says no prints returned
-  and no further silence-driven cancellation is made until a print arrives. Explicit refusals still
+  and no further silence-driven cancellation is made until a print arrives. While that silence-driven
+  re-ask is in flight (including its 15 s same-instrument guard) or waiting for a print to verify
+  return (and after a failed attempt with no print), `tape_heal.unverified_reask` preserves the
+  outage's `since`, `last_print_ts`, `last_print_exchange_ts` and `line_since` for `tape_silence.reading`,
+  `tape_silence.missed_trades` and `/ws/ibkr/tape/{symbol}` pings: neither the guard nor an unverified
+  subscribe clears `LINE DOWN` or unlocks `TAPE_STALE`. Explicit refusals still
   use the existing cap-aware healer. The ping's optional `silence.recovery` is
   `{state, since, asked_at, text}`; `state` is `holding`, `delegated`, `waiting`, `attempting`,
-  `failed` or `resumed`. None of these outcomes proves an upstream cure or changes order arming.
+  `failed` or `resumed`, and silence-recovery status frames carry `silent_recovery: state` so the desk
+  keeps its existing print rows and `LINE DOWN` badge instead of turning into `ERROR`. None of these
+  outcomes proves an upstream cure or changes order arming.
 - **IBKR's farm and line notices** (owner `ibkr/farm_notices.py`, via `session_errors`): farm broken 2103 /
   2105 / 2157, OK 2104 / 2106 / 2158, inactive 2107 / 2108 (the farm is the text after the last colon, or
   after "upon demand." for the inactive pair), depth halted 316 and competing live session 10197 are each

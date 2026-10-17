@@ -29,6 +29,30 @@ function fmtShares(n: number | null | undefined): string {
   return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
 }
 
+const QUOTE_LISTING_REPLAY_ABSENT_HINT =
+  "Historical listing and borrow flags are unavailable -- Nova holds today's broker flags only, not the replayed session's.";
+
+function alpacaClearedFromAsset(asset: AssetInfo | null | undefined): ListingCompare['alpaca'] {
+  return {
+    source: 'alpaca_assets',
+    status: null,
+    tradable: null,
+    shortable: null,
+    easy_to_borrow: null,
+    short_type: null,
+    short_type_detail: QUOTE_LISTING_REPLAY_ABSENT_HINT,
+    marginable: null,
+    fractionable: null,
+    maintenance_margin_requirement: null,
+    margin_requirement_long: null,
+    margin_requirement_short: null,
+    asset_class: asset?.asset_class ?? null,
+    exchange: asset?.exchange ?? null,
+    attributes: [],
+    error: QUOTE_LISTING_REPLAY_ABSENT_HINT,
+  };
+}
+
 function alpacaFromAsset(asset: AssetInfo | null | undefined): ListingCompare['alpaca'] {
   const shortable = asset?.shortable;
   const etb = asset?.easy_to_borrow;
@@ -86,8 +110,9 @@ function ibkrCell(ibkr: IbkrListingFlags | null | undefined, field: string): str
 }
 
 export function TickerBrokerGrid({ asset, listing }: Props) {
-  const alpaca = listing?.alpaca ?? alpacaFromAsset(asset);
-  const ibkr = listing?.ibkr ?? null;
+  const cleared = listing === null;
+  const alpaca = cleared ? alpacaClearedFromAsset(asset) : (listing?.alpaca ?? alpacaFromAsset(asset));
+  const ibkr = cleared ? null : (listing?.ibkr ?? null);
 
   const rows: { label: string; alpaca: string; ibkr: string; alpacaTitle?: string; ibkrTitle?: string }[] = [
     {
@@ -164,7 +189,7 @@ export function TickerBrokerGrid({ asset, listing }: Props) {
   return (
     <>
       <div className="cq-section-title">{QUOTE_BROKER_SECTION_TITLE}</div>
-      <p className="cq-listing-compare-hint">{QUOTE_LISTING_COMPARE_HINT}</p>
+      <p className="cq-listing-compare-hint">{cleared ? QUOTE_LISTING_REPLAY_ABSENT_HINT : QUOTE_LISTING_COMPARE_HINT}</p>
       <div className="cq-listing-compare" data-testid="listing-compare">
         <table>
           <thead>

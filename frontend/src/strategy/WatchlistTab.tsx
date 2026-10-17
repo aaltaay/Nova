@@ -11,13 +11,15 @@ import { JournalPanel } from './JournalPanel';
 import { SetupsPanel } from '../setups';
 import { SetupsTabCount } from '../setups';
 import { consumeSetupsBoardOpen, subscribeSetupsBoardOpen } from '../setups';
+import { useWatchlistReplay } from './useWatchlist';
 import { WatchlistTable } from './WatchlistTable';
-import type { WatchlistEntry } from './types';
+import type { WatchlistEntry, WatchlistReplay } from './types';
 
 interface WatchlistTabProps {
   entries: WatchlistEntry[];
   loading: boolean;
   error: string | null;
+  replay?: WatchlistReplay | null;
   selectedSymbol: string | null;
   onSelectSymbol: (symbol: string) => void;
   onOpenTrading: (symbol: string) => void;
@@ -26,9 +28,10 @@ interface WatchlistTabProps {
 type WatchlistSubTab = 'watchlist' | 'setups' | 'journal' | 'backtest';
 
 export function WatchlistTab({
-  entries, loading, error, selectedSymbol, onSelectSymbol, onOpenTrading,
+  entries, loading, error, replay, selectedSymbol, onSelectSymbol, onOpenTrading,
 }: WatchlistTabProps) {
   const [subTab, setSubTab] = useState<WatchlistSubTab>('watchlist');
+  const activeReplay = useWatchlistReplay(replay);
 
   // A setup card's "Open board" on the Bots page (ADR 031): the request may land before this tab mounts.
   useEffect(() => {
@@ -79,6 +82,7 @@ export function WatchlistTab({
           entries={entries}
           loading={loading}
           error={error}
+          replay={activeReplay}
           selectedSymbol={selectedSymbol}
           onSelectSymbol={onSelectSymbol}
           onOpenTrading={onOpenTrading}

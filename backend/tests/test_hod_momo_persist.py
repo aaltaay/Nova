@@ -653,3 +653,12 @@ def test_load_state_does_not_skip_rollover_after_midnight_restart(monkeypatch):
     assert state.session_date == "2026-07-23"
     assert len(state.today_alerts) == 1
     assert archived == []
+
+
+def test_alert_session_key_logs_debug_on_unparseable_timestamp(monkeypatch, caplog):
+    monkeypatch.setattr(session, "session_key_et", lambda now=None: "2026-07-24")
+    bad = _alert("bad-ts", created_ts=0.0, timestamp="not-an-iso-timestamp")
+    with caplog.at_level("DEBUG", logger="hod_momo_session"):
+        assert session.alert_session_key(bad) == "2026-07-24"
+    assert any("unparseable alert timestamp" in r.message for r in caplog.records)
+

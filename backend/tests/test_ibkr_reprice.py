@@ -309,3 +309,25 @@ def test_no_spare_line_skips_the_pass_untimed(monkeypatch):
         qualified_contracts.clear_qualified_contracts(reason="test")
     assert broadcasts == [] and ib.open_max == 0
     assert "ibkr.detail_reprice" not in op_metrics.totals()
+
+
+def test_reprice_detail_symbols_skips_live_backstop_on_replay_desk(monkeypatch):
+    """#867: off the live edge, detail_reprice must not query live brief lines or schedule a snapshot trade_update."""
+    import sim.mode
+
+    monkeypatch.setattr(sim.mode, "is_replay_desk", lambda: True)
+    calls = []
+    broadcasts = []
+
+    def run_ibkr(coro):
+        calls.append(coro)
+        if asyncio.iscoroutine(coro):
+            coro.close()
+        return {"SUNE": {"price": 2.27, "prev_close": 2.28, "volume": 52005}}
+
+    reprice.reprice_detail_symbols(
+        ["SUNE"], run_ibkr, lambda *a: broadcasts.append(a), lambda s: None, is_stream_fresh=lambda s: False,
+    )
+    assert calls == []
+    assert broadcasts == []
+

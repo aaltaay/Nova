@@ -36,6 +36,7 @@ from market import (
     in_after_hours as _in_after_hours,
     in_market_hours as _in_market_hours,
     in_premarket as _in_premarket,
+    is_exchange_day as _is_exchange_day,
     now_et as _now_et,
 )
 from news.enrich import enrich_catalyst_row
@@ -266,7 +267,9 @@ async def scan_loop() -> None:
                 await asyncio.sleep(AFTERHOURS_FOCUS_INTERVAL_SEC)
             else:
                 state.current_mode = "closed"
-                if not stream_owns:
+                # A weekend or holiday has no movers: IBKR answers with the last close
+                # as the price, and a fresh board would read 0% everywhere (2026-10-17).
+                if not stream_owns and _is_exchange_day(_now_et().date()):
                     # Closed: do not thaw frozen tables with a fresh poll.
                     if not _table_frozen(state, "gappers"):
                         await loop.run_in_executor(scan_pool, run_discovery_scan)

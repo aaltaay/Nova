@@ -4,7 +4,9 @@ import { matchesSimClockScrub, SIM_CLOCK_SCRUB_EVENT } from './simClockEvents';
 import { SIM_HISTORY_POLL_MS, SIM_HISTORY_REQUEST_FAILED } from './simConstants';
 import { replayPollResource } from './replayPollResource';
 import { parseHistoricalSnapshot } from './simPayloadParse';
-import type { HistoricalDepthBook, HistoricalSelection, MassiveQuoteStatus } from './historicalTypes';
+import type {
+  ExchangeBookCoverage, HistoricalDepthBook, HistoricalSelection, MassiveQuoteStatus,
+} from './historicalTypes';
 
 export interface HistoricalSnapshot {
   active: boolean; symbol: string; last: number | null; volume: number | null;
@@ -13,6 +15,8 @@ export interface HistoricalSnapshot {
   depth_available?: boolean;
   /** That book, or null/undefined when depth was not recorded for this moment. */
   depth?: HistoricalDepthBook | null;
+  /** Every venue book imported for the loaded symbol-day and its span (ADR 057); empty or absent with none. */
+  exchange_books?: ExchangeBookCoverage[];
   /** Open / high / low from the window's first reached print (or reached candles) -- the window's, not the day's. */
   open?: number | null; high?: number | null; low?: number | null;
   /** The regular session's opening print once reached, null when not known (QA W7). */

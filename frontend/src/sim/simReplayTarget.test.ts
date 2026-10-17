@@ -82,20 +82,37 @@ describe('simRailNote', () => {
 
 describe('simEmptyQuoteDetail', () => {
   const live = {
-    symbol: 'IMCC', asset: { name: 'IMCC Corp' }, listing: { any: 1 }, halt: { halted: true },
+    symbol: 'IMCC',
+    asset: { name: 'IMCC Corp', exchange: 'NASDAQ', shortable: true, easy_to_borrow: true, tradable: true },
+    listing: { any: 1 }, halt: { halted: true },
     avg_volume: 5, rel_volume: 2, rvol_5min: 3, volume_in_5min: 4, news: [{ id: 1 }],
-    fundamentals: { float_shares: 480_200 }, mode: 'live',
+    fundamentals: {
+      country: 'Canada', country_code: 'CA', sector: 'Healthcare', industry: 'Drug Manufacturers',
+      float_shares: 480_200, short_interest: 120_000, market_cap: 12_000_000,
+      recent_split: '1:10 (2026-08-24)',
+    },
+    mode: 'live',
     snapshot: { latest_trade: { price: 1.74 }, daily_bar: { close: 1.74 } },
   } as unknown as TickerDetail;
 
-  it("drops everything that is today's, keeps what is this ticker's identity", () => {
-    const blank = simEmptyQuoteDetail(live, ' imcc ');
+  it("drops everything that is today's (including float and volatile broker flags), keeps issuer identity", () => {
+    const blank = simEmptyQuoteDetail(live, ' imcc ', '2026-07-15');
     expect(blank.symbol).toBe('IMCC');
     expect(blank.snapshot.latest_trade).toBeNull();
     expect(blank.snapshot.daily_bar).toBeNull();
     expect([blank.halt, blank.listing, blank.rel_volume, blank.mode]).toEqual([null, null, null, null]);
     expect(blank.news).toEqual([]);
-    expect(blank.fundamentals).toEqual({ float_shares: 480_200 });
+    expect(blank.asset).toEqual({ name: 'IMCC Corp', exchange: 'NASDAQ' });
+    expect(blank.fundamentals).toMatchObject({
+      country: 'Canada',
+      country_code: 'CA',
+      sector: 'Healthcare',
+      industry: 'Drug Manufacturers',
+      float_shares: null,
+      short_interest: null,
+      market_cap: null,
+      recent_split: null,
+    });
   });
 
   it("does not borrow another ticker's fundamentals", () => {

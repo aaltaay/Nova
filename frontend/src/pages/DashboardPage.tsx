@@ -322,7 +322,7 @@ export function DashboardPage() {
         />
       )}
       <SidePanel
-        watchlistEntries={watchlist.entries}
+        watchlistEntries={watchlist.replay || scanner.replay ? [] : watchlist.entries}
         widthPx={sidePanel.widthPx}
         collapsed={quotePanel.collapsed}
         onToggleCollapsed={quotePanel.toggle}

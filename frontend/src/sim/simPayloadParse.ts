@@ -8,8 +8,8 @@
  */
 import type { DepthLevel } from '../ibkr';
 import type {
-  HistoricalDepthBook, HistoricalJob, HistoricalSelection, HistoricalStatus, MassiveCap, MassiveDays,
-  MassiveQuoteStatus, MassiveSummary,
+  ExchangeBookCoverage, ExchangeBookVenue, HistoricalDepthBook, HistoricalJob, HistoricalSelection, HistoricalStatus,
+  MassiveCap, MassiveDays, MassiveQuoteStatus, MassiveSummary,
 } from './historicalTypes';
 import type { CaptureSegment, ReplayQuoteWire, SimClockState } from './simClockTypes';
 import type { HistoricalSnapshot } from './useHistoricalSnapshot';
@@ -257,11 +257,21 @@ function parseLevels(value: unknown, side: 'bid' | 'ask'): DepthLevel[] {
     .map(level => ({ ...level, price: level.price as number, size: level.size as number, side }) as DepthLevel);
 }
 
+/** An imported venue book's venues (ADR 057): a row without its venue, name or time is dropped. */
+function parseVenues(value: unknown): ExchangeBookVenue[] | undefined {
+  if (value === undefined) return undefined;
+  return objects(value).flatMap((row) => {
+    const venue = text(row.venue), label = text(row.label), ts = finite(row.ts);
+    return venue && label && ts != null
+      ? [{ venue, label, dataset: text(row.dataset) ?? '', ts, maybe_bad_book: row.maybe_bad_book === true }] : [];
+  });
+}
+
 function parseDepth(value: unknown): HistoricalDepthBook | null {
   if (!isObject(value)) return null;
   const ts = finite(value.ts);
   if (ts == null) return null;
-  return {
+  return compact({
     ...value,
     symbol: text(value.symbol) ?? '',
     bids: parseLevels(value.bids, 'bid'),
@@ -271,7 +281,21 @@ function parseDepth(value: unknown): HistoricalDepthBook | null {
     l1_fallback: value.l1_fallback === true,
     session_id: textOrNull(value.session_id),
     source: text(value.source) ?? '',
-  };
+    venues: parseVenues(value.venues),
+  }) as HistoricalDepthBook;
+}
+
+/** The snapshot's imported venue books and their spans (ADR 057): a row without a venue or a span is dropped. */
+function parseExchangeBooks(value: unknown): ExchangeBookCoverage[] {
+  return objects(value).flatMap((row) => {
+    const venue = text(row.venue), label = text(row.label);
+    const from = finite(row.known_from), to = finite(row.known_to);
+    return venue && label && from != null && to != null && to > from ? [{
+      venue, label, dataset: text(row.dataset) ?? '', known_from: from, known_to: to, events: finite(row.events) ?? 0,
+      imported_at: finite(row.imported_at) ?? 0, covered: row.covered === true, book_ts: finiteOrNull(row.book_ts),
+      maybe_bad_book: row.maybe_bad_book === true,
+    }] : [];
+  });
 }
 
 const SIDES = new Set(['ask', 'bid', 'between']);
@@ -314,6 +338,7 @@ export function parseHistoricalSnapshot(raw: unknown): HistoricalSnapshot {
     error: text(raw.error),
     depth_available: flag(raw.depth_available),
     depth: parseDepth(raw.depth),
+    exchange_books: parseExchangeBooks(raw.exchange_books),
     open: finiteOrNull(raw.open),
     high: finiteOrNull(raw.high),
     low: finiteOrNull(raw.low),

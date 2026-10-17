@@ -52,10 +52,21 @@ export interface WatchlistEntry {
   catalyst?: WatchlistCatalyst | null;
 }
 
+export interface WatchlistReplay {
+  session_date: string;
+  at: number;
+  minute_ts: number | null;
+  board_source: 'recorded' | 'reconstructed' | string | null;
+  covered: boolean;
+  absent: string | null;
+}
+
 export interface WatchlistResponse {
   note: string;
   count: number;
   entries: WatchlistEntry[];
+  source?: 'live' | 'replay' | string | null;
+  replay?: WatchlistReplay | null;
 }
 
 /** Shape shared by gap_and_go / bull_flag / abcd to_dict() — see backend/strategy/*.py. */

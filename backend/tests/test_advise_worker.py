@@ -192,3 +192,24 @@ def test_stub_fail_records_partial_usage(advise_iso, monkeypatch):
     run_debate("SPCX", 2, lambda _e: None, usage_out=complete_usage)
     assert run["prompt_tokens"] < complete_usage["prompt_tokens"]
     assert run["actual_usd"] < complete_usage["actual_usd"]
+
+
+def test_worker_logs_stderr_when_error_append_event_fails(advise_iso, monkeypatch, capsys):
+    import advise.worker_main as wm
+
+    started = book.create_run(
+        symbol="ERR",
+        model=advise_model_id(),
+        graph_version=ADVISE_GRAPH_VERSION,
+        depth=1,
+        session_date="2026-09-16",
+    )
+    monkeypatch.setattr(wm, "run_debate", lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("debate boom")))
+    monkeypatch.setattr(wm, "append_event", lambda *_a, **_k: (_ for _ in ()).throw(OSError("db locked")))
+    assert worker_main(["--run-id", str(started["id"])]) == 1
+    err = capsys.readouterr().err
+    assert "append_event failed" in err
+    assert "db locked" in err
+    run = book.get_run(started["id"])
+    assert run is not None and run["status"] == "failed"
+

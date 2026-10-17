@@ -10,55 +10,22 @@
  *   panel showed today's 3.08M float, smaller than that day's by GRML's 1:50 split of Aug 24. Who
  *   the company is (sector, industry, country) stays, and so does a split on or before the day.
  */
-import type { FundamentalsData, TickerDetail } from '../types/ticker';
-import { captureQuoteDetail, historicalQuoteDetail, simEmptyQuoteDetail } from './historicalQuoteDetail';
-import { simReplayFactsNote } from './simConstants';
+import type { TickerDetail } from '../types/ticker';
+import {
+  captureQuoteDetail,
+  historicalQuoteDetail,
+  replayAssetInfo,
+  replayCompanyFacts,
+  replayFactsNoteForDetail,
+  simEmptyQuoteDetail,
+  splitDate,
+} from './historicalQuoteDetail';
 import type { SimClockState } from './simClockTypes';
 import { simRailNote } from './simReplayTarget';
 import type { HistoricalSnapshot } from './useHistoricalSnapshot';
 import { isReplayDesk } from './useSimReplayDesk';
 
-const SPLIT_DATE = /\((\d{4}-\d{2}-\d{2})\)/;
-
-/** The split's date in `recent_split` ("1:50 (2026-08-24)"), or null when it names none. */
-export function splitDate(recentSplit: string | null | undefined): string | null {
-  return SPLIT_DATE.exec(recentSplit ?? '')?.[1] ?? null;
-}
-
-/** The company facts a past session can show: who the company is, and a split by that day. */
-export function replayCompanyFacts(f: FundamentalsData | null, sessionDate: string): FundamentalsData | null {
-  if (!f) return null;
-  const split = splitDate(f.recent_split);
-  return {
-    country: f.country ?? null,
-    country_code: f.country_code ?? null,
-    sector: f.sector,
-    industry: f.industry,
-    recent_split: split != null && split <= sessionDate ? f.recent_split : null,
-    market_cap: null,
-    shares_outstanding: null,
-    float_shares: null,
-    held_percent_insiders: null,
-    float_contradicted: null,
-    float_contradicted_reason: null,
-    shares_issued: null,
-    shares_issued_reason: null,
-    short_interest: null,
-    short_interest_ts: null,
-    short_above_float: null,
-    short_above_float_reason: null,
-    short_ratio: null,
-    short_percent_of_float: null,
-    pe_ratio: null,
-    forward_pe: null,
-    eps: null,
-    fifty_two_week_high: null,
-    fifty_two_week_low: null,
-    dividend_yield: null,
-    beta: null,
-    earnings_date: null,
-  };
-}
+export { replayAssetInfo, replayCompanyFacts, splitDate };
 
 export interface ReplayPanelDetail {
   detail: TickerDetail | null;
@@ -77,20 +44,23 @@ export function replayPanelDetail(
   if (!detail || !sim) return { detail, note: null };
   const replayDesk = isReplayDesk(sim, clock);
   const loaded = replayDesk && (clock?.replay_symbol ?? '').trim().toUpperCase() === sym;
+  const day = clock?.session_date ?? null;
   let view = detail;
   if (loaded && clock?.replay_source === 'historical' && historical?.active) {
-    view = historicalQuoteDetail(detail, historical);
+    view = historicalQuoteDetail(detail, historical, day);
   } else if (loaded && clock?.replay_source === 'capture' && clock) {
     view = captureQuoteDetail(detail, clock, sym);
   } else if (simRailNote(sym, clock, sim)) {
-    view = simEmptyQuoteDetail(detail, sym);
+    view = simEmptyQuoteDetail(detail, sym, day);
   }
-  if (!replayDesk || !clock?.session_date) return { detail: view, note: null };
-  const day = clock.session_date;
-  const split = splitDate(detail.fundamentals?.recent_split);
-  const later = split != null && split > day ? `${sym} split ${detail.fundamentals?.recent_split}` : null;
+  if (!replayDesk || !day) return { detail: view, note: null };
   return {
-    detail: { ...view, fundamentals: replayCompanyFacts(view.fundamentals, day) },
-    note: simReplayFactsNote(day, later),
+    detail: {
+      ...view,
+      asset: replayAssetInfo(view.asset),
+      listing: null,
+      fundamentals: replayCompanyFacts(detail.fundamentals, day),
+    },
+    note: replayFactsNoteForDetail(detail, sym, day),
   };
 }

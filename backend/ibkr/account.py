@@ -14,7 +14,11 @@ import logging
 import time
 
 from ibkr import client as _client
-from ibkr.account_marks import apply_l1_marks, live_l1_last, marked_account_summary
+from ibkr.account_marks import (
+    join_positions_for_ui,
+    live_l1_last,
+    marked_account_summary,
+)
 from ibkr.account_summary import (
     account_values_items,
     overlay_missing_tags,
@@ -137,65 +141,12 @@ def positions_for_ui() -> list[dict]:
     sim = positions_if_sim()
     if sim is not None:
         return sim
-
-    by_sym: dict[str, dict] = {}
-    for p in get_positions():
-        sym = str(p.get("symbol") or "").upper()
-        if not sym:
-            continue
-        try:
-            qty = float(p.get("qty") or 0)
-        except (TypeError, ValueError):
-            continue
-        if qty == 0:
-            continue
-        row = by_sym.get(sym)
-        if row is None:
-            by_sym[sym] = {
-                "symbol": sym,
-                "qty": qty,
-                "avg_cost": p.get("avg_cost"),
-                "market_price": None,
-                "market_value": None,
-                "unrealized_pnl": None,
-                "realized_pnl": None,
-            }
-        else:
-            # Multiple IB rows for same symbol (rare) — sum qty; keep first avg.
-            row["qty"] = float(row["qty"]) + qty
-
-    if not by_sym:
-        return []
-
-    try:
-        portfolio = get_portfolio()
-    except IbkrAccountError as exc:
-        # Qty SSOT already succeeded — surface MTM as unknown rather than 503
-        # the whole panel when only PnL join failed.
-        logger.warning("IBKR: portfolio join failed for positions UI: %s", exc)
-        portfolio = []
-
-    mtm: dict[str, dict] = {}
-    for item in portfolio:
-        sym = str(item.get("symbol") or "").upper()
-        if sym:
-            mtm[sym] = item
-
-    out: list[dict] = []
-    for sym, row in by_sym.items():
-        join = mtm.get(sym) or {}
-        out.append({
-            "symbol": sym,
-            "qty": row["qty"],
-            "avg_cost": row["avg_cost"] if row["avg_cost"] is not None else join.get("avg_cost"),
-            "market_price": join.get("market_price"),
-            "market_value": join.get("market_value"),
-            "unrealized_pnl": join.get("unrealized_pnl"),
-            "realized_pnl": join.get("realized_pnl"),
-        })
-    from ibkr.position_commission import attach_session_commissions
-
-    return attach_session_commissions(apply_l1_marks(out, live_l1_last))
+    return join_positions_for_ui(
+        get_positions(),
+        get_portfolio,
+        last_for=live_l1_last,
+        logger=logger,
+    )
 
 
 def account_summary_for_ui() -> dict:

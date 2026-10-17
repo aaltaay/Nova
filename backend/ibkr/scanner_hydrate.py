@@ -41,6 +41,32 @@ def reset_roster_push_failed_for_tests() -> None:
     _roster_push_failed = 0
 
 
+def symbols_from_rows(rows: list) -> tuple[list[str], dict[str, str]]:
+    """Ranked symbols plus a symbol -> normalized exchange map.
+
+    IB's scan result already carries ``contract.primaryExchange`` for every
+    row, so listing exchange is free here -- no extra IB round trip.
+    """
+    import exchanges as _exchanges
+
+    out: list[str] = []
+    exchanges: dict[str, str] = {}
+    seen: set[str] = set()
+    for row in rows:
+        try:
+            contract = row.contractDetails.contract
+            sym = contract.symbol
+        except AttributeError:
+            continue
+        if sym and sym not in seen:
+            seen.add(sym)
+            out.append(sym)
+        exch = _exchanges.normalize_ib_exchange(getattr(contract, "primaryExchange", None))
+        if sym and exch:
+            exchanges[sym] = exch
+    return out, exchanges
+
+
 def stub_row(sym: str, rank: int, exchange: str | None = None) -> dict:
     """Newly admitted name with no quote yet.
 
@@ -228,6 +254,45 @@ async def commit_table(
     except Exception:
         logger.debug("scanner_stream: news badge hook failed", exc_info=True)
     return True
+
+
+async def commit_pending_batches(
+    pending: dict[str, tuple[list[str], dict[str, str], int]],
+    *,
+    leases: dict[str, object],
+    epoch: int,
+    shadow: dict[str, list[dict]],
+) -> None:
+    """Commit all queued ``(symbols, exchanges, started_ns)`` batches for live leases."""
+    from metrics.op_metrics import record_since
+
+    for table, (symbols, row_exchanges, started_ns) in pending.items():
+        lease = leases.get(table)
+        if lease is None:
+            continue
+        try:
+            committed = await commit_table(
+                table=table,
+                symbols=symbols,
+                exchanges=row_exchanges,
+                lease_generation=getattr(lease, "generation", 0),
+                lease_epoch=getattr(lease, "epoch", 0),
+                lease_session_key=getattr(lease, "session_key", ""),
+                epoch=epoch,
+                shadow=shadow,
+            )
+        except Exception as exc:
+            record_since("ibkr.scanner.pipeline", started_ns, ok=False)
+            logger.exception("scanner_stream: hydrate failed for %s", table)
+            # Surface it on /api/gappers + /api/movers as feed_error. A commit
+            # that never lands used to leave the roster clock at 0 with no
+            # visible reason (2026-08-24).
+            get_runtime_state().ibkr_bridge_last_error = (
+                f"{table} roster commit failed: {type(exc).__name__}"
+            )
+        else:
+            if committed is not None:
+                record_since("ibkr.scanner.pipeline", started_ns, ok=committed)
 
 
 def log_shadow_parity(

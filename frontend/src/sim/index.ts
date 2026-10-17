@@ -24,6 +24,8 @@ export { simRailNote, simVenueTagState } from './simReplayTarget';
 export {
   captureQuoteDetail,
   historicalQuoteDetail,
+  replayFactsNoteForDetail,
+  sessionDateFromStamp,
   simEmptyQuoteDetail,
 } from './historicalQuoteDetail';
 export { etTime } from './historicalReplayFormat';

@@ -34,5 +34,8 @@ def test_parse_feed_reads_yahoo_item_and_publisher():
     assert "Shares rose" in art["summary"]
 
 
-def test_parse_feed_bad_xml_is_empty_not_raise():
-    assert parse_feed("<not-xml", "Yahoo") == []
+def test_parse_feed_bad_xml_is_empty_not_raise(caplog):
+    with caplog.at_level("WARNING", logger="nova_news.rss"):
+        assert parse_feed("<not-xml", "Yahoo") == []
+    assert any("malformed RSS/Atom XML for Yahoo" in r.message for r in caplog.records)
+

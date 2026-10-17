@@ -245,3 +245,104 @@ def test_an_unreadable_live_edge_counts_as_a_replay(monkeypatch):
 
     monkeypatch.setattr(mode, "is_replay_desk", broken)
     assert rp.replay_playhead() is not None
+
+
+# ── #881: The whole Contenders list (/api/strategy/watchlist) on a Sim replay desk ──
+
+
+def test_whole_watchlist_on_reconstructed_replay_uses_board_at_and_never_live_caches(replay):
+    with store.connect() as db:
+        store.replace_catalysts(db, [checked("KUST")], [
+            news("KUST", "Kust Receives FDA Approval for Lead Candidate", et(7, 5)),
+            news("KUST", "Kust Announces Dilutive Offering", et(9, 30)),  # after playhead: must not count
+        ])
+    write_board([
+        row("KUST", 1, price=4.50, prev_close=3.00, change_pct=0.50, rvol=8.4, rvol_basis="time_of_day_20"),
+        row("GRML", 98, price=0.1875, prev_close=0.1801, change_pct=0.0411, rvol=1.31, rvol_basis="time_of_day_20"),
+    ])
+
+    body = strategy_routes.watchlist()
+
+    assert body["source"] == "replay"
+    assert body["replay"] == {
+        "session_date": DAY,
+        "at": PLAYHEAD,
+        "minute_ts": int(et(7, 20)),
+        "board_source": "reconstructed",
+        "covered": True,
+        "absent": None,
+    }
+    assert [e["symbol"] for e in body["entries"]] == ["KUST", "GRML"]
+    kust, grml = body["entries"]
+    # Reconstructed rows keep unknown float as None ("float unknown") and never grade time_of_day_20 as daily_avg.
+    assert kust["float_shares"] is None and kust["rel_volume"] is None
+    assert kust["sub_scores"]["relative_volume"] == 0.0 and kust["sub_scores"]["float"] == 0.0
+    kust_pillars = {p["name"]: p for p in kust["five_pillars"]["pillars"]}
+    assert kust_pillars["float"]["detail"] == "float unknown"
+    assert kust_pillars["relative_volume"]["detail"] == (
+        "daily RVOL unknown -- 8.4x the same minute's 20-day average is another measure, not graded"
+    )
+    # Catalyst uses only items published by the playhead, aged against the playhead (15 min old -> 100 score).
+    assert kust["catalyst"]["verdict"] == "catalyst"
+    assert kust["sub_scores"]["catalyst"] == 100.0
+    # Today's live GRML ($6.02) on gainer_cache did not leak into the replayed Contenders list.
+    assert grml["price"] == 0.1875 and grml["catalyst"] is None
+
+
+def test_whole_watchlist_on_recorded_replay_grades_daily_rvol_and_recorded_float(replay):
+    write_board(
+        [row("GRML", 1, source="recorded", board="gainers", price=6.5, prev_close=4.5, change_pct=0.44,
+             rvol=7.0, rvol_basis="daily_avg", float_shares=3_000_000.0)],
+        source="recorded", board="gainers",
+    )
+    write_board(
+        [row("GRML", 1, source="recorded", board="gappers", price=6.8, prev_close=4.5, change_pct=0.51,
+             rvol=8.0, rvol_basis="daily_avg", float_shares=3_000_000.0)],
+        source="recorded", board="gappers",
+    )
+    with store.connect() as db:
+        store.write_batch(db, minutes=[{"session_date": DAY, "minute_ts": int(et(7, 20)), "run_id": "run-1",
+                                        "feed_live": 1, "halt_feed_ok": 1}])
+
+    body = strategy_routes.watchlist()
+
+    assert body["source"] == "replay"
+    assert body["replay"]["board_source"] == "recorded" and body["replay"]["covered"] is True
+    assert len(body["entries"]) == 1
+    entry = body["entries"][0]
+    # Gappers row wins on collision with Gainers, matching the live Contenders rule.
+    assert entry["symbol"] == "GRML" and entry["price"] == 6.8
+    assert entry["rel_volume"] == 8.0 and entry["float_shares"] == 3_000_000.0
+    pillars = {p["name"]: p for p in entry["five_pillars"]["pillars"]}
+    assert pillars["relative_volume"]["passed"] is True
+    assert pillars["float"]["passed"] is True
+
+
+def test_whole_watchlist_distinguishes_covered_empty_board_from_missing_coverage(replay, monkeypatch):
+    # Covered empty board at 07:20 ET.
+    write_board([], source="reconstructed", board="market")
+    covered_empty = strategy_routes.watchlist()
+    assert covered_empty["entries"] == [] and covered_empty["count"] == 0
+    assert covered_empty["replay"]["covered"] is True and covered_empty["replay"]["absent"] is None
+
+    # Uncovered playhead outside the session.
+    monkeypatch.setattr(strategy_routes, "_replay_playhead", lambda: et(3, 30))
+    uncovered = strategy_routes.watchlist()
+    assert uncovered["entries"] == [] and uncovered["count"] == 0
+    assert uncovered["replay"]["covered"] is False
+    assert uncovered["replay"]["absent"] == "outside_session"
+
+
+def test_whole_watchlist_on_live_desk_returns_live_source_and_null_replay(monkeypatch):
+    monkeypatch.setattr(strategy_routes, "_replay_playhead", lambda: None)
+    monkeypatch.setattr(strategy_routes, "_watchlist_universe", lambda: [
+        {"symbol": "LIVE", "price": 5.0, "change_pct": 25.0, "rel_volume": 6.0,
+         "float_shares": 2_000_000.0, "has_news": True},
+    ])
+    monkeypatch.setattr(strategy_routes, "_attach_catalysts", lambda rows: rows)
+
+    body = strategy_routes.watchlist()
+
+    assert body["source"] == "live" and body["replay"] is None
+    assert [e["symbol"] for e in body["entries"]] == ["LIVE"]
+

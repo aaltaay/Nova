@@ -9,7 +9,7 @@ import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { HistoricalDepth, HistoricalL2Chip } from './HistoricalDepth';
-import type { HistoricalDepthBook } from './historicalTypes';
+import type { ExchangeBookCoverage, HistoricalDepthBook } from './historicalTypes';
 import { resetMassiveDaysForTests, setMassiveDaysForTests } from './massiveDaysStore';
 import type { HistoricalSnapshot } from './useHistoricalSnapshot';
 
@@ -133,6 +133,98 @@ describe('replay Level 2', () => {
           days: [{ date: '2026-09-18', trades: true, quotes: true, minute_aggs: true }] });
       });
       expect(note()).toBe('Bid/ask for this day is on disk now -- load the window again to add it');
+    });
+  });
+
+  describe("an exchange's own book imported for the day (ADR 057)", () => {
+    // 2026-09-18, Eastern = UTC-4: 13:30 UTC is 09:30 ET.
+    const et = (h: number, m = 0) => Date.UTC(2026, 8, 18, h + 4, m) / 1000;
+    const nasdaqBook = (over: Partial<ExchangeBookCoverage> = {}): ExchangeBookCoverage => ({
+      venue: 'NASDAQ', label: 'Nasdaq', dataset: 'XNAS.ITCH', known_from: et(4), known_to: et(20), events: 4,
+      imported_at: 0, covered: true, book_ts: et(9, 30), maybe_bad_book: false, ...over,
+    });
+    const arcaBook = nasdaqBook({ venue: 'ARCA', label: 'NYSE Arca', dataset: 'ARCX.PILLAR', known_from: et(8) });
+    const venueDepth = (venues = [{ venue: 'NASDAQ', label: 'Nasdaq', dataset: 'XNAS.ITCH', ts: et(9, 30),
+      maybe_bad_book: false }]): HistoricalDepthBook => recorded({
+      symbol: 'XYZ', source: 'exchange_book', ts: et(9, 30), session_id: null, venues,
+      bids: [{ price: 10.11, size: 50, side: 'bid', mm: 'ARCA' }, { price: 10.1, size: 400, side: 'bid', mm: 'NASDAQ' }],
+      asks: [{ price: 10.12, size: 300, side: 'ask', mm: 'NASDAQ' }],
+    });
+    const snapshot = (books: ExchangeBookCoverage[], over: Partial<HistoricalSnapshot> = {}): HistoricalSnapshot => ({
+      active: true, symbol: 'XYZ', last: 10, volume: 100, source: 'trades', as_of: '', prints: [],
+      exchange_books: books, ...over,
+    });
+    const text = (id: string) => container.querySelector(`[data-testid="${id}"]`)?.textContent;
+
+    it('names the venue on the note, the banner, every row and the chip -- never the market', async () => {
+      const depth = venueDepth();
+      depth.bids = depth.bids.filter(level => level.mm === 'NASDAQ');
+      await render(<HistoricalDepth depth={depth} snapshot={snapshot([nasdaqBook()])} />);
+      const ladder = container.querySelector('[data-testid="historical-l2"]')!;
+      expect(ladder.getAttribute('data-depth-source')).toBe('exchange_book');
+      expect(text('historical-l2-exchange')).toBe('Nasdaq book only · last change 09:30:00 ET');
+      expect(text('historical-l2-coverage')).toBe('Imported · covers 04:00–20:00 ET · not the whole market');
+      expect(container.querySelector('[data-testid="historical-l2-exchange"]')?.getAttribute('title'))
+        .toMatch(/only the orders resting on that venue, not the consolidated market/);
+      expect(container.querySelector('[data-testid="historical-l2-recorded"]')).toBeNull();
+      expect(container.querySelector('[data-testid="historical-l2-bad-book"]')).toBeNull();
+      const mms = [...ladder.querySelectorAll('.das-l2-row--tiered .das-l2-mm')].map(cell => cell.textContent);
+      expect(mms).toEqual(['NASDAQ', 'NASDAQ']);
+      await render(<HistoricalL2Chip depth={depth} snapshot={snapshot([nasdaqBook()])} />);
+      const chip = container.querySelector('[data-testid="historical-l2-chip"]')!;
+      expect(chip.textContent).toBe('ReplayNasdaq book');
+      expect(chip.className).toContain('sv-shortability-chip--ok');
+      expect(chip.getAttribute('title')).toMatch(/^Nasdaq: the venue's own order book/);
+    });
+
+    it('outside its span the ladder stays empty, saying so and what the import covers', async () => {
+      await render(<HistoricalDepth depth={null}
+        snapshot={snapshot([nasdaqBook({ known_from: et(5), covered: false, book_ts: null })])} />);
+      expect(text('historical-l2-empty')).toBe('No Nasdaq book at this moment');
+      expect(text('historical-l2-coverage')).toBe('Imported book: 05:00–20:00 ET');
+      expect(container.querySelectorAll('.das-l2-row--tiered')).toHaveLength(0);
+    });
+
+    it('under another book the banner alone says what was imported', async () => {
+      const nbbo = recorded({ source: 'massive_nbbo', l1_fallback: true });
+      const books = [nasdaqBook({ known_from: et(5), covered: false, book_ts: null })];
+      const selection = { symbol: 'XYZ', date: '2026-09-18', start: '04:00', end: '20:00', coverage_through: 0,
+        source: 'massive', trade_count: 5 };
+      await render(<HistoricalDepth depth={nbbo} snapshot={snapshot(books, { selection })} />);
+      expect(text('historical-l2-nbbo')).toBe('Best bid / ask (NBBO) at 04:41:16 ET · no depth in the files');
+      expect(text('historical-l2-coverage')).toBe('Imported book: 05:00–20:00 ET');
+      expect(container.querySelector('[data-testid="historical-l2-empty"]')).toBeNull();
+    });
+
+    it('two venues are named together, and every row keeps its own', async () => {
+      const depth = venueDepth([{ venue: 'ARCA', label: 'NYSE Arca', dataset: 'ARCX.PILLAR', ts: et(8),
+        maybe_bad_book: false }, { venue: 'NASDAQ', label: 'Nasdaq', dataset: 'XNAS.ITCH', ts: et(9, 30),
+        maybe_bad_book: false }]);
+      await render(<HistoricalDepth depth={depth} snapshot={snapshot([arcaBook, nasdaqBook({ known_to: et(19, 59) + 58 })])} />);
+      expect(text('historical-l2-exchange')).toBe('NYSE Arca + Nasdaq books only · last change 09:30:00 ET');
+      expect(text('historical-l2-coverage'))
+        .toBe('Imported · NYSE Arca 08:00–20:00 · Nasdaq 04:00–19:59:58 ET · not the whole market');
+      const mms = [...container.querySelectorAll('.das-l2-side--bid .das-l2-row--tiered .das-l2-mm')]
+        .map(cell => cell.textContent);
+      expect(mms).toEqual(['ARCA', 'NASDAQ']);
+      await render(<HistoricalL2Chip depth={depth} />);
+      expect(text('historical-l2-chip')).toBe('Replay2 venue books');
+    });
+
+    it('a gap the venue flagged in its own feed is said over the ladder', async () => {
+      const depth = venueDepth([{ venue: 'NASDAQ', label: 'Nasdaq', dataset: 'XNAS.ITCH', ts: et(9, 30),
+        maybe_bad_book: true }]);
+      await render(<HistoricalDepth depth={depth} snapshot={snapshot([nasdaqBook({ maybe_bad_book: true })])} />);
+      expect(text('historical-l2-bad-book')).toBe('Nasdaq flagged a gap in its feed here -- this book may be incomplete');
+    });
+
+    it("a book whose venues did not parse still reads as one exchange's, never the market's", async () => {
+      const depth = venueDepth();
+      delete depth.venues;
+      await render(<HistoricalDepth depth={depth} />);
+      expect(text('historical-l2-exchange')).toBe('Exchange book only · last change 09:30:00 ET');
+      await render(<HistoricalL2Chip depth={depth} />);
+      expect(text('historical-l2-chip')).toBe('ReplayExchange book');
     });
   });
 });

@@ -63,7 +63,7 @@ def send_telegram(
                     logger.warning("Telegram API error (token=%s): %s", _redact_token(bot_token), desc)
                     return False, desc
             except json.JSONDecodeError:
-                pass
+                logger.debug("Telegram returned non-JSON 2xx body (token=%s)", _redact_token(bot_token))
             return True, None
     except urllib.error.HTTPError as exc:
         msg = f"Telegram HTTP {exc.code}"

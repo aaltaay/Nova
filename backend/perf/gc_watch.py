@@ -51,7 +51,7 @@ def uninstall() -> None:
     if _installed:
         try:
             gc.callbacks.remove(_on_gc)
-        except ValueError:
+        except ValueError:  # maintainer: allow-swallow removing an already-absent gc callback is a no-op
             pass
         _installed = False
 

@@ -294,3 +294,12 @@ def test_migration_adds_commission_and_fill_ids():
     assert rows[0]["symbol"] == "OLD"
     assert rows[0].get("commission") is None
     assert rows[0].get("fill_ids") in (None, "")
+
+
+def test_parse_fill_ids_warns_on_corrupt_json(caplog):
+    from journal.net_pnl import parse_fill_ids
+
+    with caplog.at_level("WARNING", logger="journal.net_pnl"):
+        assert parse_fill_ids("{bad-json") == []
+    assert any("invalid fill_ids JSON" in r.message for r in caplog.records)
+

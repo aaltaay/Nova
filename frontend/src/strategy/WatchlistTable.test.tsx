@@ -126,4 +126,117 @@ describe('WatchlistTable', () => {
     fireEvent.click(within(rowOf('QMBL')).getByTestId('watchlist-bot-toggle'));
     expect(remove).toHaveBeenCalledWith('QMBL');
   });
+
+  it('renders replay provenance and distinguishes reconstructed rows, covered empty boards, missing coverage, loading and errors (#881)', () => {
+    const replayEntry = entry('GRML', 0, {
+      price: 0.1875,
+      change_pct: 0.0411,
+      rel_volume: null,
+      rvol_source: null,
+      float_shares: null,
+      has_news: false,
+      five_pillars: {
+        symbol: 'GRML',
+        all_pass: false,
+        pass_count: 0,
+        total: 5,
+        checkmark: '0/5',
+        pillars: [
+          { name: 'price', passed: false, detail: '$0.19 (need $2-$20)' },
+          { name: 'change_pct', passed: false, detail: '4.1% (need >= 10%)' },
+          {
+            name: 'relative_volume',
+            passed: false,
+            detail: "daily RVOL unknown -- 1.3x the same minute's 20-day average is another measure, not graded",
+          },
+          { name: 'catalyst', passed: false, detail: 'no news or technical breakout' },
+          { name: 'float', passed: false, detail: 'float unknown' },
+        ],
+      },
+    });
+    const replayMeta = {
+      session_date: '2026-07-15',
+      at: 1_752_578_426,
+      minute_ts: 1_752_578_400,
+      board_source: 'reconstructed' as const,
+      covered: true,
+      absent: null,
+    };
+
+    const { rerender } = render(
+      <WatchlistTable
+        entries={[replayEntry]}
+        loading={false}
+        error={null}
+        replay={replayMeta}
+        selectedSymbol={null}
+        onSelectSymbol={vi.fn()}
+        onOpenTrading={vi.fn()}
+      />,
+    );
+    const prov = screen.getByTestId('watchlist-replay-provenance').textContent ?? '';
+    expect(prov).toContain('2026-07-15');
+    expect(prov).toContain('Jul 15 07:20 ET');
+    expect(prov).toContain('reconstructed');
+    const grml = within(rowOf('GRML'));
+    expect(grml.getByText('0.1875')).toBeTruthy();
+    expect(grml.getAllByTitle(/daily RVOL unknown -- 1\.3x/).length).toBe(2);
+    expect(grml.getAllByTitle('float unknown').length).toBe(2);
+
+    // Covered empty board:
+    rerender(
+      <WatchlistTable
+        entries={[]}
+        loading={false}
+        error={null}
+        replay={replayMeta}
+        selectedSymbol={null}
+        onSelectSymbol={vi.fn()}
+        onOpenTrading={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/No candidates on the Jul 15 07:20 ET \(2026-07-15\) reconstructed board/i)).toBeTruthy();
+
+    // Missing board coverage:
+    rerender(
+      <WatchlistTable
+        entries={[]}
+        loading={false}
+        error={null}
+        replay={{ ...replayMeta, covered: false, absent: 'not_recorded' }}
+        selectedSymbol={null}
+        onSelectSymbol={vi.fn()}
+        onOpenTrading={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/Historical Contenders ranking unavailable at Jul 15 07:20 ET \(2026-07-15\).*not recorded/i)).toBeTruthy();
+
+    // Loading state:
+    rerender(
+      <WatchlistTable
+        entries={[]}
+        loading
+        error={null}
+        replay={replayMeta}
+        selectedSymbol={null}
+        onSelectSymbol={vi.fn()}
+        onOpenTrading={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('Loading Contenders…')).toBeTruthy();
+
+    // Read failure state:
+    rerender(
+      <WatchlistTable
+        entries={[]}
+        loading={false}
+        error="HTTP 503"
+        replay={null}
+        selectedSymbol={null}
+        onSelectSymbol={vi.fn()}
+        onOpenTrading={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('HTTP 503')).toBeTruthy();
+  });
 });

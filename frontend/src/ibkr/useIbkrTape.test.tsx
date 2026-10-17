@@ -306,6 +306,42 @@ describe('useIbkrTape lifecycle', () => {
     expect(latest?.prints.map(p => p.price)).toEqual([9.1]);
   });
 
+  it('keeps prints and LINE DOWN connected during registered-silent recovery frames (#722)', () => {
+    renderSymbol('GENK');
+    const ws = FakeWebSocket.instances[0];
+    const send = (frame: object) => act(() => ws.onmessage?.({ data: JSON.stringify(frame) }));
+    send({ type: 'subscribed', symbol: 'GENK' });
+    send({ type: 'print', symbol: 'GENK', time: '2026-10-14T13:25:11.000Z', price: 2.83, size: 200 });
+    flushTapeFrame();
+    expect(latest?.prints).toHaveLength(1);
+
+    const silence = {
+      schema_version: 3,
+      state: 'dead',
+      since: 1791984311,
+      text: "No prints since 09:25:11 ET while Level 1 shows trades up to 09:25:21 ET: IBKR's tape line is down, not quiet.",
+      pipeline: ['BEZ'],
+    };
+    send({ type: 'ping', symbol: 'GENK', silence });
+    send({
+      type: 'error',
+      symbol: 'GENK',
+      message: 'Holding the original tape line while the shared tape is stalled.',
+      retry_at: null,
+      silent_recovery: 'holding',
+    });
+    expect(latest?.connected).toBe(true);
+    expect(latest?.error).toBeNull();
+    expect(latest?.prints).toHaveLength(1);
+    expect(latest?.silence?.state).toBe('dead');
+    expect(latest?.silence?.recovery).toEqual({
+      state: 'holding',
+      since: 1791984311,
+      askedAt: null,
+      text: 'Holding the original tape line while the shared tape is stalled.',
+    });
+  });
+
   it("keys the 10-second candle by IBKR's own second, as IBKR's history does (#721)", () => {
     renderSymbol('VEEA');
     const ws = FakeWebSocket.instances[0];

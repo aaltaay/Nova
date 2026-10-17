@@ -131,4 +131,32 @@ describe('parseTapeSilence (#722)', () => {
     expect(parseTapeSilence({ schema_version: 3, state: 'silent', since: 5, text: 'y', pipeline: 'AIXI' }))
       .toEqual({ state: 'silent', since: 5, text: 'y', pipeline: [] });
   });
+
+  it('parses bounded silence recovery state when present (#722)', () => {
+    expect(
+      parseTapeSilence({
+        schema_version: 3,
+        state: 'dead',
+        since: 100,
+        text: 'Down. Holding.',
+        pipeline: ['VEEA'],
+        recovery: { state: 'holding', since: 100, asked_at: null, text: 'Holding.' },
+      }),
+    ).toEqual({
+      state: 'dead',
+      since: 100,
+      text: 'Down. Holding.',
+      pipeline: ['VEEA'],
+      recovery: { state: 'holding', since: 100, askedAt: null, text: 'Holding.' },
+    });
+    expect(
+      parseTapeSilence({
+        schema_version: 3,
+        state: 'dead',
+        since: 100,
+        text: 'Down.',
+        recovery: { state: 'unknown', since: 100, text: 'bad' },
+      }),
+    ).toEqual({ state: 'dead', since: 100, text: 'Down.', pipeline: [] });
+  });
 });

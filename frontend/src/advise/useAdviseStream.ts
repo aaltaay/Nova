@@ -33,8 +33,8 @@ export function useAdviseStream(
         .then((fresh) => {
           if (!closed) onRunRef.current(fresh);
         })
-        .catch(() => {
-          /* keep last snapshot */
+        .catch((err) => {
+          if (!closed) console.warn('Advise run refresh failed:', err);
         });
     };
     ws.onerror = () => {

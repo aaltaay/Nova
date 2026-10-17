@@ -150,3 +150,74 @@ def live_l1_bid_ask(symbol: str) -> tuple[float | None, float | None]:
 
     book_bid, book_ask = top_of_book(depth_state.current_book(sym))
     return (bid if bid is not None else finite_last(book_bid)), (ask if ask is not None else finite_last(book_ask))
+
+
+def join_positions_for_ui(
+    positions: list[dict],
+    get_portfolio_fn: Callable[[], list[dict]],
+    *,
+    last_for: Callable[[str], float | None] = live_l1_last,
+    logger: Any = None,
+) -> list[dict]:
+    """Join ``ib.positions()`` qty SSOT with ``ib.portfolio()`` MTM and L1 marks."""
+    from ibkr.errors import IbkrAccountError
+    from ibkr.position_commission import attach_session_commissions
+
+    by_sym: dict[str, dict] = {}
+    for p in positions:
+        sym = str(p.get("symbol") or "").upper()
+        if not sym:
+            continue
+        try:
+            qty = float(p.get("qty") or 0)
+        except (TypeError, ValueError):
+            continue
+        if qty == 0:
+            continue
+        row = by_sym.get(sym)
+        if row is None:
+            by_sym[sym] = {
+                "symbol": sym,
+                "qty": qty,
+                "avg_cost": p.get("avg_cost"),
+                "market_price": None,
+                "market_value": None,
+                "unrealized_pnl": None,
+                "realized_pnl": None,
+            }
+        else:
+            # Multiple IB rows for same symbol (rare) -- sum qty; keep first avg.
+            row["qty"] = float(row["qty"]) + qty
+
+    if not by_sym:
+        return []
+
+    try:
+        portfolio = get_portfolio_fn()
+    except IbkrAccountError as exc:
+        # Qty SSOT already succeeded -- surface MTM as unknown rather than 503
+        # the whole panel when only PnL join failed.
+        if logger is not None:
+            logger.warning("IBKR: portfolio join failed for positions UI: %s", exc)
+        portfolio = []
+
+    mtm: dict[str, dict] = {}
+    for item in portfolio:
+        sym = str(item.get("symbol") or "").upper()
+        if sym:
+            mtm[sym] = item
+
+    out: list[dict] = []
+    for sym, row in by_sym.items():
+        join = mtm.get(sym) or {}
+        out.append({
+            "symbol": sym,
+            "qty": row["qty"],
+            "avg_cost": row["avg_cost"] if row["avg_cost"] is not None else join.get("avg_cost"),
+            "market_price": join.get("market_price"),
+            "market_value": join.get("market_value"),
+            "unrealized_pnl": join.get("unrealized_pnl"),
+            "realized_pnl": join.get("realized_pnl"),
+        })
+    return attach_session_commissions(apply_l1_marks(out, last_for))
+
