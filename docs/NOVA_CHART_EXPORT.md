@@ -10,14 +10,16 @@ From the selected Nova checkout, replace the placeholders with an exact symbol,
 ISO date, existing minute-Parquet root, reviewed gateway checkout and new output:
 
 ~~~powershell
-py -3 tools/nova_historical_charts.py export --symbol SYMBOL --date YYYY-MM-DD --massive-root "<MINUTE_ROOT>" --gateway-root "<NOVA_CHECKOUT>" --output "<NEW_OUTPUT>" --samples 0
+py -3 tools/nova_historical_charts.py export --symbol SYMBOL --date YYYY-MM-DD --massive-root "<MINUTE_ROOT>" [--fallback-massive-root "<MASSIVE_ROOT>"] --gateway-root "<NOVA_CHECKOUT>" --output "<NEW_OUTPUT>" [--as-of-m 585] [--annotations-json '[{"kind":"horizontal_line","price":10.5,"label":"Entry","color":"green"}]'] --samples 0
 ~~~
 
-The input is exactly <MINUTE_ROOT>/d=YYYY-MM-DD/part.parquet, with columns
-ticker,m,o,h,l,c,v (additional source columns are ignored). The resolver selects
-the exact ticker; m denotes an America/New_York minute start, in raw same-session
-price/share units. The explicit file must exist. There is no discovery, download,
-reference-universe filter, broker-history or simulation fallback.
+The input is resolved from `<MINUTE_ROOT>/d=YYYY-MM-DD/part.parquet` (columns
+`ticker,m,o,h,l,c,v`) or Massive's `<ROOT>/minute_aggs_v1/YYYY/MM/YYYY-MM-DD.csv.gz`
+(with optional `--fallback-massive-root` so no date gap occurs across the archive).
+The resolver selects the exact ticker; `m` denotes an America/New_York minute start,
+in raw same-session price/share units. For multi-entry galleries (`1..9` symbol-days
+in one pass), pass `--entries-json '[{"symbol":"DEMO","date":"2022-02-01"}]'`.
+There is no remote download, reference-universe filter, broker-history or simulation fallback.
 
 The resolver freezes hashed OHLCV projections and delegates to the shared export
 lifecycle. Its owning contract is

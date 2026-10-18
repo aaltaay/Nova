@@ -203,3 +203,86 @@ def test_cli_timeout_preserves_bundle_and_captured_diagnostics(tmp_path, monkeyp
     failure = json.loads((tmp_path / "out" / "native_export_failure.json").read_text())
     assert failure["stdout"] == "generated stdout" and failure["stderr"] == "generated stderr"
     assert not (tmp_path / "out" / "historical_export.json").exists()
+
+
+def test_massive_csv_gz_layout_and_fallback_root_resolve_without_gaps(tmp_path):
+    import gzip
+    from datetime import datetime, timezone
+    from zoneinfo import ZoneInfo
+
+    pytest.importorskip("duckdb")
+    primary = tmp_path / "primary_minute"
+    primary.mkdir()
+    fallback = tmp_path / "massive_archive"
+    csv_dir = fallback / "minute_aggs_v1" / "2020" / "03"
+    csv_dir.mkdir(parents=True)
+    csv_gz = csv_dir / "2020-03-16.csv.gz"
+    et = ZoneInfo("America/New_York")
+    ws_570 = int(datetime(2020, 3, 16, 9, 30, tzinfo=et).astimezone(timezone.utc).timestamp()) * 10**9
+    ws_571 = int(datetime(2020, 3, 16, 9, 31, tzinfo=et).astimezone(timezone.utc).timestamp()) * 10**9
+    content = (
+        "ticker,volume,open,close,high,low,window_start,transactions\n"
+        f"DEMO,1250.5,10.0,10.2,10.5,9.9,{ws_570},12\n"
+        f"DEMO,2400.0,10.2,10.4,10.6,10.1,{ws_571},18\n"
+        f"OTHER,500.0,50.0,50.1,50.2,49.9,{ws_570},4\n"
+    )
+    with gzip.open(csv_gz, "wt", encoding="utf-8", newline="\n") as handle:
+        handle.write(content)
+    receipt = resolver.resolve_bundle(
+        primary, "DEMO", "2020-03-16", tmp_path / "csv_bundle", fallback_root=fallback
+    )
+    assert receipt["source"]["reader"] == "local_duckdb_massive_csv_gz"
+    assert receipt["source"]["sha256"] == resolver.file_sha256(csv_gz)
+    selection = json.loads(Path(receipt["selection_path"]).read_text())
+    projection = json.loads(Path(selection["selected"][0]["bar_projection"]["path"]).read_text())
+    assert projection["bars"] == [
+        {"m": 570, "o": 10.0, "h": 10.5, "l": 9.9, "c": 10.2, "v": 1250.5},
+        {"m": 571, "o": 10.2, "h": 10.6, "l": 10.1, "c": 10.4, "v": 2400.0},
+    ]
+
+
+def test_as_of_m_and_annotations_are_validated_and_preserved(tmp_path):
+    root, _ = make_day(tmp_path)
+    notes = [
+        {"kind": "horizontal_line", "price": 10.15, "label": "Entry", "color": "green"},
+        {"kind": "time_marker", "minute": 574, "label": "Trigger", "color": "gold"},
+    ]
+    receipt = resolver.resolve_bundle(
+        root, "DEMO", DAY, tmp_path / "annotated", as_of_m=575, annotations=notes
+    )
+    selection = json.loads(Path(receipt["selection_path"]).read_text())
+    entry = selection["selected"][0]
+    assert entry["as_of_m"] == 575
+    assert entry["annotations"] == notes
+    for bad_as_of in (-1, 1441, True, "575"):
+        expect_error(
+            "invalid_as_of_m",
+            lambda val=bad_as_of: resolver.resolve_bundle(root, "DEMO", DAY, tmp_path / f"bad_{val}", as_of_m=val),
+        )
+    for bad_notes in (
+        [{"kind": "unknown", "label": "X"}],
+        [{"kind": "horizontal_line", "price": -1, "label": "X"}],
+        [{"kind": "time_marker", "minute": 1440, "label": "X"}],
+        [{"kind": "horizontal_line", "price": 10.0, "label": "X", "color": "purple"}],
+    ):
+        expect_error(
+            "invalid_annotations",
+            lambda val=bad_notes: resolver.resolve_bundle(root, "DEMO", DAY, tmp_path / "bad_notes", annotations=val),
+        )
+
+
+def test_gallery_bundle_resolves_multiple_entries_in_chronological_order(tmp_path):
+    root, _ = make_day(tmp_path)
+    entries = [
+        {"symbol": "OTHER", "date": DAY},
+        {"symbol": "DEMO", "date": DAY, "as_of_m": 575, "annotations": [{"kind": "time_marker", "minute": 574, "label": "Arm"}]},
+    ]
+    receipt = resolver.resolve_gallery_bundle(root, entries, tmp_path / "gallery", family="pullback-audit")
+    selection = json.loads(Path(receipt["selection_path"]).read_text())
+    assert selection["family"] == "pullback-audit"
+    assert [e["ticker"] for e in selection["selected"]] == ["DEMO", "OTHER"]
+    assert selection["selected"][0]["as_of_m"] == 575
+    assert (tmp_path / "gallery" / "bars" / "01.json").is_file()
+    assert (tmp_path / "gallery" / "bars" / "02.json").is_file()
+    assert receipt["selected_count"] == 2
+

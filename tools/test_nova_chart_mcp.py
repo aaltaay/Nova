@@ -161,10 +161,10 @@ class Boundaries(unittest.TestCase):
         with self.assertRaises((M.ChartError, OSError)):
             M.ChartService(self.roots, export_python=self.base / "missing.exe")
         self.call()
-        self.assertEqual(self.calls[0][0][0], str(Path(sys.executable).resolve()))
+        self.assertEqual(self.calls[0][0][0], str(M.checked_executable(Path(sys.executable))))
 
     def test_nonwindows_default_canonicalizes_only_already_running_interpreter(self):
-        canonical = Path(sys.executable).resolve(strict=True)
+        canonical = M.checked_executable(Path(sys.executable))
         with (patch.object(M, "os", SimpleNamespace(name="posix")),
               patch.object(M, "Path") as default_path,
               patch.object(M, "checked_executable", return_value=canonical) as check):
@@ -285,9 +285,74 @@ class Boundaries(unittest.TestCase):
                 M.create_server(self.service)
 
     def test_wrong_sdk_version_is_not_silently_adopted(self):
-        with patch.object(M.importlib.metadata, "version", return_value="2.0.0"):
-            with self.assertRaisesRegex(M.ChartError, "MCP_SDK_VERSION_REQUIRED"):
-                M.create_server(self.service)
+        for bad in ("2.0.0", "1.25.0", "invalid"):
+            with patch.object(M.importlib.metadata, "version", return_value=bad):
+                with self.assertRaisesRegex(M.ChartError, "MCP_SDK_VERSION_REQUIRED"):
+                    M.create_server(self.service)
+        for valid in ("1.26.0", "1.30.0"):
+            self.assertTrue(M.sdk_version_ok(valid))
+
+    def test_annotations_as_of_m_and_fallback_root_forwarded(self):
+        fallback = self.base / "fallback_minute"
+        fallback.mkdir()
+        roots = M.Roots.checked(self.roots.resolver, self.roots.gateway,
+                                self.roots.massive, self.roots.output, fallback)
+        service = M.ChartService(roots, self.execute)
+        notes = [{"kind": "horizontal_line", "price": 10.5, "label": "Entry", "color": "green"}]
+        result = service.export(symbol="DEMO", day="2020-01-02", output_name="annotated-chart",
+                                samples=0, as_of_m=585, annotations=notes)
+        self.assertTrue(result["ok"], result)
+        argv = self.calls[-1][0]
+        self.assertIn("--as-of-m", argv)
+        self.assertEqual(argv[argv.index("--as-of-m") + 1], "585")
+        self.assertIn("--annotations-json", argv)
+        self.assertEqual(json.loads(argv[argv.index("--annotations-json") + 1]), notes)
+        self.assertIn("--fallback-massive-root", argv)
+        self.assertEqual(argv[argv.index("--fallback-massive-root") + 1], str(fallback.resolve()))
+
+    def test_gallery_export_verifies_multi_entry_manifest_and_inline_overview(self):
+        def execute_gallery(args, cwd, gateway, cancel, timeout):
+            self.calls.append((args, cwd, gateway, timeout))
+            output = Path(args[args.index("--output") + 1])
+            entries = json.loads(args[args.index("--entries-json") + 1])
+            output.mkdir()
+            (output / "selection.json").write_text("{}", encoding="utf-8")
+            image_dir = output / "images/images"
+            image_dir.mkdir(parents=True)
+            names = ["NOVA_HISTORICAL_OVERVIEW", *[f"{i + 1:02d}_{e['symbol']}_{e['date']}_1m_5m" for i, e in enumerate(entries)], "NOVA_GATEWAY_VIEW"]
+            images = []
+            for name in names:
+                path = image_dir / f"{name}.png"
+                path.write_bytes(PNG)
+                images.append(str(path))
+            capture = image_dir / "CAPTURE_VERIFICATION.json"
+            write_json(capture, {"errors": [], "blocked_requests": []})
+            digest = M.sha256(output / "selection.json")
+            native = {"ok": True, "schema_version": 1, "selected_count": len(entries),
+                      "owned_trees_stopped": True, "owned_children_stopped": True,
+                      "active_owned_processes": 0, "cleanup_errors": [],
+                      "source_data_mutated": False, "broker_or_desk_calls": False,
+                      "selection_sha256": digest, "images": images,
+                      "image_sha256": {Path(p).name: M.sha256(Path(p)) for p in images},
+                      "capture_verification": str(capture)}
+            receipt = {"schema_version": 1, "ok": True, "kind": "historical_ohlcv",
+                       "bundle": {"selection_path": str(output / "selection.json"),
+                                  "selection_sha256": digest, "selected_count": len(entries)},
+                       "native_export": native, "image_output": str(output / "images")}
+            write_json(output / "images/EXPORT_RECEIPT.json", native)
+            write_json(output / "historical_export.json", receipt)
+            return M.Execution(0, True, 0)
+
+        service = M.ChartService(self.roots, execute_gallery)
+        entries = [{"symbol": "DEMO", "date": "2020-01-02", "as_of_m": 585},
+                   {"symbol": "OTHER", "date": "2020-01-02"}]
+        result = service.export_gallery(entries=entries, output_name="gallery-01", family="audit")
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["selected_count"], 2)
+        self.assertEqual(len(result["images"]), 4)
+        checked, inline_bytes = M.verified_inline_image(result, self.roots.output)
+        self.assertTrue(checked["ok"])
+        self.assertEqual(inline_bytes, PNG)
 
     def test_inline_detail_uses_verified_bytes_and_preserves_metadata(self):
         body = self.call()
@@ -344,14 +409,14 @@ class SDKContract(unittest.IsolatedAsyncioTestCase):
             version = M.importlib.metadata.version("mcp")
         except M.importlib.metadata.PackageNotFoundError:
             self.skipTest("Optional official MCP SDK not installed")
-        self.assertEqual(version, M.SDK_VERSION)
+        self.assertTrue(M.sdk_version_ok(version))
         roots = object()
         service = M.ChartService(roots)
         server = M.create_server(service)
         tools = await server.list_tools()
-        self.assertEqual([tool.name for tool in tools], ["nova_historical_chart"])
+        self.assertEqual([tool.name for tool in tools], ["nova_historical_chart", "nova_historical_chart_gallery"])
         schema = tools[0].inputSchema
-        self.assertEqual(set(schema["properties"]), {"symbol", "date", "output_name", "samples"})
+        self.assertEqual(set(schema["properties"]), {"symbol", "date", "output_name", "samples", "as_of_m", "annotations"})
         self.assertFalse(tools[0].annotations.openWorldHint)
         self.assertFalse(tools[0].annotations.readOnlyHint)
         self.assertEqual(tools[0].outputSchema["type"], "object")
@@ -455,7 +520,7 @@ class StdioContract(unittest.IsolatedAsyncioTestCase):
                     async with ClientSession(read, write) as client:
                         await client.initialize()
                         catalog = await client.list_tools()
-                        self.assertEqual([t.name for t in catalog.tools], ["nova_historical_chart"])
+                        self.assertEqual([t.name for t in catalog.tools], ["nova_historical_chart", "nova_historical_chart_gallery"])
                         self.assertEqual((await client.list_resources()).resources, [])
                         bad = await client.call_tool("nova_historical_chart", {
                             "symbol": "BAD/", "date": "2020-01-02", "output_name": "bad"})
@@ -522,7 +587,8 @@ class NativeStdioContract(unittest.IsolatedAsyncioTestCase):
             async with stdio_client(params, errlog=errors) as (read, write):
                 async with ClientSession(read, write) as client:
                     await client.initialize()
-                    self.assertEqual(len((await client.list_tools()).tools), 1)
+                    self.assertEqual([t.name for t in (await client.list_tools()).tools],
+                                     ["nova_historical_chart", "nova_historical_chart_gallery"])
                     result = await client.call_tool("nova_historical_chart", {
                         "symbol": "DEMO", "date": "2020-01-02", "output_name": "native", "samples": 0})
                     body = result.structuredContent

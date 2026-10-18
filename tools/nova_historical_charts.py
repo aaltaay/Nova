@@ -1,4 +1,4 @@
-"""Export one local historical ticker/day through Nova's existing native gateway.
+"""Export local historical ticker/day bundles through Nova's existing native gateway.
 
 Usage: python tools/nova_historical_charts.py export --symbol DEMO --date 2022-02-01
   --massive-root LOCAL_MINUTE_ROOT --gateway-root APPROVED_NOVA --output NEWDIR
@@ -13,14 +13,31 @@ import time
 from pathlib import Path
 from typing import Any
 
-from nova_historical_resolver import HistoricalChartError, local_path, resolve_bundle
+from nova_historical_resolver import (
+    HistoricalChartError,
+    local_path,
+    resolve_bundle,
+    resolve_gallery_bundle,
+)
 
 EXPORT_TIMEOUT_SECONDS = 180
 
 
-def export_historical(*, symbol: str, day: str, output: Path, massive_root: Path,
-                      gateway_root: Path, samples: int = 0) -> dict[str, Any]:
-    """Trusted roots are operator configuration; only symbol/day select data."""
+def export_historical(
+    *,
+    symbol: str | None = None,
+    day: str | None = None,
+    output: Path,
+    massive_root: Path,
+    gateway_root: Path,
+    samples: int = 0,
+    as_of_m: int | None = None,
+    annotations: list[dict[str, Any]] | None = None,
+    entries: list[dict[str, Any]] | None = None,
+    family: str = "historical-chart",
+    fallback_root: Path | None = None,
+) -> dict[str, Any]:
+    """Trusted roots are operator configuration; only symbol/day or entries select data."""
     began = time.perf_counter()
     if isinstance(samples, bool) or not isinstance(samples, int) or not 0 <= samples <= 50:
         raise HistoricalChartError("invalid_samples", "Samples must be an integer from 0 through 50")
@@ -28,7 +45,22 @@ def export_historical(*, symbol: str, day: str, output: Path, massive_root: Path
     script = local_path(gateway / "tools" / "nova_charts.py")
     if not gateway.is_dir() or not script.is_file() or not script.is_relative_to(gateway):
         raise HistoricalChartError("gateway_unavailable", "The approved checkout has no offline chart exporter")
-    receipt = resolve_bundle(massive_root, symbol, day, output)
+    if entries is not None:
+        receipt = resolve_gallery_bundle(
+            massive_root, entries, output, family=family, fallback_root=fallback_root
+        )
+    else:
+        if symbol is None or day is None:
+            raise HistoricalChartError("invalid_request", "Either --symbol and --date or --entries-json is required")
+        receipt = resolve_bundle(
+            massive_root,
+            symbol,
+            day,
+            output,
+            as_of_m=as_of_m,
+            annotations=annotations,
+            fallback_root=fallback_root,
+        )
     image_output = Path(receipt["selection_path"]).parent / "images"
     command = [sys.executable, str(script), "export", "--selection", receipt["selection_path"],
                "--sha256", receipt["selection_sha256"], "--output", str(image_output), "--samples", str(samples)]
@@ -69,17 +101,42 @@ def export_historical(*, symbol: str, day: str, output: Path, massive_root: Path
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=["export"])
-    parser.add_argument("--symbol", required=True)
-    parser.add_argument("--date", required=True)
+    parser.add_argument("--symbol", default=None)
+    parser.add_argument("--date", default=None)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--massive-root", type=Path, required=True)
+    parser.add_argument("--fallback-massive-root", type=Path, default=None)
     parser.add_argument("--gateway-root", type=Path, required=True)
+    parser.add_argument("--as-of-m", type=int, default=None)
+    parser.add_argument("--annotations-json", default=None)
+    parser.add_argument("--entries-json", default=None)
+    parser.add_argument("--family", default="historical-chart")
     parser.add_argument("--samples", type=int, choices=range(51), default=0)
     args = parser.parse_args(argv)
     try:
-        result = export_historical(symbol=args.symbol, day=args.date, output=args.output,
-                                   massive_root=args.massive_root, gateway_root=args.gateway_root,
-                                   samples=args.samples)
+        notes = json.loads(args.annotations_json) if args.annotations_json is not None else None
+    except ValueError as error:
+        print(json.dumps({"ok": False, "error": {"code": "invalid_annotations", "message": str(error)}}))
+        return 2
+    try:
+        entries = json.loads(args.entries_json) if args.entries_json is not None else None
+    except ValueError as error:
+        print(json.dumps({"ok": False, "error": {"code": "invalid_entries", "message": str(error)}}))
+        return 2
+    try:
+        result = export_historical(
+            symbol=args.symbol,
+            day=args.date,
+            output=args.output,
+            massive_root=args.massive_root,
+            fallback_root=args.fallback_massive_root,
+            gateway_root=args.gateway_root,
+            samples=args.samples,
+            as_of_m=args.as_of_m,
+            annotations=notes,
+            entries=entries,
+            family=args.family,
+        )
     except HistoricalChartError as error:
         print(json.dumps({"ok": False, "error": {"code": error.code, "message": str(error)}}))
         return 2

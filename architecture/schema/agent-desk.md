@@ -8,13 +8,18 @@ owns protocol parsing, discovery and transport. No MCP listener is added to the
 trading application. Missing SDK fails before starting transport; nothing installs
 dependencies or edits client configuration automatically.
 
-The sole tool `nova_historical_chart(symbol, date, output_name, samples=0)` requests
-one exact historical symbol/day. `symbol` is an ASCII resolver token, `date` is a
-valid ISO calendar date, `output_name` is a single new child directory name, and
-`samples` is a strict integer 0..50. Tool inputs supply no root, command, URL or
+The tool `nova_historical_chart(symbol, date, output_name, samples=0, as_of_m=None, annotations=None)`
+requests one exact historical symbol/day, with optional causal minute cutoff `as_of_m`
+(`0..1440`) and optional `0..32` `annotations` (`horizontal_line` / `time_marker`).
+The companion tool `nova_historical_chart_gallery(entries, output_name, family="historical-chart", samples=0)`
+exports `1..9` symbol/day entries in a single pass and returns the verified 3x3 overview
+PNG inline alongside all detail image manifests. `symbol` is an ASCII resolver token,
+`date` is a valid ISO calendar date, `output_name` is a single new child directory name,
+and `samples` is a strict integer 0..50. Tool inputs supply no root, command, URL or
 environment variable. Trusted launch arguments supply the resolver and gateway
-checkouts, local minute root, existing dedicated output root and optional export
-Python executable. Local roots reject network drives, traversal and every reparse
+checkouts, local minute root, optional `--fallback-massive-root`, existing dedicated
+output root and optional export Python executable. The adapter validates compatible
+official MCP SDK `1.x` (`>=1.26.0`, `<2.0.0`). Local roots reject network drives, traversal and every reparse
 component; the explicit Windows App Execution Alias exception applies only to the
 trusted executable token, never data/output roots.
 When no export interpreter is supplied, non-Windows launchers canonicalize the
