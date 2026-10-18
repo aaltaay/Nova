@@ -1,0 +1,5 @@
+# The data front door's tests (ADR 059): research/market_reads readers and tools/nova_data_mcp.py.
+-r requirements-data-mcp.txt
+pandas==3.0.2
+pyarrow==25.0.1
+duckdb==1.5.5

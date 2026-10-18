@@ -7,6 +7,13 @@
         "timeout": 10
       }
     ],
+    "beforeShellExecution": [
+      {
+        "command": "py -3 tools/data_access_hook.py --client cursor-shell",
+        "matcher": "(?i)massive|movers|leaderboard|edgar|companyfacts|submissions|reference|aggs_v1|trades_v1|quotes_v1|\\.py",
+        "timeout": 10
+      }
+    ],
     "subagentStop": [
       {
         "command": "py -3 tools/subagent_lifecycle_hook.py",

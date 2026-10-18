@@ -1,0 +1,3 @@
+# Optional official MCP SDK for tools/nova_data_mcp.py (ADR 059); never imported by the trading app.
+# The reads themselves use the research harness's pandas / pyarrow / duckdb.
+mcp==1.30.0

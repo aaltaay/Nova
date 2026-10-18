@@ -1,8 +1,10 @@
-"""The market data front door's library: what the operator's Massive files and Nova's stores hold, and one stock-day
-out of them as a table. ``tools/market_data.py`` is its command line; ``docs/market-data.md`` is the catalog.
+"""The market data front door's library: what the operator's Massive files, Nova's stores, Massive's reference dump
+and SEC's bulk files hold, as tables, each as known on a past day (ADR 059). ``tools/market_data.py`` is its command
+line, ``tools/nova_data_mcp.py`` its MCP server, ``catalog.py`` the list, ``docs/market-data.md`` the prose.
 
-Read-only on the data. The one thing it writes is the seek indexes ``backend/sim/massive_index.py`` owns
-(``inventory.build_indexes``), the same files the Sim's own reader builds and reads.
+Read-only on the data. It writes two derived things: the seek indexes ``backend/sim/massive_index.py`` owns
+(``inventory.build_indexes``), the same files the Sim's own reader builds and reads, and the reference dump's
+index ``reference.py`` owns (``store/reference_index.sqlite3``).
 
 From Python (repo root on ``sys.path``)::
 
