@@ -68,8 +68,24 @@ def _fresh(row: dict[str, Any] | None, now: float) -> bool:
     return row is not None and now - float(row["received_ts"]) <= FOCUS_STALE_SEC
 
 
+def _is_electron_window(w: dict[str, Any]) -> bool:
+    return w.get("role") != "browser"
+
+
 def _pick(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
-    return max(rows, key=lambda r: r["received_ts"]) if rows else None
+    return (
+        max(
+            rows,
+            key=lambda r: (
+                float(r.get("last_input_ts") or 0.0),
+                1 if _is_electron_window(r) else 0,
+                float(r.get("last_focused_ts") or 0.0),
+                float(r["received_ts"]),
+            ),
+        )
+        if rows
+        else None
+    )
 
 
 def resolve(now: float | None = None) -> dict[str, Any]:
@@ -81,15 +97,19 @@ def resolve(now: float | None = None) -> dict[str, Any]:
         recent = list(_recent)
     by_id = {r["window_id"]: r for r in (electron or {}).get("windows") or []}
     for w in windows:
-        os_row = by_id.get(w.get("window_id")) or {}
+        os_row = (by_id.get(w.get("window_id")) if _is_electron_window(w) else None) or {}
         w["display"] = os_row.get("display")
         w["minimized"] = os_row.get("minimized")
-        if electron is not None and w.get("window_id") in by_id:
+        if electron is not None and _is_electron_window(w) and w.get("window_id") in by_id:
             w["focused"] = bool(os_row.get("focused"))
+        elif electron is not None and electron.get("app_focused") and not _is_electron_window(w):
+            w["focused"] = False
     if electron is not None:
         source = "electron"
         in_front = bool(electron.get("app_focused"))
-        current = _pick([w for w in windows if w.get("window_id") == electron.get("focused_window_id")])
+        current = _pick(
+            [w for w in windows if _is_electron_window(w) and w.get("window_id") == electron.get("focused_window_id")]
+        )
     elif windows:
         source = "window"
         focused = [w for w in windows if w.get("focused")]
@@ -99,7 +119,8 @@ def resolve(now: float | None = None) -> dict[str, Any]:
         source, in_front, current = None, None, None
     if current is None and windows:
         # Nova is not in front: the window the operator was in last.
-        current = max(windows, key=lambda w: (w.get("last_focused_ts") or 0.0, w["received_ts"]))
+        pool = [w for w in windows if _is_electron_window(w)] if electron is not None else []
+        current = _pick(pool or windows)
     last_input = (current or {}).get("last_input_ts")
     return {
         "nova_in_front": in_front,
@@ -114,7 +135,18 @@ def resolve(now: float | None = None) -> dict[str, Any]:
         "since": (current or {}).get("since"),
         "last_input_ts": last_input,
         "last_input_age_sec": None if last_input is None else round(max(0.0, now - float(last_input)), 1),
-        "windows": [_public(w, now) for w in sorted(windows, key=lambda w: str(w.get("window_id")))],
+        "windows": [
+            _public(w, now)
+            for w in sorted(
+                windows,
+                key=lambda w: (
+                    str(w.get("window_id")),
+                    0 if _is_electron_window(w) else 1,
+                    -float(w.get("last_input_ts") or 0.0),
+                    -float(w["received_ts"]),
+                ),
+            )
+        ],
         "recent": recent,
     }
 
