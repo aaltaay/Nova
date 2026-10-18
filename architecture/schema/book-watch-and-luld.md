@@ -98,15 +98,22 @@ level_before, level_after, median_level, distance_ticks,
 distance_at_post_ticks, lifetime_sec, approached, large_pull, on_approach}`
 (`on_approach`: the `pulled_on_approach` flag's own rule); the journal keeps
 them. `/ws/ibkr/depth/{symbol}` carries, beside its books, `{"type":
-"book_watch", symbol, data: {schema_version: 1, now, reset, seq, watching,
+"book_watch", symbol, data: {schema_version: 1, source: "live" | "replay", now, reset, seq, watching,
 reason: string | null, window_sec, sides | null, drops[] (each with its `seq`),
-note}}` (owner `book_watch/ladder.py`), asked at most every
+note}}` (owner `book_watch/ladder.py` and, off the live edge, `book_watch/ladder_replay.py`), asked at most every
 `BOOK_WATCH_PUSH_SEC`: a socket's first frame (`reset: true`) holds the large
 drops of the last `BOOK_WATCH_LADDER_MEMORY_SEC`, later frames only those
 judged since, and `sides` rides on each (refreshed on its own at most every
-`BOOK_WATCH_SIDES_PUSH_SEC`). While the ladder shows no live line (a replay
-desk) or the watcher is off, one `watching: false` frame gives the `reason`,
-then nothing; the desk ignores an unknown `schema_version`. The ladder
+`BOOK_WATCH_SIDES_PUSH_SEC`). On a Sim replay off the live edge (#617), `ladder_replay.py` feeds the
+same `SymbolWatch` detector over the loaded recording's own books and prints up to the playhead (never
+past it, never calling `flush()`), and `GET /api/sim/history/snapshot/{symbol}` carries the same
+`book_watch` frame for `HistoricalDepth.tsx`. While the watcher is off, or a replay has no usable depth
+and tape at the playhead (missing depth, missing tape, Level 1/NBBO-only, single-venue exchange book,
+before the first book, or inside a recording gap), one `watching: false` frame gives the `reason` with
+`sides: null` and empty lists, and no marks carry across a gap; the desk ignores an unknown `schema_version`.
+On a replay (`source: "replay"`), six-second fading and one-minute hatching use replay time (`now` =
+playhead), freeze while paused, follow the playhead across seeks/speed, and rebuild on rewind or source
+change. The ladder
 (`ibkr/bookWatch.ts`, pure, and `ibkr/BookWatchParts.tsx`) marks each large drop
 of the last `L2_PULL_MARK_SHOW_MS` (6 s, fading over the last 2) where its price
 sits between the rows -- "✕ 2,000 pulled" in amber (solid when it was pulled as
@@ -333,7 +340,8 @@ order.
   the price came (solid amber), out of view (grey: unknown, never pulled), fading over its last 10 s. A narrow ladder drops
   the seconds, then the float, from the banner; the hover always gives all of it and the note. Nothing is added to
   the ladder's height. The drop marks under the rows are the watcher's own and stay as they are. On a replay desk
-  the ladder carries no book-watch frames, so none is drawn there (the held card still reads `big_replay`).
+  with usable recorded depth and tape (#617), both the capture depth socket and the historical snapshot carry the
+  replay `book_watch` frame at the playhead (`book_watch/ladder_replay.py`).
 - **The study** (#984). `tools/big_seller_study.py` (read-only; owner `book_watch/big_study.py`) runs the tracker
   over every Session Record: for each called wall, the mid's move toward a flush (down after a seller, up after a
   buyer) and whether a print went through it, 10 s to 5 min after the call and after its end, split by how it

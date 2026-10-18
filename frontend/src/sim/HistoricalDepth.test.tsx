@@ -227,4 +227,87 @@ describe('replay Level 2', () => {
       expect(text('historical-l2-chip')).toBe('ReplayExchange book');
     });
   });
+
+  describe('book-watch annotations on historical replay (#617)', () => {
+    it('renders departed-level marks, one-minute hatching and per-side totals from snapshot.book_watch', async () => {
+      const depth = recorded({
+        bids: [{ price: 1.88, size: 900, side: 'bid', mm: 'ISLAND' }],
+        asks: [{ price: 1.90, size: 300, side: 'ask', mm: 'NSDQ' }, { price: 1.92, size: 500, side: 'ask', mm: 'ARCA' }],
+      });
+      const snap: HistoricalSnapshot = {
+        active: true,
+        symbol: 'IMCC',
+        last: 1.89,
+        volume: 5000,
+        source: 'trades',
+        as_of: new Date(RECORDED_TS * 1000).toISOString(),
+        prints: [],
+        book_watch: {
+          schema_version: 1,
+          source: 'replay',
+          now: RECORDED_TS,
+          reset: true,
+          seq: 2,
+          watching: true,
+          reason: null,
+          window_sec: 60,
+          sides: {
+            bid: { pulled_shares: 0, filled_shares: 1200, large_pulls: 0 },
+            ask: { pulled_shares: 3000, filled_shares: 2000, large_pulls: 1 },
+          },
+          drops: [
+            {
+              seq: 1, ts: RECORDED_TS - 1.0, side: 'ask', price: 1.89, dropped: 2000, pulled: 0, filled: 2000,
+              outcome: 'traded', level_before: 2000, level_after: 0, large_pull: false, on_approach: false,
+            },
+            {
+              seq: 2, ts: RECORDED_TS - 0.8, side: 'ask', price: 1.90, dropped: 3000, pulled: 3000, filled: 0,
+              outcome: 'pulled', level_before: 3300, level_after: 300, large_pull: true, on_approach: true,
+            },
+          ],
+          hidden: [],
+          big: [],
+          big_float: null,
+        },
+      };
+      await render(<HistoricalDepth depth={depth} snapshot={snap} />);
+      expect(container.querySelector('[data-testid="l2-pulls-ask"]')?.textContent).toContain('✕ 3.0K');
+      expect(container.querySelector('[data-testid="l2-pulls-ask"]')?.textContent).toContain('✓ 2.0K');
+      expect(container.querySelector('[data-testid="l2-pullmark-traded"]')?.textContent).toBe('✓ 2,000 traded');
+      expect(container.querySelector('[data-testid="l2-pullmark-approach"]')?.textContent).toBe('✕ 3,000 pulled');
+      expect(container.querySelectorAll('.das-l2-row--pulled-here')).toHaveLength(1);
+    });
+
+    it('shows why annotations are unavailable when depth or tape is missing or NBBO-only', async () => {
+      const snap: HistoricalSnapshot = {
+        active: true,
+        symbol: 'IMCC',
+        last: 1.89,
+        volume: 5000,
+        source: 'trades',
+        as_of: new Date(RECORDED_TS * 1000).toISOString(),
+        prints: [],
+        book_watch: {
+          schema_version: 1,
+          source: 'replay',
+          now: RECORDED_TS,
+          reset: true,
+          seq: 0,
+          watching: false,
+          reason: 'Best bid / ask (NBBO) only -- the Massive files hold no Level 2 depth to watch.',
+          window_sec: 60,
+          sides: null,
+          drops: [],
+          hidden: [],
+          big: [],
+          big_float: null,
+        },
+      };
+      const nbbo = recorded({ source: 'massive_nbbo', l1_fallback: true });
+      await render(<HistoricalDepth depth={nbbo} snapshot={snap} />);
+      const pulls = container.querySelector('[data-testid="l2-pulls"]');
+      expect(pulls?.className).toContain('das-l2-pulls--absent');
+      expect(pulls?.getAttribute('data-tip')).toContain('Massive files hold no Level 2 depth');
+    });
+  });
 });

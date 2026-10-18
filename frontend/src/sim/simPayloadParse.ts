@@ -338,6 +338,7 @@ export function parseHistoricalSnapshot(raw: unknown): HistoricalSnapshot {
     error: text(raw.error),
     depth_available: flag(raw.depth_available),
     depth: parseDepth(raw.depth),
+    book_watch: isObject(raw.book_watch) ? raw.book_watch : raw.book_watch === null ? null : undefined,
     exchange_books: parseExchangeBooks(raw.exchange_books),
     open: finiteOrNull(raw.open),
     high: finiteOrNull(raw.high),

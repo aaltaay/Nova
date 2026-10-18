@@ -17,7 +17,9 @@
  *
  * (The rail hides .ibkr-depth-fallback-badge, so the notes use their own class.)
  */
-import { MontageSide, bookPeak } from '../ibkr';
+import {
+  MontageSide, PullsStrip, applyBookWatchFrame, bookPeak, useBookWatchClock, type BookWatchState,
+} from '../ibkr';
 import { ExchangeBookBanner, ExchangeBookGap, ExchangeBookNote, exchangeBookAbsence, venueLabels, venueNames }
   from './ExchangeBookNotes';
 import { etTime } from './historicalReplayFormat';
@@ -56,6 +58,8 @@ interface Props {
   holdLineFor?: string | null;
   /** The replay snapshot: why a Massive window has no quote, and what venue books were imported for the day. */
   snapshot?: HistoricalSnapshot | null;
+  /** Explicit book-watch state (e.g. a capture replay gap), overriding `snapshot.book_watch`. */
+  watch?: BookWatchState | null;
 }
 
 /** Why a Massive window shows no bid/ask here; null when it shows one, or the window is not Massive. */
@@ -69,9 +73,11 @@ function useMassiveQuoteNote(snapshot: HistoricalSnapshot | null | undefined, de
   return snapshot?.selection?.trade_count ? SIM_REPLAY_L2_NBBO_NONE : null;
 }
 
-export function HistoricalDepth({ depth = null, holdLineFor = null, snapshot = null }: Props) {
+export function HistoricalDepth({ depth = null, holdLineFor = null, snapshot = null, watch = null }: Props) {
   useHistoricalDepthLine(holdLineFor ?? '', Boolean(holdLineFor));
   const massiveNote = useMassiveQuoteNote(snapshot, depth);
+  const resolvedWatch = watch ?? (snapshot?.book_watch ? applyBookWatchFrame(null, snapshot.book_watch, Date.now()) : null);
+  const nowMs = useBookWatchClock(resolvedWatch, true);
   const bids = depth?.bids ?? [];
   const asks = depth?.asks ?? [];
   const peak = bookPeak(bids, asks);
@@ -97,9 +103,10 @@ export function HistoricalDepth({ depth = null, holdLineFor = null, snapshot = n
       )}
       <ExchangeBookBanner books={books} showing={venue} />
       {depth && venue ? <ExchangeBookGap depth={depth} /> : null}
+      <PullsStrip watch={resolvedWatch} />
       <div className="das-l2-montage">
-        <MontageSide side="bid" levels={bids} peak={peak} />
-        <MontageSide side="ask" levels={asks} peak={peak} />
+        <MontageSide side="bid" levels={bids} peak={peak} watch={resolvedWatch} nowMs={nowMs} />
+        <MontageSide side="ask" levels={asks} peak={peak} watch={resolvedWatch} nowMs={nowMs} />
       </div>
     </div>
   );

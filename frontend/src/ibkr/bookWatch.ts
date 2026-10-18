@@ -74,6 +74,9 @@ export interface SideTotals {
 }
 
 export interface BookWatchState {
+  source?: 'live' | 'replay';
+  nowMs?: number;
+  receivedAtMs?: number;
   watching: boolean;
   reason: string | null;
   windowSec: number;
@@ -215,29 +218,35 @@ export function applyBookWatchFrame(prev: BookWatchState | null, raw: unknown, n
   if (!raw || typeof raw !== 'object') return prev;
   const f = raw as Record<string, unknown>;
   if (f.schema_version !== L2_BOOK_WATCH_SCHEMA_VERSION) return prev;
+  const replay = f.source === 'replay';
   const serverNow = num(f.now);
-  const atOf = (ts: number) => (serverNow == null ? nowMs : nowMs - (serverNow - ts) * 1000);
+  const frameNowMs = replay && serverNow != null ? serverNow * 1000 : nowMs;
+  const atOf = (ts: number) => (serverNow == null ? frameNowMs : frameNowMs - (serverNow - ts) * 1000);
   const incoming = (Array.isArray(f.drops) ? f.drops : [])
     .map(d => readDrop(d, atOf))
     .filter((d): d is HeldDrop => d !== null);
-  const kept = f.reset === true || !prev ? [] : prev.drops;
+  const reset = f.reset === true || !prev || prev.source !== (replay ? 'replay' : 'live');
+  const kept = reset ? [] : prev.drops;
   const seen = new Set(kept.map(d => d.seq));
   // Hidden sellers and buyers: one entry per stretch, its newest word winning.
   const words = new Map<string, HeldHidden>();
-  for (const h of f.reset === true || !prev ? [] : prev.hidden) words.set(h.id, h);
+  for (const h of reset ? [] : prev.hidden) words.set(h.id, h);
   for (const raw of Array.isArray(f.hidden) ? f.hidden : []) {
     const h = readHidden(raw, atOf);
     const had = h ? words.get(h.id) : undefined;
     if (h && (!had || had.seq < h.seq)) words.set(h.id, h);
   }
-  const big = readBigFrame(f, atOf, f.reset === true || !prev ? NO_BIG : { big: prev.big, bigFloat: prev.bigFloat });
+  const big = readBigFrame(f, atOf, reset ? NO_BIG : { big: prev.big, bigFloat: prev.bigFloat });
   return {
+    source: replay ? 'replay' : 'live',
+    nowMs: frameNowMs,
+    receivedAtMs: nowMs,
     watching: f.watching === true,
     reason: typeof f.reason === 'string' && f.reason.trim() ? f.reason : null,
     windowSec: num(f.window_sec) ?? L2_PULLED_HERE_MEMORY_SEC,
     sides: readSides(f.sides),
-    drops: [...kept, ...incoming.filter(d => !seen.has(d.seq))].filter(d => nowMs - d.atMs <= MEMORY_MS),
-    hidden: [...words.values()].filter(h => hiddenAlive(h, nowMs)),
+    drops: [...kept, ...incoming.filter(d => !seen.has(d.seq))].filter(d => frameNowMs - d.atMs <= MEMORY_MS && d.atMs <= frameNowMs),
+    hidden: [...words.values()].filter(h => hiddenAlive(h, frameNowMs)),
     ...big,
   };
 }

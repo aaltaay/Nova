@@ -1,6 +1,8 @@
 /** Public IBKR UI API — cross-feature imports must use this barrel (ADR 005). */
 
 export { DepthLadder, MontageSide } from './DepthLadder';
+export { PullsStrip, useBookWatchClock } from './BookWatchParts';
+export { applyBookWatchFrame, type BookWatchState } from './bookWatch';
 export type { DepthMarker } from './depthMarkers';
 export { bookPeak } from './dasDepthTiers';
 export { TimeSalesPanel } from './TimeSalesPanel';

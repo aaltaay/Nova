@@ -7,7 +7,8 @@ and buyers, more traded at a price that held than the book ever showed there --
 and a big seller resting on the ask just over the price (a big buyer on the bid),
 followed until it is taken or pulled (#846). Read-only: nothing here places, gates
 or cancels an order. See detector.py, matching.py (which prints fill a drop),
-hidden.py and big_seller.py (pure), live.py (the worker), journal.py, replay.py,
-big_replay.py (a Sim replay's reading), big_read.py and routes.py (the held card's
-read), hidden_study.py, window_study.py, sweep_study.py and view.py.
+hidden.py and big_seller.py (pure), live.py (the worker), ladder.py and
+ladder_replay.py (the live and Sim replay Level 2 ladders, #617), journal.py,
+replay.py, big_replay.py (a Sim replay's reading), big_read.py and routes.py (the
+held card's read), hidden_study.py, window_study.py, sweep_study.py and view.py.
 """
