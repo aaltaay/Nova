@@ -45,6 +45,21 @@ def _capture() -> Any:
     return capture_player.snapshot()
 
 
+def _historical() -> Any:
+    from sim import history_playback
+
+    return history_playback.selected()
+
+
+def _loaded() -> Any:
+    data = _capture()
+    if data is not None:
+        return data
+    from luld import historical_replay
+
+    return historical_replay.from_selection(_historical())
+
+
 def _playhead() -> float:
     from sim import capture_player
 
@@ -52,7 +67,7 @@ def _playhead() -> float:
 
 
 def view(symbol: str) -> dict[str, Any]:
-    """The bands at the playhead for the loaded Session Record, or why there are none."""
+    """The bands at the playhead for the loaded Session Record or historical replay, or why there are none."""
     return _answer(symbol)[0]
 
 
@@ -65,11 +80,14 @@ def trail(symbol: str) -> dict[str, Any]:
 def _answer(symbol: str) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     sym = (symbol or "").strip().upper()
     now = time.time()
-    data = _capture()
+    data = _loaded()
     if data is None or data.symbol != sym:
         return views.absent_view(sym, now=now, source="replay", reason=(
-            "On a Sim replay, Nova draws the band from a Session Record of this stock; none is loaded")), []
+            "On a Sim replay, Nova draws the band from a Session Record or historical replay of this stock; none is loaded")), []
     asof = _playhead()
+    if getattr(data, "empty_reason", None):
+        return views.absent_view(sym, now=asof, source="replay", reason=data.empty_reason,
+                                 state=getattr(data, "empty_state", "unknown")), []
     _ask(data.key, asof)
     with _lock:
         res = _result
@@ -161,11 +179,21 @@ def _facts(data: Any) -> Facts:
 
 
 def _fresh_state(data: Any) -> dict[str, Any]:
-    events = _events(data)
-    start = events[0][0] if events else time.time()
+    from luld import historical_replay
+
+    if isinstance(data, historical_replay.HistoricalData):
+        events = historical_replay.events(data)
+        start = historical_replay.started_at(data, events)
+        facts = historical_replay.facts(data)
+        opts = historical_replay.options(data)
+    else:
+        events = _events(data)
+        start = events[0][0] if events else time.time()
+        facts = _facts(data)
+        opts = DEFAULT_OPTIONS
     day = data.key.split("|", 1)[0]
     return {"key": data.key, "events": events, "times": [e[0] for e in events], "i": 0,
-            "tracker": Tracker(data.symbol, started_at=start, facts=_facts(data), options=DEFAULT_OPTIONS),
+            "tracker": Tracker(data.symbol, started_at=start, facts=facts, options=opts),
             "halts": _halts(day, data.symbol), "hi": 0, "checkpoints": [], "last_cp": start,
             "last_ts": None, "spans": list(data.spans or [])}
 
@@ -175,7 +203,7 @@ def _restore(state: dict[str, Any], asof: float) -> None:
     cps = state["checkpoints"]
     k = bisect.bisect_right([c[0] for c in cps], asof) - 1
     if k < 0:
-        data = _capture()
+        data = _loaded()
         fresh = _fresh_state(data)
         state.update({key: fresh[key] for key in ("tracker", "i", "hi", "checkpoints", "last_cp", "last_ts")})
         return
@@ -209,6 +237,9 @@ def _feed(state: dict[str, Any], asof: float) -> None:
     while hi < len(halts) and halts[hi][0] <= asof:
         tracker.on_halt(halts[hi][0], halts[hi][1])
         hi += 1
+    last = state["last_ts"]
+    if spans and last is not None and asof - last > LULD_TAPE_GAP_SEC and _crosses_gap(spans, last, asof):
+        tracker.on_gap(asof, f"The recording has a gap from {views.clock(last)} ET")
     state["i"], state["hi"] = i, hi
     tracker.advance(asof)
 
@@ -219,12 +250,14 @@ def _crosses_gap(spans: list, a: float, b: float) -> bool:
         return True
     starts = [s[0] for s in spans]
     ka, kb = bisect.bisect_right(starts, a) - 1, bisect.bisect_right(starts, b) - 1
-    return ka != kb
+    if ka != kb:
+        return True
+    return ka >= 0 and b > spans[ka][1]
 
 
 def _serve(key: str, asof: float) -> None:
     global _state, _result
-    data = _capture()
+    data = _loaded()
     if data is None or data.key != key:
         return
     if _state is None or _state["key"] != key:

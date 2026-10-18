@@ -60,25 +60,40 @@ def bars(sym: str, timeframe: str, limit: int, now: float) -> list[dict[str, Any
     return out
 
 
-def _price(sym: str) -> dict[str, Any]:
+def _price(sym: str, now: float | None = None) -> dict[str, Any]:
     """``{price, change_pct, volume}``: the replay at the playhead and its previous close (a fraction)."""
     from sim import practice
 
     ref = practice.reference(sym)
     prev = None
+    volume = None
     try:
         from sim import capture_player, history_playback
 
         selected = history_playback.selected()
         if selected is not None and selected.spec["symbol"] == sym:
             prev = selected.prev_close
+            snap = history_playback.snapshot(sym)
+            if snap.get("active") and snap.get("covered") is not False:
+                volume = snap.get("volume")
         else:
             state = capture_player.snapshot()
-            prev = state.prev_close if state is not None and str(state.symbol).upper() == sym else None
+            if state is not None and str(state.symbol).upper() == sym:
+                prev = state.prev_close
+                t = playhead() if now is None else now
+                if capture_player.covered(t, state=state):
+                    volume = (capture_player.quote_at(t, state=state) or {}).get("volume")
     except Exception:
         logger.warning("stock read: the replay's previous close of %s could not be read", sym, exc_info=True)
     change = (float(ref.last) / float(prev) - 1.0) if ref.last is not None and prev else None
-    return {"price": ref.last, "change_pct": change, "volume": None}
+    return {"price": ref.last, "change_pct": change, "volume": volume}
+
+
+def _luld(sym: str) -> dict[str, Any]:
+    """The stock's LULD bands on the loaded replay at the playhead (ADR 047, #775, #825)."""
+    from luld import replay as luld_replay
+
+    return luld_replay.view(sym)
 
 
 def _bot(sym: str) -> dict[str, Any]:
@@ -99,8 +114,8 @@ def gather(symbol: str, now: float) -> dict[str, Any]:
 
     sym = (symbol or "").strip().upper()
     errors: dict[str, str] = {k: REPLAY_UNKNOWN for k in ("l2", "flow", "pulls", "rvol", "prints", "shortable",
-                                                             "halted", "hod_momo", "board", "dilution", "luld")}
-    price = _try(errors, "why", lambda: _price(sym)) or {}
+                                                             "halted", "hod_momo", "board", "dilution")}
+    price = _try(errors, "why", lambda: _price(sym, now)) or {}
     return {
         "symbol": sym,
         "now": now,
@@ -112,7 +127,8 @@ def gather(symbol: str, now: float) -> dict[str, Any]:
         "bars": _try(errors, "bars", lambda: bars(sym, "1Min", STOCK_READ_BARS_LIMIT, now)) or [],
         "bars5": _try(errors, "bars5", lambda: bars(sym, "5Min", STOCK_READ_BARS_5M_LIMIT, now)) or [],
         "l2": None, "flow": None, "pulls": None, "rvol": None, "prints_per_min": None, "shortable": None,
-        "halted": None, "board": None, "dilution": None, "luld": None,
+        "halted": None, "board": None, "dilution": None,
+        "luld": _try(errors, "luld", lambda: _luld(sym)),
         "nova_exit": _try(errors, "nova_exit", lambda: _nova_exit(sym)),     # Nova's exit made on this replay
         "bot": _try(errors, "bot", lambda: _bot(sym)),
     }
