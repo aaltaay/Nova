@@ -1,24 +1,17 @@
-# 🏛️ AGENTS.md — Project Constitution (Law)
+# 🏛️ AGENTS.md -- Project Constitution (Law)
 
 > **Single source of truth.** Every agent reads this file; `CLAUDE.md` imports it.
 >
-> **Status:** ENFORCED — Active governance document
-> **Last Updated:** 2026-10-07
-> **Project:** Nova — Stock Alert Automation System
+> **Status:** ENFORCED -- Active governance document
+> **Last Updated:** 2026-10-17
+> **Project:** Nova -- Stock Alert Automation System
 > **Enforcement:** Every AI agent (Cursor, Antigravity, any LLM assistant) MUST read this file before writing ANY code. Violations are NEVER acceptable.
 
 ---
 
 ## Retired ledgers (owner instruction, 2026-09-20)
 
-`BACKLOG.md`, `PROBLEM_LOG.md` and `CHANGELOG.md` are retired and archived under
-`docs/archive/`. Do not read, update, regenerate, or require them during ordinary
-agent work. Read archived material only when the user explicitly asks for
-historical context. Old references in comments, past PRs, task logs, and
-maintenance history are not instructions to restore these files. Use GitHub
-Issues/milestones for current work and PR descriptions plus regression tests for
-completed fixes. No `problem_log=` footer, problem-log fragment, changelog
-entry, changelog fragment or collation job is required or supported.
+`BACKLOG.md`, `PROBLEM_LOG.md` and `CHANGELOG.md` are retired and archived under `docs/archive/`. Do not read, update, regenerate, or require them during ordinary agent work; read archived material only when explicitly asked for historical context. Use GitHub Issues/milestones for current work and PR descriptions plus regression tests for completed fixes. No `problem_log=` footer, changelog entry, fragment, or collation job is supported.
 
 ## 0. PURPOSE
 
@@ -32,13 +25,13 @@ This document is the **single source of truth** for how this project is built, m
 
 ### Master Roadmap (product phases)
 
-- **Canonical ledger:** `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md` — which phase is NEXT, checkboxes, History.
-- **Target architecture (maintenance):** `architecture/README.md` + `architecture/dependency-rules.md` + ADRs under `architecture/decisions/` — modular monolith, selective ports/adapters, feature slices, CSS cascade layers. Structural moves must cite an ADR.
-- **Continuity rule:** `.cursor/rules/nova-roadmap-continuity.mdc` — read status first; phase-close verify + commit + push; scope guard.
-- **Phase B ops:** `docs/paper-shadow-protocol.md` — paper shadow (historical: its `signal` → `confirm` → `auto_paper` ladder was retired by ADR 025; the bot's Off / Eyes / Strategy + Activate is the one automation path); **`auto_live` NO-GO**.
+- **Canonical ledger:** `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md` -- which phase is NEXT, checkboxes, History.
+- **Target architecture:** `architecture/README.md` + `architecture/dependency-rules.md` + ADRs under `architecture/decisions/` -- modular monolith, selective ports/adapters, feature slices, CSS cascade layers. Structural moves must cite an ADR.
+- **Continuity rule:** `.cursor/rules/nova-roadmap-continuity.mdc` -- read status first; phase-close verify + commit + push; scope guard.
+- **Phase B ops:** `docs/paper-shadow-protocol.md` -- paper shadow (historical mode ladder retired by ADR 025; **`auto_live` NO-GO**).
 - **Plan / canvas:** `nova_master_roadmap_a_z.plan.md` · `nova-home.canvas.tsx`
-- **Nova OS engine map (retired, ADR 025):** `knowledge/obsidian/03-Nova-Decisions/Nova-OS-Status.md` — history of P0–P10; the verdict, mode ladder and executor are gone, the event log and kill switch remain. Product “what’s next” is Roadmap-Status.
-- **Docs (docs + canvases):** `.cursor/agents/docs.md` — documentation steward; memory in `.cursor/agent-memory/`; dashboard is Nova Home; preferred canvases `nova-home` + `agent-*` (+ Cursor `context-usage-*`). Continuity: `.cursor/rules/docs-continuity.mdc`. Agent OS: `.cursor/agent-system/` + `docs/agent-operations.md`.
+- **Nova OS history (retired, ADR 025):** `knowledge/obsidian/03-Nova-Decisions/Nova-OS-Status.md` -- event log and kill switch remain; product NEXT is Roadmap-Status.
+- **Docs & Agent OS:** `.cursor/agents/docs.md`, `.cursor/rules/docs-continuity.mdc`, `.cursor/agent-system/`, `docs/agent-operations.md`.
 
 ---
 
@@ -53,20 +46,15 @@ These rules CANNOT be violated under ANY circumstance:
 | 3 | **Secrets in `.env` only** | No API keys, tokens, or credentials EVER appear in source code, logs, or commits. |
 | 4 | **`.tmp/` is ephemeral** | Never treat `.tmp/` files as a source of truth. |
 | 5 | **SOP before code** | If logic changes, update `architecture/` or relevant `.cursor/rules/` FIRST, then write code. |
-| 6 | **Self-Annealing** | Any error -> Analyze -> Patch -> Test -> Update SOP/rules -> Record the cause, fix, and verification in the PR or issue. If the bug cannot be fixed this session (too big, wrong task, needs an ADR), **MUST** open or update a GitHub Issue labeled `deferred` instead of a band-aid (`deferred-log.mdc`). |
-| 7 | **Broker Execution Gate** | Alpaca-sourced scanning is permanently read-only. Trade execution is permitted ONLY through the explicit opt-in `backend/ibkr/` module. Gateway connection default is **live** (port 4001). The IBKR paper Gateway (4002) is **legacy**: by hand only (`POST /api/ibkr/gateway-mode {"mode":"paper"}`), never an automatic fallback -- `IBKR_PAPER_GATEWAY_FALLBACK` is off by default because a paper login beside a live session is read-only and carries no tape (ADR 020). Spending still requires `IBKR_ENABLED=true` and `IBKR_ORDERS_ENABLED=true`; live money also requires `IBKR_LIVE_TRADING_CONFIRMED=true` in `.env`. No other module may place orders. **Short entry (ADR 009, ADR 048):** every SELL is risk-reducing unless an explicit `short_entry` opt-in on the execution command passes the one short check (`backend/short_sale/`), on every venue: a limit price with a buy stop above it, never while the account holds the stock long, a margin account with $2,000 of equity, 09:35 to 15:50 ET by the venue's clock, no halt, IBKR's tick-236 borrow covering the order plus the short held and in flight, SSR priced above the bid, and margin (IBKR's what-if, else the published rules) with a 25% liquidation cushion. Live also needs the operator-controlled `IBKR_SHORT_ENABLED=true`; readiness proofs and research verdicts never grant or refuse trading permission (ADR 048/049 amendment, 2026-10-13); Paper and Sim need no Live key and short on their own ledger (ADR 048 step 2), where Nova covers every short at 15:55 ET. A BUY that covers a short is a close: never locked by the loss limit, never held to buying power, never past flat. Never infer shorts from side + flat position. `auto_live` remains NO-GO, and a bot never trades Live. |
+| 6 | **Self-Annealing** | Any error -> Analyze -> Patch -> Test -> Update SOP/rules -> Record the cause, fix, and verification in the PR or issue. If the bug cannot be fixed this session, **MUST** open or update a GitHub Issue labeled `deferred` instead of a band-aid (`deferred-log.mdc`). |
+| 7 | **Broker Execution Gate** | Alpaca-sourced scanning is permanently read-only. Trade execution is permitted ONLY through the explicit opt-in `backend/ibkr/` module. Gateway default is **live** (port 4001); the paper Gateway (4002) is legacy by hand only (`POST /api/ibkr/gateway-mode {"mode":"paper"}`), never an automatic fallback (`IBKR_PAPER_GATEWAY_FALLBACK` off by default, ADR 020). Spending requires `IBKR_ENABLED=true`, `IBKR_ORDERS_ENABLED=true`, and the runtime arm latch (`POST /api/ibkr/arm`, ADR 018); live money also requires `IBKR_LIVE_TRADING_CONFIRMED=true` in `.env` and the operator's Live PIN. **Short entry (ADR 009, ADR 048):** every SELL is risk-reducing unless an explicit `short_entry` opt-in passes `backend/short_sale/` on every venue (limit + buy stop above it, never while long, margin account >= $2,000 equity, 09:35-15:50 ET, no halt, IBKR tick-236 borrow covering order + held + in-flight shorts, SSR above bid, IBKR what-if or published margin with 25% liquidation cushion; Live also requires `IBKR_SHORT_ENABLED=true`; Paper/Sim cover at 15:55 ET; readiness/research verdicts never grant or refuse permission, #791). A BUY covering a short is a close (never locked by the loss limit, buying power, or past flat). Never infer shorts from side + flat position. `auto_live` remains NO-GO, and a bot never trades Live. Schemas: `architecture/schema/execution.md`, `architecture/schema/short-selling.md`, `architecture/schema/loss-limit.md`. |
 | 8 | **Constitution is Law** | No code change may contradict this document. If a contradiction is needed, update this document FIRST with a row in `architecture/maintenance-log.md`, THEN write the code. |
 
 ---
 
 ## 2. 📐 Modularity Laws (Enforced by the checker)
 
-These rules describe behavior, not a snapshot of the tree. A hand-kept file tree
-and hand-copied line counts lived here and went stale (11 of 24 listed files were
-gone by 2026-09-20); the statements now live next to the code and the checker
-keeps them honest. One command answers every rule in this section -- it is the
-CI gate (`deploy.yml`; kinds in `tools/maintainer_lib/gate.py`), so run it
-before you push:
+One command enforces every rule in this section -- run it before you push (`deploy.yml`; `tools/maintainer_lib/gate.py`):
 
 ```text
 py -3 tools/maintainer_checks.py --gate --base origin/master
@@ -74,40 +62,19 @@ py -3 tools/maintainer_checks.py --gate --base origin/master
 
 ### 2.1 Where code goes
 
-- **Entry points hold wiring only.** `backend/main.py`: app factory, middleware,
-  `lifespan`, router registration. `frontend/src/App.tsx`: providers, shell,
-  route definitions. Anything else belongs to a module (§2.3 caps both).
-- **New code goes where its concept is owned.** `py -3 tools/module_map.py [word]`
-  prints what every backend package and frontend folder owns, from the code.
-- **Nothing owns it? Make an owner in the same change.** A backend package's
-  `__init__.py` opens with a docstring whose first line names what it owns
-  (`package_owner_missing`). A frontend folder gets a row in
-  `frontend/src/FOLDERS.md` with its ADR 005 kind -- `feature`, `shared` or `app`
-  (`folder_owner_missing` / `folder_owner_stale`).
-- **Prefer a package to a new top-level `backend/*.py` module.** The backend root
-  already holds about a hundred modules; a flat namespace is the hardest place to
-  find anything.
+- **Entry points hold wiring only.** `backend/main.py`: app factory, middleware, `lifespan`, router registration. `frontend/src/App.tsx`: providers, shell, route definitions. Anything else belongs to a module (§2.3 caps both).
+- **New code goes where its concept is owned.** `py -3 tools/module_map.py [word]` prints what every backend package and frontend folder owns.
+- **Nothing owns it? Make an owner in the same change.** A backend package's `__init__.py` opens with a docstring naming what it owns (`package_owner_missing`). A frontend folder gets a row in `frontend/src/FOLDERS.md` with its ADR 005 kind -- `feature`, `shared` or `app` (`folder_owner_missing` / `folder_owner_stale`).
+- **Prefer a package to a new top-level `backend/*.py` module.**
 
 ### 2.2 Feature boundaries (ADR 005)
 
-- A frontend feature imports another feature only through its barrel
-  (`../chart`, never `../chart/barsStore`); `shared` code imports no feature
-  internals. A deep import into another feature is a `cross_feature_import`.
-- The ones that existed when this rule landed (2026-09-23) are frozen, per file,
-  in `tools/maintainer_lib/baselines.json` (no count here -- it would go stale);
-  one more fails the gate. The slice has no
-  barrel yet? Add an `index.ts` exporting what you need.
-- Frozen counts only go down. `--update-baselines` rewrites them to the tree; a
-  PR that raises one says why.
+- A frontend feature imports another feature only through its barrel (`../chart`, never `../chart/barsStore`); `shared` code imports no feature internals (`cross_feature_import`).
+- Pre-existing violations are frozen per file in `tools/maintainer_lib/baselines.json`; one more fails the gate. Frozen counts only go down (`--update-baselines`).
 
 ### 2.3 File size
 
-A line count is a proxy for "an agent can read this file in one pass and see one
-concern". It prompts a judgment; it is not a target. **Never squeeze a file to
-fit a number** -- deleting blank lines, joining statements or moving code to an
-arbitrary sibling. The old hard 400 made agents do exactly that: on 2026-09-23
-ten Python / TS files sat at 395-400 lines, against seven in the fifteen lines
-below.
+**Never squeeze a file to fit a number** (deleting blank lines, joining statements, or moving code to an arbitrary sibling).
 
 | Files | Rule | Kind |
 |-------|------|------|
@@ -120,11 +87,10 @@ below.
 | Constants tables (`backend/constants*.py`, `frontend/src/constantGroups/`) | exempt from 400; 800 still applies | -- |
 | Stylesheets | advisory at 1000, prefer 700 or less | `file_size` |
 | `AGENTS.md` | 700 raw lines | `file_size_hard` (gate) |
-| The always-on context: this file + `CLAUDE.md` + every `alwaysApply: true` rule | one byte budget, ratchets down only (ADR 051, `tools/maintainer_lib/always_on.py`) | `always_on_budget` (gate); `always_on_growth` (advisory) |
+| Always-on context: this file + `CLAUDE.md` + every `alwaysApply: true` rule | one byte budget, ratchets down only (ADR 051, `tools/maintainer_lib/always_on.py`) | `always_on_budget` (gate); `always_on_growth` (advisory) |
 | Tests | exempt | -- |
 
-**Stating the reason:** one line in the file's first 40 lines, next to what the
-file owns:
+**Stating the reason:** one line in the file's first 40 lines, naming the single invariant or state it owns ("legacy" is not a reason):
 
 ```python
 """Scanner discovery.
@@ -133,172 +99,51 @@ maintainer: one-concern the never-leak-a-scanner-slot invariant must live in one
 """
 ```
 
-A reason names the one invariant or state the file owns. "Legacy" or "too big to
-split now" is not a reason -- split it, or leave the advisory finding and open a
-`deferred` issue. **Growth** is judged against `--base` (in CI, the PR's target
-branch); a new file over 400 counts as growth.
-
-**Logical lines** exclude imports, comments and blank lines, so an entry point
-is capped on the wiring it holds rather than on how many providers it imports
-(`tools/maintainer_lib/sizes.py`). No counts are maintained here: a hand-copied
-number goes stale (#393). `py -3 tools/maintainer_checks.py --json` ->
-`logical_line_counts`, and the human report lists every oversize file.
+**Logical lines** exclude imports, comments and blank lines (`tools/maintainer_lib/sizes.py`, #393).
 
 ### 2.4 Refactoring Protocol
 
-When you split a file or move a function out of an oversize one:
-
-1. **Move** it to the module that owns its concept (§2.1).
-2. **Import** it back in the original file if still referenced there.
-3. **Do NOT leave the old copy** behind.
-4. **Update all callers** in the same commit.
-5. **Never make a monolith worse.** If you're adding to `main.py` or `App.tsx`, extract first.
-6. **Split along a seam** -- one concern per file -- never at an arbitrary line to pass a check.
+1. **Move** to the module that owns its concept (§2.1) and **import** back if still referenced.
+2. **Do NOT leave the old copy** behind; **update all callers** in the same commit.
+3. **Never make a monolith worse** (`main.py` / `App.tsx`). **Split along a seam** -- one concern per file.
 
 ---
 
 ## 3. 📐 Data Schema (Confirmed)
 
-Every confirmed wire and persisted shape lives in `architecture/schema/`, one file per domain. They carry the same force as this file: read the domain's file before changing a route, a socket frame or a persisted file it owns, and change the file first, in the same commit (Invariants #1 and #5). `.cursor/rules/schema-docs.mdc` points at it when you edit the owners.
+Every confirmed wire and persisted shape lives in `architecture/schema/`, one file per domain. Read the domain's file before changing a route, socket frame, or persisted file it owns, and update it in the same commit (Invariants #1 and #5; `.cursor/rules/schema-docs.mdc`).
 
-| Subsection | File |
+| Schema file | Indexed subsections |
 |---|---|
-| Capture / replay truth (issues #316, #317) | `architecture/schema/recording-and-replay.md` |
-| Replay progress and capture fidelity (#321, #337) | `architecture/schema/recording-and-replay.md` |
-| Recording persistence and coverage (operator decision, 2026-09-21) | `architecture/schema/recording-and-replay.md` |
-| The Records page and turning recording off (operator ask, 2026-10-14) | `architecture/schema/recording-and-replay.md` |
-| Recorded depth in historical replay (#309) | `architecture/schema/recording-and-replay.md` |
-| The replayed session's previous close (#542) | `architecture/schema/recording-and-replay.md` |
-| Massive flat files in Sim replay (ADR 046, operator ask 2026-10-06) | `architecture/schema/recording-and-replay.md` |
-| An exchange's own book in Sim replay (ADR 057, operator ask 2026-10-17) | `architecture/schema/recording-and-replay.md` |
-| Agents find stock-days and show them in the Sim (ADR 050, operator ask 2026-10-06) | `architecture/schema/agent-desk.md` |
-| Desk diagnostics (ADR 021) | `architecture/schema/desk-ops.md` |
-| IBKR capacity on the desk (operator ask, 2026-10-16) | `architecture/schema/desk-ops.md` |
-| Which backend answers (operator report, 2026-09-24) | `architecture/schema/desk-ops.md` |
-| Who may reach the API: Host names and socket origins (security alerts, 2026-10-09) | `architecture/schema/desk-ops.md` |
-| Where Nova keeps its data (operator ask, 2026-09-24) | `architecture/schema/desk-ops.md` |
-| Why the Gateway needed a phone login; premarket evidence (#14) | `architecture/schema/desk-ops.md` |
-| Scanner rows and HOD Momo alerts on the wire (QA batch, 2026-09-22) | `architecture/schema/scanner.md` |
-| Float credibility and short-interest dates (#532) | `architecture/schema/scanner.md` |
-| The company's country (operator ask, 2026-10-12) | `architecture/schema/scanner.md` |
-| Scanner leaderboard: recorded, reconstructed, played back (ADR 023, operator decision 2026-09-22) | `architecture/schema/scanner.md` |
-| Setup scanner and tape gate (ADR 022) | `architecture/schema/setups.md` |
-| The flat top counts its touches (ADR 031 amendment, operator ask 2026-10-06) | `architecture/schema/setups.md` |
-| The 5-minute flat top (ADR 031 amendment, operator ask 2026-10-06) | `architecture/schema/setups.md` |
-| Targets replace 2R: the menu, two halves, every choice scored (#845, operator decisions 2026-10-09 and 2026-10-12) | `architecture/schema/setups.md` |
-| The pullback dip: a watch-only setup (#847, operator ask 2026-10-12) | `architecture/schema/setups.md` |
-| The ABCD: a watch-only setup (operator ask 2026-10-15) | `architecture/schema/setups.md` |
-| One row per trigger (ADR 022 amendment, 2026-10-02) | `architecture/schema/setups.md` |
-| Too thin to trade (ADR 022 amendment, operator decision 2026-10-01) | `architecture/schema/setups.md` |
-| The 5-minute chart on a 1-minute setup (trial T8, operator decision 2026-09-30) | `architecture/schema/setups.md` |
-| The 5-minute setups (operator decisions 2026-09-30) | `architecture/schema/setups.md` |
-| The tape flow score and the flush exit (ADR 034, operator ask 2026-09-24) | `architecture/schema/setups.md` |
-| Signal trials (ADR 041, operator decision 2026-09-30) | `architecture/schema/setups.md` |
-| The author's trade ledger (S7, operator ask 2026-10-11) | `architecture/schema/trade-ledger.md` |
-| The bot's read on one stock (ADR 036, operator ask 2026-09-24, #598) | `architecture/schema/stock-read.md` |
-| Setups that ended stay on the chart, and what price did next (ADR 036 amendment, operator ask 2026-09-29) | `architecture/schema/stock-read.md` |
-| The day's levels: support and resistance on the charts and in the plan (ADR 036 amendment, operator ask 2026-09-30) | `architecture/schema/stock-read.md` |
-| Trend lines on the 1- and 5-minute charts (ADR 036 amendment, operator ask 2026-10-12) | `architecture/schema/stock-read.md` |
-| Who trades the stock (ADR 037, operator ask 2026-09-24, #604, #606) | `architecture/schema/stock-read.md` |
-| Managing a trade you hold (ADR 036 / 037 amendment, operator ask 2026-10-01) | `architecture/schema/stock-read.md` |
-| Catalysts (ADR 024) | `architecture/schema/catalysts.md` |
-| Performance recorder (ADR 026) | `architecture/schema/performance.md` |
-| Journal statistics, operator judgment (2026-10-13, #791) | `architecture/schema/journal.md` |
-| The operator's focus and the book watcher (ADR 033, operator ask 2026-09-24) | `architecture/schema/book-watch-and-luld.md` |
-| LULD bands on Level 2 (ADR 047, operator ask 2026-10-06) | `architecture/schema/book-watch-and-luld.md` |
-| The LULD band on the 1-minute chart (ADR 047 amendment, operator ask 2026-10-12) | `architecture/schema/book-watch-and-luld.md` |
-| The trading screen is always recorded (ADR 035, operator decision 2026-09-24) | `architecture/schema/screen-and-clips.md` |
-| The desk draws with the graphics card (operator decision 2026-10-05, #707) | `architecture/schema/screen-and-clips.md` |
-| Share clips (ADR 039, operator ask 2026-09-29) | `architecture/schema/screen-and-clips.md` |
-| Watchlist rows (operator decision 2026-09-23) | `architecture/schema/scanner.md` |
-| Bot playbook and the read-out gate (ADR 027, operator decision 2026-09-23) | `architecture/schema/bot.md` |
-| The Live Trader bot: a TraderTV host copied on Paper (ADR 055, operator ask 2026-10-14) | `architecture/schema/bot.md` |
-| One Bots page (ADR 044, operator decisions 2026-10-01) | `architecture/schema/bot.md` |
-| The bot trades a Sim replay (ADR 052, operator ask 2026-10-09, #814) | `architecture/schema/bot.md` |
-| Fills on the bot audit stream (operator ask 2026-10-16) | `architecture/schema/bot.md` |
-| Release notes and the update notice (operator ask, 2026-09-23) | `architecture/schema/desk-ops.md` |
-| Filing an issue from the desk (operator ask, 2026-09-24) | `architecture/schema/desk-ops.md` |
-| Setup templates, the eyes' journal and replayed eyes (ADR 029, operator ask 2026-09-23) | `architecture/schema/setups.md` |
-| Practice venues and fills (ADR 019, ADR 020) | `architecture/schema/recording-and-replay.md` |
-| Sim at now is live -- the live edge (ADR 020 amendment, operator decision 2026-09-21 evening) | `architecture/schema/recording-and-replay.md` |
-| Who may arm the desk (ADR 018 amendment, operator decision 2026-09-23) | `architecture/schema/execution.md` |
-| Account identity on `/api/ibkr/status` (operator ask, 2026-09-21) | `architecture/schema/execution.md` |
-| Prints that set a price (operator report, 2026-09-23) | `architecture/schema/market-data.md` |
-| The tape archive never stops writing (operator report, 2026-09-24) | `architecture/schema/market-data.md` |
-| When IBKR data stops arriving (#672, #673, operator report 2026-10-01) | `architecture/schema/market-data.md` |
-| A Level 1 line IBKR refused (operator report 2026-10-05) | `architecture/schema/market-data.md` |
-| Lines IBKR answers after Nova cancelled them (operator report 2026-10-13) | `architecture/schema/market-data.md` |
-| When one tape line goes silent (#722, operator report 2026-10-05) | `architecture/schema/market-data.md` |
-| Orders refuse a stale view; the market path stays real time (ADR 045, operator report 2026-10-05) | `architecture/schema/execution.md` |
-| The trading session ends at 20:00 ET (operator report, 2026-10-01 23:33) | `architecture/schema/market-data.md` |
-| Chart bars say when IBKR history stopped answering (ADR 012, #555) | `architecture/schema/market-data.md` |
-| Earnings and splits on the daily charts (operator ask 2026-10-12) | `architecture/schema/market-data.md` |
-| The forming candle's volume (operator report, 2026-09-24) | `architecture/schema/market-data.md` |
-| Why it's moving (ADR 028, operator ask 2026-09-23) | `architecture/schema/stock-read.md` |
-| The Cryptos page (ADR 040, operator ask 2026-09-30) | `architecture/schema/cryptos.md` |
-| Followed traders: another feed's positions, priced with IBKR (operator ask 2026-10-13) | `architecture/schema/followed-traders.md` |
-| The Market page (ADR 053, operator decisions 2026-10-12/13) | `architecture/schema/market-board.md` |
-| Volume profile on the 5-minute chart (ADR 058, operator decision 2026-10-17) | `architecture/schema/volume-profile.md` |
-| Symbol directory for the header search (operator ask, 2026-09-23) | `architecture/schema/desk-ops.md` |
-| The operator's watch list and its toasts (operator asks, 2026-09-23 and 2026-09-24) | `architecture/schema/desk-ops.md` |
-| The close-of-day reminder (operator ask, 2026-10-01) | `architecture/schema/desk-ops.md` |
-| The desk's voice and the header mute (operator ask, 2026-10-14) | `architecture/schema/desk-ops.md` |
-| Short selling (ADR 048, operator decisions 2026-10-01 to 2026-10-07; #778) | `architecture/schema/short-selling.md` |
-| The short setups on the scanner (ADR 049, step 4 of #778) | `architecture/schema/short-selling.md` |
-| The bot trades both sides (ADR 049, step 5 of #778) | `architecture/schema/short-selling.md` |
-| Operator trading judgment and Live's day cover (ADR 048 amendment, 2026-10-13, #791) | `architecture/schema/short-selling.md` |
-| One daily loss limit (ADR 056, operator decisions 2026-10-15) | `architecture/schema/loss-limit.md` |
-| Execution command (ADR 007 — sole broker mutation entry) | `architecture/schema/execution.md` |
-| Execution venue provenance (#713) | `architecture/schema/execution.md` |
-| Live order state: orderRef, whyHeld, reconnects, IBKR's own events (audit 2026-10-09) | `architecture/schema/execution.md` |
-| The exit-only pair and two halves (#681, operator ask 2026-10-12) | `architecture/schema/execution.md` |
+| `architecture/schema/recording-and-replay.md` | Capture / replay truth (#316, #317); Replay progress and capture fidelity (#321, #337); Recording persistence and coverage; The Records page and turning recording off; Recorded depth in historical replay (#309); The replayed session's previous close (#542); Massive flat files in Sim replay (ADR 046); An exchange's own book in Sim replay (ADR 057); Practice venues and fills (ADR 019, ADR 020); Sim at now is live -- the live edge (ADR 020) |
+| `architecture/schema/agent-desk.md` | Agents find stock-days and show them in the Sim (ADR 050) |
+| `architecture/schema/desk-ops.md` | Desk diagnostics (ADR 021); IBKR capacity on the desk; Which backend answers; Who may reach the API: Host names and socket origins; Where Nova keeps its data; Why the Gateway needed a phone login; premarket evidence (#14); Release notes and the update notice; Filing an issue from the desk; Symbol directory for the header search; The operator's watch list and its toasts; The close-of-day reminder; The desk's voice and the header mute |
+| `architecture/schema/scanner.md` | Scanner rows and HOD Momo alerts on the wire; Float credibility and short-interest dates (#532); The company's country; Scanner leaderboard: recorded, reconstructed, played back (ADR 023); Watchlist rows |
+| `architecture/schema/setups.md` | Setup scanner and tape gate (ADR 022); The flat top counts its touches (ADR 031); The 5-minute flat top (ADR 031); Targets replace 2R: the menu, two halves, every choice scored (#845); The pullback dip: a watch-only setup (#847); The ABCD: a watch-only setup; One row per trigger; Too thin to trade; The 5-minute chart on a 1-minute setup (trial T8); The 5-minute setups; The tape flow score and the flush exit (ADR 034); Signal trials (ADR 041); Setup templates, the eyes' journal and replayed eyes (ADR 029) |
+| `architecture/schema/trade-ledger.md` | The author's trade ledger (S7) |
+| `architecture/schema/stock-read.md` | The bot's read on one stock (ADR 036, #598); Setups that ended stay on the chart, and what price did next (ADR 036); The day's levels: support and resistance on the charts and in the plan (ADR 036); Trend lines on the 1- and 5-minute charts (ADR 036); Who trades the stock (ADR 037, #604, #606); Managing a trade you hold (ADR 036 / 037); Why it's moving (ADR 028) |
+| `architecture/schema/catalysts.md` | Catalysts (ADR 024) |
+| `architecture/schema/performance.md` | Performance recorder (ADR 026) |
+| `architecture/schema/journal.md` | Journal statistics, operator judgment (#791) |
+| `architecture/schema/book-watch-and-luld.md` | The operator's focus and the book watcher (ADR 033); LULD bands on Level 2 (ADR 047); The LULD band on the 1-minute chart (ADR 047) |
+| `architecture/schema/screen-and-clips.md` | The trading screen is always recorded (ADR 035); The desk draws with the graphics card (#707); Share clips (ADR 039) |
+| `architecture/schema/bot.md` | Bot playbook and the read-out gate (ADR 027); The Live Trader bot: a TraderTV host copied on Paper (ADR 055); One Bots page (ADR 044); The bot trades a Sim replay (ADR 052, #814); Fills on the bot audit stream |
+| `architecture/schema/execution.md` | Who may arm the desk (ADR 018); Account identity on `/api/ibkr/status`; Orders refuse a stale view; the market path stays real time (ADR 045); Execution command (ADR 007); Execution venue provenance (#713); Live order state: orderRef, whyHeld, reconnects, IBKR's own events; The exit-only pair and two halves (#681) |
+| `architecture/schema/market-data.md` | Prints that set a price; The tape archive never stops writing; When IBKR data stops arriving (#672, #673); A Level 1 line IBKR refused; Lines IBKR answers after Nova cancelled them; When one tape line goes silent (#722); The trading session ends at 20:00 ET; Chart bars say when IBKR history stopped answering (ADR 012, #555); Earnings and splits on the daily charts; The forming candle's volume |
+| `architecture/schema/cryptos.md` | The Cryptos page (ADR 040) |
+| `architecture/schema/followed-traders.md` | Followed traders: another feed's positions, priced with IBKR |
+| `architecture/schema/market-board.md` | The Market page (ADR 053) |
+| `architecture/schema/volume-profile.md` | Volume profile on the 5-minute chart (ADR 058) |
+| `architecture/schema/short-selling.md` | Short selling (ADR 048, #778); The short setups on the scanner (ADR 049); The bot trades both sides (ADR 049); Operator trading judgment and Live's day cover (ADR 048, #791) |
+| `architecture/schema/loss-limit.md` | One daily loss limit (ADR 056) |
 
 ### CI scope output
 
-`tools/ci_scope.py` classifies changed repository paths into boolean JSON fields:
-`{"backend": true, "frontend": true, "e2e": true, "desktop": true, "source": true, "dependencies": true}`.
-GitHub job outputs serialize these booleans as `true` / `false`. Unknown paths,
-unavailable diffs, and manual runs select full verification. See `.cursor/rules/ci-scope.mdc`.
+`tools/ci_scope.py` classifies changed repository paths into boolean JSON fields: `{"backend": true, "frontend": true, "e2e": true, "desktop": true, "source": true, "dependencies": true}`. Unknown paths, unavailable diffs, and manual runs select full verification (`.cursor/rules/ci-scope.mdc`).
 
-### Input Payload (Raw)
+### Input / Output Payloads
 
-```json
-{
-  "symbol": "AAPL",
-  "previous_close": 150.00,
-  "current_price": 155.00,
-  "gap_percent": 3.33,
-  "volume": 1200000,
-  "timestamp": "2026-04-14T08:30:00Z"
-}
-```
-
-### Output / Delivery Payload
-
-```json
-{
-  "health": {
-    "status": "connected",
-    "latency_ms": 45
-  },
-  "gappers": [
-    {
-      "symbol": "AAPL",
-      "previous_close": 150.00,
-      "current_price": 155.00,
-      "gap_percent": 3.33,
-      "volume": 1200000
-    }
-  ]
-}
-```
-
-Capture market projections preserve missing facts: print-only rows have null
-bid/ask/sizes and the replay's own previous close (null when nothing records
-one, #542); depth is empty without recorded books; daily OHLC
-is null unless a replay source provides it. Loading, failed, and pre-first-event
-capture selections have no market data to fall back to -- there is no synthetic
-instrument (ADR 019), and `replay_source` is `none` when nothing is loaded.
+Raw input (`{symbol, previous_close, current_price, gap_percent, volume, timestamp}`) and delivery payload (`{health: {status, latency_ms}, gappers: [{symbol, previous_close, current_price, gap_percent, volume}]}`). Capture market projections preserve missing facts: print-only rows have null bid/ask/sizes and the replay's own previous close (null when unrecorded, #542); depth is empty without recorded books; daily OHLC is null unless a replay source provides it. There is no synthetic instrument (ADR 019); `replay_source` is `none` when nothing is loaded.
 
 ---
 
@@ -320,56 +165,43 @@ instrument (ADR 019), and `replay_source` is `none` when nothing is loaded.
 
 ### Verification policy: green only (owner, 2026-10-13)
 
-Nothing ships red ("only shipped with green builds"; "Merge only green PRs too").
-Actions merges a ready PR only when Backend tests, Frontend build, Frontend E2E and
-Agent contract passed on its head (`tools/pr_checks.py`); a red one is held with a
-comment naming the check, and a green re-run merges it. A `vNNN` Release, what the
-desk's update feed offers, publishes only when its installer packed and the same
-checks, run in full on that commit, passed (§8). Report results truthfully.
-Drafts, `do-not-merge`, forks and actual conflicts keep their holds. Master
-protection blocks force-push and deletion (admins included), with **no required
-status checks**: the merge job is the gate, so status-only pushes still work.
-Every other branch refuses force-pushes too (§5.1).
-Trading runtime gates, opt-ins and `auto_live` NO-GO are unchanged. Coverage:
-`.cursor/rules/ci-scope.mdc`.
+Nothing ships red. Actions merges a ready PR, and `Desktop pack` publishes a `vNNN` Release (§8), only when `Backend tests`, `Frontend build`, `Frontend E2E` and `Agent contract` pass (`tools/pr_checks.py`, `tools/release_gate.py`). Drafts, `do-not-merge`, forks and conflicts hold PRs; failed checks hold with a comment and merge on a green re-run. Master protection blocks force-push and deletion (admins included) with **no required status checks** (the merge job is the gate, so status-only pushes still work); every other branch refuses force-pushes too (§5.1). Trading runtime gates, opt-ins and `auto_live` NO-GO are unchanged. Coverage: `.cursor/rules/ci-scope.mdc`.
 
-- **Market data / trading:** Scanner and prices are IBKR-only (see `single-market-data-feed.mdc`). Alpaca is news/listing metadata only. The Cryptos page (ADR 040) shows the crypto market from labelled public reference sources (rule 13 there); it is never a scanner, stock chart, order or bot source. Orders are allowed only via gated `backend/ibkr/` (Invariant #7). Gateway port default is live (4001); the paper Gateway (4002) is legacy, by hand only, never an automatic fallback (ADR 020). Spend stays gated; `auto_live` remains NO-GO. Header Live / Paper / Sim are **venue** pills (ADR 020): **Live** places to IBKR; **Paper** is Nova's practice account on the live feed -- fake money, full live data, fills estimated locally, never an IBKR place; **Sim** replays a **real recorded or downloaded session** and fills locally on a scratch account that unwinds when the playhead is scrubbed back (ADR 019); at the **live edge** -- the Sim clock following the wall clock on today's date, not paused, not scrubbed, no past day loaded (`live_edge` on the clock payload and on `/api/ibkr/status`) -- a Sim tab shows the live IBKR feed exactly as a Paper tab does and the scratch account fills against the live reference, and scrubbing back leaves the edge for the loaded replay (today's Session Record when one exists, a stated absence otherwise; ADR 020 live-edge amendment). The IBKR paper Gateway (4002) is legacy with no desk button -- `POST /api/ibkr/gateway-mode {"mode":"paper"}` by hand is its only door. The venue never changes the bot: operator and bots are gated identically everywhere, and a bot fires only on an allowlisted symbol whose depth line the backend itself holds (`409 BOT_NO_DEPTH_LINE` otherwise) -- the Live Trader bot (ADR 055) only on a TraderTV host's position, on Paper, with its own Level 1 line; after a Sim rewind (`practice_rewind`) bots re-read the ledger. On a Sim replay Nova's own bot trades the loaded replay's Sim eyes triggers on the playhead's clock, its line the replay's own book, and goes back with a rewind (ADR 052). There is no synthetic instrument: a Sim desk with nothing loaded is empty off the live edge, and live at it. `NOVA_BROKER=sim` is bootstrap only. Switching to Live restores the IBKR paths.
-- **Desk venue vs spend arming (ADR 018, #302):** two facts with opposite lifetimes, never one dial. The **venue** (Paper / Live / Sim) is durable -- `sim/mode.py` owns `desk-venue.json` under the operator cache (`schema_version`, unknown version refuses loud), and it wins over the `NOVA_BROKER` bootstrap default. **Spend arming never survives a process start**, in any venue: `IBKR_ORDERS_ENABLED` / `IBKR_LIVE_TRADING_CONFIRMED` say this desk is *permitted*, the runtime latch in `ibkr/safety.py` says it is currently *armed*, and a place needs both. Arming is an explicit act through one door, `POST /api/ibkr/arm`, and one rule in `ibkr/safety.arm` (ADR 018 amendment, operator decision 2026-09-23): **Live arms only with the operator's PIN, checked by the backend** against a hash in `.env` (`NOVA_LIVE_ARM_PIN_HASH`, set with `py -3 tools/set_live_arm_pin.py`; none set = Live refuses to arm); **Paper and Sim arm with no PIN** -- the padlock in one click, a bot through the same endpoint. The latch is stamped with the venue it was armed on and reads disarmed on any other, so a practice arm is never a Live arm. Never an `.env` edit, never inferred from a connect, reconnect or self-heal, and never re-armed by any automatic path. A venue change disarms. Protective sources (`flatten`, `kill`, `cancel_working`) and cancel are exempt: a disarmed desk must always be able to get flat. Only the *settled* venue persists -- an in-flight gateway-mode switch stays process-local in `gateway_heal.py` so ADR 013's unattended reconnect is unchanged.
-- **Real time or no order (ADR 045):** a desk order is refused while its Level 2, quote or Time & Sales is behind or dead. The backend gate is the one judge, and the desk shows its words. Flatten and cancels always work.
+- **Market data / trading:** Scanner and prices are IBKR-only (`.cursor/rules/single-market-data-feed.mdc`); Alpaca is news/listing metadata only; the Cryptos page (ADR 040, `architecture/schema/cryptos.md`) is a public reference board only. Orders go only via gated `backend/ibkr/` (Invariant #7); `auto_live` remains NO-GO. Header **Live / Paper / Sim** are venue pills (ADR 019, ADR 020, `architecture/schema/recording-and-replay.md`): **Live** routes to IBKR (port 4001 default; paper Gateway 4002 is legacy by hand only); **Paper** fills locally on the live IBKR feed; **Sim** replays a recorded/downloaded session on a scratch account that unwinds on rewind, and at the **live edge** (`live_edge` on clock and `/api/ibkr/status`) shows the live IBKR feed like Paper (no synthetic instrument; `NOVA_BROKER=sim` is bootstrap only). Operator and bots share the same gates (`architecture/schema/bot.md`): strategy bots require an allowlisted symbol with a backend-held depth line (`409 BOT_NO_DEPTH_LINE`) or replay book on Sim (ADR 052); the Live Trader bot (ADR 055) copies TraderTV hosts on Paper only using its own Level 1 line.
+- **Desk venue vs spend arming (ADR 018, #302):** Venue (`desk-venue.json`, owner `sim/mode.py`) is durable; spend arming (`ibkr/safety.py`) never survives process start or venue change. Arming goes only through `POST /api/ibkr/arm` (`architecture/schema/execution.md`): Live requires `NOVA_LIVE_ARM_PIN_HASH` (`py -3 tools/set_live_arm_pin.py`); Paper and Sim arm without a PIN. Protective sources (`flatten`, `kill`, `cancel_working`) and cancel are always exempt when disarmed.
+- **Real time or no order (ADR 045):** A desk order is refused while its Level 2, quote or Time & Sales is behind or dead (`architecture/schema/execution.md`). Flatten and cancels always work.
 - **Market Open Halt**: The gapper dashboard stops updating its data feed once the market formally opens.
 - **Configurable**: API keys and base URLs must be configurable via UI.
-- **PR-first delivery after every task:** Code, config, CI, security, and rule changes MUST follow §5.1 (clean start from `origin/master`, ready PR finish line). Direct `master` pushes are limited to status-only operations or explicit user instruction. Complete `.github/pull_request_template.md`, link the issue truthfully (`Closes` only for full completion; `Refs` for partial work), verify, commit, push the branch, and open a **ready** (non-draft) PR. **GitHub Actions merges ready PRs** once their checks are green (`tools/pr_delivery.py`). Do not wait for the human to say merge. Draft or label `do-not-merge` is the hold, and only under §5.1. After that PR is merged or closed, **delete the head branch** (`git fetch --prune` then `py -3 tools/stale_pr_branches.py`; use the guarded `pr_delivery.py delete-closed --ref <branch>` only for a verified safe tip). GitHub `delete_branch_on_merge` plus `.github/workflows/pr-delivery.yml` are the backup sweep. Never leave merged or superseded branches on origin. Never delete `master` or a branch that still has an open PR. **Master branch protection** (no force-push, no deletion, no required CI checks) is the required GitHub setting; verify with `py -3 tools/master_branch_protection.py check` and do not claim it exists unless that command exits 0. Public Nova unlocks that setting on GitHub Free. A private personal repo still needs GitHub Pro. The public source home is `aaltaay/Nova`. `aaltaay/Nova-public` is a private archive.
-- **Backlog work packages:** The backlog is organised into ranked work packages -- one **GitHub milestone** per package, every open issue in exactly one. Current narrative in GitHub Issues/milestones; authored package configuration in `knowledge/backlog-packages.json`; milestones are its projection (`py -3 tools/backlog_triage.py sync`). Agents asked "what's next" run `py -3 tools/backlog_triage.py next` -- it returns one package, one PR batch, and the acceptance criteria. **Batch related issues into one reviewable PR**; do not open a PR per issue. New issues get a package plus the `deferred` / `P0`-`P3` / kind / `domain:*` labels -- `backlog_triage.py check` reports the gaps, and `.github/workflows/backlog-triage.yml` sweeps weekly and fails when any remain. There is no pinned rollup issue -- `py -3 tools/backlog_triage.py report` answers "what is the state of the backlog" on demand, from GitHub. Gated work needs an operator decision -- record the question on the issue, never guess the policy.
-- **Nova Delivery board:** Canonical project is https://github.com/users/aaltaay/projects/1 (user project number `1`, owner `aaltaay`, id `PVT_kwHOAXJK5M4Ab7Vq`). Do not recreate it. `.github/workflows/nova-delivery-project.yml` adds new issues and same-repo PRs. Agents must also run `gh project item-add 1 --owner aaltaay --url <html_url>` when the token has `project` scope, and default Status to Todo unless already In Progress. Priority stays on labels `P0`..`P3`. Classic `GITHUB_TOKEN` and the Cloud Agent GitHub App typically lack `project` scope; owner `gh` as `aaltaay` can mutate; Actions uses repo secret `NOVA_PROJECT_TOKEN`. On 403, report the limitation -- never claim the item exists.
-- **Next-move picks** (fixed lanes retired, operator report 2026-10-13): every reply that ends a task ends with the best six next moves, ranked from live state by `tools/next_moves.py` and worded in plain English -- red PRs, open P0/P1 bugs (untriaged too), the backlog's next batch, the inbox, the decision that frees the most work, the roadmap's human steps, plus the agent's own next step. The Claude desktop app shows them as a clickable `card` (its `show_widget` tool); Cursor, Codex and the CLI get the numbered `menu` the operator answers with a digit. Never write a pick from memory, never pad (no pick worth offering, no menu). Never offer `auto_live`, a live-gate flip, a claimed or gated batch, or a per-issue PR. How and when: `.cursor/rules/next-move-footer.mdc`. Specialist subagent reports keep the Lifecycle line instead.
+- **PR-first delivery after every task:** Follow §5.1 and `.cursor/rules/github-delivery.mdc`: clean branch from `origin/master`, `.github/pull_request_template.md`, `Closes` vs `Refs`, ready (non-draft) PR finish line, Actions auto-merge when green (`tools/pr_delivery.py`), head branch deleted after merge/close (`tools/stale_pr_branches.py`), and master branch protection (`py -3 tools/master_branch_protection.py check`). Public source home is `aaltaay/Nova` (`aaltaay/Nova-public` is a private archive).
+- **Backlog work packages:** Ranked milestones in `knowledge/backlog-packages.json` (`py -3 tools/backlog_triage.py next|triage|sync|check|report`; see `CLAUDE.md`). Batch related issues into one reviewable PR; never guess gated policy decisions.
+- **Nova Delivery board:** Canonical project is https://github.com/users/aaltaay/projects/1 (user project `1`, owner `aaltaay`, id `PVT_kwHOAXJK5M4Ab7Vq`). Run `gh project item-add 1 --owner aaltaay --url <html_url>` when token scope allows; report 403 limitations truthfully (`.cursor/rules/github-delivery.mdc`).
+- **Next-move picks** (fixed lanes retired, operator report 2026-10-13): every reply that ends a task ends with the best six next moves from `tools/next_moves.py` (`card` via `show_widget` in Claude desktop, numbered `menu` elsewhere) in plain English per `.cursor/rules/next-move-footer.mdc`; specialist subagent reports keep the `**Lifecycle:**` line instead.
 
 ### 5.1 Session lifecycle (Deliver)
 
-**Never rewrite pushed history (owner, 2026-10-14: "Force push, meaning we're deleting work. Everything needs to be merged properly").** No `git push --force`, `--force-with-lease` or `+ref` push, ever -- not to resolve a conflict, not for a tidier history, not to test a rule, not because a bot comment or a tool says so -- and no rebase, amend, reset or squash of a branch already on origin. Bring `master` in with `git merge origin/master` (or the desktop app's sync), resolve, commit, push normally; fix a mistake with a new commit. Enforced, no bypass: the GitHub ruleset `No force-push` refuses non-fast-forward pushes on every branch (`py -3 tools/no_force_push.py check`), and the tracked `.githooks/pre-push` refuses them on the desk PC.
+**Never rewrite pushed history (owner, 2026-10-14: "Force push, meaning we're deleting work. Everything needs to be merged properly").** No `git push --force`, `--force-with-lease` or `+ref` push, ever, and no rebase, amend, reset or squash of a branch on origin. Bring `master` in with `git merge origin/master`, resolve, commit, and push normally. Enforced by the GitHub ruleset `No force-push` (`py -3 tools/no_force_push.py check`) and `.githooks/pre-push`.
 
-**Branch preservation (#369):** A closed PR's branch name is never proof that its current tip is disposable. Cleanup must preserve and report tips not contained in `origin/master`; this safety rule overrides head-deletion and clean-clone requirements below. Squash-only or closed-unmerged tips require explicit review, not automatic deletion. Remote deletion re-reads the tip right before a plain delete and deletes only while it is still the verified SHA (`branch_cleanup.delete_at_tip`); a push landing in between is the race left, and its author still has those commits. A later `git push` reporting `* [new branch]` may have recreated an already-merged head: check PR state and move new work to a fresh branch.
+**Branch preservation (#369):** A closed PR's branch name is never proof that its current tip is disposable. Preserve and report tips not contained in `origin/master` (squash-only or closed-unmerged tips require explicit review). Remote deletion re-reads the tip right before a plain delete (`branch_cleanup.delete_at_tip`, `pr_delivery.py delete-closed --ref <branch>`). See `.cursor/rules/branch-cleanup.mdc`.
 
-These gates are **MUST**. They override casual phrasing such as "quick fix" or "just tweak." Only an **explicit** user override ("stay on this branch", "leave as draft", "commit locally only") can waive them. If work still ships, state that waiver in the PR body.
+These gates are **MUST** and override casual phrasing ("quick fix", "just tweak"); only an explicit user override waives them (state the waiver in the PR body).
 
 **A. Clean start -- before any edits**
 
 1. `git fetch origin`.
-2. Create or switch to a **new** focused branch from `origin/master` only. Never branch from a dirty local `master` tip. Never continue another feature branch unless the user explicitly names that branch.
-3. If the worktree has uncommitted or unrelated dirty files: do **not** proceed on top of them. Reset or clean tracked files you do not own in this task so they match `origin/master`, or abort and report the dirty paths. Never "just keep working" on mixed dirty state.
-4. Cloud and desktop agents: "isolated" means a clean tip of `origin/master` plus a new branch. Local dirty IDE state is not a valid base.
+2. Create or switch to a **new** focused branch from `origin/master` only (never from a dirty local `master` or another feature branch unless named).
+3. Do not proceed on uncommitted or unrelated dirty files; reset/clean untracked task-foreign files or abort and report dirty paths.
+4. Use one isolated worktree per task when parallel agents may run (`workspace-hygiene.mdc`).
 
 **B. Mandatory finish -- end of every coding session or task**
 
 1. Verify (tests and build appropriate to the change).
-2. Commit intentional changes on the focused branch.
-3. Push the branch.
-4. Open a **ready (non-draft)** PR targeting `master`, filled from `.github/pull_request_template.md`. Attach the issue/PR to [Nova Delivery](https://github.com/users/aaltaay/projects/1) when the token allows.
-5. Draft or `do-not-merge` only when the user explicitly asked to hold, or a hard external blocker (for example, needs live IBKR proof) is documented in the PR -- not because CI is still running.
-6. Do not end the session with only local commits, unpushed commits, or "I'll open the PR later." The PR URL is the finish line.
-7. Keep existing rules: Actions auto-merge when available; `Closes` vs `Refs`; delete the head after merge or close; Actions merges only green PRs.
-8. **Leave it clean.** No modified, staged or untracked files, no `git stash`, no leftover scratch worktree; `py -3 tools/repo_hygiene.py status` is OK for what you own. Stage explicit paths, never `git add -A`. The Claude Code Stop hook (`repo_hygiene.py stop-gate`) refuses the first dirty stop; `repo_hygiene.py fix` and the nightly `NovaRepoHygiene` task reclaim merged local branches and stale worktrees (`workspace-hygiene.mdc`).
+2. Stage explicit paths (`git add <paths>`, never `-A` or `git stash`), commit on the focused branch, and push.
+3. Open a **ready (non-draft)** PR targeting `master` from `.github/pull_request_template.md`; attach to [Nova Delivery](https://github.com/users/aaltaay/projects/1) when token scope allows.
+4. Draft or `do-not-merge` only on an explicit user hold or documented hard external blocker -- never because CI is still running.
+5. The PR URL is the finish line; Actions auto-merges green PRs and deletes the head branch.
+6. **Leave it clean:** no modified/staged/untracked files, no stash, worktree removed, `py -3 tools/repo_hygiene.py status` OK (`workspace-hygiene.mdc`).
 
-Always-on copies: `.cursor/rules/commit-push-deploy.mdc`, `.cursor/rules/github-delivery.mdc`, `.cursor/rules/workspace-hygiene.mdc`, `.cursor/skills/github-delivery/SKILL.md`.
+Pointers: `.cursor/rules/commit-push-deploy.mdc`, `.cursor/rules/github-delivery.mdc`, `.cursor/rules/workspace-hygiene.mdc`, `.cursor/skills/github-delivery/SKILL.md`.
 
 ---
 
@@ -378,60 +210,24 @@ Always-on copies: `.cursor/rules/commit-push-deploy.mdc`, `.cursor/rules/github-
 ### 6.1 Constants Policy
 
 - **Authoritative values** live in backend domain modules (`constants_scanner.py`, `constants_hod_momo.py`, `constants_ibkr.py`, `constants_archive_news.py`, `constants_nova_os.py`) and frontend `constantGroups/` (or feature-local constants).
-- `backend/constants.py` and `frontend/src/constants.ts` are **compatibility barrels** — re-exports only; do not add new definitions there.
-- No magic numbers. No inline strings in `main.py` / `App.tsx`. Import from domain modules or barrels.
-- Keep backend/frontend mirrors in sync for shared values.
-- New constants go in the owning domain/feature module FIRST, then re-export from the barrel if needed.
-- Environment variable overrides are permitted, but the default MUST come from a domain constants module.
+- `backend/constants.py` and `frontend/src/constants.ts` are **compatibility barrels** (re-exports only). No magic numbers or inline strings in `main.py` / `App.tsx`.
 
 ### 6.2 Naming
 
-- Python: `snake_case` for functions/variables, `PascalCase` for classes, `UPPER_SNAKE` for constants.
-- TypeScript: `camelCase` for functions/variables, `PascalCase` for components/types, `UPPER_SNAKE` for constants.
-- Files: `snake_case.py` for Python, `PascalCase.tsx` for React components, `camelCase.ts` for utilities.
+- Python: `snake_case` functions/variables/files, `PascalCase` classes, `UPPER_SNAKE` constants.
+- TypeScript: `camelCase` functions/variables/utility files, `PascalCase` components/types/`.tsx` files, `UPPER_SNAKE` constants.
 
 ### 6.3 Error Handling
 
-- Use structured logging (`logging.getLogger(__name__)`) in Python.
-- Never swallow exceptions silently — at minimum log a warning.
-- **The money path fails the gate on silence.** In `backend/execution/`,
-  `backend/ibkr/`, `backend/practice/`, `backend/sim/`, `backend/kill_switch/`,
-  `backend/bot/` and `frontend/src/ibkr/` an `except …: pass`, an
-  `except …: return []` / `{}`, or an empty `catch` is a `*_money` finding, because
-  a desk that swallows an order, position or account read is lying about its
-  state. Log it, turn "unknown" into a stated unknown (never "empty", "flat" or
-  "abandoned"), or -- when silence is the correct behavior (a timeout that ends a
-  wait, an idempotent `list.remove`, a parse that falls through to the next
-  format) -- say so at the site:
-  `except asyncio.TimeoutError:  # maintainer: allow-swallow the timeout ends the wait`.
-  File-wide allowlists never apply there (`tools/maintainer_lib/swallow.py`).
-- Frontend: surface errors in UI debug panels, not just console.
+- Use structured logging (`logging.getLogger(__name__)`) in Python; surface errors in UI debug panels in the frontend. Never swallow exceptions silently.
+- **The money path fails the gate on silence.** In `backend/execution/`, `backend/ibkr/`, `backend/practice/`, `backend/sim/`, `backend/kill_switch/`, `backend/bot/` and `frontend/src/ibkr/`, an `except ...: pass`, `except ...: return []` / `{}`, or empty `catch` is a `*_money` gate finding (`tools/maintainer_lib/swallow.py`). When silence is intentional, annotate the site: `except asyncio.TimeoutError:  # maintainer: allow-swallow the timeout ends the wait`.
 
-### 6.4 Testing
+### 6.4 Testing, Dependencies, Secrets & Lint
 
-- Backend: pytest for API behavior and pure Python logic.
-- Frontend: Vitest + React Testing Library.
-- New modules should include at least a minimal test.
-
-### 6.5 Dependencies
-
-- Python: pinned in `requirements.txt`.
-- Node: `package-lock.json` committed, use `npm ci` in CI.
-
-### 6.6 Secrets & Security
-
-- Never commit secrets, API keys, or full `.env` files.
-- No secrets in log messages.
-- Use `.env.example` for documented safe examples.
-
-### 6.7 Lint
-
-- `ruff check backend` is part of `py -3 tools/maintainer_checks.py --gate` (`tools/maintainer_lib/lint.py`),
-  so a lint finding is caught before the push. The rules are in `backend/ruff.toml`, and the version is
-  the `ruff==` pin in `backend/requirements-dev.txt`, which CI installs. If ruff is missing or cannot
-  finish, the gate fails: an unrun lint is never a pass.
-- CI's Backend tests job runs pytest even when its Ruff step fails, so a lint finding never hides the
-  test results. Before this, five findings on master skipped pytest on every backend PR (PR #603).
+- **Testing:** pytest (backend) and Vitest + React Testing Library (frontend); every non-trivial change includes a test.
+- **Dependencies:** pinned in `requirements.txt`; committed `package-lock.json` (`npm ci` in CI).
+- **Secrets:** never commit secrets, API keys, or `.env` files; use `.env.example` for safe templates.
+- **Lint (§6.7):** `ruff check backend` (`backend/ruff.toml`, pinned in `backend/requirements-dev.txt`) runs inside `py -3 tools/maintainer_checks.py --gate` (`tools/maintainer_lib/lint.py`). CI runs pytest even if Ruff fails so lint findings never hide test results.
 
 ---
 
@@ -439,107 +235,67 @@ Always-on copies: `.cursor/rules/commit-push-deploy.mdc`, `.cursor/rules/github-
 
 ### 7.1 CHANGELOG.md -- RETIRED. The PR body is the record.
 
-There is no changelog. `CHANGELOG.md` is archived under `docs/archive/` and is not
-maintained, generated, or required. Do not recreate it, and do not add a
-changelog entry, fragment, or collation step to any workflow.
-
-- **A PR that changes behavior carries its entry in its own body:** **What** /
-  **Why this approach** / **Verified by**, per
-  `.github/pull_request_template.md`. That is the record, and the merged PR is
-  its permanent home.
-- **No PR?** (direct push, ops diagnosis, audit conclusion) -- write the
-  narrative under `knowledge/task-log/` (§7.2b). Nothing else is needed.
-- **Why retired:** the entry already exists in the PR body. A second generated
-  copy added a file nothing read, a workflow that could silently fail to open
-  its PR (it did -- master drifted 11 PRs behind without anyone noticing), and a
-  `merge=union` attribute to stop the paperwork causing merge conflicts (#344).
-  Removing the mirror removes all three.
-- Existing history is untouched and stays readable in the archive.
+There is no changelog (`CHANGELOG.md` is archived under `docs/archive/`). Every behavior change is recorded in the PR body (`.github/pull_request_template.md`: **What** / **Why this approach** / **Verified by**), or under `knowledge/task-log/` when there is no PR (§7.2b).
 
 ### 7.2 Bug-fix evidence
 
-Record the symptom, cause, fix, and verification in the relevant PR or issue.
-Keep useful regression tests. Do not create a separate problem ledger or footer.
+Record symptom, root cause, fix, and verification in the PR or issue, with regression tests.
 
-### 7.2b Task narrative (PR body first, `knowledge/task-log/` when there is no PR)
+### 7.2b Task narrative (`.cursor/rules/task-log.mdc`)
 
-- Every completed material task (parent or specialist) needs a reasoning narrative. **Default home is the pull request body** -- fill `.github/pull_request_template.md`: What / Why this approach / Verified by / Related issue.
-- No PR (direct push, ops diagnosis, audit conclusion)? Append a dated file under `knowledge/task-log/` and prepend `INDEX.md`. Scaffold: `py -3 tools/task_log_new.py --slug <kebab> --title "…"`.
-- **Why this approach** is mandatory in either home -- capture tradeoffs and rejected alternatives, not only the diff. Never write both homes for one job.
-- Rule: `.cursor/rules/task-log.mdc`.
-- Lifecycle footer includes `task_log=<PR URL>|<path>|skipped|n/a` and `deferred_log=<#NNN or D-NNN>|none|skipped|n/a`.
+Every completed material task requires a reasoning narrative (**Why this approach** is mandatory): in the PR body by default, or `knowledge/task-log/YYYY-MM-DD-<slug>.md` (`py -3 tools/task_log_new.py`) when there is no PR. Never write both homes for one job.
 
-### 7.2c Deferred tracker (GitHub Issues)
+### 7.2c Deferred tracker (`.cursor/rules/deferred-log.mdc`)
 
-- **Mandatory for every agent** (parent + all specialists). Rule: `.cursor/rules/deferred-log.mdc`. Source of truth is GitHub Issues labeled `deferred` -- https://github.com/aaltaay/Nova/issues?q=is%3Aissue+label%3Adeferred . `docs/deferred-log.md` is the how-to, not the to-do.
-- **Before any fix:** run `py -3 tools/deferred_log.py status` (alias `priorities`) and search open `deferred` issues. If an existing issue already covers the ask, work from that issue (honor `parked` / Unblock / Next). Do not start a parallel fix that ignores it. When the human asks "what's on the to-do / what's missing / priorities," that command is the answer.
-- Open (or comment on) a GitHub issue after parking a known bug or a feature you will not build this session -- same session.
-- Close an issue only when its entire stated scope is complete and verified. Partial fixes use `Refs #NNN`, get an evidence comment, and leave the issue open. Follow `.cursor/skills/github-delivery/SKILL.md` for owner, Project, Milestone, relationship, Development-link, and close-reason rules.
-- **Durable id is the GitHub issue number (`#NNN`).** Title an issue plainly -- no `D-NNN` prefix, no allocation step. GitHub mints `#NNN` atomically, so two agents filing at once can never collide. `D-NNN` is a **legacy alias**: the ~90 issues that carry one keep it, the tooling still parses and displays it, and history (`CHANGELOG.md`, `PROBLEM_LOG.md`, test docstrings) is never rewritten. Never mint a new `D-NNN`.
-- Labels: `deferred` + `P0`..`P3` + `bug`/`enhancement`/`decision` + `domain:<name>`. Body fields: Kind, Severity, Effort, Why parked, Blast radius, Unblock, Next, Evidence. Refresh the offline index in the creating PR when convenient; it is a read cache only, and no correctness now depends on it.
-- Lifecycle footer **MUST** include `deferred_log=<#NNN or D-NNN>|none|skipped|n/a`. Agent-memory Backlog is not the SSOT. Product-phase NEXT stays in `Nova-Roadmap-Status.md`.
+- Source of truth is GitHub Issues labeled `deferred` (`py -3 tools/deferred_log.py status`). Run it before any fix and work from any matching issue (honoring `parked` / Unblock / Next).
+- Same-session filing is mandatory when parking a known bug or feature. Use plain titles (GitHub `#NNN` is the durable ID; never mint a new `D-NNN`, which is a legacy alias only).
+- Specialist Lifecycle footers must include `task_log=<PR URL|path|skipped|n/a>` and `deferred_log=<#NNN or D-NNN|none|skipped|n/a>`.
 
 ### 7.3 .cursor/rules/
 
-- MDC rules are peers of this constitution. They provide fine-grained, glob-scoped enforcement.
-- When logic changes, update or add the relevant MDC rule BEFORE writing code.
+Update or add the relevant `.cursor/rules/*.mdc` rule BEFORE changing governed behavior.
 
 ---
 
 ## 8. 🚀 Run & Deploy
 
-Operator runbook for syncing the trading PC to master, cold-restarting IB
-Gateway and arming the unattended premarket: `docs/live-desk-sync.md`.
+Operator runbook for syncing the trading PC, cold-restarting IB Gateway, and arming the unattended premarket: `docs/live-desk-sync.md`.
 
 ### Local Dev (Windows)
 
 ```text
-# From repo root — browser UI:
-scripts/windows/Run Nova.bat
-
-# Desktop (Electron + local API sidecar):
-scripts/windows/Run Nova Desktop.bat
-# or: cd frontend && npm run electron:dev
-
-# Windows installer:
-cd frontend && npm run electron:pack
-
-# Or manually:
-# Terminal A (backend/): py -3 -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
-# Terminal B (frontend/): npm run dev
-# Open: http://localhost:5173
+# Browser UI:          scripts/windows/Run Nova.bat
+# Desktop sidecar:     scripts/windows/Run Nova Desktop.bat  (or: cd frontend && npm run electron:dev)
+# Windows installer:   cd frontend && npm run electron:pack
+# Manual:              backend: py -3 -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
+#                      frontend: npm run dev  -> http://localhost:5173
 ```
 
 ### Deploy
 
-- **Backend:** local only right now -- no cloud host (not Railway, not another PaaS). Run via `scripts/windows/Run Nova.bat`, Desktop sidecar, or local uvicorn on `127.0.0.1:8000`.
-- **Public site:** not in this repo. `nova.altaystudio.com` is built from [`aaltaay/nova-site`](https://github.com/aaltaay/nova-site), which owns the page, its screenshots, the AI-in-trading digest and the Vercel deploy. Nothing here builds, deploys or tests it.
-- **Frontend (app UI):** local Vite / Desktop only (`http://localhost:5173`). Do not host the trading SPA on the public domain: a public page that runs the desk could reach a visitor's own Nova on `127.0.0.1:8000`. **One exception (ADR 043):** the demo build (`npm run build:demo`), the desk on Nova Marketing Sample Data with its backend inside the page, is hosted at `nova.altaystudio.com/demo/`. It has no path to any backend: `fetch`, `WebSocket` and `sendBeacon` are replaced before the app loads, every API call, loopback request and socket is answered in the page, and nothing is ever sent.
-- **Desktop:** Electron + local API sidecar. A "Starting Nova" window (`frontend/electron/startupSplash.mjs`) is on screen from launch until the desk window shows, naming the step (looking for, starting or connecting to the local engine, loading the desk); closing it calls the launch off. **Installer only** (#347): local pack produces `frontend/release/Nova-Setup-vNNN.exe` plus `latest.yml` + `.blockmap` -- the in-app update feed. The portable EXE is retired; it could never self-update. Application-affecting PRs run the advisory `Desktop pack` GitHub Actions job, which uploads those three files; docs/site-only PRs skip packaging under `.cursor/rules/ci-scope.mdc`. Every commit that lands on master gets its `vNNN` tag, and a green application-affecting one its GitHub Release (below).
-- **Releases are automatic, from green builds only (operator decisions 2026-09-23 and 2026-10-13):** every commit that lands on master -- a human push, or PR delivery's dispatch after an Actions merge (#346) -- is tagged `vNNN` (its commit count) by `Desktop pack`. An application-affecting commit packs the installer while the same run calls CI on that commit in full (`Release checks`); only when the pack and Backend tests, Frontend build, Frontend E2E and Agent contract are all green does it publish the `vNNN` GitHub Release with the installer, `.blockmap` and `latest.yml`. Otherwise `Publish vNNN installer` fails with "vNNN not published: <check> failed" (`tools/release_gate.py`) and the desk never sees that build -- a held master build also opens a P1 `Release held: vNNN` issue, closed by the next Release at or above it (`tools/release_held.py`); a green re-run of the failed jobs publishes it. A docs/site-only human push gets the tag and no Release (a Release without `latest.yml` would break the update feed); a PR delivery dispatch selects every check, so even a docs-only merge packs and, when green, releases. A Release is marked latest only when no higher `vNNN` Release exists, so a slow run never rolls the feed back. A hand tag still works: `py -3 tools/bump_version.py --ensure-tag --push-tag` on an up-to-date `master`, and the pack refuses a tag that is not that commit's revision. Re-run one with `gh workflow run desktop-pack.yml --ref vNNN`.
-- **In-app updates (#347; automatic, operator ask 2026-10-14):** GitHub cannot call the desk (no public address; the API answers `127.0.0.1` only), so `Desktop pack` posts each published `vNNN` to a public ntfy.sh topic and the installed desk keeps one outgoing connection to it (`frontend/electron/releasePing.mjs`). A ping only means "ask GitHub now": the installer still comes from the Release, checked against its sha512. The desk also checks at launch and every two hours. A newer release then **downloads and installs by itself**, but only outside 07:00-16:00 ET on a weekday (the 150 MB download shares the desk's link with the market data), only while the restart check lists nothing but recordings -- no position, working order, bot trade, stock mode, history download or opening bell; a backend that does not answer holds it, as for the backend's own restart (ADR 038 amendment 2026-10-13) -- and only after 5 minutes with no keyboard or mouse input. The notice under the header names the release, its notes and what it waits for; **Update** / **Restart to update** do it now, and **Later** leaves that version to the operator's click until the next launch, as does an install whose backend cannot follow. A release a ping or re-check finds in those trading hours waits in Help > Update to vNNN with no notice; the launch check and Help > Check for Updates show theirs at once. The notice never takes keyboard focus. `NOVA_UPDATE_AUTO_INSTALL=0` restores the offer-only desk (operator ask, 2026-09-23): nothing downloads before Update, nothing installs before Restart to update. Until the new version's window is up, an "Updating Nova" window (`frontend/electron/updateSplash.ps1`, its own process: the installer ends every Nova.exe) names each step. **Update takes the newest release** (operator report, 2026-09-24): an offer older than a minute asks GitHub again first (`frontend/electron/newestRelease.mjs`). A window that cannot show the notice (an error page) gets the same questions as dialogs. The first launch of a new version shows **What's new** -- the notes of every release the update brought -- until the operator closes it; Help > What's New reopens them. `NOVA_UPDATE_CHECK=0` turns every automatic check, ping and install off; Help > Check for Updates still works. Schema: `architecture/schema/desk-ops.md`, "Release notes and the update notice". Builds are unsigned, so SmartScreen warns on a fresh download.
-- **Release notes (operator ask, 2026-09-23):** every Release's body is written by `Desktop pack` from the commit that made it (`tools/release_notes.py`): the PR title, and the first paragraph of its `## What` written for the operator (quotes of an operator report, tables and engineering bullets are skipped; a list the paragraph introduces, or a list of bold lead-ins, comes along). The schema is in `architecture/schema/desk-ops.md`, "Release notes and the update notice".
-- **The installer download is resumable (2026-09-23):** electron-updater checks and installs, but Nova fetches the installer itself (`frontend/electron/updateDownload.mjs`) in 8 MB Range chunks, each retried on its own (1 s up to 2 min, about 4 min per chunk). What arrived is kept across failures and desk restarts under `%LOCALAPPDATA%\nova-updater\nova-partial\` -- `<installer>.part` plus `<installer>.part.json` `{schema_version: 1, version, sha512, size}`, discarded when the release, size or schema changes or the finished file fails the release sha512. The verified file goes into electron-updater's `pending` cache with its `update-info.json`, and electron-updater hashes it again before it offers Restart to update. A download that gives up reads "Download of vNNN stopped at N% -- Resume" and Resume continues from the kept part; an installer already downloaded (Later, then a restart) is not fetched again. Every update line is also written to `%APPDATA%\nova\logs\update.log` (rolls at 1 MB). Why: a link that corrupts a TLS record every few dozen MB made electron-updater's one-shot 150 MB download fail every time (`net::ERR_SSL_PROTOCOL_ERROR`).
+- **Backend:** local only (`127.0.0.1:8000` via `Run Nova.bat`, Desktop sidecar, or local `uvicorn`) -- no cloud host (not Railway, not another PaaS).
+- **Public site:** built from [`aaltaay/nova-site`](https://github.com/aaltaay/nova-site) (`nova.altaystudio.com`), outside this repo.
+- **Frontend (app UI):** local Vite (`http://localhost:5173`) / Desktop only. Never host the live trading SPA on a public domain. **One exception (ADR 043):** the self-contained demo build (`npm run build:demo`, hosted at `nova.altaystudio.com/demo/`) stubs `fetch`, `WebSocket`, and `sendBeacon` in-page on sample data and makes zero network requests.
+- **Desktop & automatic green-only Releases (#346, #347):** Electron + local API sidecar (`frontend/electron/startupSplash.mjs`). **Installer only:** `frontend/release/Nova-Setup-vNNN.exe` + `latest.yml` + `.blockmap` (the portable EXE is retired). Every `master` commit is tagged `vNNN` by `Desktop pack`; application-affecting commits (and PR-delivery dispatches) run full `Release checks` (`deploy.yml`) and publish the `vNNN` GitHub Release only when `Desktop pack`, `Backend tests`, `Frontend build`, `Frontend E2E`, and `Agent contract` are all green (`tools/release_gate.py`). Held builds fail loud and open a P1 `Release held: vNNN` issue closed by the next green Release (`tools/release_held.py`). Release notes are generated from the PR body by `tools/release_notes.py`.
+- **In-app updates (#347, ADR 038):** `Desktop pack` posts each published `vNNN` to a public ntfy.sh topic (`frontend/electron/releasePing.mjs`) to trigger an immediate GitHub release check; the desk also checks at launch and every 2 hours, downloads in resumable 8 MB chunks (`frontend/electron/updateDownload.mjs`), and auto-installs outside weekday 07:00-16:00 ET when `GET /api/diagnostics/restart-check` holds only recordings and the PC is idle 5 minutes (`NOVA_UPDATE_AUTO_INSTALL=0` for offer-only; `NOVA_UPDATE_CHECK=0` disables automatic checks). Full update view, release notes, resumable `.part` cache, and backend-follow schema: `architecture/schema/desk-ops.md` ("Release notes and the update notice").
 
 ---
 
 ## 9. 🔄 Self-Annealing Protocol
 
-When ANY error occurs during a task:
+When ANY error occurs during a task (`.cursor/rules/self-annealing.mdc`):
 
-1. **STOP** — Do not apply a band-aid.
-2. **Analyze** -- Search relevant GitHub issues/PRs and run `py -3 tools/deferred_log.py status` (GitHub Issues labeled `deferred`) for prior matching entries. If an open/parked issue already covers it, work from that issue (or leave it parked) -- do not start a parallel fix.
-3. **Root Cause** — Identify the actual cause, not the symptom.
-4. **Patch** — Fix the root cause in the correct module (not in `main.py`).
-5. **Test** — Verify the fix works (build, run, or test).
-6. **Update SOP** -- Document the cause and fix in the PR/issue (if fixed) or open/update a GitHub Issue labeled `deferred` (if parked), and update relevant MDC rule if needed.
-7. **Deliver** -- follow §5.1: verify, commit on the focused branch created from `origin/master`, push, and open a **ready (non-draft)** PR. The PR URL is the finish line. Use `Closes #NNN` only when the full issue is complete; otherwise use `Refs #NNN`. After the PR is merged or closed, confirm the head is gone (`stale_pr_branches.py`; the guarded delete command only for a verified safe tip).
+1. **STOP** -- do not apply a band-aid.
+2. **Analyze** -- search GitHub issues/PRs and run `py -3 tools/deferred_log.py status`; work from any matching open/parked issue.
+3. **Root Cause** -- identify the actual cause in the owning module (never `main.py` / `App.tsx`).
+4. **Patch & Test** -- fix the root cause and verify with fresh tests/build.
+5. **Update SOP & Deliver** -- record cause/fix/verification in the PR (or file a `deferred` issue if parked), update `.cursor/rules/` if needed, and deliver via §5.1.
 
 ---
 
 ## 10. 🚨 Compliance Audit (Current Violations)
 
-No open constitution compliance rows. `architecture/` (ADRs 001–009) and automated tests (pytest + Vitest) exist. Product/security open work lives in `Nova-Roadmap-Status.md` and `Security-Status.md`. Live-doc drift is gated by `py -3 tools/doc_invariants.py` (CI).
+No open constitution compliance rows. `architecture/` (ADRs 001--058) and automated tests (pytest + Vitest) exist. Product/security open work lives in `Nova-Roadmap-Status.md` and `Security-Status.md`. Live-doc drift is gated by `py -3 tools/doc_invariants.py` (CI).
 
 ---
 
@@ -551,100 +307,36 @@ Moved to `architecture/maintenance-log.md` (newest first). A change to this file
 
 ## Agent Skills Library (Nova Master Roadmap Phase A)
 
-Discoverability for vendored Cursor skills (research/backtest advice only — **never** bypass IBKR execution, single-market-data-feed, or `auto_live` NO-GO):
+Catalog: `knowledge/obsidian/00-System/Skills-Library.md` · Reference repos: `knowledge/obsidian/00-System/Reference-Repos.md` · Local skills: `.cursor/skills/` (pins in `.cursor/skills/SOURCE-PINS.txt`). Research/backtest skills (`backtest`, `optimize`, `strategy-compare`, `vectorbt-expert`, `backtesting-frameworks`, `llm-trading-agent-security`, `karpathy-guidelines`, `graphify`) never bypass IBKR execution, single-market-data-feed, or `auto_live` NO-GO.
 
-| Resource | Path |
-|----------|------|
-| **Skills catalog** | `knowledge/obsidian/00-System/Skills-Library.md` |
-| **Study-only repos** | `knowledge/obsidian/00-System/Reference-Repos.md` |
-| **Local skill files** | `.cursor/skills/` (pins in `SOURCE-PINS.txt`) |
-
-Pre-existing: `karpathy-guidelines`, `graphify`. Phase A adds: `backtest`, `optimize`, `strategy-compare`, `vectorbt-expert`, `backtesting-frameworks`, `llm-trading-agent-security`.
-
-**Engineering methodology graft (2026-08-06):** Nova-adapted process skills (domain constitution still wins; zero-hop preserved):
-
-| Skill | Path | Role |
-|-------|------|------|
-| `verification-before-completion` | `.cursor/skills/verification-before-completion/` | Evidence before done/fixed claims (always-on MDC twin) |
-| `writing-plans` | `.cursor/skills/writing-plans/` | Bite-sized plans for Plan mode / multi-file work |
-| `interview-me` | `.cursor/skills/interview-me/` | One-question requirements interview |
-| `doubt-driven-development` | `.cursor/skills/doubt-driven-development/` | Adversarial review of non-trivial claims |
-| `code-review-and-quality` | `.cursor/skills/code-review-and-quality/` | Five-axis review before ship |
-| `github-delivery` | `.cursor/skills/github-delivery/` | Issue metadata, [Nova Delivery](https://github.com/users/aaltaay/projects/1) board, clean start from `origin/master`, ready-PR finish line, Actions merge, delete head after merge/close, strict gates |
-
-Always-on rules: `verification-before-completion.mdc`, `engineering-methodology.mdc`, `github-delivery.mdc`. Audit: `py -3 tools/engineering_skills_audit.py`. Lineage pins in `.cursor/skills/SOURCE-PINS.txt`. **Not imported:** default subagent-per-task, always-hard brainstorming, replacing `AGENTS.md`.
+**Engineering methodology graft:** `verification-before-completion`, `writing-plans`, `interview-me`, `doubt-driven-development`, `code-review-and-quality`, `github-delivery`. Always-on rules: `verification-before-completion.mdc`, `engineering-methodology.mdc`, `github-delivery.mdc`. Audit: `py -3 tools/engineering_skills_audit.py`. **Not imported:** default subagent-per-task, always-hard brainstorming, replacing `AGENTS.md`.
 
 ### Specialized Cursor subagents
 
-Wiring: `.cursor/agent-system/registry.json` · memory: `.cursor/agent-memory/` · ops: `docs/agent-operations.md` · validate: `py -3 tools/agent_contract.py`.
-
-**Zero-hop default:** every subagent below is **opt-in only** — invoke by name when you explicitly want it. The parent Auto session classifies and does multi-domain work in-session by default (no automatic dispatch); see `.cursor/rules/specialist-routing.mdc`.
+Wiring: `.cursor/agent-system/registry.json` · memory: `.cursor/agent-memory/` · ops: `docs/agent-operations.md` · validate: `py -3 tools/agent_contract.py`. **Zero-hop default (`.cursor/rules/specialist-routing.mdc`):** every subagent below is opt-in only.
 
 | Agent | Invoke | Dashboard |
 |-------|--------|-----------|
-| **router** | “Use the router subagent to triage this” | [agent-router](canvases/agent-router.canvas.tsx) |
-| **execution** | “Use the execution subagent to audit trading execution” | [agent-execution](canvases/agent-execution.canvas.tsx) |
-| **hotkeys** | “Use the hotkeys subagent to …” | [agent-hotkeys](canvases/agent-hotkeys.canvas.tsx) |
-| **ibkr-ops** | “Use the ibkr-ops subagent to diagnose IB Gateway” | [agent-ibkr-ops](canvases/agent-ibkr-ops.canvas.tsx) |
-| **market-feed** | “Use the market-feed subagent to fix feed coherence” | [agent-market-feed](canvases/agent-market-feed.canvas.tsx) |
-| **hod-momo** | “Use the hod-momo subagent to continue HOD Momo parity” | [agent-hod-momo](canvases/agent-hod-momo.canvas.tsx) |
-| **backtester** | “Use the backtester subagent to work the backtest product” | [agent-backtester](canvases/agent-backtester.canvas.tsx) |
-| **news** | “Use the news subagent to work the news pipeline” | [agent-news](canvases/agent-news.canvas.tsx) |
-| **widgets** | “Use the widgets subagent to map Webull widgets to Nova” | [agent-widgets](canvases/agent-widgets.canvas.tsx) |
-| **tester** | “Use the tester subagent to verify …” | `agent-tester.canvas.tsx` |
-| **maintainer** | “Use the maintainer subagent to audit the repo” | `agent-maintainer.canvas.tsx` |
-| **security** | “Use the security subagent to audit the repo” | `agent-security.canvas.tsx` |
-| **docs** | “Use the docs subagent to review documentation” | [nova-home](canvases/nova-home.canvas.tsx) |
-
-
+| **router** | "Use the router subagent to triage this" | `agent-router.canvas.tsx` |
+| **execution** | "Use the execution subagent to audit trading execution" | `agent-execution.canvas.tsx` |
+| **hotkeys** | "Use the hotkeys subagent to ..." | `agent-hotkeys.canvas.tsx` |
+| **ibkr-ops** | "Use the ibkr-ops subagent to diagnose IB Gateway" | `agent-ibkr-ops.canvas.tsx` |
+| **market-feed** | "Use the market-feed subagent to fix feed coherence" | `agent-market-feed.canvas.tsx` |
+| **hod-momo** | "Use the hod-momo subagent to continue HOD Momo parity" | `agent-hod-momo.canvas.tsx` |
+| **backtester** | "Use the backtester subagent to work the backtest product" | `agent-backtester.canvas.tsx` |
+| **news** | "Use the news subagent to work the news pipeline" | `agent-news.canvas.tsx` |
+| **widgets** | "Use the widgets subagent to map Webull widgets to Nova" | `agent-widgets.canvas.tsx` |
+| **tester** | "Use the tester subagent to verify ..." | `agent-tester.canvas.tsx` |
+| **maintainer** | "Use the maintainer subagent to audit the repo" | `agent-maintainer.canvas.tsx` |
+| **security** | "Use the security subagent to audit the repo" | `agent-security.canvas.tsx` |
+| **docs** | "Use the docs subagent to review documentation" | `nova-home.canvas.tsx` |
 
 ---
 
 ## 12. Cursor Rules (.mdc files)
 
-Live rule bodies live only under `.cursor/rules/*.mdc`. Do **not** paste full rule text into this file (it double-loads and drifts). Do **not** create a root `.cursorrules` file -- scoped `.mdc` frontmatter is strictly better.
+Live rule bodies live under `.cursor/rules/*.mdc` (never create a root `.cursorrules`). **What earns always-on (ADR 051):** a rule loads on every request only when editing *any* file could lose money or break delivery without it; everything else uses `globs` or stays agent-requested. `maintainer_checks.py` caps the set's byte total (`always_on_budget`).
 
-**What earns always-on (ADR 051):** a rule loads on every request only when an agent editing *any* file -- a README typo included -- could lose money or break delivery without it. Everything else gets `globs` or stays agent-requested. One law has one home; the other files hold a line and a link. A rule a script enforces is a pointer to the script. A rule says what to do; the incident story lives in the ADR or on the issue. `maintainer_checks.py` caps the set's byte total (`always_on_budget`) and the session brief prints it.
-
-### Index (name -- purpose -- attachment)
-
-**Always-on** (every request):
-
-- `constitution.mdc` -- read AGENTS.md; hierarchy; common violations + context economy
-- `specialist-routing.mdc` -- zero-hop default; specialists opt-in only
-- `single-market-data-feed.mdc` -- IBKR-only prices; the 13 feed rules as headlines (mechanics and anti-patterns: `single-market-data-feed-catalog.mdc`, glob)
-- `ibkr-gateway-login-warning.mdc` -- loud-warn when Gateway needs login/2FA
-- `nova-roadmap-continuity.mdc` -- Master Roadmap phase continuity
-- `engineering-standards.mdc` -- Tailwind direction, tests, CI, deps, patterns
-- `karpathy-guidelines.mdc` -- think / simplify / surgical / verify
-- `deferred-log.mdc` -- check GitHub Issues (`deferred`) before any fix; park known bugs/features; to-do via `deferred_log.py status` / `priorities`
-- `task-log.mdc` -- reasoning narrative after material work (PR body first; file when no PR)
-- `commit-push-deploy.mdc` -- pointer to §5.1 (clean start from `origin/master`, ready PR, delete head) + the deploy step
-- `doc-invariants.mdc` -- posture-change same-commit live homes; CI `doc_invariants.py`
-- `self-annealing.mdc` -- root-cause fix protocol on any error
-- `verification-before-completion.mdc` -- no done/fixed claims without fresh evidence
-- `engineering-methodology.mdc` -- soft TDD + plan/interview/doubt/review skill map
-- `github-delivery.mdc` -- issue metadata, [Nova Delivery](https://github.com/users/aaltaay/projects/1) board, Actions merge of ready PRs, delete head after merge/close, closure after merge; session gates point to §5.1
-- `persisted-state.mdc` -- cache files need owner + invalidation + schema_version
-- `workspace-hygiene.mdc` -- never stash; one worktree per task; finish with a clean tree; `tools/repo_hygiene.py status|fix|stop-gate`
-- `graphify.mdc` -- vault/decision questions: `py -3 tools/graphify_ask.py query` + savings meter
-- `next-move-footer.mdc` -- the best six next moves, ranked live, in plain English, at the end of every reply that ends a task: `py -3 tools/next_moves.py card` (desktop app) or `menu`; lint `next_moves.py lint`
-
-**Glob-scoped** (attach when editing matching files; `alwaysApply: false`):
-
-- `backend-modularity.mdc` -- `backend/**/*.py` -- no logic in `main.py`
-- `frontend-modularity.mdc` -- `frontend/src/**/*.{ts,tsx}` -- no logic in `App.tsx`
-- `file-size-limits.mdc` -- backend + frontend src -- soft 400 with a one-concern reason, no growth without one, 800 ceiling
-- `centralized-constants.mdc` -- backend + frontend src -- tunables in domain modules
-- `schema-docs.mdc` -- backend, frontend, electron, research -- read and update the owning `architecture/schema/<domain>.md` in the same commit
-- `single-market-data-feed-catalog.mdc` -- backend + frontend src -- the full feed law: mechanics of the 13 rules, the ❌ anti-pattern catalog, the module map
-- Continuity rules (already glob): `hotkeys-continuity`, `docs-continuity`, `execution-continuity`, `widgets-continuity`, `security-continuity`
-
-**Agent-requested** (name + description always visible; body fetched on demand):
-
-- `browser-testing.mdc` -- web verification / Playwright / agent-browser
-- `run-app.mdc` -- how to run/open Nova locally
-- `nova-os-continuity.mdc` -- Nova OS engine phases (retired, ADR 025; history)
-
-Karpathy full text: `.cursor/rules/karpathy-guidelines.mdc` (also `.cursor/skills/karpathy-guidelines/`).
-Browser testing full text: `.cursor/rules/browser-testing.mdc`.
+- **Always-on (`alwaysApply: true`):** `constitution.mdc`, `specialist-routing.mdc`, `single-market-data-feed.mdc`, `ibkr-gateway-login-warning.mdc`, `nova-roadmap-continuity.mdc`, `engineering-standards.mdc`, `karpathy-guidelines.mdc`, `deferred-log.mdc`, `task-log.mdc`, `commit-push-deploy.mdc`, `doc-invariants.mdc`, `self-annealing.mdc`, `verification-before-completion.mdc`, `engineering-methodology.mdc`, `github-delivery.mdc`, `persisted-state.mdc`, `workspace-hygiene.mdc`, `graphify.mdc`, `next-move-footer.mdc`, `branch-cleanup.mdc`, `maintenance-finish.mdc`.
+- **Glob-scoped (`alwaysApply: false`):** `backend-modularity.mdc`, `frontend-modularity.mdc`, `file-size-limits.mdc`, `centralized-constants.mdc`, `schema-docs.mdc`, `single-market-data-feed-catalog.mdc`, plus domain continuity rules (`hotkeys-continuity`, `docs-continuity`, `execution-continuity`, `widgets-continuity`, `security-continuity`).
+- **Agent-requested:** `browser-testing.mdc`, `run-app.mdc`, `nova-os-continuity.mdc`.

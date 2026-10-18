@@ -594,6 +594,37 @@ the notice fetched (`releaseNotesSource.mjs`; an unknown version is ignored).
 notes the operator last closed (`whatsNew.mjs`; no file shows the installed
 release's own notes once; an unknown version is left alone and shows nothing).
 
+**Resumable installer download and splash windows (2026-09-23 / 2026-09-24).**
+`frontend/electron/updateDownload.mjs` fetches `Nova-Setup-vNNN.exe` in 8 MB
+Range chunks (each retried on its own, 1 s up to 2 min, about 4 min per chunk)
+and keeps partial downloads across failures and restarts under
+`%LOCALAPPDATA%\nova-updater\nova-partial\` (`<installer>.part` plus
+`<installer>.part.json` `{schema_version: 1, version, sha512, size}`, discarded
+when the release, size or schema changes or the finished file fails the release
+sha512). The verified file goes into electron-updater's `pending` cache with
+its `update-info.json`, and electron-updater hashes it again before offering
+Restart to update. A download that gives up reads "Download of vNNN stopped at
+N% -- Resume". An offer older than a minute asks GitHub again first
+(`frontend/electron/newestRelease.mjs`). Launch shows "Starting Nova"
+(`frontend/electron/startupSplash.mjs`); install shows "Updating Nova"
+(`frontend/electron/updateSplash.ps1`, its own process). Every update line is
+written to `%APPDATA%\nova\logs\update.log` (rolls at 1 MB).
+
+**Automatic green-only Releases (#346, #347; 2026-09-23 / 2026-10-13 / 2026-10-14).**
+Every `master` commit (human push or PR delivery dispatch) is tagged `vNNN`
+(commit count) by `Desktop pack`. Application-affecting commits pack
+`Nova-Setup-vNNN.exe`, `.blockmap` and `latest.yml` while `Release checks` runs
+CI (`deploy.yml`) in full on that commit; `tools/release_gate.py` publishes the
+`vNNN` GitHub Release only when `Desktop pack`, `Backend tests`, `Frontend
+build`, `Frontend E2E` and `Agent contract` are all green (`latest` only when no
+higher `vNNN` Release exists). Otherwise `Publish vNNN installer` fails with
+`"vNNN not published: <check> failed"` and opens/comments on a P1
+`Release held: vNNN` issue closed by the next published Release at or above it
+(`tools/release_held.py`). A docs/site-only human push gets the tag and no
+Release; a PR delivery dispatch runs every check and releases when green. Hand
+tag: `py -3 tools/bump_version.py --ensure-tag --push-tag`; re-run:
+`gh workflow run desktop-pack.yml --ref vNNN`.
+
 ## Filing an issue from the desk (operator ask, 2026-09-24)
 
 "When I do the update, I can also click and say 'File an issue' ... it goes
