@@ -196,6 +196,8 @@ names; the MP4 is written to `.mp4.part` and renamed when done. Frames are walke
 iterator, never looked up one timestamp at a time (mediabunny 1.61's key-packet lookup missed a
 keyframe in a real segment on 2026-09-29). Nova never posts a clip.
 
+**Quit** (#940). `clipService.stop(reason)` (`clipHq.shutdown(reason)` and `clipExporter.shutdown()`) does everything that decides at once, synchronously: every high-quality capture is told to stop, every open capture's `hq` `end` row (`reason: "quit"`, or the reason it was already stopping for) and any running export's `failed` row (`"Nova quit while exporting"`) are written, listeners and timers are cleared, the hidden recorder and export windows are destroyed, and the logical clip stays open so the next launch marks the gap (`restart`). The desktop app's `before-quit` calls `stop('quit')` and does not wait. `stop(reason)` returns an idempotent promise that settles once every capture file descriptor, already-running HQ finalizer (preserving its original reason and error), export `.part` handle and source `FileHandle` has closed and written its row; after it settles nothing writes under `<dir>`.
+
 **The desk.** The red ● (`RecordButton`) opens the Record menu: Market data (the Session Record,
 unchanged, stopping is a hold) and Video clip (Start / Stop, Save the last 5 min, High quality), every
 lock with its reason. The header's CLIP chips count up beside REC (amber for High quality's last

@@ -2,18 +2,117 @@
   "schema_version": 1,
   "source": "github",
   "repo": "aaltaay/Nova",
-  "updated": "2026-10-14",
+  "updated": "2026-10-17",
   "items": [
+    {
+      "id": "#1039",
+      "title": "Release held: v1377 is not on the desk's update feed",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "done",
+      "domain": "ci",
+      "number": "1039",
+      "url": "https://github.com/aaltaay/Nova/issues/1039",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#1035",
+      "title": "Exchange books in Sim replay: MBO files, several files per book, a desk listing, and whether trading inputs may read them",
+      "kind": "feature",
+      "severity": "P3",
+      "status": "open",
+      "domain": "market-feed",
+      "number": "1035",
+      "url": "https://github.com/aaltaay/Nova/issues/1035",
+      "state": "OPEN"
+    },
+    {
+      "id": "#1023",
+      "title": "Live Trader bot: cover half a short when the host covers part",
+      "kind": "feature",
+      "severity": "P2",
+      "status": "open",
+      "domain": "execution",
+      "number": "1023",
+      "url": "https://github.com/aaltaay/Nova/issues/1023",
+      "state": "OPEN"
+    },
+    {
+      "id": "#1014",
+      "title": "Volume profile for large caps, behind one on/off switch",
+      "kind": "feature",
+      "severity": "P2",
+      "status": "open",
+      "domain": "ui",
+      "number": "1014",
+      "url": "https://github.com/aaltaay/Nova/issues/1014",
+      "state": "OPEN"
+    },
+    {
+      "id": "#1010",
+      "title": "Live Trader bot sells and buys again when the feed closes and reopens one stock in the same second",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "done",
+      "domain": "execution",
+      "number": "1010",
+      "url": "https://github.com/aaltaay/Nova/issues/1010",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#1002",
+      "title": "Release held: v1346 is not on the desk's update feed",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "done",
+      "domain": "ci",
+      "number": "1002",
+      "url": "https://github.com/aaltaay/Nova/issues/1002",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#983",
+      "title": "Seek-indexed reads start failing with zran_init in long-lived processes and fall back to streaming whole day files",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "open",
+      "domain": "market-feed",
+      "number": "983",
+      "url": "https://github.com/aaltaay/Nova/issues/983",
+      "state": "OPEN"
+    },
+    {
+      "id": "#968",
+      "title": "Sim eyes copy a loaded replay's prints: 293 MB for OFAL's day, 1.2 GB for AMC's",
+      "kind": "feature",
+      "severity": "P3",
+      "status": "open",
+      "domain": "market-feed",
+      "number": "968",
+      "url": "https://github.com/aaltaay/Nova/issues/968",
+      "state": "OPEN"
+    },
+    {
+      "id": "#966",
+      "title": "Sim replay grades and tape-reads triggers differently from the live eyes",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "open",
+      "domain": "market-feed",
+      "number": "966",
+      "url": "https://github.com/aaltaay/Nova/issues/966",
+      "state": "OPEN"
+    },
     {
       "id": "#940",
       "title": "Clip capture shutdown must await its file closes before the clip fixture removes its folder",
       "kind": "bug",
       "severity": "P3",
-      "status": "open",
+      "status": "done",
       "domain": "frontend",
       "number": "940",
       "url": "https://github.com/aaltaay/Nova/issues/940",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#927",
@@ -53,22 +152,22 @@
       "title": "Investigate cancelled Time & Sales lines that keep printing and suspected slot leakage",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed",
       "number": "922",
       "url": "https://github.com/aaltaay/Nova/issues/922",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#915",
       "title": "Session-error test leaks max-tickers state across selected backend tests",
       "kind": "bug",
       "severity": "P3",
-      "status": "open",
+      "status": "done",
       "domain": "tester",
       "number": "915",
       "url": "https://github.com/aaltaay/Nova/issues/915",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#913",
@@ -141,22 +240,22 @@
       "title": "Trader metadata and Contenders list leak today's facts into Sim replay",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed | frontend",
       "number": "881",
       "url": "https://github.com/aaltaay/Nova/issues/881",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#867",
       "title": "Keep live trade_update frames and quote versions out of Sim replay desks",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed",
       "number": "867",
       "url": "https://github.com/aaltaay/Nova/issues/867",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#847",
@@ -526,11 +625,11 @@
       "title": "Recover registered silent Time & Sales lines while quotes and depth continue",
       "kind": "bug",
       "severity": "P1",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed | ibkr",
       "number": "722",
       "url": "https://github.com/aaltaay/Nova/issues/722",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#721",
@@ -669,11 +768,11 @@
       "title": "Auto-record does not account for shared AllLast tape capacity before opening another line",
       "kind": "bug",
       "severity": "P1",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed",
       "number": "674",
       "url": "https://github.com/aaltaay/Nova/issues/674",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#667",
@@ -2103,105 +2202,6 @@
       "domain": "news",
       "number": "45",
       "url": "https://github.com/aaltaay/Nova/issues/45",
-      "state": "CLOSED"
-    },
-    {
-      "id": "D-008",
-      "title": "Earnings-day-offset test fails; sentiment model import segfaults full suite",
-      "kind": "bug",
-      "severity": "P2",
-      "status": "done",
-      "domain": "news",
-      "number": "46",
-      "url": "https://github.com/aaltaay/Nova/issues/46",
-      "state": "CLOSED"
-    },
-    {
-      "id": "D-002",
-      "title": "Afterhours Gap % equals Change %, not the open-vs-prior-close gap",
-      "kind": "bug",
-      "severity": "P1",
-      "status": "done",
-      "domain": "market-feed",
-      "number": "44",
-      "url": "https://github.com/aaltaay/Nova/issues/44",
-      "state": "CLOSED"
-    },
-    {
-      "id": "D-005",
-      "title": "Aborted API terminal can leave a live process with no HTTP listener",
-      "kind": "bug",
-      "severity": "P1",
-      "status": "done",
-      "domain": "ibkr-ops",
-      "number": "42",
-      "url": "https://github.com/aaltaay/Nova/issues/42",
-      "state": "CLOSED"
-    },
-    {
-      "id": "D-003",
-      "title": "Trader 10Sec / Full Day sit on \"Loading IBKR historical...\" for minutes",
-      "kind": "bug",
-      "severity": "P1",
-      "status": "done",
-      "domain": "market-feed",
-      "number": "43",
-      "url": "https://github.com/aaltaay/Nova/issues/43",
-      "state": "CLOSED"
-    },
-    {
-      "id": "D-004",
-      "title": "Vite restart-lock test shares the live lock path",
-      "kind": "bug",
-      "severity": "P2",
-      "status": "done",
-      "domain": "tester",
-      "number": "41",
-      "url": "https://github.com/aaltaay/Nova/issues/41",
-      "state": "CLOSED"
-    },
-    {
-      "id": "D-009",
-      "title": "Ticker cold snapshot returns empty for a symbol chart bars fetch fine",
-      "kind": "bug",
-      "severity": "P2",
-      "status": "done",
-      "domain": "market-feed",
-      "number": "40",
-      "url": "https://github.com/aaltaay/Nova/issues/40",
-      "state": "CLOSED"
-    },
-    {
-      "id": "D-011",
-      "title": "Broker send happens after the execution lock is released (ADR 007 says inside)",
-      "kind": "bug",
-      "severity": "P0",
-      "status": "done",
-      "domain": "execution",
-      "number": "39",
-      "url": "https://github.com/aaltaay/Nova/issues/39",
-      "state": "CLOSED"
-    },
-    {
-      "id": "D-010",
-      "title": "Trend Line two-click place pans the chart instead",
-      "kind": "bug",
-      "severity": "P1",
-      "status": "done",
-      "domain": "widgets",
-      "number": "38",
-      "url": "https://github.com/aaltaay/Nova/issues/38",
-      "state": "CLOSED"
-    },
-    {
-      "id": "D-012",
-      "title": "Ledger writes and cancel-verify run on the wrong thread (IB callbacks / `to_thread`)",
-      "kind": "bug",
-      "severity": "P1",
-      "status": "done",
-      "domain": "market-feed | execution",
-      "number": "37",
-      "url": "https://github.com/aaltaay/Nova/issues/37",
       "state": "CLOSED"
     }
   ]
