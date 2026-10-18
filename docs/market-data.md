@@ -57,11 +57,14 @@ To put a stock-day on the desk for the operator, use the `nova-sim-navigator` sk
 | Daily bars (official open / high / low / close) | `...\day_aggs_v1\...` | 2016-01-04 on | the movers index and the board rebuild |
 | Seek indexes (one per day file) | `...\sim\index\<dataset>\...\<file>.idx` | see `status` | used by every read |
 | Day movers index | `...\movers\day_movers.sqlite3` | see `status` | `movers`, `/api/agent/movers` |
-| Past-day Scanner boards (recorded live, or rebuilt from minute bars) | `F:\Nova\leaderboard\leaderboard.sqlite3` | see `status` | `board`, the Sim |
+| Past-day Scanner boards (recorded live, or rebuilt from minute bars) | `F:\Nova\leaderboard\leaderboard.sqlite3` | 1,752 of 2,713 sessions (see `status`) | `board`, the Sim |
 | Reference (splits, news, IPOs, dividends, short interest, financials) | `...\store\reference\` | month files from 2016 | `financials`, `float`, `ipos`, `ticker`, `short-interest` (`research/market_reads/reference.py`); splits via `lb_io` |
 | Reference index (built from the dump on first read, rebuilt when a dump file changes) | `...\store\reference_index.sqlite3` | what the dump holds | owner `research/market_reads/reference.py` |
 | SEC XBRL facts (shares outstanding / issued / treasury, 10-K public float) | `F:\Nova\catalysts\edgar\companyfacts.zip` | XBRL era (~2009-2011 on) | `sec-shares` (`research/market_reads/sec.py`) |
 | SEC filing list (every form and date: 10-Q, 10-K, 20-F, 8-K, Forms 3/4/5, 13D/G, 424B) | `F:\Nova\catalysts\edgar\submissions.zip` | all of EDGAR | `sec-filings` |
+
+The scripts that build the derived tables (`trades_flow_v1`, `trades_movers_v1`, the reference dump, `orb.duckdb`,
+`seconds.duckdb`, `bb_mr.duckdb`) and every column's definition: `docs/massive-builders.md`.
 
 `NOVA_MARKET_DATA_DIR` moves the Massive root; `NOVA_LEADERBOARD_DIR` the boards; `NOVA_CATALYST_DIR` the SEC
 files. Heavy reads (bulk scans, index builds, MCP stock-day reads) share `NOVA_MARKET_READ_SLOTS` (default 2) slots
@@ -109,11 +112,29 @@ be about 81 TB; Parquet about 11 TB. The index is about 0.2% of a file.
   Massive's `float` is today's only. Insider holdings (SEC Form 3/4/5 data sets) and lockup terms are not on disk.
 - **Percent units in the movers store.** `high_pct` / `low_pct` / `close_pct` / `gap_pct` are stored as fractions
   (0.10 = 10%); a raw `high_pct >= 10` matched only +1000% days (2026-10-18). `movers` and `scan` take and return
-  percent points.
+  percent points, and so does `board` (`change_pct` / `gap_pct`; the board store keeps fractions too).
+- **Reverse splits look like runners.** Of 3,615 stock-days with a high of +300% or more, 1,844 are split suspects
+  and 484 are likely splits. `movers` and `scan` share one rule (`day_movers.query.splits_sql`): likely splits are
+  left out unless `splits=include`; `splits=only_suspects` lists the suspects; every scan row says `split`.
+- **A broad scan is refused.** `scan` needs `date_from` / `date_to`, a symbol or a `limit`, and without a limit
+  returns at most 100,000 rows (`capped` says when more matched). The store is 3.0M rows on the desk's drive.
+- **Boards do not cover every day.** 1,752 of 2,713 sessions have a board (recorded or rebuilt, from 2016-11-30,
+  with holes such as 2023-06-01). A day without one answers `covered: false` with its `gap`, not just 0 rows.
+- **Two companies, one ticker.** 84 tickers in Massive's list belonged to two companies (AAP was Alcoa's preferred
+  until 2016-11-01). SEC shares and filings, financials and splits read the company that held the ticker on the
+  day asked (`research/market_reads/tickers.py`), say so in `ticker`, and refuse a day they cannot settle with the
+  candidate CIKs (`--cik` picks one). Without a day they read today's holder and warn.
+- **Two volume rules.** Minute bars are Massive's (its SIP volume rules); `bars --tf 10s` counts every trade but
+  cancel / error records, so a minute of seconds bars can sum higher: GME 2021-01-27 09:30 is 185,567 from the
+  trades and 179,397 in the minute file (+3.4%). Daily bars are not a `bars` timeframe.
+- **`float_max` is shares outstanding.** The movers float filter is SEC shares outstanding filed by the day (insiders
+  and locked-up shares included), not free float.
 - **Filed, not period end.** A statement or SEC fact counts from the day it was filed: a quarter ending 03-31 is
   unknown until its 10-Q lands in May. `--as-of` / `--day` apply that rule. Balance-sheet `common_stock` and
   `treasury_stock` are dollars; share counts are SEC facts.
-- **Level 2** history is not here at all: Massive's stock plan is Level 1 only.
+- **Level 2** history is not in the Massive files: its stock plan is Level 1 only. Nova's own IBKR recordings
+  (`F:\Nova\sim_capture` sessions from 2026-09-19, the desk cache's `l2.db` depth and `archive.db` tape from
+  2026-07-15, `F:\Nova\book_watch`) replay in the Sim; the front door does not serve them yet.
 
 ## Past-day boards in the Sim
 

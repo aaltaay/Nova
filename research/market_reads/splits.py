@@ -14,7 +14,7 @@ from functools import lru_cache
 
 import pandas as pd
 
-from market_reads import REPO
+from market_reads import REPO, tickers
 
 if str(REPO / "research" / "leaderboard") not in sys.path:
     sys.path.insert(0, str(REPO / "research" / "leaderboard"))
@@ -44,21 +44,42 @@ def _all() -> tuple[pd.DataFrame, str]:
     return frame.sort_values(["ticker", "execution_date"]).reset_index(drop=True), note
 
 
-def table(symbol: str | None = None) -> pd.DataFrame:
+def table(symbol: str | None = None, day: str | None = None, cik: str | None = None) -> pd.DataFrame:
     """Every split (``symbol``'s only, when given), oldest first. ``price_factor`` multiplies a price from before the
-    split into its terms: a 1-for-50 reverse split (``split_from`` 50, ``split_to`` 1) is 50."""
+    split into its terms: a 1-for-50 reverse split (``split_from`` 50, ``split_to`` 1) is 50.
+
+    The list is keyed by ticker, and a ticker can have had two companies (``tickers.py``). With ``day`` (or
+    ``cik``) only the splits executed while that day's company held the ticker are kept; without, a reused ticker's
+    rows say which company held it (``holder_cik``, None when the windows overlap). ``attrs['ticker']`` says so."""
     frame, note = _all()
+    held = None
     if symbol:
         frame = frame[frame["ticker"] == symbol.strip().upper()].reset_index(drop=True)
-    frame = frame.copy()
+        held = tickers.resolve(symbol, day, cik)
+        if held["ticker_reused"] and (day or cik):
+            held = tickers.require(symbol, day, cik)
+            mine = next(c for c in held["candidates"] if c["cik"] == held["cik"])
+            frame = frame.loc[[tickers.holds(mine, d.isoformat()) for d in frame["execution_date"]]]
+        elif held["ticker_reused"]:
+            owners = [_holder(held["candidates"], d.isoformat()) for d in frame["execution_date"]]
+            frame = frame.assign(holder_cik=pd.Series(owners, index=frame.index, dtype=object))
+    frame = frame.reset_index(drop=True).copy()
     frame.attrs.update(symbol=symbol.upper() if symbol else None, reference=note, confirmed=str(CONFIRMED_SPLITS_PATH))
+    if held is not None:
+        frame.attrs["ticker"] = tickers.summary(held)
     return frame
 
 
-def factor(symbol: str, day: str, as_of: str | None = None) -> float:
+def _holder(candidates: list[dict], day: str) -> str | None:
+    holding = [c["cik"] for c in candidates if tickers.holds(c, day)]
+    return holding[0] if len(holding) == 1 else None
+
+
+def factor(symbol: str, day: str, as_of: str | None = None, cik: str | None = None) -> float:
     """What a raw price traded on ``day`` multiplies by to read in ``as_of``'s terms (default: after every split
-    known); share counts divide by it. 1.0 when no split executes after ``day`` and by ``as_of``."""
-    rows = table(symbol)
+    known); share counts divide by it. 1.0 when no split executes after ``day`` and by ``as_of``. Only the splits
+    of the company that held the ticker on ``day``."""
+    rows = table(symbol, day=day, cik=cik)
     through = date.fromisoformat(as_of) if as_of else date.max
     after = date.fromisoformat(day)
     picked = rows[(rows["execution_date"] > after) & (rows["execution_date"] <= through)]

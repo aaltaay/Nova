@@ -182,32 +182,33 @@ def _frame(dataset: str, symbol: str | None, as_of: str | None = None, date_from
     return pd.DataFrame([json.loads(r[0]) for r in rows])
 
 
-def _cik_for(symbol: str) -> str | None:
-    from market_reads import sec
-    return sec.cik_for(symbol)
-
-
 def financials(symbol: str, statement: str = "balance_sheets", as_of: str | None = None,
-               timeframe: str | None = None) -> pd.DataFrame:
+               timeframe: str | None = None, cik: str | None = None) -> pd.DataFrame:
     """``symbol``'s statements as filed, oldest period first: only filings on or before ``as_of`` when given.
 
     ``statement`` is ``balance_sheets`` (dollar amounts: ``common_stock`` and ``treasury_stock`` are dollars, not
     shares), ``income_statements`` (``basic_shares_outstanding`` / ``diluted_shares_outstanding`` are the period's
     share counts behind EPS) or ``cash_flow_statements``. ``timeframe``: ``quarterly`` / ``annual`` / ... A symbol
-    the statements do not name is looked up by its SEC CIK (``attrs['matched']`` says which)."""
+    the statements do not name is looked up by its SEC CIK (``attrs['matched']`` says which). A ticker two companies
+    used (``tickers.py``) keeps only the statements of the company that held it on ``as_of`` (today without one;
+    ``cik`` overrides), by the statements' own ``cik``; a day that cannot be settled refuses with the candidates."""
+    from market_reads import tickers
     if statement not in FINANCIALS:
         raise ValueError(f"statement must be one of {', '.join(FINANCIALS)}")
+    held = tickers.resolve(symbol, as_of, cik)
+    if held["ticker_reused"] or cik:
+        held = tickers.require(symbol, as_of, cik)
     frame, matched = _frame(statement, symbol, as_of), "ticker"
-    if frame.empty:
-        cik = _cik_for(symbol)
-        if cik:
-            frame, matched = _frame(statement, None, as_of, cik=cik), f"cik {cik}"
+    if not frame.empty and held["cik"] and (held["ticker_reused"] or cik) and "cik" in frame:
+        frame, matched = frame[frame["cik"].map(_cik) == held["cik"]], f"ticker, cik {held['cik']}"
+    if frame.empty and held["cik"]:
+        frame, matched = _frame(statement, None, as_of, cik=held["cik"]), f"cik {held['cik']}"
     if not frame.empty:
         if timeframe:
             frame = frame[frame["timeframe"] == timeframe]
         frame = frame.sort_values(["period_end", "filing_date"]).reset_index(drop=True)
     frame.attrs.update(dataset=statement, symbol=symbol.upper(), as_of=as_of or "latest", matched=matched,
-                       rule="a statement counts from its filing_date")
+                       rule="a statement counts from its filing_date", ticker=tickers.summary(held))
     return frame
 
 

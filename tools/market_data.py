@@ -53,6 +53,7 @@ sys.path.insert(0, str(REPO / "research"))
 from market_reads import inventory  # noqa: E402
 
 SHOW_ROWS = 15
+CIK_HELP = "SEC CIK: read this company when the ticker was used by more than one (the answer names the candidates)"
 
 
 def _show(frame, args) -> int:
@@ -129,10 +130,10 @@ def cmd_bars(args) -> int:
 
 def cmd_splits(args) -> int:
     from market_reads import splits
-    frame = splits.table(args.symbol)
+    frame = splits.table(args.symbol, cik=args.cik)
     if args.day:
         frame.attrs.update(day=args.day, as_of=args.as_of or "latest",
-                           price_factor=splits.factor(args.symbol, args.day, args.as_of))
+                           price_factor=splits.factor(args.symbol, args.day, args.as_of, cik=args.cik))
     return _show(frame, args)
 
 
@@ -172,13 +173,15 @@ def cmd_scan(args) -> int:
     params = dict(pair.split("=", 1) for pair in args.params)
     kinds = params.pop("kinds", None)
     symbol = params.pop("symbol", None)
-    return _show(scan.movers_scan(symbol=symbol, kinds=kinds.split(",") if kinds else None, **params), args)
+    limit = params.pop("limit", None)
+    return _show(scan.movers_scan(symbol=symbol, kinds=kinds.split(",") if kinds else None,
+                                  limit=int(limit) if limit else None, **params), args)
 
 
 def cmd_reference(args) -> int:
     from market_reads import reference
     if args.cmd == "financials":
-        frame = reference.financials(args.symbol, args.statement, args.as_of, args.timeframe)
+        frame = reference.financials(args.symbol, args.statement, args.as_of, args.timeframe, args.cik)
     elif args.cmd == "float":
         frame = reference.float_latest(args.symbol)
     elif args.cmd == "ipos":
@@ -194,11 +197,11 @@ def cmd_reference(args) -> int:
 def cmd_sec(args) -> int:
     from market_reads import sec
     if args.cmd == "sec-shares" and args.day:
-        print(json.dumps(sec.shares_as_of(args.symbol, args.day, args.max_age_days), default=str, indent=1))
+        print(json.dumps(sec.shares_as_of(args.symbol, args.day, args.max_age_days, args.cik), default=str, indent=1))
         return 0
     if args.cmd == "sec-shares":
-        return _show(sec.facts(args.symbol), args)
-    return _show(sec.filings(args.symbol, args.as_of, args.forms.split(",") if args.forms else None), args)
+        return _show(sec.facts(args.symbol, cik=args.cik), args)
+    return _show(sec.filings(args.symbol, args.as_of, args.forms.split(",") if args.forms else None, args.cik), args)
 
 
 def cmd_reference_index(args) -> int:
@@ -262,6 +265,7 @@ def main(argv: list[str] | None = None) -> int:
     split.add_argument("symbol")
     split.add_argument("--day", help="YYYY-MM-DD: print the factor for this day's raw prices")
     split.add_argument("--as-of", dest="as_of", help="YYYY-MM-DD: the terms to adjust into (default: latest)")
+    split.add_argument("--cik", help=CIK_HELP)
     output(split)
     bench = sub.add_parser("bench")
     bench.add_argument("--day")
@@ -276,6 +280,7 @@ def main(argv: list[str] | None = None) -> int:
                      choices=["balance_sheets", "income_statements", "cash_flow_statements"])
     fin.add_argument("--as-of", dest="as_of", help="YYYY-MM-DD: only filings on or before it")
     fin.add_argument("--timeframe", help="quarterly, annual, ...")
+    fin.add_argument("--cik", help=CIK_HELP)
     output(fin)
     flt = sub.add_parser("float", help="Massive's latest free float (no history)")
     flt.add_argument("symbol", nargs="?")
@@ -296,11 +301,13 @@ def main(argv: list[str] | None = None) -> int:
     shares.add_argument("symbol")
     shares.add_argument("--day", help="YYYY-MM-DD")
     shares.add_argument("--max-age-days", dest="max_age_days", type=int)
+    shares.add_argument("--cik", help=CIK_HELP)
     output(shares)
     sf = sub.add_parser("sec-filings", help="SEC filings filed by --as-of")
     sf.add_argument("symbol")
     sf.add_argument("--as-of", dest="as_of")
     sf.add_argument("--forms", help="comma list: 4,SC 13D,SCHEDULE 13G,424B4,8-K ...")
+    sf.add_argument("--cik", help=CIK_HELP)
     output(sf)
     ri = sub.add_parser("reference-index", help="build or refresh the reference dump's index")
     ri.add_argument("--datasets", help="comma list (default: all)")

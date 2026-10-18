@@ -6,8 +6,10 @@ Two bulk files SEC publishes, under ``<NOVA_CATALYST_DIR>/edgar`` (read-only, op
                     filed (``filed``) -- shares outstanding / issued / treasury, the 10-K's public float in dollars.
   submissions.zip   every filing's form and date: 10-Q, 10-K, 20-F, 8-K, Forms 3/4/5, Schedules 13D/13G, 424B ...
 
-A symbol becomes a CIK through Massive's ticker list (``reference/tickers.json``, delisted tickers included); a
-ticker another company used first reads the current owner's facts, which the as-of window rarely lets through.
+A symbol becomes a CIK through Massive's ticker list (``reference/tickers.json``, delisted tickers included), read
+by ``tickers.py``: on a past day the company that held the ticker that day, never today's holder by default; a day
+it cannot settle refuses with the candidate CIKs (pass ``cik=``). Every answer carries ``ticker``: who was read, by
+which rule, and the other companies when the ticker was reused.
 As-of rule: a fact or filing counts from the day it was filed, never from the period it describes.
 """
 from __future__ import annotations
@@ -57,34 +59,20 @@ def _member(name: str, member: str) -> dict | None:
             return None
 
 
-@lru_cache(maxsize=1)
-def _tickers() -> dict[str, str]:
-    path = roots.reference() / "tickers.json"
-    out: dict[str, str] = {}
-    if path.is_file():
-        for row in json.loads(path.read_text(encoding="utf-8")):
-            ticker, cik = str(row.get("ticker") or "").strip().upper(), str(row.get("cik") or "").lstrip("0")
-            if ticker and cik:
-                out.setdefault(ticker, cik)
-    return out
+def cik_for(symbol: str, day: str | None = None) -> str | None:
+    """The SEC CIK (no leading zeros) of the company that held ``symbol`` on ``day`` (today without one); None when
+    the ticker list has none or the day is ambiguous (``tickers.resolve`` says why)."""
+    from market_reads import tickers
+    return tickers.resolve(symbol, day)["cik"]
 
 
-def cik_for(symbol: str) -> str | None:
-    """The SEC CIK (no leading zeros) Massive's ticker list gives ``symbol``; None when it has none."""
-    return _tickers().get(symbol.strip().upper())
-
-
-def _require_cik(symbol: str) -> str:
-    cik = cik_for(symbol)
-    if not cik:
-        raise LookupError(f"{symbol.upper()} has no SEC CIK in {roots.reference() / 'tickers.json'}")
-    return cik
-
-
-def facts(symbol: str, as_of: str | None = None) -> pd.DataFrame:
+def facts(symbol: str, as_of: str | None = None, cik: str | None = None) -> pd.DataFrame:
     """Every share fact (``SHARE_FACTS``) ``symbol``'s company tagged, filed on or before ``as_of`` when given:
-    ``concept, unit, end (as of), filed, value, form, fy, fp, accn``, oldest first."""
-    cik = _require_cik(symbol)
+    ``concept, unit, end (as of), filed, value, form, fy, fp, accn``, oldest first. The company is the one that held
+    the ticker on ``as_of`` (``cik`` overrides)."""
+    from market_reads import tickers
+    held = tickers.require(symbol, as_of, cik)
+    cik = held["cik"]
     doc = _member("companyfacts.zip", f"CIK{cik.zfill(10)}.json") or {}
     rows = []
     for namespace, concept, unit, _what in SHARE_FACTS:
@@ -98,27 +86,28 @@ def facts(symbol: str, as_of: str | None = None) -> pd.DataFrame:
     if len(frame):
         frame = frame.sort_values(["concept", "end", "filed"]).reset_index(drop=True)
     frame.attrs.update(symbol=symbol.upper(), cik=cik, as_of=as_of or "latest", entity=doc.get("entityName"),
-                       rule="a fact counts from the day it was filed")
+                       rule="a fact counts from the day it was filed", ticker=tickers.summary(held))
     return frame
 
 
-def _share_factor(symbol: str, after: str, through: str) -> float:
-    """Shares counted on ``after`` -> ``through``'s share basis (a 1-for-10 reverse split divides by 10)."""
+def _share_factor(symbol: str, after: str, through: str, cik: str | None = None) -> float:
+    """Shares counted on ``after`` -> ``through``'s share basis (a 1-for-10 reverse split divides by 10); only the
+    splits of the company that held the ticker on ``through``."""
     from market_reads import splits
-    rows = splits.table(symbol)
+    rows = splits.table(symbol, day=through, cik=cik)
     a, t = date.fromisoformat(after), date.fromisoformat(through)
     picked = rows[(rows["execution_date"] > a) & (rows["execution_date"] <= t)]
     return float((1.0 / picked["price_factor"]).prod()) if len(picked) else 1.0
 
 
-def shares_as_of(symbol: str, day: str, max_age_days: int | None = None) -> dict[str, Any]:
+def shares_as_of(symbol: str, day: str, max_age_days: int | None = None, cik: str | None = None) -> dict[str, Any]:
     """What SEC filings said about ``symbol``'s shares by ``day``: the newest of each concept filed by then.
 
     ``outstanding`` is the cover-page count (else the balance sheet's), put on ``day``'s share basis through the
     splits listed in between; ``issued`` / ``treasury`` / ``public_float_usd`` as filed. Each value carries its
     ``end`` (as of), ``filed`` and ``age_days``; ``max_age_days`` drops an older outstanding count (the day movers
     float filter uses 120). Shares issued after the filing are not in any of it."""
-    frame = facts(symbol, as_of=day)
+    frame = facts(symbol, as_of=day, cik=cik)
 
     def newest(concepts) -> dict[str, Any] | None:
         pick = frame[frame["concept"].isin(concepts)] if len(frame) else frame
@@ -131,7 +120,8 @@ def shares_as_of(symbol: str, day: str, max_age_days: int | None = None) -> dict
                 "form": row["form"], "age_days": age}
 
     out = {"symbol": symbol.upper(), "day": day, "cik": frame.attrs.get("cik"), "entity": frame.attrs.get("entity"),
-           "rule": "newest fact filed on or before the day; outstanding split-adjusted to the day's basis"}
+           "rule": "newest fact filed on or before the day; outstanding split-adjusted to the day's basis",
+           "ticker": frame.attrs.get("ticker")}
     for concepts in OUTSTANDING:          # the cover page when it has one, else the balance sheet
         out["outstanding"] = newest([concepts])
         if out["outstanding"]:
@@ -139,20 +129,33 @@ def shares_as_of(symbol: str, day: str, max_age_days: int | None = None) -> dict
     if out["outstanding"] and max_age_days is not None and out["outstanding"]["age_days"] > max_age_days:
         out["outstanding"] = None
     if out["outstanding"]:
-        k = _share_factor(symbol, out["outstanding"]["end"], day)
+        k = _share_factor(symbol, out["outstanding"]["end"], day, out["cik"])
         out["outstanding"].update(split_factor=k, value=round(out["outstanding"]["value"] * k))
     out["issued"] = newest(["CommonStockSharesIssued"])
     out["treasury"] = newest(["TreasuryStockCommonShares", "TreasuryStockShares"])
     out["public_float_usd"] = newest(["EntityPublicFloat"])
-    out["filer"] = filer_kind(symbol, day)
+    out["filer"] = filer_kind(symbol, day, cik=out["cik"])
     return out
 
 
-def filings(symbol: str, as_of: str | None = None, forms: list[str] | None = None) -> pd.DataFrame:
+def filings(symbol: str, as_of: str | None = None, forms: list[str] | None = None,
+            cik: str | None = None) -> pd.DataFrame:
     """``symbol``'s company's filings (form, filing date, report date, accession), filed on or before ``as_of``,
-    only ``forms`` when given (``["4", "SC 13D", "SCHEDULE 13G", "424B4", "8-K"]``), oldest first."""
-    cik = _require_cik(symbol)
-    doc = _member("submissions.zip", f"CIK{cik.zfill(10)}.json") or {}
+    only ``forms`` when given (``["4", "SC 13D", "SCHEDULE 13G", "424B4", "8-K"]``), oldest first. The company is
+    the one that held the ticker on ``as_of`` (``cik`` overrides)."""
+    from market_reads import tickers
+    held = tickers.require(symbol, as_of, cik)
+    frame = filings_by_cik(held["cik"], as_of, forms)
+    frame.attrs.update(symbol=symbol.upper(), ticker=tickers.summary(held))
+    return frame
+
+
+def filings_by_cik(cik: str, as_of: str | None = None, forms: list[str] | None = None) -> pd.DataFrame:
+    """One company's filings by its CIK (``filings`` without the ticker lookup)."""
+    cik = str(cik).lstrip("0")
+    doc = _member("submissions.zip", f"CIK{cik.zfill(10)}.json")
+    if doc is None:
+        raise LookupError(f"CIK {cik} has no submissions in {roots.edgar() / 'submissions.zip'}")
     blocks = [((doc.get("filings") or {}).get("recent")) or {}]
     for extra in (doc.get("filings") or {}).get("files") or []:
         blocks.append(_member("submissions.zip", extra.get("name", "")) or {})
@@ -173,16 +176,16 @@ def filings(symbol: str, as_of: str | None = None, forms: list[str] | None = Non
     frame = pd.DataFrame(rows, columns=["form", "filed", "report_date", "accession", "items"])
     if len(frame):
         frame = frame.sort_values(["filed", "form"]).reset_index(drop=True)
-    frame.attrs.update(symbol=symbol.upper(), cik=cik, as_of=as_of or "latest", entity=doc.get("name"),
+    frame.attrs.update(cik=cik, as_of=as_of or "latest", entity=doc.get("name"),
                        rule="a filing counts from its filing date")
     return frame
 
 
-def filer_kind(symbol: str, day: str) -> str:
+def filer_kind(symbol: str, day: str, cik: str | None = None) -> str:
     """``domestic`` (newest annual report filed by ``day`` is a 10-K), ``foreign`` (20-F / 40-F: such companies
     file no Forms 3/4/5) or ``unknown`` (none filed yet, or no CIK)."""
     try:
-        annual = filings(symbol, as_of=day, forms=sorted(DOMESTIC_ANNUAL | FOREIGN_ANNUAL))
+        annual = filings(symbol, as_of=day, forms=sorted(DOMESTIC_ANNUAL | FOREIGN_ANNUAL), cik=cik)
     except LookupError:
         return "unknown"
     if not len(annual):

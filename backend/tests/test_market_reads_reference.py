@@ -86,6 +86,26 @@ def test_an_index_of_another_version_refuses_loudly(dump):
         reference.financials("ABC")
 
 
+def test_a_reused_ticker_reads_the_statements_of_that_days_company(dump, monkeypatch):
+    """ABC was CIK 777's ticker until 2019-12-31: a 2019 as-of reads 777's statements, today reads CIK 123's."""
+    from market_reads import tickers
+    (dump / "tickers.json").write_text(json.dumps([
+        {"ticker": "ABC", "cik": "0000000123", "name": "ABC Now", "active": True},
+        {"ticker": "ABC", "cik": "0000000777", "name": "ABC Then", "active": False,
+         "delisted_utc": "2019-12-31T05:00:00Z"}]), encoding="utf-8")
+    _write(dump / "balance_sheets" / "2019-03.jsonl", [
+        {"tickers": ["ABC"], "cik": "0000000777", "period_end": "2018-12-31", "filing_date": "2019-03-01",
+         "timeframe": "annual", "total_assets": 9.0}])
+    monkeypatch.setattr(tickers, "_filing_span", lambda cik: None)
+    tickers.clear()
+    then = reference.financials("ABC", as_of="2019-06-01")
+    assert list(then["total_assets"]) == [9.0] and then.attrs["ticker"]["cik"] == "777"
+    now = reference.financials("ABC")
+    assert list(now["total_assets"]) == [100.0, 120.0]
+    assert "777" in now.attrs["ticker"]["warning"]
+    tickers.clear()
+
+
 def test_an_unknown_dataset_or_statement_is_refused(dump):
     with pytest.raises(ValueError):
         reference.ensure("nope")

@@ -57,6 +57,16 @@ def test_the_catalog_names_units_and_as_of_rules_for_every_dataset():
     assert all(d["as_of"] and d["units"] and d["mcp"] for d in answer["datasets"])
 
 
+def test_a_day_without_a_board_answers_covered_false_at_the_top(monkeypatch):
+    from market_reads import reads
+    frame = pd.DataFrame()
+    frame.attrs.update(covered=False, board="gainers", gap={"reason": "not_recorded"}, note="no gainers board")
+    monkeypatch.setattr(reads, "board", lambda *a: frame)
+    answer = m.DataService().board("2023-06-01", "09:45")
+    assert answer["ok"] and answer["rows"] == 0 and answer["covered"] is False
+    assert answer["gap"] == {"reason": "not_recorded"} and answer["note"] == "no gainers board"
+
+
 def test_every_tool_is_registered_and_only_file_writers_are_not_read_only():
     pytest.importorskip("mcp")
     server = m.create_server(m.DataService())
