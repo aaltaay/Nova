@@ -190,6 +190,7 @@ export function levelNote(read: StockRead, pane: LevelPane): string | null {
   const lm = read.level_map;
   if (!lm) return null;
   if (pane === 'daily' && lm.daily_error) return `Daily levels: ${lm.daily_error}`;
+  if (pane === 'daily' && lm.daily_note) return `Daily levels (${lm.daily.length}) -- ${lm.daily_note}`;
   if (pane === 'daily') return `Daily levels (${lm.daily.length})`;
   // A backend older than the 5-minute map sends none: say so rather than draw the 1-minute map here.
   if (lm.five_minute === null) return '5-minute levels: the backend is older than this desk -- restart it';

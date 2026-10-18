@@ -58,9 +58,11 @@ def test_daily_bar_metrics_full_history_computes_all_fields(monkeypatch):
     monkeypatch.setattr(lcm, "schedule_daily_fill", lambda sym: None)
     import bars_store
 
-    # 21 daily bars, closes trending up 100 -> 120, highs/lows padded around close.
+    # 21 finished daily bars (written after their own 20:00 ET, #839), closes trending up 100 -> 120,
+    # highs/lows padded around close.
     bars = [
-        _bar(f"d{i}", 100 + i, 100 + i + 2, 100 + i - 2, 100 + i, 1_000_000)
+        {**_bar(f"2026-08-{i + 1:02d}T00:00:00Z", 100 + i, 100 + i + 2, 100 + i - 2, 100 + i, 1_000_000),
+         "w": 1_790_000_000.0}
         for i in range(21)
     ]
     monkeypatch.setattr(

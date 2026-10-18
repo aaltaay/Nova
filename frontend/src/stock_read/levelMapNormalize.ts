@@ -167,6 +167,7 @@ export function normalizeLevelMap(raw: unknown): LevelMap | null {
     daily: list(m.daily, zone),
     daily_sessions: num(m.daily_sessions) ?? 0,
     daily_error: str(m.daily_error),
+    daily_note: str(m.daily_note),
     study: study(m.study),
     lines: trendLines(m.lines),
   };

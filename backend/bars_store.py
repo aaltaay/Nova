@@ -4,12 +4,19 @@ Reads never touch the broker. One candle identity: ``(symbol, timeframe, ts)``.
 ``historical_service`` writes source=ibkr (authoritative). Scanner L1 writes
 source=ibkr_l1 and may only insert or refine a live row -- never a hist row.
 Live minutes must not stamp hist coverage -- a streamed tip is not a finished fill.
+
+A hist row keeps ``written_ts``, when a fill last returned it (#839). ``bars_coverage.fetched_ts`` is the
+whole series' last fetch, and a short payload advances it without touching older rows, so only the row's
+own write time says whether a daily bar was stored after its session ended (``daily_bar_state``).
 """
 from __future__ import annotations
 
 import logging
+import threading
 import time
+from datetime import datetime, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from archive import db as archive_db
 from archive.capture import session_date_for_ts
@@ -19,13 +26,14 @@ from constants import (
     IBKR_BARS_STORE_FRESH_DAILY_SEC,
     IBKR_BARS_STORE_FRESH_INTRADAY_SEC,
     IBKR_BARS_STORE_MIN_BARS,
+    SESSION_AFTERHOURS_END_MIN_ET,
 )
 from ibkr.historical_derive import bar_unix, unix_to_iso
 
 _HIST_UPSERT_SQL = """
 INSERT INTO bars_intraday
-    (symbol, timeframe, ts, open, high, low, close, volume, source, session_date)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (symbol, timeframe, ts, open, high, low, close, volume, source, session_date, written_ts)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(symbol, timeframe, ts) DO UPDATE SET
     open = excluded.open,
     high = excluded.high,
@@ -33,7 +41,8 @@ ON CONFLICT(symbol, timeframe, ts) DO UPDATE SET
     close = excluded.close,
     volume = excluded.volume,
     source = excluded.source,
-    session_date = excluded.session_date
+    session_date = excluded.session_date,
+    written_ts = excluded.written_ts
 """
 
 _LIVE_UPSERT_SQL = f"""
@@ -52,6 +61,42 @@ WHERE source = '{ARCHIVE_SOURCE_IBKR_L1}'
 logger = logging.getLogger(__name__)
 
 _DAILY_TFS = frozenset({"1Day", "1Week", "1Month"})
+_ET = ZoneInfo("America/New_York")
+# In-process count of 1Day writes per symbol. Owner: this module; consumers that cache what they derive
+# from the daily bars (the stock read's history, Large Cap's metrics) recompute when it moves.
+_daily_rev: dict[str, int] = {}
+_rev_lock = threading.Lock()
+
+
+def daily_revision(symbol: str) -> int:
+    """How many times a fill has written ``symbol``'s 1Day rows in this process."""
+    return _daily_rev.get(symbol.upper(), 0)
+
+
+def daily_session_end(t: Any) -> float | None:
+    """20:00 ET (the end of Nova's 04:00-20:00 session) on a daily bar's date. A stored daily bar's
+    time is its session date at midnight UTC, so the date is read in UTC, never in Eastern time."""
+    ts = bar_unix({"t": t})
+    if ts is None:
+        return None
+    d = datetime.fromtimestamp(ts, timezone.utc).date()
+    hh, mm = divmod(int(SESSION_AFTERHOURS_END_MIN_ET), 60)
+    return datetime(d.year, d.month, d.day, hh, mm, tzinfo=_ET).timestamp()
+
+
+def daily_bar_state(t: Any, written_ts: float | None, now: float) -> str:
+    """``final`` (written at or after its session's 20:00 ET), ``forming`` (its session has not ended),
+    ``partial`` (written before the session ended, which has: a snapshot) or ``unknown`` (no write time
+    on record). Only ``final`` is the finished day; nothing else -- the series' fetch time, the clock, a
+    row count -- promotes a row."""
+    end = daily_session_end(t)
+    if end is None:
+        return "unknown"
+    if written_ts is not None and float(written_ts) >= end:
+        return "final"
+    if now < end:
+        return "forming"
+    return "partial" if written_ts is not None else "unknown"
 
 
 def coverage_from_bars(
@@ -106,6 +151,8 @@ def write_payload(payload: dict[str, Any]) -> None:
     if not symbol or not timeframe:
         return
     coverage = payload.get("coverage") or coverage_from_bars(bars, filling=False)
+    written = time.time()
+    rows = 0
     conn = archive_db.get_connection()
     try:
         for bar in bars:
@@ -124,13 +171,17 @@ def write_payload(payload: dict[str, Any]) -> None:
                 _HIST_UPSERT_SQL,
                 (
                     symbol, timeframe, float(ts), open_, high, low, close, volume,
-                    ARCHIVE_SOURCE_IBKR, session_date_for_ts(ts),
+                    ARCHIVE_SOURCE_IBKR, session_date_for_ts(ts), written,
                 ),
             )
+            rows += 1
         _upsert_coverage_locked(conn, symbol, timeframe, coverage)
         conn.commit()
     finally:
         conn.close()
+    if rows and timeframe == "1Day":
+        with _rev_lock:
+            _daily_rev[symbol] = _daily_rev.get(symbol, 0) + 1
 
 
 def write_live_batch(conn, rows: list[tuple]) -> None:
@@ -168,15 +219,17 @@ def _upsert_coverage_locked(
 
 def read(symbol: str, timeframe: str, limit: int, *,
          through_ts: float | None = None,
-         from_ts: float | None = None) -> dict[str, Any] | None:
-    """Return stored bars + coverage, or None on a total miss."""
+         from_ts: float | None = None,
+         provenance: bool = False) -> dict[str, Any] | None:
+    """Return stored bars + coverage, or None on a total miss. ``provenance``: each bar also carries
+    ``w``, when a fill last wrote it (None for a row older than that record, or an L1 overlay)."""
     symbol = symbol.upper()
     limit = max(1, int(limit))
     conn = archive_db.get_connection()
     try:
         rows = conn.execute(
             """
-            SELECT ts, open, high, low, close, volume, source
+            SELECT ts, open, high, low, close, volume, source, written_ts
             FROM bars_intraday
             WHERE symbol = ? AND timeframe = ?
               AND (? IS NULL OR ts <= ?)
@@ -193,14 +246,17 @@ def read(symbol: str, timeframe: str, limit: int, *,
         rows = list(reversed(rows))
         bars = []
         for row in rows:
-            bars.append({
+            bar = {
                 "t": unix_to_iso(float(row["ts"])),
                 "o": float(row["open"]),
                 "h": float(row["high"]),
                 "l": float(row["low"]),
                 "c": float(row["close"]),
                 "v": int(row["volume"] or 0),
-            })
+            }
+            if provenance:
+                bar["w"] = float(row["written_ts"]) if row["written_ts"] is not None else None
+            bars.append(bar)
         cov_row = conn.execute(
             """
             SELECT as_of, complete_through, filling, derived_from, fetched_ts

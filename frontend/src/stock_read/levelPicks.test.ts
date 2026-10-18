@@ -156,6 +156,12 @@ describe('which levels each chart draws', () => {
     expect(levelScene(older, 'map').levels).toEqual([]);
     expect(levelNote(older, 'map')).toMatch(/older than this desk/);
     expect(levelNote(lghl(), 'daily')).toBe('Daily levels (8)');
+    // A past session stored before it ended is not read as a finished day, and the pane says so (#839).
+    const note = 'Sep 25 was stored at 09:18 ET, before its session ended: not read as a finished day until IBKR\'s refetch lands';
+    const wire = normalizeLevelMap({ ...MAP, daily_note: note });
+    expect(wire?.daily_note).toBe(note);
+    expect(normalizeLevelMap({ ...MAP })?.daily_note).toBeNull();          // an older backend sends none
+    expect(levelNote({ ...lghl(), level_map: { ...MAP, daily_note: note } }, 'daily')).toBe(`Daily levels (8) -- ${note}`);
   });
 
   it('draws the maps on the 5-minute and Full Day panes, and none on the 10-second', () => {

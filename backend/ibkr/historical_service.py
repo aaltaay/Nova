@@ -20,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import time
 from datetime import datetime
 from typing import Any, Literal
 from zoneinfo import ZoneInfo
@@ -29,6 +30,7 @@ from fastapi import HTTPException
 from constants import (
     CHART_DEFAULT_BARS,
     IBKR_BAR_DURATION,
+    IBKR_BARS_DAILY_REPAIR_RETRY_SEC,
     IBKR_HISTORICAL_MAX_CONCURRENT,
     IBKR_HISTORY_TRADING_RESERVE,
 )
@@ -60,6 +62,7 @@ _open_chart_depth = 0
 _sem: asyncio.Semaphore | None = None
 _inflight: dict[tuple[str, str], asyncio.Task] = {}
 _pacing = HistoricalPacing()
+_repair_asked: dict[str, float] = {}
 
 
 def reset_for_testing() -> None:
@@ -68,6 +71,7 @@ def reset_for_testing() -> None:
     _sem = None
     leftover = list(_inflight.values())
     _inflight.clear()
+    _repair_asked.clear()
     _pacing.reset()
     historical_failures.reset()
     for task in leftover:
@@ -457,3 +461,20 @@ def schedule_fill(
             )
 
     spawn_ib(f"bars.fill.{symbol}.{timeframe}", lambda: _job())
+
+
+def schedule_daily_repair(symbol: str, limit: int) -> bool:
+    """Ask IBKR for ``symbol``'s daily bars again because a stored past session is not finished (#839).
+
+    A background ``schedule_fill``: paced, deduped against a fill in flight, shed while an open chart
+    loads or the reserve is reached. Asked at most once per ``IBKR_BARS_DAILY_REPAIR_RETRY_SEC`` per
+    symbol, so a shed or failed fill is asked again later rather than given up for the day. Never blocks;
+    True when it asked."""
+    sym = symbol.upper()
+    now = time.monotonic()
+    last = _repair_asked.get(sym)
+    if last is not None and now - last < float(IBKR_BARS_DAILY_REPAIR_RETRY_SEC):
+        return False
+    _repair_asked[sym] = now
+    schedule_fill(sym, "1Day", limit, priority="background")
+    return True

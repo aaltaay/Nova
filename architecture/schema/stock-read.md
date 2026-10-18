@@ -156,12 +156,34 @@ object | null}`. A source that cannot be read is `ok: false` with its error; the
 answer.
 
 `GET /api/stock-read/{symbol}/history` answers `{schema_version: 1, symbol, generated_at, daily:
-[{d, o, h, l, c, v}] (the last `STOCK_READ_HISTORY_CHART_DAYS` stored sessions), runs: [{date,
+[{d, o, h, l, c, v, state, through}] (the last `STOCK_READ_HISTORY_CHART_DAYS` stored sessions; `state`
+and `through` below), runs: [{date,
 prior_close, high, close, run_pct, close_pct, today}] (sessions whose high was
-`STOCK_READ_RUN_MIN_PCT` or more over the prior close, newest first), split: {factor: "a:b" | null,
+`STOCK_READ_RUN_MIN_PCT` or more over the prior close, newest first; only a finished prior close and a
+finished session, or today's while it forms, make one), split: {factor: "a:b" | null,
 ts, reverse: boolean | null, days_ago} | null (Yahoo's last split), holdings: Row[]}` -- the Level 2
 Nova recorded, setups armed on the symbol on any day, the latest short interest, and what Nova does
 not keep per symbol yet, said so.
+
+**A daily bar stored mid-session is not the finished day (#839).** A chart opened during a session
+stores IBKR's daily series with that day's unfinished bar, and the row keeps those values until a later
+fill returns it again. Each stored daily bar's `state` (`bars_store.daily_bar_state`, judged against the
+wall clock, on a Sim replay too) is `final` when a fill wrote it at or after 20:00 ET of its own date
+(the date is the bar's UTC-midnight time read in UTC; 20:00 is Nova's 04:00-20:00 session end, so a
+half day is judged conservatively), `forming` while its session has not ended, `partial` when it was
+written before its session ended and the session is over (`through` is that write, epoch seconds), and
+`unknown` when no write time is on record (every row stored before the record existed). Nothing else
+promotes a row: not the series' `fetched_ts` (a later short payload advances it without touching older
+rows), the clock, a row count, or `filling: false`. `history.summary` (owner `stock_read/history.py`)
+adds `unfinished: [{date, state, stored_through}]` (past sessions not `final`), counts only finished
+sessions in `daily_days`, and gives `sma200: null` while one of its 200 closes is not finished. An
+unfinished past session asks for the finished bars through `historical_service.schedule_daily_repair`:
+the existing paced, deduped, shed-able background `1Day` fill, at most once per symbol per
+`IBKR_BARS_DAILY_REPAIR_RETRY_SEC` (300 s), so a shed or failed fill is asked again and a polled read
+does not respray it; the summary holding one is read again after that window. The summary cache is
+per symbol, session day and replay flag and is read again when a fill writes that symbol's daily bars
+(`bars_store.daily_revision`); another symbol's stays. The "Has it run before?" row's detail names the
+unfinished sessions.
 
 **Fixed with it.** `/sensors/vwap` is the session VWAP from 04:00 ET (the chart's; since 2026-09-30
 restarted at the 16:00 close for after hours as the chart does, `anchor: "16:00 ET"` then --
@@ -424,7 +446,8 @@ places, stages or blocks.
 
 **The level map** (owner `stock_read/level_map.py`, pure). `GET /api/stock-read/{symbol}` adds
 `level_map: {schema_version: 1, price, rounds: {minor, major, measured, words} | null, intraday: Zone[],
-five_minute: Zone[], daily: Zone[], daily_sessions, daily_error: string | null, study: {source, round_turn,
+five_minute: Zone[], daily: Zone[], daily_sessions, daily_error: string | null, daily_note: string | null,
+study: {source, round_turn,
 round_through, round_lost, hod_past, top_past, daily_past}}` -- each
 study pair `[at the level, at a random price]` in percent (`STOCK_READ_LEVEL_STUDY`); `rounds` is the
 price's scale of round numbers (below), `null` without a price. A **Zone** is
@@ -457,6 +480,14 @@ sma200 | yday_high | yday_low` (the daily map).
   the 200-day average (`history.summary` adds `sma200`: the last 200 stored daily closes before today,
   which close after hours; `null` with fewer); yesterday's high and low. `daily_error` says why the
   daily map is empty when the history could not be read.
+- Only finished daily bars (`state: "final"`, #839) are levels: yesterday (today's map and the daily
+  map) is the last session before today only when it is finished -- an unfinished one is no yesterday,
+  and an older session is never renamed yesterday; clusters, the older highs and the gaps read finished
+  sessions (a gap needs both sides finished; an unfinished session's range can still fill one, and its
+  high still bounds the "look left and up" highs). `daily_sessions` counts the finished sessions read.
+  `daily_note` (`history.daily_note`; `null` when none) says which stored sessions are not finished
+  ("Sep 25 was stored at 09:18 ET, before its session ended: not read as a finished day until IBKR's
+  refetch lands"); the Full Day pane's corner note adds it to "Daily levels (N)".
 - Levels within 0.6% (today) or 1.5% (daily), and always within 2 cents, are one zone, at most twice that
   wide; a zone lists every member, and its label counts one kind once ("top ×8", not "top ×5 · triple
   top"). `side` is `at` within 0.2% (at least a cent) of the price.
