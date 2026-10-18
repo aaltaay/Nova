@@ -71,6 +71,14 @@ Selection:
   Colors map to fixed renderer values, never arbitrary CSS.
   - {kind:"horizontal_line",price,label,color?}: finite positive price.
   - {kind:"time_marker",minute,label,color?}: integer minute 0..1439, not boolean.
+  - {kind:"trade_marker",side,second,price,label,color?}: a caller's fill. side is
+    buy or sell; second is the finite ET second of the day 0<=second<86400 (fractions
+    allowed); price is finite positive. Drawn with the desk's fill arrows
+    (`FillMarkersPrimitive`) on the bar holding that second: a buy arrow under the bar,
+    a sell arrow over it; default color green for buy, red for sell. Never inferred.
+- bar_seconds is optional: 1, 5, 10, 15 or 30, and never with as_of_m. When present
+  the projection is a sub-minute projection (below) and the entry renders one
+  `<n>Sec` pane instead of 1Min + 5Min.
 - bar_projection.path is an explicit absolute path under the selection's sibling
   bars/ directory. Its SHA256 binds the exact file bytes. Paths are not accepted
   from HTTP requests.
@@ -84,6 +92,13 @@ unit conversion or synthetic flat candles occurs. Invalid visible-prefix data
 fails closed; with an as-of boundary, later unavailable OHLCV remains a gap.
 Malformed timestamps or duplicate minutes fail validation.
 
+A sub-minute projection (entry has bar_seconds) contains
+{day,ticker,time_zone:"America/New_York",s_semantics:"second_START",bar_seconds,price_units:"raw_same_session_YYYY-MM-DD",observed_source_start_s,observed_source_end_exclusive_s,bars:[{s,o,h,l,c,v}]}.
+bar_seconds matches the entry; bounds are integer ET seconds with 0<=start<end<=86400;
+each s is on the bar_seconds grid, ordered, unique and inside the bounds; every row
+has coherent positive OHLC and nonnegative volume (a bucket with no price-setting
+print is absent, never a flat candle). No 5m aggregation is formed for these entries.
+
 Only five actual consecutive observed minute starts form a wall-clock 5m candle.
 Without as_of_m, the complete observed session is displayed. With it, candles
 starting at/after the boundary and 5m candles crossing it are shaded amber in their
@@ -93,8 +108,9 @@ later candles. The view and exported PNGs share this boundary calculation.
 ### Read-only wire and rendering
 
 GET /api/agent/chart-gallery returns
-{schema_version:1,kind:"historical_ohlcv",selection_sha256,family,entries:[{id,symbol,date,as_of_m?,as_of_t?,annotations,bars_1m,bars_5m,source}],timings:{load_ms,aggregation_ms}}.
-Bars use Nova's {t,o,h,l,c,v} UTC-ISO shape. as_of_t, when present, is the same
+{schema_version:1,kind:"historical_ohlcv",selection_sha256,family,entries:[{id,symbol,date,as_of_m?,as_of_t?,annotations,bars_1m,bars_5m,bar_seconds?,bars_sub?,source}],timings:{load_ms,aggregation_ms}}.
+Bars use Nova's {t,o,h,l,c,v} UTC-ISO shape. A sub-minute entry carries bar_seconds,
+a nonempty bars_sub and empty bars_1m / bars_5m; a minute entry carries neither. as_of_t, when present, is the same
 boundary as as_of_m expressed as a UTC timestamp. The response is immutable and
 hash-bound; no request writes source files. source contains only the allowlisted
 selection_sha256 and projection_sha256 hashes; arbitrary provenance is not returned.
@@ -110,7 +126,16 @@ tools/nova_charts.py export --selection FILE --sha256 HASH --output NEWDIR valid
 frozen inputs, starts isolated data/renderer/browser children on available loopback
 ports, exports PNGs and writes EXPORT_RECEIPT.json. Existing output directories are
 refused. The receipt reports image paths/hashes, phase timings and cleanup status;
-logs and partial output remain available after failure.
+logs and partial output remain available after failure. Detail PNGs are named
+`NN_<TICKER>_<date>_1m_5m.png`, or `NN_<TICKER>_<date>_<n>s.png` for sub-minute entries.
+
+The renderer is a production build of the chart-only page served by `vite preview`
+(a dev server spent about 9 s of every export compiling modules on first load).
+`tools/nova_chart_runner.py` owns the build under `frontend/.chart-gateway-build/<key>/`
+(git-ignored; no schema, a build artifact): `key` hashes every `frontend/src` file's
+path, size and modification time plus the gateway page, its Vite config and the
+lockfile, so any edit rebuilds once (into a temp folder, then moved) and drops older
+builds. The receipt reports `renderer_bundle` and `renderer_bundle_ms`.
 
 On Windows, an owned unnamed Job contains waiting bootstrap children before real
 commands launch; cleanup verifies zero active owned processes, including descendants.
@@ -122,7 +147,10 @@ The command imports no trading-app lifespan and leaves the running desk intact.
 
 The generic local historical resolver accepts one explicit minute-Parquet root,
 symbol and date; see [local-historical-charts.md](local-historical-charts.md).
-It produces this same frozen selection and delegates to the renderer above.
+It produces this same frozen selection and delegates to the renderer above. The trade
+front door (`tools/nova_trade_charts.py`, MCP `nova_trade_charts`) turns a trade list
+into sub-minute entries with trade markers; see "Trade charts" in
+[local-historical-charts.md](local-historical-charts.md).
 There is no discovery, download or simulation fallback. Optional MCP tooling uses
 this generic chart interface; client installation/configuration and per-action grants
 remain explicit and separate.

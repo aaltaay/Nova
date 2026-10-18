@@ -1,8 +1,14 @@
-"""Own only the isolated processes needed for one frozen-data native Nova export."""
+"""Own only the isolated processes needed for one frozen-data native Nova export.
+
+The chart-only renderer is a production Vite build, served by ``vite preview``: a dev server spent ~9 s of every
+export compiling modules on the first page load. Owner of ``frontend/.chart-gateway-build/<key>/`` (no schema: a
+build artifact); invalidated when any frontend source, the gateway page or config, or the lockfile changes (``key``).
+"""
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 import secrets
 import shutil
 import socket
@@ -18,6 +24,47 @@ from pathlib import Path
 from nova_chart_processes import OwnedProcesses
 
 ROOT = Path(__file__).resolve().parents[1]
+BUILD_DIR = ".chart-gateway-build"
+BUILD_TIMEOUT_SECONDS = 300
+BUILD_INPUTS = ("chart-gateway.html", "vite.chart-gateway.config.ts", "package-lock.json")
+
+
+def _bundle_key(frontend: Path) -> str:
+    """Every renderer input's path, size and modification time: an edit anywhere rebuilds."""
+    digest = hashlib.sha256()
+    files = [frontend / name for name in BUILD_INPUTS]
+    for folder, _, names in os.walk(frontend / "src"):
+        files += [Path(folder) / name for name in names]
+    for path in sorted(files):
+        info = path.stat()
+        digest.update(f"{path.relative_to(frontend).as_posix()}|{info.st_size}|{info.st_mtime_ns}\n".encode())
+    return digest.hexdigest()[:20]
+
+
+def _gateway_bundle(node: str, vite: Path) -> Path:
+    """The built chart-only renderer for the current sources, building it once (into a temp folder, then moved)."""
+    frontend = ROOT / "frontend"
+    builds = frontend / BUILD_DIR
+    bundle = builds / _bundle_key(frontend)
+    if (bundle / "chart-gateway.html").is_file():
+        return bundle
+    staging = builds / f".tmp-{secrets.token_hex(6)}"
+    builds.mkdir(exist_ok=True)
+    result = subprocess.run([node, str(vite), "build", "--config", "vite.chart-gateway.config.ts",
+                             "--configLoader", "runner", "--outDir", str(staging), "--emptyOutDir",
+                             "--logLevel", "warn"], cwd=frontend, capture_output=True, text=True,
+                            timeout=BUILD_TIMEOUT_SECONDS, check=False)
+    if result.returncode or not (staging / "chart-gateway.html").is_file():
+        shutil.rmtree(staging, ignore_errors=True)
+        raise RuntimeError(f"Chart renderer build failed: {(result.stderr or result.stdout)[-2000:]}")
+    try:
+        staging.rename(bundle)
+    except OSError:
+        shutil.rmtree(staging, ignore_errors=True)  # A concurrent export built the same key first.
+    for old in builds.iterdir():
+        if old != bundle and not old.name.startswith(".tmp-"):
+            shutil.rmtree(old, ignore_errors=True)
+    return bundle
 
 
 def _free_ports() -> tuple[int, int]:
@@ -74,6 +121,9 @@ def export_charts(selection: Path, expected_sha256: str, output: Path, samples: 
     vite = ROOT / "frontend/node_modules/vite/bin/vite.js"
     if not node or not vite.is_file():
         raise RuntimeError("Use the project's installed Node/Vite dependencies; no packages are installed by this command")
+    built = time.perf_counter()
+    bundle = _gateway_bundle(node, vite)
+    bundle_ms = (time.perf_counter() - built) * 1000
     data_port, renderer_port = _free_ports()
     instance = secrets.token_hex(16)
     data_base, renderer_base = f"http://127.0.0.1:{data_port}", f"http://127.0.0.1:{renderer_port}"
@@ -84,8 +134,8 @@ def export_charts(selection: Path, expected_sha256: str, output: Path, samples: 
     owned: list[subprocess.Popen] = []
     receipt = dict(schema_version=1, selection_sha256=expected_sha256, ok=False,
                    data_base=data_base, renderer_base=renderer_base, instance=instance,
-                   selected_count=len(gallery["entries"]),
-                   data_timings=gallery["timings"], source_sha256={
+                   selected_count=len(gallery["entries"]), renderer_bundle=bundle.name,
+                   renderer_bundle_ms=bundle_ms, data_timings=gallery["timings"], source_sha256={
                        str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
                        for p in [ROOT / "tools/nova_charts.py", Path(__file__).resolve(),
                                  ROOT / "tools/nova_chart_export.mjs", ROOT / "tools/nova_chart_processes.py",
@@ -99,7 +149,8 @@ def export_charts(selection: Path, expected_sha256: str, output: Path, samples: 
                           "--selection", str(selection), "--sha256", expected_sha256,
                           "--port", str(data_port), "--frontend-origin", renderer_base,
                           "--instance", instance], ROOT),
-                ("renderer", [node, str(vite), "--config", "vite.chart-gateway.config.ts", "--configLoader", "runner",
+                ("renderer", [node, str(vite), "preview", "--config", "vite.chart-gateway.config.ts",
+                              "--configLoader", "runner", "--outDir", str(bundle), "--strictPort",
                               "--port", str(renderer_port), "--host", "127.0.0.1",
                               "--mode", instance], ROOT / "frontend"),
             ]:

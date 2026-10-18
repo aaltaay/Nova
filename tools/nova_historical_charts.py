@@ -39,12 +39,7 @@ def export_historical(
 ) -> dict[str, Any]:
     """Trusted roots are operator configuration; only symbol/day or entries select data."""
     began = time.perf_counter()
-    if isinstance(samples, bool) or not isinstance(samples, int) or not 0 <= samples <= 50:
-        raise HistoricalChartError("invalid_samples", "Samples must be an integer from 0 through 50")
-    gateway = local_path(gateway_root)
-    script = local_path(gateway / "tools" / "nova_charts.py")
-    if not gateway.is_dir() or not script.is_file() or not script.is_relative_to(gateway):
-        raise HistoricalChartError("gateway_unavailable", "The approved checkout has no offline chart exporter")
+    gateway, script = checked_gateway(gateway_root, samples)
     if entries is not None:
         receipt = resolve_gallery_bundle(
             massive_root, entries, output, family=family, fallback_root=fallback_root
@@ -61,6 +56,23 @@ def export_historical(
             annotations=annotations,
             fallback_root=fallback_root,
         )
+    return run_native_export(receipt, gateway, script, samples, began)
+
+
+def checked_gateway(gateway_root: Path, samples: int) -> tuple[Path, Path]:
+    """The approved checkout's offline exporter, checked before any output is claimed."""
+    if isinstance(samples, bool) or not isinstance(samples, int) or not 0 <= samples <= 50:
+        raise HistoricalChartError("invalid_samples", "Samples must be an integer from 0 through 50")
+    gateway = local_path(gateway_root)
+    script = local_path(gateway / "tools" / "nova_charts.py")
+    if not gateway.is_dir() or not script.is_file() or not script.is_relative_to(gateway):
+        raise HistoricalChartError("gateway_unavailable", "The approved checkout has no offline chart exporter")
+    return gateway, script
+
+
+def run_native_export(receipt: dict[str, Any], gateway: Path, script: Path, samples: int,
+                      began: float) -> dict[str, Any]:
+    """Capture a frozen bundle's PNGs with the native exporter and write ``historical_export.json`` beside it."""
     image_output = Path(receipt["selection_path"]).parent / "images"
     command = [sys.executable, str(script), "export", "--selection", receipt["selection_path"],
                "--sha256", receipt["selection_sha256"], "--output", str(image_output), "--samples", str(samples)]

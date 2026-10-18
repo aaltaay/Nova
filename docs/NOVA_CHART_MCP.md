@@ -23,6 +23,14 @@ historical resolver schema for the contracts.
 `date`, and optional `as_of_m` and `annotations`), `output_name`, optional `family`,
 and `samples`.
 
+`nova_trade_charts` takes `trades` (the list described under "Trade charts" in
+`architecture/schema/local-historical-charts.md`, at most 50 trades on 1..9
+stock-days), `output_name`, optional `bar_seconds` (1, 5, 10, 15 or 30; default 10),
+`before_s` / `after_s` (window seconds, default 300 / 120), `family` and `samples`.
+It reads Massive trades from the `--fallback-massive-root` (else `--massive-root`),
+which must hold `trades_v1` (`TRADES_ROOT_MISSING` otherwise), and returns one
+`NN_<TICKER>_<date>_<n>s.png` per stock-day plus the overview.
+
 `symbol` is an exact case-preserved resolver token (1..32 ASCII letters/digits or
 the supported punctuation `. ^ _ -`; first character is alphanumeric). `date` is
 a valid `YYYY-MM-DD`. `output_name` is one new directory name, at most 64 ASCII

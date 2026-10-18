@@ -1,6 +1,6 @@
 import { ANNOTATION_COLORS } from './annotations';
 import { isoToEtTime } from '../../tickerChartData';
-import type { Gallery } from './types';
+import { SUB_MINUTE_BAR_SECONDS, type Gallery } from './types';
 
 function invalid(): never { throw new Error('Invalid historical OHLCV gallery'); }
 function record(value: unknown): Record<string, unknown> {
@@ -27,6 +27,10 @@ function annotations(value: unknown) {
     } else if (annotation.kind === 'time_marker') {
       keys(annotation, ['kind', 'minute', 'label', 'color']);
       if (!minute(annotation.minute, 1439)) invalid();
+    } else if (annotation.kind === 'trade_marker') {
+      keys(annotation, ['kind', 'side', 'second', 'price', 'label', 'color']);
+      if ((annotation.side !== 'buy' && annotation.side !== 'sell') || !finite(annotation.price) || annotation.price <= 0
+        || !finite(annotation.second) || annotation.second < 0 || annotation.second >= 86400) invalid();
     } else invalid();
   }
 }
@@ -54,7 +58,13 @@ export function readGallery(value: unknown): Gallery {
   const ids = new Set<number>();
   for (const raw of gallery.entries) {
     const entry = record(raw);
-    keys(entry, ['id', 'symbol', 'date', 'as_of_m', 'as_of_t', 'annotations', 'bars_1m', 'bars_5m', 'source']);
+    keys(entry, ['id', 'symbol', 'date', 'as_of_m', 'as_of_t', 'annotations', 'bars_1m', 'bars_5m',
+      'bar_seconds', 'bars_sub', 'source']);
+    if (entry.bar_seconds !== undefined || entry.bars_sub !== undefined) {
+      if (!(SUB_MINUTE_BAR_SECONDS as readonly unknown[]).includes(entry.bar_seconds) || entry.as_of_m !== undefined
+        || !Array.isArray(entry.bars_sub) || !entry.bars_sub.length) invalid();
+      bars(entry.bars_sub);
+    }
     if (!finite(entry.id) || !Number.isInteger(entry.id) || entry.id < 0 || ids.has(entry.id)
       || !text(entry.symbol) || typeof entry.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(entry.date)) invalid();
     ids.add(entry.id);
