@@ -44,7 +44,14 @@ def gather() -> dict[str, Any]:
 
         focus = focus_store.resolve()
         out["page"], out["tab"], out["symbol"] = focus.get("page"), focus.get("tab"), focus.get("symbol")
-        front = next((w for w in focus.get("windows") or [] if w.get("window_id") == focus.get("window_id")), None)
+        front = next(
+            (
+                w
+                for w in focus.get("windows") or []
+                if w.get("window_id") == focus.get("window_id") and w.get("role") == focus.get("role")
+            ),
+            next((w for w in focus.get("windows") or [] if w.get("window_id") == focus.get("window_id")), None),
+        )
         out["ui"] = (front or {}).get("ui_tag")
     except Exception:
         logger.warning("issue_report: the focus sensor is unreadable", exc_info=True)

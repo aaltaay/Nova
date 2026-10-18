@@ -124,3 +124,104 @@ def test_the_focus_sensor_is_in_the_catalog():
     rows = {row["sensor"]: row for row in client.get("/sensors").json()["sensors"]}
     assert rows["focus"]["path"] == "/sensors/focus" and rows["focus"]["needs_symbol"] is False
     assert rows["book-pulls"]["needs_symbol"] is True
+
+
+def test_an_idle_browser_tab_sharing_main_window_id_does_not_steal_electron_focus():
+    now = time.time()
+    focus_store.record_window(
+        window(
+            role="main",
+            window_id="main",
+            instance_id="6b94fed5",
+            focused=True,
+            symbol="OFAL",
+            last_input_ts=now - 3.0,
+            reason="heartbeat",
+            ui_tag="v1388",
+        ),
+        now=now - 4.0,
+    )
+    focus_store.record_window(
+        window(
+            role="browser",
+            window_id="main",
+            instance_id="ed25a422",
+            focused=False,
+            symbol="AAPL",
+            last_input_ts=now - 6060.0,
+            reason="heartbeat",
+            ui_tag="v1310",
+        ),
+        now=now - 1.0,
+    )
+    focus_store.record_electron(electron(focused_window_id="main"), now=now - 2.0)
+
+    answer = focus_store.resolve(now=now)
+    assert answer["focus_source"] == "electron"
+    assert answer["nova_in_front"] is True
+    assert answer["symbol"] == "OFAL"
+    assert answer["role"] == "main"
+    assert answer["display"]["label"] == "DELL U2720Q"
+    assert answer["last_input_age_sec"] == 3.0
+
+    by_role = {w["role"]: w for w in answer["windows"]}
+    assert by_role["main"]["focused"] is True
+    assert by_role["main"]["display"]["label"] == "DELL U2720Q"
+    assert by_role["main"]["minimized"] is False
+    assert by_role["browser"]["focused"] is False
+    assert by_role["browser"]["display"] is None
+    assert by_role["browser"]["minimized"] is None
+
+    from issue_report import context
+
+    assert context.gather()["ui"] == "v1388"
+
+
+def test_fallback_and_window_pick_prefer_recent_input_and_electron_over_heartbeat_order():
+    now = 10_000.0
+    focus_store.record_window(
+        window(
+            role="main",
+            window_id="main",
+            instance_id="6b94fed5",
+            focused=True,
+            symbol="OFAL",
+            last_input_ts=now - 5.0,
+            reason="heartbeat",
+        ),
+        now=now - 4.0,
+    )
+    focus_store.record_window(
+        window(
+            role="browser",
+            window_id="main",
+            instance_id="ed25a422",
+            focused=True,
+            symbol="AAPL",
+            last_input_ts=now - 6060.0,
+            reason="heartbeat",
+        ),
+        now=now - 1.0,
+    )
+
+    # Without Electron report: both claim focused=True, browser heartbeat arrived later, but OFAL has newer input.
+    without_electron = focus_store.resolve(now=now)
+    assert without_electron["focus_source"] == "window"
+    assert without_electron["symbol"] == "OFAL"
+    assert without_electron["role"] == "main"
+
+    # With Electron behind another app (focused_window_id=None): fallback still picks Electron window OFAL.
+    focus_store.record_electron(
+        electron(
+            app_focused=False,
+            focused_window_id=None,
+            windows=[{"window_id": "main", "focused": False, "visible": True, "minimized": False, "display": None}],
+        ),
+        now=now,
+    )
+    behind = focus_store.resolve(now=now)
+    assert behind["focus_source"] == "electron"
+    assert behind["nova_in_front"] is False
+    assert behind["symbol"] == "OFAL"
+    assert behind["role"] == "main"
+
