@@ -144,6 +144,26 @@ def _reset_order_state_memory():
         module.reset_for_tests()
 
 
+def _clear_session_error_state() -> None:
+    from ibkr import farm_notices, l1_refused, reference_errors, scanner_l1, session_errors
+
+    for module in (session_errors, l1_refused, farm_notices, reference_errors):
+        module.reset_for_tests()
+    scanner_l1._subscription_state["error"] = None
+
+
+@pytest.fixture(autouse=True)
+def _reset_session_errors():
+    # #915: Error 101, connectivity, delayed-data and farm flags on session_errors are process-wide;
+    # reset before and after every test (including failed ones) so a session-error test cannot leak
+    # max_tickers_hit or scanner_l1 capacity errors into ticker-budget or status tests.
+    _clear_session_error_state()
+    try:
+        yield
+    finally:
+        _clear_session_error_state()
+
+
 @pytest.fixture(autouse=True)
 def _stop_market_board_lanes():
     # #925: the Market page's three daemon lanes start on the first ``refresh.want`` and ran for the rest of the

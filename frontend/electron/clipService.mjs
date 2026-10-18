@@ -58,6 +58,7 @@ export function startClipService({
   let disk = { free: null, error: null, checked: 0 };
   let lastBeat = 0;
   let stopped = false;
+  let drained = null;
   let dirty = true;
 
   const append = (row) => {
@@ -349,12 +350,16 @@ export function startClipService({
       return res;
     },
     stop(reason = 'quit') {
-      if (stopped) return;
+      if (stopped) return drained;
       stopped = true;
       timers.clearInterval(interval);
-      hq.shutdown(reason);
-      exporter.shutdown();
+      const hqDone = hq.shutdown(reason);
+      const exportDone = exporter.shutdown();
       publish();
+      drained = Promise.all([hqDone, exportDone]).then(() => {
+        if (dirty) publish();
+      });
+      return drained;
     },
   };
 }

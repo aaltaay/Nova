@@ -27,10 +27,12 @@ class _FakeIB:
 
 
 def setup_function() -> None:
-    se.reset_for_tests()
     session_state.reset_for_testing()
     session_state.set_ready()
-    scanner_l1._subscription_state["error"] = None
+
+
+def teardown_function() -> None:
+    session_state.reset_for_testing()
 
 
 def test_install_is_idempotent_per_ib_instance():
@@ -111,12 +113,41 @@ def test_data_farm_notice_recorded():
 
 
 def test_max_tickers_sets_scanner_l1_error():
+    from ibkr import ticks
+
     ib = _FakeIB()
     se.install_error_hook(ib)
     ib.errorEvent.fire(1, 101, "Max number of tickers has been reached", None)
     assert se.max_tickers_hit() is True
+    assert ticks.ticker_budget_status()["max_tickers_hit"] is True
     err = scanner_l1.get_subscription_state().get("error") or ""
     assert "101" in err or "max tickers" in err.lower()
+
+
+def test_session_error_state_resets_at_test_boundaries_and_after_failed_test():
+    """#915: Error 101 in the prior test (or a failing test) must not leak into the next test."""
+    import pytest
+
+    from ibkr import ticks
+    from tests import conftest
+
+    assert se.max_tickers_hit() is False
+    assert ticks.ticker_budget_status()["max_tickers_hit"] is False
+    assert scanner_l1.get_subscription_state().get("error") is None
+
+    fixture_fn = getattr(conftest._reset_session_errors, "__wrapped__", conftest._reset_session_errors)
+    gen = fixture_fn()
+    next(gen)
+    ib = _FakeIB()
+    se.install_error_hook(ib)
+    ib.errorEvent.fire(1, 101, "Max number of tickers has been reached", None)
+    assert se.max_tickers_hit() is True
+    assert scanner_l1.get_subscription_state().get("error") is not None
+    with pytest.raises(AssertionError, match="simulated test failure"):
+        gen.throw(AssertionError("simulated test failure"))
+    assert se.max_tickers_hit() is False
+    assert ticks.ticker_budget_status()["max_tickers_hit"] is False
+    assert scanner_l1.get_subscription_state().get("error") is None
 
 
 def test_delayed_data_notice_sets_flag():
