@@ -63,6 +63,9 @@ To put a stock-day on the desk for the operator, use the `nova-sim-navigator` sk
 | SEC XBRL facts (shares outstanding / issued / treasury, 10-K public float) | `F:\Nova\catalysts\edgar\companyfacts.zip` | XBRL era (~2009-2011 on) | `sec-shares` (`research/market_reads/sec.py`) |
 | SEC filing list (every form and date: 10-Q, 10-K, 20-F, 8-K, Forms 3/4/5, 13D/G, 424B) | `F:\Nova\catalysts\edgar\submissions.zip` | all of EDGAR | `sec-filings` |
 
+The scripts that build the derived tables (`trades_flow_v1`, `trades_movers_v1`, the reference dump, `orb.duckdb`,
+`seconds.duckdb`, `bb_mr.duckdb`) and every column's definition: `docs/massive-builders.md`.
+
 `NOVA_MARKET_DATA_DIR` moves the Massive root; `NOVA_LEADERBOARD_DIR` the boards; `NOVA_CATALYST_DIR` the SEC
 files. Heavy reads (bulk scans, index builds, MCP stock-day reads) share `NOVA_MARKET_READ_SLOTS` (default 2) slots
 across every process on the PC.
