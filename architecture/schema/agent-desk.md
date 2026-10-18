@@ -17,6 +17,9 @@ checkouts, local minute root, existing dedicated output root and optional export
 Python executable. Local roots reject network drives, traversal and every reparse
 component; the explicit Windows App Execution Alias exception applies only to the
 trusted executable token, never data/output roots.
+When no export interpreter is supplied, non-Windows launchers canonicalize the
+already-running SDK interpreter before validating it. Explicit interpreter paths
+retain strict symlink/reparse rejection; Windows execution-alias handling is unchanged.
 
 The adapter launches only `tools/nova_historical_charts.py export` from the trusted
 resolver checkout, forwarding trusted roots. The resolver owns local schema and

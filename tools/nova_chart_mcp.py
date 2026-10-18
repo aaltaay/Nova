@@ -265,7 +265,11 @@ class ChartService:
     def __init__(self, roots: Roots, execute: Callable = owned_execute,
                  export_python: Path | None = None) -> None:
         self.roots, self.execute = roots, execute
-        self.export_python = checked_executable(export_python or Path(sys.executable))
+        if export_python is None:
+            export_python = Path(sys.executable)
+            if os.name != "nt":
+                export_python = export_python.resolve(strict=True)
+        self.export_python = checked_executable(export_python)
         self._lock = threading.Lock()
 
     def export(self, symbol: str, day: str, output_name: str, samples: int = 0,
@@ -374,7 +378,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("resolver", "gateway", "massive", "output"):
         parser.add_argument(f"--{name}-root", type=Path, required=True)
-    parser.add_argument("--export-python", type=Path, default=Path(sys.executable),
+    parser.add_argument("--export-python", type=Path, default=None,
                         help="Trusted existing resolver/export runtime; defaults to this SDK runtime")
     args = parser.parse_args()
     try:

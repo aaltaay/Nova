@@ -50,6 +50,10 @@ The SDK environment and existing export environment can differ: pass a trusted
 `--export-python` runtime that already has the local reader and native export
 dependencies. Without it, the SDK interpreter is also used for export. Do not
 install the full trading app to make an MCP client work.
+Only this omitted default is canonicalized on non-Windows hosts, accommodating
+the already-running interpreter's symlink. Explicit `--export-python` paths keep
+strict checks; Windows behavior and all data/output root restrictions are unchanged.
+POSIX process-tree ownership remains unsupported.
 
 Launch using absolute, operator-approved replacements for these placeholders:
 

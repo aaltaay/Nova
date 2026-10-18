@@ -13,8 +13,9 @@ import subprocess
 import tempfile
 import threading
 import sys
+from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import nova_chart_mcp as M
 
@@ -161,6 +162,54 @@ class Boundaries(unittest.TestCase):
             M.ChartService(self.roots, export_python=self.base / "missing.exe")
         self.call()
         self.assertEqual(self.calls[0][0][0], str(Path(sys.executable).resolve()))
+
+    def test_nonwindows_default_canonicalizes_only_already_running_interpreter(self):
+        canonical = Path(sys.executable).resolve(strict=True)
+        with (patch.object(M, "os", SimpleNamespace(name="posix")),
+              patch.object(M, "Path") as default_path,
+              patch.object(M, "checked_executable", return_value=canonical) as check):
+            default_path.return_value.resolve.return_value = canonical
+            service = M.ChartService(self.roots, self.execute)
+            default_path.assert_called_once_with(sys.executable)
+            default_path.return_value.resolve.assert_called_once_with(strict=True)
+            check.assert_called_once_with(canonical)
+            self.assertEqual(service.export_python, canonical)
+
+    def test_explicit_nonwindows_symlink_remains_refused_before_resolution(self):
+        # Synthetic symlink metadata avoids requiring Windows symlink privileges.
+        alias = Mock(spec=Path)
+        alias.is_absolute.return_value = True
+        alias.parent = self.base
+        alias.lstat.return_value = SimpleNamespace(st_mode=M.stat.S_IFLNK, st_file_attributes=0)
+        with (patch.object(M, "os", SimpleNamespace(name="posix")),
+              patch.object(M, "local_directory", return_value=self.base)):
+            with self.assertRaisesRegex(M.ChartError, "EXPORT_RUNTIME_INVALID"):
+                M.ChartService(self.roots, self.execute, export_python=alias)
+        alias.resolve.assert_not_called()
+
+    def test_cli_distinguishes_omitted_from_explicit_export_interpreter(self):
+        argv = ["nova_chart_mcp.py"]
+        for name, value in (("resolver", self.roots.resolver), ("gateway", self.roots.gateway),
+                            ("massive", self.roots.massive), ("output", self.roots.output)):
+            argv.extend([f"--{name}-root", str(value)])
+        for suffix, expected in (([], None), (["--export-python", str(self.base / "explicit")], self.base / "explicit")):
+            with (patch.object(M.sys, "argv", argv + suffix),
+                  patch.object(M.Roots, "checked", return_value=self.roots),
+                  patch.object(M, "ChartService") as service,
+                  patch.object(M, "create_server") as server):
+                self.assertEqual(M.main(), 0)
+                service.assert_called_once_with(self.roots, export_python=expected)
+                server.return_value.run.assert_called_once_with(transport="stdio")
+
+    @unittest.skipIf(os.name == "nt", "Real POSIX symlink semantics; Windows simulation runs above")
+    def test_real_posix_default_symlink_works_but_explicit_symlink_is_refused(self):
+        alias = self.base / "python-alias"
+        alias.symlink_to(Path(sys.executable).resolve(strict=True))
+        with patch.object(M.sys, "executable", str(alias)):
+            service = M.ChartService(self.roots, self.execute)
+            self.assertEqual(service.export_python, alias.resolve(strict=True))
+            with self.assertRaisesRegex(M.ChartError, "EXPORT_RUNTIME_INVALID"):
+                M.ChartService(self.roots, self.execute, export_python=alias)
 
     def test_busy_never_queues_or_launches(self):
         self.service._lock.acquire()
