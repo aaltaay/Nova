@@ -19,7 +19,8 @@ which shows one top):
 
 Levels close together merge into one **zone** that lists every reason it holds. Nothing here decides a
 trade: ``level_notes`` says what stands between the plan's entry, stop and target. A bar is ``{t, o, h, l, c, v}`` (``t`` epoch seconds),
-oldest first, closed bars only; a daily bar is ``{d, o, h, l, c, v}``.
+oldest first, closed bars only; a daily bar is ``{d, o, h, l, c, v}`` and may carry ``state``
+(``history.daily_bars``): only a ``final`` one is a finished session's level (#839).
 """
 from __future__ import annotations
 
@@ -64,6 +65,10 @@ WORDS = {"hod": "HOD", "lod": "LOD", "pmh": "PMH", "open": "open", "vwap": "VWAP
 
 def px(p: float) -> str:
     return f"{p:.2f}" if p >= 1 else f"{p:.4f}"
+
+
+def final(b: dict[str, Any]) -> bool:
+    return b.get("state", "final") == "final"
 
 
 def hhmm(ts: float) -> str:
@@ -218,12 +223,14 @@ def _minute(ts: float) -> int:
 
 
 def unfilled_gaps(daily: list[dict[str, Any]], today: dict[str, Any] | None = None) -> list[dict[str, Any]]:
-    """The part of each gap between two sessions that no later session (today's included) traded:
-    ``{lo, hi, since}``."""
+    """The part of each gap between two finished sessions that no later session (today's included) traded:
+    ``{lo, hi, since}``. An unfinished one's range is still traded, so it can fill a gap."""
     later_all = daily + ([today] if today else [])
     out = []
     for i in range(1, len(daily)):
         a, b = daily[i - 1], daily[i]
+        if not (final(a) and final(b)):
+            continue
         if float(b["l"]) > float(a["h"]) + EPS:
             lo, hi = float(a["h"]), float(b["l"])
         elif float(b["h"]) < float(a["l"]) - EPS:
@@ -248,12 +255,14 @@ def unfilled_gaps(daily: list[dict[str, Any]], today: dict[str, Any] | None = No
 
 def daily_members(daily: list[dict[str, Any]], *, price: float | None, today: str,
                   sma200: float | None = None) -> list[dict[str, Any]]:
-    """The Full Day chart's levels from the stored daily bars before ``today``."""
+    """The Full Day chart's levels from the stored daily bars before ``today``, finished sessions only;
+    an unfinished one's high still bounds the "look left and up" highs from below."""
     before = [b for b in daily if b["d"] < today]
     look = before[-STOCK_READ_DAILY_LEVEL_SESSIONS:]
     out: list[dict[str, Any]] = []
     for key, kind in (("h", "daily_highs"), ("l", "daily_lows")):
-        for g in clusters([(float(b[key]), b["d"]) for b in look], STOCK_READ_DAILY_LEVEL_TOUCH_PCT, STOCK_READ_LEVEL_TOUCH_MIN):
+        for g in clusters([(float(b[key]), b["d"]) for b in look if final(b)], STOCK_READ_DAILY_LEVEL_TOUCH_PCT,
+                          STOCK_READ_LEVEL_TOUCH_MIN):
             if len(g) < STOCK_READ_LEVEL_MIN_TOUCHES:
                 continue
             edge = max(x[0] for x in g) if key == "h" else min(x[0] for x in g)
@@ -267,7 +276,7 @@ def daily_members(daily: list[dict[str, Any]], *, price: float | None, today: st
             if h <= top + EPS:
                 continue
             top = h
-            if h > price + EPS and not any(abs(h - t) <= STOCK_READ_DAILY_LEVEL_TOUCH_PCT * h for t in taken):
+            if final(b) and h > price + EPS and not any(abs(h - t) <= STOCK_READ_DAILY_LEVEL_TOUCH_PCT * h for t in taken):
                 out.append(member("daily_high", h, dates=[b["d"]], note=f"high of {_mmdd(b['d'])}"))
                 kept += 1
                 if kept >= STOCK_READ_DAILY_STAIR_MAX:
@@ -277,7 +286,7 @@ def daily_members(daily: list[dict[str, Any]], *, price: float | None, today: st
                    | {"hi": g["hi"]})
     if sma200 is not None:
         out.append(member("sma200", sma200, note="200-day average (daily closes after hours)"))
-    if before:
+    if before and final(before[-1]):
         y = before[-1]
         out.append(member("yday_high", y["h"], dates=[y["d"]], note=f"high of {_mmdd(y['d'])}"))
         out.append(member("yday_low", y["l"], dates=[y["d"]], note=f"low of {_mmdd(y['d'])}"))
@@ -361,13 +370,15 @@ def zones(members: list[dict[str, Any]], *, price: float | None, home: str, merg
 
 def build(bars: list[dict[str, Any]], daily: list[dict[str, Any]] | None, *, price: float | None,
           prior_close: float | None, vwap: float | None, now: float, sma200: float | None = None,
-          daily_error: str | None = None) -> dict[str, Any]:
+          daily_error: str | None = None, daily_note: str | None = None) -> dict[str, Any]:
     """The level map the read carries: ``{schema_version, price, rounds, intraday, five_minute, daily,
-    daily_sessions, daily_error, study}``. ``bars`` are the session's closed one-minute bars; ``rounds``
-    is the price's scale of round numbers (``rounds.Rounds.wire``), None without a price."""
+    daily_sessions, daily_error, daily_note, study}``. ``bars`` are the session's closed one-minute bars;
+    ``rounds`` is the price's scale of round numbers (``rounds.Rounds.wire``), None without a price.
+    Yesterday is the last session before today only when it is finished: an unfinished one is no
+    yesterday, and an older session is never renamed yesterday (``daily_note`` says why)."""
     today = datetime.fromtimestamp(now, ET).date().isoformat()
     past = [b for b in (daily or []) if b["d"] < today]
-    yday = past[-1] if past else None
+    yday = past[-1] if past and final(past[-1]) else None
     intra = intraday_members(bars, price=price, vwap=vwap, yday=yday, prior_close=prior_close)
     day = daily_members(past, price=price, today=today, sma200=sma200) if daily is not None else []
     five = five_minute_members(five_minute_bars(bars, now), price=price)
@@ -380,7 +391,8 @@ def build(bars: list[dict[str, Any]], daily: list[dict[str, Any]] | None, *, pri
         "intraday": zones(intra, price=price, home="intraday", merge_pct=STOCK_READ_LEVEL_MERGE_PCT),
         "five_minute": five_zones,
         "daily": zones(day, price=price, home="daily", merge_pct=STOCK_READ_DAILY_MERGE_PCT),
-        "daily_sessions": len(past[-STOCK_READ_DAILY_LEVEL_SESSIONS:]),
+        "daily_sessions": sum(1 for b in past[-STOCK_READ_DAILY_LEVEL_SESSIONS:] if final(b)),
         "daily_error": daily_error if daily is None else None,
+        "daily_note": daily_note if daily is not None else None,
         "study": {k: list(v) if isinstance(v, tuple) else v for k, v in STOCK_READ_LEVEL_STUDY.items()},
     }

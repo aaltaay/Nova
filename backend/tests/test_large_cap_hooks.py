@@ -59,8 +59,9 @@ def test_skips_schedule_when_store_already_complete(monkeypatch):
     import large_cap_metrics as _metrics
     from constants import LARGE_CAP_DAILY_BARS_LOOKBACK
 
+    # Finished sessions: each written (``w``) after its own 20:00 ET (#839).
     complete = {
-        "bars": [{"t": f"d{i}", "o": 1, "h": 1, "l": 1, "c": 1, "v": 1}
+        "bars": [{"t": f"2026-08-{i + 1:02d}T00:00:00Z", "o": 1, "h": 1, "l": 1, "c": 1, "v": 1, "w": 1_790_000_000.0}
                  for i in range(LARGE_CAP_DAILY_BARS_LOOKBACK + 1)],
     }
     monkeypatch.setattr(bars_store, "read", lambda *a, **k: complete)

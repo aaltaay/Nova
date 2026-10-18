@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
+import time
 
 from ibkr import scanner_session as _ss
 
@@ -51,21 +52,26 @@ async def _fill_short_of_daily_bars(symbols: list[str]) -> None:
 
 
 def _short_of_daily_bars(symbols: list[str]) -> list[str]:
-    """The symbols whose stored 1Day series is incomplete. A complete one does
-    not spend an IB historical token re-requesting daily bars that do not change
-    intraday (large_cap_metrics.schedule_daily_fill's session guard covers the
+    """The symbols whose stored 1Day series is incomplete: fewer completed
+    sessions than the metrics read, or one of them stored before it ended (#839,
+    ``large_cap_metrics.completed_sessions``). A complete one does not spend an IB
+    historical token re-requesting daily bars that do not change intraday
+    (large_cap_metrics.schedule_daily_fill's session guard covers the
     incomplete-but-already-tried case)."""
     import bars_store
     from constants import LARGE_CAP_DAILY_BARS_LOOKBACK
+    from large_cap_metrics import completed_sessions
 
     out: list[str] = []
+    now = time.time()
     for sym in symbols:
         try:
-            stored = bars_store.read(sym, "1Day", LARGE_CAP_DAILY_BARS_LOOKBACK + 1)
+            stored = bars_store.read(sym, "1Day", LARGE_CAP_DAILY_BARS_LOOKBACK + 2, provenance=True)
         except Exception:
             logger.debug("large_cap_hooks: stored daily bars unread for %s", sym, exc_info=True)
             continue
-        if len((stored or {}).get("bars") or []) < LARGE_CAP_DAILY_BARS_LOOKBACK + 1:
+        done, unfinished = completed_sessions((stored or {}).get("bars") or [], now)
+        if unfinished or len(done) < LARGE_CAP_DAILY_BARS_LOOKBACK + 1:
             out.append(sym)
     return out
 

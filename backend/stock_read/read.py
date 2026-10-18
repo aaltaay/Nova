@@ -230,7 +230,8 @@ def build(f: dict[str, Any], *, entry: float | None = None, stop: float | None =
     levels = level_map.build(d["bars"], hist.get("daily") if hist else None, price=d["price"],
                              prior_close=d["prev_close"], vwap=d["levels"].get("vwap"), now=now,
                              sma200=(hist or {}).get("sma200"),
-                             daily_error=None if hist else "the daily history could not be read")
+                             daily_error=None if hist else "the daily history could not be read",
+                             daily_note=history.daily_note(hist))
     # Each chart's trend lines from its own candles (ADR 036 amendment 2026-10-12).
     levels["lines"] = trend_lines.build(d["bars"], level_map.five_minute_bars(d["bars"], now), price=d["price"])
     ctx = {"price": d["price"], "levels": d["levels"], "macd_hist": (d["macd_1m"] or {}).get("macd_hist"),

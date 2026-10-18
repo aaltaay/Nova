@@ -72,3 +72,43 @@ Loading/freezing, native export, and total elapsed time are reported separately.
 The standalone native-export subprocess has a 180-second timeout. Failure preserves
 the frozen bundle and existing native phase logs; a timeout also saves captured
 stdout/stderr in `native_export_failure.json` and never creates a success receipt.
+
+## Trade charts (trade list in, marked charts out)
+
+`tools/nova_trade_charts.py` owns turning a caller's trade list into one frozen gallery of
+sub-minute charts with the fills marked, then delegates PNG capture to the same native
+exporter (`run_native_export` in `nova_historical_charts.py`). MCP: `nova_trade_charts`.
+
+```text
+py -3 tools/nova_trade_charts.py export --trades-file trades.json --output <NEW> --massive-root E:\Nova\massive [--bar-seconds 10] [--before 300] [--after 120] [--family "..."]
+```
+
+A trade is `{symbol, date, entry_time, entry_price, exit_time, exit_price}` or, for
+partial exits, `{symbol, date, entry_time, entry_price, exits:[{time, price}, ...]}`
+(1..8 exits), with optional `stop`, `pivot` (positive prices, drawn as grey / gold
+`horizontal_line`s) and `label` (1..40 printable characters, shown on the buy arrow).
+Times are ET `HH:MM:SS` with optional fractional seconds; an exit before its entry,
+unknown fields, or a non-positive price is `invalid_trade`.
+
+- Trades on the same symbol and date share one chart (one gallery entry); 1..9
+  stock-days per call, at most 32 marks per stock-day.
+- Each stock-day's window runs `before` seconds before its first entry to `after`
+  seconds after its last exit, snapped outward to the bar grid; bars are 1, 5, 10, 15
+  or 30 seconds (default 10).
+- Bars come from that day's Massive `trades_v1` file under the explicit
+  `--massive-root` through the market data front door (`market_reads.bars`, the Sim's
+  rule: a cancel/error record is no trade, price-setting prints set OHLC, every trade
+  counts in volume). A bucket with volume but no price-setting print stays a gap and is
+  counted in provenance (`volume_only_buckets_left_as_gaps`). A stock-day with no
+  priced bar in its window is `symbol_missing`; a root without `trades_v1` is
+  `trades_root_missing`; a missing day file is `day_missing`.
+- Reads run in parallel threads before the output folder is claimed. The day file is
+  multi-GB, so provenance records its path, size and modification time (checked before
+  and after the read), not a SHA256; the frozen projection files are SHA256-bound as
+  for minute bundles.
+- Each fill becomes a `trade_marker` (buy arrow green, sell arrow red). Fills are the
+  caller's marks; nothing is inferred, filled or adjusted.
+
+Output: the usual bundle (`bars/NN.json` sub-minute projections, `selection.json`,
+`provenance.json` with `read_ms`, `images/`) plus `historical_export.json`; detail PNGs
+are `images/images/NN_<TICKER>_<date>_<n>s.png`.
