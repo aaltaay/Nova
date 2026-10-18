@@ -152,11 +152,11 @@
       "title": "Investigate cancelled Time & Sales lines that keep printing and suspected slot leakage",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed",
       "number": "922",
       "url": "https://github.com/aaltaay/Nova/issues/922",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#915",
@@ -625,11 +625,11 @@
       "title": "Recover registered silent Time & Sales lines while quotes and depth continue",
       "kind": "bug",
       "severity": "P1",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed | ibkr",
       "number": "722",
       "url": "https://github.com/aaltaay/Nova/issues/722",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#721",

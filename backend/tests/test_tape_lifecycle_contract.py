@@ -100,27 +100,37 @@ def test_registered_missing_trades_and_late_old_prints_never_imply_recovery(sdk,
         queue1, queue2 = tape.open_viewer_queue(target), tape.open_viewer_queue(target)
         tape.ws_viewer_opened(target)
         old_req = ib.wrapper.subscriptions.find_market_data(tape._contracts[target].conId, "AllLast").reqId
-        clock["now"] += 40
+        clock["now"] += 12                              # dead via 10 s shared-stall threshold (< 30 s solo threshold)
         reading = tape_silence.reading(target)
         assert tape.is_subscribed(target) and reading["state"] == "dead" and "SAIQ" in reading["pipeline"]
         tape_heal.line_down(target, silence=reading)
         await _until(lambda: tape_heal.silent_status(target)["state"] == "holding")
         assert len(requests) == 3 and cancels == []
 
-        clock["now"] += 1
+        clock["now"] += 1                               # 13 s into outage: sibling returns and clears VEEA's peers
         _print(ib, requests[0])                         # sibling returns without any re-ask
         await _until(lambda: old_req in cancels)
         assert len(requests) == 3 and tape.viewer_count(target) == 2
         assert tape._viewer_queues[target] == [queue1, queue2]
         assert ib.wrapper.subscriptions.get_ticker(old_req) is None
         assert stray_lines.view()["cancellations"][-1]["cancel_sent"] is True
-        # During the same-instrument guard, the line is temporarily unsubscribed, yet the outage
-        # anchor and missing-trades order gate stay in force.
+        # During the same-instrument guard (still only 13 s into the outage, with VEEA's peer list now
+        # empty), the line is temporarily unsubscribed, yet the accelerated dead verdict, outage anchor
+        # and missing-trades order gate stay in force.
         assert not tape.is_subscribed(target)
         assert tape_heal.unverified_reask(target)["since"] == reading["since"]
         assert tape_silence.missed_trades(target)["since"] == reading["since"]
         assert tape_silence.reading(target)["state"] == "dead"
         assert tape_silence.reading(target)["since"] == reading["since"]
+        expected_peers = ["VEEA"] if target == "SCNI" else []
+        assert tape_silence.pipeline_peers(target) == expected_peers
+        queued = []
+        while not queue1.empty():
+            queued.append(queue1.get_nowait())
+        assert any(
+            f.get("silent_recovery") == "attempting" and f.get("silence_since") == reading["since"]
+            for f in queued
+        )
 
         clock["now"] += 16                             # the real same-instrument guard, on the fixture clock
         await _until(lambda: len(requests) == 4)
@@ -133,6 +143,7 @@ def test_registered_missing_trades_and_late_old_prints_never_imply_recovery(sdk,
         assert tape_silence.missed_trades(target)["since"] == reading["since"]
         assert tape_silence.reading(target)["state"] == "dead"
         assert tape_silence.reading(target)["since"] == reading["since"]
+        assert tape_silence.pipeline_peers(target) == expected_peers
         _print(ib, old_req)                             # a late cancelled-id print cannot confirm the new line
         assert tape_recording.producer_status(target)["last_print_ts"] is None
         clock["now"] += 31
@@ -145,7 +156,14 @@ def test_registered_missing_trades_and_late_old_prints_never_imply_recovery(sdk,
         _print(ib, requests[-1])                        # only an actual print is evidence of return
         assert tape_recording.producer_status(target)["healthy"] is True
         assert tape_heal.silent_status(target)["state"] == "resumed"
+        assert tape_heal.unverified_reask(target) is None
         assert tape_silence.missed_trades(target) is None
         assert tape_silence.reading(target) is None
+        # A later ordinary re-subscription on the same IBKR generation clears last_print_ts,
+        # and must not resurrect the completed silent-recovery outage in unverified_reask.
+        clock["now"] += 20
+        tape_recording.subscribed(target)
+        assert tape_recording.producer_status(target)["last_print_ts"] is None
+        assert tape_heal.unverified_reask(target) is None
 
     asyncio.run(scenario())
