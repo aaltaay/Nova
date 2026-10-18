@@ -1,19 +1,27 @@
 # Historical charts for agent clients
 
-Nova offers one optional MCP tool, `nova_historical_chart`, for one exact local
-historical symbol/day. It delegates to `nova_historical_charts.py export` and the
-existing isolated Nova renderer. It returns verified PNG paths, SHA256 hashes,
-a receipt and zero-active-process cleanup status. The successful MCP response
-also carries one inline PNG of the paired 1m/5m chart so clients can inspect it
-without filesystem access. No Sim selection or running
+Nova offers two optional MCP tools, `nova_historical_chart` (single symbol/day)
+and `nova_historical_chart_gallery` (`1..9` symbol/day entries in one pass).
+Both delegate to `nova_historical_charts.py export` and the existing isolated Nova
+renderer. They return verified PNG paths, SHA256 hashes, a receipt and
+zero-active-process cleanup status. The successful MCP response also carries one
+inline PNG (the paired 1m/5m chart for `nova_historical_chart`, or the 3x3 overview
+chart for `nova_historical_chart_gallery`) so clients can inspect it without
+filesystem access. No Sim selection or running
 trading desk is required. See `architecture/schema/agent-desk.md` and the local
 historical resolver schema for the contracts.
 
-The tool accepts only:
+`nova_historical_chart` accepts:
 
 ```json
-{"symbol":"DEMO","date":"2020-01-02","output_name":"demo-chart-01","samples":0}
+{"symbol":"DEMO","date":"2020-01-02","output_name":"demo-chart-01","samples":0,"as_of_m":585,"annotations":[{"kind":"horizontal_line","price":10.5,"label":"Entry","color":"green"}]}
 ```
+
+`as_of_m` (`0..1440` integer minute boundary) and `annotations` (`0..32`
+`horizontal_line` or `time_marker` objects) are optional.
+`nova_historical_chart_gallery` accepts `entries` (`1..9` items with `symbol`,
+`date`, and optional `as_of_m` and `annotations`), `output_name`, optional `family`,
+and `samples`.
 
 `symbol` is an exact case-preserved resolver token (1..32 ASCII letters/digits or
 the supported punctuation `. ^ _ -`; first character is alphanumeric). `date` is
@@ -21,8 +29,9 @@ a valid `YYYY-MM-DD`. `output_name` is one new directory name, at most 64 ASCII
 letters/digits/underscore/hyphen, starting with a letter or digit; Windows device
 names are refused. `samples` is a strict integer 0..50; booleans are refused.
 Default0 performs no benchmark loop. The requested day must be present in the
-host-approved local minute root using the resolver's confirmed partition/schema.
-The tool does not download or discover a replacement dataset.
+host-approved local minute root (or optional `--fallback-massive-root`) using the
+resolver's confirmed partition or Massive `.csv.gz` schema.
+The tool does not download or discover a remote dataset.
 
 Always check `ok` before using artifacts. A tool invocation can return
 `{"ok":false,"error":{"code":"OUTPUT_ALREADY_EXISTS"}}` or another fixed error

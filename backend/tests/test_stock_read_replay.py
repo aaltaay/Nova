@@ -82,3 +82,57 @@ def test_the_daily_map_reads_only_the_days_before_the_replayed_one(monkeypatch):
     assert [b["d"] for b in out["daily"]] == ["2026-09-16", "2026-09-17"]     # never the day itself, or later
     live = history.summary(SYM, now)
     assert [b["d"] for b in live["daily"]][-1] == "2026-09-21"                 # the live read is unchanged
+
+
+def test_replay_read_populates_playhead_volume_liquidity_luld_and_float_detail(monkeypatch):
+    from luld import replay as luld_replay
+    from sim import history_playback as playback, history_store as store
+    from stock_read import replay_read
+
+    set_venue("sim", persist=False)
+    load_window()
+    go(75)                                              # 07:01:15: 4 prints of 100 shares = 400 shares traded so far
+    assert replay_read._price(SYM)["volume"] == 400
+    monkeypatch.setattr(
+        luld_replay,
+        "view",
+        lambda sym: {
+            "schema_version": 1,
+            "symbol": sym,
+            "source": "replay",
+            "state": "bands",
+            "exact": True,
+            "lower": 9.0,
+            "upper": 11.0,
+            "tier_sure": True,
+            "distance": {"down_pct": -0.25, "up_pct": -0.0833},
+            "near": None,
+            "reason": None,
+            "text": "LULD 9.00 - 11.00",
+            "as_of": clock.now_et().timestamp(),
+        },
+    )
+    body = _read()
+    groups = {g["id"]: {r["id"]: r for r in g["rows"]} for g in body["groups"]}
+    # Volume at the playhead is known (400 shares @ ~$10 = ~$4K, which is under the $2M day floor, never "unknown").
+    liq = groups["in_play"]["liquidity"]
+    assert liq["state"] == "bad" and "traded $4K today" in (liq["detail"] or "")
+    # Float unknown on replay explains that historical float is not recorded rather than blaming today's Yahoo feed.
+    fl = groups["float"]["float"]
+    assert fl["state"] == "unknown" and "Yahoo gave none" not in (fl["detail"] or "")
+    # Halts group includes the replay LULD reading.
+    luld_row = groups["halts"]["luld"]
+    assert luld_row["value"] == "9.00 - 11.00" and luld_row["state"] == "info"
+
+    # With sufficient replay volume (300,000 shares @ $10 = $3.0M traded today and in the last 5 minutes), liquidity is ok.
+    spec = store.window(SYM, DAY, "04:00", "10:00")
+    job = store.create(spec, "trades")
+    a = spec["start_ts"]
+    store.commit_page(job["id"], a, [dict(ts=a + 10, price=10.0, size=300_000)], spec["end_ts"], True)
+    playback.select(spec)
+    go(75)
+    body_liquid = _read()
+    liq_ok = {g["id"]: {r["id"]: r for r in g["rows"]} for g in body_liquid["groups"]}["in_play"]["liquidity"]
+    assert liq_ok["state"] == "ok" and liq_ok["value"] == "$3.00M"
+
+

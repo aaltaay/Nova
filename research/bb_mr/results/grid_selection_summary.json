@@ -1,0 +1,1851 @@
+{
+  "liquid_reference": {
+    "universe": "liquid_reference",
+    "selection_status": "failed_gate_diagnostic_best_val_sharpe",
+    "configs_tested": 96,
+    "configs_positive_dev": 0,
+    "configs_positive_val": 0,
+    "configs_passed_gate": 0,
+    "chosen_config": {
+      "tag": "grid_liquid_reference_92_5m_p200_d2.5_s5_e3",
+      "universe": "liquid_reference",
+      "timeframe": "5m",
+      "period": 200,
+      "deviation": 2.5,
+      "spacing": 5,
+      "max_entries": 3,
+      "multiplier": 1.0,
+      "dev_baskets": 1112,
+      "dev_entries": 1378,
+      "dev_net_pnl_usd": -3201.37,
+      "dev_return_pct": -12.81,
+      "dev_pf": 0.611,
+      "dev_win_rate_pct": 33.72,
+      "dev_max_dd_pct": -12.97,
+      "dev_sharpe": -2.259,
+      "dev_expectancy_usd": -2.88,
+      "baskets": 1112,
+      "net_pnl_usd": -3201.37,
+      "val_baskets": 423,
+      "val_net_pnl_usd": -1792.19,
+      "val_pf": 0.512,
+      "val_sharpe": -3.148,
+      "val_max_dd_pct": -7.21
+    },
+    "evaluation_split_result": {
+      "tag": "grid_liquid_reference_92_5m_p200_d2.5_s5_e3_eval",
+      "universe": "liquid_reference",
+      "session": "morning_combined",
+      "split": "evaluation",
+      "config": {
+        "tag": "grid_liquid_reference_92_5m_p200_d2.5_s5_e3_eval",
+        "universe": "liquid_reference",
+        "session": "morning_combined",
+        "split": "evaluation",
+        "date_from": null,
+        "date_to": null,
+        "strategy": {
+          "timeframe": "5m",
+          "period": 200,
+          "deviation": 2.5,
+          "spacing": 5,
+          "max_entries": 3,
+          "multiplier": 1.0,
+          "exit_band": "upper",
+          "require_profit_on_exit": true,
+          "overnight_hold": false
+        },
+        "account": {
+          "start_equity": 25000.0,
+          "entry_alloc_pct_e0": 0.02,
+          "max_committed_pct_e0": 0.1,
+          "max_simultaneous_stocks": 5,
+          "max_gross_exposure_pct": 0.5,
+          "basket_loss_pct_e0": 0.005,
+          "daily_loss_pct": 0.03,
+          "fixed_dollar_sizing": false
+        },
+        "execution": {
+          "slippage_per_share": 0.01,
+          "half_spread_min": 0.01,
+          "rth_range_spread_frac": 0.06,
+          "ext_range_spread_frac": 0.12,
+          "ext_limit_collar_pct": 0.01,
+          "max_bar_participation": 0.1,
+          "max_order_vol_share": 0.1,
+          "latency_bars": 1,
+          "commission_mult": 1.0
+        }
+      },
+      "days": 308,
+      "baskets": 449,
+      "entries": 561,
+      "signals_total": 803,
+      "signals_rejected": 240,
+      "rejected_by_reason": {
+        "max_entries_reached": 9,
+        "spacing_not_satisfied": 231
+      },
+      "partial_fills": 13,
+      "start_equity": 25000.0,
+      "end_balance": 23671.94,
+      "end_equity": 23671.94,
+      "net_pnl_usd": -1328.06,
+      "total_return_pct": -5.31,
+      "max_drawdown_pct": -5.31,
+      "underwater_days": 307,
+      "underwater_pct": 99.7,
+      "sharpe": -2.474,
+      "sharpe_95ci": [
+        -4.0,
+        -0.433
+      ],
+      "daily_ret_mean_pct": -0.0177,
+      "daily_ret_std_pct": 0.1133,
+      "daily_ret_skew": -0.562,
+      "daily_ret_p05_pct": -0.205,
+      "daily_ret_p95_pct": 0.144,
+      "win_rate_pct": 35.63,
+      "profit_factor": 0.62,
+      "expectancy_usd": -2.96,
+      "avg_win_usd": 13.52,
+      "avg_loss_usd": -12.08,
+      "largest_win_usd": 106.88,
+      "largest_loss_usd": -125.33,
+      "total_fees_usd": 1025.13,
+      "total_turnover_usd": 520440.32,
+      "avg_gross_exposure_usd": 0.0,
+      "max_gross_exposure_usd": 0.0,
+      "top5_days_pnl_usd": 483.81,
+      "ex_top5_days_pnl_usd": -1811.87,
+      "top5_stocks_pnl_usd": 457.96,
+      "ex_top5_stocks_pnl_usd": -1786.02,
+      "by_entries": {
+        "1": {
+          "baskets": 354,
+          "win_rate_pct": 39.0,
+          "net_pnl_usd": -267.93,
+          "expectancy_usd": -0.76,
+          "pf": 0.853
+        },
+        "2": {
+          "baskets": 78,
+          "win_rate_pct": 23.1,
+          "net_pnl_usd": -706.4,
+          "expectancy_usd": -9.06,
+          "pf": 0.36
+        },
+        "3": {
+          "baskets": 17,
+          "win_rate_pct": 23.5,
+          "net_pnl_usd": -353.73,
+          "expectancy_usd": -20.81,
+          "pf": 0.372
+        }
+      },
+      "by_year": {
+        "2025": {
+          "baskets": 172,
+          "entries": 224,
+          "win_rate_pct": 36.0,
+          "net_pnl_usd": -703.69,
+          "pf": 0.525
+        },
+        "2026": {
+          "baskets": 277,
+          "entries": 337,
+          "win_rate_pct": 35.4,
+          "net_pnl_usd": -624.37,
+          "pf": 0.69
+        }
+      },
+      "by_exit_reason": {
+        "basket_stop": {
+          "baskets": 1,
+          "net_pnl_usd": -125.33
+        },
+        "normal_upper_band": {
+          "baskets": 12,
+          "net_pnl_usd": 423.39
+        },
+        "window_end": {
+          "baskets": 436,
+          "net_pnl_usd": -1626.12
+        }
+      },
+      "reconciliation": {
+        "ok": true,
+        "cash": 23671.935888,
+        "expected_cash": 23671.935888,
+        "diff": 0.0,
+        "realized_pnl": -1328.064112,
+        "open_baskets": 0,
+        "marked_equity": 23671.935888,
+        "account_balance": 23671.935888
+      }
+    },
+    "full_5y_result": {
+      "tag": "grid_liquid_reference_92_5m_p200_d2.5_s5_e3_full",
+      "universe": "liquid_reference",
+      "session": "morning_combined",
+      "split": "full",
+      "config": {
+        "tag": "grid_liquid_reference_92_5m_p200_d2.5_s5_e3_full",
+        "universe": "liquid_reference",
+        "session": "morning_combined",
+        "split": "full",
+        "date_from": null,
+        "date_to": null,
+        "strategy": {
+          "timeframe": "5m",
+          "period": 200,
+          "deviation": 2.5,
+          "spacing": 5,
+          "max_entries": 3,
+          "multiplier": 1.0,
+          "exit_band": "upper",
+          "require_profit_on_exit": true,
+          "overnight_hold": false
+        },
+        "account": {
+          "start_equity": 25000.0,
+          "entry_alloc_pct_e0": 0.02,
+          "max_committed_pct_e0": 0.1,
+          "max_simultaneous_stocks": 5,
+          "max_gross_exposure_pct": 0.5,
+          "basket_loss_pct_e0": 0.005,
+          "daily_loss_pct": 0.03,
+          "fixed_dollar_sizing": false
+        },
+        "execution": {
+          "slippage_per_share": 0.01,
+          "half_spread_min": 0.01,
+          "rth_range_spread_frac": 0.06,
+          "ext_range_spread_frac": 0.12,
+          "ext_limit_collar_pct": 0.01,
+          "max_bar_participation": 0.1,
+          "max_order_vol_share": 0.1,
+          "latency_bars": 1,
+          "commission_mult": 1.0
+        }
+      },
+      "days": 1235,
+      "baskets": 1984,
+      "entries": 2473,
+      "signals_total": 3650,
+      "signals_rejected": 1163,
+      "rejected_by_reason": {
+        "max_entries_reached": 34,
+        "max_simultaneous_stocks": 70,
+        "spacing_not_satisfied": 1059
+      },
+      "partial_fills": 30,
+      "start_equity": 25000.0,
+      "end_balance": 18878.27,
+      "end_equity": 18878.27,
+      "net_pnl_usd": -6121.73,
+      "total_return_pct": -24.49,
+      "max_drawdown_pct": -24.59,
+      "underwater_days": 1232,
+      "underwater_pct": 99.8,
+      "sharpe": -2.63,
+      "sharpe_95ci": [
+        -3.698,
+        -1.657
+      ],
+      "daily_ret_mean_pct": -0.0226,
+      "daily_ret_std_pct": 0.1367,
+      "daily_ret_skew": 0.396,
+      "daily_ret_p05_pct": -0.212,
+      "daily_ret_p95_pct": 0.117,
+      "win_rate_pct": 33.87,
+      "profit_factor": 0.575,
+      "expectancy_usd": -3.09,
+      "avg_win_usd": 12.34,
+      "avg_loss_usd": -10.99,
+      "largest_win_usd": 342.48,
+      "largest_loss_usd": -163.97,
+      "total_fees_usd": 4503.32,
+      "total_turnover_usd": 2077172.12,
+      "avg_gross_exposure_usd": 0.0,
+      "max_gross_exposure_usd": 0.0,
+      "top5_days_pnl_usd": 1018.9,
+      "ex_top5_days_pnl_usd": -7140.63,
+      "top5_stocks_pnl_usd": 891.94,
+      "ex_top5_stocks_pnl_usd": -7013.67,
+      "by_entries": {
+        "1": {
+          "baskets": 1560,
+          "win_rate_pct": 36.7,
+          "net_pnl_usd": -1635.77,
+          "expectancy_usd": -1.05,
+          "pf": 0.786
+        },
+        "2": {
+          "baskets": 359,
+          "win_rate_pct": 24.5,
+          "net_pnl_usd": -2808.22,
+          "expectancy_usd": -7.82,
+          "pf": 0.403
+        },
+        "3": {
+          "baskets": 65,
+          "win_rate_pct": 18.5,
+          "net_pnl_usd": -1677.74,
+          "expectancy_usd": -25.81,
+          "pf": 0.191
+        }
+      },
+      "by_year": {
+        "2021": {
+          "baskets": 34,
+          "entries": 41,
+          "win_rate_pct": 44.1,
+          "net_pnl_usd": -135.13,
+          "pf": 0.602
+        },
+        "2022": {
+          "baskets": 420,
+          "entries": 526,
+          "win_rate_pct": 37.6,
+          "net_pnl_usd": -877.32,
+          "pf": 0.733
+        },
+        "2023": {
+          "baskets": 455,
+          "entries": 545,
+          "win_rate_pct": 32.1,
+          "net_pnl_usd": -1508.76,
+          "pf": 0.521
+        },
+        "2024": {
+          "baskets": 396,
+          "entries": 510,
+          "win_rate_pct": 31.3,
+          "net_pnl_usd": -1302.66,
+          "pf": 0.538
+        },
+        "2025": {
+          "baskets": 402,
+          "entries": 514,
+          "win_rate_pct": 33.6,
+          "net_pnl_usd": -1679.77,
+          "pf": 0.465
+        },
+        "2026": {
+          "baskets": 277,
+          "entries": 337,
+          "win_rate_pct": 33.9,
+          "net_pnl_usd": -618.1,
+          "pf": 0.632
+        }
+      },
+      "by_exit_reason": {
+        "basket_stop": {
+          "baskets": 13,
+          "net_pnl_usd": -1589.89
+        },
+        "normal_upper_band": {
+          "baskets": 39,
+          "net_pnl_usd": 1347.14
+        },
+        "window_end": {
+          "baskets": 1932,
+          "net_pnl_usd": -5878.99
+        }
+      },
+      "reconciliation": {
+        "ok": true,
+        "cash": 18878.271643,
+        "expected_cash": 18878.271643,
+        "diff": 0.0,
+        "realized_pnl": -6121.728357,
+        "open_baskets": 0,
+        "marked_equity": 18878.271643,
+        "account_balance": 18878.271643
+      }
+    },
+    "evaluation_across_sessions": {
+      "morning_combined": {
+        "tag": "grid_liquid_reference_92_5m_p200_d2.5_s5_e3_eval_morning_combined",
+        "universe": "liquid_reference",
+        "session": "morning_combined",
+        "split": "evaluation",
+        "config": {
+          "tag": "grid_liquid_reference_92_5m_p200_d2.5_s5_e3_eval_morning_combined",
+          "universe": "liquid_reference",
+          "session": "morning_combined",
+          "split": "evaluation",
+          "date_from": null,
+          "date_to": null,
+          "strategy": {
+            "timeframe": "5m",
+            "period": 200,
+            "deviation": 2.5,
+            "spacing": 5,
+            "max_entries": 3,
+            "multiplier": 1.0,
+            "exit_band": "upper",
+            "require_profit_on_exit": true,
+            "overnight_hold": false
+          },
+          "account": {
+            "start_equity": 25000.0,
+            "entry_alloc_pct_e0": 0.02,
+            "max_committed_pct_e0": 0.1,
+            "max_simultaneous_stocks": 5,
+            "max_gross_exposure_pct": 0.5,
+            "basket_loss_pct_e0": 0.005,
+            "daily_loss_pct": 0.03,
+            "fixed_dollar_sizing": false
+          },
+          "execution": {
+            "slippage_per_share": 0.01,
+            "half_spread_min": 0.01,
+            "rth_range_spread_frac": 0.06,
+            "ext_range_spread_frac": 0.12,
+            "ext_limit_collar_pct": 0.01,
+            "max_bar_participation": 0.1,
+            "max_order_vol_share": 0.1,
+            "latency_bars": 1,
+            "commission_mult": 1.0
+          }
+        },
+        "days": 308,
+        "baskets": 449,
+        "entries": 561,
+        "signals_total": 803,
+        "signals_rejected": 240,
+        "rejected_by_reason": {
+          "max_entries_reached": 9,
+          "spacing_not_satisfied": 231
+        },
+        "partial_fills": 13,
+        "start_equity": 25000.0,
+        "end_balance": 23671.94,
+        "end_equity": 23671.94,
+        "net_pnl_usd": -1328.06,
+        "total_return_pct": -5.31,
+        "max_drawdown_pct": -5.31,
+        "underwater_days": 307,
+        "underwater_pct": 99.7,
+        "sharpe": -2.474,
+        "sharpe_95ci": [
+          -4.0,
+          -0.433
+        ],
+        "daily_ret_mean_pct": -0.0177,
+        "daily_ret_std_pct": 0.1133,
+        "daily_ret_skew": -0.562,
+        "daily_ret_p05_pct": -0.205,
+        "daily_ret_p95_pct": 0.144,
+        "win_rate_pct": 35.63,
+        "profit_factor": 0.62,
+        "expectancy_usd": -2.96,
+        "avg_win_usd": 13.52,
+        "avg_loss_usd": -12.08,
+        "largest_win_usd": 106.88,
+        "largest_loss_usd": -125.33,
+        "total_fees_usd": 1025.13,
+        "total_turnover_usd": 520440.32,
+        "avg_gross_exposure_usd": 0.0,
+        "max_gross_exposure_usd": 0.0,
+        "top5_days_pnl_usd": 483.81,
+        "ex_top5_days_pnl_usd": -1811.87,
+        "top5_stocks_pnl_usd": 457.96,
+        "ex_top5_stocks_pnl_usd": -1786.02,
+        "by_entries": {
+          "1": {
+            "baskets": 354,
+            "win_rate_pct": 39.0,
+            "net_pnl_usd": -267.93,
+            "expectancy_usd": -0.76,
+            "pf": 0.853
+          },
+          "2": {
+            "baskets": 78,
+            "win_rate_pct": 23.1,
+            "net_pnl_usd": -706.4,
+            "expectancy_usd": -9.06,
+            "pf": 0.36
+          },
+          "3": {
+            "baskets": 17,
+            "win_rate_pct": 23.5,
+            "net_pnl_usd": -353.73,
+            "expectancy_usd": -20.81,
+            "pf": 0.372
+          }
+        },
+        "by_year": {
+          "2025": {
+            "baskets": 172,
+            "entries": 224,
+            "win_rate_pct": 36.0,
+            "net_pnl_usd": -703.69,
+            "pf": 0.525
+          },
+          "2026": {
+            "baskets": 277,
+            "entries": 337,
+            "win_rate_pct": 35.4,
+            "net_pnl_usd": -624.37,
+            "pf": 0.69
+          }
+        },
+        "by_exit_reason": {
+          "basket_stop": {
+            "baskets": 1,
+            "net_pnl_usd": -125.33
+          },
+          "normal_upper_band": {
+            "baskets": 12,
+            "net_pnl_usd": 423.39
+          },
+          "window_end": {
+            "baskets": 436,
+            "net_pnl_usd": -1626.12
+          }
+        },
+        "reconciliation": {
+          "ok": true,
+          "cash": 23671.935888,
+          "expected_cash": 23671.935888,
+          "diff": 0.0,
+          "realized_pnl": -1328.064112,
+          "open_baskets": 0,
+          "marked_equity": 23671.935888,
+          "account_balance": 23671.935888
+        }
+      },
+      "premarket_only": {
+        "tag": "grid_liquid_reference_92_5m_p200_d2.5_s5_e3_eval_premarket_only",
+        "universe": "liquid_reference",
+        "session": "premarket_only",
+        "split": "evaluation",
+        "config": {
+          "tag": "grid_liquid_reference_92_5m_p200_d2.5_s5_e3_eval_premarket_only",
+          "universe": "liquid_reference",
+          "session": "premarket_only",
+          "split": "evaluation",
+          "date_from": null,
+          "date_to": null,
+          "strategy": {
+            "timeframe": "5m",
+            "period": 200,
+            "deviation": 2.5,
+            "spacing": 5,
+            "max_entries": 3,
+            "multiplier": 1.0,
+            "exit_band": "upper",
+            "require_profit_on_exit": true,
+            "overnight_hold": false
+          },
+          "account": {
+            "start_equity": 25000.0,
+            "entry_alloc_pct_e0": 0.02,
+            "max_committed_pct_e0": 0.1,
+            "max_simultaneous_stocks": 5,
+            "max_gross_exposure_pct": 0.5,
+            "basket_loss_pct_e0": 0.005,
+            "daily_loss_pct": 0.03,
+            "fixed_dollar_sizing": false
+          },
+          "execution": {
+            "slippage_per_share": 0.01,
+            "half_spread_min": 0.01,
+            "rth_range_spread_frac": 0.06,
+            "ext_range_spread_frac": 0.12,
+            "ext_limit_collar_pct": 0.01,
+            "max_bar_participation": 0.1,
+            "max_order_vol_share": 0.1,
+            "latency_bars": 1,
+            "commission_mult": 1.0
+          }
+        },
+        "days": 308,
+        "baskets": 35,
+        "entries": 43,
+        "signals_total": 54,
+        "signals_rejected": 9,
+        "rejected_by_reason": {
+          "spacing_not_satisfied": 9
+        },
+        "partial_fills": 5,
+        "start_equity": 25000.0,
+        "end_balance": 25282.68,
+        "end_equity": 25282.68,
+        "net_pnl_usd": 282.68,
+        "total_return_pct": 1.13,
+        "max_drawdown_pct": -0.51,
+        "underwater_days": 152,
+        "underwater_pct": 49.4,
+        "sharpe": 1.418,
+        "sharpe_95ci": [
+          -0.041,
+          2.835
+        ],
+        "daily_ret_mean_pct": 0.0037,
+        "daily_ret_std_pct": 0.041,
+        "daily_ret_skew": 4.999,
+        "daily_ret_p05_pct": 0.0,
+        "daily_ret_p95_pct": 0.023,
+        "win_rate_pct": 62.86,
+        "profit_factor": 2.21,
+        "expectancy_usd": 8.08,
+        "avg_win_usd": 23.47,
+        "avg_loss_usd": -17.98,
+        "largest_win_usd": 104.84,
+        "largest_loss_usd": -37.67,
+        "total_fees_usd": 78.1,
+        "total_turnover_usd": 39719.92,
+        "avg_gross_exposure_usd": 0.0,
+        "max_gross_exposure_usd": 0.0,
+        "top5_days_pnl_usd": 312.99,
+        "ex_top5_days_pnl_usd": -30.31,
+        "top5_stocks_pnl_usd": 312.79,
+        "ex_top5_stocks_pnl_usd": -30.11,
+        "by_entries": {
+          "1": {
+            "baskets": 29,
+            "win_rate_pct": 65.5,
+            "net_pnl_usd": 214.74,
+            "expectancy_usd": 7.4,
+            "pf": 2.325
+          },
+          "2": {
+            "baskets": 4,
+            "win_rate_pct": 50.0,
+            "net_pnl_usd": 62.84,
+            "expectancy_usd": 15.71,
+            "pf": 2.064
+          },
+          "3": {
+            "baskets": 2,
+            "win_rate_pct": 50.0,
+            "net_pnl_usd": 5.1,
+            "expectancy_usd": 2.55,
+            "pf": 1.406
+          }
+        },
+        "by_year": {
+          "2025": {
+            "baskets": 19,
+            "entries": 23,
+            "win_rate_pct": 52.6,
+            "net_pnl_usd": -26.33,
+            "pf": 0.844
+          },
+          "2026": {
+            "baskets": 16,
+            "entries": 20,
+            "win_rate_pct": 75.0,
+            "net_pnl_usd": 309.01,
+            "pf": 5.789
+          }
+        },
+        "by_exit_reason": {
+          "normal_upper_band": {
+            "baskets": 8,
+            "net_pnl_usd": 201.18
+          },
+          "window_end": {
+            "baskets": 27,
+            "net_pnl_usd": 81.5
+          }
+        },
+        "reconciliation": {
+          "ok": true,
+          "cash": 25282.681243,
+          "expected_cash": 25282.681243,
+          "diff": 0.0,
+          "realized_pnl": 282.681243,
+          "open_baskets": 0,
+          "marked_equity": 25282.681243,
+          "account_balance": 25282.681243
+        }
+      },
+      "opening_hour": {
+        "tag": "grid_liquid_reference_92_5m_p200_d2.5_s5_e3_eval_opening_hour",
+        "universe": "liquid_reference",
+        "session": "opening_hour",
+        "split": "evaluation",
+        "config": {
+          "tag": "grid_liquid_reference_92_5m_p200_d2.5_s5_e3_eval_opening_hour",
+          "universe": "liquid_reference",
+          "session": "opening_hour",
+          "split": "evaluation",
+          "date_from": null,
+          "date_to": null,
+          "strategy": {
+            "timeframe": "5m",
+            "period": 200,
+            "deviation": 2.5,
+            "spacing": 5,
+            "max_entries": 3,
+            "multiplier": 1.0,
+            "exit_band": "upper",
+            "require_profit_on_exit": true,
+            "overnight_hold": false
+          },
+          "account": {
+            "start_equity": 25000.0,
+            "entry_alloc_pct_e0": 0.02,
+            "max_committed_pct_e0": 0.1,
+            "max_simultaneous_stocks": 5,
+            "max_gross_exposure_pct": 0.5,
+            "basket_loss_pct_e0": 0.005,
+            "daily_loss_pct": 0.03,
+            "fixed_dollar_sizing": false
+          },
+          "execution": {
+            "slippage_per_share": 0.01,
+            "half_spread_min": 0.01,
+            "rth_range_spread_frac": 0.06,
+            "ext_range_spread_frac": 0.12,
+            "ext_limit_collar_pct": 0.01,
+            "max_bar_participation": 0.1,
+            "max_order_vol_share": 0.1,
+            "latency_bars": 1,
+            "commission_mult": 1.0
+          }
+        },
+        "days": 308,
+        "baskets": 304,
+        "entries": 347,
+        "signals_total": 491,
+        "signals_rejected": 144,
+        "rejected_by_reason": {
+          "spacing_not_satisfied": 144
+        },
+        "partial_fills": 4,
+        "start_equity": 25000.0,
+        "end_balance": 23925.27,
+        "end_equity": 23925.27,
+        "net_pnl_usd": -1074.73,
+        "total_return_pct": -4.3,
+        "max_drawdown_pct": -4.36,
+        "underwater_days": 308,
+        "underwater_pct": 100.0,
+        "sharpe": -3.839,
+        "sharpe_95ci": [
+          -5.506,
+          -2.187
+        ],
+        "daily_ret_mean_pct": -0.0142,
+        "daily_ret_std_pct": 0.0589,
+        "daily_ret_skew": -0.137,
+        "daily_ret_p05_pct": -0.125,
+        "daily_ret_p95_pct": 0.05,
+        "win_rate_pct": 33.88,
+        "profit_factor": 0.453,
+        "expectancy_usd": -3.54,
+        "avg_win_usd": 8.65,
+        "avg_loss_usd": -9.78,
+        "largest_win_usd": 44.17,
+        "largest_loss_usd": -58.05,
+        "total_fees_usd": 657.84,
+        "total_turnover_usd": 321945.35,
+        "avg_gross_exposure_usd": 0.0,
+        "max_gross_exposure_usd": 0.0,
+        "top5_days_pnl_usd": 237.38,
+        "ex_top5_days_pnl_usd": -1312.11,
+        "top5_stocks_pnl_usd": 202.55,
+        "ex_top5_stocks_pnl_usd": -1277.28,
+        "by_entries": {
+          "1": {
+            "baskets": 261,
+            "win_rate_pct": 38.3,
+            "net_pnl_usd": -365.18,
+            "expectancy_usd": -1.4,
+            "pf": 0.706
+          },
+          "2": {
+            "baskets": 43,
+            "win_rate_pct": 7.0,
+            "net_pnl_usd": -709.55,
+            "expectancy_usd": -16.5,
+            "pf": 0.021
+          }
+        },
+        "by_year": {
+          "2025": {
+            "baskets": 120,
+            "entries": 139,
+            "win_rate_pct": 30.0,
+            "net_pnl_usd": -440.24,
+            "pf": 0.434
+          },
+          "2026": {
+            "baskets": 184,
+            "entries": 208,
+            "win_rate_pct": 36.4,
+            "net_pnl_usd": -634.49,
+            "pf": 0.466
+          }
+        },
+        "by_exit_reason": {
+          "normal_upper_band": {
+            "baskets": 1,
+            "net_pnl_usd": 4.31
+          },
+          "window_end": {
+            "baskets": 303,
+            "net_pnl_usd": -1079.04
+          }
+        },
+        "reconciliation": {
+          "ok": true,
+          "cash": 23925.266987,
+          "expected_cash": 23925.266987,
+          "diff": 0.0,
+          "realized_pnl": -1074.733013,
+          "open_baskets": 0,
+          "marked_equity": 23925.266987,
+          "account_balance": 23925.266987
+        }
+      },
+      "regular_session": {
+        "tag": "grid_liquid_reference_92_5m_p200_d2.5_s5_e3_eval_regular_session",
+        "universe": "liquid_reference",
+        "session": "regular_session",
+        "split": "evaluation",
+        "config": {
+          "tag": "grid_liquid_reference_92_5m_p200_d2.5_s5_e3_eval_regular_session",
+          "universe": "liquid_reference",
+          "session": "regular_session",
+          "split": "evaluation",
+          "date_from": null,
+          "date_to": null,
+          "strategy": {
+            "timeframe": "5m",
+            "period": 200,
+            "deviation": 2.5,
+            "spacing": 5,
+            "max_entries": 3,
+            "multiplier": 1.0,
+            "exit_band": "upper",
+            "require_profit_on_exit": true,
+            "overnight_hold": false
+          },
+          "account": {
+            "start_equity": 25000.0,
+            "entry_alloc_pct_e0": 0.02,
+            "max_committed_pct_e0": 0.1,
+            "max_simultaneous_stocks": 5,
+            "max_gross_exposure_pct": 0.5,
+            "basket_loss_pct_e0": 0.005,
+            "daily_loss_pct": 0.03,
+            "fixed_dollar_sizing": false
+          },
+          "execution": {
+            "slippage_per_share": 0.01,
+            "half_spread_min": 0.01,
+            "rth_range_spread_frac": 0.06,
+            "ext_range_spread_frac": 0.12,
+            "ext_limit_collar_pct": 0.01,
+            "max_bar_participation": 0.1,
+            "max_order_vol_share": 0.1,
+            "latency_bars": 1,
+            "commission_mult": 1.0
+          }
+        },
+        "days": 308,
+        "baskets": 530,
+        "entries": 695,
+        "signals_total": 1162,
+        "signals_rejected": 464,
+        "rejected_by_reason": {
+          "max_entries_reached": 25,
+          "max_simultaneous_stocks": 171,
+          "spacing_not_satisfied": 268
+        },
+        "partial_fills": 5,
+        "start_equity": 25000.0,
+        "end_balance": 17074.51,
+        "end_equity": 17088.19,
+        "net_pnl_usd": -7911.81,
+        "total_return_pct": -31.65,
+        "max_drawdown_pct": -31.65,
+        "underwater_days": 308,
+        "underwater_pct": 100.0,
+        "sharpe": -12.279,
+        "sharpe_95ci": [
+          -14.077,
+          -10.617
+        ],
+        "daily_ret_mean_pct": -0.1233,
+        "daily_ret_std_pct": 0.1594,
+        "daily_ret_skew": -0.878,
+        "daily_ret_p05_pct": -0.422,
+        "daily_ret_p95_pct": 0.074,
+        "win_rate_pct": 15.47,
+        "profit_factor": 0.124,
+        "expectancy_usd": -14.95,
+        "avg_win_usd": 13.68,
+        "avg_loss_usd": -20.19,
+        "largest_win_usd": 130.08,
+        "largest_loss_usd": -129.43,
+        "total_fees_usd": 1234.34,
+        "total_turnover_usd": 539424.86,
+        "avg_gross_exposure_usd": 839.99,
+        "max_gross_exposure_usd": 3948.66,
+        "top5_days_pnl_usd": 381.76,
+        "ex_top5_days_pnl_usd": -8293.57,
+        "top5_stocks_pnl_usd": 346.54,
+        "ex_top5_stocks_pnl_usd": -8258.35,
+        "by_entries": {
+          "1": {
+            "baskets": 400,
+            "win_rate_pct": 16.0,
+            "net_pnl_usd": -3577.01,
+            "expectancy_usd": -8.94,
+            "pf": 0.179
+          },
+          "2": {
+            "baskets": 95,
+            "win_rate_pct": 17.9,
+            "net_pnl_usd": -2179.57,
+            "expectancy_usd": -22.94,
+            "pf": 0.134
+          },
+          "3": {
+            "baskets": 35,
+            "win_rate_pct": 2.9,
+            "net_pnl_usd": -2165.9,
+            "expectancy_usd": -61.88,
+            "pf": 0.001
+          }
+        },
+        "by_year": {
+          "2025": {
+            "baskets": 202,
+            "entries": 271,
+            "win_rate_pct": 14.4,
+            "net_pnl_usd": -3380.71,
+            "pf": 0.145
+          },
+          "2026": {
+            "baskets": 328,
+            "entries": 424,
+            "win_rate_pct": 16.2,
+            "net_pnl_usd": -4541.77,
+            "pf": 0.107
+          }
+        },
+        "by_exit_reason": {
+          "basket_stop": {
+            "baskets": 11,
+            "net_pnl_usd": -1234.57
+          },
+          "normal_upper_band": {
+            "baskets": 4,
+            "net_pnl_usd": 208.69
+          },
+          "window_end": {
+            "baskets": 515,
+            "net_pnl_usd": -6896.6
+          }
+        },
+        "reconciliation": {
+          "ok": true,
+          "cash": 16092.94927,
+          "expected_cash": 16092.94927,
+          "diff": 0.0,
+          "realized_pnl": -7922.485571,
+          "open_baskets": 2,
+          "marked_equity": 17088.19427,
+          "account_balance": 17074.51427
+        }
+      }
+    }
+  },
+  "morning_active": {
+    "universe": "morning_active",
+    "selection_status": "failed_gate_diagnostic_best_val_sharpe",
+    "configs_tested": 96,
+    "configs_positive_dev": 0,
+    "configs_positive_val": 0,
+    "configs_passed_gate": 0,
+    "chosen_config": {
+      "tag": "grid_morning_active_91_5m_p200_d2.5_s5_e1",
+      "universe": "morning_active",
+      "timeframe": "5m",
+      "period": 200,
+      "deviation": 2.5,
+      "spacing": 5,
+      "max_entries": 1,
+      "multiplier": 1.0,
+      "dev_baskets": 718,
+      "dev_entries": 718,
+      "dev_net_pnl_usd": -7820.95,
+      "dev_return_pct": -31.28,
+      "dev_pf": 0.551,
+      "dev_win_rate_pct": 33.01,
+      "dev_max_dd_pct": -33.06,
+      "dev_sharpe": -3.01,
+      "dev_expectancy_usd": -10.89,
+      "baskets": 718,
+      "net_pnl_usd": -7820.95,
+      "val_baskets": 319,
+      "val_net_pnl_usd": -2246.34,
+      "val_pf": 0.775,
+      "val_sharpe": -1.462,
+      "val_max_dd_pct": -13.4
+    },
+    "evaluation_split_result": {
+      "tag": "grid_morning_active_91_5m_p200_d2.5_s5_e1_eval",
+      "universe": "morning_active",
+      "session": "morning_combined",
+      "split": "evaluation",
+      "config": {
+        "tag": "grid_morning_active_91_5m_p200_d2.5_s5_e1_eval",
+        "universe": "morning_active",
+        "session": "morning_combined",
+        "split": "evaluation",
+        "date_from": null,
+        "date_to": null,
+        "strategy": {
+          "timeframe": "5m",
+          "period": 200,
+          "deviation": 2.5,
+          "spacing": 5,
+          "max_entries": 1,
+          "multiplier": 1.0,
+          "exit_band": "upper",
+          "require_profit_on_exit": true,
+          "overnight_hold": false
+        },
+        "account": {
+          "start_equity": 25000.0,
+          "entry_alloc_pct_e0": 0.02,
+          "max_committed_pct_e0": 0.1,
+          "max_simultaneous_stocks": 5,
+          "max_gross_exposure_pct": 0.5,
+          "basket_loss_pct_e0": 0.005,
+          "daily_loss_pct": 0.03,
+          "fixed_dollar_sizing": false
+        },
+        "execution": {
+          "slippage_per_share": 0.01,
+          "half_spread_min": 0.01,
+          "rth_range_spread_frac": 0.06,
+          "ext_range_spread_frac": 0.12,
+          "ext_limit_collar_pct": 0.01,
+          "max_bar_participation": 0.1,
+          "max_order_vol_share": 0.1,
+          "latency_bars": 1,
+          "commission_mult": 1.0
+        }
+      },
+      "days": 308,
+      "baskets": 432,
+      "entries": 432,
+      "signals_total": 997,
+      "signals_rejected": 536,
+      "rejected_by_reason": {
+        "max_entries_reached": 536
+      },
+      "partial_fills": 96,
+      "start_equity": 25000.0,
+      "end_balance": 17780.46,
+      "end_equity": 17780.46,
+      "net_pnl_usd": -7219.54,
+      "total_return_pct": -28.88,
+      "max_drawdown_pct": -29.03,
+      "underwater_days": 307,
+      "underwater_pct": 99.7,
+      "sharpe": -5.121,
+      "sharpe_95ci": [
+        -6.831,
+        -3.323
+      ],
+      "daily_ret_mean_pct": -0.11,
+      "daily_ret_std_pct": 0.341,
+      "daily_ret_skew": -0.64,
+      "daily_ret_p05_pct": -0.807,
+      "daily_ret_p95_pct": 0.35,
+      "win_rate_pct": 36.57,
+      "profit_factor": 0.492,
+      "expectancy_usd": -16.71,
+      "avg_win_usd": 44.24,
+      "avg_loss_usd": -51.86,
+      "largest_win_usd": 525.87,
+      "largest_loss_usd": -171.81,
+      "total_fees_usd": 995.73,
+      "total_turnover_usd": 339701.99,
+      "avg_gross_exposure_usd": 0.0,
+      "max_gross_exposure_usd": 0.0,
+      "top5_days_pnl_usd": 894.38,
+      "ex_top5_days_pnl_usd": -8113.92,
+      "top5_stocks_pnl_usd": 1505.91,
+      "ex_top5_stocks_pnl_usd": -8725.45,
+      "by_entries": {
+        "1": {
+          "baskets": 432,
+          "win_rate_pct": 36.6,
+          "net_pnl_usd": -7219.54,
+          "expectancy_usd": -16.71,
+          "pf": 0.492
+        }
+      },
+      "by_year": {
+        "2025": {
+          "baskets": 195,
+          "entries": 195,
+          "win_rate_pct": 35.9,
+          "net_pnl_usd": -4114.01,
+          "pf": 0.469
+        },
+        "2026": {
+          "baskets": 237,
+          "entries": 237,
+          "win_rate_pct": 37.1,
+          "net_pnl_usd": -3105.53,
+          "pf": 0.519
+        }
+      },
+      "by_exit_reason": {
+        "basket_stop": {
+          "baskets": 67,
+          "net_pnl_usd": -7541.13
+        },
+        "normal_upper_band": {
+          "baskets": 81,
+          "net_pnl_usd": 4676.33
+        },
+        "window_end": {
+          "baskets": 284,
+          "net_pnl_usd": -4354.74
+        }
+      },
+      "reconciliation": {
+        "ok": true,
+        "cash": 17780.458884,
+        "expected_cash": 17780.458884,
+        "diff": 0.0,
+        "realized_pnl": -7219.541116,
+        "open_baskets": 0,
+        "marked_equity": 17780.458884,
+        "account_balance": 17780.458884
+      }
+    },
+    "full_5y_result": {
+      "tag": "grid_morning_active_91_5m_p200_d2.5_s5_e1_full",
+      "universe": "morning_active",
+      "session": "morning_combined",
+      "split": "full",
+      "config": {
+        "tag": "grid_morning_active_91_5m_p200_d2.5_s5_e1_full",
+        "universe": "morning_active",
+        "session": "morning_combined",
+        "split": "full",
+        "date_from": null,
+        "date_to": null,
+        "strategy": {
+          "timeframe": "5m",
+          "period": 200,
+          "deviation": 2.5,
+          "spacing": 5,
+          "max_entries": 1,
+          "multiplier": 1.0,
+          "exit_band": "upper",
+          "require_profit_on_exit": true,
+          "overnight_hold": false
+        },
+        "account": {
+          "start_equity": 25000.0,
+          "entry_alloc_pct_e0": 0.02,
+          "max_committed_pct_e0": 0.1,
+          "max_simultaneous_stocks": 5,
+          "max_gross_exposure_pct": 0.5,
+          "basket_loss_pct_e0": 0.005,
+          "daily_loss_pct": 0.03,
+          "fixed_dollar_sizing": false
+        },
+        "execution": {
+          "slippage_per_share": 0.01,
+          "half_spread_min": 0.01,
+          "rth_range_spread_frac": 0.06,
+          "ext_range_spread_frac": 0.12,
+          "ext_limit_collar_pct": 0.01,
+          "max_bar_participation": 0.1,
+          "max_order_vol_share": 0.1,
+          "latency_bars": 1,
+          "commission_mult": 1.0
+        }
+      },
+      "days": 1235,
+      "baskets": 1469,
+      "entries": 1469,
+      "signals_total": 3156,
+      "signals_rejected": 1626,
+      "rejected_by_reason": {
+        "max_entries_reached": 1624,
+        "order_already_pending": 2
+      },
+      "partial_fills": 361,
+      "start_equity": 25000.0,
+      "end_balance": 10765.29,
+      "end_equity": 10765.29,
+      "net_pnl_usd": -14234.71,
+      "total_return_pct": -56.94,
+      "max_drawdown_pct": -57.38,
+      "underwater_days": 1226,
+      "underwater_pct": 99.3,
+      "sharpe": -3.267,
+      "sharpe_95ci": [
+        -4.21,
+        -2.226
+      ],
+      "daily_ret_mean_pct": -0.0677,
+      "daily_ret_std_pct": 0.3288,
+      "daily_ret_skew": 0.755,
+      "daily_ret_p05_pct": -0.627,
+      "daily_ret_p95_pct": 0.352,
+      "win_rate_pct": 35.06,
+      "profit_factor": 0.572,
+      "expectancy_usd": -9.69,
+      "avg_win_usd": 37.0,
+      "avg_loss_usd": -34.9,
+      "largest_win_usd": 466.64,
+      "largest_loss_usd": -159.3,
+      "total_fees_usd": 3276.95,
+      "total_turnover_usd": 984685.42,
+      "avg_gross_exposure_usd": 0.0,
+      "max_gross_exposure_usd": 0.0,
+      "top5_days_pnl_usd": 1792.71,
+      "ex_top5_days_pnl_usd": -16027.42,
+      "top5_stocks_pnl_usd": 1956.46,
+      "ex_top5_stocks_pnl_usd": -16191.17,
+      "by_entries": {
+        "1": {
+          "baskets": 1469,
+          "win_rate_pct": 35.1,
+          "net_pnl_usd": -14234.71,
+          "expectancy_usd": -9.69,
+          "pf": 0.572
+        }
+      },
+      "by_year": {
+        "2021": {
+          "baskets": 39,
+          "entries": 39,
+          "win_rate_pct": 38.5,
+          "net_pnl_usd": 3.92,
+          "pf": 1.005
+        },
+        "2022": {
+          "baskets": 253,
+          "entries": 253,
+          "win_rate_pct": 31.6,
+          "net_pnl_usd": -3196.5,
+          "pf": 0.498
+        },
+        "2023": {
+          "baskets": 258,
+          "entries": 258,
+          "win_rate_pct": 33.3,
+          "net_pnl_usd": -2407.13,
+          "pf": 0.595
+        },
+        "2024": {
+          "baskets": 323,
+          "entries": 323,
+          "win_rate_pct": 38.7,
+          "net_pnl_usd": -2749.3,
+          "pf": 0.635
+        },
+        "2025": {
+          "baskets": 359,
+          "entries": 359,
+          "win_rate_pct": 34.0,
+          "net_pnl_usd": -3836.94,
+          "pf": 0.552
+        },
+        "2026": {
+          "baskets": 237,
+          "entries": 237,
+          "win_rate_pct": 36.7,
+          "net_pnl_usd": -2048.76,
+          "pf": 0.493
+        }
+      },
+      "by_exit_reason": {
+        "basket_stop": {
+          "baskets": 155,
+          "net_pnl_usd": -13369.92
+        },
+        "normal_upper_band": {
+          "baskets": 231,
+          "net_pnl_usd": 11635.06
+        },
+        "window_end": {
+          "baskets": 1083,
+          "net_pnl_usd": -12499.86
+        }
+      },
+      "reconciliation": {
+        "ok": true,
+        "cash": 10765.28546,
+        "expected_cash": 10765.28546,
+        "diff": 0.0,
+        "realized_pnl": -14234.71454,
+        "open_baskets": 0,
+        "marked_equity": 10765.28546,
+        "account_balance": 10765.28546
+      }
+    },
+    "evaluation_across_sessions": {
+      "morning_combined": {
+        "tag": "grid_morning_active_91_5m_p200_d2.5_s5_e1_eval_morning_combined",
+        "universe": "morning_active",
+        "session": "morning_combined",
+        "split": "evaluation",
+        "config": {
+          "tag": "grid_morning_active_91_5m_p200_d2.5_s5_e1_eval_morning_combined",
+          "universe": "morning_active",
+          "session": "morning_combined",
+          "split": "evaluation",
+          "date_from": null,
+          "date_to": null,
+          "strategy": {
+            "timeframe": "5m",
+            "period": 200,
+            "deviation": 2.5,
+            "spacing": 5,
+            "max_entries": 1,
+            "multiplier": 1.0,
+            "exit_band": "upper",
+            "require_profit_on_exit": true,
+            "overnight_hold": false
+          },
+          "account": {
+            "start_equity": 25000.0,
+            "entry_alloc_pct_e0": 0.02,
+            "max_committed_pct_e0": 0.1,
+            "max_simultaneous_stocks": 5,
+            "max_gross_exposure_pct": 0.5,
+            "basket_loss_pct_e0": 0.005,
+            "daily_loss_pct": 0.03,
+            "fixed_dollar_sizing": false
+          },
+          "execution": {
+            "slippage_per_share": 0.01,
+            "half_spread_min": 0.01,
+            "rth_range_spread_frac": 0.06,
+            "ext_range_spread_frac": 0.12,
+            "ext_limit_collar_pct": 0.01,
+            "max_bar_participation": 0.1,
+            "max_order_vol_share": 0.1,
+            "latency_bars": 1,
+            "commission_mult": 1.0
+          }
+        },
+        "days": 308,
+        "baskets": 432,
+        "entries": 432,
+        "signals_total": 997,
+        "signals_rejected": 536,
+        "rejected_by_reason": {
+          "max_entries_reached": 536
+        },
+        "partial_fills": 96,
+        "start_equity": 25000.0,
+        "end_balance": 17780.46,
+        "end_equity": 17780.46,
+        "net_pnl_usd": -7219.54,
+        "total_return_pct": -28.88,
+        "max_drawdown_pct": -29.03,
+        "underwater_days": 307,
+        "underwater_pct": 99.7,
+        "sharpe": -5.121,
+        "sharpe_95ci": [
+          -6.831,
+          -3.323
+        ],
+        "daily_ret_mean_pct": -0.11,
+        "daily_ret_std_pct": 0.341,
+        "daily_ret_skew": -0.64,
+        "daily_ret_p05_pct": -0.807,
+        "daily_ret_p95_pct": 0.35,
+        "win_rate_pct": 36.57,
+        "profit_factor": 0.492,
+        "expectancy_usd": -16.71,
+        "avg_win_usd": 44.24,
+        "avg_loss_usd": -51.86,
+        "largest_win_usd": 525.87,
+        "largest_loss_usd": -171.81,
+        "total_fees_usd": 995.73,
+        "total_turnover_usd": 339701.99,
+        "avg_gross_exposure_usd": 0.0,
+        "max_gross_exposure_usd": 0.0,
+        "top5_days_pnl_usd": 894.38,
+        "ex_top5_days_pnl_usd": -8113.92,
+        "top5_stocks_pnl_usd": 1505.91,
+        "ex_top5_stocks_pnl_usd": -8725.45,
+        "by_entries": {
+          "1": {
+            "baskets": 432,
+            "win_rate_pct": 36.6,
+            "net_pnl_usd": -7219.54,
+            "expectancy_usd": -16.71,
+            "pf": 0.492
+          }
+        },
+        "by_year": {
+          "2025": {
+            "baskets": 195,
+            "entries": 195,
+            "win_rate_pct": 35.9,
+            "net_pnl_usd": -4114.01,
+            "pf": 0.469
+          },
+          "2026": {
+            "baskets": 237,
+            "entries": 237,
+            "win_rate_pct": 37.1,
+            "net_pnl_usd": -3105.53,
+            "pf": 0.519
+          }
+        },
+        "by_exit_reason": {
+          "basket_stop": {
+            "baskets": 67,
+            "net_pnl_usd": -7541.13
+          },
+          "normal_upper_band": {
+            "baskets": 81,
+            "net_pnl_usd": 4676.33
+          },
+          "window_end": {
+            "baskets": 284,
+            "net_pnl_usd": -4354.74
+          }
+        },
+        "reconciliation": {
+          "ok": true,
+          "cash": 17780.458884,
+          "expected_cash": 17780.458884,
+          "diff": 0.0,
+          "realized_pnl": -7219.541116,
+          "open_baskets": 0,
+          "marked_equity": 17780.458884,
+          "account_balance": 17780.458884
+        }
+      },
+      "premarket_only": {
+        "tag": "grid_morning_active_91_5m_p200_d2.5_s5_e1_eval_premarket_only",
+        "universe": "morning_active",
+        "session": "premarket_only",
+        "split": "evaluation",
+        "config": {
+          "tag": "grid_morning_active_91_5m_p200_d2.5_s5_e1_eval_premarket_only",
+          "universe": "morning_active",
+          "session": "premarket_only",
+          "split": "evaluation",
+          "date_from": null,
+          "date_to": null,
+          "strategy": {
+            "timeframe": "5m",
+            "period": 200,
+            "deviation": 2.5,
+            "spacing": 5,
+            "max_entries": 1,
+            "multiplier": 1.0,
+            "exit_band": "upper",
+            "require_profit_on_exit": true,
+            "overnight_hold": false
+          },
+          "account": {
+            "start_equity": 25000.0,
+            "entry_alloc_pct_e0": 0.02,
+            "max_committed_pct_e0": 0.1,
+            "max_simultaneous_stocks": 5,
+            "max_gross_exposure_pct": 0.5,
+            "basket_loss_pct_e0": 0.005,
+            "daily_loss_pct": 0.03,
+            "fixed_dollar_sizing": false
+          },
+          "execution": {
+            "slippage_per_share": 0.01,
+            "half_spread_min": 0.01,
+            "rth_range_spread_frac": 0.06,
+            "ext_range_spread_frac": 0.12,
+            "ext_limit_collar_pct": 0.01,
+            "max_bar_participation": 0.1,
+            "max_order_vol_share": 0.1,
+            "latency_bars": 1,
+            "commission_mult": 1.0
+          }
+        },
+        "days": 308,
+        "baskets": 320,
+        "entries": 320,
+        "signals_total": 667,
+        "signals_rejected": 318,
+        "rejected_by_reason": {
+          "max_entries_reached": 318
+        },
+        "partial_fills": 25,
+        "start_equity": 25000.0,
+        "end_balance": 18520.75,
+        "end_equity": 18520.75,
+        "net_pnl_usd": -6479.25,
+        "total_return_pct": -25.92,
+        "max_drawdown_pct": -26.14,
+        "underwater_days": 307,
+        "underwater_pct": 99.7,
+        "sharpe": -5.391,
+        "sharpe_95ci": [
+          -7.127,
+          -3.878
+        ],
+        "daily_ret_mean_pct": -0.0969,
+        "daily_ret_std_pct": 0.2855,
+        "daily_ret_skew": -0.835,
+        "daily_ret_p05_pct": -0.629,
+        "daily_ret_p95_pct": 0.206,
+        "win_rate_pct": 31.88,
+        "profit_factor": 0.425,
+        "expectancy_usd": -20.25,
+        "avg_win_usd": 47.03,
+        "avg_loss_usd": -51.73,
+        "largest_win_usd": 540.87,
+        "largest_loss_usd": -176.34,
+        "total_fees_usd": 720.28,
+        "total_turnover_usd": 256052.4,
+        "avg_gross_exposure_usd": 0.0,
+        "max_gross_exposure_usd": 0.0,
+        "top5_days_pnl_usd": 809.43,
+        "ex_top5_days_pnl_usd": -7288.68,
+        "top5_stocks_pnl_usd": 1328.65,
+        "ex_top5_stocks_pnl_usd": -7807.9,
+        "by_entries": {
+          "1": {
+            "baskets": 320,
+            "win_rate_pct": 31.9,
+            "net_pnl_usd": -6479.25,
+            "expectancy_usd": -20.25,
+            "pf": 0.425
+          }
+        },
+        "by_year": {
+          "2025": {
+            "baskets": 156,
+            "entries": 156,
+            "win_rate_pct": 32.1,
+            "net_pnl_usd": -3551.37,
+            "pf": 0.424
+          },
+          "2026": {
+            "baskets": 164,
+            "entries": 164,
+            "win_rate_pct": 31.7,
+            "net_pnl_usd": -2927.88,
+            "pf": 0.427
+          }
+        },
+        "by_exit_reason": {
+          "basket_stop": {
+            "baskets": 45,
+            "net_pnl_usd": -5293.35
+          },
+          "normal_upper_band": {
+            "baskets": 64,
+            "net_pnl_usd": 3423.16
+          },
+          "window_end": {
+            "baskets": 211,
+            "net_pnl_usd": -4609.06
+          }
+        },
+        "reconciliation": {
+          "ok": true,
+          "cash": 18520.753703,
+          "expected_cash": 18520.753703,
+          "diff": 0.0,
+          "realized_pnl": -6479.246297,
+          "open_baskets": 0,
+          "marked_equity": 18520.753703,
+          "account_balance": 18520.753703
+        }
+      },
+      "opening_hour": {
+        "tag": "grid_morning_active_91_5m_p200_d2.5_s5_e1_eval_opening_hour",
+        "universe": "morning_active",
+        "session": "opening_hour",
+        "split": "evaluation",
+        "config": {
+          "tag": "grid_morning_active_91_5m_p200_d2.5_s5_e1_eval_opening_hour",
+          "universe": "morning_active",
+          "session": "opening_hour",
+          "split": "evaluation",
+          "date_from": null,
+          "date_to": null,
+          "strategy": {
+            "timeframe": "5m",
+            "period": 200,
+            "deviation": 2.5,
+            "spacing": 5,
+            "max_entries": 1,
+            "multiplier": 1.0,
+            "exit_band": "upper",
+            "require_profit_on_exit": true,
+            "overnight_hold": false
+          },
+          "account": {
+            "start_equity": 25000.0,
+            "entry_alloc_pct_e0": 0.02,
+            "max_committed_pct_e0": 0.1,
+            "max_simultaneous_stocks": 5,
+            "max_gross_exposure_pct": 0.5,
+            "basket_loss_pct_e0": 0.005,
+            "daily_loss_pct": 0.03,
+            "fixed_dollar_sizing": false
+          },
+          "execution": {
+            "slippage_per_share": 0.01,
+            "half_spread_min": 0.01,
+            "rth_range_spread_frac": 0.06,
+            "ext_range_spread_frac": 0.12,
+            "ext_limit_collar_pct": 0.01,
+            "max_bar_participation": 0.1,
+            "max_order_vol_share": 0.1,
+            "latency_bars": 1,
+            "commission_mult": 1.0
+          }
+        },
+        "days": 308,
+        "baskets": 275,
+        "entries": 275,
+        "signals_total": 477,
+        "signals_rejected": 202,
+        "rejected_by_reason": {
+          "max_entries_reached": 202
+        },
+        "partial_fills": 57,
+        "start_equity": 25000.0,
+        "end_balance": 22122.67,
+        "end_equity": 22122.67,
+        "net_pnl_usd": -2877.33,
+        "total_return_pct": -11.51,
+        "max_drawdown_pct": -11.69,
+        "underwater_days": 302,
+        "underwater_pct": 98.1,
+        "sharpe": -4.915,
+        "sharpe_95ci": [
+          -6.701,
+          -3.515
+        ],
+        "daily_ret_mean_pct": -0.0396,
+        "daily_ret_std_pct": 0.1279,
+        "daily_ret_skew": -0.992,
+        "daily_ret_p05_pct": -0.294,
+        "daily_ret_p95_pct": 0.112,
+        "win_rate_pct": 30.91,
+        "profit_factor": 0.368,
+        "expectancy_usd": -10.46,
+        "avg_win_usd": 19.74,
+        "avg_loss_usd": -23.97,
+        "largest_win_usd": 108.1,
+        "largest_loss_usd": -127.76,
+        "total_fees_usd": 680.46,
+        "total_turnover_usd": 246216.43,
+        "avg_gross_exposure_usd": 0.0,
+        "max_gross_exposure_usd": 0.0,
+        "top5_days_pnl_usd": 434.57,
+        "ex_top5_days_pnl_usd": -3311.9,
+        "top5_stocks_pnl_usd": 454.82,
+        "ex_top5_stocks_pnl_usd": -3332.15,
+        "by_entries": {
+          "1": {
+            "baskets": 275,
+            "win_rate_pct": 30.9,
+            "net_pnl_usd": -2877.33,
+            "expectancy_usd": -10.46,
+            "pf": 0.368
+          }
+        },
+        "by_year": {
+          "2025": {
+            "baskets": 105,
+            "entries": 105,
+            "win_rate_pct": 28.6,
+            "net_pnl_usd": -1460.01,
+            "pf": 0.338
+          },
+          "2026": {
+            "baskets": 170,
+            "entries": 170,
+            "win_rate_pct": 32.4,
+            "net_pnl_usd": -1417.32,
+            "pf": 0.397
+          }
+        },
+        "by_exit_reason": {
+          "basket_stop": {
+            "baskets": 2,
+            "net_pnl_usd": -247.21
+          },
+          "normal_upper_band": {
+            "baskets": 9,
+            "net_pnl_usd": 327.25
+          },
+          "window_end": {
+            "baskets": 264,
+            "net_pnl_usd": -2957.38
+          }
+        },
+        "reconciliation": {
+          "ok": true,
+          "cash": 22122.669949,
+          "expected_cash": 22122.669949,
+          "diff": 0.0,
+          "realized_pnl": -2877.330051,
+          "open_baskets": 0,
+          "marked_equity": 22122.669949,
+          "account_balance": 22122.669949
+        }
+      },
+      "regular_session": {
+        "tag": "grid_morning_active_91_5m_p200_d2.5_s5_e1_eval_regular_session",
+        "universe": "morning_active",
+        "session": "regular_session",
+        "split": "evaluation",
+        "config": {
+          "tag": "grid_morning_active_91_5m_p200_d2.5_s5_e1_eval_regular_session",
+          "universe": "morning_active",
+          "session": "regular_session",
+          "split": "evaluation",
+          "date_from": null,
+          "date_to": null,
+          "strategy": {
+            "timeframe": "5m",
+            "period": 200,
+            "deviation": 2.5,
+            "spacing": 5,
+            "max_entries": 1,
+            "multiplier": 1.0,
+            "exit_band": "upper",
+            "require_profit_on_exit": true,
+            "overnight_hold": false
+          },
+          "account": {
+            "start_equity": 25000.0,
+            "entry_alloc_pct_e0": 0.02,
+            "max_committed_pct_e0": 0.1,
+            "max_simultaneous_stocks": 5,
+            "max_gross_exposure_pct": 0.5,
+            "basket_loss_pct_e0": 0.005,
+            "daily_loss_pct": 0.03,
+            "fixed_dollar_sizing": false
+          },
+          "execution": {
+            "slippage_per_share": 0.01,
+            "half_spread_min": 0.01,
+            "rth_range_spread_frac": 0.06,
+            "ext_range_spread_frac": 0.12,
+            "ext_limit_collar_pct": 0.01,
+            "max_bar_participation": 0.1,
+            "max_order_vol_share": 0.1,
+            "latency_bars": 1,
+            "commission_mult": 1.0
+          }
+        },
+        "days": 308,
+        "baskets": 426,
+        "entries": 426,
+        "signals_total": 1079,
+        "signals_rejected": 650,
+        "rejected_by_reason": {
+          "max_entries_reached": 585,
+          "max_simultaneous_stocks": 65
+        },
+        "partial_fills": 25,
+        "start_equity": 25000.0,
+        "end_balance": 17223.46,
+        "end_equity": 17200.93,
+        "net_pnl_usd": -7799.07,
+        "total_return_pct": -31.2,
+        "max_drawdown_pct": -31.37,
+        "underwater_days": 307,
+        "underwater_pct": 99.7,
+        "sharpe": -7.171,
+        "sharpe_95ci": [
+          -9.183,
+          -5.285
+        ],
+        "daily_ret_mean_pct": -0.121,
+        "daily_ret_std_pct": 0.2678,
+        "daily_ret_skew": -0.211,
+        "daily_ret_p05_pct": -0.579,
+        "daily_ret_p95_pct": 0.293,
+        "win_rate_pct": 28.87,
+        "profit_factor": 0.341,
+        "expectancy_usd": -18.25,
+        "avg_win_usd": 32.72,
+        "avg_loss_usd": -38.94,
+        "largest_win_usd": 209.46,
+        "largest_loss_usd": -202.59,
+        "total_fees_usd": 959.82,
+        "total_turnover_usd": 332889.28,
+        "avg_gross_exposure_usd": 476.85,
+        "max_gross_exposure_usd": 2254.78,
+        "top5_days_pnl_usd": 710.26,
+        "ex_top5_days_pnl_usd": -8509.33,
+        "top5_stocks_pnl_usd": 821.46,
+        "ex_top5_stocks_pnl_usd": -8620.53,
+        "by_entries": {
+          "1": {
+            "baskets": 426,
+            "win_rate_pct": 28.9,
+            "net_pnl_usd": -7773.54,
+            "expectancy_usd": -18.25,
+            "pf": 0.341
+          }
+        },
+        "by_year": {
+          "2025": {
+            "baskets": 160,
+            "entries": 160,
+            "win_rate_pct": 28.7,
+            "net_pnl_usd": -3407.68,
+            "pf": 0.338
+          },
+          "2026": {
+            "baskets": 266,
+            "entries": 266,
+            "win_rate_pct": 28.9,
+            "net_pnl_usd": -4365.86,
+            "pf": 0.343
+          }
+        },
+        "by_exit_reason": {
+          "basket_stop": {
+            "baskets": 28,
+            "net_pnl_usd": -3103.52
+          },
+          "normal_upper_band": {
+            "baskets": 24,
+            "net_pnl_usd": 1670.87
+          },
+          "window_end": {
+            "baskets": 374,
+            "net_pnl_usd": -6340.89
+          }
+        },
+        "reconciliation": {
+          "ok": true,
+          "cash": 16201.847946,
+          "expected_cash": 16201.847946,
+          "diff": 0.0,
+          "realized_pnl": -7773.542053,
+          "open_baskets": 3,
+          "marked_equity": 17200.926346,
+          "account_balance": 17223.457446
+        }
+      }
+    }
+  }
+}

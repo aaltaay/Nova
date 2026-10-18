@@ -7,22 +7,40 @@ environment-selected data path. SOP: validate request and local paths, project t
 exact ticker from one day file, verify source integrity, freeze a new bundle, then
 call Nova's existing offline chart exporter in an explicitly approved checkout.
 
-The supported input layout is `<minute-root>/d=YYYY-MM-DD/part.parquet`, with
-columns `ticker, m, o, h, l, c, v`. `m` is an integer minute start in ET, from 0
-through 1439. Prices are raw on that same session's share basis; volume is shares.
-This is the existing derived Massive minute representation. The resolver uses
-the existing optional DuckDB research reader; it never installs dependencies or
-searches for another layout. Missing file, absent exact ticker, malformed rows,
+The supported input layouts under the approved minute root (and optional
+`--fallback-massive-root`) are:
+
+1. `<root>/d=YYYY-MM-DD/part.parquet` (or `<root>/minute/d=YYYY-MM-DD/part.parquet`),
+   with columns `ticker, m, o, h, l, c, v`.
+2. `<root>/minute_aggs_v1/YYYY/MM/YYYY-MM-DD.csv.gz` (or
+   `<root>/YYYY/MM/YYYY-MM-DD.csv.gz`), Massive's official minute flat-file layout
+   (`ticker,volume,open,close,high,low,window_start,transactions`), where
+   `window_start` UTC nanoseconds convert to integer ET minute starts `0..1439` on
+   `YYYY-MM-DD`.
+
+`m` is an integer minute start in ET, from 0 through 1439. Prices are raw on that
+same session's share basis; volume is shares. When the primary root lacks a day
+partition and `--fallback-massive-root` is configured, the resolver reads the fallback
+root so no date gap occurs between derived Parquet partitions and the full Massive
+archive. The resolver uses the existing optional DuckDB research reader with
+`allowed_paths` locked to the single resolved file and `enable_external_access = false`;
+it never installs dependencies. Missing file, absent exact ticker, malformed rows,
 unsupported schema, unsafe path, and changed input are distinct failures.
 
 The frozen `selection.json` is:
 
 ```json
 {"schema_version":1,"kind":"historical_ohlcv","family":"historical-chart",
- "selected":[{"day":"2022-02-01","ticker":"DEMO",
+ "selected":[{"day":"2022-02-01","ticker":"DEMO","as_of_m":585,
  "bar_projection":{"path":"<absolute-new-output>/bars/01.json","sha256":"<hash>"},
- "annotations":[]}]}
+ "annotations":[{"kind":"horizontal_line","price":10.5,"label":"Entry","color":"green"}]}]}
 ```
+
+`as_of_m` is omitted when not requested (`0..1440` integer minute boundary when set).
+`annotations` defaults to `[]` and accepts `0..32` validated `horizontal_line` or
+`time_marker` objects. Multi-entry gallery bundles (`1..9` entries via
+`resolve_gallery_bundle` or `--entries-json`) write `bars/01.json` through `bars/09.json`
+ordered uniquely by `(day, ticker, as_of_m)`.
 
 The projection contains exactly `day`, `ticker`,
 `time_zone: "America/New_York"`, `m_semantics: "minute_START"`,
