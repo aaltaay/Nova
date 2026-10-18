@@ -42,9 +42,13 @@ BROAD = ("a scan names date_from / date_to, a symbol or a limit (the movers stor
          "the same drive)")
 
 
-def _where(symbol: str | None, kinds: list[str] | None, splits: str, filters: dict) -> tuple[list[str], list]:
+def _where(symbol: str | None, kinds: list[str] | None, splits: str, filters: dict,
+           after: tuple[str, str] | None = None) -> tuple[list[str], list]:
     from day_movers import query
     where, args = [], []
+    if after:
+        where.append("(session_date > ? OR (session_date = ? AND symbol > ?))")
+        args.extend([after[0], after[0], after[1]])
     for key, value in filters.items():
         if value is None:
             continue
@@ -70,8 +74,10 @@ def _where(symbol: str | None, kinds: list[str] | None, splits: str, filters: di
 
 
 def movers_scan(*, symbol: str | None = None, kinds: list[str] | None = None, columns: list[str] | None = None,
-                limit: int | None = None, splits: str = "exclude_likely", **filters) -> pd.DataFrame:
-    """Every movers row matching ``filters`` (``FILTERS``' keys; percents in points), oldest day first."""
+                limit: int | None = None, splits: str = "exclude_likely", after: tuple[str, str] | None = None,
+                **filters) -> pd.DataFrame:
+    """Every movers row matching ``filters`` (``FILTERS``' keys; percents in points), oldest day first; ``after``
+    = ``(date, symbol)`` starts past that row (a page's cursor)."""
     unknown = set(filters) - set(FILTERS)
     if unknown:
         raise ValueError(f"unknown filter(s) {sorted(unknown)}; known: {sorted(FILTERS)}")
@@ -84,7 +90,7 @@ def movers_scan(*, symbol: str | None = None, kinds: list[str] | None = None, co
     bad = [c for c in columns or [] if c not in MOVER_COLUMNS]
     if bad:
         raise ValueError(f"unknown column(s) {bad}; known: {', '.join(MOVER_COLUMNS)}")
-    where, args = _where(symbol, kinds, splits, filters)
+    where, args = _where(symbol, kinds, splits, filters, after)
     path = roots.movers_db()
     if not path.is_file():
         raise LookupError(f"no day movers index at {path} (research/movers/build_movers.py builds it)")

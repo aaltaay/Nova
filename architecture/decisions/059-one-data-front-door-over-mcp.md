@@ -60,3 +60,28 @@ choose to open; nothing listed the data in front of it, and nothing stopped a ra
   new reader and tool.
 - The hook adds a Python start (~370 ms) to shell commands that match its filter (data words or a `.py`).
 - `nova_chart_mcp.py` stays the chart exporter; this server is data.
+
+## Amendment -- 2026-10-18: correctness, and the momentum-research tools
+
+**Decided by:** the operator approved a read-only review's findings and the next seven tools, to be shipped as two
+PRs (correctness first).
+
+1. **One rule per question, shared, never forked.** The bulk scan uses the capped search's split rule and percent-line
+   tolerance (`day_movers.query.splits_sql` / `pct_bound`); a broad scan is refused and an unlimited one is capped.
+   Every front-door percent is in points, boards included.
+2. **A ticker is not a company.** Reads keyed by ticker (SEC, financials, splits) resolve the company that held the
+   ticker on the asked day (`research/market_reads/tickers.py`) and say so in `ticker`; an unsettled day refuses
+   with the candidate CIKs. Never today's holder silently.
+3. **The builders live in the repo.** `research/massive_builders/` keeps the scripts that build `trades_flow_v1`,
+   `trades_movers_v1` and the quotes / reference archives; `docs/massive-builders.md` defines every column. A reader
+   of a derived table cites its builder's definitions, never re-derives them.
+4. **Eight more tools** in a second tool module (`tools/nova_data_research.py`, split from the server along the
+   tool-set seam): `find_stock_days` (movers + shares known that day + catalyst + halts + premarket marks, cursor
+   pages), `daily_bars`, `market_context`, `stock_day_stats`, `order_flow`, `halts`, `catalysts`, `symbols`.
+5. **Float is labelled, never assumed.** A float value names its source; the default float filter is SEC shares
+   outstanding filed by the day (not free float), the desk's own snapshot float is a basis on request. True
+   historical free float stays #1056.
+6. **No new persisted file.** Daily bars cache in process (path + mtime keyed); stats compute on demand.
+
+Gaps left are issues: recorded IBKR sessions / Level 2 / tape (#1064), short volume / borrow / ratios (#1065),
+Massive endpoints not downloaded (#1066, operator decision), MCP concurrency (#1067), builder gaps (#1068).

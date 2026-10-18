@@ -1,6 +1,6 @@
 ---
 name: nova-market-data
-description: "Use when a task needs past market data -- a stock's trades, NBBO quotes or bars on a past day (2016 on), seconds-scale moves, spreads, the day movers index, a past day's Gainers / Losers / Gappers / After Hours board, financial statements, float, shares outstanding, SEC filings, IPOs or short interest -- or asks how fast or how complete that data is, or wants charts of trades with the entry and exit marked. Reads the operator's Massive files, Nova's stores, Massive's reference dump and SEC's bulk files through the nova-data MCP tools or tools/market_data.py; never write a new reader for them."
+description: "Use when a task needs past market data -- a stock's trades, NBBO quotes, intraday or daily bars on a past day (2016 on), seconds-scale moves, spreads, premarket / VWAP / relative-volume stats, order flow (dark pool, retail buy/sell, sweeps), halts, news catalysts, finding small-cap runner stock-days with their float as known that day, the day movers index, a past day's Gainers / Losers / Gappers / After Hours board, financial statements, float, shares outstanding, SEC filings, IPOs, short interest or symbol lookups -- or asks how fast or how complete that data is, or wants charts of trades with the entry and exit marked. Reads the operator's Massive files, Nova's stores, Massive's reference dump and SEC's bulk files through the nova-data MCP tools or tools/market_data.py; never write a new reader for them."
 ---
 
 # Nova market data
@@ -23,12 +23,19 @@ py -3 tools/market_data.py sec-shares SYMBOL --day YYYY-MM-DD   # shares outstan
 py -3 tools/market_data.py sec-filings SYMBOL --as-of YYYY-MM-DD --forms "4,SC 13D,424B4"
 py -3 tools/market_data.py financials SYMBOL --statement balance_sheets|income_statements --as-of YYYY-MM-DD
 py -3 tools/market_data.py float SYMBOL | ipos --symbol SYMBOL | ticker SYMBOL | short-interest SYMBOL YYYY-MM-DD
+py -3 tools/market_data.py find date_from=... price_min=2 price_max=20 high_min=50 --float-max 20000000
+py -3 tools/market_data.py daily SYMBOL FROM TO | context DAY | stats SYMBOL DAY | flow SYMBOL DAY --bucket 5m
+py -3 tools/market_data.py halts --symbol SYMBOL --day DAY | catalysts SYMBOL --from DAY --to DAY | symbols QUERY
 ```
 
 The same reads are MCP tools on the `nova-data` server (ADR 059; `.cursor/mcp.json`, `.mcp.json`): call
-`data_catalog` first, then `stock_day`, `movers_search` / `movers_scan`, `board`, `splits`, `financials`,
-`sec_shares`, `sec_filings`, `float_latest`, `ipos`, `ticker_details`, `short_interest`. Percents are points in and
-out (the movers store keeps fractions); `--as-of` / `day` count a statement or SEC fact from the day it was filed.
+`data_catalog` first. For small-cap momentum research start with `find_stock_days` (movers + shares known that day +
+catalyst + halts + premarket marks, paged by `next_cursor`), then `stock_day_stats`, `order_flow`, `catalysts`,
+`halts`, `daily_bars` / `market_context`, `symbols`; plus `stock_day`, `movers_search` / `movers_scan`, `board`,
+`splits`, `financials`, `sec_shares`, `sec_filings`, `float_latest`, `ipos`, `ticker_details`, `short_interest`.
+Percents are points in and out (the movers and board stores keep fractions); `--as-of` / `day` count a statement or
+SEC fact from the day it was filed; a float filter is SEC shares OUTSTANDING unless you pick another basis -- say
+which one you used. A ticker two companies used reads the company that held it that day (`ticker` in the answer).
 A hook blocks reading the raw stores any other way.
 
 trades / quotes / bars are raw (never split-adjusted); add `--adjust` for today's terms, or in Python

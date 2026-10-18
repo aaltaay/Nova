@@ -24,6 +24,10 @@ from typing import Any
 REPO = Path(__file__).resolve().parents[1]
 if str(REPO / "research") not in sys.path:
     sys.path.insert(0, str(REPO / "research"))
+if str(REPO / "tools") not in sys.path:
+    sys.path.insert(0, str(REPO / "tools"))
+
+import nova_data_research as research  # noqa: E402  (the second tool set: stock-days, stats, flow, halts ...)
 
 INLINE_ROWS = 200
 OUTPUT_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,100}\.(parquet|csv)$")
@@ -45,8 +49,11 @@ def table_answer(frame, out: Path | None = None, inline: int = INLINE_ROWS) -> d
             "data": head, "truncated": len(frame) > inline, "out": str(out) if out else None}
 
 
-class DataService:
+class DataService(research.ResearchTools):
     """The tools' bodies, callable without the MCP SDK (tests drive this class)."""
+
+    answer = staticmethod(table_answer)
+    json_safe = staticmethod(_json_safe)
 
     def __init__(self, output_root: Path = DEFAULT_OUTPUT):
         self.output_root = Path(output_root)
@@ -172,9 +179,10 @@ def create_server(service: DataService):
 
     @server.tool(annotations=reads)
     async def data_catalog() -> dict:
-        """Start here: every dataset (trades, quotes, bars, movers index, boards, splits, financials, SEC shares and
-        filings, float, IPOs, ticker details, short interest) with its source, history, as-of rule, units and the
-        tool that reads it, plus what is NOT available."""
+        """Start here: every dataset (trades, quotes, bars, daily bars, movers index, stock-day finder, boards,
+        order flow, halts, catalysts, symbols, splits, financials, SEC shares and filings, float, IPOs, ticker
+        details, short interest) with its source, history, as-of rule, units and the tool that reads it, plus what
+        is NOT available."""
         return await run(service.catalog)
 
     @server.tool(annotations=reads)
@@ -271,13 +279,14 @@ def create_server(service: DataService):
         """FINRA short interest as published by day at ET HH:MM (a settlement counts only after its publish lag)."""
         return await run(service.short_interest, symbol, day, at)
 
+    research.register(server, service, run, reads, writes_file)
     return server
 
 
 PRELOAD = ("numpy", "pandas", "pyarrow", "market_reads.reads", "market_reads.splits", "market_reads.reference",
            "market_reads.sec", "market_reads.tickers", "market_reads.scan", "market_reads.inventory",
            "market_reads.catalog", "day_movers.query",
-           "agent_desk.movers_read", "leaderboard.playback", "move_reason.short_interest")
+           "agent_desk.movers_read", "leaderboard.playback", "move_reason.short_interest", *research.PRELOAD)
 
 
 def preload() -> list[str]:
