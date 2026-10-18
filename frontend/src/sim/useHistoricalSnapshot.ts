@@ -15,6 +15,8 @@ export interface HistoricalSnapshot {
   depth_available?: boolean;
   /** That book, or null/undefined when depth was not recorded for this moment. */
   depth?: HistoricalDepthBook | null;
+  /** The book watcher's verdicts at this playhead second (#617), or null/undefined when absent. */
+  book_watch?: Record<string, unknown> | null;
   /** Every venue book imported for the loaded symbol-day and its span (ADR 057); empty or absent with none. */
   exchange_books?: ExchangeBookCoverage[];
   /** Open / high / low from the window's first reached print (or reached candles) -- the window's, not the day's. */

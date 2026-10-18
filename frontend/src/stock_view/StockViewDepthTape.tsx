@@ -61,6 +61,18 @@ interface Props {
 type QuoteView = (detail: TickerDetail | null) => TickerDetail | null;
 const LIVE_QUOTE: QuoteView = (detail) => detail;
 
+const CAPTURE_GAP_WATCH = {
+  source: 'replay' as const,
+  watching: false,
+  reason: 'The playhead is between recorded stretches: nothing was recorded here.',
+  windowSec: 60,
+  sides: null,
+  drops: [],
+  hidden: [],
+  big: [],
+  bigFloat: null,
+};
+
 /**
  * The price, the change and the stats. They read the ticker themselves, so a print renders the head and
  * not the card around it (Level 2, Time & Sales, the stock read; #707).
@@ -282,7 +294,7 @@ export function StockViewDepthTape({
             <ShortChips />
           </>
         )}
-        level2={showL2 ? (gap ? <HistoricalDepth depth={null} />
+        level2={showL2 ? (gap ? <HistoricalDepth depth={null} watch={CAPTURE_GAP_WATCH} />
           : <Level2Module key={feedKey} symbol={depthSymbol} uiActive={uiActive}
             markers={markers} traderTab />) : null}
         tape={showTape ? (

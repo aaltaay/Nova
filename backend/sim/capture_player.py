@@ -53,9 +53,12 @@ _load_lock = threading.Lock()
 
 def reset_for_tests() -> None:
     global _state, _generation
+    from book_watch import ladder_replay
+
     with _load_lock:
         _generation += 1
         _state = None
+    ladder_replay.reset_for_tests()
 
 
 def snapshot() -> CaptureData | None:

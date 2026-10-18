@@ -78,8 +78,14 @@ operator had to hover for, while the question comes up on the ladder. So:
    had the same size reappear 1-3 ticks away within 0.5-5 s, so the pulls are not quotes stepping a
    tick. About a quarter came back at the same price within 2 s, which is what the hatching shows.
 
-Live only. A replay desk's ladder is told the watcher reads only the live line; marking a recording
-from the journal is parked (#617).
+Live and Sim replay (#617). On a Sim replay off the live edge, `book_watch/ladder_replay.py` feeds the
+same `SymbolWatch` detector over the loaded recording's own books and prints up to the playhead (never
+past it, and never calling `flush()`) and supplies the same `book_watch` annotation shape (`source:
+"replay"`, `now` = playhead) to both the capture depth socket (`book_watch/ladder.py`) and the
+historical replay snapshot (`sim/history_playback.py` / `HistoricalDepth.tsx`). Missing depth, missing
+tape, Level 1/NBBO-only windows, single-venue exchange books, pre-first-event moments and recording
+gaps report `watching: false` with the reason rather than zero totals or guessed pulls/trades; marks and
+minute totals age on replay time and freeze while paused.
 
 ## Amendment 2026-09-30: hidden sellers and buyers
 

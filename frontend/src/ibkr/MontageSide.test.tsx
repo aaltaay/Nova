@@ -217,3 +217,128 @@ describe('MontageSide: a hidden seller (ADR 033 amendment, 2026-09-30)', () => {
     expect(mark?.getAttribute('data-tip')).toContain('never a detection');
   });
 });
+
+describe('MontageSide: Sim replay clock, pause and rewind (#617)', () => {
+  const PLAYHEAD_S = 1_790_682_311.0;
+  const DROP_TS = PLAYHEAD_S - 1.0;
+
+  it('ages replay drops and hatching on replay time rather than wall clock, freezes while paused, and resets on rewind', async () => {
+    const { PullsStrip, useBookWatchClock } = await import('./BookWatchParts');
+    const { simClockResource } = await import('../sim');
+
+    functionHarness: {
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      const root = createRoot(container);
+      try {
+        // Wall clock is far in the future (2026-10-18), while replay is on 2026-09-29.
+        const wallNow = PLAYHEAD_S * 1000 + 86_400_000 * 19;
+        const watch = applyBookWatchFrame(null, {
+          schema_version: 1,
+          source: 'replay',
+          now: PLAYHEAD_S,
+          reset: true,
+          seq: 1,
+          watching: true,
+          reason: null,
+          window_sec: 60,
+          sides: {
+            bid: { pulled_shares: 5800, filled_shares: 0, large_pulls: 2 },
+            ask: { pulled_shares: 2000, filled_shares: 8200, large_pulls: 1 },
+          },
+          drops: [
+            { seq: 1, ts: DROP_TS, side: 'ask', price: 8.25, dropped: 2500, pulled: 2000, filled: 500,
+              outcome: 'pulled', level_before: 2600, level_after: 100, distance_ticks: 0, distance_at_post_ticks: 5,
+              lifetime_sec: 0.65, large_pull: true, on_approach: true },
+          ],
+        }, wallNow);
+
+        expect(watch?.source).toBe('replay');
+        expect(watch?.nowMs).toBe(PLAYHEAD_S * 1000);
+
+        const asks = [lvl(8.25, 100, 'ask'), lvl(8.26, 2000, 'ask')];
+        simClockResource.setData({
+          sim: true,
+          paused: true,
+          live_edge: false,
+          sim_time_et: new Date(PLAYHEAD_S * 1000).toISOString(),
+        });
+
+        function Harness({ state }: { state: typeof watch }) {
+          const nowMs = useBookWatchClock(state, true);
+          return (
+            <div>
+              <PullsStrip watch={state} />
+              <MontageSide side="ask" levels={asks} peak={2000} watch={state} nowMs={nowMs} />
+            </div>
+          );
+        }
+
+        act(() => root.render(<Harness state={watch} />));
+        const mark = container.querySelector<HTMLElement>('[data-testid="l2-pullmark-approach"]');
+        expect(mark?.textContent).toBe('✕ 2,000 pulled');
+        expect(mark?.getAttribute('data-tip')).toContain('Left the book 1.0 s ago; 500 of it traded there.');
+        expect(container.querySelector('.das-l2-row--pulled-here')).not.toBeNull();
+        expect(container.querySelector('[data-testid="l2-pulls-ask"]')?.textContent).toContain('✕ 2.0K');
+        expect(container.querySelector('[data-testid="l2-pulls-ask"]')?.textContent).toContain('✓ 8.2K');
+
+        // Seek playhead forward by 4.0 s (age = 5.0 s -> halfway through the 2 s fade):
+        act(() => {
+          simClockResource.setData({
+            sim: true,
+            paused: true,
+            live_edge: false,
+            sim_time_et: new Date((PLAYHEAD_S + 4.0) * 1000).toISOString(),
+          });
+        });
+        const faded = container.querySelector<HTMLElement>('.das-l2-pullmarks');
+        expect(Number(faded?.style.opacity)).toBeCloseTo(0.5, 2);
+
+        // Seek playhead past 6 s (age = 10 s -> 6-second mark gone, 1-minute hatching remains):
+        act(() => {
+          simClockResource.setData({
+            sim: true,
+            paused: true,
+            live_edge: false,
+            sim_time_et: new Date((PLAYHEAD_S + 9.0) * 1000).toISOString(),
+          });
+        });
+        expect(container.querySelector('[data-testid="l2-pullmark-approach"]')).toBeNull();
+        expect(container.querySelector('.das-l2-row--pulled-here')?.getAttribute('data-tip')).toContain('10.0 s ago');
+
+        // Rewind before the drop: reset frame clears drops and totals.
+        const rewound = applyBookWatchFrame(watch, {
+          schema_version: 1,
+          source: 'replay',
+          now: DROP_TS - 2.0,
+          reset: true,
+          seq: 0,
+          watching: true,
+          reason: null,
+          window_sec: 60,
+          sides: {
+            bid: { pulled_shares: 0, filled_shares: 0, large_pulls: 0 },
+            ask: { pulled_shares: 0, filled_shares: 0, large_pulls: 0 },
+          },
+          drops: [],
+        }, wallNow + 5000);
+        act(() => {
+          simClockResource.setData({
+            sim: true,
+            paused: true,
+            live_edge: false,
+            sim_time_et: new Date((DROP_TS - 2.0) * 1000).toISOString(),
+          });
+          root.render(<Harness state={rewound} />);
+        });
+        expect(container.querySelector('.das-l2-row--pulled-here')).toBeNull();
+        expect(container.querySelector('[data-testid="l2-pulls-ask"]')?.textContent).toContain('✕ 0');
+      } finally {
+        act(() => root.unmount());
+        container.remove();
+        simClockResource.setData(null);
+      }
+      break functionHarness;
+    }
+  });
+});
