@@ -42,8 +42,10 @@ export function startClipExporter({
 }) {
   const windows = new WeakSet();
   const queue = [];
-  const tokens = new Map(); // token -> { full, size, handle, owner }
-  const previews = new Map(); // req id -> { resolve, timer, owner }
+  const tokens = new Map(); // token -> { full, size, handle, opening, closed, owner }
+  const previews = new Map(); // req id -> { resolve, timer, wait, owner }
+  const closing = new Set(); // handle closes and finalizers still in flight; `shutdown()` settles after them
+  let drained = null;
   let win = null;
   let ready = false;
   let stopped = false;
@@ -52,46 +54,61 @@ export function startClipExporter({
   let pageRetryAt = 0;
   let seq = 0;
 
+  function track(work) {
+    const done = work
+      .catch((err) => logger.warn(`[nova] clip export file not closed: ${errLine(err)}`))
+      .finally(() => closing.delete(done));
+    closing.add(done);
+    return done;
+  }
+
   function register(full, owner) {
     const token = `t${now()}-${++seq}`;
     const size = fs.statSync(full).size;
-    tokens.set(token, { full, size, handle: null, owner });
+    tokens.set(token, { full, size, handle: null, opening: null, closed: false, owner });
     return { token, size };
   }
 
   async function releaseTokens(owner) {
     for (const [token, t] of [...tokens]) {
-      if (t.owner !== owner) continue;
+      if (owner !== null && t.owner !== owner) continue;
       tokens.delete(token);
-      if (t.handle) await t.handle.close().catch((err) => logger.warn(`[nova] clip export: closing a source failed: ${errLine(err)}`));
+      t.closed = true;
+      const handle = t.handle ?? (t.opening ? await t.opening.catch(() => null) : null);
+      t.handle = null;
+      if (handle) await handle.close().catch((err) => logger.warn(`[nova] clip export: closing a source failed: ${errLine(err)}`));
     }
   }
 
-  async function finish(job, ok, error) {
+  function finish(job, ok, error) {
     if (job.finished) return;
     job.finished = true;
     if (current === job) current = null;
-    await releaseTokens(job.id);
-    let bytes = null;
-    if (job.out) await job.out.close().catch((err) => { error = error ?? `closing the export failed: ${errLine(err)}`; ok = false; });
-    if (ok) {
-      try {
-        fs.renameSync(job.part, job.outFull);
-        bytes = fs.statSync(job.outFull).size;
-      } catch (err) {
-        ok = false;
-        error = `the finished export could not be saved: ${errLine(err)}`;
+    return track((async () => {
+      await releaseTokens(job.id);
+      let bytes = null;
+      const out = job.out ?? (job.openingOut ? await job.openingOut.catch(() => null) : null);
+      job.out = null;
+      if (out) await out.close().catch((err) => { error = error ?? `closing the export failed: ${errLine(err)}`; ok = false; });
+      if (ok) {
+        try {
+          fs.renameSync(job.part, job.outFull);
+          bytes = fs.statSync(job.outFull).size;
+        } catch (err) {
+          ok = false;
+          error = `the finished export could not be saved: ${errLine(err)}`;
+        }
       }
-    }
-    if (!ok) {
-      try {
-        if (fs.existsSync(job.part)) fs.unlinkSync(job.part);
-      } catch (err) {
-        logger.warn(`[nova] clip export: removing ${job.part} failed: ${errLine(err)}`);
+      if (!ok) {
+        try {
+          if (fs.existsSync(job.part)) fs.unlinkSync(job.part);
+        } catch (err) {
+          logger.warn(`[nova] clip export: removing ${job.part} failed: ${errLine(err)}`);
+        }
       }
-    }
-    onFinished(job, { ok, error: ok ? null : error ?? 'the export failed', bytes, cancelled: job.cancelled });
-    pump();
+      onFinished(job, { ok, error: ok ? null : error ?? 'the export failed', bytes, cancelled: job.cancelled });
+      pump();
+    })());
   }
 
   function send(channel, msg) {
@@ -105,7 +122,13 @@ export function startClipExporter({
     job.lastActivity = now();
     try {
       fs.mkdirSync(path.dirname(job.part), { recursive: true });
-      job.out = await fs.promises.open(job.part, 'w');
+      job.openingOut = fs.promises.open(job.part, 'w');
+      const out = await job.openingOut;
+      if (job.finished) {
+        await out.close().catch(() => undefined);
+        return;
+      }
+      job.out = out;
       const pieces = job.pieces.map((p) => {
         const { token, size } = register(p.file, job.id);
         return { token, size, kind: p.kind, t0: p.t0, t1: p.t1, out0: p.out0, crop: p.crop, blur: p.blur, window: p.window ?? null };
@@ -127,16 +150,17 @@ export function startClipExporter({
   }
 
   function pageGone(p, why) {
-    if (p !== win) return;
+    if (stopped || p !== win) return;
     win = null;
     ready = false;
     pageFailures += 1;
     pageRetryAt = now() + retryDelayMs(pageFailures);
-    if (current) void finish(current, false, why);
+    if (current) finish(current, false, why);
     for (const [id, pv] of [...previews]) {
       previews.delete(id);
       clearTimeout(pv.timer);
-      void releaseTokens(pv.owner);
+      if (pv.wait) clearInterval(pv.wait);
+      track(releaseTokens(pv.owner));
       pv.resolve({ ok: false, error: why });
     }
     logger.warn(`[nova] clip export page: ${why}`);
@@ -174,12 +198,20 @@ export function startClipExporter({
   const onRead = async (event, req) => {
     if (!fromPage(event)) throw new Error('not the export page');
     const t = tokens.get(req?.token);
-    if (!t) throw new Error('unknown source');
+    if (!t || t.closed) throw new Error('unknown source');
     const start = Math.max(0, Number(req.start) || 0);
     const end = Math.min(t.size, Number(req.end) || 0, start + MAX_READ_BYTES);
     if (end <= start) return new Uint8Array(0);
     if (current && t.owner === current.id) current.lastActivity = now();
-    if (!t.handle) t.handle = await fs.promises.open(t.full, 'r');
+    if (!t.handle) {
+      t.opening = t.opening || fs.promises.open(t.full, 'r');
+      const handle = await t.opening;
+      if (t.closed) {
+        await handle.close().catch(() => undefined);
+        throw new Error('unknown source');
+      }
+      t.handle = handle;
+    }
     const buf = Buffer.alloc(end - start);
     const { bytesRead } = await t.handle.read(buf, 0, end - start, start);
     return new Uint8Array(buf.buffer, buf.byteOffset, bytesRead);
@@ -199,7 +231,7 @@ export function startClipExporter({
   };
   const onDone = (event, msg) => {
     if (!fromPage(event) || !current || msg?.job_id !== current.id) return;
-    void finish(current, msg.ok === true && !current.cancelled, current.cancelled ? 'cancelled' : msg.error);
+    finish(current, msg.ok === true && !current.cancelled, current.cancelled ? 'cancelled' : msg.error);
   };
   const onPreviewDone = (event, msg) => {
     if (!fromPage(event)) return;
@@ -207,7 +239,8 @@ export function startClipExporter({
     if (!pv) return;
     previews.delete(msg.req_id);
     clearTimeout(pv.timer);
-    void releaseTokens(pv.owner);
+    if (pv.wait) clearInterval(pv.wait);
+    track(releaseTokens(pv.owner));
     pv.resolve(msg.ok ? { ok: true, bytes: msg.bytes, width: msg.width, height: msg.height } : { ok: false, error: msg.error || 'no frame' });
   };
   ipcMain.on(CLIP_EXPORT_READY_CHANNEL, onReady);
@@ -256,29 +289,31 @@ export function startClipExporter({
         }
         const timer = setTimeout(() => {
           previews.delete(owner);
-          void releaseTokens(owner);
+          if (entry.wait) clearInterval(entry.wait);
+          track(releaseTokens(owner));
           resolve({ ok: false, error: 'the preview took too long' });
         }, CLIP_PREVIEW_TIMEOUT_MS);
-        previews.set(owner, { resolve, timer, owner });
+        const entry = { resolve, timer, wait: null, owner };
+        previews.set(owner, entry);
         const go = () => send(CLIP_EXPORT_PREVIEW_CHANNEL, { req_id: owner, token, size, t, crop, out, blur, window: spec });
         if (!go()) {
           // The page is loading: ask again once it is ready (the timeout covers a page that never is).
-          const wait = setInterval(() => {
-            if (!previews.has(owner)) clearInterval(wait);
-            else if (go()) clearInterval(wait);
+          entry.wait = setInterval(() => {
+            if (!previews.has(owner)) clearInterval(entry.wait);
+            else if (go()) clearInterval(entry.wait);
           }, 250);
         }
       });
     },
     tick() {
       if (current && now() - current.lastActivity > CLIP_EXPORT_STALL_MS) {
-        void finish(current, false, `the export stalled (nothing for ${CLIP_EXPORT_STALL_MS / 1000} s)`);
+        finish(current, false, `the export stalled (nothing for ${CLIP_EXPORT_STALL_MS / 1000} s)`);
         if (win && !win.isDestroyed()) win.destroy();
       }
       pump();
     },
     shutdown() {
-      if (stopped) return;
+      if (stopped) return drained;
       stopped = true;
       ipcMain.removeListener(CLIP_EXPORT_READY_CHANNEL, onReady);
       ipcMain.removeHandler?.(CLIP_EXPORT_READ_CHANNEL);
@@ -286,19 +321,40 @@ export function startClipExporter({
       ipcMain.removeListener(CLIP_EXPORT_PROGRESS_CHANNEL, onProgressMsg);
       ipcMain.removeListener(CLIP_EXPORT_DONE_CHANNEL, onDone);
       ipcMain.removeListener(CLIP_EXPORT_PREVIEW_DONE_CHANNEL, onPreviewDone);
+      queue.length = 0;
+      for (const [id, pv] of [...previews]) {
+        previews.delete(id);
+        clearTimeout(pv.timer);
+        if (pv.wait) clearInterval(pv.wait);
+        track(releaseTokens(pv.owner));
+        pv.resolve({ ok: false, error: 'Nova quit while previewing' });
+      }
       if (current) {
         const job = current;
         current = null;
         job.finished = true;
-        void job.out?.close();
+        track((async () => {
+          await releaseTokens(job.id);
+          const out = job.out ?? (job.openingOut ? await job.openingOut.catch(() => null) : null);
+          job.out = null;
+          if (out) await out.close().catch((err) => logger.warn(`[nova] clip export: closing ${job.part} failed: ${errLine(err)}`));
+          try {
+            if (fs.existsSync(job.part)) fs.unlinkSync(job.part);
+          } catch (err) {
+            logger.warn(`[nova] clip export: removing ${job.part} failed: ${errLine(err)}`);
+          }
+        })());
         try {
-          if (fs.existsSync(job.part)) fs.unlinkSync(job.part);
+          if (!job.out && !job.openingOut && fs.existsSync(job.part)) fs.unlinkSync(job.part);
         } catch (err) {
           logger.warn(`[nova] clip export: removing ${job.part} failed: ${errLine(err)}`);
         }
         onFinished(job, { ok: false, error: 'Nova quit while exporting', bytes: null, cancelled: false });
       }
+      if (tokens.size) track(releaseTokens(null));
       if (win && !win.isDestroyed()) win.destroy();
+      drained = Promise.all([...closing]).then(() => undefined);
+      return drained;
     },
   };
 }

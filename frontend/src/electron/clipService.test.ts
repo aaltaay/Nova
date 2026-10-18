@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { startClipService } from '../../electron/clipService.mjs';
 import { CLIP_HQ_MAX_SEC } from '../../electron/clipPlan.mjs';
 import { CLIP_REC_CMD_CHANNEL, CLIP_REC_CHUNK_CHANNEL, CLIP_REC_EVENT_CHANNEL, CLIP_REC_READY_CHANNEL } from '../../electron/clipHq.mjs';
+import { SegmentFile } from '../../electron/screenRecordFiles.mjs';
 import {
   CLIP_EXPORT_DONE_CHANNEL,
   CLIP_EXPORT_JOB_CHANNEL,
@@ -94,17 +95,45 @@ const tabReport = (over: Row = {}) => ({
   pane: { x: 200, y: 90, w: 1200, h: 700 }, panels: { plan: { x: 1000, y: 120, w: 300, h: 150 } }, inner: { w: 2560, h: 1392 }, ...over,
 });
 
+const realImmediate = () => new Promise<void>((resolve) => setImmediate(resolve));
+async function settle(rounds = 20) {
+  for (let i = 0; i < rounds; i += 1) await realImmediate();
+}
+async function until(check: () => boolean, rounds = 500) {
+  for (let i = 0; i < rounds && !check(); i += 1) await realImmediate();
+}
+function watch(promise: Promise<unknown>) {
+  const state = { settled: false };
+  void promise.then(() => { state.settled = true; });
+  return state;
+}
+function holdClose(name?: string) {
+  const closeFile = SegmentFile.prototype.close;
+  const files: SegmentFile[] = [];
+  const held: SegmentFile[] = [];
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const spy = vi.spyOn(SegmentFile.prototype, 'close').mockImplementation(function (this: SegmentFile) {
+    const bytes = closeFile.call(this);
+    files.push(this);
+    if (name && path.basename(this.file) !== name) return bytes;
+    held.push(this);
+    return bytes.then(async (value) => { await gate; return value; });
+  });
+  return { files, held, release: () => release(), restore: () => { release(); spy.mockRestore(); } };
+}
+
 let tmp: string;
-let services: { stop: (r?: string) => void }[] = [];
+const services: { stop: (r?: string) => Promise<void> | void }[] = [];
 beforeEach(() => {
-  vi.useFakeTimers();
+  // setImmediate stays real so file closes finish on their own time (#940).
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
   vi.setSystemTime(new Date('2026-09-24T12:06:16Z')); // 08:06:16 ET
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nova-clips-'));
   FakeWindow.all = [];
 });
-afterEach(() => {
-  for (const s of services) s.stop('quit');
-  services = [];
+afterEach(async () => {
+  await Promise.all(services.splice(0).map((s) => s.stop('quit')));
   vi.useRealTimers();
   fs.rmSync(tmp, { recursive: true, force: true });
 });
@@ -280,6 +309,90 @@ describe('High quality', () => {
     expect(await svc.act({ action: 'start', symbol: 'NVDA' })).toMatchObject({ ok: true, hq: false });
     expect(w.lastView()).toMatchObject({ hq_in_use: 2, hq_max: 2 });
   });
+
+  it('writes the quit end row synchronously, awaits active file close, and returns the same completion on repeated stop (#940)', async () => {
+    const w = world();
+    const svc = w.make();
+    const desk = new FakeWindow();
+    svc.tabReport(desk as never, tabReport());
+    const a = (await svc.act({ action: 'start', symbol: 'PFSA', hq: true })) as Row;
+    const page = FakeWindow.all.find((x) => x.opts.title === 'Nova clip recorder')!;
+    w.ipcMain.emit(CLIP_REC_READY_CHANNEL, { sender: page.webContents });
+    const cmd = page.lastSent(CLIP_REC_CMD_CHANNEL)!;
+    w.ipcMain.emit(CLIP_REC_EVENT_CHANNEL, { sender: page.webContents }, { kind: 'started', id: cmd.id, mime: 'video/x-matroska;codecs=avc1' });
+    w.ipcMain.emit(CLIP_REC_CHUNK_CHANNEL, { sender: page.webContents }, { id: cmd.id, bytes: new Uint8Array([1, 2, 3, 4, 5]) });
+    const hold = holdClose('080616-PFSA-hq.mkv');
+    try {
+      const stop = svc.stop('quit') as Promise<void>;
+      expect(stop).toBeInstanceOf(Promise);
+      expect(svc.stop('quit')).toBe(stop);
+      const stopped = watch(stop);
+      expect(page.lastSent(CLIP_REC_CMD_CHANNEL)).toMatchObject({ cmd: 'stop', id: cmd.id });
+      expect(page.isDestroyed()).toBe(true);
+      expect(w.rows().some((r) => r.event === 'close')).toBe(false);
+      const ends = () => w.rows().filter((r) => r.event === 'hq' && r.state === 'end');
+      expect(ends()).toEqual([
+        { schema_version: 1, ts: 1790251576, event: 'hq', clip_id: a.clip_id, state: 'end', file: 'hq/2026-09-24/080616-PFSA-hq.mkv', reason: 'quit', error: null },
+      ]);
+      await until(() => hold.files.length === 1 && hold.files[0].stream.closed);
+      await settle();
+      expect(stopped.settled).toBe(false);
+      hold.release();
+      await stop;
+      expect(stopped.settled).toBe(true);
+      expect(hold.files[0].stream.closed).toBe(true);
+      expect(await svc.stop('quit')).toBeUndefined();
+      expect(ends()).toHaveLength(1);
+    } finally {
+      hold.restore();
+    }
+  });
+
+  it('awaits an already-running HQ finalizer across stop, preserves its error attribution, and writes nothing after folder removal (#940)', async () => {
+    const w = world();
+    const svc = w.make();
+    const desk = new FakeWindow();
+    svc.tabReport(desk as never, tabReport());
+    const other = new FakeWindow();
+    svc.tabReport(other as never, tabReport({ window_id: 'trader:APUS', symbol: 'APUS' }));
+    const pfsa = (await svc.act({ action: 'start', symbol: 'PFSA', hq: true })) as Row;
+    const apus = (await svc.act({ action: 'start', symbol: 'APUS', hq: true })) as Row;
+    const page = FakeWindow.all.find((x) => x.opts.title === 'Nova clip recorder')!;
+    w.ipcMain.emit(CLIP_REC_READY_CHANNEL, { sender: page.webContents });
+    const starts = page.sent.filter((s) => s.channel === CLIP_REC_CMD_CHANNEL && s.msg.cmd === 'start').map((s) => s.msg);
+    expect(starts).toHaveLength(2);
+    for (const s of starts) {
+      w.ipcMain.emit(CLIP_REC_EVENT_CHANNEL, { sender: page.webContents }, { kind: 'started', id: s.id, mime: 'video/x-matroska;codecs=avc1' });
+      w.ipcMain.emit(CLIP_REC_CHUNK_CHANNEL, { sender: page.webContents }, { id: s.id, bytes: new Uint8Array([7, 8, 9]) });
+    }
+    const hold = holdClose('080616-PFSA-hq.mkv');
+    try {
+      w.ipcMain.emit(CLIP_REC_EVENT_CHANNEL, { sender: page.webContents }, { kind: 'stopped', id: starts[0].id, message: 'encoder stalled' });
+      expect(hold.held).toHaveLength(1);
+      const stop = svc.stop('quit') as Promise<void>;
+      expect(stop).toBeInstanceOf(Promise);
+      expect(svc.stop('quit')).toBe(stop);
+      const stopped = watch(stop);
+      const ends = () => w.rows().filter((r) => r.event === 'hq' && r.state === 'end');
+      expect(ends().map((r) => [r.clip_id, r.reason, r.error])).toEqual([[apus.clip_id, 'quit', null]]);
+      await until(() => hold.files.length === 2 && hold.files.every((f) => f.stream.closed));
+      await settle();
+      expect(stopped.settled).toBe(false);
+      hold.release();
+      await stop;
+      expect(hold.files.every((f) => f.stream.closed)).toBe(true);
+      expect(ends().map((r) => [r.clip_id, r.reason, r.error])).toEqual([
+        [apus.clip_id, 'quit', null],
+        [pfsa.clip_id, 'error', 'encoder stalled'],
+      ]);
+      const clipsDir = path.join(tmp, 'clips');
+      fs.rmSync(clipsDir, { recursive: true, force: true });
+      await settle(50);
+      expect(fs.existsSync(clipsDir)).toBe(false);
+    } finally {
+      hold.restore();
+    }
+  });
 });
 
 describe('export', () => {
@@ -316,5 +429,53 @@ describe('export', () => {
     expect(await svc.act({ action: 'delete', clip_id: a.clip_id })).toMatchObject({ ok: true, files: 1 });
     expect(fs.existsSync(String(ex.file))).toBe(false);
     expect(fs.existsSync(path.join(tmp, 'screen', '2026-09-24', '080000-screen3.mkv'))).toBe(true);
+  });
+
+  it('closes open export and source handles before stop settles (#940)', async () => {
+    const openHandle = fs.promises.open;
+    let releaseHandles!: () => void;
+    const gate = new Promise<void>((resolve) => { releaseHandles = resolve; });
+    const closedHandles: string[] = [];
+    const spy = vi.spyOn(fs.promises, 'open').mockImplementation(async (...args) => {
+      const handle = await openHandle(...args);
+      const realClose = handle.close.bind(handle);
+      handle.close = async () => {
+        await realClose();
+        await gate;
+        closedHandles.push(path.basename(String(args[0])));
+      };
+      return handle;
+    });
+    try {
+      const w = world();
+      const svc = w.make();
+      const desk = new FakeWindow();
+      svc.tabReport(desk as never, tabReport());
+      const a = (await svc.act({ action: 'start', symbol: 'PFSA' })) as Row;
+      vi.advanceTimersByTime(30_000);
+      await svc.act({ action: 'stop', clip_id: a.clip_id });
+      const ex = (await svc.act({ action: 'export', clip_id: a.clip_id })) as Row;
+      const page = FakeWindow.all.find((x) => x.opts.title === 'Nova clip export')!;
+      w.ipcMain.emit(CLIP_EXPORT_READY_CHANNEL, { sender: page.webContents });
+      await vi.waitFor(() => expect(page.lastSent(CLIP_EXPORT_JOB_CHANNEL)).toBeTruthy());
+      const job = page.lastSent(CLIP_EXPORT_JOB_CHANNEL)!;
+      const piece = (job.pieces as Row[])[0];
+      await w.ipcMain.invoke(CLIP_EXPORT_READ_CHANNEL, { sender: page.webContents }, { token: piece.token, start: 0, end: 16 });
+      await w.ipcMain.invoke(CLIP_EXPORT_WRITE_CHANNEL, { sender: page.webContents }, { job_id: job.job_id, position: 0, data: new Uint8Array([1, 2, 3]) });
+      const stop = svc.stop('quit') as Promise<void>;
+      const stopped = watch(stop);
+      const failed = w.rows().filter((r) => r.event === 'export' && r.state === 'failed');
+      expect(failed).toHaveLength(1);
+      expect(failed[0]).toMatchObject({ clip_id: a.clip_id, error: 'Nova quit while exporting' });
+      await settle();
+      expect(stopped.settled).toBe(false);
+      releaseHandles();
+      await stop;
+      expect(closedHandles).toHaveLength(2);
+      expect(fs.existsSync(`${String(ex.file)}.part`)).toBe(false);
+    } finally {
+      releaseHandles();
+      spy.mockRestore();
+    }
   });
 });

@@ -43,6 +43,8 @@ export function startClipHq({
 }) {
   const windows = new WeakSet();
   const captures = new Map(); // capture id -> capture
+  const closing = new Set(); // file closes and finalizers still in flight; `shutdown()` settles after them
+  let drained = null;
   let win = null;
   let ready = false;
   let stopped = false;
@@ -52,6 +54,14 @@ export function startClipHq({
 
   const sec = (ms) => Math.round(ms) / 1000;
   const byClip = (clipId) => [...captures.values()].find((c) => c.clipId === clipId && !c.stopping) ?? null;
+
+  function track(work) {
+    const done = work
+      .catch((err) => logger.warn(`[nova] clip capture file not closed: ${errLine(err)}`))
+      .finally(() => closing.delete(done));
+    closing.add(done);
+    return done;
+  }
 
   function send(cmd) {
     if (!win || win.isDestroyed() || !ready) return false;
@@ -70,7 +80,7 @@ export function startClipHq({
     });
   }
 
-  async function finalize(c, reason, error = null) {
+  function finalize(c, reason, error = null) {
     if (c.closed) return;
     c.closed = true;
     captures.delete(c.id);
@@ -78,8 +88,16 @@ export function startClipHq({
       onFailed(c.clipId, { reason: reason || 'error', error: error ?? c.error ?? 'the capture did not start' });
       return;
     }
-    const bytes = c.file ? await c.file.close() : 0;
-    onEnded(c.clipId, { rel: c.rel, reason: c.stopping || reason || 'error', error: c.stopError ?? error ?? c.file?.error ?? null, bytes, ts: sec(now()) });
+    track((async () => {
+      const bytes = c.file ? await c.file.close() : 0;
+      onEnded(c.clipId, {
+        rel: c.rel,
+        reason: c.stopping || reason || 'error',
+        error: c.stopError ?? error ?? c.file?.error ?? null,
+        bytes,
+        ts: sec(now()),
+      });
+    })());
   }
 
   function requestStop(c, reason, error = null) {
@@ -137,7 +155,7 @@ export function startClipHq({
   }
 
   function pageGone(page, why) {
-    if (page !== win) return;
+    if (stopped || page !== win) return;
     win = null;
     ready = false;
     pageFailures += 1;
@@ -145,7 +163,7 @@ export function startClipHq({
     for (const c of [...captures.values()]) {
       c.stopping = c.stopping || 'error';
       c.stopError = c.stopError || why;
-      void finalize(c, 'error', why);
+      finalize(c, 'error', why);
     }
     logger.warn(`[nova] clip recorder page: ${why}`);
     if (!page.isDestroyed()) page.destroy();
@@ -249,21 +267,33 @@ export function startClipHq({
         }
       }
     },
-    /** Quitting: stop every capture and close its file; the last timeslice may not reach the disk. */
+    /** Quitting: stop every capture, write its end row synchronously, and settle once every file and running finalizer is closed (#940). */
     shutdown(reason = 'quit') {
-      if (stopped) return;
+      if (stopped) return drained;
       for (const c of [...captures.values()]) {
+        if (c.closed) continue;
+        c.closed = true;
         c.stopping = c.stopping || reason;
         send({ cmd: 'stop', id: c.id });
-        if (c.file) c.file.stream.end();
+        if (c.file) track(c.file.close());
         captures.delete(c.id);
-        if (c.startedAt) onEnded(c.clipId, { rel: c.rel, reason, error: null, bytes: c.file?.bytes ?? 0, ts: sec(now()) });
+        if (c.startedAt) {
+          onEnded(c.clipId, {
+            rel: c.rel,
+            reason: c.stopping,
+            error: c.stopError ?? c.file?.error ?? null,
+            bytes: c.file?.bytes ?? 0,
+            ts: sec(now()),
+          });
+        }
       }
       stopped = true;
       ipcMain.removeListener(CLIP_REC_READY_CHANNEL, onReady);
       ipcMain.removeListener(CLIP_REC_CHUNK_CHANNEL, onChunkMsg);
       ipcMain.removeListener(CLIP_REC_EVENT_CHANNEL, onEventMsg);
       if (win && !win.isDestroyed()) win.destroy();
+      drained = Promise.all([...closing]).then(() => undefined);
+      return drained;
     },
   };
 }

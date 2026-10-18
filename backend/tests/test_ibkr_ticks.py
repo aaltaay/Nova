@@ -16,11 +16,7 @@ from ibkr import ticks  # noqa: E402
 
 
 def _reset():
-    from ibkr import l1_refused, session_errors
-
     ticks._subs.clear()
-    l1_refused.reset_for_tests()     # a cap another test learned would shrink reqMktData_remaining
-    session_errors.reset_for_tests()  # and an Error 101 another test raised would read max_tickers_hit
 
 
 def test_is_fresh_false_when_symbol_not_subscribed():
