@@ -30,8 +30,8 @@ RESEARCH = (
               "retail by the sub-penny rule (a lower bound); definitions docs/massive-builders.md",
      "mcp": "order_flow", "cli": "market_data.py flow SYMBOL DAY --bucket 5m"},
     {"name": "halts", "source": "Nova's halt log (leaderboard store: Nasdaq Trade Halt RSS + IBKR)",
-     "history": "Nasdaq 2021-09-21 on (backfill to 2026-09-21, the desk's poll after); 2026-03-12 .. 2026-09-18 "
-                "has resumptions but no starts (start_ts null); IBKR 2026-09-23 on, desk-streamed symbols only; "
+     "history": "Nasdaq 2021-09-21 on (backfill to 2026-09-21, the desk's poll after); a resumption whose start "
+                "is not logged has start_ts null; IBKR 2026-09-23 on, desk-streamed symbols only; "
                 "before 2021-09-21 not covered (halts null, never 0)",
      "as_of": "a halt counts at its start; times ET",
      "units": "start / end ET, duration seconds, code (LUDP = LULD pause, M volatility pause, T1 / T12 news "
