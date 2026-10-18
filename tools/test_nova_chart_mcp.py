@@ -415,7 +415,8 @@ class SDKContract(unittest.IsolatedAsyncioTestCase):
         service = M.ChartService(roots)
         server = M.create_server(service)
         tools = await server.list_tools()
-        self.assertEqual([tool.name for tool in tools], ["nova_historical_chart", "nova_historical_chart_gallery"])
+        self.assertEqual([tool.name for tool in tools], ["nova_historical_chart", "nova_historical_chart_gallery",
+                                                       "nova_trade_charts"])
         schema = tools[0].inputSchema
         self.assertEqual(set(schema["properties"]), {"symbol", "date", "output_name", "samples", "as_of_m", "annotations"})
         self.assertFalse(tools[0].annotations.openWorldHint)
@@ -521,7 +522,8 @@ class StdioContract(unittest.IsolatedAsyncioTestCase):
                     async with ClientSession(read, write) as client:
                         await client.initialize()
                         catalog = await client.list_tools()
-                        self.assertEqual([t.name for t in catalog.tools], ["nova_historical_chart", "nova_historical_chart_gallery"])
+                        self.assertEqual([t.name for t in catalog.tools], ["nova_historical_chart", "nova_historical_chart_gallery",
+                                                       "nova_trade_charts"])
                         self.assertEqual((await client.list_resources()).resources, [])
                         bad = await client.call_tool("nova_historical_chart", {
                             "symbol": "BAD/", "date": "2020-01-02", "output_name": "bad"})
@@ -589,7 +591,8 @@ class NativeStdioContract(unittest.IsolatedAsyncioTestCase):
                 async with ClientSession(read, write) as client:
                     await client.initialize()
                     self.assertEqual([t.name for t in (await client.list_tools()).tools],
-                                     ["nova_historical_chart", "nova_historical_chart_gallery"])
+                                     ["nova_historical_chart", "nova_historical_chart_gallery",
+                                                       "nova_trade_charts"])
                     result = await client.call_tool("nova_historical_chart", {
                         "symbol": "DEMO", "date": "2020-01-02", "output_name": "native", "samples": 0})
                     body = result.structuredContent

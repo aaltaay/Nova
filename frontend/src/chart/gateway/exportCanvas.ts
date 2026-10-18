@@ -1,10 +1,13 @@
 import type { IChartApi, Time } from 'lightweight-charts';
 import { captureChartCanvas } from '../chartSnapshot';
-import type { Entry, Gallery } from './types';
-import { annotationColor, annotationSummary, clock, contextLabel, entryTitle } from './annotations';
+import type { Entry, Gallery, PaneTimeframe } from './types';
+import { annotationColor, annotationSummary, clock, contextLabel, entryTimeframes, entryTitle,
+  paneBars } from './annotations';
 import { causalBoundary } from './causalBoundary';
 
-export interface Pane { chart: IChartApi; entry: Entry; timeframe: '1Min' | '5Min' }
+export interface Pane { chart: IChartApi; entry: Entry; timeframe: PaneTimeframe }
+
+const PANE_TITLES: Record<string, string> = { '1Min': '1-minute + volume', '5Min': '5-minute + volume' };
 
 function wallTime(entry: Entry, minute: number): Time {
   return (Date.parse(`${entry.date}T00:00:00Z`) / 1000 + minute * 60) as Time;
@@ -15,8 +18,9 @@ export function drawCausalOverlay(pane: Pane, ctx: CanvasRenderingContext2D, wid
   const ratio = ctx.canvas.width / width;
   const pixelHeight = height * ratio;
   const plotWidth = Math.max(0, width - pane.chart.priceScale('right').width());
-  const data = pane.timeframe === '1Min' ? pane.entry.bars_1m : pane.entry.bars_5m;
-  const boundary = pane.entry.as_of_m == null ? null : causalBoundary(data, pane.entry.as_of_t, pane.timeframe,
+  const data = paneBars(pane.entry, pane.timeframe);
+  const boundary = pane.entry.as_of_m == null || pane.timeframe.endsWith('Sec') ? null
+    : causalBoundary(data, pane.entry.as_of_t, pane.timeframe as '1Min' | '5Min',
     time => pane.chart.timeScale().timeToCoordinate(time), pane.chart.timeScale().options().barSpacing, plotWidth);
   if (boundary != null) {
     const future = boundary.x * ratio;
@@ -101,13 +105,15 @@ export function exportGallery(gallery: Gallery, panes: Map<string, Pane>, index?
     ctx.fillStyle = '#b8c8dc'; ctx.font = `${captionSize}px Arial`;
     ctx.fillText(contextLabel(entry), x + 20, y + 66);
     captions[i].forEach((line, row) => ctx.fillText(line, x + 20, y + 94 + row * lineHeight));
-    for (const [j, tf] of (['1Min', '5Min'] as const).entries()) {
+    const frames = entryTimeframes(entry);
+    const slot = cardW / frames.length;
+    for (const [j, tf] of frames.entries()) {
       const pane = panes.get(`${entry.id}:${tf}`);
       if (!pane) throw new Error('Native chart pane is not ready');
-      const chartX = x + 15 + j * cardW / 2;
+      const chartX = x + 15 + j * slot;
       ctx.fillStyle = '#edf4ff'; ctx.font = 'bold 22px Arial';
-      ctx.fillText(tf === '1Min' ? '1-minute + volume' : '5-minute + volume', chartX, y + chartTop - 12);
-      ctx.drawImage(paneImage(pane, cardW / 2 - 30, plotHeight), chartX, y + chartTop, cardW / 2 - 30, plotHeight);
+      ctx.fillText(PANE_TITLES[tf] ?? `${tf.slice(0, -3)}-second + volume`, chartX, y + chartTop - 12);
+      ctx.drawImage(paneImage(pane, slot - 30, plotHeight), chartX, y + chartTop, slot - 30, plotHeight);
     }
     ctx.fillStyle = '#bdc5d4'; ctx.font = '16px Arial';
     ctx.fillText('Historical OHLCV | raw same-session units | missing bars remain gaps', x + 20, y + cardH - 15);

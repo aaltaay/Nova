@@ -12,6 +12,12 @@ export default defineConfig(({ mode }) => ({
         next();
       });
     },
+    configurePreviewServer(server) {
+      server.middlewares.use((_request, response, next) => {
+        response.setHeader('X-Nova-Chart-Instance', mode);
+        next();
+      });
+    },
   }],
   cacheDir: '.vite-chart-gateway-cache',
   resolve: { dedupe: ['react', 'react-dom'] },

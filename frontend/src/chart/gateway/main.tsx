@@ -4,10 +4,12 @@ import type { IChartApi, ISeriesApi } from 'lightweight-charts';
 import { useChartInstance } from '../useChartInstance';
 import { afterPaintSettles, paintFull } from '../chartBarsPaint';
 import { rawBarsToSeries } from '../../tickerChartData';
+import { FillMarkersPrimitive } from '../FillMarkersPrimitive';
 import { drawCausalOverlay, exportGallery, type Pane } from './exportCanvas';
-import { annotationSummary, contextLabel, entryTitle, priceLineOptions } from './annotations';
+import { annotationSummary, contextLabel, entryTimeframes, entryTitle, paneBars, priceLineOptions,
+  tradeMarkers } from './annotations';
 import { readGallery } from './galleryContract';
-import type { Entry, Gallery } from './types';
+import type { Entry, Gallery, PaneTimeframe } from './types';
 
 const panes = new Map<string, Pane>();
 const metrics: Record<string, number> = {};
@@ -18,7 +20,7 @@ declare global {
       entries: Entry[]; exportPng: (index?: number) => { data: string; export_ms: number } };
   }
 }
-function PaneView({ entry, timeframe, done }: { entry: Entry; timeframe: '1Min' | '5Min'; done: () => void }) {
+function PaneView({ entry, timeframe, done }: { entry: Entry; timeframe: PaneTimeframe; done: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
@@ -47,21 +49,27 @@ function PaneView({ entry, timeframe, done }: { entry: Entry; timeframe: '1Min' 
   useEffect(() => {
     const candleSeries = candleSeriesRef.current;
     if (!chart || !candleSeries) return;
-    const raw = timeframe === '1Min' ? entry.bars_1m : entry.bars_5m;
-    const { candles, volumes } = rawBarsToSeries(raw, timeframe);
+    const { candles, volumes } = rawBarsToSeries(paneBars(entry, timeframe), timeframe);
     paintFull(candles, volumes, candleSeriesRef, volSeriesRef, chartRef, timeframe, null, { current: 0 });
     const lines = priceLineOptions(entry.annotations).map(options => candleSeries.createPriceLine(options));
+    const fills = new FillMarkersPrimitive();
+    candleSeries.attachPrimitive(fills);
+    fills.setMarkers(tradeMarkers(entry, timeframe));
     const cancel = afterPaintSettles(() => {
       chart.timeScale().fitContent();
       requestAnimationFrame(() => {
         panes.set(`${entry.id}:${timeframe}`, { chart, entry, timeframe }); done();
       });
     });
-    return () => { cancel(); panes.delete(`${entry.id}:${timeframe}`); lines.forEach(line => candleSeries.removePriceLine(line)); };
+    return () => {
+      cancel(); panes.delete(`${entry.id}:${timeframe}`);
+      lines.forEach(line => candleSeries.removePriceLine(line)); candleSeries.detachPrimitive(fills);
+    };
   }, [chart, entry, timeframe, done]);
   return <div><div style={{ color: '#c2ccdb', padding: 4 }}>{timeframe} | volume | ET</div>
     <div style={{ position: 'relative' }}><div ref={containerRef} />
       <canvas ref={overlayRef} aria-hidden="true" data-testid="causal-context-overlay"
+        data-entry-id={entry.id} data-timeframe={timeframe}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }} />
     </div></div>;
 }
@@ -85,7 +93,8 @@ function App() {
   }, []);
   function ready(key: string) {
     painted.current.add(key);
-    if (!gallery || painted.current.size !== gallery.entries.length * 2) return;
+    const paneCount = gallery?.entries.reduce((sum, entry) => sum + entryTimeframes(entry).length, 0);
+    if (!gallery || painted.current.size !== paneCount) return;
     metrics.paint_ms = performance.now() - metrics.paint_started;
     window.novaCharts = { ready: true, metrics, entries: gallery.entries, exportPng: (index?: number) => {
       const started = performance.now(); const data = exportGallery(gallery, panes, index);
@@ -101,8 +110,8 @@ function App() {
       {gallery.entries.map(entry => <section key={entry.id} style={{ background: '#161921', padding: 12 }}>
         <h2>{entryTitle(entry)}</h2><p>{contextLabel(entry)}</p>
         <p>{annotationSummary(entry.annotations) || 'No annotations'}</p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          {(['1Min', '5Min'] as const).map(tf => <PaneView key={tf} entry={entry} timeframe={tf} done={() => ready(`${entry.id}:${tf}`)} />)}
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${entryTimeframes(entry).length}, 1fr)`, gap: 10 }}>
+          {entryTimeframes(entry).map(tf => <PaneView key={tf} entry={entry} timeframe={tf} done={() => ready(`${entry.id}:${tf}`)} />)}
         </div>
       </section>)}
     </div></main>;
