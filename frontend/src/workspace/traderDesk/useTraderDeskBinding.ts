@@ -23,7 +23,7 @@ import {
   renameTab,
   unpinTab,
   type TraderTabsState,
-} from '../../stock_view/traderTabsState';
+} from '../../stock_view';
 import {
   canExtractFromDesk,
   claimDockTarget,
@@ -44,7 +44,7 @@ import { useBotFocusSync } from '../../bot/useBotFocusSync';
 import { useTraderDesk } from './useTraderDesk';
 import { getTraderWindowId } from './windowId';
 import type { TraderTabDragPayload } from './protocol';
-import { isTabRecording } from '../../capture/sessionRecordStore';
+import { isTabRecording } from '../../capture';
 import { useSampleRoute } from '../../sample_data/useSampleRoute';
 
 export function useTraderDeskBinding(setSelectedSymbol: (sym: string | null) => void) {

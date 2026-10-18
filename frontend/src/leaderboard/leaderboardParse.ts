@@ -3,7 +3,7 @@
  * throws (read as a failed request); a damaged field reads as unknown (null)
  * and a damaged row is skipped -- never a placeholder number.
  */
-import { finiteOrNull, isObject, objects, text, textOrNull, type Obj } from '../sim/payloadGuards';
+import { finiteOrNull, isObject, objects, text, textOrNull, type Obj } from '../sim';
 import { normalizeCatalystVerdict } from '../utils/catalystVerdict';
 import type {
   LeaderboardAt,

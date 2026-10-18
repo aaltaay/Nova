@@ -9,10 +9,10 @@
  */
 import type { ReactNode } from 'react';
 import { shallowEqual, useTickerSelect } from '../hooks/useTickerStream';
-import { HaltEtaChip } from '../ibkr/HaltEtaChip';
-import { ShortabilityChip } from '../ibkr/ShortabilityChip';
-import { Level2Module } from '../modules/Level2Module';
-import { TimeSalesModule } from '../modules/TimeSalesModule';
+import { HaltEtaChip } from '../ibkr';
+import { ShortabilityChip } from '../ibkr';
+import { Level2Module } from '../modules';
+import { TimeSalesModule } from '../modules';
 import {
   STOCK_VIEW_MODULE_L2_TITLE,
   STOCK_VIEW_MODULE_QUOTE_TITLE,
@@ -23,19 +23,25 @@ import { useModuleVisibility, useWorkspace } from '../workspace';
 import { StockViewModuleCard } from './StockViewModuleCard';
 import { StockViewQuotePrice } from './StockViewQuotePrice';
 import { StockViewQuoteStats } from './StockViewQuoteStats';
-import { useHistoricalSnapshot } from '../sim/useHistoricalSnapshot';
+import { useHistoricalSnapshot } from '../sim';
 import { HistoricalTimeSales } from '../sim/HistoricalTimeSales';
 import { HistoricalDepth, HistoricalL2Chip } from '../sim/HistoricalDepth';
-import { captureQuoteDetail, historicalQuoteDetail, simEmptyQuoteDetail } from '../sim/historicalQuoteDetail';
-import { simRailNote } from '../sim/simReplayTarget';
+import {
+  captureQuoteDetail,
+  historicalQuoteDetail,
+  replayFactsNoteForDetail,
+  sessionDateFromStamp,
+  simEmptyQuoteDetail,
+} from '../sim';
+import { simRailNote } from '../sim';
 import { SimReplayTargetNotice } from '../sim/SimReplayTargetNotice';
-import { useSimReplayTarget } from '../sim/useSimReplayTarget';
-import { CaptureReplayL2Chip } from '../sim/CaptureReplayChip';
+import { useSimReplayTarget } from '../sim';
+import { CaptureReplayL2Chip } from '../sim';
 import {
   SIM_CAPTURE_TAPE_NOT_RECORDED,
   SIM_CAPTURE_TAPE_TITLE,
   SIM_REPLAY_TAPE_STATUS,
-} from '../sim/simConstants';
+} from '../sim';
 import { StockViewVenueTag } from './StockViewVenueTag';
 import { depthUnavailableHint } from './depthUnavailableHint';
 import { ShortChips, StockReadRail, WhoTradesRow, useLevel2Markers } from '../stock_read';
@@ -59,10 +65,26 @@ const LIVE_QUOTE: QuoteView = (detail) => detail;
  * The price, the change and the stats. They read the ticker themselves, so a print renders the head and
  * not the card around it (Level 2, Time & Sales, the stock read; #707).
  */
-function QuoteHead({ symbol, view = LIVE_QUOTE }: { symbol: string; view?: QuoteView }) {
+function QuoteHead({
+  symbol,
+  view = LIVE_QUOTE,
+  replayDay = null,
+}: {
+  symbol: string;
+  view?: QuoteView;
+  replayDay?: string | null;
+}) {
   const live = useTickerSelect(symbol, (state) => state.detail);
   const detail = view(live);
   if (!detail) return null;
+  const replayNote =
+    view !== LIVE_QUOTE
+      ? replayFactsNoteForDetail(
+          live,
+          symbol,
+          replayDay ?? sessionDateFromStamp(detail.snapshot?.daily_bar?.timestamp ?? detail.snapshot?.latest_trade?.timestamp),
+        )
+      : null;
   return (
     <>
       <div className="sv-quote-head" data-testid="stock-view-quote-head">
@@ -70,7 +92,7 @@ function QuoteHead({ symbol, view = LIVE_QUOTE }: { symbol: string; view?: Quote
         {/* Practice venue as a card tag, not a page banner. */}
         <StockViewVenueTag symbol={symbol} />
       </div>
-      <StockViewQuoteStats detail={detail} />
+      <StockViewQuoteStats detail={detail} replayNote={replayNote} />
     </>
   );
 }
@@ -141,8 +163,11 @@ export function StockViewDepthTape({
   const feedKey = sim ? (liveEdge ? 'live-edge' : 'replay') : 'live';
   const markers = useLevel2Markers();
 
+  const replayDay = clock?.session_date ?? clock?.replay_date ?? null;
+
   if (historical?.active && !liveEdge) {
-    const replayQuote: QuoteView = (detail) => historicalQuoteDetail(detail, historical);
+    const day = replayDay ?? historical.selection?.date ?? sessionDateFromStamp(historical.as_of);
+    const replayQuote: QuoteView = (detail) => historicalQuoteDetail(detail, historical, day);
     return (
       <StockViewModuleCard
         title={STOCK_VIEW_MODULE_QUOTE_TITLE}
@@ -150,7 +175,7 @@ export function StockViewDepthTape({
         testId="stock-view-depth-stack"
         aria-label={STOCK_VIEW_MODULE_QUOTE_TITLE}
       >
-        <QuoteHead symbol={depthSymbol} view={replayQuote} />
+        <QuoteHead symbol={depthSymbol} view={replayQuote} replayDay={day} />
         {(showL2 || showTape) && (
           <DepthAndTapeColumns
             symbol={depthSymbol}
@@ -180,7 +205,11 @@ export function StockViewDepthTape({
         className="sv-quote-depth-card sv-quote-depth-card--empty"
         testId="stock-view-depth-stack"
       >
-        <QuoteHead symbol={depthSymbol} view={(detail) => simEmptyQuoteDetail(detail, depthSymbol)} />
+        <QuoteHead
+          symbol={depthSymbol}
+          view={(detail) => simEmptyQuoteDetail(detail, depthSymbol, replayDay)}
+          replayDay={replayDay}
+        />
         <p className="sv-depth-stack__hint" data-testid="stock-view-sim-rail-note">{simNote}</p>
         <SimReplayTargetNotice symbol={depthSymbol} />
       </StockViewModuleCard>
@@ -206,7 +235,7 @@ export function StockViewDepthTape({
         className="sv-quote-depth-card sv-quote-depth-card--empty"
         testId="stock-view-depth-stack"
       >
-        <QuoteHead symbol={depthSymbol} view={quoteView} />
+        <QuoteHead symbol={depthSymbol} view={quoteView} replayDay={captureReplay ? replayDay : null} />
         <p className="sv-depth-stack__hint" data-testid="stock-view-depth-hint">
           {depthUnavailableHint(ibkrStatusKnown, ibkrStatusError)}
         </p>
@@ -227,7 +256,7 @@ export function StockViewDepthTape({
         className="sv-quote-depth-card"
         testId="stock-view-depth-stack"
       >
-        <QuoteHead symbol={depthSymbol} view={quoteView} />
+        <QuoteHead symbol={depthSymbol} view={quoteView} replayDay={captureReplay ? replayDay : null} />
         {read}
         {whoTrades}
       </StockViewModuleCard>
@@ -241,7 +270,7 @@ export function StockViewDepthTape({
       testId="stock-view-depth-stack"
       aria-label={STOCK_VIEW_MODULE_QUOTE_TITLE}
     >
-      <QuoteHead symbol={depthSymbol} view={quoteView} />
+      <QuoteHead symbol={depthSymbol} view={quoteView} replayDay={captureReplay ? replayDay : null} />
       {read}
       {whoTrades}
       <DepthAndTapeColumns

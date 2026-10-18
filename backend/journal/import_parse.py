@@ -83,7 +83,7 @@ def parse_timestamp(value: Any) -> float | None:
         return None
     try:
         return parse_timestamp(float(text))
-    except ValueError:
+    except ValueError:  # maintainer: allow-swallow not a numeric epoch; falls through to date and ISO formats below
         pass
     if len(text) >= 10 and text[4] == "-" and text[7] == "-" and text[10:11] in ("", " "):
         if len(text) == 10:

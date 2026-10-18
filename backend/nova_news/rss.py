@@ -67,7 +67,8 @@ def parse_feed(xml_text: str, fallback_source: str) -> list[dict]:
     """Parse RSS 2.0 / Atom into raw article dicts. Never raises."""
     try:
         root = ElementTree.fromstring(xml_text)
-    except ElementTree.ParseError:
+    except ElementTree.ParseError:  # maintainer: allow-swallow logged; malformed XML yields no articles for this feed
+        logger.warning("nova_news: malformed RSS/Atom XML for %s", fallback_source, exc_info=True)
         return []
 
     articles: list[dict] = []

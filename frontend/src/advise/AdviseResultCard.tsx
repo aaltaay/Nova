@@ -1,4 +1,4 @@
-import { useWorkspace } from '../workspace/WorkspaceContext';
+import { useWorkspace } from '../workspace';
 import { ADVISE_DISCLAIMER, ADVISE_STALE_NUDGE, ADVISE_WHY_BUSY } from './constants';
 import { formatAdviseActualLine } from './estimateFormat';
 import { useAdvise } from './AdviseContext';

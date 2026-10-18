@@ -54,9 +54,9 @@ import {
   startTabRecord,
   stopTabRecord,
   subscribeSessionRecord,
-} from '../capture/sessionRecordStore';
-import { HoldToStopButton } from '../capture/HoldToStopButton';
-import { CAPTURE_STOP_HOLD_HINT, captureStopHoldLabel } from '../capture/constants';
+} from '../capture';
+import { HoldToStopButton } from '../capture';
+import { CAPTURE_STOP_HOLD_HINT, captureStopHoldLabel } from '../capture';
 import { botSymbolMenuPosition } from './botSymbolMenuPlacement';
 import { BotNotices } from './BotNotices';
 import { ClipMenuRows } from '../clips';

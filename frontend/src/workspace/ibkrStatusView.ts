@@ -11,8 +11,8 @@
  * Pure: no module state.
  */
 import type { DeskVenue } from '../constantGroups/desk_venue';
-import { deskVenueOf } from '../ibkr/deskVenue';
-import type { IbkrClientStatus } from '../ibkr/useIbkrStatus';
+import { deskVenueOf } from '../ibkr';
+import type { IbkrClientStatus } from '../ibkr';
 
 export interface IbkrStatusView {
   ibkrStatusKnown: boolean;

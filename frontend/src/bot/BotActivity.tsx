@@ -5,7 +5,7 @@
  */
 import { useState } from 'react';
 import { BOTS_ACTIVITY_EMPTY, BOTS_ACTIVITY_LIMIT, BOTS_ACTIVITY_TITLE } from '../constantGroups/bots_page';
-import type { SetupStoreRow } from '../setups/useSetupRows';
+import type { SetupStoreRow } from '../setups';
 import { ACTIVITY_FILTER_LABELS, ACTIVITY_FILTERS, activityLines, type ActivityFilter } from './botActivityLines';
 import { etClock, prose } from './botsPageFormat';
 import type { BotAuditEntry } from './types';

@@ -17,5 +17,21 @@ export {
   requestFocusList,
   subscribeFocusListRequest,
 } from './focusListRequest';
-export { requestScannerTab, setNavPage } from './navRailStore';
-export type { NovaModule } from './registry';
+export { DEFAULT_ACTIVE_TAB } from './defaultTab';
+export { requestScannerTab, setNavPage, useNavRailSnapshot } from './navRailStore';
+export {
+  isTabModuleId,
+  listScannerListModules,
+  tabUsesScannerPricePatch,
+  type ActiveTab,
+  type NovaModule,
+} from './registry';
+export { declaresScannerL1 } from './scannerTabs';
+export {
+  allowTraderTabDrop,
+  canExtractFromDesk,
+  isForeignTabDrag,
+  startTraderTabDrag,
+  takeForeignTraderTabDrop,
+  type TraderTabDragPayload,
+} from './traderDesk';

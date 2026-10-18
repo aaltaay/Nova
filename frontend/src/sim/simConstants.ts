@@ -68,6 +68,27 @@ export const simReplayL2NbboNote = (time: string): string => `Best bid / ask (NB
 export const SIM_REPLAY_L2_NBBO_MISSING = 'Bid/ask for this day is not in your Massive folder yet';
 export const SIM_REPLAY_L2_NBBO_ARRIVED = 'Bid/ask for this day is on disk now -- load the window again to add it';
 export const SIM_REPLAY_L2_NBBO_NONE = 'No quote for this ticker yet in this window';
+/**
+ * An exchange's own book imported for the day (ADR 057): one venue's orders, named as that venue's -- never the
+ * consolidated market's. `names` reads "Nasdaq", or "Nasdaq + NYSE Arca" for several venues.
+ */
+export const simReplayL2VenueNote = (names: string, several: boolean, time: string): string =>
+  `${names} book${several ? 's' : ''} only · last change ${time} ET`;
+export const simReplayL2VenueCovers = (spans: string, several: boolean): string =>
+  `Imported · ${several ? '' : 'covers '}${spans} ET · not the whole market`;
+export const simReplayL2VenueElsewhere = (spans: string, several: boolean): string =>
+  `Imported book${several ? 's' : ''}: ${spans} ET`;
+export const simReplayL2VenueAbsent = (names: string): string => `No ${names} book at this moment`;
+export const simReplayL2VenueGap = (label: string): string =>
+  `${label} flagged a gap in its feed here -- this book may be incomplete`;
+export const SIM_REPLAY_L2_VENUE_UNNAMED = 'Exchange';
+export const simReplayL2VenueChip = (labels: string[]): string =>
+  labels.length === 1 ? `${labels[0]} book` : `${labels.length} venue books`;
+export const simReplayL2VenueTitle = (names: string): string =>
+  `${names}: the venue's own order book for this day, imported from a file and replayed at the playhead. It holds `
+  + 'only the orders resting on that venue, not the consolidated market: other venues\' bids and offers, hidden '
+  + 'orders and off-exchange trading are not in it, so its best bid and ask can differ from the quote above. Live '
+  + 'halt and borrow state are hidden because they describe today, not this session.';
 
 /** Requests are bounded; slow polls never overlap. */
 export const SIM_REQUEST_TIMEOUT_MS = 15_000;

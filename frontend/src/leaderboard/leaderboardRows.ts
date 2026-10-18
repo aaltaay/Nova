@@ -7,7 +7,7 @@
  * verdict (as known at the playhead, #498) rides along for the News column.
  */
 import { SESSION_RTH_CLOSE_MIN_ET } from '../constants';
-import { etTime } from '../sim/historicalReplayFormat';
+import { etTime } from '../sim';
 import type { ScannerRow } from '../types/scanner';
 import {
   LEADERBOARD_AFTERHOURS_FROM_CLOSE,

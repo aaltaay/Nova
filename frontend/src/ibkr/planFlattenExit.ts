@@ -5,7 +5,7 @@
  * Otherwise: EH LMT at bid (SELL) / ask (BUY) / last. Never RTH-only MKT
  * (IBKR Warning 2109 / 399 held_until next regular session).
  */
-import type { MarketSessionKind } from '../chart/sessionHighlight';
+import type { MarketSessionKind } from '../chart';
 import { FLATTEN_EH_NO_MARK } from '../constants';
 import {
   flattenNeedsOutsideRth,

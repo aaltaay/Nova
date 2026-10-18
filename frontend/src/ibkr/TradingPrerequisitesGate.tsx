@@ -12,7 +12,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useScannerBarProps } from '../components/scannerBarStore';
 import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL, DISCOVERY_PROVIDER_DEFAULT } from '../constants';
-import { useWorkspace } from '../workspace/WorkspaceContext';
+import { useWorkspace } from '../workspace';
 import {
   PREREQ_CLOSE_ARIA,
   PREREQ_CLOSE_LABEL,

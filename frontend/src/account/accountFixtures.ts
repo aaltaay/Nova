@@ -6,7 +6,7 @@
  * net realized 87.10 + open 55.00 = Day's 142.10; gross 97.50 - commissions
  * 10.00 - fees 0.40 = net 87.10.
  */
-import type { PracticeAccount } from '../practice/practiceTypes';
+import type { PracticeAccount } from '../practice';
 import { todayPracticeDate } from './accountFigures';
 import type { HistoryFill, PracticeHistory } from './accountHistoryTypes';
 

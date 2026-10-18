@@ -12,8 +12,8 @@ import {
   type RefObject,
 } from 'react';
 import { ClosePositionButton } from '../closed_orders';
-import type { IbkrMode, IbkrPosition } from '../ibkr/types';
-import { requestStockViewDock } from '../stock_view/requestDockSurface';
+import type { IbkrMode, IbkrPosition } from '../ibkr';
+import { requestStockViewDock } from '../stock_view';
 import { positionLineTitle } from './positionOverlay';
 import { useChartPositionContext } from './useChartPositionContext';
 import {

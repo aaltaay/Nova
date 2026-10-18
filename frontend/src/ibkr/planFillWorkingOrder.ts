@@ -7,7 +7,7 @@
  * does not make those MKTs fill. Fill now used to cancel+resubmit the
  * same unfillable MKT and treat broker-accept as success (#168).
  */
-import type { MarketSessionKind } from '../chart/sessionHighlight';
+import type { MarketSessionKind } from '../chart';
 import { FILL_NOW_SHORT_ENTRY_REFUSAL, FILL_WORKING_ORDER_CONFIRM_PREFIX } from '../constants';
 import { formatMoney } from '../utils/formatMoney';
 import { resolveFillSessionKind } from './extendedSession';

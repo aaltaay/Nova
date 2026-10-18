@@ -40,6 +40,17 @@ TRADE_UPDATE_SOURCE_SNAPSHOT = "snapshot"  # a Level 1 quote snapshot -- a last 
 TRADE_UPDATE_SOURCE_SIM = "sim"            # a replayed recorded print
 
 
+def replay_desk_suppresses_live() -> bool:
+    """True when the desk is on Sim replay off the live edge (#867)."""
+    try:
+        from sim import mode
+
+        return bool(mode.is_replay_desk())
+    except Exception:
+        logger.warning("quote_push: live-edge state unreadable -- suppressing live quote push", exc_info=True)
+        return True
+
+
 async def broadcast_trade_update(
     sym: str,
     price: float,
@@ -61,11 +72,18 @@ async def broadcast_trade_update(
     a 10-second wick to $4 that no exchange printed).
 
     ``seq`` / ``at`` are the quote's version (ADR 045): the IBKR stream takes it when Nova
-    applied the update; any other caller gets the next one now.
+    applied the update; any other caller gets the next one now. Off the live edge on a Sim
+    desk, live ``stream`` and ``snapshot`` updates are suppressed before any version change (#867).
     """
+    if source != TRADE_UPDATE_SOURCE_SIM and replay_desk_suppresses_live():
+        if seq is not None:
+            versions.unbump(versions.QUOTE, sym, seq, at)
+        return
     if seq is None:
         version = versions.bump(versions.QUOTE, sym)
         seq, at = version.seq, version.at
+    else:
+        versions.commit(versions.QUOTE, sym, seq)
     clients = _ticker_ws_clients.get(sym)
     if not clients:
         return

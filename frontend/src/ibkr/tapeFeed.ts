@@ -29,6 +29,21 @@ export interface TapePrint {
   setsPrice?: boolean;
 }
 
+export type TapeSilenceRecoveryState =
+  | 'holding'
+  | 'delegated'
+  | 'waiting'
+  | 'attempting'
+  | 'failed'
+  | 'resumed';
+
+export interface TapeSilenceRecovery {
+  state: TapeSilenceRecoveryState;
+  since: number;
+  askedAt: number | null;
+  text: string;
+}
+
 /**
  * The backend's word on a live line with no print for a while (#722; backend `ibkr/tape_silence.py`),
  * carried by the socket's idle `ping`: halted (a halt prints nothing), silent (no print while Level 2
@@ -44,9 +59,35 @@ export interface TapeSilence {
    * (2026-10-13 07:59:22 ET, every line at once). Empty or absent when none, or from an older backend.
    */
   pipeline?: string[];
+  /**
+   * Bounded recovery outcome on a registered-dead line (#722); absent when no silence recovery watch is active.
+   */
+  recovery?: TapeSilenceRecovery;
 }
 
 const SILENCE_STATES = new Set(['halted', 'dead', 'silent', 'quiet']);
+const SILENCE_RECOVERY_STATES = new Set<TapeSilenceRecoveryState>([
+  'holding',
+  'delegated',
+  'waiting',
+  'attempting',
+  'failed',
+  'resumed',
+]);
+
+function parseTapeSilenceRecovery(raw: unknown): TapeSilenceRecovery | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.state !== 'string' || !SILENCE_RECOVERY_STATES.has(r.state as TapeSilenceRecoveryState)) return null;
+  if (typeof r.since !== 'number' || !Number.isFinite(r.since) || typeof r.text !== 'string') return null;
+  const askedAt = typeof r.asked_at === 'number' && Number.isFinite(r.asked_at) ? r.asked_at : null;
+  return {
+    state: r.state as TapeSilenceRecoveryState,
+    since: r.since,
+    askedAt,
+    text: r.text,
+  };
+}
 
 /** A ping's `silence`, or null for anything else (no reading, an older backend, a broken frame). */
 export function parseTapeSilence(raw: unknown): TapeSilence | null {
@@ -55,7 +96,14 @@ export function parseTapeSilence(raw: unknown): TapeSilence | null {
   if (typeof r.state !== 'string' || !SILENCE_STATES.has(r.state)) return null;
   if (typeof r.since !== 'number' || !Number.isFinite(r.since) || typeof r.text !== 'string') return null;
   const pipeline = Array.isArray(r.pipeline) ? r.pipeline.filter((s): s is string => typeof s === 'string') : [];
-  return { state: r.state as TapeSilence['state'], since: r.since, text: r.text, pipeline };
+  const recovery = parseTapeSilenceRecovery(r.recovery);
+  return {
+    state: r.state as TapeSilence['state'],
+    since: r.since,
+    text: r.text,
+    pipeline,
+    ...(recovery ? { recovery } : {}),
+  };
 }
 
 export interface TapeState {

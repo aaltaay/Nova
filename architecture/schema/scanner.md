@@ -19,7 +19,10 @@ trade yet; the desk shows it as such and states no change.
 `tables: {gappers | gainers | losers | afterhours | large_cap: {table_state,
 roster_ts, last_scan}}` -- never rows. A persistent-authoritative desk (ADR
 008), whose rows follow `/ws/scanner`, polls it so mode, health and feed
-errors do not freeze at mount.
+errors do not freeze at mount. On a weekend or NYSE holiday `mode` is
+`closed` all day, every day-trade table reads `frozen` with the last exchange
+day's rows, and a table's `session_key` is that day's date (ADR 008 amendment,
+operator report 2026-10-17); Large Cap stays `live` (ADR 014).
 
 No socket frame on `/ws/scanner` or `/ws/hod-momo` carries a bare `NaN` /
 `Infinity`: a non-finite float is `null` (`scanner_wire.dumps_wire`,
@@ -780,12 +783,14 @@ when there is one and this route for every other symbol. Live answers add
 
 **On a Sim replay desk** (operator report 2026-10-12: Sim on 2026-07-15 at 07:20
 ET, GRML loaded, the strip graded today's GRML -- "$6.02", "16.4%", "1.5x",
-"#22 of the Contenders" -- where the rebuilt board had it at $0.1875, #98) the
-route grades the replayed day's own board row at the playhead
-(`strategy/replay_pillars.py` over `leaderboard.playback.board_at` for the Sim
-clock's day and playhead, `sim/replay_playhead.py`) and reads nothing of
-today's -- no scanner cache, fundamentals, live catalyst verdict or Contenders
-rank: `source: "replay"`, `rank: null`, `entry` graded from the row's price,
+"#22 of the Contenders" -- where the rebuilt board had it at $0.1875, #98) both
+`GET /api/strategy/watchlist/{symbol}` and the whole Contenders list
+`GET /api/strategy/watchlist` (#881) grade the replayed day's own board at the
+playhead (`strategy/replay_pillars.py` over `leaderboard.playback.board_at` for
+the Sim clock's day and playhead, `sim/replay_playhead.py`) and read nothing of
+today's -- no scanner cache, fundamentals, live catalyst verdict or live
+Contenders rank. For one symbol, `GET /api/strategy/watchlist/{symbol}` answers
+`source: "replay"`, `rank: null`, `entry` graded from the row's price,
 change and float (a rebuilt row's float is `null`, so its pillar fails "float
 unknown"), its `catalyst` the row's verdict at the playhead (#498), and
 `replay: {session_date, at, minute_ts, board_source: "recorded" |
@@ -797,18 +802,37 @@ graded" and its sub-score is 0. No row at the playhead is `entry: null` with
 `absent` -- the board's gap reason (`not_recorded`, `not_running`,
 `feed_down`, `outside_session`) or `not_on_board` -- never a grade from today.
 The board search order is the live one with a rebuilt day's `market` board in
-the Gainers place. On the Sim venue the quote panel uses the ranked live entry
+the Gainers place. For the whole Contenders list (#881), `GET
+/api/strategy/watchlist` answers `{note, count, entries, source: "replay",
+replay: {session_date, at, minute_ts, board_source, covered, absent}}` (`source:
+"live", replay: null` on a live desk), ranking the replayed day's `gappers` and
+`gainers` (`market` on a rebuilt day; `gappers` wins when a symbol is on both)
+with the same replay grading rules and playhead-bounded catalysts; when the
+board is uncovered (`covered: false`), `entries` is `[]` and `replay.absent`
+names the gap reason (`not_recorded`, `not_running`, `feed_down`,
+`outside_session`). On the desk (`strategy/useWatchlist.ts`,
+`strategy/WatchlistTable.tsx`), `useWatchlist` clears stale entries and drops
+late responses across source or playhead transitions, and the Contenders table
+shows the replayed session date, playhead and `recorded` / `reconstructed`
+source while distinguishing loading, read failure, missing board coverage and a
+covered empty board. On the Sim venue the quote panel uses the ranked live entry
 only at the live edge, names the replayed moment and board ("Jul 15 07:20 ET ·
 graded from its rebuilt Gainers row (#98)") or says why there is no grade.
 
-**The rest of that quote panel off the live edge** (desk only, same report):
-the loaded replay's own symbol shows the replay's quote at the playhead (the
-Trader's `historicalQuoteDetail` / `captureQuoteDetail`), any other symbol the
-empty Sim quote; float, short interest, market cap, the 52-week range, earnings
-and the broker flags are Nova's figures for today only, so they are left out and
-the panel says so ("Replay of Jul 15: ... not shown -- Nova holds today's figures
-only, not that day's"), naming a split after the day; sector, industry, country
-and a split on or before the day stay (`sim/replayPanelDetail.ts`). "Why it's
-moving" already reads `not_read` there (`stock-read.md`); News is the replayed
-day's (`catalysts.md`).
+**The rest of that quote panel and the Trader quote off the live edge** (#881;
+same report): the loaded replay's own symbol shows the replay's quote at the
+playhead (`historicalQuoteDetail` / `captureQuoteDetail`), any other symbol the
+empty Sim quote (`simEmptyQuoteDetail`); all three helpers and the scanner
+panel share one replay company-fact and asset projection (`replayCompanyFacts`,
+`replayAssetInfo` in `sim/historicalQuoteDetail.ts`): float, short interest,
+market cap, the 52-week range, earnings and the volatile broker listing flags on
+`asset` (`shortable`, `easy_to_borrow`, `tradable`, `marginable`, `status`,
+margin requirements, attributes) are left out unless a historical source
+supplies them for the replayed day, never inferred by reversing a split, and
+both the scanner panel (`sim/replayPanelDetail.ts`), the Trader's quote stats
+(`stock_view/StockViewQuoteStats.tsx`) and `TickerBrokerGrid` (when `listing` is
+cleared to `null`) explain their absence; sector, industry, country, issuer
+name/exchange/class and a split on or before the day stay. "Why it's moving"
+already reads `not_read` there (`stock-read.md`); News is the replayed day's
+(`catalysts.md`).
 

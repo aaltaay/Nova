@@ -1,0 +1,24 @@
+/* The Trader toolbar's Profile switch (volume_profile/VolumeProfileToolbar.tsx). */
+.vp-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-left: 0.35rem;
+}
+.vp-toggle--on {
+  background: rgba(10, 132, 255, 0.14);
+  border-color: #0a84ff;
+}
+/* A tiny sideways histogram: the profile's own shape. */
+.vp-toggle__glyph {
+  width: 9px;
+  height: 9px;
+  background:
+    linear-gradient(#0a84ff, #0a84ff) right 0 top 0 / 4px 2px no-repeat,
+    linear-gradient(#ffd60a, #ffd60a) right 0 top 3.5px / 9px 2px no-repeat,
+    linear-gradient(#0a84ff, #0a84ff) right 0 bottom 0 / 6px 2px no-repeat;
+  opacity: 0.55;
+}
+.vp-toggle--on .vp-toggle__glyph {
+  opacity: 1;
+}

@@ -14,7 +14,7 @@ import { Disc } from 'lucide-react';
 import { Tooltip } from 'radix-ui';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { BOT_SETUP_LABELS } from '../constantGroups/bot';
-import { getIbkrStatusSnapshot } from '../ibkr/ibkrStatusPoller';
+import { getIbkrStatusSnapshot } from '../ibkr';
 import type { AutoRecordStatus } from '../ibkr';
 import {
   AUTO_RECORD_WHY_WORDS,
@@ -31,7 +31,7 @@ import {
 } from './constants';
 import { HoldToStopButton } from './HoldToStopButton';
 import { elapsedClockLabel, elapsedLabel, recordingView } from './recordingSignalModel';
-import { AUTO_RECORD_CHIP_LINE } from '../leaderboard/leaderboardConstants';
+import { AUTO_RECORD_CHIP_LINE } from '../leaderboard';
 import { getRecordingSymbols, getSessionRecordVersion, stopTabRecord, subscribeSessionRecord } from './sessionRecordStore';
 import './recordingSignal.css';
 

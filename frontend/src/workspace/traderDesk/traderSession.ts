@@ -15,7 +15,7 @@ import {
   parseTraderTabs,
   serializeTraderTabs,
   type TraderTabsState,
-} from '../../stock_view/traderTabsState';
+} from '../../stock_view';
 import { parseStockViewSymbol } from '../../utils/stockViewNav';
 
 export function readStoredTabs(): TraderTabsState {

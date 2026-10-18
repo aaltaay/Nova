@@ -146,6 +146,21 @@ describe('ChartGrid', () => {
     expect(tfs).toEqual(['5Min', '10Sec', '1Day', '1Min']);
   });
 
+  it('warns when ensureBarsBatch rejects while active', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.mocked(ensureBarsBatch).mockRejectedValueOnce(new Error('batch network down'));
+    await act(async () => {
+      root.render(<ChartGrid symbol="SDOT" />);
+      await Promise.resolve();
+    });
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('ChartGrid batch warm failed for SDOT'),
+      expect.any(Error),
+    );
+    warn.mockRestore();
+  });
+
+
   it('renders one desk toolbar and compact panes (no per-pane toolbars)', () => {
     act(() => {
       root.render(<ChartGrid symbol="SDOT" />);

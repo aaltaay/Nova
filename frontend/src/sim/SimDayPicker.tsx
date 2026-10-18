@@ -32,8 +32,8 @@ import {
   SIM_DAY_PICKER_TODAY,
   simDayCalNoEarlier,
   simDayCalSessions,
-} from '../leaderboard/leaderboardConstants';
-import type { LeaderboardDay } from '../leaderboard/leaderboardTypes';
+} from '../leaderboard';
+import type { LeaderboardDay } from '../leaderboard';
 import {
   type CalendarDayFacts,
   cellTitle,

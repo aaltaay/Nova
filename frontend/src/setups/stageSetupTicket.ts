@@ -10,7 +10,7 @@
  * risk sizing (the Bots page inbox) does. */
 import { SETUPS_STAGE_TICKET_DELAY_MS } from '../constants';
 import { defaultTicketQty, getConfirmedDeskVenueSnapshot, isConfirmedDeskVenueSnapshotCurrent } from '../ibkr';
-import { requestOrderTicketPrefill } from '../ibkr/orderTicketPrefill';
+import { requestOrderTicketPrefill } from '../ibkr';
 import type { DeskVenue } from '../constantGroups/desk_venue';
 import { TRADE_DEFAULTS_WAITING } from '../constantGroups/trade_defaults';
 import { isSampleView } from '../sample_data/sampleNav';

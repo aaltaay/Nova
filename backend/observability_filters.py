@@ -84,7 +84,7 @@ def _exception_types(event: dict[str, Any], hint: dict[str, Any]) -> set[str]:
     if exc_info and len(exc_info) >= 1 and exc_info[0] is not None:
         try:
             types.add(exc_info[0].__name__)
-        except Exception:
+        except Exception:  # maintainer: allow-swallow inside Sentry before_send; logging here would recurse
             pass
     return types
 

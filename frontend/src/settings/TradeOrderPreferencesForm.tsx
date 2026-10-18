@@ -9,7 +9,7 @@ import {
 import {
   readSkipPlaceConfirm,
   writeSkipPlaceConfirm,
-} from '../ibkr/placeConfirmPrefs';
+} from '../ibkr';
 
 export function TradeOrderPreferencesForm() {
   const [skipConfirm, setSkipConfirm] = useState(readSkipPlaceConfirm);

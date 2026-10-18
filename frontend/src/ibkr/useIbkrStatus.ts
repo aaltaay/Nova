@@ -12,12 +12,15 @@ import {
 export type { IbkrClientStatus };
 export { refreshIbkrStatusNow };
 
-const EMPTY: IbkrClientStatus = {
-  ...DEFAULT_IBKR_STATUS,
-  clientReady: false,
-  stale: false,
-  staleSince: null,
-};
+let empty: IbkrClientStatus | null = null;
+function getEmptySnapshot(): IbkrClientStatus {
+  return (empty ??= {
+    ...DEFAULT_IBKR_STATUS,
+    clientReady: false,
+    stale: false,
+    staleSince: null,
+  });
+}
 
 function noopSubscribe(_onStoreChange: () => void): () => void {
   return () => {};
@@ -38,6 +41,6 @@ export function useIbkrStatus(): IbkrClientStatus {
   return useSyncExternalStore(
     sample ? noopSubscribe : subscribeIbkrStatus,
     sample ? getSampleSnapshot : getIbkrStatusSnapshot,
-    () => EMPTY,
+    getEmptySnapshot,
   );
 }

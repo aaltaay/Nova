@@ -10,7 +10,7 @@
  * of the original design can reach. That is why the sample-desk check sits here,
  * ahead of every leg, rather than inside the individual doors (#357).
  */
-import { patchBotSession } from '../bot/api';
+import { patchBotSession } from '../bot';
 import { refreshBotSessionNow } from '../bot/botSessionPoller';
 import { sampleKillRefusal } from '../sample_data/sampleOrderGuard';
 import { flattenAccount } from './flattenAccount';

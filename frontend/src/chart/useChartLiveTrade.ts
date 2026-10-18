@@ -20,7 +20,7 @@ import {
 } from './liveTradeApply';
 import { tradeMatchesChartSymbol } from './liveTradeGate';
 import type { ChartTradeUpdate } from './types';
-import { useIbkrStatus } from '../ibkr/useIbkrStatus';
+import { useIbkrStatus } from '../ibkr';
 import { useSimChartReplays } from './simChartReplays';
 import { IDLE_TICKER, subscribeTicker, tickerLastTrade, tickerState } from '../hooks/tickerStore';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';

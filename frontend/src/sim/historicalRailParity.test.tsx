@@ -160,8 +160,22 @@ describe('historical replay keeps the live Stock Quote structure', () => {
 });
 
 describe('historicalQuoteDetail', () => {
-  it('shows replay prices only, keeping fundamentals of the same ticker', () => {
-    const live = makeDetail({ symbol: 'SPY', rel_volume: 3.2 });
+  it('shows replay prices only, keeping issuer identity while dropping volatile today fundamentals (#881)', () => {
+    const live = makeDetail({
+      symbol: 'SPY',
+      rel_volume: 3.2,
+      fundamentals: {
+        ...makeDetail().fundamentals!,
+        country: 'United States',
+        country_code: 'US',
+        sector: 'Financial Services',
+        industry: 'Exchange Traded Fund',
+        float_shares: 3_075_412,
+        short_interest: 935_276,
+        market_cap: 80_349_736,
+        recent_split: '1:50 (2026-10-01)',
+      },
+    });
     const out = historicalQuoteDetail(live, replaySnapshot({ session_open: 762.1, stats_scope: 'session' }));
     expect(out.snapshot.latest_trade?.price).toBe(763);
     // Gap% reads the session's open, never the window's first print (QA W7).
@@ -171,7 +185,72 @@ describe('historicalQuoteDetail', () => {
     expect(out.rel_volume).toBeNull();
     expect(out.halt).toBeNull();
     expect(out.listing).toBeNull();
-    expect(out.fundamentals).toBe(live.fundamentals);
+    expect(out.asset).toEqual({ name: 'Apple Inc', exchange: 'NASDAQ' });
+    expect(out.fundamentals).toMatchObject({
+      country: 'United States',
+      country_code: 'US',
+      sector: 'Financial Services',
+      industry: 'Exchange Traded Fund',
+      float_shares: null,
+      short_interest: null,
+      market_cap: null,
+      recent_split: null,
+    });
+  });
+
+  it('keeps a split on or before the replayed day and shows a recorded historical float only when supplied', () => {
+    const live = makeDetail({
+      symbol: 'GRML',
+      fundamentals: {
+        ...makeDetail().fundamentals!,
+        sector: 'Basic Materials',
+        float_shares: 3_075_412,
+        recent_split: '1:50 (2026-08-24)',
+      },
+    });
+    const preSplit = historicalQuoteDetail(
+      live,
+      replaySnapshot({ symbol: 'GRML', as_of: '2026-07-15T11:20:26Z' }),
+    );
+    expect(preSplit.fundamentals?.float_shares).toBeNull();
+    expect(preSplit.fundamentals?.recent_split).toBeNull();
+
+    const postSplitWithRecorded = historicalQuoteDetail(
+      live,
+      replaySnapshot({ symbol: 'GRML', as_of: '2026-09-01T14:00:00Z' }),
+      '2026-09-01',
+      { float_shares: 3_000_000 },
+    );
+    expect(postSplitWithRecorded.fundamentals?.recent_split).toBe('1:50 (2026-08-24)');
+    expect(postSplitWithRecorded.fundamentals?.float_shares).toBe(3_000_000);
+  });
+
+  it('renders -- for Float in Trader quote stats on replay and explains the missing historical figure (#881)', async () => {
+    const live = makeDetail({
+      symbol: 'GRML',
+      fundamentals: {
+        ...makeDetail().fundamentals!,
+        float_shares: 3_075_412,
+        recent_split: '1:50 (2026-08-24)',
+      },
+    });
+    hooks.snapshot = replaySnapshot({ symbol: 'GRML', as_of: '2026-07-15T11:20:26Z' });
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const own = createRoot(host);
+    await act(async () => {
+      hooks.detail = live;
+      own.render(<StockViewDepthTape selectedSymbol="GRML" />);
+    });
+    const stats = host.querySelector('[data-testid="stock-view-quote-stats"]')!;
+    const floatCell = [...stats.querySelectorAll('.cq-cell')].find(
+      c => c.querySelector('.cq-label')?.textContent === 'Float',
+    )!;
+    expect(floatCell.querySelector('.cq-value')?.textContent).toBe('—');
+    expect(floatCell.getAttribute('title')).toMatch(/Replay of Jul 15.*GRML split 1:50 \(2026-08-24\), after this day/);
+    act(() => own.unmount());
+    host.remove();
+    hooks.snapshot = null;
   });
 
   it('drops another ticker\'s fundamentals', () => {
@@ -220,7 +299,7 @@ describe('captureQuoteDetail (QA W8)', () => {
     sim: true, live_edge: false, replay_source: 'capture', replay_symbol: 'GRML', replay_quote: quote,
   });
 
-  it('never carries the live ticker\'s volume, high, low or open into a recording replay', () => {
+  it('never carries the live ticker\'s volume, high, low, open or volatile fundamentals into a recording replay', () => {
     const live = makeDetail({ symbol: 'GRML', rel_volume: 12 });
     live.snapshot.daily_bar = { open: 10.2, high: 10.9, low: 9.8, close: 10.46, volume: 3_502_196, trade_count: null, vwap: null, timestamp: null };
     const out = captureQuoteDetail(live, clock({
@@ -228,6 +307,8 @@ describe('captureQuoteDetail (QA W8)', () => {
     }), 'GRML');
     expect(out.snapshot.daily_bar).toBeNull();
     expect(out.rel_volume).toBeNull();
+    expect(out.fundamentals?.float_shares).toBeNull();
+    expect(out.asset.shortable).toBeUndefined();
     expect(out.snapshot.latest_trade?.price).toBe(8.84);
     expect(out.snapshot.latest_quote).toMatchObject({ bid_price: 8.82, ask_price: 8.85 });
     expect(out.snapshot.prev_close).toBe(2.85);

@@ -1,12 +1,12 @@
 /**
  * Pure Eastern market clock helpers for Stock View header.
  */
-import { sessionKindFromEtMinutes, type MarketSessionKind } from '../chart/sessionHighlight';
+import { sessionKindFromEtMinutes, type MarketSessionKind } from '../chart';
 import {
   STOCK_VIEW_CLOCK_SESSION_LABELS,
   STOCK_VIEW_CLOCK_TIMEZONE,
 } from '../constants';
-import { etMinutesNow } from '../ibkr/extendedSession';
+import { etMinutesNow } from '../ibkr';
 
 export type MarketClockSnapshot = {
   timeLabel: string;

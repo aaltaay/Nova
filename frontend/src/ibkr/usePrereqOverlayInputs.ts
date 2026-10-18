@@ -11,7 +11,7 @@ import { novaApiOk } from './tradingPrerequisites';
 import {
   getRecordingSymbols,
   subscribeSessionRecord,
-} from '../capture/sessionRecordStore';
+} from '../capture';
 
 export function usePrereqOverlayInputs(health: HealthStatus) {
   const [apiFailStreak, setApiFailStreak] = useState(0);

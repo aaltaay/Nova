@@ -10,6 +10,7 @@ vi.mock('../ibkr', () => ({
   getConfirmedDeskVenueSnapshot: () => desk.current,
   isConfirmedDeskVenueSnapshotCurrent: (asked: typeof desk.current) => asked.venue === desk.current.venue && asked.generation === desk.current.generation,
   defaultTicketQty: (venue: string) => venue === 'paper' ? '7' : '31',
+  requestOrderTicketPrefill: (...args: Parameters<typeof prefill.requestOrderTicketPrefill>) => prefill.requestOrderTicketPrefill(...args),
 }));
 
 describe('setup ticket staging follows its confirmed venue generation', () => {

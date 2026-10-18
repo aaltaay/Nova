@@ -2,7 +2,7 @@
  * Runtime shape for Nova Action execution (shared across executor modules).
  */
 
-import type { IbkrPosition } from '../ibkr/types';
+import type { IbkrPosition } from '../ibkr';
 import type { TopOfBook } from './TopOfBookContext';
 
 export interface NovaActionRuntime {

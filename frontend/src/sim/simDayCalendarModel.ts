@@ -12,7 +12,7 @@
  * Session Record on a non-exchange day is shown but cannot be opened (the Sim
  * clock refuses a closed day).
  */
-import type { LeaderboardDay } from '../leaderboard/leaderboardTypes';
+import type { LeaderboardDay } from '../leaderboard';
 import type { MassiveDay } from './historicalTypes';
 import type { CaptureSessions } from './useSimSessionController';
 

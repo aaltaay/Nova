@@ -100,7 +100,8 @@ def hod_momo_history_snapshot(date: str, until: float | None = None):
 
         try:
             day.update(rebuild_playback.answer(rebuild_store.day_key(date)))
-        except ValueError:
+        except ValueError:  # maintainer: allow-swallow invalid calendar date (e.g. 2026-02-30) returns empty snapshot
+            logger.debug("HOD Momo history: invalid calendar date %r", date)
             return {}                          # not a calendar day (2026-02-30)
     if until is not None:
         from hod_momo_history_filter import raised_by

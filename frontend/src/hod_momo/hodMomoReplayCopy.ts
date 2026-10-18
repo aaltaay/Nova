@@ -14,8 +14,8 @@ import {
   hodReplayRebuildUnavailable,
   hodReplayRebuilding,
   hodReplayRebuiltFeedLabel,
-} from '../leaderboard/leaderboardConstants';
-import { etClock } from '../leaderboard/leaderboardRows';
+} from '../leaderboard';
+import { etClock } from '../leaderboard';
 import { hodMomoStripSinceLabel } from './hodMomoStripConstants';
 import { rebuildRunning, rebuildWanted, type HodMomoReplayState } from './useHodMomoReplay';
 

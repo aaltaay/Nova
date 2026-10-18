@@ -3,7 +3,7 @@
 > **Single source of truth.** Every agent reads this file; `CLAUDE.md` imports it.
 >
 > **Status:** ENFORCED -- Active governance document
-> **Last Updated:** 2026-10-16
+> **Last Updated:** 2026-10-17
 > **Project:** Nova -- Stock Alert Automation System
 > **Enforcement:** Every AI agent (Cursor, Antigravity, any LLM assistant) MUST read this file before writing ANY code. Violations are NEVER acceptable.
 
@@ -115,7 +115,7 @@ Every confirmed wire and persisted shape lives in `architecture/schema/`, one fi
 
 | Schema file | Indexed subsections |
 |---|---|
-| `architecture/schema/recording-and-replay.md` | Capture / replay truth (#316, #317); Replay progress and capture fidelity (#321, #337); Recording persistence and coverage; The Records page and turning recording off; Recorded depth in historical replay (#309); The replayed session's previous close (#542); Massive flat files in Sim replay (ADR 046); Practice venues and fills (ADR 019, ADR 020); Sim at now is live -- the live edge (ADR 020) |
+| `architecture/schema/recording-and-replay.md` | Capture / replay truth (#316, #317); Replay progress and capture fidelity (#321, #337); Recording persistence and coverage; The Records page and turning recording off; Recorded depth in historical replay (#309); The replayed session's previous close (#542); Massive flat files in Sim replay (ADR 046); An exchange's own book in Sim replay (ADR 057); Practice venues and fills (ADR 019, ADR 020); Sim at now is live -- the live edge (ADR 020) |
 | `architecture/schema/agent-desk.md` | Agents find stock-days and show them in the Sim (ADR 050) |
 | `architecture/schema/desk-ops.md` | Desk diagnostics (ADR 021); IBKR capacity on the desk; Which backend answers; Who may reach the API: Host names and socket origins; Where Nova keeps its data; Why the Gateway needed a phone login; premarket evidence (#14); Release notes and the update notice; Filing an issue from the desk; Symbol directory for the header search; The operator's watch list and its toasts; The close-of-day reminder; The desk's voice and the header mute |
 | `architecture/schema/scanner.md` | Scanner rows and HOD Momo alerts on the wire; Float credibility and short-interest dates (#532); The company's country; Scanner leaderboard: recorded, reconstructed, played back (ADR 023); Watchlist rows |
@@ -133,6 +133,7 @@ Every confirmed wire and persisted shape lives in `architecture/schema/`, one fi
 | `architecture/schema/cryptos.md` | The Cryptos page (ADR 040) |
 | `architecture/schema/followed-traders.md` | Followed traders: another feed's positions, priced with IBKR |
 | `architecture/schema/market-board.md` | The Market page (ADR 053) |
+| `architecture/schema/volume-profile.md` | Volume profile on the 5-minute chart (ADR 058) |
 | `architecture/schema/short-selling.md` | Short selling (ADR 048, #778); The short setups on the scanner (ADR 049); The bot trades both sides (ADR 049); Operator trading judgment and Live's day cover (ADR 048, #791) |
 | `architecture/schema/loss-limit.md` | One daily loss limit (ADR 056) |
 
@@ -294,7 +295,7 @@ When ANY error occurs during a task (`.cursor/rules/self-annealing.mdc`):
 
 ## 10. 🚨 Compliance Audit (Current Violations)
 
-No open constitution compliance rows. `architecture/` (ADRs 001--056) and automated tests (pytest + Vitest) exist. Product/security open work lives in `Nova-Roadmap-Status.md` and `Security-Status.md`. Live-doc drift is gated by `py -3 tools/doc_invariants.py` (CI).
+No open constitution compliance rows. `architecture/` (ADRs 001--058) and automated tests (pytest + Vitest) exist. Product/security open work lives in `Nova-Roadmap-Status.md` and `Security-Status.md`. Live-doc drift is gated by `py -3 tools/doc_invariants.py` (CI).
 
 ---
 

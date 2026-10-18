@@ -1,7 +1,8 @@
 /** Public chart API — cross-feature imports must use this barrel (ADR 005). */
 
 export { TickerChart } from './TickerChart';
-export { parseBarsCoverage, setBars } from './barsStore';
+export { parseBarsCoverage, setBars, upsertTapePrint10SecBar } from './barsStore';
+export { sessionKindFromEtMinutes, type MarketSessionKind } from './sessionHighlight';
 export type { ChartPaneOverlayProps, ChartTradeUpdate, RenderPaneOverlay } from './types';
 export { buildSeriesTimeIndex, nearestSeriesTime, toCanonicalTime } from './chartDrawingTime';
 export { isFollowingRightEdge } from './chartViewportPaint';

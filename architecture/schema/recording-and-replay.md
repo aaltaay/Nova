@@ -519,8 +519,11 @@ desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
   quote is the Trader's empty Sim quote: no live price, change, volume or daily bar over a replay, only static
   listing context such as sector. Float and other mutable fundamentals are the replay day's recorded facts
   when available, otherwise absent; today's values are not identity facts. This follows `scanner.md`, "The
-  rest of that quote panel off the live edge"; the remaining Trader/Contenders implementation gap is #881
-  (triage, 2026-10-13). An empty chart names both symbols: "No SUNE bars on this replay day --
+  rest of that quote panel and the Trader quote off the live edge": the Trader quote helpers (`historicalQuoteDetail`,
+  `captureQuoteDetail`, `simEmptyQuoteDetail`), `StockViewQuoteStats`, `TickerBrokerGrid` and the Contenders tab
+  (`GET /api/strategy/watchlist`, `useWatchlist`, `WatchlistTable`) enforce the same replay-only contract (#881), and
+  `/ws/ticker/{symbol}` suppresses live `stream` and `snapshot` `trade_update` frames and quote-version bumps off the
+  live edge (#867). An empty chart names both symbols: "No SUNE bars on this replay day --
   the Sim has LNKS loaded. Load SUNE to chart it." Desk wording only: no wire or persisted shape changes.
 - **It loads by itself on an empty desk** (operator 2026-10-09: "i dont think the entire nova app recognize
   massive as data recap for the sim"). With nothing loaded, the Trader tab on screen on a day in the files
@@ -533,6 +536,79 @@ desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
   files says so on the tab -- "Fri, Oct 9 is not in your Massive files yet: they end at Thu, Oct 8, which
   landed Fri 03:37 ET" (Massive publishes a day once it has ended) -- and that until it lands a download is
   IBKR's.
+
+## An exchange's own book in Sim replay (ADR 057, operator ask 2026-10-17)
+
+The operator: replay historical exchange depth in the Sim, kept apart from the live desk. One venue's MBP-10
+book for a symbol-day, imported by hand, drawn on the Sim's Level 2 as that venue's book only (owners
+`sim/exchange_book_files.py` reading a file, `sim/exchange_book_streams.py` its bytes, plain, gzip or zstd,
+`sim/exchange_book_import.py` the import, `sim/exchange_book_store.py` the store, `sim/exchange_book.py` the replay's read, `tools/import_exchange_book.py`; on the desk
+`frontend/src/sim/HistoricalDepth.tsx` and `ExchangeBookNotes.tsx`).
+
+- **The import** (a command, never the desk; no network): `py -3 tools/import_exchange_book.py import FILE
+  --symbol XYZ --date YYYY-MM-DD [--dataset DATASET] [--instrument-id N] [--store PATH] [--json]`, `list
+  [--symbol] [--date]`, `remove --symbol --date --dataset`. One MBP-10 file, plain, gzip or zstd (with the
+  `zstandard` package): **DBN** versions 1-3 -- the `DBN` prelude, then the metadata's `dataset`, `schema` (2,
+  MBP-10; 0, MBO, is refused), `start` / `end` (nanoseconds; `end` undefined reads as none), `symbols` and
+  `mappings` (raw symbol -> instrument id per date range), then records whose header's first byte is their length
+  in 4-byte words; only `rtype` 10 (MBP-10, 368 bytes and more) is read -- or the **CSV** form, header
+  `ts_recv,ts_event,rtype,publisher_id,instrument_id,action,side,depth,price,size,flags,ts_in_delta,sequence`
+  then `bid_px_NN,ask_px_NN,bid_sz_NN,ask_sz_NN,bid_ct_NN,ask_ct_NN` for NN 00-09, and an optional `symbol`;
+  times integer nanoseconds or ISO 8601, prices decimals or fixed-point integers (1e-9). An undefined price
+  (`INT64_MAX`, or empty) is an empty level, never a zero; an undefined `ts_recv` takes `ts_event`. Which
+  records: MBP-10 for the symbol -- the instrument ids the metadata maps it to by a range holding that date (a
+  range of other dates never counts: an id can belong to another security on another day), else the CSV's
+  `symbol`, else `--instrument-id`, else a file holding one instrument -- carrying `F_LAST` (`flags` & 128), from
+  04:00 to 20:00 ET of the date, plus the last one before 04:00. Refused, writing nothing: a dataset outside
+  `SIM_EXCHANGE_BOOK_VENUES`, a CSV without `--dataset`, a `--dataset` the file contradicts, MBO or any other
+  schema, a symbol the metadata maps only on other dates, an `--instrument-id` it maps to another symbol that
+  day, a damaged or cut-short file (a decompressor's or decoder's error, a DBN record cut short, a zstd file
+  that ends inside a frame -- read frame by frame, since zstandard's stream reader would stop there silently),
+  a second publisher, several instruments with nothing naming the symbol, no event for the symbol inside the
+  day. It prints, and `--json` returns, `{ok: true, book, read: {records,
+  mbp10, other_rtypes, other_instruments, not_last, before_day, after_day, kept, regressions, maybe_bad_book},
+  seconds}` or `{ok: false, error}`; `list --json` returns `{ok, store, books: [payload]}`.
+- **Venues** (`SIM_EXCHANGE_BOOK_VENUES`, dataset -> code, name): `XNAS.ITCH` NASDAQ Nasdaq, `XBOS.ITCH` BEX
+  Nasdaq BX, `XPSX.ITCH` PSX Nasdaq PSX, `XNYS.PILLAR` NYSE NYSE, `ARCX.PILLAR` ARCA NYSE Arca, `XASE.PILLAR` AMEX
+  NYSE American, `XCHI.PILLAR` CHX NYSE Chicago, `XCIS.PILLAR` NYSENAT NYSE National, `BATS.PITCH` BATS Cboe BZX,
+  `BATY.PITCH` BYX Cboe BYX, `EDGA.PITCH` EDGEA Cboe EDGA, `EDGX.PITCH` EDGX Cboe EDGX, `MEMX.MEMOIR` MEMX MEMX,
+  `EPRL.DOM` PEARL MIAX Pearl. Codes are the tape's (`SIM_MASSIVE_EXCHANGES`).
+- **The store.** `<NOVA_MARKET_DATA_DIR>/sim/exchange_books.sqlite3` (`--store` for another file; the import
+  refuses a missing `NOVA_MARKET_DATA_DIR` folder rather than make one), WAL, `PRAGMA user_version = 1` (another
+  version is refused, never rewritten; a read never creates the file): `books (id, symbol, date, dataset,
+  payload)` and `chunks (book_id, ordinal, start_ns, end_ns, events, data)`. `id` is `SYMBOL|YYYY-MM-DD|DATASET`;
+  one import replaces that book's rows in one transaction. `payload`: `{schema_version: 1, id, symbol, date,
+  dataset, venue, label, schema: "mbp-10", levels: 10, known_from_ns, known_to_ns, first_ns, last_ns, events,
+  chunks, maybe_bad_book, regressions, instrument_ids, publisher_id, source_file, source_size, source_format:
+  "dbn" | "csv", compression: "zstd" | "gzip" | null, dbn_version: integer | null, imported_at}` (`imported_at`
+  epoch seconds). `known_from_ns` is the later of 04:00 ET and the first event (the one standing before 04:00
+  counts as 04:00); `known_to_ns` the earliest of 20:00 ET and the file's end -- DBN `end`, else one nanosecond
+  past the last event. A chunk's `data` is `zlib(pack_columns(...))` (`sim/print_table.py`) of up to
+  `SIM_EXCHANGE_BOOK_CHUNK_EVENTS` (2,048) events in file order: `ns` (`q`, capture time; one earlier than the
+  event before it takes that event's time, counted in `regressions`), `flags` (`B`), and for k 0-9 `bid_px_k` /
+  `ask_px_k` (`d`, dollars; NaN an empty level), `bid_sz_k` / `ask_sz_k` / `bid_ct_k` / `ask_ct_k` (`I`).
+- **The snapshot** (`GET /api/sim/history/snapshot/{symbol}`) adds `exchange_books: [{venue, label, dataset,
+  known_from, known_to, events, imported_at, covered, book_ts, maybe_bad_book}]` -- every book imported for the
+  loaded symbol-day (`known_from` / `known_to` epoch seconds; `covered` true while the span holds the playhead;
+  `book_ts` the event shown then and `maybe_bad_book` its flag, null and false otherwise), `[]` with none, for
+  another symbol, or when the store cannot be read. Its `depth`, while one or more books cover the playhead:
+  `{symbol, bids, asks, ts, age_sec, l1_fallback: false, session_id: null, source: "exchange_book", venues:
+  [{venue, label, dataset, ts, maybe_bad_book}]}`, each level `{price, size, orders, mm, exchange}` (`mm` and
+  `exchange` the venue's code), bids best first, then asks best first; several venues are merged by price, each
+  level keeping its venue; `ts` is the newest event shown and `age_sec` the playhead less it. The event is the
+  venue's last at or before the playhead (the playhead taken to its microsecond), never after. Depth's order,
+  first answer wins: a covering venue book, the recorded book (#309), a Massive window's NBBO level, none. The
+  venue book never sets `bid` / `ask` (the NBBO's; null for an IBKR download), and practice fills, the SSR fill
+  rule, the bot's depth-line rule, the eyes and the sensors never read it.
+- **On the desk.** A venue book on the ladder reads "Nasdaq book only · last change HH:MM:SS ET" (several:
+  "Nasdaq + NYSE Arca books only"), with a banner under it, "Imported · covers HH:MM–HH:MM ET · not the whole
+  market" (seconds only when a time is not a whole minute; several: each venue and its span); each row's
+  market-maker column is the venue's code (shown where the pane is wide enough, QA V40); the header chip
+  reads "Nasdaq book" ("2 venue books"), its title saying it is one venue's order book, not the consolidated
+  market. A book event the venue flagged (`maybe_bad_book`) adds "Nasdaq flagged a gap in its feed here -- this
+  book may be incomplete". Books imported but not covering the playhead: with no other book the ladder is empty,
+  reading "No Nasdaq book at this moment", and the banner names what they cover; under the recorded book or the
+  NBBO level the banner alone says so. No import: unchanged.
 
 ## Practice venues and fills (ADR 019, ADR 020)
 

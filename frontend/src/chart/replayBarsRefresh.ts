@@ -1,5 +1,5 @@
 /** ADR 005/012: one replay refresh clock per bar key and one invalidation per seek. */
-import { SIM_CHART_REFRESH_MS } from '../sim/simClockEvents';
+import { SIM_CHART_REFRESH_MS } from '../sim';
 import { barsStoreKey, invalidateBars } from './barsStore';
 
 const invalidated = new WeakMap<Event, Set<string>>();

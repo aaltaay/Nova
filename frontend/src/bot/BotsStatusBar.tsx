@@ -6,7 +6,7 @@
 import { BOT_ACTION_KINDS } from '../constantGroups/bot';
 import { BOTS_STATUS_FLAT, BOTS_STATUS_NO_SYMBOL, BOTS_STATUS_ORDER_KINDS } from '../constantGroups/bots_page';
 import { useOptionalIbkrAccountContext } from '../ibkr/IbkrAccountContext';
-import { useWorkspace } from '../workspace/WorkspaceContext';
+import { useWorkspace } from '../workspace';
 import type { BotSession } from './types';
 
 export function BotsStatusBar({ session }: { session: BotSession }) {

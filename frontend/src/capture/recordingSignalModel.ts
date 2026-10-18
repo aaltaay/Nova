@@ -6,7 +6,7 @@
  * same status snapshot the tab strip reads, so a recording never looks alive
  * in one place and dead in another.
  */
-import type { IbkrStatus, RecordingStopped } from '../ibkr/types';
+import type { IbkrStatus, RecordingStopped } from '../ibkr';
 import { RECORDING_PLANNED_STOP_REASONS } from './constants';
 
 export interface RecordingView {

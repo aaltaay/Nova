@@ -17,7 +17,7 @@
  * global bar clock is the truth.
  */
 import { SIM_STRIP_TAG_FLIP_FRACTION } from '../constantGroups/trader_chrome';
-import type { LeaderboardLane } from '../leaderboard/leaderboardLane';
+import type { LeaderboardLane } from '../leaderboard';
 import type { RecordedLane, StripBandSegment, StripScale } from './simStripFormat';
 
 interface Props {

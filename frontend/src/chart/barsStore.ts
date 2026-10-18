@@ -5,7 +5,7 @@
  */
 import { API_BASE_URL, CHART_10SEC_TAPE_OWNS_MS, CHART_TIMEFRAME_BAR_LIMITS } from '../constants';
 import type { RawBar } from '../tickerChartData';
-import { getIbkrStatusSnapshot } from '../ibkr/ibkrStatusPoller';
+import { getIbkrStatusSnapshot } from '../ibkr';
 import { simChartReplaysNow } from './simChartReplays';
 
 const API_URL = `${API_BASE_URL}/api`;

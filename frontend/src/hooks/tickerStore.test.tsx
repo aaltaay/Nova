@@ -9,6 +9,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetTickerStreamsForTests, tickerLastTrade } from './tickerStore';
 import { useTickerSelect } from './useTickerStream';
+import { TICKER_WS_HTTP_SEED_MS } from '../constants';
 
 class FakeWebSocket {
   static instances: FakeWebSocket[] = [];
@@ -106,4 +107,22 @@ describe('the ticker store', () => {
     expect(FakeWebSocket.instances).toHaveLength(1);
     expect(FakeWebSocket.instances[0].readyState).toBe(0);
   });
+
+  it('warns when the HTTP seed fetch fails before initial WS frame', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('seed network error'))));
+    act(() => root.render(<Price symbol="NVDA" onRender={() => {}} />));
+    await act(async () => {
+      vi.advanceTimersByTime(TICKER_WS_HTTP_SEED_MS + 10);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('Ticker HTTP seed failed for NVDA'),
+      expect.any(Error),
+    );
+    warn.mockRestore();
+  });
 });
+

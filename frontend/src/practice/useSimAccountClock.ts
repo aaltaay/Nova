@@ -10,7 +10,7 @@
  * page should say instead of "No fills in this range" (C69).
  */
 import { useCallback, useSyncExternalStore } from 'react';
-import { simClockResource } from '../sim/simClockResource';
+import { simClockResource } from '../sim';
 
 export interface SimAccountClock {
   /** The playhead, epoch seconds; null off Sim or before the clock is read. */

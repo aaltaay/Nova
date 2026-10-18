@@ -111,7 +111,7 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
         async for batch in _tape.stream_batches(queue):
             if batch is None:
                 silence = None
-                if not is_replay_desk() and _tape.is_subscribed(symbol):
+                if not is_replay_desk() and _has_silence_watch(symbol):
                     silence = _silence(symbol, halt_seen_at)
                     if silence is not None and silence.get("halted") is True:
                         halt_seen_at = time.time()
@@ -178,12 +178,15 @@ async def _send_batch(websocket: WebSocket, symbol: str, batch: list[dict]) -> b
             # The line is back (``tape_heal``): the pane drops its error.
             await websocket.send_text(json.dumps({"type": "subscribed", "symbol": symbol}))
         elif msg_type == "error":
-            await websocket.send_text(json.dumps({
+            frame = {
                 "type": "error",
                 "symbol": symbol,
                 "message": item.get("message") or "Tape error",
                 "retry_at": item.get("retry_at"),
-            }))
+            }
+            if item.get("silent_recovery") is not None:
+                frame["silent_recovery"] = item.get("silent_recovery")
+            await websocket.send_text(json.dumps(frame))
             if item.get("released"):
                 await websocket.close()
                 return False
@@ -206,6 +209,14 @@ def _gate(symbol: str) -> dict | None:
     except Exception:
         logger.exception("IBKR tape WS: the order gate could not be read for %s", symbol)
         return {"code": FEED_STALE, "text": f"Nova could not check this stock's market right now. {VIEW_GATE_EXEMPT_TEXT}"}
+
+
+def _has_silence_watch(symbol: str) -> bool:
+    if _tape.is_subscribed(symbol):
+        return True
+    from line_lending import tape_heal
+
+    return tape_heal.unverified_reask(symbol) is not None
 
 
 def _silence(symbol: str, halt_seen_at: float | None) -> dict | None:

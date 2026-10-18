@@ -8,7 +8,7 @@
  * avg cost alone.
  */
 import { LineStyle, type SeriesMarker, type Time } from 'lightweight-charts';
-import type { IbkrOrder, IbkrPosition } from '../ibkr/types';
+import type { IbkrOrder, IbkrPosition } from '../ibkr';
 import { formatSignedMoney } from '../components/globalBarMoney';
 import { SESSION_PREMARKET_START_MIN_ET } from '../constants';
 import { isoToEtTime, isDailyTimeframe } from '../tickerChartData';
