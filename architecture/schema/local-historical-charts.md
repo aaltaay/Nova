@@ -80,8 +80,13 @@ sub-minute charts with the fills marked, then delegates PNG capture to the same 
 exporter (`run_native_export` in `nova_historical_charts.py`). MCP: `nova_trade_charts`.
 
 ```text
-py -3 tools/nova_trade_charts.py export --trades-file trades.json --output <NEW> --massive-root E:\Nova\massive [--bar-seconds 10] [--before 300] [--after 120] [--family "..."]
+py -3 tools/nova_trade_charts.py export --trades-file trades.json --output <NEW> --massive-root E:\Nova\massive [--bar-seconds 10] [--before 300] [--after 120] [--family "..."] [--warm [--idle-seconds 600]]
 ```
+
+`--warm` draws through the warm renderer (`tools/nova_chart_warm.py`, "Warm renderer" in
+[agent-desk.md](agent-desk.md)), starting one when none is running for the gateway
+checkout; without it the one-shot export runs as before. `historical_export.json`
+records which (`native_export.renderer`).
 
 A trade is `{symbol, date, entry_time, entry_price, exit_time, exit_price}` or, for
 partial exits, `{symbol, date, entry_time, entry_price, exits:[{time, price}, ...]}`
@@ -102,10 +107,24 @@ unknown fields, or a non-positive price is `invalid_trade`.
   counted in provenance (`volume_only_buckets_left_as_gaps`). A stock-day with no
   priced bar in its window is `symbol_missing`; a root without `trades_v1` is
   `trades_root_missing`; a missing day file is `day_missing`.
-- Reads run in parallel threads before the output folder is claimed. The day file is
-  multi-GB, so provenance records its path, size and modification time (checked before
-  and after the read), not a SHA256; the frozen projection files are SHA256-bound as
-  for minute bundles.
+- Reads run in parallel threads before the output folder is claimed, in the export's own
+  short-lived process (never in the warm renderer: long-lived readers of many day files
+  lose their seek index, #983). The day file is multi-GB, so provenance records its path,
+  size and modification time (checked before and after the read), not a SHA256; the
+  frozen projection files are SHA256-bound as for minute bundles.
+- Bar cache (`tools/nova_trade_bar_cache.py`, its only reader and writer): each stock-day
+  read keeps that day's whole-session bars at the requested size in
+  `<cache_dir>/trade-chart-bars/<date>/<SYMBOL>_<n>s.json` (`paths.cache_dir()`:
+  `NOVA_CACHE_DIR` or `backend/.cache`) as
+  `{schema_version:1, symbol, day, bar_seconds, source:{path,size,mtime_ns}, reader_sha256,
+  bars:[[s,o,h,l,c,v], ...]}`, prices `null` for a volume-only bucket. A later chart of
+  that stock-day uses it only while the day file's path, size and modification time and
+  the hash of the reader's code (`market_reads/reads.py`, `sim/massive_files.py`,
+  `constants_sim.py`) all still match; anything else (or an
+  unknown `schema_version`, or an unreadable file) is a miss that reads the day again and
+  rewrites the entry. At most 2000 entries are kept (oldest removed). Provenance says
+  `cache: "hit"` or `"miss"` per stock-day; a hit's bars are the same rows the reader
+  returned, so the drawn chart is the same.
 - Each fill becomes a `trade_marker` (buy arrow green, sell arrow red). Fills are the
   caller's marks; nothing is inferred, filled or adjusted.
 

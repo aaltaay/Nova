@@ -61,8 +61,8 @@ def _gateway_bundle(node: str, vite: Path) -> Path:
         staging.rename(bundle)
     except OSError:
         shutil.rmtree(staging, ignore_errors=True)  # A concurrent export built the same key first.
-    for old in builds.iterdir():
-        if old != bundle and not old.name.startswith(".tmp-"):
+    for old in builds.iterdir():  # Dot names are in-flight builds and the warm renderer's files.
+        if old != bundle and not old.name.startswith("."):
             shutil.rmtree(old, ignore_errors=True)
     return bundle
 
@@ -132,7 +132,7 @@ def export_charts(selection: Path, expected_sha256: str, output: Path, samples: 
     logs = output / "phase_logs"
     logs.mkdir()
     owned: list[subprocess.Popen] = []
-    receipt = dict(schema_version=1, selection_sha256=expected_sha256, ok=False,
+    receipt = dict(schema_version=1, selection_sha256=expected_sha256, ok=False, renderer="cold",
                    data_base=data_base, renderer_base=renderer_base, instance=instance,
                    selected_count=len(gallery["entries"]), renderer_bundle=bundle.name,
                    renderer_bundle_ms=bundle_ms, data_timings=gallery["timings"], source_sha256={

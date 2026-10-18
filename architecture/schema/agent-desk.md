@@ -137,13 +137,56 @@ path, size and modification time plus the gateway page, its Vite config and the
 lockfile, so any edit rebuilds once (into a temp folder, then moved) and drops older
 builds. The receipt reports `renderer_bundle` and `renderer_bundle_ms`.
 
-On Windows, an owned unnamed Job contains waiting bootstrap children before real
-commands launch; cleanup verifies zero active owned processes, including descendants.
+On Windows, each command starts suspended, joins an owned unnamed Job, and only then
+runs, so it and everything it starts are in the Job before it executes (#1061: under
+Microsoft Store Python a program from outside the package, such as `node`, started by a
+packaged process is created outside the creator's Jobs, so inheritance alone leaked
+every renderer). Cleanup ends the Job, verifies zero active Job processes, and also
+walks each command's live descendants by parent PID and creation time (taken before
+the Job ends, so a reused PID never matches): a descendant still alive outside the Job
+is stopped. The receipt reports `active_owned_processes`,
+`live_descendants_after_cleanup` (must be 0 for `ok`) and `escaped_job_descendants`
+(how many had to be stopped outside the Job; expected 0).
 A random per-run instance token proves each service's identity. Readiness ignores
 inherited proxies, rejects redirects and never adopts an unrelated port listener.
 The chart-only Vite configuration loads no environment files. Other operating systems
 must have an equivalent tested ownership boundary before service launch is supported.
 The command imports no trading-app lifespan and leaves the running desk intact.
+
+#### Warm renderer (opt-in, #1062)
+
+`tools/nova_chart_warm.py` owns one long-lived renderer per gateway checkout, so a
+caller that asks for it (`--warm`) skips starting and stopping the isolated children
+each export. Owner: its `serve` process, started by `start` or by the first `--warm`
+export, and ended by `stop`, by its idle timeout (`--idle-seconds`, default 600,
+1..3600, counted from the last job), or by its renderer or driver exiting. It owns, in
+one Job as above, `vite preview` of the current renderer build and one Node driver
+(`tools/nova_chart_export.mjs --serve`) holding a headless Chromium; if the owner dies
+abruptly the Job's kill-on-close ends both. Shutdown closes the Job and logs the
+verified count to `frontend/.chart-gateway-build/.warm-service.log`.
+
+- Rendezvous `frontend/.chart-gateway-build/.warm-service.json`
+  `{schema_version:1, pid, pipe, authkey, bundle, renderer_base, instance, idle_seconds,
+  started_utc}`: written by the owner once ready, removed on shutdown; an unknown
+  `schema_version` is refused, and a file whose pipe does not answer the authkey is a
+  stopped service (removed). Callers talk over that local named pipe with
+  `multiprocessing.connection` authentication (HMAC challenge on the 32-byte key) and
+  JSON bytes, never pickle. One job at a time.
+- A job is `{op:"export", selection, sha256, output, samples}`, exactly the one-shot
+  export's inputs. The owner checks them the same way (new output, `load_gallery` hash
+  and shape), then the driver opens a fresh browser context whose only allowed origin is
+  the renderer, and answers the page's single `GET /api/agent/chart-gallery` in the
+  browser with the validated body (no data port is opened; paths are never taken from
+  HTTP). After capture the frozen bytes are verified again, and the renderer sources
+  are re-hashed: a build that no longer matches the sources fails the job as `stale`
+  and ends the service, so a warm export never draws with an old renderer.
+- Its `EXPORT_RECEIPT.json` has the one-shot fields for the export (selection hash,
+  images and hashes, capture verification, `source_data_mutated:false`,
+  `broker_or_desk_calls:false`, `cleanup_errors`) plus `renderer:"warm"` and
+  `warm_service:{pid, owned_pids, live_owned_processes, jobs_served, idle_seconds}`. It
+  has no `owned_trees_stopped`: the renderer is meant to stay up, and the receipt says
+  which process owns it instead of claiming it stopped. One-shot receipts carry
+  `renderer:"cold"`. The MCP server's verification accepts only one-shot receipts.
 
 The generic local historical resolver accepts one explicit minute-Parquet root,
 symbol and date; see [local-historical-charts.md](local-historical-charts.md).
