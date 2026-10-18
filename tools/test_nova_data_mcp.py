@@ -3,7 +3,10 @@ errors as answers, stdout kept for the protocol, every tool registered with hone
 from __future__ import annotations
 
 import asyncio
+import io
 import sys
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -97,6 +100,77 @@ def test_catalysts_answer_items_and_the_days_verdicts(monkeypatch):
     assert answer["data"][0]["title"] == "8-K" and answer["verdicts"] == [{"session_date": "2026-09-09",
                                                                          "verdict": "catalyst"}]
     assert answer["verdicts_meta"]["coverage"].startswith("2021")
+
+
+def _hold(name: str, started: threading.Event, release: threading.Event):
+    def body():
+        started.set()
+        release.wait(5)
+        return {"ok": True}
+    body.__name__ = name
+    return body
+
+
+def test_a_light_read_does_not_queue_behind_a_heavy_one_in_the_same_process():
+    started, release = threading.Event(), threading.Event()
+    heavy = threading.Thread(target=m.call, args=(_hold("stock_day", started, release),))
+    heavy.start()
+    assert started.wait(2)
+
+    def symbols():
+        return {"ok": True, "light": True}
+
+    t0 = time.monotonic()
+    answer = m.call(symbols)
+    waited = time.monotonic() - t0
+    release.set()
+    heavy.join(5)
+    assert answer == {"ok": True, "light": True} and waited < 0.5
+
+
+def test_heavy_reads_still_run_one_at_a_time_per_process():
+    started, release = threading.Event(), threading.Event()
+    first = threading.Thread(target=m.call, args=(_hold("stock_day", started, release),))
+    first.start()
+    assert started.wait(2)
+    second_started = threading.Event()
+    second = threading.Thread(target=m.call, args=(_hold("order_flow", second_started, threading.Event()),))
+    second.start()
+    assert not second_started.wait(0.3)          # queued behind the first heavy read
+    release.set()
+    first.join(5)
+    assert second_started.wait(2)
+    second.join(6)
+
+
+def test_prints_from_overlapping_calls_never_reach_stdout(capsys):
+    started, release = threading.Event(), threading.Event()
+
+    def stock_day():
+        print("heavy chatter")
+        started.set()
+        release.wait(5)
+        print("heavy done")
+        return {"ok": True}
+
+    def catalog():
+        print("light chatter")
+        return {"ok": True}
+
+    heavy = threading.Thread(target=m.call, args=(stock_day,))
+    heavy.start()
+    assert started.wait(2)
+    m.call(catalog)
+    release.set()
+    heavy.join(5)
+    out = capsys.readouterr()
+    assert out.out == "" and all(s in out.err for s in ("heavy chatter", "light chatter", "heavy done"))
+
+
+def test_the_protocol_keeps_the_real_stdout_buffer():
+    real = io.TextIOWrapper(io.BytesIO(), encoding="utf-8")
+    stand_in = m.PrintsToStderr(real)
+    assert stand_in.buffer is real.buffer
 
 
 def test_every_tool_is_registered_and_only_file_writers_are_not_read_only():
