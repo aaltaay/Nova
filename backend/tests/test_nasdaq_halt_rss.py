@@ -20,6 +20,7 @@ from ibkr.nasdaq_halt_rss import (
 FIXTURES = Path(__file__).with_name("fixtures")
 FIXTURE = FIXTURES / "nasdaq_trade_halts.xml"
 BOM_FIXTURE = FIXTURES / "nasdaq_trade_halts_bom.xml"
+PADDED_FIXTURE = FIXTURES / "nasdaq_trade_halts_padded_time.xml"
 ET = ZoneInfo("America/New_York")
 UTF8_BOM = b"\xef\xbb\xbf"
 
@@ -168,6 +169,24 @@ def test_parse_et_datetime_refuses_incomplete_pairs():
     assert parse_et_datetime("09/16/2026", "10:30:00.256") == datetime(
         2026, 9, 16, 10, 30, 0, tzinfo=ET,
     ).timestamp()
+
+
+def test_parse_et_datetime_accepts_space_padded_fraction():
+    """Nasdaq's 2026-03-12..2026-09-21 history pages pad before ``.000`` (#1069)."""
+    assert parse_et_datetime("06/15/2026", "06:55:00                      .000") == datetime(
+        2026, 6, 15, 6, 55, 0, tzinfo=ET,
+    ).timestamp()
+
+
+def test_padded_halt_time_item_keeps_its_official_start():
+    parsed = parse_trade_halt_rss(PADDED_FIXTURE.read_bytes())
+    assert parsed["ok"] is True
+    (roku,) = parsed["rows"]
+    assert roku.symbol == "ROKU"
+    assert roku.reason_code == "T3"
+    assert roku.official_halt_start == datetime(2026, 6, 15, 6, 55, 0, tzinfo=ET).timestamp()
+    assert roku.quote_resume == datetime(2026, 6, 15, 7, 25, 0, tzinfo=ET).timestamp()
+    assert roku.trade_resume == datetime(2026, 6, 15, 7, 30, 0, tzinfo=ET).timestamp()
 
 
 def _row(**kwargs) -> HaltRssRow:

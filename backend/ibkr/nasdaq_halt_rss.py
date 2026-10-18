@@ -84,7 +84,8 @@ def parse_et_datetime(date_s: str | None, time_s: str | None) -> float | None:
     if not date_s or not time_s:
         return None
     date_s = date_s.strip()
-    time_s = time_s.strip().split(".", 1)[0]
+    # History pages pad before the fraction ("06:55:00      .000", #1069).
+    time_s = time_s.split(".", 1)[0].strip()
     if not date_s or not time_s:
         return None
     parsed_date = None

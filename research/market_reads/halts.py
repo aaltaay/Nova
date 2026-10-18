@@ -14,10 +14,10 @@ ET calendar day of ``ts``. Read-only. Two sources, each under its own name, neve
                          the desk held a Level 1 line on; an end carries no code. Code ``2`` = LULD, ``1`` =
                          general / news (``ibkr/halt_eta.py``).
 
-Known hole (2026-10-18): Nasdaq's pages from 2026-03-12 to 2026-09-18 (131 sessions; partly 2026-06-11 and
-2026-09-21) pad the halt time (``"06:55:00      .000"``), which ``ibkr/nasdaq_halt_rss.py`` cannot parse, so
-those days hold resumptions but no starts. Such a halt is answered with ``start_ts`` None: its resumption is real,
-its start is unknown -- never invented.
+Nasdaq's pages from 2026-03-12 to 2026-09-18 (and single rows on 2025-09-26 .. 2026-03-11) pad the halt time
+(``"06:55:00      .000"``); ``ibkr/nasdaq_halt_rss.py`` parses it since #1069 and those 8,030 starts were reloaded
+2026-10-18. A halt whose start the log still lacks is answered with ``start_ts`` None: its resumption is real, its
+start is unknown -- never invented.
 
 Codes, only as the repo describes them: T1 news pending, T2 news released, T3 news and resumption times, T12 the
 other news-pending code (T1 / T12: ``CATALYST_NEWS_PENDING_CODES``); T1-T3 and T12 are news halts
@@ -60,7 +60,7 @@ COVERED_FROM = "2021-09-21"          # the first Nasdaq history page backfilled
 LULD = {c.upper() for c in (*MOVE_LULD_HALT_KINDS, *MOVE_VOLATILITY_HALT_CODES, "LUDS")}
 RULE = "a halt counts at its start ts (its session_date); times ET"
 COVERAGE = (f"Nasdaq Trade Halt RSS: backfilled history {COVERED_FROM}..2026-09-21, the live desk's poll after; "
-            "2026-03-12..2026-09-18 has resumptions but no starts (start_ts None). IBKR ticker.halted: live desk "
+            "a resumption whose start is not logged has start_ts None. IBKR ticker.halted: live desk "
             f"only, 2026-09-23 on, desk-streamed symbols only. Before {COVERED_FROM}: not covered (no row is not "
             "'no halt').")
 CODES = {"T1": "news pending", "T2": "news released", "T3": "news and resumption times (a resolved news halt)",
