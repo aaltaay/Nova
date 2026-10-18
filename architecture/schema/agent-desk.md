@@ -272,10 +272,31 @@ MCP server (`tools/nova_data_mcp.py`, official SDK, stdio; registered in `.curso
   `data_catalog` (`{ok, datasets: [{name, source, history, as_of, units, mcp, cli}], not_here: string[]}` -- call it
   first), `data_status`, `stock_day {kind: trades|quotes|bars, symbol, day, start?, end?, tf?, adjust?,
   output_name?}`, `movers_search {params}` (the `/api/agent/movers` answer, at most 500 rows), `movers_scan {filters,
-  symbol?, kinds?, columns?, limit?, output_name?}` (no cap), `board {day, at, list_name, source?}`, `splits {symbol,
-  day?}` (`price_factor` with `day`), `financials {symbol, statement, as_of?, timeframe?}`, `sec_shares {symbol,
-  day?, max_age_days?}`, `sec_filings {symbol, as_of?, forms?}`, `float_latest {symbol?}`, `ipos {symbol?, date_from?,
-  date_to?}`, `ticker_details {symbol}`, `short_interest {symbol, day, at?}`.
+  symbol?, kinds?, columns?, limit?, splits?, output_name?}`, `board {day, at, list_name, source?}`, `splits {symbol,
+  day?, cik?}` (`price_factor` with `day`), `financials {symbol, statement, as_of?, timeframe?, cik?}`, `sec_shares
+  {symbol, day?, max_age_days?, cik?}`, `sec_filings {symbol, as_of?, forms?, cik?}`, `float_latest {symbol?}`, `ipos
+  {symbol?, date_from?, date_to?}`, `ticker_details {symbol}`, `short_interest {symbol, day, at?}`.
+- **`stock_day` bars** take `tf` as a count and `s` / `m` / `h`; a daily `tf` (`1d`, `1w`) is refused naming the
+  daily bars tool. Minute bars carry Massive's own volume; seconds bars sum every trade except cancel / error
+  records (`docs/market-data.md`, "Two volume rules").
+- **`movers_scan`** applies the capped search's split rule (`day_movers.query.splits_sql`: `splits` =
+  `exclude_likely` default | `include` | `only_suspects`) and its percent-line tolerance (`query.pct_bound`); a row
+  selecting `split_listed, split_suspect, prev_volume, volume` (every column does) gains `split` (`listed` |
+  `likely_split` | `suspect` | null). It refuses a call without `date_from` / `date_to`, a symbol or a `limit`; a
+  `limit` is 1-1,000,000; without one at most 100,000 rows return and `meta.capped` (bool) / `meta.note` say more
+  matched. `meta.filters.splits` echoes the choice.
+- **`board`** answers `change_pct` / `gap_pct` in percent points (the store keeps fractions) and adds top-level
+  `covered` (false when the day has no board, recorded or rebuilt), `gap` (`{start, end, reason, stop}` or null)
+  and `note` when not covered.
+- **A ticker two companies used** (`research/market_reads/tickers.py`, over `reference/tickers.json`): SEC shares /
+  facts / filings, financials and splits read the company that held the ticker on the asked day (former holder
+  until its `delisted_utc` day; today's holder from its ticker-details `list_date`, else the day after the former
+  left; overlaps settled by whose SEC filings span the day, then by the only `CS` / `ADRC` candidate, with the
+  warning kept). Answers carry `ticker {cik, name, ticker_reused, rule,
+  warning, candidates: [{cik, name, held_from, held_to}]}` (`meta.ticker` on tables). A day that cannot be settled
+  is `{ok: false, error: "LookupError: ... could be A or B: pass cik="}`; `cik` reads one company. Without a day
+  the read is today's holder with `warning` naming the others. `splits` without `day` adds `holder_cik` per row
+  for a reused ticker; financials keep only statements whose own `cik` is the holder's.
 - **A table answer** is `{ok: true, meta, rows, columns, data, truncated, out}`: `rows` matched, `data` the first 200
   as records, `meta` the read's attributes (its as-of rule, units, source). `output_name` (a new plain
   `*.parquet` / `*.csv` name) writes every row under `--output-root` (default `<temp>/nova-data-mcp`) and `out` names

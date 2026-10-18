@@ -199,8 +199,7 @@ def where(q: MoverQuery) -> tuple[str, list[Any]]:
         value = getattr(q, name)
         if value is not None:
             clauses.append(f"{column} {op} ?")
-            # a stock exactly on the line is on it: $1.20 over $1.00 is stored as +19.999999999999996%
-            args.append(value / 100.0 + (-DAY_MOVERS_LINE_EPS if op == ">=" else DAY_MOVERS_LINE_EPS))
+            args.append(pct_bound(value, op))
     for name, expr, op in (("close_pos_min", _CLOSE_POS_SQL, ">="), ("close_pos_max", _CLOSE_POS_SQL, "<="),
                            ("giveback_min", _GIVEBACK_SQL, ">="), ("giveback_max", _GIVEBACK_SQL, "<=")):
         value = getattr(q, name)
@@ -213,11 +212,28 @@ def where(q: MoverQuery) -> tuple[str, list[Any]]:
     if q.dollar_volume_min is not None:
         clauses.append("dollar_volume >= ?")
         args.append(q.dollar_volume_min)
-    if q.splits == "exclude_likely":
-        clauses.append(f"NOT {_LIKELY_SPLIT_SQL}")
-    elif q.splits == "only_suspects":
-        clauses.append("split_suspect = 1")
+    split = splits_sql(q.splits)
+    if split:
+        clauses.append(split)
     return (" WHERE " + " AND ".join(clauses)) if clauses else "", args
+
+
+def splits_sql(splits: str) -> str | None:
+    """The SQL clause for a ``splits`` choice (``SPLITS``); None keeps every row. Shared by the bulk scan
+    (``research/market_reads/scan.py``) so both searches leave out the same likely splits."""
+    if splits not in SPLITS:
+        raise QueryError("splits", f"splits must be one of {', '.join(SPLITS)}")
+    if splits == "exclude_likely":
+        return f"NOT COALESCE({_LIKELY_SPLIT_SQL}, 0)"     # an unknown flag keeps the row (NOT NULL drops it)
+    if splits == "only_suspects":
+        return "split_suspect = 1"
+    return None
+
+
+def pct_bound(value: float, op: str) -> float:
+    """A percent-point bound as the stored fraction, widened by ``DAY_MOVERS_LINE_EPS`` so a stock exactly on the
+    line is on it ($1.20 over $1.00 is stored as +19.999999999999996%)."""
+    return value / 100.0 + (-DAY_MOVERS_LINE_EPS if op == ">=" else DAY_MOVERS_LINE_EPS)
 
 
 def et_hhmm(ts: Any) -> str | None:

@@ -90,37 +90,46 @@ class DataService:
         return {"ok": True, **_json_safe(reads.movers(**params))}
 
     def movers_scan(self, filters: dict[str, Any], symbol: str | None = None, kinds: list[str] | None = None,
-                    columns: list[str] | None = None, limit: int | None = None,
+                    columns: list[str] | None = None, limit: int | None = None, splits: str = "exclude_likely",
                     output_name: str | None = None) -> dict[str, Any]:
         from market_reads import scan
         out = self.output_path(output_name)
-        return table_answer(scan.movers_scan(symbol=symbol, kinds=kinds, columns=columns, limit=limit, **filters), out)
+        return table_answer(scan.movers_scan(symbol=symbol, kinds=kinds, columns=columns, limit=limit, splits=splits,
+                                             **filters), out)
 
     def board(self, day: str, at: str, list_name: str = "gainers", source: str | None = None) -> dict[str, Any]:
         from market_reads import reads
-        return table_answer(reads.board(day, at, list_name, source))
+        frame = reads.board(day, at, list_name, source)
+        answer = table_answer(frame)
+        answer.update(covered=frame.attrs.get("covered") is not False and bool(frame.attrs.get("board")),
+                      gap=_json_safe(frame.attrs.get("gap")))
+        if frame.attrs.get("note"):
+            answer["note"] = frame.attrs["note"]
+        return answer
 
-    def splits(self, symbol: str, day: str | None = None) -> dict[str, Any]:
+    def splits(self, symbol: str, day: str | None = None, cik: str | None = None) -> dict[str, Any]:
         from market_reads import splits
-        answer = table_answer(splits.table(symbol))
+        answer = table_answer(splits.table(symbol, cik=cik))
         if day:
-            answer["price_factor"] = splits.factor(symbol, day)
+            answer["price_factor"] = splits.factor(symbol, day, cik=cik)
         return answer
 
     def financials(self, symbol: str, statement: str = "balance_sheets", as_of: str | None = None,
-                   timeframe: str | None = None) -> dict[str, Any]:
+                   timeframe: str | None = None, cik: str | None = None) -> dict[str, Any]:
         from market_reads import reference
-        return table_answer(reference.financials(symbol, statement, as_of, timeframe))
+        return table_answer(reference.financials(symbol, statement, as_of, timeframe, cik))
 
-    def sec_shares(self, symbol: str, day: str | None = None, max_age_days: int | None = None) -> dict[str, Any]:
+    def sec_shares(self, symbol: str, day: str | None = None, max_age_days: int | None = None,
+                   cik: str | None = None) -> dict[str, Any]:
         from market_reads import sec
         if day:
-            return {"ok": True, **_json_safe(sec.shares_as_of(symbol, day, max_age_days))}
-        return table_answer(sec.facts(symbol))
+            return {"ok": True, **_json_safe(sec.shares_as_of(symbol, day, max_age_days, cik))}
+        return table_answer(sec.facts(symbol, cik=cik))
 
-    def sec_filings(self, symbol: str, as_of: str | None = None, forms: list[str] | None = None) -> dict[str, Any]:
+    def sec_filings(self, symbol: str, as_of: str | None = None, forms: list[str] | None = None,
+                    cik: str | None = None) -> dict[str, Any]:
         from market_reads import sec
-        return table_answer(sec.filings(symbol, as_of, forms))
+        return table_answer(sec.filings(symbol, as_of, forms, cik))
 
     def float_latest(self, symbol: str | None = None) -> dict[str, Any]:
         from market_reads import reference
@@ -176,57 +185,70 @@ def create_server(service: DataService):
     @server.tool(annotations=writes_file)
     async def stock_day(kind: str, symbol: str, day: str, start: str | None = None, end: str | None = None,
                         tf: str = "1m", adjust: bool = False, output_name: str | None = None) -> dict:
-        """One stock-day from the Massive files. kind: trades | quotes (NBBO, Level 1) | bars (tf 1m/5m/15m from the
-        minute file, 1s/10s built from trades). day YYYY-MM-DD; start/end ET HH:MM (end exclusive). Raw prices unless
-        adjust=true (today's split terms). Inline answers hold 200 rows; give output_name (new .parquet/.csv) for all."""
+        """One stock-day from the Massive files. kind: trades | quotes (NBBO, Level 1) | bars (tf 1m/5m/15m/1h from
+        the minute file, 1s/10s built from trades; daily bars are not a stock-day read). day YYYY-MM-DD; start/end ET
+        HH:MM (end exclusive). Volume: minute bars are Massive's (its SIP volume rules); seconds bars count every trade
+        except cancel/error records, so they can sum higher (GME 2021-01-27 09:30: 185,567 vs 179,397). Raw prices
+        unless adjust=true (today's split terms). Inline answers hold 200 rows; output_name (new .parquet/.csv) for all."""
         return await run(service.stock_day, kind, symbol, day, start, end, tf, adjust, output_name)
 
     @server.tool(annotations=reads)
     async def movers_search(params: dict) -> dict:
         """The agent movers endpoint (at most 500 rows): params like {"date_from": "2021-01-01", "high_min": 100,
-        "price_max": 20, "float_max": 10000000, "sort": "high", "limit": 50}. Percents in points."""
+        "price_max": 20, "float_max": 10000000, "sort": "high", "limit": 50}. Percents in points. float_max is SEC
+        shares OUTSTANDING filed by the day (not free float; insiders and locked-up shares are inside it).
+        splits: exclude_likely (default) | include | only_suspects."""
         return await run(service.movers_search, params)
 
     @server.tool(annotations=writes_file)
     async def movers_scan(filters: dict, symbol: str | None = None, kinds: list[str] | None = None,
-                          columns: list[str] | None = None, limit: int | None = None,
+                          columns: list[str] | None = None, limit: int | None = None, splits: str = "exclude_likely",
                           output_name: str | None = None) -> dict:
-        """Bulk day movers rows for research, no 500-row cap. filters: date_from, date_to, price_min, price_max
+        """Bulk day movers rows for research, past the 500-row cap. filters: date_from, date_to, price_min, price_max
         (prior close, raw $), high_min/high_max, low_*, close_*, gap_* (percent points: 50 = +50%), volume_min,
-        dollar_volume_min. kinds e.g. ["CS", "ADRC"]. Returned *_pct are percent points. Use output_name for big scans."""
-        return await run(service.movers_scan, filters, symbol, kinds, columns, limit, output_name)
+        dollar_volume_min. Needs date_from/date_to, a symbol or a limit; without a limit at most 100,000 rows
+        (meta.capped says more matched; limit up to 1,000,000). splits: exclude_likely (default, the same rule as
+        movers_search) | include | only_suspects; each row has split. Returned *_pct are percent points."""
+        return await run(service.movers_scan, filters, symbol, kinds, columns, limit, splits, output_name)
 
     @server.tool(annotations=reads)
     async def board(day: str, at: str, list_name: str = "gainers", source: str | None = None) -> dict:
         """A past day's Scanner list at ET HH:MM as the Sim plays it back (recorded, else rebuilt): list_name
-        gainers | losers | gappers | afterhours | large_cap."""
+        gainers | losers | gappers | afterhours | large_cap. change_pct / gap_pct are percent points (45.6 = +45.6%),
+        like the movers tools. Boards cover 1,752 of 2,713 sessions: a day without one answers covered=false with
+        gap and note (0 rows then means no board, not no movers)."""
         return await run(service.board, day, at, list_name, source)
 
     @server.tool(annotations=reads)
-    async def splits(symbol: str, day: str | None = None) -> dict:
+    async def splits(symbol: str, day: str | None = None, cik: str | None = None) -> dict:
         """A stock's splits (Massive + SEC-confirmed); with day, the factor that puts that day's raw prices in
-        today's terms (shares divide by it)."""
-        return await run(service.splits, symbol, day)
+        today's terms (shares divide by it), counting only the splits of the company that held the ticker that day.
+        A ticker two companies used shows holder_cik per split and meta.ticker; cik picks one company."""
+        return await run(service.splits, symbol, day, cik)
 
     @server.tool(annotations=reads)
     async def financials(symbol: str, statement: str = "balance_sheets", as_of: str | None = None,
-                         timeframe: str | None = None) -> dict:
+                         timeframe: str | None = None, cik: str | None = None) -> dict:
         """Massive financial statements as filed: statement balance_sheets | income_statements |
         cash_flow_statements; as_of YYYY-MM-DD keeps only filings on or before it (no look-ahead). Balance-sheet
-        common_stock/treasury_stock are dollars, not shares."""
-        return await run(service.financials, symbol, statement, as_of, timeframe)
+        common_stock/treasury_stock are dollars, not shares. A reused ticker reads the company that held it on as_of
+        (meta.ticker names it; an unsettled day errors with the candidate CIKs -- pass cik)."""
+        return await run(service.financials, symbol, statement, as_of, timeframe, cik)
 
     @server.tool(annotations=reads)
-    async def sec_shares(symbol: str, day: str | None = None, max_age_days: int | None = None) -> dict:
+    async def sec_shares(symbol: str, day: str | None = None, max_age_days: int | None = None,
+                         cik: str | None = None) -> dict:
         """SEC share counts. With day: what filings said by that day -- outstanding (split-adjusted to the day),
-        issued, treasury, 10-K public float in USD, and filer kind (domestic / foreign). Without day: every fact."""
-        return await run(service.sec_shares, symbol, day, max_age_days)
+        issued, treasury, 10-K public float in USD, and filer kind (domestic / foreign). Without day: every fact.
+        The company is the one that held the ticker on day (ticker says who and whether the ticker was reused)."""
+        return await run(service.sec_shares, symbol, day, max_age_days, cik)
 
     @server.tool(annotations=reads)
-    async def sec_filings(symbol: str, as_of: str | None = None, forms: list[str] | None = None) -> dict:
+    async def sec_filings(symbol: str, as_of: str | None = None, forms: list[str] | None = None,
+                          cik: str | None = None) -> dict:
         """A company's SEC filings filed by as_of: forms e.g. ["4", "SC 13D", "SCHEDULE 13G", "424B4", "8-K",
-        "10-Q", "20-F"]. Lists filings, not their contents."""
-        return await run(service.sec_filings, symbol, as_of, forms)
+        "10-Q", "20-F"]. Lists filings, not their contents. A reused ticker reads the company that held it on as_of."""
+        return await run(service.sec_filings, symbol, as_of, forms, cik)
 
     @server.tool(annotations=reads)
     async def float_latest(symbol: str | None = None) -> dict:
@@ -253,7 +275,8 @@ def create_server(service: DataService):
 
 
 PRELOAD = ("numpy", "pandas", "pyarrow", "market_reads.reads", "market_reads.splits", "market_reads.reference",
-           "market_reads.sec", "market_reads.scan", "market_reads.inventory", "market_reads.catalog",
+           "market_reads.sec", "market_reads.tickers", "market_reads.scan", "market_reads.inventory",
+           "market_reads.catalog", "day_movers.query",
            "agent_desk.movers_read", "leaderboard.playback", "move_reason.short_interest")
 
 

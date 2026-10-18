@@ -26,6 +26,8 @@ from constants_sim import (
 from sim import massive_files
 
 ET = ZoneInfo("America/New_York")
+TF_UNITS = {"s": 1, "m": 60, "h": 3600}
+BOARD_PCT_COLUMNS = ("change_pct", "gap_pct")   # the board store keeps fractions; answered in percent points
 TEXT_COLUMNS = {"ticker": str, "conditions": str, "indicators": str, "id": str}
 # Only an empty field is missing: pandas' default NA strings ("NA", "NULL", "N/A", ...) are real tickers.
 CSV_NA = {"keep_default_na": False, "na_values": [""]}
@@ -96,8 +98,14 @@ def quotes(symbol: str, day: str, start: str | None = None, end: str | None = No
 
 
 def _seconds(tf: str) -> int:
-    unit, n = tf[-1], int(tf[:-1])
-    return n * {"s": 1, "m": 60, "h": 3600}[unit]
+    tf = str(tf).strip().lower()
+    if tf.endswith("d") or tf.endswith("w"):
+        raise ValueError(f"tf {tf!r} is not a stock-day read: daily bars come from day_aggs_v1 through the "
+                         "daily_bars tool (market_data.py daily); stock_day bars are 1s..60m inside one day")
+    unit, count = tf[-1:], tf[:-1]
+    if unit not in TF_UNITS or not count.isdigit() or int(count) < 1:
+        raise ValueError(f"tf must be a number and s, m or h (10s, 1m, 5m, 1h), not {tf!r}")
+    return int(count) * TF_UNITS[unit]
 
 
 def bars(symbol: str, day: str, tf: str = "1m", start: str | None = None, end: str | None = None) -> pd.DataFrame:
@@ -141,13 +149,24 @@ def movers(**params: Any) -> dict[str, Any]:
 
 def board(day: str, at: str, list_name: str = "gainers", source: str | None = None) -> pd.DataFrame:
     """A past day's Scanner list at ``at`` (ET HH:MM) as the Sim plays it back: recorded when the desk recorded the
-    day, else rebuilt from the minute files. ``df.attrs`` holds the board's source, minute and gap (a gap: no rows)."""
+    day, else rebuilt from the minute files. ``change_pct`` / ``gap_pct`` in percent points (the store keeps
+    fractions). ``df.attrs`` holds the board's source, minute and gap; a day with no board (not recorded and not
+    rebuilt: boards cover 1,752 of 2,713 sessions) has ``covered`` False and a ``note`` saying so, never just 0 rows."""
     from leaderboard import playback
     answer = playback.board_at(day, _ns(day, at) / 1e9, source)
     chosen = answer.get("source") or "recorded"
     name = LIST_BOARD.get(chosen, {}).get(list_name)
     rows = (answer.get("boards") or {}).get(name, {}).get("rows", []) if name else []
     frame = pd.DataFrame(sorted(rows, key=lambda r: r.get("rank") or np.inf))
+    for column in BOARD_PCT_COLUMNS:
+        if column in frame:
+            frame[column] = pd.to_numeric(frame[column], errors="coerce") * 100.0
+    covered, gap = answer.get("covered"), answer.get("gap")
     frame.attrs.update(day=day, at=at, list=list_name, source=chosen, board=name, minute_ts=answer.get("minute_ts"),
-                       gap=answer.get("gap"), covered=answer.get("covered"))
+                       gap=gap, covered=covered,
+                       units="change_pct / gap_pct in percent points (45.6 = +45.6%); prices raw dollars")
+    if covered is False or name is None:
+        why = (gap or {}).get("reason") or (f"no {list_name} list on a {chosen} day" if name is None else "no board")
+        frame.attrs["note"] = (f"no {list_name} board for {day} at {at} ({why}): the day was not recorded by the desk "
+                               "and not rebuilt -- data_status lists the days boards cover")
     return frame

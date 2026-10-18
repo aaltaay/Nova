@@ -16,7 +16,7 @@ pd = pytest.importorskip("pandas")
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "research"))
 
 import market_reads  # noqa: E402
-from market_reads import sec  # noqa: E402
+from market_reads import sec, tickers  # noqa: E402
 
 CIK = "885462"
 
@@ -52,11 +52,11 @@ def edgar(tmp_path, monkeypatch):
         z.writestr(f"CIK{CIK.zfill(10)}.json", json.dumps(subs))
         z.writestr(f"CIK{CIK.zfill(10)}-submissions-001.json", json.dumps(older))
     sec._zip.cache_clear()
-    sec._tickers.cache_clear()
-    monkeypatch.setattr(sec, "_share_factor", lambda symbol, after, through: 1.0)
+    tickers.clear()
+    monkeypatch.setattr(sec, "_share_factor", lambda symbol, after, through, cik=None: 1.0)
     yield
     sec._zip.cache_clear()
-    sec._tickers.cache_clear()
+    tickers.clear()
 
 
 def test_a_count_filed_after_the_day_is_not_known_yet(edgar):
@@ -90,9 +90,26 @@ def test_a_symbol_without_a_cik_says_so(edgar):
         sec.facts("NOPE")
 
 
+def test_a_reused_ticker_reads_the_company_that_held_it_that_day(edgar, tmp_path):
+    """GURE's ticker was another company's (CIK 42) until 2020: a 2019 day reads CIK 42, never today's GURE."""
+    ref = tmp_path / "massive" / "store" / "reference"
+    (ref / "tickers.json").write_text(json.dumps([
+        {"ticker": "GURE", "cik": f"000{CIK}", "name": "GULF RESOURCES", "active": True},
+        {"ticker": "GURE", "cik": "0000000042", "name": "Old Gure Co", "active": False,
+         "delisted_utc": "2020-01-10T05:00:00Z"}]), encoding="utf-8")
+    tickers.clear()
+    assert sec.cik_for("GURE", "2019-05-01") == "42"
+    with pytest.raises(LookupError, match="CIK 42 has no submissions"):
+        sec.filings("GURE", as_of="2019-05-01")           # never falls back to today's company
+    today = sec.shares_as_of("GURE", "2025-09-01")
+    assert today["cik"] == CIK and today["ticker"]["ticker_reused"] is True
+    assert {c["cik"] for c in today["ticker"]["candidates"]} == {CIK, "42"}
+    assert sec.filings("GURE", as_of="2019-05-01", cik=CIK).attrs["cik"] == CIK   # an asked CIK wins
+
+
 def test_a_reverse_split_puts_an_old_count_on_the_days_basis(monkeypatch):
     rows = pd.DataFrame({"execution_date": [date(2025, 7, 1)], "price_factor": [10.0]})   # 1-for-10
-    monkeypatch.setattr(market_reads, "splits", types.SimpleNamespace(table=lambda symbol: rows), raising=False)
+    monkeypatch.setattr(market_reads, "splits", types.SimpleNamespace(table=lambda symbol, day=None, cik=None: rows), raising=False)
     monkeypatch.setitem(sys.modules, "market_reads.splits", market_reads.splits)
     assert sec._share_factor("GURE", "2025-05-10", "2025-08-01") == pytest.approx(0.1)
     assert sec._share_factor("GURE", "2025-07-02", "2025-08-01") == 1.0
