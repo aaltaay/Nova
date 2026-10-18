@@ -138,6 +138,7 @@ CREATE TABLE IF NOT EXISTS bars_intraday (
     volume REAL NOT NULL DEFAULT 0,
     source TEXT NOT NULL,
     session_date TEXT NOT NULL,
+    written_ts REAL,
     UNIQUE(symbol, timeframe, ts)
 );
 CREATE INDEX IF NOT EXISTS idx_bars_intraday_sym_tf_ts
@@ -224,12 +225,24 @@ def migrate_bars_intraday_candle_unique(conn: sqlite3.Connection) -> bool:
     return True
 
 
+def migrate_bars_intraday_written_ts(conn: sqlite3.Connection) -> bool:
+    """Add ``written_ts`` (when a historical fill last wrote the row, #839). Rows older than the column
+    keep NULL: no evidence of when they were stored, so a past daily row among them reads unknown."""
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(bars_intraday)")}
+    if "written_ts" in cols:
+        return False
+    conn.execute("ALTER TABLE bars_intraday ADD COLUMN written_ts REAL")
+    logger.info("archive.db: bars_intraday now records written_ts")
+    return True
+
+
 def init_db() -> None:
     """Create tables if they don't exist. Safe to call repeatedly."""
     conn = get_connection()
     try:
         conn.executescript(_SCHEMA)
         migrate_bars_intraday_candle_unique(conn)
+        migrate_bars_intraday_written_ts(conn)
         conn.commit()
     finally:
         conn.close()

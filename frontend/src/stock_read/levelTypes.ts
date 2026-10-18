@@ -105,6 +105,8 @@ export interface LevelMap {
   daily: LevelZone[];
   daily_sessions: number;
   daily_error: string | null;
+  /** Why a stored past session is not read as a finished day (#839); absent from an older backend. */
+  daily_note?: string | null;
   study: LevelStudy | null;
   lines: TrendLines | null;
 }

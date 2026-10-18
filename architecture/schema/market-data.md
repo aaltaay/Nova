@@ -411,6 +411,23 @@ print as "the 09:30 open" and armed SDEV at 00:12).
 
 `GET /api/ticker/{symbol}/bars` on the IBKR store-first path (not a Sim replay, not Alpaca) and every `bars_patch` frame on `/ws/ticker/{symbol}` carry, in `coverage` beside `filling`, `last_error: string | null` and `last_error_ts: number | null` (epoch seconds): the backend's reason and time for the last historical fetch of that (symbol, timeframe) that IBKR did not answer -- a timeout (504) or an error answer / failed qualify (502), never a Gateway-down 503 or a 400 / 404. Both are `null` when there is none; a success clears the pair at once, and a failure nobody has asked about again is forgotten after `IBKR_HISTORICAL_FAILURE_MEMORY_SEC` (owner `ibkr/historical_failures.py`, in memory only, never stored in `bars_coverage`). A failed pair is not sent to IBKR again, for any priority, for `IBKR_HISTORICAL_FAILURE_BACKOFF_SEC`: the request is shed and the pane's own retry asks again, so a farm outage stops spending the 60 / 10 min budget. A pane with no bars that is filling with `last_error` set reads "IBKR history did not answer — retrying" with the reason, not "Loading IBKR historical…"; a painted pane's header hint says the same.
 
+**A daily bar stored mid-session is not the finished day (#839).** `archive.db` `bars_intraday` adds
+`written_ts REAL` (owner `bars_store.py`; added in place by `archive.db.migrate_bars_intraday_written_ts`,
+existing rows keep `NULL`): the time a historical fill last wrote the row, set by every hist upsert and
+never by an L1 overlay. It is per row because `bars_coverage.fetched_ts` is the series' last fetch and a
+short payload advances it while older rows stay as they were. `bars_store.read(..., provenance=True)` adds
+`w` (that time, or `null`) to each bar; the chart's `/bars` wire is unchanged. `bars_store.daily_bar_state`
+reads a `1Day` row as `final` (written at or after 20:00 ET of its UTC date), `forming` (its session not
+over), `partial` (written before its session ended, which has) or `unknown` (no write time); only `final`
+is a finished session (`stock-read.md` for the stock read and the level map). The Large Cap metrics
+(ADR 014; owner `large_cap_metrics.py`) read the last 21 completed sessions -- today's forming bar is left
+out -- and answer every field `null` while one of them is not `final`, asking the paced repair
+(`historical_service.schedule_daily_repair`, at most once per symbol per
+`IBKR_BARS_DAILY_REPAIR_RETRY_SEC`); the roster check counts such a symbol as short of daily bars. Their
+TTL cache, like the stock read's history cache, is read again when a fill writes that symbol's `1Day`
+rows (`bars_store.daily_revision`, in memory); an empty or failed answer writes no row, so it finalizes
+nothing and invalidates nothing.
+
 **A crashed pane says why** (operator report, 2026-09-25: "Chart unavailable. The scanner is still running."). A chart pane that crashes (`components/TickerChartErrorBoundary.tsx`) shows the error's own words under that line and reports its timeframe (`source: "ticker-chart:1Min"`). It draws itself again once, after `CHART_CRASH_AUTO_RETRY_MS`; a second crash within `CHART_CRASH_AUTO_RETRY_WINDOW_MS` stays down. Its Retry button now takes the click. It had inherited the overlay's `pointer-events: none`, which passes clicks through to the chart, so it could never be pressed.
 
 ## The forming candle's volume (operator report, 2026-09-24)

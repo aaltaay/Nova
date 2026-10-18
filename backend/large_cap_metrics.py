@@ -13,7 +13,12 @@ Metrics serve the swing use case defined in ADR 014. Split by cost:
   bars); a miss schedules a paced background fill (ADR 012) and returns
   ``None`` for every field so callers render a dash, never a fabricated
   zero. Results are TTL-cached in this module -- daily bars do not change
-  intraday, so there is no reason to hit SQLite on every L1 tick.
+  intraday, so there is no reason to hit SQLite on every L1 tick -- until a
+  fill writes the symbol's daily bars again (``bars_store.daily_revision``).
+  They read completed sessions only (#839): today's forming bar is left out,
+  and while one of the window's sessions was stored before it ended (or with
+  no record of when) every field is ``None`` and the paced repair is asked
+  (``historical_service.schedule_daily_repair``).
 """
 from __future__ import annotations
 
@@ -32,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 _daily_metrics_cache: dict[str, dict[str, Any]] = {}
 _daily_metrics_cache_ts: dict[str, float] = {}
+_daily_metrics_cache_rev: dict[str, int] = {}
 # Owner: this module. Invalidation trigger: 04:00 ET session rollover
 # (``market.session_key_et`` changes) -- see PROBLEM_LOG 2026-08-26 chart
 # hist starvation. Daily bars do not change intraday, so re-scheduling the
@@ -102,14 +108,36 @@ def schedule_daily_fill(symbol: str) -> None:
         logger.debug("large_cap_metrics: schedule_fill failed for %s", symbol, exc_info=True)
 
 
-def _compute_daily_bar_metrics(symbol: str) -> dict[str, Any]:
+def completed_sessions(bars: list[dict], now: float) -> tuple[list[dict], bool]:
+    """The last ``LARGE_CAP_DAILY_BARS_LOOKBACK + 1`` stored daily bars whose session is over (today's
+    forming bar left out), and whether one of them is not the finished session."""
+    from bars_store import daily_bar_state
+
+    states = [(b, daily_bar_state(b.get("t"), b.get("w"), now)) for b in bars]
+    window = [(b, s) for b, s in states if s != "forming"][-(LARGE_CAP_DAILY_BARS_LOOKBACK + 1):]
+    return [b for b, _s in window], any(s != "final" for _b, s in window)
+
+
+def _repair(symbol: str) -> None:
+    try:
+        from ibkr import historical_service
+
+        historical_service.schedule_daily_repair(symbol, LARGE_CAP_DAILY_BARS_LOOKBACK + 2)
+    except Exception:
+        logger.debug("large_cap_metrics: schedule_daily_repair failed for %s", symbol, exc_info=True)
+
+
+def _compute_daily_bar_metrics(symbol: str, now: float | None = None) -> dict[str, Any]:
     import bars_store
 
     out = dict(_EMPTY_DAILY)
-    stored = bars_store.read(symbol, "1Day", LARGE_CAP_DAILY_BARS_LOOKBACK + 1)
-    bars = (stored or {}).get("bars") or []
+    stored = bars_store.read(symbol, "1Day", LARGE_CAP_DAILY_BARS_LOOKBACK + 2, provenance=True)
+    bars, unfinished = completed_sessions((stored or {}).get("bars") or [], time.time() if now is None else now)
     if len(bars) < 2:
         schedule_daily_fill(symbol)
+        return out
+    if unfinished:
+        _repair(symbol)
         return out
     closes = [b["c"] for b in bars]
     highs = [b["h"] for b in bars]
@@ -133,13 +161,18 @@ def _compute_daily_bar_metrics(symbol: str) -> dict[str, Any]:
 
 def daily_bar_metrics(symbol: str) -> dict[str, Any]:
     """ATR(14), 5d/20d % change, 20d high/low. TTL-cached (see module docstring)."""
+    import bars_store
+
     now = time.monotonic()
+    rev = bars_store.daily_revision(symbol)
     cached_ts = _daily_metrics_cache_ts.get(symbol, 0.0)
-    if symbol in _daily_metrics_cache and (now - cached_ts) < LARGE_CAP_DAILY_METRICS_TTL_SEC:
+    if (symbol in _daily_metrics_cache and (now - cached_ts) < LARGE_CAP_DAILY_METRICS_TTL_SEC
+            and _daily_metrics_cache_rev.get(symbol) == rev):
         return _daily_metrics_cache[symbol]
     out = _compute_daily_bar_metrics(symbol)
     _daily_metrics_cache[symbol] = out
     _daily_metrics_cache_ts[symbol] = now
+    _daily_metrics_cache_rev[symbol] = rev
     return out
 
 
@@ -228,4 +261,5 @@ def compute_scores(rows: list[dict], *, weights: dict[str, float] | None = None)
 def reset_for_testing() -> None:
     _daily_metrics_cache.clear()
     _daily_metrics_cache_ts.clear()
+    _daily_metrics_cache_rev.clear()
     _scheduled_this_session.clear()
