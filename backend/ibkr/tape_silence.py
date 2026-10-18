@@ -120,6 +120,7 @@ def read(
     pipeline: list[str] | tuple[str, ...] = (),
     notice: dict[str, Any] | None = None,
     history_unanswered_since: float | None = None,
+    already_dead: bool = False,
 ) -> dict[str, Any] | None:
     """The line's silence now, or None while it prints (pure)."""
     last = _num(last_print_ts)
@@ -135,7 +136,7 @@ def read(
     if halted is True:
         state = HALTED
         text = f"Halted: no prints until it reopens. {no_print}."
-    elif missed and silent_for >= (TAPE_PIPELINE_DEAD_SEC if pipeline else TAPE_SILENT_SEC):
+    elif missed and (already_dead or silent_for >= (TAPE_PIPELINE_DEAD_SEC if pipeline else TAPE_SILENT_SEC)):
         state = DEAD
         text = (f"{no_print} while Level 1 shows trades up to {_clock(trade)}: "
                 "IBKR's tape line is down, not quiet.")
@@ -186,6 +187,22 @@ def read(
     }
 
 
+def _effective_producer(sym: str) -> tuple[bool, dict[str, Any], bool]:
+    """Current subscription flag, producer status and whether an unverified silence re-ask is active."""
+    from ibkr import tape_stream
+    from ibkr.tape_recording import producer_status
+
+    subscribed = tape_stream.is_subscribed(sym)
+    producer = producer_status(sym)
+    if not subscribed or producer.get("last_print_ts") is None:
+        from line_lending import tape_heal
+
+        reask = tape_heal.unverified_reask(sym)
+        if reask is not None:
+            return True, reask, True
+    return subscribed, producer, False
+
+
 def missed_trades(symbol: str, *, now: float | None = None) -> dict[str, Any] | None:
     """The symbol's AllLast line is missing trades right now, or None (ADR 045 amendment 2026-10-14).
 
@@ -194,23 +211,14 @@ def missed_trades(symbol: str, *, now: float | None = None) -> dict[str, Any] | 
     for TAPE_SILENT_SEC. ``{since, last_print_ts, l1_trade_ts, text}``. None with no line on this IBKR
     session (no tape to judge), while the symbol is halted, or while the tape keeps up. Memory only.
     """
-    from ibkr import halt_status, tape_stream
-    from ibkr.tape_recording import producer_status
+    from ibkr import halt_status
 
     sym = (symbol or "").strip().upper()
     if not sym:
         return None
-    subscribed = tape_stream.is_subscribed(sym)
-    producer = producer_status(sym)
-    reask = None
-    if not subscribed or producer.get("last_print_ts") is None:
-        from line_lending import tape_heal
-
-        reask = tape_heal.unverified_reask(sym)
-    if not subscribed and reask is None:
+    subscribed, producer, _in_reask = _effective_producer(sym)
+    if not subscribed:
         return None
-    if reask is not None:
-        producer = reask
     last = _num(producer.get("last_print_ts"))
     opened = _num(producer.get("line_since"))
     trade = l1_trade_at(sym)
@@ -256,10 +264,9 @@ def pipeline_peers(symbol: str, *, now: float | None = None) -> list[str]:
     A line that never printed: those already silent when it opened that miss trades by their own Level 1.
     """
     from ibkr import halt_status, tape_stream
-    from ibkr.tape_recording import producer_status
 
     sym = (symbol or "").strip().upper()
-    producer = producer_status(sym)
+    _, producer, _in_reask = _effective_producer(sym)
     mine = _num(producer.get("last_print_ts"))
     opened = _num(producer.get("line_since"))
     if mine is None and opened is None:
@@ -268,7 +275,7 @@ def pipeline_peers(symbol: str, *, now: float | None = None) -> list[str]:
     for other in tape_stream.live_symbols():
         if other == sym:
             continue
-        status = producer_status(other)
+        _, status, _other_reask = _effective_producer(other)
         theirs = _num(status.get("last_print_ts"))
         if mine is not None:
             if theirs is not None and abs(theirs - mine) <= TAPE_PIPELINE_SAME_SEC:
@@ -302,26 +309,10 @@ def reading(symbol: str, *, now: float | None = None, halt_seen_at: float | None
     from constants_ibkr import IBKR_NOTICE_NEAR_SILENCE_SEC
     from ibkr import farm_notices, halt_status, history_answers, ticks
     from ibkr.depth import state as depth_state
-    from ibkr.tape_recording import producer_status
 
     sym = (symbol or "").strip().upper()
     ts = time.time() if now is None else float(now)
-    producer = producer_status(sym)
-    if producer.get("last_print_ts") is None:
-        from line_lending import tape_heal
-
-        reask = tape_heal.unverified_reask(sym)
-        if reask is not None:
-            producer = reask
-    else:
-        from ibkr import tape_stream
-
-        if not tape_stream.is_subscribed(sym):
-            from line_lending import tape_heal
-
-            reask = tape_heal.unverified_reask(sym)
-            if reask is not None:
-                producer = reask
+    _, producer, in_reask = _effective_producer(sym)
     facts = {
         "now": ts,
         "last_print_ts": producer.get("last_print_ts"),
@@ -332,6 +323,7 @@ def reading(symbol: str, *, now: float | None = None, halt_seen_at: float | None
         "halt_seen_at": halt_seen_at,
         "l1_trade_at": l1_trade_at(sym),
         "l1_fresh": ticks.is_fresh(sym, TAPE_SILENT_BOOK_FRESH_SEC),
+        "already_dead": in_reask,
     }
     since = silence_start(last_print_ts=facts["last_print_ts"], line_since=facts["line_since"],
                           halt_seen_at=halt_seen_at)

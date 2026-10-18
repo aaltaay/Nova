@@ -337,13 +337,15 @@ kept arriving, so this is not a feed gap (above).
   re-ask is in flight (including its 15 s same-instrument guard) or waiting for a print to verify
   return (and after a failed attempt with no print), `tape_heal.unverified_reask` preserves the
   outage's `since`, `last_print_ts`, `last_print_exchange_ts` and `line_since` for `tape_silence.reading`,
-  `tape_silence.missed_trades` and `/ws/ibkr/tape/{symbol}` pings: neither the guard nor an unverified
-  subscribe clears `LINE DOWN` or unlocks `TAPE_STALE`. Explicit refusals still
-  use the existing cap-aware healer. The ping's optional `silence.recovery` is
-  `{state, since, asked_at, text}`; `state` is `holding`, `delegated`, `waiting`, `attempting`,
-  `failed` or `resumed`, and silence-recovery status frames carry `silent_recovery: state` so the desk
-  keeps its existing print rows and `LINE DOWN` badge instead of turning into `ERROR`. None of these
-  outcomes proves an upstream cure or changes order arming.
+  `tape_silence.missed_trades`, `tape_silence.pipeline_peers` and `/ws/ibkr/tape/{symbol}` pings (until a
+  print marks the watch `resumed`): neither the guard nor an unverified subscribe clears `LINE DOWN` (even
+  when a 10-29 s shared stall loses its sibling peer on recovery), alters pipeline peer matching or unlocks
+  `TAPE_STALE`. Explicit refusals still use the existing cap-aware healer. The ping's optional
+  `silence.recovery` is `{state, since, asked_at, text}`; `state` is `holding`, `delegated`, `waiting`,
+  `attempting`, `failed` or `resumed`, and silence-recovery status frames carry `silent_recovery: state`
+  and `silence_since` so every viewer (including one that receives the broadcast before its own first
+  silence ping) keeps its existing print rows and `LINE DOWN` badge instead of turning into `ERROR`.
+  None of these outcomes proves an upstream cure or changes order arming.
 - **IBKR's farm and line notices** (owner `ibkr/farm_notices.py`, via `session_errors`): farm broken 2103 /
   2105 / 2157, OK 2104 / 2106 / 2158, inactive 2107 / 2108 (the farm is the text after the last colon, or
   after "upon demand." for the inactive pair), depth halted 316 and competing live session 10197 are each
