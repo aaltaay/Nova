@@ -111,13 +111,13 @@ def unverified_reask(symbol: str) -> dict | None:
     from ibkr import client
     from ibkr.tape_recording import producer_status
 
-    if row is None or not row.get("attempted") or row["generation"] != client.current_generation():
-        return None
-    if not watched(sym):
+    if (row is None or not row.get("attempted") or row.get("state") == "resumed"
+            or row["generation"] != client.current_generation() or not watched(sym)):
         return None
     last = producer_status(sym).get("last_print_ts")
     anchor = row.get("asked_at") or row["seen_at"]
     if last is not None and last >= anchor:
+        row.update(state="resumed", text="Prints arrived after the tape re-ask.")
         return None
     return {
         "since": row["since"],

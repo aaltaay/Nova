@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "owner": "tools/backlog_triage.py",
-  "authored": "2026-10-13",
+  "authored": "2026-10-17",
   "note": "AUTHORED work-package plan. Individual issue triage uses current GitHub state, not these historical membership arrays. Related implementation belongs in batches; operator choices and actual engineering gaps stay explicit. Milestones are projected by backlog_triage.py sync. Existing historical batch indices remain stable.",
   "invalidation": "Re-author when a package completes, when a gate decision lands, or when triage moves an issue between packages. `backlog_triage.py check` reports drift; it does not self-heal. Re-author touches when batch scope changes; trailing-slash entries reserve a directory subtree.",
   "packages": [
@@ -1251,7 +1251,8 @@
         725,
         791,
         809,
-        810
+        810,
+        1023
       ],
       "done": [
         "Manual plan approval, entry, stop, targets and partial-fill management use one contract across venue adapters.",
@@ -1263,19 +1264,22 @@
           "title": "feat(execution): share manual plan protection across venue adapters",
           "issues": [
             604,
-            606
+            606,
+            1023
           ],
-          "note": "Operator decided one source of truth, with premarket parity an engineering requirement. Current Live adapter gaps remain implementation work, not a repeated trading-hours choice.",
+          "note": "Operator decided one source of truth, with premarket parity an engineering requirement. Current Live adapter gaps remain implementation work, not a repeated trading-hours choice. #1023 extends Paper protective-stop management so Live Trader short half-covers resize or replace the buy stop without leaving shares unprotected or buying past flat.",
           "gated": false,
           "touches": [
             "backend/stock_mode/",
             "backend/execution/",
             "backend/ibkr/orders.py",
             "backend/practice/",
+            "backend/bot/live_trader/",
             "frontend/src/stock_read/",
             "frontend/src/bot/",
             "architecture/schema/execution.md",
-            "architecture/schema/stock-read.md"
+            "architecture/schema/stock-read.md",
+            "architecture/schema/bot.md"
           ]
         },
         {
@@ -1445,7 +1449,8 @@
         619,
         629,
         674,
-        797
+        797,
+        968
       ],
       "done": [
         "Known lexicon, database and re-render stalls are removed at their owning seams with controlled load evidence.",
@@ -1535,9 +1540,10 @@
         {
           "title": "research(flush): report lag-aware exit behavior on real setup trades",
           "issues": [
-            629
+            629,
+            968
           ],
-          "note": "Optional informative research remains from the original issue. Existing flush off/tighten/exit is implemented; old Live probes and sample-count trading-permission gates are retired. Report per-day sensitivity and realistic order delay, keep operator interpretation explicit.",
+          "note": "Optional informative research remains from the original issue. Existing flush off/tighten/exit is implemented; old Live probes and sample-count trading-permission gates are retired. Report per-day sensitivity and realistic order delay, keep operator interpretation explicit. Also replace #968's per-print dict copy in eyes/history_recording.py and list allocations in setup_scanner/tape_flow.py with zero-copy PrintTable views and arrays.",
           "gated": false,
           "touches": [
             "tools/flow_study.py",
@@ -1545,6 +1551,7 @@
             "backend/eyes/",
             "backend/setup_scanner/tape_flow.py",
             "backend/bot/first_pullback/flush.py",
+            "backend/tests/test_sim_eyes_replay.py",
             "knowledge/signal-trials.json",
             "architecture/schema/setups.md"
           ]
@@ -1561,7 +1568,9 @@
       "issues": [
         775,
         825,
-        833
+        833,
+        983,
+        1035
       ],
       "done": [
         "Boards, daily bars and socket-fed engines resolve through the same loaded historical source and report unavailable facts honestly.",
@@ -1572,13 +1581,16 @@
         {
           "title": "feat(sim): finish shared historical projections for boards and engines",
           "issues": [
-            825
+            825,
+            983,
+            1035
           ],
-          "note": "Whole-stock-day loading, After Hours board reconstruction and quote-panel improvements already shipped. Remaining historical source identity, daily references, socket-fed engine integration and rail/board gaps need one source contract. Indexing automation remains distinct from the existing resumable bulk/index watchdog implementation.",
+          "note": "Whole-stock-day loading, After Hours board reconstruction and quote-panel improvements already shipped. Remaining historical source identity, daily references, socket-fed engine integration and rail/board gaps need one source contract. Also fix #983 long-lived seek-index zran_init failures and loud fallback reporting, and extend #1035 file-backed exchange book imports and desk availability listings while keeping venue books out of trading inputs unless the operator decides otherwise.",
           "gated": false,
           "touches": [
             "backend/sim/",
             "backend/agent_desk/",
+            "research/market_reads/",
             "tools/",
             "architecture/schema/recording-and-replay.md",
             "backend/sensors/",
@@ -1634,7 +1646,8 @@
       "issues": [
         600,
         704,
-        667
+        667,
+        966
       ],
       "done": [
         "Minute-bar source and fallback policy are explicit and comparisons preserve recorded trigger and MACD differences.",
@@ -1646,18 +1659,21 @@
           "title": "fix(setups): share minute-source truth and trigger receipt provenance",
           "issues": [
             600,
-            667
+            667,
+            966
           ],
-          "note": "Original #600 source preference is explicit, no new operator decision. Use held AllLast price-setting prints and the stated fallback, retaining broker event-time provenance while evaluating input receipt age. Candle bucketing, warm-up, replay and genuine delayed-data checks must remain distinct and tested across bot, Auto-entry and Approve.",
+          "note": "Original #600 source preference is explicit, no new operator decision. Use held AllLast price-setting prints and the stated fallback, retaining broker event-time provenance while evaluating input receipt age. Candle bucketing, warm-up, replay and genuine delayed-data checks must remain distinct and tested across bot, Auto-entry and Approve. Include #966 session-record L1-last capture and replay trigger parity so Sim eyes rebuild the same minute candles and triggers as live eyes.",
           "gated": false,
           "touches": [
             "backend/ibkr/l1_minute.py",
             "backend/ibkr/ticks_handler.py",
             "backend/ibkr/tape_events.py",
+            "backend/capture/",
             "backend/setup_scanner/",
             "backend/bot/",
             "backend/stock_mode/",
             "backend/eyes/",
+            "tools/eyes_parity.py",
             "architecture/schema/setups.md",
             "architecture/schema/bot.md",
             "architecture/schema/stock-read.md",
@@ -1765,12 +1781,13 @@
       "slug": "operator-product-choices",
       "title": "20 - Optional desk features have concrete operator scope",
       "readiness": "ready-now",
-      "gate": "#808's optional broker precaution preference remains the operator's choice; never silently bypass it. #784 voice remains parked under the accepted typed-for-now ADR050 scope.",
+      "gate": "#808's optional broker precaution preference remains the operator's choice; never silently bypass it. #784 voice remains parked under the accepted typed-for-now ADR050 scope. #1014's remaining volume-profile read card, columns and watch-only signals stay parked until requested (D6/D8).",
       "objective": "Attention alerts, voice Sim requests and optional broker configuration are product preferences, with clear boundaries and no implicit trade or setting changes.",
       "issues": [
         585,
         784,
-        808
+        808,
+        1014
       ],
       "done": [
         "Attention alerts specify a detectable condition and dismissible presentation without placing orders.",
@@ -1818,6 +1835,21 @@
             "architecture/decisions/050-agents-find-and-show-in-the-sim.md",
             "tools/nova_agent.py",
             ".claude/skills/nova-sim-navigator/"
+          ]
+        },
+        {
+          "title": "feat(volume-profile): optional read card, scanner columns and watch-only signals",
+          "issues": [
+            1014
+          ],
+          "note": "The 5-minute chart profile shipped in PR #1040 (ADR 058). Remaining Settings section, Anchored/Fixed Range tools, HVN/LVN zones, read card, Large Cap/Focus columns, watch-only signals and research reading stay parked until the operator asks for them and answers D6/D8.",
+          "gated": true,
+          "touches": [
+            "backend/volume_profile/",
+            "frontend/src/chart/",
+            "frontend/src/settings/",
+            "architecture/schema/volume-profile.md",
+            "architecture/decisions/058-volume-profile-on-the-5-minute-chart.md"
           ]
         }
       ]

@@ -337,8 +337,9 @@ kept arriving, so this is not a feed gap (above).
   re-ask is in flight (including its 15 s same-instrument guard) or waiting for a print to verify
   return (and after a failed attempt with no print), `tape_heal.unverified_reask` preserves the
   outage's `since`, `last_print_ts`, `last_print_exchange_ts` and `line_since` for `tape_silence.reading`,
-  `tape_silence.missed_trades`, `tape_silence.pipeline_peers` and `/ws/ibkr/tape/{symbol}` pings: neither
-  the guard nor an unverified subscribe clears `LINE DOWN`, alters pipeline peer matching or unlocks
+  `tape_silence.missed_trades`, `tape_silence.pipeline_peers` and `/ws/ibkr/tape/{symbol}` pings (until a
+  print marks the watch `resumed`): neither the guard nor an unverified subscribe clears `LINE DOWN` (even
+  when a 10-29 s shared stall loses its sibling peer on recovery), alters pipeline peer matching or unlocks
   `TAPE_STALE`. Explicit refusals still use the existing cap-aware healer. The ping's optional
   `silence.recovery` is `{state, since, asked_at, text}`; `state` is `holding`, `delegated`, `waiting`,
   `attempting`, `failed` or `resumed`, and silence-recovery status frames carry `silent_recovery: state`
