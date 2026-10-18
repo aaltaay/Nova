@@ -268,6 +268,8 @@ def status() -> dict[str, Any]:
 
 
 def reset_for_tests() -> None:
+    from book_watch import ladder_replay
+
     with _lock:
         _watches.clear()
     while True:
@@ -277,3 +279,4 @@ def reset_for_tests() -> None:
             break
     for key in _counts:
         _counts[key] = 0
+    ladder_replay.reset_for_tests()

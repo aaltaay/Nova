@@ -263,8 +263,12 @@ page, and is never offered off.
 
 ## Recorded depth in historical replay (#309)
 
-The historical replay snapshot carries `depth_available: boolean` and
-`depth: object | null`. `depth` is the Level 2 book the local recorder
+The historical replay snapshot carries `depth_available: boolean`,
+`depth: object | null`, and `book_watch: object | null` (#617; the same `book_watch`
+frame shape as `/ws/ibkr/depth/{symbol}`, with `source: "replay"` and `now` at the
+playhead, built by `book_watch/ladder_replay.py` from `l2.db` snapshots and recorded
+prints up to the playhead, or `watching: false` with the `reason` when depth or tape
+is absent, NBBO/L1-only, or single-venue). `depth` is the Level 2 book the local recorder
 (`backend/l2/`) archived at or before the playhead second, shaped
 `{symbol, bids, asks, ts, age_sec, l1_fallback, session_id, source}`, where
 `source` names the archive (`l2_recorder`). `depth_available` is true only when

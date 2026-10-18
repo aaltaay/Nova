@@ -50,9 +50,12 @@ def clear() -> None:
     explicit "reload from the archive" gesture, so a session recorded since the
     last selection becomes visible without a restart."""
     global _degraded
+    from book_watch import ladder_replay
+
     with _lock:
         _cache.clear()
         _degraded = None
+    ladder_replay.clear_history_cache()
 
 
 def reset_for_tests() -> None:

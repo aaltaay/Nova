@@ -328,7 +328,7 @@ def snapshot(symbol: str):
                   open=None, high=None, low=None, prev_close=None, session_open=None,
                   stats_scope='window', bid=None, ask=None, bid_size=None, ask_size=None,
                   bid_exchange=None, ask_exchange=None, quote_ts=None, quote_source=None, quote_status=None,
-                  depth_available=False, depth=None, exchange_books=[], sides_recorded=0, sides_nbbo=0)
+                  depth_available=False, depth=None, book_watch=None, exchange_books=[], sides_recorded=0, sides_nbbo=0)
     if not result['active']:
         return result
     result['prev_close'] = selected.prev_close
@@ -357,6 +357,8 @@ def snapshot(symbol: str):
             book = history_quotes.top_of_book(selected.quotes, symbol, cutoff)
     if book is not None:
         result.update(depth=book, depth_available=True)
+    from book_watch import ladder_replay
+    result['book_watch'] = ladder_replay.historical_frame(symbol, selected, cutoff, book, in_range)
     if selected.prints:
         end = bisect.bisect_right(selected.keys, cutoff)
         eligible_end = bisect.bisect_right(selected.eligible_keys, cutoff)

@@ -5,25 +5,47 @@
  * block (bookWatchBig.ts, #984). The verdicts are the backend book watcher's (bookWatch.ts reads them); every
  * piece explains itself on hover.
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { L2_PULLS_NOT_WATCHED_LABEL, L2_PULL_MARK_TICK_MS } from '../constants';
+import { simClockResource, type SimClockState } from '../sim';
 import { tipProps } from '../ux';
 import { bookWatchBusy, pullsLine, type BookSide, type BookWatchState, type PullMark } from './bookWatch';
 import { bigBanner, type BigRow } from './bookWatchBig';
 
+const noSub = () => () => {};
+const noClock = (): SimClockState | null => null;
+
+function resolveBookWatchNowMs(watch: BookWatchState | null, clock: SimClockState | null, wallMs: number): number {
+  if (watch?.source !== 'replay') return wallMs;
+  const frameMs = watch.nowMs ?? wallMs;
+  const clockMs = clock?.sim_time_et ? Date.parse(clock.sim_time_et) : Number.NaN;
+  if (!clock) return frameMs;
+  if (clock.paused !== false) {
+    return Number.isFinite(clockMs) && Math.abs(clockMs - frameMs) >= 500 ? clockMs : frameMs;
+  }
+  const elapsed = Math.max(0, wallMs - (watch.receivedAtMs ?? wallMs));
+  const running = frameMs + elapsed;
+  return Number.isFinite(clockMs) && Math.abs(clockMs - running) >= 1000 ? clockMs : running;
+}
+
 /**
- * The clock the marks age by: now, redrawn every L2_PULL_MARK_TICK_MS while a mark or tag is still due
- * to fade or go, so they leave on time on a quiet book (a busy one redraws with every book anyway).
+ * The clock the marks age by: wall-clock now on live, or the Sim playhead on a replay (frozen while
+ * paused), redrawn every L2_PULL_MARK_TICK_MS while a mark or tag is still due to fade or go.
  */
 export function useBookWatchClock(watch: BookWatchState | null, active: boolean): number {
+  const replay = watch?.source === 'replay';
+  const subscribe = useCallback((fn: () => void) => (replay ? simClockResource.subscribe(fn) : noSub()), [replay]);
+  const clock = useSyncExternalStore(subscribe, replay ? () => simClockResource.getSnapshot().data : noClock);
   const [, setTick] = useState(0);
-  const busy = active && bookWatchBusy(watch, Date.now());
+  const nowMs = resolveBookWatchNowMs(watch, clock, Date.now());
+  const paused = replay && clock?.paused !== false;
+  const busy = active && !paused && bookWatchBusy(watch, nowMs);
   useEffect(() => {
     if (!busy) return;
     const id = window.setInterval(() => setTick(t => t + 1), L2_PULL_MARK_TICK_MS);
     return () => window.clearInterval(id);
   }, [busy]);
-  return Date.now();
+  return nowMs;
 }
 
 /** Each side's size pulled against its size traded over the watcher's last minute, over its column. */
