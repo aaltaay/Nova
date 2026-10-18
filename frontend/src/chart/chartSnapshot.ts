@@ -4,6 +4,11 @@
  */
 import type { IChartApi } from 'lightweight-charts';
 
+/** Shared native capture for desk downloads and the offline research gateway. */
+export function captureChartCanvas(chart: IChartApi): HTMLCanvasElement {
+  return chart.takeScreenshot();
+}
+
 export function chartSnapshotFilename(
   symbol: string,
   timeframe: string,
@@ -26,7 +31,7 @@ export function downloadChartSnapshot(
 ): boolean {
   if (!chart || typeof chart.takeScreenshot !== 'function') return false;
   try {
-    const canvas = chart.takeScreenshot();
+    const canvas = captureChartCanvas(chart);
     if (!canvas || typeof canvas.toDataURL !== 'function') return false;
     const link = document.createElement('a');
     link.href = canvas.toDataURL('image/png');

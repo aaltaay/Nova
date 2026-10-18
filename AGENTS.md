@@ -32,6 +32,7 @@ This document is the **single source of truth** for how this project is built, m
 - **Plan / canvas:** `nova_master_roadmap_a_z.plan.md` · `nova-home.canvas.tsx`
 - **Nova OS history (retired, ADR 025):** `knowledge/obsidian/03-Nova-Decisions/Nova-OS-Status.md` -- event log and kill switch remain; product NEXT is Roadmap-Status.
 - **Docs & Agent OS:** `.cursor/agents/docs.md`, `.cursor/rules/docs-continuity.mdc`, `.cursor/agent-system/`, `docs/agent-operations.md`.
+- **Historical charts:** `docs/NOVA_CHART_EXPORT.md` -- explicit local symbol/day data, Nova's native renderer.
 
 ---
 
@@ -116,7 +117,8 @@ Every confirmed wire and persisted shape lives in `architecture/schema/`, one fi
 | Schema file | Indexed subsections |
 |---|---|
 | `architecture/schema/recording-and-replay.md` | Capture / replay truth (#316, #317); Replay progress and capture fidelity (#321, #337); Recording persistence and coverage; The Records page and turning recording off; Recorded depth in historical replay (#309); The replayed session's previous close (#542); Massive flat files in Sim replay (ADR 046); An exchange's own book in Sim replay (ADR 057); Practice venues and fills (ADR 019, ADR 020); Sim at now is live -- the live edge (ADR 020) |
-| `architecture/schema/agent-desk.md` | Agents find stock-days and show them in the Sim (ADR 050) |
+| `architecture/schema/agent-desk.md` | Agents find stock-days and show them in the Sim (ADR 050); historical OHLCV charts/MCP |
+| `architecture/schema/local-historical-charts.md` | Explicit local minute-Parquet symbol/day resolution and historical chart export |
 | `architecture/schema/desk-ops.md` | Desk diagnostics (ADR 021); IBKR capacity on the desk; Which backend answers; Who may reach the API: Host names and socket origins; Where Nova keeps its data; Why the Gateway needed a phone login; premarket evidence (#14); Release notes and the update notice; Filing an issue from the desk; Symbol directory for the header search; The operator's watch list and its toasts; The close-of-day reminder; The desk's voice and the header mute |
 | `architecture/schema/scanner.md` | Scanner rows and HOD Momo alerts on the wire; Float credibility and short-interest dates (#532); The company's country; Scanner leaderboard: recorded, reconstructed, played back (ADR 023); Watchlist rows |
 | `architecture/schema/setups.md` | Setup scanner and tape gate (ADR 022); The flat top counts its touches (ADR 031); The 5-minute flat top (ADR 031); Targets replace 2R: the menu, two halves, every choice scored (#845); The pullback dip: a watch-only setup (#847); The ABCD: a watch-only setup; One row per trigger; Too thin to trade; The 5-minute chart on a 1-minute setup (trial T8); The 5-minute setups; The tape flow score and the flush exit (ADR 034); Signal trials (ADR 041); Setup templates, the eyes' journal and replayed eyes (ADR 029) |

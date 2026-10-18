@@ -16,6 +16,10 @@ alwaysApply: false
   Trading-facing frontend modules also run the full backend suite.
 - Backend changes run the full backend suite (including execution, risk, short,
   idempotency and live opt-in gates), Chromium E2E and desktop packaging.
+- The Backend tests job also installs the scoped historical-chart test requirements
+  and runs the generated resolver, exporter ownership and official-SDK contracts.
+  Windows Job/native-capture integration is verified on Windows; unsupported platforms
+  skip only those explicitly Windows-bound tests and never simulate ownership success.
 - Electron, build scripts, dependency manifests, CI, tools and unknown paths run
   all application checks. Never infer a safe skip from a missing/failed diff.
 - Merging is green only (owner decision 2026-10-13, "Merge only green PRs too").

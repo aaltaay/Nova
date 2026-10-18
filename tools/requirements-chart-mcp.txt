@@ -1,0 +1,3 @@
+# Optional official SDK for tools/nova_chart_mcp.py only; never installed at runtime.
+# API verified against the matching official v1.26.0 source.
+mcp==1.26.0

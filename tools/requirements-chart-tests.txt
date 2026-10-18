@@ -1,0 +1,3 @@
+# Optional generated offline chart contracts; not imported by the trading app.
+-r requirements-chart-mcp.txt
+duckdb==1.5.5

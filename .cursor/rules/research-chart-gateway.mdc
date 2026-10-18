@@ -1,0 +1,20 @@
+---
+description: Historical OHLCV exports reuse Nova's shared local-data gateway and native renderer
+globs: tools/nova_chart*,tools/nova_historical_chart*,backend/agent_desk/chart_gallery*,frontend/src/chart/gateway/**
+alwaysApply: false
+---
+
+Use tools/nova_historical_charts.py for an explicit local symbol/day, or
+tools/nova_charts.py for a hashed historical_ohlcv selection. Read the Historical
+OHLCV chart gateway in architecture/schema/agent-desk.md and the resolver contract
+in architecture/schema/local-historical-charts.md before changing behavior.
+
+Generic annotations are limited to horizontal_line and time_marker with bounded
+labels and fixed named colors. Preserve raw same-session units, observed gaps and
+source hashes. No as_of_m means full observed session; otherwise shade whole
+later/crossing candles amber. Do not implement an alternate candle renderer.
+
+No discovery/download, live bars, broker history, subscriptions, account mutation
+or simulation commands are part of this offline path. MCP client setup and grants
+are explicit separate actions. Report initialized and cold timing stages separately;
+a subsecond target is not an unmeasured total-command claim.
