@@ -558,6 +558,76 @@ discretion), and Phase L moves on without it.
 
 **Status (2026-10-11):** the pilot is running on the desk PC. Its reading goes here.
 
+## 2i. A6 -- the "one trade a day" sweep and fair value gap on SPY / QQQ (pre-registered 2026-10-18)
+
+Operator ask (2026-10-18): test, as she trades it, the strategy a YouTube trader ("one trade a day
+system") teaches -- 1-hour swing levels, a sweep of one in the first hour, a 1-minute market structure
+shift with a fair value gap, a limit entry in the gap, 2:1. The operator expects it to fail on small
+caps, so it runs on the market it was built for. The video never names her instrument; the method is
+the ICT style usually traded on index futures, which Nova has no data for, so SPY and QQQ stand in
+(same index, minute bars on every day). Research only: information for the operator, never trading
+permission. Both sides are tested (she shorts); each side is reported apart.
+
+Rules, fixed before any run (harness `research/ict/`, Massive minute bars through `market_reads`,
+2016-01-04 .. 2026-10-16, raw prices -- neither symbol split in the window):
+
+- **Levels.** Hourly bars, clock-aligned, built from the 04:00-20:00 minute bars of the prior 10
+  sessions and today before 09:30. A swing high is an hourly bar whose high is above the two bars
+  before it and not below the two after it (her "fractal"); swing low mirrored. A swing counts only
+  once both later bars are complete before 09:30 and while no later bar before 09:30 traded through it.
+  **Supply** = the lowest such swing high above the 09:30 open; **demand** = the highest swing low below it.
+- **Window.** 09:30-10:30 ET. One filled trade per symbol per day; one working order at a time.
+- **Sweep.** A 1-minute bar trades above supply (short side) or below demand (long side).
+- **Shift.** After the sweep, a 1-minute bar closes below the most recent confirmed 1-minute swing low
+  (same 2-and-2 rule, premarket bars included) that formed before the sweep's highest bar (long mirrored).
+  Between the sweep's highest bar and that close there must be a bearish fair value gap: a bar whose high
+  is under the low of the bar two before it.
+- **Entry.** At that close, a limit sell at the gap's near edge (the later bar's high) of the newest gap
+  whose edge is in the top half of the leg (sweep high to the shift bar's low -- her 50% rule). No such
+  gap: no order, keep watching. Fills on a later bar that trades at the limit (at the open when it opens
+  through it). Cancelled at 10:30, or if price reaches the stop or the target first; a cancelled order
+  lets a later setup arm.
+- **Exit.** Stop $0.01 past the sweep extreme; target 2R; whatever is open at 11:00 exits at the 10:59
+  close. A bar touching stop and target counts the stop; on the fill bar only the stop counts.
+- **Account and costs** (as §2b, with intraday margin since she trades leverage): $25,000, 1% of equity
+  at risk, notional capped at 2x equity per position, IBKR fixed $0.005/share (min $1) and $0.01/share
+  slippage on every fill.
+- **Kill criteria unchanged:** fewer than 300 trades; the edge lives in one year; the neighbourhood
+  (target 1.5 / 3R, window to 10:00 / 11:00, hourly swing strength 3, lookback 5 / 20 sessions, entry at
+  the gap's far edge, no 50% rule) not mostly positive; dies at 2x costs. Concentration is reported.
+
+### Gate 1 result -- A6, 2026-10-18 (harness: `research/ict/`, `results_2026-10-18.json`)
+
+Data: 2,713 sessions of SPY and QQQ minute bars, 2016-01-04 .. 2026-10-16 (4.29M bars, 04:00-20:00).
+
+| Run | Trades | Win | PF | Net R / trade | Gross R / trade | Total |
+|---|---|---|---|---|---|---|
+| **Pre-registered rule** | 324 | 35.8% | **0.94** | -0.12R | **-0.01R** | -$951 |
+| SPY only / QQQ only | 150 / 174 | 37% / 35% | 1.14 / 0.82 | -0.09R / -0.15R | +0.03R / -0.04R | +$738 / -$1,689 |
+| Longs / shorts | 152 / 172 | 37% / 35% | 0.92 / 0.95 | -0.07R / -0.16R | +0.02R / -0.04R | -$608 / -$343 |
+| Zero costs | 324 | 37.0% | 1.07 | -0.01R | -0.01R | +$944 |
+| Slippage $0.02 / $0.03 | 324 | 35% / 34% | 0.86 / 0.80 | -0.18R / -0.25R | -0.01R | -$2,035 / -$3,063 |
+| **2x costs** | 324 | 34.0% | **0.84** | -0.21R | -0.01R | -$2,399 |
+| Target 1.5R / 3R | 243 / 389 | 38% / 32% | 0.83 / 0.86 | -0.15R / -0.13R | -0.04R / -0.02R | -$1,824 / -$2,554 |
+| Window to 10:00 / 11:00 | 102 / 606 | 34% / 36% | 0.89 / 0.91 | -0.11R / -0.14R | 0.00R / -0.03R | -$618 / -$2,428 |
+| Hourly swing strength 3 | 265 | 35.1% | 0.89 | -0.13R | -0.02R | -$1,341 |
+| Lookback 5 / 20 sessions | 315 / 327 | 36% / 36% | 0.94 / 0.92 | -0.11R / -0.13R | -0.01R / -0.02R | -$915 / -$1,160 |
+| Entry at the far edge | 338 | 32.5% | 0.81 | -0.21R | -0.09R | -$2,789 |
+| No 50% rule | 818 | 37.9% | 0.85 | -0.10R | -0.02R | -$6,166 |
+
+Exits: 192 stops, 84 targets, 48 at 11:00. Median stop $0.45 a share; costs take a median 0.08R a
+trade. Years: only 2022 (+$2,149, the bear market) and, barely, 2019 and 2024 are positive; without
+2022 the ten years lose $3,100. Months positive 44 of 120; max drawdown -7.5% (the 1% risk rarely
+binds -- the 2x-equity notional cap does, so most trades risk well under 1%).
+
+**Kill criteria:** at least 300 trades -- pass (324, about 15 a year per symbol: the hourly level is
+rarely swept in the first hour); edge outside one year -- **Fail** (2022 carries it); neighbourhood
+mostly positive -- **Fail** (all nine cells under PF 1); dies at 2x costs -- **Fail** (PF 0.84).
+**Verdict: not passed.** Before any cost the rule's average trade is -0.01R: on the index ETFs it
+picks direction no better than a coin, and costs make it a slow loser. Her shown trade (21 July)
+could not be matched: SPY and QQQ rose through 09:39 on 2025-07-21 and show no 09:30 sweep-and-drop
+on 2023-07-21, so her instrument is something else (likely futures or a CFD). Nothing promoted.
+
 ## 3. Reference numbers (from the 2026-09-22 research pass)
 
 - Good backtest: > 300 trades, profit factor 1.3-2.0 after costs, expectancy > 0.2R, max DD
@@ -598,3 +668,4 @@ blog.traderspost.io paper-to-live guide.
 | 2026-09-24 | **The first-pullback bot trades Paper and Sim; the read-out gates Live (ADR 030, #514).** Operator: "When I'm on paper, I cannot activate the button for the bots" -- then, of three choices, "Paper/Sim skip it + build". The read-out stood at 0 of 50 go setups (a go needs Nova to hold the name's Level 2 at the trigger), so the L4 Paper run no longer waits for it: Nova's own bot trades the template in play's go triggers on Paper and Sim under every bot gate -- a limit at the scanner's entry, a resting target 1, the stop watched on the last print, a 15-minute time stop, one trade a day. Its trades are gate 2's evidence (100 trades, expectancy against the read-out, slippage measured); they never touch `setups.db`, so the pre-registered read-out is unchanged and still gates Live. | Operator + Claude Opus 5.5 |
 | 2026-10-11 | **S7 pre-registered: the author's own trades (§2h).** The operator asked whether the author's archive had been fully analysed: "if he makes money, we should be able to make money too." Every reading so far tested what the material teaches; none tested what its author trades. A 20-day pilot on the desk PC (`F:\Nova\ledger`) checks whether the private video archive yields a verified ledger (80% of trades pinned to a print, 80% of days reconciled to the stated P&L) before any twelve-month extraction. Its five questions (concentration, size, selection, timing and tape, fills) are fixed before any ledger exists. The material and the ledger stay on F:. | Claude for the operator |
 | 2026-10-18 | **Bollinger Bands mean-reversion screen (`research/bb_mr/`): verdict `no credible edge`.** Adapted the MT5 Bollinger Bands lower-band rejection + basket grid strategy to U.S. common stocks (long-only, $25k shared cash account, IBKR Pro Fixed + SEC/FINRA/CAT fees, bid/ask spread + slippage + 10% bar participation cap, `-0.5% E0` basket stop, `-3%` daily stop) across 1,235 trading days (`2021-10-19..2026-09-21`) on both a Liquid Reference universe ($5-$200, ADV20 >= $20M, 514 delisted tickers) and a causal Morning Active scanner ($1-$30, >= +10%, CumDVol >= $500k, top 20 per minute, 1,849 delisted tickers). Baseline A (`5m P100 K2.0 S10 E5` in `06:00-11:00` ET) lost `-$18,438` (`PF 0.482`, 5,328 baskets) on Liquid Reference and `-$22,101` (`PF 0.429`, 2,499 baskets) on Morning Active; 0 of 192 intraday grid configurations passed Development/Validation; all 6 walk-forward folds were negative out-of-sample; and multi-entry additions (`max_entries=3, 5`) strictly worsened Profit Factor and drawdown relative to single-entry (`max_entries=1`). Not promoted to Paper. `auto_live` NO-GO. | Gemini 4 Argon for the operator |
+| 2026-10-18 | **A6 verdict: not passed (§2i).** Operator ask: test a YouTube "one trade a day" strategy as she teaches it (1-hour swing levels, a first-hour sweep, a 1-minute structure shift with a fair value gap, limit entry in the gap, 2:1) on the market it was built for. Pre-registered, then run on SPY and QQQ minute bars 2016-2026: 324 trades, PF 0.94, -0.01R a trade before costs, only 2022 positive, all nine neighbours under PF 1, PF 0.84 at 2x costs. Not promoted. `auto_live` NO-GO. | Claude Opus 5.5 for the operator |
