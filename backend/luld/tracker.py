@@ -109,6 +109,8 @@ class Options:
     # When the pro-forma reference is checked: "continuous" (every moment it can change -- a trade,
     # a trade leaving the window, the 30 s floor running out) or "trades" (each eligible trade only).
     reference_on: str = "continuous"
+    # False when the replay lacks NBBO quotes (e.g. an IBKR trades-only download), so limit states cannot be seen.
+    allow_exact: bool = True
 
 
 DEFAULT_OPTIONS = Options()
@@ -409,7 +411,7 @@ class Tracker:
             return
         self._ref, self._ref_f, self._ref_since, self._ref_source = value, float(value), ts, source
         if exact is not None:
-            self._exact = exact
+            self._exact = bool(exact and self.options.allow_exact)
         self._history.append({"ts": round(ts, 3), "reference": round(float(value), 4), "source": source})
         self._mark(ts)
 

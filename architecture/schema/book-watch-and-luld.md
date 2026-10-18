@@ -375,9 +375,12 @@ Plan rules (owner `backend/luld/`). Read-only: nothing places, stages, gates or 
   tracker for every stock whose tape line Nova holds, from its first live print until 30 minutes without one. Every
   0.25 s it reads the halt state (`halt_status.halted_now`), the line (`tape_stream.is_subscribed`) and feed gaps
   (`feed_pulse`). In memory only; `NOVA_LULD=0` turns it off.
-- **The replay** (`luld/replay.py`). On a Sim desk off the live edge with a Session Record loaded: the bands at the
-  playhead, from the recording's prints, book tops and the day's halt log, never ahead of the playhead. It runs on
-  its own thread, with a checkpoint every 5 minutes of replay.
+- **The replay** (`luld/replay.py`, `luld/historical_replay.py`). On a Sim desk off the live edge with a Session
+  Record or a historical replay (`sim.history_playback.selected`: a Massive import or an IBKR download, #775, #825)
+  loaded: the bands at the playhead, from the replay's prints, book tops / NBBO and the day's halt log, never ahead
+  of the playhead. Quote-less historical windows stay approximate (`exact: false`), and historical sessions never
+  substitute today's live market cap for `tier_sure`. It runs on its own thread, with a checkpoint every 5 minutes of
+  replay.
 - **The view** (`luld/views.py`) is one shape for `GET /api/luld/{symbol}` and the depth socket's `{"type": "luld",
   "symbol", "data": view}` frames (sent on change, and at least every 5 s): `{schema_version: 1, symbol, source:
   "live" | "replay", state: "off" | "unknown" | "warming" | "bands" | "limit" | "pause_due" | "paused", exact, lower,
