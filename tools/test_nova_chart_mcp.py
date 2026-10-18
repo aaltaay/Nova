@@ -161,10 +161,11 @@ class Boundaries(unittest.TestCase):
         with self.assertRaises((M.ChartError, OSError)):
             M.ChartService(self.roots, export_python=self.base / "missing.exe")
         self.call()
-        self.assertEqual(self.calls[0][0][0], str(M.checked_executable(Path(sys.executable))))
+        expected = Path(sys.executable).resolve(strict=True) if os.name != "nt" else M.checked_executable(Path(sys.executable))
+        self.assertEqual(self.calls[0][0][0], str(expected))
 
     def test_nonwindows_default_canonicalizes_only_already_running_interpreter(self):
-        canonical = M.checked_executable(Path(sys.executable))
+        canonical = Path(sys.executable).resolve(strict=True) if os.name != "nt" else M.checked_executable(Path(sys.executable))
         with (patch.object(M, "os", SimpleNamespace(name="posix")),
               patch.object(M, "Path") as default_path,
               patch.object(M, "checked_executable", return_value=canonical) as check):
