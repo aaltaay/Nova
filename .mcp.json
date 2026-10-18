@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "nova-data": {
+      "type": "stdio",
+      "command": "python3",
+      "args": ["-B", "tools/nova_data_mcp.py"]
+    }
+  }
+}

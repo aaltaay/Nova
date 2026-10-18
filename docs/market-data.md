@@ -2,7 +2,11 @@
 
 The operator's Massive files hold every US stock's trades, NBBO quotes and minute and daily bars, every trading day
 from 2016-01-04. Nova's own stores add the day movers index (one row per stock per session that moved) and the
-Scanner boards played back in the Sim. **Do not write a reader.** Use the front door, which knows the traps below:
+Scanner boards played back in the Sim; Massive's reference dump adds financial statements, float, IPOs and short
+interest, and SEC's bulk files add share counts and every filing. **Do not write a reader.** Use the front door,
+which knows the traps below. Agents get the same reads as MCP tools from the `nova-data` server
+(`tools/nova_data_mcp.py`, registered in `.cursor/mcp.json` and `.mcp.json`; ADR 059) -- start with `data_catalog`.
+A tripwire hook (`tools/data_access_hook.py`) blocks an agent's own reader of these stores.
 
 ```text
 py -3 tools/market_data.py status                                  # what is on disk, how much is indexed
@@ -15,6 +19,13 @@ py -3 tools/market_data.py board 2026-09-09 --at 09:45 --list gappers --top 20
 py -3 tools/market_data.py splits GRML --day 2026-07-15            # the splits, and that day's factor (50)
 py -3 tools/market_data.py bars GRML 2026-07-15 --tf 5m --adjust   # trades / quotes / bars in today's terms
 py -3 tools/market_data.py bench                                   # how fast each read is, measured
+py -3 tools/market_data.py catalog                                 # every dataset: history, as-of rule, units
+py -3 tools/market_data.py scan date_from=2021-01-01 price_min=2 price_max=20 high_min=50 --out r.parquet
+py -3 tools/market_data.py financials GURE --statement income_statements --as-of 2024-03-01
+py -3 tools/market_data.py sec-shares GURE --day 2024-03-01         # outstanding / issued / treasury filed by then
+py -3 tools/market_data.py sec-filings GURE --as-of 2024-03-01 --forms "4,SC 13D,424B4"
+py -3 tools/market_data.py float GURE                              # Massive's latest free float (no history)
+py -3 tools/market_data.py short-interest GURE 2024-03-01          # FINRA, as published by that morning
 ```
 
 From Python, the same reads return pandas DataFrames:
@@ -47,9 +58,14 @@ To put a stock-day on the desk for the operator, use the `nova-sim-navigator` sk
 | Seek indexes (one per day file) | `...\sim\index\<dataset>\...\<file>.idx` | see `status` | used by every read |
 | Day movers index | `...\movers\day_movers.sqlite3` | see `status` | `movers`, `/api/agent/movers` |
 | Past-day Scanner boards (recorded live, or rebuilt from minute bars) | `F:\Nova\leaderboard\leaderboard.sqlite3` | see `status` | `board`, the Sim |
-| Reference (splits, news, IPOs, dividends, short interest, financials) | `...\store\reference\` | month files from 2016 | `research/leaderboard/lb_io.py`; FINRA short interest as published by a past moment, for the Sim's "Why it's moving": `backend/move_reason/short_interest.py`, from `short_interest/YYYY-MM.jsonl` (`research/orb/short_interest_months.py` splits the dump) |
+| Reference (splits, news, IPOs, dividends, short interest, financials) | `...\store\reference\` | month files from 2016 | `financials`, `float`, `ipos`, `ticker`, `short-interest` (`research/market_reads/reference.py`); splits via `lb_io` |
+| Reference index (built from the dump on first read, rebuilt when a dump file changes) | `...\store\reference_index.sqlite3` | what the dump holds | owner `research/market_reads/reference.py` |
+| SEC XBRL facts (shares outstanding / issued / treasury, 10-K public float) | `F:\Nova\catalysts\edgar\companyfacts.zip` | XBRL era (~2009-2011 on) | `sec-shares` (`research/market_reads/sec.py`) |
+| SEC filing list (every form and date: 10-Q, 10-K, 20-F, 8-K, Forms 3/4/5, 13D/G, 424B) | `F:\Nova\catalysts\edgar\submissions.zip` | all of EDGAR | `sec-filings` |
 
-`NOVA_MARKET_DATA_DIR` moves the Massive root; `NOVA_LEADERBOARD_DIR` the boards.
+`NOVA_MARKET_DATA_DIR` moves the Massive root; `NOVA_LEADERBOARD_DIR` the boards; `NOVA_CATALYST_DIR` the SEC
+files. Heavy reads (bulk scans, index builds, MCP stock-day reads) share `NOVA_MARKET_READ_SLOTS` (default 2) slots
+across every process on the PC.
 
 ## How fast
 
@@ -90,6 +106,13 @@ be about 81 TB; Parquet about 11 TB. The index is about 0.2% of a file.
 - **News coverage** at Massive is nearly empty before 2021-04: a missing headline before then is unknown, not
   "no news".
 - **Float as of a day** is not in the files; the movers index uses SEC share counts filed by the session.
+  Massive's `float` is today's only. Insider holdings (SEC Form 3/4/5 data sets) and lockup terms are not on disk.
+- **Percent units in the movers store.** `high_pct` / `low_pct` / `close_pct` / `gap_pct` are stored as fractions
+  (0.10 = 10%); a raw `high_pct >= 10` matched only +1000% days (2026-10-18). `movers` and `scan` take and return
+  percent points.
+- **Filed, not period end.** A statement or SEC fact counts from the day it was filed: a quarter ending 03-31 is
+  unknown until its 10-Q lands in May. `--as-of` / `--day` apply that rule. Balance-sheet `common_stock` and
+  `treasury_stock` are dollars; share counts are SEC facts.
 - **Level 2** history is not here at all: Massive's stock plan is Level 1 only.
 
 ## Past-day boards in the Sim

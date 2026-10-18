@@ -261,3 +261,47 @@ and `.claude/skills/nova-sim-navigator/`. Nothing here places, stages or cancels
   it, and the answer carries its `as_of`, `filed` and `age_days`. A snapshot over the limit fails; anything
   else is unknown, never today's float.
 
+## The data front door over MCP (ADR 059, operator 2026-10-18)
+
+Operator: "a standard way MCP to allow agents to access data in standarized form with endpoints so agents are able
+to find the correct data." One library (`research/market_reads`), its command line (`tools/market_data.py`) and its
+MCP server (`tools/nova_data_mcp.py`, official SDK, stdio; registered in `.cursor/mcp.json` and `.mcp.json` as
+`nova-data`). Read-only on the data; the catalog, prose and traps are `docs/market-data.md`.
+
+- **Tools** (each answers a JSON object; a failed read is `{ok: false, error: "<Type>: <message>"}`, never a crash):
+  `data_catalog` (`{ok, datasets: [{name, source, history, as_of, units, mcp, cli}], not_here: string[]}` -- call it
+  first), `data_status`, `stock_day {kind: trades|quotes|bars, symbol, day, start?, end?, tf?, adjust?,
+  output_name?}`, `movers_search {params}` (the `/api/agent/movers` answer, at most 500 rows), `movers_scan {filters,
+  symbol?, kinds?, columns?, limit?, output_name?}` (no cap), `board {day, at, list_name, source?}`, `splits {symbol,
+  day?}` (`price_factor` with `day`), `financials {symbol, statement, as_of?, timeframe?}`, `sec_shares {symbol,
+  day?, max_age_days?}`, `sec_filings {symbol, as_of?, forms?}`, `float_latest {symbol?}`, `ipos {symbol?, date_from?,
+  date_to?}`, `ticker_details {symbol}`, `short_interest {symbol, day, at?}`.
+- **A table answer** is `{ok: true, meta, rows, columns, data, truncated, out}`: `rows` matched, `data` the first 200
+  as records, `meta` the read's attributes (its as-of rule, units, source). `output_name` (a new plain
+  `*.parquet` / `*.csv` name) writes every row under `--output-root` (default `<temp>/nova-data-mcp`) and `out` names
+  it; an existing name or a path is refused. Only `stock_day` and `movers_scan` write (`readOnlyHint: false`,
+  `destructiveHint: false`); every other tool is `readOnlyHint: true`.
+- **`sec_shares` with `day`** is `{symbol, day, cik, entity, rule, outstanding, issued, treasury, public_float_usd,
+  filer}`; each value `{value, concept, end, filed, form, age_days}` or null -- the newest fact filed on or before
+  `day` whose period `end` is on or before it. `outstanding` is the cover page's `EntityCommonStockSharesOutstanding`,
+  else the balance sheet's `CommonStockSharesOutstanding`, times `split_factor` (splits executed after `end` through
+  `day`); `max_age_days` nulls an older one. `public_float_usd` is the 10-K's `EntityPublicFloat` (dollars). `filer`
+  is `domestic` (newest annual report filed by `day` a 10-K), `foreign` (20-F / 40-F) or `unknown`.
+- **Units and as-of.** Movers percents are points in and out (the store keeps fractions). Financial statements count
+  from `filing_date`; SEC facts and filings from `filed`; FINRA short interest from `move_reason.short_interest`'s
+  publish lag. `float_latest` and `ticker_details` say `as_of: "latest_only"`: never a past day's.
+- **Reference index** (owner `research/market_reads/reference.py`): `<NOVA_MARKET_DATA_DIR>/store/
+  reference_index.sqlite3`, `PRAGMA user_version = 1` (another version refuses `UnknownIndexVersion`). `sources
+  (dataset, file, size, mtime_ns)` and `rows (dataset, ticker, cik, day, data)` -- `data` the dump's record as JSON,
+  one row per ticker a statement names, `day` the dataset's date (`filing_date`, `listing_date`, `effective_date`).
+  A dataset is rebuilt in one transaction when any source file's size or time differs from `sources`.
+- **Heavy-read slots** (`research/market_reads/slots.py`): bulk scans, index builds and `stock_day` take one of
+  `NOVA_MARKET_READ_SLOTS` (default 2) OS-locked files in `<temp>/nova-market-read-slots`; a slot dies with its
+  process; waiting past 600 s raises `Busy`.
+- **Tripwire** (`tools/data_access_hook.py`): Cursor `beforeShellExecution` (`{permission: "allow" | "deny",
+  user_message, agent_message}`) and Claude `PreToolUse` on Bash (`hookSpecificOutput.permissionDecision: "deny"`).
+  Denied: a command naming a raw store (`nova/massive`, `nova/leaderboard`, `catalysts/edgar`, `store/reference`,
+  the movers / leaderboard / reference-index SQLite files, SEC's zips, the Massive day-file folders) or running a
+  script outside the repo that names one. Passes: the front door's tools, repo code, a code search or git not pointed
+  at a data folder, and `# raw-data-ok: <reason>`. Unparseable input allows.
+

@@ -14,8 +14,14 @@ data; ``index`` writes only the seek indexes the Sim's own reader keeps (ADR 046
   board     A past day's Scanner list at a minute, as the Sim plays it back (recorded, else rebuilt).
   splits    A stock's splits, and with --day the factor that puts that day's raw prices in today's terms.
   bench     Time each read on real files.
+  catalog   Every dataset the front door serves: source, history, as-of rule, units, the call that reads it.
+  scan      Bulk movers rows for research (key=value, percents in points), no 500-row cap.
+  financials / float / ipos / ticker / short-interest   Massive's reference dump, as known on a day (ADR 059).
+  sec-shares / sec-filings   SEC's share counts and filing list, as filed by a day.
+  reference-index   Build or refresh the reference dump's index (a read does this itself when it is stale).
 
 trades / quotes / bars are raw (the files are never split-adjusted); --adjust puts them in today's terms.
+The MCP server tools/nova_data_mcp.py serves the same reads to agents.
 
 Usage (from the repo root):
 
@@ -30,6 +36,9 @@ Usage (from the repo root):
   py -3 tools/market_data.py splits GRML --day 2026-07-15
   py -3 tools/market_data.py bars GRML 2026-07-15 --tf 5m --adjust
   py -3 tools/market_data.py bench
+  py -3 tools/market_data.py scan date_from=2021-01-01 price_min=2 price_max=20 high_min=50 --out runners.parquet
+  py -3 tools/market_data.py sec-shares GURE --day 2024-03-01
+  py -3 tools/market_data.py financials GURE --statement income_statements --as-of 2024-03-01
 """
 from __future__ import annotations
 
@@ -152,6 +161,54 @@ def cmd_bench(args) -> int:
     return 0
 
 
+def cmd_catalog(args) -> int:
+    from market_reads import catalog
+    print(json.dumps({"datasets": catalog.CATALOG, "not_here": catalog.NOT_HERE}, indent=1))
+    return 0
+
+
+def cmd_scan(args) -> int:
+    from market_reads import scan
+    params = dict(pair.split("=", 1) for pair in args.params)
+    kinds = params.pop("kinds", None)
+    symbol = params.pop("symbol", None)
+    return _show(scan.movers_scan(symbol=symbol, kinds=kinds.split(",") if kinds else None, **params), args)
+
+
+def cmd_reference(args) -> int:
+    from market_reads import reference
+    if args.cmd == "financials":
+        frame = reference.financials(args.symbol, args.statement, args.as_of, args.timeframe)
+    elif args.cmd == "float":
+        frame = reference.float_latest(args.symbol)
+    elif args.cmd == "ipos":
+        frame = reference.ipos(args.symbol, args.date_from, args.date_to)
+    elif args.cmd == "ticker":
+        frame = reference.ticker_details(args.symbol)
+    else:
+        print(json.dumps(reference.short_interest(args.symbol, args.day, args.at), default=str, indent=1))
+        return 0
+    return _show(frame, args)
+
+
+def cmd_sec(args) -> int:
+    from market_reads import sec
+    if args.cmd == "sec-shares" and args.day:
+        print(json.dumps(sec.shares_as_of(args.symbol, args.day, args.max_age_days), default=str, indent=1))
+        return 0
+    if args.cmd == "sec-shares":
+        return _show(sec.facts(args.symbol), args)
+    return _show(sec.filings(args.symbol, args.as_of, args.forms.split(",") if args.forms else None), args)
+
+
+def cmd_reference_index(args) -> int:
+    from market_reads import reference
+    names = args.datasets.split(",") if args.datasets else list(reference.DATASETS)
+    for name in names:
+        print(json.dumps(reference.ensure(name)), flush=True)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -209,11 +266,52 @@ def main(argv: list[str] | None = None) -> int:
     bench = sub.add_parser("bench")
     bench.add_argument("--day")
     bench.add_argument("--symbol", default="TSLA")
+    sub.add_parser("catalog", help="every dataset: source, history, as-of rule, units, the call that reads it")
+    scan = sub.add_parser("scan", help="bulk movers rows: key=value filters, percents in points, no row cap")
+    scan.add_argument("params", nargs="*")
+    output(scan)
+    fin = sub.add_parser("financials", help="Massive statements as filed by --as-of")
+    fin.add_argument("symbol")
+    fin.add_argument("--statement", default="balance_sheets",
+                     choices=["balance_sheets", "income_statements", "cash_flow_statements"])
+    fin.add_argument("--as-of", dest="as_of", help="YYYY-MM-DD: only filings on or before it")
+    fin.add_argument("--timeframe", help="quarterly, annual, ...")
+    output(fin)
+    flt = sub.add_parser("float", help="Massive's latest free float (no history)")
+    flt.add_argument("symbol", nargs="?")
+    output(flt)
+    ipo = sub.add_parser("ipos", help="IPOs by listing date")
+    ipo.add_argument("--symbol")
+    ipo.add_argument("--from", dest="date_from")
+    ipo.add_argument("--to", dest="date_to")
+    output(ipo)
+    tick = sub.add_parser("ticker", help="ticker details as of the dump")
+    tick.add_argument("symbol")
+    output(tick)
+    short = sub.add_parser("short-interest", help="FINRA short interest as published by DAY")
+    short.add_argument("symbol")
+    short.add_argument("day")
+    short.add_argument("--at", default="09:30", help="ET HH:MM on the day")
+    shares = sub.add_parser("sec-shares", help="SEC share facts; with --day the numbers known that day")
+    shares.add_argument("symbol")
+    shares.add_argument("--day", help="YYYY-MM-DD")
+    shares.add_argument("--max-age-days", dest="max_age_days", type=int)
+    output(shares)
+    sf = sub.add_parser("sec-filings", help="SEC filings filed by --as-of")
+    sf.add_argument("symbol")
+    sf.add_argument("--as-of", dest="as_of")
+    sf.add_argument("--forms", help="comma list: 4,SC 13D,SCHEDULE 13G,424B4,8-K ...")
+    output(sf)
+    ri = sub.add_parser("reference-index", help="build or refresh the reference dump's index")
+    ri.add_argument("--datasets", help="comma list (default: all)")
 
     args = parser.parse_args(argv)
     handlers = {"status": cmd_status, "index": cmd_index, "trades": cmd_rows, "quotes": cmd_rows,
                 "bars": cmd_bars, "movers": cmd_movers, "board": cmd_board, "splits": cmd_splits,
-                "bench": cmd_bench}
+                "bench": cmd_bench, "catalog": cmd_catalog, "scan": cmd_scan, "financials": cmd_reference,
+                "float": cmd_reference, "ipos": cmd_reference, "ticker": cmd_reference,
+                "short-interest": cmd_reference, "sec-shares": cmd_sec, "sec-filings": cmd_sec,
+                "reference-index": cmd_reference_index}
     return handlers[args.cmd](args)
 
 

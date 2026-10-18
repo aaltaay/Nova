@@ -1,6 +1,6 @@
 ---
 name: nova-market-data
-description: "Use when a task needs past market data -- a stock's trades, NBBO quotes or bars on a past day (2016 on), seconds-scale moves, spreads, the day movers index, or a past day's Gainers / Losers / Gappers / After Hours board -- or asks how fast or how complete that data is. Reads the operator's Massive files and Nova's stores through tools/market_data.py; never write a new reader for them."
+description: "Use when a task needs past market data -- a stock's trades, NBBO quotes or bars on a past day (2016 on), seconds-scale moves, spreads, the day movers index, a past day's Gainers / Losers / Gappers / After Hours board, financial statements, float, shares outstanding, SEC filings, IPOs or short interest -- or asks how fast or how complete that data is. Reads the operator's Massive files, Nova's stores, Massive's reference dump and SEC's bulk files through the nova-data MCP tools or tools/market_data.py; never write a new reader for them."
 ---
 
 # Nova market data
@@ -17,7 +17,19 @@ py -3 tools/market_data.py movers high_min=100 price_max=20 date_from=2021-01-01
 py -3 tools/market_data.py board YYYY-MM-DD --at 09:45 --list gainers|losers|gappers|afterhours
 py -3 tools/market_data.py splits SYMBOL --day YYYY-MM-DD    # splits, and the factor for that day's raw prices
 py -3 tools/market_data.py bench
+py -3 tools/market_data.py catalog                          # every dataset: history, as-of rule, units
+py -3 tools/market_data.py scan price_min=2 price_max=20 high_min=50 date_from=2021-01-01 --out r.parquet
+py -3 tools/market_data.py sec-shares SYMBOL --day YYYY-MM-DD   # shares outstanding / issued / treasury filed by then
+py -3 tools/market_data.py sec-filings SYMBOL --as-of YYYY-MM-DD --forms "4,SC 13D,424B4"
+py -3 tools/market_data.py financials SYMBOL --statement balance_sheets|income_statements --as-of YYYY-MM-DD
+py -3 tools/market_data.py float SYMBOL | ipos --symbol SYMBOL | ticker SYMBOL | short-interest SYMBOL YYYY-MM-DD
 ```
+
+The same reads are MCP tools on the `nova-data` server (ADR 059; `.cursor/mcp.json`, `.mcp.json`): call
+`data_catalog` first, then `stock_day`, `movers_search` / `movers_scan`, `board`, `splits`, `financials`,
+`sec_shares`, `sec_filings`, `float_latest`, `ipos`, `ticker_details`, `short_interest`. Percents are points in and
+out (the movers store keeps fractions); `--as-of` / `day` count a statement or SEC fact from the day it was filed.
+A hook blocks reading the raw stores any other way.
 
 trades / quotes / bars are raw (never split-adjusted); add `--adjust` for today's terms, or in Python
 `from market_reads import splits` -- `splits.table / factor / adjust`.
