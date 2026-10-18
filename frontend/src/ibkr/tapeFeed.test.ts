@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   appendTapePrint,
+  applyTapeSilentRecoveryFrame,
   emptyTapeState,
   flushPendingTapePrints,
   parseTapeSilence,
@@ -158,5 +159,31 @@ describe('parseTapeSilence (#722)', () => {
         recovery: { state: 'unknown', since: 100, text: 'bad' },
       }),
     ).toEqual({ state: 'dead', since: 100, text: 'Down.', pipeline: [] });
+  });
+
+  it('applies a silent_recovery frame even before the first silence ping (#722)', () => {
+    expect(
+      applyTapeSilentRecoveryFrame(
+        null,
+        {
+          silent_recovery: 'holding',
+          silence_since: 1791984311,
+          message: 'Holding the original tape line while the shared tape is stalled.',
+        },
+        1791984320,
+      ),
+    ).toEqual({
+      state: 'dead',
+      since: 1791984311,
+      text: 'Holding the original tape line while the shared tape is stalled.',
+      pipeline: [],
+      recovery: {
+        state: 'holding',
+        since: 1791984311,
+        askedAt: null,
+        text: 'Holding the original tape line while the shared tape is stalled.',
+      },
+    });
+    expect(applyTapeSilentRecoveryFrame(null, { silent_recovery: 'invalid', message: 'err' }, 100)).toBeNull();
   });
 });

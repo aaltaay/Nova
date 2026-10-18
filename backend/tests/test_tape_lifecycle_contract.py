@@ -121,6 +121,15 @@ def test_registered_missing_trades_and_late_old_prints_never_imply_recovery(sdk,
         assert tape_silence.missed_trades(target)["since"] == reading["since"]
         assert tape_silence.reading(target)["state"] == "dead"
         assert tape_silence.reading(target)["since"] == reading["since"]
+        expected_peers = ["VEEA"] if target == "SCNI" else []
+        assert tape_silence.pipeline_peers(target) == expected_peers
+        queued = []
+        while not queue1.empty():
+            queued.append(queue1.get_nowait())
+        assert any(
+            f.get("silent_recovery") == "attempting" and f.get("silence_since") == reading["since"]
+            for f in queued
+        )
 
         clock["now"] += 16                             # the real same-instrument guard, on the fixture clock
         await _until(lambda: len(requests) == 4)
@@ -133,6 +142,7 @@ def test_registered_missing_trades_and_late_old_prints_never_imply_recovery(sdk,
         assert tape_silence.missed_trades(target)["since"] == reading["since"]
         assert tape_silence.reading(target)["state"] == "dead"
         assert tape_silence.reading(target)["since"] == reading["since"]
+        assert tape_silence.pipeline_peers(target) == expected_peers
         _print(ib, old_req)                             # a late cancelled-id print cannot confirm the new line
         assert tape_recording.producer_status(target)["last_print_ts"] is None
         clock["now"] += 31

@@ -186,6 +186,8 @@ async def _send_batch(websocket: WebSocket, symbol: str, batch: list[dict]) -> b
             }
             if item.get("silent_recovery") is not None:
                 frame["silent_recovery"] = item.get("silent_recovery")
+            if item.get("silence_since") is not None:
+                frame["silence_since"] = item.get("silence_since")
             await websocket.send_text(json.dumps(frame))
             if item.get("released"):
                 await websocket.close()

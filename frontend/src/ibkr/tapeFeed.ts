@@ -106,6 +106,54 @@ export function parseTapeSilence(raw: unknown): TapeSilence | null {
   };
 }
 
+/**
+ * Apply a non-fatal registered-silent recovery frame (#722) to the hook's current silence state.
+ * Works even when a viewer socket receives the broadcast recovery frame before its first silence ping.
+ */
+export function applyTapeSilentRecoveryFrame(
+  current: TapeSilence | null,
+  msg: Record<string, unknown>,
+  nowSec: number = Math.floor(Date.now() / 1000),
+): TapeSilence | null {
+  const state = msg.silent_recovery;
+  if (typeof state !== 'string' || !SILENCE_RECOVERY_STATES.has(state as TapeSilenceRecoveryState)) {
+    return null;
+  }
+  const recText = typeof msg.message === 'string' ? msg.message : '';
+  if (current != null) {
+    const baseText =
+      current.recovery?.text && current.text.endsWith(` ${current.recovery.text}`)
+        ? current.text.slice(0, -(current.recovery.text.length + 1))
+        : current.text;
+    return {
+      ...current,
+      text: recText && !baseText.endsWith(recText) ? `${baseText} ${recText}` : baseText,
+      recovery: {
+        state: state as TapeSilenceRecoveryState,
+        since: current.since,
+        askedAt: current.recovery?.askedAt ?? null,
+        text: recText,
+      },
+    };
+  }
+  const since =
+    typeof msg.silence_since === 'number' && Number.isFinite(msg.silence_since) && msg.silence_since > 0
+      ? msg.silence_since
+      : nowSec;
+  return {
+    state: 'dead',
+    since,
+    text: recText,
+    pipeline: [],
+    recovery: {
+      state: state as TapeSilenceRecoveryState,
+      since,
+      askedAt: null,
+      text: recText,
+    },
+  };
+}
+
 export interface TapeState {
   prints: TapePrint[];
   connected: boolean;

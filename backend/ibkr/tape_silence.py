@@ -186,6 +186,23 @@ def read(
     }
 
 
+def _effective_producer(sym: str) -> tuple[bool, dict[str, Any]]:
+    """Current subscription flag and producer status, overlaying ``tape_heal.unverified_reask``
+    while a silence-driven re-ask is in its 15 s guard or waiting for a print to verify return."""
+    from ibkr import tape_stream
+    from ibkr.tape_recording import producer_status
+
+    subscribed = tape_stream.is_subscribed(sym)
+    producer = producer_status(sym)
+    if not subscribed or producer.get("last_print_ts") is None:
+        from line_lending import tape_heal
+
+        reask = tape_heal.unverified_reask(sym)
+        if reask is not None:
+            return True, reask
+    return subscribed, producer
+
+
 def missed_trades(symbol: str, *, now: float | None = None) -> dict[str, Any] | None:
     """The symbol's AllLast line is missing trades right now, or None (ADR 045 amendment 2026-10-14).
 
@@ -194,23 +211,14 @@ def missed_trades(symbol: str, *, now: float | None = None) -> dict[str, Any] | 
     for TAPE_SILENT_SEC. ``{since, last_print_ts, l1_trade_ts, text}``. None with no line on this IBKR
     session (no tape to judge), while the symbol is halted, or while the tape keeps up. Memory only.
     """
-    from ibkr import halt_status, tape_stream
-    from ibkr.tape_recording import producer_status
+    from ibkr import halt_status
 
     sym = (symbol or "").strip().upper()
     if not sym:
         return None
-    subscribed = tape_stream.is_subscribed(sym)
-    producer = producer_status(sym)
-    reask = None
-    if not subscribed or producer.get("last_print_ts") is None:
-        from line_lending import tape_heal
-
-        reask = tape_heal.unverified_reask(sym)
-    if not subscribed and reask is None:
+    subscribed, producer = _effective_producer(sym)
+    if not subscribed:
         return None
-    if reask is not None:
-        producer = reask
     last = _num(producer.get("last_print_ts"))
     opened = _num(producer.get("line_since"))
     trade = l1_trade_at(sym)
@@ -256,10 +264,9 @@ def pipeline_peers(symbol: str, *, now: float | None = None) -> list[str]:
     A line that never printed: those already silent when it opened that miss trades by their own Level 1.
     """
     from ibkr import halt_status, tape_stream
-    from ibkr.tape_recording import producer_status
 
     sym = (symbol or "").strip().upper()
-    producer = producer_status(sym)
+    _, producer = _effective_producer(sym)
     mine = _num(producer.get("last_print_ts"))
     opened = _num(producer.get("line_since"))
     if mine is None and opened is None:
@@ -268,7 +275,7 @@ def pipeline_peers(symbol: str, *, now: float | None = None) -> list[str]:
     for other in tape_stream.live_symbols():
         if other == sym:
             continue
-        status = producer_status(other)
+        _, status = _effective_producer(other)
         theirs = _num(status.get("last_print_ts"))
         if mine is not None:
             if theirs is not None and abs(theirs - mine) <= TAPE_PIPELINE_SAME_SEC:
@@ -302,26 +309,10 @@ def reading(symbol: str, *, now: float | None = None, halt_seen_at: float | None
     from constants_ibkr import IBKR_NOTICE_NEAR_SILENCE_SEC
     from ibkr import farm_notices, halt_status, history_answers, ticks
     from ibkr.depth import state as depth_state
-    from ibkr.tape_recording import producer_status
 
     sym = (symbol or "").strip().upper()
     ts = time.time() if now is None else float(now)
-    producer = producer_status(sym)
-    if producer.get("last_print_ts") is None:
-        from line_lending import tape_heal
-
-        reask = tape_heal.unverified_reask(sym)
-        if reask is not None:
-            producer = reask
-    else:
-        from ibkr import tape_stream
-
-        if not tape_stream.is_subscribed(sym):
-            from line_lending import tape_heal
-
-            reask = tape_heal.unverified_reask(sym)
-            if reask is not None:
-                producer = reask
+    _, producer = _effective_producer(sym)
     facts = {
         "now": ts,
         "last_print_ts": producer.get("last_print_ts"),

@@ -342,6 +342,64 @@ describe('useIbkrTape lifecycle', () => {
     });
   });
 
+  it('treats an early silent_recovery frame before the first silence ping as nonfatal and keeps print rows visible (#722)', () => {
+    renderSymbol('GENK');
+    const ws = FakeWebSocket.instances[0];
+    const send = (frame: object) => act(() => ws.onmessage?.({ data: JSON.stringify(frame) }));
+    send({ type: 'subscribed', symbol: 'GENK' });
+    send({ type: 'print', symbol: 'GENK', time: '2026-10-14T13:25:11.000Z', price: 2.83, size: 200 });
+    flushTapeFrame();
+    expect(latest?.prints).toHaveLength(1);
+
+    // Another viewer's heartbeat started silent recovery first; this viewer gets the broadcast
+    // recovery frame before its own next ping has populated silenceRef.
+    send({
+      type: 'error',
+      symbol: 'GENK',
+      message: 'Holding the original tape line while the shared tape is stalled.',
+      retry_at: null,
+      silent_recovery: 'holding',
+      silence_since: 1791984311,
+    });
+    expect(latest?.connected).toBe(true);
+    expect(latest?.error).toBeNull();
+    expect(latest?.prints).toHaveLength(1);
+    expect(latest?.silence).toEqual({
+      state: 'dead',
+      since: 1791984311,
+      text: 'Holding the original tape line while the shared tape is stalled.',
+      pipeline: [],
+      recovery: {
+        state: 'holding',
+        since: 1791984311,
+        askedAt: null,
+        text: 'Holding the original tape line while the shared tape is stalled.',
+      },
+    });
+
+    // When this viewer's own ping arrives next, the full reading and pipeline replace the seed cleanly.
+    send({
+      type: 'ping',
+      symbol: 'GENK',
+      silence: {
+        schema_version: 3,
+        state: 'dead',
+        since: 1791984311,
+        text: "No prints since 09:25:11 ET while Level 1 shows trades up to 09:25:21 ET: IBKR's tape line is down, not quiet. Holding the original tape line while the shared tape is stalled.",
+        pipeline: ['BEZ'],
+        recovery: {
+          state: 'holding',
+          since: 1791984311,
+          asked_at: null,
+          text: 'Holding the original tape line while the shared tape is stalled.',
+        },
+      },
+    });
+    expect(latest?.connected).toBe(true);
+    expect(latest?.error).toBeNull();
+    expect(latest?.silence?.pipeline).toEqual(['BEZ']);
+  });
+
   it("keys the 10-second candle by IBKR's own second, as IBKR's history does (#721)", () => {
     renderSymbol('VEEA');
     const ws = FakeWebSocket.instances[0];

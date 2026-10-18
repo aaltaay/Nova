@@ -1,5 +1,7 @@
 """A Time & Sales socket never sits on a dead line: IBKR's refusal is answered, not shown forever (#698).
 
+maintainer: one-concern one Time & Sales recovery task and outage anchor per symbol
+
 2026-10-02 07:54 ET: IBKR refused AMOD's AllLast line with 10190, its tick-by-tick cap, while three
 recordings and a resume that never gave its line back held the lines. The socket stayed open on a
 dead line and said so, and nothing asked again until the operator switched tabs at 07:55:50.
@@ -133,7 +135,7 @@ def _silent_say(sym: str, row: dict, state: str, text: str, *, retry_at: float |
 
         tape_stream._push_queue(sym, {"type": "subscribed", "symbol": sym})
     else:
-        _say(sym, text, retry_at, silent_recovery=state)
+        _say(sym, text, retry_at, silent_recovery=state, silence_since=row.get("since"))
 
 
 def _start_silent(sym: str, silence: dict, loop: asyncio.AbstractEventLoop) -> None:
@@ -316,13 +318,16 @@ async def _make_room(sym: str) -> str | None:
     return f"auto-record gave back {victim}'s recording line" if victim else None
 
 
-def _say(sym: str, message: str, retry_at: float | None, *, silent_recovery: str | None = None) -> None:
+def _say(sym: str, message: str, retry_at: float | None, *,
+         silent_recovery: str | None = None, silence_since: float | None = None) -> None:
     from ibkr import tape_stream
 
     frame = {"type": "error", "symbol": sym, "message": message,
              "retry_at": retry_at, "healing": True}
     if silent_recovery is not None:
         frame["silent_recovery"] = silent_recovery
+    if silence_since is not None:
+        frame["silence_since"] = silence_since
     tape_stream._push_queue(sym, frame)
 
 

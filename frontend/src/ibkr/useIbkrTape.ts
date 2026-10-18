@@ -8,6 +8,7 @@ import { createRafCoalesce } from '../utils/rafCoalesce';
 import { documentVisible, LentLine } from './lentLine';
 import {
   appendTapePrint,
+  applyTapeSilentRecoveryFrame,
   emptyTapeState,
   parseTapeSilence,
   tapeMessageAllowed,
@@ -177,7 +178,9 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
             return;
           }
 
-          if (msg.type !== 'ping' && !(msg.type === 'error' && typeof msg.silent_recovery === 'string')) {
+          const silentRecovery =
+            msg.type === 'error' ? applyTapeSilentRecoveryFrame(silenceRef.current, msg) : null;
+          if (msg.type !== 'ping' && silentRecovery == null) {
             silenceRef.current = null;  // a print, or any non-silence word on the line, ends a silence
           }
 
@@ -260,23 +263,13 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
             if (uiActiveRef.current) commitUi();
           } else if (msg.type === 'error') {
             const retryAt = typeof msg.retry_at === 'number' && Number.isFinite(msg.retry_at) ? msg.retry_at : null;
-            if (typeof msg.silent_recovery === 'string' && silenceRef.current != null) {
-              // Registered-silent recovery (#722): keep existing prints and LINE DOWN badge visible.
-              const recText = typeof msg.message === 'string' ? msg.message : '';
-              const cur = silenceRef.current;
-              const baseText = cur.recovery?.text && cur.text.endsWith(` ${cur.recovery.text}`)
-                ? cur.text.slice(0, -(cur.recovery.text.length + 1))
-                : cur.text;
-              silenceRef.current = {
-                ...cur,
-                text: recText && !baseText.endsWith(recText) ? `${baseText} ${recText}` : baseText,
-                recovery: {
-                  state: msg.silent_recovery as NonNullable<TapeSilence['recovery']>['state'],
-                  since: cur.since,
-                  askedAt: cur.recovery?.askedAt ?? null,
-                  text: recText,
-                },
-              };
+            if (silentRecovery != null) {
+              // Registered-silent recovery (#722): keep existing prints and LINE DOWN badge visible,
+              // even on a viewer that receives the broadcast before its own first silence ping.
+              if (!connectedRef.current && errorRef.current == null) {
+                connectedRef.current = true;
+              }
+              silenceRef.current = silentRecovery;
               retryAtRef.current = retryAt;
               if (uiActiveRef.current) commitUi();
               return;
