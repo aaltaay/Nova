@@ -476,12 +476,18 @@
   min-width: 0;
 }
 
+/* The label gives way, never the figure: in a 320 px rail "Rel vol (Alpaca avg)"
+   wraps to two lines rather than ellipsizing 4.21 to "4.…" (#459). */
 .stock-view-page .sv-quote-card__grid .cq-label {
   font-size: 0.52rem;
-  flex-shrink: 0;
+  flex: 0 1 auto;
+  min-width: min-content;
+  text-wrap: balance;
 }
 
 .stock-view-page .sv-quote-card__grid .cq-value {
+  flex-shrink: 0;
+  max-width: 100%;
   font-size: 0.64rem;
   text-align: right;
   overflow: hidden;

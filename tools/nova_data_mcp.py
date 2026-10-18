@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import io
 import json
 import re
 import sys
@@ -32,7 +33,32 @@ import nova_data_research as research  # noqa: E402  (the second tool set: stock
 INLINE_ROWS = 200
 OUTPUT_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,100}\.(parquet|csv)$")
 DEFAULT_OUTPUT = Path(tempfile.gettempdir()) / "nova-data-mcp"
-_ONE_AT_A_TIME = threading.Lock()   # stdout is the protocol: a read that prints is sent to stderr, one call at a time
+# Light reads run beside anything: no index build, no file written, no first-use DuckDB open (#1067). Every other tool
+# is heavy: one at a time per process here, and the PC-wide heavy-read slots bound them across processes.
+LIGHT_TOOLS = frozenset({"catalog", "symbols", "halts", "catalysts", "sec_filings"})
+_HEAVY_ONE_AT_A_TIME = threading.Lock()
+
+
+class PrintsToStderr(io.TextIOBase):
+    """``sys.stdout`` while tools run: every print goes to stderr from any thread, and ``buffer`` stays the real
+    stdout, which the stdio transport captured when it started and writes the protocol to. Installed once, so calls
+    that overlap never swap ``sys.stdout`` under each other."""
+
+    def __init__(self, real):
+        self._real = real
+
+    @property
+    def buffer(self):
+        return self._real.buffer
+
+    def writable(self) -> bool:
+        return True
+
+    def write(self, text: str) -> int:
+        return sys.stderr.write(text)
+
+    def flush(self) -> None:
+        sys.stderr.flush()
 
 
 def _json_safe(value: Any) -> Any:
@@ -156,8 +182,12 @@ class DataService(research.ResearchTools):
 
 
 def call(fn, *args, **kwargs) -> dict[str, Any]:
-    """Run one tool body: its prints go to stderr (stdout carries the protocol) and an error is an answer."""
-    with _ONE_AT_A_TIME, contextlib.redirect_stdout(sys.stderr):
+    """Run one tool body: its prints go to stderr (stdout carries the protocol) and an error is an answer. A heavy
+    body waits for the process's heavy lock; a light one (``LIGHT_TOOLS``) does not."""
+    if not isinstance(sys.stdout, PrintsToStderr):
+        sys.stdout = PrintsToStderr(sys.stdout)
+    light = getattr(fn, "__name__", "") in LIGHT_TOOLS
+    with contextlib.nullcontext() if light else _HEAVY_ONE_AT_A_TIME:
         try:
             return fn(*args, **kwargs)
         except Exception as exc:  # maintainer: allow-swallow a failed read is returned to the agent as its answer

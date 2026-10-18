@@ -10,7 +10,7 @@ Sim playback of a rebuilt day then shows its halts, and research can ask "halted
 the entry?" (T1 news pending, T2 news released, LUDP a LULD pause, ...). Nothing is inferred from
 quiet tape; a day Nasdaq lists no halt for simply has none.
 
-Usage:  py -3 research/catalysts/backfill_halts.py [--download] [--load]
+Usage:  py -3 research/catalysts/backfill_halts.py [--download] [--load [--dry-run]]
 """
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ import argparse
 import time
 import urllib.request
 from collections import Counter
+from contextlib import closing
 from datetime import date
 
 import duckdb
@@ -62,7 +63,14 @@ def download() -> None:
     print(f"download: {got} new pages; {len(list(RAW.glob('*.xml')))} on disk", flush=True)
 
 
-def load() -> None:
+def _new_by_event(db, rows: list[dict]) -> Counter:
+    have = set(db.execute("SELECT symbol, source, event, ts FROM halt_events WHERE source = ?",
+                          [LEADERBOARD_HALT_SOURCE_NASDAQ]).fetchall())
+    keys = {(r["symbol"], r["source"], r["event"], r["ts"]) for r in rows}
+    return Counter(k[2] for k in keys - have)
+
+
+def load(dry_run: bool = False) -> None:
     rows, codes, bad = [], Counter(), 0
     for path in sorted(RAW.glob("*.xml")):
         parsed = parse_trade_halt_rss(path.read_bytes())
@@ -83,6 +91,15 @@ def load() -> None:
                                   source=LEADERBOARD_HALT_SOURCE_NASDAQ, halt_kind=h.reason_code, code=h.reason_code,
                                   recorded_ts=recorded))
     rows = [r for r in rows if r is not None]
+    if dry_run:
+        db = lb_store.read_only()
+        if db is None:
+            raise SystemExit(f"{lb_store.path()} is not on disk: nothing to compare against")
+        with closing(db):
+            new = _new_by_event(db, rows)
+        print(f"load --dry-run: {len(rows)} events offered, {sum(new.values())} would be new "
+              f"({dict(new)}); {bad} unreadable pages; nothing written", flush=True)
+        return
     with lb_store.connect() as db:
         before = db.execute("SELECT count(*) FROM halt_events WHERE source = ?", [LEADERBOARD_HALT_SOURCE_NASDAQ]).fetchone()[0]
         lb_store.write_batch(db, halts=rows)
@@ -95,11 +112,12 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--download", action="store_true")
     ap.add_argument("--load", action="store_true")
+    ap.add_argument("--dry-run", action="store_true", help="with --load: count the new halt_events rows, write none")
     a = ap.parse_args()
     if a.download or not a.load:
         download()
     if a.load or not a.download:
-        load()
+        load(dry_run=a.dry_run)
     return 0
 
 

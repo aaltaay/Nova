@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:ndaq="http://www.nasdaqtrader.com/">
+  <channel>
+    <title>NASDAQTrader.com</title>
+    <link>http://www.nasdaqtrader.com</link>
+    <description>NASDAQ Trade Halts</description>
+    <copyright>Copyright 2026. All rights reserved.</copyright>
+    <pubDate>Wed, 23 Sep 2026 04:10:24 GMT</pubDate>
+    <ttl>1</ttl>
+    <ndaq:numItems>1</ndaq:numItems>
+    <item>
+      <title>ROKU</title>
+      <pubDate>Mon, 15 Jun 2026 04:00:00 GMT</pubDate>
+      <ndaq:IssueSymbol>ROKU</ndaq:IssueSymbol>
+      <ndaq:IssueName>Roku, Inc. Class A Common Stk</ndaq:IssueName>
+      <ndaq:Mkt>Q</ndaq:Mkt>
+      <ndaq:ReasonCode>T3</ndaq:ReasonCode>
+      <ndaq:PauseThresholdPrice />
+      <ndaq:HaltDate>06/15/2026</ndaq:HaltDate>
+      <ndaq:HaltTime>06:55:00                      .000</ndaq:HaltTime>
+      <ndaq:ResumptionDate>06/15/2026</ndaq:ResumptionDate>
+      <ndaq:ResumptionQuoteTime>07:25:00</ndaq:ResumptionQuoteTime>
+      <ndaq:ResumptionTradeTime>07:30:00</ndaq:ResumptionTradeTime>
+      <description><![CDATA[<table width="100%" cellpadding="5"><tr><th align="left">Issue Symbol</th><th align="left">Issue Name</th><th align="left">Mkt</th><th align="left">Reason Code</th><th align="left">Pause Threshold Price</th><th align="left">Halt Date</th><th align="left">Halt Time</th><th align="left">Resumption Date</th><th align="left">Resumption Quote Time</th><th align="left">Resumption Trade Time</th></tr><tr><td valign="top">ROKU</td><td valign="top">Roku, Inc. Class A Common Stk</td><td valign="top">Q</td><td valign="top">T3</td><td valign="top"></td><td valign="top">06/15/2026                    </td><td valign="top">06:55:00                      .000</td><td valign="top">06/15/2026                    </td><td valign="top">07:25:00                      </td><td valign="top">07:30:00                      </td></tr></table>]]></description>
+    </item>
+  </channel>
+</rss>

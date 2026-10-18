@@ -21,6 +21,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from research.bb_mr.config import BB_DB_PATH, DATA_ROOT, ORB_DB_PATH, REF_DIR, RESULTS_DIR
+from research.bb_mr.signal_5m import ensure_sig_5m
 
 
 def _existing_tables(con: duckdb.DuckDBPyConnection) -> set[str]:
@@ -203,33 +204,8 @@ def build_store(rebuild: bool = False) -> dict:
     WHERE s.volume > 0 AND ss.ticker IS NULL;
     """)
 
-    # Filter sig_5m_ext and sig_5m_rth to symbol-days where a signal actually occurs while in meta_univ_a or ub_scanner_top20
-    for tbl_name in ("sig_5m_ext", "sig_5m_rth"):
-        if tbl_name in have:
-            t_f = time.time()
-            con.execute(f"""
-            CREATE OR REPLACE TABLE {tbl_name}_filtered AS
-            WITH active_sig_days AS (
-                SELECT DISTINCT w.ticker, w.d
-                FROM {tbl_name} w
-                LEFT JOIN meta_univ_a ua ON ua.ticker = w.ticker AND ua.d = w.d
-                LEFT JOIN ub_scanner_top20 ub ON ub.ticker = w.ticker AND ub.d = w.d AND ub.close_min = w.close_min
-                WHERE (ua.ticker IS NOT NULL OR ub.ticker IS NOT NULL)
-                  AND (
-                       (w.n20 = 20 AND w.low <= w.sma20 - 2.0 * w.std20 AND w.close > w.sma20 - 2.5 * w.std20)
-                    OR (w.n50 = 50 AND w.low <= w.sma50 - 2.0 * w.std50 AND w.close > w.sma50 - 2.5 * w.std50)
-                    OR (w.n100 = 100 AND w.low <= w.sma100 - 2.0 * w.std100 AND w.close > w.sma100 - 2.5 * w.std100)
-                    OR (w.n200 = 200 AND w.low <= w.sma200 - 2.0 * w.std200 AND w.close > w.sma200 - 2.5 * w.std200)
-                  )
-            )
-            SELECT w.* FROM {tbl_name} w
-            JOIN active_sig_days asd ON asd.ticker = w.ticker AND asd.d = w.d
-            ORDER BY w.ticker, w.d, w.close_min;
-            DROP TABLE {tbl_name};
-            ALTER TABLE {tbl_name}_filtered RENAME TO {tbl_name};
-            """)
-            cnt = con.execute(f"SELECT count(*), count(DISTINCT (ticker, d)) FROM {tbl_name}").fetchone()
-            print(f"   compacted {tbl_name}: {cnt[0]:,} rows across {cnt[1]:,} active signaling symbol-days ({time.time() - t_f:.1f}s)", flush=True)
+    # Build or compact sig_5m_ext and sig_5m_rth to symbol-days where a signal occurs in Universe A or B
+    ensure_sig_5m(con, have)
 
     # Build sig_1m_ext (for 1m grid on 06:00-11:00 ET) restricted to target_symbol_days and open_min < 660
     if "sig_1m_ext" not in have:
