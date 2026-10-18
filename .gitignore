@@ -126,3 +126,7 @@ backend/sim/data/
 
 # Generated research outputs are local-only.
 /graphify-out/
+
+# Isolated offline chart renderer caches/outputs; no research data is committed.
+frontend/.vite-chart-gateway-cache/
+frontend/dist-chart-gateway/

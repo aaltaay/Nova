@@ -82,12 +82,20 @@ jobs:
         if: ${{ !cancelled() && needs.changes.outputs.backend == 'true' && steps.install.outcome == 'success' }}
         run: ruff check backend
 
+      - name: Install optional chart test dependencies
+        if: ${{ !cancelled() && needs.changes.outputs.backend == 'true' && steps.install.outcome == 'success' }}
+        run: pip install -r tools/requirements-chart-tests.txt
+
       - name: Run tests
         # Runs after a Ruff failure too, so a lint finding never hides the test
         # results: five findings once skipped pytest on every backend PR (#603).
         # The job still fails on lint; each step shows its own result.
         if: ${{ !cancelled() && needs.changes.outputs.backend == 'true' && steps.install.outcome == 'success' }}
         run: pytest backend/ -x -q --tb=short
+
+      - name: Generated historical chart contracts
+        if: ${{ !cancelled() && needs.changes.outputs.backend == 'true' && steps.install.outcome == 'success' }}
+        run: pytest tools/test_nova_chart_runner.py tools/test_nova_chart_processes.py tools/test_nova_historical_charts.py tools/test_nova_chart_mcp.py -x -q --tb=short
 
   frontend-build:
     name: Frontend build

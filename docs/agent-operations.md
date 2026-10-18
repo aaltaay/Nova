@@ -2,6 +2,33 @@
 
 How Nova's custom Cursor agents are installed, validated, and kept in sync.
 
+## One route for historical chart exports
+
+For a chart already loaded in Nova, use the existing Snapshot menu:
+right-click [data-testid="ticker-chart-1Min"] .chart-body, then select
+[data-testid="chart-context-menu-snapshot"] and collect the PNG download; repeat
+for 5Min. This uses Nova's native snapshot implementation. Choose only Snapshot;
+the context menu also contains order actions.
+
+For an exact historical symbol/day in an existing local minute-Parquet directory:
+
+~~~text
+py -3 tools/nova_historical_charts.py export --symbol SYMBOL --date YYYY-MM-DD --massive-root "<MINUTE_ROOT>" --gateway-root "<NOVA_CHECKOUT>" --output "<NEW_OUTPUT>" --samples 0
+~~~
+
+For an already frozen generic selection, use tools/nova_charts.py export with its
+selection path, recorded SHA256 and new output directory. Full usage:
+[Historical OHLCV chart export](NOVA_CHART_EXPORT.md). The owning schemas are
+[agent-desk.md](../architecture/schema/agent-desk.md) and
+[local-historical-charts.md](../architecture/schema/local-historical-charts.md).
+
+Both routes use Nova's existing renderer and isolated read-only services. They do
+not discover/fetch data, change the desk or use broker/simulation actions. Preserve
+units/gaps and inspect EXPORT_RECEIPT.json for hashes, timing and owned-process
+cleanup. Without as_of_m show the full observed session; otherwise shade later
+and crossing candles amber. The optional MCP server uses this same generic
+interface; configuring a client and granting each action remain separate.
+
 ## Design principles
 
 1. **Only real agent prompts** live in `.cursor/agents/`. Memory files live in `.cursor/agent-memory/`.

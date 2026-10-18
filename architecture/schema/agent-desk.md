@@ -1,5 +1,132 @@
 # Data schema: Agent desk and the day movers index
 
+## Optional historical chart MCP adapter (2026-10-18)
+
+`tools/nova_chart_mcp.py` is an optional external stdio adapter using the official
+Python MCP SDK, pinned separately in `tools/requirements-chart-mcp.txt`. The SDK
+owns protocol parsing, discovery and transport. No MCP listener is added to the
+trading application. Missing SDK fails before starting transport; nothing installs
+dependencies or edits client configuration automatically.
+
+The sole tool `nova_historical_chart(symbol, date, output_name, samples=0)` requests
+one exact historical symbol/day. `symbol` is an ASCII resolver token, `date` is a
+valid ISO calendar date, `output_name` is a single new child directory name, and
+`samples` is a strict integer 0..50. Tool inputs supply no root, command, URL or
+environment variable. Trusted launch arguments supply the resolver and gateway
+checkouts, local minute root, existing dedicated output root and optional export
+Python executable. Local roots reject network drives, traversal and every reparse
+component; the explicit Windows App Execution Alias exception applies only to the
+trusted executable token, never data/output roots.
+
+The adapter launches only `tools/nova_historical_charts.py export` from the trusted
+resolver checkout, forwarding trusted roots. The resolver owns local schema and
+coverage validation and delegates to the native renderer. One request runs at a
+time within 240 seconds, with the gateway's owned-process helper. Timeout,
+cancellation or unverified cleanup cannot return success. Logs never enter MCP
+stdout and errors use fixed codes. No live history, desk/Sim command, broker call,
+automatic retry or second renderer is exposed.
+
+Success returns bounded structured PNG paths/SHA256 and receipt identity confined
+to the new output directory, with zero active owned processes verified. The SDK
+result also includes exactly one inline PNG: the unique verified paired 1m/5m
+detail artifact. Before encoding, re-read at most 2MiB plus one byte and recheck its
+PNG signature and manifest hash. Missing/ambiguous, oversized or changed inline
+artifacts return a fixed error with no image; verified export metadata is retained
+for local diagnosis. This adds no arbitrary image/file reader or resource endpoint.
+Original
+input paths/provenance stay in local receipts, not the MCP response. Failed output
+is preserved. There is no arbitrary file/resource reader, persistent host
+registration or permission grant. Each client and its exact roots/capability need
+explicit operator approval. See [NOVA_CHART_MCP.md](../../docs/NOVA_CHART_MCP.md).
+
+## Historical OHLCV chart gateway (operator, 2026-10-18)
+
+Agents export historical OHLCV through Nova's existing candle, volume and snapshot
+renderer. The gateway accepts immutable local inputs and generic annotations; it
+does not discover instruments, obtain market data, evaluate strategies or execute trades.
+The command and receipt contract are in [NOVA_CHART_EXPORT.md](../../docs/NOVA_CHART_EXPORT.md).
+
+### Frozen selection and projections
+
+Selection:
+{schema_version:1, kind:"historical_ohlcv", family, selected:[{day,ticker,as_of_m?,annotations,bar_projection:{path,sha256}}]}.
+
+- family is a caller-supplied label. selected contains 1..9 entries, unique by
+  (day,ticker,as_of_m) and ordered by that identity; a ticker may appear on different
+  dates or with different as-of boundaries.
+- day is an ISO calendar date; ticker is an exact nonempty identifier.
+- as_of_m is optional: an integer 0..1440, never a boolean, denoting an ET minute
+  boundary. Omit it to view the full observed session without a future-context mask.
+- annotations is a required array of 0..32 allowlisted objects. Unknown kinds or
+  fields fail validation. Labels are nonempty text of 1..80 characters. Optional
+  color is one of blue, gold, grey, green, red; omitted means blue.
+  Colors map to fixed renderer values, never arbitrary CSS.
+  - {kind:"horizontal_line",price,label,color?}: finite positive price.
+  - {kind:"time_marker",minute,label,color?}: integer minute 0..1439, not boolean.
+- bar_projection.path is an explicit absolute path under the selection's sibling
+  bars/ directory. Its SHA256 binds the exact file bytes. Paths are not accepted
+  from HTTP requests.
+
+Each projection contains
+{day,ticker,time_zone:"America/New_York",m_semantics:"minute_START",price_units:"raw_same_session_YYYY-MM-DD",observed_source_start_m,observed_source_end_exclusive_m,bars:[{m,o,h,l,c,v}]}.
+Identity and units must match the selection entry. Bounds are integer minute starts
+with 0<=start<end<=1440; bars are ordered, unique, inside those bounds, and use
+finite coherent positive OHLC and finite nonnegative volume. No interpolation,
+unit conversion or synthetic flat candles occurs. Invalid visible-prefix data
+fails closed; with an as-of boundary, later unavailable OHLCV remains a gap.
+Malformed timestamps or duplicate minutes fail validation.
+
+Only five actual consecutive observed minute starts form a wall-clock 5m candle.
+Without as_of_m, the complete observed session is displayed. With it, candles
+starting at/after the boundary and 5m candles crossing it are shaded amber in their
+whole displayed width. A missing boundary bucket never moves the shading beyond
+later candles. The view and exported PNGs share this boundary calculation.
+
+### Read-only wire and rendering
+
+GET /api/agent/chart-gallery returns
+{schema_version:1,kind:"historical_ohlcv",selection_sha256,family,entries:[{id,symbol,date,as_of_m?,as_of_t?,annotations,bars_1m,bars_5m,source}],timings:{load_ms,aggregation_ms}}.
+Bars use Nova's {t,o,h,l,c,v} UTC-ISO shape. as_of_t, when present, is the same
+boundary as as_of_m expressed as a UTC timestamp. The response is immutable and
+hash-bound; no request writes source files. source contains only the allowlisted
+selection_sha256 and projection_sha256 hashes; arbitrary provenance is not returned.
+
+frontend/chart-gateway.html reuses Nova's chart instance, bar conversion, paint and
+native canvas snapshot. The page mounts no trading app, order context, live cache,
+market-data subscriptions or simulation commands. Only the bounded annotations above
+are rendered. Selection validation is presentation validation, not a trading signal.
+
+### Export lifecycle
+
+tools/nova_charts.py export --selection FILE --sha256 HASH --output NEWDIR validates
+frozen inputs, starts isolated data/renderer/browser children on available loopback
+ports, exports PNGs and writes EXPORT_RECEIPT.json. Existing output directories are
+refused. The receipt reports image paths/hashes, phase timings and cleanup status;
+logs and partial output remain available after failure.
+
+On Windows, an owned unnamed Job contains waiting bootstrap children before real
+commands launch; cleanup verifies zero active owned processes, including descendants.
+A random per-run instance token proves each service's identity. Readiness ignores
+inherited proxies, rejects redirects and never adopts an unrelated port listener.
+The chart-only Vite configuration loads no environment files. Other operating systems
+must have an equivalent tested ownership boundary before service launch is supported.
+The command imports no trading-app lifespan and leaves the running desk intact.
+
+The generic local historical resolver accepts one explicit minute-Parquet root,
+symbol and date; see [local-historical-charts.md](local-historical-charts.md).
+It produces this same frozen selection and delegates to the renderer above.
+There is no discovery, download or simulation fallback. Optional MCP tooling uses
+this generic chart interface; client installation/configuration and per-action grants
+remain explicit and separate.
+
+### Timing
+
+The subsecond target concerns initialized rendering with data already available.
+Report source loading, aggregation, first/warm fetch and paint, native capture/PNG
+composition, process startup and file transport separately, with sample counts and
+p50/p95 when benchmarked. The default --samples 0 avoids repeated captures.
+Never claim a subsecond complete command without measuring its full path.
+
 Part of `AGENTS.md` §3 (Data Schema), which indexes every file in this folder. Owners: backend/agent_desk/, backend/day_movers/, research/movers/. Same law as the constitution: a wire or persisted shape changes here first, in the same commit as the code (Invariants #1 and #5).
 
 ## Agents find stock-days and show them in the Sim (ADR 050, operator ask 2026-10-06)
