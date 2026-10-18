@@ -1,0 +1,48 @@
+{
+  "generated_at_utc": "2026-10-18T15:51:09.669062+00:00",
+  "store_path": "E:\\Nova\\massive\\store\\bb_mr.duckdb",
+  "raw_data_root": "E:\\Nova\\massive",
+  "raw_files_coverage": {
+    "minute_aggs_v1_days": 2713,
+    "day_aggs_v1_days": 2713,
+    "trades_v1_days": 2713,
+    "quotes_v1_days": 2713,
+    "seek_indexes_built_pct": 100.0,
+    "span": [
+      "2016-01-04",
+      "2026-10-16"
+    ]
+  },
+  "five_year_evaluation_store": {
+    "span": [
+      "2021-10-19",
+      "2026-09-21"
+    ],
+    "warmup_from": "2021-09-21",
+    "bars_1m_exec_rows": 32384316,
+    "bars_1m_exec_symbol_days": 79145,
+    "corp_splits_rows": 7105,
+    "corp_dividends_rows": 942716
+  },
+  "universe_a_liquid_reference": {
+    "symbol_days": 36693,
+    "trading_days": 1235,
+    "distinct_tickers": 2475,
+    "delisted_tickers_included": 514,
+    "first_date": "2021-10-19",
+    "last_date": "2026-09-21",
+    "rules": "Strictly causal US CS/ADRC common stocks ($5<=prev_close<=200, 20-day ADV >= $20M, top 30 by ADV20 per day, pre-session membership only; excludes ex-post intraday mover rows)"
+  },
+  "universe_b_morning_active": {
+    "symbol_days": 73519,
+    "trading_days": 1235,
+    "distinct_tickers": 5031,
+    "delisted_tickers_included": 1849,
+    "pit_sec_shares_covered_symbol_days": 51046,
+    "first_date": "2021-10-19",
+    "last_date": "2026-09-21",
+    "rules": "Causal per-minute scanner: US CS/ADRC common stocks, $1<=close_t<=$30, close_t >= 1.10*prev_close, cum_dollar_vol_since_0400 >= $500k, top 20 per minute",
+    "float_note": "Labeled as active low-priced-stock universe ($1-$30); point-in-time SEC shares outstanding available on subset (`pit_shares_out`), never current-snapshot float."
+  },
+  "build_seconds": 45.15
+}
