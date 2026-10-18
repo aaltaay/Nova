@@ -130,3 +130,4 @@ backend/sim/data/
 # Isolated offline chart renderer caches/outputs; no research data is committed.
 frontend/.vite-chart-gateway-cache/
 frontend/dist-chart-gateway/
+frontend/.chart-gateway-build/

@@ -36,6 +36,10 @@ MAX_TOTAL_IMAGE_BYTES = 80_000_000
 MAX_INLINE_IMAGE_BYTES = 2 * 1024 * 1024
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 COLORS = {"blue", "gold", "grey", "green", "red"}
+MAX_TRADES = 50
+MAX_TRADES_JSON_BYTES = 65_536
+TRADE_BAR_SECONDS = {1, 5, 10, 15, 30}
+DETAIL_IMAGE = re.compile(r".*_(1m_5m|\d+s)\.png\Z")
 
 
 class ChartError(Exception):
@@ -293,7 +297,7 @@ def verified_inline_image(body: dict[str, Any], approved_output: Path) -> tuple[
                           if Path(item["path"]).name == "NOVA_HISTORICAL_OVERVIEW.png"]
         else:
             candidates = [item for item in body["images"]
-                          if Path(item["path"]).name.endswith("_1m_5m.png")]
+                          if DETAIL_IMAGE.fullmatch(Path(item["path"]).name)]
         if not candidates:
             raise ChartError("INLINE_IMAGE_MISSING")
         if len(candidates) != 1:
@@ -448,6 +452,60 @@ class ChartService:
         finally:
             self._lock.release()
 
+    def export_trades(self, trades: list[dict[str, Any]], output_name: str, bar_seconds: int = 10,
+                      before_s: int = 300, after_s: int = 120, family: str | None = None, samples: int = 0,
+                      cancel: threading.Event | None = None) -> dict[str, Any]:
+        """Trade list in, marked sub-minute PNGs out; the CLI validates each trade, this boundary bounds the call."""
+        if not self._lock.acquire(blocking=False):
+            return {"ok": False, "error": {"code": "EXPORT_BUSY"}}
+        try:
+            if (not isinstance(trades, list) or not 1 <= len(trades) <= MAX_TRADES
+                    or not all(isinstance(t, dict) for t in trades)
+                    or len(json.dumps(trades, allow_nan=False)) > MAX_TRADES_JSON_BYTES):
+                raise ChartError("TRADES_INVALID")
+            if type(bar_seconds) is not int or bar_seconds not in TRADE_BAR_SECONDS:
+                raise ChartError("BAR_SECONDS_INVALID")
+            if any(type(s) is not int or not 0 <= s <= 14400 for s in (before_s, after_s)):
+                raise ChartError("WINDOW_INVALID")
+            if family is not None and not (isinstance(family, str) and 1 <= len(family) <= 80
+                                           and family == family.strip() and all(32 <= ord(c) != 127 for c in family)):
+                raise ChartError("FAMILY_INVALID")
+            _validate_symbol_day_output("TRADES", "2000-01-01", output_name, samples)
+            script = self.roots.resolver / "tools/nova_trade_charts.py"
+            if not script.is_file() or not script.resolve().is_relative_to(self.roots.resolver):
+                raise ChartError("TRUSTED_ENTRYPOINT_MISSING")
+            massive = self.roots.fallback_massive or self.roots.massive
+            if not (massive / "trades_v1").is_dir():
+                raise ChartError("TRADES_ROOT_MISSING")
+            output = self.roots.output / output_name
+            if os.path.lexists(output):
+                raise ChartError("OUTPUT_ALREADY_EXISTS")
+            cancel = cancel or threading.Event()
+            args = [str(self.export_python), "-B", str(script), "export",
+                    "--trades-json", json.dumps(trades, separators=(",", ":")), "--output", str(output),
+                    "--bar-seconds", str(bar_seconds), "--before", str(before_s), "--after", str(after_s),
+                    "--samples", str(samples), "--massive-root", str(massive),
+                    "--gateway-root", str(self.roots.gateway)]
+            if family is not None:
+                args.extend(["--family", family])
+            if cancel.is_set():
+                raise ChartError("CANCELLED")
+            result = self.execute(args, self.roots.resolver, self.roots.gateway, cancel, REQUEST_TIMEOUT_SECONDS)
+            if not result.trees_stopped or result.active_processes != 0:
+                raise ChartError("OWNED_CLEANUP_UNVERIFIED")
+            if result.returncode != 0:
+                raise ChartError("EXPORT_FAILED")
+            if cancel.is_set():
+                raise ChartError("CANCELLED")
+            selection = json.loads((output / "selection.json").read_text(encoding="utf-8"))
+            return verify_export(output, None, None, samples, expected_count=len(selection["selected"]))
+        except ChartError as error:
+            return {"ok": False, "error": {"code": str(error)}}
+        except (OSError, ValueError, TypeError, KeyError, RuntimeError):
+            return {"ok": False, "error": {"code": "EXPORT_UNVERIFIED"}}
+        finally:
+            self._lock.release()
+
 
 def create_server(service: ChartService):
     """The SDK implements MCP. Import lazily so stdlib fixture tests need no SDK."""
@@ -503,12 +561,24 @@ def create_server(service: ChartService):
         return await _run_export(lambda cancel: service.export_gallery(
             entries, output_name, family, samples, cancel))
 
-    for fn in (historical_chart, historical_chart_gallery):
+    async def trade_charts(trades: list[dict[str, Any]], output_name: str, bar_seconds: int = 10,
+                           before_s: int = 300, after_s: int = 120, family: str | None = None, samples: int = 0):
+        """Draw 1..9 stock-days of trades on 10-second (or 1/5/15/30 s) bars with buy/sell arrows, one PNG each.
+
+        trades: [{symbol, date YYYY-MM-DD, entry_time "HH:MM:SS" ET, entry_price, exit_time, exit_price}] or
+        exits [{time, price}] for partial exits; optional stop, pivot, label. Trades on one stock-day share a chart;
+        the window is before_s before the first entry to after_s after the last exit. output_name must be new.
+        """
+        return await _run_export(lambda cancel: service.export_trades(
+            trades, output_name, bar_seconds, before_s, after_s, family, samples, cancel))
+
+    for fn in (historical_chart, historical_chart_gallery, trade_charts):
         fn.__annotations__["samples"] = Annotated[int, Field(strict=True, ge=0, le=50)]
         fn.__annotations__["return"] = Annotated[CallToolResult, dict[str, Any]]
     annotations_hint = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False)
     server.tool(name="nova_historical_chart", annotations=annotations_hint)(historical_chart)
     server.tool(name="nova_historical_chart_gallery", annotations=annotations_hint)(historical_chart_gallery)
+    server.tool(name="nova_trade_charts", annotations=annotations_hint)(trade_charts)
     return server
 
 

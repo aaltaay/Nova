@@ -95,7 +95,7 @@ jobs:
 
       - name: Generated historical chart contracts
         if: ${{ !cancelled() && needs.changes.outputs.backend == 'true' && steps.install.outcome == 'success' }}
-        run: pytest tools/test_nova_chart_runner.py tools/test_nova_chart_processes.py tools/test_nova_historical_charts.py tools/test_nova_chart_mcp.py -x -q --tb=short
+        run: pytest tools/test_nova_chart_runner.py tools/test_nova_chart_processes.py tools/test_nova_historical_charts.py tools/test_nova_chart_mcp.py tools/test_nova_chart_mcp_trades.py tools/test_nova_trade_charts.py -x -q --tb=short
 
       - name: Data front door MCP (ADR 059)
         if: ${{ !cancelled() && needs.changes.outputs.backend == 'true' && steps.install.outcome == 'success' }}

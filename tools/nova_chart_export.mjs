@@ -42,13 +42,16 @@ try {
   const firstReadyMs = performance.now() - nav;
   const state = await page.evaluate(() => ({ error: window.novaCharts.error, metrics: window.novaCharts.metrics,
     entries: window.novaCharts.entries.map(e => ({ id: e.id, symbol: e.symbol, date: e.date, as_of_m: e.as_of_m,
-      bars_1m: e.bars_1m.length, bars_5m: e.bars_5m.length })) }));
+      bars_1m: e.bars_1m.length, bars_5m: e.bars_5m.length,
+      ...(e.bar_seconds ? { bar_seconds: e.bar_seconds, bars_sub: e.bars_sub.length } : {}) })) }));
   if (state.error || errors.length) throw new Error(JSON.stringify({ state, errors }));
-  const overlays = await page.evaluate(() => [...document.querySelectorAll('[data-testid="causal-context-overlay"]')].map((node, index) => {
+  const paneCount = state.entries.reduce((sum, e) => sum + (e.bar_seconds ? 1 : 2), 0);
+  const overlays = await page.evaluate(() => [...document.querySelectorAll('[data-testid="causal-context-overlay"]')].map(node => {
     const canvas = node;
-    const entry = window.novaCharts.entries[Math.floor(index / 2)];
-    const five = index % 2 === 1;
-    const bars = five ? entry.bars_5m : entry.bars_1m;
+    const entry = window.novaCharts.entries.find(e => String(e.id) === node.dataset.entryId);
+    const timeframe = node.dataset.timeframe;
+    const five = timeframe === '5Min';
+    const bars = timeframe === '1Min' ? entry.bars_1m : five ? entry.bars_5m : entry.bars_sub;
     const decision = entry.as_of_t ? Date.parse(entry.as_of_t) : null;
     const future = decision !== null && bars.some(bar => five ? Date.parse(bar.t) + 300000 > decision : Date.parse(bar.t) >= decision);
     const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
@@ -56,9 +59,9 @@ try {
     for (let i = 0; i < pixels.length; i += 4) {
       if (Math.abs(pixels[i] - 242) < 8 && Math.abs(pixels[i+1] - 156) < 8 && Math.abs(pixels[i+2] - 82) < 8 && pixels[i+3] > 20) amber++;
     }
-    return { symbol: entry.symbol, timeframe: five ? '5Min' : '1Min', future, amber_pixels: amber };
+    return { symbol: entry.symbol, timeframe, future, amber_pixels: amber };
   }));
-  if (overlays.length !== state.entries.length * 2 || overlays.some(o => o.future && o.amber_pixels === 0)) throw new Error('Visible future-context overlay missing');
+  if (overlays.length !== paneCount || overlays.some(o => o.future && o.amber_pixels === 0)) throw new Error('Visible future-context overlay missing');
   await page.screenshot({ path: path.join(output, 'NOVA_GATEWAY_VIEW.png'), fullPage: true });
   const save = async (file, index) => {
     const begin = performance.now();
@@ -72,7 +75,8 @@ try {
   const details = [];
   for (const e of state.entries) {
     const safe = e.symbol.replace(/[^a-zA-Z0-9.-]/g, '_');
-    details.push({ ...e, ...await save(`${String(e.id + 1).padStart(2, '0')}_${safe}_${e.date}_1m_5m.png`, e.id) });
+    const frames = e.bar_seconds ? `${e.bar_seconds}s` : '1m_5m';
+    details.push({ ...e, ...await save(`${String(e.id + 1).padStart(2, '0')}_${safe}_${e.date}_${frames}.png`, e.id) });
   }
   const warm = await page.evaluate(n => {
     const result = [];

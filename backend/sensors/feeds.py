@@ -67,18 +67,19 @@ def _normalize_bars(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if ts is None:
             continue
         try:
-            out.append(
-                {
-                    "t": ts,
-                    "o": float(raw.get("o")),
-                    "h": float(raw.get("h")),
-                    "l": float(raw.get("l")),
-                    "c": float(raw.get("c")),
-                    "v": float(raw.get("v") or 0),
-                }
-            )
+            bar = {
+                "t": ts,
+                "o": float(raw.get("o")),
+                "h": float(raw.get("h")),
+                "l": float(raw.get("l")),
+                "c": float(raw.get("c")),
+                "v": float(raw.get("v") or 0),
+            }
         except (TypeError, ValueError):
             continue
+        if "w" in raw:
+            bar["w"] = raw["w"]
+        out.append(bar)
     return out
 
 
@@ -86,12 +87,15 @@ def get_bars(
     symbol: str,
     timeframe: str = "1Min",
     limit: int = SENSOR_BAR_LIMIT,
+    *,
+    provenance: bool = False,
 ) -> tuple[list[dict[str, Any]], str | None]:
+    """``provenance``: each bar keeps ``w``, when a fill last wrote it (``bars_store.read``)."""
     cap = max(1, min(int(limit), 2000))
     try:
         import bars_store
 
-        stored = bars_store.read(symbol, timeframe, cap)
+        stored = bars_store.read(symbol, timeframe, cap, provenance=provenance)
     except Exception:
         stored = None
     if not stored or not stored.get("bars"):

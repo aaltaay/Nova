@@ -1,6 +1,6 @@
 ---
 name: nova-market-data
-description: "Use when a task needs past market data -- a stock's trades, NBBO quotes, intraday or daily bars on a past day (2016 on), seconds-scale moves, spreads, premarket / VWAP / relative-volume stats, order flow (dark pool, retail buy/sell, sweeps), halts, news catalysts, finding small-cap runner stock-days with their float as known that day, the day movers index, a past day's Gainers / Losers / Gappers / After Hours board, financial statements, float, shares outstanding, SEC filings, IPOs, short interest or symbol lookups -- or asks how fast or how complete that data is. Reads the operator's Massive files, Nova's stores, Massive's reference dump and SEC's bulk files through the nova-data MCP tools or tools/market_data.py; never write a new reader for them."
+description: "Use when a task needs past market data -- a stock's trades, NBBO quotes, intraday or daily bars on a past day (2016 on), seconds-scale moves, spreads, premarket / VWAP / relative-volume stats, order flow (dark pool, retail buy/sell, sweeps), halts, news catalysts, finding small-cap runner stock-days with their float as known that day, the day movers index, a past day's Gainers / Losers / Gappers / After Hours board, financial statements, float, shares outstanding, SEC filings, IPOs, short interest or symbol lookups -- or asks how fast or how complete that data is, or wants charts of trades with the entry and exit marked. Reads the operator's Massive files, Nova's stores, Massive's reference dump and SEC's bulk files through the nova-data MCP tools or tools/market_data.py; never write a new reader for them."
 ---
 
 # Nova market data
@@ -51,4 +51,10 @@ the day bar's whole-session volume, look-ahead, news before 2021-04, no Level 2 
   `index` run without checking one is not already running (`E:\Nova\massive\sim\index\index-build.log`).
 - Large scans (hundreds of stock-days) go in the background at below-normal priority; the desk shares the PC.
 - To show a stock-day to the operator on the desk, use the `nova-sim-navigator` skill.
+- To chart trades (entry / exit marked, 10-second bars), never write a plotting script: one call draws up to 9
+  stock-days -- MCP `nova_trade_charts` on `nova_charts`, or
+  `py -3 tools/nova_trade_charts.py export --trades-file t.json --output NEWDIR --massive-root E:\Nova\massive`
+  with `[{"symbol","date","entry_time":"HH:MM:SS","entry_price","exit_time","exit_price","stop?","pivot?"}]`
+  (`exits:[{time,price}]` for partials). About 8 s for 9 charts; contract in
+  `architecture/schema/local-historical-charts.md` ("Trade charts").
 - Never place orders from this data, and never call it live: it is history.

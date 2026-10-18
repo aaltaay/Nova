@@ -75,7 +75,7 @@ def test_the_daily_map_reads_only_the_days_before_the_replayed_one(monkeypatch):
         return {"t": t, "o": 5.0, "h": high, "l": 4.0, "c": 5.0, "v": 1e6}
 
     bars = [day("2026-09-16", 6.0), day("2026-09-17", 7.0), day(DAY, 50.0), day("2026-09-21", 90.0)]
-    monkeypatch.setattr("sensors.feeds.get_bars", lambda sym, tf, limit: (bars, "ibkr"))
+    monkeypatch.setattr("sensors.feeds.get_bars", lambda sym, tf, limit, **_k: (bars, "ibkr"))
     history._cache.clear()
     now = datetime.fromisoformat(f"{DAY}T09:00:00-04:00").timestamp()
     out = history.summary(SYM, now, replay=True)

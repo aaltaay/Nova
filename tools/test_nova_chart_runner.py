@@ -1,7 +1,9 @@
 """Generated orchestration guards; no real services, broker, charts or market inputs."""
 import json
+import subprocess
 import sys
 import threading
+from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
@@ -108,6 +110,7 @@ def test_failed_start_cleans_only_spawned_children_and_preserves_receipt(tmp_pat
     monkeypatch.setattr(runner, "ROOT", root)
     monkeypatch.setattr(runner, "__file__", str(root / "tools/nova_chart_runner.py"))
     monkeypatch.setattr(runner.shutil, "which", lambda name: "node")
+    monkeypatch.setattr(runner, "_gateway_bundle", lambda node, vite: root / "frontend/.chart-gateway-build/fixture")
     children = []
     class Owner:
         errors = []
@@ -128,3 +131,49 @@ def test_failed_start_cleans_only_spawned_children_and_preserves_receipt(tmp_pat
     assert len(children) == 2 and all(child.stopped for child in children)
     assert receipt["ok"] is False and receipt["owned_children_stopped"] is True
     assert receipt["error_type"] == "TimeoutError"
+
+
+def fake_frontend(tmp_path, monkeypatch):
+    root = tmp_path / "repo"
+    for rel in ["frontend/src/chart/gateway/main.tsx", "frontend/chart-gateway.html",
+                "frontend/vite.chart-gateway.config.ts", "frontend/package-lock.json"]:
+        p = root / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("fixture", encoding="utf-8")
+    monkeypatch.setattr(runner, "ROOT", root)
+    builds = []
+
+    def build(args, **kwargs):
+        out = Path(args[args.index("--outDir") + 1])
+        out.mkdir(parents=True)
+        (out / "chart-gateway.html").write_text("<html></html>", encoding="utf-8")
+        builds.append(args)
+        return subprocess.CompletedProcess(args, 0, "", "")
+    monkeypatch.setattr(runner.subprocess, "run", build)
+    return root, builds
+
+
+def test_renderer_bundle_builds_once_and_is_reused(tmp_path, monkeypatch):
+    root, builds = fake_frontend(tmp_path, monkeypatch)
+    first = runner._gateway_bundle("node", root / "vite.js")
+    assert (first / "chart-gateway.html").is_file() and len(builds) == 1
+    assert "build" in builds[0] and "vite.chart-gateway.config.ts" in builds[0]
+    assert runner._gateway_bundle("node", root / "vite.js") == first and len(builds) == 1
+
+
+def test_a_changed_frontend_source_rebuilds_and_drops_the_old_bundle(tmp_path, monkeypatch):
+    root, builds = fake_frontend(tmp_path, monkeypatch)
+    first = runner._gateway_bundle("node", root / "vite.js")
+    (root / "frontend/src/chart/gateway/main.tsx").write_text("changed source", encoding="utf-8")
+    second = runner._gateway_bundle("node", root / "vite.js")
+    assert second != first and len(builds) == 2
+    assert not first.exists() and second.is_dir()
+
+
+def test_a_failed_build_leaves_no_bundle(tmp_path, monkeypatch):
+    root, _ = fake_frontend(tmp_path, monkeypatch)
+    monkeypatch.setattr(runner.subprocess, "run",
+                        lambda args, **kw: subprocess.CompletedProcess(args, 1, "", "build error"))
+    with pytest.raises(RuntimeError, match="renderer build failed"):
+        runner._gateway_bundle("node", root / "vite.js")
+    assert not any((root / "frontend/.chart-gateway-build").glob("*/chart-gateway.html"))

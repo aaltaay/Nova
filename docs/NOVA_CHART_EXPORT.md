@@ -26,6 +26,23 @@ lifecycle. Its owning contract is
 [local-historical-charts.md](../architecture/schema/local-historical-charts.md).
 Keep source data, projections, images and runtime receipts outside the source tree.
 
+## Chart a list of trades (10-second bars, fills marked)
+
+One command takes the trades and writes one PNG per stock-day, with buy / sell arrows
+and optional stop / pivot lines:
+
+~~~powershell
+py -3 tools/nova_trade_charts.py export --trades-file trades.json --output "<NEW_OUTPUT>" --massive-root "E:\Nova\massive" [--bar-seconds 10] [--before 300] [--after 120]
+~~~
+
+`trades.json` is a list of
+`{"symbol":"TIRX","date":"2023-05-02","entry_time":"07:05:22","entry_price":3.39,"exit_time":"07:10:20","exit_price":4.10,"stop":3.33,"pivot":3.35}`
+(or `"exits":[{"time":"07:05:26","price":3.49},{"time":"07:10:20","price":4.10}]` for
+partial exits). Up to 9 stock-days per call. The contract is "Trade charts" in
+[local-historical-charts.md](../architecture/schema/local-historical-charts.md).
+Measured on 9 Round 32 trades (2026-10-18): about 8 s wall clock, of which about 3 s
+is reading the day's trades and under 1 s is drawing all PNGs.
+
 ## Export an existing frozen selection
 
 ~~~powershell

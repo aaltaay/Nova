@@ -11,7 +11,8 @@ from pathlib import Path
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
-from .chart_gallery_data import ET, annotations, bars, identity, label, shape
+from .chart_gallery_data import (ET, SUB_MINUTE_BAR_SECONDS, annotations, bars, identity, integer, label,
+                                 second_bars, shape)
 
 
 def digest(path: Path) -> str:
@@ -57,8 +58,12 @@ def load_gallery(selection: Path, expected_sha256: str) -> dict:
         raise ValueError("Expected a version1 generic historical chart selection")
     entries, identities, aggregation_ms = [], [], 0.0
     for index, entry in enumerate(raw["selected"]):
-        shape(entry, {"day", "ticker", "annotations", "bar_projection"}, {"as_of_m"})
+        shape(entry, {"day", "ticker", "annotations", "bar_projection"}, {"as_of_m", "bar_seconds"})
         identities.append(identity(entry))
+        sub_minute = "bar_seconds" in entry
+        if sub_minute and (not integer(entry["bar_seconds"], 1, 30)
+                           or entry["bar_seconds"] not in SUB_MINUTE_BAR_SECONDS or "as_of_m" in entry):
+            raise ValueError("Sub-minute bars take 1, 5, 10, 15 or 30 seconds and no as-of boundary")
         notes = annotations(entry["annotations"])
         reference = shape(entry["bar_projection"], {"path", "sha256"})
         if not isinstance(reference["path"], str) or not Path(reference["path"]).is_absolute():
@@ -69,13 +74,16 @@ def load_gallery(selection: Path, expected_sha256: str) -> dict:
         blob = _json_file(projection_path, 2 * 1024 * 1024)
         if hashlib.sha256(blob).hexdigest() != reference["sha256"]:
             raise ValueError("Projection SHA256 mismatch")
-        one = bars(json.loads(blob), entry)
-        before = time.perf_counter()
-        five = aggregate_five(one)
-        aggregation_ms += (time.perf_counter() - before) * 1000
         item = dict(id=index, symbol=entry["ticker"], date=entry["day"], annotations=notes,
-                    bars_1m=one, bars_5m=five,
                     source=dict(selection_sha256=expected_sha256.lower(), projection_sha256=reference["sha256"]))
+        if sub_minute:
+            item.update(bar_seconds=entry["bar_seconds"], bars_1m=[], bars_5m=[],
+                        bars_sub=second_bars(json.loads(blob), entry))
+        else:
+            one = bars(json.loads(blob), entry)
+            before = time.perf_counter()
+            item.update(bars_1m=one, bars_5m=aggregate_five(one))
+            aggregation_ms += (time.perf_counter() - before) * 1000
         if "as_of_m" in entry:
             boundary = datetime.fromisoformat(entry["day"]).replace(tzinfo=ET) + timedelta(minutes=entry["as_of_m"])
             item.update(as_of_m=entry["as_of_m"], as_of_t=boundary.astimezone(timezone.utc).isoformat())
