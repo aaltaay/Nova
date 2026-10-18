@@ -2,12 +2,19 @@
 it -- setups armed on any day, the Level 2 it recorded, the borrow file's changes, the latest short
 interest -- with what Nova does not keep per symbol yet said so.
 
-``runs`` is pure; ``summary`` caches the daily read per symbol and session day (it changes once a day).
+``runs`` is pure; ``summary`` caches the daily read per symbol and session day, until a fill writes that
+symbol's daily bars again (``bars_store.daily_revision``).
+
+Each daily bar carries its ``state`` (``bars_store.daily_bar_state``, #839): only a ``final`` one is the
+finished session. A past bar stored before its session ended (``partial``) or with no record of when
+(``unknown``) is listed in ``unfinished``, reads in no run or 200-day average, and asks the paced
+background fill for the finished day; a cached read holding one is read again after the repair's retry.
 """
 from __future__ import annotations
 
 import logging
 import threading
+import time
 from datetime import datetime, timezone
 from itertools import pairwise
 from typing import Any
@@ -25,26 +32,36 @@ from stock_read.rows import row, shares
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
 BORROW_HISTORY_DAYS = 14                  # the borrow store keeps this long (move_reason, MOVE_BORROW_RETENTION_DAYS)
+# (symbol, session day, replay) -> {"out", "rev": the symbol's daily revision, "until": monotonic expiry or None}
 _cache: dict[tuple[str, str, bool], dict[str, Any]] = {}
 _lock = threading.Lock()
 
 
-def daily_bars(raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Stored daily bars (epoch ``t`` at the session's UTC midnight) as ``{d, o, h, l, c, v}``."""
+def daily_bars(raw: list[dict[str, Any]], now: float | None = None) -> list[dict[str, Any]]:
+    """Stored daily bars (epoch ``t`` at the session's UTC midnight) as ``{d, o, h, l, c, v, state, through}``:
+    ``state`` against wall-clock ``now`` (``bars_store.daily_bar_state``; ``final`` without ``now``, for
+    bars that carry no provenance), ``through`` when a fill stored it (epoch seconds, None if not known)."""
+    from bars_store import daily_bar_state
+
     out = []
     for b in raw:
         d = datetime.fromtimestamp(float(b["t"]), timezone.utc).date().isoformat()
+        w = b.get("w")
+        state = "final" if now is None else daily_bar_state(b["t"], w, now)
         out.append({"d": d, "o": float(b["o"]), "h": float(b["h"]), "l": float(b["l"]), "c": float(b["c"]),
-                    "v": float(b.get("v") or 0)})
+                    "v": float(b.get("v") or 0), "state": state, "through": w})
     return out
 
 
 def runs(daily: list[dict[str, Any]], today: str | None) -> list[dict[str, Any]]:
     """Sessions whose high was ``STOCK_READ_RUN_MIN_PCT`` or more over the prior bar's close, newest
     first. Stored daily bars close on the last extended-hours trade, so both sides are the day's last
-    trade, not the 16:00 close."""
+    trade, not the 16:00 close. Only a finished prior close counts, and only a finished session (or
+    today's, still forming) can be a run: a stored snapshot is neither the day's high nor its close."""
     out = []
     for prev, b in pairwise(daily):
+        if prev.get("state", "final") != "final" or b.get("state", "final") not in ("final", "forming"):
+            continue
         pc = prev["c"]
         if pc <= 0:
             continue
@@ -57,31 +74,72 @@ def runs(daily: list[dict[str, Any]], today: str | None) -> list[dict[str, Any]]
 
 
 def summary(symbol: str, now: float, *, replay: bool = False) -> dict[str, Any] | None:
-    """``{daily, daily_days, runs, sma200}`` for the symbol, read once per session day. ``sma200`` is the
-    mean of the last 200 stored daily closes before today (None with fewer): the Full Day chart's level.
+    """``{daily, daily_days, runs, sma200, unfinished}`` for the symbol, read once per session day.
+    ``sma200`` is the mean of the last 200 stored daily closes before today (None with fewer, or when one
+    of them is not a finished session): the Full Day chart's level. ``daily_days`` counts finished
+    sessions; ``unfinished`` lists the past ones that are not (``{date, state, stored_through}``).
     ``replay``: ``now`` is a Sim replay's playhead (ADR 052) -- only the days before the replayed one are read,
-    never its own daily bar (the whole day's high) or a later day's."""
+    never its own daily bar (the whole day's high) or a later day's; whether a bar is finished is still
+    judged against the wall clock, when the store wrote it."""
+    import bars_store
+    from constants import IBKR_BARS_DAILY_REPAIR_RETRY_SEC
     from sensors.feeds import get_bars
 
     today = datetime.fromtimestamp(now, ET).date().isoformat()
     key = (symbol, today, replay)
+    rev = bars_store.daily_revision(symbol)
     with _lock:
         hit = _cache.get(key)
-    if hit is not None:
-        return hit
-    raw, _src = get_bars(symbol, "1Day", STOCK_READ_HISTORY_READ_DAYS)
-    daily = daily_bars(raw)
+    if hit is not None and hit["rev"] == rev and (hit["until"] is None or time.monotonic() < hit["until"]):
+        return hit["out"]
+    raw, _src = get_bars(symbol, "1Day", STOCK_READ_HISTORY_READ_DAYS, provenance=True)
+    daily = daily_bars(raw, time.time() if replay else now)
     if replay:
         daily = [b for b in daily if b["d"] < today]
-    closes = [b["c"] for b in daily if b["d"] < today][-STOCK_READ_DAILY_SMA_DAYS:]
-    sma200 = round(sum(closes) / len(closes), 4) if len(closes) == STOCK_READ_DAILY_SMA_DAYS else None
-    out = {"daily": daily[-STOCK_READ_HISTORY_CHART_DAYS:], "daily_days": len(daily), "runs": runs(daily, today),
-           "sma200": sma200}
+    past = [b for b in daily if b["d"] < today]
+    last200 = past[-STOCK_READ_DAILY_SMA_DAYS:]
+    sma200 = (round(sum(b["c"] for b in last200) / len(last200), 4)
+              if len(last200) == STOCK_READ_DAILY_SMA_DAYS and all(b["state"] == "final" for b in last200) else None)
+    unfinished = [{"date": b["d"], "state": b["state"], "stored_through": b["through"]}
+                  for b in past if b["state"] != "final"]
+    out = {"daily": daily[-STOCK_READ_HISTORY_CHART_DAYS:],
+           "daily_days": sum(1 for b in daily if b["state"] == "final"), "runs": runs(daily, today),
+           "sma200": sma200, "unfinished": unfinished}
+    if unfinished:
+        _repair(symbol)
     with _lock:
         if len(_cache) > 256:
             _cache.clear()
-        _cache[key] = out
+        _cache[key] = {"out": out, "rev": rev,
+                       "until": time.monotonic() + float(IBKR_BARS_DAILY_REPAIR_RETRY_SEC) if unfinished else None}
     return out
+
+
+def daily_note(hist: dict[str, Any] | None) -> str | None:
+    """The daily map's note on the past sessions that are not finished in the store, or None."""
+    gone = (hist or {}).get("unfinished") or []
+    if not gone:
+        return None
+    last = gone[-1]
+    when = datetime.fromisoformat(last["date"])
+    day = f"{when.strftime('%b')} {when.day}"
+    if len(gone) > 1:
+        what = f"{len(gone)} stored sessions are not finished (newest {day})"
+    elif last["stored_through"] is not None:
+        what = (f"{day} was stored at {datetime.fromtimestamp(last['stored_through'], ET):%H:%M} ET, "
+                "before its session ended")
+    else:
+        what = f"{day} has no record of when it was stored"
+    return f"{what}: not read as a finished day until IBKR's refetch lands"
+
+
+def _repair(symbol: str) -> None:
+    try:
+        from ibkr import historical_service
+
+        historical_service.schedule_daily_repair(symbol, STOCK_READ_HISTORY_READ_DAYS)
+    except Exception:
+        logger.warning("stock read history: the daily refetch of %s could not be asked", symbol, exc_info=True)
 
 
 def holdings(symbol: str, now: float, why_facts: dict[str, Any] | None) -> list[dict[str, Any]]:

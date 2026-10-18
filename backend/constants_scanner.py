@@ -387,6 +387,9 @@ IBKR_HISTORICAL_FAILURE_MEMORY_SEC = 300.0
 IBKR_HISTORICAL_FAILURE_STATUSES: frozenset[int] = frozenset({502, 504})
 IBKR_BARS_STORE_FRESH_INTRADAY_SEC = 45.0
 IBKR_BARS_STORE_FRESH_DAILY_SEC = 900.0
+# A stored past daily bar that is not the finished session (#839) asks IBKR for the daily bars again at
+# most this often per symbol: a shed or failed fill is asked again, a read polled every second is not.
+IBKR_BARS_DAILY_REPAIR_RETRY_SEC = 300.0
 # A single session (or a 1Min-derived stub) is not a finished multi-day fill.
 # 1Hour / 3 M cannot be "complete" at 9 bars; 5Min / 5 D cannot at one session.
 IBKR_BARS_STORE_MIN_BARS: dict[str, int] = {

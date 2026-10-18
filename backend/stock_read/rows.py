@@ -203,18 +203,23 @@ def _board(source: str | None) -> dict[str, Any]:
 
 def _ran_before(history: dict[str, Any] | None) -> dict[str, Any]:
     src = "Stored daily bars (a run: a high 40%+ over the prior close)"
+    unfinished = (history or {}).get("unfinished") or []
+    gap = (f"{len(unfinished)} stored session{'s' if len(unfinished) != 1 else ''} not finished "
+           f"(newest {unfinished[-1]['date'][5:]}): asking IBKR for {'them' if len(unfinished) != 1 else 'it'}"
+           if unfinished else None)
     if history is None or not history.get("daily_days"):
-        return row("ran_before", "Has it run before?", "Not known", "unknown", src, "No daily bars stored for it")
+        return row("ran_before", "Has it run before?", "Not known", "unknown", src, gap or "No daily bars stored for it")
     runs = [r for r in history.get("runs") or [] if not r.get("today")]
     if not runs:
-        return row("ran_before", "Has it run before?", f"No runs in {history['daily_days']} sessions", "info", src)
+        return row("ran_before", "Has it run before?", f"No runs in {history['daily_days']} sessions", "info", src, gap)
     faded = [r for r in runs[:2] if r["close_pct"] < r["run_pct"] / 2]
     detail = "; ".join(f"{r['date'][5:]} high +{r['run_pct'] * 100:.0f}% -> closed {r['close_pct'] * 100:+.0f}%"
                        for r in runs[:3])
     value = f"{len(runs)} run{'s' if len(runs) != 1 else ''} of +40% in {history['daily_days']} sessions"
     if len(faded) == min(2, len(runs)):
         value += "; faded"
-    return row("ran_before", "Has it run before?", value, "warn" if faded else "info", src, detail)
+    return row("ran_before", "Has it run before?", value, "warn" if faded else "info", src,
+               f"{detail}. {gap}" if gap else detail)
 
 
 # -- front side ----------------------------------------------------------------------------------
