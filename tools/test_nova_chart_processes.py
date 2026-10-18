@@ -5,6 +5,7 @@ import ctypes
 from ctypes import wintypes
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -91,6 +92,68 @@ class OwnedJobTests(unittest.TestCase):
                     api.CloseHandle(handle)
             finally:
                 owner.close()
+
+    def node_or_skip(self) -> str:
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node is not installed")
+        return node
+
+    def test_node_command_joins_the_job_and_dies_on_close(self):
+        """#1061: under Microsoft Store Python a non-package command (node) started from a packaged process escaped
+        the Job, so close() reported 0 live while the renderer kept running."""
+        node = self.node_or_skip()
+        with tempfile.TemporaryDirectory() as folder, open(os.devnull, "wb") as log:
+            marker = Path(folder) / "node.pid"
+            owner = OwnedProcesses()
+            api = handle = None
+            try:
+                code = ("const c=require('child_process').spawn(process.execPath,['-e','setInterval(()=>{},1000)'],"
+                        "{stdio:'ignore'});require('fs').writeFileSync(process.argv[1],process.pid+' '+c.pid);"
+                        "setInterval(()=>{},1000)")
+                command = owner.spawn([node, "-e", code, str(marker)], Path(folder), log)
+                deadline = time.monotonic() + 10
+                while not (marker.exists() and marker.read_text()) and time.monotonic() < deadline:
+                    time.sleep(0.02)
+                pid, grandchild = map(int, marker.read_text().split())
+                self.assertTrue(owner.owns_pid(pid), "the node command is in the Job")
+                self.assertTrue(owner.owns_pid(grandchild), "and so is its own child")
+                self.assertEqual(pid, command.pid, "spawn returns the command itself")
+                api, handle = self.process_handle(grandchild)
+                self.assertTrue(owner.close(), owner.errors)
+                self.assertEqual(owner.live_descendants, 0)
+                self.assertEqual(api.WaitForSingleObject(handle, 5000), 0, "the grandchild is dead")
+                self.assertIsNotNone(command.poll())
+            finally:
+                owner.close()
+                if handle:
+                    api.CloseHandle(handle)
+
+    def test_escaped_descendant_is_found_stopped_and_counted(self):
+        """A packaged Python command that starts node itself puts it outside the Job: close() must still find it by
+        its parent chain, stop it, and say so instead of claiming a clean Job."""
+        node = self.node_or_skip()
+        with tempfile.TemporaryDirectory() as folder, open(os.devnull, "wb") as log:
+            marker = Path(folder) / "node.pid"
+            owner = OwnedProcesses()
+            api = handle = None
+            try:
+                code = ("import subprocess,sys,time;from pathlib import Path;"
+                        "p=subprocess.Popen([sys.argv[2],'-e','setInterval(()=>{},1000)'],"
+                        "creationflags=subprocess.CREATE_NO_WINDOW);"
+                        "Path(sys.argv[1]).write_text(str(p.pid));time.sleep(60)")
+                owner.spawn([sys.executable, "-I", "-S", "-c", code, str(marker), node], Path(folder), log)
+                pid = self.marker_pid(marker)
+                api, handle = self.process_handle(pid)
+                in_job = owner.owns_pid(pid)  # False under Store Python, True under a plain install
+                self.assertTrue(owner.close(), owner.errors)
+                self.assertEqual(owner.live_descendants, 0)
+                self.assertEqual(api.WaitForSingleObject(handle, 5000), 0, "the escaped node is dead")
+                self.assertEqual(owner.escaped_descendants, 0 if in_job else 1)
+            finally:
+                owner.close()
+                if handle:
+                    api.CloseHandle(handle)
 
     def test_assignment_failure_never_releases_real_command(self):
         with tempfile.TemporaryDirectory() as folder, open(os.devnull, "wb") as log:

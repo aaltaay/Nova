@@ -95,7 +95,8 @@ def test_readiness_rejects_nonlocal_before_network():
         runner._ready("http://example.invalid/", FakeProcess(), "expected")
 
 
-def test_failed_start_cleans_only_spawned_children_and_preserves_receipt(tmp_path, monkeypatch):
+@pytest.mark.parametrize("survivors", [0, 1])
+def test_failed_start_cleans_only_spawned_children_and_preserves_receipt(tmp_path, monkeypatch, survivors):
     sys.path.insert(0, str(runner.ROOT / "backend"))
     from agent_desk import chart_gallery
     monkeypatch.setattr(chart_gallery, "load_gallery", lambda *args: {"entries": [{}], "timings": {}})
@@ -115,6 +116,8 @@ def test_failed_start_cleans_only_spawned_children_and_preserves_receipt(tmp_pat
     class Owner:
         errors = []
         active_processes = 0
+        live_descendants = survivors
+        escaped_descendants = survivors
         def spawn(self, *args):
             children.append(FakeProcess())
             return children[-1]
@@ -131,6 +134,8 @@ def test_failed_start_cleans_only_spawned_children_and_preserves_receipt(tmp_pat
     assert len(children) == 2 and all(child.stopped for child in children)
     assert receipt["ok"] is False and receipt["owned_children_stopped"] is True
     assert receipt["error_type"] == "TimeoutError"
+    assert receipt["live_descendants_after_cleanup"] == survivors
+    assert receipt["escaped_job_descendants"] == survivors
 
 
 def fake_frontend(tmp_path, monkeypatch):

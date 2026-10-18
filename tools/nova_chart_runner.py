@@ -190,8 +190,11 @@ def export_charts(selection: Path, expected_sha256: str, output: Path, samples: 
         cleanup_errors = owner.errors if owner else []
         receipt.update(owned_children_stopped=all(p.poll() is not None for p in owned),
                        owned_trees_stopped=trees_stopped, active_owned_processes=owner.active_processes if owner else 0,
+                       live_descendants_after_cleanup=owner.live_descendants if owner else 0,
+                       escaped_job_descendants=owner.escaped_descendants if owner else 0,
                        cleanup_errors=cleanup_errors, total_command_ms=(time.perf_counter() - began) * 1000)
-        if cleanup_errors or not receipt["owned_children_stopped"] or not trees_stopped:
+        if (cleanup_errors or not receipt["owned_children_stopped"] or not trees_stopped
+                or receipt["live_descendants_after_cleanup"] != 0):
             receipt["ok"] = False
         (output / "EXPORT_RECEIPT.json").write_text(json.dumps(receipt, indent=2), encoding="utf-8")
     if not receipt["ok"]:

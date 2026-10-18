@@ -244,6 +244,7 @@ def verify_export(output: Path, symbol: str | None, day: str | None, samples: in
             or native.get("owned_children_stopped") is not True
             or type(native.get("active_owned_processes")) is not int
             or native["active_owned_processes"] != 0 or native.get("cleanup_errors") != []
+            or native.get("live_descendants_after_cleanup", 0) != 0
             or native.get("source_data_mutated") is not False
             or native.get("broker_or_desk_calls") is not False):
         raise ChartError("NATIVE_EXPORT_UNVERIFIED")
