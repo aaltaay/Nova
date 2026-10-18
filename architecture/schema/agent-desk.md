@@ -319,6 +319,51 @@ MCP server (`tools/nova_data_mcp.py`, official SDK, stdio; registered in `.curso
 - **Heavy-read slots** (`research/market_reads/slots.py`): bulk scans, index builds and `stock_day` take one of
   `NOVA_MARKET_READ_SLOTS` (default 2) OS-locked files in `<temp>/nova-market-read-slots`; a slot dies with its
   process; waiting past 600 s raises `Busy`.
+- **Momentum-research tools** (`tools/nova_data_research.py`, the second tool set; CLI `tools/market_data_research.py`):
+  - `find_stock_days {filters, symbol?, kinds?, splits?, float_max?, float_basis?, float_unknown?, catalyst?, halted?,
+    cursor?, page_size?, output_name?}` -> a table answer plus `next_cursor` (`"YYYY-MM-DD|SYMBOL"` or null). Rows:
+    `date, symbol, kind, prev_close, open, high, low, close, volume, dollar_volume, high_pct, low_pct, close_pct,
+    gap_pct, day_high, day_high_et, day_low, day_low_et, pm_high, pm_low, pm_volume, ah_high, ah_volume, split,
+    up10_et .. up300_et, down10_et .. down50_et, outstanding_shares, outstanding_as_of, outstanding_filed,
+    outstanding_age_days, enrichment_float, float_shares, float_source, catalyst_verdict, catalyst_category,
+    catalyst_strength, catalyst_title, catalyst_cutoff, halts, first_halt_et, halt_codes, luld_halts`. `filters` are
+    `movers_scan`'s (needs `date_from` / `date_to` or `symbol`). `float_basis` `sec_outstanding` (default: the movers
+    store's `sec_shares` by `day_movers.floats.sec_shares` -- filed by the day, as of at most 120 days before it,
+    split-adjusted; a reused ticker's count is dropped when its CIK is not the day's holder) | `enrichment` (desk
+    `archive.db` `enrichment_snapshots`) | `best`; `float_source` is `sec_shares_outstanding` | `enrichment_snapshot`
+    | null; `float_unknown` exclude | include | only. `catalyst` keeps the listed verdicts (`unknown` = none);
+    `halted` true / false (a day the halt log does not cover has `halts` null and is left out by either). `page_size`
+    1-5,000 (1-100,000 with `output_name`); one call examines at most 200,000 movers rows (`meta.note`).
+  - `daily_bars {symbol, date_from, date_to, adjust?, as_of?, output_name?}` -> rows `date, volume, open, close, high,
+    low, transactions, prev_close, change_pct, gap_pct, high_pct, range_pct` (+ `split_factor` when adjusted); at most
+    3 years; `meta.volume_note`, `split_note`, `prev_close_from`, `seconds`. In-process cache only (no file).
+  - `market_context {day, symbols?}` -> `{day, lookback, symbols: {SYM: {traded, open, high, low, close, volume,
+    transactions, prev_close, change_pct, gap_pct, range_pct, return_5_pct, return_lookback_pct, avg_close_lookback,
+    close_vs_avg_pct}}, summary, rules, units, raw, seconds}`; nothing after `day`.
+  - `stock_day_stats {symbol, day, rvol_days?, spread?}` -> `{symbol, day, prev_close, prev_close_day, day_bar,
+    premarket, first_5min, first_30min, regular, whole_day, vwap, trades, spread, rvol, rules, units, seconds}`; each
+    window `{open, high, low, close, volume, bars, transactions, high_time, low_time, range_pct, change_pct,
+    high_pct}` or null; `spread.{regular, first_30min}` `{window, median_cents, median_bps, quotes, valid_share}`;
+    `rvol {basis_sessions, basis_days, by_minute: {HH:MM: {cum_volume, avg_cum_volume, rvol}}, open5, daily}`;
+    `rvol_days` 1-60. Windows are `research/orb`'s; VWAP is labelled approximate (minute typical price).
+  - `order_flow {symbol, day, start?, end?, bucket?, output_name?}` -> rows of `trades_flow_v1` summed per bucket
+    (1m | 5m | 15m | 30m | 60m | day) with `time_et`, `m` and every builder column (`docs/massive-builders.md`), plus
+    `off_pct, retail_buy_pct, retail_sell_pct, mid_pct, sweep_pct, odd_pct, big_pct, block_pct` (percent points of
+    `vol`) and `retail_imbalance` (-1..1); `meta.day_total` sums the window.
+  - `halts {symbol?, day?, date_from?, date_to?, source?}` -> rows `symbol, session_date, source, code, kind, start_ts,
+    start_et, end_ts, end_date, end_et, duration_s, resumed`; needs a symbol or a day / range; `meta.coverage`,
+    `covered_from`, `codes`, `warning`.
+  - `catalysts {symbol, date_from?, date_to?, at?, sources?, limit?}` -> item rows `item_id, source, publisher,
+    published_ts, published_et, title, url, form, sec_items, n_tickers` (Finnhub Benzinga copies excluded by
+    `research/catalysts/store.HONEST_CLOCK_SQL`), plus `verdicts` (records `symbol, session_date, cutoff_kind,
+    rules_version, verdict, category, strength, title, source, published_et, published_ts, item_id, sources_checked,
+    n_items, origin, window_start_et, cutoff_et`) and `verdicts_meta`.
+  - `symbols {query?, ticker?, day?, active?, types?, limit?}` -> search rows `ticker, name, cik, active, delisted,
+    type, exchange, composite_figi, ticker_reused`; with `ticker`: `{symbol, day, listed, ticker_reused, companies:
+    [{cik, name, active, delisted, type, exchange, held_from, held_to, composite_figi, last_updated_utc}], on_day:
+    {cik, name, rule, warning}, warning, cik_history: {cik: [rows]}, as_of, rule, source, dump_as_of, notes}`.
+  `find_stock_days`, `daily_bars` and `order_flow` write an `output_name` file (`readOnlyHint: false`); the rest are
+  read-only. `movers_scan` gains `after` (library only) for the cursor.
 - **Tripwire** (`tools/data_access_hook.py`): Cursor `beforeShellExecution` (`{permission: "allow" | "deny",
   user_message, agent_message}`) and Claude `PreToolUse` on Bash (`hookSpecificOutput.permissionDecision: "deny"`).
   Denied: a command naming a raw store (`nova/massive`, `nova/leaderboard`, `catalysts/edgar`, `store/reference`,

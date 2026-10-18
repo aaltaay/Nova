@@ -26,7 +26,23 @@ py -3 tools/market_data.py sec-shares GURE --day 2024-03-01         # outstandin
 py -3 tools/market_data.py sec-filings GURE --as-of 2024-03-01 --forms "4,SC 13D,424B4"
 py -3 tools/market_data.py float GURE                              # Massive's latest free float (no history)
 py -3 tools/market_data.py short-interest GURE 2024-03-01          # FINRA, as published by that morning
+py -3 tools/market_data.py find date_from=2025-01-01 date_to=2025-03-31 price_min=2 price_max=20 high_min=50 --float-max 20000000
+py -3 tools/market_data.py daily GME 2021-01-04 2021-02-26         # daily bars (raw; --adjust for split terms)
+py -3 tools/market_data.py context 2026-09-09                      # SPY / QQQ / IWM that day
+py -3 tools/market_data.py stats IRD 2026-09-09                    # premarket, first 5/30 min, VWAP, spread, rvol
+py -3 tools/market_data.py flow IRD 2026-09-09 --bucket 5m         # dark pool, retail buy/sell, sweeps per minute
+py -3 tools/market_data.py halts --symbol GME --from 2021-01-25 --to 2021-01-29
+py -3 tools/market_data.py catalysts IRD --from 2026-09-08 --to 2026-09-09 [--verdicts]
+py -3 tools/market_data.py symbols aurora                          # or: symbols --ticker AAP --day 2016-06-01
 ```
+
+**Momentum research in one call.** `find` (MCP `find_stock_days`) is the movers index joined with what was known
+that day: SEC shares outstanding filed by then (`outstanding_*`; the default `--float-max` basis, and it is not free
+float), the desk's own float when it had one (`enrichment_float`, 2026-07-28 on), the catalyst verdict (null =
+unknown), the day's halts, premarket high / volume and the first ET minute each +10% .. +300% line printed. Every
+float value says its source (`float_source`). Pages come back with `next_cursor`. Then `stats`, `flow`, `catalysts`
+and `daily` / `context` answer the questions about one stock-day. Builders and column definitions for the derived
+tables (`trades_flow_v1` and the rest): `docs/massive-builders.md`.
 
 From Python, the same reads return pandas DataFrames:
 
@@ -54,7 +70,11 @@ To put a stock-day on the desk for the operator, use the `nova-sim-navigator` sk
 | Trades (every print, conditions, exchange, nanosecond SIP time) | `E:\Nova\massive\trades_v1\YYYY\MM\YYYY-MM-DD.csv.gz` | 2016-01-04 on | `trades`, `bars --tf Ns` |
 | NBBO quotes (one best bid and offer across venues, a row per change; Level 1, never depth) | `...\quotes_v1\...` | 2016-01-04 on | `quotes` |
 | 1-minute bars, 04:00-20:00 ET | `...\minute_aggs_v1\...` | 2016-01-04 on | `bars --tf 1m / 5m / ...` |
-| Daily bars (official open / high / low / close) | `...\day_aggs_v1\...` | 2016-01-04 on | the movers index and the board rebuild |
+| Daily bars (official open / high / low / close) | `...\day_aggs_v1\...` | 2016-01-04 on | `daily`, `context`, the movers index and the board rebuild |
+| Order flow per ticker-minute (off exchange, retail buy / sell, sweeps, odd lots, blocks, venues) | `...\trades_flow_v1\YYYY\MM\YYYY-MM-DD.parquet` | 2,712 days from 2016 | `flow` (`research/market_reads/order_flow.py`; builder `research/massive_builders`) |
+| Halt log (Nasdaq Trade Halt RSS, IBKR) | `F:\Nova\leaderboard\leaderboard.sqlite3` `halt_events` | 2019-02-22 on | `halts` |
+| Catalyst items and verdicts | `F:\Nova\catalysts\catalysts.sqlite3` | items from 2016 (Massive news thin before 2021-04); verdicts 2021-10-11 .. 2026-09-21 | `catalysts` |
+| Ticker list (active and delisted, CIK) | `...\store\reference\tickers.json` | latest dump | `symbols` (`research/market_reads/symbols.py`, `tickers.py`) |
 | Seek indexes (one per day file) | `...\sim\index\<dataset>\...\<file>.idx` | see `status` | used by every read |
 | Day movers index | `...\movers\day_movers.sqlite3` | see `status` | `movers`, `/api/agent/movers` |
 | Past-day Scanner boards (recorded live, or rebuilt from minute bars) | `F:\Nova\leaderboard\leaderboard.sqlite3` | 1,752 of 2,713 sessions (see `status`) | `board`, the Sim |

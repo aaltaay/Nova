@@ -5,6 +5,54 @@ its units, and the front-door call that reads it (MCP tool / command line). ``do
 """
 from __future__ import annotations
 
+# The momentum-research reads (stock_days, daily, stats, order_flow, halts, catalysts, symbols).
+RESEARCH = (
+    {"name": "stock_days", "source": "movers index + movers sec_shares + desk enrichment snapshots + catalyst "
+                                     "verdicts + halt log", "history": "2016-01-04 on (each join has its own reach)",
+     "as_of": "shares filed by the day (as of <= 120 days, split-adjusted); the desk's float that day; the "
+              "verdict for the day; likely splits left out like movers_search",
+     "units": "*_pct percent points; float_shares labelled by float_source (sec_shares_outstanding = outstanding, "
+              "NOT free float; enrichment_snapshot = the desk's float, 2026-07-28 on); *_et ET HH:MM",
+     "mcp": "find_stock_days (pages: next_cursor)", "cli": "market_data.py find key=value --float-max N"},
+    {"name": "daily_bars", "source": "Massive day files (day_aggs_v1)", "history": "2016-01-04 on, 2,713 days",
+     "as_of": "one row per session the stock traded; raw unless adjust (splits of the day's company)",
+     "units": "OHLC dollars; volume = the whole 04:00-20:00 session with odd lots, prices regular hours; "
+              "change / gap / range percent points", "mcp": "daily_bars / market_context (SPY, QQQ, IWM)",
+     "cli": "market_data.py daily SYMBOL FROM TO / context DAY"},
+    {"name": "stock_day_stats", "source": "computed on demand from minute bars, day files and NBBO quotes",
+     "history": "2016-01-04 on", "as_of": "one stock-day; relative volume against prior sessions only",
+     "units": "raw dollars and shares; spread cents and bps; methods stated in the answer's rules",
+     "mcp": "stock_day_stats", "cli": "market_data.py stats SYMBOL DAY"},
+    {"name": "order_flow", "source": "trades_flow_v1: one row per ticker-minute built from every trade "
+                                     "(research/massive_builders)", "history": "2016 on, 2,712 days",
+     "as_of": "one stock-day, per minute (ET)",
+     "units": "shares / dollars / counts; *_pct percent points of volume; off exchange = FINRA TRF (exchange 4); "
+              "retail by the sub-penny rule (a lower bound); definitions docs/massive-builders.md",
+     "mcp": "order_flow", "cli": "market_data.py flow SYMBOL DAY --bucket 5m"},
+    {"name": "halts", "source": "Nova's halt log (leaderboard store: Nasdaq Trade Halt RSS + IBKR)",
+     "history": "Nasdaq 2021-09-21 on (backfill to 2026-09-21, the desk's poll after); 2026-03-12 .. 2026-09-18 "
+                "has resumptions but no starts (start_ts null); IBKR 2026-09-23 on, desk-streamed symbols only; "
+                "before 2021-09-21 not covered (halts null, never 0)",
+     "as_of": "a halt counts at its start; times ET",
+     "units": "start / end ET, duration seconds, code (LUDP = LULD pause, M volatility pause, T1 / T12 news "
+              "pending, T3 a resolved news halt)", "mcp": "halts", "cli": "market_data.py halts --symbol S --day D"},
+    {"name": "catalysts", "source": "Nova's catalyst backfill (EDGAR, Alpaca, Finnhub, Massive news) and its "
+                                    "verdicts", "history": "items: only tickers the backfill targeted; Massive news "
+                                                           "nearly empty before 2021-04; Finnhub 2025 on. verdicts "
+                                                           "2021-10-11 .. 2026-09-21 (Five Pillars gap universe; "
+                                                           "2026-06-17 on also leaderboard top-10 $1-$20)",
+     "as_of": "an item counts from its published time (at= cuts look-ahead); a verdict reads the window from the "
+              "prior 16:00 ET close to its target's cutoff (cutoff_et: 09:30, or the first top-10 minute); stored "
+              "verdicts are rules v7 (the live classifier is newer: meta.warning)",
+     "units": "published ET; verdict / category / strength labels; a missing verdict is unknown, never no news",
+     "mcp": "catalysts", "cli": "market_data.py catalysts SYMBOL --from DAY --to DAY [--verdicts]"},
+    {"name": "symbols", "source": "Massive ticker list (reference/tickers.json: 36,729 rows, 13,252 active)",
+     "history": "latest dump (delisted tickers included)",
+     "as_of": "which company held a ticker on a day: tickers.py (84 tickers had two companies)",
+     "units": "ticker, name, cik, type, exchange, active / delisted", "mcp": "symbols",
+     "cli": "market_data.py symbols QUERY / symbols --ticker T --day DAY"},
+)
+
 CATALOG = (
     {"name": "trades", "source": "Massive flat files (SIP)", "history": "2016-01-04 on, every US stock",
      "as_of": "one stock-day; raw, never split-adjusted (adjust=true for today's terms)",
@@ -64,6 +112,7 @@ CATALOG = (
     {"name": "short_interest", "source": "FINRA via Massive reference", "history": "2016 on, twice monthly",
      "as_of": "a settlement counts only after its publish lag (move_reason.short_interest)",
      "units": "shares, days_to_cover", "mcp": "short_interest", "cli": "market_data.py short-interest SYMBOL DAY"},
+    *RESEARCH,
 )
 NOT_HERE = (
     "insider holdings (SEC Form 3/4/5 data sets) -- not downloaded; sec_filings lists the filings",
