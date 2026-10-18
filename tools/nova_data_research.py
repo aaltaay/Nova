@@ -76,7 +76,7 @@ class ResearchTools:
 
 
 def register(server, service, run, reads, writes_file) -> None:
-    """The eight tools on ``server`` (``run`` executes a body off the event loop, one call at a time)."""
+    """The eight tools on ``server`` (``run`` executes a body off the event loop; heavy ones one at a time)."""
 
     @server.tool(annotations=writes_file)
     async def find_stock_days(filters: dict, symbol: str | None = None, kinds: list[str] | None = None,
