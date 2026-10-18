@@ -53,9 +53,20 @@ def sec_user_agent() -> str:
     return os.environ.get("SEC_USER_AGENT") or SEC_USER_AGENT_DEFAULT
 
 
+def env_files(repo: Path = REPO) -> list[Path]:
+    """Where the desk .env may be: NOVA_ENV_PATH, this checkout's, then (from a linked worktree) the main checkout's."""
+    files = [Path(p) for p in [os.environ.get("NOVA_ENV_PATH")] if p] + [repo / ".env"]
+    pointer = repo / ".git"
+    if pointer.is_file():  # a linked worktree: "gitdir: <main>/.git/worktrees/<name>"
+        gitdir = pointer.read_text(encoding="utf-8").partition("gitdir:")[2].strip()
+        if gitdir:
+            files.append(Path(gitdir).parents[2] / ".env")
+    return files
+
+
 def load_env() -> None:
-    """The desk .env (NOVA_ENV_PATH, else the main checkout's), without overriding the process env."""
-    for env in [Path(p) for p in [os.environ.get("NOVA_ENV_PATH")] if p] + [REPO / ".env", Path(r"C:\Users\aalta\github\Nova\.env")]:
+    """The desk .env (first of ``env_files()`` that exists), without overriding the process env."""
+    for env in env_files():
         if env.is_file():
             for line in env.read_text(encoding="utf-8-sig", errors="replace").splitlines():
                 line = line.strip()
