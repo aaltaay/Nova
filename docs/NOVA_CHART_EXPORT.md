@@ -40,8 +40,16 @@ py -3 tools/nova_trade_charts.py export --trades-file trades.json --output "<NEW
 (or `"exits":[{"time":"07:05:26","price":3.49},{"time":"07:10:20","price":4.10}]` for
 partial exits). Up to 9 stock-days per call. The contract is "Trade charts" in
 [local-historical-charts.md](../architecture/schema/local-historical-charts.md).
-Measured on 9 Round 32 trades (2026-10-18): about 8 s wall clock, of which about 3 s
-is reading the day's trades and under 1 s is drawing all PNGs.
+
+For several calls in a row, add `--warm`: the first call starts a warm renderer
+(`vite preview` plus a headless Chromium, owned by one background process) and later
+calls reuse it; it stops by itself after `--idle-seconds` (default 600) without a job.
+`py -3 tools/nova_chart_warm.py status` / `stop` / `start [--idle-seconds N]` manage it
+by hand. Each stock-day's bars are cached after the first read
+(`<cache_dir>/trade-chart-bars/`), so charting the same stock-days again skips the
+multi-second trades read; a changed day file or reader code reads again.
+Measured on 9 Round 32 trades: about 8 s one-shot; with `--warm` and cached bars,
+under 5 s (numbers in the PR for #1062).
 
 ## Export an existing frozen selection
 
@@ -81,8 +89,10 @@ phase logs and partial output remain on failure. Check success and owned-child
 cleanup before reporting completion.
 
 The command owns isolated read-only data, chart-only frontend and browser children
-on two available loopback ports. On Windows, an owned Job includes descendants
-before real commands launch and cleanup verifies zero active owned processes.
+on two available loopback ports. On Windows, each command starts suspended and joins
+an owned Job before it runs (so programs started from Microsoft Store Python cannot
+escape it); cleanup verifies zero active Job processes and zero live descendants
+(`live_descendants_after_cleanup`), stopping any that escaped (`escaped_job_descendants`).
 Per-run instance checks reject unrelated listeners; readiness ignores inherited
 proxies and rejects redirects. The chart-only frontend loads no environment files.
 No trading-app lifespan, live bars, subscriptions, account changes or orders run.

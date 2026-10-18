@@ -243,6 +243,10 @@ class Boundaries(unittest.TestCase):
         self.mutate(lambda receipt, _: receipt["native_export"].update(active_owned_processes=1))
         self.assert_code(self.call(), "NATIVE_EXPORT_UNVERIFIED")
 
+    def test_a_surviving_renderer_descendant_cannot_pass(self):
+        self.mutate(lambda receipt, _: receipt["native_export"].update(live_descendants_after_cleanup=1))
+        self.assert_code(self.call(), "NATIVE_EXPORT_UNVERIFIED")
+
     def test_wrong_symbol_and_changed_selection_fail(self):
         self.mutate(lambda receipt, _: receipt["bundle"].update(symbol="OTHER"))
         self.assert_code(self.call(), "RECEIPT_IDENTITY_MISMATCH")

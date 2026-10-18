@@ -55,6 +55,8 @@ the day bar's whole-session volume, look-ahead, news before 2021-04, no Level 2 
   stock-days -- MCP `nova_trade_charts` on `nova_charts`, or
   `py -3 tools/nova_trade_charts.py export --trades-file t.json --output NEWDIR --massive-root E:\Nova\massive`
   with `[{"symbol","date","entry_time":"HH:MM:SS","entry_price","exit_time","exit_price","stop?","pivot?"}]`
-  (`exits:[{time,price}]` for partials). About 8 s for 9 charts; contract in
+  (`exits:[{time,price}]` for partials). About 8 s for 9 charts one-shot. Charting several batches? Add `--warm`
+  (a background renderer that stops itself after 10 idle minutes; `py -3 tools/nova_chart_warm.py stop` ends it
+  sooner) and re-charting the same stock-days uses cached bars: under 5 s. Contract in
   `architecture/schema/local-historical-charts.md` ("Trade charts").
 - Never place orders from this data, and never call it live: it is history.

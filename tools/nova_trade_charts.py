@@ -21,6 +21,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Callable
 
+import nova_trade_bar_cache as bar_cache
 from nova_historical_charts import checked_gateway, run_native_export
 from nova_historical_resolver import (
     HistoricalChartError,
@@ -133,18 +134,19 @@ def normalize_trades(trades: Any, *, bar_seconds: int = 10, before_s: int = 300,
 
 def project_bars(frame: Any, start_s: int, end_s: int, bar_seconds: int) -> tuple[list[dict], int]:
     """``market_reads.bars`` rows in the window; a bucket with volume but no price-setting print stays a gap."""
+    return project_rows(bar_cache.rows_from_frame(frame), start_s, end_s, bar_seconds)
+
+
+def project_rows(rows: bar_cache.Rows, start_s: int, end_s: int, bar_seconds: int) -> tuple[list[dict], int]:
     bars, dropped = [], 0
-    for row in frame.itertuples(index=False):
-        stamp = row.time_et
-        second = stamp.hour * 3600 + stamp.minute * 60 + stamp.second
+    for second, *prices, volume in rows:
         if not start_s <= second < end_s or second % bar_seconds:
             continue
-        values = [float(v) for v in (row.open, row.high, row.low, row.close)]
-        if not all(math.isfinite(v) and v > 0 for v in values):
+        if not all(p is not None and math.isfinite(p) and p > 0 for p in prices):
             dropped += 1
             continue
-        o, h, low, c = values
-        bars.append(dict(s=int(second), o=o, h=h, l=low, c=c, v=float(row.volume)))
+        o, h, low, c = prices
+        bars.append(dict(s=int(second), o=o, h=h, l=low, c=c, v=float(volume)))
     return bars, dropped
 
 
@@ -162,19 +164,27 @@ def _source(massive_root: Path, day: str) -> Path:
     return path
 
 
-def _project(plan: dict[str, Any], bar_seconds: int, massive_root: Path, read: Callable) -> tuple[list, dict]:
-    source = _source(massive_root, plan["day"]) if read is None else None
-    before = source.stat() if source else None
-    end = None if plan["end_s"] >= 86400 - 59 else _clock(math.ceil(plan["end_s"] / 60) * 60)
-    frame = (read or _front_door_read(massive_root))(plan["symbol"], plan["day"], f"{bar_seconds}s",
-                                                     _clock(plan["start_s"]), end)
-    bars, dropped = project_bars(frame, plan["start_s"], plan["end_s"], bar_seconds)
+def _project(plan: dict[str, Any], bar_seconds: int, massive_root: Path, read: Callable | None,
+             cache_root: Path | None) -> tuple[list, dict]:
+    """A caller's ``read`` gets the window only and is never cached; the front door reads (or the bar cache gives)
+    the whole session, so any later window on that stock-day is a cache hit."""
+    symbol, day, tf = plan["symbol"], plan["day"], f"{bar_seconds}s"
+    if read is not None:
+        source = before = None
+        end = None if plan["end_s"] >= 86400 - 59 else _clock(math.ceil(plan["end_s"] / 60) * 60)
+        rows, cache = bar_cache.rows_from_frame(read(symbol, day, tf, _clock(plan["start_s"]), end)), "off"
+    else:
+        source = _source(massive_root, day)
+        before = source.stat()
+        rows, cache = bar_cache.day_rows(cache_root, source, symbol, day, bar_seconds,
+                                         lambda: _front_door_read(massive_root)(symbol, day, tf))
+    bars, dropped = project_rows(rows, plan["start_s"], plan["end_s"], bar_seconds)
     if not bars:
         raise HistoricalChartError("symbol_missing", f"{plan['symbol']} has no priced trades in its window")
     info = dict(dataset=TRADES_DATASET, exact_ticker=plan["symbol"], reader="market_reads.bars",
                 rule="price-setting prints set OHLC; every trade counts in volume (ADR 046)",
                 price_adjustment="none_same_session", window_s=[plan["start_s"], plan["end_s"]],
-                volume_only_buckets_left_as_gaps=dropped)
+                volume_only_buckets_left_as_gaps=dropped, cache=cache)
     if source:
         after = source.stat()
         if (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
@@ -185,7 +195,7 @@ def _project(plan: dict[str, Any], bar_seconds: int, massive_root: Path, read: C
 
 def resolve_trade_bundle(trades: Any, output: Path, massive_root: Path, *, bar_seconds: int = 10,
                          before_s: int = 300, after_s: int = 120, family: str | None = None,
-                         read: Callable | None = None) -> dict[str, Any]:
+                         read: Callable | None = None, cache_root: Path | None = None) -> dict[str, Any]:
     """Read every stock-day (in parallel) before claiming ``output``; then freeze the bundle the exporter checks."""
     began = time.perf_counter()
     plans = normalize_trades(trades, bar_seconds=bar_seconds, before_s=before_s, after_s=after_s)
@@ -198,9 +208,10 @@ def resolve_trade_bundle(trades: Any, output: Path, massive_root: Path, *, bar_s
     target = local_path(output, must_exist=False)
     if not local_path(target.parent).is_dir() or target.exists():
         raise HistoricalChartError("output_exists", "Use a new output directory with an existing local parent")
-    reader = read or _front_door_read(root)
+    if read is None and cache_root is None:
+        cache_root = bar_cache.default_root()
     with ThreadPoolExecutor(min(READ_THREADS, len(plans))) as pool:
-        projected = list(pool.map(lambda plan: _project(plan, bar_seconds, root, read and reader), plans))
+        projected = list(pool.map(lambda plan: _project(plan, bar_seconds, root, read, cache_root), plans))
     read_ms = (time.perf_counter() - began) * 1000
     try:
         target.mkdir()
@@ -231,11 +242,12 @@ def resolve_trade_bundle(trades: Any, output: Path, massive_root: Path, *, bar_s
 
 
 def export_trades(trades: Any, output: Path, massive_root: Path, gateway_root: Path, *, samples: int = 0,
-                  **options: Any) -> dict[str, Any]:
+                  warm_idle_seconds: int | None = None, **options: Any) -> dict[str, Any]:
+    """``warm_idle_seconds`` draws through the gateway's warm renderer (started if none is running)."""
     began = time.perf_counter()
     gateway, script = checked_gateway(gateway_root, samples)
     receipt = resolve_trade_bundle(trades, output, massive_root, **options)
-    return run_native_export(receipt, gateway, script, samples, began)
+    return run_native_export(receipt, gateway, script, samples, began, warm_idle_seconds)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -252,6 +264,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--after", type=int, default=120, help="seconds of chart after the last exit")
     parser.add_argument("--family", default=None, help="the gallery title")
     parser.add_argument("--samples", type=int, choices=range(51), default=0)
+    parser.add_argument("--warm", action="store_true",
+                        help="draw with the warm renderer (tools/nova_chart_warm.py), starting one if needed")
+    parser.add_argument("--idle-seconds", type=int, default=600,
+                        help="with --warm: a renderer this call starts stops after this long without a job")
     args = parser.parse_args(argv)
     try:
         text = args.trades_json if args.trades_json is not None else args.trades_file.read_text(encoding="utf-8")
@@ -261,6 +277,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     try:
         result = export_trades(trades, args.output, args.massive_root, args.gateway_root, samples=args.samples,
+                               warm_idle_seconds=args.idle_seconds if args.warm else None,
                                bar_seconds=args.bar_seconds, before_s=args.before, after_s=args.after,
                                family=args.family)
     except HistoricalChartError as error:

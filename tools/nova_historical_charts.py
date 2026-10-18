@@ -70,13 +70,33 @@ def checked_gateway(gateway_root: Path, samples: int) -> tuple[Path, Path]:
     return gateway, script
 
 
+def _warm_export(gateway: Path, receipt: dict[str, Any], image_output: Path, samples: int,
+                 idle_seconds: int) -> dict[str, Any]:
+    """The approved checkout's warm renderer (``tools/nova_chart_warm.py``) draws the frozen bundle."""
+    tools = gateway / "tools"
+    if str(tools) not in sys.path:
+        sys.path.insert(0, str(tools))
+    import nova_chart_warm
+    if Path(nova_chart_warm.__file__).resolve().parent != tools.resolve():
+        raise HistoricalChartError("gateway_unavailable", "The warm renderer must come from the approved checkout")
+    try:
+        return nova_chart_warm.export(Path(receipt["selection_path"]), receipt["selection_sha256"], image_output,
+                                      samples, idle_seconds)
+    except (RuntimeError, ValueError, OSError) as error:
+        raise HistoricalChartError("export_failed", f"The warm renderer failed: {error}") from error
+
+
 def run_native_export(receipt: dict[str, Any], gateway: Path, script: Path, samples: int,
-                      began: float) -> dict[str, Any]:
-    """Capture a frozen bundle's PNGs with the native exporter and write ``historical_export.json`` beside it."""
+                      began: float, warm_idle_seconds: int | None = None) -> dict[str, Any]:
+    """Capture a frozen bundle's PNGs with the native exporter (one-shot, or the warm renderer when
+    ``warm_idle_seconds`` is set) and write ``historical_export.json`` beside it."""
     image_output = Path(receipt["selection_path"]).parent / "images"
+    export_began = time.perf_counter()
+    if warm_idle_seconds is not None:
+        native = _warm_export(gateway, receipt, image_output, samples, warm_idle_seconds)
+        return _write_result(receipt, native, image_output, began, export_began)
     command = [sys.executable, str(script), "export", "--selection", receipt["selection_path"],
                "--sha256", receipt["selection_sha256"], "--output", str(image_output), "--samples", str(samples)]
-    export_began = time.perf_counter()
     try:
         process = subprocess.run(command, cwd=gateway, capture_output=True, text=True, check=False,
                                  timeout=EXPORT_TIMEOUT_SECONDS)
@@ -96,6 +116,11 @@ def run_native_export(receipt: dict[str, Any], gateway: Path, script: Path, samp
         native = json.loads(process.stdout)
     except (TypeError, ValueError) as error:
         raise HistoricalChartError("export_failed", "The native Nova exporter returned an invalid JSON receipt") from error
+    return _write_result(receipt, native, image_output, began, export_began)
+
+
+def _write_result(receipt: dict[str, Any], native: Any, image_output: Path, began: float,
+                  export_began: float) -> dict[str, Any]:
     if not isinstance(native, dict) or native.get("ok") is not True:
         raise HistoricalChartError("export_failed", "The native Nova exporter did not confirm successful capture and cleanup")
     result = {"ok": True, "schema_version": 1, "kind": "historical_ohlcv",
