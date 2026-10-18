@@ -1706,12 +1706,14 @@
       "issues": [
         897,
         899,
-        900
+        900,
+        1069
       ],
       "done": [
         "Unavailable halt sources produce unknown state rather than a no-halt claim.",
         "Halt direction comes from event-matched evidence with named provenance, never reason codes, a generic threshold comparison, net daily change or short cool-off trend; unknown and known coverage remain explicit.",
-        "Theme ETF leaders have versioned membership and source coverage, never guessed holdings."
+        "Theme ETF leaders have versioned membership and source coverage, never guessed holdings.",
+        "Nasdaq halt starts parse from padded halt times, and the halt log holds the starts it dropped."
       ],
       "prs": [
         {
@@ -1737,6 +1739,19 @@
             "frontend/src/utils/catalystVerdict.ts",
             "frontend/src/types/catalystVerdict.ts",
             "backend/constants_market_board.py"
+          ]
+        },
+        {
+          "title": "fix(halts): parse Nasdaq's padded halt time and backfill the missing starts",
+          "issues": [
+            1069
+          ],
+          "note": "Nasdaq Trade Halt pages pad the halt time ('06:55:00   .000'); nasdaq_halt_rss strips spaces before splitting off '.000', so strptime fails and the halt start is dropped (2026-03-12 .. 2026-09-21). Fix the strip order with a regression test on the padded string, then re-run research/catalysts/backfill_halts.py --load for the gap. Live overlay path: keep the at-most-once-a-minute poll and never invent a time.",
+          "gated": false,
+          "touches": [
+            "backend/ibkr/nasdaq_halt_rss.py",
+            "backend/tests/test_nasdaq_halt_rss.py",
+            "research/catalysts/backfill_halts.py"
           ]
         }
       ]
@@ -1850,6 +1865,128 @@
             "frontend/src/settings/",
             "architecture/schema/volume-profile.md",
             "architecture/decisions/058-volume-profile-on-the-5-minute-chart.md"
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 21,
+      "slug": "research-data-front-door",
+      "title": "21 - Research data front door answers fast and honestly",
+      "readiness": "ready-now",
+      "gate": "#1066 is the operator's choice of Massive endpoints, plan and request budget. #1056 lockups need the operator to pick parsing 424B4 prospectuses or a vendor. #1057 needs the operator to pick the shape feature list first (ADR 050: Nova defines no shape words).",
+      "objective": "Research reads over Nova's historical data (ADR 059 data front door, the nova-data MCP, the chart exporter and the Massive builders) answer from current, as-of-dated sources, say what they do not know, stay bounded beside the live desk, and leave no processes behind. Research only: no desk, order or live-feed path.",
+      "issues": [
+        1056,
+        1057,
+        1061,
+        1062,
+        1064,
+        1065,
+        1066,
+        1067,
+        1068,
+        1070
+      ],
+      "done": [
+        "A chart export leaves no renderer process running, and its receipt counts the processes that are actually alive.",
+        "Data already on disk (Nova's own recordings, short volume, borrow, ratios) is served read-only through the front door with an as-of rule and a catalog entry.",
+        "Research stores are built by in-repo builders, read with the current rules version, and hold no personal paths.",
+        "Heavy reads stay bounded across agents; light reads do not queue behind them.",
+        "New data sources and shape vocabularies are operator decisions recorded on their issues, never guessed."
+      ],
+      "prs": [
+        {
+          "title": "fix(charts): stop leaking the chart renderer and warm it for fast trade charts",
+          "issues": [
+            1061,
+            1062
+          ],
+          "note": "#1061: the Vite renderer outlives its bootstrap parent under Microsoft Store Python while the receipt says 0 live (102 node processes, about 13 GB on 2026-10-18). #1062: a warm renderer so 9 fresh trade charts draw in under 5 s, which changes the one-shot isolation design.",
+          "gated": false,
+          "touches": [
+            "tools/nova_chart_processes.py",
+            "tools/nova_charts.py",
+            "tools/nova_historical_charts.py",
+            "tools/nova_trade_charts.py"
+          ]
+        },
+        {
+          "title": "fix(research): close the Massive builder and catalyst verdict gaps",
+          "issues": [
+            1068,
+            1070
+          ],
+          "note": "#1068: remove the hardcoded personal .env fallback in cat_config (NOVA_ENV_PATH and the repo .env only), find or rewrite the sig_5m builder; quotes_movers_v1 and the lab task switch are operator steps. #1070: verdict readers pick the newest rules version, and build_verdicts re-runs with the current rules (a long job; one row per rules version).",
+          "gated": false,
+          "touches": [
+            "research/catalysts/",
+            "research/massive_builders/",
+            "research/bb_mr/",
+            "research/market_reads/catalysts.py",
+            "docs/massive-builders.md"
+          ]
+        },
+        {
+          "title": "feat(data): serve recordings, short volume, borrow and ratios through the front door",
+          "issues": [
+            1064,
+            1065
+          ],
+          "note": "Data already on disk. Recording reads must be read-only and must not contend the live writers (SQLite WAL, persist_queue); run under a heavy-read slot. Ratios and SIC are latest-only and must be labelled so. Each kind: a market_reads reader with an as-of rule, a CLI subcommand, an MCP tool and a catalog entry.",
+          "gated": false,
+          "touches": [
+            "research/market_reads/",
+            "tools/nova_data_mcp.py",
+            "tools/market_data.py",
+            "architecture/schema/recording-and-replay.md"
+          ]
+        },
+        {
+          "title": "perf(data): let light nova-data reads run beside heavy ones",
+          "issues": [
+            1067
+          ],
+          "note": "Measure N agents x mixed calls first (queue wait and slot wait per call). Heavy reads must stay bounded: the slots also protect the live desk's drive.",
+          "gated": false,
+          "touches": [
+            "tools/nova_data_mcp.py",
+            "research/market_reads/slots.py"
+          ]
+        },
+        {
+          "title": "decision(data): choose which Massive endpoints to download",
+          "issues": [
+            1066
+          ],
+          "note": "Operator decision: ticker events, dated overview, Forms 3/4, 8-K and 10-K text, condition codes -- which endpoints, on which plan, and the request budget. List each endpoint's plan requirement and request count for 2016-2026 first.",
+          "gated": true,
+          "touches": [
+            "research/massive_builders/reference_archive.py"
+          ]
+        },
+        {
+          "title": "feat(data): historical float as of a day from insider holdings and lockups",
+          "issues": [
+            1056
+          ],
+          "note": "Insider holdings from the free SEC Form 3/4/5 data sets are unblocked; locked-up shares need the operator to pick parsing 424B4 text or a vendor, and Forms 3/4 overlap the #1066 endpoint decision. float_as_of names its unknown parts (foreign filers file no Forms 3/4/5).",
+          "gated": true,
+          "touches": [
+            "research/market_reads/",
+            "tools/nova_data_mcp.py"
+          ]
+        },
+        {
+          "title": "feat(data): shape-features index for chart-shape questions",
+          "issues": [
+            1057
+          ],
+          "note": "Store features, not shape names (ADR 050). Pick the feature list with the operator first; then prefilter with the movers index and compute features in a background job under a heavy-read slot. One persisted table with owner, invalidation and schema_version.",
+          "gated": true,
+          "touches": [
+            "research/market_reads/",
+            "tools/nova_data_mcp.py"
           ]
         }
       ]
