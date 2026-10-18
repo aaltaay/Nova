@@ -318,7 +318,9 @@ def float_rows(f: dict[str, Any]) -> list[dict[str, Any]]:
     src = "Yahoo fundamentals"
     out = []
     if fl is None:
-        out.append(row("float", "Float", "Unknown", "unknown", src, "Yahoo gave none"))
+        detail = ("Not recorded for this replay (today's Yahoo float is not used on a past session)"
+                  if f.get("replay") else "Yahoo gave none")
+        out.append(row("float", "Float", "Unknown", "unknown", src, detail))
     else:
         state = "ok" if fl < STOCK_READ_FLOAT_OK else ("warn" if fl < STOCK_READ_FLOAT_BAD else "bad")
         detail = None

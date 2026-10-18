@@ -5,8 +5,10 @@ Part of `AGENTS.md` §3 (Data Schema), which indexes every file in this folder. 
 ## The bot's read on one stock (ADR 036, operator ask 2026-09-24, #598)
 
 On a Sim replay desk the read is the replay's at the playhead (`replay: true`; ADR 052, bot.md "The bot
-trades a Sim replay"): the Sim eyes' setups, the replay's candles, the days before for the daily map; the
-setups that ended are the Sim eyes' up to the playhead (#815), and the decisions timeline answers empty there.
+trades a Sim replay"): the Sim eyes' setups, the replay's candles and volume so far (so `liquidity` measures
+`day_dollars` and `pace_dollars` at the playhead, #825), the replay's LULD band (`luld/replay.py`, #775), the
+days before for the daily map; the setups that ended are the Sim eyes' up to the playhead (#815), and the
+decisions timeline answers empty there.
 
 "Show me the bot's decisions specifically for that stock ... if something is forming, can we start
 highlighting it on the chart? ... all the tiny signals"; then "i want it to tell me my entry/exit
