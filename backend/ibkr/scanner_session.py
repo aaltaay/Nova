@@ -358,6 +358,10 @@ def reconcile_session_tables(
             ts.roster_ts = 0.0
             ts.quote_ts = 0.0
             ts.revision += 1
+            # A desk follows /ws/scanner only (ADR 008): say the table is empty now,
+            # or it shows the prior session's rows all morning (2026-10-19).
+            from scanner_push import schedule_roster_replace
+            schedule_roster_replace(table, [], ts)
             continue
         if table_should_be_frozen(table, now) and getattr(state, cache_attr_names(table)[0]):
             if freeze_table(state, table):
