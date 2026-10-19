@@ -61,15 +61,9 @@ def hod_momo_get_alerts(limit: int | None = None):
 async def hod_momo_clear_alerts():
     """Explicitly clear today's alerts (in-memory + today's on-disk snapshot)."""
     result = _hod_momo.clear_today_alerts()
-    payload = json.dumps(_hod_momo.get_ws_initial_payload())
-    dead = []
-    for ws in list(_hod_momo.get_ws_clients()):
-        try:
-            await ws.send_text(payload)
-        except Exception:
-            dead.append(ws)
-    for ws in dead:
-        _hod_momo.remove_ws_client(ws)
+    from hod_momo_alerts import broadcast_initial
+
+    await broadcast_initial()
     return result
 
 

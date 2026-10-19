@@ -71,6 +71,35 @@ async def broadcast_roster_replace(table: str, rows: list[dict], ts: TableState)
     })
 
 
+def schedule_roster_replace(table: str, rows: list[dict], ts: TableState) -> None:
+    """Queue ``broadcast_roster_replace`` from sync code, on the HTTP loop that owns the clients.
+
+    The 04:00 rollover clears a table in ``reconcile_session_tables``; a
+    persistent-authoritative desk takes rows only from this socket, so without
+    the push a desk open over Monday 04:00 showed Friday's After Hours 50 and
+    Losers 50 all premarket (operator report, 2026-10-19).
+    """
+    import asyncio
+
+    from ibkr.loop_supervisor import is_ib_loop, publish_to_http
+
+    def _send() -> None:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            logger.debug("scanner push: no running loop; %s roster replace skipped", table)
+            return
+        loop.create_task(broadcast_roster_replace(table, rows, ts))
+
+    try:
+        if is_ib_loop():
+            publish_to_http(_send)
+        else:
+            _send()
+    except Exception:
+        logger.warning("scanner push: %s roster replace could not be queued", table, exc_info=True)
+
+
 async def broadcast_halt_patch(symbols: Iterable[str] | None = None) -> None:
     """Update only the served halt overlay (#571), including frozen tables.
 
