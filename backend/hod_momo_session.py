@@ -169,11 +169,26 @@ def load_state() -> None:
     )
 
 
+async def reset_and_tell_desks() -> bool:
+    """Roll the session if its key moved, and restate the emptied feed to every open desk.
+
+    A desk's alert list only grows from ``alert`` frames; without the restated
+    ``initial`` frame a desk open over 04:00 kept yesterday's alerts under
+    today's (operator report, 2026-10-19).
+    """
+    if not check_and_reset_session():
+        return False
+    from hod_momo_alerts import broadcast_initial
+
+    await broadcast_initial()
+    return True
+
+
 async def session_reset_loop() -> None:
     while True:
         try:
             await asyncio.sleep(HOD_MOMO_SESSION_RESET_POLL_SEC)
-            check_and_reset_session()
+            await reset_and_tell_desks()
         except asyncio.CancelledError:
             raise
         except Exception as exc:

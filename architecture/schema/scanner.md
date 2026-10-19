@@ -30,6 +30,10 @@ moved replaces its rows outright: the empty-update "last-good" hold covers a
 blip inside one session only. Before this a desk left open over Monday 04:00
 kept Friday's After Hours and Losers rows all premarket (operator report,
 2026-10-19).
+The HOD Momo feed rolls the same way: when its session rolls, `/ws/hod-momo`
+restates `{"type": "initial", "alerts": [], "total": 0}` to every open desk
+(`hod_momo_alerts.broadcast_initial`, also used by `DELETE
+/api/hod-momo/alerts`), since an `alert` frame only adds to a desk's list.
 
 No socket frame on `/ws/scanner` or `/ws/hod-momo` carries a bare `NaN` /
 `Infinity`: a non-finite float is `null` (`scanner_wire.dumps_wire`,
