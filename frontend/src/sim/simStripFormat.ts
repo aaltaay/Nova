@@ -53,12 +53,31 @@ export function formatShortDate(iso?: string | null): string {
   }
 }
 
+/** The nth Sunday (1-based) of a month, as a UTC day-of-month. */
+function nthSunday(year: number, month: number, n: number): number {
+  const firstDow = new Date(Date.UTC(year, month, 1)).getUTCDay();
+  return 1 + ((7 - firstDow) % 7) + (n - 1) * 7;
+}
+
+/**
+ * Eastern date from the US daylight-saving rule (second Sunday of March 02:00 to first Sunday of
+ * November 02:00 local), for a runtime that cannot name the zone. UTC's date is tomorrow's in the
+ * evening, so it is never the answer.
+ */
+function easternDateByRule(now: Date): string {
+  const y = now.getUTCFullYear();
+  const dstStart = Date.UTC(y, 2, nthSunday(y, 2, 2), 7);   // 02:00 EST = 07:00Z
+  const dstEnd = Date.UTC(y, 10, nthSunday(y, 10, 1), 6);   // 02:00 EDT = 06:00Z
+  const offsetHours = now.getTime() >= dstStart && now.getTime() < dstEnd ? 4 : 5;
+  return new Date(now.getTime() - offsetHours * 3_600_000).toISOString().slice(0, 10);
+}
+
 /** Today's Eastern date as YYYY-MM-DD. */
 export function todayEt(now: Date = new Date()): string {
   try {
     return now.toLocaleDateString('en-CA', { timeZone: SIM_ET_TIME_ZONE });
   } catch {
-    return now.toISOString().slice(0, 10);
+    return easternDateByRule(now);
   }
 }
 

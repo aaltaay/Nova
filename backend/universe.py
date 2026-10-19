@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import date
 
 import requests
 
@@ -28,6 +27,7 @@ from fundamentals import (
     fetch_fundamentals_batch as _fetch_fundamentals_batch,
 )
 from scanner import _is_common_stock, fetch_avg_volume_batch
+from market import session_key_et
 from runtime_state import get_runtime_state
 from websocket import mark_resub as _ws_mark_resub
 
@@ -84,7 +84,7 @@ def get_tradable_symbols(base_url: str, headers: dict) -> list[str]:
 def ensure_avg_volume(symbols: list[str], headers: dict) -> None:
     """Lazily populate ``_avg_volume_cache`` for any symbols not yet cached today."""
     state = get_runtime_state()
-    today = date.today().isoformat()
+    today = session_key_et()
     if state.avg_volume_date != today:
         state.avg_volume_cache = {}
         state.avg_volume_date = today

@@ -46,6 +46,7 @@ from constants_stock_read import (
     STOCK_READ_LEVEL_TOUCH_PCT,
     STOCK_READ_LEVELS_SCHEMA_VERSION,
 )
+from market import session_key_et
 from stock_read import rounds
 
 ET = ZoneInfo("America/New_York")
@@ -376,7 +377,7 @@ def build(bars: list[dict[str, Any]], daily: list[dict[str, Any]] | None, *, pri
     ``rounds`` is the price's scale of round numbers (``rounds.Rounds.wire``), None without a price.
     Yesterday is the last session before today only when it is finished: an unfinished one is no
     yesterday, and an older session is never renamed yesterday (``daily_note`` says why)."""
-    today = datetime.fromtimestamp(now, ET).date().isoformat()
+    today = session_key_et(datetime.fromtimestamp(now, ET))   # the session on screen, not the calendar date
     past = [b for b in (daily or []) if b["d"] < today]
     yday = past[-1] if past and final(past[-1]) else None
     intra = intraday_members(bars, price=price, vwap=vwap, yday=yday, prior_close=prior_close)

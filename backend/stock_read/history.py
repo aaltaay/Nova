@@ -27,6 +27,7 @@ from constants_stock_read import (
     STOCK_READ_RUN_MIN_PCT,
     STOCK_READ_SETUPS_HISTORY_DAYS,
 )
+from market import session_key_et
 from stock_read.rows import row, shares
 
 logger = logging.getLogger(__name__)
@@ -85,7 +86,7 @@ def summary(symbol: str, now: float, *, replay: bool = False) -> dict[str, Any] 
     from constants import IBKR_BARS_DAILY_REPAIR_RETRY_SEC
     from sensors.feeds import get_bars
 
-    today = datetime.fromtimestamp(now, ET).date().isoformat()
+    today = session_key_et(datetime.fromtimestamp(now, ET))   # the session on screen: weekends and 00:00-04:00 included
     key = (symbol, today, replay)
     rev = bars_store.daily_revision(symbol)
     with _lock:
@@ -100,8 +101,10 @@ def summary(symbol: str, now: float, *, replay: bool = False) -> dict[str, Any] 
     last200 = past[-STOCK_READ_DAILY_SMA_DAYS:]
     sma200 = (round(sum(b["c"] for b in last200) / len(last200), 4)
               if len(last200) == STOCK_READ_DAILY_SMA_DAYS and all(b["state"] == "final" for b in last200) else None)
+    # A stored bar judged ``partial`` / ``unknown`` has had its session end (``daily_bar_state``), so it asks for the
+    # refetch even as the session on screen: Friday's snapshot is repaired over the weekend.
     unfinished = [{"date": b["d"], "state": b["state"], "stored_through": b["through"]}
-                  for b in past if b["state"] != "final"]
+                  for b in daily if b["state"] in ("partial", "unknown") or (b["d"] < today and b["state"] != "final")]
     out = {"daily": daily[-STOCK_READ_HISTORY_CHART_DAYS:],
            "daily_days": sum(1 for b in daily if b["state"] == "final"), "runs": runs(daily, today),
            "sma200": sma200, "unfinished": unfinished}

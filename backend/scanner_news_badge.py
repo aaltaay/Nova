@@ -2,13 +2,13 @@
 
 Under ``discovery=ibkr`` the Alpaca movers/discovery runners return before they
 can stamp ``has_news`` / ``newest_headline_at``. This module owns a side cache
-of today's Alpaca headlines for current roster symbols and stamps them at
+of Alpaca headlines since the last session closed for current roster symbols and stamps them at
 serialization time (``mover_enrich_view.decorate_rows``). It never writes into
 the frozen roster (ADR 008). Large Cap is in the headline roster so it can
 share the Gainers News flame; it is still excluded from HOD admission.
 
-Owner: this module (in-memory only). Invalidation: ET date rollover, or
-process start. No disk ``schema_version`` -- the cache is not persisted.
+Owner: this module (in-memory only). Invalidation: the trading-session rollover
+(04:00 ET, ``market.session_key_et``), or process start. No disk ``schema_version`` -- the cache is not persisted.
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ import threading
 from alpaca import _alpaca_headers
 from constants import NEWS_BADGE_INTERVAL_SEC, NEWS_BADGE_SYMBOL_BATCH
 from ibkr import scanner_session as _ss
-from market import now_et as _now_et
+from market import session_key_et
 from runtime_state import get_runtime_state
 from scanner import _check_news
 
@@ -48,14 +48,14 @@ def _discovery_ibkr() -> bool:
 
 def _ensure_today() -> None:
     global _cache_date
-    today = _now_et().date().isoformat()
-    if _cache_date != today:
+    session = session_key_et()
+    if _cache_date != session:
         _headlines.clear()
-        _cache_date = today
+        _cache_date = session
 
 
 def record(news: dict[str, str] | None) -> None:
-    """Merge Alpaca ``{symbol: created_at}`` into today's headline cache."""
+    """Merge Alpaca ``{symbol: created_at}`` into the session's headline cache."""
     _ensure_today()
     for sym, created in (news or {}).items():
         key = (sym or "").strip().upper()
