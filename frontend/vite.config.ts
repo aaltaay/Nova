@@ -105,10 +105,18 @@ export default defineConfig(({ command, mode }) => {
     // The dev server's watcher holds directory handles on everything under
     // frontend/. On Windows that blocks electron-builder's rename of
     // release/win-unpacked.tmp -> release/win-unpacked with EPERM while the
-    // desk is running (2026-09-22: three packs failed on the same rename).
+    // desk is running (2026-09-22: three packs failed on the same rename), and
+    // the chart renderer's .chart-gateway-build/.tmp-* -> <key> rename the same
+    // way (2026-10-18: every chart export from the desk's checkout failed).
     // Build outputs are never sources; leave them to the packager.
     watch: {
-      ignored: ['**/release/**', '**/dist/**', '**/dist-electron/**', '**/.vite-cache/**'],
+      ignored: [
+        '**/release/**',
+        '**/dist/**',
+        '**/dist-electron/**',
+        '**/.vite-cache/**',
+        '**/.chart-gateway-build/**',
+      ],
     },
   },
   build: {

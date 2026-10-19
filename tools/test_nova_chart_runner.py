@@ -10,6 +10,8 @@ import pytest
 
 import nova_chart_runner as runner
 
+REPO = Path(__file__).resolve().parents[1]
+
 
 def no_children(monkeypatch):
     def refuse(*args, **kwargs):
@@ -182,3 +184,21 @@ def test_a_failed_build_leaves_no_bundle(tmp_path, monkeypatch):
     with pytest.raises(RuntimeError, match="renderer build failed"):
         runner._gateway_bundle("node", root / "vite.js")
     assert not any((root / "frontend/.chart-gateway-build").glob("*/chart-gateway.html"))
+
+
+def test_a_build_that_cannot_be_moved_into_place_says_why(tmp_path, monkeypatch):
+    # 2026-10-18: the desk's Vite dev server watched the new build's assets folder, so Windows refused the rename
+    # and every export then failed with a misleading "readiness refused HTTP 404" on a folder that never existed.
+    root, _ = fake_frontend(tmp_path, monkeypatch)
+
+    def refused(self, target):
+        raise PermissionError(5, "Access is denied", str(self))
+    monkeypatch.setattr(runner.Path, "rename", refused)
+    with pytest.raises(RuntimeError, match="could not be moved into place.*Access is denied"):
+        runner._gateway_bundle("node", root / "vite.js")
+    assert not list((root / "frontend/.chart-gateway-build").iterdir()), "the staging folder is removed"
+
+
+def test_the_desk_dev_server_never_watches_the_chart_renderer_builds():
+    config = (REPO / "frontend/vite.config.ts").read_text(encoding="utf-8")
+    assert f"'**/{runner.BUILD_DIR}/**'" in config

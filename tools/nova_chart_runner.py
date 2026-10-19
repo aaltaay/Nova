@@ -59,8 +59,11 @@ def _gateway_bundle(node: str, vite: Path) -> Path:
         raise RuntimeError(f"Chart renderer build failed: {(result.stderr or result.stdout)[-2000:]}")
     try:
         staging.rename(bundle)
-    except OSError:
-        shutil.rmtree(staging, ignore_errors=True)  # A concurrent export built the same key first.
+    except OSError as error:
+        shutil.rmtree(staging, ignore_errors=True)
+        if not (bundle / "chart-gateway.html").is_file():  # Not a concurrent export that built the same key first.
+            raise RuntimeError(f"Chart renderer build could not be moved into place ({error}); a process watching "
+                               f"{builds} holds it open") from error
     for old in builds.iterdir():  # Dot names are in-flight builds and the warm renderer's files.
         if old != bundle and not old.name.startswith("."):
             shutil.rmtree(old, ignore_errors=True)

@@ -1,4 +1,5 @@
-"""The trade-chart bar cache: hits only on an unchanged day file and reader; generated bars, no Massive files."""
+"""The trade-chart bar cache: hits only on an unchanged day file and reader and a window inside the span it holds;
+generated bars, no Massive files."""
 from __future__ import annotations
 
 import json
@@ -14,6 +15,8 @@ import nova_trade_charts as trades  # noqa: E402
 
 DAY = "2023-05-02"
 NAN = float("nan")
+SPAN = (25200, 25860)     # 07:00 to 07:11, the minutes the read covered
+WHOLE = (0, 86400)
 
 
 def frame(rows):
@@ -43,26 +46,48 @@ def counting_read(calls: list):
 
 def test_a_second_read_of_the_stock_day_is_a_hit_with_the_same_rows(tmp_path):
     source, calls = day_file(tmp_path), []
-    first, state = cache.day_rows(tmp_path / "cache", source, "DEMO", DAY, 10, counting_read(calls))
+    first, state = cache.day_rows(tmp_path / "cache", source, "DEMO", DAY, 10, SPAN, counting_read(calls))
     assert state == "miss" and len(calls) == 1
-    second, state = cache.day_rows(tmp_path / "cache", source, "DEMO", DAY, 10, counting_read(calls))
+    second, state = cache.day_rows(tmp_path / "cache", source, "DEMO", DAY, 10, SPAN, counting_read(calls))
     assert state == "hit" and len(calls) == 1 and second == first
     assert first[1] == [25210, None, None, None, None, 40.0], "a volume-only bucket keeps no prices"
 
 
+def test_a_window_inside_the_cached_span_hits_and_one_outside_reads_again(tmp_path):
+    source, calls, root = day_file(tmp_path), [], tmp_path / "cache"
+    cache.day_rows(root, source, "DEMO", DAY, 10, SPAN, counting_read(calls))
+    assert cache.day_rows(root, source, "DEMO", DAY, 10, (25260, 25800), counting_read(calls))[1] == "hit"
+    assert cache.day_rows(root, source, "DEMO", DAY, 10, (25140, 25800), counting_read(calls))[1] == "miss"
+    assert cache.day_rows(root, source, "DEMO", DAY, 10, (25140, 25800), counting_read(calls))[1] == "hit"
+    assert cache.day_rows(root, source, "DEMO", DAY, 10, SPAN, counting_read(calls))[1] == "miss", \
+        "the entry now holds the later window only"
+    assert len(calls) == 3
+
+
+def test_a_version_1_entry_holds_the_whole_session(tmp_path):
+    source, calls, root = day_file(tmp_path), [], tmp_path / "cache"
+    cache.day_rows(root, source, "DEMO", DAY, 10, WHOLE, counting_read(calls))
+    entry = root / DAY / "DEMO_10s.json"
+    stored = json.loads(entry.read_text(encoding="utf-8"))
+    del stored["span_s"]
+    entry.write_text(json.dumps(dict(stored, schema_version=1)), encoding="utf-8")
+    assert cache.day_rows(root, source, "DEMO", DAY, 10, SPAN, counting_read(calls))[1] == "hit"
+    assert len(calls) == 1
+
+
 def test_a_changed_day_file_reader_or_schema_is_a_miss(tmp_path, monkeypatch):
     source, calls, root = day_file(tmp_path), [], tmp_path / "cache"
-    cache.day_rows(root, source, "DEMO", DAY, 10, counting_read(calls))
+    cache.day_rows(root, source, "DEMO", DAY, 10, SPAN, counting_read(calls))
     info = source.stat()
     os.utime(source, ns=(info.st_atime_ns, info.st_mtime_ns + 10**9))
-    assert cache.day_rows(root, source, "DEMO", DAY, 10, counting_read(calls))[1] == "miss"
+    assert cache.day_rows(root, source, "DEMO", DAY, 10, SPAN, counting_read(calls))[1] == "miss"
     monkeypatch.setattr(cache, "reader_sha256", lambda repo=cache.REPO: "another reader")
-    assert cache.day_rows(root, source, "DEMO", DAY, 10, counting_read(calls))[1] == "miss"
+    assert cache.day_rows(root, source, "DEMO", DAY, 10, SPAN, counting_read(calls))[1] == "miss"
     entry = root / DAY / "DEMO_10s.json"
     stored = json.loads(entry.read_text(encoding="utf-8"))
     entry.write_text(json.dumps(dict(stored, schema_version=99)), encoding="utf-8")
-    assert cache.day_rows(root, source, "DEMO", DAY, 10, counting_read(calls))[1] == "miss"
-    assert cache.day_rows(root, source, "DEMO", DAY, 5, counting_read(calls))[1] == "miss", "another bar size"
+    assert cache.day_rows(root, source, "DEMO", DAY, 10, SPAN, counting_read(calls))[1] == "miss"
+    assert cache.day_rows(root, source, "DEMO", DAY, 5, SPAN, counting_read(calls))[1] == "miss", "another bar size"
     assert len(calls) == 5
 
 
@@ -73,11 +98,11 @@ def test_a_day_file_that_changes_during_the_read_is_not_cached(tmp_path):
         source.write_bytes(b"fixture and more")
         return DAY_FRAME
 
-    assert cache.day_rows(root, source, "DEMO", DAY, 10, read_while_the_file_grows)[1] == "miss"
+    assert cache.day_rows(root, source, "DEMO", DAY, 10, SPAN, read_while_the_file_grows)[1] == "miss"
     assert not (root / DAY / "DEMO_10s.json").exists()
 
 
-def test_the_trade_bundle_reads_the_front_door_once_then_hits(tmp_path, monkeypatch):
+def test_the_trade_bundle_reads_only_its_window_once_then_hits(tmp_path, monkeypatch):
     source = day_file(tmp_path)
     massive = source.parents[3]
     calls = []
@@ -94,8 +119,9 @@ def test_the_trade_bundle_reads_the_front_door_once_then_hits(tmp_path, monkeypa
     first = trades.resolve_trade_bundle([trade], tmp_path / "one", massive, cache_root=tmp_path / "cache")
     second = trades.resolve_trade_bundle([dict(trade, exit_price=4.0)], tmp_path / "two", massive,
                                          cache_root=tmp_path / "cache")
-    assert calls == [("DEMO", DAY, "10s", None, None)], "the whole session once; the second chart reads nothing"
+    assert calls == [("DEMO", DAY, "10s", "07:00", "07:13")], "the window once; the second chart reads nothing"
     assert [s["cache"] for s in (first["sources"][0], second["sources"][0])] == ["miss", "hit"]
+    assert first["sources"][0]["read_span_s"] == [25200, 25980]
     bars = [json.loads((tmp_path / name / "bars" / "01.json").read_text(encoding="utf-8"))["bars"]
             for name in ("one", "two")]
     assert bars[0] == bars[1] and [b["s"] for b in bars[0]] == [25520, 25820], "the window opens at 07:00:20"

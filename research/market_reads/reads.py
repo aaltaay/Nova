@@ -68,6 +68,70 @@ def _parse_day(path, symbol: str) -> tuple[pd.DataFrame, list[str], bool]:
     return frame, header or [], indexed
 
 
+def _probe(lines: list[bytes], header: list[str]):
+    """A stretch's non-text columns as pyarrow reads them (a real CSV parser: a quoted comma is no separator), or
+    ``None`` when it cannot read the stretch line for line."""
+    import pyarrow as pa
+    import pyarrow.csv as pacsv
+    try:
+        table = pacsv.read_csv(io.BytesIO(b"\n".join(lines) + b"\n"),
+                               read_options=pacsv.ReadOptions(column_names=header),
+                               convert_options=pacsv.ConvertOptions(
+                                   include_columns=[name for name in header if name not in TEXT_COLUMNS]))
+    except pa.ArrowInvalid:
+        return None
+    return table if table.num_rows == len(lines) else None
+
+
+def _parse_window(path, symbol: str, column: str, lo: int | None,
+                  hi: int | None) -> tuple[pd.DataFrame, bool] | None:
+    """``symbol``'s rows with ``column`` in ``[lo, hi)`` exactly as ``_parse_day`` then the window would give them,
+    with only those lines parsed by pandas; ``None`` when that cannot be vouched for (the caller parses the day).
+
+    pyarrow reads the block's non-text columns first: their times pick the lines, and each column's type and gaps
+    over the whole block say which dtype the whole-day parse gives -- a whole-number column with a gap or a fraction
+    anywhere that day is float64 there, so the window's is cast to it. A window holding no row, a time that is not a
+    whole number on every line, or a non-text column that is not a number somewhere that day takes the whole-day
+    way. Nothing about row order is assumed."""
+    import pyarrow as pa
+    header: list[str] | None = None
+    kept: list[bytes] = []
+    floats: set[str] = set()
+    other: set[str] = set()
+    with massive_files.DayRead(path, symbol) as read:
+        for head, batch in read.batches():
+            header = head or header
+            table = _probe(batch, header)
+            if table is None or column not in table.column_names:
+                return None
+            times = table.column(column)
+            if not pa.types.is_integer(times.type) or times.null_count:
+                return None
+            for name, values in zip(table.column_names, table.columns, strict=True):
+                if pa.types.is_floating(values.type) or values.null_count:
+                    floats.add(name)
+                elif not pa.types.is_integer(values.type):
+                    other.add(name)
+            times = times.to_numpy()
+            inside = np.ones(len(batch), dtype=bool)
+            if lo is not None:
+                inside &= times >= lo
+            if hi is not None:
+                inside &= times < hi
+            kept.extend(batch[i] for i in np.flatnonzero(inside))
+        indexed = read.indexed
+    if header is None:                       # the file does not hold the symbol: _parse_day's empty frame
+        return pd.DataFrame(columns=[]), indexed
+    if other or not kept:
+        return None
+    text = (",".join(header) + "\n").encode() + b"\n".join(kept) + b"\n"
+    frame = pd.read_csv(io.BytesIO(text), dtype={k: v for k, v in TEXT_COLUMNS.items() if k in header}, **CSV_NA)
+    for name in floats & set(frame.columns):
+        if pd.api.types.is_integer_dtype(frame[name].dtype):
+            frame[name] = frame[name].astype("float64")
+    return frame, indexed
+
+
 @functools.cache
 def _reader() -> str:
     """The read cache's key for the code that finds and parses the rows (any change to it is a miss)."""
@@ -78,21 +142,29 @@ def read_file(dataset: str, symbol: str, day: str, start: str | None = None, end
     """``symbol``'s rows of ``dataset`` on ``day`` (ET ``start`` <= time < ``end``), every column as delivered.
 
     ``df.attrs`` says whether the read went through the file's index (``indexed``) and how long it took. A symbol-day
-    read before comes out of the read cache (``read_cache``) when it is on: the same frame, without the unzip.
+    read before comes out of the read cache (``read_cache``) when it is on: the same frame, without the unzip. A
+    window the cache does not hold parses only the window's lines (``_parse_window``; the cache keeps whole days, so
+    that read is not saved), so a few minutes of a busy day cost those minutes, not the day.
     """
     path = massive_files.day_file(dataset, day)
     if path is None:
         raise LookupError(f"no {dataset} file for {day} under {massive_files.root()}")
     t0 = datetime.now()
+    column = TIME_COLUMN[dataset]
     cached = read_cache.load(dataset, symbol, day, path, _reader()) if read_cache.root() else None
+    window = None
+    if cached is None and (start or end):
+        window = _parse_window(path, symbol, column, _ns(day, start) if start else None,
+                               _ns(day, end) if end else None)
     if cached is not None:
         frame, indexed = cached
+    elif window is not None:
+        frame, indexed = window
     else:
         before = read_cache.source_identity(path) if read_cache.root() else None
         frame, header, indexed = _parse_day(path, symbol)
         if before is not None:
             read_cache.save(dataset, symbol, day, path, _reader(), before, frame, header, indexed)
-    column = TIME_COLUMN[dataset]
     if len(frame):
         if start:
             frame = frame[frame[column] >= _ns(day, start)]

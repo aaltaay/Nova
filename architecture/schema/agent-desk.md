@@ -186,7 +186,33 @@ verified count to `frontend/.chart-gateway-build/.warm-service.log`.
   `warm_service:{pid, owned_pids, live_owned_processes, jobs_served, idle_seconds}`. It
   has no `owned_trees_stopped`: the renderer is meant to stay up, and the receipt says
   which process owns it instead of claiming it stopped. One-shot receipts carry
-  `renderer:"cold"`. The MCP server's verification accepts only one-shot receipts.
+  `renderer:"cold"`.
+
+#### The MCP server's warm renderer (#1062)
+
+`nova_trade_charts` draws warm; the other two chart tools stay one-shot. Owner:
+`tools/nova_chart_mcp_warm.py` in the long-lived MCP server process, which starts the
+gateway's `nova_chart_warm.py serve --idle-seconds 600` in a Job of its own (the gateway's
+`OwnedProcesses`), outside every call's Job. Before each call it asks for the answering
+renderer's pid, starting one when none answers (a renderer someone started from a shell is
+used and left running). The call then runs `nova_trade_charts.py export --warm` in its own
+Job as before, torn down and verified as before.
+
+- The answer's checks: `historical_export.json` and `images/EXPORT_RECEIPT.json` agree, and
+  the receipt is a warm one (`ok`, `renderer:"warm"`, `warm_service.pid` an integer,
+  `cleanup_errors:[]`, `source_data_mutated:false`, `broker_or_desk_calls:false`) plus the
+  same selection-hash, capture and image-hash checks as a one-shot receipt; a one-shot
+  receipt never passes as warm, nor a warm one as one-shot. The answer adds
+  `renderer:"warm"`, `warm_renderer_pid` and `warm_renderer_started_in_call` (true when the
+  server's renderer stopped before the job -- stale code, a crash -- and the export started
+  one inside the call's Job, which the call's verified teardown then ended).
+- No warm renderer can start: the call draws one-shot and says `renderer:"one_shot"`,
+  `warm_error:"WARM_RENDERER_UNAVAILABLE"`.
+- Lifetime: the renderer stops itself after 10 idle minutes; the next call closes its Job
+  (verified) and starts another. At server exit the server stops the renderer it started,
+  waits for it, closes its Job and logs `{"warm_renderer_shutdown": {stopped, verified,
+  exit_code, live_descendants}}` to stderr. If the server dies abruptly its Job's
+  kill-on-close ends the renderer, whose own Job then ends the browser and `vite preview`.
 
 The generic local historical resolver accepts one explicit minute-Parquet root,
 symbol and date; see [local-historical-charts.md](local-historical-charts.md).
@@ -404,6 +430,13 @@ MCP server (`tools/nova_data_mcp.py`, official SDK, stdio; registered in `.curso
   else no cache; `NOVA_MARKET_READ_CACHE=0` turns it off; `NOVA_MARKET_READ_CACHE_GB` (default 50) caps it, the
   least recently used entries (a hit touches its file) deleted down to 90% of the cap, checked on a process's first
   write and every 1 GB it writes. `trades`' `sets_price` is asked once per distinct `(conditions, correction)` pair.
+- **Windowed reads** (#1062, `reads._parse_window`): a read with `start` and/or `end` that the read cache does not
+  hold parses only the window's lines and is not saved (the cache keeps whole days). pyarrow first reads the block's
+  non-text columns: the time column picks the lines (no row order is assumed), and each column's type and gaps over
+  the whole block give the window the dtype the whole-day parse gives (a whole-number column with a gap or a
+  fraction anywhere that day is float64). The frame is the whole-day read cut to the window: columns, dtypes,
+  values, missing fields, row order and `attrs`. A window with no row, a time that is not a whole number on every
+  line, or a non-text column that is not a number somewhere that day is read the whole-day way (and cached).
 - **Momentum-research tools** (`tools/nova_data_research.py`, the second tool set; CLI `tools/market_data_research.py`):
   - `find_stock_days {filters, symbol?, kinds?, splits?, float_max?, float_basis?, float_unknown?, catalyst?, halted?,
     cursor?, page_size?, output_name?}` -> a table answer plus `next_cursor` (`"YYYY-MM-DD|SYMBOL"` or null). Rows:
