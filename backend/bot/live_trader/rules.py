@@ -147,7 +147,8 @@ def check(*, side: str, symbol: str, their_price: float, settings: dict[str, Any
     state = (ticker or {}).get("state")
     if state == "checking":
         return _waited(LT_TICKER_UNSETTLED, "checking the ticker against IBKR's tape (it may be glued to its price)",
-                       f"the ticker check did not settle in {LT_WAIT_SEC:.0f} s", wait_since, now)
+                       f"the ticker check did not settle in {LT_WAIT_SEC:.0f} s: taken once it settles, if it still "
+                       "meets the entry rules", wait_since, now)
     if state not in SETTLED_TICKERS:
         return verdict(SKIP, LT_TICKER_UNSETTLED, f"the ticker may be misread: {(ticker or {}).get('why') or state}")
     if cap == "pending":
