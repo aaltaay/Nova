@@ -476,6 +476,23 @@ def test_a_ticker_check_that_settles_after_the_wait_is_taken_then():
     assert kinds(again, "step") == []                                         # taken once
 
 
+def test_a_late_settled_ticker_that_then_waits_on_its_market_cap_is_still_taken():
+    """The check settles while the market cap is still being read: the next pass is still the row the bot saw open,
+    so ``take_open`` off never skips it as already open (PR #1094 review)."""
+    w = World(take_open=False)
+    checking = row(entry_ts=NOW, ticker={"state": "checking", "why": None})
+    watching(w, checking)
+    w.at(40).run(answer({HOST: [checking]}, feed_now=NOW + 40))
+    w.caps["XYZ"] = "pending"
+    settled = dict(checking, ticker={"state": "as_read", "why": None})
+    out = w.at(90).run(answer({HOST: [settled]}, feed_now=NOW + 90))
+    assert kinds(out, "skip") == [] and kinds(out, "step") == [] and out["waits"]
+    w.caps["XYZ"] = 50e9
+    out = w.at(95).run(answer({HOST: [settled]}, feed_now=NOW + 95))
+    assert kinds(out, "skip") == []
+    assert kinds(out, "step")[0]["step"] == "already_open"
+
+
 def test_a_late_settled_ticker_far_from_their_average_is_still_skipped_with_why():
     w = World()
     checking = row(entry_ts=NOW, ticker={"state": "checking", "why": None})

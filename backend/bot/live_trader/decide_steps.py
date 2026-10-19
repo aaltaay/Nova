@@ -151,16 +151,18 @@ class _Pass:
             if rs["fate"] == "taken":
                 self.taken(r, rs)
             return
-        late = rs["fate"] == "unsettled"
-        if late:
+        if rs["fate"] == "unsettled":
             # The ticker check outlasted the wait: said once, then judged again once it settles -- as a position the
             # host already holds, so the price the market moved to since is judged too (2026-10-19, SHAWN's SPCX
             # short at 14:01: the check settled "as read" after the wait and the skip was final, never taken).
             if (r.get("ticker") or {}).get("state") == "checking":
                 self.wait(pid, r, {"code": LT_TICKER_UNSETTLED, "text": UNSETTLED_WAIT})
                 return
-            rs.update(fate=None, kind="already_open", since=None)
+            rs.update(fate=None, kind="already_open", since=None, late_ticker=True)
             step, change = "already_open", {**change, "kind": "already_open"}
+        # Kept on the row until its verdict is final: a wait or a block after the check settles is still the row the
+        # bot saw open, never a trade open before watching began (``take_open``; PR #1094 review).
+        late = bool(rs.get("late_ticker"))
         if blocked:
             if rs["fate"] not in ("blocked", "released"):
                 self.skip(name, r, pid, step, blocked[0], blocked[1], change)
