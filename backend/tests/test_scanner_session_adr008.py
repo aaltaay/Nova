@@ -112,6 +112,36 @@ def test_rollover_clears_prior_session(monkeypatch):
     assert frozen == [] or ss.TABLE_GAPPERS not in frozen
 
 
+def test_rollover_pushes_the_empty_roster_to_every_desk(monkeypatch):
+    """A desk open over Monday 04:00 kept Friday's After Hours 50 (2026-10-19)."""
+    import asyncio
+
+    import scanner_push
+
+    sent: list[tuple[str, list, str, str]] = []
+
+    async def fake_replace(table, rows, ts):
+        sent.append((table, rows, ts.session_key, ts.state))
+
+    monkeypatch.setattr(scanner_push, "broadcast_roster_replace", fake_replace)
+    state = ScannerRuntimeState()
+    state.afterhours_cache = [{"symbol": "IRON"}]
+    state.afterhours_table.state = TABLE_STATE_FROZEN
+    state.afterhours_table.session_key = "2026-10-16"
+    state.loser_cache = [{"symbol": "OLD"}]
+    state.loser_table.state = TABLE_STATE_FROZEN
+    state.loser_table.session_key = "2026-10-16"
+
+    async def run():
+        ss.reconcile_session_tables(state, now=_et(2026, 10, 19, 7, 36))
+        await asyncio.sleep(0)
+
+    asyncio.run(run())
+    assert state.afterhours_cache == []
+    assert ("afterhours", [], "2026-10-19", "unavailable") in sent
+    assert ("losers", [], "2026-10-19", "unavailable") in sent
+
+
 def test_hydrate_rows_preserves_unchanged_symbols():
     """L1-filled rows survive the next IB batch; new names join as stubs.
 

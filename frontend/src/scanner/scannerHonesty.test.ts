@@ -6,6 +6,8 @@ import {
   SCANNER_HONESTY_UNAVAILABLE,
   SCANNER_PRICE_NO_L1,
   applyLastGoodRows,
+  applyRosterTable,
+  isNewRosterSession,
   catalystsEmptyCopy,
   feedErrorFromPayload,
   mergeRestTableMeta,
@@ -29,6 +31,44 @@ describe('applyLastGoodRows', () => {
 
   it('ignores a non-array payload', () => {
     expect(applyLastGoodRows([{ symbol: 'AAPL' }], null)).toBeNull();
+  });
+});
+
+describe('the 04:00 rollover clears the last session rows (2026-10-19)', () => {
+  function table(prev: { symbol: string }[]) {
+    let rows = prev;
+    let lastGood: Record<string, boolean> = {};
+    return {
+      apply(incoming: unknown, newSession: boolean) {
+        applyRosterTable(
+          fn => { rows = fn(rows as never) as never; },
+          fn => { lastGood = fn(lastGood); },
+          'afterhours',
+          incoming,
+          newSession,
+        );
+        return { rows, lastGood: lastGood.afterhours };
+      },
+    };
+  }
+
+  it('reads a moved session_key as a new session, never the first key', () => {
+    const seen: Record<string, string> = {};
+    expect(isNewRosterSession(seen, 'afterhours', '2026-10-16')).toBe(false);
+    expect(isNewRosterSession(seen, 'afterhours', '2026-10-16')).toBe(false);
+    expect(isNewRosterSession(seen, 'afterhours', '2026-10-19')).toBe(true);
+    expect(isNewRosterSession(seen, 'losers', '2026-10-19')).toBe(false);
+    expect(isNewRosterSession(seen, 'afterhours', undefined)).toBe(false);
+  });
+
+  it("drops Friday's After Hours rows when Monday's empty roster arrives", () => {
+    const t = table([{ symbol: 'IRON' }, { symbol: 'AAME' }]);
+    expect(t.apply([], true)).toEqual({ rows: [], lastGood: false });
+  });
+
+  it('still keeps last-good rows for an empty update inside one session', () => {
+    const t = table([{ symbol: 'IRON' }]);
+    expect(t.apply([], false)).toEqual({ rows: [{ symbol: 'IRON' }], lastGood: true });
   });
 });
 

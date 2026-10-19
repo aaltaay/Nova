@@ -35,6 +35,7 @@ import type { ScannerScanAges } from '../utils/scanAge';
 import { diagnoseBackend, healthAfterFailedRoute, logBackendDiagnosis } from '../utils/diagnoseBackend';
 import {
   applyRosterTable,
+  isNewRosterSession,
   feedErrorFromPayload,
   SCANNER_CATALYSTS_FETCH_FAILED,
 } from '../scanner/scannerHonesty';
@@ -156,13 +157,16 @@ export function useScannerData(opts: {
     [],
   );
 
+  /** Each table's last roster session_key: a change is the 04:00 rollover. */
+  const rosterSessionRef = useRef<Record<string, string>>({});
   const onRosterReplace = useCallback((table: string, rows: unknown[], meta: ScannerTableMeta) => {
     setTableMeta(prev => ({ ...prev, [table]: meta }));
-    if (table === 'gappers') applyRosterTable(setGappers, setLastGood, table, rows);
-    else if (table === 'gainers') applyRosterTable(setGainers, setLastGood, table, rows);
-    else if (table === 'losers') applyRosterTable(setLosers, setLastGood, table, rows);
-    else if (table === 'afterhours') applyRosterTable(setAfterhours, setLastGood, table, rows);
-    else if (table === 'large_cap') applyRosterTable(setLargeCap, setLastGood, table, rows);
+    const newSession = isNewRosterSession(rosterSessionRef.current, table, meta.session_key);
+    if (table === 'gappers') applyRosterTable(setGappers, setLastGood, table, rows, newSession);
+    else if (table === 'gainers') applyRosterTable(setGainers, setLastGood, table, rows, newSession);
+    else if (table === 'losers') applyRosterTable(setLosers, setLastGood, table, rows, newSession);
+    else if (table === 'afterhours') applyRosterTable(setAfterhours, setLastGood, table, rows, newSession);
+    else if (table === 'large_cap') applyRosterTable(setLargeCap, setLastGood, table, rows, newSession);
     const ts = meta.roster_ts || Date.now() / 1000;
     const ageKey = SCANNER_ENVELOPE_TABLE_AGE[table];
     if (ageKey) setScanAges(prev => ({ ...prev, [ageKey]: ts }));

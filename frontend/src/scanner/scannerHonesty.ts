@@ -35,20 +35,41 @@ export function applyLastGoodRows<T>(
 }
 
 /**
+ * True when a roster's `session_key` moved off the one this table last showed
+ * (the 04:00 rollover), and records the new key. The first key seen is not a
+ * change: nothing from a prior session is on screen to clear yet.
+ */
+export function isNewRosterSession(
+  seen: Record<string, string>,
+  table: string,
+  sessionKey: unknown,
+): boolean {
+  if (typeof sessionKey !== 'string' || !sessionKey) return false;
+  const prev = seen[table];
+  seen[table] = sessionKey;
+  return prev !== undefined && prev !== sessionKey;
+}
+
+/**
  * Replace one table's rows from a REST / roster payload. Every row passes the
  * shape gate first (scannerRowShape: a row without a symbol is dropped, a
  * non-finite number is null), so a malformed row can never reach a renderer.
+ *
+ * `newSession` (the table's `session_key` moved, the 04:00 rollover) replaces
+ * outright: last-good covers a blip inside one session, and must not carry
+ * Friday's rows into Monday's premarket (operator report, 2026-10-19).
  */
 export function applyRosterTable<T extends ScannerRow>(
   setter: (fn: (prev: T[]) => T[]) => void,
   setLastGood: (fn: (prev: Record<string, boolean>) => Record<string, boolean>) => void,
   table: string,
   incoming: unknown,
+  newSession = false,
 ): void {
   const rows = normalizeScannerRows(incoming) as T[] | null;
   if (!rows) return;
   setter(prev => {
-    const next = applyLastGoodRows(prev, rows);
+    const next = newSession ? { rows, lastGood: false } : applyLastGoodRows(prev, rows);
     if (!next) return prev;
     setLastGood(map => (map[table] === next.lastGood ? map : { ...map, [table]: next.lastGood }));
     return next.lastGood ? next.rows : carryQuoteQuality(prev, next.rows);
