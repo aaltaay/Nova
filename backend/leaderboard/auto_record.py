@@ -54,11 +54,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from datetime import datetime
 from typing import Any
 
 from capture.constants_capture import CAPTURE_MAX_CONCURRENT, CAPTURE_STOP_AUTO
 from constants_ibkr import IBKR_MAX_DEPTH_SYMBOLS
+from market import session_key_for_ts
 from constants_leaderboard import (
     LEADERBOARD_AUTO_RECORD_FAILED_START_PAUSE_SEC,
     LEADERBOARD_AUTO_RECORD_MIN_HOLD_SEC,
@@ -73,7 +73,6 @@ from leaderboard.auto_record_picks import TIERS as _TIERS
 from leaderboard.auto_record_picks import WHY_LEADER, WHY_LEFT, WHY_TRADE, pick_leaders, pick_setups_named
 from leaderboard.auto_record_picks import pick_setups  # noqa: F401 -- read here by its callers and tests
 from leaderboard.auto_record_windows import OPEN_NONE, window_label, window_state
-from leaderboard.rows import ET
 
 logger = logging.getLogger(__name__)
 
@@ -309,13 +308,13 @@ def operator_took(symbol: str, now: float | None = None) -> None:
     _wanted_as.pop(sym, None)
     auto_record_state.forget(sym)
     if sym:
-        _operator[sym] = datetime.fromtimestamp(time.time() if now is None else now, ET).date().isoformat()
+        _operator[sym] = session_key_for_ts(time.time() if now is None else now)
     auto_record_state.save_soon(_auto, _wanted_as, _declined, _operator)
 
 
 def operator_stopped(symbol: str | None, now: float | None = None) -> None:
     """The operator stopped a recording by hand: never take that symbol again today."""
-    day = datetime.fromtimestamp(time.time() if now is None else now, ET).date().isoformat()
+    day = session_key_for_ts(time.time() if now is None else now)
     targets = [(symbol or "").strip().upper()] if symbol else list(_auto)
     if not symbol:
         _operator.clear()
@@ -375,7 +374,7 @@ async def tick(now: float | None = None) -> None:
 
         if not _client.is_ready():
             return
-        today = datetime.fromtimestamp(ts, ET).date().isoformat()
+        today = session_key_for_ts(ts)
         _setups = _read_setups(ts)
         if state["leaders"]["open"]:
             _leaders = pick_leaders(_live_gainers(), ts)

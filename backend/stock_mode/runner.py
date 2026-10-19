@@ -99,13 +99,13 @@ def clock() -> float:
 
 def venue_day(now: float | None = None) -> str:
     """The venue's day (the bot's clock: the replay playhead on Sim, the wall clock else)."""
-    from bot.entry_rules import venue_now
+    from bot.entry_rules import day_of, venue_now
 
     try:
-        return venue_now().date().isoformat()
+        return day_of(venue_now())
     except Exception:
         logger.warning("stock mode: the venue's clock could not be read -- the wall clock's day is used", exc_info=True)
-        return datetime.fromtimestamp(now or _clock(), ET).date().isoformat()
+        return day_of(datetime.fromtimestamp(now or _clock(), ET))
 
 
 def ttl_sec() -> int:

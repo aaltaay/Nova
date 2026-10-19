@@ -7,7 +7,9 @@ Part of `AGENTS.md` §3 (Data Schema), which indexes every file in this folder. 
 `GET /api/setups/board` and the `{"type": "board", ...}` frames of `/ws/setups`
 (owner `backend/setup_scanner/`; read-only -- nothing there places, stages or
 cancels an order) answer `schema_version: 1`, `generated_at`, `session_date`
-(Eastern `YYYY-MM-DD` or null), `universe` (symbols followed: the HOD Momo
+(Nova's trading day, `YYYY-MM-DD` or null: it rolls at 04:00 ET, never at midnight, so from 00:00 to
+04:00 ET the board is still the day before's, and a weekend or holiday keeps the last exchange day's --
+`market.session_key_et`, 2026-10-19; the lanes, bars and window clear only at that rollover), `universe` (symbols followed: the HOD Momo
 active set), `universe_symbols: string[]` (those symbols, sorted -- added
 2026-09-24 for the watch list; a Sim eyes board lists its replay's symbol),
 `seeding` (symbols still loading today's bars, IBKR's history included -- below), `scoreboard:

@@ -8,7 +8,7 @@ are. The clock is the venue's (``execution.session_gate``: the replay playhead o
   (``bot_window_start`` / ``bot_window_end``; the template store clips it into the arming
   window and says so in ``Template.bot_window``). A template store that cannot be read keeps
   the material's 07:00-10:00, and the window says why.
-- **One daily count** (ADR 042 E): Nova's automatic entries -- the bot's (and the localhost
+- **One daily count** (ADR 042 E), per trading day (04:00 ET, ``market.session_key_et``): Nova's automatic entries -- the bot's (and the localhost
   bot API's) buys and Auto-entry's -- share the venue sleeve's ``entries_per_day``. The count
   is folded from the persisted audit stream, so it survives a restart: an entry counts once
   it was sent, and a miss (``bot_trade`` / ``stock_mode`` ``missed``, nothing bought) gives
@@ -62,8 +62,16 @@ def venue_now() -> datetime:
     return venue_now_et()
 
 
+def day_of(at: datetime) -> str:
+    """The trading day a venue clock reading belongs to (``market.session_key_et``): it rolls at 04:00 ET,
+    not at midnight, so the cap and the Bots page agree with the hot list and the day's P&L all night."""
+    from market import session_key_et
+
+    return session_key_et(at)
+
+
 def venue_day() -> str:
-    return venue_now().date().isoformat()
+    return day_of(venue_now())
 
 
 def _hm(text: str) -> dtime:
@@ -135,7 +143,7 @@ def _row_day(row: dict[str, Any]) -> str | None:
     ts = row.get("timestamp")
     if not isinstance(ts, (int, float)):
         return None
-    return datetime.fromtimestamp(float(ts), _ET).date().isoformat()
+    return day_of(datetime.fromtimestamp(float(ts), _ET))
 
 
 def _row_venue(row: dict[str, Any]) -> str | None:
@@ -238,7 +246,7 @@ def today(venue: str | None = None, now: datetime | None = None, *, cap: int | N
     from bot.replay_desk import desk as replay_desk, today as replay_today
 
     at = now or venue_now()
-    day = at.date().isoformat()
+    day = day_of(at)
     here = current_venue() if venue is None else venue
     if rows is None and here == "sim" and replay_desk() is not None:
         folded = _replay_run(at.timestamp(), replay_today)              # the replay's own run (ADR 052)

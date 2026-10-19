@@ -44,7 +44,7 @@ from constants_bot import BOT_SCANNER_SETUPS, BOT_SETUP_FIRST_PULLBACK
 from constants_eyes import EYES_JOURNAL_BEAT_SEC
 from constants_setups import SETUPS_5M_TEMPLATE_ID, SETUPS_BOARD_PUSH_SEC, SETUPS_SESSION_CLOSED_REASON
 from constants_setups import SETUPS_INBOX_BATCH_SIZE
-from market import trading_session_bounds
+from market import session_bounds_of
 from setup_scanner.bars import Bar, MinuteBars, bar_from
 from setup_scanner.board import build_board
 from setup_scanner.five_minute_lane import FIVE_MIN_REV, SETUPS_5M_SETUPS, five_minute_params, is_five_minute
@@ -230,7 +230,7 @@ class SetupEngine(LaneHost):
         self.session = sd
         if self.store is not None:
             self._outbox().begin_session(sd)
-        self.window = trading_session_bounds(now)
+        self.window = session_bounds_of(sd)
         self.bars.clear()
         self.seeding.clear()
         self.seeder.clear()

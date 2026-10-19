@@ -314,6 +314,17 @@ def test_today_is_the_hot_lists_trading_day(monkeypatch, hour, minute, trading_d
         assert friday["tickers"] == [] and friday["sources"]["hot_list"]["ok"] is False
 
 
+def test_a_weekends_table_is_the_last_exchange_days(monkeypatch):
+    """Saturday 10:00 ET: the Setups board and the entry count read Friday (``session_key_et``), so the table
+    does too -- Friday's kept hot list and journal, not an empty Saturday."""
+    monkeypatch.setattr(time, "time", lambda: at(10, 0, day="2026-10-03"))
+    write_hot_list([{"symbol": "AISP", "how": "auto", "at": at(7, 0, day="2026-10-02")}], day="2026-10-02")
+    body = get(None)
+    assert body["date"] == "2026-10-02"
+    assert body["sources"]["hot_list"] == {"ok": True, "error": None}
+    assert [t["symbol"] for t in body["tickers"]] == ["AISP"]
+
+
 # -- the timeline ------------------------------------------------------------------------------------
 def test_the_nearest_record_tells_a_setting_at_any_moment():
     rows = [{"timestamp": 100.0, "venue": "paper", "action": "setup_level", "inputs": {"setup": "x", "from": 1, "to": 2}},
