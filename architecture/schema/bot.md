@@ -60,7 +60,8 @@ BOT_OUTSIDE_WINDOW`), outside 09:30-16:00 ET while the venue's sleeve turns
 extended hours off, and past the venue's daily cap (`409 BOT_DAY_TRADE_CAP`):
 the sleeve's `entries_per_day` (1-3, default 1) counts Nova's automatic entries
 -- the bot's and Auto-entry's together -- per venue day, from the persisted audit
-stream (entry audit rows carry `inputs.venue_day`; an entry cancelled unfilled
+stream (the day is Nova's trading day, `market.session_key_et`: the count resets at 04:00 ET,
+never at midnight, 2026-10-19; entry audit rows carry `inputs.venue_day`; an entry cancelled unfilled
 -- a `missed` -- gives the day back; Approve is counted, `entries_today.approved`,
 never capped); exits and cancels are never held by either. **Commissions unknown
 hold new entries** (operator decision on #564, 2026-09-24): while the session's
@@ -388,7 +389,8 @@ decides who trades a stock, and taking one off never changes it -- that is the s
 
 **The squares, by ticker.** `GET /api/bot/triggers?date=YYYY-MM-DD` (default today: the hot list's
 trading day, which starts at 04:00 ET, never the calendar date; owner `bot/trigger_audit.py`, read-only)
-answers:
+answers (the eyes' journal is filed by calendar date, so its lines stamped before the day's 04:00 ET belong to
+the day before and are left out of the day's table and of its restart marks, 2026-10-19):
 
 ```
 {schema_version: 1, date, generated_at,

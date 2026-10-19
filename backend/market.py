@@ -55,6 +55,21 @@ def session_key_et(now: datetime | None = None) -> str:
     return day.isoformat()
 
 
+def session_key_for_ts(ts: float) -> str:
+    """``session_key_et`` for an epoch second: the trading day ``ts`` belongs to (04:00 ET rollover).
+
+    The one key a per-day count, board or list resets on, so a screen never mixes two days between
+    00:00 and 04:00 ET (the calendar date rolls at midnight, Nova's day at 04:00).
+    """
+    return session_key_et(datetime.fromtimestamp(float(ts), ET))
+
+
+def session_bounds_of(day: str) -> tuple[float, float] | None:
+    """The 04:00-20:00 ET window of the trading day ``day`` (``YYYY-MM-DD``); ``None`` when it was no exchange day."""
+    noon = datetime.fromisoformat(day).replace(hour=12, tzinfo=ET)
+    return trading_session_bounds(noon.timestamp())
+
+
 def _et_at_minutes(now: datetime, minutes: int) -> datetime:
     """Same calendar day in ET, at the given minutes-from-midnight."""
     return now.replace(

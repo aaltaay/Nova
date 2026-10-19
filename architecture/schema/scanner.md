@@ -680,7 +680,7 @@ while their subscribe lands (on 2026-10-02 the next tick took TNON's line back
 before AIXI's Level 2 had it). It never takes a slot a restart's resume is
 bringing back (`keepalive.pending_symbols()`). **What it holds survives a
 restart** (#698; owner `leaderboard/auto_record_state.py`): `auto-record.json`
-in the operator cache, `{schema_version: 1, date: "YYYY-MM-DD" (Eastern), held:
+in the operator cache, `{schema_version: 1, date: "YYYY-MM-DD" (Nova's trading day, 04:00 ET), held:
 {SYMBOL: {since: number | null, why: "trade" | "near" | "armed" | "leader" |
 null}}, declined: string[], operator: string[]}` (`operator`: the recordings the
 operator started or took over today; a file without it names none), rewritten on
