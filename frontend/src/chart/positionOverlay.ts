@@ -10,8 +10,8 @@
 import { LineStyle, type SeriesMarker, type Time } from 'lightweight-charts';
 import type { IbkrOrder, IbkrPosition } from '../ibkr';
 import { formatSignedMoney } from '../components/globalBarMoney';
-import { SESSION_PREMARKET_START_MIN_ET } from '../constants';
 import { isoToEtTime, isDailyTimeframe } from '../tickerChartData';
+import { deskTradingDay } from '../utils/deskTradingDay';
 import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';
 import {
@@ -144,15 +144,6 @@ export function mergeFills(
     byId.set(fill.orderId, fill);
   }
   return [...byId.values()];
-}
-
-const ET_DAY = new Intl.DateTimeFormat('en-CA', {
-  timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit',
-});
-
-/** The desk's trading day of an instant, `YYYY-MM-DD`: it starts at the 04:00 ET premarket open. */
-export function deskTradingDay(ms: number): string {
-  return ET_DAY.format(new Date(ms - SESSION_PREMARKET_START_MIN_ET * 60_000));
 }
 
 /**

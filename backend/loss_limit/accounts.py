@@ -47,12 +47,15 @@ def counted(account: str) -> tuple[bool, str | None]:
 
 def _practice(account: str) -> Count:
     from practice.broker import for_venue
+    from practice.clock import day_start_ts
     from practice.fees import Fees
 
     broker = for_venue(account)
     broker.rollover()
     ledger = broker.ledger
-    start = float(ledger.day_started_ts)
+    # The loss limit's day is the calendar one, 04:00 ET every day (ADR 056) -- not the ledger's, which
+    # walks back over a weekend so Day P&L reads Friday's. Moving this reset day is the operator's call.
+    start = day_start_ts(float(broker.reference.now_ts()))
     fills: list[Fill] = []
     for row in ledger.closed_orders():
         if str(row.get("status")) != "Filled":

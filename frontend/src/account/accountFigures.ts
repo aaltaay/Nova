@@ -12,6 +12,7 @@ import {
   ACCOUNT_SOURCE_OTHER_LABELS,
 } from '../constantGroups/account_page';
 import { JOURNAL_CALENDAR_TIMEZONE } from '../constantGroups/market_ui';
+import { deskTradingDay } from '../utils/deskTradingDay';
 import type { HeaderAccountFigures } from '../components/headerAccountFigures';
 import type {
   HistoryBySource,
@@ -21,7 +22,6 @@ import type {
   PracticeHistory,
 } from './accountHistoryTypes';
 
-const PRACTICE_DAY_ROLLOVER_HOURS = 4;
 
 const finite = (n: number | null | undefined): number | null =>
   n == null || !Number.isFinite(n) ? null : n;
@@ -36,9 +36,9 @@ export function easternDate(at: Date): string {
   }).format(at);
 }
 
-/** The practice day `now` belongs to (rolls at 04:00 ET), keyed like `daily[].date`. */
+/** The practice day `now` belongs to (rolls at 04:00 ET, a weekend is Friday's), keyed like `daily[].date`. */
 export function todayPracticeDate(now: Date = new Date()): string {
-  return easternDate(new Date(now.getTime() - PRACTICE_DAY_ROLLOVER_HOURS * 3_600_000));
+  return deskTradingDay(now.getTime());
 }
 
 /** This ledger's row for the practice day, never an archived one. */
