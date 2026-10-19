@@ -455,6 +455,68 @@ def test_a_ticker_check_that_never_settles_is_a_skip():
     assert kinds(out, "skip")[0]["code"] == LT_TICKER_UNSETTLED
 
 
+def test_a_ticker_check_that_settles_after_the_wait_is_taken_then():
+    """SHAWN's SPCX short at 14:01 on 2026-10-19: the check outlasted the 30 s wait, settled "as read" later, and the
+    skip was final -- the trade ran 2.4% without the bot. Now the skip says so once and the entry is judged again as
+    a position already open once the check settles."""
+    w = World(take_open=False)                        # take_open is for trades open before watching began
+    checking = row(entry_ts=NOW, ticker={"state": "checking", "why": None})
+    watching(w, checking)
+    out = w.at(40).run(answer({HOST: [checking]}, feed_now=NOW + 40))
+    (skip,) = kinds(out, "skip")
+    assert skip["code"] == LT_TICKER_UNSETTLED and "taken once it settles" in skip["why"]
+    still = w.at(70).run(answer({HOST: [checking]}, feed_now=NOW + 70))
+    assert kinds(still, "skip") == [] and kinds(still, "step") == []            # said once, still waiting
+    assert still["waits"]
+    settled = dict(checking, ticker={"state": "as_read", "why": None})
+    out = w.at(90).run(answer({HOST: [settled]}, feed_now=NOW + 90))
+    (step,) = kinds(out, "step")
+    assert step["step"] == "already_open"
+    again = w.at(95).run(answer({HOST: [settled]}, feed_now=NOW + 95))
+    assert kinds(again, "step") == []                                         # taken once
+
+
+def test_a_late_settled_ticker_that_then_waits_on_its_market_cap_is_still_taken():
+    """The check settles while the market cap is still being read: the next pass is still the row the bot saw open,
+    so ``take_open`` off never skips it as already open (PR #1094 review)."""
+    w = World(take_open=False)
+    checking = row(entry_ts=NOW, ticker={"state": "checking", "why": None})
+    watching(w, checking)
+    w.at(40).run(answer({HOST: [checking]}, feed_now=NOW + 40))
+    w.caps["XYZ"] = "pending"
+    settled = dict(checking, ticker={"state": "as_read", "why": None})
+    out = w.at(90).run(answer({HOST: [settled]}, feed_now=NOW + 90))
+    assert kinds(out, "skip") == [] and kinds(out, "step") == [] and out["waits"]
+    w.caps["XYZ"] = 50e9
+    out = w.at(95).run(answer({HOST: [settled]}, feed_now=NOW + 95))
+    assert kinds(out, "skip") == []
+    assert kinds(out, "step")[0]["step"] == "already_open"
+
+
+def test_a_late_settled_ticker_far_from_their_average_is_still_skipped_with_why():
+    w = World()
+    checking = row(entry_ts=NOW, ticker={"state": "checking", "why": None})
+    watching(w, checking)
+    w.at(40).run(answer({HOST: [checking]}, feed_now=NOW + 40))
+    w.quotes["XYZ"] = {**QUOTE, "last": 110.0, "bid": 109.98, "ask": 110.02}  # the market ran on meanwhile
+    settled = dict(checking, ticker={"state": "as_read", "why": None})
+    out = w.at(90).run(answer({HOST: [settled]}, feed_now=NOW + 90))
+    (skip,) = kinds(out, "skip")
+    assert skip["code"] == LT_OPEN_TOO_FAR and kinds(out, "step") == []
+
+
+def test_a_ticker_check_that_settles_unchecked_after_the_wait_stays_a_skip():
+    w = World()
+    checking = row(entry_ts=NOW, ticker={"state": "checking", "why": None})
+    watching(w, checking)
+    w.at(40).run(answer({HOST: [checking]}, feed_now=NOW + 40))
+    unread = dict(checking, ticker={"state": "unchecked", "why": "neither fits"})
+    out = w.at(90).run(answer({HOST: [unread]}, feed_now=NOW + 90))
+    (skip,) = kinds(out, "skip")
+    assert skip["code"] == LT_TICKER_UNSETTLED and "neither fits" in skip["why"]
+    assert kinds(w.at(95).run(answer({HOST: [unread]}, feed_now=NOW + 95)), "skip") == []
+
+
 def test_an_unchecked_ticker_is_a_skip_with_why():
     w = World()
     out = watching(w, row(entry_ts=NOW, ticker={"state": "unchecked", "why": "neither fits"}))
