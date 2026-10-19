@@ -56,6 +56,8 @@ _OPERATOR_DATA_DIRS = {
     "NOVA_BORROW_DIR": "borrow",   # ADR 048's recorded borrow
     # The Massive flat files (ADR 046) default to E:\Nova\massive; never read in a test.
     "NOVA_MARKET_DATA_DIR": "market_data",
+    # The front door's read cache (research/market_reads/read_cache.py) defaults to F: when mounted.
+    "NOVA_MARKET_READ_CACHE_DIR": "market_read_cache",
     "NOVA_SHORT_TESTS_DIR": "short_tests",   # ADR 049's five-year test results
 }
 for _env, _name in _OPERATOR_DATA_DIRS.items():
