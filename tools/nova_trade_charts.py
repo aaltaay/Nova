@@ -5,8 +5,8 @@ Usage: py -3 tools/nova_trade_charts.py export --trades-file trades.json --outpu
 
 Each trade is {symbol, date, entry_time "HH:MM:SS[.f]" ET, entry_price, exit_time, exit_price} (or ``exits``: a list
 of {time, price} for partial exits) with optional ``stop`` / ``pivot`` lines and a ``label``. Trades on one stock-day
-share one chart. Bars come from that day's Massive trades through the market data front door (``market_reads.bars``,
-the Sim's sub-minute rule); fills are caller marks, never inferred. SOP: architecture/schema/local-historical-charts.md.
+share one chart. Bars come from the window's minutes of that day's Massive trades through the market data front door
+(``market_reads.bars``, the Sim's sub-minute rule); fills are caller marks, never inferred. SOP: architecture/schema/local-historical-charts.md.
 """
 from __future__ import annotations
 
@@ -164,27 +164,33 @@ def _source(massive_root: Path, day: str) -> Path:
     return path
 
 
+def _read_span(plan: dict[str, Any]) -> tuple[str, str | None, tuple[int, int]]:
+    """The whole minutes around the chart's window: ``start`` / ``end`` for the reader and the span in seconds."""
+    first, last = plan["start_s"] // 60 * 60, math.ceil(plan["end_s"] / 60) * 60
+    return _clock(first), None if last >= 86400 else _clock(last), (first, min(last, 86400))
+
+
 def _project(plan: dict[str, Any], bar_seconds: int, massive_root: Path, read: Callable | None,
              cache_root: Path | None) -> tuple[list, dict]:
-    """A caller's ``read`` gets the window only and is never cached; the front door reads (or the bar cache gives)
-    the whole session, so any later window on that stock-day is a cache hit."""
+    """Either reader is asked for the window's whole minutes only (``market_reads`` parses only those lines). A
+    caller's ``read`` is never cached; the front door's bars are, so a later chart inside that span is a hit."""
     symbol, day, tf = plan["symbol"], plan["day"], f"{bar_seconds}s"
+    start, end, span = _read_span(plan)
     if read is not None:
         source = before = None
-        end = None if plan["end_s"] >= 86400 - 59 else _clock(math.ceil(plan["end_s"] / 60) * 60)
-        rows, cache = bar_cache.rows_from_frame(read(symbol, day, tf, _clock(plan["start_s"]), end)), "off"
+        rows, cache = bar_cache.rows_from_frame(read(symbol, day, tf, start, end)), "off"
     else:
         source = _source(massive_root, day)
         before = source.stat()
-        rows, cache = bar_cache.day_rows(cache_root, source, symbol, day, bar_seconds,
-                                         lambda: _front_door_read(massive_root)(symbol, day, tf))
+        rows, cache = bar_cache.day_rows(cache_root, source, symbol, day, bar_seconds, span,
+                                         lambda: _front_door_read(massive_root)(symbol, day, tf, start, end))
     bars, dropped = project_rows(rows, plan["start_s"], plan["end_s"], bar_seconds)
     if not bars:
         raise HistoricalChartError("symbol_missing", f"{plan['symbol']} has no priced trades in its window")
     info = dict(dataset=TRADES_DATASET, exact_ticker=plan["symbol"], reader="market_reads.bars",
                 rule="price-setting prints set OHLC; every trade counts in volume (ADR 046)",
                 price_adjustment="none_same_session", window_s=[plan["start_s"], plan["end_s"]],
-                volume_only_buckets_left_as_gaps=dropped, cache=cache)
+                read_span_s=list(span), volume_only_buckets_left_as_gaps=dropped, cache=cache)
     if source:
         after = source.stat()
         if (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns):

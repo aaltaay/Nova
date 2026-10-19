@@ -27,6 +27,7 @@ import threading
 import time
 from typing import Annotated, Any, Callable
 
+from nova_chart_mcp_warm import WarmRenderer, WarmRendererUnavailable
 
 SDK_VERSION = "1.26.0"
 REQUEST_TIMEOUT_SECONDS = 240
@@ -226,8 +227,20 @@ def _validate_options(as_of_m: Any, annotations: Any) -> tuple[int | None, list[
     return as_of_m, cleaned
 
 
+def _verify_warm(native: dict[str, Any]) -> int:
+    """A warm receipt: drawn and checked like a one-shot one, by a renderer that names itself instead of claiming
+    it stopped (the call's own tree is verified by ``owned_execute``); its pid."""
+    service = native.get("warm_service")
+    if (native.get("ok") is not True or native.get("renderer") != "warm" or not isinstance(service, dict)
+            or type(service.get("pid")) is not int or native.get("cleanup_errors") != []
+            or native.get("source_data_mutated") is not False or native.get("broker_or_desk_calls") is not False):
+        raise ChartError("NATIVE_EXPORT_UNVERIFIED")
+    return service["pid"]
+
+
 def verify_export(output: Path, symbol: str | None, day: str | None, samples: int,
-                  expected_count: int = 1) -> dict[str, Any]:
+                  expected_count: int = 1, warm_pid: int | None = None) -> dict[str, Any]:
+    """``warm_pid``: the call asked the server's warm renderer (that pid) to draw, so only a warm receipt passes."""
     if output.resolve(strict=True) != output:
         raise ChartError("OUTPUT_DIRECTORY_CHANGED")
     receipt_path = output / "historical_export.json"
@@ -240,7 +253,8 @@ def verify_export(output: Path, symbol: str | None, day: str | None, samples: in
         raise ChartError("RECEIPT_IDENTITY_MISMATCH")
     if native != read_receipt(output / "images/EXPORT_RECEIPT.json", output):
         raise ChartError("NATIVE_RECEIPT_MISMATCH")
-    if (native.get("ok") is not True or native.get("owned_trees_stopped") is not True
+    drew = _verify_warm(native) if warm_pid is not None else None
+    if drew is None and (native.get("ok") is not True or native.get("owned_trees_stopped") is not True
             or native.get("owned_children_stopped") is not True
             or type(native.get("active_owned_processes")) is not int
             or native["active_owned_processes"] != 0 or native.get("cleanup_errors") != []
@@ -287,6 +301,8 @@ def verify_export(output: Path, symbol: str | None, day: str | None, samples: in
         out["date"] = day
     else:
         out["selected_count"] = expected_count
+    if drew is not None:
+        out.update(renderer="warm", warm_renderer_pid=drew, warm_renderer_started_in_call=drew != warm_pid)
     return out
 
 
@@ -345,14 +361,20 @@ def _validate_symbol_day_output(symbol: Any, day: Any, output_name: Any, samples
 
 class ChartService:
     def __init__(self, roots: Roots, execute: Callable = owned_execute,
-                 export_python: Path | None = None) -> None:
+                 export_python: Path | None = None, warm: Callable | None = None) -> None:
+        """``warm`` (``WarmRenderer``): built with the gateway and export runtime, it draws the trade charts."""
         self.roots, self.execute = roots, execute
         if export_python is None:
             export_python = Path(sys.executable)
             if os.name != "nt":
                 export_python = export_python.resolve(strict=True)
         self.export_python = checked_executable(export_python)
+        self.warm = warm(roots.gateway, self.export_python) if warm is not None else None
         self._lock = threading.Lock()
+
+    def close(self) -> dict[str, Any] | None:
+        """Stop the warm renderer this server started, verified; ``None`` without one."""
+        return self.warm.close() if self.warm is not None else None
 
     def export(self, symbol: str, day: str, output_name: str, samples: int = 0,
                cancel: threading.Event | None = None, as_of_m: int | None = None,
@@ -491,6 +513,13 @@ class ChartService:
                 args.extend(["--family", family])
             if cancel.is_set():
                 raise ChartError("CANCELLED")
+            warm_pid = warm_error = None
+            if self.warm is not None:
+                try:
+                    warm_pid = self.warm.ensure()
+                    args.extend(["--warm", "--idle-seconds", str(self.warm.idle_seconds)])
+                except (WarmRendererUnavailable, OSError, ValueError):
+                    warm_error = "WARM_RENDERER_UNAVAILABLE"  # Drawn one-shot instead; the answer says so.
             result = self.execute(args, self.roots.resolver, self.roots.gateway, cancel, REQUEST_TIMEOUT_SECONDS)
             if not result.trees_stopped or result.active_processes != 0:
                 raise ChartError("OWNED_CLEANUP_UNVERIFIED")
@@ -499,7 +528,11 @@ class ChartService:
             if cancel.is_set():
                 raise ChartError("CANCELLED")
             selection = json.loads((output / "selection.json").read_text(encoding="utf-8"))
-            return verify_export(output, None, None, samples, expected_count=len(selection["selected"]))
+            body = verify_export(output, None, None, samples, expected_count=len(selection["selected"]),
+                                 warm_pid=warm_pid)
+            if warm_pid is None:
+                body.update(renderer="one_shot", **({"warm_error": warm_error} if warm_error else {}))
+            return body
         except ChartError as error:
             return {"ok": False, "error": {"code": str(error)}}
         except (OSError, ValueError, TypeError, KeyError, RuntimeError):
@@ -569,6 +602,7 @@ def create_server(service: ChartService):
         trades: [{symbol, date YYYY-MM-DD, entry_time "HH:MM:SS" ET, entry_price, exit_time, exit_price}] or
         exits [{time, price}] for partial exits; optional stop, pivot, label. Trades on one stock-day share a chart;
         the window is before_s before the first entry to after_s after the last exit. output_name must be new.
+        Drawn by a warm renderer this server keeps running (it stops after 10 idle minutes and when the server ends).
         """
         return await _run_export(lambda cancel: service.export_trades(
             trades, output_name, bar_seconds, before_s, after_s, family, samples, cancel))
@@ -594,7 +628,11 @@ def main() -> int:
     try:
         extra = (args.fallback_massive_root,) if args.fallback_massive_root is not None else ()
         roots = Roots.checked(args.resolver_root, args.gateway_root, args.massive_root, args.output_root, *extra)
-        create_server(ChartService(roots, export_python=args.export_python)).run(transport="stdio")
+        service = ChartService(roots, export_python=args.export_python, warm=WarmRenderer)
+        try:
+            create_server(service).run(transport="stdio")
+        finally:
+            print(json.dumps({"warm_renderer_shutdown": service.close()}), file=sys.stderr)
         return 0
     except ChartError as error:
         print(str(error), file=sys.stderr)

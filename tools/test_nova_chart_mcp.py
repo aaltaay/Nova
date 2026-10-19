@@ -198,9 +198,11 @@ class Boundaries(unittest.TestCase):
                   patch.object(M.Roots, "checked", return_value=self.roots),
                   patch.object(M, "ChartService") as service,
                   patch.object(M, "create_server") as server):
+                service.return_value.close.return_value = {"stopped": True, "verified": True}
                 self.assertEqual(M.main(), 0)
-                service.assert_called_once_with(self.roots, export_python=expected)
+                service.assert_called_once_with(self.roots, export_python=expected, warm=M.WarmRenderer)
                 server.return_value.run.assert_called_once_with(transport="stdio")
+                service.return_value.close.assert_called_once_with()
 
     @unittest.skipIf(os.name == "nt", "Real POSIX symlink semantics; Windows simulation runs above")
     def test_real_posix_default_symlink_works_but_explicit_symlink_is_refused(self):

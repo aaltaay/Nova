@@ -32,8 +32,7 @@ TEXT_COLUMNS = {"ticker": str, "conditions": str, "indicators": str, "id": str}
 # Only an empty field is missing: pandas' default NA strings ("NA", "NULL", "N/A", ...) are real tickers.
 CSV_NA = {"keep_default_na": False, "na_values": [""]}
 TIME_COLUMN = {SIM_MASSIVE_TRADES: "sip_timestamp", SIM_MASSIVE_QUOTES: "sip_timestamp",
-               SIM_MASSIVE_MINUTES: "window_start"}
-# The board each list reads on a recorded day and on a rebuilt one (a rebuilt day's Gainers is its market board).
+               SIM_MASSIVE_MINUTES: "window_start"}# The board each list reads on a recorded day and on a rebuilt one (a rebuilt day's Gainers is its market board).
 LIST_BOARD = {
     "recorded": {"gainers": "gainers", "losers": "losers", "gappers": "gappers", "afterhours": "afterhours",
                  "large_cap": "large_cap"},
@@ -47,21 +46,55 @@ def _ns(day: str, hhmm: str) -> int:
     return int(datetime(d.year, d.month, d.day, hh, mm, tzinfo=ET).timestamp()) * 10**9
 
 
+def _in_window(lines: list[bytes], header: list[str], column: str, lo: int | None, hi: int | None) -> list[bytes]:
+    """The lines whose ``column`` may lie in ``[lo, hi)``, so the rest never reach the full CSV parse. pyarrow reads
+    only that column (a real CSV parser: quoted commas in the conditions are fields, not separators). A line whose
+    time is empty is kept, and a stretch pyarrow cannot read as whole numbers keeps every line: the parsed frame then
+    decides, as it does for every row. Nothing about row order is assumed."""
+    import pyarrow as pa
+    import pyarrow.csv as pacsv
+    try:
+        table = pacsv.read_csv(io.BytesIO(b"\n".join(lines) + b"\n"),
+                               read_options=pacsv.ReadOptions(column_names=header),
+                               convert_options=pacsv.ConvertOptions(include_columns=[column],
+                                                                    column_types={column: pa.int64()}))
+    except pa.ArrowInvalid:
+        return lines
+    if table.num_rows != len(lines):
+        return lines
+    times = table.column(0)
+    known = times.is_valid().to_numpy(zero_copy_only=False)
+    times = times.fill_null(0).to_numpy()
+    inside = np.ones(len(lines), dtype=bool)
+    if lo is not None:
+        inside &= times >= lo
+    if hi is not None:
+        inside &= times < hi
+    return [lines[i] for i in np.flatnonzero(~known | inside)]
+
+
 def read_file(dataset: str, symbol: str, day: str, start: str | None = None, end: str | None = None) -> pd.DataFrame:
     """``symbol``'s rows of ``dataset`` on ``day`` (ET ``start`` <= time < ``end``), every column as delivered.
 
-    ``df.attrs`` says whether the read went through the file's index (``indexed``) and how long it took.
+    A window is applied to the raw lines before the CSV parse (``_in_window``), so a few minutes of a busy day parse
+    only those minutes. ``df.attrs`` says whether the read went through the file's index (``indexed``), how long it
+    took, and how many of the block's lines were read and parsed (``lines_read``, ``lines_parsed``).
     """
     path = massive_files.day_file(dataset, day)
     if path is None:
         raise LookupError(f"no {dataset} file for {day} under {massive_files.root()}")
     t0 = datetime.now()
+    column = TIME_COLUMN[dataset]
+    lo = _ns(day, start) if start else None
+    hi = _ns(day, end) if end else None
     header: list[str] | None = None
     lines: list[bytes] = []
+    read_count = 0
     with massive_files.DayRead(path, symbol) as read:
         for head, batch in read.batches():
             header = head or header
-            lines.extend(batch)
+            read_count += len(batch)
+            lines.extend(_in_window(batch, header, column, lo, hi) if (start or end) and column in header else batch)
         indexed = read.indexed
     if not lines:
         frame = pd.DataFrame(columns=header or [])
@@ -69,7 +102,6 @@ def read_file(dataset: str, symbol: str, day: str, start: str | None = None, end
         text = (",".join(header or []) + "\n").encode() + b"\n".join(lines) + b"\n"
         frame = pd.read_csv(io.BytesIO(text), dtype={k: v for k, v in TEXT_COLUMNS.items() if k in (header or [])},
                             **CSV_NA)
-    column = TIME_COLUMN[dataset]
     if len(frame):
         if start:
             frame = frame[frame[column] >= _ns(day, start)]
@@ -78,7 +110,8 @@ def read_file(dataset: str, symbol: str, day: str, start: str | None = None, end
         frame = frame.reset_index(drop=True)
         frame.insert(0, "time_et", pd.to_datetime(frame[column], unit="ns", utc=True).dt.tz_convert(ET))
     frame.attrs.update(dataset=dataset, symbol=symbol.upper(), day=day, indexed=indexed,
-                       seconds=round((datetime.now() - t0).total_seconds(), 2), file=str(path))
+                       seconds=round((datetime.now() - t0).total_seconds(), 2), file=str(path),
+                       lines_read=read_count, lines_parsed=len(lines))
     return frame
 
 

@@ -18,7 +18,7 @@ def write_json(path: Path, value: dict) -> None:
     path.write_text(json.dumps(value), encoding="utf-8")
 
 
-def fake_export(output: Path, names: list[str]) -> None:
+def fake_export(output: Path, names: list[str], warm_pid: int | None = None) -> None:
     output.mkdir()
     write_json(output / "selection.json", {"selected": [{} for _ in names]})
     image_dir = output / "images/images"
@@ -35,6 +35,11 @@ def fake_export(output: Path, names: list[str]) -> None:
               "source_data_mutated": False, "broker_or_desk_calls": False, "selection_sha256": digest,
               "images": images, "image_sha256": {Path(p).name: M.sha256(Path(p)) for p in images},
               "capture_verification": str(capture)}
+    if warm_pid is not None:
+        for key in ("owned_trees_stopped", "owned_children_stopped", "active_owned_processes"):
+            del native[key]
+        native.update(renderer="warm", warm_service={"pid": warm_pid, "owned_pids": [11, 12],
+                                                     "live_owned_processes": 5, "jobs_served": 1})
     write_json(output / "images/EXPORT_RECEIPT.json", native)
     write_json(output / "historical_export.json", {
         "schema_version": 1, "ok": True, "kind": "historical_ohlcv", "native_export": native,
@@ -93,6 +98,78 @@ class TradeCharts(unittest.TestCase):
         (self.base / "resolver/tools/nova_trade_charts.py").unlink()
         result = self.service.export_trades([TRADE], "x")
         self.assertEqual(result, {"ok": False, "error": {"code": "TRUSTED_ENTRYPOINT_MISSING"}})
+
+    def warm_service(self, ensure, receipt_pid):
+        renderers = []
+
+        class Renderer:
+            idle_seconds = 600
+
+            def __init__(self, gateway, python):
+                self.gateway, self.python = gateway, python
+                renderers.append(self)
+
+            def ensure(self):
+                return ensure()
+
+        def execute(args, cwd, gateway, cancel, timeout):
+            self.calls.append(args)
+            warm = receipt_pid if "--warm" in args else None
+            fake_export(Path(args[args.index("--output") + 1]), ["01_DEMO_2020-01-02_10s"], warm)
+            return M.Execution(0, True, 0)
+        service = M.ChartService(self.roots, execute, warm=Renderer)
+        self.assertEqual(renderers[0].gateway, self.base / "gateway")
+        return service
+
+    def test_trade_charts_draw_with_the_servers_warm_renderer(self):
+        service = self.warm_service(lambda: 4242, 4242)
+        result = service.export_trades([TRADE], "warm-trades")
+        self.assertTrue(result["ok"], result)
+        [args] = self.calls
+        self.assertEqual(args[args.index("--warm"):args.index("--warm") + 3], ["--warm", "--idle-seconds", "600"])
+        self.assertEqual((result["renderer"], result["warm_renderer_pid"]), ("warm", 4242))
+        self.assertIs(result["warm_renderer_started_in_call"], False)
+        self.assertTrue(result["owned_tree_verified"])
+        self.assertTrue(M.verified_inline_image(result, self.roots.output)[0]["ok"])
+
+    def test_a_renderer_restarted_inside_the_call_is_reported(self):
+        # The server's renderer stopped before the job (stale code, a crash), so the export started one inside the
+        # call's Job; the call's verified teardown already stopped it.
+        service = self.warm_service(lambda: 4242, 999)
+        result = service.export_trades([TRADE], "other")
+        self.assertTrue(result["ok"], result)
+        self.assertEqual((result["warm_renderer_pid"], result["warm_renderer_started_in_call"]), (999, True))
+
+    def test_a_warm_receipt_without_its_service_or_with_cleanup_errors_is_refused(self):
+        native = self.base / "output"
+        for name, change in (("no-service", {"warm_service": None}), ("errors", {"cleanup_errors": ["x"]}),
+                             ("mutated", {"source_data_mutated": True})):
+            fake_export(native / name, ["01_DEMO_2020-01-02_10s"], 4242)
+            for receipt in (native / name / "images/EXPORT_RECEIPT.json", native / name / "historical_export.json"):
+                value = json.loads(receipt.read_text(encoding="utf-8"))
+                (value.get("native_export", value)).update(change)
+                write_json(receipt, value)
+            with self.assertRaises(M.ChartError):
+                M.verify_export(native / name, None, None, 0, warm_pid=4242)
+
+    def test_a_one_shot_receipt_never_passes_as_warm_and_a_warm_one_never_as_one_shot(self):
+        native = self.base / "output"
+        fake_export(native / "a", ["01_DEMO_2020-01-02_10s"], 4242)
+        with self.assertRaises(M.ChartError):
+            M.verify_export(native / "a", None, None, 0)
+        fake_export(native / "b", ["01_DEMO_2020-01-02_10s"])
+        with self.assertRaises(M.ChartError):
+            M.verify_export(native / "b", None, None, 0, warm_pid=4242)
+
+    def test_no_warm_renderer_falls_back_to_the_one_shot_export_and_says_so(self):
+        def unavailable():
+            raise M.WarmRendererUnavailable("node is missing")
+        service = self.warm_service(unavailable, 4242)
+        result = service.export_trades([TRADE], "fallback")
+        self.assertTrue(result["ok"], result)
+        [args] = self.calls
+        self.assertNotIn("--warm", args)
+        self.assertEqual((result["renderer"], result["warm_error"]), ("one_shot", "WARM_RENDERER_UNAVAILABLE"))
 
 
 if __name__ == "__main__":
