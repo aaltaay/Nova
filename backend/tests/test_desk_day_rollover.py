@@ -162,6 +162,18 @@ def test_paper_day_p_and_l_keeps_fridays_day_through_the_weekend(paper) -> None:
     assert paper.broker.ledger.day_started_ts == et(10, 19, 4).timestamp()
 
 
+def test_a_weekend_rollover_an_older_build_stored_does_not_reset_the_day(paper) -> None:
+    ledger = paper.broker.ledger
+    friday = et(10, 16, 4).timestamp()
+    ledger.events.append({"type": "rollover", "ts": et(10, 17, 4).timestamp(), "equity": 1.0, "wall_ts": 0.0})
+    ledger.events.append({"type": "rollover", "ts": et(10, 18, 4).timestamp(), "equity": 1.0, "wall_ts": 0.0})
+    ledger._derive()
+    assert ledger.day_started_ts == friday
+    ledger.events.append({"type": "rollover", "ts": et(10, 19, 4).timestamp(), "equity": 1.0, "wall_ts": 0.0})
+    ledger._derive()
+    assert ledger.day_started_ts == et(10, 19, 4).timestamp()
+
+
 def test_paper_orders_today_lists_fridays_round_trip_on_saturday(paper) -> None:
     paper.ref.now = SAT_1000.timestamp()
     out = overlay_closed_orders(

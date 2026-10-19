@@ -114,6 +114,9 @@ class Ledger:
         elif kind == EVENT_FILLED:
             self._apply_filled(event)
         elif kind == EVENT_ROLLOVER:
+            if session_day_start_ts(float(event["ts"])) != float(event["ts"]):
+                # A weekend or holiday rollover an earlier build stored: that day was never a session.
+                return
             self.day_started_ts = float(event["ts"])
             self.day_start_equity = float(event["equity"])
             self.realized_at_day_start = self.realized

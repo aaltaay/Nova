@@ -788,7 +788,7 @@ Account history and the startup sweep, and working orders are never day-scoped.
 a weekend or holiday belongs to the last exchange day before it (`practice/clock.session_day_start_ts`
 over `market.session_key_et`, the clock the boards use). Saturday 04:00 is no rollover: Friday's
 Orders (Today), Day P&L, `realized_today`, `commissions_today`, `fills_today` and `daily[]` row stay
-Friday's until Monday 04:00. **On Live the same cut applies to the Gateway's own rows**
+Friday's until Monday 04:00 (a weekend or holiday `rollover` event an earlier build stored is skipped on replay, so existing ledgers read the same). **On Live the same cut applies to the Gateway's own rows**
 (`execution/closed_blotter.overlay_closed_orders`): a row whose `updated_at` is before the session's
 04:00 ET start is not Orders (Today) -- a Gateway session that outlives the rollover keeps earlier days
 in `ib.trades()` -- and a row IBKR gave no clock (a completed order read back after a connect) stays
