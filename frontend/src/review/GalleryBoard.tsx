@@ -1,7 +1,7 @@
 /** One timeframe at a time. Each cell is the desk's TickerChart for that pane. */
 
 import { ChartFeedProvider, TickerChart } from '../chart';
-import { CHART_GRID_PANE_INDICATORS, type ChartIndicatorId } from '../constants';
+import { CHART_DEFAULT_INDICATORS, CHART_GRID_PANE_INDICATORS, type ChartIndicatorId } from '../constants';
 import type { ReviewPayload } from './reviewFixture';
 import { feedFromPayload } from './reviewFeed';
 import { levelOverlay } from './RecordedLevelsOverlay';
@@ -21,7 +21,7 @@ export function GalleryBoard({
   onPanePainted: (id: string) => void;
 }) {
   const pane = TF_PANE[gtf];
-  const indicators = [...(CHART_GRID_PANE_INDICATORS[pane.id] ?? [])] as ChartIndicatorId[];
+  const indicators = [...(CHART_GRID_PANE_INDICATORS[pane.id] ?? CHART_DEFAULT_INDICATORS)] as ChartIndicatorId[];
   return (
     <div className="review-gallery">
       <div className="review-tabs" role="tablist">

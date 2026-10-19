@@ -92,6 +92,14 @@ body.review-root #root {
 }
 
 .review-cell { min-height: 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.review-cell > .chart-portal-slot,
+.review-cell .chart-portal-host {
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
 .review-cell__link {
   flex: 0 0 auto;
   color: #7dd3fc;
