@@ -45,11 +45,12 @@ For several calls in a row, add `--warm`: the first call starts a warm renderer
 (`vite preview` plus a headless Chromium, owned by one background process) and later
 calls reuse it; it stops by itself after `--idle-seconds` (default 600) without a job.
 `py -3 tools/nova_chart_warm.py status` / `stop` / `start [--idle-seconds N]` manage it
-by hand. Each stock-day's bars are cached after the first read
-(`<cache_dir>/trade-chart-bars/`), so charting the same stock-days again skips the
-multi-second trades read; a changed day file or reader code reads again.
-Measured on 9 Round 32 trades: about 8 s one-shot; with `--warm` and cached bars,
-under 5 s (numbers in the PR for #1062).
+by hand. The MCP tool `nova_trade_charts` keeps its own warm renderer the same way and
+stops it when the MCP server ends. Only each chart's window of trades is read, and its
+bars are cached (`<cache_dir>/trade-chart-bars/`), so charting the same windows again
+skips the read; a changed day file, reader code or a wider window reads again.
+Measured on 9 Round 32 trades on a busy PC: with a warm renderer, about 3 s for
+stock-days charted before and about 6 s for fresh ones (numbers in the PRs for #1062).
 
 ## Export an existing frozen selection
 

@@ -86,7 +86,8 @@ py -3 tools/nova_trade_charts.py export --trades-file trades.json --output <NEW>
 `--warm` draws through the warm renderer (`tools/nova_chart_warm.py`, "Warm renderer" in
 [agent-desk.md](agent-desk.md)), starting one when none is running for the gateway
 checkout; without it the one-shot export runs as before. `historical_export.json`
-records which (`native_export.renderer`).
+records which (`native_export.renderer`). The MCP tool always draws warm, through a
+renderer the MCP server owns ("The MCP server's warm renderer" in agent-desk.md).
 
 A trade is `{symbol, date, entry_time, entry_price, exit_time, exit_price}` or, for
 partial exits, `{symbol, date, entry_time, entry_price, exits:[{time, price}, ...]}`
@@ -103,7 +104,10 @@ unknown fields, or a non-positive price is `invalid_trade`.
 - Bars come from that day's Massive `trades_v1` file under the explicit
   `--massive-root` through the market data front door (`market_reads.bars`, the Sim's
   rule: a cancel/error record is no trade, price-setting prints set OHLC, every trade
-  counts in volume). A bucket with volume but no price-setting print stays a gap and is
+  counts in volume). The reader is asked for the window's whole minutes only
+  (`read_span_s` in provenance, seconds after midnight ET, end exclusive), and the
+  front door parses only those minutes' lines ("Read cache" and "Windowed reads" in
+  [agent-desk.md](agent-desk.md)). A bucket with volume but no price-setting print stays a gap and is
   counted in provenance (`volume_only_buckets_left_as_gaps`). A stock-day with no
   priced bar in its window is `symbol_missing`; a root without `trades_v1` is
   `trades_root_missing`; a missing day file is `day_missing`.
@@ -113,16 +117,17 @@ unknown fields, or a non-positive price is `invalid_trade`.
   size and modification time (checked before and after the read), not a SHA256; the
   frozen projection files are SHA256-bound as for minute bundles.
 - Bar cache (`tools/nova_trade_bar_cache.py`, its only reader and writer): each stock-day
-  read keeps that day's whole-session bars at the requested size in
+  read keeps the bars it read at the requested size in
   `<cache_dir>/trade-chart-bars/<date>/<SYMBOL>_<n>s.json` (`paths.cache_dir()`:
   `NOVA_CACHE_DIR` or `backend/.cache`) as
-  `{schema_version:1, symbol, day, bar_seconds, source:{path,size,mtime_ns}, reader_sha256,
-  bars:[[s,o,h,l,c,v], ...]}`, prices `null` for a volume-only bucket. A later chart of
-  that stock-day uses it only while the day file's path, size and modification time and
-  the hash of the reader's code (`market_reads/reads.py`, `sim/massive_files.py`,
-  `constants_sim.py`) all still match; anything else (or an
-  unknown `schema_version`, or an unreadable file) is a miss that reads the day again and
-  rewrites the entry. At most 2000 entries are kept (oldest removed). Provenance says
+  `{schema_version:2, symbol, day, bar_seconds, span_s:[start,end], source:{path,size,mtime_ns},
+  reader_sha256, bars:[[s,o,h,l,c,v], ...]}`, prices `null` for a volume-only bucket. A later
+  chart of that stock-day uses it only when its read span lies inside `span_s` and the day
+  file's path, size and modification time and the hash of the reader's code
+  (`market_reads/reads.py`, `sim/massive_files.py`, `constants_sim.py`) all still match;
+  anything else (another span, an unknown `schema_version`, or an unreadable file) is a
+  miss that reads that span and rewrites the entry. A `schema_version:1` entry held the
+  whole session and is read as `span_s:[0,86400]`. At most 2000 entries are kept (oldest removed). Provenance says
   `cache: "hit"` or `"miss"` per stock-day; a hit's bars are the same rows the reader
   returned, so the drawn chart is the same.
 - Each fill becomes a `trade_marker` (buy arrow green, sell arrow red). Fills are the
