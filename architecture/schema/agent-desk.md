@@ -390,6 +390,20 @@ MCP server (`tools/nova_data_mcp.py`, official SDK, stdio; registered in `.curso
 - **Heavy-read slots** (`research/market_reads/slots.py`): bulk scans, index builds and `stock_day` take one of
   `NOVA_MARKET_READ_SLOTS` (default 2) OS-locked files in `<temp>/nova-market-read-slots`; a slot dies with its
   process; waiting past 600 s raises `Busy`.
+- **Read cache** (owner `research/market_reads/read_cache.py`): `reads.read_file` (so `trades`, `quotes` and
+  minute `bars`) keeps each stock-day it parses in `<root>/<dataset>/<YYYY-MM-DD>/t_<SYMBOL>.arrow` (Arrow IPC, zstd;
+  `t_` so a ticker such as `CON` never names a Windows device, any byte outside `A-Z 0-9 . _ -` written `%XX`): the
+  symbol's whole day as parsed, before the window and `time_et`. The schema's metadata key `nova_read_cache` holds
+  `{schema_version: 1, dataset, symbol, day, source: {path, size, mtime_ns}, reader, indexed, header, rows}`;
+  `reader` is a hash of the code that finds and parses the rows plus the pandas and pyarrow versions. An entry is
+  used only while every field matches; anything else (a re-downloaded day, a code or library change, another
+  `schema_version`) is a miss read from the day file and overwritten. A hit returns the same frame as the file:
+  columns, dtypes, values, missing fields, row order and `attrs` (`seconds` is the hit's own time). Writes are
+  atomic (temp file + rename) and skipped when the day file changed during the read or the drive has under 50 GB
+  free. `<root>` is `NOVA_MARKET_READ_CACHE_DIR`, else `F:\Nova\market_read_cache` when F: is mounted on Windows,
+  else no cache; `NOVA_MARKET_READ_CACHE=0` turns it off; `NOVA_MARKET_READ_CACHE_GB` (default 50) caps it, the
+  least recently used entries (a hit touches its file) deleted down to 90% of the cap, checked on a process's first
+  write and every 1 GB it writes. `trades`' `sets_price` is asked once per distinct `(conditions, correction)` pair.
 - **Momentum-research tools** (`tools/nova_data_research.py`, the second tool set; CLI `tools/market_data_research.py`):
   - `find_stock_days {filters, symbol?, kinds?, splits?, float_max?, float_basis?, float_unknown?, catalyst?, halted?,
     cursor?, page_size?, output_name?}` -> a table answer plus `next_cursor` (`"YYYY-MM-DD|SYMBOL"` or null). Rows:

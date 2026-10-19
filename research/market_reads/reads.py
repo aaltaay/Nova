@@ -7,6 +7,7 @@ follow the Sim's own print rules (``sim.massive_files.trade`` / ``sets_price``).
 """
 from __future__ import annotations
 
+import functools
 import io
 from datetime import date, datetime
 from typing import Any
@@ -23,7 +24,9 @@ from constants_sim import (
     SIM_MASSIVE_QUOTES,
     SIM_MASSIVE_TRADES,
 )
-from sim import massive_files
+from sim import massive_files, massive_index
+
+from market_reads import read_cache
 
 ET = ZoneInfo("America/New_York")
 TF_UNITS = {"s": 1, "m": 60, "h": 3600}
@@ -32,7 +35,8 @@ TEXT_COLUMNS = {"ticker": str, "conditions": str, "indicators": str, "id": str}
 # Only an empty field is missing: pandas' default NA strings ("NA", "NULL", "N/A", ...) are real tickers.
 CSV_NA = {"keep_default_na": False, "na_values": [""]}
 TIME_COLUMN = {SIM_MASSIVE_TRADES: "sip_timestamp", SIM_MASSIVE_QUOTES: "sip_timestamp",
-               SIM_MASSIVE_MINUTES: "window_start"}# The board each list reads on a recorded day and on a rebuilt one (a rebuilt day's Gainers is its market board).
+               SIM_MASSIVE_MINUTES: "window_start"}
+# The board each list reads on a recorded day and on a rebuilt one (a rebuilt day's Gainers is its market board).
 LIST_BOARD = {
     "recorded": {"gainers": "gainers", "losers": "losers", "gappers": "gappers", "afterhours": "afterhours",
                  "large_cap": "large_cap"},
@@ -46,62 +50,121 @@ def _ns(day: str, hhmm: str) -> int:
     return int(datetime(d.year, d.month, d.day, hh, mm, tzinfo=ET).timestamp()) * 10**9
 
 
-def _in_window(lines: list[bytes], header: list[str], column: str, lo: int | None, hi: int | None) -> list[bytes]:
-    """The lines whose ``column`` may lie in ``[lo, hi)``, so the rest never reach the full CSV parse. pyarrow reads
-    only that column (a real CSV parser: quoted commas in the conditions are fields, not separators). A line whose
-    time is empty is kept, and a stretch pyarrow cannot read as whole numbers keeps every line: the parsed frame then
-    decides, as it does for every row. Nothing about row order is assumed."""
+def _parse_day(path, symbol: str) -> tuple[pd.DataFrame, list[str], bool]:
+    """``symbol``'s whole day in the file as parsed (no window, no ``time_et``), its header, and whether the read went
+    through the file's index. What ``read_cache`` keeps: its fingerprint covers this function's source."""
+    header: list[str] | None = None
+    lines: list[bytes] = []
+    with massive_files.DayRead(path, symbol) as read:
+        for head, batch in read.batches():
+            header = head or header
+            lines.extend(batch)
+        indexed = read.indexed
+    if not lines:
+        return pd.DataFrame(columns=header or []), header or [], indexed
+    text = (",".join(header or []) + "\n").encode() + b"\n".join(lines) + b"\n"
+    frame = pd.read_csv(io.BytesIO(text), dtype={k: v for k, v in TEXT_COLUMNS.items() if k in (header or [])},
+                        **CSV_NA)
+    return frame, header or [], indexed
+
+
+def _probe(lines: list[bytes], header: list[str]):
+    """A stretch's non-text columns as pyarrow reads them (a real CSV parser: a quoted comma is no separator), or
+    ``None`` when it cannot read the stretch line for line."""
     import pyarrow as pa
     import pyarrow.csv as pacsv
     try:
         table = pacsv.read_csv(io.BytesIO(b"\n".join(lines) + b"\n"),
                                read_options=pacsv.ReadOptions(column_names=header),
-                               convert_options=pacsv.ConvertOptions(include_columns=[column],
-                                                                    column_types={column: pa.int64()}))
+                               convert_options=pacsv.ConvertOptions(
+                                   include_columns=[name for name in header if name not in TEXT_COLUMNS]))
     except pa.ArrowInvalid:
-        return lines
-    if table.num_rows != len(lines):
-        return lines
-    times = table.column(0)
-    known = times.is_valid().to_numpy(zero_copy_only=False)
-    times = times.fill_null(0).to_numpy()
-    inside = np.ones(len(lines), dtype=bool)
-    if lo is not None:
-        inside &= times >= lo
-    if hi is not None:
-        inside &= times < hi
-    return [lines[i] for i in np.flatnonzero(~known | inside)]
+        return None
+    return table if table.num_rows == len(lines) else None
+
+
+def _parse_window(path, symbol: str, column: str, lo: int | None,
+                  hi: int | None) -> tuple[pd.DataFrame, bool] | None:
+    """``symbol``'s rows with ``column`` in ``[lo, hi)`` exactly as ``_parse_day`` then the window would give them,
+    with only those lines parsed by pandas; ``None`` when that cannot be vouched for (the caller parses the day).
+
+    pyarrow reads the block's non-text columns first: their times pick the lines, and each column's type and gaps
+    over the whole block say which dtype the whole-day parse gives -- a whole-number column with a gap or a fraction
+    anywhere that day is float64 there, so the window's is cast to it. A window holding no row, a time that is not a
+    whole number on every line, or a non-text column that is not a number somewhere that day takes the whole-day
+    way. Nothing about row order is assumed."""
+    import pyarrow as pa
+    header: list[str] | None = None
+    kept: list[bytes] = []
+    floats: set[str] = set()
+    other: set[str] = set()
+    with massive_files.DayRead(path, symbol) as read:
+        for head, batch in read.batches():
+            header = head or header
+            table = _probe(batch, header)
+            if table is None or column not in table.column_names:
+                return None
+            times = table.column(column)
+            if not pa.types.is_integer(times.type) or times.null_count:
+                return None
+            for name, values in zip(table.column_names, table.columns, strict=True):
+                if pa.types.is_floating(values.type) or values.null_count:
+                    floats.add(name)
+                elif not pa.types.is_integer(values.type):
+                    other.add(name)
+            times = times.to_numpy()
+            inside = np.ones(len(batch), dtype=bool)
+            if lo is not None:
+                inside &= times >= lo
+            if hi is not None:
+                inside &= times < hi
+            kept.extend(batch[i] for i in np.flatnonzero(inside))
+        indexed = read.indexed
+    if header is None:                       # the file does not hold the symbol: _parse_day's empty frame
+        return pd.DataFrame(columns=[]), indexed
+    if other or not kept:
+        return None
+    text = (",".join(header) + "\n").encode() + b"\n".join(kept) + b"\n"
+    frame = pd.read_csv(io.BytesIO(text), dtype={k: v for k, v in TEXT_COLUMNS.items() if k in header}, **CSV_NA)
+    for name in floats & set(frame.columns):
+        if pd.api.types.is_integer_dtype(frame[name].dtype):
+            frame[name] = frame[name].astype("float64")
+    return frame, indexed
+
+
+@functools.cache
+def _reader() -> str:
+    """The read cache's key for the code that finds and parses the rows (any change to it is a miss)."""
+    return read_cache.fingerprint(_parse_day, massive_files, massive_index, TEXT_COLUMNS, CSV_NA)
 
 
 def read_file(dataset: str, symbol: str, day: str, start: str | None = None, end: str | None = None) -> pd.DataFrame:
     """``symbol``'s rows of ``dataset`` on ``day`` (ET ``start`` <= time < ``end``), every column as delivered.
 
-    A window is applied to the raw lines before the CSV parse (``_in_window``), so a few minutes of a busy day parse
-    only those minutes. ``df.attrs`` says whether the read went through the file's index (``indexed``), how long it
-    took, and how many of the block's lines were read and parsed (``lines_read``, ``lines_parsed``).
+    ``df.attrs`` says whether the read went through the file's index (``indexed``) and how long it took. A symbol-day
+    read before comes out of the read cache (``read_cache``) when it is on: the same frame, without the unzip. A
+    window the cache does not hold parses only the window's lines (``_parse_window``; the cache keeps whole days, so
+    that read is not saved), so a few minutes of a busy day cost those minutes, not the day.
     """
     path = massive_files.day_file(dataset, day)
     if path is None:
         raise LookupError(f"no {dataset} file for {day} under {massive_files.root()}")
     t0 = datetime.now()
     column = TIME_COLUMN[dataset]
-    lo = _ns(day, start) if start else None
-    hi = _ns(day, end) if end else None
-    header: list[str] | None = None
-    lines: list[bytes] = []
-    read_count = 0
-    with massive_files.DayRead(path, symbol) as read:
-        for head, batch in read.batches():
-            header = head or header
-            read_count += len(batch)
-            lines.extend(_in_window(batch, header, column, lo, hi) if (start or end) and column in header else batch)
-        indexed = read.indexed
-    if not lines:
-        frame = pd.DataFrame(columns=header or [])
+    cached = read_cache.load(dataset, symbol, day, path, _reader()) if read_cache.root() else None
+    window = None
+    if cached is None and (start or end):
+        window = _parse_window(path, symbol, column, _ns(day, start) if start else None,
+                               _ns(day, end) if end else None)
+    if cached is not None:
+        frame, indexed = cached
+    elif window is not None:
+        frame, indexed = window
     else:
-        text = (",".join(header or []) + "\n").encode() + b"\n".join(lines) + b"\n"
-        frame = pd.read_csv(io.BytesIO(text), dtype={k: v for k, v in TEXT_COLUMNS.items() if k in (header or [])},
-                            **CSV_NA)
+        before = read_cache.source_identity(path) if read_cache.root() else None
+        frame, header, indexed = _parse_day(path, symbol)
+        if before is not None:
+            read_cache.save(dataset, symbol, day, path, _reader(), before, frame, header, indexed)
     if len(frame):
         if start:
             frame = frame[frame[column] >= _ns(day, start)]
@@ -110,8 +173,7 @@ def read_file(dataset: str, symbol: str, day: str, start: str | None = None, end
         frame = frame.reset_index(drop=True)
         frame.insert(0, "time_et", pd.to_datetime(frame[column], unit="ns", utc=True).dt.tz_convert(ET))
     frame.attrs.update(dataset=dataset, symbol=symbol.upper(), day=day, indexed=indexed,
-                       seconds=round((datetime.now() - t0).total_seconds(), 2), file=str(path),
-                       lines_read=read_count, lines_parsed=len(lines))
+                       seconds=round((datetime.now() - t0).total_seconds(), 2), file=str(path))
     return frame
 
 
@@ -119,9 +181,22 @@ def trades(symbol: str, day: str, start: str | None = None, end: str | None = No
     """Every trade, plus ``sets_price``: the print may move the last or a candle (the SIP's rules, ADR 046)."""
     frame = read_file(SIM_MASSIVE_TRADES, symbol, day, start, end)
     if len(frame):
-        frame["sets_price"] = [massive_files.sets_price(c if isinstance(c, str) else "", int(k))
-                               for c, k in zip(frame["conditions"], frame["correction"].fillna(0), strict=True)]
+        frame["sets_price"] = sets_price(frame["conditions"], frame["correction"])
     return frame
+
+
+def sets_price(conditions: pd.Series, correction: pd.Series) -> np.ndarray:
+    """``massive_files.sets_price`` for every row, asked once per distinct (conditions, correction) pair: a day holds
+    a few hundred pairs and millions of prints. A missing conditions field reads as none, a missing correction as 0."""
+    text_codes, texts = pd.factorize(conditions, use_na_sentinel=True)          # missing -> -1
+    fix_codes, fixes = pd.factorize(correction.fillna(0).to_numpy().astype(np.int64))   # int(k): toward zero
+    width = max(len(fixes), 1)
+    pair_codes, pairs = pd.factorize((text_codes.astype(np.int64) + 1) * width + fix_codes)
+    answers = np.zeros(len(pairs), dtype=bool)
+    for n, pair in enumerate(int(v) for v in pairs):
+        text = texts[pair // width - 1] if pair // width else ""
+        answers[n] = massive_files.sets_price(text if isinstance(text, str) else "", int(fixes[pair % width]))
+    return answers[pair_codes]
 
 
 def quotes(symbol: str, day: str, start: str | None = None, end: str | None = None) -> pd.DataFrame:

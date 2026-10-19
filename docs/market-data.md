@@ -104,6 +104,13 @@ Several builds reading it at once make its head jump between files (6 builds: 12
 stream), so on the desk PC run it with `--workers 6 --stage <a folder on an SSD>`: each file is copied off the
 hard drive in one stream and built from the copy, which is deleted after. `--read-mb` does nothing.
 
+A stock-day read once is kept in the read cache (`research/market_reads/read_cache.py`, contract "Read cache" in
+`architecture/schema/agent-desk.md`): an Arrow file per dataset, symbol and day under `F:\Nova\market_read_cache`,
+used only while the day file's path, size and time and the reader's code still match. Measured 2026-10-18 on the desk
+PC (another job holding 85-90% of the CPU): HODO's 347,846 trades on 2026-10-16 in 2.25 s from the day file, 0.10 s
+from the cache. `NOVA_MARKET_READ_CACHE=0` turns it off, `NOVA_MARKET_READ_CACHE_DIR` moves it,
+`NOVA_MARKET_READ_CACHE_GB` caps it (default 50, least recently used first). About 20 bytes a trade and 18 a quote.
+
 Sizes, measured 2026-10-12: 15.6 TB of gzip (quotes 12.1, trades 3.5, minute bars 0.05). Uncompressed text would
 be about 81 TB; Parquet about 11 TB. The index is about 0.2% of a file.
 
