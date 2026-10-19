@@ -387,8 +387,8 @@ decides who trades a stock, and taking one off never changes it -- that is the s
 
   Every write answers the view.
 
-**The squares, by ticker.** `GET /api/bot/triggers?date=YYYY-MM-DD` (default today: the hot list's
-trading day, which starts at 04:00 ET, never the calendar date; owner `bot/trigger_audit.py`, read-only)
+**The squares, by ticker.** `GET /api/bot/triggers?date=YYYY-MM-DD` (default today: Nova's
+trading day, `market.session_key_et`, which starts at 04:00 ET and keeps the last exchange day over a weekend or holiday, never the calendar date; owner `bot/trigger_audit.py`, read-only)
 answers (the eyes' journal is filed by calendar date, so its lines stamped before the day's 04:00 ET belong to
 the day before and are left out of the day's table and of its restart marks, 2026-10-19):
 
