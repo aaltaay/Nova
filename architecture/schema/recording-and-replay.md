@@ -784,6 +784,18 @@ on Sim, judged by each row's `updated_at` (its close stamp; `practice/today.py`,
 QA W4) -- newest first, with nothing joined or appended from the execution ledger
 (`execution/closed_blotter.py`); the ledger itself keeps every row for the
 Account history and the startup sweep, and working orders are never day-scoped.
+**The practice day is the trading session's, not the calendar's** (2026-10-19): 04:00 ET, and
+a weekend or holiday belongs to the last exchange day before it (`practice/clock.session_day_start_ts`
+over `market.session_key_et`, the clock the boards use). Saturday 04:00 is no rollover: Friday's
+Orders (Today), Day P&L, `realized_today`, `commissions_today`, `fills_today` and `daily[]` row stay
+Friday's until Monday 04:00 (a weekend or holiday `rollover` event an earlier build stored is skipped on replay, so existing ledgers read the same). **On Live the same cut applies to the Gateway's own rows**
+(`execution/closed_blotter.overlay_closed_orders`): a row whose `updated_at` is before the session's
+04:00 ET start is not Orders (Today) -- a Gateway session that outlives the rollover keeps earlier days
+in `ib.trades()` -- and a row IBKR gave no clock (a completed order read back after a connect) stays
+listed, shown and never hidden. The desk's `filledToday` badge counts this list. The frontend's
+`deskTradingDay` (`utils/deskTradingDay.ts`: chart fill arrows, `todayPracticeDate`) walks back over
+weekends alike; it does not know NYSE holidays. The loss limit keeps the plain calendar clock
+(`practice/clock.day_start_ts`): see `loss-limit.md`.
 A refused execution row and its receipt carry `mode` = the practice venue
 (`paper` / `sim`) on Paper and Sim, like a filled practice row -- never the
 Gateway label (QA R38, `execution/desk_mode.py`). The execution ledger holds every venue's
@@ -832,7 +844,7 @@ range covers, `null` for `ALL`), `schema_version: 1`, `starting_cash`,
   distinct `(source, bot_id)` stamp, first-fill order; the `realized` values
   sum to `components.realized`. Read from the stamps, never inferred.
 - `daily[]` -- `{date, realized, commissions, fees, fills, archived}` keyed on
-  the practice day (04:00 ET rollover, `practice/clock.day_start_ts`), dates
+  the practice day (04:00 ET rollover, walking back over weekends and holidays, `practice/clock.session_day_start_ts`), dates
   ascending; a day with no fill has no row. Archived Paper ledgers' days are
   included flagged `archived: true`, so one date can carry two rows (a reset
   mid-day) and the calendar sums them.

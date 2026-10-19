@@ -1,7 +1,18 @@
 """Orders (Today) must overlay the execution ledger on IB replay zeros."""
 from __future__ import annotations
 
+import pytest
+
+from execution import closed_blotter
 from execution.closed_blotter import overlay_closed_orders
+
+AUG_17_START = 1_786_953_600.0  # Mon 2026-08-17 04:00 ET, the session the fixture rows below belong to
+
+
+@pytest.fixture(autouse=True)
+def _session_is_aug_17(monkeypatch):
+    """These rows are stamped 2026-08-17; Orders (Today) cuts IBKR's rows at the session start."""
+    monkeypatch.setattr(closed_blotter, "session_start_ts", lambda now=None: AUG_17_START)
 
 
 def _ib(**kw) -> dict:

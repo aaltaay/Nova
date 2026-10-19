@@ -8,6 +8,10 @@ on Paper, the replay playhead on Sim -- the way IBKR's session trades only
 ever hold the session's orders. A closed row's ``updated_at`` is when it
 closed: the ledger stamps it at the fill, the cancel or the expiry, in venue
 time (``practice.ledger``). Pure except ``day_start``, which reads the clock.
+
+The practice day walks back over a weekend or holiday to the last exchange day
+(``practice.clock.session_day_start_ts``), so Saturday still lists Friday's orders like the boards
+do. ``closed_today`` is also the cut Live puts on IBKR's own rows (``execution.closed_blotter``).
 """
 from __future__ import annotations
 
@@ -34,9 +38,9 @@ def day_start(venue: str | None) -> float | None:
     """The rollover epoch the venue's clock is in (Sim: the playhead's day), or None when unreadable."""
     try:
         from practice.broker import for_venue
-        from practice.clock import day_start_ts
+        from practice.clock import session_day_start_ts
 
-        return day_start_ts(float(for_venue(venue or "").reference.now_ts()))
+        return session_day_start_ts(float(for_venue(venue or "").reference.now_ts()))
     except Exception:
         logger.exception("practice today: the %r clock is unreadable -- every closed row listed", venue)
         return None

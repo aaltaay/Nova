@@ -7,7 +7,7 @@ is no point between events, so a flat stretch is drawn flat, and the series is
 event-marked (its last point can differ from the account's live-marked
 figure on ``/api/practice/account``). Fills carry the ADR 007 ``source`` and
 ``bot_id`` the ledger stamped, so the by-source split is read, never inferred.
-Daily rows key on the practice day (``practice.clock.day_start_ts``, the 04:00
+Daily rows key on the practice day (``practice.clock.session_day_start_ts``, the 04:00
 ET rollover) and include the archived Paper ledgers beside the live one,
 read-only and flagged ``archived``; a damaged archive is skipped with a logged
 warning and named in ``warnings``, never a 500. Sim answers from its scratch
@@ -29,7 +29,7 @@ from constants_practice import (
     PRACTICE_HISTORY_RANGES,
     PRACTICE_HISTORY_SCHEMA_VERSION,
 )
-from practice.clock import at, day_start_ts, iso_et
+from practice.clock import at, iso_et, session_day_start_ts
 from practice.fees import Fees
 from practice.ledger import ACCOUNT_IDS, EVENT_FILLED, EVENT_ROLLOVER, Ledger
 
@@ -55,7 +55,7 @@ def range_start_ts(range_key: str, now_ts: float) -> float | None:
     """Epoch of the first practice day ``range_key`` covers, counted back from ``now_ts``'s; ``None`` for ALL."""
     if range_key == PRACTICE_HISTORY_RANGE_ALL:
         return None
-    today = at(day_start_ts(now_ts))
+    today = at(session_day_start_ts(now_ts))
     if range_key == PRACTICE_HISTORY_RANGE_YTD:
         return today.replace(month=1, day=1).timestamp()
     return (today - timedelta(days=PRACTICE_HISTORY_RANGE_DAYS[range_key] - 1)).timestamp()
@@ -67,7 +67,7 @@ def _in_range(ts: float, start: float | None) -> bool:
 
 def _day_of(ts: float) -> str:
     """The practice day ``ts`` belongs to, as its ET calendar date."""
-    return at(day_start_ts(ts)).date().isoformat()
+    return at(session_day_start_ts(ts)).date().isoformat()
 
 
 def _money(value: float) -> float:
