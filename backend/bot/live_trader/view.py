@@ -88,9 +88,14 @@ def _position(pos: dict[str, Any], their: dict[str, float]) -> dict[str, Any]:
 def _orders(held: list[dict[str, Any]]) -> tuple[int, float, int]:
     """``(orders, fees, unread)``: the bot's own orders that filled for these positions -- entries, adds, closes and
     buy stops, each once -- and what Paper charged for them; ``unread`` is how many of them Paper did not show a fee
-    for. Shares sold outside the bot carry no order of the bot's and are not counted."""
+    for. Shares sold outside the bot carry no order of the bot's and are not counted. Every buy stop that filled is
+    counted, not only the one its exit line names: one print can fill several (one per entry and add), and the exit
+    line keeps the first."""
     ids = {int(f["order_id"]) for p in held for f in (*(p.get("fills") or ()), *(p.get("exit_fills") or ()))
            if f.get("order_id") is not None}
+    for oid in {int(o) for p in held for o in p.get("stop_order_ids") or ()} - ids:
+        if _stop_filled(oid):
+            ids.add(oid)
     fees, unread = 0.0, 0
     for oid in ids:
         fee = orders.fees_of(oid)
@@ -99,6 +104,14 @@ def _orders(held: list[dict[str, Any]]) -> tuple[int, float, int]:
         else:
             fees += fee
     return len(ids), round(fees, 2), unread
+
+
+def _stop_filled(order_id: int) -> bool:
+    try:
+        return orders.order_state(orders.order_row(order_id)) == "filled"
+    except orders.ReadError:
+        logger.warning("Live Trader bot: buy stop %s could not be read for the card's fees", order_id, exc_info=True)
+        return False
 
 
 def _today(name: str, positions: list[dict[str, Any]], closed: list[dict[str, Any]],

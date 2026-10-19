@@ -322,6 +322,21 @@ def test_the_cards_orders_are_counted_once_and_an_unread_fee_is_said(monkeypatch
     assert lt_view._orders(held) == (3, 2.05, 1)
 
 
+def test_the_card_counts_every_buy_stop_one_print_filled(monkeypatch):
+    """A short with an entry and two adds has three buy stops; one print fills two of them and the exit line names
+    only the first. Both are the bot's filled orders and both fees are taken off; the stop that was cancelled is not
+    an order that filled (PR #1093 review)."""
+    from bot.live_trader import orders as lt_orders
+    from bot.live_trader import view as lt_view
+
+    status = {11: "Filled", 12: "Filled", 13: "Cancelled"}
+    monkeypatch.setattr(lt_orders, "order_row", lambda oid: {"status": status[oid]})
+    monkeypatch.setattr(lt_orders, "fees_of", {1: 1.0, 2: 1.0, 11: 1.05, 12: 1.05}.get)
+    held = [{"fills": [{"order_id": 1}, {"order_id": 2}], "stop_order_ids": [11, 12, 13],
+             "exit_fills": [{"order_id": 11, "kind": "stop"}]}]
+    assert lt_view._orders(held) == (4, 4.1, 0)
+
+
 def test_the_bots_shares_are_its_own_never_yours(desk):
     run(desk, "10:30:00")
     desk.broker.place("XYZ", "BUY", 100, order_type="MKT", source="manual")      # the operator's own 100
