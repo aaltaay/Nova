@@ -7,11 +7,10 @@ or .csv under ``--output-root``); everything else answers inline, at most ``INLI
 how many matched. Heavy reads take a slot shared by every process on the PC (``research/market_reads/slots.py``).
 Start with ``data_catalog``: what each dataset is, its history, its as-of rule and its units.
 
-  py -3 tools/nova_data_mcp.py [--output-root DIR]      (stdio; registered in .cursor/mcp.json and .mcp.json)
+  py -3 tools/nova_data_mcp.py [--output-root DIR]      (stdio; starts the unified server in tools/nova_mcp.py)
 """
 from __future__ import annotations
 
-import argparse
 import contextlib
 import io
 import json
@@ -181,31 +180,36 @@ class DataService(research.ResearchTools):
         return {"ok": True, **_json_safe(reference.short_interest(symbol, day, at))}
 
 
-def call(fn, *args, **kwargs) -> dict[str, Any]:
-    """Run one tool body: its prints go to stderr (stdout carries the protocol) and an error is an answer. A heavy
-    body waits for the process's heavy lock; a light one (``LIGHT_TOOLS``) does not."""
+def invoke(fn, *args, **kwargs) -> dict[str, Any]:
+    """Run one tool body. Prints go to stderr (stdout carries the protocol) and a failed read is the answer."""
     if not isinstance(sys.stdout, PrintsToStderr):
         sys.stdout = PrintsToStderr(sys.stdout)
+    try:
+        return fn(*args, **kwargs)
+    except Exception as exc:  # maintainer: allow-swallow a failed read is returned to the agent as its answer
+        return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+
+
+def call(fn, *args, **kwargs) -> dict[str, Any]:
+    """The data server's runner: a heavy body waits for this process's one heavy lock; a light one does not."""
     light = getattr(fn, "__name__", "") in LIGHT_TOOLS
     with contextlib.nullcontext() if light else _HEAVY_ONE_AT_A_TIME:
-        try:
-            return fn(*args, **kwargs)
-        except Exception as exc:  # maintainer: allow-swallow a failed read is returned to the agent as its answer
-            return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+        return invoke(fn, *args, **kwargs)
 
 
-def create_server(service: DataService):
+def create_server(service: DataService, run_sync=None, server_name: str = "nova-data"):
     import anyio
     from mcp.server.fastmcp import FastMCP
     from mcp.types import ToolAnnotations
 
-    server = FastMCP("nova-data", log_level="WARNING")
+    sync = call if run_sync is None else run_sync
+    server = FastMCP(server_name, log_level="WARNING")
     reads = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False)
     writes_file = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False,
                                   openWorldHint=False)
 
     async def run(fn, *args, **kwargs):
-        return await anyio.to_thread.run_sync(lambda: call(fn, *args, **kwargs))
+        return await anyio.to_thread.run_sync(lambda: sync(fn, *args, **kwargs))
 
     @server.tool(annotations=reads)
     async def data_catalog() -> dict:
@@ -336,13 +340,9 @@ def preload() -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT,
-                        help="where tables asked for by output_name are written")
-    args = parser.parse_args(argv)
-    preload()
-    create_server(DataService(args.output_root)).run(transport="stdio")
-    return 0
+    """Start the unified server (the same data tools, plus the desk review charts)."""
+    import nova_mcp
+    return nova_mcp.main(argv)
 
 
 if __name__ == "__main__":

@@ -118,6 +118,18 @@ export default defineConfig(({ command, mode }) => {
         '**/.chart-gateway-build/**',
       ],
     },
+    proxy: {
+      '/api/review': {
+        target: 'http://127.0.0.1:8765',
+      },
+    },
+  },
+  preview: {
+    proxy: {
+      '/api/review': {
+        target: 'http://127.0.0.1:8765',
+      },
+    },
   },
   build: {
     rollupOptions: {

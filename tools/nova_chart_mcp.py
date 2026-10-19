@@ -1,5 +1,8 @@
 """Optional official-SDK stdio access to bounded, stateless historical chart export.
 
+Desk review charts (interactive /review links and PNGs of that page) are tools/nova_mcp.py.
+This module stays the candle-gateway exporter.
+
 maintainer: one-concern the MCP stdio boundary, root confinement, and export verification must live in one module
 The trusted launcher supplies roots; callers supply only symbol/day/entries/output name.
 No trading application imports, client configuration changes or package installs.

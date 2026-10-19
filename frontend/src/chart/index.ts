@@ -1,6 +1,9 @@
 /** Public chart API — cross-feature imports must use this barrel (ADR 005). */
 
 export { TickerChart } from './TickerChart';
+export { useChartInstance } from './useChartInstance';
+export { useChartSessionHighlight } from './useChartSessionHighlight';
+export { useEphemeralDrawings } from './useEphemeralDrawings';
 export { parseBarsCoverage, setBars, upsertTapePrint10SecBar } from './barsStore';
 export { sessionKindFromEtMinutes, type MarketSessionKind } from './sessionHighlight';
 export type { ChartPaneOverlayProps, ChartTradeUpdate, RenderPaneOverlay } from './types';

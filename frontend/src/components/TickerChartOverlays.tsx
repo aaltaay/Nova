@@ -65,9 +65,27 @@ interface Props {
   vwapCoversOpen?: boolean;
   /** Live candle time ahead of the store -- VWAP must reach the painted tip. */
   liveTipTime?: number | null;
+  /**
+   * Paint the account's avg-cost line and fill arrows. The review route passes
+   * false so this pane never subscribes to the live account or Gateway status.
+   */
+  accountOverlay?: boolean;
 }
 
 type EmaSeriesMap = Partial<Record<ChartEmaLength, ISeriesApi<'Line'>>>;
+
+/** Mounted only when the pane is allowed to read the account. Keeps that hook off the review route. */
+function ChartAccountOverlay(props: {
+  chart: IChartApi | null;
+  candleSeriesRef: RefObject<ISeriesApi<'Candlestick'> | null>;
+  symbol: string;
+  timeframe: string;
+  bars: IndicatorBar[];
+  barsRevision: number;
+}) {
+  useChartPositionOverlay(props);
+  return null;
+}
 
 const EDGE_SOURCE = 'overlays';
 /** An EMA is drawn wherever it is, but only the candles decide what prices the pane shows. */
@@ -89,6 +107,7 @@ export function TickerChartOverlays({
   vwapSourceRevision = 0,
   vwapCoversOpen = true,
   liveTipTime = null,
+  accountOverlay = true,
 }: Props) {
   const emaSeriesRef = useRef<EmaSeriesMap>({});
   const vwapSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
@@ -99,14 +118,16 @@ export function TickerChartOverlays({
     () => edgeClaimed(chart),
   );
 
-  useChartPositionOverlay({
-    chart,
-    candleSeriesRef,
-    symbol,
-    timeframe,
-    bars,
-    barsRevision,
-  });
+  const account = accountOverlay ? (
+    <ChartAccountOverlay
+      chart={chart}
+      candleSeriesRef={candleSeriesRef}
+      symbol={symbol}
+      timeframe={timeframe}
+      bars={bars}
+      barsRevision={barsRevision}
+    />
+  ) : null;
 
   const showEmas = enabled.includes('emas');
   // A single-session VWAP means nothing on a daily+ chart, so it is not offered
@@ -270,5 +291,5 @@ export function TickerChartOverlays({
     if (chart) publishEdgeWords(chart, EDGE_SOURCE, []);
   }, [chart]);
 
-  return null;
+  return account;
 }

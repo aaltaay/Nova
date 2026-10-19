@@ -362,8 +362,8 @@ and `.claude/skills/nova-sim-navigator/`. Nothing here places, stages or cancels
 
 Operator: "a standard way MCP to allow agents to access data in standarized form with endpoints so agents are able
 to find the correct data." One library (`research/market_reads`), its command line (`tools/market_data.py`) and its
-MCP server (`tools/nova_data_mcp.py`, official SDK, stdio; registered in `.cursor/mcp.json` and `.mcp.json` as
-`nova-data`). Read-only on the data; the catalog, prose and traps are `docs/market-data.md`.
+MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp.json` and `.mcp.json` as
+`nova-data`; `tools/nova_data_mcp.py` starts the same server). Read-only on the data; the catalog, prose and traps are `docs/market-data.md`. The desk chart tools on that server are "Desk review charts (unified MCP)" below.
 
 - **Tools** (each answers a JSON object; a failed read is `{ok: false, error: "<Type>: <message>"}`, never a crash):
   `data_catalog` (`{ok, datasets: [{name, source, history, as_of, units, mcp, cli}], not_here: string[]}` -- call it
@@ -488,4 +488,38 @@ MCP server (`tools/nova_data_mcp.py`, official SDK, stdio; registered in `.curso
   the movers / leaderboard / reference-index SQLite files, SEC's zips, the Massive day-file folders) or running a
   script outside the repo that names one. Passes: the front door's tools, repo code, a code search or git not pointed
   at a data folder, and `# raw-data-ok: <reason>`. Unparseable input allows.
+
+## Desk review charts (unified MCP)
+
+The same MCP process (`tools/nova_mcp.py`) also serves the desk's historical charts. `docs/nova-mcp.md` is the setup.
+The page is the desk frontend at `/review` (Vite dev server, default `http://127.0.0.1:5173`). It is not the live
+desk: it does not mount the trading shell, does not subscribe to a quote, and has no order ticket.
+
+- **Page.** `GET /review?symbol=IMCC&date=2026-09-18&tf=1m,5m,1d&as_of=16:00`. `tf` is any of `1m`, `5m`, `10s`, `1d`
+  (omitted means all four, drawn in desk order: 5-minute, 10-second, full day, 1-minute). `as_of` is `HH:MM` ET and
+  defaults to `16:00`, so the first view is the 04:00-16:00 session. `symbols=A,B,C` (1 to 9) is a gallery of mini
+  5-minute charts; each symbol links to its own page. `fixture=1` draws a labelled sample and does not call the API.
+- **Data.** The Vite server proxies `GET /api/review` to `127.0.0.1:8765` (the MCP process, unless `--no-review-http`).
+  Answer: `{ok, schema_version: 1, symbol, date, as_of, as_of_iso, source, lookahead: false, vwap_anchor: "04:00",
+  timeframes: {1m|5m|10s|1d: {bars: [{t, o, h, l, c, v}]}}, levels, setups, vwap}`. Intraday `t` is an ISO instant
+  with an Eastern offset. Daily `t` is `YYYY-MM-DD`. A failed read is `{ok: false, error}`.
+- **Causal.** A bar is included only when its window has ended by `as_of` (a 09:55 5-minute bar waits until 10:00).
+  The client drops any later bar again before paint. HOD, LOD and premarket high come from the kept 04:00-16:00
+  minutes. Opening-range high and low stay null until 09:35. Prior high, low and close are the last daily row
+  strictly before the session. The session day's daily candle is the aggregate of those minutes (the official daily
+  row for that day, and any later day, is not used). VWAP is the desk's session VWAP: typical price times volume,
+  anchored at 04:00, and it does not take volume from before then or from 16:00 on. Setups are flat tops of three
+  closed 5-minute bars. `daily_bars` lookback is 183 calendar days ending on the session date. `as_of` on that read
+  is not used to hide later days; `date_to` and the minute aggregate do that. No IBKR call.
+- **Chart tools.** `nova_historical_chart {symbol, date, tf?, output?, as_of?}`,
+  `nova_historical_chart_gallery {symbols, date, tf?, output?, as_of?}`,
+  `nova_trade_charts {trades, output?}`. `output` is `interactive` (default) | `png` | `both`. Interactive:
+  `{ok, output, lazy: true, loaded: false, urls: {symbols: [{symbol, date, url}], gallery}}`. `loaded: false` means
+  this call did not read bars. One symbol still gets a gallery URL. `png` and `both` add `images: [{symbol, url,
+  path, sha256, bytes}]`, a screenshot of that `/review` URL from one Chromium kept for the server's life. A missing
+  browser is `{ok: false, error: {code: "REVIEW_SHOT_UNAVAILABLE"}}`. Trade charts here are review links for each
+  symbol/date (a gallery URL when they share a date). Marked sub-minute candle-gateway PNGs stay on
+  `tools/nova_chart_mcp.py`.
+- **Drawings** on `/review` stay in the page's memory. They are not written to the operator's drawing store.
+
 

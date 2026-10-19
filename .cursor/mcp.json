@@ -3,7 +3,7 @@
     "nova-data": {
       "type": "stdio",
       "command": "py",
-      "args": ["-3", "-B", "${workspaceFolder}/tools/nova_data_mcp.py"]
+      "args": ["-3", "-B", "${workspaceFolder}/tools/nova_mcp.py"]
     }
   }
 }
