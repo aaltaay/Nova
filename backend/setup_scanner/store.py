@@ -34,7 +34,6 @@ import logging
 import sqlite3
 import threading
 import time
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -45,6 +44,7 @@ from constants_setups import (
     SETUPS_DB_FILENAME,
     SETUPS_DB_SCHEMA_VERSION,
 )
+from market import session_key_for_ts
 
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
@@ -96,7 +96,9 @@ class StoreVersionError(RuntimeError):
 
 
 def session_date(ts: float) -> str:
-    return datetime.fromtimestamp(ts, ET).strftime("%Y-%m-%d")
+    """The scanner's day: Nova's trading day (04:00 ET rollover, weekends and holidays walk back), not the
+    calendar date -- between 00:00 and 04:00 ET the board is still the day before's."""
+    return session_key_for_ts(ts)
 
 
 class SetupStore:

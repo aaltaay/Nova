@@ -7,8 +7,9 @@ it says so instead of guessing. Errors are the module's own words: an exception'
 - **The journal**: the day's ``triggered``, ``armed`` and ``scored`` lines of the templates in play
   (``playing: true``) and the ``session`` lines (Nova starting). Today's file is read as it grows
   (``eyes.journal_day.JournalTail``: appended bytes only) and only those lines are kept; another day
-  is read on each ask.
-- **The audit stream**: every line from the start of the day (ET) to the end of the file
+  is read on each ask. The file is filed by the calendar date; the lines before the trading day's 04:00 ET
+  (``day_start``) belong to the day before and are left out.
+- **The audit stream**: every line from the start of the calendar day (ET) to the end of the file
   (``bot.entry_rules.audit_rows``), so a change after a trigger still tells what was set before it.
 - **The hot list**: today's file (``hot_list.store.current``), else the day's kept copy
   (``hot_list.entries_on``).
@@ -27,6 +28,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from constants_bot import BOT_SCANNER_SETUPS, BOT_TZ
+from constants_practice import PRACTICE_DAY_ROLLOVER_HOUR_ET
 from constants_stock_mode import STOCK_MODE_BOT, STOCK_MODE_SIGNAL
 
 logger = logging.getLogger(__name__)
@@ -45,13 +47,20 @@ def failed(error: str) -> dict[str, Any]:
 
 
 def day_start(day: str) -> float:
-    """Midnight ET of ``day`` (epoch seconds)."""
-    return datetime.combine(datetime.fromisoformat(day).date(), dtime.min, _ET).timestamp()
+    """04:00 ET of ``day`` (epoch seconds): where Nova's trading day starts, as the route's ``today`` does."""
+    return datetime.combine(datetime.fromisoformat(day).date(), dtime(PRACTICE_DAY_ROLLOVER_HOUR_ET), _ET).timestamp()
 
 
 def _keep(line: dict[str, Any]) -> bool:
     event = line.get("event")
     return event in KEPT and (event == "session" or line.get("playing") is True)
+
+
+def _in_day(line: dict[str, Any], start: float) -> bool:
+    """The journal is filed by the calendar date; a line stamped before the trading day's 04:00 belongs to the
+    day before's table, not this one's."""
+    ts = line.get("ts")
+    return not isinstance(ts, (int, float)) or ts >= start
 
 
 def journal(day: str, *, today: bool) -> tuple[list[dict[str, Any]], dict[str, Any]]:
@@ -61,11 +70,12 @@ def journal(day: str, *, today: bool) -> tuple[list[dict[str, Any]], dict[str, A
     from eyes.journal_day import JournalTail
 
     path = eyes_journal.day_path(day)
+    start = day_start(day)
     if path is None:
         return [], failed(f"no eyes' journal on file for {day}")
     try:
         if not today:
-            return [row for row in JournalTail(path, day).read() if _keep(row)], ok()
+            return [row for row in JournalTail(path, day).read() if _keep(row) and _in_day(row, start)], ok()
         with _lock:
             if _today is None or _today[0] != day or _today[1].path != path:
                 _today = (day, JournalTail(path, day), [])
@@ -74,7 +84,7 @@ def journal(day: str, *, today: bool) -> tuple[list[dict[str, Any]], dict[str, A
             rows = tail.read()
             if tail.generation != generation:
                 kept.clear()                # the file was read again from its start
-            kept.extend(row for row in rows if _keep(row))
+            kept.extend(row for row in rows if _keep(row) and _in_day(row, start))
             return list(kept), ok()
     except OSError:
         logger.warning("triggers audit: the eyes' journal of %s could not be read", day, exc_info=True)

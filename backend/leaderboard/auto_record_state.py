@@ -29,13 +29,12 @@ import asyncio
 import json
 import logging
 import time
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
-from zoneinfo import ZoneInfo
+
+from market import session_key_for_ts
 
 logger = logging.getLogger(__name__)
-ET = ZoneInfo("America/New_York")
 
 AUTO_RECORD_STATE_FILE = "auto-record.json"
 AUTO_RECORD_STATE_SCHEMA_VERSION = 1
@@ -57,7 +56,8 @@ def path() -> Path:
 
 
 def today(ts: float | None = None) -> str:
-    return datetime.fromtimestamp(time.time() if ts is None else ts, ET).date().isoformat()
+    """Nova's trading day (04:00 ET): the file, the declined list and the operator's takes all roll with it."""
+    return session_key_for_ts(time.time() if ts is None else ts)
 
 
 def load(day: str, *, at: Path | None = None) -> tuple[dict[str, dict[str, Any]], list[str], list[str]]:
