@@ -37,3 +37,19 @@ export function levelLines(levels: ReviewLevels): ReviewPriceLine[] {
   ];
   return rows.flatMap(([title, price, color]) => (price == null ? [] : [{ title, price, color }]));
 }
+
+/** Join labels closer than ``minGap`` (price). ``minGap`` is about one label of the pane's height. */
+export function packPriceLines(lines: ReviewPriceLine[], minGap: number): ReviewPriceLine[] {
+  const gap = Math.max(minGap, 0.01);
+  const packed: ReviewPriceLine[] = [];
+  for (const line of [...lines].sort((a, b) => a.price - b.price)) {
+    const prev = packed[packed.length - 1];
+    if (prev && line.price - prev.price < gap) prev.title = `${prev.title} / ${line.title}`;
+    else packed.push({ ...line });
+  }
+  return packed;
+}
+
+export function packLevelLines(levels: ReviewLevels, span: number): ReviewPriceLine[] {
+  return packPriceLines(levelLines(levels), Math.max(span * 0.06, 0.01));
+}

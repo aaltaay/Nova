@@ -5,7 +5,7 @@ import { CHART_GRID_PANE_INDICATORS, type ChartIndicatorId } from '../constants'
 import { cutPayload, fetchReview } from './reviewData';
 import { fixturePayload, type ReviewPayload } from './reviewFixture';
 import { ReviewPane } from './ReviewPane';
-import { reviewHref, type ReviewQuery } from './reviewQuery';
+import { galleryFrame, reviewHref, TF_PANE, type ReviewQuery, type ReviewTf } from './reviewQuery';
 
 interface Props {
   query: ReviewQuery;
@@ -23,12 +23,14 @@ function Cell({
   const [payload, setPayload] = useState<ReviewPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const mark = useCallback(() => onPainted(symbol), [onPainted, symbol]);
+  const frame: ReviewTf = galleryFrame(query.tfs);
+  const pane = TF_PANE[frame].id;
 
   useEffect(() => {
     let cancel = false;
     const load = query.fixture
-      ? Promise.resolve(fixturePayload(symbol, query.date, ['5m'], query.asOf))
-      : fetchReview(symbol, query.date, ['5m'], query.asOf);
+      ? Promise.resolve(fixturePayload(symbol, query.date, [frame], query.asOf))
+      : fetchReview(symbol, query.date, [frame], query.asOf, query.api);
     load
       .then((body) => { if (!cancel) setPayload(cutPayload(body)); })
       .catch((err: unknown) => {
@@ -38,9 +40,9 @@ function Cell({
         }
       });
     return () => { cancel = true; };
-  }, [symbol, query.date, query.asOf, query.fixture]);
+  }, [symbol, query.date, query.asOf, query.fixture, query.api, frame]);
 
-  const href = reviewHref(symbol, query.date, query.tfs, query.asOf, query.fixture);
+  const href = reviewHref(symbol, query.date, query.tfs, query.asOf, query.fixture, query.api);
   return (
     <article className="review-cell">
       <a className="review-cell__link" href={href}>{symbol}</a>
@@ -49,17 +51,18 @@ function Cell({
         <ReviewPane
           symbol={symbol}
           date={query.date}
-          tf="5m"
-          bars={payload.timeframes['5m']?.bars ?? []}
+          tf={frame}
+          bars={payload.timeframes[frame]?.bars ?? []}
           vwapBars={payload.timeframes['1m']?.bars ?? []}
           levels={payload.levels}
-          setups={payload.setups}
-          enabled={[...(CHART_GRID_PANE_INDICATORS['5Min'] ?? [])] as ChartIndicatorId[]}
+          setups={frame === '5m' || frame === '1m' ? payload.setups : []}
+          enabled={[...(CHART_GRID_PANE_INDICATORS[pane] ?? [])] as ChartIndicatorId[]}
           activeTool={null}
           clearToken={0}
           onPainted={mark}
           onFocus={() => {}}
           onIndicatorToggle={() => {}}
+          compact
         />
       )}
     </article>

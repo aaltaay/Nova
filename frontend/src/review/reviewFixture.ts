@@ -1,6 +1,7 @@
 /** A labelled sample session. It is not a recorded tape. */
 
 import type { RawBar } from '../tickerChartData';
+import { cutBars, sessionCandle } from './reviewCut';
 import type { ReviewLevels } from './reviewLevels';
 import type { ReviewTf } from './reviewQuery';
 
@@ -91,10 +92,27 @@ function rollup(bars: RawBar[], stepMin: number): RawBar[] {
   return out;
 }
 
-function dailies(date: string, session: RawBar): RawBar[] {
+function flatTops(fives: RawBar[]): ReviewPayload['setups'] {
+  const found: ReviewPayload['setups'] = [];
+  let index = 0;
+  while (index + 2 < fives.length && found.length < 4) {
+    const window = fives.slice(index, index + 3);
+    const highs = window.map((bar) => bar.h);
+    const top = Math.max(...highs);
+    if (top > 0 && (top - Math.min(...highs)) / top <= 0.005) {
+      found.push({ kind: 'flat_top', time: window[2].t, price: top, label: 'flat top' });
+      index += 3;
+    } else {
+      index += 1;
+    }
+  }
+  return found;
+}
+
+function dailies(date: string, session: RawBar | null): RawBar[] {
   const end = new Date(`${date}T12:00:00Z`);
   const rows: RawBar[] = [];
-  let price = Math.max(1, session.c * 0.7);
+  let price = Math.max(1, (session?.c ?? 8) * 0.7);
   for (let back = 130; back >= 1; back -= 1) {
     const day = new Date(end.getTime() - back * 86400000);
     if (day.getUTCDay() === 0 || day.getUTCDay() === 6) continue;
@@ -110,57 +128,49 @@ function dailies(date: string, session: RawBar): RawBar[] {
       v: 100000 + back * 1000,
     });
   }
-  rows.push({
-    t: date,
-    o: session.o,
-    h: session.h,
-    l: session.l,
-    c: session.c,
-    v: session.v,
-  });
+  if (session) rows.push(session);
   return rows;
 }
 
 export function fixturePayload(symbol: string, date: string, tfs: ReviewTf[], asOf: string): ReviewPayload {
-  const minutes = walk(symbol, date, 1);
-  const fives = rollup(minutes, 5);
-  const session = {
-    t: date,
-    o: minutes[0].o,
-    h: Math.max(...minutes.map((bar) => bar.h)),
-    l: Math.min(...minutes.map((bar) => bar.l)),
-    c: minutes[minutes.length - 1].c,
-    v: minutes.reduce((sum, bar) => sum + bar.v, 0),
-  };
+  const [hour, minute] = asOf.split(':').map(Number);
+  const asOfIso = stamp(date, hour * 60 + minute);
+  const allMinutes = walk(symbol, date, 1);
+  const minutes = cutBars(allMinutes, '1m', asOfIso);
+  const fives = cutBars(rollup(allMinutes, 5), '5m', asOfIso);
+  const session = sessionCandle(date, minutes);
   const timeframes: ReviewPayload['timeframes'] = { '1m': { bars: minutes } };
   if (tfs.includes('5m')) timeframes['5m'] = { bars: fives };
   if (tfs.includes('10s')) {
     const tens: RawBar[] = [];
-    for (const bar of minutes) {
+    for (const bar of allMinutes) {
       for (let seconds = 0; seconds < 60; seconds += 10) {
         tens.push({ ...bar, t: bar.t.replace(/T(\d{2}):(\d{2}):\d{2}/, `T$1:$2:${String(seconds).padStart(2, '0')}`) });
       }
     }
-    timeframes['10s'] = { bars: tens };
+    timeframes['10s'] = { bars: cutBars(tens, '10s', asOfIso) };
   }
-  if (tfs.includes('1d')) timeframes['1d'] = { bars: dailies(date, session) };
+  const daily = dailies(date, session);
+  if (tfs.includes('1d')) timeframes['1d'] = { bars: daily };
   const premarket = minutes.filter((bar) => bar.t.slice(11, 16) < '09:30');
-  const opening = minutes.filter((bar) => bar.t.slice(11, 16) >= '09:30' && bar.t.slice(11, 16) < '09:35');
-  const prior = (timeframes['1d']?.bars ?? []).filter((bar) => bar.t < date).at(-1);
+  const opening = asOf >= '09:35'
+    ? minutes.filter((bar) => bar.t.slice(11, 16) >= '09:30' && bar.t.slice(11, 16) < '09:35')
+    : [];
+  const prior = daily.filter((bar) => bar.t < date).at(-1);
   return {
     ok: true,
     schema_version: 1,
     symbol,
     date,
     as_of: asOf,
-    as_of_iso: stamp(date, 16 * 60).replace(/T16:00:00/, `T${asOf}:00`),
+    as_of_iso: asOfIso,
     source: 'fixture',
     lookahead: false,
     vwap_anchor: '04:00',
     timeframes,
     levels: {
-      hod: session.h,
-      lod: session.l,
+      hod: session?.h ?? null,
+      lod: session?.l ?? null,
       premarket_high: premarket.length ? Math.max(...premarket.map((bar) => bar.h)) : null,
       opening_range_high: opening.length ? Math.max(...opening.map((bar) => bar.h)) : null,
       opening_range_low: opening.length ? Math.min(...opening.map((bar) => bar.l)) : null,
@@ -168,11 +178,6 @@ export function fixturePayload(symbol: string, date: string, tfs: ReviewTf[], as
       prior_low: prior?.l ?? null,
       prior_close: prior?.c ?? null,
     },
-    setups: fives.length >= 3 ? [{
-      kind: 'flat_top',
-      time: fives[2].t,
-      price: fives[2].h,
-      label: 'flat top',
-    }] : [],
+    setups: flatTops(fives),
   };
 }

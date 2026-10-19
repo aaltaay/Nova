@@ -6,9 +6,21 @@ files. The default readers are ``market_reads`` (ADR 059).
 """
 from __future__ import annotations
 
+import sys
+from pathlib import Path
 from typing import Any, Callable
 
 import nova_review_causal as causal
+
+_RESEARCH = Path(__file__).resolve().parents[1] / "research"
+
+
+def ensure_research_path() -> str:
+    """``market_reads`` lives under ``research/``. Importing the data server used to be the only way onto ``sys.path``."""
+    entry = str(_RESEARCH)
+    if entry not in sys.path:
+        sys.path.insert(0, entry)
+    return entry
 
 BarsReader = Callable[[str, str, str], list[dict[str, Any]]]
 DailyReader = Callable[[str, str, str], list[dict[str, Any]]]
@@ -21,11 +33,13 @@ def _records(frame) -> list[dict[str, Any]]:
 
 
 def front_door_bars(symbol: str, day: str, tf: str) -> list[dict[str, Any]]:
+    ensure_research_path()
     from market_reads import reads
     return _records(reads.bars(symbol, day, tf))
 
 
 def front_door_daily(symbol: str, date_from: str, date_to: str) -> list[dict[str, Any]]:
+    ensure_research_path()
     from market_reads import daily
     return _records(daily.daily_bars(symbol, date_from, date_to))
 
@@ -40,14 +54,14 @@ def load_review(symbol: str, day: str, tfs: list[str] | str | None, as_of: str |
     moment = causal.as_of_dt(session, clock)
     minutes = causal.closed_bars(list(bars_reader(name, session, "1m")), "1m", moment)
     dailies = list(daily_reader(name, causal.lookback_start(session), session))
-    timeframes: dict[str, Any] = {"1m": {"bars": [causal.wire_bar(row, "1m") for row in minutes]}}
+    timeframes: dict[str, Any] = {"1m": {"bars": causal.wire_bars(minutes, "1m")}}
     fives: list[dict[str, Any]] = []
     if "5m" in frames:
         fives = causal.closed_bars(list(bars_reader(name, session, "5m")), "5m", moment)
-        timeframes["5m"] = {"bars": [causal.wire_bar(row, "5m") for row in fives]}
+        timeframes["5m"] = {"bars": causal.wire_bars(fives, "5m")}
     if "10s" in frames:
         tens = causal.closed_bars(list(bars_reader(name, session, "10s")), "10s", moment)
-        timeframes["10s"] = {"bars": [causal.wire_bar(row, "10s") for row in tens]}
+        timeframes["10s"] = {"bars": causal.wire_bars(tens, "10s")}
     if "1d" in frames:
         timeframes["1d"] = {"bars": causal.daily_series(dailies, minutes, session)}
     return {

@@ -20,6 +20,15 @@ export interface ReviewQuery {
   asOf: string;
   fixture: boolean;
   gallery: boolean;
+  /** Loopback origin of the review API, when the listener is not on the Vite proxy port. */
+  api: string;
+}
+
+/** Only a loopback origin is accepted. Anything else is ignored so a link cannot point the page at another host. */
+export function loopbackApi(api: string): string {
+  const text = api.trim().replace(/\/$/, '');
+  if (/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(text)) return text;
+  return '';
 }
 
 export function parseReviewQuery(search: string): ReviewQuery {
@@ -42,6 +51,7 @@ export function parseReviewQuery(search: string): ReviewQuery {
     asOf: params.get('as_of') ?? '16:00',
     fixture: params.get('fixture') === '1',
     gallery: multi !== null || symbols.length > 1,
+    api: loopbackApi(params.get('api') ?? ''),
   };
 }
 
@@ -51,6 +61,7 @@ export function reviewHref(
   tfs: readonly string[],
   asOf = '16:00',
   fixture = false,
+  api = '',
 ): string {
   const params = new URLSearchParams();
   params.set('symbol', symbol);
@@ -58,5 +69,13 @@ export function reviewHref(
   params.set('tf', tfs.join(','));
   if (asOf !== '16:00') params.set('as_of', asOf);
   if (fixture) params.set('fixture', '1');
+  const base = loopbackApi(api);
+  if (base) params.set('api', base);
   return `/review?${params.toString()}`;
+}
+
+/** The gallery draws one timeframe. 5-minute when it was asked for, otherwise the first intraday frame. */
+export function galleryFrame(tfs: readonly ReviewTf[]): ReviewTf {
+  if (tfs.includes('5m')) return '5m';
+  return tfs.find((tf) => tf !== '1d') ?? '5m';
 }

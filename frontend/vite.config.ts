@@ -120,14 +120,14 @@ export default defineConfig(({ command, mode }) => {
     },
     proxy: {
       '/api/review': {
-        target: 'http://127.0.0.1:8765',
+        target: process.env.NOVA_REVIEW_API || 'http://127.0.0.1:18765',
       },
     },
   },
   preview: {
     proxy: {
       '/api/review': {
-        target: 'http://127.0.0.1:8765',
+        target: process.env.NOVA_REVIEW_API || 'http://127.0.0.1:18765',
       },
     },
   },

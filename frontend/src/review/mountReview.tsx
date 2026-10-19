@@ -9,6 +9,8 @@ export function mountReview(): void {
     console.error('#root missing');
     return;
   }
+  document.documentElement.classList.add('review-root');
+  document.body.classList.add('review-root');
   createRoot(root).render(
     <StrictMode>
       <ReviewApp />

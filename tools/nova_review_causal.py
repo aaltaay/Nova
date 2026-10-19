@@ -6,6 +6,7 @@ no broker.
 """
 from __future__ import annotations
 
+import math
 from datetime import date, datetime, time, timedelta
 from typing import Any
 from urllib.parse import urlencode
@@ -85,7 +86,20 @@ def _num(row: dict[str, Any], key: str) -> float:
     value = row.get(key)
     if value is None:
         raise ValueError(f"bar is missing {key}")
-    return float(value)
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError(f"bar {key} is not finite")
+    return number
+
+
+def _finite_price(row: dict[str, Any]) -> bool:
+    """A volume-only bucket has NaN OHLC. It is not a candle."""
+    for key in ("open", "high", "low", "close"):
+        try:
+            _num(row, key)
+        except (TypeError, ValueError):
+            return False
+    return True
 
 
 def closed_bars(rows: list[dict[str, Any]], tf: str, as_of: datetime) -> list[dict[str, Any]]:
@@ -93,6 +107,8 @@ def closed_bars(rows: list[dict[str, Any]], tf: str, as_of: datetime) -> list[di
     step = TF_STEP[tf]
     kept = []
     for row in rows:
+        if not _finite_price(row):
+            continue
         start = bar_start(row)
         if start + step <= as_of:
             kept.append(row)
@@ -103,12 +119,24 @@ def _session_bars(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [row for row in rows if SESSION_START <= bar_start(row).time() < SESSION_END]
 
 
-def wire_bar(row: dict[str, Any], tf: str) -> dict[str, Any]:
+def wire_bar(row: dict[str, Any], tf: str) -> dict[str, Any] | None:
+    """One candle. ``None`` when OHLC is missing or not finite, so JSON never contains NaN."""
+    if not _finite_price(row):
+        return None
     start = bar_start(row)
     stamp = start.date().isoformat() if tf == "1d" else start.isoformat()
-    volume = row.get("volume", row.get("v", 0)) or 0
+    try:
+        volume = float(row.get("volume", row.get("v", 0)) or 0)
+    except (TypeError, ValueError):
+        volume = 0.0
+    if not math.isfinite(volume):
+        volume = 0.0
     return {"t": stamp, "o": _num(row, "open"), "h": _num(row, "high"), "l": _num(row, "low"),
-            "c": _num(row, "close"), "v": float(volume)}
+            "c": _num(row, "close"), "v": volume}
+
+
+def wire_bars(rows: list[dict[str, Any]], tf: str) -> list[dict[str, Any]]:
+    return [bar for row in rows if (bar := wire_bar(row, tf)) is not None]
 
 
 def day_key(row: dict[str, Any]) -> str:
@@ -173,7 +201,7 @@ def session_vwap(minute_bars: list[dict[str, Any]]) -> list[dict[str, Any]]:
             value = None
             after_hours = True
         volume = float(row.get("volume") or 0)
-        if volume > 0 and clock < time(20, 0):
+        if volume > 0 and clock < time(20, 0) and _finite_price(row):
             typical = (_num(row, "high") + _num(row, "low") + _num(row, "close")) / 3.0
             cum_pv += typical * volume
             cum_v += volume
@@ -230,17 +258,21 @@ def _query(params: list[tuple[str, str]]) -> str:
     return urlencode(params)
 
 
-def symbol_url(base: str, symbol: str, day: str, tfs: list[str], as_of: str) -> str:
+def symbol_url(base: str, symbol: str, day: str, tfs: list[str], as_of: str, api: str | None = None) -> str:
     params = [("symbol", symbol), ("date", day), ("tf", ",".join(tfs))]
     if as_of != DEFAULT_AS_OF:
         params.append(("as_of", as_of))
+    if api:
+        params.append(("api", api.rstrip("/")))
     return f"{base.rstrip('/')}/review?{_query(params)}"
 
 
-def gallery_url(base: str, symbols: list[str], day: str, tfs: list[str], as_of: str) -> str:
+def gallery_url(base: str, symbols: list[str], day: str, tfs: list[str], as_of: str, api: str | None = None) -> str:
     params = [("symbols", ",".join(symbols)), ("date", day), ("tf", ",".join(tfs))]
     if as_of != DEFAULT_AS_OF:
         params.append(("as_of", as_of))
+    if api:
+        params.append(("api", api.rstrip("/")))
     return f"{base.rstrip('/')}/review?{_query(params)}"
 
 
@@ -259,7 +291,7 @@ def parse_symbols(symbols: list[str] | str) -> list[str]:
 
 
 def chart_pages(symbols: list[str] | str, day: str, tfs: list[str] | str | None, output: str = "interactive",
-                *, base: str, as_of: str | None = None) -> dict[str, Any]:
+                *, base: str, as_of: str | None = None, api: str | None = None) -> dict[str, Any]:
     """Review URLs only. This does not read bars; each page loads its own."""
     mode = output or "interactive"
     if mode not in OUTPUTS:
@@ -271,7 +303,8 @@ def chart_pages(symbols: list[str] | str, day: str, tfs: list[str] | str | None,
         clock = check_clock(as_of or DEFAULT_AS_OF)
     except ValueError as exc:
         return {"ok": False, "error": {"code": "BAD_REQUEST", "detail": str(exc)}}
-    pages = [{"symbol": symbol, "date": session, "url": symbol_url(base, symbol, session, frames, clock)} for symbol in names]
+    pages = [{"symbol": symbol, "date": session, "url": symbol_url(base, symbol, session, frames, clock, api)}
+             for symbol in names]
     return {
         "ok": True,
         "output": mode,
@@ -279,12 +312,13 @@ def chart_pages(symbols: list[str] | str, day: str, tfs: list[str] | str | None,
         "loaded": False,
         "urls": {
             "symbols": pages,
-            "gallery": gallery_url(base, names, session, frames, clock),
+            "gallery": gallery_url(base, names, session, frames, clock, api),
         },
     }
 
 
-def trade_pages(trades: list[dict[str, Any]], output: str = "interactive", *, base: str) -> dict[str, Any]:
+def trade_pages(trades: list[dict[str, Any]], output: str = "interactive", *, base: str,
+                api: str | None = None) -> dict[str, Any]:
     """One review URL per symbol and date. A gallery URL when every trade is the same day."""
     if not isinstance(trades, list) or not trades:
         return {"ok": False, "error": {"code": "BAD_REQUEST", "detail": "trades must be a list"}}
@@ -305,8 +339,8 @@ def trade_pages(trades: list[dict[str, Any]], output: str = "interactive", *, ba
     if mode not in OUTPUTS:
         return {"ok": False, "error": {"code": "BAD_OUTPUT", "detail": mode}}
     frames = list(TF_ORDER)
-    pages = [{"symbol": symbol, "date": day, "url": symbol_url(base, symbol, day, frames, DEFAULT_AS_OF)}
+    pages = [{"symbol": symbol, "date": day, "url": symbol_url(base, symbol, day, frames, DEFAULT_AS_OF, api)}
              for symbol, day in pairs]
     dates = {day for _, day in pairs}
-    gallery = gallery_url(base, [symbol for symbol, _ in pairs], next(iter(dates)), frames, DEFAULT_AS_OF) if len(dates) == 1 else None
+    gallery = gallery_url(base, [symbol for symbol, _ in pairs], next(iter(dates)), frames, DEFAULT_AS_OF, api) if len(dates) == 1 else None
     return {"ok": True, "output": mode, "lazy": True, "loaded": False, "urls": {"symbols": pages, "gallery": gallery}}

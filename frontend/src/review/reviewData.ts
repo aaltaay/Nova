@@ -1,12 +1,15 @@
 /** Load one review page, then cut again so a late bar cannot be painted. */
 
 import type { ReviewPayload } from './reviewFixture';
-import { cutBars } from './reviewCut';
-import type { ReviewTf } from './reviewQuery';
+import { cutBars, dailyAtCutoff } from './reviewCut';
+import { loopbackApi, type ReviewTf } from './reviewQuery';
 
-export async function fetchReview(symbol: string, date: string, tfs: ReviewTf[], asOf: string): Promise<ReviewPayload> {
+export async function fetchReview(
+  symbol: string, date: string, tfs: ReviewTf[], asOf: string, api = '',
+): Promise<ReviewPayload> {
   const params = new URLSearchParams({ symbol, date, tf: tfs.join(','), as_of: asOf });
-  const response = await fetch(`/api/review?${params.toString()}`);
+  const base = loopbackApi(api);
+  const response = await fetch(`${base}/api/review?${params.toString()}`);
   const body = await response.json().catch(() => null) as { ok?: boolean; error?: unknown; schema_version?: number } | null;
   if (!response.ok || !body?.ok) {
     const detail = body?.error ?? `HTTP ${response.status}`;
@@ -22,6 +25,11 @@ export function cutPayload(payload: ReviewPayload): ReviewPayload {
     const frame = timeframes[tf];
     if (!frame) continue;
     timeframes[tf] = { bars: cutBars(frame.bars, tf, payload.as_of_iso) };
+  }
+  if (timeframes['1d']) {
+    timeframes['1d'] = {
+      bars: dailyAtCutoff(payload.date, timeframes['1d'].bars, timeframes['1m']?.bars ?? [], payload.as_of_iso),
+    };
   }
   return { ...payload, timeframes };
 }

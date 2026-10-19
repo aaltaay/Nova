@@ -39,12 +39,12 @@ export function ReviewDesk({ query, symbol, onReady }: Props) {
     setPainted({});
     const load = query.fixture
       ? Promise.resolve(fixturePayload(symbol, query.date, query.tfs, query.asOf))
-      : fetchReview(symbol, query.date, query.tfs, query.asOf);
+      : fetchReview(symbol, query.date, query.tfs, query.asOf, query.api);
     load
       .then((body) => { if (!cancel) setPayload(cutPayload(body)); })
       .catch((err: unknown) => { if (!cancel) setError(err instanceof Error ? err.message : String(err)); });
     return () => { cancel = true; };
-  }, [symbol, query.date, query.asOf, query.fixture, tfKey, query.tfs]);
+  }, [symbol, query.date, query.asOf, query.fixture, query.api, tfKey, query.tfs]);
 
   useEffect(() => {
     setIndicators(Object.fromEntries(query.tfs.map((tf) => [tf, defaults(tf)])));

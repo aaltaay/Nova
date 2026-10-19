@@ -99,7 +99,7 @@ jobs:
 
       - name: Data front door MCP (ADR 059)
         if: ${{ !cancelled() && needs.changes.outputs.backend == 'true' && steps.install.outcome == 'success' }}
-        run: pytest tools/test_nova_data_mcp.py -x -q --tb=short
+        run: pytest tools/test_nova_data_mcp.py tools/test_nova_mcp.py -x -q --tb=short
 
   frontend-build:
     name: Frontend build

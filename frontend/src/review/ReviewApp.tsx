@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { ReviewDesk } from './ReviewDesk';
 import { ReviewGallery } from './ReviewGallery';
-import { parseReviewQuery } from './reviewQuery';
+import { galleryFrame, parseReviewQuery, TF_PANE } from './reviewQuery';
 
 export function ReviewApp() {
   const query = useMemo(() => parseReviewQuery(window.location.search), []);
@@ -11,6 +11,7 @@ export function ReviewApp() {
   const onReady = useCallback((state: '1' | 'error') => setReady(state), []);
   const source = query.fixture ? 'fixture' : 'front-door';
   const title = query.gallery ? query.symbols.join(' ') : query.symbols[0];
+  const frameLabel = query.gallery ? `${TF_PANE[galleryFrame(query.tfs)].label} only` : '';
 
   if (!query.symbols.length || !query.date) {
     return (
@@ -27,6 +28,7 @@ export function ReviewApp() {
       <header className="review-header">
         <strong>{title}</strong>
         <span>{query.date}</span>
+        {frameLabel && <span>{frameLabel}</span>}
         <span>as of {query.asOf} ET</span>
         <span>{query.fixture ? 'Fixture' : 'Front door'}</span>
         <span className="review-header__note">Read only. No orders.</span>

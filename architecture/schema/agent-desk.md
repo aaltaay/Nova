@@ -497,12 +497,19 @@ desk: it does not mount the trading shell, does not subscribe to a quote, and ha
 
 - **Page.** `GET /review?symbol=IMCC&date=2026-09-18&tf=1m,5m,1d&as_of=16:00`. `tf` is any of `1m`, `5m`, `10s`, `1d`
   (omitted means all four, drawn in desk order: 5-minute, 10-second, full day, 1-minute). `as_of` is `HH:MM` ET and
-  defaults to `16:00`, so the first view is the 04:00-16:00 session. `symbols=A,B,C` (1 to 9) is a gallery of mini
-  5-minute charts; each symbol links to its own page. `fixture=1` draws a labelled sample and does not call the API.
-- **Data.** The Vite server proxies `GET /api/review` to `127.0.0.1:8765` (the MCP process, unless `--no-review-http`).
-  Answer: `{ok, schema_version: 1, symbol, date, as_of, as_of_iso, source, lookahead: false, vwap_anchor: "04:00",
-  timeframes: {1m|5m|10s|1d: {bars: [{t, o, h, l, c, v}]}}, levels, setups, vwap}`. Intraday `t` is an ISO instant
-  with an Eastern offset. Daily `t` is `YYYY-MM-DD`. A failed read is `{ok: false, error}`.
+  defaults to `16:00`, so the first view is the 04:00-16:00 session. `symbols=A,B,C` (1 to 9) is a gallery. The grid
+  draws one timeframe (5-minute when that was requested, otherwise the first intraday frame) and the header names it
+  (`5-Minute only`). Each symbol links to its own page with the full `tf` list. `fixture=1` draws a labelled sample
+  and does not call the API. `api` is accepted only for `http://127.0.0.1` or `http://localhost` (optional port).
+- **Data.** The Vite server proxies `GET /api/review` to `NOVA_REVIEW_API` (default `http://127.0.0.1:18765`). The
+  listener starts on the first chart-tool call, or immediately with `--review-http` / `NOVA_REVIEW_HTTP=1`. One
+  listener is shared. If the preferred port is taken by another program, the process binds a free port and the chart
+  URL carries `api=`. `--no-review-http` does not listen. Answer: `{ok, schema_version: 1, symbol, date, as_of,
+  as_of_iso, source, lookahead: false, vwap_anchor: "04:00", timeframes: {1m|5m|10s|1d: {bars: [{t, o, h, l, c, v}]}},
+  levels, setups, vwap}`. Intraday `t` is an ISO instant with an Eastern offset. Daily `t` is `YYYY-MM-DD`. Volume-only
+  buckets (NaN OHLC) are dropped so the JSON has no `NaN`. A bad query is HTTP 400 `{ok: false, error}`. An unknown
+  path is 404. A reader failure is 500. Success is 200. CORS allows only the configured desk origin
+  (`NOVA_REVIEW_BASE`, default `http://127.0.0.1:5173`).
 - **Causal.** A bar is included only when its window has ended by `as_of` (a 09:55 5-minute bar waits until 10:00).
   The client drops any later bar again before paint. HOD, LOD and premarket high come from the kept 04:00-16:00
   minutes. Opening-range high and low stay null until 09:35. Prior high, low and close are the last daily row
@@ -516,10 +523,11 @@ desk: it does not mount the trading shell, does not subscribe to a quote, and ha
   `nova_trade_charts {trades, output?}`. `output` is `interactive` (default) | `png` | `both`. Interactive:
   `{ok, output, lazy: true, loaded: false, urls: {symbols: [{symbol, date, url}], gallery}}`. `loaded: false` means
   this call did not read bars. One symbol still gets a gallery URL. `png` and `both` add `images: [{symbol, url,
-  path, sha256, bytes}]`, a screenshot of that `/review` URL from one Chromium kept for the server's life. A missing
-  browser is `{ok: false, error: {code: "REVIEW_SHOT_UNAVAILABLE"}}`. Trade charts here are review links for each
+  path, sha256, bytes}]` and one MCP image content block per file (base64 PNG). Chromium starts on that first PNG
+  call. A one-symbol call does not also screenshot the gallery page. A missing browser is
+  `{ok: false, error: {code: "REVIEW_SHOT_UNAVAILABLE"}}`. Trade charts here are review links for each
   symbol/date (a gallery URL when they share a date). Marked sub-minute candle-gateway PNGs stay on
-  `tools/nova_chart_mcp.py`.
+  `tools/nova_chart_mcp.py`. Link origin is `NOVA_REVIEW_BASE` (default `http://127.0.0.1:5173`).
 - **Drawings** on `/review` stay in the page's memory. They are not written to the operator's drawing store.
 
 

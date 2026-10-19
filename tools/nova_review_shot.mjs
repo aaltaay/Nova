@@ -29,9 +29,10 @@ function launchOptions() {
 }
 
 async function shot(page, url, dest) {
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.setViewportSize({ width: 1920, height: 1080 });
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForSelector('[data-review-ready="1"]', { timeout: 25000 });
+  await page.waitForTimeout(400);
   await page.screenshot({ path: dest, fullPage: false });
 }
 
@@ -56,9 +57,14 @@ async function serve() {
     try {
       req = JSON.parse(line);
       await shot(page, req.url, req.dest);
-      process.stdout.write(`${JSON.stringify({ ok: true, dest: req.dest })}\n`);
+      process.stdout.write(`${JSON.stringify({ ok: true, id: req.id, dest: req.dest })}\n`);
     } catch (err) {
-      process.stdout.write(`${JSON.stringify({ ok: false, error: 'REVIEW_SHOT_FAILED', detail: String(err) })}\n`);
+      process.stdout.write(`${JSON.stringify({
+        ok: false,
+        id: req && req.id,
+        error: 'REVIEW_SHOT_FAILED',
+        detail: String(err),
+      })}\n`);
     }
   }
   await browser.close();

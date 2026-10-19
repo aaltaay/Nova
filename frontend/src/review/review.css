@@ -1,9 +1,19 @@
+html.review-root,
+body.review-root,
+body.review-root #root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
 .review-app {
   --sr-text: var(--text-primary, #e5e7eb);
   --sr-blue: var(--accent, #60a5fa);
   --sr-border: var(--border, #2a2e3a);
   --sr-secondary: var(--text-secondary, #9ca3af);
-  height: 100vh;
+  height: 100%;
+  max-height: 100vh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -14,10 +24,17 @@
 
 .review-header {
   display: flex;
+  flex: 0 0 auto;
   gap: 14px;
   align-items: baseline;
-  padding: 8px 12px;
+  padding: 4px 12px;
   border-bottom: 1px solid #262a36;
+}
+
+.review-desk .chart-desk-toolbar {
+  flex: 0 0 auto;
+  max-height: 36px;
+  overflow: hidden;
 }
 
 .review-header__note { margin-left: auto; color: var(--sr-secondary); }
@@ -45,17 +62,34 @@
   padding: 6px;
 }
 
-.review-cell { min-height: 0; display: flex; flex-direction: column; }
+.review-cell { min-height: 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
 .review-cell__link {
+  flex: 0 0 auto;
   color: #7dd3fc;
   font-weight: 700;
+  line-height: 16px;
   padding: 2px 6px;
   text-decoration: none;
+  z-index: 5;
 }
 .review-cell .review-pane { flex: 1; }
 
+.review-pane.chart-card {
+  margin: 0;
+  height: 100%;
+  min-height: 0;
+  border-radius: 4px;
+}
 .review-pane { position: relative; min-height: 0; height: 100%; display: flex; flex-direction: column; }
-.review-pane__label { padding: 2px 8px; color: var(--sr-secondary); font-size: 11px; }
+.review-pane__label {
+  flex: 0 0 auto;
+  padding: 1px 8px;
+  color: var(--sr-secondary);
+  font-size: 11px;
+  line-height: 14px;
+}
+.review-pane--compact .chart-oscillator-body { height: 52px; }
+.review-pane--compact .review-pane__key { display: none; }
 .review-pane__chart { flex: 1; min-height: 0; }
 .review-pane__key { position: absolute; top: 22px; left: 8px; z-index: 4; }
 

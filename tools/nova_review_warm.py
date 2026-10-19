@@ -1,8 +1,9 @@
-"""One Chromium for review-page screenshots, kept for the MCP process lifetime.
+"""Chromium for review-page screenshots. Started on the first PNG call, then kept.
 
-The first chart call should not pay a browser cold start. ``start`` launches
-``nova_review_shot.mjs`` and waits until it says it is ready. A machine without
-Playwright answers ``REVIEW_SHOT_UNAVAILABLE`` instead of a made-up image.
+A machine without Playwright answers ``REVIEW_SHOT_UNAVAILABLE`` instead of a
+made-up image. Each request carries an id so a reply that arrives after the
+timeout is not given to the next caller. stderr goes to DEVNULL so a full pipe
+cannot stall the browser.
 """
 from __future__ import annotations
 
@@ -11,6 +12,7 @@ import json
 import queue
 import subprocess
 import threading
+import time
 import uuid
 from pathlib import Path
 from typing import Any, Callable
@@ -18,6 +20,38 @@ from typing import Any, Callable
 REPO = Path(__file__).resolve().parents[1]
 SHOT = Path(__file__).with_name("nova_review_shot.mjs")
 NODE_CWD = REPO / "frontend"
+RENDERER_STDERR = subprocess.DEVNULL
+MAX_SHOTS = 24
+MAX_SHOT_BYTES = 8 * 1024 * 1024
+
+
+def matching_reply(get_line: Callable[[float], str], req_id: str, timeout: float) -> dict[str, Any] | None:
+    """Read lines until one has ``req_id``, or the timeout. Other ids are skipped."""
+    deadline = time.monotonic() + timeout
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return None
+        try:
+            line = get_line(remaining)
+        except queue.Empty:
+            return None
+        try:
+            body = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if body.get("id") == req_id:
+            return body
+
+
+def rotate_shots(directory: Path, *, keep: int = MAX_SHOTS, max_bytes: int = MAX_SHOT_BYTES) -> None:
+    """Drop the oldest review PNGs once the folder is past the count or the byte cap."""
+    files = sorted(directory.glob("review-*.png"), key=lambda path: path.stat().st_mtime)
+    total = sum(path.stat().st_size for path in files)
+    while files and (len(files) > keep or total > max_bytes):
+        old = files.pop(0)
+        total -= old.stat().st_size
+        old.unlink(missing_ok=True)
 
 
 class ReviewShots:
@@ -43,7 +77,7 @@ class ReviewShots:
                     cwd=str(NODE_CWD),
                     stdin=subprocess.PIPE,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
+                    stderr=RENDERER_STDERR,
                     text=True,
                     bufsize=1,
                 )
@@ -74,8 +108,12 @@ class ReviewShots:
         for line in proc.stdout:
             self._lines.put(line.strip())
 
+    def _get_line(self, timeout: float) -> str:
+        return self._lines.get(timeout=timeout)
+
     def shoot(self, url: str, dest: Path) -> dict[str, Any]:
         dest.parent.mkdir(parents=True, exist_ok=True)
+        rotate_shots(dest.parent)
         if self._shoot is not None:
             return self._shoot(url, dest)
         if not self._started:
@@ -87,21 +125,17 @@ class ReviewShots:
         proc = self._proc
         if proc is None or proc.poll() is not None or proc.stdin is None:
             return {"ok": False, "error": {"code": "REVIEW_SHOT_UNAVAILABLE", "detail": "renderer is not running"}}
+        req_id = uuid.uuid4().hex
         with self._lock:
-            proc.stdin.write(json.dumps({"url": url, "dest": str(dest)}) + "\n")
+            proc.stdin.write(json.dumps({"id": req_id, "url": url, "dest": str(dest)}) + "\n")
             proc.stdin.flush()
-            try:
-                line = self._lines.get(timeout=60)
-            except queue.Empty:
-                return {"ok": False, "error": {"code": "REVIEW_SHOT_FAILED", "detail": "screenshot timed out"}}
-        try:
-            body = json.loads(line)
-        except json.JSONDecodeError:
-            return {"ok": False, "error": {"code": "REVIEW_SHOT_FAILED", "detail": line}}
+            body = matching_reply(self._get_line, req_id, 60)
+        if body is None:
+            return {"ok": False, "error": {"code": "REVIEW_SHOT_FAILED", "detail": "screenshot timed out"}}
         if not body.get("ok"):
             return {"ok": False, "error": {"code": body.get("error") or "REVIEW_SHOT_FAILED", "detail": body.get("detail")}}
         raw = dest.read_bytes()
-        return {"ok": True, "path": str(dest), "sha256": hashlib.sha256(raw).hexdigest(), "bytes": len(raw)}
+        return {"ok": True, "path": str(dest), "sha256": hashlib.sha256(raw).hexdigest(), "bytes": len(raw), "png": raw}
 
     def close(self) -> None:
         proc = self._proc
@@ -110,21 +144,27 @@ class ReviewShots:
 
 
 def attach_images(answer: dict[str, Any], shots: ReviewShots, directory: Path) -> dict[str, Any]:
-    """Fill ``images`` for png and both. Interactive answers are returned untouched."""
+    """Fill ``images`` for png and both. A one-symbol call does not also shoot the gallery page."""
     if not answer.get("ok") or answer.get("output") == "interactive":
         return answer
     images = []
     pages = list(answer["urls"]["symbols"])
     gallery = answer["urls"].get("gallery")
-    if gallery and len(pages) >= 1:
+    if gallery and len(pages) > 1:
         pages = pages + [{"symbol": "gallery", "url": gallery}]
     for page in pages:
         dest = directory / f"review-{page['symbol']}-{uuid.uuid4().hex[:8]}.png"
         shot = shots.shoot(page["url"], dest)
         if not shot.get("ok"):
             return shot
-        images.append({"symbol": page["symbol"], "url": page["url"], "path": shot["path"],
-                       "sha256": shot["sha256"], "bytes": shot["bytes"]})
+        images.append({
+            "symbol": page["symbol"],
+            "url": page["url"],
+            "path": shot["path"],
+            "sha256": shot["sha256"],
+            "bytes": shot["bytes"],
+            "png": shot.get("png"),
+        })
     answer = dict(answer)
     answer["images"] = images
     answer["loaded"] = True
