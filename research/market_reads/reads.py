@@ -7,6 +7,7 @@ follow the Sim's own print rules (``sim.massive_files.trade`` / ``sets_price``).
 """
 from __future__ import annotations
 
+import functools
 import io
 from datetime import date, datetime
 from typing import Any
@@ -23,7 +24,9 @@ from constants_sim import (
     SIM_MASSIVE_QUOTES,
     SIM_MASSIVE_TRADES,
 )
-from sim import massive_files
+from sim import massive_files, massive_index
+
+from market_reads import read_cache
 
 ET = ZoneInfo("America/New_York")
 TF_UNITS = {"s": 1, "m": 60, "h": 3600}
@@ -47,15 +50,9 @@ def _ns(day: str, hhmm: str) -> int:
     return int(datetime(d.year, d.month, d.day, hh, mm, tzinfo=ET).timestamp()) * 10**9
 
 
-def read_file(dataset: str, symbol: str, day: str, start: str | None = None, end: str | None = None) -> pd.DataFrame:
-    """``symbol``'s rows of ``dataset`` on ``day`` (ET ``start`` <= time < ``end``), every column as delivered.
-
-    ``df.attrs`` says whether the read went through the file's index (``indexed``) and how long it took.
-    """
-    path = massive_files.day_file(dataset, day)
-    if path is None:
-        raise LookupError(f"no {dataset} file for {day} under {massive_files.root()}")
-    t0 = datetime.now()
+def _parse_day(path, symbol: str) -> tuple[pd.DataFrame, list[str], bool]:
+    """``symbol``'s whole day in the file as parsed (no window, no ``time_et``), its header, and whether the read went
+    through the file's index. What ``read_cache`` keeps: its fingerprint covers this function's source."""
     header: list[str] | None = None
     lines: list[bytes] = []
     with massive_files.DayRead(path, symbol) as read:
@@ -64,11 +61,37 @@ def read_file(dataset: str, symbol: str, day: str, start: str | None = None, end
             lines.extend(batch)
         indexed = read.indexed
     if not lines:
-        frame = pd.DataFrame(columns=header or [])
+        return pd.DataFrame(columns=header or []), header or [], indexed
+    text = (",".join(header or []) + "\n").encode() + b"\n".join(lines) + b"\n"
+    frame = pd.read_csv(io.BytesIO(text), dtype={k: v for k, v in TEXT_COLUMNS.items() if k in (header or [])},
+                        **CSV_NA)
+    return frame, header or [], indexed
+
+
+@functools.cache
+def _reader() -> str:
+    """The read cache's key for the code that finds and parses the rows (any change to it is a miss)."""
+    return read_cache.fingerprint(_parse_day, massive_files, massive_index, TEXT_COLUMNS, CSV_NA)
+
+
+def read_file(dataset: str, symbol: str, day: str, start: str | None = None, end: str | None = None) -> pd.DataFrame:
+    """``symbol``'s rows of ``dataset`` on ``day`` (ET ``start`` <= time < ``end``), every column as delivered.
+
+    ``df.attrs`` says whether the read went through the file's index (``indexed``) and how long it took. A symbol-day
+    read before comes out of the read cache (``read_cache``) when it is on: the same frame, without the unzip.
+    """
+    path = massive_files.day_file(dataset, day)
+    if path is None:
+        raise LookupError(f"no {dataset} file for {day} under {massive_files.root()}")
+    t0 = datetime.now()
+    cached = read_cache.load(dataset, symbol, day, path, _reader()) if read_cache.root() else None
+    if cached is not None:
+        frame, indexed = cached
     else:
-        text = (",".join(header or []) + "\n").encode() + b"\n".join(lines) + b"\n"
-        frame = pd.read_csv(io.BytesIO(text), dtype={k: v for k, v in TEXT_COLUMNS.items() if k in (header or [])},
-                            **CSV_NA)
+        before = read_cache.source_identity(path) if read_cache.root() else None
+        frame, header, indexed = _parse_day(path, symbol)
+        if before is not None:
+            read_cache.save(dataset, symbol, day, path, _reader(), before, frame, header, indexed)
     column = TIME_COLUMN[dataset]
     if len(frame):
         if start:
@@ -86,9 +109,22 @@ def trades(symbol: str, day: str, start: str | None = None, end: str | None = No
     """Every trade, plus ``sets_price``: the print may move the last or a candle (the SIP's rules, ADR 046)."""
     frame = read_file(SIM_MASSIVE_TRADES, symbol, day, start, end)
     if len(frame):
-        frame["sets_price"] = [massive_files.sets_price(c if isinstance(c, str) else "", int(k))
-                               for c, k in zip(frame["conditions"], frame["correction"].fillna(0), strict=True)]
+        frame["sets_price"] = sets_price(frame["conditions"], frame["correction"])
     return frame
+
+
+def sets_price(conditions: pd.Series, correction: pd.Series) -> np.ndarray:
+    """``massive_files.sets_price`` for every row, asked once per distinct (conditions, correction) pair: a day holds
+    a few hundred pairs and millions of prints. A missing conditions field reads as none, a missing correction as 0."""
+    text_codes, texts = pd.factorize(conditions, use_na_sentinel=True)          # missing -> -1
+    fix_codes, fixes = pd.factorize(correction.fillna(0).to_numpy().astype(np.int64))   # int(k): toward zero
+    width = max(len(fixes), 1)
+    pair_codes, pairs = pd.factorize((text_codes.astype(np.int64) + 1) * width + fix_codes)
+    answers = np.zeros(len(pairs), dtype=bool)
+    for n, pair in enumerate(int(v) for v in pairs):
+        text = texts[pair // width - 1] if pair // width else ""
+        answers[n] = massive_files.sets_price(text if isinstance(text, str) else "", int(fixes[pair % width]))
+    return answers[pair_codes]
 
 
 def quotes(symbol: str, day: str, start: str | None = None, end: str | None = None) -> pd.DataFrame:
