@@ -12,7 +12,7 @@ from constants import (
     TICKER_HTTP_TIMEOUT_SEC,
     TICKER_SNAPSHOT_CACHE_TTL,
 )
-from market import now_et as _now_et
+from market import news_window_start_param, now_et as _now_et
 from ticker_cache import (
     _ticker_asset_cache,
     _ticker_asset_cache_ts,
@@ -160,14 +160,13 @@ def fetch_ticker_snapshot(symbol: str, headers: dict, feed: str) -> dict:
 
 
 def fetch_ticker_news(symbol: str, headers: dict) -> list[dict]:
-    """Fetch today's news articles for a symbol from Alpaca Data API."""
+    """Fetch the news since the last session closed for a symbol from Alpaca Data API."""
     news: list[dict] = []
     try:
-        today = _now_et().date().isoformat()
         r = requests.get(
             f"{_DATA_URL}/v1beta1/news",
             headers=headers,
-            params={"symbols": symbol, "start": today, "limit": 10},
+            params={"symbols": symbol, "start": news_window_start_param(), "limit": 10},
             timeout=TICKER_HTTP_TIMEOUT_SEC,
         )
         if r.status_code == 200:

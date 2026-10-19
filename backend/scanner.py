@@ -28,7 +28,7 @@ from constants import (
     SNAPSHOT_WORKERS,
     SYMBOL_EXCLUDE_RE,
 )
-from market import ET as _ET, now_et as _now_et
+from market import ET as _ET, news_window_start_param, now_et as _now_et, session_key_et
 from runtime_state import get_runtime_state
 
 logger = logging.getLogger(__name__)
@@ -87,19 +87,23 @@ def _fetch_snapshots(symbols: list[str], headers: dict) -> dict:
     return result
 
 
+def _trading_day() -> date:
+    """Nova's trading day (``session_key_et``), not the machine's calendar date."""
+    return date.fromisoformat(session_key_et())
+
+
 # ── News lookup ───────────────────────────────────────────────────────────────
 
 def _check_news(symbols: list[str], headers: dict) -> dict[str, str]:
-    """Return {symbol: newest_article_created_at} for today's articles (ET date)."""
+    """Return {symbol: newest_article_created_at} since the last session closed (``market.news_window_start``)."""
     if not symbols:
         return {}
-    today = _now_et().date().isoformat()
     try:
         resp = http_pool.get(
             "alpaca_news_badge",
             f"{_DATA_URL}/v1beta1/news",
             headers=headers,
-            params={"symbols": ",".join(symbols[:50]), "start": today, "limit": 50},
+            params={"symbols": ",".join(symbols[:50]), "start": news_window_start_param(), "limit": 50},
             timeout=10,
         )
         if resp.status_code != 200:
@@ -250,8 +254,8 @@ def fetch_avg_volume_batch(
                     "symbols": ",".join(chunk),
                     "timeframe": "1Day",
                     "limit": RVOL_LOOKBACK_DAYS,
-                    "start": (date.today() - timedelta(days=45)).isoformat(),
-                    "end": date.today().isoformat(),
+                    "start": (_trading_day() - timedelta(days=45)).isoformat(),
+                    "end": _trading_day().isoformat(),
                     "feed": feed,
                 },
                 timeout=20,
@@ -266,8 +270,8 @@ def fetch_avg_volume_batch(
                             "symbols": ",".join(chunk),
                             "timeframe": "1Day",
                             "limit": RVOL_LOOKBACK_DAYS,
-                            "start": (date.today() - timedelta(days=45)).isoformat(),
-                            "end": date.today().isoformat(),
+                            "start": (_trading_day() - timedelta(days=45)).isoformat(),
+                            "end": _trading_day().isoformat(),
                             "feed": feed,
                         },
                         timeout=20,

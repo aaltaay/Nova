@@ -10,7 +10,7 @@ volume by this time of day.
 """
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, time, timezone
 from zoneinfo import ZoneInfo
 
 from datetime import timedelta
@@ -53,6 +53,34 @@ def session_key_et(now: datetime | None = None) -> str:
     while not is_exchange_day(day):
         day -= timedelta(days=1)
     return day.isoformat()
+
+
+def previous_exchange_day(day: date) -> date:
+    """The exchange day strictly before ``day``: the walk back over weekends and NYSE holidays."""
+    day -= timedelta(days=1)
+    while not is_exchange_day(day):
+        day -= timedelta(days=1)
+    return day
+
+
+def news_window_start(now: datetime | None = None) -> datetime:
+    """Where the news for the trading session on screen begins: the previous exchange day's 16:00 ET close.
+
+    The session is ``session_key_et`` (04:00 ET, weekends and holidays walk back), not the calendar
+    date: Monday premarket reads Friday's evening and the weekend's releases, the 16:00-20:00 earnings
+    PRs stay on the session's boards after midnight, and Friday's boards keep their news all weekend.
+    """
+    session = date.fromisoformat(session_key_et(now))
+    return datetime.combine(previous_exchange_day(session), time(SESSION_RTH_CLOSE_MIN_ET // 60, SESSION_RTH_CLOSE_MIN_ET % 60), ET)
+
+
+def news_window_start_param(now: datetime | None = None) -> str:
+    """``news_window_start`` as Alpaca's news ``start``: RFC-3339 in UTC.
+
+    Never a bare date: Alpaca reads ``2026-10-17`` as 00:00 UTC (probed 2026-10-19: earliest article
+    00:40Z), which is 20:00 ET the evening before, not the ET day the caller meant.
+    """
+    return news_window_start(now).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _et_at_minutes(now: datetime, minutes: int) -> datetime:

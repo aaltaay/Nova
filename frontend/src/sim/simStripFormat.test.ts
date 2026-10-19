@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SimClockState } from './simClockTypes';
 import {
-  firstReplayMinute, firstReplaySecond, formatMinuteClock, playheadTag, recordedLane, stripBandSegments, stripScale,
+  firstReplayMinute, firstReplaySecond, formatMinuteClock, playheadTag, recordedLane, stripBandSegments, stripScale, todayEt,
 } from './simStripFormat';
 
 const session = {
@@ -190,5 +190,21 @@ describe('recordedLane (operator ask, 2026-09-22: show where Nova recorded)', ()
     expect(recordedLane(null, sessions, 'GRML', hhmm)).toBeNull();
     expect(recordedLane({ sim: true, ...session }, sessions, null, hhmm)).toBeNull();
     expect(recordedLane({ sim: true, session_date: '2026-09-21' }, sessions, 'GRML', hhmm)).toBeNull();
+  });
+});
+
+describe('todayEt without a named zone', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('is the Eastern date by the daylight-saving rule, never the UTC date', () => {
+    vi.spyOn(Date.prototype, 'toLocaleDateString').mockImplementation(() => { throw new RangeError('no zone'); });
+    expect(todayEt(new Date('2026-10-19T01:30:00Z'))).toBe('2026-10-18');    // 21:30 EDT Sunday; UTC says Monday
+    expect(todayEt(new Date('2026-10-19T03:59:00Z'))).toBe('2026-10-18');
+    expect(todayEt(new Date('2026-10-19T04:00:00Z'))).toBe('2026-10-19');    // 00:00 EDT
+    expect(todayEt(new Date('2026-12-15T04:30:00Z'))).toBe('2026-12-14');    // 23:30 EST
+    expect(todayEt(new Date('2026-03-08T06:59:00Z'))).toBe('2026-03-08');    // 01:59 EST, the night before the change
+    expect(todayEt(new Date('2026-03-08T07:00:00Z'))).toBe('2026-03-08');    // 03:00 EDT
+    expect(todayEt(new Date('2026-11-01T05:30:00Z'))).toBe('2026-11-01');    // 01:30 EDT
+    expect(todayEt(new Date('2026-11-01T04:30:00Z'))).toBe('2026-11-01');    // 00:30 EDT
   });
 });

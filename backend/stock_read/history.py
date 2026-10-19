@@ -27,6 +27,7 @@ from constants_stock_read import (
     STOCK_READ_RUN_MIN_PCT,
     STOCK_READ_SETUPS_HISTORY_DAYS,
 )
+from market import session_key_et
 from stock_read.rows import row, shares
 
 logger = logging.getLogger(__name__)
@@ -85,7 +86,7 @@ def summary(symbol: str, now: float, *, replay: bool = False) -> dict[str, Any] 
     from constants import IBKR_BARS_DAILY_REPAIR_RETRY_SEC
     from sensors.feeds import get_bars
 
-    today = datetime.fromtimestamp(now, ET).date().isoformat()
+    today = session_key_et(datetime.fromtimestamp(now, ET))   # the session on screen: weekends and 00:00-04:00 included
     key = (symbol, today, replay)
     rev = bars_store.daily_revision(symbol)
     with _lock:

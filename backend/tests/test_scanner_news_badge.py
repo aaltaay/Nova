@@ -161,17 +161,17 @@ def test_check_news_is_chunked(monkeypatch):
     assert sizes == [2, 1]
 
 
-def test_date_rollover_drops_yesterdays_headlines(monkeypatch):
+def test_session_rollover_drops_the_previous_sessions_headlines(monkeypatch):
     _ibkr(monkeypatch)
     snb.reset_for_testing()
     from datetime import datetime
     from zoneinfo import ZoneInfo
 
     et = ZoneInfo("America/New_York")
-    monkeypatch.setattr(snb, "_now_et", lambda: datetime(2026, 9, 10, 16, 0, tzinfo=et))
+    monkeypatch.setattr("market.now_et", lambda: datetime(2026, 9, 10, 16, 0, tzinfo=et))
     snb.record({"CRE": "2026-09-10T12:00:00Z"})
     assert snb.headline_for("CRE") == "2026-09-10T12:00:00Z"
-    monkeypatch.setattr(snb, "_now_et", lambda: datetime(2026, 9, 11, 4, 5, tzinfo=et))
+    monkeypatch.setattr("market.now_et", lambda: datetime(2026, 9, 11, 4, 5, tzinfo=et))
     assert snb.headline_for("CRE") is None
 
 
