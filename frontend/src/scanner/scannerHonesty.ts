@@ -51,6 +51,23 @@ export function isNewRosterSession(
 }
 
 /**
+ * True when a roster must replace the table's rows outright, past last-good:
+ * its `session_key` moved, or the server says `unavailable` -- set only at the
+ * rollover and at startup, so it never means a blip. The second case covers a
+ * desk whose REST load painted the prior session just before 04:00 and whose
+ * socket first connected after it: that first key is no change, yet the rows
+ * on screen are the prior session's.
+ */
+export function rosterReplacesOutright(
+  seen: Record<string, string>,
+  table: string,
+  meta: { session_key?: unknown; state?: unknown },
+): boolean {
+  const moved = isNewRosterSession(seen, table, meta.session_key);
+  return moved || meta.state === SCANNER_HONESTY_UNAVAILABLE;
+}
+
+/**
  * Replace one table's rows from a REST / roster payload. Every row passes the
  * shape gate first (scannerRowShape: a row without a symbol is dropped, a
  * non-finite number is null), so a malformed row can never reach a renderer.

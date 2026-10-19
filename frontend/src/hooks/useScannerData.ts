@@ -35,7 +35,7 @@ import type { ScannerScanAges } from '../utils/scanAge';
 import { diagnoseBackend, healthAfterFailedRoute, logBackendDiagnosis } from '../utils/diagnoseBackend';
 import {
   applyRosterTable,
-  isNewRosterSession,
+  rosterReplacesOutright,
   feedErrorFromPayload,
   SCANNER_CATALYSTS_FETCH_FAILED,
 } from '../scanner/scannerHonesty';
@@ -161,7 +161,7 @@ export function useScannerData(opts: {
   const rosterSessionRef = useRef<Record<string, string>>({});
   const onRosterReplace = useCallback((table: string, rows: unknown[], meta: ScannerTableMeta) => {
     setTableMeta(prev => ({ ...prev, [table]: meta }));
-    const newSession = isNewRosterSession(rosterSessionRef.current, table, meta.session_key);
+    const newSession = rosterReplacesOutright(rosterSessionRef.current, table, meta);
     if (table === 'gappers') applyRosterTable(setGappers, setLastGood, table, rows, newSession);
     else if (table === 'gainers') applyRosterTable(setGainers, setLastGood, table, rows, newSession);
     else if (table === 'losers') applyRosterTable(setLosers, setLastGood, table, rows, newSession);

@@ -8,6 +8,7 @@ import {
   applyLastGoodRows,
   applyRosterTable,
   isNewRosterSession,
+  rosterReplacesOutright,
   catalystsEmptyCopy,
   feedErrorFromPayload,
   mergeRestTableMeta,
@@ -64,6 +65,17 @@ describe('the 04:00 rollover clears the last session rows (2026-10-19)', () => {
   it("drops Friday's After Hours rows when Monday's empty roster arrives", () => {
     const t = table([{ symbol: 'IRON' }, { symbol: 'AAME' }]);
     expect(t.apply([], true)).toEqual({ rows: [], lastGood: false });
+  });
+
+  it('replaces on an unavailable roster even when it is the first key seen', () => {
+    // REST painted Friday just before 04:00; the socket first connected after it.
+    const seen: Record<string, string> = {};
+    expect(rosterReplacesOutright(seen, 'afterhours', { session_key: '2026-10-19', state: 'unavailable' }))
+      .toBe(true);
+    expect(rosterReplacesOutright(seen, 'afterhours', { session_key: '2026-10-19', state: 'live' }))
+      .toBe(false);
+    expect(rosterReplacesOutright(seen, 'afterhours', { session_key: '2026-10-20', state: 'live' }))
+      .toBe(true);
   });
 
   it('still keeps last-good rows for an empty update inside one session', () => {
