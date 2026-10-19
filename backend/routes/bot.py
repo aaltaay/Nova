@@ -324,14 +324,15 @@ def bot_pnl() -> dict:
 @router.get("/bot/triggers")
 def bot_triggers(date: str | None = Query(None, description="YYYY-MM-DD; trading day (04:00 ET) by default")) -> dict:
     """The squares, by ticker (ADR 044): every listed ticker now and every trigger of the day, gate by gate.
-    Read-only; a sync route, so the journal and the audit stream are read off the loop. Today is the hot
-    list's trading day, never the calendar's: from midnight to 04:00 ET the list is still the day before."""
+    Read-only; a sync route, so the journal and the audit stream are read off the loop. Today is Nova's
+    trading day (``market.session_key_et``), never the calendar's: from midnight to 04:00 ET it is still the
+    day before, and a weekend or holiday keeps the last exchange day, as the Setups board and the entry count do."""
     from bot.trigger_audit import answer
-    from hot_list import trading_day
+    from market import session_key_for_ts
     from scanner_wire import wire_safe
 
     now = time.time()
-    today = trading_day(now)
+    today = session_key_for_ts(now)
     day = date or today
     try:
         if not _DATE.match(day):
