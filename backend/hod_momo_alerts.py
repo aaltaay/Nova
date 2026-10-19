@@ -96,3 +96,21 @@ def get_ws_initial_payload() -> dict:
         "alerts": alerts,
         "total": len(alerts),
     }
+
+
+async def broadcast_initial() -> None:
+    """Restate today's whole feed to every desk: its ``initial`` frame replaces the list it shows.
+
+    An ``alert`` frame only adds to the desk's list, so a reset that is not
+    restated this way leaves the old day on screen (04:00 rollover, 2026-10-19).
+    """
+    state = _state.get_state()
+    payload = json.dumps(get_ws_initial_payload())
+    dead: list[Any] = []
+    for ws in list(state.hod_ws_clients):
+        try:
+            await ws.send_text(payload)
+        except Exception:
+            dead.append(ws)
+    for ws in dead:
+        state.hod_ws_clients.discard(ws)

@@ -35,20 +35,58 @@ export function applyLastGoodRows<T>(
 }
 
 /**
+ * True when a roster's `session_key` moved off the one this table last showed
+ * (the 04:00 rollover), and records the new key. The first key seen is not a
+ * change: nothing from a prior session is on screen to clear yet.
+ */
+export function isNewRosterSession(
+  seen: Record<string, string>,
+  table: string,
+  sessionKey: unknown,
+): boolean {
+  if (typeof sessionKey !== 'string' || !sessionKey) return false;
+  const prev = seen[table];
+  seen[table] = sessionKey;
+  return prev !== undefined && prev !== sessionKey;
+}
+
+/**
+ * True when a roster must replace the table's rows outright, past last-good:
+ * its `session_key` moved, or the server says `unavailable` -- set only at the
+ * rollover and at startup, so it never means a blip. The second case covers a
+ * desk whose REST load painted the prior session just before 04:00 and whose
+ * socket first connected after it: that first key is no change, yet the rows
+ * on screen are the prior session's.
+ */
+export function rosterReplacesOutright(
+  seen: Record<string, string>,
+  table: string,
+  meta: { session_key?: unknown; state?: unknown },
+): boolean {
+  const moved = isNewRosterSession(seen, table, meta.session_key);
+  return moved || meta.state === SCANNER_HONESTY_UNAVAILABLE;
+}
+
+/**
  * Replace one table's rows from a REST / roster payload. Every row passes the
  * shape gate first (scannerRowShape: a row without a symbol is dropped, a
  * non-finite number is null), so a malformed row can never reach a renderer.
+ *
+ * `newSession` (the table's `session_key` moved, the 04:00 rollover) replaces
+ * outright: last-good covers a blip inside one session, and must not carry
+ * Friday's rows into Monday's premarket (operator report, 2026-10-19).
  */
 export function applyRosterTable<T extends ScannerRow>(
   setter: (fn: (prev: T[]) => T[]) => void,
   setLastGood: (fn: (prev: Record<string, boolean>) => Record<string, boolean>) => void,
   table: string,
   incoming: unknown,
+  newSession = false,
 ): void {
   const rows = normalizeScannerRows(incoming) as T[] | null;
   if (!rows) return;
   setter(prev => {
-    const next = applyLastGoodRows(prev, rows);
+    const next = newSession ? { rows, lastGood: false } : applyLastGoodRows(prev, rows);
     if (!next) return prev;
     setLastGood(map => (map[table] === next.lastGood ? map : { ...map, [table]: next.lastGood }));
     return next.lastGood ? next.rows : carryQuoteQuality(prev, next.rows);

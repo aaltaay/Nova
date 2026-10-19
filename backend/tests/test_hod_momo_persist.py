@@ -210,6 +210,39 @@ def test_session_rollover_rebinds_every_session_collection(monkeypatch):
     assert state.last_trade_ts is None
 
 
+def test_rollover_restates_the_empty_feed_to_open_desks(monkeypatch):
+    """A desk open over 04:00 kept yesterday's alerts: only an initial frame replaces its list (2026-10-19)."""
+    import asyncio
+    import json
+
+    class _Desk:
+        def __init__(self):
+            self.frames: list[dict] = []
+
+        async def send_text(self, text):
+            self.frames.append(json.loads(text))
+
+    class _Gone:
+        async def send_text(self, text):
+            raise RuntimeError("closed")
+
+    state = hm.replace_state(HodMomoState())
+    state.session_date = "2026-10-16"
+    state.today_alerts = [_alert("friday")]
+    desk, gone = _Desk(), _Gone()
+    state.hod_ws_clients = {desk, gone}
+    monkeypatch.setattr(session, "session_key_et", lambda now=None: "2026-10-19")
+    monkeypatch.setattr(persist, "archive_session_alerts", lambda date_str: None)
+    monkeypatch.setattr(persist, "save_alerts", lambda *, force=False: None)
+
+    assert asyncio.run(session.reset_and_tell_desks()) is True
+    assert desk.frames == [{"type": "initial", "alerts": [], "total": 0}]
+    assert state.hod_ws_clients == {desk}
+    # Same session: nothing rolls, nothing is sent.
+    assert asyncio.run(session.reset_and_tell_desks()) is False
+    assert len(desk.frames) == 1
+
+
 def test_save_highs_rate_limited_and_flushed(monkeypatch):
     """Mirrors test_save_alerts_rate_limited — same throttle pattern for highs."""
     saved: list[dict] = []
