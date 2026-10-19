@@ -33,12 +33,15 @@ from bot.live_trader.constants_live_trader import (
     LT_OTHER_HOST,
     LT_RETURN_SWITCH,
     LT_ROW_UNREAD,
+    LT_TICKER_UNSETTLED,
     LT_WAIT_SEC,
 )
 from bot.live_trader.decide_closes import hms
 from constants_stock_mode import STOCK_MODE_APPROVE, STOCK_MODE_SIGNAL
 from followed_traders.pricing import priceable
 from stock_mode.model import mode_of
+
+UNSETTLED_WAIT = "the ticker check is still running: taken once it settles, if it still meets the entry rules"
 
 
 def _blocked(ctx: dict[str, Any], flags: dict[str, Any], on_air: bool, name: str) -> tuple[str, str] | None:
@@ -148,6 +151,18 @@ class _Pass:
             if rs["fate"] == "taken":
                 self.taken(r, rs)
             return
+        if rs["fate"] == "unsettled":
+            # The ticker check outlasted the wait: said once, then judged again once it settles -- as a position the
+            # host already holds, so the price the market moved to since is judged too (2026-10-19, SHAWN's SPCX
+            # short at 14:01: the check settled "as read" after the wait and the skip was final, never taken).
+            if (r.get("ticker") or {}).get("state") == "checking":
+                self.wait(pid, r, {"code": LT_TICKER_UNSETTLED, "text": UNSETTLED_WAIT})
+                return
+            rs.update(fate=None, kind="already_open", since=None, late_ticker=True)
+            step, change = "already_open", {**change, "kind": "already_open"}
+        # Kept on the row until its verdict is final: a wait or a block after the check settles is still the row the
+        # bot saw open, never a trade open before watching began (``take_open``; PR #1094 review).
+        late = bool(rs.get("late_ticker"))
         if blocked:
             if rs["fate"] not in ("blocked", "released"):
                 self.skip(name, r, pid, step, blocked[0], blocked[1], change)
@@ -156,7 +171,7 @@ class _Pass:
         if rs["fate"] in ("blocked", "released"):
             rs.update(fate=None, kind="already_open", since=None)
             step, change = "already_open", {**change, "kind": "already_open"}
-        if step == "already_open" and not st["take_open"]:
+        if step == "already_open" and not st["take_open"] and not late:
             rs["fate"] = "skipped"
             self.skip(name, r, pid, step, LT_ALREADY_OPEN, "already open when watching began, not taken", change)
             return
@@ -174,7 +189,8 @@ class _Pass:
             self.wait(pid, r, v)
             return
         if v["verdict"] == rules.SKIP:
-            rs["fate"] = "skipped"
+            slow = v["code"] == LT_TICKER_UNSETTLED and (r.get("ticker") or {}).get("state") == "checking"
+            rs["fate"] = "unsettled" if slow else "skipped"
             self.skip(name, r, pid, step, v["code"], v["text"], change)
             return
         mode = mode_of(st["entry"], st["exit"])

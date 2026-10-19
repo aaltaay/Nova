@@ -634,7 +634,11 @@ never buys an add made while it was off, and each close it would have sent is sa
 the position's wait) and sent when the keys are back on if its reason still stands. A position held from an earlier
 desk day is judged from its own open time on every pass, so one a key held back at the rollover is sold the pass the
 keys are back on, whatever its Exit. A wait (the quote
-line, the market cap, the ticker check) turns into its skip after `LT_WAIT_SEC` (30). Closes are never held
+line, the market cap, the ticker check) turns into its skip after `LT_WAIT_SEC` (30) -- but an entry whose ticker
+check is still `checking` then is not given up: its `LT_TICKER_UNSETTLED` skip says "taken once it settles", and once
+the check settles (`as_read` or `corrected`) it is judged again as a position the host already holds (its average
+against the market, `LT_OPEN_TOO_FAR`; the allowance, the short checks and the sell-all time as for any entry), whatever
+`take_open` says; a check that settles `unchecked` stays a skip (2026-10-19, SHAWN's SPCX short at 14:01). Closes are never held
 for a doubt -- a late read is still a true one; with no answer at all they wait for one, and `LT_HIDDEN_SEC`
 without a read sells everything.
 
