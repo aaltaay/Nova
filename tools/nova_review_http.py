@@ -136,12 +136,29 @@ def health_ok(port: int) -> bool:
     return body.get("ok") is True and body.get("service") == SERVICE
 
 
-def _read_lease() -> int | None:
+def lease_file() -> Path:
+    override = os.environ.get("NOVA_REVIEW_LEASE")
+    return Path(override) if override else LEASE
+
+
+def lock_file() -> Path:
+    override = os.environ.get("NOVA_REVIEW_LEASE_LOCK")
+    return Path(override) if override else LEASE_LOCK
+
+
+def _read_lease_body() -> dict[str, Any] | None:
     try:
-        body = json.loads(LEASE.read_text(encoding="utf-8"))
+        body = json.loads(lease_file().read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    if body.get("schema_version") != LEASE_SCHEMA:
+    if not isinstance(body, dict) or body.get("schema_version") != LEASE_SCHEMA:
+        return None
+    return body
+
+
+def _read_lease() -> int | None:
+    body = _read_lease_body()
+    if not body:
         return None
     try:
         return int(body["port"])
@@ -150,13 +167,17 @@ def _read_lease() -> int | None:
 
 
 def _write_lease(port: int) -> None:
-    LEASE.write_text(json.dumps({"schema_version": LEASE_SCHEMA, "port": port, "pid": os.getpid()}), encoding="utf-8")
+    lease_file().write_text(
+        json.dumps({"schema_version": LEASE_SCHEMA, "port": port, "pid": os.getpid()}),
+        encoding="utf-8",
+    )
 
 
 @contextmanager
 def _lease_lock() -> Iterator[None]:
-    LEASE_LOCK.parent.mkdir(parents=True, exist_ok=True)
-    handle = open(LEASE_LOCK, "a+b")
+    path = lock_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle = open(path, "a+b")
     try:
         if os.name == "nt":
             import msvcrt
@@ -242,8 +263,8 @@ def stop_owned() -> None:
     httpd.shutdown()
     httpd.server_close()
     try:
-        body = json.loads(LEASE.read_text(encoding="utf-8"))
+        body = json.loads(lease_file().read_text(encoding="utf-8"))
         if body.get("pid") == os.getpid() and int(body.get("port", -1)) == port:
-            LEASE.unlink()
+            lease_file().unlink()
     except (OSError, ValueError):
         return

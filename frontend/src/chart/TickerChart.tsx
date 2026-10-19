@@ -1,4 +1,4 @@
-import { memo, useRef, useState, type CSSProperties } from 'react';
+import { memo, useRef, useState } from 'react';
 import type { IChartApi, ISeriesApi } from 'lightweight-charts';
 import {
   CHART_DEFAULT_TIMEFRAME,
@@ -11,11 +11,7 @@ import {
   type ChartIndicatorId,
   type ChartOscillatorId,
 } from '../constants';
-import { ResizeHandle } from '../components/ResizeHandle';
-import { TickerChartControls } from '../components/TickerChartControls';
 import { TickerChartErrorBoundary } from '../components/TickerChartErrorBoundary';
-import { TickerChartOverlays } from '../components/TickerChartOverlays';
-import { TickerChartOscillatorPanes } from '../components/TickerChartOscillatorPanes';
 import { useResizableHeight } from '../hooks/useResizableHeight';
 import { toggleIndicator } from '../chartIndicators';
 import { ChartPortalFrame } from './ChartPortalFrame';
@@ -32,12 +28,11 @@ import { useTickerChartMaximize } from './useTickerChartMaximize';
 import { useVwapSourceBars } from './useVwapSourceBars';
 import { useOptionalIbkrAccountContext } from '../ibkr/IbkrAccountContext';
 import { ChartPaneOverlays } from './ChartPaneOverlays';
-import { CandleHoverTip } from './CandleHoverTip';
-import { ChartFillingOverlay, chartFillingHint } from './ChartFillingStatus';
 import { findOpenPosition } from './positionOverlay';
+import { useChartFeed } from './chartFeed';
+import { RecordedPane } from './RecordedPane';
+import { TickerChartCard } from './TickerChartCard';
 import { chartHeightForVariant, tickerChartCardClass } from './tickerChartCard';
-import { formatCoverageClockEt } from '../tickerChartData';
-import { SAMPLE_CHART_NO_BARS, SAMPLE_NETWORK_REFUSAL } from '../sample_data/sampleCopy';
 import type { ChartTradeUpdate, RenderPaneOverlay } from './types';
 import { useRenderCount } from '../perf/useRenderCount';
 
@@ -90,15 +85,17 @@ interface TickerChartProps {
  * props change (a trade, its indicators, the tool), never for its parent alone.
  */
 export const TickerChart = memo(function TickerChart(props: TickerChartProps) {
-  // Soft-reset on symbol change inside Inner -- avoid remounting the whole LWC tree.
+  const feed = useChartFeed();
   return (
     <TickerChartErrorBoundary label={props.fixedTimeframe ?? props.title}>
-      <TickerChartInner {...props} />
+      {feed.kind === 'recorded'
+        ? <RecordedPane {...props} feed={feed} />
+        : <LivePane {...props} />}
     </TickerChartErrorBoundary>
   );
 });
 
-function TickerChartInner({
+function LivePane({
   symbol,
   lastTrade,
   followTicker = false,
@@ -268,73 +265,53 @@ function TickerChartInner({
     setLocalIndicators(prev => toggleIndicator(prev, id));
   }
 
-  const coverageClock = formatCoverageClockEt(coverageAsOf);
   const gridOscillators = variant === 'grid' && oscillatorEnabled.length > 0;
   const cardClass = tickerChartCardClass({ variant, maximized, compactChrome, focused });
 
   const card = (
-    <div
-      ref={cardRef}
-      className={cardClass}
-      data-testid={`ticker-chart-${timeframe}`}
-      data-bar-count={indicatorBars.length}
-      data-filling={filling ? '1' : '0'}
-      data-focused={focused ? '1' : '0'}
-      data-position-avg={openPosition ? String(openPosition.avgCost) : undefined}
-      data-position-qty={openPosition ? String(openPosition.qty) : undefined}
-      style={
-        gridOscillators
-          ? ({ ['--chart-osc-pct' as string]: `${100 - pricePct}%` } as CSSProperties)
-          : undefined
-      }
+    <TickerChartCard
+      cardRef={cardRef}
+      containerRef={containerRef}
+      cardClass={cardClass}
+      symbol={symbol}
+      timeframe={timeframe}
+      indicatorBars={indicatorBars}
+      barsRevision={barsRevision}
+      filling={filling}
+      focused={focused}
+      positionAvg={openPosition ? String(openPosition.avgCost) : undefined}
+      positionQty={openPosition ? String(openPosition.qty) : undefined}
+      gridOscillators={gridOscillators}
+      pricePct={pricePct}
+      activeTool={activeTool}
+      enabledIndicators={enabledIndicators}
+      lockTimeframe={lockTimeframe}
+      headerMaximized={headerMaximized}
+      subtitle={subtitle}
+      title={title}
+      usingMock={usingMock}
+      compactChrome={compactChrome}
+      keepCompactWhenMaximized={maximizeInGrid && !isFullscreen}
+      useFullscreenExpand={maximizeInGrid}
+      coverageAsOf={coverageAsOf}
+      historyError={historyError}
+      selection={selection}
+      onClearAll={handleClearAll}
+      onColorChange={updateSelectedDrawingColor}
+      onIndicatorToggle={handleIndicatorToggle}
+      onMaximize={toggleMaximize}
+      onTimeframeChange={setUserTimeframe}
+      onToolClick={handleToolClick}
       onPointerDown={() => {
         claimChartDrawingHotkeyFocus(drawingHotkeyOwnerRef.current);
         onFocusPane?.();
       }}
       onPointerEnter={() => claimChartDrawingHotkeyFocus(drawingHotkeyOwnerRef.current)}
-    >
-      <TickerChartControls
-        activeTool={activeTool}
-        enabledIndicators={enabledIndicators}
-        lockTimeframe={lockTimeframe}
-        maximized={headerMaximized}
-        subtitle={subtitle}
-        timeframe={timeframe}
-        title={title}
-        usingMock={usingMock}
-        compact={compactChrome}
-        keepCompactWhenMaximized={maximizeInGrid && !isFullscreen}
-        useFullscreenExpand={maximizeInGrid}
-        fillingHint={
-          filling && indicatorBars.length > 0 ? chartFillingHint(coverageClock, historyError) : null
-        }
-        selection={selection}
-        onClearAll={handleClearAll}
-        onColorChange={updateSelectedDrawingColor}
-        onIndicatorToggle={handleIndicatorToggle}
-        onMaximize={toggleMaximize}
-        onTimeframeChange={setUserTimeframe}
-        onToolClick={handleToolClick}
-      />
-
-      <div className="chart-body" ref={containerRef}>
-        {loading && indicatorBars.length === 0 && (
-          <div className="chart-overlay">Loading…</div>
-        )}
-        {!loading && filling && indicatorBars.length === 0 && !error && (
-          <ChartFillingOverlay lastError={historyError} lastErrorTs={historyErrorTs} />
-        )}
-        {!loading && error && indicatorBars.length === 0 && (
-          error === SAMPLE_NETWORK_REFUSAL ? (
-            // The sample desk's refusal is not a fault: one muted line (QA D11).
-            <div className="chart-overlay chart-overlay--empty" data-testid="chart-empty">{SAMPLE_CHART_NO_BARS}</div>
-          ) : (
-            <div className="chart-overlay chart-overlay--error">{error}</div>
-          )
-        )}
-        {!loading && !error && emptyText && indicatorBars.length === 0 && (
-          <div className="chart-overlay chart-overlay--empty" data-testid="chart-empty">{emptyText}</div>
-        )}
+      loading={loading}
+      error={error}
+      emptyText={emptyText}
+      historyErrorTs={historyErrorTs}
+      paneOverlay={(
         <ChartPaneOverlays
           symbol={symbol}
           timeframe={timeframe}
@@ -349,40 +326,18 @@ function TickerChartInner({
           onIndicatorToggle={handleIndicatorToggle}
           renderOverlay={renderPaneOverlay}
         />
-        <CandleHoverTip chart={chartApi} candleSeriesRef={candleSeriesRef} volSeriesRef={volSeriesRef}
-          containerRef={containerRef} symbol={symbol} timeframe={timeframe} paneBars={indicatorBars} vwapSource={vwapSource} />
-      </div>
-      <TickerChartOverlays
-        chart={chartApi}
-        candleSeriesRef={candleSeriesRef}
-        symbol={symbol}
-        bars={indicatorBars}
-        barsRevision={barsRevision}
-        enabled={enabledIndicators}
-        timeframe={timeframe}
-        vwapSourceBars={vwapSource.bars}
-        vwapSourceRevision={vwapSource.revision}
-        vwapCoversOpen={vwapSource.coversOpen}
-        liveTipTime={liveTipTime}
-      />
-      {gridOscillators && (
-        <ResizeHandle
-          orientation="horizontal"
-          onPointerDown={onOscDragStart}
-          onDoubleClick={resetOscSplit}
-          label="Resize indicator pane"
-        />
       )}
-      {oscillatorEnabled.length > 0 && (
-        <TickerChartOscillatorPanes
-          parentChart={chartApi}
-          bars={indicatorBars}
-          barsRevision={barsRevision}
-          enabled={oscillatorEnabled}
-          onClose={variant === 'grid' ? handleIndicatorToggle : undefined}
-        />
-      )}
-    </div>
+      chartApi={chartApi}
+      candleSeriesRef={candleSeriesRef}
+      volSeriesRef={volSeriesRef}
+      vwapSource={vwapSource}
+      accountOverlay
+      liveTipTime={liveTipTime}
+      onOscDragStart={onOscDragStart}
+      resetOscSplit={resetOscSplit}
+      oscillatorEnabled={oscillatorEnabled}
+      variant={variant}
+    />
   );
 
   return (

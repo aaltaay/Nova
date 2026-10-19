@@ -1,6 +1,6 @@
 /**
  * Screenshot the desk /review route. One Chromium stays up for the MCP process.
- * Stdin is one JSON object per line: {url, dest}. Stdout is one JSON answer per line.
+ * Stdin is one JSON object per line: {id, url, dest}. Stdout is one JSON answer per line.
  * `--once <url> <dest>` takes a single shot and exits (used for the PR pictures).
  */
 import { createRequire } from 'node:module';

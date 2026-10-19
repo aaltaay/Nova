@@ -491,43 +491,61 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
 
 ## Desk review charts (unified MCP)
 
-The same MCP process (`tools/nova_mcp.py`) also serves the desk's historical charts. `docs/nova-mcp.md` is the setup.
-The page is the desk frontend at `/review` (Vite dev server, default `http://127.0.0.1:5173`). It is not the live
-desk: it does not mount the trading shell, does not subscribe to a quote, and has no order ticket.
+The same MCP process (`tools/nova_mcp.py`) serves the 22 data tools and one chart tool, `nova_chart`.
+`docs/nova-mcp.md` is the setup. `/review` mounts the desk `ChartGrid` and `TickerChart` through a recorded
+feed (`ChartFeedProvider` in `frontend/src/chart/chartFeed.tsx`). The live desk is unchanged: with no provider
+the feed is `{kind: "live"}` and the same hooks run. The review page does not mount the trading shell, does not
+subscribe to a quote, and has no order ticket. `nova_historical_chart`, `nova_historical_chart_gallery` and
+`nova_trade_charts` are not on this server. Marked sub-minute candle-gateway PNGs stay on `tools/nova_chart_mcp.py`.
 
-- **Page.** `GET /review?symbol=IMCC&date=2026-09-18&tf=1m,5m,1d&as_of=16:00`. `tf` is any of `1m`, `5m`, `10s`, `1d`
-  (omitted means all four, drawn in desk order: 5-minute, 10-second, full day, 1-minute). `as_of` is `HH:MM` ET and
-  defaults to `16:00`, so the first view is the 04:00-16:00 session. `symbols=A,B,C` (1 to 9) is a gallery. The grid
-  draws one timeframe (5-minute when that was requested, otherwise the first intraday frame) and the header names it
-  (`5-Minute only`). Each symbol links to its own page with the full `tf` list. `fixture=1` draws a labelled sample
-  and does not call the API. `api` is accepted only for `http://127.0.0.1` or `http://localhost` (optional port).
-- **Data.** The Vite server proxies `GET /api/review` to `NOVA_REVIEW_API` (default `http://127.0.0.1:18765`). The
-  listener starts on the first chart-tool call, or immediately with `--review-http` / `NOVA_REVIEW_HTTP=1`. One
-  listener is shared. If the preferred port is taken by another program, the process binds a free port and the chart
-  URL carries `api=`. `--no-review-http` does not listen. Answer: `{ok, schema_version: 1, symbol, date, as_of,
-  as_of_iso, source, lookahead: false, vwap_anchor: "04:00", timeframes: {1m|5m|10s|1d: {bars: [{t, o, h, l, c, v}]}},
-  levels, setups, vwap}`. Intraday `t` is an ISO instant with an Eastern offset. Daily `t` is `YYYY-MM-DD`. Volume-only
-  buckets (NaN OHLC) are dropped so the JSON has no `NaN`. A bad query is HTTP 400 `{ok: false, error}`. An unknown
-  path is 404. A reader failure is 500. Success is 200. CORS allows only the configured desk origin
-  (`NOVA_REVIEW_BASE`, default `http://127.0.0.1:5173`).
+- **Feed seam.** `ChartFeed` is `{kind: "live"}` or `{kind: "recorded", symbol, date, asOfIso, source, bars, vwapBars}`.
+  `bars` holds `10Sec`, `1Min`, `5Min`, `1Day`. `TickerChart` picks `LivePane` or `RecordedPane` as two components.
+  The recorded pane paints the given bars once, builds VWAP from `vwapBars`, and keeps drawings in memory
+  (`useEphemeralDrawings`). It does not call `useChartBars`, the ticker stream, the drawing store, the countdown,
+  or the order menu. `useIbkrStatus` does not poll under a recorded feed. `ChartGrid` takes optional `panels`
+  (default `buildChartGridPanels()`), skips `ensureBarsBatch` on a recorded feed, and clears the ephemeral
+  drawings on Clear all. Review levels (HOD, LOD, premarket high, opening range, prior high, low and close, flat
+  tops) go through the existing `renderPaneOverlay` slot.
+- **Page.** `GET /review?symbol=IMCC&date=2026-09-18&tf=1m,5m,10s,1d&as_of=16:00` draws four panes in desk order:
+  5-minute, 10-second, full day, 1-minute. `as_of` is `HH:MM` ET and defaults to `16:00` (session 04:00 to 16:00).
+  `symbols=A,B,C` (1 to 9) is a gallery with tabs `10s`, `1m`, `5m`, `1d`. The selected tab is `gtf` (default `5m`).
+  The header names that timeframe. Each cell is the desk `TickerChart` for that pane and links to the four-pane page.
+  Switching tabs repaints the loaded payload. `fixture=1` draws a labelled sample and does not call the API.
+  `api` is accepted only for `http://127.0.0.1` or `http://localhost` (optional port). `data-review-ready="1"` is set
+  after every visible pane has painted.
+- **Engine.** One detached process (`tools/nova_review_engine.py`) owns the loopback listener and the one Chromium.
+  The first `nova_chart` call starts it. Later MCP processes attach. Health is
+  `{ok, service: "nova-review", version, renderer_starts, pid}`. A version mismatch restarts the engine. It exits
+  after 30 minutes idle. Default port is 18765 (`NOVA_REVIEW_PORT`), never 8765. A taken port binds a free one and
+  the link carries loopback `api=`. The engine also serves `frontend/dist` at `/review`, so links and PNGs work when
+  Vite is not running. `NOVA_REVIEW_BASE` (default `http://127.0.0.1:5173`) is still the link origin. `--review-http`
+  / `NOVA_REVIEW_HTTP=1` starts the engine at process start. `--no-review-http` does not listen.
+- **Data.** `GET /api/review` answer: `{ok, schema_version: 1, symbol, date, as_of, as_of_iso, source, lookahead: false,
+  vwap_anchor: "04:00", timeframes: {1m|5m|10s|1d: {bars: [{t, o, h, l, c, v}]}}, levels, setups, vwap}`. Intraday `t`
+  is an ISO instant with an Eastern offset. Daily `t` is `YYYY-MM-DD`. Volume-only buckets and a daily row with
+  non-finite OHLC are dropped, so the JSON has no `NaN` (`allow_nan` false). A bad query is HTTP 400 `{ok: false, error}`.
+  An unknown path is 404. A reader failure is 500. Success is 200. CORS allows only the configured desk origin.
 - **Causal.** A bar is included only when its window has ended by `as_of` (a 09:55 5-minute bar waits until 10:00).
-  The client drops any later bar again before paint. HOD, LOD and premarket high come from the kept 04:00-16:00
-  minutes. Opening-range high and low stay null until 09:35. Prior high, low and close are the last daily row
+  The client drops any later bar again before paint. HOD, LOD and premarket high come from the kept 04:00 to 16:00
+  minutes. Opening-range high and low stay null until 09:35. Prior high, low and close are the last finite daily row
   strictly before the session. The session day's daily candle is the aggregate of those minutes (the official daily
-  row for that day, and any later day, is not used). VWAP is the desk's session VWAP: typical price times volume,
-  anchored at 04:00, and it does not take volume from before then or from 16:00 on. Setups are flat tops of three
-  closed 5-minute bars. `daily_bars` lookback is 183 calendar days ending on the session date. `as_of` on that read
-  is not used to hide later days; `date_to` and the minute aggregate do that. No IBKR call.
-- **Chart tools.** `nova_historical_chart {symbol, date, tf?, output?, as_of?}`,
-  `nova_historical_chart_gallery {symbols, date, tf?, output?, as_of?}`,
-  `nova_trade_charts {trades, output?}`. `output` is `interactive` (default) | `png` | `both`. Interactive:
-  `{ok, output, lazy: true, loaded: false, urls: {symbols: [{symbol, date, url}], gallery}}`. `loaded: false` means
-  this call did not read bars. One symbol still gets a gallery URL. `png` and `both` add `images: [{symbol, url,
-  path, sha256, bytes}]` and one MCP image content block per file (base64 PNG). Chromium starts on that first PNG
-  call. A one-symbol call does not also screenshot the gallery page. A missing browser is
-  `{ok: false, error: {code: "REVIEW_SHOT_UNAVAILABLE"}}`. Trade charts here are review links for each
-  symbol/date (a gallery URL when they share a date). Marked sub-minute candle-gateway PNGs stay on
-  `tools/nova_chart_mcp.py`. Link origin is `NOVA_REVIEW_BASE` (default `http://127.0.0.1:5173`).
+  row for that day, and any later day, is not used). VWAP is the desk's session VWAP from 04:00. Setups are flat tops
+  of three closed 5-minute bars. `daily_bars` lookback is 183 calendar days. No IBKR call.
+- **`nova_chart`.** Arguments, and no others (`additionalProperties: false`): `symbols` (1 to 9 tickers, required),
+  `date` (`YYYY-MM-DD`, required), `as_of` (`HH:MM` ET, optional, default `16:00`). Any other argument is an MCP error
+  whose text starts with `UNKNOWN_ARGUMENT` and names it. Fixed in code: timeframes `10s`, `1m`, `5m`, `1d`; full
+  session; desk overlays at the desk defaults (EMAs 9/20/200, VWAP from 04:00, MACD on 1m and 5m, session shading,
+  volume, review levels). Annotations: `readOnlyHint` false, `idempotentHint` false, `destructiveHint` false,
+  `openWorldHint` false. Content order: one text block that is exactly `chat_message`, then PNG image blocks (one per
+  symbol, plus one gallery PNG of the 5m tab when there is more than one symbol), then `structuredContent`
+  `{ok, chat_message, date, as_of, timeframes, links: [{symbol, url}], gallery_url, images: [{symbol, sha256, bytes}]}`.
+  On failure `ok` is false, `error` is `{code, detail}`, and `chat_message` still lists any links that were built.
+  `REVIEW_DESK_UNREACHABLE` means the page at `NOVA_REVIEW_BASE` could not be screenshotted. `REVIEW_SHOT_UNAVAILABLE`
+  means `--no-warm-shots`. Links are built by `review_link` and `gallery_link` in `tools/nova_review_causal.py`.
+- **`chat_message`.** ASCII. Line 1: `Nova charts for {date}, as of {as_of} ET (10s, 1m, 5m, 1d, full session):`.
+  Then one line per symbol: `- {SYMBOL}: {url}`. Then, only for more than one symbol, `Gallery: {gallery_url}`.
+  Then, only when a PNG failed, `Preview images unavailable: {code}`. An MCP prompt `chart_request` tells the model
+  to call `nova_chart` and post that text verbatim. The tool enforces the shape without the prompt.
 - **Drawings** on `/review` stay in the page's memory. They are not written to the operator's drawing store.
 
 

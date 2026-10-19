@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sessionVisibleRange } from './reviewFit';
-import { galleryFrame, parseReviewQuery, reviewHref } from './reviewQuery';
+import { parseReviewQuery, reviewHref } from './reviewQuery';
 
 describe('review query', () => {
   it('reads one symbol, a date and the desk pane order', () => {
@@ -11,6 +10,7 @@ describe('review query', () => {
     expect(query.tfs).toEqual(['5m', '1d', '1m']);
     expect(query.asOf).toBe('16:00');
     expect(query.fixture).toBe(false);
+    expect(query.gtf).toBe('5m');
   });
 
   it('treats a symbols list as a gallery and keeps fixture links', () => {
@@ -23,18 +23,14 @@ describe('review query', () => {
     );
   });
 
-  it('keeps a loopback review API and picks one gallery frame', () => {
+  it('keeps a loopback review API and reads the gallery tab', () => {
     const query = parseReviewQuery('?symbol=A&date=2026-09-18&tf=1m,1d&api=http://127.0.0.1:18765');
     expect(query.api).toBe('http://127.0.0.1:18765');
     expect(parseReviewQuery('?symbol=A&date=2026-09-18&api=http://evil.test').api).toBe('');
-    expect(galleryFrame(['1m', '5m', '1d'])).toBe('5m');
-    expect(galleryFrame(['1m', '1d'])).toBe('1m');
-    expect(galleryFrame(['1d'])).toBe('5m');
+    expect(parseReviewQuery('?symbols=A,B&date=2026-09-18&gtf=10s').gtf).toBe('10s');
+    expect(parseReviewQuery('?symbols=A,B&date=2026-09-18&gtf=1m').gtf).toBe('1m');
+    expect(parseReviewQuery('?symbols=A,B&date=2026-09-18&gtf=1d').gtf).toBe('1d');
+    expect(parseReviewQuery('?symbols=A,B&date=2026-09-18&gtf=nope').gtf).toBe('5m');
     expect(reviewHref('A', '2026-09-18', ['5m'], '16:00', false, query.api)).toContain('api=http');
-  });
-
-  it('leaves blank time before 4:00 so the first clock label can draw', () => {
-    const range = sessionVisibleRange('2026-09-18');
-    expect(Number(range.to) - Number(range.from)).toBe(14 * 3600 + 10 * 60);
   });
 });

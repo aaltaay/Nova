@@ -12,6 +12,12 @@ export const TF_PANE: Record<ReviewTf, { id: string; label: string }> = {
 
 const PANE_ORDER: ReviewTf[] = ['5m', '10s', '1d', '1m'];
 const ALLOWED = new Set<string>(REVIEW_TFS);
+export const GALLERY_TABS = ['10s', '1m', '5m', '1d'] as const;
+
+export function parseGalleryTf(raw: string | null): ReviewTf {
+  if (raw === '10s' || raw === '1m' || raw === '5m' || raw === '1d') return raw;
+  return '5m';
+}
 
 export interface ReviewQuery {
   symbols: string[];
@@ -20,6 +26,8 @@ export interface ReviewQuery {
   asOf: string;
   fixture: boolean;
   gallery: boolean;
+  /** Gallery tab. One timeframe at a time. Default 5m. */
+  gtf: ReviewTf;
   /** Loopback origin of the review API, when the listener is not on the Vite proxy port. */
   api: string;
 }
@@ -51,6 +59,7 @@ export function parseReviewQuery(search: string): ReviewQuery {
     asOf: params.get('as_of') ?? '16:00',
     fixture: params.get('fixture') === '1',
     gallery: multi !== null || symbols.length > 1,
+    gtf: parseGalleryTf(params.get('gtf')),
     api: loopbackApi(params.get('api') ?? ''),
   };
 }
@@ -72,10 +81,4 @@ export function reviewHref(
   const base = loopbackApi(api);
   if (base) params.set('api', base);
   return `/review?${params.toString()}`;
-}
-
-/** The gallery draws one timeframe. 5-minute when it was asked for, otherwise the first intraday frame. */
-export function galleryFrame(tfs: readonly ReviewTf[]): ReviewTf {
-  if (tfs.includes('5m')) return '5m';
-  return tfs.find((tf) => tf !== '1d') ?? '5m';
 }

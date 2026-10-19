@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { useChartFeed } from '../chart';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import { SAMPLE_IBKR_STATUS } from '../sample_data/sampleStatus';
 import {
@@ -38,9 +39,10 @@ function getSampleSnapshot(): IbkrClientStatus {
  */
 export function useIbkrStatus(): IbkrClientStatus {
   const sample = useSampleDataOptional();
+  const recorded = useChartFeed().kind === 'recorded';
   return useSyncExternalStore(
-    sample ? noopSubscribe : subscribeIbkrStatus,
-    sample ? getSampleSnapshot : getIbkrStatusSnapshot,
+    sample || recorded ? noopSubscribe : subscribeIbkrStatus,
+    recorded ? getEmptySnapshot : sample ? getSampleSnapshot : getIbkrStatusSnapshot,
     getEmptySnapshot,
   );
 }

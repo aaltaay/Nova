@@ -16,6 +16,9 @@ import urllib.request
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import signal
+import subprocess
+
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -112,18 +115,19 @@ def test_nine_symbols_return_urls_without_loading(monkeypatch):
         raise AssertionError("review data was loaded")
 
     monkeypatch.setattr(review_load, "load_review", boom)
-    causal.chart_pages(SYMBOLS, DAY, ["1m", "5m", "1d"], "interactive", base="http://127.0.0.1:5173")
+    causal.chart_links(SYMBOLS, DAY, None, base="http://127.0.0.1:5173")
     samples = []
     answer = None
     for _ in range(5):
         started = time.perf_counter()
-        answer = causal.chart_pages(SYMBOLS, DAY, ["1m", "5m", "1d"], "interactive", base="http://127.0.0.1:5173")
+        answer = causal.chart_links(SYMBOLS, DAY, None, base="http://127.0.0.1:5173")
         samples.append(time.perf_counter() - started)
     assert sorted(samples)[len(samples) // 2] < 0.05
-    assert answer["ok"] is True and answer["loaded"] is False and answer["lazy"] is True
-    assert len(answer["urls"]["symbols"]) == 9
-    assert "symbols=" in answer["urls"]["gallery"]
-    assert all(item["url"].startswith("http://127.0.0.1:5173/review?symbol=") for item in answer["urls"]["symbols"])
+    assert answer["ok"] is True and answer["loaded"] is False
+    assert len(answer["links"]) == 9
+    assert "symbols=" in answer["gallery_url"]
+    assert all(item["url"].startswith("http://127.0.0.1:5173/review?symbol=") for item in answer["links"])
+    assert review_load.load_review is boom
 
 
 def test_review_http_serves_the_cut_payload():
@@ -207,12 +211,18 @@ def test_png_output_screenshots_the_review_url(tmp_path):
     assert {item["symbol"] for item in both["images"]} == {"IMCC", "REFR", "gallery"}
 
 
-def _schema_bits(schema: dict) -> dict:
-    props = (schema or {}).get("properties") or {}
-    kept = ("type", "default", "anyOf", "items", "enum")
+def _tool_public(tool) -> dict:
+    notes = tool.annotations
     return {
-        "required": list((schema or {}).get("required") or []),
-        "props": {name: {key: prop[key] for key in kept if key in prop} for name, prop in props.items()},
+        "name": tool.name,
+        "description": " ".join((tool.description or "").split()),
+        "inputSchema": tool.inputSchema,
+        "annotations": None if notes is None else {
+            "readOnlyHint": notes.readOnlyHint,
+            "destructiveHint": notes.destructiveHint,
+            "idempotentHint": notes.idempotentHint,
+            "openWorldHint": notes.openWorldHint,
+        },
     }
 
 
@@ -220,19 +230,23 @@ def test_data_tools_match_the_old_server():
     old = {tool.name: tool for tool in asyncio.run(data.create_server(data.DataService()).list_tools())}
     unified = {tool.name: tool for tool in asyncio.run(
         nova_mcp.create_server(data.DataService(), http=False, warm=False).list_tools())}
-    assert set(old) <= set(unified)
-    chart_tools = {"nova_historical_chart", "nova_historical_chart_gallery", "nova_trade_charts"}
-    assert chart_tools <= set(unified)
+    assert set(unified) == set(old) | {"nova_chart"}
+    retired = {"nova_historical_chart", "nova_historical_chart_gallery", "nova_trade_charts"}
+    assert retired.isdisjoint(unified)
     for name, tool in old.items():
         match = unified[name]
         assert " ".join(tool.description.split()) == " ".join(match.description.split())
-        assert _schema_bits(tool.inputSchema) == _schema_bits(match.inputSchema)
-    for name in chart_tools:
-        notes = unified[name].annotations
-        assert notes is not None
-        assert notes.readOnlyHint is False
-        assert notes.idempotentHint is False
-        assert notes.destructiveHint is False
+        assert tool.inputSchema == match.inputSchema
+        assert _tool_public(tool)["annotations"] == _tool_public(match)["annotations"]
+    chart = unified["nova_chart"]
+    assert chart.inputSchema.get("additionalProperties") is False
+    assert set(chart.inputSchema.get("properties") or {}) == {"symbols", "date", "as_of"}
+    notes = chart.annotations
+    assert notes is not None
+    assert notes.readOnlyHint is False
+    assert notes.idempotentHint is False
+    assert notes.destructiveHint is False
+    assert notes.openWorldHint is False
 
 
 def test_a_10s_bar_waits_until_it_closes_and_nan_ohlc_is_dropped():
@@ -366,10 +380,344 @@ def test_png_tool_returns_an_image_block(tmp_path):
         data.DataService(tmp_path), http=False, warm=True,
         shots=review_warm.ReviewShots(shoot=shoot),
     )
-    result = asyncio.run(server.call_tool("nova_historical_chart", {"symbol": "IMCC", "date": DAY, "output": "png"}))
-    blocks = result[0] if isinstance(result, tuple) else result
+    result = asyncio.run(server.call_tool("nova_chart", {"symbols": ["IMCC"], "date": DAY}))
+    blocks = result.content if hasattr(result, "content") else (result[0] if isinstance(result, tuple) else result)
     images = [block for block in blocks if getattr(block, "type", None) == "image"]
     assert len(images) == 1
     assert images[0].mimeType == "image/png"
     raw = base64.b64decode(images[0].data)
     assert raw.startswith(b"\x89PNG\r\n\x1a\n") and len(raw) >= 64
+    assert blocks[0].text == result.structuredContent["chat_message"]
+
+
+def test_a_nan_daily_row_is_left_out_and_the_route_stays_200():
+    def daily(*_args):
+        return [
+            {"date": "2026-09-16", "open": 2, "high": 3, "low": 1, "close": 2.5, "volume": 5},
+            {"date": "2026-09-17", "open": float("nan"), "high": float("nan"), "low": float("nan"),
+             "close": float("nan"), "volume": 9},
+        ]
+
+    httpd = review_http.serve(0, bars_reader=lambda *_a: _session_minutes(), daily_reader=daily)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        port = httpd.server_address[1]
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{port}/api/review?symbol=IMCC&date={DAY}&tf=1d&as_of=10:00"
+        ) as response:
+            raw = response.read()
+            assert response.status == 200
+        body = json.loads(raw.decode())
+        days = [row["t"] for row in body["timeframes"]["1d"]["bars"]]
+        assert "2026-09-17" not in days
+        assert "2026-09-16" in days
+        json.dumps(body, allow_nan=False)
+    finally:
+        httpd.shutdown()
+
+
+def _chart_server(tmp_path, shoot):
+    return nova_mcp.create_server(
+        data.DataService(tmp_path), http=False, warm=True,
+        shots=review_warm.ReviewShots(shoot=shoot),
+    )
+
+
+def test_unknown_chart_arguments_are_rejected():
+    server = nova_mcp.create_server(data.DataService(), http=False, warm=False)
+
+    async def once(extra):
+        payload = {"symbols": ["IMCC"], "date": DAY, extra: "5m"}
+        return await server.call_tool("nova_chart", payload)
+
+    for name in ("tf", "output", "symbol", "trades"):
+        result = asyncio.run(once(name))
+        assert result.isError is True
+        assert result.content[0].text.startswith("UNKNOWN_ARGUMENT")
+        assert name in result.content[0].text
+
+
+def test_chat_message_contract():
+    base = "http://127.0.0.1:5173"
+    one = causal.chat_message(
+        date=DAY, as_of="16:00",
+        links=[{"symbol": "IMCC", "url": causal.review_link("IMCC", DAY, "16:00", None, base)}],
+    )
+    assert one == (
+        "Nova charts for 2026-09-18, as of 16:00 ET (10s, 1m, 5m, 1d, full session):\n"
+        "- IMCC: http://127.0.0.1:5173/review?symbol=IMCC&date=2026-09-18&tf=10s%2C1m%2C5m%2C1d"
+    )
+    links = [{"symbol": name, "url": causal.review_link(name, DAY, "16:00", None, base)} for name in SYMBOLS]
+    nine = causal.chat_message(
+        date=DAY, as_of="16:00", links=links,
+        gallery_url_text=causal.gallery_link(SYMBOLS, DAY, "16:00", None, base),
+    )
+    assert nine == "\n".join([
+        "Nova charts for 2026-09-18, as of 16:00 ET (10s, 1m, 5m, 1d, full session):",
+        *[
+            f"- {name}: http://127.0.0.1:5173/review?symbol={name}&date=2026-09-18&tf=10s%2C1m%2C5m%2C1d"
+            for name in SYMBOLS
+        ],
+        "Gallery: http://127.0.0.1:5173/review?symbols=A%2CB%2CC%2CD%2CE%2CF%2CG%2CH%2CI&date=2026-09-18&gtf=5m&tf=10s%2C1m%2C5m%2C1d",
+    ])
+    early = causal.chat_message(
+        date=DAY, as_of="10:00",
+        links=[{"symbol": "IMCC", "url": causal.review_link("IMCC", DAY, "10:00", None, base)}],
+    )
+    assert early == (
+        "Nova charts for 2026-09-18, as of 10:00 ET (10s, 1m, 5m, 1d, full session):\n"
+        "- IMCC: http://127.0.0.1:5173/review?symbol=IMCC&date=2026-09-18&tf=10s%2C1m%2C5m%2C1d&as_of=10%3A00"
+    )
+    failed = causal.chat_message(
+        date=DAY, as_of="16:00",
+        links=[{"symbol": "IMCC", "url": causal.review_link("IMCC", DAY, "16:00", None, base)}],
+        preview_code="REVIEW_DESK_UNREACHABLE",
+    )
+    assert failed == one + "\nPreview images unavailable: REVIEW_DESK_UNREACHABLE"
+    for text in (one, nine, early, failed):
+        assert all(ord(ch) < 128 for ch in text)
+        assert "\u2014" not in text and "\u2013" not in text
+
+
+def test_chart_content_order_and_image_counts(tmp_path):
+    def shoot(_url, dest):
+        dest.write_bytes(PNG)
+        return {"ok": True, "path": str(dest), "sha256": "abc", "bytes": len(PNG), "png": PNG}
+
+    server = _chart_server(tmp_path, shoot)
+    one = asyncio.run(server.call_tool("nova_chart", {"symbols": ["IMCC"], "date": DAY}))
+    assert one.content[0].type == "text"
+    assert one.content[0].text == one.structuredContent["chat_message"]
+    assert sum(block.type == "image" for block in one.content) == 1
+    assert one.structuredContent["timeframes"] == ["10s", "1m", "5m", "1d"]
+    assert one.structuredContent["ok"] is True
+    nine = asyncio.run(server.call_tool("nova_chart", {"symbols": SYMBOLS, "date": DAY, "as_of": "10:00"}))
+    assert nine.content[0].text == nine.structuredContent["chat_message"]
+    assert sum(block.type == "image" for block in nine.content) == 10
+    assert "as of 10:00 ET" in nine.content[0].text
+    assert nine.content[0].text.splitlines()[-1].startswith("Gallery: ")
+
+
+def test_tool_snapshot_matches_the_checked_in_file():
+    live = [_tool_public(tool) for tool in asyncio.run(
+        nova_mcp.create_server(data.DataService(), http=False, warm=False).list_tools())]
+    data_tools = [_tool_public(tool) for tool in asyncio.run(data.create_server(data.DataService()).list_tools())]
+    path = Path(__file__).resolve().parent / "snapshots" / "nova_mcp_tools.json"
+    snapshot = json.loads(path.read_text(encoding="utf-8"))
+    assert snapshot == live
+    by_name = {tool["name"]: tool for tool in snapshot}
+    for tool in data_tools:
+        assert by_name[tool["name"]] == tool
+
+
+_CLIENT = r"""
+import asyncio, json, os, sys
+sys.path.insert(0, os.environ["TOOLS"])
+import nova_mcp
+import nova_data_mcp as data
+import nova_review_engine as engine
+server = nova_mcp.create_server(data.DataService(os.environ["OUT"]), http=True, warm=True)
+result = asyncio.run(server.call_tool("nova_chart", {"symbols": ["IMCC"], "date": "2026-09-18"}))
+port = int(os.environ["NOVA_REVIEW_PORT"])
+live = engine._live_port(port)
+health = engine.read_health(live) if live else None
+print(json.dumps({
+    "ok": (result.structuredContent or {}).get("ok"),
+    "images": sum(1 for block in result.content if block.type == "image"),
+    "links": len((result.structuredContent or {}).get("links") or []),
+    "chat": (result.structuredContent or {}).get("chat_message"),
+    "port": live,
+    "pid": None if not health else health.get("pid"),
+    "renderer_starts": None if not health else health.get("renderer_starts"),
+    "version": None if not health else health.get("version"),
+    "error": (result.structuredContent or {}).get("error"),
+}))
+"""
+
+
+def _free_port() -> int:
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+    return port
+
+
+def _engine_env(tmp_path: Path, port: int) -> dict[str, str]:
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    (dist / "index.html").write_text(
+        "<!doctype html><html><body data-review-ready=\"1\">review</body></html>",
+        encoding="utf-8",
+    )
+    (tmp_path / "out").mkdir()
+    env = os.environ.copy()
+    env.update({
+        "NOVA_REVIEW_PORT": str(port),
+        "NOVA_REVIEW_BASE": f"http://127.0.0.1:{port}",
+        "NOVA_REVIEW_LEASE": str(tmp_path / "lease.json"),
+        "NOVA_REVIEW_LEASE_LOCK": str(tmp_path / "lease.lock"),
+        "NOVA_REVIEW_DIST": str(dist),
+        "NOVA_REVIEW_SHOT": "stub",
+        "NOVA_REVIEW_IDLE_SEC": "120",
+        "TOOLS": str(Path(__file__).resolve().parent),
+        "OUT": str(tmp_path / "out"),
+    })
+    return env
+
+
+def _run_client(env: dict[str, str]) -> dict:
+    proc = subprocess.run(
+        [sys.executable, "-c", _CLIENT],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert proc.returncode == 0, proc.stderr[-2000:]
+    return json.loads(proc.stdout.strip().splitlines()[-1])
+
+
+def _stop_pid(pid: int | None) -> None:
+    if not pid:
+        return
+    try:
+        os.kill(int(pid), signal.SIGTERM)
+    except OSError:
+        return
+
+
+def test_two_mcp_processes_share_one_engine_and_serve_review_without_vite(tmp_path, monkeypatch):
+    port = _free_port()
+    env = _engine_env(tmp_path, port)
+    for key, value in env.items():
+        if key.startswith("NOVA_REVIEW_"):
+            monkeypatch.setenv(key, value)
+    import nova_review_engine as engine
+    first = _run_client(env)
+    try:
+        assert first["ok"] is True and first["images"] == 1 and first["links"] == 1
+        assert first["renderer_starts"] == 1
+        with urllib.request.urlopen(f"http://127.0.0.1:{first['port']}/review") as response:
+            page = response.read()
+            assert response.status == 200
+        assert b"data-review-ready" in page
+        raw = (tmp_path / "out" / "review-shots").glob("*.png")
+        assert any(path.read_bytes().startswith(b"\x89PNG") for path in raw)
+        second = _run_client(env)
+        assert second["ok"] is True and second["images"] == 1
+        assert second["port"] == first["port"]
+        assert second["pid"] == first["pid"]
+        assert second["renderer_starts"] == 1
+        assert engine.ENGINE_VERSION == first["version"]
+    finally:
+        _stop_pid(first.get("pid"))
+
+
+def test_a_stale_lease_is_replaced(tmp_path, monkeypatch):
+    taken = _free_port()
+    env = _engine_env(tmp_path, taken)
+    for key, value in env.items():
+        if key.startswith("NOVA_REVIEW_"):
+            monkeypatch.setenv(key, value)
+    dummy_code = (
+        "from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n"
+        "import json, os\n"
+        "class H(BaseHTTPRequestHandler):\n"
+        "    def log_message(self, *args):\n"
+        "        return\n"
+        "    def do_GET(self):\n"
+        "        raw = json.dumps({'ok': True, 'service': 'other'}).encode()\n"
+        "        self.send_response(200)\n"
+        "        self.send_header('Content-Type', 'application/json')\n"
+        "        self.send_header('Content-Length', str(len(raw)))\n"
+        "        self.end_headers()\n"
+        "        self.wfile.write(raw)\n"
+        "ThreadingHTTPServer(('127.0.0.1', int(os.environ['PORT'])), H).serve_forever()\n"
+    )
+    dummy = subprocess.Popen([sys.executable, "-c", dummy_code], env={**env, "PORT": str(taken)})
+    (tmp_path / "lease.json").write_text(
+        json.dumps({"schema_version": 1, "port": taken, "pid": 999999}),
+        encoding="utf-8",
+    )
+    import nova_review_engine as engine
+    live = None
+    try:
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            try:
+                urllib.request.urlopen(f"http://127.0.0.1:{taken}/api/review/health", timeout=0.2)
+                break
+            except OSError:
+                time.sleep(0.05)
+        live = engine.ensure_engine(taken)
+        health = engine.read_health(live)
+        assert health["service"] == "nova-review"
+        assert health["version"] == engine.ENGINE_VERSION
+        assert live != taken
+        assert json.loads((tmp_path / "lease.json").read_text(encoding="utf-8"))["port"] == live
+    finally:
+        _stop_pid((engine.read_health(live) or {}).get("pid") if live else None)
+        dummy.terminate()
+
+
+def test_a_version_mismatch_restarts_the_engine(tmp_path, monkeypatch):
+    taken = _free_port()
+    env = _engine_env(tmp_path, taken)
+    for key, value in env.items():
+        if key.startswith("NOVA_REVIEW_"):
+            monkeypatch.setenv(key, value)
+    dummy_code = (
+        "from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n"
+        "import json, os\n"
+        "class H(BaseHTTPRequestHandler):\n"
+        "    def log_message(self, *args):\n"
+        "        return\n"
+        "    def do_GET(self):\n"
+        "        raw = json.dumps({'ok': True, 'service': 'nova-review', 'version': '0', "
+        "'pid': os.getpid(), 'renderer_starts': 9}).encode()\n"
+        "        self.send_response(200)\n"
+        "        self.send_header('Content-Type', 'application/json')\n"
+        "        self.send_header('Content-Length', str(len(raw)))\n"
+        "        self.end_headers()\n"
+        "        self.wfile.write(raw)\n"
+        "ThreadingHTTPServer(('127.0.0.1', int(os.environ['PORT'])), H).serve_forever()\n"
+    )
+    dummy = subprocess.Popen([sys.executable, "-c", dummy_code], env={**env, "PORT": str(taken)})
+    import nova_review_engine as engine
+    live = None
+    try:
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            body = engine.read_health(taken)
+            if body and body.get("version") == "0":
+                break
+            time.sleep(0.05)
+        (tmp_path / "lease.json").write_text(
+            json.dumps({"schema_version": 1, "port": taken, "pid": dummy.pid}),
+            encoding="utf-8",
+        )
+        live = engine.ensure_engine(taken)
+        health = engine.read_health(live)
+        assert health["version"] == engine.ENGINE_VERSION
+        assert health["service"] == "nova-review"
+        dummy.wait(timeout=3)
+    finally:
+        if live:
+            _stop_pid((engine.read_health(live) or {}).get("pid"))
+        if dummy.poll() is None:
+            dummy.terminate()
+
+
+def test_an_unreachable_desk_keeps_links(tmp_path):
+    server = nova_mcp.create_server(
+        data.DataService(tmp_path), http=False, warm=True, review_base="http://127.0.0.1:9",
+    )
+    result = asyncio.run(server.call_tool("nova_chart", {"symbols": ["IMCC"], "date": DAY}))
+    assert result.isError is not True
+    assert result.structuredContent["ok"] is False
+    assert result.structuredContent["error"]["code"] == "REVIEW_DESK_UNREACHABLE"
+    assert result.structuredContent["links"][0]["symbol"] == "IMCC"
+    assert result.content[0].text.endswith("Preview images unavailable: REVIEW_DESK_UNREACHABLE")
+    assert result.content[0].text == result.structuredContent["chat_message"]

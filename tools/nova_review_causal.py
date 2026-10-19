@@ -22,6 +22,7 @@ MAX_SYMBOLS = 9
 DEFAULT_AS_OF = "16:00"
 DEFAULT_TFS = ("1m", "5m", "10s", "1d")
 TF_ORDER = ("5m", "10s", "1d", "1m")
+CHART_TIMEFRAMES = ("10s", "1m", "5m", "1d")
 TF_STEP = {"1m": timedelta(minutes=1), "5m": timedelta(minutes=5), "10s": timedelta(seconds=10)}
 OUTPUTS = frozenset({"png", "interactive", "both"})
 
@@ -158,7 +159,7 @@ def levels(minute_bars: list[dict[str, Any]], dailies: list[dict[str, Any]], day
         window = [row for row in kept if RTH_OPEN <= bar_start(row).time() < OPENING_RANGE_END]
         if window:
             opening = (max(_num(row, "high") for row in window), min(_num(row, "low") for row in window))
-    prior = [row for row in dailies if day_key(row) < day]
+    prior = [row for row in dailies if day_key(row) < day and _finite_price(row)]
     last = prior[-1] if prior else None
     return {
         "hod": hod,
@@ -217,9 +218,12 @@ def daily_series(dailies: list[dict[str, Any]], minute_bars: list[dict[str, Any]
     out = []
     for row in dailies:
         key = day_key(row)
-        if key < day:
+        if key < day and _finite_price(row):
+            volume = float(row.get("volume") or 0)
+            if not math.isfinite(volume):
+                volume = 0.0
             out.append({"t": key, "o": _num(row, "open"), "h": _num(row, "high"), "l": _num(row, "low"),
-                        "c": _num(row, "close"), "v": float(row.get("volume") or 0)})
+                        "c": _num(row, "close"), "v": volume})
     kept = _session_bars(minute_bars)
     if kept:
         out.append({
@@ -258,22 +262,67 @@ def _query(params: list[tuple[str, str]]) -> str:
     return urlencode(params)
 
 
-def symbol_url(base: str, symbol: str, day: str, tfs: list[str], as_of: str, api: str | None = None) -> str:
-    params = [("symbol", symbol), ("date", day), ("tf", ",".join(tfs))]
+def review_link(symbol: str, date: str, as_of: str, api: str | None, base: str) -> str:
+    """One symbol's four-pane review page. Later open_in_nova can call this same builder."""
+    params = [("symbol", symbol), ("date", date), ("tf", ",".join(CHART_TIMEFRAMES))]
     if as_of != DEFAULT_AS_OF:
         params.append(("as_of", as_of))
     if api:
         params.append(("api", api.rstrip("/")))
     return f"{base.rstrip('/')}/review?{_query(params)}"
+
+
+def gallery_link(symbols: list[str], date: str, as_of: str, api: str | None, base: str) -> str:
+    """The gallery opens on the 5-minute tab."""
+    params = [("symbols", ",".join(symbols)), ("date", date), ("gtf", "5m"), ("tf", ",".join(CHART_TIMEFRAMES))]
+    if as_of != DEFAULT_AS_OF:
+        params.append(("as_of", as_of))
+    if api:
+        params.append(("api", api.rstrip("/")))
+    return f"{base.rstrip('/')}/review?{_query(params)}"
+
+
+def symbol_url(base: str, symbol: str, day: str, tfs: list[str], as_of: str, api: str | None = None) -> str:
+    del tfs
+    return review_link(symbol, day, as_of, api, base)
 
 
 def gallery_url(base: str, symbols: list[str], day: str, tfs: list[str], as_of: str, api: str | None = None) -> str:
-    params = [("symbols", ",".join(symbols)), ("date", day), ("tf", ",".join(tfs))]
-    if as_of != DEFAULT_AS_OF:
-        params.append(("as_of", as_of))
-    if api:
-        params.append(("api", api.rstrip("/")))
-    return f"{base.rstrip('/')}/review?{_query(params)}"
+    del tfs
+    return gallery_link(symbols, day, as_of, api, base)
+
+
+def chat_message(*, date: str, as_of: str, links: list[dict[str, str]], gallery_url_text: str | None = None,
+                 preview_code: str | None = None) -> str:
+    """The text every client posts. ASCII only. No markdown besides the plain URLs."""
+    lines = [f"Nova charts for {date}, as of {as_of} ET (10s, 1m, 5m, 1d, full session):"]
+    for item in links:
+        lines.append(f"- {item['symbol']}: {item['url']}")
+    if gallery_url_text and len(links) > 1:
+        lines.append(f"Gallery: {gallery_url_text}")
+    if preview_code:
+        lines.append(f"Preview images unavailable: {preview_code}")
+    text = "\n".join(lines)
+    if any(ord(ch) > 127 for ch in text):
+        raise ValueError("chat_message is not ASCII")
+    return text
+
+
+def chart_links(symbols: list[str] | str, day: str, as_of: str | None, *, base: str,
+                api: str | None = None) -> dict[str, Any]:
+    """Review URLs only. This does not read bars."""
+    names = parse_symbols(symbols)
+    session = parse_day(day).isoformat()
+    clock = check_clock(as_of or DEFAULT_AS_OF)
+    links = [{"symbol": symbol, "url": review_link(symbol, session, clock, api, base)} for symbol in names]
+    return {
+        "ok": True,
+        "loaded": False,
+        "date": session,
+        "as_of": clock,
+        "links": links,
+        "gallery_url": gallery_link(names, session, clock, api, base),
+    }
 
 
 def parse_symbols(symbols: list[str] | str) -> list[str]:

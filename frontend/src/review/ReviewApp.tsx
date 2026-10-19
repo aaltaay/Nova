@@ -1,30 +1,88 @@
-/** The /review page. Read only: no order ticket and no live feed. */
+/** The /review page. The desk chart, fed by a recorded day. No orders and no live feed. */
 
-import { useCallback, useMemo, useState } from 'react';
-import { ReviewDesk } from './ReviewDesk';
-import { ReviewGallery } from './ReviewGallery';
-import { galleryFrame, parseReviewQuery, TF_PANE } from './reviewQuery';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChartGrid } from '../components/ChartGrid';
+import { ChartFeedProvider } from '../chart';
+import { fetchReview, cutPayload } from './reviewData';
+import { fixturePayload, type ReviewPayload } from './reviewFixture';
+import { feedFromPayload } from './reviewFeed';
+import { GalleryBoard } from './GalleryBoard';
+import { levelOverlay } from './RecordedLevelsOverlay';
+import { parseReviewQuery, TF_PANE, REVIEW_TFS, type ReviewTf } from './reviewQuery';
+
+function loadOne(symbol: string, date: string, asOf: string, fixture: boolean, api: string): Promise<ReviewPayload> {
+  if (fixture) return Promise.resolve(fixturePayload(symbol, date, [...REVIEW_TFS], asOf));
+  return fetchReview(symbol, date, [...REVIEW_TFS], asOf, api);
+}
 
 export function ReviewApp() {
   const query = useMemo(() => parseReviewQuery(window.location.search), []);
+  const [gtf, setGtf] = useState<ReviewTf>(query.gtf);
+  const [payloads, setPayloads] = useState<ReviewPayload[] | null>(null);
   const [ready, setReady] = useState<'0' | '1' | 'error'>('0');
-  const onReady = useCallback((state: '1' | 'error') => setReady(state), []);
   const source = query.fixture ? 'fixture' : 'front-door';
-  const title = query.gallery ? query.symbols.join(' ') : query.symbols[0];
-  const frameLabel = query.gallery ? `${TF_PANE[galleryFrame(query.tfs)].label} only` : '';
+  const paintKey = query.gallery ? `${gtf}` : query.symbols.join(',');
+  const expected = query.gallery ? query.symbols.length : 4;
+  const bucket = useRef({ key: '', ids: new Set<string>() });
+  const [shownKey, setShownKey] = useState(paintKey);
+  if (shownKey !== paintKey) {
+    setShownKey(paintKey);
+    setReady('0');
+    bucket.current = { key: paintKey, ids: new Set() };
+  }
+
+  useEffect(() => {
+    const onPop = () => setGtf(parseReviewQuery(window.location.search).gtf);
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  useEffect(() => {
+    if (!query.symbols.length || !query.date) return;
+    let cancel = false;
+    setPayloads(null);
+    Promise.all(query.symbols.map((symbol) => loadOne(symbol, query.date, query.asOf, query.fixture, query.api)))
+      .then((rows) => {
+        if (!cancel) setPayloads(rows.map(cutPayload));
+      })
+      .catch(() => {
+        if (!cancel) setReady('error');
+      });
+    return () => {
+      cancel = true;
+    };
+  }, [query]);
+
+  const onPanePainted = useCallback((id: string) => {
+    if (bucket.current.key !== paintKey) bucket.current = { key: paintKey, ids: new Set() };
+    bucket.current.ids.add(id);
+    if (bucket.current.ids.size >= expected) setReady('1');
+  }, [paintKey, expected]);
+
+  const onSelect = useCallback((tf: ReviewTf) => {
+    const params = new URLSearchParams(window.location.search);
+    params.set('gtf', tf);
+    window.history.pushState(null, '', `${window.location.pathname}?${params.toString()}`);
+    setGtf(tf);
+  }, []);
 
   if (!query.symbols.length || !query.date) {
     return (
       <div className="review-app" data-review-ready="error" data-review-source={source}>
         <p className="review-error" role="alert">
-          Add a symbol and a date. Example: /review?symbol=IMCC&amp;date=2026-09-18&amp;tf=1m,5m,1d
+          Add a symbol and a date. Example: /review?symbol=IMCC&amp;date=2026-09-18
         </p>
       </div>
     );
   }
 
+  const title = query.gallery ? query.symbols.join(' ') : query.symbols[0];
+  const frameLabel = query.gallery ? TF_PANE[gtf].label : '';
+  const desk = !query.gallery && payloads?.[0];
+  const feed = desk ? feedFromPayload(desk) : null;
+
   return (
-    <div className="review-app" data-review-ready={ready} data-review-source={source}>
+    <div className="review-app" data-review-ready={payloads ? ready : '0'} data-review-source={source}>
       <header className="review-header">
         <strong>{title}</strong>
         <span>{query.date}</span>
@@ -34,8 +92,22 @@ export function ReviewApp() {
         <span className="review-header__note">Read only. No orders.</span>
       </header>
       {query.gallery
-        ? <ReviewGallery query={query} onReady={onReady} />
-        : <ReviewDesk query={query} symbol={query.symbols[0]} onReady={onReady} />}
+        ? payloads && (
+          <GalleryBoard
+            query={query}
+            gtf={gtf}
+            payloads={payloads}
+            onSelect={onSelect}
+            onPanePainted={onPanePainted}
+          />
+        )
+        : feed && desk && (
+          <div className="review-desk">
+            <ChartFeedProvider feed={feed} onPanePainted={onPanePainted}>
+              <ChartGrid symbol={desk.symbol} renderPaneOverlay={levelOverlay(desk.levels, desk.setups)} />
+            </ChartFeedProvider>
+          </div>
+        )}
     </div>
   );
 }

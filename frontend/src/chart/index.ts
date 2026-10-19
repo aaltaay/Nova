@@ -1,5 +1,7 @@
 /** Public chart API — cross-feature imports must use this barrel (ADR 005). */
 
+export { ChartFeedProvider, useChartFeed, useClearRecordedDrawings, useRecordedClearToken } from './chartFeed';
+export type { ChartFeed, RecordedChartFeed } from './chartFeed';
 export { TickerChart } from './TickerChart';
 export { useChartInstance } from './useChartInstance';
 export { useChartSessionHighlight } from './useChartSessionHighlight';
@@ -10,7 +12,6 @@ export type { ChartPaneOverlayProps, ChartTradeUpdate, RenderPaneOverlay } from 
 export { buildSeriesTimeIndex, nearestSeriesTime, toCanonicalTime } from './chartDrawingTime';
 export { isFollowingRightEdge } from './chartViewportPaint';
 export { afterPaintSettles } from './chartBarsPaint';
-export { formatChartTickMark } from './chartTimeFormat';
 export { operatorOwnsView, watchOperatorView } from './operatorView';
 export type { SeriesTimeIndex } from './chartDrawingTime';
 export { EDGE_PRIORITY, claimEdge, edgeClaimed, edgeContents, subscribeEdge } from './edgeWords';
