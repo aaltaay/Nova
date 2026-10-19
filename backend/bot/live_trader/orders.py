@@ -118,6 +118,18 @@ def order_row(order_id: int | None) -> dict[str, Any] | None:
         raise ReadError(f"Paper's orders could not be read: {exc}") from exc
 
 
+def fees_of(order_id: int | None) -> float | None:
+    """What Paper charged for ``order_id``'s fill (commission, SEC and FINRA); None when Paper does not show it."""
+    try:
+        row = order_row(order_id)
+    except ReadError:
+        return None
+    if order_state(row) != "filled":
+        return None
+    total = ((row or {}).get("fees") or {}).get("total")
+    return float(total) if isinstance(total, (int, float)) else None
+
+
 def order_state(row: dict[str, Any] | None) -> str:
     """``filled`` | ``dead`` | ``working`` | ``gone``."""
     if row is None:

@@ -23,6 +23,13 @@ export function usd(v: number | null | undefined): string {
   return `${v < 0 ? '−' : ''}$${text}`;
 }
 
+/** Dollars to the cent at any size: fees are read to the cent. */
+export function usd2(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return '—';
+  const text = Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${v < 0 ? '−' : ''}$${text}`;
+}
+
 export function signedUsd(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return '—';
   return `${v > 0 ? '+' : v < 0 ? '−' : ''}$${Math.abs(v).toFixed(2)}`;

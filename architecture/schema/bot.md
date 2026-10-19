@@ -777,7 +777,8 @@ without a stop for exactly its shares, and a stale stop can never buy past flat 
              read_age_sec, behind_sec, bar_visible, live}, text},
    hosts: [{name, face, on_air: bool | null, left_ts, settings: {...as stored, mode},
             state: {tone: "ok" | "warn" | "bad" | "off", text}, allowance: {used_usd, of_usd},
-            today: {pl_usd, realized_usd, unrealized_usd, trades, skipped, series: [[ts, pl_usd]]},
+            today: {pl_usd, realized_usd, unrealized_usd, net_pl_usd, fees_usd, orders, fees_unread, trades,
+                    skipped, series: [[ts, pl_usd]]},
             positions: [{id, row_id, symbol, side, qty, avg_cost, their_avg, now, pl_usd, steps,
                          adds_followed, opened_ts, state, order_id, note}],
             asks: [{id, row_id, symbol, side, step, their_price, qty, limit, stop, created_ts, expires_ts, text}],
@@ -792,7 +793,13 @@ without a stop for exactly its shares, and a stale stop can never buy past flat 
   order. `face` is the followed traders' photo path, or null. `events` are the host's newest
   `live_trader` audit lines (8), read from the audit file's last MB (`LT_AUDIT_TAIL_BYTES`) and again only when
   the file changed. `today.pl_usd` is realized plus unrealized at the last, from the bot's own
-  fills; `series` its points at each fill.
+  fills, before fees; `series` its points at each fill. `today.trades` counts positions (closed today plus open);
+  `today.orders` the bot's own orders those positions filled -- entries, adds, closes and every buy stop that
+  filled, each once (one print can fill several stops while the exit line names the first; shares sold outside
+  the bot carry no order of its own and are not counted); `today.fees_usd` what Paper charged
+  for them (commission, SEC and FINRA, read from each order's fill); `fees_unread` how many of them Paper did not
+  show a fee for (counted, never read as 0); `net_pl_usd` is `pl_usd` less `fees_usd`, the card's main number
+  (operator 2026-10-19).
 - `GET /api/bot/live-traders/asks` answers `{schema_version: 1, generated_at, asks: [{...an ask, host,
   seconds_left}], held: [{host, symbol, side, qty, state}]}` from memory only: every desk window polls it for
   the asks' toasts, and the Bot switch reads `held` before it asks to sell.

@@ -40,6 +40,15 @@ export const LT_APPROVED = 'approved';
 export const ltBotOf = (name: string): string => `${name}'s bot`;
 export const ltTrades = (n: number): string => `${n} trade${n === 1 ? '' : 's'}`;
 export const ltSkipped = (n: number): string => `${n} skipped`;
+export const ltOrders = (n: number): string => `${n} order${n === 1 ? '' : 's'}`;
+export const ltFees = (usd: string): string => `${usd} fees`;
+export const ltBeforeFees = (usd: string): string => `${usd} before fees`;
+export const ltAfterFeesTip = (fees: string, before: string): string =>
+  `After ${fees} in fees · before fees ${before}`;
+export const ltFeesTip = (orders: number, fees: string, unread: number): string =>
+  `What Paper charged for this bot's ${orders} filled order${orders === 1 ? '' : 's'} today `
+  + `(entries, adds, closes, buy stops): ${fees} — IBKR Fixed, at least USD 1.00 an order`
+  + (unread > 0 ? `. Paper did not show the fee for ${unread} of them.` : '.');
 export const ltSkipsTitle = (name: string, n: number): string => `${name}'s bot · ${n} skipped today`;
 export const ltNewestOf = (shown: number, total: number): string => `the newest ${shown} of ${total}`;
 export const ltBadge = (qty: number): string => `BOT ${qty} sh`;

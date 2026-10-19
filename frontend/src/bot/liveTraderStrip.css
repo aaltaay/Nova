@@ -121,6 +121,8 @@
 .lt-strip__alw { display: inline-flex; align-items: center; gap: 8px; flex: 0 1 300px; min-width: 0; }
 .lt-strip__today { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .lt-strip__today b { font-size: 12.5px; }
+/* Before fees beside the main number (after fees); a narrower card keeps it on the number's hover only. */
+.lt-strip__gross { font-size: 11.5px; }
 .lt-strip__skips { color: var(--bots-amber); }
 .lt-strip__skips[data-tip] { text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }
 .lt-strip__held { display: inline-flex; gap: 6px; min-width: 0; overflow: hidden; }
@@ -131,7 +133,7 @@
 /* The host's card is the followed traders' page's container `ft-trader` (followed.css). A narrower card keeps the
    controls and the numbers, not their labels; under 1300 px the bot takes one line of its own under the card's row. */
 @container ft-trader (max-width: 1500px) {
-  .lt-strip__alw .lt-label, .lt-strip__today .lt-label { display: none; }
+  .lt-strip__alw .lt-label, .lt-strip__today .lt-label, .lt-strip__gross { display: none; }
   .lt-strip__row { gap: 12px; }
 }
 @container ft-trader (max-width: 1300px) {
@@ -148,7 +150,7 @@
     border-left: 0;
     border-top: 1px solid var(--nova-border);
   }
-  .lt-strip__alw .lt-label, .lt-strip__today .lt-label { display: inline; }
+  .lt-strip__alw .lt-label, .lt-strip__today .lt-label, .lt-strip__gross { display: inline; }
 }
 
 /* -- the page's head: the LiveTrader Bots key and what holds every host's bot ---------------------------- */
