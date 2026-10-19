@@ -245,3 +245,21 @@ def test_a_hit_does_not_open_the_day_file(market, monkeypatch):
 
     monkeypatch.setattr(reads, "_parse_day", no_parse)
     _same(cold, reads.quotes("AAA", DAY))
+
+
+@pytest.mark.parametrize("drop", ["rows", "header", "indexed"])
+def test_an_entry_missing_a_metadata_field_is_read_again(market, monkeypatch, drop):
+    reads.trades("AAA", DAY)
+    entry = read_cache.entry(market[1], SIM_MASSIVE_TRADES, "AAA", DAY)
+    with pa.OSFile(str(entry), "rb") as handle:
+        table = pa.ipc.open_file(handle).read_all()
+    meta = _meta(entry)
+    del meta[drop]                                   # identity fields still match
+    table = table.replace_schema_metadata({**table.schema.metadata, read_cache.META_KEY: json.dumps(meta).encode()})
+    with pa.OSFile(str(entry), "wb") as sink, pa.ipc.new_file(sink, table.schema) as writer:
+        writer.write_table(table)
+
+    cold, filled, hit = _three_ways(monkeypatch, "trades", "AAA", DAY)
+    _same(cold, filled)
+    _same(cold, hit)
+    assert drop in _meta(entry)

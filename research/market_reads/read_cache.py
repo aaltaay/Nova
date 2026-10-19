@@ -124,12 +124,22 @@ def load(dataset: str, symbol: str, day: str, source: Path, reader: str) -> tupl
     return frame, bool(meta["indexed"])
 
 
-def _matches(meta: dict, dataset: str, symbol: str, day: str, source: Path, reader: str, path: Path) -> bool:
-    version = meta.get("schema_version")
+def _well_formed(meta: object) -> bool:
+    """Every field ``load`` uses is there with its type; anything else (damage, a foreign writer) is a miss."""
+    return (isinstance(meta, dict) and isinstance(meta.get("indexed"), bool)
+            and isinstance(meta.get("header"), list) and all(isinstance(name, str) for name in meta["header"])
+            and type(meta.get("rows")) is int and meta["rows"] >= 0)
+
+
+def _matches(meta: object, dataset: str, symbol: str, day: str, source: Path, reader: str, path: Path) -> bool:
+    version = meta.get("schema_version") if isinstance(meta, dict) else None
     if version != SCHEMA_VERSION:
-        if version not in _said_version:
-            _said_version.add(version)
+        if repr(version) not in _said_version:
+            _said_version.add(repr(version))
             logger.info("read cache entry %s has schema_version %r, not %d: read again", path, version, SCHEMA_VERSION)
+        return False
+    if not _well_formed(meta):
+        logger.warning("read cache entry %s has incomplete metadata; reading the day file", path)
         return False
     try:
         current = source_identity(source)
