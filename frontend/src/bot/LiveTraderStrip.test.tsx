@@ -151,6 +151,27 @@ describe("a host's bot in the host's card", () => {
     expect(skips).toMatch(/QQQQ \d\d:\d\d · RRRR \d\d:\d\d/);
   });
 
+  it('leads with P/L after fees, before fees beside it, then trades, orders and fees', async () => {
+    const base = host();
+    current = view({ hosts: [host({ today: { ...base.today, pl_usd: -117.76, net_pl_usd: -135.35, fees_usd: 17.59,
+      orders: 17, fees_unread: 0, trades: 5 } })] });
+    await renderStrip();
+    expect(screen.getByTestId('lt-pl-ALPHA').textContent).toBe('−$135.35');
+    expect(tip('lt-pl-ALPHA')).toContain('After $17.59 in fees · before fees −$117.76');
+    expect(screen.getByTestId('lt-gross-ALPHA').textContent).toBe('(−$117.76 before fees)');
+    expect(screen.getByTestId('lt-trades-ALPHA').textContent).toBe('· 5 trades ·');
+    expect(screen.getByTestId('lt-fees-ALPHA').textContent).toBe('17 orders · $17.59 fees ·');
+    expect(tip('lt-fees-ALPHA')).toContain("this bot's 17 filled orders today");
+  });
+
+  it('says a fee Paper did not show instead of counting it as nothing', async () => {
+    const base = host();
+    current = view({ hosts: [host({ today: { ...base.today, net_pl_usd: 4.85, fees_usd: 2.0, orders: 3, fees_unread: 1 } })] });
+    await renderStrip();
+    expect(screen.getByTestId('lt-fees-ALPHA').textContent).toBe('3 orders · $2.00 fees* ·');
+    expect(tip('lt-fees-ALPHA')).toContain('Paper did not show the fee for 1 of them.');
+  });
+
   it('says nothing while it reads nothing for the host, and a host it does not copy has no bot', async () => {
     await renderStrip([], 'NOBODY');
     expect(screen.queryByTestId('lt-strip-NOBODY')).toBeNull();

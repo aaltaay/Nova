@@ -23,9 +23,14 @@ import {
   LT_RULES_CLICK,
   LT_SKIP,
   LT_TODAY_LABEL,
+  ltAfterFeesTip,
   ltBadge,
+  ltBeforeFees,
   ltBotOf,
+  ltFees,
+  ltFeesTip,
   ltMoreAsks,
+  ltOrders,
   ltSecondsLeft,
   ltSkipped,
   ltSkipsTitle,
@@ -37,7 +42,7 @@ import { MODE_SIDES } from '../stock_read';
 import { tipProps, whyProps } from '../ux';
 import { prose } from './botsPageFormat';
 import { answerLiveTraderAsk, patchLiveTrader } from './liveTraderApi';
-import { allowancePct, copies, positionTip, ruleChips, signedUsd, skipsTip, stepsTip, usd } from './liveTraderFormat';
+import { allowancePct, copies, positionTip, ruleChips, signedUsd, skipsTip, stepsTip, usd, usd2 } from './liveTraderFormat';
 import { LiveTraderRules } from './LiveTraderRules';
 import { useLiveTraders } from './liveTraderStore';
 import type { LiveTradersView, LtAsk, LtHost, LtPatch, LtSide } from './liveTraderTypes';
@@ -86,7 +91,10 @@ function AskLine({ ask, more, busy, onAnswer }: {
 
 function StateLine({ host, open }: { host: LtHost; open: readonly FollowedTrade[] }) {
   const { name, today } = host;
-  const pl = today.pl_usd;
+  // After fees is the main number (operator 2026-10-19); a backend without the fee fields shows P/L as before.
+  const feesKnown = today.net_pl_usd != null && today.fees_usd != null && today.orders != null;
+  const pl = feesKnown ? today.net_pl_usd! : today.pl_usd;
+  const split = `Realized ${signedUsd(today.realized_usd)} · open ${signedUsd(today.unrealized_usd)}`;
   // A copy whose host row is not open here (a key held its close, or a row from an earlier day) is said on this line.
   const loose = host.positions.filter(p => !open.some(t => copies(p, t)));
   const skips = today.skipped > 0 ? skipsTip(host.events, today.skipped) : null;
@@ -100,12 +108,21 @@ function StateLine({ host, open }: { host: LtHost; open: readonly FollowedTrade[
       <span className="lt-strip__today">
         <span className="lt-label">{LT_TODAY_LABEL}</span>
         <b className={`lt-mono${pl < 0 ? ' lt-down' : pl > 0 ? ' lt-up' : ''}`} data-testid={`lt-pl-${name}`}
-          {...tipProps(`Realized ${signedUsd(today.realized_usd)} · open ${signedUsd(today.unrealized_usd)}`)}>
+          {...tipProps(feesKnown ? `${ltAfterFeesTip(usd2(today.fees_usd!), signedUsd(today.pl_usd))} · ${split}` : split)}>
           {signedUsd(pl)}
         </b>
+        {feesKnown ? (
+          <span className="lt-muted lt-mono lt-strip__gross" data-testid={`lt-gross-${name}`}>({ltBeforeFees(signedUsd(today.pl_usd))})</span>
+        ) : null}
         <span className="lt-muted" data-testid={`lt-trades-${name}`} {...tipProps(stepsTip(host.events), ltBotOf(name))}>
           · {ltTrades(today.trades)} ·
         </span>
+        {feesKnown ? (
+          <span className="lt-muted" data-testid={`lt-fees-${name}`}
+            {...tipProps(ltFeesTip(today.orders!, usd2(today.fees_usd!), today.fees_unread ?? 0), ltBotOf(name))}>
+            {ltOrders(today.orders!)} · {ltFees(usd2(today.fees_usd!))}{(today.fees_unread ?? 0) > 0 ? '*' : ''} ·
+          </span>
+        ) : null}
         <span className={today.skipped > 0 ? 'lt-strip__skips' : 'lt-muted'} data-testid={`lt-skips-${name}`}
           {...tipProps(skips, ltSkipsTitle(name, today.skipped))}>
           {ltSkipped(today.skipped)}

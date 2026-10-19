@@ -11,7 +11,7 @@ import logging
 import time
 from typing import Any
 
-from bot.live_trader import book, market, settings, watcher
+from bot.live_trader import book, market, orders, settings, watcher
 from bot.live_trader.constants_live_trader import (
     LT_AUDIT_ACTION,
     LT_AUDIT_TAIL_BYTES,
@@ -85,8 +85,24 @@ def _position(pos: dict[str, Any], their: dict[str, float]) -> dict[str, Any]:
             "opened_ts": pos["opened_ts"], "state": pos["state"], "order_id": order.get("id"), "note": note}
 
 
+def _orders(held: list[dict[str, Any]]) -> tuple[int, float, int]:
+    """``(orders, fees, unread)``: the bot's own orders that filled for these positions -- entries, adds, closes and
+    buy stops, each once -- and what Paper charged for them; ``unread`` is how many of them Paper did not show a fee
+    for. Shares sold outside the bot carry no order of the bot's and are not counted."""
+    ids = {int(f["order_id"]) for p in held for f in (*(p.get("fills") or ()), *(p.get("exit_fills") or ()))
+           if f.get("order_id") is not None}
+    fees, unread = 0.0, 0
+    for oid in ids:
+        fee = orders.fees_of(oid)
+        if fee is None:
+            unread += 1
+        else:
+            fees += fee
+    return len(ids), round(fees, 2), unread
+
+
 def _today(name: str, positions: list[dict[str, Any]], closed: list[dict[str, Any]],
-           events: list[dict[str, Any]]) -> dict[str, Any]:
+           events: list[dict[str, Any]], held: list[dict[str, Any]]) -> dict[str, Any]:
     mine = sorted((c for c in closed if c["host"] == name), key=lambda c: c.get("closed_ts") or 0)
     realized = round(sum(c.get("pl_usd") or 0.0 for c in mine), 2)
     unrealized = round(sum(p["pl_usd"] or 0.0 for p in positions), 2)
@@ -96,7 +112,10 @@ def _today(name: str, positions: list[dict[str, Any]], closed: list[dict[str, An
         series.append([c.get("closed_ts"), round(run, 2)])
     if positions:
         series.append([round(time.time(), 3), round(run + unrealized, 2)])
-    return {"pl_usd": round(realized + unrealized, 2), "realized_usd": realized, "unrealized_usd": unrealized,
+    count, fees, unread = _orders([*mine, *held])
+    pl = round(realized + unrealized, 2)
+    return {"pl_usd": pl, "realized_usd": realized, "unrealized_usd": unrealized,
+            "net_pl_usd": round(pl - fees, 2), "fees_usd": fees, "orders": count, "fees_unread": unread,
             "trades": len(mine) + len(positions),
             "skipped": sum(1 for e in events if e["outcome"] == "skipped"), "series": series}
 
@@ -151,7 +170,7 @@ def build() -> dict[str, Any]:
             "settings": {**st, "mode": mode_of(st["entry"], st["exit"])},
             "state": _state(name, st, status, on_air, lefts.get(name), len(mine)),
             "allowance": {"used_usd": round(used.get(name, 0.0), 2), "of_usd": st["allowance_usd"]},
-            "today": _today(name, mine, closed, ev),
+            "today": _today(name, mine, closed, ev, [p for p in positions.values() if p["host"] == name]),
             "positions": mine,
             "asks": [_ask(a, now) for a in asks if a["host"] == name],
             "events": ev[:LT_EVENTS_SHOWN],

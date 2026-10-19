@@ -75,8 +75,10 @@ export interface LtHost {
   settings: LtSettings;
   state: { tone: LtTone; text: string };
   allowance: { used_usd: number; of_usd: number };
+  /** ``pl_usd`` is before fees. The fee fields are absent from a backend older than 2026-10-19: the strip then
+   *  shows ``pl_usd`` alone, as it did. */
   today: { pl_usd: number; realized_usd: number; unrealized_usd: number; trades: number; skipped: number;
-    series: [number | null, number][] };
+    series: [number | null, number][]; net_pl_usd?: number; fees_usd?: number; orders?: number; fees_unread?: number };
   positions: LtPosition[];
   asks: LtAsk[];
   events: LtEvent[];
