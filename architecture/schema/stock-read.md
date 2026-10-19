@@ -488,7 +488,9 @@ sma200 | yday_high | yday_low` (the daily map).
 - "Today" in the level map and the history read is the trading session on screen (`market.session_key_et`,
   04:00 ET, weekends and holidays walk back), not the ET calendar date: on a Saturday, or from 00:00 to
   04:00, the session still on screen is today, and yesterday is the session before it, never that
-  session's own daily bar (2026-10-19). On a Sim replay the playhead's date is the session.
+  session's own daily bar (2026-10-19). On a Sim replay the playhead's date is the session. A stored bar read
+`partial` or `unknown` is listed in `unfinished` and asks for the refetch even when it is the session on
+screen (its session has ended), so Friday's snapshot is repaired over the weekend.
   `daily_note` (`history.daily_note`; `null` when none) says which stored sessions are not finished
   ("Sep 25 was stored at 09:18 ET, before its session ended: not read as a finished day until IBKR's
   refetch lands"); the Full Day pane's corner note adds it to "Daily levels (N)".

@@ -165,3 +165,76 @@ def test_the_avg_volume_bars_window_ends_on_the_trading_day(monkeypatch):
     monkeypatch.setattr(scanner.requests, "get", fake_get)
     scanner.fetch_avg_volume_batch(["ABC"], {"k": "v"}, {})
     assert sent["end"] == "2026-10-16" and sent["start"] == "2026-09-01"
+
+
+def test_news_window_starts_at_an_early_close(monkeypatch):
+    """The day after Thanksgiving closes at 13:00 ET: Monday reads from 13:00 (18:00Z), not 16:00."""
+    assert market.news_window_start_param(at("2026-11-30", 10)) == "2026-11-27T18:00:00Z"
+    assert market.news_window_start_param(at("2026-11-28", 10)) == "2026-11-25T21:00:00Z"   # Fri's own window
+
+
+def test_scanner_news_follows_alpaca_pages_until_every_symbol_is_found(monkeypatch):
+    freeze(monkeypatch, MON_1000)
+    pages = {
+        None: {"news": [{"headline": "ABC wins FDA approval", "url": "u1", "symbols": ["ABC"],
+                         "created_at": "2026-10-19T09:00:00Z"}], "next_page_token": "p2"},
+        "p2": {"news": [{"headline": "XYZ announces earnings beat", "url": "u2", "symbols": ["XYZ"],
+                         "created_at": "2026-10-17T15:00:00Z"}], "next_page_token": "p3"},
+        "p3": {"news": [], "next_page_token": None},
+    }
+    asked: list = []
+
+    def fake_get(_name, _url, **kw):
+        token = kw["params"].get("page_token")
+        asked.append(token)
+
+        class R:
+            status_code = 200
+
+            @staticmethod
+            def json():
+                return pages[token]
+
+        return R()
+
+    monkeypatch.setattr(scanner.http_pool, "get", fake_get)
+    out = scanner._check_news(["ABC", "XYZ"], {"k": "v"})
+    assert out == {"ABC": "2026-10-19T09:00:00Z", "XYZ": "2026-10-17T15:00:00Z"}
+    assert asked == [None, "p2"]           # every symbol found on page 2: page 3 is never asked
+
+
+def test_scanner_news_page_walk_is_bounded(monkeypatch):
+    freeze(monkeypatch, MON_1000)
+    calls: list = []
+
+    def fake_get(_name, _url, **kw):
+        calls.append(kw["params"].get("page_token"))
+
+        class R:
+            status_code = 200
+
+            @staticmethod
+            def json():
+                return {"news": [], "next_page_token": "again"}
+
+        return R()
+
+    monkeypatch.setattr(scanner.http_pool, "get", fake_get)
+    assert scanner._check_news(["ABC"], {"k": "v"}) == {}
+    assert len(calls) == scanner.NEWS_BADGE_MAX_PAGES
+
+
+def test_a_saturday_read_still_repairs_fridays_snapshot_bar(monkeypatch):
+    """Friday's session is on screen at Saturday 10:00, but a bar stored before its session ended still asks the
+    background fill for the finished day (and is not yesterday)."""
+    t = datetime.fromisoformat("2026-10-16").replace(tzinfo=ZoneInfo("UTC")).timestamp()
+    thu = datetime.fromisoformat("2026-10-15").replace(tzinfo=ZoneInfo("UTC")).timestamp()
+    bars = [{"t": thu, "o": 5.0, "h": 5.0, "l": 4.0, "c": 5.0, "v": 1e6, "w": at("2026-10-15", 21).timestamp()},
+            {"t": t, "o": 5.0, "h": 9.0, "l": 4.0, "c": 5.0, "v": 1e6, "w": at("2026-10-16", 9, 18).timestamp()}]
+    monkeypatch.setattr("sensors.feeds.get_bars", lambda sym, tf, limit, **_k: (bars, "ibkr"))
+    repaired: list = []
+    monkeypatch.setattr(history, "_repair", repaired.append)
+    history._cache.clear()
+    out = history.summary("ABC", SAT_1000.timestamp())
+    assert [(u["date"], u["state"]) for u in out["unfinished"]] == [("2026-10-16", "partial")]
+    assert repaired == ["ABC"]

@@ -210,6 +210,7 @@ NEWS_CATALYST_INTERVAL_SEC = 60.0    # news-first catalyst scan interval
 # Frozen rosters cannot be rewritten (ADR 008); this only refills the view cache.
 NEWS_BADGE_INTERVAL_SEC = 60.0
 NEWS_BADGE_SYMBOL_BATCH = 50          # matches scanner._check_news Alpaca cap
+NEWS_BADGE_MAX_PAGES = 5              # Alpaca news pages (50 articles each) one lookup follows: a weekend's window can hold more
 # full universe scan (after-hours, same cadence as pre-market)
 AFTERHOURS_DISCOVERY_INTERVAL_SEC = 120.0
 AFTERHOURS_FOCUS_INTERVAL_SEC = 30.0   # reconcile current after-hours list

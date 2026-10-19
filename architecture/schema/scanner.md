@@ -113,7 +113,10 @@ the session on screen (`market.news_window_start`, built on `session_key_et`): M
 Friday evening and the weekend, the 16:00-20:00 releases stay after midnight, and Friday's boards keep
 their news all weekend. Alpaca's `start` is that instant in RFC-3339 UTC, never a bare date (Alpaca
 reads `2026-10-17` as 00:00 UTC, 20:00 ET the evening before). The badge cache starts over at the
-04:00 ET session rollover, not at ET midnight. No wire field changes.
+04:00 ET session rollover, not at ET midnight. The prior close is 13:00 ET on an NYSE early close
+(`NOVA_OS_NYSE_EARLY_CLOSES`). The scanner lookup follows Alpaca's `next_page_token` (at most
+`NEWS_BADGE_MAX_PAGES` pages of 50) until every asked symbol has an article or the window is exhausted.
+No wire field changes.
 
 ## When HOD Momo alerts, and why it did not (PFAI, operator report 2026-10-13)
 

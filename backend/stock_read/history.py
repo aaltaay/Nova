@@ -101,8 +101,10 @@ def summary(symbol: str, now: float, *, replay: bool = False) -> dict[str, Any] 
     last200 = past[-STOCK_READ_DAILY_SMA_DAYS:]
     sma200 = (round(sum(b["c"] for b in last200) / len(last200), 4)
               if len(last200) == STOCK_READ_DAILY_SMA_DAYS and all(b["state"] == "final" for b in last200) else None)
+    # A stored bar judged ``partial`` / ``unknown`` has had its session end (``daily_bar_state``), so it asks for the
+    # refetch even as the session on screen: Friday's snapshot is repaired over the weekend.
     unfinished = [{"date": b["d"], "state": b["state"], "stored_through": b["through"]}
-                  for b in past if b["state"] != "final"]
+                  for b in daily if b["state"] in ("partial", "unknown") or (b["d"] < today and b["state"] != "final")]
     out = {"daily": daily[-STOCK_READ_HISTORY_CHART_DAYS:],
            "daily_days": sum(1 for b in daily if b["state"] == "final"), "runs": runs(daily, today),
            "sma200": sma200, "unfinished": unfinished}

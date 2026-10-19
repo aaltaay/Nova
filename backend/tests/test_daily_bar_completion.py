@@ -172,7 +172,7 @@ def _yday(lm: dict) -> list[dict]:
 
 def test_a_0918_snapshot_read_the_next_session_is_not_yesterday(store, monkeypatch):
     _seed_aiff(monkeypatch)
-    now = et(2026, 9, 26, 9, 30)
+    now = et(2026, 9, 28, 9, 30)
     out = history.summary(SYM, now)
     last = out["daily"][-1]
     assert (last["d"], last["state"], last["through"]) == ("2026-09-25", "partial", et(2026, 9, 25, 9, 18))
@@ -191,11 +191,11 @@ def test_a_0918_snapshot_read_the_next_session_is_not_yesterday(store, monkeypat
 
 def test_the_refetched_day_reaches_yesterday_runs_and_the_200_day_after_a_first_read(store, monkeypatch):
     _seed_aiff(monkeypatch)
-    now = et(2026, 9, 26, 9, 30)
+    now = et(2026, 9, 28, 9, 30)
     first = history.summary(SYM, now)
     other = history.summary("ACN", now)
-    write_at(monkeypatch, et(2026, 9, 26, 9, 31), [dbar("2026-09-25", 2.17, 1.45, 1.80)])   # IBKR's finished bar
-    out = history.summary(SYM, et(2026, 9, 26, 9, 32))
+    write_at(monkeypatch, et(2026, 9, 28, 9, 31), [dbar("2026-09-25", 2.17, 1.45, 1.80)])   # IBKR's finished bar
+    out = history.summary(SYM, et(2026, 9, 28, 9, 32))
     assert out is not first and out["unfinished"] == []
     assert out["daily"][-1]["h"] == 2.17 and out["daily"][-1]["state"] == "final"
     assert [r["date"] for r in out["runs"]] == ["2026-09-25"]       # 2.17 over 1.50 is a run; 1.89 was not
@@ -209,10 +209,10 @@ def test_the_refetched_day_reaches_yesterday_runs_and_the_200_day_after_a_first_
 
 def test_a_forming_today_beside_yesterdays_partial_row(store, monkeypatch):
     _seed_aiff(monkeypatch)
-    write_at(monkeypatch, et(2026, 9, 26, 10, 0), [dbar("2026-09-26", 3.10, 1.9, 3.0)])   # a later short payload
-    now = et(2026, 9, 26, 10, 5)
+    write_at(monkeypatch, et(2026, 9, 28, 10, 0), [dbar("2026-09-28", 3.10, 1.9, 3.0)])   # a later short payload
+    now = et(2026, 9, 28, 10, 5)
     out = history.summary(SYM, now)
-    assert [(b["d"], b["state"]) for b in out["daily"][-2:]] == [("2026-09-25", "partial"), ("2026-09-26", "forming")]
+    assert [(b["d"], b["state"]) for b in out["daily"][-2:]] == [("2026-09-25", "partial"), ("2026-09-28", "forming")]
     lm = level_map.build([], out["daily"], price=3.0, prior_close=None, vwap=None, now=now, sma200=out["sma200"],
                           daily_note=history.daily_note(out))
     assert _yday(lm) == []

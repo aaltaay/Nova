@@ -23,6 +23,7 @@ from alpaca import (
 )
 from constants import (
     EXCLUDED_NAME_KEYWORDS,
+    NEWS_BADGE_MAX_PAGES,
     RVOL_LOOKBACK_DAYS,
     SCANNER_MIN_PRICE,
     SNAPSHOT_WORKERS,
@@ -99,21 +100,35 @@ def _check_news(symbols: list[str], headers: dict) -> dict[str, str]:
     if not symbols:
         return {}
     try:
-        resp = http_pool.get(
-            "alpaca_news_badge",
-            f"{_DATA_URL}/v1beta1/news",
-            headers=headers,
-            params={"symbols": ",".join(symbols[:50]), "start": news_window_start_param(), "limit": 50},
-            timeout=10,
-        )
-        if resp.status_code != 200:
-            return {}
         from news.junk import newest_signal_by_symbol
 
-        mapped = newest_signal_by_symbol(resp.json().get("news", []))
+        asked = set(symbols[:50])
+        params = {"symbols": ",".join(symbols[:50]), "start": news_window_start_param(), "limit": 50}
+        articles: list[dict] = []
+        found: dict[str, dict] = {}
+        for _page in range(NEWS_BADGE_MAX_PAGES):
+            resp = http_pool.get(
+                "alpaca_news_badge",
+                f"{_DATA_URL}/v1beta1/news",
+                headers=headers,
+                params=params,
+                timeout=10,
+            )
+            if resp.status_code != 200:
+                if not articles:
+                    return {}
+                break
+            body = resp.json()
+            articles.extend(body.get("news", []))
+            found = newest_signal_by_symbol(articles)
+            token = body.get("next_page_token")
+            # Newest first: a symbol found on an earlier page cannot be bettered by a later one.
+            if not token or asked <= found.keys():
+                break
+            params = {**params, "page_token": token}
         return {
             sym: payload["created_at"]
-            for sym, payload in mapped.items()
+            for sym, payload in found.items()
             if payload.get("created_at")
         }
     except Exception:
