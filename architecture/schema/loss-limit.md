@@ -6,7 +6,9 @@ One dollar line for every account -- Live, Paper and Sim -- that counts your tra
 alike. It replaces the bot trip and the all-stop (ADR 032, superseded). Owner: `backend/loss_limit/`.
 
 **What it counts** (`loss_limit/count.py`, pure). Per account, the trades opened today (from 04:00 ET,
-`practice.clock`): for each stock with fills today, the cash those fills moved (a buy pays, a sell
+`practice.clock.day_start_ts`, the plain calendar clock -- it turns on a Saturday and a Sunday too, where Day P&L and the
+boards walk back to Friday's session (`practice.clock.session_day_start_ts`, 2026-10-19); whether this reset should walk
+back as well is the operator's decision, not changed here): for each stock with fills today, the cash those fills moved (a buy pays, a sell
 receives), less their commissions and fees, plus the shares still held at the account's own mark. A
 stock the account already held when the day began -- its shares now less today's net fills is not
 zero -- never counts and is never sold, however it was traded today. An open position with no usable

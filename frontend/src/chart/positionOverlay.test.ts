@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Time } from 'lightweight-charts';
 import type { IbkrOrder, IbkrPosition } from '../ibkr/types';
 import { isoToEtTime } from '../tickerChartData';
+import { deskTradingDay } from '../utils/deskTradingDay';
 import { buildSeriesTimeIndex } from './chartDrawingTime';
 import {
   CHART_POSITION_LONG_COLOR,
@@ -9,7 +10,6 @@ import {
 } from './positionOverlayConstants';
 import {
   deskDayFills,
-  deskTradingDay,
   fillsFromOrders,
   findOpenPosition,
   mergeFills,
@@ -194,6 +194,17 @@ describe('deskTradingDay / deskDayFills', () => {
   it("keeps today's round trip and drops the ledger's earlier days", () => {
     const wall = Date.parse('2026-10-13T15:00:00.000Z');
     expect(deskDayFills([yesterday, buy, sell], wall, null)).toEqual([buy, sell]);
+  });
+
+  it("keeps Friday's round trip on screen all weekend, like the boards", () => {
+    const friday = { ...buy, timeIso: '2026-10-16T13:43:15.000Z' };
+    const thursday = { ...buy, orderId: 9, timeIso: '2026-10-15T13:43:15.000Z' };
+    const saturday10 = Date.parse('2026-10-17T14:00:00.000Z');
+    const sunday10 = Date.parse('2026-10-18T14:00:00.000Z');
+    expect(deskDayFills([thursday, friday], saturday10, null)).toEqual([friday]);
+    expect(deskDayFills([thursday, friday], sunday10, null)).toEqual([friday]);
+    // Monday 04:00 ET is the next rollover: Friday's arrows go.
+    expect(deskDayFills([thursday, friday], Date.parse('2026-10-19T08:00:00.000Z'), null)).toEqual([]);
   });
 
   it("draws nothing from today's wall clock on a replay of another day", () => {

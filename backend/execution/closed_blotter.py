@@ -13,6 +13,11 @@ the Gateway port label for an IBKR send (``ibkr.client.account_mode``).
 
 On a practice venue "today" is the venue's practice day (QA W4,
 ``practice.today``): only rows closed since its clock's rollover are listed.
+On Live the Gateway's own rows get the same cut at the trading session's 04:00 ET
+start (``market.session_key_et``): a Gateway session that outlives the rollover keeps
+yesterday's trades in ``ib.trades()``, and they must not read as Orders (Today) or
+count in the ``filledToday`` badge. A row IBKR gave no clock (a completed order read
+back after a connect) stays listed -- shown, never hidden.
 """
 from __future__ import annotations
 
@@ -146,7 +151,8 @@ def overlay_closed_orders(
     are the practice ledger's own and come back untouched (capped, newest
     first), limited to the ones that closed in the venue's practice day
     (``practice_day``, the rollover epoch; read from the venue's clock when
-    omitted -- QA W4). ``desk`` defaults to the settled venue (``current_desk``).
+    omitted -- QA W4). On Live, ``practice_day`` is the session start the Gateway's rows are
+    cut at (the 04:00 ET trading-session start when omitted). ``desk`` defaults to the settled venue (``current_desk``).
     """
     cap = IBKR_CLOSED_ORDERS_LIMIT_DEFAULT if limit is None else max(1, int(limit))
     scope = desk if desk is not None else current_desk()
@@ -156,6 +162,9 @@ def overlay_closed_orders(
         rows = closed_today([dict(row) for row in ib_rows], practice_day, scope.mode)
         rows.sort(key=_sort_key, reverse=True)
         return rows[:cap]
+    from practice.today import closed_today
+
+    ib_rows = closed_today(ib_rows, session_start_ts() if practice_day is None else practice_day, None)
     source = ledger_rows if ledger_rows is not None else load_session_ledger()
     ledger = [row for row in ledger_rows_for_desk(source, scope) if _matchable_ledger(row)]
     unused = list(ledger)

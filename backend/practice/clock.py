@@ -2,7 +2,11 @@
 
 Day P&L, ``commissions_today`` and ``fills_today`` roll at
 ``PRACTICE_DAY_ROLLOVER_HOUR_ET`` America/New_York -- the pre-market open Nova
-already uses as session start. Timestamps are converted by arithmetic, not
+already uses as session start -- and, like the boards and Orders (Today), they walk
+back over a weekend or holiday to the last exchange day (``session_day_start_ts``):
+Saturday 04:00 is no rollover, so Friday's Day P&L stays Friday's until Monday 04:00.
+``day_start_ts`` is the plain calendar clock, which turns every day at 04:00; the
+loss limit keeps it on purpose (ADR 056, an operator decision). Timestamps are converted by arithmetic, not
 ``datetime.fromtimestamp``: Windows refuses negative epochs and the Sim tests
 run replay clocks that start near zero.
 """
@@ -30,6 +34,18 @@ def day_start_ts(ts: float) -> float:
     if now < start:
         start -= timedelta(days=1)
     return start.timestamp()
+
+
+def session_day_start_ts(ts: float) -> float:
+    """Epoch of 04:00 ET on the trading session ``ts`` belongs to (``market.session_key_et``).
+
+    ``day_start_ts``, except that a weekend or holiday belongs to the last exchange day before
+    it: the day's figures and "today" lists stay that session's until the next one opens.
+    """
+    from market import session_key_et
+
+    key = datetime.fromisoformat(session_key_et(at(ts)))
+    return key.replace(tzinfo=ET, hour=PRACTICE_DAY_ROLLOVER_HOUR_ET).timestamp()
 
 
 def iso_et(ts: float) -> str:

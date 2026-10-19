@@ -42,7 +42,7 @@ from constants_practice import (
     PRACTICE_VENUE_SIM,
 )
 from practice import bracket, margin
-from practice.clock import ET, day_start_ts, iso_et, iso_utc  # noqa: F401 -- ET re-exported for persist
+from practice.clock import ET, iso_et, iso_utc, session_day_start_ts  # noqa: F401 -- ET re-exported for persist
 from practice.fees import Fees, for_fill
 
 logger = logging.getLogger(__name__)
@@ -96,7 +96,7 @@ class Ledger:
         self._closed: list[dict[str, Any]] = []
         self._marks: dict[str, float] = {}
         self._next_id = self.first_order_id
-        self.day_started_ts = day_start_ts(self.created_ts)
+        self.day_started_ts = session_day_start_ts(self.created_ts)
         self.day_start_equity = self.starting_cash
         # Realized P&L when the current practice day began; replayed, never stored.
         self.realized_at_day_start = 0.0
@@ -233,7 +233,7 @@ class Ledger:
 
     def rollover(self, now_ts: float) -> bool:
         """Start a new practice day when ``now_ts`` has crossed the rollover hour."""
-        boundary = day_start_ts(now_ts)
+        boundary = session_day_start_ts(now_ts)
         if boundary <= self.day_started_ts + _EPS:
             return False
         self._append({"type": EVENT_ROLLOVER, "ts": boundary, "equity": self.net_liquidation()})

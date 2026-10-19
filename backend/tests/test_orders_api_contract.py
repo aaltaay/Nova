@@ -143,6 +143,12 @@ def test_get_closed_orders_contract_fields():
             "load_session_ledger",
             return_value=[],
         ),
+        # The fixture rows are stamped 2026-07-18: that is the session being read.
+        patch.object(
+            trading_routes._closed_blotter,
+            "session_start_ts",
+            return_value=1_784_361_600.0,  # 04:00 ET on the fixture rows' day, 2026-07-18
+        ),
     ):
         res = client.get("/api/ibkr/orders/closed")
     assert res.status_code == 200
