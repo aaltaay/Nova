@@ -26,8 +26,8 @@ MARKERS = (*FOLDERS, "store/reference", "day_movers.sqlite3", "leaderboard.sqlit
            "companyfacts.zip", "submissions.zip", "minute_aggs_v1", "trades_v1", "quotes_v1")
 # A code search or git names a store's file name as a pattern; it reads raw data only when pointed at a data folder.
 SEARCHES = ("rg", "grep", "git", "gh", "findstr", "select-string")
-FRONT_DOOR = ("tools/market_data.py", "tools/nova_data_mcp.py", "tools/nova_agent.py", "tools/nova_charts.py",
-              "tools/nova_historical_charts.py")
+FRONT_DOOR = ("tools/market_data.py", "tools/nova_data_mcp.py", "tools/nova_mcp.py", "tools/nova_review_load.py",
+              "tools/nova_agent.py", "tools/nova_charts.py", "tools/nova_historical_charts.py")
 OVERRIDE = "raw-data-ok:"
 SCRIPT = re.compile(r"""(?:^|[\s"'])((?:[A-Za-z]:)?[^\s"']+\.py)\b""")
 MAX_SCRIPT_BYTES = 2_000_000

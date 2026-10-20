@@ -10,7 +10,7 @@ import {
   CHART_GRID_RESTORE_LABEL,
   CHART_GRID_RESTORE_TITLE,
   type ChartIndicatorId,
-} from '../constants';
+} from '../constantGroups/chart_api';
 import { ChartToolbarControls } from './TickerChartControls';
 import type { DrawingSelectionState } from '../chart/useChartDrawingManager';
 

@@ -6,7 +6,7 @@ import {
   THEME_DEFAULT,
   THEME_STORAGE_KEY,
   type NovaTheme,
-} from '../constants';
+} from '../constantGroups/theme';
 
 export function isNovaTheme(value: unknown): value is NovaTheme {
   return value === 'light' || value === 'dark';

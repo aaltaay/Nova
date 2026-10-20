@@ -5,7 +5,6 @@
     "cross_feature_import": {
       "frontend/src/bot/BotsStatusBar.tsx|bot imports internals of ibkr": 1,
       "frontend/src/chart/ChartContextMenuHost.tsx|chart imports internals of bot": 1,
-      "frontend/src/chart/TickerChart.tsx|chart imports internals of ibkr": 1,
       "frontend/src/chart/useChartPositionContext.ts|chart imports internals of ibkr": 1,
       "frontend/src/chart/useChartPositionOverlay.ts|chart imports internals of ibkr": 1,
       "frontend/src/closed_orders/useClosedOrders.ts|closed_orders imports internals of ibkr": 1,

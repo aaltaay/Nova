@@ -77,4 +77,18 @@ describe('TickerChartOverlays at the price pane\'s right edge', () => {
     view.unmount();
     expect(edgeContents(chart).words).toEqual([]);
   });
+
+  it('does not ask IBKR when the account overlay is off', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch');
+    const { chart } = fakeChart();
+    render(
+      <TickerChartOverlays chart={chart} candleSeriesRef={{ current: null as ISeriesApi<'Candlestick'> | null }}
+        symbol="LGHL" bars={bars} barsRevision={1} enabled={['emas', 'vwap']} timeframe="1Min"
+        vwapSourceBars={bars} vwapSourceRevision={1} />,
+    );
+    await act(async () => { await Promise.resolve(); });
+    const urls = spy.mock.calls.map((call) => String(call[0]));
+    expect(urls.some((url) => url.includes('/api/ibkr'))).toBe(false);
+    spy.mockRestore();
+  });
 });

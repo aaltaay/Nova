@@ -12,7 +12,7 @@ import {
   SESSION_PREMARKET_START_MIN_ET,
   SESSION_RTH_CLOSE_MIN_ET,
   SESSION_RTH_OPEN_MIN_ET,
-} from '../constants';
+} from '../constantGroups/market_ui';
 
 export type MarketSessionKind = 'premarket' | 'rth' | 'afterhours' | 'closed';
 

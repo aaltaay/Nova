@@ -5,7 +5,8 @@ from 2016-01-04. Nova's own stores add the day movers index (one row per stock p
 Scanner boards played back in the Sim; Massive's reference dump adds financial statements, float, IPOs and short
 interest, and SEC's bulk files add share counts and every filing. **Do not write a reader.** Use the front door,
 which knows the traps below. Agents get the same reads as MCP tools from the `nova-data` server
-(`tools/nova_data_mcp.py`, registered in `.cursor/mcp.json` and `.mcp.json`; ADR 059) -- start with `data_catalog`.
+(`tools/nova_mcp.py`, registered in `.cursor/mcp.json` and `.mcp.json`; `tools/nova_data_mcp.py` starts the same
+server; ADR 059) -- start with `data_catalog`. Desk charts from that server are `docs/nova-mcp.md`.
 A tripwire hook (`tools/data_access_hook.py`) blocks an agent's own reader of these stores.
 
 ```text

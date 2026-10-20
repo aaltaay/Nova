@@ -1,5 +1,8 @@
 # Historical charts for agent clients
 
+The desk-looking charts (interactive `/review` links and PNGs of that page) are `tools/nova_mcp.py`.
+See `docs/nova-mcp.md`. This page is the older candle-gateway exporter (`tools/nova_chart_mcp.py`).
+
 Nova offers two optional MCP tools, `nova_historical_chart` (single symbol/day)
 and `nova_historical_chart_gallery` (`1..9` symbol/day entries in one pass).
 Both delegate to `nova_historical_charts.py export` and the existing isolated Nova

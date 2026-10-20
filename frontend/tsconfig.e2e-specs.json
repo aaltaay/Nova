@@ -11,6 +11,6 @@
       "/src/*": ["./src/*"]
     }
   },
-  "include": ["playwright.config.ts", "e2e/*.spec.ts", "e2e/helpers", "src/vite-env.d.ts", "src/types"],
+  "include": ["playwright.config.ts", "playwright.review.config.ts", "e2e/*.spec.ts", "e2e-review/*.spec.ts", "e2e/helpers", "src/vite-env.d.ts", "src/types"],
   "exclude": []
 }

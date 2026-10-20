@@ -15,7 +15,7 @@ import {
 import {
   selectionStateFromDrawing,
   type DrawingSelectionState,
-} from './chartDrawingColor';
+} from './chartDrawingSelection';
 import { shouldDisarmToolOnDrawingAdded } from './chartDrawingHydrate';
 import {
   deleteSelectedDrawingOnKey,

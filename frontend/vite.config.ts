@@ -118,6 +118,18 @@ export default defineConfig(({ command, mode }) => {
         '**/.chart-gateway-build/**',
       ],
     },
+    proxy: {
+      '/api/review': {
+        target: process.env.NOVA_REVIEW_API || 'http://127.0.0.1:18765',
+      },
+    },
+  },
+  preview: {
+    proxy: {
+      '/api/review': {
+        target: process.env.NOVA_REVIEW_API || 'http://127.0.0.1:18765',
+      },
+    },
   },
   build: {
     rollupOptions: {
@@ -147,9 +159,9 @@ export default defineConfig(({ command, mode }) => {
       },
     },
   },
-  // Playwright lives under e2e/; keep Vitest from loading those specs.
+  // Playwright lives under e2e/ and e2e-review/; keep Vitest from loading those specs.
   test: {
-    exclude: ['**/node_modules/**', '**/dist/**', '**/e2e/**'],
+    exclude: ['**/node_modules/**', '**/dist/**', '**/e2e/**', '**/e2e-review/**'],
     // noLiveBackend: tests never reach the operator's :8000 backend (2026-09-22).
     setupFiles: ['./src/testSetup/reactActEnvironment.ts', './src/testSetup/noLiveBackend.ts'],
     // Pinned test env (#293). Belt to shouldInjectDevNovaApiKey's braces: a

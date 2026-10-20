@@ -20,7 +20,6 @@ import {
   type LineData,
   type Time,
 } from 'lightweight-charts';
-import { useChartPositionOverlay } from '../chart/useChartPositionOverlay';
 import {
   EDGE_PRIORITY,
   edgeClaimed,
@@ -35,7 +34,7 @@ import {
   CHART_VWAP_COLOR,
   type ChartEmaLength,
   type ChartIndicatorId,
-} from '../constants';
+} from '../constantGroups/chart_api';
 import {
   computeEmaOverlays,
   vwapAxisTitleFromLine,
@@ -79,8 +78,6 @@ function emaTitle(length: ChartEmaLength): string {
 
 export function TickerChartOverlays({
   chart,
-  candleSeriesRef,
-  symbol,
   bars,
   barsRevision = 0,
   enabled,
@@ -98,15 +95,6 @@ export function TickerChartOverlays({
     useCallback((onChange: () => void) => subscribeEdge(chart, onChange), [chart]),
     () => edgeClaimed(chart),
   );
-
-  useChartPositionOverlay({
-    chart,
-    candleSeriesRef,
-    symbol,
-    timeframe,
-    bars,
-    barsRevision,
-  });
 
   const showEmas = enabled.includes('emas');
   // A single-session VWAP means nothing on a daily+ chart, so it is not offered

@@ -17,7 +17,7 @@ import {
   CHART_VWAP_SESSION_START_SEC,
   type ChartEmaLength,
   type ChartIndicatorId,
-} from './constants';
+} from './constantGroups/chart_api';
 import { isoToEtTime, type RawBar } from './tickerChartData';
 
 export interface IndicatorBar extends Bar {

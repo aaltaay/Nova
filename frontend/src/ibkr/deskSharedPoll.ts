@@ -9,7 +9,7 @@ import {
   DESK_POLL_LEADER_KEY_PREFIX,
   DESK_POLL_SNAP_KEY_PREFIX,
   DESK_POLL_TAB_SESSION_KEY,
-} from '../constants';
+} from '../constantGroups/global_bar';
 
 export type DeskPollEnvelope<T> = { ts: number; payload: T };
 

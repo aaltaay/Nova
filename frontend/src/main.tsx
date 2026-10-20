@@ -6,14 +6,26 @@ import { installFindBar } from './ux/findBar';
 import { installHoverTip } from './ux/hoverTip';
 import { installWhyTip } from './ux/whyTip';
 import './index.css';
+import { isReviewPath } from './review/reviewPath';
 
 initThemeFromStorage();
 
+if (isReviewPath(window.location.pathname)) {
+  void import('./review/mountReview').then(
+    ({ mountReview }) => mountReview(),
+    (err) => {
+      console.error(err);
+      const el = document.getElementById('root');
+      if (el) el.textContent = 'Failed to open the review charts. Check the console.';
+    },
+  );
+} else {
 void bootstrap().catch((err) => {
   console.error(err);
   const el = document.getElementById('root');
   if (el) el.textContent = 'Failed to start the app. Check the console.';
 });
+}
 
 async function bootstrap(): Promise<void> {
   // ADR 043: the public demo answers every API call and socket inside the page, so it is

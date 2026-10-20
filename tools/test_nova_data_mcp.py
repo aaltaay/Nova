@@ -174,7 +174,6 @@ def test_the_protocol_keeps_the_real_stdout_buffer():
 
 
 def test_every_tool_is_registered_and_only_file_writers_are_not_read_only():
-    pytest.importorskip("mcp")
     server = m.create_server(m.DataService())
     tools = {t.name: t for t in asyncio.run(server.list_tools())}
     assert set(tools) == TOOLS

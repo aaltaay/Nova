@@ -137,9 +137,11 @@ describe('ChartGrid', () => {
     expect(subtitle()).toBe('Sim 10s -- follows the Sim clock: the replay off the live edge, the live tape at it');
   });
 
-  it('queues all visible panes including 10Sec', () => {
-    act(() => {
+  it('queues all visible panes including 10Sec', async () => {
+    await act(async () => {
       root.render(<ChartGrid symbol="SDOT" />);
+      await Promise.resolve();
+      await Promise.resolve();
     });
     expect(ensureBarsBatch).toHaveBeenCalled();
     const tfs = vi.mocked(ensureBarsBatch).mock.calls[0][1] as string[];
@@ -151,6 +153,7 @@ describe('ChartGrid', () => {
     vi.mocked(ensureBarsBatch).mockRejectedValueOnce(new Error('batch network down'));
     await act(async () => {
       root.render(<ChartGrid symbol="SDOT" />);
+      await Promise.resolve();
       await Promise.resolve();
     });
     expect(warn).toHaveBeenCalledWith(
@@ -230,15 +233,17 @@ describe('ChartGrid', () => {
     expect(rsiBtn.getAttribute('aria-pressed')).toBe('true');
   });
 
-  it('Clear all wipes the symbol drawings store once and drops the active tool', () => {
+  it('Clear all wipes the symbol drawings store once and drops the active tool', async () => {
     act(() => {
       root.render(<ChartGrid symbol="SDOT" />);
     });
     act(() => {
       (container.querySelector('[aria-label="Use Crosshair"]') as HTMLButtonElement).click();
     });
-    act(() => {
+    await act(async () => {
       (container.querySelector('[aria-label="Clear all drawings"]') as HTMLButtonElement).click();
+      await Promise.resolve();
+      await Promise.resolve();
     });
     expect(clearDrawings).toHaveBeenCalledTimes(1);
     expect(clearDrawings).toHaveBeenCalledWith('drawings:SDOT');

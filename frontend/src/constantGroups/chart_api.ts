@@ -7,6 +7,8 @@ import {
   type ChartOverlayId,
   type ChartOscillatorId,
 } from './market_ui';
+
+export type { ChartIndicatorId, ChartOverlayId, ChartOscillatorId } from './market_ui';
 import {
   DESK_VENUE_LIVE_TITLE,
   DESK_VENUE_PAPER_BANNER_TEXT,
