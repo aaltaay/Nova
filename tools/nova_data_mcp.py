@@ -116,12 +116,13 @@ class DataService(research.ResearchTools, rvol_tools.RvolTools, recordings.Recor
         return {"ok": True, **_json_safe(inventory.status())}
 
     def stock_day(self, kind: str, symbol: str, day: str, start: str | None = None, end: str | None = None,
-                  tf: str = "1m", adjust: bool = False, output_name: str | None = None) -> dict[str, Any]:
+                  tf: str = "1m", adjust: bool = False, output_name: str | None = None,
+                  fill_gaps: bool = False) -> dict[str, Any]:
         from market_reads import reads, slots, splits
         out = self.output_path(output_name)
         with slots.heavy(f"{kind} {symbol} {day}"):
             if kind == "bars":
-                frame = reads.bars(symbol, day, tf, start, end)
+                frame = reads.bars(symbol, day, tf, start, end, fill_gaps)
             elif kind in ("trades", "quotes"):
                 frame = getattr(reads, kind)(symbol, day, start, end)
             else:
@@ -240,13 +241,18 @@ def create_server(service: DataService, run_sync=None, server_name: str = "nova-
 
     @server.tool(annotations=writes_file)
     async def stock_day(kind: str, symbol: str, day: str, start: str | None = None, end: str | None = None,
-                        tf: str = "1m", adjust: bool = False, output_name: str | None = None) -> dict:
+                        tf: str = "1m", adjust: bool = False, output_name: str | None = None,
+                        fill_gaps: bool = False) -> dict:
         """One stock-day from the Massive files. kind: trades | quotes (NBBO, Level 1) | bars (tf 1m/5m/15m/1h from
         the minute file, 1s/10s built from trades; daily bars are not a stock-day read). day YYYY-MM-DD; start/end ET
         HH:MM (end exclusive). Volume: minute bars are Massive's (its SIP volume rules); seconds bars count every trade
         except cancel/error records, so they can sum higher (GME 2021-01-27 09:30: 185,567 vs 179,397). Raw prices
-        unless adjust=true (today's split terms). Inline answers hold 200 rows; output_name (new .parquet/.csv) for all."""
-        return await run(service.stock_day, kind, symbol, day, start, end, tf, adjust, output_name)
+        unless adjust=true (today's split terms). Inline answers hold 200 rows; output_name (new .parquet/.csv) for all.
+        Bars exist only for buckets with a trade, so a halt or quiet stretch is a hole: meta.gaps lists each run of
+        missing buckets in the window (first_et/last_et inclusive, ET; meta.gap_runs/gap_buckets count all, the
+        longest 50 are listed) -- a plot by row index would hide it. fill_gaps=true adds a row per missing bucket with
+        NO prices (nothing is carried or invented), volume 0 and filled=true."""
+        return await run(service.stock_day, kind, symbol, day, start, end, tf, adjust, output_name, fill_gaps)
 
     @server.tool(annotations=reads)
     async def movers_search(params: dict) -> dict:
@@ -271,8 +277,10 @@ def create_server(service: DataService, run_sync=None, server_name: str = "nova-
     async def board(day: str, at: str, list_name: str = "gainers", source: str | None = None) -> dict:
         """A past day's Scanner list at ET HH:MM as the Sim plays it back (recorded, else rebuilt): list_name
         gainers | losers | gappers | afterhours | large_cap. change_pct / gap_pct are percent points (45.6 = +45.6%),
-        like the movers tools. Boards cover 1,752 of 2,713 sessions: a day without one answers covered=false with
-        gap and note (0 rows then means no board, not no movers)."""
+        like the movers tools. Boards cover about 1,750 of 2,713 sessions (data_status counts them): a day without one
+        answers covered=false with gap and note (0 rows then means no board, not no movers). data_status counts
+        stored boards, not lists: gainers on a rebuilt day is the rebuilt market board (2016-11-30 to 2026-09-22) and
+        the recorded gainers board takes over from 2026-09-23; large_cap exists only on recorded days (2026-09-23 on)."""
         return await run(service.board, day, at, list_name, source)
 
     @server.tool(annotations=reads)
