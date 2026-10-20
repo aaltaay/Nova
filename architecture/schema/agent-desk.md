@@ -527,7 +527,9 @@ the recorder refuses a row that moves backwards), never read whole for one momen
     `output_name` writes a new file like the other table tools. `meta` carries `source` (served), `window_et`,
     `where` (the folder read), `coverage`, `rules`, `units`, `note` (a stated absence or a pointer to the other
     store) and, when no row matched, `recorded_days`.
-- **Times are ET and are Nova's clock.** `time_et` is `HH:MM:SS.mmm` of `ts` and every `*_et` in `coverage` is ISO
+- **Times are ET and are Nova's clock.** `at`, `start` and `end` are ET wall times `HH:MM[:SS[.fff]]` read on the
+  asked day's own clock (a day the clocks change reads right: 03:30 on the spring change is 03:30 EDT); `24:00`, and only
+  that, is the end of the day. `time_et` is `HH:MM:SS.mmm` of `ts` and every `*_et` in `coverage` is ISO
   with the ET offset. `ts` is epoch seconds when Nova **received** the print (ib_async stamps arrival;
   `ibkr/tape_events.py`), `receive_ts` when the desk processed it (a Session Record and the archive keep both).
   `exchange_ts` is IBKR's own whole second when the tick carried one (Session Records only; null in `archive`, which
@@ -545,7 +547,9 @@ the recorder refuses a row that moves backwards), never read whole for one momen
   symbol, 2026-07-15 on; `l2.db` `tape_trades` holds the same prints for watched symbols (`ibkr/tape_recording.py`
   fans each print to both) and is not read separately.
 - **What a recording does not cover** -- `coverage`, per store asked, never left out:
-  - `capture`: `{recorded, status, stretches: [{start_et, stop_et, status, reason}], gaps: [{start_et, stop_et,
+  - `capture`: a Session Record whose manifest names a `schema_version` / `schema` the recorder does not know is
+    refused, as `capture.schema.read_manifest` refuses it (`covered: false` / an empty table, `reason` / `note`
+    `Unsupported capture schema ...`); otherwise `{recorded, status, stretches: [{start_et, stop_et, status, reason}], gaps: [{start_et, stop_et,
     reason, planned}], fidelity: {l2_offered, l2_coalesced, l2_max_hz, tape_resubscribes, timestamp_regressions,
     tape_losses: [{at_et, cause}]}}` (the manifest's own segments, an open one ending at its last write on disk) and,
     for depth, `at_in_stretch` (true / false / null when the manifest names no segment). `l2_offered - l2_coalesced`
@@ -554,7 +558,9 @@ the recorder refuses a row that moves backwards), never read whole for one momen
     failure is not planned). A quiet stretch inside a segment is not a gap. For tape, `covered_share` is the
     fraction of the window inside a stretch.
   - `l2_db`: `{first_ts, first_et, last_ts, last_et, sessions: [{session_id, reason, setup, started_et, ended_et}],
-    where}` for the symbol-day: outside `first`..`last` and between sessions nothing was sampled.
+    sessions_truncated, where}` for the symbol-day: outside `first`..`last` and between sessions nothing was
+    sampled. `sessions` holds at most 50 (oldest first); `sessions_truncated` is true when more overlapped the day
+    (a busy name has many short signal windows), and the served book's own session is always listed.
   - `archive`: `{first_ts, first_et, last_ts, last_et, dropped_total, gaps}` -- the window's first and last print,
     `dropped_total` (lifetime prints the writer shed under load: counted, not stamped by time) and `gaps`, text saying
     the archive is a write log that marks no gap of its own (a quiet stretch and a lost tape line look alike; a

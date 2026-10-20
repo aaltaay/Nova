@@ -230,6 +230,35 @@ def test_a_synthetic_sim1_directory_is_not_a_recording(stores):
     assert answer["covered"] is False and "SIM1" in answer["reason"]
 
 
+def test_a_session_record_of_a_schema_this_reader_does_not_know_is_refused(stores):
+    make_record(stores["cap"], l2=[book_row(T("09:31:00"), [(1, 1)], [(2, 1)])], prints=[print_row(T("09:31:01"), 1, 1)],
+                schema_version=2)
+    answer = recordings.depth("GRML", DAY, "09:31:10", source="capture")
+    assert answer["covered"] is False and "Unsupported capture schema_version: 2" in answer["reason"]
+    frame = recordings.tape("GRML", DAY, source="capture")
+    assert frame.empty and "Unsupported capture schema_version: 2" in frame.attrs["note"]
+    make_record(stores["cap"], day="2026-10-13", l2=[book_row(T("09:31:00", "2026-10-13"), [(1, 1)], [(2, 1)])],
+                schema_version=None, schema="sim_capture_v0")                       # an unknown schema name refuses too
+    assert "Unsupported capture schema" in recordings.depth("GRML", "2026-10-13", "09:31:10", source="capture")["reason"]
+
+
+def test_depth_sessions_say_when_they_are_cut_and_keep_the_served_books_own(stores):
+    l2_insert(stores["cache"], [snap(T("15:00:00"), [(3.0, 1)], [(3.1, 1)], session="GRML:depth:late")])
+    db = sqlite3.connect(stores["cache"] / "l2.db")
+    db.executemany("INSERT INTO record_sessions VALUES (?,?,?,?,?,?,?)",
+                   [(f"GRML:signal:{i:03d}", "GRML", "signal", "flat_top", None, T("09:00:00") + i * 60, T("09:03:00") + i * 60)
+                    for i in range(55)] + [("GRML:depth:late", "GRML", "depth", None, None, T("14:59:00"), None)])
+    db.commit()
+    db.close()
+    cov = recordings.depth("GRML", DAY, "15:00:30", source="l2_db")["coverage"]["l2_db"]
+    ids = [s["session_id"] for s in cov["sessions"]]
+    assert cov["sessions_truncated"] is True and len(ids) == 51 and ids[0] == "GRML:signal:000"
+    assert ids[-1] == "GRML:depth:late" and cov["sessions"][-1]["ended_et"] is None     # the book's own session is there
+    with recording_stores.connect(stores["cache"] / "l2.db") as conn:
+        assert recording_stores.sessions(conn, "GRML", *recordings._day(DAY)[1:])[1] is True
+        assert recording_stores.sessions(conn, "NONE", *recordings._day(DAY)[1:]) == ([], False)
+
+
 def test_depth_arguments_are_checked(stores):
     for bad in (dict(at="25:00"), dict(at="9"), dict(at="09:61"), dict(source="ibkr"), dict(max_age_sec=0),
                 dict(max_age_sec=99_999)):
@@ -450,3 +479,16 @@ def test_an_et_day_is_its_own_length_across_a_clock_change():
         _d, lo, hi = recordings._day(day)
         assert (hi - lo) / 3600 == hours
     assert recordings._clock(recordings._day("2026-10-14")[0], "24:00") == recordings._day("2026-10-14")[2]
+
+
+def test_a_clock_time_is_the_et_wall_time_even_on_a_day_the_clock_changes():
+    spring, fall = recordings._day("2026-03-08")[0], recordings._day("2026-11-01")[0]
+    assert recordings._iso(recordings._clock(spring, "03:30")) == "2026-03-08T03:30:00-04:00"      # not 04:30
+    assert recordings._iso(recordings._clock(spring, "09:31:30.5")) == "2026-03-08T09:31:30-04:00"
+    assert recordings._iso(recordings._clock(fall, "02:30")) == "2026-11-01T02:30:00-05:00"        # not 01:30
+    assert recordings._iso(recordings._clock(fall, "15:59:59")) == "2026-11-01T15:59:59-05:00"
+    assert recordings._clock(spring, "03:30:00.25") - recordings._clock(spring, "03:30") == pytest.approx(0.25)
+    assert recordings._clock(fall, "24:00:00") == recordings._day("2026-11-01")[2]
+    for bad in ("24:30", "24:00:01", "25:00", "-1:00", "12:60", "12:00:60", "12:00:nan", "12", "1:2:3:4", "", "noon"):
+        with pytest.raises(ValueError, match="not an ET clock time"):
+            recordings._clock(spring, bad)

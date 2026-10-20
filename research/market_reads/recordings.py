@@ -61,18 +61,23 @@ def _day(day: str) -> tuple[date, float, float]:
 
 
 def _clock(day: date, text: str) -> float:
-    """Epoch seconds of ET ``HH:MM[:SS[.fff]]`` on ``day`` (``24:00`` is the day's end)."""
+    """Epoch seconds of the ET wall time ``HH:MM[:SS[.fff]]`` on ``day``, built as a timezone-aware wall datetime (never
+    midnight plus a duration: that is an hour off after a clock change). ``24:00`` alone is the day's end."""
+    refusal = ValueError(f"{text!r} is not an ET clock time: HH:MM or HH:MM:SS (24:00 only as the end of the day)")
+    parts = text.strip().split(":")
     try:
-        parts = text.strip().split(":")
+        if len(parts) not in (2, 3):
+            raise refusal
         hours, minutes = int(parts[0]), int(parts[1])
         seconds = float(parts[2]) if len(parts) == 3 else 0.0
-        if len(parts) not in (2, 3) or not (0 <= minutes < 60 and 0 <= seconds < 60 and 0 <= hours <= 24):
-            raise ValueError(text)
-    except (ValueError, IndexError):
-        raise ValueError(f"{text!r} is not an ET clock time: HH:MM or HH:MM:SS") from None
-    midnight = datetime(day.year, day.month, day.day, tzinfo=ET)
-    return midnight.timestamp() + hours * 3600 + minutes * 60 + seconds if hours < 24 else \
-        datetime.combine(day + timedelta(days=1), datetime.min.time(), tzinfo=ET).timestamp()
+    except ValueError:
+        raise refusal from None
+    if (hours, minutes, seconds) == (24, 0, 0.0):
+        return datetime.combine(day + timedelta(days=1), datetime.min.time(), tzinfo=ET).timestamp()
+    if not (0 <= hours < 24 and 0 <= minutes < 60 and 0 <= seconds < 60):
+        raise refusal
+    # Seconds are added to the wall time, which cannot cross a clock change (those fall on the hour).
+    return (datetime(day.year, day.month, day.day, hours, minutes, tzinfo=ET) + timedelta(seconds=seconds)).timestamp()
 
 
 def _iso(ts: Any) -> Any:
@@ -204,13 +209,16 @@ def _depth_l2db(symbol: str, day: str, at: float, min_ts: float, lo: float, hi: 
         with stores.connect(path) as conn:
             row = stores.book_at_or_before(conn, symbol, at, min_ts)
             first, last = stores.span(conn, "l2_snapshots", symbol, lo, hi)
-            sessions = stores.sessions(conn, symbol, lo, hi)
+            sessions, truncated = stores.sessions(conn, symbol, lo, hi)
+            own = row and row["session_id"]
+            if own and all(sess["session_id"] != own for sess in sessions):
+                sessions = [*sessions, *filter(None, [stores.session(conn, own)])]   # the served book's own session
     except LookupError as exc:
         return {**out, "reason": str(exc)}
     out["coverage"] = {"first_ts": first, "first_et": _iso(first), "last_ts": last, "last_et": _iso(last),
                        "sessions": [{"session_id": s["session_id"], "reason": s["reason"], "setup": s["setup"],
                                      "started_et": _iso(s["started_ts"]), "ended_et": _iso(s["ended_ts"])}
-                                    for s in sessions], "where": str(path.parent)}
+                                    for s in sessions], "sessions_truncated": truncated, "where": str(path.parent)}
     if row is None:
         out["reason"] = (f"no depth snapshot of {symbol} within {at - min_ts:.0f} s before {_iso(at)}"
                          + ("" if first is not None else f"; none on {day} at all"))

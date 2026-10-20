@@ -70,13 +70,21 @@ def span(conn: sqlite3.Connection, table: str, symbol: str, lo: float, hi: float
     return (None if first is None else first["ts"]), (None if last is None else last["ts"])
 
 
-def sessions(conn: sqlite3.Connection, symbol: str, lo: float, hi: float) -> list[dict[str, Any]]:
-    """Depth sessions of ``symbol`` open at any time in ``[lo, hi)``, oldest first (at most ``SESSION_ROWS``)."""
+def sessions(conn: sqlite3.Connection, symbol: str, lo: float, hi: float) -> tuple[list[dict[str, Any]], bool]:
+    """``(sessions, truncated)``: depth sessions of ``symbol`` open at any time in ``[lo, hi)``, oldest first, at most
+    ``SESSION_ROWS``; ``truncated`` says more overlapped (a busy symbol-day has many short signal windows)."""
     rows = conn.execute(
         "SELECT session_id, reason, setup, started_ts, ended_ts FROM record_sessions "
         "WHERE symbol = ? AND started_ts < ? AND (ended_ts IS NULL OR ended_ts >= ?) "
-        "ORDER BY started_ts LIMIT ?", (symbol, hi, lo, SESSION_ROWS)).fetchall()
-    return [dict(row) for row in rows]
+        "ORDER BY started_ts LIMIT ?", (symbol, hi, lo, SESSION_ROWS + 1)).fetchall()
+    return [dict(row) for row in rows[:SESSION_ROWS]], len(rows) > SESSION_ROWS
+
+
+def session(conn: sqlite3.Connection, session_id: str) -> dict[str, Any] | None:
+    """One depth session by id (the session a served book came from), or None."""
+    row = conn.execute("SELECT session_id, reason, setup, started_ts, ended_ts FROM record_sessions "
+                       "WHERE session_id = ?", (session_id,)).fetchone()
+    return None if row is None else dict(row)
 
 
 def counter(conn: sqlite3.Connection, name: str) -> int | None:

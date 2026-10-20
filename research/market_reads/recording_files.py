@@ -19,7 +19,7 @@ from typing import Any, BinaryIO
 
 from market_reads import REPO, roots  # noqa: F401  (REPO puts backend/ on sys.path)
 
-from capture.schema import valid_timestamp
+from capture.schema import valid_timestamp, validate_version
 from capture.storage import session_path
 
 BLOCK = 64 * 1024
@@ -40,7 +40,13 @@ def read_manifest(folder: Path) -> tuple[dict[str, Any], str | None]:
         manifest = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         return {}, f"{path} is unreadable: {type(exc).__name__}"
-    return (manifest, None) if isinstance(manifest, dict) else ({}, f"{path} is not a manifest object")
+    if not isinstance(manifest, dict):
+        return {}, f"{path} is not a manifest object"
+    try:
+        validate_version(manifest)        # an unknown schema_version / schema refuses, as the recorder and the Sim do
+    except ValueError as exc:
+        return {}, f"{exc} ({path})"
+    return manifest, None
 
 
 def _row(line: bytes) -> dict[str, Any] | None:
