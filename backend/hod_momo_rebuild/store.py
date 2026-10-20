@@ -20,6 +20,7 @@ import os
 import time
 from datetime import date as date_cls
 from pathlib import Path
+from time import time as _wall_clock      # the real clock: the engine pins ``time.time`` to the replay's
 from typing import Any
 
 from constants_hod_momo import HOD_MOMO_REBUILD_SCHEMA_VERSION, HOD_MOMO_REBUILD_SUBDIR
@@ -98,13 +99,13 @@ def write_job(day: str, **fields: Any) -> dict[str, Any]:
     """Merge ``fields`` into the job and write it whole; ``updated_ts`` is stamped every time."""
     job = read_job(day) or {}
     job.update(fields)
-    job.update(schema_version=HOD_MOMO_REBUILD_SCHEMA_VERSION, date=day, updated_ts=time.time())
+    job.update(schema_version=HOD_MOMO_REBUILD_SCHEMA_VERSION, date=day, updated_ts=_wall_clock())
     _write(job_path(day), job)
     return job
 
 
 def write_data(day: str, *, fingerprint: str, float_basis: str, summary: dict[str, Any], alerts: list[dict]) -> None:
-    _write(data_path(day), {"schema_version": HOD_MOMO_REBUILD_SCHEMA_VERSION, "date": day, "built_ts": time.time(),
+    _write(data_path(day), {"schema_version": HOD_MOMO_REBUILD_SCHEMA_VERSION, "date": day, "built_ts": _wall_clock(),
                             "fingerprint": fingerprint, "float_basis": float_basis, "summary": summary,
                             "alerts": alerts})
 

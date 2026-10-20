@@ -402,7 +402,8 @@ HOD_MOMO_INVENTED_CHANGE_BEFORE_TS = 1_790_136_000
 HOD_MOMO_REBUILD_SUBDIR = "hod_momo"                 # under the leaderboard root
 HOD_MOMO_REBUILD_SCHEMA_VERSION = 1                  # the data and job files
 # Bumped when the rebuild's own logic changes, so a day built by older code is built again.
-HOD_MOMO_REBUILD_LOGIC_VERSION = 1
+# 2 (2026-10-20): the float is SEC shares outstanding filed before the day, not Yahoo's float now.
+HOD_MOMO_REBUILD_LOGIC_VERSION = 2
 HOD_MOMO_REBUILD_JOB_KEY = "hod_momo"                # the job file's board name
 # IBKR's L1 stream conflates a stock's prints to one last-price tick per interval.
 HOD_MOMO_REBUILD_L1_TICK_SEC = 0.25
@@ -413,10 +414,15 @@ HOD_MOMO_REBUILD_AVG_VOLUME_SESSIONS = 63
 HOD_MOMO_REBUILD_52WK_SESSIONS = 252
 # How far back day-bar files are looked for, in calendar days (252 sessions plus holidays).
 HOD_MOMO_REBUILD_DAILY_LOOKBACK_DAYS = 380
-HOD_MOMO_REBUILD_FLOAT_WORKERS = 4                   # Yahoo lookups at once
 HOD_MOMO_REBUILD_PROGRESS_EVERY_SEC = 1.0
 HOD_MOMO_REBUILD_STALE_SEC = 60.0                    # a building job nobody rewrote this long died
 HOD_MOMO_REBUILD_STOP_WAIT_SEC = 10.0
 HOD_MOMO_REBUILD_FINGERPRINT_TTL_SEC = 30.0
-# What the float on a rebuilt alert is: Yahoo's float now, as the live desk reads it.
-HOD_MOMO_REBUILD_FLOAT_BASIS = "yahoo_now"
+# What the float on a rebuilt alert is: SEC shares outstanding filed by the calendar day before, on the day's
+# share basis -- an upper bound on the float, never a later number (day_movers.floats.sec_shares, before=True).
+HOD_MOMO_REBUILD_FLOAT_BASIS = "sec_outstanding_prior_day"
+# Many rebuilt days in a row (hod_momo_rebuild.batch): its folder under the HOD rebuild folder, the file that
+# stops it starting another day, and how often it looks at its running days.
+HOD_MOMO_REBUILD_BATCH_SUBDIR = "batch"
+HOD_MOMO_REBUILD_BATCH_STOP_FILE = "STOP"
+HOD_MOMO_REBUILD_BATCH_POLL_SEC = 2.0
