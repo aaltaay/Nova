@@ -242,8 +242,9 @@ in the header beside the padlock, on every view (it was on the Bots page's Bot c
   (`POST /api/bot/session/keys {on: true}`), a strategy set On (`PATCH /api/bot/session {setup_levels}` raising one to
   2) and a TraderTV host's Bot key (`PATCH /api/bot/live-traders/{name} {key: true}`) -- is refused `409`
   `BOT_PADLOCK_LOCKED` while the padlock is locked, before anything changes (a host's answer carries `field: "key"`).
-  Only where a bot trades: on Live, an unreadable venue or a replay desk with nothing loaded the other rules refuse, so
-  it never asks for the Live PIN. Turning anything off, Eyes, and a host's other settings are never refused. The desk
+  Only where that bot trades: the strategy bots on Paper and Sim; the Live Trader bots (a host's key, the LiveTrader
+  Bots key) on Paper only, so on Sim their keys never ask to unlock the Sim padlock. On Live, an unreadable venue or a
+  replay desk with nothing loaded the other rules refuse, so it never asks for the Live PIN. Turning anything off, Eyes, and a host's other settings are never refused. The desk
   answers the refusal from any surface with one question (`frontend/src/bot/padlockPrompt.ts`): "Unlock the
   padlock?" -- **Unlock and turn on** unlocks through `POST /api/ibkr/arm` (Paper and Sim need no PIN) and presses
   again; **Keep it off** changes nothing. ON never unlocks the padlock by itself.

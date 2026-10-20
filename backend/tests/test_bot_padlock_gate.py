@@ -94,6 +94,20 @@ def test_unlocked_every_bot_turns_on(api_key):
     assert get_session()["bot_on"] is True              # on flows up (bot.cascade)
 
 
+def test_on_sim_the_live_trader_keys_never_ask_for_the_padlock(api_key, locked, monkeypatch):
+    # The Live Trader bot trades Paper only (ADR 055): on Sim its keys are settings, never a reason to unlock Sim.
+    on_practice("sim")
+    monkeypatch.setattr("bot.activation.venue_state", lambda: ("sim", True, True))   # Sim at its live edge
+    assert client.patch("/api/bot/live-traders/ALPHA", json={"key": True}, headers=headers(api_key)).status_code == 200
+    assert lt_settings.of("ALPHA")["key"] is True
+    client.post("/api/bot/session/keys", json={"family": "live_trader", "on": False}, headers=headers(api_key))
+    res = client.post("/api/bot/session/keys", json={"family": "live_trader", "on": True}, headers=headers(api_key))
+    assert res.status_code == 200 and family_keys.is_on("live_trader") is True
+    # The strategy bots trade Sim: their key still asks.
+    client.post("/api/bot/session/keys", json={"family": "strategy", "on": False}, headers=headers(api_key))
+    _refused(client.post("/api/bot/session/keys", json={"family": "strategy", "on": True}, headers=headers(api_key)))
+
+
 def test_on_live_it_never_asks_for_the_padlock(locked):
     from bot.padlock_gate import refusal
 

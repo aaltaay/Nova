@@ -12,22 +12,30 @@ strategy set On (``PATCH /api/bot/session {setup_levels}``) and a TraderTV host'
 press calls this first. Refused: 409 ``BOT_PADLOCK_LOCKED``, nothing changed; the desk asks "Unlock the padlock and
 turn it on?" (``frontend/src/bot/padlockPrompt.ts``), unlocks through ``POST /api/ibkr/arm`` and presses again.
 
-Only where a bot trades (Paper, Sim at its edge or with a replay loaded): on Live or an unreadable venue the bot trades
-nothing and the other rules refuse, so this never asks for the Live PIN. Turning off is never refused. Locking the
+Only where the bot being turned on trades: the strategy bots on Paper and on Sim at its edge or with a replay loaded,
+the Live Trader bots (``family="live_trader"``) on Paper only (ADR 055) -- on Sim their key is a setting, so it never
+unlocks the Sim padlock for them (Codex review, PR #1108). On Live or an unreadable venue no bot trades and the other
+rules refuse, so this never asks for the Live PIN. Turning off is never refused. Locking the
 padlock after a bot is on leaves its keys as they are (2026-10-16); no one places an order while it is locked, and
 the desk's Bot switch reads LOCKED, never ON. Owner: this module (the rule and its words).
 """
 from __future__ import annotations
 
 from bot.errors import BotError
-from constants_bot import BOT_REASON_PADLOCK_LOCKED
+from bot.live_trader.constants_live_trader import LT_VENUE
+from constants_bot import BOT_FAMILY_LIVE_TRADER, BOT_REASON_PADLOCK_LOCKED
 
 
-def refusal() -> BotError | None:
-    """Why no bot may turn on now because of the padlock, else None (unlocked, or a venue where no bot trades)."""
+def refusal(family: str | None = None) -> BotError | None:
+    """Why no bot may turn on now because of the padlock, else None (unlocked, or a venue where that bot does not
+    trade). ``family`` names the bot's family when it trades fewer venues than the strategy bots (the Live Trader's:
+    Paper only); None is the Bot switch and Activate, over every bot."""
     from bot import activation
 
-    if activation.venue_block(*activation.venue_state()) is not None:
+    venue, edge, readable = activation.venue_state()
+    if activation.venue_block(venue, edge, readable) is not None:
+        return None
+    if family == BOT_FAMILY_LIVE_TRADER and venue != LT_VENUE:
         return None
     ok, why = activation.padlock()
     if ok:
@@ -36,8 +44,8 @@ def refusal() -> BotError | None:
                     "it is locked", 409, BOT_REASON_PADLOCK_LOCKED)
 
 
-def require_unlocked() -> None:
-    """Raise ``BOT_PADLOCK_LOCKED`` while the padlock is locked on a venue where bots trade."""
-    refused = refusal()
+def require_unlocked(family: str | None = None) -> None:
+    """Raise ``BOT_PADLOCK_LOCKED`` while the padlock is locked on a venue where that bot trades."""
+    refused = refusal(family)
     if refused is not None:
         raise refused

@@ -68,8 +68,9 @@ def patch_host(name: str, body: dict[str, Any] = Body(...)) -> Any:  # noqa: B00
     if body.get("key") is True and not settings.of(name.strip().upper()).get("key"):
         # No bot turns on over a locked padlock (bot.padlock_gate, operator decision 2026-10-20): nothing changes.
         from bot.padlock_gate import refusal
+        from constants_bot import BOT_FAMILY_LIVE_TRADER
 
-        refused = refusal()
+        refused = refusal(BOT_FAMILY_LIVE_TRADER)
         if refused is not None:
             return _error(refused.status_code, refused.reason, refused.message, "key")
     try:

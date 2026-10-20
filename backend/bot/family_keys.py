@@ -211,7 +211,7 @@ def turn(family: str, on: bool) -> bool:
         # No bot turns on over a locked padlock (``bot.padlock_gate``, operator decision 2026-10-20).
         from bot.padlock_gate import require_unlocked
 
-        require_unlocked()
+        require_unlocked(family)
     with _lock:
         state = _load_locked()
         if _error is not None:
