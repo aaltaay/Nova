@@ -29,7 +29,7 @@ from typing import Any
 from urllib.request import urlopen
 
 import nova_data_mcp as data
-import nova_open_client as open_client
+import nova_open_tool
 import nova_review_causal as causal
 import nova_review_http as review_http
 import nova_review_warm as review_warm
@@ -67,7 +67,6 @@ def call_per_tool(fn, *args, **kwargs) -> dict[str, Any]:
 
 
 CHART_ARGUMENTS = frozenset({"symbols", "date", "as_of"})
-OPEN_ARGUMENTS = frozenset({"symbol", "date", "as_of"})
 TIMEFRAMES = ["10s", "1m", "5m", "1d"]
 INSTRUCTIONS = (
     "For a chart, call nova_chart with symbols (1 to 9 tickers), date (YYYY-MM-DD) and optional as_of "
@@ -199,18 +198,6 @@ def _error_result(message: str, structured: dict[str, Any]):
     )
 
 
-def _open_message(body: dict[str, Any]) -> tuple[str, bool]:
-    if body.get("ok") is True and isinstance(body.get("chat_message"), str):
-        return body["chat_message"], False
-    reason = str(body.get("reason") or "BAD_REQUEST")
-    detail = str(body.get("error") or "")
-    if reason == "DESK_NOT_RUNNING":
-        return detail or open_client.DESK_NOT_RUNNING_TEXT, True
-    if reason == "UNKNOWN_ARGUMENT":
-        return f"UNKNOWN_ARGUMENT {detail}".strip(), True
-    return f"{reason} {detail}".strip(), True
-
-
 def _guard_unknown(tool, allowed: frozenset[str]) -> None:
     from mcp.types import CallToolResult, TextContent
 
@@ -319,42 +306,10 @@ def create_server(service: data.DataService, *, review_base: str | None = None, 
         return await anyio.to_thread.run_sync(lambda: build(symbols, date, as_of))
 
     _guard_unknown(server._tool_manager.get_tool("nova_chart"), CHART_ARGUMENTS)
-
-    def run_open(symbol: str, date: str, as_of: str | None) -> Any:
-        payload: dict[str, Any] = {"symbol": symbol, "date": date}
-        if as_of:
-            payload["as_of"] = as_of
-        transport = open_transport or open_client.post_open
-        try:
-            body = transport(payload)
-        except OSError:
-            body = {"ok": False, "reason": "DESK_NOT_RUNNING", "error": open_client.DESK_NOT_RUNNING_TEXT}
-        if not isinstance(body, dict):
-            body = {"ok": False, "reason": "BAD_REQUEST", "error": "the desk answer was not JSON"}
-        message, failed = _open_message(body)
-        structured = {
-            "ok": not failed,
-            "chat_message": message,
-            "symbol": body.get("symbol") or str(symbol).upper(),
-            "date": body.get("date") or str(date),
-            "as_of": body.get("as_of"),
-            "paused": body.get("paused") if not failed else None,
-            "separate_sim": body.get("separate_sim") if not failed else None,
-        }
-        if failed:
-            structured["error"] = {"code": str(body.get("reason") or "BAD_REQUEST"), "detail": str(body.get("error") or message)}
-            return _error_result(message, structured)
-        return _result(message, structured, [])
-
-    @server.tool(name="open_in_nova", annotations=writes)
-    async def open_in_nova(symbol: str, date: str, as_of: str | None = None):
-        """Open one ticker in Nova Sim, paused. Post chat_message verbatim.
-
-        symbol: ticker. date: YYYY-MM-DD. as_of: HH:MM or HH:MM:SS Eastern, optional.
-        No other arguments. The server opens the desk. This does not place, change, or cancel an order."""
-        return await anyio.to_thread.run_sync(lambda: run_open(symbol, date, as_of))
-
-    _guard_unknown(server._tool_manager.get_tool("open_in_nova"), OPEN_ARGUMENTS)
+    nova_open_tool.register(
+        server, writes=writes, guard=_guard_unknown, result=_result, error_result=_error_result,
+        open_transport=open_transport,
+    )
 
     @server.prompt(name="chart_request")
     def chart_request(symbols: str, date: str, as_of: str = "16:00") -> str:

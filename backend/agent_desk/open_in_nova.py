@@ -330,14 +330,19 @@ def _row_for(day: str, symbol: str) -> dict | None:
 
 def _setups_for(symbol: str, day: str) -> list:
     """Flat tops the review page already knows, when the review loader is on this machine."""
+    found = _read_setups(symbol, day)
+    return list(found) if isinstance(found, list) else []
+
+
+def _read_setups(symbol: str, day: str):
     try:
         import nova_review_load as review_load
     except ImportError:
-        return []
+        logger.info("open in nova: review loader is not installed")
+        return None
     try:
         body = review_load.load_review(symbol, day, "5m", "20:00")
     except Exception:
         logger.exception("open in nova: setups for %s %s were not readable", symbol, day)
-        return []
-    setups = body.get("setups") if isinstance(body, dict) else None
-    return list(setups) if isinstance(setups, list) else []
+        return None
+    return body.get("setups") if isinstance(body, dict) else None
