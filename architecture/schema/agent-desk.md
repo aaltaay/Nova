@@ -368,7 +368,7 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
 - **Tools** (each answers a JSON object; a failed read is `{ok: false, error: "<Type>: <message>"}`, never a crash):
   `data_catalog` (`{ok, datasets: [{name, source, history, as_of, units, mcp, cli}], not_here: string[]}` -- call it
   first), `data_status`, `stock_day {kind: trades|quotes|bars, symbol, day, start?, end?, tf?, adjust?,
-  output_name?}`, `movers_search {params}` (the `/api/agent/movers` answer, at most 500 rows), `movers_scan {filters,
+  fill_gaps?, output_name?}`, `movers_search {params}` (the `/api/agent/movers` answer, at most 500 rows), `movers_scan {filters,
   symbol?, kinds?, columns?, limit?, splits?, output_name?}`, `board {day, at, list_name, source?}`, `splits {symbol,
   day?, cik?}` (`price_factor` with `day`), `financials {symbol, statement, as_of?, timeframe?, cik?}`, `sec_shares
   {symbol, day?, max_age_days?, cik?}`, `sec_filings {symbol, as_of?, forms?, cik?}`, `float_latest {symbol?}`, `ipos
@@ -376,15 +376,39 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
 - **`stock_day` bars** take `tf` as a count and `s` / `m` / `h`; a daily `tf` (`1d`, `1w`) is refused naming the
   daily bars tool. Minute bars carry Massive's own volume; seconds bars sum every trade except cancel / error
   records (`docs/market-data.md`, "Two volume rules").
+- **Bar gaps** (#1086). A bar exists only for a bucket with a trade, so a halt or a quiet stretch is a hole in the
+  series, and a consumer plotting by row index would draw it continuous. `reads.bars` (so `stock_day` bars and
+  `market_data.py bars`) says where. `meta.gaps` lists the runs of missing buckets inside the window as `{first_et,
+  last_et, buckets}`: the window is the asked `start` .. `end` when given, else the first .. last bucket of the read;
+  `first_et` / `last_et` are the first and last missing bucket's start, both inclusive, ET `HH:MM` (`HH:MM:SS` for a
+  seconds `tf`), in time order. At most 50 runs are listed, the longest ones (`meta.gaps_truncated` true when more
+  exist); `meta.gap_runs` and `meta.gap_buckets` count every run and every missing bucket. A gap is a bucket with
+  no trade: a halt is one cause (the `halts` tool lists halts, from 2021-09-21), a dead stretch another. A seconds
+  bar that had trades but no price-setting print is a row (volume, no prices), never a gap. A read with no row has
+  no gap meta. `fill_gaps=true` (CLI `--fill-gaps`; default false, rows unchanged) inserts one row per missing
+  bucket: `open` / `high` / `low` / `close` null (no price is invented and none is carried forward), `volume` and
+  `transactions` 0, plus a boolean column `filled` (true on the inserted rows, false on the rest); `meta.gaps` is
+  the same either way.
 - **`movers_scan`** applies the capped search's split rule (`day_movers.query.splits_sql`: `splits` =
   `exclude_likely` default | `include` | `only_suspects`) and its percent-line tolerance (`query.pct_bound`); a row
   selecting `split_listed, split_suspect, prev_volume, volume` (every column does) gains `split` (`listed` |
   `likely_split` | `suspect` | null). It refuses a call without `date_from` / `date_to`, a symbol or a `limit`; a
   `limit` is 1-1,000,000; without one at most 100,000 rows return and `meta.capped` (bool) / `meta.note` say more
-  matched. `meta.filters.splits` echoes the choice.
+  matched. `meta.filters.splits` echoes the choice. `kinds` is a list of types (case-insensitive, `["ETF"]`) or the
+  one word `["common"]` / `["all"]` (`day_movers.query.kinds_sql`, the rule `movers_search` applies); omitted it
+  keeps every kind, unlike `find_stock_days` (below).
 - **`board`** answers `change_pct` / `gap_pct` in percent points (the store keeps fractions) and adds top-level
   `covered` (false when the day has no board, recorded or rebuilt), `gap` (`{start, end, reason, stop}` or null)
-  and `note` when not covered.
+  and `note` when not covered. **Coverage differs by list** (`data_status`, 2026-10-20; the counts grow with every recorded session). It counts
+  stored boards, not lists, so read it with the rule `reads.LIST_BOARD`: Gainers on a day the desk recorded is the
+  recorded `gainers` board (19 sessions, 2026-09-23 on); on every other covered day it is the rebuilt `market` board
+  (1,735 sessions, 2016-11-30 .. 2026-09-22), so Gainers has an answer on every board-covered session (1,754;
+  #1086 item 7 read the two counts as a gap). `gappers` and `losers` cover those 1,754 from 2016-11-30 and
+  `afterhours` 1,753 from 2016-12-01. `large_cap` exists only on the 19 recorded sessions (nothing rebuilds it: no
+  market cap as of the day); any other day answers `covered: false` with a note. Never read 0 rows as "no movers".
+  The same rule holds for `catalyst_verdict` on `find_stock_days` rows: the backfill judged the Five Pillars gap
+  universe from 2021-10-11 to 2026-09-21 and the leaderboard's top-10 movers from 2026-06-17 to 2026-09-21
+  (`catalysts` `verdicts_meta.coverage`), so any other stock-day has a null verdict: unknown, never "no news".
 - **A ticker two companies used** (`research/market_reads/tickers.py`, over `reference/tickers.json`): SEC shares /
   facts / filings, financials and splits read the company that held the ticker on the asked day (former holder
   until its `delisted_utc` day; today's holder from its ticker-details `list_date`, else the day after the former
@@ -439,8 +463,9 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
   values, missing fields, row order and `attrs`. A window with no row, a time that is not a whole number on every
   line, or a non-text column that is not a number somewhere that day is read the whole-day way (and cached).
 - **Momentum-research tools** (`tools/nova_data_research.py`, the second tool set; CLI `tools/market_data_research.py`):
-  - `find_stock_days {filters, symbol?, kinds?, splits?, float_max?, float_basis?, float_unknown?, catalyst?, halted?,
-    cursor?, page_size?, output_name?}` -> a table answer plus `next_cursor` (`"YYYY-MM-DD|SYMBOL"` or null). Rows:
+  - `find_stock_days {filters, symbol?, kinds?, splits?, float_max?, outstanding_max?, float_basis?, float_unknown?,
+    catalyst?, halted?, sort?, limit?, cursor?, page_size?, output_name?}` -> a table answer plus `next_cursor`
+    (`"YYYY-MM-DD|SYMBOL"` or null). Rows:
     `date, symbol, kind, prev_close, open, high, low, close, volume, dollar_volume, high_pct, low_pct, close_pct,
     gap_pct, day_high, day_high_et, day_low, day_low_et, pm_high, pm_low, pm_volume, ah_high, ah_volume, split,
     up10_et .. up300_et, down10_et .. down50_et, outstanding_shares, outstanding_as_of, outstanding_filed,
@@ -453,9 +478,39 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
     | null; `float_unknown` exclude | include | only. `catalyst` keeps the listed verdicts (`unknown` = none);
     `halted` true / false (a day the halt log does not cover has `halts` null and is left out by either). `page_size`
     1-5,000 (1-100,000 with `output_name`); one call examines at most 200,000 movers rows (`meta.note`).
+    **`kinds` defaults to common stock** (#1086 item 3): omitted, the rows are `movers_search`'s `common` kinds
+    (`day_movers.query.kinds_sql`: `kind` `CS` or `ADRC`, or an unlabelled symbol of at most four letters), so
+    warrants, rights, units, preferreds and ETFs are out (Sep 2026: 15,687 `CS` and 1,209 `ADRC` rows beside 3,288
+    `WARRANT`, 616 `RIGHT`, 6,173 `ETF`). A list of types keeps those (`["ETF"]`, `["CS", "WARRANT"]`; case does not
+    matter), `["all"]` keeps every kind, `["common"]` is the default spelled out; `all` / `common` with other items is
+    refused. A call that names a `symbol` and no `kinds` keeps every kind (the ticker is the filter, as the desk's own
+    symbol lookup does; a warrant's days must not come back empty). `meta.filters.kinds` echoes the rule used
+    (`common`, `all` or the types) and `meta.kinds_rule` says it in words. The CLI takes `kinds=common`,
+    `kinds=all` or `kinds=CS,ETF`.
+    **`sort` ranks the answer** (#1086 item 2): the choices are `movers_search`'s (`day_movers.query.SORTS`) --
+    `newest`, `oldest` (default: the order pages always had, day ascending then symbol), `high`, `close`, `gap`,
+    `volume`, `dollar_volume` (largest first), `low` (deepest first) -- with a row missing the figure last and ties
+    newest day first, then symbol (`query.sort_rows`; the rows missing the figure are ordered the same way, so
+    `movers_search` and `find_stock_days` agree on them too). The movers store orders the rows (`ORDER BY`); each chunk is
+    then enriched and filtered in that order, so `float_max`, `catalyst` and `halted` pick from the ranking and
+    `limit` 10 under `sort: "high"` is the ten largest highs that pass them. Pages stay exact: `next_cursor` is still
+    `"YYYY-MM-DD|SYMBOL"`, the last row examined, and the next call (same arguments plus `cursor`) resumes strictly
+    after that row in the same ordering (a keyset on the sort column, then day, then symbol), so pages add up to the
+    whole ranked answer without a repeat or a hole. A `cursor` naming a row the search does not hold is refused.
+    `limit` is `page_size` under the name `movers_search` uses (1-5,000; 1-100,000 with `output_name`; both given and
+    unequal is refused), and `next_cursor` still continues the ranking past it. `meta.filters.sort` echoes the choice.
+    **`outstanding_max`** (#1086 item 6) is `float_max` named for what it filters: SEC shares OUTSTANDING (insiders
+    and locked-up shares inside), never free float. It needs `float_basis` `sec_outstanding` (the default; `enrichment`
+    or `best` is refused, use `float_max`), and passing it with `float_max` is refused. `meta.filters` echoes the one
+    passed. `movers_search`'s `float_max` is a proof on either the desk's float (when it had one) or SEC shares
+    outstanding (`day_movers.floats`): `float_basis` `best` is the nearest here.
   - `daily_bars {symbol, date_from, date_to, adjust?, as_of?, output_name?}` -> rows `date, volume, open, close, high,
     low, transactions, prev_close, change_pct, gap_pct, high_pct, range_pct` (+ `split_factor` when adjusted); at most
-    3 years; `meta.volume_note`, `split_note`, `prev_close_from`, `seconds`. In-process cache only (no file).
+    3 years; `meta.volume_note`, `split_note`, `prev_close_from`, `seconds`. In-process cache only (no file). Two
+    sessions meet in one row (#1086 item 5): `volume` is the whole 04:00-20:00 session, `open` / `high` / `low` /
+    `close` are regular hours only (Massive's day files), so a bar can hold volume that built a range it does not
+    show -- FLYE 2026-09-01 has `high` 2.79 while `find_stock_days` reports `day_high` 3.97 at 05:38 ET (premarket).
+    A bar's regular-hours volume is not in this table: `stock_day_stats` splits premarket, regular and whole-day.
   - `market_context {day, symbols?}` -> `{day, lookback, symbols: {SYM: {traded, open, high, low, close, volume,
     transactions, prev_close, change_pct, gap_pct, range_pct, return_5_pct, return_lookback_pct, avg_close_lookback,
     close_vs_avg_pct}}, summary, rules, units, raw, seconds}`; nothing after `day`.
