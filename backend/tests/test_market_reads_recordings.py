@@ -380,6 +380,41 @@ def test_a_busy_writer_is_not_blocked_and_no_read_lock_outlives_a_read(stores):
     writer.close()
 
 
+class VmSteps:
+    """Counts the SQLite virtual-machine steps a connection runs (a scan costs thousands, an index seek tens)."""
+
+    def __init__(self, conn):
+        self.steps = 0
+        conn.set_progress_handler(self._tick, 1)
+
+    def _tick(self):
+        self.steps += 1
+        return 0
+
+
+def test_the_metadata_reads_seek_the_index_and_never_scan_a_symbol_day(stores):
+    """A symbol-day holds millions of rows: first / last / days / the book at a moment must cost a handful of index seeks,
+    counted here in SQLite VM steps (a scan of the 6,000 rows below costs tens of thousands)."""
+    tape_insert(stores["cache"], [trow(T("09:30:00") + i * 0.01, 1.0, 1) for i in range(6000)]
+                + [trow(T("09:30:00", "2026-10-12"), 1.0, 1)])
+    l2_insert(stores["cache"], [snap(T("09:30:00") + i * 0.01, [(1, 1)], [(2, 1)], fallback=i % 2) for i in range(6000)])
+    day_lo, day_hi = recordings._day(DAY)[1:]
+    for path, work in (
+            ("archive.db", lambda c: (recording_stores.span(c, "tape_ibkr", "GRML", day_lo, day_hi),
+                                      recording_stores.recent_days(c, "tape_ibkr", "GRML", 30, recordings.ET))),
+            ("l2.db", lambda c: (recording_stores.span(c, "l2_snapshots", "GRML", day_lo, day_hi),
+                                 recording_stores.book_at_or_before(c, "GRML", T("09:31:00"), T("09:30:00"))))):
+        with recording_stores.connect(stores["cache"] / path) as conn:
+            counter = VmSteps(conn)
+            result = work(conn)
+            assert counter.steps < 3000, (path, counter.steps)
+            assert result[0][0] is not None
+    with recording_stores.connect(stores["cache"] / "archive.db") as conn:
+        assert recording_stores.recent_days(conn, "tape_ibkr", "GRML", 30, recordings.ET) == [DAY, "2026-10-12"]
+        first, last = recording_stores.span(conn, "tape_ibkr", "GRML", day_lo, day_hi)
+        assert (first, last) == (T("09:30:00"), pytest.approx(T("09:30:00") + 59.99)) and             recording_stores.span(conn, "tape_ibkr", "NONE", day_lo, day_hi) == (None, None)
+
+
 def test_every_read_takes_a_heavy_slot(stores, monkeypatch):
     from contextlib import contextmanager
     asked = []

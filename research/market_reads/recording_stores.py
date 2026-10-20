@@ -60,12 +60,14 @@ def book_at_or_before(conn: sqlite3.Connection, symbol: str, at_ts: float, min_t
 
 
 def span(conn: sqlite3.Connection, table: str, symbol: str, lo: float, hi: float) -> tuple[float | None, float | None]:
-    """``(first ts, last ts)`` of ``symbol``'s rows in ``[lo, hi)`` (the ``(symbol, ts)`` index answers it)."""
+    """``(first ts, last ts)`` of ``symbol``'s rows in ``[lo, hi)``: two index seeks on ``(symbol, ts)``, never a scan of
+    the range (``MIN`` and ``MAX`` in one statement read every row between)."""
     if table not in ("l2_snapshots", "tape_ibkr"):
         raise ValueError(f"no span of {table}")
-    row = conn.execute(f"SELECT MIN(ts) AS first, MAX(ts) AS last FROM {table} WHERE symbol = ? AND ts >= ? AND ts < ?",
-                       (symbol, lo, hi)).fetchone()
-    return row["first"], row["last"]
+    where = f"FROM {table} WHERE symbol = ? AND ts >= ? AND ts < ? ORDER BY ts"
+    first = conn.execute(f"SELECT ts {where} LIMIT 1", (symbol, lo, hi)).fetchone()
+    last = conn.execute(f"SELECT ts {where} DESC LIMIT 1", (symbol, lo, hi)).fetchone()
+    return (None if first is None else first["ts"]), (None if last is None else last["ts"])
 
 
 def sessions(conn: sqlite3.Connection, symbol: str, lo: float, hi: float) -> list[dict[str, Any]]:
@@ -115,10 +117,11 @@ def recent_days(conn: sqlite3.Connection, table: str, symbol: str, count: int, t
     days: list[str] = []
     before = 1e12
     while len(days) < count:
-        row = conn.execute(f"SELECT MAX(ts) AS newest FROM {table} WHERE symbol = ? AND ts < ?", (symbol, before)).fetchone()
-        if row["newest"] is None:
+        row = conn.execute(f"SELECT ts FROM {table} WHERE symbol = ? AND ts < ? ORDER BY ts DESC LIMIT 1",
+                           (symbol, before)).fetchone()
+        if row is None:
             break
-        day = datetime.fromtimestamp(row["newest"], tz).date()
+        day = datetime.fromtimestamp(row["ts"], tz).date()
         days.append(day.isoformat())
         before = datetime(day.year, day.month, day.day, tzinfo=tz).timestamp()
     return days
