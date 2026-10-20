@@ -106,3 +106,23 @@ def test_the_default_row_cap_says_so_and_a_limit_has_a_ceiling(split_days, monke
     assert scan.movers_scan(date_from="2025-02-04").attrs["capped"] is False
     with pytest.raises(ValueError, match="limit must be 1-"):
         scan.movers_scan(date_from="2025-02-03", limit=scan.LIMIT_MAX + 1)
+
+
+def test_kinds_take_types_in_any_case_and_the_movers_searchs_two_words(movers):
+    assert list(scan.movers_scan(kinds=["adrc"], date_from="2025-01-01")["symbol"]) == ["CCC"]
+    assert list(scan.movers_scan(kinds="ADRC,CS", date_from="2025-01-01")["symbol"]) == ["AAA", "BBB", "CCC", "DDD"]
+    assert len(scan.movers_scan(kinds=["common"], date_from="2025-01-01")) == 4
+    assert len(scan.movers_scan(kinds=["all"], date_from="2025-01-01")) == 4
+    with pytest.raises(ValueError, match="stands alone"):
+        scan.movers_scan(kinds=["common", "ETF"], date_from="2025-01-01")
+
+
+def test_sort_and_after_page_through_a_ranking_without_a_repeat(movers):
+    ranked = scan.movers_scan(date_from="2025-01-01", sort="high")
+    assert list(ranked["symbol"]) == ["DDD", "BBB", "CCC", "AAA"]                 # largest first
+    assert scan.movers_scan(date_from="2025-01-01", sort="newest")["symbol"].tolist() == ["CCC", "DDD", "AAA", "BBB"]
+    rest = scan.movers_scan(date_from="2025-01-01", sort="high", after=("2025-01-02", "BBB"))
+    assert list(rest["symbol"]) == ["CCC", "AAA"]
+    assert ranked.attrs["filters"]["sort"] == "high"
+    with pytest.raises(ValueError, match="sort must be one of"):
+        scan.movers_scan(date_from="2025-01-01", sort="best")

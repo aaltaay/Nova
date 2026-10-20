@@ -378,11 +378,14 @@ _SORT_FIELD = {"session_date": "date", "high_pct": "high_pct", "low_pct": "low_p
 
 
 def sort_rows(rows: list[dict[str, Any]], sort: str) -> list[dict[str, Any]]:
-    """Ordered by ``sort``; a row without the figure goes last; ties newest first, then by symbol."""
+    """Ordered by ``sort``; a row without the figure goes last; ties newest first, then by symbol -- the rows
+    without the figure too, so their order is defined (``research/market_reads/scan.py`` orders them the same)."""
     column, descending = SORTS[sort]
     field = _SORT_FIELD[column]
     present = [r for r in rows if r[field] is not None]
     missing = [r for r in rows if r[field] is None]
+    missing.sort(key=lambda r: r["symbol"])
+    missing.sort(key=lambda r: r["date"], reverse=True)
     present.sort(key=lambda r: r["symbol"])
     present.sort(key=lambda r: r["date"], reverse=True)
     present.sort(key=lambda r: r[field], reverse=descending)

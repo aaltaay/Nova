@@ -15,6 +15,7 @@ py -3 tools/market_data.py trades GME 2021-01-27 --from 09:30 --to 09:35 --out g
 py -3 tools/market_data.py quotes GME 2021-01-27 --from 09:30 --to 09:31
 py -3 tools/market_data.py bars GME 2021-01-27 --tf 10s --from 09:30 --to 10:00
 py -3 tools/market_data.py bars GME 2021-01-27 --tf 5m
+py -3 tools/market_data.py bars DSS 2026-09-03 --from 09:30 --to 10:30 --fill-gaps   # a row per minute with no trade
 py -3 tools/market_data.py movers date_from=2021-01-01 date_to=2021-12-31 high_min=100 price_max=20
 py -3 tools/market_data.py board 2026-09-09 --at 09:45 --list gappers --top 20
 py -3 tools/market_data.py splits GRML --day 2026-07-15            # the splits, and that day's factor (50)
@@ -28,6 +29,7 @@ py -3 tools/market_data.py sec-filings GURE --as-of 2024-03-01 --forms "4,SC 13D
 py -3 tools/market_data.py float GURE                              # Massive's latest free float (no history)
 py -3 tools/market_data.py short-interest GURE 2024-03-01          # FINRA, as published by that morning
 py -3 tools/market_data.py find date_from=2025-01-01 date_to=2025-03-31 price_min=2 price_max=20 high_min=50 --float-max 20000000
+py -3 tools/market_data.py find date_from=2026-09-01 date_to=2026-10-16 high_min=100 --sort high --limit 10   # the ten biggest highs
 py -3 tools/market_data.py daily GME 2021-01-04 2021-02-26         # daily bars (raw; --adjust for split terms)
 py -3 tools/market_data.py context 2026-09-09                      # SPY / QQQ / IWM that day
 py -3 tools/market_data.py stats IRD 2026-09-09                    # premarket, first 5/30 min, VWAP, spread, rvol
@@ -41,7 +43,10 @@ py -3 tools/market_data.py symbols aurora                          # or: symbols
 that day: SEC shares outstanding filed by then (`outstanding_*`; the default `--float-max` basis, and it is not free
 float), the desk's own float when it had one (`enrichment_float`, 2026-07-28 on), the catalyst verdict (null =
 unknown), the day's halts, premarket high / volume and the first ET minute each +10% .. +300% line printed. Every
-float value says its source (`float_source`). Pages come back with `next_cursor`. Then `stats`, `flow`, `catalysts`
+float value says its source (`float_source`). Pages come back with `next_cursor`. `find` returns common stock
+(`CS`, `ADRC`) unless `kinds` says otherwise (`kinds=all` adds warrants, rights, units and ETFs), and `--sort`
+ranks the rows like the movers search (`--sort high --limit 10` is the ten largest highs that pass your other
+filters; `next_cursor` resumes the same ranking exactly). Then `stats`, `flow`, `catalysts`
 and `daily` / `context` answer the questions about one stock-day. Builders and column definitions for the derived
 tables (`trades_flow_v1` and the rest): `docs/massive-builders.md`.
 
@@ -80,7 +85,7 @@ To put a stock-day on the desk for the operator, use the `nova-sim-navigator` sk
 | Day movers index | `...\movers\day_movers.sqlite3` | see `status` | `movers`, `/api/agent/movers` |
 | Relative-volume table (every minute bar of every common stock with its baselines; one row per stock-day) | `F:\Nova\rvol\minutes\YYYY\` and `...\days\YYYY\` (`NOVA_RVOL_DIR`) | 2016-01-04 on (`status` `rvol_table`) | `rvol`, `rvol-triggers`, `rvol-outcomes` (owner `research/market_reads/rvol_store.py`; builder `research/rvol/build_rvol.py`) |
 | Signal table (the Trader's Signals panel at every minute of every in-play stock-day) | `F:\Nova\signals\minutes\YYYY\`, `...\days\YYYY\`, `...\tape\YYYY\` (`NOVA_SIGNALS_DIR`) | 2016-01-04 on (`status` `signal_table`) | `signals`, `signal-series`, `signal-scan`, `signal-test` (owner `research/market_reads/signals_store.py`; builder `research/signals/build_signals.py`) |
-| Past-day Scanner boards (recorded live, or rebuilt from minute bars) | `F:\Nova\leaderboard\leaderboard.sqlite3` | 1,752 of 2,713 sessions (see `status`) | `board`, the Sim |
+| Past-day Scanner boards (recorded live, or rebuilt from minute bars) | `F:\Nova\leaderboard\leaderboard.sqlite3` | about 1,750 of 2,713 sessions (see `status`) | `board`, the Sim |
 | Reference (splits, news, IPOs, dividends, short interest, financials) | `...\store\reference\` | month files from 2016 | `financials`, `float`, `ipos`, `ticker`, `short-interest` (`research/market_reads/reference.py`); splits via `lb_io` |
 | Reference index (built from the dump on first read, rebuilt when a dump file changes) | `...\store\reference_index.sqlite3` | what the dump holds | owner `research/market_reads/reference.py` |
 | SEC XBRL facts (shares outstanding / issued / treasury, 10-K public float) | `F:\Nova\catalysts\edgar\companyfacts.zip` | XBRL era (~2009-2011 on) | `sec-shares` (`research/market_reads/sec.py`) |
@@ -221,8 +226,15 @@ MCP: `signal_catalog`, `signal_series`, `signal_scan`, `signal_test`. Contract: 
   left out unless `splits=include`; `splits=only_suspects` lists the suspects; every scan row says `split`.
 - **A broad scan is refused.** `scan` needs `date_from` / `date_to`, a symbol or a `limit`, and without a limit
   returns at most 100,000 rows (`capped` says when more matched). The store is 3.0M rows on the desk's drive.
-- **Boards do not cover every day.** 1,752 of 2,713 sessions have a board (recorded or rebuilt, from 2016-11-30,
-  with holes such as 2023-06-01). A day without one answers `covered: false` with its `gap`, not just 0 rows.
+- **Boards do not cover every day.** About 1,750 of 2,713 sessions have a board (recorded or rebuilt, from
+  2016-11-30, with holes such as 2023-06-01; `status` has today's count). A day without one answers
+  `covered: false` with its `gap`, not just 0 rows. **`status` counts stored boards, not lists.** Gainers on a rebuilt
+  day is the `market` board (2016-11-30 .. 2026-09-22) and the recorded `gainers` board takes over from 2026-09-23, so
+  "Gainers on day X" has an answer on every covered session; only `large_cap` is recorded-days-only (2026-09-23 on,
+  nothing rebuilds it).
+- **A null `catalyst_verdict` is not covered, never "no news".** The backfill judged the Five Pillars gap universe
+  from 2021-10-11 to 2026-09-21 and the leaderboard's top-10 movers from 2026-06-17 to 2026-09-21; any other
+  stock-day, and every day before 2021-10-11, has no verdict (`catalysts` `verdicts_meta.coverage` says so).
 - **Two companies, one ticker.** 84 tickers in Massive's list belonged to two companies (AAP was Alcoa's preferred
   until 2016-11-01). SEC shares and filings, financials and splits read the company that held the ticker on the
   day asked (`research/market_reads/tickers.py`), say so in `ticker`, and refuse a day they cannot settle with the
@@ -231,7 +243,23 @@ MCP: `signal_catalog`, `signal_series`, `signal_scan`, `signal_test`. Contract: 
   cancel / error records, so a minute of seconds bars can sum higher: GME 2021-01-27 09:30 is 185,567 from the
   trades and 179,397 in the minute file (+3.4%). Daily bars are not a `bars` timeframe.
 - **`float_max` is shares outstanding.** The movers float filter is SEC shares outstanding filed by the day (insiders
-  and locked-up shares included), not free float.
+  and locked-up shares included), not free float. `find` takes `--outstanding-max` (MCP `outstanding_max`) as the
+  same limit under the name of what it filters, so the call shows its intent (an insider-heavy name's real float is
+  smaller; `float` gives Massive's free float, today's only); it needs the default `sec_outstanding` basis and is refused beside
+  `float_max`. The movers search's `float_max` is a proof on the desk's float or SEC outstanding; `--float-basis best`
+  is the nearest here.
+- **Common stock by default.** `find` keeps the movers search's `common` kinds (`CS`, `ADRC`, plus an unlabelled
+  symbol of at most four letters). In Sep 2026 the movers rows were 15,687 `CS` and 1,209 `ADRC` beside 3,288
+  `WARRANT`, 616 `RIGHT` and 6,173 `ETF`: most warrants are sub-penny and not tradeable. A named symbol is not filtered
+  by kind. `scan` still keeps every kind unless `kinds=` says otherwise.
+- **Bars have holes where nothing traded.** A minute or seconds bar exists only for a bucket with a trade, so a halt
+  is a gap in the series (DSS 2026-09-03 1m jumps 09:45 -> 09:50, 09:51 -> 09:56, 10:05 -> 10:10, 10:10 -> 10:15: its
+  four recorded halts). The answer's `meta.gaps` lists each run (`first_et`, `last_et`, `buckets`; the longest 50, with
+  `gap_runs` / `gap_buckets` counting all), and `--fill-gaps` (MCP `fill_gaps`) adds a row per hole with no prices,
+  zero volume and `filled` true. No price is carried forward: a filled minute has none.
+- **Daily bars mix two sessions.** `volume` is the whole 04:00-20:00 session; `open` / `high` / `low` / `close` are
+  regular hours. FLYE 2026-09-01 shows `high` 2.79 but `find`'s `day_high` is 3.97 at 05:38 ET, so a bar's volume can
+  have built a range the bar does not show. `stats` gives premarket, regular and whole-day figures apart.
 - **Filed, not period end.** A statement or SEC fact counts from the day it was filed: a quarter ending 03-31 is
   unknown until its 10-Q lands in May. `--as-of` / `--day` apply that rule. Balance-sheet `common_stock` and
   `treasury_stock` are dollars; share counts are SEC facts.

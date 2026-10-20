@@ -193,3 +193,56 @@ def test_every_tool_is_registered_and_only_file_writers_are_not_read_only():
     for name, tool in tools.items():
         assert tool.annotations.readOnlyHint is (name not in WRITES), name
         assert tool.annotations.destructiveHint is False and tool.description
+
+
+def test_find_stock_days_hands_the_ranking_kinds_and_limit_arguments_to_the_read(monkeypatch):
+    """#1086: sort / limit / outstanding_max / kinds reach the library unchanged; an unset kinds stays unset there."""
+    from market_reads import stock_days
+    asked = {}
+
+    def page(**kwargs):
+        asked.update(kwargs)
+        frame = pd.DataFrame({"date": ["2026-09-17"], "symbol": ["AEMD"]})
+        frame.attrs.update(next_cursor="2026-09-17|AEMD")
+        return frame
+
+    monkeypatch.setattr(stock_days, "find_stock_days", page)
+    service = m.DataService()
+    answer = service.find_stock_days({"date_from": "2026-09-01"}, sort="high", limit=10, outstanding_max=2e7,
+                                     kinds=["all"])
+    assert (asked["sort"], asked["limit"], asked["outstanding_max"], asked["kinds"]) == ("high", 10, 2e7, ["all"])
+    assert asked["float_max"] is None and asked["page_size"] is None and answer["next_cursor"] == "2026-09-17|AEMD"
+    service.find_stock_days({"date_from": "2026-09-01"})
+    assert asked["kinds"] is None and asked["sort"] is None, "the defaults are the library's (common stock, oldest)"
+
+
+def test_a_bars_answer_carries_the_gaps_and_fill_gaps_reaches_the_read(monkeypatch):
+    import contextlib
+
+    from market_reads import reads, slots
+    asked = {}
+    gaps = [{"first_et": "09:46", "last_et": "09:49", "buckets": 4}]
+
+    def bars(symbol, day, tf, start, end, fill_gaps):
+        asked["fill_gaps"] = fill_gaps
+        frame = pd.DataFrame({"time_et": pd.to_datetime(["2026-09-03 13:45"], utc=True).tz_convert("America/New_York"),
+                              "close": [3.1]})
+        frame.attrs.update(gaps=gaps, gap_runs=1, gap_buckets=4, gaps_truncated=False)
+        return frame
+
+    monkeypatch.setattr(reads, "bars", bars)
+    monkeypatch.setattr(slots, "heavy", lambda what: contextlib.nullcontext())
+    answer = m.DataService().stock_day("bars", "DSS", "2026-09-03", fill_gaps=True)
+    assert asked["fill_gaps"] is True
+    assert answer["meta"]["gaps"] == gaps and answer["meta"]["gap_buckets"] == 4
+    m.DataService().stock_day("bars", "DSS", "2026-09-03")
+    assert asked["fill_gaps"] is False
+
+
+def test_the_tool_descriptions_state_the_defaults_a_call_cannot_see():
+    tools = {t.name: t for t in asyncio.run(m.create_server(m.DataService()).list_tools())}
+    find = tools["find_stock_days"]
+    assert "COMMON STOCK" in find.description and "outstanding_max" in find.description
+    assert {"sort", "limit", "outstanding_max", "kinds"} <= set(find.inputSchema["properties"])
+    assert "fill_gaps" in tools["stock_day"].inputSchema["properties"] and "meta.gaps" in tools["stock_day"].description
+    assert "movers_search" in find.description and "market board" in tools["board"].description
