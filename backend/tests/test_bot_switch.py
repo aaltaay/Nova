@@ -119,12 +119,15 @@ def test_a_refused_on_leaves_the_padlock_locked(api_key):
     assert not safety.armed()
 
 
-def test_a_desk_that_cannot_place_does_not_refuse_on(api_key, monkeypatch):
+def test_on_over_a_locked_padlock_is_refused_and_changes_nothing(api_key, monkeypatch):
+    # Operator decision 2026-10-20 (bot.padlock_gate): no bot turns on over a locked padlock; the desk asks to unlock.
     on_practice()
     _a_strategy_on()
-    monkeypatch.setattr("ibkr.trading_allowed.places_allowed", lambda: (False, "Gateway not ready"))
+    monkeypatch.setattr("ibkr.trading_allowed.places_allowed", lambda: (False, "Desk is disarmed"))
     res = _switch(api_key, True)
-    assert res.status_code == 200 and res.json()["bot_on"] is True
+    assert res.status_code == 409 and res.json()["detail"]["reason"] == BOT_REASON_PADLOCK_LOCKED
+    assert get_session()["bot_on"] is False and _lines() == []
+    assert "padlock is locked" in get_session()["switch"]["why_off"]
 
 
 def test_locking_the_padlock_leaves_the_switch_on_and_holds_every_bot(api_key, monkeypatch):
@@ -133,10 +136,10 @@ def test_locking_the_padlock_leaves_the_switch_on_and_holds_every_bot(api_key, m
 
     on_practice()
     _a_strategy_on()
-    assert _switch(api_key, True).status_code == 200
     monkeypatch.setattr("ibkr.trading_allowed.places_allowed",        # the suite pins it True
                         lambda: (safety.armed(), "" if safety.armed() else "Desk is disarmed"))
     safety.arm(True, actor="operator")
+    assert _switch(api_key, True).status_code == 200
     assert family_keys.hold("strategy") is None and family_keys.hold("live_trader") is None
     safety.arm(False, actor="operator")
     assert get_session()["bot_on"] is True              # locking it no longer turns the bot off

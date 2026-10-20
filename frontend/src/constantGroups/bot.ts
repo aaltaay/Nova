@@ -264,7 +264,7 @@ export const BOT_GATE_TIPS: Record<string, string> = {
   level: 'The Bot switch, in the header beside the padlock: on, Nova may act on the strategies at On; off, no bot places an order and the strategies alert you like Eyes. Turning a strategy On, a TraderTV host Bot key on or a family key on turns it on too. Each venue keeps its own.',
   strategy_key: 'The Strategy Bots key, at the top of this page: off, the strategies\' bot and Auto-entry place no order, not even a sell. Each venue keeps its own. Checked on every order.',
   setups: 'At least one strategy set to On on its card. Nova acts only on those strategies\' GO triggers. The Bot switch needs this.',
-  padlock: 'The desk padlock (spend arming). It is locked at every start and when anyone locks it. While locked no one places an order, a bot included; the Bot switch stays as it is, and the bots trade again once you unlock it.',
+  padlock: 'The desk padlock (spend arming). It is locked at every start and when anyone locks it. No bot turns on while it is locked: turning one on asks you to unlock it first. Locked after a bot is on, no one places an order, a bot included; the Bot switch reads LOCKED, and the bots trade again once you unlock it.',
   allowlist: 'The stocks whose Buy is Bot on this venue (Tickers today, or Who trades on a Trader tab). The bot buys nothing else; the scanners and Eyes still watch every HOD Momo name.',
   depth_lines: 'Nova must hold a stock\'s Level 2 line to read its tape at the trigger (IBKR allows 3 at once). This is open while one bot stock has a line; a trigger on a stock without one is skipped, and the activity says so. Checked on every order.',
   loss_limit: 'No new buys after the daily loss limit (Settings > Loss limits): with No new buys checked, once this venue\'s day loss reaches your limit, buys -- yours and the bots\' -- are refused until 04:00 ET. Selling, Flatten and KILL still work. Checked on every order.',
@@ -350,3 +350,20 @@ export const KILL_SWITCH_TRIP_CONFIRM =
   'Freeze all orders? It cancels every working order on every venue but the stops that protect a position, and refuses every new order on every venue, a sell included, until you unfreeze. It sells nothing; Flatten and cancels still work.';
 export const KILL_SWITCH_RESET_CONFIRM = 'Unfreeze orders? New orders will be allowed again.';
 export const KILL_SWITCH_POLL_MS = 5000;
+
+/**
+ * No bot turns on while the desk padlock is locked (operator decision 2026-10-20; `bot/padlockPrompt.ts`, backend
+ * `bot/padlock_gate.py`): the one question every bot's On asks over a locked padlock.
+ */
+export const BOT_PADLOCK_REFUSAL_CODE = 'BOT_PADLOCK_LOCKED';
+export const BOT_PADLOCK_PROMPT_TITLE = 'Unlock the padlock?';
+export const BOT_PADLOCK_PROMPT_MESSAGE =
+  'The desk padlock is locked. While it is locked no bot places an order -- not a buy, not a sell -- so a bot turned on would only look on. Unlock the padlock and turn the bot on?';
+export const BOT_PADLOCK_PROMPT_CONFIRM = 'Unlock and turn on';
+export const BOT_PADLOCK_PROMPT_CANCEL = 'Keep it off';
+export const BOT_PADLOCK_KEPT_OFF = 'Kept off: the padlock stays locked, so no bot turned on.';
+export const BOT_PADLOCK_UNLOCK_FAILED = 'The padlock did not unlock, so no bot turned on';
+/** The header Bot switch while it is on but the padlock is locked: never ON over a padlock that blocks every order. */
+export const BOT_SWITCH_LOCKED_NAME = 'LOCKED';
+export const BOT_SWITCH_LOCKED_REASON =
+  'The padlock is locked: no bot places an order, not even a sell, until you unlock it (the padlock beside this switch)';

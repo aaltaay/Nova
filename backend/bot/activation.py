@@ -8,7 +8,7 @@ the press and after it:
   (a loaded replay is traded like Paper, ADR 052), ``BOT_VENUE_UNKNOWN`` when the venue cannot be read;
 - ``BOT_LEVEL_NOT_STRATEGY`` with the master below Strategy;
 - ``BOT_NO_SETUP_AT_STRATEGY`` with no setup at effective Strategy;
-- ``BOT_PADLOCK_LOCKED`` while the desk's padlock is locked.
+- ``BOT_PADLOCK_LOCKED`` while the desk's padlock is locked (``bot.padlock_gate``: no bot turns on over it).
 
 No loss limit turns the bot off (ADR 056): the daily loss limit's No new buys refuses entries at the
 execution door, and the ``loss_limit`` gate says so.
@@ -41,7 +41,6 @@ from constants_bot import (
     BOT_REASON_LEVEL_NOT_STRATEGY,
     BOT_REASON_LIVE_NOT_BUILT,
     BOT_REASON_NO_SETUP_AT_STRATEGY,
-    BOT_REASON_PADLOCK_LOCKED,
     BOT_REASON_REPLAY_DESK,
     BOT_REASON_VENUE_UNKNOWN,
     BOT_REPLAY_NOTHING_LOADED_TEXT,
@@ -147,10 +146,9 @@ def money(value: Any) -> str:
 
 
 # -- Activate ------------------------------------------------------------------------
-def refusal(row: dict[str, Any], *, padlock_rule: bool = True) -> BotError | None:
-    """Why Activate refuses now (the first rule that fails), else None.
-
-    ``padlock_rule=False`` leaves the padlock out, for the Bot switch: the padlock is separate from it (2026-10-16)."""
+def refusal(row: dict[str, Any]) -> BotError | None:
+    """Why Activate (and the Bot switch) refuses now (the first rule that fails), else None. The padlock's rule is
+    ``bot.padlock_gate``'s, the one every bot's ON obeys (operator decision 2026-10-20)."""
     from bot.setup_levels import at_strategy, master
 
     venue, edge, readable = venue_state()
@@ -163,11 +161,9 @@ def refusal(row: dict[str, Any], *, padlock_rule: bool = True) -> BotError | Non
     if not at_strategy(row) and not live_trader_keys(venue):
         return BotError("no setup is at Strategy and no Live Trader key is on -- set at least one setup to "
                         "Strategy or turn a host's key on, then Activate", 409, BOT_REASON_NO_SETUP_AT_STRATEGY)
-    ok, why = padlock() if padlock_rule else (True, None)
-    if not ok:
-        return BotError(f"the desk padlock is locked ({why}) -- unlock it, then Activate", 409,
-                        BOT_REASON_PADLOCK_LOCKED)
-    return None
+    from bot.padlock_gate import refusal as padlock_refusal
+
+    return padlock_refusal()
 
 
 def assert_can_activate(row: dict[str, Any]) -> None:
