@@ -18,8 +18,18 @@ float (insiders and locked-up shares are inside it), so a pass means "at most th
 ``enrichment`` (the desk's own float that day) and ``best`` (enrichment when the desk had it, else outstanding).
 A row with no value on the basis is unknown: ``float_unknown`` = exclude (default) | include | only.
 
-Pages: rows come oldest day first, then by symbol. ``next_cursor`` (``"YYYY-MM-DD|SYMBOL"``) continues past the last
-row returned; None when every row was read. One call examines at most ``MAX_EXAMINED`` movers rows.
+``outstanding_max`` is ``float_max`` under the name of what it filters (SEC shares outstanding): it needs the
+``sec_outstanding`` basis and is refused beside ``float_max``.
+
+Kinds: common stock (``CS``, ``ADRC``) unless ``kinds`` says otherwise -- the capped search's own default, so warrants,
+rights, units and ETFs are not in the rows unless asked for (``kinds=["all"]`` keeps every kind). A call that names a
+``symbol`` and no ``kinds`` keeps every kind: the ticker is the filter (the desk's own symbol lookup does the same).
+
+Pages: rows come oldest day first, then by symbol, or ranked by ``sort`` (the capped search's choices, ``SORTS``): the
+movers store orders them, then each chunk is enriched and filtered in that order, so the float / catalyst / halt filters
+pick from the ranking. ``limit`` is ``page_size`` under the capped search's name. ``next_cursor``
+(``"YYYY-MM-DD|SYMBOL"``) continues strictly past the last row examined in the same order; None when every row was
+read. One call examines at most ``MAX_EXAMINED`` movers rows.
 """
 from __future__ import annotations
 
@@ -33,6 +43,7 @@ from market_reads import REPO, scan, tickers  # noqa: F401  (REPO puts backend/ 
 
 ET = ZoneInfo("America/New_York")
 PAGE_DEFAULT, PAGE_MAX, PAGE_MAX_FILE = 200, 5_000, 100_000
+DEFAULT_KINDS = ["common"]          # as the movers search; a named symbol is its own filter: ["all"]
 CHUNK = 2_000
 MAX_EXAMINED = 200_000
 FLOAT_BASES = ("sec_outstanding", "enrichment", "best")
@@ -154,13 +165,38 @@ def _keep(row: dict[str, Any], float_max: float | None, float_unknown: str, cata
     return row["halts"] is not None and (row["halts"] > 0) == halted     # an uncovered day is unknown: left out
 
 
+def _kinds_echo(kinds: list[str]) -> str | list[str]:
+    return kinds[0].lower() if len(kinds) == 1 and kinds[0].lower() in scan.KIND_WORDS else [k.upper() for k in kinds]
+
+
+def _share_limit(float_max: float | None, outstanding_max: float | None, float_basis: str) -> float | None:
+    """The one limit on shares: ``float_max`` (on ``float_basis``) or ``outstanding_max`` (SEC shares outstanding)."""
+    if outstanding_max is None:
+        return float_max
+    if float_max is not None:
+        raise ValueError("pass float_max or outstanding_max, not both: they are one limit on shares outstanding")
+    if float_basis != "sec_outstanding":
+        raise ValueError("outstanding_max limits SEC shares outstanding, so float_basis must be sec_outstanding "
+                         f"(not {float_basis!r}); use float_max for the other bases")
+    return outstanding_max
+
+
+def _page_of(page_size: int | None, limit: int | None) -> int:
+    if page_size is not None and limit is not None and int(page_size) != int(limit):
+        raise ValueError("limit is page_size under the movers search's name: pass one, or the same number")
+    return int(limit if limit is not None else PAGE_DEFAULT if page_size is None else page_size)
+
+
 def find_stock_days(*, filters: dict[str, Any] | None = None, symbol: str | None = None,
-                    kinds: list[str] | None = None, splits: str = "exclude_likely", float_max: float | None = None,
+                    kinds: list[str] | str | None = None, splits: str = "exclude_likely",
+                    float_max: float | None = None, outstanding_max: float | None = None,
                     float_basis: str = "sec_outstanding", float_unknown: str = "exclude",
-                    catalyst: list[str] | None = None, halted: bool | None = None, cursor: str | None = None,
-                    page_size: int = PAGE_DEFAULT, to_file: bool = False) -> pd.DataFrame:
+                    catalyst: list[str] | None = None, halted: bool | None = None, sort: str | None = None,
+                    limit: int | None = None, cursor: str | None = None, page_size: int | None = None,
+                    to_file: bool = False) -> pd.DataFrame:
     """One page of stock-days (see the module docstring); ``attrs`` has ``next_cursor``, ``examined`` and the rules.
-    ``catalyst``: verdicts to keep (``unknown`` matches a day with none); ``halted``: only days with / without one."""
+    ``catalyst``: verdicts to keep (``unknown`` matches a day with none); ``halted``: only days with / without one.
+    ``kinds``: types, ``["common"]`` (default) or ``["all"]``; ``sort``: a movers search sort, default oldest day."""
     filters = {k: v for k, v in (filters or {}).items() if v is not None}
     if not (symbol or filters.get("date_from") or filters.get("date_to")):
         raise ValueError("find_stock_days names date_from / date_to or a symbol (the movers store is 3.0M rows)")
@@ -168,19 +204,23 @@ def find_stock_days(*, filters: dict[str, Any] | None = None, symbol: str | None
         raise ValueError(f"float_basis must be one of {', '.join(FLOAT_BASES)}")
     if float_unknown not in FLOAT_UNKNOWN:
         raise ValueError(f"float_unknown must be one of {', '.join(FLOAT_UNKNOWN)}")
+    share_limit = _share_limit(float_max, outstanding_max, float_basis)
+    page_size = _page_of(page_size, limit)
+    wanted_kinds = [kinds] if isinstance(kinds, str) else list(kinds or (["all"] if symbol else DEFAULT_KINDS))
     ceiling = PAGE_MAX_FILE if to_file else PAGE_MAX
-    if not 1 <= int(page_size) <= ceiling:
-        raise ValueError(f"page_size must be 1-{ceiling:,}" + ("" if to_file else " (output_name allows more)"))
+    if not 1 <= page_size <= ceiling:
+        raise ValueError(f"page_size / limit must be 1-{ceiling:,}" + ("" if to_file else " (output_name allows more)"))
     wanted = {c.lower() for c in catalyst} if catalyst else None
     step = min(CHUNK, max(200, int(page_size) * 2))
     after, page, examined, more, full = parse_cursor(cursor), [], 0, True, False
     while more and not full and examined < MAX_EXAMINED:
-        chunk = scan.movers_scan(symbol=symbol, kinds=kinds, splits=splits, after=after, limit=step, **filters)
+        chunk = scan.movers_scan(symbol=symbol, kinds=wanted_kinds, splits=splits, after=after, limit=step, sort=sort,
+                                 **filters)
         examined += len(chunk)
         more = len(chunk) == step
         for row in enrich(chunk, float_basis):
             after = (row["date"], row["symbol"])
-            if _keep(row, float_max, float_unknown, wanted, halted):
+            if _keep(row, share_limit, float_unknown, wanted, halted):
                 page.append(row)
                 if len(page) == page_size:
                     full = True
@@ -189,8 +229,15 @@ def find_stock_days(*, filters: dict[str, Any] | None = None, symbol: str | None
     frame = pd.DataFrame(page)
     frame.attrs.update(
         next_cursor=next_cursor, examined=examined, rows=len(page),
-        filters={**filters, "splits": splits, "float_max": float_max, "float_basis": float_basis,
-                 "float_unknown": float_unknown, "catalyst": sorted(wanted) if wanted else None, "halted": halted},
+        filters={**filters, "kinds": _kinds_echo(wanted_kinds), "splits": splits, "float_max": float_max,
+                 "outstanding_max": outstanding_max, "float_basis": float_basis, "float_unknown": float_unknown,
+                 "catalyst": sorted(wanted) if wanted else None, "halted": halted, "sort": sort or "oldest"},
+        order_rule=("oldest day first, then symbol" if sort in (None, "oldest") else
+                    f"sort={sort}: the movers search's order (a row without the figure last; ties newest day first, "
+                    "then symbol); float / catalyst / halt filters pick from this ranking"),
+        kinds_rule=("common stock (CS, ADRC) as the movers search: pass kinds=['all'] for warrants, rights, units, ETFs"
+                    if wanted_kinds == DEFAULT_KINDS else "every kind (a named symbol is not filtered by kind)"
+                    if wanted_kinds == ["all"] and not kinds else "the kinds asked for"),
         units="*_pct percent points; prices raw prior-close dollars (never split-adjusted); *_et ET HH:MM",
         float_rule=("float_shares is the float_basis value: sec_outstanding = SEC shares outstanding filed by the day "
                     "(as of <= 120 days before it, split-adjusted to the day) -- not free float; enrichment = the "

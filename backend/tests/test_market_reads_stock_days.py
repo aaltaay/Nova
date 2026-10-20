@@ -137,3 +137,136 @@ def test_a_broad_or_malformed_ask_is_refused(store):
         stock_days.find_stock_days(filters={"date_from": store}, float_basis="yahoo")
     with pytest.raises(ValueError, match="page_size"):
         stock_days.find_stock_days(filters={"date_from": store}, page_size=stock_days.PAGE_MAX + 1)
+
+
+# --- ranking, kinds and the outstanding_max alias (#1086) --------------------------------------------------------
+# (day, symbol, kind, high_pct as the store keeps it -- a fraction -- and the volume)
+RANKED = [
+    ("2025-03-03", "AAA", "CS", 0.5, 900), ("2025-03-03", "BBB", "CS", 2.0, 800),
+    ("2025-03-03", "ABCDW", "WARRANT", 9.0, 700), ("2025-03-03", "ETFX", "ETF", 0.9, 600),
+    ("2025-03-04", "CCC", "CS", 0.5, 500), ("2025-03-04", "DDD", "ADRC", 2.0, 400),
+    ("2025-03-04", "NONE", "CS", None, 300), ("2025-03-04", "UNLB", None, 1.0, 200),
+    ("2025-03-04", "LONGSYM", None, 3.0, 100), ("2025-03-05", "EEE", "CS", 0.7, 1000),
+]
+COMMON = ["AAA", "BBB", "CCC", "DDD", "NONE", "UNLB", "EEE"]
+BY_HIGH = ["DDD", "BBB", "UNLB", "EEE", "CCC", "AAA", "NONE"]      # ties newest day first; no figure last
+
+
+@pytest.fixture
+def ranked(tmp_path, monkeypatch):
+    monkeypatch.setenv("NOVA_MARKET_DATA_DIR", str(tmp_path))
+    path = roots.movers_db()
+    path.parent.mkdir(parents=True)
+    db = sqlite3.connect(path)
+    schema.initialize(db)
+    db.executemany("INSERT INTO movers (session_date, symbol, kind, prev_close, high_pct, split_suspect, prev_volume,"
+                   " volume) VALUES (?, ?, ?, 4.0, ?, 0, 100000, ?)", RANKED)
+    db.executemany("INSERT INTO sec_shares VALUES (?, ?, '2025-01-31', '2025-02-14', ?, '10-Q')", [
+        ("AAA", "1", 5_000_000), ("BBB", "2", 50_000_000), ("DDD", "4", 8_000_000), ("UNLB", "5", 3_000_000),
+        ("EEE", "6", 5_000_000), ("ABCDW", "7", 1_000_000)])
+    db.commit()
+    db.close()
+    tickers.clear()
+    fake_cat = types.SimpleNamespace(for_pairs=lambda pairs: {})
+    fake_halts = types.SimpleNamespace(for_pairs=lambda pairs: {p: {"halts": 0, "codes": [], "luld": 0} for p in pairs})
+    for name, module in (("catalysts", fake_cat), ("halts", fake_halts)):
+        monkeypatch.setitem(sys.modules, f"market_reads.{name}", module)
+        monkeypatch.setattr(market_reads, name, module, raising=False)
+    yield {"date_from": "2025-03-03"}
+    tickers.clear()
+
+
+def _symbols(frame) -> list[str]:
+    return list(frame["symbol"])
+
+
+def test_kinds_default_to_common_stock_like_the_movers_search(ranked):
+    frame = stock_days.find_stock_days(filters=ranked, float_unknown="include")
+    assert _symbols(frame) == COMMON                                  # no warrant, ETF or long unlabelled symbol
+    assert frame.attrs["filters"]["kinds"] == "common" and "common stock" in frame.attrs["kinds_rule"]
+    everything = stock_days.find_stock_days(filters=ranked, kinds=["all"], float_unknown="include")
+    assert len(everything) == len(RANKED) and everything.attrs["filters"]["kinds"] == "all"
+    etf = stock_days.find_stock_days(filters=ranked, kinds=["etf", "warrant"], float_unknown="include")
+    assert _symbols(etf) == ["ABCDW", "ETFX"] and etf.attrs["filters"]["kinds"] == ["ETF", "WARRANT"]
+    both = stock_days.find_stock_days(filters=ranked, kinds="ETF,ADRC", float_unknown="include")
+    assert _symbols(both) == ["ETFX", "DDD"]
+    with pytest.raises(ValueError, match="stands alone"):
+        stock_days.find_stock_days(filters=ranked, kinds=["all", "ETF"])
+
+
+def test_a_named_symbol_is_not_filtered_by_kind_unless_asked(ranked):
+    named = stock_days.find_stock_days(filters=ranked, symbol="ABCDW", float_unknown="include")
+    assert _symbols(named) == ["ABCDW"] and "named symbol" in named.attrs["kinds_rule"]
+    assert named.attrs["filters"]["kinds"] == "all"
+    assert len(stock_days.find_stock_days(filters=ranked, symbol="ABCDW", kinds=["common"],
+                                          float_unknown="include")) == 0
+
+
+@pytest.mark.parametrize("sort,expected", [
+    ("high", BY_HIGH),
+    ("newest", ["EEE", "CCC", "DDD", "NONE", "UNLB", "AAA", "BBB"]),
+    ("oldest", ["AAA", "BBB", "CCC", "DDD", "NONE", "UNLB", "EEE"]),
+    ("volume", ["EEE", "AAA", "BBB", "CCC", "DDD", "NONE", "UNLB"])])
+def test_sort_ranks_like_the_movers_search(ranked, sort, expected):
+    frame = stock_days.find_stock_days(filters=ranked, sort=sort, float_unknown="include")
+    assert _symbols(frame) == expected
+    assert frame.attrs["filters"]["sort"] == sort
+
+
+def test_the_ranking_matches_the_movers_search_answer(ranked):
+    """The same filters through the capped search (``reads.movers``) and ``find_stock_days`` rank alike."""
+    from market_reads import reads
+    ours = stock_days.find_stock_days(filters=ranked, sort="high", float_unknown="include")
+    theirs = reads.movers(date_from="2025-03-03", sort="high", limit=50)
+    assert [(r["date"], r["symbol"]) for r in theirs["rows"]] == list(zip(ours["date"], ours["symbol"], strict=True))
+
+
+@pytest.mark.parametrize("sort", ["high", "low", "newest", "oldest", "volume", "close", "gap", "dollar_volume"])
+@pytest.mark.parametrize("size", [1, 2, 3])
+def test_ranked_pages_resume_exactly_where_they_stopped(ranked, sort, size):
+    """Every page resumes strictly after the last row examined in the same order: no repeat, no hole, null last."""
+    whole = stock_days.find_stock_days(filters=ranked, sort=sort, float_unknown="include")
+    seen, cursor = [], None
+    for _ in range(12):
+        page = stock_days.find_stock_days(filters=ranked, sort=sort, float_unknown="include", limit=size,
+                                          cursor=cursor)
+        seen += list(zip(page["date"], page["symbol"], strict=True)) if len(page) else []
+        cursor = page.attrs["next_cursor"]
+        if cursor is None:
+            break
+    assert seen == list(zip(whole["date"], whole["symbol"], strict=True)) and len(seen) == len(COMMON)
+
+
+def test_the_float_filter_picks_from_the_ranking(ranked):
+    best = stock_days.find_stock_days(filters=ranked, sort="high", outstanding_max=10_000_000, limit=2)
+    assert _symbols(best) == ["DDD", "UNLB"]                    # BBB (50M) is over the limit, NONE has no count
+    rest = stock_days.find_stock_days(filters=ranked, sort="high", outstanding_max=10_000_000, limit=9,
+                                      cursor=best.attrs["next_cursor"])
+    assert _symbols(rest) == ["EEE", "AAA"]
+
+
+def test_a_cursor_outside_the_search_is_refused_for_a_ranking(ranked):
+    with pytest.raises(ValueError, match="not a row of the movers index"):
+        stock_days.find_stock_days(filters=ranked, sort="high", cursor="2025-03-03|ZZZZ")
+    with pytest.raises(ValueError, match="sort must be one of"):
+        stock_days.find_stock_days(filters=ranked, sort="biggest")
+
+
+def test_outstanding_max_is_the_float_max_limit_named_for_what_it_filters(ranked):
+    named = stock_days.find_stock_days(filters=ranked, outstanding_max=10_000_000)
+    plain = stock_days.find_stock_days(filters=ranked, float_max=10_000_000)
+    assert _symbols(named) == _symbols(plain) == ["AAA", "DDD", "UNLB", "EEE"]
+    assert named.attrs["filters"]["outstanding_max"] == 10_000_000 and named.attrs["filters"]["float_max"] is None
+    with pytest.raises(ValueError, match="not both"):
+        stock_days.find_stock_days(filters=ranked, float_max=1, outstanding_max=1)
+    with pytest.raises(ValueError, match="sec_outstanding"):
+        stock_days.find_stock_days(filters=ranked, outstanding_max=1, float_basis="best")
+
+
+def test_limit_is_page_size_under_the_movers_searchs_name(ranked):
+    assert len(stock_days.find_stock_days(filters=ranked, limit=2, float_unknown="include")) == 2
+    assert len(stock_days.find_stock_days(filters=ranked, limit=2, page_size=2, float_unknown="include")) == 2
+    with pytest.raises(ValueError, match="page_size"):
+        stock_days.find_stock_days(filters=ranked, limit=2, page_size=3)
+    with pytest.raises(ValueError, match="page_size / limit must be"):
+        stock_days.find_stock_days(filters=ranked, limit=stock_days.PAGE_MAX + 1)

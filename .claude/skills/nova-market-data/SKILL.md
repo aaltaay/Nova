@@ -36,6 +36,9 @@ catalyst + halts + premarket marks, paged by `next_cursor`), then `stock_day_sta
 Percents are points in and out (the movers and board stores keep fractions); `--as-of` / `day` count a statement or
 SEC fact from the day it was filed; a float filter is SEC shares OUTSTANDING unless you pick another basis -- say
 which one you used. A ticker two companies used reads the company that held it that day (`ticker` in the answer).
+`find_stock_days` returns common stock unless `kinds` says otherwise (`["all"]` for warrants, rights, ETFs), ranks with
+`sort` + `limit` like `movers_search` (`sort: "high", limit: 10`), and `outstanding_max` is its `float_max` named for what
+it filters. Bars have no row for a minute with no trade: read `meta.gaps`, or pass `fill_gaps` for priceless rows.
 A hook blocks reading the raw stores any other way.
 
 trades / quotes / bars are raw (never split-adjusted); add `--adjust` for today's terms, or in Python

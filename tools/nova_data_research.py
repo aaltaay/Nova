@@ -17,17 +17,20 @@ PRELOAD = ("market_reads.stock_days", "market_reads.daily", "market_reads.stats"
 class ResearchTools:
     """Tool bodies; the host class gives ``output_path`` and ``answer`` (``nova_data_mcp.table_answer``)."""
 
-    def find_stock_days(self, filters: dict[str, Any], symbol: str | None = None, kinds: list[str] | None = None,
-                        splits: str = "exclude_likely", float_max: float | None = None,
+    def find_stock_days(self, filters: dict[str, Any], symbol: str | None = None,
+                        kinds: list[str] | str | None = None, splits: str = "exclude_likely",
+                        float_max: float | None = None, outstanding_max: float | None = None,
                         float_basis: str = "sec_outstanding", float_unknown: str = "exclude",
-                        catalyst: list[str] | None = None, halted: bool | None = None, cursor: str | None = None,
-                        page_size: int = 200, output_name: str | None = None) -> dict[str, Any]:
+                        catalyst: list[str] | None = None, halted: bool | None = None, sort: str | None = None,
+                        limit: int | None = None, cursor: str | None = None, page_size: int | None = None,
+                        output_name: str | None = None) -> dict[str, Any]:
         from market_reads import stock_days
         out = self.output_path(output_name)
         frame = stock_days.find_stock_days(filters=filters, symbol=symbol, kinds=kinds, splits=splits,
-                                           float_max=float_max, float_basis=float_basis, float_unknown=float_unknown,
-                                           catalyst=catalyst, halted=halted, cursor=cursor, page_size=page_size,
-                                           to_file=out is not None)
+                                           float_max=float_max, outstanding_max=outstanding_max,
+                                           float_basis=float_basis, float_unknown=float_unknown, catalyst=catalyst,
+                                           halted=halted, sort=sort, limit=limit, cursor=cursor,
+                                           page_size=page_size, to_file=out is not None)
         answer = self.answer(frame, out)
         answer["next_cursor"] = frame.attrs.get("next_cursor")
         return answer
@@ -79,23 +82,32 @@ def register(server, service, run, reads, writes_file) -> None:
     """The eight tools on ``server`` (``run`` executes a body off the event loop; heavy ones one at a time)."""
 
     @server.tool(annotations=writes_file)
-    async def find_stock_days(filters: dict, symbol: str | None = None, kinds: list[str] | None = None,
+    async def find_stock_days(filters: dict, symbol: str | None = None, kinds: list[str] | str | None = None,
                               splits: str = "exclude_likely", float_max: float | None = None,
-                              float_basis: str = "sec_outstanding", float_unknown: str = "exclude",
-                              catalyst: list[str] | None = None, halted: bool | None = None,
-                              cursor: str | None = None, page_size: int = 200,
+                              outstanding_max: float | None = None, float_basis: str = "sec_outstanding",
+                              float_unknown: str = "exclude", catalyst: list[str] | None = None,
+                              halted: bool | None = None, sort: str | None = None, limit: int | None = None,
+                              cursor: str | None = None, page_size: int | None = None,
                               output_name: str | None = None) -> dict:
         """Momentum stock-days in one call: movers rows (filters as movers_scan: date_from/date_to, price_min/max on
-        the raw prior close, high_min ... in percent points; needs dates or a symbol) joined with what was known that
-        day -- outstanding_* (SEC shares OUTSTANDING filed by the day, as of <=120 days, split-adjusted; NOT free
+        the raw prior close, high_min ... in percent points; needs dates or a symbol) joined with what was known
+        that day -- outstanding_* (SEC shares OUTSTANDING filed by the day, as of <=120 days, split-adjusted; NOT free
         float), enrichment_float (the desk's own float, 2026-07-28 on), catalyst_* (the backfill's verdict; null =
         unknown), halts / first_halt_et / halt_codes, pm_high / pm_volume and up10_et..up300_et (first ET minute
-        each +N% printed). float_max filters float_basis: sec_outstanding (default) | enrichment | best; float_source
-        labels each value; float_unknown exclude | include | only. catalyst e.g. ["catalyst"] or ["unknown"];
-        halted true/false. Likely splits left out (splits=include keeps). Pages of page_size (<=5,000; with
-        output_name <=100,000): pass next_cursor back as cursor."""
-        return await run(service.find_stock_days, filters, symbol, kinds, splits, float_max, float_basis,
-                         float_unknown, catalyst, halted, cursor, page_size, output_name)
+        each +N% printed).
+        kinds: COMMON STOCK (CS, ADRC) by default, like movers_search -- warrants, rights, units and ETFs are
+        left out unless asked: ["all"] keeps every kind, ["ETF"] or ["CS", "WARRANT"] those types; naming a symbol
+        with no kinds keeps every kind. sort ranks the rows like movers_search: newest | oldest (default) | high |
+        low | close | gap | volume | dollar_volume (a row without the figure last, ties newest day first); the
+        float / catalyst / halted filters then pick from the ranking, so sort "high" with limit 10 is the ten largest
+        highs that pass them. limit = page_size (the most rows this call returns, <=5,000; with output_name
+        <=100,000); next_cursor continues the same ranking exactly: pass it back as cursor with the same arguments.
+        float_max filters float_basis: sec_outstanding (default) | enrichment | best; outstanding_max is the same
+        limit under the name of what it filters (SEC shares outstanding; needs float_basis sec_outstanding, not with
+        float_max); float_source labels each value; float_unknown exclude | include | only. catalyst e.g.
+        ["catalyst"] or ["unknown"]; halted true/false. Likely splits left out (splits=include keeps)."""
+        return await run(service.find_stock_days, filters, symbol, kinds, splits, float_max, outstanding_max,
+                         float_basis, float_unknown, catalyst, halted, sort, limit, cursor, page_size, output_name)
 
     @server.tool(annotations=writes_file)
     async def daily_bars(symbol: str, date_from: str, date_to: str, adjust: bool = False, as_of: str | None = None,
@@ -103,7 +115,9 @@ def register(server, service, run, reads, writes_file) -> None:
         """Daily bars for a date range from the Massive day files (2016-01-04 on): open/high/low/close/volume,
         prev_close, change_pct / gap_pct / range_pct in percent points. Raw unless adjust=true (split-adjusted to
         as_of, default today, by the splits of the company that held the ticker each day). Day volume is the whole
-        04:00-20:00 session; prices are regular hours."""
+        04:00-20:00 session; prices are regular hours -- so a bar's volume can have built a range it does not show
+        (FLYE 2026-09-01: high 2.79, but find_stock_days day_high 3.97 at 05:38 ET); stock_day_stats splits premarket,
+        regular and whole-day."""
         return await run(service.daily_bars, symbol, date_from, date_to, adjust, as_of, output_name)
 
     @server.tool(annotations=reads)

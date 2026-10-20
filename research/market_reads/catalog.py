@@ -13,11 +13,15 @@ RESEARCH = (
               "verdict for the day; likely splits left out like movers_search",
      "units": "*_pct percent points; float_shares labelled by float_source (sec_shares_outstanding = outstanding, "
               "NOT free float; enrichment_snapshot = the desk's float, 2026-07-28 on); *_et ET HH:MM",
-     "mcp": "find_stock_days (pages: next_cursor)", "cli": "market_data.py find key=value --float-max N"},
+     "mcp": "find_stock_days (common stock unless kinds says otherwise; sort + limit rank like movers_search; "
+            "outstanding_max = float_max by name; pages: next_cursor, exact under a sort)",
+     "cli": "market_data.py find key=value [kinds=all] [--sort high --limit 10] [--outstanding-max N]"},
     {"name": "daily_bars", "source": "Massive day files (day_aggs_v1)", "history": "2016-01-04 on, 2,713 days",
      "as_of": "one row per session the stock traded; raw unless adjust (splits of the day's company)",
      "units": "OHLC dollars; volume = the whole 04:00-20:00 session with odd lots, prices regular hours; "
-              "change / gap / range percent points", "mcp": "daily_bars / market_context (SPY, QQQ, IWM)",
+              "change / gap / range percent points. A bar's volume can have built a range it does not show "
+              "(FLYE 2026-09-01: high 2.79; premarket day_high 3.97 at 05:38 ET)",
+     "mcp": "daily_bars / market_context (SPY, QQQ, IWM)",
      "cli": "market_data.py daily SYMBOL FROM TO / context DAY"},
     {"name": "stock_day_stats", "source": "computed on demand from minute bars, day files and NBBO quotes",
      "history": "2016-01-04 on", "as_of": "one stock-day; relative volume against prior sessions only",
@@ -65,8 +69,11 @@ CATALOG = (
      "as_of": "one stock-day (daily bars are not a stock-day read)",
      "units": "OHLC dollars, volume shares. Volume rule: minute bars are Massive's own (its SIP volume rules); "
               "seconds bars count every trade except cancel/error records, so a minute of 10s bars can sum higher "
-              "(GME 2021-01-27 09:30: 185,567 from trades vs 179,397 in the minute file, +3.4%)",
-     "mcp": "stock_day(kind='bars')", "cli": "market_data.py bars SYMBOL DAY --tf 1m|5m|10s"},
+              "(GME 2021-01-27 09:30: 185,567 from trades vs 179,397 in the minute file, +3.4%). A bucket with no "
+              "trade has no row: meta.gaps lists the holes (ET runs, first_et/last_et); fill_gaps adds a row per hole "
+              "with no price, zero volume and filled=true",
+     "mcp": "stock_day(kind='bars', fill_gaps?)",
+     "cli": "market_data.py bars SYMBOL DAY --tf 1m|5m|10s [--fill-gaps]"},
     {"name": "movers_index", "source": "Nova's day movers store (built from the day files)",
      "history": "2016-01-04 on, every session (2,713 through 2026-10-16)",
      "as_of": "one row per stock-day, facts of that finished day",
@@ -76,8 +83,10 @@ CATALOG = (
      "mcp": "movers_search (endpoint, <=500 rows) / movers_scan (bulk: needs dates, a symbol or a limit; 100,000 "
             "rows unless limit)", "cli": "market_data.py movers key=value / scan key=value"},
     {"name": "boards", "source": "Nova's leaderboard store: recorded desk boards, else rebuilt",
-     "history": "1,752 of 2,713 sessions, 2016-11-30 .. 2026-10-16, with holes (e.g. 2023-06-01, 2024-03-01); "
-                "data_status has the live count",
+     "history": "about 1,750 of 2,713 sessions, 2016-11-30 on, with holes (e.g. 2023-06-01, 2024-03-01); "
+                "data_status has the live count and counts stored boards, not lists: gainers on a rebuilt day is the "
+                "market board (to 2026-09-22), the recorded gainers board takes over 2026-09-23; large_cap exists "
+                "only on recorded days (2026-09-23 on)",
      "as_of": "the board as it stood at the minute asked; a day with no board answers covered=false with its gap",
      "units": "change_pct / gap_pct percent points (the store keeps fractions; the front door converts)",
      "mcp": "board", "cli": "market_data.py board DAY --at HH:MM"},

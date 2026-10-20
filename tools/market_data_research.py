@@ -3,6 +3,8 @@
 halts, catalysts and symbols. ``add_parsers`` registers them; ``HANDLERS`` runs them.
 
   py -3 tools/market_data.py find date_from=2025-01-01 date_to=2025-03-31 price_min=2 price_max=20 high_min=50 --float-max 20000000
+  py -3 tools/market_data.py find date_from=2026-09-01 date_to=2026-09-30 high_min=100 --sort high --limit 10
+  py -3 tools/market_data.py find date_from=2026-09-01 date_to=2026-09-30 kinds=all     (warrants, rights, ETFs too)
   py -3 tools/market_data.py daily GME 2021-01-04 2021-02-26
   py -3 tools/market_data.py context 2026-09-09
   py -3 tools/market_data.py stats IRD 2026-09-09
@@ -28,10 +30,10 @@ def cmd_find(args, show) -> int:
     kinds = params.pop("kinds", None)
     frame = stock_days.find_stock_days(
         filters=params, symbol=symbol, kinds=kinds.split(",") if kinds else None, splits=args.splits,
-        float_max=args.float_max, float_basis=args.float_basis, float_unknown=args.float_unknown,
-        catalyst=args.catalyst.split(",") if args.catalyst else None,
-        halted=None if args.halted is None else args.halted == "yes", cursor=args.cursor,
-        page_size=args.page_size, to_file=bool(args.out))
+        float_max=args.float_max, outstanding_max=args.outstanding_max, float_basis=args.float_basis,
+        float_unknown=args.float_unknown, catalyst=args.catalyst.split(",") if args.catalyst else None,
+        halted=None if args.halted is None else args.halted == "yes", sort=args.sort, limit=args.limit,
+        cursor=args.cursor, page_size=args.page_size, to_file=bool(args.out))
     return show(frame, args)
 
 
@@ -84,16 +86,22 @@ HANDLERS = {"find": cmd_find, "daily": cmd_daily, "context": cmd_context, "stats
 
 def add_parsers(sub, output) -> None:
     find = sub.add_parser("find", help="stock-days with shares known that day, catalyst, halts (key=value filters)")
-    find.add_argument("params", nargs="*", help="movers filters: date_from=, price_min=, high_min= ... symbol=")
+    find.add_argument("params", nargs="*", help="movers filters: date_from=, price_min=, high_min= ... symbol=, "
+                      "kinds= (default common stock; kinds=all, kinds=ETF,CS)")
     find.add_argument("--splits", default="exclude_likely", choices=["exclude_likely", "include", "only_suspects"])
     find.add_argument("--float-max", dest="float_max", type=float, help="shares; on --float-basis")
+    find.add_argument("--outstanding-max", dest="outstanding_max", type=float,
+                      help="shares: --float-max under the name of what it filters (SEC shares outstanding)")
     find.add_argument("--float-basis", dest="float_basis", default="sec_outstanding",
                       choices=["sec_outstanding", "enrichment", "best"])
     find.add_argument("--float-unknown", dest="float_unknown", default="exclude", choices=["exclude", "include", "only"])
     find.add_argument("--catalyst", help="comma list of verdicts to keep (catalyst, none_found, unknown ...)")
     find.add_argument("--halted", choices=["yes", "no"])
-    find.add_argument("--cursor", help="next_cursor of the previous page")
-    find.add_argument("--page-size", dest="page_size", type=int, default=200)
+    find.add_argument("--sort", choices=["newest", "oldest", "high", "low", "close", "gap", "volume", "dollar_volume"],
+                      help="rank the rows like the movers search (default: oldest day first)")
+    find.add_argument("--cursor", help="next_cursor of the previous page (same arguments)")
+    find.add_argument("--page-size", dest="page_size", type=int, help="rows per page (default 200)")
+    find.add_argument("--limit", type=int, help="the same as --page-size, under the movers search's name")
     output(find)
     daily = sub.add_parser("daily", help="daily bars for a date range (raw; --adjust for split terms)")
     daily.add_argument("symbol")

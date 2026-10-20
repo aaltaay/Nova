@@ -129,7 +129,8 @@ def cmd_rows(args) -> int:
 
 def cmd_bars(args) -> int:
     from market_reads import reads
-    return _show(_adjusted(reads.bars(args.symbol, args.day, args.tf, args.start, args.end), args), args)
+    return _show(_adjusted(reads.bars(args.symbol, args.day, args.tf, args.start, args.end, args.fill_gaps), args),
+                 args)
 
 
 def cmd_splits(args) -> int:
@@ -252,6 +253,8 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("--to", dest="end", help="ET HH:MM, exclusive")
         if name == "bars":
             p.add_argument("--tf", default="1m", help="1m, 5m, 15m ... from the minute file; 1s, 10s ... from trades")
+            p.add_argument("--fill-gaps", dest="fill_gaps", action="store_true",
+                           help="add a row (no prices, zero volume, filled=True) for each bucket with no trade")
         p.add_argument("--adjust", action="store_true",
                        help="split-adjust to today's terms (prices x the factor, shares / it); raw without it")
         output(p)
