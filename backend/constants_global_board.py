@@ -83,11 +83,13 @@ def _idx(symbol: str, exchange: str, currency: str, label: str) -> MappingProxyT
     return MappingProxyType({"symbol": symbol, "exchange": exchange, "currency": currency, "label": label})
 
 
-def _fut(symbol: str, exchange: str, currency: str, label: str, multiplier: str = "") -> MappingProxyType:
+def _fut(symbol: str, exchange: str, currency: str, label: str, multiplier: str = "",
+         also: tuple[str, ...] = ()) -> MappingProxyType:
     """An index future, read through IBKR's continuous-future definition (the multiplier tells a full contract
-    from its mini on the same exchange)."""
+    from its mini on the same exchange). IBKR names a future by its underlying (DAX, N225), not always by the
+    exchange's own code; ``also`` lists other names asked, in order, when IBKR does not know ``symbol``."""
     return MappingProxyType({"symbol": symbol, "exchange": exchange, "currency": currency, "label": label,
-                             "multiplier": multiplier})
+                             "multiplier": multiplier, "also": also})
 
 
 def _market(id_: str, name: str, exchange: str, city: str, region: str, lat: float, lon: float, tz: str,
@@ -108,7 +110,9 @@ GLOBAL_MARKETS = (
     _market("ca", "Canada", "TSX", "Toronto", "americas", 43.65, -79.38, "America/Toronto",
             (("09:30", "16:00"),), "EWC",
             index=_idx("TSX", "TSE", "CAD", "S&P/TSX Composite"),
-            future=_fut("SXF", "CDE", "CAD", "S&P/TSX 60 futures")),
+            # IBKR's underlying for the Montreal Exchange's SXF is TSE60; "SXF" asked as a TSE60 underlying: "200: No
+            # security definition" on the operator's desk (2026-10-20). 200 = the full contract, not the SXM mini.
+            future=_fut("TSE60", "CDE", "CAD", "S&P/TSX 60 futures", "200", also=("SXF",))),
     _market("br", "Brazil", "B3", "São Paulo", "americas", -23.55, -46.63, "America/Sao_Paulo",
             (("10:00", "17:00"),), "EWZ"),
     _market("uk", "United Kingdom", "LSE", "London", "europe", 51.51, -0.09, "Europe/London",
@@ -152,6 +156,41 @@ GLOBAL_MARKETS = (
             (("10:00", "16:00"),), "EWA",
             index=_idx("XJO", "ASX", "AUD", "S&P/ASX 200"), future=_fut("AP", "SNFE", "AUD", "SPI 200 futures")),
 )
+
+# -- each market's size: the one set of numbers on the page that is not IBKR's (ADR 060 amendment) ------------------
+# "It's not reasonable not to see the size of each market. It doesn't have to be super accurate" (operator,
+# 2026-10-20). An exchange's domestic market capitalisation -- its home companies' listed shares at their price --
+# in US dollars, as its published source states it: monthly figures, not live, shown with their month and source.
+# A newer month replaces a row here; a market without a published figure has none (never a guess).
+GLOBAL_WFE = "World Federation of Exchanges"
+GLOBAL_WFE_URL = "https://focus.world-exchanges.org/issue/march-2026/market-statistics"
+
+
+def _size(as_of: str, source: str, url: str, *parts: tuple[str, float]) -> MappingProxyType:
+    return MappingProxyType({"as_of": as_of, "source": source, "url": url,
+                             "parts": tuple(MappingProxyType({"name": n, "usd": usd}) for n, usd in parts)})
+
+
+GLOBAL_MARKET_SIZES = MappingProxyType({
+    "us": _size("2026-01", GLOBAL_WFE, GLOBAL_WFE_URL, ("NYSE", 29_477_188e6), ("Nasdaq", 38_537_621e6)),
+    "ca": _size("2026-01", GLOBAL_WFE, GLOBAL_WFE_URL, ("TMX Group", 4_704_097e6)),
+    "br": _size("2026-01", GLOBAL_WFE, GLOBAL_WFE_URL, ("B3", 902_687e6)),
+    "uk": _size("2026-04", "Bloomberg (UK-listed stocks)",
+                "https://www.bloomberg.com/news/articles/2026-04-16/ai-driven-demand-pushes-taiwan-s-market-cap-ahead-of-the-uk",
+                ("London", 4.09e12)),
+    "fr": _size("2026-01", GLOBAL_WFE, GLOBAL_WFE_URL, ("Euronext (all its markets)", 7_589_718e6)),
+    "de": _size("2026-01", GLOBAL_WFE, GLOBAL_WFE_URL, ("Deutsche Börse", 2.73e12)),
+    "ch": _size("2026-01", GLOBAL_WFE, GLOBAL_WFE_URL, ("SIX", 2.48e12)),
+    "sa": _size("2026-01", GLOBAL_WFE, GLOBAL_WFE_URL, ("Saudi Exchange", 2_557_183e6)),
+    "za": _size("2026-01", "JSE (R24.22 trillion)", "https://en.wikipedia.org/wiki/JSE_Limited", ("JSE", 1.48e12)),
+    "in": _size("2026-01", GLOBAL_WFE, GLOBAL_WFE_URL, ("NSE", 4.98e12)),
+    "cn": _size("2026-01", GLOBAL_WFE, GLOBAL_WFE_URL, ("Shanghai", 9_671_757e6), ("Shenzhen", 6.65e12)),
+    "hk": _size("2026-01", GLOBAL_WFE, GLOBAL_WFE_URL, ("HKEX", 6.50e12)),
+    "tw": _size("2026-01", GLOBAL_WFE, GLOBAL_WFE_URL, ("TWSE", 3.32e12)),
+    "kr": _size("2026-01", GLOBAL_WFE, GLOBAL_WFE_URL, ("Korea Exchange", 3_424_044e6)),
+    "jp": _size("2026-01", GLOBAL_WFE, GLOBAL_WFE_URL, ("Japan Exchange Group", 7_705_442e6)),
+    "au": _size("2026-01", GLOBAL_WFE, GLOBAL_WFE_URL, ("ASX", 2_110_466e6)),
+})
 
 GLOBAL_US_ETF_SESSION = (("09:30", "16:00"),)    # a country ETF trades in the US regular session (NYSE calendar)
 GLOBAL_US_TZ = "America/New_York"

@@ -12,7 +12,7 @@ import { useSampleRoute } from '../sample_data/useSampleRoute';
 import { AgreeChart } from './AgreeChart';
 import {
   COLOR_BY_LABEL, GLOBAL_HOW_TO_READ, GLOBAL_OFF, GLOBAL_OLD_API, GLOBAL_PERIODS, GLOBAL_REPLAY_NOTE, GLOBAL_SUBTITLE,
-  GLOBAL_TITLE, MIXED_DEF, MOVE_DEF, PERIOD_LABEL, PRESSURE_DEF, SOURCES_DEF,
+  GLOBAL_TITLE, MIXED_DEF, MOVE_DEF, PERIOD_LABEL, PRESSURE_DEF, SIZE_DEF, SOURCES_DEF,
 } from './constants';
 import { ExchangeList } from './ExchangeList';
 import { FollowTheSun } from './FollowTheSun';
@@ -90,6 +90,7 @@ function HowToRead() {
           <p>{PRESSURE_DEF}</p>
           <p>{MOVE_DEF}</p>
           <p><span className="gb-flag">≠</span> {MIXED_DEF}</p>
+          <p>{SIZE_DEF}</p>
           <p>{SOURCES_DEF}</p>
         </div>
       ) : null}

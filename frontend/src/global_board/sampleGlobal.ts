@@ -3,7 +3,7 @@
  * 11:12 ET), shown on the sample desk and the demo build. Nothing here is read live; the shape is the wire's.
  */
 import type {
-  Basis, Flow, GlobalBoard, Instrument, Market, Move, Period, Region, RegionId, SessionState, Sun, Totals,
+  Basis, Flow, GlobalBoard, Instrument, Market, MarketSize, Move, Period, Region, RegionId, SessionState, Sun, Totals,
 } from './types';
 
 const NOW = Date.UTC(2026, 9, 20, 15, 12, 30) / 1000;
@@ -137,6 +137,38 @@ function totals(rows: Market[]): Totals {
 }
 
 /** Net money by the hour over the last 24 hours (the mockup's day: Asia sold its close, the US open bought). */
+/** Each market's published size, as backend/constants_global_board.py GLOBAL_MARKET_SIZES has it. */
+const WFE = 'World Federation of Exchanges';
+const WFE_URL = 'https://focus.world-exchanges.org/issue/march-2026/market-statistics';
+const SIZES: Record<string, [string, string, string, [string, number][]]> = {
+  us: ['2026-01', WFE, WFE_URL, [['NYSE', 29.477e12], ['Nasdaq', 38.538e12]]],
+  ca: ['2026-01', WFE, WFE_URL, [['TMX Group', 4.704e12]]],
+  br: ['2026-01', WFE, WFE_URL, [['B3', 0.903e12]]],
+  uk: ['2026-04', 'Bloomberg (UK-listed stocks)', 'https://www.bloomberg.com/', [['London', 4.09e12]]],
+  fr: ['2026-01', WFE, WFE_URL, [['Euronext (all its markets)', 7.59e12]]],
+  de: ['2026-01', WFE, WFE_URL, [['Deutsche Börse', 2.73e12]]],
+  ch: ['2026-01', WFE, WFE_URL, [['SIX', 2.48e12]]],
+  sa: ['2026-01', WFE, WFE_URL, [['Saudi Exchange', 2.557e12]]],
+  za: ['2026-01', 'JSE (R24.22 trillion)', 'https://en.wikipedia.org/wiki/JSE_Limited', [['JSE', 1.48e12]]],
+  in: ['2026-01', WFE, WFE_URL, [['NSE', 4.98e12]]],
+  cn: ['2026-01', WFE, WFE_URL, [['Shanghai', 9.672e12], ['Shenzhen', 6.65e12]]],
+  hk: ['2026-01', WFE, WFE_URL, [['HKEX', 6.5e12]]],
+  tw: ['2026-01', WFE, WFE_URL, [['TWSE', 3.32e12]]],
+  kr: ['2026-01', WFE, WFE_URL, [['Korea Exchange', 3.424e12]]],
+  jp: ['2026-01', WFE, WFE_URL, [['Japan Exchange Group', 7.705e12]]],
+  au: ['2026-01', WFE, WFE_URL, [['ASX', 2.11e12]]],
+};
+
+function size(id: string): MarketSize | null {
+  const got = SIZES[id];
+  if (!got) return null;
+  const [as_of, source, url, parts] = got;
+  return {
+    usd: parts.reduce((sum, [, usd]) => sum + usd, 0), parts: parts.map(([name, usd]) => ({ name, usd })),
+    as_of, source, url,
+  };
+}
+
 const SUN_NET: [number, RegionId][] = [
   [0.4, 'americas'], [0.2, 'americas'], [0.1, 'americas'], [0.6, 'americas'], [0, 'americas'], [0, 'americas'],
   [0, 'americas'], [0, 'americas'], [0.9, 'asia_pacific'], [1.4, 'asia_pacific'], [-0.6, 'asia_pacific'],
@@ -170,7 +202,7 @@ export function sampleGlobalBoard(period: Period = '1D'): GlobalBoard {
       id, name, exchange, city, region, lat, lon, tz,
       session: { date: '2026-10-20', state: state(segs), open_at: segs[0][0], close_at: segs[segs.length - 1][1],
         segments: segs, next_open_at: segs[0][0] + 24 * HOUR, calendar: id === 'us' ? 'nyse' : 'clock' },
-      move: m, flow: f, mixed,
+      move: m, flow: f, mixed, size: size(id),
     };
   });
   const regions: Region[] = (Object.keys(REGION_LABEL) as RegionId[]).map((id) => ({
@@ -184,6 +216,6 @@ export function sampleGlobalBoard(period: Period = '1D'): GlobalBoard {
     },
     world: totals(markets), regions, markets, sun: sun(markets),
     sources: [{ id: 'ibkr', label: 'IBKR', ok: true, at: NOW - 5, error: null }],
-    budget: { history_left: 41, history_headroom: 40, waiting: null },
+    budget: { history_left: 41, history_headroom: 30, waiting: null },
   };
 }

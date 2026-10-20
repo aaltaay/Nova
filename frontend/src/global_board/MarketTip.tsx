@@ -3,7 +3,7 @@
  * with where each came from, and anything IBKR refused for it. Shared by the map and the list.
  */
 import { BASIS_WORD, MIXED_DEF, STATE_WORD } from './constants';
-import { etWhen, firstSentence, localTime, signedPct, tone, until, usd } from './format';
+import { etWhen, firstSentence, localTime, monthWord, signedPct, sizeUsd, tone, until, usd } from './format';
 import type { Market } from './types';
 
 function via(m: Market): string {
@@ -44,6 +44,10 @@ export function MarketTip({ m, now }: { m: Market; now: number }) {
         <span>Index move</span>
         <b className={`is-${tone(m.move.pct)}`}>{signedPct(m.move.pct, 2)}</b>
       </div>
+      <div className="gb-tip__row" data-testid={`global-tip-size-${m.id}`}>
+        <span>Market size</span>
+        <b>{m.size ? `≈ ${sizeUsd(m.size.usd)}` : '--'}</b>
+      </div>
       <div className="gb-tip__src">
         Money: {via(m)}
         {m.flow.fx ? ` · ${m.flow.fx.currency} at $${m.flow.fx.usd_per_unit.toPrecision(4)} (IBKR, ${m.flow.fx.date ?? 'last close'})` : ''}
@@ -52,6 +56,12 @@ export function MarketTip({ m, now }: { m: Market; now: number }) {
         Move: {m.move.basis ? moveSource(m) : m.move.error ?? 'no read yet'}
         {m.move.data_type && m.move.data_type !== 'live' ? ` · ${m.move.data_type}` : ''}
       </div>
+      {m.size ? (
+        <div className="gb-tip__src">
+          Size: {m.size.parts.length > 1 ? `${m.size.parts.map((p) => `${p.name} ${sizeUsd(p.usd)}`).join(' + ')} · ` : ''}
+          {monthWord(m.size.as_of)}, {m.size.source} -- published monthly, not live
+        </div>
+      ) : null}
       {m.flow.last_bar_at ? <div className="gb-tip__src">Last trade read: {etWhen(m.flow.last_bar_at, now)} ET</div> : null}
       {m.flow.error && m.flow.basis ? <div className="gb-tip__warn">{m.flow.error}</div> : null}
       {m.flow.refused.map((r) => (

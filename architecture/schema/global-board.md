@@ -13,8 +13,10 @@ cancels an order, and nothing here feeds a scanner row, a chart, HOD Momo, a set
 
 **Every number is measured; none is estimated.** A market's money is the real trades of its own index futures in
 its own hours (or, where IBKR has no such future or refuses it, of its US-listed country ETF, named on the row);
-dollars are those trades' notional at IBKR's own exchange rates. An exchange's total value or turnover is not on
-this wire: no feed publishes either live, and the operator ruled out estimates the page does not need. Percentages
+dollars are those trades' notional at IBKR's own exchange rates. The one number that is not IBKR's is each market's
+`size`, its exchanges' published market capitalisation ("It's not reasonable not to see the size of each market. It
+doesn't have to be super accurate", 2026-10-20): a monthly figure, not live, carried with its month and source and
+never used to compute another number. An exchange's turnover is not on this wire: no feed publishes it live. Percentages
 on this wire are percent points (`2.84` = +2.84%); times are epoch seconds; money is US dollars.
 
 `GET /api/global/board?period=1D` (`period`: `"1D"` | `"7D"` | `"30D"`; anything else is 400 `GLOBAL_BAD_PARAM` with
@@ -26,7 +28,7 @@ answered or failed once in this process (or was kept from the last one); `replay
 (the page reads today's live markets and says so).
 
 - `markets[]`, `GLOBAL_MARKETS` order: `{id, name, exchange, city, region, lat, lon, tz, session, move, flow,
-  mixed}` -- `id` e.g. `"jp"`; `region` one of `americas`, `europe`, `middle_east_africa`, `asia_pacific`.
+  mixed, size}` -- `id` e.g. `"jp"`; `region` one of `americas`, `europe`, `middle_east_africa`, `asia_pacific`.
   - `session`: `{date (the market's own date of the session shown), state: "open" | "break" | "closed" |
     "holiday", open_at, close_at, segments: [[start, end]], next_open_at, calendar: "nyse" | "clock"}` -- the
     session shown is today's once it has opened (by the market's own clock), else the last one. `break` is a lunch
@@ -55,6 +57,11 @@ answered or failed once in this process (or was kept from the last one); `replay
     code and words, so a row that fell back to its ETF says why.
   - `instrument`: `{kind: "index" | "future" | "etf", symbol, label, exchange, currency, contract: string | null
     (a future's front month, e.g. "N225Z6"), multiplier: number | null}`.
+  - `size` (additive): `{usd, parts: [{name, usd}], as_of: "YYYY-MM", source, url} | null` -- the market's exchanges'
+    domestic market capitalisation (their home companies' listed shares at their price) in US dollars, as `source`
+    published it for the month `as_of` (`GLOBAL_MARKET_SIZES`: the World Federation of Exchanges' monthly statistics,
+    or the source named where it has no figure); `usd` sums `parts` (NYSE + Nasdaq; Shanghai + Shenzhen). `null` for
+    a market with no published figure -- never a guess.
   - `mixed`: true when `pressure_pct` and `move.pct` point opposite ways, each past `GLOBAL_MIXED_PRESSURE_PCT` /
     `GLOBAL_MIXED_MOVE_PCT`: buyers were eager and the index still fell, or the reverse.
 - `regions[]`: `{id, label, pressure_usd, traded_usd, pressure_pct, markets, flows, up, down, avg_move_pct}` --
@@ -113,4 +120,6 @@ words on hover), the history note with `budget.history_left` against `budget.his
 `world-atlas` 2.0.2, drawn once into `worldLand.ts`), one bubble per market sized by `traded_usd` and coloured by
 `pressure_pct` or `move.pct` (the switch), a dashed ring while the market is open; the four regions and the world;
 the markets ranked by pressure with both bars; the last 24 hours of pressure; and pressure against the move. A row
-that reads its ETF says "via EWZ"; a market IBKR has not answered says "no feed" and IBKR's reason.
+that reads its ETF says "via EWZ"; a market IBKR has not answered says "no feed" and IBKR's reason. Each market's
+size shows on its hover card ("Market size ≈ $68.0T", the parts, the month and source, "published monthly, not live")
+and at the start of its row's second line; "How to read" says where the sizes come from.

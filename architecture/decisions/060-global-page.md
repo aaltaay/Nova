@@ -86,3 +86,17 @@ its requests), and the page on screen goes first -- while the Market page shows 
 40 (`GLOBAL_YIELD_HEADROOM`); while Global shows, the Market page is not on screen. The page's note says how many requests are left and from how many it reads. And "I can't have
 the page to be scrollable": the page fills the window and never scrolls -- the map, the two charts and the sixteen
 rows size to the space there is, the definitions open from "How to read", and the notes share one line in the head.
+
+**Each market's size** (same day): "how come none of these mention the size of each market", then "It's not
+reasonable not to see the size of each market. It doesn't have to be super accurate, but we'll just need external
+resources ... tucked in. Or during the hover". Each market carries its exchanges' published domestic market
+capitalisation (`GLOBAL_MARKET_SIZES`): the World Federation of Exchanges' monthly statistics, or the named source
+where it has none, with the month and source on the card and "published monthly, not live". It is the page's one
+number that is not IBKR's, it is shown as published, and it computes nothing -- the rejected dollar "value change"
+(below) stays rejected. A table, not a live fetch: no keyless source publishes exchange sizes in a form a desk can read
+reliably, and a monthly figure changes monthly; a newer month replaces a row.
+
+**Toronto's futures** (same day): IBKR answered "200: No security definition" for the S&P/TSX 60 futures asked as
+`SXF` on CDE, so Toronto read EWC. IBKR names a future by its underlying (DAX, N225), and its underlying for the
+Montreal Exchange's SXF is `TSE60`; the spec asks for `TSE60` with multiplier 200 (the full contract, not the SXM
+mini) and, should IBKR not know it either, `SXF` (`_fut(..., also=...)`), each name in turn.
