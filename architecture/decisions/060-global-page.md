@@ -81,6 +81,8 @@ The operator's desk, six minutes after a restart: every market "waiting for IBKR
 ("Why does it say that?"). At 40 Global read only while 41 or more of the 60 were free, and the Market page's warm
 reads keep the window up to 30 used, so Global could wait for good. `GLOBAL_HISTORY_HEADROOM` is now 30, the Market
 page's own: the two take turns at what charts, the short check, the TraderTV exits and LULD leave, and those still
-always come first. The page's note says how many requests are left and from how many it reads. And "I can't have
+always come first. Turns, not a race: Global keeps the Market page's pace (`GLOBAL_HISTORY_GAP_SEC` between two of
+its requests), and the page on screen goes first -- while the Market page shows and Global does not, Global leaves
+40 (`GLOBAL_YIELD_HEADROOM`); while Global shows, the Market page is not on screen. The page's note says how many requests are left and from how many it reads. And "I can't have
 the page to be scrollable": the page fills the window and never scrolls -- the map, the two charts and the sixteen
 rows size to the space there is, the definitions open from "How to read", and the notes share one line in the head.

@@ -316,12 +316,44 @@ def test_the_page_spends_the_history_budget_under_its_own_name():
     assert cg.GLOBAL_HISTORY_HEADROOM == MARKET_HISTORY_HEADROOM       # and in turn with the Market page
 
 
+def _market_page_shows(monkeypatch, shows: bool) -> None:
+    from market_board import state as market_state
+
+    monkeypatch.setattr(market_state.store(), "wanted", lambda now: shows)
+
+
 def test_the_page_reads_while_more_than_its_headroom_is_left(monkeypatch):
     from ibkr import historical_service
 
+    _market_page_shows(monkeypatch, False)
     for used, ok in ((60 - cg.GLOBAL_HISTORY_HEADROOM - 1, True), (60 - cg.GLOBAL_HISTORY_HEADROOM, False)):
         monkeypatch.setattr(historical_service, "pacing_snapshot", lambda u=used: {"window_max": 60, "window_used": u})
         assert reads.history_ok() is ok
+
+
+def test_the_page_on_screen_goes_first(monkeypatch):
+    now = ts("2026-10-20T01:00")
+    _market_page_shows(monkeypatch, True)
+    assert reads.headroom(now) == cg.GLOBAL_YIELD_HEADROOM          # the Market page shows, Global does not
+    store().want(now)
+    assert reads.headroom(now) == cg.GLOBAL_HISTORY_HEADROOM        # Global shows
+    _market_page_shows(monkeypatch, False)
+    assert reads.headroom(now + 3600) == cg.GLOBAL_HISTORY_HEADROOM  # neither: the two take turns
+
+
+def test_history_reads_keep_the_market_pages_pace(monkeypatch):
+    now = ts("2026-10-20T01:00")
+    ran: list[str] = []
+    monkeypatch.setattr(reads, "ready", lambda: True)
+    monkeypatch.setattr(reads, "history_ok", lambda: True)
+    monkeypatch.setattr(reads, "lines_ok", lambda: False)
+    monkeypatch.setattr(refresh, "_run", lambda job, at: ran.append(job.key))
+    store().want(now)
+    assert refresh.run_once(now)
+    assert not refresh.run_once(now + cg.GLOBAL_HISTORY_GAP_SEC / 2)  # its own pace: no second request yet
+    assert store().waiting_for() != "history"                         # and not a wait on IBKR
+    assert refresh.run_once(now + cg.GLOBAL_HISTORY_GAP_SEC)
+    assert len(ran) == 2
 
 
 # -- kept across restarts -------------------------------------------------------------------------------------------

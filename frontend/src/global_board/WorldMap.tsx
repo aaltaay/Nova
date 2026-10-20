@@ -15,7 +15,7 @@ import type { ColorBy, Market, Period } from './types';
 import { useBox, type Box } from './useBox';
 import { WORLD_LAND_PATH, WORLD_VIEW } from './worldLand';
 
-const TIP_WIDTH = 290;
+const TIP_WIDTH = 290;               // .gb-tip's outer width (border-box)
 const TIP_GAP = 16;
 
 interface Props {

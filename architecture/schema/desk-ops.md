@@ -957,7 +957,8 @@ order too: a Trader tab and the Live Trader bot first, the followed traders and 
 (`l1_refused._OWNER_RANK`). History, from first to last: an open chart and the short check's SSR read down to the last
 request; background chart fills stop while `IBKR_HISTORY_TRADING_RESERVE` (10) or fewer are left; the TraderTV exits,
 ticker checks and LULD at 20 or fewer (`FOLLOWED_EXIT_HEADROOM`, `LULD_BACKFILL_HEADROOM`); the Market page and the
-Global page last, in turn, at 30 (`MARKET_HISTORY_HEADROOM`, `GLOBAL_HISTORY_HEADROOM`).
+Global page last, in turn, at 30 (`MARKET_HISTORY_HEADROOM`, `GLOBAL_HISTORY_HEADROOM`) -- the one on screen first:
+Global leaves 40 while the Market page shows and it does not (`GLOBAL_YIELD_HEADROOM`).
 
 **On the desk** (`frontend/src/capacity/`): a strip at the very bottom of the main window, read every 5 s, one cell
 per cap -- "Level 1 48 / 53", "Level 2 3 / 3", "History 60 / 60 · next in 2:27", "Time & Sales 4" -- each with a

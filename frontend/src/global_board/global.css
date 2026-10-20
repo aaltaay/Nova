@@ -169,7 +169,8 @@
 
 /* the hover card */
 .gb-tip {
-  width: 290px;
+  box-sizing: border-box;
+  width: 290px;                                /* its outer width: WorldMap's TIP_WIDTH places it */
   background: var(--nova-raised);
   border: 1px solid var(--nova-border-strong);
   border-radius: 10px;

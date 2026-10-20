@@ -72,8 +72,8 @@ answered or failed once in this process (or was kept from the last one); `replay
   session; `sessions` are the markets' session segments clipped to the window.
 - `sources[]`: `{id: "ibkr", label, ok: boolean | null, at, error}` -- `ok: null` until asked.
 - `budget`: `{history_left: number | null, history_headroom, waiting: "history" | "lines" | null}` -- why reads are
-  waiting: the page sends no historical request while `GLOBAL_HISTORY_HEADROOM` or fewer of IBKR's 60-a-10-minutes
-  are left, and opens no line while fewer than `IBKR_BRIEF_MIN_FREE_LINES` are spare.
+  waiting: the page sends no historical request while `history_headroom` or fewer of IBKR's 60-a-10-minutes are left
+  (`GLOBAL_HISTORY_HEADROOM`, or `GLOBAL_YIELD_HEADROOM` while the Market page shows and this one does not), and opens no line while fewer than `IBKR_BRIEF_MIN_FREE_LINES` are spare.
 
 **The markets** (`GLOBAL_MARKETS`; the instruments are IBKR's, the hours each market's own, in its own time zone):
 the US (NYSE + Nasdaq; S&P 500 index and its futures on CME, SPY), Canada (TSX; S&P/TSX Composite, S&P/TSX 60
@@ -94,7 +94,10 @@ flows, quotes and FX closes at `GLOBAL_IDLE_FLOW_TTL_SEC` / `GLOBAL_IDLE_QUOTES_
 16:00 ET, the desk's own hours, and no daily bars (`NOVA_GLOBAL_BOARD_WARM=0` reads only while wanted). Every historical request goes through the
 paced service at background priority, under its own pacing kind `global` (the capacity strip's History hover names
 it), and only while more than `GLOBAL_HISTORY_HEADROOM` (30) are left: charts, the short check, the TraderTV exits
-and LULD come first, and the Market page, which stops at the same 30, takes turns with it (ADR 060 amendment). A refused instrument is not asked again for `GLOBAL_REFUSED_RETRY_SEC`.
+and LULD come first, and the Market page, which stops at the same 30, takes turns with it -- at least
+`GLOBAL_HISTORY_GAP_SEC` between two of Global's requests, the Market page's own pace -- except that while the Market
+page shows and Global does not, Global leaves `GLOBAL_YIELD_HEADROOM` (40): the page on screen goes first (ADR 060
+amendment). A refused instrument is not asked again for `GLOBAL_REFUSED_RETRY_SEC`.
 
 **Kept across restarts** (`backend/global_board/keep.py`): `<cache_dir>/global-board/global-store.json`,
 `{schema_version: 1, saved_at, entries: {key: {at, value}}}` -- the reads' last answers (`flow:<id>`, `quotes`,
