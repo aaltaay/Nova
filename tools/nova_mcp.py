@@ -29,6 +29,7 @@ from typing import Any
 from urllib.request import urlopen
 
 import nova_data_mcp as data
+import nova_open_tool
 import nova_review_causal as causal
 import nova_review_http as review_http
 import nova_review_warm as review_warm
@@ -70,7 +71,9 @@ TIMEFRAMES = ["10s", "1m", "5m", "1d"]
 INSTRUCTIONS = (
     "For a chart, call nova_chart with symbols (1 to 9 tickers), date (YYYY-MM-DD) and optional as_of "
     "(HH:MM ET, default 16:00). Post the tool's chat_message text verbatim. "
-    "Do not pass tf, output, symbol or trades."
+    "Do not pass tf, output, symbol or trades. "
+    "To open that ticker in Nova, call open_in_nova with symbol, date (YYYY-MM-DD) and optional as_of "
+    "(HH:MM or HH:MM:SS ET). Post that tool's chat_message verbatim. It does not place an order."
 )
 
 
@@ -185,11 +188,20 @@ def _result(message: str, structured: dict[str, Any], images: list[dict[str, Any
     return CallToolResult(content=content, structuredContent=structured, isError=False)
 
 
-def _guard_unknown(tool) -> None:
+def _error_result(message: str, structured: dict[str, Any]):
+    from mcp.types import CallToolResult, TextContent
+
+    return CallToolResult(
+        content=[TextContent(type="text", text=message)],
+        structuredContent=structured,
+        isError=True,
+    )
+
+
+def _guard_unknown(tool, allowed: frozenset[str]) -> None:
     from mcp.types import CallToolResult, TextContent
 
     original = tool.run
-    allowed = CHART_ARGUMENTS
 
     async def run(arguments, context=None, convert_result=False):
         unknown = [name for name in (arguments or {}) if name not in allowed]
@@ -205,7 +217,8 @@ def _guard_unknown(tool) -> None:
 
 
 def create_server(service: data.DataService, *, review_base: str | None = None, review_port: int | None = None,
-                  http: bool = True, warm: bool = True, shots: review_warm.ReviewShots | None = None):
+                  http: bool = True, warm: bool = True, shots: review_warm.ReviewShots | None = None,
+                  open_transport=None):
     import anyio
     from mcp.types import ToolAnnotations
 
@@ -292,7 +305,11 @@ def create_server(service: data.DataService, *, review_base: str | None = None, 
         One link per symbol, plus a gallery link. PNG previews are image blocks."""
         return await anyio.to_thread.run_sync(lambda: build(symbols, date, as_of))
 
-    _guard_unknown(server._tool_manager.get_tool("nova_chart"))
+    _guard_unknown(server._tool_manager.get_tool("nova_chart"), CHART_ARGUMENTS)
+    nova_open_tool.register(
+        server, writes=writes, guard=_guard_unknown, result=_result, error_result=_error_result,
+        open_transport=open_transport,
+    )
 
     @server.prompt(name="chart_request")
     def chart_request(symbols: str, date: str, as_of: str = "16:00") -> str:

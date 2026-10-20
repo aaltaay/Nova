@@ -22,7 +22,7 @@ the backend packages.
 | `account/` | feature | The Account page: practice-ledger history, equity curve, positions / orders, P&L components, calendar and the details column. |
 | `activity/` | feature | The activity trail: the order and Gateway event timeline on the Trading tab's activity dashboard. |
 | `advise/` | feature | The Advise overlay: per-symbol advice runs, cost estimate, streamed transcript and a ticket prefilled from the advice. |
-| `agent_desk/` | app | The desk side of the agent endpoints (ADR 050): the main window takes an agent's show / move by a long poll and runs it with the desk's own steps (venue, Sim day, Trader tab, the window from the Massive files, the playhead), with a notice of what it is doing. |
+| `agent_desk/` | app | The desk side of the agent endpoints (ADR 050): the main window takes an agent's show / move / open-in-nova by a long poll and runs it with the desk's own steps (venue, Sim day, Trader tab, the window from the Massive files, the playhead), with a notice of what it is doing. Open-in-nova does not cancel orders. |
 | `api/` | shared | HTTP plumbing: the `novaFetch` wrapper that attaches the Nova API key, plus the sensor REST client. |
 | `assets/` | shared | Static images: a hero image and the default Vite / React logos (scaffold leftovers). |
 | `bot/` | feature | The Bots page: level, arm / allowlist, risk and kill-switch cards, proposals inbox, playbook, session polling, and the Live Trader bots' cards and asks (ADR 055; the cards' panel shows on the TraderTV LIVE page through the barrel). |
@@ -61,7 +61,7 @@ the backend packages.
 | `perf/` | shared | The performance recorder's client side (ADR 026): frame meter, long frames, counters, render counts, the `/api/perf/client` reporter. |
 | `practice/` | feature | The practice account (ADR 020): Paper / Sim account model, buying power, reset, fixtures, the Sim account clock. |
 | `reports/` | feature | The Reports tab: P&L calendar, month detail, drawdown, R-multiples, tag performance, journal import. |
-| `review/` | feature | Read-only historical desk charts at `/review`. Mounts `ChartGrid` / `TickerChart` through the recorded chart feed (`chart/chartFeed.tsx`). One MCP tool, `nova_chart`, on the unified server. No orders and no live feed. |
+| `review/` | feature | Read-only historical desk charts at `/review`. Mounts `ChartGrid` / `TickerChart` through the recorded chart feed (`chart/chartFeed.tsx`). MCP tools `nova_chart` and `open_in_nova` on the unified server. The symbol name opens that day in Nova. No orders and no live feed. |
 | `sample_data/` | app | The sample desk (`?view=sample`): sample shell and context, fixtures, mode badge, network gate and order guard, and its own in-memory workspace -- Trader tabs, Focus rail and pop-out -- behind a storage gate that keeps it off the operator's saved state. |
 | `scanner/` | feature | The Scanner page board: row shape gate, REST envelope, filters, pinned rows, replay label, header / footer, desk stack. |
 | `screen_record/` | feature | The trading screen recording's header chip (ADR 035): quiet while every monitor records, loud when one does not, fed by the Electron main process. |

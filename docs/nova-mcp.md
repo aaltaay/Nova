@@ -35,7 +35,7 @@ The 22 data tools keep their names, arguments, units and as-of rules. Start with
 
 ## Chart tool
 
-One tool: `nova_chart`.
+Chart tool: `nova_chart`. Open tool: `open_in_nova` (below).
 
 | Argument | Required | Meaning |
 |---|---|---|
@@ -55,8 +55,25 @@ The tool result is, in order:
 
 Building the links does not load bars. `nova_historical_chart`, `nova_historical_chart_gallery` and `nova_trade_charts` are not on this server.
 
-There is no order button and no live quote subscription on `/review`. The trading desk is a different page. The review bundle does not load the bots page or the bot allowlist, and it loads the sample fixture only when the URL says `fixture=1`.
+There is no order button and no live quote subscription on `/review`. The symbol name is a button that opens that day in Nova. The trading desk is a different page. The review bundle does not load the bots page or the bot allowlist, and it loads the sample fixture only when the URL says `fixture=1`.
 
-The screenshot route is not a public browser form. The engine writes a random token into its lease file. Only a local MCP process reads that file and sends it as `X-Nova-Review-Token`. The request must be JSON, must not carry an `Origin` header, and must not name a URL or a file path. The engine builds the page address and the PNG path itself. Files under `/assets/` stay inside `frontend/dist`.
+The screenshot route is not a public browser form. The engine writes a random token into its lease file. Only a local MCP process reads that file and sends it as `X-Nova-Review-Token`. The request must be JSON, must not carry an `Origin` header, and must not name a URL or a file path. The engine builds the page address and the PNG path itself. Files under `/assets/` stay inside `frontend/dist`. On `127.0.0.1:18765` the engine echoes only its own origin.
+
+## Open tool
+
+One more tool: `open_in_nova`.
+
+| Argument | Required | Meaning |
+|---|---|---|
+| `symbol` | yes | one ticker |
+| `date` | yes | `YYYY-MM-DD` |
+| `as_of` | no | `HH:MM` or `HH:MM:SS` Eastern |
+
+Any other argument is rejected. The error text starts with `UNKNOWN_ARGUMENT`. The tool calls the desk's existing show command, which opens the running Nova desk in the Sim, paused, on that symbol and day. Post `chat_message` as-is. It is one of:
+
+- `Opened {SYMBOL} in Nova Sim on {date} at {HH:MM:SS} ET, paused.`
+- `Opened {SYMBOL} in a separate Sim window on {date} at {HH:MM:SS} ET, paused. The live desk stayed on its own view.`
+
+During regular hours (09:30 to 16:00 ET on a trading day, 16:00 not included) Nova opens a separate window and leaves the live desk where it is. Outside those hours the main view switches to Sim. The tool does not place, change, or cancel an order. If the desk is closed the text is `Nova's desk is not running. Start it with scripts/windows/Run Nova Desktop.bat, then ask again.` Start the desktop app, then ask again. Nova does not launch it for you. The symbol button posts to the review engine, which forwards that post before the screenshot route, so the page's own origin is not treated as a shot request.
 
 Screenshots need Node, Playwright and Chromium (`cd frontend && npx playwright install chromium`). If those are missing, the text says `Preview images unavailable: REVIEW_SHOT_UNAVAILABLE` and the links are still there.

@@ -91,8 +91,15 @@ def is_hot_list_mutate(method: str, path: str) -> bool:
     return method in _MUTATING and (normalized == "/api/hot-list" or normalized.startswith("/api/hot-list/"))
 
 
+def is_open_in_nova_path(path: str) -> bool:
+    """Open in Nova uses the install token, not ``X-Nova-Api-Key`` (the review page must not see that key)."""
+    return (path.rstrip("/") or "/") == "/api/agent/open-in-nova"
+
+
 def is_agent_mutate(method: str, path: str) -> bool:
     """The agent endpoints drive the desk (ADR 050): keyed like a bot route."""
+    if is_open_in_nova_path(path):
+        return False
     normalized = path.rstrip("/") or "/"
     return method in _MUTATING and (normalized == "/api/agent" or normalized.startswith("/api/agent/"))
 
@@ -187,6 +194,8 @@ class MutatingApiKeyMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next) -> Response:
         path = request.url.path
+        if is_open_in_nova_path(path):
+            return await call_next(request)
         mutating = request.method in _MUTATING
         bot = (is_bot_mutate(request.method, path) or is_setup_template_mutate(request.method, path)
                or is_stock_mode_mutate(request.method, path) or is_hot_list_mutate(request.method, path))
@@ -236,6 +245,7 @@ __all__ = [
     "check_api_key",
     "configure_api_auth",
     "is_agent_mutate",
+    "is_open_in_nova_path",
     "is_bot_http_path",
     "is_bot_mutate",
     "is_config_mutate",
