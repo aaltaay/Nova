@@ -142,28 +142,103 @@ def test_review_open_forwards_the_token_and_hides_it_from_other_origins(review_a
     assert plain == 415
 
 
-def test_the_engine_forwards_open_before_the_shot_route(review_and_api, monkeypatch, tmp_path):
-    """The running review engine owns POST. Open must not fall through to the shot 404."""
+def test_the_symbol_button_opens_on_the_engine_own_origin(review_and_api, monkeypatch, tmp_path):
+    """Port 18765 echoes only http://127.0.0.1:18765. The page click still opens.
+
+    The shot route keeps its own per-engine token and still refuses every Origin.
+    """
+    monkeypatch.delenv("NOVA_REVIEW_BASE", raising=False)
+    monkeypatch.delenv("NOVA_REVIEW_ORIGINS", raising=False)
     monkeypatch.setenv("NOVA_REVIEW_LEASE", str(tmp_path / "lease.json"))
     monkeypatch.setenv("NOVA_REVIEW_LEASE_LOCK", str(tmp_path / "lease.lock"))
     monkeypatch.setenv("NOVA_REVIEW_SHOT_DIR", str(tmp_path / "shots"))
-    engine.STATE.token = "shot-token"
+    engine.STATE.token = ""
     httpd = engine.serve_engine(0, bars_reader=lambda *_a: [], daily_reader=lambda *_a: [])
     assert httpd is not None
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
     try:
         port = int(httpd.server_address[1])
-        opened, headers, raw = _request(
+        own = f"http://127.0.0.1:{port}"
+        shot = engine.STATE.token
+        assert shot and shot != "tok"
+        review_path = f"/api/review?symbol=IMCC&date={DAY}&tf=1m&as_of=10:00"
+        echoed, echoed_headers, _ = _request(port, review_path, headers={"Origin": own})
+        assert echoed == 200
+        assert echoed_headers.get("Access-Control-Allow-Origin") == own
+        desk, desk_headers, _ = _request(
+            port, review_path, headers={"Origin": "http://127.0.0.1:5173"},
+        )
+        assert desk == 200
+        assert desk_headers.get("Access-Control-Allow-Origin") is None
+        evil_review, evil_review_headers, _ = _request(
+            port, review_path, headers={"Origin": "http://evil.test"},
+        )
+        assert evil_review == 200
+        assert evil_review_headers.get("Access-Control-Allow-Origin") is None
+
+        token_status, token_headers, token_raw = _request(
+            port, "/api/review/open-token", headers={"Origin": own},
+        )
+        assert token_status == 200
+        assert token_headers.get("Access-Control-Allow-Origin") is None
+        assert json.loads(token_raw)["token"] == "tok"
+        opened, opened_headers, opened_raw = _request(
             port, "/api/review/open-in-nova", method="POST",
             body={"symbol": "IMCC", "date": DAY, "as_of": "10:00"},
-            headers={"Content-Type": "application/json", "X-Nova-Open-Token": "tok"},
+            headers={
+                "Content-Type": "application/json",
+                "X-Nova-Open-Token": "tok",
+                "Origin": own,
+            },
         )
+        assert opened == 200
+        assert opened_headers.get("Access-Control-Allow-Origin") is None
+        assert "X-Nova-Review-Token" not in opened_headers
+        assert json.loads(opened_raw)["chat_message"] == CHAT
+        refused, refused_headers, refused_raw = _request(
+            port, "/api/review/open-in-nova", method="POST",
+            body={"symbol": "IMCC", "date": DAY, "as_of": "10:00"},
+            headers={
+                "Content-Type": "application/json",
+                "X-Nova-Open-Token": "tok",
+                "Origin": "http://evil.test",
+            },
+        )
+        assert refused == 403
+        assert refused_headers.get("Access-Control-Allow-Origin") is None
+        assert b"tok" not in refused_raw
+
+        shot_body = json.dumps({"id": "abc", "symbol": "IMCC", "date": DAY, "as_of": "10:00"}).encode()
+        shot_from_page = urllib.request.Request(
+            f"http://127.0.0.1:{port}/api/review/shot",
+            data=shot_body,
+            headers={
+                "Content-Type": "application/json",
+                "X-Nova-Review-Token": shot,
+                "Origin": own,
+            },
+            method="POST",
+        )
+        try:
+            urllib.request.urlopen(shot_from_page, timeout=5)
+            raise AssertionError("a browser Origin must not take a shot")
+        except urllib.error.HTTPError as exc:
+            assert exc.code == 403
+        bare = urllib.request.Request(
+            f"http://127.0.0.1:{port}/api/review/shot",
+            data=shot_body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            urllib.request.urlopen(bare, timeout=5)
+            raise AssertionError("a shot without the engine token must fail")
+        except urllib.error.HTTPError as exc:
+            assert exc.code == 401
     finally:
         httpd.shutdown()
-    assert opened == 200
-    assert headers.get("Access-Control-Allow-Origin") is None
-    assert json.loads(raw)["chat_message"] == CHAT
+        httpd.server_close()
 
 
 def test_review_open_says_when_the_desk_is_not_running(monkeypatch):

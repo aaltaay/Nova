@@ -27,7 +27,7 @@ http://127.0.0.1:5173/review?symbol=IMCC&date=2026-09-18&tf=10s,1m,5m,1d
 
 A gallery is the same page with `symbols=A,B,C` instead of `symbol`. Tabs are `10s`, `1m`, `5m`, `1d` (`gtf` in the URL, default `5m`). Each cell is the desk chart for that timeframe and links to the four-pane page. Add `&fixture=1` to draw a labelled sample session when the Massive files are not on this machine.
 
-`NOVA_REVIEW_BASE` (flag `--review-base`) is the origin written into chart URLs when you set it. When you leave it unset, the link uses the review engine's own origin, the process that serves `/review`. `--output-root` is where `output_name` tables and the copies of review PNGs are written. The engine keeps its own PNGs in a temp review-shots folder and deletes old ones, under a lock, once that folder passes 24 files or 8 MB.
+`NOVA_REVIEW_BASE` (flag `--review-base`) is the origin written into chart URLs when you set it. When you leave it unset, the link uses the review engine's own origin, the process that serves `/review`. `--output-root` is where `output_name` tables and the copies of review PNGs are written. The engine keeps its own PNGs in a temp review-shots folder and deletes old ones, under a lock, once that folder passes 24 files or 8 MB. A PNG is written only after its real path stays inside that folder, and rotation only deletes files when the folder is under the system temp directory.
 
 ## Data tools
 
@@ -57,7 +57,7 @@ Building the links does not load bars. `nova_historical_chart`, `nova_historical
 
 There is no order button and no live quote subscription on `/review`. The symbol name is a button that opens that day in Nova. The trading desk is a different page. The review bundle does not load the bots page or the bot allowlist, and it loads the sample fixture only when the URL says `fixture=1`.
 
-The screenshot route is not a public browser form. The engine writes a random token into its lease file. Only a local MCP process reads that file and sends it as `X-Nova-Review-Token`. The request must be JSON, must not carry an `Origin` header, and must not name a URL or a file path. The engine builds the page address and the PNG path itself. Files under `/assets/` stay inside `frontend/dist`.
+The screenshot route is not a public browser form. The engine writes a random token into its lease file. Only a local MCP process reads that file and sends it as `X-Nova-Review-Token`. The request must be JSON, must not carry an `Origin` header, and must not name a URL or a file path. The engine builds the page address and the PNG path itself. Files under `/assets/` stay inside `frontend/dist`. On `127.0.0.1:18765` the engine echoes only its own origin.
 
 ## Open tool
 
@@ -74,6 +74,6 @@ Any other argument is rejected. The error text starts with `UNKNOWN_ARGUMENT`. T
 - `Opened {SYMBOL} in Nova Sim on {date} at {HH:MM:SS} ET, paused.`
 - `Opened {SYMBOL} in a separate Sim window on {date} at {HH:MM:SS} ET, paused. The live desk stayed on its own view.`
 
-During regular hours (09:30 to 16:00 ET on a trading day, 16:00 not included) Nova opens a separate window and leaves the live desk where it is. Outside those hours the main view switches to Sim. The tool does not place, change, or cancel an order. If the desk is closed the text is `Nova's desk is not running. Start it with scripts/windows/Run Nova Desktop.bat, then ask again.` Start the desktop app, then ask again. Nova does not launch it for you.
+During regular hours (09:30 to 16:00 ET on a trading day, 16:00 not included) Nova opens a separate window and leaves the live desk where it is. Outside those hours the main view switches to Sim. The tool does not place, change, or cancel an order. If the desk is closed the text is `Nova's desk is not running. Start it with scripts/windows/Run Nova Desktop.bat, then ask again.` Start the desktop app, then ask again. Nova does not launch it for you. The symbol button posts to the review engine, which forwards that post before the screenshot route, so the page's own origin is not treated as a shot request.
 
 Screenshots need Node, Playwright and Chromium (`cd frontend && npx playwright install chromium`). If those are missing, the text says `Preview images unavailable: REVIEW_SHOT_UNAVAILABLE` and the links are still there.

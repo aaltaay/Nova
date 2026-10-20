@@ -523,7 +523,7 @@ subscribe to a quote, and has no order ticket. `nova_historical_chart`, `nova_hi
   whose review health check already answers as this engine is left alone. On Windows the socket sets `SO_EXCLUSIVEADDRUSE`
   so a second process cannot share the port. A taken port binds a free one and the link carries loopback `api=`
   when the link origin is not the engine. The engine serves `frontend/dist` at `/review` and `/assets/`. A static
-  path that resolves outside that folder, including `..` and `%2e%2e`, is HTTP 404. `NOVA_REVIEW_BASE`, when set,
+  path is `os.path.realpath`'d and must start with the dist directory before the file is opened. `..` and `%2e%2e` are HTTP 404. `NOVA_REVIEW_BASE`, when set,
   is the link origin. When it is unset, links use the engine's own origin, because that process serves `/review`.
   `--review-http` / `NOVA_REVIEW_HTTP=1` starts the engine at process start. `--no-review-http` does not listen.
 - **Data.** `GET /api/review` answer: `{ok, schema_version: 1, symbol, date, as_of, as_of_iso, source, lookahead: false,
@@ -555,8 +555,10 @@ subscribe to a quote, and has no order ticket. `nova_historical_chart`, `nova_hi
   A missing or wrong token is 401. Any `Origin` header is 403. A content type other than `application/json` is 415.
   A body that is not a JSON object is 400. The body may carry
   `symbol` or `symbols`, `date`, `as_of`, and `gtf`. A `url` or `dest` field is 400. The engine builds the page URL
-  on its own origin from those fields and chooses the PNG name inside its review-shots folder. Rotation of old PNGs
-  runs under the same lock as the shot and does not delete a file another request is about to return.
+  on its own origin from those fields and chooses the PNG name inside its review-shots folder. That path is
+  `os.path.realpath`'d and must stay inside the folder, and the folder must sit under the system temp directory,
+  before a PNG is written or deleted. Rotation of old PNGs runs under the same lock as the shot and does not delete
+  a file another request is about to return. An `Origin` value is stripped of CR and LF before it can be echoed.
 - **`chat_message`.** ASCII. Line 1: `Nova charts for {date}, as of {as_of} ET (10s, 1m, 5m, 1d, full session):`.
   Then one line per symbol: `- {SYMBOL}: {url}`. Then, only for more than one symbol, `Gallery: {gallery_url}`.
   Then, only when a PNG failed, `Preview images unavailable: {code}`. An MCP prompt `chart_request` tells the model
@@ -569,7 +571,7 @@ subscribe to a quote, and has no order ticket. `nova_historical_chart`, `nova_hi
 
 - **Arguments.** `symbol` (required), `date` (`YYYY-MM-DD`, required), `as_of` (`HH:MM` or `HH:MM:SS` ET, optional). Any other key is `UNKNOWN_ARGUMENT`. A bad value is `BAD_REQUEST`. `as_of` must fall between 04:00:00 and 20:00:00 inclusive. When `as_of` is omitted, the park is two minutes before the earliest setup on that day, else the show plan's run, else the 09:30 open.
 - **Regular hours.** Wall-clock 09:30 inclusive to 16:00 exclusive on an exchange day. The main desk stays on its current view. The show command opens `/review?symbol&date&as_of` in a separate window and does not land. Outside those hours the main view switches to Sim with `set_venue("sim", left=[])` (working orders are not cancelled; `switch_venue` stays false so the desk does not call the venue path that cancels entries) and the desk's show landing opens the symbol, paused.
-- **Token.** `GET /api/agent/open-token` and `GET /api/review/open-token` return `{schema_version: 1, token}`. The file is `<cache_dir>/open-in-nova-token.json` (owner `agent_desk/open_token.py`, created once, mode `0o600`, not rotated on startup). An unknown `schema_version` refuses. Callers send `X-Nova-Open-Token` and `Content-Type: application/json`. A foreign `Origin` (including the string `null`) is `403`. Loopback, a missing Origin, and `file://` are this PC. These responses do not add `Access-Control-Allow-Origin`. `POST /api/agent/open-in-nova` is exempt from `X-Nova-Api-Key`. `POST /api/agent/show` still requires that key.
+- **Token.** `GET /api/agent/open-token` and `GET /api/review/open-token` return `{schema_version: 1, token}`. The file is `<cache_dir>/open-in-nova-token.json` (owner `agent_desk/open_token.py`, created once, mode `0o600`, not rotated on startup). An unknown `schema_version` refuses. Callers send `X-Nova-Open-Token` and `Content-Type: application/json`. A foreign `Origin` (including the string `null`) is `403`. Loopback, a missing Origin, and `file://` are this PC. These responses do not add `Access-Control-Allow-Origin`. `POST /api/agent/open-in-nova` is exempt from `X-Nova-Api-Key`. `POST /api/agent/show` still requires that key. The review engine forwards `POST /api/review/open-in-nova` before the shot route. The page's own origin is not the shot token check. The shot route still refuses any `Origin` and still requires `X-Nova-Review-Token`. On port 18765, with no configured desk origin, the engine echoes only `http://127.0.0.1:18765`.
 - **Result.** HTTP 200 `{ok, chat_message, symbol, date, as_of, paused: true, separate_sim, command}`. The text is `Opened {SYMBOL} in Nova Sim on {date} at {HH:MM:SS} ET, paused.` or, for the separate window, `Opened {SYMBOL} in a separate Sim window on {date} at {HH:MM:SS} ET, paused. The live desk stayed on its own view.` A desk that is not listening is `409` `DESK_NOT_RUNNING`: `Nova's desk is not running. Start it with scripts/windows/Run Nova Desktop.bat, then ask again.` Nothing on this path places, changes, or cancels an order.
 - **MCP.** Arguments are only `symbol`, `date`, `as_of` (`additionalProperties: false`). The tool posts `chat_message` as its text. The server performs the open. The model does not.
 

@@ -1,6 +1,7 @@
 /** The symbol name. A click opens that day in Nova through the same path as the MCP tool. */
 
 import { useState } from 'react';
+import { whyProps } from '../ux/whyTip';
 import { openInNova } from './openInNova';
 
 export function ReviewSymbolButton({
@@ -43,6 +44,7 @@ export function ReviewSymbolButton({
         data-testid="review-open-symbol"
         aria-label={`Open ${symbol} in Nova`}
         disabled={pending}
+        {...whyProps(pending, 'Nova is already opening this symbol')}
         onClick={() => { void onClick(); }}
       >
         {symbol}

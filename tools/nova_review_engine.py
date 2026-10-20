@@ -73,18 +73,29 @@ def shot_dir() -> Path:
     return path.resolve()
 
 
-def dist_file(url_path: str) -> Path | None:
-    """A file inside the built review app. Anything that resolves outside dist is refused."""
-    root = dist_dir().resolve()
+def _dir_prefix(root: str) -> str:
+    return root if root.endswith(os.sep) else root + os.sep
+
+
+def read_dist_asset(url_path: str) -> tuple[bytes, str] | None:
+    """Bytes of one built file, or None when the path leaves dist.
+
+    CodeQL treats ``os.path.realpath`` plus ``startswith`` in this function as the
+    jail. The file is opened here, on that checked path.
+    """
+    root = os.path.realpath(dist_dir())
+    prefix = _dir_prefix(root)
     rel = unquote(url_path).lstrip("/")
     if not rel or "\x00" in rel or "\\" in rel:
         return None
-    candidate = (root / rel).resolve()
-    try:
-        candidate.relative_to(root)
-    except ValueError:
+    parts = [part for part in rel.split("/") if part not in ("", ".")]
+    if not parts or any(part == ".." for part in parts):
         return None
-    return candidate
+    full = os.path.realpath(os.path.join(root, *parts))
+    if full.startswith(prefix) and os.path.isfile(full):
+        with open(full, "rb") as handle:
+            return handle.read(), os.path.splitext(full)[1]
+    return None
 
 
 def _matching_listener(port: int) -> bool:
@@ -235,15 +246,21 @@ def _stub_shoot(url: str, dest: Path) -> dict[str, Any]:
         return {"ok": False, "error": {"code": "REVIEW_DESK_UNREACHABLE", "detail": str(exc)}}
     if status != 200 or b"data-review-ready" not in body:
         return {"ok": False, "error": {"code": "REVIEW_DESK_UNREACHABLE", "detail": "review page was not ready"}}
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_bytes(PNG_STUB)
-    return {
-        "ok": True,
-        "path": str(dest),
-        "sha256": hashlib.sha256(PNG_STUB).hexdigest(),
-        "bytes": len(PNG_STUB),
-        "png": PNG_STUB,
-    }
+    base = os.path.realpath(dest.parent)
+    temp_prefix = _dir_prefix(os.path.realpath(tempfile.gettempdir()))
+    full = os.path.realpath(os.path.join(base, os.path.basename(os.fspath(dest))))
+    if base.startswith(temp_prefix) and full.startswith(_dir_prefix(base)):
+        os.makedirs(base, exist_ok=True)
+        with open(full, "wb") as handle:
+            handle.write(PNG_STUB)
+        return {
+            "ok": True,
+            "path": full,
+            "sha256": hashlib.sha256(PNG_STUB).hexdigest(),
+            "bytes": len(PNG_STUB),
+            "png": PNG_STUB,
+        }
+    return {"ok": False, "error": {"code": "REVIEW_SHOT_FAILED", "detail": "shot folder"}}
 
 
 def _shots() -> review_warm.ReviewShots:
@@ -315,17 +332,18 @@ def make_engine_handler(bars_reader=None, daily_reader=None):
         def _touch(self) -> None:
             STATE.touch()
 
-        def _send_file(self, path: Path) -> None:
-            if not path.is_file():
+        def _send_asset(self, url_path: str) -> None:
+            found = read_dist_asset(url_path)
+            if found is None:
                 self._send(404, {"ok": False, "error": "not found"})
                 return
-            raw = path.read_bytes()
+            raw, suffix = found
             kind = "application/octet-stream"
-            if path.suffix == ".html":
+            if suffix == ".html":
                 kind = "text/html; charset=utf-8"
-            elif path.suffix == ".js":
+            elif suffix == ".js":
                 kind = "text/javascript; charset=utf-8"
-            elif path.suffix == ".css":
+            elif suffix == ".css":
                 kind = "text/css; charset=utf-8"
             self.send_response(200)
             self.send_header("Content-Type", kind)
@@ -347,23 +365,22 @@ def make_engine_handler(bars_reader=None, daily_reader=None):
                 })
                 return
             if parsed.path in ("/review", "/review/"):
-                self._send_file(dist_dir() / "index.html")
+                self._send_asset("/index.html")
                 return
             if parsed.path.startswith("/assets/"):
-                found = dist_file(parsed.path)
-                if found is None:
-                    self._send(404, {"ok": False, "error": "not found"})
-                    return
-                self._send_file(found)
+                self._send_asset(parsed.path)
                 return
             super().do_GET()
 
         def _cors(self) -> None:
             origin = self.headers.get("Origin")
+            if not origin:
+                return
+            cleaned = origin.replace("\r", "").replace("\n", "")
             allowed = set(_origins())
             allowed.add(f"http://127.0.0.1:{self.server.server_address[1]}")
-            if origin and origin in allowed:
-                self.send_header("Access-Control-Allow-Origin", origin)
+            if cleaned in allowed:
+                self.send_header("Access-Control-Allow-Origin", cleaned)
                 self.send_header("Vary", "Origin")
 
         def _token_ok(self) -> bool:
@@ -419,9 +436,11 @@ def make_engine_handler(bars_reader=None, daily_reader=None):
             req_id = str(body.get("id") or "")
             try:
                 url, label = self._shot_page(body)
-                root = shot_dir()
-                dest = (root / f"review-{label}-{uuid.uuid4().hex[:8]}.png").resolve()
-                dest.relative_to(root)
+                root = os.path.realpath(shot_dir())
+                dest_text = os.path.realpath(os.path.join(root, f"review-{label}-{uuid.uuid4().hex[:8]}.png"))
+                if not dest_text.startswith(_dir_prefix(root)):
+                    raise ValueError("the shot file leaves the review-shots folder")
+                dest = Path(dest_text)
             except (ValueError, OSError) as exc:
                 self._send(400, {"ok": False, "id": req_id, "error": str(exc)})
                 return
