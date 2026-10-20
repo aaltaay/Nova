@@ -2,7 +2,8 @@
 around a day, one stock-day's stats, minute order flow, halts, catalysts and symbols.
 
 Split from ``tools/nova_data_mcp.py`` along the tool-set seam: that file owns the server, the answer shape and the
-first fourteen tools; this one owns these eight (``ResearchTools`` bodies, ``register`` their MCP descriptions).
+first fourteen tools; this one owns these eight (``ResearchTools`` bodies, ``register`` their MCP descriptions);
+``nova_data_runway.py`` owns ``cash_runway``.
 Same contract: read-only on the data, a table answer holds 200 rows inline, ``output_name`` writes a new file.
 """
 from __future__ import annotations

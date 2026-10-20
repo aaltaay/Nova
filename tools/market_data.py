@@ -18,6 +18,8 @@ data; ``index`` writes only the seek indexes the Sim's own reader keeps (ADR 046
   scan      Bulk movers rows for research (key=value, percents in points), no 500-row cap.
   financials / float / ipos / ticker / short-interest   Massive's reference dump, as known on a day (ADR 059).
   sec-shares / sec-filings   SEC's share counts and filing list, as filed by a day.
+  runway    A company's cash, operating cash burn, runway in months, share-count growth and shelf / offering
+            filings as known on a day (market_data_runway.py).
   reference-index   Build or refresh the reference dump's index (a read does this itself when it is stale).
   find / daily / context / stats / flow / halts / catalysts / symbols   Momentum research (market_data_research.py):
             stock-days with the shares known that day, daily bars, SPY/QQQ/IWM, one stock-day's stats, minute order
@@ -42,6 +44,7 @@ Usage (from the repo root):
   py -3 tools/market_data.py scan date_from=2021-01-01 price_min=2 price_max=20 high_min=50 --out runners.parquet
   py -3 tools/market_data.py sec-shares GURE --day 2024-03-01
   py -3 tools/market_data.py financials GURE --statement income_statements --as-of 2024-03-01
+  py -3 tools/market_data.py runway GURE 2024-03-01
 """
 from __future__ import annotations
 
@@ -54,6 +57,7 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "research"))
 
 import market_data_research as research  # noqa: E402  (find, daily, context, stats, flow, halts, catalysts, symbols)
+import market_data_runway as runway_cli  # noqa: E402  (runway)
 from market_reads import inventory  # noqa: E402
 
 SHOW_ROWS = 15
@@ -316,10 +320,13 @@ def main(argv: list[str] | None = None) -> int:
     ri = sub.add_parser("reference-index", help="build or refresh the reference dump's index")
     ri.add_argument("--datasets", help="comma list (default: all)")
     research.add_parsers(sub, output)
+    runway_cli.add_parsers(sub, output)
 
     args = parser.parse_args(argv)
     if args.cmd in research.HANDLERS:
         return research.HANDLERS[args.cmd](args, _show)
+    if args.cmd in runway_cli.HANDLERS:
+        return runway_cli.HANDLERS[args.cmd](args, _show)
     handlers = {"status": cmd_status, "index": cmd_index, "trades": cmd_rows, "quotes": cmd_rows,
                 "bars": cmd_bars, "movers": cmd_movers, "board": cmd_board, "splits": cmd_splits,
                 "bench": cmd_bench, "catalog": cmd_catalog, "scan": cmd_scan, "financials": cmd_reference,

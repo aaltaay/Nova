@@ -19,7 +19,7 @@ import nova_data_mcp as m  # noqa: E402
 TOOLS = {"data_catalog", "data_status", "stock_day", "movers_search", "movers_scan", "board", "splits", "financials",
          "sec_shares", "sec_filings", "float_latest", "ipos", "ticker_details", "short_interest",
          "find_stock_days", "daily_bars", "market_context", "stock_day_stats", "order_flow", "halts", "catalysts",
-         "symbols"}
+         "symbols", "cash_runway"}
 WRITES = {"stock_day", "movers_scan", "find_stock_days", "daily_bars", "order_flow"}
 
 
@@ -100,6 +100,36 @@ def test_catalysts_answer_items_and_the_days_verdicts(monkeypatch):
     assert answer["data"][0]["title"] == "8-K" and answer["verdicts"] == [{"session_date": "2026-09-09",
                                                                          "verdict": "catalyst"}]
     assert answer["verdicts_meta"]["coverage"].startswith("2021")
+
+
+def test_cash_runway_answers_the_library_read_and_the_defaults_agree(monkeypatch):
+    import market_data_runway
+    import nova_data_runway
+    from market_reads import runway
+    asked = {}
+
+    def read(symbol, day, cik=None, lookback_days=runway.DEFAULT_LOOKBACK_DAYS):
+        asked.update(symbol=symbol, day=day, cik=cik, lookback_days=lookback_days)
+        return {"symbol": symbol, "cash": None, "runway": {"months": None, "status": "no_balance_sheet"}}
+
+    monkeypatch.setattr(runway, "runway", read)
+    answer = m.DataService().cash_runway("GURE", "2024-03-01")
+    assert answer == {"ok": True, "symbol": "GURE", "cash": None,
+                      "runway": {"months": None, "status": "no_balance_sheet"}}
+    assert asked == {"symbol": "GURE", "day": "2024-03-01", "cik": None, "lookback_days": 1095}
+    assert runway.DEFAULT_LOOKBACK_DAYS == nova_data_runway.DEFAULT_LOOKBACK_DAYS         == market_data_runway.DEFAULT_LOOKBACK_DAYS
+
+
+def test_cash_runway_is_a_heavy_read_and_a_bad_day_is_an_answer():
+    assert "cash_runway" not in m.LIGHT_TOOLS            # it can build the reference index: one heavy read at a time
+    answer = m.call(m.DataService().cash_runway, "GURE", "not-a-day")
+    assert answer["ok"] is False and answer["error"].startswith("ValueError")
+
+
+def test_the_catalog_lists_cash_runway_with_its_tool_and_command():
+    entry = next(d for d in m.DataService().catalog()["datasets"] if d["name"] == "cash_runway")
+    assert entry["mcp"] == "cash_runway" and entry["cli"] == "market_data.py runway SYMBOL DAY"
+    assert "stale" in entry["as_of"] and "null" in entry["units"]
 
 
 def _hold(name: str, started: threading.Event, release: threading.Event):

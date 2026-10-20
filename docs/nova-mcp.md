@@ -31,7 +31,7 @@ A gallery is the same page with `symbols=A,B,C` instead of `symbol`. Tabs are `1
 
 ## Data tools
 
-The 22 data tools keep their names, arguments, units and as-of rules. Start with `data_catalog`. A long read such as `data_status` takes only its own lock, so `movers_search` is not stuck behind it. Heavy disk reads still share the PC-wide slots.
+The 23 data tools keep their names, arguments, units and as-of rules. Start with `data_catalog`. A long read such as `data_status` takes only its own lock, so `movers_search` is not stuck behind it. Heavy disk reads still share the PC-wide slots.
 
 ## Chart tool
 
