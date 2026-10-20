@@ -535,9 +535,10 @@ the recorder refuses a row that moves backwards), never read whole for one momen
   `exchange_ts` is IBKR's own whole second when the tick carried one (Session Records only; null in `archive`, which
   does not store it). A book's `ts` is when Nova received that book. The "day" is the ET calendar day of `ts`, the
   folder the recorder files it under (a DST day is 23 or 25 hours).
-- **Prints.** `side` (`ask` | `bid` | `between` | null) is the desk's own judgement against the book it held at
-  receipt (`ibkr/tape_side.py`), `bid` / `ask` the top of book it was judged against; null when no book was held,
-  never inferred from price. `sets_price` is the recorded verdict in a Session Record and
+- **Prints.** `side` (`ask` | `bid` | `between` | `unknown`) is the desk's own judgement against the book it held at
+  receipt (`ibkr/tape_side.py`: `unknown` when no usable book was held, a missing, crossed or locked one), `bid` / `ask`
+  the top of book it was judged against (null then); `side` is null only on a row recorded before the field existed.
+  Never inferred from price (PFAI 2026-10-13 08:22:30-08:26:30: 24,257 `between`, 8,160 `ask`, 6,103 `bid`, 614 `unknown`). `sets_price` is the recorded verdict in a Session Record and
   `sale_conditions.sets_price(conditions)` in `archive` (which does not store IBKR's `unreported` flag, so an
   unreported print with ordinary conditions reads true there; `unreported` is null in `archive`).
 - **The sources.** `capture`: a Session Record, only for symbols someone recorded (the operator, or auto-record; at

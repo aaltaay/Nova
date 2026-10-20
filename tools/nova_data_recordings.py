@@ -50,8 +50,8 @@ def register(server, service, run, reads, writes_file) -> None:
         """Nova's own recorded Time & Sales prints for a symbol on `day`, ET start (inclusive) to end (exclusive),
         default the whole ET day, oldest first: time_et, ts (epoch seconds when Nova RECEIVED the print), receive_ts,
         exchange_ts (IBKR's own whole second, Session Records only), price, size, exchange, conditions, unreported,
-        sets_price (may the print move a candle), side / bid / ask (the desk's own judgement against the book it
-        held at receipt; null when none, never inferred), source. source: auto (a Session Record when one exists,
+        sets_price (may the print move a candle), side (ask | bid | between | unknown) / bid / ask (the desk's own
+        judgement against the book it held at receipt; unknown when no usable book, never inferred), source. source: auto (a Session Record when one exists,
         else the archive) | capture | archive (every print the desk's tape line saw, 2026-07-15 on, any symbol).
         meta.coverage says what the recording holds and lost (a Session Record: stretches, gaps, tape losses; the
         archive: first / last print and that it marks no gap of its own); a Session Record's gaps may hold prints the

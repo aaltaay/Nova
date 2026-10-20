@@ -73,8 +73,8 @@ RECORDINGS = (
      "as_of": "prints in an ET window [start, end), oldest first; auto serves a Session Record when one exists for "
               "the symbol-day (its gaps are stated and may hold prints the archive has), else the archive",
      "units": "price dollars, size shares; ts / receive_ts epoch seconds -- ts is when Nova RECEIVED the print, "
-              "exchange_ts IBKR's own second (Session Records only); side / bid / ask the desk's own judgement at "
-              "receipt, null when none; sets_price judged from conditions alone in the archive",
+              "exchange_ts IBKR's own second (Session Records only); side (ask | bid | between | unknown) / bid / ask "
+              "the desk's own judgement at receipt, unknown when no usable book; sets_price judged from conditions alone in the archive",
      "mcp": "recorded_tape (rows: meta.capped)", "cli": "market_data.py recorded-tape SYMBOL DAY --from HH:MM --to HH:MM"},
 )
 

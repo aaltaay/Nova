@@ -47,8 +47,9 @@ DEPTH_RULES = ("the newest book at or before the moment asked, no older than max
                "auto serves the newer of the two stores (a tie: capture)")
 TAPE_RULES = ("prints with ts in [start, end), oldest first; ts is when Nova received the print (ib_async stamps "
               "arrival), receive_ts when the desk processed it, exchange_ts IBKR's own whole second (Session Records "
-              "only); side / bid / ask are the desk's own judgement against the book it held at receipt, null when "
-              "none (never inferred from price); sets_price is the recorded verdict (capture) or judged from the "
+              "only); side (ask | bid | between | unknown) / bid / ask are the desk's own judgement against the book "
+              "it held at receipt -- unknown when none was usable, null on a row recorded before the field existed, "
+              "never inferred from price; sets_price is the recorded verdict (capture) or judged from the "
               "conditions alone (archive does not store IBKR's unreported flag)")
 UNITS = "prices dollars, sizes shares, ts epoch seconds, *_et Eastern time (HH:MM:SS.mmm; ISO with offset in coverage)"
 
