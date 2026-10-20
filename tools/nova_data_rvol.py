@@ -107,8 +107,8 @@ def register(server, service, run, reads, writes_file) -> None:
         crossed a line (trigger = {"rvol_min": 10, "measure"?, "window_from"?, "window_to"?, "fresh"?}; filters as
         rvol_triggers), did a bar's high reach +up_pct% or a low reach -down_pct% of the entry price first? The entry
         price is the close of the last bar before the entry clock; only later bars are read. horizon: close (before
-        16:00) | session (before 20:00) | days (days=1-20: then the next sessions' high / low on the entry's share
-        basis). Outcomes up | down | same_bar (both in one minute: order unknown, never guessed) | same_day | neither.
+        16:00) | session (before 20:00) | days (days=1-20: then the next trading sessions' high / low on the
+        entry's share basis; a horizon past the newest built session is left out as horizon_open). Outcomes up | down | same_bar (both in one minute: order unknown, never guessed) | same_day | neither.
         summary per group_by (rvol buckets on measure -- buckets edges, default 0,1,2,3,5,10,20,50,100,1000 -- or
         year | hour | none) plus all: entries, counts, p_up, p_down, p_up_resolved, median max up / down %, median
         and mean end %, median minutes to each line. Trigger entries get a control (on by default): one stock-day

@@ -201,35 +201,45 @@ def write_parts(parts_iter, out: Path | None, shape=None):
     import pyarrow as pa
     import pyarrow.parquet as pq
     shape = shape or _shape
-    writer = None
+    writer, wrote, last = None, False, None
+    if out is not None and out.exists():
+        out.unlink()                         # the file holds this answer only, never an earlier one's rows
     try:
         for table in parts_iter:
             frame = table.to_pandas() if hasattr(table, "to_pandas") else table
+            last = frame
             if out is not None and len(frame):
                 shown = shape(frame)
                 if out.suffix == ".csv":
-                    shown.to_csv(out, mode="a", index=False, header=not out.exists())
+                    shown.to_csv(out, mode="a", index=False, header=not wrote)
                 else:
                     arrow = pa.Table.from_pandas(shown, preserve_index=False)
                     writer = writer or pq.ParquetWriter(out, arrow.schema, compression="zstd")
                     writer.write_table(arrow.cast(writer.schema))
+                wrote = True
             yield frame
     finally:
         if writer is not None:
             writer.close()
+        if out is not None and not wrote and last is not None:
+            empty = shape(last.head(0))
+            empty.to_csv(out, index=False) if out.suffix == ".csv" else empty.to_parquet(out, index=False)
 
 
 INTERNAL = ("epoch", "basis")      # carried for the outcome reads, not answered
 
 
 def _shape(frame: pd.DataFrame) -> pd.DataFrame:
+    """Rows as answered: ``date`` ISO, each ``*_m`` minute as ``*_et`` ET HH:MM, internal columns dropped."""
+    frame = frame.drop(columns=[c for c in INTERNAL if c in frame.columns])
+    clocks = [c for c in frame.columns if c.endswith("_m")]
     if not len(frame):
-        return frame.drop(columns=[c for c in INTERNAL if c in frame.columns])
+        return frame.rename(columns={c: c[:-2] + "_et" for c in clocks})
     frame = frame.copy()
     frame["date"] = frame["date"].astype(str)
-    for column in [c for c in frame.columns if c.endswith("_m")]:
-        frame[column.replace("_m", "_et")] = frame[column].map(hhmm)
-    return frame.drop(columns=[c for c in frame.columns if c.endswith("_m") or c in INTERNAL])
+    for column in clocks:
+        frame[column[:-2] + "_et"] = frame[column].map(hhmm)
+    return frame.drop(columns=clocks)
 
 
 def scan_tables(at: str, filters: dict[str, Any], measure: str, kinds, splits: str, min_base_sessions: int):
@@ -311,13 +321,15 @@ SELECT d.date, d.symbol, d.kind, d.prev_close, h.t.m AS trigger_m, h.t.m + 1 AS 
        h.t.cum / nullif(h.t.base, 0) AS rvol, h.t.vol5 AS volume_5m, h.t.base5 AS base_5m,
        h.t.vol5 / nullif(h.t.base5, 0) AS rvol_5m, d.day_avg_volume, h.t.cum / nullif(d.day_avg_volume, 0) AS rvol_daily,
        coalesce(h.above_before, false) AS above_before, d.base_sessions, d.day_avg_sessions, d.split, d.epoch, d.basis
-FROM h JOIN d ON h.date = d.date AND h.symbol = d.symbol WHERE h.t IS NOT NULL"""
+FROM h JOIN d ON h.date = d.date AND h.symbol = d.symbol WHERE h.t IS NOT NULL OR coalesce(h.above_before, false)"""
 
 
 def trigger_frames(rvol_min: float, measure: str, window: tuple[str, str], filters: dict[str, Any], kinds,
                    splits: str, min_base_sessions: int):
     """``(groups, filters, sql)``: the year chunks, the checked filters and the trigger query for them
-    (``rvol_outcomes`` reads all three). Every row says ``above_before``; ``fresh`` is applied by the caller."""
+    (``rvol_outcomes`` reads all three). Every row says ``above_before``; a stock-day over the line before the
+    window with no hit inside it comes back too (``trigger_m`` null: the control's "already crossed"), so callers
+    keep ``trigger_m`` rows as triggers, and apply ``fresh``."""
     w0, w1 = minute_of(window[0], "window_from"), minute_of(window[1], "window_to")
     if w1 <= w0:
         raise ValueError(f"window_to {window[1]} is not after window_from {window[0]}")
@@ -355,8 +367,10 @@ def triggers(rvol_min: float, *, measure: str = "cumulative", window_from: str =
     keep = int(limit) if limit else (None if to_file else INLINE)
     rows, parts, held = 0, [], 0
     with slots.heavy(f"rvol triggers {rvol_min}"):
-        tables = (t.filter(pc.invert(t.column("above_before"))) if fresh else t
-                  for _days, t in run_chunks(groups, sql))
+        def hits(t):                    # triggers only (rows over the line before the window with no hit drop)
+            keep = pc.is_valid(t.column("trigger_m"))
+            return t.filter(pc.and_(keep, pc.invert(t.column("above_before"))) if fresh else keep)
+        tables = (hits(t) for _days, t in run_chunks(groups, sql))
         for part in write_parts(tables, to_file):
             rows += len(part)
             if keep is None or held < keep:

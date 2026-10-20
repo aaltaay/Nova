@@ -43,7 +43,7 @@ def _sessions(n: int = 24) -> list[str]:
 DAYS = _sessions()
 TODAY, D20, D21 = DAYS[-1], DAYS[20], DAYS[21]
 SPLIT_DAY, LIKELY_DAY, NEW_OWNER_FROM = DAYS[15], DAYS[18], DAYS[10]
-COMMON = ("ABC", "UPP", "DWN", "BTH", "NTH", "SRG", "FST", "LAT", "LBO", "SPL", "LKS")
+COMMON = ("ABC", "UPP", "DWN", "BTH", "NTH", "SRG", "FST", "PRE", "LAT", "LBO", "SPL", "LKS")
 SYMBOLS = (*COMMON, "HLD", "ETFX", "UNK")
 TICKERS = [{"ticker": s, "cik": str(n), "name": s, "active": True, "type": "CS"} for n, s in enumerate(COMMON, 1)] + [
     {"ticker": "ETFX", "cik": "90", "name": "An ETF", "active": True, "type": "ETF"},
@@ -58,6 +58,7 @@ EXTRA = {
     ("BTH", TODAY): [("09:35", 2.0, 3.1, 0.9, 2.0, 500)],          # both inside one bar
     ("SRG", TODAY): [("07:00", 2.0, 2.2, 2.0, 2.2, 1000)],         # 101x at 07:00
     ("FST", TODAY): [("05:00", 2.0, 2.0, 2.0, 2.0, 1000)],         # over the line before a 07:00 window
+    ("PRE", TODAY): [("05:00", 2.0, 2.0, 2.0, 2.0, 200)],          # over it at 05:00, never again in the window
     ("LAT", D21): [("10:00", 2.0, 3.2, 2.0, 3.0, 500)],            # +50% the session after the entry
     ("LBO", D21): [("10:00", 2.0, 3.2, 0.9, 2.0, 500)],            # both inside that later session
 }
@@ -262,3 +263,39 @@ def test_a_bad_ask_is_refused_with_its_reason(table):
         rvol_outcomes.outcomes(filters={"date_from": TODAY, "date_to": TODAY}, at="09:30", trigger={"rvol_min": 5})
     with pytest.raises(ValueError, match="no bar inside horizon"):
         rvol_outcomes.outcomes(filters={"date_from": TODAY, "date_to": TODAY}, at="16:00")
+
+
+def test_a_stock_over_the_line_before_the_window_is_never_a_control(table):
+    window = {"rvol_min": 10, "window_from": "07:00", "window_to": "09:30"}
+    found = rvol.triggers(10, window_from="07:00", window_to="09:30", filters={"date_from": TODAY, "date_to": TODAY})
+    assert "PRE" not in set(found["symbol"])             # no hit inside the window: not a trigger
+    picked = set()
+    for seed in range(1, 41):
+        out = Path(rs.root()).parent / f"controls-{seed}.parquet"
+        rvol_outcomes.outcomes(filters={"date_from": TODAY, "date_to": TODAY}, trigger=window, seed=seed, to_file=out)
+        frame = pd.read_parquet(out)
+        picked |= set(frame.loc[frame["is_control"], "symbol"])
+        out.unlink()
+    assert "PRE" not in picked and "FST" not in picked and len(picked) > 2
+
+
+def test_a_horizon_past_the_last_session_is_open_and_left_out(table, tmp_path):
+    done = rvol_outcomes.outcomes(filters={"date_from": D21, "date_to": D21}, at="09:30", horizon="days", days=2)
+    assert done["entries"] and done["meta"]["left_out"]["horizon_open"] == 0      # D21 + 2 sessions = TODAY
+    out = tmp_path / "open.parquet"
+    late = rvol_outcomes.outcomes(filters={"date_from": DAYS[22], "date_to": DAYS[22]}, at="09:30", horizon="days",
+                                  days=2, to_file=out)
+    assert late["summary"] == [] and late["meta"]["left_out"]["horizon_open"] == late["entries"] > 0
+    assert set(pd.read_parquet(out)["outcome"]) == {"horizon_open"}
+
+
+def test_an_output_file_holds_this_answer_only(table, tmp_path):
+    out = tmp_path / "t.csv"
+    every = {"date_from": DAYS[0], "date_to": TODAY}
+    rvol.triggers(10, window_from="07:00", window_to="09:30", filters=every, to_file=out)
+    first = pd.read_csv(out)
+    rvol.triggers(10, window_from="07:00", window_to="09:30", filters={**every, "symbol": "SRG"}, to_file=out)
+    again = pd.read_csv(out)
+    assert len(first) > len(again) and set(again["symbol"]) == {"SRG"}
+    rvol.triggers(10_000_000, window_from="07:00", window_to="09:30", filters=every, to_file=out)
+    assert len(pd.read_csv(out)) == 0 and "trigger_et" in pd.read_csv(out).columns

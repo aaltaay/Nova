@@ -544,8 +544,9 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
     optionally `measure, window_from, window_to, fresh`).
     Entry price `P` = the close of the last bar starting before the entry clock (`at`, or `entry_et`); only bars
     starting at or after it are read. `horizon` `close` (bars before 16:00), `session` (before 20:00) or `days`
-    (`days` 1-20: the rest of the session, then the symbol's next `days` sessions' `hi` / `lo` on the entry day's
-    basis; a reset or a likely split inside leaves the entry out as `horizon_reset`). `outcome`: `up` (a bar's high
+    (`days` 1-20: the rest of the session, then the table's next `days` trading sessions -- the symbol's `hi` /
+    `lo` on each it traded, on the entry day's basis; a reset or a likely split inside leaves the entry out as
+    `horizon_reset`, sessions past the table's last built one as `horizon_open`). `outcome`: `up` (a bar's high
     reached `P x (1 + up_pct/100)` first), `down` (a low reached `P x (1 - down_pct/100)` first), `same_bar` (both in
     one minute bar: the order is not known and never guessed), `same_day` (both in one later session, `days` only),
     `neither`. `summary` rows per group (`group_by` `rvol` buckets on `measure` -- `buckets` edges, default 0, 1, 2,
@@ -556,7 +557,7 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
     split and baseline filters and a bar before the entry clock, that had not met the trigger by then (one over the
     line before the window opened counts as having met it), picked by a seeded hash
     (`seed`, default 1), scored from the same clock the same way -- the same summary shape. `meta` counts what was
-    left out (`no_price`, `split`, `base_sessions`, `horizon_reset`) and states every rule. Only `output_name`
+    left out (`no_price`, `split`, `base_sessions`, `horizon_reset`, `horizon_open`) and states every rule. Only `output_name`
     writes (each entry with its outcome); the three tools take a heavy-read slot.
 - **Tripwire** (`tools/data_access_hook.py`): Cursor `beforeShellExecution` (`{permission: "allow" | "deny",
   user_message, agent_message}`) and Claude `PreToolUse` on Bash (`hookSpecificOutput.permissionDecision: "deny"`).

@@ -96,7 +96,7 @@ class Reference:
             self.splits.setdefault(str(t), []).append(lb_io.Split(str(t), when, float(f), float(to)))
             rows.append(f"{t}|{when}|{f}|{to}")
         self.split_rows = sorted(rows)
-        self.fingerprint = hashlib.sha1("\n".join(self.split_rows).encode()).hexdigest()
+        self.fingerprint = hashlib.sha256("\n".join(self.split_rows).encode()).hexdigest()
         self._lb_io = lb_io
 
     def kind(self, symbol: str, day: str) -> tuple[str | None, str | None]:

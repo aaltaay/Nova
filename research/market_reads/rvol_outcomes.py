@@ -16,7 +16,7 @@ whether crossing the line told anything the clock and the universe did not.
 from __future__ import annotations
 
 import zlib
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +32,7 @@ DEFAULT_BUCKETS = (0, 1, 2, 3, 5, 10, 20, 50, 100, 1000)
 MAX_DAYS = 20
 LINE_EPS = 1e-9                 # day_movers' DAY_MOVERS_LINE_EPS: a price exactly on the line is on it
 OUTCOMES = ("up", "down", "same_bar", "same_day", "neither")
+LEFT_OUT = ("horizon_reset", "horizon_open")      # scored rows the summary leaves out (counted in meta.left_out)
 ROW_COLUMNS = ("date", "symbol", "entry_et", "price", "value", "group", "outcome", "up_et", "down_et",
                "max_up_pct", "max_down_pct", "end_pct", "is_control")
 
@@ -52,14 +53,12 @@ SELECT c.id, arg_max(x.close, x.m) AS price FROM c JOIN read_parquet($mfiles) x 
 WHERE x.m < {hi} AND x.m < c.entry_m GROUP BY c.id"""
 
 
-def _ahead_sql(days: int) -> str:
-    return f"""
-WITH n AS (SELECT date, symbol, hi, lo, last_close, basis, epoch FROM read_parquet($afiles)),
-j AS (SELECT e.id, n.hi * n.basis / e.basis AS hi_e, n.lo * n.basis / e.basis AS lo_e,
-             n.last_close * n.basis / e.basis AS close_e, n.epoch <> e.epoch AS reset,
-             row_number() OVER (PARTITION BY e.id ORDER BY n.date) AS k
-      FROM e JOIN n ON n.symbol = e.symbol AND n.date > e.date AND n.date <= e.date + INTERVAL {days * 2 + 14} DAYS)
-SELECT * FROM j WHERE k <= {days}"""
+AHEAD_SQL = """
+WITH n AS (SELECT date, symbol, hi, lo, last_close, basis, epoch FROM read_parquet($afiles))
+SELECT e.id, n.hi * n.basis / e.basis AS hi_e, n.lo * n.basis / e.basis AS lo_e,
+       n.last_close * n.basis / e.basis AS close_e, n.epoch <> e.epoch AS reset,
+       row_number() OVER (PARTITION BY e.id ORDER BY n.date) AS k
+FROM e JOIN n ON n.symbol = e.symbol AND n.date > e.date AND n.date <= e.hz_end"""
 
 
 def _hash(*parts) -> int:
@@ -118,10 +117,17 @@ def _score(con, e: pd.DataFrame, days_list: list[str], manifest: dict, up: float
     hi, lo = e["max_high"].to_numpy(dtype=np.float64), e["min_low"].to_numpy(dtype=np.float64)
     end = e["end_close"].fillna(e["price"]).to_numpy(dtype=np.float64)
     reset = np.zeros(len(e), dtype=bool)
+    open_ = np.zeros(len(e), dtype=bool)
     if horizon == "days":
-        last = date.fromisoformat(days_list[-1]) + timedelta(days=n_days * 2 + 14)
-        ahead = [d for d in rs.built_days(manifest, days_list[0], last.isoformat()) if d > days_list[0]]
-        a = con.execute(_ahead_sql(n_days), {"afiles": rvol.posix(rs.days_path(d) for d in ahead)}).df() \
+        built = rs.built_days(manifest)
+        where = {d: i for i, d in enumerate(built)}
+        ends = [built[where[str(d)] + n_days] if where[str(d)] + n_days < len(built) else None for d in e["date"]]
+        open_ = np.array([end_ is None for end_ in ends])      # the horizon runs past the table's last session
+        e["hz_end"] = [date.fromisoformat(end_) if end_ else d for end_, d in zip(ends, e["date"], strict=True)]
+        con.register("e", e[["id", "date", "symbol", "epoch", "basis", "hz_end"]])
+        first = where[str(min(e["date"]))] + 1
+        ahead = built[first:where[str(max(e["date"]))] + n_days + 1]
+        a = con.execute(AHEAD_SQL, {"afiles": rvol.posix(rs.days_path(d) for d in ahead)}).df() \
             if ahead else pd.DataFrame(columns=["id", "hi_e", "lo_e", "close_e", "reset", "k"])
         if len(a):
             a = a.merge(e[["id", "up_px", "dn_px"]], on="id")
@@ -144,7 +150,7 @@ def _score(con, e: pd.DataFrame, days_list: list[str], manifest: dict, up: float
             end = np.where(np.isnan(per["close_last"].to_numpy(dtype=np.float64)), end,
                            per["close_last"].to_numpy(dtype=np.float64))
     price = e["price"].to_numpy(dtype=np.float64)
-    e["outcome"] = np.where(reset, "horizon_reset", outcome)
+    e["outcome"] = np.where(open_, "horizon_open", np.where(reset, "horizon_reset", outcome))
     e["max_up_pct"] = (np.fmax(hi, price) / price - 1) * 100
     e["max_down_pct"] = (np.fmin(lo, price) / price - 1) * 100
     e["end_pct"] = (end / price - 1) * 100
@@ -171,7 +177,7 @@ def _groups(frame: pd.DataFrame, group_by: str, buckets) -> pd.Series:
 def summarize(frame: pd.DataFrame, order: list[str] | None = None) -> list[dict[str, Any]]:
     """One row per group (in ``order``) plus ``all``: counts, shares and the medians of what came next."""
     out = []
-    scored = frame[frame["outcome"] != "horizon_reset"]
+    scored = frame[~frame["outcome"].isin(LEFT_OUT)]
     names = [g for g in (order or sorted(scored["group"].unique())) if g != "all"]
     for name, part in [*((g, scored[scored["group"] == g]) for g in names), ("all", scored)]:
         n = len(part)
@@ -259,10 +265,14 @@ def outcomes(*, filters: dict[str, Any], at: str | None = None, trigger: dict[st
                 crossed = None
                 if is_trigger:                  # over the line before the window counts as crossed from the start
                     crossed = e.assign(trigger_m=e["trigger_m"].where(~e["above_before"], -1))
+                    keep = e["trigger_m"].notna()
                     if fresh:
-                        e = e[~e["above_before"]].reset_index(drop=True)
+                        keep &= ~e["above_before"]
+                    e = e[keep].reset_index(drop=True)
                     if not len(e):
                         continue
+                    e["trigger_m"] = e["trigger_m"].astype(np.int64)
+                    e["entry_m"] = e["entry_m"].astype(np.int64)
                 e["entry_m"] = e["entry_m"] if is_trigger else rvol.minute_of(at)
                 no_price += int(e["price"].isna().sum())
                 e = e[e["price"].notna() & (e["price"] > 0)].reset_index(drop=True)
@@ -319,15 +329,16 @@ def outcomes(*, filters: dict[str, Any], at: str | None = None, trigger: dict[st
                  "kinds": list(kinds or rvol.DEFAULT_KINDS), "splits": splits, "min_base_sessions": min_base_sessions,
                  "seed": seed if is_trigger and control else None,
                  "left_out": {"no_price": no_price, **left,
-                              "horizon_reset": int((frame["outcome"] == "horizon_reset").sum()) if len(frame) else 0},
+                              **{k: int((frame["outcome"] == k).sum()) if len(frame) else 0 for k in LEFT_OUT}},
                  "rules": _rules(horizon, n_days), "units": "p_* shares of entries (0-1); *_pct percent points of the "
                                                             "entry price; minutes to the end of the bar that hit"}}
 
 
 def _rules(horizon: str, n_days: int) -> dict[str, str]:
     end = {"close": "bars starting before 16:00", "session": "bars starting before 20:00",
-           "days": f"the rest of the session, then the symbol's next {n_days} sessions' high / low (04:00-20:00) on "
-                   "the entry day's share basis"}[horizon]
+           "days": f"the rest of the session, then the next {n_days} trading sessions of the table: the symbol's "
+                   "high / low (04:00-20:00) on each it traded, on the entry day's share basis; an entry whose "
+                   "sessions run past the table's last one is horizon_open (left out)"}[horizon]
     return {"entry": "the close of the last bar starting before the entry clock (at, or the end of the trigger bar); "
                      "only bars starting at or after the clock are read",
             "horizon": end, "lines": f"a bar's high >= P x (1 + up_pct/100), a low <= P x (1 - down_pct/100) (within "
@@ -336,8 +347,8 @@ def _rules(horizon: str, n_days: int) -> dict[str, str]:
             "same_day": "both lines inside one later session (horizon days)",
             "end_pct": "the last close inside the horizon vs P",
             "control": "per trigger, one stock-day of the same date, kinds, price, split and baseline filters with a "
-                       "bar before the entry clock that had not crossed the line by then (seeded hash), scored the "
-                       "same way",
+                       "bar before the entry clock that had not met the trigger by then -- over the line before the "
+                       "window counts as met (seeded hash), scored the same way",
             "p_up_resolved": "up / (up + down): ignores same_bar, same_day and neither"}
 
 
