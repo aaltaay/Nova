@@ -40,7 +40,7 @@ Most of Nova can be worked on without an Interactive Brokers account, IB Gateway
 - Work on that focused branch. Open a ready (non-draft) pull request against `master`.
 - Fill every section of [`.github/pull_request_template.md`](.github/pull_request_template.md). **Why this approach** and **Verified by** are required.
 - Use `Closes #NNN` only when the entire issue is done. Use `Refs #NNN` for partial work.
-- GitHub Actions merges ready pull requests when gating CI is green. Draft or the `do-not-merge` label holds a pull request.
+- GitHub Actions merges a non-draft pull request only when gating CI is green and the label `merge-approved` was most recently added by the GitHub user `aaltaay`. Agents never add `merge-approved`; only the owner does. Draft or the `do-not-merge` label holds a pull request. Removing the label before the merge holds it too.
 
 ## Verification
 

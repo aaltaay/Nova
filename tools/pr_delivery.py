@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Merge ready Nova PRs (squash) and delete closed heads.
+"""Merge owner-approved Nova PRs (squash) and delete closed heads.
 
-Agents open a verified, non-draft PR and stop. Draft or `do-not-merge` holds,
-and so does any of the four required checks that is not green on the PR's head
-(operator decision 2026-10-13, "Merge only green PRs too"; tools/pr_checks.py).
-Closed heads are deleted here and by GitHub `delete_branch_on_merge`.
+Agents open a verified, non-draft PR and stop. They never add `merge-approved`.
+Only GitHub user `aaltaay` adding that label, as the latest labeled event on
+the issue events API, allows a merge (tools/pr_delivery_approval.py). Drafts
+never merge. `do-not-merge` holds, and so does any of the four required checks
+that is not green on the PR's head (operator decision 2026-10-13, "Merge only
+green PRs too"; tools/pr_checks.py). Closed heads are deleted here and by
+GitHub `delete_branch_on_merge`.
 
 Usage:
   python3 tools/pr_delivery.py decide --pr 64
@@ -30,6 +33,7 @@ try:
     from tools.pr_delivery_actions import (
         MERGE_HEAD_MOVED, merge_now, merge_pr, signal_conflict,
     )
+    from tools.pr_delivery_approval import approval_for_pr, signal_wrong_actor
     from tools.pr_review_status import (
         MIN_PR_AGE_SECONDS,
         head_age_seconds,
@@ -42,6 +46,7 @@ except ImportError:  # `python tools/pr_delivery.py` puts tools/ on sys.path
     from pr_delivery_actions import (
         MERGE_HEAD_MOVED, merge_now, merge_pr, signal_conflict,
     )
+    from pr_delivery_approval import approval_for_pr, signal_wrong_actor
     from pr_review_status import (
         MIN_PR_AGE_SECONDS,
         head_age_seconds,
@@ -65,9 +70,13 @@ ACTION_BLOCK = "block"
 class Decision:
     action: str
     reason: str
+    detail: str = ""
 
     def as_dict(self) -> dict[str, str]:
-        return {"action": self.action, "reason": self.reason}
+        payload = {"action": self.action, "reason": self.reason}
+        if self.detail:
+            payload["detail"] = self.detail
+        return payload
 
 
 def repo_slug() -> str:
@@ -98,6 +107,9 @@ def decide(
     review_in_flight: bool = False,
     age_seconds: float | None = None,
     min_age_seconds: int = MIN_PR_AGE_SECONDS,
+    owner_approved: bool = False,
+    approval_reason: str = "merge-approved-missing",
+    approval_actor: str = "",
 ) -> Decision:
     if str(state or "OPEN").upper() not in {"OPEN"}:
         return Decision(ACTION_SKIP, "not_open")
@@ -112,6 +124,13 @@ def decide(
         return Decision(ACTION_SKIP, "protected_head")
     if SKIP_LABELS & label_names(labels):
         return Decision(ACTION_SKIP, "do-not-merge")
+    # Same place as the other "never merge this" gates, so the CI job, the
+    # labeled trigger, and the sweep cannot diverge. A missing label does not
+    # wait on checks. A wrong actor does not remove the label.
+    if not owner_approved:
+        reason = approval_reason if str(approval_reason).startswith("merge-approved-") else "merge-approved-missing"
+        detail = approval_actor if reason == "merge-approved-actor" else ""
+        return Decision(ACTION_SKIP, reason, detail)
     merge_state = str(mergeable_state or "").lower()
     if merge_state in {"dirty", "conflicting"}:
         return Decision(ACTION_BLOCK, "conflict")
@@ -205,6 +224,9 @@ def _decision_from_pr(
 ) -> Decision:
     head_repo = pr.get("headRepository") or {}
     head_owner = pr.get("headRepositoryOwner") or {}
+    approved, approval_reason, approval_actor = approval_for_pr(
+        pr, gh=_gh, repo=repo_slug(),
+    )
     return decide(
         draft=bool(pr.get("isDraft")),
         state=str(pr.get("state") or "OPEN"),
@@ -219,6 +241,9 @@ def _decision_from_pr(
         review_in_flight=review_in_flight(pr),
         age_seconds=head_age_seconds(pr),
         min_age_seconds=min_age_seconds,
+        owner_approved=approved,
+        approval_reason=approval_reason,
+        approval_actor=approval_actor,
     )
 
 
@@ -276,6 +301,8 @@ def cmd_merge(
             continue
         if decision.reason == "conflict":
             _signal_conflict(number)
+        if decision.reason == "merge-approved-actor":
+            signal_wrong_actor(_gh, repo_slug(), number, decision.detail)
         if decision.reason == "settling":
             left = max(0.0, min_age_seconds - (head_age_seconds(pr) or 0.0)) + 5
             deadline = min(max(deadline, time.time() + left), settle_cap)
@@ -316,6 +343,8 @@ def cmd_sweep(*, min_age_seconds: int = MIN_PR_AGE_SECONDS) -> int:
         elif decision.reason == "conflict":
             _signal_conflict(number)
             errors += 1
+        elif decision.reason == "merge-approved-actor":
+            signal_wrong_actor(_gh, repo_slug(), number, decision.detail)
     return 1 if errors else 0
 
 

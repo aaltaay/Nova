@@ -24,7 +24,7 @@ def test_pr_delivery_workflow_merges_and_deletes():
     assert "pr_delivery.py sweep" in text
     assert "pr_delivery.py delete-closed" in text
     assert "pull_request:" in text
-    assert "types: [closed]" in text
+    assert "types: [closed, labeled]" in text
     assert "workflow_run:" in text
     assert "contents: write" in text
     assert "pull-requests: write" in text
@@ -50,7 +50,49 @@ def test_ci_auto_merge_job_is_wired():
     text = DEPLOY.read_text(encoding="utf-8")
     assert "pr_delivery.py merge" in text
     assert "test_pr_delivery.py" in text
+    assert "test_pr_delivery_approval.py" in text
     assert "test_master_branch_protection.py" in text
+
+
+def test_auto_merge_requires_owner_label_actor_and_skips_drafts():
+    """A green PR merges only after aaltaay adds merge-approved.
+
+    The label alone is not the gate: the tool the workflow runs reads the
+    issue events API and requires the latest labeled actor to be aaltaay.
+    Drafts never merge. Adding the label is a pull_request labeled trigger
+    so a label after green CI still merges; workflow_run completed stays so
+    green CI after the label still merges.
+    """
+    deploy = yaml.safe_load(DEPLOY.read_text(encoding="utf-8"))
+    delivery = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    auto = deploy["jobs"]["auto-merge"]
+    assert "draft == false" in auto["if"]
+    assert "merge-approved" in DEPLOY.read_text(encoding="utf-8")
+    assert "aaltaay" in DEPLOY.read_text(encoding="utf-8")
+    types = delivery[True]["pull_request"]["types"]
+    assert "labeled" in types and "closed" in types
+    assert delivery[True]["workflow_run"]["types"] == ["completed"]
+    labeled = delivery["jobs"]["merge-on-label"]
+    assert "draft == false" in labeled["if"]
+    assert "merge-approved" in labeled["if"]
+    assert labeled["steps"][0]["with"]["ref"] == "${{ github.event.repository.default_branch }}"
+    assert "pr_delivery.py merge" in labeled["steps"][-1]["run"]
+    approval = (REPO_ROOT / "tools" / "pr_delivery_approval.py").read_text(encoding="utf-8")
+    gate = (REPO_ROOT / "tools" / "pr_delivery.py").read_text(encoding="utf-8")
+    assert "merge-approved" in approval and "aaltaay" in approval
+    assert "/issues/" in approval and "/events" in approval
+    assert "owner_approved" in gate
+    for rel in (
+        "AGENTS.md",
+        "CONTRIBUTING.md",
+        ".cursor/rules/github-delivery.mdc",
+        ".cursor/skills/github-delivery/SKILL.md",
+        "docs/ci.md",
+    ):
+        text = (REPO_ROOT / rel).read_text(encoding="utf-8").lower()
+        assert "merge-approved" in text, rel
+        assert "agents never add" in text, rel
+        assert "aaltaay" in text, rel
 
 
 def test_pr_delivery_auto_merge_is_squash():

@@ -29,7 +29,8 @@ mutation may precede proof. These steps keep their existing failure semantics;
 the confirmation does not make an unsuccessful issue closure successful.
 
 Preserve HTTP 409 head-moved re-decision, ordinary merge refusals, authorization
-errors, review/settling gates, draft/hold policy and conditional branch deletion.
+errors, review/settling gates, the owner `merge-approved` gate in `decide()`,
+draft/hold policy and conditional branch deletion.
 No workflow, application, trading, broker or operator policy changes belong here.
 
 ## Verification

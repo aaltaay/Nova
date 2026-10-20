@@ -1,7 +1,13 @@
 # Change-aware CI. Policy: docs/ci.md and .cursor/rules/ci-scope.mdc.
 # Green only (operator decisions 2026-10-13): Auto-merge merges a PR only once
 # Backend tests, Frontend build, Frontend E2E and Agent contract passed on its
-# head (tools/pr_checks.py), and Desktop pack calls this workflow, in full, on
+# head (tools/pr_checks.py) AND the PR has label merge-approved most recently
+# added by GitHub user aaltaay (tools/pr_delivery_approval.py). Drafts never
+# merge. Agents never add merge-approved. A label added after CI is green is
+# handled by the pull_request labeled trigger on pr-delivery.yml. This
+# workflow does not listen for labeled: its concurrency group would cancel
+# the in-progress CI run.
+# Desktop pack calls this workflow, in full, on
 # the commit it packed and publishes the vNNN Release only when they are green
 # there too (tools/release_gate.py).
 
@@ -276,7 +282,7 @@ jobs:
         if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
         env:
           PYTHONPATH: ${{ github.workspace }}
-        run: pytest tools/test_agent_contract.py tools/test_subagent_lifecycle_hook.py tools/test_sync_agent_surfaces.py tools/test_create_nova_agent.py tools/test_doc_invariants.py tools/test_engineering_skills_audit.py tools/test_stale_pr_branches.py tools/test_desktop_pack_workflow.py tools/test_release_gate.py tools/test_pr_checks.py tools/test_master_branch_protection.py tools/test_no_force_push.py tools/test_pre_push_hook.py tools/test_pr_delivery.py tools/test_pr_delivery_workflow.py tools/test_branch_cleanup_merged.py tools/test_pr_review_status.py tools/test_nova_delivery_project.py tools/test_repo_hygiene.py tools/test_repo_hygiene_finish.py tools/test_push_guard.py tools/test_session_brief_hook.py tools/test_backlog_triage.py tools/test_backlog_footprints.py tools/test_backlog_claims_table.py tools/test_backlog_branches.py tools/test_retired_ledgers.py tools/test_next_moves.py tools/test_premarket_verify.py tools/test_data_root.py tools/test_data_access_hook.py tools/test_ci_scope.py tools/test_ci_scope_workflows.py tools/test_maintainer_checks.py tools/test_maintainer_policy.py tools/test_deploy_workflow_maintainer.py tools/test_security_alert_inbox.py tools/test_stranded_commits.py tools/test_release_held.py -q --tb=short
+        run: pytest tools/test_agent_contract.py tools/test_subagent_lifecycle_hook.py tools/test_sync_agent_surfaces.py tools/test_create_nova_agent.py tools/test_doc_invariants.py tools/test_engineering_skills_audit.py tools/test_stale_pr_branches.py tools/test_desktop_pack_workflow.py tools/test_release_gate.py tools/test_pr_checks.py tools/test_master_branch_protection.py tools/test_no_force_push.py tools/test_pre_push_hook.py tools/test_pr_delivery.py tools/test_pr_delivery_workflow.py tools/test_pr_delivery_approval.py tools/test_branch_cleanup_merged.py tools/test_pr_review_status.py tools/test_nova_delivery_project.py tools/test_repo_hygiene.py tools/test_repo_hygiene_finish.py tools/test_push_guard.py tools/test_session_brief_hook.py tools/test_backlog_triage.py tools/test_backlog_footprints.py tools/test_backlog_claims_table.py tools/test_backlog_branches.py tools/test_retired_ledgers.py tools/test_next_moves.py tools/test_premarket_verify.py tools/test_data_root.py tools/test_data_access_hook.py tools/test_ci_scope.py tools/test_ci_scope_workflows.py tools/test_maintainer_checks.py tools/test_maintainer_policy.py tools/test_deploy_workflow_maintainer.py tools/test_security_alert_inbox.py tools/test_stranded_commits.py tools/test_release_held.py -q --tb=short
 
       - name: Structural validation (CI mode)
         if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
@@ -304,6 +310,9 @@ jobs:
 
   auto-merge:
     name: Auto-merge
+    # merge-approved by aaltaay is required inside pr_delivery.py decide(),
+    # which this job runs from master's copy of the tool. The draft check
+    # below still skips drafts before that tool starts.
     # Long enough to wait out the five-minute settling floor plus its
     # twice-the-floor cap (pr-delivery-timing.mdc); a shorter timeout would
     # kill the job mid-wait and read as a red check.
@@ -311,7 +320,8 @@ jobs:
     # Green only (operator decision 2026-10-13, "Merge only green PRs too"): it
     # decides once the four required checks have finished, and holds a red one
     # with a comment naming it. Re-running a failed check re-runs this job, so a
-    # green re-run merges with no one acting. A cancelled run decides nothing.
+    # green re-run merges when aaltaay added merge-approved. A cancelled run
+    # decides nothing.
     needs: [backend-test, frontend-build, frontend-e2e, agent-contract]
     if: >
       !cancelled() &&
@@ -340,7 +350,7 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Merge the PR once its checks are green
+      - name: Merge only when aaltaay added merge-approved and checks are green
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NOVA_GITHUB_REPO: ${{ github.repository }}

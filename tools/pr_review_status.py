@@ -1,7 +1,8 @@
 """Is this pull request ready to be merged *yet*?
 
 Delivery merges once the four required checks are green (AGENTS.md §5,
-``tools/pr_checks.py``). A review is different from a check: it reports defects in the
+``tools/pr_checks.py``) and ``aaltaay`` has added ``merge-approved``.
+Agents never add that label. A review is different from a check: it reports defects in the
 diff rather than a pass/fail on the build, and merging out from under one
 means its findings land on `master` and need a whole follow-up PR instead of
 a push to the open branch. In one session that happened six times.

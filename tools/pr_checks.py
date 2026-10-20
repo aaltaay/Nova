@@ -75,9 +75,9 @@ def held_comment(sha: str, red: list[tuple[str, str]]) -> str:
     return (
         f"**Not merged: {describe(red)}** on `{sha[:SHORT_SHA]}`.\n\n"
         f"Actions merges a PR only when {', '.join(REQUIRED_CHECKS[:-1])} and "
-        f"{REQUIRED_CHECKS[-1]} all pass on its head (operator decision 2026-10-13). "
-        "Re-run the failed jobs or push a fix: once they are green it merges with no one "
-        "acting. A draft or the `do-not-merge` label still holds it.\n\n"
+        f"{REQUIRED_CHECKS[-1]} all pass on its head (operator decision 2026-10-13), "
+        "and only when `aaltaay` added `merge-approved`. Agents never add that label. "
+        "Re-run the failed jobs or push a fix. A draft or the `do-not-merge` label still holds it.\n\n"
         f"{HELD_COMMENT_MARKER}<!-- head={sha} -->"
     )
 
