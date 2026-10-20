@@ -82,6 +82,31 @@ RESEARCH = (
      "cli": "market_data.py symbols QUERY / symbols --ticker T --day DAY"},
 )
 
+# Nova's own recordings of IBKR's live feed (recordings.py): the desk's stores, read-only; Massive has no Level 2.
+RECORDINGS = (
+    {"name": "recorded_depth", "source": "Nova's Session Records (sim_capture l2.jsonl) and the desk cache's l2.db "
+                                         "depth snapshots", "history": "Session Records 2026-09-19 on (symbols the "
+                                                                       "operator or auto-record recorded, at most 3 "
+                                                                       "at once); l2.db from the desk's depth "
+                                                                       "sessions",
+     "as_of": "the newest book at or before the ET moment asked, no older than max_age_sec; a Session Record is never "
+              "read across a gap; l2.db skips top-of-book-only rows; auto serves the newer store",
+     "units": "price dollars, size shares, ts epoch seconds on Nova's receive clock, *_et Eastern; books best price "
+              "first, the recorder keeps at most 50 a second (coverage.fidelity counts the rest); covered=false is "
+              "unrecorded, never an empty book",
+     "mcp": "recorded_depth", "cli": "market_data.py recorded-depth SYMBOL DAY --at HH:MM[:SS]"},
+    {"name": "recorded_tape", "source": "Nova's Session Records (sim_capture prints.jsonl) and the desk cache's "
+                                        "archive.db tape_ibkr", "history": "Session Records 2026-09-19 on; archive "
+                                                                           "2026-07-15 on, every print the desk's "
+                                                                           "tape line saw for any symbol",
+     "as_of": "prints in an ET window [start, end), oldest first; auto serves a Session Record when one exists for "
+              "the symbol-day (its gaps are stated and may hold prints the archive has), else the archive",
+     "units": "price dollars, size shares; ts / receive_ts epoch seconds -- ts is when Nova RECEIVED the print, "
+              "exchange_ts IBKR's own second (Session Records only); side (ask | bid | between | unknown) / bid / ask "
+              "the desk's own judgement at receipt, unknown when no usable book; sets_price judged from conditions alone in the archive",
+     "mcp": "recorded_tape (rows: meta.capped)", "cli": "market_data.py recorded-tape SYMBOL DAY --from HH:MM --to HH:MM"},
+)
+
 CATALOG = (
     {"name": "trades", "source": "Massive flat files (SIP)", "history": "2016-01-04 on, every US stock",
      "as_of": "one stock-day; raw, never split-adjusted (adjust=true for today's terms)",
@@ -157,14 +182,15 @@ CATALOG = (
               "points; unknown is null, never 0; filings are counts and dates, not a verdict on any offering",
      "mcp": "cash_runway", "cli": "market_data.py runway SYMBOL DAY"},
     *RESEARCH,
+    *RECORDINGS,
 )
 NOT_HERE = (
     "insider holdings (SEC Form 3/4/5 data sets) -- not downloaded; sec_filings lists the filings",
     "lockup terms -- no SEC dataset; 424B prospectus text or a paid vendor",
-    "Level 2 / depth history from Massive -- its stock plan is Level 1 only. Nova's own IBKR recordings exist "
-    "(F:\\Nova\\sim_capture: 20 sessions 2026-09-19 .. 2026-10-16; the desk cache's l2.db depth snapshots and "
-    "archive.db tape_ibkr prints from 2026-07-15; F:\\Nova\\book_watch) but the front door does not serve them yet "
-    "-- the Sim replays them",
+    "Level 2 / depth history from Massive -- its stock plan is Level 1 only; Nova's own recorded books are "
+    "recorded_depth (only symbols Nova recorded or the desk watched, from 2026-09-19 / 2026-07-15)",
+    "the book watcher's marks (F:\\Nova\\book_watch) and the Session Records' recorded quotes -- recorded, not "
+    "served yet (#1103); the Sim replays them",
     "news before 2021-04",
     "free float as of a past day -- float_latest is today's only; sec_shares is shares outstanding",
 )

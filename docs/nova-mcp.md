@@ -31,7 +31,7 @@ A gallery is the same page with `symbols=A,B,C` instead of `symbol`. Tabs are `1
 
 ## Data tools
 
-The 30 data tools keep their names, arguments, units and as-of rules (the three relative-volume tools, `rvol_scan`, `rvol_triggers` and `rvol_outcomes`, read the table `research/rvol/build_rvol.py` builds; `docs/market-data.md`, "Relative volume across every stock"; the four signal tools, `signal_catalog`, `signal_series`, `signal_scan` and `signal_test`, read the table `research/signals/build_signals.py` builds; "The Trader's signals on past days, and mixing them"). Start with `data_catalog`. A long read such as `data_status` takes only its own lock, so `movers_search` is not stuck behind it. Heavy disk reads still share the PC-wide slots.
+The 32 data tools keep their names, arguments, units and as-of rules (the three relative-volume tools, `rvol_scan`, `rvol_triggers` and `rvol_outcomes`, read the table `research/rvol/build_rvol.py` builds; `docs/market-data.md`, "Relative volume across every stock"; `recorded_depth` and `recorded_tape` are Nova's own recorded Level 2 and tape, read-only on the desk's stores; the four signal tools, `signal_catalog`, `signal_series`, `signal_scan` and `signal_test`, read the table `research/signals/build_signals.py` builds; "The Trader's signals on past days, and mixing them"). Start with `data_catalog`. A long read such as `data_status` takes only its own lock, so `movers_search` is not stuck behind it. Heavy disk reads still share the PC-wide slots.
 
 ## Chart tool
 

@@ -51,7 +51,7 @@ The same reads are MCP tools on the `nova-data` server (ADR 059; `.cursor/mcp.js
 `data_catalog` first. For small-cap momentum research start with `find_stock_days` (movers + shares known that day +
 catalyst + halts + premarket marks, paged by `next_cursor`), then `stock_day_stats`, `order_flow`, `catalysts`,
 `halts`, `daily_bars` / `market_context`, `symbols`, `rvol_scan` / `rvol_triggers` / `rvol_outcomes`,
-`signal_catalog` / `signal_series` / `signal_scan` / `signal_test`; plus
+`recorded_depth` / `recorded_tape`, `signal_catalog` / `signal_series` / `signal_scan` / `signal_test`; plus
 `stock_day`, `movers_search` / `movers_scan`, `board`,
 `splits`, `financials`, `sec_shares`, `sec_filings`, `cash_runway` (cash, burn, runway, share growth and shelf /
 offering filings as known on a day), `float_latest`, `ipos`, `ticker_details`, `short_interest`.
@@ -70,7 +70,8 @@ In Python: `sys.path.insert(0, "research"); from market_reads import reads` -- `
 movers / board` return pandas DataFrames (movers: the agent endpoint's answer).
 
 Before you trust a number, read `docs/market-data.md` ("The traps"): unadjusted prices, which prints set a price,
-the day bar's whole-session volume, look-ahead, news before 2021-04, no Level 2 history.
+the day bar's whole-session volume, look-ahead, news before 2021-04, no Level 2 history from Massive (Nova's own
+recorded Level 2 and tape: `recorded_depth` / `recorded_tape`, only symbols Nova recorded, coverage in the answer).
 
 - A read on a day without its seek index takes minutes; `status` shows the indexed share. Don't start a bulk
   `index` run without checking one is not already running (`E:\Nova\massive\sim\index\index-build.log`).

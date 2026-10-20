@@ -24,6 +24,8 @@ data; ``index`` writes only the seek indexes the Sim's own reader keeps (ADR 046
   find / daily / context / stats / flow / halts / catalysts / symbols   Momentum research (market_data_research.py):
             stock-days with the shares known that day, daily bars, SPY/QQQ/IWM, one stock-day's stats, minute order
             flow, halts, news and verdicts, symbol search.
+  recorded-depth / recorded-tape   Nova's own recorded IBKR Level 2 and tape (market_data_recordings.py): the book at
+            an ET moment, the prints in an ET window; read-only on the desk's stores, coverage stated.
   rvol / rvol-triggers / rvol-outcomes   Relative volume across every stock (market_data_rvol.py): every
             stock-day at a clock time, the first minute over a line, and +X% or -X% first after it.
   signals / signal-series / signal-scan / signal-test   The Trader's signals on past days (market_data_signals.py):
@@ -60,6 +62,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "research"))
 
+import market_data_recordings as recordings  # noqa: E402  (recorded-depth, recorded-tape: Nova's own recordings)
 import market_data_research as research  # noqa: E402  (find, daily, context, stats, flow, halts, catalysts, symbols)
 import market_data_runway as runway_cli  # noqa: E402  (runway)
 import market_data_rvol as rvol_cli  # noqa: E402  (rvol, rvol-triggers, rvol-outcomes)
@@ -330,6 +333,7 @@ def main(argv: list[str] | None = None) -> int:
     ri.add_argument("--datasets", help="comma list (default: all)")
     research.add_parsers(sub, output)
     runway_cli.add_parsers(sub, output)
+    recordings.add_parsers(sub, output)
     rvol_cli.add_parsers(sub, output)
     signals_cli.add_parsers(sub, output)
 
@@ -338,6 +342,8 @@ def main(argv: list[str] | None = None) -> int:
         return research.HANDLERS[args.cmd](args, _show)
     if args.cmd in runway_cli.HANDLERS:
         return runway_cli.HANDLERS[args.cmd](args, _show)
+    if args.cmd in recordings.HANDLERS:
+        return recordings.HANDLERS[args.cmd](args, _show)
     if args.cmd in rvol_cli.HANDLERS:
         return rvol_cli.HANDLERS[args.cmd](args, _show)
     if args.cmd in signals_cli.HANDLERS:
