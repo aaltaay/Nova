@@ -214,6 +214,15 @@ describe("the sample workspace writes none of the operator's saved state (#449)"
     }
     q('market-page');
     expect(container.textContent).not.toMatch(/not available in Sample Data mode/);
+    // The Global page (ADR 060) too: its sample board, and its switches never write the desk's storage.
+    await press('nav-rail-global');
+    for (let i = 0; i < 50 && !container.querySelector('[data-testid="global-page"]'); i += 1) {
+      await settle(100);
+    }
+    q('global-page');
+    await press('global-color-by-move');
+    await press('global-period-7D');
+    expect(container.textContent).toMatch(/Rotation, not an exit/);
   }
 
   beforeEach(() => {

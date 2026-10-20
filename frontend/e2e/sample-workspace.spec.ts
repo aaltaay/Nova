@@ -49,6 +49,13 @@ test.describe('Sample desk workspace', () => {
     await expect(market).toBeVisible();
     await expect(market).not.toContainText('not available');
 
+    // The Global page (ADR 060), first on the rail, opens on the sample desk too.
+    await page.getByTestId('nav-rail-global').click();
+    const global = page.getByTestId('global-page');
+    await expect(global).toBeVisible();
+    await expect(global).toContainText('Rotation, not an exit');
+    await expect(page.getByTestId('global-row-us')).toBeVisible();
+
     // Nothing the sample desk did reached the browser's storage. storageState
     // reads it from an isolated world, past the page's storage gate.
     const state = await page.context().storageState();

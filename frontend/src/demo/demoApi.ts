@@ -6,6 +6,7 @@
  */
 import setupTemplates from '../bot/setupTemplatesFixture.json';
 import { sampleCandles } from '../cryptos/sampleCryptos';
+import { sampleGlobalBoard } from '../global_board/sampleGlobal';
 import { parsePeriods } from '../market_board/periods';
 import { sampleMarketBoard } from '../market_board/sampleMarket';
 import { SAMPLE_SETUPS_SCOREBOARD } from '../sample_data/sampleSetups';
@@ -144,6 +145,10 @@ function sharedRoutes(nowS: number): [RegExp, Handler][] {
       schema_version: 1, sectors: q.get('sectors'), industries: q.get('industries'), climate: q.get('climate'),
       top: { kind: q.get('top'), period: q.get('top_period') },
     }))],
+    [/^\/api\/global\/board$/, (_m, q) => {
+      const period = q.get('period');
+      return sampleGlobalBoard(period === '7D' || period === '30D' ? period : '1D');
+    }],
     [/^\/api\/crypto\/candles$/, (_m, q) => sampleCandles(q.get('symbol') ?? 'BTC', (q.get('tf') ?? '15m') as Parameters<typeof sampleCandles>[1])],
     [/^\/api\/capture\/sessions$/, () => captureSessions()],
   ];

@@ -12,12 +12,13 @@ from ibkr.historical_pacing import HistoricalPacing, kind_of
 def test_pacing_names_what_spent_the_window():
     clock = {"t": 1000.0}
     p = HistoricalPacing(now_fn=lambda: clock["t"])
-    for sym, key in (("AAPL", "1Min"), ("AAPL", "ticks:TRADES"), ("XLK", "1Day:rth"), ("CONTFUT:ES", "ref:5 mins")):
+    for sym, key in (("AAPL", "1Min"), ("AAPL", "ticks:TRADES"), ("XLK", "1Day:rth"), ("CONTFUT:ES", "ref:5 mins"),
+                     ("global:future:N225:OSE.JPN", "global:1 min:TRADES:all")):
         p.record(sym, key, "d")
         clock["t"] += 3
-    assert p.snapshot()["by_kind"] == {"charts": 1, "tape": 1, "daily": 1, "market": 1}
+    assert p.snapshot()["by_kind"] == {"charts": 1, "tape": 1, "daily": 1, "market": 1, "global": 1}
     clock["t"] += 601
-    assert p.snapshot()["by_kind"] == {"charts": 0, "tape": 0, "daily": 0, "market": 0}
+    assert p.snapshot()["by_kind"] == {"charts": 0, "tape": 0, "daily": 0, "market": 0, "global": 0}
     assert kind_of("bars:1min:TRADES") == "tape" and kind_of("1Day:all") == "daily"
 
 

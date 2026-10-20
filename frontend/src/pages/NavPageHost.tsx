@@ -1,6 +1,6 @@
 /**
  * Picks what the dashboard slot shows while Trader is not up: the dashboard
- * (children), or the Market / Records / Account / Bots (Bots, LiveTrader Bots -- the TraderTV hosts' page --, Strategy
+ * (children), or the Global / Market / Records / Account / Bots (Bots, LiveTrader Bots -- the TraderTV hosts' page --, Strategy
  * Bots) / Cryptos pages the nav rail routes to.
  */
 import { lazy, Suspense, type ReactNode } from 'react';
@@ -16,6 +16,7 @@ const LiveTraderBotsPage = lazy(() =>
 );
 const CryptosPage = lazy(() => import('../cryptos').then((m) => ({ default: m.CryptosPage })));
 const MarketPage = lazy(() => import('../market_board').then((m) => ({ default: m.MarketPage })));
+const GlobalPage = lazy(() => import('../global_board').then((m) => ({ default: m.GlobalPage })));
 
 interface Props {
   onOpenTrader: (symbol: string) => void;
@@ -24,6 +25,13 @@ interface Props {
 
 export function NavPageHost({ onOpenTrader, children }: Props) {
   const page = useNavPage();
+  if (page === 'global') {
+    return (
+      <Suspense fallback={<TabLazyFallback />}>
+        <GlobalPage onOpenTrader={onOpenTrader} />
+      </Suspense>
+    );
+  }
   if (page === 'market') {
     return (
       <Suspense fallback={<TabLazyFallback />}>
