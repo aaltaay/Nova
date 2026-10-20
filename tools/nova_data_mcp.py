@@ -29,6 +29,7 @@ if str(REPO / "tools") not in sys.path:
 
 import nova_data_recordings as recordings  # noqa: E402  (the fourth tool set: Nova's recorded Level 2 and tape)
 import nova_data_research as research  # noqa: E402  (the second tool set: stock-days, stats, flow, halts ...)
+import nova_data_runway as runway_tools  # noqa: E402  (cash runway and dilution filings, #1102)
 import nova_data_rvol as rvol_tools  # noqa: E402  (the third: relative volume across every stock, #1100)
 
 INLINE_ROWS = 200
@@ -87,7 +88,7 @@ def table_answer(frame, out: Path | None = None, inline: int = INLINE_ROWS) -> d
             "data": head, "truncated": len(frame) > inline, "out": str(out) if out else None}
 
 
-class DataService(research.ResearchTools, rvol_tools.RvolTools, recordings.RecordingTools):
+class DataService(research.ResearchTools, rvol_tools.RvolTools, runway_tools.RunwayTools, recordings.RecordingTools):
     """The tools' bodies, callable without the MCP SDK (tests drive this class)."""
 
     answer = staticmethod(table_answer)
@@ -229,8 +230,9 @@ def create_server(service: DataService, run_sync=None, server_name: str = "nova-
     async def data_catalog() -> dict:
         """Start here: every dataset (trades, quotes, bars, daily bars, movers index, stock-day finder, boards,
         order flow, halts, catalysts, symbols, splits, financials, SEC shares and filings, float, IPOs, ticker
-        details, short interest, relative volume across every stock, Nova's own recorded Level 2 and tape) with its
-        source, history, as-of rule, units and the tool that reads it, plus what is NOT available."""
+        details, short interest, relative volume across every stock, cash runway and dilution filings, Nova's own
+        recorded Level 2 and tape) with its source, history, as-of rule, units and the tool that reads it, plus what is NOT
+        available."""
         return await run(service.catalog)
 
     @server.tool(annotations=reads)
@@ -336,6 +338,7 @@ def create_server(service: DataService, run_sync=None, server_name: str = "nova-
         return await run(service.short_interest, symbol, day, at)
 
     research.register(server, service, run, reads, writes_file)
+    runway_tools.register(server, service, run, reads, writes_file)
     rvol_tools.register(server, service, run, reads, writes_file)
     recordings.register(server, service, run, reads, writes_file)
     return server
@@ -345,7 +348,8 @@ PRELOAD = ("numpy", "pandas", "pyarrow", "market_reads.reads", "market_reads.spl
            "market_reads.sec", "market_reads.tickers", "market_reads.scan", "market_reads.inventory",
            "market_reads.catalog", "day_movers.query",
            "agent_desk.movers_read", "leaderboard.playback", "move_reason.short_interest", *research.PRELOAD,
-           *rvol_tools.PRELOAD, *recordings.PRELOAD)
+           *rvol_tools.PRELOAD,
+           *runway_tools.PRELOAD, *recordings.PRELOAD)
 
 
 def preload() -> list[str]:

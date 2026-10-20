@@ -372,7 +372,8 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
   symbol?, kinds?, columns?, limit?, splits?, output_name?}`, `board {day, at, list_name, source?}`, `splits {symbol,
   day?, cik?}` (`price_factor` with `day`), `financials {symbol, statement, as_of?, timeframe?, cik?}`, `sec_shares
   {symbol, day?, max_age_days?, cik?}`, `sec_filings {symbol, as_of?, forms?, cik?}`, `float_latest {symbol?}`, `ipos
-  {symbol?, date_from?, date_to?}`, `ticker_details {symbol}`, `short_interest {symbol, day, at?}`.
+  {symbol?, date_from?, date_to?}`, `ticker_details {symbol}`, `short_interest {symbol, day, at?}`, `cash_runway
+  {symbol, day, cik?, lookback_days?}` (below).
 - **`stock_day` bars** take `tf` as a count and `s` / `m` / `h`; a daily `tf` (`1d`, `1w`) is refused naming the
   daily bars tool. Minute bars carry Massive's own volume; seconds bars sum every trade except cancel / error
   records (`docs/market-data.md`, "Two volume rules").
@@ -430,6 +431,64 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
   else the balance sheet's `CommonStockSharesOutstanding`, times `split_factor` (splits executed after `end` through
   `day`); `max_age_days` nulls an older one. `public_float_usd` is the 10-K's `EntityPublicFloat` (dollars). `filer`
   is `domestic` (newest annual report filed by `day` a 10-K), `foreign` (20-F / 40-F) or `unknown`.
+- **`cash_runway {symbol, day, cik?, lookback_days?}`** (#1102; operator 2026-10-20: "no cash runway or dilution
+  risk"; owner `research/market_reads/runway.py`; CLI `market_data.py runway SYMBOL DAY`): the cash, the operating
+  cash flow, the share count and the offering filings a company had on file by `day`, composed from `financials`,
+  `sec_shares` (`sec.shares_as_of`) and `sec_filings` and nothing else (no new reader of a raw store). It is one
+  method, so agents' numbers agree. Answer `{ok, symbol, day, cik, entity, ticker, rule, units, cash, burn, runway,
+  shares, offerings, notes}`. Every figure sits in a block that names its statement: `period_end`, `filing_date`,
+  `age_days` (`day` minus `period_end`) and `stale` (`age_days` over 180, two quarters). A figure the files do not
+  give is `null` and its block says why; never 0. The wording is neutral: counts, dates and ratios, no verdict.
+  - **Dates.** A statement or filing counts from the day it was filed (the stated day included). A statement is
+    dropped when its `period_end` is after `day` or after its own `filing_date` (a filing cannot report a period
+    that had not ended; `notes` counts them). Massive dates a statement by the newest filing that carried the
+    period, so 300 or more days after `period_end` for 87% of quarterly cash-flow rows and 27% of balance sheets
+    (every year 2016-2026): on a past day the newest statement known is often over a year old, and a balance sheet
+    can be newer than the newest cash-flow quarter. `stale` and `notes` say so; the read never fills the gap.
+  - **`cash`**: the newest balance sheet filed by `day` (either timeframe: newest `period_end`, then `filing_date`),
+    `{cash_and_equivalents, short_term_investments, liquid, liquid_basis, timeframe, period_end, filing_date,
+    age_days, stale}`, or null. `liquid` = `cash_and_equivalents` + `short_term_investments`; with no short-term
+    investments reported it is `cash_and_equivalents` and `liquid_basis` says so; null when cash is not reported.
+  - **`burn`**: the newest quarterly cash-flow statement filed by `day`, `{operating_cash_flow, burn, field,
+    fiscal_year, fiscal_quarter, period_end, filing_date, age_days, stale, recent_quarters}`, or null. Massive's
+    quarterly rows are stand-alone quarters (a fiscal Q4 row too; AMC 2022's four sum to its annual).
+    `operating_cash_flow` is signed as filed: `net_cash_from_operating_activities`, else
+    `cash_from_operating_activities_continuing_operations` (`field` names which). `burn` = the cash used
+    (`-operating_cash_flow`) when that is negative, else null. `recent_quarters` is up to four quarterly rows
+    newest first, `{period_end, filing_date, operating_cash_flow}`.
+  - **`runway`**: `{months, status, stale, basis, period_gap_days, max_period_gap_days}`. `months` = `cash.liquid` /
+    (`burn.burn` / 3), one decimal. `period_gap_days` = `cash.period_end` minus `burn.period_end`; beyond +/- 14
+    (`max_period_gap_days`) the two are not the same fiscal period and `months` is null, so a balance sheet one quarter
+    newer than the newest cash-flow quarter (about 91 days) is refused, never divided. Of Massive's quarterly cash-flow
+    rows 94.7% have a balance sheet with the exact same `period_end`; the other matches are days apart (52/53-week
+    years) and the next nearest period is 84 or more days away. `stale` is true when the cash or the burn it is built from is stale (null when
+    there is neither): a `computed` runway built from old statements is still a number about those quarters, so a
+    filter on `months` should read `stale` beside it. `status`: `computed`, `no_burn` (operating cash flow zero or
+    positive), `no_balance_sheet`, `no_cash_flow_statement`, `cash_not_reported`, `operating_cash_flow_not_reported`,
+    `periods_differ`. `burn` and `cash` stay in the answer either way.
+  - **`shares`**: `{outstanding, growth_4q, growth_8q}`. `outstanding` is `sec_shares`' (`{value, concept, end,
+    filed, form, age_days, split_factor}`, split-adjusted to `day`) or null. `growth_4q` / `growth_8q` =
+    `{pct, status, months_back (12 | 24), from, to, span_days}`: `to` is that count; `from` is the same read for the
+    day `months_back` earlier (`{value, end, filed, form}`), put on `day`'s share basis by dividing by
+    `splits.factor(prior_day, as_of=day)`; `pct` = (`to` / `from` - 1) x 100 percent points; `span_days` is the days
+    between their `end`s. `from.value` is rounded like `outstanding`. `status`: `computed`, `no_count_now`,
+    `no_count_then`, `same_count` (no newer count was filed in the window, so growth is unknown, not 0),
+    `span_off_window` (`span_days` is more than 100 days from `months_back` x 30.4375 -- the window plus or minus a
+    filing lag, a separate tolerance from the runway's 14 days -- e.g. a filing gap such as a
+    cover page that gives each share class its own count, which SEC's facts omit; `pct` null, `from` / `to` kept),
+    `count_then_not_positive`.
+  - **`offerings`**: the registration and prospectus filings and current reports filed in the `lookback_days` before
+    `day` (default 1095, the dilution row's longest window; 1-3650), or null when SEC has no submissions list for the
+    company (`notes` says so): `{lookback_days, from, through, forms, total, counts: {form: n}, latest: {form: filed},
+    filings: [{form, kind, filed, report_date, accession, items}], truncated}`. `filings` is newest first, at most
+    100 (`truncated`); `counts` and `latest` cover all of them. Forms: S-1, S-1/A, S-3, S-3/A, S-3ASR, F-1, F-1/A,
+    F-3, F-3/A, F-3ASR, 424B1 .. 424B5, 8-K. `kind`: `s1` (S-1, F-1), `shelf` (S-3, F-3), `prospectus` (424B1-5),
+    `current_report` (8-K); an 8-K's `items` is SEC's list ("3.02,9.01"), not read further. A filing says it was filed,
+    not that an offering priced or closed. The stock read's "Dilution on file" row (`stock-read.md`) uses the same form
+    families with its own windows and counts 424B1-8; this read is the history behind it.
+  - **`units`**: amounts are the statements' own; the dump carries no currency field, so a foreign filer reporting in
+    another currency reads in it (`months` and `pct` do not depend on it). Shares are shares; `pct` is percent points.
+    A reused ticker reads the company that held it on `day` (`ticker`); an unsettled day errors with the candidates.
 - **Units and as-of.** Movers percents are points in and out (the store keeps fractions). Financial statements count
   from `filing_date`; SEC facts and filings from `filed`; FINRA short interest from `move_reason.short_interest`'s
   publish lag. `float_latest` and `ticker_details` say `as_of: "latest_only"`: never a past day's.
@@ -706,7 +765,7 @@ the recorder refuses a row that moves backwards), never read whole for one momen
 
 ## Desk review charts (unified MCP)
 
-The same MCP process (`tools/nova_mcp.py`) serves the 27 data tools and one chart tool, `nova_chart`.
+The same MCP process (`tools/nova_mcp.py`) serves the 28 data tools and one chart tool, `nova_chart`.
 `docs/nova-mcp.md` is the setup. `/review` mounts the desk `ChartGrid` and `TickerChart` through a recorded
 feed (`ChartFeedProvider` in `frontend/src/chart/chartFeed.tsx`). The live desk is unchanged: with no provider
 the feed is `{kind: "live"}` and the same hooks run. The review page does not mount the trading shell, does not

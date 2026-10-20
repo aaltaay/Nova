@@ -1,7 +1,7 @@
 [
   {
     "name": "data_catalog",
-    "description": "Start here: every dataset (trades, quotes, bars, daily bars, movers index, stock-day finder, boards, order flow, halts, catalysts, symbols, splits, financials, SEC shares and filings, float, IPOs, ticker details, short interest, relative volume across every stock, Nova's own recorded Level 2 and tape) with its source, history, as-of rule, units and the tool that reads it, plus what is NOT available.",
+    "description": "Start here: every dataset (trades, quotes, bars, daily bars, movers index, stock-day finder, boards, order flow, halts, catalysts, symbols, splits, financials, SEC shares and filings, float, IPOs, ticker details, short interest, relative volume across every stock, cash runway and dilution filings, Nova's own recorded Level 2 and tape) with its source, history, as-of rule, units and the tool that reads it, plus what is NOT available.",
     "inputSchema": {
       "properties": {},
       "title": "data_catalogArguments",
@@ -1269,6 +1269,51 @@
         }
       },
       "title": "symbolsArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "cash_runway",
+    "description": "A company's cash runway and dilution filings as known on a past day (YYYY-MM-DD; no look-ahead): the newest balance sheet's cash and short-term investments, the newest quarterly operating cash flow (burn), runway in months (null unless the cash and the burn are from the same quarter and cash is being used), shares outstanding growth over 4 and 8 quarters, and the S-1 / S-3 / F-1 / F-3 / 424B1-5 / 8-K filings in the lookback_days before the day (1-3650, default 1095) with their dates. Every figure names its statement's period_end and filing_date; unknown is null, never 0. Massive dates a period by the newest filing that carried it, so the newest statement known on a past day is often over a year old: read age_days / stale / notes. A filing is not an offering that closed. A reused ticker reads the company that held it that day (cik picks one).",
+    "inputSchema": {
+      "properties": {
+        "symbol": {
+          "title": "Symbol",
+          "type": "string"
+        },
+        "day": {
+          "title": "Day",
+          "type": "string"
+        },
+        "cik": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cik"
+        },
+        "lookback_days": {
+          "default": 1095,
+          "title": "Lookback Days",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "symbol",
+        "day"
+      ],
+      "title": "cash_runwayArguments",
       "type": "object"
     },
     "annotations": {
