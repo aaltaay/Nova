@@ -36,17 +36,20 @@ ROW_COLUMNS = ("date", "symbol", "entry_et", "price", "value", "group", "outcome
                "max_up_pct", "max_down_pct", "end_pct", "is_control")
 
 
-def _forward_sql(hz: int) -> str:
+def _forward_sql(hz: int, lo: int) -> str:
+    """``lo`` is the chunk's earliest entry clock: a bound the scan can skip earlier row groups by."""
     return f"""
 SELECT e.id, min(x.m) FILTER (WHERE x.high >= e.up_px) AS up_m, min(x.m) FILTER (WHERE x.low <= e.dn_px) AS dn_m,
        max(x.high) AS max_high, min(x.low) AS min_low, arg_max(x.close, x.m) AS end_close
 FROM e JOIN read_parquet($mfiles) x ON x.date = e.date AND x.symbol = e.symbol
-WHERE x.m >= e.entry_m AND x.m < {hz} GROUP BY e.id"""
+WHERE x.m >= {lo} AND x.m >= e.entry_m AND x.m < {hz} GROUP BY e.id"""
 
 
-PRICE_SQL = """
+def _price_sql(hi: int) -> str:
+    """``hi`` is the latest entry clock among the controls (the same row-group bound, the other way)."""
+    return f"""
 SELECT c.id, arg_max(x.close, x.m) AS price FROM c JOIN read_parquet($mfiles) x ON x.date = c.date AND x.symbol = c.symbol
-WHERE x.m < c.entry_m GROUP BY c.id"""
+WHERE x.m < {hi} AND x.m < c.entry_m GROUP BY c.id"""
 
 
 def _ahead_sql(days: int) -> str:
@@ -68,20 +71,23 @@ def _controls(entries: pd.DataFrame, pool: pd.DataFrame, seed: int, crossed: pd.
     ``crossed`` is every stock-day that met the trigger, with the minute it did (-1: over the line before the
     window opened)."""
     out = []
-    own = crossed.set_index(["date", "symbol"])["trigger_m"]
+    pools = {day: p.reset_index(drop=True) for day, p in pool.groupby("date", sort=False)}
+    met = {day: dict(zip(c["symbol"], c["trigger_m"], strict=True)) for day, c in crossed.groupby("date", sort=False)}
     for day, trig in entries.groupby("date", sort=True):
-        p = pool[pool["date"] == day].reset_index(drop=True)
-        if not len(p):
+        p = pools.get(day)
+        if p is None or not len(p):
             continue
         n = len(p)
-        rank = np.array([_hash(seed, day, s) for s in p["symbol"]], dtype=np.int64) % (2 ** 31)
+        symbols = p["symbol"].tolist()
+        rank = np.array([_hash(seed, day, s) for s in symbols], dtype=np.int64) % (2 ** 31)
         first = p["first_m"].to_numpy(dtype=np.int64)
-        crossed = np.array([own.get((day, s), np.inf) for s in p["symbol"]], dtype=np.float64)
-        sym_index = {s: i for i, s in enumerate(p["symbol"])}
+        when = met.get(day, {})
+        crossed_at = np.array([when.get(s, np.inf) for s in symbols], dtype=np.float64)
+        sym_index = {s: i for i, s in enumerate(symbols)}
         t = trig["trigger_m"].to_numpy(dtype=np.int64)
         me = np.array([sym_index.get(s, -1) for s in trig["symbol"]], dtype=np.int64)
         offset = np.array([_hash(seed, day, s, "control") for s in trig["symbol"]], dtype=np.int64) % (2 ** 31)
-        eligible = (first[None, :] <= t[:, None]) & (crossed[None, :] > t[:, None]) & \
+        eligible = (first[None, :] <= t[:, None]) & (crossed_at[None, :] > t[:, None]) & \
                    (np.arange(n)[None, :] != me[:, None])
         key = np.where(eligible, (rank[None, :] - offset[:, None]) % (2 ** 31), np.iinfo(np.int64).max)
         pick = key.argmin(axis=1)
@@ -103,7 +109,7 @@ def _score(con, e: pd.DataFrame, days_list: list[str], manifest: dict, up: float
     e["dn_px"] = e["price"] * (1 - down / 100.0) * (1 + LINE_EPS)
     con.register("e", e[["id", "date", "symbol", "entry_m", "up_px", "dn_px", "epoch", "basis"]])
     mfiles = rvol.posix(rs.minutes_path(d) for d in sorted(set(map(str, e["date"]))))
-    f = con.execute(_forward_sql(HORIZONS[horizon]), {"mfiles": mfiles}).df()
+    f = con.execute(_forward_sql(HORIZONS[horizon], int(e["entry_m"].min())), {"mfiles": mfiles}).df()
     e = e.merge(f, on="id", how="left")
     up_m, dn_m = e["up_m"].to_numpy(dtype=np.float64), e["dn_m"].to_numpy(dtype=np.float64)
     outcome = np.where(np.isnan(up_m) & np.isnan(dn_m), "neither",
@@ -279,7 +285,7 @@ def outcomes(*, filters: dict[str, Any], at: str | None = None, trigger: dict[st
                         next_id += len(c)
                         con.register("c", c[["id", "date", "symbol", "entry_m"]])
                         mfiles = rvol.posix(rs.minutes_path(d) for d in sorted(set(map(str, c["date"]))))
-                        prices = con.execute(PRICE_SQL, {"mfiles": mfiles}).df()
+                        prices = con.execute(_price_sql(int(c["entry_m"].max())), {"mfiles": mfiles}).df()
                         c = c.merge(prices, on="id", how="inner")
                         cs = _score(con, c, chunk_days, manifest, float(up_pct), float(down_pct), horizon, n_days)
                         cs["is_control"] = True

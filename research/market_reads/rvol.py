@@ -70,6 +70,7 @@ def connect():
     con.execute(f"SET memory_limit = '{DUCKDB_MEMORY}'")
     con.execute(f"SET temp_directory = '{spill.as_posix()}'")
     con.execute("SET preserve_insertion_order = false")
+    con.execute("SET enable_progress_bar = false")     # it writes to the process's stdout: the MCP protocol
     return con
 
 
