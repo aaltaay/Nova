@@ -356,6 +356,43 @@ def test_history_reads_keep_the_market_pages_pace(monkeypatch):
     assert len(ran) == 2
 
 
+# -- contracts ------------------------------------------------------------------------------------------------------
+
+def test_a_future_ibkr_does_not_know_by_its_first_name_is_asked_by_the_next():
+    import asyncio
+
+    asked: list[tuple[str, str]] = []
+
+    class FakeIb:
+        async def qualifyContractsAsync(self, contract):
+            asked.append((contract.symbol, contract.multiplier))
+            if contract.symbol == "TSE60":
+                return [None]                                     # IBKR: 200, no security definition
+            contract.conId = 7
+            return [contract]
+
+    spec = markets.by_id("ca")["future"]
+    assert spec["symbol"] == "TSE60" and spec["also"] == ("SXF",) and spec["multiplier"] == "200"
+    got = asyncio.run(contracts.resolve(FakeIb(), "future", spec, "2026-10-20"))
+    assert asked == [("TSE60", "200"), ("SXF", "200")] and got.symbol == "SXF"
+    asked.clear()
+    assert asyncio.run(contracts.resolve(FakeIb(), "future", spec, "2026-10-20")) is got   # kept for the day
+    assert asked == []
+
+
+# -- each market's size ----------------------------------------------------------------------------------------------
+
+def test_every_market_carries_its_published_size_with_its_month_and_source():
+    now = ts("2026-10-20T01:00")
+    for mk in cg.GLOBAL_MARKETS:
+        got = board.market_row(store(), mk, now, "1D", {}, None)["size"]
+        assert got["usd"] > 1e11 and got["as_of"][:4] == "2026" and got["source"] and got["url"].startswith("https://")
+    us = board.size("us")
+    assert [p["name"] for p in us["parts"]] == ["NYSE", "Nasdaq"]
+    assert us["usd"] == pytest.approx(sum(p["usd"] for p in us["parts"]))
+    assert board.size("nowhere") is None
+
+
 # -- kept across restarts -------------------------------------------------------------------------------------------
 
 def test_answers_are_kept_and_another_schema_version_reads_as_absent():

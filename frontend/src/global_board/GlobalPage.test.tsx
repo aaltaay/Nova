@@ -11,7 +11,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GLOBAL_OFF, GLOBAL_OLD_API, GLOBAL_PREFS_STORAGE_KEY } from './constants';
 import { ranked } from './ExchangeList';
-import { firstSentence, usd } from './format';
+import { firstSentence, monthWord, sizeUsd, usd } from './format';
 import { GlobalPage } from './GlobalPage';
 import { DEFAULT_PREFS, parsePrefs } from './prefs';
 import { project } from './project';
@@ -90,12 +90,23 @@ describe('Global page on the sample desk', () => {
     expect(tip.textContent).toContain('JPY');
   });
 
+  it('shows each market\u2019s size with its month and source, on the card and tucked into its row', () => {
+    render(<GlobalPage />);
+    fireEvent.mouseEnter(screen.getByTestId('global-bubble-us'));
+    expect(screen.getByTestId('global-tip-size-us').textContent).toContain('≈ $68.0T');
+    const tip = screen.getByTestId('global-tip-us').textContent ?? '';
+    expect(tip).toContain('NYSE $29.5T + Nasdaq $38.5T');
+    expect(tip).toContain('Jan 2026, World Federation of Exchanges -- published monthly, not live');
+    expect(screen.getByTestId('global-row-jp').textContent).toContain('$7.7T · Japan');
+  });
+
   it('keeps the definitions behind "How to read", open on hover and kept open by a click', () => {
     render(<GlobalPage />);
     expect(screen.queryByTestId('global-defs')).toBeNull();
     const button = screen.getByTestId('global-how-to-read');
     fireEvent.mouseEnter(button.parentElement!);
     expect(screen.getByTestId('global-defs').textContent).toContain('Pressure:');
+    expect(screen.getByTestId('global-defs').textContent).toContain('Market size:');
     fireEvent.mouseLeave(button.parentElement!);
     expect(screen.queryByTestId('global-defs')).toBeNull();
     fireEvent.click(button);
@@ -232,6 +243,13 @@ describe('Global page pieces', () => {
     const notes = statusNotes(board, '7D', 'HTTP 500');
     expect(notes.map((n) => n.id)).toEqual(['error', 'ibkr', 'period']);
     expect(notes[0].warn && notes[1].warn).toBe(true);
+  });
+
+  it('words a market\u2019s size as approximate as it is, and its month', () => {
+    expect(sizeUsd(68.015e12)).toBe('$68.0T');
+    expect(sizeUsd(0.903e12)).toBe('$903B');
+    expect(sizeUsd(null)).toBe('--');
+    expect(monthWord('2026-01')).toBe('Jan 2026');
   });
 
   it('shows IBKR\u2019s reason up to its first sentence', () => {

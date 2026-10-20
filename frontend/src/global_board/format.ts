@@ -20,6 +20,18 @@ export function usd(v: number | null | undefined, signed = false): string {
   return `${signed ? sign(v) : v < 0 ? MINUS : ''}$${body}`;
 }
 
+/** A market's size, as approximate as its source: "$68.0T", "$903B". */
+export function sizeUsd(v: number | null | undefined): string {
+  return v != null && Math.abs(v) >= 1e12 ? `$${(v / 1e12).toFixed(1)}T` : usd(v);
+}
+
+/** "Jan 2026" for a figure's month, "2026-01". */
+export function monthWord(asOf: string): string {
+  const [y, m] = asOf.split('-').map(Number);
+  if (!y || !m) return asOf;
+  return `${new Date(Date.UTC(y, m - 1, 1)).toLocaleString('en-US', { month: 'short', timeZone: 'UTC' })} ${y}`;
+}
+
 export function signedPct(v: number | null | undefined, digits = 1): string {
   if (v == null || !Number.isFinite(v)) return DASH;
   return `${sign(v)}${Math.abs(v).toFixed(digits)}%`;

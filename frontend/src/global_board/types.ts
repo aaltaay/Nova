@@ -77,6 +77,17 @@ export interface Market {
   move: Move;
   flow: Flow;
   mixed: boolean;
+  /** Its exchanges' published market capitalisation: monthly, not live, not IBKR's (null: no published figure). */
+  size: MarketSize | null;
+}
+
+export interface MarketSize {
+  usd: number;
+  parts: { name: string; usd: number }[];
+  /** The month the figure is for, "2026-01". */
+  as_of: string;
+  source: string;
+  url: string;
 }
 
 export interface Totals {

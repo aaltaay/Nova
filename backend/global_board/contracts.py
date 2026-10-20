@@ -48,13 +48,13 @@ def multiplier(kind: str, contract: Any) -> float | None:
     return value if value > 0 else None
 
 
-def _build(kind: str, spec: Mapping) -> Any:
+def _build(kind: str, spec: Mapping, symbol: str | None = None) -> Any:
     from ib_async import ContFuture, Forex, Index, Stock
 
     if kind == "index":
         return Index(spec["symbol"], spec["exchange"], spec["currency"])
     if kind == "future":
-        return ContFuture(spec["symbol"], spec["exchange"], currency=spec["currency"],
+        return ContFuture(symbol or spec["symbol"], spec["exchange"], currency=spec["currency"],
                           multiplier=spec.get("multiplier") or "")
     if kind == "etf":
         return Stock(spec["symbol"], "SMART", "USD")
@@ -68,8 +68,13 @@ async def resolve(ib: Any, kind: str, spec: Mapping, trading_date: str) -> Any |
     k = (key(kind, spec), trading_date)
     if k in _resolved:
         return _resolved[k]
-    got = await asyncio.wait_for(ib.qualifyContractsAsync(_build(kind, spec)), timeout=GLOBAL_IBKR_TIMEOUT_SEC)
-    contract = next((c for c in got or [] if c is not None and getattr(c, "conId", 0)), None)
+    contract = None
+    for symbol in (spec["symbol"], *(spec.get("also") or ())) if kind == "future" else (None,):
+        got = await asyncio.wait_for(ib.qualifyContractsAsync(_build(kind, spec, symbol)),
+                                     timeout=GLOBAL_IBKR_TIMEOUT_SEC)
+        contract = next((c for c in got or [] if c is not None and getattr(c, "conId", 0)), None)
+        if contract is not None:
+            break
     if contract is not None:
         for stale in [s for s in _resolved if s[0] == k[0]]:
             del _resolved[stale]

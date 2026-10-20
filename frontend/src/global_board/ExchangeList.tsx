@@ -6,7 +6,7 @@
  */
 import type { ReactNode } from 'react';
 import { MOVE_BAR_SCALE_PCT, PRESSURE_BAR_SCALE_PCT, STATE_WORD } from './constants';
-import { signedPct, tone, usd } from './format';
+import { monthWord, signedPct, sizeUsd, tone, usd } from './format';
 import type { Market, Period } from './types';
 
 interface Props {
@@ -79,7 +79,14 @@ export function ExchangeList({ markets, period, hovered, onHover, onOpenTrader }
               <b>{m.exchange}</b>
               {flag(m, onOpenTrader)}
             </span>
-            <small>{m.name}{m.flow.basis === 'future' && m.flow.instrument ? ` · ${m.flow.instrument.label}` : ''}</small>
+            <small>
+              {m.size ? (
+                <span className="gb-size" title={`Market size ≈ ${sizeUsd(m.size.usd)}, ${monthWord(m.size.as_of)}, ${m.size.source}`}>
+                  {sizeUsd(m.size.usd)}{' · '}
+                </span>
+              ) : null}
+              {m.name}{m.flow.basis === 'future' && m.flow.instrument ? ` · ${m.flow.instrument.label}` : ''}
+            </small>
           </div>
           <div className="gb-row__pair" role="cell">
             <Bar value={m.flow.pressure_pct} scale={PRESSURE_BAR_SCALE_PCT} />

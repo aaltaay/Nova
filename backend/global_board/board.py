@@ -1,7 +1,8 @@
 """The Global page's wire (ADR 060; shape in architecture/schema/global-board.md), composed from memory only.
 
-Every number is IBKR's or a sum of IBKR's: no market's size, value or turnover is estimated. A market with no answer
-yet reads ``null`` with the reason (the read's own failure, IBKR's refusal, or "waiting").
+Every number is IBKR's or a sum of IBKR's -- except each market's ``size``, its exchanges' published market
+capitalisation (monthly, with its month and source) -- and none is estimated. A market with no answer yet reads
+``null`` with the reason (the read's own failure, IBKR's refusal, or "waiting").
 """
 from __future__ import annotations
 
@@ -9,6 +10,7 @@ from collections.abc import Mapping, Sequence
 
 from constants_global_board import (
     GLOBAL_IDLE_QUOTES_TTL_SEC,
+    GLOBAL_MARKET_SIZES,
     GLOBAL_MARKETS,
     GLOBAL_MIXED_MOVE_PCT,
     GLOBAL_MIXED_PRESSURE_PCT,
@@ -180,7 +182,18 @@ def market_row(st: Store, m: Mapping, now: float, period: str, quotes: Mapping, 
     flow["refused"] = _refused(st, m, now)
     return {"id": m["id"], "name": m["name"], "exchange": m["exchange"], "city": m["city"], "region": m["region"],
             "lat": m["lat"], "lon": m["lon"], "tz": m["tz"], "session": session, "move": move, "flow": flow,
-            "mixed": _mixed(flow, move)}
+            "mixed": _mixed(flow, move), "size": size(m["id"])}
+
+
+def size(market_id: str) -> dict | None:
+    """The market's published size (``GLOBAL_MARKET_SIZES``): its exchanges' domestic market capitalisation, with
+    the month and source it comes from -- the page's one number that is not IBKR's, and not live."""
+    got = GLOBAL_MARKET_SIZES.get(market_id)
+    if got is None:
+        return None
+    parts = [{"name": p["name"], "usd": p["usd"]} for p in got["parts"]]
+    return {"usd": sum(p["usd"] for p in parts), "parts": parts, "as_of": got["as_of"], "source": got["source"],
+            "url": got["url"]}
 
 
 def totals(rows: Sequence[Mapping]) -> dict:

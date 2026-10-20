@@ -94,5 +94,8 @@ export const MOVE_DEF = "Index move: the market's main index against its last cl
 export const MIXED_DEF =
   'The two disagree: buyers were eager and the index still fell, or the reverse -- someone was absorbing the other side.';
 export const SOURCES_DEF =
-  'Every number is IBKR\'s: nothing here is estimated. Dollars are the trades\' notional at IBKR\'s exchange rates. ' +
-  'A market IBKR refused says why.';
+  'Every number is IBKR\'s but the market sizes, and nothing here is estimated. Dollars are the trades\' notional at ' +
+  'IBKR\'s exchange rates. A market IBKR refused says why.';
+export const SIZE_DEF =
+  'Market size: what the exchange\'s home companies are worth (their listed shares at their price), as the World ' +
+  'Federation of Exchanges or the source shown published it -- a monthly figure, not live, so approximate.';
