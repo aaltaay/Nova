@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import os
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -21,11 +22,13 @@ from market_reads import roots
 from market_reads import rvol_store as rs
 
 SCHEMA_VERSION = 1
-BUILDER = 1                      # bump when a rule below or a desk rule it calls changes: every day is built again
+BUILDER = 2                      # bump when a rule below or a desk rule it calls changes: every day is built again
 TAPE_BUILDER = 1
 ROOT_ENV = "NOVA_SIGNALS_DIR"
 DEFAULT_ROOT_WIN = r"F:\Nova\signals"
 RESERVE_GB = 40.0
+LOCK_WAIT_SEC = 120.0            # how long a writer waits for the manifest
+LOCK_STALE_SEC = 300.0           # a lock older than this was left by a writer that died
 META_KEY = b"nova_signals"
 KINDS = ("CS", "ADRC")
 PRICE_MIN, PRICE_MAX = 1.0, 20.0         # prev_close, dollars
@@ -107,9 +110,47 @@ def load_manifest(required: bool = False) -> dict[str, Any]:
 def save_manifest(data: dict[str, Any]) -> None:
     path = manifest_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".json.tmp")
+    tmp = path.with_suffix(f".json.{os.getpid()}.tmp")
     tmp.write_text(json.dumps(data, indent=1, sort_keys=True), encoding="utf-8")
     os.replace(tmp, path)
+
+
+@contextmanager
+def manifest_lock():
+    """``<root>/manifest.lock``, created exclusively: one read-modify-write of the manifest at a time across processes
+    (the minute and tape stages may run at once). A lock older than ``LOCK_STALE_SEC`` is a dead writer's."""
+    path = root() / "manifest.lock"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    deadline = time.monotonic() + LOCK_WAIT_SEC
+    while True:
+        try:
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            break
+        except FileExistsError:
+            try:
+                if time.time() - path.stat().st_mtime > LOCK_STALE_SEC:
+                    path.unlink()
+                    continue
+            except FileNotFoundError:
+                continue
+            if time.monotonic() > deadline:
+                raise TimeoutError(f"{path} held for over {LOCK_WAIT_SEC:.0f} s") from None
+            time.sleep(0.05)
+    try:
+        os.write(fd, str(os.getpid()).encode())
+        os.close(fd)
+        yield
+    finally:
+        path.unlink(missing_ok=True)
+
+
+def update_manifest(change) -> dict[str, Any]:
+    """Read the manifest, ``change(data)`` it and write it back, under ``manifest_lock``."""
+    with manifest_lock():
+        data = load_manifest()
+        change(data)
+        save_manifest(data)
+        return data
 
 
 def _write(table, path: Path, day: str, name: str) -> None:

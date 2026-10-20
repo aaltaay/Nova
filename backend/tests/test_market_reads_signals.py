@@ -250,3 +250,39 @@ def test_tape_stage_reads_a_flush_from_prints_at_the_bid(monkeypatch):
 def test_status_names_the_table(table):
     st = ss.status()
     assert st["days"] == 4 and st["first"] == DAYS[20] and st["last"] == TODAY
+
+
+def test_manifest_writers_never_drop_each_others_days(tmp_path, monkeypatch):
+    """The minute and tape stages may finish days at once: every update survives (the manifest lock)."""
+    import threading
+    monkeypatch.setenv("NOVA_SIGNALS_DIR", str(tmp_path / "signals"))
+
+    def writer(key: str) -> None:
+        for i in range(25):
+            ss.update_manifest(lambda data, i=i: data.setdefault(key, {}).__setitem__(f"2026-01-{i + 1:02d}", {}))
+    threads = [threading.Thread(target=writer, args=(k,)) for k in ("days", "tape")]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    data = ss.load_manifest()
+    assert len(data["days"]) == 25 and len(data["tape"]) == 25
+    assert not (tmp_path / "signals" / "manifest.lock").exists()
+
+
+def test_catalyst_category_and_reason_confidence_are_signals(table):
+    rows = _minutes(table)
+    for column in ("catalyst_category", "catalyst_strength", "why_confidence"):
+        assert column in rows.columns and column in {s["signal"] for s in reg.catalog()}
+    assert reg.check([{"signal": "catalyst_category", "is": "contract"}]) == [
+        {"signal": "catalyst_category", "is": ["contract"]}]
+    with pytest.raises(ValueError, match="one of"):
+        reg.check([{"signal": "catalyst_strength", "is": "huge"}])
+
+
+def test_the_cli_refuses_a_yes_or_no_it_cannot_read():
+    sys.path.insert(0, str(REPO / "tools"))
+    import market_data_signals as cli
+    assert cli.conditions(["halted=false"]) == [{"signal": "halted", "is": False}]
+    with pytest.raises(SystemExit, match="true or false"):
+        cli.conditions(["halted=yes"])

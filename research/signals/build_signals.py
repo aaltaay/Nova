@@ -38,7 +38,8 @@ from market_reads import signals_store as ss  # noqa: E402
 from market_reads.signal_registry import BY_COLUMN, MINUTE_COLUMNS  # noqa: E402
 
 DEFAULT_WORKERS = 8
-_ARROW = {"state": pa.string(), "label": pa.string(), "number": pa.float64(), "bool": pa.bool_()}
+_ARROW = {"state": pa.string(), "label": pa.string(), "text": pa.string(), "number": pa.float64(),
+          "bool": pa.bool_()}
 
 
 def minute_schema() -> pa.Schema:
@@ -131,7 +132,7 @@ def build(start: str | None = None, end: str | None = None, rebuild_from: str | 
     manifest = ss.load_manifest()
     if manifest.get("builder") != ss.BUILDER and stage == "minutes":
         manifest = ss.new_manifest()
-    manifest["templates"] = lanes.template_revs()
+    revs = lanes.template_revs()
     todo = plan(manifest, rvol_manifest, start, end, rebuild_from, stage)[:max_days or None]
     if not todo:
         say(f"signal table ({stage}) is up to date")
@@ -148,10 +149,13 @@ def build(start: str | None = None, end: str | None = None, rebuild_from: str | 
         nonlocal count
         if stage == "minutes":
             entry["rvol_built_ts"] = rvol_manifest["days"][day].get("built_ts")
-        data = ss.load_manifest()       # read again: the minutes and tape stages may run at once
-        data["builder"], data["templates"] = ss.BUILDER, lanes.template_revs()
-        data.setdefault(key, {})[day] = entry
-        ss.save_manifest(data)
+        def change(data: dict) -> None:   # under the manifest lock: the minutes and tape stages may run at once
+            if stage == "minutes" and data.get("builder") != ss.BUILDER:
+                data.update(ss.new_manifest())
+            data["builder"], data["templates"] = ss.BUILDER, revs
+            data.setdefault(key, {})[day] = entry
+
+        ss.update_manifest(change)
         count += 1
         say(f"{day}  {entry.get('stock_days', 0):,} stock-days  {entry.get('rows', 0):,} rows  "
             f"{entry.get('seconds')} s" + (f"  {len(entry['failed'])} failed" if entry.get("failed") else ""))

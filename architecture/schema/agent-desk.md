@@ -581,8 +581,8 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
     `F:\Nova\signals` when F: is mounted on Windows, else `<NOVA_MARKET_DATA_DIR>/signals`. `manifest.json`
     `{schema_version: 1, builder, templates: {setup: rev}, rules, days: {YYYY-MM-DD: {rvol_built_ts, stock_days,
     rows, built_ts, seconds, coverage: {board, halts, catalyst_checked, hod_rebuilt, short_interest}}, tape: {YYYY-
-    MM-DD: {stock_days, rows, built_ts, seconds}}}}`, replaced atomically; another `schema_version` refuses
-    (`UnknownSignalsSchema`). Parquet, zstd, file metadata `nova_signals` `{schema_version, builder, day, table}`:
+    MM-DD: {stock_days, rows, built_ts, seconds}}}}`, each change read, made and replaced under `manifest.lock`
+    (one writer at a time across processes); another `schema_version` refuses (`UnknownSignalsSchema`). Parquet, zstd, file metadata `nova_signals` `{schema_version, builder, day, table}`:
     `days/YYYY/YYYY-MM-DD.parquet` one row per stock-day (`date, symbol, kind, prev_close, in_play_m, epoch,
     basis`) and `minutes/YYYY/YYYY-MM-DD.parquet` one row per minute `m` from `in_play_m` through 959 (15:59):
     `date, symbol, m` (int16), `price` (the close of the last bar starting at or before `m`), `change_pct`
@@ -591,13 +591,15 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
     `tape/YYYY/YYYY-MM-DD.parquet` (`date, symbol, m, tape, tape_score, tape_flush, tape_burst`) apart; a day it has
     not reached reads `tape` `not_built`.
   - **Signals** (`signal_catalog` lists each with its states, its desk source and its history; states are the
-    panel's: `ok`, `warn`, `bad`, `info`, `unknown`):
+    panel's: `ok`, `warn`, `bad`, `info`, `unknown`; kinds `state`, `label` (one of its values), `text` (a name the
+    desk's rule gives, matched exactly: the catalyst category), `number`, `bool`):
     - `in_play` (the tile: `Yes`, `Partly`, `No`, `Too thin`, `Not known`); `pillars` (state) with `pillars_n`
       (0-5) and `pillar_price, pillar_change, pillar_rvol, pillar_catalyst, pillar_float` (bool); `rvol_state`
       with `rvol_pace` (`market.pace_relative_volume` of volume since 04:00 over `day_avg_volume`); `catalyst`
       (the classifier's verdict on items published after the prior session's 16:00 and by `m`: `catalyst`,
-      `negative`, `routine_only`, `noise_only`, `none_found`, `not_checked`) with `catalyst_category,
-      catalyst_strength`; `why` (`move_reason.rules.read`'s likely kind) with `why_confidence`; `board` (the
+      `negative`, `routine_only`, `noise_only`, `none_found`, `not_checked`) with `catalyst_category` (text) and
+      `catalyst_strength` (`strong`, `weak`); `why` (`move_reason.rules.read`'s likely kind) with `why_confidence`
+      (`likely`, `possible`) and `why_state`; `board` (the
       board `find_board_row` picks at `m` from the leaderboard store: `gappers`, `gainers`, `losers`,
       `afterhours`, `large_cap`, `market`, or null) with `board_state`; `ran_before` (state) with `runs_n` (+40%
       sessions in the prior 260 of the same epoch, from the relative-volume table's `hi` / `last_close` on the

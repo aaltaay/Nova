@@ -46,6 +46,8 @@ def conditions(texts: list[str] | None) -> list[dict]:
         else:
             values = [v.strip() for v in value.split("|")]
             if kind == "bool":
+                if any(v.lower() not in ("true", "false") for v in values):
+                    raise SystemExit(f"--when {text!r}: {name} is true or false")
                 values = [v.lower() == "true" for v in values]
             out.append({"signal": name, "is": values if len(values) > 1 else values[0]})
     return out

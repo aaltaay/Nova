@@ -3,7 +3,8 @@ desk rule that writes it and how far back it reaches (architecture/schema/agent-
 past days"). The builder writes exactly these columns, ``signal_test`` refuses anything else, and
 ``signal_catalog`` lists them.
 
-A ``kind`` is ``state`` (the panel's row state), ``label`` (a word from ``values``), ``number`` or ``bool``.
+A ``kind`` is ``state`` (the panel's row state), ``label`` (a word from ``values``), ``text`` (a name the desk's
+rule gives, such as a catalyst category: any string, matched exactly), ``number`` or ``bool``.
 """
 from __future__ import annotations
 
@@ -82,9 +83,15 @@ SIGNALS: tuple[Signal, ...] = (
     Signal("catalyst", "in_play", "label", "Catalyst verdict", "catalysts.classify.verdict at the minute",
            CATALYST_HISTORY, ("catalyst", "negative", "routine_only", "noise_only", "none_found", "not_checked")),
     _state("catalyst_state", "in_play", "Catalyst (the row)", "stock_read.rows._catalyst", CATALYST_HISTORY),
+    Signal("catalyst_category", "in_play", "text", "Catalyst category (the classifier's name, e.g. contract)",
+           "catalysts.classify.verdict", CATALYST_HISTORY),
+    Signal("catalyst_strength", "in_play", "label", "Catalyst strength", "catalysts.classify.verdict",
+           CATALYST_HISTORY, ("strong", "weak")),
     Signal("why", "in_play", "label", "Why it's moving (likely kind)", "move_reason.rules.read",
            values=("news", "short_squeeze", "split_squeeze", "low_float_momentum", "news_pending", "routine_news",
                    "thin_trading", "unexplained", "not_moving", "not_read")),
+    Signal("why_confidence", "in_play", "label", "Why it's moving: how sure", "move_reason.rules.read",
+           values=("likely", "possible")),
     _state("why_state", "in_play", "Why it's moving (the row)", "stock_read.rows._likely"),
     Signal("board", "in_play", "label", "On the boards", "strategy.symbol_pillars.find_board_row at the minute",
            BOARD_HISTORY, ("gappers", "gainers", "losers", "afterhours", "large_cap", "market")),
@@ -169,6 +176,9 @@ def check(when: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if s.kind == "bool":
             if any(not isinstance(v, bool) for v in want):
                 raise ValueError(f"{s.column} is true or false")
+        elif s.kind == "text":
+            if any(not isinstance(v, str) or not v for v in want):
+                raise ValueError(f"{s.column} is a name: give it as text")
         elif any(v not in s.values for v in want):
             raise ValueError(f"{s.column} is one of {', '.join(s.values)}")
         out.append({"signal": s.column, "is": list(want)})
