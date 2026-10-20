@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 from datetime import date, datetime
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -30,9 +31,13 @@ from agent_desk.open_in_nova import (
     this_pc_host,
 )
 from agent_desk.open_token import (
+    OPEN_TOKEN_UNAVAILABLE,
+    OPEN_TOKEN_UNAVAILABLE_TEXT,
     TokenError,
+    _windows_acl,
     acl_is_current_user_only,
     load_or_create,
+    structure_types,
     token_file_private,
     token_path,
 )
@@ -322,6 +327,69 @@ def test_a_desk_already_on_sim_is_not_checked_or_switched(calls):
     assert "Nova Sim" in opened["chat_message"]
 
 
+def _perform_closed(monkeypatch, *, venue: str, enabled: bool, ready: bool, switch: list, enabled_fn=None):
+    monkeypatch.setattr(
+        "agent_desk.safety.at_stake",
+        lambda current, **_k: {"venue": current, "safe": True, "items": [], "unknown": []},
+    )
+    monkeypatch.setattr("ibkr.client.is_enabled", enabled_fn or (lambda: enabled))
+    monkeypatch.setattr("ibkr.client.is_ready", lambda: ready)
+    return perform(
+        {"symbol": "IMCC", "date": DAY, "as_of": "10:00"},
+        now=WEEKDAY,
+        listening=lambda: True,
+        venue=lambda: venue,
+        trading_day=_weekday,
+        on_file=lambda _day: True,
+        setups_for=lambda *_a: [],
+        row_for=lambda *_a: None,
+        queue=lambda _args, plan: {"kind": "show", "plan": plan},
+        switch_view=lambda: switch.append(True),
+    )
+
+
+def test_live_ibkr_enabled_without_a_session_refuses_the_switch(monkeypatch):
+    """Gateway down (no session, or not synced yet) is unreadable. Show is not changed here."""
+    switched: list[bool] = []
+    with pytest.raises(OpenError) as refused:
+        _perform_closed(monkeypatch, venue="live", enabled=True, ready=False, switch=switched)
+    assert refused.value.reason == "AGENT_AT_STAKE"
+    assert "a check could not be read (orders)" in refused.value.error
+    assert "The main desk was not switched." in refused.value.error
+    assert switched == []
+
+
+def test_live_ibkr_disabled_or_ready_may_switch(monkeypatch):
+    switched: list[bool] = []
+    opened = _perform_closed(monkeypatch, venue="live", enabled=False, ready=False, switch=switched)
+    assert opened["separate_sim"] is False
+    assert switched == [True]
+    ready: list[bool] = []
+    again = _perform_closed(monkeypatch, venue="live", enabled=True, ready=True, switch=ready)
+    assert again["ok"] is True
+    assert ready == [True]
+
+
+def test_paper_does_not_treat_a_down_gateway_as_ibkr_stake(monkeypatch):
+    switched: list[bool] = []
+    opened = _perform_closed(monkeypatch, venue="paper", enabled=True, ready=False, switch=switched)
+    assert opened["ok"] is True
+    assert switched == [True]
+
+
+def test_an_ibkr_reader_that_throws_refuses_the_live_switch(monkeypatch):
+    def boom():
+        raise RuntimeError("session unreadable")
+
+    switched: list[bool] = []
+    with pytest.raises(OpenError) as refused:
+        _perform_closed(
+            monkeypatch, venue="live", enabled=True, ready=False, switch=switched, enabled_fn=boom,
+        )
+    assert refused.value.reason == "AGENT_AT_STAKE"
+    assert switched == []
+
+
 def test_paper_stake_names_the_venue(calls):
     def stake(_venue):
         return {"safe": False, "items": [{"text": "a working order"}], "unknown": []}
@@ -386,6 +454,57 @@ def test_token_file_is_private_and_an_unknown_schema_refuses(tmp_path, monkeypat
     token_path().write_text(json.dumps({"schema_version": 2, "token": "x"}), encoding="utf-8")
     with pytest.raises(TokenError, match="schema"):
         load_or_create()
+    assert token_path().is_file()
+
+
+def test_structure_types_load_without_rebinding_the_class_name():
+    """The old ``class Types: TokenUser = TokenUser`` NameError never reaches this bundle."""
+    import agent_desk.open_token as token_mod
+
+    source = Path(token_mod.__file__).read_text(encoding="utf-8")
+    assert "TokenUser = TokenUser" not in source
+    types = structure_types()
+    assert types.TokenUser.Sid.offset == 0
+    assert types.AllowedAce.SidStart.offset > types.AllowedAce.Mask.offset
+    if os.name == "nt":
+        assert types.AllowedAce.SidStart.offset == 8
+
+
+def test_a_lock_failure_deletes_the_token_and_the_routes_answer_503(tmp_path, monkeypatch):
+    monkeypatch.setenv("NOVA_CACHE_DIR", str(tmp_path))
+
+    def boom(path):
+        # os.open used 0o600, which POSIX already calls private. Strip that so the
+        # failure is an unprotected file, the same shape Windows leaves behind.
+        os.chmod(path, 0o644)
+        raise RuntimeError("name 'TokenUser' is not defined")
+
+    monkeypatch.setattr("agent_desk.open_token._restrict_private", boom)
+    got = client.get("/api/agent/open-token")
+    assert got.status_code == 503
+    assert got.json()["detail"]["reason"] == OPEN_TOKEN_UNAVAILABLE
+    assert got.json()["detail"]["error"] == OPEN_TOKEN_UNAVAILABLE_TEXT
+    assert "TokenUser" not in got.text
+    assert not (tmp_path / "open-in-nova-token.json").exists()
+    posted = client.post(
+        "/api/agent/open-in-nova",
+        content=json.dumps({"symbol": "IMCC", "date": DAY, "as_of": "10:00"}),
+        headers={"Content-Type": "application/json"},
+    )
+    assert posted.status_code == 503
+    assert posted.json()["detail"]["reason"] == OPEN_TOKEN_UNAVAILABLE
+    assert "TokenUser" not in posted.text
+    assert not (tmp_path / "open-in-nova-token.json").exists()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="the token DACL is checked on Windows")
+def test_the_token_file_dacl_is_one_allow_for_the_current_user(tmp_path, monkeypatch):
+    monkeypatch.setenv("NOVA_CACHE_DIR", str(tmp_path))
+    load_or_create()
+    user, aces, protected = _windows_acl(token_path())
+    assert protected is True
+    assert aces == [("allow", user)]
+    assert token_file_private(token_path()) is True
 
 
 def test_an_acl_is_private_only_when_every_ace_is_the_current_user():

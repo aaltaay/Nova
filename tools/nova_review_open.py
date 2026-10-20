@@ -13,7 +13,13 @@ import urllib.request
 from typing import Any
 from urllib.parse import urlparse
 
-from nova_open_client import DESK_NOT_RUNNING_TEXT, DESK_OUT_OF_DATE_TEXT, HEADER
+from nova_open_client import (
+    DESK_NOT_RUNNING_TEXT,
+    DESK_OUT_OF_DATE_TEXT,
+    HEADER,
+    missing_token_route,
+    nova_reason,
+)
 
 TOKEN_PATH = "/api/review/open-token"
 OPEN_PATH = "/api/review/open-in-nova"
@@ -74,13 +80,22 @@ def _send_token(handler) -> None:
     except OSError:
         _send(handler, 409, {"reason": "DESK_NOT_RUNNING", "error": DESK_NOT_RUNNING_TEXT})
         return
-    if status == 404:
+    if missing_token_route(status, body):
         _send(handler, 409, {"reason": "DESK_OUT_OF_DATE", "error": DESK_OUT_OF_DATE_TEXT})
         return
-    if not isinstance(body, dict) or "token" not in body:
+    token = body.get("token") if isinstance(body, dict) else None
+    if status < 400 and isinstance(token, str) and token:
+        _send(handler, status, {"schema_version": body.get("schema_version"), "token": token})
+        return
+    if not isinstance(body, dict) or status >= 500:
+        answered, public = _public_answer(status, body)
+        _send(handler, answered, public)
+        return
+    if nova_reason(body) is None:
         _send(handler, 409, {"reason": "DESK_NOT_RUNNING", "error": DESK_NOT_RUNNING_TEXT})
         return
-    _send(handler, status, {"schema_version": body.get("schema_version"), "token": body.get("token")})
+    answered, public = _public_answer(status, body)
+    _send(handler, answered, public)
 
 
 def _forward_open(handler) -> None:
@@ -101,13 +116,8 @@ def _forward_open(handler) -> None:
     except OSError:
         _send(handler, 409, {"reason": "DESK_NOT_RUNNING", "error": DESK_NOT_RUNNING_TEXT})
         return
-    if status == 404:
-        _send(handler, 409, {"reason": "DESK_OUT_OF_DATE", "error": DESK_OUT_OF_DATE_TEXT})
-        return
-    if not isinstance(body, dict):
-        _send(handler, 502, {"reason": "BAD_REQUEST", "error": "the desk answer was not JSON"})
-        return
-    _send(handler, status, body)
+    answered, public = _public_answer(status, body)
+    _send(handler, answered, public)
 
 
 def _call(method: str, path: str, raw: bytes | None, token: str | None) -> tuple[int, Any]:
@@ -126,7 +136,30 @@ def _call(method: str, path: str, raw: bytes | None, token: str | None) -> tuple
     except urllib.error.HTTPError as exc:
         payload = exc.read()
         status = int(exc.code)
-    return status, json.loads(payload.decode("utf-8") or "null")
+    try:
+        return status, json.loads(payload.decode("utf-8") or "null")
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return status, None
+
+
+def _public_answer(status: int, body: Any) -> tuple[int, dict[str, Any]]:
+    """JSON for the browser. A non-JSON or bare 5xx never escapes as a dropped connection."""
+    if isinstance(body, dict):
+        detail = body.get("detail")
+        if isinstance(detail, dict):
+            return status, {
+                "ok": False,
+                "reason": str(detail.get("reason") or "BAD_REQUEST"),
+                "error": str(detail.get("error") or ""),
+            }
+        if status >= 500 and not body.get("reason"):
+            return 502, {"ok": False, "reason": "DESK_ERROR", "error": "the desk answer was not JSON"}
+        return status, body
+    if status >= 500:
+        return 502, {"ok": False, "reason": "DESK_ERROR", "error": "the desk answer was not JSON"}
+    if status == 404:
+        return 404, {"ok": False, "reason": "NOT_FOUND", "error": "the desk refused the open"}
+    return 502, {"ok": False, "reason": "DESK_ERROR", "error": "the desk answer was not JSON"}
 
 
 def _send(handler, status: int, body: dict[str, Any]) -> None:

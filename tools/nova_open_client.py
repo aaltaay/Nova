@@ -19,7 +19,16 @@ DESK_OUT_OF_DATE_TEXT = (
 
 
 class DeskOutOfDate(Exception):
-    """The process answered, and it does not have the open route yet."""
+    """The token route answered 404 with no Nova error code: this build has no open route."""
+
+
+class TokenRouteError(Exception):
+    """The token route answered, and it did not hand back a token."""
+
+    def __init__(self, body: Any) -> None:
+        self.body = body
+
+
 HEADER = "X-Nova-Open-Token"
 DEFAULT_API = "http://127.0.0.1:8000"
 
@@ -43,23 +52,43 @@ def post_open(payload: dict[str, Any], *, base: str | None = None, urlopen=urlli
         )
     except DeskOutOfDate:
         return {"ok": False, "reason": "DESK_OUT_OF_DATE", "error": DESK_OUT_OF_DATE_TEXT}
+    except TokenRouteError as exc:
+        return _error_body(exc.body)
     except OSError:
         return {"ok": False, "reason": "DESK_NOT_RUNNING", "error": DESK_NOT_RUNNING_TEXT}
-    if status == 404:
-        return {"ok": False, "reason": "DESK_OUT_OF_DATE", "error": DESK_OUT_OF_DATE_TEXT}
     if status < 400 and isinstance(body, dict) and body.get("ok") is True:
         return body
     return _error_body(body)
 
 
+def nova_reason(body: Any) -> str | None:
+    """A Nova error code on the body or on FastAPI's ``detail`` object. Empty when there is none."""
+    if not isinstance(body, dict):
+        return None
+    reason = body.get("reason")
+    if isinstance(reason, str) and reason:
+        return reason
+    detail = body.get("detail")
+    if isinstance(detail, dict):
+        nested = detail.get("reason")
+        if isinstance(nested, str) and nested:
+            return nested
+    return None
+
+
+def missing_token_route(status: int, body: Any) -> bool:
+    """A 404 on ``GET /api/agent/open-token`` with no Nova code means that build has no open route."""
+    return status == 404 and nova_reason(body) is None
+
+
 def _read_token(root: str, urlopen) -> str:
     status, body = _request(urlopen, urllib.request.Request(root + "/api/agent/open-token"))
-    if status == 404:
+    if missing_token_route(status, body):
         raise DeskOutOfDate()
     token = body.get("token") if isinstance(body, dict) else None
-    if not isinstance(token, str) or not token:
-        raise OSError("open token missing")
-    return token
+    if status < 400 and isinstance(token, str) and token:
+        return token
+    raise TokenRouteError(body)
 
 
 def _request(urlopen, request: urllib.request.Request) -> tuple[int, Any]:

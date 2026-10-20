@@ -455,5 +455,114 @@ def test_review_open_says_the_backend_is_out_of_date(monkeypatch):
     assert headers.get("Access-Control-Allow-Origin") is None
     assert b"out of date" in raw
     assert b"not running" not in raw
-    assert posted == 409
-    assert b"out of date" in posted_raw
+    assert posted == 404
+    posted_body = json.loads(posted_raw)
+    assert posted_body["reason"] == "NOT_FOUND"
+    assert b"out of date" not in posted_raw
+
+
+class _FileMissing(BaseHTTPRequestHandler):
+    """Token route is present. The open route answers the real not-on-file 404."""
+
+    def log_message(self, _fmt, *_args):
+        return
+
+    def do_GET(self):  # noqa: N802
+        body = json.dumps({"schema_version": 1, "token": "tok"}).encode()
+        self._json(200, body)
+
+    def do_POST(self):  # noqa: N802
+        length = int(self.headers.get("Content-Length") or "0")
+        self.rfile.read(length)
+        body = json.dumps({
+            "detail": {
+                "reason": "AGENT_NOT_ON_FILE",
+                "error": "no trades file for 2026-09-18 in the Massive folder",
+            },
+        }).encode()
+        self._json(404, body)
+
+    def _json(self, status, body: bytes):
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+
+class _HtmlCrash(BaseHTTPRequestHandler):
+    def log_message(self, _fmt, *_args):
+        return
+
+    def do_GET(self):  # noqa: N802
+        self._html()
+
+    def do_POST(self):  # noqa: N802
+        length = int(self.headers.get("Content-Length") or "0")
+        self.rfile.read(length)
+        self._html()
+
+    def _html(self):
+        raw = b"<html>boom</html>"
+        self.send_response(500)
+        self.send_header("Content-Type", "text/html")
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+
+
+def _serve(handler):
+    api = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=api.serve_forever, daemon=True)
+    thread.start()
+    return api
+
+
+def test_a_not_on_file_404_is_passed_through(monkeypatch):
+    api = _serve(_FileMissing)
+    base = f"http://127.0.0.1:{api.server_address[1]}"
+    monkeypatch.setenv("NOVA_API_BASE", base)
+    review = review_http.serve(0, bars_reader=lambda *_a: [], daily_reader=lambda *_a: [])
+    review_thread = threading.Thread(target=review.serve_forever, daemon=True)
+    review_thread.start()
+    try:
+        stale = open_client.post_open({"symbol": "IMCC", "date": DAY, "as_of": "10:00"}, base=base)
+        posted, _, raw = _request(
+            review.server_address[1], "/api/review/open-in-nova", method="POST",
+            body={"symbol": "IMCC", "date": DAY},
+            headers={"Content-Type": "application/json", "X-Nova-Open-Token": "tok"},
+        )
+    finally:
+        review.shutdown()
+        api.shutdown()
+    assert stale["reason"] == "AGENT_NOT_ON_FILE"
+    assert "Massive" in stale["error"]
+    assert posted == 404
+    body = json.loads(raw)
+    assert body["reason"] == "AGENT_NOT_ON_FILE"
+    assert "Massive" in body["error"]
+
+
+def test_a_non_json_desk_reply_is_json_to_the_browser(monkeypatch):
+    api = _serve(_HtmlCrash)
+    monkeypatch.setenv("NOVA_API_BASE", f"http://127.0.0.1:{api.server_address[1]}")
+    review = review_http.serve(0, bars_reader=lambda *_a: [], daily_reader=lambda *_a: [])
+    review_thread = threading.Thread(target=review.serve_forever, daemon=True)
+    review_thread.start()
+    try:
+        status, headers, raw = _request(review.server_address[1], "/api/review/open-token")
+        posted, _, posted_raw = _request(
+            review.server_address[1], "/api/review/open-in-nova", method="POST",
+            body={"symbol": "IMCC", "date": DAY},
+            headers={"Content-Type": "application/json", "X-Nova-Open-Token": "tok"},
+        )
+    finally:
+        review.shutdown()
+        api.shutdown()
+    assert status == 502
+    assert headers.get("Content-Type") == "application/json"
+    token_body = json.loads(raw)
+    assert token_body["reason"] == "DESK_ERROR"
+    assert token_body["error"] == "the desk answer was not JSON"
+    assert posted == 502
+    assert json.loads(posted_raw)["reason"] == "DESK_ERROR"

@@ -29,7 +29,12 @@ from fastapi import APIRouter, HTTPException, Request
 from starlette.concurrency import run_in_threadpool
 
 from agent_desk import commands, planner
-from agent_desk.open_token import token_matches
+from agent_desk.open_token import (
+    OPEN_TOKEN_UNAVAILABLE,
+    OPEN_TOKEN_UNAVAILABLE_TEXT,
+    TokenError,
+    token_matches,
+)
 from constants_agent_desk import OPEN_IN_NOVA_HEADER, OPEN_IN_NOVA_TRIGGER_LEAD_SEC
 from constants_scanner import SESSION_PREMARKET_START_MIN_ET, SESSION_RTH_OPEN_MIN_ET
 from constants_sim import SIM_SESSION_OPEN_HOUR
@@ -286,8 +291,7 @@ def register(router: APIRouter) -> None:
         try:
             body = load_or_create()
         except Exception as exc:
-            logger.exception("open in nova: token file refused")
-            raise HTTPException(status_code=500, detail={"reason": "BAD_TOKEN", "error": str(exc)}) from exc
+            raise _token_unavailable(exc) from exc
         return {"schema_version": body["schema_version"], "token": body["token"]}
 
     @router.post("/open-in-nova")
@@ -298,7 +302,18 @@ def register(router: APIRouter) -> None:
             result = await run_in_threadpool(lambda: perform(body, now=wall_clock()))
         except OpenError as exc:
             raise HTTPException(status_code=exc.status, detail={"reason": exc.reason, "error": exc.error}) from exc
+        except TokenError as exc:
+            raise _token_unavailable(exc) from exc
         return result
+
+
+def _token_unavailable(exc: BaseException) -> HTTPException:
+    """A token failure is 503 with a stable sentence. The real exception stays in the log."""
+    logger.exception("open in nova: token file refused (%s)", type(exc).__name__)
+    return HTTPException(
+        status_code=503,
+        detail={"reason": OPEN_TOKEN_UNAVAILABLE, "error": OPEN_TOKEN_UNAVAILABLE_TEXT},
+    )
 
 
 async def _json_body(request: Request) -> Any:
@@ -373,10 +388,31 @@ def _venue() -> str:
 
 
 def _stake(current: str) -> dict[str, Any]:
-    """The check ``POST /api/agent/show`` runs before it leaves the current venue."""
+    """Show's at-stake check, plus a live IBKR session that has not answered.
+
+    ``POST /api/agent/show`` still treats a missing IBKR session as nothing at stake
+    (``restart_check.ibkr`` returns []). This venue switch does not.
+    """
     from agent_desk.safety import at_stake
 
-    return at_stake(current, switching=True, reloading=False)
+    report = at_stake(current, switching=True, reloading=False)
+    if current != "live" or not _live_ibkr_unreadable():
+        return report
+    unknown = [*(report.get("unknown") or []), {"kind": "orders", "error": "IBKR enabled but no session"}]
+    return {**report, "unknown": unknown, "safe": False}
+
+
+def _live_ibkr_unreadable() -> bool:
+    """IBKR is enabled and the session is not ready. Disabled in config is readable."""
+    from ibkr import client
+
+    try:
+        if not client.is_enabled():
+            return False
+        return not client.is_ready()
+    except Exception:
+        logger.exception("open in nova: could not read the IBKR session")
+        return True
 
 
 def _on_file(day: str) -> bool:
