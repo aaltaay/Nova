@@ -1,16 +1,16 @@
 """One build of a rebuilt day's HOD Momo alerts, wherever it runs (the worker process, a thread in tests).
 
 Stages, each written to the job file so the desk can say where it is: ``inputs`` (the rebuilt boards, the active
-set minute by minute, day-bar facts and Yahoo floats), ``index`` (the trades file's seek index), ``trades`` (each
-watched stock's trades into L1 ticks, ``done`` of ``total`` stocks), ``engine`` (the ticks through HOD Momo,
-``done`` of ``total`` ticks) and ``writing``. Nothing is visible before the alerts file is written whole.
+set minute by minute, day-bar facts and the SEC share counts filed before the day), ``index`` (the trades file's
+seek index), ``trades`` (each watched stock's trades into L1 ticks, ``done`` of ``total`` stocks), ``engine`` (the
+ticks through HOD Momo, ``done`` of ``total`` ticks) and ``writing``. Nothing is visible before the alerts file is
+written whole.
 """
 from __future__ import annotations
 
 import logging
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from constants_hod_momo import (
@@ -62,20 +62,18 @@ def run(day: str, stop: threading.Event | None = None) -> dict[str, Any]:
         raise LookupError(f"The leaderboard store holds no rebuilt boards for {day}")
     minutes = plan.active_minutes()
     symbols = sorted(minutes)
-    with ThreadPoolExecutor(max_workers=1, thread_name_prefix="hod-rebuild-floats") as pool:
-        floats_later = pool.submit(daily.floats, symbols)       # Yahoo answers while the files are read
-        facts = daily.history(day, symbols)
+    facts = daily.history(day, symbols)
+    floats = daily.floats(day, symbols)
 
-        progress(LEADERBOARD_SECONDS_STAGE_INDEX, force=True)
-        index = inputs.ensure_index(day, stop, lambda: progress(LEADERBOARD_SECONDS_STAGE_INDEX, force=True))
-        days: dict[str, ticks.SymbolDay] = {}
-        for done, symbol in enumerate(symbols):
-            if stop is not None and stop.is_set():
-                raise inputs.Cancelled()
-            progress(LEADERBOARD_SECONDS_STAGE_TRADES, done, len(symbols))
-            days[symbol] = ticks.build(symbol, inputs.TradeRead(day, symbol, max(minutes[symbol]) + 60, stop),
-                                       minutes[symbol])
-        floats = floats_later.result()
+    progress(LEADERBOARD_SECONDS_STAGE_INDEX, force=True)
+    index = inputs.ensure_index(day, stop, lambda: progress(LEADERBOARD_SECONDS_STAGE_INDEX, force=True))
+    days: dict[str, ticks.SymbolDay] = {}
+    for done, symbol in enumerate(symbols):
+        if stop is not None and stop.is_set():
+            raise inputs.Cancelled()
+        progress(LEADERBOARD_SECONDS_STAGE_TRADES, done, len(symbols))
+        days[symbol] = ticks.build(symbol, inputs.TradeRead(day, symbol, max(minutes[symbol]) + 60, stop),
+                                   minutes[symbol])
     for symbol, fund in floats.items():
         fact = facts[symbol]
         fact.float_shares = fund.get("float_shares")
@@ -100,6 +98,7 @@ def run(day: str, stop: threading.Event | None = None) -> dict[str, Any]:
         "with_float": sum(1 for f in facts.values() if f.float_shares),
         "with_avg_volume": sum(1 for f in facts.values() if f.avg_volume),
         "with_52wk_high": sum(1 for f in facts.values() if f.fifty_two_week_high),
+        "floor_unproven": result.floor_unproven,
         "index": index,
         "build_sec": round(time.monotonic() - started, 1),
     }
