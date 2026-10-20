@@ -309,7 +309,7 @@ def register(router: APIRouter) -> None:
 
 def _token_unavailable(exc: BaseException) -> HTTPException:
     """A token failure is 503 with a stable sentence. The real exception stays in the log."""
-    logger.exception("open in nova: token file refused (%s)", type(exc).__name__)
+    logger.exception("open in nova: install file refused (%s)", type(exc).__name__)
     return HTTPException(
         status_code=503,
         detail={"reason": OPEN_TOKEN_UNAVAILABLE, "error": OPEN_TOKEN_UNAVAILABLE_TEXT},

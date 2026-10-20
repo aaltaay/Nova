@@ -57,7 +57,7 @@ def load_or_create() -> dict:
         raise
     except Exception as exc:
         _discard_if_unprotected(path)
-        logger.exception("open in nova: token file refused")
+        logger.exception("open in nova: install file refused")
         raise TokenError(OPEN_TOKEN_UNAVAILABLE_TEXT) from exc
 
 
@@ -88,14 +88,14 @@ def _discard_if_unprotected(path: Path) -> None:
     try:
         private = token_file_private(path)
     except Exception:
-        logger.exception("open in nova: could not read the token file's permissions")
+        logger.exception("open in nova: could not read the install file permissions")
         private = False
     if private:
         return
     try:
         path.unlink(missing_ok=True)
     except OSError:
-        logger.exception("open in nova: could not delete an unprotected token file")
+        logger.exception("open in nova: could not delete an unprotected install file")
 
 
 def acl_is_current_user_only(user_sid: str, aces: list[tuple[str, str]]) -> bool:
