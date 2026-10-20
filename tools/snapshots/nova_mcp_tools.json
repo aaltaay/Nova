@@ -1,7 +1,7 @@
 [
   {
     "name": "data_catalog",
-    "description": "Start here: every dataset (trades, quotes, bars, daily bars, movers index, stock-day finder, boards, order flow, halts, catalysts, symbols, splits, financials, SEC shares and filings, float, IPOs, ticker details, short interest, Nova's own recorded Level 2 and tape) with its source, history, as-of rule, units and the tool that reads it, plus what is NOT available.",
+    "description": "Start here: every dataset (trades, quotes, bars, daily bars, movers index, stock-day finder, boards, order flow, halts, catalysts, symbols, splits, financials, SEC shares and filings, float, IPOs, ticker details, short interest, relative volume across every stock, Nova's own recorded Level 2 and tape) with its source, history, as-of rule, units and the tool that reads it, plus what is NOT available.",
     "inputSchema": {
       "properties": {},
       "title": "data_catalogArguments",
@@ -16,7 +16,7 @@
   },
   {
     "name": "data_status",
-    "description": "What is on disk: each Massive dataset's days and indexed share, the movers index and past-day boards.",
+    "description": "What is on disk: each Massive dataset's days and indexed share, the movers index, past-day boards and the relative-volume table.",
     "inputSchema": {
       "properties": {},
       "title": "data_statusArguments",
@@ -1224,6 +1224,354 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "rvol_scan",
+    "description": "Relative volume of every common stock on every day, as of one ET clock time (at HH:MM: bars starting before it), from the relative-volume table (2016 on). Each row: date, symbol, kind, prev_close, price / price_et (the last bar's close and start), change_pct, volume (since 04:00), base_volume, rvol, volume_5m, base_5m, rvol_5m, day_avg_volume, rvol_daily, base_sessions, day_avg_sessions, split. filters: date_from, date_to (or symbol), price_min / price_max (prior close, $), rvol_min / rvol_max (on measure), volume_min (shares by at), change_min / change_max (percent points). measure: cumulative (volume since 04:00 / the prior sessions' mean to the same minute) | five_minute (the last 5 minutes / the same 5 minutes before) | daily_rate (volume since 04:00 / the mean whole-session volume of up to 50 sessions: the Five Pillars' \"5x the 50-day average\"). kinds default [\"CS\", \"ADRC\"] (also \"unknown\"); likely reverse splits left out (splits=include keeps); a measure needs min_base_sessions prior sessions (default 20). Sorted by the measure, largest first; 200 rows inline, rows counts all; output_name (new .parquet/.csv) for every row.",
+    "inputSchema": {
+      "properties": {
+        "at": {
+          "title": "At",
+          "type": "string"
+        },
+        "filters": {
+          "additionalProperties": true,
+          "title": "Filters",
+          "type": "object"
+        },
+        "measure": {
+          "default": "cumulative",
+          "title": "Measure",
+          "type": "string"
+        },
+        "kinds": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kinds"
+        },
+        "splits": {
+          "default": "exclude_likely",
+          "title": "Splits",
+          "type": "string"
+        },
+        "min_base_sessions": {
+          "default": 20,
+          "title": "Min Base Sessions",
+          "type": "integer"
+        },
+        "sort": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sort"
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Limit"
+        },
+        "output_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Name"
+        }
+      },
+      "required": [
+        "at",
+        "filters"
+      ],
+      "title": "rvol_scanArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "rvol_triggers",
+    "description": "The first minute each stock-day's relative volume reached rvol_min (5 = five times its baseline) inside [window_from, window_to) ET, with every filter holding at that bar -- e.g. the 6-7 AM surge. Rows: date, symbol, kind, prev_close, trigger_et (the bar's start), entry_et (its end: the first moment it is known), price (its close), change_pct, volume, base_volume, rvol, volume_5m, base_5m, rvol_5m, day_avg_volume, rvol_daily, above_before (already over the line before the window opened, so the window's first bar triggered; fresh=true leaves those out), base_sessions, split. filters: date_from, date_to (or symbol), price_min / price_max (prior close), volume_min (shares since 04:00 at the bar), change_min / change_max (percent points at the bar). measure: cumulative (volume since 04:00 / the prior sessions' mean to the same minute) | five_minute (the last 5 minutes / the same 5 minutes before) | daily_rate (volume since 04:00 / the mean whole-session volume of up to 50 sessions). Oldest day first; 200 inline, rows counts all.",
+    "inputSchema": {
+      "properties": {
+        "rvol_min": {
+          "title": "Rvol Min",
+          "type": "number"
+        },
+        "filters": {
+          "additionalProperties": true,
+          "title": "Filters",
+          "type": "object"
+        },
+        "measure": {
+          "default": "cumulative",
+          "title": "Measure",
+          "type": "string"
+        },
+        "window_from": {
+          "default": "04:00",
+          "title": "Window From",
+          "type": "string"
+        },
+        "window_to": {
+          "default": "16:00",
+          "title": "Window To",
+          "type": "string"
+        },
+        "kinds": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kinds"
+        },
+        "splits": {
+          "default": "exclude_likely",
+          "title": "Splits",
+          "type": "string"
+        },
+        "min_base_sessions": {
+          "default": 20,
+          "title": "Min Base Sessions",
+          "type": "integer"
+        },
+        "fresh": {
+          "default": false,
+          "title": "Fresh",
+          "type": "boolean"
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Limit"
+        },
+        "output_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Name"
+        }
+      },
+      "required": [
+        "rvol_min",
+        "filters"
+      ],
+      "title": "rvol_triggersArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "rvol_outcomes",
+    "description": "What came next: from every stock-day at clock time at (rvol_scan's rows) or from the first minute it crossed a line (trigger = {\"rvol_min\": 10, \"measure\"?, \"window_from\"?, \"window_to\"?, \"fresh\"?}; filters as rvol_triggers), did a bar's high reach +up_pct% or a low reach -down_pct% of the entry price first? The entry price is the close of the last bar before the entry clock; only later bars are read. horizon: close (before 16:00) | session (before 20:00) | days (days=1-20: then the next trading sessions' high / low on the entry's share basis; a horizon past the newest built session is left out as horizon_open). Outcomes up | down | same_bar (both in one minute: order unknown, never guessed) | same_day | neither. summary per group_by (rvol buckets on measure -- buckets edges, default 0,1,2,3,5,10,20,50,100,1000 -- or year | hour | none) plus all: entries, counts, p_up, p_down, p_up_resolved, median max up / down %, median and mean end %, median minutes to each line. Trigger entries get a control (on by default): one stock-day per trigger from the same date and universe that had not crossed the line by then, scored from the same clock. meta.left_out counts what was dropped. output_name writes every scored entry.",
+    "inputSchema": {
+      "properties": {
+        "filters": {
+          "additionalProperties": true,
+          "title": "Filters",
+          "type": "object"
+        },
+        "at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "At"
+        },
+        "trigger": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Trigger"
+        },
+        "up_pct": {
+          "default": 50.0,
+          "title": "Up Pct",
+          "type": "number"
+        },
+        "down_pct": {
+          "default": 50.0,
+          "title": "Down Pct",
+          "type": "number"
+        },
+        "horizon": {
+          "default": "close",
+          "title": "Horizon",
+          "type": "string"
+        },
+        "days": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Days"
+        },
+        "group_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Group By"
+        },
+        "buckets": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Buckets"
+        },
+        "measure": {
+          "default": "cumulative",
+          "title": "Measure",
+          "type": "string"
+        },
+        "kinds": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kinds"
+        },
+        "splits": {
+          "default": "exclude_likely",
+          "title": "Splits",
+          "type": "string"
+        },
+        "min_base_sessions": {
+          "default": 20,
+          "title": "Min Base Sessions",
+          "type": "integer"
+        },
+        "control": {
+          "default": true,
+          "title": "Control",
+          "type": "boolean"
+        },
+        "seed": {
+          "default": 1,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "output_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Name"
+        }
+      },
+      "required": [
+        "filters"
+      ],
+      "title": "rvol_outcomesArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
       "openWorldHint": false
     }
   },

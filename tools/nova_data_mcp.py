@@ -27,8 +27,9 @@ if str(REPO / "research") not in sys.path:
 if str(REPO / "tools") not in sys.path:
     sys.path.insert(0, str(REPO / "tools"))
 
-import nova_data_recordings as recordings  # noqa: E402  (the third tool set: Nova's recorded Level 2 and tape)
+import nova_data_recordings as recordings  # noqa: E402  (the fourth tool set: Nova's recorded Level 2 and tape)
 import nova_data_research as research  # noqa: E402  (the second tool set: stock-days, stats, flow, halts ...)
+import nova_data_rvol as rvol_tools  # noqa: E402  (the third: relative volume across every stock, #1100)
 
 INLINE_ROWS = 200
 OUTPUT_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,100}\.(parquet|csv)$")
@@ -65,17 +66,28 @@ def _json_safe(value: Any) -> Any:
     return json.loads(json.dumps(value, default=str))
 
 
+def records(frame) -> list[dict[str, Any]]:
+    """Rows as JSON records. A time with a zone keeps its own offset (``time_et`` 09:40 is
+    ``2026-09-03T09:40:00-04:00``): pandas' ISO writer would turn it into UTC with a ``Z`` under an ``_et`` name
+    (#1086)."""
+    zoned = [c for c in frame.columns if getattr(frame[c].dtype, "tz", None) is not None]
+    if zoned:
+        frame = frame.assign(**{c: frame[c].map(lambda t: None if t is None or t != t else t.isoformat())
+                                for c in zoned})
+    return json.loads(frame.to_json(orient="records", date_format="iso"))
+
+
 def table_answer(frame, out: Path | None = None, inline: int = INLINE_ROWS) -> dict[str, Any]:
     """A DataFrame as an answer: ``rows`` matched, ``columns``, the first ``inline`` rows, and the file when asked."""
     meta = {k: v for k, v in getattr(frame, "attrs", {}).items() if k != "file"}
     if out is not None:
         frame.to_parquet(out, index=False) if out.suffix == ".parquet" else frame.to_csv(out, index=False)
-    head = json.loads(frame.head(inline).to_json(orient="records", date_format="iso")) if len(frame) else []
+    head = records(frame.head(inline)) if len(frame) else []
     return {"ok": True, "meta": _json_safe(meta), "rows": int(len(frame)), "columns": [str(c) for c in frame.columns],
             "data": head, "truncated": len(frame) > inline, "out": str(out) if out else None}
 
 
-class DataService(research.ResearchTools, recordings.RecordingTools):
+class DataService(research.ResearchTools, rvol_tools.RvolTools, recordings.RecordingTools):
     """The tools' bodies, callable without the MCP SDK (tests drive this class)."""
 
     answer = staticmethod(table_answer)
@@ -216,13 +228,14 @@ def create_server(service: DataService, run_sync=None, server_name: str = "nova-
     async def data_catalog() -> dict:
         """Start here: every dataset (trades, quotes, bars, daily bars, movers index, stock-day finder, boards,
         order flow, halts, catalysts, symbols, splits, financials, SEC shares and filings, float, IPOs, ticker
-        details, short interest, Nova's own recorded Level 2 and tape) with its source, history, as-of rule, units
-        and the tool that reads it, plus what is NOT available."""
+        details, short interest, relative volume across every stock, Nova's own recorded Level 2 and tape) with its
+        source, history, as-of rule, units and the tool that reads it, plus what is NOT available."""
         return await run(service.catalog)
 
     @server.tool(annotations=reads)
     async def data_status() -> dict:
-        """What is on disk: each Massive dataset's days and indexed share, the movers index and past-day boards."""
+        """What is on disk: each Massive dataset's days and indexed share, the movers index, past-day boards and the
+        relative-volume table."""
         return await run(service.status)
 
     @server.tool(annotations=writes_file)
@@ -315,6 +328,7 @@ def create_server(service: DataService, run_sync=None, server_name: str = "nova-
         return await run(service.short_interest, symbol, day, at)
 
     research.register(server, service, run, reads, writes_file)
+    rvol_tools.register(server, service, run, reads, writes_file)
     recordings.register(server, service, run, reads, writes_file)
     return server
 
@@ -323,7 +337,7 @@ PRELOAD = ("numpy", "pandas", "pyarrow", "market_reads.reads", "market_reads.spl
            "market_reads.sec", "market_reads.tickers", "market_reads.scan", "market_reads.inventory",
            "market_reads.catalog", "day_movers.query",
            "agent_desk.movers_read", "leaderboard.playback", "move_reason.short_interest", *research.PRELOAD,
-           *recordings.PRELOAD)
+           *rvol_tools.PRELOAD, *recordings.PRELOAD)
 
 
 def preload() -> list[str]:
