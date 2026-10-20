@@ -50,6 +50,18 @@ RESEARCH = (
               "verdicts are rules v7 (the live classifier is newer: meta.warning)",
      "units": "published ET; verdict / category / strength labels; a missing verdict is unknown, never no news",
      "mcp": "catalysts", "cli": "market_data.py catalysts SYMBOL --from DAY --to DAY [--verdicts]"},
+    {"name": "relative_volume", "source": "Nova's relative-volume table (research/rvol/build_rvol.py from the "
+                                          "minute and day files): every minute bar of every common stock with its "
+                                          "baselines, one row per stock-day",
+     "history": "2016-01-04 on, every session built (data_status rvol_table has the range)",
+     "as_of": "a measure at a minute counts bars starting at or before it (at a clock time, before it); baselines "
+              "read only earlier sessions (at most 20 / 50, none over 100 days old, same company, listed splits on "
+              "the day's basis); outcomes read only bars after the entry clock",
+     "units": "rvol / rvol_5m / rvol_daily ratios (5 = five times); volume shares; prices raw; change percent "
+              "points; same_bar = both lines in one minute (order unknown, counted apart)",
+     "mcp": "rvol_scan (every stock-day at HH:MM) / rvol_triggers (first minute over a line) / rvol_outcomes "
+            "(+X% or -X% first, by rvol bucket, with a same-minute control)",
+     "cli": "market_data.py rvol AT key=value / rvol-triggers RVOL_MIN key=value / rvol-outcomes key=value"},
     {"name": "symbols", "source": "Massive ticker list (reference/tickers.json: 36,729 rows, 13,252 active)",
      "history": "latest dump (delisted tickers included)",
      "as_of": "which company held a ticker on a day: tickers.py (84 tickers had two companies)",

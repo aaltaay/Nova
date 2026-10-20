@@ -15,13 +15,15 @@ import data_access_hook as hook  # noqa: E402
 def test_naming_a_raw_store_is_blocked():
     for command in (r"py -3 -c ""import sqlite3; sqlite3.connect('E:/Nova/massive/movers/day_movers.sqlite3')""",
                     r"Get-Content E:\Nova\massive\store\reference\float.jsonl",
-                    "python - < x  # opens F:/Nova/catalysts/edgar/companyfacts.zip"):
+                    "python - < x  # opens F:/Nova/catalysts/edgar/companyfacts.zip",
+                    "py -3 -c \"import duckdb; duckdb.sql('FROM read_parquet(F:/Nova/rvol/minutes/2026/x.parquet)')\""):
         assert hook.shell_verdict(command), command
 
 
 def test_the_front_door_repo_code_and_a_stated_reason_pass():
     assert hook.shell_verdict(r"py -3 tools/market_data.py scan high_min=50") is None
     assert hook.shell_verdict(r"py -3 research/movers/build_movers.py") is None
+    assert hook.shell_verdict(r"py -3 research/rvol/build_rvol.py --status") is None
     assert hook.shell_verdict(r"Get-Item E:\Nova\massive\movers\day_movers.sqlite3  # raw-data-ok: file size") is None
     assert hook.shell_verdict("git status") is None and hook.shell_verdict("npm test") is None
 

@@ -22,6 +22,8 @@ data; ``index`` writes only the seek indexes the Sim's own reader keeps (ADR 046
   find / daily / context / stats / flow / halts / catalysts / symbols   Momentum research (market_data_research.py):
             stock-days with the shares known that day, daily bars, SPY/QQQ/IWM, one stock-day's stats, minute order
             flow, halts, news and verdicts, symbol search.
+  rvol / rvol-triggers / rvol-outcomes   Relative volume across every stock (market_data_rvol.py): every
+            stock-day at a clock time, the first minute over a line, and +X% or -X% first after it.
 
 trades / quotes / bars are raw (the files are never split-adjusted); --adjust puts them in today's terms.
 The MCP server tools/nova_data_mcp.py serves the same reads to agents.
@@ -54,6 +56,7 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "research"))
 
 import market_data_research as research  # noqa: E402  (find, daily, context, stats, flow, halts, catalysts, symbols)
+import market_data_rvol as rvol_cli  # noqa: E402  (rvol, rvol-triggers, rvol-outcomes)
 from market_reads import inventory  # noqa: E402
 
 SHOW_ROWS = 15
@@ -319,10 +322,13 @@ def main(argv: list[str] | None = None) -> int:
     ri = sub.add_parser("reference-index", help="build or refresh the reference dump's index")
     ri.add_argument("--datasets", help="comma list (default: all)")
     research.add_parsers(sub, output)
+    rvol_cli.add_parsers(sub, output)
 
     args = parser.parse_args(argv)
     if args.cmd in research.HANDLERS:
         return research.HANDLERS[args.cmd](args, _show)
+    if args.cmd in rvol_cli.HANDLERS:
+        return rvol_cli.HANDLERS[args.cmd](args, _show)
     handlers = {"status": cmd_status, "index": cmd_index, "trades": cmd_rows, "quotes": cmd_rows,
                 "bars": cmd_bars, "movers": cmd_movers, "board": cmd_board, "splits": cmd_splits,
                 "bench": cmd_bench, "catalog": cmd_catalog, "scan": cmd_scan, "financials": cmd_reference,

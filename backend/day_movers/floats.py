@@ -75,15 +75,21 @@ def _split_factor(db: sqlite3.Connection, symbol: str, after: str, through: str)
     return factor
 
 
-def sec_shares(db: sqlite3.Connection, pairs: list[Pair]) -> dict[Pair, dict[str, Any]]:
-    """The newest SEC share count usable on each (date, symbol): ``{shares, as_of, filed, age_days}``."""
+def sec_shares(db: sqlite3.Connection, pairs: list[Pair], *, before: bool = False) -> dict[Pair, dict[str, Any]]:
+    """The newest SEC share count usable on each (date, symbol): ``{shares, as_of, filed, age_days}``.
+
+    ``before``: only a count filed by the calendar day before the session -- what was on file at its open, never a
+    filing made during it -- still put on the session's share basis, a split executing that day included.
+    """
     out: dict[Pair, dict[str, Any]] = {}
     for day, symbol in pairs:
-        oldest = (date.fromisoformat(day) - timedelta(days=DAY_MOVERS_SEC_SHARES_MAX_AGE_DAYS)).isoformat()
+        session = date.fromisoformat(day)
+        known = (session - timedelta(days=1)).isoformat() if before else day
+        oldest = (session - timedelta(days=DAY_MOVERS_SEC_SHARES_MAX_AGE_DAYS)).isoformat()
         try:
             row = db.execute(
                 "SELECT as_of, filed, shares FROM sec_shares WHERE symbol = ? AND filed <= ? AND as_of <= ?"
-                " AND as_of >= ? ORDER BY as_of DESC, filed DESC LIMIT 1", (symbol, day, day, oldest),
+                " AND as_of >= ? ORDER BY as_of DESC, filed DESC LIMIT 1", (symbol, known, known, oldest),
             ).fetchone()
         except sqlite3.OperationalError:  # maintainer: allow-swallow a store with no counts: every float unknown
             return {}
@@ -92,7 +98,7 @@ def sec_shares(db: sqlite3.Connection, pairs: list[Pair]) -> dict[Pair, dict[str
         as_of, filed, shares = row[0], row[1], float(row[2])
         shares *= _split_factor(db, symbol, as_of, day)
         out[(day, symbol)] = {"shares": round(shares), "as_of": as_of, "filed": filed,
-                              "age_days": (date.fromisoformat(day) - date.fromisoformat(as_of)).days}
+                              "age_days": (session - date.fromisoformat(as_of)).days}
     return out
 
 
