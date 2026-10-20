@@ -364,7 +364,8 @@
         347,
         367,
         369,
-        762
+        762,
+        1099
       ],
       "done": [
         "Actions-merged ready PRs start the installer workflow and full verification on the released commit.",
@@ -486,6 +487,19 @@
             "knowledge/backlog-packages.json",
             "tools/pr_delivery_actions.py",
             "tools/test_pr_delivery.py"
+          ]
+        },
+        {
+          "title": "fix(delivery): a branch tip already inside the merged head is not stranded",
+          "issues": [
+            1099
+          ],
+          "note": "The stranded-commits sweep opened #1099 for a tip that was the merged head's own parent (branch deleted after merge, then re-pushed from an older checkout). A tip contained in the merged head carries nothing; skip it instead of reporting 'rewritten'.",
+          "gated": false,
+          "touches": [
+            "knowledge/backlog-packages.json",
+            "tools/stranded_commits.py",
+            "tools/test_stranded_commits.py"
           ]
         }
       ]

@@ -16,6 +16,7 @@ after the merged head, and for each one:
   them like any other PR. An open recovery PR for the branch gets the new commits instead of a second
   PR. A PR opened with ``GITHUB_TOKEN`` starts no CI run, so CI is dispatched on the recovery branch;
 - commits already on master (redone by a later PR) are dropped; nothing left means nothing to land;
+- a tip behind the merged head (the branch deleted, then pushed again from an older checkout) holds nothing new;
 - a conflict, or a branch rewritten past its merged head, opens a P1 issue naming the commits instead.
 
 Every action leaves ``stranded-tip: <sha>`` in a body, so a sweep never carries the same tip twice. A person who
@@ -119,6 +120,10 @@ def plan(pr: Merged, tip: str, *, open_pr: bool, open_recovery: bool, carried: s
         return Plan("skip", "this tip is already carried")
     if tip in reported:
         return Plan("skip", "an issue already names this tip")
+    if is_ancestor(tip, pr.head):
+        # Behind the merge, not past it: the branch was deleted after the merge and pushed again from an
+        # older checkout. Every commit it holds is in the merged head already (#1099).
+        return Plan("skip", "the tip is already inside the merged head")
     if not is_ancestor(pr.head, tip):
         return Plan("issue", "the branch was rewritten past its merged head")
     done = [t for t in carried if t != tip and is_ancestor(t, tip)]

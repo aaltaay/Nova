@@ -45,6 +45,16 @@ def test_a_branch_rewritten_past_its_merged_head_opens_an_issue():
     assert decide("d" * 40).action == "issue"
 
 
+def test_a_tip_behind_the_merged_head_is_not_stranded():
+    # #1099: the branch came back at the merged head's parent; its commits are all in the merged head.
+    parent = "e" * 40
+    HISTORY.add((parent, PR.head))
+    try:
+        assert decide(parent) == sc.Plan("skip", "the tip is already inside the merged head")
+    finally:
+        HISTORY.discard((parent, PR.head))
+
+
 def test_the_tip_marker_is_read_back_from_pr_and_issue_bodies():
     body = sc._body.__doc__ or ""  # bodies are built with the marker; read one back as a sweep would
     text = f"lands them\n<!-- {sc.TIP_MARKER} {LATE} -->\n"
