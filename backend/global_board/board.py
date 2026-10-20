@@ -77,14 +77,29 @@ def _flow_1d(st: Store, m: Mapping, now: float) -> dict:
             "error": None if rate else f"no {value.get('currency')} rate from IBKR yet"}
 
 
+def completed(rows: Sequence[Mapping], sm: Mapping, now: float) -> list[Mapping]:
+    """Daily rows of sessions that have closed on the market's clock: a forming day (today's session still
+    trading, or a future's day that began before the cash open) is left out until its session ends."""
+    shown = markets.shown(sm, now)
+    if shown is None:
+        return list(rows)
+    if now >= shown[1][-1][1]:
+        last = shown[0].isoformat()
+    else:
+        prev = markets.previous(sm, shown)
+        last = prev[0].isoformat() if prev else ""
+    return [r for r in rows if (r.get("date") or "") <= last]
+
+
 def _flow_days(st: Store, m: Mapping, period: str, now: float) -> dict:
     value = st.get(f"daily_flow:{m['id']}", now)
     if value is None:
         return _empty_flow(_why(st, f"daily_flow:{m['id']}"))
-    index_rows = (st.get(f"index_daily:{m['id']}", now) or {}).get("rows") or []
-    sign_rows = index_rows or value.get("rows") or []
+    index_rows = completed((st.get(f"index_daily:{m['id']}", now) or {}).get("rows") or [], m, now)
+    rows = completed(value.get("rows") or [], jobs.session_market(m, value.get("basis")), now)
+    sign_rows = index_rows or rows
     mult = (value.get("instrument") or {}).get("multiplier") or 1.0
-    sums = flows.daily_sums(value.get("rows") or [], sign_rows, GLOBAL_PERIOD_SESSIONS[period], mult)
+    sums = flows.daily_sums(rows, sign_rows, GLOBAL_PERIOD_SESSIONS[period], mult)
     rate, fx = _rate(st, value.get("currency"), now)
     return {**_empty_flow(None), "basis": value.get("basis"), "instrument": value.get("instrument"),
             "from": sums["from"], "to": sums["to"], "sessions": sums["sessions"], **_money(sums, rate),
@@ -130,11 +145,11 @@ def _move_1d(st: Store, m: Mapping, session: Mapping, quotes: Mapping, quotes_at
 def _move_days(st: Store, m: Mapping, period: str, now: float) -> dict:
     n = GLOBAL_PERIOD_SESSIONS[period]
     daily = st.get(f"index_daily:{m['id']}", now) or {}
-    got = flows.daily_move(daily.get("rows") or [], n)
+    got = flows.daily_move(completed(daily.get("rows") or [], m, now), n)
     if got:
         return _move("index", daily.get("instrument"), got, daily.get("read_at"))
     other = st.get(f"daily_flow:{m['id']}", now) or {}
-    got = flows.daily_move(other.get("rows") or [], n)
+    got = flows.daily_move(completed(other.get("rows") or [], jobs.session_market(m, other.get("basis")), now), n)
     if got:
         return _move(other.get("basis"), other.get("instrument"), got, other.get("read_at"))
     return _move(None, None, None, None, error=_why(st, f"daily_flow:{m['id']}"))
@@ -142,8 +157,7 @@ def _move_days(st: Store, m: Mapping, period: str, now: float) -> dict:
 
 def _refused(st: Store, m: Mapping, now: float) -> list[dict]:
     out = []
-    for kind in ("future", "index"):
-        spec = m[kind]
+    for kind, spec in (("future", m["future"]), ("index", m["index"]), ("etf", contracts.etf_spec(m["etf"]))):
         got = jobs.refused(st, contracts.key(kind, spec), now) if spec else None
         if got:
             out.append({"instrument": got.get("instrument"), "error": got.get("error")})

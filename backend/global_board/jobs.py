@@ -187,8 +187,19 @@ def index_daily_due(st: Store, m: Mapping, now: float, wanted_period: str) -> bo
 
 
 def daily_flow_due(st: Store, m: Mapping, now: float) -> bool:
+    """Once per ET date, and once more after the market's session closes when the last read was taken while it
+    traded (the 7 D / 30 D views count completed sessions only)."""
     value = st.get(f"daily_flow:{m['id']}", now)
-    return value is None or et_date(float(value.get("read_at") or 0.0)) != et_date(now)
+    if value is None:
+        return True
+    read_at = float(value.get("read_at") or 0.0)
+    if et_date(read_at) != et_date(now):
+        return True
+    shown = markets.shown(session_market(m, value.get("basis")), now)
+    if shown is None:
+        return False
+    close = shown[1][-1][1]
+    return now >= close + FINAL_READ_LAG_SEC and read_at < close + FINAL_READ_LAG_SEC
 
 
 def due(st: Store, now: float, *, wanted: bool, period: str) -> list[Job]:

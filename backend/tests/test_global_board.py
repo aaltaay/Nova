@@ -251,6 +251,41 @@ def test_a_closed_market_reads_its_index_close_and_an_open_one_its_live_quote():
     assert row["move"]["basis"] == "index" and row["move"]["pct"] == 0.8 and row["move"]["data_type"] == "live"
 
 
+def test_seven_and_thirty_days_count_completed_sessions_only():
+    jp = m("jp")
+    days = [f"2026-10-{d:02d}" for d in (9, 12, 13, 14, 15, 16, 19, 20)]
+    rows = [{"date": d, "close": 100.0 + i} for i, d in enumerate(days)]
+    open_now = ts("2026-10-20T01:00")                # Tokyo trading: the 20th's bar is still forming
+    assert [r["date"] for r in board.completed(rows, jp, open_now)][-1] == "2026-10-19"
+    closed = ts("2026-10-20T08:00")                  # after the close the 20th counts
+    assert [r["date"] for r in board.completed(rows, jp, closed)][-1] == "2026-10-20"
+    us_premarket = ts("2026-10-20T12:00")            # 08:00 ET: a future's 20th began overnight, not a session yet
+    assert [r["date"] for r in board.completed(rows, m("us"), us_premarket)][-1] == "2026-10-19"
+    st = store()
+    st.put("index_daily:jp", {"instrument": contracts.instrument("index", jp["index"]), "rows": rows,
+                              "read_at": open_now}, open_now)
+    move = board.market_row(st, jp, open_now, "7D", {}, None)["move"]
+    assert move["basis"] == "index" and move["last"] == 106.0 and move["prev_close"] == 101.0
+
+
+def test_a_daily_read_taken_while_a_market_traded_is_read_again_after_its_close():
+    st = store()
+    jp = m("jp")
+    open_now = ts("2026-10-20T01:00")
+    st.put("daily_flow:jp", {"basis": "future", "rows": [], "read_at": open_now}, open_now)
+    assert not jobs.daily_flow_due(st, jp, open_now + 600)
+    assert jobs.daily_flow_due(st, jp, ts("2026-10-20T07:00"))   # 16:00 in Tokyo, after the close
+
+
+def test_a_refused_etf_is_listed_with_ibkrs_words():
+    now = ts("2026-10-20T15:00")
+    st = store()
+    jobs.remember_refusal(st, "etf", contracts.etf_spec("EWZ"), "200: No security definition has been found", now)
+    row = board.market_row(st, m("br"), now, "1D", {}, None)
+    assert row["flow"]["refused"] == [{"instrument": "EWZ (US-listed ETF)",
+                                       "error": "200: No security definition has been found"}]
+
+
 # -- last in line ---------------------------------------------------------------------------------------------------
 
 def test_history_reads_wait_while_the_page_headroom_is_not_there(monkeypatch):

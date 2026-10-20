@@ -3,6 +3,8 @@
  * money went -- each market's pressure from the real trades of its own index futures (or its US-listed ETF, named on
  * the row) and its index move, side by side, on a world map, by region, through the last 24 hours, and against each
  * other. Read-only: nothing here places an order; a country ETF's symbol opens the Trader. Every number is IBKR's.
+ * Labels and scales follow the period of the board on screen, never the switch, so a period still loading is
+ * never shown under another period's numbers.
  */
 import { useState, type ReactNode } from 'react';
 import { useSampleRoute } from '../sample_data/useSampleRoute';
@@ -91,6 +93,11 @@ export function GlobalPage({ onOpenTrader }: GlobalPageProps) {
       {ibkr && ibkr.ok === false ? <p className="gb-stale" role="status">IBKR: {ibkr.error}</p> : null}
       {board.loading ? <p className="gb-wait" role="status">Reading each market from IBKR, last in line …</p> : null}
       {waiting ? <p className="gb-note" role="status">{waiting}</p> : null}
+      {board.period !== prefs.period ? (
+        <p className="gb-note" role="status" data-testid="global-period-loading">
+          Loading {PERIOD_LABEL[prefs.period]} -- showing {PERIOD_LABEL[board.period]} until it answers.
+        </p>
+      ) : null}
       <KpiStrip read={board.read} world={board.world} regions={board.regions} />
       <div className="gb-main">
         <div className="gb-left">
@@ -103,7 +110,7 @@ export function GlobalPage({ onOpenTrader }: GlobalPageProps) {
                 <i className="is-down" />{prefs.colorBy === 'pressure' ? 'Sellers more eager' : 'Index down'}
               </span>
             </div>
-            <WorldMap markets={board.markets} colorBy={prefs.colorBy} period={prefs.period} now={board.generated_at}
+            <WorldMap markets={board.markets} colorBy={prefs.colorBy} period={board.period} now={board.generated_at}
               hovered={hovered} onHover={setHovered} />
           </section>
           <div className="gb-bottom">
@@ -126,9 +133,9 @@ export function GlobalPage({ onOpenTrader }: GlobalPageProps) {
         <section className="gb-card gb-side">
           <div className="gb-card__head">
             <h3>By exchange</h3>
-            <span className="gb-muted">ranked by pressure · {PERIOD_LABEL[prefs.period]}</span>
+            <span className="gb-muted">ranked by pressure · {PERIOD_LABEL[board.period]}</span>
           </div>
-          <ExchangeList markets={board.markets} period={prefs.period} hovered={hovered} onHover={setHovered}
+          <ExchangeList markets={board.markets} period={board.period} hovered={hovered} onHover={setHovered}
             onOpenTrader={onOpenTrader} />
           <div className="gb-defs">
             <p>{PRESSURE_DEF}</p>

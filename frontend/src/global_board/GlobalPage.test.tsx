@@ -123,6 +123,16 @@ describe('Global page on the live desk', () => {
     expect(parsePrefs(JSON.parse(window.localStorage.getItem(GLOBAL_PREFS_STORAGE_KEY) ?? 'null')).period).toBe('7D');
   });
 
+  it('keeps the last board labelled by its own period while another period loads', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => (url.includes('7D') ? new Promise(() => {}) : respond(sampleGlobalBoard('1D')))));
+    render(<GlobalPage />);
+    await flush();
+    fireEvent.click(screen.getByTestId('global-period-7D'));
+    await flush();
+    expect(screen.getByTestId('global-period-loading').textContent).toContain('Loading 7D');
+    expect(screen.getByTestId('global-page').textContent).toContain('ranked by pressure · 1D');
+  });
+
   it('says so when the backend has no Global page yet', async () => {
     vi.stubGlobal('fetch', vi.fn(() => respond({}, 404)));
     render(<GlobalPage />);

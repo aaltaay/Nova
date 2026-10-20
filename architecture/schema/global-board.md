@@ -37,9 +37,10 @@ answered or failed once in this process (or was kept from the last one); `replay
     data_type, error}` -- 1 D: the home index's last against its prior close, from a line held for a moment
     (`ibkr.brief_lines`); without one, the home future's last 1-minute close against its last 1-minute close of
     the market's previous session; without a home future, the country ETF's last against its last regular-hours
-    close of the session before. 7 D / 30 D: the home index's
-    (else the ETF's) regular-hours daily close 5 / 21 sessions back against its last. `null` numbers with `error`
-    when nothing answered.
+    close of the session before. 7 D / 30 D: the home index's (else the ETF's) regular-hours daily close 5 / 21
+    completed sessions back against its last completed one -- a day still trading on the market's clock, or a
+    future's day that began before the cash open, is left out until its session ends (the flow's 7 D / 30 D too).
+    `null` numbers with `error` when nothing answered.
   - `flow` (the money): `{basis: "future" | "etf" | null, instrument, from, to, bars | sessions, up_usd, down_usd,
     flat_usd, traded_usd, pressure_usd, pressure_pct, last_bar_at, fx, at, error, refused: [{instrument, error}]}`.
     1 D: the session's 1-minute TRADES bars of the instrument, inside the market's own session (a future's overnight
@@ -87,7 +88,8 @@ with no home future reads its ETF, whose trades are US money in US hours, and th
 **Reads, last in line** (`backend/global_board/refresh.py`, one daemon thread started with the process). IBKR is
 asked only while it is connected. While the page is wanted: each open market's flow every `GLOBAL_FLOW_TTL_SEC`, a
 market that closed once more after its close, the index quotes every `GLOBAL_QUOTES_TTL_SEC`, each currency's FX
-close once per ET date, and -- for 7 D / 30 D only -- each market's daily bars once per ET date. Not wanted: the same
+close once per ET date, and -- for 7 D / 30 D only -- each market's daily bars once per ET date and once more
+after a close they were read before. Not wanted: the same
 flows, quotes and FX closes at `GLOBAL_IDLE_FLOW_TTL_SEC` / `GLOBAL_IDLE_QUOTES_TTL_SEC`, but never from 09:30 to
 16:00 ET, the desk's own hours, and no daily bars (`NOVA_GLOBAL_BOARD_WARM=0` reads only while wanted). Every historical request goes through the
 paced service at background priority, under its own pacing kind `global` (the capacity strip's History hover names
