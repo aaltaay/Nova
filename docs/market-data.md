@@ -26,6 +26,7 @@ py -3 tools/market_data.py scan date_from=2021-01-01 price_min=2 price_max=20 hi
 py -3 tools/market_data.py financials GURE --statement income_statements --as-of 2024-03-01
 py -3 tools/market_data.py sec-shares GURE --day 2024-03-01         # outstanding / issued / treasury filed by then
 py -3 tools/market_data.py sec-filings GURE --as-of 2024-03-01 --forms "4,SC 13D,424B4"
+py -3 tools/market_data.py runway GURE 2024-03-01                  # cash, burn, runway, share growth, offering filings
 py -3 tools/market_data.py float GURE                              # Massive's latest free float (no history)
 py -3 tools/market_data.py short-interest GURE 2024-03-01          # FINRA, as published by that morning
 py -3 tools/market_data.py find date_from=2025-01-01 date_to=2025-03-31 price_min=2 price_max=20 high_min=50 --float-max 20000000
@@ -49,6 +50,21 @@ ranks the rows like the movers search (`--sort high --limit 10` is the ten large
 filters; `next_cursor` resumes the same ranking exactly). Then `stats`, `flow`, `catalysts`
 and `daily` / `context` answer the questions about one stock-day. Builders and column definitions for the derived
 tables (`trades_flow_v1` and the rest): `docs/massive-builders.md`.
+
+**Cash runway and dilution filings in one call.** `runway` (MCP `cash_runway`) answers, for one stock and day and
+with nothing read from after it: the newest balance sheet's cash and short-term investments, the newest quarterly
+operating cash flow (the burn), runway in months (liquid cash / (burn / 3)), shares outstanding growth over 4 and 8
+quarters, and the S-1 / S-3 / F-1 / F-3 / 424B1-5 / 8-K filings in the lookback before the day (default 3 years)
+with their dates. It is composed from `financials`, `sec-shares` and `sec-filings`, so it is the method to use
+when agents' numbers must agree. Every figure names its statement's `period_end`, `filing_date` and `age_days`;
+unknown is null, never 0; the filings are counts and dates, not a verdict. **Read `age_days` / `stale` before
+you trust a number:** Massive dates a period by the newest filing that carried it (87% of quarterly cash-flow
+rows and 27% of balance sheets are dated 300+ days after their period), so on a past day the newest statement
+known is often over a year old and the balance sheet can be newer than the burn. The runway is divided out only
+when the two are from the same period, period ends within 14 days (else `status: periods_differ`, `months` null; a
+balance sheet one quarter newer than the burn is refused, not divided) and carries
+`stale` beside it. Shares growth is null when the two counts are not a window apart (`span_off_window`) or are one
+count (`same_count`). Schema: `architecture/schema/agent-desk.md` ("The data front door over MCP").
 
 From Python, the same reads return pandas DataFrames:
 
@@ -263,6 +279,11 @@ MCP: `signal_catalog`, `signal_series`, `signal_scan`, `signal_test`. Contract: 
 - **Filed, not period end.** A statement or SEC fact counts from the day it was filed: a quarter ending 03-31 is
   unknown until its 10-Q lands in May. `--as-of` / `--day` apply that rule. Balance-sheet `common_stock` and
   `treasury_stock` are dollars; share counts are SEC facts.
+- **Old statements on a past day.** `financials` (and `runway` on top of it) counts a statement from Massive's
+  `filing_date`, which is the newest filing that carried the period, usually the next year's comparative. On a past
+  day the newest statement counted is therefore often 300+ days past its period end, and the original filing of a
+  recent quarter can be absent. Check `period_end` / `age_days` against the day; never assume the latest row is the
+  latest quarter.
 - **Level 2** history is not in the Massive files: its stock plan is Level 1 only. Nova's own IBKR recordings
   (`F:\Nova\sim_capture` sessions from 2026-09-19, the desk cache's `l2.db` depth and `archive.db` tape from
   2026-07-15, `F:\Nova\book_watch`) replay in the Sim; the front door does not serve them yet.
