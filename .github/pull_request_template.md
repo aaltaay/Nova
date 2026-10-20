@@ -59,6 +59,6 @@ Parked something new instead of fixing it? Open a `deferred` issue and link it h
 - [ ] Live docs updated in the same commit if hosting / feed / phase / trading posture changed (`doc-invariants.mdc`)
 - [ ] Started from a clean `origin/master` tip on a new focused branch (or documented an explicit user waiver in this body)
 - [ ] Tree clean at finish: no stash, no leftover scratch worktree, `py -3 tools/repo_hygiene.py status` OK for what I own (`workspace-hygiene.mdc`)
-- [ ] This PR is ready (not draft) unless the user explicitly said to leave it draft. Agents never add `merge-approved`; only the owner `aaltaay` does. CI still running is not a draft reason
+- [ ] This PR is ready (not draft) so GitHub Actions can merge it; I did not leave it parked waiting for a human merge ask; CI still running is not a draft reason
 - [ ] After merge/close the head is gone (`pr-delivery.yml` + `delete_branch_on_merge`; `stale_pr_branches.py` if a leftover remains)
 - [ ] Verification status reported truthfully, including Desktop pack when applicable; a red Backend tests / Frontend build / Frontend E2E / Agent contract holds the merge and the Release
