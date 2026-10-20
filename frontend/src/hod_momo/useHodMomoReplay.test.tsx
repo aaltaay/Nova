@@ -181,7 +181,7 @@ describe('useHodMomoReplay', () => {
       .toEqual({ recorded: false, source: null, rebuild: null, alerts: [] });
     expect(parseHodHistoryDay({
       date: '2026-07-15', recorded: false, source: 'rebuilt', alerts: [HISTORY[0]], error: null,
-      rebuild: { status: 'ready', reason: null, stage: null, done: null, total: null, error: null, float_basis: 'yahoo_now' },
+      rebuild: { status: 'ready', reason: null, stage: null, done: null, total: null, error: null, float_basis: 'sec_outstanding_prior_day' },
     })).toEqual({
       recorded: false, source: 'rebuilt', alerts: [HISTORY[0]],
       rebuild: { status: 'ready', reason: null, stage: null, done: null, total: null, error: null },

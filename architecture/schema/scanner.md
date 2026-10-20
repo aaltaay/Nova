@@ -563,10 +563,19 @@ second memory cap), one day at a time; asking for another day, or the backend sh
   rebuilt row's); the surge buffer from those bars; average volume -- the mean whole-session day-bar volume over the
   63 sessions before the day (Yahoo's `averageVolume` is a 3-month average) -- and the 52-week high -- the highest
   day-bar high over the 252 sessions before the day, never the day's own -- from Massive's `day_aggs`,
-  split-adjusted with Massive's list plus the SEC-confirmed splits; the float is **Yahoo's float now**
-  (`fundamentals.fetch_fundamentals`), because that is what the live desk reads and no float as of a past day is on
-  file (`float_basis: "yahoo_now"`; an unknown float stays unknown). Change is measured from the prior close on
-  every tick; the gap from 09:30, from the day's day-bar open, as IBKR's open tick exists only from the open.
+  split-adjusted with Massive's list plus the SEC-confirmed splits. The float is **SEC shares outstanding filed
+  before the day** (`float_basis: "sec_outstanding_prior_day"`; `day_movers.floats.sec_shares(..., before=True)`):
+  the movers store's newest count filed by the calendar day before, reported as of at most 120 days before the day
+  (`DAY_MOVERS_SEC_SHARES_MAX_AGE_DAYS`), put on the day's share basis through the store's splits -- one executing
+  on the day itself included. It is set as the snapshot's float and its shares outstanding (`float_contradicted`
+  null). A float cannot exceed shares outstanding, so the count is an upper bound: at or under a `max_float` line
+  it proves the float is; over the line the float is unknown and the strategy does not fire, as live with an
+  unknown float. A floor cannot be proven from an upper bound, so every strategy with a `min_float` line sits out
+  the run (the Medium Float strategies by default; `summary.floor_unproven` lists them). A stock with no count on
+  file has an unknown float. Until 2026-10-20 the float was Yahoo's float on the day of the build (`yahoo_now`), a
+  look-ahead for any past day; `HOD_MOMO_REBUILD_LOGIC_VERSION` 2 makes those builds out of date. Change is measured
+  from the prior close on every tick; the gap from 09:30, from the day's day-bar open, as IBKR's open tick exists
+  only from the open.
 - **The engine** runs with the operator's HOD settings and blocklist and nothing else of today's, on a clock pinned
   to each tick (`hod_momo_replay.pinned_clock`); its consolidation queue is flushed at every tick, as the live
   0.25 s flush loop does, and once more after the day's last tick at the last open burst's end. It never writes the
@@ -577,7 +586,8 @@ Persisted state (persisted-state.mdc). Owner `hod_momo_rebuild/store.py`, the on
 root>/hod_momo/`, each file written whole (temp, rename): `<date>.alerts.json` `{schema_version: 1, date,
 built_ts, fingerprint, float_basis, summary, alerts}` -- `alerts` oldest first in `alert_to_dict`'s shape;
 `summary` `{watched, watched_minutes, prints, ticks, alerts, pending_unflushed, with_float, with_avg_volume,
-with_52wk_high, index, build_sec}` -- and `<date>.job.json` `{schema_version: 1, date, status: "queued" |
+with_52wk_high, floor_unproven, index, build_sec}` (`with_float`: stocks with an SEC count; `floor_unproven`: the
+strategy ids that sat out) -- and `<date>.job.json` `{schema_version: 1, date, status: "queued" |
 "building" | "ready" | "failed" | "stopped", stage: "inputs" | "index" | "trades" | "engine" | "writing" | null,
 done, total, started_ts, updated_ts, finished_ts, error, summary, fingerprint}` (`done` / `total`: stocks while
 reading trades, ticks while running the engine). `fingerprint` is `<logic version>:<boards>:<settings>` -- a SHA-256
@@ -596,6 +606,19 @@ every 5 s while it reads `none` or `stopped`; never after `failed`, and never ag
 `unavailable` or `failed`, whose reason it shows), reads the history every 2 s while it runs, and says so on the strip, the Focus rail and the count
 ("Rebuilding HOD Momo alerts from D's trades: running HOD Momo 40%…"); a rebuilt day's feed word is `rebuilt
 HH:MM`, its title naming the source and the float.
+
+**Many rebuilt days in a row** (2026-10-20, for the signal table's history). `python -m hod_momo_rebuild.batch
+--start D1 --end D2 [--workers N] [--oldest-first]` builds every calendar day of the range, newest first, each in
+the desk's own worker process (`job.spawn`: `worker_command`, below normal priority, the same memory cap), at most
+`N` at once (default 1; a busy day is about 12 million prints, so mind the cap times `N`). It skips, with the
+reason, a day the desk would refuse (`job.unavailable_reason`, or no rebuilt boards), a day whose build is ready
+and current (its `fingerprint` against the boards and the HOD settings now) and a day another process is building
+(an active job rewritten within `HOD_MOMO_REBUILD_STALE_SEC`), so running it again resumes where it stopped. A
+`STOP` file in `<leaderboard root>/hod_momo/batch/` starts no further day: the days already running finish, then
+the batch removes the file and ends. Each day's outcome and timing (`build_sec`, wall seconds, prints, alerts) is
+one line of `<leaderboard root>/hod_momo/batch/batch-<started>.log`, with the count of days built, skipped and
+failed and the median build time at the end; the workers' own logs are `hod_rebuild.log` / `.err` in the log
+directory. It writes nothing but the job and alerts files `store.py` owns and its log.
 
 **Many days at once** (2026-10-12). The live recorder gives up on a write after
 `LEADERBOARD_SQLITE_TIMEOUT_SEC` and loses that batch (`leaderboard/queue.py`),
