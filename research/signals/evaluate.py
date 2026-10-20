@@ -77,7 +77,11 @@ def _halts(events: list[dict] | None, prior: list[dict] | None, symbol: str, now
     from move_reason.facts import count_halts
     mine = [e for e in events if e.get("symbol") == symbol and float(e.get("ts") or 0) <= now]
     before = [e for e in (prior or []) if e.get("symbol") == symbol]
-    return count_halts(mine, before), halted_at(mine, symbol, now)
+    counts = count_halts(mine, before)
+    # The prior day's halt still in force: nothing logged today by now (``still_halted``), only today's events up to
+    # the minute read -- a resume later in the day is not known yet.
+    carried = counts.get("carried") or {}
+    return counts, halted_at(mine, symbol, now) or bool(carried.get("still_halted"))
 
 
 def _float_for_desk(shares: float | None) -> float | None:

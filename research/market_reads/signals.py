@@ -106,8 +106,9 @@ def _from(days: list[str], tape: bool) -> tuple[str, dict[str, Any]]:
 
 
 def _tape_columns(tape: bool) -> str:
-    if not tape:
-        return ""
+    if not tape:            # the same columns as a taped day's, so an answer's shape never depends on the date
+        return (", 'not_built' AS tape, CAST(NULL AS DOUBLE) AS tape_score, CAST(NULL AS BOOLEAN) AS tape_flush, "
+                "CAST(NULL AS BOOLEAN) AS tape_burst")
     return (", coalesce(t.tape, 'not_built') AS tape, t.tape_score, t.tape_flush, t.tape_burst")
 
 

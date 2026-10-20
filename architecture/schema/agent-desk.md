@@ -616,13 +616,16 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
       lanes) at 30 seconds -- the order inside a bar is not in the data, so a trigger needs the bar's extreme to
       reach the line.
     - `float` (state) with `float_shares` (SEC shares outstanding filed by the day before, as of within 120 days,
-      split-adjusted: an upper bound on the float -- under 20M proves the pillar, over it leaves the float
+      split-adjusted through the session, a split that day included (`floats.sec_shares` `before`): an upper bound on the float -- under 20M proves the pillar, over it leaves the float
       `unknown`) and `rotation` (volume since 04:00 over it).
-    - `halted` (bool, null before Nasdaq's log starts 2021-09-21), `halts_today` (state) with `halts_n`, and the
+    - `halted` (bool, null before Nasdaq's log starts 2021-09-21; a halt carried from the prior exchange day is
+      halted until today's log shows its resume), `halts_today` (state) with `halts_n`, and the
       tile `halts` (`Halted`, `No halts`, the count, `Not known`).
     - `tape` (the flow label at the end of `m`: `burst`, `flush`, `neutral`, `quiet`, `blind`, `not_built`) with
       `tape_score`, `tape_flush` and `tape_burst` (any 10-second reading inside the minute so labelled): the desk's
       flow rule over Massive's trades sided against the NBBO in force before each print, the book its top of book.
+      `not_built` marks a session the stage has not reached: every answer carries the four tape columns, and a
+      condition may not ask for `not_built` (a tape condition reads only the sessions the stage reached).
   - `signal_series {symbol, day, signals?, start?, end?}` -> a table answer, one row per minute of that stock-day
     (`time_et` the minute's start, `in_play_et`), from `start` up to `end` (ET `HH:MM`, end exclusive) when given.
   - `signal_scan {day, at, when?, limit?}` -> every in-play stock-day at `at` (ET `HH:MM`) with its signals, or

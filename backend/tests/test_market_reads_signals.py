@@ -22,6 +22,7 @@ for extra in (REPO / "research", REPO / "research" / "rvol", REPO / "research" /
 
 import build_rvol  # noqa: E402
 import build_signals  # noqa: E402
+import inputs  # noqa: E402
 import pandas as pd  # noqa: E402
 import pyarrow.parquet as pq  # noqa: E402
 from test_market_reads_daily import write_gz  # noqa: E402
@@ -102,6 +103,12 @@ def patch(mp, base: Path) -> None:
     mp.setenv("NOVA_RVOL_DIR", str(base / "rvol"))
     mp.setenv("NOVA_SIGNALS_DIR", str(base / "signals"))
     mp.setattr(slots, "heavy", lambda what, wait=0: contextlib.nullcontext())
+    # The desk's own stores, fixed: whatever another test left in the shared folders never changes these rows.
+    mp.setattr(inputs, "read_catalysts", lambda day, symbols: {s: ([], []) for s in symbols})
+    mp.setattr(inputs, "read_boards", lambda day, symbols: ({}, [], None))
+    mp.setattr(inputs, "read_halts", lambda day, built: ([], []))       # the log read, no halt that day
+    mp.setattr(inputs, "read_floats", lambda day, symbols: {})
+    mp.setattr(inputs, "read_hod", lambda day, symbols: None)
     mp.setattr(splits, "_all", lambda: (pd.DataFrame(columns=["ticker", "execution_date", "split_from", "split_to",
                                                               "source", "price_factor"]), "test"))
     tickers.clear()
@@ -165,7 +172,8 @@ def test_rows_hold_the_desk_states(table):
     run = rows[rows["symbol"] == "RUN"].set_index("m")
     assert run.loc[420, "price"] == 2.4 and abs(run.loc[420, "change_pct"] - 20.0) < 1e-9
     assert run.loc[420, "catalyst"] == "not_checked"                 # no source looked: unknown, never no news
-    assert run.loc[420, "halted"] is None or pd.isna(run.loc[420, "halted"])
+    assert run.loc[420, "halted"] == False and run.loc[420, "halts"] == "No halts"   # noqa: E712 -- numpy bool
+    assert run.loc[420, "board_state"] == "unknown" and run.loc[420, "hod_today"] == "unknown"
     for column in reg.MINUTE_COLUMNS:
         s = reg.BY_COLUMN[column]
         if s.kind in ("state", "label"):
@@ -203,6 +211,8 @@ def test_series_and_scan(table):
     assert at["symbol"].tolist() == ["RUN"]
     with pytest.raises(LookupError, match="tape stage"):
         signals.scan(TODAY, "07:30", [{"signal": "tape", "is": "flush"}])
+    assert {"tape", "tape_score", "tape_flush", "tape_burst"} <= set(at.columns)     # the same shape on any day
+    assert set(at["tape"]) == {"not_built"}
 
 
 def test_conditions_come_only_from_the_list():
@@ -214,6 +224,8 @@ def test_conditions_come_only_from_the_list():
         reg.check([{"signal": "pillars_n", "is": 4}])
     with pytest.raises(ValueError, match="true or false"):
         reg.check([{"signal": "halted", "is": "no"}])
+    with pytest.raises(ValueError, match="not a tape reading"):
+        reg.check([{"signal": "tape", "is": "not_built"}])
     assert reg.check([{"signal": "front", "is": ["Front side", "Mixed"]}]) == [
         {"signal": "front", "is": ["Front side", "Mixed"]}]
 
@@ -286,3 +298,30 @@ def test_the_cli_refuses_a_yes_or_no_it_cannot_read():
     assert cli.conditions(["halted=false"]) == [{"signal": "halted", "is": False}]
     with pytest.raises(SystemExit, match="true or false"):
         cli.conditions(["halted=yes"])
+
+
+def test_a_halt_carried_from_the_day_before_is_halted_until_it_resumes():
+    import evaluate
+    from inputs import ts_of
+    prior = [{"symbol": "RUN", "ts": ts_of(DAYS[-2], 19 * 60 + 50), "event": "start", "kind": "T1", "code": "T1",
+              "source": "nasdaq"}]
+    today = [{"symbol": "RUN", "ts": ts_of(TODAY, 9 * 60 + 35), "event": "end", "kind": "T1", "code": "T1",
+              "source": "nasdaq"}]
+    assert evaluate._halts(today, prior, "RUN", ts_of(TODAY, 9 * 60), TODAY)[1] is True     # before the resume
+    assert evaluate._halts(today, prior, "RUN", ts_of(TODAY, 9 * 60 + 40), TODAY)[1] is False
+    assert evaluate._halts([], prior, "RUN", ts_of(TODAY, 9 * 60), TODAY)[1] is True
+
+
+def test_share_counts_are_filed_the_day_before_on_the_days_split_basis(monkeypatch):
+    from day_movers import floats
+    from day_movers import store as dm_store
+    seen = {}
+
+    class Db:
+        def close(self):
+            pass
+    monkeypatch.setattr(dm_store, "read_only", lambda: Db())
+    monkeypatch.setattr(floats, "sec_shares", lambda db, pairs, before=False: seen.update(pairs=pairs, before=before)
+                        or {(TODAY, "RUN"): {"shares": 5_000_000}})
+    assert inputs.read_floats(TODAY, ["RUN"]) == {"RUN": {"shares": 5_000_000}}
+    assert seen == {"pairs": [(TODAY, "RUN")], "before": True}

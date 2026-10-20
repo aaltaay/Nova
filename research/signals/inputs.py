@@ -10,7 +10,7 @@ import json
 import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from datetime import time as dtime
 from pathlib import Path
 from typing import Any
@@ -193,10 +193,10 @@ def read_floats(day: str, symbols: list[str]) -> dict[str, dict[str, Any]]:
     db = dm_store.read_only()
     if db is None:
         return {}
-    # Filed by the day before: a count filed during the day (a 10-Q at 16:05) is not known at its 09:30.
-    before = (date.fromisoformat(day) - timedelta(days=1)).isoformat()
+    # Filed by the day before (a 10-Q at 16:05 is not known at its 09:30), on the session's share basis: a split
+    # executing that day is applied (floats.sec_shares before=True).
     try:
-        got = floats.sec_shares(db, [(before, s) for s in symbols])
+        got = floats.sec_shares(db, [(day, s) for s in symbols], before=True)
     finally:
         db.close()
     return {s: v for (_d, s), v in got.items()}

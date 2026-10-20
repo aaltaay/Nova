@@ -181,5 +181,8 @@ def check(when: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 raise ValueError(f"{s.column} is a name: give it as text")
         elif any(v not in s.values for v in want):
             raise ValueError(f"{s.column} is one of {', '.join(s.values)}")
+        if s.column == "tape" and "not_built" in want:
+            raise ValueError("tape not_built marks a session the tape stage has not reached, not a tape reading: "
+                             "a tape condition reads only the sessions it reached (meta.coverage counts the rest)")
         out.append({"signal": s.column, "is": list(want)})
     return out
