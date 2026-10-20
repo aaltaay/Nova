@@ -57,7 +57,6 @@ def _decide(**over):
     args = {
         "draft": False, "state": "OPEN", "mergeable_state": "clean",
         "labels": [], "head_ref": "claude/x", "same_repo": True, "checks": _green(),
-        "owner_approved": True,
     }
     args.update(over)
     return decide(**args)
@@ -206,12 +205,7 @@ def pr_payload(*, created_at, comments=(), draft=False, commits=()):
     return {
         "commits": [{"oid": HEAD, "committedDate": d} for d in commits],
         "number": 410, "title": "t", "body": "b", "isDraft": draft,
-        "state": "OPEN", "mergeStateStatus": "CLEAN",
-        "labels": [{"name": "merge-approved"}],
-        "label_events": [{
-            "event": "labeled", "created_at": "2026-01-01T00:00:00Z",
-            "actor": {"login": "aaltaay"}, "label": {"name": "merge-approved"},
-        }],
+        "state": "OPEN", "mergeStateStatus": "CLEAN", "labels": [],
         "headRefName": "claude/x", "headRefOid": HEAD,
         "headRepository": {"name": "Nova"},
         "headRepositoryOwner": {"login": "aaltaay"},
