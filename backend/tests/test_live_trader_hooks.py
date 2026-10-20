@@ -89,9 +89,9 @@ def test_a_live_trader_close_may_name_paper_but_never_live(monkeypatch):
 def test_a_host_key_counts_as_a_strategy_on_paper_only():
     set_venue("paper")
     row = {"level": 2, "setup_levels": {}}
-    assert activation.refusal(row, padlock_rule=False).reason == BOT_REASON_NO_SETUP_AT_STRATEGY
+    assert activation.refusal(row).reason == BOT_REASON_NO_SETUP_AT_STRATEGY
     lt_settings.patch_host("ALPHA", {"key": True})
-    assert activation.refusal(row, padlock_rule=False) is None
+    assert activation.refusal(row) is None
     assert activation.live_trader_keys("sim") == []
 
 

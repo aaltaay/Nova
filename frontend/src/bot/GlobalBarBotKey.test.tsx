@@ -10,7 +10,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { _resetDeskPollShareForTests } from '../ibkr/deskSharedPoll';
 import { getNavPage, resetNavRailStoreForTests } from '../workspace/navRailStore';
 import { _resetBotSessionPollerForTests } from './botSessionPoller';
-import { botsFetchRouter, refusal, session, strategySession, type BotsFetchOpts } from './botsPageFixtures';
+import { BOT_PADLOCK_KEPT_OFF, BOT_PADLOCK_PROMPT_TITLE } from '../constantGroups/bot';
+import { botsFetchRouter, openGates, refusal, session, strategySession, type BotsFetchOpts } from './botsPageFixtures';
 import { GlobalBarBotKey } from './GlobalBarBotKey';
 import { NavRailBotDot } from './NavRailBotDot';
 
@@ -100,10 +101,54 @@ describe('GlobalBarBotKey', () => {
   });
 
   it('says a refusal under the key, in the backend\'s words', async () => {
-    await mount({ session: strategySession(), onSwitch: () => refusal(409, 'BOT_PADLOCK_LOCKED', 'The padlock is locked -- unlock it first') });
+    await mount({ session: strategySession(), onSwitch: () => refusal(409, 'BOT_NO_SETUP_AT_STRATEGY', 'no strategy is On -- turn one On first') });
     await press('global-bar-bot-key');
-    expect(screen.getByTestId('global-bar-bot-key-refused').textContent).toBe('The padlock is locked — unlock it first');
+    expect(screen.getByTestId('global-bar-bot-key-refused').textContent).toBe('no strategy is On — turn one On first');
     expect(screen.getByTestId('global-bar-bot-key').getAttribute('aria-checked')).toBe('false');
+    expect(confirmApp).not.toHaveBeenCalled();
+  });
+
+  // Operator decision 2026-10-20: no bot turns on over a locked padlock -- it asks to unlock it first.
+  const lockedOnce = (): BotsFetchOpts['onSwitch'] => {
+    let calls = 0;
+    return (body) => {
+      calls += 1;
+      return (calls === 1 && body.on === true
+        ? refusal(409, 'BOT_PADLOCK_LOCKED', 'the desk padlock is locked') : undefined) as ReturnType<NonNullable<BotsFetchOpts['onSwitch']>>;
+    };
+  };
+  const armBodies = (fetchMock: ReturnType<typeof vi.fn>) =>
+    fetchMock.mock.calls.filter(([url]) => String(url).includes('/ibkr/arm'))
+      .map(([, init]) => String((init as RequestInit | undefined)?.body ?? ''));
+
+  it('over a locked padlock asks to unlock it; Keep it off leaves the bot off and the padlock locked', async () => {
+    confirmApp.mockImplementationOnce(async () => false);
+    const fetchMock = await mount({ session: strategySession(), onSwitch: lockedOnce() });
+    await press('global-bar-bot-key');
+    expect(confirmApp).toHaveBeenCalledTimes(1);
+    expect((confirmApp.mock.calls[0] as unknown[])[0]).toMatchObject({ title: BOT_PADLOCK_PROMPT_TITLE });
+    expect(armBodies(fetchMock)).toEqual([]);
+    expect(switchBodies(fetchMock)).toEqual(['{"on":true}']);
+    expect(screen.getByTestId('global-bar-bot-key-refused').textContent).toBe(BOT_PADLOCK_KEPT_OFF);
+    expect(screen.getByTestId('global-bar-bot-key').getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('over a locked padlock, yes unlocks it and turns the bot on', async () => {
+    const fetchMock = await mount({ session: strategySession(), onSwitch: lockedOnce() });
+    await press('global-bar-bot-key');
+    expect(confirmApp).toHaveBeenCalledTimes(1);
+    expect(armBodies(fetchMock)).toEqual(['{"armed":true,"actor":"operator"}']);
+    expect(switchBodies(fetchMock)).toEqual(['{"on":true}', '{"on":true}']);
+    expect(screen.getByTestId('global-bar-bot-key').getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('reads LOCKED, never ON, while it is on but the padlock is locked', async () => {
+    await mount({ session: strategySession({ bot_on: true, active: true, armed: true, ready: false,
+      gates: openGates({ padlock: { ok: false, detail: { reason: 'Desk is disarmed' } } }) }) });
+    const key = screen.getByTestId('global-bar-bot-key');
+    expect(key.textContent).toBe('BotLOCKED');
+    expect(key.className).toContain('global-bar-bot-key--locked');
+    expect(key.title).toMatch(/The padlock is locked: no bot places an order/);
   });
 
   it('shows nothing without a bot session', async () => {

@@ -42,6 +42,9 @@
   background: var(--nova-success);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--nova-success) 30%, transparent);
 }
+.global-bar-bot-key--locked { border-color: var(--nova-danger, #e5484d); }
+.global-bar-bot-key--locked .global-bar-bot-key__dot { background: var(--nova-danger, #e5484d); }
+.global-bar-bot-key--locked .global-bar-bot-key__name { color: var(--nova-danger, #e5484d); }
 .global-bar-bot-key--off .global-bar-bot-key__dot {
   background: color-mix(in srgb, var(--nova-text-muted) 70%, transparent);
 }
