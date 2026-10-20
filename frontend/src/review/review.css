@@ -100,6 +100,17 @@ body.review-root #root {
   display: flex;
   flex-direction: column;
 }
+.review-open { display: inline-flex; align-items: baseline; gap: 8px; z-index: 5; }
+.review-open__symbol {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.review-open__symbol:disabled { cursor: wait; }
+.review-open__note { color: var(--sr-secondary); }
 .review-cell__link {
   flex: 0 0 auto;
   color: #7dd3fc;

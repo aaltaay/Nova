@@ -14,6 +14,10 @@ contextBridge.exposeInMainWorld('novaDesktop', {
   getVersion: () => ipcRenderer.invoke('app:version'),
   /** Open Stock View in a dedicated BrowserWindow (double-click / Stock View btn). */
   openStockView: (url) => ipcRenderer.invoke('nova:openStockView', url),
+  /** Focus the main desk. Used when an open-in-nova command arrives. */
+  focus: () => ipcRenderer.invoke('nova:focus'),
+  /** A separate Sim review window. The path must be /review?symbol&date. */
+  openSimWindow: (url) => ipcRenderer.invoke('nova:openSimWindow', url),
   /** Open an allowlisted HTTPS URL in the system browser. */
   openExternal: (url) => ipcRenderer.invoke('nova:openExternal', url),
   /** The followed traders' stream in a small window of its own (an 11-character YouTube id only). */

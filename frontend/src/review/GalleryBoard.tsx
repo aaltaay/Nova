@@ -5,7 +5,8 @@ import { CHART_DEFAULT_INDICATORS, CHART_GRID_PANE_INDICATORS, type ChartIndicat
 import type { ReviewPayload } from './reviewFixture';
 import { feedFromPayload } from './reviewFeed';
 import { levelOverlay } from './RecordedLevelsOverlay';
-import { GALLERY_TABS, reviewHref, TF_PANE, type ReviewQuery, type ReviewTf } from './reviewQuery';
+import { ReviewSymbolButton } from './ReviewSymbolButton';
+import { GALLERY_TABS, TF_PANE, type ReviewQuery, type ReviewTf } from './reviewQuery';
 
 export function GalleryBoard({
   query,
@@ -44,9 +45,7 @@ export function GalleryBoard({
           const feed = feedFromPayload(payload);
           return (
             <div className="review-cell" key={`${payload.symbol}-${gtf}`}>
-              <a className="review-cell__link" href={reviewHref(payload.symbol, query.date, query.tfs, query.asOf, query.fixture, query.api)}>
-                {payload.symbol}
-              </a>
+              <ReviewSymbolButton symbol={payload.symbol} date={query.date} asOf={query.asOf} />
               <ChartFeedProvider feed={feed} onPanePainted={onPanePainted}>
                 <TickerChart
                   symbol={payload.symbol}

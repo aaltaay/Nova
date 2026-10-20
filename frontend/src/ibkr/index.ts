@@ -26,6 +26,7 @@ export { lastKnownAsOfMessage, lastKnownBanner } from './disconnectCopy';
 export { watchDeskRequestRoute } from './deskRequestRouteFence';
 // ADR 050: an agent's show moves the desk through the same door as the venue pills.
 export { moveDeskToVenue, switchDeskVenue } from './deskVenueSwitch';
+export { confirmDeskVenue } from './confirmedDeskVenueStore';
 export { defaultTicketQty } from './applyTicketDefaults';
 export { formatSeedPrice } from './tradeDefaultSeed';
 export {

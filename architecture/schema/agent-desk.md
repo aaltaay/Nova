@@ -548,4 +548,15 @@ subscribe to a quote, and has no order ticket. `nova_historical_chart`, `nova_hi
   to call `nova_chart` and post that text verbatim. The tool enforces the shape without the prompt.
 - **Drawings** on `/review` stay in the page's memory. They are not written to the operator's drawing store.
 
+## Open in Nova
+
+`open_in_nova` is the second tool on the unified MCP server (`tools/nova_mcp.py`). The `/review` symbol name uses the same action. Both call `POST /api/agent/open-in-nova`, a wrapper around the existing `show` command. The desk runs that command: `landSim` posts the session date (`jump_to_day`) and parks the playhead (`scrub_to_second`). The wrapper does not jump the clock itself. It adds three things show does not have: a separate Sim window during regular hours, an install token instead of the API key, and strict arguments.
+
+- **Arguments.** `symbol` (required), `date` (`YYYY-MM-DD`, required), `as_of` (`HH:MM` or `HH:MM:SS` ET, optional). Any other key is `UNKNOWN_ARGUMENT`. A bad value is `BAD_REQUEST`. `as_of` must fall between 04:00:00 and 20:00:00 inclusive. When `as_of` is omitted, the park is two minutes before the earliest setup on that day, else the show plan's run, else the 09:30 open.
+- **Regular hours.** Wall-clock 09:30 inclusive to 16:00 exclusive on an exchange day. The main desk stays on its current view. The show command opens `/review?symbol&date&as_of` in a separate window and does not land. Outside those hours the main view switches to Sim with `set_venue("sim", left=[])` (working orders are not cancelled; `switch_venue` stays false so the desk does not call the venue path that cancels entries) and the desk's show landing opens the symbol, paused.
+- **Token.** `GET /api/agent/open-token` and `GET /api/review/open-token` return `{schema_version: 1, token}`. The file is `<cache_dir>/open-in-nova-token.json` (owner `agent_desk/open_token.py`, created once, mode `0o600`, not rotated on startup). An unknown `schema_version` refuses. Callers send `X-Nova-Open-Token` and `Content-Type: application/json`. A foreign `Origin` (including the string `null`) is `403`. Loopback, a missing Origin, and `file://` are this PC. These responses do not add `Access-Control-Allow-Origin`. `POST /api/agent/open-in-nova` is exempt from `X-Nova-Api-Key`. `POST /api/agent/show` still requires that key.
+- **Result.** HTTP 200 `{ok, chat_message, symbol, date, as_of, paused: true, separate_sim, command}`. The text is `Opened {SYMBOL} in Nova Sim on {date} at {HH:MM:SS} ET, paused.` or, for the separate window, `Opened {SYMBOL} in a separate Sim window on {date} at {HH:MM:SS} ET, paused. The live desk stayed on its own view.` A desk that is not listening is `409` `DESK_NOT_RUNNING`: `Nova's desk is not running. Start it with scripts/windows/Run Nova Desktop.bat, then ask again.` Nothing on this path places, changes, or cancels an order.
+- **MCP.** Arguments are only `symbol`, `date`, `as_of` (`additionalProperties: false`). The tool posts `chat_message` as its text. The server performs the open. The model does not.
+
+
 

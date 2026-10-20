@@ -8,6 +8,10 @@ interface Window {
     getVersion: () => Promise<string>;
     /** Electron IPC: open Stock View in a child BrowserWindow. */
     openStockView?: (url: string) => Promise<boolean>;
+    /** Electron IPC: focus the main desk window. */
+    focus?: () => Promise<boolean>;
+    /** Electron IPC: open /review in a separate window. Does not change the live desk. */
+    openSimWindow?: (url: string) => Promise<boolean>;
     /** Electron IPC: open an allowlisted HTTPS URL in the system browser. */
     openExternal?: (url: string) => Promise<boolean>;
     /** Electron IPC: the followed traders' stream in a small window of its own (followed_traders/stream.ts). */

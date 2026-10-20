@@ -87,6 +87,10 @@ def make_handler(bars_reader, daily_reader, allowed_origins: tuple[str, ...] = (
             self.end_headers()
 
         def do_GET(self) -> None:  # noqa: N802
+            import nova_review_open as review_open
+
+            if review_open.try_get(self):
+                return
             parsed = urlparse(self.path)
             if parsed.path == "/api/review/health":
                 self._send(200, {"ok": True, "service": SERVICE})
@@ -111,6 +115,13 @@ def make_handler(bars_reader, daily_reader, allowed_origins: tuple[str, ...] = (
                 self._send(500, {"ok": False, "error": f"{type(exc).__name__}: {exc}"})
                 return
             self._send(200, body)
+
+        def do_POST(self) -> None:  # noqa: N802
+            import nova_review_open as review_open
+
+            if review_open.try_post(self):
+                return
+            self._send(404, {"ok": False, "error": "not found"})
 
     return Handler
 
