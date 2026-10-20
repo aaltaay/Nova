@@ -19,8 +19,9 @@ import nova_data_mcp as m  # noqa: E402
 TOOLS = {"data_catalog", "data_status", "stock_day", "movers_search", "movers_scan", "board", "splits", "financials",
          "sec_shares", "sec_filings", "float_latest", "ipos", "ticker_details", "short_interest",
          "find_stock_days", "daily_bars", "market_context", "stock_day_stats", "order_flow", "halts", "catalysts",
-         "symbols", "cash_runway"}
-WRITES = {"stock_day", "movers_scan", "find_stock_days", "daily_bars", "order_flow"}
+         "symbols", "rvol_scan", "rvol_triggers", "rvol_outcomes", "cash_runway"}
+WRITES = {"stock_day", "movers_scan", "find_stock_days", "daily_bars", "order_flow", "rvol_scan", "rvol_triggers",
+          "rvol_outcomes"}
 
 
 def test_a_big_table_answers_its_first_rows_and_says_how_many_matched():
@@ -29,6 +30,17 @@ def test_a_big_table_answers_its_first_rows_and_says_how_many_matched():
     answer = m.table_answer(frame, inline=10)
     assert answer["rows"] == 500 and answer["truncated"] is True and len(answer["data"]) == 10
     assert answer["meta"] == {"rule": "r"} and answer["out"] is None
+
+
+def test_an_et_time_answers_in_et_not_utc():
+    """#1086: DSS 2026-09-03's volume spike is the 09:40 ET bar; the answer said 13:40Z under ``time_et``."""
+    from zoneinfo import ZoneInfo
+    when = pd.to_datetime(["2026-09-03 13:40", None], utc=True).tz_convert(ZoneInfo("America/New_York"))
+    answer = m.table_answer(pd.DataFrame({"time_et": when, "volume": [2910910.6, 1.0]}))
+    assert answer["data"][0]["time_et"] == "2026-09-03T09:40:00-04:00"
+    assert answer["data"][1]["time_et"] is None
+    winter = pd.to_datetime(["2026-01-05 14:30"], utc=True).tz_convert(ZoneInfo("America/New_York"))
+    assert m.table_answer(pd.DataFrame({"time_et": winter}))["data"][0]["time_et"] == "2026-01-05T09:30:00-05:00"
 
 
 def test_an_output_file_is_new_plain_and_under_the_root(tmp_path):
