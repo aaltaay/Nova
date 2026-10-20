@@ -482,16 +482,91 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
     {cik, name, rule, warning}, warning, cik_history: {cik: [rows]}, as_of, rule, source, dump_as_of, notes}`.
   `find_stock_days`, `daily_bars` and `order_flow` write an `output_name` file (`readOnlyHint: false`); the rest are
   read-only. `movers_scan` gains `after` (library only) for the cursor.
+- **Relative volume across every stock, and what came next** (#1100, operator 2026-10-20: "agents using standardized
+  methods ... access to a large sum of data, standardized in the way they access this data"; tools
+  `tools/nova_data_rvol.py`, CLI `tools/market_data_rvol.py`, reads `research/market_reads/rvol.py` and
+  `rvol_outcomes.py`, builder `research/rvol/build_rvol.py`):
+  - **The table** (owner `research/market_reads/rvol_store.py`; invalidation: a day whose minute file, day file or
+    movers session changed since it was built, a split-table change, or a `builder` bump stales that day and every
+    later one -- a baseline reads earlier days). Root `NOVA_RVOL_DIR`, else `F:\Nova\rvol` when F: is mounted on
+    Windows, else `<NOVA_MARKET_DATA_DIR>/rvol`. `manifest.json` `{schema_version: 1, builder, kinds, rules,
+    splits_fingerprint, days: {YYYY-MM-DD: {minute_file: {size, mtime_ns}, day_file: {size, mtime_ns},
+    movers_built_ts, stock_days, bars, built_ts, seconds}}}`, replaced atomically after each day; another
+    `schema_version` refuses (`UnknownRvolSchema`). Two Parquet files per session (zstd; file metadata `nova_rvol`
+    `{schema_version, builder, day, table}`), both raw prices, never split-adjusted except where named:
+    `minutes/YYYY/YYYY-MM-DD.parquet` -- one row per minute bar starting 04:00-20:00 ET of a symbol of the table's
+    kinds: `date` (date), `symbol`, `m` (int16, the bar's start, minutes after ET midnight: 240..1199), `high, low,
+    close` (float64, Massive's minute file as delivered), `cum` (float64, the stock-day's volume of bars starting
+    04:00 through `m`; a bar's own volume is `cum` less the bar before it), `base` (float32, the mean of the baseline
+    sessions' `cum` through `m`; null with no
+    baseline session), `vol5` (float32, volume of bars starting in `(m-5, m]`), `base5` (float32, the baseline
+    sessions' mean of the same five minutes). Row groups are the bands 04:00-07:00, 07:00-09:30, 09:30-10:00,
+    10:00-12:00, 12:00-16:00, 16:00-20:00, each sorted by `symbol, m`. `days/YYYY/YYYY-MM-DD.parquet` -- one row per
+    stock-day of those kinds (a day-file row or minute bars): `date, symbol, kind` (`CS` | `ADRC` | `unknown`: the
+    type of the company that held the ticker that day in Massive's ticker list; `unknown` when unlisted or untyped),
+    `prev_date, prev_close` (the day file's close of the symbol's previous session within 31 days, times the listed
+    split factor through the day), `split` (`listed` | `likely_split` | null: the movers store's own rule,
+    `day_movers.query`), `day_open, day_high, day_low, day_close, day_volume` (the day file, raw; the finished day),
+    `bars, first_m, last_m, hi, hi_m, lo, lo_m, rth_close, last_close, pm_volume, volume` (minute bars 04:00-20:00:
+    `rth_close` the close of the last bar starting before 16:00, `pm_volume` bars before 09:30, `volume` their sum),
+    `base_sessions` (0-20), `day_avg_volume` (the mean `volume` of the prior day-average sessions) and
+    `day_avg_sessions` (0-50), `epoch` (int32), `basis` (float64), `reset` (null | `first_seen` | `holder_changed`
+    | `likely_split`). Kinds kept: `CS`, `ADRC`, `unknown` (ETFs, warrants, units, rights and preferreds are not in
+    the table).
+  - **Baseline sessions:** the symbol's earlier rows in the table with the same `epoch`, at most 20 (minute
+    baselines) / 50 (`day_avg_volume`), none more than 100 calendar days before the day. A session before a listed
+    split counts on the day's share basis (its volume x `basis` today / `basis` then). `epoch` starts again
+    (`reset`) the first time a symbol is seen, when the company holding the ticker changes (`tickers.resolve`), and
+    on a likely unlisted split -- its earlier volume is another share basis nobody listed.
+  - **Three measures**, each as of the end of a minute (bars starting at or before it; at a clock time `HH:MM`, the
+    bars starting before it); a zero or missing baseline is a null measure, never infinite:
+    `rvol` (cumulative by minute) = `cum / base`; `rvol_5m` (the scanner's 5-minute column) = `vol5 / base5`;
+    `rvol_daily` (the daily rate, "5x the 50-day average") = `cum / day_avg_volume`.
+  - `rvol_scan {at, filters, measure?, kinds?, splits?, min_base_sessions?, sort?, limit?, output_name?}` -> a table
+    answer, one row per stock-day as of `at` (ET `HH:MM`): `date, symbol, kind, prev_close, at, price, price_et`
+    (the close of the last bar starting before `at`, and that bar's start), `change_pct` (percent points vs
+    `prev_close`), `volume, base_volume, rvol, volume_5m, base_5m, rvol_5m, day_avg_volume, rvol_daily,
+    base_sessions, day_avg_sessions, split`. At a minute with no bar the baselines are computed from the baseline
+    sessions' own bars before `at` (the same rule, so a bar minute agrees with `minutes.base`).
+  - `rvol_triggers {rvol_min, measure?, window_from?, window_to?, filters?, kinds?, splits?, min_base_sessions?,
+    fresh?, limit?, output_name?}` -> one row per stock-day: the first bar starting in `[window_from, window_to)`
+    (default 04:00-16:00) where the measure is at least `rvol_min` and every filter holds at that bar: `date, symbol,
+    kind, prev_close, trigger_et` (the bar's start), `entry_et` (its end: the first moment it is known), `price` (its
+    close), `change_pct, volume, base_volume, rvol, volume_5m, base_5m, rvol_5m, day_avg_volume, rvol_daily,
+    above_before` (the measure was over the line on a bar before the window opened, so the window's first bar
+    triggered; `fresh: true` leaves those stock-days out), `base_sessions, split`. `filters` keys: `date_from,
+    date_to, symbol, price_min, price_max, volume_min, change_min, change_max` (`rvol_scan` adds `rvol_min,
+    rvol_max`); a call names both dates or a symbol.
+  - `rvol_outcomes {filters, at? | trigger?, up_pct?, down_pct?, horizon?, days?, group_by?, buckets?, measure?,
+    kinds?, splits?, min_base_sessions?, control?, seed?, output_name?}` -> `{ok, entries, summary, control,
+    meta, out}`. Entries come from `rvol_scan` at `at` or from `rvol_triggers` (`trigger` holds `rvol_min` and
+    optionally `measure, window_from, window_to, fresh`).
+    Entry price `P` = the close of the last bar starting before the entry clock (`at`, or `entry_et`); only bars
+    starting at or after it are read. `horizon` `close` (bars before 16:00), `session` (before 20:00) or `days`
+    (`days` 1-20: the rest of the session, then the symbol's next `days` sessions' `hi` / `lo` on the entry day's
+    basis; a reset or a likely split inside leaves the entry out as `horizon_reset`). `outcome`: `up` (a bar's high
+    reached `P x (1 + up_pct/100)` first), `down` (a low reached `P x (1 - down_pct/100)` first), `same_bar` (both in
+    one minute bar: the order is not known and never guessed), `same_day` (both in one later session, `days` only),
+    `neither`. `summary` rows per group (`group_by` `rvol` buckets on `measure` -- `buckets` edges, default 0, 1, 2,
+    3, 5, 10, 20, 50, 100, 1000 -- or `year`, `hour`, `none`): `group, entries, up, down, same_bar, same_day,
+    neither, p_up, p_down` (shares of entries), `p_up_resolved` (up / (up + down)), `median_max_up_pct,
+    median_max_down_pct, median_end_pct, mean_end_pct, median_minutes_to_up, median_minutes_to_down`. `control`
+    (trigger entries, on by default): one stock-day per trigger from the same date with the same kinds, price,
+    split and baseline filters and a bar before the entry clock, that had not met the trigger by then (one over the
+    line before the window opened counts as having met it), picked by a seeded hash
+    (`seed`, default 1), scored from the same clock the same way -- the same summary shape. `meta` counts what was
+    left out (`no_price`, `split`, `base_sessions`, `horizon_reset`) and states every rule. Only `output_name`
+    writes (each entry with its outcome); the three tools take a heavy-read slot.
 - **Tripwire** (`tools/data_access_hook.py`): Cursor `beforeShellExecution` (`{permission: "allow" | "deny",
   user_message, agent_message}`) and Claude `PreToolUse` on Bash (`hookSpecificOutput.permissionDecision: "deny"`).
-  Denied: a command naming a raw store (`nova/massive`, `nova/leaderboard`, `catalysts/edgar`, `store/reference`,
+  Denied: a command naming a raw store (`nova/massive`, `nova/leaderboard`, `catalysts/edgar`, `nova/rvol`, `store/reference`,
   the movers / leaderboard / reference-index SQLite files, SEC's zips, the Massive day-file folders) or running a
   script outside the repo that names one. Passes: the front door's tools, repo code, a code search or git not pointed
   at a data folder, and `# raw-data-ok: <reason>`. Unparseable input allows.
 
 ## Desk review charts (unified MCP)
 
-The same MCP process (`tools/nova_mcp.py`) serves the 22 data tools and one chart tool, `nova_chart`.
+The same MCP process (`tools/nova_mcp.py`) serves the 25 data tools and one chart tool, `nova_chart`.
 `docs/nova-mcp.md` is the setup. `/review` mounts the desk `ChartGrid` and `TickerChart` through a recorded
 feed (`ChartFeedProvider` in `frontend/src/chart/chartFeed.tsx`). The live desk is unchanged: with no provider
 the feed is `{kind: "live"}` and the same hooks run. The review page does not mount the trading shell, does not

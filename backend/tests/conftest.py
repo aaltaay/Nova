@@ -58,6 +58,8 @@ _OPERATOR_DATA_DIRS = {
     "NOVA_MARKET_DATA_DIR": "market_data",
     # The front door's read cache (research/market_reads/read_cache.py) defaults to F: when mounted.
     "NOVA_MARKET_READ_CACHE_DIR": "market_read_cache",
+    # The relative-volume table (#1100, research/market_reads/rvol_store.py) defaults to F: when mounted.
+    "NOVA_RVOL_DIR": "rvol",
     "NOVA_SHORT_TESTS_DIR": "short_tests",   # ADR 049's five-year test results
 }
 for _env, _name in _OPERATOR_DATA_DIRS.items():

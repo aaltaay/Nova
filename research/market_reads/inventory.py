@@ -49,7 +49,8 @@ def below_normal() -> None:
 
 # ---- status -------------------------------------------------------------------------------------------------------
 def status() -> dict[str, Any]:
-    """Each dataset's days and indexed days, the day movers index and the past-day boards."""
+    """Each dataset's days and indexed days, the day movers index, the past-day boards and the relative-volume
+    table."""
     root = massive_files.root()
     out: dict[str, Any] = {"root": str(root), "datasets": {}}
     reason = massive_files.unavailable_reason()
@@ -66,6 +67,7 @@ def status() -> dict[str, Any]:
     out["index_build"] = index_watch.read_status(root / "sim" / "index")
     out["movers_index"] = _movers_status()
     out["boards"] = _boards_status()
+    out["rvol_table"] = _rvol_status()
     return out
 
 
@@ -82,6 +84,14 @@ def _movers_status() -> dict[str, Any]:
         return {"sessions": n, "first": first, "last": last, "path": str(movers_store.path())}
     finally:
         db.close()
+
+
+def _rvol_status() -> dict[str, Any]:
+    from market_reads import rvol_store
+    try:
+        return rvol_store.status()
+    except Exception as exc:  # noqa: BLE001 -- as above
+        return {"error": f"{type(exc).__name__}: {exc}"}
 
 
 def _boards_status() -> dict[str, Any]:
