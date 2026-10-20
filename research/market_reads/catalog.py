@@ -118,7 +118,7 @@ CATALOG = (
               "that carried it (87% of quarterly cash-flow rows are dated 300+ days after their period), so the "
               "newest statement known on a past day is often over a year old: every figure carries period_end, "
               "filing_date, age_days and stale (over 180 days). Runway only when the cash and the burn are within "
-              "100 days of one period; shares growth only when the two counts are a window apart",
+              "14 days of the same period; shares growth only when the two counts are a window apart",
      "units": "statement amounts as the dump gives them (no currency field); runway in months; growth in percent "
               "points; unknown is null, never 0; filings are counts and dates, not a verdict on any offering",
      "mcp": "cash_runway", "cli": "market_data.py runway SYMBOL DAY"},

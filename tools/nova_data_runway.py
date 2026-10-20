@@ -30,7 +30,7 @@ def register(server, service, run, reads, writes_file) -> None:
                           lookback_days: int = DEFAULT_LOOKBACK_DAYS) -> dict:
         """A company's cash runway and dilution filings as known on a past day (YYYY-MM-DD; no look-ahead): the
         newest balance sheet's cash and short-term investments, the newest quarterly operating cash flow (burn),
-        runway in months (null unless the cash and the burn are from one quarter and cash is being used), shares
+        runway in months (null unless the cash and the burn are from the same quarter and cash is being used), shares
         outstanding growth over 4 and 8 quarters, and the S-1 / S-3 / F-1 / F-3 / 424B1-5 / 8-K filings in the
         lookback_days before the day (1-3650, default 1095) with their dates. Every figure names its statement's
         period_end and filing_date; unknown is null, never 0. Massive dates a period by the newest filing that carried

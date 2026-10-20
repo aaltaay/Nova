@@ -12,7 +12,7 @@ Rules (``architecture/schema/agent-desk.md``, "The data front door over MCP"): e
 period and filing date; a figure the files do not give is None, never 0; the wording is counts, dates and ratios and
 no verdict. Massive dates a period by the newest filing that carried it (87% of quarterly cash-flow rows are dated
 300+ days after their period), so the newest statement known on a past day is often old: ``age_days`` / ``stale`` say
-so, and a runway is only divided out when the cash and the burn are from one quarter.
+so, and a runway is only divided out when the cash and the burn are from the same quarter.
 """
 from __future__ import annotations
 
@@ -25,7 +25,9 @@ import pandas as pd
 from market_reads import reference, sec, splits, tickers
 
 MONTHS_PER_QUARTER = 3
-PERIOD_TOLERANCE_DAYS = 100          # two dates within this of the same period (a quarter + filing lag) match
+SAME_PERIOD_DAYS = 14                # a balance sheet and a cash flow whose period ends are this close are one period
+                                     # (94.7% match exactly; 52/53-week years differ by days; the next quarter is 84+)
+SPAN_TOLERANCE_DAYS = 100            # two share counts this close to a window apart (the window +/- a filing lag)
 STALE_AFTER_DAYS = 180               # a statement over two quarters old on the day
 DEFAULT_LOOKBACK_DAYS = 1095         # the "Dilution on file" row's longest window (a shelf, 3 years)
 MAX_LOOKBACK_DAYS = 3650
@@ -42,7 +44,7 @@ KIND_BY_FORM = {**dict.fromkeys(("S-1", "S-1/A", "F-1", "F-1/A"), "s1"),
 FORMS = tuple(KIND_BY_FORM)
 RULE = ("a statement or filing counts from the day it was filed; runway = liquid cash / (cash used in operations in "
         f"the newest quarter / {MONTHS_PER_QUARTER}), only when the cash and the burn are within "
-        f"{PERIOD_TOLERANCE_DAYS} days of one period")
+        f"{SAME_PERIOD_DAYS} days of the same period")
 UNITS = ("amounts are the statements' own (the dump has no currency field; months and pct do not depend on it); "
          "shares are shares; pct is percent points")
 
@@ -132,7 +134,7 @@ def _runway(cash: dict | None, burn: dict | None) -> dict[str, Any]:
     out: dict[str, Any] = {"months": None, "status": None, "period_gap_days": None,
                            "stale": any(block["stale"] for block in known) if known else None,
                            "basis": f"cash.liquid / (burn.burn / {MONTHS_PER_QUARTER})",
-                           "max_period_gap_days": PERIOD_TOLERANCE_DAYS}
+                           "max_period_gap_days": SAME_PERIOD_DAYS}
     if cash and burn:
         out["period_gap_days"] = (date.fromisoformat(cash["period_end"])
                                   - date.fromisoformat(burn["period_end"])).days
@@ -146,8 +148,8 @@ def _runway(cash: dict | None, burn: dict | None) -> dict[str, Any]:
         out["status"] = "no_burn"
     elif cash["liquid"] is None:
         out["status"] = "cash_not_reported"
-    elif abs(out["period_gap_days"]) > PERIOD_TOLERANCE_DAYS:
-        out["status"] = "periods_far_apart"
+    elif abs(out["period_gap_days"]) > SAME_PERIOD_DAYS:
+        out["status"] = "periods_differ"
     else:
         out["status"] = "computed"
         out["months"] = round(cash["liquid"] / (burn["burn"] / MONTHS_PER_QUARTER), 1)
@@ -182,7 +184,7 @@ def _growth(symbol: str, day: str, cik: str, now: dict | None, months: int) -> d
     out["span_days"] = (date.fromisoformat(now["end"]) - date.fromisoformat(then["end"])).days
     if out["span_days"] <= 0:
         out["status"] = "same_count"           # no newer count was filed in the window: unknown, not 0
-    elif abs(out["span_days"] - round(months * DAYS_PER_MONTH)) > PERIOD_TOLERANCE_DAYS:
+    elif abs(out["span_days"] - round(months * DAYS_PER_MONTH)) > SPAN_TOLERANCE_DAYS:
         out["status"] = "span_off_window"      # a filing gap (e.g. a cover page with two classes) leaves no count
     elif out["from"]["value"] <= 0:
         out["status"] = "count_then_not_positive"
@@ -219,9 +221,9 @@ def _notes(day: str, cash: dict | None, burn: dict | None, runway: dict, dropped
             notes.append(f"the newest {label} counted on {day} is for {block['period_end']}, {block['age_days']} days "
                          f"earlier (filed {block['filing_date']}): Massive dates a period by the newest filing that "
                          "carried it, so a quarter first reported since can be absent")
-    if runway["status"] == "periods_far_apart":
+    if runway["status"] == "periods_differ":
         notes.append(f"cash is from {cash['period_end']} and the operating cash flow from {burn['period_end']}: not "
-                     f"one quarter (over {PERIOD_TOLERANCE_DAYS} days apart), so no runway is divided out")
+                     f"the same quarter ({abs(runway['period_gap_days'])} days apart), so no runway is divided out")
     return notes
 
 

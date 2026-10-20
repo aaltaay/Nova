@@ -432,13 +432,15 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
     (`-operating_cash_flow`) when that is negative, else null. `recent_quarters` is up to four quarterly rows
     newest first, `{period_end, filing_date, operating_cash_flow}`.
   - **`runway`**: `{months, status, stale, basis, period_gap_days, max_period_gap_days}`. `months` = `cash.liquid` /
-    (`burn.burn` / 3), one decimal. `period_gap_days` = `cash.period_end` minus `burn.period_end`; beyond +/- 100
-    (`max_period_gap_days`, the one tolerance the read uses for "the same period") the two figures are not from one
-    quarter and `months` is null. `stale` is true when the cash or the burn it is built from is stale (null when
+    (`burn.burn` / 3), one decimal. `period_gap_days` = `cash.period_end` minus `burn.period_end`; beyond +/- 14
+    (`max_period_gap_days`) the two are not the same fiscal period and `months` is null, so a balance sheet one quarter
+    newer than the newest cash-flow quarter (about 91 days) is refused, never divided. Of Massive's quarterly cash-flow
+    rows 94.7% have a balance sheet with the exact same `period_end`; the other matches are days apart (52/53-week
+    years) and the next nearest period is 84 or more days away. `stale` is true when the cash or the burn it is built from is stale (null when
     there is neither): a `computed` runway built from old statements is still a number about those quarters, so a
     filter on `months` should read `stale` beside it. `status`: `computed`, `no_burn` (operating cash flow zero or
     positive), `no_balance_sheet`, `no_cash_flow_statement`, `cash_not_reported`, `operating_cash_flow_not_reported`,
-    `periods_far_apart`. `burn` and `cash` stay in the answer either way.
+    `periods_differ`. `burn` and `cash` stay in the answer either way.
   - **`shares`**: `{outstanding, growth_4q, growth_8q}`. `outstanding` is `sec_shares`' (`{value, concept, end,
     filed, form, age_days, split_factor}`, split-adjusted to `day`) or null. `growth_4q` / `growth_8q` =
     `{pct, status, months_back (12 | 24), from, to, span_days}`: `to` is that count; `from` is the same read for the
@@ -446,7 +448,8 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
     `splits.factor(prior_day, as_of=day)`; `pct` = (`to` / `from` - 1) x 100 percent points; `span_days` is the days
     between their `end`s. `from.value` is rounded like `outstanding`. `status`: `computed`, `no_count_now`,
     `no_count_then`, `same_count` (no newer count was filed in the window, so growth is unknown, not 0),
-    `span_off_window` (`span_days` is more than 100 days from `months_back` x 30.4375, e.g. a filing gap such as a
+    `span_off_window` (`span_days` is more than 100 days from `months_back` x 30.4375 -- the window plus or minus a
+    filing lag, a separate tolerance from the runway's 14 days -- e.g. a filing gap such as a
     cover page that gives each share class its own count, which SEC's facts omit; `pct` null, `from` / `to` kept),
     `count_then_not_positive`.
   - **`offerings`**: the registration and prospectus filings and current reports filed in the `lookback_days` before

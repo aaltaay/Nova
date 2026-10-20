@@ -165,11 +165,31 @@ def test_a_burn_from_another_quarter_is_not_divided_into_todays_cash(world):
     cash-flow quarter is last year's. The runway stays null, both figures stay, and the answer says why."""
     world(flows=[_statement("2023-03-31", "2024-05-10", net_cash_from_operating_activities=-300.0)])
     a = runway.runway("RUNW", DAY)
-    assert a["runway"]["months"] is None and a["runway"]["status"] == "periods_far_apart"
+    assert a["runway"]["months"] is None and a["runway"]["status"] == "periods_differ"
     assert a["runway"]["period_gap_days"] == 366 and a["runway"]["stale"] is True
     assert a["burn"]["burn"] == 300.0 and a["burn"]["age_days"] == 442 and a["burn"]["stale"] is True
     assert a["cash"]["liquid"] == 1000.0 and a["cash"]["stale"] is False
-    assert any("not one quarter" in n for n in a["notes"]) and any("cash-flow statement" in n for n in a["notes"])
+    assert any("not the same quarter" in n for n in a["notes"]) and any("cash-flow statement" in n for n in a["notes"])
+
+
+def test_the_adjacent_quarter_is_refused_not_divided(world):
+    """A balance sheet one quarter newer than the newest cash-flow quarter is ~91 days apart: a different period."""
+    world(flows=[_statement("2023-12-31", "2024-02-20", net_cash_from_operating_activities=-150.0)])
+    a = runway.runway("RUNW", DAY)
+    assert a["cash"]["period_end"] == "2024-03-31" and a["burn"]["period_end"] == "2023-12-31"
+    assert a["runway"]["period_gap_days"] == 91 and a["runway"]["max_period_gap_days"] == 14
+    assert a["runway"]["months"] is None and a["runway"]["status"] == "periods_differ"
+    assert a["runway"]["stale"] is False and any("91 days apart" in n for n in a["notes"])
+    assert a["cash"]["liquid"] == 1000.0 and a["burn"]["burn"] == 150.0        # both figures stay in the answer
+
+
+def test_period_ends_a_few_days_apart_in_a_52_53_week_year_are_still_one_period(world):
+    world(balance=[_statement("2024-03-30", "2024-05-10", cash_and_equivalents=600.0, short_term_investments=400.0)])
+    a = runway.runway("RUNW", DAY)
+    assert a["runway"]["period_gap_days"] == -1 and a["runway"]["status"] == "computed"
+    assert a["runway"]["months"] == 10.0
+    world(balance=[_statement("2024-03-16", "2024-05-10", cash_and_equivalents=600.0, short_term_investments=400.0)])
+    assert runway.runway("RUNW", DAY)["runway"]["status"] == "periods_differ"       # 15 days apart: not one period
 
 
 def test_an_old_pair_from_one_quarter_is_computed_but_flagged_stale(world):

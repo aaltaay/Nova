@@ -56,7 +56,8 @@ unknown is null, never 0; the filings are counts and dates, not a verdict. **Rea
 you trust a number:** Massive dates a period by the newest filing that carried it (87% of quarterly cash-flow
 rows and 27% of balance sheets are dated 300+ days after their period), so on a past day the newest statement
 known is often over a year old and the balance sheet can be newer than the burn. The runway is divided out only
-when the two are within 100 days of one period (else `status: periods_far_apart`, `months` null) and carries
+when the two are from the same period, period ends within 14 days (else `status: periods_differ`, `months` null; a
+balance sheet one quarter newer than the burn is refused, not divided) and carries
 `stale` beside it. Shares growth is null when the two counts are not a window apart (`span_off_window`) or are one
 count (`same_count`). Schema: `architecture/schema/agent-desk.md` ("The data front door over MCP").
 
