@@ -229,7 +229,6 @@ export function RecordedPane({
       }) ?? null}
       chartApi={chartApi}
       candleSeriesRef={candleSeriesRef}
-      volSeriesRef={volSeriesRef}
       vwapSource={vwapSource}
       liveTipTime={null}
       onOscDragStart={onOscDragStart}

@@ -61,7 +61,6 @@ export function TickerChartCard({
   hover = null,
   chartApi,
   candleSeriesRef,
-  volSeriesRef,
   vwapSource,
   liveTipTime,
   onOscDragStart,
@@ -112,7 +111,6 @@ export function TickerChartCard({
   hover?: ReactNode;
   chartApi: IChartApi | null;
   candleSeriesRef: RefObject<ISeriesApi<'Candlestick'> | null>;
-  volSeriesRef: RefObject<ISeriesApi<'Histogram'> | null>;
   vwapSource: VwapSource;
   liveTipTime: number | null;
   onOscDragStart: (event: React.PointerEvent) => void;

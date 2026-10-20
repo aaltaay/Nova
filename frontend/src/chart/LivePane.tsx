@@ -285,7 +285,6 @@ export function LivePane({
       )}
       chartApi={chartApi}
       candleSeriesRef={candleSeriesRef}
-      volSeriesRef={volSeriesRef}
       vwapSource={vwapSource}
       liveTipTime={liveTipTime}
       onOscDragStart={onOscDragStart}

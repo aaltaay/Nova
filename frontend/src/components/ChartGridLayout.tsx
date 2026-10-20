@@ -14,14 +14,14 @@ import {
   CHART_DEFAULT_INDICATORS,
   CHART_GRID_PANE_INDICATORS,
   CHART_GRID_REGION_ARIA,
-  type ChartIndicatorId,
-} from '../constantGroups/chart_api';
-import {
-  buildChartGridPanels,
   STOCK_VIEW_CHART_ROW_SPLIT_KEY,
   STOCK_VIEW_CHART_ROW_SPLIT_MAX_PCT,
   STOCK_VIEW_CHART_ROW_SPLIT_MIN_PCT,
   STOCK_VIEW_CHART_ROW_SPLIT_PCT,
+  type ChartIndicatorId,
+} from '../constantGroups/chart_api';
+import {
+  buildChartGridPanels,
   type ChartGridPanel,
 } from '../constantGroups/market_ui';
 
