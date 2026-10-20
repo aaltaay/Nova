@@ -85,3 +85,22 @@ PRs (correctness first).
 
 Gaps left are issues: recorded IBKR sessions / Level 2 / tape (#1064), short volume / borrow / ratios (#1065),
 Massive endpoints not downloaded (#1066, operator decision), MCP concurrency (#1067), builder gaps (#1068).
+
+## Amendment -- 2026-10-20: Nova's own recordings (#1064)
+
+**Decided by:** the operator, 2026-10-20, asking for the nova-data MCP's gaps to be fixed: agents read every dataset
+through one standard front door so results agree, and research reads must never slow the live desk.
+
+1. **Recorded Level 2 and tape are served.** Two more tools, `recorded_depth` (the book at an ET moment) and
+   `recorded_tape` (prints in an ET window), in a third tool module (`tools/nova_data_recordings.py`; CLI
+   `tools/market_data_recordings.py`) over `research/market_reads/recordings.py`: the Session Records
+   (`F:\Nova\sim_capture`), `l2.db` depth snapshots and `archive.db` `tape_ibkr` prints.
+2. **The desk's stores are only ever read, and never waited on.** SQLite is opened `mode=ro` with `query_only` and read
+   in short bounded statements (no long transaction holds a WAL checkpoint); jsonl streams are searched by byte offset
+   rather than read whole; each read takes a heavy-read slot. A research read cannot change, lock or slow what the
+   recorders write.
+3. **Coverage is part of the answer.** Every answer states what the recording does not hold (gaps and their reason,
+   books the recorder did not keep, sampling sessions, the archive's lack of any gap marking); an unrecorded moment is
+   `covered: false`, never an empty book, and a Session Record is never read across its gap. Times are ET on Nova's
+   receive clock.
+4. **Not served yet:** the book watcher's marks and the Session Records' quotes (#1103).

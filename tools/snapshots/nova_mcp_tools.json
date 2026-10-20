@@ -1,7 +1,7 @@
 [
   {
     "name": "data_catalog",
-    "description": "Start here: every dataset (trades, quotes, bars, daily bars, movers index, stock-day finder, boards, order flow, halts, catalysts, symbols, splits, financials, SEC shares and filings, float, IPOs, ticker details, short interest) with its source, history, as-of rule, units and the tool that reads it, plus what is NOT available.",
+    "description": "Start here: every dataset (trades, quotes, bars, daily bars, movers index, stock-day finder, boards, order flow, halts, catalysts, symbols, splits, financials, SEC shares and filings, float, IPOs, ticker details, short interest, Nova's own recorded Level 2 and tape) with its source, history, as-of rule, units and the tool that reads it, plus what is NOT available.",
     "inputSchema": {
       "properties": {},
       "title": "data_catalogArguments",
@@ -1224,6 +1224,123 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "recorded_depth",
+    "description": "Nova's own recorded Level 2 book (what the desk's IBKR depth line showed) for a symbol at ET `at` (HH:MM or HH:MM:SS) on `day`: the newest book at or before that moment, never after, no older than max_age_sec (default 60, up to 3600), best price first with size per level, best_bid / best_ask / spread / mid. source: auto (the newer of the two stores) | capture (a Session Record: only symbols the operator or auto-record recorded, 2026-09-19 on, never read across a gap in the recording) | l2_db (the desk's depth samples). `tried` shows each store's answer; `coverage` states what each recording holds and lost (recorded stretches, gaps and why, books IBKR sent that the recording did not keep, sampling sessions). covered=false with a reason and recorded_days when nothing was recorded then: not \"the book was empty\". Times are ET on Nova's receive clock. Massive has no Level 2; this is Nova's own recording.",
+    "inputSchema": {
+      "properties": {
+        "symbol": {
+          "title": "Symbol",
+          "type": "string"
+        },
+        "day": {
+          "title": "Day",
+          "type": "string"
+        },
+        "at": {
+          "title": "At",
+          "type": "string"
+        },
+        "source": {
+          "default": "auto",
+          "title": "Source",
+          "type": "string"
+        },
+        "max_age_sec": {
+          "default": 60.0,
+          "title": "Max Age Sec",
+          "type": "number"
+        }
+      },
+      "required": [
+        "symbol",
+        "day",
+        "at"
+      ],
+      "title": "recorded_depthArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "recorded_tape",
+    "description": "Nova's own recorded Time & Sales prints for a symbol on `day`, ET start (inclusive) to end (exclusive), default the whole ET day, oldest first: time_et, ts (epoch seconds when Nova RECEIVED the print), receive_ts, exchange_ts (IBKR's own whole second, Session Records only), price, size, exchange, conditions, unreported, sets_price (may the print move a candle), side / bid / ask (the desk's own judgement against the book it held at receipt; null when none, never inferred), source. source: auto (a Session Record when one exists, else the archive) | capture | archive (every print the desk's tape line saw, 2026-07-15 on, any symbol). meta.coverage says what the recording holds and lost (a Session Record: stretches, gaps, tape losses; the archive: first / last print and that it marks no gap of its own); a Session Record's gaps may hold prints the archive has. limit up to 1,000,000 rows (meta.capped); inline answers hold 200, output_name (new .parquet/.csv) for all.",
+    "inputSchema": {
+      "properties": {
+        "symbol": {
+          "title": "Symbol",
+          "type": "string"
+        },
+        "day": {
+          "title": "Day",
+          "type": "string"
+        },
+        "start": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start"
+        },
+        "end": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End"
+        },
+        "source": {
+          "default": "auto",
+          "title": "Source",
+          "type": "string"
+        },
+        "limit": {
+          "default": 200000,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "output_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Name"
+        }
+      },
+      "required": [
+        "symbol",
+        "day"
+      ],
+      "title": "recorded_tapeArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
       "openWorldHint": false
     }
   },

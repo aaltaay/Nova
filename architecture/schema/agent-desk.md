@@ -489,9 +489,85 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
   script outside the repo that names one. Passes: the front door's tools, repo code, a code search or git not pointed
   at a data folder, and `# raw-data-ok: <reason>`. Unparseable input allows.
 
+## Recorded sessions, Level 2 and tape through the front door (ADR 059, #1064)
+
+Nova's own IBKR recordings, read by the same front door as the Massive files (`research/market_reads/recordings.py`;
+CLI `tools/market_data_recordings.py`, MCP `tools/nova_data_recordings.py`). What the Sim replays, research can now
+query. **Read-only and invisible to the live desk:** every store is opened for reading only (SQLite
+`file:...?mode=ro` with `PRAGMA query_only=ON`, jsonl files opened `rb`); a read never writes a row, creates a store,
+changes `journal_mode` or flushes a writer queue. Every database read is a short bounded statement (one row, or at most
+`CHUNK_ROWS` = 20,000 in keyset pages, the read transaction ended between statements), so a WAL checkpoint is never held
+behind a research read and the desk's writers never wait on it. Opening a WAL database read-only while no writer has it
+open leaves SQLite's own empty `-wal` / `-shm` side files beside it (the reader protocol; no content of the store). A
+read takes one heavy-read slot (`slots.heavy`). A jsonl stream is searched by byte offset (its rows are in `ts` order:
+the recorder refuses a row that moves backwards), never read whole for one moment. Tests run on fixture stores only.
+
+- **Where.** `NOVA_SIM_CAPTURE_DIR` (default `F:\Nova\sim_capture`, the recorder's own `capture.storage.capture_root`):
+  `<day>/<SYMBOL>/{manifest.json, prints.jsonl, quotes.jsonl, l2.jsonl}` (a Session Record, "Recording persistence
+  and coverage" in `recording-and-replay.md`). The desk cache holds `l2.db` (`l2_snapshots`, `record_sessions`) and
+  `archive.db` (`tape_ibkr`, `integrity_counters`): `NOVA_CACHE_DIR` when set (and only that folder), else the main
+  checkout's `backend/.cache` (a worktree keeps its own, empty one), this checkout's, then `F:\Nova\cache` (where
+  `tools/data_root.py` moves it); the first folder holding the store is read. A store that is not there is a stated
+  absence naming every place looked (`LookupError` where there is nothing else to answer).
+- **Tools** (`{ok: false, error}` on a failed read, as every front-door tool; both heavy, one at a time per process):
+  - `recorded_depth {symbol, day, at, source?, max_age_sec?}` -> the Level 2 book at ET `at` (`HH:MM[:SS]`):
+    `{ok, symbol, day, at, at_et, covered, source, book, reason, tried, coverage, rules, units, recorded_days?}`.
+    `source` is `auto` (default: the newest book at or before `at` among the stores, a tie to `capture`) | `capture` |
+    `l2_db`. `covered` is true when a book was found and `source` names the store that served it; when false,
+    `book` and `source` are null and `reason` says why per store. `book` is `{ts, time_et, age_sec, bids: [{price,
+    size}], asks: [{price, size}], best_bid, best_ask, spread, mid, bid_levels, ask_levels, source, setup?,
+    session_id?}` -- each side best price first, `age_sec` the seconds between the book and `at`. `tried` is one
+    `{source, covered, reason, book_ts, book_et, age_sec}` per store asked, so a book the other store held is
+    visible. `max_age_sec` (default 60, above 0 and at most 3,600) is how far before `at` a book still counts.
+  - `recorded_tape {symbol, day, start?, end?, source?, limit?, output_name?}` -> a table answer (rows `time_et, ts,
+    receive_ts, exchange_ts, price, size, exchange, conditions, unreported, sets_price, side, bid, ask, source`) of
+    the prints in ET `[start, end)` (default the whole ET calendar day), oldest first. `source` is `auto` (default:
+    `capture` when a usable Session Record with prints exists for the symbol-day, else `archive`) | `capture` |
+    `archive`. `limit` (default 200,000, at most 1,000,000) caps the rows; `meta.capped` says more matched.
+    `output_name` writes a new file like the other table tools. `meta` carries `source` (served), `window_et`,
+    `where` (the folder read), `coverage`, `rules`, `units`, `note` (a stated absence or a pointer to the other
+    store) and, when no row matched, `recorded_days`.
+- **Times are ET and are Nova's clock.** `time_et` is `HH:MM:SS.mmm` of `ts` and every `*_et` in `coverage` is ISO
+  with the ET offset. `ts` is epoch seconds when Nova **received** the print (ib_async stamps arrival;
+  `ibkr/tape_events.py`), `receive_ts` when the desk processed it (a Session Record and the archive keep both).
+  `exchange_ts` is IBKR's own whole second when the tick carried one (Session Records only; null in `archive`, which
+  does not store it). A book's `ts` is when Nova received that book. The "day" is the ET calendar day of `ts`, the
+  folder the recorder files it under (a DST day is 23 or 25 hours).
+- **Prints.** `side` (`ask` | `bid` | `between` | null) is the desk's own judgement against the book it held at
+  receipt (`ibkr/tape_side.py`), `bid` / `ask` the top of book it was judged against; null when no book was held,
+  never inferred from price. `sets_price` is the recorded verdict in a Session Record and
+  `sale_conditions.sets_price(conditions)` in `archive` (which does not store IBKR's `unreported` flag, so an
+  unreported print with ordinary conditions reads true there; `unreported` is null in `archive`).
+- **The sources.** `capture`: a Session Record, only for symbols someone recorded (the operator, or auto-record; at
+  most 3 at once), 2026-09-19 on, books kept at most 50 a second (`l2_max_hz`). `l2_db`: Level 2 snapshots the desk
+  sampled while a depth session was open (`record_sessions`: signal windows and about one a second); an `l1_fallback`
+  row is top of book only, never a ladder, and is skipped. `archive`: every print the desk's tape line saw for any
+  symbol, 2026-07-15 on; `l2.db` `tape_trades` holds the same prints for watched symbols (`ibkr/tape_recording.py`
+  fans each print to both) and is not read separately.
+- **What a recording does not cover** -- `coverage`, per store asked, never left out:
+  - `capture`: `{recorded, status, stretches: [{start_et, stop_et, status, reason}], gaps: [{start_et, stop_et,
+    reason, planned}], fidelity: {l2_offered, l2_coalesced, l2_max_hz, tape_resubscribes, timestamp_regressions,
+    tape_losses: [{at_et, cause}]}}` (the manifest's own segments, an open one ending at its last write on disk) and,
+    for depth, `at_in_stretch` (true / false / null when the manifest names no segment). `l2_offered - l2_coalesced`
+    is what the recording kept of the books IBKR sent. A read at a moment no stretch holds answers nothing, and a
+    read never reaches back across a gap (`planned`: the gap followed an operator or auto-record stop; a restart or
+    failure is not planned). A quiet stretch inside a segment is not a gap. For tape, `covered_share` is the
+    fraction of the window inside a stretch.
+  - `l2_db`: `{first_ts, first_et, last_ts, last_et, sessions: [{session_id, reason, setup, started_et, ended_et}],
+    where}` for the symbol-day: outside `first`..`last` and between sessions nothing was sampled.
+  - `archive`: `{first_ts, first_et, last_ts, last_et, dropped_total, gaps}` -- the window's first and last print,
+    `dropped_total` (lifetime prints the writer shed under load: counted, not stamped by time) and `gaps`, text saying
+    the archive is a write log that marks no gap of its own (a quiet stretch and a lost tape line look alike; a
+    Session Record of the symbol-day states its gaps, and `auto` points to the archive when the record has them).
+  An unrecorded symbol-day is `covered: false` (depth) or an empty table (tape) with `reason` / `note` and
+  `recorded_days`: `{source: [YYYY-MM-DD, ...]}`, the newest days that symbol is recorded in each store (at most 30).
+- **Not here:** the book watcher's marks (`F:\Nova\book_watch`) and the Session Records' quotes (`quotes.jsonl`), both
+  recorded and not served yet (#1103), any symbol nobody recorded or watched, and any moment outside the stretches
+  and sessions above.
+
 ## Desk review charts (unified MCP)
 
-The same MCP process (`tools/nova_mcp.py`) serves the 22 data tools and one chart tool, `nova_chart`.
+The same MCP process (`tools/nova_mcp.py`) serves the 24 data tools and one chart tool, `nova_chart`.
 `docs/nova-mcp.md` is the setup. `/review` mounts the desk `ChartGrid` and `TickerChart` through a recorded
 feed (`ChartFeedProvider` in `frontend/src/chart/chartFeed.tsx`). The live desk is unchanged: with no provider
 the feed is `{kind: "live"}` and the same hooks run. The review page does not mount the trading shell, does not

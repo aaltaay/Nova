@@ -31,7 +31,7 @@ py -3 tools/market_data.py halts --symbol SYMBOL --day DAY | catalysts SYMBOL --
 The same reads are MCP tools on the `nova-data` server (ADR 059; `.cursor/mcp.json`, `.mcp.json`): call
 `data_catalog` first. For small-cap momentum research start with `find_stock_days` (movers + shares known that day +
 catalyst + halts + premarket marks, paged by `next_cursor`), then `stock_day_stats`, `order_flow`, `catalysts`,
-`halts`, `daily_bars` / `market_context`, `symbols`; plus `stock_day`, `movers_search` / `movers_scan`, `board`,
+`halts`, `daily_bars` / `market_context`, `symbols`, `recorded_depth` / `recorded_tape`; plus `stock_day`, `movers_search` / `movers_scan`, `board`,
 `splits`, `financials`, `sec_shares`, `sec_filings`, `float_latest`, `ipos`, `ticker_details`, `short_interest`.
 Percents are points in and out (the movers and board stores keep fractions); `--as-of` / `day` count a statement or
 SEC fact from the day it was filed; a float filter is SEC shares OUTSTANDING unless you pick another basis -- say
@@ -45,7 +45,8 @@ In Python: `sys.path.insert(0, "research"); from market_reads import reads` -- `
 movers / board` return pandas DataFrames (movers: the agent endpoint's answer).
 
 Before you trust a number, read `docs/market-data.md` ("The traps"): unadjusted prices, which prints set a price,
-the day bar's whole-session volume, look-ahead, news before 2021-04, no Level 2 history.
+the day bar's whole-session volume, look-ahead, news before 2021-04, no Level 2 history from Massive (Nova's own
+recorded Level 2 and tape: `recorded_depth` / `recorded_tape`, only symbols Nova recorded, coverage in the answer).
 
 - A read on a day without its seek index takes minutes; `status` shows the indexed share. Don't start a bulk
   `index` run without checking one is not already running (`E:\Nova\massive\sim\index\index-build.log`).

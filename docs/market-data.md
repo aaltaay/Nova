@@ -73,6 +73,7 @@ To put a stock-day on the desk for the operator, use the `nova-sim-navigator` sk
 | 1-minute bars, 04:00-20:00 ET | `...\minute_aggs_v1\...` | 2016-01-04 on | `bars --tf 1m / 5m / ...` |
 | Daily bars (official open / high / low / close) | `...\day_aggs_v1\...` | 2016-01-04 on | `daily`, `context`, the movers index and the board rebuild |
 | Order flow per ticker-minute (off exchange, retail buy / sell, sweeps, odd lots, blocks, venues) | `...\trades_flow_v1\YYYY\MM\YYYY-MM-DD.parquet` | 2,712 days from 2016 | `flow` (`research/market_reads/order_flow.py`; builder `research/massive_builders`) |
+| Nova's own recordings of IBKR's feed: Session Records (`F:\Nova\sim_capture\<day>\<SYMBOL>\`), the desk cache's `l2.db` depth snapshots and `archive.db` `tape_ibkr` prints | `F:\Nova\sim_capture`, `backend/.cache` | Session Records 2026-09-19 on, archive tape 2026-07-15 on | `recorded-depth`, `recorded-tape` (`research/market_reads/recordings.py`) |
 | Halt log (Nasdaq Trade Halt RSS, IBKR) | `F:\Nova\leaderboard\leaderboard.sqlite3` `halt_events` | 2019-02-22 on | `halts` |
 | Catalyst items and verdicts | `F:\Nova\catalysts\catalysts.sqlite3` | items from 2016 (Massive news thin before 2021-04); verdicts 2021-10-11 .. 2026-09-21 | `catalysts` |
 | Ticker list (active and delisted, CIK) | `...\store\reference\tickers.json` | latest dump | `symbols` (`research/market_reads/symbols.py`, `tickers.py`) |
@@ -160,9 +161,15 @@ be about 81 TB; Parquet about 11 TB. The index is about 0.2% of a file.
 - **Filed, not period end.** A statement or SEC fact counts from the day it was filed: a quarter ending 03-31 is
   unknown until its 10-Q lands in May. `--as-of` / `--day` apply that rule. Balance-sheet `common_stock` and
   `treasury_stock` are dollars; share counts are SEC facts.
-- **Level 2** history is not in the Massive files: its stock plan is Level 1 only. Nova's own IBKR recordings
-  (`F:\Nova\sim_capture` sessions from 2026-09-19, the desk cache's `l2.db` depth and `archive.db` tape from
-  2026-07-15, `F:\Nova\book_watch`) replay in the Sim; the front door does not serve them yet.
+- **Level 2** history is not in the Massive files: its stock plan is Level 1 only. Nova's own IBKR recordings are
+  served read-only: `recorded-depth` (the book at an ET moment) and `recorded-tape` (prints in an ET window), from the
+  Session Records (`F:\Nova\sim_capture`, 2026-09-19 on, only the symbols someone recorded), `l2.db` depth samples
+  and `archive.db` tape (2026-07-15 on, every symbol the desk's tape line saw). They are the desk's own stores:
+  a read never writes or waits on the live writers. Times are ET on Nova's receive clock (`ts` is when Nova
+  *received* a print; `exchange_ts` is IBKR's own second, Session Records only). Every answer states what the
+  recording does not cover (gaps, books the recorder did not keep, sessions): `covered: false` is "not recorded",
+  never an empty book, and a Session Record is not read across its gaps. The book watcher's marks
+  (`F:\Nova\book_watch`) and the recorded quotes still only replay in the Sim (#1103).
 
 ## Past-day boards in the Sim
 
