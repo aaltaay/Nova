@@ -34,6 +34,7 @@ export {
   readDeskPollSnap, subscribeDeskPollSnap,
 } from './deskSharedPoll';
 export { useTradingPinGate } from './useTradingPinGate';
+export { armDesk } from './armDesk';
 export { simPlayhead, venueClockNow } from './marketOutsideRth';
 export { etMinutesNow, shouldUseOutsideRth } from './extendedSession';
 export { flattenSpendLockReason, isDisarmed, spendStatusLabel } from './spendLock';

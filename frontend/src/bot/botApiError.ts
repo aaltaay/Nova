@@ -1,8 +1,8 @@
 /**
  * A bot API refusal in the backend's own words. The bot routes and the stock-mode
  * rules answer `{detail: {reason, error, field}}`: `error` is the sentence, `reason`
- * a code (BOT_LIVE_NOT_BUILT, STOCK_MODE_LIVE, ...). The page shows the sentence;
- * a code adds nothing the operator can act on, so it is dropped. Two answers have
+ * a code (BOT_LIVE_NOT_BUILT, STOCK_MODE_LIVE, ...). The page shows the sentence; the
+ * code rides on `BotApiError` for the desk to act on (the padlock's question, `padlockPrompt`). Two answers have
  * their own words here: a missing API key, and a bot that is not active.
  */
 import {
@@ -52,6 +52,24 @@ function isArmRequired(status: number, detail: string, code: string): boolean {
 
 function isNotActive(detail: string, code: string): boolean {
   return code === 'BOT_NOT_ACTIVE' || /BOT_NOT_ACTIVE|Not active -- Activate/i.test(detail);
+}
+
+/** A refused bot write: the backend's words, and its refusal code (`BOT_PADLOCK_LOCKED`, ...) for the desk to act on. */
+export class BotApiError extends Error {
+  readonly code: string;
+  readonly status: number;
+
+  constructor(message: string, code = '', status = 0) {
+    super(message);
+    this.name = 'BotApiError';
+    this.code = code;
+    this.status = status;
+  }
+}
+
+/** The error a refused bot write throws: the sentence the desk shows, with the code kept. */
+export function botApiError(status: number, body: unknown): BotApiError {
+  return new BotApiError(messageFromBotApiBody(status, body), reasonCode(body), status);
 }
 
 export function messageFromBotApiBody(status: number, body: unknown): string {

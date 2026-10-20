@@ -9,7 +9,8 @@ import {
 } from '../constantGroups/bot';
 import { SAMPLE_WRITE_REFUSAL } from '../sample_data/sampleCopy';
 import { onSampleDesk } from '../sample_data/sampleOrderGuard';
-import { messageFromBotApiBody } from './botApiError';
+import { botApiError } from './botApiError';
+import { withPadlockPrompt } from './padlockPrompt';
 import { botUnreadableMessage, parseBotAudit, parseBotProposals, parseBotSession } from './botPayload';
 import type { BotAuditEntry, BotFamily, BotProposal, BotSession } from './types';
 
@@ -26,7 +27,7 @@ const UNREADABLE = Symbol('unreadable');
 async function readJson(res: Response, label: string): Promise<unknown> {
   const body: unknown = await res.json().catch(() => UNREADABLE);
   if (!res.ok) {
-    throw new Error(messageFromBotApiBody(res.status, body === UNREADABLE ? {} : body));
+    throw botApiError(res.status, body === UNREADABLE ? {} : body);
   }
   if (body === UNREADABLE) throw new Error(botUnreadableMessage(label, res.status));
   return body;
@@ -67,21 +68,29 @@ export async function fetchBotSession(): Promise<BotSession> {
   return required(parseBotSession(await readJson(res, BOT_LABEL_SESSION)), BOT_LABEL_SESSION, res);
 }
 
+/** A strategy set On over a locked padlock asks to unlock it first (`withPadlockPrompt`). */
 export async function patchBotSession(body: Record<string, unknown>): Promise<BotSession> {
   refuseOnSampleDesk();
-  const res = await novaFetch(
-    `${BOT}/session`,
-    withArm({
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    }),
-  );
-  return (await readJson(res, BOT_LABEL_SESSION)) as BotSession;
+  return withPadlockPrompt(async () => {
+    const res = await novaFetch(
+      `${BOT}/session`,
+      withArm({
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+    );
+    return (await readJson(res, BOT_LABEL_SESSION)) as BotSession;
+  });
 }
 
+/** Activate (ADR 042 B): over a locked padlock it asks to unlock it first (`withPadlockPrompt`). */
 export async function armBotSession(): Promise<BotSession> {
   refuseOnSampleDesk();
+  return withPadlockPrompt(postArm);
+}
+
+async function postArm(): Promise<BotSession> {
   const res = await novaFetch(`${BOT}/session/arm`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -92,9 +101,16 @@ export async function armBotSession(): Promise<BotSession> {
   return next;
 }
 
-/** ADR 044: the Bot switch. On is Strategy and Activate in one call, refused like Activate; off leaves Eyes running. */
+/**
+ * ADR 044: the Bot switch. On is Strategy and Activate in one call, refused like Activate -- over a locked padlock it
+ * asks to unlock it first (`withPadlockPrompt`); off leaves Eyes running and is never refused.
+ */
 export async function switchBotSession(on: boolean): Promise<BotSession> {
   refuseOnSampleDesk();
+  return withPadlockPrompt(() => postSwitch(on));
+}
+
+async function postSwitch(on: boolean): Promise<BotSession> {
   const res = await novaFetch(`${BOT}/session/switch`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -106,15 +122,20 @@ export async function switchBotSession(on: boolean): Promise<BotSession> {
   return next;
 }
 
-/** A family's key on the desk venue (bot.md, "The three keys"): off, its bots place no order, not even a sell. */
+/**
+ * A family's key on the desk venue (bot.md, "The three keys"): off, its bots place no order, not even a sell. On over
+ * a locked padlock asks to unlock it first (`withPadlockPrompt`).
+ */
 export async function setBotFamilyKey(family: BotFamily, on: boolean): Promise<BotSession> {
   refuseOnSampleDesk();
-  const res = await novaFetch(`${BOT}/session/keys`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ family, on }),
+  return withPadlockPrompt(async () => {
+    const res = await novaFetch(`${BOT}/session/keys`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ family, on }),
+    });
+    return (await readJson(res, BOT_LABEL_SESSION)) as BotSession;
   });
-  return (await readJson(res, BOT_LABEL_SESSION)) as BotSession;
 }
 
 export async function disarmBotSession(): Promise<BotSession> {
