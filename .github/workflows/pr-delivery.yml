@@ -1,11 +1,17 @@
-# Finish-line delivery: merge ready PRs once their checks are green, and delete closed heads.
+# Finish-line delivery: merge a pull request only when aaltaay has added
+# merge-approved (the latest labeled event on the issue events API) and
+# Backend tests, Frontend build, Frontend E2E and Agent contract passed on
+# its head (tools/pr_checks.py). Agents never add merge-approved. Drafts
+# never merge. Label do-not-merge holds a PR. Removing merge-approved before
+# the decision does not merge.
 #
-# This is the non-agentic path. Agents open a ready PR. GitHub Actions
-# merges it once Backend tests, Frontend build, Frontend E2E and Agent contract
-# passed on its head (tools/pr_checks.py; operator decision 2026-10-13) and
-# deletes the head on close. CI's own Auto-merge job decides first; this sweep
-# decides again whenever CI completes, and hourly. Label `do-not-merge` or leave
-# the PR as draft to hold it.
+# CI's Auto-merge job decides when checks finish (master's copy of the tool).
+# This sweep decides again on workflow_run completed, hourly, on manual
+# dispatch, and on pull_request labeled so a label added after CI is green
+# merges without waiting for the hour.
+#
+# Create the label once if it is missing:
+# gh label create merge-approved --repo aaltaay/Nova --color 0E8A16 --description "Owner aaltaay approved auto-merge. Agents never add this."
 #
 # `delete_branch_on_merge` is still the backup for merges. This workflow
 # also deletes heads of PRs that close without merge.
@@ -23,7 +29,7 @@ on:
     - cron: "12 * * * *"
   workflow_dispatch:
   pull_request:
-    types: [closed]
+    types: [closed, labeled]
   workflow_run:
     workflows: ["CI"]
     types: [completed]
@@ -52,6 +58,33 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NOVA_GITHUB_REPO: ${{ github.repository }}
         run: python tools/pr_delivery.py sweep
+
+  merge-on-label:
+    name: Merge on owner label
+    # Master's merge tool, never the PR's copy. decide() re-reads the label
+    # and the issue events API, so a label removed before this step does not
+    # merge, and a label added by anyone but aaltaay does not merge.
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.action == 'labeled' &&
+      github.event.label.name == 'merge-approved' &&
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Merge if aaltaay added merge-approved and checks are green
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NOVA_GITHUB_REPO: ${{ github.repository }}
+        run: python tools/pr_delivery.py merge --pr ${{ github.event.pull_request.number }}
 
   delete-closed-head:
     name: Delete closed PR head
