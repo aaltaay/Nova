@@ -7,9 +7,12 @@
   ``HOD_MOMO_REBUILD_52WK_SESSIONS`` sessions before the day, split-adjusted. Never the day's own high: that is
   the future.
 * **The day's open** -- live reads IBKR's open tick, which exists only from 09:30; here the day's own day bar.
-* **Float** -- live reads Yahoo's float now, and there is no float as of a past day on file, so the build asks
-  Yahoo the same way (``fundamentals.fetch_fundamentals``) and every rebuilt alert says so
-  (``HOD_MOMO_REBUILD_FLOAT_BASIS``). A stock Yahoo does not know has an unknown float, as it would live.
+* **Float** -- live reads Yahoo's float, which is only ever today's: on a past day it is the future. Here: SEC
+  shares outstanding filed by the calendar day before (``day_movers.floats.sec_shares`` with ``before``), on the
+  day's share basis, as the snapshot's float and its shares outstanding (``HOD_MOMO_REBUILD_FLOAT_BASIS``). A float
+  cannot exceed shares outstanding, so it is an upper bound: under a max-float line it proves the float is, over
+  it the gate refuses, as an unknown float is refused live (``engine`` sits out the min-float strategies, which an
+  upper bound can never prove). A stock with no count on file has an unknown float.
 
 Splits are Massive's list plus the SEC-confirmed ones (``leaderboard.seconds.inputs.splits``): a split executing
 after a session and by the day scales that session's price by ``split_from / split_to`` and its volume by the
@@ -22,15 +25,14 @@ import gzip
 import logging
 import math
 from collections.abc import Callable, Iterable
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import date as date_cls, timedelta
+from pathlib import Path
 
 from constants_hod_momo import (
     HOD_MOMO_REBUILD_52WK_SESSIONS,
     HOD_MOMO_REBUILD_AVG_VOLUME_SESSIONS,
     HOD_MOMO_REBUILD_DAILY_LOOKBACK_DAYS,
-    HOD_MOMO_REBUILD_FLOAT_WORKERS,
 )
 from constants_sim import SIM_MASSIVE_DAYS
 from leaderboard.seconds import inputs
@@ -127,19 +129,26 @@ def history(day: str, symbols: Iterable[str]) -> dict[str, Facts]:
     return out
 
 
-def floats(symbols: Iterable[str], fetch: Callable[[str], dict] | None = None) -> dict[str, dict]:
-    """Yahoo's float now for each symbol, as live enrichment reads it: ``{symbol: {float_shares,
-    float_contradicted, shares_outstanding}}``, values ``None`` where Yahoo has none."""
-    if fetch is None:
-        from fundamentals import fetch_fundamentals as fetch
+def floats(day: str, symbols: Iterable[str], database: Path | None = None) -> dict[str, dict]:
+    """Each symbol's float as known before ``day`` opened: ``{symbol: {float_shares, float_contradicted,
+    shares_outstanding, as_of, filed}}`` -- the SEC count filed by the day before, as both the float and shares
+    outstanding; every value ``None`` where none is on file (or the movers store is not built)."""
+    from day_movers import floats as mover_floats, store as movers
 
-    def one(symbol: str) -> tuple[str, dict]:
-        try:
-            fund = fetch(symbol) or {}
-        except Exception:  # noqa: BLE001 -- an unknown float, as live reads a failed lookup
-            logger.warning("HOD rebuild: Yahoo lookup for %s failed; its float is unknown", symbol, exc_info=True)
-            fund = {}
-        return symbol, {key: fund.get(key) for key in ("float_shares", "float_contradicted", "shares_outstanding")}
-
-    with ThreadPoolExecutor(max_workers=HOD_MOMO_REBUILD_FLOAT_WORKERS, thread_name_prefix="hod-rebuild-float") as pool:
-        return dict(pool.map(one, sorted(set(symbols))))
+    wanted = sorted(set(symbols))
+    out = {s: {"float_shares": None, "float_contradicted": None, "shares_outstanding": None, "as_of": None,
+               "filed": None} for s in wanted}
+    db = movers.read_only(database)
+    if db is None:
+        logger.warning("HOD rebuild: no day movers store; every float on %s is unknown", day)
+        return out
+    try:
+        counts = mover_floats.sec_shares(db, [(day, s) for s in wanted], before=True)
+    finally:
+        db.close()
+    for (_day, symbol), count in counts.items():
+        shares = float(count["shares"])
+        if shares > 0:
+            out[symbol].update(float_shares=shares, shares_outstanding=shares, as_of=count["as_of"],
+                               filed=count["filed"])
+    return out

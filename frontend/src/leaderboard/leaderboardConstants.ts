@@ -197,7 +197,8 @@ export const hodReplayRebuiltFeedLabel = (clock: string): string => `rebuilt ${c
 export const HOD_REPLAY_REBUILT_FEED_TITLE = 'Rebuilt: Nova kept no HOD Momo record of this day, so these alerts '
   + 'come from HOD Momo\'s own engine run over the day\'s trades (the Massive files), watching the stocks it would '
   + 'have watched on the rebuilt Scanner lists, with your HOD settings now. Average volume and the 52-week high are '
-  + 'as of that day; the float is Yahoo\'s float today, as the live desk reads it.';
+  + 'as of that day; the float is the SEC shares outstanding filed before that day, an upper bound, so a stock '
+  + 'is under a float limit only when that count is, and the Medium Float strategies sit out.';
 export const HOD_REBUILD_STAGE_WORD: Record<string, string> = {
   inputs: 'reading the day',
   index: 'indexing the day\'s trades file',
