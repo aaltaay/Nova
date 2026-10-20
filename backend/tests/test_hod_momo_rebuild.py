@@ -359,6 +359,14 @@ def test_a_worker_that_dies_reads_failed_and_the_batch_goes_on(day):
     assert job.status(DAY)["status"] == "failed" and "exit code 3" in store.read_job(DAY)["error"]
 
 
+def test_the_job_is_stamped_with_the_wall_clock_while_the_engine_pins_time(day):
+    from hod_momo_replay import ReplayClock, pinned_clock
+
+    with pinned_clock(ReplayClock(ts("09:30"))):        # the engine stage: time.time() reads the replayed day
+        record = store.write_job(DAY, status="building")
+    assert abs(record["updated_ts"] - time.time()) < 60  # so another process can tell a live build from a dead one
+
+
 def test_a_stop_file_starts_no_further_day_and_is_removed(day):
     batch.folder().mkdir(parents=True, exist_ok=True)
     batch.stop_path().write_text("", encoding="utf-8")

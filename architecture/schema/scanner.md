@@ -595,7 +595,8 @@ over every `gappers` / `afterhours` / top-50 `market` row of the day and one ove
 `/api/hod-momo/config` serves them plus the blocklist -- so a build reads out of date when the rebuilt boards, the
 operator's HOD settings or `HOD_MOMO_REBUILD_LOGIC_VERSION` change, and is built again when asked. An unknown
 `schema_version` (either file) is never read. A `building` job not rewritten for `HOD_MOMO_REBUILD_STALE_SEC`
-belonged to a process that died and reads `failed`.
+belonged to a process that died and reads `failed`. `updated_ts` and `built_ts` are the wall clock even while the
+engine pins `time.time` to the replayed day (until 2026-10-20 the engine stage stamped the replay's time).
 
 **Route.** `POST /api/hod-momo/history/{date}/rebuild` asks for it: the job, or `{status: "unavailable",
 reason}` -- Nova recorded HOD Momo that day, the day has no rebuilt boards, or its Massive trades or day-bar file is
