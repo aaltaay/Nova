@@ -4,9 +4,10 @@
   step. It is refused like Activate (``bot.activation.refusal``, with Activate's codes):
   ``BOT_LIVE_NOT_BUILT``, ``BOT_REPLAY_DESK``, ``BOT_VENUE_UNKNOWN`` and ``BOT_NO_SETUP_AT_STRATEGY``
   (no strategy is On). A refusal changes nothing.
-- **The padlock is separate** (operator decision 2026-10-16, replacing 2026-10-12's "ON unlocks the padlock"): ON
-  neither unlocks nor needs it, and locking it leaves the switch on. Locked, no one places an order -- the bots'
-  gates read it before every send -- and they trade again the moment it is unlocked.
+- **ON needs the padlock unlocked** (``bot.padlock_gate``, operator decision 2026-10-20, replacing 2026-10-16's "ON
+  neither unlocks nor needs it"): ON over a locked padlock is refused ``BOT_PADLOCK_LOCKED`` and the desk asks to
+  unlock it; ON never unlocks it by itself. Locking it later leaves the switch on: no one places an order while it is
+  locked -- the bots' gates read it before every send -- and the desk's switch reads LOCKED until it is unlocked.
 - **On flows up** (``bot.cascade``, operator ask 2026-10-16): a strategy turned On, a host's key turned on or a
   family key turned on turns this switch on, by the same rules as a press.
 - **OFF** (``turn(False)``) deactivates (``deactivated.reason: "operator"``) and puts the master at
@@ -52,11 +53,11 @@ def is_on(row: dict[str, Any]) -> bool:
 
 
 def refusal(row: dict[str, Any]) -> BotError | None:
-    """Why ON is refused now -- Activate's rules with the master already at Strategy, the padlock left out (it is
-    separate) -- in the switch's words."""
+    """Why ON is refused now -- Activate's rules with the master already at Strategy, the padlock's included
+    (``bot.padlock_gate``) -- in the switch's words."""
     trial = dict(row)
     trial["level"] = BOT_LEVEL_STRATEGY
-    refused = activation.refusal(trial, padlock_rule=False)
+    refused = activation.refusal(trial)
     if refused is None:
         return None
     message = refused.message

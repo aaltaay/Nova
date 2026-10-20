@@ -159,8 +159,8 @@ def hold(family: str, venue: str | None = None, row: dict[str, Any] | None = Non
     venue = desk if venue is None else venue
     if venue is None or venue != desk or not switch.is_on(load_session() if row is None else row):
         return BOT_SKIP_NOT_ACTIVE, "the Bot switch in the header is off: bots place no order, not even a sell"
-    # The padlock is separate from the keys (operator decision 2026-10-16): locking it leaves the Bot switch on, and
-    # while it is locked no one places an order -- a bot's sell included -- until it is unlocked.
+    # No key turns on over a locked padlock (bot.padlock_gate, 2026-10-20), but locking it later leaves the keys on
+    # (2026-10-16): while it is locked no one places an order -- a bot's sell included -- until it is unlocked.
     from bot.activation import padlock
     from constants_bot import BOT_REASON_PADLOCK_LOCKED
 
@@ -198,7 +198,8 @@ def view(venue: str | None) -> dict[str, Any]:
 
 def turn(family: str, on: bool) -> bool:
     """Turn ``family``'s key on or off on the desk venue. Returns whether it changed (the same state writes nothing);
-    raises ``BotError`` on an unknown family, Live, an unreadable venue or an unreadable file."""
+    raises ``BotError`` on an unknown family, Live, an unreadable venue, an unreadable file, or -- turning on -- a
+    locked padlock (``bot.padlock_gate``)."""
     if family not in BOT_FAMILIES:
         raise BotError(f"there is no {family!r} bot family (strategy or live_trader)", 400, BOT_REASON_KEY_UNKNOWN)
     venue = desk_venue()
@@ -206,6 +207,11 @@ def turn(family: str, on: bool) -> bool:
         raise BotError(_UNKNOWN_VENUE_WHY, 409, BOT_REASON_VENUE_UNKNOWN)
     if venue not in BOT_KEYS_VENUES:
         raise BotError(_LIVE_WHY, 409, BOT_REASON_LIVE_NOT_BUILT)
+    if on and not is_on(family, venue):
+        # No bot turns on over a locked padlock (``bot.padlock_gate``, operator decision 2026-10-20).
+        from bot.padlock_gate import require_unlocked
+
+        require_unlocked(family)
     with _lock:
         state = _load_locked()
         if _error is not None:
