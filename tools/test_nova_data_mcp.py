@@ -19,9 +19,9 @@ import nova_data_mcp as m  # noqa: E402
 TOOLS = {"data_catalog", "data_status", "stock_day", "movers_search", "movers_scan", "board", "splits", "financials",
          "sec_shares", "sec_filings", "float_latest", "ipos", "ticker_details", "short_interest",
          "find_stock_days", "daily_bars", "market_context", "stock_day_stats", "order_flow", "halts", "catalysts",
-         "symbols", "rvol_scan", "rvol_triggers", "rvol_outcomes", "cash_runway"}
+         "symbols", "rvol_scan", "rvol_triggers", "rvol_outcomes", "cash_runway", "recorded_depth", "recorded_tape"}
 WRITES = {"stock_day", "movers_scan", "find_stock_days", "daily_bars", "order_flow", "rvol_scan", "rvol_triggers",
-          "rvol_outcomes"}
+          "rvol_outcomes", "recorded_tape"}
 
 
 def test_a_big_table_answers_its_first_rows_and_says_how_many_matched():
@@ -66,6 +66,14 @@ def test_a_failed_read_is_an_answer_and_prints_never_reach_stdout(capsys):
     assert answer == {"ok": False, "error": "LookupError: no such stock"}
     out = capsys.readouterr()
     assert out.out == "" and "progress chatter" in out.err
+
+
+def test_the_catalog_serves_nova_s_recordings_and_names_what_it_still_does_not():
+    answer = m.DataService().catalog()
+    names = {d["name"]: d for d in answer["datasets"]}
+    assert names["recorded_depth"]["mcp"] == "recorded_depth" and names["recorded_tape"]["mcp"].startswith("recorded_tape")
+    assert "recorded_depth" in " ".join(answer["not_here"]) and "book_watch" in " ".join(answer["not_here"])
+    assert "does not serve them yet" not in " ".join(answer["not_here"])
 
 
 def test_the_catalog_names_units_and_as_of_rules_for_every_dataset():
@@ -222,6 +230,43 @@ def test_every_tool_is_registered_and_only_file_writers_are_not_read_only():
     for name, tool in tools.items():
         assert tool.annotations.readOnlyHint is (name not in WRITES), name
         assert tool.annotations.destructiveHint is False and tool.description
+
+
+def test_recorded_depth_answers_the_librarys_book_and_its_coverage(monkeypatch):
+    from market_reads import recordings
+    asked = {}
+
+    def depth(symbol, day, at, source, max_age_sec):
+        asked.update(symbol=symbol, day=day, at=at, source=source, max_age_sec=max_age_sec)
+        return {"symbol": symbol, "covered": True, "source": "capture", "book": {"best_bid": 1.02, "age_sec": 30.0},
+                "coverage": {"capture": {"gaps": [{"reason": "restart"}]}}}
+
+    monkeypatch.setattr(recordings, "depth", depth)
+    answer = m.DataService().recorded_depth("GRML", "2026-10-14", "09:31:30", "capture", 120.0)
+    assert answer["ok"] and answer["book"]["best_bid"] == 1.02 and answer["coverage"]["capture"]["gaps"]
+    assert asked == {"symbol": "GRML", "day": "2026-10-14", "at": "09:31:30", "source": "capture", "max_age_sec": 120.0}
+
+
+def test_a_bad_recorded_read_is_an_answer_not_a_crash():
+    answer = m.call(m.DataService().recorded_depth, "GRML", "2026-10-14", "99:00")
+    assert answer["ok"] is False and answer["error"].startswith("ValueError: '99:00' is not an ET clock time")
+
+
+def test_recorded_tape_answers_a_table_with_its_coverage_and_writes_only_a_new_file(monkeypatch, tmp_path):
+    from market_reads import recordings
+    frame = pd.DataFrame({"time_et": ["09:31:00.250"], "price": [1.0], "source": ["archive"]})
+    frame.attrs.update(source="archive", capped=False, coverage={"dropped_total": 12}, rules="r")
+    monkeypatch.setattr(recordings, "tape", lambda *a: frame)
+    answer = m.DataService(tmp_path).recorded_tape("GRML", "2026-10-14", "09:31", "09:32", "archive", 50,
+                                                   output_name="tape.parquet")
+    assert answer["ok"] and answer["rows"] == 1 and answer["data"][0]["time_et"] == "09:31:00.250"
+    assert answer["meta"]["coverage"] == {"dropped_total": 12} and pd.read_parquet(answer["out"]).shape == (1, 3)
+    with pytest.raises(FileExistsError):
+        m.DataService(tmp_path).recorded_tape("GRML", "2026-10-14", output_name="tape.parquet")
+
+
+def test_the_recorded_reads_are_heavy_ones_so_they_queue_behind_each_other_per_process():
+    assert not {"recorded_depth", "recorded_tape"} & m.LIGHT_TOOLS
 
 
 def test_find_stock_days_hands_the_ranking_kinds_and_limit_arguments_to_the_read(monkeypatch):

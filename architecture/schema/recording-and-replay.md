@@ -904,3 +904,11 @@ or a recording still uses it. It opens no IBKR line and pushes or records no
 book. The panel holds it while mounted and re-asserts it every
 `SIM_HISTORY_DEPTH_LINE_REFRESH_MS`.
 
+## Reading the recordings from research (#1064)
+
+The Session Records, `l2.db` and `archive.db` described above are also read by the data front door (ADR 059,
+`research/market_reads/recordings.py`: MCP `recorded_depth` / `recorded_tape`, CLI `recorded-depth` /
+`recorded-tape`). Those reads are strictly read-only and never wait on the recorders, search a jsonl stream by byte
+offset, never read a Session Record across a gap in its segments, and state what each recording does not cover. The
+answer shapes and the stores' read rules are "Recorded sessions, Level 2 and tape through the front door" in
+`agent-desk.md`.
