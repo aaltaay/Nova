@@ -12,11 +12,8 @@
  * route (V4) the snapshot is the Nova Marketing Sample Data status and no
  * request is made.
  */
-import {
-  API_BASE_URL,
-  IBKR_STATUS_POLL_MS,
-  IBKR_STATUS_STALE_AFTER_MISSES,
-} from '../constants';
+import { API_BASE_URL } from '../constantGroups/chart_api';
+import { IBKR_STATUS_POLL_MS, IBKR_STATUS_STALE_AFTER_MISSES } from '../constantGroups/global_bar';
 import { isSampleView } from '../sample_data/sampleNav';
 import { SAMPLE_IBKR_STATUS } from '../sample_data/sampleStatus';
 import { readLastIbkrStatus, writeLastIbkrStatus } from './ibkrStatusCache';

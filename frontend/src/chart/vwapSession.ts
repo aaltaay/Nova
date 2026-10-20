@@ -14,7 +14,7 @@ import {
   CHART_VWAP_SESSION_END_SEC,
   CHART_VWAP_SESSION_START_SEC,
   CHART_VWAP_SOURCE_TIMEFRAME,
-} from '../constants';
+} from '../constantGroups/chart_api';
 import type { IndicatorBar } from '../chartIndicators';
 import {
   isDailyTimeframe,

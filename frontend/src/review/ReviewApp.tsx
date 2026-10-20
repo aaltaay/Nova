@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChartGrid } from '../components/ChartGrid';
 import { ChartFeedProvider } from '../chart';
 import { fetchReview, cutPayload } from './reviewData';
-import { fixturePayload, type ReviewPayload } from './reviewFixture';
+import type { ReviewPayload } from './reviewFixture';
 import { feedFromPayload } from './reviewFeed';
 import { GalleryBoard } from './GalleryBoard';
 import { levelOverlay } from './RecordedLevelsOverlay';
@@ -12,7 +12,10 @@ import { parseReviewQuery, TF_PANE, REVIEW_TFS, type ReviewTf } from './reviewQu
 import { ReviewSymbolButton } from './ReviewSymbolButton';
 
 function loadOne(symbol: string, date: string, asOf: string, fixture: boolean, api: string): Promise<ReviewPayload> {
-  if (fixture) return Promise.resolve(fixturePayload(symbol, date, [...REVIEW_TFS], asOf));
+  if (fixture) {
+    return import('./reviewFixture').then(({ fixturePayload }) =>
+      fixturePayload(symbol, date, [...REVIEW_TFS], asOf));
+  }
   return fetchReview(symbol, date, [...REVIEW_TFS], asOf, api);
 }
 

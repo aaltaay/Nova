@@ -1,14 +1,12 @@
+import { CHART_CARD_TITLE, CHART_MOCK_DATA_LABEL, CHART_TIMEFRAMES } from '../constantGroups/market_ui';
 import {
-  CHART_CARD_TITLE,
   CHART_FULLSCREEN_ARIA,
   CHART_FULLSCREEN_RESTORE_ARIA,
   CHART_FULLSCREEN_RESTORE_TITLE,
   CHART_FULLSCREEN_TITLE,
   CHART_INDICATORS,
-  CHART_MOCK_DATA_LABEL,
-  CHART_TIMEFRAMES,
   type ChartIndicatorId,
-} from '../constants';
+} from '../constantGroups/chart_api';
 import { useContext } from 'react';
 import { ChartDrawTools } from './ChartDrawTools';
 import { ChartToolbarExtra } from './chartToolbarExtra';

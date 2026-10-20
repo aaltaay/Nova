@@ -1,7 +1,7 @@
 /** One timeframe at a time. Each cell is the desk's TickerChart for that pane. */
 
 import { ChartFeedProvider, TickerChart } from '../chart';
-import { CHART_DEFAULT_INDICATORS, CHART_GRID_PANE_INDICATORS, type ChartIndicatorId } from '../constants';
+import { CHART_DEFAULT_INDICATORS, CHART_GRID_PANE_INDICATORS, type ChartIndicatorId } from '../constantGroups/chart_api';
 import type { ReviewPayload } from './reviewFixture';
 import { feedFromPayload } from './reviewFeed';
 import { levelOverlay } from './RecordedLevelsOverlay';

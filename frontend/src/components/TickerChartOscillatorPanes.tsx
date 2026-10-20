@@ -12,7 +12,7 @@ import {
   CHART_INDICATOR_PANE_HEIGHT,
   CHART_OSCILLATOR_CLOSE_TITLE,
   type ChartOscillatorId,
-} from '../constants';
+} from '../constantGroups/chart_api';
 import {
   computeMacdPane,
   computeRsiPane,

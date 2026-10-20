@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import nova_data_mcp as data  # noqa: E402
 import nova_mcp  # noqa: E402
 import nova_open_client as open_client  # noqa: E402
+import nova_review_engine as engine  # noqa: E402
 import nova_review_http as review_http  # noqa: E402
 
 DAY = "2026-09-18"
@@ -139,6 +140,30 @@ def test_review_open_forwards_the_token_and_hides_it_from_other_origins(review_a
         headers={"Content-Type": "text/plain", "X-Nova-Open-Token": "tok"},
     )
     assert plain == 415
+
+
+def test_the_engine_forwards_open_before_the_shot_route(review_and_api, monkeypatch, tmp_path):
+    """The running review engine owns POST. Open must not fall through to the shot 404."""
+    monkeypatch.setenv("NOVA_REVIEW_LEASE", str(tmp_path / "lease.json"))
+    monkeypatch.setenv("NOVA_REVIEW_LEASE_LOCK", str(tmp_path / "lease.lock"))
+    monkeypatch.setenv("NOVA_REVIEW_SHOT_DIR", str(tmp_path / "shots"))
+    engine.STATE.token = "shot-token"
+    httpd = engine.serve_engine(0, bars_reader=lambda *_a: [], daily_reader=lambda *_a: [])
+    assert httpd is not None
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        port = int(httpd.server_address[1])
+        opened, headers, raw = _request(
+            port, "/api/review/open-in-nova", method="POST",
+            body={"symbol": "IMCC", "date": DAY, "as_of": "10:00"},
+            headers={"Content-Type": "application/json", "X-Nova-Open-Token": "tok"},
+        )
+    finally:
+        httpd.shutdown()
+    assert opened == 200
+    assert headers.get("Access-Control-Allow-Origin") is None
+    assert json.loads(raw)["chat_message"] == CHAT
 
 
 def test_review_open_says_when_the_desk_is_not_running(monkeypatch):

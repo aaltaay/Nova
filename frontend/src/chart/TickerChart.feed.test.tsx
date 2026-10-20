@@ -189,8 +189,11 @@ describe('TickerChart feed', () => {
   });
 
   it('still asks for bars and subscribes to gateway status on the live feed', async () => {
+    await import('./LivePane');
     await act(async () => {
       root.render(<TickerChart symbol="SMPL" fixedTimeframe="5Min" />);
+      await Promise.resolve();
+      await Promise.resolve();
     });
     expect(ensureBars).toHaveBeenCalled();
     expect(vi.mocked(ensureBars).mock.calls.some((call) => call[1] === '5Min')).toBe(true);

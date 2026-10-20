@@ -11,8 +11,8 @@ it. A later MCP process attaches to the engine that is already up.
   py -3 tools/nova_mcp.py [--output-root DIR] [--review-base URL] [--review-port N]
                           [--review-http] [--no-review-http] [--no-warm-shots]
 
-``NOVA_REVIEW_BASE`` (default ``http://127.0.0.1:5173``) is the link origin.
-``NOVA_REVIEW_PORT`` (default 18765) is the engine. ``NOVA_REVIEW_HTTP=1`` starts
+``NOVA_REVIEW_BASE`` overrides the link origin. Unset, the link uses the engine,
+which serves ``/review``. ``NOVA_REVIEW_PORT`` (default 18765) is the engine. ``NOVA_REVIEW_HTTP=1`` starts
 the engine at process start. ``tools/nova_data_mcp.py`` starts this same server.
 ``tools/nova_chart_mcp.py`` stays the candle-gateway exporter.
 """
@@ -41,7 +41,11 @@ DEFAULT_REVIEW_PORT = review_http.DEFAULT_PORT
 
 
 def default_review_base() -> str:
-    return os.environ.get("NOVA_REVIEW_BASE", DEFAULT_REVIEW_BASE).rstrip("/")
+    """Empty means the chart link uses the review engine's own origin."""
+    raw = os.environ.get("NOVA_REVIEW_BASE")
+    if raw is None or not raw.strip():
+        return ""
+    return raw.strip().rstrip("/")
 
 
 def default_review_port() -> int:
@@ -100,26 +104,63 @@ class Charts:
         import nova_review_engine as engine
         return f"http://127.0.0.1:{engine.ensure_engine(self.port)}"
 
-    def _shoot_one(self, url: str, symbol: str) -> dict[str, Any]:
+    def origins(self) -> tuple[str, str | None]:
+        """Link origin, and the ``api`` query when the page is not the engine."""
+        engine_origin = self.api_origin() if self.http else None
+        base = (self.base or engine_origin or DEFAULT_REVIEW_BASE).rstrip("/")
+        if engine_origin and base == engine_origin.rstrip("/"):
+            return base, None
+        return base, engine_origin
+
+    def _shoot_one(self, url: str, symbol: str, fields: dict[str, Any]) -> dict[str, Any]:
         self.directory.mkdir(parents=True, exist_ok=True)
         dest = self.directory / f"review-{symbol}-{uuid.uuid4().hex[:8]}.png"
         if self.shots is not None:
             return self.shots.shoot(url, dest)
         import nova_review_engine as engine
-        if not desk_reachable(self.base):
-            return {"ok": False, "error": {"code": "REVIEW_DESK_UNREACHABLE", "detail": self.base}}
-        port = engine.ensure_engine(self.port)
-        return engine.request_shot(port, url, dest, uuid.uuid4().hex)
+        base = self.base.rstrip("/")
+        if base and not desk_reachable(base):
+            return {"ok": False, "error": {"code": "REVIEW_DESK_UNREACHABLE", "detail": base}}
+        try:
+            port = engine.ensure_engine(self.port)
+        except OSError as exc:
+            return {"ok": False, "error": {"code": "REVIEW_ENGINE_UNAVAILABLE", "detail": str(exc)}}
+        if not base:
+            base = f"http://127.0.0.1:{port}"
+            if not desk_reachable(base):
+                return {"ok": False, "error": {"code": "REVIEW_DESK_UNREACHABLE", "detail": base}}
+        shot = engine.request_shot(port, fields, uuid.uuid4().hex)
+        png = shot.get("png")
+        if shot.get("ok") and isinstance(png, (bytes, bytearray)):
+            try:
+                dest.write_bytes(bytes(png))
+            except OSError:
+                return {"ok": False, "error": {"code": "REVIEW_SHOT_FAILED", "detail": "could not store the preview"}}
+        return shot
 
-    def previews(self, links: list[dict[str, str]], gallery: str) -> tuple[list[dict[str, Any]], str | None]:
+    def previews(self, links: list[dict[str, str]], gallery: str, *, date: str,
+                 as_of: str) -> tuple[list[dict[str, Any]], str | None]:
         if not self.warm:
             return [], "REVIEW_SHOT_UNAVAILABLE"
-        pages = list(links)
+        pages: list[dict[str, Any]] = [
+            {"symbol": item["symbol"], "url": item["url"],
+             "fields": {"symbol": item["symbol"], "date": date, "as_of": as_of}}
+            for item in links
+        ]
         if len(links) > 1:
-            pages.append({"symbol": "gallery", "url": gallery})
+            pages.append({
+                "symbol": "gallery",
+                "url": gallery,
+                "fields": {
+                    "symbols": [item["symbol"] for item in links],
+                    "date": date,
+                    "as_of": as_of,
+                    "gtf": "5m",
+                },
+            })
         images = []
         for page in pages:
-            shot = self._shoot_one(page["url"], page["symbol"])
+            shot = self._shoot_one(page["url"], page["symbol"], page["fields"])
             if not shot.get("ok"):
                 code = (shot.get("error") or {}).get("code") or "REVIEW_SHOT_FAILED"
                 return images, str(code)
@@ -207,26 +248,30 @@ def create_server(service: data.DataService, *, review_base: str | None = None, 
     writes = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False)
 
     def build(symbols: list[str], date: str, as_of: str) -> Any:
-        api = None
-        if charts.http:
-            try:
-                api = charts.api_origin()
-            except OSError as exc:
-                api = None
-                engine_note = str(exc)
-            else:
-                engine_note = None
-        else:
-            engine_note = None
         try:
-            linked = causal.chart_links(symbols, date, as_of, base=charts.base, api=api)
+            base, api = charts.origins()
+            engine_note = None
+        except OSError as exc:
+            base = charts.base or DEFAULT_REVIEW_BASE
+            api = None
+            engine_note = str(exc)
+        try:
+            linked = causal.chart_links(symbols, date, as_of, base=base, api=api)
         except ValueError as exc:
-            message = causal.chat_message(date=str(date), as_of=str(as_of or "16:00"), links=[])
+            try:
+                clock = causal.check_clock(as_of or "16:00")
+            except ValueError:
+                clock = "16:00"
+            try:
+                day = causal.parse_day(str(date)).isoformat()
+            except ValueError:
+                day = "0000-00-00"
+            message = causal.chat_message(date=day, as_of=clock, links=[])
             return _result(message, {
                 "ok": False,
                 "chat_message": message,
-                "date": str(date),
-                "as_of": str(as_of or "16:00"),
+                "date": day,
+                "as_of": clock,
                 "timeframes": TIMEFRAMES,
                 "links": [],
                 "gallery_url": "",
@@ -236,7 +281,9 @@ def create_server(service: data.DataService, *, review_base: str | None = None, 
         preview = engine_note and "REVIEW_ENGINE_UNAVAILABLE"
         images: list[dict[str, Any]] = []
         if charts.warm and preview is None:
-            images, failed = charts.previews(linked["links"], linked["gallery_url"])
+            images, failed = charts.previews(
+                linked["links"], linked["gallery_url"], date=linked["date"], as_of=linked["as_of"],
+            )
             preview = failed
         elif not charts.warm:
             preview = "REVIEW_SHOT_UNAVAILABLE"

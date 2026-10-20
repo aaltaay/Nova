@@ -14,22 +14,29 @@ from __future__ import annotations
 import argparse
 import base64
 import hashlib
+import hmac
 import json
 import os
+import secrets
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
+import uuid
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 from urllib.request import urlopen
 
+import nova_review_causal as causal
 import nova_review_http as review_http
+import nova_review_load as review_load
 import nova_review_warm as review_warm
 
-ENGINE_VERSION = "2"
+ENGINE_VERSION = "3"
+SHOT_HEADER = "X-Nova-Review-Token"
 IDLE_SEC = 30 * 60
 REPO = Path(__file__).resolve().parents[1]
 PNG_STUB = base64.b64decode(
@@ -42,6 +49,7 @@ class _State:
         self.renderer_starts = 0
         self._counted = False
         self.shots: review_warm.ReviewShots | None = None
+        self.token = ""
         self.last = time.monotonic()
         self.lock = threading.Lock()
 
@@ -56,6 +64,38 @@ _OWNER = None
 def dist_dir() -> Path:
     raw = os.environ.get("NOVA_REVIEW_DIST")
     return Path(raw) if raw else REPO / "frontend" / "dist"
+
+
+def shot_dir() -> Path:
+    raw = os.environ.get("NOVA_REVIEW_SHOT_DIR")
+    path = Path(raw) if raw else Path(tempfile.gettempdir()) / "nova-review-shots"
+    path.mkdir(parents=True, exist_ok=True)
+    return path.resolve()
+
+
+def dist_file(url_path: str) -> Path | None:
+    """A file inside the built review app. Anything that resolves outside dist is refused."""
+    root = dist_dir().resolve()
+    rel = unquote(url_path).lstrip("/")
+    if not rel or "\x00" in rel or "\\" in rel:
+        return None
+    candidate = (root / rel).resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        return None
+    return candidate
+
+
+def _matching_listener(port: int) -> bool:
+    """True when this port already answers as the current review engine."""
+    if not port or not review_http.health_ok(port):
+        return False
+    body = read_health(port)
+    if not body:
+        return True
+    version = body.get("version")
+    return version in (None, ENGINE_VERSION)
 
 
 def idle_sec() -> float:
@@ -225,15 +265,15 @@ def take_shot(url: str, dest: Path) -> dict[str, Any]:
     return renderer.shoot(url, dest)
 
 
-def request_shot(port: int, url: str, dest: Path, req_id: str) -> dict[str, Any]:
+def request_shot(port: int, fields: dict[str, Any], req_id: str) -> dict[str, Any]:
     import urllib.error
     import urllib.request
 
-    payload = json.dumps({"id": req_id, "url": url, "dest": str(dest)}).encode()
+    payload = json.dumps({"id": req_id, **fields}).encode()
     request = urllib.request.Request(
         f"http://127.0.0.1:{port}/api/review/shot",
         data=payload,
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", SHOT_HEADER: review_http.read_token()},
         method="POST",
     )
     try:
@@ -260,12 +300,16 @@ def _origins() -> tuple[str, ...]:
     listed = tuple(item for item in raw.split(",") if item)
     if listed:
         return listed
-    base = os.environ.get("NOVA_REVIEW_BASE", "http://127.0.0.1:5173").rstrip("/")
+    base = os.environ.get("NOVA_REVIEW_BASE", "").strip().rstrip("/")
     return (base,) if base else ()
 
 
-def make_engine_handler():
-    parent = review_http.make_handler(None, None, _origins())
+def make_engine_handler(bars_reader=None, daily_reader=None):
+    parent = review_http.make_handler(
+        bars_reader or review_load.front_door_bars,
+        daily_reader or review_load.front_door_daily,
+        _origins(),
+    )
 
     class Handler(parent):
         def _touch(self) -> None:
@@ -306,15 +350,61 @@ def make_engine_handler():
                 self._send_file(dist_dir() / "index.html")
                 return
             if parsed.path.startswith("/assets/"):
-                self._send_file(dist_dir() / parsed.path.lstrip("/"))
+                found = dist_file(parsed.path)
+                if found is None:
+                    self._send(404, {"ok": False, "error": "not found"})
+                    return
+                self._send_file(found)
                 return
             super().do_GET()
 
+        def _cors(self) -> None:
+            origin = self.headers.get("Origin")
+            allowed = set(_origins())
+            allowed.add(f"http://127.0.0.1:{self.server.server_address[1]}")
+            if origin and origin in allowed:
+                self.send_header("Access-Control-Allow-Origin", origin)
+                self.send_header("Vary", "Origin")
+
+        def _token_ok(self) -> bool:
+            presented = self.headers.get(SHOT_HEADER) or ""
+            expected = STATE.token
+            if not expected or not presented:
+                return False
+            return hmac.compare_digest(presented, expected)
+
+        def _shot_page(self, body: dict[str, Any]) -> tuple[str, str]:
+            if "url" in body or "dest" in body:
+                raise ValueError("the engine chooses the page and the file")
+            session = causal.parse_day(str(body.get("date") or "")).isoformat()
+            clock = causal.check_clock(str(body.get("as_of") or causal.DEFAULT_AS_OF))
+            origin = f"http://127.0.0.1:{self.server.server_address[1]}"
+            if body.get("symbols"):
+                names = causal.parse_symbols(body["symbols"])
+                gtf = str(body.get("gtf") or "5m")
+                return causal.gallery_link(names, session, clock, None, origin, gtf=gtf), "gallery"
+            symbol = causal.check_symbol(str(body.get("symbol") or ""))
+            return causal.review_link(symbol, session, clock, None, origin), symbol
+
         def do_POST(self) -> None:  # noqa: N802
             self._touch()
+            import nova_review_open as review_open
+
+            if review_open.try_post(self):
+                return
             parsed = urlparse(self.path)
             if parsed.path != "/api/review/shot":
                 self._send(404, {"ok": False, "error": "not found"})
+                return
+            if self.headers.get("Origin"):
+                self._send(403, {"ok": False, "error": "origin"})
+                return
+            kind = (self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
+            if kind != "application/json":
+                self._send(415, {"ok": False, "error": "content type"})
+                return
+            if not self._token_ok():
+                self._send(401, {"ok": False, "error": "token"})
                 return
             length = int(self.headers.get("Content-Length") or 0)
             raw = self.rfile.read(length) if length else b""
@@ -323,13 +413,22 @@ def make_engine_handler():
             except ValueError:
                 self._send(400, {"ok": False, "error": "bad json"})
                 return
-            req_id = str(body.get("id") or "")
-            url = str(body.get("url") or "")
-            dest = str(body.get("dest") or "")
-            if not req_id or not url or not dest:
-                self._send(400, {"ok": False, "id": req_id, "error": "bad shot"})
+            if not isinstance(body, dict):
+                self._send(400, {"ok": False, "error": "bad json"})
                 return
-            result = take_shot(url, Path(dest))
+            req_id = str(body.get("id") or "")
+            try:
+                url, label = self._shot_page(body)
+                root = shot_dir()
+                dest = (root / f"review-{label}-{uuid.uuid4().hex[:8]}.png").resolve()
+                dest.relative_to(root)
+            except (ValueError, OSError) as exc:
+                self._send(400, {"ok": False, "id": req_id, "error": str(exc)})
+                return
+            if not req_id:
+                self._send(400, {"ok": False, "error": "bad shot"})
+                return
+            result = take_shot(url, dest)
             answer = {"id": req_id, **result}
             png = answer.get("png")
             if isinstance(png, (bytes, bytearray)):
@@ -339,17 +438,19 @@ def make_engine_handler():
     return Handler
 
 
-def serve_engine(port: int):
-    handler = make_engine_handler()
-    from http.server import ThreadingHTTPServer
-
+def serve_engine(port: int, bars_reader=None, daily_reader=None):
+    if not STATE.token:
+        STATE.token = secrets.token_hex(32)
+    if _matching_listener(port):
+        return None
+    handler = make_engine_handler(bars_reader, daily_reader)
     try:
-        httpd = ThreadingHTTPServer(("127.0.0.1", port), handler)
+        httpd = review_http.ReviewHTTPServer(("127.0.0.1", port), handler)
         how = "started"
     except OSError:
-        if engine_ok(read_health(port)):
+        if _matching_listener(port):
             return None
-        httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        httpd = review_http.ReviewHTTPServer(("127.0.0.1", 0), handler)
         actual = int(httpd.server_address[1])
         print(
             f"nova-review: port {port} is taken by another process. "
@@ -385,7 +486,7 @@ def main(argv: list[str] | None = None) -> int:
     if httpd is None:
         return 0
     with review_http._lease_lock():
-        review_http._write_lease(int(httpd.server_address[1]))
+        review_http._write_lease(int(httpd.server_address[1]), STATE.token)
     threading.Thread(target=_watch_idle, args=(httpd,), name="nova-review-idle", daemon=True).start()
 
     def _stop(_signum, _frame) -> None:

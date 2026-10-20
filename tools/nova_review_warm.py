@@ -44,14 +44,40 @@ def matching_reply(get_line: Callable[[float], str], req_id: str, timeout: float
             return body
 
 
-def rotate_shots(directory: Path, *, keep: int = MAX_SHOTS, max_bytes: int = MAX_SHOT_BYTES) -> None:
-    """Drop the oldest review PNGs once the folder is past the count or the byte cap."""
-    files = sorted(directory.glob("review-*.png"), key=lambda path: path.stat().st_mtime)
-    total = sum(path.stat().st_size for path in files)
-    while files and (len(files) > keep or total > max_bytes):
-        old = files.pop(0)
-        total -= old.stat().st_size
-        old.unlink(missing_ok=True)
+def rotate_shots(directory: Path, *, keep: int = MAX_SHOTS, max_bytes: int = MAX_SHOT_BYTES,
+                 protect: set[Path] | None = None) -> None:
+    """Drop the oldest review PNGs once the folder is past the count or the byte cap.
+
+    A path that disappears between the listing and the stat is skipped. ``protect``
+    names files another request is about to return, and paths outside ``directory``
+    are never removed.
+    """
+    root = directory.resolve()
+    held = {path.resolve() for path in (protect or set())}
+    ranked: list[tuple[float, int, Path]] = []
+    for path in directory.glob("review-*.png"):
+        try:
+            resolved = path.resolve()
+            resolved.relative_to(root)
+            if resolved in held:
+                continue
+            info = path.stat()
+        except (OSError, ValueError):
+            continue
+        ranked.append((info.st_mtime, info.st_size, path))
+    ranked.sort()
+    total = sum(size for _mtime, size, _path in ranked)
+    while ranked and (len(ranked) > keep or total > max_bytes):
+        _mtime, size, old = ranked.pop(0)
+        total -= size
+        try:
+            resolved = old.resolve()
+            resolved.relative_to(root)
+            if resolved in held:
+                continue
+            old.unlink(missing_ok=True)
+        except (OSError, ValueError):
+            continue
 
 
 class ReviewShots:
@@ -62,6 +88,7 @@ class ReviewShots:
         self._lines: queue.Queue[str] = queue.Queue()
         self._error: dict[str, Any] | None = None
         self._started = False
+        self._inflight: set[Path] = set()
 
     def start(self) -> dict[str, Any]:
         if self._shoot is not None:
@@ -113,29 +140,40 @@ class ReviewShots:
 
     def shoot(self, url: str, dest: Path) -> dict[str, Any]:
         dest.parent.mkdir(parents=True, exist_ok=True)
-        rotate_shots(dest.parent)
-        if self._shoot is not None:
-            return self._shoot(url, dest)
-        if not self._started:
+        if self._shoot is None and not self._started:
             started = self.start()
             if not started.get("ok"):
                 return started
-        if self._error is not None:
-            return self._error
-        proc = self._proc
-        if proc is None or proc.poll() is not None or proc.stdin is None:
-            return {"ok": False, "error": {"code": "REVIEW_SHOT_UNAVAILABLE", "detail": "renderer is not running"}}
-        req_id = uuid.uuid4().hex
         with self._lock:
+            return self._shoot_held(url, dest)
+
+    def _shoot_held(self, url: str, dest: Path) -> dict[str, Any]:
+        try:
+            resolved = dest.resolve()
+        except OSError:
+            resolved = dest
+        self._inflight.add(resolved)
+        try:
+            rotate_shots(dest.parent, protect=self._inflight)
+            if self._shoot is not None:
+                return self._shoot(url, dest)
+            if self._error is not None:
+                return self._error
+            proc = self._proc
+            if proc is None or proc.poll() is not None or proc.stdin is None:
+                return {"ok": False, "error": {"code": "REVIEW_SHOT_UNAVAILABLE", "detail": "renderer is not running"}}
+            req_id = uuid.uuid4().hex
             proc.stdin.write(json.dumps({"id": req_id, "url": url, "dest": str(dest)}) + "\n")
             proc.stdin.flush()
             body = matching_reply(self._get_line, req_id, 60)
-        if body is None:
-            return {"ok": False, "error": {"code": "REVIEW_SHOT_FAILED", "detail": "screenshot timed out"}}
-        if not body.get("ok"):
-            return {"ok": False, "error": {"code": body.get("error") or "REVIEW_SHOT_FAILED", "detail": body.get("detail")}}
-        raw = dest.read_bytes()
-        return {"ok": True, "path": str(dest), "sha256": hashlib.sha256(raw).hexdigest(), "bytes": len(raw), "png": raw}
+            if body is None:
+                return {"ok": False, "error": {"code": "REVIEW_SHOT_FAILED", "detail": "screenshot timed out"}}
+            if not body.get("ok"):
+                return {"ok": False, "error": {"code": body.get("error") or "REVIEW_SHOT_FAILED", "detail": body.get("detail")}}
+            raw = dest.read_bytes()
+            return {"ok": True, "path": str(dest), "sha256": hashlib.sha256(raw).hexdigest(), "bytes": len(raw), "png": raw}
+        finally:
+            self._inflight.discard(resolved)
 
     def close(self) -> None:
         proc = self._proc

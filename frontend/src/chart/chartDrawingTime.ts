@@ -14,7 +14,7 @@
  */
 import type { Time } from 'lightweight-charts';
 import type { Anchor, SerializedDrawing } from 'lightweight-charts-drawing';
-import { CHART_DRAWING_PRICE_ONLY_TYPES } from '../constants';
+import { CHART_DRAWING_PRICE_ONLY_TYPES } from '../constantGroups/market_ui';
 
 /** Series times paired with their canonical epoch, both ascending. */
 export interface SeriesTimeIndex {

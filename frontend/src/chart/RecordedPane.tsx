@@ -2,15 +2,15 @@
 
 import { useMemo, useRef, useState } from 'react';
 import type { IChartApi, ISeriesApi } from 'lightweight-charts';
+import { CHART_DEFAULT_TIMEFRAME } from '../constantGroups/market_ui';
 import {
   CHART_DEFAULT_INDICATORS,
-  CHART_DEFAULT_TIMEFRAME,
   CHART_GRID_OSCILLATOR_MAX_PCT,
   CHART_GRID_OSCILLATOR_MIN_PCT,
   CHART_GRID_OSCILLATOR_PCT,
   CHART_GRID_OSCILLATOR_SPLIT_KEY,
   type ChartIndicatorId,
-} from '../constants';
+} from '../constantGroups/chart_api';
 import { rawBarsToIndicatorBars } from '../chartIndicators';
 import { toggleIndicator } from '../chartIndicators';
 import { useResizableHeight } from '../hooks/useResizableHeight';
@@ -25,7 +25,7 @@ import { useTickerChartEscape } from './useTickerChartEscape';
 import { useTickerChartMaximize } from './useTickerChartMaximize';
 import { coversSessionOpen } from './vwapSession';
 import { chartHeightForVariant, tickerChartCardClass } from './tickerChartCard';
-import { oscillatorIds, TickerChartCard } from './TickerChartCard';
+import { oscillatorIds, TickerChartCard } from './TickerChartCardView';
 import { useRenderCount } from '../perf/useRenderCount';
 import type { RenderPaneOverlay } from './types';
 
@@ -229,9 +229,7 @@ export function RecordedPane({
       }) ?? null}
       chartApi={chartApi}
       candleSeriesRef={candleSeriesRef}
-      volSeriesRef={volSeriesRef}
       vwapSource={vwapSource}
-      accountOverlay={false}
       liveTipTime={null}
       onOscDragStart={onOscDragStart}
       resetOscSplit={resetOscSplit}

@@ -27,7 +27,7 @@ http://127.0.0.1:5173/review?symbol=IMCC&date=2026-09-18&tf=10s,1m,5m,1d
 
 A gallery is the same page with `symbols=A,B,C` instead of `symbol`. Tabs are `10s`, `1m`, `5m`, `1d` (`gtf` in the URL, default `5m`). Each cell is the desk chart for that timeframe and links to the four-pane page. Add `&fixture=1` to draw a labelled sample session when the Massive files are not on this machine.
 
-`NOVA_REVIEW_BASE` (default `http://127.0.0.1:5173`, flag `--review-base`) is the origin written into chart URLs. `--output-root` is where `output_name` tables and review PNGs are written. Old PNGs are deleted once the folder passes 24 files or 8 MB.
+`NOVA_REVIEW_BASE` (flag `--review-base`) is the origin written into chart URLs when you set it. When you leave it unset, the link uses the review engine's own origin, the process that serves `/review`. `--output-root` is where `output_name` tables and the copies of review PNGs are written. The engine keeps its own PNGs in a temp review-shots folder and deletes old ones, under a lock, once that folder passes 24 files or 8 MB.
 
 ## Data tools
 
@@ -51,11 +51,13 @@ The tool result is, in order:
    `Nova charts for {date}, as of {as_of} ET (10s, 1m, 5m, 1d, full session):`
    then `- {SYMBOL}: {url}` for each symbol, then `Gallery: {url}` when there is more than one symbol, then `Preview images unavailable: {code}` only when a PNG failed.
 2. PNG image blocks. One per symbol (that symbol's four-pane page). When there is more than one symbol, one more image of the gallery's 5-minute tab.
-3. JSON: `ok`, `chat_message`, `date`, `as_of`, `timeframes`, `links`, `gallery_url`, `images` (`symbol`, `sha256`, `bytes`). On failure `ok` is false and `error` is `{code, detail}`. The text still lists the links. `REVIEW_DESK_UNREACHABLE` means the page at `NOVA_REVIEW_BASE` could not be opened for the screenshot.
+3. JSON: `ok`, `chat_message`, `date`, `as_of`, `timeframes`, `links`, `gallery_url`, `images` (`symbol`, `sha256`, `bytes`). On failure `ok` is false and `error` is `{code, detail}`. The text still lists the links. `REVIEW_DESK_UNREACHABLE` means the review page could not be opened for the screenshot. A clock that is not `HH:MM` (a full-width colon counts) is `BAD_REQUEST`.
 
 Building the links does not load bars. `nova_historical_chart`, `nova_historical_chart_gallery` and `nova_trade_charts` are not on this server.
 
-There is no order button and no live quote subscription on `/review`. The symbol name is a button that opens that day in Nova. The trading desk is a different page.
+There is no order button and no live quote subscription on `/review`. The symbol name is a button that opens that day in Nova. The trading desk is a different page. The review bundle does not load the bots page or the bot allowlist, and it loads the sample fixture only when the URL says `fixture=1`.
+
+The screenshot route is not a public browser form. The engine writes a random token into its lease file. Only a local MCP process reads that file and sends it as `X-Nova-Review-Token`. The request must be JSON, must not carry an `Origin` header, and must not name a URL or a file path. The engine builds the page address and the PNG path itself. Files under `/assets/` stay inside `frontend/dist`.
 
 ## Open tool
 

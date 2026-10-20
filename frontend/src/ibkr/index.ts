@@ -11,6 +11,7 @@ export type { TapePrint, TapeState } from './tapeFeed';
 export { cancelIbkrOrderWithFeedback } from './cancelOrder';
 export { useIbkrStatus, type IbkrClientStatus } from './useIbkrStatus';
 export { useIbkrAccount } from './useIbkrAccount';
+export { useOptionalIbkrAccountContext } from './IbkrAccountContext';
 export {
   getIbkrStatusSnapshot,
   refreshIbkrStatusNow,
