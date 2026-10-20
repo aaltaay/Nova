@@ -109,8 +109,7 @@ with `live_fire_ready` as a one-release alias.
 `bot/activation.py`). `POST /api/bot/session/arm` refuses, `409`
 with a plain reason: `BOT_LIVE_NOT_BUILT` (Live), `BOT_REPLAY_DESK` (Sim off the
 live edge with nothing loaded; a loaded replay is traded, ADR 052), `BOT_VENUE_UNKNOWN`, `BOT_LEVEL_NOT_STRATEGY`,
-`BOT_NO_SETUP_AT_STRATEGY` and `BOT_PADLOCK_LOCKED` (the legacy `/arm` alone still refuses a locked padlock; the Bot
-switch does not, "The Bot switch" below). No loss limit refuses Activate or turns
+`BOT_NO_SETUP_AT_STRATEGY` and `BOT_PADLOCK_LOCKED` ("No bot turns on over a locked padlock" below). No loss limit refuses Activate or turns
 the bot off (ADR 056). Choosing Strategy never activates. The backend clears
 Activate -- a `deactivate` audit line and `deactivated: {at, reason, text}`,
 `reason` one of `restart | venue | level | operator` (older lines also `padlock` and `no_setup`; a saved
@@ -237,12 +236,22 @@ in the header beside the padlock, on every view (it was on the Bots page's Bot c
   409 `BOT_LIVE_NOT_BUILT`, `BOT_REPLAY_DESK`, `BOT_VENUE_UNKNOWN` and `BOT_NO_SETUP_AT_STRATEGY` (no
   strategy is On). A successful ON returns `desk_arm_token`,
   as `/arm` does.
-- **The padlock is separate** (operator decision 2026-10-16, replacing the 2026-10-12 amendment "ON unlocks the
-  padlock"): ON neither unlocks the padlock nor needs it, and locking the padlock -- by anyone -- leaves the switch
-  on. While it is locked no one places an order, a bot included: every bot reads it before each send
-  (`family_keys.hold`, code `BOT_PADLOCK_LOCKED`, a Live Trader skip `LT_BOT_OFF` with the padlock's words), and the
-  bots trade again the moment it is unlocked. Header KILL still turns the bot off (it drops the master to Off).
-  `deactivated.reason: "padlock"` is only on lines written before 2026-10-16.
+- **No bot turns on over a locked padlock** (operator decision 2026-10-20, replacing 2026-10-16's "ON neither
+  unlocks the padlock nor needs it"; owner `bot/padlock_gate.py`, the one rule for every bot, strategy bots, Live
+  Trader bots and any bot added later): every press that turns a bot on -- the Bot switch, Activate, a family key
+  (`POST /api/bot/session/keys {on: true}`), a strategy set On (`PATCH /api/bot/session {setup_levels}` raising one to
+  2) and a TraderTV host's Bot key (`PATCH /api/bot/live-traders/{name} {key: true}`) -- is refused `409`
+  `BOT_PADLOCK_LOCKED` while the padlock is locked, before anything changes (a host's answer carries `field: "key"`).
+  Only where a bot trades: on Live, an unreadable venue or a replay desk with nothing loaded the other rules refuse, so
+  it never asks for the Live PIN. Turning anything off, Eyes, and a host's other settings are never refused. The desk
+  answers the refusal from any surface with one question (`frontend/src/bot/padlockPrompt.ts`): "Unlock the
+  padlock?" -- **Unlock and turn on** unlocks through `POST /api/ibkr/arm` (Paper and Sim need no PIN) and presses
+  again; **Keep it off** changes nothing. ON never unlocks the padlock by itself.
+- **Locking the padlock later leaves the switch on** (2026-10-16): while it is locked no one places an order, a bot
+  included: every bot reads it before each send (`family_keys.hold`, code `BOT_PADLOCK_LOCKED`, a Live Trader skip
+  `LT_BOT_OFF` with the padlock's words), and the bots trade again the moment it is unlocked. The header switch then
+  reads **LOCKED** (red, the `padlock` gate closed), never ON. Header KILL still turns the bot off (it drops the
+  master to Off). `deactivated.reason: "padlock"` is only on lines written before 2026-10-16.
 - **OFF** deactivates (`deactivated.reason: "operator"`) and puts the master at Eyes (1), so setups
   at Eyes or On still propose. Turning it off sells nothing, and while it is off no bot of either family places
   any order, not even a sell ("The three keys" below).
@@ -282,7 +291,8 @@ position does, "No orders at all"). A bot places an order only while all three o
   the Bot switch on, and that answer carries `desk_arm_token` when it did. Each step is the same press with the same
   rules and audit line as by hand. A parent that cannot follow (Live, a replay desk, an unreadable keys file, nothing
   On under the switch) stays as it is and its own `why_off` says why; the press that asked still counts. Off never
-  flows up, and the padlock is never part of it.
+  flows up. Nothing in it unlocks the padlock: a locked padlock refuses the press that started it, before any key
+  moves ("No bot turns on over a locked padlock" above).
 - **The Bot switch no longer follows the keys under it** (2026-10-15): turning the last strategy Off, or the last
   host key off, leaves it on -- with off at any level meaning no order, a lower key turning it off would also stop
   the other family's exits. ON is still refused while no strategy is On and no host key is on
@@ -478,8 +488,9 @@ bottom:
 6. Tickers today (the hot list and the squares);
 7. Today, Proposals and Activity.
 
-The header's Bot switch sits beside the padlock: Bot ON / OFF for the desk venue, a press turns it on or off, a
-refused press says why under it, and hover says why it is off. Every link that opened the Bots page opens Strategy
+The header's Bot switch sits beside the padlock: Bot ON / OFF for the desk venue (LOCKED while it is on over a locked
+padlock), a press turns it on or off, a press on over a locked padlock asks to unlock it first, a refused press says
+why under it, and hover says why it is off. Every link that opened the Bots page opens Strategy
 Bots.
 
 Elsewhere:

@@ -2,7 +2,8 @@
 
 Loopback only, like every bot route; writes need the API key. Each answers the cards (``view.build``). A host's key
 turned off sells nothing: its bot places no order at all until it is on again (operator decision 2026-10-15); turned
-on, it turns the LiveTrader Bots key and the Bot switch on too (``bot.cascade``, operator ask 2026-10-16).
+on, it turns the LiveTrader Bots key and the Bot switch on too (``bot.cascade``, operator ask 2026-10-16), and over a
+locked padlock it is refused ``BOT_PADLOCK_LOCKED`` (``bot.padlock_gate``, 2026-10-20).
 Shapes: architecture/schema/bot.md ("The Live Trader bot").
 """
 from __future__ import annotations
@@ -64,6 +65,13 @@ def live_trader_asks() -> dict[str, Any]:
 
 @router.patch("/api/bot/live-traders/{name}", dependencies=_write)
 def patch_host(name: str, body: dict[str, Any] = Body(...)) -> Any:  # noqa: B008 -- FastAPI's own idiom
+    if body.get("key") is True and not settings.of(name.strip().upper()).get("key"):
+        # No bot turns on over a locked padlock (bot.padlock_gate, operator decision 2026-10-20): nothing changes.
+        from bot.padlock_gate import refusal
+
+        refused = refusal()
+        if refused is not None:
+            return _error(refused.status_code, refused.reason, refused.message, "key")
     try:
         before, after = settings.patch_host(name, body)
     except SettingsError as exc:
