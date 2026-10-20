@@ -33,7 +33,7 @@ Before writing ANY code in this project, you MUST:
 - ❌ Ending a coding session with local-only commits, unpushed commits, or "I'll open the PR later"
 - ❌ Ending a session with a dirty tree, a `git stash`, or an abandoned worktree -- commit `wip:` on the branch, remove your worktree, `py -3 tools/repo_hygiene.py status` (workspace-hygiene.mdc)
 - ❌ Parking a shippable PR as draft because CI is still running
-- ❌ Adding the label `merge-approved` -- only the owner `aaltaay` adds it. Agents never add it
+- ❌ Leaving a shippable PR open and idle -- Actions merges ready PRs; do not wait for "please merge"
 - ❌ Leaving a merged or closed PR's head branch on origin -- delete it in the same session
 - ❌ Claiming an issue is on Nova Delivery after a 403 / missing `project` scope -- report the limitation; do not recreate https://github.com/users/aaltaay/projects/1
 - ❌ Recreating a retired ledger (`CHANGELOG.md`, `BACKLOG.md`, `PROBLEM_LOG.md`) → the PR body is the record
