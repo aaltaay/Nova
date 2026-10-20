@@ -68,6 +68,7 @@ def status() -> dict[str, Any]:
     out["movers_index"] = _movers_status()
     out["boards"] = _boards_status()
     out["rvol_table"] = _rvol_status()
+    out["signal_table"] = _signals_status()
     return out
 
 
@@ -90,6 +91,14 @@ def _rvol_status() -> dict[str, Any]:
     from market_reads import rvol_store
     try:
         return rvol_store.status()
+    except Exception as exc:  # noqa: BLE001 -- as above
+        return {"error": f"{type(exc).__name__}: {exc}"}
+
+
+def _signals_status() -> dict[str, Any]:
+    from market_reads import signals_store
+    try:
+        return signals_store.status()
     except Exception as exc:  # noqa: BLE001 -- as above
         return {"error": f"{type(exc).__name__}: {exc}"}
 

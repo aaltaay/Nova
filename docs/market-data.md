@@ -79,6 +79,7 @@ To put a stock-day on the desk for the operator, use the `nova-sim-navigator` sk
 | Seek indexes (one per day file) | `...\sim\index\<dataset>\...\<file>.idx` | see `status` | used by every read |
 | Day movers index | `...\movers\day_movers.sqlite3` | see `status` | `movers`, `/api/agent/movers` |
 | Relative-volume table (every minute bar of every common stock with its baselines; one row per stock-day) | `F:\Nova\rvol\minutes\YYYY\` and `...\days\YYYY\` (`NOVA_RVOL_DIR`) | 2016-01-04 on (`status` `rvol_table`) | `rvol`, `rvol-triggers`, `rvol-outcomes` (owner `research/market_reads/rvol_store.py`; builder `research/rvol/build_rvol.py`) |
+| Signal table (the Trader's Signals panel at every minute of every in-play stock-day) | `F:\Nova\signals\minutes\YYYY\`, `...\days\YYYY\`, `...\tape\YYYY\` (`NOVA_SIGNALS_DIR`) | 2016-01-04 on (`status` `signal_table`) | `signals`, `signal-series`, `signal-scan`, `signal-test` (owner `research/market_reads/signals_store.py`; builder `research/signals/build_signals.py`) |
 | Past-day Scanner boards (recorded live, or rebuilt from minute bars) | `F:\Nova\leaderboard\leaderboard.sqlite3` | 1,752 of 2,713 sessions (see `status`) | `board`, the Sim |
 | Reference (splits, news, IPOs, dividends, short interest, financials) | `...\store\reference\` | month files from 2016 | `financials`, `float`, `ipos`, `ticker`, `short-interest` (`research/market_reads/reference.py`); splits via `lb_io` |
 | Reference index (built from the dump on first read, rebuilt when a dump file changes) | `...\store\reference_index.sqlite3` | what the dump holds | owner `research/market_reads/reference.py` |
@@ -152,6 +153,42 @@ across every stock, and what came next").
   (`reset`; `base_sessions` counts up from 0). Listed splits are put on the day's share basis instead.
 - **Only common stocks.** `CS`, `ADRC` and `unknown` (untyped in Massive's list) are in the table; ETFs, warrants,
   units and rights are not. Delisted common stocks are in it (no survivorship cut).
+
+## The Trader's signals on past days, and mixing them
+
+The Trader's Signals panel -- In play, Five Pillars, relative volume, catalyst, why it's moving, the boards, has it
+run before, liquidity, HOD Momo, front side, every setup lane, float, halts and the tape -- for every in-play stock-day
+since 2016, at the end of every minute, by the desk's own rules (the same functions the panel calls, never a copy).
+One call tests any mix of them, scored like a relative-volume trigger, against a same-minute in-play control.
+
+A stock-day is in play from the first minute a $1-$20 common stock closed 10% over the prior close or ran 5x its
+relative volume, with 50,000 shares traded; its rows start there, so a later minute never chooses it earlier.
+
+```text
+py -3 tools/market_data.py signals                                   # every signal: values, desk rule, history
+py -3 tools/market_data.py signal-series SMJF 2026-10-09 --signals pillars_n,front,setup_first_pullback
+py -3 tools/market_data.py signal-scan 2026-10-09 09:45 --when "pillars_n>=4" --when "front=Front side"
+py -3 tools/market_data.py signal-test date_from=2024-01-01 date_to=2024-12-31 --when "pillars_n>=4" \
+    --when "setup_first_pullback=triggered" --window 07:00-10:30 --up 20 --down 10 --fresh
+py -3 research/signals/build_signals.py --workers 10        # new sessions (newest first); --status
+py -3 research/signals/build_signals.py --stage tape --start 2026-01-01   # the tape stage, Massive trades
+```
+
+MCP: `signal_catalog`, `signal_series`, `signal_scan`, `signal_test`. Contract: `architecture/schema/agent-desk.md`
+("The Trader's signals on past days, and mixing them").
+
+- **What has no history is unknown.** Borrow (the Short tile), HOD Momo's gate decisions, the Level 2 book walk and a
+  float as of the day are not in any archive: `signal_catalog` lists them under `not_rebuilt`. The float is SEC's
+  shares outstanding filed by the day before -- an upper bound, so under 20M proves the pillar and over it is unknown.
+- **Partly covered signals.** Boards (1,752 of 2,713 sessions), catalysts (only tickers the backfill targeted),
+  halts (Nasdaq's log 2021-09-21 on), HOD Momo (rebuilt days only, whose float is today's -- look-ahead) and the tape
+  (the days the tape stage reached) read `unknown` / `not_built` elsewhere. `meta.coverage` names a test's partly
+  covered conditions; a test on the tape runs only over the days the tape stage reached.
+- **Inside a minute.** The setup lanes see a bar's open, then its high (long lanes) or low (short lanes), then its
+  close: a long trigger needs the bar's high to reach the line. The order inside a bar is not in the data.
+- **Compare with the control, and hold years out.** In-play stocks move a lot both ways; read `p_up` and `p_down`
+  against the control. Mixing many signals finds patterns by chance: decide the mix before it runs, search some years
+  and confirm on others (`group_by: year`).
 
 ## The traps (each one cost a wrong answer once)
 

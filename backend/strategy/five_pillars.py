@@ -78,10 +78,13 @@ def _check_price(price: float | None) -> PillarCheck:
     )
 
 
-def _check_change_pct(change_pct: float | None) -> PillarCheck:
-    if change_pct is None:
+def _check_change_pct(change_pct: float | None, points: float | None = None) -> PillarCheck:
+    """``points`` (percent points, +0.5 = up half a percent) is read as given. Without it ``change_pct`` is
+    guessed: a fraction at or under 1.0, else points -- which reads a move under 1% as 100 times bigger, so a
+    caller that knows its unit passes ``change_points``."""
+    if points is None and change_pct is None:
         return PillarCheck("change_pct", False, "no change % data")
-    pct = change_pct * 100 if abs(change_pct) <= 1.0 else change_pct
+    pct = points if points is not None else (change_pct * 100 if abs(change_pct) <= 1.0 else change_pct)
     passed = pct >= FIVE_PILLARS_MIN_CHANGE_PCT
     return PillarCheck(
         "change_pct", passed,
@@ -167,7 +170,7 @@ def evaluate_five_pillars(candidate: dict, technical_breakout: bool = False) -> 
 
     Accepts the same field names Nova's scanner already produces:
     symbol, price (or current_price), change_pct (or gap_percent), rel_volume,
-    has_news, float (or float_shares).
+    has_news, float (or float_shares). ``change_points`` (percent points) wins over ``change_pct``.
     """
     symbol = candidate.get("symbol", "?")
     price = candidate.get("price", candidate.get("current_price"))
@@ -179,7 +182,7 @@ def evaluate_five_pillars(candidate: dict, technical_breakout: bool = False) -> 
 
     checks = (
         _check_price(price),
-        _check_change_pct(change_pct),
+        _check_change_pct(change_pct, candidate.get("change_points")),
         _check_relative_volume(rel_volume, candidate.get("rvol_time_of_day")),
         _check_catalyst_verdict(catalyst, technical_breakout) if catalyst_read(catalyst)
         else _check_catalyst(has_news, technical_breakout),

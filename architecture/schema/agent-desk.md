@@ -559,16 +559,92 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
     (`seed`, default 1), scored from the same clock the same way -- the same summary shape. `meta` counts what was
     left out (`no_price`, `split`, `base_sessions`, `horizon_reset`, `horizon_open`) and states every rule. Only `output_name`
     writes (each entry with its outcome); the three tools take a heavy-read slot.
+- **The Trader's signals on past days, and mixing them** (operator 2026-10-20: "I really need a way where we can mix
+  and match these signals, so we can iterate through which signals we can use to actually trade and watch for";
+  tools `tools/nova_data_signals.py`, CLI `tools/market_data_signals.py`, reads `research/market_reads/signals.py`
+  and `signal_outcomes.py`, the list `research/market_reads/signal_registry.py`, builder
+  `research/signals/build_signals.py`):
+  - **One rule, the desk's.** Every signal is the Trader's Signals panel row (`backend/stock_read/rows.py`,
+    `read._verdict`, `plan_liquidity.read`, `history.runs`, `strategy.five_pillars`, `move_reason.rules.read`, the
+    setup scanner's lanes through `eyes.replay.EyesReplay` on the built-in templates, `setup_scanner.tape_flow`)
+    called with the facts as they stood at the end of each minute -- never a second copy of a rule. A fact with no
+    history is `unknown` with its reason (the panel's own word), never guessed: borrow, Level 2 depth (the
+    liquidity book walk), HOD Momo's decisions (`hod_now`) and a float as of the day (SEC shares outstanding stand
+    in; see `float`).
+  - **The universe, point in time.** A stock-day is in the table when the relative-volume table holds it as `CS` or
+    `ADRC`, `prev_close` $1-$20, not a likely split, with at least 20 baseline sessions, and some bar starting
+    04:00-15:59 ET closed at least 10% over `prev_close` or had `cum / base` at least 5, with at least 50,000 shares
+    traded since 04:00 (`cum`). `in_play_m` is the first
+    such bar's start; rows exist only from it -- the day's later minutes never choose a stock earlier.
+  - **The table** (owner `research/market_reads/signals_store.py`; invalidation: a `builder` bump, or the day's
+    relative-volume row rebuilt after the signal day was built, stales that day). Root `NOVA_SIGNALS_DIR`, else
+    `F:\Nova\signals` when F: is mounted on Windows, else `<NOVA_MARKET_DATA_DIR>/signals`. `manifest.json`
+    `{schema_version: 1, builder, templates: {setup: rev}, rules, days: {YYYY-MM-DD: {rvol_built_ts, stock_days,
+    rows, built_ts, seconds, coverage: {board, halts, catalyst_checked, hod_rebuilt, short_interest}}, tape: {YYYY-
+    MM-DD: {stock_days, rows, built_ts, seconds}}}}`, replaced atomically; another `schema_version` refuses
+    (`UnknownSignalsSchema`). Parquet, zstd, file metadata `nova_signals` `{schema_version, builder, day, table}`:
+    `days/YYYY/YYYY-MM-DD.parquet` one row per stock-day (`date, symbol, kind, prev_close, in_play_m, epoch,
+    basis`) and `minutes/YYYY/YYYY-MM-DD.parquet` one row per minute `m` from `in_play_m` through 959 (15:59):
+    `date, symbol, m` (int16), `price` (the close of the last bar starting at or before `m`), `change_pct`
+    (percent points vs `prev_close`), `rvol, rvol_5m, rvol_daily` (the relative-volume table's three measures at
+    `m`), then each signal's columns as the registry names them. The tape stage writes
+    `tape/YYYY/YYYY-MM-DD.parquet` (`date, symbol, m, tape, tape_score, tape_flush, tape_burst`) apart; a day it has
+    not reached reads `tape` `not_built`.
+  - **Signals** (`signal_catalog` lists each with its states, its desk source and its history; states are the
+    panel's: `ok`, `warn`, `bad`, `info`, `unknown`):
+    - `in_play` (the tile: `Yes`, `Partly`, `No`, `Too thin`, `Not known`); `pillars` (state) with `pillars_n`
+      (0-5) and `pillar_price, pillar_change, pillar_rvol, pillar_catalyst, pillar_float` (bool); `rvol_state`
+      with `rvol_pace` (`market.pace_relative_volume` of volume since 04:00 over `day_avg_volume`); `catalyst`
+      (the classifier's verdict on items published after the prior session's 16:00 and by `m`: `catalyst`,
+      `negative`, `routine_only`, `noise_only`, `none_found`, `not_checked`) with `catalyst_category,
+      catalyst_strength`; `why` (`move_reason.rules.read`'s likely kind) with `why_confidence`; `board` (the
+      board `find_board_row` picks at `m` from the leaderboard store: `gappers`, `gainers`, `losers`,
+      `afterhours`, `large_cap`, `market`, or null) with `board_state`; `ran_before` (state) with `runs_n` (+40%
+      sessions in the prior 260 of the same epoch, from the relative-volume table's `hi` / `last_close` on the
+      day's basis); `liquidity` (`ok`, `thin`, `unknown`) with `liquidity_day_usd, liquidity_5m_usd`;
+      `hod_today` (state) with `hod_alerts` (a rebuilt HOD Momo day's alerts raised by `m`; null on a day not
+      rebuilt).
+    - `front` (the tile: `Front side`, `Mixed`, `Back side`, `Not known`) and its counted rows `front_macd_1m,
+      front_vwap, front_ema, front_volume_profile, front_hod` (states).
+    - `setup_<lane>` for every lane the Trader shows -- `first_pullback, bull_flag, flat_top_breakout,
+      flat_top_5m, red_to_green, gap_and_go, pullback_dip, abcd`, the 5-minute `first_pullback_5m, bull_flag_5m`,
+      and the short lanes `backside_lower_high, bear_flag, failed_breakout, lost_vwap, ssr_bounce` -- each the
+      detector's state at the end of `m`: `watching`, `leg`, `pullback`, `armed`, `near`, `triggered`, `failed`.
+      Prices inside a minute are the bar's own: its open one second in, then its high (long lanes) or low (short
+      lanes) at 30 seconds -- the order inside a bar is not in the data, so a trigger needs the bar's extreme to
+      reach the line.
+    - `float` (state) with `float_shares` (SEC shares outstanding filed by the day before, as of within 120 days,
+      split-adjusted: an upper bound on the float -- under 20M proves the pillar, over it leaves the float
+      `unknown`) and `rotation` (volume since 04:00 over it).
+    - `halted` (bool, null before Nasdaq's log starts 2021-09-21), `halts_today` (state) with `halts_n`, and the
+      tile `halts` (`Halted`, `No halts`, the count, `Not known`).
+    - `tape` (the flow label at the end of `m`: `burst`, `flush`, `neutral`, `quiet`, `blind`, `not_built`) with
+      `tape_score`, `tape_flush` and `tape_burst` (any 10-second reading inside the minute so labelled): the desk's
+      flow rule over Massive's trades sided against the NBBO in force before each print, the book its top of book.
+  - `signal_series {symbol, day, signals?}` -> a table answer, one row per minute of that stock-day.
+  - `signal_scan {day, at, when?, limit?}` -> every in-play stock-day at `at` (ET `HH:MM`) with its signals, or
+    only those meeting `when`.
+  - `signal_test {when, filters, window_from?, window_to?, fresh?, up_pct?, down_pct?, horizon?, days?, group_by?,
+    control?, seed?, output_name?}` -> `rvol_outcomes`' answer shape (`{ok, entries, summary, control, meta,
+    out}`). `when` is a list, all of which must hold at one minute: `{signal, is: state | [states]}` or
+    `{signal, min?, max?}` for a number; an unknown signal or state is refused with the registry's words. The
+    entry is the first minute `m` in `[window_from, window_to)` (default 04:00-15:59) at or after `in_play_m` where
+    every condition holds; `entry_et` is its end and `P` its `price`. `fresh: true` leaves out a stock-day where
+    they all held at a minute before the window. Outcomes, horizons and the summary are `rvol_outcomes`' own
+    (`_score`, `summarize`). The control: per entry, one in-play stock-day of the same date and filters, in play
+    by the entry minute, where the conditions had not all held by then -- seeded hash, scored the same way.
+    `group_by`: `year` (default), `hour` or `none`. Only `output_name` writes. `meta.coverage` counts the entries
+    whose conditions read a partly covered signal (board, halts, catalyst, HOD Momo, tape) as `unknown`.
 - **Tripwire** (`tools/data_access_hook.py`): Cursor `beforeShellExecution` (`{permission: "allow" | "deny",
   user_message, agent_message}`) and Claude `PreToolUse` on Bash (`hookSpecificOutput.permissionDecision: "deny"`).
-  Denied: a command naming a raw store (`nova/massive`, `nova/leaderboard`, `catalysts/edgar`, `nova/rvol`, `store/reference`,
+  Denied: a command naming a raw store (`nova/massive`, `nova/leaderboard`, `catalysts/edgar`, `nova/rvol`, `nova/signals`, `store/reference`,
   the movers / leaderboard / reference-index SQLite files, SEC's zips, the Massive day-file folders) or running a
   script outside the repo that names one. Passes: the front door's tools, repo code, a code search or git not pointed
   at a data folder, and `# raw-data-ok: <reason>`. Unparseable input allows.
 
 ## Desk review charts (unified MCP)
 
-The same MCP process (`tools/nova_mcp.py`) serves the 25 data tools and one chart tool, `nova_chart`.
+The same MCP process (`tools/nova_mcp.py`) serves the 29 data tools and one chart tool, `nova_chart`.
 `docs/nova-mcp.md` is the setup. `/review` mounts the desk `ChartGrid` and `TickerChart` through a recorded
 feed (`ChartFeedProvider` in `frontend/src/chart/chartFeed.tsx`). The live desk is unchanged: with no provider
 the feed is `{kind: "live"}` and the same hooks run. The review page does not mount the trading shell, does not

@@ -29,7 +29,15 @@ py -3 tools/market_data.py halts --symbol SYMBOL --day DAY | catalysts SYMBOL --
 py -3 tools/market_data.py rvol 09:30 date_from=... date_to=... price_min=1 price_max=20 rvol_min=5   # every stock-day
 py -3 tools/market_data.py rvol-triggers 10 date_from=... date_to=... --window 06:00-08:00 --fresh    # first minute over
 py -3 tools/market_data.py rvol-outcomes date_from=... date_to=... --at 09:30 --up 50 --down 50       # what came next
+py -3 tools/market_data.py signal-test date_from=... date_to=... --when "pillars_n>=4" --when "front=Front side"
 ```
+
+**The Trader's signals on past days** (any study mixing In play, Five Pillars, catalyst, boards, front side, a setup
+lane, liquidity, float, halts or the tape): use `signal_catalog` then `signal_test` / `signal_scan` / `signal_series`
+-- never re-write a panel rule or a setup detector. Each signal is the desk's own rule at the end of the minute; what
+has no history (borrow, HOD Momo's decisions, the book walk) is unknown, and boards, catalysts, halts, HOD Momo and
+the tape are partly covered (`meta.coverage` says when a test leans on one). Read `p_up` against the `control`, and
+decide the mix before it runs: search some years and confirm on others.
 
 **Relative volume across every stock** (any study of "high relative volume, then what?"): use `rvol_scan` /
 `rvol_triggers` / `rvol_outcomes` -- never loop `stock_day_stats` over many stock-days or write a minute-file
@@ -41,7 +49,8 @@ means both lines in one minute: never count it as up or down. `data_status` `rvo
 The same reads are MCP tools on the `nova-data` server (ADR 059; `.cursor/mcp.json`, `.mcp.json`): call
 `data_catalog` first. For small-cap momentum research start with `find_stock_days` (movers + shares known that day +
 catalyst + halts + premarket marks, paged by `next_cursor`), then `stock_day_stats`, `order_flow`, `catalysts`,
-`halts`, `daily_bars` / `market_context`, `symbols`, `rvol_scan` / `rvol_triggers` / `rvol_outcomes`; plus
+`halts`, `daily_bars` / `market_context`, `symbols`, `rvol_scan` / `rvol_triggers` / `rvol_outcomes`,
+`signal_catalog` / `signal_series` / `signal_scan` / `signal_test`; plus
 `stock_day`, `movers_search` / `movers_scan`, `board`,
 `splits`, `financials`, `sec_shares`, `sec_filings`, `float_latest`, `ipos`, `ticker_details`, `short_interest`.
 Percents are points in and out (the movers and board stores keep fractions); `--as-of` / `day` count a statement or

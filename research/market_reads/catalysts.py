@@ -210,6 +210,34 @@ def verdicts(symbol: str | None = None, day: str | None = None, date_from: str |
     return frame
 
 
+ITEM_KEYS = ("title", "summary", "source", "publisher", "n_tickers", "form", "sec_items", "url", "published_ts",
+             "item_id")
+
+
+def day_items(day: str, symbols: list[str], window_start: float, window_end: float
+              ) -> dict[str, tuple[list[dict[str, Any]], list[str]]]:
+    """Every symbol's items published in ``(window_start, window_end]`` (the classifier's ``verdict`` keys) and the
+    sources that looked for it on ``day`` (``checks.status = 'ok'``, as ``build_verdicts`` counts them), in chunked
+    reads. A symbol no source looked for answers ``([], [])``: ``not_checked`` to the classifier, never no news."""
+    out: dict[str, tuple[list[dict[str, Any]], list[str]]] = {s: ([], []) for s in symbols}
+    names = sorted(out)
+    with closing(_connect()) as db:
+        for i in range(0, len(names), _PARAM_CHUNK):
+            part = names[i:i + _PARAM_CHUNK]
+            marks = ", ".join("?" * len(part))
+            for ticker, source in db.execute(f"SELECT ticker, source FROM checks WHERE session_date = ? AND "
+                                             f"status = 'ok' AND ticker IN ({marks})", [day, *part]):
+                out[ticker][1].append(source)
+            rows = db.execute(
+                "SELECT t.ticker, i.title, i.summary, i.source, i.publisher, i.n_tickers, i.form, i.sec_items, i.url, "
+                "i.published_ts, i.item_id FROM item_tickers t JOIN items i USING (item_id) "
+                f"WHERE t.ticker IN ({marks}) AND t.published_ts > ? AND t.published_ts <= ? AND {HONEST_CLOCK_SQL} "
+                "ORDER BY i.published_ts, i.item_id", [*part, window_start, window_end]).fetchall()
+            for r in rows:
+                out[r[0]][0].append(dict(zip(ITEM_KEYS, r[1:], strict=True)))
+    return out
+
+
 def for_pairs(pairs: list[tuple[str, str]], cutoff_kind: str = DEFAULT_CUTOFF_KIND
               ) -> dict[tuple[str, str], dict[str, Any] | None]:
     """``(day, symbol)`` -> the newest-rules verdict at ``cutoff_kind`` (``PAIR_KEYS``), for many stock-days in
