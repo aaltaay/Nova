@@ -78,6 +78,7 @@ To put a stock-day on the desk for the operator, use the `nova-sim-navigator` sk
 | Ticker list (active and delisted, CIK) | `...\store\reference\tickers.json` | latest dump | `symbols` (`research/market_reads/symbols.py`, `tickers.py`) |
 | Seek indexes (one per day file) | `...\sim\index\<dataset>\...\<file>.idx` | see `status` | used by every read |
 | Day movers index | `...\movers\day_movers.sqlite3` | see `status` | `movers`, `/api/agent/movers` |
+| Relative-volume table (every minute bar of every common stock with its baselines; one row per stock-day) | `F:\Nova\rvol\minutes\YYYY\` and `...\days\YYYY\` (`NOVA_RVOL_DIR`) | 2016-01-04 on (`status` `rvol_table`) | `rvol`, `rvol-triggers`, `rvol-outcomes` (owner `research/market_reads/rvol_store.py`; builder `research/rvol/build_rvol.py`) |
 | Past-day Scanner boards (recorded live, or rebuilt from minute bars) | `F:\Nova\leaderboard\leaderboard.sqlite3` | 1,752 of 2,713 sessions (see `status`) | `board`, the Sim |
 | Reference (splits, news, IPOs, dividends, short interest, financials) | `...\store\reference\` | month files from 2016 | `financials`, `float`, `ipos`, `ticker`, `short-interest` (`research/market_reads/reference.py`); splits via `lb_io` |
 | Reference index (built from the dump on first read, rebuilt when a dump file changes) | `...\store\reference_index.sqlite3` | what the dump holds | owner `research/market_reads/reference.py` |
@@ -114,6 +115,43 @@ from the cache. `NOVA_MARKET_READ_CACHE=0` turns it off, `NOVA_MARKET_READ_CACHE
 
 Sizes, measured 2026-10-12: 15.6 TB of gzip (quotes 12.1, trades 3.5, minute bars 0.05). Uncompressed text would
 be about 81 TB; Parquet about 11 TB. The index is about 0.2% of a file.
+
+## Relative volume across every stock (#1100)
+
+One standard for every agent: the relative-volume table holds every minute bar of every common stock since 2016 with
+its baselines, so a question over all stocks and all days is one call instead of a 30-45 minute read of the 46 GB
+of minute files. Three measures, each as of the end of a minute:
+
+| Measure | What it divides | Matches |
+|---|---|---|
+| `cumulative` (`rvol`) | volume since 04:00 / the prior sessions' mean volume to the same minute (20 sessions) | `stock_day_stats` `rvol.by_minute`, to the share |
+| `five_minute` (`rvol_5m`) | the last 5 minutes / the prior sessions' mean of the same 5 minutes | the 5-minute relative-volume column momentum scanners show |
+| `daily_rate` (`rvol_daily`) | volume since 04:00 / the mean whole-session volume of up to 50 sessions | the Five Pillars' "5x the 50-day average" |
+
+```text
+py -3 tools/market_data.py rvol 09:30 date_from=2021-01-01 date_to=2021-12-31 price_min=1 price_max=20 rvol_min=5
+py -3 tools/market_data.py rvol-triggers 10 date_from=2025-01-01 date_to=2025-12-31 price_min=1 price_max=20 --window 06:00-08:00 --fresh
+py -3 tools/market_data.py rvol-outcomes date_from=2016-01-04 date_to=2026-10-16 price_min=1 price_max=20 --at 09:30 --up 50 --down 50
+py -3 tools/market_data.py rvol-outcomes date_from=2016-01-04 date_to=2026-10-16 price_min=1 price_max=20 --trigger 10 --window 06:00-08:00 --fresh --horizon days --days 5
+py -3 research/rvol/build_rvol.py              # add the new sessions (each new day takes ~2 s); --status
+```
+
+MCP: `rvol_scan`, `rvol_triggers`, `rvol_outcomes`. Contract: `architecture/schema/agent-desk.md` ("Relative volume
+across every stock, and what came next").
+
+- **Already over the line.** A trigger is the first bar in the window at or above the line. A stock that was over it
+  before the window opened triggers on the window's first bar: `above_before` says so, `fresh` leaves it out. A
+  "6 AM surge" question wants `fresh`.
+- **Both lines in one bar.** A minute bar whose high reached +X% and whose low reached -X% is `same_bar`: the minute
+  file does not say which came first, and the answer never guesses. `p_up_resolved` ignores it.
+- **No look-ahead.** The entry price is the close of the last bar before the entry clock; only later bars are read.
+  A day's `day_*` columns and `hi` / `lo` are the finished day: never filter entries on them.
+- **Compare with the control.** Hot stocks move more both ways. A trigger's `p_up` means little without the
+  same-minute control beside it (`control`, on by default): read `p_up` and `p_down` against it.
+- **Baselines start over.** A new company on the ticker or a likely unlisted reverse split starts the baseline again
+  (`reset`; `base_sessions` counts up from 0). Listed splits are put on the day's share basis instead.
+- **Only common stocks.** `CS`, `ADRC` and `unknown` (untyped in Massive's list) are in the table; ETFs, warrants,
+  units and rights are not. Delisted common stocks are in it (no survivorship cut).
 
 ## The traps (each one cost a wrong answer once)
 
