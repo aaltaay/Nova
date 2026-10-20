@@ -29,7 +29,7 @@ import { useChartDrawingAxisLabels } from './useChartDrawingAxisLabels';
 import { useTickerChartEscape } from './useTickerChartEscape';
 import { useTickerChartMaximize } from './useTickerChartMaximize';
 import { useVwapSourceBars } from './useVwapSourceBars';
-import { useOptionalIbkrAccountContext } from '../ibkr/IbkrAccountContext';
+import { useOptionalIbkrAccountContext } from '../ibkr';
 import { ChartPaneOverlays } from './ChartPaneOverlays';
 import { ChartAccountOverlay } from './ChartAccountOverlay';
 import { findOpenPosition } from './positionOverlay';
