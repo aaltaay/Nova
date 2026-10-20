@@ -6,13 +6,12 @@ import {
   CHART_OSCILLATOR_IDS,
   type ChartIndicatorId,
   type ChartOscillatorId,
-} from '../constants';
+} from '../constantGroups/chart_api';
 import { ResizeHandle } from '../components/ResizeHandle';
 import { TickerChartControls } from '../components/TickerChartControls';
-import { TickerChartOverlays } from '../components/TickerChartOverlays';
 import { TickerChartOscillatorPanes } from '../components/TickerChartOscillatorPanes';
-import type { DrawingSelectionState } from './chartDrawingColor';
-import { CandleHoverTip } from './CandleHoverTip';
+import { TickerChartOverlays } from '../components/TickerChartOverlays';
+import type { DrawingSelectionState } from './chartDrawingSelection';
 import { ChartFillingOverlay, chartFillingHint } from './ChartFillingStatus';
 import type { IndicatorBar } from '../chartIndicators';
 import { formatCoverageClockEt } from '../tickerChartData';
@@ -59,11 +58,11 @@ export function TickerChartCard({
   emptyText,
   historyErrorTs,
   paneOverlay,
+  hover = null,
   chartApi,
   candleSeriesRef,
   volSeriesRef,
   vwapSource,
-  accountOverlay,
   liveTipTime,
   onOscDragStart,
   resetOscSplit,
@@ -109,11 +108,12 @@ export function TickerChartCard({
   emptyText: string | null;
   historyErrorTs: number | null;
   paneOverlay: ReactNode;
+  /** Live desk hover card. The review page leaves this empty so it does not open a ticker socket. */
+  hover?: ReactNode;
   chartApi: IChartApi | null;
   candleSeriesRef: RefObject<ISeriesApi<'Candlestick'> | null>;
   volSeriesRef: RefObject<ISeriesApi<'Histogram'> | null>;
   vwapSource: VwapSource;
-  accountOverlay: boolean;
   liveTipTime: number | null;
   onOscDragStart: (event: React.PointerEvent) => void;
   resetOscSplit: () => void;
@@ -181,8 +181,7 @@ export function TickerChartCard({
           <div className="chart-overlay chart-overlay--empty" data-testid="chart-empty">{emptyText}</div>
         )}
         {paneOverlay}
-        <CandleHoverTip chart={chartApi} candleSeriesRef={candleSeriesRef} volSeriesRef={volSeriesRef}
-          containerRef={containerRef} symbol={symbol} timeframe={timeframe} paneBars={indicatorBars} vwapSource={vwapSource} />
+        {hover}
       </div>
       <TickerChartOverlays
         chart={chartApi}
@@ -196,7 +195,6 @@ export function TickerChartCard({
         vwapSourceRevision={vwapSource.revision}
         vwapCoversOpen={vwapSource.coversOpen}
         liveTipTime={liveTipTime}
-        accountOverlay={accountOverlay}
       />
       {gridOscillators && (
         <ResizeHandle

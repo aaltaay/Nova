@@ -84,7 +84,7 @@ describe('TickerChartOverlays at the price pane\'s right edge', () => {
     render(
       <TickerChartOverlays chart={chart} candleSeriesRef={{ current: null as ISeriesApi<'Candlestick'> | null }}
         symbol="LGHL" bars={bars} barsRevision={1} enabled={['emas', 'vwap']} timeframe="1Min"
-        vwapSourceBars={bars} vwapSourceRevision={1} accountOverlay={false} />,
+        vwapSourceBars={bars} vwapSourceRevision={1} />,
     );
     await act(async () => { await Promise.resolve(); });
     const urls = spy.mock.calls.map((call) => String(call[0]));

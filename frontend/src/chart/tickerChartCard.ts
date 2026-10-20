@@ -3,7 +3,7 @@ import {
   CHART_HEIGHT_GRID,
   CHART_HEIGHT_PAGE,
   CHART_HEIGHT_PANEL,
-} from '../constants';
+} from '../constantGroups/market_ui';
 
 export type TickerChartVariant = 'panel' | 'page' | 'grid';
 

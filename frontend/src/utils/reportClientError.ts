@@ -1,7 +1,7 @@
 /**
  * POST browser errors to the API for structured logging (fire-and-forget).
  */
-import { API_URL, CLIENT_ERROR_REPORT_ENABLED } from '../constants';
+import { API_URL, CLIENT_ERROR_REPORT_ENABLED } from '../constantGroups/chart_api';
 
 export type ClientErrorReport = {
   message: string;

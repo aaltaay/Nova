@@ -272,9 +272,12 @@ def review_link(symbol: str, date: str, as_of: str, api: str | None, base: str) 
     return f"{base.rstrip('/')}/review?{_query(params)}"
 
 
-def gallery_link(symbols: list[str], date: str, as_of: str, api: str | None, base: str) -> str:
-    """The gallery opens on the 5-minute tab."""
-    params = [("symbols", ",".join(symbols)), ("date", date), ("gtf", "5m"), ("tf", ",".join(CHART_TIMEFRAMES))]
+def gallery_link(symbols: list[str], date: str, as_of: str, api: str | None, base: str, *,
+                 gtf: str = "5m") -> str:
+    """The gallery opens on the 5-minute tab unless ``gtf`` names another chart timeframe."""
+    if gtf not in CHART_TIMEFRAMES:
+        raise ValueError(f"gtf must be a chart timeframe, not {gtf!r}")
+    params = [("symbols", ",".join(symbols)), ("date", date), ("gtf", gtf), ("tf", ",".join(CHART_TIMEFRAMES))]
     if as_of != DEFAULT_AS_OF:
         params.append(("as_of", as_of))
     if api:

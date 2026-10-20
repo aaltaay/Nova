@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { CHART_CRASH_AUTO_RETRY_MS, CHART_CRASH_AUTO_RETRY_WINDOW_MS } from '../constants';
+import { CHART_CRASH_AUTO_RETRY_MS, CHART_CRASH_AUTO_RETRY_WINDOW_MS } from '../constantGroups/chart_api';
 import { reportClientError } from '../utils/reportClientError';
 
 /** The reason under the headline: one line of the error's own words. */

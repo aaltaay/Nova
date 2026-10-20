@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import socket
 import sys
 import tempfile
 import threading
@@ -115,6 +116,20 @@ def make_handler(bars_reader, daily_reader, allowed_origins: tuple[str, ...] = (
     return Handler
 
 
+class ReviewHTTPServer(ThreadingHTTPServer):
+    """On Windows a second bind can succeed on a port another process holds.
+
+    ``SO_EXCLUSIVEADDRUSE`` makes that bind fail so the caller can move to a free port.
+    """
+
+    def server_bind(self) -> None:
+        if os.name == "nt":
+            self.allow_reuse_address = False
+            exclusive = getattr(socket, "SO_EXCLUSIVEADDRUSE", 0x0004)
+            self.socket.setsockopt(socket.SOL_SOCKET, exclusive, 1)
+        super().server_bind()
+
+
 def serve(port: int = DEFAULT_PORT, bars_reader=None, daily_reader=None,
           allowed_origins: tuple[str, ...] = ()) -> ThreadingHTTPServer:
     handler = make_handler(
@@ -122,7 +137,7 @@ def serve(port: int = DEFAULT_PORT, bars_reader=None, daily_reader=None,
         daily_reader or review_load.front_door_daily,
         allowed_origins,
     )
-    return ThreadingHTTPServer(("127.0.0.1", port), handler)
+    return ReviewHTTPServer(("127.0.0.1", port), handler)
 
 
 def health_ok(port: int) -> bool:
@@ -166,11 +181,26 @@ def _read_lease() -> int | None:
         return None
 
 
-def _write_lease(port: int) -> None:
-    lease_file().write_text(
-        json.dumps({"schema_version": LEASE_SCHEMA, "port": port, "pid": os.getpid()}),
-        encoding="utf-8",
-    )
+def _write_lease(port: int, token: str | None = None) -> None:
+    if not token:
+        current = _read_lease_body() or {}
+        try:
+            same_port = int(current.get("port")) == int(port)
+        except (TypeError, ValueError):
+            same_port = False
+        kept = current.get("token")
+        if same_port and isinstance(kept, str) and kept:
+            token = kept
+    body: dict[str, Any] = {"schema_version": LEASE_SCHEMA, "port": port, "pid": os.getpid()}
+    if token:
+        body["token"] = token
+    lease_file().write_text(json.dumps(body), encoding="utf-8")
+
+
+def read_token() -> str:
+    body = _read_lease_body() or {}
+    token = body.get("token")
+    return token if isinstance(token, str) else ""
 
 
 @contextmanager
@@ -204,6 +234,8 @@ def _lease_lock() -> Iterator[None]:
 
 
 def _start(port: int, allowed_origins: tuple[str, ...]) -> tuple[ThreadingHTTPServer, str]:
+    if port and health_ok(port):
+        raise OSError(f"nova-review: {port} already answers the health check")
     try:
         httpd = serve(port, allowed_origins=allowed_origins)
     except OSError:

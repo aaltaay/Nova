@@ -1,5 +1,5 @@
 /** Last successful /api/ibkr/status for this browser tab (not a live feed). */
-import { IBKR_STATUS_SESSION_KEY } from '../constants';
+import { IBKR_STATUS_SESSION_KEY } from '../constantGroups/global_bar';
 import type { IbkrStatus } from './types';
 
 export function readLastIbkrStatus(): IbkrStatus | null {

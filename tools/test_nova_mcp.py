@@ -317,7 +317,7 @@ def test_review_port_and_link_base_follow_the_environment(monkeypatch):
     monkeypatch.delenv("NOVA_REVIEW_PORT", raising=False)
     monkeypatch.delenv("NOVA_REVIEW_BASE", raising=False)
     assert nova_mcp.default_review_port() == 18765
-    assert nova_mcp.default_review_base() == "http://127.0.0.1:5173"
+    assert nova_mcp.default_review_base() == ""
     monkeypatch.setenv("NOVA_REVIEW_PORT", "19991")
     monkeypatch.setenv("NOVA_REVIEW_BASE", "http://127.0.0.1:4173")
     assert nova_mcp.default_review_port() == 19991
@@ -658,8 +658,24 @@ def test_a_stale_lease_is_replaced(tmp_path, monkeypatch):
         assert live != taken
         assert json.loads((tmp_path / "lease.json").read_text(encoding="utf-8"))["port"] == live
     finally:
-        _stop_pid((engine.read_health(live) or {}).get("pid") if live else None)
-        dummy.terminate()
+        pid = None
+        if live:
+            pid = (engine.read_health(live) or {}).get("pid")
+            _stop_pid(pid)
+        try:
+            lease = json.loads((tmp_path / "lease.json").read_text(encoding="utf-8"))
+            lease_pid = lease.get("pid")
+            if lease_pid not in {pid, dummy.pid, 999999}:
+                _stop_pid(lease_pid)
+        except (OSError, ValueError):
+            pass
+        if dummy.poll() is None:
+            dummy.terminate()
+            try:
+                dummy.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                dummy.kill()
+                dummy.wait(timeout=3)
 
 
 def test_a_version_mismatch_restarts_the_engine(tmp_path, monkeypatch):
