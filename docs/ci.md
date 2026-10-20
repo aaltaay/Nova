@@ -2,9 +2,9 @@
 
 Owner decisions, 2026-10-13: **"Things should only be shipped with green builds"**
 and **"Merge only green PRs too"** (they supersede the 2026-09-20 advisory merge).
-Actions merges a ready PR only when Backend tests, Frontend build, Frontend E2E and Agent contract concluded `success` on its head, and the label `merge-approved` was most recently added by GitHub user `aaltaay`. Agents never add `merge-approved`; only the owner does. A
-Release waits for the same four checks on the commit it ships (see "Releases wait for a
-green build" below). The release does not require the label. Drafts never merge. `do-not-merge`, forks and real conflicts retain their
+Actions merges a ready PR only when Backend tests, Frontend build, Frontend E2E and Agent contract concluded `success` on its head; a
+Release waits for the same four on the commit it ships (see "Releases wait for a
+green build" below). Drafts, `do-not-merge`, forks and real conflicts retain their
 holds. Master still blocks force-push and deletion, including for admins, and the
 `No force-push` ruleset refuses a force-push on every other branch, with no bypass
 (AGENTS.md 5.1; `py -3 tools/no_force_push.py check`).
@@ -54,28 +54,19 @@ Superseded PR runs are cancelled; master runs are allowed to finish.
 `Auto-merge` `needs` the four jobs and runs once they finish (never on a cancelled,
 superseded run). It checks out master's `tools/pr_delivery.py`, never the PR's own,
 and `decide()` reads the head's check runs (`tools/pr_checks.py`): each of Backend tests, Frontend build, Frontend E2E and Agent contract
-must have concluded `success` at its newest run. The same `decide()` reads the issue events API and merges only when the PR currently has `merge-approved` and the latest `labeled` actor for that label is `aaltaay`. Agents never add `merge-approved`; only the owner does. The sweeps (CI completion through
-`pr-delivery.yml`, hourly at :12, manual dispatch, and `pull_request` `labeled`) call the same `decide()`.
+must have concluded `success` at its newest run. The sweeps (CI completion through
+`pr-delivery.yml`, hourly at :12, manual dispatch) call the same `decide()`.
 
-Create the label once if it is missing:
-
-```text
-gh label create merge-approved --repo aaltaay/Nova --color 0E8A16 --description "Owner aaltaay approved auto-merge. Agents never add this."
-```
-
-| The four on the head | Owner label | Decision |
-|---|---|---|
-| all `success` | `merge-approved` last added by `aaltaay` | merge (after the five-minute floor and any running review) |
-| any | missing, removed, or last added by anyone else | do not merge. A wrong actor gets one short comment. The label stays. |
-| one not reported yet, queued or running | owner label present | wait; Auto-merge or a sweep decides again |
-| one failed, cancelled, timed out or skipped | owner label present | hold: a comment on the PR names it, once per head, and the job summary says it |
+| The four on the head | Decision |
+|---|---|
+| all `success` | merge (after the five-minute floor and any running review) |
+| one not reported yet, queued or running | wait; Auto-merge or a sweep decides again |
+| one failed, cancelled, timed out or skipped | hold: a comment on the PR names it, once per head, and the job summary says it |
 
 A check the diff does not need is not skipped at GitHub's level: its job runs, says
-"Unaffected" and concludes `success`, so a docs-only PR merges once `aaltaay` has added `merge-approved`. Re-running a failed
-check re-runs `Auto-merge` (it depends on the check), so a green re-run merges when
-`aaltaay` has added `merge-approved`; a push starts a new run. Adding the label
-after CI is already green is the `pull_request` `labeled` trigger, which runs
-the same decision without starting the test jobs again. `master_branch_protection.py` still requires
+"Unaffected" and concludes `success`, so a docs-only PR merges. Re-running a failed
+check re-runs `Auto-merge` (it depends on the check), so a green re-run merges with
+no one acting; a push starts a new run. `master_branch_protection.py` still requires
 zero status-check contexts: the merge job is the gate, and status-only master pushes
 stay possible. Gitleaks and the security scans stay warning-only.
 

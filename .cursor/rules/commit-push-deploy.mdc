@@ -8,7 +8,7 @@ alwaysApply: true
 The delivery law has one home: **`AGENTS.md` §5.1** (clean start, mandatory finish, head deletion, clean tree). This file does not restate it (ADR 051). The gates are MUST; casual phrasing never waives them; only an explicit user override does, stated in the PR body.
 
 - **Start:** `git fetch origin`, a new focused branch from `origin/master`, never on a dirty tree.
-- **Finish:** verify, `git add <paths>` (never `-A`, never `stash`), commit, push, open a **ready (non-draft)** PR from `.github/pull_request_template.md`. The PR URL is the finish line. Actions merges it only after the owner `aaltaay` adds `merge-approved` (`github-delivery.mdc`). Agents never add that label.
+- **Finish:** verify, `git add <paths>` (never `-A`, never `stash`), commit, push, open a **ready (non-draft)** PR from `.github/pull_request_template.md`. The PR URL is the finish line. Actions merges it (`github-delivery.mdc`).
 - **After merge or close:** delete the head the same session (`github-delivery.mdc` item 8; `branch-cleanup.mdc` for tips not in master).
 
 ## Deploy
