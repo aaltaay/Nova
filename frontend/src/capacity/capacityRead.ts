@@ -42,6 +42,7 @@ const KIND_LABELS: Record<string, string> = {
   tape: 'TraderTV exits, ticker checks, LULD',
   daily: 'Daily bars: SSR, Market ETFs, Cryptos',
   market: 'Market page tiles',
+  global: 'Global page',
 };
 
 const HELD_BY_LABELS: Record<string, string> = { tab: 'Trader tab', auto_record: 'recording', bot: 'bot' };

@@ -22,6 +22,7 @@ import {
   NAV_RAIL_EXPAND_TITLE,
   NAV_RAIL_GROUP_LABELS,
   NAV_RAIL_LABEL_CRYPTOS,
+  NAV_RAIL_LABEL_GLOBAL,
   NAV_RAIL_LABEL_MARKET,
   NAV_RAIL_LABEL_RECORDS,
   NAV_RAIL_LABEL_SCANNER,
@@ -29,6 +30,7 @@ import {
   NAV_RAIL_LABEL_TRADER,
   NAV_RAIL_RECORDING_MAX,
   NAV_RAIL_TITLE_CRYPTOS,
+  NAV_RAIL_TITLE_GLOBAL,
   NAV_RAIL_TITLE_MARKET,
   NAV_RAIL_TITLE_RECORDS,
   NAV_RAIL_TITLE_SCANNER,
@@ -134,6 +136,14 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
       data-rail-highlight={scanner.railHighlight}
     >
       <div className="nav-rail__list">
+        <NavRailItem
+          testId="nav-rail-global"
+          icon={navRailIcon('global')}
+          label={NAV_RAIL_LABEL_GLOBAL}
+          title={NAV_RAIL_TITLE_GLOBAL}
+          active={!traderActive && page === 'global'}
+          onClick={() => goPage('global')}
+        />
         <NavRailItem
           testId="nav-rail-market"
           icon={navRailIcon('market')}

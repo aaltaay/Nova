@@ -22,6 +22,7 @@ import logging
 import math
 import time
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
@@ -316,19 +317,23 @@ async def request_daily_bars(symbol: str, duration: str, *, use_rth: bool) -> li
 
 async def request_reference_bars(
     key: str, contract: Any, *, duration: str, bar_size: str, what_to_show: str, use_rth: bool,
+    pace_kind: str = "ref",
 ) -> list[dict[str, Any]]:
-    """A reference contract's bars, ``[{t, open, high, low, close}]`` oldest first (ADR 053).
+    """A reference contract's bars, ``[{t, open, high, low, close, volume, average}]`` oldest first (ADR 053, 060).
 
-    The Market page's futures, indexes and crypto, already qualified by the caller. ``key`` names the contract
-    in the pacing book ("CONTFUT:ES"). Background priority, paced like every other request: ``HistoricalShed``
-    while an open chart is loading or pacing asks for a wait. ``t`` is the bar's start, epoch seconds (a daily
-    bar's is its date's midnight UTC). Nothing is stored or pushed. Must run on the IB connect-loop.
+    The Market page's futures, indexes and crypto, and the Global page's futures, indexes, ETFs and exchange rates
+    (``pace_kind="global"``), already qualified by the caller. ``key`` names the contract in the pacing book
+    ("CONTFUT:ES"); ``pace_kind`` names the reader in it (``historical_pacing.kind_of``). Background priority, paced
+    like every other request: ``HistoricalShed`` while an open chart is loading or pacing asks for a wait. ``t`` is
+    the bar's start, epoch seconds (a daily bar's is its date's midnight UTC); ``volume`` and ``average`` (IBKR's
+    average price of the bar's trades) are ``None`` when IBKR gives none (an index, a midpoint). Nothing is stored or
+    pushed. Must run on the IB connect-loop.
     """
     assert_ib_loop()
     from constants import IBKR_HISTORICAL_BACKGROUND_TIMEOUT_SEC
     from ibkr import client as _client
 
-    pace_key = f"ref:{bar_size}:{what_to_show}:{'rth' if use_rth else 'all'}"
+    pace_key = f"{pace_kind}:{bar_size}:{what_to_show}:{'rth' if use_rth else 'all'}"
     if open_chart_busy():
         raise HistoricalShed("open chart has priority")
     if _pacing.wait_seconds(key, pace_key, duration) > 0:
@@ -349,15 +354,21 @@ async def request_reference_bars(
         when = r.date if isinstance(r.date, datetime) else datetime(r.date.year, r.date.month, r.date.day)
         if when.tzinfo is None:
             when = when.replace(tzinfo=ZoneInfo("UTC"))  # formatDate=2 is UTC; a bare date is that day
-        bar = {k: _bar_price(getattr(r, k, None)) for k in ("open", "high", "low", "close")}
+        bar = {k: _bar_price(getattr(r, k, None)) for k in ("open", "high", "low", "close", "average")}
         if bar["close"] is not None:
-            out.append({"t": when.timestamp(), **bar})
+            out.append({"t": when.timestamp(), **bar, "volume": _bar_volume(getattr(r, "volume", None))})
     return out
 
 
 def _bar_price(value: Any) -> float | None:
-    price = float(value) if isinstance(value, (int, float)) else math.nan
+    price = float(value) if isinstance(value, (int, float, Decimal)) else math.nan
     return price if math.isfinite(price) and price > 0 else None
+
+
+def _bar_volume(value: Any) -> float | None:
+    """IBKR's bar volume; ``None`` for none or IBKR's -1 (no volume: an index, a midpoint)."""
+    volume = float(value) if isinstance(value, (int, float, Decimal)) else math.nan
+    return volume if math.isfinite(volume) and volume >= 0 else None
 
 
 async def request_rth_daily_closes(symbol: str, duration: str) -> list[tuple[str, float]]:

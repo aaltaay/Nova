@@ -184,6 +184,18 @@ def _stop_market_board_lanes():
         assert not stuck, f"Market page lanes still running after the test: {stuck}"
 
 
+@pytest.fixture(autouse=True)
+def _stop_global_board_reader():
+    # ADR 060: the Global page's reader starts with the app and on the first ask; like the Market page's lanes
+    # (#925), each test ends it, so a later test's patches and cache never get its calls or its writes.
+    import sys
+
+    yield
+    refresh = sys.modules.get("global_board.refresh")
+    if refresh is not None:
+        assert refresh.stop_for_tests(), "the Global page's reader is still running after the test"
+
+
 class _EveryVenue(str):
     """A venue stamp equal to every venue -- the suite's default arm only."""
 
