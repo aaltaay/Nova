@@ -62,6 +62,19 @@ RESEARCH = (
      "mcp": "rvol_scan (every stock-day at HH:MM) / rvol_triggers (first minute over a line) / rvol_outcomes "
             "(+X% or -X% first, by rvol bucket, with a same-minute control)",
      "cli": "market_data.py rvol AT key=value / rvol-triggers RVOL_MIN key=value / rvol-outcomes key=value"},
+    {"name": "signals", "source": "Nova's signal table (research/signals/build_signals.py): the Trader's Signals "
+                                  "panel by the desk's own rules at the end of every minute of every in-play "
+                                  "stock-day ($1-$20 common, 10%+ or 5x relative volume with 50,000 shares)",
+     "history": "2016-01-04 on, every session built (data_status signal_table); boards, catalysts, halts, HOD Momo "
+                "and the tape partly (signal_catalog says how far each reaches)",
+     "as_of": "each signal at the end of its minute from facts known by then; rows start at the minute the stock-day "
+              "came into play; a test enters at the first minute every condition held and reads only later bars",
+     "units": "states ok / warn / bad / info / unknown, labels, numbers and yes / no as signal_catalog lists them; "
+              "change percent points; prices raw",
+     "mcp": "signal_catalog / signal_series (one stock-day) / signal_scan (every stock at a minute) / signal_test "
+            "(a mix of signals: +X% or -X% first, with an in-play control)",
+     "cli": "market_data.py signals / signal-series SYMBOL DAY / signal-scan DAY HH:MM --when ... / signal-test "
+            "key=value --when ..."},
     {"name": "symbols", "source": "Massive ticker list (reference/tickers.json: 36,729 rows, 13,252 active)",
      "history": "latest dump (delisted tickers included)",
      "as_of": "which company held a ticker on a day: tickers.py (84 tickers had two companies)",

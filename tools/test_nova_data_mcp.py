@@ -19,9 +19,10 @@ import nova_data_mcp as m  # noqa: E402
 TOOLS = {"data_catalog", "data_status", "stock_day", "movers_search", "movers_scan", "board", "splits", "financials",
          "sec_shares", "sec_filings", "float_latest", "ipos", "ticker_details", "short_interest",
          "find_stock_days", "daily_bars", "market_context", "stock_day_stats", "order_flow", "halts", "catalysts",
-         "symbols", "rvol_scan", "rvol_triggers", "rvol_outcomes", "cash_runway", "recorded_depth", "recorded_tape"}
+         "symbols", "rvol_scan", "rvol_triggers", "rvol_outcomes", "cash_runway", "recorded_depth", "recorded_tape",
+         "signal_catalog", "signal_series", "signal_scan", "signal_test"}
 WRITES = {"stock_day", "movers_scan", "find_stock_days", "daily_bars", "order_flow", "rvol_scan", "rvol_triggers",
-          "rvol_outcomes", "recorded_tape"}
+          "rvol_outcomes", "recorded_tape", "signal_series", "signal_scan", "signal_test"}
 
 
 def test_a_big_table_answers_its_first_rows_and_says_how_many_matched():

@@ -60,6 +60,8 @@ _OPERATOR_DATA_DIRS = {
     "NOVA_MARKET_READ_CACHE_DIR": "market_read_cache",
     # The relative-volume table (#1100, research/market_reads/rvol_store.py) defaults to F: when mounted.
     "NOVA_RVOL_DIR": "rvol",
+    # The signal table (research/market_reads/signals_store.py) defaults to F: when mounted.
+    "NOVA_SIGNALS_DIR": "signals",
     "NOVA_SHORT_TESTS_DIR": "short_tests",   # ADR 049's five-year test results
 }
 for _env, _name in _OPERATOR_DATA_DIRS.items():

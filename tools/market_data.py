@@ -28,6 +28,8 @@ data; ``index`` writes only the seek indexes the Sim's own reader keeps (ADR 046
             an ET moment, the prints in an ET window; read-only on the desk's stores, coverage stated.
   rvol / rvol-triggers / rvol-outcomes   Relative volume across every stock (market_data_rvol.py): every
             stock-day at a clock time, the first minute over a line, and +X% or -X% first after it.
+  signals / signal-series / signal-scan / signal-test   The Trader's signals on past days (market_data_signals.py):
+            the list, one stock-day minute by minute, every in-play stock at a minute, and a test of any mix.
 
 trades / quotes / bars are raw (the files are never split-adjusted); --adjust puts them in today's terms.
 The MCP server tools/nova_data_mcp.py serves the same reads to agents.
@@ -64,6 +66,7 @@ import market_data_recordings as recordings  # noqa: E402  (recorded-depth, reco
 import market_data_research as research  # noqa: E402  (find, daily, context, stats, flow, halts, catalysts, symbols)
 import market_data_runway as runway_cli  # noqa: E402  (runway)
 import market_data_rvol as rvol_cli  # noqa: E402  (rvol, rvol-triggers, rvol-outcomes)
+import market_data_signals as signals_cli  # noqa: E402  (signals, signal-series, signal-scan, signal-test)
 from market_reads import inventory  # noqa: E402
 
 SHOW_ROWS = 15
@@ -332,6 +335,7 @@ def main(argv: list[str] | None = None) -> int:
     runway_cli.add_parsers(sub, output)
     recordings.add_parsers(sub, output)
     rvol_cli.add_parsers(sub, output)
+    signals_cli.add_parsers(sub, output)
 
     args = parser.parse_args(argv)
     if args.cmd in research.HANDLERS:
@@ -342,6 +346,8 @@ def main(argv: list[str] | None = None) -> int:
         return recordings.HANDLERS[args.cmd](args, _show)
     if args.cmd in rvol_cli.HANDLERS:
         return rvol_cli.HANDLERS[args.cmd](args, _show)
+    if args.cmd in signals_cli.HANDLERS:
+        return signals_cli.HANDLERS[args.cmd](args, _show)
     handlers = {"status": cmd_status, "index": cmd_index, "trades": cmd_rows, "quotes": cmd_rows,
                 "bars": cmd_bars, "movers": cmd_movers, "board": cmd_board, "splits": cmd_splits,
                 "bench": cmd_bench, "catalog": cmd_catalog, "scan": cmd_scan, "financials": cmd_reference,

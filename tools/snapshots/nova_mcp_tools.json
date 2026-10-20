@@ -1789,6 +1789,258 @@
     }
   },
   {
+    "name": "signal_catalog",
+    "description": "Every signal of the Trader's Signals panel the signal table holds, for signal_test / signal_scan: its name, group (in_play, setups, front, float, halts, tape), kind (state ok | warn | bad | info | unknown, label with its values, number, bool), the desk rule that writes it, and how far back it reaches (most from 2016; boards, catalysts, halts, HOD Momo and the tape only partly). not_rebuilt names what has no history (borrow, HOD Momo's gate decisions, the Level 2 book walk). table: days built.",
+    "inputSchema": {
+      "properties": {},
+      "title": "signal_catalogArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "signal_series",
+    "description": "One in-play stock-day's signals minute by minute (time_et the minute's start; each value as of its end), from in_play_et (the first minute it was in play: a bar 10%+ over the prior close, or 5x its relative volume, with 50,000+ shares) through 15:59; start / end (ET HH:MM, end exclusive) narrow it. signals: names from signal_catalog (default all). 200 rows inline; output_name writes every row.",
+    "inputSchema": {
+      "properties": {
+        "symbol": {
+          "title": "Symbol",
+          "type": "string"
+        },
+        "day": {
+          "title": "Day",
+          "type": "string"
+        },
+        "signals": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Signals"
+        },
+        "start": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start"
+        },
+        "end": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End"
+        },
+        "output_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Name"
+        }
+      },
+      "required": [
+        "symbol",
+        "day"
+      ],
+      "title": "signal_seriesArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "signal_scan",
+    "description": "Every stock in play by at (ET HH:MM: the minute before it, as of its end) on day, with every signal -- or only those meeting when (a list, all must hold: {\"signal\": \"setup_first_pullback\", \"is\": \"triggered\"}, {\"signal\": \"pillars_n\", \"min\": 4}, {\"signal\": \"front\", \"is\": [\"Front side\", \"Mixed\"]}). Highest relative volume first.",
+    "inputSchema": {
+      "properties": {
+        "day": {
+          "title": "Day",
+          "type": "string"
+        },
+        "at": {
+          "title": "At",
+          "type": "string"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "When"
+        },
+        "output_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Name"
+        }
+      },
+      "required": [
+        "day",
+        "at"
+      ],
+      "title": "signal_scanArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "signal_test",
+    "description": "Test a mix of the Trader's signals: the first minute in [window_from, window_to) ET each in-play stock-day met every condition of when (a list: {\"signal\", \"is\": value | [values]} or {\"signal\", \"min\"?, \"max\"?}; names and values from signal_catalog), entered at that minute's end at its price -- did a bar's high reach +up_pct% or a low -down_pct% first? fresh=true leaves out stock-days where it all held before the window. horizon close (before 16:00) | session (before 20:00) | days (days=1-20). filters: date_from, date_to (or symbol), price_min / price_max (prior close). Answers rvol_outcomes' shape: summary per group_by (year | hour | none) plus all -- entries, up, down, same_bar, same_day, neither, p_up, p_down, medians -- and a control (on by default): per entry one stock-day in play by the same minute of the same date where the mix had not held, scored the same way. meta.coverage names conditions on partly covered signals. output_name writes every scored entry.",
+    "inputSchema": {
+      "properties": {
+        "when": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "When",
+          "type": "array"
+        },
+        "filters": {
+          "additionalProperties": true,
+          "title": "Filters",
+          "type": "object"
+        },
+        "window_from": {
+          "default": "04:00",
+          "title": "Window From",
+          "type": "string"
+        },
+        "window_to": {
+          "default": "16:00",
+          "title": "Window To",
+          "type": "string"
+        },
+        "fresh": {
+          "default": false,
+          "title": "Fresh",
+          "type": "boolean"
+        },
+        "up_pct": {
+          "default": 20.0,
+          "title": "Up Pct",
+          "type": "number"
+        },
+        "down_pct": {
+          "default": 20.0,
+          "title": "Down Pct",
+          "type": "number"
+        },
+        "horizon": {
+          "default": "close",
+          "title": "Horizon",
+          "type": "string"
+        },
+        "days": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Days"
+        },
+        "group_by": {
+          "default": "year",
+          "title": "Group By",
+          "type": "string"
+        },
+        "control": {
+          "default": true,
+          "title": "Control",
+          "type": "boolean"
+        },
+        "seed": {
+          "default": 1,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "output_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Name"
+        }
+      },
+      "required": [
+        "when",
+        "filters"
+      ],
+      "title": "signal_testArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
     "name": "nova_chart",
     "description": "Desk charts for 1 to 9 symbols on one date. Post chat_message verbatim. symbols: tickers. date: YYYY-MM-DD. as_of: HH:MM Eastern, default 16:00. Timeframes are fixed: 10s, 1m, 5m, 1d, full session 04:00 to 16:00 ET. One link per symbol, plus a gallery link. PNG previews are image blocks.",
     "inputSchema": {

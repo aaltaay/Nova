@@ -121,3 +121,22 @@ class TestEvaluateMany:
         assert passers == ["AAA"]
         # Confirm every stock got scored against all five pillars (none skipped).
         assert all(len(r.checks) == 5 for r in results)
+
+
+class TestChangeInPercentPoints:
+    """A change named in percent points is read as given: +0.5% never reads as +50% (the Signals panel's row)."""
+
+    def test_half_a_percent_fails_the_change_pillar(self):
+        result = evaluate_five_pillars(_mock_candidate(change_pct=None, change_points=0.5))
+        assert result.checks[1].passed is False
+        assert "0.5%" in result.checks[1].detail
+
+    def test_points_win_over_a_guessed_fraction(self):
+        assert evaluate_five_pillars(_mock_candidate(change_pct=0.9, change_points=12.0)).checks[1].passed is True
+        assert evaluate_five_pillars(_mock_candidate(change_points=114.8)).checks[1].passed is True
+
+    def test_the_panel_row_reads_a_small_move_as_small(self):
+        from stock_read.rows import _pillars
+        row = _pillars({"symbol": "MOCK", "price": 5.0, "change_pct": 0.005, "rel_volume": 6.0,
+                        "catalyst": None, "float_shares": 8_000_000})
+        assert "change pct ✗ 0.5%" in row["detail"]

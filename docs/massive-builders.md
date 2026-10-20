@@ -16,6 +16,7 @@ connection), except where a section says the product has no file yet.
 | ORB / Gap and Go / daily research store | `research/orb/` (README there) | `minute_aggs_v1`, `day_aggs_v1`, `store/orb.duckdb`, `store/seconds.duckdb`, the first `store/reference/` dump |
 | Other tables in `orb.duckdb` | `research/shorts/select_shorts.py`, `research/catalysts/build_shares.py` | `shorts_selection`, `sec_shares`, `short_interest` |
 | Bollinger mean-reversion store | `research/bb_mr/data_builder.py` | `store/bb_mr.duckdb` |
+| Signal table (the Trader's signals on past days) | `research/signals/build_signals.py` (README there) | `F:\Nova\signals` (`NOVA_SIGNALS_DIR`): `minutes/`, `days/`, `tape/`, `manifest.json`; contract in `architecture/schema/agent-desk.md` |
 | Relative-volume table (#1100) | `research/rvol/build_rvol.py` (README there) | `F:\Nova\rvol` (`NOVA_RVOL_DIR`): `minutes/`, `days/`, `manifest.json`; contract in `architecture/schema/agent-desk.md` |
 
 ### Environment
