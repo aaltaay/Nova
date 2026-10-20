@@ -13,20 +13,39 @@ import urllib.request
 from typing import Any
 from urllib.parse import urlparse
 
-from nova_open_client import DESK_NOT_RUNNING_TEXT, HEADER
+from nova_open_client import DESK_NOT_RUNNING_TEXT, DESK_OUT_OF_DATE_TEXT, HEADER
 
 TOKEN_PATH = "/api/review/open-token"
 OPEN_PATH = "/api/review/open-in-nova"
 
 
 def foreign_origin(origin: str | None) -> bool:
+    """Loopback, no Origin, and file:// are this PC. A 127. prefix is not loopback."""
     if origin is None or origin == "" or origin == "file://":
         return False
-    if origin == "null":
+    if origin == "null" or "\r" in origin or "\n" in origin:
         return True
-    host = (urlparse(origin).hostname or "").lower()
-    if host in {"127.0.0.1", "localhost", "::1"} or host.startswith("127."):
+    parsed = urlparse(origin)
+    if parsed.scheme not in {"http", "https"} or parsed.username is not None or parsed.password is not None:
+        return True
+    host = parsed.hostname
+    if not host:
+        return True
+    import nova_review_engine as engine
+
+    return not engine.this_pc_host(host)
+
+
+def _host_refused(handler) -> bool:
+    import nova_review_engine as engine
+
+    if engine.host_header_allowed(handler.headers.get("Host")):
         return False
+    _send(handler, 400, {
+        "ok": False,
+        "reason": engine.HOST_NOT_ALLOWED,
+        "error": "this open path refuses that Host",
+    })
     return True
 
 
@@ -45,6 +64,8 @@ def try_post(handler) -> bool:
 
 
 def _send_token(handler) -> None:
+    if _host_refused(handler):
+        return
     if foreign_origin(handler.headers.get("Origin")):
         _send(handler, 403, {"reason": "FORBIDDEN", "error": "this open path refuses a foreign Origin"})
         return
@@ -53,6 +74,9 @@ def _send_token(handler) -> None:
     except OSError:
         _send(handler, 409, {"reason": "DESK_NOT_RUNNING", "error": DESK_NOT_RUNNING_TEXT})
         return
+    if status == 404:
+        _send(handler, 409, {"reason": "DESK_OUT_OF_DATE", "error": DESK_OUT_OF_DATE_TEXT})
+        return
     if not isinstance(body, dict) or "token" not in body:
         _send(handler, 409, {"reason": "DESK_NOT_RUNNING", "error": DESK_NOT_RUNNING_TEXT})
         return
@@ -60,6 +84,8 @@ def _send_token(handler) -> None:
 
 
 def _forward_open(handler) -> None:
+    if _host_refused(handler):
+        return
     if foreign_origin(handler.headers.get("Origin")):
         _send(handler, 403, {"reason": "FORBIDDEN", "error": "this open path refuses a foreign Origin"})
         return
@@ -74,6 +100,9 @@ def _forward_open(handler) -> None:
         status, body = _call("POST", "/api/agent/open-in-nova", raw, token)
     except OSError:
         _send(handler, 409, {"reason": "DESK_NOT_RUNNING", "error": DESK_NOT_RUNNING_TEXT})
+        return
+    if status == 404:
+        _send(handler, 409, {"reason": "DESK_OUT_OF_DATE", "error": DESK_OUT_OF_DATE_TEXT})
         return
     if not isinstance(body, dict):
         _send(handler, 502, {"reason": "BAD_REQUEST", "error": "the desk answer was not JSON"})

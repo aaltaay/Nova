@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import http.client
 import json
 import sys
 import threading
@@ -253,3 +254,206 @@ def test_review_open_says_when_the_desk_is_not_running(monkeypatch):
     assert status == 409
     assert headers.get("Access-Control-Allow-Origin") is None
     assert b"Run Nova Desktop.bat" in raw
+
+
+def test_host_allowlist_and_engine_version_four():
+    import nova_review_open as review_open
+
+    assert engine.ENGINE_VERSION == "4"
+    current = {"ok": True, "service": review_http.SERVICE, "version": "4"}
+    stale = {"ok": True, "service": review_http.SERVICE, "version": "3"}
+    assert engine.engine_ok(current) is True
+    assert engine.engine_ok(stale) is False
+    assert engine.this_pc_host("127.0.0.1") is True
+    assert engine.this_pc_host("localhost") is True
+    assert engine.this_pc_host("::1") is True
+    assert engine.this_pc_host("127.0.0.1.evil.example") is False
+    assert engine.this_pc_host("127.0.0.2") is False
+    assert engine.host_header_allowed("127.0.0.1") is True
+    assert engine.host_header_allowed("127.0.0.1:18765") is True
+    assert engine.host_header_allowed("localhost:5173") is True
+    assert engine.host_header_allowed("[::1]:18765") is True
+    assert engine.host_header_allowed(None) is False
+    assert engine.host_header_allowed("127.0.0.1.evil.example") is False
+    assert engine.host_header_allowed("127.0.0.1.evil.example:80") is False
+    assert engine.host_header_allowed("127.0.0.2") is False
+    assert engine.host_header_allowed("::1") is False
+    assert review_open.foreign_origin("http://127.0.0.1.evil.example") is True
+    assert review_open.foreign_origin("http://127.0.0.1:18765") is False
+
+
+def _raw(port, path, *, method="GET", body=None, headers=None):
+    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+    data = None if body is None else json.dumps(body).encode()
+    conn.request(method, path, body=data, headers=headers or {})
+    response = conn.getresponse()
+    raw = response.read()
+    found = {key.lower(): value for key, value in response.getheaders()}
+    status = response.status
+    conn.close()
+    return status, found, raw
+
+
+def _assert_open_host_jail(port):
+    evil = "127.0.0.1.evil.example"
+    status, headers, raw = _raw(port, "/api/review/open-token", headers={"Host": evil, "Origin": f"http://{evil}"})
+    assert status == 400
+    body = json.loads(raw)
+    assert body["reason"] == "HOST_NOT_ALLOWED"
+    assert b"tok" not in raw
+    assert "access-control-allow-origin" not in headers
+    posted, posted_headers, posted_raw = _raw(
+        port, "/api/review/open-in-nova", method="POST",
+        body={"symbol": "IMCC", "date": DAY, "as_of": "10:00"},
+        headers={"Host": evil, "Content-Type": "application/json", "X-Nova-Open-Token": "tok"},
+    )
+    assert posted == 400
+    assert json.loads(posted_raw)["reason"] == "HOST_NOT_ALLOWED"
+    assert b"tok" not in posted_raw
+    assert "access-control-allow-origin" not in posted_headers
+    origin, origin_headers, origin_raw = _raw(
+        port, "/api/review/open-token",
+        headers={"Host": f"127.0.0.1:{port}", "Origin": f"http://{evil}"},
+    )
+    assert origin == 403
+    assert b"tok" not in origin_raw
+    assert "access-control-allow-origin" not in origin_headers
+    health, _, health_raw = _raw(port, "/api/review/health", headers={"Host": evil})
+    assert health == 200
+    assert json.loads(health_raw)["ok"] is True
+
+
+def test_review_listener_refuses_a_rebound_host(review_and_api):
+    _assert_open_host_jail(review_and_api)
+
+
+def test_engine_refuses_a_rebound_host(review_and_api, monkeypatch, tmp_path):
+    monkeypatch.setenv("NOVA_REVIEW_LEASE", str(tmp_path / "lease.json"))
+    monkeypatch.setenv("NOVA_REVIEW_LEASE_LOCK", str(tmp_path / "lease.lock"))
+    monkeypatch.setenv("NOVA_REVIEW_SHOT_DIR", str(tmp_path / "shots"))
+    engine.STATE.token = ""
+    httpd = engine.serve_engine(0, bars_reader=lambda *_a: [], daily_reader=lambda *_a: [])
+    assert httpd is not None
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        port = int(httpd.server_address[1])
+        _assert_open_host_jail(port)
+        health, _, raw = _raw(port, "/api/review/health")
+        assert health == 200
+        assert json.loads(raw)["version"] == "4"
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_bad_arguments_are_refused_before_the_desk_is_contacted():
+    import nova_open_tool as open_tool
+
+    assert open_tool.argument_error("1IMCC", DAY, None)
+    assert open_tool.argument_error("IMCC", "18-09-2026", None)
+    assert open_tool.argument_error("IMCC", DAY, "03:59")
+    assert open_tool.argument_error("BAD", DAY, "10:00") is None
+
+    def transport(_payload):
+        raise AssertionError("the desk must not be contacted")
+
+    server = nova_mcp.create_server(data.DataService(), http=False, warm=False, open_transport=transport)
+    for arguments in (
+        {"symbol": "1IMCC", "date": DAY},
+        {"symbol": "IMCC", "date": "18-09-2026"},
+        {"symbol": "IMCC", "date": DAY, "as_of": "03:59"},
+    ):
+        result = asyncio.run(server.call_tool("open_in_nova", arguments))
+        assert result.isError is True
+        assert result.structuredContent["error"]["code"] == "BAD_REQUEST"
+
+    seen = []
+
+    def allow_bad(payload):
+        seen.append(dict(payload))
+        return {"ok": False, "reason": "BAD_REQUEST", "error": "symbol must be a ticker"}
+
+    live = nova_mcp.create_server(data.DataService(), http=False, warm=False, open_transport=allow_bad)
+    bad = asyncio.run(live.call_tool("open_in_nova", {"symbol": "BAD", "date": DAY}))
+    assert bad.isError is True
+    assert seen == [{"symbol": "BAD", "date": DAY}]
+
+
+class _Missing(BaseHTTPRequestHandler):
+    def log_message(self, _fmt, *_args):
+        return
+
+    def do_GET(self):  # noqa: N802
+        self.send_response(404)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def do_POST(self):  # noqa: N802
+        length = int(self.headers.get("Content-Length") or "0")
+        self.rfile.read(length)
+        self.send_response(404)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+
+def test_a_404_open_route_is_out_of_date_and_a_refused_socket_is_not_running(monkeypatch):
+    api = ThreadingHTTPServer(("127.0.0.1", 0), _Missing)
+    thread = threading.Thread(target=api.serve_forever, daemon=True)
+    thread.start()
+    base = f"http://127.0.0.1:{api.server_address[1]}"
+    try:
+        stale = open_client.post_open({"symbol": "IMCC", "date": DAY, "as_of": "10:00"}, base=base)
+    finally:
+        api.shutdown()
+    assert stale["reason"] == "DESK_OUT_OF_DATE"
+    assert stale["error"] == open_client.DESK_OUT_OF_DATE_TEXT
+    assert "not running" not in stale["error"]
+
+    monkeypatch.setenv("NOVA_API_BASE", base)
+    # The server above is shut down; start another so the tool hits a live 404.
+    again = ThreadingHTTPServer(("127.0.0.1", 0), _Missing)
+    again_thread = threading.Thread(target=again.serve_forever, daemon=True)
+    again_thread.start()
+    monkeypatch.setenv("NOVA_API_BASE", f"http://127.0.0.1:{again.server_address[1]}")
+    try:
+        server = nova_mcp.create_server(data.DataService(), http=False, warm=False)
+        result = asyncio.run(server.call_tool("open_in_nova", {"symbol": "IMCC", "date": DAY, "as_of": "10:00"}))
+    finally:
+        again.shutdown()
+    assert result.isError is True
+    assert result.content[0].text == open_client.DESK_OUT_OF_DATE_TEXT
+    assert result.structuredContent["error"]["code"] == "DESK_OUT_OF_DATE"
+
+    def refused(_request, timeout=30):
+        raise urllib.error.URLError("connection refused")
+
+    down = open_client.post_open({"symbol": "IMCC", "date": DAY}, urlopen=refused)
+    assert down["reason"] == "DESK_NOT_RUNNING"
+    assert down["error"] == open_client.DESK_NOT_RUNNING_TEXT
+
+
+def test_review_open_says_the_backend_is_out_of_date(monkeypatch):
+    api = ThreadingHTTPServer(("127.0.0.1", 0), _Missing)
+    thread = threading.Thread(target=api.serve_forever, daemon=True)
+    thread.start()
+    monkeypatch.setenv("NOVA_API_BASE", f"http://127.0.0.1:{api.server_address[1]}")
+    review = review_http.serve(0, bars_reader=lambda *_a: [], daily_reader=lambda *_a: [])
+    review_thread = threading.Thread(target=review.serve_forever, daemon=True)
+    review_thread.start()
+    try:
+        status, headers, raw = _request(review.server_address[1], "/api/review/open-token")
+        posted, _, posted_raw = _request(
+            review.server_address[1], "/api/review/open-in-nova", method="POST",
+            body={"symbol": "IMCC", "date": DAY},
+            headers={"Content-Type": "application/json", "X-Nova-Open-Token": "tok"},
+        )
+    finally:
+        review.shutdown()
+        api.shutdown()
+    assert status == 409
+    assert headers.get("Access-Control-Allow-Origin") is None
+    assert b"out of date" in raw
+    assert b"not running" not in raw
+    assert posted == 409
+    assert b"out of date" in posted_raw

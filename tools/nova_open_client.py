@@ -13,6 +13,13 @@ from typing import Any
 DESK_NOT_RUNNING_TEXT = (
     "Nova's desk is not running. Start it with scripts/windows/Run Nova Desktop.bat, then ask again."
 )
+DESK_OUT_OF_DATE_TEXT = (
+    "Nova's desk backend is out of date. Restart it on the new build, then ask again."
+)
+
+
+class DeskOutOfDate(Exception):
+    """The process answered, and it does not have the open route yet."""
 HEADER = "X-Nova-Open-Token"
 DEFAULT_API = "http://127.0.0.1:8000"
 
@@ -34,15 +41,21 @@ def post_open(payload: dict[str, Any], *, base: str | None = None, urlopen=urlli
                 method="POST",
             ),
         )
+    except DeskOutOfDate:
+        return {"ok": False, "reason": "DESK_OUT_OF_DATE", "error": DESK_OUT_OF_DATE_TEXT}
     except OSError:
         return {"ok": False, "reason": "DESK_NOT_RUNNING", "error": DESK_NOT_RUNNING_TEXT}
+    if status == 404:
+        return {"ok": False, "reason": "DESK_OUT_OF_DATE", "error": DESK_OUT_OF_DATE_TEXT}
     if status < 400 and isinstance(body, dict) and body.get("ok") is True:
         return body
     return _error_body(body)
 
 
 def _read_token(root: str, urlopen) -> str:
-    _status, body = _request(urlopen, urllib.request.Request(root + "/api/agent/open-token"))
+    status, body = _request(urlopen, urllib.request.Request(root + "/api/agent/open-token"))
+    if status == 404:
+        raise DeskOutOfDate()
     token = body.get("token") if isinstance(body, dict) else None
     if not isinstance(token, str) or not token:
         raise OSError("open token missing")

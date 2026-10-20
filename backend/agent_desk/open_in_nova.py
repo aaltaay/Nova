@@ -1,16 +1,21 @@
 """Open in Nova: a thin wrapper around the existing show command.
 
+maintainer: one-concern the open-in-nova request (arguments, session gate, and stake) must live in one place
+
 ``POST /api/agent/show`` already plans the window, queues a ``show`` command, and the desk
 lands it (``landSim`` posts the day, which calls ``jump_to_day``, then parks with
 ``scrub_to_second``). This route queues that same command. It adds only what show does
-not have: a separate Sim window during regular hours, an install token instead of the
-API key, and strict arguments. It does not jump the clock itself, and it never calls
-``leave_safely`` or an order route.
+not have: a separate Sim window while the session is open (premarket, regular hours,
+and after-hours, including a 13:00 early close), an install token instead of the API
+key, and strict arguments. A venue change runs the show at-stake check first and
+refuses when anything is at stake. It does not jump the clock itself, and it never
+calls ``leave_safely`` or an order route.
 
 The browser caller uses ``X-Nova-Open-Token``, not ``X-Nova-Api-Key``.
 """
 from __future__ import annotations
 
+import ipaddress
 import json
 import logging
 import re
@@ -26,12 +31,14 @@ from starlette.concurrency import run_in_threadpool
 from agent_desk import commands, planner
 from agent_desk.open_token import token_matches
 from constants_agent_desk import OPEN_IN_NOVA_HEADER, OPEN_IN_NOVA_TRIGGER_LEAD_SEC
-from constants_scanner import SESSION_RTH_CLOSE_MIN_ET, SESSION_RTH_OPEN_MIN_ET
+from constants_scanner import SESSION_PREMARKET_START_MIN_ET, SESSION_RTH_OPEN_MIN_ET
 from constants_sim import SIM_SESSION_OPEN_HOUR
+from market_board.clock import after_hours_end_minute, close_minute
 
 logger = logging.getLogger(__name__)
 
 ET = ZoneInfo("America/New_York")
+_LOOPBACK = (ipaddress.ip_address("127.0.0.1"), ipaddress.ip_address("::1"))
 _SYMBOL = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _CLOCK = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$")
@@ -55,16 +62,35 @@ def wall_clock() -> datetime:
     return datetime.now(ET)
 
 
+def this_pc_host(host: str) -> bool:
+    """``localhost``, or the address 127.0.0.1 or ::1. Never a ``127.`` prefix."""
+    name = host.lower().rstrip(".")
+    if name == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(name) in _LOOPBACK
+    except ValueError:
+        return False
+
+
 def foreign_origin(origin: str | None) -> bool:
-    """A browser page on another host. Loopback, no Origin, and ``file://`` are this PC."""
+    """A browser page on another host. Loopback, no Origin, and ``file://`` are this PC.
+
+    The host is parsed and compared with ``ipaddress``. A DNS name that only starts
+    with ``127.`` (``http://127.0.0.1.evil.example``) is foreign. Any port on an
+    allowed host is allowed.
+    """
     if origin is None or origin == "" or origin == "file://":
         return False
-    if origin == "null":
+    if origin == "null" or "\r" in origin or "\n" in origin:
         return True
-    host = (urlparse(origin).hostname or "").lower()
-    if host in {"127.0.0.1", "localhost", "::1"} or host.startswith("127."):
-        return False
-    return True
+    parsed = urlparse(origin)
+    if parsed.scheme not in {"http", "https"} or parsed.username is not None or parsed.password is not None:
+        return True
+    host = parsed.hostname
+    if not host:
+        return True
+    return not this_pc_host(host)
 
 
 def chat_message(symbol: str, day: str, clock: str, *, separate: bool) -> str:
@@ -77,12 +103,41 @@ def chat_message(symbol: str, day: str, clock: str, *, separate: bool) -> str:
 
 
 def in_rth(now: datetime, trading_day: Callable[[date], bool]) -> bool:
-    """Wall-clock regular hours: 09:30 inclusive, 16:00 exclusive, weekdays the exchange is open."""
+    """Wall-clock regular hours: 09:30 inclusive, the close exclusive.
+
+    The close is 16:00 ET, or 13:00 ET on an NYSE early close.
+    """
     moment = now.astimezone(ET)
     if not trading_day(moment.date()):
         return False
     minute = moment.hour * 60 + moment.minute
-    return SESSION_RTH_OPEN_MIN_ET <= minute < SESSION_RTH_CLOSE_MIN_ET
+    return SESSION_RTH_OPEN_MIN_ET <= minute < close_minute(moment.date())
+
+
+def keeps_the_main_desk(now: datetime, trading_day: Callable[[date], bool]) -> bool:
+    """Premarket, regular hours, and after-hours stay on the desk the operator is using.
+
+    A half-day ends the regular session at 13:00 ET and after-hours at 17:00 ET.
+    Overnight, a weekend, and a holiday may leave that desk only when nothing is at stake.
+    """
+    moment = now.astimezone(ET)
+    if not trading_day(moment.date()):
+        return False
+    minute = moment.hour * 60 + moment.minute
+    return SESSION_PREMARKET_START_MIN_ET <= minute < after_hours_end_minute(moment.date())
+
+
+def stake_text(current: str, stake: dict[str, Any]) -> str:
+    parts = [str(item.get("text") or item.get("kind") or "at stake") for item in stake.get("items") or []]
+    unknown = list(stake.get("unknown") or [])
+    if unknown:
+        kinds = ", ".join(str(item.get("kind") or "check") for item in unknown)
+        parts.append(f"a check could not be read ({kinds})")
+    names = "; ".join(parts) or "a check could not be read"
+    return (
+        f"The desk is on {current.capitalize()}, and this puts something at stake: {names}. "
+        "The main desk was not switched."
+    )
 
 
 def second_from_open(day: str, park_ts: int) -> float:
@@ -170,6 +225,7 @@ def perform(
     row_for: Callable[[str, str], dict | None] | None = None,
     trading_day: Callable[[date], bool] | None = None,
     on_file: Callable[[str], bool] | None = None,
+    stake_for: Callable[[str], dict] | None = None,
 ) -> dict[str, Any]:
     parsed = parse_payload(body)
     day_ok = trading_day or _trading_day
@@ -186,7 +242,7 @@ def perform(
         )
     if not (listening or _listening)():
         raise OpenError(409, "DESK_NOT_RUNNING", DESK_NOT_RUNNING_TEXT)
-    separate = in_rth(now, day_ok)
+    separate = keeps_the_main_desk(now, day_ok)
     plan = _plan(parsed, today=today, setups_for=setups_for or _setups_for, row_for=row_for or _row_for)
     plan["separate_sim"] = separate
     plan["switch_venue"] = False
@@ -196,8 +252,14 @@ def perform(
     if not separate:
         # The desk's show landing moves the day and the playhead. Switch the view
         # here, with no order cancel, so that landing does not call leave_safely.
+        # set_venue persists the desk, disarms the padlock, and leaves broker
+        # orders unwatched, so the show at-stake check runs first and a refusal
+        # does not switch.
         current = (venue or _venue)()
         if current != "sim":
+            stake = (stake_for or _stake)(current)
+            if not stake.get("safe"):
+                raise OpenError(409, "AGENT_AT_STAKE", stake_text(current, stake))
             (switch_view or switch_main_view_to_sim)()
             switched = True
     plan["switch_view"] = switched
@@ -308,6 +370,13 @@ def _venue() -> str:
     from sim.mode import venue
 
     return str(venue())
+
+
+def _stake(current: str) -> dict[str, Any]:
+    """The check ``POST /api/agent/show`` runs before it leaves the current venue."""
+    from agent_desk.safety import at_stake
+
+    return at_stake(current, switching=True, reloading=False)
 
 
 def _on_file(day: str) -> bool:
