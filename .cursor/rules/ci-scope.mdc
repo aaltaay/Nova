@@ -27,7 +27,9 @@ alwaysApply: false
   and `decide()` (`tools/pr_checks.py`) merges only when each concluded success at
   its newest run on the head; a red one holds with a PR comment, a running one waits.
   Scope never skips one of the four at GitHub's level: an inapplicable job concludes
-  success after "Unaffected", so docs-only PRs merge. Branch protection has no
+  success after "Unaffected", so docs-only PRs merge once `aaltaay` has added
+  `merge-approved`. Agents never add `merge-approved`; only the owner does.
+  Drafts never merge. Branch protection has no
   required status checks (the merge job is the gate). Keep force-push/deletion blocked.
 - Releasing is green only too (owner decision 2026-10-13). Desktop pack's
   `verify` job (`Release checks`) calls `deploy.yml` with `full: true` on the commit

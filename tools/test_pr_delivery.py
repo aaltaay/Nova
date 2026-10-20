@@ -43,7 +43,7 @@ def _ok_checks() -> list[dict]:
     ]
 
 
-def test_ready_pr_merges():
+def test_ready_pr_without_the_owner_label_does_not_merge():
     result = decide(
         draft=False,
         state="OPEN",
@@ -53,7 +53,8 @@ def test_ready_pr_merges():
         same_repo=True,
         checks=_ok_checks(),
     )
-    assert result.action == ACTION_MERGE
+    assert result.action == ACTION_SKIP
+    assert result.reason == "merge-approved-missing"
 
 
 def test_draft_is_skipped():
@@ -93,6 +94,7 @@ def test_conflict_blocks():
         head_ref="stale",
         same_repo=True,
         checks=_ok_checks(),
+        owner_approved=True,
     )
     assert result.action == ACTION_BLOCK
     assert result.reason == "conflict"
@@ -107,6 +109,7 @@ def test_conflicting_state_also_blocks():
         head_ref="stale",
         same_repo=True,
         checks=_ok_checks(),
+        owner_approved=True,
     )
     assert result.action == ACTION_BLOCK
     assert result.reason == "conflict"
@@ -154,6 +157,7 @@ def test_a_missing_check_waits_for_it():
         head_ref="new",
         same_repo=True,
         checks=_ok_checks()[:-1],
+        owner_approved=True,
     )
     assert result.action == ACTION_WAIT
     assert result.reason == "checks_pending: Agent contract has not reported"
@@ -174,6 +178,7 @@ def test_a_failed_check_holds_the_merge():
         head_ref="red",
         same_repo=True,
         checks=checks,
+        owner_approved=True,
     )
     assert result.action == ACTION_BLOCK
     assert result.reason == "checks_red: Backend tests failed"
@@ -191,6 +196,7 @@ def test_desktop_pack_pending_allows_merge():
         head_ref="packing",
         same_repo=True,
         checks=checks,
+        owner_approved=True,
     )
     assert result.action == ACTION_MERGE
     assert result.reason == "ready"
@@ -205,6 +211,7 @@ def test_desktop_pack_missing_still_merges():
         head_ref="docs",
         same_repo=True,
         checks=_ok_checks(),
+        owner_approved=True,
     )
     assert result.action == ACTION_MERGE
 
@@ -268,7 +275,13 @@ def _ok_pr(number: int = 239, merge_state: str = "CLEAN", **extra) -> dict:
         "isDraft": False,
         "state": "OPEN",
         "mergeStateStatus": merge_state,
-        "labels": [],
+        "labels": [{"name": "merge-approved"}],
+        "label_events": [{
+            "event": "labeled",
+            "created_at": "2026-01-01T00:00:00Z",
+            "actor": {"login": "aaltaay"},
+            "label": {"name": "merge-approved"},
+        }],
         "headRefName": "altaaya/pr-delivery-squash-239-128b",
         "headRepository": {"name": "Nova"},
         "headRepositoryOwner": {"login": "aaltaay"},

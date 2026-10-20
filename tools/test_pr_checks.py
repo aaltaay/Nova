@@ -35,7 +35,8 @@ def without(runs: list[dict], name: str) -> list[dict]:
 
 def _decide(checks: list[dict], **overrides):
     args = dict(draft=False, state="OPEN", mergeable_state="clean", labels=[],
-                head_ref="feature/x", same_repo=True, checks=checks)
+                head_ref="feature/x", same_repo=True, checks=checks,
+                owner_approved=True)
     args.update(overrides)
     return decide(**args)
 
@@ -157,7 +158,13 @@ def test_a_hold_is_said_once_per_head_and_verdict():
 
 def _pr(number: int = 7) -> dict:
     return {"number": number, "title": "t", "body": "", "isDraft": False, "state": "OPEN",
-            "mergeStateStatus": "CLEAN", "labels": [], "headRefName": "feature/x", "headRefOid": SHA,
+            "mergeStateStatus": "CLEAN",
+            "labels": [{"name": "merge-approved"}],
+            "label_events": [{
+                "event": "labeled", "created_at": "2026-01-01T00:00:00Z",
+                "actor": {"login": "aaltaay"}, "label": {"name": "merge-approved"},
+            }],
+            "headRefName": "feature/x", "headRefOid": SHA,
             "headRepository": {"name": "Nova"}, "headRepositoryOwner": {"login": "aaltaay"}}
 
 
