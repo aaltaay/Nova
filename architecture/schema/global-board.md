@@ -93,8 +93,8 @@ after a close they were read before. Not wanted: the same
 flows, quotes and FX closes at `GLOBAL_IDLE_FLOW_TTL_SEC` / `GLOBAL_IDLE_QUOTES_TTL_SEC`, but never from 09:30 to
 16:00 ET, the desk's own hours, and no daily bars (`NOVA_GLOBAL_BOARD_WARM=0` reads only while wanted). Every historical request goes through the
 paced service at background priority, under its own pacing kind `global` (the capacity strip's History hover names
-it), and only while more than `GLOBAL_HISTORY_HEADROOM` are left: charts, the short check, the TraderTV exits, LULD
-and the Market page all come first. A refused instrument is not asked again for `GLOBAL_REFUSED_RETRY_SEC`.
+it), and only while more than `GLOBAL_HISTORY_HEADROOM` (30) are left: charts, the short check, the TraderTV exits
+and LULD come first, and the Market page, which stops at the same 30, takes turns with it (ADR 060 amendment). A refused instrument is not asked again for `GLOBAL_REFUSED_RETRY_SEC`.
 
 **Kept across restarts** (`backend/global_board/keep.py`): `<cache_dir>/global-board/global-store.json`,
 `{schema_version: 1, saved_at, entries: {key: {at, value}}}` -- the reads' last answers (`flow:<id>`, `quotes`,
@@ -102,7 +102,10 @@ and the Market page all come first. A refused instrument is not asked again for 
 back at the first start, each at its own answer time; an entry older than `GLOBAL_KEEP_MAX_AGE_SEC` is not read back,
 and a file of another `schema_version` reads as absent.
 
-**On the desk** (`frontend/src/global_board/`): the first item of the nav rail, above Market. The page polls every
+**On the desk** (`frontend/src/global_board/`): the first item of the nav rail, above Market. The page fills the
+window and never scrolls ("I can't have the page to be scrollable"): the map, the two charts and the rows size to the
+space there is, the definitions open from "How to read", and the page's notes share one line in its head (the full
+words on hover), the history note with `budget.history_left` against `budget.history_headroom`. The page polls every
 `GLOBAL_POLL_MS` while it shows and the window is visible. Its switches (the period and what the map's colour shows) are kept in localStorage `nova.globalBoard.prefs.v1`, `{schema_version: 1, period, color_by}` (owner `prefs.ts`; another version or an unknown value reads as 1D / pressure; the sample desk never writes it). A world map (Natural Earth land, public domain, through
 `world-atlas` 2.0.2, drawn once into `worldLand.ts`), one bubble per market sized by `traded_usd` and coloured by
 `pressure_pct` or `move.pct` (the switch), a dashed ring while the market is open; the four regions and the world;

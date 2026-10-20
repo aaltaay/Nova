@@ -33,8 +33,9 @@ GLOBAL_QUIET_FROM_MIN_ET = 9 * 60 + 30
 GLOBAL_QUIET_TO_MIN_ET = 16 * 60
 
 # -- IBKR budget: Global reads last (ADR 060 decision 5) -------------------------------------------------------------
-GLOBAL_HISTORY_HEADROOM = 40                     # no historical request while this few of the 10-minute 60 are left:
-#   charts, the short check, the TraderTV exits and LULD (20) and the Market page (30) all come first.
+GLOBAL_HISTORY_HEADROOM = 30                     # no historical request while this few of the 10-minute 60 are left:
+#   charts, the short check, the TraderTV exits and LULD (20) come first; the Market page stops at the same 30, so
+#   the two take turns. At 40 the Market page's warm reads kept Global waiting for good (operator, 2026-10-20).
 GLOBAL_IBKR_TIMEOUT_SEC = 8.0                    # a contract qualify
 GLOBAL_HISTORY_TIMEOUT_SEC = 60.0                # one historical request, end to end through the bridge
 GLOBAL_FLOW_BAR = "1 min"

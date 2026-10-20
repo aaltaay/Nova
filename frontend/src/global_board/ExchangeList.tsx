@@ -1,7 +1,8 @@
 /**
  * "By exchange" on the Global page (ADR 060): every market ranked by its pressure, with its pressure and its index
  * move side by side as bars from a centre line, and ≠ where the two disagree. A country ETF's symbol opens the
- * Trader; a market IBKR refused says "no feed".
+ * Trader; a market IBKR refused says "no feed". The rows share the list's height (the page never scrolls); a short
+ * list drops each row's second line, never the "via" flag on its first.
  */
 import type { ReactNode } from 'react';
 import { MOVE_BAR_SCALE_PCT, PRESSURE_BAR_SCALE_PCT, STATE_WORD } from './constants';
@@ -42,23 +43,22 @@ export function ranked(markets: Market[]): Market[] {
   });
 }
 
-function viaWord(m: Market, onOpenTrader?: (symbol: string) => void): ReactNode {
+/** What the row reads when it is not its home future: its US-listed ETF (opens the Trader), "no feed" or "waiting". */
+function flag(m: Market, onOpenTrader?: (symbol: string) => void): ReactNode {
   const inst = m.flow.instrument;
   if (!inst || !m.flow.basis) {
     return m.flow.refused.length ? <span className="gb-nofeed">no feed</span> : <span className="gb-muted">waiting</span>;
   }
-  if (m.flow.basis === 'etf') {
-    return (
-      <span className="gb-via is-etf">
-        via{' '}
-        {onOpenTrader ? (
-          <button type="button" className="gb-link" onClick={() => onOpenTrader(inst.symbol)}
-            title={`Open ${inst.symbol} in the Trader`}>{inst.symbol}</button>
-        ) : inst.symbol}
-      </span>
-    );
-  }
-  return <span className="gb-via">{inst.label}</span>;
+  if (m.flow.basis !== 'etf') return null;
+  return (
+    <span className="gb-via is-etf">
+      via{' '}
+      {onOpenTrader ? (
+        <button type="button" className="gb-link" onClick={() => onOpenTrader(inst.symbol)}
+          title={`Open ${inst.symbol} in the Trader`}>{inst.symbol}</button>
+      ) : inst.symbol}
+    </span>
+  );
 }
 
 export function ExchangeList({ markets, period, hovered, onHover, onOpenTrader }: Props) {
@@ -74,15 +74,18 @@ export function ExchangeList({ markets, period, hovered, onHover, onOpenTrader }
           className={`gb-row${hovered === m.id ? ' is-hovered' : ''}`}
           onMouseEnter={() => onHover(m.id)} onMouseLeave={() => onHover(null)}>
           <div className="gb-row__name" role="cell">
-            <i className={`gb-dot is-${m.session.state}`} title={STATE_WORD[m.session.state]} />
-            <b>{m.exchange}</b>
-            <small>{m.name} · {viaWord(m, onOpenTrader)}</small>
+            <span className="gb-row__line">
+              <i className={`gb-dot is-${m.session.state}`} title={STATE_WORD[m.session.state]} />
+              <b>{m.exchange}</b>
+              {flag(m, onOpenTrader)}
+            </span>
+            <small>{m.name}{m.flow.basis === 'future' && m.flow.instrument ? ` · ${m.flow.instrument.label}` : ''}</small>
           </div>
           <div className="gb-row__pair" role="cell">
             <Bar value={m.flow.pressure_pct} scale={PRESSURE_BAR_SCALE_PCT} />
             <span className={`gb-num is-${tone(m.flow.pressure_pct)}`}>
               {m.flow.pressure_usd != null ? usd(m.flow.pressure_usd, true) : signedPct(m.flow.pressure_pct)}
-              <small>{m.flow.pressure_usd != null ? signedPct(m.flow.pressure_pct) : m.flow.error ? 'no $ yet' : ''}</small>
+              <small>{m.flow.pressure_usd != null ? signedPct(m.flow.pressure_pct) : m.flow.pressure_pct != null ? 'no $ yet' : ''}</small>
             </span>
           </div>
           <div className="gb-row__pair" role="cell">

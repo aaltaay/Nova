@@ -16,6 +16,8 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import constants_global_board as cg
+from constants_market_board import MARKET_HISTORY_HEADROOM
+from followed_traders.constants_followed import FOLLOWED_EXIT_HEADROOM
 from global_board import board, contracts, flows, jobs, keep, markets, reads, refresh
 from global_board.state import store
 from ibkr.historical_pacing import kind_of
@@ -310,7 +312,16 @@ def test_nobody_looking_never_reads_in_the_desks_own_hours(monkeypatch):
 def test_the_page_spends_the_history_budget_under_its_own_name():
     assert kind_of("global:1 min:TRADES:all") == "global"
     assert kind_of("ref:5 mins:TRADES:all") == "market"
-    assert cg.GLOBAL_HISTORY_HEADROOM > 30            # after the Market page's 30
+    assert cg.GLOBAL_HISTORY_HEADROOM > FOLLOWED_EXIT_HEADROOM          # after the TraderTV exits and LULD
+    assert cg.GLOBAL_HISTORY_HEADROOM == MARKET_HISTORY_HEADROOM       # and in turn with the Market page
+
+
+def test_the_page_reads_while_more_than_its_headroom_is_left(monkeypatch):
+    from ibkr import historical_service
+
+    for used, ok in ((60 - cg.GLOBAL_HISTORY_HEADROOM - 1, True), (60 - cg.GLOBAL_HISTORY_HEADROOM, False)):
+        monkeypatch.setattr(historical_service, "pacing_snapshot", lambda u=used: {"window_max": 60, "window_used": u})
+        assert reads.history_ok() is ok
 
 
 # -- kept across restarts -------------------------------------------------------------------------------------------

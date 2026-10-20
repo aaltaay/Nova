@@ -4,20 +4,22 @@
  * the row) and its index move, side by side, on a world map, by region, through the last 24 hours, and against each
  * other. Read-only: nothing here places an order; a country ETF's symbol opens the Trader. Every number is IBKR's.
  * Labels and scales follow the period of the board on screen, never the switch, so a period still loading is
- * never shown under another period's numbers.
+ * never shown under another period's numbers. The page fills the window and never scrolls (ADR 060 amendment):
+ * its notes share one line in the head, and the definitions open from "How to read".
  */
 import { useState, type ReactNode } from 'react';
 import { useSampleRoute } from '../sample_data/useSampleRoute';
 import { AgreeChart } from './AgreeChart';
 import {
-  COLOR_BY_LABEL, GLOBAL_OFF, GLOBAL_OLD_API, GLOBAL_PERIODS, GLOBAL_REPLAY_NOTE, GLOBAL_SUBTITLE, GLOBAL_TITLE,
-  GLOBAL_WAITING_HISTORY, GLOBAL_WAITING_LINES, MIXED_DEF, MOVE_DEF, PERIOD_LABEL, PRESSURE_DEF, SOURCES_DEF,
+  COLOR_BY_LABEL, GLOBAL_HOW_TO_READ, GLOBAL_OFF, GLOBAL_OLD_API, GLOBAL_PERIODS, GLOBAL_REPLAY_NOTE, GLOBAL_SUBTITLE,
+  GLOBAL_TITLE, MIXED_DEF, MOVE_DEF, PERIOD_LABEL, PRESSURE_DEF, SOURCES_DEF,
 } from './constants';
 import { ExchangeList } from './ExchangeList';
 import { FollowTheSun } from './FollowTheSun';
 import { etDay, etTime } from './format';
 import { KpiStrip } from './KpiStrip';
 import { useGlobalPrefs } from './prefs';
+import { statusNotes, type Note } from './status';
 import type { ColorBy, GlobalBoard } from './types';
 import { useGlobalBoard } from './useGlobalBoard';
 import { WorldMap } from './WorldMap';
@@ -40,20 +42,58 @@ function Seg<T extends string>({ value, options, labels, onPick, testId }: {
   );
 }
 
-function Head({ board, children }: { board: GlobalBoard | null; children?: ReactNode }) {
+/** Every note on one line; the full words on hover. */
+function Status({ notes }: { notes: Note[] }) {
+  if (!notes.length) return <span className="gb-status" />;
+  return (
+    <span className="gb-status" role="status" title={notes.map((n) => n.text).join('\n')} data-testid="global-status">
+      {notes.map((n) => (
+        <span key={n.id} className={n.warn ? 'is-warn' : undefined}
+          data-testid={n.id === 'period' ? 'global-period-loading' : `global-note-${n.id}`}>{n.text}</span>
+      ))}
+    </span>
+  );
+}
+
+function Head({ board, notes, children }: { board: GlobalBoard | null; notes: Note[]; children?: ReactNode }) {
   const open = board ? board.markets.filter((m) => m.session.state === 'open').length : 0;
   return (
-    <div className="gb-head">
+    <div className={`gb-head${notes.length ? ' has-notes' : ''}`}>
       <h2>{GLOBAL_TITLE}</h2>
+      <span className="gb-head__tag">{GLOBAL_SUBTITLE}</span>
       {board ? (
         <span className="gb-head__sub">
-          {GLOBAL_SUBTITLE} · {etDay(board.generated_at)} · {etTime(board.generated_at)} ET · {open} of{' '}
-          {board.markets.length} markets open
+          {etDay(board.generated_at)} · {etTime(board.generated_at)} ET · {open} of {board.markets.length} markets open
         </span>
       ) : null}
       {board?.replay_desk ? <span className="gb-pill">{GLOBAL_REPLAY_NOTE}</span> : null}
+      <Status notes={notes} />
       {children}
     </div>
+  );
+}
+
+/** "How to read": the page's definitions, over the list on hover or focus, kept open by a click. */
+function HowToRead() {
+  const [pinned, setPinned] = useState(false);
+  const [hover, setHover] = useState(false);
+  const open = pinned || hover;
+  return (
+    <span className="gb-howto" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
+      <button type="button" className={`gb-howto__btn${pinned ? ' is-on' : ''}`} aria-expanded={open}
+        data-testid="global-how-to-read" onClick={() => setPinned((p) => !p)}
+        onFocus={() => setHover(true)} onBlur={() => setHover(false)}>
+        {GLOBAL_HOW_TO_READ}
+      </button>
+      {open ? (
+        <div className="gb-defs" role="note" data-testid="global-defs">
+          <p>{PRESSURE_DEF}</p>
+          <p>{MOVE_DEF}</p>
+          <p><span className="gb-flag">≠</span> {MIXED_DEF}</p>
+          <p>{SOURCES_DEF}</p>
+        </div>
+      ) : null}
+    </span>
   );
 }
 
@@ -77,31 +117,19 @@ export function GlobalPage({ onOpenTrader }: GlobalPageProps) {
     const words = unavailable ? GLOBAL_OLD_API : board && !board.enabled ? GLOBAL_OFF : error ?? 'Reading the world …';
     return (
       <div className="gb-page" data-testid="global-page">
-        <Head board={null}>{switches}</Head>
+        <Head board={null} notes={[]}>{switches}</Head>
         <p className="gb-wait" role="status">{words}</p>
       </div>
     );
   }
 
-  const ibkr = board.sources.find((s) => s.id === 'ibkr');
-  const waiting = board.budget.waiting === 'history' ? GLOBAL_WAITING_HISTORY
-    : board.budget.waiting === 'lines' ? GLOBAL_WAITING_LINES : null;
   return (
     <div className="gb-page" data-testid="global-page">
-      <Head board={board}>{switches}</Head>
-      {error ? <p className="gb-stale" role="status">{error} -- showing the last good answer.</p> : null}
-      {ibkr && ibkr.ok === false ? <p className="gb-stale" role="status">IBKR: {ibkr.error}</p> : null}
-      {board.loading ? <p className="gb-wait" role="status">Reading each market from IBKR, last in line …</p> : null}
-      {waiting ? <p className="gb-note" role="status">{waiting}</p> : null}
-      {board.period !== prefs.period ? (
-        <p className="gb-note" role="status" data-testid="global-period-loading">
-          Loading {PERIOD_LABEL[prefs.period]} -- showing {PERIOD_LABEL[board.period]} until it answers.
-        </p>
-      ) : null}
+      <Head board={board} notes={statusNotes(board, prefs.period, error)}>{switches}</Head>
       <KpiStrip read={board.read} world={board.world} regions={board.regions} />
       <div className="gb-main">
         <div className="gb-left">
-          <section className="gb-card">
+          <section className="gb-card gb-card--map">
             <div className="gb-card__head">
               <h3>World map</h3>
               <span className="gb-muted">bubble = money traded · colour = {COLOR_BY_LABEL[prefs.colorBy].toLowerCase()} · dashed ring = open now</span>
@@ -134,15 +162,10 @@ export function GlobalPage({ onOpenTrader }: GlobalPageProps) {
           <div className="gb-card__head">
             <h3>By exchange</h3>
             <span className="gb-muted">ranked by pressure · {PERIOD_LABEL[board.period]}</span>
+            <HowToRead />
           </div>
           <ExchangeList markets={board.markets} period={board.period} hovered={hovered} onHover={setHovered}
             onOpenTrader={onOpenTrader} />
-          <div className="gb-defs">
-            <p>{PRESSURE_DEF}</p>
-            <p>{MOVE_DEF}</p>
-            <p><span className="gb-flag">≠</span> {MIXED_DEF}</p>
-            <p>{SOURCES_DEF}</p>
-          </div>
         </section>
       </div>
     </div>
