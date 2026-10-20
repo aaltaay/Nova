@@ -395,7 +395,8 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
   the read is today's holder with `warning` naming the others. `splits` without `day` adds `holder_cik` per row
   for a reused ticker; financials keep only statements whose own `cik` is the holder's.
 - **A table answer** is `{ok: true, meta, rows, columns, data, truncated, out}`: `rows` matched, `data` the first 200
-  as records, `meta` the read's attributes (its as-of rule, units, source). `output_name` (a new plain
+  as records (a time with a zone keeps its own offset: `time_et` is `2026-09-03T09:40:00-04:00`, never the UTC
+  `...13:40:00.000Z` pandas would write, #1086), `meta` the read's attributes (its as-of rule, units, source). `output_name` (a new plain
   `*.parquet` / `*.csv` name) writes every row under `--output-root` (default `<temp>/nova-data-mcp`) and `out` names
   it; an existing name or a path is refused. Only `stock_day` and `movers_scan` write (`readOnlyHint: false`,
   `destructiveHint: false`); every other tool is `readOnlyHint: true`.

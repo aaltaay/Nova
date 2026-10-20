@@ -32,6 +32,17 @@ def test_a_big_table_answers_its_first_rows_and_says_how_many_matched():
     assert answer["meta"] == {"rule": "r"} and answer["out"] is None
 
 
+def test_an_et_time_answers_in_et_not_utc():
+    """#1086: DSS 2026-09-03's volume spike is the 09:40 ET bar; the answer said 13:40Z under ``time_et``."""
+    from zoneinfo import ZoneInfo
+    when = pd.to_datetime(["2026-09-03 13:40", None], utc=True).tz_convert(ZoneInfo("America/New_York"))
+    answer = m.table_answer(pd.DataFrame({"time_et": when, "volume": [2910910.6, 1.0]}))
+    assert answer["data"][0]["time_et"] == "2026-09-03T09:40:00-04:00"
+    assert answer["data"][1]["time_et"] is None
+    winter = pd.to_datetime(["2026-01-05 14:30"], utc=True).tz_convert(ZoneInfo("America/New_York"))
+    assert m.table_answer(pd.DataFrame({"time_et": winter}))["data"][0]["time_et"] == "2026-01-05T09:30:00-05:00"
+
+
 def test_an_output_file_is_new_plain_and_under_the_root(tmp_path):
     service = m.DataService(tmp_path)
     for bad in ("../x.parquet", "x.txt", "a/b.csv", ""):
