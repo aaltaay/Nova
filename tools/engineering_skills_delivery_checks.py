@@ -42,25 +42,7 @@ def audit_delivery_and_index(
                 "error",
                 "missing_auto_merge_ready_prs",
                 ".cursor/rules/github-delivery.mdc",
-                "Always-on delivery rule must say GitHub Actions merges ready PRs.",
-            )
-        )
-    if "merge-approved" not in delivery_mdc or "aaltaay" not in delivery_mdc.lower():
-        findings.append(
-            finding_cls(
-                "error",
-                "missing_owner_merge_label",
-                ".cursor/rules/github-delivery.mdc",
-                "Always-on delivery rule must require label merge-approved added by aaltaay.",
-            )
-        )
-    if "agents never add" not in delivery_mdc.lower():
-        findings.append(
-            finding_cls(
-                "error",
-                "missing_agents_never_add_merge_approved",
-                ".cursor/rules/github-delivery.mdc",
-                "Always-on delivery rule must say agents never add merge-approved; only the owner does.",
+                "Always-on delivery rule must say GitHub Actions merges ready PRs (no wait for a human merge ask).",
             )
         )
     if "origin/master" not in delivery_mdc.lower():

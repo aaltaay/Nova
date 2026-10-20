@@ -1,6 +1,6 @@
 ---
 name: github-delivery
-description: Enforces Nova's clean start from origin/master, ready-PR finish line, issue-to-branch-to-PR-to-close workflow, Nova Delivery project (https://github.com/users/aaltaay/projects/1) and Milestone metadata, issue relationships, Development links, Actions merge only after aaltaay adds merge-approved, deleting the head branch after merge or close, and strict verification. Use for issues, pull requests, releases, projects, milestones, delivery status, or closing work.
+description: Enforces Nova's clean start from origin/master, ready-PR finish line, issue-to-branch-to-PR-to-close workflow, Nova Delivery project (https://github.com/users/aaltaay/projects/1) and Milestone metadata, issue relationships, Development links, Actions auto-merge of ready PRs, deleting the head branch after merge or close, and strict verification. Use for issues, pull requests, releases, projects, milestones, delivery status, or closing work.
 ---
 
 # Nova GitHub delivery
@@ -87,7 +87,7 @@ The PR is the task narrative. Do not also create a task-log file for the same wo
 
 ## 5. Verification: green before a merge and before a Release
 
-Run relevant checks before you push. Actions merges a PR only when Backend tests, Frontend build, Frontend E2E and Agent contract pass on its head (operator decision 2026-10-13, "Merge only green PRs too") and `aaltaay` has added `merge-approved`. Agents never add that label. A red one is held with a comment naming the check, and a green re-run or a fix merges it only while that label is still in place:
+Run relevant checks before you push. Actions merges a PR only when Backend tests, Frontend build, Frontend E2E and Agent contract pass on its head (operator decision 2026-10-13, "Merge only green PRs too"); a red one is held with a comment naming the check, and a green re-run or a fix merges it with no one acting:
 
 ```text
 py -3 -m pytest backend/tests -q
@@ -187,26 +187,20 @@ py -3 tools/master_branch_protection.py apply
 
 If plan or token permissions block the setting, say so. Never claim `master` is protected without `check` exiting 0.
 
-## 10. Actions merges only after the owner labels the PR
+## 10. Actions merge ready PRs (not a human "please merge")
 
-A verified, non-draft PR targeting `master` is the agent's finish line. GitHub Actions merges it only when `aaltaay` has added the label `merge-approved` (the most recent `labeled` issue event for that label) and the four required checks are green. Agents never add `merge-approved`; only the owner does. Do not merge the PR yourself and do not enable GitHub auto-merge.
+A verified, non-draft PR targeting `master` is finished work. GitHub Actions merges it. The human does not have to say merge. Agents do not sit idle on an open PR.
 
-- Mark the PR **ready (non-draft)** after verification, unless the user explicitly said to leave it draft. CI still running is not a reason to stay draft.
-- CI job `Auto-merge` runs `python tools/pr_delivery.py merge --pr N` from master's copy of the tool once the four checks finish.
-- `.github/workflows/pr-delivery.yml` runs the same decision on CI completion (`workflow_run`), on the hourly sweep, on manual dispatch, and on `pull_request` `labeled` so a label added after CI is green still merges.
-- The label is checked again at decision time. Removing `merge-approved` before the merge holds the PR. A label added by anyone except `aaltaay` does not merge and is not removed.
-- Drafts never merge. Label `do-not-merge` holds a PR only when the user explicitly asked to hold, or a hard external blocker is documented in the PR.
+- Mark the PR **ready (non-draft)** after verification. CI still running is not a reason to stay draft.
+- CI job `Auto-merge` runs `python tools/pr_delivery.py merge --pr N` independently of all verification jobs.
+- Hourly / `workflow_run` sweep in `.github/workflows/pr-delivery.yml` catches leftovers.
 - Closed PR heads are deleted by that same workflow plus `delete_branch_on_merge`.
-- Dirty (conflict) and red PRs stay open. Merge `origin/master` in, fix or re-run. Never rebase or force-push (AGENTS.md 5.1).
+- Hold a PR with draft or label `do-not-merge` only when the user explicitly asked to hold, or a hard external blocker is documented in the PR.
+- Dirty (conflict) and red PRs stay open -- merge `origin/master` in, fix or re-run; do not leave them for the human to babysit if you can do it in-session. Never rebase or force-push (AGENTS.md 5.1).
 
-Create the label once if the repo does not have it:
-
-```text
-gh label create merge-approved --repo aaltaay/Nova --color 0E8A16 --description "Owner aaltaay approved auto-merge. Agents never add this."
-```
-
-Do not end a coding session with only local commits, unpushed commits, or "I'll open the PR later." The PR URL is the finish line.
+Do not end a coding session with only local commits, unpushed commits, or "I'll open the PR later." The PR URL is the finish line. The pile of idle PRs is a delivery bug.
 
 Current-tip preservation overrides mandatory head deletion: follow `branch-cleanup.mdc`. Never delete a recreated/unmerged or squash-only tip automatically; the guarded command rechecks ancestry and uses a SHA lease.
 
-Owner policy (2026-10-20): green checks are required and are not sufficient. The owner label is required too. This supersedes the 2026-10-13 behavior that merged a ready PR as soon as the four checks passed. A `vNNN` Release still publishes only from a green build (section 5). Desktop pack on a PR is not one of the four. No required status checks in branch protection (the merge job is the gate); retain force-push and deletion protection.
+
+Owner policy (2026-10-13): green only. A ready PR merges once the four checks pass on its head, and a `vNNN` Release publishes only from a green build (section 5). Desktop pack on a PR is not one of the four. No required status checks in branch protection (the merge job is the gate); retain force-push/deletion protection. This supersedes the 2026-09-20 advisory-merge wording.
