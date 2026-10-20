@@ -27,7 +27,7 @@ http://127.0.0.1:5173/review?symbol=IMCC&date=2026-09-18&tf=10s,1m,5m,1d
 
 A gallery is the same page with `symbols=A,B,C` instead of `symbol`. Tabs are `10s`, `1m`, `5m`, `1d` (`gtf` in the URL, default `5m`). Each cell is the desk chart for that timeframe and links to the four-pane page. Add `&fixture=1` to draw a labelled sample session when the Massive files are not on this machine.
 
-`NOVA_REVIEW_BASE` (flag `--review-base`) is the origin written into chart URLs when you set it. When you leave it unset, the link uses the review engine's own origin, the process that serves `/review`. `--output-root` is where `output_name` tables and the copies of review PNGs are written. The engine keeps its own PNGs in a temp review-shots folder and deletes old ones, under a lock, once that folder passes 24 files or 8 MB.
+`NOVA_REVIEW_BASE` (flag `--review-base`) is the origin written into chart URLs when you set it. When you leave it unset, the link uses the review engine's own origin, the process that serves `/review`. `--output-root` is where `output_name` tables and the copies of review PNGs are written. The engine keeps its own PNGs in a temp review-shots folder and deletes old ones, under a lock, once that folder passes 24 files or 8 MB. A PNG is written only after its real path stays inside that folder, and rotation only deletes files when the folder is under the system temp directory.
 
 ## Data tools
 

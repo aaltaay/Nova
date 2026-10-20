@@ -65,8 +65,11 @@ def make_handler(bars_reader, daily_reader, allowed_origins: tuple[str, ...] = (
 
         def _cors(self) -> None:
             origin = self.headers.get("Origin")
-            if origin and origin in origins:
-                self.send_header("Access-Control-Allow-Origin", origin)
+            if not origin:
+                return
+            cleaned = origin.replace("\r", "").replace("\n", "")
+            if cleaned in origins:
+                self.send_header("Access-Control-Allow-Origin", cleaned)
                 self.send_header("Vary", "Origin")
 
         def _send(self, status: int, body: dict[str, Any]) -> None:

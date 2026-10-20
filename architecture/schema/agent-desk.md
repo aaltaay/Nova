@@ -523,7 +523,7 @@ subscribe to a quote, and has no order ticket. `nova_historical_chart`, `nova_hi
   whose review health check already answers as this engine is left alone. On Windows the socket sets `SO_EXCLUSIVEADDRUSE`
   so a second process cannot share the port. A taken port binds a free one and the link carries loopback `api=`
   when the link origin is not the engine. The engine serves `frontend/dist` at `/review` and `/assets/`. A static
-  path that resolves outside that folder, including `..` and `%2e%2e`, is HTTP 404. `NOVA_REVIEW_BASE`, when set,
+  path is `os.path.realpath`'d and must start with the dist directory before the file is opened. `..` and `%2e%2e` are HTTP 404. `NOVA_REVIEW_BASE`, when set,
   is the link origin. When it is unset, links use the engine's own origin, because that process serves `/review`.
   `--review-http` / `NOVA_REVIEW_HTTP=1` starts the engine at process start. `--no-review-http` does not listen.
 - **Data.** `GET /api/review` answer: `{ok, schema_version: 1, symbol, date, as_of, as_of_iso, source, lookahead: false,
@@ -555,8 +555,10 @@ subscribe to a quote, and has no order ticket. `nova_historical_chart`, `nova_hi
   A missing or wrong token is 401. Any `Origin` header is 403. A content type other than `application/json` is 415.
   A body that is not a JSON object is 400. The body may carry
   `symbol` or `symbols`, `date`, `as_of`, and `gtf`. A `url` or `dest` field is 400. The engine builds the page URL
-  on its own origin from those fields and chooses the PNG name inside its review-shots folder. Rotation of old PNGs
-  runs under the same lock as the shot and does not delete a file another request is about to return.
+  on its own origin from those fields and chooses the PNG name inside its review-shots folder. That path is
+  `os.path.realpath`'d and must stay inside the folder, and the folder must sit under the system temp directory,
+  before a PNG is written or deleted. Rotation of old PNGs runs under the same lock as the shot and does not delete
+  a file another request is about to return. An `Origin` value is stripped of CR and LF before it can be echoed.
 - **`chat_message`.** ASCII. Line 1: `Nova charts for {date}, as of {as_of} ET (10s, 1m, 5m, 1d, full session):`.
   Then one line per symbol: `- {SYMBOL}: {url}`. Then, only for more than one symbol, `Gallery: {gallery_url}`.
   Then, only when a PNG failed, `Preview images unavailable: {code}`. An MCP prompt `chart_request` tells the model
