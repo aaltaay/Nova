@@ -119,7 +119,9 @@ def worker_command(day: str) -> list[str]:
     return [sys.executable, "-m", "hod_momo_rebuild.worker", "--date", day]
 
 
-def _launch_process(day: str) -> _Handle:
+def spawn(day: str) -> subprocess.Popen:
+    """The build's own process (``worker``), windowless and below normal priority, its errors appended to
+    ``hod_rebuild.err`` in the log directory. The desk's one build and every batch day start here."""
     env = dict(os.environ)
     env["PYTHONPATH"] = str(_BACKEND_DIR) + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
     env.setdefault("PYTHONIOENCODING", "utf-8:backslashreplace")
@@ -128,16 +130,23 @@ def _launch_process(day: str) -> _Handle:
 
         errors = open(log_dir() / "hod_rebuild.err", "ab")
     except OSError:
-        errors = subprocess.DEVNULL
+        errors = None
     flags = 0x08000000 | 0x00004000 if sys.platform == "win32" else 0   # CREATE_NO_WINDOW | BELOW_NORMAL_PRIORITY_CLASS
-    proc = subprocess.Popen(worker_command(day), cwd=str(_BACKEND_DIR), env=env, stdin=subprocess.DEVNULL,
-                            stdout=subprocess.DEVNULL, stderr=errors, creationflags=flags)
+    try:
+        return subprocess.Popen(worker_command(day), cwd=str(_BACKEND_DIR), env=env, stdin=subprocess.DEVNULL,
+                                stdout=subprocess.DEVNULL, stderr=errors if errors is not None else subprocess.DEVNULL,
+                                creationflags=flags)
+    finally:
+        if errors is not None:
+            errors.close()                  # the child holds its own handle to the file
+
+
+def _launch_process(day: str) -> _Handle:
+    proc = spawn(day)
     handle = _ProcessHandle(day, proc)
 
     def watch_exit():
         code = proc.wait()
-        if errors is not subprocess.DEVNULL:
-            errors.close()
         _ended(handle, f"The rebuild process ended before finishing (exit code {code})")
 
     threading.Thread(target=watch_exit, daemon=True, name="hod-rebuild-watch").start()
@@ -217,12 +226,17 @@ def _boards_mark(day: str, *, fresh: bool = False) -> str | None:
     return mark
 
 
-def current_fingerprint(day: str, *, fresh: bool = False) -> str | None:
-    """What a build of the day would be made from now; None when the day has no rebuilt boards."""
-    from hod_momo_rebuild.engine import config_digest
-
+def current_fingerprint(day: str, *, fresh: bool = False, settings: str | None = None) -> str | None:
+    """What a build of the day would be made from now; None when the day has no rebuilt boards. ``settings`` is the
+    HOD settings' digest when the caller has it (a process whose engine is not loaded, as the batch's)."""
     boards = _boards_mark(day, fresh=fresh)
-    return None if boards is None else run.fingerprint(boards, config_digest())
+    if boards is None:
+        return None
+    if settings is None:
+        from hod_momo_rebuild.engine import config_digest
+
+        settings = config_digest()
+    return run.fingerprint(boards, settings)
 
 
 def status(day: str) -> dict[str, Any]:
