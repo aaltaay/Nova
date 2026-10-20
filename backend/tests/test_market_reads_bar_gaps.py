@@ -25,9 +25,9 @@ def _minute(symbol: str, at: str, price: float, volume: int = 1000) -> str:
     return f"{symbol},{volume},{price},{price + 0.01},{price + 0.02},{price - 0.01},{reads._ns(DAY, at)},{volume // 10}"
 
 
-def _trade(symbol: str, at: str, seconds: int, price: float) -> str:
+def _trade(symbol: str, at: str, seconds: int, price: float, correction: int = 0) -> str:
     sip = reads._ns(DAY, at) + seconds * 10**9
-    return f"{symbol},,0,4,{sip % 997},{sip - 5},{price},{sip % 9973},{sip},100,3,0,0"
+    return f"{symbol},,{correction},4,{sip % 997},{sip - 5},{price},{sip % 9973},{sip},100,3,0,0"
 
 
 def _write(root: Path, dataset: str, header: str, lines: list[str]) -> None:
@@ -47,7 +47,8 @@ def day(tmp_path, monkeypatch):
                                                                         "09:40"])] + [_minute("OTHER", "09:35", 1.0)])
     # Ten-second prints: 07:00:00, 07:00:10, then a pause to 07:00:40.
     _write(tmp_path, SIM_MASSIVE_TRADES, TRADE_HEADER,
-           [_trade("DSS", "07:00", s, 3.0) for s in (0, 3, 10, 40)])
+           [_trade("DSS", "07:00", s, 3.0) for s in (0, 3, 10, 40)]
+           + [_trade("VOID", "07:00", s, 2.0, correction=code) for s, code in ((0, 10), (20, 11))])
     return tmp_path
 
 
@@ -119,3 +120,10 @@ def test_a_long_list_of_gaps_keeps_the_longest_and_counts_them_all(tmp_path, mon
     assert {"first_et": "05:59", "last_et": "08:59", "buckets": 181} in meta["gaps"], "the long hole is kept"
     starts = [g["first_et"] for g in meta["gaps"]]
     assert starts == sorted(starts), "listed in time order"
+
+
+@pytest.mark.parametrize("fill_gaps", [False, True])
+def test_a_seconds_read_whose_every_print_is_a_cancel_or_error_is_an_empty_table_without_gap_meta(day, fill_gaps):
+    frame = reads.bars("VOID", DAY, "10s", fill_gaps=fill_gaps)
+    assert len(frame) == 0 and "gaps" not in frame.attrs and frame.attrs["tf"] == "10s"
+    assert len(reads.bars("VOID", DAY, "10s", "07:00", "07:05", fill_gaps=fill_gaps)) == 0

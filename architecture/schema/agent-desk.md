@@ -489,7 +489,8 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
     **`sort` ranks the answer** (#1086 item 2): the choices are `movers_search`'s (`day_movers.query.SORTS`) --
     `newest`, `oldest` (default: the order pages always had, day ascending then symbol), `high`, `close`, `gap`,
     `volume`, `dollar_volume` (largest first), `low` (deepest first) -- with a row missing the figure last and ties
-    newest day first, then symbol (`query.sort_rows`). The movers store orders the rows (`ORDER BY`); each chunk is
+    newest day first, then symbol (`query.sort_rows`; the rows missing the figure are ordered the same way, so
+    `movers_search` and `find_stock_days` agree on them too). The movers store orders the rows (`ORDER BY`); each chunk is
     then enriched and filtered in that order, so `float_max`, `catalyst` and `halted` pick from the ranking and
     `limit` 10 under `sort: "high"` is the ten largest highs that pass them. Pages stay exact: `next_cursor` is still
     `"YYYY-MM-DD|SYMBOL"`, the last row examined, and the next call (same arguments plus `cursor`) resumes strictly

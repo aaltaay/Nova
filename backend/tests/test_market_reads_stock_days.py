@@ -144,12 +144,13 @@ def test_a_broad_or_malformed_ask_is_refused(store):
 RANKED = [
     ("2025-03-03", "AAA", "CS", 0.5, 900), ("2025-03-03", "BBB", "CS", 2.0, 800),
     ("2025-03-03", "ABCDW", "WARRANT", 9.0, 700), ("2025-03-03", "ETFX", "ETF", 0.9, 600),
+    ("2025-03-03", "NULB", "CS", None, 250),
     ("2025-03-04", "CCC", "CS", 0.5, 500), ("2025-03-04", "DDD", "ADRC", 2.0, 400),
     ("2025-03-04", "NONE", "CS", None, 300), ("2025-03-04", "UNLB", None, 1.0, 200),
     ("2025-03-04", "LONGSYM", None, 3.0, 100), ("2025-03-05", "EEE", "CS", 0.7, 1000),
 ]
-COMMON = ["AAA", "BBB", "CCC", "DDD", "NONE", "UNLB", "EEE"]
-BY_HIGH = ["DDD", "BBB", "UNLB", "EEE", "CCC", "AAA", "NONE"]      # ties newest day first; no figure last
+COMMON = ["AAA", "BBB", "NULB", "CCC", "DDD", "NONE", "UNLB", "EEE"]
+BY_HIGH = ["DDD", "BBB", "UNLB", "EEE", "CCC", "AAA", "NONE", "NULB"]   # ties newest day first; no figure last, same
 
 
 @pytest.fixture
@@ -204,20 +205,22 @@ def test_a_named_symbol_is_not_filtered_by_kind_unless_asked(ranked):
 
 @pytest.mark.parametrize("sort,expected", [
     ("high", BY_HIGH),
-    ("newest", ["EEE", "CCC", "DDD", "NONE", "UNLB", "AAA", "BBB"]),
-    ("oldest", ["AAA", "BBB", "CCC", "DDD", "NONE", "UNLB", "EEE"]),
-    ("volume", ["EEE", "AAA", "BBB", "CCC", "DDD", "NONE", "UNLB"])])
+    ("newest", ["EEE", "CCC", "DDD", "NONE", "UNLB", "AAA", "BBB", "NULB"]),
+    ("oldest", ["AAA", "BBB", "NULB", "CCC", "DDD", "NONE", "UNLB", "EEE"]),
+    ("volume", ["EEE", "AAA", "BBB", "CCC", "DDD", "NONE", "NULB", "UNLB"])])
 def test_sort_ranks_like_the_movers_search(ranked, sort, expected):
     frame = stock_days.find_stock_days(filters=ranked, sort=sort, float_unknown="include")
     assert _symbols(frame) == expected
     assert frame.attrs["filters"]["sort"] == sort
 
 
-def test_the_ranking_matches_the_movers_search_answer(ranked):
-    """The same filters through the capped search (``reads.movers``) and ``find_stock_days`` rank alike."""
+@pytest.mark.parametrize("sort", ["newest", "oldest", "high", "low", "close", "gap", "volume", "dollar_volume"])
+def test_the_ranking_matches_the_movers_search_answer(ranked, sort):
+    """The same filters through the capped search (``reads.movers``) and ``find_stock_days`` rank alike, including
+    the rows without the figure (two of them here, on different days)."""
     from market_reads import reads
-    ours = stock_days.find_stock_days(filters=ranked, sort="high", float_unknown="include")
-    theirs = reads.movers(date_from="2025-03-03", sort="high", limit=50)
+    ours = stock_days.find_stock_days(filters=ranked, sort=sort, float_unknown="include")
+    theirs = reads.movers(date_from="2025-03-03", sort=sort, limit=50)
     assert [(r["date"], r["symbol"]) for r in theirs["rows"]] == list(zip(ours["date"], ours["symbol"], strict=True))
 
 

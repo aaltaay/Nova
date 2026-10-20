@@ -285,11 +285,13 @@ def bars(symbol: str, day: str, tf: str = "1m", start: str | None = None, end: s
         ohlc = priced.groupby("bucket")["price"].agg(open="first", high="max", low="min", close="last")
         out = volume.join(ohlc, how="left")[["open", "high", "low", "close", "volume", "transactions"]]
     out = out.reset_index()
-    missing = _missing(out["bucket"].to_numpy(), step, day, start, end)
-    if fill_gaps:
-        out = _filled(out, missing)
+    missing = None
+    if len(out):                 # every print of a seconds window can be a discarded cancel / error: no bar, no gaps
+        missing = _missing(out["bucket"].to_numpy(), step, day, start, end)
+        if fill_gaps:
+            out = _filled(out, missing)
     out.insert(0, "time_et", pd.to_datetime(out.pop("bucket"), unit="s", utc=True).dt.tz_convert(ET))
-    out.attrs.update(symbol=symbol.upper(), day=day, tf=tf, **_gap_meta(missing, step))
+    out.attrs.update(symbol=symbol.upper(), day=day, tf=tf, **({} if missing is None else _gap_meta(missing, step)))
     return out
 
 

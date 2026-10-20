@@ -209,3 +209,16 @@ def test_a_high_exactly_on_the_line_is_found(tmp_path):
         assert symbols(search(conn, high_min=20.01)) == []
     finally:
         conn.close()
+
+
+def test_rows_without_the_figure_come_last_newest_day_first_then_symbol():
+    """A figure sort puts the rows that lack it last, and those rows are ordered too (not left in storage order)."""
+    def row(day, symbol, high):
+        return {"date": day, "symbol": symbol, "high_pct": high}
+    rows = [row("2025-03-03", "NULB", None), row("2025-03-04", "ZZZ", None), row("2025-03-04", "AAA", None),
+            row("2025-03-03", "AAA", 1.0), row("2025-03-05", "BBB", 2.0)]
+    ranked = query.sort_rows(rows, "high")
+    assert [(r["date"], r["symbol"]) for r in ranked] == [
+        ("2025-03-05", "BBB"), ("2025-03-03", "AAA"),                       # the figure, largest first
+        ("2025-03-04", "AAA"), ("2025-03-04", "ZZZ"), ("2025-03-03", "NULB")]    # none: newest day, then symbol
+    assert [r["symbol"] for r in query.sort_rows(list(reversed(rows)), "high")] == [r["symbol"] for r in ranked]
