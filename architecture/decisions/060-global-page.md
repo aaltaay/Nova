@@ -44,8 +44,8 @@ was made to wait at 30 left (ADR 053 amendment, #1020). Reading every stock of 1
 4. **One US row, not NYSE and Nasdaq apart.** The S&P 500's futures cover both exchanges' biggest stocks together;
    splitting the two would need every stock's trades.
 5. **Global reads last.** It asks IBKR only while connected; it sends a historical request only while more than
-   `GLOBAL_HISTORY_HEADROOM` (40) of the 60 are left -- after charts, the short check, the TraderTV exits, LULD and
-   the Market page (30) -- under its own pacing kind, `global`, so the capacity strip names it; it opens a line only
+   `GLOBAL_HISTORY_HEADROOM` (30, amended below) of the 60 are left -- after charts, the short check, the TraderTV
+   exits and LULD, in turn with the Market page -- under its own pacing kind, `global`, so the capacity strip names it; it opens a line only
    for a moment, through `ibkr.brief_lines`, and only with lines spare. Each read waits on the market's clock: an
    open market's flow every few minutes while the page shows, once more after its close, then nothing until its next
    session. Not shown, it keeps a slower cadence outside 09:30-16:00 ET only, so the desk's own hours are never
@@ -74,3 +74,15 @@ was made to wait at 30 left (ADR 053 amendment, #1020). Reading every stock of 1
   operator did not want.
 - **Switching the IBKR session to delayed data for markets without a subscription.** It is one setting for the whole
   connection, and the trading desk must never see a delayed quote.
+
+## Amendment 2026-10-20 -- in turn with the Market page, and one screen
+
+The operator's desk, six minutes after a restart: every market "waiting for IBKR", "0 of 16 markets have a flow"
+("Why does it say that?"). At 40 Global read only while 41 or more of the 60 were free, and the Market page's warm
+reads keep the window up to 30 used, so Global could wait for good. `GLOBAL_HISTORY_HEADROOM` is now 30, the Market
+page's own: the two take turns at what charts, the short check, the TraderTV exits and LULD leave, and those still
+always come first. Turns, not a race: Global keeps the Market page's pace (`GLOBAL_HISTORY_GAP_SEC` between two of
+its requests), and the page on screen goes first -- while the Market page shows and Global does not, Global leaves
+40 (`GLOBAL_YIELD_HEADROOM`); while Global shows, the Market page is not on screen. The page's note says how many requests are left and from how many it reads. And "I can't have
+the page to be scrollable": the page fills the window and never scrolls -- the map, the two charts and the sixteen
+rows size to the space there is, the definitions open from "How to read", and the notes share one line in the head.

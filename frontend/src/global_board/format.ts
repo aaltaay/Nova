@@ -68,3 +68,9 @@ export function until(ts: number | null | undefined, now: number): string {
   const m = minutes % 60;
   return h ? `in ${h}h ${String(m).padStart(2, '0')}m` : `in ${m}m`;
 }
+
+/** IBKR's reason up to its first sentence ("354: Requested market data is not subscribed."); the rest is its boilerplate. */
+export function firstSentence(text: string): string {
+  const end = text.indexOf('. ');
+  return end > 0 ? text.slice(0, end + 1) : text;
+}

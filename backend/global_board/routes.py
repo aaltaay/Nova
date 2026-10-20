@@ -30,4 +30,4 @@ def get_board(period: str = "1D"):
     if on:
         refresh.want(period, now)
     return board.compose(store(), now, enabled=on, replay_desk=_replay_desk(), period=period,
-                         history_left=reads.history_left())
+                         history_left=reads.history_left(), history_headroom=reads.headroom(now))

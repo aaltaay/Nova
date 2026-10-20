@@ -1,4 +1,5 @@
-/* The Global page (ADR 060), as the approved mockup v2 drew it. Owner: global_board/GlobalPage.tsx. */
+/* The Global page (ADR 060), as the approved mockup v2 drew it. Owner: global_board/GlobalPage.tsx.
+   It fills the window and never scrolls (ADR 060 amendment): the map, the two charts and the rows share what there is. */
 
 .gb-page {
   --gb-up: var(--nova-bid, #30d158);
@@ -8,11 +9,12 @@
   --gb-line: color-mix(in srgb, var(--nova-border) 70%, transparent);
   flex: 1 1 0;
   min-height: 0;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 10px 18px 14px;
+  min-width: 0;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 8px;
+  padding: 8px 14px 10px;
   color: var(--nova-text);
   font-size: 12.5px;
   font-variant-numeric: tabular-nums;
@@ -23,8 +25,6 @@
 .gb-page .is-warn { color: var(--gb-warn); }
 .gb-muted { color: var(--nova-text-muted); font-size: 11.5px; }
 .gb-wait { margin: 2px 0; color: var(--nova-text-muted); font-style: italic; }
-.gb-stale { margin: 0; color: var(--gb-warn); font-size: 12px; }
-.gb-note { margin: 0; color: var(--nova-text-muted); font-size: 12px; }
 .gb-link {
   border: 0;
   background: none;
@@ -38,12 +38,19 @@
 }
 .gb-link:hover, .gb-link:focus-visible { color: var(--nova-accent); text-decoration: underline solid; }
 
-/* head */
-.gb-head { display: flex; align-items: baseline; gap: 14px; min-height: 30px; flex-wrap: wrap; }
-.gb-head h2 { margin: 0; font-size: 22px; font-weight: 700; }
-.gb-head__sub { color: var(--nova-text-muted); font-size: 13px; }
+/* head: one line, whatever it holds -- the tagline gives way first, then the notes, which say the rest on hover */
+.gb-head { display: flex; align-items: center; gap: 12px; min-height: 30px; min-width: 0; white-space: nowrap; }
+.gb-head h2 { margin: 0; font-size: 20px; font-weight: 700; flex: none; }
+.gb-head__tag, .gb-head__sub, .gb-status { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.gb-head__tag { flex: 0 100 auto; color: var(--nova-text-muted); font-size: 13px; }
+.gb-head.has-notes .gb-head__tag { display: none; }
+.gb-head__sub { flex: none; color: var(--nova-text-muted); font-size: 13px; }
+.gb-status { flex: 1 1 240px; color: var(--nova-text-muted); font-size: 12px; font-style: italic; }
+.gb-status:empty { flex-basis: 0; }
+.gb-status > span + span::before { content: ' · '; font-style: normal; }
+.gb-status .is-warn { color: var(--gb-warn); font-style: normal; }
 .gb-pill {
-  align-self: center;
+  flex: none;
   font-size: 11px;
   font-weight: 700;
   padding: 3px 9px;
@@ -51,7 +58,7 @@
   border: 1px solid var(--nova-border-strong);
   color: var(--nova-text-muted);
 }
-.gb-switches { margin-left: auto; display: flex; align-items: center; gap: 10px; align-self: center; flex-wrap: wrap; }
+.gb-switches { flex: none; display: flex; align-items: center; gap: 10px; }
 .gb-seg { display: inline-flex; border: 1px solid var(--nova-border-strong); border-radius: 8px; overflow: hidden; }
 .gb-seg button {
   border: 0;
@@ -74,7 +81,7 @@
   background: var(--nova-panel);
   border: 1px solid var(--nova-border);
   border-radius: var(--radius-panel, 12px);
-  padding: 9px 12px;
+  padding: 8px 12px;
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -82,7 +89,15 @@
 }
 .gb-kpi--read { border-color: var(--nova-border-strong); }
 .gb-kpi__t { font-size: 10.5px; color: var(--nova-text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
-.gb-kpi__headline { font-size: 18px; font-weight: 800; line-height: 1.15; }
+.gb-kpi__headline {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.15;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
 .gb-kpi--read.is-up .gb-kpi__headline { color: var(--gb-up); }
 .gb-kpi--read.is-down .gb-kpi__headline { color: var(--gb-down); }
 .gb-kpi--read.is-warn .gb-kpi__headline { color: var(--gb-warn); }
@@ -92,19 +107,24 @@
 .gb-kpi__pair small { font-size: 10.5px; color: var(--nova-text-muted); }
 .gb-kpi__pair b { font-size: 18px; font-weight: 700; white-space: nowrap; }
 
-/* layout */
-.gb-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(400px, 470px); gap: 10px; align-items: start; }
-.gb-left { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.gb-bottom { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 10px; }
+/* layout: the map takes what the charts and the list leave */
+.gb-main { display: grid; grid-template-columns: minmax(0, 1fr) clamp(340px, 26vw, 470px); gap: 8px; min-height: 0; }
+.gb-left { display: grid; grid-template-rows: minmax(0, 1fr) clamp(150px, 31%, 270px); gap: 8px; min-width: 0; min-height: 0; }
+.gb-bottom { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 8px; min-height: 0; }
 .gb-card {
   background: var(--nova-panel);
   border: 1px solid var(--nova-border);
   border-radius: var(--radius-panel, 12px);
-  padding: 10px 12px;
+  padding: 8px 12px 10px;
   min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
-.gb-card__head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+.gb-card__head { flex: none; display: flex; align-items: center; gap: 10px; margin-bottom: 6px; white-space: nowrap; min-width: 0; }
+.gb-card__head .gb-muted { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .gb-card__head h3 {
+  flex: none;
   margin: 0;
   font-size: 11px;
   letter-spacing: 0.08em;
@@ -112,14 +132,15 @@
   color: var(--nova-text-muted);
   font-weight: 700;
 }
-.gb-legend { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--nova-text-muted); }
+.gb-legend { flex: none; margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--nova-text-muted); }
 .gb-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-left: 8px; }
 .gb-legend i.is-up { background: var(--gb-up); }
 .gb-legend i.is-down { background: var(--gb-down); }
 
-/* the map */
-.gb-map { position: relative; }
-.gb-map svg { display: block; width: 100%; height: auto; }
+/* the map, and the charts: drawn at the size of their box, never feeding it */
+.gb-map, .gb-chart { position: relative; flex: 1 1 0; min-height: 0; }
+.gb-map svg, .gb-chart svg { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+.gb-chart { overflow: hidden; }
 .gb-map__land { fill: var(--gb-land); stroke: none; }
 .gb-bubble { cursor: default; outline: none; }
 .gb-bubble__dot { stroke-width: 1.5; fill: var(--nova-text-muted); stroke: var(--nova-text-muted); }
@@ -132,7 +153,7 @@
 .gb-bubble__hit { fill: transparent; stroke: none; }
 .gb-bubble__lead { stroke: var(--nova-text-muted); stroke-opacity: 0.6; stroke-width: 1; }
 .gb-bubble__name, .gb-bubble__value {
-  font-size: 12px;
+  font-size: var(--gb-map-font, 12px);
   font-weight: 600;
   paint-order: stroke;
   stroke: var(--nova-panel);
@@ -144,11 +165,12 @@
 .gb-bubble__value.is-up { fill: var(--gb-up); }
 .gb-bubble__value.is-down { fill: var(--gb-down); }
 .gb-bubble.is-hovered .gb-bubble__dot, .gb-bubble:focus-visible .gb-bubble__dot { stroke-width: 3; }
-.gb-map__tip { position: absolute; z-index: 2; pointer-events: none; }
+.gb-map__tip { position: absolute; z-index: 4; pointer-events: none; }
 
 /* the hover card */
 .gb-tip {
-  width: 290px;
+  box-sizing: border-box;
+  width: 290px;                                /* its outer width: WorldMap's TIP_WIDTH places it */
   background: var(--nova-raised);
   border: 1px solid var(--nova-border-strong);
   border-radius: 10px;
@@ -165,7 +187,7 @@
 .gb-tip__mixed { color: var(--gb-warn); font-size: 11px; margin-top: 6px; border-top: 1px solid var(--gb-line); padding-top: 5px; }
 
 /* follow the sun */
-.gb-sun { display: block; width: 100%; height: auto; overflow: visible; }
+.gb-sun { overflow: visible; }
 .gb-sun__label { font-size: 11px; fill: var(--nova-text-muted); }
 .gb-sun__track { fill: color-mix(in srgb, var(--nova-text) 5%, transparent); }
 .gb-sun__session { fill: color-mix(in srgb, var(--nova-text) 22%, transparent); }
@@ -178,9 +200,9 @@
 .gb-sun__now { stroke: var(--nova-accent); stroke-width: 2; }
 
 /* do they agree? */
-.gb-agree { display: block; width: 100%; height: auto; overflow: visible; }
+.gb-agree { overflow: visible; }
 .gb-agree__axis { stroke: var(--gb-line); }
-.gb-agree__q { font-size: 11px; font-weight: 600; }
+.gb-agree__q { font-size: 11px; font-weight: 600; opacity: 0.8; }
 .gb-agree__q.is-up { fill: var(--gb-up); }
 .gb-agree__q.is-down { fill: var(--gb-down); }
 .gb-agree__q.is-warn { fill: var(--gb-warn); }
@@ -197,9 +219,16 @@
 }
 .gb-agree__axislabel { font-size: 10.5px; fill: var(--nova-text-muted); }
 
-/* by exchange */
-.gb-side { position: sticky; top: 0; }
-.gb-list { display: flex; flex-direction: column; }
+/* by exchange: the rows share the list's height; a short list drops their second lines */
+.gb-side { position: relative; }
+.gb-list {
+  flex: 1 1 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto;
+  grid-auto-rows: minmax(0, 1fr);
+  container: gb-list / size;
+}
 .gb-list__head, .gb-row {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr) 12px;
@@ -208,9 +237,11 @@
 }
 .gb-list__head { font-size: 10.5px; color: var(--nova-text-muted); padding: 0 6px 5px; border-bottom: 1px solid var(--gb-line); }
 .gb-c { text-align: center; }
-.gb-row { padding: 4px 6px; border-radius: 6px; }
+.gb-row { padding: 0 6px; border-radius: 6px; min-height: 0; overflow: hidden; }
 .gb-row.is-hovered { background: var(--nova-raised); }
 .gb-row__name { min-width: 0; }
+.gb-row__line { display: flex; align-items: baseline; gap: 6px; min-width: 0; white-space: nowrap; }
+.gb-row__line .gb-dot { margin-right: 0; flex: none; }
 .gb-row__name b { font-weight: 600; }
 .gb-row__name small {
   display: block;
@@ -235,16 +266,63 @@
 .gb-row__flag, .gb-flag { color: var(--gb-warn); font-weight: 800; }
 .gb-via.is-etf { color: var(--gb-warn); }
 .gb-nofeed { color: var(--gb-warn); }
-.gb-defs { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--gb-line); }
-.gb-defs p { margin: 0 0 5px; font-size: 11px; color: var(--nova-text-muted); line-height: 1.45; }
-
-@media (max-width: 1280px) {
-  .gb-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .gb-main { grid-template-columns: minmax(0, 1fr); }
-  .gb-side { position: static; }
+@container gb-list (max-height: 520px) {
+  .gb-row__name small, .gb-num small { display: none; }
 }
-@media (max-width: 760px) {
+
+/* how to read: the definitions over the list */
+.gb-howto { flex: none; margin-left: auto; }
+.gb-howto__btn {
+  border: 1px solid var(--nova-border-strong);
+  border-radius: 999px;
+  background: none;
+  color: var(--nova-text-muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 10px;
+  cursor: help;
+}
+.gb-howto__btn:hover, .gb-howto__btn:focus-visible, .gb-howto__btn.is-on { color: var(--nova-text); background: var(--nova-raised); }
+.gb-defs {
+  position: absolute;
+  z-index: 3;
+  top: 38px;
+  left: 8px;
+  right: 8px;
+  white-space: normal;
+  background: var(--nova-raised);
+  border: 1px solid var(--nova-border-strong);
+  border-radius: 10px;
+  padding: 10px 12px 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.gb-defs p { margin: 0 0 6px; font-size: 11.5px; color: var(--nova-text-muted); line-height: 1.45; }
+
+/* a short window: tighter, still one screen */
+@media (max-height: 780px) {
+  .gb-page { gap: 6px; padding: 6px 12px 8px; }
+  .gb-kpi { padding: 6px 10px; gap: 2px; }
+  .gb-kpi__headline, .gb-kpi__pair b { font-size: 15px; }
+  .gb-card { padding: 6px 10px 8px; }
+}
+/* a narrow window: the strip on two rows, the list narrower */
+@media (max-width: 1180px) {
+  .gb-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .gb-main { grid-template-columns: minmax(0, 1fr) 320px; }
+  .gb-head__tag { display: none; }
+}
+/* too small for one screen (well under a 1280 x 720 desk): the board keeps a readable size and scrolls, rather than
+   squeezing the map and the rows past reading */
+@media (max-height: 700px), (max-width: 1000px) {
+  .gb-page { overflow-y: auto; grid-template-rows: auto auto minmax(400px, 1fr); }
+}
+/* too narrow for one screen: the board stacks and scrolls, rather than hiding a market */
+@media (max-width: 860px) {
+  .gb-page { overflow: auto; display: flex; flex-direction: column; }
   .gb-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .gb-bottom { grid-template-columns: minmax(0, 1fr); }
-  .gb-page { padding: 10px 12px; }
+  .gb-main, .gb-bottom { grid-template-columns: minmax(0, 1fr); }
+  .gb-left { grid-template-rows: 300px auto; }
+  .gb-bottom { grid-auto-rows: 220px; }
+  .gb-list { flex: none; height: 640px; }
 }

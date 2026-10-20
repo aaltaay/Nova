@@ -3,14 +3,20 @@
  * with where each came from, and anything IBKR refused for it. Shared by the map and the list.
  */
 import { BASIS_WORD, MIXED_DEF, STATE_WORD } from './constants';
-import { etWhen, localTime, signedPct, tone, until, usd } from './format';
+import { etWhen, firstSentence, localTime, signedPct, tone, until, usd } from './format';
 import type { Market } from './types';
 
 function via(m: Market): string {
   const inst = m.flow.instrument;
-  if (!inst || !m.flow.basis) return 'no read yet';
+  if (!inst || !m.flow.basis) return m.flow.error ?? 'no read yet';
   const where = inst.kind === 'future' && inst.contract ? `${inst.label} (${inst.contract}, ${inst.exchange})` : inst.label;
   return m.flow.basis === 'etf' ? `${where} -- US money in US hours` : where;
+}
+
+/** Where the move came from; an ETF's label already says it is one ("EWC (US-listed ETF)"). */
+function moveSource(m: Market): string {
+  const label = m.move.instrument?.label ?? '';
+  return m.move.basis === 'etf' || !m.move.basis ? label : `${label} (${BASIS_WORD[m.move.basis]})`;
 }
 
 export function MarketTip({ m, now }: { m: Market; now: number }) {
@@ -43,13 +49,13 @@ export function MarketTip({ m, now }: { m: Market; now: number }) {
         {m.flow.fx ? ` · ${m.flow.fx.currency} at $${m.flow.fx.usd_per_unit.toPrecision(4)} (IBKR, ${m.flow.fx.date ?? 'last close'})` : ''}
       </div>
       <div className="gb-tip__src">
-        Move: {m.move.basis ? `${m.move.instrument?.label ?? ''} (${BASIS_WORD[m.move.basis]})` : m.move.error ?? 'no read yet'}
+        Move: {m.move.basis ? moveSource(m) : m.move.error ?? 'no read yet'}
         {m.move.data_type && m.move.data_type !== 'live' ? ` · ${m.move.data_type}` : ''}
       </div>
       {m.flow.last_bar_at ? <div className="gb-tip__src">Last trade read: {etWhen(m.flow.last_bar_at, now)} ET</div> : null}
-      {m.flow.error ? <div className="gb-tip__warn">{m.flow.error}</div> : null}
+      {m.flow.error && m.flow.basis ? <div className="gb-tip__warn">{m.flow.error}</div> : null}
       {m.flow.refused.map((r) => (
-        <div key={`${r.instrument}`} className="gb-tip__warn">No feed for {r.instrument}: {r.error}</div>
+        <div key={`${r.instrument}`} className="gb-tip__warn" title={r.error ?? undefined}>No feed for {r.instrument}: {firstSentence(r.error ?? '')}</div>
       ))}
       {s.calendar === 'clock' ? <div className="gb-tip__src">Local holidays are not in Nova's calendar.</div> : null}
       {m.mixed ? <div className="gb-tip__mixed">≠ {MIXED_DEF}</div> : null}

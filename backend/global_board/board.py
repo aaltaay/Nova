@@ -250,7 +250,7 @@ def sun(st: Store, now: float) -> dict:
 
 
 def compose(st: Store, now: float, *, enabled: bool, replay_desk: bool, period: str,
-            history_left: int | None = None) -> dict:
+            history_left: int | None = None, history_headroom: int = GLOBAL_HISTORY_HEADROOM) -> dict:
     quotes = st.get("quotes", now) or {}
     rows = [market_row(st, m, now, period, quotes, st.answered_at("quotes")) for m in GLOBAL_MARKETS]
     regions = [{"id": rid, "label": label, **totals([r for r in rows if r["region"] == rid])}
@@ -264,6 +264,6 @@ def compose(st: Store, now: float, *, enabled: bool, replay_desk: bool, period: 
         "loading": bool(enabled and ok is not False and missing), "replay_desk": replay_desk, "period": period,
         "read": read(world, regions), "world": world, "regions": regions, "markets": rows, "sun": sun(st, now),
         "sources": [{"id": "ibkr", "label": "IBKR", "ok": ok, "at": at, "error": error}],
-        "budget": {"history_left": history_left, "history_headroom": GLOBAL_HISTORY_HEADROOM,
+        "budget": {"history_left": history_left, "history_headroom": history_headroom,
                    "waiting": st.waiting_for()},
     }

@@ -1,8 +1,9 @@
 """The Global page's reader (ADR 060): one daemon thread, one read at a time, last in line for IBKR.
 
 ``start`` runs it with the process; ``want`` marks the page wanted (it polls). Each turn takes the first due read
-(``global_board.jobs``) the budget allows -- a historical read only while ``reads.history_ok()``, a line read only
-while ``reads.lines_ok()`` -- runs it, and records the answer or the failure in ``global_board.state``. Nobody
+(``global_board.jobs``) the budget allows -- a historical read only while ``reads.history_ok()`` and at least
+``GLOBAL_HISTORY_GAP_SEC`` after its last one (the Market page's own pace), a line read only while
+``reads.lines_ok()`` -- runs it, and records the answer or the failure in ``global_board.state``. Nobody
 looking, it keeps a slower cadence, but never from 09:30 to 16:00 ET (the desk's own hours) and never with
 ``NOVA_GLOBAL_BOARD_WARM=0``; ``NOVA_GLOBAL_BOARD=0`` runs nothing. The thread also keeps the answers on disk
 (``global_board.keep``). ``run_once`` is one turn, for tests.
@@ -18,6 +19,7 @@ from zoneinfo import ZoneInfo
 
 from constants_global_board import (
     GLOBAL_ENV,
+    GLOBAL_HISTORY_GAP_SEC,
     GLOBAL_IDLE_WAIT_SEC,
     GLOBAL_PERIODS,
     GLOBAL_QUIET_FROM_MIN_ET,
@@ -37,6 +39,7 @@ _lock = threading.Lock()
 _wake = threading.Event()
 _stop = threading.Event()
 _period = {"value": "1D"}
+_last_history = {"at": float("-inf")}
 
 
 def enabled() -> bool:
@@ -75,6 +78,8 @@ def run_once(now: float | None = None) -> bool:
         return False
     waiting = None
     for job in jobs.due(st, now, wanted=wanted, period=_period["value"]):
+        if job.budget == "history" and now - _last_history["at"] < GLOBAL_HISTORY_GAP_SEC:
+            continue                                     # its own pace, not a wait on IBKR
         if job.budget == "history" and not reads.history_ok():
             waiting = waiting or "history"
             continue
@@ -82,6 +87,8 @@ def run_once(now: float | None = None) -> bool:
             waiting = waiting or "lines"
             continue
         st.waiting(None)
+        if job.budget == "history":
+            _last_history["at"] = now
         _run(job, now)
         return True
     st.waiting(waiting)
@@ -157,3 +164,4 @@ def reset_for_tests() -> None:
     store().reset()
     keep.reset_for_tests()
     _period["value"] = "1D"
+    _last_history["at"] = float("-inf")

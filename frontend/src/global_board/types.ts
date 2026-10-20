@@ -139,5 +139,12 @@ export interface GlobalBoard {
   markets: Market[];
   sun: Sun;
   sources: SourceStatus[];
-  budget: { history_left: number | null; history_headroom: number; waiting: 'history' | 'lines' | null };
+  budget: Budget;
+}
+
+/** Why the reads wait: IBKR's history requests left in its 10 minutes, and the number Global reads above. */
+export interface Budget {
+  history_left: number | null;
+  history_headroom: number;
+  waiting: 'history' | 'lines' | null;
 }

@@ -72,8 +72,8 @@ answered or failed once in this process (or was kept from the last one); `replay
   session; `sessions` are the markets' session segments clipped to the window.
 - `sources[]`: `{id: "ibkr", label, ok: boolean | null, at, error}` -- `ok: null` until asked.
 - `budget`: `{history_left: number | null, history_headroom, waiting: "history" | "lines" | null}` -- why reads are
-  waiting: the page sends no historical request while `GLOBAL_HISTORY_HEADROOM` or fewer of IBKR's 60-a-10-minutes
-  are left, and opens no line while fewer than `IBKR_BRIEF_MIN_FREE_LINES` are spare.
+  waiting: the page sends no historical request while `history_headroom` or fewer of IBKR's 60-a-10-minutes are left
+  (`GLOBAL_HISTORY_HEADROOM`, or `GLOBAL_YIELD_HEADROOM` while the Market page shows and this one does not), and opens no line while fewer than `IBKR_BRIEF_MIN_FREE_LINES` are spare.
 
 **The markets** (`GLOBAL_MARKETS`; the instruments are IBKR's, the hours each market's own, in its own time zone):
 the US (NYSE + Nasdaq; S&P 500 index and its futures on CME, SPY), Canada (TSX; S&P/TSX Composite, S&P/TSX 60
@@ -93,8 +93,11 @@ after a close they were read before. Not wanted: the same
 flows, quotes and FX closes at `GLOBAL_IDLE_FLOW_TTL_SEC` / `GLOBAL_IDLE_QUOTES_TTL_SEC`, but never from 09:30 to
 16:00 ET, the desk's own hours, and no daily bars (`NOVA_GLOBAL_BOARD_WARM=0` reads only while wanted). Every historical request goes through the
 paced service at background priority, under its own pacing kind `global` (the capacity strip's History hover names
-it), and only while more than `GLOBAL_HISTORY_HEADROOM` are left: charts, the short check, the TraderTV exits, LULD
-and the Market page all come first. A refused instrument is not asked again for `GLOBAL_REFUSED_RETRY_SEC`.
+it), and only while more than `GLOBAL_HISTORY_HEADROOM` (30) are left: charts, the short check, the TraderTV exits
+and LULD come first, and the Market page, which stops at the same 30, takes turns with it -- at least
+`GLOBAL_HISTORY_GAP_SEC` between two of Global's requests, the Market page's own pace -- except that while the Market
+page shows and Global does not, Global leaves `GLOBAL_YIELD_HEADROOM` (40): the page on screen goes first (ADR 060
+amendment). A refused instrument is not asked again for `GLOBAL_REFUSED_RETRY_SEC`.
 
 **Kept across restarts** (`backend/global_board/keep.py`): `<cache_dir>/global-board/global-store.json`,
 `{schema_version: 1, saved_at, entries: {key: {at, value}}}` -- the reads' last answers (`flow:<id>`, `quotes`,
@@ -102,7 +105,10 @@ and the Market page all come first. A refused instrument is not asked again for 
 back at the first start, each at its own answer time; an entry older than `GLOBAL_KEEP_MAX_AGE_SEC` is not read back,
 and a file of another `schema_version` reads as absent.
 
-**On the desk** (`frontend/src/global_board/`): the first item of the nav rail, above Market. The page polls every
+**On the desk** (`frontend/src/global_board/`): the first item of the nav rail, above Market. The page fills the
+window and never scrolls ("I can't have the page to be scrollable"): the map, the two charts and the rows size to the
+space there is, the definitions open from "How to read", and the page's notes share one line in its head (the full
+words on hover), the history note with `budget.history_left` against `budget.history_headroom`. The page polls every
 `GLOBAL_POLL_MS` while it shows and the window is visible. Its switches (the period and what the map's colour shows) are kept in localStorage `nova.globalBoard.prefs.v1`, `{schema_version: 1, period, color_by}` (owner `prefs.ts`; another version or an unknown value reads as 1D / pressure; the sample desk never writes it). A world map (Natural Earth land, public domain, through
 `world-atlas` 2.0.2, drawn once into `worldLand.ts`), one bubble per market sized by `traded_usd` and coloured by
 `pressure_pct` or `move.pct` (the switch), a dashed ring while the market is open; the four regions and the world;

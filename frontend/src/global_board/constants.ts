@@ -68,11 +68,11 @@ export const LABEL_OFFSETS: Record<string, [number, number, 'start' | 'middle' |
   ch: [38, 40, 'start'],
   sa: [0, 26, 'middle'],
   za: [14, 4, 'start'],
-  in: [-30, 30, 'end'],
+  in: [-4, 54, 'end'],
   cn: [-58, -42, 'end'],
   hk: [-14, 46, 'middle'],
   tw: [40, 26, 'start'],
-  kr: [-26, -46, 'end'],
+  kr: [-6, -52, 'end'],
   jp: [34, -18, 'start'],
   au: [16, 4, 'start'],
 };
@@ -82,9 +82,11 @@ export const GLOBAL_SUBTITLE = "Where the world's stock money went";
 export const GLOBAL_OFF = 'The Global page is turned off on this desk (NOVA_GLOBAL_BOARD=0).';
 export const GLOBAL_OLD_API = "This desk's backend has no Global page yet -- restart it after the update.";
 export const GLOBAL_REPLAY_NOTE = "Today's live markets (the Sim replay is not followed here)";
-export const GLOBAL_WAITING_HISTORY =
-  "Global reads last: it waits while IBKR's history budget is busy with charts, bots, TraderTV, LULD and the Market page.";
+export const GLOBAL_LOADING = 'Reading each market from IBKR …';
+/** Charts, the short check, the TraderTV exits and LULD always come first; the Market page takes turns with Global. */
+export const GLOBAL_WAITING_HISTORY_FIRST = 'charts, bots, TraderTV and LULD go first';
 export const GLOBAL_WAITING_LINES = 'Global waits for a spare market-data line to read the indexes.';
+export const GLOBAL_HOW_TO_READ = 'How to read';
 export const PRESSURE_DEF =
   'Pressure: money that traded in rising one-minute bars minus money in falling ones, from the real trades of ' +
   "the market's index futures in its own hours (or its US-listed ETF, named on the row).";

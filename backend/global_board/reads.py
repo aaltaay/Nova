@@ -3,7 +3,8 @@
 - ``index_quotes``: each market's index from a line held for a moment (``ibkr.brief_lines``, ADR 054) -- refused
   (``NoHeadroom``) while fewer than ``IBKR_BRIEF_MIN_FREE_LINES`` lines are spare.
 - ``bars``: an instrument's bars through the paced historical service at background priority, under the pacing kind
-  ``global`` -- shed (``HistoricalShed``) while ``GLOBAL_HISTORY_HEADROOM`` or fewer of the 10-minute 60 are left.
+  ``global`` -- shed (``HistoricalShed``) while ``headroom()`` or fewer of the 10-minute 60 are left: the Market
+  page's own 30, or 40 while the Market page shows and this one does not.
 - ``fx_close``: a currency's US dollars per unit, IBKR's last daily midpoint close of its pair.
 
 An instrument IBKR refuses (no permission, unknown contract) raises ``Refused`` with IBKR's code and words; the caller
@@ -25,6 +26,7 @@ from constants_global_board import (
     GLOBAL_HISTORY_TIMEOUT_SEC,
     GLOBAL_IBKR_TIMEOUT_SEC,
     GLOBAL_PACE_KIND,
+    GLOBAL_YIELD_HEADROOM,
 )
 from constants_ibkr import IBKR_BRIEF_LINE_BATCH, IBKR_BRIEF_LINE_WAIT_SEC
 from global_board import contracts
@@ -59,9 +61,19 @@ def history_left() -> int | None:
         return None
 
 
+def headroom(now: float | None = None) -> int:
+    """How many of the 10-minute 60 Global leaves: the Market page's own 30, so the two take turns -- 40 while the
+    Market page shows and Global does not, so the page on screen goes first."""
+    from global_board.state import store
+    from market_board.state import store as market_store
+
+    now = time.time() if now is None else now
+    return GLOBAL_YIELD_HEADROOM if market_store().wanted(now) and not store().wanted(now) else GLOBAL_HISTORY_HEADROOM
+
+
 def history_ok() -> bool:
     left = history_left()
-    return left is not None and left > GLOBAL_HISTORY_HEADROOM
+    return left is not None and left > headroom()
 
 
 def lines_ok() -> bool:
@@ -100,10 +112,11 @@ async def _paced(coro):
     from ibkr import historical_service
 
     snap = historical_service.pacing_snapshot()
-    if snap["window_max"] - snap["window_used"] <= GLOBAL_HISTORY_HEADROOM:
+    limit = headroom()
+    if snap["window_max"] - snap["window_used"] <= limit:
         coro.close()
         raise historical_service.HistoricalShed(
-            f"Global reads last: fewer than {GLOBAL_HISTORY_HEADROOM + 1} of IBKR's historical requests are left")
+            f"Global reads last: fewer than {limit + 1} of IBKR's historical requests are left")
     return await coro
 
 
