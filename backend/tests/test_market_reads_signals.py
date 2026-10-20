@@ -197,6 +197,8 @@ def test_series_and_scan(table):
     frame = signals.series("RUN", TODAY, ["price", "change_pct", "tape"])
     assert frame["time_et"].iloc[0] == "07:00" and frame["in_play_et"].iloc[0] == "07:00"
     assert set(frame["tape"]) == {"not_built"}
+    window = signals.series("RUN", TODAY, ["price"], start="07:30", end="07:35")
+    assert window["time_et"].tolist() == ["07:30", "07:31", "07:32", "07:33", "07:34"]
     at = signals.scan(TODAY, "07:30", [{"signal": "change_pct", "min": 15}])
     assert at["symbol"].tolist() == ["RUN"]
     with pytest.raises(LookupError, match="tape stage"):

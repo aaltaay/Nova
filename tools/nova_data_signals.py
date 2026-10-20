@@ -29,11 +29,11 @@ class SignalTools:
         answer.update(rows=len(frame), truncated=len(frame) > len(answer["data"]), out=str(out) if out else None)
         return answer
 
-    def signal_series(self, symbol: str, day: str, signals: list[str] | None = None,
-                      output_name: str | None = None) -> dict[str, Any]:
+    def signal_series(self, symbol: str, day: str, signals: list[str] | None = None, start: str | None = None,
+                      end: str | None = None, output_name: str | None = None) -> dict[str, Any]:
         from market_reads import signals as reads
         out = self.output_path(output_name)
-        return self._rows(reads.series(symbol, day, signals), out)
+        return self._rows(reads.series(symbol, day, signals, start, end), out)
 
     def signal_scan(self, day: str, at: str, when: list[dict[str, Any]] | None = None,
                     output_name: str | None = None) -> dict[str, Any]:
@@ -66,13 +66,13 @@ def register(server, service, run, reads, writes_file) -> None:
         return await run(service.signal_catalog)
 
     @server.tool(annotations=writes_file)
-    async def signal_series(symbol: str, day: str, signals: list[str] | None = None,
-                            output_name: str | None = None) -> dict:
+    async def signal_series(symbol: str, day: str, signals: list[str] | None = None, start: str | None = None,
+                            end: str | None = None, output_name: str | None = None) -> dict:
         """One in-play stock-day's signals minute by minute (time_et the minute's start; each value as of its end),
         from in_play_et (the first minute it was in play: a bar 10%+ over the prior close, or 5x its relative
-        volume, with 50,000+ shares) through 15:59. signals: names from signal_catalog (default all). 200 rows
-        inline; output_name writes every row."""
-        return await run(service.signal_series, symbol, day, signals, output_name)
+        volume, with 50,000+ shares) through 15:59; start / end (ET HH:MM, end exclusive) narrow it. signals: names
+        from signal_catalog (default all). 200 rows inline; output_name writes every row."""
+        return await run(service.signal_series, symbol, day, signals, start, end, output_name)
 
     @server.tool(annotations=writes_file)
     async def signal_scan(day: str, at: str, when: list[dict] | None = None, output_name: str | None = None) -> dict:

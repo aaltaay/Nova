@@ -111,8 +111,10 @@ def _tape_columns(tape: bool) -> str:
     return (", coalesce(t.tape, 'not_built') AS tape, t.tape_score, t.tape_flush, t.tape_burst")
 
 
-def series(symbol: str, day: str, signals: list[str] | None = None) -> pd.DataFrame:
-    """One stock-day's rows, minute by minute (``time_et`` the minute's start; each value as of its end)."""
+def series(symbol: str, day: str, signals: list[str] | None = None, start: str | None = None,
+           end: str | None = None) -> pd.DataFrame:
+    """One stock-day's rows, minute by minute (``time_et`` the minute's start; each value as of its end), from
+    ``start`` up to ``end`` (ET HH:MM, end exclusive) when given."""
     manifest = ss.load_manifest(required=True)
     if day not in manifest["days"]:
         raise LookupError(f"{day} is not in the signal table (build_signals.py --start {day} --end {day})")
@@ -121,12 +123,15 @@ def series(symbol: str, day: str, signals: list[str] | None = None) -> pd.DataFr
     if unknown:
         raise ValueError(f"unknown signals {unknown}; signal_catalog lists them")
     tape = day in ss.tape_days(manifest) and any(s in reg.TAPE_COLUMNS for s in wanted)
+    lo = rvol.minute_of(start, "start") if start else 0
+    hi = rvol.minute_of(end, "end") if end else 24 * 60
     source, args = _from([day], tape)
     cols = ", ".join(f"x.{c}" for c in wanted if c not in reg.TAPE_COLUMNS)
     con = rvol.connect()
     try:
         frame = con.execute(f"SELECT x.m, d.in_play_m{', ' + cols if cols else ''}{_tape_columns(tape)} FROM {source} "
-                            f"WHERE x.symbol = {_literal(symbol.strip().upper())} ORDER BY x.m", args).df()
+                            f"WHERE x.symbol = {_literal(symbol.strip().upper())} AND x.m >= {lo} AND x.m < {hi} "
+                            "ORDER BY x.m", args).df()
     finally:
         con.close()
     if not len(frame):

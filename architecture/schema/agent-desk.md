@@ -621,7 +621,8 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
     - `tape` (the flow label at the end of `m`: `burst`, `flush`, `neutral`, `quiet`, `blind`, `not_built`) with
       `tape_score`, `tape_flush` and `tape_burst` (any 10-second reading inside the minute so labelled): the desk's
       flow rule over Massive's trades sided against the NBBO in force before each print, the book its top of book.
-  - `signal_series {symbol, day, signals?}` -> a table answer, one row per minute of that stock-day.
+  - `signal_series {symbol, day, signals?, start?, end?}` -> a table answer, one row per minute of that stock-day
+    (`time_et` the minute's start, `in_play_et`), from `start` up to `end` (ET `HH:MM`, end exclusive) when given.
   - `signal_scan {day, at, when?, limit?}` -> every in-play stock-day at `at` (ET `HH:MM`) with its signals, or
     only those meeting `when`.
   - `signal_test {when, filters, window_from?, window_to?, fresh?, up_pct?, down_pct?, horizon?, days?, group_by?,

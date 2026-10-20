@@ -70,7 +70,8 @@ def cmd_catalog(args, show) -> int:
 
 def cmd_series(args, show) -> int:
     from market_reads import signals
-    return _show(signals.series(args.symbol, args.day, args.signals.split(",") if args.signals else None), args)
+    return _show(signals.series(args.symbol, args.day, args.signals.split(",") if args.signals else None,
+                                args.start, args.end), args)
 
 
 def cmd_scan(args, show) -> int:
@@ -98,6 +99,8 @@ def add_parsers(sub, output) -> None:
     series.add_argument("symbol")
     series.add_argument("day")
     series.add_argument("--signals", help="comma list of signal names (default all)")
+    series.add_argument("--start", help="ET HH:MM: the first minute")
+    series.add_argument("--end", help="ET HH:MM: up to this minute (exclusive)")
     output(series)
     scan = sub.add_parser("signal-scan", help="every in-play stock at an ET minute, with its signals")
     scan.add_argument("day")

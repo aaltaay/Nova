@@ -1592,7 +1592,7 @@
   },
   {
     "name": "signal_series",
-    "description": "One in-play stock-day's signals minute by minute (time_et the minute's start; each value as of its end), from in_play_et (the first minute it was in play: a bar 10%+ over the prior close, or 5x its relative volume, with 50,000+ shares) through 15:59. signals: names from signal_catalog (default all). 200 rows inline; output_name writes every row.",
+    "description": "One in-play stock-day's signals minute by minute (time_et the minute's start; each value as of its end), from in_play_et (the first minute it was in play: a bar 10%+ over the prior close, or 5x its relative volume, with 50,000+ shares) through 15:59; start / end (ET HH:MM, end exclusive) narrow it. signals: names from signal_catalog (default all). 200 rows inline; output_name writes every row.",
     "inputSchema": {
       "properties": {
         "symbol": {
@@ -1617,6 +1617,30 @@
           ],
           "default": null,
           "title": "Signals"
+        },
+        "start": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start"
+        },
+        "end": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End"
         },
         "output_name": {
           "anyOf": [
