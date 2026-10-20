@@ -22,7 +22,7 @@ from market_reads import roots
 from market_reads import rvol_store as rs
 
 SCHEMA_VERSION = 1
-BUILDER = 2                      # bump when a rule below or a desk rule it calls changes: every day is built again
+BUILDER = 3                      # bump when a rule below or a desk rule it calls changes: every day is built again
 TAPE_BUILDER = 1
 ROOT_ENV = "NOVA_SIGNALS_DIR"
 DEFAULT_ROOT_WIN = r"F:\Nova\signals"
