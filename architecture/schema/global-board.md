@@ -122,4 +122,5 @@ words on hover), the history note with `budget.history_left` against `budget.his
 the markets ranked by pressure with both bars; the last 24 hours of pressure; and pressure against the move. A row
 that reads its ETF says "via EWZ"; a market IBKR has not answered says "no feed" and IBKR's reason. Each market's
 size shows on its hover card ("Market size ≈ $68.0T", the parts, the month and source, "published monthly, not live")
-and at the start of its row's second line; "How to read" says where the sizes come from.
+and beside each exchange's name on its row ("NYSE $29.5T + Nasdaq $38.5T", "JPX $7.7T": a label naming
+several exchanges pairs with the size's parts in order); "How to read" says where the sizes come from.

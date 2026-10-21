@@ -231,7 +231,7 @@
 }
 .gb-list__head, .gb-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr) 12px;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr) 12px;
   align-items: center;
   gap: 6px;
 }
@@ -243,7 +243,8 @@
 .gb-row__line { display: flex; align-items: baseline; gap: 6px; min-width: 0; white-space: nowrap; }
 .gb-row__line .gb-dot { margin-right: 0; flex: none; }
 .gb-row__name b { font-weight: 600; }
-.gb-size { color: var(--nova-text); opacity: 0.8; }
+.gb-row__ex { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.gb-size { color: var(--nova-text-muted); font-weight: 400; font-size: 11px; }
 .gb-row__name small {
   display: block;
   margin-left: 13px;
