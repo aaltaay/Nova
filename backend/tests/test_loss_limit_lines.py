@@ -103,6 +103,18 @@ def test_an_unknown_mark_makes_every_line_unknown():
     assert got.pnl_of("bots") is None and got.loss_of("you") is None and got.loss is None
 
 
+def test_the_sides_add_up_to_the_account_to_the_cent():
+    """PR #1130 review: rounding each figure alone gave You -0.01 + Bots -0.01 beside an Account -0.03."""
+    fills = [Fill("C", 1, 1.0, 0.0149, "you", 1), Fill("C", 1, 1.0, 0.0149, "bots", 2),
+             Fill("D", 100, 1.0001, 0.005, "you", 3), Fill("D", 200, 1.0003, 0.005, "bots", 4),
+             Fill("D", -300, 0.99995, 0.01, None, 5)]
+    got = count(fills, {"C": Held(2, 1.0)})
+    assert _by(got, "C", "you")["pnl"] == -0.01 and _by(got, "C", "bots")["pnl"] == -0.02    # C is -0.03
+    assert round(got.pnl_of("you") + got.pnl_of("bots"), 2) == got.pnl
+    for stock in got.stocks:
+        assert round(stock["by"]["you"]["pnl"] + stock["by"]["bots"]["pnl"], 2) == stock["pnl"]
+
+
 # -- each line's trip ---------------------------------------------------------------------------------
 def _run(account: str, at: float, *, you: float, bots: float, stocks=None):
     got = Count(pnl=round(you + bots, 2), stocks=stocks or [], sides={"you": you, "bots": bots})
@@ -241,6 +253,31 @@ def test_the_side_lines_rules():
     for bad in ({"you_usd": 9}, {"bots_usd": 10.5}, {"bots_usd": "x"}, {"you_usd": True}, {"limit_usd": None}):
         with pytest.raises(settings.Invalid):
             settings.update(bad)
+
+
+def test_saves_sent_together_each_keep_their_change(monkeypatch):
+    """Two saves at once both read the same setting; one lock keeps each change (the order size limit's fix)."""
+    import threading
+    import time as _time
+
+    from capture import manifest_io
+
+    real = manifest_io.write_json_atomic
+
+    def slow(path, doc):
+        _time.sleep(0.05)
+        real(path, doc)
+
+    monkeypatch.setattr(manifest_io, "write_json_atomic", slow)
+    saves = [{"you_usd": 300}, {"bots_usd": 500}, {"warn": False}]
+    threads = [threading.Thread(target=settings.update, args=(patch,)) for patch in saves]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    settings.reset_for_tests()                                          # read back what the file holds
+    got = settings.current()
+    assert (got["you_usd"], got["bots_usd"], got["warn"]) == (300, 500, False)
 
 
 # -- the venue door and the wire ----------------------------------------------------------------------

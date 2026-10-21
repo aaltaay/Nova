@@ -44,6 +44,10 @@ _V1 = 1
 _NAMES = {"limit_usd": "The daily loss limit", "you_usd": "Your trades' limit", "bots_usd": "The bots' limit"}
 
 _lock = threading.Lock()
+# Held across one save's read, change, write and publish: two saves at once (the desk saving a box and a
+# checkbox together, each off the event loop) would both start from the same ``before`` and drop one change,
+# and would share ``write_json_atomic``'s temp file.
+_save_lock = threading.Lock()
 _loaded_from: Path | None = None
 _saved: dict[str, Any] | None = None    # None with no file, or one this build cannot use
 _error: str | None = None
@@ -136,13 +140,19 @@ def update(patch: Any, now: float | None = None) -> tuple[dict[str, Any], dict[s
     """Apply ``{limit_usd?, you_usd?, bots_usd?, warn?, no_new_buys?, auto_sell?}`` and save; ``(before, after)``.
 
     ``Invalid`` for a value out of its rule; ``OSError`` when the file cannot be written --
-    the setting is then unchanged. Blocking: call it off the event loop."""
-    global _loaded_from, _saved, _error
+    the setting is then unchanged. Blocking: call it off the event loop. One save at a time
+    (``_save_lock``), so saves sent together each keep their change."""
     if not isinstance(patch, dict) or not patch:
         raise Invalid("Send {limit_usd?, you_usd?, bots_usd?, warn?, no_new_buys?, auto_sell?}")
     unknown = sorted(set(patch) - set(_KEYS))
     if unknown:
         raise Invalid(f"Unknown setting {', '.join(unknown)}")
+    with _save_lock:
+        return _update_locked(patch, now)
+
+
+def _update_locked(patch: dict[str, Any], now: float | None) -> tuple[dict[str, Any], dict[str, Any]]:
+    global _loaded_from, _saved, _error
     before = current()
     after = {key: before[key] for key in _KEYS}
     for key in ("limit_usd", *SIDE_KEYS):

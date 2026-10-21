@@ -169,13 +169,26 @@ def count(fills: Iterable[Fill], held: Mapping[str, Held]) -> Count:
                              held_before=out.held_before, costs_unknown=out.costs_unknown)
             cash += shares_now * mark
         total += cash
-        by: dict[str, dict[str, float]] = {}
-        for side, own in _split(rows).items():
-            pnl = own["cash"] + own["shares"] * mark
+        owned = _split(rows)
+        split = {side: own["cash"] + own["shares"] * mark for side, own in owned.items()}
+        for side, pnl in split.items():
             sides[side] += pnl
-            shares = own["shares"] if abs(own["shares"]) > _EPS else 0.0
-            by[side] = {"pnl": round(pnl, 2), "shares": round(shares, 6)}
+        pnl_cents = _cents(round(cash, 2), split)
+        by = {side: {"pnl": pnl_cents[side],
+                     "shares": round(owned[side]["shares"] if abs(owned[side]["shares"]) > _EPS else 0.0, 6)}
+              for side in LOSS_LIMIT_SIDES}
         out.stocks.append({"symbol": symbol, "pnl": round(cash, 2), "shares": shares_now, "by": by})
     out.pnl = round(total, 2)
-    out.sides = {side: round(pnl, 2) for side, pnl in sides.items()}
+    out.sides = _cents(out.pnl, sides)
+    return out
+
+
+def _cents(whole: float, parts: dict[str, float]) -> dict[str, float]:
+    """``parts`` in cents that add up to ``whole`` (already in cents): the last side takes the rounding left over,
+    so You + Bots is always the Account figure, on each stock and in total (PR #1130 review)."""
+    out: dict[str, float] = {}
+    for side in LOSS_LIMIT_SIDES[:-1]:
+        out[side] = round(parts.get(side, 0.0), 2)
+    last = LOSS_LIMIT_SIDES[-1]
+    out[last] = round(whole - sum(out.values()), 2)
     return out

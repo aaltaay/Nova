@@ -70,7 +70,8 @@ reads the defaults ($2,000 on the Account line, no You or Bots line; Warn me and
 sell off). A `schema_version` 1 file -- `{limit_usd, warn, no_new_buys, auto_sell, set_at}`, ADR 056's
 one line -- reads as the Account line with those values unchanged and no You or Bots line; the next save
 writes version 2. An unreadable file, an unknown `schema_version` or a value out of its rule reads the
-defaults with `error` saying so; the next save writes a fresh file.
+defaults with `error` saying so; the next save writes a fresh file. One save at a time (a lock across read,
+change, write and publish), so two saves sent together each keep their change.
 
 **Today's record** -- `loss-limit-state.json` in the operator cache (owner `loss_limit/state.py`):
 `{schema_version: 2, day: "YYYY-MM-DD", accounts: {ACCOUNT: {LINE: {warned_at, warned_loss, tripped_at,
@@ -125,7 +126,9 @@ A stock's fills are read in the order they filled. Each first closes shares held
 own side's first, then the other side's; Nova's own close takes from each side in proportion to what it
 holds, in whole shares -- and the cash it moves and its share of the commission go to the side whose
 shares it closed. What is left opens for the side that sent it (yours for Nova's own close, which never
-opens). Each side's P&L is its cash plus its shares at the mark; the two add up to the account's. So
+opens). Each side's P&L is its cash plus its shares at the mark; the two add up to the account's -- in
+cents, the Bots figure takes the rounding left over, on each stock and in total, so You + Bots is always the
+Account figure on the wire. So
 you selling a bot's shares by hand, or Flatten closing them, counts on the Bots line.
 
 **Which line holds whom.** The Account line's trip holds every new buy on the account. The You line's
