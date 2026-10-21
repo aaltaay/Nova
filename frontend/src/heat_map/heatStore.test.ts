@@ -73,6 +73,18 @@ describe('books', () => {
     expect(sn.ba).toBe(400);
   });
 
+  it('cuts the far-off row of a two-row book, around where the stock trades', () => {
+    noteHeatBook('SPRS', [{ price: 3.99, size: 100 }, { price: 45.0, size: 100 }], [], false, T);   // no reference yet
+    expect(heatOf('SPRS')!.snaps[0].bb).toBe(399);
+    // The lower middle row of [0.10, 39.99] is the bad $0.10: only where the stock trades can pick $39.99.
+    noteHeatPrint('THIN', iso(T), 39.99, 100, 'bid', T);
+    noteHeatBook('THIN', [{ price: 39.99, size: 100 }, { price: 0.1, size: 100 }], [], false, T + 100);
+    expect(heatOf('THIN')!.snaps[0].bb).toBe(3999);                                              // the last print decides
+    noteHeatBook('MID', [{ price: 39.99, size: 100 }], [{ price: 40.0, size: 100 }], false, T);
+    noteHeatBook('MID', [{ price: 0.1, size: 100 }, { price: 39.99, size: 100 }], [], false, T + 500);
+    expect(heatOf('MID')!.snaps[1].bb).toBe(3999);                                               // else the last middle
+  });
+
   it('keeps why a line was refused or lent before the stock had any book or print', () => {
     noteHeatLine('NEWS', 'error', 'Max number of market depth requests reached');
     expect(heatOf('NEWS')).toBeNull();

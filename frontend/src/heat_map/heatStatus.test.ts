@@ -23,11 +23,19 @@ describe('heatStatus', () => {
     expect(heatStatus(heatOf('GLND'), 'GLND', T + 60_000)).toContain('No Level 2 since');
   });
 
-  it('a paused replay is not a quiet line', () => {
+  it('a paused replay that keeps beating is not a quiet line', () => {
     const wall = Date.UTC(2026, 9, 21, 1, 30, 0);
     noteHeatPrint('GLND', iso(T), 4.0, 100, 'ask', wall);
     noteHeatBook('GLND', [{ price: 3.99, size: 100 }], [{ price: 4.0, size: 100 }], false, wall + 100);
+    noteHeatBeat('GLND', wall + 599_000);       // paused ten minutes, the socket still beating
     expect(heatStatus(heatOf('GLND'), 'GLND', wall + 600_000)).toBeNull();
+  });
+
+  it('a replay whose socket went silent says so (no error frame needed)', () => {
+    const wall = Date.UTC(2026, 9, 21, 1, 30, 0);
+    noteHeatPrint('GLND', iso(T), 4.0, 100, 'ask', wall);
+    noteHeatBook('GLND', [{ price: 3.99, size: 100 }], [{ price: 4.0, size: 100 }], false, wall + 100);
+    expect(heatStatus(heatOf('GLND'), 'GLND', wall + 60_000)).toContain('No Level 2 since');
   });
 });
 

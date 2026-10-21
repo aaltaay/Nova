@@ -28,15 +28,16 @@ seconds). Lost on reload; it starts when Nova opens the stock's Level 2 (IBKR ke
 - `snaps[]`: `{t, lo, sizes: Float32Array, bb, ba}` -- market time `t`; tick indices `lo`..`lo + sizes.length - 1`
   were inside the rows IBKR sent (IBKR's per-exchange rows summed per tick); `bb` / `ba` best bid / ask tick, `NaN`
   when that side is empty, both taken from the rows kept. At most one per `HEAT_BOOK_SLOT_SEC` (0.1 s; the newest in the
-  slot wins). A book wider than `2 x HEAT_MAX_HALF_TICKS` ticks is cut around its middle row (a far-off row cannot drag
-  it).
+  slot wins). A book wider than `2 x HEAT_MAX_HALF_TICKS` ticks is cut around where the stock trades -- its last print,
+  else its last middle; the lower middle row on a first book -- so a far-off row is cut even in a two-row book.
 - `bursts[]` (+ the two growing ones): `{t0, t1, sz, pv, side, c0}` -- `side` 0 bought at the ask, 1 sold at the bid,
   2 between or unknown; a burst of buying or selling ends when the other side trades, after `HEAT_BURST_GAP_SEC` (1 s)
   without a print, or `HEAT_BURST_MOVE_TICKS` (2) from its first price. In-between prints form bursts of their own by
   the same pause and move rules, never mixed into buying or selling (approved mockup v3).
 - Volume per whole market second (a ring of `HEAT_KEEP_SEC + 120` slots): shares bought at the ask, sold at the bid,
   between.
-- `offset` (market time minus the browser clock, from the newest print), `lastBookT`, `aliveT` (newest book or beat),
+- `offset` (market time minus the browser clock, from the newest print), `lastBookT`, `aliveT` (newest book or beat;
+  market time), `depthWallMs` (browser clock of the newest depth frame, book or beat),
   `l1`, `line` (`{state: "lent" | "error", why}` or null), `version` (bumped on every change). A line refused or lent
   before the stock's first book or print is kept apart (at most 16 stocks) until a book arrives, so the view says why.
 
@@ -45,7 +46,9 @@ Rules: a book's `t` is the browser clock plus `offset`. When a print moves `offs
 print move onto the new clock, except one that would land before that print (it was stamped right), kept in order. A
 print more than 2 s behind the newest, or `scrub_reset`, starts the stock over. On a replay's clock (`|offset|` over
 `HEAT_REPLAY_OFFSET_SEC`, 60 s) beats are the browser's clock and never stretch the last book; prints move it on (the
-recorded book would have changed if it had), and a paused replay is not reported as a quiet line. The last book counts
+recorded book would have changed if it had). The quiet notice comes from the depth socket going silent -- no book or
+beat for `HEAT_ALIVE_GRACE_SEC` + 8 s on the browser clock -- on any venue, so a paused replay that keeps beating stays
+quiet and a dropped socket says so. The last book counts
 until `aliveT + HEAT_ALIVE_GRACE_SEC` (2 s); after that the screen is black ("not seen"), never the old book drawn on.
 A tick outside a book's rows is "not seen", never an empty level. One screen spans at most `HEAT_MAX_SPAN_TICKS`
 (1,200) ticks, cut around the newest middle.
