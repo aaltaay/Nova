@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   heatBursts,
   heatOf,
+  heatPendingLine,
   heatVolumeAt,
   noteHeatBeat,
   noteHeatBook,
@@ -64,6 +65,22 @@ describe('books', () => {
     expect(snaps.length).toBeLessThan(41);
   });
 
+  it('cuts a far outlier row and takes the best bid / ask from the rows it kept', () => {
+    noteHeatBook('GLND', [{ price: 3.99, size: 100 }, { price: 45.0, size: 100 }], [{ price: 4.0, size: 100 }], false, T);
+    const sn = heatOf('GLND')!.snaps[0];
+    expect(sn.sizes.length).toBeLessThanOrEqual(1001);
+    expect(sn.bb).toBe(399);                  // not the cut-off $45 row
+    expect(sn.ba).toBe(400);
+  });
+
+  it('keeps why a line was refused or lent before the stock had any book or print', () => {
+    noteHeatLine('NEWS', 'error', 'Max number of market depth requests reached');
+    expect(heatOf('NEWS')).toBeNull();
+    expect(heatPendingLine('NEWS')).toEqual({ state: 'error', why: 'Max number of market depth requests reached' });
+    noteHeatBook('NEWS', [{ price: 2.5, size: 100 }], [{ price: 2.51, size: 100 }], false, T);
+    expect(heatPendingLine('NEWS')).toBeNull();
+  });
+
   it('notes beats and a lent or refused line', () => {
     noteHeatBook('GLND', [{ price: 3.99, size: 100 }], [{ price: 4.0, size: 100 }], false, T);
     noteHeatBeat('GLND', T + 5000);
@@ -96,6 +113,16 @@ describe('prints as bursts', () => {
     expect(b.filter((x) => x.side === 2).map((x) => x.sz)).toEqual([300]);
   });
 
+  it('groups in-between prints into their own bursts by the same pause and move rules (never into buying or selling)', () => {
+    noteHeatPrint('GLND', iso(T), 3.995, 300, 'between', T);
+    noteHeatPrint('GLND', iso(T + 200), 3.995, 400, 'unknown', T + 200);   // one burst of in-between prints
+    noteHeatPrint('GLND', iso(T + 300), 4.0, 100, 'ask', T + 300);         // buying does not join it
+    noteHeatPrint('GLND', iso(T + 2000), 3.995, 500, 'between', T + 2000); // after a pause: a new burst
+    const b = heatBursts(heatOf('GLND')!);
+    expect(b.filter((x) => x.side === 2).map((x) => x.sz)).toEqual([700, 500]);
+    expect(b.filter((x) => x.side === 0).map((x) => x.sz)).toEqual([100]);
+  });
+
   it('counts volume per second on each side', () => {
     noteHeatPrint('GLND', iso(T), 4.0, 1000, 'ask', T);
     noteHeatPrint('GLND', iso(T + 300), 3.99, 400, 'bid', T + 300);
@@ -121,6 +148,32 @@ describe('prints as bursts', () => {
     const s = heatOf('GLND')!;
     expect(s.snaps.map((x) => x.t)).toEqual([replay / 1000, replay / 1000 + 2]);
     expect(s.aliveT).toBeCloseTo(replay / 1000 + 2, 3);
+  });
+
+  it('on a replay clock, beats (browser time) never stretch the last book; prints move it on', () => {
+    const replay = Date.UTC(2026, 9, 14, 11, 54, 0);
+    const wall = Date.UTC(2026, 9, 21, 1, 30, 0);
+    noteHeatPrint('GLND', iso(replay), 4.0, 100, 'ask', wall);
+    noteHeatBook('GLND', [{ price: 3.99, size: 100 }], [{ price: 4.0, size: 100 }], false, wall + 100);
+    const before = heatOf('GLND')!.aliveT;
+    noteHeatBeat('GLND', wall + 60_000);        // a paused replay: beats keep coming on the browser clock
+    expect(heatOf('GLND')!.aliveT).toBe(before);
+    noteHeatPrint('GLND', iso(replay + 3000), 4.0, 100, 'ask', wall + 3000);
+    expect(heatOf('GLND')!.aliveT).toBeCloseTo(replay / 1000 + 3, 3);
+  });
+
+  it('puts books that came between a pause and the next print back on the replay clock, in order', () => {
+    const replay = Date.UTC(2026, 9, 14, 11, 54, 0);
+    const wall = Date.UTC(2026, 9, 21, 1, 30, 0);
+    noteHeatPrint('GLND', iso(replay), 4.0, 100, 'ask', wall);
+    noteHeatBook('GLND', [{ price: 3.99, size: 100 }], [{ price: 4.0, size: 100 }], false, wall + 500);
+    // paused for 60 s; on resume a book arrives before the replay's next print
+    noteHeatBook('GLND', [{ price: 3.99, size: 200 }], [{ price: 4.0, size: 100 }], false, wall + 61_000);
+    noteHeatPrint('GLND', iso(replay + 1000), 4.0, 100, 'ask', wall + 61_200);
+    const ts = heatOf('GLND')!.snaps.map((x) => x.t - replay / 1000);
+    expect(ts[0]).toBeCloseTo(0.5, 3);
+    expect(ts[1]).toBeGreaterThanOrEqual(ts[0]);
+    expect(ts[1]).toBeLessThan(2);
   });
 
   it('a replay that goes back starts the stock over, as a scrub does', () => {

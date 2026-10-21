@@ -7,7 +7,7 @@
  * flickers fades instead of speckling. A slice counts as seen only when IBKR's rows covered that price for at least
  * half of it; the rest is "not seen" (black), never an empty book.
  */
-import { HEAT_MIN_SPAN_TICKS, HEAT_PAD_TICKS } from './heatMapConstants';
+import { HEAT_MAX_SPAN_TICKS, HEAT_MIN_SPAN_TICKS, HEAT_PAD_TICKS } from './heatMapConstants';
 import { heatAliveUntil, heatBursts, heatVolumeAt, type HeatSide, type HeatSnap, type HeatSymbol } from './heatStore';
 
 export interface HeatWindow {
@@ -63,6 +63,7 @@ function snapEnd(s: HeatSymbol, k: number, cap: number): number {
 export function heatRange(s: HeatSymbol, w: HeatWindow): HeatRange | null {
   let lo = Number.POSITIVE_INFINITY;
   let hi = Number.NEGATIVE_INFINITY;
+  let lastMid = Number.NaN;
   const start = Math.max(0, snapAt(s.snaps, w.t0));
   for (let k = start; k < s.snaps.length && s.snaps[k].t <= w.t1; k += 1) {
     const sn = s.snaps[k];
@@ -71,10 +72,16 @@ export function heatRange(s: HeatSymbol, w: HeatWindow): HeatRange | null {
       if (Number.isFinite(v)) {
         lo = Math.min(lo, v);
         hi = Math.max(hi, v);
+        lastMid = v;
       }
     }
+    if (Number.isFinite(sn.bb) && Number.isFinite(sn.ba)) lastMid = (sn.bb + sn.ba) / 2;
   }
   if (!Number.isFinite(lo)) return null;
+  if (hi - lo > HEAT_MAX_SPAN_TICKS) {
+    lo = Math.round(lastMid) - HEAT_MAX_SPAN_TICKS / 2;
+    hi = lo + HEAT_MAX_SPAN_TICKS;
+  }
   lo -= HEAT_PAD_TICKS;
   hi += HEAT_PAD_TICKS;
   const short = HEAT_MIN_SPAN_TICKS - (hi - lo);

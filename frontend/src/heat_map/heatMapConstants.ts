@@ -9,6 +9,8 @@ export const HEAT_BOOK_SLOT_SEC = 0.1;
 export const HEAT_MAX_SYMBOLS = 4;
 /** A print this many market seconds behind the newest means a replay went back: that stock starts over. */
 export const HEAT_REWIND_SEC = 2;
+/** Prints this far (seconds) from the browser clock mean a replay's clock: beats (browser time) never move it. */
+export const HEAT_REPLAY_OFFSET_SEC = 60;
 /** The last book stays drawn while the line keeps beating, plus this grace; after it the screen goes black. */
 export const HEAT_ALIVE_GRACE_SEC = 2;
 /** A book wider than this many ticks is cut to this many either side of its middle (a bad row cannot blow memory). */
@@ -71,6 +73,8 @@ export const HEAT_VOLUME_BARS = 60;
 /** Price padding around the window's best bid / ask, in ticks, and the least ticks a screen shows. */
 export const HEAT_PAD_TICKS = 3;
 export const HEAT_MIN_SPAN_TICKS = 20;
+/** The most ticks one screen shows; a wider window is cut around the newest middle (no giant grid). */
+export const HEAT_MAX_SPAN_TICKS = 1200;
 /** At most one redraw per this many ms: the order path never waits on a picture (ADR 045). */
 export const HEAT_FRAME_MS = 150;
 /** CSS pixels per time column of the book grid: half the pixels to fill, still a fraction of a second each. */
