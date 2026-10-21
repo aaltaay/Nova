@@ -1,0 +1,256 @@
+/* Ahead (ADR 061): the Ahead panel and its cards. It slides over the charts like the read sheet; its colour tokens
+   are set on `.ahead-sheet` in ahead.css, which every Ahead component also imports. */
+
+.ahead-sheet {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 41;
+  display: flex;
+  flex-direction: column;
+  width: min(520px, 62%);
+  border-left: 1px solid var(--ahead-border);
+  background: var(--ahead-bg);
+  box-shadow: -12px 0 30px rgba(0, 0, 0, 0.45);
+  color: var(--ahead-text);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.ahead-sheet__head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--ahead-border);
+}
+.ahead-sheet__head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.ahead-sheet__sub {
+  margin-right: auto;
+}
+.ahead-sheet__close {
+  border: none;
+  background: transparent;
+  color: var(--ahead-muted);
+  cursor: pointer;
+  font-size: 14px;
+}
+.ahead-sheet__body {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px 14px;
+}
+.ahead-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  background: var(--ahead-card);
+}
+.ahead-card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ahead-card__head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.ahead-card__head .ahead-tag {
+  margin-left: auto;
+}
+.ahead-segs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ahead-seg {
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: transparent;
+  color: #c3c8d4;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ahead-seg--on {
+  background: rgba(10, 132, 255, 0.18);
+  border-color: var(--ahead-blue);
+  color: var(--ahead-blue-text);
+}
+.ahead-lead {
+  margin: 0;
+  color: #c3c8d4;
+}
+.ahead-foot {
+  margin: 0;
+  color: var(--ahead-muted);
+  font-size: 11.5px;
+}
+.ahead-foot--state {
+  color: #ffb340;
+}
+.ahead-muted {
+  color: var(--ahead-muted);
+}
+.ahead-forecast {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ahead-ai-text);
+}
+.ahead-big {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+.ahead-mid {
+  font-size: 18px;
+  font-weight: 700;
+}
+.ahead-lbls {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 600;
+}
+.ahead-lbls--levels {
+  justify-content: flex-start;
+  gap: 14px;
+  font-size: 11.5px;
+}
+.ahead-chip--provisional {
+  align-self: flex-start;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  color: #ffb340;
+  background: rgba(255, 159, 10, 0.16);
+}
+.ahead-stack {
+  display: flex;
+  gap: 4px;
+  height: 34px;
+}
+.ahead-stack__part {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  border-radius: 6px;
+  font-size: 15px;
+  font-weight: 700;
+}
+.ahead-stack__part--above { color: #f0876f; background: #5a2a20; }
+.ahead-stack__part--below { color: #2dd4bf; background: #0f3d37; }
+.ahead-stack__part--neither,
+.ahead-stack__part--open { color: #e6e8ee; background: #2a2f3c; }
+.ahead-stack__part--target { color: #86efac; background: #14532d; }
+.ahead-stack__part--stop { color: #fca5a5; background: #5a1d1d; }
+.ahead-vol {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 10px;
+}
+.ahead-vol__real {
+  text-align: right;
+}
+.ahead-mini {
+  width: 100%;
+  height: 56px;
+  background: #1b2030;
+  border-radius: 4px;
+}
+.ahead-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.ahead-rows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.ahead-rows b {
+  color: var(--ahead-muted);
+  font-weight: 500;
+}
+.ahead-score__name {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.ahead-score__row {
+  display: grid;
+  grid-template-columns: 90px 1fr 40px;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+}
+.ahead-score__who {
+  color: var(--ahead-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ahead-score__track {
+  height: 10px;
+  border-radius: 4px;
+  background: #2a2f3c;
+  overflow: hidden;
+}
+.ahead-score__fill {
+  display: block;
+  height: 100%;
+  background: var(--ahead-ai);
+}
+.ahead-score__fill--base {
+  background: var(--ahead-dim);
+}
+.ahead-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.ahead-switch__knob {
+  position: relative;
+  width: 30px;
+  height: 17px;
+  padding: 0;
+  border: none;
+  border-radius: 9px;
+  background: #3a3f4c;
+  cursor: pointer;
+}
+.ahead-switch__knob::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #e6e8ee;
+  transition: left 0.12s ease;
+}
+.ahead-switch__knob--on {
+  background: #ff9f0a;
+}
+.ahead-switch__knob--on::after {
+  left: 15px;
+}

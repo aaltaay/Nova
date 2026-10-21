@@ -1,0 +1,55 @@
+{
+ "schema_version": 1,
+ "configured": true,
+ "reason": null,
+ "checked_at": 1792500065,
+ "health": {
+  "state": "ready",
+  "detail": null,
+  "contract_ok": true,
+  "model": {
+   "name": "model-a",
+   "version": "1.0"
+  },
+  "exam": {
+   "passed": false,
+   "as_of": "2026-10-21",
+   "summary": "Example only: a made-up exam for tests.",
+   "scope": "Example only: made-up scope.",
+   "volume": {
+    "model": {
+     "spearman": 0.5,
+     "miss_x": 2.0
+    },
+    "baseline": {
+     "name": "time-of-day",
+     "spearman": 0.6,
+     "miss_x": 1.9
+    }
+   },
+   "range": {
+    "model": {
+     "spearman": 0.3,
+     "miss_x": 1.8
+    },
+    "baseline": {
+     "name": "time-of-day",
+     "spearman": 0.35,
+     "miss_x": 1.7
+    }
+   },
+   "band80_coverage": 0.79,
+   "sample": {
+    "days": 10,
+    "moments": 100
+   }
+  },
+  "live": {
+   "since": "2026-10-21",
+   "scored": 12,
+   "volume_spearman": 0.4,
+   "range_spearman": null,
+   "band80_coverage": 0.75
+  }
+ }
+}

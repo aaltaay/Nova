@@ -1,0 +1,159 @@
+/* Ahead (ADR 061): the colour tokens, the toolbar switch, the words over the zone and the legend strip; the panel's own
+   rules are aheadSheet.css. The canvas colours are aheadConstants.ts'; these match them. */
+.ahead-toggle,
+.ahead-heading,
+.ahead-pane-note,
+.ahead-legend,
+.ahead-sheet {
+  --ahead-ai: #93a4d6;
+  --ahead-ai-text: #c7d2fe;
+  --ahead-text: var(--sv-primary, var(--text-primary, #e6e8ee));
+  --ahead-muted: #8b92a5;
+  --ahead-dim: #5d6475;
+  --ahead-blue: #0a84ff;
+  --ahead-blue-text: #5eb1ff;
+  --ahead-border: var(--sv-border, var(--border-color, #2a2f3a));
+  --ahead-card: #1c1c1e;
+  --ahead-bg: var(--sv-bg-raised, var(--bg-secondary, #12151c));
+}
+
+/* ---------------------------------------------------------------- toolbar */
+.ahead-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-left: 0.35rem;
+}
+.ahead-toggle--on {
+  background: rgba(10, 132, 255, 0.16);
+  border-color: var(--ahead-blue);
+  color: var(--ahead-blue-text);
+}
+/* A tiny fan: a line that opens into a band, the zone's own shape. */
+.ahead-toggle__glyph {
+  width: 10px;
+  height: 9px;
+  background:
+    linear-gradient(var(--ahead-ai-text), var(--ahead-ai-text)) left 0 top 4px / 4px 1.5px no-repeat,
+    linear-gradient(to right, rgba(147, 164, 214, 0.25), rgba(147, 164, 214, 0.6)) right 0 top 0 / 6px 9px no-repeat;
+  opacity: 0.6;
+}
+.ahead-toggle--on .ahead-toggle__glyph {
+  opacity: 1;
+}
+.ahead-toggle__badge {
+  font-size: 0.55rem;
+  font-weight: 700;
+  padding: 0 0.25rem;
+  border-radius: 3px;
+  color: var(--ahead-blue-text);
+  background: rgba(10, 132, 255, 0.18);
+}
+.ahead-toggle__note {
+  margin-left: 0.35rem;
+  font-size: 0.62rem;
+  color: #ffb340;
+}
+
+/* ---------------------------------------------------------------- over the zone */
+.ahead-heading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  pointer-events: none;
+  font-size: 11px;
+  line-height: 1.3;
+  will-change: transform;
+}
+.ahead-heading__row,
+.ahead-heading__tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.ahead-heading__title {
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--ahead-ai-text);
+}
+.ahead-heading__open {
+  pointer-events: auto;
+  padding: 0 5px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 4px;
+  background: rgba(11, 13, 18, 0.85);
+  color: var(--ahead-ai-text);
+  font-size: 11px;
+  line-height: 15px;
+  cursor: pointer;
+}
+.ahead-heading__open:hover {
+  border-color: var(--ahead-blue);
+}
+.ahead-heading__word {
+  max-width: 100%;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(11, 13, 18, 0.85);
+  color: var(--ahead-text);
+}
+.ahead-heading__word--more {
+  color: var(--ahead-muted);
+}
+.ahead-tag {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.ahead-tag--nova {
+  color: var(--ahead-muted);
+  background: rgba(255, 255, 255, 0.06);
+}
+.ahead-pane-note {
+  position: absolute;
+  top: 34px;
+  right: 72px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(420px, 60%);
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: rgba(11, 13, 18, 0.88);
+  border: 1px solid rgba(147, 164, 214, 0.25);
+  color: var(--ahead-text);
+  font-size: 11px;
+  line-height: 1.3;
+}
+.ahead-legend {
+  position: absolute;
+  left: 8px;
+  bottom: 30px;
+  z-index: 5;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(11, 13, 18, 0.82);
+  color: var(--ahead-muted);
+  font-size: 10.5px;
+  pointer-events: none;
+}
+.ahead-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}

@@ -4,6 +4,7 @@
  * except the venue (Paper or Sim, kept in memory) and the desk's own background reports, which
  * are taken and dropped.
  */
+import { sampleAhead, sampleAheadStatus } from '../ahead/sampleAhead';
 import setupTemplates from '../bot/setupTemplatesFixture.json';
 import { sampleCandles } from '../cryptos/sampleCryptos';
 import { sampleGlobalBoard } from '../global_board/sampleGlobal';
@@ -92,6 +93,9 @@ function sharedRoutes(nowS: number): [RegExp, Handler][] {
     [/^\/api\/afterhours$/, () => envelope(nowS, { afterhours: [] })],
     [/^\/api\/large-cap$/, () => envelope(nowS, { large_cap: [] })],
     [/^\/api\/volume-profile\/([^/]+)$/, (m, q) => sampleProfile(sym(m), q.get('kind'), q.get('anchor'))],
+    // Ahead (ADR 061): the demo has no forecaster, and says so; it never draws a forecast on sample data.
+    [/^\/api\/ahead\/forecast\/([^/]+)$/, (m) => sampleAhead(sym(m), nowS)],
+    [/^\/api\/ahead\/status$/, () => sampleAheadStatus()],
     [/^\/api\/news-catalysts$/, () => envelope(nowS, { catalysts: CATALYSTS, last_scan: nowS - 30 })],
     [/^\/api\/scan\/envelope$/, () => envelope(nowS, { tables: {} })],
     [/^\/api\/history\/dates$/, () => ({ dates: ['2026-09-29', '2026-09-28', '2026-09-25'] })],

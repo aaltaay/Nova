@@ -33,6 +33,19 @@ describe('demo backend reads', () => {
     expect(smpl.plan).toMatchObject({ entry: 4.39, stop: 4.12, target: 4.49, target2: 4.99, target1_fraction: 0.5 });
   });
 
+  it('says Ahead has no forecaster here, and never answers a forecast', () => {
+    const a = bodyOf<{ symbol: string; ai: { state: string; reason: string; close: unknown; paths: unknown } }>(
+      get('/api/ahead/forecast/smpl'));
+    expect(a.symbol).toBe('SMPL');
+    expect(a.ai.state).toBe('not_set_up');
+    expect(a.ai.reason).toMatch(/no forecaster/);
+    expect(a.ai.close).toBeNull();
+    expect(a.ai.paths).toBeNull();
+    const status = bodyOf<{ configured: boolean; health: unknown }>(get('/api/ahead/status'));
+    expect(status.configured).toBe(false);
+    expect(status.health).toBeNull();
+  });
+
   it('has no retired readiness-proof endpoint', () => {
     expect(get('/api/short-proof')).toBeUndefined();
   });

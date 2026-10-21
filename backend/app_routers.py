@@ -67,6 +67,7 @@ from chart_events.routes import router as chart_events_router
 from followed_traders import config as followed_traders_config
 from followed_traders.routes import router as followed_traders_router
 from volume_profile.routes import router as volume_profile_router
+from ahead.routes import router as ahead_router
 
 
 def register_routers(app: FastAPI) -> None:
@@ -132,6 +133,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(agent_desk_router)
     app.include_router(chart_events_router)
     app.include_router(volume_profile_router)
+    app.include_router(ahead_router)  # ADR 061: always on; unset answers not_set_up and asks nothing
     # Only on the desk whose .env names a followed traders feed: unset, the routes do not exist.
     if followed_traders_config.enabled():
         app.include_router(followed_traders_router)

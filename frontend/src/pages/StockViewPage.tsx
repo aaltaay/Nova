@@ -46,13 +46,16 @@ import {
   StockReadToolbar,
 } from '../stock_read';
 import { VolumeProfileChartLayer, VolumeProfileToolbar } from '../volume_profile';
+import { AheadChartLayer, AheadSheet, AheadToolbar } from '../ahead';
 
-/** The bot's read on the symbol in every chart pane (ADR 036), and the volume profile on the 5-minute one (ADR 058). */
+/** The bot's read on the symbol in every chart pane (ADR 036), the volume profile on the 5-minute one (ADR 058), and
+ * Ahead's forecast zone on the 1-minute one (ADR 061). */
 function renderStockRead(props: ChartPaneOverlayProps) {
   return (
     <>
       <StockReadChartLayer {...props} />
       <VolumeProfileChartLayer {...props} />
+      <AheadChartLayer {...props} />
     </>
   );
 }
@@ -62,6 +65,7 @@ const STOCK_READ_TOOLBAR = (
   <>
     <StockReadToolbar />
     <VolumeProfileToolbar />
+    <AheadToolbar />
   </>
 );
 
@@ -242,6 +246,7 @@ export function StockViewPage({
                 toolbarExtra={STOCK_READ_TOOLBAR}
               />
               <StockReadSheet />
+              <AheadSheet symbol={symbol} />
               {/* Over the charts, never beside them, so the panes keep their size from the first
                   paint. One live region: a quote that fails is announced in place of its wait. */}
               {!detailReady && (showSpinner || fetchFailed) ? (
