@@ -1,5 +1,5 @@
 /**
- * The Ahead panel (ADR 061): slides over the right side of the Trader tab's charts, like the read sheet, opened from
+ * The Ahead panel (ADR 065): slides over the right side of the Trader tab's charts, like the read sheet, opened from
  * the ▸ on the zone's heading. The scope (All / Lines / Flat top / First pullback) and the "Show before it has earned
  * it" switch, then the scope's card (which wall first, if it triggers, or Nova's lines), the forecast volume, the
  * forecaster's exam and its report card. The numbers are the chart's own (the 1-minute pane's scene); every AI number

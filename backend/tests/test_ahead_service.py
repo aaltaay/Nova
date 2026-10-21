@@ -1,4 +1,4 @@
-"""Ahead's service (ADR 061): the gates in order, one ask per minute, a short memory for failures, the breaker, its
+"""Ahead's service (ADR 065): the gates in order, one ask per minute, a short memory for failures, the breaker, its
 own threads, and a replay that never sends a candle from after the playhead."""
 from __future__ import annotations
 

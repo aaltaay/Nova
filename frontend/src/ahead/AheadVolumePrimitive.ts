@@ -1,5 +1,5 @@
 /**
- * Ahead's ghost volume (ADR 061) on the 1-minute pane's volume histogram: per forecast minute an outline from the
+ * Ahead's ghost volume (ADR 065) on the 1-minute pane's volume histogram: per forecast minute an outline from the
  * volume base to the forecaster's middle guess (q50) and a whisker from q10 to q90, with "AI volume" over them.
  *
  * Volume is an overlay histogram inside the price pane, so the ghost must never rescale it: there is no

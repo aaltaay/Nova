@@ -2,9 +2,10 @@
  * "By exchange" on the Global page (ADR 060): every market ranked by its pressure, with its pressure and its index
  * move side by side as bars from a centre line, and ≠ where the two disagree. A country ETF's symbol opens the
  * Trader; a market IBKR refused says "no feed". The rows share the list's height (the page never scrolls); a short
- * list drops each row's second line, never the "via" flag on its first.
+ * list drops each row's second line, never the "via" flag on its first. Each exchange's size sits beside its name on
+ * the first line ("NYSE $29.5T + Nasdaq $38.5T").
  */
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { MOVE_BAR_SCALE_PCT, PRESSURE_BAR_SCALE_PCT, STATE_WORD } from './constants';
 import { monthWord, signedPct, sizeUsd, tone, usd } from './format';
 import type { Market, Period } from './types';
@@ -43,6 +44,21 @@ export function ranked(markets: Market[]): Market[] {
   });
 }
 
+/**
+ * Each exchange the market's label names, beside its own published size: "NYSE + Nasdaq" pairs with the size's two
+ * parts in order; a label naming one exchange takes the whole. A label whose pieces do not match the parts keeps one
+ * total; no published size, no number.
+ */
+export function sizedExchanges(m: Market): { name: string; usd: number | null }[] {
+  const names = m.exchange.split(' + ');
+  const size = m.size;
+  if (!size) return names.map((name) => ({ name, usd: null }));
+  if (names.length > 1 && names.length === size.parts.length) {
+    return names.map((name, i) => ({ name, usd: size.parts[i].usd }));
+  }
+  return [{ name: m.exchange, usd: size.usd }];
+}
+
 /** What the row reads when it is not its home future: its US-listed ETF (opens the Trader), "no feed" or "waiting". */
 function flag(m: Market, onOpenTrader?: (symbol: string) => void): ReactNode {
   const inst = m.flow.instrument;
@@ -76,15 +92,18 @@ export function ExchangeList({ markets, period, hovered, onHover, onOpenTrader }
           <div className="gb-row__name" role="cell">
             <span className="gb-row__line">
               <i className={`gb-dot is-${m.session.state}`} title={STATE_WORD[m.session.state]} />
-              <b>{m.exchange}</b>
+              <b className="gb-row__ex" data-testid={`global-exchange-${m.id}`}
+                title={m.size ? `Market size ≈ ${sizeUsd(m.size.usd)}, ${monthWord(m.size.as_of)}, ${m.size.source}` : undefined}>
+                {sizedExchanges(m).map((e, i) => (
+                  <Fragment key={e.name}>
+                    {i ? ' + ' : ''}{e.name}
+                    {e.usd != null ? <span className="gb-size"> {sizeUsd(e.usd)}</span> : null}
+                  </Fragment>
+                ))}
+              </b>
               {flag(m, onOpenTrader)}
             </span>
             <small>
-              {m.size ? (
-                <span className="gb-size" title={`Market size ≈ ${sizeUsd(m.size.usd)}, ${monthWord(m.size.as_of)}, ${m.size.source}`}>
-                  {sizeUsd(m.size.usd)}{' · '}
-                </span>
-              ) : null}
               {m.name}{m.flow.basis === 'future' && m.flow.instrument ? ` · ${m.flow.instrument.label}` : ''}
             </small>
           </div>

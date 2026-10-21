@@ -1,4 +1,4 @@
-"""The only HTTP caller of the private forecaster (ADR 061, contract ``ahead-forecaster/1``).
+"""The only HTTP caller of the private forecaster (ADR 065, contract ``ahead-forecaster/1``).
 
 Two endpoints: ``GET /v1/health`` and ``POST /v1/forecast``, on loopback only (``config`` checks the address before
 the token is ever sent), with the contract's deadlines, on this module's own two threads (``run_ask``) -- never the

@@ -1,4 +1,4 @@
-/** The Ahead panel's scope (ADR 061): All (the AI's view), Lines (Nova's lines only), or a strategy's "what if it
+/** The Ahead panel's scope (ADR 065): All (the AI's view), Lines (Nova's lines only), or a strategy's "what if it
  * triggers?" -- kept per viewer with the switch (`aheadPrefs.ts`). */
 import { AHEAD_SCOPES } from './aheadConstants';
 import { setAheadPrefs } from './aheadPrefs';

@@ -6,7 +6,7 @@ commit as the code (Invariants #1 and #5). The wire is written four times and th
 `frontend/src/ahead/aheadTypes.ts`, `backend/ahead/view.py` and the golden answers in
 `frontend/src/ahead/__fixtures__/` (one per state, read by both Vitest and pytest's `test_ahead_wire.py`).
 
-## Ahead on the 1-minute chart (ADR 061, operator decision 2026-10-20)
+## Ahead on the 1-minute chart (ADR 065, operator decision 2026-10-20)
 
 The next 15 minutes as a private forecaster sees them, drawn in a hatched zone right of the newest completed candle
 on the Trader's 1-minute pane, beside Nova's own support and resistance lines carried on to where they meet. A

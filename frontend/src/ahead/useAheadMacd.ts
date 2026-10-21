@@ -1,5 +1,5 @@
 /**
- * Ahead's MACD fan on the MACD pane under the 1-minute chart (ADR 061). `useMacdPane` hears whether that pane is
+ * Ahead's MACD fan on the MACD pane under the 1-minute chart (ADR 065). `useMacdPane` hears whether that pane is
  * there (`chart/oscillatorRegistry.ts`: the pane publishes itself); the scene uses it to decide whether a fan is worked
  * out at all. `useAheadMacd` attaches the fan's primitive to the pane's MACD line while both exist and hands it the
  * scene's bands. The bands themselves are worked out once per answer in `aheadScene.ts`; nothing heavy runs here.

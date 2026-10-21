@@ -1,4 +1,4 @@
-/** "The forecaster's exam" (ADR 061): what its own health reports -- its one-sentence summary, how well it ranked
+/** "The forecaster's exam" (ADR 065): what its own health reports -- its one-sentence summary, how well it ranked
  * volume and range against its baseline, how often its 80% range held, what the exam covered and on how much. The
  * forecaster runs the exam; Nova only shows it. "Passed its exam" is never "earned": the exam covers its scope only. */
 import { AHEAD_COLORS, AHEAD_WORDS } from './aheadConstants';

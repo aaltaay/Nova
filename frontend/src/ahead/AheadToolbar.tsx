@@ -1,4 +1,4 @@
-/** The Trader toolbar's Ahead switch (ADR 061): off by default, kept per viewer and the same in every window. While it is
+/** The Trader toolbar's Ahead switch (ADR 065): off by default, kept per viewer and the same in every window. While it is
  * off the desk asks nothing. On with no 1-minute pane on the tab, it says Ahead draws there. */
 import { useStockReadContext } from '../stock_read';
 import { useAheadSceneOf } from './AheadChartLayer';

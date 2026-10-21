@@ -1,4 +1,4 @@
-"""``/api/ahead/*`` -- the forecast zone on the Trader's 1-minute chart (ADR 061, ``architecture/schema/ahead.md``).
+"""``/api/ahead/*`` -- the forecast zone on the Trader's 1-minute chart (ADR 065, ``architecture/schema/ahead.md``).
 
 Read-only: it places, stages and blocks nothing. Always registered: with no forecaster set up it answers
 ``not_set_up`` and sends no request. The forecast answers 200 in every state and 422 only for a bad symbol; it lives

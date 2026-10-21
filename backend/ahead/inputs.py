@@ -1,4 +1,4 @@
-"""What the forecaster is sent (ADR 061): the desk clock, the completed 1-minute candles and the prior close.
+"""What the forecaster is sent (ADR 065): the desk clock, the completed 1-minute candles and the prior close.
 
 Every value comes from its owner and is read once per ask, so nothing after the desk clock reaches the forecaster:
 

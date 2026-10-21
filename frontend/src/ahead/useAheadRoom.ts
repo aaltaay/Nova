@@ -1,5 +1,5 @@
 /**
- * Room for Ahead's zone right of the newest candle (ADR 061). When Ahead comes on, a view that follows the live edge
+ * Room for Ahead's zone right of the newest candle (ADR 065). When Ahead comes on, a view that follows the live edge
  * slides once so `AHEAD_ROOM_BARS` candles of room show after the last one (`roomAtLiveEdge`, the stock read's own
  * rule: it only ever widens, and a view the operator zoomed or panned stays exactly where they put it), plus the width
  * of the stock read's word column at the edge, which the zone stops short of. Then it tells, as the view moves,

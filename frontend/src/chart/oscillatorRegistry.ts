@@ -1,6 +1,6 @@
 /**
  * Which oscillator panes (MACD, RSI) hang under a price chart right now, and their own chart and main line, so
- * something drawn on the price pane can draw its part on the oscillator's too (Ahead's MACD fan, ADR 061). The
+ * something drawn on the price pane can draw its part on the oscillator's too (Ahead's MACD fan, ADR 065). The
  * oscillator pane publishes itself when its series exist and takes itself back when it goes; a reader subscribes
  * per parent chart and hears the current handle at once. In memory, per chart; nothing is persisted.
  */

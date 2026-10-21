@@ -1,4 +1,4 @@
-"""What Ahead sends the forecaster (ADR 061): completed candles at the desk clock, the prior close from its owner
+"""What Ahead sends the forecaster (ADR 065): completed candles at the desk clock, the prior close from its owner
 (never worked back from a percentage), and the contract's request body."""
 from __future__ import annotations
 

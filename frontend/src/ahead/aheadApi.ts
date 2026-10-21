@@ -1,5 +1,5 @@
 /**
- * Ahead's two reads (ADR 061, `architecture/schema/ahead.md`): `GET /api/ahead/forecast/{symbol}` and
+ * Ahead's two reads (ADR 065, `architecture/schema/ahead.md`): `GET /api/ahead/forecast/{symbol}` and
  * `GET /api/ahead/status`. Every body passes a strict check here: a field that is missing or the wrong shape makes the
  * whole answer an `error` naming that field, and nothing is filled in. A non-ready answer that carries AI numbers is
  * refused the same way (a forecast the backend did not stand behind is never drawn).

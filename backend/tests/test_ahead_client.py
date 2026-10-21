@@ -1,4 +1,4 @@
-"""Ahead's HTTP caller (ADR 061): the Bearer token goes to the checked loopback address only and is never logged,
+"""Ahead's HTTP caller (ADR 065): the Bearer token goes to the checked loopback address only and is never logged,
 every failure maps to its state in Nova's words, and the answers are parsed strictly (a bad field names itself)."""
 from __future__ import annotations
 

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  *
- * The Ahead switch (ADR 061): off by default, kept in prefs, a "new" badge, and words when no 1-minute pane draws it.
+ * The Ahead switch (ADR 065): off by default, kept in prefs, a "new" badge, and words when no 1-minute pane draws it.
  */
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

@@ -1,4 +1,4 @@
-"""The desk wire (ADR 061): for every made-up fixture the desk's tests read (``frontend/src/ahead/__fixtures__``),
+"""The desk wire (ADR 065): for every made-up fixture the desk's tests read (``frontend/src/ahead/__fixtures__``),
 ``ahead.view`` builds the same key tree with the same JSON types -- null exactly where the fixture is null."""
 from __future__ import annotations
 

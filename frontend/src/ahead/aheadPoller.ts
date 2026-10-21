@@ -1,5 +1,5 @@
 /**
- * One Ahead poller per symbol (ADR 061), shared by every pane that shows it and counted like the Sim clock's poll
+ * One Ahead poller per symbol (ADR 065), shared by every pane that shows it and counted like the Sim clock's poll
  * (`sim/simClockResource.ts`): the first holder starts it, the last one stops it and drops the symbol's answer.
  *
  * When it asks: at once when a holder arrives; when the desk minute rolls over (the playhead's minute on a replay),

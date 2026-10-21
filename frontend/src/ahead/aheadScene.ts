@@ -1,5 +1,5 @@
 /**
- * What Ahead draws, decided in one pure step (ADR 061). Every gate and every sentence is here; the primitives only
+ * What Ahead draws, decided in one pure step (ADR 065). Every gate and every sentence is here; the primitives only
  * turn prices and candle steps into pixels.
  *
  * - Nova's lines to the meet show whenever Ahead is on and the stock read has two that qualify, in every scope and

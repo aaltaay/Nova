@@ -1,4 +1,4 @@
-/** Ahead (ADR 061): the wire from `/api/ahead/*` and the shapes the desk works out itself.
+/** Ahead (ADR 065): the wire from `/api/ahead/*` and the shapes the desk works out itself.
  *
  * Schema: architecture/schema/ahead.md. The backend (`backend/ahead/view.py`) answers `AheadAnswer` and
  * `AheadStatus`; everything below "Worked out on the desk" is computed here from that answer, the stock read the

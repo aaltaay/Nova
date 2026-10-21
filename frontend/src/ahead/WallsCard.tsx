@@ -1,4 +1,4 @@
-/** "Which wall first?" (ADR 061): of the forecaster's paths, the share whose minute close reaches the nearest wall
+/** "Which wall first?" (ADR 065): of the forecaster's paths, the share whose minute close reaches the nearest wall
  * above first, the nearest below first, or neither in 15 minutes -- Nova's arithmetic on the AI's paths, with the
  * caveat beside it. Without the AI view it shows the walls and the reason. */
 import type { ReactNode } from 'react';

@@ -1,5 +1,5 @@
 /**
- * Nova's own arithmetic for Ahead (ADR 061), no AI: the 1-minute support and resistance lines carried on from the
+ * Nova's own arithmetic for Ahead (ADR 065), no AI: the 1-minute support and resistance lines carried on from the
  * chart's newest completed candle to where they meet, and the nearest walls above and below the price. It needs no
  * forecaster, so the lines show on every desk. Pure.
  *

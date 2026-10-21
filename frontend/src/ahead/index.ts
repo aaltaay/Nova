@@ -1,4 +1,4 @@
-/** Public Ahead API (ADR 061) -- other features import Ahead only through this barrel (ADR 005). */
+/** Public Ahead API (ADR 065) -- other features import Ahead only through this barrel (ADR 005). */
 
 export { AheadChartLayer, useAheadSceneOf } from './AheadChartLayer';
 export { AheadSheet } from './AheadSheet';

@@ -1,5 +1,5 @@
 /**
- * Ahead (ADR 061): every number, colour and sentence the forecast zone uses. A forecast is never data: every word
+ * Ahead (ADR 065): every number, colour and sentence the forecast zone uses. A forecast is never data: every word
  * here that carries an AI number says it is the forecaster's view. `AHEAD_HORIZON`, `AHEAD_LEVELS` and the setup
  * families mirror `backend/constants_ahead.py`; the setup names are `backend/constants_setups.py`'s.
  */

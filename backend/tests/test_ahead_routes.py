@@ -1,4 +1,4 @@
-"""``/api/ahead/*`` (ADR 061): 422 only for a bad symbol, ``status`` is never a ticker, and a poll goes from
+"""``/api/ahead/*`` (ADR 065): 422 only for a bad symbol, ``status`` is never a ticker, and a poll goes from
 pending to ready on one running app."""
 from __future__ import annotations
 

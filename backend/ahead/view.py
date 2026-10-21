@@ -1,4 +1,4 @@
-"""The wire answers of ``/api/ahead/*`` (ADR 061, ``architecture/schema/ahead.md``). Pure composition.
+"""The wire answers of ``/api/ahead/*`` (ADR 065, ``architecture/schema/ahead.md``). Pure composition.
 
 ``answer`` is ``AheadAnswer`` and ``status`` is ``AheadStatus`` in ``frontend/src/ahead/aheadTypes.ts``; the
 fixtures in ``frontend/src/ahead/__fixtures__/`` hold one of each state and ``tests/test_ahead_wire.py`` checks this

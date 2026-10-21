@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  *
- * The Ahead panel (ADR 061): each card per state, scores never read as zero, the scope and the switch kept in prefs.
+ * The Ahead panel (ADR 065): each card per state, scores never read as zero, the scope and the switch kept in prefs.
  */
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

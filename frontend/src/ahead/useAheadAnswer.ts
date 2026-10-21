@@ -1,5 +1,5 @@
 /**
- * A pane's Ahead answer (ADR 061). While `enabled` (the switch on, a mounted 1-minute pane on the visible tab) the
+ * A pane's Ahead answer (ADR 065). While `enabled` (the switch on, a mounted 1-minute pane on the visible tab) the
  * pane holds the symbol's one shared poller (`aheadPoller.ts`); while it is off nothing is asked at all. The desk
  * clock the poller rolls its minute on is the Sim playhead on a replay desk, else the wall clock.
  */

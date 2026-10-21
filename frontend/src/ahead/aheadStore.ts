@@ -1,5 +1,5 @@
 /**
- * Ahead's per-symbol state (ADR 061): the newest answer the poller read (or why there is none) and whether the Ahead
+ * Ahead's per-symbol state (ADR 065): the newest answer the poller read (or why there is none) and whether the Ahead
  * panel is open. One store, so the chart, its heading and the panel read the same answer without asking twice.
  */
 import { useSyncExternalStore } from 'react';

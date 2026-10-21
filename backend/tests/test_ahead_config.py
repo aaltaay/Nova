@@ -1,4 +1,4 @@
-"""Ahead's gate (ADR 061): the forecaster's address must name this PC, and the token is required and never logged."""
+"""Ahead's gate (ADR 065): the forecaster's address must name this PC, and the token is required and never logged."""
 from __future__ import annotations
 
 import logging

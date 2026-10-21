@@ -1,5 +1,5 @@
 /**
- * Ahead on the 1-minute pane (ADR 061): the hatched zone right of the newest completed candle, the forecaster's fan and
+ * Ahead on the 1-minute pane (ADR 065): the hatched zone right of the newest completed candle, the forecaster's fan and
  * drawn paths, Nova's own lines carried on to where they meet, the walls' or the setup's stubs inside the zone, the odds
  * chips at its right edge, "now HH:MM" left of it and a minute label every 5 minutes along its bottom.
  *

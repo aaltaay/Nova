@@ -1,4 +1,4 @@
-/** The report card (ADR 061): how the forecaster's live and paper forecasts have done since it began scoring them --
+/** The report card (ADR 065): how the forecaster's live and paper forecasts have done since it began scoring them --
  * the forecaster scores itself once the 15 minutes a forecast covers have closed, and Sim replays never count. A score
  * not made yet reads "— not scored yet", never a zero. */
 import { AHEAD_WORDS } from './aheadConstants';

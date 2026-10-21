@@ -1,4 +1,4 @@
-/** Ahead (ADR 061): what the chart draws, decided in one pure step (`aheadScene.ts`) and drawn by the primitives.
+/** Ahead (ADR 065): what the chart draws, decided in one pure step (`aheadScene.ts`) and drawn by the primitives.
  *
  * Every gate and every word is decided when the scene is built; the primitives only turn prices and candle steps
  * into pixels. Times here are CHART seconds (Eastern wall time read as UTC, `etChartSeconds`), the same clock the

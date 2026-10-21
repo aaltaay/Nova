@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  *
- * The words over Ahead's zone (ADR 061): they follow the zone, and some always show while Ahead is on.
+ * The words over Ahead's zone (ADR 065): they follow the zone, and some always show while Ahead is on.
  */
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createRef } from 'react';

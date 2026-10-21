@@ -1,5 +1,5 @@
 /**
- * Canvas strokes for Ahead's drawing (ADR 061): the hatched "drawn, never recorded" zone, a filled band between two
+ * Canvas strokes for Ahead's drawing (ADR 065): the hatched "drawn, never recorded" zone, a filled band between two
  * price runs, a polyline, a dashed line and a chip of words. Pure pixel work in the pane's media space; every word
  * and colour arrives from the scene (`aheadScene.ts`) or `aheadConstants.ts`.
  */

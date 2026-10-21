@@ -1,5 +1,5 @@
 /**
- * Ahead on the demo desk (ADR 043, ADR 061): Nova Marketing Sample Data answers that there is no forecaster, so the
+ * Ahead on the demo desk (ADR 043, ADR 065): Nova Marketing Sample Data answers that there is no forecaster, so the
  * demo shows only Nova's own lines carried on to where they meet. It never draws a forecast built on sample data.
  */
 import { AHEAD_HORIZON, AHEAD_NEVER, AHEAD_STEP_SEC, AHEAD_WORDS } from './aheadConstants';

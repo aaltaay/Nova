@@ -1,4 +1,4 @@
-"""Ahead (ADR 061): the forecast zone on the Trader's 1-minute chart -- the private forecaster's answer, served.
+"""Ahead (ADR 065): the forecast zone on the Trader's 1-minute chart -- the private forecaster's answer, served.
 
 ``config`` reads the forecaster's loopback address and token from ``.env``. ``inputs`` takes the completed 1-minute
 bars, the desk clock and the prior close from Nova's own readers. ``client`` is the only HTTP caller (contract

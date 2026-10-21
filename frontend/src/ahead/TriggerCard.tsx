@@ -1,4 +1,4 @@
-/** "If the flat top triggers" (ADR 061): of the forecaster's paths that reach the setup's buy-stop, which comes first,
+/** "If the flat top triggers" (ADR 065): of the forecaster's paths that reach the setup's buy-stop, which comes first,
  * target or stop -- closes only, filled at the trigger. The setup's levels are Nova's own; a forming setup's may still
  * move and says so. Without a lane, levels or the AI view, it says why in words. */
 import { AHEAD_COLORS, AHEAD_FAMILY_WORD, AHEAD_WORDS, type AheadFamily } from './aheadConstants';

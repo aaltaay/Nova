@@ -1,5 +1,5 @@
 /**
- * The MACD fan (ADR 061): Nova's own MACD (12, 26, 9 on closes, `computeMacdPane`) run over the real closes and then
+ * The MACD fan (ADR 065): Nova's own MACD (12, 26, 9 on closes, `computeMacdPane`) run over the real closes and then
  * on along each of the forecaster's paths, read as quantiles per minute. The MACD itself is never forecast.
  *
  * The real history is read once: the three EMAs' states at the newest completed candle. Each path then extends them

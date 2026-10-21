@@ -93,7 +93,7 @@ function sharedRoutes(nowS: number): [RegExp, Handler][] {
     [/^\/api\/afterhours$/, () => envelope(nowS, { afterhours: [] })],
     [/^\/api\/large-cap$/, () => envelope(nowS, { large_cap: [] })],
     [/^\/api\/volume-profile\/([^/]+)$/, (m, q) => sampleProfile(sym(m), q.get('kind'), q.get('anchor'))],
-    // Ahead (ADR 061): the demo has no forecaster, and says so; it never draws a forecast on sample data.
+    // Ahead (ADR 065): the demo has no forecaster, and says so; it never draws a forecast on sample data.
     [/^\/api\/ahead\/forecast\/([^/]+)$/, (m) => sampleAhead(sym(m), nowS)],
     [/^\/api\/ahead\/status$/, () => sampleAheadStatus()],
     [/^\/api\/news-catalysts$/, () => envelope(nowS, { catalysts: CATALYSTS, last_scan: nowS - 30 })],

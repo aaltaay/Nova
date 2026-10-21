@@ -1,5 +1,5 @@
 /**
- * The forecaster's status for the Ahead panel (ADR 061): its exam and its report card, read from
+ * The forecaster's status for the Ahead panel (ADR 065): its exam and its report card, read from
  * `GET /api/ahead/status` at once and every `AHEAD_STATUS_POLL_MS` while `enabled` (the panel is open). `status` is
  * null until the first good answer and whenever the status cannot be read; then `problem` says why, and the panel
  * shows it (both null: the first read is still on its way).

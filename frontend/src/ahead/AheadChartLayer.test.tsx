@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  *
- * Ahead on a Trader chart pane (ADR 061): asks nothing while off, draws on the 1-minute pane only, hangs the zone on
+ * Ahead on a Trader chart pane (ADR 065): asks nothing while off, draws on the 1-minute pane only, hangs the zone on
  * the chart's newest completed candle, widens the room once, and publishes its scene for the panel.
  */
 import { act, cleanup, render, screen } from '@testing-library/react';

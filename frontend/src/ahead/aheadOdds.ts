@@ -1,5 +1,5 @@
 /**
- * Odds Nova works out from the forecaster's paths (ADR 061). Pure. The paths are the forecaster's minute ranges
+ * Odds Nova works out from the forecaster's paths (ADR 065). Pure. The paths are the forecaster's minute ranges
  * joined into whole paths by an assumed path shape (`ai.paths.joined_by`), and every count here reads minute CLOSES
  * only (a wick that touches is not seen), so the odds carry both assumptions and the desk says so beside them.
  *

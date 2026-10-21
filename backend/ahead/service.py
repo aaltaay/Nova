@@ -1,4 +1,4 @@
-"""What ``GET /api/ahead/forecast/{symbol}`` and ``/api/ahead/status`` answer (ADR 061). The route never waits on the
+"""What ``GET /api/ahead/forecast/{symbol}`` and ``/api/ahead/status`` answer (ADR 065). The route never waits on the
 forecaster: it answers ``pending`` while an ask runs on the forecaster's own threads, and the next poll reads it.
 
 The gates, in order, each answering its own state with no forecast numbers:

@@ -1,5 +1,5 @@
 /**
- * Ahead's switch, scope and "Show before it has earned it" (ADR 061): one choice per viewer for every Trader tab and
+ * Ahead's switch, scope and "Show before it has earned it" (ADR 065): one choice per viewer for every Trader tab and
  * window, kept between restarts in `nova.ahead.prefs` (a versioned envelope), off / All / off until the operator
  * changes it. Another window's change arrives through the `storage` event. While `shown` is off the desk asks nothing.
  */

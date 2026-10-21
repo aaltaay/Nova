@@ -1,4 +1,4 @@
-"""The gate: the forecaster's loopback address and token from ``.env`` (ADR 061).
+"""The gate: the forecaster's loopback address and token from ``.env`` (ADR 065).
 
 Read on every call, so a test (or an operator editing ``.env`` before a restart) is never served a stale value.
 Unset is the default: Ahead answers ``not_set_up`` and no request leaves Nova. The token is a secret: it is never

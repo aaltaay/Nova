@@ -1,4 +1,4 @@
-/* Ahead (ADR 061): the colour tokens, the toolbar switch, the words over the zone and the legend strip; the panel's own
+/* Ahead (ADR 065): the colour tokens, the toolbar switch, the words over the zone and the legend strip; the panel's own
    rules are aheadSheet.css. The canvas colours are aheadConstants.ts'; these match them. */
 .ahead-toggle,
 .ahead-heading,

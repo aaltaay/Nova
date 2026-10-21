@@ -1,4 +1,4 @@
-/* Ahead (ADR 061): the Ahead panel and its cards. It slides over the charts like the read sheet; its colour tokens
+/* Ahead (ADR 065): the Ahead panel and its cards. It slides over the charts like the read sheet; its colour tokens
    are set on `.ahead-sheet` in ahead.css, which every Ahead component also imports. */
 
 .ahead-sheet {

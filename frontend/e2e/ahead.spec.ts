@@ -11,7 +11,7 @@ import { AHEAD_WORDS } from '../src/ahead/aheadConstants';
 import { apusReadWire } from '../src/stock_read/stockReadFixtures';
 
 /**
- * Ahead (ADR 061) on the live Trader route with a mocked API: APUS's 1-minute candles to 15:02 ET on 2026-09-24 and
+ * Ahead (ADR 065) on the live Trader route with a mocked API: APUS's 1-minute candles to 15:02 ET on 2026-09-24 and
  * made-up forecaster answers (Nova Marketing Sample Data; the numbers mean nothing). The switch is off by default; on,
  * the zone's words say why the AI view is hidden until "Show before it has earned it" is on, the panel's scopes
  * work, and a desk with no forecaster still carries Nova's own lines on to where they meet. `NOVA_E2E_SHOTS=<dir>` saves

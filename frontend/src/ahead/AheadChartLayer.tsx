@@ -1,5 +1,5 @@
 /**
- * Ahead on a Trader chart pane (ADR 061): drawn on the 1-minute pane only, while the toolbar's Ahead switch is on.
+ * Ahead on a Trader chart pane (ADR 065): drawn on the 1-minute pane only, while the toolbar's Ahead switch is on.
  *
  * The layer gathers what the scene needs -- the switch and scope, the backend's answer (`useAheadAnswer`, asked
  * only while on), the stock read the page already holds (Nova's lines, zones and setup lanes), the chart's own

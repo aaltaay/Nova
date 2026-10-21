@@ -1,4 +1,4 @@
-"""Ahead (ADR 061): the forecast zone on the Trader's 1-minute chart.
+"""Ahead (ADR 065): the forecast zone on the Trader's 1-minute chart.
 
 Owner: ``backend/ahead/``. Schema: ``architecture/schema/ahead.md``. Mirrors: ``frontend/src/ahead/aheadConstants.ts``
 (``AHEAD_HORIZON_MIN``, ``AHEAD_LEVELS``, the states and ``AHEAD_NEVER``): the desk draws what the backend answers.

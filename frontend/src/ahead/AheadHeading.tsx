@@ -1,5 +1,5 @@
 /**
- * The words over Ahead's zone (ADR 061): "AHEAD · next 15 min", the "AI view, not data" tag and the exam tag, the
+ * The words over Ahead's zone (ADR 065): "AHEAD · next 15 min", the "AI view, not data" tag and the exam tag, the
  * state sentences, a ▸ that opens the Ahead panel, and the legend strip at the pane's bottom left. The primitive
  * reports where the zone is (`place`), and this moves the DOM itself so a scroll never renders React per frame.
  * While the zone is not on screen, or too narrow for the heading, the main sentence sits at the pane's top right

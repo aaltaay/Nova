@@ -1,4 +1,4 @@
-# ADR 061 -- Ahead: the forecast zone on the 1-minute chart
+# ADR 065 -- Ahead: the forecast zone on the 1-minute chart
 
 **Status:** Accepted · **Date:** 2026-10-20
 **Builds on:** [[036-the-bots-read-on-one-stock]] (Nova's trend lines, level zones and setup lanes) ·

@@ -1,5 +1,5 @@
 /**
- * Ahead's MACD fan (ADR 061) on the MACD pane under the 1-minute chart: the hatched zone, two bands (10-90 and 25-75)
+ * Ahead's MACD fan (ADR 065) on the MACD pane under the 1-minute chart: the hatched zone, two bands (10-90 and 25-75)
  * of the MACD line worked out from the forecaster's paths, starting at the last real MACD point, and the caption
  * that says so. The MACD is never forecast directly; `macdFromPaths.ts` runs Nova's own MACD over the real closes and
  * each path. The pane's logical range follows the price chart's, so step `k` sits at the same bar position there.

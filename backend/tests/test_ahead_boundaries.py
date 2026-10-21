@@ -1,4 +1,4 @@
-"""Ahead's import boundaries (ADR 061): a chart study the money path never reads, and that reads only its own
+"""Ahead's import boundaries (ADR 065): a chart study the money path never reads, and that reads only its own
 inputs' owners -- never the stock read, a broker, an order or a bot."""
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-/** "Nova's lines" (ADR 061): Nova's own 1-minute support and resistance carried on from the newest candle to where
+/** "Nova's lines" (ADR 065): Nova's own 1-minute support and resistance carried on from the newest candle to where
  * they meet -- arithmetic on Nova's trend lines, no AI, shown on any desk, forecaster or not. Slopes are rounded, so
  * every meet is "≈". */
 import { AHEAD_COLORS, AHEAD_WORDS } from './aheadConstants';

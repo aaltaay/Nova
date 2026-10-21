@@ -218,7 +218,7 @@ function OscillatorPane({
     }
   }, [bars, barsRevision, kind, seriesGen, parentChart]);
 
-  // Tell the price chart this pane is here (Ahead's MACD fan draws on it, ADR 061); keyed on the series
+  // Tell the price chart this pane is here (Ahead's MACD fan draws on it, ADR 065); keyed on the series
   // generation so a rebuilt pane is announced again, and taken back when it goes.
   useEffect(() => {
     const child = chartRef.current;
