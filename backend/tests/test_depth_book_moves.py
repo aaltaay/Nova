@@ -87,6 +87,11 @@ def test_of_a_venues_two_rows_the_one_ibkr_wrote_last_is_shown():
     assert rows_of(down.shown()[0]) == [(220.07, 160, "NSDQ"), (220.06, 100, "ARCA")]
     down.apply([tick(UPDATE, 0, 220.08, 100, "IEX")])
     assert rows_of(down.shown()[0]) == [(220.08, 100, "IEX"), (220.07, 160, "NSDQ"), (220.06, 100, "ARCA")]
+    # One read can hold a size update and the start of a move: the row written later in it still wins.
+    same_read = DepthBook(10)
+    same_read.apply([tick(UPDATE, 0, 220.07, 260), tick(UPDATE, 1, 220.06, 100, "ARCA")])
+    same_read.apply([tick(UPDATE, 0, 220.07, 200), tick(UPDATE, 2, 220.06, 100, "ARCA"), tick(UPDATE, 1, 220.07, 160)])
+    assert rows_of(same_read.shown()[0]) == [(220.07, 160, "NSDQ"), (220.06, 100, "ARCA")]
 
 
 def test_two_venues_with_one_size_at_a_price_both_show_and_unnamed_rows_are_kept():
@@ -95,5 +100,5 @@ def test_two_venues_with_one_size_at_a_price_both_show_and_unnamed_rows_are_kept
     assert one_row_per_venue(rows) == rows
     unnamed = [Level(1.0, 100, ""), Level(1.0, 100, "")]
     assert one_row_per_venue(unnamed) == unnamed
-    # The read number is bookkeeping, never part of a row's value.
+    # When a row was written is bookkeeping, never part of its value.
     assert Level(1.0, 100, "IEX", 3) == Level(1.0, 100, "IEX", 7)

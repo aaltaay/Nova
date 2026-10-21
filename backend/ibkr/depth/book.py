@@ -34,8 +34,8 @@ class Level:
     price: float
     size: float
     mm: str = ""
-    # The ``DepthBook.apply`` call that last wrote the row: which of a venue's two rows is current.
-    read: int = field(default=0, compare=False)
+    # When IBKR wrote the row (the book's count of row writes): of a venue's two rows, the later is current.
+    written: int = field(default=0, compare=False)
 
 
 @dataclass
@@ -45,7 +45,7 @@ class DepthBook:
     max_rows: int
     bids: list[Level] = field(default_factory=list)
     asks: list[Level] = field(default_factory=list)
-    reads: int = 0
+    writes: int = 0
 
     def reset(self) -> None:
         """A new subscription or an IBKR depth reset (error 317): IBKR resends the book."""
@@ -53,7 +53,6 @@ class DepthBook:
         self.asks.clear()
 
     def apply(self, ticks: Iterable[Any]) -> None:
-        self.reads += 1
         for tick in ticks:
             self._apply_one(tick)
 
@@ -67,7 +66,8 @@ class DepthBook:
             if position < len(rows):
                 del rows[position]
             return
-        level = Level(float(tick.price), float(tick.size), str(getattr(tick, "marketMaker", "") or ""), self.reads)
+        self.writes += 1  # per row operation: one read can hold a size update and the start of a move
+        level = Level(float(tick.price), float(tick.size), str(getattr(tick, "marketMaker", "") or ""), self.writes)
         if operation == INSERT:
             rows.insert(min(position, len(rows)), level)
             del rows[self.max_rows:]  # the row pushed past the book's depth falls off
@@ -109,7 +109,7 @@ def one_row_per_venue(rows: list[Level]) -> list[Level]:
         if at is None:
             seen[key] = len(out)
             out.append(level)
-        elif level.read > out[at].read:
+        elif level.written > out[at].written:
             out[at] = level
     return out
 
