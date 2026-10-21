@@ -138,7 +138,8 @@ How the backend asks (`backend/ahead/service.py`):
   and the bars are the replay's own (`stock_read.replay_read.bars`); otherwise the wall clock and the chart store's
   1-minute bars (`sensors.feeds.get_bars`), keeping only bars with `t + 60 <= now`. Then today's session only
   (`stock_read.indicators.session_of`). Ahead never opens an IBKR line and never asks IBKR for history.
-- A success is kept per `(symbol, as_of, venue, number of bars, last close, last volume)`, up to 64; that minute is
+- A success is kept per `(symbol, as_of, venue, digest of the whole request)`, up to 64. Every candle, the prior close
+  and the venue count, so a corrected candle or a prior close that arrives later is asked again; the same request is
   never asked twice. A failure (`offline`, `warming`, `error`) is kept only 5 s, then asked again.
 - One ask in flight per symbol; the newest minute wins and nothing is queued. The forecaster is asked on Ahead's own
   two-thread pool, never the pool that reads the bars.

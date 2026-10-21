@@ -11,8 +11,8 @@ The gates, in order, each answering its own state with no forecast numbers:
 6. ``AHEAD_BREAKER_FAILS`` asks in a row with no answer -> ``offline`` until ``retry_at`` (wall clock: the breaker
    counts real seconds, so on a paused or scrubbed replay the playhead never says when it reopens).
 
-Then the memory: a forecast is kept per ``(symbol, as_of, venue, candles, last close, last volume)`` (so another feed's
-minute is another ask), a failure (offline, warming, error) only ``AHEAD_NEGATIVE_TTL_SEC`` before it is asked again.
+Then the memory: a forecast is kept per ``(symbol, as_of, venue, digest of the whole request)`` -- every candle, the
+prior close and the venue -- so a corrected candle or a prior close that arrives later is another ask; a failure (offline, warming, error) only ``AHEAD_NEGATIVE_TTL_SEC`` before it is asked again.
 One ask per symbol at a time; a newer minute waits for the next poll (nothing is queued), and the ask's done-callback
 always clears it, even when the ask raised. ``generated_at`` (the desk clock) is never before ``as_of``.
 """
@@ -20,6 +20,8 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import hashlib
+import json
 import logging
 import math
 import time
@@ -56,7 +58,7 @@ from constants_ahead import (
 
 logger = logging.getLogger(__name__)
 
-Key = tuple[str, float, str, int, float, float]   # (symbol, as_of, venue, candles, last close, last volume)
+Key = tuple[str, float, str, str]   # (symbol, as_of, venue, sha256 of the request the forecaster would get)
 Result = dict[str, Any] | ForecasterError
 
 _cache: OrderedDict[Key, tuple[float, Result]] = OrderedDict()    # key -> (monotonic when stored, result)
@@ -118,6 +120,8 @@ async def _health_now() -> tuple[Result, bool]:
         value = await client.run_ask(client.health)
     except ForecasterError as exc:
         value = exc
+    else:
+        _breaker_count(False)   # any health answer (ready, warming or error), from an ask or a status read, ends a run
     _health = (time.monotonic(), value)
     return value, True
 
@@ -180,6 +184,11 @@ def _done(sym: str, key: Key, task: asyncio.Task) -> None:
     if exc is not None:
         logger.error("ahead: asking the forecaster for %s failed", sym, exc_info=exc)
         _store(key, ForecasterError(AHEAD_ERROR, AHEAD_WORDS_ASK_FAILED))
+
+
+def _digest(body: dict[str, Any]) -> str:
+    """Everything the forecaster would be sent, as one key part: two minutes are the same ask only if they match."""
+    return hashlib.sha256(json.dumps(body, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
 def _asking(sym: str) -> bool:
@@ -246,14 +255,15 @@ async def ahead(sym: str) -> dict[str, Any]:
         return reply(view.ai_block(
             AHEAD_OFFLINE, retry_at=time.time() + left, health=health,
             reason=f"missed {AHEAD_BREAKER_FAILS} answers in a row; asks again in {math.ceil(left)} s"))
-    key: Key = (sym, as_of, desk_venue, len(bars), bars[-1]["c"], bars[-1]["v"])
+    body = inputs.request_body(sym, bars, as_of, prior, desk_venue)
+    key: Key = (sym, as_of, desk_venue, _digest(body))
     hit = _cached(key)
     if isinstance(hit, ForecasterError):
         return reply(_from_failure(hit, len(bars), health))
     if hit is not None:
         return reply(view.ai_block(AHEAD_READY, health=health, forecast=hit, issued_at=hit["issued_at"]))
     if not _asking(sym):
-        _start(sym, key, inputs.request_body(sym, bars, as_of, prior, desk_venue), now)
+        _start(sym, key, body, now)
     return reply(view.ai_block(AHEAD_PENDING, reason=AHEAD_WORDS_PENDING, retry_ms=AHEAD_PENDING_RETRY_MS,
                                health=health))
 
