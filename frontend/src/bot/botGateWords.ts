@@ -145,7 +145,7 @@ function capWords(ok: boolean, d: Record<string, unknown>): Words {
 
 /**
  * The daily loss limit's No new buys (ADR 056, Settings > Loss limits): the backend's own words when it holds
- * this venue, else when it lifts.
+ * this venue, else when it lifts. `line` says which line holds the bots: the account's or the bots' own (ADR 063).
  */
 function lossLimitWords(ok: boolean, d: Record<string, unknown>, ctx: GateContext): Words {
   if (ok) return { text: 'Under the daily loss limit', why: null };
@@ -155,7 +155,8 @@ function lossLimitWords(ok: boolean, d: Record<string, unknown>, ctx: GateContex
   const at = etTime(d.tripped_at as string | number | null);
   const fallback = `The daily loss limit was reached on ${venue}${at ? ` at ${at}` : ''}: no new buys`
     + `${until ? ` until ${until}` : ' until 04:00 ET'}. Raise it or uncheck No new buys in Settings > Loss limits to buy again.`;
-  return { text: `Loss limit reached on ${venue}${until ? ` · no new buys until ${until}` : ''}`, why: own ?? fallback };
+  const lead = d.line === 'bots' ? "Bots' loss limit reached" : 'Loss limit reached';
+  return { text: `${lead} on ${venue}${until ? ` · no new buys until ${until}` : ''}`, why: own ?? fallback };
 }
 
 function wordsFor(g: BotGate, ctx: GateContext): Words {

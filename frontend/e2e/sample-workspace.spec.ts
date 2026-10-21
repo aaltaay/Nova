@@ -49,7 +49,14 @@ test.describe('Sample desk workspace', () => {
     await expect(market).toBeVisible();
     await expect(market).not.toContainText('not available');
 
-    // The Global page (ADR 060), first on the rail, opens on the sample desk too.
+    // The Forex page (ADR 062), first on the rail, opens on the sample desk with the whole market's size.
+    await page.getByTestId('nav-rail-forex').click();
+    const forex = page.getByTestId('forex-page');
+    await expect(forex).toBeVisible();
+    await expect(forex).toContainText('$9.51T');
+    await expect(page.getByTestId('forex-row-EUR')).toBeVisible();
+
+    // The Global page (ADR 060), under Forex on the rail, opens on the sample desk too.
     await page.getByTestId('nav-rail-global').click();
     const global = page.getByTestId('global-page');
     await expect(global).toBeVisible();

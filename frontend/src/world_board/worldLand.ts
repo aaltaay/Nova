@@ -1,7 +1,9 @@
 /**
- * The Global page's world map (ADR 060), drawn once by scripts/build-world-land.mjs -- do not edit by hand.
+ * The world boards' map (the Global and Forex pages, ADR 060, 062), drawn once by scripts/build-world-land.mjs --
+ * do not edit by hand.
  * Natural Earth 1:110m land (public domain) through world-atlas 2.0.2, Antarctica left out, in d3's Natural Earth
- * projection fitted to WORLD_VIEW; project.ts places each market with WORLD_PROJECTION.
+ * projection fitted to WORLD_VIEW; project.ts places each market or currency with
+ * WORLD_PROJECTION.
  */
 export const WORLD_VIEW = { width: 1000, height: 460 } as const;
 export const WORLD_PROJECTION = { scale: 182.792849, tx: 500.000000, ty: 267.070460 } as const;

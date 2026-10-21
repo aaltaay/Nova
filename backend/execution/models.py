@@ -23,6 +23,8 @@ Origin = Literal[
     "bot_trip",
     "all_stop",
     "loss_limit",
+    "loss_limit_you",
+    "loss_limit_bots",
     "bot",
     "auto_entry",
     "approve",
@@ -81,7 +83,7 @@ class ExecutionCommand:
     expected_venue: str | None = None
     # The venue to send to instead of the desk's: the kill switch's sweep (spec D, #656) and Nova's
     # own closes -- the day cover and the margin call (ADR 048), the Live Trader bot's (ADR 055) and
-    # the daily loss limit's Auto sell (ADR 056) -- only: a ``kill`` cancel, or a ``cancel_working``
+    # the daily loss limit's Auto sell on any of its lines (ADR 056, ADR 061) -- only: a ``kill`` cancel, or a ``cancel_working``
     # cancel or a protective ``flatten`` place with one of those origins; Live only while IBKR is
     # connected (``execution.venue_door.resolve``).
     target_venue: str | None = None

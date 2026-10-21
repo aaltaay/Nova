@@ -8,6 +8,15 @@
   the execution door trades nothing else. An execution whose commission report has not arrived
   is a cost IBKR has not said yet (``Fill.cost`` None). IBKR not READY is an unknown.
 
+**Whose fill (ADR 061)** -- ``Fill.by``, from the order's own stamps, never from its side, size or
+time: a practice order is the bots' when its source is ``bot`` or it carries a ``bot_id`` (the rule
+the Account page's by-source split uses, ``practice.history``), or when it is a bot's own close --
+those go out as source ``flatten`` with the bot's origin (``bot``, ``bot_api``, ``live_trader``). A
+side line's Auto sell is that side's (``loss_limit_you`` / ``loss_limit_bots``). Nova's own closes --
+KILL, the day cover, a margin call, the Account line's Auto sell, a flatten with no origin -- are
+None: whose shares they close decides (``loss_limit.count``). Everything else is yours. Every Live
+fill is yours: a bot never trades Live (Invariant #7).
+
 Every read answers ``(count, unknown)``; ``unknown`` says why there is nothing to compare.
 Blocking: the watcher calls ``read`` off the event loop.
 """
@@ -17,6 +26,12 @@ import logging
 import math
 from typing import Any
 
+from constants_loss_limit import (
+    LOSS_LIMIT_BOT_CLOSE_ORIGINS,
+    LOSS_LIMIT_LINE_BOTS,
+    LOSS_LIMIT_LINE_YOU,
+    LOSS_LIMIT_SIDE_ORIGINS,
+)
 from loss_limit.count import Count, Fill, Held, count
 
 logger = logging.getLogger(__name__)
@@ -31,6 +46,25 @@ def _num(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return out if math.isfinite(out) and abs(out) < _UNSET else None
+
+
+_SIDE_OF_ORIGIN = {origin: side for side, origin in LOSS_LIMIT_SIDE_ORIGINS.items()}
+_NOVA_SOURCES = frozenset({"flatten", "kill", "cancel_working"})
+
+
+def by_of(row: dict[str, Any]) -> str | None:
+    """Whose order a practice ledger row is: ``you`` | ``bots`` | None (one of Nova's own closes)."""
+    source = str(row.get("order_source") or "")
+    origin = row.get("order_origin")
+    if source == "bot" or row.get("bot_id") is not None or origin in LOSS_LIMIT_BOT_CLOSE_ORIGINS:
+        return LOSS_LIMIT_LINE_BOTS
+    if origin in _SIDE_OF_ORIGIN:
+        return _SIDE_OF_ORIGIN[origin]
+    if origin == "ticket_flatten":
+        return LOSS_LIMIT_LINE_YOU          # your own Flatten
+    if source in _NOVA_SOURCES:
+        return None
+    return LOSS_LIMIT_LINE_YOU
 
 
 def counted(account: str) -> tuple[bool, str | None]:
@@ -66,7 +100,7 @@ def _practice(account: str) -> Count:
             continue
         side = str(row.get("side") or "").upper()
         fills.append(Fill(symbol=str(row["symbol"]), shares=qty if side == "BUY" else -qty, price=price,
-                          cost=Fees.from_dict(row.get("fees")).total))
+                          cost=Fees.from_dict(row.get("fees")).total, by=by_of(row), ts=ts))
     held = {str(r["symbol"]).upper(): Held(shares=float(r["qty"]), mark=_num(r.get("market_price")))
             for r in broker.positions()}
     return count(fills, held)
@@ -95,8 +129,9 @@ def _live_snapshot(account_id: str, start: float) -> tuple[list[Fill], dict[str,
         side = str(getattr(execution, "side", "") or "").upper()
         report = getattr(fill, "commissionReport", None)
         cost = _num(getattr(report, "commission", None)) if getattr(report, "execId", "") else None
+        # Yours: a bot never trades Live (Invariant #7).
         fills.append(Fill(symbol=str(contract.symbol), shares=shares if side in ("BOT", "BUY") else -shares,
-                          price=price, cost=cost))
+                          price=price, cost=cost, by=LOSS_LIMIT_LINE_YOU, ts=when.timestamp()))
     held: dict[str, Held] = {}
     for item in list(ib.portfolio(account_id) or []):
         if getattr(item.contract, "secType", "STK") != "STK":

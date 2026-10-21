@@ -1,6 +1,6 @@
 /**
- * The size of the box a Global page panel gets (ADR 060 amendment: the page fills the window and never scrolls), so
- * the map and the two charts draw at the size there is. Without ResizeObserver (tests) the fallback stands.
+ * The size of the box a world board panel gets (the Global and Forex pages fill the window and never scroll, ADR 060
+ * amendment, ADR 062), so the maps and the charts draw at the size there is. Without ResizeObserver (tests) the fallback stands.
  */
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
 

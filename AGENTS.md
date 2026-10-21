@@ -130,17 +130,18 @@ Every confirmed wire and persisted shape lives in `architecture/schema/`, one fi
 | `architecture/schema/book-watch-and-luld.md` | The operator's focus and the book watcher (ADR 033); LULD bands on Level 2 (ADR 047); The LULD band on the 1-minute chart (ADR 047) |
 | `architecture/schema/screen-and-clips.md` | The trading screen is always recorded (ADR 035); The desk draws with the graphics card (#707); Share clips (ADR 039) |
 | `architecture/schema/bot.md` | Bot playbook and the read-out gate (ADR 027); The Live Trader bot: a TraderTV host copied on Paper (ADR 055); One Bots page (ADR 044); The bot trades a Sim replay (ADR 052, #814); Fills on the bot audit stream |
-| `architecture/schema/execution.md` | Who may arm the desk (ADR 018); Account identity on `/api/ibkr/status`; Orders refuse a stale view; the market path stays real time (ADR 045); Execution command (ADR 007); Execution venue provenance (#713); Live order state: orderRef, whyHeld, reconnects, IBKR's own events; The exit-only pair and two halves (#681) |
+| `architecture/schema/execution.md` | Who may arm the desk (ADR 018); Account identity on `/api/ibkr/status`; Orders refuse a stale view; the market path stays real time (ADR 045); Execution command (ADR 007); Your own order size limit on Paper and Sim (ADR 064); Execution venue provenance (#713); Live order state: orderRef, whyHeld, reconnects, IBKR's own events; The exit-only pair and two halves (#681) |
 | `architecture/schema/market-data.md` | Prints that set a price; The tape archive never stops writing; When IBKR data stops arriving (#672, #673); A Level 1 line IBKR refused; Lines IBKR answers after Nova cancelled them; When one tape line goes silent (#722); The trading session ends at 20:00 ET; Chart bars say when IBKR history stopped answering (ADR 012, #555); Earnings and splits on the daily charts; The forming candle's volume |
 | `architecture/schema/cryptos.md` | The Cryptos page (ADR 040) |
 | `architecture/schema/followed-traders.md` | Followed traders: another feed's positions, priced with IBKR |
 | `architecture/schema/market-board.md` | The Market page (ADR 053) |
 | `architecture/schema/global-board.md` | The Global page (ADR 060) |
+| `architecture/schema/forex-board.md` | The Forex page (ADR 062) |
 | `architecture/schema/volume-profile.md` | Volume profile on the 5-minute chart (ADR 058) |
 | `architecture/schema/heat-map.md` | The heat map on the Trader (ADR 061) |
 | `architecture/schema/ahead.md` | Ahead: the forecast zone on the 1-minute chart (ADR 065) |
 | `architecture/schema/short-selling.md` | Short selling (ADR 048, #778); The short setups on the scanner (ADR 049); The bot trades both sides (ADR 049); Operator trading judgment and Live's day cover (ADR 048, #791) |
-| `architecture/schema/loss-limit.md` | One daily loss limit (ADR 056) |
+| `architecture/schema/loss-limit.md` | One daily loss limit (ADR 056); Three lines (ADR 063) |
 
 ### CI scope output
 

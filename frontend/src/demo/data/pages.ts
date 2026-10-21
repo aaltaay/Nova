@@ -93,19 +93,24 @@ const caps = (venue: string) => ({
   entries_per_day: 3, api_kinds: [], allowlist: [],
 });
 
-/** The daily loss limit's defaults (ADR 056): $2,000, Warn me and No new buys on, Auto sell off. */
+/** The daily loss limit's defaults (ADR 056, ADR 061): $2,000, no You or Bots line, Warn me and No new buys on, Auto sell off. */
 const LOSS_LIMIT_USD = 2000;
 
 /** `GET /api/loss-limit` on the sample morning: the defaults, and neither account near the limit. */
 export function lossLimitView(nowS: number) {
+  const line = (on: boolean, pnl: number) => ({
+    on, pnl, loss: Math.max(0, -pnl), warned_at: null, warned_loss: null, tripped_at: null, tripped_loss: null,
+    limit_usd: null, sell: null, sold: null, sell_error: null, no_new_buys: null,
+  });
   const account = (name: string, pnl: number) => ({
     name, counted_at: nowS - 1, pnl, loss: Math.max(0, -pnl), unknown: null, stocks: [], held_before: [],
-    costs_unknown: 0, warned_at: null, warned_loss: null, tripped_at: null, tripped_loss: null, limit_usd: null,
-    sold: null, sell_error: null, no_new_buys: null,
+    costs_unknown: 0, lines: { account: line(true, pnl), you: line(false, pnl), bots: line(false, 0) },
+    no_new_buys: { you: null, bots: null },
   });
   return {
-    schema_version: 1,
-    settings: { limit_usd: LOSS_LIMIT_USD, warn: true, no_new_buys: true, auto_sell: false, set_at: null, source: 'default', error: null },
+    schema_version: 2,
+    settings: { limit_usd: LOSS_LIMIT_USD, you_usd: null, bots_usd: null, warn: true, no_new_buys: true,
+      auto_sell: false, set_at: null, source: 'default', error: null },
     day: DAY, until: nowS + 3600 * 12, error: null,
     accounts: { paper: account('Paper', 450.35), sim: account('Sim', 0) },
     rules: { min_usd: 10, max_usd: 1_000_000, warn_fraction: 0.8, confirm_sec: 10 },
@@ -359,5 +364,15 @@ export function stockModes(venue: string) {
       view('RUNR', 'bot', 'nova', 'nova', null),
       view('GAPX', 'signal', 'you', 'nova', { ts: at(9, 37, 20), tone: 'info', text: 'Nova holds the exit: stop 1.82' }),
     ],
+  };
+}
+
+/** `GET /api/order-size-limit` (ADR 064) as it ships: every box empty, no limit on Paper or Sim. */
+export function orderSizeLimitView() {
+  const off = { max_shares: null, max_risk_usd: null };
+  return {
+    schema_version: 1,
+    settings: { venues: { paper: off, sim: off }, set_at: null, source: 'default', error: null },
+    rules: { venues: ['paper', 'sim'], min_shares: 1, max_shares: 1_000_000, min_risk_usd: 1, max_risk_usd: 1_000_000 },
   };
 }

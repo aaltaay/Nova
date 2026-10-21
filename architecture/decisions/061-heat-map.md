@@ -41,8 +41,8 @@ the PC with the order path: ADR 045 locks orders when the view lags.
    (blue few, yellow to red many), green and red sphere dots, a thin line through the middle of the bid and ask, the
    book now as numbers on the right, volume bars underneath, dotted time lines.
 5. **Trades are bursts, not clock slices.** A burst of buying (prints at the ask) lasts until a seller hits the bid,
-   the tape pauses over a second, or the price moves more than two ticks; selling likewise; in-between prints burst
-   apart and draw fainter. One dot per burst, area = shares. Bursts under the chosen size (500 / 1k / 2k / 5k, 1k by
+   the tape pauses over a second, or the price moves more than two ticks; selling likewise; in-between prints form
+   bursts of their own by the same rules (never mixed into buying or selling) and draw fainter. One dot per burst, area = shares. Bursts under the chosen size (500 / 1k / 2k / 5k, 1k by
    default) get no dot and still count in the volume bars.
 6. **No candle time frame.** The trader picks how much time fits across the screen: 1, 5, 15 or 30 minutes (5 by
    default) or the mouse wheel between 30 seconds and 30 minutes. Each column is the time-weighted average of the books
@@ -51,8 +51,10 @@ the PC with the order path: ADR 045 locks orders when the view lags.
    window is visible and the heat map is shown; the book grid fills one ImageData at 2 CSS px per time column. A full
    redraw measured 4-8 ms on GLND's busiest 5 minutes (headless Chromium, software rendering).
 8. **Market time.** Prints carry their own time (a Sim replay's, or Nova's receipt live); books are stamped with the
-   browser clock plus the newest print's offset, so books and prints share the replay's clock on a Sim desk. A print
-   far behind the newest, or the tape's `scrub_reset`, starts the stock over.
+   browser clock plus the newest print's offset, so books and prints share the replay's clock on a Sim desk. On a
+   replay's clock the line's beats (browser time) never stretch the last book -- a paused replay stands still -- and
+   books stamped across a pause move back onto the replay's clock with the next print. A print far behind the newest,
+   or the tape's `scrub_reset`, starts the stock over.
 
 ## Consequences
 

@@ -173,7 +173,8 @@ Advice UI). Do not add a Finnhub, RSS, or other news key for this sensor.
 
 Daily loss limit remaining; whether daily loss limit is hit; cooldown
 after consecutive losses; current streak of losses/wins. Also echoes the
-daily loss limit's No new buys on the desk's venue (`loss_limit_no_new_buys`, null while buys are open).
+daily loss limit's No new buys on your buys on the desk's venue -- the Account line's or your trades' line's,
+ADR 063 (`loss_limit_no_new_buys`, null while your buys are open).
 
 `GET /sensors/risk` (optional `?symbol=`)
 

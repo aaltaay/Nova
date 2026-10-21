@@ -28,8 +28,9 @@ from execution.models import ExecutionCommand
 
 TARGET_REFUSED = "TARGET_VENUE_REFUSED"
 # ADR 048: the closes Nova makes on a venue whatever the desk shows; ADR 055: the Live Trader bot's, on Paper;
-# ADR 056: the daily loss limit's Auto sell, on the account that reached it.
-NOVA_CLOSE_ORIGINS = ("day_cover", "margin_call", "live_trader", "loss_limit")
+# ADR 056 / 061: the daily loss limit's Auto sell, any line's, on the account that reached it.
+NOVA_CLOSE_ORIGINS = ("day_cover", "margin_call", "live_trader", "loss_limit", "loss_limit_you", "loss_limit_bots")
+_LIVE_LOSS_LIMIT = ("loss_limit", "loss_limit_you")   # the Bots line never sells on Live: a bot never trades it
 
 
 def current() -> str:
@@ -91,13 +92,15 @@ def _live_close_refusal(cmd: ExecutionCommand) -> str | None:
     Auto sell (a flatten), to the Live account, each checked against IBKR's own position."""
     if cmd.origin == "live_trader":
         return "the Live Trader bot trades Paper only: its orders never go to Live; nothing was sent"
-    if cmd.origin not in ("day_cover", "loss_limit"):
+    if cmd.origin == "loss_limit_bots":
+        return "the bots' loss line sells only the bots' shares, and a bot never trades Live; nothing was sent"
+    if cmd.origin not in ("day_cover", *_LIVE_LOSS_LIMIT):
         return "a margin call never goes to Live -- IBKR liquidates Live itself; nothing was sent"
     if ibkr_connected() and (why := live_session_refusal()):
         return why
     if cmd.operation == "cancel":
         return None
-    if cmd.origin == "loss_limit":
+    if cmd.origin in _LIVE_LOSS_LIMIT:
         if getattr(cmd, "intent", None) != "flatten":
             return ("the loss limit's Auto sell is a flatten checked against IBKR's own position (intent "
                     "flatten) -- nothing was sent")

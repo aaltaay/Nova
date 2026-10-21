@@ -199,6 +199,17 @@ def _stop_global_board_reader():
         assert refresh.stop_for_tests(), "the Global page's reader is still running after the test"
 
 
+@pytest.fixture(autouse=True)
+def _stop_forex_board_reader():
+    # ADR 062: the Forex page's reader, like the Global page's: each test ends it.
+    import sys
+
+    yield
+    refresh = sys.modules.get("forex_board.refresh")
+    if refresh is not None:
+        assert refresh.stop_for_tests(), "the Forex page's reader is still running after the test"
+
+
 class _EveryVenue(str):
     """A venue stamp equal to every venue -- the suite's default arm only."""
 

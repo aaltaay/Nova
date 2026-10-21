@@ -16,6 +16,7 @@ from typing import Any
 
 from bot.audit import record as audit
 from bot.errors import BotError
+from constants_loss_limit import LOSS_LIMIT_LINE_YOU
 from constants_setups import SETUP_STATE_TRIGGERED
 from constants_stock_mode import (
     STOCK_MODE_APPROVE,
@@ -38,6 +39,7 @@ from constants_stock_mode import (
     STOCK_MODE_TRADE_HOLDING,
     STOCK_MODE_WHY_HELD,
 )
+from execution.size_limit import gate as size_limit
 from stock_mode import exit_legs, exit_targets, exit_trade, gates, model, orders, replay, runner, store, view
 from stock_mode.errors import StockModeError
 
@@ -247,6 +249,10 @@ async def approve(symbol: str, body: dict[str, Any], *, now: float | None = None
         raise StockModeError(STOCK_MODE_PLAN_CHANGED,
                              f"the setup is armed at {model.levels_text(lane.get('setup') or {})} now: approve "
                              "those levels")
+    # Your order size limit on Paper and Sim (ADR 064): said now, at Approve, not hours later at the trigger.
+    over = size_limit.check(gates.venue_state()[0], float(approved["qty"]), approved["entry"], approved["stop"])
+    if over is not None:
+        raise StockModeError(over["code"], over["text"])
     state = lane.get("state")
     approval = {**approved, "setup_type": lane.get("setup_type"), "side": side, "approved_at": now,
                 "state": "waiting", "reason": None, "replay_key": gates.replay_key()}
@@ -264,7 +270,7 @@ async def approve(symbol: str, body: dict[str, Any], *, now: float | None = None
         _acted(now)
         return view.build(sym, now=now)
     if state == SETUP_STATE_TRIGGERED and body.get("now"):
-        blocked = gates.desk_block()
+        blocked = gates.desk_block(LOSS_LIMIT_LINE_YOU)       # an approved plan goes out as yours
         if blocked:
             raise StockModeError(STOCK_MODE_SEND, blocked[1])
         store.set_approval(sym, approval)

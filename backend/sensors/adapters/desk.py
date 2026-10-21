@@ -34,8 +34,8 @@ def read_risk(symbol: str | None = None) -> dict[str, Any]:
 
         session = load_session()
         bot_row = {
-            # ADR 056: the daily loss limit's No new buys on the desk's venue (null while buys are open).
-            "loss_limit_no_new_buys": stopped(venue()),
+            # ADR 056 / 061: the daily loss limit's No new buys on your buys on the desk's venue (null while open).
+            "loss_limit_no_new_buys": stopped(venue(), actor="you"),
             "bot_level": session.get("level"),
         }
     except Exception:
