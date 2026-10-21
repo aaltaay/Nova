@@ -1,5 +1,5 @@
 /**
- * The Forex page's read (ADR 061): the board for the chosen period, polled while the page shows and the window is
+ * The Forex page's read (ADR 062): the board for the chosen period, polled while the page shows and the window is
  * visible. The backend keeps each currency's reads on the FX day's clock; this hook keeps its last answers for the
  * life of the window, so the page opens again at once on what it last showed and the next poll replaces it. A failed
  * read keeps the last good answer and says so in `error`. The sample desk reads nothing live.
@@ -14,7 +14,7 @@ import type { ForexBoard, Period } from './types';
 export interface ForexRead {
   data: ForexBoard | null;
   error: string | null;
-  /** The backend has no such route (an API from before ADR 061). */
+  /** The backend has no such route (an API from before ADR 062). */
   unavailable: boolean;
 }
 

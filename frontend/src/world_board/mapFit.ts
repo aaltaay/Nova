@@ -1,5 +1,5 @@
 /**
- * Where a world board's map sits in its box (the Global and Forex pages, ADR 060, 061): the view fitted whole and
+ * Where a world board's map sits in its box (the Global and Forex pages, ADR 060, 062): the view fitted whole and
  * centred, labels that stay 11-13 px on screen whatever the map's scale, and a hover card beside its bubble on the
  * side with room.
  */

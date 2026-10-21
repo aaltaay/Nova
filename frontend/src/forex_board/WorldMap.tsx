@@ -1,5 +1,5 @@
 /**
- * The Forex page's world map (ADR 061, mockup v2): one bubble per currency at its home city, sized by how much of it
+ * The Forex page's world map (ADR 062, mockup v2): one bubble per currency at its home city, sized by how much of it
  * trades a day (the BIS survey's), coloured by its strength or its futures pressure (the switch), a dashed ring while
  * its home session is open. A currency IBKR does not price is drawn dashed and grey. Hover or focus a bubble for its
  * card. The map fills its box (the page never scrolls); its labels stay 11-13 px on screen.

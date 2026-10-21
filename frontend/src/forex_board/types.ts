@@ -1,4 +1,4 @@
-/** The Forex page's wire (ADR 061; architecture/schema/forex-board.md). Percent points, epoch seconds, US dollars. */
+/** The Forex page's wire (ADR 062; architecture/schema/forex-board.md). Percent points, epoch seconds, US dollars. */
 
 export type Period = '1D' | '7D' | '30D';
 /** What the map and Follow the sun show (the switch). */

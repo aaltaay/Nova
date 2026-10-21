@@ -1,4 +1,4 @@
-"""The Forex page (ADR 061): the FX day's clock, each currency's move and strength, the futures' money, the board, the
+"""The Forex page (ADR 062): the FX day's clock, each currency's move and strength, the futures' money, the board, the
 market's size as the BIS survey states it, and the page's place last in line for IBKR.
 
 The market's size is the survey's, labelled; everything else is IBKR's or arithmetic on it (the operator, 2026-10-20:

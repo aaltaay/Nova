@@ -1,5 +1,5 @@
 /**
- * "Major pairs" on the Forex page (ADR 061, mockup v2): the eight majors' pairs, row against column, strongest first, so
+ * "Major pairs" on the Forex page (ADR 062, mockup v2): the eight majors' pairs, row against column, strongest first, so
  * the top right is green and the bottom left red; each cell is the pair's move over the period, worked out from the two
  * currencies' moves against the dollar (a cross rate is the ratio of the two dollar rates). Drawn at the size of its
  * box (the page never scrolls).

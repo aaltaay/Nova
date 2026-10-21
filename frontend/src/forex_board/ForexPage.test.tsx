@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  *
- * The Forex page (ADR 061): the sample desk shows the approved mockup v2's day and asks nothing; the whole market's
+ * The Forex page (ADR 062): the sample desk shows the approved mockup v2's day and asks nothing; the whole market's
  * size leads (the BIS survey's, labelled), every currency carries its own size and is listed biggest first, a currency
  * IBKR does not price says so, the real moves by its future, a currency whose futures and strength disagree is
  * flagged, the card says everything about one currency, and the live desk asks for the chosen period, remembers the

@@ -103,7 +103,7 @@ paced service at background priority, under its own pacing kind `global` (the ca
 it), and only while more than `GLOBAL_HISTORY_HEADROOM` (30) are left: charts, the short check, the TraderTV exits
 and LULD come first, and the Market page, which stops at the same 30, takes turns with it -- at least
 `GLOBAL_HISTORY_GAP_SEC` between two of Global's requests, the Market page's own pace -- except that while the Market
-page or the Forex page (ADR 061) shows and Global does not, Global leaves `GLOBAL_YIELD_HEADROOM` (40): the page on
+page or the Forex page (ADR 062) shows and Global does not, Global leaves `GLOBAL_YIELD_HEADROOM` (40): the page on
 screen goes first (ADR 060 amendment). A refused instrument is not asked again for `GLOBAL_REFUSED_RETRY_SEC`.
 
 **Kept across restarts** (`backend/global_board/keep.py`): `<cache_dir>/global-board/global-store.json`,

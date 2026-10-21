@@ -1,5 +1,5 @@
 /**
- * The Forex page (ADR 061; operator asks 2026-10-20, mockup v2 approved): the whole currency market's size -- the BIS
+ * The Forex page (ADR 062; operator asks 2026-10-20, mockup v2 approved): the whole currency market's size -- the BIS
  * survey's, labelled, since forex has no exchange and no feed sees its total -- and what each of its 19 biggest
  * currencies did: its strength from IBKR's spot prices, and the public slice of its money, its CME future. On a world
  * map sized by each currency's trading, by session, hour by hour, as pairs, and biggest first. Read-only: nothing here

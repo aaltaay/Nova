@@ -1,5 +1,5 @@
 /**
- * The Forex page's top strip (ADR 061): the whole market's size (the BIS survey's, labelled), the day's read, the
+ * The Forex page's top strip (ADR 062): the whole market's size (the BIS survey's, labelled), the day's read, the
  * dollar, and the three sessions -- which currency rose most and fell most in each, beside its desks' share.
  */
 import { etTime, monthWord, signedPct, tone, usd } from '../world_board/format';

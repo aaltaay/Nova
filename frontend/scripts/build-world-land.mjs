@@ -1,5 +1,5 @@
 /**
- * Draws the world boards' map once (the Global and Forex pages, ADR 060, 061) into src/world_board/worldLand.ts.
+ * Draws the world boards' map once (the Global and Forex pages, ADR 060, 062) into src/world_board/worldLand.ts.
  *
  * Land: Natural Earth 1:110m (public domain) through world-atlas 2.0.2's countries-110m, Antarctica left out and the
  * countries merged into one outline, in d3's Natural Earth projection fitted to WORLD_VIEW. The page projects each
@@ -58,7 +58,7 @@ for (const [lon, lat] of [[139.77, 35.68], [-74.01, 40.71], [-46.63, -23.55], [1
 const here = path.dirname(fileURLToPath(import.meta.url));
 const out = path.join(here, '..', 'src', 'world_board', 'worldLand.ts');
 writeFileSync(out, `/**
- * The world boards' map (the Global and Forex pages, ADR 060, 061), drawn once by scripts/build-world-land.mjs --
+ * The world boards' map (the Global and Forex pages, ADR 060, 062), drawn once by scripts/build-world-land.mjs --
  * do not edit by hand.
  * Natural Earth 1:110m land (public domain) through world-atlas 2.0.2, Antarctica left out, in d3's Natural Earth
  * projection fitted to WORLD_VIEW; project.ts places each market or currency with

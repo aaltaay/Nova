@@ -1,4 +1,4 @@
-/** The world boards' number words (the Global and Forex pages, ADR 060, 061): dollars, signed percents, clocks.
+/** The world boards' number words (the Global and Forex pages, ADR 060, 062): dollars, signed percents, clocks.
  * Unknown is "--", never 0. */
 
 const DASH = '--';

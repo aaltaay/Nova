@@ -1,4 +1,4 @@
-/* The world boards' look (the Global and Forex pages, ADR 060, 061), as their approved mockups drew it: the page,
+/* The world boards' look (the Global and Forex pages, ADR 060, 062), as their approved mockups drew it: the page,
    its head, the strip, the cards, the map's bubbles, the hover card, the ranked rows and How to read.
    Owner: world_board/. Each page fills the window and never scrolls: the map, the charts and the rows share what
    there is. A page's own charts keep their own sheet (global_board/global.css, forex_board/forex.css). */

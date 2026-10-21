@@ -1,5 +1,5 @@
 /**
- * The Forex page's notes, on one line in its head (ADR 061; the page never scrolls): a failed poll, IBKR's own error,
+ * The Forex page's notes, on one line in its head (ADR 062; the page never scrolls): a failed poll, IBKR's own error,
  * another period still loading, the first reads, the weekend, and what the reads wait for -- with IBKR's history
  * requests left against the number Forex reads above.
  */

@@ -1,4 +1,4 @@
-"""The Forex page's IBKR reads (ADR 061), run from its reader thread on the IB loop (``run_coro``). Last in line:
+"""The Forex page's IBKR reads (ADR 062), run from its reader thread on the IB loop (``run_coro``). Last in line:
 
 - ``spot_quotes``: each pair's bid and ask from a line held for a moment (``ibkr.brief_lines``, ADR 054) -- refused
   (``NoHeadroom``) while fewer than ``IBKR_BRIEF_MIN_FREE_LINES`` lines are spare. Spot forex needs no extra IBKR

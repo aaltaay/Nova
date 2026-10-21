@@ -1,4 +1,4 @@
-# ADR 061 -- The Forex page: the whole currency market's size, and each currency's day
+# ADR 062 -- The Forex page: the whole currency market's size, and each currency's day
 
 **Status:** Accepted · **Date:** 2026-10-20
 **Builds on:** [[060-global-page]] (its layout, its reads last in line, its kept answers, its published-size

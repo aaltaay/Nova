@@ -1,4 +1,4 @@
-"""The Forex page's reader (ADR 061): one daemon thread, one read at a time, last in line for IBKR.
+"""The Forex page's reader (ADR 062): one daemon thread, one read at a time, last in line for IBKR.
 
 ``start`` runs it with the process; ``want`` marks the page wanted (it polls). Each turn takes the first due read
 (``forex_board.jobs``) the budget allows -- a historical read only while ``reads.history_ok()`` and at least

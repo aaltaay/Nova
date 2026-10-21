@@ -1,4 +1,4 @@
-"""The Forex page's tunables, its currencies and the size of the market (ADR 061).
+"""The Forex page's tunables, its currencies and the size of the market (ADR 062).
 
 Owner: backend/forex_board/. Mirrors: frontend/src/forex_board/constants.ts (periods). The market's size is the BIS
 Triennial Central Bank Survey's (April 2025 daily averages, final results June 2026) -- published every three years,
@@ -38,7 +38,7 @@ FOREX_STALE_MAX_SEC = 3 * 86400.0                # a read's last answer is shown
 FOREX_QUIET_FROM_MIN_ET = 9 * 60 + 30
 FOREX_QUIET_TO_MIN_ET = 16 * 60
 
-# -- IBKR budget: Forex reads last, taking turns (ADR 061 decision 5) ------------------------------------------------
+# -- IBKR budget: Forex reads last, taking turns (ADR 062 decision 5) ------------------------------------------------
 FOREX_HISTORY_HEADROOM = 30                      # no historical request while this few of the 10-minute 60 are left:
 #   charts, the short check, the TraderTV exits and LULD (20) come first; the Market and Global pages stop at the
 #   same 30, so the three take turns.

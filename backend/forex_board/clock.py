@@ -1,4 +1,4 @@
-"""The FX day and the sessions on their own clocks (ADR 061). Pure but for the clock.
+"""The FX day and the sessions on their own clocks (ADR 062). Pure but for the clock.
 
 Forex trades from Sunday 17:00 to Friday 17:00 New York, each FX day running 17:00 to 17:00. The day shown is the one
 trading now, or, over the weekend, Friday's. Its sessions hand over at the newest region's 08:00: Asia from the day's

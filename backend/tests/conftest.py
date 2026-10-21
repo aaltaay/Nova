@@ -198,7 +198,7 @@ def _stop_global_board_reader():
 
 @pytest.fixture(autouse=True)
 def _stop_forex_board_reader():
-    # ADR 061: the Forex page's reader, like the Global page's: each test ends it.
+    # ADR 062: the Forex page's reader, like the Global page's: each test ends it.
     import sys
 
     yield

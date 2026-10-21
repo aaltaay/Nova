@@ -1,4 +1,4 @@
-"""A CME currency future's money in and out (ADR 061, by ADR 060's rule). Pure: bars in, sums out.
+"""A CME currency future's money in and out (ADR 062, by ADR 060's rule). Pure: bars in, sums out.
 
 A one-minute bar is up when it closed above the bar before it in IBKR's answer, down when below, flat otherwise (the
 first bar, with none before it, is flat). Its notional is volume x average price (its close when IBKR gives no
@@ -73,7 +73,7 @@ def hours(classified: Sequence[Classified], start: float) -> dict[int, list[floa
 def levels(bars: Sequence[Mapping], start: float, end: float) -> dict:
     """The future's own price over ``[start, end)``: ``{open, last, last_t, high, low, closes}`` -- ``open`` the last
     close before ``start``, ``closes[h]`` the last close in hour ``h`` (a future moves the currency when IBKR has no
-    spot quote, ADR 061 decision 3)."""
+    spot quote, ADR 062 decision 3)."""
     open_level = last = last_t = high = low = None
     closes: list[float | None] = [None] * 24
     for bar in bars:

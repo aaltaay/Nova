@@ -1,4 +1,4 @@
-"""Each currency's row on the Forex page's wire (ADR 061; shape in architecture/schema/forex-board.md), from memory.
+"""Each currency's row on the Forex page's wire (ADR 062; shape in architecture/schema/forex-board.md), from memory.
 
 A row holds the currency's BIS size, its price (spot, or its future when IBKR has no spot quote), its futures money,
 how busy its day is against a normal one, and its home session. Strength, the sessions and the "mixed" flag need every

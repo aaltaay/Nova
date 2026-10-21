@@ -1,5 +1,5 @@
 /**
- * The Forex page's pair arithmetic (ADR 061), as the backend's (forex_board/prices.py): a pair's move from its two
+ * The Forex page's pair arithmetic (ADR 062), as the backend's (forex_board/prices.py): a pair's move from its two
  * currencies' moves against the dollar -- a cross rate is the ratio of the two dollar rates -- and each currency's
  * strength against an even mix of the others. Percent points in, percent points out.
  */

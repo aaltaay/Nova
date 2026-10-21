@@ -1,5 +1,5 @@
 /**
- * "Follow the sun" on the Forex page (ADR 061, mockup v2): each currency hour by hour through the FX day (from 17:00
+ * "Follow the sun" on the Forex page (ADR 062, mockup v2): each currency hour by hour through the FX day (from 17:00
  * New York), under the Asia, London and New York sessions with their desks' share of all forex, and a line at now.
  * A cell is the currency's strength change that hour, or its futures pressure (the switch): green stronger / bought,
  * red weaker / sold, deeper the more. Hours still to come are empty. Drawn at the size of its box (the page never

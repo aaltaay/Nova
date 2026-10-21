@@ -1,4 +1,4 @@
-/** The Forex page's numbers and words (ADR 061). Periods mirror backend/constants_forex_board.py. */
+/** The Forex page's numbers and words (ADR 062). Periods mirror backend/constants_forex_board.py. */
 import type { ColorBy, Period, Verdict } from './types';
 
 export const FOREX_SCHEMA_VERSION = 1;

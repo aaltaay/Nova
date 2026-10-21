@@ -1,4 +1,4 @@
-"""The Forex page's answers kept across restarts (ADR 061).
+"""The Forex page's answers kept across restarts (ADR 062).
 
 Owner of ``<cache_dir>/forex-board/forex-store.json`` (shape in architecture/schema/forex-board.md): ``{schema_version,
 saved_at, entries: {key: {at, value}}}``. The desk's backend restarts when the app closes and after every update; the

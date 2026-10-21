@@ -1,4 +1,4 @@
-"""The Forex page's memory (ADR 061): each read's last good answer, each failure, and who is looking.
+"""The Forex page's memory (ADR 062): each read's last good answer, each failure, and who is looking.
 
 Owner: this module; ``forex_board.keep`` writes the answers to disk and restores them at start, each with its own
 answer time. A read is a key (``quotes``, ``hourly:JPY``, ``daily:JPY``, ``flow:JPY``, ``flow_daily:JPY``,

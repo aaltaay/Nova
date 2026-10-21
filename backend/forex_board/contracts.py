@@ -1,4 +1,4 @@
-"""The Forex page's IBKR contracts (ADR 061): each currency's IDEALPRO pair and its CME future.
+"""The Forex page's IBKR contracts (ADR 062): each currency's IDEALPRO pair and its CME future.
 
 An instrument is ``(kind, spec)``: ``spot`` (a ``Forex`` pair on IDEALPRO) or ``future`` (IBKR's continuous future,
 which reads the contract that leads in volume, so a roll does not lose the bars). A future IBKR does not know by its

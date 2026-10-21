@@ -1,4 +1,4 @@
-"""The Forex page's wire (ADR 061; shape in architecture/schema/forex-board.md), composed from memory only.
+"""The Forex page's wire (ADR 062; shape in architecture/schema/forex-board.md), composed from memory only.
 
 The market's size is the BIS survey's (labelled with its month and source, never live); every other number is IBKR's
 or arithmetic on IBKR's: strength from each currency's dollar move, the sessions and Follow the sun from each one-hour

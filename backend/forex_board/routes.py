@@ -1,4 +1,4 @@
-"""The Forex page's route (ADR 061): the board. Read-only; it never waits on IBKR."""
+"""The Forex page's route (ADR 062): the board. Read-only; it never waits on IBKR."""
 from __future__ import annotations
 
 import time

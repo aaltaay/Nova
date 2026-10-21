@@ -1,4 +1,4 @@
-"""Each currency's move and strength from IBKR's spot midpoints (ADR 061). Pure: bars and quotes in, numbers out.
+"""Each currency's move and strength from IBKR's spot midpoints (ADR 062). Pure: bars and quotes in, numbers out.
 
 A pair is quoted as the market quotes it -- EUR/USD in dollars per euro, USD/JPY in yen per dollar -- and the currency's
 own move against the dollar is the pair's move for the first, its inverse for the second. Strength is the currency

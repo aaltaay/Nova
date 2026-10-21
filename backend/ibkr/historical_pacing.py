@@ -26,7 +26,7 @@ from constants import (
 def kind_of(timeframe: str) -> str:
     """What a request was for, from its pacing key: ``tape`` (trades read back: TraderTV exits and ticker checks,
     LULD), ``daily`` (daily bars: SSR, the Market page's ETFs, Cryptos), ``market`` (the Market page's reference
-    tiles), ``global`` (the Global page, ADR 060), ``forex`` (the Forex page, ADR 061) or ``charts`` (chart bars)."""
+    tiles), ``global`` (the Global page, ADR 060), ``forex`` (the Forex page, ADR 062) or ``charts`` (chart bars)."""
     key = str(timeframe or "")
     if key.startswith(("ticks:", "bars:")):
         return "tape"

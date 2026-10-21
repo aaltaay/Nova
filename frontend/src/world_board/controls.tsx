@@ -1,5 +1,5 @@
 /**
- * The world boards' controls (the Global and Forex pages, ADR 060, 061): the segmented switch, the notes on one line
+ * The world boards' controls (the Global and Forex pages, ADR 060, 062): the segmented switch, the notes on one line
  * in the head (the pages never scroll, so a note never pushes the board down), and "How to read" -- the page's
  * definitions over its list on hover or focus, kept open by a click. `prefix` names each page's test ids.
  */

@@ -1,5 +1,5 @@
 /**
- * Nova Marketing Sample Data for the Forex page (ADR 061): the approved mockup v2's day (Tuesday 2026-10-20, 11:12 ET,
+ * Nova Marketing Sample Data for the Forex page (ADR 062): the approved mockup v2's day (Tuesday 2026-10-20, 11:12 ET,
  * the Global page's sample moment), shown on the sample desk and the demo build. The market's size is the BIS
  * survey's real figures (as on the live page); every rate, move and futures figure is sample. Each currency's move
  * against the dollar, by session, drives strength, the sessions, the pairs and the read by the backend's arithmetic.

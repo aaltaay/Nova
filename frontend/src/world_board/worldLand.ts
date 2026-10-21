@@ -1,5 +1,5 @@
 /**
- * The world boards' map (the Global and Forex pages, ADR 060, 061), drawn once by scripts/build-world-land.mjs --
+ * The world boards' map (the Global and Forex pages, ADR 060, 062), drawn once by scripts/build-world-land.mjs --
  * do not edit by hand.
  * Natural Earth 1:110m land (public domain) through world-atlas 2.0.2, Antarctica left out, in d3's Natural Earth
  * projection fitted to WORLD_VIEW; project.ts places each market or currency with

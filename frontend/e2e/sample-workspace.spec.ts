@@ -49,7 +49,7 @@ test.describe('Sample desk workspace', () => {
     await expect(market).toBeVisible();
     await expect(market).not.toContainText('not available');
 
-    // The Forex page (ADR 061), first on the rail, opens on the sample desk with the whole market's size.
+    // The Forex page (ADR 062), first on the rail, opens on the sample desk with the whole market's size.
     await page.getByTestId('nav-rail-forex').click();
     const forex = page.getByTestId('forex-page');
     await expect(forex).toBeVisible();

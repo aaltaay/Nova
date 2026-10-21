@@ -948,7 +948,7 @@ things this desk spends; the strip shows each as used of its cap, and who uses i
   what spent the window: `charts` (chart bars), `tape` (trades read back: the TraderTV exits and ticker checks,
   LULD), `daily` (daily bars: the short check's SSR, the Market page's ETFs, Cryptos), `market` (the Market page's
   futures, indexes and crypto tiles), `global` (the Global page's futures, indexes, ETFs and exchange rates, ADR 060), `forex` (the Forex page's
-  spot midpoints and CME currency futures, ADR 061). `next_free_sec` is 0 while one is free.
+  spot midpoints and CME currency futures, ADR 062). `next_free_sec` is 0 while one is free.
 - **tape**, Time & Sales lines (`ibkr.tape_admission.view`): `cap` null while IBKR has not said its cap.
 
 **Who comes first.** Level 1: the scanner and HOD Momo plan their lines inside what every other owner -- a Trader

@@ -1,5 +1,5 @@
 /**
- * One currency's hover card on the Forex page (ADR 061, mockup v2): how big its market is (the BIS survey's, labelled),
+ * One currency's hover card on the Forex page (ADR 062, mockup v2): how big its market is (the BIS survey's, labelled),
  * its biggest pair, its price and move, its strength by session, how busy its day is against a normal one, its
  * futures, and anything IBKR refused for it. Shared by the map and the list.
  */

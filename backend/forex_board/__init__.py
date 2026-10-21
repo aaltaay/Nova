@@ -1,4 +1,4 @@
-"""The Forex page (ADR 061): the whole currency market's size, and what each of its 19 biggest currencies did today.
+"""The Forex page (ADR 062): the whole currency market's size, and what each of its 19 biggest currencies did today.
 
 ``clock`` knows the FX day (17:00 to 17:00 New York, Sunday to Friday) and each city's session; ``prices`` turns IBKR's
 spot midpoints into each currency's move and strength (pure); ``money`` turns a CME future's bars into money in and

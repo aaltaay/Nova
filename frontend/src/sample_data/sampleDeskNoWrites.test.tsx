@@ -223,7 +223,7 @@ describe("the sample workspace writes none of the operator's saved state (#449)"
     await press('global-color-by-move');
     await press('global-period-7D');
     expect(container.textContent).toMatch(/Rotation, not an exit/);
-    // The Forex page (ADR 061) too: its sample board, and its switches never write the desk's storage.
+    // The Forex page (ADR 062) too: its sample board, and its switches never write the desk's storage.
     await press('nav-rail-forex');
     for (let i = 0; i < 50 && !container.querySelector('[data-testid="forex-page"]'); i += 1) {
       await settle(100);

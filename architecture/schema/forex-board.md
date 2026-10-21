@@ -2,7 +2,7 @@
 
 Part of `AGENTS.md` §3 (Data Schema), which indexes every file in this folder. Owners: backend/forex_board/, frontend/src/forex_board/. Same law as the constitution: a wire or persisted shape changes here first, in the same commit as the code (Invariants #1 and #5).
 
-## The Forex page (ADR 061, operator asks 2026-10-20)
+## The Forex page (ADR 062, operator asks 2026-10-20)
 
 "I want something similar but for forex", "We got to also say the total market, dude", "For each market, we want to
 see what's going on, like how big it is and everything", mockup v2 approved: "build this to be on top of the global".

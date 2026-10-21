@@ -1,4 +1,4 @@
-"""What the Forex page reads, and when (ADR 061). Each read is a job: a store key, whether it uses IBKR's historical
+"""What the Forex page reads, and when (ADR 062). Each read is a job: a store key, whether it uses IBKR's historical
 budget or a market-data line, and the function that reads it. ``due`` lists the jobs due now, most urgent first.
 
 Keys: ``quotes`` (every pair's spot quote, while the FX day is open), ``hourly:<CODE>`` (a pair's one-hour midpoints:

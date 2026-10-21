@@ -1,5 +1,5 @@
 /**
- * "By currency" on the Forex page (ADR 061, mockup v2): every currency biggest first, with how much of it trades a day
+ * "By currency" on the Forex page (ADR 062, mockup v2): every currency biggest first, with how much of it trades a day
  * (the BIS survey's), its strength (and its move against the dollar) and its futures pressure as bars from a centre
  * line, and ≠ where the two disagree. A currency IBKR does not price says "no price", one without a future "no
  * futures". The rows share the list's height (the page never scrolls); a short list drops their second lines.

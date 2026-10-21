@@ -1,5 +1,5 @@
 /**
- * The Forex page's switches -- what the map and Follow the sun show, and the period -- remembered on the desk (ADR 061).
+ * The Forex page's switches -- what the map and Follow the sun show, and the period -- remembered on the desk (ADR 062).
  *
  * Owner: this module. Key `nova.forexBoard.prefs.v1`, shape `{schema_version: 1, period, color_by}`
  * (architecture/schema/forex-board.md). Invalidation: an unknown schema_version, or a value that is not a known
