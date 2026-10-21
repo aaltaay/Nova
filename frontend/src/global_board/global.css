@@ -34,7 +34,8 @@
 }
 .gb-agree__axislabel { font-size: 10.5px; fill: var(--nova-text-muted); }
 
-/* the rows' flags */
-.gb-size { color: var(--nova-text); opacity: 0.8; }
+/* the rows' sizes and flags */
+.gb-row__ex { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.gb-size { color: var(--nova-text-muted); font-weight: 400; font-size: 11px; }
 .gb-via.is-etf { color: var(--gb-warn); }
 .gb-nofeed { color: var(--gb-warn); }

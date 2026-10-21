@@ -90,14 +90,17 @@ describe('Global page on the sample desk', () => {
     expect(tip.textContent).toContain('JPY');
   });
 
-  it('shows each market\u2019s size with its month and source, on the card and tucked into its row', () => {
+  it('shows each market\u2019s size with its month and source, on the card and beside each exchange in its row', () => {
     render(<GlobalPage />);
     fireEvent.mouseEnter(screen.getByTestId('global-bubble-us'));
     expect(screen.getByTestId('global-tip-size-us').textContent).toContain('≈ $68.0T');
     const tip = screen.getByTestId('global-tip-us').textContent ?? '';
     expect(tip).toContain('NYSE $29.5T + Nasdaq $38.5T');
     expect(tip).toContain('Jan 2026, World Federation of Exchanges -- published monthly, not live');
-    expect(screen.getByTestId('global-row-jp').textContent).toContain('$7.7T · Japan');
+    expect(screen.getByTestId('global-exchange-us').textContent).toBe('NYSE $29.5T + Nasdaq $38.5T');
+    expect(screen.getByTestId('global-exchange-cn').textContent).toBe('SSE $9.7T + SZSE $6.7T');
+    expect(screen.getByTestId('global-exchange-jp').textContent).toBe('JPX $7.7T');
+    expect(screen.getByTestId('global-row-jp').textContent).not.toContain('$7.7T · Japan');
   });
 
   it('keeps the definitions behind "How to read", open on hover and kept open by a click', () => {

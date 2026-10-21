@@ -200,7 +200,7 @@
 }
 .gb-list__head, .gb-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr) 12px;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr) 12px;
   align-items: center;
   gap: 6px;
 }
