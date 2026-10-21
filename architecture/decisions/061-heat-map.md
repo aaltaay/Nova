@@ -65,3 +65,38 @@ the PC with the order path: ADR 045 locks orders when the view lags.
   maximum. More rows widen the lines the heat map can show at no other cost.
 - The dots and colours describe the book and tape. Nothing here places, stages or blocks an order, and nothing feeds a
   bot, a setup or a scanner row.
+
+## Amendment 2026-10-21 -- how each wall left, hidden size, the dots' numbers
+
+**Decided by:** the operator, on a SPCX heat map where a bright $162.00 bid ended at a big red dot: "how do I know if
+that bubble was completely [eaten] ... or did someone remove the wall? They just spoofed it. I think our level 2 already
+does that", then "maybe these bubbles should have #s attached to it? but i know there are hidden buyers/sellers and we
+may want to account for those as well". Mockup v4 (`F:/Nova/design/heatmap/v4`, drawn by this feature's own painter on
+the desk's real data) approved with four picks: numbers in the big red and green dots, marks on bright walls only, a
+violet box and number for hidden size, build it.
+
+The ladder already knew: its `✓ 3,719` beside that dot was the book watcher's verdict (ADR 033) -- 3,719 of the 5,219
+shares bid at $162.00 traded, none pulled -- shown for six seconds. The heat map now keeps the same verdicts for its
+window and draws them where they happened:
+
+1. **The verdicts come from the book watcher, never from the picture.** The heat map folds the depth socket's
+   `book_watch` frames (the ladder's own; no new socket, endpoint or IBKR line). Judging by eye cannot work: IBKR's
+   book and its tape arrive seconds apart, a dot spans up to two cents, a line's colour depends on the brightness, and
+   black is out of view, not pulled. The watcher matches lit prints at the exact price within its measured window.
+2. **A cap and a chip where a wall shrank or ended**, in the ladder's words and colours: slate `✓ 3,719` traded,
+   amber `✕ 2,000` pulled (solid when pulled as the price came closer). A run at one price is one chip: traded adds
+   up, pulled shows its biggest and `×N` (an order pulled and put back counts each time, so a sum would overstate the
+   wall).
+3. **Only walls are marked:** a drop from a line that read yellow or hotter at the current brightness. On SPCX the
+   watcher judged 26 large drops in one minute (152 in five); marking all of them buried the picture.
+4. **Hidden size** as a violet dashed box along its price for as long as it held, `◆ 97.1K hidden` at its end -- with
+   the numbers in the dots, a dot bigger than the line it hit (OLOX: a 52K buy against an offer that never showed more
+   than 16,117) reads as hidden size at a glance.
+5. **Numbers in the big red and green dots only.** Grey dots mix midpoint, dark and odd-lot prints, and on a busy stock
+   one grey burst can run for seconds (OLOX: 129K over 12.5 s), so a number there would mislead.
+6. **Cheap:** a warm redraw of SPCX's busiest 30 s / 5 min went 3.8 / 9.9 ms before and 3.9 / 8.7 ms after (headless
+   Chromium, software rendering) -- the order path never waits on it (ADR 045).
+
+Schema: `architecture/schema/heat-map.md`, "How a wall left, hidden size and the dots' numbers". Like the ladder's
+marks, every one is a hint consistent with spoofing, never a detection.
+
