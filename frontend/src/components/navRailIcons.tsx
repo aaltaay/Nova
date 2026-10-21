@@ -22,6 +22,7 @@ function Icon({ children }: { children: ReactNode }) {
 }
 
 export type NavRailIconId =
+  | 'forex'
   | 'global'
   | 'market'
   | 'trader'
@@ -35,6 +36,14 @@ export type NavRailIconId =
   | 'settings';
 
 const ICONS: Record<NavRailIconId, ReactNode> = {
+  forex: (
+    <Icon>
+      <path d="m16 3 4 4-4 4" />
+      <path d="M20 7H4" />
+      <path d="m8 21-4-4 4-4" />
+      <path d="M4 17h16" />
+    </Icon>
+  ),
   global: (
     <Icon>
       <circle cx="12" cy="12" r="8.5" />

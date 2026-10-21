@@ -43,6 +43,7 @@ from diagnostics.routes import router as diagnostics_router
 from leaderboard.routes import router as leaderboard_router
 from leaderboard.auto_record_routes import router as auto_record_router
 from loss_limit.routes import router as loss_limit_router
+from execution.size_limit.routes import router as order_size_limit_router
 from setup_scanner.routes import router as setups_router
 from setup_templates.routes import install as install_setup_template_refusals
 from setup_templates.routes import router as setup_templates_router
@@ -59,6 +60,7 @@ from hot_list.routes import router as hot_list_router
 from crypto.routes import router as crypto_router
 from market_board.routes import router as market_board_router
 from global_board.routes import router as global_board_router
+from forex_board.routes import router as forex_board_router
 from luld.routes import router as luld_router
 from book_watch.routes import router as book_watch_router
 from short_sale.routes import router as short_check_router
@@ -110,6 +112,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(leaderboard_router)
     app.include_router(auto_record_router)
     app.include_router(loss_limit_router)
+    app.include_router(order_size_limit_router)
     app.include_router(setups_router)
     app.include_router(setup_templates_router)
     install_setup_template_refusals(app)
@@ -126,6 +129,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(crypto_router)
     app.include_router(market_board_router)
     app.include_router(global_board_router)
+    app.include_router(forex_board_router)
     app.include_router(luld_router)
     app.include_router(book_watch_router)
     app.include_router(short_check_router)

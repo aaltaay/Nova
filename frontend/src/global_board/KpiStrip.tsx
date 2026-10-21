@@ -1,6 +1,6 @@
 /** The Global page's top strip (ADR 060): the day's read, the world, and each region -- pressure and index moves. */
 import { VERDICT_TONE } from './constants';
-import { signedPct, tone, usd } from './format';
+import { signedPct, tone, usd } from '../world_board/format';
 import type { Read, Region, Totals } from './types';
 
 function Money({ t }: { t: Totals }) {

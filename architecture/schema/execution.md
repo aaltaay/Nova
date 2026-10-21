@@ -231,6 +231,40 @@ Target 1 sells `target1_qty`, target 2 the rest; with no `target2_price`, `targe
 
 Who sends it: Nova's exit (`stock-read.md`, "Nova takes the exit"), Nova's bot (`bot.md`, the bracket in two halves) and Approve (`stock-read.md`, "Who trades the stock": the approved plan's bracket, origin `approve`, carries the plan's `target2_price` and `target1_qty` since 2026-10-12, #845). All three split a position by the one rule above (`execution.exit_oco.split`, through `bot.first_pullback.halves.split`).
 
+## Your own order size limit on Paper and Sim (ADR 064, operator decision 2026-10-20)
+
+The operator chose, on 2026-10-20, an optional limit on their own hand orders on Paper and Sim: "Both, each optional", a stopless order refused while the dollar limit is set, and every box empty when it ships. It amends #444's "no cap on Paper / Sim"; Live keeps `IBKR_QTY_CAP` (the test quantity gate, `execution/qty_gate.py`, `.cursor/rules/execution-continuity.mdc`) and its PIN. Owner `backend/execution/size_limit/` (`settings` the file, `gate` the door's check and its words, `routes` the wire); UI `frontend/src/order_size_limit/` in Settings > Loss limits, under the daily loss limit.
+
+**The setting.** `order-size-limit.json` in the operator cache, rewritten whole on every change (`write_json_atomic`):
+
+```json
+{"schema_version": 1,
+ "venues": {"paper": {"max_shares": 500, "max_risk_usd": 50},
+            "sim":   {"max_shares": null, "max_risk_usd": null}},
+ "set_at": 1792531200.0}
+```
+
+`max_shares` is whole shares 1 to 1,000,000, `max_risk_usd` whole dollars 1 to 1,000,000, and `null` is no limit; a venue missing from `venues` reads as no limit. No file reads every limit off (`source: "default"`). A file this build cannot use -- unreadable JSON, another `schema_version`, `venues` not an object, a value out of its rule -- is **not** read as off: `source: "unreadable"` with the reason in `error`, and the door refuses every hand order that opens or adds on Paper and Sim `ORDER_SIZE_LIMIT_UNREADABLE` until a save writes a fresh file (a save over it starts from every limit off). Constants: `backend/constants_order_size_limit.py`.
+
+**On the wire.** `GET /api/order-size-limit` -> `{schema_version: 1, settings: {venues: {paper: {max_shares, max_risk_usd}, sim: {...}}, set_at, source: "default" | "operator" | "unreadable", error}, rules: {venues: ["paper", "sim"], min_shares, max_shares, min_risk_usd, max_risk_usd}}`. `PUT /api/order-size-limit` takes `{paper?: {max_shares?, max_risk_usd?}, sim?: {...}}` (a `null` clears that one limit; fields left out keep theirs) and answers the same view; a value out of its rule, an unknown venue (`live` included) or field is `400` with `X-Nova-Reason: ORDER_SIZE_LIMIT_INVALID` and the rule in `detail` ("Max shares is 1 to 1,000,000, or empty for no limit"); a file that cannot be written is `503`, the setting unchanged. Writes need `X-Nova-Api-Key` like every mutating route. The next order the door reads meets the new numbers.
+
+**What it reads.** `execution.service.execute`, after the daily loss limit's No new buys and under the same lock, asks `size_limit.gate.refusal` with the door's own venue. Only a `place` or `bracket` from source `manual` (the ticket, the hotkeys, the plan box's Approve) on `paper` or `sim` that opens or adds -- a BUY the door does not read as a cover (`covers_short`, the loss limit's own reading), or a SELL with `short_entry` -- meets it. Never: a SELL of what is held, a BUY that covers a short, `exit_oco`, `cancel`, `replace`, sources `flatten` / `kill` / `cancel_working` / `benchmark`, and every `bot` order (the bots, Auto-entry, the bot API: they keep their sleeve caps); never Live. Each order is read alone, when placed; a stop moved later is never refused.
+
+**The refusals** (`receipt.reason_code`, the words in `receipt.error` -- the ticket's Last line shows them; nothing is sent):
+
+| Code | When | Words (Paper, 500 shares, $50) |
+|---|---|---|
+| `ORDER_SIZE_LIMIT_SHARES` | `qty` over Max shares | "Paper allows at most 500 shares per order; this order is 800 shares. Lower the size, or change Max shares in Settings > Loss limits." |
+| `ORDER_SIZE_LIMIT_RISK` | a bracket's `qty x abs(entry_price - stop_price)`, rounded to cents, over Max risk at stop | "Paper allows at most $50 at risk per order; this order risks $75 (500 shares x $0.15 from the entry 10.00 to the stop 9.85). Lower the size or bring the stop closer, or change Max risk at stop in Settings > Loss limits." |
+| `ORDER_SIZE_LIMIT_NO_STOP` | Max risk at stop set and the order carries no protective stop: every `place` (its `stop_price` is a stop order's own trigger) | "Paper allows at most $50 at risk per order, and this order has no stop, so its risk is unknown. Attach a stop, or clear Max risk at stop in Settings > Loss limits." |
+| `ORDER_SIZE_LIMIT_UNREADABLE` | the saved file cannot be used | "<the reason>, so Paper refuses your new orders until the order size limit is saved again in Settings > Loss limits." |
+
+Every refusal ends "Selling what you hold, covering a short, cancels, Flatten and KILL still work." Max shares is read first. A bracket's entry is `entry_price`, else `limit_price`; a short's stop is its buy stop over the entry.
+
+**Approve.** `POST /api/stock-mode/{symbol}/approve` reads the same limit (`gate.check` with the plan's `qty`, `entry` and `stop`) on the desk's venue before it keeps the approval: over it, `409` with `detail.reason` the code above and `detail.error` the words. A limit lowered after the approval is refused by the door at the trigger; the approval is withdrawn, `reason: "the bracket was refused: <the words>"`.
+
+---
+
 ## Execution venue provenance (#713)
 
 Execution ledger payload JSON adds `venue: "live" | "paper" | "sim"`, stamped

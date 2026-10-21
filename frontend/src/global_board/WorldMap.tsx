@@ -8,15 +8,13 @@ import { useMemo, type CSSProperties } from 'react';
 import {
   GLOBAL_BUBBLE_MAX, GLOBAL_BUBBLE_MIN, LABEL_OFFSETS, MOVE_FULL_PCT, PRESSURE_FULL_PCT,
 } from './constants';
-import { signedPct, usd } from './format';
+import { signedPct, usd } from '../world_board/format';
 import { MarketTip } from './MarketTip';
-import { project } from './project';
+import { project } from '../world_board/project';
 import type { ColorBy, Market, Period } from './types';
-import { useBox, type Box } from './useBox';
-import { WORLD_LAND_PATH, WORLD_VIEW } from './worldLand';
-
-const TIP_WIDTH = 290;               // .gb-tip's outer width (border-box)
-const TIP_GAP = 16;
+import { fit, labelSize, tipPlace } from '../world_board/mapFit';
+import { useBox } from '../world_board/useBox';
+import { WORLD_LAND_PATH, WORLD_VIEW } from '../world_board/worldLand';
 
 interface Props {
   markets: Market[];
@@ -34,25 +32,6 @@ export function colorValue(m: Market, colorBy: ColorBy): number | null {
 /** 0.2 .. 0.6 fill strength for a value against its full-strength scale. */
 function strength(v: number, full: number): number {
   return 0.2 + 0.4 * Math.min(1, Math.abs(v) / full);
-}
-
-/** Where the drawn map sits in its box: the view fitted whole and centred. */
-export function fit(box: Box): { k: number; ox: number; oy: number } {
-  const k = Math.min(box.width / WORLD_VIEW.width, box.height / WORLD_VIEW.height);
-  return { k, ox: (box.width - WORLD_VIEW.width * k) / 2, oy: (box.height - WORLD_VIEW.height * k) / 2 };
-}
-
-/** The label size in view units that shows as 11-13 px on screen (12 when the map is drawn about life size). */
-export function labelSize(k: number): number {
-  return Math.min(Math.max(12, 11 / k), 13 / k);
-}
-
-/** The card's place in the box: right of the bubble unless that runs out of room, below its top half, above its lower. */
-export function tipPlace(x: number, y: number, box: Box): CSSProperties {
-  const left = x + TIP_GAP + TIP_WIDTH <= box.width ? x + TIP_GAP : Math.max(0, x - TIP_GAP - TIP_WIDTH);
-  return y <= box.height / 2
-    ? { left, top: Math.max(0, y - 30) }
-    : { left, bottom: Math.max(0, box.height - y - 30) };
 }
 
 export function WorldMap({ markets, colorBy, period, now, hovered, onHover }: Props) {

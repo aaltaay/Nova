@@ -6,6 +6,7 @@
  */
 import setupTemplates from '../bot/setupTemplatesFixture.json';
 import { sampleCandles } from '../cryptos/sampleCryptos';
+import { sampleForexBoard } from '../forex_board/sampleForex';
 import { sampleGlobalBoard } from '../global_board/sampleGlobal';
 import { parsePeriods } from '../market_board/periods';
 import { sampleMarketBoard } from '../market_board/sampleMarket';
@@ -18,7 +19,9 @@ import { cryptoBoard } from './data/crypto';
 import { chartEvents } from './data/events';
 import { DAY, NOW_S } from './data/market';
 import { sampleProfile } from './data/profile';
-import { botAudit, botSession, hotList, lossLimitView, practiceHistory, setupRows, setupsBoard, stockModes } from './data/pages';
+import {
+  botAudit, botSession, hotList, lossLimitView, orderSizeLimitView, practiceHistory, setupRows, setupsBoard, stockModes,
+} from './data/pages';
 import { decisions, history, pastSetups, stockMode, stockRead, targetChoices } from './data/read';
 import { hodHistory, leaderboardBoard, leaderboardCoverage, leaderboardDays, simClock, simStatus } from './data/sim';
 import { CATALYSTS, GAINERS, GAPPERS, HOD_CONFIG, LOSERS, WATCHLIST } from './data/universe';
@@ -119,6 +122,7 @@ function sharedRoutes(nowS: number): [RegExp, Handler][] {
     [/^\/api\/bot\/proposals$/, () => ({ proposals: [] })],
     [/^\/api\/bot\/audit$/, () => ({ entries: botAudit() })],
     [/^\/api\/loss-limit$/, () => lossLimitView(nowS)],
+    [/^\/api\/order-size-limit$/, () => orderSizeLimitView()],
     [/^\/api\/kill-switch$/, () => ({ tripped: false, reason: null, ts: null })],
     [/^\/api\/hot-list$/, () => hotList()],
     [/^\/api\/stock-mode$/, () => stockModes(venue)],
@@ -145,6 +149,10 @@ function sharedRoutes(nowS: number): [RegExp, Handler][] {
       schema_version: 1, sectors: q.get('sectors'), industries: q.get('industries'), climate: q.get('climate'),
       top: { kind: q.get('top'), period: q.get('top_period') },
     }))],
+    [/^\/api\/forex\/board$/, (_m, q) => {
+      const period = q.get('period');
+      return sampleForexBoard(period === '7D' || period === '30D' ? period : '1D');
+    }],
     [/^\/api\/global\/board$/, (_m, q) => {
       const period = q.get('period');
       return sampleGlobalBoard(period === '7D' || period === '30D' ? period : '1D');

@@ -4,7 +4,7 @@
   (``NoHeadroom``) while fewer than ``IBKR_BRIEF_MIN_FREE_LINES`` lines are spare.
 - ``bars``: an instrument's bars through the paced historical service at background priority, under the pacing kind
   ``global`` -- shed (``HistoricalShed``) while ``headroom()`` or fewer of the 10-minute 60 are left: the Market
-  page's own 30, or 40 while the Market page shows and this one does not.
+  and Forex pages' own 30, or 40 while one of them shows and this one does not.
 - ``fx_close``: a currency's US dollars per unit, IBKR's last daily midpoint close of its pair.
 
 An instrument IBKR refuses (no permission, unknown contract) raises ``Refused`` with IBKR's code and words; the caller
@@ -62,13 +62,15 @@ def history_left() -> int | None:
 
 
 def headroom(now: float | None = None) -> int:
-    """How many of the 10-minute 60 Global leaves: the Market page's own 30, so the two take turns -- 40 while the
-    Market page shows and Global does not, so the page on screen goes first."""
+    """How many of the 10-minute 60 Global leaves: the Market and Forex pages' own 30, so they take turns -- 40 while
+    one of them shows and Global does not, so the page on screen goes first."""
+    from forex_board.state import store as forex_store
     from global_board.state import store
     from market_board.state import store as market_store
 
     now = time.time() if now is None else now
-    return GLOBAL_YIELD_HEADROOM if market_store().wanted(now) and not store().wanted(now) else GLOBAL_HISTORY_HEADROOM
+    other = market_store().wanted(now) or forex_store().wanted(now)
+    return GLOBAL_YIELD_HEADROOM if other and not store().wanted(now) else GLOBAL_HISTORY_HEADROOM
 
 
 def history_ok() -> bool:

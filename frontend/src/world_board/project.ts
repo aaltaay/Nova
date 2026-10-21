@@ -1,5 +1,5 @@
 /**
- * A market's place on the Global page's map (ADR 060): d3's Natural Earth projection with the parameters the map was
+ * A place on the world boards' map (the Global and Forex pages, ADR 060, 062): d3's Natural Earth projection with the parameters the map was
  * drawn with (worldLand.ts; scripts/build-world-land.mjs checks this formula against d3 itself).
  */
 import { WORLD_PROJECTION } from './worldLand';

@@ -36,7 +36,7 @@ GLOBAL_QUIET_TO_MIN_ET = 16 * 60
 GLOBAL_HISTORY_HEADROOM = 30                     # no historical request while this few of the 10-minute 60 are left:
 #   charts, the short check, the TraderTV exits and LULD (20) come first; the Market page stops at the same 30, so
 #   the two take turns. At 40 the Market page's warm reads kept Global waiting for good (operator, 2026-10-20).
-GLOBAL_YIELD_HEADROOM = 40                       # ... while the Market page shows and this one does not: the page
+GLOBAL_YIELD_HEADROOM = 40                       # ... while the Market or Forex page shows and this one does not: the page
 #   on screen goes first (and while this one shows, the Market page is not on screen).
 GLOBAL_HISTORY_GAP_SEC = 2.0                     # between two of this page's historical requests, the Market page's
 #   own pace (MARKET_HISTORY_GAP_SEC), so neither takes every request the window frees.
