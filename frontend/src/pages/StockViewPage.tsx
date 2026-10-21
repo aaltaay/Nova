@@ -46,6 +46,7 @@ import {
   StockReadToolbar,
 } from '../stock_read';
 import { VolumeProfileChartLayer, VolumeProfileToolbar } from '../volume_profile';
+import { HeatMapToolbar, HeatMapView, useHeatMapShown } from '../heat_map';
 
 /** The bot's read on the symbol in every chart pane (ADR 036), and the volume profile on the 5-minute one (ADR 058). */
 function renderStockRead(props: ChartPaneOverlayProps) {
@@ -62,6 +63,7 @@ const STOCK_READ_TOOLBAR = (
   <>
     <StockReadToolbar />
     <VolumeProfileToolbar />
+    <HeatMapToolbar />
   </>
 );
 
@@ -104,6 +106,8 @@ export function StockViewPage({
     shallowEqual,
   );
   const ibkrStatus = useIbkrStatus();
+  // ADR 061: the heat map covers the four charts, which stay mounted and paused (no new bar requests on the way back).
+  const heatShown = useHeatMapShown();
   // `connected` is false while the status is pending or failing too: the
   // ticket says which, never "Connect IB Gateway" for an unknown (QA D10, #459).
   const statusKnown = ibkrStatusKnown(ibkrStatus);
@@ -237,10 +241,11 @@ export function StockViewPage({
               <ChartGrid
                 symbol={symbol}
                 followTicker
-                chartActive={chartActive}
+                chartActive={chartActive && !heatShown}
                 renderPaneOverlay={renderStockRead}
                 toolbarExtra={STOCK_READ_TOOLBAR}
               />
+              {heatShown ? <HeatMapView symbol={symbol} active={chartActive} /> : null}
               <StockReadSheet />
               {/* Over the charts, never beside them, so the panes keep their size from the first
                   paint. One live region: a quote that fails is announced in place of its wait. */}
