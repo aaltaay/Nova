@@ -235,6 +235,18 @@ describe('the Ahead scene', () => {
     expect(aheadScene(input({ candles: [], replayEmpty: true })).words).toEqual([AHEAD_WORDS.replayEmpty('XYZ')]);
     expect(aheadScene(input({ candles: [] })).words).toEqual([AHEAD_WORDS.noCandles]);
     expect(aheadScene(input({ roomOk: false })).words[0]).toBe(AHEAD_WORDS.noRoom);
+    expect(aheadScene(input({ answer: passed })).fan).not.toBeNull();
+    const none = aheadScene(input({ answer: passed, roomOk: false }));
+    expect(none.zone).toBeNull();
+    expect(none.fan).toBeNull();
+    expect(none.paths).toEqual([]);
+    expect(none.lines).toEqual([]);
+    expect(none.meet).toBeNull();
+    expect(none.hLines).toEqual([]);
+    expect(none.chips).toEqual([]);
+    expect(none.ghostVolume).toBeNull();
+    expect(none.macd).toBeNull();
+    expect(none.keepInView).toBeNull();
     const loading = aheadScene(input({ read: null }));
     expect(loading.words).toContain(AHEAD_WORDS.readLoading);
     expect(loading.lineRead).toBeNull();

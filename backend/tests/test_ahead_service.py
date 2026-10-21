@@ -318,3 +318,28 @@ def test_a_ready_health_is_asked_at_most_every_15_seconds(desk):
     ask("XYZ", "drain")
     asyncio.run(service.status())
     assert desk.healths == 1
+
+
+
+def test_a_changed_prior_close_or_earlier_candle_is_asked_again(desk):
+    """The memory keys on the whole request: a prior close that arrives later, or a corrected earlier candle, in the
+    same minute is a new ask; the same request is never asked twice."""
+    ask("XYZ", "drain", "XYZ")
+    assert len(desk.forecasts) == 1
+    desk.prior = 3.2
+    ask("XYZ", "drain", "XYZ")
+    assert len(desk.forecasts) == 2 and desk.forecasts[-1]["prior_close"] == 3.2
+    fixed = [dict(b) for b in desk.bars]
+    fixed[3]["h"] = fixed[3]["h"] + 0.01
+    desk.bars = fixed
+    ask("XYZ", "drain", "XYZ")
+    assert len(desk.forecasts) == 3
+
+
+def test_a_health_answer_ends_a_run_of_misses(desk):
+    """Two misses, then the forecaster answers its health (even "warming"): the run is over, so one more miss cannot
+    open the breaker as if three came in a row."""
+    service._breaker["fails"] = 2
+    desk.health = lambda: client.parse_health(contract_health(state="warming", detail=None))
+    ask("XYZ", "drain")
+    assert service._breaker["fails"] == 0

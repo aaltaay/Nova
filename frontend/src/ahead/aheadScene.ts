@@ -292,7 +292,7 @@ export function aheadScene(input: AheadSceneInput): AheadScene {
   const lm = linesPart(lineRead, anchor.t);
   const tags: SceneChip[] = [{ text: AHEAD_WORDS.aiTag, fg: AHEAD_COLORS.aiTagFg, bg: AHEAD_COLORS.aiTagBg }];
   if (a) tags.push(examTag(a));
-  return {
+  const scene: AheadScene = {
     on: true,
     anchorT: anchor.t,
     horizon: AHEAD_HORIZON,
@@ -302,8 +302,7 @@ export function aheadScene(input: AheadSceneInput): AheadScene {
     paths: drawnPaths,
     ...lm,
     ...drawn,
-    // No room at the edge: nothing of the zone is drawn, so nothing of it may stretch the price scale.
-    keepInView: input.roomOk ? keepInView({ fan, ...lm, hLines: drawn.hLines }) : null,
+    keepInView: keepInView({ fan, ...lm, hLines: drawn.hLines }),
     ghostVolume,
     macd,
     words: [...roomWords, ...(gate.word ? [gate.word] : []), ...later],
@@ -314,6 +313,14 @@ export function aheadScene(input: AheadSceneInput): AheadScene {
     walls,
     triggers,
   };
+  return input.roomOk ? scene : withoutDrawing(scene);
+}
+
+/** No room at the edge: nothing of the zone is drawn (a forecast clipped at the edge would read as a whole one) and
+ * nothing stretches the price scale; the words say why, and the panel keeps its numbers. */
+function withoutDrawing(scene: AheadScene): AheadScene {
+  return { ...scene, zone: null, ticks: [], fan: null, paths: [], lines: [], meet: null, hLines: [], chips: [],
+    keepInView: null, ghostVolume: null, macd: null };
 }
 
 /** Tests only. */

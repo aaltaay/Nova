@@ -41,7 +41,7 @@ function fakePane(nowMin?: number) {
   const ts = {
     timeToIndex: (t: number) => data.findIndex(d => d.time === Number(t)),
     logicalToCoordinate: (l: number) => l * 10,
-    getVisibleLogicalRange: () => ({ from: 0, to: 10 }),
+    getVisibleLogicalRange: () => ({ from: 0, to: 30 }),   // room past the newest candle, as Ahead frames it
     setVisibleLogicalRange: vi.fn(),
     subscribeVisibleLogicalRangeChange: vi.fn(),
     unsubscribeVisibleLogicalRangeChange: vi.fn(),
