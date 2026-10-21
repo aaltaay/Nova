@@ -104,3 +104,19 @@ def test_the_door_reads_its_own_venues_limit(monkeypatch):
         assert short.ok is False and short.reason_code == "LOSS_LIMIT_NO_NEW_BUYS"   # a new short is a new position
     finally:
         reset_venue()
+
+
+def test_the_bots_line_refuses_a_bot_buy_and_lets_yours_through(monkeypatch):
+    """ADR 061: the side comes from the order's own source; the Bots line holds only source ``bot``."""
+    called = _paper_desk(monkeypatch)
+    from loss_limit import settings, state
+    from sim.mode import venue
+
+    settings.update({"bots_usd": 500})
+    state.write(venue(), {"tripped_at": time.time(), "tripped_loss": 510.0, "limit_usd": 500}, line="bots")
+    bot = asyncio.run(exec_svc.execute(_cmd("bot", "ll-bots-line-bot"), wait_ack=False))
+    assert bot.ok is False and bot.reason_code == "LOSS_LIMIT_NO_NEW_BUYS"
+    assert "The bots' daily loss limit reached" in bot.error and "$510" in bot.error
+    manual = asyncio.run(exec_svc.execute(_cmd("manual", "ll-bots-line-manual"), wait_ack=False))
+    assert manual.reason_code != "LOSS_LIMIT_NO_NEW_BUYS"
+    assert called == [1]

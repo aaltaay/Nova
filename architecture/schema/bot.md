@@ -99,7 +99,8 @@ detail: {..., text}}]` are `venue` (Paper, or Sim at its live edge), `level`
 locks Activate -- Auto-entry needs the bot Active), `depth_lines` (ok while at
 least one Bot stock holds a depth line, `held`, `missing`, `max_lines`; each
 trigger still needs its own), `loss_limit` (stage `fire`: the daily loss limit's No new
-buys on this venue, `detail: {text, until, tripped_at, loss, limit_usd, venue}`; `loss-limit.md`), `kill_switch`, `window`
+buys for the bots on this venue -- the Account line's or the Bots line's, ADR 063 -- `detail: {text, until,
+tripped_at, loss, limit_usd, venue, line}`; `loss-limit.md`), `kill_switch`, `window`
 (per Strategy setup: `setups: [{setup, start, end, open, clipped, error}]`),
 `daily_cap` (`count`, `cap`, `venue_day`), `extended_hours` and `commissions`;
 the session adds `ready` / `ready_reason` (the bot would trade a go trigger now)
@@ -145,8 +146,9 @@ their thresholds (`breakers`), the bot trip's latch (`soft_breaker_*`), the all-
 {breakers}` is refused `400 BOT_BREAKERS_RETIRED` with the words "The bot trip and the all-stop are
 gone: set the daily loss limit in Settings > Loss limits (ADR 056)". A saved session with any of their
 fields -- on the row or in a venue's dial -- loads with them dropped (`BOT_RETIRED_BREAKER_KEYS`). The
-one loss limit is the operator's, in Settings, for you and the bots alike (`loss-limit.md`); it never
-turns the bot off, and the bot meets its No new buys at the execution door and in its `loss_limit` gate.
+loss limit is the operator's, in Settings: an Account line for you and the bots alike, and since ADR 063 a
+line for the bots' own trades, whose trip holds only the bots' entries (`loss-limit.md`); it never turns
+the bot off, and the bot meets its No new buys at the execution door and in its `loss_limit` gate.
 `bot-session.json` and `bot-proposals.json` are written through a temp file and a rename.
 
 **The level belongs to a venue** (operator report 2026-09-30: "When I switch

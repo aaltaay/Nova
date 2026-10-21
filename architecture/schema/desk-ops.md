@@ -832,14 +832,17 @@ sits on the order path and never places, stages, cancels or delays an order.
   whose `effect` is `closes`). Before the verb: "Bot" when a bot sent it (`bot_id`, or an `order_origin`
   of `bot`, `auto_entry`, `approve`, `bot_api` or `nova_exit`). Before the sentence:
   "Loss limit." for the daily loss limit's Auto sell (`order_origin` `loss_limit`, ADR 056; never "Bot sold"),
+  "Your loss limit." / "Bots' loss limit." for a side line's (`loss_limit_you` / `loss_limit_bots`, ADR 063),
   "Flatten." for the ticket's Flatten and KILL (`order_origin` `ticket_flatten`, `emergency_kill`, and
   the retired `bot_trip` / `all_stop` on older rows), "Stop hit." for a stop that closes (a `STP` order type or `leg_role` `stop`, not a buy
   stop that opens), "Target hit." for a `target` / `target2` leg. ", partial." while the order still
   works. Fills of one symbol and one sentence in one read are said once with their shares added; more
   than three sentences in one read say the first two and "And N more fills."
-- The daily loss limit (ADR 056, `loss-limit.md`) speaks twice at most per account and day, in the poll
+- The daily loss limit (ADR 056, `loss-limit.md`) speaks twice at most per account, line and day, in the poll
   leader's window: "Loss limit warning. Paper is down 1,620 dollars of 2,000." at 80% (with Warn me), and
-  "Daily loss limit reached on Paper." at the limit; the header mute silences both.
+  "Daily loss limit reached on Paper." at the limit; a side line names itself (ADR 063): "Loss limit warning.
+  The bots' trades on Paper are down 420 dollars of 500.", "The bots' loss limit reached on Paper.", "Your
+  trades' loss limit reached on Paper."; the header mute silences them all.
 - **Order rejected.** An order the ticket, a hotkey or the action bar sends and the backend refuses says
   "Order rejected." beside its pop-up (`ibkr/notifyOrderRejected.ts`; the soft warnings it skips stay
   silent).

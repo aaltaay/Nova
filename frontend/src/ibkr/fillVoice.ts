@@ -31,8 +31,15 @@ const EPS = 1e-9;
 
 /** Sells that flatten what is held. `all_stop` / `bot_trip` are rows from before ADR 056: a flatten, never the bot's. */
 const FLATTEN_ORIGINS = new Set(['ticket_flatten', 'emergency_kill', 'all_stop', 'bot_trip']);
-/** The daily loss limit's Auto sell (ADR 056): it sells every position opened today, yours and the bots'. */
-const LOSS_LIMIT_ORIGIN = 'loss_limit';
+/**
+ * The daily loss limit's Auto sell (ADR 056, ADR 061), with what the voice calls each line: the account's sells
+ * every position opened today, yours and the bots'; your trades' line only yours; the bots' line only theirs.
+ */
+const LOSS_LIMIT_LEADS = new Map<string, string>([
+  ['loss_limit', 'Loss limit.'],
+  ['loss_limit_you', 'Your loss limit.'],
+  ['loss_limit_bots', "Bots' loss limit."],
+]);
 const BOT_ORIGINS = new Set(['bot', 'auto_entry', 'approve', 'bot_api', 'nova_exit']);
 const TARGET_ROLES = new Set(['target', 'target2']);
 
@@ -87,9 +94,9 @@ function describe(row: IbkrOrder, working: boolean, filled: number): Omit<Said, 
   const closes = side === 'SELL' ? !shortEntry : covers;
   const stop = closes && (legRole === 'stop' || (!legRole && orderType.startsWith('STP')));
 
-  const lossLimit = origin === LOSS_LIMIT_ORIGIN;
+  const lossLimit = LOSS_LIMIT_LEADS.has(origin);
   let lead = '';
-  if (lossLimit) lead = 'Loss limit.';
+  if (lossLimit) lead = LOSS_LIMIT_LEADS.get(origin) ?? '';
   else if (FLATTEN_ORIGINS.has(origin)) lead = 'Flatten.';
   else if (stop) lead = 'Stop hit.';
   else if (TARGET_ROLES.has(legRole)) lead = 'Target hit.';

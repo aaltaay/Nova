@@ -84,7 +84,9 @@ EXECUTION_ORIGINS = (
     "emergency_kill",
     "bot_trip",       # retired (ADR 056): kept so rows from before it still read; nothing sends it
     "all_stop",       # retired (ADR 056): kept so rows from before it still read; nothing sends it
-    "loss_limit",     # ADR 056: the daily loss limit's Auto sell
+    "loss_limit",     # ADR 056: the daily loss limit's Auto sell (the Account line)
+    "loss_limit_you",   # ADR 061: the You line's Auto sell -- your shares opened today only
+    "loss_limit_bots",  # ADR 061: the Bots line's Auto sell -- the bots' shares opened today only
     "bot",
     "auto_entry",
     "approve",

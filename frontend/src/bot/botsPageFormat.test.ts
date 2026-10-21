@@ -75,6 +75,10 @@ describe('gate chips (bot/gates.py facts, ADR 042 C)', () => {
     expect(stopped.text).toBe('Loss limit reached on Paper · no new buys until 04:00 ET on Oct 1');
     expect(stopped.why).toBe(text);
     expect(stopped.tip).toMatch(/^No new buys after the daily loss limit \(Settings > Loss limits\)/);
+    // ADR 063: the bots' own line holds only the bots, and the line says so.
+    expect(gateLine(gate('loss_limit', false,
+      { until: '2026-10-01T04:00:00-04:00', tripped_at: AT_0942, venue: 'paper', line: 'bots' }, 'fire')).text)
+      .toBe("Bots' loss limit reached on Paper · no new buys until 04:00 ET on Oct 1");
     // Without the backend's words it still says what holds and how to buy again.
     expect(gateLine(gate('loss_limit', false, { until: null, tripped_at: AT_0942, venue: 'paper' }, 'fire')).why)
       .toBe('The daily loss limit was reached on Paper at 09:42 ET: no new buys until 04:00 ET. Raise it or uncheck '

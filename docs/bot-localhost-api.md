@@ -168,11 +168,12 @@ Action-kind allowlist: `buy_market`, `buy_limit_ask_offset`,
 
 ## The daily loss limit (ADR 056)
 
-The bot has no loss breaker of its own any more. One daily loss limit in Settings > Loss limits
+The bot has no loss breaker of its own any more. The daily loss limit in Settings > Loss limits
 counts the trades opened today -- yours and the bots' alike -- on each account; at the limit it can
 warn, stop new buys (a bot's `buy_*` kinds are refused `409 LOSS_LIMIT_NO_NEW_BUYS`) and, if the
-operator checked Auto sell, sell what was opened today. It never turns the bot off; a bot's own
-exits are never held. Schema: `architecture/schema/loss-limit.md`.
+operator checked Auto sell, sell what was opened today. A Bots' trades line (ADR 063) counts only
+the trades a bot opened and, at its line, stops only the bots' entries and sells only their shares.
+It never turns the bot off; a bot's own exits are never held. Schema: `architecture/schema/loss-limit.md`.
 
 ## Your own brain
 

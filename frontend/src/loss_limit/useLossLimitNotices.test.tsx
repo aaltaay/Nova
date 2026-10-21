@@ -30,13 +30,19 @@ const NOW = Date.now() / 1000;
 
 function tripped(): LossLimitView {
   return {
-    schema_version: 1,
-    settings: { limit_usd: 2000, warn: true, no_new_buys: true, auto_sell: false, set_at: null, source: 'operator', error: null },
+    schema_version: 2,
+    settings: { limit_usd: 2000, you_usd: null, bots_usd: null, warn: true, no_new_buys: true, auto_sell: false,
+      set_at: null, source: 'operator', error: null },
     day: '2026-10-15', until: NOW + 3600, error: null,
     accounts: {
       paper: {
-        name: 'Paper', counted_at: NOW, pnl: -2040, loss: 2040, unknown: null, warned_at: null, warned_loss: null,
-        tripped_at: NOW - 5, tripped_loss: 2040, limit_usd: 2000, sold: null, sell_error: null, no_new_buys: null,
+        name: 'Paper', counted_at: NOW, pnl: -2040, loss: 2040, unknown: null,
+        lines: {
+          account: {
+            on: true, pnl: -2040, loss: 2040, warned_at: null, warned_loss: null, tripped_at: NOW - 5,
+            tripped_loss: 2040, limit_usd: 2000, sold: null, sell_error: null, no_new_buys: null,
+          },
+        },
       },
     },
   };
