@@ -339,3 +339,8 @@ export const SHORT_CHIP_COOLOFF_TIP =
 /** The rail on a Sim replay (ADR 052): the chart draws the replay's read; the tiles are the live feed's. */
 export const REPLAY_RAIL_NOTE = 'Sim replay: the charts draw the Sim eyes\' setups, the ones that ended, the plan and the '
   + 'day\'s levels at the playhead. The tiles read the live feed, so they wait for the live edge.';
+
+/** The Key's card keeps inside its chart pane: it ends this far above the pane's bottom, scrolls past that, and is
+ * never squeezed under this height (a pane too short for it lets it run on, still scrolling). */
+export const KEY_CARD_PANE_MARGIN_PX = 8;
+export const KEY_CARD_MIN_PX = 120;

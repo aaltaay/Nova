@@ -264,6 +264,7 @@ export function LivePane({
           chart={chartApi}
           candleSeriesRef={candleSeriesRef}
           containerRef={containerRef}
+          volSeriesRef={volSeriesRef}
           activeTool={activeTool}
           onToolClick={handleToolClick}
           enabledIndicators={enabledIndicators}

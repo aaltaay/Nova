@@ -40,6 +40,9 @@ os.environ["NOVA_ENV_PATH"] = str(_SESSION_CACHE / "pytest-never-written.env")
 os.environ.pop("NOVA_API_KEY", None)
 # The followed traders feed is the operator's own; an app a test boots has none (its tests build their own app).
 os.environ.pop("NOVA_FOLLOW_FEED_URL", None)
+# ADR 061: no test reaches a forecaster unless it sets its own address and token.
+os.environ.pop("NOVA_AHEAD_URL", None)
+os.environ.pop("NOVA_AHEAD_TOKEN", None)
 # Starlette TestClient's Host ("testserver"): the request guard reads its allowed
 # names once, when main.py builds the app, and refuses any other name.
 os.environ["NOVA_ALLOWED_HOSTS"] = "testserver"

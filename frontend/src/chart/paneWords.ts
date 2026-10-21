@@ -80,6 +80,14 @@ export function paneWords(chart: IChartApi | null): { rects: readonly PaneWordRe
   return b.snapshot;
 }
 
+/** Everything published on `chart` except `source`'s own words: a reader that also publishes measures the others
+ * only, so its own words never feed back into where it draws them. */
+export function paneWordsExcept(chart: IChartApi | null, source: string): PaneWordRect[] {
+  const b = chart ? boards.get(chart) : undefined;
+  if (!b) return [];
+  return [...b.sources.entries()].filter(([name]) => name !== source).flatMap(([, rects]) => rects);
+}
+
 /** Called once after the paint that changed `chart`'s words; the returned function stops it. */
 export function subscribePaneWords(chart: IChartApi | null, fn: () => void): () => void {
   if (!chart) return () => {};

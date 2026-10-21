@@ -19,6 +19,7 @@ import {
   type IndicatorBar,
 } from '../chartIndicators';
 import { shouldPaintOscillator } from '../chart/oscillatorPaint';
+import { publishOscillatorPane } from '../chart/oscillatorRegistry';
 import {
   formatChartCrosshairTime,
   formatChartTickMark,
@@ -216,6 +217,16 @@ function OscillatorPane({
       syncingRef.current = false;
     }
   }, [bars, barsRevision, kind, seriesGen, parentChart]);
+
+  // Tell the price chart this pane is here (Ahead's MACD fan draws on it, ADR 065); keyed on the series
+  // generation so a rebuilt pane is announced again, and taken back when it goes.
+  useEffect(() => {
+    const child = chartRef.current;
+    const line = lineARef.current;
+    if (!parentChart || !child || !line) return undefined;
+    publishOscillatorPane(parentChart, kind, { kind, chart: child, line });
+    return () => publishOscillatorPane(parentChart, kind, null);
+  }, [parentChart, kind, seriesGen]);
 
   useEffect(() => {
     const child = chartRef.current;

@@ -1,0 +1,39 @@
+{
+ "schema_version": 1,
+ "symbol": "XYZ",
+ "generated_at": 1792500065,
+ "replay": false,
+ "venue": "paper",
+ "bar_t": 1792500000,
+ "as_of": 1792500060,
+ "bars": {
+  "n": 240,
+  "contiguous_tail": 240,
+  "tail_gap_sec": 0
+ },
+ "price": 4.62,
+ "prior_close": 3.1,
+ "volume_last15": 120000,
+ "ai": {
+  "state": "error",
+  "reason": "the forecaster's answer is missing close",
+  "need": null,
+  "have": null,
+  "retry_ms": null,
+  "retry_at": null,
+  "model": null,
+  "exam_passed": null,
+  "exam": null,
+  "horizon_min": 15,
+  "step_sec": 60,
+  "levels": null,
+  "close": null,
+  "volume": null,
+  "paths": null,
+  "volume_15": null,
+  "range_15": null,
+  "compute_ms": null,
+  "issued_at": null
+ },
+ "never": "A forecast only: nothing here places, blocks, sizes or delays an order."
+}

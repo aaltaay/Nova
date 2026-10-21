@@ -139,6 +139,7 @@ Every confirmed wire and persisted shape lives in `architecture/schema/`, one fi
 | `architecture/schema/forex-board.md` | The Forex page (ADR 062) |
 | `architecture/schema/volume-profile.md` | Volume profile on the 5-minute chart (ADR 058) |
 | `architecture/schema/heat-map.md` | The heat map on the Trader (ADR 061) |
+| `architecture/schema/ahead.md` | Ahead: the forecast zone on the 1-minute chart (ADR 065) |
 | `architecture/schema/short-selling.md` | Short selling (ADR 048, #778); The short setups on the scanner (ADR 049); The bot trades both sides (ADR 049); Operator trading judgment and Live's day cover (ADR 048, #791) |
 | `architecture/schema/loss-limit.md` | One daily loss limit (ADR 056); Three lines (ADR 063) |
 

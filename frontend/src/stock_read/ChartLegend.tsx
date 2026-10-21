@@ -12,7 +12,7 @@ import { laneChip, planBadgeText } from './chartShapes';
 import { ChartKey } from './ChartKey';
 import { fiveMinuteOnMinute } from './fiveMinuteShapes';
 import { LegendSetupsMenu, onLegendRow } from './LegendSetupsMenu';
-import { chartKey } from './paneKeyRows';
+import { chartKey, type KeySection } from './paneKeyRows';
 import { CallBox, MomentTrack } from './MomentTrack';
 import { hhmmssEt } from './timeWords';
 import { WhoTradesChip } from './WhoTradesChip';
@@ -46,7 +46,7 @@ function useCornerBottom(corner: RefObject<HTMLDivElement | null>, containerRef:
   }, [corner, containerRef, report]);
 }
 
-export function ChartLegend({ ctx, read, onFrame, right = null, containerRef, onCornerBottom }: {
+export function ChartLegend({ ctx, read, onFrame, right = null, containerRef, onCornerBottom, extraKey = [] }: {
   ctx: StockReadContextValue;
   read: StockRead;
   /** Frame the forming setup on the pane. */
@@ -56,6 +56,8 @@ export function ChartLegend({ ctx, read, onFrame, right = null, containerRef, on
   containerRef?: RefObject<HTMLElement | null>;
   /** How far below the pane's top the corner chips reach, in pixels. */
   onCornerBottom?: (px: number) => void;
+  /** Sections other layers on the pane add to its Key, listed first (Ahead's zone while it is on). */
+  extraKey?: KeySection[];
 }) {
   const corner = useRef<HTMLDivElement>(null);
   useCornerBottom(corner, containerRef, onCornerBottom);
@@ -70,7 +72,7 @@ export function ChartLegend({ ctx, read, onFrame, right = null, containerRef, on
     <div className="sr-legend" data-testid="stock-read-legend" onPointerDown={stop} onDoubleClick={stop}
       style={right === null ? undefined : { right }}>
       <div className="sr-legend__chips">
-        <ChartKey sections={chartKey('full', layers)} testId="stock-read-key-full" />
+        <ChartKey sections={[...extraKey, ...chartKey('full', layers)]} testId="stock-read-key-full" />
         {!eyes ? (
           <button
             type="button"
