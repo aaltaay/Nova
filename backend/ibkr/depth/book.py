@@ -11,6 +11,13 @@ them with a first bid or ask that was not the best.
 
 ``DepthBook`` replays ``ticker.domTicks`` (every row operation since the last
 update event) onto plain lists with IBKR's rules. Pure: no I/O, no ib_async.
+
+IBKR can move rows by rewriting each one with its neighbour, and ib_async
+hands Nova the row operations of each TCP read as it arrives
+(``tcpDataProcessed``): a read that ends partway through such a move leaves
+one venue's row on two rows until the next read finishes it (#1133).
+``shown()`` is the book Nova shows -- each venue once at a price, as IBKR's
+SMART book holds it.
 """
 from __future__ import annotations
 
@@ -27,6 +34,8 @@ class Level:
     price: float
     size: float
     mm: str = ""
+    # When IBKR wrote the row (the book's count of row writes): of a venue's two rows, the later is current.
+    written: int = field(default=0, compare=False)
 
 
 @dataclass
@@ -36,6 +45,7 @@ class DepthBook:
     max_rows: int
     bids: list[Level] = field(default_factory=list)
     asks: list[Level] = field(default_factory=list)
+    writes: int = 0
 
     def reset(self) -> None:
         """A new subscription or an IBKR depth reset (error 317): IBKR resends the book."""
@@ -56,7 +66,8 @@ class DepthBook:
             if position < len(rows):
                 del rows[position]
             return
-        level = Level(float(tick.price), float(tick.size), str(getattr(tick, "marketMaker", "") or ""))
+        self.writes += 1  # per row operation: one read can hold a size update and the start of a move
+        level = Level(float(tick.price), float(tick.size), str(getattr(tick, "marketMaker", "") or ""), self.writes)
         if operation == INSERT:
             rows.insert(min(position, len(rows)), level)
             del rows[self.max_rows:]  # the row pushed past the book's depth falls off
@@ -70,6 +81,37 @@ class DepthBook:
         return is_ordered([lv.price for lv in self.bids], bid=True) and is_ordered(
             [lv.price for lv in self.asks], bid=False,
         )
+
+    def shown(self) -> tuple[list[Level], list[Level]]:
+        """The bids and asks Nova shows: the kept rows less a move IBKR has not finished.
+
+        The kept rows stay as IBKR addresses them, so its next operations land on the right row.
+        """
+        return one_row_per_venue(self.bids), one_row_per_venue(self.asks)
+
+
+def one_row_per_venue(rows: list[Level]) -> list[Level]:
+    """``rows`` with each venue once at a price (#1133).
+
+    A SMART book holds one row per venue per price (a price's rows go in venue order), so a venue's
+    second row there is the order IBKR is moving, never a second order. Of the two, the one IBKR wrote
+    last is kept -- the other still holds what the row said before; a copy is the same either way. A row
+    with no venue proves nothing and is kept.
+    """
+    out: list[Level] = []
+    seen: dict[tuple[float, str], int] = {}
+    for level in rows:
+        if not level.mm:
+            out.append(level)
+            continue
+        key = (level.price, level.mm)
+        at = seen.get(key)
+        if at is None:
+            seen[key] = len(out)
+            out.append(level)
+        elif level.written > out[at].written:
+            out[at] = level
+    return out
 
 
 def is_ordered(prices: list[float], *, bid: bool) -> bool:
