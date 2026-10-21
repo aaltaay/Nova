@@ -5,7 +5,7 @@
  *
  * Read from the row's own stamps, never inferred from its side, price or time:
  * - `order_origin`: which part of Nova sent it (the backend's `EXECUTION_ORIGINS`; ADR 048 adds the
- *   day cover and the margin call, ADR 056 the daily loss limit's Auto sell);
+ *   day cover and the margin call, ADR 056 the daily loss limit's Auto sell, ADR 061 its You and Bots lines);
  * - `order_source`: the ADR 007 command source, for rows placed before origins were recorded;
  * - `source: 'ib_recovered'`: IBKR knows the order and Nova never placed it.
  * A row with none of them says so rather than guessing "You".
@@ -36,6 +36,21 @@ const BY_ORIGIN: Record<string, SentBy> = {
     tip:
       "The daily loss limit's Auto sell: today's loss reached your limit, so Nova sold every position " +
       'opened today, at market. You set the limit in Settings > Loss limits.',
+  },
+  // ADR 061: a side line sells only its side's shares opened today.
+  loss_limit_you: {
+    label: 'Loss limit · You',
+    tone: 'breaker',
+    tip:
+      "Your trades' loss limit's Auto sell: the trades you opened today reached your line, so Nova sold your " +
+      "shares opened today, at market. The bots' shares were left alone. You set it in Settings > Loss limits.",
+  },
+  loss_limit_bots: {
+    label: 'Loss limit · Bots',
+    tone: 'breaker',
+    tip:
+      "The bots' loss limit's Auto sell: the trades the bots opened today reached their line, so Nova sold the " +
+      "bots' shares opened today, at market. Your shares were left alone. You set it in Settings > Loss limits.",
   },
   // Rows from before ADR 056 keep the names of the two loss rules it replaced.
   bot_trip: {

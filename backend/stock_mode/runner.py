@@ -51,6 +51,7 @@ from bot.audit import record as audit
 from bot.first_pullback import halves
 from bot.wake import Wake
 from constants_bot import BOT_DEFAULT_WORKING_TTL_SEC, BOT_FP_TRIGGER_MAX_AGE_SEC, BOT_SKIP_VENUE_CHANGING
+from constants_loss_limit import LOSS_LIMIT_LINE_YOU
 from constants_setups import SETUP_STATE_ARMED, SETUP_STATE_NEAR, TAPE_VERDICT_GO
 from constants_stock_mode import (
     STOCK_MODE_APPROVAL_CHECK_SEC,
@@ -260,7 +261,7 @@ def _refusal(event: dict[str, Any], now: float) -> tuple[str, str] | None:
     from setup_scanner.trade_verdict import of_event
 
     venue, replay = gates.venue_state()
-    blocked = gates.venue_block(venue, replay) or gates.desk_block()
+    blocked = gates.venue_block(venue, replay) or gates.desk_block(LOSS_LIMIT_LINE_YOU)   # an approved plan is yours
     if blocked:
         return blocked
     from stock_mode.leave import leaving, leaving_text

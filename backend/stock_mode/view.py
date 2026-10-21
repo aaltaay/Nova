@@ -9,6 +9,7 @@ import logging
 import time
 from typing import Any
 
+from constants_loss_limit import LOSS_LIMIT_LINE_BOTS, LOSS_LIMIT_LINE_YOU
 from constants_stock_mode import (
     STOCK_MODE_APPROVE,
     STOCK_MODE_AUTO_ENTRY,
@@ -202,7 +203,7 @@ def _notes(sym: str, mode: str, venue: str | None, replay: bool, row: dict[str, 
     blocked = gates.venue_block(venue, replay, mode, loaded=loaded)
     if blocked is not None:
         out.append(_note("replay" if blocked[0] == "STOCK_MODE_REPLAY" else "live", blocked[1]))
-    for code, why in gates.desk_blocks():
+    for code, why in gates.desk_blocks(LOSS_LIMIT_LINE_BOTS if mode in _NOVA_BUYS else LOSS_LIMIT_LINE_YOU):
         out.append(_note(_DESK_NOTE_IDS.get(code, code.lower()), why))
     if gates.followed(sym) is False:
         out.append(_note("not_followed", STOCK_MODE_NOTE_NOT_FOLLOWED.format(sym=sym)))

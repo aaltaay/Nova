@@ -102,7 +102,7 @@ STOCK_MODE_BLOCK_STALE = "TRIGGER_STALE"
 STOCK_MODE_BLOCK_WORKING = "ENTRY_WORKING"
 STOCK_MODE_WHY_DISARMED = "The padlock is locked: unlock it so Nova can place orders."
 STOCK_MODE_WHY_KILL = "The kill switch is tripped: nothing is sent until you reset it."
-STOCK_MODE_WHY_LOSS_LIMIT = ("The daily loss limit was reached on this venue today: no new buys until 04:00 ET. "
+STOCK_MODE_WHY_LOSS_LIMIT = ("A daily loss line that holds these buys was reached on this venue today: no new buys until 04:00 ET. "
                              "Raise it or uncheck No new buys in Settings > Loss limits to buy again.")
 # ADR 049 (#778 step 4): the plan's setup is a short, which no Nova mode trades until step 5 (the view's note).
 STOCK_MODE_NOTE_NOT_FOLLOWED = (

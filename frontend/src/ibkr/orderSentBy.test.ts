@@ -20,6 +20,14 @@ describe('orderSentBy (operator report 2026-10-01: "I don\'t remember selling it
     expect(by.tip).toMatch(/Settings > Loss limits/);
   });
 
+  it('names which loss line sold: yours or the bots\' (ADR 061)', () => {
+    expect(orderSentBy({ order_source: 'flatten', order_origin: 'loss_limit_you' })).toMatchObject({
+      label: 'Loss limit · You', tone: 'breaker' });
+    const bots = orderSentBy({ order_source: 'flatten', order_origin: 'loss_limit_bots' });
+    expect(bots).toMatchObject({ label: 'Loss limit · Bots', tone: 'breaker' });
+    expect(bots.tip).toMatch(/Your shares were left alone/);
+  });
+
   it('tells your own orders from Nova\'s', () => {
     expect(orderSentBy({ order_source: 'manual', order_origin: null })).toMatchObject({ label: 'You', tone: 'you' });
     expect(orderSentBy({ order_source: 'flatten', order_origin: 'ticket_flatten' }).label).toBe('You · Flatten');

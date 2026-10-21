@@ -119,6 +119,19 @@ describe('fillVoice', () => {
     ]);
   });
 
+  it('names the loss line that sold: yours or the bots\' (ADR 061)', () => {
+    const state = seeded();
+    expect(readFills(state, snap([], [
+      order({ order_id: 1, symbol: 'WETO', side: 'SELL', qty: 100, order_type: 'MKT', order_origin: 'loss_limit_bots',
+        order_source: 'flatten', filled_qty: 100 }),
+      order({ order_id: 2, symbol: 'GME', side: 'SELL', qty: 20, order_type: 'MKT', order_origin: 'loss_limit_you',
+        order_source: 'flatten', filled_qty: 20 }),
+    ]))).toEqual([
+      'Bots\' loss limit. Sold 100 shares of W E T O.',
+      'Your loss limit. Sold 20 shares of G M E.',
+    ]);
+  });
+
   it('reads the retired loss rules\' old rows as flattens, never as the bot', () => {
     const state = seeded();
     const said = readFills(state, snap([], [

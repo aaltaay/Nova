@@ -1,23 +1,38 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { LossLimitAccount, LossLimitView } from './lossLimitApi';
+import type { LossLimitAccount, LossLimitLine, LossLimitLineId, LossLimitView } from './lossLimitApi';
 import { lossLimitCloseLine, noteLossLimit, resetLossLimitNoticesForTests } from './lossLimitNotices';
 
 /** 2026-10-15 10:12 ET. */
 const AT_1012 = Date.UTC(2026, 9, 15, 14, 12) / 1000;
 
-function account(over: Partial<LossLimitAccount> = {}): LossLimitAccount {
+type LineOver = Partial<LossLimitLine> & { name?: string };
+
+function line(over: Partial<LossLimitLine> = {}): LossLimitLine {
   return {
-    name: 'Paper', counted_at: AT_1012, pnl: -100, loss: 100, unknown: null,
-    warned_at: null, warned_loss: null, tripped_at: null, tripped_loss: null, limit_usd: null,
-    sold: null, sell_error: null, no_new_buys: null,
+    on: true, pnl: -100, loss: 100, warned_at: null, warned_loss: null, tripped_at: null, tripped_loss: null,
+    limit_usd: null, sold: null, sell_error: null, no_new_buys: null,
     ...over,
+  };
+}
+
+/** An account whose Account line is `over` (ADR 056's one line); `lines` sets the You and Bots lines. */
+function account(over: LineOver = {}, lines: Partial<Record<LossLimitLineId, Partial<LossLimitLine>>> = {}): LossLimitAccount {
+  const { name, ...rec } = over;
+  return {
+    name: name ?? 'Paper', counted_at: AT_1012, pnl: -100, loss: 100, unknown: null,
+    lines: {
+      account: line(rec),
+      you: line({ on: false, ...lines.you }),
+      bots: line({ on: false, ...lines.bots }),
+    },
   };
 }
 
 function view(accounts: LossLimitView['accounts']): LossLimitView {
   return {
-    schema_version: 1,
-    settings: { limit_usd: 2000, warn: true, no_new_buys: true, auto_sell: true, set_at: null, source: 'operator', error: null },
+    schema_version: 2,
+    settings: { limit_usd: 2000, you_usd: 300, bots_usd: 500, warn: true, no_new_buys: true, auto_sell: true,
+      set_at: null, source: 'operator', error: null },
     day: '2026-10-15', until: AT_1012 + 18 * 3600, accounts, error: null,
   };
 }
@@ -119,6 +134,40 @@ describe('the daily loss limit\'s notices (ADR 056)', () => {
     noteLossLimit(view({ paper: account({ warned_at: AT_1012, warned_loss: 1600 }) }), push, null, AT_1012 + 1);
     noteLossLimit(view({ paper: account({ warned_at: AT_1012 + 120, warned_loss: 1610 }) }), push, null, AT_1012 + 121);
     expect(push).toHaveBeenCalledTimes(2);
+  });
+
+  it('names the bots\' line in its notice and voice, and says only the bots stopped (ADR 061)', () => {
+    const push = vi.fn();
+    const speak = vi.fn();
+    const stop = 'The bots\' daily loss limit reached on Paper at 10:12 ET (the bots\' trades down $510 against their '
+      + '$500 limit): no new bot entries until 04:00 ET Fri Oct 16; your own buys still work.';
+    const v = view({ paper: account({}, { bots: {
+      on: true, tripped_at: AT_1012, tripped_loss: 510, limit_usd: 500, sell: 'done',
+      sold: [{ symbol: 'X', side: 'SELL', qty: 100, ok: true, order_id: 261, error: null }],
+      no_new_buys: { line: 'bots', text: stop, until: AT_1012 + 18 * 3600 },
+    } }) });
+    expect(noteLossLimit(v, push, speak, AT_1012 + 2)).toBe(1);
+    expect(push.mock.calls[0][0]).toEqual({
+      tone: 'bad',
+      title: 'The bots\' loss limit reached',
+      text: ['The bots\' trades on Paper are down $510 against their $500 limit · 10:12 ET', stop,
+        'Sold 100 X · order 261'].join('\n'),
+    });
+    expect(speak).toHaveBeenCalledWith('The bots\' loss limit reached on Paper.');
+  });
+
+  it('warns on your trades\' line with its own limit, and the account line\'s trip does not hide it', () => {
+    const push = vi.fn();
+    const speak = vi.fn();
+    const v = view({ paper: account({ tripped_at: AT_1012 + 30, tripped_loss: 2040, limit_usd: 2000 },
+      { you: { on: true, warned_at: AT_1012, warned_loss: 250, limit_usd: 300 } }) });
+    expect(noteLossLimit(v, push, speak, AT_1012 + 31)).toBe(2);
+    expect(push.mock.calls[0][0]).toEqual({
+      tone: 'warn', title: 'Your trades\' loss limit: 80% reached',
+      text: 'Your trades on Paper are down $250 of your $300 limit.',
+    });
+    expect(speak.mock.calls[0][0]).toBe('Loss limit warning. Your trades on Paper are down 250 dollars of 300.');
+    expect(push.mock.calls[1][0].title).toBe('Daily loss limit reached');
   });
 
   it('writes a close without an order id or a quantity plainly', () => {

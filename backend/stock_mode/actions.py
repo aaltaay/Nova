@@ -16,6 +16,7 @@ from typing import Any
 
 from bot.audit import record as audit
 from bot.errors import BotError
+from constants_loss_limit import LOSS_LIMIT_LINE_YOU
 from constants_setups import SETUP_STATE_TRIGGERED
 from constants_stock_mode import (
     STOCK_MODE_APPROVE,
@@ -264,7 +265,7 @@ async def approve(symbol: str, body: dict[str, Any], *, now: float | None = None
         _acted(now)
         return view.build(sym, now=now)
     if state == SETUP_STATE_TRIGGERED and body.get("now"):
-        blocked = gates.desk_block()
+        blocked = gates.desk_block(LOSS_LIMIT_LINE_YOU)       # an approved plan goes out as yours
         if blocked:
             raise StockModeError(STOCK_MODE_SEND, blocked[1])
         store.set_approval(sym, approval)

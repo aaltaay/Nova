@@ -121,7 +121,7 @@ def spawn_runtime_tasks() -> list[asyncio.Task]:
         ("nasdaq_halt_rss", _nasdaq_halt_feed.poll_loop),
         ("bot.ttl", ttl_loop),
         ("bot.commission_hold", commission_loop),
-        # The daily loss limit (ADR 056): every account, yours and the bots' trades alike.
+        # The daily loss limit (ADR 056, ADR 063): every account -- its line, yours and the bots'.
         ("loss_limit.watch", _loss_limit.watch_loop),
         # The first-pullback bot (ADR 030): trades go triggers on Paper and Sim; never on Live.
         ("bot.first_pullback", _bot_first_pullback.run),
