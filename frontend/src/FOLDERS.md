@@ -56,6 +56,7 @@ the backend packages.
 | `market_view/` | shared | How fresh the market on screen is (ADR 045): each symbol's Level 2 frames, beats and drawn book, its quote version, the lock while the view lags, and the view every order carries. |
 | `modules/` | feature | Trader modules the registry mounts: Level 2, time & sales, charts, news, quote header, fundamentals, data sources, watchlist strip. |
 | `nova_news/` | feature | The Nova News page: headline desk with masthead, lead story, columns and story filtering. |
+| `order_size_limit/` | feature | Your order size limit (ADR 064): Max shares and Max risk at stop for your own Paper and Sim orders, in Settings > Loss limits under the daily loss limit, and its API. |
 | `orders_today/` | feature | The Orders (Today) view: Working / Filled / Canceled / Partial segments in the Stock View footer dock. |
 | `pages/` | app | Page composition: Dashboard, Account, Records (its pieces in `pages/records/`), Stock View and sample pages, plus the nav-rail page host. |
 | `pc_health/` | feature | The PC's own warnings on the desk (operator ask, 2026-10-15): the low-memory strip under the header in Nova's trading session, naming the process holding the most -- name, PID, size and how long it has run. It only warns. |

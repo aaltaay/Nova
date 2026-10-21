@@ -24,6 +24,7 @@ from execution.latency import latency_summary
 from execution.models import ExecutionCommand, ExecutionReceipt, StageTimings
 from execution.qty_gate import apply_force_one_share
 from execution.record_payload import build_reserve_payload
+from execution.size_limit import gate as _size_limit
 from execution.store_facts import lookup_symbol_for_order_id
 from execution import venue_door, verification_gate
 from execution.venue_door import commit_position as _commit_position
@@ -258,8 +259,10 @@ async def execute(
             # This venue's daily loss limit with No new buys checked (ADR 056): until 04:00 ET, or until the
             # operator raises the limit or unchecks it. A cover is a close and is never refused (ADR 048
             # gap 3) -- an exit pair's BUYs only ever cover (#681).
-            locked = buy_refusal(cmd.side, cmd.source, send_venue, short_entry=bool(cmd.short_entry),
-                                 covers=cmd.operation == "exit_oco" or _validate.covers_short(cmd))
+            covers = cmd.operation == "exit_oco" or _validate.covers_short(cmd)
+            locked = buy_refusal(cmd.side, cmd.source, send_venue, short_entry=bool(cmd.short_entry), covers=covers)
+            # Your own order size limit on Paper and Sim (ADR 064): a hand order that opens or adds, never a close.
+            locked = locked or _size_limit.refusal(cmd, send_venue, covers=covers)
             if locked is not None:
                 timings.validation_completed_ns = time.perf_counter_ns()
                 return _reject(execution_id, cmd, timings, locked["text"], locked["code"])

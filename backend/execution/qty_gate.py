@@ -11,6 +11,9 @@ with real money -- at one share by default, so a fat-fingered size can never
 reach the real account. Paper and Sim are Nova's practice accounts (fake money,
 buying power enforced), so they send the size asked. The names stay so the
 execution record's ``forced_one_share`` stamp and its readers are unchanged.
+Since 2026-10-20 the operator may set their own limit there (ADR 064,
+``execution.size_limit``): it refuses an order over it, never cuts one, and
+never reads Live.
 
 The clamp never touches a protective order (``flatten`` / ``kill`` /
 ``cancel_working``): those size themselves from the held position to get the

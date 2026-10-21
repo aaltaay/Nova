@@ -361,3 +361,13 @@ export function stockModes(venue: string) {
     ],
   };
 }
+
+/** `GET /api/order-size-limit` (ADR 064) as it ships: every box empty, no limit on Paper or Sim. */
+export function orderSizeLimitView() {
+  const off = { max_shares: null, max_risk_usd: null };
+  return {
+    schema_version: 1,
+    settings: { venues: { paper: off, sim: off }, set_at: null, source: 'default', error: null },
+    rules: { venues: ['paper', 'sim'], min_shares: 1, max_shares: 1_000_000, min_risk_usd: 1, max_risk_usd: 1_000_000 },
+  };
+}
