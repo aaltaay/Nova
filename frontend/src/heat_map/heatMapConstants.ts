@@ -99,6 +99,26 @@ export const HEAT_SPHERES: ReadonlyArray<readonly [string, string, string]> = [
 ];
 export const HEAT_ET_ZONE = 'America/New_York';
 
+// ── How a wall left, hidden size, the dots' numbers (ADR 061 amendment 2026-10-21, approved mockup v4) ──
+/** Verdicts kept per stock (the book watcher's large drops); the oldest go first past this. */
+export const HEAT_WATCH_MAX_DROPS = 5000;
+/** A drop gets a mark when the line it left read at least this on the ramp (its yellow) at the current brightness. */
+export const HEAT_MARK_WALL_LEVEL = 0.76;
+/** Marks at one price with one verdict closer than this (CSS px) share one chip: a run. */
+export const HEAT_MARK_MERGE_PX = 70;
+/** A buy or sell dot at least this big (radius, CSS px) carries its shares inside it. */
+export const HEAT_DOT_LABEL_MIN_R = 11;
+/** The Level 2 ladder's own colours (`ibkr/level2Montage.css`): traded slate, pulled amber, hidden violet. */
+export const HEAT_MARK_TRADED = '#cbd5e1';
+export const HEAT_MARK_PULLED = '#f59e0b';
+export const HEAT_MARK_HIDDEN = '#a78bfa';
+export const HEAT_MARK_HIDDEN_FILL = 'rgba(167, 139, 250, 0.10)';
+export const HEAT_MARK_CHIP_BG = 'rgba(10, 10, 12, 0.92)';
+export const HEAT_MARK_FONT = '700 10.5px system-ui, "Segoe UI", sans-serif';
+export const HEAT_DOT_LABEL_FONT = '700 11px system-ui, "Segoe UI", sans-serif';
+/** Whole shares below this, then 15.2K (the ladder's way). */
+export const HEAT_MARK_FULL_BELOW = 10_000;
+
 // ── Saved choices ─────────────────────────────────────────────────────────────────────────────────
 export const HEAT_PREFS_KEY = 'nova.heatMap.prefs.v1';
 export const HEAT_PREFS_VERSION = 1;
@@ -129,3 +149,13 @@ export const heatStale = (clock: string) => `No Level 2 since ${clock}: the scre
 export const HEAT_L1_ONLY = 'IBKR is sending only the best bid and ask for this stock (no depth), so there are no lines to draw.';
 export const heatLineDown = (why: string) => `Level 2 is not live: ${why}`;
 export const HEAT_LINE_LENT = "lent to one of Nova's setups; it comes back when this tab is in front.";
+export const HEAT_LEGEND_TRADED = 'traded';
+export const HEAT_LEGEND_PULLED = 'pulled';
+export const HEAT_LEGEND_HIDDEN = 'hidden';
+export const HEAT_MARKS_TITLE =
+  "Where a bright line shrinks or ends, a mark says why: Nova's book watcher, the same verdicts the Level 2 ladder "
+  + 'shows, kept here for the whole window. ✓ traded: trades at that price took it. ✕ pulled: it left with no trade '
+  + 'there (solid amber: pulled as the price came closer). ◆ hidden: more traded at a price than the book ever showed '
+  + 'there. Only lines that read yellow or hotter get a mark, so brightness changes how many. Hints, never a detection.';
+export const heatMarksOff = (why: string) => `No traded / pulled marks now: ${why}`;
+export const HEAT_MARKS_IDLE = 'the book watcher is not following this line.';

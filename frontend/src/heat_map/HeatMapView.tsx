@@ -16,7 +16,12 @@ import {
   HEAT_FRAME_MS,
   HEAT_LEGEND_ASK,
   HEAT_LEGEND_BID,
+  HEAT_LEGEND_HIDDEN,
   HEAT_LEGEND_MID,
+  HEAT_LEGEND_PULLED,
+  HEAT_LEGEND_TRADED,
+  HEAT_MARKS_IDLE,
+  HEAT_MARKS_TITLE,
   HEAT_MAX_DPR,
   HEAT_SCALE_FEW,
   HEAT_SCALE_MANY,
@@ -26,12 +31,14 @@ import {
   HEAT_WINDOW_MIN_SEC,
   HEAT_WINDOWS_SEC,
   heatDotsLabel,
+  heatMarksOff,
   heatWindowLabel,
 } from './heatMapConstants';
 import { heatPrefs, setHeatPrefs, useHeatPrefs } from './heatMapPrefs';
 import { paintHeat } from './heatPaint';
 import { heatStatus } from './heatStatus';
 import { heatOf } from './heatStore';
+import { heatWatchState } from './heatWatch';
 import { HeatMapToolbar } from './HeatMapToolbar';
 import './heatMap.css';
 
@@ -50,6 +57,8 @@ export function HeatMapView({ symbol, active }: { symbol: string; active: boolea
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  /** Why the traded / pulled marks are missing (the book watcher's own reason), or null while it watches. */
+  const [marksOff, setMarksOff] = useState<string | null>(null);
   const sym = symbol.toUpperCase();
 
   useEffect(() => {
@@ -68,6 +77,9 @@ export function HeatMapView({ symbol, active }: { symbol: string; active: boolea
       const wallMs = Date.now();
       const next = heatStatus(s, sym, wallMs);
       setStatus((prev) => (prev === next ? prev : next));
+      const watch = heatWatchState(sym);
+      const off = watch && !watch.watching ? (watch.reason ?? HEAT_MARKS_IDLE) : null;
+      setMarksOff((prev) => (prev === off ? prev : off));
       const cssW = Math.max(1, wrap.clientWidth);
       const cssH = Math.max(1, wrap.clientHeight);
       const dpr = Math.min(HEAT_MAX_DPR, window.devicePixelRatio || 1);
@@ -130,6 +142,15 @@ export function HeatMapView({ symbol, active }: { symbol: string; active: boolea
         <span className="heat-map__lg"><b className="heat-ball heat-ball--ask" aria-hidden="true" />{HEAT_LEGEND_ASK}</span>
         <span className="heat-map__lg"><b className="heat-ball heat-ball--bid" aria-hidden="true" />{HEAT_LEGEND_BID}</span>
         <span className="heat-map__lg"><b className="heat-ball heat-ball--mid" aria-hidden="true" />{HEAT_LEGEND_MID}</span>
+        <span
+          className={`heat-map__marks${marksOff != null ? ' heat-map__marks--off' : ''}`}
+          title={marksOff != null ? heatMarksOff(marksOff) : HEAT_MARKS_TITLE}
+          data-testid="heat-map-marks"
+        >
+          <span className="heat-map__lg"><b className="heat-mk heat-mk--traded" aria-hidden="true">✓</b>{HEAT_LEGEND_TRADED}</span>
+          <span className="heat-map__lg"><b className="heat-mk heat-mk--pulled" aria-hidden="true">✕</b>{HEAT_LEGEND_PULLED}</span>
+          <span className="heat-map__lg"><b className="heat-mk heat-mk--hidden" aria-hidden="true">◆</b>{HEAT_LEGEND_HIDDEN}</span>
+        </span>
         <span className="heat-map__note">{HEAT_UNSEEN_NOTE}</span>
         <div className="heat-map__ctl">
           <button

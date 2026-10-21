@@ -7,7 +7,7 @@
  * flickers fades instead of speckling. A slice counts as seen only when IBKR's rows covered that price for at least
  * half of it; the rest is "not seen" (black), never an empty book.
  */
-import { HEAT_MAX_SPAN_TICKS, HEAT_MIN_SPAN_TICKS, HEAT_PAD_TICKS } from './heatMapConstants';
+import { HEAT_DOT_R_MAX, HEAT_DOT_R_MIN, HEAT_MAX_SPAN_TICKS, HEAT_MIN_SPAN_TICKS, HEAT_PAD_TICKS } from './heatMapConstants';
 import { heatAliveUntil, heatBursts, heatVolumeAt, type HeatSide, type HeatSnap, type HeatSymbol } from './heatStore';
 
 export interface HeatWindow {
@@ -163,6 +163,11 @@ export function heatDots(s: HeatSymbol, w: HeatWindow, minShares: number): HeatD
   }
   out.sort((x, y) => y.shares - x.shares);
   return out;
+}
+
+/** A dot's radius (CSS px): area in proportion to its shares, the window's biggest (`top`) at HEAT_DOT_R_MAX. */
+export function heatDotRadius(shares: number, top: number): number {
+  return Math.max(HEAT_DOT_R_MIN, HEAT_DOT_R_MAX * Math.sqrt(shares / top));
 }
 
 /** Shares per bar (ask, bid, between) across the window, `bars` bars of whole seconds. */

@@ -11,6 +11,7 @@ import { HeatMapToolbar, useHeatMapShown } from './HeatMapToolbar';
 import { heatCapLog, HeatMapView } from './HeatMapView';
 import { HEAT_PREFS_DEFAULT, heatPrefs, setHeatPrefs } from './heatMapPrefs';
 import { resetAllHeatForTests } from './heatStore';
+import { noteHeatWatch, resetHeatWatchForTests } from './heatWatch';
 
 function Probe() {
   return <span data-testid="shown">{useHeatMapShown() ? 'heat' : 'charts'}</span>;
@@ -35,6 +36,7 @@ describe('HeatMapView', () => {
     vi.useRealTimers();
     vi.restoreAllMocks();
     resetAllHeatForTests();
+    resetHeatWatchForTests();
     localStorage.clear();
   });
 
@@ -69,6 +71,19 @@ describe('HeatMapView', () => {
       vi.advanceTimersByTime(250);
     });
     expect(mount.querySelector('[role="status"]')!.textContent).toContain("Waiting for GLND's Level 2");
+  });
+
+  it("shows the traded / pulled / hidden legend, dimmed with the book watcher's reason while it is off", () => {
+    act(() => root.render(<HeatMapView symbol="SPCX" active />));
+    const marks = mount.querySelector('[data-testid="heat-map-marks"]')!;
+    expect(marks.textContent).toBe('✓traded✕pulled◆hidden');
+    expect(marks.getAttribute('title')).toContain('Hints, never a detection');
+    act(() => noteHeatWatch('SPCX', { schema_version: 1, watching: false, reason: 'The book watcher is off.' }));
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(marks.className).toContain('heat-map__marks--off');
+    expect(marks.getAttribute('title')).toBe('No traded / pulled marks now: The book watcher is off.');
   });
 
   it('maps brightness to the shares that read red (45 is near 37,000 shares)', () => {

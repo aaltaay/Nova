@@ -7,14 +7,20 @@ and #5).
 ## The heat map on the Trader (ADR 061, operator decision 2026-10-20)
 
 Level 2 over time in place of the Trader's four charts: each tick a line coloured by the shares waiting there, trades
-as dots, the book now and volume bars. It reads no endpoint and opens no socket or IBKR line of its own; nothing here
-places, stages or blocks an order, and nothing feeds a bot, a setup or a scanner row.
+as dots, the book now and volume bars, and since 2026-10-21 the book watcher's word on how each wall left (below). It
+reads no endpoint and opens no socket or IBKR line of its own; nothing here places, stages or blocks an order, and
+nothing feeds a bot, a setup or a scanner row.
 
 ### What it reads (existing frames, unchanged)
 
 - **Level 2** (`/ws/ibkr/depth/{symbol}`, `architecture/schema/execution.md` "Versions"): every `book` frame
   (`data.bids` / `data.asks`, each `{price, size}`; `data.l1_fallback`) as `useIbkrDepth` keeps it, every `beat`
   (the line is alive with no new book), `lent` and `error`.
+- **The book watcher's verdicts** on the same socket (`book-watch-and-luld.md`, "What left the book, on the ladder"):
+  every `book_watch` frame of `schema_version` 1 -- `source`, `now`, `reset`, `watching`, `reason`, each of `drops[]`
+  (`ts`, `side`, `price`, `pulled`, `filled`, `outcome`, `level_before`, `on_approach`) and each of `hidden[]` (`id`,
+  `ts`, `side`, `price`, `state`, `hidden`, `printed`, `shown_max`, `started_ts`, `last_print_ts`, `ended_ts`). Another
+  `schema_version` is ignored. The same frames the Level 2 ladder folds (`ibkr/bookWatch.ts`); nothing is asked for.
 - **Time & Sales** (`/ws/ibkr/tape/{symbol}`): every print of a `print` / `prints` frame -- `time` (ISO; a Sim
   replay's own time, Nova's receipt live), `price`, `size`, `side` (`ask` | `bid` | `between` | `unknown`) -- and
   `scrub_reset`.
@@ -36,6 +42,15 @@ seconds). Lost on reload; it starts when Nova opens the stock's Level 2 (IBKR ke
   the same pause and move rules, never mixed into buying or selling (approved mockup v3).
 - Volume per whole market second (a ring of `HEAT_KEEP_SEC + 120` slots): shares bought at the ask, sold at the bid,
   between.
+- `drops[]` (+ `dropKeys`): the watcher's large drops, oldest first, `{key, t, side, price, pulled, filled, traded,
+  levelBefore, onApproach}` -- `t` is the drop's `ts`, already market time (Nova's receipt of the book live, the
+  recording's own time on a replay); `key` (`ts` to the millisecond, side, price) keeps a socket's first frame, which
+  repeats the last minute, from adding a drop twice; at most `HEAT_WATCH_MAX_DROPS` (5,000), the oldest going first.
+  `hidden`: each hidden stretch's newest word by `id`, `{t0: started_ts, t1: ended_ts | last_print_ts | ts, hidden,
+  printed, shownMax, state, said: ts}` (a word older than the one held is ignored). Both go with the keep window and
+  with the stock when it starts over; a `reset` replay frame whose `now` is more than `HEAT_REWIND_SEC` behind the newest
+  print starts the stock over first (the replay went back). The watcher's `{watching, reason}` per stock (at most 16)
+  is kept apart (`heat_map/heatWatch.ts`) so the toolbar can say why there are no marks.
 - `offset` (market time minus the browser clock, from the newest print), `lastBookT`, `aliveT` (newest book or beat;
   market time), `depthWallMs` (browser clock of the newest depth frame, book or beat),
   `l1`, `line` (`{state: "lent" | "error", why}` or null), `version` (bumped on every change). A line refused or lent
@@ -52,6 +67,36 @@ quiet and a dropped socket says so. The last book counts
 until `aliveT + HEAT_ALIVE_GRACE_SEC` (2 s); after that the screen is black ("not seen"), never the old book drawn on.
 A tick outside a book's rows is "not seen", never an empty level. One screen spans at most `HEAT_MAX_SPAN_TICKS`
 (1,200) ticks, cut around the newest middle.
+
+### How a wall left, hidden size and the dots' numbers (ADR 061 amendment, operator ask 2026-10-21)
+
+Operator, on a SPCX heat map: "how do I know if that bubble was completely [eaten] ... or did someone remove the wall?
+They just spoofed it", then "maybe these bubbles should have #s attached to it? but i know there are hidden
+buyers/sellers". Built to approved mockup v4 (`F:/Nova/design/heatmap/v4`, private) with the operator's four picks.
+Drawn in the plot over the dots (`heat_map/heatMarks.ts`: `heatMarkLayout` pure, `paintHeatMarks` draws), only from
+the verdicts above -- never judged from the picture, where the book trails the tape and a dot spans two cents:
+
+- **How each wall left.** A drop is marked when what stood at its price before it (`levelBefore`, else pulled + filled)
+  read at least the ramp's yellow (`HEAT_MARK_WALL_LEVEL`, 0.76) at the current brightness: shares
+  `10 ^ (log10(150) + 0.76 x (capLog - log10(150)))`, about 9,900 at 45 and 3,700 at 85, so brightness changes how
+  many walls get one. A 3 px cap where the line was cut (slate `#cbd5e1` traded, amber `#f59e0b` pulled -- the ladder's
+  colours) and a chip beside it, a bid's under its line and an ask's over it: `✓ 3,719` traded (the filled shares),
+  `✕ 2,000` pulled (solid amber, dark digits, when pulled as the price came closer). Marks at one price with one
+  verdict closer than `HEAT_MARK_MERGE_PX` (70 CSS px) are one run with one chip: a traded run adds up (`✓ 20.4K`; a
+  share trades once), a pulled run shows its biggest pull and how many times (`✕ 2,000 ×2`; an order pulled and put back
+  counts each time). Numbers are whole below 10,000, then the ladder's `15.2K`. Chips at one price never overlap (a
+  later one moves right) and never leave the plot (past the right edge a chip sits left of its cap).
+- **Hidden buyers and sellers.** A violet (`#a78bfa`) dashed box along the price from `t0` to `t1`, cut to the window,
+  and `◆ 97.1K hidden` (the watcher's `hidden`) at its end.
+- **The dots' numbers.** A buy or sell dot whose radius reaches `HEAT_DOT_LABEL_MIN_R` (11 CSS px, about a fifth of the
+  window's biggest dot) carries its shares inside it (`850`, `7.9K`, `52K`). Grey (between or unknown) dots never do:
+  they mix midpoint, dark and odd-lot prints, and on a busy stock one grey burst can run for seconds (OLOX 2026-10-21:
+  351 prints over 12.5 s).
+- **The legend.** `✓ traded`, `✕ pulled`, `◆ hidden` after the dot legend, its hover saying what each means and
+  "Hints, never a detection"; while the watcher says `watching: false` the legend dims and its hover gives the
+  watcher's reason (`No traded / pulled marks now: ...`).
+
+A mark is the watcher's description of the book, like the ladder's: a hint, never a detection.
 
 ### The switch and the saved choices
 
