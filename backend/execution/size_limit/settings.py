@@ -34,6 +34,9 @@ logger = logging.getLogger(__name__)
 _NAMES = {"max_shares": "Max shares", "max_risk_usd": "Max risk at stop"}
 
 _lock = threading.Lock()
+# One save at a time: each reads the setting, changes it and writes the file whole, so two at once would both
+# start from the same old setting and the second would drop the first's change (and share one temp file).
+_save_lock = threading.Lock()
 _loaded_from: Path | None = None
 _saved: dict[str, Any] | None = None    # None with no file, or one this build cannot use
 _error: str | None = None
@@ -128,12 +131,18 @@ def update(patch: Any, now: float | None = None) -> tuple[dict[str, Any], dict[s
     A null clears that limit. ``Invalid`` for a value out of its rule; ``OSError`` when the file cannot be
     written -- the setting is then unchanged. A save over a file this build could not use starts from every
     limit off and writes a fresh file. Blocking: call it off the event loop."""
-    global _loaded_from, _saved, _error
     if not isinstance(patch, dict) or not patch:
         raise Invalid("Send {paper?: {max_shares?, max_risk_usd?}, sim?: {max_shares?, max_risk_usd?}}")
     unknown = sorted(set(patch) - set(ORDER_SIZE_LIMIT_VENUES))
     if unknown:
         raise Invalid(f"Unknown venue {', '.join(unknown)}: the order size limit is for Paper and Sim")
+    with _save_lock:
+        return _apply(patch, now)
+
+
+def _apply(patch: dict[str, Any], now: float | None) -> tuple[dict[str, Any], dict[str, Any]]:
+    """``update``'s read, change and write, under ``_save_lock``."""
+    global _loaded_from, _saved, _error
     before = current()
     after = {venue: dict(row) for venue, row in before["venues"].items()}
     for venue, row in patch.items():

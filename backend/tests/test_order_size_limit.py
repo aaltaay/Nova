@@ -61,6 +61,32 @@ def test_a_save_writes_the_whole_file_and_reads_back():
     assert settings.current()["venues"]["paper"] == {"max_shares": None, "max_risk_usd": 20}
 
 
+def test_two_saves_at_once_both_land(monkeypatch):
+    """Review on PR #1127: each save reads, changes and writes the whole file, so two at once (two Settings
+    windows) must not both start from the same old setting and drop one change."""
+    import threading
+    import time as _time
+
+    from capture import manifest_io
+
+    real_write = manifest_io.write_json_atomic
+
+    def slow_write(path, payload):
+        _time.sleep(0.05)                                      # widen the window a race would need
+        real_write(path, payload)
+
+    monkeypatch.setattr(manifest_io, "write_json_atomic", slow_write)
+    patches = [{"paper": {"max_shares": 100}}, {"sim": {"max_risk_usd": 50}}, {"paper": {"max_risk_usd": 30}}]
+    threads = [threading.Thread(target=settings.update, args=(patch,)) for patch in patches]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    want = {"paper": {"max_shares": 100, "max_risk_usd": 30}, "sim": {"max_shares": None, "max_risk_usd": 50}}
+    assert settings.current()["venues"] == want
+    assert json.loads(settings.path().read_text(encoding="utf-8"))["venues"] == want
+
+
 @pytest.mark.parametrize("patch, words", [
     ({"paper": {"max_shares": 0}}, "Max shares is 1 to 1,000,000"),
     ({"paper": {"max_shares": 1.5}}, "Max shares is whole shares"),
