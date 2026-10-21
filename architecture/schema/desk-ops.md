@@ -935,7 +935,7 @@ things this desk spends; the strip shows each as used of its cap, and who uses i
 {schema_version: 1, generated_at,
  l1:      {used, cap, cap_learned: bool, reserve, refused, by_owner: {OWNER: n}},
  l2:      {used, cap, symbols: [{symbol, held_by}]},
- history: {used, cap, window_sec, next_free_sec, by_kind: {charts, tape, daily, market, global}},
+ history: {used, cap, window_sec, next_free_sec, by_kind: {charts, tape, daily, market, global, forex}},
  tape:    {used, cap | null, symbols: [..]}}
 ```
 
@@ -947,8 +947,8 @@ things this desk spends; the strip shows each as used of its cap, and who uses i
 - **history**, IBKR's historical requests (`historical_service.pacing_snapshot`): 60 in 10 minutes. `by_kind` names
   what spent the window: `charts` (chart bars), `tape` (trades read back: the TraderTV exits and ticker checks,
   LULD), `daily` (daily bars: the short check's SSR, the Market page's ETFs, Cryptos), `market` (the Market page's
-  futures, indexes and crypto tiles), `global` (the Global page's futures, indexes, ETFs and exchange rates, ADR 060).
-  `next_free_sec` is 0 while one is free.
+  futures, indexes and crypto tiles), `global` (the Global page's futures, indexes, ETFs and exchange rates, ADR 060), `forex` (the Forex page's
+  spot midpoints and CME currency futures, ADR 062). `next_free_sec` is 0 while one is free.
 - **tape**, Time & Sales lines (`ibkr.tape_admission.view`): `cap` null while IBKR has not said its cap.
 
 **Who comes first.** Level 1: the scanner and HOD Momo plan their lines inside what every other owner -- a Trader
@@ -956,9 +956,11 @@ tab, the bots, the followed traders -- leaves (`l1_refused.plan_budget`), and a 
 order too: a Trader tab and the Live Trader bot first, the followed traders and the scanner next, HOD Momo last
 (`l1_refused._OWNER_RANK`). History, from first to last: an open chart and the short check's SSR read down to the last
 request; background chart fills stop while `IBKR_HISTORY_TRADING_RESERVE` (10) or fewer are left; the TraderTV exits,
-ticker checks and LULD at 20 or fewer (`FOLLOWED_EXIT_HEADROOM`, `LULD_BACKFILL_HEADROOM`); the Market page and the
-Global page last, in turn, at 30 (`MARKET_HISTORY_HEADROOM`, `GLOBAL_HISTORY_HEADROOM`) -- the one on screen first:
-Global leaves 40 while the Market page shows and it does not (`GLOBAL_YIELD_HEADROOM`).
+ticker checks and LULD at 20 or fewer (`FOLLOWED_EXIT_HEADROOM`, `LULD_BACKFILL_HEADROOM`); the Market, Global
+and Forex pages last, in turn, at 30 (`MARKET_HISTORY_HEADROOM`, `GLOBAL_HISTORY_HEADROOM`,
+`FOREX_HISTORY_HEADROOM`) -- the one on screen first: Global leaves 40 while the Market or Forex page shows and it
+does not (`GLOBAL_YIELD_HEADROOM`), Forex 40 while the Market or Global page shows and it does not
+(`FOREX_YIELD_HEADROOM`).
 
 **On the desk** (`frontend/src/capacity/`): a strip at the very bottom of the main window, read every 5 s, one cell
 per cap -- "Level 1 48 / 53", "Level 2 3 / 3", "History 60 / 60 · next in 2:27", "Time & Sales 4" -- each with a

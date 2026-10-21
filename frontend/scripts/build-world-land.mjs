@@ -1,9 +1,9 @@
 /**
- * Draws the Global page's world map once (ADR 060) into src/global_board/worldLand.ts.
+ * Draws the world boards' map once (the Global and Forex pages, ADR 060, 062) into src/world_board/worldLand.ts.
  *
  * Land: Natural Earth 1:110m (public domain) through world-atlas 2.0.2's countries-110m, Antarctica left out and the
  * countries merged into one outline, in d3's Natural Earth projection fitted to WORLD_VIEW. The page projects each
- * market's city with the same parameters (src/global_board/project.ts), checked here against d3 itself.
+ * market's city with the same parameters (src/world_board/project.ts), checked here against d3 itself.
  *
  * Not part of the build: the asset is committed. To draw it again,
  *   npm i --no-save --prefix <dir> world-atlas@2.0.2 topojson-client@3.1.0 d3-geo@3.1.0
@@ -56,11 +56,13 @@ for (const [lon, lat] of [[139.77, 35.68], [-74.01, 40.71], [-46.63, -23.55], [1
 }
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const out = path.join(here, '..', 'src', 'global_board', 'worldLand.ts');
+const out = path.join(here, '..', 'src', 'world_board', 'worldLand.ts');
 writeFileSync(out, `/**
- * The Global page's world map (ADR 060), drawn once by scripts/build-world-land.mjs -- do not edit by hand.
+ * The world boards' map (the Global and Forex pages, ADR 060, 062), drawn once by scripts/build-world-land.mjs --
+ * do not edit by hand.
  * Natural Earth 1:110m land (public domain) through world-atlas 2.0.2, Antarctica left out, in d3's Natural Earth
- * projection fitted to WORLD_VIEW; project.ts places each market with WORLD_PROJECTION.
+ * projection fitted to WORLD_VIEW; project.ts places each market or currency with
+ * WORLD_PROJECTION.
  */
 export const WORLD_VIEW = { width: ${WIDTH}, height: ${HEIGHT} } as const;
 export const WORLD_PROJECTION = { scale: ${scale.toFixed(6)}, tx: ${tx.toFixed(6)}, ty: ${ty.toFixed(6)} } as const;

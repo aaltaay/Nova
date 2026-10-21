@@ -22,7 +22,7 @@ import { perfWindowIdentity, type PerfRole, type PerfWindow } from '../perf/perf
 import { isSampleView } from '../sample_data/sampleNav';
 
 export type FocusPage =
-  | 'trader' | 'global' | 'market' | 'scanner' | 'account' | 'bots' | 'records' | 'cryptos' | 'followed';
+  | 'trader' | 'forex' | 'global' | 'market' | 'scanner' | 'account' | 'bots' | 'records' | 'cryptos' | 'followed';
 export type FocusSymbolSource = 'trader_tab' | 'scanner_row';
 export type FocusReason = 'start' | 'focus' | 'blur' | 'visibility' | 'page' | 'symbol' | 'input' | 'heartbeat';
 

@@ -9,6 +9,7 @@ export const NAV_RAIL_COLLAPSED_WIDTH_PX = 56;
 /** Accessible name of the rail landmark. */
 export const NAV_RAIL_ARIA_LABEL = 'Navigation';
 
+export const NAV_RAIL_LABEL_FOREX = 'Forex';
 export const NAV_RAIL_LABEL_GLOBAL = 'Global';
 export const NAV_RAIL_LABEL_MARKET = 'Market';
 export const NAV_RAIL_LABEL_TRADER = 'Trader';
@@ -22,6 +23,8 @@ export const NAV_RAIL_LABEL_RECORDS = 'Records';
 export const NAV_RAIL_LABEL_CRYPTOS = 'Cryptos';
 export const NAV_RAIL_LABEL_SETTINGS = 'Settings';
 
+export const NAV_RAIL_TITLE_FOREX =
+  "Forex -- the whole currency market's size, and each currency's day: its strength and its futures money";
 export const NAV_RAIL_TITLE_GLOBAL =
   "Global -- where the world's stock money went: each market's money in and out, and its index move";
 export const NAV_RAIL_TITLE_MARKET =

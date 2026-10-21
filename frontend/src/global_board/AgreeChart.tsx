@@ -4,9 +4,9 @@
  * Drawn at the size of its box (the page never scrolls); the four boxes are named outside the plot, so no market
  * covers its name.
  */
-import { signedPct, usd } from './format';
+import { signedPct, usd } from '../world_board/format';
 import type { Market } from './types';
-import { useBox } from './useBox';
+import { useBox } from '../world_board/useBox';
 
 const PAD = { left: 18, right: 10, top: 18, bottom: 26 };
 const LABELLED = 8;

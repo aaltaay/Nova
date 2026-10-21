@@ -16,43 +16,19 @@ import {
 } from './constants';
 import { ExchangeList } from './ExchangeList';
 import { FollowTheSun } from './FollowTheSun';
-import { etDay, etTime } from './format';
 import { KpiStrip } from './KpiStrip';
 import { useGlobalPrefs } from './prefs';
-import { statusNotes, type Note } from './status';
+import { statusNotes } from './status';
 import type { ColorBy, GlobalBoard } from './types';
 import { useGlobalBoard } from './useGlobalBoard';
 import { WorldMap } from './WorldMap';
+import { HowToRead, Seg, StatusLine, type Note } from '../world_board/controls';
+import { etDay, etTime } from '../world_board/format';
+import '../world_board/board.css';
 import './global.css';
 
 export interface GlobalPageProps {
   onOpenTrader?: (symbol: string) => void;
-}
-
-function Seg<T extends string>({ value, options, labels, onPick, testId }: {
-  value: T; options: readonly T[]; labels: Record<T, string>; onPick: (v: T) => void; testId: string;
-}) {
-  return (
-    <div className="gb-seg" role="group" data-testid={testId}>
-      {options.map((o) => (
-        <button key={o} type="button" className={o === value ? 'is-on' : ''} aria-pressed={o === value}
-          data-testid={`${testId}-${o}`} onClick={() => onPick(o)}>{labels[o]}</button>
-      ))}
-    </div>
-  );
-}
-
-/** Every note on one line; the full words on hover. */
-function Status({ notes }: { notes: Note[] }) {
-  if (!notes.length) return <span className="gb-status" />;
-  return (
-    <span className="gb-status" role="status" title={notes.map((n) => n.text).join('\n')} data-testid="global-status">
-      {notes.map((n) => (
-        <span key={n.id} className={n.warn ? 'is-warn' : undefined}
-          data-testid={n.id === 'period' ? 'global-period-loading' : `global-note-${n.id}`}>{n.text}</span>
-      ))}
-    </span>
-  );
 }
 
 function Head({ board, notes, children }: { board: GlobalBoard | null; notes: Note[]; children?: ReactNode }) {
@@ -67,34 +43,21 @@ function Head({ board, notes, children }: { board: GlobalBoard | null; notes: No
         </span>
       ) : null}
       {board?.replay_desk ? <span className="gb-pill">{GLOBAL_REPLAY_NOTE}</span> : null}
-      <Status notes={notes} />
+      <StatusLine notes={notes} prefix="global" />
       {children}
     </div>
   );
 }
 
-/** "How to read": the page's definitions, over the list on hover or focus, kept open by a click. */
-function HowToRead() {
-  const [pinned, setPinned] = useState(false);
-  const [hover, setHover] = useState(false);
-  const open = pinned || hover;
+function Definitions() {
   return (
-    <span className="gb-howto" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
-      <button type="button" className={`gb-howto__btn${pinned ? ' is-on' : ''}`} aria-expanded={open}
-        data-testid="global-how-to-read" onClick={() => setPinned((p) => !p)}
-        onFocus={() => setHover(true)} onBlur={() => setHover(false)}>
-        {GLOBAL_HOW_TO_READ}
-      </button>
-      {open ? (
-        <div className="gb-defs" role="note" data-testid="global-defs">
-          <p>{PRESSURE_DEF}</p>
-          <p>{MOVE_DEF}</p>
-          <p><span className="gb-flag">≠</span> {MIXED_DEF}</p>
-          <p>{SIZE_DEF}</p>
-          <p>{SOURCES_DEF}</p>
-        </div>
-      ) : null}
-    </span>
+    <>
+      <p>{PRESSURE_DEF}</p>
+      <p>{MOVE_DEF}</p>
+      <p><span className="gb-flag">≠</span> {MIXED_DEF}</p>
+      <p>{SIZE_DEF}</p>
+      <p>{SOURCES_DEF}</p>
+    </>
   );
 }
 
@@ -163,7 +126,7 @@ export function GlobalPage({ onOpenTrader }: GlobalPageProps) {
           <div className="gb-card__head">
             <h3>By exchange</h3>
             <span className="gb-muted">ranked by pressure · {PERIOD_LABEL[board.period]}</span>
-            <HowToRead />
+            <HowToRead label={GLOBAL_HOW_TO_READ} prefix="global"><Definitions /></HowToRead>
           </div>
           <ExchangeList markets={board.markets} period={board.period} hovered={hovered} onHover={setHovered}
             onOpenTrader={onOpenTrader} />
