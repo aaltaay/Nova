@@ -13,8 +13,6 @@ import {
   HEAT_DIM,
   HEAT_DIM_LEVEL,
   HEAT_DOT_MID_ALPHA,
-  HEAT_DOT_R_MAX,
-  HEAT_DOT_R_MIN,
   HEAT_ET_ZONE,
   HEAT_FLOOR_SHARES,
   HEAT_FONT,
@@ -25,6 +23,7 @@ import {
   HEAT_GREY,
   HEAT_LINE_CORE,
   HEAT_LINE_SOFT,
+  HEAT_MARK_FONT,
   HEAT_MID_LINE,
   HEAT_MINUTE_LINE,
   HEAT_MUTED,
@@ -39,7 +38,8 @@ import {
   HEAT_VOLUME_H,
   heatVolumePer,
 } from './heatMapConstants';
-import { heatBookAt, heatDots, heatGrid, heatMid, heatRange, heatVolume, type HeatWindow } from './heatFrame';
+import { heatBookAt, heatDotRadius, heatDots, heatGrid, heatMid, heatRange, heatVolume, type HeatWindow } from './heatFrame';
+import { heatMarkLayout, paintHeatMarks } from './heatMarks';
 import type { HeatSymbol } from './heatStore';
 
 export interface HeatBox {
@@ -291,13 +291,17 @@ export function paintHeat(ctx: CanvasRenderingContext2D, s: HeatSymbol, w: HeatW
   const dots = heatDots(s, w, opt.minDot);
   const top = dots.length ? dots[0].shares : 1;
   for (const d of dots) {
-    const r = Math.max(HEAT_DOT_R_MIN, HEAT_DOT_R_MAX * Math.sqrt(d.shares / top));
+    const r = heatDotRadius(d.shares, top);
     const img = sprite(d.side, r, dpr);
     if (!img) continue;
     ctx.globalAlpha = d.side === 2 ? HEAT_DOT_MID_ALPHA : 1;
     ctx.drawImage(img, X(d.t) - r - 1 / dpr, Y(d.price / s.tick) - r - 1 / dpr, 2 * r + 2 / dpr, 2 * r + 2 / dpr);
   }
   ctx.globalAlpha = 1;
+  // How each wall left, hidden size and the dots' numbers (the book watcher's verdicts, ADR 061 amendment).
+  ctx.font = HEAT_MARK_FONT;
+  paintHeatMarks(ctx, heatMarkLayout(s, w, { X, Y, plot, lo, hi }, { capLog: opt.capLog, dots, top },
+    (text) => ctx.measureText(text).width));
   ctx.restore();
 
   paintAxis(ctx, s, L, lo, hi, Y);

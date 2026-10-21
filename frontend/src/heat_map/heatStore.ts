@@ -21,6 +21,7 @@ import {
   HEAT_TICK_DOLLAR,
   HEAT_TICK_SUB_DOLLAR,
 } from './heatMapConstants';
+import type { HeatDrop, HeatHidden } from './heatWatch';
 
 /** One level as the depth socket sends it (only what the heat map reads). */
 export interface HeatLevelIn {
@@ -78,6 +79,10 @@ export interface HeatSymbol {
   depthWallMs: number;
   l1: boolean;
   line: HeatLine | null;
+  /** The book watcher's verdicts (`heatWatch.ts`): large drops oldest first, their keys, hidden stretches by id. */
+  drops: HeatDrop[];
+  dropKeys: Set<string>;
+  hidden: Map<string, HeatHidden>;
   /** Bumped on every change: the view redraws only when it moves (or the clock does). */
   version: number;
   fedAt: number;
@@ -106,6 +111,9 @@ function blank(tick: number): HeatSymbol {
     depthWallMs: Number.NEGATIVE_INFINITY,
     l1: false,
     line: null,
+    drops: [],
+    dropKeys: new Set(),
+    hidden: new Map(),
     version: 0,
     fedAt: 0,
   };
@@ -145,6 +153,17 @@ function trim(s: HeatSymbol, t: number): void {
     while (k < s.bursts.length && s.bursts[k].t1 < cut) k += 1;
     s.bursts.splice(0, k);
   }
+  if (s.drops.length && s.drops[0].t < cut) {
+    let k = 0;
+    while (k < s.drops.length && s.drops[k].t < cut) k += 1;
+    for (const d of s.drops.splice(0, k)) s.dropKeys.delete(d.key);
+  }
+  for (const [id, h] of s.hidden) if (h.t1 < cut) s.hidden.delete(id);
+}
+
+/** The stock's heat, made on first use from a price (the book watcher's verdicts can arrive before its first book). */
+export function heatStockFor(symbol: string, price: number | null): HeatSymbol | null {
+  return stock(symbol, price);
 }
 
 /** A Level 2 book from the depth socket. `wallMs` is the browser clock at receipt. */

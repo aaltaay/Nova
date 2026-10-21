@@ -10,7 +10,7 @@ import type { LineLent } from './lentWords';
 import type { DepthBook } from './types';
 import { countSocketMessage, frameBytes } from '../perf/perfCounters';
 import { forgetBook, noteBeat, noteBookFrame, noteRefused, noteSubscribed } from '../market_view';
-import { HEAT_LINE_LENT, noteHeatBeat, noteHeatBook, noteHeatLine } from '../heat_map';
+import { HEAT_LINE_LENT, noteHeatBeat, noteHeatBook, noteHeatLine, noteHeatWatch } from '../heat_map';
 
 interface DepthState {
   book: DepthBook | null;
@@ -203,6 +203,8 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
           } else if (msg.type === 'book_watch') {
             // What left the book: a reset frame on every (re)connect, then each verdict once.
             watchRef.current = applyBookWatchFrame(watchRef.current, msg.data, Date.now());
+            // The heat map (ADR 061) keeps the same verdicts for its whole window.
+            noteHeatWatch(symKey!, msg.data);
             if (uiActiveRef.current) commitUi();
           } else if (msg.type === 'luld') {
             // The LULD bands (ADR 047): sent when they change, and every few seconds.
