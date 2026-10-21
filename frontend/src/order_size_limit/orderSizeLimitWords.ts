@@ -14,8 +14,8 @@ export const ORDER_SIZE_LIMIT_TIP =
   'a short, cancels, Flatten and KILL always work. The bots keep their own limits, and Live keeps its own share cap.';
 export const ORDER_SIZE_LIMIT_MAX_SHARES_TIP = 'The most shares one order may buy or short.';
 export const ORDER_SIZE_LIMIT_MAX_RISK_TIP =
-  'The most one order may lose at its stop: shares x the distance from the entry to the stop. 100 shares with a ' +
-  '20-cent stop is $20. While this is set, an order with no stop is refused, because its risk is unknown.';
+  'The most one order may lose at its stop: shares x the distance from the entry to the stop. 300 shares with a ' +
+  '15-cent stop is $45. While this is set, an order with no stop is refused, because its risk is unknown.';
 
 export const ORDER_SIZE_LIMIT_WHOLE_SHARES = 'Whole shares, 1 to 1,000,000, or empty for no limit';
 export const ORDER_SIZE_LIMIT_WHOLE_DOLLARS = 'Whole dollars, $1 to $1,000,000, or empty for no limit';

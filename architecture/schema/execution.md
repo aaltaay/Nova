@@ -239,7 +239,7 @@ The operator chose, on 2026-10-20, an optional limit on their own hand orders on
 
 ```json
 {"schema_version": 1,
- "venues": {"paper": {"max_shares": 100, "max_risk_usd": 20},
+ "venues": {"paper": {"max_shares": 500, "max_risk_usd": 50},
             "sim":   {"max_shares": null, "max_risk_usd": null}},
  "set_at": 1792531200.0}
 ```
@@ -252,11 +252,11 @@ The operator chose, on 2026-10-20, an optional limit on their own hand orders on
 
 **The refusals** (`receipt.reason_code`, the words in `receipt.error` -- the ticket's Last line shows them; nothing is sent):
 
-| Code | When | Words (Paper, 100 shares, $20) |
+| Code | When | Words (Paper, 500 shares, $50) |
 |---|---|---|
-| `ORDER_SIZE_LIMIT_SHARES` | `qty` over Max shares | "Paper allows at most 100 shares per order; this order is 250 shares. Lower the size, or change Max shares in Settings > Loss limits." |
-| `ORDER_SIZE_LIMIT_RISK` | a bracket's `qty x abs(entry_price - stop_price)`, rounded to cents, over Max risk at stop | "Paper allows at most $20 at risk per order; this order risks $30 (100 shares x $0.30 from the entry 10.00 to the stop 9.70). Lower the size or bring the stop closer, or change Max risk at stop in Settings > Loss limits." |
-| `ORDER_SIZE_LIMIT_NO_STOP` | Max risk at stop set and the order carries no protective stop: every `place` (its `stop_price` is a stop order's own trigger) | "Paper allows at most $20 at risk per order, and this order has no stop, so its risk is unknown. Attach a stop, or clear Max risk at stop in Settings > Loss limits." |
+| `ORDER_SIZE_LIMIT_SHARES` | `qty` over Max shares | "Paper allows at most 500 shares per order; this order is 800 shares. Lower the size, or change Max shares in Settings > Loss limits." |
+| `ORDER_SIZE_LIMIT_RISK` | a bracket's `qty x abs(entry_price - stop_price)`, rounded to cents, over Max risk at stop | "Paper allows at most $50 at risk per order; this order risks $75 (500 shares x $0.15 from the entry 10.00 to the stop 9.85). Lower the size or bring the stop closer, or change Max risk at stop in Settings > Loss limits." |
+| `ORDER_SIZE_LIMIT_NO_STOP` | Max risk at stop set and the order carries no protective stop: every `place` (its `stop_price` is a stop order's own trigger) | "Paper allows at most $50 at risk per order, and this order has no stop, so its risk is unknown. Attach a stop, or clear Max risk at stop in Settings > Loss limits." |
 | `ORDER_SIZE_LIMIT_UNREADABLE` | the saved file cannot be used | "<the reason>, so Paper refuses your new orders until the order size limit is saved again in Settings > Loss limits." |
 
 Every refusal ends "Selling what you hold, covering a short, cancels, Flatten and KILL still work." Max shares is read first. A bracket's entry is `entry_price`, else `limit_price`; a short's stop is its buy stop over the entry.
