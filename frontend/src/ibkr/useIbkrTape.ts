@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { WS_BASE_URL } from '../constants';
 import { upsertTapePrint10SecBar } from '../chart/barsStore';
 import { forgetBackendGate, noteBackendGate } from '../market_view';
+import { noteHeatPrint, resetHeat } from '../heat_map';
 import { SAMPLE_LIVE_FEED_ABSENT } from '../sample_data/sampleCopy';
 import { onSampleDesk } from '../sample_data/sampleOrderGuard';
 import { createRafCoalesce } from '../utils/rafCoalesce';
@@ -206,6 +207,7 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
 
           if (msg.type === 'scrub_reset') {
             printsRef.current = [];
+            resetHeat(symKey!);
             connectedRef.current = true;
             errorRef.current = null;
             if (uiActiveRef.current) commitUi();
@@ -250,6 +252,8 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
                 // IBKR's own second: the 10-second candle's key, as in IBKR's history (#721).
                 exchangeTs: typeof item.exchange_ts === 'number' ? item.exchange_ts : null,
               });
+              // The heat map's dots and volume (ADR 061): the print's own time, size and the desk's side verdict.
+              noteHeatPrint(symKey!, print.time, print.price, print.size, print.side);
             }
             if (uiActiveRef.current) raf.schedule();
           } else if (msg.type === 'lent') {
