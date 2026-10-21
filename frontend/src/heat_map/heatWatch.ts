@@ -14,7 +14,11 @@ import { heatOf, heatStockFor, resetHeat } from './heatStore';
 
 /** One large drop the watcher judged: the size that left a price, traded or pulled, at market time t. */
 export interface HeatDrop {
-  /** Its identity across frames: a socket's first frame repeats the last minute's drops. */
+  /**
+   * Its identity across frames: a socket's first frame repeats the last minute's drops. The watcher's time (to the
+   * millisecond), side, price and sizes -- two drops at one price in one millisecond differ in their sizes; `seq` is
+   * not used, since a line watched again, or a replay rebuilt, numbers its drops from 1 again.
+   */
   key: string;
   t: number;
   side: 'bid' | 'ask';
@@ -70,15 +74,16 @@ function readDrop(raw: unknown): HeatDrop | null {
   const filled = num(d.filled);
   const side = sideOf(d.side);
   if (t == null || price == null || pulled == null || filled == null || side == null) return null;
+  const levelBefore = num(d.level_before);
   return {
-    key: `${t.toFixed(3)}|${side}|${price}`,
+    key: [t.toFixed(3), side, price, levelBefore ?? '', num(d.level_after) ?? '', pulled, filled].join('|'),
     t,
     side,
     price,
     pulled,
     filled,
     traded: d.outcome === 'traded',
-    levelBefore: num(d.level_before),
+    levelBefore,
     onApproach: d.on_approach === true,
   };
 }

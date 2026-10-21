@@ -41,10 +41,17 @@ describe('noteHeatWatch', () => {
     expect(s.drops[1].levelBefore).toBe(5219);
   });
 
-  it("keeps a drop once when a socket's first frame repeats the last minute", () => {
+  it("keeps a drop once when a socket's first frame repeats the last minute, even renumbered", () => {
     noteHeatWatch('SPCX', frame({ drops: [drop()] }));
-    noteHeatWatch('SPCX', frame({ reset: true, seq: 1, drops: [drop({ seq: 1 })] }));
+    noteHeatWatch('SPCX', frame({ reset: true, seq: 1, drops: [drop({ seq: 1 })] }));   // a rebuilt watch counts from 1
     expect(heatOf('SPCX')!.drops).toHaveLength(1);
+  });
+
+  it('keeps two drops that leave one price in the same millisecond', () => {
+    const pull = { outcome: 'pulled', filled: 0, pulled: 3000, ts: 101.0 };
+    noteHeatWatch('SPCX', frame({ drops: [drop({ ...pull, level_before: 10_000, level_after: 7000, seq: 8 }),
+      drop({ ...pull, level_before: 7000, level_after: 4000, seq: 9 })] }));
+    expect(heatOf('SPCX')!.drops.map((d) => d.levelBefore)).toEqual([10_000, 7000]);
   });
 
   it('keeps the newest word on each hidden stretch, from its start to its end', () => {

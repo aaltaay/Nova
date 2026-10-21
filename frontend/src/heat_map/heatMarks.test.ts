@@ -88,8 +88,18 @@ describe('chips', () => {
     ]);
     const [pulled, traded, last] = layout(85).chips;
     expect(traded.x).toBeGreaterThanOrEqual(pulled.x + pulled.w + 4);
-    expect(last.x + last.w).toBeLessThanOrEqual(1000);
-    expect(last.x + last.w).toBeLessThan(G.X(T1 - 0.1));   // past the edge it goes left of its cap
+    expect(last.x + last.w).toBeLessThanOrEqual(998);
+  });
+
+  it('keeps chips apart when the right edge pushes them back (a pull and a trade in the last second)', () => {
+    feed([
+      drop(T1 - 0.9, { outcome: 'pulled', pulled: 2000, filled: 0, level_before: 7276 }),
+      drop(T1 - 0.1),
+    ]);
+    const [pulled, traded] = layout(85).chips;
+    expect(traded.x).toBeGreaterThanOrEqual(pulled.x + pulled.w + 4);
+    expect(traded.x + traded.w).toBeLessThanOrEqual(998);
+    expect(pulled.x).toBeGreaterThanOrEqual(2);
   });
 });
 

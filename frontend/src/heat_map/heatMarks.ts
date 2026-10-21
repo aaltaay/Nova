@@ -114,6 +114,24 @@ function placeX(want: number, anchor: number, w: number, plot: HeatMarkGeometry[
   return Math.max(plot.x + 2, anchor - CHIP_GAP - w);
 }
 
+/**
+ * One price's chips, oldest first: laid left to right after their caps, then packed back from the right edge in the
+ * same order, so none overlaps another and none leaves the plot (only a row fuller than the plot could).
+ */
+function packLane(lane: HeatChip[], plot: HeatMarkGeometry['plot']): void {
+  let end = Number.NEGATIVE_INFINITY;
+  for (const c of lane) {
+    c.x = Math.max(c.x, end + CHIP_GAP);
+    end = c.x + c.w;
+  }
+  let limit = plot.x + plot.w - 2;
+  for (let k = lane.length - 1; k >= 0; k -= 1) {
+    const c = lane[k];
+    c.x = Math.max(plot.x + 2, Math.min(c.x, limit - c.w));
+    limit = c.x - CHIP_GAP;
+  }
+}
+
 /** Every mark for one frame. `measure` gives a chip text's width at HEAT_MARK_FONT. */
 export function heatMarkLayout(
   s: HeatSymbol, w: HeatWindow, g: HeatMarkGeometry, opt: { capLog: number; dots: readonly HeatDot[]; top: number },
@@ -170,19 +188,18 @@ export function heatMarkLayout(
     }
   }
   // Traded shares trade once, so a run adds up; an order pulled and put back counts each time, so a pulled run shows
-  // its biggest pull and how many times. Chips at one price never overlap: a later one moves right.
-  const laneEnd = new Map<string, number>();
+  // its biggest pull and how many times. Chips at one price share a lane and never overlap (`packLane`).
+  const lanes = new Map<string, HeatChip[]>();
   for (const r of runs) {
     const text = r.traded ? `✓ ${heatMarkShares(r.sum)}` : `✕ ${heatMarkShares(r.max)}${r.count > 1 ? ` ×${r.count}` : ''}`;
-    const cw = measure(text) + 2 * CHIP_PAD;
-    const side = `${r.side}|${r.tick}`;
-    const want = Math.max(r.x + CHIP_GAP + 1, (laneEnd.get(side) ?? Number.NEGATIVE_INFINITY) + CHIP_GAP);
-    const x = placeX(want, r.x, cw, g.plot);
-    laneEnd.set(side, x + cw);
     const dy = (r.side === 'bid' ? 1 : -1) * Math.max(11, rowH * 0.5 + 7);   // bids below their line, asks above
-    out.chips.push({ x, y: g.Y(r.tick) + dy, w: cw, text, color: r.traded ? HEAT_MARK_TRADED : HEAT_MARK_PULLED,
-      solid: !r.traded && r.approach });
+    const chip: HeatChip = { x: r.x + CHIP_GAP + 1, y: g.Y(r.tick) + dy, w: measure(text) + 2 * CHIP_PAD, text,
+      color: r.traded ? HEAT_MARK_TRADED : HEAT_MARK_PULLED, solid: !r.traded && r.approach };
+    const lane = `${r.side}|${r.tick}`;
+    lanes.set(lane, [...(lanes.get(lane) ?? []), chip]);
+    out.chips.push(chip);
   }
+  for (const lane of lanes.values()) packLane(lane, g.plot);
 
   // The big buy and sell dots carry their shares.
   for (const d of opt.dots) {

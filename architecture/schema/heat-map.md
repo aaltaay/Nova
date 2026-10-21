@@ -44,8 +44,10 @@ seconds). Lost on reload; it starts when Nova opens the stock's Level 2 (IBKR ke
   between.
 - `drops[]` (+ `dropKeys`): the watcher's large drops, oldest first, `{key, t, side, price, pulled, filled, traded,
   levelBefore, onApproach}` -- `t` is the drop's `ts`, already market time (Nova's receipt of the book live, the
-  recording's own time on a replay); `key` (`ts` to the millisecond, side, price) keeps a socket's first frame, which
-  repeats the last minute, from adding a drop twice; at most `HEAT_WATCH_MAX_DROPS` (5,000), the oldest going first.
+  recording's own time on a replay); `key` (`ts` to the millisecond, side, price, `level_before`, `level_after`,
+  pulled, filled -- two drops at one price in one millisecond differ in their sizes; never `seq`, which a line watched
+  again or a rebuilt replay numbers from 1 again) keeps a socket's first frame, which repeats the last minute, from
+  adding a drop twice; at most `HEAT_WATCH_MAX_DROPS` (5,000), the oldest going first.
   `hidden`: each hidden stretch's newest word by `id`, `{t0: started_ts, t1: ended_ts | last_print_ts | ts, hidden,
   printed, shownMax, state, said: ts}` (a word older than the one held is ignored). Both go with the keep window and
   with the stock when it starts over; a `reset` replay frame whose `now` is more than `HEAT_REWIND_SEC` behind the newest
@@ -84,8 +86,8 @@ the verdicts above -- never judged from the picture, where the book trails the t
   `✕ 2,000` pulled (solid amber, dark digits, when pulled as the price came closer). Marks at one price with one
   verdict closer than `HEAT_MARK_MERGE_PX` (70 CSS px) are one run with one chip: a traded run adds up (`✓ 20.4K`; a
   share trades once), a pulled run shows its biggest pull and how many times (`✕ 2,000 ×2`; an order pulled and put back
-  counts each time). Numbers are whole below 10,000, then the ladder's `15.2K`. Chips at one price never overlap (a
-  later one moves right) and never leave the plot (past the right edge a chip sits left of its cap).
+  counts each time). Numbers are whole below 10,000, then the ladder's `15.2K`. Chips at one price never overlap and never leave the plot:
+  laid left to right after their caps, then packed back from the right edge in the same order.
 - **Hidden buyers and sellers.** A violet (`#a78bfa`) dashed box along the price from `t0` to `t1`, cut to the window,
   and `◆ 97.1K hidden` (the watcher's `hidden`) at its end.
 - **The dots' numbers.** A buy or sell dot whose radius reaches `HEAT_DOT_LABEL_MIN_R` (11 CSS px, about a fifth of the
