@@ -18,13 +18,14 @@ import {
 import { alpha } from './levelRender';
 
 /** How a row's swatch is drawn: a line (solid, long dash or dots), a filled band, a box, a ring (a flat top's
- * touch), a triangle pointing up (its break), or a line rising or falling (a trend line). */
-export type KeySwatch = 'line' | 'dash' | 'dots' | 'band' | 'box' | 'ring' | 'up' | 'rise' | 'fall';
+ * touch), a triangle pointing up (its break), a line rising or falling (a trend line), a few thin paths, or a hatched
+ * patch (Ahead's zone, ADR 065). */
+export type KeySwatch = 'line' | 'dash' | 'dots' | 'band' | 'box' | 'ring' | 'up' | 'rise' | 'fall' | 'paths' | 'hatch';
 
 export interface KeyRow {
   swatch: KeySwatch;
   color: string;
-  /** The box's or band's fill, when it differs from `color`. */
+  /** The box's or band's fill when it differs from `color` (a band's may be a CSS gradient); a hatch's ground. */
   fill?: string;
   label: string;
   /** What it means, in a few plain words. */

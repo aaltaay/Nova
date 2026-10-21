@@ -17,14 +17,16 @@ import {
   AHEAD_DRAWN_PATHS,
   AHEAD_HORIZON,
   AHEAD_PATH_ALPHA,
+  AHEAD_SAME_PRICE,
   AHEAD_STEP_SEC,
   AHEAD_TICK_EVERY_MIN,
   AHEAD_WORDS,
   type AheadFamily,
 } from './aheadConstants';
-import { chartHhmm, chartSec, chartToEpoch, linesToMeet, meetTailOk, type AheadCandle } from './aheadGeometry';
+import { chartAxisClock, chartHhmm, chartSec, chartToEpoch, linesToMeet, meetTailOk, type AheadCandle } from './aheadGeometry';
+import { breakWords } from './aheadBreaks';
 import { aheadWalls, ifTriggers, triggerRead, type TriggerOdds } from './aheadOdds';
-import type { AheadScene, AheadSceneInput, SceneBand, SceneChip } from './aheadSceneTypes';
+import type { AheadScene, AheadSceneInput, SceneBand, SceneChip, SceneLegendRow } from './aheadSceneTypes';
 import type { AheadAnswer, AheadLines, AheadPathOutcome, AheadTrigger, AheadWalls } from './aheadTypes';
 import { macdFan } from './macdFromPaths';
 
@@ -44,8 +46,8 @@ const fmt = (p: number) => (p >= 1 ? p.toFixed(2) : p.toFixed(4));
 function emptyScene(on: boolean, words: string[]): AheadScene {
   return {
     on, anchorT: null, horizon: AHEAD_HORIZON, zone: null, ticks: [], fan: null, paths: [], lines: [], meet: null,
-    hLines: [], chips: [], keepInView: null, ghostVolume: null, macd: null, words, legend: null, lineRead: null,
-    walls: null, triggers: null,
+    hLines: [], chips: [], keepInView: null, ghostVolume: null, macd: null, words, legend: [], examStatus: null,
+    recentVolume: [], lineRead: null, walls: null, triggers: null,
   };
 }
 
@@ -98,11 +100,33 @@ function examTag(a: AheadAnswer): SceneChip {
   return { text, fg: AHEAD_COLORS.notPassedFg, bg: AHEAD_COLORS.notPassedBg };
 }
 
+/** The exam's status in the chart chip's opening words (the panel's cards carry it beside their AI numbers). */
+export function examStatusOf(a: AheadAnswer | null): SceneChip | null {
+  if (!a) return null;
+  if (examEarned(a)) return { text: AHEAD_WORDS.passedTag, fg: AHEAD_COLORS.passedFg, bg: AHEAD_COLORS.passedBg };
+  const text = a.ai.exam ? AHEAD_WORDS.notPassedTag : a.ai.exam_passed ? AHEAD_WORDS.examUnread : AHEAD_WORDS.noExam;
+  return { text, fg: AHEAD_COLORS.notPassedFg, bg: AHEAD_COLORS.notPassedBg };
+}
+
+/** What each mark in the zone means: Nova's lines and the hatch always, the AI's marks while they are drawn. */
+function legendRows(nPaths: number | null): SceneLegendRow[] {
+  const rows: SceneLegendRow[] = [{ swatch: 'dash', text: AHEAD_WORDS.legendLines }];
+  if (nPaths !== null) {
+    rows.push(
+      { swatch: 'band', text: AHEAD_WORDS.legendRange },
+      { swatch: 'paths', text: AHEAD_WORDS.legendPaths(nPaths), n: nPaths },
+      { swatch: 'box', text: AHEAD_WORDS.legendVolume },
+    );
+  }
+  rows.push({ swatch: 'hatch', text: AHEAD_WORDS.legendHatch });
+  return rows;
+}
+
 function ticksFrom(anchorT: number): { k: number; text: string }[] {
   const out: { k: number; text: string }[] = [];
   for (let k = 1; k <= AHEAD_HORIZON; k += 1) {
     const t = anchorT + k * AHEAD_STEP_SEC;
-    if (Math.floor(t / AHEAD_STEP_SEC) % AHEAD_TICK_EVERY_MIN === 0) out.push({ k, text: chartHhmm(t) });
+    if (Math.floor(t / AHEAD_STEP_SEC) % AHEAD_TICK_EVERY_MIN === 0) out.push({ k, text: chartAxisClock(t) });
   }
   return out;
 }
@@ -141,30 +165,50 @@ function wallsDrawn(w: AheadWalls, price: number): Pick<AheadScene, 'hLines' | '
   const hLines: AheadScene['hLines'] = [];
   const chips: AheadScene['chips'] = [];
   if (!w.first) return { hLines, chips };
+  // A wall's chip carries what the paths do if it breaks, as a second line the drawing keeps only when it fits.
+  const sub = (up: boolean): { sub?: string } => {
+    const wall = up ? w.above : w.below;
+    const b = up ? w.breaks?.above : w.breaks?.below;
+    return wall && b ? { sub: AHEAD_WORDS.breakChip(breakWords(b, wall, up, w.nPaths ?? 0)) } : {};
+  };
   if (w.above && w.first.above !== null) {
     hLines.push({ p: w.above.price, color: AHEAD_COLORS.wallAbove, dash: [...AHEAD_DASH.wall], chip: '' });
-    chips.push({ p: w.above.price, text: AHEAD_WORDS.wallFirst(true, fmt(w.above.price), w.first.above), color: AHEAD_COLORS.wallAbove });
+    chips.push({ p: w.above.price, text: AHEAD_WORDS.wallFirst(true, fmt(w.above.price), w.first.above),
+      short: AHEAD_WORDS.wallFirstShort(true, w.first.above), color: AHEAD_COLORS.wallAbove, role: 'wall',
+      ...sub(true) });
   }
   if (w.below && w.first.below !== null) {
     hLines.push({ p: w.below.price, color: AHEAD_COLORS.wallBelow, dash: [...AHEAD_DASH.wall], chip: '' });
-    chips.push({ p: w.below.price, text: AHEAD_WORDS.wallFirst(false, fmt(w.below.price), w.first.below), color: AHEAD_COLORS.wallBelow });
+    chips.push({ p: w.below.price, text: AHEAD_WORDS.wallFirst(false, fmt(w.below.price), w.first.below),
+      short: AHEAD_WORDS.wallFirstShort(false, w.first.below), color: AHEAD_COLORS.wallBelow, role: 'wall',
+      ...sub(false) });
   }
+  // "Neither" is no one price: it asks for the middle and yields to the walls' chips (the drawing places it last).
   const mid = w.above && w.below ? (w.above.price + w.below.price) / 2 : price;
-  chips.push({ p: mid, text: AHEAD_WORDS.neither(w.first.neither), color: AHEAD_COLORS.muted });
+  chips.push({ p: mid, text: AHEAD_WORDS.neither(w.first.neither), short: AHEAD_WORDS.neitherShort(w.first.neither),
+    color: AHEAD_COLORS.muted, role: 'neither' });
   return { hLines, chips };
 }
 
-function strategyDrawn(t: AheadTrigger): Pick<AheadScene, 'hLines' | 'chips'> {
+/** Is `p` one of the walls (the setup's target sitting on the next wall reads so on its chip)? */
+function isWallPrice(p: number, w: AheadWalls | null): boolean {
+  return [w?.above?.price, w?.below?.price].some(x => x !== undefined && Math.abs(x - p) <= AHEAD_SAME_PRICE);
+}
+
+function strategyDrawn(t: AheadTrigger, w: AheadWalls | null): Pick<AheadScene, 'hLines' | 'chips'> {
   const hLines: AheadScene['hLines'] = [];
   const chips: AheadScene['chips'] = [];
   if (t.trigger === null || t.stop === null || t.target === null) return { hLines, chips };
   const dash = [...AHEAD_DASH.strategy];
   hLines.push({ p: t.trigger, color: AHEAD_COLORS.trigger, dash, chip: AHEAD_WORDS.buyStop(fmt(t.trigger)) });
   hLines.push({ p: t.stop, color: AHEAD_COLORS.stop, dash, chip: AHEAD_WORDS.stopAt(fmt(t.stop)) });
-  hLines.push({ p: t.target, color: AHEAD_COLORS.target, dash, chip: AHEAD_WORDS.targetAt(fmt(t.target)) });
+  const targetWords = isWallPrice(t.target, w) ? AHEAD_WORDS.targetAtWall : AHEAD_WORDS.targetAt;
+  hLines.push({ p: t.target, color: AHEAD_COLORS.target, dash, chip: targetWords(fmt(t.target)) });
   if (t.first) {
-    chips.push({ p: t.target, text: AHEAD_WORDS.targetFirst(t.first.target), color: AHEAD_COLORS.target });
-    chips.push({ p: t.stop, text: AHEAD_WORDS.stopFirst(t.first.stop), color: AHEAD_COLORS.stop });
+    chips.push({ p: t.target, text: AHEAD_WORDS.targetFirst(t.first.target),
+      short: AHEAD_WORDS.targetFirstShort(t.first.target), color: AHEAD_COLORS.target });
+    chips.push({ p: t.stop, text: AHEAD_WORDS.stopFirst(t.first.stop), short: AHEAD_WORDS.stopFirstShort(t.first.stop),
+      color: AHEAD_COLORS.stop });
   }
   return { hLines, chips };
 }
@@ -210,8 +254,10 @@ export function aheadScene(input: AheadSceneInput): AheadScene {
     if (lineRead.reason) later.push(lineRead.reason);
     const zones = read.level_map?.intraday ?? [];
     const near = aheadWalls(zones, price, null, asOf);
+    // Keyed by every zone's edges: the next wall beyond each one counts in its "if it breaks".
+    const edges = zones.map((z) => `${z.id}:${z.lo}-${z.hi}:${z.members.map((m) => m.kind).join('+')}`).join(',');
     walls = paths
-      ? memo(`${memoKey}|walls|${near.above?.price}|${near.below?.price}`, () => aheadWalls(zones, price, paths, asOf))
+      ? memo(`${memoKey}|walls|${price}|${edges}`, () => aheadWalls(zones, price, paths, asOf))
       : near;
     const fam = (f: AheadFamily) => {
       const t = triggerRead(read, f, price, null);
@@ -227,7 +273,7 @@ export function aheadScene(input: AheadSceneInput): AheadScene {
     drawn = wallsDrawn(walls, price);
     if (walls.reason) later.push(walls.reason);
   } else if ((scope === 'flat_top' || scope === 'first_pullback') && triggers) {
-    drawn = strategyDrawn(triggers[scope]);
+    drawn = strategyDrawn(triggers[scope], walls);
     if (triggers[scope].reason) later.push(triggers[scope].reason as string);
   }
 
@@ -261,7 +307,9 @@ export function aheadScene(input: AheadSceneInput): AheadScene {
     ghostVolume,
     macd,
     words: [...roomWords, ...(gate.word ? [gate.word] : []), ...later],
-    legend: a?.ai.paths ? AHEAD_WORDS.legend(a.ai.paths.n) : null,
+    legend: legendRows(a?.ai.paths ? a.ai.paths.n : null),
+    examStatus: examStatusOf(input.answer),
+    recentVolume: input.recentVolume ?? [],
     lineRead,
     walls,
     triggers,

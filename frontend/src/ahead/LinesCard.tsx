@@ -1,10 +1,11 @@
 /** "Nova's lines" (ADR 065): Nova's own 1-minute support and resistance carried on from the newest candle to where
  * they meet -- arithmetic on Nova's trend lines, no AI, shown on any desk, forecaster or not. Slopes are rounded, so
  * every meet is "≈". */
+import { Spline } from 'lucide-react';
 import { AHEAD_COLORS, AHEAD_WORDS } from './aheadConstants';
 import { etHhmm } from './aheadGeometry';
 import type { AheadLines } from './aheadTypes';
-import { CardHead, priceText } from './WallsCard';
+import { CardHead, priceText } from './CardParts';
 
 const slopeText = (s: number | null) => (s === null ? '—' : `${s >= 0 ? '+' : ''}${s.toFixed(4)} a candle`);
 
@@ -12,7 +13,7 @@ export function LinesCard({ lines, macdNote }: { lines: AheadLines | null; macdN
   const meet = lines?.meet ?? null;
   return (
     <section className="ahead-card" data-testid="ahead-lines-card">
-      <CardHead title={AHEAD_WORDS.linesTitle} tag={<span className="ahead-tag ahead-tag--nova">{AHEAD_WORDS.noAiTag}</span>} />
+      <CardHead title={AHEAD_WORDS.linesTitle} icon={Spline} tag={<span className="ahead-tag ahead-tag--nova">{AHEAD_WORDS.noAiTag}</span>} />
       {lines && lines.state === 'meet' && meet ? (
         <>
           <p className="ahead-big" data-testid="ahead-lines-meet">

@@ -36,7 +36,8 @@ describe('AheadVolumePrimitive', () => {
     expect(ctx.strokeRect).toHaveBeenCalledWith(X(10) - 3.1, 360, 6.2, 40);
     expect(ctx.moveTo).toHaveBeenCalledWith(X(10), 340);
     expect(ctx.lineTo).toHaveBeenCalledWith(X(10), 380);
-    expect(ctx.fillText).toHaveBeenCalledWith('AI volume', X(9) + 5 + 8, 332);
+    // The label's chip sits right over the ghosts under it (whisker tops at 340): centre 340 - 3 - 9, words padded 6.
+    expect(ctx.fillText).toHaveBeenCalledWith('AI volume', X(9) + 5 + 6 + 6, 328.5);
   });
 
   it('clips a ghost taller than the volume band at its top, with a caret', () => {

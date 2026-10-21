@@ -10,8 +10,9 @@ import type { IChartApi, ISeriesApi } from 'lightweight-charts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChartPaneOverlayProps } from '../chart';
 import { etChartSeconds } from '../tickerChartData';
-import { AheadChartLayer, completedCandles, useAheadSceneOf } from './AheadChartLayer';
-import { AHEAD_WORDS } from './aheadConstants';
+import { AheadChartLayer, completedCandles, recentVolumes, useAheadSceneOf } from './AheadChartLayer';
+import { AHEAD_KEY_TITLE, AHEAD_WORDS } from './aheadConstants';
+import { paneKeySections } from '../stock_read';
 import { reloadAheadPrefsForTesting, setAheadPrefs } from './aheadPrefs';
 import { hasRoom } from './useAheadRoom';
 
@@ -44,6 +45,8 @@ function fakePane(nowMin?: number) {
     setVisibleLogicalRange: vi.fn(),
     subscribeVisibleLogicalRangeChange: vi.fn(),
     unsubscribeVisibleLogicalRangeChange: vi.fn(),
+    subscribeSizeChange: vi.fn(),
+    unsubscribeSizeChange: vi.fn(),
     options: () => ({ barSpacing: 10 }),
     height: () => 26,
   };
@@ -99,6 +102,17 @@ describe('AheadChartLayer', () => {
     expect(words).toContain(AHEAD_WORDS.readLoading);
   });
 
+  it("adds what the zone's marks mean to the pane's Key while it draws, and takes it back when switched off", () => {
+    const pane = fakePane();
+    act(() => setAheadPrefs({ shown: true }));
+    const view = render(<AheadChartLayer {...props(pane)} />);
+    const [section] = paneKeySections(pane.chart);
+    expect(section.title).toBe(AHEAD_KEY_TITLE);
+    expect(section.rows.map(r => r.swatch)).toEqual(['dash', 'hatch']);
+    view.unmount();
+    expect(paneKeySections(pane.chart)).toEqual([]);
+  });
+
   it('never asks or draws on another pane', () => {
     const pane = fakePane();
     act(() => setAheadPrefs({ shown: true }));
@@ -106,6 +120,16 @@ describe('AheadChartLayer', () => {
     expect(asked).not.toHaveBeenCalledWith('XYZ', true);
     expect(pane.attached).toHaveLength(0);
     expect(screen.getByTestId('probe').textContent).toBe('none');
+  });
+});
+
+describe('recentVolumes', () => {
+  it("keeps the last completed minutes' real volumes, the forming one left out", () => {
+    const minute = 29_875_000;
+    const vol = fakePane(minute).data.map((b, i) => ({ time: b.time, value: 1000 + i }));
+    const series = { data: () => vol } as unknown as ISeriesApi<'Histogram'>;
+    expect(recentVolumes(series, minute)).toEqual(vol.slice(0, 10).map(v => v.value));
+    expect(recentVolumes(null, minute)).toEqual([]);
   });
 });
 

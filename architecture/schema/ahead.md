@@ -246,6 +246,30 @@ above counts above, `<=` the wall below counts below, none counts neither; the s
 shape (`paths.joined_by`), closes only (a wick is not seen), and "the nearer wall wins more often: that is distance,
 not a call on direction".
 
+**If it breaks** (under every wall, only while the AI view is shown; `AheadWalls.breaks`, an optional field, `null`
+otherwise). On the same raw path closes:
+
+- The wall above is a zone `[lo, hi]` over the price. A break is the first minute whose close is `> hi` (the zone's
+  FAR edge, its top). From that minute on, the break minute included, the first of: a close `>=` the next wall above
+  (the nearest wall zone wholly over `hi`, at its `lo`) is follow-through; a close `< lo` (back under the zone) fails;
+  neither by `as_of + 15 min` is still open. A break and its follow-through in the same minute (a gap past both walls)
+  counts as follow-through. With no next wall the race is holds (no close back under `lo`) against fails, and the words
+  say there is no next wall within reach.
+- The wall below is the mirror: a break is a close `< lo`; follow-through a close `<=` the next wall below's `hi`; a
+  fail a close `> hi`.
+- `AheadWallBreak = {share, nBreak, next, follow, fail, open}`: `share = nBreak / n`; `follow`, `fail` and `open` are
+  over `nBreak`, `null` when no path breaks (`follow` also `null` with no next wall, when `open` is the holds share).
+  `AheadWall` carries its zone's `lo` and `hi` beside `price` (the near edge).
+- Every wall has one name, its price and its label ("4.56 · double bottom · VWAP"): the walls card's headline, its
+  "if it breaks" line and the next wall it names all use it, and the chart chip carries the same price ("▼ 4.56
+  first"); a wall is never written as its zone ("4.55–4.56").
+- The walls card has one line under each wall ("If 4.69 · triple top breaks (38% of paths): 45% reach 5.00 · HOD
+  first, 40% close back under 4.69, 15% still open (forecast)") with a smaller bar, and ends "A read of the
+  forecaster's paths, not a signal: nothing here places an order." On the chart the wall's chip gains a short second
+  line with a share before each word and never a share beside a price ("breaks 38% · then 45% reach 5.00 · 40% back
+  under"; with no next wall "breaks 38% · then 50% hold · 40% back under") only when the zone is wide enough beside
+  the full chip; it never leaves the zone, else the card alone carries it.
+
 **If it triggers** (scopes `flat_top` and `first_pullback`):
 
 - Lanes are `read.setups` rows whose `setup_type` is `flat_top_breakout` or `second_flat_top_breakout` (Flat top) or
@@ -298,8 +322,50 @@ says so on the heading: a 404 is "Nova's API has no Ahead yet: restart the API a
   that just closed…", no fan. A chart behind the answer: "Catching up to the chart…", no fan. A previous minute's
   forecast is never kept on screen.
 - The zone starts half a candle right of `bar_t`'s candle; minute `k` (1-15) sits at the time scale's logical index
-  of `bar_t` plus `k`. Nothing is added to any series and the chart's right offset is never changed; the zone stops
-  at the pane's right-edge word column.
+  of `bar_t` plus `k` (a fractional step, such as the lines' meet, between its two whole neighbours). Nothing is
+  added to any series and the chart's right offset is never changed. The zone runs its full 15 steps in the price,
+  volume and MACD panes alike, with the same left and right edges.
+- **Framing.** When the switch comes on, and again on each new answer, a 1-minute view that still follows the live
+  edge and that the operator has not zoomed or panned is framed like the approved mockup: the last 45 candles, the
+  15-step zone and a 2-candle margin, plus the width of the stock read's word column right of the zone -- the zone
+  takes about a quarter of the pane. When the pane's width changes (the Ahead panel docking beside the charts, or
+  closing) such a view is framed again on the new width. A view the operator owns is never moved.
+- **No word over a real candle.** Every chip stays inside the zone. When the zone is too narrow for a chip's words
+  it shows the odds only ("▲ 42%", "neither 3%", "target 41%", "stop 6%"); narrower still, none (the panel has the
+  words). A setup target within half a cent of a wall reads "target {price} · next wall". "lines meet ≈ HH:MM"
+  sits over its ring and over the lines running into it; an odds chip that would sit on one of Nova's lines moves
+  off it. The chips tied to a price (each wall's, a strategy's) are placed first, on their price; "neither in 15 min"
+  (tied to no one price) is placed last, in the free space between the walls nearest their middle, and is left to
+  the panel when there is none -- it never pushes a wall's chip off its wall. The minute labels (every 5 minutes) are on the time axis under the zone, in the axis's own words
+  ("9:05 AM"); "AI volume" sits on a chip just over the ghost bars under it. The zone ends just past the last ghost
+  bar, in every pane.
+- **The legend** ("Nova's lines carried on until they meet", "likely range: inner half, outer 80%", "16 of {n}
+  possible paths", "AI volume", "hatched = drawn, never recorded", each with a swatch) is in the Ahead panel's first
+  card, never laid over the candles or the volume. Its AI rows show only while the AI view is drawn. While Ahead
+  draws on a pane, the same marks with the same swatches are the first section of that pane's Key ("Ahead (AI view, not
+  data)"; `stock_read/paneKeyExtras.ts`), one label each with words that do not repeat it, plus the meet ring (while
+  the meet is in the zone), the wall chips ("▲ / ▼ first": the share of paths reaching that wall first) and the break
+  line (while a wall chip carries one), so the zone reads with the panel closed. The Key's card fits its pane: it is
+  measured as it opens and scrolls inside the height the pane leaves under its chip.
+- **Prices stay in the price area.** The fan and the drawn paths are clipped at the top of the volume band (the
+  volume overlay's top scale margin) so they never run over the real or ghost volume bars; a path that leaves the
+  price area there, or over the pane's top, gets a small caret at that edge. The hatch runs the pane's full height.
+- The heading ("AHEAD · next 15 min", its tags and sentences) and "now HH:MM" just left of the zone are DOM over the
+  pane on a backdrop of the desk's panel colour at 0.9, so a level line drawn across the pane's top passes behind
+  them.
+- **The panel never covers the 1-minute pane.** That pane publishes its own span and its zone's (to the pane's
+  right edge, price axis included). With room beside the pane for the panel (at least 300 px; the desk's 2x2 grid,
+  the 1-minute pane its bottom-right one) the panel slides over the other panes on the roomier side, below the chart
+  grid's toolbar, as wide as that room allows (at most 520 px or 62% of the grid). With no such room (the pane fills
+  the grid, or is maximised) the panel docks on the side away from the zone (at most 520 px or 34% of the grid, at
+  least 300 px) and the chart grid gives up that width while it is open: toolbar, candles, zone, chips and price
+  axis all stay in view, and the pane is framed again on its new width. The panel ends at its holder's bottom or the
+  window's, whichever is higher, and its cards scroll inside it, so the last card is always reachable. Every card
+  that shows AI numbers carries "AI view, not data" and the exam's status in the chart chip's words ("no exam yet",
+  "has not passed its exam" in amber, "passed its exam" in green). The report card has one row per score -- price
+  inside its 80% range (should be 80%), volume ranking and range ranking (1 = perfect, 0 = no better than chance) --
+  each "—" until scored, never a zero; with nothing scored it adds "Not scored yet: scoring starts when the
+  forecaster answers."
 
 ### On a Sim replay
 

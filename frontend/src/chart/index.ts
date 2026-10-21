@@ -11,6 +11,7 @@ export { sessionKindFromEtMinutes, type MarketSessionKind } from './sessionHighl
 export type { ChartPaneOverlayProps, ChartTradeUpdate, RenderPaneOverlay } from './types';
 export { buildSeriesTimeIndex, nearestSeriesTime, toCanonicalTime } from './chartDrawingTime';
 export { isFollowingRightEdge } from './chartViewportPaint';
+export { formatAmPmClock } from './chartTimeFormat';
 export { afterPaintSettles } from './chartBarsPaint';
 export { operatorOwnsView, watchOperatorView } from './operatorView';
 export type { SeriesTimeIndex } from './chartDrawingTime';

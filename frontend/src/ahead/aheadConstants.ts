@@ -11,8 +11,15 @@ export const AHEAD_TIMEFRAME = '1Min';
 export const AHEAD_HORIZON = 15;
 /** Paths drawn on the chart (all `n` are used for the odds and the MACD fan). */
 export const AHEAD_DRAWN_PATHS = 16;
-/** Candles of room the zone needs right of the newest candle (15 steps plus the edge words). */
-export const AHEAD_ROOM_BARS = 18;
+/** Switched on (and on each new answer while the view follows the right edge and is Nova's), the 1-minute pane is
+ * framed like the approved mockup: this many real candles, the 15-step zone and a small margin after it, plus the
+ * stock read's word column at the edge -- the zone takes about a quarter of the pane. */
+export const AHEAD_FRAME_CANDLES = 45;
+export const AHEAD_FRAME_MARGIN = 2;
+/** Real 1-minute volume bars before "now" in the panel's volume chart. */
+export const AHEAD_RECENT_VOLUME_BARS = 30;
+/** A strategy target within this of a wall is that wall (half a cent). */
+export const AHEAD_SAME_PRICE = 0.005;
 /** The quantile levels the wire always carries, looked up by value. */
 export const AHEAD_LEVELS = [0.1, 0.25, 0.5, 0.75, 0.9] as const;
 export const AHEAD_LEVEL_EPS = 1e-9;
@@ -85,7 +92,6 @@ export const AHEAD_COLORS = {
   muted: '#8b92a5',
   text: '#e6e8ee',
   chipBg: 'rgba(11, 13, 18, 0.9)',
-  nowBg: '#2a2f3c',
   heading: '#c7d2fe',
   aiTagFg: '#c7d2fe',
   aiTagBg: 'rgba(147, 164, 214, 0.16)',
@@ -93,6 +99,17 @@ export const AHEAD_COLORS = {
   notPassedBg: 'rgba(255, 159, 10, 0.18)',
   passedFg: '#30d158',
   passedBg: 'rgba(48, 209, 88, 0.14)',
+  /** The zone's minute labels on the time axis (no box: they are clock times, not prices). */
+  axisTick: '#93a4d6',
+  axisTickBg: 'rgba(0, 0, 0, 0)',
+  /** The panel's real volume bars before "now". */
+  realVolume: '#5d6475',
+  /** The legend's swatches (the panel's `aheadSheet.css` and the chart Key's): the band's two strengths, the hatch's
+   * stripe, the ghost volume box's fill. */
+  keyBand: 'linear-gradient(rgba(147, 164, 214, 0.18) 0 25%, rgba(147, 164, 214, 0.4) 25% 75%, '
+    + 'rgba(147, 164, 214, 0.18) 75%)',
+  keyHatchStripe: '#262c3d',
+  keyBoxFill: 'rgba(147, 164, 214, 0.1)',
 } as const;
 
 /** Path alpha: scope All, and a strategy scope (a path that reaches the trigger, one that does not). */
@@ -108,6 +125,39 @@ const num2 = (x: number) => x.toFixed(2);
 /** What an exam covered; one that does not say is never shown as a bare claim. */
 const scopeOf = (scope: string | null) => scope ?? 'scope not stated';
 
+/** One wall's "if it breaks" shares, as words take them (`aheadBreaks.breakWords`). */
+export interface BreakWords {
+  up: boolean;
+  /** The wall by its one name, as its card headline has it: "4.69 · triple top" (`AHEAD_WORDS.wallName`). */
+  wall: string;
+  /** Its near edge (where a close back fails the break). */
+  edge: string;
+  share: number;
+  n: number;
+  /** The next wall beyond, "5.00 · HOD", and its price alone; null when there is none. */
+  next: string | null;
+  nextPrice: string | null;
+  follow: number | null;
+  /** Null when no path breaks. */
+  fail: number | null;
+  open: number | null;
+}
+
+/** The desk's chart Key: Ahead's section while it is on (the same marks as the Ahead panel's legend, and the chips,
+ * the break line and the meet ring). Each row is a label and words that do not repeat it. */
+export const AHEAD_KEY_TITLE = 'Ahead (AI view, not data)';
+export const AHEAD_KEY_ROWS = {
+  dash: { label: "Nova's lines", text: 'support and resistance carried on until they meet (no AI)' },
+  ring: { label: 'Meet ring', text: "where Nova's two lines meet (no AI)" },
+  band: { label: 'Likely range', text: "inner half, outer 80% of the forecaster's closes" },
+  paths: { label: 'Paths', text: (n: number) => `${AHEAD_DRAWN_PATHS} of the forecaster's ${n}, drawn faint` },
+  box: { label: 'AI volume', text: 'per minute: outline to its middle guess, whisker 10% to 90% (forecast)' },
+  hatch: { label: 'Hatched zone', text: 'drawn, never recorded' },
+  wallFirst: { label: '▲ / ▼ first', text: "share of paths reaching that wall first; neither: no wall in 15 min (forecast)" },
+  breaks: { label: 'breaks … then', text: 'share of paths closing past the wall; of those, the share reaching the next '
+    + 'wall and the share closing back (forecast)' },
+} as const;
+
 /** Every sentence Ahead shows, on the chart and in the panel. */
 export const AHEAD_WORDS = {
   zoneTitle: 'AHEAD · next 15 min',
@@ -117,8 +167,12 @@ export const AHEAD_WORDS = {
   toggleLabel: 'Ahead',
   toggleTitle: 'Ahead: the next 15 minutes as the AI sees them (a forecast, never data). '
     + "Nova's own lines carried on to where they meet.",
-  legend: (n: number) => "Nova's lines carried on · likely range: inner half / outer 80% · "
-    + `16 of ${n} possible paths · AI volume · hatched = drawn, never recorded`,
+  legendTitle: 'On the chart',
+  legendLines: "Nova's lines carried on until they meet",
+  legendRange: 'likely range: inner half, outer 80%',
+  legendPaths: (n: number) => `16 of ${n} possible paths`,
+  legendVolume: 'AI volume',
+  legendHatch: 'hatched = drawn, never recorded',
   macdPaneLabel: "MACD worked out from the AI's paths",
   aiVolumeLabel: 'AI volume',
 
@@ -178,10 +232,15 @@ export const AHEAD_WORDS = {
   linesNote: "Nova's arithmetic, no AI. Slopes are rounded, so the meet is ≈.",
 
   // walls
+  /** A wall's one name, on its chip, its card headline and its "if it breaks" line: its price and its label. */
+  wallName: (price: string, label: string) => [price, label].filter(Boolean).join(' · '),
   noWalls: 'No level from the candles above and below the price to call a wall.',
   wallsOverlap: 'The walls above and below overlap: no wall-first odds.',
   wallFirst: (up: boolean, price: string, share: number) => `${up ? '▲' : '▼'} ${price} first · ${pct(share)} (forecast)`,
   neither: (share: number) => `neither in 15 min · ${pct(share)} (forecast)`,
+  /** The same chips when the zone is too narrow for the words: the odds only, still inside the zone. */
+  wallFirstShort: (up: boolean, share: number) => `${up ? '▲' : '▼'} ${pct(share)}`,
+  neitherShort: (share: number) => `neither ${pct(share)}`,
   wallsTitle: 'Which wall first?',
   wallNeither: 'neither',
   sharesForecast: "Shares of the forecaster's paths: a forecast, not data.",
@@ -190,16 +249,47 @@ export const AHEAD_WORDS = {
     + 'the odds carry that assumption. The nearer wall wins more often: that is distance, not a call on direction.',
   byNote: 'The time counts from the newest candle, which can trail the clock on a thin stock.',
 
+  // if it breaks (under every wall)
+  breaksTitle: 'If it breaks',
+  /** "If 4.69 · top breaks (38% of paths): 45% reach 5.00 · HOD first, 40% close back under 4.69, 15% still open
+   * (forecast)" */
+  breakLine: (b: BreakWords) => {
+    const head = `If ${b.wall} breaks (${pct(b.share)} of paths)`;
+    if (b.fail === null) return `${head}: none of the ${b.n} paths closes past it (forecast).`;
+    const back = `${pct(b.fail)} close back ${b.up ? 'under' : 'over'} ${b.edge}`;
+    if (b.next === null) {
+      return `${head}: ${pct(b.open ?? 0)} hold ${b.up ? 'over' : 'under'} ${b.edge}, ${back} (forecast) · `
+        + `no next wall ${b.up ? 'above' : 'below'} within reach`;
+    }
+    return `${head}: ${pct(b.follow ?? 0)} reach ${b.next} first, ${back}, ${pct(b.open ?? 0)} still open (forecast)`;
+  },
+  /** The wall chip's second line on the chart, a share before each word and never beside a price:
+   * "breaks 38% · then 45% reach 5.00 · 40% back under". The card's line says the same in full. */
+  breakChip: (b: BreakWords) => {
+    const head = `breaks ${pct(b.share)}`;
+    if (b.fail === null) return head;
+    const back = `${pct(b.fail)} back ${b.up ? 'under' : 'over'}`;
+    if (b.nextPrice === null) return `${head} · then ${pct(b.open ?? 0)} hold · ${back}`;
+    return `${head} · then ${pct(b.follow ?? 0)} reach ${b.nextPrice} · ${back}`;
+  },
+  breaksNote: "A break is a minute close past the wall's far edge; back is a close past its near edge again. "
+    + 'Shares of the paths that break.',
+  breaksFoot: "A read of the forecaster's paths, not a signal: nothing here places an order.",
+
   // if it triggers
   notFollowed: "Nova is not watching this stock's setups",
   noLane: (family: string) => `No ${family} in play on the 1-minute chart.`,
   noLevels: (family: string) => `The ${family} has no complete trigger, entry, stop and target yet.`,
   triggered: (hhmm: string | null) => `Triggered${hhmm ? ` at ${hhmm}` : ''}: the plan card follows the trade`,
   provisional: 'forming: its levels may still move',
-  reach: (share: number, n: number, trigger: string) => `${pct(share)} of the ${n} paths reach the buy-stop ${trigger}`,
-  triggerFoot: 'Closes only; fills at the trigger. Of the paths that fill, which comes first: target or stop.',
+  reachShare: (share: number) => pct(share),
+  reach: (n: number, trigger: string) => `of the ${n} paths reach the buy-stop ${trigger}`,
+  triggerFoot: (by: string) => `Closes only; fills at the trigger. Of the paths that fill, which comes first by ${by}: `
+    + 'target or stop.',
   targetFirst: (share: number) => `target first · ${pct(share)} (forecast)`,
   stopFirst: (share: number) => `stop first · ${pct(share)} (forecast)`,
+  targetFirstShort: (share: number) => `target ${pct(share)}`,
+  stopFirstShort: (share: number) => `stop ${pct(share)}`,
   triggerTitle: (family: string) => `If the ${family} triggers`,
   targetFirstLabel: (p: string) => `target ${p} first`,
   stopFirstLabel: (p: string) => `stop ${p} first`,
@@ -207,11 +297,18 @@ export const AHEAD_WORDS = {
   buyStop: (p: string) => `buy-stop ${p}`,
   stopAt: (p: string) => `stop ${p}`,
   targetAt: (p: string) => `target ${p}`,
+  targetAtWall: (p: string) => `target ${p} · next wall`,
 
   // the panel
   sheetTitle: 'Ahead',
   sheetSub: 'next 15 min · redrawn every candle',
-  sheetLead: "One AI reads the whole chart. All is its view. A strategy asks it 'what if this triggers?'",
+  /** One AI reads the whole chart. **All** is its view. A strategy asks it *"what if this triggers?"* */
+  sheetLead: {
+    before: 'One AI reads the whole chart. ',
+    all: 'All',
+    middle: ' is its view. A strategy asks it ',
+    question: '"what if this triggers?"',
+  },
   unearnedLabel: 'Show before it has earned it',
   unearnedNote: 'Off: the AI view shows only once the forecaster has passed its exam.',
   macdOff: 'MACD pane is off: no MACD fan',
@@ -232,11 +329,14 @@ export const AHEAD_WORDS = {
   examBand80: (x: number) => `80% range held ${pct(x)} (should be near 80%)`,
   examSample: (days: number, moments: number) => `Tested on ${days} days, ${moments} moments`,
   reportTitle: 'Report card',
-  reportSince: (since: string | null, scored: number) => `Scored since ${since ?? '—'}: ${scored} forecasts`,
-  reportBand80: (x: string) => `Price inside its 80% range: ${x} (should be near 80%)`,
-  reportVolume: (x: string) => `Ranks the busier stretches: ${x}`,
-  reportRange: (x: string) => `Ranks the wider ranges: ${x}`,
-  notScored: '— not scored yet',
+  reportSince: (since: string | null, scored: number) => `${scored} scored since ${since ?? '—'}`,
+  reportNone: 'Not scored yet: scoring starts when the forecaster answers.',
+  reportBand80: 'Price stayed inside its 80% range',
+  reportBand80Note: '(should be 80%)',
+  reportVolume: 'Ranks the busier stretches',
+  reportRange: 'Ranks the wider ranges',
+  reportVsBaseline: '(1 = perfect, 0 = no better than chance)',
+  reportDash: '—',
   reportFoot: 'Every forecast is checked by the forecaster once the 15 minutes it covers have closed.',
   forecast: 'forecast',
 } as const;

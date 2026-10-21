@@ -1,6 +1,8 @@
 /**
  * Ahead's ghost volume (ADR 065) on the 1-minute pane's volume histogram: per forecast minute an outline from the
- * volume base to the forecaster's middle guess (q50) and a whisker from q10 to q90, with "AI volume" over them.
+ * volume base to the forecaster's middle guess (q50) and a whisker from q10 to q90, with "AI volume" just over the
+ * ghosts under it, on a chip so the price paths that run down into the volume band never cross its words. The ghost
+ * runs the zone's full 15 steps, as the price and MACD panes' zones do.
  *
  * Volume is an overlay histogram inside the price pane, so the ghost must never rescale it: there is no
  * `autoscaleInfo` here, and a whisker or outline taller than the volume band is clipped at the band's top with a small
@@ -18,13 +20,15 @@ import type {
   SeriesType,
   Time,
 } from 'lightweight-charts';
-import { AHEAD_DRAW, words } from './aheadCanvas';
-import { edgeInset, stepper } from './AheadPrimitive';
+import { AHEAD_DRAW, chip, CHIP_H, chipWidth } from './aheadCanvas';
+import { GHOST_BAR_SHARE, stepper } from './AheadPrimitive';
 import type { AheadScene } from './aheadSceneTypes';
 
 const CARET_PX = 3;
 const MIN_BAR_PX = 3;
-const BAR_SHARE = 0.62;
+/** "AI volume" sits this far over the ghosts under it, this far in from the zone's left edge. */
+const LABEL_GAP_PX = 3;
+const LABEL_INSET_PX = 6;
 
 export interface GhostBarPx {
   x: number;
@@ -44,13 +48,19 @@ export interface GhostPx {
   label: string;
 }
 
+/** The label chip's centre: right over the ghosts under its `width` (their whisker tops, cut at the band's top). */
+export function labelY(g: GhostPx, width: number): number {
+  const left = g.left + LABEL_INSET_PX;
+  const under = g.bars.filter(b => b.x + g.barW / 2 >= left && b.x - g.barW / 2 <= left + width);
+  const top = under.length ? Math.max(g.bandTop, Math.min(...under.map(b => b.y90))) : g.bandTop;
+  return Math.max(CHIP_H / 2 + 1, top - LABEL_GAP_PX - CHIP_H / 2);
+}
+
 class GhostRenderer implements IPrimitivePaneRenderer {
   private readonly px: GhostPx | null;
-  private readonly chart: IChartApi | null;
 
-  constructor(px: GhostPx | null, chart: IChartApi | null) {
+  constructor(px: GhostPx | null) {
     this.px = px;
-    this.chart = chart;
   }
 
   draw(target: CanvasRenderingTarget2D): void {
@@ -58,7 +68,7 @@ class GhostRenderer implements IPrimitivePaneRenderer {
     if (!g) return;
     target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
       const W = mediaSize.width;
-      const right = Math.min(g.right, W - edgeInset(this.chart, W));
+      const right = Math.min(g.right, W);
       if (right <= g.left) return;
       ctx.save();
       ctx.beginPath();
@@ -90,8 +100,11 @@ class GhostRenderer implements IPrimitivePaneRenderer {
         }
       }
       ctx.restore();
-      words(ctx, g.left + 8, g.bandTop + 12, g.label, AHEAD_DRAW.aiText, 'left',
-        '600 11px ui-sans-serif, system-ui, sans-serif');
+      if (g.label) {
+        const w = chipWidth(ctx, g.label);
+        chip(ctx, g.left + LABEL_INSET_PX, labelY(g, w), g.label, AHEAD_DRAW.aiText, AHEAD_DRAW.chipBg, 'start',
+          { width: right, height: mediaSize.height });
+      }
     });
   }
 }
@@ -104,7 +117,7 @@ class GhostView implements IPrimitivePaneView {
   }
 
   renderer(): IPrimitivePaneRenderer {
-    return new GhostRenderer(this.src.px, this.src.chartApi);
+    return new GhostRenderer(this.src.px);
   }
 
   zOrder(): PrimitivePaneViewZOrder {
@@ -180,9 +193,9 @@ export class AheadVolumePrimitive implements ISeriesPrimitive<Time> {
     }
     return {
       left: x0 + step.half,
-      right: xEnd + step.half,
+      right: xEnd + step.tail,
       bandTop,
-      barW: Math.max(MIN_BAR_PX, 2 * step.half * BAR_SHARE),
+      barW: Math.max(MIN_BAR_PX, 2 * step.half * GHOST_BAR_SHARE),
       bars,
       label: this.label,
     };

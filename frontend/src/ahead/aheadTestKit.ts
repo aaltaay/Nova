@@ -10,14 +10,16 @@ export const ANCHOR_T = TIMES[9];
 export const X = (logical: number) => 100 + logical * 10;
 export const Y = (p: number) => 1100 - p * 200;
 
-export function fakeChart(opts: { paneHeight?: number; scaleTop?: number } = {}) {
+/** `wholeOnly`: like lightweight-charts 5, a fractional logical index comes back as 0 (only whole ones are placed). */
+export function fakeChart(opts: { paneHeight?: number; scaleTop?: number; wholeOnly?: boolean; spacing?: number } = {}) {
+  const sp = opts.spacing ?? 10;
   const ts = {
     timeToIndex: (t: Time) => {
       const i = TIMES.indexOf(Number(t));
       return i < 0 ? null : i;
     },
-    logicalToCoordinate: (l: number) => X(l),
-    options: () => ({ barSpacing: 10 }),
+    logicalToCoordinate: (l: number) => (opts.wholeOnly && !Number.isInteger(l) ? 0 : 100 + l * sp),
+    options: () => ({ barSpacing: sp }),
     height: () => 26,
   };
   const chart = { timeScale: () => ts, paneSize: () => ({ width: 600, height: opts.paneHeight ?? 400 }) };
@@ -77,14 +79,16 @@ export function sampleScene(over: Partial<AheadScene> = {}): AheadScene {
     meet: { steps: 8, p: 4.98, text: 'lines meet ≈ 09:18', inZone: true },
     hLines: [{ p: 5.2, color: '#f0876f', dash: [], chip: '' }],
     chips: [
-      { p: 5.2, text: '▲ 5.20 first · 27% (forecast)', color: '#f0876f' },
-      { p: 5.19, text: 'neither in 15 min · 30% (forecast)', color: '#8b92a5' },
+      { p: 5.2, text: '▲ 5.20 first · 27% (forecast)', short: '▲ 27%', color: '#f0876f', role: 'wall' },
+      { p: 5.19, text: 'neither in 15 min · 30% (forecast)', short: 'neither 30%', color: '#8b92a5', role: 'neither' },
     ],
     keepInView: { lo: 4.75, hi: 5.25 },
     ghostVolume: Array.from({ length: 15 }, (_, i) => ({ k: i + 1, q10: 1, q50: 2, q90: 3 })),
     macd: Array.from({ length: 15 }, (_, i) => band(i + 1)),
     words: [],
-    legend: "Nova's lines carried on · 16 of 200 possible paths",
+    legend: [{ swatch: 'dash', text: "Nova's lines carried on until they meet" }, { swatch: 'hatch', text: 'hatched' }],
+    examStatus: { text: 'has not passed its exam', fg: '#ffb340', bg: '#333' },
+    recentVolume: [10, 20, 30],
     lineRead: null,
     walls: null,
     triggers: null,

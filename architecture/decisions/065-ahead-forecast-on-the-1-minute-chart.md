@@ -39,8 +39,8 @@ page already holds that read.
    1-minute bars of the session, the desk clock and the prior close (null when Nova does not know it) and answers
    the forecaster's view; `GET /api/ahead/status` reports whether one is set up and what its health says.
    `backend/ahead/` never calls the stock read.
-4. **Nova's own parts are worked out on the desk.** The lines to the meet, the walls, the wall-first odds, the "if it
-   triggers" odds and the MACD fan are computed in `frontend/src/ahead/` from the answer, the stock read the Trader
+4. **Nova's own parts are worked out on the desk.** The lines to the meet, the walls, the wall-first odds, "if it
+   breaks" under every wall, the "if it triggers" odds and the MACD fan are computed in `frontend/src/ahead/` from the answer, the stock read the Trader
    page already holds and the chart's own candles. The chart and Ahead cannot disagree about a line, and the order
    path's process does no extra work for them.
 5. **Nova's lines to the meet need no AI.** Its holding 1-minute support and resistance, carried on from the newest
@@ -65,6 +65,10 @@ page already holds that read.
 10. **Odds from paths say what they assume.** The forecaster gives a range per minute; its paths join those ranges by
     an assumed path shape (`paths.joined_by`), and they are closes only, so a wick that touches is not seen. Wherever
     the desk shows odds from paths it says so, and it says that the nearer wall wins more often by distance alone.
+    Under every wall, "if it breaks" (operator, 2026-10-20: "if it's a triple top, maybe there's going to be a
+    breakout?") counts a break only past the zone's far edge -- a close inside the zone is not a break -- then which
+    comes first: the next wall beyond, a close back past the near edge, or neither. It says it is a read of the
+    forecaster's paths, not a signal: nothing in it places an order.
 11. **On a Sim replay it is causal.** The desk clock is the playhead: no bar that ends after it is ever sent, the
     forecast starts at the end of the newest completed bar, and after a scrub the desk drops any answer made after
     the playhead and asks again.
@@ -76,6 +80,16 @@ page already holds that read.
     yet passed its exam, the Lines scope, no 1-minute pane, no room at the right edge, a replay with no candles, and
     Nova's API not yet restarted after the update -- each has its sentence (`architecture/schema/ahead.md`).
 14. **The routes are always registered.** Unset, the forecast route answers `not_set_up` and no request leaves Nova.
+15. **Framed like the approved mockup, never over the operator's view.** Switched on, and on each new answer, a
+    1-minute view that follows the live edge and is still Nova's shows the last 45 candles, the 15-step zone and a
+    small margin, with the stock read's word column right of the zone -- the zone takes about a quarter of the pane.
+    A view the operator zoomed or panned is never moved; a Nova view is framed again when the pane's width changes
+    (the panel docking or closing). The zone runs its full 15 steps in every pane.
+16. **Nothing of Ahead's covers a real candle or the zone it explains.** Chips stay inside the zone (odds-only words
+    when it is narrow, none when narrower still) and off Nova's lines, the minute labels go on the time axis in its
+    own words, the legend lives in the Ahead panel, and the panel never covers the 1-minute pane: it slides over the
+    other panes when the grid has room beside that pane, and otherwise docks beside the charts on the side away from
+    the zone, the grid giving up its width while it is open.
 
 ## Consequences
 

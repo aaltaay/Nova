@@ -149,6 +149,6 @@ export class AheadMacdPrimitive implements ISeriesPrimitive<Time> {
       q.q75.push(ys[2] as number);
       q.q90.push(ys[3] as number);
     }
-    return { left: x0 + step.half, right: xEnd + step.half, from: { x: x0, y: y0 }, xs, q, caption: f.caption };
+    return { left: x0 + step.half, right: xEnd + step.tail, from: { x: x0, y: y0 }, xs, q, caption: f.caption };
   }
 }

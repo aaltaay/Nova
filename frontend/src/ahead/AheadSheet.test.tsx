@@ -10,6 +10,9 @@ import statusWire from './__fixtures__/status_ready.json';
 import { publishAheadScene } from './AheadChartLayer';
 import { normalizeAnswer, normalizeStatus } from './aheadApi';
 import { AHEAD_WORDS } from './aheadConstants';
+import { etHhmm } from './aheadGeometry';
+import { publishKeepClear, resetKeepClearForTesting } from './aheadSheetPlace';
+import { volumeText } from './VolumeCard';
 import { readAheadPrefs, reloadAheadPrefsForTesting } from './aheadPrefs';
 import { AheadSheet } from './AheadSheet';
 import { openAheadSheet, publishAhead, resetAheadStoreForTesting } from './aheadStore';
@@ -25,8 +28,8 @@ const ready = () => normalizeAnswer(structuredClone(readyWire), SYM);
 const statusReady = () => normalizeStatus(structuredClone(statusWire)) as AheadStatus;
 
 const WALLS: AheadWalls = {
-  above: { zoneId: 'z1', price: 4.84, label: 'double top' },
-  below: { zoneId: 'z2', price: 4.5, label: 'double bottom' },
+  above: { zoneId: 'z1', price: 4.84, label: 'double top', lo: 4.84, hi: 4.85 },
+  below: { zoneId: 'z2', price: 4.5, label: 'double bottom', lo: 4.49, hi: 4.5 },
   first: { above: 0.27, below: 0.43, neither: 0.3 },
   nPaths: 16,
   byT: 1792500960,
@@ -60,6 +63,7 @@ afterEach(() => {
   act(() => {
     resetAheadStoreForTesting();
     publishAheadScene(SYM, null);
+    resetKeepClearForTesting();
   });
 });
 
@@ -77,6 +81,30 @@ describe('AheadSheet', () => {
     expect(card.textContent).toContain(AHEAD_WORDS.aiTag);
     expect(card.textContent).toContain('distance, not a call on direction');
     expect(screen.getByTestId('ahead-walls-forecast').textContent).toBe(AHEAD_WORDS.sharesForecast);
+    // No breaks counted (no AI view in this scene's walls): no "if it breaks" block.
+    expect(screen.queryByTestId('ahead-breaks')).toBeNull();
+  });
+
+  it('says under each wall what the paths do if it breaks, with small bars and the not-a-signal foot', () => {
+    const next = { zoneId: 'z3', price: 5, label: 'HOD', lo: 5, hi: 5.05 };
+    const walls: AheadWalls = { ...WALLS, breaks: {
+      above: { share: 0.38, nBreak: 6, next, follow: 0.45, fail: 0.4, open: 0.15 },
+      below: { share: 0, nBreak: 0, next: null, follow: null, fail: null, open: null },
+    } };
+    show(sampleScene({ walls }));
+    // One name per wall: the line names the wall as its headline does (its price and label), never its zone.
+    expect(screen.getByTestId('ahead-wall-above').textContent).toBe('▲ 4.84 · double top');
+    expect(screen.getByTestId('ahead-break-above').querySelector('p')?.textContent).toBe('If 4.84 · double top breaks '
+      + '(38% of paths): 45% reach 5.00 · HOD first, 40% close back under 4.84, 15% still open (forecast)');
+    expect(screen.getByTestId('ahead-break-below').textContent).toContain('If 4.50 · double bottom breaks');
+    expect(screen.getByTestId('ahead-wall-below').textContent).toBe('▼ 4.50 · double bottom');
+    // The bar runs in the line's order: reach, back, open.
+    expect(screen.getByTestId('ahead-break-above-bar').textContent).toBe('45%40%15%');
+    expect(screen.getByTestId('ahead-break-above-bar').className).toContain('ahead-stack--small');
+    // No path breaks the wall below: words, no bar, never a zero dressed as a share.
+    expect(screen.getByTestId('ahead-break-below').textContent).toContain('none of the 16 paths closes past it');
+    expect(screen.queryByTestId('ahead-break-below-bar')).toBeNull();
+    expect(screen.getByTestId('ahead-breaks-foot').textContent).toBe(AHEAD_WORDS.breaksFoot);
   });
 
   it('shows the forecast volume against the real last 15 minutes', () => {
@@ -92,8 +120,8 @@ describe('AheadSheet', () => {
     show();
     expect(screen.getByTestId('ahead-exam-tag').textContent).toBe(AHEAD_WORDS.notPassedTag);
     expect(screen.getByTestId('ahead-exam-card').textContent).toContain('(should be near 80%)');
-    expect(screen.getByTestId('ahead-report-range').textContent).toContain(AHEAD_WORDS.notScored);
-    expect(screen.getByTestId('ahead-report-range').textContent).not.toMatch(/\b0(\.0+)?\b/);
+    expect(screen.getByTestId('ahead-report-range').querySelector('b')?.textContent).toBe(AHEAD_WORDS.reportDash);
+    expect(screen.getByTestId('ahead-report-range').querySelector('b')?.textContent).not.toMatch(/\b0(\.0+)?\b/);
     expect(screen.getByTestId('ahead-report-volume').textContent).toContain('0.40');
     expect(screen.getByTestId('ahead-report-band80').textContent).toContain('75%');
   });
@@ -113,7 +141,7 @@ describe('AheadSheet', () => {
     show(sampleScene({ walls: WALLS }), { ...a, ai: { ...a.ai, exam: null } });
     expect(screen.getByTestId('ahead-exam-none').textContent).toBe(AHEAD_WORDS.examUnknown(AHEAD_WORDS.apiMissing));
     expect(screen.getByTestId('ahead-report-none').textContent).toBe(AHEAD_WORDS.examUnknown(AHEAD_WORDS.apiMissing));
-    expect(screen.getByTestId('ahead-sheet').textContent).not.toContain(AHEAD_WORDS.notScored);
+    expect(screen.getByTestId('ahead-report-range').querySelector('b')?.textContent).toBe(AHEAD_WORDS.reportDash);
   });
 
   it("says the forecaster's own reason when it is set up but its health is unknown, and no forecaster when none is", () => {
@@ -161,6 +189,69 @@ describe('AheadSheet', () => {
     fireEvent.click(sw);
     expect(readAheadPrefs().unearned).toBe(true);
     expect(screen.getByTestId('ahead-unearned').getAttribute('aria-checked')).toBe('true');
+  });
+
+  it("reads like the mockup: the lead's bold All and quoted question, and the legend with its swatches", () => {
+    show(sampleScene({ walls: WALLS, legend: [
+      { swatch: 'dash', text: AHEAD_WORDS.legendLines }, { swatch: 'band', text: AHEAD_WORDS.legendRange },
+      { swatch: 'paths', text: AHEAD_WORDS.legendPaths(200) }, { swatch: 'box', text: AHEAD_WORDS.legendVolume },
+      { swatch: 'hatch', text: AHEAD_WORDS.legendHatch }] }));
+    const lead = screen.getByTestId('ahead-sheet-lead');
+    expect(lead.querySelector('b')?.textContent).toBe('All');
+    expect(lead.querySelector('i')?.textContent).toBe('"what if this triggers?"');
+    for (const kind of ['dash', 'band', 'paths', 'box', 'hatch']) {
+      expect(screen.getByTestId(`ahead-legend-${kind}`).querySelector('.ahead-swatch')).not.toBeNull();
+    }
+    expect(screen.getByTestId('ahead-legend').textContent).toContain('16 of 200 possible paths');
+  });
+
+  it("carries the exam's status beside every card's AI numbers, in the chart chip's words", () => {
+    show();
+    for (const id of ['ahead-walls-card', 'ahead-volume-card']) {
+      const tag = screen.getByTestId(id).querySelector('[data-testid="ahead-card-exam"]');
+      expect(tag?.textContent).toBe('has not passed its exam');
+    }
+  });
+
+  it("shows the volume in the mockup's words, with the real bars before now and the ghosts after", () => {
+    expect(volumeText(827_000)).toBe('827k');
+    expect(volumeText(1_196_000)).toBe('1,196k');
+    expect(volumeText(12_400_000)).toBe('12.4M');
+    show();
+    const chart = screen.getByTestId('ahead-volume-chart');
+    expect(chart.querySelectorAll('[data-testid="ahead-volume-real"]')).toHaveLength(3);
+    expect(chart.querySelectorAll('[data-testid="ahead-volume-ghost"]')).toHaveLength(15);
+  });
+
+  it('reads plainly when nothing has been scored yet', () => {
+    const s = statusReady();
+    status = { ...s, health: { ...s.health!, live: { ...s.health!.live, scored: 0, since: null } } };
+    show();
+    expect(screen.getByTestId('ahead-report-none').textContent).toBe(AHEAD_WORDS.reportNone);
+    // The mockup's rows, each a dash until scored, never a zero.
+    for (const id of ['band80', 'volume', 'range']) {
+      expect(screen.getByTestId(`ahead-report-${id}`).querySelector('b')?.textContent).toBe(AHEAD_WORDS.reportDash);
+    }
+    expect(screen.getByTestId('ahead-report-card').textContent).not.toContain('scored since');
+  });
+
+  it('in Flat top puts only the share in big type and names the clock time the odds run to', () => {
+    show(sampleScene({ walls: WALLS, triggers: { flat_top: TRIGGER, first_pullback: TRIGGER } }));
+    fireEvent.click(screen.getByTestId('ahead-scope-flat_top'));
+    const reach = screen.getByTestId('ahead-trigger-reach');
+    expect(reach.querySelector('.ahead-big')?.textContent).toBe('57%');
+    const a = ready();
+    const by = etHhmm((a.as_of as number) + 15 * 60);
+    expect(screen.getByTestId('ahead-trigger-card').textContent).toContain(`which comes first by ${by}`);
+    // The odds' labels name the levels: no separate levels row beside them.
+    expect(screen.queryByTestId('ahead-trigger-levels')).toBeNull();
+  });
+
+  it('opens beside the 1-minute pane it explains', () => {
+    act(() => publishKeepClear(SYM, { left: 1150, right: 1400, paneLeft: 700, paneRight: 1400 }));
+    show();
+    // jsdom lays nothing out, so the panel keeps its usual place there; the rule itself is aheadSheetPlace.test.ts.
+    expect(screen.getByTestId('ahead-sheet').getAttribute('data-side')).toMatch(/^(left|right)$/);
   });
 
   it('closes on Escape and on ✕', () => {

@@ -176,8 +176,27 @@ export interface AheadLines {
 
 export interface AheadWall {
   zoneId: string;
+  /** The zone's edge nearest the price (`lo` for a wall above, `hi` for one below). */
   price: number;
   label: string;
+  /** The zone's own edges: a break is a close past the far one; a close back past `price` fails it. */
+  lo: number;
+  hi: number;
+}
+
+/** "If it breaks", one wall: of the paths whose minute close goes past the wall's FAR edge, which comes first -- a
+ * close at the next wall beyond (`follow`), a close back past its near edge (`fail`), or neither by the horizon
+ * (`open`). With no next wall, `follow` is null and `open` is the share that holds past the near edge. */
+export interface AheadWallBreak {
+  /** Share of all paths that break the wall. */
+  share: number;
+  nBreak: number;
+  /** The next wall beyond it; null when the stock read holds none. */
+  next: AheadWall | null;
+  /** Shares of the breaking paths; null when none breaks (`follow` also with no next wall). */
+  follow: number | null;
+  fail: number | null;
+  open: number | null;
 }
 
 /** Which wall first: shares of paths whose minute close reaches each wall first within the horizon. */
@@ -190,6 +209,8 @@ export interface AheadWalls {
   /** `as_of + horizon` (epoch seconds). */
   byT: number | null;
   reason: string | null;
+  /** If each wall breaks, from the same paths; null unless the AI view is shown. */
+  breaks?: { above: AheadWallBreak | null; below: AheadWallBreak | null } | null;
 }
 
 export type AheadLaneState = 'armed' | 'near' | 'forming' | 'triggered';

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chip, hatch, overlaps } from './aheadCanvas';
+import { chip, crosses, hatch, overlaps, topOver } from './aheadCanvas';
 import { fakeCtx } from './aheadTestKit';
 
 const ctx = () => fakeCtx() as unknown as CanvasRenderingContext2D & ReturnType<typeof fakeCtx>;
@@ -35,5 +35,14 @@ describe('aheadCanvas', () => {
     const a = { left: 0, top: 0, right: 10, bottom: 10 };
     expect(overlaps(a, { left: 11, top: 0, right: 20, bottom: 10 })).toBe(true);
     expect(overlaps(a, { left: 13, top: 0, right: 20, bottom: 10 })).toBe(false);
+  });
+
+  it("tells a chip on a line from one clear of it, and a line's highest point over some columns", () => {
+    const seg = { a: { x: 0, y: 100 }, b: { x: 100, y: 0 } };
+    expect(crosses(seg, { left: 40, right: 60, top: 45, bottom: 55 })).toBe(true);
+    expect(crosses(seg, { left: 40, right: 60, top: 70, bottom: 80 })).toBe(false);
+    expect(crosses(seg, { left: 120, right: 140, top: 0, bottom: 100 })).toBe(false);
+    expect(topOver([seg], 20, 50)).toBe(50);
+    expect(topOver([seg], 150, 160)).toBe(Infinity);
   });
 });

@@ -19,8 +19,9 @@ import {
   AHEAD_WORDS,
   type AheadFamily,
 } from './aheadConstants';
-import { etHhmm, nearestWalls, type AheadZoneIn } from './aheadGeometry';
-import type { AheadLaneState, AheadPathOutcome, AheadTrigger, AheadWalls } from './aheadTypes';
+import { wallBreak } from './aheadBreaks';
+import { etHhmm, nearestWalls, nextWall, type AheadZoneIn } from './aheadGeometry';
+import type { AheadLaneState, AheadPathOutcome, AheadTrigger, AheadWall, AheadWalls } from './aheadTypes';
 
 interface LevelsIn {
   trigger: number;
@@ -74,13 +75,16 @@ export function wallFirst(
   };
 }
 
-/** The walls and, with paths (the AI view shown), which one the paths reach first by `as_of + horizon`. */
+/** The walls and, with paths (the AI view shown), which one the paths reach first by `as_of + horizon` and what the
+ * paths do if each one breaks (`aheadBreaks.ts`). */
 export function aheadWalls(
   zones: readonly AheadZoneIn[], price: number, paths: readonly (readonly number[])[] | null, asOf: number | null,
   horizon = AHEAD_HORIZON,
 ): AheadWalls {
   const w = nearestWalls(zones, price);
   const first = paths ? wallFirst(paths, w.above?.price ?? null, w.below?.price ?? null) : null;
+  const breakOf = (wall: AheadWall | null, up: boolean) =>
+    (paths && wall ? wallBreak(paths, wall, up, nextWall(zones, wall, up)) : null);
   return {
     above: w.above,
     below: w.below,
@@ -88,6 +92,7 @@ export function aheadWalls(
     nPaths: first ? (paths as readonly number[][]).length : null,
     byT: asOf === null ? null : asOf + horizon * AHEAD_STEP_SEC,
     reason: w.reason,
+    breaks: first ? { above: breakOf(w.above, true), below: breakOf(w.below, false) } : null,
   };
 }
 

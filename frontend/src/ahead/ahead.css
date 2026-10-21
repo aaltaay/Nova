@@ -1,9 +1,9 @@
-/* Ahead (ADR 065): the colour tokens, the toolbar switch, the words over the zone and the legend strip; the panel's own
-   rules are aheadSheet.css. The canvas colours are aheadConstants.ts'; these match them. */
+/* Ahead (ADR 065): the colour tokens, the toolbar switch and the words over the zone; the panel's own rules (its
+   legend included) are aheadSheet.css. The canvas colours are aheadConstants.ts'; these match them. */
 .ahead-toggle,
 .ahead-heading,
+.ahead-now,
 .ahead-pane-note,
-.ahead-legend,
 .ahead-sheet {
   --ahead-ai: #93a4d6;
   --ahead-ai-text: #c7d2fe;
@@ -15,6 +15,8 @@
   --ahead-border: var(--sv-border, var(--border-color, #2a2f3a));
   --ahead-card: #1c1c1e;
   --ahead-bg: var(--sv-bg-raised, var(--bg-secondary, #12151c));
+  /* The heading's and "now"'s backdrop: the desk's panel colour at 0.9, so a line across the pane passes behind. */
+  --ahead-backdrop: color-mix(in srgb, var(--ahead-bg) 90%, transparent);
 }
 
 /* ---------------------------------------------------------------- toolbar */
@@ -64,9 +66,33 @@
   display: flex;
   flex-direction: column;
   gap: 3px;
+  /* Its max-width (AheadHeading's room) is the painted box, padding included: the backdrop ends where it says. */
+  box-sizing: border-box;
+  padding: 4px 6px;
+  border-radius: 5px;
+  background: var(--ahead-backdrop);
   pointer-events: none;
   font-size: 11px;
   line-height: 1.3;
+  will-change: transform;
+}
+/* "now HH:MM" just left of the zone, on the same backdrop. */
+.ahead-now {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 6;
+  box-sizing: border-box;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--ahead-backdrop);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--ahead-text);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  pointer-events: none;
   will-change: transform;
 }
 .ahead-heading__row,
@@ -75,6 +101,10 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 5px;
+}
+/* The tags sit side by side on one line; they wrap only when the zone is narrower than both. */
+.ahead-heading__tags {
+  gap: 4px;
 }
 .ahead-heading__title {
   font-weight: 700;
@@ -134,21 +164,6 @@
   color: var(--ahead-text);
   font-size: 11px;
   line-height: 1.3;
-}
-.ahead-legend {
-  position: absolute;
-  left: 8px;
-  bottom: 30px;
-  z-index: 5;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  padding: 2px 7px;
-  border-radius: 4px;
-  background: rgba(11, 13, 18, 0.82);
-  color: var(--ahead-muted);
-  font-size: 10.5px;
-  pointer-events: none;
 }
 .ahead-sr-only {
   position: absolute;

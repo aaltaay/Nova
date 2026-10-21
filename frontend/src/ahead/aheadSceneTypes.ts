@@ -14,6 +14,9 @@ export interface SceneChip {
   bg: string;
 }
 
+/** What an odds chip stands for (`AheadScene.chips`). */
+export type SceneChipRole = 'wall' | 'neither';
+
 export interface SceneBand {
   k: number;
   q10: number;
@@ -21,6 +24,14 @@ export interface SceneBand {
   q50: number;
   q75: number;
   q90: number;
+}
+
+/** One row of the legend the Ahead panel shows (`AheadSheet`): the swatch drawn and its words. */
+export interface SceneLegendRow {
+  swatch: 'dash' | 'band' | 'paths' | 'box' | 'hatch';
+  text: string;
+  /** The paths row: how many paths the forecaster drew (the chart Key's words count them). */
+  n?: number;
 }
 
 export interface AheadScene {
@@ -32,7 +43,7 @@ export interface AheadScene {
   horizon: number;
   /** The hatched zone and its heading; null when there is no anchor. */
   zone: { title: string; tags: SceneChip[]; nowText: string } | null;
-  /** Minute labels inside the pane bottom, every 5 minutes. */
+  /** Minute labels every 5 minutes, on the time axis under the zone. */
   ticks: { k: number; text: string }[];
   /** The forecaster's 50% / 80% price bands per step; null unless the AI view is shown. */
   fan: SceneBand[] | null;
@@ -44,8 +55,12 @@ export interface AheadScene {
   meet: { steps: number; p: number; text: string; inZone: boolean } | null;
   /** Horizontal stubs inside the zone: the walls (scope All) or trigger / stop / target (a strategy scope). */
   hLines: { p: number; color: string; dash: number[]; chip: string }[];
-  /** Odds chips anchored at a price, drawn at the zone's right edge. */
-  chips: { p: number; text: string; color: string }[];
+  /** Odds chips anchored at a price, drawn at the zone's right edge; `short` (the odds only) when the zone is too
+   * narrow for `text`. A chip never leaves the zone. `sub`: a wall's "if it breaks" second line, drawn only when the
+   * zone is wide enough for it (the panel's walls card always carries it). `role`: 'wall' -- a wall's chip, placed
+   * first on its wall's price; 'neither' -- tied to no one price, placed last in the free space between the walls;
+   * absent -- a strategy's chip on its own price. */
+  chips: { p: number; text: string; short: string; color: string; sub?: string; role?: SceneChipRole }[];
   /** The price range the drawn parts need on the scale; null when nothing price-bearing is drawn. */
   keepInView: { lo: number; hi: number } | null;
   /** Ghost volume per step (q10 / q50 / q90); null unless the AI view is shown. */
@@ -54,8 +69,12 @@ export interface AheadScene {
   macd: SceneBand[] | null;
   /** State sentences for the heading; the first is the main one. Empty when everything is drawn. */
   words: string[];
-  /** The legend strip under the zone; null when the AI view is not shown. */
-  legend: string | null;
+  /** What each mark in the zone means, for the Ahead panel (never drawn over the chart). */
+  legend: SceneLegendRow[];
+  /** The exam's status in the chart chip's own words, short (the panel's cards carry it); null with no answer. */
+  examStatus: SceneChip | null;
+  /** The last real completed 1-minute volumes, oldest first (the panel's volume chart). */
+  recentVolume: number[];
   /** The numbers the Ahead panel shows, worked out once with the scene. */
   lineRead: AheadLines | null;
   walls: AheadWalls | null;
@@ -81,4 +100,6 @@ export interface AheadSceneInput {
   roomOk: boolean;
   /** A replay desk with no candles for this symbol. */
   replayEmpty: boolean;
+  /** The last real completed 1-minute volumes, oldest first; empty when the pane has no volume series. */
+  recentVolume?: number[];
 }

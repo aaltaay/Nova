@@ -37,8 +37,9 @@ import {
   type SeriesTimeIndex,
 } from '../chart';
 import { etChartSeconds } from '../tickerChartData';
-import { ChartKey } from './ChartKey';
+import { ChartKey, PaneKeyOnly } from './ChartKey';
 import { chartKey } from './paneKeyRows';
+import { usePaneKeySections } from './paneKeyExtras';
 import { ChartLegend } from './ChartLegend';
 import { laneStartSec, leadLane, paneDraw, paneKind, type PriceLineSpec } from './chartShapes';
 import { levelNote } from './levelPicks';
@@ -210,6 +211,8 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
     () => edgeContents(chart),
   );
   const scaleWidth = usePriceScaleWidth(chart, containerRef, barsRevision, kind === 'full' && enabled);
+  // Sections other layers on this pane add to its Key while they draw (Ahead's zone).
+  const extraKey = usePaneKeySections(chart);
   const [cornerBottom, setCornerBottom] = useState(0);
   const runs = daily && enabled && !ctx?.replay ? ctx?.history.data?.runs ?? null : null;
   // The LULD band: the 1-minute and 10-second panes', from this desk's source (the live feed, or a replay at its
@@ -314,12 +317,15 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
     });
   }, [chart, series, index, kind, enabled, frameKey, startSec, focusTs]);
 
-  if (!ctx || !enabled || !read) return null;
+  if (!ctx || !enabled || !read) {
+    // No read yet (or none before a Sim playhead): another layer still drawing here keeps its Key.
+    return kind === 'none' ? null : <PaneKeyOnly sections={extraKey} testId={`stock-read-key-${kind}`} />;
+  }
   if (kind === 'full') {
     return (
       <>
         <ChartLegend ctx={ctx} read={read} onFrame={frame} right={scaleWidth > 0 ? scaleWidth + CORNER_GAP_PX : null}
-          containerRef={containerRef} onCornerBottom={setCornerBottom} />
+          containerRef={containerRef} onCornerBottom={setCornerBottom} extraKey={extraKey} />
         {story && hover && <ShapeTip story={story} hover={hover} />}
       </>
     );
@@ -335,7 +341,7 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
             {note}
           </div>
         )}
-        <ChartKey sections={chartKey(kind, ctx.layers)} testId={`stock-read-key-${kind}`} />
+        <ChartKey sections={[...extraKey, ...chartKey(kind, ctx.layers)]} testId={`stock-read-key-${kind}`} />
       </div>
       {story && hover && <ShapeTip story={story} hover={hover} />}
     </>

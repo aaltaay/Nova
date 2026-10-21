@@ -11,6 +11,7 @@ import {
   linesToMeet,
   meetTailOk,
   nearestWalls,
+  wallName,
   type AheadCandle,
   type AheadLineIn,
   type AheadZoneIn,
@@ -129,9 +130,23 @@ describe('the walls', () => {
       zone('a', 4.84, 4.85, ['top']), zone('b', 4.7, 4.7, ['half']), zone('c', 4.66, 4.67, ['vwap']),
       zone('d', 4.6, 4.64, ['top']), zone('e', 4.5, 4.5, ['bottom', 'half']), zone('f', 4.3, 4.31, ['lod']),
     ], 4.62);
-    expect(w.above).toEqual({ zoneId: 'a', price: 4.84, label: '4.84 · top' });
-    expect(w.below).toEqual({ zoneId: 'e', price: 4.5, label: '4.50 · bottom · half' });
+    expect(w.above).toEqual({ zoneId: 'a', price: 4.84, label: 'top', lo: 4.84, hi: 4.85 });
+    expect(w.below).toEqual({ zoneId: 'e', price: 4.5, label: 'bottom · half', lo: 4.5, hi: 4.5 });
     expect(w.reason).toBeNull();
+  });
+
+  it("names a wall without the price it already shows", () => {
+    expect(wallName('4.69 · triple top')).toBe('triple top');
+    expect(wallName('$4.50 · double bottom')).toBe('double bottom');
+    expect(wallName('4.56 · double bottom · VWAP')).toBe('double bottom · VWAP');
+    expect(wallName('HOD 5.05 · double top')).toBe('HOD · double top');
+    expect(wallName('5.00–5.05 · HOD')).toBe('HOD');
+    // Counts and numbers inside words are names, not prices.
+    expect(wallName('$7.50 · top ×8 · VWAP')).toBe('top ×8 · VWAP');
+    expect(wallName('daily lows ×4')).toBe('daily lows ×4');
+    expect(wallName('5.12 · 200-day avg')).toBe('200-day avg');
+    expect(wallName('PMH 4.80 · daily highs ×6')).toBe('PMH · daily highs ×6');
+    expect(wallName('0.5123 · bottom ×5')).toBe('bottom ×5');
   });
 
   it('says why with no wall', () => {

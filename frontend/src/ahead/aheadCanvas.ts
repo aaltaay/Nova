@@ -15,7 +15,6 @@ export const AHEAD_DRAW = {
   muted: AHEAD_COLORS.muted,
   ring: AHEAD_COLORS.meetRing,
   chipBg: AHEAD_COLORS.chipBg,
-  nowBg: AHEAD_COLORS.nowBg,
   /** The fan's outer (10-90) and inner (25-75) band strengths; a strategy scope dims both by `AHEAD_FAN_DIM`. */
   fanOuter: 0.13,
   fanInner: 0.24,
@@ -44,7 +43,7 @@ export interface Rect {
 const HATCH_PERIOD_PX = 9;
 const HATCH_STRIPE_PX = 3;
 const CHIP_FONT = '600 11px ui-sans-serif, system-ui, sans-serif';
-const CHIP_H = 18;
+export const CHIP_H = 18;
 const CHIP_PAD_PX = 6;
 const CHIP_RADIUS_PX = 4;
 
@@ -126,6 +125,15 @@ export function ring(ctx: CanvasRenderingContext2D, at: Pt, r: number, color: st
   ctx.restore();
 }
 
+/** How wide a chip of these words is (px), without drawing it. */
+export function chipWidth(ctx: CanvasRenderingContext2D, text: string): number {
+  ctx.save();
+  ctx.font = CHIP_FONT;
+  const w = ctx.measureText(text).width + 2 * CHIP_PAD_PX;
+  ctx.restore();
+  return w;
+}
+
 /**
  * Words on a rounded chip. `anchor` says which edge `x` is: 'end' puts the chip's right edge there. `y` is the chip's
  * vertical centre. Returns the rectangle it holds (for the pane's words), or null when it would not fit the pane.
@@ -164,6 +172,41 @@ export function words(ctx: CanvasRenderingContext2D, x: number, y: number, text:
   ctx.textBaseline = 'alphabetic';
   ctx.fillText(text, x, y);
   ctx.restore();
+}
+
+/** A straight line drawn on the pane (Nova's lines carried on to the meet). */
+export interface Seg {
+  a: Pt;
+  b: Pt;
+}
+
+/** The segment's y range over the columns `left..right` (null when it does not reach them). */
+function segYs(seg: Seg, left: number, right: number): [number, number] | null {
+  const x0 = Math.min(seg.a.x, seg.b.x);
+  const x1 = Math.max(seg.a.x, seg.b.x);
+  const lo = Math.max(left, x0);
+  const hi = Math.min(right, x1);
+  if (lo > hi) return null;
+  const at = (x: number) => (x1 === x0 ? seg.a.y : seg.a.y + ((seg.b.y - seg.a.y) * (x - seg.a.x)) / (seg.b.x - seg.a.x));
+  const ya = at(lo);
+  const yb = at(hi);
+  return [Math.min(ya, yb), Math.max(ya, yb)];
+}
+
+/** A chip's rectangle would sit on the segment (with `gap` px kept free around it). */
+export function crosses(seg: Seg, r: Rect, gap = 2): boolean {
+  const ys = segYs(seg, r.left - gap, r.right + gap);
+  return !!ys && ys[0] < r.bottom + gap && ys[1] > r.top - gap;
+}
+
+/** The highest point (smallest y) any segment reaches over the columns `left..right`; Infinity when none does. */
+export function topOver(segs: readonly Seg[], left: number, right: number): number {
+  let top = Infinity;
+  for (const seg of segs) {
+    const ys = segYs(seg, left, right);
+    if (ys && ys[0] < top) top = ys[0];
+  }
+  return top;
 }
 
 /** Two chips' rectangles overlap (with `gap` px between them kept free). */

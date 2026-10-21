@@ -7,6 +7,7 @@
  * epoch seconds. Support lines always rise and resistance lines always fall (`backend/stock_read/trend_lines.py`), so
  * two lines either meet ahead or have met already. Their slopes are rounded on the wire, so a meet is "≈".
  */
+import { formatAmPmClock } from '../chart';
 import { etChartSeconds } from '../tickerChartData';
 import { AHEAD_CONTIGUOUS_TAIL, AHEAD_HORIZON, AHEAD_NOT_A_WALL, AHEAD_STEP_SEC, AHEAD_WORDS } from './aheadConstants';
 import type { AheadLines, AheadWall } from './aheadTypes';
@@ -54,6 +55,12 @@ export function chartToEpoch(chart: number): number {
 /** "09:13" for a chart-seconds time (its UTC reading is the Eastern wall clock). */
 export function chartHhmm(chart: number): string {
   return new Date(Math.round(chart) * 1000).toISOString().slice(11, 16);
+}
+
+/** "9:05 AM" for a chart-seconds time: the desk's own time-axis words, for labels on that axis. */
+export function chartAxisClock(chart: number): string {
+  const d = new Date(Math.round(chart) * 1000);
+  return formatAmPmClock(d.getUTCHours(), d.getUTCMinutes());
 }
 
 export function etHhmm(epochSec: number): string {
@@ -152,9 +159,23 @@ export function meetTailOk(answerTail: number | null, candles: readonly AheadCan
 
 // ---------------------------------------------------------------- walls
 
+/** A price written in a zone's label ("4.69", "$4.50", "5.00–5.05"). Every price the stock read writes has its cents,
+ * so a bare count ("top ×8", "daily lows ×4") or a number inside a word ("200-day avg") is never one. */
+const LABEL_PRICE = /(?<![\w×.$])\$?\d+\.\d+(?:\s*[–-]\s*\$?\d+\.\d+)?(?![\w.])/g;
+
+/** A wall's name from its zone's label, without the price the wall already shows ("4.69 · triple top" -> "triple
+ * top", "HOD 5.05 · double top" -> "HOD · double top"). */
+export function wallName(label: string): string {
+  return label.split('·').map(part => part.replace(LABEL_PRICE, '').trim()).filter(Boolean).join(' · ');
+}
+
 /** A zone is a wall when one of its reasons comes from the candles (not only a round number or VWAP). */
 export function isWall(z: AheadZoneIn): boolean {
   return z.members.some((m) => !AHEAD_NOT_A_WALL.includes(m.kind));
+}
+
+function wallOf(z: AheadZoneIn, price: number): AheadWall {
+  return { zoneId: z.id, price, label: wallName(z.label), lo: z.lo, hi: z.hi };
 }
 
 /** The nearest wall above (its low edge over the price) and below (its high edge under it); a zone holding the price
@@ -166,11 +187,23 @@ export function nearestWalls(
   let below: AheadWall | null = null;
   for (const z of zones) {
     if (!isWall(z)) continue;
-    if (z.lo > price && (above === null || z.lo < above.price)) above = { zoneId: z.id, price: z.lo, label: z.label };
-    if (z.hi < price && (below === null || z.hi > below.price)) below = { zoneId: z.id, price: z.hi, label: z.label };
+    if (z.lo > price && (above === null || z.lo < above.price)) above = wallOf(z, z.lo);
+    if (z.hi < price && (below === null || z.hi > below.price)) below = wallOf(z, z.hi);
   }
   if (above !== null && below !== null && above.price <= below.price) {
     return { above: null, below: null, reason: AHEAD_WORDS.wallsOverlap };
   }
   return { above, below, reason: above === null && below === null ? AHEAD_WORDS.noWalls : null };
+}
+
+/** The next wall beyond `wall` on its side: above, the nearest wall zone wholly over its top (at its `lo`); below,
+ * the nearest wholly under its bottom (at its `hi`). Null when the stock read holds none. */
+export function nextWall(zones: readonly AheadZoneIn[], wall: AheadWall, up: boolean): AheadWall | null {
+  let next: AheadWall | null = null;
+  for (const z of zones) {
+    if (!isWall(z) || z.id === wall.zoneId) continue;
+    if (up && z.lo > wall.hi && (next === null || z.lo < next.price)) next = wallOf(z, z.lo);
+    if (!up && z.hi < wall.lo && (next === null || z.hi > next.price)) next = wallOf(z, z.hi);
+  }
+  return next;
 }

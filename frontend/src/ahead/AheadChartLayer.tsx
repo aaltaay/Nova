@@ -6,26 +6,32 @@
  * completed candles, whether the MACD pane is there and whether the zone has room -- builds the scene once
  * (`aheadScene.ts`: every gate and word) and hands it to the primitives: the zone on the candle series, the ghost
  * volume on the volume histogram and the MACD fan on the MACD pane. The heading's words are DOM over the zone. The
- * scene is also published per symbol for the Ahead panel, so its numbers are the ones on the chart.
+ * scene is also published per symbol for the Ahead panel, so its numbers are the ones on the chart, with the part of
+ * the screen the panel must leave clear (`aheadSheetPlace.ts`). Switched on, and on each new answer, the pane is framed
+ * for the zone unless the operator owns the view (`useAheadRoom.ts`).
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ISeriesApi } from 'lightweight-charts';
 import type { ChartPaneOverlayProps } from '../chart';
 import { useSimReplayDesk, useSimReplayPlayhead } from '../sim';
-import { useStockReadContext } from '../stock_read';
+import { publishPaneKeySection, useStockReadContext } from '../stock_read';
 import { etChartSeconds } from '../tickerChartData';
 import { AheadHeading, type HeadingHandle } from './AheadHeading';
 import { AheadPrimitive, type ZoneLayout } from './AheadPrimitive';
 import { AheadVolumePrimitive } from './AheadVolumePrimitive';
-import { AHEAD_STEP_SEC, AHEAD_TIMEFRAME, AHEAD_WORDS } from './aheadConstants';
+import { AHEAD_RECENT_VOLUME_BARS, AHEAD_STEP_SEC, AHEAD_TIMEFRAME, AHEAD_WORDS } from './aheadConstants';
+import { aheadKeySection } from './aheadKeyRows';
 import { aheadScene } from './aheadScene';
 import type { AheadScene } from './aheadSceneTypes';
 import { useAheadPrefs } from './aheadPrefs';
 import { useAheadAnswer } from './useAheadAnswer';
 import { useAheadMacd, useMacdPane } from './useAheadMacd';
+import { publishKeepClear } from './aheadSheetPlace';
 import { useAheadRoom } from './useAheadRoom';
 
 const CLOCK_BEAT_MS = 1000;
+/** Ahead's section on the pane's Key (`stock_read/paneKeyExtras.ts`). */
+const AHEAD_KEY_SOURCE = 'ahead';
 
 // ---------------------------------------------------------------- the scene per symbol, for the panel
 
@@ -79,7 +85,28 @@ export function completedCandles(series: ISeriesApi<'Candlestick'> | null, deskM
   return out;
 }
 
+/** The last real completed 1-minute volumes, oldest first (the panel's volume chart). */
+export function recentVolumes(series: ISeriesApi<'Histogram'> | null, deskMinute: number | null): number[] {
+  if (!series || deskMinute === null) return [];
+  const cutoff = etChartSeconds(deskMinute * 60_000);
+  const out: number[] = [];
+  for (const row of series.data()) {
+    const v = (row as { value?: number }).value;
+    if (Number(row.time) + AHEAD_STEP_SEC <= cutoff && typeof v === 'number' && Number.isFinite(v)) out.push(v);
+  }
+  return out.slice(-AHEAD_RECENT_VOLUME_BARS);
+}
+
 // ---------------------------------------------------------------- the layer
+
+/** The pane and its zone (to the pane's right edge, its price axis included), in client pixels: the Ahead panel
+ * never covers them. */
+function keepClearOf(chart: NonNullable<ChartPaneOverlayProps['chart']>, z: NonNullable<ZoneLayout>) {
+  const el = typeof chart.chartElement === 'function' ? chart.chartElement() : null;
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  return { left: r.left + z.left, right: r.right, paneLeft: r.left, paneRight: r.right };
+}
 
 export function AheadChartLayer({ symbol, timeframe, chart, candleSeriesRef, barsRevision,
   volSeriesRef }: ChartPaneOverlayProps) {
@@ -99,12 +126,17 @@ export function AheadChartLayer({ symbol, timeframe, chart, candleSeriesRef, bar
     () => completedCandles(series, deskMinute),
     [series, deskMinute, barsRevision, answer?.bar_t], // eslint-disable-line react-hooks/exhaustive-deps
   );
+  const recentVolume = useMemo(
+    () => recentVolumes(volSeries as ISeriesApi<'Histogram'> | null, deskMinute),
+    [volSeries, deskMinute, barsRevision], // eslint-disable-line react-hooks/exhaustive-deps
+  );
   const replayEmpty = on && replay && barsRevision > 0 && !!series && series.data().length === 0;
-  const roomOk = useAheadRoom(chart, series, on, barsRevision);
+  const roomOk = useAheadRoom(chart, series, on, barsRevision, answer?.as_of ?? null);
   const macdPane = useMacdPane(chart, on);
   const scene = useMemo(() => aheadScene({
     symbol, prefs, paneIs1m, answer, fetchProblem, read, candles, macdOn: macdPane !== null, roomOk, replayEmpty,
-  }), [symbol, prefs, paneIs1m, answer, fetchProblem, read, candles, macdPane, roomOk, replayEmpty]);
+    recentVolume,
+  }), [symbol, prefs, paneIs1m, answer, fetchProblem, read, candles, macdPane, roomOk, replayEmpty, recentVolume]);
   const fanDim = prefs.scope === 'flat_top' || prefs.scope === 'first_pullback';
 
   // The panel reads this pane's scene (a 1-minute pane only).
@@ -118,7 +150,12 @@ export function AheadChartLayer({ symbol, timeframe, chart, candleSeriesRef, bar
   const heading = useRef<HeadingHandle | null>(null);
   const onLayout = useCallback((z: ZoneLayout) => {
     heading.current?.place(z, chart?.timeScale().height() ?? 0);
-  }, [chart]);
+    publishKeepClear(symbol, z && chart ? keepClearOf(chart, z) : null);
+  }, [chart, symbol]);
+  useEffect(() => {
+    if (!on || !paneIs1m) return undefined;
+    return () => publishKeepClear(symbol, null);
+  }, [on, paneIs1m, symbol]);
 
   const primitive = useRef<AheadPrimitive | null>(null);
   useEffect(() => {
@@ -140,6 +177,10 @@ export function AheadChartLayer({ symbol, timeframe, chart, candleSeriesRef, bar
   useEffect(() => {
     primitive.current?.setScene(scene, fanDim);
   }, [scene, fanDim, series, on]);
+  // The forecast's prices are drawn above the volume band.
+  useEffect(() => {
+    primitive.current?.setVolumeSeries(volSeries);
+  }, [volSeries, series, on]);
 
   const ghost = useRef<AheadVolumePrimitive | null>(null);
   useEffect(() => {
@@ -162,8 +203,18 @@ export function AheadChartLayer({ symbol, timeframe, chart, candleSeriesRef, bar
 
   useAheadMacd(on ? macdPane : null, scene);
 
-  const onHeadingSize = useCallback((rect: { left: number; top: number; right: number; bottom: number } | null) => {
-    primitive.current?.setExtraWords(rect ? [rect] : []);
+  // The pane's Key lists what the zone's marks mean while Ahead draws here, so the zone reads with the panel closed.
+  const { legend, meet, chips, zone } = scene;
+  const keySection = useMemo(() => aheadKeySection({ legend, meet, chips }, on && zone !== null),
+    [legend, meet, chips, on, zone]);
+  useEffect(() => {
+    if (!chart) return undefined;
+    publishPaneKeySection(chart, AHEAD_KEY_SOURCE, keySection);
+    return () => publishPaneKeySection(chart, AHEAD_KEY_SOURCE, null);
+  }, [chart, keySection]);
+
+  const onHeadingSize = useCallback((rects: { left: number; top: number; right: number; bottom: number }[]) => {
+    primitive.current?.setExtraWords(rects);
   }, []);
 
   if (!on) return null;

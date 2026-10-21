@@ -63,7 +63,8 @@ const noAi = (s: ReturnType<typeof aheadScene>) => {
   expect(s.paths).toEqual([]);
   expect(s.ghostVolume).toBeNull();
   expect(s.macd).toBeNull();
-  expect(s.legend).toBeNull();
+  // The legend keeps Nova's lines and the hatch only.
+  expect(s.legend.map((r) => r.swatch)).toEqual(['dash', 'hatch']);
   expect(s.walls?.first ?? null).toBeNull();
   expect(s.triggers?.flat_top.reach ?? null).toBeNull();
   expect(s.chips).toEqual([]);
@@ -93,13 +94,27 @@ describe('the Ahead scene', () => {
     expect(s.paths[0]).toMatchObject({ color: AHEAD_COLORS.path, alpha: 0.34 });
     expect(s.ghostVolume?.[14]).toEqual({ k: 15, q10: 3600, q50: 8000, q90: 16800 });
     expect(s.macd).toHaveLength(15);
-    expect(s.legend).toContain('16 of 16 possible paths');
+    expect(s.legend.map((r) => r.swatch)).toEqual(['dash', 'band', 'paths', 'box', 'hatch']);
+    expect(s.legend.map((r) => r.text)).toContain('16 of 16 possible paths');
     const tag = s.zone?.tags[1];
     expect(tag?.text).toContain('has not passed its exam');
     expect(tag?.text).toContain('Example only: made-up scope.');
     expect(tag?.fg).toBe(AHEAD_COLORS.notPassedFg);
     expect(s.walls?.first).not.toBeNull();
     expect(s.chips.map((c) => c.text)[0]).toMatch(/^▲ 4\.84 first · \d+% \(forecast\)$/);
+    // The walls' chips are tied to their prices; "neither" to none (the drawing places it last, between the walls).
+    expect(s.chips.map((c) => c.role)).toEqual(['wall', 'wall', 'neither']);
+    expect(s.legend.find((r) => r.swatch === 'paths')?.n).toBe(16);
+    // If it breaks: no path closes over the top 4.84-4.85 (its chip says so); one dips under 4.50, with no wall beyond.
+    expect(s.walls?.breaks?.above).toMatchObject({ share: 0, nBreak: 0, next: null, fail: null });
+    expect(s.chips[0].sub).toBe('breaks 0%');
+    expect(s.walls?.breaks?.below?.nBreak).toBeGreaterThan(0);
+    expect(s.walls?.breaks?.below?.next).toBeNull();
+    expect(s.walls?.breaks?.below?.follow).toBeNull();
+    // The odds-only words for a zone too narrow for the full chip.
+    expect(s.chips.map((c) => c.short)[0]).toMatch(/^▲ \d+%$/);
+    expect(s.examStatus).toEqual({ text: AHEAD_WORDS.notPassedTag, fg: AHEAD_COLORS.notPassedFg,
+      bg: AHEAD_COLORS.notPassedBg });
     expect(s.words).toEqual([]);
   });
 
@@ -108,6 +123,7 @@ describe('the Ahead scene', () => {
     expect(s.fan).not.toBeNull();
     const tag = s.zone?.tags[1];
     expect(tag?.text).toBe('passed its exam · Example only: made-up scope. · 10 days, 100 moments');
+    expect(s.examStatus).toMatchObject({ text: AHEAD_WORDS.passedTag, fg: AHEAD_COLORS.passedFg });
     expect(JSON.stringify(s)).not.toContain('EARNED');
   });
 
@@ -189,6 +205,10 @@ describe('the Ahead scene', () => {
     });
     expect(s.hLines.map((h) => h.color)).toEqual([AHEAD_COLORS.trigger, AHEAD_COLORS.stop, AHEAD_COLORS.target]);
     expect(s.hLines[0].chip).toBe(AHEAD_WORDS.buyStop('4.70'));
+    // The target sits on the next wall up (4.84 double top): its chip says so.
+    expect(s.hLines[2].chip).toBe('target 4.84 · next wall');
+    expect(s.chips.map((c) => c.short)).toEqual([expect.stringMatching(/^target \d+%$/),
+      expect.stringMatching(/^stop \d+%$/)]);
   });
 
   it("says why a strategy scope has nothing in play", () => {
@@ -232,7 +252,19 @@ describe('the Ahead scene', () => {
     expect(s.zone?.title).toBe(AHEAD_WORDS.zoneTitle);
     expect(s.zone?.nowText).toBe(`now ${chartHhmm(ANCHOR + 60)}`);
     expect(s.ticks.length).toBe(3);
-    for (const tick of s.ticks) expect(Number(tick.text.slice(3)) % 5).toBe(0);
+    // In the desk's own axis words ("9:05 AM"), never a second clock style beside its labels.
+    for (const tick of s.ticks) {
+      expect(tick.text).toMatch(/^\d{1,2}:\d{2} (AM|PM)$/);
+      expect(Number(tick.text.split(':')[1].slice(0, 2)) % 5).toBe(0);
+    }
+  });
+
+  it('names a target off every wall plainly, and carries the real volumes for the panel', () => {
+    const read = { ...READ, level_map: { ...READ?.level_map, intraday: [] } } as AheadSceneInput['read'];
+    const s = aheadScene(input({ answer: passed, read, prefs: { ...PREFS, scope: 'flat_top' }, recentVolume: [1, 2] }));
+    expect(s.hLines[2].chip).toBe(AHEAD_WORDS.targetAt('4.84'));
+    expect(s.recentVolume).toEqual([1, 2]);
+    expect(aheadScene(input({ answer: null })).examStatus).toBeNull();
   });
 
   it('draws no MACD fan without the MACD pane, and works the fan out once per minute', () => {
