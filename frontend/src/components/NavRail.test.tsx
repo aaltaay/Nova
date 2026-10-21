@@ -130,10 +130,11 @@ describe('NavRail', () => {
     expect(rail.tagName).toBe('NAV');
     expect(rail.getAttribute('aria-label')).toBe('Navigation');
     const top = testIds(rail.querySelector('.nav-rail__list')!).filter((id) =>
-      ['nav-rail-global', 'nav-rail-market', 'nav-rail-trader', 'nav-rail-scanner', 'nav-rail-cryptos', 'nav-rail-account', 'nav-rail-bots', 'nav-rail-records'].includes(id!),
+      ['nav-rail-forex', 'nav-rail-global', 'nav-rail-market', 'nav-rail-trader', 'nav-rail-scanner', 'nav-rail-cryptos', 'nav-rail-account', 'nav-rail-bots', 'nav-rail-records'].includes(id!),
     );
-    // Global above Market (operator ask, 2026-10-20).
+    // Forex above Global, Global above Market (operator asks, 2026-10-20).
     expect(top).toEqual([
+      'nav-rail-forex',
       'nav-rail-global',
       'nav-rail-market',
       'nav-rail-trader',
@@ -311,8 +312,12 @@ describe('NavRail', () => {
     expect(getNavPage()).toBe('bots');
     expect(consumeScannerTabRequest()).toBeNull();
     expect(q('nav-rail-bots')!.classList.contains('is-active')).toBe(true);
+    click('nav-rail-forex');
+    expect(getNavPage()).toBe('forex');
+    expect(q('nav-rail-forex')!.classList.contains('is-active')).toBe(true);
     click('nav-rail-global');
     expect(getNavPage()).toBe('global');
+    expect(q('nav-rail-forex')!.classList.contains('is-active')).toBe(false);
     expect(q('nav-rail-global')!.classList.contains('is-active')).toBe(true);
     click('nav-rail-market');
     expect(getNavPage()).toBe('market');

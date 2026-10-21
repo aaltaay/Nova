@@ -19,7 +19,7 @@ import { getModule, isTabModuleId, type ActiveTab, type ModuleCountKey } from '.
  *  page (empty for now) and its two children, LiveTrader Bots (the TraderTV hosts' page, with their bots) and Strategy
  *  Bots. */
 export type NavPage =
-  | 'dashboard' | 'global' | 'market' | 'records' | 'account' | 'bots' | 'bots-live-trader' | 'bots-strategy' | 'cryptos';
+  | 'dashboard' | 'forex' | 'global' | 'market' | 'records' | 'account' | 'bots' | 'bots-live-trader' | 'bots-strategy' | 'cryptos';
 
 /** Every page of the Bots group. */
 export const BOTS_PAGES: readonly NavPage[] = ['bots', 'bots-live-trader', 'bots-strategy'];

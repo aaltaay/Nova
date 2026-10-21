@@ -12,7 +12,7 @@ sensor envelope `{sensor, status: "live", as_of, data, symbol?, error?}`.
 `sensors/focus_routes.py`; at most `FOCUS_REPORT_MAX_BODY_BYTES`, 413 over,
 422 invalid) on each change and every `FOCUS_HEARTBEAT_MS`: `{schema_version:
 1, role: "main" | "popout" | "browser", window_id, instance_id, focused,
-visible, page: "trader" | "global" | "market" | "scanner" | "account" | "bots" | "records" |
+visible, page: "trader" | "forex" | "global" | "market" | "scanner" | "account" | "bots" | "records" |
 "cryptos" | "followed" | null, tab: string | null, symbol: string | null, symbol_source: "trader_tab" |
 "scanner_row" | null, trader_tabs: string[], last_input_ts:
 number | null, reason: "start" | "focus" | "blur" | "visibility" | "page" |

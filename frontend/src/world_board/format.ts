@@ -1,4 +1,5 @@
-/** The Global page's number words (ADR 060): dollars, signed percents, clocks. Unknown is "--", never 0. */
+/** The world boards' number words (the Global and Forex pages, ADR 060, 061): dollars, signed percents, clocks.
+ * Unknown is "--", never 0. */
 
 const DASH = '--';
 const MINUS = '−';
@@ -7,16 +8,25 @@ function sign(v: number): string {
   return v > 0 ? '+' : v < 0 ? MINUS : '';
 }
 
-/** "$4.6B" / "$870M" / "$12.4K" -- or signed, "+$4.6B" / "−$870M". */
+function scaled(a: number): string {
+  return a >= 1e12 ? `${(a / 1e12).toFixed(2)}T`
+    : a >= 1e9 ? `${(a / 1e9).toFixed(a >= 1e11 ? 0 : 1)}B`
+      : a >= 1e6 ? `${(a / 1e6).toFixed(a >= 1e8 ? 0 : 1)}M`
+        : a >= 1e3 ? `${(a / 1e3).toFixed(1)}K`
+          : a.toFixed(0);
+}
+
+/** The next unit's size, for a value that rounds up to 1,000 of its own. */
+const NEXT_UNIT: Record<string, number> = { '': 1e3, K: 1e6, M: 1e9, B: 1e12 };
+
+/** "$4.6B" / "$870M" / "$12.4K" -- or signed, "+$4.6B" / "−$870M". A value that rounds up to 1,000 of its unit reads
+ * in the next one: "$1.0B", never "$1000M". */
 export function usd(v: number | null | undefined, signed = false): string {
   if (v == null || !Number.isFinite(v)) return DASH;
   const a = Math.abs(v);
-  const body =
-    a >= 1e12 ? `${(a / 1e12).toFixed(2)}T`
-      : a >= 1e9 ? `${(a / 1e9).toFixed(a >= 1e11 ? 0 : 1)}B`
-        : a >= 1e6 ? `${(a / 1e6).toFixed(a >= 1e8 ? 0 : 1)}M`
-          : a >= 1e3 ? `${(a / 1e3).toFixed(1)}K`
-            : a.toFixed(0);
+  let body = scaled(a);
+  const rolled = /^1000(?:\.0+)?([KMB]?)$/.exec(body);
+  if (rolled) body = scaled(NEXT_UNIT[rolled[1]]);
   return `${signed ? sign(v) : v < 0 ? MINUS : ''}$${body}`;
 }
 

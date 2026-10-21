@@ -6,7 +6,7 @@
  */
 import type { ReactNode } from 'react';
 import { MOVE_BAR_SCALE_PCT, PRESSURE_BAR_SCALE_PCT, STATE_WORD } from './constants';
-import { monthWord, signedPct, sizeUsd, tone, usd } from './format';
+import { monthWord, signedPct, sizeUsd, tone, usd } from '../world_board/format';
 import type { Market, Period } from './types';
 
 interface Props {

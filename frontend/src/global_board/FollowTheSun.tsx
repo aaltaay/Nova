@@ -4,9 +4,9 @@
  * Drawn at the size of its box (the page never scrolls): the region rows take up to 16 px each, the bars the rest.
  */
 import { REGION_ORDER, REGION_SHORT } from './constants';
-import { etTime, usd } from './format';
+import { etTime, usd } from '../world_board/format';
 import type { RegionId, Sun } from './types';
-import { useBox } from './useBox';
+import { useBox } from '../world_board/useBox';
 
 const LEFT = 64;
 const RIGHT = 18;                     // room for the last hour's label

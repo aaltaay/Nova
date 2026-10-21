@@ -136,6 +136,7 @@ Every confirmed wire and persisted shape lives in `architecture/schema/`, one fi
 | `architecture/schema/followed-traders.md` | Followed traders: another feed's positions, priced with IBKR |
 | `architecture/schema/market-board.md` | The Market page (ADR 053) |
 | `architecture/schema/global-board.md` | The Global page (ADR 060) |
+| `architecture/schema/forex-board.md` | The Forex page (ADR 061) |
 | `architecture/schema/volume-profile.md` | Volume profile on the 5-minute chart (ADR 058) |
 | `architecture/schema/short-selling.md` | Short selling (ADR 048, #778); The short setups on the scanner (ADR 049); The bot trades both sides (ADR 049); Operator trading judgment and Live's day cover (ADR 048, #791) |
 | `architecture/schema/loss-limit.md` | One daily loss limit (ADR 056) |

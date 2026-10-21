@@ -6,6 +6,7 @@
  */
 import setupTemplates from '../bot/setupTemplatesFixture.json';
 import { sampleCandles } from '../cryptos/sampleCryptos';
+import { sampleForexBoard } from '../forex_board/sampleForex';
 import { sampleGlobalBoard } from '../global_board/sampleGlobal';
 import { parsePeriods } from '../market_board/periods';
 import { sampleMarketBoard } from '../market_board/sampleMarket';
@@ -145,6 +146,10 @@ function sharedRoutes(nowS: number): [RegExp, Handler][] {
       schema_version: 1, sectors: q.get('sectors'), industries: q.get('industries'), climate: q.get('climate'),
       top: { kind: q.get('top'), period: q.get('top_period') },
     }))],
+    [/^\/api\/forex\/board$/, (_m, q) => {
+      const period = q.get('period');
+      return sampleForexBoard(period === '7D' || period === '30D' ? period : '1D');
+    }],
     [/^\/api\/global\/board$/, (_m, q) => {
       const period = q.get('period');
       return sampleGlobalBoard(period === '7D' || period === '30D' ? period : '1D');

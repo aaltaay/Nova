@@ -11,16 +11,16 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GLOBAL_OFF, GLOBAL_OLD_API, GLOBAL_PREFS_STORAGE_KEY } from './constants';
 import { ranked } from './ExchangeList';
-import { firstSentence, monthWord, sizeUsd, usd } from './format';
+import { firstSentence, monthWord, sizeUsd, usd } from '../world_board/format';
 import { GlobalPage } from './GlobalPage';
 import { DEFAULT_PREFS, parsePrefs } from './prefs';
-import { project } from './project';
+import { project } from '../world_board/project';
 import { sampleGlobalBoard } from './sampleGlobal';
 import { statusNotes, waitingWords } from './status';
 import type { GlobalBoard } from './types';
 import { resetKeptGlobalBoardsForTests } from './useGlobalBoard';
-import { fit, labelSize, tipPlace } from './WorldMap';
-import { WORLD_VIEW } from './worldLand';
+import { fit, labelSize, tipPlace } from '../world_board/mapFit';
+import { WORLD_VIEW } from '../world_board/worldLand';
 
 const route = vi.hoisted(() => ({ sample: true }));
 vi.mock('../sample_data/useSampleRoute', () => ({ useSampleRoute: () => route.sample }));

@@ -3,7 +3,7 @@
  * with where each came from, and anything IBKR refused for it. Shared by the map and the list.
  */
 import { BASIS_WORD, MIXED_DEF, STATE_WORD } from './constants';
-import { etWhen, firstSentence, localTime, monthWord, signedPct, sizeUsd, tone, until, usd } from './format';
+import { etWhen, firstSentence, localTime, monthWord, signedPct, sizeUsd, tone, until, usd } from '../world_board/format';
 import type { Market } from './types';
 
 function via(m: Market): string {

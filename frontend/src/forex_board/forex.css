@@ -1,0 +1,98 @@
+/* The Forex page's own look (ADR 061), as the approved mockup v2 drew it. Owner: forex_board/ForexPage.tsx. The board's
+   look -- page, strip, cards, map, rows, How to read -- is the shared world_board/board.css. */
+
+/* the strip: all forex, the read, the dollar, the three sessions */
+.fx-page .gb-kpis { grid-template-columns: 1.3fr 1.3fr repeat(4, minmax(0, 1fr)); }
+.fx-page .gb-kpi__pair b { font-size: 17px; }
+.fx-code { color: var(--nova-text); }
+.fx-src { font-style: normal; text-transform: none; letter-spacing: 0; margin-left: 6px; opacity: 0.85; }
+.fx-all__big { font-size: 24px; font-weight: 800; line-height: 1.1; white-space: nowrap; }
+.fx-all__big small { font-size: 12px; font-weight: 600; color: var(--nova-text-muted); }
+.fx-all__bar {
+  display: flex;
+  height: 7px;
+  margin: 2px 0 1px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--nova-text) 10%, transparent);
+}
+.fx-all__bar i { display: block; height: 100%; background: var(--nova-accent); border-right: 1px solid var(--nova-panel); }
+/* a narrow session tile stacks its two moves rather than letting them run into each other */
+.fx-kpis .fx-sess-tile { container-type: inline-size; }
+@container (max-width: 250px) {
+  .fx-sess-tile .gb-kpi__pair { flex-direction: column; gap: 1px; }
+  .fx-sess-tile .gb-kpi__pair div { flex-direction: row; align-items: baseline; gap: 6px; }
+  .fx-sess-tile .gb-kpi__pair b { font-size: 14px; }
+}
+.fx-sess {
+  font-style: normal;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  border: 1px solid color-mix(in srgb, var(--gb-up) 45%, transparent);
+  color: var(--gb-up);
+}
+
+/* layout: four numbers a row need a wider list than the Global page's, and sixteen rows hour by hour a taller bottom */
+.fx-page .gb-main { grid-template-columns: minmax(0, 1fr) clamp(400px, 31vw, 610px); }
+.fx-page .gb-left { grid-template-rows: minmax(0, 1fr) clamp(190px, 40%, 320px); }
+.fx-bottom { grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); }
+
+/* the map */
+.fx-size { fill: var(--nova-text-muted); font-weight: 500; }
+.gb-bubble.is-none .gb-bubble__value { fill: var(--nova-text-muted); font-style: italic; }
+.gb-legend i.fx-none-key { background: none; border: 1.5px dashed var(--nova-text-muted); width: 8px; height: 8px; }
+.fx-tip { width: 330px; }                       /* its outer width: WorldMap's TIP_WIDTH places it */
+.fx-tip .gb-tip__row b { text-align: right; }
+
+/* follow the sun */
+.fx-heat { overflow: visible; }
+.fx-heat__label { font-size: 10.5px; fill: var(--nova-text-muted); }
+.fx-heat__share { fill: var(--nova-text); font-weight: 600; }
+.fx-heat__code { font-weight: 600; fill: var(--nova-text); }
+.fx-heat__track { fill: color-mix(in srgb, var(--nova-text) 5%, transparent); }
+.fx-heat__session { fill: color-mix(in srgb, var(--nova-text) 24%, transparent); }
+.fx-heat__session.is-past { fill: color-mix(in srgb, var(--nova-text) 13%, transparent); }
+.fx-heat__cell.is-up { fill: var(--gb-up); }
+.fx-heat__cell.is-down { fill: var(--gb-down); }
+.fx-heat__cell.is-flat { fill: var(--nova-text-muted); }
+.fx-heat__cell.is-forming { stroke: var(--nova-accent); stroke-width: 0.8; stroke-dasharray: 2 2; }
+.fx-heat__empty { fill: color-mix(in srgb, var(--nova-text) 4%, transparent); }
+.fx-heat__now { stroke: var(--nova-accent); stroke-width: 2; }
+.fx-heat__tick { font-size: 10px; fill: var(--nova-text-muted); }
+
+/* major pairs */
+.fx-grid { overflow: visible; }
+.fx-grid__col, .fx-grid__row { font-size: 10.5px; font-weight: 600; fill: var(--nova-text-muted); }
+.fx-grid__cell.is-up { fill: var(--gb-up); }
+.fx-grid__cell.is-down { fill: var(--gb-down); }
+.fx-grid__cell.is-none, .fx-grid__self { fill: color-mix(in srgb, var(--nova-text) 6%, transparent); }
+.fx-grid__v { font-size: 10.5px; font-weight: 600; fill: var(--nova-text); font-variant-numeric: tabular-nums; }
+.fx-note { flex: none; margin: 6px 0 0; font-size: 11px; color: var(--nova-text-muted); }
+
+/* by currency: the size, then strength and futures */
+.fx-list .gb-list__head, .fx-list .gb-row {
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.6fr) minmax(0, 1fr) minmax(0, 1fr) 12px;
+}
+.fx-list .gb-row__pair { grid-template-columns: minmax(0, 1fr) 70px; }
+.fx-size-cell { text-align: right; padding-right: 8px; white-space: nowrap; min-width: 0; }
+.fx-size-cell b { font-weight: 700; }
+.fx-size-cell small { display: block; color: var(--nova-text-muted); font-size: 10px; }
+.fx-list .gb-row.is-muted b { opacity: 0.75; }
+.fx-page .gb-dot.is-closed { opacity: 0.45; }
+/* nineteen rows: a list under 600 px drops their second lines (the Global page's sixteen drop theirs under 520) */
+@container gb-list (max-height: 600px) {
+  .fx-list .gb-row__name small, .fx-list .gb-num small, .fx-list .fx-size-cell small { display: none; }
+}
+
+@media (max-width: 1180px) {
+  .fx-page .gb-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .fx-page .gb-main { grid-template-columns: minmax(0, 1fr) 380px; }
+}
+@media (max-width: 860px) {
+  .fx-page .gb-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fx-page .gb-main, .fx-bottom { grid-template-columns: minmax(0, 1fr); }
+  .fx-list { height: 760px; }
+}
