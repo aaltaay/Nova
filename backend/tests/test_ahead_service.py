@@ -343,3 +343,10 @@ def test_a_health_answer_ends_a_run_of_misses(desk):
     desk.health = lambda: client.parse_health(contract_health(state="warming", detail=None))
     ask("XYZ", "drain")
     assert service._breaker["fails"] == 0
+
+
+def test_a_health_read_by_status_also_ends_a_run_of_misses(desk):
+    """A status read that gets a fresh health answer clears the misses too, so the next ask's one miss is not the third."""
+    service._breaker["fails"] = 2
+    asyncio.run(service.status())
+    assert service._breaker["fails"] == 0

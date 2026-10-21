@@ -120,6 +120,8 @@ async def _health_now() -> tuple[Result, bool]:
         value = await client.run_ask(client.health)
     except ForecasterError as exc:
         value = exc
+    else:
+        _breaker_count(False)   # any health answer (ready, warming or error), from an ask or a status read, ends a run
     _health = (time.monotonic(), value)
     return value, True
 
@@ -155,8 +157,6 @@ async def _ask(key: Key, body: dict[str, Any], asked_at: float) -> None:
             if asked:
                 _breaker_count(health.transport)
             raise health
-        if asked:
-            _breaker_count(False)   # any health answer (ready, warming or error) ends a run of misses
         if health["state"] == "warming":
             raise ForecasterError(AHEAD_WARMING, health["detail"] or AHEAD_WORDS_WARMING)
         if health["state"] == "error":

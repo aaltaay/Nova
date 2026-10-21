@@ -316,11 +316,12 @@ export function aheadScene(input: AheadSceneInput): AheadScene {
   return input.roomOk ? scene : withoutDrawing(scene);
 }
 
-/** No room at the edge: nothing of the zone is drawn (a forecast clipped at the edge would read as a whole one) and
- * nothing stretches the price scale; the words say why, and the panel keeps its numbers. */
+/** No room at the edge: nothing of the zone is drawn (a forecast clipped at the edge would read as a whole one),
+ * nothing stretches the price scale and the legend lists nothing undrawn; the words say why, and the panel keeps its
+ * numbers. */
 function withoutDrawing(scene: AheadScene): AheadScene {
   return { ...scene, zone: null, ticks: [], fan: null, paths: [], lines: [], meet: null, hLines: [], chips: [],
-    keepInView: null, ghostVolume: null, macd: null };
+    keepInView: null, ghostVolume: null, macd: null, legend: [] };
 }
 
 /** Tests only. */

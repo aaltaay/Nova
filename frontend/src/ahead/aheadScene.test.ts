@@ -247,6 +247,7 @@ describe('the Ahead scene', () => {
     expect(none.ghostVolume).toBeNull();
     expect(none.macd).toBeNull();
     expect(none.keepInView).toBeNull();
+    expect(none.legend).toEqual([]);
     const loading = aheadScene(input({ read: null }));
     expect(loading.words).toContain(AHEAD_WORDS.readLoading);
     expect(loading.lineRead).toBeNull();
