@@ -253,6 +253,36 @@ level first (`grew_first`); 7.8% sat in the book untouched until it showed them 
 stays 0.5 s: with the rule on, reaching 1 s before the earlier book still adds 2.0%, 0.3-0.4 points
 beyond chance.
 
+**One order shown twice is not a pull** (ADR 033 amendment 2026-10-21, #1133; found answering the operator's
+"was that heat-map wall eaten or spoofed?" on SPCX). IBKR moves Level 2 rows by rewriting each one with its
+neighbour, and ib_async hands Nova the row operations of each TCP read as it arrives, so a read that ended
+partway through a move left one venue's row on two rows until the next read: the SPCX 162.00 bid, one NSDQ row
+of 15,210, read 30,420 at 10:26:44 ET and then 15,210 again, and the watcher judged the copy leaving a
+15,210-share pull. That day's live journal held 104 large "pulled" drops that took exactly half an odd-size
+level (1.6% of pulled shares, 5.4% on SPCX); the day's `l2.db` snapshots, which keep the venue, held a venue
+twice at one price in 61 of 23,591 books, never two orders (a SMART book keeps one row per venue per price, in
+venue order).
+- **Live** (`ibkr/depth/book.py`): the kept rows stay as IBKR addresses them, so its next operations land on
+  the right row, and the book every reader gets (the ladder, the Session Record, the sensors, this watcher)
+  shows each venue once at a price -- of two, the row IBKR wrote last (`DepthBook.shown`). A side
+  in mid-move shows a row fewer for that book.
+- **Recorded books** (`book_watch/book.py` `RecordedCopies`; Session Records keep no venue) are read that way by
+  `book_watch/replay.py` (the replay tool and the studies) and the Sim's ladder and big-seller readings: a row
+  with the price and odd size (not a multiple of `BOOK_WATCH_ROUND_LOT`, 100) of a row above it, that the book
+  before held fewer of, is dropped, and a side recorded unchanged keeps that verdict (IBKR sent nothing for it).
+  Rows that name their venue (`l2.db`) keep each venue's first row at a price. Two venues often show the same
+  round lot, so a round-lot copy in an older recording stays (19 of the 57 exact copies in `l2.db`), and a
+  second venue's order at the same odd size shows one book late. On 2026-10-21, 431 of the 437 odd-size pairs
+  new to a book lasted that one book.
+- **Measured** on the 18 Session Records of 2026-10-21 (to 14:30 ET): pulls that took exactly half an odd-size
+  level 120 -> 1 (68,106 -> 210 shares; large 6 -> 0); large pulls 3,289 -> 3,284 (13 gone, each an odd-size
+  copy; 5 new round-lot pulls that a copy at another price had hidden by inflating the side's median); flags
+  873, big sellers and buyers 112, hidden stretches 30 and round-lot exact halves 105, all unchanged. The
+  window study on the 16 finished ones still keeps 0.5 s and the sweep rule (a window 1 s wider adds 1.7% of
+  the size called pulled, none of it beyond chance). Of the journal's 7 such pulls on recorded stocks, the
+  recordings kept 3 (the recorder's 50-a-second hold replaced the other books); the replay read all 3 as
+  pulls before and none after.
+
 **A big seller on the ask, a big buyer on the bid** (ADR 033 amendment, operator ask 2026-10-12, #846: the
 operator's material lists "high selling pressure / big sellers on the ask" as a reason to get out, and nothing
 told the operator that a large seller sat just over the price of a stock they hold). Owner

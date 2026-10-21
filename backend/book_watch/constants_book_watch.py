@@ -43,6 +43,10 @@ BOOK_WATCH_REPEAT_WINDOW_SEC = 60.0
 # BOOK_WATCH_COLLAPSE_FROM is a reset or a glitch, not pulls: that side is unknown.
 BOOK_WATCH_COLLAPSE_TO = 1
 BOOK_WATCH_COLLAPSE_FROM = 3
+# A Session Record keeps no venue: a row with the price and odd size (not a multiple of this) of a row
+# above it, that the book before held fewer of, is IBKR moving one order, shown twice (#1133). On
+# 2026-10-21, 431 of 437 such new pairs lasted one book; a round-lot pair is mostly two venues.
+BOOK_WATCH_ROUND_LOT = 100
 
 # Size that traded at a price beyond the most the book showed there: hidden sellers and
 # hidden buyers (hidden.py, ADR 033 amendment 2026-09-30). A print of a cross -- the opening (O), a reopening after a halt

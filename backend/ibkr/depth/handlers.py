@@ -96,12 +96,14 @@ _warned_out_of_order: set[str] = set()
 
 @timed_fn("ib.depth")
 def on_update_book(ticker: Any, symbol: str) -> None:
-    """Push the book kept from ``ticker.domTicks`` (#540), never ib_async's ``domBids`` / ``domAsks``."""
+    """Push the book kept from ``ticker.domTicks`` (#540), never ib_async's ``domBids`` / ``domAsks``,
+    each venue once at a price (a row IBKR is still moving shows once, #1133)."""
     feed_pulse.note()
     kept = state.book_for(symbol)
     kept.apply(getattr(ticker, "domTicks", None) or ())
-    bids = _rows(kept.bids, "bid")[:IBKR_DEPTH_NUM_ROWS]
-    asks = _rows(kept.asks, "ask")[:IBKR_DEPTH_NUM_ROWS]
+    shown_bids, shown_asks = kept.shown()
+    bids = _rows(shown_bids, "bid")[:IBKR_DEPTH_NUM_ROWS]
+    asks = _rows(shown_asks, "ask")[:IBKR_DEPTH_NUM_ROWS]
     if not kept.in_price_order():
         # A row operation Nova never saw (it cannot happen while every update
         # event is handled). Keep the best price first rather than push a wrong

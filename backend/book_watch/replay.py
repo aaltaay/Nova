@@ -5,7 +5,8 @@ arrival order (a book row's ``ts`` is its receipt; a print's ``receive_ts``,
 else ``ts``). Recordings made before ADR 033 kept at most 8 books a second, so
 their drops span longer gaps: the replay says how many books it read per second.
 A print's sale conditions ride along, so a cross print is never counted hidden
-(hidden.py). The big sellers and buyers (big_seller.py) come out of the same watch; the
+(hidden.py). A book loses the copy of a row IBKR was moving when it was recorded
+(``book.RecordedCopies``, #1133). The big sellers and buyers (big_seller.py) come out of the same watch; the
 Sim desk's reading at the playhead is big_replay.py's.
 """
 from __future__ import annotations
@@ -16,7 +17,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-from book_watch.book import lit_print
+from book_watch.book import RecordedCopies, lit_print
 from book_watch.detector import SymbolWatch
 
 
@@ -39,10 +40,17 @@ def _rows(path: Path, kind: str) -> Iterator[tuple[float, int, str, dict[str, An
             yield float(ts), order, kind, row
 
 
+def _books(path: Path) -> Iterator[tuple[float, int, str, dict[str, Any]]]:
+    """The recorded books in order, each against the one recorded before it."""
+    copies = RecordedCopies()
+    for ts, order, kind, row in _rows(path, "book"):
+        yield ts, order, kind, copies.read(row)
+
+
 def merged_rows(directory: Path) -> Iterator[tuple[float, int, str, dict[str, Any]]]:
     """A recording's books and prints in arrival order: (ts, order, "book" | "print", row)."""
     directory = Path(directory)
-    return heapq.merge(_rows(directory / "l2.jsonl", "book"), _rows(directory / "prints.jsonl", "print"),
+    return heapq.merge(_books(directory / "l2.jsonl"), _rows(directory / "prints.jsonl", "print"),
                        key=lambda item: (item[0], item[1]))
 
 

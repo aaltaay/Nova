@@ -20,7 +20,7 @@ import threading
 from typing import Any
 
 from book_watch.big_seller import BigWallTracker
-from book_watch.book import lit_print, price_key, side_view
+from book_watch.book import RecordedCopies, lit_print, price_key, side_view
 from book_watch.constants_book_watch import BOOK_WATCH_BIG_REPLAY_LOOKBACK_SEC, BOOK_WATCH_IDLE_SEC
 
 _lock = threading.Lock()
@@ -35,9 +35,13 @@ def _num_rows() -> int:
 
 def _start(data: Any, playhead: float, lookback: float) -> dict[str, Any]:
     start = playhead - lookback
+    book_i = bisect.bisect_left(data.l2_keys, start)
+    copies = RecordedCopies()  # each recorded book against the one before it (#1133)
+    if book_i:
+        copies.read(data.l2[book_i - 1])
     return {
         "key": data.key, "tracker": BigWallTracker(data.symbol), "views": None, "fed_to": start, "start": start,
-        "book_i": bisect.bisect_left(data.l2_keys, start), "print_i": bisect.bisect_left(data.print_keys, start),
+        "book_i": book_i, "print_i": bisect.bisect_left(data.print_keys, start), "copies": copies,
         "last_book_ts": None, "books": 0,
     }
 
@@ -56,6 +60,7 @@ def _feed(st: dict[str, Any], data: Any, playhead: float, num_rows: int) -> None
                 tracker.reset(ts)
                 st["views"] = None
                 continue
+            row = st["copies"].read(row)
             views = {"bid": side_view(row.get("bids") or [], "bid", num_rows),
                      "ask": side_view(row.get("asks") or [], "ask", num_rows)}
             tracker.on_book(ts, views, st["views"])

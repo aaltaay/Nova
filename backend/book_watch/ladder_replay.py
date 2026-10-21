@@ -7,7 +7,8 @@ snapshot (``sim/history_playback.py``).
 
 Missing depth, missing tape, Level 1/NBBO-only windows, single-venue exchange books, pre-first-book
 moments and recording gaps report ``watching: false`` with a plain-English ``reason`` and ``sides: None``,
-never zero totals or guessed pulls/trades. No state carries across a recording gap or rewind.
+never zero totals or guessed pulls/trades. No state carries across a recording gap or rewind. Each
+recorded book is read against the one before it (``book.RecordedCopies``, #1133).
 
 Owner: this module's in-memory replay state (rebuilt on rewind, gap, jump or source change). Not persisted.
 """
@@ -20,7 +21,7 @@ import threading
 from typing import Any
 
 from book_watch import live
-from book_watch.book import lit_print
+from book_watch.book import RecordedCopies, lit_print
 from book_watch.constants_book_watch import (
     BOOK_WATCH_BIG_REPLAY_LOOKBACK_SEC,
     BOOK_WATCH_IDLE_SEC,
@@ -88,10 +89,14 @@ def _start_capture(data: Any, playhead: float, stretch_start: float, lookback: f
     start = max(stretch_start, playhead - lookback)
     print_from = max(stretch_start, start - BOOK_WATCH_MATCH_SLACK_SEC)
     sym = str(data.symbol).upper()
+    book_i = bisect.bisect_left(data.l2_keys, start)
+    copies = RecordedCopies()
+    if book_i:
+        copies.read(data.l2[book_i - 1])  # the book before the first one fed
     return {
         "data_id": id(data), "key": data.key, "symbol": sym, "span_start": stretch_start,
         "num_rows": num_rows, "epoch": epoch, "watch": SymbolWatch(sym, num_rows=num_rows),
-        "fed_to": start, "book_i": bisect.bisect_left(data.l2_keys, start),
+        "fed_to": start, "book_i": book_i, "copies": copies,
         "print_i": bisect.bisect_left(data.print_keys, print_from),
         "last_book_ts": None, "l1_fallback": False,
     }
@@ -119,6 +124,7 @@ def _feed_capture(st: dict[str, Any], data: Any, playhead: float) -> None:
                 watch.reset()
             st["l1_fallback"] = False
             st["last_book_ts"] = ts
+            row = st["copies"].read(row)
             watch.on_book(ts, row.get("bids") or [], row.get("asks") or [])
             continue
         ts, row = float(data.print_keys[pi]), data.prints[pi]
@@ -333,8 +339,9 @@ def historical_frame(symbol: str, selected: Any, cutoff: float, book: dict[str, 
                 )
             else:
                 watch = SymbolWatch(sym, num_rows=_num_rows())
+                copies = RecordedCopies()
                 events: list[tuple[float, int, str, dict[str, Any]]] = [
-                    (float(b["ts"]), 0, "book", b) for b in stretch
+                    (float(b["ts"]), 0, "book", copies.read(b)) for b in stretch
                 ]
                 for p in prints:
                     pts = p.get("receive_ts") if isinstance(p.get("receive_ts"), (int, float)) else p.get("ts")
