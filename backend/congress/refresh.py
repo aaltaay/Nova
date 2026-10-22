@@ -171,9 +171,10 @@ def _senate_step(now: float) -> bool:
         rec = senate.record(r, members)
         _put(rec, [])
         reports[rec["id"]] = rec
-        for old in senate.superseded(reports, rec):
-            _store().set_fields(old, amended_by=rec["id"])
-            book().set_fields(old, amended_by=rec["id"])
+    # an amendment may be found before or after the report it corrects: settle them over everything kept
+    for rid, by in senate.reconcile(reports).items():
+        _store().set_fields(rid, amended_by=by)
+        book().set_fields(rid, amended_by=by)
     st.set_meta("senate:read_through", end.isoformat())
     _ctx["senate_next"] = now + CONGRESS_POLL_SEC
     _set("senate", "ok", now, next_at=_ctx["senate_next"])
@@ -196,11 +197,16 @@ def _report_step(now: float) -> bool:
         s.todo = left
     if not todo:
         return False
+    retry = _ctx.setdefault("retry_at", {})
+    due = [r for r in todo if retry.get(r["id"], float("-inf")) <= now]
+    if not due:                                     # every unread report failed lately: each waits its own retry
+        _ctx["soon"] = min(retry[r["id"]] for r in todo) - now
+        return False
     wait = _ctx.get("last_report_at", float("-inf")) + CONGRESS_SESSION_GAP_SEC - now
     if in_session(now) and wait > 0:
         _ctx["soon"] = wait                         # the loop wakes when the gap is over
         return False
-    report = todo[0]
+    report = due[0]
     try:
         if report["chamber"] == "house":
             updated, rows = house.read(_net(), report, now)
@@ -208,12 +214,17 @@ def _report_step(now: float) -> bool:
             updated, rows = senate.read(_net(), _senate_session(), report, now)
     except senate.SenateRefused as exc:
         _ctx.pop("senate_session", None)
+        retry[report["id"]] = now + CONGRESS_RETRY_SEC
         _set("senate", "failing", error=str(exc)[:200])
         return True
     except Exception as exc:  # noqa: BLE001 -- one report's failure is stated on it, never stops the others
         logger.warning("congress: report %s could not be read: %s", report["id"], exc)
         updated, rows = {**report, "error": f"{exc}"[:200]}, None
     _ctx["last_report_at"] = now
+    if rows is None:                                # not read (the site failed): it waits, the others go on
+        retry[report["id"]] = now + CONGRESS_RETRY_SEC
+    else:
+        retry.pop(report["id"], None)
     _put(updated, rows)
     source(report["chamber"]).done += 1
     return True

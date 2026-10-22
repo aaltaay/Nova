@@ -172,6 +172,43 @@ describe('Congress page on the live desk', () => {
     expect(JSON.parse(window.localStorage.getItem(CONGRESS_PREFS_STORAGE_KEY) ?? '{}').traded_period).toBe('90d');
   });
 
+  it('Following with nobody starred asks for nobody, and says so', async () => {
+    const urls: string[] = [];
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      urls.push(url);
+      if (url.includes('/api/congress/board')) return respond(liveBoard('given'));
+      return respond({ bars: [] });
+    }));
+    render(<CongressPage onOpenTrader={() => {}} />);
+    await flush();
+    fireEvent.click(screen.getByTestId('congress-topic-following'));
+    await flush();
+    expect(urls.some((u) => /[?&]members=($|&)/.test(u))).toBe(true);
+    expect(screen.getByTestId('congress-following-none').textContent).toContain('Nobody followed yet');
+  });
+
+  it('a new member never shows the last one, even when their read fails', async () => {
+    const first = sampleCongressMember('S000003');
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      if (url.includes('/api/congress/member/S000003')) return respond(first);
+      if (url.includes('/api/congress/member/')) return respond({}, 500);
+      if (url.includes('/api/congress/board')) return respond(liveBoard('given'));
+      return respond({ bars: [] });
+    }));
+    render(<CongressPage onOpenTrader={() => {}} />);
+    await flush();
+    const search = screen.getByTestId('congress-search');
+    fireEvent.change(search, { target: { value: 'Senator 3' } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+    await flush();
+    expect(screen.getByTestId('congress-member').textContent).toContain('Senator 3');
+    fireEvent.change(search, { target: { value: 'Senator 40' } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+    await flush();
+    expect(screen.queryByTestId('congress-member')).toBeNull();
+    expect(screen.getByTestId('congress-page').textContent).toContain('Did not load: HTTP 500');
+  });
+
   it('says an old backend has no Congress page', async () => {
     vi.stubGlobal('fetch', vi.fn(() => respond({}, 404)));
     render(<CongressPage onOpenTrader={() => {}} />);

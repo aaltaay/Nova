@@ -79,7 +79,8 @@ The eFD page's table (`congress/senate_html.py`), one row per transaction: `#, T
 (Self / Spouse / Joint / Child), Ticker ("--" for none), Asset Name, Asset Type (Stock, Stock Option, Municipal
 Security, Corporate Bond, Other, ...), Type (Purchase / Sale (Full) / Sale (Partial) / Exchange), Amount, Comment
 ("--" for none)`. A report titled "... (Amendment N)" is dated by the report it corrects (the date in its title); in
-the same store, the report it corrects is marked `amended_by` and its rows are not counted.
+the same store, the report it corrects -- and any older amendment of it -- is marked `amended_by` the newest
+amendment, whatever order the search found them in, and their rows are not counted.
 
 ### A trade
 
@@ -121,7 +122,8 @@ Errors are `{detail: {reason, error, field?}}`: 400 `CONGRESS_BAD_PARAM`, 404 `C
 who left, else null).
 
 `GET /api/congress/board?filter=all&members=` -- `filter`: `all` | `house` | `senate` | `buys` | `sells` | `options` |
-`late`; `members`: bioguide ids, comma-separated (the Following tab), counting only their trades. Answers
+`late`; `members`: bioguide ids, comma-separated (the Following tab), counting only their trades -- given but empty
+(`members=`), it keeps no member: Following with nobody starred is empty, never everyone. Answers
 `{schema_version: 1, generated_at, enabled, today, year, consent, sources[], counts, periods, seats, reported,
 just_reported[], most_traded, most_active[], lag}`:
 

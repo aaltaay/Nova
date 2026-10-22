@@ -139,6 +139,11 @@ export function CongressPage({ onOpenTrader }: { onOpenTrader: (symbol: string) 
       {head}
       {topics}
       {error ? <p className="is-warn cg-small" role="alert">{error}</p> : null}
+      {topic === 'following' && !prefs.following.length && view.kind === 'trades' ? (
+        <p className="cg-muted" data-testid="congress-following-none">
+          Nobody followed yet: star a member on their page or in Members, and this shows only their trades.
+        </p>
+      ) : null}
       {body}
     </div>
   );

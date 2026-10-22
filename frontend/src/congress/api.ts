@@ -111,29 +111,39 @@ export function useCongressBoard(filter: Filter, members: readonly string[] | nu
   return { ...(sample ? sampleRead : state), reload };
 }
 
-/** One read of a path when it changes (members, a member, a stock); the sample desk answers from its own data. */
+interface Asked<T> {
+  path: string | null;
+  data: T | null;
+  error: string | null;
+  missing: boolean;
+}
+
+/** One read of a path when it changes (members, a member, a stock); the sample desk answers from its own data. An
+ *  answer belongs to the path it was asked for: a new path shows nothing until its own answer, never the last one's. */
 function useOnce<T extends { schema_version?: number }>(path: string | null, sampled: () => T | null): Read<T> {
   const sample = useSampleRoute();
-  const [state, setState] = useState<Omit<Read<T>, 'reload'>>({ data: null, error: null, missing: false });
+  const [state, setState] = useState<Asked<T>>({ path: null, data: null, error: null, missing: false });
   const [tick, setTick] = useState(0);
   useEffect(() => {
     if (sample || !path) return undefined;
     let cancelled = false;
-    setState((s) => ({ ...s, error: null }));
+    setState((s) => (s.path === path ? { ...s, error: null } : { path, data: null, error: null, missing: false }));
     fetch(`${API_BASE_URL}${path}`)
       .then(async (res) => {
         if (cancelled) return;
         if (res.status === 404) {
-          setState({ data: null, error: null, missing: true });
+          setState({ path, data: null, error: null, missing: true });
           return;
         }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const body = current<T>(await res.json());
         if (!body) throw new Error('the answer is not one this desk can read');
-        if (!cancelled) setState({ data: body, error: null, missing: false });
+        if (!cancelled) setState({ path, data: body, error: null, missing: false });
       })
       .catch((e) => {
-        if (!cancelled) setState((s) => ({ ...s, error: `Did not load: ${e instanceof Error ? e.message : String(e)}` }));
+        if (!cancelled) {
+          setState((s) => (s.path === path ? { ...s, error: `Did not load: ${e instanceof Error ? e.message : String(e)}` } : s));
+        }
       });
     return () => {
       cancelled = true;
@@ -141,7 +151,9 @@ function useOnce<T extends { schema_version?: number }>(path: string | null, sam
   }, [sample, path, tick]);
   const reload = useCallback(() => setTick((t) => t + 1), []);
   const sampleData = useMemo(() => (sample ? sampled() : null), [sample, sampled]);
-  return sample ? { data: sampleData, error: null, missing: sampleData == null, reload } : { ...state, reload };
+  if (sample) return { data: sampleData, error: null, missing: sampleData == null, reload };
+  const mine = state.path === path;
+  return { data: mine ? state.data : null, error: mine ? state.error : null, missing: mine && state.missing, reload };
 }
 
 export function useCongressMembers(): Read<MembersAnswer> {

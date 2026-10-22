@@ -218,3 +218,78 @@ def test_a_kept_photo_is_served(client):
     photos.file("S000001").write_bytes(JPEG)
     got = client.get("/api/congress/photo/S000001")
     assert got.status_code == 200 and got.headers["content-type"] == "image/jpeg" and got.content == JPEG
+
+
+class OneFailingPdf(FakeNet):
+    """Two e-filed House reports: the newer one's PDF fails, the older one reads."""
+
+    def _answer(self, method, url, kw):
+        if url.endswith("2026FD.zip") and not (kw.get("headers") or {}).get("If-Modified-Since"):
+            self.calls.append((method, url))
+            return Resp(content=index_zip(2026, [("Sample", "Robin", "BB07", "10/12/2026", "20012345"),
+                                                 ("Sample", "Robin", "BB07", "10/01/2026", "20012346")]))
+        if url.endswith("/ptr-pdfs/2026/20012345.pdf"):
+            self.calls.append((method, url))
+            return Resp(500)
+        if url.endswith("/ptr-pdfs/2026/20012346.pdf"):
+            self.calls.append((method, url))
+            return Resp(content=HOUSE_TEXT.encode())
+        return super()._answer(method, url, kw)
+
+
+def test_a_failing_report_waits_while_the_others_are_read(monkeypatch):
+    from congress.constants_congress import CONGRESS_RETRY_SEC
+
+    monkeypatch.setattr(house_pdf, "pdf_text", lambda data: data.decode())
+    fake = OneFailingPdf()
+    refresh.reset_for_tests(fake)
+    consent.accept(SATURDAY)
+    run_all()
+    reports = book().snapshot()[1]
+    assert reports["H:2026:20012346"]["read_at"] is not None                     # the older one was not starved
+    assert reports["H:2026:20012345"]["error"] == "the Clerk answered HTTP 500"
+    asked = lambda: sum(1 for _, u in fake.calls if u.endswith("20012345.pdf"))  # noqa: E731
+    assert asked() == 1
+    refresh.run_once(SATURDAY + 60)
+    assert asked() == 1                                                           # not asked again before its retry
+    for _ in range(5):
+        refresh.run_once(SATURDAY + CONGRESS_RETRY_SEC + 1)
+    assert asked() == 2                                                           # asked again once it is due
+
+
+def _sen(rid, title, filed, amends=None, amended_by=None):
+    return {"id": rid, "chamber": "senate", "filer_name": "Example, Pat (Senator)", "title": title, "filed": filed,
+            "amends": amends, "amended_by": amended_by}
+
+
+def test_amendments_settle_whatever_order_they_were_found_in():
+    from congress import senate
+
+    original = _sen("S:o", "Periodic Transaction Report for 06/14/2024", "2024-06-14")
+    first = _sen("S:a1", "Periodic Transaction Report for 06/14/2024 (Amendment 1)", "2026-08-05", amends="2024-06-14")
+    second = _sen("S:a2", "Periodic Transaction Report for 06/14/2024 (Amendment 2)", "2026-08-05", amends="2024-06-14")
+    other = _sen("S:x", "Periodic Transaction Report for 07/01/2024", "2024-07-01")
+    for order in ([second, first, original, other], [original, other, first, second]):
+        assert senate.reconcile({r["id"]: r for r in order}) == {"S:o": "S:a2", "S:a1": "S:a2"}
+    settled = {r["id"]: {**r, "amended_by": "S:a2" if r["id"] in ("S:o", "S:a1") else None}
+               for r in (original, first, second, other)}
+    assert senate.reconcile(settled) == {}                                        # nothing left to change
+
+
+def test_following_nobody_shows_nothing(client):
+    import time as _time
+
+    from congress.state import book as _book
+
+    today = refresh.today(_time.time()).isoformat()
+    report = {"id": "S:r", "chamber": "senate", "filer_name": "Example, Pat (Senator)", "bioguide": "S000001",
+              "filed": today, "kind": "electronic", "url": "u", "amends": None, "amended_by": None, "parser": 1,
+              "read_at": 1.0, "error": None, "title": None}
+    _book().replace({"S:r": report}, {"S:r": [{"tx": today, "notified": None, "owner": "Self", "ticker": "AAPL",
+                                               "asset": "Apple", "asset_type": "Stock", "tx_type": "Purchase",
+                                               "amount": "$1,001 - $15,000", "status": None, "subholding": None,
+                                               "description": ""}]})
+    everyone = client.get("/api/congress/board").json()
+    nobody = client.get("/api/congress/board?members=").json()
+    assert [t["ticker"] for t in everyone["most_traded"]["ytd"]] == ["AAPL"]
+    assert nobody["most_traded"]["ytd"] == [] and nobody["reported"]["ytd"] == {} and nobody["just_reported"] == []

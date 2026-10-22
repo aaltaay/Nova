@@ -26,6 +26,7 @@ from congress.constants_congress import (
 logger = logging.getLogger(__name__)
 PARSER = CONGRESS_PARSER_VERSION["senate"]
 CSRF = re.compile(r'name="csrfmiddlewaretoken" value="([^"]+)"')
+AMENDMENT_NO = re.compile(r"\(Amendment\s*(\d+)\)", re.I)
 
 
 class SenateRefused(Exception):
@@ -93,13 +94,33 @@ def record(r: senate_html.SenateReport, members: list[dict]) -> dict:
             "error": None, "trades": 0}
 
 
-def superseded(reports: dict[str, dict], amendment: dict) -> list[str]:
-    """The kept reports an amendment corrects: the same filer's non-amendment reports dated as its title says."""
-    if not amendment.get("amends"):
-        return []
-    return [rid for rid, r in reports.items()
-            if rid != amendment["id"] and r["chamber"] == "senate" and not r.get("amends")
-            and r.get("filer_name") == amendment.get("filer_name") and _title_date(r) == amendment["amends"]]
+def reconcile(reports: dict[str, dict]) -> dict[str, str | None]:
+    """Which report stands for each corrected one, over every kept Senate report (whatever order they were found in).
+
+    A report and its amendments share the filer and the corrected report's date; the newest amendment (by its number,
+    then the day eFD received it) stands and every other one of them -- the original and older amendments -- is
+    ``amended_by`` it. Answers only the reports whose ``amended_by`` must change."""
+    groups: dict[tuple[str, str], list[dict]] = {}
+    for r in reports.values():
+        date = r.get("amends") or _title_date(r)
+        if r["chamber"] == "senate" and date:
+            groups.setdefault((r.get("filer_name") or "", date), []).append(r)
+    out: dict[str, str | None] = {}
+    for group in groups.values():
+        amendments = [r for r in group if r.get("amends")]
+        if not amendments:
+            continue
+        standing = max(amendments, key=lambda r: (_amendment_no(r), r["filed"], r["id"]))
+        for r in group:
+            want = None if r["id"] == standing["id"] else standing["id"]
+            if r.get("amended_by") != want:
+                out[r["id"]] = want
+    return out
+
+
+def _amendment_no(report: dict) -> int:
+    m = AMENDMENT_NO.search(report.get("title") or "")
+    return int(m.group(1)) if m else 1
 
 
 def _title_date(report: dict) -> str | None:

@@ -40,11 +40,11 @@ def _sources(reports: dict, trades: list) -> list[dict]:
 
 
 @router.get("/api/congress/board")
-def get_board(filter: str = "all", members: str = ""):  # noqa: A002 -- the query parameter's name on the wire
+def get_board(filter: str = "all", members: str | None = None):  # noqa: A002 -- the query parameter's name on the wire
     if filter not in CONGRESS_FILTERS:
         return _bad("filter", f"filter must be one of {', '.join(CONGRESS_FILTERS)}")
     chosen = None
-    if members.strip():
+    if members is not None:                         # given, even empty: only these members (none when empty)
         ids = [m.strip() for m in members.split(",") if m.strip()]
         if len(ids) > CONGRESS_MAX_MEMBERS_PARAM or not all(photos.valid(i) for i in ids):
             return _bad("members", "members must be bioguide ids (A000000), comma-separated")
