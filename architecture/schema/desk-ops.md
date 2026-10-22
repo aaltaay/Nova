@@ -320,7 +320,10 @@ app's own folder, so it is a different Paper account, bot session and history.
   (`{schema_version: 1, sha256, python}`, owner `backend/package_sync/sync.py`;
   missing or another version reads as never installed). A pip that fails is
   written to the API console log and the start goes on; the stamp stays old, so
-  the next start tries again. A frozen engine is never touched;
+  the next start tries again. One install at a time: an OS lock on
+  `backend/.cache/requirements-install.lock` is held across reading the stamp
+  again and installing, and a start that finds a backend already running (the
+  API instance guard is held) leaves its packages alone. A frozen engine is never touched;
   `NOVA_SKIP_PACKAGE_SYNC=1` skips it.
 - **Restart to update updates both.** Before the installer runs, the desk asks
   the owner's backend what a restart would interrupt; anything open (or a
