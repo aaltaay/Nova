@@ -6,6 +6,9 @@
  */
 import { sampleAhead, sampleAheadStatus } from '../ahead/sampleAhead';
 import setupTemplates from '../bot/setupTemplatesFixture.json';
+import {
+  sampleCongressBoard, sampleCongressMember, sampleCongressMembers, sampleCongressTicker,
+} from '../congress/sampleCongress';
 import { sampleCandles } from '../cryptos/sampleCryptos';
 import { sampleForexBoard } from '../forex_board/sampleForex';
 import { sampleGlobalBoard } from '../global_board/sampleGlobal';
@@ -153,6 +156,11 @@ function sharedRoutes(nowS: number): [RegExp, Handler][] {
       schema_version: 1, sectors: q.get('sectors'), industries: q.get('industries'), climate: q.get('climate'),
       top: { kind: q.get('top'), period: q.get('top_period') },
     }))],
+    [/^\/api\/congress\/board$/, () => sampleCongressBoard()],
+    [/^\/api\/congress\/members$/, () => sampleCongressMembers()],
+    [/^\/api\/congress\/member\/([^/]+)$/, (m) => sampleCongressMember(decodeURIComponent(m[1]))],
+    [/^\/api\/congress\/trades$/, (_m, q) => sampleCongressTicker((q.get('ticker') ?? '').toUpperCase())],
+    [/^\/api\/congress\/consent$/, () => ({ schema_version: 1, consent: sampleCongressBoard().consent })],
     [/^\/api\/forex\/board$/, (_m, q) => {
       const period = q.get('period');
       return sampleForexBoard(period === '7D' || period === '30D' ? period : '1D');

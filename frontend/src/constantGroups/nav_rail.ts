@@ -21,6 +21,7 @@ export const NAV_RAIL_LABEL_BOTS_LIVE_TRADER = 'LiveTrader Bots';
 export const NAV_RAIL_LABEL_BOTS_STRATEGY = 'Strategy Bots';
 export const NAV_RAIL_LABEL_RECORDS = 'Records';
 export const NAV_RAIL_LABEL_CRYPTOS = 'Cryptos';
+export const NAV_RAIL_LABEL_CONGRESS = 'Congress';
 export const NAV_RAIL_LABEL_SETTINGS = 'Settings';
 
 export const NAV_RAIL_TITLE_FOREX =
@@ -41,6 +42,8 @@ export const NAV_RAIL_TITLE_BOTS_STRATEGY =
   'Strategy Bots -- the strategies Off / Eyes / On, Level 2 lines, tickers, and their key';
 export const NAV_RAIL_TITLE_RECORDS = 'Records -- Session Records';
 export const NAV_RAIL_TITLE_CRYPTOS = 'Cryptos -- the 24/7 crypto market, and the stocks it moves';
+export const NAV_RAIL_TITLE_CONGRESS =
+  "Congress -- what members of Congress reported trading, from their own House and Senate filings";
 export const NAV_RAIL_TITLE_SETTINGS = 'Open Settings';
 
 export const NAV_RAIL_COLLAPSE_TITLE = 'Collapse to icons';

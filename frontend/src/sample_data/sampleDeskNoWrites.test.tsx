@@ -232,6 +232,15 @@ describe("the sample workspace writes none of the operator's saved state (#449)"
     await press('forex-color-by-futures');
     await press('forex-period-7D');
     expect(container.textContent).toMatch(/All forex/);
+    // The Congress page (ADR 066) too: invented members, and its switches never write the desk's storage.
+    await press('nav-rail-congress');
+    for (let i = 0; i < 50 && !container.querySelector('[data-testid="congress-page"]'); i += 1) {
+      await settle(100);
+    }
+    q('congress-page');
+    await press('congress-seats-period-30d');
+    await press('congress-topic-house');
+    expect(container.textContent).toMatch(/Nova Marketing Sample Data/);
   }
 
   beforeEach(() => {

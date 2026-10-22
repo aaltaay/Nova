@@ -130,9 +130,9 @@ describe('NavRail', () => {
     expect(rail.tagName).toBe('NAV');
     expect(rail.getAttribute('aria-label')).toBe('Navigation');
     const top = testIds(rail.querySelector('.nav-rail__list')!).filter((id) =>
-      ['nav-rail-forex', 'nav-rail-global', 'nav-rail-market', 'nav-rail-trader', 'nav-rail-scanner', 'nav-rail-cryptos', 'nav-rail-account', 'nav-rail-bots', 'nav-rail-records'].includes(id!),
+      ['nav-rail-forex', 'nav-rail-global', 'nav-rail-market', 'nav-rail-trader', 'nav-rail-scanner', 'nav-rail-cryptos', 'nav-rail-congress', 'nav-rail-account', 'nav-rail-bots', 'nav-rail-records'].includes(id!),
     );
-    // Forex above Global, Global above Market (operator asks, 2026-10-20).
+    // Forex above Global, Global above Market (operator asks, 2026-10-20); Congress after Cryptos (ADR 066).
     expect(top).toEqual([
       'nav-rail-forex',
       'nav-rail-global',
@@ -140,6 +140,7 @@ describe('NavRail', () => {
       'nav-rail-trader',
       'nav-rail-scanner',
       'nav-rail-cryptos',
+      'nav-rail-congress',
       'nav-rail-account',
       'nav-rail-bots',
       'nav-rail-records',
@@ -304,6 +305,11 @@ describe('NavRail', () => {
     expect(getNavPage()).toBe('cryptos');
     expect(consumeScannerTabRequest()).toBeNull();
     expect(q('nav-rail-cryptos')!.classList.contains('is-active')).toBe(true);
+    click('nav-rail-congress');
+    expect(getNavPage()).toBe('congress');
+    expect(consumeScannerTabRequest()).toBeNull();
+    expect(q('nav-rail-congress')!.classList.contains('is-active')).toBe(true);
+    expect(q('nav-rail-cryptos')!.classList.contains('is-active')).toBe(false);
     click('nav-rail-account');
     expect(getNavPage()).toBe('account');
     expect(consumeScannerTabRequest()).toBeNull();

@@ -21,6 +21,7 @@ import {
   NAV_RAIL_COLLAPSE_TITLE,
   NAV_RAIL_EXPAND_TITLE,
   NAV_RAIL_GROUP_LABELS,
+  NAV_RAIL_LABEL_CONGRESS,
   NAV_RAIL_LABEL_CRYPTOS,
   NAV_RAIL_LABEL_FOREX,
   NAV_RAIL_LABEL_GLOBAL,
@@ -30,6 +31,7 @@ import {
   NAV_RAIL_LABEL_SETTINGS,
   NAV_RAIL_LABEL_TRADER,
   NAV_RAIL_RECORDING_MAX,
+  NAV_RAIL_TITLE_CONGRESS,
   NAV_RAIL_TITLE_CRYPTOS,
   NAV_RAIL_TITLE_FOREX,
   NAV_RAIL_TITLE_GLOBAL,
@@ -223,6 +225,14 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
           title={NAV_RAIL_TITLE_CRYPTOS}
           active={!traderActive && page === 'cryptos'}
           onClick={() => goPage('cryptos')}
+        />
+        <NavRailItem
+          testId="nav-rail-congress"
+          icon={navRailIcon('congress')}
+          label={NAV_RAIL_LABEL_CONGRESS}
+          title={NAV_RAIL_TITLE_CONGRESS}
+          active={!traderActive && page === 'congress'}
+          onClick={() => goPage('congress')}
         />
         {visibility.trading !== false && (
           <NavRailAccountItem active={accountActive} onOpen={() => goPage('account')} />

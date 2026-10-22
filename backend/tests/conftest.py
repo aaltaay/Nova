@@ -210,6 +210,22 @@ def _stop_forex_board_reader():
         assert refresh.stop_for_tests(), "the Forex page's reader is still running after the test"
 
 
+@pytest.fixture(autouse=True)
+def _stop_congress_reader():
+    # ADR 066: the Congress page's reader: each test ends it and forgets its state.
+    import sys
+
+    yield
+    refresh = sys.modules.get("congress.refresh")
+    if refresh is not None:
+        assert refresh.stop_for_tests(), "the Congress page's reader is still running after the test"
+        refresh.reset_for_tests()
+    for name in ("congress.state", "congress.roster", "congress.board"):
+        module = sys.modules.get(name)
+        if module is not None:
+            module.reset_for_tests()
+
+
 class _EveryVenue(str):
     """A venue stamp equal to every venue -- the suite's default arm only."""
 
