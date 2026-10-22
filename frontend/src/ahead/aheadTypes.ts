@@ -231,7 +231,5 @@ export interface AheadTrigger {
   reach: number | null;
   nReach: number | null;
   first: { target: number; stop: number; open: number } | null;
-  /** Outcome of each drawn path (the first 16), for colouring. */
-  perPath: AheadPathOutcome[] | null;
   reason: string | null;
 }

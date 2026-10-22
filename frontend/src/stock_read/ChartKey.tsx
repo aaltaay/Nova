@@ -40,6 +40,13 @@ function Swatch({ row }: { row: KeyRow }) {
       </svg>
     );
   }
+  if (row.swatch === 'diamond') {
+    return (
+      <svg className="sr-key__swatch sr-key__swatch--diamond" viewBox="0 0 22 12" aria-hidden="true">
+        <polygon points="11,1.5 15.5,6 11,10.5 6.5,6" fill={row.color} />
+      </svg>
+    );
+  }
   if (row.swatch === 'box') {
     return (
       <i className="sr-key__swatch sr-key__swatch--box" style={{ background: row.fill, borderColor: row.color }} aria-hidden="true" />

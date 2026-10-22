@@ -19,9 +19,10 @@ afterEach(() => {
 const SECTION: KeySection = {
   title: 'Ahead (AI view, not data)',
   rows: [
-    { swatch: 'paths', color: '#c7d2fe', label: 'Paths', text: '16 of 200 possible paths' },
+    { swatch: 'paths', color: '#c7d2fe', label: 'Soft cloud', text: "all 200 of the forecaster's paths, drawn faint" },
     { swatch: 'hatch', color: '#262c3d', fill: '#1b2030', label: 'Hatched zone', text: 'drawn, never recorded' },
     { swatch: 'band', color: '#93a4d6', fill: 'linear-gradient(red, blue)', label: 'Likely range', text: 'inner half' },
+    { swatch: 'diamond', color: '#f0876f', label: '◆ on a path', text: 'where a story path first reaches a wall' },
   ],
 };
 
@@ -42,6 +43,8 @@ describe('pane Key sections from other layers', () => {
     // The paths swatch is drawn paths, the hatch a striped patch, the band its own fill.
     const card = screen.getByTestId('key-card');
     expect(card.querySelector('svg.sr-key__swatch--paths')).not.toBeNull();
+    // A wall touch is a filled diamond in the wall's colour.
+    expect(card.querySelector('svg.sr-key__swatch--diamond polygon')?.getAttribute('fill')).toBe('#f0876f');
     const swatches = [...card.querySelectorAll<HTMLElement>('i.sr-key__swatch')];
     expect(swatches[0].style.background).toContain('repeating-linear-gradient');
     expect(swatches[1].style.background).toContain('linear-gradient');

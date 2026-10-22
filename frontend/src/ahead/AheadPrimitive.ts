@@ -1,6 +1,6 @@
 /**
- * Ahead on the 1-minute pane (ADR 065): the hatched zone right of the newest completed candle, the forecaster's fan and
- * drawn paths, Nova's own lines carried on to where they meet, the walls' or the setup's stubs inside the zone, the odds
+ * Ahead on the 1-minute pane (ADR 065): the hatched zone right of the newest completed candle, the forecaster's fan, the
+ * soft cloud of its paths and the story paths over it, Nova's own lines carried on to where they meet, the walls' or the setup's stubs inside the zone, the odds
  * chips at its right edge and a minute label every 5 minutes on the time axis under it ("now HH:MM" left of it and the
  * heading are DOM, `AheadHeading.tsx`, so no line drawn on the pane ever crosses them). The pixels are
  * `AheadZoneRenderer.ts`'s; the forecast's prices stay above the volume band (`setVolumeSeries`).
@@ -146,7 +146,7 @@ export class AheadPrimitive implements ISeriesPrimitive<Time>, ZoneSource {
     this.px = null;
   }
 
-  /** The scene to draw; `fanDim` on a strategy scope, where the coloured paths read first. */
+  /** The scene to draw; `fanDim` on a strategy scope, where the story paths read first. */
   setScene(scene: AheadScene | null, fanDim = false): void {
     this.scene = scene;
     this.fanDim = fanDim;

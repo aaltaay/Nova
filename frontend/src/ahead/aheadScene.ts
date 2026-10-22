@@ -14,9 +14,7 @@
 import {
   AHEAD_COLORS,
   AHEAD_DASH,
-  AHEAD_DRAWN_PATHS,
   AHEAD_HORIZON,
-  AHEAD_PATH_ALPHA,
   AHEAD_SAME_PRICE,
   AHEAD_STEP_SEC,
   AHEAD_TICK_EVERY_MIN,
@@ -26,8 +24,9 @@ import {
 import { chartAxisClock, chartHhmm, chartSec, chartToEpoch, linesToMeet, meetTailOk, type AheadCandle } from './aheadGeometry';
 import { breakWords } from './aheadBreaks';
 import { aheadWalls, ifTriggers, triggerRead, type TriggerOdds } from './aheadOdds';
-import type { AheadScene, AheadSceneInput, SceneBand, SceneChip, SceneLegendRow } from './aheadSceneTypes';
-import type { AheadAnswer, AheadLines, AheadPathOutcome, AheadTrigger, AheadWalls } from './aheadTypes';
+import type { AheadScene, AheadSceneInput, SceneBand, SceneChip, SceneLegendRow, SceneStory } from './aheadSceneTypes';
+import { caseStory, strategyStory } from './aheadStory';
+import type { AheadAnswer, AheadLines, AheadScope, AheadTrigger, AheadWalls } from './aheadTypes';
 import { macdFan } from './macdFromPaths';
 
 const MEMO_MAX = 64;
@@ -45,7 +44,8 @@ const fmt = (p: number) => (p >= 1 ? p.toFixed(2) : p.toFixed(4));
 
 function emptyScene(on: boolean, words: string[]): AheadScene {
   return {
-    on, anchorT: null, horizon: AHEAD_HORIZON, zone: null, ticks: [], fan: null, paths: [], lines: [], meet: null,
+    on, anchorT: null, horizon: AHEAD_HORIZON, zone: null, ticks: [], fan: null, cloud: [], story: [], lines: [],
+    meet: null,
     hLines: [], chips: [], keepInView: null, ghostVolume: null, macd: null, words, legend: [], examStatus: null,
     recentVolume: [], lineRead: null, walls: null, triggers: null,
   };
@@ -108,15 +108,25 @@ export function examStatusOf(a: AheadAnswer | null): SceneChip | null {
   return { text, fg: AHEAD_COLORS.notPassedFg, bg: AHEAD_COLORS.notPassedBg };
 }
 
-/** What each mark in the zone means: Nova's lines and the hatch always, the AI's marks while they are drawn. */
-function legendRows(nPaths: number | null): SceneLegendRow[] {
+/** What each mark in the zone means: Nova's lines and the hatch always, the AI's marks while they are drawn (the
+ * story rows while story paths are drawn: a trade's stages on a strategy scope, the three cases on All). */
+function legendRows(nPaths: number | null, story: SceneStory[], scope: AheadScope): SceneLegendRow[] {
   const rows: SceneLegendRow[] = [{ swatch: 'dash', text: AHEAD_WORDS.legendLines }];
   if (nPaths !== null) {
     rows.push(
       { swatch: 'band', text: AHEAD_WORDS.legendRange },
       { swatch: 'paths', text: AHEAD_WORDS.legendPaths(nPaths), n: nPaths },
-      { swatch: 'box', text: AHEAD_WORDS.legendVolume },
     );
+    const cases = scope === 'all';
+    if (story.length > 0) {
+      rows.push(cases
+        ? { swatch: 'story', text: AHEAD_WORDS.legendStoryCases(story.length, nPaths), n: nPaths, cases }
+        : { swatch: 'story', text: AHEAD_WORDS.legendStory(story.length), n: nPaths, cases });
+    }
+    if (story.some((s) => s.marks.length > 0)) {
+      rows.push({ swatch: 'marks', text: cases ? AHEAD_WORDS.legendMarksCases : AHEAD_WORDS.legendMarks, cases });
+    }
+    rows.push({ swatch: 'box', text: AHEAD_WORDS.legendVolume });
   }
   rows.push({ swatch: 'hatch', text: AHEAD_WORDS.legendHatch });
   return rows;
@@ -151,14 +161,7 @@ function linesPart(lr: AheadLines | null, anchorT: number): Pick<AheadScene, 'li
 
 function withOdds(t: AheadTrigger, odds: TriggerOdds | null): AheadTrigger {
   if (!odds) return t;
-  return { ...t, reach: odds.reach, nReach: odds.nReach, first: odds.first, perPath: odds.perPath };
-}
-
-function pathColor(o: AheadPathOutcome | undefined): { color: string; alpha: number } {
-  if (o === 'target') return { color: AHEAD_COLORS.target, alpha: AHEAD_PATH_ALPHA.reached };
-  if (o === 'stop') return { color: AHEAD_COLORS.stop, alpha: AHEAD_PATH_ALPHA.reached };
-  if (o === 'open') return { color: AHEAD_COLORS.path, alpha: AHEAD_PATH_ALPHA.reached };
-  return { color: AHEAD_COLORS.path, alpha: AHEAD_PATH_ALPHA.missed };
+  return { ...t, reach: odds.reach, nReach: odds.nReach, first: odds.first };
 }
 
 function wallsDrawn(w: AheadWalls, price: number): Pick<AheadScene, 'hLines' | 'chips'> {
@@ -166,7 +169,7 @@ function wallsDrawn(w: AheadWalls, price: number): Pick<AheadScene, 'hLines' | '
   const chips: AheadScene['chips'] = [];
   if (!w.first) return { hLines, chips };
   // A wall's chip carries what the paths do if it breaks, as a second line the drawing keeps only when it fits.
-  const sub = (up: boolean): { sub?: string } => {
+  const sub = (up: boolean): { sub?: string[] } => {
     const wall = up ? w.above : w.below;
     const b = up ? w.breaks?.above : w.breaks?.below;
     return wall && b ? { sub: AHEAD_WORDS.breakChip(breakWords(b, wall, up, w.nPaths ?? 0)) } : {};
@@ -195,6 +198,7 @@ function isWallPrice(p: number, w: AheadWalls | null): boolean {
   return [w?.above?.price, w?.below?.price].some(x => x !== undefined && Math.abs(x - p) <= AHEAD_SAME_PRICE);
 }
 
+/** A strategy's stubs. Its odds are the story paths' end labels ("✓ target first · 41%"), never a second chip. */
 function strategyDrawn(t: AheadTrigger, w: AheadWalls | null): Pick<AheadScene, 'hLines' | 'chips'> {
   const hLines: AheadScene['hLines'] = [];
   const chips: AheadScene['chips'] = [];
@@ -204,15 +208,25 @@ function strategyDrawn(t: AheadTrigger, w: AheadWalls | null): Pick<AheadScene, 
   hLines.push({ p: t.stop, color: AHEAD_COLORS.stop, dash, chip: AHEAD_WORDS.stopAt(fmt(t.stop)) });
   const targetWords = isWallPrice(t.target, w) ? AHEAD_WORDS.targetAtWall : AHEAD_WORDS.targetAt;
   hLines.push({ p: t.target, color: AHEAD_COLORS.target, dash, chip: targetWords(fmt(t.target)) });
-  if (t.first) {
-    chips.push({ p: t.target, text: AHEAD_WORDS.targetFirst(t.first.target),
-      short: AHEAD_WORDS.targetFirstShort(t.first.target), color: AHEAD_COLORS.target });
-    chips.push({ p: t.stop, text: AHEAD_WORDS.stopFirst(t.first.stop), short: AHEAD_WORDS.stopFirstShort(t.first.stop),
-      color: AHEAD_COLORS.stop });
-  }
   return { hLines, chips };
 }
 
+/** The story paths for this scope: a strategy's outcome groups (with its levels complete), All's three cases
+ * coloured by the walls drawn. None without paths. */
+function storyFor(paths: readonly (readonly number[])[], scope: AheadScope, price: number,
+  triggers: AheadScene['triggers'], walls: AheadWalls | null): SceneStory[] {
+  if (scope === 'all') {
+    const drawn = walls?.first ? walls : null;
+    return caseStory(paths, price, drawn?.above?.price ?? null, drawn?.below?.price ?? null);
+  }
+  if (scope !== 'flat_top' && scope !== 'first_pullback') return [];
+  const t = triggers?.[scope];
+  if (!t || t.trigger === null || t.stop === null || t.target === null) return [];
+  return strategyStory(paths, price, t.trigger, t.stop, t.target);
+}
+
+/** The prices the scale keeps in view: the fan's outer band, the lines, the meet and the stubs. The cloud and the
+ * story paths never stretch it -- they are clipped, and a story path that leaves gets a caret at that edge. */
 function keepInView(s: Pick<AheadScene, 'fan' | 'meet' | 'lines' | 'hLines'>): AheadScene['keepInView'] {
   const ps: number[] = [];
   for (const b of s.fan ?? []) ps.push(b.q10, b.q90);
@@ -280,11 +294,15 @@ export function aheadScene(input: AheadSceneInput): AheadScene {
   const fan: SceneBand[] | null = a?.ai.close
     ? a.ai.close.map((r, i) => ({ k: i + 1, q10: r[0], q25: r[1], q50: r[2], q75: r[3], q90: r[4] }))
     : null;
-  const perPath = scope === 'flat_top' || scope === 'first_pullback' ? triggers?.[scope].perPath ?? null : null;
-  const drawnPaths = (paths ?? []).slice(0, AHEAD_DRAWN_PATHS).map((points, j) => ({
-    points: [...points],
-    ...(perPath ? pathColor(perPath[j]) : { color: AHEAD_COLORS.path, alpha: AHEAD_PATH_ALPHA.all }),
-  }));
+  const t = scope === 'flat_top' || scope === 'first_pullback' ? triggers?.[scope] : null;
+  const wallKey = walls?.first ? `${walls.above?.price}|${walls.below?.price}` : 'none';
+  const story = paths
+    ? memo(`${memoKey}|story|${price}|${t?.trigger}|${t?.stop}|${t?.target}|${wallKey}`,
+      () => storyFor(paths, scope, price, triggers, walls))
+    : [];
+  // A story path's end label: placed last, beside its path's end (it yields to the priced chips and "neither").
+  drawn = { ...drawn, chips: [...drawn.chips, ...story.map((st, i) => ({ p: st.points[st.points.length - 1],
+    text: st.label, short: st.short, tiny: st.tiny, color: st.color, role: 'story' as const, story: i }))] };
   const ghostVolume = a?.ai.volume ? a.ai.volume.map((r, i) => ({ k: i + 1, q10: r[0], q50: r[2], q90: r[4] })) : null;
   const macd = paths && input.macdOn
     ? memo(`${memoKey}|macd|${candles.length}|${anchor.t}|${anchor.c}`, () => macdFan(candles.map((c) => c.c), paths))
@@ -299,14 +317,15 @@ export function aheadScene(input: AheadSceneInput): AheadScene {
     zone: { title: AHEAD_WORDS.zoneTitle, tags, nowText: AHEAD_WORDS.now(chartHhmm(anchor.t + AHEAD_STEP_SEC)) },
     ticks: ticksFrom(anchor.t),
     fan,
-    paths: drawnPaths,
+    cloud: paths ?? [],
+    story,
     ...lm,
     ...drawn,
     keepInView: keepInView({ fan, ...lm, hLines: drawn.hLines }),
     ghostVolume,
     macd,
     words: [...roomWords, ...(gate.word ? [gate.word] : []), ...later],
-    legend: legendRows(a?.ai.paths ? a.ai.paths.n : null),
+    legend: legendRows(a?.ai.paths ? a.ai.paths.n : null, story, scope),
     examStatus: examStatusOf(input.answer),
     recentVolume: input.recentVolume ?? [],
     lineRead,
@@ -320,7 +339,8 @@ export function aheadScene(input: AheadSceneInput): AheadScene {
  * nothing stretches the price scale and the legend lists nothing undrawn; the words say why, and the panel keeps its
  * numbers. */
 function withoutDrawing(scene: AheadScene): AheadScene {
-  return { ...scene, zone: null, ticks: [], fan: null, paths: [], lines: [], meet: null, hLines: [], chips: [],
+  return { ...scene, zone: null, ticks: [], fan: null, cloud: [], story: [], lines: [], meet: null, hLines: [],
+    chips: [],
     keepInView: null, ghostVolume: null, macd: null, legend: [] };
 }
 

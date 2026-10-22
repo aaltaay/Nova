@@ -56,6 +56,32 @@ describe("Ahead's section in the chart Key", () => {
     expect(strategy?.rows.map(r => r.swatch)).toEqual(['dash', 'band', 'paths', 'box', 'hatch']);
   });
 
+  it("explains the soft cloud, the story paths and their marks, a trade's or the three cases'", () => {
+    const story: AheadScene['legend'] = [
+      { swatch: 'dash', text: AHEAD_WORDS.legendLines },
+      { swatch: 'paths', text: AHEAD_WORDS.legendPaths(200), n: 200 },
+      { swatch: 'story', text: AHEAD_WORDS.legendStory(3), n: 200, cases: false },
+      { swatch: 'marks', text: AHEAD_WORDS.legendMarks, cases: false },
+    ];
+    const trade = aheadKeySection(scene({ legend: story }), true);
+    expect(trade?.rows.map(r => r.label)).toEqual([AHEAD_KEY_ROWS.dash.label, AHEAD_KEY_ROWS.paths.label,
+      AHEAD_KEY_ROWS.story.label, AHEAD_KEY_ROWS.marks.label]);
+    expect(trade?.rows[1].text).toBe("all 200 of the forecaster's paths, drawn faint");
+    expect(trade?.rows[2]).toMatchObject({ swatch: 'line', color: AHEAD_COLORS.target, text: AHEAD_KEY_ROWS.story.text });
+    expect(trade?.rows[3]).toMatchObject({ swatch: 'dots', color: AHEAD_COLORS.trigger });
+    const cases = aheadKeySection(scene({ legend: story.map(r => ({ ...r, cases: true })) }), true);
+    expect(cases?.rows[2].text).toBe(AHEAD_KEY_ROWS.storyCases.text(200));
+    // A wall touch is a filled diamond, never the meet's ring.
+    expect(cases?.rows[3]).toMatchObject({ swatch: 'diamond', color: AHEAD_COLORS.wallAbove,
+      ...AHEAD_KEY_ROWS.marksCases });
+    expect(AHEAD_KEY_ROWS.marksCases.label).toContain('◆');
+    expect(AHEAD_WORDS.legendMarksCases).toBe('◆ where it first reaches a wall');
+    for (const r of [...(trade?.rows ?? []), ...(cases?.rows ?? [])]) {
+      expect(r.text.toLowerCase()).not.toContain(r.label.toLowerCase());
+      expect(r.text).not.toContain('16 of');
+    }
+  });
+
   it('adds nothing while no zone is drawn', () => {
     expect(aheadKeySection(scene(), false)).toBeNull();
     expect(aheadKeySection(scene({ legend: [] }), true)).toBeNull();
