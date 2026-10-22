@@ -309,10 +309,22 @@ app's own folder, so it is a different Paper account, bot session and history.
   ONE"). The desk and the owner's backend run the same release. The backend's
   checkout is only ever brought to the desk's own `vNNN` tag, never past it
   (`syncToRelease`, `frontend/electron/engineSync.mjs`): fast-forward only, on
-  a clean `master`, refused when the release changes `backend/requirements.txt`,
-  and a checkout already at or past the tag is left where it is (master never
+  a clean `master`, and a checkout already at or past the tag is left where it is (master never
   moves back). Until 2026-09-30 it pulled master's newest commit, which put the
   backend on v1051 while v1051's installer was still being built (desk v1050).
+  A release that changes `backend/requirements.txt` follows like any other
+  (2026-10-21; until then it was refused with "install the new packages
+  first"): every checkout backend runs `pip install -r requirements.txt` into
+  its own interpreter at start, before the app imports a package, whenever the
+  file's sha256 differs from `backend/.cache/requirements-installed.json`
+  (`{schema_version: 1, sha256, python}`, owner `backend/package_sync/sync.py`;
+  missing or another version reads as never installed). A pip that fails is
+  written to the API console log and the start goes on; the stamp stays old, so
+  the next start tries again. One install at a time: an OS lock on
+  `backend/.cache/requirements-install.lock` is held across reading the stamp
+  again and installing, and a start that finds a backend already running (the
+  API instance guard is held) leaves its packages alone. A frozen engine is never touched;
+  `NOVA_SKIP_PACKAGE_SYNC=1` skips it.
 - **Restart to update updates both.** Before the installer runs, the desk asks
   the owner's backend what a restart would interrupt; anything open (or a
   backend that cannot say) is listed and the operator may wait, which installs
