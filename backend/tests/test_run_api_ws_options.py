@@ -14,6 +14,7 @@ def _captured(monkeypatch, reload: str) -> dict:
     monkeypatch.setattr(run_api, "_force_utf8_io", lambda: None)
     monkeypatch.setattr(run_api, "_prepare_sys_path", lambda: None)
     monkeypatch.setattr(run_api, "_normal_priority", lambda: seen.update(priority_raised=True))
+    monkeypatch.setattr(run_api, "_sync_packages", lambda: seen.update(packages_synced=True))
     monkeypatch.setenv("NOVA_API_RELOAD", reload)
     cwd = os.getcwd()
     try:
@@ -26,6 +27,7 @@ def _captured(monkeypatch, reload: str) -> dict:
 def test_no_deflate_in_process(monkeypatch):
     seen = _captured(monkeypatch, "false")
     assert seen["reload"] is False
+    assert seen["packages_synced"] is True
     assert seen["ws_per_message_deflate"] is False
     assert seen["priority_raised"] is True
 

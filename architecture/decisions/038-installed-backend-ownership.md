@@ -67,9 +67,10 @@ a second engine on top of it. That was fixed before the push.
    - **Restart backend now** when its checkout already holds newer code.
    - **Pull master and restart** when the checkout holds nothing newer. The
      desk pulls the owner's checkout fast-forward only, and only on a clean
-     `master`. It refuses when master changes `backend/requirements.txt`, whose
-     packages must be installed first. Then it restarts the backend onto the
-     new code.
+     `master`. Then it restarts the backend onto the new code. A release that
+     changes `backend/requirements.txt` is no longer refused (amendment
+     2026-10-21): the backend installs its packages itself when it starts
+     (`backend/package_sync/`).
 
    Before either action, the desk asks the backend what a restart would
    interrupt (`GET /api/diagnostics/restart-check`). If nothing is open, one
