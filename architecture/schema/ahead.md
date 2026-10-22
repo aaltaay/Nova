@@ -213,8 +213,8 @@ reads no market data, places nothing and writes nothing into Nova's folders. Onl
 
 ### Worked out on the desk
 
-Pure functions in `frontend/src/ahead/` (`aheadGeometry.ts`, `aheadOdds.ts`, `macdFromPaths.ts`, `aheadScene.ts`),
-memoised per symbol, minute and scope. Times are the chart's candle times.
+Pure functions in `frontend/src/ahead/` (`aheadGeometry.ts`, `aheadOdds.ts`, `aheadStory.ts`, `macdFromPaths.ts`,
+`aheadScene.ts`), memoised per symbol, minute and scope. Times are the chart's candle times.
 
 **Lines to the meet** (Nova's arithmetic, no AI; shown whenever Ahead is on, in every scope and every AI state, with
 or without a forecaster):
@@ -266,10 +266,11 @@ otherwise). On the same raw path closes:
   first"); a wall is never written as its zone ("4.55–4.56").
 - The walls card has one line under each wall ("If 4.69 · triple top breaks (38% of paths): 45% reach 5.00 · HOD
   first, 40% close back under 4.69, 15% still open (forecast)") with a smaller bar, and ends "A read of the
-  forecaster's paths, not a signal: nothing here places an order." On the chart the wall's chip gains a short second
-  line with a share before each word and never a share beside a price ("breaks 38% · then 45% reach 5.00 · 40% back
-  under"; with no next wall "breaks 38% · then 50% hold · 40% back under") only when the zone is wide enough beside
-  the full chip; it never leaves the zone, else the card alone carries it.
+  forecaster's paths, not a signal: nothing here places an order." On the chart the wall's chip gains a compact second
+  line with a share before each word and never a share beside a price, the longest of "breaks 38% · 45% to 5.00 · 40%
+  back", "breaks 38% · 45% to 5.00" and "breaks 38%" (with no next wall "breaks 38% · 50% hold · 40% back") that is
+  no wider than 60% of the zone, only beside the full chip, never on a story path's coloured stretch; it never leaves
+  the zone, else the card alone carries it.
 
 **If it triggers** (scopes `flat_top` and `first_pullback`):
 
@@ -284,7 +285,45 @@ otherwise). On the same raw path closes:
 - On the raw path closes: the fill minute is the first `k` with close `> trigger` (none: not reached). From the fill
   minute on, the fill minute included, a close `>= target` is target first, `<= stop` stop first, else still open.
   `reach` is fills over `n`; the target / stop / open shares are over the fills (`null` with none). The words say
-  "closes only; fills at the trigger". The drawn paths are coloured by their own outcome.
+  "closes only; fills at the trigger".
+
+**The soft cloud and the story paths** (only while the AI view is shown; operator decision 2026-10-22, "Fewer paths,
+clearer story", after a path coloured "target first" along its whole length read as a trade that survived a dive under
+the stop it took before the buy-stop ever filled):
+
+- Every one of the `n` paths is drawn as a soft cloud: one faint stroke each in the AI colour (alpha 0.05), so overlap
+  builds density and no single path stands out. No path in the cloud carries an outcome colour. The 50% / 80% bands
+  are unchanged.
+- Over it, at most three **story paths**, chosen by rule, never by hand (`aheadStory.ts`):
+  - A strategy scope: one path per outcome group of "if it triggers" -- target first, stop first, and still open (or
+    never filled, when no path that fills stays open) -- each the group's most typical member: the path with the
+    smallest mean absolute distance to the group's per-step median (a tie goes to the first). A group with no path is
+    skipped.
+  - Scope `all`: a high, a middle and a low case -- the paths whose final close ranks nearest 90%, 50% and 10% of all
+    final closes (rank `round(q * (n - 1))`; one path is never drawn twice).
+- Each story path is coloured by its stage: grey (`#8b92a5`, 0.6) while not in a trade (a strategy: before the fill;
+  `all`: before the first wall it reaches); the outcome's colour (target `#86efac`, stop `#fca5a5`, open `#c7d2fe`;
+  `all`: wall above `#f0876f`, wall below `#2dd4bf`) from the fill or wall touch to the exit, or to the zone's end;
+  the same colour faded (0.18) after the exit. A path that never fills, or reaches neither wall, stays grey. Marks: a
+  dot at the fill (`#5eb1ff`), ✓ at a target exit, ✕ at a stop exit, a small filled diamond in the wall's colour where
+  an `all` case first reaches a wall (never a ring: the ring is where Nova's lines meet).
+  A level crossed between two whole steps is placed by interpolating the two closes (the answer's `price` before
+  step 1); a story path is drawn from the answer's `price` at the anchor (not the anchor candle's close), so each mark
+  sits on its line and on its level. The fill, exit and wall steps are the same rules the odds count by (`pathTrade`,
+  `wallTouch`).
+- Each story path has an end label inside the zone, placed last (after the priced chips and "neither") beside its
+  path's end (a strategy path's ✓ / ✕ when it has one) -- never on its last three steps, and off every story path's
+  coloured stretch when there is room -- and left to the panel when there is no room. A label that cannot sit at its
+  end goes first to the side away from the other story paths' coloured stretches, and a thin leader (1 px, the
+  path's colour at 0.7) runs from the label's nearest edge to that end or mark, drawn with the story paths (over the
+  chips' backings, under their words); a label sitting at its end has none. The words: a strategy's "✓ target first · 41% of fills (forecast)", "✕ stop first ·
+  6% of fills (forecast)", "still open · 53% of fills (forecast)" (the group's share of the paths that fill) or "never
+  fills · 48% of paths (forecast)"; `all`'s "high case", "middle case", "low case". A narrower zone drops
+  "(forecast)" ("✓ target first · 41% of fills"; the panel's card keeps it), a narrow one shows the odds only ("✓ 41%
+  of fills", "open 53% of fills"). These end labels are a strategy's odds on the chart: there is no separate
+  target-first or stop-first chip.
+- Cloud and story are built once per symbol, answer and scope in the scene's memo; nothing runs per frame beyond
+  coordinate conversion.
 
 **The MACD fan** (only while the AI view is shown and the MACD pane is on): Nova's MACD (`computeMacdPane`) runs once
 over the real closes up to `bar_t`; its EMA 12, EMA 26 and signal states at that point are carried through each
@@ -332,25 +371,37 @@ says so on the heading: a 404 is "Nova's API has no Ahead yet: restart the API a
   takes about a quarter of the pane. When the pane's width changes (the Ahead panel docking beside the charts, or
   closing) such a view is framed again on the new width. A view the operator owns is never moved.
 - **No word over a real candle.** Every chip stays inside the zone. When the zone is too narrow for a chip's words
-  it shows the odds only ("▲ 42%", "neither 3%", "target 41%", "stop 6%"); narrower still, none (the panel has the
-  words). A setup target within half a cent of a wall reads "target {price} · next wall". "lines meet ≈ HH:MM"
+  it shows the odds only ("▲ 42%", "neither 3%", "✓ 41% of fills", "✕ 6% of fills"); narrower still, none (the
+  panel has the words). A setup target within half a cent of a wall reads "target {price} · next wall". "lines meet ≈ HH:MM"
   sits over its ring and over the lines running into it; an odds chip that would sit on one of Nova's lines moves
   off it. The chips tied to a price (each wall's, a strategy's) are placed first, on their price; "neither in 15 min"
-  (tied to no one price) is placed last, in the free space between the walls nearest their middle, and is left to
-  the panel when there is none -- it never pushes a wall's chip off its wall. The minute labels (every 5 minutes) are on the time axis under the zone, in the axis's own words
+  (tied to no one price) is placed next, in the free space between the walls nearest their middle, and is left to
+  the panel when there is none -- it never pushes a wall's chip off its wall; the story paths' end labels come last,
+  so a case's words never take the odds chip's space. **A chip never hides a story path and never sits on a mark.**
+  The chips are placed before any is drawn, then drawn in three passes: their backings, see-through (`#0b0d12` at
+  0.72); the story paths again inside those backings, and every story mark; then the words. A chip that would sit on
+  a fill dot, a ✓ / ✕ or a wall diamond moves -- slid left along its price, a stub's words under its line, a priced
+  chip nudged down, a free chip to another free spot -- never the mark. The minute labels (every 5 minutes) are on the time axis under the zone, in the axis's own words
   ("9:05 AM"); "AI volume" sits on a chip just over the ghost bars under it. The zone ends just past the last ghost
   bar, in every pane.
-- **The legend** ("Nova's lines carried on until they meet", "likely range: inner half, outer 80%", "16 of {n}
-  possible paths", "AI volume", "hatched = drawn, never recorded", each with a swatch) is in the Ahead panel's first
+- **The legend** ("Nova's lines carried on until they meet", "likely range: inner half, outer 80%", "soft cloud =
+  all {n} paths", "3 story paths: grey until the trade starts, coloured while it is on, faded after" (scope `all`:
+  "high, middle and low case, each 1 of {n} paths; grey until it reaches a wall"), "● fill · ✓ target · ✕ stop"
+  (`all`: "◆ where it first reaches a wall", a diamond swatch), "AI volume", "hatched = drawn, never recorded", each with a swatch;
+  the story rows only while story paths are drawn) is in the Ahead panel's first
   card, never laid over the candles or the volume. Its AI rows show only while the AI view is drawn. While Ahead
   draws on a pane, the same marks with the same swatches are the first section of that pane's Key ("Ahead (AI view, not
   data)"; `stock_read/paneKeyExtras.ts`), one label each with words that do not repeat it, plus the meet ring (while
   the meet is in the zone), the wall chips ("▲ / ▼ first": the share of paths reaching that wall first) and the break
   line (while a wall chip carries one), so the zone reads with the panel closed. The Key's card fits its pane: it is
   measured as it opens and scrolls inside the height the pane leaves under its chip.
-- **Prices stay in the price area.** The fan and the drawn paths are clipped at the top of the volume band (the
-  volume overlay's top scale margin) so they never run over the real or ghost volume bars; a path that leaves the
-  price area there, or over the pane's top, gets a small caret at that edge. The hatch runs the pane's full height.
+- **Prices stay in the price area.** The fan, the cloud and the story paths are clipped at the top of the volume
+  band (the volume overlay's top scale margin) so they never run over the real or ghost volume bars; a story path
+  that leaves the price area there, or over the pane's top, gets a small caret at that edge. The price scale keeps
+  the fan's outer band, Nova's lines, the meet and the stubs in view; the cloud and the story paths never stretch it.
+  The story marks are
+  drawn over the zone's stubs and the chips' backings, under the chips' words (which never sit on one), inside the
+  price area only. The hatch runs the pane's full height.
 - The heading ("AHEAD · next 15 min", its tags and sentences) and "now HH:MM" just left of the zone are DOM over the
   pane on a backdrop of the desk's panel colour at 0.9, so a level line drawn across the pane's top passes behind
   them.

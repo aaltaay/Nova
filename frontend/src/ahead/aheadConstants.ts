@@ -9,8 +9,9 @@ import type { AheadScope } from './aheadTypes';
 export const AHEAD_TIMEFRAME = '1Min';
 /** One-minute steps in the zone. */
 export const AHEAD_HORIZON = 15;
-/** Paths drawn on the chart (all `n` are used for the odds and the MACD fan). */
-export const AHEAD_DRAWN_PATHS = 16;
+/** The story paths' cases on scope All: the paths whose final close ranks nearest these shares of all final closes,
+ * high to low (`aheadStory.ts`). Every path is in the soft cloud and counts for the odds and the MACD fan. */
+export const AHEAD_STORY_CASES = [0.9, 0.5, 0.1] as const;
 /** Switched on (and on each new answer while the view follows the right edge and is Nova's), the 1-minute pane is
  * framed like the approved mockup: this many real candles, the 15-step zone and a small margin after it, plus the
  * stock read's word column at the edge -- the zone takes about a quarter of the pane. */
@@ -92,6 +93,9 @@ export const AHEAD_COLORS = {
   muted: '#8b92a5',
   text: '#e6e8ee',
   chipBg: 'rgba(11, 13, 18, 0.9)',
+  /** A chip's backing inside the zone: see-through enough that a story path drawn under it still reads (the path is
+   * drawn again over the backing, under the words). */
+  zoneChipBg: 'rgba(11, 13, 18, 0.72)',
   heading: '#c7d2fe',
   aiTagFg: '#c7d2fe',
   aiTagBg: 'rgba(147, 164, 214, 0.16)',
@@ -112,9 +116,12 @@ export const AHEAD_COLORS = {
   keyBoxFill: 'rgba(147, 164, 214, 0.1)',
 } as const;
 
-/** Path alpha: scope All, and a strategy scope (a path that reaches the trigger, one that does not). */
-export const AHEAD_PATH_ALPHA = { all: 0.34, reached: 0.6, missed: 0.07 } as const;
-/** The fan is dimmed to this in a strategy scope so the coloured paths read first. */
+/** The soft cloud (every path, one faint stroke each, so overlap builds density and no single path stands out) and the
+ * story paths' three stages: grey before the trade (or the first wall), its colour while it is on, faded after. */
+export const AHEAD_STORY_ALPHA = { cloud: 0.05, before: 0.6, during: 0.95, after: 0.18, leader: 0.7 } as const;
+/** The marks at a story path's exit (its fill is a dot, a wall it reaches a filled diamond -- never the meet's ring). */
+export const AHEAD_STORY_GLYPH = { target: '✓', stop: '✕' } as const;
+/** The fan is dimmed to this in a strategy scope so the story paths read first. */
 export const AHEAD_FAN_DIM = 0.6;
 export const AHEAD_DASH: { strategy: number[]; wall: number[] } = { strategy: [6, 4], wall: [] };
 
@@ -150,12 +157,17 @@ export const AHEAD_KEY_ROWS = {
   dash: { label: "Nova's lines", text: 'support and resistance carried on until they meet (no AI)' },
   ring: { label: 'Meet ring', text: "where Nova's two lines meet (no AI)" },
   band: { label: 'Likely range', text: "inner half, outer 80% of the forecaster's closes" },
-  paths: { label: 'Paths', text: (n: number) => `${AHEAD_DRAWN_PATHS} of the forecaster's ${n}, drawn faint` },
+  paths: { label: 'Soft cloud', text: (n: number) => `all ${n} of the forecaster's paths, drawn faint` },
+  story: { label: 'Story paths', text: 'grey until the trade starts, coloured while it is on, faded after' },
+  storyCases: { label: 'Story paths', text: (n: number) => `high, middle and low case, each 1 of ${n}; grey until `
+    + 'it reaches a wall, then that wall\'s colour' },
+  marks: { label: '● ✓ ✕', text: 'fill, target, stop on a story path (forecast)' },
+  marksCases: { label: '◆ on a path', text: 'where a story path first reaches a wall (forecast)' },
   box: { label: 'AI volume', text: 'per minute: outline to its middle guess, whisker 10% to 90% (forecast)' },
   hatch: { label: 'Hatched zone', text: 'drawn, never recorded' },
   wallFirst: { label: '▲ / ▼ first', text: "share of paths reaching that wall first; neither: no wall in 15 min (forecast)" },
-  breaks: { label: 'breaks … then', text: 'share of paths closing past the wall; of those, the share reaching the next '
-    + 'wall and the share closing back (forecast)' },
+  breaks: { label: 'breaks · to · back', text: 'share of paths closing past the wall; of those, the share reaching the '
+    + 'next wall (or holding past it when there is none) and the share closing back (forecast)' },
 } as const;
 
 /** Every sentence Ahead shows, on the chart and in the panel. */
@@ -170,7 +182,30 @@ export const AHEAD_WORDS = {
   legendTitle: 'On the chart',
   legendLines: "Nova's lines carried on until they meet",
   legendRange: 'likely range: inner half, outer 80%',
-  legendPaths: (n: number) => `16 of ${n} possible paths`,
+  legendPaths: (n: number) => `soft cloud = all ${n} paths`,
+  legendStory: (count: number) => `${count} story ${count === 1 ? 'path' : 'paths'}: grey until the trade starts, `
+    + 'coloured while it is on, faded after',
+  legendStoryCases: (count: number, n: number) => `${count} story ${count === 1 ? 'path' : 'paths'}: high, middle `
+    + `and low case, each 1 of ${n} paths; grey until it reaches a wall`,
+  legendMarks: '● fill · ✓ target · ✕ stop',
+  legendMarksCases: '◆ where it first reaches a wall',
+  // the story paths' end labels (a strategy's: the group's share of the paths that fill, said so; All's: which case).
+  // Each in three lengths for the zone's width: full, without "(forecast)" (the panel's card keeps it), the odds only.
+  storyTarget: (share: number) => `✓ target first · ${pct(share)} of fills (forecast)`,
+  storyStop: (share: number) => `✕ stop first · ${pct(share)} of fills (forecast)`,
+  storyOpen: (share: number) => `still open · ${pct(share)} of fills (forecast)`,
+  /** The share of all paths that never reach the buy-stop (drawn only when no path that fills stays open). */
+  storyNever: (share: number) => `never fills · ${pct(share)} of paths (forecast)`,
+  storyTargetShort: (share: number) => `✓ target first · ${pct(share)} of fills`,
+  storyStopShort: (share: number) => `✕ stop first · ${pct(share)} of fills`,
+  storyOpenShort: (share: number) => `still open · ${pct(share)} of fills`,
+  storyNeverShort: (share: number) => `never fills · ${pct(share)} of paths`,
+  storyTargetTiny: (share: number) => `✓ ${pct(share)} of fills`,
+  storyStopTiny: (share: number) => `✕ ${pct(share)} of fills`,
+  storyOpenTiny: (share: number) => `open ${pct(share)} of fills`,
+  storyNeverTiny: (share: number) => `never ${pct(share)} of paths`,
+  storyCase: ['high case', 'middle case', 'low case'] as const,
+  storyCaseShort: ['high', 'middle', 'low'] as const,
   legendVolume: 'AI volume',
   legendHatch: 'hatched = drawn, never recorded',
   macdPaneLabel: "MACD worked out from the AI's paths",
@@ -263,14 +298,16 @@ export const AHEAD_WORDS = {
     }
     return `${head}: ${pct(b.follow ?? 0)} reach ${b.next} first, ${back}, ${pct(b.open ?? 0)} still open (forecast)`;
   },
-  /** The wall chip's second line on the chart, a share before each word and never beside a price:
-   * "breaks 38% · then 45% reach 5.00 · 40% back under". The card's line says the same in full. */
-  breakChip: (b: BreakWords) => {
+  /** The wall chip's second line on the chart, compact and longest first (the drawing keeps the longest that fits),
+   * a share before each word and never beside a price: "breaks 38% · 45% to 5.00 · 40% back", "breaks 38% · 45% to
+   * 5.00", "breaks 38%". The card's line says the same in full. */
+  breakChip: (b: BreakWords): string[] => {
     const head = `breaks ${pct(b.share)}`;
-    if (b.fail === null) return head;
-    const back = `${pct(b.fail)} back ${b.up ? 'under' : 'over'}`;
-    if (b.nextPrice === null) return `${head} · then ${pct(b.open ?? 0)} hold · ${back}`;
-    return `${head} · then ${pct(b.follow ?? 0)} reach ${b.nextPrice} · ${back}`;
+    if (b.fail === null) return [head];
+    const then = b.nextPrice === null
+      ? `${head} · ${pct(b.open ?? 0)} hold`
+      : `${head} · ${pct(b.follow ?? 0)} to ${b.nextPrice}`;
+    return [`${then} · ${pct(b.fail)} back`, then, head];
   },
   breaksNote: "A break is a minute close past the wall's far edge; back is a close past its near edge again. "
     + 'Shares of the paths that break.',
@@ -286,10 +323,6 @@ export const AHEAD_WORDS = {
   reach: (n: number, trigger: string) => `of the ${n} paths reach the buy-stop ${trigger}`,
   triggerFoot: (by: string) => `Closes only; fills at the trigger. Of the paths that fill, which comes first by ${by}: `
     + 'target or stop.',
-  targetFirst: (share: number) => `target first · ${pct(share)} (forecast)`,
-  stopFirst: (share: number) => `stop first · ${pct(share)} (forecast)`,
-  targetFirstShort: (share: number) => `target ${pct(share)}`,
-  stopFirstShort: (share: number) => `stop ${pct(share)}`,
   triggerTitle: (family: string) => `If the ${family} triggers`,
   targetFirstLabel: (p: string) => `target ${p} first`,
   stopFirstLabel: (p: string) => `stop ${p} first`,

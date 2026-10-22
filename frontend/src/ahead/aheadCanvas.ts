@@ -15,6 +15,7 @@ export const AHEAD_DRAW = {
   muted: AHEAD_COLORS.muted,
   ring: AHEAD_COLORS.meetRing,
   chipBg: AHEAD_COLORS.chipBg,
+  zoneChipBg: AHEAD_COLORS.zoneChipBg,
   /** The fan's outer (10-90) and inner (25-75) band strengths; a strategy scope dims both by `AHEAD_FAN_DIM`. */
   fanOuter: 0.13,
   fanInner: 0.24,
@@ -125,6 +126,45 @@ export function ring(ctx: CanvasRenderingContext2D, at: Pt, r: number, color: st
   ctx.restore();
 }
 
+/** A filled dot (a story path's fill). */
+export function dot(ctx: CanvasRenderingContext2D, at: Pt, r: number, color: string): void {
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(at.x, at.y, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+/** A filled diamond with a thin dark edge, so it reads on its own line (where a story path first reaches a wall:
+ * never a ring, which is the meet's). */
+export function diamond(ctx: CanvasRenderingContext2D, at: Pt, r: number, color: string, edge: string): void {
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.strokeStyle = edge;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(at.x, at.y - r);
+  ctx.lineTo(at.x + r, at.y);
+  ctx.lineTo(at.x, at.y + r);
+  ctx.lineTo(at.x - r, at.y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** One character centred on a point (a story path's ✓ / ✕ exit). */
+export function glyph(ctx: CanvasRenderingContext2D, at: Pt, text: string, color: string): void {
+  ctx.save();
+  ctx.font = '700 12px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, at.x, at.y);
+  ctx.restore();
+}
+
 /** How wide a chip of these words is (px), without drawing it. */
 export function chipWidth(ctx: CanvasRenderingContext2D, text: string): number {
   ctx.save();
@@ -134,32 +174,50 @@ export function chipWidth(ctx: CanvasRenderingContext2D, text: string): number {
   return w;
 }
 
+/** A chip's rectangle `w` wide (its right edge at `end`, its centre at `cy`). */
+export function chipRect(end: number, w: number, cy: number): Rect {
+  return { left: end - w, right: end, top: cy - CHIP_H / 2, bottom: cy + CHIP_H / 2 };
+}
+
+/** The rectangle lies wholly on the pane. */
+export function onPane(r: Rect, bounds: { width: number; height: number }): boolean {
+  return r.left >= 0 && r.top >= 0 && r.right <= bounds.width && r.bottom <= bounds.height;
+}
+
+/** A chip's rounded backing (drawn apart from its words, so a story path can be drawn between the two). */
+export function chipBack(ctx: CanvasRenderingContext2D, r: Rect, bg: string): void {
+  ctx.save();
+  ctx.fillStyle = bg;
+  ctx.beginPath();
+  if (typeof ctx.roundRect === 'function') ctx.roundRect(r.left, r.top, r.right - r.left, CHIP_H, CHIP_RADIUS_PX);
+  else ctx.rect(r.left, r.top, r.right - r.left, CHIP_H);
+  ctx.fill();
+  ctx.restore();
+}
+
+/** A chip's words, on the backing `chipBack` drew in the same rectangle. */
+export function chipText(ctx: CanvasRenderingContext2D, r: Rect, text: string, fg: string): void {
+  ctx.save();
+  ctx.font = CHIP_FONT;
+  ctx.fillStyle = fg;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, r.left + CHIP_PAD_PX, (r.top + r.bottom) / 2 + 0.5);
+  ctx.restore();
+}
+
 /**
  * Words on a rounded chip. `anchor` says which edge `x` is: 'end' puts the chip's right edge there. `y` is the chip's
  * vertical centre. Returns the rectangle it holds (for the pane's words), or null when it would not fit the pane.
  */
 export function chip(ctx: CanvasRenderingContext2D, x: number, y: number, text: string, fg: string, bg: string,
   anchor: 'start' | 'end', bounds: { width: number; height: number }): Rect | null {
-  ctx.save();
-  ctx.font = CHIP_FONT;
-  const w = ctx.measureText(text).width + 2 * CHIP_PAD_PX;
-  const left = anchor === 'end' ? x - w : x;
-  const top = y - CHIP_H / 2;
-  if (left < 0 || top < 0 || left + w > bounds.width || top + CHIP_H > bounds.height) {
-    ctx.restore();
-    return null;
-  }
-  ctx.fillStyle = bg;
-  ctx.beginPath();
-  if (typeof ctx.roundRect === 'function') ctx.roundRect(left, top, w, CHIP_H, CHIP_RADIUS_PX);
-  else ctx.rect(left, top, w, CHIP_H);
-  ctx.fill();
-  ctx.fillStyle = fg;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, left + CHIP_PAD_PX, y + 0.5);
-  ctx.restore();
-  return { left, top, right: left + w, bottom: top + CHIP_H };
+  const w = chipWidth(ctx, text);
+  const r = chipRect(anchor === 'end' ? x : x + w, w, y);
+  if (!onPane(r, bounds)) return null;
+  chipBack(ctx, r, bg);
+  chipText(ctx, r, text, fg);
+  return r;
 }
 
 /** Small words with no chip (the minute labels, a pane's caption). */
@@ -212,4 +270,23 @@ export function topOver(segs: readonly Seg[], left: number, right: number): numb
 /** Two chips' rectangles overlap (with `gap` px between them kept free). */
 export function overlaps(a: Rect, b: Rect, gap = 2): boolean {
   return a.left < b.right + gap && b.left < a.right + gap && a.top < b.bottom + gap && b.top < a.bottom + gap;
+}
+
+/** How far over (`above`) and under (`below`) the row `y` the nearest segment reaches over the columns `left..right`,
+ * in pixels (0 when one runs through the row; Infinity when none is on that side). */
+export function clearance(segs: readonly Seg[], left: number, right: number, y: number): { above: number; below: number } {
+  let above = Infinity;
+  let below = Infinity;
+  for (const seg of segs) {
+    const ys = segYs(seg, left, right);
+    if (!ys) continue;
+    if (ys[0] < y) above = Math.min(above, Math.max(0, y - ys[1]));
+    if (ys[1] > y) below = Math.min(below, Math.max(0, ys[0] - y));
+  }
+  return { above, below };
+}
+
+/** The point of the rectangle's edge (or inside it) nearest `p`. */
+export function nearestOn(r: Rect, p: Pt): Pt {
+  return { x: Math.min(r.right, Math.max(r.left, p.x)), y: Math.min(r.bottom, Math.max(r.top, p.y)) };
 }

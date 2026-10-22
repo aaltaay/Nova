@@ -1,5 +1,6 @@
 /** Ahead's section in the desk's chart Key (ADR 065): while Ahead draws on a pane, the Key button on that pane lists
- * what each mark in the zone means with the same swatches as the Ahead panel's legend -- and the marks the legend
+ * what each mark in the zone means with the panel legend's swatches (the Key's own line, dots and ring for the story
+ * paths and their marks) -- and the marks the legend
  * leaves to the chart: the meet ring, the wall chips and their "if it breaks" line -- so the zone is explained with the
  * panel closed. Each row is one label and words that do not repeat it (`AHEAD_KEY_ROWS`). Pure. */
 import type { KeyRow, KeySection } from '../stock_read';
@@ -13,6 +14,12 @@ function legendRow(r: SceneLegendRow): KeyRow {
     case 'dash': return { swatch: 'dash', color: AHEAD_COLORS.resistance, ...K.dash };
     case 'band': return { swatch: 'band', color: AHEAD_COLORS.ai, fill: AHEAD_COLORS.keyBand, ...K.band };
     case 'paths': return { swatch: 'paths', color: AHEAD_COLORS.path, label: K.paths.label, text: K.paths.text(r.n ?? 0) };
+    case 'story': return r.cases
+      ? { swatch: 'line', color: AHEAD_COLORS.wallAbove, label: K.storyCases.label, text: K.storyCases.text(r.n ?? 0) }
+      : { swatch: 'line', color: AHEAD_COLORS.target, ...K.story };
+    case 'marks': return r.cases
+      ? { swatch: 'diamond', color: AHEAD_COLORS.wallAbove, ...K.marksCases }
+      : { swatch: 'dots', color: AHEAD_COLORS.trigger, ...K.marks };
     case 'box': return { swatch: 'box', color: AHEAD_COLORS.ai, fill: AHEAD_COLORS.keyBoxFill, ...K.box };
     case 'hatch': return { swatch: 'hatch', color: AHEAD_COLORS.keyHatchStripe, fill: AHEAD_COLORS.hatch, ...K.hatch };
   }

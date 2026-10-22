@@ -83,9 +83,13 @@ describe('the words', () => {
     const w = breakWords(b, wall('w', 4.69, 4.69, true), true, 200);
     expect(AHEAD_WORDS.breakLine(w)).toBe('If 4.69 · top breaks (38% of paths): 45% reach 5.00 · HOD first, 40% close '
       + 'back under 4.69, 15% still open (forecast)');
-    // The chip: a share before each word, never a share beside a price.
-    expect(AHEAD_WORDS.breakChip(w)).toBe('breaks 38% · then 45% reach 5.00 · 40% back under');
-    expect(AHEAD_WORDS.breakChip(w)).not.toMatch(/\d\.\d\d \d+%/);
+    // The chip: compact, longest first, a share before each word, never a share beside a price.
+    expect(AHEAD_WORDS.breakChip(w)).toEqual(['breaks 38% · 45% to 5.00 · 40% back', 'breaks 38% · 45% to 5.00',
+      'breaks 38%']);
+    for (const t of AHEAD_WORDS.breakChip(w)) expect(t).not.toMatch(/\d\.\d\d \d+%/);
+    // Every shorter form is the longer one cut at a ' · ': it never says something the full line does not.
+    const [full, ...rest] = AHEAD_WORDS.breakChip(w);
+    for (const t of rest) expect(full.startsWith(t)).toBe(true);
   });
 
   it('names a wide wall by its one name (price and label, as its chip and card), never its zone', () => {
@@ -95,14 +99,15 @@ describe('the words', () => {
     expect(AHEAD_WORDS.breakLine(w)).toBe('If 4.56 · double bottom · VWAP breaks (20% of paths): 50% hold under 4.56, '
       + '50% close back over 4.56 (forecast) · no next wall below within reach');
     expect(AHEAD_WORDS.breakLine(w)).not.toContain('4.55');
-    expect(AHEAD_WORDS.breakChip(w)).toBe('breaks 20% · then 50% hold · 50% back over');
+    expect(AHEAD_WORDS.breakChip(w)).toEqual(['breaks 20% · 50% hold · 50% back', 'breaks 20% · 50% hold',
+      'breaks 20%']);
   });
 
   it('says when no path breaks, and names a wall with no label by its price alone', () => {
     const b = { share: 0, nBreak: 0, next: null, follow: null, fail: null, open: null };
     const none = breakWords(b, wall('b', 4.5, 4.5, false, ''), false, 10);
     expect(AHEAD_WORDS.breakLine(none)).toBe('If 4.50 breaks (0% of paths): none of the 10 paths closes past it (forecast).');
-    expect(AHEAD_WORDS.breakChip(none)).toBe('breaks 0%');
+    expect(AHEAD_WORDS.breakChip(none)).toEqual(['breaks 0%']);
   });
 });
 

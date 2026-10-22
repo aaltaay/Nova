@@ -50,9 +50,12 @@ page already holds that read.
    localhost or ::1); `NOVA_AHEAD_TOKEN` is a secret kept in `.env`. Proxies and redirects are not followed, the
    token goes only to that address, and an answer is read strictly: a missing or wrong field is an `error` naming
    the field, never filled in.
-7. **Honesty on the chart.** A hatched zone labelled "AI view, not data", the 50% and 80% bands, 16 drawn paths
-   labelled as a few of the forecaster's, ghost volume in outline, and every number marked as a forecast. No bar or
-   whitespace is added to any series, and the chart's right offset is never changed.
+7. **Honesty on the chart.** A hatched zone labelled "AI view, not data", the 50% and 80% bands, every path as a
+   faint soft cloud with at most three story paths over it, chosen by rule and coloured only while a trade (or the
+   first wall reached) is on -- grey before, faded after (amended 2026-10-22, "Fewer paths, clearer story": 16 paths
+   coloured by outcome along their whole length read a dive before the fill as part of a trade that survived),
+   ghost volume in outline, and every number marked as a forecast. No bar or whitespace is added to any series, and
+   the chart's right offset is never changed.
 8. **The exam decides what shows.** The AI view shows only when the forecaster reports a passed exam (its answer's
    `exam_passed` and the exam itself both say passed; a pass whose exam Nova cannot read is not one), or when the
    viewer's "Show before it has earned it" switch (off by default) is on -- and then with the exam's numbers and its

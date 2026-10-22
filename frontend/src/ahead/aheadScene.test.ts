@@ -60,7 +60,8 @@ const passed: AheadAnswer = {
 
 const noAi = (s: ReturnType<typeof aheadScene>) => {
   expect(s.fan).toBeNull();
-  expect(s.paths).toEqual([]);
+  expect(s.cloud).toEqual([]);
+  expect(s.story).toEqual([]);
   expect(s.ghostVolume).toBeNull();
   expect(s.macd).toBeNull();
   // The legend keeps Nova's lines and the hatch only.
@@ -90,12 +91,16 @@ describe('the Ahead scene', () => {
     const s = aheadScene(input({ prefs: { ...PREFS, unearned: true } }));
     expect(s.fan).toHaveLength(15);
     expect(s.fan?.[0]).toEqual({ k: 1, q10: 4.5963, q25: 4.6075, q50: 4.62, q75: 4.6325, q90: 4.6437 });
-    expect(s.paths).toHaveLength(16);
-    expect(s.paths[0]).toMatchObject({ color: AHEAD_COLORS.path, alpha: 0.34 });
+    // Every path in the soft cloud; three story paths over it, chosen by rule: the high, middle and low cases.
+    expect(s.cloud).toEqual(ready.ai.paths?.close);
+    expect(s.story.map((st) => st.label)).toEqual(['high case', 'middle case', 'low case']);
     expect(s.ghostVolume?.[14]).toEqual({ k: 15, q10: 3600, q50: 8000, q90: 16800 });
     expect(s.macd).toHaveLength(15);
-    expect(s.legend.map((r) => r.swatch)).toEqual(['dash', 'band', 'paths', 'box', 'hatch']);
-    expect(s.legend.map((r) => r.text)).toContain('16 of 16 possible paths');
+    expect(s.legend.map((r) => r.swatch).filter((w) => w !== 'marks')).toEqual(['dash', 'band', 'paths', 'story', 'box',
+      'hatch']);
+    expect(s.legend.map((r) => r.text)).toContain('soft cloud = all 16 paths');
+    expect(s.legend.map((r) => r.text)).toContain(AHEAD_WORDS.legendStoryCases(3, 16));
+    expect(s.legend.map((r) => r.text).join(' ')).not.toContain('16 of');
     const tag = s.zone?.tags[1];
     expect(tag?.text).toContain('has not passed its exam');
     expect(tag?.text).toContain('Example only: made-up scope.');
@@ -103,11 +108,15 @@ describe('the Ahead scene', () => {
     expect(s.walls?.first).not.toBeNull();
     expect(s.chips.map((c) => c.text)[0]).toMatch(/^▲ 4\.84 first · \d+% \(forecast\)$/);
     // The walls' chips are tied to their prices; "neither" to none (the drawing places it last, between the walls).
-    expect(s.chips.map((c) => c.role)).toEqual(['wall', 'wall', 'neither']);
+    expect(s.chips.map((c) => c.role)).toEqual(['wall', 'wall', 'neither', 'story', 'story', 'story']);
+    // Each case's end label sits at its own last close.
+    for (const st of s.story) {
+      expect(s.chips.find((c) => c.text === st.label)?.p).toBe(st.points[st.points.length - 1]);
+    }
     expect(s.legend.find((r) => r.swatch === 'paths')?.n).toBe(16);
     // If it breaks: no path closes over the top 4.84-4.85 (its chip says so); one dips under 4.50, with no wall beyond.
     expect(s.walls?.breaks?.above).toMatchObject({ share: 0, nBreak: 0, next: null, fail: null });
-    expect(s.chips[0].sub).toBe('breaks 0%');
+    expect(s.chips[0].sub).toEqual(['breaks 0%']);
     expect(s.walls?.breaks?.below?.nBreak).toBeGreaterThan(0);
     expect(s.walls?.breaks?.below?.next).toBeNull();
     expect(s.walls?.breaks?.below?.follow).toBeNull();
@@ -193,22 +202,33 @@ describe('the Ahead scene', () => {
     expect(behind.words[0]).toBe(AHEAD_WORDS.catchingUp);
   });
 
-  it('colours the paths by what each does if the flat top triggers', () => {
+  it('tells the flat top as story paths over a soft cloud, their end labels its odds', () => {
     const s = aheadScene(input({ answer: passed, prefs: { ...PREFS, scope: 'flat_top' } }));
     const t = s.triggers?.flat_top;
-    expect(t?.perPath).toHaveLength(16);
-    s.paths.forEach((p, j) => {
-      const o = t?.perPath?.[j];
-      const want = o === 'target' ? AHEAD_COLORS.target : o === 'stop' ? AHEAD_COLORS.stop : AHEAD_COLORS.path;
-      expect(p.color).toBe(want);
-      expect(p.alpha).toBe(o === 'no' ? 0.07 : 0.6);
-    });
+    // No path in the cloud carries an outcome colour; the story paths do, from the fill on only.
+    expect(s.cloud).toHaveLength(16);
+    expect(s.story.length).toBeGreaterThan(0);
+    for (const st of s.story) {
+      expect(st.segments[0]).toMatchObject({ from: 0, color: AHEAD_COLORS.muted });
+      expect(st.segments[st.segments.length - 1].to).toBe(15);
+    }
+    // The end labels replace the target-first / stop-first chips: the odds are said once.
+    expect(s.chips.every((c) => c.role === 'story')).toBe(true);
+    const target = s.story.find((st) => st.color === AHEAD_COLORS.target);
+    if (target && t?.first) expect(target.label).toBe(AHEAD_WORDS.storyTarget(t.first.target));
+    expect(s.legend.map((r) => r.text)).toContain(AHEAD_WORDS.legendStory(s.story.length));
     expect(s.hLines.map((h) => h.color)).toEqual([AHEAD_COLORS.trigger, AHEAD_COLORS.stop, AHEAD_COLORS.target]);
     expect(s.hLines[0].chip).toBe(AHEAD_WORDS.buyStop('4.70'));
     // The target sits on the next wall up (4.84 double top): its chip says so.
     expect(s.hLines[2].chip).toBe('target 4.84 · next wall');
-    expect(s.chips.map((c) => c.short)).toEqual([expect.stringMatching(/^target \d+%$/),
-      expect.stringMatching(/^stop \d+%$/)]);
+    expect(s.chips.map((c) => c.short)).toEqual(s.story.map((st) => st.short));
+    expect(s.chips.map((c) => c.story)).toEqual(s.story.map((_, i) => i));
+    // Every length says what the share is of; only the full words carry "(forecast)" (the panel's card keeps it).
+    for (const c of s.chips) {
+      expect(c.text).toMatch(/^(✓ target first|✕ stop first|still open) · \d+% of fills \(forecast\)$|^never fills · \d+% of paths \(forecast\)$/);
+      expect(c.short).toMatch(/^(✓ target first|✕ stop first|still open) · \d+% of fills$|^never fills · \d+% of paths$/);
+      expect(c.tiny).toMatch(/^(✓ |✕ |open )\d+% of fills$|^never \d+% of paths$/);
+    }
   });
 
   it("says why a strategy scope has nothing in play", () => {
@@ -223,6 +243,15 @@ describe('the Ahead scene', () => {
     const shown = aheadScene(input({ answer: passed }));
     expect(shown.keepInView?.lo).toBeCloseTo(4.5);
     expect(shown.keepInView?.hi).toBeCloseTo(4.84);
+    // The story paths never stretch the scale: every path a dollar over the fan leaves it where the fan put it (the
+    // renderer clips them and marks the edge with a caret).
+    const paths = ready.ai.paths as NonNullable<AheadAnswer['ai']['paths']>;
+    const high: AheadAnswer = { ...passed, ai: { ...passed.ai,
+      paths: { ...paths, close: paths.close.map((p) => p.map((c) => c + 1)) } } };
+    const far = aheadScene(input({ answer: high, symbol: 'FAR' }));
+    expect(Math.max(...far.story.flatMap((st) => st.points))).toBeGreaterThan(5.5);
+    expect(far.keepInView?.lo).toBeCloseTo(4.5);
+    expect(far.keepInView?.hi).toBeCloseTo(4.84);
     // No room at the right edge draws no zone, so nothing of it stretches the price scale.
     expect(aheadScene(input({ answer: passed, roomOk: false })).keepInView).toBeNull();
   });
@@ -239,7 +268,8 @@ describe('the Ahead scene', () => {
     const none = aheadScene(input({ answer: passed, roomOk: false }));
     expect(none.zone).toBeNull();
     expect(none.fan).toBeNull();
-    expect(none.paths).toEqual([]);
+    expect(none.cloud).toEqual([]);
+    expect(none.story).toEqual([]);
     expect(none.lines).toEqual([]);
     expect(none.meet).toBeNull();
     expect(none.hLines).toEqual([]);
@@ -285,6 +315,7 @@ describe('the Ahead scene', () => {
     const a = aheadScene(input({ answer: passed }));
     const b = aheadScene(input({ answer: passed }));
     expect(b.macd).toBe(a.macd);
+    expect(b.story).toBe(a.story);
     expect(b.triggers?.flat_top.first).toBe(a.triggers?.flat_top.first);
   });
 });

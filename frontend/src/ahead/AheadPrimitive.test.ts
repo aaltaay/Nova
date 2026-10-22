@@ -17,6 +17,8 @@ function attach(scene = sampleScene(), opts: Parameters<typeof fakeChart>[0] = {
 }
 
 const nextMicrotask = () => new Promise<void>(resolve => queueMicrotask(resolve));
+/** A wall chip's "if it breaks" words, longest first (Nova Marketing Sample Data). */
+const SUB = ['breaks 38% · 45% to 5.40 · 40% back', 'breaks 38% · 45% to 5.40', 'breaks 38%'];
 
 describe('AheadPrimitive', () => {
   it('puts step k at logicalToCoordinate(index of the anchor + k), the zone right of the anchor candle', () => {
@@ -224,7 +226,9 @@ describe('AheadPrimitive', () => {
   it('keeps the fan and the paths above the volume band, a caret where a path leaves the price area', () => {
     // The volume overlay's band starts 80% down the 400 px pane: y 320. One path runs down to 3.8 (y 340).
     const deep = Array.from({ length: 15 }, (_, i) => (i < 5 ? 5.02 : 3.8));
-    const scene = sampleScene({ paths: [{ points: deep, color: '#c7d2fe', alpha: 0.34 }] });
+    const scene = sampleScene({ story: [{ start: 5, points: deep, label: 'low case', short: 'low', tiny: 'low',
+      color: '#8b92a5', marks: [],
+      segments: [{ from: 0, to: 15, color: '#8b92a5', alpha: 0.6 }] }] });
     const { p, under, series } = attach(scene);
     p.setVolumeSeries(series as never);
     p.updateAllViews();
@@ -246,24 +250,24 @@ describe('AheadPrimitive', () => {
 
   it("gives a wall chip its 'if it breaks' line only when the zone is wide enough for it", () => {
     const scene = sampleScene({ chips: [{ p: 5.2, text: '▲ 5.20 first · 27% (forecast)', short: '▲ 27%',
-      color: '#f0876f', sub: 'breaks 38% · then 45% reach 5.40 · 40% back under' }] });
+      color: '#f0876f', sub: SUB }] });
     const wide = attach(scene, { spacing: 30 });
     const texts = paint(wide.over.renderer() as never, 900, 400).fillText.mock.calls.map(c => c[0]);
-    expect(texts).toEqual(expect.arrayContaining(['▲ 5.20 first · 27% (forecast)', 'breaks 38% · then 45% reach 5.40 · 40% back under']));
+    expect(texts).toEqual(expect.arrayContaining(['▲ 5.20 first · 27% (forecast)', SUB[0]]));
     // A narrow zone: the odds-only chip, and the card carries the break.
     const narrow = attach(scene);
     const few = paint(narrow.over.renderer() as never).fillText.mock.calls.map(c => c[0]);
     expect(few).toContain('▲ 27%');
-    expect(few).not.toContain('breaks 38% · then 45% reach 5.40 · 40% back under');
+    for (const t of SUB) expect(few).not.toContain(t);
   });
 
   it("never moves a wall chip for its 'if it breaks' line: the line goes over it, or is left to the card", () => {
     const text = '▲ 5.05 first · 27% (forecast)';
-    const sub = 'breaks 38% · then 45% reach 5.40 · 40% back under';
+    const sub = SUB[0];
     const flat = (p: number) => ({ kind: 'resistance' as const, fromP: p, slope: 0, toSteps: 15, color: '#ff9f43' });
     // A line runs just under the chip (y 108 for a chip at 90): the second line cannot go under it.
     const scene = (lines: ReturnType<typeof flat>[]) => sampleScene({ lines, meet: null, hLines: [],
-      chips: [{ p: 5.05, text, short: '▲ 27%', color: '#f0876f', sub }] });
+      chips: [{ p: 5.05, text, short: '▲ 27%', color: '#f0876f', sub: SUB }] });
     const yOf = (ctx: ReturnType<typeof paint>, t: string) => {
       const call = ctx.fillText.mock.calls.find(c => c[0] === t);
       return call ? (call[2] as number) - 0.5 : null;
@@ -276,7 +280,7 @@ describe('AheadPrimitive', () => {
     const both = attach(scene([flat(4.96), flat(5.14)]), { spacing: 30 });
     const two = paint(both.over.renderer() as never, 900, 400);
     expect(yOf(two, text)).toBe(Y(5.05));
-    expect(yOf(two, sub)).toBeNull();
+    for (const t of SUB) expect(yOf(two, t)).toBeNull();
   });
 
   it("places the walls' chips first, on their walls; 'neither' yields, in the free space between them", () => {

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { AHEAD_WORDS } from './aheadConstants';
-import { aheadWalls, ifTriggers, pathOutcome, triggerRead, wallFirst, type AheadLaneIn, type AheadReadIn } from './aheadOdds';
+import {
+  aheadWalls, ifTriggers, pathOutcome, pathTrade, triggerRead, wallFirst, wallTouch, type AheadLaneIn, type AheadReadIn,
+} from './aheadOdds';
 
 const flat = (p: number, n = 15) => Array.from({ length: n }, () => p);
 
@@ -13,6 +15,12 @@ describe('which wall first', () => {
       [4.84], // at the wall counts
     ];
     expect(wallFirst(paths, 4.84, 4.5)).toEqual({ above: 0.5, below: 0.25, neither: 0.25 });
+  });
+
+  it('says which wall one path reaches first and where', () => {
+    expect(wallTouch([4.7, 4.85, 4.4], 4.84, 4.5)).toEqual({ side: 'above', at: 1 });
+    expect(wallTouch([4.6, 4.5], 4.84, 4.5)).toEqual({ side: 'below', at: 1 });
+    expect(wallTouch(flat(4.62), 4.84, 4.5)).toEqual({ side: null, at: -1 });
   });
 
   it('works with one wall, and has nothing to say with none', () => {
@@ -43,6 +51,13 @@ describe('if it triggers', () => {
     expect(pathOutcome([4.6, 4.9, 4.5], 4.7, 4.55, 4.84)).toBe('target');
   });
 
+  it('says at which step index a path fills and exits (the story paths read the same rule)', () => {
+    expect(pathTrade([4.6, 4.71, 4.8, 4.84], 4.7, 4.55, 4.84)).toEqual({ outcome: 'target', fill: 1, exit: 3 });
+    expect(pathTrade([4.6, 4.9, 4.5], 4.7, 4.55, 4.84)).toEqual({ outcome: 'target', fill: 1, exit: 1 });
+    expect(pathTrade([4.71, 4.75], 4.7, 4.55, 4.84)).toEqual({ outcome: 'open', fill: 0, exit: -1 });
+    expect(pathTrade([4.6], 4.7, 4.55, 4.84)).toEqual({ outcome: 'no', fill: -1, exit: -1 });
+  });
+
   it('gives shares of all paths for the reach and of the filled ones for the race', () => {
     const paths = [
       [4.71, 4.9], [4.71, 4.5], [4.71, 4.75], [4.71, 4.85], ...Array.from({ length: 16 }, () => flat(4.6)),
@@ -51,8 +66,7 @@ describe('if it triggers', () => {
     expect(odds.nReach).toBe(4);
     expect(odds.reach).toBe(0.2);
     expect(odds.first).toEqual({ target: 0.5, stop: 0.25, open: 0.25 });
-    expect(odds.perPath).toHaveLength(16);
-    expect(odds.perPath.slice(0, 5)).toEqual(['target', 'stop', 'open', 'target', 'no']);
+    expect(Object.keys(odds)).toEqual(['nReach', 'reach', 'first']);
     expect(ifTriggers([flat(4.6)], 4.7, 4.55, 4.84).first).toBeNull();
   });
 });
@@ -107,6 +121,6 @@ describe('the setup in play', () => {
     const t = triggerRead(read([lane({})]), 'flat_top', 4.62, [[4.71, 4.9], flat(4.6)]);
     expect(t.reach).toBe(0.5);
     expect(t.first).toEqual({ target: 1, stop: 0, open: 0 });
-    expect(t.perPath).toEqual(['target', 'no']);
+    expect(t).not.toHaveProperty('perPath');
   });
 });

@@ -9,7 +9,7 @@ import readyWire from './__fixtures__/answer_ready.json';
 import statusWire from './__fixtures__/status_ready.json';
 import { publishAheadScene } from './AheadChartLayer';
 import { normalizeAnswer, normalizeStatus } from './aheadApi';
-import { AHEAD_WORDS } from './aheadConstants';
+import { AHEAD_COLORS, AHEAD_WORDS } from './aheadConstants';
 import { etHhmm } from './aheadGeometry';
 import { publishKeepClear, resetKeepClearForTesting } from './aheadSheetPlace';
 import { volumeText } from './VolumeCard';
@@ -38,7 +38,7 @@ const WALLS: AheadWalls = {
 
 const TRIGGER: AheadTrigger = {
   family: 'flat_top', setupType: 'flat_top_breakout', state: 'armed', provisional: false, trigger: 4.7, entry: 4.7,
-  stop: 4.55, target: 4.84, reach: 0.57, nReach: 9, first: { target: 0.31, stop: 0.25, open: 0.44 }, perPath: null,
+  stop: 4.55, target: 4.84, reach: 0.57, nReach: 9, first: { target: 0.31, stop: 0.25, open: 0.44 },
   reason: null,
 };
 
@@ -202,7 +202,16 @@ describe('AheadSheet', () => {
     for (const kind of ['dash', 'band', 'paths', 'box', 'hatch']) {
       expect(screen.getByTestId(`ahead-legend-${kind}`).querySelector('.ahead-swatch')).not.toBeNull();
     }
-    expect(screen.getByTestId('ahead-legend').textContent).toContain('16 of 200 possible paths');
+    expect(screen.getByTestId('ahead-legend').textContent).toContain('soft cloud = all 200 paths');
+  });
+
+  it("draws scope All's wall touch as a filled diamond in the legend, never the meet's ring", () => {
+    show(sampleScene({ walls: WALLS, legend: [{ swatch: 'marks', text: AHEAD_WORDS.legendMarksCases, cases: true }] }));
+    const row = screen.getByTestId('ahead-legend-marks');
+    expect(row.textContent).toContain('◆ where it first reaches a wall');
+    const diamond = row.querySelector('[data-testid="ahead-swatch-diamond"]');
+    expect(diamond?.getAttribute('fill')).toBe(AHEAD_COLORS.wallAbove);
+    expect(row.querySelector('circle')).toBeNull();
   });
 
   it("carries the exam's status beside every card's AI numbers, in the chart chip's words", () => {

@@ -9,7 +9,6 @@
  *   stop decides; neither by the zone's end is "open". Raw path closes, the same basis as the wall odds.
  */
 import {
-  AHEAD_DRAWN_PATHS,
   AHEAD_FAMILY_WORD,
   AHEAD_FORMING_STATES,
   AHEAD_HORIZON,
@@ -49,6 +48,17 @@ export interface AheadReadIn {
 
 // ---------------------------------------------------------------- which wall first
 
+/** Which wall one path reaches first and at which step index (`at`, -1 with neither): the first close at or over the
+ * wall above, or at or under the wall below. The wall odds and the story paths (`aheadStory.ts`) both count by it. */
+export function wallTouch(path: readonly number[], above: number | null,
+  below: number | null): { side: 'above' | 'below' | null; at: number } {
+  for (let i = 0; i < path.length; i += 1) {
+    if (above !== null && path[i] >= above) return { side: 'above', at: i };
+    if (below !== null && path[i] <= below) return { side: 'below', at: i };
+  }
+  return { side: null, at: -1 };
+}
+
 export function wallFirst(
   paths: readonly (readonly number[])[], above: number | null, below: number | null,
 ): { above: number | null; below: number | null; neither: number } | null {
@@ -57,16 +67,9 @@ export function wallFirst(
   let up = 0;
   let down = 0;
   for (const path of paths) {
-    for (const c of path) {
-      if (above !== null && c >= above) {
-        up += 1;
-        break;
-      }
-      if (below !== null && c <= below) {
-        down += 1;
-        break;
-      }
-    }
+    const side = wallTouch(path, above, below).side;
+    if (side === 'above') up += 1;
+    if (side === 'below') down += 1;
   }
   return {
     above: above === null ? null : up / n,
@@ -102,18 +105,24 @@ export interface TriggerOdds {
   nReach: number;
   reach: number;
   first: { target: number; stop: number; open: number } | null;
-  /** The first `AHEAD_DRAWN_PATHS` paths' outcomes, for colouring the drawn paths. */
-  perPath: AheadPathOutcome[];
+}
+
+/** One path's trade: its outcome, the fill's step index (the first close over the trigger; -1 never) and the exit's
+ * (the first close at or over the target or at or under the stop from the fill on, the fill included; -1 none). The
+ * odds and the story paths (`aheadStory.ts`) both read it. */
+export function pathTrade(path: readonly number[], trigger: number, stop: number,
+  target: number): { outcome: AheadPathOutcome; fill: number; exit: number } {
+  const fill = path.findIndex((c) => c > trigger);
+  if (fill < 0) return { outcome: 'no', fill, exit: -1 };
+  for (let k = fill; k < path.length; k += 1) {
+    if (path[k] >= target) return { outcome: 'target', fill, exit: k };
+    if (path[k] <= stop) return { outcome: 'stop', fill, exit: k };
+  }
+  return { outcome: 'open', fill, exit: -1 };
 }
 
 export function pathOutcome(path: readonly number[], trigger: number, stop: number, target: number): AheadPathOutcome {
-  const fill = path.findIndex((c) => c > trigger);
-  if (fill < 0) return 'no';
-  for (let k = fill; k < path.length; k += 1) {
-    if (path[k] >= target) return 'target';
-    if (path[k] <= stop) return 'stop';
-  }
-  return 'open';
+  return pathTrade(path, trigger, stop, target).outcome;
 }
 
 export function ifTriggers(
@@ -128,7 +137,6 @@ export function ifTriggers(
     first: nReach === 0 ? null : {
       target: count('target') / nReach, stop: count('stop') / nReach, open: count('open') / nReach,
     },
-    perPath: outcomes.slice(0, AHEAD_DRAWN_PATHS),
   };
 }
 
@@ -149,7 +157,7 @@ function complete(v: LevelsIn | null): v is LevelsIn {
 function empty(family: AheadFamily, reason: string, setupType: string | null = null, state: AheadLaneState | null = null): AheadTrigger {
   return {
     family, setupType, state, provisional: state === 'forming', trigger: null, entry: null, stop: null, target: null,
-    reach: null, nReach: null, first: null, perPath: null, reason,
+    reach: null, nReach: null, first: null, reason,
   };
 }
 
@@ -196,7 +204,6 @@ export function triggerRead(
     reach: odds ? odds.reach : null,
     nReach: odds ? odds.nReach : null,
     first: odds ? odds.first : null,
-    perPath: odds ? odds.perPath : null,
     reason: null,
   };
 }

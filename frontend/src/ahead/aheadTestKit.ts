@@ -71,7 +71,8 @@ export function sampleScene(over: Partial<AheadScene> = {}): AheadScene {
       nowText: 'now 09:10' },
     ticks: [{ k: 5, text: '09:15' }, { k: 10, text: '09:20' }, { k: 15, text: '09:25' }],
     fan: Array.from({ length: 15 }, (_, i) => band(i + 1)),
-    paths: [{ points: Array.from({ length: 15 }, () => 5.02), color: '#c7d2fe', alpha: 0.34 }],
+    cloud: [Array.from({ length: 15 }, () => 5.02)],
+    story: [],
     lines: [
       { kind: 'support', fromP: 4.9, slope: 0.01, toSteps: 8, color: '#34d399' },
       { kind: 'resistance', fromP: 5.1, slope: -0.015, toSteps: 8, color: '#ff9f43' },
