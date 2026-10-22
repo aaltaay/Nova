@@ -31,8 +31,8 @@ answers `{schema_version: 1, consent}`. `true` keeps the agreement and starts th
 the reader (what was read stays). `consent`: `{state: "needed" | "given", accepted_at | null, text, cite}` -- `text`
 the rule in the words the Senate site shows (`CONGRESS_CONSENT_TEXT`), `cite` its citation.
 
-Kept in `<cache_dir>/congress/consent.json`: `{schema_version: 1, accepted_at, text_sha1}` (owner
-`congress/consent.py`). A file of another version, an unreadable one, or one whose `text_sha1` is not today's text's
+Kept in `<cache_dir>/congress/consent.json`: `{schema_version: 1, accepted_at, text_sha256}` (owner
+`congress/consent.py`). A file of another version, an unreadable one, or one whose `text_sha256` is not today's text's
 reads as "needed" -- the operator agrees again to the text shown.
 
 ### The reader

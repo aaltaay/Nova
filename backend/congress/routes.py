@@ -88,8 +88,8 @@ def get_trades(ticker: str = ""):
 
 @router.get("/api/congress/photo/{bioguide}")
 def get_photo(bioguide: str):
-    f = photos.file(bioguide)
-    if f is None or not f.exists():
+    f = photos.kept_file(bioguide)
+    if f is None:
         return _bad("bioguide", f"no portrait is kept for {bioguide}", 404, CONGRESS_ERR_NO_PHOTO)
     return FileResponse(f, media_type="image/jpeg", headers={"Cache-Control": "max-age=86400"})
 

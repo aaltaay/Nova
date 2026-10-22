@@ -172,7 +172,7 @@ def test_the_agreement_must_be_to_todays_words():
     assert consent.wire()["state"] == "needed"
     consent.accept(1.0)
     assert consent.wire()["state"] == "given" and consent.wire()["accepted_at"] == 1.0
-    consent.path().write_text('{"schema_version": 1, "accepted_at": 2.0, "text_sha1": "other words"}')
+    consent.path().write_text('{"schema_version": 1, "accepted_at": 2.0, "text_sha256": "other words"}')
     assert consent.given() is False
     consent.accept(3.0)
     consent.withdraw()

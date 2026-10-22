@@ -42,6 +42,11 @@ def file(bioguide: str) -> Path | None:
     return folder() / f"{bioguide}.jpg" if valid(bioguide) else None
 
 
+def kept_file(bioguide: str) -> Path | None:
+    """The kept portrait of one member, found in the folder's own listing -- never a path built from the ask."""
+    return next((p for p in folder().glob("*.jpg") if p.stem == bioguide and valid(p.stem)), None)
+
+
 def has(bioguide: str) -> bool:
     f = file(bioguide)
     return bool(f and f.exists())
