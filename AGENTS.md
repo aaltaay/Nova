@@ -140,6 +140,7 @@ Every confirmed wire and persisted shape lives in `architecture/schema/`, one fi
 | `architecture/schema/volume-profile.md` | Volume profile on the 5-minute chart (ADR 058) |
 | `architecture/schema/heat-map.md` | The heat map on the Trader (ADR 061) |
 | `architecture/schema/ahead.md` | Ahead: the forecast zone on the 1-minute chart (ADR 065) |
+| `architecture/schema/congress.md` | The Congress page (ADR 066) |
 | `architecture/schema/short-selling.md` | Short selling (ADR 048, #778); The short setups on the scanner (ADR 049); The bot trades both sides (ADR 049); Operator trading judgment and Live's day cover (ADR 048, #791) |
 | `architecture/schema/loss-limit.md` | One daily loss limit (ADR 056); Three lines (ADR 063) |
 
@@ -164,6 +165,7 @@ Raw input (`{symbol, previous_close, current_price, gap_percent, volume, timesta
 | CoinGecko, Coinbase Exchange, alternative.me, Hyperliquid, DefiLlama, Deribit (public, keyless) | The Cryptos page's crypto reference data (ADR 040): read-only, each labelled on the page, never a stock or order source | 🧪 Fixture-tested |
 | State Street SPDR holdings files, BEA release dates (public, keyless) | The Market page's sector membership and calendar (ADR 053): never a price source | 🧪 Fixture-tested |
 | ntfy.sh (public, keyless) | The release ping (§8): a hint to ask GitHub now; never an installer, price or order source | 🧪 Fixture-tested |
+| House Clerk, Senate eFD, unitedstates data (public, keyless) | The Congress page (ADR 066): trades, members, photos; never a price source | 🧪 Fixture-tested |
 
 ---
 

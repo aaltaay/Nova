@@ -321,6 +321,9 @@ async def _bootstrap_runtime() -> None:
     from forex_board.refresh import start as start_forex_board
 
     start_forex_board()  # ADR 062: the Forex page's reader, last in line for IBKR
+    from congress.refresh import start as start_congress
+
+    start_congress()  # ADR 066: the Congress page's reader; reads nothing until the operator agrees
     _runtime_tasks = _spawn_runtime_tasks() + perf_tasks
     global _bootstrap_complete
     _bootstrap_complete = True

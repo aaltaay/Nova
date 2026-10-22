@@ -56,6 +56,14 @@ test.describe('Sample desk workspace', () => {
     await expect(forex).toContainText('$9.51T');
     await expect(page.getByTestId('forex-row-EUR')).toBeVisible();
 
+    // The Congress page (ADR 066) opens on the sample desk with both chambers' seats, its members invented.
+    await page.getByTestId('nav-rail-congress').click();
+    const congress = page.getByTestId('congress-page');
+    await expect(congress).toBeVisible();
+    await expect(congress).toContainText('Nova Marketing Sample Data');
+    await expect(page.getByTestId('congress-seats-senate')).toBeVisible();
+    await expect(page.getByTestId('congress-traded-AAPL')).toBeVisible();
+
     // The Global page (ADR 060), under Forex on the rail, opens on the sample desk too.
     await page.getByTestId('nav-rail-global').click();
     const global = page.getByTestId('global-page');

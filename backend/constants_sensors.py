@@ -77,7 +77,8 @@ FOCUS_RECENT_KEEP = 20
 FOCUS_REPORT_MAX_BODY_BYTES = 16384
 FOCUS_MAX_TABS = 40
 FOCUS_MAX_WINDOWS = 16
-FOCUS_PAGES = ("trader", "forex", "global", "market", "scanner", "account", "bots", "records", "cryptos", "followed")
+FOCUS_PAGES = ("trader", "forex", "global", "market", "scanner", "account", "bots", "records", "cryptos", "congress",
+               "followed")
 FOCUS_SYMBOL_SOURCES = ("trader_tab", "scanner_row")
 FOCUS_REASONS = ("start", "focus", "blur", "visibility", "page", "symbol", "input", "heartbeat", "display")
 FOCUS_NOTE = (
