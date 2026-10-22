@@ -72,6 +72,14 @@ def _normal_priority() -> None:
         logger.warning("run_api: could not check the process priority", exc_info=True)
 
 
+def _sync_packages() -> None:
+    """Install requirements.txt when it changed, before anything imports a package it may upgrade:
+    a release that changes the packages updates like any other (package_sync/sync.py)."""
+    from package_sync.sync import sync_packages
+
+    sync_packages()
+
+
 def main() -> None:
     _force_utf8_io()
     _prepare_sys_path()
@@ -94,6 +102,7 @@ def main() -> None:
         from hod_momo_rebuild.worker import main as hod_rebuild_main
 
         raise SystemExit(hod_rebuild_main(sys.argv[1:]))
+    _sync_packages()
     import uvicorn
 
     host = os.environ.get("NOVA_API_HOST", "127.0.0.1")

@@ -49,9 +49,9 @@ a clean `master` (ADR 038 amendment). While the window title reads
 `backend vNNN (older -- ...)`, the notice under the header offers **Restart
 backend now**, or **Pull master and restart**. Either one first lists anything
 a restart would interrupt: recordings, positions, working orders, the bot's
-trade. A dirty checkout, another branch, or a master that changes
-`backend/requirements.txt` is refused with the reason; use the steps above
-then.
+trade. A dirty checkout or another branch is refused with the reason; use
+the steps above then. A release that changes `backend/requirements.txt` needs
+nothing by hand: the backend installs its packages itself when it starts.
 
 ## 2. Cold-restart IB Gateway
 

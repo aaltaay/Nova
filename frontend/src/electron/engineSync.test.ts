@@ -76,10 +76,10 @@ describe('syncToRelease (the backend follows the desk, one version)', () => {
     expect((await syncToRelease(ROOT, 'dev', releaseGit().git)).reason).toBe('the desk does not know its own version');
   });
 
-  it('holds a release that changes the backend packages: a restart would fail without them', async () => {
-    const { git } = releaseGit([[/^diff --name-only/, { code: 0, stdout: 'backend/requirements.txt\n' }]]);
-    expect((await syncToRelease(ROOT, 'v1029', git)).reason)
-      .toMatch(/^v1029 changes backend\/requirements.txt: install the new packages first/);
+  it('follows a release that changes the backend packages: the backend installs them when it starts', async () => {
+    const { git, calls } = releaseGit([[/^diff --name-only/, { code: 0, stdout: 'backend/requirements.txt\n' }]]);
+    expect(await syncToRelease(ROOT, 'v1029', git)).toEqual({ ok: true, pulled: true, from: 'v1025', to: 'v1029', reason: null });
+    expect(calls).toContain(`merge --ff-only --quiet ${SHA}`);
     const offline = releaseGit([[/^fetch/, { code: 128, stderr: 'fatal: unable to access github.com\n' }]]);
     expect((await syncToRelease(ROOT, 'v1029', offline.git)).reason).toBe('git fetch failed: fatal: unable to access github.com');
   });

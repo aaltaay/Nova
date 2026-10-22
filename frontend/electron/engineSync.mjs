@@ -6,8 +6,9 @@
  * when its process restarts, so the two drifted apart (desk v1027 on backend v1025) -- and a pull
  * of master's newest commit put the backend ahead of the desk instead (desk v1050 on backend v1051,
  * whose installer was still being built). So the backend's checkout is brought to exactly the
- * release the desk runs -- its `vNNN` tag, fast-forward only, on a clean master, never when the
- * backend's Python packages change -- and never past it:
+ * release the desk runs -- its `vNNN` tag, fast-forward only, on a clean master -- and never past
+ * it. A release that changes backend/requirements.txt follows like any other: the backend installs
+ * its packages itself when it starts (backend/package_sync, operator report 2026-10-21):
  * - at Restart to update (`prepareForDesk`): the checkout comes to the release being installed,
  *   after the desk listed what a restart would interrupt; once the "Updating Nova" window is up the
  *   backend restarts onto it (`handOffForInstall`), so it comes up while the installer runs, not
@@ -40,8 +41,6 @@ import { ownerRootFromEngine, readEngineOwner, sameRoot, writeEngineOwner } from
 import { engineHome, getJson } from './engineRestart.mjs';
 import { formatReleaseTag } from './releaseTag.mjs';
 
-/** A pull that changes these would start a backend without its packages: install them first. */
-export const ENGINE_SYNC_BLOCKING_FILES = ['backend/requirements.txt'];
 export const RESTART_CHECK_PATH = '/api/diagnostics/restart-check';
 const RESTART_CHECK_TIMEOUT_MS = 5_000;
 const GIT_TIMEOUT_MS = 20_000;
@@ -112,12 +111,6 @@ export async function syncToRelease(root, tag, git = runGit) {
   if (reached.code === 0) return { ok: true, pulled: false, from, to: from, reason: null };
   const behind = await git(root, ['merge-base', '--is-ancestor', 'HEAD', sha]);
   if (behind.code !== 0) return fail('the checkout has commits master does not have', from);
-  const blocking = await git(root, ['diff', '--name-only', 'HEAD', sha, '--', ...ENGINE_SYNC_BLOCKING_FILES]);
-  if (blocking.code !== 0) return fail(`git could not list ${tag}'s changes: ${lastLine(blocking.stderr)}`, from);
-  const files = blocking.stdout.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  if (files.length) {
-    return fail(`${tag} changes ${files.join(', ')}: install the new packages first (docs/live-desk-sync.md)`, from);
-  }
   const merged = await git(root, ['merge', '--ff-only', '--quiet', sha]);
   if (merged.code !== 0) return fail(`git merge failed: ${lastLine(merged.stderr)}`, from);
   return { ok: true, pulled: true, from, to: await checkoutRevision(root, git), reason: null };
