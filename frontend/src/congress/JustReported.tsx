@@ -3,6 +3,7 @@
  * after the trade it was reported; a scanned or paper report says so and links to the filing. Click a row for the
  * member; every report opens on its own site.
  */
+import { TickerLink } from '../components/TickerLink';
 import { PAPER_WORDS } from './constants';
 import { Face, PartyBadge } from './Face';
 import { chamberWord, day, lagClass, rangeText, seat, sideClass, sideWord } from './format';
@@ -18,7 +19,12 @@ function ScanIcon() {
   );
 }
 
-export function JustReported({ rows, year, onOpen }: { rows: ReportRow[]; year: number; onOpen: (bioguide: string) => void }) {
+export function JustReported({ rows, year, onOpen, onOpenTrader }: {
+  rows: ReportRow[];
+  year: number;
+  onOpen: (bioguide: string) => void;
+  onOpenTrader: (symbol: string) => void;
+}) {
   return (
     <section className="cg-card cg-list" data-testid="congress-just-reported">
       <div className="cg-card__head">
@@ -45,7 +51,8 @@ export function JustReported({ rows, year, onOpen }: { rows: ReportRow[]; year: 
                 {r.top ? (
                   <>
                     <b className={sideClass(r.top)}>{sideWord(r.top)}</b>{' '}
-                    {r.top.ticker ?? r.top.asset}{r.top.kind === 'option' ? ' options' : ''} · {rangeText(r.top.amount)}
+                    {r.top.ticker ? <TickerLink symbol={r.top.ticker} onOpen={onOpenTrader} look="own" /> : r.top.asset}
+                    {r.top.kind === 'option' ? ' options' : ''} · {rangeText(r.top.amount)}
                     {r.trades > 1 ? <span className="cg-muted"> · +{r.trades - 1} more</span> : null}
                   </>
                 ) : r.read ? <span className="cg-muted">No transactions listed</span> : <span className="cg-muted">{PAPER_WORDS}</span>}

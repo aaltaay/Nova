@@ -102,12 +102,12 @@ export function SeatsCard({ seats, reported, period, year, onPeriod, onOpen }: {
       </span>
     </div>
   );
-  const side = (id: 'senate' | 'house', ms: Member[], photos: boolean, under: string) => (
+  const side = (id: 'senate' | 'house', ms: Member[], photos: boolean, under: string, underTitle?: string) => (
     <div className="cg-hemi" onMouseLeave={() => setHover(null)}>
       <Chamber id={id} members={ms} reported={shown} photos={photos} onOpen={onOpen}
         onHover={(h) => setHover(h ? { chamber: id, h } : null)} />
       {caption(id === 'senate' ? 'Senate' : 'House', ms, id === 'senate' ? 'senators' : 'members')}
-      <div className="cg-hemi__under">{under}</div>
+      <div className="cg-hemi__under" title={underTitle}>{under}</div>
       {hover?.chamber === id ? (
         <div className="cg-callout" style={{ left: `${(100 * hover.h.x) / W}%`, top: `${(100 * hover.h.y) / H}%` }}
           data-testid="congress-seat-callout">
@@ -120,7 +120,11 @@ export function SeatsCard({ seats, reported, period, year, onPeriod, onOpen }: {
       ) : null}
     </div>
   );
-  const former = seats.former.map((m) => `${m.name} (left ${m.left ?? '?'})`).join(', ');
+  // Filers who left, per chamber: a count under its map, the names on hover.
+  const gone = (chamber: 'senate' | 'house') => seats.former.filter((m) => m.chamber === chamber);
+  const goneWords = (ms: Member[]) => (ms.length ? `+${ms.length} who reported, no longer seated` : '');
+  const goneNames = (ms: Member[]) => ms.map((m) => `${m.name} (left ${m.left ?? '?'})`).join(', ') || undefined;
+  const join = (...parts: string[]) => parts.filter(Boolean).join(' · ');
   return (
     <section className="cg-card cg-seats" data-testid="congress-seats">
       <div className="cg-card__head">
@@ -129,8 +133,11 @@ export function SeatsCard({ seats, reported, period, year, onPeriod, onOpen }: {
         <Seg value={period} options={PERIODS} label={(p) => periodLabel(p, year)} onPick={onPeriod} testId="congress-seats-period" />
       </div>
       <div className="cg-hemis">
-        {side('senate', seats.senate, true, former ? `+ reported, no longer seated: ${former}` : seats.empty.senate ? `${seats.empty.senate} empty seats` : '')}
-        {side('house', seats.house, false, [seats.empty.house ? `${seats.empty.house} empty seats` : '', paperOnly ? `${paperOnly} filed only scanned paper` : ''].filter(Boolean).join(' · '))}
+        {side('senate', seats.senate, true,
+          join(seats.empty.senate ? `${seats.empty.senate} empty seats` : '', goneWords(gone('senate'))), goneNames(gone('senate')))}
+        {side('house', seats.house, false,
+          join(seats.empty.house ? `${seats.empty.house} empty seats` : '', paperOnly ? `${paperOnly} filed only scanned paper` : '',
+            goneWords(gone('house'))), goneNames(gone('house')))}
       </div>
       <div className="cg-legend">
         <span><i className="cg-key cg-key--on" />Photo or bright seat: reported trades</span>

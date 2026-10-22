@@ -108,7 +108,7 @@ export function CongressPage({ onOpenTrader }: { onOpenTrader: (symbol: string) 
   let body;
   if (view.kind === 'member') {
     body = <MemberView bioguide={view.bioguide} year={year} following={prefs.following.includes(view.bioguide)}
-      onToggleFollow={() => follow(view.bioguide)} onBack={back} onTicker={openTicker} />;
+      onToggleFollow={() => follow(view.bioguide)} onBack={back} onTicker={openTicker} onOpenTrader={onOpenTrader} />;
   } else if (view.kind === 'ticker') {
     body = <TickerView ticker={view.ticker} year={year} onBack={back} onOpenMember={openMember} onOpenTrader={onOpenTrader} />;
   } else if (view.kind === 'members' || view.kind === 'following') {
@@ -120,12 +120,12 @@ export function CongressPage({ onOpenTrader }: { onOpenTrader: (symbol: string) 
         <div className="cg-row-a">
           <SeatsCard seats={board.seats} reported={board.reported} period={prefs.seatsPeriod} year={year}
             onPeriod={(p) => setPrefs({ ...prefs, seatsPeriod: p })} onOpen={openMember} />
-          <JustReported rows={board.just_reported} year={year} onOpen={openMember} />
+          <JustReported rows={board.just_reported} year={year} onOpen={openMember} onOpenTrader={onOpenTrader} />
         </div>
         <div className="cg-row-b">
           <MostTraded rows={board.most_traded[prefs.tradedPeriod] ?? []} period={prefs.tradedPeriod} year={year}
             from={board.periods[prefs.tradedPeriod].from} byBio={byBio}
-            onPeriod={(p) => setPrefs({ ...prefs, tradedPeriod: p })} onTicker={openTicker} />
+            onPeriod={(p) => setPrefs({ ...prefs, tradedPeriod: p })} onTicker={openTicker} onOpenTrader={onOpenTrader} />
           <div className="cg-col">
             <MostActive rows={board.most_active} total={totalMembers} onOpen={openMember} onAll={() => setView({ kind: 'members' })} />
             <LagCard lag={board.lag} />

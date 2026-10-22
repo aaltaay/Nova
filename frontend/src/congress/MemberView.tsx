@@ -10,13 +10,14 @@ import { chamberWord, day, lagClass, seat } from './format';
 import { WeekBars } from './MostActive';
 import { TradeTable } from './TradeTable';
 
-export function MemberView({ bioguide, year, following, onToggleFollow, onBack, onTicker }: {
+export function MemberView({ bioguide, year, following, onToggleFollow, onBack, onTicker, onOpenTrader }: {
   bioguide: string;
   year: number;
   following: boolean;
   onToggleFollow: () => void;
   onBack: () => void;
   onTicker: (ticker: string) => void;
+  onOpenTrader: (symbol: string) => void;
 }) {
   const { data, error, missing } = useCongressMember(bioguide);
   const back = <button type="button" className="cg-back" onClick={onBack} data-testid="congress-back">‹ Congress</button>;
@@ -59,13 +60,13 @@ export function MemberView({ bioguide, year, following, onToggleFollow, onBack, 
         </div>
         <div className="cg-member__weeks">
           <span className="cg-muted cg-small">Trades by week since {day(data.weeks.from, year)} · bought up, sold down</span>
-          <WeekBars weeks={data.weeks} width={900} height={64} />
+          <WeekBars weeks={data.weeks} width={900} height={64} stretch />
         </div>
       </section>
       <section className="cg-card">
         <div className="cg-card__head"><h3 className="cg-card__title">Every trade</h3>
           <span className="cg-card__source">{data.trades.length} in the reports Nova read · newest report first</span></div>
-        <TradeTable trades={data.trades} year={year} onTicker={onTicker} />
+        <TradeTable trades={data.trades} year={year} onTicker={onTicker} onOpenTrader={onOpenTrader} />
       </section>
       <section className="cg-card">
         <div className="cg-card__head"><h3 className="cg-card__title">Reports</h3></div>

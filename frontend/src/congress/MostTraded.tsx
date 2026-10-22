@@ -4,6 +4,7 @@
  * bars (the desk's one price source). Click a stock for everyone who traded it.
  */
 import { useMemo } from 'react';
+import { TickerLink } from '../components/TickerLink';
 import { usePeriodMoves } from './api';
 import { periodLabel, PERIODS } from './constants';
 import { FaceStack } from './Face';
@@ -19,7 +20,7 @@ function tileColor(ticker: string): string {
   return TILE_COLORS[h % TILE_COLORS.length];
 }
 
-export function MostTraded({ rows, period, year, from, byBio, onPeriod, onTicker }: {
+export function MostTraded({ rows, period, year, from, byBio, onPeriod, onTicker, onOpenTrader }: {
   rows: Traded[];
   period: Period;
   year: number;
@@ -27,6 +28,7 @@ export function MostTraded({ rows, period, year, from, byBio, onPeriod, onTicker
   byBio: Map<string, Member>;
   onPeriod: (p: Period) => void;
   onTicker: (ticker: string) => void;
+  onOpenTrader: (symbol: string) => void;
 }) {
   const tickers = useMemo(() => rows.map((r) => r.ticker), [rows]);
   const moves = usePeriodMoves(tickers, from);
@@ -51,7 +53,7 @@ export function MostTraded({ rows, period, year, from, byBio, onPeriod, onTicker
             onKeyDown={(e) => { if (e.key === 'Enter') onTicker(r.ticker); }} data-testid={`congress-traded-${r.ticker}`}>
             <span className="cg-mt__sym">
               <span className="cg-tile" style={{ background: tileColor(r.ticker) }}>{r.ticker.slice(0, 5)}</span>
-              <span><b>{r.ticker}</b><small>{r.asset}</small></span>
+              <span><b><TickerLink symbol={r.ticker} onOpen={onOpenTrader} look="own" /></b><small>{r.asset}</small></span>
             </span>
             <span className="cg-mt__side is-left">
               <FaceStack members={faces(r.sellers)} ring="#ff453a" />

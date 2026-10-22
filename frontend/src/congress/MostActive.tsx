@@ -7,13 +7,20 @@ import { chamberWord, lagClass, seat } from './format';
 import type { Active, Weeks } from './types';
 
 /** Weekly bars: buys above the line (green), sells below (red). */
-export function WeekBars({ weeks, width = 150, height = 30 }: { weeks: Weeks; width?: number; height?: number }) {
+export function WeekBars({ weeks, width = 150, height = 30, stretch = false }: {
+  weeks: Weeks;
+  width?: number;
+  height?: number;
+  /** Fill the box it is in (a member's page), the bars widening with it. */
+  stretch?: boolean;
+}) {
   const top = Math.max(1, ...weeks.buy, ...weeks.sell);
   const n = weeks.buy.length || 1;
   const bw = width / n;
   const mid = height / 2;
   return (
-    <svg className="cg-weeks" width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden>
+    <svg className={`cg-weeks${stretch ? ' cg-weeks--stretch' : ''}`} width={stretch ? undefined : width} height={height}
+      viewBox={`0 0 ${width} ${height}`} preserveAspectRatio={stretch ? 'none' : undefined} aria-hidden>
       <line x1={0} x2={width} y1={mid} y2={mid} stroke="rgba(255,255,255,.16)" />
       {weeks.buy.map((b, i) =>
         b ? <rect key={`b${i}`} x={i * bw + 1} y={mid - Math.max(1.5, ((mid - 1) * b) / top)} width={Math.max(1, bw - 2)}

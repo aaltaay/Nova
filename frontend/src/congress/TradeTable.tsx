@@ -3,17 +3,19 @@
  * filing says (a range, never a price), whose account, the filer's own words, and the filing itself. Gifts read
  * "Gift", never a sale. With `withMember`, each row names its member (a stock's page, Following).
  */
+import { TickerLink } from '../components/TickerLink';
 import { Face } from './Face';
 import { day, lagClass, rangeText, sideClass, sideWord } from './format';
 import { OWNER_WORD } from './constants';
 import type { Trade } from './types';
 
-export function TradeTable({ trades, year, withMember = false, onOpenMember, onTicker, limit }: {
+export function TradeTable({ trades, year, withMember = false, onOpenMember, onTicker, onOpenTrader, limit }: {
   trades: Trade[];
   year: number;
   withMember?: boolean;
   onOpenMember?: (bioguide: string) => void;
   onTicker?: (ticker: string) => void;
+  onOpenTrader?: (symbol: string) => void;
   limit?: number;
 }) {
   const shown = limit ? trades.slice(0, limit) : trades;
@@ -42,10 +44,11 @@ export function TradeTable({ trades, year, withMember = false, onOpenMember, onT
               ) : null}
               <td className="cg-nowrap">{day(t.tx, year)}</td>
               <td>
-                {t.ticker ? (
-                  <button type="button" className="cg-ticker" onClick={() => onTicker?.(t.ticker as string)}>{t.ticker}</button>
-                ) : null}
-                <span className="cg-asset">{t.asset}</span>
+                {t.ticker ? <TickerLink symbol={t.ticker} onOpen={onOpenTrader} className="cg-ticker" look="own" /> : null}
+                {t.ticker && onTicker ? (
+                  <button type="button" className="cg-asset cg-asset--link" onClick={() => onTicker(t.ticker as string)}
+                    title={`Every member who reported ${t.ticker}`}>{t.asset}</button>
+                ) : <span className="cg-asset">{t.asset}</span>}
               </td>
               <td className="cg-nowrap">
                 <b className={sideClass(t)}>{sideWord(t)}</b>

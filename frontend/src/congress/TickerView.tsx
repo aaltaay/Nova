@@ -2,6 +2,7 @@
  * A stock's page (ADR 066): every member who reported trading it -- who bought, who sold, each trade as filed -- and
  * the stock itself one click away in the Trader (IBKR's chart).
  */
+import { TickerLink } from '../components/TickerLink';
 import { useCongressTicker } from './api';
 import { FaceStack } from './Face';
 import { TradeTable } from './TradeTable';
@@ -27,9 +28,9 @@ export function TickerView({ ticker, year, onBack, onOpenMember, onOpenTrader }:
       {back}
       <section className="cg-card cg-member">
         <div className="cg-member__head">
-          <span className="cg-tile cg-tile--big">{ticker.slice(0, 5)}</span>
+          <span className="cg-tile cg-tile--big"><TickerLink symbol={ticker} onOpen={onOpenTrader} look="own" /></span>
           <div className="cg-member__who">
-            <h2>{ticker}</h2>
+            <h2><TickerLink symbol={ticker} onOpen={onOpenTrader} look="own" /></h2>
             <div className="cg-muted">{data.asset ?? 'No asset name in the reports'}</div>
             <div className="cg-tk-who">
               <span><b className="is-up">{data.buyers.length}</b> bought <FaceStack members={faces(data.buyers)} ring="#30d158" n={8} /></span>
@@ -42,9 +43,9 @@ export function TickerView({ ticker, year, onBack, onOpenMember, onOpenTrader }:
         </div>
       </section>
       <section className="cg-card">
-        <div className="cg-card__head"><h3 className="cg-card__title">Every report of {ticker}</h3>
+        <div className="cg-card__head"><h3 className="cg-card__title">Every report of <TickerLink symbol={ticker} onOpen={onOpenTrader} look="own" /></h3>
           <span className="cg-card__source">{data.trades.length} trades · newest report first</span></div>
-        <TradeTable trades={data.trades} year={year} withMember onOpenMember={onOpenMember} />
+        <TradeTable trades={data.trades} year={year} withMember onOpenMember={onOpenMember} onOpenTrader={onOpenTrader} />
       </section>
     </div>
   );

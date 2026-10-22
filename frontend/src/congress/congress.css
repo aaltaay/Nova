@@ -72,7 +72,8 @@
 .cg-seg { display: inline-flex; border: 1px solid var(--nova-border); border-radius: 7px; overflow: hidden; flex: none; }
 .cg-seg button { font: inherit; font-size: 11.5px; padding: 3px 10px; color: var(--nova-text-muted); background: none; border: 0; cursor: pointer; }
 .cg-seg button.is-on { background: rgba(10, 132, 255, 0.3); color: var(--nova-text); }
-.cg-row-a { display: grid; grid-template-columns: minmax(0, 1.62fr) minmax(0, 1fr); gap: 10px; min-height: 470px; flex: none; }
+.cg-row-a { display: grid; grid-template-columns: minmax(0, 1.62fr) minmax(0, 1fr); gap: 10px; height: 476px; flex: none; }
+.cg-row-a > .cg-list { overflow-y: auto; }
 .cg-row-b { display: grid; grid-template-columns: minmax(0, 1.62fr) minmax(0, 1fr); gap: 10px; flex: 1 0 auto; min-height: 420px; }
 .cg-col { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
 
@@ -182,7 +183,7 @@
 .cg-member__who { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .cg-member__who h2 { margin: 0; font-size: 26px; display: flex; align-items: center; gap: 10px; }
 .cg-member__weeks { display: flex; flex-direction: column; gap: 4px; }
-.cg-member__weeks .cg-weeks { width: 100%; height: 64px; }
+.cg-weeks--stretch { width: 100%; height: 64px; }
 .cg-follow { margin-left: auto; align-self: flex-start; height: 32px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--nova-border);
   background: none; color: var(--nova-text); font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .cg-follow.is-on { color: #ffd60a; border-color: rgba(255, 214, 10, 0.45); }
@@ -201,7 +202,9 @@
 .cg-table td { padding: 7px 8px; border-bottom: 1px solid var(--cg-line); vertical-align: middle; }
 .cg-table .r { text-align: right; }
 .cg-words { color: var(--nova-text-muted); max-width: 420px; }
-.cg-asset { display: block; font-size: 11.5px; color: var(--nova-text-muted); max-width: 260px; }
+.cg-asset { display: block; font-size: 11.5px; color: var(--nova-text-muted); max-width: 260px; text-align: left; }
+.cg-asset--link { font: inherit; font-size: 11.5px; background: none; border: 0; padding: 0; cursor: pointer; }
+.cg-asset--link:hover { color: #0a84ff; }
 .cg-ticker { font: inherit; font-weight: 700; color: var(--nova-text); background: none; border: 0; padding: 0; cursor: pointer; }
 .cg-ticker:hover { color: #0a84ff; }
 .cg-tag { margin-left: 6px; font-size: 9.5px; font-weight: 700; letter-spacing: 0.05em; padding: 1px 5px; border-radius: 4px;
