@@ -37,7 +37,13 @@ CI-completion sweep (`sweep`), and a manual `workflow_dispatch`.
    than the floor. The signal is the reviewer's summary comment -- untrusted
    bot markdown, matched and never executed -- and anything unrecognised
    reads as "not running", so a reviewer that changes format or disappears
-   can never wedge delivery shut.
+   can never wedge delivery shut. The wait is capped at
+   `REVIEW_STALE_SECONDS` (30 minutes) from the row's own `<relative-time
+   datetime>` "Running since" stamp; past it, or with no readable stamp, the
+   review reads as not running and the run's log prints `#N review_stale on
+   <sha>: ...; not waiting on it`. On 2026-10-22 a summary that said "Running"
+   for ten hours held a green #1140 (`#1140 wait review_running` every sweep):
+   a reviewer that never finishes is one that broke without saying so.
 
 Neither gate reads what a review concluded. `WAIT`, never `BLOCK`: a later
 sweep merges it, and CI completing fires one.
@@ -84,6 +90,8 @@ merges; missing commit data falls back to the PR's age; a settled PR still
 waits on a running review; the merge job waits the floor out and merges in
 the same run, and that wait is capped when the head keeps moving; a held PR
 never waits; an unknown age never holds; a zero floor restores instant merge;
+a running review waits only under the 30-minute cap, an unreadable start
+time never holds, and skipping a stuck review is logged;
 the PR query asks for `createdAt` and `commits`. A change to merge timing
 changes those tests first.
 

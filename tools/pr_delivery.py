@@ -34,6 +34,7 @@ try:
         MIN_PR_AGE_SECONDS,
         head_age_seconds,
         review_in_flight,
+        stale_review_note,
         too_young,
     )
 except ImportError:  # `python tools/pr_delivery.py` puts tools/ on sys.path
@@ -46,6 +47,7 @@ except ImportError:  # `python tools/pr_delivery.py` puts tools/ on sys.path
         MIN_PR_AGE_SECONDS,
         head_age_seconds,
         review_in_flight,
+        stale_review_note,
         too_young,
     )
 
@@ -205,6 +207,10 @@ def _decision_from_pr(
 ) -> Decision:
     head_repo = pr.get("headRepository") or {}
     head_owner = pr.get("headRepositoryOwner") or {}
+    # A review stuck on "running" reads as not running; say so in the run's log.
+    note = stale_review_note(pr)
+    if note:
+        print(f"#{pr.get('number')} {note}")
     return decide(
         draft=bool(pr.get("isDraft")),
         state=str(pr.get("state") or "OPEN"),

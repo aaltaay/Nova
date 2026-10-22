@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -21,10 +22,13 @@ from tools import pr_delivery
 from tools.pr_delivery import ACTION_MERGE, ACTION_SKIP, ACTION_WAIT, decide
 from tools.pr_review_status import (
     MIN_PR_AGE_SECONDS,
+    REVIEW_STALE_SECONDS,
     head_age_seconds,
     pr_age_seconds,
+    review_ages,
     review_in_flight,
     review_running,
+    stale_review_note,
     too_young,
 )
 
@@ -43,6 +47,15 @@ RUNNING = """<!-- codex-pull-request-review-summary -->
 
 COMPLETED = RUNNING.replace(
     "\U0001f504 **Running** since", "✅ **Completed** ")
+
+STARTED = datetime(2026, 9, 20, 14, 51, 9, tzinfo=timezone.utc)
+# Two minutes into the review above: the moment the in-flight gate exists for.
+WHILE_RUNNING = STARTED + timedelta(minutes=2)
+
+
+def running_since(stamp: str) -> str:
+    """The captured summary with its "Running since" stamp replaced."""
+    return RUNNING.replace("2026-09-20T14:51:09Z", stamp)
 
 
 def _green() -> list[dict]:
@@ -67,17 +80,17 @@ def _decide(**over):
 
 
 def test_a_review_running_on_this_head_is_in_flight():
-    assert review_running([RUNNING], head_sha=HEAD) is True
+    assert review_running([RUNNING], head_sha=HEAD, now=WHILE_RUNNING) is True
 
 
 def test_a_finished_review_is_not_in_flight():
-    assert review_running([COMPLETED], head_sha=HEAD) is False
+    assert review_running([COMPLETED], head_sha=HEAD, now=WHILE_RUNNING) is False
 
 
 def test_a_review_of_a_superseded_commit_is_not_in_flight():
     # The branch was pushed after that review started. Holding the PR on it
     # would wait forever for a verdict on code nobody is merging.
-    assert review_running([RUNNING], head_sha=OTHER) is False
+    assert review_running([RUNNING], head_sha=OTHER, now=WHILE_RUNNING) is False
 
 
 def test_ordinary_comments_are_not_reviews():
@@ -95,7 +108,7 @@ def test_nothing_recognisable_never_holds_a_pr():
 
 
 def test_an_unknown_head_never_holds_a_pr():
-    assert review_running([RUNNING], head_sha="") is False
+    assert review_running([RUNNING], head_sha="", now=WHILE_RUNNING) is False
 
 
 # --------------------------------------------------------------------------
@@ -247,7 +260,7 @@ def test_both_paths_merge_a_settled_pr(monkeypatch):
 def test_a_settled_pr_still_waits_on_a_running_review(monkeypatch):
     # The backstop for a review slower than the floor.
     merged = wire(monkeypatch, pr_payload(created_at="2026-01-01T00:00:00Z",
-                                          comments=[RUNNING]))
+                                          comments=[running_since(fresh())]))
     assert pr_delivery.cmd_sweep() == 0
     assert merged == []
 
@@ -296,8 +309,10 @@ def test_missing_commit_data_falls_back_to_the_prs_own_age():
 
 
 def test_review_in_flight_reads_a_pr_payload():
-    assert review_in_flight(pr_payload(created_at="x", comments=[RUNNING])) is True
-    assert review_in_flight(pr_payload(created_at="x", comments=[COMPLETED])) is False
+    assert review_in_flight(pr_payload(created_at="x", comments=[RUNNING]),
+                            now=WHILE_RUNNING) is True
+    assert review_in_flight(pr_payload(created_at="x", comments=[COMPLETED]),
+                            now=WHILE_RUNNING) is False
 
 
 # --------------------------------------------------------------------------
@@ -347,3 +362,90 @@ def test_a_held_pr_does_not_wait_at_all(monkeypatch):
     merged = wire(monkeypatch, pr_payload(created_at=fresh(), draft=True))
     assert pr_delivery.cmd_merge(411, wait_desktop_minutes=0) == 0
     assert merged == [] and clock["t"] == 1000.0
+
+
+# --------------------------------------------------------------------------
+# a review stuck on "running" (#1140)
+#
+# On 2026-10-22 the reviewer's summary on #1140 read "Running since 05:30:17Z"
+# for more than ten hours while every required check was green, and each sweep
+# logged `#1140 wait review_running`. The module promises that a reviewer that
+# breaks can never wedge delivery shut; a run that never finishes is one.
+
+# Captured verbatim from the reviewer's summary row on #1140: note the
+# fractional seconds in the stamp.
+RUNNING_1140 = """<!-- codex-pull-request-review-summary -->
+
+| Review | Status | Commit | Review trigger |
+| --- | --- | --- | --- |
+| 📝 **Code Review** | 🔄 **Running** since <relative-time datetime="2026-10-22T05:30:17.770448Z">2026-10-22T05:30:17.770448Z</relative-time> | `39d0e8a` | PR opened |
+"""
+HEAD_1140 = "39d0e8a3d86eed449fd48e3dc31dad8f250d7d1c"
+
+
+def test_a_recent_running_review_still_waits():
+    now = datetime(2026, 10, 22, 5, 33, tzinfo=timezone.utc)
+    assert review_running([RUNNING_1140], head_sha=HEAD_1140, now=now) is True
+    pr = pr_payload(created_at="2026-10-22T05:00:00Z", comments=[RUNNING_1140])
+    pr["headRefOid"] = HEAD_1140
+    assert _decide(review_in_flight=review_in_flight(pr, now=now)).reason == "review_running"
+    assert stale_review_note(pr, now=now) == ""
+
+
+def test_a_review_running_past_the_cap_merges():
+    now = datetime(2026, 10, 22, 15, 18, tzinfo=timezone.utc)   # the symptom
+    assert review_running([RUNNING_1140], head_sha=HEAD_1140, now=now) is False
+    pr = pr_payload(created_at="2026-10-22T05:00:00Z", comments=[RUNNING_1140])
+    pr["headRefOid"] = HEAD_1140
+    assert _decide(review_in_flight=review_in_flight(pr, now=now)).action == ACTION_MERGE
+
+
+def test_the_cap_is_measured_from_the_reviews_own_start():
+    just_under = STARTED + timedelta(seconds=REVIEW_STALE_SECONDS - 1)
+    at_cap = STARTED + timedelta(seconds=REVIEW_STALE_SECONDS)
+    assert review_running([RUNNING], head_sha=HEAD, now=just_under) is True
+    assert review_running([RUNNING], head_sha=HEAD, now=at_cap) is False
+
+
+def test_the_cap_is_well_past_every_measured_review():
+    # Reviews took 2-4 minutes; the cap is a broken reviewer, not a slow one,
+    # and it must still clear before the next hourly sweep.
+    assert 10 * 60 <= REVIEW_STALE_SECONDS <= 60 * 60
+
+
+def test_an_unreadable_start_time_never_holds_a_pr():
+    for since in ("", "yesterday", "2026-13-45T99:99:99Z"):
+        assert review_running([running_since(since)], head_sha=HEAD,
+                              now=WHILE_RUNNING) is False
+    no_stamp = RUNNING.replace('<relative-time datetime="2026-09-20T14:51:09Z">x</relative-time>', "")
+    assert review_ages([no_stamp], head_sha=HEAD, now=WHILE_RUNNING) == [None]
+    assert review_running([no_stamp], head_sha=HEAD, now=WHILE_RUNNING) is False
+
+
+def test_a_stuck_run_on_another_head_is_ignored_as_before():
+    now = datetime(2026, 10, 22, 5, 33, tzinfo=timezone.utc)
+    assert review_ages([RUNNING_1140], head_sha=OTHER, now=now) == []
+    assert review_running([RUNNING_1140], head_sha=OTHER, now=now) is False
+    pr = pr_payload(created_at="x", comments=[RUNNING_1140])    # head is HEAD
+    assert stale_review_note(pr, now=now) == ""
+
+
+def test_skipping_a_stale_review_is_said_not_silent():
+    now = datetime(2026, 10, 22, 15, 18, tzinfo=timezone.utc)
+    pr = pr_payload(created_at="x", comments=[RUNNING_1140])
+    pr["headRefOid"] = HEAD_1140
+    note = stale_review_note(pr, now=now)
+    assert note.startswith("review_stale on 39d0e8a")
+    assert "running 588 min" in note and "cap 30 min" in note
+    unreadable = pr_payload(created_at="x", comments=[running_since("garbage")])
+    assert "start time unreadable" in stale_review_note(unreadable, now=WHILE_RUNNING)
+
+
+def test_the_sweep_merges_past_a_stuck_review_and_logs_it(monkeypatch, capsys):
+    stuck = (datetime.now(timezone.utc) - timedelta(hours=10)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    merged = wire(monkeypatch, pr_payload(created_at="2026-01-01T00:00:00Z",
+                                          comments=[running_since(stuck)]))
+    assert pr_delivery.cmd_sweep() == 0
+    assert len(merged) == 1
+    out = capsys.readouterr().out
+    assert "#410 review_stale on 747985a" in out and "#410 merge ready" in out
