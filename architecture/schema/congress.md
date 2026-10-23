@@ -15,8 +15,10 @@ bot.
 **What is real.** Every trade is a row of a member's Periodic Transaction Report, read from the House Clerk's or the
 Senate eFD's own site (never an aggregator). An amount is the range the report states; a share count, option or price
 appears only as the filer's own words (`description`). A scanned or paper report is listed with its link, never read.
-Members, committees and photos are the public-domain `unitedstates/congress-legislators` and `unitedstates/images`
-data. The one price on the page, a stock's move beside "Most traded", is IBKR's daily bars through the existing
+Members and committees are the public-domain `unitedstates/congress-legislators` data. Every member's photo comes
+from one source, the Biographical Directory of the United States Congress (`bioguide.congress.gov`, kept by the House
+and Senate historians) -- the official record the bioguide id itself belongs to (operator ask, 2026-10-23: "each
+person has their official photo ... from a single source, the source of truth"). The one price on the page, a stock's move beside "Most traded", is IBKR's daily bars through the existing
 `GET /api/ticker/{symbol}/bars?timeframe=1Day` (no new route). Dates are `YYYY-MM-DD` (the report's own, Eastern);
 times are epoch seconds; money is US dollars.
 
@@ -55,9 +57,16 @@ the agreement is given and `NOVA_CONGRESS` is not `0`. It keeps the current and 
 - **Members and photos** (`congress/roster.py`, `congress/photos.py`): `legislators-current.json` and
   `committees-current.json` / `committee-membership-current.json` from `https://unitedstates.github.io/
   congress-legislators/` every `CONGRESS_ROSTER_MAX_AGE_SEC` (a day), `legislators-historical.json` only while a filer
-  is unmatched (at most weekly). Portraits: `https://unitedstates.github.io/images/congress/225x275/<BIOGUIDE>.jpg`,
-  else `https://bioguide.congress.gov/bioguide/photo/<L>/<BIOGUIDE>.jpg`; a member with neither is asked again after
-  `CONGRESS_PHOTO_RETRY_SEC` (a week). Photos of members who reported come first, then every current member.
+  is unmatched (at most weekly). Portraits: `https://bioguide.congress.gov/photo/<BIOGUIDE>.jpg` and nowhere else
+  (`CONGRESS_PHOTO_URL`; no fallback, so a face is never a second source's picture). Only a real JPEG under
+  `CONGRESS_MAX_PHOTO_BYTES` (6 MB) declaring at most `CONGRESS_MAX_PHOTO_PIXELS` is decoded; it is kept shrunk to fit
+  `CONGRESS_PHOTO_BOX` (240 x 300; the Bioguide's are about 1000 x 1250, up to 1.4 MB). A 404 or an answer that is not
+  a JPEG is the member's miss, asked again after `CONGRESS_PHOTO_RETRY_SEC` (a day: a new member's portrait arrives
+  weeks after their record); any other failure is the site's -- the source shows `failing` and every portrait waits
+  `CONGRESS_RETRY_SEC`. A kept portrait is asked again after `CONGRESS_PHOTO_MAX_AGE_SEC` (30 days), after the members
+  without one, so a new official portrait replaces it. Photos of members who reported come first, then every current
+  member. An unread report and a portrait take turns, so faces arrive while a long first read goes on; from 09:30 to
+  16:00 ET a portrait waits the same `CONGRESS_SESSION_GAP_SEC` as a report.
 - **Cadence:** the House index and the Senate search every `CONGRESS_POLL_SEC` (an hour); after a failure,
   `CONGRESS_RETRY_SEC`. A report already read is not read again unless it was read by an older parser
   (`CONGRESS_PARSER_VERSION`). A failure is stated per source, never hidden; what was read stays.
@@ -111,8 +120,10 @@ All under `<cache_dir>/congress/`; none is a source of truth -- a lost file is r
 - `consent.json` (above), `roster.json` (owner `congress/roster.py`): `{schema_version: 1, read_at,
   historical_read_at, members: [{bioguide, name, first, last, nickname, party, caucus, state, district, chamber,
   current, left, committees: [name]}]}`; another version reads as absent (read again).
-- `photos/<BIOGUIDE>.jpg`, `photos/misses.json` (owner `congress/photos.py`): `{schema_version: 1, misses: {bioguide:
-  asked_at}}`; another version reads as no misses.
+- `photos/<BIOGUIDE>.jpg` (the face, JPEG) and `photos/index.json` (owner `congress/photos.py`): `{schema_version: 2,
+  source: CONGRESS_PHOTO_URL, kept: {bioguide: fetched_at}, misses: {bioguide: asked_at}}`. Only a portrait the index
+  keeps is served: another version, another `source`, or a file it does not list (a `unitedstates/images` portrait
+  beside the retired version 1 `misses.json`) reads as not kept, and the member is asked for again.
 
 ### Routes (read-only but the agreement; none waits on a site)
 
@@ -159,8 +170,8 @@ report: `{id, chamber, filed, kind, read, error, url, amends, amended_by, trades
 `GET /api/congress/trades?ticker=AAPL` -- `{schema_version: 1, generated_at, ticker, asset, buyers, sellers, trades[]}`
 (each trade with its `member`); `ticker` 1-10 of `A-Z0-9.-`, else 400.
 
-`GET /api/congress/photo/{bioguide}` -- the kept portrait (`image/jpeg`), or 404 `CONGRESS_NO_PHOTO`; never fetched
-on the request.
+`GET /api/congress/photo/{bioguide}` -- the kept portrait (`image/jpeg`, the Bioguide's), or 404 `CONGRESS_NO_PHOTO`;
+never fetched on the request.
 
 ### The page
 

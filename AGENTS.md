@@ -165,7 +165,7 @@ Raw input (`{symbol, previous_close, current_price, gap_percent, volume, timesta
 | CoinGecko, Coinbase Exchange, alternative.me, Hyperliquid, DefiLlama, Deribit (public, keyless) | The Cryptos page's crypto reference data (ADR 040): read-only, each labelled on the page, never a stock or order source | 🧪 Fixture-tested |
 | State Street SPDR holdings files, BEA release dates (public, keyless) | The Market page's sector membership and calendar (ADR 053): never a price source | 🧪 Fixture-tested |
 | ntfy.sh (public, keyless) | The release ping (§8): a hint to ask GitHub now; never an installer, price or order source | 🧪 Fixture-tested |
-| House Clerk, Senate eFD, unitedstates data (public, keyless) | The Congress page (ADR 066): trades, members, photos; never a price source | 🧪 Fixture-tested |
+| House Clerk, Senate eFD, Bioguide, unitedstates data (public, keyless) | The Congress page (ADR 066): trades, members, photos; never a price source | 🧪 Fixture-tested |
 
 ---
 

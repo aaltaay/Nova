@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 import pytest
 import requests
 from fastapi import FastAPI
+from PIL import Image
 from fastapi.testclient import TestClient
 
 from congress import consent, house_pdf, refresh, roster
@@ -19,7 +20,13 @@ from congress.store import Store
 SATURDAY = datetime(2026, 10, 17, 12, 0, tzinfo=ZoneInfo("America/New_York")).timestamp()
 UUID_E = "0541be4f-4f96-4d84-8d6f-d349f218bb2a"
 UUID_P = "1111be4f-4f96-4d84-8d6f-d349f218bb2a"
-JPEG = b"\xff\xd8\xff\xe0" + b"0" * 64
+def portrait(size=(1000, 1250)) -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGB", size, (90, 110, 140)).save(buf, "JPEG")
+    return buf.getvalue()
+
+
+JPEG = portrait()
 HOUSE_TEXT = ("ID Owner Asset Transaction\nType\nDate Notification\nDate\nAmount Cap.\nGains >\n$200?\n"
               "SP Example Corp - Common Stock\n(EXC) [ST]\nP 09/18/202610/09/2026$1,001 - $15,000\nF S : New\n"
               "* For the complete list of asset type abbreviations\n")
@@ -140,7 +147,8 @@ def test_the_reader_reads_both_chambers_after_the_agreement(net):
     urls = [u for _, u in net.calls]
     assert urls.index(CONGRESS_ROSTER_BASE + "legislators-current.json") < urls.index(next(u for u in urls if "FD.zip" in u))
     assert not any("8212345.pdf" in u for u in urls)                              # a scanned report is never downloaded
-    assert any(u.endswith("/S000001.jpg") for u in urls)
+    assert "https://bioguide.congress.gov/photo/S000001.jpg" in urls             # every portrait from one source
+    assert not any("unitedstates.github.io/images" in u for u in urls)
 
 
 def test_a_restart_reads_nothing_twice(net):
@@ -215,9 +223,12 @@ def test_a_kept_photo_is_served(client):
     from congress import photos
 
     assert client.get("/api/congress/photo/S000001").status_code == 404
-    photos.file("S000001").write_bytes(JPEG)
+    photos.file("S000001").write_bytes(JPEG)                                    # a file the index never kept
+    assert client.get("/api/congress/photo/S000001").status_code == 404
+    assert photos.fetch(FakeNet(), "S000001", SATURDAY) is True
     got = client.get("/api/congress/photo/S000001")
-    assert got.status_code == 200 and got.headers["content-type"] == "image/jpeg" and got.content == JPEG
+    assert got.status_code == 200 and got.headers["content-type"] == "image/jpeg"
+    assert Image.open(io.BytesIO(got.content)).size == (240, 300)               # shrunk to the page's face size
 
 
 class OneFailingPdf(FakeNet):

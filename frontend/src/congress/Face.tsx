@@ -1,6 +1,6 @@
 /**
- * A member's face (ADR 066): the official portrait the desk keeps, or their initials when none is kept -- said as
- * such on hover, never a stand-in picture. The party badge beside a name.
+ * A member's face (ADR 066): the official portrait the desk keeps from the Biographical Directory of Congress, or their
+ * initials when none is kept yet -- said as such on hover, never a stand-in picture. The party badge beside a name.
  */
 import { useState } from 'react';
 import { API_BASE_URL } from '../constants';
@@ -28,6 +28,8 @@ export function Face({ member, name, size = 34, ring = null, testId }: FaceProps
         alt={label}
         title={label}
         style={style}
+        loading="lazy"
+        decoding="async"
         onError={() => setBroken(true)}
         data-testid={testId}
       />
@@ -37,7 +39,7 @@ export function Face({ member, name, size = 34, ring = null, testId }: FaceProps
     <span
       className="cg-face cg-face--initials"
       style={{ ...style, fontSize: Math.round(size * 0.36) }}
-      title={`${label} -- no official portrait kept`}
+      title={`${label} -- no official portrait kept yet (Biographical Directory of Congress)`}
       data-testid={testId}
     >
       {initials(label)}

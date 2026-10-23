@@ -10,6 +10,7 @@ import threading
 from dataclasses import asdict, dataclass
 
 from congress import trades as trade_rules
+from congress.constants_congress import CONGRESS_PHOTO_SOURCE
 
 
 @dataclass
@@ -88,7 +89,7 @@ SOURCES = {
     "house": ("House Clerk", "https://disclosures-clerk.house.gov/FinancialDisclosure"),
     "senate": ("Senate eFD", "https://efdsearch.senate.gov/search/"),
     "roster": ("Members (unitedstates/congress-legislators)", "https://github.com/unitedstates/congress-legislators"),
-    "photos": ("Official portraits (unitedstates/images)", "https://github.com/unitedstates/images"),
+    "photos": ("Official portraits (Biographical Directory of the U.S. Congress)", CONGRESS_PHOTO_SOURCE),
 }
 
 _lock = threading.Lock()
