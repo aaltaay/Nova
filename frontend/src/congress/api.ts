@@ -5,6 +5,7 @@
  * -- is IBKR's daily bars through the desk's own `/api/ticker/{symbol}/bars`.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL } from '../constants';
 import { useSampleRoute } from '../sample_data/useSampleRoute';
 import {
@@ -73,7 +74,7 @@ export function useCongressBoard(filter: Filter, members: readonly string[] | nu
         return;
       }
       try {
-        const res = await fetch(`${API_BASE_URL}${url}`);
+        const res = await novaFetch(`${API_BASE_URL}${url}`);
         if (cancelled) return;
         if (res.status === 404) {
           setState((s) => ({ ...s, missing: true }));
@@ -128,7 +129,7 @@ function useOnce<T extends { schema_version?: number }>(path: string | null, sam
     if (sample || !path) return undefined;
     let cancelled = false;
     setState((s) => (s.path === path ? { ...s, error: null } : { path, data: null, error: null, missing: false }));
-    fetch(`${API_BASE_URL}${path}`)
+    novaFetch(`${API_BASE_URL}${path}`)
       .then(async (res) => {
         if (cancelled) return;
         if (res.status === 404) {
@@ -171,7 +172,7 @@ export function useCongressTicker(ticker: string): Read<TickerAnswer> {
 }
 
 export async function postConsent(accept: boolean): Promise<Consent> {
-  const res = await fetch(`${API_BASE_URL}${CONGRESS_CONSENT_PATH}`, {
+  const res = await novaFetch(`${API_BASE_URL}${CONGRESS_CONSENT_PATH}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accept }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -229,7 +230,7 @@ export function usePeriodMoves(tickers: readonly string[], from: string): Record
         return !k || k.filling || now - k.at > CONGRESS_MOVES_REFRESH_MS;
       })
       .forEach((t) => {
-        fetch(`${API_BASE_URL}${CONGRESS_BARS_PATH(t)}`)
+        novaFetch(`${API_BASE_URL}${CONGRESS_BARS_PATH(t)}`)
           .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
           .then((body: { bars?: Bar[]; coverage?: { filling?: boolean } }) => {
             keptBars.set(t, { at: Date.now(), bars: Array.isArray(body.bars) ? body.bars : null,

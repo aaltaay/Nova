@@ -10,6 +10,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { moveFrom, resetKeptCongressForTests } from './api';
 import { CongressPage } from './CongressPage';
+import { NOVA_API_KEY_HEADER, NOVA_API_KEY_STORAGE } from '../constantGroups/api_auth';
 import { CONGRESS_PREFS_STORAGE_KEY } from './constants';
 import { day, range, rangeText, seat, sideWord } from './format';
 import { hemicycle, seatOrder, tally } from './hemicycle';
@@ -127,10 +128,13 @@ describe('Congress page on the live desk', () => {
   }
 
   it('asks for the agreement before anything is read, then shows the overview', async () => {
+    window.localStorage.setItem(NOVA_API_KEY_STORAGE, 'desk-key');
     let consent: 'needed' | 'given' = 'needed';
     const fetchMock = vi.fn((url: string, init?: RequestInit) => {
       if (url.includes('/api/congress/consent')) {
         expect(JSON.parse(String(init?.body))).toEqual({ accept: true });
+        // the desk refuses a write without its key (HTTP 401): the agreement carries it like every other write
+        expect(new Headers(init?.headers).get(NOVA_API_KEY_HEADER)).toBe('desk-key');
         consent = 'given';
         return respond({ schema_version: 1, consent: liveBoard('given').consent });
       }
