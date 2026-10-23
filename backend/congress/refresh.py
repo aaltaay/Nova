@@ -264,10 +264,13 @@ def _photo_step(now: float) -> bool:
 
 
 def _report_or_photo(now: float) -> bool:
-    """An unread report and a portrait take turns; either goes alone when the other has nothing due."""
-    turn = (_photo_step, _report_step) if _ctx.get("photo_turn") else (_report_step, _photo_step)
-    _ctx["photo_turn"] = not _ctx.get("photo_turn")
-    return turn[0](now) or turn[1](now)
+    """An unread report and a portrait take turns; either goes alone when the other has nothing due. The turn passes
+    only when a step did something, so a turn spent waiting out the session's gap is not lost."""
+    for step in ((_photo_step, _report_step) if _ctx.get("photo_turn") else (_report_step, _photo_step)):
+        if step(now):
+            _ctx["photo_turn"] = step is _report_step
+            return True
+    return False
 
 
 def run_once(now: float | None = None) -> bool:

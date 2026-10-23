@@ -21,6 +21,11 @@ from congress.state import source
 from tests.test_congress_reader import SATURDAY, UUID_E, FakeNet, Resp, net, portrait, run_all  # noqa: F401
 
 MONDAY_10 = datetime(2026, 10, 19, 10, 0, tzinfo=ZoneInfo("America/New_York")).timestamp()
+FACE = "https://bioguide.congress.gov/photo/"
+
+
+def is_download(url: str) -> bool:
+    return url.endswith(".pdf") or "/ptr/" in url or url.startswith(FACE)
 
 
 class PhotoNet:
@@ -102,14 +107,14 @@ def test_portraits_arrive_while_the_reports_are_still_read(net):
     consent.accept(SATURDAY)
     run_all()
     urls = [u for _, u in net.calls]
-    first_face = next(i for i, u in enumerate(urls) if u.startswith("https://bioguide.congress.gov/photo/"))
+    first_face = next(i for i, u in enumerate(urls) if u.startswith(FACE))
     assert first_face < urls.index(next(u for u in urls if f"/ptr/{UUID_E}" in u))  # a report was still unread
     assert source("photos").state == "ok" and photos.kept() == {"S000001"}       # H000001: none in the fake
 
 
 class BioguideDown(FakeNet):
     def _answer(self, method, url, kw):
-        if "bioguide.congress.gov" in url:
+        if url.startswith(FACE):
             self.calls.append((method, url))
             return Resp(503)
         return super()._answer(method, url, kw)
@@ -123,13 +128,13 @@ def test_the_bioguide_failing_pauses_every_portrait_not_one_a_second(monkeypatch
     refresh.reset_for_tests(fake)
     consent.accept(SATURDAY)
     run_all()
-    asked = [u for _, u in fake.calls if "bioguide.congress.gov" in u]
+    asked = [u for _, u in fake.calls if u.startswith(FACE)]
     assert len(asked) == 1                                                       # once, then the source waits
     assert source("photos").state == "failing" and "503" in source("photos").error
     assert source("photos").next_at == SATURDAY + CONGRESS_RETRY_SEC
     assert refresh.run_once(SATURDAY + CONGRESS_RETRY_SEC - 1) is False
     refresh.run_once(SATURDAY + CONGRESS_RETRY_SEC)
-    assert len([u for _, u in fake.calls if "bioguide.congress.gov" in u]) == 2
+    assert len([u for _, u in fake.calls if u.startswith(FACE)]) == 2
 
 
 def test_in_the_session_a_portrait_waits_the_same_gap_as_a_report(net):
@@ -137,8 +142,22 @@ def test_in_the_session_a_portrait_waits_the_same_gap_as_a_report(net):
     for _ in range(20):                                                          # everything due at one moment
         if not refresh.run_once(MONDAY_10):
             break
-    downloads = [u for _, u in net.calls if u.endswith(".pdf") or "/ptr/" in u or "bioguide.congress.gov" in u]
+    downloads = [u for _, u in net.calls if is_download(u)]
     assert len(downloads) == 1
     refresh.run_once(MONDAY_10 + CONGRESS_SESSION_GAP_SEC)
-    downloads = [u for _, u in net.calls if u.endswith(".pdf") or "/ptr/" in u or "bioguide.congress.gov" in u]
+    downloads = [u for _, u in net.calls if is_download(u)]
     assert len(downloads) == 2
+
+
+def test_a_turn_spent_waiting_out_the_gap_still_goes_to_the_portrait(net):
+    """In the session the loop wakes before the gap is over; that idle call must not hand the turn back to reports."""
+    consent.accept(MONDAY_10)
+    for _ in range(20):
+        if not refresh.run_once(MONDAY_10):
+            break
+    first = [u for _, u in net.calls if is_download(u)]
+    assert len(first) == 1 and not first[0].startswith(FACE)                    # a report went first
+    assert refresh.run_once(MONDAY_10 + 1) is False                             # a wake inside the gap
+    assert refresh.run_once(MONDAY_10 + 2) is False                             # and another: neither passes the turn
+    refresh.run_once(MONDAY_10 + CONGRESS_SESSION_GAP_SEC)
+    assert [u for _, u in net.calls if is_download(u)][1].startswith(FACE)       # then the portrait's turn
