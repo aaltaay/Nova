@@ -41,8 +41,13 @@ before it shows any report.
    Senate site the same agreement its own page sends. Withdrawing it stops the reader and keeps what was read.
 4. **Members are matched by official ID** (the bioguide id) from the public-domain `unitedstates/congress-legislators`
    data, with their party, state, district, chamber and committees; their photos are the official portraits from
-   `unitedstates/images` (public domain), kept on the desk. A member without one shows initials, said as such. A
-   filer who left Congress stays, marked with the day they left.
+   one source, the Biographical Directory of the United States Congress (`bioguide.congress.gov`), kept on the desk
+   shrunk to a face. A member without one shows initials, said as such. A filer who left Congress stays, marked with
+   the day they left. *Amended 2026-10-23:* the photos were `unitedstates/images` (public domain) with the Bioguide
+   behind it; that mirror had no portrait for 15 of the 539 current members, all seated since 2025, and two sources
+   meant a face could come from either. The operator asked for "a single source, the source of truth": the Bioguide
+   is the historians' official record the bioguide id belongs to. Its member-supplied portraits are marked for
+   restricted reuse, so Nova keeps them only in the desk's cache -- never in the repository or the demo build.
 5. **What the page shows** (PNG v1): both chambers' seat maps -- every seat, seated by party (the House has no
    assigned seats; it is not the floor chart), a senator who reported trades in the period shown with their photo,
    a representative as a lit seat; the newest reports; the most traded stocks with the members who bought and sold

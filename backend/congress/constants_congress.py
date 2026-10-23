@@ -23,7 +23,8 @@ CONGRESS_STORE_VERSION = 1                           # PRAGMA user_version of fi
 CONGRESS_CONSENT_FILE = "consent.json"
 CONGRESS_ROSTER_FILE = "roster.json"
 CONGRESS_PHOTOS_DIR = "photos"
-CONGRESS_PHOTO_MISSES_FILE = "misses.json"
+CONGRESS_PHOTO_INDEX_FILE = "index.json"
+CONGRESS_PHOTO_INDEX_VERSION = 2                     # 1 was misses.json, beside portraits of another source
 CONGRESS_PARSER_VERSION = {"house": 1, "senate": 1}  # a report read by an older parser is read again
 
 # --- sources -------------------------------------------------------------------------------------------------------
@@ -43,10 +44,10 @@ CONGRESS_ROSTER_CURRENT = "legislators-current.json"
 CONGRESS_ROSTER_HISTORICAL = "legislators-historical.json"
 CONGRESS_COMMITTEES = "committees-current.json"
 CONGRESS_COMMITTEE_MEMBERS = "committee-membership-current.json"
-CONGRESS_PHOTO_URLS = (
-    "https://unitedstates.github.io/images/congress/225x275/{bioguide}.jpg",
-    "https://bioguide.congress.gov/bioguide/photo/{letter}/{bioguide}.jpg",
-)
+# Every portrait from one place: the Biographical Directory of the United States Congress, kept by the House and
+# Senate historians, under the bioguide id every member is matched by.
+CONGRESS_PHOTO_SOURCE = "https://bioguide.congress.gov/"
+CONGRESS_PHOTO_URL = "https://bioguide.congress.gov/photo/{bioguide}.jpg"
 CONGRESS_TERRITORIES = ("AS", "DC", "GU", "MP", "PR", "VI")   # non-voting delegates: listed apart, not seated
 CONGRESS_HOUSE_SEATS = 435
 CONGRESS_SENATE_SEATS = 100
@@ -55,14 +56,18 @@ CONGRESS_SENATE_SEATS = 100
 CONGRESS_REQUEST_GAP_SEC = 1.0                       # between any two requests the reader sends
 CONGRESS_HTTP_TIMEOUT_SEC = 60.0
 CONGRESS_MAX_PDF_BYTES = 8 * 1024 * 1024
-CONGRESS_MAX_PHOTO_BYTES = 2 * 1024 * 1024
+CONGRESS_MAX_PHOTO_BYTES = 6 * 1024 * 1024             # the Bioguide's are about 1 MB (1000 x 1250)
+CONGRESS_MAX_PHOTO_PIXELS = 25_000_000                # a portrait declaring more is refused before it is decoded
+CONGRESS_PHOTO_BOX = (240, 300)                      # kept at most this size: the page's largest face is 96 px
+CONGRESS_PHOTO_QUALITY = 85
 CONGRESS_POLL_SEC = 3600.0                           # the House index and the Senate search
 CONGRESS_RETRY_SEC = 900.0                           # after a failed read
 CONGRESS_IDLE_WAIT_SEC = 60.0                        # the reader's sleep with nothing due
 CONGRESS_SESSION_GAP_SEC = 3.0                       # 09:30-16:00 ET on a weekday: also this long between reports
 CONGRESS_ROSTER_MAX_AGE_SEC = 24 * 3600.0
 CONGRESS_HISTORICAL_MAX_AGE_SEC = 7 * 24 * 3600.0
-CONGRESS_PHOTO_RETRY_SEC = 7 * 24 * 3600.0
+CONGRESS_PHOTO_RETRY_SEC = 24 * 3600.0               # a member the Bioguide has no portrait for yet (a new one)
+CONGRESS_PHOTO_MAX_AGE_SEC = 30 * 24 * 3600.0        # a kept portrait is asked again, so a new official one replaces it
 CONGRESS_YEARS_KEPT = 2                              # the current calendar year and the one before
 
 # --- what the page shows -------------------------------------------------------------------------------------------

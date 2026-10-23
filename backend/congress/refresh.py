@@ -1,9 +1,10 @@
 """The Congress reader (ADR 066, decision 7): one daemon thread, one request at a time, after the operator's agreement.
 
 Each turn does the first thing due: the members (daily, and who left while a filer is unmatched), the House indexes
-and the Senate search (hourly), then one unread report (newest first), then one portrait. Every request goes through
-one ``Net`` (a second apart); from 09:30 to 16:00 ET on a weekday it also waits ``CONGRESS_SESSION_GAP_SEC`` between
-reports. A failure is the source's stated status and a retry; what was read stays. ``NOVA_CONGRESS=0`` runs nothing.
+and the Senate search (hourly), then one unread report (newest first) and one portrait in turn -- so faces arrive
+while a long first read goes on, not after it. Every request goes through one ``Net`` (a second apart); from 09:30 to
+16:00 ET on a weekday it also waits ``CONGRESS_SESSION_GAP_SEC`` between downloads (reports and portraits). A failure
+is the source's stated status and a retry; what was read stays. ``NOVA_CONGRESS=0`` runs nothing.
 ``run_once`` is one turn, for tests.
 """
 from __future__ import annotations
@@ -202,9 +203,7 @@ def _report_step(now: float) -> bool:
     if not due:                                     # every unread report failed lately: each waits its own retry
         _ctx["soon"] = min(retry[r["id"]] for r in todo) - now
         return False
-    wait = _ctx.get("last_report_at", float("-inf")) + CONGRESS_SESSION_GAP_SEC - now
-    if in_session(now) and wait > 0:
-        _ctx["soon"] = wait                         # the loop wakes when the gap is over
+    if _session_wait(now):
         return False
     report = due[0]
     try:
@@ -220,7 +219,7 @@ def _report_step(now: float) -> bool:
     except Exception as exc:  # noqa: BLE001 -- one report's failure is stated on it, never stops the others
         logger.warning("congress: report %s could not be read: %s", report["id"], exc)
         updated, rows = {**report, "error": f"{exc}"[:200]}, None
-    _ctx["last_report_at"] = now
+    _ctx["last_download_at"] = now
     if rows is None:                                # not read (the site failed): it waits, the others go on
         retry[report["id"]] = now + CONGRESS_RETRY_SEC
     else:
@@ -230,7 +229,18 @@ def _report_step(now: float) -> bool:
     return True
 
 
+def _session_wait(now: float) -> bool:
+    """True while the session's gap since the last download (a report or a portrait) is not over."""
+    wait = _ctx.get("last_download_at", float("-inf")) + CONGRESS_SESSION_GAP_SEC - now
+    if in_session(now) and wait > 0:
+        _ctx["soon"] = wait                         # the loop wakes when the gap is over
+        return True
+    return False
+
+
 def _photo_step(now: float) -> bool:
+    if now < _ctx.get("photo_retry", 0.0):
+        return False
     _, reports, _ = book().snapshot()
     filers = [r["bioguide"] for r in sorted(reports.values(), key=lambda r: r["filed"], reverse=True) if r.get("bioguide")]
     seated = [m["bioguide"] for m in roster.members() if m.get("current")]
@@ -238,14 +248,29 @@ def _photo_step(now: float) -> bool:
     if not wanted:
         _set("photos", "ok", now, todo=0)
         return False
+    if _session_wait(now):
+        return False
     _set("photos", "reading", todo=len(wanted))
+    _ctx["last_download_at"] = now
     try:
         photos.fetch(_net(), wanted[0], now)
-    except Exception as exc:  # noqa: BLE001 -- one portrait; the page draws initials meanwhile
+    except Exception as exc:  # noqa: BLE001 -- the site failed, not the member: every portrait waits; initials meanwhile
         logger.warning("congress: the portrait of %s could not be read: %s", wanted[0], exc)
-        _set("photos", "failing", error=f"{exc}"[:200], todo=len(wanted))
+        _set("photos", "failing", error=f"{exc}"[:200], todo=len(wanted), next_at=now + CONGRESS_RETRY_SEC)
+        _ctx["photo_retry"] = now + CONGRESS_RETRY_SEC
+        return True
     source("photos").done += 1
     return True
+
+
+def _report_or_photo(now: float) -> bool:
+    """An unread report and a portrait take turns; either goes alone when the other has nothing due. The turn passes
+    only when a step did something, so a turn spent waiting out the session's gap is not lost."""
+    for step in ((_photo_step, _report_step) if _ctx.get("photo_turn") else (_report_step, _photo_step)):
+        if step(now):
+            _ctx["photo_turn"] = step is _report_step
+            return True
+    return False
 
 
 def run_once(now: float | None = None) -> bool:
@@ -265,7 +290,7 @@ def run_once(now: float | None = None) -> bool:
     _load()
     if now >= _ctx.get("roster_retry", 0.0) and _roster_step(now):
         return True
-    return _house_step(now) or _senate_step(now) or _report_step(now) or _photo_step(now)
+    return _house_step(now) or _senate_step(now) or _report_or_photo(now)
 
 
 def start() -> None:
