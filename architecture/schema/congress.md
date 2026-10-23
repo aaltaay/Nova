@@ -60,7 +60,7 @@ the agreement is given and `NOVA_CONGRESS` is not `0`. It keeps the current and 
   is unmatched (at most weekly). Portraits: `https://bioguide.congress.gov/photo/<BIOGUIDE>.jpg` and nowhere else
   (`CONGRESS_PHOTO_URL`; no fallback, so a face is never a second source's picture). Only a real JPEG under
   `CONGRESS_MAX_PHOTO_BYTES` (6 MB) declaring at most `CONGRESS_MAX_PHOTO_PIXELS` is decoded; it is kept shrunk to fit
-  `CONGRESS_PHOTO_BOX` (240 x 300; the Bioguide's are about 1000 x 1250, up to 1.4 MB). A 404 or an answer that is not
+  `CONGRESS_PHOTO_BOX` (240 x 300; the Bioguide's are about 1000 x 1250, up to 2.9 MB). A 404 or an answer that is not
   a JPEG is the member's miss, asked again after `CONGRESS_PHOTO_RETRY_SEC` (a day: a new member's portrait arrives
   weeks after their record); any other failure is the site's -- the source shows `failing` and every portrait waits
   `CONGRESS_RETRY_SEC`. A kept portrait is asked again after `CONGRESS_PHOTO_MAX_AGE_SEC` (30 days), after the members
