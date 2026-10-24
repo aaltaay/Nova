@@ -10,7 +10,7 @@ watchfiles==1.1.1
 # Massive day files: seek indexes into the gzip day files, zlib's zran method (ADR 046 amendment 2026-10-11).
 indexed_gzip==1.10.3
 # House Periodic Transaction Reports are PDFs: the Congress page reads their text (ADR 066).
-pypdf==6.21.1
+pypdf==6.21.2
 # Members' official portraits arrive about 1 MB each: the Congress page keeps them shrunk to a face (ADR 066).
 Pillow==13.0.0
 # Pin next @ c9f4c14 (includes Error 10349 as warning -- PyPI 2.1.0 still cancels).
