@@ -874,12 +874,22 @@ subscribe to a quote, and has no order ticket. `nova_historical_chart`, `nova_hi
   after every visible pane has painted.
 - **Engine.** One detached process (`tools/nova_review_engine.py`) owns the loopback listener and the one Chromium.
   The first `nova_chart` call starts it. Later MCP processes attach. Health is
-  `{ok, service: "nova-review", version, renderer_starts, pid}`. The version is `"3"`. A mismatch restarts the engine.
+  `{ok, service: "nova-review", version, renderer_starts, pid, build}`. The version is `"3"`. A mismatch restarts the engine.
+  `build` is the last build check, `{state, source, build?, built_at?, fingerprint?, detail?}`: `state` is `unchecked`,
+  `fresh`, `stale` (an older build is served because building failed), `unavailable` or `override`; `source` is
+  `dist-review`, `frontend/dist`, `none` or `NOVA_REVIEW_DIST`. The field is additive, so the version stays `"3"`.
   It exits after 30 minutes idle. Default port is 18765 (`NOVA_REVIEW_PORT`), never 8765. Before it binds, a port
   whose review health check already answers as this engine is left alone. On Windows the socket sets `SO_EXCLUSIVEADDRUSE`
   so a second process cannot share the port. A taken port binds a free one and the link carries loopback `api=`
-  when the link origin is not the engine. The engine serves `frontend/dist` at `/review` and `/assets/`. A static
-  path is `os.path.realpath`'d and must start with the dist directory before the file is opened. `..` and `%2e%2e` are HTTP 404. `NOVA_REVIEW_BASE`, when set,
+  when the link origin is not the engine. The engine serves its own build at `/review` and `/assets/` (`tools/nova_review_build.py`): `frontend/dist-review/<id>/`,
+  named in `frontend/dist-review/current.json` `{schema_version: 1, build, fingerprint, built_at, previous}` (owner
+  `nova_review_build.py`; invalidated when the frontend source fingerprint changes, then rebuilt with the checkout's Vite;
+  another `schema_version` is ignored and rebuilt). The current build is asked first, then `previous`; `frontend/dist`
+  is served only when no build can be made and its bundle holds the review page; `NOVA_REVIEW_DIST` overrides all of
+  it and never builds. Before `/review` and before a screenshot the engine checks the source (at most every 30 s while
+  fresh; a failed build is retried after 5 minutes). With nothing to serve, `/review` is HTTP 503 and the chart call's
+  code is `REVIEW_BUILD_UNAVAILABLE`. A static
+  path is `os.path.realpath`'d and must start with the folder being served before the file is opened. `..` and `%2e%2e` are HTTP 404. `NOVA_REVIEW_BASE`, when set,
   is the link origin. When it is unset, links use the engine's own origin, because that process serves `/review`.
   `--review-http` / `NOVA_REVIEW_HTTP=1` starts the engine at process start. `--no-review-http` does not listen.
 - **Data.** `GET /api/review` answer: `{ok, schema_version: 1, symbol, date, as_of, as_of_iso, source, lookahead: false,
@@ -904,7 +914,7 @@ subscribe to a quote, and has no order ticket. `nova_historical_chart`, `nova_hi
   `{ok, chat_message, date, as_of, timeframes, links: [{symbol, url}], gallery_url, images: [{symbol, sha256, bytes}]}`.
   On failure `ok` is false, `error` is `{code, detail}`, and `chat_message` still lists any links that were built.
   `REVIEW_DESK_UNREACHABLE` means the review page could not be screenshotted. `REVIEW_SHOT_UNAVAILABLE`
-  means `--no-warm-shots`. A clock that is not ASCII `HH:MM` is `BAD_REQUEST` and still returns an ASCII
+  means `--no-warm-shots`. `REVIEW_BUILD_UNAVAILABLE` means no build of the review page exists or can be made. A clock that is not ASCII `HH:MM` is `BAD_REQUEST` and still returns an ASCII
   `chat_message`. Links are built by `review_link` and `gallery_link` in `tools/nova_review_causal.py`.
 - **Shot.** `POST /api/review/shot` accepts `Content-Type: application/json` and header `X-Nova-Review-Token`.
   The token is random per engine and stored in the lease file next to `port` and `pid` (`schema_version` stays 1).

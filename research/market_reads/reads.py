@@ -22,6 +22,7 @@ from constants_sim import (
     SIM_MASSIVE_DROPPED_CORRECTIONS,
     SIM_MASSIVE_MINUTES,
     SIM_MASSIVE_QUOTES,
+    SIM_MASSIVE_REPEAT_CONDITIONS,
     SIM_MASSIVE_TRADES,
 )
 from sim import massive_files, massive_index
@@ -200,6 +201,15 @@ def sets_price(conditions: pd.Series, correction: pd.Series) -> np.ndarray:
     return answers[pair_codes]
 
 
+def repeats_a_print(conditions: pd.Series) -> np.ndarray:
+    """True for an official open / close or corrected-close record: a repeat of an auction print, no volume of its
+    own. Asked once per distinct conditions string."""
+    text_codes, texts = pd.factorize(conditions, use_na_sentinel=True)          # missing -> -1
+    answers = np.array([not massive_files.condition_codes(text).isdisjoint(SIM_MASSIVE_REPEAT_CONDITIONS)
+                        for text in texts] + [False], dtype=bool)
+    return answers[text_codes]                                                   # -1 picks the trailing False
+
+
 def quotes(symbol: str, day: str, start: str | None = None, end: str | None = None) -> pd.DataFrame:
     """Every NBBO change: one best bid and one best offer across venues (Level 1, never depth). A side Massive
     writes as 0 has no quote."""
@@ -259,8 +269,9 @@ def bars(symbol: str, day: str, tf: str = "1m", start: str | None = None, end: s
          fill_gaps: bool = False) -> pd.DataFrame:
     """OHLCV bars. Minutes (``1m``, ``5m``, ...) from the minute file, as delivered and summed; seconds (``10s``)
     from the trades by the Sim's rules: a cancel or error record is no trade, only a price-setting print sets
-    open / high / low / close, and every trade counts in the volume. A bar with no price-setting print has no
-    prices (its volume stands).
+    open / high / low / close, and every trade counts in the volume except an official open / close or
+    corrected-close record, which repeats an auction print (``SIM_MASSIVE_REPEAT_CONDITIONS``). A bar with no
+    price-setting print has no prices (its volume stands).
 
     A bucket with no trade has no row. ``df.attrs['gaps']`` says where they are (``_gap_meta``); ``fill_gaps`` adds a
     row for each, with no prices, zero volume and ``filled`` true (#1086)."""
@@ -277,7 +288,8 @@ def bars(symbol: str, day: str, tf: str = "1m", start: str | None = None, end: s
         prints = trades(symbol, day, start, end)
         if not len(prints):
             return prints
-        kept = prints[~prints["correction"].fillna(0).astype(int).isin(SIM_MASSIVE_DROPPED_CORRECTIONS)].copy()
+        kept = prints[~prints["correction"].fillna(0).astype(int).isin(SIM_MASSIVE_DROPPED_CORRECTIONS)
+                      & ~repeats_a_print(prints["conditions"])].copy()
         kept["bucket"] = kept["sip_timestamp"] // (step * 10**9) * step
         priced = kept[kept["sets_price"]]
         volume = kept.groupby("bucket")["size"].agg(["sum", "count"]).rename(columns={"sum": "volume",

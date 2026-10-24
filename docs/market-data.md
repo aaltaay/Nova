@@ -257,8 +257,11 @@ MCP: `signal_catalog`, `signal_series`, `signal_scan`, `signal_test`. Contract: 
   day asked (`research/market_reads/tickers.py`), say so in `ticker`, and refuse a day they cannot settle with the
   candidate CIKs (`--cik` picks one). Without a day they read today's holder and warn.
 - **Two volume rules.** Minute bars are Massive's (its SIP volume rules); `bars --tf 10s` counts every trade but
-  cancel / error records, so a minute of seconds bars can sum higher: GME 2021-01-27 09:30 is 185,567 from the
-  trades and 179,397 in the minute file (+3.4%). Daily bars are not a `bars` timeframe.
+  cancel / error records and the official open / close and corrected-close records (conditions 15, 16, 38), which
+  repeat an auction print. Counting those doubled the opening cross until 2026-10-24 (CINC 2022-08-08 09:30: 29,248
+  shares twice). A minute of seconds bars can still sum slightly higher: GME 2021-01-27 09:30 is 179,822 from the
+  trades and 179,397 in the minute file (+0.24%). Massive's minute bars leave the closing cross out of the 16:00
+  minute; seconds bars keep it. Daily bars are not a `bars` timeframe.
 - **`float_max` is shares outstanding.** The movers float filter is SEC shares outstanding filed by the day (insiders
   and locked-up shares included), not free float. `find` takes `--outstanding-max` (MCP `outstanding_max`) as the
   same limit under the name of what it filters, so the call shows its intent (an insider-heavy name's real float is

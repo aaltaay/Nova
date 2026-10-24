@@ -8,6 +8,7 @@ from typing import Callable
 
 ARTIFACT_PATHS = (
     "frontend/dist",
+    "frontend/dist-review",
     "backend/.cache",
     ".env",
 )

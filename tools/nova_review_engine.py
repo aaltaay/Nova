@@ -30,6 +30,7 @@ from typing import Any
 from urllib.parse import unquote, urlparse
 from urllib.request import urlopen
 
+import nova_review_build as review_build
 import nova_review_causal as causal
 import nova_review_http as review_http
 import nova_review_load as review_load
@@ -61,9 +62,14 @@ STATE = _State()
 _OWNER = None
 
 
+def dist_dirs() -> list[Path]:
+    """Where /review and /assets/ come from: NOVA_REVIEW_DIST, else the engine's own build (nova_review_build)."""
+    return review_build.serving_dirs()
+
+
 def dist_dir() -> Path:
-    raw = os.environ.get("NOVA_REVIEW_DIST")
-    return Path(raw) if raw else REPO / "frontend" / "dist"
+    found = dist_dirs()
+    return found[0] if found else review_build.build_root()
 
 
 def shot_dir() -> Path:
@@ -81,21 +87,32 @@ def read_dist_asset(url_path: str) -> tuple[bytes, str] | None:
     """Bytes of one built file, or None when the path leaves dist.
 
     CodeQL treats ``os.path.realpath`` plus ``startswith`` in this function as the
-    jail. The file is opened here, on that checked path.
+    jail. The file is opened here, on that checked path. The current build is asked
+    first, then the previous one, so a page loaded just before a rebuild keeps its assets.
     """
-    root = os.path.realpath(dist_dir())
-    prefix = _dir_prefix(root)
     rel = unquote(url_path).lstrip("/")
     if not rel or "\x00" in rel or "\\" in rel:
         return None
     parts = [part for part in rel.split("/") if part not in ("", ".")]
     if not parts or any(part == ".." for part in parts):
         return None
-    full = os.path.realpath(os.path.join(root, *parts))
-    if full.startswith(prefix) and os.path.isfile(full):
-        with open(full, "rb") as handle:
-            return handle.read(), os.path.splitext(full)[1]
+    for folder in dist_dirs():
+        root = os.path.realpath(folder)
+        prefix = _dir_prefix(root)
+        full = os.path.realpath(os.path.join(root, *parts))
+        if full.startswith(prefix) and os.path.isfile(full):
+            with open(full, "rb") as handle:
+                return handle.read(), os.path.splitext(full)[1]
     return None
+
+
+def page_ready() -> dict[str, Any] | None:
+    """None when /review can be served; else the error a chart call reports (the build could not be made)."""
+    status = review_build.ensure_fresh()
+    if dist_dirs():
+        return None
+    return {"ok": False, "error": {"code": "REVIEW_BUILD_UNAVAILABLE",
+                                   "detail": str(status.get("detail") or status.get("state"))}}
 
 
 def _matching_listener(port: int) -> bool:
@@ -271,6 +288,9 @@ def _shots() -> review_warm.ReviewShots:
 
 
 def take_shot(url: str, dest: Path) -> dict[str, Any]:
+    missing = page_ready()
+    if missing:
+        return missing
     renderer = _shots()
     with STATE.lock:
         if not STATE._counted:
@@ -362,9 +382,14 @@ def make_engine_handler(bars_reader=None, daily_reader=None):
                     "version": ENGINE_VERSION,
                     "renderer_starts": STATE.renderer_starts,
                     "pid": os.getpid(),
+                    "build": review_build.last_status(),
                 })
                 return
             if parsed.path in ("/review", "/review/"):
+                missing = page_ready()
+                if missing:
+                    self._send(503, missing)
+                    return
                 self._send_asset("/index.html")
                 return
             if parsed.path.startswith("/assets/"):
@@ -503,6 +528,7 @@ def main(argv: list[str] | None = None) -> int:
     with review_http._lease_lock():
         review_http._write_lease(int(httpd.server_address[1]), STATE.token)
     threading.Thread(target=_watch_idle, args=(httpd,), name="nova-review-idle", daemon=True).start()
+    threading.Thread(target=review_build.ensure_fresh, name="nova-review-build", daemon=True).start()
 
     def _stop(_signum, _frame) -> None:
         threading.Thread(target=httpd.shutdown, daemon=True).start()
