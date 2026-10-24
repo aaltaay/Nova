@@ -118,8 +118,10 @@ CATALOG = (
     {"name": "bars", "source": "Massive minute files; seconds built from trades", "history": "2016-01-04 on",
      "as_of": "one stock-day (daily bars are not a stock-day read)",
      "units": "OHLC dollars, volume shares. Volume rule: minute bars are Massive's own (its SIP volume rules); "
-              "seconds bars count every trade except cancel/error records, so a minute of 10s bars can sum higher "
-              "(GME 2021-01-27 09:30: 185,567 from trades vs 179,397 in the minute file, +3.4%). A bucket with no "
+              "seconds bars count every trade except cancel/error records and the official open / close and "
+              "corrected-close records that repeat an auction print (conditions 15, 16, 38); a minute of 10s bars "
+              "can still sum slightly higher (GME 2021-01-27 09:30: 179,822 from trades vs 179,397 in the minute "
+              "file, +0.24%; it was +3.4% while the repeats were counted). A bucket with no "
               "trade has no row: meta.gaps lists the holes (ET runs, first_et/last_et); fill_gaps adds a row per hole "
               "with no price, zero volume and filled=true",
      "mcp": "stock_day(kind='bars', fill_gaps?)",

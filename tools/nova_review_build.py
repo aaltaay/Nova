@@ -35,11 +35,13 @@ SCHEMA_VERSION = 1
 READY_MARK = b"data-review-ready"
 BUILD_TIMEOUT_SEC = 300
 CHECK_EVERY_SEC = 30.0
+RETRY_FAILED_SEC = 300.0
 KEEP_BUILDS = 2
 
 _LOCK = threading.Lock()
 _LAST: dict[str, Any] = {"state": "unchecked"}
 _LAST_AT = 0.0
+_FAILED: tuple[str, float] = ("", 0.0)      # (fingerprint, when) of the last build that failed
 
 Builder = Callable[[Path, Path], tuple[bool, str]]
 
@@ -82,12 +84,16 @@ def source_fingerprint() -> str:
     status = _git("status", "--porcelain=v1", "-z", "--untracked-files=all", "--", "frontend")
     if status is None:
         return _mtime_fingerprint()
-    entries = [item for item in status.split("\0") if item]
+    own = build_root().relative_to(REPO).as_posix()          # the builds themselves are never source
+    entries = []
+    for item in status.split("\0"):
+        rel = item[3:] if len(item) > 3 and item[2] == " " else item
+        if rel and not rel.startswith(own):
+            entries.append(rel)
     if not entries:
         return f"git:{tree}"
     digest = hashlib.sha256()
-    for entry in sorted(entries):
-        rel = entry[3:] if len(entry) > 3 and entry[2] == " " else entry
+    for rel in sorted(entries):
         digest.update(rel.encode())
         path = REPO / rel
         if path.is_file():
@@ -193,7 +199,7 @@ def serving_dirs() -> list[Path]:
 
 def ensure_fresh(builder: Builder | None = None, max_age: float | None = None) -> dict[str, Any]:
     """Build the review page when the frontend source changed. Safe to call from many threads."""
-    global _LAST, _LAST_AT
+    global _LAST, _LAST_AT, _FAILED
     if os.environ.get("NOVA_REVIEW_DIST"):
         return {"state": "override", "source": "NOVA_REVIEW_DIST"}
     age = CHECK_EVERY_SEC if max_age is None else max_age
@@ -206,6 +212,8 @@ def ensure_fresh(builder: Builder | None = None, max_age: float | None = None) -
         if current and current.get("build") == wanted and has_review_page(build_root() / wanted):
             _LAST, _LAST_AT = _status("fresh", current), time.monotonic()
             return dict(_LAST)
+        if _FAILED[0] == fingerprint and time.monotonic() - _FAILED[1] < RETRY_FAILED_SEC and max_age != 0:
+            return dict(_LAST)                       # the same source failed a moment ago: do not rebuild per request
         build_root().mkdir(parents=True, exist_ok=True)
         tmp = build_root() / f"{wanted}.tmp-{os.getpid()}"
         shutil.rmtree(tmp, ignore_errors=True)
@@ -223,11 +231,8 @@ def ensure_fresh(builder: Builder | None = None, max_age: float | None = None) -
             _LAST, _LAST_AT = _status("fresh", body), time.monotonic()
             return dict(_LAST)
         shutil.rmtree(tmp, ignore_errors=True)
-        detail = tail.strip().splitlines()[-1] if tail.strip() else "the build has no review page"
-        if not ok:
-            detail = detail or "vite build failed"
-        elif not detail.startswith("the build"):
-            detail = "the build has no review page"
+        _FAILED = (fingerprint, time.monotonic())
+        detail = "the build has no review page" if ok else (tail.strip().splitlines() or ["vite build failed"])[-1]
         usable = serving_dirs()
         state = "stale" if usable else "unavailable"
         source = "dist-review" if usable and usable[0].parent == build_root() else ("frontend/dist" if usable else "none")
