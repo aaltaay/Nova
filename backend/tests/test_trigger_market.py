@@ -6,6 +6,10 @@ a Sim replay desk carry no change.
 """
 from __future__ import annotations
 
+import time
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from fastapi.testclient import TestClient
 
 from bot import trigger_market
@@ -15,6 +19,9 @@ from main import app
 
 client = TestClient(app)
 TRADED = {"price": 3.0, "prev_close": 2.0, "quote_quality": "live", "last_trade_ts": 1.0, "volume": 1000}
+# A weekday in trading hours: on a weekend today's table is the last exchange day's, while list_hot writes
+# today's list, so a "today" test on the real clock failed every Saturday and Sunday from 04:00 ET.
+WEEKDAY = datetime(2026, 9, 30, 10, 0, tzinfo=ZoneInfo("America/New_York")).timestamp()
 
 
 def test_a_board_row_priced_by_the_lines_last_trade():
@@ -55,6 +62,7 @@ def test_today_s_table_carries_each_tickers_move(monkeypatch):
     from strategy import symbol_pillars
     from tests.bot_helpers import list_hot, on_practice
 
+    monkeypatch.setattr(time, "time", lambda: WEEKDAY)
     on_practice()
     list_hot("AISP", "DCX")
     monkeypatch.setattr(symbol_pillars, "raw_boards", lambda: {

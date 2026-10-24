@@ -53,7 +53,8 @@ RULES = {
              "split (the movers store's rule); basis restarts at 1.0 with each epoch",
     "prev_close": f"the day file's close of the previous session within {PREV_CLOSE_LOOKBACK_DAYS} days, times the "
                   "listed split factor through the day",
-    "volume": "minute bars are Massive's minute file as delivered (its SIP volume rules); day_volume is the day "
+    "volume": "minute bars are Massive's minute file as delivered (Massive's own minute rule, not the consolidated "
+              "tape's: no closing cross at 16:00, no prior-reference or odd-lot-only minutes); day_volume is the day "
               "file's whole session with odd lots",
     "kinds": "CS, ADRC and unknown (unlisted or untyped in Massive's ticker list): the type of the company that held "
              "the ticker that day; ETFs, warrants, units, rights and preferreds are not in the table",

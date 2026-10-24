@@ -254,6 +254,9 @@ def test_now_says_whether_nova_would_buy_each_listed_ticker(monkeypatch):
     from bot.autonomy import apply_patch
     from tests.bot_helpers import hold_depth_line, list_hot, on_practice, set_symbols
 
+    # A weekday in trading hours: on a weekend the table is the last exchange day's (the test below pins that),
+    # while list_hot writes today's list, so with the real clock this failed every Saturday and Sunday from 04:00.
+    monkeypatch.setattr(time, "time", lambda: at(10, 0))
     on_practice()
     apply_patch({"level": 2, "setup_levels": {"first_pullback": 2}}, desk=True)
     issue_arm_token()
@@ -286,6 +289,7 @@ def test_now_says_whether_nova_would_buy_each_listed_ticker(monkeypatch):
 def test_now_when_the_bot_is_off(monkeypatch):
     from tests.bot_helpers import list_hot, on_practice
 
+    monkeypatch.setattr(time, "time", lambda: at(10, 0))                # a weekday: see the first "now" test
     on_practice()
     list_hot("AISP")
     now = by_symbol(get(None))["AISP"]["now"]
@@ -384,6 +388,7 @@ def test_a_bot_buy_stock_off_the_hot_list_gets_a_row_with_now(monkeypatch):
     from stock_mode import store
     from tests.bot_helpers import list_hot, on_practice, set_symbols
 
+    monkeypatch.setattr(time, "time", lambda: at(10, 0))                # a weekday: see the first "now" test
     on_practice()
     apply_patch({"level": 2, "setup_levels": {"first_pullback": 2}}, desk=True)
     issue_arm_token()
@@ -414,6 +419,7 @@ def test_now_says_the_bot_buys_nothing_before_todays_reset(monkeypatch):
     from paths import cache_dir
     from tests.bot_helpers import hold_depth_line, on_practice, set_symbols
 
+    monkeypatch.setattr(time, "time", lambda: at(10, 0))                # a weekday: see the first "now" test
     on_practice()
     apply_patch({"level": 2, "setup_levels": {"first_pullback": 2}}, desk=True)
     issue_arm_token()

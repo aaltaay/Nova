@@ -250,7 +250,8 @@ def test_tape_stage_reads_a_flush_from_prints_at_the_bid(monkeypatch):
                            "bid_size": [500.0], "ask_size": [500.0]})
     sells = [ns(420, 1 + i * 0.5) for i in range(12)]
     trades = pd.DataFrame({"sip_timestamp": sells, "price": [2.0] * 12, "size": [500.0] * 12,
-                           "exchange": [11] * 12, "correction": [0] * 12, "sets_price": [True] * 12})
+                           "exchange": [11] * 12, "correction": [0] * 12, "sets_price": [True] * 12,
+                           "conditions": [None] * 12})
     monkeypatch.setattr(reads, "trades", lambda *a, **k: trades)
     monkeypatch.setattr(reads, "quotes", lambda *a, **k: quotes)
     got = tape.stock_day(TODAY, "RUN", 419)
