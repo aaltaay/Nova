@@ -142,7 +142,7 @@ def _write_current(body: dict[str, Any]) -> None:
 
 def vite_build(front: Path, out_dir: Path) -> tuple[bool, str]:
     """Run the checkout's own Vite into out_dir. Returns (ok, the last lines of its output)."""
-    node = os.environ.get("NOVA_REVIEW_NODE") or shutil.which("node")
+    node = shutil.which("node")          # PATH only, as nova_chart_warm.py: no program path comes from the environment
     vite = front / "node_modules" / "vite" / "bin" / "vite.js"
     if not node:
         return False, "node is not on PATH"
