@@ -304,7 +304,9 @@ def ensure_index(day: str, stop: threading.Event | None, waiting: Callable[[], N
 class TradeRead:
     """One stock's prints on the day, up to ``until`` (epoch s): ``(ns, sequence, price, size, sets_price)``.
 
-    Cancels and errors are left out (``SIM_MASSIVE_DROPPED_CORRECTIONS``). A ticker's block is in SIP time and
+    Cancels and errors are left out (``SIM_MASSIVE_DROPPED_CORRECTIONS``), and so are the official open / close and
+    corrected-close records (``massive_files.repeats_a_print``): they repeat an auction print, which counted the
+    opening and closing cross twice in the boards' volume. A ticker's block is in SIP time and
     sequence order, so the read stops at its first print at or after ``until``. ``indexed`` says whether the read
     entered the file through its index.
     """
@@ -327,7 +329,7 @@ class TradeRead:
                                                      "conditions", "correction"))
                     for fields in csv.reader(line.decode("utf-8") for line in lines):
                         correction = int(float(fields[corr] or 0))
-                        if correction in SIM_MASSIVE_DROPPED_CORRECTIONS:
+                        if correction in SIM_MASSIVE_DROPPED_CORRECTIONS or massive_files.repeats_a_print(fields[cond]):
                             continue
                         ns = int(fields[ts])
                         if ns >= self.until_ns:

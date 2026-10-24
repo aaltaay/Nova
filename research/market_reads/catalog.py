@@ -117,11 +117,12 @@ CATALOG = (
      "mcp": "stock_day(kind='quotes')", "cli": "market_data.py quotes SYMBOL DAY"},
     {"name": "bars", "source": "Massive minute files; seconds built from trades", "history": "2016-01-04 on",
      "as_of": "one stock-day (daily bars are not a stock-day read)",
-     "units": "OHLC dollars, volume shares. Volume rule: minute bars are Massive's own (its SIP volume rules); "
-              "seconds bars count every trade except cancel/error records and the official open / close and "
-              "corrected-close records that repeat an auction print (conditions 15, 16, 38); a minute of 10s bars "
-              "can still sum slightly higher (GME 2021-01-27 09:30: 179,822 from trades vs 179,397 in the minute "
-              "file, +0.24%; it was +3.4% while the repeats were counted). A bucket with no "
+     "units": "OHLC dollars, volume shares. Volume rule: seconds bars count what the consolidated tape counts "
+              "(no cancel/error records, no cancelled or corrected originals, no official open / close or "
+              "corrected-close repeats, conditions 15, 16, 38); minute bars are Massive's own rule (in 09:30-15:59 "
+              "no extended-hours prints, outside only those, no prior-reference prints, no odd-lot-only minutes, "
+              "no closing cross at 16:00), so a minute of 10s bars sums a little higher (GME 2021-01-27 09:30: "
+              "179,822 vs 179,397) and much higher at 16:00 (docs/market-data.md). A bucket with no "
               "trade has no row: meta.gaps lists the holes (ET runs, first_et/last_et); fill_gaps adds a row per hole "
               "with no price, zero volume and filled=true",
      "mcp": "stock_day(kind='bars', fill_gaps?)",

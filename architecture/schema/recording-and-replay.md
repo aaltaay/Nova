@@ -488,8 +488,10 @@ desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
   `correction`, `trf_id`, `sequence`, `tape`, `sets_price` and `unreported: false`. `sets_price` is true when the
   conditions miss `SIM_MASSIVE_NO_PRICE_CONDITIONS` (2, 7, 10, 13, 15, 16, 20, 21, 22, 29, 32, 33, 37, 38, 52, 53;
   32 / 33 are trades reported late, IBKR's `Z`, as in "Prints that set a price" in `market-data.md`) and the
-  correction is 0 or 12; corrections 1, 7, 8 show and set nothing; 10 and 11 are dropped. Last, volume, high,
-  low, candles and practice fills read only prints that set a price.
+  correction is 0 or 12; corrections 1, 7, 8 show and set nothing; 10 and 11 are dropped, and so are records
+  with condition 15, 16 or 38 (official close / open, corrected consolidated close: `SIM_MASSIVE_REPEAT_CONDITIONS`),
+  which repeat an auction print and never reach IBKR's live tape -- a replay showed CINC 2022-08-08's opening cross
+  twice. Last, volume, high, low, candles and practice fills read only prints that set a price.
 - **The snapshot** adds, for every window, `bid_size`, `ask_size`, `bid_exchange`, `ask_exchange`, `quote_ts`,
   `quote_source: "massive_nbbo" | null`, `quote_status` and `sides_nbbo: integer` (all null / 0 for an IBKR
   download). For a Massive window `bid` / `ask` are the last NBBO row at or before the playhead, never after;

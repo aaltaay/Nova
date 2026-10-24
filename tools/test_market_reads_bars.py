@@ -44,6 +44,21 @@ def test_an_official_open_record_does_not_double_the_opening_cross(monkeypatch):
     assert (bar.open, bar.high, bar.low, bar.close) == (31.04, 31.04, 30.58, 30.58)
 
 
+def test_a_corrected_trade_counts_once_and_a_cancelled_original_not_at_all(monkeypatch):
+    rows = [
+        (T0, 31.04, 300, None, 1),          # the original of a trade later corrected: printed, counts nothing
+        (T0 + 1_000, 31.05, 300, None, 12),   # the correction record: the trade as it stands
+        (T0 + 2_000, 31.06, 400, None, 8),    # a trade later cancelled
+        (T0 + 3_000, 31.07, 100, None, 0),
+    ]
+    frame = pd.DataFrame(rows, columns=["sip_timestamp", "price", "size", "conditions", "correction"])
+    frame["sets_price"] = reads.sets_price(frame["conditions"], frame["correction"])
+    monkeypatch.setattr(reads, "trades", lambda *a, **k: frame)
+    bar = reads.bars("CINC", "2022-08-08", "10s").iloc[0]
+    assert int(bar.volume) == 300 + 100 and int(bar.transactions) == 2
+    assert (bar.open, bar.close) == (31.05, 31.07)
+
+
 def test_repeat_records_are_matched_as_whole_codes():
     conditions = pd.Series(["16", "15", "38", "17,9,41", "116", "1,6", None, "12,16"])
     assert reads.repeats_a_print(conditions).tolist() == [True, True, True, False, False, False, False, True]

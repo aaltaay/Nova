@@ -56,7 +56,8 @@ def stock_day(day: str, symbol: str, in_play_m: int) -> dict[str, list]:
                          ask_size=q["ask_size"].to_numpy(dtype=np.float64))
     prints: list[dict[str, Any]] = []
     if len(trades):
-        keep = ~trades["correction"].fillna(0).astype(int).isin(SIM_MASSIVE_DROPPED_CORRECTIONS)
+        keep = (~trades["correction"].fillna(0).astype(int).isin(SIM_MASSIVE_DROPPED_CORRECTIONS)
+                & ~reads.repeats_a_print(trades["conditions"]))          # an auction counted once, as live
         t = trades[keep]
         for ts_ns, price, size, ex, sets in zip(t["sip_timestamp"], t["price"], t["size"], t["exchange"],
                                                 t["sets_price"], strict=True):

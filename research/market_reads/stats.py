@@ -52,8 +52,8 @@ RULES = {
     "rvol_daily": "the day bar's volume over the mean day-bar volume of the prior rvol_days sessions",
     "raw": "every price raw, as traded: never split-adjusted",
 }
-UNITS = {"prices": "dollars, raw", "volume": "shares (minute bars: Massive's SIP volume; day bar: whole session with "
-         "odd lots)", "pct": "percent points (1.5 = +1.5%)", "spread": "cents and basis points of the midpoint",
+UNITS = {"prices": "dollars, raw", "volume": "shares (minute bars: Massive's own minute rule, no closing cross at "
+         "16:00; day bar: whole session with odd lots, the consolidated tape's from 2024-02-21)", "pct": "percent points (1.5 = +1.5%)", "spread": "cents and basis points of the midpoint",
          "times": "ET HH:MM, minute-bar start"}
 
 

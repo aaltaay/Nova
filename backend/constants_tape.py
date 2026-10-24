@@ -20,8 +20,9 @@ $2.31 and a ``4`` print $0.60 under the market were absent from IBKR's bars).
 but never move the last, and it reaches the tape minutes to hours after it
 traded, so a candle would draw it at the wrong time. IBKR's bars leave it out
 (CPIX 2026-03-27: a 144-share ``Z`` print at $3.935, traded 09:30, reported
-16:39, against a day IBKR's daily bar tops at $3.23), and so do Massive's
-minute bars.
+16:39, against a day IBKR's daily bar tops at $3.23). Massive's minute bars
+do not: they draw a late print at its report time (KTTA 2021-11-24 10:28, a
+$4.22 high from a 09:46 trade while the market traded $3.72-3.80).
 """
 from __future__ import annotations
 
