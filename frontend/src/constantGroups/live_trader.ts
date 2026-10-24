@@ -45,9 +45,12 @@ export const ltFees = (usd: string): string => `${usd} fees`;
 export const ltBeforeFees = (usd: string): string => `${usd} before fees`;
 export const ltAfterFeesTip = (fees: string, before: string): string =>
   `After ${fees} in fees · before fees ${before}`;
+/** The LiveTrader bots' Paper orders are priced as a commission-free broker would (operator 2026-10-23: the plan
+ * for their Live orders; IBKR stays for the data and your own orders, which Paper still prices as IBKR Fixed). */
 export const ltFeesTip = (orders: number, fees: string, unread: number): string =>
   `What Paper charged for this bot's ${orders} filled order${orders === 1 ? '' : 's'} today `
-  + `(entries, adds, closes, buy stops): ${fees} — IBKR Fixed, at least USD 1.00 an order`
+  + `(entries, adds, closes, buy stops): ${fees} — priced as a commission-free broker, the plan for its Live `
+  + 'orders: no commission, only the SEC and FINRA fees. Your own orders stay on IBKR Fixed'
   + (unread > 0 ? `. Paper did not show the fee for ${unread} of them.` : '.');
 export const ltSkipsTitle = (name: string, n: number): string => `${name}'s bot · ${n} skipped today`;
 export const ltNewestOf = (shown: number, total: number): string => `the newest ${shown} of ${total}`;
@@ -63,6 +66,12 @@ export const LT_ANSWERED_WHY = 'Answered: the bot checks every rule again before
 /** The settings' editors (bounds from the backend's view when it sends them). */
 export const LT_ADDS_CHOICES: readonly (number | null)[] = [0, 2, 4, null];
 export const ltAddsWords = (n: number | null): string => (n === null ? 'every add' : n === 0 ? 'no adds' : `${n} adds`);
+/** Their size (operator 2026-10-22): each add and partial sale is the same share of the copy as of theirs, sent once
+ * the gap is worth the lot; 0 sends every whole-share change. */
+export const LT_LOT_CHOICES: readonly number[] = [0, 250, 500, 1000];
+export const ltLotWords = (usd: number): string => (usd <= 0 ? 'every change' : `$${usd.toLocaleString('en-US')}`);
+export const ltSizeWords = (usd: number): string =>
+  `Their size${usd > 0 ? `, $${usd.toLocaleString('en-US')} lots` : ', every change'}`;
 export const LT_SIDES_WORDS: Record<string, string> = { long: 'Longs only', both: 'Longs and shorts' };
 export const LT_TAKE_OPEN_WORDS = { take: 'Takes already open', skip: 'Skips already open' };
 export const ltStepWords = (usd: number): string => `$${usd.toLocaleString('en-US')} a step`;

@@ -293,7 +293,8 @@ class Ledger:
         row = self._working.get(oid)
         if row is None:
             return None
-        charged = fees if fees is not None else for_fill(str(row["side"]), float(row["qty"]), float(price), ts)
+        charged = fees if fees is not None else for_fill(str(row["side"]), float(row["qty"]), float(price), ts,
+                                                         origin=row.get("order_origin"))
         self.rollover(ts)
         self._append({
             "type": EVENT_FILLED, "ts": float(ts), "order_id": oid, "price": float(price),

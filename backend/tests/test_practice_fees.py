@@ -95,3 +95,18 @@ def test_nothing_is_charged_for_an_empty_fill() -> None:
     assert fees.commission(0, 10.0) == 0.0
     assert fees.commission(10, 0.0) == 0.0
     assert fees.for_fill("BUY", 10, 0.0, SEPT_30).total == 0.0
+
+
+def test_the_live_trader_bots_are_priced_as_a_commission_free_broker() -> None:
+    """Operator 2026-10-23: the LiveTrader bots' Live orders are planned for a commission-free broker, so Paper
+    charges them no commission -- the SEC, TAF and CAT pass-through still apply. Every other order: IBKR Fixed."""
+    sold = fees.for_fill("SELL", 1000, 10.0, SEPT_30, origin="live_trader")
+    assert sold.commission == 0.0
+    assert sold.sec_fee == pytest.approx(10_000 * PRACTICE_SEC_FEE_RATE)
+    assert sold.finra_taf == pytest.approx(1000 * PRACTICE_FINRA_TAF_PER_SHARE)
+    assert sold.finra_cat == pytest.approx(1000 * PRACTICE_FINRA_CAT_PER_SHARE)
+    bought = fees.for_fill("BUY", 24, 100.04, SEPT_30, origin="live_trader")
+    assert bought.commission == 0.0 and bought.total == pytest.approx(24 * PRACTICE_FINRA_CAT_PER_SHARE)
+    for origin in (None, "manual", "bot", "first_pullback"):
+        assert fees.for_fill("BUY", 24, 100.04, SEPT_30, origin=origin).commission == 1.0
+    assert fees.for_fill("BUY", 10, 0.0, SEPT_30, origin="live_trader").total == 0.0

@@ -11,6 +11,7 @@ import {
   ltNewestOf,
   ltSellAllWords,
   ltShortStopWords,
+  ltSizeWords,
   ltStepWords,
 } from '../constantGroups/live_trader';
 import { prose } from './botsPageFormat';
@@ -43,7 +44,8 @@ export function px(v: number | null | undefined): string {
 /** The settings as chips, in the approved mockup's order. */
 export function ruleChips(st: LtSettings, sellAllAt: string): string[] {
   const sides = st.sides === 'both' ? `${LT_SIDES_WORDS.both} · ${ltShortStopWords(st.short_stop_pct)}` : LT_SIDES_WORDS.long;
-  return [ltStepWords(st.step_usd), ltAddsWords(st.adds), ltAllowanceWords(st.allowance_usd), sides,
+  const size = st.lot_usd == null ? [] : [ltSizeWords(st.lot_usd)];
+  return [ltStepWords(st.step_usd), ...size, ltAddsWords(st.adds), ltAllowanceWords(st.allowance_usd), sides,
     st.take_open ? LT_TAKE_OPEN_WORDS.take : LT_TAKE_OPEN_WORDS.skip, LT_LARGE_CAPS, ltSellAllWords(sellAllAt)];
 }
 

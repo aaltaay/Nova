@@ -2,12 +2,14 @@
 
 Commission is IBKR Pro *Fixed*: a per-share rate, never below the per-order
 minimum, never above the percent-of-value cap. When the cap is below the
-minimum (a tiny order) the cap wins, as on IBKR's own schedule. The SEC
+minimum (a tiny order) the cap wins, as on IBKR's own schedule. An order whose
+origin is in ``PRACTICE_COMMISSION_FREE_ORIGINS`` (the LiveTrader bots, operator
+2026-10-23) is priced as a commission-free broker would: no commission. The SEC
 section 31 fee and the FINRA Trading Activity Fee are passed through on
 **sells only** -- the TAF not at all on a trade date inside a FINRA TAF
-holiday -- and the FINRA CAT fee on **every** fill. Pure functions; every
-number comes from ``constants_practice`` with its source named there. Nothing
-here is invented.
+holiday -- and the FINRA CAT fee on **every** fill, whichever the price list.
+Pure functions; every number comes from ``constants_practice`` with its source
+named there. Nothing here is invented.
 """
 from __future__ import annotations
 
@@ -15,6 +17,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from constants_practice import (
+    PRACTICE_COMMISSION_FREE_ORIGINS,
     PRACTICE_COMMISSION_MAX_PCT,
     PRACTICE_COMMISSION_MIN,
     PRACTICE_COMMISSION_PER_SHARE,
@@ -108,9 +111,14 @@ def cat(qty: float) -> float:
     return round(abs(float(qty)) * PRACTICE_FINRA_CAT_PER_SHARE, _PLACES)
 
 
-def for_fill(side: str, qty: float, price: float, ts: float | None = None) -> Fees:
-    """Everything one fill traded at ``ts`` (the venue's time) is charged."""
+def commission_free(origin: str | None) -> bool:
+    """True for an order priced as a commission-free broker would (``PRACTICE_COMMISSION_FREE_ORIGINS``)."""
+    return origin in PRACTICE_COMMISSION_FREE_ORIGINS
+
+
+def for_fill(side: str, qty: float, price: float, ts: float | None = None, *, origin: str | None = None) -> Fees:
+    """Everything one fill traded at ``ts`` (the venue's time) is charged; ``origin`` the order's (its price list)."""
     sec_fee, taf = regulatory(side, qty, price, ts)
-    charge = commission(qty, price)
-    return Fees(commission=charge, sec_fee=sec_fee, finra_taf=taf,
-                finra_cat=cat(qty) if charge > 0 else 0.0)
+    executed = abs(float(qty)) > 0 and abs(float(price)) > 0
+    charge = 0.0 if commission_free(origin) else commission(qty, price)
+    return Fees(commission=charge, sec_fee=sec_fee, finra_taf=taf, finra_cat=cat(qty) if executed else 0.0)

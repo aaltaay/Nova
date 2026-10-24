@@ -156,7 +156,8 @@ def _change_words(a: dict[str, Any]) -> str:
 
 async def close(a: dict[str, Any], now: float) -> None:
     """Sell (or cover) the bot's whole position: its order in flight and a short's buy stops cancelled first.
-    A trim (``a["trim"]``, a long only) sells ``a["qty"]`` of it, once: the host sold part (``decide_steps.trim``)."""
+    A trim (``a["trim"]``) sells ``a["qty"]`` of it: the host sold part (``decide_held.trim``) -- a short covers whole
+    steps (``_trim_short``), so every share it keeps keeps its own buy stop."""
     pos = book.get(a["pos_id"])
     if pos is None or pos["state"] == "closing":
         return
@@ -165,9 +166,16 @@ async def close(a: dict[str, Any], now: float) -> None:
         return
     cover = market.cover_ts(now)
     if pos["side"] == "short" and cover is not None and now >= cover:
+        if a.get("trim"):
+            return                             # the day cover covers it whole now
         book.close_sent(pos["id"], order_id=None, kind="day_cover", why=a["why"], now=now, qty=pos["qty"])
         note({**a, "kind": "day_cover", "why": f"{a['why']}: Nova's day cover covers every Paper short at this "
                                               "time, this one with them"}, now)
+        return
+    if a.get("trim"):
+        qty = await _trim_short(a, pos, now) if pos["side"] == "short" else float(a["qty"])
+        if qty:
+            await _send_close(a, book.get(a["pos_id"]), qty, now)
         return
     cancels = ([pos["order"]["id"]] if pos.get("order") and pos["order"].get("id") else []) + pos["stop_order_ids"]
     for oid in cancels:
@@ -181,13 +189,80 @@ async def close(a: dict[str, Any], now: float) -> None:
         pos = book.get(a["pos_id"])
         if pos is None:
             return
+    await _send_close(a, pos, pos["qty"], now)
+
+
+async def _trim_short(a: dict[str, Any], pos: dict[str, Any], now: float) -> float:
+    """The shares a short's partial cover covers: its newest steps whose shares come nearest ``a["qty"]``, never
+    its first (the host still holds some), each step's buy stop cancelled first. Paper cannot shrink a stop, so a
+    step's stop and its shares go together and every share left keeps its own. The covered steps' shares wait on
+    the book (``stopless_qty``) until their cover fills -- one that does not is sent again (``cover_stopless``).
+    0 when no step fits, said once."""
+    steps: list[tuple[int, float]] = []
+    for oid in pos["stop_order_ids"]:
+        try:
+            row = orders.order_row(oid)
+        except orders.ReadError:
+            logger.warning("Live Trader bot: %s's buy stop %s unreadable before a partial cover", pos["symbol"], oid)
+            return 0.0
+        if orders.order_state(row) == "working":
+            steps.append((int(oid), float((row or {}).get("remaining_qty") or (row or {}).get("qty") or 0.0)))
+    want, covered, chosen = float(a["qty"]), 0.0, []
+    for oid, q in reversed(steps[1:]):         # newest first; the first step stays until they close
+        if EPS < q < 2 * (want - covered):     # nearer the host's share with it than without
+            chosen.append((oid, q))
+            covered += q
+    if not chosen:
+        note({**a, "kind": "note", "why": f"{a['why']} -- a short covers whole steps, each with its own buy stop, "
+                                          "and none fits that share: it keeps them until they close or sell more"},
+             now)
+        return 0.0
+    gone: list[tuple[int, float]] = []
+    for oid, q in chosen:
+        try:
+            await orders.cancel(oid, pos["symbol"], pos["host"])
+            if orders.order_state(orders.order_row(oid)) != "working":
+                gone.append((oid, q))
+        except Exception:
+            logger.exception("Live Trader bot: %s's buy stop %s was not cancelled for a partial cover",
+                             pos["symbol"], oid)
+    if not gone:
+        audit("error", a, why="its buy stops could not be cancelled: the partial cover was not sent (tried again)",
+              now=now)
+        return 0.0
+    qty = sum(q for _, q in gone)
+    book.stops_cancelled(pos["id"], [oid for oid, _ in gone], qty)
+    return qty
+
+
+async def cover_stopless(now: float) -> None:
+    """Shares of a short whose buy stops the bot cancelled for a partial cover and whose cover has not filled are
+    covered, every pass until they are -- whatever the keys, as the rest of a short whose stop no longer matches is
+    (``_retire_stops``): a bot short never holds without a stop for exactly its shares."""
+    for pos in book.positions().values():
+        left = float(pos.get("stopless_qty") or 0.0)
+        if left <= EPS or pos["state"] != "open" or pos.get("order"):
+            continue
+        failed_at = (pos.get("close") or {}).get("failed_ts")
+        if failed_at is not None and now - failed_at < LT_CLOSE_RETRY_SEC:
+            continue
+        await _send_close({"kind": "close", "host": pos["host"], "pos_id": pos["id"], "row_id": pos["row_id"],
+                           "symbol": pos["symbol"], "side": pos["side"], "trim": True, "qty": left,
+                           "why": "covering the shares whose buy stops it cancelled to cover part",
+                           "change": {"kind": "trim", "ts": now, "price": None}}, pos, left, now)
+
+
+async def _send_close(a: dict[str, Any], pos: dict[str, Any] | None, want: float, now: float) -> None:
+    """The close (or a trim's part) of ``want`` shares at market, never more than Paper holds."""
+    if pos is None:
+        return
     held = orders.held(pos["symbol"], pos["side"])
     if held is None:
         audit("error", a, why="Paper's positions could not be read: the close was not sent (tried again)", now=now)
         return
-    qty = min(float(a["qty"]) if a.get("trim") else pos["qty"], held)
-    if a.get("trim") and (pos["side"] != "long" or pos.get("trimmed") or qty >= pos["qty"] - EPS):
-        return                                 # a trim is half a long, once: never a whole close, never a short
+    qty = min(float(want), held)
+    if a.get("trim") and pos["side"] == "long" and qty >= pos["qty"] - EPS:
+        return                                 # a long's trim is part of it, never a whole close
     if qty <= EPS:
         done = book.forget(pos["id"], kind="outside", why="already gone from Paper before the close", ts=now)
         if done is not None:

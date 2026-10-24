@@ -227,6 +227,34 @@ describe("a host's bot in the host's card", () => {
     expect(screen.queryByTestId('lt-rules-card-ALPHA')).toBeNull();
   });
 
+  it('says their size and its lot in the rules, and the lot is changed there', async () => {
+    // Operator 2026-10-22: "Their size, $500 lots" -- a backend without lot_usd shows no lot (it copied full steps).
+    current = view({ hosts: [host({ settings: { ...host().settings, adds: null, lot_usd: 500 } })] });
+    await renderStrip();
+    fireEvent.click(screen.getByTestId('lt-rules-ALPHA'));
+    const card = screen.getByTestId('lt-rules-card-ALPHA');
+    expect(card.textContent).toContain('Their size, $500 lots');
+    expect(card.textContent).toContain('every add');
+    await act(async () => { fireEvent.click(screen.getByTestId('lt-edit-lot-ALPHA-0')); });
+    await flush();
+    expect(writes.map(w => w.body)).toEqual([{ lot_usd: 0 }]);
+  });
+
+  it('shows no lot for a backend that sends none', async () => {
+    await renderStrip();
+    fireEvent.click(screen.getByTestId('lt-rules-ALPHA'));
+    expect(screen.queryByTestId('lt-edit-lot-ALPHA-500')).toBeNull();
+    expect(screen.getByTestId('lt-rules-card-ALPHA').textContent).not.toContain('Their size');
+  });
+
+  it('says the bots are priced as a commission-free broker in the fees hover', async () => {
+    const base = host();
+    current = view({ hosts: [host({ today: { ...base.today, net_pl_usd: 6.8, fees_usd: 0.05, orders: 4, fees_unread: 0 } })] });
+    await renderStrip();
+    expect(tip('lt-fees-ALPHA')).toContain('commission-free broker');
+    expect(tip('lt-fees-ALPHA')).toContain('Your own orders stay on IBKR Fixed');
+  });
+
   it('keeps its rules card under Rules when the page scrolls, and closes it once Rules scrolls out of the window', async () => {
     // Codex review, PR #1009: the stack scrolls, not the window, so a card placed once floats over the wrong host.
     await renderStrip();

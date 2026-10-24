@@ -9,7 +9,8 @@ new steps too (``error``), until a write succeeds (``retry_save``, each pass): a
 otherwise be taken again after a restart.
 
 A position is one host, side and stock (``feed_rows.position_id``): the shares the bot's own fills hold, what they
-cost, its steps, the order in flight (an entry, an add or a close) and a short's buy stops. The shares are the bot's
+cost, its steps, the order in flight (an entry, an add or a close) and a short's buy stops -- and the shares of a
+partial cover whose stops are cancelled but whose cover has not filled (``stopless_qty``). The shares are the bot's
 alone: the operator's own Paper shares in the same stock are never counted or sold. When a position holds nothing
 any more, its buy stops move to ``retire`` and stay there until Paper shows each one is not working (``act``
 cancels them each pass), across a restart and a new day. Shapes: architecture/schema/bot.md ("The Live Trader bot").
@@ -261,9 +262,20 @@ def close_filled(pos_id: str, *, qty: float, price: float | None, ts: float | No
         if pos is None:
             return None
         pos["exit_fills"].append({"qty": qty, "price": price, "ts": ts, "order_id": order_id, "kind": kind})
-        if kind == "trim":
-            pos["trimmed"] = True              # half sold once: a later sale of the host's sells nothing more
         return _reduce_locked(book, pos, qty, kind=kind, why=why, ts=ts)
+
+
+def stops_cancelled(pos_id: str, order_ids: list[int], qty: float) -> None:
+    """A short's partial cover cancelled these steps' buy stops: they leave the position, and their ``qty`` shares
+    wait as ``stopless_qty`` until the cover fills (``act.cover_stopless`` sends it again until it does)."""
+    with _lock:
+        pos = _load_locked()["positions"].get(pos_id)
+        if pos is None:
+            return
+        gone = {int(o) for o in order_ids}
+        pos["stop_order_ids"] = [o for o in pos["stop_order_ids"] if int(o) not in gone]
+        pos["stopless_qty"] = round(float(pos.get("stopless_qty") or 0.0) + float(qty), 6)
+        _save_locked()
 
 
 def reduce(pos_id: str, qty: float, *, kind: str, why: str, ts: float | None,
@@ -295,6 +307,8 @@ def _reduce_locked(book: dict[str, Any], pos: dict[str, Any], qty: float, *, kin
     if held > EPS:
         pos["cost_usd"] = round(pos["cost_usd"] * (held - sold) / held, 4)
     pos["qty"] = round(held - sold, 6)
+    if pos.get("stopless_qty"):
+        pos["stopless_qty"] = round(max(0.0, float(pos["stopless_qty"]) - sold), 6)
     if pos["qty"] > EPS:
         pos.update(state="open", close=None)
         _save_locked()

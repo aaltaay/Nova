@@ -143,6 +143,7 @@ async def manage(now: float) -> None:
         elif pos["state"] == "closing":
             act.follow_close(pos["id"], now)
     await act.reconcile(now)
+    await act.cover_stopless(now)
     await act.clear_stops(now)
 
 
@@ -236,7 +237,8 @@ def _context(now: float) -> dict[str, Any]:
         answers = dict(_answers)
         _answers.clear()
     return {"now": now, "settings": settings.of, "can_open": can_open(), "sell_all_ts": sell_all_ts(now),
-            "keys_hold": keys_hold(keys()), "quote": market.quote, "cap": market.cap, "ssr": market.ssr, "range_since": market.range_since, "held": orders.held,
+            "keys_hold": keys_hold(keys()), "quote": market.quote, "cap": market.cap, "ssr": market.ssr,
+            "range_since": market.range_since, "price_at": market.price_at, "held": orders.held,
             "short_closed": market.short_closed, "answers": answers, "no_reentry": book.no_reentry()}
 
 

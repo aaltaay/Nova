@@ -35,6 +35,7 @@ is an operator knob, not a model.
 |---|---|---|
 | `PRACTICE_STARTING_CASH` | 5 000 | The operator's own account size (ADR 048, 2026-10-07; until then 100 000, Alpaca's default). Practice margin, the short check's cushion and every bot's size are only honest at the size the operator trades: on 100 000 a short the real account could never carry looked fine. IBKR's 1M would flatter every bot. Operator-resettable. |
 | `PRACTICE_COMMISSION_PER_SHARE` / `_MIN` / `_MAX_PCT` | 0.005 / 1.00 / 1 % | IBKR Pro **Fixed** as published today. Live Nova trades on IBKR, so Paper charges what Live would; Fixed rather than Tiered because it has no volume tiers or exchange rebates to fake. QuantConnect's 0.5 % cap is stale and is not used. |
+| `PRACTICE_COMMISSION_FREE_ORIGINS` | `live_trader` | Orders of these origins (the row's `order_origin`, a bracket's legs included) pay **no commission** -- the SEC, TAF and CAT pass-throughs below still apply -- as a commission-free broker would charge them. Operator, 2026-10-23: the LiveTrader bots' Live orders are planned for a commission-free broker (IBKR stays for the data, Level 2 and the operator's own orders; nothing is switched), so their Paper tests read as that plan would. Nearly every order of the bots' is small enough that IBKR Fixed charges its USD 1.00 minimum. IBKR Lite is no option: it allows no API trading. Every other order stays on IBKR Fixed. |
 | `PRACTICE_SEC_FEE_RATE` | 20.60 per 1M | FY2026 §31 rate, on **sell** value only, as IBKR passes it through. |
 | `PRACTICE_FINRA_TAF_PER_SHARE` / `_MAX` | 0.000195 / 9.79 | 2026 TAF on shares **sold**, per-trade cap. Both regulatory fees are refreshed by editing the constant when the SEC/FINRA notice changes; no auto-lookup. |
 | `PRACTICE_FINRA_TAF_HOLIDAYS` | 2026-10-01 to 2026-12-31 | FINRA's three-month TAF pause (SR-FINRA-2026-021): no TAF on a sell whose Eastern trade date falls inside, both days included -- the fill's own time, so a Sim replay of an earlier day still pays it. TAF resumes 2027-01-01. |
@@ -48,7 +49,7 @@ is an operator knob, not a model.
 | `PRACTICE_BUYING_POWER_CODE` | `PRACTICE_BUYING_POWER` | Buying power is **enforced** on both venues (backtrader checks at submit and at fill; Nova checks at admission and again when a resting order fills, refusing the fill if power ran out). A practice desk that lets a bot buy without limit teaches it nothing. |
 
 Fee math, applied per fill: `commission = clamp(qty * 0.005, 1.00,
-0.01 * qty * price)`; on every fill add `qty * CAT`; on a sell add `sell_value
+0.01 * qty * price)` (0 for a commission-free origin); on every fill add `qty * CAT`; on a sell add `sell_value
 * SEC rate` and `min(qty * TAF, 9.79)` (zero on a TAF holiday). The fees a fill
 was charged are stored on its event, so a schedule change never rewrites a fill
 already made. Commissions and fees reduce cash at the fill, appear on the row,

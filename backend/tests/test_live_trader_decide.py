@@ -64,8 +64,9 @@ def answer(hosts=None, *, left=None, feed_now=None, age=1.0, behind=2.0, visible
 
 
 def settings(**over):
+    """A host's settings; ``lot_usd`` 0 sends every whole share of their size (the lot's own tests set it)."""
     out = {"key": True, "entry": "nova", "exit": "nova", "step_usd": 500.0, "adds": 2, "allowance_usd": 2500.0,
-           "sides": "both", "short_stop_pct": 5.0, "take_open": True}
+           "sides": "both", "short_stop_pct": 5.0, "take_open": True, "lot_usd": 0.0}
     out.update(over)
     return out
 
@@ -121,10 +122,9 @@ class World:
                 if a["step"] == "add":
                     pos["adds_followed"] += 1
             elif a["kind"] == "close" and a.get("trim"):
-                pos = self.book[a["pos_id"]]                # half sold, once (book.close_filled, kind "trim")
+                pos = self.book[a["pos_id"]]                # their share sold (book.close_filled, kind "trim")
                 pos["cost_usd"] *= (pos["qty"] - a["qty"]) / pos["qty"]
                 pos["qty"] -= a["qty"]
-                pos["trimmed"] = True
             elif a["kind"] == "close":
                 self.book.pop(a["pos_id"], None)
             elif a["kind"] == "rekey":
@@ -972,19 +972,21 @@ def test_an_average_moving_away_from_the_market_is_a_sale_never_bought():
     assert kinds(out, "step") == []
     (skip,) = kinds(out, "skip")
     assert skip["code"] == LT_ADD_IS_SALE and "sold part" in skip["why"]
-    # The same stock with the market under their average: an add that pulls it down is a real add, followed.
-    w2 = World()
+    # The same stock with the market under their average: an add that pulls it down is a real add, followed -- 13
+    # shares grown by their share of 0.30 / 2.02, 2 more.
+    w2 = World(step_usd=5000.0, allowance_usd=50000.0)
     w2.quotes["TSLA"] = {"last": 364.3, "bid": 364.28, "ask": 364.32, "fresh": True}
     watching(w2, base)
     w2.quotes["TSLA"] = {"last": 362.0, "bid": 361.98, "ask": 362.02, "fresh": True}
     out2 = w2.at(40).run(answer({HOST: [moved]}, feed_now=NOW + 40))
     (step,) = kinds(out2, "step")
-    assert step["step"] == "add"
+    assert step["step"] == "add" and step["qty"] == 2
 
 
-def _sale_world(side="long", qty_usd=1500.0):
-    """A held TSLA position whose host then sells part: their average 364.32 -> 364.02, TSLA at 366.8."""
-    w = World(step_usd=qty_usd, sides="both")
+def _sale_world(side="long", qty_usd=15000.0):
+    """A held TSLA position (41 shares) whose host then sells part: their average 364.32 -> 364.02, TSLA at 366.8 --
+    they sold 0.30 / 2.78 of what they held."""
+    w = World(step_usd=qty_usd, allowance_usd=50000.0, sides="both")
     base = row(symbol="TSLA", side=side, price=364.32, entry_ts=NOW)
     w.quotes["TSLA"] = {"last": 364.3, "bid": 364.28, "ask": 364.32, "fresh": True}
     watching(w, base)
@@ -992,20 +994,22 @@ def _sale_world(side="long", qty_usd=1500.0):
     return w, base
 
 
-def test_a_host_sale_sells_half_the_bots_long_once():
-    """Operator 2026-10-16, "Sell half, once": the first sale sells half the bot's shares; a later one sells none."""
+def test_a_host_sale_sells_their_share_of_the_bots_long_every_time():
+    """Operator 2026-10-22, "Their size, $500 lots" (it sold half, once, before): each sale sells the share of the copy
+    they sold of theirs -- 0.30 / 2.78 of 41 shares is 4, then 0.22 / 3.00 of the 36.6 left to copy is 3."""
     w, base = _sale_world()
     pos = next(iter(w.book.values()))
-    assert pos["qty"] == 4
+    assert pos["qty"] == 41
     sold = dict(base, price=364.02, adds=[_add(NOW + 30, 364.02, 364.32)])
     out = w.at(40).run(answer({HOST: [sold]}, feed_now=NOW + 40))
     (close,) = kinds(out, "close")
-    assert close["trim"] is True and close["qty"] == 2 and "sells half, once" in close["why"]
+    assert close["trim"] is True and close["qty"] == 4 and "about 11% of TSLA" in close["why"]
     assert kinds(out, "step") == [] and kinds(out, "skip")[0]["code"] == LT_ADD_IS_SALE
-    assert pos["qty"] == 2 and pos["trimmed"]
+    assert pos["qty"] == 37
     again = dict(sold, price=363.8, adds=[*sold["adds"], _add(NOW + 60, 363.8, 364.02)])
     out = w.at(70).run(answer({HOST: [again]}, feed_now=NOW + 70))
-    assert kinds(out, "close") == [] and pos["qty"] == 2
+    (close,) = kinds(out, "close")
+    assert close["trim"] and close["qty"] == 3 and pos["qty"] == 34
 
 
 def test_an_add_whose_market_crossed_their_average_since_is_an_add_not_a_sale():
@@ -1028,19 +1032,19 @@ def test_an_add_whose_market_crossed_their_average_since_is_an_add_not_a_sale():
     assert kinds(out, "close")[0]["trim"] is True
 
 
-def test_a_sale_while_the_key_is_off_sells_half_once_it_is_back_on():
-    """Codex review, PR #1024: a key off holds the half as it holds a close; turning it on sells it, never loses it."""
+def test_a_sale_while_the_key_is_off_sells_their_share_once_it_is_back_on():
+    """Codex review, PR #1024: a key off holds the sale as it holds a close; turning it on sells it, never loses it."""
     w, base = _sale_world()
     pos = next(iter(w.book.values()))
     w.st[HOST]["key"] = False
     sold = dict(base, price=364.02, adds=[_add(NOW + 30, 364.02, 364.32)])
     out = w.at(40).run(answer({HOST: [sold]}, feed_now=NOW + 40))
-    assert kinds(out, "close") == [] and pos["qty"] == 4
-    assert any("not sold" in n["why"] and "sells half when it is back on" in n["why"] for n in kinds(out, "note"))
+    assert kinds(out, "close") == [] and pos["qty"] == 41
+    assert any("not sold" in n["why"] and "sells its share when it is back on" in n["why"] for n in kinds(out, "note"))
     w.st[HOST]["key"] = True
     out = w.at(45).run(answer({HOST: [sold]}, feed_now=NOW + 45))
     (close,) = kinds(out, "close")
-    assert close["trim"] and close["qty"] == 2 and pos["trimmed"]
+    assert close["trim"] and close["qty"] == 4 and pos["qty"] == 37
     out = w.at(50).run(answer({HOST: [sold]}, feed_now=NOW + 50))
     assert kinds(out, "close") == []
 
@@ -1052,7 +1056,7 @@ def test_a_sale_past_the_add_limit_meets_the_bad_read_checks_first():
     sold = dict(base, price=364.02, adds=[_add(NOW + 30, 364.02, 364.32)])
     out = w.at(40).run(_with(answer({HOST: [sold]}, feed_now=NOW + 40), HOST, unread=["long"]))
     assert kinds(out, "close") == []
-    assert next(iter(w.book.values()))["qty"] == 4
+    assert next(iter(w.book.values()))["qty"] == 41
 
 
 def test_the_market_since_a_change_is_sampled_each_pass(monkeypatch):
@@ -1069,16 +1073,20 @@ def test_the_market_since_a_change_is_sampled_each_pass(monkeypatch):
     market.reset_for_tests()
 
 
-def test_a_host_sale_never_trims_a_short_or_a_single_share():
+def test_a_host_cover_covers_their_share_of_a_short_and_a_last_share_stays():
+    """A short's partial cover is their share too (``act.close`` covers it in whole steps, each with its own buy
+    stop); a copy of one share keeps it until they close -- the host still holds the rest."""
     w, base = _sale_world(side="short")
+    assert next(iter(w.book.values()))["qty"] == 41
     sold = dict(base, price=364.62, adds=[_add(NOW + 30, 364.62, 364.32)])   # a short's average up, market under
     w.quotes["TSLA"] = {"last": 362.0, "bid": 361.98, "ask": 362.02, "fresh": True}
     out = w.at(40).run(answer({HOST: [sold]}, feed_now=NOW + 40))
-    assert kinds(out, "close") == [] and any("cannot shrink its buy stop" in n["why"] for n in kinds(out, "note"))
+    (close,) = kinds(out, "close")                                           # 0.30 / 2.62 of 41
+    assert close["trim"] is True and close["side"] == "short" and close["qty"] == 5
     w1, base1 = _sale_world(qty_usd=500.0)
     out = w1.at(40).run(answer({HOST: [dict(base1, price=364.02, adds=[_add(NOW + 30, 364.02, 364.32)])]},
                                feed_now=NOW + 40))
-    assert kinds(out, "close") == [] and any("nothing to halve" in n["why"] for n in kinds(out, "note"))
+    assert kinds(out, "close") == [] and next(iter(w1.book.values()))["qty"] == 1
 
 
 def test_a_sale_still_trims_after_every_add_is_spent():
@@ -1087,7 +1095,7 @@ def test_a_sale_still_trims_after_every_add_is_spent():
     sold = dict(base, price=364.02, adds=[_add(NOW + 30, 364.02, 364.32)])
     out = w.at(40).run(answer({HOST: [sold]}, feed_now=NOW + 40))
     (close,) = kinds(out, "close")
-    assert close["trim"] and close["qty"] == 2
+    assert close["trim"] and close["qty"] == 4
 
 
 def test_an_add_between_the_old_average_and_the_market_is_followed():
@@ -1425,3 +1433,117 @@ def test_a_glued_row_whose_check_settles_on_the_other_stock_sells_the_position_a
     (close,) = kinds(out, "close")
     assert close["symbol"] == "RGTI" and close["why"] == "CHERIF's row back at 12:30:27 ET is RGT, not RGTI: CHERIF closed RGTI"
     assert [a["symbol"] for a in kinds(out, "step")] == ["RGT"]
+
+
+# -- their size (operator 2026-10-22: "Their size, $500 lots") -----------------------------------------
+def _sized(**st):
+    """24 shares of XYZ bought at 100.04 ($2,500 a step), the market then at 99.50 under their average."""
+    w = World(**{"step_usd": 2500.0, "allowance_usd": 12500.0, "lot_usd": 500.0, **st})
+    base = row(entry_ts=NOW)
+    watching(w, base)
+    assert next(iter(w.book.values()))["qty"] == 24
+    w.quotes["XYZ"] = {"last": 99.5, "bid": 99.48, "ask": 99.52, "fresh": True}
+    return w, base
+
+
+def test_an_add_grows_the_copy_by_their_share_not_a_full_step():
+    """Their average 100.00 -> 99.90 with the market at 99.50: they added 0.10 / 0.40 = a quarter of what they held,
+    so the bot's 24 shares grow to 30 -- 6 shares, not a $2,500 step."""
+    w, base = _sized()
+    moved = dict(base, price=99.9, adds=[_add(NOW + 30, 99.9, 100.0)])
+    out = w.at(40).run(answer({HOST: [moved]}, feed_now=NOW + 40))
+    (step,) = kinds(out, "step")
+    assert step["step"] == "add" and step["qty"] == 6 and step["limit"] == pytest.approx(99.54)
+
+
+def test_small_adds_wait_until_they_add_up_to_the_lot():
+    """A scaler's small add (0.04 / 0.46 of what they held: 2 shares, $199) waits under the $500 lot, said once;
+    the next one (0.06 / 0.40) takes the copy to 30 shares, and the gap of 6 goes out together."""
+    w, base = _sized()
+    first = dict(base, price=99.96, adds=[_add(NOW + 30, 99.96, 100.0)])
+    out = w.at(40).run(answer({HOST: [first]}, feed_now=NOW + 40))
+    assert kinds(out, "step") == []
+    (note,) = [n for n in kinds(out, "note") if n.get("code") == "LT_UNDER_LOT"]
+    assert "under the $500 lot" in note["why"]
+    second = dict(first, price=99.9, adds=[*first["adds"], _add(NOW + 60, 99.9, 99.96)])
+    out = w.at(70).run(answer({HOST: [second]}, feed_now=NOW + 70))
+    (step,) = kinds(out, "step")
+    assert step["qty"] == 6
+    assert w.book[step["pos_id"]]["adds_followed"] == 1          # one order for two of their adds
+
+
+def test_an_add_is_cut_to_the_allowance_and_a_room_under_the_lot_is_a_skip():
+    w, base = _sized(allowance_usd=3000.0)
+    moved = dict(base, price=99.75, adds=[_add(NOW + 30, 99.75, 100.0)])     # doubles their position
+    out = w.at(40).run(answer({HOST: [moved]}, feed_now=NOW + 40))
+    (step,) = kinds(out, "step")
+    assert step["qty"] == 6                                     # $599 of room at 99.54, not the 24 their size asks
+    more = dict(moved, price=99.7, adds=[*moved["adds"], _add(NOW + 60, 99.7, 99.75)])
+    out = w.at(70).run(answer({HOST: [more]}, feed_now=NOW + 70))
+    assert kinds(out, "step") == []
+    assert kinds(out, "skip")[0]["code"] == LT_ALLOWANCE
+
+
+def test_an_add_skipped_is_never_bought_with_the_next():
+    """An add the bot could not price (no fresh quote, past the wait) never grows the copy: the next add buys only
+    its own share (a quarter of 24), never the skipped one's too."""
+    w, base = _sized()
+    w.quotes["XYZ"] = dict(w.quotes["XYZ"], fresh=False)
+    first = dict(base, price=99.75, adds=[_add(NOW + 30, 99.75, 100.0)])
+    w.at(40).run(answer({HOST: [first]}, feed_now=NOW + 40))
+    out = w.at(75).run(answer({HOST: [first]}, feed_now=NOW + 75))
+    assert kinds(out, "skip")[0]["code"] == LT_NO_QUOTE
+    w.quotes["XYZ"] = {"last": 99.5, "bid": 99.48, "ask": 99.52, "fresh": True}
+    second = dict(first, price=99.7, adds=[*first["adds"], _add(NOW + 90, 99.7, 99.75)])
+    out = w.at(100).run(answer({HOST: [second]}, feed_now=NOW + 100))
+    (step,) = kinds(out, "step")
+    assert step["qty"] == 6                                     # 0.05 / 0.20 of 24, not of 48
+
+
+def test_a_sale_under_the_lot_waits_and_sells_once_their_sales_add_up():
+    w, base = _sale_world()
+    w.st[HOST] = dict(w.st[HOST], lot_usd=2000.0)
+    pos = next(iter(w.book.values()))
+    sold = dict(base, price=364.02, adds=[_add(NOW + 30, 364.02, 364.32)])   # 4 shares, $1,467: under $2,000
+    out = w.at(40).run(answer({HOST: [sold]}, feed_now=NOW + 40))
+    assert kinds(out, "close") == [] and pos["qty"] == 41
+    assert any(n.get("code") == "LT_UNDER_LOT" for n in kinds(out, "note"))
+    again = dict(sold, price=363.8, adds=[*sold["adds"], _add(NOW + 60, 363.8, 364.02)])
+    out = w.at(70).run(answer({HOST: [again]}, feed_now=NOW + 70))
+    (close,) = kinds(out, "close")
+    assert close["qty"] == 7 and pos["qty"] == 34                  # both sales' share at once
+
+
+def test_sizing_reads_their_share_from_the_average_and_the_market():
+    from bot.live_trader import sizing
+
+    assert sizing.change_share(100.0, 99.9, 99.5) == pytest.approx(0.25)       # an add: 0.10 / 0.40
+    assert sizing.change_share(364.32, 364.02, 366.8) == pytest.approx(0.30 / 2.78)   # a sale: 0.30 / 2.78
+    assert sizing.change_share(100.0, 99.999, 99.998) == 1.0                   # a hair from the market: at most double
+    assert sizing.change_share(None, 99.9, 99.5) is None and sizing.change_share(100.0, 99.9, None) is None
+    assert sizing.lot_shares(2.4, 99.5, 500.0) == 0 and sizing.lot_shares(5.6, 99.5, 500.0) == 6
+    assert sizing.lot_shares(0.6, 99.5, 0.0) == 1 and sizing.lot_shares(0.4, 99.5, 0.0) == 0
+    rs: dict = {}
+    before = sizing.target_for(rs, 0, 24.0)
+    sizing.keep(rs, 0, before, sizing.grown(before, 0.25))
+    assert sizing.target_for(rs, 0, 24.0) == 24.0 and rs["target"] == 30.0     # the same group judged again
+    assert sizing.target_for(rs, 1, 24.0) == 30.0
+
+
+def test_a_short_cover_no_whole_step_fits_is_tried_once_and_its_adds_go_on():
+    """``act.close`` covers a short in whole steps; with none that fits (a lone first step) nothing is covered. The
+    cover is not asked for again every pass, and the host's next add is still followed."""
+    w, base = _sale_world(side="short")
+    pos = next(iter(w.book.values()))
+    sold = dict(base, price=364.62, adds=[_add(NOW + 30, 364.62, 364.32)])
+    w.quotes["TSLA"] = {"last": 362.0, "bid": 361.98, "ask": 362.02, "fresh": True}
+    out = w.at(40).run(answer({HOST: [sold]}, feed_now=NOW + 40))
+    assert kinds(out, "close")[0]["trim"] is True
+    pos["qty"], pos["cost_usd"] = 41.0, 41 * 364.26                   # no whole step fitted: nothing was covered
+    out = w.at(45).run(answer({HOST: [sold]}, feed_now=NOW + 45))
+    assert kinds(out, "close") == []
+    w.quotes["TSLA"] = {"last": 366.0, "bid": 365.98, "ask": 366.02, "fresh": True}
+    more = dict(sold, price=364.9, adds=[*sold["adds"], _add(NOW + 60, 364.9, 364.62)])   # shorted more as it rose
+    out = w.at(70).run(answer({HOST: [more]}, feed_now=NOW + 70))
+    (step,) = kinds(out, "step")
+    assert step["step"] == "add" and step["side"] == "short"

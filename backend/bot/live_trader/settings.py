@@ -27,6 +27,7 @@ from bot.live_trader.constants_live_trader import (
     LT_DEFAULT_ENTRY,
     LT_DEFAULT_EXIT,
     LT_DEFAULT_KEY,
+    LT_DEFAULT_LOT_USD,
     LT_DEFAULT_SELL_ALL_AT,
     LT_DEFAULT_SHORT_STOP_PCT,
     LT_DEFAULT_SIDES,
@@ -34,6 +35,7 @@ from bot.live_trader.constants_live_trader import (
     LT_DEFAULT_TAKE_OPEN,
     LT_ERR_INVALID,
     LT_ERR_SETTINGS_UNREADABLE,
+    LT_LOT_USD_BOUNDS,
     LT_NAME_MAX,
     LT_SELL_ALL_BOUNDS,
     LT_SETTINGS_FILE,
@@ -47,7 +49,8 @@ from constants_stock_mode import STOCK_MODE_SIDES
 logger = logging.getLogger(__name__)
 NAME_RE = re.compile(rf"^[A-Z0-9]{{1,{LT_NAME_MAX}}}$")
 HHMM_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
-FIELDS = ("key", "entry", "exit", "step_usd", "adds", "allowance_usd", "sides", "short_stop_pct", "take_open")
+FIELDS = ("key", "entry", "exit", "step_usd", "adds", "allowance_usd", "sides", "short_stop_pct", "take_open",
+          "lot_usd")
 
 _lock = threading.Lock()
 _state: dict[str, Any] | None = None       # the file as read: {"sell_all_at", "hosts"}
@@ -64,11 +67,12 @@ def defaults() -> dict[str, Any]:
     return {"key": LT_DEFAULT_KEY, "entry": LT_DEFAULT_ENTRY, "exit": LT_DEFAULT_EXIT,
             "step_usd": LT_DEFAULT_STEP_USD, "adds": LT_DEFAULT_ADDS, "allowance_usd": LT_DEFAULT_ALLOWANCE_USD,
             "sides": LT_DEFAULT_SIDES, "short_stop_pct": LT_DEFAULT_SHORT_STOP_PCT,
-            "take_open": LT_DEFAULT_TAKE_OPEN}
+            "take_open": LT_DEFAULT_TAKE_OPEN, "lot_usd": LT_DEFAULT_LOT_USD}
 
 
 def bounds() -> dict[str, Any]:
     return {"step_usd": list(LT_STEP_USD_BOUNDS), "allowance_usd": list(LT_ALLOWANCE_USD_BOUNDS),
+            "lot_usd": list(LT_LOT_USD_BOUNDS),
             "adds": list(LT_ADDS_CHOICES), "sides": list(LT_SIDES), "short_stop_pct": list(LT_SHORT_STOP_PCT_BOUNDS),
             "sell_all_at": list(LT_SELL_ALL_BOUNDS), "entry": list(STOCK_MODE_SIDES), "exit": list(STOCK_MODE_SIDES)}
 
@@ -203,7 +207,8 @@ def _checked(row: dict[str, Any]) -> dict[str, Any]:
         raise SettingsError(LT_ERR_INVALID, "adds is 0, 2, 4 or null (every add)", field="adds")
     return {**row, "step_usd": _number(row, "step_usd", *LT_STEP_USD_BOUNDS),
             "allowance_usd": _number(row, "allowance_usd", *LT_ALLOWANCE_USD_BOUNDS),
-            "short_stop_pct": _number(row, "short_stop_pct", *LT_SHORT_STOP_PCT_BOUNDS)}
+            "short_stop_pct": _number(row, "short_stop_pct", *LT_SHORT_STOP_PCT_BOUNDS),
+            "lot_usd": _number(row, "lot_usd", *LT_LOT_USD_BOUNDS)}
 
 
 def _sell_all_ok(value: Any) -> bool:

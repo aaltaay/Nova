@@ -127,3 +127,42 @@ Rejected: keeping the sell-on-off for this bot alone, and off stopping new buys 
 ## Amendment 2026-10-15 (afternoon): each host's bot in the host's card
 
 Operator, 2026-10-15 (ADR 044's amendment of the same afternoon): the TraderTV hosts' page is Bots > LiveTrader Bots, and each host's bot sits in the middle of that host's card in two lines -- its key, Entry, Exit and rules; its allowance, today and skips, the reasons on hover -- with an ask taking the second line. A copy the bot holds is a BOT chip on the host's open row it copies. The LiveTrader Bots key and the one line naming what stops every host's bot are in the page's head. The rules, the keys and the wire (`GET /api/bot/live-traders`) are unchanged; only where the desk draws them moved (`bot.md`, "The Live Trader bot").
+
+## Amendment 2026-10-22: their size, in $500 lots -- and the bots' fees priced as a commission-free broker
+
+Operator, 2026-10-22, after "how come they made money and I lost money today?": the hosts' card read a gain at
+$1,000 a trade while the bots lost on Paper. The two count different trades (their score has no fees, counts
+stocks the bot may not copy and leaves out the trades the feed saw no single exit for), and on the trades both count
+the bot kept up -- but its copies did not grow and shrink as the hosts' positions do. SHAWN scales in and out in many
+small pieces (13 to 31 average changes on one position); the bot copied two adds of a full step and sold half, once,
+so its average sat far from his and his profit-taking was its loss (SPCX, 2026-10-21: half sold at a $51.77 loss).
+The operator asked to "tighten the rules a little bit to fully mirror their trades", and chose from four rules put
+as multiple choice, recommendation marked: today's, a full step at every add, their size on every change, and
+**their size in $500 lots** (the pick).
+
+- **Their size** (`bot/live_trader/sizing.py`). The bar shows no shares, but a buy pulls the average toward the price
+  it paid and a sale their platform folds into the average pushes it away: from `A` to `A'` with the market at `P`,
+  they added or sold `|A - A'| / |A' - P|` of what they held. The bot keeps a target -- the shares it would hold had it
+  copied every change exactly -- and each add buys, each partial sale sells, the whole shares between the target and
+  what it holds, once they are worth the host's lot (`lot_usd`, $500; 0 sends every change), so tiny changes do not
+  each pay an order. One change at most doubles the copy; the allowance cuts an add to its room; an add skipped for
+  any reason never grows the target. Decision 2's "one more step, up to the adds setting" now reads "the add's share
+  of the copy, up to `adds` orders" (default every add). The first step and an already-open take stay one step.
+- **A partial sale sells their share, every time** -- never all of it (the host still holds the rest). The amendment
+  of 2026-10-15 ("Sell half, once") is replaced. A short covers whole steps, newest first, never its first, each
+  step's buy stop cancelled first and exactly its shares covered: Paper cannot shrink a stop, so every share kept
+  keeps its own; shares whose stops were cancelled and whose cover has not filled are covered on the next passes,
+  whatever the keys, as a short whose stop no longer matches already is.
+- **Fees.** Nearly every order of the bots' is small enough that IBKR Fixed charges its $1.00 minimum; a
+  commission-free broker charges none. The operator: IBKR is never replaced -- its data and Level 2 are why Nova is on it -- and
+  a commission-free broker for the bots' Live orders is only a plan ("Don't switch. This is just a plan"); but
+  Paper prices the LiveTrader bots' orders as that plan would from now on, so a Paper test reads as Live will:
+  no commission, the same SEC, TAF and CAT pass-through (`constants_practice.PRACTICE_COMMISSION_FREE_ORIGINS`,
+  `architecture/practice-account.md`). The operator's own orders, and every other bot's, stay on IBKR Fixed. IBKR Lite
+  is no option (no API trading). Choosing the broker, and AGENTS.md rule 7's change before any order reaches it,
+  are later decisions of the operator's.
+
+Rejected: a full step at every add (it piles a whole step onto each of a scaler's small adds); sizing
+the first step from the host's (the feed shows no shares); shrinking a short's stop in place (Paper has no quantity
+change, and a stop larger than the shares left could buy past flat); pricing the bots at IBKR Tiered (the plan is
+commission-free, and Tiered costs the operator's own orders of many cheap shares more).

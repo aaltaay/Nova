@@ -7,7 +7,8 @@ not hold is one entry decision, remembered in the snapshot so it is made once: `
 ``waiting`` (a quote, a market cap or a ticker check), ``blocked`` (the bot could not open when the row was
 first seen) or ``released`` (the bot sold it off air or while the bar was hidden). A blocked or released row,
 and every open row when the key turns on or the host comes back on air, is already open: ``take_open`` decides.
-A held position follows its host's adds, one settled add at a time (``feed_rows.add_groups``), up to ``adds``.
+A held position follows its host's adds, one settled add at a time (``feed_rows.add_groups``), up to ``adds``, each
+the same share of the bot's copy as of their position (``sizing``), sent once it is worth the lot (``lot_usd``).
 A read in doubt opens and adds nothing (bot.md, "Bad reads"): a row another host showed (``LT_OTHER_HOST``), a side
 the reader could not read whole (``LT_ROW_UNREAD``), an add no add could make (``LT_ADD_IMPLAUSIBLE``), no stream
 clock (``LT_NO_CLOCK``). The bar's own moves (``decide_bar``) hold a take while a whole bar is blank
@@ -18,11 +19,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from bot.live_trader import decide_asks, decide_bar, decide_held, feed_rows, rules
+from bot.live_trader import decide_asks, decide_bar, decide_held, feed_rows, rules, sizing
 from bot.live_trader.constants_live_trader import (
     LT_ADD_IS_SALE,
     LT_ADDS_DONE,
     LT_AFTER_SELL_ALL,
+    LT_ALLOWANCE,
     LT_BLANK_BAR,
     LT_ALREADY_OPEN,
     LT_HIDDEN,
@@ -34,6 +36,7 @@ from bot.live_trader.constants_live_trader import (
     LT_RETURN_SWITCH,
     LT_ROW_UNREAD,
     LT_TICKER_UNSETTLED,
+    LT_UNDER_LOT,
     LT_WAIT_SEC,
 )
 from bot.live_trader.decide_closes import hms
@@ -75,7 +78,7 @@ class _Pass:
     # -- shared --------------------------------------------------------------------------------------
     def check(self, name, st, side, symbol, their_price, ticker, since, *, entry: bool,
               prev_price: float | None = None, change_ts: float | None = None,
-              already_open: bool = False) -> dict[str, Any]:
+              already_open: bool = False, want_shares: float | None = None) -> dict[str, Any]:
         self.out["symbols"].add(symbol)
         self.out["caps"].add(symbol)
         found = rules.against(self.book, self.ctx, side, symbol, self.closing) if entry else None
@@ -86,7 +89,8 @@ class _Pass:
                            short_closed=self.ctx["short_closed"](self.now) if side == "short" else None,
                            priceable=priceable(symbol), now=self.now, wait_since=since, prev_price=prev_price,
                            ssr=self.ctx["ssr"](symbol) if side == "short" else "off",
-                           market=decide_held.market_since(self, symbol, change_ts), already_open=already_open)
+                           market=decide_held.market_since(self, symbol, change_ts), already_open=already_open,
+                           want_shares=want_shares)
 
     def read_doubt(self, name, r, since, unread, *, entry: bool) -> dict[str, Any] | None:
         """A skip or a wait when the read of ``r`` is in doubt (bot.md, "Bad reads"); None when it reads clean."""
@@ -217,11 +221,14 @@ class _Pass:
         if pos["state"] != "open":
             return                             # its order is in flight: the next pass
         pid = pos["id"]
-        if rs.get("trim_change") and not blocked:
-            decide_held.trim(self, name, st, r, pos, rs.pop("trim_change"))   # held while a key was off
+        if not blocked and decide_held.follow_target(self, name, st, r, rs, pos):
+            return                             # shares over their size (a sale while a key was off): sold first
         if rs.get("add_ask_id"):
             fate = decide_asks.follow(self, name, st, r, pid, rs["add_ask_id"], blocked, unread, entry=False)
             if fate != "asked":
+                if fate != "taken" and rs.get("target_at") == rs["groups_done"]:
+                    back = rs["target_before"]                          # not bought: their size does not grow
+                    sizing.keep(rs, rs["groups_done"], back, back)
                 rs["add_ask_id"] = None
                 rs["groups_done"] += 1
             return
@@ -234,16 +241,16 @@ class _Pass:
         limit = st["adds"]
         spent = limit is not None and pos["adds_followed"] >= limit
         if blocked or spent:
-            # A sale is judged as any add is (bad reads, the band, the market since): it trims even with every add
-            # spent, and with a key or the Bot switch off it waits on this row for them (Codex review, PR #1024).
+            # A sale is judged as any add is (bad reads, the band, the market since): it sells their share even with
+            # every add spent, and with a key or the Bot switch off it waits for them (Codex review, PR #1024).
             sold = decide_held.sale_of(self, name, st, r, rs, prev, g, unread)
             if sold and not blocked:
                 rs["groups_done"] += 1
                 self.skip(name, r, pid, "add", LT_ADD_IS_SALE, sold, change)
-                decide_held.trim(self, name, st, r, pos, change)
+                decide_held.sale(self, name, st, r, rs, pos, prev, g, change, i)
                 return
             if sold:
-                decide_held.hold_trim(self, name, r, rs, pos, change, blocked[1])
+                decide_held.sale(self, name, st, r, rs, pos, prev, g, change, i, held_why=blocked[1])
         if blocked or spent:
             code, why = blocked or (LT_ADDS_DONE, f"{name} added to {r['symbol']}: this bot follows "
                                                   f"{limit} add{'' if limit == 1 else 's'}")
@@ -251,9 +258,12 @@ class _Pass:
             self.skip(name, r, pid, "add", code, why, change)
             return
         v = self.read_doubt(name, r, rs.get("add_since"), unread, entry=False)
+        want, before = None, float(pos["qty"])
         if v is None:
+            before, after = self.their_size(r, rs, pos, prev, g, i)
+            want = after - float(pos["qty"])
             v = self.check(name, st, r["side"], r["symbol"], g["to_price"], None, rs.get("add_since"), entry=False,
-                           prev_price=prev, change_ts=g["first_ts"])
+                           prev_price=prev, change_ts=g["first_ts"], want_shares=want)
         if v["verdict"] == rules.WAIT:
             rs["add_since"] = rs.get("add_since") or self.now
             self.wait(pid, r, v)
@@ -263,18 +273,52 @@ class _Pass:
             rs["groups_done"] += 1
             self.skip(name, r, pid, "add", v["code"], v["text"], change)
             if v["code"] == LT_ADD_IS_SALE:
-                decide_held.trim(self, name, st, r, pos, change)
+                decide_held.sale(self, name, st, r, rs, pos, prev, g, change, i)
+            elif want is not None:
+                sizing.keep(rs, i, before, before)      # a doubtful add is never bought, now or with the next one
             return
+        plan = v["plan"]
+        if plan["qty"] <= 0 or plan["qty"] * plan["limit"] < decide_held.lot_of(st) - 1e-9:
+            rs["groups_done"] += 1
+            self.under_lot(name, st, r, rs, pos, plan, change, i, before)
+            return
+        if plan.get("capped"):
+            sizing.keep(rs, i, before, float(pos["qty"]) + plan["qty"])     # the allowance's room, not their size
         mode = mode_of(st["entry"], st["exit"])
         approved = rs.pop("add_approved_ts", None) == change["ts"]   # a yes kept through a borrow wait: used once
         if mode == STOCK_MODE_APPROVE and not approved:
-            rs["add_ask_id"] = decide_asks.ask(self, name, r, pid, "add", v["plan"], change, prev_price=prev)
+            rs["add_ask_id"] = decide_asks.ask(self, name, r, pid, "add", plan, change, prev_price=prev, want=want)
             return
         rs["groups_done"] += 1
         if mode == STOCK_MODE_SIGNAL:
-            self.note(name, r, pid, "add", v["plan"], change)
+            self.note(name, r, pid, "add", plan, change)
         else:
-            self.send(name, r, pid, "add", v["plan"], change, approved=approved)
+            self.send(name, r, pid, "add", plan, change, approved=approved)
+
+    def their_size(self, r, rs, pos, prev, g, i) -> tuple[float, float]:
+        """``(before, after)``: the bot's target before the add group ``g`` and after it -- grown by the share of
+        their position the add was (``sizing``), from the market when they made it."""
+        share = sizing.change_share(prev, g["to_price"], decide_held.market_at(self, r["symbol"], g["first_ts"]))
+        before = sizing.target_for(rs, i, float(pos["qty"]))
+        after = sizing.grown(before, share or 0.0)
+        sizing.keep(rs, i, before, after)
+        return before, after
+
+    def under_lot(self, name, st, r, rs, pos, plan, change, i, before) -> None:
+        """An add too small to send: it waits until their adds add up to the lot -- or, when the allowance leaves
+        less than a lot, it is that skip and the target stays at what the bot holds (it cannot follow further)."""
+        pid, lot = pos["id"], decide_held.lot_of(st)
+        if plan.get("capped"):
+            sizing.keep(rs, i, before, float(pos["qty"]))
+            room = plan["qty"] * plan["limit"]
+            self.skip(name, r, pid, "add", LT_ALLOWANCE, f"allowance used: the room left ({rules.money(room)}) is "
+                                                         f"under the {rules.money(lot)} lot", change)
+            return
+        self.out["actions"].append({"kind": "note", "host": name, "pos_id": pid, "row_id": r["id"],
+                                    "symbol": r["symbol"], "side": r["side"], "step": "add", "code": LT_UNDER_LOT,
+                                    "change": change,
+                                    "why": f"{name} added to {r['symbol']}: the bot's share of it is under the "
+                                           f"{rules.money(lot)} lot -- bought once their adds add up"})
 
 
 def _host_state() -> dict[str, Any]:

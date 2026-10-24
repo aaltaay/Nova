@@ -16,7 +16,7 @@ from typing import Any
 from collections import deque
 
 from bot.live_trader import feed_rows
-from bot.live_trader.constants_live_trader import LT_PRICE_KEEP_SEC, LT_QUOTE_FRESH_SEC
+from bot.live_trader.constants_live_trader import LT_PRICE_KEEP_SEC, LT_QUOTE_FRESH_SEC, LT_SALE_LEAD_SEC
 
 logger = logging.getLogger(__name__)
 _CAP_RETRY_SEC = 120.0
@@ -55,6 +55,19 @@ def range_since(symbol: str, since: float) -> tuple[float, float] | None:
         return None
     seen = [p for ts, p in kept if ts >= since] or [kept[-1][1]]
     return min(seen), max(seen)
+
+
+def price_at(symbol: str, ts: float) -> float | None:
+    """The market sampled last at or before ``ts`` (the price a host's change was made at, for ``sizing``), or the
+    first one after it when none was sampled before; None when the samples do not reach back to it."""
+    with _lock:
+        kept = list(_prices.get((symbol or "").strip().upper()) or ())
+    if not kept:
+        return None
+    before = [p for t, p in kept if t <= ts]
+    if before:
+        return before[-1]
+    return kept[0][1] if kept[0][0] - ts <= LT_SALE_LEAD_SEC else None
 
 
 def quote(symbol: str) -> dict[str, Any] | None:

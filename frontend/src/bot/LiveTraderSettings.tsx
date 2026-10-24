@@ -1,10 +1,13 @@
 /**
- * A host bot's money rules, edited in place (ADR 055): the step, the adds it follows, its allowance, longs only or
- * both sides with the short's buy stop, and positions already open. Each change is sent as it is made; the backend
- * checks it against its bounds and says why when it refuses (never clamped in silence).
+ * A host bot's money rules, edited in place (ADR 055): the step, the lot its copy of their size waits for, the adds
+ * it follows, its allowance, longs only or both sides with the short's buy stop, and positions already open. Each
+ * change is sent as it is made; the backend checks it against its bounds and says why when it refuses (never
+ * clamped in silence).
  */
 import { useEffect, useState } from 'react';
-import { LT_ADDS_CHOICES, LT_BUSY_WHY, LT_SIDES_WORDS, LT_TAKE_OPEN_WORDS, ltAddsWords } from '../constantGroups/live_trader';
+import {
+  LT_ADDS_CHOICES, LT_BUSY_WHY, LT_LOT_CHOICES, LT_SIDES_WORDS, LT_TAKE_OPEN_WORDS, ltAddsWords, ltLotWords,
+} from '../constantGroups/live_trader';
 import { whyProps } from '../ux';
 import type { LtPatch, LtSettings } from './liveTraderTypes';
 
@@ -66,6 +69,10 @@ export function LiveTraderSettings({ name, settings: st, busy, onPatch }: Props)
     <div className="lt-edit" data-testid={`lt-edit-${name}`}>
       <Money label="Step" value={st.step_usd} field="step_usd" name={name} busy={busy} onPatch={onPatch}
         suffix="$ a step; 1 share when a share costs more" />
+      {st.lot_usd != null ? (
+        <Seg label="Lot" value={st.lot_usd} options={LT_LOT_CHOICES} words={ltLotWords} busy={busy}
+          testId={`lt-edit-lot-${name}`} onPick={v => void onPatch(name, { lot_usd: v })} />
+      ) : null}
       <Seg label="Adds" value={st.adds} options={LT_ADDS_CHOICES} words={ltAddsWords} busy={busy}
         testId={`lt-edit-adds-${name}`} onPick={v => void onPatch(name, { adds: v })} />
       <Money label="Allowance" value={st.allowance_usd} field="allowance_usd" name={name} busy={busy}

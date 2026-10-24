@@ -41,6 +41,11 @@ PRACTICE_COMMISSION_MIN = 1.00
 # QuantConnect InteractiveBrokersFeeModel carries 0.5 % -- Nova follows IBKR's
 # own page, not the port).
 PRACTICE_COMMISSION_MAX_PCT = 0.01
+# The orders priced as a commission-free broker would charge them -- no commission, the same SEC, TAF and CAT
+# pass-through below -- by their order origin (``execution.models.Origin``). Operator, 2026-10-23: the LiveTrader
+# bots' Live orders are planned for a commission-free broker (IBKR stays for the data, Level 2 and the operator's
+# own orders; nothing is switched), so their Paper tests read as that plan would. Every other order: IBKR Fixed.
+PRACTICE_COMMISSION_FREE_ORIGINS = frozenset({"live_trader"})
 
 # ---------------------------------------------------------------------------
 # Regulatory fees -- passed through at cost: SEC and TAF on SELLS, CAT on every fill

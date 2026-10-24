@@ -131,13 +131,15 @@ def check(*, side: str, symbol: str, their_price: float, settings: dict[str, Any
           short_closed: str | None, priceable: bool, now: float, wait_since: float | None,
           prev_price: float | None = None, ssr: str = "unknown",
           market: tuple[float, float] | None = None, against_wait: bool = False,
-          already_open: bool = False) -> dict[str, Any]:
+          already_open: bool = False, want_shares: float | None = None) -> dict[str, Any]:
     """One step's verdict. ``ssr`` is the stock's SSR for a short (``"on"`` | ``"off"`` | ``"unknown"``). ``cap`` is the market cap in dollars, ``"etf"`` for an ETF (always allowed),
     ``"pending"`` while it is read, or None when it could not be read; ``ticker`` the trade's check (``{"state", "why"}``, None when none is needed);
     ``against`` the words for a position on the other side, a wait while ``against_wait`` (the bot's own, closing:
     a host's flip); ``short_closed`` why no short may open now; ``prev_price`` an add's average before it (an add
     moves the average toward the market, never past it); ``already_open`` a position the host held before the bot
-    saw it, whose average that far from the market is a trade gone on without it (``LT_OPEN_TOO_FAR``)."""
+    saw it, whose average that far from the market is a trade gone on without it (``LT_OPEN_TOO_FAR``);
+    ``want_shares`` an add's shares as their size makes it (``sizing``), else the step's -- cut to what the allowance
+    has room for, ``plan["capped"]`` then true, and a skip only when it has room for none."""
     if side == "short" and settings["sides"] == "long":
         return verdict(SKIP, LT_SHORTS_OFF, "a short: this bot copies longs only")
     if side == "short" and short_closed:
@@ -194,14 +196,18 @@ def check(*, side: str, symbol: str, their_price: float, settings: dict[str, Any
         missing = "ask" if side == "long" else "bid" if ssr == "off" else "ask above the bid (SSR on or not known)"
         return _waited(LT_NO_QUOTE, "waiting for a bid and an ask",
                        f"no {missing} from IBKR in {LT_WAIT_SEC:.0f} s", wait_since, now)
-    qty = shares(float(settings["step_usd"]), limit)
+    qty = shares(float(settings["step_usd"]), limit) if want_shares is None else max(0, int(round(want_shares)))
     cost = qty * limit
     allowance = float(settings["allowance_usd"])
+    capped = False
     if used_usd + cost > allowance + 1e-6:
-        return verdict(SKIP, LT_ALLOWANCE, f"allowance used: {money(used_usd)} of {money(allowance)} "
-                                           f"(this step is {money(cost)})")
+        room = 0 if want_shares is None else max(0, math.floor((allowance - used_usd) / limit + 1e-9))
+        if room <= 0:
+            return verdict(SKIP, LT_ALLOWANCE, f"allowance used: {money(used_usd)} of {money(allowance)} "
+                                               f"(this step is {money(cost)})")
+        qty, cost, capped = room, room * limit, True
     return verdict(GO, plan={"qty": qty, "limit": limit, "stop": stop, "cost_usd": round(cost, 2),
-                             "reference": ref, "apart_pct": round(apart, 2)})
+                             "reference": ref, "apart_pct": round(apart, 2), "capped": capped})
 
 
 def _cap_words(cap: float) -> str:

@@ -13,8 +13,9 @@ from bot.live_trader import rules
 from bot.live_trader.constants_live_trader import LT_ASK_EXPIRED, LT_ASK_SEC, LT_ASK_SKIPPED
 
 
-def ask(run: Any, name, r, pid, step, plan, change, *, prev_price: float | None = None) -> str:
-    """Raise an ask in the toast's words; its id."""
+def ask(run: Any, name, r, pid, step, plan, change, *, prev_price: float | None = None,
+        want: float | None = None) -> str:
+    """Raise an ask in the toast's words; its id. ``want``: an add's shares at their size, judged again with it."""
     run.snap["seq"] = int(run.snap.get("seq") or 0) + 1
     ask_id = f"{name.lower()}-{run.snap['seq']}"
     price, sym = rules.price_text(change["price"]), r["symbol"]
@@ -26,7 +27,7 @@ def ask(run: Any, name, r, pid, step, plan, change, *, prev_price: float | None 
     ask = {"id": ask_id, "host": name, "row_id": r["id"], "pos_id": pid, "symbol": sym, "side": r["side"],
            "step": step, "their_price": change["price"], "qty": plan["qty"], "limit": plan["limit"],
            "stop": plan["stop"], "created_ts": run.now, "expires_ts": run.now + LT_ASK_SEC,
-           "change": change, "approved": False, "prev_price": prev_price,
+           "change": change, "approved": False, "prev_price": prev_price, "want": want,
            "text": f"{lead}: {rules.verb(r['side'])} {plan['qty']}{more} at {rules.price_text(plan['limit'])}{stop}?"}
     run.snap["asks"][ask_id] = ask
     run.out["actions"].append({"kind": "ask", "ask": dict(ask)})
@@ -74,7 +75,7 @@ def follow(run: Any, name, st, r, pid, ask_id, blocked, unread, *, entry: bool) 
         if v is None:
             v = run.check(name, st, r["side"], r["symbol"], change["price"], r.get("ticker") if entry else None,
                           ask.get("since"), entry=entry, prev_price=ask.get("prev_price"),
-                          already_open=step == "already_open")
+                          already_open=step == "already_open", want_shares=ask.get("want"))
         if v["verdict"] == rules.WAIT:
             ask["since"] = ask.get("since") or run.now
             run.wait(pid, r, v)

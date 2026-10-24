@@ -30,7 +30,11 @@ LT_DEFAULT_KEY = False
 LT_DEFAULT_ENTRY = "nova"               # stock mode's sides: "you" | "nova" (ADR 037)
 LT_DEFAULT_EXIT = "nova"
 LT_DEFAULT_STEP_USD = 500.0             # shares = step / price, rounded down; 1 share over the step
-LT_DEFAULT_ADDS = 2                     # 0, 2, 4 or None (every add)
+LT_DEFAULT_ADDS = None                  # 0, 2, 4 or None (every add): the copy follows their size (2026-10-22)
+# Their size (operator, 2026-10-22: "Their size, $500 lots"): each add and partial sale of the host's is the
+#   same share of the bot's copy, sent once the gap to it is worth this much -- so many small changes do not each
+#   pay an order. 0 sends every change of a whole share.
+LT_DEFAULT_LOT_USD = 500.0
 LT_DEFAULT_ALLOWANCE_USD = 2500.0
 LT_DEFAULT_SIDES = "both"               # "long" | "both"
 LT_DEFAULT_SHORT_STOP_PCT = 5.0         # a short's buy stop over its entry
@@ -40,6 +44,7 @@ LT_DEFAULT_SELL_ALL_AT = "15:55"        # ET; the early close's 12:55 comes firs
 LT_STEP_USD_BOUNDS = (50.0, 10_000.0)
 LT_ALLOWANCE_USD_BOUNDS = (100.0, 50_000.0)
 LT_ADDS_CHOICES = (0, 2, 4, None)
+LT_LOT_USD_BOUNDS = (0.0, 5_000.0)
 LT_SIDES = ("long", "both")
 LT_SHORT_STOP_PCT_BOUNDS = (1.0, 20.0)
 LT_SELL_ALL_BOUNDS = ("09:30", "15:55")
@@ -77,6 +82,9 @@ LT_ADD_DIRECTION_PCT = 0.1
 LT_PRICE_KEEP_SEC = 180.0               # each held stock's market, sampled each pass, kept this long (the sale check)
 LT_SALE_LEAD_SEC = 5.0                  # the sale check's window opens this long before the host's change
 LT_ADD_SLACK_PCT = 0.5                  # an add's new average may lie this far (of the market) outside old avg..market
+# One change of theirs never more than doubles the copy: an average a hair from the market makes the share it reads
+#   (the move over the distance to the market) blow up, and that is a rounding of the bar, not a size.
+LT_SIZE_SHARE_MAX = 1.0
 LT_PREVIOUS_RETRY_SEC = 300.0           # the feed's previous day not read: asked again after this
 
 # -- the bar's own moves (operator, 2026-10-15: hold the sells while a whole bar blanks) -------------
@@ -119,6 +127,7 @@ LT_OTHER_HOST = "LT_OTHER_HOST"
 LT_ROW_UNREAD = "LT_ROW_UNREAD"
 LT_ADD_IMPLAUSIBLE = "LT_ADD_IMPLAUSIBLE"
 LT_ADD_IS_SALE = "LT_ADD_IS_SALE"        # the average moved away from the market: they sold part, never bought
+LT_UNDER_LOT = "LT_UNDER_LOT"            # a wait (a note): their change is copied once it adds up to the lot
 LT_NO_CLOCK = "LT_NO_CLOCK"
 LT_BLANK_BAR = "LT_BLANK_BAR"
 LT_RETURN_SWITCH = "LT_RETURN_SWITCH"

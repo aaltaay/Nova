@@ -16,6 +16,9 @@ export interface LtSettings {
   sides: 'long' | 'both';
   short_stop_pct: number;
   take_open: boolean;
+  /** Their size (2026-10-22): a copy order waits until the gap to their size is worth this; absent from an older
+   * backend, which copied a full step per add. */
+  lot_usd?: number;
   mode: LtMode;
   updated_at?: number | null;
 }

@@ -235,6 +235,7 @@ def held(d, symbol) -> float:
 
 # -- open, add, gone --------------------------------------------------------------------------------
 def test_open_add_and_close_follow_the_host_with_real_paper_fills(desk):
+    lt_settings.patch_host(HOST, {"lot_usd": 0})                   # every whole share of their size goes out
     run(desk, "10:30:00")                                          # the watch begins on an empty bar
     t = desk.feed.open("XYZ", 100.00, at("10:30:10"))
     run(desk, "10:30:11")
@@ -251,7 +252,7 @@ def test_open_add_and_close_follow_the_host_with_real_paper_fills(desk):
     run(desk, "10:31:02")
     assert held(desk, "XYZ") == 4                                  # still settling
     run(desk, "10:31:06")
-    assert held(desk, "XYZ") == 9                                  # one add: $500 at 99.54 is 5 shares (filled at the ask)
+    assert held(desk, "XYZ") == 8                                  # their add doubled what they held: 4 more (at the ask)
     pos = lt_book.positions()[f"{HOST}|long|XYZ"]
     assert pos["steps"] == 2 and pos["adds_followed"] == 1
 
@@ -259,32 +260,36 @@ def test_open_add_and_close_follow_the_host_with_real_paper_fills(desk):
     run(desk, "10:32:01")
     assert held(desk, "XYZ") == 0
     (done,) = lt_book.closed_today()
-    assert done["kind"] == "close" and done["pl_usd"] == pytest.approx(9 * 99.48 - (4 * 100.02 + 5 * 99.52), abs=0.01)
+    assert done["kind"] == "close" and done["pl_usd"] == pytest.approx(8 * 99.48 - (4 * 100.02 + 4 * 99.52), abs=0.01)
     assert lt_book.positions() == {}
 
 
-def test_a_host_selling_part_sells_half_the_bots_shares_once_on_paper(desk):
-    """Operator 2026-10-16, "Sell half, once": the host's average falls while the market rises -- they sold part
-    (SHAWN's TSLA). The bot buys nothing, sells half its shares at market on Paper, and never trims it again."""
+def test_a_host_selling_part_sells_their_share_every_time_on_paper(desk):
+    """Operator 2026-10-22, "Their size, $500 lots" (it sold half, once, before): the host's average falls while the
+    market rises -- they sold part (SHAWN's TSLA). The bot buys nothing and sells the same share of its copy at
+    market on Paper, each sale: 0.20 / 1.20 of 49 shares is 8, then 0.20 / 1.40 of the 40.8 left is 6."""
+    lt_settings.patch_host(HOST, {"step_usd": 5000, "allowance_usd": 50000})
     run(desk, "10:30:00")
     t = desk.feed.open("XYZ", 100.00, at("10:30:10"))
     run(desk, "10:30:11")
-    assert held(desk, "XYZ") == 4
+    assert held(desk, "XYZ") == 49
     desk.market.px["XYZ"] = [101.00, 100.98, 101.02]           # the stock up, their average down: a sale
+    run(desk, "10:30:58")                                      # a pass samples the market they sold at
     desk.feed.add(t, 99.80, at("10:31:00"))
     run(desk, "10:31:06")
-    assert held(desk, "XYZ") == 2
+    assert held(desk, "XYZ") == 41
     pos = lt_book.positions()[f"{HOST}|long|XYZ"]
-    assert pos["qty"] == 2 and pos["trimmed"] and pos["state"] == "open" and pos["adds_followed"] == 0
+    assert pos["qty"] == 41 and pos["state"] == "open" and pos["adds_followed"] == 0
     assert any(r["inputs"]["code"] == "LT_ADD_IS_SALE" for r in lines_("skipped"))
-    desk.feed.add(t, 99.60, at("10:32:00"))                    # another sale: nothing more is sold
+    run(desk, "10:31:58")
+    desk.feed.add(t, 99.60, at("10:32:00"))                    # another sale: its share sells too
     run(desk, "10:32:06")
-    assert held(desk, "XYZ") == 2
+    assert held(desk, "XYZ") == 35
     desk.feed.close(t, at("10:33:00"))
     run(desk, "10:33:01")
     assert held(desk, "XYZ") == 0
     (done,) = lt_book.closed_today()
-    assert [f["kind"] for f in done["exit_fills"]] == ["trim", "close"]
+    assert [f["kind"] for f in done["exit_fills"]] == ["trim", "trim", "close"]
 
 
 def test_the_card_counts_the_bots_orders_and_takes_their_fees_off(desk):
@@ -302,7 +307,10 @@ def test_the_card_counts_the_bots_orders_and_takes_their_fees_off(desk):
     sends = [r for r in desk.broker.closed_orders() if r["order_origin"] == "live_trader" and r["status"] == "Filled"]
     assert len(sends) == 2
     charged = round(sum(r["fees"]["total"] for r in sends), 2)
-    assert charged >= 2.0                                          # IBKR Fixed: USD 1.00 a fill at the least
+    assert [r["fees"]["commission"] for r in sends] == [0.0, 0.0]   # the plan for its Live orders: commission-free
+    assert 0 < sum(r["fees"]["total"] for r in sends) < 0.05       # the SEC and FINRA pass-through only
+    (mine,) = [r for r in desk.broker.closed_orders() if r["order_source"] == "manual"]
+    assert mine["fees"]["commission"] == 1.0                       # your own order: IBKR Fixed, USD 1.00 at least
     (card,) = [h for h in lt_view.build()["hosts"] if h["name"] == HOST]
     today = card["today"]
     assert (today["trades"], today["orders"], today["fees_unread"]) == (1, 2, 0)
@@ -472,6 +480,7 @@ def test_a_short_add_waits_for_a_fresh_borrow_read_then_goes(desk, monkeypatch):
     """2026-10-16: a host added to a short 72 s after it opened and IBKR's borrow read was 75 s old -- the add was
     skipped ("place the short again in a moment") and never tried again. An add now waits for the read as an entry
     does, and the bot keeps the borrow of every short it holds fresh."""
+    lt_settings.patch_host(HOST, {"lot_usd": 0})
     asked: list[str] = []
     monkeypatch.setattr(lt_market, "prewarm_borrow", lambda symbols: asked.extend(symbols))
     monkeypatch.setattr(short_mod, "request_refresh", lambda sym: True)   # no IBKR here: the test sets the reads
@@ -488,11 +497,12 @@ def test_a_short_add_waits_for_a_fresh_borrow_read_then_goes(desk, monkeypatch):
     assert not [r for r in lines_("skipped") if r["inputs"]["step"] == "add"]
     short_mod.remember_for_tests("FADE", short_mod.enrich_ibkr_listing(_FADE_LISTING, fetched_at=time.time()))
     run(desk, "10:31:08")
-    assert held(desk, "FADE") == -24                           # the add went: $500 at 40.17, 12 more
+    assert held(desk, "FADE") == -24                           # the add went: their add doubled it, 12 more
     assert lt_book.positions()[f"{HOST}|short|FADE"]["adds_followed"] == 1
 
 
 def test_a_short_add_whose_borrow_never_comes_is_skipped_after_the_wait(desk, monkeypatch):
+    lt_settings.patch_host(HOST, {"lot_usd": 0})
     monkeypatch.setattr(short_mod, "request_refresh", lambda sym: True)
     run(desk, "10:30:00")
     t = desk.feed.open("FADE", 40.00, at("10:30:10"), side="short")
@@ -533,6 +543,7 @@ def test_an_approved_short_waiting_on_its_borrow_is_sent_never_asked_again(desk,
 
 
 def test_an_approved_short_add_waiting_on_its_borrow_is_sent_never_asked_again(desk, monkeypatch):
+    lt_settings.patch_host(HOST, {"lot_usd": 0})
     monkeypatch.setattr(short_mod, "request_refresh", lambda sym: True)
     lt_settings.patch_host(HOST, {"entry": "you", "exit": "nova"})
     run(desk, "10:30:00")
@@ -967,3 +978,72 @@ def test_a_whole_bar_blank_for_a_refresh_sells_nothing_and_buys_nothing_again(de
     desk.feed.close(a2, at("10:45:00"))                            # and the host's real close still sells
     run(desk, "10:45:01")
     assert held(desk, "XYZ") == 0 and held(desk, "ABCD") == 9
+
+
+def _short_in_three_steps(d):
+    """FADE short 12 at 39.97, then two adds as it rises (each half of what they held): 12, 6 and 9 shares, each
+    step with its own buy stop. Every change is made just after a pass that sampled the market it was made at."""
+    lt_settings.patch_host(HOST, {"lot_usd": 0})
+    run(d, "10:30:00")
+    t = d.feed.open("FADE", 40.00, at("10:30:10"), side="short")
+    run(d, "10:30:11")
+    for avg, px, clock in ((40.10, [40.30, 40.29, 40.31], "10:31"), (40.20, [40.40, 40.39, 40.41], "10:32")):
+        d.market.px["FADE"] = px
+        run(d, f"{clock[:-1]}{int(clock[-1]) - 1}:58")
+        d.feed.add(t, avg, at(f"{clock}:00"))
+        run(d, f"{clock}:06")
+    assert held(d, "FADE") == -27
+    pos = lt_book.positions()[f"{HOST}|short|FADE"]
+    assert [float(d.broker.ledger.order_row(o)["qty"]) for o in pos["stop_order_ids"]] == [12.0, 6.0, 9.0]
+    return t, pos["stop_order_ids"]
+
+
+def _their_cover(d, t):
+    """They cover a fifth at a profit (their average 40.20 -> 40.30 with the market at 39.80): 5.4 of the bot's 27."""
+    d.market.px["FADE"] = [39.80, 39.79, 39.81]
+    run(d, "10:32:58")
+    d.feed.add(t, 40.30, at("10:33:00"))
+
+
+def test_a_short_covers_their_share_in_whole_steps_each_with_its_own_buy_stop(desk):
+    """Paper cannot shrink a stop: the bot covers the newest step nearest their share (9 of the 5.4) with its stop
+    cancelled first, and every share it keeps keeps its own stop; the first step stays until they close."""
+    t, stops = _short_in_three_steps(desk)
+    _their_cover(desk, t)
+    run(desk, "10:33:06")
+    assert held(desk, "FADE") == -18
+    assert desk.broker.ledger.order_row(stops[2])["status"] == "Cancelled"
+    pos = lt_book.positions()[f"{HOST}|short|FADE"]
+    assert pos["stop_order_ids"] == stops[:2] and not pos.get("stopless_qty")
+    assert [f["kind"] for f in pos["exit_fills"]] == ["trim"]
+    assert all(desk.broker.ledger.order_row(o)["status"] not in ("Cancelled", "Filled") for o in stops[:2])
+    desk.feed.close(t, at("10:34:00"))
+    run(desk, "10:34:01")
+    assert held(desk, "FADE") == 0
+    assert all(desk.broker.ledger.order_row(o)["status"] == "Cancelled" for o in stops[:2])
+
+
+def test_a_partial_cover_that_is_refused_covers_its_stopless_shares_next_pass(desk, monkeypatch):
+    """The step's stop is cancelled before its cover goes out; a cover refused leaves those shares on the book
+    (``stopless_qty``) and the next passes cover them, whatever the keys -- a bot short never holds shares
+    without their stop."""
+    from bot.live_trader import orders as lt_orders
+
+    t, stops = _short_in_three_steps(desk)
+    real_close, calls = lt_orders.close, []
+
+    async def refused_once(pos, qty, *, tries, now):
+        calls.append(qty)
+        if len(calls) == 1:
+            return SimpleNamespace(ok=False, error="refused for the test", reason_code="TEST")
+        return await real_close(pos, qty, tries=tries, now=now)
+
+    monkeypatch.setattr(lt_orders, "close", refused_once)
+    _their_cover(desk, t)
+    run(desk, "10:33:06")
+    assert held(desk, "FADE") == -27
+    assert lt_book.positions()[f"{HOST}|short|FADE"]["stopless_qty"] == 9
+    switch.turn(False)                                         # the Bot switch off: these shares are still covered
+    run(desk, "10:33:12")
+    assert held(desk, "FADE") == -18 and calls == [9, 9]
+    assert not lt_book.positions()[f"{HOST}|short|FADE"].get("stopless_qty")

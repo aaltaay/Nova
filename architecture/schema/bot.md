@@ -624,7 +624,7 @@ the watcher asks nothing and the view says the feed is off.
 
 **The rules** (ADR 055 decisions 2-4): a position on the host's bar is one step in their direction; an
 add (their average moves; changes `LT_ADD_MERGE_SEC` 4 s apart are one add, acted on once settled, and one
-back where it started, to the cent the bar shows (a hundredth of a cent under $1), is none -- an add of a few cents on a large cap is an add) is one more step up to `adds`; the position leaving the bar sells or covers
+back where it started, to the cent the bar shows (a hundredth of a cent under $1), is none -- an add of a few cents on a large cap is an add) grows the bot's copy by **their size** (operator, 2026-10-22: "Their size, $500 lots"; owner `bot/live_trader/sizing.py`): the bar shows no shares, but a buy pulls the average toward the price it paid, so from `A` to `A'` with the market at `P` when they made it (`market.price_at`, the pass's samples; else the market now) they added `|A - A'| / |A' - P|` of what they held, at most `LT_SIZE_SHARE_MAX` (double). The bot keeps a target -- the shares it would hold had it copied every change exactly, memory only on the row (a restart starts from what it holds) -- and an add buys the whole shares between it and what the bot holds once they are worth the host's `lot_usd` ($500; 0 sends every whole share), cut to the allowance's room (a room under the lot is `LT_ALLOWANCE`), up to `adds` such orders; a smaller one waits until their adds add up (`LT_UNDER_LOT`, a `note`), and an add skipped for any reason never grows the target, so it is never bought with a later one; the position leaving the bar sells or covers
 the bot's whole position; off air (`traders[].seen.left_ts`, 60 s), the bar hidden `LT_HIDDEN_SEC` (600 s;
 also a feed that has not answered or read for as long), and the sell-all time (`sell_all_at`, 15:55 ET; 12:55
 on an early close) sell everything; an entry first seen `LT_OPEN_FRESH_SEC` (60) after it happened, on the
@@ -680,12 +680,19 @@ read, the sell-all time). Beyond the rules above, each with its reason:
   held stock's market sampled each pass, `LT_PRICE_KEEP_SEC` (180 s), memory only); a market that crossed their old
   average since then could have made a real add, so it is judged as one (Codex review, PR #1022). Without samples
   reaching back that far (a restart), the market now stands for the window. It is judged before the
-  `adds` limit, so it is seen after every add is spent. The first such sale of a long the bot holds sells half its
-  shares (rounded down) at market, once per position (operator, "Sell half, once": the bar shows the average, never
-  the shares sold): a `close` with `trim: true`, change kind `trim`, its fill an `exit_fills` row of kind `trim`, and
-  the position then carries `trimmed: true` -- a later sale sells nothing more, the rest waits for the host's close.
-  A short keeps every share (Paper cannot shrink its buy stop to the shares left), a single share has no half, and
-  Exit: You keeps them; each is said as a `note`. A sale is judged as every add is (`read_doubt`, the band, `rules.check`) before it trims. One that comes while a step is blocked -- a key, the Bot switch, Freeze all orders -- waits on its row (memory) and the half sells the pass they are back on, said once ("not sold -- ...; the bot sells half when it is back on"); a restart forgets it. SHAWN's TSLA,
+  `adds` limit, so it is seen after every add is spent. Each such sale shrinks the bot's target by **the share they
+  sold** -- by the same rule as an add, `|A - A'| / |P - A'|` of what they held (operator 2026-10-22, "Their size, $500
+  lots"; before, the first sale sold half, once, and SHAWN's SPCX of
+  2026-10-21 sold half at a loss on a copy that had followed only two of his adds) -- and the shares the bot holds
+  over it sell at market once they are worth the lot, every sale, never all of them (the host still holds the rest;
+  the last share stays): a `close` with `trim: true`, change kind `trim`, its fill an `exit_fills` row of kind `trim`.
+  A short covers **whole steps**, newest first, never its first: the steps whose shares come nearest their share,
+  each step's buy stop cancelled first and exactly its shares covered, so every share it keeps keeps its own stop
+  (Paper cannot shrink a stop); the covered steps' shares wait on the book as `stopless_qty` until their cover fills,
+  sent again every pass until it does, whatever the keys (`act.cover_stopless`, as `_retire_stops` covers a short
+  whose stop no longer matches); no step that fits is said once and the shares wait for their next sale or close.
+  Exit: You keeps them, and shares under the lot wait for their next sale (`LT_UNDER_LOT`); each is said as a
+  `note`. The position's older `trimmed` field (a file from before 2026-10-22) is read as nothing. A sale is judged as every add is (`read_doubt`, the band, `rules.check`) before it sells. One that comes while a step is blocked -- a key, the Bot switch, Freeze all orders -- shrinks the target all the same and its shares sell the pass they are back on, said once ("not sold -- ...; the bot sells its share when it is back on"); a restart forgets it. SHAWN's TSLA,
   2026-10-16: TSLA rose 365 -> 370 while his average fell 366.50 -> 365.02, and at 09:59 it fell 364.32 -> 364.02
   with TSLA at 366.8; the bot had bought that as an add.
 - **No clock** (`LT_NO_CLOCK`): a read without the stream's on-screen clock -- none, or one read impossibly
@@ -743,11 +750,12 @@ off and writes answer 409 `LIVE_TRADER_SETTINGS_UNREADABLE`):
 {schema_version: 1, sell_all_at: "HH:MM" (ET, 09:30-15:55),
  hosts: {NAME: {key: bool, entry: "you" | "nova", exit: "you" | "nova", step_usd: 50-10000,
                 adds: 0 | 2 | 4 | null (every add), allowance_usd: 100-50000, sides: "long" | "both",
-                short_stop_pct: 1-20, take_open: bool, updated_at: epoch}}}
+                short_stop_pct: 1-20, take_open: bool, lot_usd: 0-5000, updated_at: epoch}}}
 ```
 
 A host missing from the file reads key off with the defaults: `entry`/`exit` `"nova"`, `step_usd` 500,
-`adds` 2, `allowance_usd` 2,500, `sides` `"both"`, `short_stop_pct` 5, `take_open` true. `NAME` is 1-16 of
+`adds` null (every add; 2 before 2026-10-22), `allowance_usd` 2,500, `sides` `"both"`, `short_stop_pct` 5,
+`take_open` true, `lot_usd` 500; a host row without `lot_usd` (a file from before 2026-10-22) reads 500. `NAME` is 1-16 of
 `A-Z0-9`. `entry`/`exit` are stock mode's wire values (ADR 037): the mode is `stock_mode.model.mode_of`.
 
 **What the bot holds** (`live-trader-book.json` in the operator cache; owner `bot/live_trader/book.py`;
@@ -756,7 +764,7 @@ temp file and rename; unknown version refuses loud, and the bot then opens nothi
 ```
 {schema_version: 1, day: "YYYY-MM-DD" (the desk's day, 04:00 ET),
  positions: [{id, host, row_id, symbol, side: "long" | "short", venue: "paper", qty, cost_usd, steps,
-              adds_seen, adds_followed, trimmed (absent: false), opened_ts, state: "entering" | "open" | "closing",
+              adds_seen, adds_followed, stopless_qty (absent: 0), opened_ts, state: "entering" | "open" | "closing",
               order: {id, step: "entry" | "add" | "already_open" | "close", sent_ts, qty, limit, stop} | null,
               stop_order_ids: [int], fills: [{step, qty, price, ts, order_id}], feed: {ts, price}}],
  closed: [{...the position, closed_ts, why, exit_fills: [{qty, price, ts, order_id}], pl_usd}],
@@ -811,7 +819,9 @@ without a stop for exactly its shares, and a stale stop can never buy past flat 
   `today.orders` the bot's own orders those positions filled -- entries, adds, closes and every buy stop that
   filled, each once (one print can fill several stops while the exit line names the first; shares sold outside
   the bot carry no order of its own and are not counted); `today.fees_usd` what Paper charged
-  for them (commission, SEC and FINRA, read from each order's fill); `fees_unread` how many of them Paper did not
+  for them (commission, SEC and FINRA, read from each order's fill -- no commission since 2026-10-23: Paper prices
+  the bots' orders as a commission-free broker would, the plan for their Live orders, `practice-account.md`);
+  `fees_unread` how many of them Paper did not
   show a fee for (counted, never read as 0); `net_pl_usd` is `pl_usd` less `fees_usd`, the card's main number
   (operator 2026-10-19).
 - `GET /api/bot/live-traders/asks` answers `{schema_version: 1, generated_at, asks: [{...an ask, host,
@@ -861,7 +871,7 @@ time of the change. A skip is written once per position, step and code. Codes: `
 `LT_FROZEN`, `LT_AFTER_SELL_ALL`, `LT_SHORT_HOURS`, `LT_NOT_PRICEABLE`, `LT_ASK_EXPIRED`, `LT_ASK_SKIPPED`,
 `LT_ALREADY_OPEN`, `LT_OFF_AIR`, `LT_HIDDEN`, `LT_LOSS_LIMIT`, `LT_NOT_ON_BAR`, `LT_OTHER_HOST`, `LT_ROW_UNREAD`,
 `LT_ADD_IMPLAUSIBLE`, `LT_ADD_IS_SALE`, `LT_NO_CLOCK`, `LT_FAMILY_OFF`, `LT_KEY_OFF`. Lines written before 2026-10-15 may carry the
-retired change kinds `key_off` and `bot_off` (a key or the Bot switch turned off sold everything then). `LT_BLANK_BAR` and `LT_RETURN_SWITCH` are waits, said as `note` lines
+retired change kinds `key_off` and `bot_off` (a key or the Bot switch turned off sold everything then). `LT_UNDER_LOT` (an add or a sale whose share is under the lot) is a wait, said as a `note` with that `code`, once per row. `LT_BLANK_BAR` and `LT_RETURN_SWITCH` are waits, said as `note` lines
 (`step` `blank` for a held sell, `lt_blank_bar` / `lt_return_switch` for a held take), never skips.
 
 **The Bot switch** counts a host key on as a strategy On on Paper (`BOT_NO_SETUP_AT_STRATEGY`: "no
