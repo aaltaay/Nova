@@ -1,7 +1,8 @@
 <!doctype html>
 <!--
   The trading screen recorder's page (ADR 035): a hidden window with its own
-  renderer process, so encoding never runs on a desk window's thread. It is
+  renderer process, so encoding never runs on a desk window's thread -- opened
+  only while NOVA_SCREEN_RECORD is on (paused by default, ADR 067). It is
   dumb on purpose -- screenRecorder.mjs (the main process) decides what to
   record and when, owns the files and the watchdog. This page only turns
   "start" into a capture + MediaRecorder and hands every chunk back, in order,

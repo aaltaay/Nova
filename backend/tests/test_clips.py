@@ -87,6 +87,18 @@ def test_a_lost_capture_warns_and_no_picture_fails():
     r = the_row(store.status())
     assert r["state"] == DIAG_STATE_FAIL
     assert "no picture" in r["detail"]
+    assert r["cause"].startswith("The screen recording is not seeing that tab's monitor")
+
+
+def test_no_picture_while_the_screen_recording_is_paused_says_so():
+    """ADR 067: paused is the setting, not a broken recorder -- the cause names it and High quality is the fix."""
+    store.record(view(screen_paused=True, open=[{**view()["open"][0], "state": "no_picture", "hq": None}]))
+    r = the_row(store.status())
+    assert r["state"] == DIAG_STATE_FAIL
+    assert r["cause"].startswith("Screen recording is paused (off by default, ADR 067)")
+    assert r["fix"].startswith("Turn High quality on for the clip")
+    assert client.post("/api/clips", json=view(screen_paused=True)).json() == {"ok": True}
+    assert client.get("/api/clips").json()["view"]["screen_paused"] is True
 
 
 def test_the_system_drive_or_an_unwritable_list_warns():

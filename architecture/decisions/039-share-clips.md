@@ -1,6 +1,8 @@
 # ADR 039 -- Share clips: a red button that cuts video from the screen recording
 
-**Status:** Accepted (2026-09-29; the operator approved mockup v1: "1 go")
+**Status:** Accepted (2026-09-29; the operator approved mockup v1: "1 go") · **Amended by:**
+[[067-screen-recording-paused-by-default]] (2026-10-24: the screen recording is paused by default; a new clip then
+records in High quality and Save the last 5 min is locked with the reason)
 **Builds on:** [[035-trading-screen-always-recorded]] (the screen recording every clip is cut from) ·
 [[033-focus-and-book-watch-sensors]] (which tab and symbol each window shows) · the Session Record
 (AGENTS.md §3 "Recording persistence and coverage", whose Record choice this sits beside)

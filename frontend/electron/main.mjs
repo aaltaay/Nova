@@ -63,7 +63,7 @@ let mainWindow = null;
 /** The "Starting Nova" window until the desk shows. */
 let startup = null;
 let quitting = false;
-/** ADR 035: every monitor, recorded from launch to quit. */
+/** ADR 035: every monitor, recorded from launch to quit -- only with NOVA_SCREEN_RECORD on; paused by default (ADR 067). */
 let screenRecorder = null;
 let screenRecordBridge = null;
 /** ADR 039: share clips, cut from that recording (High quality on demand). */
@@ -76,7 +76,7 @@ let screenSampler = null;
 /** The hidden recorder, capture and export pages: never a window the operator sees or closes. */
 const hiddenWindow = (w) => Boolean(screenRecorder?.isRecorderWindow(w) || clipService?.isClipWindow(w));
 
-/** The trading screen is always recorded; nothing but a quit stops it (operator decision 2026-09-24). */
+/** The screen recording, or its paused view: NOVA_SCREEN_RECORD, read now, decides; once on, only a quit stops it. */
 function startScreenRecording() {
   screenRecordBridge = createScreenRecordBridge({
     ipcMain,
@@ -95,6 +95,7 @@ function startScreenRecording() {
     powerMonitor,
     ipcMain,
     userData: app.getPath('userData'),
+    envPath: getDesktopEnvPath,
     onView: (view) => screenRecordBridge?.publish(view),
     onSample: (ev) => screenSampler?.answer(ev),
   });

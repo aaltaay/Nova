@@ -96,8 +96,23 @@ describe('videoMenuState', () => {
   it('forces High quality when the screen recording lost the monitor', () => {
     const lost = readClipsView(wire({ open: [], tabs: [{ window_id: 'main', symbol: 'PFSA', visible: true, display_id: 'd1', screen_recording: false }] }))!;
     const s = videoMenuState({ desktop: true, view: lost, symbol: 'PFSA', busy: false });
-    expect(s).toMatchObject({ noScreen: true, hqLocked: true, canStart: true });
+    expect(s).toMatchObject({ noScreen: true, hqLocked: true, canStart: true, saveLastWhy: null });
     expect(s.hqNote).toMatch(/only picture/);
+    expect(s.screenNote).toBe('The screen recording is not seeing this monitor, so a cut would have no picture. High quality records this window on its own.');
+  });
+
+  it('says the screen recording is paused, not lost, and locks Save the last 5 min (ADR 067)', () => {
+    const tabs = [{ window_id: 'main', symbol: 'PFSA', visible: true, display_id: 'd1', screen_recording: false }];
+    const paused = readClipsView(wire({ open: [], screen_paused: true, tabs }))!;
+    expect(paused.screenPaused).toBe(true);
+    const s = videoMenuState({ desktop: true, view: paused, symbol: 'PFSA', busy: false });
+    expect(s).toMatchObject({ noScreen: true, hqLocked: true, canStart: true });
+    expect(s.screenNote).toBe('Screen recording is paused (off by default), so a cut would have no picture. High quality records this window on its own.');
+    expect(s.hqWhy).toBe('On: screen recording is paused, so High quality is the only picture');
+    expect(s.saveLastWhy).toMatch(/^Screen recording is paused \(off by default\)/);
+    const full = videoMenuState({ desktop: true, view: readClipsView(wire({ open: [], hq_in_use: 2, screen_paused: true, tabs }))!, symbol: 'PFSA', busy: false });
+    expect(full).toMatchObject({ canStart: false, startWhy: 'Screen recording is paused, and both high-quality captures are in use: stop one first.' });
+    expect(readClipsView(wire())!.screenPaused).toBe(false);
   });
 
   it('finds the open clip of the symbol', () => {

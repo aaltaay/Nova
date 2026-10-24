@@ -1,6 +1,8 @@
 # ADR 035 -- The trading screen is always recorded
 
-**Status:** Accepted · **Date:** 2026-09-24
+**Status:** Accepted · **Date:** 2026-09-24 · **Amended by:** [[067-screen-recording-paused-by-default]] (2026-10-24:
+paused by default -- the desktop app records only when `NOVA_SCREEN_RECORD` says yes, and says "paused" otherwise;
+decisions 1, 5 and 6 below hold only while it is on)
 **Builds on:** [[021-desk-self-heal]] (the diagnostics checklist) · [[026-performance-recorder]] (Electron main-process reports) · [[033-focus-and-book-watch-sensors]] (monitors numbered left to right)
 **Decided by:** the operator, 2026-09-24 ("moving forward, I always, always, always want the screen that
 I'm trading to be recorded. Everything, I want it to be recorded. That's definitely not negotiable.")

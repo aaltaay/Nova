@@ -73,6 +73,8 @@ export interface ClipsView {
   hqMaxSec: number;
   hqWarnSec: number;
   lastNSec: number;
+  /** The screen recording is paused (ADR 067): no cut has a picture, so a clip records in High quality. */
+  screenPaused: boolean;
   open: OpenClip[];
   clips: ClipRowView[];
   exporting: { exportId: string; clipId: string; doneSec: number; duration: number } | null;
@@ -191,6 +193,7 @@ export function readClipsView(raw: unknown): ClipsView | null {
     hqMaxSec: num(raw.hq_max_sec) ?? 1800,
     hqWarnSec: num(raw.hq_warn_sec) ?? 60,
     lastNSec: num(raw.last_n_sec) ?? 300,
+    screenPaused: raw.screen_paused === true,
     open: list(raw.open, readOpen),
     clips: list(raw.clips, readRow),
     exporting: ex && str(ex.export_id) && str(ex.clip_id)

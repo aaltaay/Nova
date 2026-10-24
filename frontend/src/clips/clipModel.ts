@@ -107,6 +107,10 @@ export interface VideoMenuState {
   startWhy: string | null;
   /** The screen recording is not seeing the tab's monitor: a cut would be blank. */
   noScreen: boolean;
+  /** Why a cut would be blank, in words (the recording is paused, or not seeing the monitor); null when it is not. */
+  screenNote: string | null;
+  /** Why Save the last 5 min is locked: the screen recording is paused, so there is nothing to cut from. */
+  saveLastWhy: string | null;
   hqLocked: boolean;
   hqWhy: string | null;
   hqNote: string;
@@ -124,23 +128,31 @@ export function videoMenuState({ desktop, view, symbol, busy }: {
   const hqFree = view ? Math.max(0, view.hqMax - view.hqInUse) : 0;
   const tab = view?.tabs.find((t) => t.symbol === symbol && t.visible) ?? null;
   const noScreen = tab?.screenRecording === false;
+  // Paused (ADR 067) is the setting, not a fault: the words say which.
+  const paused = view?.screenPaused === true;
   let startWhy: string | null = null;
   if (!desktop) startWhy = CLIP_NEED_DESKTOP_WHY;
   else if (!view) startWhy = 'The desktop app has not answered yet';
   else if (busy) startWhy = CLIP_BUSY_WHY;
-  else if (!open && noScreen && hqFree === 0) startWhy = 'The screen recording is not seeing that monitor, and both high-quality captures are in use: stop one first.';
+  else if (!open && noScreen && hqFree === 0) {
+    startWhy = `${paused ? 'Screen recording is paused' : 'The screen recording is not seeing that monitor'}, and both high-quality captures are in use: stop one first.`;
+  }
   const hqLocked = !desktop || !view || busy || noScreen || (hqFree === 0 && !open?.hq);
   let hqWhy: string | null = null;
   if (!desktop) hqWhy = CLIP_NEED_DESKTOP_WHY;
   else if (!view) hqWhy = 'The desktop app has not answered yet';
   else if (busy) hqWhy = CLIP_BUSY_WHY;
-  else if (noScreen) hqWhy = 'On: the screen recording is not seeing this monitor, so High quality is the only picture';
+  else if (noScreen) hqWhy = `On: ${paused ? 'screen recording is paused' : 'the screen recording is not seeing this monitor'}, so High quality is the only picture`;
   else if (hqFree === 0 && !open?.hq) hqWhy = CLIP_HQ_FULL_WHY;
   const inUse = view ? `${view.hqInUse} of ${view.hqMax} in use` : '';
   let hqNote = `${CLIP_HQ_HINT_OFF} · ${inUse}`;
   if (open?.hq) hqNote = `${inUse} · stops itself at ${clockLabel(view?.hqMaxSec ?? 1800)}`;
   else if (noScreen) hqNote = 'on: the only picture right now';
-  return { open, canStart: startWhy === null, startWhy, noScreen, hqLocked, hqWhy, hqNote, hqFree };
+  const screenNote = !noScreen
+    ? null
+    : `${paused ? 'Screen recording is paused (off by default)' : 'The screen recording is not seeing this monitor'}, so a cut would have no picture. High quality records this window on its own.`;
+  const saveLastWhy = paused ? 'Screen recording is paused (off by default): there is no recording to cut the last 5 min from' : null;
+  return { open, canStart: startWhy === null, startWhy, noScreen, screenNote, saveLastWhy, hqLocked, hqWhy, hqNote, hqFree };
 }
 
 /** A Records row's status in words, with its tone. */

@@ -1,8 +1,9 @@
 /** @vitest-environment jsdom */
 /**
- * The header's screen recording chip (ADR 035): quiet while every monitor
- * records, loud the moment one does not, and honest in a browser, which
- * cannot record the screen at all.
+ * The header's screen recording chip (ADR 035, ADR 067): muted words while the
+ * recording is paused (the default), quiet while every monitor records, loud
+ * the moment one does not, and honest in a browser, which cannot record the
+ * screen at all.
  */
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -62,6 +63,46 @@ describe('readScreenRecordView', () => {
     expect(readScreenRecordView(wire({ schema_version: 2 }))).toBeNull();
     expect(readScreenRecordView(wire({ state: 'maybe' }))).toBeNull();
     expect(readScreenRecordView('nope')).toBeNull();
+    expect(readScreenRecordView(paused())?.state).toBe('paused');
+  });
+});
+
+/** The desktop app's view while NOVA_SCREEN_RECORD is not on (screenRecordPlan.mjs `pausedView`). */
+function paused(over: Record<string, unknown> = {}) {
+  return wire({
+    state: 'paused', recording: false, since: null, mime: null, displays: [],
+    disk: { free_bytes: null, state: 'unknown', error: null, checked_ts: null }, ...over,
+  });
+}
+
+describe('screenChip while paused (ADR 067)', () => {
+  it('says paused in muted words, with how to turn it on, and never shows the recording dot', () => {
+    const chip = screenChip(readScreenRecordView(paused()), true);
+    expect(chip).toMatchObject({ tone: 'off', label: 'Screen rec paused', title: 'Screen recording' });
+    expect(chip.tip.split('\n')).toEqual([
+      'Screen recording is paused (off by default): no monitor is recorded.',
+      "To record every monitor, set NOVA_SCREEN_RECORD=1 in Nova's .env and restart Nova.",
+      'Once on: every monitor from launch to quit, 15 fps, a new file per monitor every 15 minutes, in F:\\Nova\\screen.',
+    ]);
+  });
+
+  it('is never an alarm: no drive or system-drive warning for a recording that is not running', () => {
+    const chip = screenChip(readScreenRecordView(paused({
+      dir: 'C:\\Users\\op\\AppData\\Roaming\\nova\\screen',
+      dir_source: 'fallback',
+      dir_note: 'F: is not mounted, so the screen records to the system drive',
+    })), true);
+    expect(chip).toMatchObject({ tone: 'off', label: 'Screen rec paused' });
+    expect(chip.tip).toContain('F: is not mounted, so the screen records to the system drive');
+  });
+
+  it('tells the operator how to pause it again while it records', () => {
+    expect(screenChip(readScreenRecordView(wire()), true).tip)
+      .toContain("On by NOVA_SCREEN_RECORD=1: remove it from Nova's .env and restart Nova to pause the recording.");
+  });
+
+  it('shows no recording dot before the desktop app answers', () => {
+    expect(screenChip(null, true)).toMatchObject({ tone: 'off', label: null });
   });
 });
 
@@ -110,8 +151,10 @@ describe('screenChip', () => {
       .toMatchObject({ tone: 'warn', label: 'Screen on system drive' });
   });
 
-  it('tells a browser desk that the screen is not recorded there', () => {
-    expect(screenChip(null, false)).toMatchObject({ tone: 'warn', label: 'Screen not recorded' });
+  it('tells a browser desk that the screen is not recorded there, without an alarm', () => {
+    const chip = screenChip(null, false);
+    expect(chip).toMatchObject({ tone: 'off', label: 'Screen not recorded' });
+    expect(chip.tip).toContain('only the desktop app can, and it is paused by default');
   });
 });
 
@@ -136,5 +179,20 @@ describe('ScreenRecordChip', () => {
     const chip = screen.getByTestId('screen-rec-chip');
     expect(chip.dataset.state).toBe('browser');
     expect(chip.textContent).toBe('Screen not recorded');
+  });
+
+  it('shows the pause as a muted, dotless chip, and the dot once a recording runs', () => {
+    const b = bridge(paused());
+    const { container } = render(<ScreenRecordChip bridge={b} />);
+    const chip = screen.getByTestId('screen-rec-chip');
+    expect(chip.dataset.state).toBe('paused');
+    expect(chip.textContent).toBe('Screen rec paused');
+    expect(chip.className).toContain('screen-rec-chip--off');
+    expect(chip.getAttribute('aria-label')).toBe('Screen recording: Screen rec paused');
+    expect(container.querySelector('.screen-rec-chip__dot')).toBeNull();
+    expect(container.querySelector('.lucide-monitor-off')).not.toBeNull();
+    act(() => b.push(wire()));
+    expect(chip.dataset.state).toBe('recording');
+    expect(container.querySelector('.screen-rec-chip__dot')).not.toBeNull();
   });
 });
