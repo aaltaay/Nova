@@ -2,18 +2,25 @@
 
 Part of `AGENTS.md` §3 (Data Schema), which indexes every file in this folder. Owners: frontend/electron/, backend/screen_record/, backend/clips/. Same law as the constitution: a wire or persisted shape changes here first, in the same commit as the code (Invariants #1 and #5).
 
-## The trading screen is always recorded (ADR 035, operator decision 2026-09-24)
+## The trading screen recording, paused by default (ADR 035, ADR 067)
 
-"I always, always, always want the screen that I'm trading to be recorded.
-Everything ... That's definitely not negotiable." The desktop app's main
-process records every monitor from launch to quit (owner
-`frontend/electron/screenRecorder.mjs`; plan `screenRecordPlan.mjs`, files
-`screenRecordFiles.mjs`, a hidden recorder page `screenRecorder.html`). There
-is no off switch: no button, setting or variable stops it;
-`NOVA_SCREEN_RECORD_DIR` only moves the folder. The browser desk cannot record
-the screen and says so.
+ADR 035 (operator decision 2026-09-24) records every monitor from launch to
+quit. Since 2026-10-24 it is paused by default (ADR 067; the operator: "pause
+it by default. This feature is useful, but we're really not using it right
+now."). The desktop app records only when `NOVA_SCREEN_RECORD`
+(`SCREEN_RECORD_ENV`, `screenRecordPlan.mjs`) is `1`, `true`, `yes` or `on`, any
+case: the process env, else the desk `.env` the engine reads (`readDeskSetting`
+in `envMerge.mjs`, the path from `sidecar.mjs` `getDesktopEnvPath`), read once
+at launch; a change takes a restart of Nova. Paused, nothing starts -- no
+recorder window, no capture, no file or manifest, no folder created, no drive
+check -- and the view says so. On, the main process records every monitor from
+launch to quit (owner `frontend/electron/screenRecorder.mjs`; plan
+`screenRecordPlan.mjs`, files `screenRecordFiles.mjs`, a hidden recorder page
+`screenRecorder.html`) and only a quit stops it; `NOVA_SCREEN_RECORD_DIR` only
+moves the folder. No page can start, stop or pause it. The browser desk cannot
+record the screen and says so.
 
-**Files.** `<dir>/<YYYY-MM-DD>/<HHMMSS>-screen<N>.mkv` -- the Eastern date and
+**Files** (written only while it records). `<dir>/<YYYY-MM-DD>/<HHMMSS>-screen<N>.mkv` -- the Eastern date and
 start time, monitors numbered left to right from 1 (`.webm` when Chromium has
 no H.264 encoder) -- a new file per monitor on every quarter hour, started
 before the old one stops. `<dir>` is `NOVA_SCREEN_RECORD_DIR`, else
@@ -33,7 +40,7 @@ warn me when F: gets low" -- the drive guard below is that warning).
 `nova:screen-record:view` / `nova:screen-record:subscribe`, read-only, and
 `POST /api/screen-record` every `SCREEN_RECORD_REPORT_SEC` and on each state
 change): `{schema_version: 1, state: "starting" | "recording" | "partial" |
-"failed" | "suspended" | "stopped", recording: boolean (every monitor), since:
+"failed" | "suspended" | "stopped" | "paused", recording: boolean (every monitor), since:
 number | null, error: string | null, dir, dir_source: "env" | "data_drive" |
 "fallback", dir_note, dir_error, mime, fps, segment_min, displays: [{index,
 count, id, label, primary, scale_factor, width, height, recording, since, file,
@@ -43,7 +50,13 @@ checked_ts}, problems: [{at, display_index, reason, detail, resumed_at}]
 (newest first, at most 10), restarts, generated_at}`. A monitor that fails,
 stalls (no data for 12 s) or ends by itself is started again after 2, 5, 10,
 30 s, then every 60 s, forever; a crashed recorder page is replaced; each loss
-is a `problems` row until it is back.
+is a `problems` row until it is back. **Paused** (`screenRecordPlan.mjs`
+`pausedView`, made once at launch): `state: "paused"`, `recording: false`,
+`since`, `error`, `mime` and `dir_error` null, `displays`, `unmatched` and
+`problems` empty, `restarts: 0`, `disk: {free_bytes: null, state: "unknown",
+error: null, checked_ts: null}` (the drive is not read), and `dir`,
+`dir_source`, `dir_note` where it would record once on -- worked out without
+creating or writing the folder. It is posted like any view.
 
 **Quit** (#927). The recorder's `stop(reason)` does everything that decides at
 once, synchronously: every capture is told to stop, every open file's `end`
@@ -56,20 +69,28 @@ segment whose file was already closing when the stop came. After it settles
 nothing writes under `<dir>`. It never rejects; asking again returns the same
 promise and writes no second row. A file's own `close()` (`SegmentFile` in
 `screenRecordFiles.mjs`) settles on the same terms, once however often it is
-asked.
+asked. Paused, `stop()` returns a promise already settled, the same one every
+time: nothing was open.
 
 `GET /api/screen-record` (owner `backend/screen_record/`, in memory, never
 persisted) answers `{schema_version: 1, reported, fresh, age_sec, received_ts,
 report: view | null}`; `fresh` is a report younger than
 `SCREEN_RECORD_STALE_SEC` (35). `POST` refuses an unknown `schema_version`,
 `state` or `dir_source` (422) and a body over 64 KB (413). `/api/diagnostics`
-adds the `screen_recorder` row (group `recorder`): `fail` with no desktop app
-reporting, a stale report, or any monitor not recording; `warn` while starting
-or recording to the system drive; `off` while the PC sleeps; and the
-leaderboard's drive guard (warn under 50 GB free, fail under 10 GB, only ever
-worse). The header chip (`frontend/src/screen_record/`) is a monitor icon with a
-red dot while every monitor records and a red "Screen not recording" the moment
-one does not.
+adds the `screen_recorder` row (group `recorder`): `off` while the report says
+`paused` (fresh or stale), and with no desktop app reporting while the
+backend's own environment (its `.env`, loaded at start) does not turn
+`NOVA_SCREEN_RECORD` on -- the fix says how to turn it on, and the drive is
+not judged; `evidence.flag_on` is the backend's own reading. Once on: `fail`
+with no desktop app reporting, a stale report, or any monitor not recording;
+`warn` while starting or recording to the system drive; `off` while the PC
+sleeps; and the leaderboard's drive guard (warn under 50 GB free, fail under
+10 GB, only ever worse). The header chip (`frontend/src/screen_record/`) is a
+muted monitor with a slash and "Screen rec paused" while paused (no red dot;
+the tip says it is off by default and how to turn it on), a monitor icon with a
+red dot while every monitor records, and a red "Screen not recording" the
+moment one does not. Before the desktop app answers, and on a browser desk
+("Screen not recorded"), it is muted too.
 
 ## The desk draws with the graphics card (operator decision 2026-10-05, #707)
 
@@ -98,6 +119,8 @@ safety net (owner `frontend/electron/graphics*.mjs`, wired by `gpuPolicy.mjs` an
   then is the page itself read (`capturePage`); a page as flat as that (over 90%, loading) decides nothing.
   The first blank look asks the window to draw again; three in a row store `blank_window` and restart Nova
   in software, which tells the operator once after it starts. Any look that decides nothing starts over.
+  While the screen recording is paused (ADR 067) there is no capture to read, so every look decides
+  nothing; the graphics-process signal above still works.
 
 ## Share clips (ADR 039, operator ask 2026-09-29)
 
@@ -106,7 +129,7 @@ Owners: `frontend/electron/clip*.mjs` (the main process: marks, High quality, ex
 `frontend/src/clips/` (the desk), `backend/clips/` (the view for agents and the checklist). Nothing
 here places, stages or cancels an order, and nothing deletes a screen recording (ADR 035).
 
-**A clip is marks** on the always-on screen recording: the red ● on every Trader tab strip (and the
+**A clip is marks** on the screen recording (paused by default, ADR 067): the red ● on every Trader tab strip (and the
 symbol menu, and two Nova Actions) opens and closes it; while it is open the main process marks where
 its Trader tab is and whether it shows. It has no cap and no time limit, costs nothing while it runs,
 and survives a restart: the next start marks the gap (`restart`) and goes on. **Save the last 5 min**
@@ -120,7 +143,11 @@ in its own hidden page (`clipRecorder.html`), apart from ADR 035's: at most `CLI
 (2) at once, each stopped at `CLIP_HQ_MAX_SEC` (30 min; the chip counts down the last minute), after
 which the clip goes on as a cut. A capture that fails, stalls or ends by itself is started again with
 back-off; after a restart it does not start again by itself. When the screen recording is not seeing
-the tab's monitor a new clip records in high quality (else it is refused `CLIP_NO_PICTURE`).
+the tab's monitor a new clip records in high quality (else it is refused `CLIP_NO_PICTURE`) -- always,
+while the recording is paused (ADR 067). Paused, Save the last 5 min has nothing to cut from: it is
+refused `CLIP_NO_PICTURE` ("Screen recording is paused (off by default), so there is no recording to
+cut the last minutes from. Start a clip instead: it records in high quality."), and the Record menu and
+the symbol menu lock it with that reason.
 
 **Files.** `<dir>` = `NOVA_CLIPS_DIR`, else `F:\Nova\clips` while F: is mounted, else
 `<userData>\clips` (the view says `dir_source: "fallback"`). `<dir>/clips.jsonl`, one JSON object
@@ -149,7 +176,8 @@ Dates and times in names are Eastern.
 **The view** (one shape for every reader: the desk over IPC `nova:clips:view` / `nova:clips:subscribe`,
 and `POST /api/clips` every `CLIP_REPORT_MS` and on each change): `{schema_version: 1, generated_at,
 dir, dir_source: "env" | "data_drive" | "fallback", dir_note, dir_error, skipped, hq_max, hq_in_use,
-hq_max_sec, hq_warn_sec, last_n_sec, open: [{clip_id, symbol, started_ts, state: "ok" | "hidden" |
+hq_max_sec, hq_warn_sec, last_n_sec, screen_paused: boolean (the screen recording's view says `paused`,
+ADR 067), open: [{clip_id, symbol, started_ts, state: "ok" | "hidden" |
 "hq_lost" | "no_picture", reason, showing, window_id, screen_recording: boolean | null, hq: {since,
 ends_at, recording, lost, error, retry_at} | null}], clips: [{clip_id, symbol, origin, picture,
 started_ts, ended_ts, length_sec, status: "recording" | "not_exported" | "queued" | "exporting" |
@@ -215,7 +243,8 @@ received_ts, view}` (`fresh`: younger than `CLIPS_STALE_SEC`); `POST` refuses an
 `schema_version`, `dir_source` or open-clip `state` (422) and a body over 256 KB (413). The checklist
 row `clips` (group `recorder`) is `off` with no desktop app reporting, `unknown` on a stale report,
 `ok` in the ordinary run, `warn` on a lost high-quality capture, an unwritable clip list or the system
-drive, and `fail` only when an open clip has no picture. The perf recorder (ADR 026) names the two
+drive, and `fail` only when an open clip has no picture (its cause names a paused screen recording when
+`screen_paused`). The perf recorder (ADR 026) names the two
 hidden pages' processes `clip-recorder` (High quality) and `clip-export` in the Electron report's
 `processes`, beside `screen-recorder`, and the focus sensor (ADR 033) leaves all three out: they are
 never a window the operator sees. Their `cpu_pct` is % of one core (performance.md); a report from

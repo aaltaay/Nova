@@ -4,6 +4,7 @@
  * Never adds spend gates (orders / live confirm / short).
  */
 import { randomBytes } from 'node:crypto';
+import fs from 'node:fs';
 
 export const IBKR_CONNECT_DEFAULTS = {
   IBKR_ENABLED: 'true',
@@ -63,6 +64,22 @@ export function readEnvValue(text, key) {
     return value.trim();
   }
   return '';
+}
+
+/**
+ * A desk setting the desktop app reads for itself (ADR 067's NOVA_SCREEN_RECORD): the process env
+ * wins, else the desk .env -- the file the engine reads (sidecar.mjs picks it). '' when neither sets
+ * it, or when the file cannot be read (said in the log).
+ */
+export function readDeskSetting(name, { env = process.env, envPath = '', logger = console } = {}) {
+  const fromProcess = String(env?.[name] ?? '').trim();
+  if (fromProcess || !envPath) return fromProcess;
+  try {
+    return fs.existsSync(envPath) ? readEnvValue(fs.readFileSync(envPath, 'utf8'), name) : '';
+  } catch (err) {
+    logger.warn(`[nova] cannot read ${name} from ${envPath}: ${err instanceof Error ? err.message : String(err)}`);
+    return '';
+  }
 }
 
 /**

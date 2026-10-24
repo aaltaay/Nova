@@ -1,9 +1,10 @@
 /**
- * The trading screen recording's supervisor (ADR 035; operator: "I always,
- * always, always want the screen that I'm trading to be recorded"). Driven
- * with a fake recorder page: every monitor starts, rotation never leaves a
- * gap, a stall / crash / failed start is resumed with backoff and said, a
- * display change re-plans, and quitting closes every file.
+ * The trading screen recording's supervisor (ADR 035). Driven with a fake
+ * recorder page: every monitor starts, rotation never leaves a gap, a stall /
+ * crash / failed start is resumed with backoff and said, a display change
+ * re-plans, and quitting closes every file. Paused by default (ADR 067): with
+ * NOVA_SCREEN_RECORD unset nothing starts, nothing is written, and the view
+ * says so -- these worlds record because they set it.
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -50,7 +51,7 @@ const MAIN = { id: 22, label: 'main', bounds: { x: 0, y: 0, width: 1920, height:
 
 const worlds: { recorder: { stop: (reason?: string) => Promise<void> } }[] = [];
 
-function makeWorld(tmp: string, opts: { env?: Record<string, string>; onSample?: (ev: Row) => void } = {}) {
+function makeWorld(tmp: string, opts: { env?: Record<string, string>; envPath?: string; onSample?: (ev: Row) => void } = {}) {
   const pages: FakePage[] = [];
   const ipcMain = emitter();
   let displays = [LEFT, MAIN];
@@ -96,7 +97,8 @@ function makeWorld(tmp: string, opts: { env?: Record<string, string>; onSample?:
     powerMonitor,
     ipcMain,
     userData: path.join(tmp, 'userdata'),
-    env: opts.env ?? { NOVA_SCREEN_RECORD_DIR: path.join(tmp, 'rec') },
+    env: opts.env ?? { NOVA_SCREEN_RECORD: '1', NOVA_SCREEN_RECORD_DIR: path.join(tmp, 'rec') },
+    envPath: () => opts.envPath ?? '',
     onView: (v: Row) => views.push(v),
     onSample: opts.onSample,
     logger: { info: () => {}, warn: () => {} },
@@ -531,11 +533,55 @@ describe('startScreenRecorder', () => {
   it('records to the app folder, and says why, when the chosen folder cannot be written', async () => {
     const blocker = path.join(tmp, 'not-a-folder');
     fs.writeFileSync(blocker, 'x');
-    const w = await recordingWorld({ NOVA_SCREEN_RECORD_DIR: path.join(blocker, 'rec') });
+    const w = await recordingWorld({ NOVA_SCREEN_RECORD: '1', NOVA_SCREEN_RECORD_DIR: path.join(blocker, 'rec') });
     const v = w.view() as Row;
     expect(v.dir).toBe(path.join(tmp, 'userdata', 'screen'));
     expect(v.dir_source).toBe('fallback');
     expect(v.dir_note).toMatch(/cannot be written/);
     expect(v.state).toBe('recording');
+  });
+});
+
+describe('paused by default (ADR 067)', () => {
+  const rec = () => path.join(tmp, 'rec');
+
+  it('starts no recorder, captures and writes nothing, and says paused once', async () => {
+    const w = makeWorld(tmp, { env: { NOVA_SCREEN_RECORD_DIR: rec() } });
+    await vi.advanceTimersByTimeAsync(20 * 60_000); // past a quarter hour and every watch
+    await settle();
+    expect(w.pages).toHaveLength(0);
+    expect(fs.existsSync(rec())).toBe(false); // not even the folder
+    for (const channel of [SCREEN_REC_READY_CHANNEL, SCREEN_REC_EVENT_CHANNEL, SCREEN_REC_CHUNK_CHANNEL]) {
+      expect(w.ipcMain.count(channel)).toBe(0);
+    }
+    expect(w.screen.count('display-added')).toBe(0);
+    expect(w.powerMonitor.count('resume')).toBe(0);
+    expect(w.view()).toMatchObject({
+      schema_version: 1, state: 'paused', recording: false, dir: rec(), dir_source: 'env', displays: [], problems: [], restarts: 0,
+    });
+    expect(w.views.map((v) => v.state)).toEqual(['paused']);
+    // The graphics safety net asks for a picture of the screen: there is none, so it decides nothing.
+    expect(w.recorder.sample('11', { x: 0, y: 0, w: 1, h: 1 }, 1, { width: 96, height: 54 })).toBe(false);
+    expect(w.recorder.isRecorderWindow({})).toBe(false);
+    const stop = w.recorder.stop('quit');
+    expect(w.recorder.stop('quit')).toBe(stop);
+    await expect(stop).resolves.toBeUndefined();
+  });
+
+  it('records with a yes in the desk .env, and the process env wins over the file', async () => {
+    const deskEnv = path.join(tmp, '.env');
+    fs.writeFileSync(deskEnv, 'APCA_API_KEY_ID=\nNOVA_SCREEN_RECORD=1\n');
+    const on = makeWorld(tmp, { env: { NOVA_SCREEN_RECORD_DIR: rec() }, envPath: deskEnv });
+    expect(on.pages).toHaveLength(1);
+    expect(on.view().state).toBe('starting');
+    const off = makeWorld(tmp, { env: { NOVA_SCREEN_RECORD: '0', NOVA_SCREEN_RECORD_DIR: rec() }, envPath: deskEnv });
+    expect(off.pages).toHaveLength(0);
+    expect(off.view().state).toBe('paused');
+  });
+
+  it('stays paused when the desk .env cannot be read', () => {
+    const w = makeWorld(tmp, { env: { NOVA_SCREEN_RECORD_DIR: rec() }, envPath: tmp }); // a folder, not a file
+    expect(w.pages).toHaveLength(0);
+    expect(w.view().state).toBe('paused');
   });
 });

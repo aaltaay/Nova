@@ -43,8 +43,12 @@ export function getDesktopApiKey() {
   return desktopApiKey;
 }
 
-/** The .env the API sidecar reads (userData when packaged); '' before startup. */
+/**
+ * The .env the API sidecar reads (userData when packaged), picked on the first ask as the key is: the
+ * screen recording reads its flag from it before the engine starts (ADR 067). '' when it cannot be picked.
+ */
 export function getDesktopEnvPath() {
+  if (!desktopEnvPath) getDesktopApiKey();
   return desktopEnvPath;
 }
 

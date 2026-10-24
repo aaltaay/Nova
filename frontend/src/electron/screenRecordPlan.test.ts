@@ -1,11 +1,13 @@
 /**
  * The trading screen recording's plan (ADR 035): what each monitor records at,
- * where the files go and what they are called.
+ * where the files go and what they are called -- and, since ADR 067, the flag
+ * that turns it on and the view while it is paused.
  */
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   SCREEN_RECORD_DATA_DIR,
+  SCREEN_RECORD_ENV,
   SCREEN_RECORD_FREE_FAIL_BYTES,
   SCREEN_RECORD_FREE_WARN_BYTES,
   SCREEN_RECORD_MAX_BPS,
@@ -17,10 +19,12 @@ import {
   etParts,
   extensionFor,
   nextBoundaryMs,
+  pausedView,
   planDisplays,
   resolveRecordDir,
   retryDelayMs,
   samePlan,
+  screenRecordOn,
   segmentRelPath,
 } from '../../electron/screenRecordPlan.mjs';
 
@@ -143,5 +147,37 @@ describe('guards', () => {
     expect(retryDelayMs(1)).toBe(SCREEN_RECORD_RETRY_MS[0]);
     expect(retryDelayMs(3)).toBe(SCREEN_RECORD_RETRY_MS[2]);
     expect(retryDelayMs(500)).toBe(SCREEN_RECORD_RETRY_MS[SCREEN_RECORD_RETRY_MS.length - 1]);
+  });
+});
+
+describe('paused by default (ADR 067)', () => {
+  it('records only when NOVA_SCREEN_RECORD says yes', () => {
+    expect(SCREEN_RECORD_ENV).toBe('NOVA_SCREEN_RECORD');
+    for (const yes of ['1', 'true', 'yes', 'on', ' ON ', 'Yes']) expect(screenRecordOn(yes)).toBe(true);
+    for (const no of [undefined, null, '', '0', 'false', 'no', 'off', 'maybe', '2']) expect(screenRecordOn(no)).toBe(false);
+  });
+
+  it('says paused in the shape every reader reads, with where it would record and nothing captured', () => {
+    const target = { dir: SCREEN_RECORD_DATA_DIR, source: 'data_drive', note: null };
+    expect(pausedView({ target, nowMs: Date.UTC(2026, 9, 24, 14, 0, 0) })).toEqual({
+      schema_version: 1,
+      state: 'paused',
+      recording: false,
+      since: null,
+      error: null,
+      dir: SCREEN_RECORD_DATA_DIR,
+      dir_source: 'data_drive',
+      dir_note: null,
+      dir_error: null,
+      mime: null,
+      fps: 15,
+      segment_min: 15,
+      displays: [],
+      unmatched: [],
+      disk: { free_bytes: null, state: 'unknown', error: null, checked_ts: null },
+      problems: [],
+      restarts: 0,
+      generated_at: Date.UTC(2026, 9, 24, 14, 0, 0) / 1000,
+    });
   });
 });

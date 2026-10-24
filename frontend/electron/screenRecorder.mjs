@@ -1,8 +1,10 @@
 /**
- * The trading screen recording (ADR 035, operator decision 2026-09-24:
- * "I always, always, always want the screen that I'm trading to be recorded
- * ... That's definitely not negotiable."). Every monitor, from the moment the
- * desktop app starts until it quits, with no switch to turn it off.
+ * The trading screen recording (ADR 035): every monitor, from the moment the
+ * desktop app starts until it quits -- when NOVA_SCREEN_RECORD says yes. It is
+ * paused by default (ADR 067, operator decision 2026-10-24): read once at
+ * launch (the process env, else the desk .env), anything but a yes starts no
+ * recorder window, captures nothing and writes nothing, and the view says
+ * `paused` (`pausedRecorder`). Changing it takes a restart of Nova.
  *
  * maintainer: one-concern the never-leave-a-monitor-unrecorded supervisor -- starts, rotates, watches and restarts every capture
  *
@@ -22,6 +24,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readDeskSetting } from './envMerge.mjs';
 import * as P from './screenRecordPlan.mjs';
 import { SegmentFile, appendManifest, freeBytes, newSegmentPath, writableDir } from './screenRecordFiles.mjs';
 
@@ -41,6 +44,24 @@ const PRELOAD = path.join(here, 'screenRecorderPreload.cjs');
 const sec = (ms) => (ms == null ? null : Math.round(ms) / 1000);
 const errLine = (err) => (err instanceof Error ? err.message : String(err ?? 'unknown error'));
 
+/**
+ * The recording while it is paused (ADR 067): no recorder window, no capture, nothing written and no
+ * folder made or opened -- the same handle main.mjs and every reader use, with a view that says so.
+ */
+function pausedRecorder({ env, userData, dataDriveMounted, onView, logger, now, segmentMs }) {
+  const target = P.resolveRecordDir({ env, dataDriveMounted: dataDriveMounted(), userData, join: path.join });
+  const paused = P.pausedView({ target, segmentMs, nowMs: now() });
+  const view = () => ({ ...paused });
+  try {
+    onView(view());
+  } catch (err) {
+    logger.warn(`[nova] screen recording view not published: ${errLine(err)}`);
+  }
+  logger.info?.(`[nova] screen recording paused (ADR 067): ${P.SCREEN_RECORD_ENV}=1 in Nova's .env and a restart turn it on`);
+  const drained = Promise.resolve();
+  return { view, isRecorderWindow: () => false, sample: () => false, stop: () => drained };
+}
+
 export function startScreenRecorder({
   BrowserWindow,
   desktopCapturer,
@@ -49,6 +70,8 @@ export function startScreenRecorder({
   ipcMain,
   userData,
   env = process.env,
+  /** The desk .env (sidecar.mjs); NOVA_SCREEN_RECORD is read from it when the process env does not set it. */
+  envPath = () => '',
   onView = () => {},
   /** The page's answer to `sample` (graphicsWatch.mjs reads the screen under a desk window from it). */
   onSample = () => {},
@@ -59,6 +82,9 @@ export function startScreenRecorder({
   segmentMs = P.SCREEN_RECORD_SEGMENT_MS,
   pagePath = SCREEN_RECORDER_PAGE,
 }) {
+  if (!P.screenRecordOn(readDeskSetting(P.SCREEN_RECORD_ENV, { env, envPath: envPath(), logger }))) {
+    return pausedRecorder({ env, userData, dataDriveMounted, onView, logger, now, segmentMs });
+  }
   const startedAt = now();
   const recorderWindows = new WeakSet();
   const states = new Map(); // display id -> monitor state

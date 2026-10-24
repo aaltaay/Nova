@@ -138,7 +138,7 @@ afterEach(async () => {
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
-function world(opts: { screenFiles?: boolean } = {}) {
+function world(opts: { screenFiles?: boolean; screenPaused?: boolean } = {}) {
   const ipcMain = fakeIpc();
   const screenDir = path.join(tmp, 'screen');
   let screenView: Row | null = null;
@@ -149,6 +149,8 @@ function world(opts: { screenFiles?: boolean } = {}) {
     fs.writeFileSync(path.join(day, 'segments.jsonl'), `${JSON.stringify({ schema_version: 1, event: 'start', segment_id: 's1', file: '080000-screen3.mkv', display: DISPLAY, width: 2560, height: 1440, fps: 15, started_ts: Date.parse('2026-09-24T12:00:00Z') / 1000 })}\n`);
     screenView = { dir: screenDir, displays: [{ id: DISPLAY.id, recording: true, file: '080000-screen3.mkv' }] };
   }
+  // NOVA_SCREEN_RECORD not on (ADR 067): the recorder's paused view, no monitor recorded.
+  if (opts.screenPaused) screenView = { state: 'paused', dir: screenDir, displays: [] };
   const views: Row[] = [];
   const shell = { showItemInFolder: vi.fn(), openPath: vi.fn(async () => '') };
   const make = () => {
@@ -308,6 +310,29 @@ describe('High quality', () => {
     expect(await svc.act({ action: 'start', symbol: 'NVDA', hq: true })).toMatchObject({ ok: false, reason: 'CLIP_HQ_FULL' });
     expect(await svc.act({ action: 'start', symbol: 'NVDA' })).toMatchObject({ ok: true, hq: false });
     expect(w.lastView()).toMatchObject({ hq_in_use: 2, hq_max: 2 });
+  });
+
+  it('is the picture while the screen recording is paused, and Save the last 5 min says why it cannot run (ADR 067)', async () => {
+    const w = world({ screenFiles: false, screenPaused: true });
+    const svc = w.make();
+    const desk = new FakeWindow();
+    svc.tabReport(desk as never, tabReport());
+    const other = new FakeWindow();
+    svc.tabReport(other as never, tabReport({ window_id: 'trader:APUS', symbol: 'APUS' }));
+    const third = new FakeWindow();
+    svc.tabReport(third as never, tabReport({ window_id: 'trader:NVDA', symbol: 'NVDA' }));
+    vi.advanceTimersByTime(120_000);
+    expect(await svc.act({ action: 'save_last', symbol: 'PFSA', seconds: 60 })).toMatchObject({
+      ok: false, reason: 'CLIP_NO_PICTURE', error: expect.stringMatching(/^Screen recording is paused \(off by default\)/),
+    });
+    expect(await svc.act({ action: 'start', symbol: 'PFSA' })).toMatchObject({ ok: true, hq: true, forced: true });
+    expect(await svc.act({ action: 'start', symbol: 'APUS' })).toMatchObject({ ok: true, hq: true, forced: true });
+    expect(await svc.act({ action: 'start', symbol: 'NVDA' })).toMatchObject({
+      ok: false, reason: 'CLIP_NO_PICTURE', error: 'Screen recording is paused, and both high-quality captures are in use: stop one first.',
+    });
+    vi.advanceTimersByTime(1_000);
+    expect(w.lastView()).toMatchObject({ screen_paused: true, hq_in_use: 2 });
+    expect((w.lastView().tabs as Row[]).map((t) => t.screen_recording)).toEqual([false, false, false]);
   });
 
   it('writes the quit end row synchronously, awaits active file close, and returns the same completion on repeated stop (#940)', async () => {

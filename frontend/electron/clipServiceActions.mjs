@@ -19,6 +19,8 @@ export function makeClipActions(ctx) {
   const { store, tabs, hq, exporter, shell, screenView, displayRecording, evaluate, liveFor, append, now, sec } = ctx;
   let seq = 0;
   const newId = (prefix) => `${prefix}-${now()}-${++seq}`;
+  /** The screen recording is paused (ADR 067): nothing to cut from, so a cut has no picture. */
+  const screenPaused = () => screenView()?.state === 'paused';
   const openFor = (symbol) => [...store.clips().values()].find((c) => isOpen(c) && c.symbol === symbol) ?? null;
   const clipOf = (req) => {
     if (typeof req.clip_id === 'string') return store.get(req.clip_id);
@@ -79,7 +81,7 @@ export function makeClipActions(ctx) {
       if (forced) wantHq = true;
       if (wantHq && hq.count() >= P.CLIP_HQ_MAX_CONCURRENT) {
         return forced
-          ? fail('CLIP_NO_PICTURE', 'The screen recording is not seeing that monitor, and both high-quality captures are in use: stop one first.')
+          ? fail('CLIP_NO_PICTURE', `${screenPaused() ? 'Screen recording is paused' : 'The screen recording is not seeing that monitor'}, and both high-quality captures are in use: stop one first.`)
           : fail('CLIP_HQ_FULL', 'Both high-quality captures are in use: stop one, or record this clip as a cut.');
       }
       const id = newId('clip');
@@ -105,6 +107,9 @@ export function makeClipActions(ctx) {
     save_last(req) {
       const symbol = P.cleanSymbol(req.symbol);
       if (!symbol) return fail('CLIP_INVALID', 'No symbol to save.');
+      if (screenPaused()) {
+        return fail('CLIP_NO_PICTURE', 'Screen recording is paused (off by default), so there is no recording to cut the last minutes from. Start a clip instead: it records in high quality.');
+      }
       const seconds = Math.min(P.CLIP_TAB_HISTORY_SEC, Math.max(10, num(req.seconds) ?? P.CLIP_LAST_N_SEC));
       const t = sec();
       const from = t - seconds;

@@ -10,9 +10,16 @@
  * when Chromium can encode it -- sharper text than VP9 at under half the size
  * on this desk (probe, 2026-09-24), and a Matroska file cut short by a crash
  * still plays up to its last cluster.
+ *
+ * Paused by default (ADR 067, operator decision 2026-10-24): the desktop app
+ * records only when NOVA_SCREEN_RECORD is a yes, read once at launch; paused,
+ * the view says so (`pausedView`) and nothing is captured or written.
  */
 
 export const SCREEN_RECORD_SCHEMA_VERSION = 1;
+/** Desk setting (the process env, else the desk .env), read once at launch: a yes records, anything else is paused. */
+export const SCREEN_RECORD_ENV = 'NOVA_SCREEN_RECORD';
+const SCREEN_RECORD_ON_VALUES = new Set(['1', 'true', 'yes', 'on']);
 export const SCREEN_RECORD_FPS = 15;
 /** MediaRecorder hands over data every timeslice; a crash loses at most this much. */
 export const SCREEN_RECORD_TIMESLICE_MS = 1_000;
@@ -180,4 +187,37 @@ export function diskState(freeBytes) {
 export function retryDelayMs(failures) {
   const i = Math.min(Math.max(0, failures - 1), SCREEN_RECORD_RETRY_MS.length - 1);
   return SCREEN_RECORD_RETRY_MS[i];
+}
+
+/** NOVA_SCREEN_RECORD's value turns the recording on only when it says yes: unset, empty or anything else is paused. */
+export function screenRecordOn(raw) {
+  return SCREEN_RECORD_ON_VALUES.has(String(raw ?? '').trim().toLowerCase());
+}
+
+/**
+ * The view while the recording is paused (ADR 067): the shape every reader already reads, with nothing
+ * captured -- no monitors, no problems, the drive not read -- and `dir` where it would record once on.
+ * Made once at launch; it does not change until Nova restarts.
+ */
+export function pausedView({ target, segmentMs = SCREEN_RECORD_SEGMENT_MS, nowMs }) {
+  return {
+    schema_version: SCREEN_RECORD_SCHEMA_VERSION,
+    state: 'paused',
+    recording: false,
+    since: null,
+    error: null,
+    dir: target.dir,
+    dir_source: target.source,
+    dir_note: target.note,
+    dir_error: null,
+    mime: null,
+    fps: SCREEN_RECORD_FPS,
+    segment_min: segmentMs / 60_000,
+    displays: [],
+    unmatched: [],
+    disk: { free_bytes: null, state: 'unknown', error: null, checked_ts: null },
+    problems: [],
+    restarts: 0,
+    generated_at: Math.round(nowMs) / 1000,
+  };
 }

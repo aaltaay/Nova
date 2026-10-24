@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { describe, expect, it, vi } from 'vitest';
 import {
   IBKR_CONNECT_DEFAULTS,
   ensureNovaApiKey,
@@ -6,6 +9,7 @@ import {
   parseEnvKeys,
   pickNovaApiKey,
   pickNovaEnvPath,
+  readDeskSetting,
 } from '../../electron/envMerge.mjs';
 
 describe('desktop envMerge', () => {
@@ -108,5 +112,25 @@ describe('desktop envMerge', () => {
       userEnv: '/user/.env',
       packaged: false,
     })).toBe('/repo/.env');
+  });
+});
+
+describe('readDeskSetting (ADR 067)', () => {
+  it('takes the process env first, else the desk .env, else nothing', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nova-desk-env-'));
+    try {
+      const envPath = path.join(dir, '.env');
+      fs.writeFileSync(envPath, '# desk\nNOVA_SCREEN_RECORD="1"\n');
+      expect(readDeskSetting('NOVA_SCREEN_RECORD', { env: {}, envPath })).toBe('1');
+      expect(readDeskSetting('NOVA_SCREEN_RECORD', { env: { NOVA_SCREEN_RECORD: ' 0 ' }, envPath })).toBe('0');
+      expect(readDeskSetting('NOVA_SCREEN_RECORD', { env: { NOVA_SCREEN_RECORD: '' }, envPath })).toBe('1');
+      expect(readDeskSetting('NOVA_SCREEN_RECORD', { env: {}, envPath: '' })).toBe('');
+      expect(readDeskSetting('NOVA_SCREEN_RECORD', { env: {}, envPath: path.join(dir, 'missing.env') })).toBe('');
+      const logger = { warn: vi.fn() };
+      expect(readDeskSetting('NOVA_SCREEN_RECORD', { env: {}, envPath: dir, logger })).toBe('');
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('cannot read NOVA_SCREEN_RECORD'));
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

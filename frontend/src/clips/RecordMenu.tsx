@@ -211,10 +211,10 @@ export function RecordMenu({ symbol, anchor, onClose }: { symbol: string; anchor
                   ? `Recording since ${etClock(open.startedTs)}. High quality ${hqEndsIn ?? ''} left, then the clip goes on as a cut.`
                   : `Recording since ${etClock(open.startedTs)}, cut from the screen recording.`
                 : vs.noScreen
-                  ? 'The screen recording is not seeing this monitor, so a cut would have no picture. High quality records this window on its own.'
+                  ? vs.screenNote
                   : CLIP_VIDEO_DESC}
             </p>
-            {!vs.noScreen ? (
+            {!vs.noScreen && !vs.saveLastWhy ? (
               <div className="clip-menu__line">
                 <button type="button" className="clip-btn clip-btn--ghost clip-btn--sm" data-testid="clip-menu-save-last"
                   disabled={busy || !view} data-why={busy ? 'Working on it…' : !view ? 'The desktop app has not answered yet' : undefined} onClick={() => void saveLast()}>
