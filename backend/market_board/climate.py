@@ -231,11 +231,12 @@ def _rate(held: int, failed: int) -> float | None:
     return round(100.0 * held / (held + failed), 1) if held + failed else None
 
 
-def _heat_chain(held: dict[str, Day], today: date, n: int) -> list[tuple[date, temperature.Gauges | None]]:
-    """The period's sessions and the ``MARKET_TEMP_BASELINE_DAYS`` before them, oldest first; ``None`` where Nova
-    holds no board in the lens."""
+def _heat_chain(held: dict[str, Day], today: date) -> list[tuple[date, temperature.Gauges | None]]:
+    """The longest period's sessions and the ``MARKET_TEMP_BASELINE_DAYS`` before them, oldest first; ``None`` where
+    Nova holds no board in the lens. One window for every reader, so a session's usual -- and its label -- is the
+    same on the 1 D, 7 D and 30 D card and in the Day Read."""
     out = []
-    for d in clock.sessions_back(today, n + MARKET_TEMP_BASELINE_DAYS):
+    for d in clock.sessions_back(today, MARKET_PERIOD_SESSIONS["30D"] + MARKET_TEMP_BASELINE_DAYS):
         day = held.get(d.isoformat())
         out.append((d, day.heat if _counted(day) else None))
     return out
@@ -270,7 +271,7 @@ def compose(period: str, now: float) -> dict[str, Any]:
             avg = {k: round(sum(_count(d, k) for d in prior) / len(prior), 1) for k in _KEYS}
             baseline = {**avg, "per_day": avg["up20"], "days": len(prior), "basis": "per_session"}
         per_day = round(counts["up20"] / len(covered), 1) if covered else None
-    heat = temperature.block(period, _heat_chain(held, today, n), now)
+    heat = temperature.block(period, _heat_chain(held, today), now)
     themes_now, themes_prev = _themes(covered), _themes([d for d in prev_days if _counted(d)])
     names = sorted(set(themes_now) | set(themes_prev), key=lambda k: (-themes_now.get(k, 0), k))
     total, prev_total = sum(themes_now.values()), sum(themes_prev.values())
@@ -337,7 +338,7 @@ def today_numbers(now: float) -> dict[str, Any]:
             "runners_why": None if block["covered"] else "Nova recorded no Gainers board this session",
             "gappers_held": block["gappers"]["held"], "gappers_total": block["gappers"]["total"],
             "covered": block["covered"],
-            "temperature": temperature.summary(_heat_chain(held, today, MARKET_PERIOD_SESSIONS["30D"]), now)}
+            "temperature": temperature.summary(_heat_chain(held, today), now)}
 
 
 def reset_for_tests() -> None:

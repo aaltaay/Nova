@@ -6,8 +6,9 @@ The climate's lens (the board's first ``MARKET_CLIMATE_RANK_MAX`` ranks), stocks
 +100% and the money in the ``MARKET_TEMP_TOP`` biggest gainers (shares x last price, by peak gain of 20% or more),
 and at its last minute how many runners that peaked at ``MARKET_TEMP_HOLD_PEAK``+ still keep
 ``MARKET_TEMP_HOLD_SHARE`` of that gain. ``label_days`` compares each session with the usual money of the sessions
-before it at the same time of day; ``block`` and ``summary`` turn the labels into the period's word. Pure apart from
-``read``'s query.
+before it at the same time of day; a session with no board minute near that time (its recording started later, or
+stopped) has no observation and is left out, never read as zero. ``block`` and ``summary`` turn the labels into the
+period's word. Pure apart from ``read``'s query.
 """
 from __future__ import annotations
 
@@ -26,6 +27,7 @@ from constants_market_board import (
     MARKET_TEMP_HOLD_PEAK,
     MARKET_TEMP_HOLD_SHARE,
     MARKET_TEMP_HOT_RUNNERS,
+    MARKET_TEMP_MINUTE_GAP_SEC,
     MARKET_TEMP_MONTH_MIN_DAYS,
     MARKET_TEMP_MONTH_SCORE,
     MARKET_TEMP_PRICE_MAX,
@@ -54,10 +56,13 @@ class Gauges:
     held: int = 0
     faded: int = 0
 
-    def at(self, ts: float) -> tuple[int, float]:
-        """(runners, money) by ``ts``; nothing on the board yet is (0, 0)."""
+    def at(self, ts: float) -> tuple[int, float] | None:
+        """(runners, money) at ``ts``, or ``None`` when the board has no minute within ``MARKET_TEMP_MINUTE_GAP_SEC``
+        before it (not recorded yet, or a gap): an unobserved time is not zero runners and zero money."""
         i = bisect_right(self.minutes, ts) - 1
-        return (self.runners[i], self.money[i]) if i >= 0 else (0, 0.0)
+        if i < 0 or ts - self.minutes[i] > MARKET_TEMP_MINUTE_GAP_SEC:
+            return None
+        return self.runners[i], self.money[i]
 
     def hold(self) -> float | None:
         n = self.held + self.faded
@@ -129,27 +134,32 @@ def day_label(runners: int, money: float, usual: float | None) -> str | None:
 def label_days(chain: list[tuple[date, Gauges | None]], as_of: float, count: int) -> list[dict[str, Any]]:
     """The last ``count`` sessions of ``chain`` (oldest first, ``None`` = no board), each with its label. The last
     session is read as of ``as_of`` (today so far), every other at its close; each against the median money of the
-    up to ``MARKET_TEMP_BASELINE_DAYS`` sessions with a board before it, read at the same minute of the day."""
+    up to ``MARKET_TEMP_BASELINE_DAYS`` sessions with a board before it that were recorded at that minute of the day
+    (``Gauges.at``: one recorded later, or across a gap, is left out of the median and of ``usual_days``)."""
     out: list[dict[str, Any]] = []
     n = len(chain)
     for i in range(max(0, n - count), n):
         d, g = chain[i]
         close = clock.at(d, clock.close_minute(d))
         when = min(as_of, close) if i == n - 1 else close
-        row: dict[str, Any] = {"date": d.isoformat(), "label": None, "runners_100": None, "money": None,
-                               "usual_money": None, "usual_days": 0, "hold_pct": None}
+        row: dict[str, Any] = {"date": d.isoformat(), "board": g is not None, "label": None, "runners_100": None,
+                               "money": None, "usual_money": None, "usual_days": 0, "hold_pct": None}
         out.append(row)
         if g is None:
             continue
         minute = clock.minute_of_day(when)
         prior = [(pd, pg) for pd, pg in chain[:i] if pg is not None][-MARKET_TEMP_BASELINE_DAYS:]
-        values = [pg.at(clock.at(pd, min(minute, clock.close_minute(pd))))[1] for pd, pg in prior]
+        seen = (pg.at(clock.at(pd, min(minute, clock.close_minute(pd)))) for pd, pg in prior)
+        values = [obs[1] for obs in seen if obs is not None]
         usual = statistics.median(values) if len(values) >= MARKET_TEMP_BASELINE_MIN else None
-        runners, money = g.at(when)
         hold = g.hold()
-        row.update(label=day_label(runners, money, usual), runners_100=runners, money=round(money),
-                   usual_money=round(usual) if usual is not None else None, usual_days=len(values),
+        row.update(usual_money=round(usual) if usual is not None else None, usual_days=len(values),
                    hold_pct=round(100.0 * hold, 1) if hold is not None else None)
+        now_seen = g.at(when)
+        if now_seen is None:
+            continue
+        runners, money = now_seen
+        row.update(label=day_label(runners, money, usual), runners_100=runners, money=round(money))
     return out
 
 
@@ -167,8 +177,10 @@ def _rule(period: str, days: list[dict[str, Any]]) -> dict[str, Any]:
     if period == "1D":
         d = days[-1]
         out["label"] = d["label"]
-        if d["runners_100"] is None:
+        if not d["board"]:
             out["why"] = "Nova recorded no Gainers board this session"
+        elif d["runners_100"] is None:
+            out["why"] = "Nova's Gainers board has no recording near this time"
         elif d["label"] is None:
             out["why"] = (f"the usual money needs {MARKET_TEMP_BASELINE_MIN} recorded sessions before this one "
                           f"(Nova has {d['usual_days']})")

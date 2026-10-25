@@ -9,7 +9,8 @@ import { count, money, shortDate, signedPct } from './format';
 import type { Heat, HeatDay, Period } from './types';
 
 function dayTitle(d: HeatDay): string {
-  if (d.runners_100 == null) return `${shortDate(d.date)}: Nova recorded no Gainers board`;
+  if (!d.board) return `${shortDate(d.date)}: Nova recorded no Gainers board`;
+  if (d.runners_100 == null) return `${shortDate(d.date)}: no recording near this time`;
   const usual = d.usual_money != null ? ` vs usual ${money(d.usual_money)}` : ` (no usual yet: ${d.usual_days} sessions before)`;
   return `${shortDate(d.date)}: ${d.label ?? 'no label'} · ${d.runners_100} up 100%+ · top 5 ${money(d.money)}${usual}`;
 }

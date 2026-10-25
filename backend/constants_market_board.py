@@ -176,6 +176,9 @@ MARKET_TEMP_TOP = 5                              # the biggest gainers (peak gai
 MARKET_TEMP_HOT_RUNNERS = 2                      # +100% runners a hot day needs, with more money than usual
 MARKET_TEMP_BASELINE_DAYS = 60                   # usual money: the median of this many prior recorded sessions
 MARKET_TEMP_BASELINE_MIN = 10                    # fewer recorded sessions before the day: no label
+# A session counts at a time of day only when its board has a minute within this long before it: before its
+# recording started, or across a gap, it has no observation -- never zero runners and zero money.
+MARKET_TEMP_MINUTE_GAP_SEC = 600
 MARKET_TEMP_HOLD_PEAK = 0.50                     # a runner that peaked at +50% or more ...
 MARKET_TEMP_HOLD_SHARE = 0.5                     # ... held when it still keeps half that gain
 MARKET_TEMP_WEEK_COLD_DAYS = 3                   # cold days that make a cold week

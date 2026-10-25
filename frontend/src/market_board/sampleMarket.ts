@@ -135,10 +135,11 @@ function sampleHeat(period: Period, days: Climate['days']): Heat {
   const inPeriod = days.slice(-(period === '1D' ? 1 : period === '7D' ? 5 : 21));
   const heatDays = inPeriod.map((d): HeatDay => {
     if (d.source !== 'recorded') {
-      return { date: d.date, label: null, runners_100: null, money: null, usual_money: null, usual_days: 20, hold_pct: null };
+      return { date: d.date, board: false, label: null, runners_100: null, money: null, usual_money: null, usual_days: 20,
+        hold_pct: null };
     }
     const label = SAMPLE_TEMPS[days.indexOf(d)];
-    return { date: d.date, label, runners_100: label === 'hot' ? 3 : label === 'cold' ? 0 : 1,
+    return { date: d.date, board: true, label, runners_100: label === 'hot' ? 3 : label === 'cold' ? 0 : 1,
       money: label === 'hot' ? 1.42e9 : label === 'cold' ? 2.1e8 : 6.2e8, usual_money: 5.8e8, usual_days: 20,
       hold_pct: label === 'hot' ? 52 : 41 };
   });

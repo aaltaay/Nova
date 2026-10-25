@@ -120,9 +120,11 @@ export interface ClimateCounts {
   up100: number | null;
 }
 
-/** One session's temperature inputs; `null` numbers when Nova recorded no Gainers board that session. */
+/** One session's temperature inputs; `null` numbers with no board, or no recording near the time read. */
 export interface HeatDay {
   date: string;
+  /** Nova holds a Gainers board in the lens that session. */
+  board: boolean;
   label: DayTemp | null;
   runners_100: number | null;
   /** Shares x last price of the five biggest gainers ($2-20 prior close), dollars. */

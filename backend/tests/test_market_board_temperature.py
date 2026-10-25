@@ -61,7 +61,9 @@ def test_read_counts_runners_money_in_the_top_gainers_and_who_held():
     assert g.money[0] == pytest.approx(11.0e6 + 9.6e6)          # shares x last price of the top gainers in the lens
     assert g.money[1] == pytest.approx(15.0e6 + 9.0e6 + 2.5e6)
     assert (g.held, g.faded) == (2, 1)                          # AAA and EEE keep half their peak; BBB does not
-    assert g.at(t1 - 1) == (0, 0.0) and g.at(t1 + 30) == (1, pytest.approx(20.6e6))
+    assert g.at(t1 - 1) is None                                 # before the recording: no observation, not zero
+    assert g.at(t1 + 30) == (1, pytest.approx(20.6e6))
+    assert g.at(t2 + 601) is None                               # past the gap after the last recorded minute
     assert temperature.read(_rows_db([]), "d", "recorded", "gainers", t2).minutes == []
 
 
@@ -79,8 +81,21 @@ def _sessions(n: int) -> list[date]:
     return clock.sessions_back(DAY, n)
 
 
+def _series(d: date, steps: list[tuple[int, int, float]], *, start: int = 4 * 60, end: int = 16 * 60,
+            held: int = 1, faded: int = 1) -> Gauges:
+    """A board recorded every 5 minutes from ``start`` to ``end`` (minutes after ET midnight); ``steps`` are
+    (from minute, runners, money), the last one at or before each minute applying."""
+    g = Gauges(held=held, faded=faded)
+    for m in range(start, end + 1, 5):
+        _, runners, money = [s for s in steps if s[0] <= m][-1] if any(s[0] <= m for s in steps) else (0, 0, 0.0)
+        g.minutes.append(int(clock.at(d, m)))
+        g.runners.append(runners)
+        g.money.append(money)
+    return g
+
+
 def _flat(d: date, runners: int, money: float, *, held: int = 1, faded: int = 1) -> Gauges:
-    return Gauges(minutes=[int(clock.at(d, 9 * 60 + 45))], runners=[runners], money=[money], held=held, faded=faded)
+    return _series(d, [(0, runners, money)], held=held, faded=faded)
 
 
 def test_each_day_is_weighed_against_the_median_of_the_sessions_before_it():
@@ -98,13 +113,55 @@ def test_each_day_is_weighed_against_the_median_of_the_sessions_before_it():
 
 def test_today_is_read_so_far_against_the_same_minute():
     days = _sessions(12)
-    early, late = (lambda d: int(clock.at(d, 7 * 60))), (lambda d: int(clock.at(d, 11 * 60)))
-    chain = [(d, Gauges(minutes=[early(d), late(d)], runners=[0, 1], money=[10.0, 1000.0])) for d in days[:-1]]
-    chain.append((DAY, Gauges(minutes=[early(DAY)], runners=[2], money=[50.0])))
+    chain = [(d, _series(d, [(4 * 60, 0, 10.0), (11 * 60, 1, 1000.0)])) for d in days[:-1]]
+    chain.append((DAY, _series(DAY, [(4 * 60, 2, 50.0)], end=8 * 60)))   # today, recorded until 08:00
     at_eight = temperature.label_days(chain, clock.at(DAY, 8 * 60), 1)[0]
     assert at_eight["usual_money"] == 10 and at_eight["label"] == "hot"    # hot by 08:00 against 08:00
-    after_close = temperature.label_days(chain, clock.at(DAY, 23 * 60), 1)[0]
-    assert after_close["usual_money"] == 1000 and after_close["label"] == "warm"
+    later = temperature.label_days(chain, clock.at(DAY, 11 * 60), 1)[0]
+    assert later["usual_money"] == 1000 and later["runners_100"] is None and later["label"] is None
+    assert temperature._rule("1D", [later])["why"] == "Nova's Gainers board has no recording near this time"
+
+
+def test_a_session_recorded_later_in_the_day_is_left_out_of_the_usual_not_read_as_zero():
+    days = _sessions(13)
+    late_starts = [(d, _series(d, [(0, 0, 900.0)], start=9 * 60 + 45)) for d in days[:-1]]   # recorded from 09:45
+    chain = late_starts + [(DAY, _series(DAY, [(0, 2, 100.0)], end=8 * 60))]
+    at_eight = temperature.label_days(chain, clock.at(DAY, 8 * 60), 1)[0]
+    assert at_eight["usual_days"] == 0 and at_eight["usual_money"] is None and at_eight["label"] is None
+    early = [(d, _series(d, [(0, 0, 50.0)])) for d in days[:2]]
+    mixed = temperature.label_days(early + late_starts[2:] + chain[-1:], clock.at(DAY, 8 * 60), 1)[0]
+    assert mixed["usual_days"] == 2                              # only the sessions recorded at 08:00 count
+
+
+def test_a_session_has_one_label_on_every_card_and_in_the_day_read(tmp_path):
+    """Recorded sessions with gaps: the 1 D card once read a shorter history than the Day Read, so the same day
+    could be warm on the card and hot in the Day Read."""
+    from leaderboard import store
+
+    days = _sessions(81)
+    with store.connect(Path(tmp_path / "lb") / "leaderboard.sqlite3") as db:
+        for i, d in enumerate(days):
+            if i % 3 == 1:
+                continue                                         # sessions Nova did not record
+            iso = d.isoformat()
+            volume = 1_000_000 if i < 40 else 100_000 * (1 + i % 7)  # older sessions carry more money
+            for minute in (9 * 60 + 45, 15 * 60 + 59):
+                m = int(clock.at(d, minute))
+                db.execute("INSERT INTO coverage VALUES (?,?,?,?,?,?,?)", (iso, m, "recorded", "gainers", "live", 2, "r"))
+                for sym in ("RUNA", "RUNB"):
+                    db.execute("INSERT INTO rows (session_date, minute_ts, source, board, symbol, rank, price,"
+                               " prev_close, change_pct, gap_pct, volume) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                               (iso, m, "recorded", "gainers", sym, 1, 6.0, 3.0, 1.0, 0.0, volume))
+        db.commit()
+    now = clock.at(DAY, 17 * 60)
+    climate.refresh(now, sessions_needed=81)
+    cards = {p: climate.compose(p, now)["heat"] for p in ("1D", "7D", "30D")}
+    words = climate.today_numbers(now)["temperature"]
+    assert cards["1D"]["label"] == words["day"] and cards["1D"]["label"] is not None
+    assert cards["7D"]["label"] == words["week"] and cards["30D"]["label"] == words["month"]
+    by_date = {d["date"]: d for d in cards["30D"]["days"]}
+    for d in cards["1D"]["days"] + cards["7D"]["days"]:
+        assert d == by_date[d["date"]]                           # the same usual and label wherever it shows
 
 
 def _day(label, hold=None):

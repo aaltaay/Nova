@@ -47,8 +47,8 @@ describe('the small-cap temperature', () => {
   it('says why there is no label instead of guessing one', () => {
     const heat: Heat = {
       label: null, why: 'Nova recorded no Gainers board this session', price_min: 2, price_max: 20,
-      days: [{ date: '2026-10-23', label: null, runners_100: null, money: null, usual_money: null, usual_days: 0,
-        hold_pct: null }],
+      days: [{ date: '2026-10-23', board: false, label: null, runners_100: null, money: null, usual_money: null,
+        usual_days: 0, hold_pct: null }],
       hot: 0, warm: 0, cold: 0, labelled: 0, hold_pct: null, score_pct: null,
     };
     render(<Temperature heat={heat} period="1D" />);

@@ -110,18 +110,23 @@ desk (the page reads today's live market and says so).
   `MARKET_TEMP_TOP` biggest gainers, by peak gain of 20% or more -- an estimate the board allows, compared only with
   itself); at the session's last minute `hold_pct`, the share of runners that peaked at `MARKET_TEMP_HOLD_PEAK`+ still
   keeping `MARKET_TEMP_HOLD_SHARE` of that gain (one no longer on a full board whose 50th row is below that keep
-  counts as faded, otherwise as unknown and left out). A day's `usual_money` is the median of the prior
-  `MARKET_TEMP_BASELINE_DAYS` recorded sessions at the same minute (`usual_days` of them; under
-  `MARKET_TEMP_BASELINE_MIN`, no label). Day: `hot` with `MARKET_TEMP_HOT_RUNNERS`+ runners and `money > usual_money`,
+  counts as faded, otherwise as unknown and left out). A session is observed at a time of day only when its board
+  has a minute within `MARKET_TEMP_MINUTE_GAP_SEC` before it; before its recording started, or across a gap, it has
+  no observation (never zero). A day's `usual_money` is the median of the prior `MARKET_TEMP_BASELINE_DAYS` recorded
+  sessions observed at the same minute (`usual_days` of them; under `MARKET_TEMP_BASELINE_MIN`, no label). One
+  history window -- the last 21 sessions and the `MARKET_TEMP_BASELINE_DAYS` before them -- serves the 1 D, 7 D
+  and 30 D cards and `day_read.temperature`, so a session has the same usual and label wherever it shows. Day: `hot` with `MARKET_TEMP_HOT_RUNNERS`+ runners and `money > usual_money`,
   `cold` with none and `money <= usual_money`, else `warm`. Week (7 D): `cold` with `MARKET_TEMP_WEEK_COLD_DAYS`+ cold
   days, `good` with `MARKET_TEMP_WEEK_HOT_DAYS`+ hot days and a mean `hold_pct` of `MARKET_TEMP_WEEK_GOOD_HOLD`+,
   `choppy` under `MARKET_TEMP_WEEK_CHOPPY_HOLD`, else `ok` (at least `MARKET_TEMP_WEEK_MIN_DAYS` labelled days). Month
   (30 D): `score_pct` = (hot - cold) / labelled days, `hot` at `+MARKET_TEMP_MONTH_SCORE`, `cold` at minus it, else
   `warm` (at least `MARKET_TEMP_MONTH_MIN_DAYS` labelled). Today is read as of now, past sessions at their close.
   `temperature` is the period's label; `heat` is `{label, why: string | null (why there is no label), price_min,
-  price_max, days: [{date, label: "hot" | "warm" | "cold" | null, runners_100: number | null, money: number | null,
-  usual_money: number | null, usual_days, hold_pct: number | null}] (the period's sessions, oldest first; `null`
-  numbers for a session with no board), hot, warm, cold, labelled, hold_pct: number | null (the labelled days'
+  price_max, days: [{date, board: boolean (Nova holds a board in the lens that session), label: "hot" | "warm" |
+  "cold" | null, runners_100: number | null, money: number | null, usual_money: number | null, usual_days, hold_pct:
+  number | null}] (the period's sessions, oldest first; `runners_100` / `money` `null` with no board or no
+  observation at the time read, `why` "Nova's Gainers board has no recording near this time" for today), hot, warm,
+  cold, labelled, hold_pct: number | null (the labelled days'
   mean), score_pct: number | null (30 D only)}`. A theme is IBKR's industry
   category for the symbol (contract details), `"Unclassified"` until IBKR answers; `prev_*` is the period before.
   A gapper is a symbol whose open gap (`gap_pct` after 09:30) was 20%+; it held when its last price that session
