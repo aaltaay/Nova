@@ -566,11 +566,7 @@ IBKR_SCANNER_RECONCILE_SEC = 1.0
 # Watchdog: warn/resubscribe once when batch age exceeds max(min, mult × cadence).
 IBKR_SCANNER_WATCHDOG_MIN_SEC = 90.0
 IBKR_SCANNER_WATCHDOG_CADENCE_MULT = 3.0
-# A lease with no first batch this long after it opened is cancelled and
-# reopened, and again this long after each reopen -- the spacing a Gateway that
-# refuses scans gets. Past the 20 s first-batch wait so a slow answer is kept.
-# An empty batch is an answer; only no updateEvent at all is silence. On
-# 2026-10-23 a Gainers lease refused with Error 322 sat empty 04:00-16:00.
+# No first batch this long after each open: reopen (ibkr/scanner_lease_health.py).
 IBKR_SCANNER_FIRST_BATCH_RESUBSCRIBE_SEC = 60.0
 # Batch qualifyContractsAsync inside snapshot_quotes() — same hang risk as
 # scan/snapshot above (see IBKR_L1_QUALIFY_TIMEOUT_SEC's single-symbol note),
