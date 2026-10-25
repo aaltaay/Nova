@@ -127,7 +127,8 @@ desk (the page reads today's live market and says so).
   number | null}] (the period's sessions, oldest first; `runners_100` / `money` `null` with no board or no
   observation at the time read, `why` "Nova's Gainers board has no recording near this time" for today), hot, warm,
   cold, labelled, hold_pct: number | null (the labelled days'
-  mean), score_pct: number | null (30 D only)}`. A theme is IBKR's industry
+  mean), score_pct: number | null (30 D only)}`. Agents read the same three blocks for any session through `GET
+  /api/agent/market-temperature` (`agent-desk.md`). A theme is IBKR's industry
   category for the symbol (contract details), `"Unclassified"` until IBKR answers; `prev_*` is the period before.
   A gapper is a symbol whose open gap (`gap_pct` after 09:30) was 20%+; it held when its last price that session
   (by now, today) is at or above its open (`prev_close x (1 + gap_pct)`) while still on the board at the period's

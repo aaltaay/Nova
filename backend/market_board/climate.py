@@ -242,6 +242,34 @@ def _heat_chain(held: dict[str, Day], today: date) -> list[tuple[date, temperatu
     return out
 
 
+def heat_chain_for(day: date, now: float) -> list[tuple[date, temperature.Gauges | None]]:
+    """The temperature's history ending at ``day``, for a reader the page's refresher may not have served (an agent,
+    any time, any session): the sessions Nova does not hold yet are read from the store now, ``day`` again when it
+    is today. A session already held -- a Massive fill included -- is kept."""
+    from leaderboard import store
+
+    today = clock.trading_date(now)
+    sessions = clock.sessions_back(day, MARKET_PERIOD_SESSIONS["30D"] + MARKET_TEMP_BASELINE_DAYS)
+    with _lock:
+        missing = [d for d in sessions if d == today or d.isoformat() not in _days]
+    if missing:
+        db = store.read_only()
+        if db is None:
+            raise FileNotFoundError("Nova's leaderboard store does not exist yet")
+        try:
+            for d in missing:
+                close_ts = clock.at(d, clock.close_minute(d))
+                got = read_day(db, d, min(now, close_ts) if d == today else close_ts)
+                with _lock:
+                    if d == today or d.isoformat() not in _days:
+                        _days[d.isoformat()] = got
+        finally:
+            db.close()
+    with _lock:
+        held = dict(_days)
+    return _heat_chain(held, sessions[-1])
+
+
 def compose(period: str, now: float) -> dict[str, Any]:
     """The wire's ``climate`` block for ``period``."""
     n = MARKET_PERIOD_SESSIONS[period]

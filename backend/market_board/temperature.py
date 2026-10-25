@@ -213,6 +213,31 @@ def block(period: str, chain: list[tuple[date, Gauges | None]], as_of: float) ->
             "days": days}
 
 
+RULES = (
+    "Lens: Nova's recorded Gainers board (its first 50 ranks), stocks whose prior close is $2-20.",
+    "Day: hot with 2 or more stocks up 100% and more money in the top 5 gainers than usual (the median of the "
+    "up to 60 recorded sessions before, at the same time of day; at least 10, else no label); cold with none up "
+    "100% and no more money than usual; warm otherwise. Money is shares traded x last price.",
+    "Week (last 5 sessions): cold with 3 or more cold days; good with 2 or more hot days and runners that peaked "
+    "at +50% keeping half their gain 45% of the time or more; choppy under 35%; ok otherwise.",
+    "Month (last 21 sessions): (hot days - cold days) / labelled days; hot at +15%, cold at -15%, warm between.",
+    "A session with no board, or no recording near the time compared, has no observation -- never zero.",
+    "These labels describe the small-cap momentum market; they are not the Day Read's Bullish / Bearish verdict "
+    "and never a trade signal.",
+)
+
+
+def report(chain: list[tuple[date, Gauges | None]], as_of: float) -> dict[str, Any]:
+    """The agents' answer for the chain's last session as of ``as_of``: the three labels and the page's three
+    ``heat`` blocks (``GET /api/agent/market-temperature``)."""
+    day = chain[-1][0]
+    close = clock.at(day, clock.close_minute(day))
+    blocks = {p: block(p, chain, as_of) for p in ("1D", "7D", "30D")}
+    return {"day": day.isoformat(), "as_of": min(as_of, close), "final": as_of >= close,
+            "labels": {"day": blocks["1D"]["label"], "week": blocks["7D"]["label"], "month": blocks["30D"]["label"]},
+            "day_detail": blocks["1D"], "week": blocks["7D"], "month": blocks["30D"], "rules": list(RULES)}
+
+
 def summary(chain: list[tuple[date, Gauges | None]], as_of: float) -> dict[str, str | None]:
     """The Day Read's three words: today, the last 5 and the last 21 sessions."""
     days = label_days(chain, as_of, MARKET_PERIOD_SESSIONS["30D"])

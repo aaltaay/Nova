@@ -162,6 +162,34 @@ def test_a_session_has_one_label_on_every_card_and_in_the_day_read(tmp_path):
     by_date = {d["date"]: d for d in cards["30D"]["days"]}
     for d in cards["1D"]["days"] + cards["7D"]["days"]:
         assert d == by_date[d["date"]]                           # the same usual and label wherever it shows
+    agents = temperature.report(climate.heat_chain_for(DAY, now), now)   # and what agents read
+    assert (agents["day_detail"], agents["week"], agents["month"]) == (cards["1D"], cards["7D"], cards["30D"])
+    assert agents["labels"] == words and agents["final"] is True
+
+
+def test_agents_read_the_temperature_without_the_page_having_run(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from fastapi.testclient import TestClient
+
+    from agent_desk import routes as agent_routes
+    from main import app
+
+    client = TestClient(app)
+    url = "/api/agent/market-temperature"
+    assert client.get(url).status_code == 503                    # no leaderboard store yet
+    _seed(tmp_path, _sessions(3))
+    climate.reset_for_tests()                                    # the Market page's refresher never ran
+    monkeypatch.setattr(agent_routes, "time", SimpleNamespace(time=lambda: clock.at(DAY, 9 * 60 + 50)))
+    got = client.get(url).json()
+    assert got["schema_version"] == 1 and got["day"] == DAY.isoformat() and got["final"] is False
+    assert set(got["labels"]) == {"day", "week", "month"} and got["day_detail"]["days"][-1]["runners_100"] == 1
+    assert got["day_detail"]["why"].startswith("the usual money needs 10 recorded sessions")
+    assert got["rules"] and "never a trade signal" in got["rules"][-1]
+    past = client.get(url, params={"day": "2026-10-10"}).json()  # a Saturday: the session before it
+    assert past["day"] == "2026-10-09" and past["final"] is True
+    assert client.get(url, params={"day": "2026-10-14"}).json()["detail"]["reason"] == "AGENT_INVALID"
+    assert client.get(url, params={"day": "13-10-2026"}).status_code == 400
 
 
 def _day(label, hold=None):

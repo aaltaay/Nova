@@ -268,6 +268,12 @@ are running and money is chasing them, which is what the operator means by a hot
 5. **The 1 D "by now" baseline is taken at the session's own clock.** After the session (that evening, overnight, a
    weekend) the minute is the close, not the wall clock's minute. On 2026-10-25 at 01:40 ET the Day Read's runners
    check averaged the prior sessions "by 01:40", got 0, and read "--" with "too few recorded sessions".
+6. **Agents read the same labels** (operator, 2026-10-25: "we need an endpoint for agents and AI to know at any
+   time the output of this feature"). `GET /api/agent/market-temperature?day=` (ADR 050's agent surface, loopback
+   only) answers the day / week / month labels and the numbers behind them, for today so far or for any past
+   session. It uses the page's rules and the page's history window, so an agent and the operator see the same
+   word. It reads the leaderboard store itself, so it answers whether or not the Market page has been opened.
+   `py -3 tools/nova_agent.py temperature [--day YYYY-MM-DD]` prints it.
 
 Rejected:
 
