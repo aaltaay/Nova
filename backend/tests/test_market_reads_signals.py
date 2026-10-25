@@ -319,6 +319,22 @@ def test_a_lasting_refusal_still_raises(tmp_path, monkeypatch):
     assert not (tmp_path / "signals" / "manifest.lock").exists()
 
 
+def test_a_folder_that_refuses_the_lock_times_out_instead_of_spinning(tmp_path, monkeypatch):
+    """A create refused with no lock file on disk (a folder that denies creating files) is not a held lock that just
+    went away: it waits with the deadline and backoff, then times out, rather than retrying at full speed forever."""
+    monkeypatch.setenv("NOVA_SIGNALS_DIR", str(tmp_path / "signals"))
+    monkeypatch.setattr(ss, "LOCK_WAIT_SEC", 0.2)
+    attempts = {"n": 0}
+
+    def denied(*_a, **_k):
+        attempts["n"] += 1
+        raise PermissionError(13, "Access is denied")
+    monkeypatch.setattr(ss.os, "open", denied)
+    with pytest.raises(TimeoutError):
+        ss.update_manifest(lambda data: None)
+    assert attempts["n"] < 20
+
+
 def test_catalyst_category_and_reason_confidence_are_signals(table):
     rows = _minutes(table)
     for column in ("catalyst_category", "catalyst_strength", "why_confidence"):

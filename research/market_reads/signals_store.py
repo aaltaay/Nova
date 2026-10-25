@@ -146,13 +146,15 @@ def manifest_lock():
         try:
             fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
             break
-        except (FileExistsError, PermissionError):
+        except (FileExistsError, PermissionError) as refused:
             try:
                 if time.time() - path.stat().st_mtime > LOCK_STALE_SEC:
                     path.unlink()
                     continue
             except FileNotFoundError:
-                continue
+                if isinstance(refused, FileExistsError):
+                    continue             # released between the two calls: try again at once
+                # refused with no lock on disk: the folder denies creating it, so wait out the deadline, then fail
             except PermissionError:
                 pass                     # pending delete, or held open this instant: still someone's lock
             if time.monotonic() > deadline:
