@@ -214,11 +214,8 @@ def session_vwap(minute_bars: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def daily_series(dailies: list[dict[str, Any]], minute_bars: list[dict[str, Any]], day: str) -> list[dict[str, Any]]:
-    """Prior sessions stay. The session day is the cut minutes, never the official daily row.
-
-    So the session candle's volume follows Massive's minute rule to the cut (no closing cross, no prior-reference
-    prints, no 16:00-20:00) and sits under the day bar's even at 16:00; prior candles are official day bars
-    (docs/market-data.md, "Same stock, same minute, different volume")."""
+    """Prior sessions stay. The session day is the cut minutes, never the official daily row, so its volume sits
+    under the day bar's even at 16:00 (docs/market-data.md, "Same stock, same minute, different volume")."""
     out = []
     for row in dailies:
         key = day_key(row)
