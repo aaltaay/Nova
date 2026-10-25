@@ -221,10 +221,18 @@ def read_print_table(job_id: str, symbol: str, *, between: tuple[float, float] =
         if blob is None:
             rows = db.execute(f"SELECT {', '.join(_PRINT_COLUMNS)} FROM prints WHERE job_id=? AND ts >= ? AND ts < ? "
                               "ORDER BY ordinal", (job_id, *between))
-            return PrintTable(_legacy_print(dict(zip(_PRINT_COLUMNS, row, strict=True)), symbol) for row in rows)
+            return _as_live(PrintTable(_legacy_print(dict(zip(_PRINT_COLUMNS, row, strict=True)), symbol)
+                                       for row in rows))
     table = PrintTable.unpack(blob)
     ts = table.values("ts")
-    return table.span(bisect.bisect_left(ts, between[0]), bisect.bisect_left(ts, between[1]))
+    return _as_live(table.span(bisect.bisect_left(ts, between[0]), bisect.bisect_left(ts, between[1])))
+
+
+def _as_live(table: PrintTable) -> PrintTable:
+    """Imports written before 2026-10-24 (#1220) still hold the auction repeat records (conditions 15 / 16 / 38),
+    which IBKR's live tape never shows; a read leaves them out, so an old import replays -- and feeds the eyes'
+    history recordings -- as a new one does, with no re-import (#1219). A table without one is returned as it is."""
+    return table.where_fields(lambda fields: not massive_files.repeats_a_print(fields.get("conditions")))
 
 
 def _legacy_print(item: dict, symbol: str) -> dict:

@@ -13,7 +13,7 @@ from types import SimpleNamespace
 import pytest
 
 import ibkr.tape_stream as tape
-from sale_conditions import row_sets_price, sets_price, tape_flags
+from sale_conditions import print_size, row_sets_price, sets_price, tape_flags
 
 
 @pytest.mark.parametrize("conditions", ["", " F  ", "  T ", " FT ", " O X", " 5 X", "    "])
@@ -181,4 +181,45 @@ def test_capture_replay_tape_carries_the_live_tape_fields(monkeypatch):
     feed._capture_tick()
     assert [p["price"] for p in pushed] == [192.75, 192.90, 190.38, 192.80]
     assert [(p["unreported"], p["sets_price"]) for p in pushed] == expected
+    player.reset_for_tests()
+
+
+@pytest.mark.parametrize("raw, size", [(200, 200), (200.0, 200), ("37", 37), (0.4, 0.4), ("12.5", 12.5), (None, None)])
+def test_a_print_size_keeps_a_fractional_share(raw, size):
+    """#1219: Massive writes fractional sizes on 2026 days; ``int()`` made a 0.4-share print a 0-share one."""
+    from decimal import Decimal
+
+    assert print_size(raw) == size and type(print_size(raw)) is type(size)
+    assert print_size(Decimal("0.25")) == 0.25        # IBKR's API reports sizes as Decimal
+
+
+def test_fractional_prints_keep_their_size_on_the_live_and_replayed_tape(monkeypatch):
+    """#1219: the live tape, the replay's seed and the replay's stream carry 0.4 shares as 0.4, not 0."""
+    from sim import capture_player as player, feed, session_clock
+
+    q: asyncio.Queue = asyncio.Queue()
+    monkeypatch.setitem(tape._viewer_queues, "PLTR", [q])
+    monkeypatch.setattr(tape._depth, "current_book", lambda _sym: {})
+    monkeypatch.setattr("archive.write_queue.enqueue_tape_print", lambda **_kw: None)
+    monkeypatch.setattr("ibkr.tape_recording.dispatch", lambda _payload: None)
+    monkeypatch.setattr("archive.bar_builder.on_tape_print", lambda **_kw: None)
+    monkeypatch.setattr("ibkr.tape_10sec.on_print", lambda *_a, **_kw: None)
+    t0 = 1_790_171_109.0
+    tape._on_tape_update(_FakeTicker([_tbt(t0, 192.75, 0.4, "FINRA", "   I", unreported=True),
+                                      _tbt(t0 + 0.1, 192.76, 100, "ARCA", "")]), "PLTR")
+    assert [q.get_nowait()["size"] for _ in range(q.qsize())] == [0.4, 100]
+
+    player.reset_for_tests()
+    start = 1_790_171_100.0
+    prints = [dict(ts=start + 1, price=192.75, size=0.4, conditions="   I"),
+              dict(ts=start + 2, price=192.80, size=100.0, conditions="")]
+    state = player.CaptureData("2026-09-23|PLTR", "PLTR", prints, [], [], [p["ts"] for p in prints], [], [])
+    monkeypatch.setattr(player, "_state", state)
+    monkeypatch.setattr(session_clock, "now_et", lambda: datetime.fromtimestamp(start + 5, tz=timezone.utc))
+    assert [p["size"] for p in player.recent_prints(40)] == [0.4, 100]
+    pushed: list[dict] = []
+    monkeypatch.setattr("ibkr.tape_stream._push_queue", lambda _sym, payload: pushed.append(payload))
+    monkeypatch.setattr(player, "book_at", lambda **_kw: None)
+    feed._capture_tick()
+    assert [p["size"] for p in pushed] == [0.4, 100]
     player.reset_for_tests()

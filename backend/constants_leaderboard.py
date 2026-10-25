@@ -146,6 +146,9 @@ LEADERBOARD_DAYS_LIMIT = 2_500
 # Owner: backend/leaderboard/seconds/. Files under <leaderboard root>/seconds/.
 LEADERBOARD_SECONDS_SUBDIR = "seconds"
 LEADERBOARD_SECONDS_SCHEMA_VERSION = 1
+# Bumped when how a build counts changes, so a day built by older code reads stale and is built again (#1219).
+# 2 (2026-10-24): the auction repeat records (conditions 15 / 16 / 38) no longer count (#1220).
+LEADERBOARD_SECONDS_LOGIC_VERSION = 2
 LEADERBOARD_SECONDS_BOARD = LEADERBOARD_BOARD_GAPPERS
 # The job's states, as GET /api/leaderboard/{date}/seconds says them.
 LEADERBOARD_SECONDS_QUEUED = "queued"

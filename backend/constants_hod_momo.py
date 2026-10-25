@@ -403,7 +403,8 @@ HOD_MOMO_REBUILD_SUBDIR = "hod_momo"                 # under the leaderboard roo
 HOD_MOMO_REBUILD_SCHEMA_VERSION = 1                  # the data and job files
 # Bumped when the rebuild's own logic changes, so a day built by older code is built again.
 # 2 (2026-10-20): the float is SEC shares outstanding filed before the day, not Yahoo's float now.
-HOD_MOMO_REBUILD_LOGIC_VERSION = 2
+# 3 (2026-10-24): the day's volume leaves out the auction repeat records (conditions 15 / 16 / 38, #1220, #1219).
+HOD_MOMO_REBUILD_LOGIC_VERSION = 3
 HOD_MOMO_REBUILD_JOB_KEY = "hod_momo"                # the job file's board name
 # IBKR's L1 stream conflates a stock's prints to one last-price tick per interval.
 HOD_MOMO_REBUILD_L1_TICK_SEC = 0.25

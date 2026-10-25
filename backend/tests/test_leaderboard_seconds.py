@@ -464,6 +464,20 @@ def test_the_fingerprint_sees_every_field_a_build_reads(day, column, value):
     db.close()
 
 
+def test_a_day_built_by_older_counting_reads_stale(day):
+    """#1219: builds made before the auction repeat records left the volume (#1220) are built again when asked."""
+    _built()
+    db = board_store.read_only()
+    mark = inputs.fingerprint(db, DAY)
+    db.close()
+    assert mark.startswith(f"{inputs.LEADERBOARD_SECONDS_LOGIC_VERSION}:")
+    assert job.current(store.read_job(DAY, "gappers"), DAY)
+    store.write_job(DAY, "gappers", fingerprint=mark.split(":", 1)[1])     # the older logic's bare digest
+    assert not job.current(store.read_job(DAY, "gappers"), DAY)
+    answer = playback.answer(DAY, ts("07:45:00"))
+    assert answer["status"] == "none" and answer["reason"] == job.STALE and answer["rows"] == []
+
+
 def test_a_failed_bootstrap_still_ends_the_build_on_shutdown(monkeypatch):
     import asyncio
 

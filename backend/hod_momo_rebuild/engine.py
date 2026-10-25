@@ -176,7 +176,9 @@ def run(session_date: str, days: dict[str, SymbolDay], prev_close: dict[str, flo
                     change_pct=round((price / close - 1.0) * 100.0, 2) if close else None,
                     gap_pct=gap,
                 )
-                hm.on_trade_update(sym, price, ts, volume=int(day.volume[i]), day_high=float(day.high[i]))
+                # The day's volume is a sum of fractional sizes on 2026 days; HOD Momo counts whole shares, as IBKR's day
+                # counter does, so it is rounded, not truncated (#1219).
+                hm.on_trade_update(sym, price, ts, volume=round(day.volume[i]), day_high=float(day.high[i]))
                 flush_due(state, ts, result.alerts)
                 result.ticks += 1
                 if result.ticks % 20_000 == 0:

@@ -20,12 +20,16 @@ RESEARCH = (
      "as_of": "one row per session the stock traded; raw unless adjust (splits of the day's company)",
      "units": "OHLC dollars; volume = the whole 04:00-20:00 session with odd lots, prices regular hours; "
               "change / gap / range percent points. A bar's volume can have built a range it does not show "
-              "(FLYE 2026-09-01: high 2.79; premarket day_high 3.97 at 05:38 ET)",
+              "(FLYE 2026-09-01: high 2.79; premarket day_high 3.97 at 05:38 ET). Volume is the consolidated tape's "
+              "from 2024-02-21; before, it leaves out prior-reference prints and corrected trades (AAPL 2024-02-20: "
+              "10.6% under the tape), so an average across that date steps up. Fractional on 2026 days",
      "mcp": "daily_bars / market_context (SPY, QQQ, IWM)",
      "cli": "market_data.py daily SYMBOL FROM TO / context DAY"},
     {"name": "stock_day_stats", "source": "computed on demand from minute bars, day files and NBBO quotes",
      "history": "2016-01-04 on", "as_of": "one stock-day; relative volume against prior sessions only",
-     "units": "raw dollars and shares; spread cents and bps; methods stated in the answer's rules",
+     "units": "raw dollars and shares; spread cents and bps; methods stated in the answer's rules. rvol_daily "
+              "divides day bars (steps up at 2024-02-21: reads high for ~20 sessions after), not the minute sums "
+              "rvol_scan's rvol_daily divides, so the two differ",
      "mcp": "stock_day_stats", "cli": "market_data.py stats SYMBOL DAY"},
     {"name": "order_flow", "source": "trades_flow_v1: one row per ticker-minute built from every trade "
                                      "(research/massive_builders)", "history": "2016 on, 2,712 days",
@@ -57,8 +61,9 @@ RESEARCH = (
      "as_of": "a measure at a minute counts bars starting at or before it (at a clock time, before it); baselines "
               "read only earlier sessions (at most 20 / 50, none over 100 days old, same company, listed splits on "
               "the day's basis); outcomes read only bars after the entry clock",
-     "units": "rvol / rvol_5m / rvol_daily ratios (5 = five times); volume shares; prices raw; change percent "
-              "points; same_bar = both lines in one minute (order unknown, counted apart)",
+     "units": "rvol / rvol_5m / rvol_daily ratios (5 = five times); volume shares, summed from minute bars "
+              "(Massive's minute rule every year, so baselines do not step at 2024-02-21; not the day bar's volume "
+              "stock_day_stats uses); prices raw; change percent points; same_bar = both lines in one minute (order unknown, counted apart)",
      "mcp": "rvol_scan (every stock-day at HH:MM) / rvol_triggers (first minute over a line) / rvol_outcomes "
             "(+X% or -X% first, by rvol bucket, with a same-minute control)",
      "cli": "market_data.py rvol AT key=value / rvol-triggers RVOL_MIN key=value / rvol-outcomes key=value"},
@@ -110,7 +115,7 @@ RECORDINGS = (
 CATALOG = (
     {"name": "trades", "source": "Massive flat files (SIP)", "history": "2016-01-04 on, every US stock",
      "as_of": "one stock-day; raw, never split-adjusted (adjust=true for today's terms)",
-     "units": "price dollars, size shares, sip_timestamp ns; sets_price = the print may move last/candles",
+     "units": "price dollars, size shares (fractional on 2026 days), sip_timestamp ns; sets_price = the print may move last/candles",
      "mcp": "stock_day(kind='trades')", "cli": "market_data.py trades SYMBOL DAY"},
     {"name": "quotes", "source": "Massive flat files (NBBO)", "history": "2016-01-04 on",
      "as_of": "one stock-day; Level 1 only (no depth history)", "units": "bid/ask dollars and shares",
@@ -122,7 +127,8 @@ CATALOG = (
               "corrected-close repeats, conditions 15, 16, 38); minute bars are Massive's own rule (in 09:30-15:59 "
               "no extended-hours prints, outside only those, no prior-reference prints, no odd-lot-only minutes, "
               "no closing cross at 16:00), so a minute of 10s bars sums a little higher (GME 2021-01-27 09:30: "
-              "179,822 vs 179,397) and much higher at 16:00 (docs/market-data.md). A bucket with no "
+              "179,822 vs 179,397) and much higher at 16:00 (docs/market-data.md). The desk's and the Sim's candles "
+              "count only price-setting prints (IBKR's bar rule, about 0.94 of the tape). A bucket with no "
               "trade has no row: meta.gaps lists the holes (ET runs, first_et/last_et); fill_gaps adds a row per hole "
               "with no price, zero volume and filled=true",
      "mcp": "stock_day(kind='bars', fill_gaps?)",
@@ -132,7 +138,9 @@ CATALOG = (
      "as_of": "one row per stock-day, facts of that finished day",
      "units": "*_pct percent points (the store keeps fractions; the front door converts); prices raw prior close. "
               "Likely reverse splits are left out by default in both tools (splits=exclude_likely | include | "
-              "only_suspects). float_max (movers_search) is SEC shares OUTSTANDING filed by the day, not free float",
+              "only_suspects). float_max (movers_search) is SEC shares OUTSTANDING filed by the day, not free float. "
+              "volume / prev_volume are day bars (the tape's from 2024-02-21, lower before: volume_min reads them); "
+              "pm_volume / ah_volume / dollar_volume are minute sums",
      "mcp": "movers_search (endpoint, <=500 rows) / movers_scan (bulk: needs dates, a symbol or a limit; 100,000 "
             "rows unless limit)", "cli": "market_data.py movers key=value / scan key=value"},
     {"name": "boards", "source": "Nova's leaderboard store: recorded desk boards, else rebuilt",

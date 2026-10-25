@@ -29,11 +29,12 @@ CREATE TABLE IF NOT EXISTS daily (
 CREATE TABLE IF NOT EXISTS daily_days (d DATE PRIMARY KEY, tickers INTEGER, built_at TIMESTAMP);
 """
 
+# volume is read as DOUBLE (fractional on 2026 days, #1219); the BIGINT column rounds it to whole shares.
 DAY_SQL = """
 INSERT OR REPLACE INTO daily
 SELECT ticker, ?::DATE, open, high, low, close, volume, transactions
 FROM read_csv(?, header = true,
-              columns = {'ticker': 'VARCHAR', 'volume': 'BIGINT', 'open': 'DOUBLE', 'close': 'DOUBLE',
+              columns = {'ticker': 'VARCHAR', 'volume': 'DOUBLE', 'open': 'DOUBLE', 'close': 'DOUBLE',
                          'high': 'DOUBLE', 'low': 'DOUBLE', 'window_start': 'BIGINT', 'transactions': 'BIGINT'})
 """
 
