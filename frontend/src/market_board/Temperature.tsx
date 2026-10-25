@@ -39,9 +39,11 @@ export function Temperature({ heat, period }: { heat: Heat; period: Period }) {
             <div className="mk-t">Money in the top 5</div>
             <div className="mk-v">{money(today?.money)}</div>
             <div className="mk-s">
-              {today?.usual_money != null
-                ? `usual ${money(today.usual_money)} · median of ${today.usual_days} sessions`
-                : `no usual yet · ${today?.usual_days ?? 0} sessions recorded before`}
+              {!today?.board
+                ? 'no Gainers board this session'
+                : today.usual_money != null
+                  ? `usual ${money(today.usual_money)} · median of ${today.usual_days} sessions`
+                  : `no usual yet · ${today.usual_days} sessions recorded before`}
             </div>
           </div>
         </div>
@@ -56,6 +58,10 @@ export function Temperature({ heat, period }: { heat: Heat; period: Period }) {
             {heat.hot} hot · {heat.warm} warm · {heat.cold} cold
             {heat.hold_pct != null ? ` · runners held ${Math.round(heat.hold_pct)}% of the time` : ''}
             {heat.score_pct != null ? ` · score ${signedPct(heat.score_pct, 0)}` : ''}
+          </div>
+          <div className="mk-heat__key" aria-hidden="true">
+            <span><i className="is-hot" />hot</span><span><i className="is-warm" />warm</span>
+            <span><i className="is-cold" />cold</span><span><i className="is-none" />no label (no board, or too little history)</span>
           </div>
         </>
       )}

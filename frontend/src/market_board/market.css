@@ -335,6 +335,12 @@
 .mk-heat__days i.is-warm { background: var(--mk-warm); }
 .mk-heat__days i.is-cold { background: var(--nova-accent); }
 .mk-heat__days i.is-none { background: repeating-linear-gradient(45deg, var(--nova-raised) 0 3px, transparent 3px 6px); }
+.mk-heat__key { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--nova-text-muted); }
+.mk-heat__key i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+.mk-heat__key i.is-hot { background: var(--mk-warn); }
+.mk-heat__key i.is-warm { background: var(--mk-warm); }
+.mk-heat__key i.is-cold { background: var(--nova-accent); }
+.mk-heat__key i.is-none { background: repeating-linear-gradient(45deg, var(--nova-border-strong) 0 2px, transparent 2px 4px); }
 .mk-read__temp { margin: -2px 0 8px; display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; }
 .mk-climate__mid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
 .mk-climate__mid .mk-v { font-size: 18px; white-space: nowrap; }

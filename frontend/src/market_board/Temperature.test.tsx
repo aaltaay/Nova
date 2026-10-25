@@ -41,7 +41,8 @@ describe('the small-cap temperature', () => {
     const heat = screen.getByTestId('market-heat');
     expect(screen.getByTestId('market-climate').textContent).toContain('HOT MONTH');
     expect(heat.textContent).toContain('score +21%');
-    expect(heat.querySelectorAll('.is-none')).toHaveLength(2);            // two sessions Nova holds no board for
+    expect(heat.querySelectorAll('.mk-heat__days .is-none')).toHaveLength(2);   // two sessions Nova holds no board for
+    expect(heat.textContent).toContain('no label (no board, or too little history)');   // the strip's key
   });
 
   it('says why there is no label instead of guessing one', () => {
@@ -54,6 +55,8 @@ describe('the small-cap temperature', () => {
     render(<Temperature heat={heat} period="1D" />);
     const el = screen.getByTestId('market-heat');
     expect(el.textContent).toContain('Nova recorded no Gainers board this session');
+    expect(el.textContent).toContain('no Gainers board this session');
+    expect(el.textContent).not.toContain('sessions recorded before');   // not a history problem: no board at all
     expect(el.textContent).toContain('--');
     expect(el.textContent).not.toContain('$0');
   });
