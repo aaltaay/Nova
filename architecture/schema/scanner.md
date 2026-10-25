@@ -512,8 +512,10 @@ the stocks read. A `building` job not rewritten for
 `failed`. Invalidated when the rebuilt day changes: `fingerprint` is a SHA-256
 over everything a build reads from the store -- every rebuilt Gappers row of the
 day (`minute_ts, symbol, rank, price, volume, prev_close`) and every stored
-stock's `(symbol, prev_close)` that day (about a second) -- and a request that
-finds another builds the day again. An unknown `schema_version` (either file) is never read and the day
+stock's `(symbol, prev_close)` that day (about a second), written
+`<LEADERBOARD_SECONDS_LOGIC_VERSION>:<sha256>` -- and a request that finds another builds the day again. The logic
+version moves when how a build counts changes (2, 2026-10-24: the auction repeat records left the volume, #1220), so
+a day built by older code reads stale (#1219). An unknown `schema_version` (either file) is never read and the day
 is built again. `summary`: `{candidates, from_outside_store, stocks_read,
 seconds_rows, read_indexed, checked_minutes, agreed_minutes, disagreements:
 [{minute_ts, stored, by_second}] (at most 20), build_sec}` -- each minute's list
@@ -573,7 +575,8 @@ second memory cap), one day at a time; asking for another day, or the backend sh
   unknown float. A floor cannot be proven from an upper bound, so every strategy with a `min_float` line sits out
   the run (the Medium Float strategies by default; `summary.floor_unproven` lists them). A stock with no count on
   file has an unknown float. Until 2026-10-20 the float was Yahoo's float on the day of the build (`yahoo_now`), a
-  look-ahead for any past day; `HOD_MOMO_REBUILD_LOGIC_VERSION` 2 makes those builds out of date. Change is measured
+  look-ahead for any past day; `HOD_MOMO_REBUILD_LOGIC_VERSION` 2 makes those builds out of date. Version 3
+(2026-10-24, #1219) does the same for builds whose day volume still counted the auction repeat records (#1220). Change is measured
   from the prior close on every tick; the gap from 09:30, from the day's day-bar open, as IBKR's open tick exists
   only from the open.
 - **The engine** runs with the operator's HOD settings and blocklist and nothing else of today's, on a clock pinned

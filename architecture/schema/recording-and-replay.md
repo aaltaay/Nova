@@ -491,7 +491,10 @@ desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
   correction is 0 or 12; corrections 1, 7, 8 show and set nothing; 10 and 11 are dropped, and so are records
   with condition 15, 16 or 38 (official close / open, corrected consolidated close: `SIM_MASSIVE_REPEAT_CONDITIONS`),
   which repeat an auction print and never reach IBKR's live tape -- a replay showed CINC 2022-08-08's opening cross
-  twice. Last, volume, high, low, candles and practice fills read only prints that set a price.
+  twice. An import stored before 2026-10-24 still holds them; `massive_store.read_print_table` leaves them out at
+  read (#1219), so no re-import is needed. `size` is a float (fractional on 2026 days); the tape sends a whole size as
+  an integer and keeps a fractional one (`sale_conditions.print_size`). Last, volume, high, low, candles and practice
+  fills read only prints that set a price.
 - **The snapshot** adds, for every window, `bid_size`, `ask_size`, `bid_exchange`, `ask_exchange`, `quote_ts`,
   `quote_source: "massive_nbbo" | null`, `quote_status` and `sides_nbbo: integer` (all null / 0 for an IBKR
   download). For a Massive window `bid` / `ask` are the last NBBO row at or before the playhead, never after;

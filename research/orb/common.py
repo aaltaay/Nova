@@ -56,11 +56,12 @@ def connect(read_only: bool = False) -> duckdb.DuckDBPyConnection:
     return con
 
 
-# One minute-file read, with the Eastern wall-clock time of each bar.
+# One minute-file read, with the Eastern wall-clock time of each bar. Volume is read as DOUBLE: Massive writes
+# fractional volumes on 2026 days and a BIGINT column refuses "1234.5" (#1219); a BIGINT table rounds it on insert.
 MINUTE_SOURCE_SQL = """
 SELECT ticker, open, high, low, close, volume,
        (to_timestamp(window_start // 1000000000) AT TIME ZONE 'America/New_York')::TIME AS t
 FROM read_csv(?, header = true,
-              columns = {'ticker': 'VARCHAR', 'volume': 'BIGINT', 'open': 'DOUBLE', 'close': 'DOUBLE',
+              columns = {'ticker': 'VARCHAR', 'volume': 'DOUBLE', 'open': 'DOUBLE', 'close': 'DOUBLE',
                          'high': 'DOUBLE', 'low': 'DOUBLE', 'window_start': 'BIGINT', 'transactions': 'BIGINT'})
 """

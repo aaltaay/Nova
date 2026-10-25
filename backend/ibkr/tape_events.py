@@ -11,7 +11,7 @@ from ibkr import feed_pulse
 from ibkr.tape_exchange_time import exchange_second
 from ibkr.tape_side import best_bid_ask, classify_print_side
 from metrics.op_metrics import timed_fn
-from sale_conditions import sets_price
+from sale_conditions import print_size, sets_price
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ def on_tape_update(ticker: Any, symbol: str, push, depth) -> None:
         bid, ask = best_bid_ask(depth.current_book(symbol))
         side = classify_print_side(price, bid, ask)
 
-        size_i = int(size) if size is not None else 0
+        size_i = print_size(size if size is not None else 0)   # a fractional share stays fractional (#1219)
         payload = {
             "type": "print",
             "symbol": symbol,

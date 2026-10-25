@@ -118,7 +118,8 @@ def register(server, service, run, reads, writes_file) -> None:
         as_of, default today, by the splits of the company that held the ticker each day). Day volume is the whole
         04:00-20:00 session; prices are regular hours -- so a bar's volume can have built a range it does not show
         (FLYE 2026-09-01: high 2.79, but find_stock_days day_high 3.97 at 05:38 ET); stock_day_stats splits premarket,
-        regular and whole-day."""
+        regular and whole-day. Day volume is the tape's from 2024-02-21; before, it leaves out prior-reference prints
+        and corrected trades (AAPL 2024-02-20: 10.6% under), so an average across that date steps up."""
         return await run(service.daily_bars, symbol, date_from, date_to, adjust, as_of, output_name)
 
     @server.tool(annotations=reads)
@@ -132,7 +133,9 @@ def register(server, service, run, reads, writes_file) -> None:
         """One stock-day's numbers, computed from the Massive files: premarket volume/high/low and their times,
         first 5 and 30 minutes, regular session OHLC and the time of the high/low, VWAP (method stated), trade count
         and average trade size, median NBBO spread (cents and bps; window stated), relative volume by minute vs the
-        prior rvol_days sessions, and daily rvol. Raw prices; units and methods in the answer's rules."""
+        prior rvol_days sessions, and daily rvol (day bars, so it reads high for ~20 sessions after 2024-02-21 and
+        differs from rvol_scan's rvol_daily, which divides minute sums). Raw prices; units and methods in the answer's
+        rules."""
         return await run(service.stock_day_stats, symbol, day, rvol_days, spread)
 
     @server.tool(annotations=writes_file)

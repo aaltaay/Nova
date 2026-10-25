@@ -269,6 +269,27 @@ MCP: `signal_catalog`, `signal_series`, `signal_scan`, `signal_test`. Contract: 
   higher (GME 2021-01-27 09:30: 179,822 vs 179,397, the minute's extended-hours prints) and much higher at 16:00.
   **Day bars** match the tape from 2024-02-21; before that date Massive's day volume leaves out prior-reference prints
   and corrected trades (AAPL 2024-02-20 is 10.6% under the tape). Daily bars are not a `bars` timeframe.
+- **Day volume steps up on 2024-02-21.** Anything that averages day-bar volume over a span crossing that date mixes
+  the two rules: `stock_day_stats`' `rvol_daily` (the day bar over the mean of the prior day bars) reads high for
+  about 20 sessions after it, and the movers index's `volume` / `prev_volume` (so `movers_scan`'s `volume_min`) are
+  lower before it than the tape was. The relative-volume table (`rvol_scan`, `rvol_triggers`, its
+  `rvol_daily` and `day_avg_volume`) sums minute bars, one rule for every year, so its baselines do not step; the
+  movers index's `pm_volume` / `ah_volume` / `dollar_volume` are minute sums too.
+- **Same stock, same minute, different volume: four on purpose.** (1) On one chart the 16:00 bucket of the 10-second
+  bars holds the closing cross and the 1-minute bar does not (Massive's minute rule). (2) `nova_chart`'s daily candle
+  for the charted day is the day's minute bars from 04:00 to `as_of` (no look-ahead), so its volume leaves out the
+  closing cross, prior-reference prints and 16:00-20:00, and its high can be premarket; the prior days are official
+  day bars (whole-session volume, regular-hours prices), so even at 16:00 the last candle's volume sits under the
+  day bar's. (3) Daily relative volume: `stock_day_stats` divides day bars, `rvol_scan` divides minute sums, so the
+  two `rvol_daily` numbers differ by the minute rule's gap (larger on a day with a big closing cross). (4) The desk's
+  and the Sim's candles count only prints that set a price, IBKR's own bar rule (`sale_conditions.py`), about 0.94
+  of the tape; the front door's seconds bars count the tape, and Gappers by the second and the HOD Momo rebuild count
+  every print but the auction repeats, as IBKR's day volume does. None is a bug: compare like with like, and say
+  which rule a number used.
+- **Sizes can be fractional.** Massive writes fractional trade sizes (and so fractional bar volumes) on 2026 days.
+  Every reader keeps them as floats; a whole-share count is rounded, never truncated (`sale_conditions.print_size`
+  keeps a 0.4-share print 0.4 on the tape). One exception: `trades_movers_v1`'s `s` column is a frozen INTEGER
+  schema, so a sub-share print there reads 0 or 1; the trades files hold the exact size.
 - **`float_max` is shares outstanding.** The movers float filter is SEC shares outstanding filed by the day (insiders
   and locked-up shares included), not free float. `find` takes `--outstanding-max` (MCP `outstanding_max`) as the
   same limit under the name of what it filters, so the call shows its intent (an insider-heavy name's real float is

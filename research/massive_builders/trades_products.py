@@ -126,6 +126,8 @@ FLOW_SELECT = """
 
 FLOW = "\nCOPY (" + FLOW_SELECT + "\n) TO '{out}' (FORMAT parquet, COMPRESSION zstd, ROW_GROUP_SIZE 500000)"
 
+# ``s`` is INTEGER, a frozen schema (test_massive_builders.MOVERS_SCHEMA) shared by every day already written:
+# DuckDB rounds a fractional 2026 size to the nearest share (0.4 reads 0). Exact sizes are in the trades files (#1219).
 RAW = """
 COPY (
   SELECT t.ticker, t.sip_timestamp AS ts, t.participant_timestamp AS pts, t.price AS p, CAST(t.size AS INTEGER) AS s,
