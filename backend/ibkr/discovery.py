@@ -167,7 +167,13 @@ async def _one_shot_scanner(ib, sub) -> list:
     default) that error resolves the request's future to ``[]`` with no
     exception -- indistinguishable from a genuinely empty market -- so this
     listens on ``errorEvent`` directly rather than trusting the future.
+
+    Nothing that can raise sits between the subscribe and the ``try`` whose
+    ``finally`` cancels it: the Market page's movers scan called this without
+    ``_load_ib_types``, ``_open_scan_future`` raised after the subscribe, and
+    each refresh leaked a slot until all ten were gone (2026-10-23).
     """
+    _load_ib_types()
     data_list = ib.reqScannerSubscription(sub)
     req_id = getattr(data_list, "reqId", None)
     if req_id is not None:
@@ -185,8 +191,8 @@ async def _one_shot_scanner(ib, sub) -> list:
     has_error_hook = hasattr(ib, "errorEvent")
     if has_error_hook:
         ib.errorEvent += _on_scan_error
-    future = _open_scan_future(ib, data_list)
     try:
+        future = _open_scan_future(ib, data_list)
         await asyncio.wait_for(future, timeout=IBKR_SCAN_REQUEST_TIMEOUT_SEC)
         if slot_exhausted:
             raise IbkrScannerSlotExhaustedError(

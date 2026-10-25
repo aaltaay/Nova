@@ -27,11 +27,10 @@ from constants import (
     IBKR_SCAN_REQUEST_TIMEOUT_SEC,
     IBKR_SCANNER_RECONCILE_SEC,
     IBKR_SCANNER_WARMUP_QUIET_SEC,
-    IBKR_SCANNER_WATCHDOG_CADENCE_MULT,
-    IBKR_SCANNER_WATCHDOG_MIN_SEC,
 )
 from ibkr import client as _client
 from ibkr import scanner_hydrate as _hydrate
+from ibkr import scanner_lease_health as _health
 from ibkr import scanner_session as _session
 from metrics.op_metrics import timed_sync
 from runtime_state import get_runtime_state
@@ -62,7 +61,13 @@ class _Lease:
     generation: int = 0
     epoch: int = 0
     session_key: str = ""
+    # Monotonic time reqScannerSubscription was sent; the watchdog measures a
+    # lease that never answered from here.
+    opened_mono: float = 0.0
     last_batch_mono: float = 0.0
+    # Last IBKR error code for this reqId seen during the first-batch wait
+    # (322 = no free scanner slot); None when IBKR raised nothing.
+    ib_error_code: int | None = None
     batch_intervals: list[float] = field(default_factory=list)
     first_batch_event: asyncio.Event | None = None
     listener: Any = None
@@ -203,6 +208,7 @@ async def _open_lease(spec: "_session.LeaseSpec") -> _Lease | None:
         generation=_client.current_generation(),
         epoch=_epoch,
         session_key=_session.session_key_et(),
+        opened_mono=time.monotonic(),
         first_batch_event=asyncio.Event(),
     )
 
@@ -223,15 +229,30 @@ async def _open_lease(spec: "_session.LeaseSpec") -> _Lease | None:
         "scanner_stream: opened %s (%s) reqId=%s gen=%d epoch=%d",
         table, scan_code, req_id, lease.generation, lease.epoch,
     )
+
+    def _on_error(err_req_id: int, error_code: int, *_rest: object, lease=lease) -> None:
+        if req_id is not None and err_req_id == req_id:
+            lease.ib_error_code = error_code
+
+    # A refusal (Error 322) leaves the lease silent with no batch at all; keep
+    # its code so the timeout names it and the watchdog can free slots.
+    has_error_hook = hasattr(ib, "errorEvent")
+    if has_error_hook:
+        ib.errorEvent += _on_error
     try:
         await asyncio.wait_for(
             lease.first_batch_event.wait(), timeout=IBKR_SCAN_REQUEST_TIMEOUT_SEC,
         )
     except asyncio.TimeoutError:
+        code = lease.ib_error_code
         logger.warning(
-            "scanner_stream: first batch timeout for %s after %.0fs",
+            "scanner_stream: first batch timeout for %s after %.0fs%s",
             table, IBKR_SCAN_REQUEST_TIMEOUT_SEC,
+            "" if code is None else f" (IBKR Error {code})",
         )
+    finally:
+        if has_error_hook:
+            ib.errorEvent -= _on_error
     return lease
 
 
@@ -304,23 +325,15 @@ async def reconcile_leases() -> None:
 
 
 async def _watchdog_once() -> None:
+    """Cancel and reopen every lease ``scanner_lease_health`` calls sick."""
     for table, lease in list(_leases.items()):
-        if lease.last_batch_mono <= 0:
+        reason = _health.reopen_reason(lease, time.monotonic())
+        if reason is None:
             continue
-        age = time.monotonic() - lease.last_batch_mono
-        cadence = (
-            sum(lease.batch_intervals) / len(lease.batch_intervals)
-            if lease.batch_intervals else IBKR_SCANNER_WATCHDOG_MIN_SEC
-        )
-        limit = max(
-            IBKR_SCANNER_WATCHDOG_MIN_SEC,
-            IBKR_SCANNER_WATCHDOG_CADENCE_MULT * cadence,
-        )
-        if age <= limit:
-            continue
+        what, age, limit = reason
         logger.warning(
-            "scanner_stream: watchdog resubscribe %s (batch age %.0fs > %.0fs)",
-            table, age, limit,
+            "scanner_stream: watchdog resubscribe %s (%s %.0fs > %.0fs)",
+            table, what, age, limit,
         )
         spec = _session.LeaseSpec(
             table=table,
@@ -330,6 +343,7 @@ async def _watchdog_once() -> None:
             stock_type_filter=lease.stock_type_filter,
         )
         _cancel_lease(table, freeze_first=False)
+        _health.free_slots_if_refused(table, lease, _client.get_ib())
         await _open_lease(spec)
 
 
