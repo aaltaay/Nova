@@ -8,6 +8,7 @@ import { ChartGrid } from './ChartGrid';
 import { markChartFullscreen, takeEscapeConsumedForFullscreen } from '../chart/chartFullscreen';
 import { ensureBarsBatch } from '../chart/barsStore';
 import { clearDrawings } from '../chart/chartDrawingsStore';
+import { ChartFeedProvider } from '../chart';
 
 const venue = vi.hoisted(() => ({ mode: 'live' as string }));
 vi.mock('../ibkr/useIbkrStatus', () => ({ useIbkrStatus: () => ({ mode: venue.mode }) }));
@@ -135,6 +136,23 @@ describe('ChartGrid', () => {
     act(() => { root.render(<ChartGrid symbol="SPY" />); });
     // True on both sides of the live edge (QA R35): the replay off it, the live tape at it.
     expect(subtitle()).toBe('Sim 10s -- follows the Sim clock: the replay off the live edge, the live tape at it');
+  });
+
+  it('a recorded feed labels each pane from its own notes, never the live IBKR note', () => {
+    const subtitleOf = (id: string) => container
+      .querySelector(`[data-testid="chart-grid-cell-${id}"] [data-testid="ticker-chart"]`)
+      ?.getAttribute('data-subtitle');
+    const feed = {
+      kind: 'recorded' as const, symbol: 'IMCC', date: '2026-09-18', asOfIso: '2026-09-18T16:00:00-04:00',
+      source: 'front-door' as const, bars: {}, vwapBars: [],
+      notes: { '10Sec': '10s · Massive tape -- built from the consolidated trades' },
+    };
+    act(() => {
+      root.render(<ChartFeedProvider feed={feed}><ChartGrid symbol="IMCC" /></ChartFeedProvider>);
+    });
+    expect(subtitleOf('10Sec')).toBe('10s · Massive tape -- built from the consolidated trades');
+    expect(subtitleOf('1Min')).toBe('');
+    expect(container.innerHTML).not.toMatch(/IBKR 10s|live tape after/);
   });
 
   it('queues all visible panes including 10Sec', async () => {

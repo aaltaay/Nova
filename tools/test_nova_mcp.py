@@ -108,6 +108,22 @@ def test_loader_levels_cannot_see_the_later_spike():
     assert body["timeframes"]["1d"]["bars"][-1]["h"] == 10
     assert "2026-09-19" not in {row["t"] for row in body["timeframes"]["1d"]["bars"]}
     assert all(row["t"] < "2026-09-18T10:00" for row in body["timeframes"]["5m"]["bars"])
+    # A reader that names no source gets no source on the wire: the page then claims none.
+    assert all("source" not in frame for frame in body["timeframes"].values())
+
+
+def test_each_frame_names_the_front_doors_real_source():
+    """The 10-second pane is built from Massive's consolidated trades, never IBKR (the old "IBKR 10s" label)."""
+    def bars(_symbol, _day, tf):
+        return [_minute(9, 55, 12)] if tf == "5m" else _session_minutes()
+
+    bars.sources = review_load.front_door_bars.sources
+    daily = lambda *_a: []  # noqa: E731
+    daily.source = review_load.front_door_daily.source
+    body = review_load.load_review("imcc", DAY, ["1m", "5m", "10s", "1d"], "10:00", bars_reader=bars, daily_reader=daily)
+    assert {tf: frame.get("source") for tf, frame in body["timeframes"].items()} == {
+        "1m": "massive-minutes", "5m": "massive-minutes", "10s": "massive-trades", "1d": "massive-daily",
+    }
 
 
 def test_nine_symbols_return_urls_without_loading(monkeypatch):

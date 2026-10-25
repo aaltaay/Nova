@@ -28,6 +28,7 @@ ROOT_ENV = "NOVA_SIGNALS_DIR"
 DEFAULT_ROOT_WIN = r"F:\Nova\signals"
 RESERVE_GB = 40.0
 LOCK_WAIT_SEC = 120.0            # how long a writer waits for the manifest
+SHARING_RETRY_SEC = 10.0         # how long a replace / delete waits out another handle on the file (Windows)
 LOCK_STALE_SEC = 300.0           # a lock older than this was left by a writer that died
 META_KEY = b"nova_signals"
 KINDS = ("CS", "ADRC")
@@ -112,13 +113,32 @@ def save_manifest(data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(f".json.{os.getpid()}.tmp")
     tmp.write_text(json.dumps(data, indent=1, sort_keys=True), encoding="utf-8")
-    os.replace(tmp, path)
+    _until_windows_lets_go(lambda: os.replace(tmp, path))
+
+
+def _until_windows_lets_go(step) -> None:
+    """Run ``step``, retrying a ``PermissionError`` for up to ``SHARING_RETRY_SEC``. On Windows a file another handle
+    has open (a reader of the manifest, a waiter's ``stat`` of the lock, a virus scan) cannot be replaced or deleted
+    for that moment: a lasting refusal still raises (#1221)."""
+    deadline = time.monotonic() + SHARING_RETRY_SEC
+    while True:
+        try:
+            step()
+            return
+        except PermissionError:
+            if time.monotonic() > deadline:
+                raise
+            time.sleep(0.01)
 
 
 @contextmanager
 def manifest_lock():
     """``<root>/manifest.lock``, created exclusively: one read-modify-write of the manifest at a time across processes
-    (the minute and tape stages may run at once). A lock older than ``LOCK_STALE_SEC`` is a dead writer's."""
+    (the minute and tape stages may run at once). A lock older than ``LOCK_STALE_SEC`` is a dead writer's.
+
+    On Windows a lock file just released can still be pending delete while another handle is open on it, and
+    creating it then is ``PermissionError``, not ``FileExistsError``: that is a held lock, waited for like one. It
+    once killed a writer mid-build and lost the rest of its days (#1221)."""
     path = root() / "manifest.lock"
     path.parent.mkdir(parents=True, exist_ok=True)
     deadline = time.monotonic() + LOCK_WAIT_SEC
@@ -126,22 +146,24 @@ def manifest_lock():
         try:
             fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
             break
-        except FileExistsError:
+        except (FileExistsError, PermissionError):
             try:
                 if time.time() - path.stat().st_mtime > LOCK_STALE_SEC:
                     path.unlink()
                     continue
             except FileNotFoundError:
                 continue
+            except PermissionError:
+                pass                     # pending delete, or held open this instant: still someone's lock
             if time.monotonic() > deadline:
-                raise TimeoutError(f"{path} held for over {LOCK_WAIT_SEC:.0f} s") from None
+                raise TimeoutError(f"{path} held (or refused) for over {LOCK_WAIT_SEC:.0f} s") from None
             time.sleep(0.05)
     try:
         os.write(fd, str(os.getpid()).encode())
         os.close(fd)
         yield
     finally:
-        path.unlink(missing_ok=True)
+        _until_windows_lets_go(lambda: path.unlink(missing_ok=True))
 
 
 def update_manifest(change) -> dict[str, Any]:
@@ -165,7 +187,7 @@ def _write(table, path: Path, day: str, name: str) -> None:
     tmp = path.with_suffix(".parquet.tmp")
     labels = [f.name for f in table.schema if str(f.type) in ("string", "large_string")]
     pq.write_table(table, tmp, compression="zstd", compression_level=3, use_dictionary=labels or False)
-    os.replace(tmp, path)
+    _until_windows_lets_go(lambda: os.replace(tmp, path))     # a reader may hold the old day file open
 
 
 def write_day(day: str, minutes, days) -> None:
