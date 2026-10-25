@@ -142,7 +142,7 @@ def compose(st: Store, now: float, *, enabled: bool, replay_desk: bool, params: 
         day_read.breadth(breadth_block, open_at),
         day_read.vix(tiles.get("vix")),
         day_read.small_caps(tiles["small_caps"]["change_pct"]),
-        day_read.runners(today_clim.get("runners"), today_clim.get("runners_avg")),
+        day_read.runners(today_clim.get("runners"), today_clim.get("runners_avg"), today_clim.get("runners_why")),
         day_read.gappers(today_clim.get("gappers_held") or 0, today_clim.get("gappers_total") or 0,
                          now >= open_at, open_at),
     ]
@@ -152,7 +152,9 @@ def compose(st: Store, now: float, *, enabled: bool, replay_desk: bool, params: 
     loading = enabled and not all(st.tried(k) for k in _FIRST_READS)
     return {
         "schema_version": MARKET_SCHEMA_VERSION, "generated_at": now, "enabled": enabled, "loading": loading,
-        "replay_desk": replay_desk, "session": sess, "day_read": day_read.verdict(checks),
+        "replay_desk": replay_desk, "session": sess,
+        # The small-cap temperature rides on the Day Read but never votes in its verdict (ADR 053, 2026-10-25).
+        "day_read": {**day_read.verdict(checks), "temperature": today_clim.get("temperature")},
         "events": {"items": events.upcoming(clock.et(now).date(), bea=st.get("bea", now, 86400.0 * 2),
                                             earnings=st.get("earnings", now, 86400.0), biggest=biggest),
                    "bond_market": events.bond_market(clock.et(now).date())},

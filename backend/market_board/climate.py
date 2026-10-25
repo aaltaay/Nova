@@ -8,6 +8,8 @@ reached 20 / 50 / 100% that session by the close (today: by now). A gapper is a 
 open gap (``gap_pct``) of 20%+; it held when it was still on the board at the period's last minute at or above its
 open (``prev_close x (1 + gap_pct)``), failed when on the board below it, and is ``gone`` (unknown) when it left the
 board. Halts are the Nasdaq halt feed's starts. A past session is read once per process; today again each turn.
+A board that kept no row all session is no board (2026-10-23: IBKR never answered the scan, the board read ``live``
+and empty all day). Each session's temperature inputs are read with it (``market_board/temperature.py``).
 
 A past session with no board in the lens is filled from the Massive day movers index (ADR 053 amendment 2026-10-14):
 a common stock whose minute bars first reached +20 / 50 / 100% over the prior close before the close, priced at
@@ -30,10 +32,8 @@ from constants_market_board import (
     MARKET_CLIMATE_BASELINE_DAYS,
     MARKET_CLIMATE_BASELINE_DAYS_1D,
     MARKET_CLIMATE_CHART_SESSIONS,
-    MARKET_CLIMATE_COLD_X,
     MARKET_CLIMATE_GAPPER_MIN,
     MARKET_CLIMATE_HALT_SOURCE,
-    MARKET_CLIMATE_HOT_X,
     MARKET_CLIMATE_MASSIVE_KINDS,
     MARKET_CLIMATE_MASSIVE_SOURCE,
     MARKET_CLIMATE_RANK_MAX,
@@ -43,10 +43,11 @@ from constants_market_board import (
     MARKET_CLIMATE_TOP,
     MARKET_CLIMATE_USE_REBUILT,
     MARKET_PERIOD_SESSIONS,
+    MARKET_TEMP_BASELINE_DAYS,
     MARKET_UNCLASSIFIED,
 )
 from constants_scanner import SCANNER_MIN_PRICE, SESSION_RTH_OPEN_MIN_ET
-from market_board import clock, industries
+from market_board import clock, industries, temperature
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,7 @@ class Day:
     runners: dict[str, dict[str, Any]] = field(default_factory=dict)  # symbol -> {mx, t: {up20: ts}, last...}
     gappers: dict[str, str] = field(default_factory=dict)          # symbol -> held | failed | gone
     halts: list[tuple[str, float]] = field(default_factory=list)
+    heat: temperature.Gauges | None = None          # the temperature's inputs (a board in the lens only)
 
 
 _lock = threading.Lock()
@@ -68,9 +70,12 @@ _days: dict[str, Day] = {}
 
 
 def _board_for(db: Any, day: str) -> tuple[str | None, str | None]:
-    rows = db.execute("SELECT source, GROUP_CONCAT(DISTINCT board) FROM coverage WHERE session_date = ?"
-                      " GROUP BY source", (day,)).fetchall()
-    boards = {src: set((b or "").split(",")) for src, b in rows}
+    rows = db.execute("SELECT source, board, SUM(row_count) FROM coverage WHERE session_date = ?"
+                      " GROUP BY source, board", (day,)).fetchall()
+    boards: dict[str, set[str]] = {}
+    for src, board, kept in rows:
+        if kept:                                    # a board that kept no row all session is no board
+            boards.setdefault(src, set()).add(board)
     if MARKET_CLIMATE_RECORDED_BOARD in boards.get(LEADERBOARD_SOURCE_RECORDED, set()):
         return LEADERBOARD_SOURCE_RECORDED, MARKET_CLIMATE_RECORDED_BOARD
     if MARKET_CLIMATE_USE_REBUILT and MARKET_CLIMATE_REBUILT_BOARD in boards.get(LEADERBOARD_SOURCE_RECONSTRUCTED, set()):
@@ -155,6 +160,7 @@ def read_day(db: Any, day: date, end_ts: float) -> Day:
                     out.gappers[sym] = "gone"
                 else:
                     out.gappers[sym] = "held" if price >= prev_close * (1.0 + gap) else "failed"
+        out.heat = temperature.read(db, iso, source, board, end_ts)
     out.halts = [(s, float(t)) for s, t in db.execute(
         "SELECT symbol, ts FROM halt_events WHERE session_date = ? AND source = ? AND event = 'start' AND ts <= ?"
         " GROUP BY symbol, ts ORDER BY ts", (iso, MARKET_CLIMATE_HALT_SOURCE, float(end_ts))).fetchall()]
@@ -225,6 +231,16 @@ def _rate(held: int, failed: int) -> float | None:
     return round(100.0 * held / (held + failed), 1) if held + failed else None
 
 
+def _heat_chain(held: dict[str, Day], today: date, n: int) -> list[tuple[date, temperature.Gauges | None]]:
+    """The period's sessions and the ``MARKET_TEMP_BASELINE_DAYS`` before them, oldest first; ``None`` where Nova
+    holds no board in the lens."""
+    out = []
+    for d in clock.sessions_back(today, n + MARKET_TEMP_BASELINE_DAYS):
+        day = held.get(d.isoformat())
+        out.append((d, day.heat if _counted(day) else None))
+    return out
+
+
 def compose(period: str, now: float) -> dict[str, Any]:
     """The wire's ``climate`` block for ``period``."""
     n = MARKET_PERIOD_SESSIONS[period]
@@ -238,7 +254,8 @@ def compose(period: str, now: float) -> dict[str, Any]:
     counts = {k: sum(_count(d, k) for d in covered) for k in _KEYS}
     baseline = None
     if period == "1D":
-        minute = min(clock.minute_of_day(now), clock.close_minute(today))
+        # The session's own clock: after its close (that night, a weekend) the minute is the close, never the wall's.
+        minute = clock.minute_of_day(min(now, clock.at(today, clock.close_minute(today))))
         prior = [held.get(d.isoformat()) for d in span[:-1]][-MARKET_CLIMATE_BASELINE_DAYS_1D:]
         prior = [d for d in prior if _counted(d)]
         if prior:
@@ -253,10 +270,7 @@ def compose(period: str, now: float) -> dict[str, Any]:
             avg = {k: round(sum(_count(d, k) for d in prior) / len(prior), 1) for k in _KEYS}
             baseline = {**avg, "per_day": avg["up20"], "days": len(prior), "basis": "per_session"}
         per_day = round(counts["up20"] / len(covered), 1) if covered else None
-    temperature = None
-    if baseline and baseline["per_day"] and per_day is not None:
-        x = per_day / baseline["per_day"]
-        temperature = "hot" if x >= MARKET_CLIMATE_HOT_X else "cold" if x <= MARKET_CLIMATE_COLD_X else "normal"
+    heat = temperature.block(period, _heat_chain(held, today, n), now)
     themes_now, themes_prev = _themes(covered), _themes([d for d in prev_days if _counted(d)])
     names = sorted(set(themes_now) | set(themes_prev), key=lambda k: (-themes_now.get(k, 0), k))
     total, prev_total = sum(themes_now.values()), sum(themes_prev.values())
@@ -274,7 +288,7 @@ def compose(period: str, now: float) -> dict[str, Any]:
         "lens": {"board": MARKET_CLIMATE_RECORDED_BOARD, "rank_max": MARKET_CLIMATE_RANK_MAX,
                  "price_min": SCANNER_MIN_PRICE},
         "counts": counts if covered else {k: None for k in _KEYS}, "per_day": per_day, "baseline": baseline,
-        "temperature": temperature,
+        "temperature": heat["label"], "heat": heat,
         "days": [{"date": d.date, "source": d.source, "total": _count(d, "up20") if d.source else None,
                   "themes": _themes([d]) if d.source else {}} for d in chart],
         "theme": ({"name": lead, "count": themes_now[lead], "total": total,
@@ -313,11 +327,17 @@ def runners_by_theme(period: str, now: float) -> list[tuple[str, list[dict[str, 
 
 
 def today_numbers(now: float) -> dict[str, Any]:
-    """The day read's two climate checks: today's 20%+ runners against the same-minute average, gappers holding."""
+    """The day read's two climate checks (today's 20%+ runners against the same-minute average, gappers holding) and
+    its small-cap temperature words for the day, the week and the month."""
     block = compose("1D", now)
+    today = clock.trading_date(now)
+    with _lock:
+        held = dict(_days)
     return {"runners": block["counts"]["up20"], "runners_avg": (block["baseline"] or {}).get("up20"),
+            "runners_why": None if block["covered"] else "Nova recorded no Gainers board this session",
             "gappers_held": block["gappers"]["held"], "gappers_total": block["gappers"]["total"],
-            "covered": block["covered"]}
+            "covered": block["covered"],
+            "temperature": temperature.summary(_heat_chain(held, today, MARKET_PERIOD_SESSIONS["30D"]), now)}
 
 
 def reset_for_tests() -> None:

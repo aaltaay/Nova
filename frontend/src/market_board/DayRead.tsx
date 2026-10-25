@@ -1,10 +1,32 @@
-/** The day read (ADR 053): Bullish / Mixed / Bearish with the six checks that make it, and the day's events. */
+/**
+ * The day read (ADR 053): Bullish / Mixed / Bearish with the six checks that make it, and the day's events. Above it,
+ * the small-cap temperature of the day, the week and the month (ADR 053 amendment 2026-10-25) -- the climate card's
+ * labels, a separate question that never moves the verdict.
+ */
 import { useState } from 'react';
-import { DAY_READ_RULE, VERDICT_WORD } from './constants';
+import { DAY_READ_RULE, TEMP_WORD, VERDICT_WORD } from './constants';
 import { etTime, etWhen } from './format';
 import type { Check, DayRead, Events } from './types';
 
 const ICON: Record<Check['state'], string> = { green: '✓', amber: '!', red: '✗', waiting: '–', unknown: '?' };
+const SPANS = ['day', 'week', 'month'] as const;
+
+function SmallCapTemperature({ t }: { t: NonNullable<DayRead['temperature']> }) {
+  return (
+    <p className="mk-read__temp" data-testid="market-day-read-temperature"
+      title="The Small-cap climate card's temperature. Not one of the checks: it never moves the verdict.">
+      <span className="mk-muted">Small caps</span>
+      {SPANS.map((k) => {
+        const label = t[k];
+        return (
+          <span key={k} className={`mk-temp is-${label ?? 'none'}`}>
+            {label ? TEMP_WORD[label].toLowerCase() : '--'} {k}
+          </span>
+        );
+      })}
+    </p>
+  );
+}
 
 function checkTitle(c: Check): string | undefined {
   if (c.state === 'waiting' && c.starts_at) return `Starts at ${etTime(c.starts_at)} ET`;
@@ -29,6 +51,7 @@ export function DayReadCard({ read, events, now }: { read: DayRead; events: Even
         </button>
       </header>
       {rule ? <p className="mk-read__rule" role="note">{DAY_READ_RULE}</p> : null}
+      {read.temperature ? <SmallCapTemperature t={read.temperature} /> : null}
       <div className="mk-read__verdict">
         <span className={`mk-read__word is-${read.verdict ?? 'none'}`}>{word}</span>
         <span className="mk-hint">{score}</span>

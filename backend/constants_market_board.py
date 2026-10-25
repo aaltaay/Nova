@@ -163,11 +163,28 @@ MARKET_CLIMATE_GAPPER_MIN = 0.20                 # an open gap of 20%+ is a gapp
 MARKET_CLIMATE_BASELINE_DAYS_1D = 20             # 1 D: the same minute on the prior 20 covered sessions
 MARKET_CLIMATE_BASELINE_DAYS = 60                # 7 D / 30 D: the per-session average of the prior 60
 MARKET_CLIMATE_CHART_SESSIONS = 21
-MARKET_CLIMATE_HOT_X = 1.25
-MARKET_CLIMATE_COLD_X = 0.75
 MARKET_CLIMATE_TOP = 3
 MARKET_CLIMATE_HALT_SOURCE = "nasdaq_trade_halt_rss"
 MARKET_UNCLASSIFIED = "Unclassified"
+
+# -- the small-cap temperature (ADR 053 amendment 2026-10-25; market_board/temperature.py) ---------------------------
+# The climate's lens, stocks whose prior close is $2-20. Day hot / warm / cold, week good / ok / choppy / cold, month
+# hot / warm / cold: stated rules, not a model.
+MARKET_TEMP_PRICE_MIN = 2.0                      # prior close, dollars
+MARKET_TEMP_PRICE_MAX = 20.0
+MARKET_TEMP_TOP = 5                              # the biggest gainers (peak gain 20%+) whose money is weighed
+MARKET_TEMP_HOT_RUNNERS = 2                      # +100% runners a hot day needs, with more money than usual
+MARKET_TEMP_BASELINE_DAYS = 60                   # usual money: the median of this many prior recorded sessions
+MARKET_TEMP_BASELINE_MIN = 10                    # fewer recorded sessions before the day: no label
+MARKET_TEMP_HOLD_PEAK = 0.50                     # a runner that peaked at +50% or more ...
+MARKET_TEMP_HOLD_SHARE = 0.5                     # ... held when it still keeps half that gain
+MARKET_TEMP_WEEK_COLD_DAYS = 3                   # cold days that make a cold week
+MARKET_TEMP_WEEK_HOT_DAYS = 2                    # hot days a good week needs ...
+MARKET_TEMP_WEEK_GOOD_HOLD = 0.45                # ... with runners holding at least this share on average
+MARKET_TEMP_WEEK_CHOPPY_HOLD = 0.35              # runners holding under this share: a choppy week
+MARKET_TEMP_WEEK_MIN_DAYS = 3                    # labelled sessions a week label needs
+MARKET_TEMP_MONTH_SCORE = 0.15                   # (hot - cold days) / labelled days: hot at +, cold at -
+MARKET_TEMP_MONTH_MIN_DAYS = 10                  # labelled sessions a month label needs
 
 # -- events -----------------------------------------------------------------------------------------------------------
 MARKET_EVENTS_DAYS_AHEAD = 2                     # today and the next two calendar days

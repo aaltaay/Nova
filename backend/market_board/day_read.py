@@ -77,12 +77,12 @@ def small_caps(spread_pt: float | None) -> dict[str, Any]:
     return _check("small_caps", words, state, spread_pt, f"{spread_pt:+.2f} pt")
 
 
-def runners(today: int | None, average: float | None) -> dict[str, Any]:
+def runners(today: int | None, average: float | None, why: str | None = None) -> dict[str, Any]:
     label = "Small-cap runners vs normal"
     if today is None or not average:
         return _check("runners", label, "unknown", None, "--",
                       why="Nova has too few recorded sessions to compare" if today is not None else
-                      "Nova's scanner history has not been read")
+                      why or "Nova's scanner history has not been read")
     x = today / average
     state = "green" if x >= MARKET_DAY_READ_RUNNERS_X else "red" if x <= 1.0 / MARKET_DAY_READ_RUNNERS_X else "amber"
     words = "Small-cap runners above normal" if x >= 1 else "Small-cap runners below normal"

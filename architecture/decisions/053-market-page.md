@@ -228,3 +228,52 @@ Rejected:
 - **Filling only from the rebuilt `market` board** (`MARKET_CLIMATE_USE_REBUILT`). It covers only the days that were
   rebuilt into the leaderboard store, and it ran about 40% hot against the recorded board, not 13%.
 - **Mixing Massive days into the averages.** One lens running hotter would read every recorded week as cold.
+
+## Amendment 2026-10-25: is the day hot or cold, the week good or choppy, the month hot or cold
+
+The operator, 2026-10-24: "I need to know if the day is cold or hot. For the week, is it a choppy week, or is it
+good? What about the month? We need to start identifying a pattern." Then: "And how do we show it to the user? So
+it's a part of the overall decision-making." On 2026-10-25, shown the Day Read, they asked whether it answers that
+question. It does not: four of its six checks read the big market, which is a different question. They approved
+"upgrade the existing Small-cap climate card with the ... day/week/month rules, show its label at the top of the Day
+Read".
+
+The climate's `temperature` was one rule for every period: the period's 20%+ runners a session against their
+average, `hot` at 1.25x and `cold` at 0.75x. That counts how many small moves there are, not whether the leaders
+are running and money is chasing them, which is what the operator means by a hot day. So:
+
+1. **The temperature is three stated rules, one per period** (`backend/market_board/temperature.py`; thresholds
+   `MARKET_TEMP_*`). It reads the climate's lens (the recorded Gainers board's first `MARKET_CLIMATE_RANK_MAX` ranks),
+   for stocks whose prior close is $2-20. For each session, minute by minute, it counts **the runners at +100%** and
+   **the money in the top 5 gainers**: shares traded times last price for the five with the highest peak gain of 20%
+   or more. At the session's last minute it also measures **how many runners held**: of those that peaked at +50% or
+   more, the share still keeping half that gain.
+   - **Day** (1 D): `hot` with 2 or more runners at +100% and more money than usual; `cold` with no runner at +100%
+     and no more money than usual; `warm` otherwise. "Usual" is the median of the prior 60 recorded sessions at the
+     same time of day. With fewer than 10 such sessions the day has no label and the card says why.
+   - **Week** (7 D, the last 5 sessions): `cold` with 3 or more cold days; `good` with 2 or more hot days and runners
+     that held (a mean share of 45% or more); `choppy` when runners faded (under 35%); `ok` otherwise.
+   - **Month** (30 D, the last 21 sessions): (hot days minus cold days) divided by labelled days; `hot` at +15% or
+     more, `cold` at -15% or less, `warm` otherwise.
+   - Today is read so far: every number is as of now, and the usual is taken at the same minute.
+2. **The card shows the rule's inputs, not only the word.** For a day, the +100% runners and the money in the top 5
+   against the usual. For a week or a month, each session's label as a strip, the runners' hold share and the score.
+3. **The Day Read carries the three labels at its top** ("Small caps: cold day · choppy week · hot month"). The
+   labels sit apart from the Bullish / Mixed / Bearish verdict and never vote in it, because they answer a
+   different question.
+4. **A session whose recorded Gainers board holds no row is not a recorded session.** On 2026-10-23 the board was
+   `live` for 719 minutes and kept nothing, because IBKR never answered the Gainers scan reopened at 04:00. Counting
+   that day would have read it as a cold session with zero runners. Now it reads "no board", like a day Nova did not
+   record.
+5. **The 1 D "by now" baseline is taken at the session's own clock.** After the session (that evening, overnight, a
+   weekend) the minute is the close, not the wall clock's minute. On 2026-10-25 at 01:40 ET the Day Read's runners
+   check averaged the prior sessions "by 01:40", got 0, and read "--" with "too few recorded sessions".
+
+Rejected:
+
+- **Taking the counts from the Massive day movers index.** That index is another lens (every listed stock's minute
+  bars), it is not live, and the download behind it stops whenever it is paused (2026-10-16 now).
+- **True dollar volume.** The board keeps each row's cumulative shares and last price, not its traded value.
+  Shares times last price is the same estimate every day, and it is compared only with itself.
+- **Folding the big-market checks into the label.** The big market and small-cap momentum are separate questions.
+  The Day Read keeps the first as its verdict and the second as the labels.
