@@ -9,7 +9,7 @@ import { useResizableHeight } from '../hooks/useResizableHeight';
 import { useChartGridMaximize } from './useChartGridMaximize';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import { toggleIndicator } from '../chartIndicators';
-import type { RenderPaneOverlay } from '../chart';
+import { useChartFeed, type RenderPaneOverlay } from '../chart';
 import {
   CHART_DEFAULT_INDICATORS,
   CHART_GRID_PANE_INDICATORS,
@@ -143,6 +143,11 @@ export function ChartGridFrame({
     containerRef: gridRef,
   });
   const sim = useIbkrStatus().mode === 'sim';
+  const feed = useChartFeed();
+  const subtitleFor = (panel: ChartGridPanel): string | undefined => {
+    if (feed.kind === 'recorded') return feed.notes?.[panel.id as keyof NonNullable<typeof feed.notes>];
+    return sim && panel.simNote ? panel.simNote : panel.note;
+  };
   const [activeTool, setActiveTool] = useState<string | null>(null);
   const [focusedPaneId, setFocusedPaneId] = useState<string | null>(null);
   const [indicatorsByPane, setIndicatorsByPane] = useState(defaultIndicatorsByPane);
@@ -225,7 +230,7 @@ export function ChartGridFrame({
           variant="grid"
           fixedTimeframe={panel.id}
           title={panel.label}
-          subtitle={sim && panel.simNote ? panel.simNote : panel.note}
+          subtitle={subtitleFor(panel)}
           indicators={indicatorsByPane[panel.id] ?? CHART_DEFAULT_INDICATORS}
           onIndicatorToggle={paneHandlers[panel.id]?.onIndicatorToggle}
           activeTool={activeTool}

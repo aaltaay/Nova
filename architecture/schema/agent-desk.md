@@ -854,7 +854,7 @@ the feed is `{kind: "live"}` and the same hooks run. The review page does not mo
 subscribe to a quote, and has no order ticket. `nova_historical_chart`, `nova_historical_chart_gallery` and
 `nova_trade_charts` are not on this server. Marked sub-minute candle-gateway PNGs stay on `tools/nova_chart_mcp.py`.
 
-- **Feed seam.** `ChartFeed` is `{kind: "live"}` or `{kind: "recorded", symbol, date, asOfIso, source, bars, vwapBars}`.
+- **Feed seam.** `ChartFeed` is `{kind: "live"}` or `{kind: "recorded", symbol, date, asOfIso, source, bars, vwapBars, notes?}`.
   `bars` holds `10Sec`, `1Min`, `5Min`, `1Day`. `TickerChart` picks `LivePane` or `RecordedPane` as two components.
   The live pane is a dynamic import, so `/review` does not load it, the bots page chunk, or the bot allowlist.
   The recorded pane paints the given bars once, builds VWAP from `vwapBars`, and keeps drawings in memory
@@ -893,7 +893,13 @@ subscribe to a quote, and has no order ticket. `nova_historical_chart`, `nova_hi
   is the link origin. When it is unset, links use the engine's own origin, because that process serves `/review`.
   `--review-http` / `NOVA_REVIEW_HTTP=1` starts the engine at process start. `--no-review-http` does not listen.
 - **Data.** `GET /api/review` answer: `{ok, schema_version: 1, symbol, date, as_of, as_of_iso, source, lookahead: false,
-  vwap_anchor: "04:00", timeframes: {1m|5m|10s|1d: {bars: [{t, o, h, l, c, v}]}}, levels, setups, vwap}`. Intraday `t`
+  vwap_anchor: "04:00", timeframes: {1m|5m|10s|1d: {bars: [{t, o, h, l, c, v}], source?}}, levels, setups, vwap}`.
+  `source` names where a frame's bars came from: the front door's are `massive-trades` (10s, built from Massive's
+  consolidated trades by `reads.bars`), `massive-minutes` (1m, 5m) and `massive-daily` (1d; the session's own candle
+  is summed from its minutes). A reader that names no source (a test, any other reader) sends none (additive;
+  `schema_version` stays 1). Each pane's subtitle is that source (`10s · Massive tape -- built from the consolidated
+  trades`; the fixture's is `Sample -- not a recorded day`), through the recorded feed's `notes`; a pane with no
+  source says none. The live desk's pane notes (IBKR history, the live tape) never show on a recorded feed. Intraday `t`
   is an ISO instant with an Eastern offset. Daily `t` is `YYYY-MM-DD`. Volume-only buckets and a daily row with
   non-finite OHLC are dropped, so the JSON has no `NaN` (`allow_nan` false). A bad query is HTTP 400 `{ok: false, error}`.
   An unknown path is 404. A reader failure is 500. Success is 200. The engine passes the front-door bar readers

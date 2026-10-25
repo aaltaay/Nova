@@ -543,7 +543,8 @@ export const CHART_GRID_PANELS: ChartGridPanel[] = [
   { id: '1Day', label: 'Full Day' },
   { id: '1Min', label: '1-Minute' },
 ];
-/** The 10-second pane -- IBKR 10s, top-right, always shown (operator, 2026-10-15: no hide switch). */
+/** The 10-second pane, top-right, always shown (operator, 2026-10-15: no hide switch). `note` is the live desk's
+ * (IBKR history + live tape); a recorded feed (/review) labels its panes from its own sources instead. */
 export const CHART_GRID_10SEC_PANEL: ChartGridPanel = {
   id: '10Sec',
   label: '10-Second',

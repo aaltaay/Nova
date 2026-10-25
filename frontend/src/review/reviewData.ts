@@ -24,10 +24,11 @@ export function cutPayload(payload: ReviewPayload): ReviewPayload {
   for (const tf of Object.keys(timeframes) as ReviewTf[]) {
     const frame = timeframes[tf];
     if (!frame) continue;
-    timeframes[tf] = { bars: cutBars(frame.bars, tf, payload.as_of_iso) };
+    timeframes[tf] = { ...frame, bars: cutBars(frame.bars, tf, payload.as_of_iso) };
   }
   if (timeframes['1d']) {
     timeframes['1d'] = {
+      ...timeframes['1d'],
       bars: dailyAtCutoff(payload.date, timeframes['1d'].bars, timeframes['1m']?.bars ?? [], payload.as_of_iso),
     };
   }

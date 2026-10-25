@@ -44,6 +44,20 @@ def front_door_daily(symbol: str, date_from: str, date_to: str) -> list[dict[str
     return _records(daily.daily_bars(symbol, date_from, date_to))
 
 
+# Where the front door's bars come from. The page labels each pane with it. A reader without these attributes
+# (a test, any other source) names no source, and the page then claims none.
+front_door_bars.sources = {  # type: ignore[attr-defined]
+    "10s": "massive-trades",     # reads.bars seconds: built from Massive's consolidated trades, never IBKR
+    "1m": "massive-minutes",     # Massive's minute file
+    "5m": "massive-minutes",     # the same minutes, summed
+}
+front_door_daily.source = "massive-daily"  # type: ignore[attr-defined]
+
+
+def _frame(bars: list[dict[str, Any]], source: str | None) -> dict[str, Any]:
+    return {"bars": bars, **({"source": source} if source else {})}
+
+
 def load_review(symbol: str, day: str, tfs: list[str] | str | None, as_of: str | None = None, *,
                 bars_reader: BarsReader = front_door_bars, daily_reader: DailyReader = front_door_daily) -> dict[str, Any]:
     """Bars, levels and setups the page may paint at ``as_of``. Nothing after that time."""
@@ -54,16 +68,18 @@ def load_review(symbol: str, day: str, tfs: list[str] | str | None, as_of: str |
     moment = causal.as_of_dt(session, clock)
     minutes = causal.closed_bars(list(bars_reader(name, session, "1m")), "1m", moment)
     dailies = list(daily_reader(name, causal.lookback_start(session), session))
-    timeframes: dict[str, Any] = {"1m": {"bars": causal.wire_bars(minutes, "1m")}}
+    sources: dict[str, str] = getattr(bars_reader, "sources", {})
+    timeframes: dict[str, Any] = {"1m": _frame(causal.wire_bars(minutes, "1m"), sources.get("1m"))}
     fives: list[dict[str, Any]] = []
     if "5m" in frames:
         fives = causal.closed_bars(list(bars_reader(name, session, "5m")), "5m", moment)
-        timeframes["5m"] = {"bars": causal.wire_bars(fives, "5m")}
+        timeframes["5m"] = _frame(causal.wire_bars(fives, "5m"), sources.get("5m"))
     if "10s" in frames:
         tens = causal.closed_bars(list(bars_reader(name, session, "10s")), "10s", moment)
-        timeframes["10s"] = {"bars": causal.wire_bars(tens, "10s")}
+        timeframes["10s"] = _frame(causal.wire_bars(tens, "10s"), sources.get("10s"))
     if "1d" in frames:
-        timeframes["1d"] = {"bars": causal.daily_series(dailies, minutes, session)}
+        # The session's own candle is summed from its minutes (causal.daily_series); earlier days are the daily rows.
+        timeframes["1d"] = _frame(causal.daily_series(dailies, minutes, session), getattr(daily_reader, "source", None))
     return {
         "ok": True,
         "schema_version": 1,

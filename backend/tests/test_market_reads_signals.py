@@ -283,6 +283,58 @@ def test_manifest_writers_never_drop_each_others_days(tmp_path, monkeypatch):
     assert not (tmp_path / "signals" / "manifest.lock").exists()
 
 
+def test_a_windows_pending_delete_lock_is_waited_for_not_raised(tmp_path, monkeypatch):
+    """#1221: on Windows, creating a lock file that is still pending delete (or replacing / deleting a file another
+    handle holds) is PermissionError. It killed a writer thread under load and lost its remaining days."""
+    monkeypatch.setenv("NOVA_SIGNALS_DIR", str(tmp_path / "signals"))
+    real_open, real_replace, real_unlink = ss.os.open, ss.os.replace, Path.unlink
+    refusals = {"open": 2, "replace": 2, "unlink": 2}
+
+    def refuse(kind, real):
+        def call(*args, **kwargs):
+            if refusals[kind]:
+                refusals[kind] -= 1
+                raise PermissionError(13, "Access is denied")
+            return real(*args, **kwargs)
+        return call
+
+    monkeypatch.setattr(ss.os, "open", refuse("open", real_open))
+    monkeypatch.setattr(ss.os, "replace", refuse("replace", real_replace))
+    monkeypatch.setattr(Path, "unlink", refuse("unlink", real_unlink))
+    ss.update_manifest(lambda data: data["days"].__setitem__("2026-01-02", {}))
+    assert refusals == {"open": 0, "replace": 0, "unlink": 0}
+    assert "2026-01-02" in ss.load_manifest()["days"]
+    assert not (tmp_path / "signals" / "manifest.lock").exists()
+
+
+def test_a_lasting_refusal_still_raises(tmp_path, monkeypatch):
+    monkeypatch.setenv("NOVA_SIGNALS_DIR", str(tmp_path / "signals"))
+    monkeypatch.setattr(ss, "SHARING_RETRY_SEC", 0.05)
+
+    def never(*_a, **_k):
+        raise PermissionError(13, "Access is denied")
+    monkeypatch.setattr(ss.os, "replace", never)
+    with pytest.raises(PermissionError):
+        ss.update_manifest(lambda data: None)
+    assert not (tmp_path / "signals" / "manifest.lock").exists()
+
+
+def test_a_folder_that_refuses_the_lock_times_out_instead_of_spinning(tmp_path, monkeypatch):
+    """A create refused with no lock file on disk (a folder that denies creating files) is not a held lock that just
+    went away: it waits with the deadline and backoff, then times out, rather than retrying at full speed forever."""
+    monkeypatch.setenv("NOVA_SIGNALS_DIR", str(tmp_path / "signals"))
+    monkeypatch.setattr(ss, "LOCK_WAIT_SEC", 0.2)
+    attempts = {"n": 0}
+
+    def denied(*_a, **_k):
+        attempts["n"] += 1
+        raise PermissionError(13, "Access is denied")
+    monkeypatch.setattr(ss.os, "open", denied)
+    with pytest.raises(TimeoutError):
+        ss.update_manifest(lambda data: None)
+    assert attempts["n"] < 20
+
+
 def test_catalyst_category_and_reason_confidence_are_signals(table):
     rows = _minutes(table)
     for column in ("catalyst_category", "catalyst_strength", "why_confidence"):
