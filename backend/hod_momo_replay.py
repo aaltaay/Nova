@@ -340,7 +340,7 @@ def replay_session(
                 sym,
                 price,
                 ts,
-                volume=int(cum_volume[sym]),
+                volume=round(cum_volume[sym]),   # whole shares, rounded: sizes can be fractional (#1219)
                 day_high=running_high[sym],
             )
             ticks[sym] += 1

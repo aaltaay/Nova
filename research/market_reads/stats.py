@@ -49,7 +49,9 @@ RULES = {
     "rvol_by_minute": "cumulative volume from 04:00 (premarket included) of bars starting before the minute, over "
                       "the mean of the same on the prior rvol_days sessions the symbol traded",
     "rvol_open5": "research/orb build_store's opening rvol: 09:30-09:35 volume over the prior sessions' mean",
-    "rvol_daily": "the day bar's volume over the mean day-bar volume of the prior rvol_days sessions",
+    "rvol_daily": "the day bar's volume over the mean day-bar volume of the prior rvol_days sessions (day bars are "
+                  "the tape's from 2024-02-21 and lower before, so this reads high for ~20 sessions after; rvol_scan's "
+                  "rvol_daily divides minute sums instead, so the two differ)",
     "raw": "every price raw, as traded: never split-adjusted",
 }
 UNITS = {"prices": "dollars, raw", "volume": "shares (minute bars: Massive's own minute rule, no closing cross at "

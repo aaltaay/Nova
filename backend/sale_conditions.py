@@ -45,3 +45,15 @@ def tape_flags(row: Mapping[str, Any]) -> dict[str, bool]:
     replayed odd lot reads the same as a live one (#543).
     """
     return {"unreported": bool(row.get("unreported")), "sets_price": row_sets_price(row)}
+
+
+def print_size(value: Any) -> int | float | None:
+    """A print's size on the wire: whole shares as an int, a fractional size kept as it is (#1219).
+
+    Massive writes fractional trade sizes on 2026 days (fractional-share executions reported to the tape);
+    ``int()`` turned a 0.4-share print into a 0-share one. None stays None.
+    """
+    if value is None:
+        return None
+    size = float(value)
+    return int(size) if size.is_integer() else size

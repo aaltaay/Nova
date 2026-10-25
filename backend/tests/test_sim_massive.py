@@ -196,6 +196,25 @@ def test_an_import_of_a_window_keeps_the_whole_stock_day(root):
     assert massive_store.find(massive_import.spec(window)) is None                     # no import of the window itself
 
 
+def test_an_import_stored_before_the_repeat_fix_replays_without_the_repeat_records(root):
+    """#1219: imports written before #1220 kept the official open / close repeats (15 / 16 / 38); a read drops them,
+    so an old import replays (and feeds the eyes' history recordings) as live, without a re-import."""
+    spec = massive_import.spec(_window())
+    job = massive_store.save(dict(massive_store.new_job(spec), status="complete"))
+
+    def row(seq, hms, conditions, size):
+        return dict(ts=_sec(hms), ns=_ns(hms), symbol="IMCC", price=10.0, size=size, exchange="NASDAQ",
+                    exchange_id=12, conditions=conditions, correction=0, trf_id=0, sequence=seq, tape=3,
+                    sets_price=conditions == "", unreported=False)
+
+    massive_store.replace_window(job["id"], [row(1, "09:30:00", "", 29248.0), row(2, "09:30:00", "15", 29248.0),
+                                             row(3, "09:30:01", "", 0.4)], [], [])
+    prints = massive_store.read_prints(job["id"], "IMCC")
+    assert [(p["sequence"], p["size"]) for p in prints] == [(1, 29248.0), (3, 0.4)]
+    assert [p["sequence"] for p in massive_store.read_prints(job["id"], "IMCC",
+                                                             between=(_sec("09:30:00"), _sec("09:30:01")))] == [1]
+
+
 def _reads(monkeypatch) -> dict[str, int]:
     """How many times each day file is streamed."""
     real, seen = massive_files.DayRead.rows, {}
