@@ -4,6 +4,7 @@
   --mk-up: var(--nova-bid, #30d158);
   --mk-down: var(--nova-ask, #ff453a);
   --mk-warn: #ff9f0a;
+  --mk-warm: #ffd60a;
   --mk-line: color-mix(in srgb, var(--nova-border) 60%, transparent);
 }
 .mk-page {
@@ -63,6 +64,18 @@
 .mk-pill.is-premarket, .mk-pill.is-after_hours { color: var(--mk-warn); border-color: color-mix(in srgb, var(--mk-warn) 45%, transparent); }
 .mk-pill.is-hot { color: var(--mk-warn); background: color-mix(in srgb, var(--mk-warn) 18%, transparent); border-color: transparent; }
 .mk-pill.is-cold { color: var(--nova-accent); background: color-mix(in srgb, var(--nova-accent) 15%, transparent); border-color: transparent; }
+/* The small-cap temperature (ADR 053 amendment 2026-10-25): hot orange, warm yellow, cold blue; a good week green,
+   a choppy one red, an ok one plain. The same colours on the pill, the Day Read line and the session strip. */
+.mk-pill.is-warm { color: var(--mk-warm); background: color-mix(in srgb, var(--mk-warm) 15%, transparent); border-color: transparent; }
+.mk-pill.is-good { color: var(--mk-up); background: color-mix(in srgb, var(--mk-up) 15%, transparent); border-color: transparent; }
+.mk-pill.is-choppy { color: var(--mk-down); background: color-mix(in srgb, var(--mk-down) 15%, transparent); border-color: transparent; }
+.mk-temp { font-weight: 700; color: var(--nova-text-muted); }
+.mk-temp.is-hot { color: var(--mk-warn); }
+.mk-temp.is-warm { color: var(--mk-warm); }
+.mk-temp.is-cold { color: var(--nova-accent); }
+.mk-temp.is-good { color: var(--mk-up); }
+.mk-temp.is-choppy { color: var(--mk-down); }
+.mk-temp.is-ok { color: var(--nova-text); }
 .mk-sources { margin-left: auto; display: flex; gap: 10px; align-self: center; font-size: 10.5px; color: var(--nova-text-muted); }
 .mk-sources__dot::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 4px; background: var(--nova-text-muted); vertical-align: 1px; }
 .mk-sources__dot.is-ok::before { background: var(--mk-up); }
@@ -311,6 +324,24 @@
 .mk-themes--empty { color: var(--nova-text-muted); font-size: 11px; align-items: center; }
 .mk-legend { display: flex; flex-wrap: wrap; gap: 3px 11px; font-size: 10.5px; color: var(--nova-text-muted); }
 .mk-legend b { color: var(--nova-text); }
+.mk-heat { margin: 2px 0 8px; display: flex; flex-direction: column; gap: 5px; }
+.mk-heat__head { display: flex; align-items: baseline; gap: 8px; }
+.mk-heat__rule { margin: 0; font-size: 11px; color: var(--nova-text-muted); line-height: 1.45; }
+.mk-heat__nums { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.mk-heat__nums .mk-v { font-size: 18px; white-space: nowrap; }
+.mk-heat__days { display: flex; gap: 3px; }
+.mk-heat__days i { flex: 1 1 0; height: 10px; border-radius: 3px; background: var(--nova-raised); max-width: 40px; }
+.mk-heat__days i.is-hot { background: var(--mk-warn); }
+.mk-heat__days i.is-warm { background: var(--mk-warm); }
+.mk-heat__days i.is-cold { background: var(--nova-accent); }
+.mk-heat__days i.is-none { background: repeating-linear-gradient(45deg, var(--nova-raised) 0 3px, transparent 3px 6px); }
+.mk-heat__key { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--nova-text-muted); }
+.mk-heat__key i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+.mk-heat__key i.is-hot { background: var(--mk-warn); }
+.mk-heat__key i.is-warm { background: var(--mk-warm); }
+.mk-heat__key i.is-cold { background: var(--nova-accent); }
+.mk-heat__key i.is-none { background: repeating-linear-gradient(45deg, var(--nova-border-strong) 0 2px, transparent 2px 4px); }
+.mk-read__temp { margin: -2px 0 8px; display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; }
 .mk-climate__mid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
 .mk-climate__mid .mk-v { font-size: 18px; white-space: nowrap; }
 .mk-toprun {

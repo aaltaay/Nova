@@ -23,6 +23,12 @@ export interface Check {
   why: string | null;
 }
 
+/** The small-cap temperature (ADR 053 amendment 2026-10-25): a day or a month is hot / warm / cold, a week good /
+ * ok / choppy / cold. */
+export type DayTemp = 'hot' | 'warm' | 'cold';
+export type WeekTemp = 'good' | 'ok' | 'choppy' | 'cold';
+export type TempLabel = DayTemp | WeekTemp;
+
 export interface DayRead {
   verdict: 'bullish' | 'mixed' | 'bearish' | null;
   green: number;
@@ -30,6 +36,9 @@ export interface DayRead {
   known: number;
   total: number;
   checks: Check[];
+  /** Today, the last 5 and the last 21 sessions; never part of the verdict. Absent on an API from before
+   * 2026-10-25, `null` until the climate has answered. */
+  temperature?: { day: DayTemp | null; week: WeekTemp | null; month: DayTemp | null } | null;
 }
 
 export interface MarketEvent {
@@ -111,6 +120,34 @@ export interface ClimateCounts {
   up100: number | null;
 }
 
+/** One session's temperature inputs; `null` numbers with no board, or no recording near the time read. */
+export interface HeatDay {
+  date: string;
+  /** Nova holds a Gainers board in the lens that session. */
+  board: boolean;
+  label: DayTemp | null;
+  runners_100: number | null;
+  /** Shares x last price of the five biggest gainers ($2-20 prior close), dollars. */
+  money: number | null;
+  usual_money: number | null;
+  usual_days: number;
+  hold_pct: number | null;
+}
+
+export interface Heat {
+  label: TempLabel | null;
+  why: string | null;
+  price_min: number;
+  price_max: number;
+  days: HeatDay[];
+  hot: number;
+  warm: number;
+  cold: number;
+  labelled: number;
+  hold_pct: number | null;
+  score_pct: number | null;
+}
+
 export interface Climate {
   period: Period;
   from: string;
@@ -121,7 +158,9 @@ export interface Climate {
   counts: ClimateCounts;
   per_day: number | null;
   baseline: (ClimateCounts & { per_day: number; days: number; basis: 'same_minute' | 'per_session' }) | null;
-  temperature: 'hot' | 'normal' | 'cold' | null;
+  temperature: TempLabel | null;
+  /** The temperature's inputs; absent on an API from before 2026-10-25. */
+  heat?: Heat | null;
   days: { date: string; source: string | null; total: number | null; themes: Record<string, number> }[];
   theme: { name: string; count: number; total: number; share_pct: number | null; prev_share_pct: number | null } | null;
   themes: { name: string; count: number; prev_count: number }[];

@@ -44,6 +44,7 @@ from constants_market_board import (
     MARKET_QUOTES_TTL_SEC,
     MARKET_SECTORS,
     MARKET_SHED_RETRY_SEC,
+    MARKET_TEMP_BASELINE_DAYS,
 )
 from market_board import climate, clock, events, holdings, ibkr_reads, industries
 from market_board.state import Stated, store
@@ -53,7 +54,8 @@ SECTOR_ETFS = tuple(e for _, e in MARKET_SECTORS)
 INDUSTRY_ETFS = tuple(e for _, e, _ in MARKET_INDUSTRIES)
 FILE_ETFS = SECTOR_ETFS + tuple(e for _, e, has in MARKET_INDUSTRIES if has)
 QUOTE_SPECS = tuple(s for s in MARKET_QUOTES if s["sec_type"] != "SPREAD")
-CLIMATE_SESSIONS = MARKET_PERIOD_SESSIONS["30D"] + max(MARKET_CLIMATE_BASELINE_DAYS, MARKET_CLIMATE_CHART_SESSIONS)
+CLIMATE_SESSIONS = MARKET_PERIOD_SESSIONS["30D"] + max(MARKET_CLIMATE_BASELINE_DAYS, MARKET_CLIMATE_CHART_SESSIONS,
+                                                       MARKET_TEMP_BASELINE_DAYS)
 
 
 @dataclass(frozen=True)

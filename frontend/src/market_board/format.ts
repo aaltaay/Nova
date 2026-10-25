@@ -38,6 +38,15 @@ export function shares(v: number | null | undefined): string {
   return String(Math.round(v));
 }
 
+/** Dollars in a few characters: "$1.2B" / "$412M" / "$85K". */
+export function money(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return DASH;
+  if (v >= 1e9) return `$${(v / 1e9).toFixed(1)}B`;
+  if (v >= 1e6) return `$${Math.round(v / 1e6)}M`;
+  if (v >= 1e3) return `$${Math.round(v / 1e3)}K`;
+  return `$${Math.round(v)}`;
+}
+
 /** "09:41" on the ET clock. */
 export function etTime(ts: number | null | undefined): string {
   if (ts == null) return DASH;

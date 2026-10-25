@@ -328,6 +328,17 @@ and `.claude/skills/nova-sim-navigator/`. Nothing here places, stages or cancels
   - `GET /api/agent/desk` -> `{schema_version: 1, venue, live_edge, sim: {session_date, playhead_et, paused,
     loaded: {source, symbol, date, start, end} | null} | null, focus: {page, symbol, window_id} | null,
     listening, at_stake}`.
+  - `GET /api/agent/market-temperature?day=YYYY-MM-DD` (ADR 053 amendment 2026-10-25; operator: "we need an
+    endpoint for agents and AI to know at any time the output of this feature") -> `{schema_version: 1, day, as_of,
+    final, labels: {day: "hot" | "warm" | "cold" | null, week: "good" | "ok" | "choppy" | "cold" | null, month:
+    "hot" | "warm" | "cold" | null}, day_detail, week, month, rules: string[]}` -- the Market page's small-cap
+    temperature for `day` (default: the current session, so far). `day_detail` / `week` / `month` are the Market
+    wire's `climate.heat` (`market-board.md`) for 1 D / 7 D / 30 D ending at `day`, with the same rules and the same
+    history window, so an agent reads exactly what the page shows; `as_of` is when it was read (now, or that
+    session's close) and `final` is true once the session closed. It reads the leaderboard store whether or not the
+    Market page has run: a session Nova does not hold yet is read on the call, today again each call. A day that is
+    not an exchange session answers for the session before it (`day` says which). Refusals: `AGENT_INVALID` 400 (not
+    `YYYY-MM-DD`, or after today), `AGENT_LEADERBOARD_UNAVAILABLE` 503 (no leaderboard store). Read-only.
   - `GET /api/agent/dictionary` -> `{schema_version: 1, error, entries[]}`; `POST /api/agent/dictionary {entry}`
     adds or replaces an operator entry by `id`; `DELETE /api/agent/dictionary/{id}`.
   - The desk's side (keyed, the long poll too): `GET /api/agent/desk/next?wait=&window_id=` (the main window's

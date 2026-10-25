@@ -12,6 +12,7 @@ Usage (from the repo root):
     py -3 tools/nova_agent.py show MSGY 2026-09-25 [--at run|high|09:45] [--confirm]
     py -3 tools/nova_agent.py move --to high | --by -5 | --pause | --play
     py -3 tools/nova_agent.py desk                                     # what the desk shows now
+    py -3 tools/nova_agent.py temperature [--day 2026-10-22]           # small caps: hot / cold day, week, month
     py -3 tools/nova_agent.py dict [list|match WORDS|add FILE.json|remove ID]
     py -3 tools/nova_agent.py cmd ID [--wait 20]
     add --json to any command for the raw answer.
@@ -113,6 +114,26 @@ def _fmt_num(value: Any) -> str:
     return f"{value:g}"
 
 
+def print_temperature(answer: dict) -> None:
+    labels = answer["labels"]
+    print(f"small caps {answer['day']}{'' if answer['final'] else ' (so far)'}: "
+          f"{labels['day'] or '--'} day · {labels['week'] or '--'} week · {labels['month'] or '--'} month")
+    d = answer["day_detail"]["days"][-1]
+    if answer["day_detail"]["why"]:
+        print("day:", answer["day_detail"]["why"])
+    else:
+        usual = f"${d['usual_money'] / 1e6:,.0f}M" if d["usual_money"] is not None else "--"
+        print(f"day: {d['runners_100']} up 100%+ ($2-20) · top 5 ${d['money'] / 1e6:,.0f}M vs usual {usual} "
+              f"({d['usual_days']} sessions)")
+    for name in ("week", "month"):
+        b = answer[name]
+        strip = " ".join((x["label"] or "-")[0] for x in b["days"])
+        extra = f" · score {b['score_pct']:+.0f}%" if b["score_pct"] is not None else ""
+        held = f" · runners held {b['hold_pct']:.0f}%" if b["hold_pct"] is not None else ""
+        print(f"{name}: {b['label'] or '--'} [{strip}] {b['hot']} hot / {b['warm']} warm / {b['cold']} cold"
+              f"{held}{extra}{' · ' + b['why'] if b['why'] else ''}")
+
+
 def print_movers(answer: dict) -> None:
     rows = answer.get("rows") or []
     print(f"{answer.get('count')} matched (showing {len(rows)})  query: {answer.get('query')}")
@@ -178,6 +199,8 @@ def main(argv: list[str] | None = None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("status")
     sub.add_parser("desk")
+    temp = sub.add_parser("temperature")
+    temp.add_argument("--day", help="YYYY-MM-DD (default: the current session, so far)")
     find = sub.add_parser("find")
     for name in ("high-min", "high-max", "low-max", "close-min", "close-max", "gap-min", "price-min", "price-max",
                  "float-max"):
@@ -231,6 +254,10 @@ def main(argv: list[str] | None = None) -> int:
                     print("rule:", rule)
         elif args.cmd == "desk":
             out(call("GET", "/api/agent/desk"))
+        elif args.cmd == "temperature":
+            answer = call("GET", "/api/agent/market-temperature", params={"day": args.day} if args.day else None,
+                          timeout=120)
+            out(answer) if args.json else print_temperature(answer)
         elif args.cmd == "find":
             answer = call("GET", "/api/agent/movers", params={k.replace("-", "_"): v for k, v in
                                                                _movers_params(args).items()}, timeout=120)
