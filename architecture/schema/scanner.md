@@ -886,3 +886,51 @@ name/exchange/class and a split on or before the day stay. "Why it's moving"
 already reads `not_read` there (`stock-read.md`); News is the replayed day's
 (`catalysts.md`).
 
+## The Top 9 pop-up (operator ask, 2026-10-26)
+
+"add a pop-up with a 3x3 grid. It shows the top 9 for the gappers, for the gainers, and for the after-hours"; "when
+we double-click, it opens in the trader. Just figure out that there's a single source of truth." Owner
+`frontend/src/top_nine/` (approved mockup v1, `F:/Nova/design/top9-grid`). Display only: it places, sizes and
+grants nothing.
+
+**One owner of the lists, one owner of the Trader.** The pop-up is its own window (`?view=top9`; desktop: one
+BrowserWindow, `electron/topNineWindow.mjs`, a second open focuses it; browser: the named popup `nova-top-nine`). It
+opens no scanner socket and holds no Trader tabs:
+
+- **Boards, desk -> pop-up.** The main desk window (`TopNinePublisher`, never a Trader pop-out float or the sample
+  desk) reads its own scanner feed and publishes on the deskSharedPoll share `top-nine`
+  (`nova.desk.poll.snap.top-nine` + BroadcastChannel `nova-desk-poll-top-nine`), only while a pop-up beats
+  `nova.topNine.viewer` (ms epoch, every 2 s, stale after 6 s), checked every 1 s, sent on change and at least every
+  4 s. Payload, `schema_version` 1:
+  `{schema_version, source, asOf, lists: {gappers|gainers|afterhours: {rows: [{symbol, rank, changePct, price,
+  volume, float, halted}], total}}}`. `asOf` is the board's minute (epoch seconds): the Sim playhead board's own
+  minute, or now's minute live (so an unchanged board is not re-sent every second); every tile's chart ends there. `rows` are the first nine rows as the scanner serves them; `rank` is row index + 1, the
+  same rule as the Trader's rank chip (`stock_view/quoteRank.ts`, `scannerListRows`); `total` is the whole list.
+  `changePct` is the list's Change column (percent points). Unknown values are `null`, never a placeholder.
+  `source` is `{kind: "live"}`, `{kind: "replay", label}` (the Sim playhead's board, labelled by `replayLabel`) or
+  `{kind: "unknown", why}` with every list empty when the desk cannot rank (`rankUnknownWhy`: a saved board, a gap,
+  loading or a failure at the playhead). The pop-up refuses another `schema_version` or a broken row, and never
+  shows an envelope older than 10 s (a closed desk's leftover): it says it is waiting for the desk.
+- **Open, pop-up -> desk.** A double-click publishes `open-request` on the Trader desk bus (ADR 011 amendment
+  2026-10-26) `{symbol, sourceWindowId, requestId, targetWindowId?: last host, from: list}`. The host claims it
+  (`claimDockTarget`), runs `openStockView(symbol, {from})` -- the preview-tab rule and `TRADER_MAX_LIVE_TABS` apply
+  unchanged, and the Focus rail follows the list -- raises itself (desktop IPC `nova:focusWindow`), and answers
+  `opened` with the same `requestId`. No answer in 600 ms: the pop-up says no desk window answered.
+
+**Rank marks.** Each list's board is compared with the last one the pop-up saw: a stock whose rank changed is marked
+up / down / new to the top nine (the first board marks nothing; a change of `source.kind` starts over). A mark is
+full for 30 s (coloured border, filled rank box, `3 → 2` pill, a countdown bar) then a soft tint on the rank box to
+2.5 min. Each switch (moves and the names that left) goes to the bottom "Switches" line, newest first, 30 kept per
+list. One short tick plays for a switch on the list on screen (switch `nova.topNine.sound`, prefStore, default on;
+the header mute silences it). Tiles slide to their new place (0.5 s).
+
+**Charts.** Each tile draws the last 90 one-minute candles of `GET /api/ticker/{symbol}/bars?timeframe=1Min&limit=1000`
+through the shared bars store, asked again every `CHART_REFETCH_SEC["1Min"]` (store-first on the backend, ADR 012 --
+the history budget and its priorities are the backend's), with the desk's session VWAP (`sessionVwapPoints`, 04:00 ET
+anchor) and a last-price tag at the board's `price`. A minute with no trade stays a hole. No Level 1, Level 2 or tape
+line is opened for a tile.
+
+**Prefs (prefStore, `schema_version` 1).** `nova.topNine.list` (`gappers` | `gainers` | `afterhours`): the list on
+screen; a grid button on the rail writes it before opening, and an open pop-up follows it (`storage` event), so a
+second button switches the tab without reloading the window. Keep-on-top is the desktop app's (`nova:keepOnTop`, the
+asking window only); a browser shows it locked with its reason.

@@ -6,7 +6,15 @@ export { TickerChart } from './TickerChart';
 export { useChartInstance } from './useChartInstance';
 export { useChartSessionHighlight } from './useChartSessionHighlight';
 export { useEphemeralDrawings } from './useEphemeralDrawings';
-export { parseBarsCoverage, setBars, upsertTapePrint10SecBar } from './barsStore';
+export {
+  ensureBars,
+  getBarsEntry,
+  parseBarsCoverage,
+  setBars,
+  subscribeBars,
+  upsertTapePrint10SecBar,
+} from './barsStore';
+export { sessionVwapPoints, type VwapPoint } from './vwapSession';
 export { sessionKindFromEtMinutes, type MarketSessionKind } from './sessionHighlight';
 export type { ChartPaneOverlayProps, ChartTradeUpdate, RenderPaneOverlay } from './types';
 export { buildSeriesTimeIndex, nearestSeriesTime, toCanonicalTime } from './chartDrawingTime';

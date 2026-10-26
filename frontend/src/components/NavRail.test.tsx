@@ -285,6 +285,25 @@ describe('NavRail', () => {
     expect(onOpenTrader).not.toHaveBeenCalled();
   });
 
+  it('puts the Top 9 grid button on Gappers, Gainers and After Hours only; it opens the pop-up on that list', async () => {
+    const popup = { location: { search: '', href: '' }, focus: vi.fn() };
+    const open = vi.fn(() => popup);
+    vi.stubGlobal('open', open);
+    render();
+    const buttons = Array.from(container.querySelectorAll('[data-testid^="nav-rail-top-nine-"]'))
+      .map((el) => el.getAttribute('data-testid'));
+    expect(buttons).toEqual(['nav-rail-top-nine-gappers', 'nav-rail-top-nine-gainers', 'nav-rail-top-nine-afterhours']);
+    await act(async () => {
+      (q('nav-rail-top-nine-afterhours') as HTMLButtonElement).click();
+    });
+    expect(open).toHaveBeenCalledWith('', 'nova-top-nine', expect.stringContaining('popup=yes'));
+    expect(popup.location.href).toContain('view=top9');
+    expect(JSON.parse(localStorage.getItem('nova.topNine.list') ?? '{}').value).toBe('afterhours');
+    // The button is its own control: the list row under it was not chosen.
+    expect(consumeScannerTabRequest()).toBeNull();
+    vi.unstubAllGlobals();
+  });
+
   it('routes a Scanner child through the tab latch and leaves Trader first', () => {
     const seen: string[] = [];
     const onEvent = (e: Event) => seen.push((e as CustomEvent<{ tab: string }>).detail.tab);

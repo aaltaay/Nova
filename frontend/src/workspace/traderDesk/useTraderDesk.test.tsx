@@ -4,6 +4,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { requestOpenOnDesk } from './openRequest';
 import { TRADER_DESK_STORAGE_KEY } from './protocol';
 import { useTraderDesk } from './useTraderDesk';
 
@@ -121,5 +122,39 @@ describe('useTraderDesk', () => {
     expect(gave).toHaveBeenCalledWith('IPST');
     expect(hostDesk).toBeTruthy();
     expect(localStorage.getItem(TRADER_DESK_STORAGE_KEY)).toMatch(/dock-request|tab-docked/);
+  });
+
+  it('opens a symbol in the host for a window that is not a desk (the Top 9 pop-up)', async () => {
+    localStorage.clear();
+    const hostOpened = vi.fn(() => true);
+    const floatOpened = vi.fn(() => true);
+    await act(async () => {
+      hostRoot.render(
+        <Probe windowId="host-1" role="host" onDockRequest={() => false} onOpenRequest={hostOpened}
+          onGaveTab={vi.fn()} onReady={() => {}} />,
+      );
+      floatRoot.render(
+        <Probe windowId="float-1" role="float" onDockRequest={() => false} onOpenRequest={floatOpened}
+          onGaveTab={vi.fn()} onReady={() => {}} />,
+      );
+    });
+    let ok: boolean | null = null;
+    await act(async () => {
+      ok = await requestOpenOnDesk('ztg', { from: 'gainers', waitMs: 300 });
+    });
+    expect(ok).toBe(true);
+    expect(hostOpened).toHaveBeenCalledTimes(1);
+    expect(hostOpened.mock.calls[0]).toEqual(['ZTG', expect.any(String), 'gainers']);
+    // A float never opens tabs for another window: only the host takes the request.
+    expect(floatOpened).not.toHaveBeenCalled();
+  });
+
+  it('says no desk answered when there is no host window', async () => {
+    localStorage.clear();
+    let ok: boolean | null = null;
+    await act(async () => {
+      ok = await requestOpenOnDesk('ZTG', { from: 'gainers', waitMs: 50 });
+    });
+    expect(ok).toBe(false);
   });
 });

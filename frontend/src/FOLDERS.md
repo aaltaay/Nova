@@ -83,6 +83,7 @@ the backend packages.
 | `table_sort/` | shared | Click-to-sort table headers for every table: the one sort rule (text A to Z first, numbers highest first, flip, then the table's own order; missing values last), the `useTableSort` hook that remembers each table's sort, and the `SortTh` header cell. |
 | `testSetup/` | shared | Vitest setup: the guard that keeps tests off the live backend, and the React `act()` flag. |
 | `theme/` | shared | Light / dark theme prefs and the `useTheme` hook that sets `data-theme` on `<html>`. |
+| `top_nine/` | feature | The Top 9 pop-up: a 3x3 grid of compact 1-minute charts for the first nine Gappers, Gainers or After Hours rows, marked when a stock changes rank; fed by the desk window's scanner feed, and a double-click opens in the desk's Trader (ADR 011 amendment 2026-10-26). |
 | `types/` | shared | Shared wire types: ticker, scanner, market, earnings, health, catalysts, news impact, Nova News, desktop bridge. |
 | `utils/` | shared | Generic helpers (formatting, prefStore, sorting, rAF coalescing) plus backend / desktop glue (auto-heal, Gateway launch, window bounds). |
 | `ux/` | shared | The app-wide dialog service (the alert / confirm / prompt API and the `AppDialogHost` that renders it) and the two tips: why a control is locked (`whyTip`) and what a chip means (`hoverTip`); Ctrl+F, the find bar every window gets (`findBar`, searching with `findText`); and `LiveText`, a number that changes every tick and lays out only itself (#707). |

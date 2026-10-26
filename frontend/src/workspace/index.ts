@@ -31,6 +31,7 @@ export {
   allowTraderTabDrop,
   canExtractFromDesk,
   isForeignTabDrag,
+  requestOpenOnDesk,
   startTraderTabDrag,
   takeForeignTraderTabDrop,
   type TraderTabDragPayload,

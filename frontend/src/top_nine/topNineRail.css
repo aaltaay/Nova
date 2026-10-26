@@ -1,0 +1,36 @@
+/* The rail's Top 9 grid buttons (components/NavRail): in the padding left of Gappers / Gainers /
+   After Hours, where the operator drew them (2026-10-26). Hidden on the icon-only rail. */
+.nav-rail__pop-row {
+  position: relative;
+}
+
+.top-nine-rail-btn {
+  position: absolute;
+  top: 50%;
+  left: 9px;
+  z-index: 1;
+  width: 20px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--nova-accent) 55%, transparent);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--nova-accent) 12%, transparent);
+  color: color-mix(in srgb, var(--nova-accent) 80%, #fff);
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.top-nine-rail-btn:hover {
+  background: color-mix(in srgb, var(--nova-accent) 28%, transparent);
+}
+
+.top-nine-rail-btn.is-blocked {
+  border-color: var(--nova-danger);
+  color: var(--nova-danger);
+}
+
+.nav-rail--collapsed .top-nine-rail-btn {
+  display: none;
+}

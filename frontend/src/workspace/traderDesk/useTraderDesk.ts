@@ -26,6 +26,8 @@ export function useTraderDesk(args: {
   windowId: string;
   role: TraderDeskRole;
   onDockRequest: (symbol: string, requestId: string, sourceWindowId: string) => boolean;
+  /** Host only: another window (the Top 9 pop-up) asks to open a symbol here. True when it opened. */
+  onOpenRequest?: (symbol: string, requestId: string, from: string | undefined) => boolean;
   onGaveTab: (symbol: string) => void;
   onDockRejected?: (symbol: string) => void;
   onDockUnanswered?: () => void;
@@ -36,15 +38,17 @@ export function useTraderDesk(args: {
   requestDock: (symbol: string) => void;
   notifyDocked: (symbol: string, sourceWindowId: string) => void;
 } {
-  const { windowId, role, onDockRequest, onGaveTab, onDockRejected, onDockUnanswered } = args;
+  const { windowId, role, onDockRequest, onOpenRequest, onGaveTab, onDockRejected, onDockUnanswered } = args;
   const [offer, setOffer] = useState<TraderDockOffer | null>(null);
   const busRef = useRef<TraderDeskBus | null>(null);
   const onDockRequestRef = useRef(onDockRequest);
+  const onOpenRequestRef = useRef(onOpenRequest);
   const onGaveTabRef = useRef(onGaveTab);
   const onDockRejectedRef = useRef(onDockRejected);
   const onDockUnansweredRef = useRef(onDockUnanswered);
   const pendingDockRef = useRef<string | null>(null);
   onDockRequestRef.current = onDockRequest;
+  onOpenRequestRef.current = onOpenRequest;
   onGaveTabRef.current = onGaveTab;
   onDockRejectedRef.current = onDockRejected;
   onDockUnansweredRef.current = onDockUnanswered;
@@ -81,6 +85,27 @@ export function useTraderDesk(args: {
           targetWindowId: windowId,
           requestId: msg.requestId,
         }));
+        return;
+      }
+      if (
+        msg.type === 'open-request'
+        && msg.symbol
+        && msg.requestId
+        && shouldHandleDockRequest({
+          role,
+          sourceWindowId: msg.sourceWindowId,
+          thisWindowId: windowId,
+          targetWindowId: msg.targetWindowId,
+        })
+      ) {
+        if (onOpenRequestRef.current?.(msg.symbol, msg.requestId, msg.from)) {
+          bus.publish(traderDeskMessage('opened', {
+            symbol: msg.symbol,
+            sourceWindowId: msg.sourceWindowId,
+            targetWindowId: windowId,
+            requestId: msg.requestId,
+          }));
+        }
         return;
       }
       if (msg.type === 'tab-docked' && msg.symbol && msg.sourceWindowId === windowId) {

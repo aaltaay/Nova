@@ -59,4 +59,20 @@ describe('trader desk protocol', () => {
     expect(parseDeskStoragePayload('not-json')).toBeNull();
     expect(parseDeskStoragePayload(JSON.stringify({ v: 1, msg: { type: 'unrelated' } }))).toBeNull();
   });
+
+  it('carries an open request with its list, and refuses one with no request id', () => {
+    const msg = traderDeskMessage('open-request', {
+      symbol: 'ztg', sourceWindowId: 'ask-1', requestId: 'open-1', from: 'gainers',
+    });
+    expect(parseTraderDeskMessage(JSON.parse(JSON.stringify(msg)))).toEqual({
+      v: TRADER_DESK_PROTOCOL_V, type: 'open-request', symbol: 'ZTG', sourceWindowId: 'ask-1',
+      requestId: 'open-1', from: 'gainers',
+    });
+    expect(parseTraderDeskMessage({ v: TRADER_DESK_PROTOCOL_V, type: 'open-request', symbol: 'ZTG', sourceWindowId: 'a' }))
+      .toBeNull();
+    expect(parseTraderDeskMessage({ v: TRADER_DESK_PROTOCOL_V, type: 'opened', sourceWindowId: 'a', requestId: 'r' }))
+      .toBeNull();
+    expect(parseTraderDeskMessage({ v: TRADER_DESK_PROTOCOL_V, type: 'open-everything', sourceWindowId: 'a' }))
+      .toBeNull();
+  });
 });

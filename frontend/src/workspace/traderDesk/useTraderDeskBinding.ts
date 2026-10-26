@@ -43,6 +43,7 @@ import {
 import { useBotFocusSync } from '../../bot/useBotFocusSync';
 import { useTraderDesk } from './useTraderDesk';
 import { getTraderWindowId } from './windowId';
+import { focusThisWindow } from './focusWindow';
 import type { TraderTabDragPayload } from './protocol';
 import { isTabRecording } from '../../capture';
 import { useSampleRoute } from '../../sample_data/useSampleRoute';
@@ -130,6 +131,25 @@ export function useTraderDeskBinding(setSelectedSymbol: (sym: string | null) => 
     return ok;
   }, [role, tryAddTab, windowId]);
 
+  /** `pin` opens beside the preview tab, pinned, replacing nothing -- e.g. a bot
+   * symbol's Level 2 must not close the depth line another tab holds. */
+  const openStockView = useCallback((symbol: string, opts?: { pin?: boolean; from?: string }) => {
+    if (tryAddTab(symbol, Boolean(opts?.pin))) requestFocusList(opts?.from);
+  }, [tryAddTab]);
+
+  /** The Top 9 pop-up's double-click (top_nine/): the same open as a ticker click here, then this window comes forward. */
+  const onOpenRequest = useCallback((symbol: string, requestId: string, from: string | undefined) => {
+    if (role !== 'host') return false;
+    try {
+      if (!claimDockTarget(localStorage, requestId, windowId)) return false;
+    } catch {
+      /* private mode -- still open */
+    }
+    openStockView(symbol, { from });
+    focusThisWindow();
+    return true;
+  }, [role, openStockView, windowId]);
+
   const onGaveTab = useCallback((symbol: string) => {
     setTraderState((prev) => {
       const next = closeTab(prev, symbol);
@@ -147,6 +167,7 @@ export function useTraderDeskBinding(setSelectedSymbol: (sym: string | null) => 
     windowId,
     role,
     onDockRequest,
+    onOpenRequest,
     onGaveTab,
     onDockRejected: showBlockNotice,
     onDockUnanswered: () => {
@@ -165,12 +186,6 @@ export function useTraderDeskBinding(setSelectedSymbol: (sym: string | null) => 
     window.addEventListener('beforeunload', onUnload);
     return () => window.removeEventListener('beforeunload', onUnload);
   }, []);
-
-  /** `pin` opens beside the preview tab, pinned, replacing nothing -- e.g. a bot
-   * symbol's Level 2 must not close the depth line another tab holds. */
-  const openStockView = useCallback((symbol: string, opts?: { pin?: boolean; from?: string }) => {
-    if (tryAddTab(symbol, Boolean(opts?.pin))) requestFocusList(opts?.from);
-  }, [tryAddTab]);
 
   /** Row-body click (not the ticker) on tables that also render a
    * `SymbolSelectButton`. On Scanner, a row only loads the Quote Panel --
