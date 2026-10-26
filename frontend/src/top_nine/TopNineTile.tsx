@@ -7,16 +7,11 @@
  */
 import { forwardRef } from 'react';
 import { TickerLink } from '../components/TickerLink';
-import { fmtVolume } from '../utils/quoteFormat';
+import { fmtPct, fmtVolume } from '../utils/quoteFormat';
 import { TOP_NINE_HALTED, TOP_NINE_TILE_TITLE } from './topNineConstants';
 import { markLeft, markPhase, moveText, type TopNineMove } from './topNineMarks';
 import type { TopNineRow } from './topNineSnapshot';
 import { TopNineChart } from './TopNineChart';
-
-function pct(v: number | null): string {
-  if (v == null) return '—';
-  return `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`;
-}
 
 function ago(ms: number): string {
   return `${Math.max(0, Math.floor(ms / 1000))}s ago`;
@@ -81,7 +76,7 @@ export const TopNineTile = forwardRef<HTMLDivElement, TopNineTileProps>(function
             Vol {fmtVolume(row.volume)} · Float {fmtVolume(row.float)}
           </div>
         </div>
-        <span className={`top-nine-tile__chg${tone}`}>{pct(row.changePct)}</span>
+        <span className={`top-nine-tile__chg${tone}`}>{fmtPct(row.changePct, '—')}</span>
       </div>
       <TopNineChart symbol={row.symbol} lastPrice={row.price} endTime={endTime} />
     </div>

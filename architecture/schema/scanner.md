@@ -906,7 +906,8 @@ opens no scanner socket and holds no Trader tabs:
   volume, float, halted}], total}}}`. `asOf` is the board's minute (epoch seconds): the Sim playhead board's own
   minute, or now's minute live (so an unchanged board is not re-sent every second); every tile's chart ends there. `rows` are the first nine rows as the scanner serves them; `rank` is row index + 1, the
   same rule as the Trader's rank chip (`stock_view/quoteRank.ts`, `scannerListRows`); `total` is the whole list.
-  `changePct` is the list's Change column (percent points). Unknown values are `null`, never a placeholder.
+  `changePct` is the list's Change column as the scanner holds it, a fraction of the previous close (`0.7` =
+  +70%); the tile shows it the way the Scanner does (`quoteFormat.fmtPct`). Unknown values are `null`, never a placeholder.
   `source` is `{kind: "live"}`, `{kind: "replay", label}` (the Sim playhead's board, labelled by `replayLabel`) or
   `{kind: "unknown", why}` with every list empty when the desk cannot rank (`rankUnknownWhy`: a saved board, a gap,
   loading or a failure at the playhead). The pop-up refuses another `schema_version` or a broken row, and never
