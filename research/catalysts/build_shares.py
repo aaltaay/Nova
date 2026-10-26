@@ -32,7 +32,8 @@ CONCEPTS = (("dei", "EntityCommonStockSharesOutstanding"), ("us-gaap", "CommonSt
 def cik_tickers(wanted: set[str]) -> dict[str, list[str]]:
     out: dict[str, list[str]] = defaultdict(list)
     for row in json.loads((REFERENCE_DIR / "tickers.json").read_text(encoding="utf-8")):
-        sym, cik = str(row.get("ticker") or "").upper(), str(row.get("cik") or "").lstrip("0")
+        # Case kept: Massive's AAp (Alcoa's preferred) is not AAP (Advance Auto Parts).
+        sym, cik = str(row.get("ticker") or "").strip(), str(row.get("cik") or "").lstrip("0")
         if sym in wanted and cik:
             out[cik].append(sym)
     return out

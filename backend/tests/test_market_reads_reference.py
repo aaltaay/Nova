@@ -106,6 +106,25 @@ def test_a_reused_ticker_reads_the_statements_of_that_days_company(dump, monkeyp
     tickers.clear()
 
 
+def test_a_lowercase_suffix_issuer_under_the_same_key_is_left_out(dump, monkeypatch):
+    """The index keys CDW and CDw (another company's warrant) alike: the read keeps only CDW's company's statements."""
+    from market_reads import tickers
+    (dump / "tickers.json").write_text(json.dumps([
+        {"ticker": "CDW", "cik": "0000000555", "name": "CDW Corp", "active": True, "type": "CS"},
+        {"ticker": "CDw", "cik": "0000000444", "name": "Old Co Warrants", "active": False, "type": "WARRANT",
+         "delisted_utc": "2019-01-02T05:00:00Z"}]), encoding="utf-8")
+    _write(dump / "balance_sheets" / "2024-08.jsonl", [
+        {"tickers": ["CDW"], "cik": "0000000555", "period_end": "2024-06-30", "filing_date": "2024-08-01",
+         "timeframe": "quarterly", "total_assets": 50.0},
+        {"tickers": ["CDw"], "cik": "0000000444", "period_end": "2018-09-30", "filing_date": "2024-08-02",
+         "timeframe": "quarterly", "total_assets": 7.0}])
+    tickers.clear()
+    frame = reference.financials("CDW")
+    assert list(frame["total_assets"]) == [50.0] and frame.attrs["matched"] == "ticker, cik 555"
+    assert frame.attrs["ticker"]["ticker_reused"] is False
+    tickers.clear()
+
+
 def test_an_unknown_dataset_or_statement_is_refused(dump):
     with pytest.raises(ValueError):
         reference.ensure("nope")

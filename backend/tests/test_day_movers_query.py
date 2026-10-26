@@ -170,6 +170,41 @@ def test_float_proofs_pass_on_evidence_and_leave_the_rest_unknown(db, tmp_path):
     assert proofs[("2026-09-25", "KITT")] == {"shares": None, "source": None, "as_of": None, "proof": "unknown"}
 
 
+def test_a_reused_ticker_reads_only_the_count_of_the_company_that_held_it(tmp_path):
+    """A ticker two companies used carries both companies' counts: each day reads its holder's, a day with no
+    named holder reads none (unknown), and a store exported before ``ticker_holders`` existed still reads."""
+    movers = tmp_path / "shares.sqlite3"
+    counts = [
+        {"symbol": "REUS", "cik": "99", "as_of": "2026-08-01", "filed": "2026-08-05", "shares": 2_000_000},  # former
+        {"symbol": "REUS", "cik": "7", "as_of": "2026-07-01", "filed": "2026-07-10", "shares": 40_000_000},  # holder
+        {"symbol": "SOLO", "cik": "5", "as_of": "2026-08-01", "filed": "2026-08-05", "shares": 9_000_000},
+        {"symbol": "AMBG", "cik": "8", "as_of": "2026-08-01", "filed": "2026-08-05", "shares": 1_000_000},
+        {"symbol": "AMBG", "cik": "9", "as_of": "2026-07-01", "filed": "2026-07-05", "shares": 3_000_000},
+    ]
+    holders = [{"symbol": "REUS", "cik": "99", "held_from": None, "held_to": "2026-06-30"},
+               {"symbol": "REUS", "cik": "7", "held_from": "2026-07-01", "held_to": "2026-09-20"},
+               {"symbol": "AMBG", "cik": None, "held_from": None, "held_to": None}]   # reused, never settled
+    with store.connect(movers) as conn:
+        store.replace_sec_shares(conn, counts, holders)
+        got = floats.sec_shares(conn, [("2026-09-01", "REUS"), ("2026-09-25", "REUS"), ("2026-09-01", "SOLO"),
+                                       ("2026-09-01", "AMBG")])
+        assert ("2026-09-01", "AMBG") not in got                                 # neither company's count
+        proofs = floats.proofs([("2026-09-01", "REUS")], 5_000_000, db=conn, archive=tmp_path / "none.db")
+        before = floats.sec_shares(conn, [("2026-09-01", "REUS")], before=True)
+    assert got[("2026-09-01", "REUS")]["cik"] == "7" and got[("2026-09-01", "REUS")]["shares"] == 40_000_000
+    assert ("2026-09-25", "REUS") not in got                                     # no holder named that day
+    assert got[("2026-09-01", "SOLO")]["shares"] == 9_000_000                     # one company: as before
+    assert proofs[("2026-09-01", "REUS")]["proof"] == "unknown"                  # 40M proves nothing; 2M was not his
+    assert before[("2026-09-01", "REUS")]["cik"] == "7"
+    with store.connect(movers) as conn:
+        store.replace_sec_shares(conn, counts)                                   # holders=None keeps the table
+        assert floats.sec_shares(conn, [("2026-09-01", "REUS")])[("2026-09-01", "REUS")]["cik"] == "7"
+    old = sqlite3.connect(movers)
+    old.execute("DROP TABLE ticker_holders")
+    assert floats.sec_shares(old, [("2026-09-01", "REUS")])[("2026-09-01", "REUS")]["cik"] == "99"   # newest
+    old.close()
+
+
 def test_the_float_limit_in_a_search_lists_unknowns_only_when_asked(db):
     def evidence(pairs, limit):
         return {pair: {"shares": 1e6, "source": "enrichment", "as_of": pair[0], "proof": "pass"}

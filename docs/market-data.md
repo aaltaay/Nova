@@ -252,10 +252,13 @@ MCP: `signal_catalog`, `signal_series`, `signal_scan`, `signal_test`. Contract: 
 - **A null `catalyst_verdict` is not covered, never "no news".** The backfill judged the Five Pillars gap universe
   from 2021-10-11 to 2026-09-21 and the leaderboard's top-10 movers from 2026-06-17 to 2026-09-21; any other
   stock-day, and every day before 2021-10-11, has no verdict (`catalysts` `verdicts_meta.coverage` says so).
-- **Two companies, one ticker.** 84 tickers in Massive's list belonged to two companies (AAP was Alcoa's preferred
-  until 2016-11-01). SEC shares and filings, financials and splits read the company that held the ticker on the
-  day asked (`research/market_reads/tickers.py`), say so in `ticker`, and refuse a day they cannot settle with the
-  candidate CIKs (`--cik` picks one). Without a day they read today's holder and warn.
+- **Two companies, one ticker.** Tickers are matched exactly as Massive writes them: a lowercase letter is another
+  security (`AAp` was Alcoa's preferred until 2016-11-01; `AAP` is Advance Auto Parts). Folding case once made 84
+  such pairs look like one ticker two companies shared, so 29 common stocks read another company on past days; the
+  2026-10 list has no ticker two companies share exactly. When one does, SEC shares and filings, financials, splits
+  and the movers store's share counts read the company that held the ticker on the day asked
+  (`research/market_reads/tickers.py`), say so in `ticker`, and refuse a day they cannot settle with the candidate
+  CIKs (`--cik` picks one). Without a day they read today's holder and warn.
 - **Three volume rules.** `bars --tf 10s` counts what the consolidated tape counts (`massive_files.counts_volume`):
   every regular trade and correction record, never a cancel / error record, a cancelled or corrected original, or an
   official open / close or corrected-close record (conditions 15, 16, 38), which repeats an auction print. Counting

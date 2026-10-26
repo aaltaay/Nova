@@ -2,7 +2,8 @@
 
 Owner: backend/day_movers/. Schema: ``day_movers.schema``. Lives beside the Massive files it is built from
 (``<NOVA_MARKET_DATA_DIR>/movers/day_movers.sqlite3``). ``research/movers/build_movers.py`` writes a session
-whole through ``replace_session`` and ``export_sec_shares.py`` replaces ``sec_shares``; the backend only reads
+whole through ``replace_session`` and ``export_sec_shares.py`` replaces ``sec_shares`` with ``ticker_holders`` (a
+reused ticker's holder by date); the backend only reads
 (``read_only`` never creates the store, its folder or its tables).
 """
 from __future__ import annotations
@@ -24,6 +25,8 @@ from day_movers.schema import (
     SEC_SHARES_COLUMNS,
     SESSION_COLUMNS,
     SPLIT_COLUMNS,
+    TICKER_HOLDER_COLUMNS,
+    TICKER_HOLDERS_DDL,
     UnknownDayMoversSchema,
     initialize,
 )
@@ -99,13 +102,22 @@ def replace_session(db: sqlite3.Connection, session: dict[str, Any], rows: Itera
     return len(mover_t)
 
 
-def replace_sec_shares(db: sqlite3.Connection, rows: Iterable[dict[str, Any]]) -> int:
-    """The whole ``sec_shares`` table, in one transaction (an export reads every filing again)."""
+def replace_sec_shares(db: sqlite3.Connection, rows: Iterable[dict[str, Any]],
+                       holders: Iterable[dict[str, Any]] | None = None) -> int:
+    """The whole ``sec_shares`` table, and with ``holders`` the whole ``ticker_holders`` table, in one transaction
+    (an export reads every filing again; a reader never sees counts without the holders they are read by)."""
     share_t = _tuples(rows, SEC_SHARES_COLUMNS)
+    holder_t = None if holders is None else _tuples(holders, TICKER_HOLDER_COLUMNS)
     with db:
         db.execute("DELETE FROM sec_shares")
         if share_t:
             db.executemany(_insert_sql("sec_shares", SEC_SHARES_COLUMNS), share_t)
+        if holder_t is not None:
+            db.execute("DROP TABLE IF EXISTS ticker_holders")   # the export owns its shape: rebuilt whole
+            db.execute(TICKER_HOLDERS_DDL)
+            db.execute("CREATE INDEX IF NOT EXISTS ticker_holders_by_symbol ON ticker_holders (symbol)")
+            if holder_t:
+                db.executemany(_insert_sql("ticker_holders", TICKER_HOLDER_COLUMNS), holder_t)
     return len(share_t)
 
 

@@ -86,7 +86,7 @@ def search(query: str | None = None, *, ticker: str | None = None, active: bool 
     wanted_types = {t.upper() for t in types} if types else None
     wanted_cik = _cik(cik)
     if ticker:
-        pool = {ticker.strip().upper(): listed.get(ticker.strip().upper(), [])}
+        pool = {tickers.key(ticker): listed.get(tickers.key(ticker), [])}
     elif wanted_cik and not q:
         pool = {}
         for row in _cik_index().get(wanted_cik, []):
@@ -98,9 +98,9 @@ def search(query: str | None = None, *, ticker: str | None = None, active: bool 
         reused = _reused(listed.get(symbol, rows))
         for row in rows:
             name = str(row.get("name") or "")
-            if q and symbol == q_upper:
+            if q and symbol in (q, q_upper):
                 rank = (0, 0)
-            elif q and symbol.startswith(q_upper):
+            elif q and symbol.upper().startswith(q_upper):   # AAp (a preferred) after AAP, never in its place
                 rank = (1, len(symbol))
             elif q and q_lower in name.lower():
                 rank = (2, len(symbol))
@@ -129,7 +129,7 @@ def symbol(ticker: str, day: str | None = None) -> dict[str, Any]:
     """Everything the list knows about one ticker: ``companies`` (every company that used it, with ``held_from`` /
     ``held_to``), ``on_day`` (who held it on ``day`` -- today without one -- and by which rule), ``ticker_reused``,
     ``warning``, ``cik_history`` (per company: every ticker row naming its CIK) and ``as_of``."""
-    sym = ticker.strip().upper()
+    sym = tickers.key(ticker)
     rows = tickers.listings().get(sym, [])
     held = tickers.resolve(sym, day)
     by_cik = _cik_index()

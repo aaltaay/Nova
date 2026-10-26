@@ -6,8 +6,10 @@ From SEC's bulk ``companyfacts.zip`` (``NOVA_CATALYST_DIR``, default F:\\Nova\\c
 with the date it is as of and the date it was filed -- the search reads only what was filed by the session. A
 company with several share classes reports several counts for one date: the largest is kept, so a limit is never
 passed on one class's smaller count. Tickers come from the Massive reference's ``cik`` (today's dump, delisted
-tickers included); a ticker another company used first reads the current owner's counts, which the as-of window
-and the split list rarely let through. Replaces the whole table; run it again after a new companyfacts.zip.
+tickers included). A ticker two companies used carries both companies' counts, so the export also writes
+``ticker_holders``: which company held it on each day (``market_reads.tickers.holder_runs``, the rule every
+ticker-keyed read uses), and the float reads take only the holder's count. Replaces both tables in one transaction;
+run it again after a new companyfacts.zip or ticker list.
 
 Usage (from the repo root):
     py -3 research/movers/export_sec_shares.py [--zip PATH] [--db PATH]
@@ -26,6 +28,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 sys.path.insert(0, str(REPO / "research" / "leaderboard"))
+sys.path.insert(0, str(REPO / "research"))
 sys.path.insert(0, str(REPO / "backend"))
 
 from lb_config import DATA_ROOT, REFERENCE_SUBDIR  # noqa: E402
@@ -67,8 +70,25 @@ def share_counts(facts: dict) -> list[tuple[str, str, float, str | None]]:
     return []
 
 
+def holder_rows(mapping: dict[str, list[str]], reference: Path) -> list[dict]:
+    """``ticker_holders`` rows for every ticker more than one CIK carries, by ``tickers.holder_runs``; one with no
+    run (no day can be settled) gets a row with ``cik`` null, so the float reads know it is reused: unknown."""
+    from market_reads import tickers
+    if reference.resolve() != tickers._path().resolve():
+        raise SystemExit(f"--reference {reference} is not the ticker list the holder rule reads ({tickers._path()}): "
+                         "set NOVA_MARKET_DATA_DIR so both name one file")
+    by_symbol: dict[str, set[str]] = defaultdict(set)
+    for cik, symbols in mapping.items():
+        for symbol in symbols:
+            by_symbol[symbol].add(cik)
+    unsettled = {"cik": None, "held_from": None, "held_to": None}
+    return [{"symbol": symbol, **run} for symbol in sorted(s for s, ciks in by_symbol.items() if len(ciks) > 1)
+            for run in (tickers.holder_runs(symbol) or [unsettled])]
+
+
 def export(zip_path: Path, db_path: Path, reference: Path) -> dict[str, int]:
     mapping = cik_tickers(reference)
+    holders = holder_rows(mapping, reference)
     rows: list[dict] = []
     read = missing = 0
     with zipfile.ZipFile(zip_path) as archive:
@@ -84,9 +104,10 @@ def export(zip_path: Path, db_path: Path, reference: Path) -> dict[str, int]:
                 rows.extend({"symbol": s, "cik": cik, "as_of": as_of, "filed": filed, "shares": shares, "form": form}
                             for s in symbols)
     with store.connect(db_path) as db:
-        written = store.replace_sec_shares(db, rows)
+        written = store.replace_sec_shares(db, rows, holders)
     return {"companies": len(mapping), "read": read, "not_in_zip": missing, "rows": written,
-            "tickers": len({r["symbol"] for r in rows})}
+            "tickers": len({r["symbol"] for r in rows}), "reused": len({h["symbol"] for h in holders}),
+            "holder_runs": len(holders)}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -99,6 +120,7 @@ def main(argv: list[str] | None = None) -> int:
     counts = export(args.zip, args.db, args.reference)
     print(f"sec_shares: {counts['rows']:,} rows for {counts['tickers']:,} tickers from {counts['read']:,} of "
           f"{counts['companies']:,} companies ({counts['not_in_zip']:,} not in {args.zip.name}); "
+          f"ticker_holders: {counts['holder_runs']:,} runs for {counts['reused']:,} reused tickers; "
           f"{time.time() - started:.0f} s -> {args.db}", flush=True)
     return 0
 
