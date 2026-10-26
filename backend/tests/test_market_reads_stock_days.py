@@ -46,6 +46,8 @@ def store(tmp_path, monkeypatch):
         ("BBB", "2", "2025-01-31", "2025-02-14", 50_000_000, "10-Q"),
         ("DDD", "4", "2024-06-30", "2024-08-14", 1_000_000, "10-Q"),      # as of 246 days before: too old
         ("REUS", "99", "2025-01-31", "2025-02-14", 2_000_000, "10-Q")])   # the ticker's former company
+    db.executemany("INSERT INTO ticker_holders VALUES (?, ?, ?, ?)", [
+        ("REUS", "99", None, "2020-01-02"), ("REUS", "7", "2020-01-03", None)])
     db.commit()
     db.close()
     ref = tmp_path / "store" / "reference"

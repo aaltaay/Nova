@@ -4,8 +4,9 @@ Each row is one stock-day of the day movers index (``scan.movers_scan``: percent
 likely reverse splits left out by the capped search's own rule) with:
   shares    ``outstanding_*``: SEC shares outstanding filed by the day, reported as of at most
             ``DAY_MOVERS_SEC_SHARES_MAX_AGE_DAYS`` (120) before it and put on the day's share basis -- the movers
-            store's ``sec_shares`` table, read by ``day_movers.floats`` (the endpoint's own rules). A reused ticker's
-            count is dropped when its CIK is not the company that held the ticker that day (``tickers.py``).
+            store's ``sec_shares`` table, read by ``day_movers.floats`` (the endpoint's own rules). A reused ticker
+            reads only the count of the company that held it that day (the store's ``ticker_holders``, written
+            from ``tickers.holder_runs``).
             ``enrichment_float``: the float the desk's enrichment snapshot held that day (``archive.db``,
             2026-07-28 on). ``float_shares`` / ``float_source`` is the value ``float_max`` filtered on.
   catalyst  the catalyst backfill's verdict for the day (``catalysts.for_pairs``); null is unknown, never no news.
@@ -48,7 +49,7 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 
-from market_reads import REPO, rvol_days, scan, tickers  # noqa: F401  (REPO puts backend/ on sys.path)
+from market_reads import REPO, rvol_days, scan  # noqa: F401  (REPO puts backend/ on sys.path)
 
 ET = ZoneInfo("America/New_York")
 PAGE_DEFAULT, PAGE_MAX, PAGE_MAX_FILE = 200, 5_000, 100_000
@@ -100,26 +101,15 @@ def _base_row(r: dict[str, Any]) -> dict[str, Any]:
 
 
 def _outstanding(pairs: list[tuple[str, str]]) -> dict[tuple[str, str], dict[str, Any]]:
-    """The endpoint's SEC count per pair (``day_movers.floats.sec_shares``), minus a reused ticker's other company."""
+    """The endpoint's SEC count per pair (``day_movers.floats.sec_shares``: a reused ticker reads its holder's)."""
     from day_movers import floats, store
     db = store.read_only()
     if db is None:
         return {}
     try:
-        counts = floats.sec_shares(db, pairs)
-        reused = {s for s, rows in tickers.listings().items()
-                  if len({tickers._cik(r.get("cik")) for r in rows if r.get("cik")}) > 1}
-        for (day, symbol), count in list(counts.items()):
-            if symbol not in reused:
-                continue
-            row = db.execute("SELECT cik FROM sec_shares WHERE symbol = ? AND as_of = ? AND filed = ?",
-                             (symbol, count["as_of"], count["filed"])).fetchone()
-            held = tickers.resolve(symbol, day)["cik"]
-            if not row or not held or tickers._cik(row[0]) != held:
-                counts.pop((day, symbol))
+        return floats.sec_shares(db, pairs)
     finally:
         db.close()
-    return counts
 
 
 def enrich(frame: pd.DataFrame, float_basis: str = "sec_outstanding") -> list[dict[str, Any]]:

@@ -1,16 +1,17 @@
 """Which company held a ticker on a day, for every read keyed by ticker (SEC facts and filings, financials, splits).
 
-Massive's ticker list (``<NOVA_MARKET_DATA_DIR>/store/reference/tickers.json``, delisted tickers included) gives a
-ticker at most two companies: today's holder (``active``, no listing date) and a former one (``delisted_utc``). 84
-tickers are shared that way (2026-10 dump): AAP was Alcoa's $3.75 preferred until 2016-11-01 and is Advance Auto
-Parts now. Reading the first match answered a past day with today's company.
+Massive's ticker list (``<NOVA_MARKET_DATA_DIR>/store/reference/tickers.json``, delisted tickers included) can give
+a ticker two companies: today's holder (``active``, no listing date) and a former one (``delisted_utc``). Tickers
+are matched exactly as Massive writes them: a lowercase letter names another security (``AAp`` is Alcoa's $3.75
+preferred, delisted 2016-11-01; ``AAP`` is Advance Auto Parts). Folding case once made 84 such pairs look like
+one ticker two companies shared (#1236 follow-up); the 2026-10 dump has no ticker two companies share exactly.
 
 The rule, per company (``held_from`` .. ``held_to``):
   former holder  until its delisting day;
   today's holder from its ``list_date`` (Massive ticker details), else the day after the former holder left.
 A day inside exactly one window reads that company. Windows that overlap (the data says both were listed) are
-settled by whose SEC filings span the day (``submissions.zip``), then by the only common stock among them (AAP in
-2016: Advance Auto Parts, not Alcoa's preferred; the warning stays); still more than one, the answer has no CIK and
+settled by whose SEC filings span the day (``submissions.zip``), then by the only common stock among them (the
+warning stays); still more than one, the answer has no CIK and
 ``require`` refuses, naming the candidates -- pass ``cik=``. A ticker with one company is that company on any day
 (``warning`` says when the day is outside its window). Without a day the answer is today's holder, and
 ``ticker_reused`` / ``warning`` say the ticker had another.
@@ -36,14 +37,15 @@ def _path() -> Path:
 def _index(path: str, mtime_ns: int) -> dict[str, list[dict[str, Any]]]:
     out: dict[str, list[dict[str, Any]]] = {}
     for row in json.loads(Path(path).read_text(encoding="utf-8")):
-        ticker = str(row.get("ticker") or "").strip().upper()
+        ticker = str(row.get("ticker") or "").strip()      # case kept: Massive's AAp (a preferred) is not AAP
         if ticker:
             out.setdefault(ticker, []).append(row)
     return out
 
 
 def listings() -> dict[str, list[dict[str, Any]]]:
-    """Every row of the ticker list, by ticker (rows as Massive wrote them)."""
+    """Every row of the ticker list, by ticker exactly as Massive writes it: a lowercase letter names another
+    security of the company (``AAp`` Alcoa's preferred, ``ACIw`` a warrant), never the upper-case ticker."""
     path = _path()
     if not path.is_file():
         return {}
@@ -91,9 +93,16 @@ def _filing_span(cik: str) -> tuple[str, str] | None:
     return _filing_span_cached(cik)
 
 
+def key(symbol: str) -> str:
+    """The list's ticker for ``symbol``: as given when the list has it so, else upper-case (``aap`` is ``AAP``)."""
+    symbol = str(symbol).strip()
+    return symbol if symbol in listings() else symbol.upper()
+
+
 def _candidates(symbol: str) -> list[dict[str, Any]]:
     """One entry per company that held ``symbol``, with the window it held it."""
     seen: dict[str, dict[str, Any]] = {}
+    symbol = key(symbol)
     for row in listings().get(symbol, []):
         cik = _cik(row.get("cik"))
         if not cik or cik in seen:
@@ -129,7 +138,7 @@ def _named(c: dict[str, Any]) -> str:
 def resolve(symbol: str, day: str | None = None, cik: str | None = None) -> dict[str, Any]:
     """``{symbol, day, cik, name, ticker_reused, candidates, rule, warning}``; ``cik`` None when no company can be
     named (unknown ticker, or still ambiguous on ``day``)."""
-    symbol = symbol.strip().upper()
+    symbol = key(symbol)
     found = _candidates(symbol)
     out: dict[str, Any] = {"symbol": symbol, "day": day, "cik": None, "name": None, "ticker_reused": len(found) > 1,
                            "candidates": found, "rule": None, "warning": None}
@@ -168,6 +177,41 @@ def resolve(symbol: str, day: str | None = None, cik: str | None = None) -> dict
     if pick is not None:
         out["cik"], out["name"] = pick["cik"], pick["name"]
     return out
+
+
+def _next_day(day: str) -> str:
+    return (date.fromisoformat(day) + timedelta(days=1)).isoformat()
+
+
+def holder_runs(symbol: str) -> list[dict[str, Any]]:
+    """``resolve``'s answer for every day, as runs ``{cik, held_from, held_to}`` (None = open-ended), for a reused
+    ticker; ``[]`` for a ticker one company used. Days ``resolve`` cannot settle are in no run: no holder, unknown.
+    The answer can only change where a window or a candidate's SEC filing span starts or ends, so one ``resolve``
+    per stretch between those dates gives every day's."""
+    found = _candidates(symbol)
+    if len(found) < 2:
+        return []
+    edges: set[str] = set()
+    for c in found:
+        edges.update(d for d in (c["held_from"], c["held_to"] and _next_day(c["held_to"])) if d)
+        span = _filing_span(c["cik"])
+        if span:
+            edges.update((span[0], _next_day(span[1])))
+    cuts = sorted(edges)
+    if not cuts:
+        return []
+    stretches = [(None, (date.fromisoformat(cuts[0]) - timedelta(days=1)).isoformat())]
+    stretches += [(start, (date.fromisoformat(end) - timedelta(days=1)).isoformat()) for start, end in zip(cuts, cuts[1:])]
+    stretches.append((cuts[-1], None))
+    runs: list[dict[str, Any]] = []
+    for start, end in stretches:
+        cik = resolve(symbol, start or end)["cik"]
+        if cik and runs and runs[-1]["cik"] == cik and runs[-1]["held_to"] == (
+                None if start is None else (date.fromisoformat(start) - timedelta(days=1)).isoformat()):
+            runs[-1]["held_to"] = end
+        elif cik:
+            runs.append({"cik": cik, "held_from": start, "held_to": end})
+    return runs
 
 
 def require(symbol: str, day: str | None = None, cik: str | None = None) -> dict[str, Any]:

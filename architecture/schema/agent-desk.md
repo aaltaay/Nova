@@ -271,6 +271,11 @@ and `.claude/skills/nova-sim-navigator/`. Nothing here places, stages or cancels
       suspect; without a prior close, when the day's high is 20% over its low.
   - `sec_shares (symbol, cik, as_of, filed, shares, form)`: shares outstanding a filing reported as of `as_of`,
     from SEC's companyfacts (`research/movers/export_sec_shares.py`; several share classes keep the largest).
+  - `ticker_holders (symbol, cik, held_from, held_to)`: for a ticker two CIKs carry in `sec_shares`, which company
+    held it, by date (null = open-ended; `tickers.holder_runs`, the rule above), written with `sec_shares` in one
+    transaction. `day_movers.floats.sec_shares` -- every share-count read (the agent search's float limit,
+    `find_stock_days`, the signal table, the HOD Momo rebuild) -- reads only the holder's count; a day no company
+    can be named for has no count (unknown). A store exported before the table existed reads as before and logs it.
   - `splits (symbol, execution_date, split_from, split_to)`: the split list the builder adjusted prices by.
 - **Routes** (`/api/agent`, loopback clients only; every write needs `X-Nova-Api-Key` even on loopback;
   percentages on this wire are percent points):
@@ -421,7 +426,9 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
   The same rule holds for `catalyst_verdict` on `find_stock_days` rows: the backfill judged the Five Pillars gap
   universe from 2021-10-11 to 2026-09-21 and the leaderboard's top-10 movers from 2026-06-17 to 2026-09-21
   (`catalysts` `verdicts_meta.coverage`), so any other stock-day has a null verdict: unknown, never "no news".
-- **A ticker two companies used** (`research/market_reads/tickers.py`, over `reference/tickers.json`): SEC shares /
+- **A ticker two companies used** (`research/market_reads/tickers.py`, over `reference/tickers.json`, tickers matched
+  exactly as Massive writes them -- `AAp`, a preferred, is not `AAP`; an asked ticker the list does not hold as
+  given is read upper-case, `tickers.key`): SEC shares /
   facts / filings, financials and splits read the company that held the ticker on the asked day (former holder
   until its `delisted_utc` day; today's holder from its ticker-details `list_date`, else the day after the former
   left; overlaps settled by whose SEC filings span the day, then by the only `CS` / `ADRC` candidate, with the
@@ -552,7 +559,7 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
     and counts them in `meta.left_out.rvol_unknown` (`meta.rvol_rule` says the rule). `filters` are
     `movers_scan`'s (needs `date_from` / `date_to` or `symbol`). `float_basis` `sec_outstanding` (default: the movers
     store's `sec_shares` by `day_movers.floats.sec_shares` -- filed by the day, as of at most 120 days before it,
-    split-adjusted; a reused ticker's count is dropped when its CIK is not the day's holder) | `enrichment` (desk
+    split-adjusted; a reused ticker reads only its holder's count, `ticker_holders`) | `enrichment` (desk
     `archive.db` `enrichment_snapshots`) | `best`; `float_source` is `sec_shares_outstanding` | `enrichment_snapshot`
     | null; `float_unknown` exclude | include | only. `catalyst` keeps the listed verdicts (`unknown` = none);
     `halted` true / false (a day the halt log does not cover has `halts` null and is left out by either). `page_size`

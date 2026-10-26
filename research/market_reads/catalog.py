@@ -82,7 +82,7 @@ RESEARCH = (
             "key=value --when ..."},
     {"name": "symbols", "source": "Massive ticker list (reference/tickers.json: 36,729 rows, 13,252 active)",
      "history": "latest dump (delisted tickers included)",
-     "as_of": "which company held a ticker on a day: tickers.py (84 tickers had two companies)",
+     "as_of": "which company held a ticker on a day: tickers.py (tickers matched exactly: AAp is not AAP)",
      "units": "ticker, name, cik, type, exchange, active / delisted", "mcp": "symbols",
      "cli": "market_data.py symbols QUERY / symbols --ticker T --day DAY"},
 )
@@ -163,7 +163,7 @@ CATALOG = (
      "mcp": "financials", "cli": "market_data.py financials SYMBOL --as-of DAY"},
     {"name": "sec_shares", "source": "SEC companyfacts.zip (XBRL)", "history": "XBRL era (about 2009-2011 on)",
      "as_of": "a fact counts from the day it was filed; outstanding split-adjusted to the day's basis; the "
-              "company is the one that held the ticker on the day (84 tickers had two companies)",
+              "company is the one that held the ticker on the day (tickers matched exactly: AAp is not AAP)",
      "units": "shares outstanding (not free float); EntityPublicFloat in USD", "mcp": "sec_shares",
      "cli": "market_data.py sec-shares SYMBOL --day DAY"},
     {"name": "sec_filings", "source": "SEC submissions.zip", "history": "all EDGAR filings",

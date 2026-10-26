@@ -24,6 +24,7 @@ MOVER_COLUMNS = (
 
 SEC_SHARES_COLUMNS = ("symbol", "cik", "as_of", "filed", "shares", "form")
 SPLIT_COLUMNS = ("symbol", "execution_date", "split_from", "split_to")
+TICKER_HOLDER_COLUMNS = ("symbol", "cik", "held_from", "held_to")
 
 _REAL = {
     "prev_close", "prev_volume", "split_factor", "open", "high", "low", "close", "volume",
@@ -76,6 +77,14 @@ DDL = (
         split_to REAL NOT NULL,
         PRIMARY KEY (symbol, execution_date)
     )""",
+    # A reused ticker's holder by date (``market_reads.tickers.holder_runs``): a share count is the holder's only.
+    """CREATE TABLE IF NOT EXISTS ticker_holders (
+        symbol TEXT NOT NULL,
+        cik TEXT NOT NULL,
+        held_from TEXT,
+        held_to TEXT
+    )""",
+    "CREATE INDEX IF NOT EXISTS ticker_holders_by_symbol ON ticker_holders (symbol)",
 )
 
 

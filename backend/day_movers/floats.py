@@ -6,7 +6,8 @@ Operator: "proven, else unknown". Two kinds of evidence, never today's float:
 - SEC shares outstanding (``sec_shares`` in the movers store): a float cannot exceed the shares outstanding, so a
   count at or under the limit passes. Only a count filed by that day and reported as of no more than
   ``DAY_MOVERS_SEC_SHARES_MAX_AGE_DAYS`` before it counts, put on the session's share basis through the splits
-  listed in between. A count over the limit proves nothing (the float may still be under it): unknown.
+  listed in between. A count over the limit proves nothing (the float may still be under it): unknown. A ticker
+  two companies used reads only the count of the one that held it that day (``ticker_holders``).
 Blocking (SQLite) -- the route runs it off the event loop.
 """
 from __future__ import annotations
@@ -22,6 +23,7 @@ from constants_day_movers import DAY_MOVERS_SEC_SHARES_MAX_AGE_DAYS
 logger = logging.getLogger(__name__)
 
 Pair = tuple[str, str]
+_NO_HOLDERS_LOGGED: list[bool] = []     # the missing-table warning is said once per process
 
 
 def _chunks(items: list[Any], size: int = 400) -> Iterable[list[Any]]:
@@ -75,22 +77,53 @@ def _split_factor(db: sqlite3.Connection, symbol: str, after: str, through: str)
     return factor
 
 
+def _holder_runs(db: sqlite3.Connection, symbols: list[str]) -> dict[str, list[tuple]] | None:
+    """``symbol -> [(cik, held_from, held_to)]`` for the reused tickers among ``symbols``; None for a store exported
+    before ``ticker_holders`` existed (no reused ticker can be told apart: logged)."""
+    out: dict[str, list[tuple]] = {}
+    try:
+        for chunk in _chunks(sorted(set(symbols))):
+            for symbol, cik, held_from, held_to in db.execute(
+                    "SELECT symbol, cik, held_from, held_to FROM ticker_holders"
+                    f" WHERE symbol IN ({', '.join('?' for _ in chunk)})", chunk):
+                out.setdefault(symbol, []).append((cik, held_from, held_to))
+    except sqlite3.OperationalError:
+        if not _NO_HOLDERS_LOGGED:
+            _NO_HOLDERS_LOGGED.append(True)
+            logger.warning("day movers: no ticker_holders table -- a reused ticker may read its other company's "
+                           "share count until research/movers/export_sec_shares.py runs again")
+        return None
+    return out
+
+
+def _holder(runs: list[tuple], day: str) -> str | None:
+    return next((cik for cik, start, end in runs if (start is None or start <= day) and (end is None or day <= end)),
+                None)
+
+
 def sec_shares(db: sqlite3.Connection, pairs: list[Pair], *, before: bool = False) -> dict[Pair, dict[str, Any]]:
-    """The newest SEC share count usable on each (date, symbol): ``{shares, as_of, filed, age_days}``.
+    """The newest SEC share count usable on each (date, symbol): ``{shares, as_of, filed, age_days, cik}``.
 
     ``before``: only a count filed by the calendar day before the session -- what was on file at its open, never a
     filing made during it -- still put on the session's share basis, a split executing that day included.
+    A reused ticker (``ticker_holders``) reads only the count of the company that held it that day; a day no company
+    can be named for has no count (unknown, never another company's).
     """
     out: dict[Pair, dict[str, Any]] = {}
+    holders = _holder_runs(db, [symbol for _day, symbol in pairs]) or {}
     for day, symbol in pairs:
         session = date.fromisoformat(day)
         known = (session - timedelta(days=1)).isoformat() if before else day
         oldest = (session - timedelta(days=DAY_MOVERS_SEC_SHARES_MAX_AGE_DAYS)).isoformat()
+        where, args = "symbol = ? AND filed <= ? AND as_of <= ? AND as_of >= ?", [symbol, known, known, oldest]
+        if symbol in holders:
+            held = _holder(holders[symbol], day)
+            if held is None:
+                continue
+            where, args = where + " AND cik = ?", [*args, held]
         try:
-            row = db.execute(
-                "SELECT as_of, filed, shares FROM sec_shares WHERE symbol = ? AND filed <= ? AND as_of <= ?"
-                " AND as_of >= ? ORDER BY as_of DESC, filed DESC LIMIT 1", (symbol, known, known, oldest),
-            ).fetchone()
+            row = db.execute(f"SELECT as_of, filed, shares, cik FROM sec_shares WHERE {where}"
+                             " ORDER BY as_of DESC, filed DESC LIMIT 1", args).fetchone()
         except sqlite3.OperationalError:  # maintainer: allow-swallow a store with no counts: every float unknown
             return {}
         if row is None:
@@ -98,7 +131,7 @@ def sec_shares(db: sqlite3.Connection, pairs: list[Pair], *, before: bool = Fals
         as_of, filed, shares = row[0], row[1], float(row[2])
         shares *= _split_factor(db, symbol, as_of, day)
         out[(day, symbol)] = {"shares": round(shares), "as_of": as_of, "filed": filed,
-                              "age_days": (session - date.fromisoformat(as_of)).days}
+                              "age_days": (session - date.fromisoformat(as_of)).days, "cik": row[3]}
     return out
 
 
