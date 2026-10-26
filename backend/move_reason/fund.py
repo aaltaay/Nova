@@ -34,6 +34,11 @@ _SHORT = re.compile(r"\bshort\b", re.I)
 _SHORT_DURATION = re.compile(r"\bshort[- ](term|duration|maturity|dated|treasury|bond|corporate|high[- ]yield|"
                              r"municipal|muni|government)\b", re.I)
 _LEVERED = re.compile(r"\b(daily|ultra\w*|leveraged?|\d+(?:\.\d+)?\s*x)\b", re.I)
+_LEVERAGE_WORD = re.compile(r"\bleveraged?\b", re.I)
+# The legal tail of a listing's name says nothing about what the fund tracks: "... ETNs due February 17, 2045",
+# "... ETF Common Shares of Beneficial Interest Shares".
+_LEGAL_TAIL = re.compile(r"\b(due\b|common shares of beneficial interest|shares of beneficial interest|"
+                         r"units of beneficial interest|of beneficial interest)", re.I)
 
 
 def is_fund(quote_type: str | None) -> bool | None:
@@ -58,7 +63,9 @@ def _side(name: str) -> str:
     return SIDE_LONG
 
 
-def _leverage(name: str) -> float:
+def _leverage(name: str) -> float | None:
+    """The written multiple; 1 when the name writes none; None when it says "Leveraged" but not how much
+    ("Defiance Leveraged Long Income MSTR ETF" runs about 1.5-2x)."""
     m = _MULTIPLE.search(name)
     if m:
         return float(m.group(1))
@@ -66,7 +73,7 @@ def _leverage(name: str) -> float:
     for word, multiple in MOVE_FUND_MULTIPLE_WORDS:
         if re.search(rf"\b{word}\b", low):
             return multiple
-    return 1.0
+    return None if _LEVERAGE_WORD.search(name) else 1.0
 
 
 def _tracks(name: str) -> str | None:
@@ -87,14 +94,16 @@ def from_name(name: str | None) -> dict[str, Any]:
     """``{name, side, leverage, tracks}`` read from a fund's name; ``tracks`` None when the name does not say."""
     raw = (name or "").strip()
     text = _norm(raw)
+    tail = _LEGAL_TAIL.search(text)
+    text = text[:tail.start()].strip() if tail else text
     return {"name": raw or None, "side": _side(text), "leverage": _leverage(text), "tracks": _tracks(text) if text else None}
 
 
 def describe(fund: dict[str, Any]) -> str:
-    """"Inverse 2x fund on Brazil", "Fund on Bitcoin", "Leveraged 3x fund"."""
-    lev = fund.get("leverage") or 1.0
-    multiple = f"{lev:g}x " if lev != 1.0 else ""
-    side = "Inverse " if fund.get("side") == SIDE_INVERSE else ("Leveraged " if lev != 1.0 else "")
+    """"Inverse 2x fund on Brazil", "Fund on Bitcoin", "Leveraged 3x fund", "Leveraged fund on MSTR"."""
+    lev = fund.get("leverage")
+    multiple = f"{lev:g}x " if lev not in (None, 1.0) else ("leveraged " if lev is None else "")
+    side = "Inverse " if fund.get("side") == SIDE_INVERSE else ("Leveraged " if lev not in (None, 1.0) else "")
     what = f"{side}{multiple}fund"
     what = what[:1].upper() + what[1:]
     return f"{what} on {fund['tracks']}" if fund.get("tracks") else what

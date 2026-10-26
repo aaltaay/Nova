@@ -93,8 +93,8 @@ MOVE_FUND_DROP_WORDS = frozenset((
     "the", "of", "and", "&", "-", "1", "2", "3", "x", "plus", "strategy", "option", "options", "income", "weekly",
     "monthly", "pay", "covered", "call", "premium", "enhanced", "single", "stock", "tracker", "futures", "linked",
     "notes", "note", "exchange", "traded", "class", "a", "b", "inc", "inc.", "corp", "ltd", "plc", "usd", "us",
-    "u.s.", "equity", "equities", "1x", "2x", "3x", "on", "for", "in", "a-shares", "bull/bear", "active", "ftse",
-    "quarterly", "marketvector",
+    "u.s.", "u.s", "equity", "equities", "1x", "2x", "3x", "on", "for", "in", "a-shares", "bull/bear", "active", "ftse",
+    "quarterly", "marketvector", "staking", "common",
 ))
 
 # -- the borrow feed (move_reason/borrow_feed.py) --------------------------------------------------

@@ -30,6 +30,16 @@ def test_a_fund_name_says_its_side_leverage_and_what_it_tracks(name, side, lever
     assert (f["side"], f["leverage"], f["tracks"]) == (side, leverage, tracks)
 
 
+def test_the_legal_tail_and_an_unwritten_multiple_are_read_honestly():
+    # The first held-back review (2026-10-26) found these three: a legal tail hid what the fund tracks, and
+    # "Leveraged" with no number read as 1x.
+    assert from_name("21Shares Sui Staking ETF Common Shares of Beneficial Interest Shares")["tracks"] == "Sui"
+    oil = from_name("MicroSectors U.S. Big Oil 3x Leveraged ETNs due February 17, 2045")
+    assert (oil["leverage"], oil["tracks"]) == (3.0, "Big Oil")
+    mst = from_name("Defiance Leveraged Long Income MSTR ETF")
+    assert mst["leverage"] is None and describe(mst) == "Leveraged fund on MSTR"
+
+
 def test_a_name_that_does_not_say_what_it_tracks_keeps_the_rest():
     f = from_name("ETRACS Quarterly Pay 1.5x Leveraged MarketVector BDC Liquid Index ETN Series B Due 2050")
     assert f["leverage"] == 1.5 and describe(f).startswith("Leveraged 1.5x fund")

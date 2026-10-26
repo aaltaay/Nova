@@ -1017,12 +1017,14 @@ halts: {news, luld, volatility, other, source, carried: {kind, code, source, sin
 borrow: {listed, fee_rate, rebate_rate,
 available, available_capped, as_of, since, open, prior, max_fee_today, min_available_today} | null,
 catalyst: verdict | null, shares_issued: {published_ts, source, form, items, title, url} | null,
-quote_type: string | null, fund: {name, side: "long" | "inverse", leverage: number, tracks: string | null} | null}}`.
+quote_type: string | null, fund: {name, side: "long" | "inverse", leverage: number | null, tracks: string | null} | null}}`.
 **A fund** (rules v7, ADR 028 amendment 4, 2026-10-26): `quote_type` is Yahoo's (`ETF`, which Yahoo also gives
 ETNs; `null` while Yahoo's fundamentals are not read, and always on a Sim replay, which never reads Yahoo). A
 `quote_type` in `MOVE_FUND_QUOTE_TYPES` makes `fund` the fund's own name read by `move_reason/fund.py`: `side`
 `inverse` on "Inverse", "Bear", "UltraShort", a minus multiple ("-3x") or "Short" on a levered fund (never a
-bond's "Short Treasury"), `leverage` the written multiple ("2X", UltraPro 3, Ultra and UltraShort 2, else 1), and
+bond's "Short Treasury"), `leverage` the written multiple ("2X", UltraPro 3, Ultra and UltraShort 2, else 1; `null` when the name says
+"Leveraged" but no number, read "Leveraged fund"), the legal tail ("due February 17, 2045", "Common Shares of
+Beneficial Interest") cut first, and
 `tracks` the name less its sponsor and build words (`MOVE_FUND_ISSUERS`, `MOVE_FUND_DROP_WORDS`), `null` when
 nothing or more than `MOVE_FUND_TRACKS_MAX_WORDS` words are left. The `fund` check reads `yes` "Inverse 2x fund
 on Brazil" (its `detail` "Read from its name: ..."), `no` "Not a fund (Yahoo: equity)", or `unknown`. The cause
