@@ -1,0 +1,107 @@
+/* Account page -- one day: the Calendar's metric switch and clickable days,
+   the hover card (in a portal on <body>, so only global tokens reach it) and
+   the day panel that takes the Ledger's place. Owner: CalendarPanel.tsx,
+   CalendarDayCard.tsx, DayBreakdownPanel.tsx. */
+
+/* ---------- calendar days ---------- */
+.acct-cal__bar { display: flex; align-items: center; margin-bottom: 6px; }
+button.acct-cal__d {
+  appearance: none;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+}
+button.acct-cal__d:hover { outline: 1px solid var(--nova-text-muted); outline-offset: -1px; }
+button.acct-cal__d:focus-visible { outline: 1px solid var(--nova-accent); outline-offset: -1px; }
+.acct-cal__d.is-sel {
+  background: color-mix(in srgb, var(--nova-accent) 18%, var(--nova-raised));
+  box-shadow: inset 0 0 0 2px var(--nova-accent);
+}
+.acct-cal__s { display: block; font-size: 9px; line-height: 11px; color: var(--nova-text-muted); text-align: right; white-space: nowrap; }
+
+/* ---------- hover card ---------- */
+.acct-day-card {
+  position: fixed;
+  z-index: 1000;
+  width: 270px;
+  padding: 10px 12px;
+  border: 1px solid var(--nova-border);
+  border-radius: 6px;
+  background: var(--nova-panel);
+  color: var(--nova-text);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  font-size: 12px;
+  line-height: 18px;
+  pointer-events: none;
+}
+.acct-day-card__head { display: flex; justify-content: space-between; gap: 10px; font-weight: 600; margin-bottom: 4px; }
+.acct-day-card__row { display: flex; justify-content: space-between; gap: 10px; }
+.acct-day-card__row > :last-child { text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acct-day-card__rule { border-top: 1px solid var(--nova-border); margin: 5px 0; }
+.acct-day-card__note { margin: 6px 0 0; font-size: 11px; line-height: 14px; color: var(--nova-text-muted); }
+.acct-day-card__hint { margin: 6px 0 0; font-size: 11px; color: var(--nova-accent); }
+
+/* ---------- day panel ---------- */
+.acct-day__close {
+  appearance: none;
+  border: 0;
+  background: none;
+  color: var(--nova-text-muted);
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+}
+.acct-day__close:hover { color: var(--nova-text); }
+.acct-day__top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex: none; }
+.acct-day__date { font-size: 15px; font-weight: 600; line-height: 20px; }
+.acct-day__sum { font-size: 11px; }
+.acct-day__net { font-size: 20px; font-weight: 600; }
+.acct-day__label {
+  margin: 14px 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--nova-text-muted);
+  font-weight: 600;
+  flex: none;
+}
+
+.acct-day-wf { display: flex; flex-direction: column; gap: 4px; flex: none; }
+.acct-day-wf__row { display: grid; grid-template-columns: 130px minmax(0, 1fr) 90px; gap: 10px; align-items: center; font-size: 12px; }
+.acct-day-wf__v { text-align: right; }
+.acct-day-bar { position: relative; height: 12px; background: var(--nova-raised); border-radius: 3px; }
+.acct-day-bar__zero { position: absolute; top: -2px; bottom: -2px; width: 1px; background: var(--nova-text-muted); }
+.acct-day-bar__fill { position: absolute; top: 2px; bottom: 2px; border-radius: 2px; }
+.acct-day-bar__fill--up { background: var(--nova-success); }
+.acct-day-bar__fill--down { background: var(--nova-danger); }
+.acct-day-bar__fill--muted { background: var(--nova-text-muted); }
+
+.acct-day__tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px; margin-top: 12px; flex: none; }
+.acct-day-tile__k, .acct-day-tile__s { font-size: 11px; line-height: 14px; }
+.acct-day__barcol { width: 120px; }
+
+.acct-day__more,
+.acct-day__fills {
+  appearance: none;
+  align-self: flex-start;
+  border: 1px solid var(--nova-border);
+  background: none;
+  color: var(--nova-text);
+  border-radius: 4px;
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 10px;
+  margin-top: 8px;
+  cursor: pointer;
+}
+.acct-day__more:hover,
+.acct-day__fills:hover { background: var(--nova-raised); }
+.acct-day__foot { display: flex; margin-top: 4px; flex: none; }
+
+/* ---------- the Fills tab while a day is open ---------- */
+.acct-fills-day { align-self: center; font-size: 11px; color: var(--nova-text); }

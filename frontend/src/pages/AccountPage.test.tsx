@@ -2,6 +2,9 @@
 import { act } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { dayShortLabel } from '../account/accountCalendar';
+import { fillDay } from '../account/accountDayBreakdown';
+import { todayPracticeDate } from '../account/accountFigures';
 import { PAPER_ACCOUNT_TODAY, paperHistoryFixture } from '../account/accountFixtures';
 import { resetAccountHistoryResourcesForTests } from '../account/accountHistoryResource';
 import { ACCOUNT_LIVE_NO_LEDGER } from '../constantGroups/account_page';
@@ -243,6 +246,28 @@ describe('AccountPage', () => {
     await waitFor(() => expect(screen.getByTestId('account-calendar-grid')).toBeTruthy());
     expect(mocks.fetch.mock.calls.some((c) => String(c[0]).includes('range=ALL'))).toBe(true);
     expect(screen.getByTestId('account-calendar-foot').textContent).toContain('blank = no fills');
+  });
+
+  it("a Calendar day opens in the Ledger's place and the Fills tab follows it until it closes (2026-10-26)", async () => {
+    const today = todayPracticeDate();
+    const dayFills = paperHistoryFixture().fills.filter((f) => fillDay(f.ts) === today).length;
+    render(<AccountPage onOpenTrader={() => {}} />);
+    await waitFor(() => expect(screen.getByTestId(`account-calendar-day-${today}`)).toBeTruthy());
+    expect(screen.getByTestId('account-ledger-foot')).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId(`account-calendar-day-${today}`));
+    expect(screen.getByTestId('account-day-net').textContent).toBe('+$87.10');
+    expect(screen.queryByTestId('account-ledger-foot')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('account-day-show-fills'));
+    expect(screen.getByTestId('account-pos-tab-fills').getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByTestId('account-pos-tab-fills').textContent).toContain(dayShortLabel(today));
+    expect(screen.getAllByTestId(/^account-fill-\d/)).toHaveLength(dayFills);
+
+    fireEvent.click(screen.getByTestId('account-fills-day-clear'));
+    expect(screen.queryByTestId('account-day')).toBeNull();
+    expect(screen.getByTestId('account-ledger-foot')).toBeTruthy();
+    expect(screen.queryByTestId('account-fills-day')).toBeNull();
   });
 
   it('Orders name each row\'s own source stamp, never a blanket "Nova" (W9)', async () => {

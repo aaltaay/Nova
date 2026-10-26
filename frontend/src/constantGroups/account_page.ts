@@ -184,6 +184,82 @@ export const ACCOUNT_CALENDAR_THIS_LEDGER = 'this ledger';
 /** A blank weekday had no fill -- not "no session" (QA W5); weekends are dimmed and titled "no session". */
 export const ACCOUNT_CALENDAR_BLANK = 'blank = no fills';
 export const ACCOUNT_CALENDAR_EMPTY_MONTH = 'No ledger entries this month';
+/** What each day square shows (operator ask, 2026-10-26: commissions and trades per day). */
+export const ACCOUNT_CALENDAR_METRICS = ['net', 'gross', 'commissions', 'trades'] as const;
+export type AccountCalendarMetric = (typeof ACCOUNT_CALENDAR_METRICS)[number];
+export const ACCOUNT_CALENDAR_METRIC_LABELS: Record<AccountCalendarMetric, string> = {
+  net: 'Net',
+  gross: 'Gross',
+  commissions: 'Commissions',
+  trades: 'Trades',
+};
+export const accountTradeCount = (n: number): string => `${n} trade${n === 1 ? '' : 's'}`;
+export const accountFillCount = (n: number): string => `${n} fill${n === 1 ? '' : 's'}`;
+/** A trade is one stock from no shares back to none; a position carried overnight counts on the day it closes. */
+export const ACCOUNT_TRADE_DEFINITION =
+  'A trade is one stock from no shares back to none. A position held overnight counts on the day it closes.';
+export const accountCalendarGrossFoot = (comm: string, fees: string): string =>
+  `before ${comm} commissions and ${fees} fees`;
+export const accountCalendarCommFoot = (fees: string, perTrade: string | null): string =>
+  `fees ${fees}${perTrade ? ` · ${perTrade} a trade` : ''}`;
+export const accountCalendarTradesFoot = (fills: number, won: number, lost: number): string =>
+  `${accountFillCount(fills)} · ${won} won, ${lost} lost`;
+export const ACCOUNT_CALENDAR_UNDETAILED =
+  "archived ledgers' days count fills only";
+
+/* ---------- One day: the hover card and the day panel ---------- */
+export const ACCOUNT_DAY_GROSS = 'Gross';
+export const ACCOUNT_DAY_NET = 'Net';
+export const ACCOUNT_DAY_TRADES = 'Trades';
+export const ACCOUNT_DAY_FILLS = 'Fills';
+export const ACCOUNT_DAY_SHARES = 'Shares';
+export const ACCOUNT_DAY_STOCKS = 'Stocks';
+export const ACCOUNT_DAY_BOT = 'Bot';
+export const accountDayWonLost = (won: number, lost: number): string => `${won} won · ${lost} lost`;
+export const accountDayFillsBot = (fills: number, bot: number): string =>
+  bot > 0 ? `${fills} · ${bot} by the bot` : String(fills);
+export const accountDayShares = (bought: string, sold: string): string => `${bought} bought · ${sold} sold`;
+export const accountDayStocks = (count: number, names: string[]): string =>
+  `${count} · ${names.join(', ')}${count > names.length ? ' …' : ''}`;
+/** How many stocks the hover card names: the ones that moved the day most. */
+export const ACCOUNT_DAY_CARD_STOCKS = 3;
+export const ACCOUNT_DAY_CARD_HINT = 'Click for the whole day';
+export const ACCOUNT_DAY_CARD_GAP_PX = 6;
+export const ACCOUNT_DAY_ARCHIVED_NOTE =
+  'An archived ledger keeps only its day totals: there are no stocks or trades to list.';
+export const ACCOUNT_DAY_PARTIAL_NOTE =
+  "Part of this day belongs to an archived ledger: its share is in the totals, but its stocks and trades are not listed.";
+export const ACCOUNT_DAY_PANEL_TITLE = 'Day breakdown';
+export const ACCOUNT_DAY_CLOSE = 'Close the day and show the ledger';
+export const accountDaySummary = (trades: number, fills: number, stocks: number): string =>
+  `${accountTradeCount(trades)} · ${accountFillCount(fills)} · ${stocks} stock${stocks === 1 ? '' : 's'}`;
+export const ACCOUNT_DAY_WHERE = 'Where the day went';
+export const ACCOUNT_DAY_BY_STOCK = 'By stock · net after costs';
+export const ACCOUNT_DAY_TRADES_HEAD = 'Trades · flat to flat';
+export const ACCOUNT_DAY_NO_TRADES = 'No trade closed this day: a position opened here closes on a later day.';
+/** Trades listed before "Show all". */
+export const ACCOUNT_DAY_TRADES_SHOWN = 8;
+export const accountDayShowAll = (n: number): string => `Show all ${n} trades`;
+export const ACCOUNT_DAY_SHOW_FEWER = 'Show fewer';
+export const accountDayShowFills = (n: number): string => `Show these ${accountFillCount(n)}`;
+export const accountDayTileSharesSub = (sold: string): string => `bought · ${sold} sold`;
+export const accountDayPerTrade = (perTrade: string): string => `${perTrade} a trade`;
+export const ACCOUNT_DAY_TILE_BOT_SUB = 'fills by the bot';
+export const ACCOUNT_DAY_COL_STOCK = 'Stock';
+export const ACCOUNT_DAY_COL_TRADES = 'Trades';
+export const ACCOUNT_DAY_COL_SHARES = 'Shares';
+export const ACCOUNT_DAY_COL_AVG = 'Avg buy → sell';
+export const ACCOUNT_DAY_COL_COMM = 'Comm';
+export const ACCOUNT_DAY_COL_NET = 'Net';
+export const ACCOUNT_DAY_COL_TIME = 'Time (ET)';
+export const ACCOUNT_DAY_COL_SIDE = 'Side';
+export const ACCOUNT_DAY_COL_BY = 'By';
+export const ACCOUNT_DAY_LONG = 'Long';
+export const ACCOUNT_DAY_SHORT = 'Short';
+/** The Fills tab while a day is open: its fills only, until the day closes. */
+export const ACCOUNT_FILLS_DAY_CLEAR = 'All days';
+export const ACCOUNT_FILLS_DAY_CLEAR_TITLE = 'Close the day: show every fill again';
+export const ACCOUNT_FILLS_DAY_EMPTY = 'No fills of this ledger on this day · an archived ledger keeps only its day totals';
 
 /* ---------- Ledger ---------- */
 export const accountLedgerTitle = (id: string | null): string => (id ? `Ledger · ${id}` : 'Ledger');
