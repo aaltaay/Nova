@@ -167,7 +167,9 @@ jobs:
     needs: [changes]
     if: always()
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Tests take ~5 min; the headroom covers a slow Ubuntu mirror if the
+    # system-library fallback below has to run.
+    timeout-minutes: 30
     steps:
       - name: Verify scope decision
         shell: bash
@@ -197,9 +199,18 @@ jobs:
         run: npm ci
         working-directory: frontend
 
+      # The runner image already carries Chrome's system libraries, so only the
+      # browser is downloaded. apt (--with-deps) runs only if Chromium cannot
+      # launch: a slow Ubuntu mirror once held a Release for 15 minutes of fonts.
       - name: Install Chromium
         if: needs.changes.outputs.e2e == 'true'
-        run: npx playwright install --with-deps chromium
+        shell: bash
+        run: |
+          npx playwright install chromium
+          if ! node -e "require('@playwright/test').chromium.launch().then((b) => b.close())"; then
+            echo 'Chromium cannot launch without system libraries; installing them.'
+            npx playwright install-deps chromium
+          fi
         working-directory: frontend
 
       - name: Playwright
