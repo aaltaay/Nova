@@ -22,7 +22,7 @@ import { newsMark } from './catalystVerdict';
 
 export type CatalystMarkKind =
   | 'flame' | 'ring' | 'negative' | 'pending' | 'routine'
-  | 'squeeze' | 'split' | 'lowfloat' | 'thin' | 'unexplained'
+  | 'squeeze' | 'split' | 'lowfloat' | 'thin' | 'unexplained' | 'fund'
   | 'none' | 'reading';
 
 export interface CatalystFace {
@@ -97,6 +97,9 @@ export function catalystFace(read: WhyMovingRead | null, rowVerdict: CatalystVer
       return { ...NONE, kind, mark: 'pending', word: CATALYST_CAUSE_WORDS.news_pending, detail: verdict?.halt_code ?? null };
     case 'news':
       return { ...newsFace(verdict, nowMs, steps.some(s => s.kind === 'short_squeeze' && s.fits === true)), kind };
+    case 'fund':
+      // The fund's own name, never read: "ProShares UltraShort MSCI Brazil Capped" (ADR 028 amendment 4).
+      return { ...NONE, kind, mark: 'fund', word: CATALYST_CAUSE_WORDS.fund, detail: read.facts?.fund?.name ?? check(read, 'fund')?.value ?? null };
     case 'routine_news':
       return { ...NONE, kind, mark: 'routine', word: CATALYST_CAUSE_WORDS.routine_news, detail: headline(verdict) };
     case 'short_squeeze': {

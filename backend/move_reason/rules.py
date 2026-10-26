@@ -6,7 +6,7 @@ that decided it and where it came from; an unknown fact stays unknown. The likel
   not_moving          under ``MOVE_MIN_CHANGE`` either way
   news_pending        halted for news, the release still to come
   news                a catalyst or dilution since the prior close
-  fund                a fund (Yahoo's quote_type), read from its own name: what it tracks and which way that went
+  fund                a fund (Yahoo's quote_type): it moves with what it tracks; its own name quoted
   short_squeeze       up; shorts heavy (20% of float, or 3 days to cover with 10% of float short) and borrow
                       stressed (a 50% fee, a fee doubled since the open, lendable shares gone or scarce), on volume
   routine_news        only a routine company item came out
@@ -193,15 +193,14 @@ def carried_words(c: dict) -> str:
 
 
 def _fund(quote_type: Any, fund: Any) -> dict[str, Any]:
-    """A fund (Yahoo's ``quote_type``) and what its name says it tracks: "Inverse 2x fund on Brazil"."""
-    src = "Yahoo's security type; what it tracks is read from the fund's name"
+    """A fund (Yahoo's ``quote_type``), named as Yahoo names it: "ProShares UltraShort MSCI Brazil Capped"."""
+    src = "Yahoo's security type and the fund's name, as Yahoo gives them"
     known = fund_mod.is_fund(quote_type if isinstance(quote_type, str) else None)
     if known is None:
         return _check("fund", "Fund", MOVE_STATE_UNKNOWN, "Unknown", None, src)
     if not known or not isinstance(fund, dict):
         return _check("fund", "Fund", MOVE_STATE_NO, f"Not a fund (Yahoo: {quote_type.lower()})", None, src)
-    detail = f"Read from its name: {fund['name']}" if fund.get("name") else None
-    return _check("fund", "Fund", MOVE_STATE_YES, fund_mod.describe(fund), detail, src)
+    return _check("fund", "Fund", MOVE_STATE_YES, fund_mod.named(fund, quote_type), f"Yahoo: {quote_type.lower()}", src)
 
 
 def _float(f: float | None, contradicted: str | None = None, issued: str | None = None) -> dict[str, Any]:
@@ -437,7 +436,7 @@ def _likely(change: float | None, by: dict, rot: float | None, rvol: float | Non
         label = f"Company news: {by['news']['value'].lower()}" + (" -- with short-squeeze pressure" if squeeze else "")
         return _cause(MOVE_KIND_NEWS, label, _headline(v), MOVE_CONFIDENCE_LIKELY)
     if _is(by, "fund") and fund is not None:
-        return _cause(MOVE_KIND_FUND, fund_mod.cause_label(fund, change), by["fund"]["detail"], MOVE_CONFIDENCE_LIKELY)
+        return _cause(MOVE_KIND_FUND, fund_mod.CAUSE_LABEL, by["fund"]["value"], MOVE_CONFIDENCE_LIKELY)
     if squeeze:
         after_split = (f" after a {by['reverse_split']['value'].split(',')[0]} reverse split"
                        if _is(by, "reverse_split") else "")

@@ -96,13 +96,13 @@ def gather(symbol: str, now: float | None = None, board: str | None = None,
 
 
 def _fund(fund: dict[str, Any] | None) -> dict[str, Any]:
-    """Yahoo's ``quote_type`` (None while unknown) and, for a fund, what its name says it tracks (ADR 028 amendment 4)."""
+    """Yahoo's ``quote_type`` (None while unknown) and, for a fund, its name as Yahoo gives it (ADR 028 amendment 4)."""
     from move_reason import fund as fund_mod
 
     quote_type = (fund or {}).get("quote_type") or None
     if not fund_mod.is_fund(quote_type):
         return {"quote_type": quote_type, "fund": None}
-    return {"quote_type": quote_type, "fund": fund_mod.from_name(fund.get("company_name"))}
+    return {"quote_type": quote_type, "fund": fund_mod.fact(fund.get("company_name"))}
 
 
 def _shares_issued(sym: str) -> dict[str, Any] | None:

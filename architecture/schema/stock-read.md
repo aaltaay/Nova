@@ -1017,21 +1017,15 @@ halts: {news, luld, volatility, other, source, carried: {kind, code, source, sin
 borrow: {listed, fee_rate, rebate_rate,
 available, available_capped, as_of, since, open, prior, max_fee_today, min_available_today} | null,
 catalyst: verdict | null, shares_issued: {published_ts, source, form, items, title, url} | null,
-quote_type: string | null, fund: {name, side: "long" | "inverse", leverage: number | null, tracks: string | null} | null}}`.
+quote_type: string | null, fund: {name: string | null} | null}}`.
 **A fund** (rules v7, ADR 028 amendment 4, 2026-10-26): `quote_type` is Yahoo's (`ETF`, which Yahoo also gives
 ETNs; `null` while Yahoo's fundamentals are not read, and always on a Sim replay, which never reads Yahoo). A
-`quote_type` in `MOVE_FUND_QUOTE_TYPES` makes `fund` the fund's own name read by `move_reason/fund.py`: `side`
-`inverse` on "Inverse", "Bear", "UltraShort", a minus multiple ("-3x") or "Short" on a levered fund (never a
-bond's "Short Treasury"), `leverage` the written multiple ("2X", UltraPro 3, Ultra and UltraShort 2, else 1; `null` when the name says
-"Leveraged" but no number, read "Leveraged fund"), the legal tail ("due February 17, 2045", "Common Shares of
-Beneficial Interest") cut first, and
-`tracks` the name less its sponsor and build words (`MOVE_FUND_ISSUERS`, `MOVE_FUND_DROP_WORDS`), `null` when
-nothing or more than `MOVE_FUND_TRACKS_MAX_WORDS` words are left. The `fund` check reads `yes` "Inverse 2x fund
-on Brazil" (its `detail` "Read from its name: ..."), `no` "Not a fund (Yahoo: equity)", or `unknown`. The cause
-`fund` comes after `news` and before `short_squeeze` (a fund with company news keeps `news`) and says what
-the fund is and that it moves with or against what it tracks -- "Inverse 2x fund on Brazil: up 50.3%, moves against
-Brazil" -- never what that market did: a fund's own move can come from a payout or a split (AVL -13% on 2025-12-10
-while AVGO rose 1.6%). The ladder adds the rung `{kind: "fund", name: "A fund"}` after `news`.
+`quote_type` in `MOVE_FUND_QUOTE_TYPES` makes `fund` `{name}`, the fund's name exactly as Yahoo gives it (`null`
+when Yahoo gives none); nothing is read out of it. The `fund` check reads `yes` with the name as its value ("ProShares
+UltraShort MSCI Brazil Capped", or "A fund (Yahoo: etf)" without one) and `detail` "Yahoo: etf", `no` "Not a fund
+(Yahoo: equity)", or `unknown`. The cause `fund` comes after `news` and before `short_squeeze` (a fund with company
+news keeps `news`): label "A fund: it moves with what it tracks, not on company news", `detail` the check's value.
+The ladder adds the rung `{kind: "fund", name: "A fund", why: "<name> (Yahoo: etf)"}` after `news`.
 `shares_issued` is the filed share issuance of "Float credibility and short-interest dates" (#700); while
 one is on file the float and float-rotation checks read `unknown` ("631K? shares", "Float traded 82x?")
 with the filing named in their `detail`, because Yahoo's float and share count predate it -- so the

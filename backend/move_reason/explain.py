@@ -42,7 +42,6 @@ from constants_move_reason import (
     MOVE_STATE_UNKNOWN,
     MOVE_STATE_YES,
 )
-from move_reason.fund import cause_label
 
 _NAMES = {
     MOVE_STEP_MOVE: "A real move",
@@ -99,8 +98,8 @@ def _value(c: dict[str, Any]) -> str:
 
 def steps(change: float | None, by: dict[str, dict[str, Any]], rot: float | None, rvol: float | None,
           verdict: Any, headline: str | None, fund: dict[str, Any] | None = None) -> list[dict[str, Any]]:
-    """The ladder for one read; ``by`` is the checks by id, as ``rules.read`` built them; ``fund`` the fund read
-    from its name (``move_reason/fund.py``) when Yahoo calls the symbol one."""
+    """The ladder for one read; ``by`` is the checks by id, as ``rules.read`` built them; ``fund`` the fund fact
+    (``move_reason/fund.py``) when Yahoo calls the symbol one."""
     if change is None:
         return [_step(MOVE_STEP_MOVE, None, "No price change on record")]
     if abs(change) < MOVE_MIN_CHANGE:
@@ -146,7 +145,7 @@ def _fund(c: dict[str, Any], fund: dict[str, Any] | None, change: float) -> tupl
     if c["state"] == MOVE_STATE_UNKNOWN:
         return None, "Security type unknown"
     if c["state"] == MOVE_STATE_YES and fund is not None:
-        return True, cause_label(fund, change)
+        return True, f"{_value(c)} ({c.get('detail') or 'Yahoo: a fund'})"
     return False, _value(c)
 
 

@@ -12,7 +12,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { API_BASE_URL, WHY_MOVING_PATH, WHY_MOVING_POLL_MS, WHY_MOVING_REPLAY_REFRESH_SEC } from '../constants';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
-import type { WhyCheck, WhyCheckState, WhyLikely, WhyMovingRead, WhyPricedBy, WhyReadFacts, WhyStep } from '../types/whyMoving';
+import type { WhyCheck, WhyCheckState, WhyFund, WhyLikely, WhyMovingRead, WhyPricedBy, WhyReadFacts, WhyStep } from '../types/whyMoving';
 import { normalizeCatalystVerdict } from '../utils/catalystVerdict';
 
 export interface WhyMovingState {
@@ -88,7 +88,13 @@ function normalizeFacts(raw: unknown): WhyReadFacts {
     change_pct: num(r.change_pct),
     last_trade: tradePrice != null && tradeTs != null ? { price: tradePrice, change_pct: num(t?.change_pct), ts: tradeTs } : null,
     catalyst: normalizeCatalystVerdict(r.catalyst),
+    fund: normalizeFund(r.fund),
   };
+}
+
+function normalizeFund(raw: unknown): WhyFund | null {
+  if (!raw || typeof raw !== 'object') return null;
+  return { name: str((raw as Record<string, unknown>).name) };
 }
 
 /** The read off the wire; null when it is not one. */

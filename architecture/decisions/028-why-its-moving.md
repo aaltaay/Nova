@@ -140,18 +140,16 @@ Decision:
    - **A pass bar fixed before the test runs**, written in the pull request or this ADR, never adjusted after.
    - **Mislabels counted on their own.** A rule fails if it puts a plausible but wrong reason on a stock (a
      Brazilian name that moved on its own news read as "Brazil-wide sell-off"), even when its hit count is high.
-3. **The first rule: a fund names what it tracks.** A symbol Yahoo calls a fund (`quote_type` `ETF`, which Yahoo
-   also gives ETNs) is read from its own name: inverse or not, the leverage, and what it tracks ("ProShares
-   UltraShort MSCI Brazil Capped" -> inverse, 2x, Brazil). The cause says what the fund is and that it moves
-   with or against what it tracks ("Inverse 2x fund on Brazil: up 50.3%, moves against Brazil") -- never what
-   that market did (see the held-back record below). It sits after company news and before the short squeeze; a
-   fund with company news keeps news. Unknown while Yahoo's fundamentals are not read, and on a Sim replay (a replay never reads Yahoo).
-   **Its pass bar, fixed before the rule was written:** on every fund row of the movers table 2026-06-17 to
-   2026-09-21 moving 10%+ on 100K+ shares, less the 12 funds of the model test (the held-back set): (a) zero
-   wrong directions where the tracked thing parses to a ticker with its own daily bar that day (the fund's
-   implied direction against the ticker's close); (b) the parsed leverage within 25% of the fund's move over
-   the ticker's on at least 95% of those; (c) a reviewer that did not write the rule reads 40 random parsed
-   names against the raw name and finds at least 95% right, with a wrong "tracks" counted as a mislabel.
+3. **The first rule: a fund says so, its own name quoted.** A symbol Yahoo calls a fund (`quote_type` `ETF`,
+   which Yahoo also gives ETNs) reads "A fund: it moves with what it tracks, not on company news", with the fund's
+   name exactly as Yahoo gives it ("ProShares UltraShort MSCI Brazil Capped"). Nothing is read out of the name. It
+   sits after company news and before the short squeeze; a fund with company news keeps news. Unknown while
+   Yahoo's fundamentals are not read, and on a Sim replay (a replay never reads Yahoo). The first version read the
+   side, the multiple and what the fund tracks from the name, against a pass bar fixed before it was written: (a)
+   zero wrong directions where the tracked thing parses to a ticker with its own daily bar that day; (b) the
+   parsed leverage within 25% of the fund's move over the ticker's on at least 95% of those; (c) a reviewer that
+   did not write the rule reads 40 random parsed names and finds at least 95% right. It never passed (the record
+   below), and the operator chose the quoted name (2026-10-26): "Fund's own name".
 4. **Law-firm adverts and halt notices are never a cause** -- already the catalyst classifier's noise
    (`law_firm`, `halt_notice`); nothing changes.
 
@@ -174,3 +172,10 @@ Run 4's three (AVL -13% and PLTU -10% on 2025-12-10, SMUP -15% on 2025-12-24, ea
 parsed right: the fund fell for a reason its name cannot know, so "down 13%, so AVGO fell" would have been a wrong
 claim. The bar was not changed; the claim was removed -- the cause says only what the fund is and which way it
 moves with what it tracks. Each fix was committed before the next window was drawn, and no window was run twice.
+
+After run 4 the reading was frozen once more and a fresh reviewer read 40 names no reviewer had seen: 30 of 40
+right (Roundhill WeeklyPay funds run 1.2x with no number in the name; sponsor fragments such as "AG Silver" and
+"Galaxy Ethereum"; a brand read as what the fund tracks, "IncomeMax"). Across four reviews 75-93% of names were read
+fully right and every fix moved the misses elsewhere, while Yahoo's fund type and the quoted name were never wrong.
+The rule that ships quotes the name and reads nothing out of it.
+
