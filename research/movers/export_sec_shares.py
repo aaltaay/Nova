@@ -71,7 +71,8 @@ def share_counts(facts: dict) -> list[tuple[str, str, float, str | None]]:
 
 
 def holder_rows(mapping: dict[str, list[str]], reference: Path) -> list[dict]:
-    """``ticker_holders`` rows for every ticker more than one CIK carries, by ``tickers.holder_runs``."""
+    """``ticker_holders`` rows for every ticker more than one CIK carries, by ``tickers.holder_runs``; one with no
+    run (no day can be settled) gets a row with ``cik`` null, so the float reads know it is reused: unknown."""
     from market_reads import tickers
     if reference.resolve() != tickers._path().resolve():
         raise SystemExit(f"--reference {reference} is not the ticker list the holder rule reads ({tickers._path()}): "
@@ -80,8 +81,9 @@ def holder_rows(mapping: dict[str, list[str]], reference: Path) -> list[dict]:
     for cik, symbols in mapping.items():
         for symbol in symbols:
             by_symbol[symbol].add(cik)
+    unsettled = {"cik": None, "held_from": None, "held_to": None}
     return [{"symbol": symbol, **run} for symbol in sorted(s for s, ciks in by_symbol.items() if len(ciks) > 1)
-            for run in tickers.holder_runs(symbol)]
+            for run in (tickers.holder_runs(symbol) or [unsettled])]
 
 
 def export(zip_path: Path, db_path: Path, reference: Path) -> dict[str, int]:

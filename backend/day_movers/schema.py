@@ -42,6 +42,15 @@ def _mover_column_sql(name: str) -> str:
     return f"{name} INTEGER"
 
 
+# A reused ticker's holder by date (``market_reads.tickers.holder_runs``): a share count is the holder's only. Every
+# reused ticker has a row; ``cik`` null is a ticker two companies used that no day can be settled for (unknown).
+TICKER_HOLDERS_DDL = """CREATE TABLE IF NOT EXISTS ticker_holders (
+        symbol TEXT NOT NULL,
+        cik TEXT,
+        held_from TEXT,
+        held_to TEXT
+    )"""
+
 DDL = (
     """CREATE TABLE IF NOT EXISTS sessions (
         session_date TEXT PRIMARY KEY,
@@ -77,13 +86,7 @@ DDL = (
         split_to REAL NOT NULL,
         PRIMARY KEY (symbol, execution_date)
     )""",
-    # A reused ticker's holder by date (``market_reads.tickers.holder_runs``): a share count is the holder's only.
-    """CREATE TABLE IF NOT EXISTS ticker_holders (
-        symbol TEXT NOT NULL,
-        cik TEXT NOT NULL,
-        held_from TEXT,
-        held_to TEXT
-    )""",
+    TICKER_HOLDERS_DDL,
     "CREATE INDEX IF NOT EXISTS ticker_holders_by_symbol ON ticker_holders (symbol)",
 )
 

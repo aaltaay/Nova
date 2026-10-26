@@ -272,8 +272,9 @@ and `.claude/skills/nova-sim-navigator/`. Nothing here places, stages or cancels
   - `sec_shares (symbol, cik, as_of, filed, shares, form)`: shares outstanding a filing reported as of `as_of`,
     from SEC's companyfacts (`research/movers/export_sec_shares.py`; several share classes keep the largest).
   - `ticker_holders (symbol, cik, held_from, held_to)`: for a ticker two CIKs carry in `sec_shares`, which company
-    held it, by date (null = open-ended; `tickers.holder_runs`, the rule above), written with `sec_shares` in one
-    transaction. `day_movers.floats.sec_shares` -- every share-count read (the agent search's float limit,
+    held it, by date (null dates = open-ended; `tickers.holder_runs`, the rule above; a reused ticker no day can
+    be settled for has one row with `cik` null), written with `sec_shares` in one transaction (the export drops
+    and recreates the table). `day_movers.floats.sec_shares` -- every share-count read (the agent search's float limit,
     `find_stock_days`, the signal table, the HOD Momo rebuild) -- reads only the holder's count; a day no company
     can be named for has no count (unknown). A store exported before the table existed reads as before and logs it.
   - `splits (symbol, execution_date, split_from, split_to)`: the split list the builder adjusted prices by.

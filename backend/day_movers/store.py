@@ -26,6 +26,7 @@ from day_movers.schema import (
     SESSION_COLUMNS,
     SPLIT_COLUMNS,
     TICKER_HOLDER_COLUMNS,
+    TICKER_HOLDERS_DDL,
     UnknownDayMoversSchema,
     initialize,
 )
@@ -112,7 +113,9 @@ def replace_sec_shares(db: sqlite3.Connection, rows: Iterable[dict[str, Any]],
         if share_t:
             db.executemany(_insert_sql("sec_shares", SEC_SHARES_COLUMNS), share_t)
         if holder_t is not None:
-            db.execute("DELETE FROM ticker_holders")
+            db.execute("DROP TABLE IF EXISTS ticker_holders")   # the export owns its shape: rebuilt whole
+            db.execute(TICKER_HOLDERS_DDL)
+            db.execute("CREATE INDEX IF NOT EXISTS ticker_holders_by_symbol ON ticker_holders (symbol)")
             if holder_t:
                 db.executemany(_insert_sql("ticker_holders", TICKER_HOLDER_COLUMNS), holder_t)
     return len(share_t)
