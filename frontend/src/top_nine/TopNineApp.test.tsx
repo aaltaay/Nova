@@ -14,7 +14,7 @@ import TopNineApp from './TopNineApp';
 
 function board(symbols: string[]): TopNineRow[] {
   return symbols.map((symbol, i) => ({
-    symbol, rank: i + 1, changePct: 30 - i, price: 2, volume: 5_800_000, float: 81_400, halted: symbol === 'SMX',
+    symbol, rank: i + 1, changePct: 0.7 - i / 10, price: 2, volume: 5_800_000, float: 81_400, halted: symbol === 'SMX',
   }));
 }
 
@@ -60,6 +60,9 @@ describe('TopNineApp', () => {
     expect(tiles.map((t) => t.getAttribute('data-testid'))).toEqual(AT_1013.map((s) => `top-nine-tile-${s}`));
     expect(screen.getByTestId('top-nine-tile-ZTG').getAttribute('data-rank')).toBe('3');
     expect(screen.getByTestId('top-nine-tile-SMX').textContent).toContain('HALTED');
+    // Change is the Scanner's fraction of the previous close: 0.7 reads +70%, never +0.7%.
+    expect(screen.getByTestId('top-nine-tile-XLAB').textContent).toContain('+70.00%');
+    expect(screen.getByTestId('top-nine-tile-XLAB').textContent).not.toContain('+0.7%');
     expect(screen.getByTestId('top-nine-tab-gainers').textContent).toBe('Gainers50');
     expect(Number(localStorage.getItem(TOP_NINE_VIEWER_KEY))).toBeGreaterThan(0);
     // Nothing moved yet: the first board is never marked.
