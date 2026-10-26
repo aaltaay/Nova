@@ -647,7 +647,7 @@
   },
   {
     "name": "find_stock_days",
-    "description": "Momentum stock-days in one call: movers rows (filters as movers_scan: date_from/date_to, price_min/max on the raw prior close, high_min ... in percent points; needs dates or a symbol) joined with what was known that day -- outstanding_* (SEC shares OUTSTANDING filed by the day, as of <=120 days, split-adjusted; NOT free float), enrichment_float (the desk's own float, 2026-07-28 on), catalyst_* (the backfill's verdict; null = unknown), halts / first_halt_et / halt_codes, pm_high / pm_volume and up10_et..up300_et (first ET minute each +N% printed). kinds: COMMON STOCK (CS, ADRC) by default, like movers_search -- warrants, rights, units and ETFs are left out unless asked: [\"all\"] keeps every kind, [\"ETF\"] or [\"CS\", \"WARRANT\"] those types; naming a symbol with no kinds keeps every kind. sort ranks the rows like movers_search: newest | oldest (default) | high | low | close | gap | volume | dollar_volume (a row without the figure last, ties newest day first); the float / catalyst / halted filters then pick from the ranking, so sort \"high\" with limit 10 is the ten largest highs that pass them. limit = page_size (the most rows this call returns, <=5,000; with output_name <=100,000); next_cursor continues the same ranking exactly: pass it back as cursor with the same arguments. float_max filters float_basis: sec_outstanding (default) | enrichment | best; outstanding_max is the same limit under the name of what it filters (SEC shares outstanding; needs float_basis sec_outstanding, not with float_max); float_source labels each value; float_unknown exclude | include | only. catalyst e.g. [\"catalyst\"] or [\"unknown\"]; halted true/false. Likely splits left out (splits=include keeps).",
+    "description": "Momentum stock-days in one call: movers rows (filters as movers_scan: date_from/date_to, price_min/max on the raw prior close, high_min ... in percent points; needs dates or a symbol) joined with what was known that day -- outstanding_* (SEC shares OUTSTANDING filed by the day, as of <=120 days, split-adjusted; NOT free float), enrichment_float (the desk's own float, 2026-07-28 on), catalyst_* (the backfill's verdict; null = unknown), halts / first_halt_et / halt_codes, pm_high / pm_volume and up10_et..up300_et (first ET minute each +N% printed). kinds: COMMON STOCK (CS, ADRC) by default, like movers_search -- warrants, rights, units and ETFs are left out unless asked: [\"all\"] keeps every kind, [\"ETF\"] or [\"CS\", \"WARRANT\"] those types; naming a symbol with no kinds keeps every kind. sort ranks the rows like movers_search: newest | oldest (default) | high | low | close | gap | volume | dollar_volume (a row without the figure last, ties newest day first); the float / catalyst / halted filters then pick from the ranking, so sort \"high\" with limit 10 is the ten largest highs that pass them. limit = page_size (the most rows this call returns, <=5,000; with output_name <=100,000); next_cursor continues the same ranking exactly: pass it back as cursor with the same arguments. float_max filters float_basis: sec_outstanding (default) | enrichment | best; outstanding_max is the same limit under the name of what it filters (SEC shares outstanding; needs float_basis sec_outstanding, not with float_max); float_source labels each value; float_unknown exclude | include | only. catalyst e.g. [\"catalyst\"] or [\"unknown\"]; catalyst_category e.g. [\"fda_regulatory\"] (the verdict's category); catalyst_words keeps a headline containing any word (e.g. [\"approv\", \"clear\"]: a text match, read the titles); halted true/false. rvol_daily (the day's volume / its usual whole-session volume, up to 50 earlier sessions; null = unknown) on every row; rvol_daily_min e.g. 5 keeps 5x or more and leaves unknowns out, counted in meta.left_out. Likely splits left out (splits=include keeps).",
     "inputSchema": {
       "properties": {
         "filters": {
@@ -810,6 +810,48 @@
           ],
           "default": null,
           "title": "Output Name"
+        },
+        "catalyst_category": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Catalyst Category"
+        },
+        "catalyst_words": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Catalyst Words"
+        },
+        "rvol_daily_min": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rvol Daily Min"
         }
       },
       "required": [
