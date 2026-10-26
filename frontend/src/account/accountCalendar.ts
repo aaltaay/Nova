@@ -37,6 +37,16 @@ const MONTH_NAMES = [
 
 export const monthLabel = (year: number, month: number): string => `${MONTH_NAMES[month]} ${year}`;
 
+// A YYYY-MM-DD date read as a UTC midnight, so its weekday is the date's whatever this PC's zone.
+const DAY_LONG = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'long', month: 'short', day: 'numeric' });
+const DAY_SHORT = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' });
+const utcMidnight = (date: string): Date => new Date(`${date}T00:00:00Z`);
+
+/** `Wednesday, Oct 21` of a YYYY-MM-DD date. */
+export const dayLongLabel = (date: string): string => DAY_LONG.format(utcMidnight(date));
+/** `Wed, Oct 21` of a YYYY-MM-DD date. */
+export const dayShortLabel = (date: string): string => DAY_SHORT.format(utcMidnight(date));
+
 export function parseIsoDate(date: string): { year: number; month: number; day: number } | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
   if (!m) return null;

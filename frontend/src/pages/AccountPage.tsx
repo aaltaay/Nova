@@ -9,11 +9,18 @@
  *
  * The venue is the status's own `venue` (C26). On the sample desk the page
  * shows the Nova Marketing Sample Data account and polls nothing (V4).
+ *
+ * A Calendar day clicked opens in the Ledger's place, and the Fills tab lists
+ * that day's fills until the day closes (operator ask, 2026-10-26).
  */
-import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useMemo, useRef, useState } from 'react';
 import '../account/account.css';
 import '../account/account-panels.css';
+import '../account/account-day.css';
 import { AccountDetailsPanel } from '../account/AccountDetailsPanel';
+import { dayShortLabel } from '../account/accountCalendar';
+import { dayBreakdowns, fillDay } from '../account/accountDayBreakdown';
+import { DayBreakdownPanel } from '../account/DayBreakdownPanel';
 import {
   accountDetailRows,
   todayDailyRow,
@@ -27,7 +34,7 @@ import { CalendarPanel } from '../account/CalendarPanel';
 import { ComponentsPanel } from '../account/ComponentsPanel';
 import { LedgerPanel } from '../account/LedgerPanel';
 import { PerformancePanel, type PerfTab } from '../account/PerformancePanel';
-import { PositionsOrdersPanel } from '../account/PositionsOrdersPanel';
+import { PositionsOrdersPanel, type PosTab } from '../account/PositionsOrdersPanel';
 import { useBotSession } from '../bot/useBotSession';
 import { useClosedOrders } from '../closed_orders/useClosedOrders';
 import { TabLazyFallback } from '../components/TabLazyFallback';
@@ -93,6 +100,9 @@ export function AccountPage({ onOpenTrader }: Props) {
   const [perfTab, setPerfTab] = useState<PerfTab>('account');
   const [tab, setTab] = useState<PageTab>('overview');
   const [hidden, setHidden] = useState(false);
+  const [openDay, setOpenDay] = useState<string | null>(null);
+  const [posTab, setPosTab] = useState<PosTab>('orders');
+  const posRef = useRef<HTMLElement>(null);
   const history = useAccountHistory(practiceVenue, range);
   // The calendar shows whole months whatever the Performance range (QA W5):
   // it reads every day the ledger (and its archives) hold.
@@ -148,6 +158,20 @@ export function AccountPage({ onOpenTrader }: Props) {
   const sessionCap = session?.caps?.max_shares;
   const maxSharesCap = typeof sessionCap === 'number' && Number.isFinite(sessionCap) ? sessionCap : null;
   const fills = practiceVenue ? practiceFillRows(hist?.fills ?? []) : liveFillRows(liveOrders);
+  const days = useMemo(() => (calendarHist ? dayBreakdowns(calendarHist) : null), [calendarHist]);
+  // The day open on the page, while this venue's history still has it.
+  const day = openDay ? days?.get(openDay) ?? null : null;
+  const fillsDay = day && calendarHist
+    ? {
+        label: dayShortLabel(day.date),
+        fills: practiceFillRows(calendarHist.fills.filter((f) => fillDay(f.ts) === day.date)),
+        onClear: () => setOpenDay(null),
+      }
+    : null;
+  const showDayFills = () => {
+    setPosTab('fills');
+    posRef.current?.scrollIntoView?.({ block: 'nearest' });
+  };
 
   const tabs: Array<[PageTab, string]> = sampleDesk
     ? [['overview', ACCOUNT_TAB_OVERVIEW]]
@@ -210,14 +234,18 @@ export function AccountPage({ onOpenTrader }: Props) {
                 openPnl={figures.openPnl}
               />
               <ComponentsPanel history={hist} absence={absence} range={range} openPnl={figures.openPnl} />
-              <LedgerPanel
-                venue={venue}
-                history={hist}
-                absence={absence}
-                accountId={ledger?.account_id ?? hist?.account_id ?? null}
-                startingCash={ledger?.starting_cash ?? hist?.starting_cash ?? null}
-              />
-              <CalendarPanel history={calendarHist} absence={calendarAbsence} today={today} />
+              {day ? (
+                <DayBreakdownPanel key={day.date} day={day} onClose={() => setOpenDay(null)} onShowFills={showDayFills} />
+              ) : (
+                <LedgerPanel
+                  venue={venue}
+                  history={hist}
+                  absence={absence}
+                  accountId={ledger?.account_id ?? hist?.account_id ?? null}
+                  startingCash={ledger?.starting_cash ?? hist?.starting_cash ?? null}
+                />
+              )}
+              <CalendarPanel history={calendarHist} absence={calendarAbsence} today={today} days={days} selected={day?.date ?? null} onSelect={setOpenDay} />
               <PositionsOrdersPanel
                 practice={practiceVenue != null}
                 venue={venue}
@@ -226,6 +254,10 @@ export function AccountPage({ onOpenTrader }: Props) {
                 closed={closedOrders}
                 fills={fills}
                 today={today}
+                tab={posTab}
+                onTab={setPosTab}
+                day={fillsDay}
+                panelRef={posRef}
               />
             </div>
           ) : (

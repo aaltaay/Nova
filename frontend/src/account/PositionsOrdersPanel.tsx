@@ -4,9 +4,10 @@
  * Expired is the DAY order expiry (20:00 ET on Paper, the replayed window's
  * end on Sim) and the footer says which. Every order row names its own source
  * stamp (QA W9); a working order from an earlier day shows its date (W4). On
- * Live the Fills tab reads IBKR's filled orders (W17).
+ * Live the Fills tab reads IBKR's filled orders (W17). While a Calendar day is
+ * open the Fills tab lists that day's fills, until the day closes.
  */
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type Ref } from 'react';
 import type { DeskVenue } from '../constantGroups/desk_venue';
 import {
   ACCOUNT_COL_AVG,
@@ -23,6 +24,9 @@ import {
   ACCOUNT_COL_TIME,
   ACCOUNT_COL_TYPE,
   ACCOUNT_COL_UNREALIZED,
+  ACCOUNT_FILLS_DAY_CLEAR,
+  ACCOUNT_FILLS_DAY_CLEAR_TITLE,
+  ACCOUNT_FILLS_DAY_EMPTY,
   ACCOUNT_FILLS_EMPTY,
   ACCOUNT_FILLS_FOOT_LIVE,
   ACCOUNT_ORDERS_EMPTY,
@@ -64,6 +68,19 @@ interface Props {
   fills: AccountFillRow[];
   /** Today's practice date (YYYY-MM-DD); rows from another day show their date. */
   today?: string | null;
+  /** The tab, when the page drives it (a Calendar day's "Show these fills"). */
+  tab?: PosTab;
+  onTab?: (tab: PosTab) => void;
+  /** The Calendar day open on the page: the Fills tab lists its fills. */
+  day?: FillsDay | null;
+  panelRef?: Ref<HTMLElement>;
+}
+
+export interface FillsDay {
+  /** `Wed, Oct 21`. */
+  label: string;
+  fills: AccountFillRow[];
+  onClear: () => void;
 }
 
 /**
@@ -165,8 +182,12 @@ function orderColumns(fillSource: ReadonlyMap<number, AccountFillRow>): SortColu
   };
 }
 
-export function PositionsOrdersPanel({ practice, venue, positions, working, closed, fills, today = null }: Props) {
-  const [tab, setTab] = useState<PosTab>('orders');
+export function PositionsOrdersPanel({
+  practice, venue, positions, working, closed, fills, today = null, tab: drivenTab, onTab, day = null, panelRef,
+}: Props) {
+  const [ownTab, setOwnTab] = useState<PosTab>('orders');
+  const tab = drivenTab ?? ownTab;
+  const setTab = onTab ?? setOwnTab;
   const [filter, setFilter] = useState<AccountOrderFilter>('all');
   // One row per order by identity, not order_id: ids repeat (C29).
   const orders = uniqueOrders([...working, ...closed]).sort((a, b) => orderTs(b) - orderTs(a));
@@ -175,7 +196,8 @@ export function PositionsOrdersPanel({ practice, venue, positions, working, clos
   const count = (bucket: AccountOrderFilter): number =>
     bucket === 'all' ? orders.length : orders.filter((o) => orderBucket(o) === bucket).length;
   const shown = filter === 'all' ? orders : orders.filter((o) => orderBucket(o) === filter);
-  const newestFills = [...fills].sort((a, b) => (b.ts ?? 0) - (a.ts ?? 0));
+  const listedFills = day ? day.fills : fills;
+  const newestFills = [...listedFills].sort((a, b) => (b.ts ?? 0) - (a.ts ?? 0));
   const held = positions.filter((p) => p.qty !== 0);
   const orderCols = useMemo(() => orderColumns(fillSource), [fillSource]);
   const positionSort = useTableSort('account.positions', held, POSITION_COLUMNS);
@@ -187,11 +209,11 @@ export function PositionsOrdersPanel({ practice, venue, positions, working, clos
   const tabs: Array<[PosTab, string, number]> = [
     ['positions', ACCOUNT_POS_TAB_POSITIONS, held.length],
     ['orders', ACCOUNT_POS_TAB_ORDERS, orders.length],
-    ['fills', ACCOUNT_POS_TAB_FILLS, fills.length],
+    ['fills', day ? `${ACCOUNT_POS_TAB_FILLS} · ${day.label}` : ACCOUNT_POS_TAB_FILLS, listedFills.length],
   ];
 
   return (
-    <section className="acct-panel acct-panel--pos" data-testid="account-positions-orders">
+    <section ref={panelRef} className="acct-panel acct-panel--pos" data-testid="account-positions-orders">
       <div className="acct-panel__head">
         <div className="acct-ptabs" role="tablist">
           {tabs.map(([id, label, n]) => (
@@ -208,6 +230,14 @@ export function PositionsOrdersPanel({ practice, venue, positions, working, clos
               {ACCOUNT_ORDER_FILTER_LABELS[f]}<b>{count(f)}</b>
             </button>
           ))}
+        </div>
+      )}
+      {tab === 'fills' && day && (
+        <div className="acct-filters" data-testid="account-fills-day">
+          <span className="acct-fills-day">{day.label}</span>
+          <button type="button" className="acct-filters__item" title={ACCOUNT_FILLS_DAY_CLEAR_TITLE} data-testid="account-fills-day-clear" onClick={day.onClear}>
+            {ACCOUNT_FILLS_DAY_CLEAR} ×
+          </button>
         </div>
       )}
       <div className="acct-scroll">
@@ -299,7 +329,7 @@ export function PositionsOrdersPanel({ practice, venue, positions, working, clos
             </thead>
             <tbody>
               {fillSort.rows.length === 0 ? (
-                <tr><td colSpan={8} className="acct-muted">{ACCOUNT_FILLS_EMPTY}</td></tr>
+                <tr><td colSpan={8} className="acct-muted">{day ? ACCOUNT_FILLS_DAY_EMPTY : ACCOUNT_FILLS_EMPTY}</td></tr>
               ) : fillSort.rows.map((f) => (
                 <tr key={f.key} data-testid={`account-fill-${f.orderId}`}>
                   <td className="acct-num">{etTime(f.ts)}</td>
