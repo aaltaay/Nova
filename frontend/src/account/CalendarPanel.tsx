@@ -77,7 +77,7 @@ export function dayFigure(metric: AccountCalendarMetric, day: DayBreakdown): { v
 }
 
 function MetricFoot({ metric, totals }: { metric: Exclude<AccountCalendarMetric, 'net'>; totals: MonthDayTotals }) {
-  const undetailed = totals.undetailedDays > 0 ? ` · ${ACCOUNT_CALENDAR_UNDETAILED}` : '';
+  const undetailed = totals.incompleteDays > 0 ? ` · ${ACCOUNT_CALENDAR_UNDETAILED}` : '';
   if (metric === 'gross') {
     return (
       <>
@@ -87,7 +87,7 @@ function MetricFoot({ metric, totals }: { metric: Exclude<AccountCalendarMetric,
     );
   }
   if (metric === 'commissions') {
-    const perTrade = totals.trades > 0 && totals.undetailedDays === 0 ? formatMoney(totals.commissions / totals.trades) : null;
+    const perTrade = totals.trades > 0 && totals.incompleteDays === 0 ? formatMoney(totals.commissions / totals.trades) : null;
     return (
       <>
         {ACCOUNT_CALENDAR_METRIC_LABELS.commissions} <b className="acct-num">{formatSignedMoney(-totals.commissions)}</b> · {accountCalendarCommFoot(formatSignedMoney(-totals.fees), perTrade)}

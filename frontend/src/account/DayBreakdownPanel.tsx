@@ -30,6 +30,7 @@ import {
   ACCOUNT_DAY_NO_TRADES,
   ACCOUNT_DAY_PANEL_TITLE,
   ACCOUNT_DAY_PARTIAL_NOTE,
+  ACCOUNT_DAY_PER_TRADE_PARTIAL,
   ACCOUNT_DAY_SHARES,
   ACCOUNT_DAY_SHORT,
   ACCOUNT_DAY_SHOW_FEWER,
@@ -145,7 +146,10 @@ export function DayBreakdownPanel({ day, onClose, onShowFills }: Props) {
   }, []);
   const widest = Math.max(0, ...day.stocks.map((s) => Math.abs(s.net)));
   const trades = allTrades ? day.trades : day.trades.slice(0, ACCOUNT_DAY_TRADES_SHOWN);
-  const perTrade = day.trades.length > 0 ? accountDayPerTrade(formatMoney(day.commissions / day.trades.length)) : '—';
+  // An archived ledger's commissions are in the day's total but its trades are not: no fair average then.
+  const perTrade = day.partial
+    ? ACCOUNT_DAY_PER_TRADE_PARTIAL
+    : day.trades.length > 0 ? accountDayPerTrade(formatMoney(day.commissions / day.trades.length)) : '—';
 
   return (
     <section ref={ref} className="acct-panel acct-panel--ledger acct-panel--day" data-testid="account-day" aria-label={ACCOUNT_DAY_PANEL_TITLE}>

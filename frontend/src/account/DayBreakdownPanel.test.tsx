@@ -69,6 +69,15 @@ describe('DayBreakdownPanel', () => {
     expect(screen.getByTestId('account-day-more').textContent).toBe('Show fewer');
   });
 
+  it('gives commissions per trade on a whole day, and none when an archived ledger shared the day', () => {
+    const { rerender } = render(<DayBreakdownPanel day={day} onClose={() => {}} onShowFills={() => {}} />);
+    expect(screen.getByText('$5.00 a trade')).toBeTruthy();
+    rerender(<DayBreakdownPanel day={{ ...day, commissions: 110, partial: true }} onClose={() => {}} onShowFills={() => {}} />);
+    expect(screen.queryByText(/a trade$/)).toBeNull();
+    expect(screen.getByText('no per-trade figure · archived share')).toBeTruthy();
+    expect(screen.getByText(/Part of this day belongs to an archived ledger/)).toBeTruthy();
+  });
+
   it("states an archived ledger's day as its totals, with nothing to list", () => {
     render(<DayBreakdownPanel day={days.get('2026-09-10')!} onClose={() => {}} onShowFills={() => {}} />);
     expect(screen.getByText(/keeps only its day totals/)).toBeTruthy();

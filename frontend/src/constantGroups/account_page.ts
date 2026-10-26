@@ -204,8 +204,8 @@ export const accountCalendarCommFoot = (fees: string, perTrade: string | null): 
   `fees ${fees}${perTrade ? ` · ${perTrade} a trade` : ''}`;
 export const accountCalendarTradesFoot = (fills: number, won: number, lost: number): string =>
   `${accountFillCount(fills)} · ${won} won, ${lost} lost`;
-export const ACCOUNT_CALENDAR_UNDETAILED =
-  "archived ledgers' days count fills only";
+/** An archived ledger's trades are not sent: its days' commissions are counted, its trades are not. */
+export const ACCOUNT_CALENDAR_UNDETAILED = "archived ledgers' trades are not counted";
 
 /* ---------- One day: the hover card and the day panel ---------- */
 export const ACCOUNT_DAY_GROSS = 'Gross';
@@ -244,6 +244,7 @@ export const ACCOUNT_DAY_SHOW_FEWER = 'Show fewer';
 export const accountDayShowFills = (n: number): string => `Show these ${accountFillCount(n)}`;
 export const accountDayTileSharesSub = (sold: string): string => `bought · ${sold} sold`;
 export const accountDayPerTrade = (perTrade: string): string => `${perTrade} a trade`;
+export const ACCOUNT_DAY_PER_TRADE_PARTIAL = 'no per-trade figure · archived share';
 export const ACCOUNT_DAY_TILE_BOT_SUB = 'fills by the bot';
 export const ACCOUNT_DAY_COL_STOCK = 'Stock';
 export const ACCOUNT_DAY_COL_TRADES = 'Trades';

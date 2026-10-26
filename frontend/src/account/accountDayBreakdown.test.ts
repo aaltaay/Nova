@@ -107,7 +107,16 @@ describe('monthDayTotals', () => {
     const total = monthDayTotals(days, ['2026-09-10', '2026-09-18', '2026-09-19']);
     expect(total.commissions).toBe(12);
     expect(total.fills).toBe(8);
-    expect([total.trades, total.won, total.lost, total.undetailedDays]).toEqual([2, 1, 1, 1]);
+    expect([total.trades, total.won, total.lost, total.incompleteDays]).toEqual([2, 1, 1, 1]);
     expect(total.gross).toBeCloseTo(97.5 + 98.55, 6);
+  });
+
+  it("counts a day an archived ledger shared as incomplete: its commissions are in, its trades are not", () => {
+    const history = paperHistoryFixture(PLAYHEAD);
+    history.daily = history.daily.filter((r) => !r.archived);
+    expect(monthDayTotals(dayBreakdowns(history), ['2026-09-18']).incompleteDays).toBe(0);
+    history.daily.push({ date: '2026-09-18', realized: -102, commissions: 100, fees: 0, fills: 2, archived: true });
+    const total = monthDayTotals(dayBreakdowns(history), ['2026-09-18']);
+    expect([total.commissions, total.trades, total.incompleteDays]).toEqual([110, 2, 1]);
   });
 });

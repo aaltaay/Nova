@@ -84,11 +84,28 @@ describe('CalendarPanel day squares', () => {
     expect(cell('2026-09-18').textContent).toBe('1826 fills');
     expect(cell('2026-09-10').textContent).toBe('10—2 fills');
     expect(screen.getByTestId('account-calendar-foot').textContent).toBe(
-      "2 trades · 8 fills · 1 won, 1 lost · archived ledgers' days count fills only · blank = no fills",
+      "2 trades · 8 fills · 1 won, 1 lost · archived ledgers' trades are not counted · blank = no fills",
     );
 
     fireEvent.click(screen.getByTestId('account-calendar-metric-net'));
     expect(screen.getByTestId('account-calendar-foot').textContent).toContain('this ledger');
+  });
+
+  it('gives commissions per trade only when every trade of the month is counted (a reset mid-day hides it)', () => {
+    const current = paperHistoryFixture(PLAYHEAD);
+    current.daily = current.daily.filter((r) => !r.archived);
+    const foot = () => screen.getByTestId('account-calendar-foot').textContent;
+    const show = (h: typeof current) => (
+      <CalendarPanel history={h} absence={null} today="2026-09-18" days={dayBreakdowns(h)} selected={null} onSelect={() => {}} />
+    );
+    const { rerender } = render(show(current));
+    fireEvent.click(screen.getByTestId('account-calendar-metric-commissions'));
+    expect(foot()).toBe('Commissions -$10.00 · fees -$0.40 · $5.00 a trade · blank = no fills');
+
+    // Paper reset at noon: the archived ledger's $100 is in the day, its trades are not.
+    const reset = { ...current, daily: [...current.daily, { date: '2026-09-18', realized: -100, commissions: 100, fees: 0, fills: 2, archived: true }] };
+    rerender(show(reset));
+    expect(foot()).toBe('Commissions -$110.00 · fees -$0.40 · blank = no fills');
   });
 
   it('opens the hover card on a day and closes it when the pointer leaves', () => {

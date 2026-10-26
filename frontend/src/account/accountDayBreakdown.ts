@@ -217,13 +217,17 @@ export interface MonthDayTotals {
   trades: number;
   won: number;
   lost: number;
-  /** Days traded only by an archived ledger: their trades are not counted. */
-  undetailedDays: number;
+  /** Days an archived ledger traded, alone or beside this one: their trades are not all counted. */
+  incompleteDays: number;
 }
 
-/** The totals of `dates`' breakdowns (a month's cells). */
+/**
+ * The totals of `dates`' breakdowns (a month's cells). Commissions include an
+ * archived ledger's, its trades do not, so a cost per trade is only fair when
+ * `incompleteDays` is 0.
+ */
 export function monthDayTotals(days: ReadonlyMap<string, DayBreakdown>, dates: readonly string[]): MonthDayTotals {
-  const total: MonthDayTotals = { net: 0, gross: 0, commissions: 0, fees: 0, fills: 0, trades: 0, won: 0, lost: 0, undetailedDays: 0 };
+  const total: MonthDayTotals = { net: 0, gross: 0, commissions: 0, fees: 0, fills: 0, trades: 0, won: 0, lost: 0, incompleteDays: 0 };
   for (const date of dates) {
     const day = days.get(date);
     if (!day) continue;
@@ -235,7 +239,7 @@ export function monthDayTotals(days: ReadonlyMap<string, DayBreakdown>, dates: r
     total.trades += day.trades.length;
     total.won += day.won;
     total.lost += day.lost;
-    if (!day.detailed) total.undetailedDays += 1;
+    if (!day.detailed || day.partial) total.incompleteDays += 1;
   }
   return total;
 }
