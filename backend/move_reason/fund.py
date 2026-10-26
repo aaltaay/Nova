@@ -3,9 +3,10 @@
 A symbol Yahoo calls a fund (``quote_type`` ``ETF``, which Yahoo also gives ETNs) moves with what it tracks, not on
 company news: BRZD +76% and BZQ +50% on 2026-10-26 were inverse Brazil funds the day after Lula won Brazil's
 runoff, and the read called them unexplained. ``from_name`` reads the fund's own name -- inverse or not, the
-leverage, what it tracks -- and ``cause_label`` says which way the tracked market went from the fund's move and
-side: a direction, never an implied percentage (a daily-reset fund's move over days is not its leverage times the
-market's). A name it cannot read keeps what it can: "Fund" with no tracks, 1x when no leverage is written.
+leverage, what it tracks -- and ``cause_label`` says what the fund is and that it moves with or against what it
+tracks. It never says what that market did: a fund's own move can come from a payout or a split, not its market
+(held-back set 4: AVL -13% on 2025-12-10 while AVGO rose 1.6%). A name it cannot read keeps what it can: "Fund"
+with no tracks, 1x when no leverage is written, "Leveraged" with no number when the name gives none.
 
 Owner: this module (no state).
 """
@@ -117,8 +118,9 @@ def describe(fund: dict[str, Any]) -> str:
 
 
 def cause_label(fund: dict[str, Any], change: float) -> str:
-    """"Inverse 2x fund on Brazil: up 50.3%, so Brazil fell" -- the direction only."""
-    up = change > 0
-    tracked_up = up if fund.get("side") != SIDE_INVERSE else not up
+    """"Inverse 2x fund on Brazil: up 50.3%, moves against Brazil" -- what the fund is, never what its market did:
+    a fund's own move can come from something else (AVL -13% on 2025-12-10 while AVGO rose 1.6%)."""
     what = fund.get("tracks") or "what it tracks"
-    return f"{describe(fund)}: {'up' if up else 'down'} {abs(change) * 100:.1f}%, so {what} {'rose' if tracked_up else 'fell'}"
+    way = "against" if fund.get("side") == SIDE_INVERSE else "with"
+    return f"{describe(fund)}: {'up' if change > 0 else 'down'} {abs(change) * 100:.1f}%, moves {way} {what}"
+

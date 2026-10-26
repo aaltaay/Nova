@@ -1028,9 +1028,10 @@ Beneficial Interest") cut first, and
 `tracks` the name less its sponsor and build words (`MOVE_FUND_ISSUERS`, `MOVE_FUND_DROP_WORDS`), `null` when
 nothing or more than `MOVE_FUND_TRACKS_MAX_WORDS` words are left. The `fund` check reads `yes` "Inverse 2x fund
 on Brazil" (its `detail` "Read from its name: ..."), `no` "Not a fund (Yahoo: equity)", or `unknown`. The cause
-`fund` comes after `news` and before `short_squeeze` (a fund with company news keeps `news`) and says the
-tracked market's direction from the fund's own move and side -- "Inverse 2x fund on Brazil: up 50.3%, so Brazil
-fell" -- never an implied percentage. The ladder adds the rung `{kind: "fund", name: "A fund"}` after `news`.
+`fund` comes after `news` and before `short_squeeze` (a fund with company news keeps `news`) and says what
+the fund is and that it moves with or against what it tracks -- "Inverse 2x fund on Brazil: up 50.3%, moves against
+Brazil" -- never what that market did: a fund's own move can come from a payout or a split (AVL -13% on 2025-12-10
+while AVGO rose 1.6%). The ladder adds the rung `{kind: "fund", name: "A fund"}` after `news`.
 `shares_issued` is the filed share issuance of "Float credibility and short-interest dates" (#700); while
 one is on file the float and float-rotation checks read `unknown` ("631K? shares", "Float traded 82x?")
 with the filing named in their `detail`, because Yahoo's float and share count predate it -- so the

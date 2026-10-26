@@ -60,19 +60,21 @@ def test_yahoo_quote_type_decides_a_fund_and_unknown_stays_unknown():
     assert is_fund("ETF") is True and is_fund("EQUITY") is False and is_fund(None) is None
 
 
-def test_the_cause_says_a_direction_never_a_percentage_for_the_tracked_market():
+def test_the_cause_says_what_the_fund_is_never_what_its_market_did():
+    # Held-back set 4: AVL (2x long AVGO) fell 13% on 2025-12-10 while AVGO rose 1.6% -- a fund's own move can come
+    # from a payout, so "down 13%, so AVGO fell" would have been wrong.
     bzq = from_name("ProShares UltraShort MSCI Brazil Capped")
-    assert cause_label(bzq, 0.503) == "Inverse 2x fund on Brazil: up 50.3%, so Brazil fell"
-    assert cause_label(bzq, -0.2) == "Inverse 2x fund on Brazil: down 20.0%, so Brazil rose"
-    nbil = from_name("GraniteShares 2x Long NBIS Daily ETF")
-    assert cause_label(nbil, 0.53) == "Leveraged 2x fund on NBIS: up 53.0%, so NBIS rose"
+    assert cause_label(bzq, 0.503) == "Inverse 2x fund on Brazil: up 50.3%, moves against Brazil"
+    assert cause_label(bzq, -0.2) == "Inverse 2x fund on Brazil: down 20.0%, moves against Brazil"
+    avl = from_name("Direxion Shares ETF Trust Direxion Daily AVGO Bull 2X ETF")
+    assert cause_label(avl, -0.13) == "Leveraged 2x fund on AVGO: down 13.0%, moves with AVGO"
 
 
 def test_bzq_on_2026_10_26_reads_a_fund_not_unexplained():
     out = read(facts(change_pct=0.503, catalyst=NOISE, quote_type="ETF",
                      fund=from_name("ProShares UltraShort MSCI Brazil Capped")), NOW)
     assert out["likely"]["kind"] == "fund"
-    assert out["likely"]["label"] == "Inverse 2x fund on Brazil: up 50.3%, so Brazil fell"
+    assert out["likely"]["label"] == "Inverse 2x fund on Brazil: up 50.3%, moves against Brazil"
     assert out["likely"]["detail"] == "Read from its name: ProShares UltraShort MSCI Brazil Capped"
     check = {c["id"]: c for c in out["checks"]}["fund"]
     assert check["state"] == "yes" and check["value"] == "Inverse 2x fund on Brazil"
