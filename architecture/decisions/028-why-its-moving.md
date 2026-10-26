@@ -116,3 +116,47 @@ Rejected: putting the read on every scanner row server-side (the read touches th
 record per symbol; on the scanner push that is the socket loop's time, #797); sorting the column by cause (the
 sort stays the newest headline, the column's old key); reading a frozen row at the last trade (the cell would
 contradict the row it sits in).
+
+## Amendment 2026-10-26 (4) -- rules that learn, a model never on the desk; the first: funds
+
+The operator asked why BRZD (+76%) and BZQ (+50%) read "Unexplained" on 2026-10-26. They are inverse Brazil
+funds, up because Lula won Brazil's runoff the day before; the read knows only company causes, so a fund falls
+through every rung. A free local model (Qwen3.5-9B, llama.cpp on the desk's graphics card) was then tested as a
+live explainer on 150 past "no news" movers and 70 live board rows (private study, F:\Nova\private\why-ai-test,
+operator ask 2026-10-26). It named the cause whenever the free headlines held it, but 7 of the 44 causes it would
+have shown were wrong (16%), it rated every answer 0.95 sure so no confidence cut removes them, and it added
+0.3-0.5% slow desk frames at the open. The operator: "I don't want AI to make mistakes, so I prefer deterministic,
+but rules can't be static; I need an agent with some level of comprehension."
+
+Decision:
+
+1. **The desk stays deterministic.** No model runs in the read or writes what the desk shows. "Rejected: an
+   LLM explanation now" stands for the desk.
+2. **An agent keeps the rules growing.** An agent (Claude Code, or a local model) reads the movers the read left
+   `unexplained` or `thin_trading`, finds their causes, and proposes rules with the evidence. A rule reaches the
+   desk only through a pull request the operator approves, and only after it passes a test written before it:
+   - **A held-back test set.** The rule is written from cases the agent saw and must also pass labelled cases
+     it never saw (later days, or a set drawn before the rule was written).
+   - **A pass bar fixed before the test runs**, written in the pull request or this ADR, never adjusted after.
+   - **Mislabels counted on their own.** A rule fails if it puts a plausible but wrong reason on a stock (a
+     Brazilian name that moved on its own news read as "Brazil-wide sell-off"), even when its hit count is high.
+3. **The first rule: a fund names what it tracks.** A symbol Yahoo calls a fund (`quote_type` `ETF`, which Yahoo
+   also gives ETNs) is read from its own name: inverse or not, the leverage, and what it tracks ("ProShares
+   UltraShort MSCI Brazil Capped" -> inverse, 2x, Brazil). The cause says which way the tracked market went from
+   the fund's own move and side ("inverse 2x Brazil fund: up 50%, so Brazil fell") -- a direction, never an
+   implied percentage. It sits after company news and before the short squeeze; a fund with company news keeps
+   news. Unknown while Yahoo's fundamentals are not read, and on a Sim replay (a replay never reads Yahoo).
+   **Its pass bar, fixed before the rule was written:** on every fund row of the movers table 2026-06-17 to
+   2026-09-21 moving 10%+ on 100K+ shares, less the 12 funds of the model test (the held-back set): (a) zero
+   wrong directions where the tracked thing parses to a ticker with its own daily bar that day (the fund's
+   implied direction against the ticker's close); (b) the parsed leverage within 25% of the fund's move over
+   the ticker's on at least 95% of those; (c) a reviewer that did not write the rule reads 40 random parsed
+   names against the raw name and finds at least 95% right, with a wrong "tracks" counted as a mislabel.
+4. **Law-firm adverts and halt notices are never a cause** -- already the catalyst classifier's noise
+   (`law_firm`, `halt_notice`); nothing changes.
+
+Not decided here: funds on the small-cap boards at all. `scanner._is_common_stock` drops names with "ETF",
+"Fund", "Trust" or "Index", so "MicroSectors -3x Short Brazil ETNs" and "ProShares UltraShort MSCI Brazil
+Capped" pass it; whether to filter by security type is the operator's call. A same-country or same-theme group
+rule ("Brazil-wide sell-off") waits for its mislabel count: Yahoo gives XP Inc., a Brazilian broker, the
+country "Cayman Islands".
