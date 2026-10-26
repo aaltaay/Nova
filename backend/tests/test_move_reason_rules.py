@@ -138,7 +138,7 @@ def test_every_unknown_is_stated():
     states = {c["id"]: c["state"] for c in out["checks"]}
     assert set(states.values()) == {"unknown"}
     assert out["likely"]["kind"] == "unexplained" and out["likely"]["confidence"] == "possible"
-    assert out["likely"]["detail"].startswith("Unknown: company news, halts today, float")
+    assert out["likely"]["detail"].startswith("Unknown: company news, halts today, fund, float")
 
 
 def test_the_days_first_borrow_reading_is_named_by_its_time_and_only_when_it_differs():

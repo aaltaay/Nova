@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import itertools
 
+from move_reason.fund import from_name
 from move_reason.rules import read
 from tests.test_move_reason_rules import NONE, NOISE, NOT_LISTED, NOW, borrow, facts
 
@@ -88,11 +89,13 @@ def test_the_first_step_that_fits_is_always_the_likely_cause():
     shorts = (None, 4_000, 150_000)
     borrows = (None, NOT_LISTED, borrow(5.0, 5_000_000))
     splits = (None, {"factor": None}, RECENT_SPLIT, OLD_SPLIT)
+    # Unknown, a company's shares, a fund (ADR 028 amendment 4).
+    funds = ((None, None), ("EQUITY", None), ("ETF", from_name("ProShares UltraShort MSCI Brazil Capped")))
     n = 0
-    for change, verdict, fl, vol, rvol, si, bw, split in itertools.product(
-            changes, verdicts, floats, volumes, rvols, shorts, borrows, splits):
+    for change, verdict, fl, vol, rvol, si, bw, split, (qt, fd) in itertools.product(
+            changes, verdicts, floats, volumes, rvols, shorts, borrows, splits, funds):
         out = read(facts(change_pct=change, catalyst=verdict, float_shares=fl, volume=vol, rel_volume=rvol,
-                         short_interest=si, borrow=bw, split=split), NOW)
+                         short_interest=si, borrow=bw, split=split, quote_type=qt, fund=fd), NOW)
         kind = out["likely"]["kind"]
         fit = first_fit(out)
         if fit is None:

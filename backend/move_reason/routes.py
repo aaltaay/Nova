@@ -35,7 +35,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["move_reason"])
 ET = ZoneInfo("America/New_York")
 _FACT_KEYS = ("board", "priced_by", "last_trade", "price", "change_pct", "volume", "rel_volume", "float_shares", "float_contradicted", "short_interest",
-              "short_interest_ts", "short_above_float", "days_to_cover", "split", "halts", "borrow", "catalyst")
+              "short_interest_ts", "short_above_float", "days_to_cover", "split", "halts", "borrow", "catalyst",
+              "quote_type", "fund")
 
 
 def not_read_on_replay(symbol: str, playhead: float) -> dict:
