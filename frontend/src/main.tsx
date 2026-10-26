@@ -76,7 +76,11 @@ async function bootstrap(): Promise<void> {
   );
 
   const { createRoot } = await import('react-dom/client');
-  const { default: App } = await import('./App.tsx');
+  // `?view=top9` is the Top 9 pop-up: its own page, fed by the desk window -- no desk shell, no Trader.
+  const { isTopNineView } = await import('./top_nine/topNineNav');
+  const { default: App } = isTopNineView()
+    ? await import('./top_nine/TopNineApp')
+    : await import('./App.tsx');
 
   const rootEl = document.getElementById('root');
   if (!rootEl) {

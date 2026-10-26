@@ -31,7 +31,10 @@ type RankFeed = Pick<
   'gappers' | 'gainers' | 'losers' | 'afterhours' | 'largeCap' | 'historyDate' | 'replay'
 >;
 
-const LISTS: readonly { list: RankListId; label: string; key: keyof RankFeed }[] = [
+type ListKey = 'gappers' | 'gainers' | 'losers' | 'afterhours' | 'largeCap';
+type ListFeed = { readonly [K in ListKey]: readonly { symbol: string }[] };
+
+const LISTS: readonly { list: RankListId; label: string; key: ListKey }[] = [
   { list: 'gappers', label: 'Gappers', key: 'gappers' },
   { list: 'gainers', label: 'Gainers', key: 'gainers' },
   { list: 'losers', label: 'Losers', key: 'losers' },
@@ -39,24 +42,39 @@ const LISTS: readonly { list: RankListId; label: string; key: keyof RankFeed }[]
   { list: 'large_cap', label: 'Large Cap', key: 'largeCap' },
 ];
 
-export function symbolRanks(symbol: string, feed: RankFeed | null | undefined): SymbolRanks {
-  if (!feed) return { state: 'unknown', why: 'No scanner feed in this window.' };
-  if (feed.historyDate) {
-    return { state: 'unknown', why: `The Scanner is showing the saved board of ${feed.historyDate}, not today's.` };
-  }
+/**
+ * Why the desk cannot rank right now, or null when it can. The Trader's rank chip and the
+ * Top 9 pop-up (top_nine/) both ask this, so they never disagree about a board.
+ */
+export function rankUnknownWhy(feed: Pick<RankFeed, 'historyDate' | 'replay'> | null | undefined): string | null {
+  if (!feed) return 'No scanner feed in this window.';
+  if (feed.historyDate) return `The Scanner is showing the saved board of ${feed.historyDate}, not today's.`;
   const replay = feed.replay ?? null;
   if (replay) {
-    if (replay.gap) return { state: 'unknown', why: 'No scanner board at the Sim playhead (a gap in the record).' };
-    if (replay.status === 'loading') return { state: 'unknown', why: 'Loading the scanner board at the Sim playhead.' };
+    if (replay.gap) return 'No scanner board at the Sim playhead (a gap in the record).';
+    if (replay.status === 'loading') return 'Loading the scanner board at the Sim playhead.';
     if (replay.status === 'error') {
-      return { state: 'unknown', why: `The scanner board at the Sim playhead did not load${replay.error ? `: ${replay.error}` : '.'}` };
+      return `The scanner board at the Sim playhead did not load${replay.error ? `: ${replay.error}` : '.'}`;
     }
   }
+  return null;
+}
+
+/** One list's rows in served order: row i is rank i + 1. */
+export function scannerListRows<T extends { symbol: string }>(feed: ListFeed, list: RankListId): readonly T[] {
+  const key = LISTS.find((l) => l.list === list)?.key;
+  return ((key ? feed[key] : undefined) as readonly T[] | undefined) ?? [];
+}
+
+export function symbolRanks(symbol: string, feed: RankFeed | null | undefined): SymbolRanks {
+  const why = rankUnknownWhy(feed);
+  if (why || !feed) return { state: 'unknown', why: why ?? 'No scanner feed in this window.' };
+  const replay = feed.replay ?? null;
   const sym = symbol.trim().toUpperCase();
   const ranks: ListRank[] = [];
-  for (const { list, label, key } of LISTS) {
-    const rows = feed[key] as readonly { symbol: string }[] | undefined;
-    if (!rows?.length) continue;
+  for (const { list, label } of LISTS) {
+    const rows = scannerListRows(feed, list);
+    if (!rows.length) continue;
     const at = rows.findIndex((r) => r.symbol?.toUpperCase() === sym);
     if (at >= 0) ranks.push({ list, label, rank: at + 1, total: rows.length });
   }

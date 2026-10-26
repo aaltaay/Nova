@@ -53,6 +53,7 @@ import {
   useNavRailSnapshot,
   type NavPage,
 } from '../workspace/navRailStore';
+import { isTopNineList, TopNineRailButton } from '../top_nine';
 import { listScannerNavGroups, type ActiveTab } from '../workspace/registry';
 import { isDockTab } from '../workspace/scannerTabs';
 import { useModuleVisibility } from '../workspace/useModuleVisibility';
@@ -195,7 +196,7 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
                   {visible.map((m) => {
                     const dock = isDockTab(m.id as ActiveTab);
                     const n = m.countKey ? (scanner.counts[m.countKey] ?? 0) : 0;
-                    return (
+                    const item = (
                       <NavRailItem
                         key={m.id}
                         testId={`nav-rail-tab-${m.id}`}
@@ -210,6 +211,14 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
                         pressed={dock ? stripFocus === m.id : undefined}
                         onClick={() => goTab(m.id as ActiveTab)}
                       />
+                    );
+                    // Gappers, Gainers and After Hours carry the Top 9 pop-up's grid button.
+                    if (!isTopNineList(m.id)) return item;
+                    return (
+                      <div key={m.id} className="nav-rail__pop-row">
+                        <TopNineRailButton list={m.id} label={m.title} />
+                        {item}
+                      </div>
                     );
                   })}
                 </div>

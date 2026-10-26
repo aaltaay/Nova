@@ -31,3 +31,5 @@ export {
 export { useTraderDeskBinding } from './useTraderDeskBinding';
 export { useTraderDesk, type TraderDockOffer } from './useTraderDesk';
 export { getTraderWindowId } from './windowId';
+export { focusThisWindow } from './focusWindow';
+export { requestOpenOnDesk } from './openRequest';

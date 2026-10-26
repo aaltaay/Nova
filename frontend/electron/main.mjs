@@ -40,6 +40,7 @@ import { engineStep, openStartupSplash, STARTUP_STEPS } from './startupSplash.mj
 import { isAllowedRendererUrl, loadHostWindow } from './traderWindowLoad.mjs';
 import { openOrFocusTraderWindow } from './traderWindows.mjs';
 import { attachYouTubeReferer, isYouTubeSignInUrl, openStreamWindow, openYouTubeSignIn } from './streamPlayer.mjs';
+import { openOrFocusTopNineWindow } from './topNineWindow.mjs';
 import {
   WINDOW_ID_MAIN,
   applyStoredPlacement,
@@ -265,6 +266,27 @@ ipcMain.handle('nova:openStockView', (_event, url) => {
   return openOrFocusTraderWindow(url, windowOptions(), attachStockViewWindowOpen);
 });
 
+ipcMain.handle('nova:openTopNine', (_event, url) => openOrFocusTopNineWindow(url, windowOptions(), {
+  BrowserWindow,
+  userData: app.getPath('userData'),
+  displays: displayWorkAreas(),
+  releaseTag: novaDesktopReleaseTag(app),
+}));
+// The asking window only: a page can raise or pin itself, never another window.
+ipcMain.handle('nova:keepOnTop', (event, on) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed()) return false;
+  win.setAlwaysOnTop(on === true);
+  return win.isAlwaysOnTop();
+});
+ipcMain.handle('nova:focusWindow', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed()) return false;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+  return true;
+});
 ipcMain.handle('nova:openStream', (_event, videoId) => openStreamWindow(BrowserWindow, videoId, { icon: APP_ICON }));
 ipcMain.handle('nova:youtubeSignIn', () => signInToYouTube());
 // The header mute: every Nova window's audio, the stream's pop-out included.
