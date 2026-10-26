@@ -24,6 +24,9 @@ from tests.test_move_reason_rules import NOISE, NONE, NOW, facts
     ("iShares MSCI Brazil ETF", "long", 1.0, "Brazil"),
     # "Short" as a bond's duration is never a side.
     ("iShares Short Treasury Bond ETF", "long", 1.0, "Treasury Bond"),
+    # Short through options (held-back set 3: WNTR and FIAT read long, 6 wrong directions).
+    ("YieldMax MSTR Short Option Income Strategy ETF", "inverse", 1.0, "MSTR"),
+    ("YieldMax Short COIN Option Income Strategy ETF", "inverse", 1.0, "COIN"),
 ])
 def test_a_fund_name_says_its_side_leverage_and_what_it_tracks(name, side, leverage, tracks):
     f = from_name(name)

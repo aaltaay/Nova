@@ -31,9 +31,10 @@ _MULTIPLE = re.compile(r"(?<![\w.])-?(\d+(?:\.\d+)?)\s*x\b", re.I)
 _INVERSE_WORDS = re.compile(r"\b(inverse|bear|ultrashort)\b", re.I)
 _SHORT = re.compile(r"\bshort\b", re.I)
 # "Short" as a bond's duration, never a side: "iShares Short Treasury Bond ETF" is long.
-_SHORT_DURATION = re.compile(r"\bshort[- ](term|duration|maturity|dated|treasury|bond|corporate|high[- ]yield|"
-                             r"municipal|muni|government)\b", re.I)
-_LEVERED = re.compile(r"\b(daily|ultra\w*|leveraged?|\d+(?:\.\d+)?\s*x)\b", re.I)
+_SHORT_DURATION = re.compile(r"\bshort[- ](term|duration|maturity|dated|treasury|bond|municipal|muni|government)\b",
+                             re.I)
+# A hedge fund's style, never a side: "Long/Short Equity", "Long-Short".
+_LONG_SHORT = re.compile(r"\blong\s*[/-]\s*short\b", re.I)
 _LEVERAGE_WORD = re.compile(r"\bleveraged?\b", re.I)
 # "2X Long ON Daily", "Daily Target 2X Short AMD": the side words any case, the ticker only in capitals.
 _SINGLE_STOCK = re.compile(r"(?i:\b\d+(?:\.\d+)?\s*x\s+(?:long|short|inverse|bull|bear))\s+([A-Z]{1,5})\b")
@@ -57,11 +58,10 @@ def _norm(name: str) -> str:
 def _side(name: str) -> str:
     if _NEG_MULTIPLE.search(name) or _INVERSE_WORDS.search(name):
         return SIDE_INVERSE
-    # "Short" counts on a levered fund ("Defiance Daily Target 2X Short AMD", "ProShares Short QQQ" -- ProShares'
-    # plain inverse line), never as a bond's duration.
-    if _SHORT.search(name) and not _SHORT_DURATION.search(name):
-        if _LEVERED.search(name) or re.search(r"\bproshares\s+short\b", name, re.I):
-            return SIDE_INVERSE
+    # "Short" is the side ("Defiance Daily Target 2X Short AMD", "ProShares Short QQQ", "YieldMax Short COIN Option
+    # Income Strategy" -- short through options), never a bond's duration nor a long/short hedge style.
+    if _SHORT.search(name) and not _SHORT_DURATION.search(name) and not _LONG_SHORT.search(name):
+        return SIDE_INVERSE
     return SIDE_LONG
 
 
