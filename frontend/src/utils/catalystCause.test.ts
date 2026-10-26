@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { WhyCheck, WhyMovingRead, WhyStep } from '../types/whyMoving';
+import type { WhyCheck, WhyFund, WhyMovingRead, WhyStep } from '../types/whyMoving';
 import { catalystFace } from './catalystCause';
 
 const NOW = Date.parse('2026-10-12T20:49:00-04:00');
@@ -9,19 +9,34 @@ function check(id: string, state: WhyCheck['state'], value: string | null): WhyC
 }
 
 function read(kind: string, checks: WhyCheck[], opts: Partial<{ confidence: 'likely' | 'possible'; steps: WhyStep[];
-  catalyst: WhyMovingRead['facts'] extends infer F ? F extends { catalyst: infer C } ? C : never : never }> = {}): WhyMovingRead {
+  catalyst: WhyMovingRead['facts'] extends infer F ? F extends { catalyst: infer C } ? C : never : never;
+  fund: WhyFund | null }> = {}): WhyMovingRead {
   return {
     schema_version: 1, symbol: 'X', generated_at: NOW / 1000, rules_version: 'move-rules-v5', replay: false,
     likely: { kind, label: kind, detail: null, confidence: opts.confidence ?? 'likely', steps: opts.steps ?? [] },
     checks,
     facts: { board: 'gappers', priced_by: 'board_row', price: 2.59, change_pct: 2.047, last_trade: null,
-      catalyst: opts.catalyst ?? null },
+      catalyst: opts.catalyst ?? null, fund: opts.fund ?? null },
   };
 }
 
 const MNDR = [check('news', 'no', 'Only movers lists and market wraps'), check('float', 'yes', '398K? shares -- low float'),
   check('short_interest', 'no', '10% of float · 0.3 days to cover (Yahoo ratio)'), check('borrow', 'yes', 'Nothing to lend'),
   check('volume', 'yes', 'RVOL 242x'), check('reverse_split', 'no', '1-for-6, 106 days ago')];
+
+describe('a fund (ADR 028 amendment 4)', () => {
+  it("BZQ reads Fund with its own name, never read", () => {
+    const fund: WhyFund = { name: 'ProShares UltraShort MSCI Brazil Capped' };
+    const face = catalystFace(read('fund', [check('fund', 'yes', fund.name)], { fund }), null, NOW);
+    expect(face).toMatchObject({ kind: 'fund', mark: 'fund', word: 'Fund',
+      detail: 'ProShares UltraShort MSCI Brazil Capped', possible: false });
+  });
+
+  it("a fund Yahoo gives no name says so from the check", () => {
+    const face = catalystFace(read('fund', [check('fund', 'yes', 'A fund (Yahoo: etf)')], { fund: { name: null } }), null, NOW);
+    expect(face.detail).toBe('A fund (Yahoo: etf)');
+  });
+});
 
 describe('catalystFace', () => {
   it('names low-float momentum with its borrow, from the checks', () => {

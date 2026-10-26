@@ -19,6 +19,7 @@ from constants_move_reason import (
     MOVE_BORROW_FEE_HIGH,
     MOVE_BORROW_SCARCE_SHARES,
     MOVE_DAYS_TO_COVER_HIGH,
+    MOVE_KIND_FUND,
     MOVE_KIND_LOW_FLOAT_MOMENTUM,
     MOVE_KIND_NEWS,
     MOVE_KIND_NEWS_PENDING,
@@ -46,6 +47,7 @@ _NAMES = {
     MOVE_STEP_MOVE: "A real move",
     MOVE_KIND_NEWS_PENDING: "Halted for news",
     MOVE_KIND_NEWS: "Company news",
+    MOVE_KIND_FUND: "A fund",
     MOVE_KIND_SHORT_SQUEEZE: "Short squeeze",
     MOVE_KIND_ROUTINE_NEWS: "Routine item",
     MOVE_KIND_SPLIT_SQUEEZE: "Split squeeze",
@@ -95,8 +97,9 @@ def _value(c: dict[str, Any]) -> str:
 
 
 def steps(change: float | None, by: dict[str, dict[str, Any]], rot: float | None, rvol: float | None,
-          verdict: Any, headline: str | None) -> list[dict[str, Any]]:
-    """The ladder for one read; ``by`` is the checks by id, as ``rules.read`` built them."""
+          verdict: Any, headline: str | None, fund: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    """The ladder for one read; ``by`` is the checks by id, as ``rules.read`` built them; ``fund`` the fund fact
+    (``move_reason/fund.py``) when Yahoo calls the symbol one."""
     if change is None:
         return [_step(MOVE_STEP_MOVE, None, "No price change on record")]
     if abs(change) < MOVE_MIN_CHANGE:
@@ -117,6 +120,8 @@ def steps(change: float | None, by: dict[str, dict[str, Any]], rot: float | None
     else:
         out.append(_step(MOVE_KIND_NEWS, False, _value(news)))
 
+    out.append(_step(MOVE_KIND_FUND, *_fund(by["fund"], fund, change)))
+
     is_up = (True, f"Up {_pct(change)}") if up else (False, f"Not up ({_pct(change)})")
     out.append(_step(MOVE_KIND_SHORT_SQUEEZE, *_all([is_up, _shorts(by["short_interest"]), _borrow(by["borrow"]),
                                                      _squeeze_volume(rot, rvol)])))
@@ -134,6 +139,14 @@ def steps(change: float | None, by: dict[str, dict[str, Any]], rot: float | None
     out.append(_step(MOVE_KIND_UNEXPLAINED, not found,
                      "A cause above fits" if found else "None of the causes above fits the facts on file"))
     return out
+
+
+def _fund(c: dict[str, Any], fund: dict[str, Any] | None, change: float) -> tuple[bool | None, str]:
+    if c["state"] == MOVE_STATE_UNKNOWN:
+        return None, "Security type unknown"
+    if c["state"] == MOVE_STATE_YES and fund is not None:
+        return True, f"{_value(c)} ({c.get('detail') or 'Yahoo: a fund'})"
+    return False, _value(c)
 
 
 def _shorts(c: dict[str, Any]) -> tuple[bool | None, str]:

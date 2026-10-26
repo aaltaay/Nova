@@ -6,6 +6,7 @@ that decided it and where it came from; an unknown fact stays unknown. The likel
   not_moving          under ``MOVE_MIN_CHANGE`` either way
   news_pending        halted for news, the release still to come
   news                a catalyst or dilution since the prior close
+  fund                a fund (Yahoo's quote_type): it moves with what it tracks; its own name quoted
   short_squeeze       up; shorts heavy (20% of float, or 3 days to cover with 10% of float short) and borrow
                       stressed (a 50% fee, a fee doubled since the open, lendable shares gone or scarce), on volume
   routine_news        only a routine company item came out
@@ -40,6 +41,7 @@ from constants_move_reason import (
     MOVE_CONFIDENCE_LIKELY,
     MOVE_CONFIDENCE_POSSIBLE,
     MOVE_DAYS_TO_COVER_HIGH,
+    MOVE_KIND_FUND,
     MOVE_KIND_LOW_FLOAT_MOMENTUM,
     MOVE_KIND_NEWS,
     MOVE_KIND_NEWS_PENDING,
@@ -64,6 +66,7 @@ from constants_move_reason import (
     MOVE_STATE_YES,
 )
 from move_reason import explain
+from move_reason import fund as fund_mod
 
 ET = ZoneInfo("America/New_York")
 # The catalyst classes (constants_catalysts) as a trader says them.
@@ -187,6 +190,17 @@ def carried_words(c: dict) -> str:
     if c.get("still_halted"):
         return f"{word} since {_when(c.get('since'))}, still halted"
     return f"{word} since {_when(c.get('since'))}; its resumption is not in the log"
+
+
+def _fund(quote_type: Any, fund: Any) -> dict[str, Any]:
+    """A fund (Yahoo's ``quote_type``), named as Yahoo names it: "ProShares UltraShort MSCI Brazil Capped"."""
+    src = "Yahoo's security type and the fund's name, as Yahoo gives them"
+    known = fund_mod.is_fund(quote_type if isinstance(quote_type, str) else None)
+    if known is None:
+        return _check("fund", "Fund", MOVE_STATE_UNKNOWN, "Unknown", None, src)
+    if not known or not isinstance(fund, dict):
+        return _check("fund", "Fund", MOVE_STATE_NO, f"Not a fund (Yahoo: {quote_type.lower()})", None, src)
+    return _check("fund", "Fund", MOVE_STATE_YES, fund_mod.named(fund, quote_type), f"Yahoo: {quote_type.lower()}", src)
 
 
 def _float(f: float | None, contradicted: str | None = None, issued: str | None = None) -> dict[str, Any]:
@@ -362,7 +376,9 @@ def read(facts: dict[str, Any], now: float | None = None) -> dict[str, Any]:
     contradicted = ((facts.get("float_contradicted_reason") or "Yahoo's own share counts contradict this float")
                     if facts.get("float_contradicted") is True else None)
     issued = _issued_words(facts.get("shares_issued"))
-    checks = [_news(facts.get("catalyst"), now), _halts(facts.get("halts"), now), _float(f, contradicted, issued),
+    fund = facts.get("fund") if isinstance(facts.get("fund"), dict) else None
+    checks = [_news(facts.get("catalyst"), now), _halts(facts.get("halts"), now),
+              _fund(facts.get("quote_type"), fund), _float(f, contradicted, issued),
               _rotation(rot, volume, f, issued), _volume(rvol), _split(facts.get("split"), now),
               _short(pct, dtc, si, _num(facts.get("short_interest_ts")),
                      facts.get("short_above_float_reason") if facts.get("short_above_float") is True else None,
@@ -373,10 +389,10 @@ def read(facts: dict[str, Any], now: float | None = None) -> dict[str, Any]:
         _annotate(c, notes.get(c["id"]))
     by = {c["id"]: c for c in checks}
     verdict = facts.get("catalyst")
-    likely = _likely(change, by, rot, rvol, verdict)
+    likely = _likely(change, by, rot, rvol, verdict, fund)
     # The ladder behind it (the Catalyst hover): every cause in this order, whether it fits and why.
     likely["steps"] = explain.steps(change, by, rot, rvol, verdict,
-                                    _headline(verdict) if isinstance(verdict, dict) else None)
+                                    _headline(verdict) if isinstance(verdict, dict) else None, fund)
     return {"likely": likely, "checks": checks, "derived": {"float_rotation": rot, "short_pct_float": pct}}
 
 
@@ -398,7 +414,8 @@ def _is(by: dict, cid: str, state: str = MOVE_STATE_YES) -> bool:
     return by[cid]["state"] == state
 
 
-def _likely(change: float | None, by: dict, rot: float | None, rvol: float | None, verdict: Any) -> dict[str, Any]:
+def _likely(change: float | None, by: dict, rot: float | None, rvol: float | None, verdict: Any,
+            fund: dict | None = None) -> dict[str, Any]:
     news_known = not _is(by, "news", MOVE_STATE_UNKNOWN)
     conf = MOVE_CONFIDENCE_LIKELY if news_known else MOVE_CONFIDENCE_POSSIBLE
     tail = "" if news_known else " -- news not read yet"
@@ -418,6 +435,8 @@ def _likely(change: float | None, by: dict, rot: float | None, rvol: float | Non
     if v.get("verdict") in ("catalyst", "negative"):
         label = f"Company news: {by['news']['value'].lower()}" + (" -- with short-squeeze pressure" if squeeze else "")
         return _cause(MOVE_KIND_NEWS, label, _headline(v), MOVE_CONFIDENCE_LIKELY)
+    if _is(by, "fund") and fund is not None:
+        return _cause(MOVE_KIND_FUND, fund_mod.CAUSE_LABEL, by["fund"]["value"], MOVE_CONFIDENCE_LIKELY)
     if squeeze:
         after_split = (f" after a {by['reverse_split']['value'].split(',')[0]} reverse split"
                        if _is(by, "reverse_split") else "")

@@ -1004,9 +1004,9 @@ locked and says why: Nova never moves a Live order by itself, and a Live stop do
 `GET /api/why/{symbol}` (owner `backend/move_reason/`, read-only, no network wait; rules
 `move_reason/rules.py`, pure, thresholds in `constants_move_reason.py`) answers the Trader tab's
 "Why it's moving" section: `{schema_version: 1, symbol, generated_at, session_date, rules_version,
-replay: boolean, likely: {kind: "not_moving" | "news_pending" | "news" | "short_squeeze" | "routine_news" |
+replay: boolean, likely: {kind: "not_moving" | "news_pending" | "news" | "fund" | "short_squeeze" | "routine_news" |
 "split_squeeze" | "low_float_momentum" | "thin_trading" | "unexplained" | "not_read", label, detail,
-confidence: "likely" | "possible", steps: [{kind, name, fits: boolean | null, why}]}, checks: [{id: "news" | "halts" | "float" | "float_rotation" |
+confidence: "likely" | "possible", steps: [{kind, name, fits: boolean | null, why}]}, checks: [{id: "news" | "halts" | "fund" | "float" | "float_rotation" |
 "reverse_split" | "short_interest" | "borrow" | "volume", label, state: "yes" | "no" | "unknown",
 value: string | null, detail: string | null, source, as_of: number | null}], facts: {board: string | null,
 priced_by: "board_row" | "last_trade" | "row" | "quote" | "replay", last_trade: {price, change_pct, ts} | null, price,
@@ -1016,7 +1016,16 @@ days_ago} | null,
 halts: {news, luld, volatility, other, source, carried: {kind, code, source, since, resumed, still_halted} | null} | null,
 borrow: {listed, fee_rate, rebate_rate,
 available, available_capped, as_of, since, open, prior, max_fee_today, min_available_today} | null,
-catalyst: verdict | null, shares_issued: {published_ts, source, form, items, title, url} | null}}`.
+catalyst: verdict | null, shares_issued: {published_ts, source, form, items, title, url} | null,
+quote_type: string | null, fund: {name: string | null} | null}}`.
+**A fund** (rules v7, ADR 028 amendment 4, 2026-10-26): `quote_type` is Yahoo's (`ETF`, which Yahoo also gives
+ETNs; `null` while Yahoo's fundamentals are not read, and always on a Sim replay, which never reads Yahoo). A
+`quote_type` in `MOVE_FUND_QUOTE_TYPES` makes `fund` `{name}`, the fund's name exactly as Yahoo gives it (`null`
+when Yahoo gives none); nothing is read out of it. The `fund` check reads `yes` with the name as its value ("ProShares
+UltraShort MSCI Brazil Capped", or "A fund (Yahoo: etf)" without one) and `detail` "Yahoo: etf", `no` "Not a fund
+(Yahoo: equity)", or `unknown`. The cause `fund` comes after `news` and before `short_squeeze` (a fund with company
+news keeps `news`): label "A fund: it moves with what it tracks, not on company news", `detail` the check's value.
+The ladder adds the rung `{kind: "fund", name: "A fund", why: "<name> (Yahoo: etf)"}` after `news`.
 `shares_issued` is the filed share issuance of "Float credibility and short-interest dates" (#700); while
 one is on file the float and float-rotation checks read `unknown` ("631K? shares", "Float traded 82x?")
 with the filing named in their `detail`, because Yahoo's float and share count predate it -- so the

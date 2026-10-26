@@ -6,7 +6,8 @@ to cover with at least a tenth of the float short -- and a borrow fee of 50% a y
 """
 from __future__ import annotations
 
-MOVE_RULES_VERSION = "move-rules-v6-2026-10-13"  # v6: "Halts today" names a halt carried over from the prior
+MOVE_RULES_VERSION = "move-rules-v7-2026-10-26"  # v7: a fund says so, its own name quoted (ADR 028 amendment 4)
+# v6 (2026-10-13): "Halts today" names a halt carried over from the prior
 # exchange day (``halts.carried``); the news-halt rung reads "No news halt open (T1 / T12)"
 # v5 (2026-10-12): the ladder (``likely.steps``); a board's row is read at its own price (``GET /api/why?board=``)
 # v4 (2026-10-12): a Sim replay reads its own day as of the playhead; a check names the record it was read from
@@ -19,6 +20,7 @@ MOVE_SCHEMA_VERSION = 1
 MOVE_KIND_NOT_MOVING = "not_moving"
 MOVE_KIND_NEWS_PENDING = "news_pending"
 MOVE_KIND_NEWS = "news"
+MOVE_KIND_FUND = "fund"
 MOVE_KIND_SHORT_SQUEEZE = "short_squeeze"
 MOVE_KIND_ROUTINE_NEWS = "routine_news"
 MOVE_KIND_SPLIT_SQUEEZE = "split_squeeze"
@@ -68,6 +70,9 @@ MOVE_SPLIT_RECENT_DAYS = 10            # a reverse split this recent still shape
 MOVE_NEWS_HALT_CODES = ("T1", "T2", "T3", "T12")
 MOVE_VOLATILITY_HALT_CODES = ("M",)
 MOVE_LULD_HALT_KINDS = ("LUDP", "luld")
+
+# -- a fund says so (move_reason/fund.py, ADR 028 amendment 4) ---------------------------------------
+MOVE_FUND_QUOTE_TYPES = ("ETF", "MUTUALFUND")  # Yahoo's quoteType; Yahoo gives ETNs "ETF" too (BRZD)
 
 # -- the borrow feed (move_reason/borrow_feed.py) --------------------------------------------------
 MOVE_BORROW_FEED_ENV = "NOVA_BORROW_FEED"              # "0" turns the feed off
