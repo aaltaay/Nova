@@ -24,14 +24,18 @@ class ResearchTools:
                         float_basis: str = "sec_outstanding", float_unknown: str = "exclude",
                         catalyst: list[str] | None = None, halted: bool | None = None, sort: str | None = None,
                         limit: int | None = None, cursor: str | None = None, page_size: int | None = None,
-                        output_name: str | None = None) -> dict[str, Any]:
+                        output_name: str | None = None, catalyst_category: list[str] | None = None,
+                        catalyst_words: list[str] | None = None,
+                        rvol_daily_min: float | None = None) -> dict[str, Any]:
         from market_reads import stock_days
         out = self.output_path(output_name)
         frame = stock_days.find_stock_days(filters=filters, symbol=symbol, kinds=kinds, splits=splits,
                                            float_max=float_max, outstanding_max=outstanding_max,
                                            float_basis=float_basis, float_unknown=float_unknown, catalyst=catalyst,
                                            halted=halted, sort=sort, limit=limit, cursor=cursor,
-                                           page_size=page_size, to_file=out is not None)
+                                           page_size=page_size, to_file=out is not None,
+                                           catalyst_category=catalyst_category, catalyst_words=catalyst_words,
+                                           rvol_daily_min=rvol_daily_min)
         answer = self.answer(frame, out)
         answer["next_cursor"] = frame.attrs.get("next_cursor")
         return answer
@@ -89,7 +93,9 @@ def register(server, service, run, reads, writes_file) -> None:
                               float_unknown: str = "exclude", catalyst: list[str] | None = None,
                               halted: bool | None = None, sort: str | None = None, limit: int | None = None,
                               cursor: str | None = None, page_size: int | None = None,
-                              output_name: str | None = None) -> dict:
+                              output_name: str | None = None, catalyst_category: list[str] | None = None,
+                              catalyst_words: list[str] | None = None,
+                              rvol_daily_min: float | None = None) -> dict:
         """Momentum stock-days in one call: movers rows (filters as movers_scan: date_from/date_to, price_min/max on
         the raw prior close, high_min ... in percent points; needs dates or a symbol) joined with what was known
         that day -- outstanding_* (SEC shares OUTSTANDING filed by the day, as of <=120 days, split-adjusted; NOT free
@@ -106,9 +112,14 @@ def register(server, service, run, reads, writes_file) -> None:
         float_max filters float_basis: sec_outstanding (default) | enrichment | best; outstanding_max is the same
         limit under the name of what it filters (SEC shares outstanding; needs float_basis sec_outstanding, not with
         float_max); float_source labels each value; float_unknown exclude | include | only. catalyst e.g.
-        ["catalyst"] or ["unknown"]; halted true/false. Likely splits left out (splits=include keeps)."""
+        ["catalyst"] or ["unknown"]; catalyst_category e.g. ["fda_regulatory"] (the verdict's category);
+        catalyst_words keeps a headline containing any word (e.g. ["approv", "clear"]: a text match, read the titles);
+        halted true/false. rvol_daily (the day's volume / its usual whole-session volume, up to 50 earlier sessions;
+        null = unknown) on every row; rvol_daily_min e.g. 5 keeps 5x or more and leaves unknowns out, counted in
+        meta.left_out. Likely splits left out (splits=include keeps)."""
         return await run(service.find_stock_days, filters, symbol, kinds, splits, float_max, outstanding_max,
-                         float_basis, float_unknown, catalyst, halted, sort, limit, cursor, page_size, output_name)
+                         float_basis, float_unknown, catalyst, halted, sort, limit, cursor, page_size, output_name,
+                         catalyst_category, catalyst_words, rvol_daily_min)
 
     @server.tool(annotations=writes_file)
     async def daily_bars(symbol: str, date_from: str, date_to: str, adjust: bool = False, as_of: str | None = None,

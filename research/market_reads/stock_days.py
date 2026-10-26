@@ -11,12 +11,19 @@ likely reverse splits left out by the capped search's own rule) with:
   catalyst  the catalyst backfill's verdict for the day (``catalysts.for_pairs``); null is unknown, never no news.
   halts     the day's halts (``halts.for_pairs``): count, first halt ET, codes, LULD pauses; null on a day the halt
             log does not cover (before 2021-09-21), never 0.
+  rvol      ``rvol_daily``: the day's volume over its usual whole-session volume (``rvol_days.for_pairs``, the
+            relative-volume table); null when the table does not hold the stock-day or has too little history.
   marks     premarket high / volume, after-hours high / volume and the first ET minute each +N% / -N% line printed.
 
 ``float_max`` filters SEC shares OUTSTANDING by default (``float_basis='sec_outstanding'``): outstanding is not free
 float (insiders and locked-up shares are inside it), so a pass means "at most this many shares exist". Other bases:
 ``enrichment`` (the desk's own float that day) and ``best`` (enrichment when the desk had it, else outstanding).
 A row with no value on the basis is unknown: ``float_unknown`` = exclude (default) | include | only.
+
+News and volume filters: ``catalyst`` keeps verdicts, ``catalyst_category`` the verdict's category
+(``fda_regulatory``, ``clinical_data`` ...), ``catalyst_words`` a headline containing any of the words (case is
+ignored; a text match, not a judgment). ``rvol_daily_min`` keeps ``rvol_daily`` at or over the ratio (5 = 5x); a
+stock-day with ``rvol_daily`` unknown is left out and counted in ``attrs['left_out']``, never read as low volume.
 
 ``outstanding_max`` is ``float_max`` under the name of what it filters (SEC shares outstanding): it needs the
 ``sec_outstanding`` basis and is refused beside ``float_max``.
@@ -33,13 +40,15 @@ read. One call examines at most ``MAX_EXAMINED`` movers rows.
 """
 from __future__ import annotations
 
+from collections import Counter
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
 import pandas as pd
 
-from market_reads import REPO, scan, tickers  # noqa: F401  (REPO puts backend/ on sys.path)
+from market_reads import REPO, rvol_days, scan, tickers  # noqa: F401  (REPO puts backend/ on sys.path)
 
 ET = ZoneInfo("America/New_York")
 PAGE_DEFAULT, PAGE_MAX, PAGE_MAX_FILE = 200, 5_000, 100_000
@@ -52,6 +61,7 @@ MARKS = ("up10", "up20", "up50", "up100", "up300", "down10", "down20", "down50")
 BASE = ("date", "symbol", "kind", "prev_close", "open", "high", "low", "close", "volume", "dollar_volume",
         "high_pct", "low_pct", "close_pct", "gap_pct", "day_high", "day_high_et", "day_low", "day_low_et",
         "pm_high", "pm_low", "pm_volume", "ah_high", "ah_volume", "split")
+RVOL = ("rvol_daily", "rvol_volume", "rvol_day_avg_volume", "rvol_day_avg_sessions")
 
 
 def _et(ts: Any) -> str | None:
@@ -125,6 +135,7 @@ def enrich(frame: pd.DataFrame, float_basis: str = "sec_outstanding") -> list[di
     sec = _outstanding(pairs)
     verdicts = catalysts.for_pairs(pairs)
     stops = halts.for_pairs(pairs)
+    volumes = rvol_days.for_pairs(pairs)
     for row, pair in zip(rows, pairs, strict=True):
         count = sec.get(pair) or {}
         row.update(outstanding_shares=count.get("shares"), outstanding_as_of=count.get("as_of"),
@@ -144,11 +155,42 @@ def enrich(frame: pd.DataFrame, float_basis: str = "sec_outstanding") -> list[di
         stop = stops.get(pair) or {}
         row.update(halts=stop.get("halts"), first_halt_et=stop.get("first_halt_et"),
                    halt_codes=",".join(stop.get("codes") or []) or None, luld_halts=stop.get("luld"))
+        volume = volumes.get(pair) or {}
+        row.update({key: volume.get(key) for key in RVOL})
     return rows
 
 
-def _keep(row: dict[str, Any], float_max: float | None, float_unknown: str, catalyst: set[str] | None,
-          halted: bool | None) -> bool:
+@dataclass(frozen=True)
+class Wanted:
+    """The row filters after the movers search: shares, news, halts, relative volume."""
+    float_max: float | None = None
+    float_unknown: str = "exclude"
+    catalyst: set[str] | None = None
+    categories: set[str] | None = None
+    words: tuple[str, ...] = ()
+    halted: bool | None = None
+    rvol_daily_min: float | None = None
+
+
+def _news_ok(row: dict[str, Any], wanted: Wanted) -> bool:
+    if wanted.catalyst is not None and (row["catalyst_verdict"] or "unknown") not in wanted.catalyst:
+        return False
+    if wanted.categories is not None and (row["catalyst_category"] or "").lower() not in wanted.categories:
+        return False
+    title = (row["catalyst_title"] or "").lower()
+    return not wanted.words or any(word in title for word in wanted.words)
+
+
+def _keep(row: dict[str, Any], wanted: Wanted, left_out: dict[str, int]) -> bool:
+    float_max, float_unknown, halted = wanted.float_max, wanted.float_unknown, wanted.halted
+    if not _news_ok(row, wanted):
+        return False
+    if wanted.rvol_daily_min is not None:
+        if row["rvol_daily"] is None:
+            left_out["rvol_unknown"] += 1
+            return False
+        if row["rvol_daily"] < wanted.rvol_daily_min:
+            return False
     if float_max is not None:
         shares = row["float_shares"]
         if shares is None:
@@ -157,8 +199,6 @@ def _keep(row: dict[str, Any], float_max: float | None, float_unknown: str, cata
         elif float_unknown == "only" or shares > float_max:
             return False
     elif float_unknown == "only" and row["float_shares"] is not None:
-        return False
-    if catalyst is not None and (row["catalyst_verdict"] or "unknown") not in catalyst:
         return False
     if halted is None:
         return True
@@ -193,9 +233,11 @@ def find_stock_days(*, filters: dict[str, Any] | None = None, symbol: str | None
                     float_basis: str = "sec_outstanding", float_unknown: str = "exclude",
                     catalyst: list[str] | None = None, halted: bool | None = None, sort: str | None = None,
                     limit: int | None = None, cursor: str | None = None, page_size: int | None = None,
-                    to_file: bool = False) -> pd.DataFrame:
+                    to_file: bool = False, catalyst_category: list[str] | None = None,
+                    catalyst_words: list[str] | None = None, rvol_daily_min: float | None = None) -> pd.DataFrame:
     """One page of stock-days (see the module docstring); ``attrs`` has ``next_cursor``, ``examined`` and the rules.
     ``catalyst``: verdicts to keep (``unknown`` matches a day with none); ``halted``: only days with / without one.
+    ``catalyst_category`` / ``catalyst_words`` / ``rvol_daily_min``: the news and volume filters (module docstring).
     ``kinds``: types, ``["common"]`` (default) or ``["all"]``; ``sort``: a movers search sort, default oldest day."""
     filters = {k: v for k, v in (filters or {}).items() if v is not None}
     if not (symbol or filters.get("date_from") or filters.get("date_to")):
@@ -211,6 +253,13 @@ def find_stock_days(*, filters: dict[str, Any] | None = None, symbol: str | None
     if not 1 <= page_size <= ceiling:
         raise ValueError(f"page_size / limit must be 1-{ceiling:,}" + ("" if to_file else " (output_name allows more)"))
     wanted = {c.lower() for c in catalyst} if catalyst else None
+    categories = {c.strip().lower() for c in catalyst_category} if catalyst_category else None
+    words = tuple(w.strip().lower() for w in catalyst_words or () if w.strip())
+    if rvol_daily_min is not None and not float(rvol_daily_min) > 0:
+        raise ValueError("rvol_daily_min is a ratio over 0 (5 = 5x the usual daily volume)")
+    rows_wanted = Wanted(share_limit, float_unknown, wanted, categories, words, halted,
+                         None if rvol_daily_min is None else float(rvol_daily_min))
+    left_out: Counter[str] = Counter()
     step = min(CHUNK, max(200, int(page_size) * 2))
     after, page, examined, more, full = parse_cursor(cursor), [], 0, True, False
     while more and not full and examined < MAX_EXAMINED:
@@ -220,7 +269,7 @@ def find_stock_days(*, filters: dict[str, Any] | None = None, symbol: str | None
         more = len(chunk) == step
         for row in enrich(chunk, float_basis):
             after = (row["date"], row["symbol"])
-            if _keep(row, share_limit, float_unknown, wanted, halted):
+            if _keep(row, rows_wanted, left_out):
                 page.append(row)
                 if len(page) == page_size:
                     full = True
@@ -231,7 +280,10 @@ def find_stock_days(*, filters: dict[str, Any] | None = None, symbol: str | None
         next_cursor=next_cursor, examined=examined, rows=len(page),
         filters={**filters, "kinds": _kinds_echo(wanted_kinds), "splits": splits, "float_max": float_max,
                  "outstanding_max": outstanding_max, "float_basis": float_basis, "float_unknown": float_unknown,
-                 "catalyst": sorted(wanted) if wanted else None, "halted": halted, "sort": sort or "oldest"},
+                 "catalyst": sorted(wanted) if wanted else None, "halted": halted, "sort": sort or "oldest",
+                 "catalyst_category": sorted(categories) if categories else None,
+                 "catalyst_words": list(words) or None, "rvol_daily_min": rows_wanted.rvol_daily_min},
+        left_out=dict(left_out),
         order_rule=("oldest day first, then symbol" if sort in (None, "oldest") else
                     f"sort={sort}: the movers search's order (a row without the figure last; ties newest day first, "
                     "then symbol); float / catalyst / halt filters pick from this ranking"),
@@ -243,7 +295,11 @@ def find_stock_days(*, filters: dict[str, Any] | None = None, symbol: str | None
                     "(as of <= 120 days before it, split-adjusted to the day) -- not free float; enrichment = the "
                     "desk's own float that day (2026-07-28 on); best = enrichment, else outstanding"),
         catalyst_rule="the catalyst backfill's verdict for the day; null = unknown (not covered), never no news",
+        rvol_rule=rvol_days.RULE,
     )
+    if left_out.get("rvol_unknown"):
+        frame.attrs["note_rvol"] = (f"{left_out['rvol_unknown']:,} stock-days examined had rvol_daily unknown and were "
+                                    "left out by rvol_daily_min")
     if examined >= MAX_EXAMINED and len(page) < page_size:
         frame.attrs["note"] = f"examined {examined:,} movers rows: continue with next_cursor or narrow the filters"
     return frame

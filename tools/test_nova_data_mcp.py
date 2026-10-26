@@ -289,6 +289,10 @@ def test_find_stock_days_hands_the_ranking_kinds_and_limit_arguments_to_the_read
     assert asked["float_max"] is None and asked["page_size"] is None and answer["next_cursor"] == "2026-09-17|AEMD"
     service.find_stock_days({"date_from": "2026-09-01"})
     assert asked["kinds"] is None and asked["sort"] is None, "the defaults are the library's (common stock, oldest)"
+    service.find_stock_days({"date_from": "2026-09-01"}, catalyst_category=["fda_regulatory"],
+                            catalyst_words=["approv"], rvol_daily_min=5)
+    assert (asked["catalyst_category"], asked["catalyst_words"], asked["rvol_daily_min"]) == (
+        ["fda_regulatory"], ["approv"], 5)
 
 
 def test_a_bars_answer_carries_the_gaps_and_fill_gaps_reaches_the_read(monkeypatch):
@@ -318,6 +322,8 @@ def test_the_tool_descriptions_state_the_defaults_a_call_cannot_see():
     tools = {t.name: t for t in asyncio.run(m.create_server(m.DataService()).list_tools())}
     find = tools["find_stock_days"]
     assert "COMMON STOCK" in find.description and "outstanding_max" in find.description
-    assert {"sort", "limit", "outstanding_max", "kinds"} <= set(find.inputSchema["properties"])
+    assert {"sort", "limit", "outstanding_max", "kinds", "catalyst_category", "catalyst_words",
+            "rvol_daily_min"} <= set(find.inputSchema["properties"])
+    assert "rvol_daily" in find.description and "fda_regulatory" in find.description
     assert "fill_gaps" in tools["stock_day"].inputSchema["properties"] and "meta.gaps" in tools["stock_day"].description
     assert "movers_search" in find.description and "market board" in tools["board"].description
