@@ -142,10 +142,10 @@ Decision:
      Brazilian name that moved on its own news read as "Brazil-wide sell-off"), even when its hit count is high.
 3. **The first rule: a fund names what it tracks.** A symbol Yahoo calls a fund (`quote_type` `ETF`, which Yahoo
    also gives ETNs) is read from its own name: inverse or not, the leverage, and what it tracks ("ProShares
-   UltraShort MSCI Brazil Capped" -> inverse, 2x, Brazil). The cause says which way the tracked market went from
-   the fund's own move and side ("inverse 2x Brazil fund: up 50%, so Brazil fell") -- a direction, never an
-   implied percentage. It sits after company news and before the short squeeze; a fund with company news keeps
-   news. Unknown while Yahoo's fundamentals are not read, and on a Sim replay (a replay never reads Yahoo).
+   UltraShort MSCI Brazil Capped" -> inverse, 2x, Brazil). The cause says what the fund is and that it moves
+   with or against what it tracks ("Inverse 2x fund on Brazil: up 50.3%, moves against Brazil") -- never what
+   that market did (see the held-back record below). It sits after company news and before the short squeeze; a
+   fund with company news keeps news. Unknown while Yahoo's fundamentals are not read, and on a Sim replay (a replay never reads Yahoo).
    **Its pass bar, fixed before the rule was written:** on every fund row of the movers table 2026-06-17 to
    2026-09-21 moving 10%+ on 100K+ shares, less the 12 funds of the model test (the held-back set): (a) zero
    wrong directions where the tracked thing parses to a ticker with its own daily bar that day (the fund's
@@ -160,3 +160,17 @@ Not decided here: funds on the small-cap boards at all. `scanner._is_common_stoc
 Capped" pass it; whether to filter by security type is the operator's call. A same-country or same-theme group
 rule ("Brazil-wide sell-off") waits for its mislabel count: Yahoo gives XP Inc., a Brazilian broker, the
 country "Cayman Islands".
+
+**The held-back record (2026-10-26), every run kept** (private study, F:\Nova\private\why-ai-test\fund_rule):
+
+| Run | Window | Fund-days checked | (a) direction | (b) leverage | (c) 40 names | Then |
+|---|---|---|---|---|---|---|
+| 1 | 2026-06-17..09-21 | 1,523 | 0 wrong | 98.9% | 37/40 -- fail | legal tail; "Leveraged" with no number |
+| 2 | 2026-09-22..10-16 | 765 | 0 wrong | 100% | 37/40 -- fail | a ticker that is a word ("ON", "BULL"); sponsor names |
+| 3 | 2026-01-02..06-16 | 5,406 | 7 wrong -- fail | 99.8% | not run | "Short ... Option Income" read long (6); KLAC's 10-for-1 split (1, the data) |
+| 4 | 2025-07-01..12-31 | 2,459 | 3 wrong -- fail | 98.6% | see the PR | parsed right; a payout moved the fund, not its stock |
+
+Run 4's three (AVL -13% and PLTU -10% on 2025-12-10, SMUP -15% on 2025-12-24, each while its stock rose) are
+parsed right: the fund fell for a reason its name cannot know, so "down 13%, so AVGO fell" would have been a wrong
+claim. The bar was not changed; the claim was removed -- the cause says only what the fund is and which way it
+moves with what it tracks. Each fix was committed before the next window was drawn, and no window was run twice.
