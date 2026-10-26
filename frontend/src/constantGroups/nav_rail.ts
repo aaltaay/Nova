@@ -9,6 +9,8 @@ export const NAV_RAIL_COLLAPSED_WIDTH_PX = 56;
 /** Accessible name of the rail landmark. */
 export const NAV_RAIL_ARIA_LABEL = 'Navigation';
 
+export const NAV_RAIL_LABEL_FOREX = 'Forex';
+export const NAV_RAIL_LABEL_GLOBAL = 'Global';
 export const NAV_RAIL_LABEL_MARKET = 'Market';
 export const NAV_RAIL_LABEL_TRADER = 'Trader';
 export const NAV_RAIL_LABEL_SCANNER = 'Scanner';
@@ -19,8 +21,13 @@ export const NAV_RAIL_LABEL_BOTS_LIVE_TRADER = 'LiveTrader Bots';
 export const NAV_RAIL_LABEL_BOTS_STRATEGY = 'Strategy Bots';
 export const NAV_RAIL_LABEL_RECORDS = 'Records';
 export const NAV_RAIL_LABEL_CRYPTOS = 'Cryptos';
+export const NAV_RAIL_LABEL_CONGRESS = 'Congress';
 export const NAV_RAIL_LABEL_SETTINGS = 'Settings';
 
+export const NAV_RAIL_TITLE_FOREX =
+  "Forex -- the whole currency market's size, and each currency's day: its strength and its futures money";
+export const NAV_RAIL_TITLE_GLOBAL =
+  "Global -- where the world's stock money went: each market's money in and out, and its index move";
 export const NAV_RAIL_TITLE_MARKET =
   'Market -- the day at a glance: futures, sectors, breadth and the small-cap climate';
 export const NAV_RAIL_TITLE_TRADER =
@@ -35,6 +42,8 @@ export const NAV_RAIL_TITLE_BOTS_STRATEGY =
   'Strategy Bots -- the strategies Off / Eyes / On, Level 2 lines, tickers, and their key';
 export const NAV_RAIL_TITLE_RECORDS = 'Records -- Session Records';
 export const NAV_RAIL_TITLE_CRYPTOS = 'Cryptos -- the 24/7 crypto market, and the stocks it moves';
+export const NAV_RAIL_TITLE_CONGRESS =
+  "Congress -- what members of Congress reported trading, from their own House and Senate filings";
 export const NAV_RAIL_TITLE_SETTINGS = 'Open Settings';
 
 export const NAV_RAIL_COLLAPSE_TITLE = 'Collapse to icons';

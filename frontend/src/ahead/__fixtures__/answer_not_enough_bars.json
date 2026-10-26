@@ -1,0 +1,39 @@
+{
+ "schema_version": 1,
+ "symbol": "XYZ",
+ "generated_at": 1792500065,
+ "replay": false,
+ "venue": "paper",
+ "bar_t": null,
+ "as_of": null,
+ "bars": {
+  "n": 0,
+  "contiguous_tail": 0,
+  "tail_gap_sec": null
+ },
+ "price": null,
+ "prior_close": 3.1,
+ "volume_last15": null,
+ "ai": {
+  "state": "not_enough_bars",
+  "reason": "Ahead needs 30 one-minute candles.",
+  "need": 30,
+  "have": 0,
+  "retry_ms": null,
+  "retry_at": null,
+  "model": null,
+  "exam_passed": null,
+  "exam": null,
+  "horizon_min": 15,
+  "step_sec": 60,
+  "levels": null,
+  "close": null,
+  "volume": null,
+  "paths": null,
+  "volume_15": null,
+  "range_15": null,
+  "compute_ms": null,
+  "issued_at": null
+ },
+ "never": "A forecast only: nothing here places, blocks, sizes or delays an order."
+}

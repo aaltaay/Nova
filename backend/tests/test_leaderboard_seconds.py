@@ -464,6 +464,20 @@ def test_the_fingerprint_sees_every_field_a_build_reads(day, column, value):
     db.close()
 
 
+def test_a_day_built_by_older_counting_reads_stale(day):
+    """#1219: builds made before the auction repeat records left the volume (#1220) are built again when asked."""
+    _built()
+    db = board_store.read_only()
+    mark = inputs.fingerprint(db, DAY)
+    db.close()
+    assert mark.startswith(f"{inputs.LEADERBOARD_SECONDS_LOGIC_VERSION}:")
+    assert job.current(store.read_job(DAY, "gappers"), DAY)
+    store.write_job(DAY, "gappers", fingerprint=mark.split(":", 1)[1])     # the older logic's bare digest
+    assert not job.current(store.read_job(DAY, "gappers"), DAY)
+    answer = playback.answer(DAY, ts("07:45:00"))
+    assert answer["status"] == "none" and answer["reason"] == job.STALE and answer["rows"] == []
+
+
 def test_a_failed_bootstrap_still_ends_the_build_on_shutdown(monkeypatch):
     import asyncio
 
@@ -483,3 +497,18 @@ def test_a_failed_bootstrap_still_ends_the_build_on_shutdown(monkeypatch):
 
     asyncio.run(body())
     assert stopped == [True]
+
+
+def test_a_trade_read_skips_the_official_open_record_that_repeats_the_cross(tmp_path, monkeypatch):
+    """CINC 2022-08-08 09:30:02: the opening cross printed as "17,9,41" and again as "16" (29,248 shares each).
+    The boards' volume counted it twice until the read left the repeat out."""
+    root = tmp_path / "massive"
+    monkeypatch.setenv("NOVA_MARKET_DATA_DIR", str(root))
+    massive_days.reset_for_tests()
+    _write(root, "trades_v1", DAY, TRADES, [
+        _trade("CNC", "09:30:02", 0, 31.04, 29248, seq=1, conds="17,9,41"),
+        _trade("CNC", "09:30:02", 1, 31.04, 29248, seq=2, conds="16"),
+        _trade("CNC", "09:30:03", 0, 31.00, 200, seq=3, conds="14,41"),
+    ])
+    prints = list(inputs.TradeRead(DAY, "CNC", ts("09:31:00")))
+    assert [(p[2], p[3]) for p in prints] == [(31.04, 29248.0), (31.00, 200.0)]

@@ -1,6 +1,7 @@
 /**
  * Share clips (ADR 039): the clip supervisor in the main process. A clip is
- * marks on the always-on screen recording (ADR 035): it opens and closes on
+ * marks on the screen recording (ADR 035; paused by default, ADR 067, when a
+ * new clip records in High quality): it opens and closes on
  * the operator's word, and while it is open this module marks where its
  * Trader tab is (`geometry`) and whether it shows (`shown` / `hidden`),
  * starts and restarts its high-quality capture (clipHq.mjs, at most
@@ -270,6 +271,7 @@ export function startClipService({
       hq_max_sec: P.CLIP_HQ_MAX_SEC,
       hq_warn_sec: P.CLIP_HQ_WARN_SEC,
       last_n_sec: P.CLIP_LAST_N_SEC,
+      screen_paused: screenView()?.state === 'paused',
       open,
       clips,
       exporting: job ? { export_id: job.exportId, clip_id: job.clipId, done_sec: jp?.doneSec ?? 0, duration: job.duration } : null,

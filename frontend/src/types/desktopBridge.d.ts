@@ -12,6 +12,12 @@ interface Window {
     focus?: () => Promise<boolean>;
     /** Electron IPC: open /review in a separate window. Does not change the live desk. */
     openSimWindow?: (url: string) => Promise<boolean>;
+    /** Electron IPC: open (or focus) the one Top 9 pop-up window (top_nine/, `?view=top9`). */
+    openTopNine?: (url: string) => Promise<boolean>;
+    /** Electron IPC: keep the asking window above the others (the Top 9 pop-up's switch); answers the state. */
+    setKeepOnTop?: (on: boolean) => Promise<boolean>;
+    /** Electron IPC: raise the asking window (a desk window that just opened a symbol for the pop-up). */
+    focusWindow?: () => Promise<boolean>;
     /** Electron IPC: open an allowlisted HTTPS URL in the system browser. */
     openExternal?: (url: string) => Promise<boolean>;
     /** Electron IPC: the followed traders' stream in a small window of its own (followed_traders/stream.ts). */

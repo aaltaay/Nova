@@ -1,4 +1,5 @@
-"""The trading screen recording (ADR 035): the desktop app reports, the checklist fails loudly when the screen is not recorded."""
+"""The trading screen recording (ADR 035, ADR 067): the desktop app reports; paused by default, the
+checklist says so (off); once on, it fails loudly when the screen is not recorded."""
 from __future__ import annotations
 
 import time
@@ -14,6 +15,7 @@ from screen_record import store
 
 client = TestClient(app)
 GB = 1024**3
+ON = {"NOVA_SCREEN_RECORD": "1"}  # this backend's environment with the flag on
 
 
 @pytest.fixture(autouse=True)
@@ -44,8 +46,16 @@ def report(**over):
     return body
 
 
-def the_row(status):
-    rows = screen_record_rows(status=status)
+def paused_report(**over):
+    """The desktop app's view while NOVA_SCREEN_RECORD is not on (screenRecordPlan.mjs ``pausedView``)."""
+    return report(**{
+        "state": "paused", "recording": False, "since": None, "mime": None, "displays": [],
+        "disk": {"free_bytes": None, "state": "unknown", "error": None, "checked_ts": None}, **over,
+    })
+
+
+def the_row(status, environ=ON):
+    rows = screen_record_rows(status=status, environ=environ)
     assert len(rows) == 1
     return rows[0]
 
@@ -77,12 +87,53 @@ def test_post_refuses_a_body_that_is_not_a_report():
     assert client.post("/api/screen-record", content=b"x" * (70 * 1024)).status_code == 413
 
 
-def test_no_desktop_app_is_a_failure_not_a_blank():
+def test_with_the_flag_on_no_desktop_app_is_a_failure_not_a_blank():
     row = the_row(store.status())
     assert row["id"] == "screen_recorder" and row["group"] == "recorder"
     assert row["state"] == DIAG_STATE_FAIL
     assert "no Nova desktop app has reported" in row["detail"]
     assert "desktop app" in row["fix"]
+    assert row["evidence"]["flag_on"] is True
+
+
+@pytest.mark.parametrize("environ", [{}, {"NOVA_SCREEN_RECORD": ""}, {"NOVA_SCREEN_RECORD": "0"}])
+def test_paused_by_default_no_desktop_app_is_off_not_a_failure(environ):
+    row = the_row(store.status(), environ=environ)
+    assert row["state"] == DIAG_STATE_OFF
+    assert row["detail"] == "screen recording is paused (off by default); no desktop app has reported"
+    assert row["fix"] == ("Nothing to do. To record every monitor, set NOVA_SCREEN_RECORD=1 in Nova's .env "
+                          "and restart Nova.")
+    assert row["evidence"]["flag_on"] is False
+
+
+def test_the_view_says_paused_and_the_row_is_off_with_how_to_turn_it_on():
+    assert client.post("/api/screen-record", json=paused_report()).json() == {"ok": True}
+    got = client.get("/api/screen-record").json()
+    assert got["report"]["state"] == "paused" and got["report"]["displays"] == []
+    for environ in ({}, ON):  # the desktop app's own word wins over this backend's reading
+        row = the_row(store.status(), environ=environ)
+        assert row["state"] == DIAG_STATE_OFF
+        assert row["detail"] == "screen recording is paused (off by default): no monitor is recorded"
+        assert "NOVA_SCREEN_RECORD is set to 1 (ADR 067)" in row["cause"]
+        assert "NOVA_SCREEN_RECORD=1" in row["fix"]
+        assert row["evidence"]["state"] == "paused" and row["evidence"]["dir"] == "F:\\Nova\\screen"
+
+
+def test_paused_is_never_an_alarm_about_a_drive_it_does_not_write():
+    store.record(paused_report(dir="C:\\Users\\op\\AppData\\Roaming\\nova\\screen", dir_source="fallback",
+                               dir_note="F: is not mounted, so the screen records to the system drive"))
+    assert the_row(store.status())["state"] == DIAG_STATE_OFF
+    store.record(paused_report(disk={"free_bytes": 5 * GB, "state": "fail", "error": None}))
+    assert the_row(store.status())["state"] == DIAG_STATE_OFF
+
+
+def test_a_stale_paused_report_stays_off():
+    now = time.time()
+    store.record(paused_report(), now=now - SCREEN_RECORD_STALE_SEC - 5)
+    row = the_row(store.status(now))
+    assert row["state"] == DIAG_STATE_OFF
+    assert row["detail"].startswith("screen recording is paused (off by default): no monitor is recorded; ")
+    assert "last report is 40 s old" in row["detail"]
 
 
 def test_a_stale_report_is_a_failure():
@@ -154,3 +205,6 @@ def test_the_checklist_carries_the_row():
     store.record(report())
     rows = client.get("/api/diagnostics").json()["rows"]
     assert [r["state"] for r in rows if r["id"] == "screen_recorder"] == [DIAG_STATE_OK]
+    store.record(paused_report())
+    rows = client.get("/api/diagnostics").json()["rows"]
+    assert [r["state"] for r in rows if r["id"] == "screen_recorder"] == [DIAG_STATE_OFF]

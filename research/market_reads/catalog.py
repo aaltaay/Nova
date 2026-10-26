@@ -13,15 +13,23 @@ RESEARCH = (
               "verdict for the day; likely splits left out like movers_search",
      "units": "*_pct percent points; float_shares labelled by float_source (sec_shares_outstanding = outstanding, "
               "NOT free float; enrichment_snapshot = the desk's float, 2026-07-28 on); *_et ET HH:MM",
-     "mcp": "find_stock_days (pages: next_cursor)", "cli": "market_data.py find key=value --float-max N"},
+     "mcp": "find_stock_days (common stock unless kinds says otherwise; sort + limit rank like movers_search; "
+            "outstanding_max = float_max by name; pages: next_cursor, exact under a sort)",
+     "cli": "market_data.py find key=value [kinds=all] [--sort high --limit 10] [--outstanding-max N]"},
     {"name": "daily_bars", "source": "Massive day files (day_aggs_v1)", "history": "2016-01-04 on, 2,713 days",
      "as_of": "one row per session the stock traded; raw unless adjust (splits of the day's company)",
      "units": "OHLC dollars; volume = the whole 04:00-20:00 session with odd lots, prices regular hours; "
-              "change / gap / range percent points", "mcp": "daily_bars / market_context (SPY, QQQ, IWM)",
+              "change / gap / range percent points. A bar's volume can have built a range it does not show "
+              "(FLYE 2026-09-01: high 2.79; premarket day_high 3.97 at 05:38 ET). Volume is the consolidated tape's "
+              "from 2024-02-21; before, it leaves out prior-reference prints and corrected trades (AAPL 2024-02-20: "
+              "10.6% under the tape), so an average across that date steps up. Fractional on 2026 days",
+     "mcp": "daily_bars / market_context (SPY, QQQ, IWM)",
      "cli": "market_data.py daily SYMBOL FROM TO / context DAY"},
     {"name": "stock_day_stats", "source": "computed on demand from minute bars, day files and NBBO quotes",
      "history": "2016-01-04 on", "as_of": "one stock-day; relative volume against prior sessions only",
-     "units": "raw dollars and shares; spread cents and bps; methods stated in the answer's rules",
+     "units": "raw dollars and shares; spread cents and bps; methods stated in the answer's rules. rvol_daily "
+              "divides day bars (steps up at 2024-02-21: reads high for ~20 sessions after), not the minute sums "
+              "rvol_scan's rvol_daily divides, so the two differ",
      "mcp": "stock_day_stats", "cli": "market_data.py stats SYMBOL DAY"},
     {"name": "order_flow", "source": "trades_flow_v1: one row per ticker-minute built from every trade "
                                      "(research/massive_builders)", "history": "2016 on, 2,712 days",
@@ -46,6 +54,32 @@ RESEARCH = (
               "verdicts are rules v7 (the live classifier is newer: meta.warning)",
      "units": "published ET; verdict / category / strength labels; a missing verdict is unknown, never no news",
      "mcp": "catalysts", "cli": "market_data.py catalysts SYMBOL --from DAY --to DAY [--verdicts]"},
+    {"name": "relative_volume", "source": "Nova's relative-volume table (research/rvol/build_rvol.py from the "
+                                          "minute and day files): every minute bar of every common stock with its "
+                                          "baselines, one row per stock-day",
+     "history": "2016-01-04 on, every session built (data_status rvol_table has the range)",
+     "as_of": "a measure at a minute counts bars starting at or before it (at a clock time, before it); baselines "
+              "read only earlier sessions (at most 20 / 50, none over 100 days old, same company, listed splits on "
+              "the day's basis); outcomes read only bars after the entry clock",
+     "units": "rvol / rvol_5m / rvol_daily ratios (5 = five times); volume shares, summed from minute bars "
+              "(Massive's minute rule every year, so baselines do not step at 2024-02-21; not the day bar's volume "
+              "stock_day_stats uses); prices raw; change percent points; same_bar = both lines in one minute (order unknown, counted apart)",
+     "mcp": "rvol_scan (every stock-day at HH:MM) / rvol_triggers (first minute over a line) / rvol_outcomes "
+            "(+X% or -X% first, by rvol bucket, with a same-minute control)",
+     "cli": "market_data.py rvol AT key=value / rvol-triggers RVOL_MIN key=value / rvol-outcomes key=value"},
+    {"name": "signals", "source": "Nova's signal table (research/signals/build_signals.py): the Trader's Signals "
+                                  "panel by the desk's own rules at the end of every minute of every in-play "
+                                  "stock-day ($1-$20 common, 10%+ or 5x relative volume with 50,000 shares)",
+     "history": "2016-01-04 on, every session built (data_status signal_table); boards, catalysts, halts, HOD Momo "
+                "and the tape partly (signal_catalog says how far each reaches)",
+     "as_of": "each signal at the end of its minute from facts known by then; rows start at the minute the stock-day "
+              "came into play; a test enters at the first minute every condition held and reads only later bars",
+     "units": "states ok / warn / bad / info / unknown, labels, numbers and yes / no as signal_catalog lists them; "
+              "change percent points; prices raw",
+     "mcp": "signal_catalog / signal_series (one stock-day) / signal_scan (every stock at a minute) / signal_test "
+            "(a mix of signals: +X% or -X% first, with an in-play control)",
+     "cli": "market_data.py signals / signal-series SYMBOL DAY / signal-scan DAY HH:MM --when ... / signal-test "
+            "key=value --when ..."},
     {"name": "symbols", "source": "Massive ticker list (reference/tickers.json: 36,729 rows, 13,252 active)",
      "history": "latest dump (delisted tickers included)",
      "as_of": "which company held a ticker on a day: tickers.py (84 tickers had two companies)",
@@ -53,31 +87,67 @@ RESEARCH = (
      "cli": "market_data.py symbols QUERY / symbols --ticker T --day DAY"},
 )
 
+# Nova's own recordings of IBKR's live feed (recordings.py): the desk's stores, read-only; Massive has no Level 2.
+RECORDINGS = (
+    {"name": "recorded_depth", "source": "Nova's Session Records (sim_capture l2.jsonl) and the desk cache's l2.db "
+                                         "depth snapshots", "history": "Session Records 2026-09-19 on (symbols the "
+                                                                       "operator or auto-record recorded, at most 3 "
+                                                                       "at once); l2.db from the desk's depth "
+                                                                       "sessions",
+     "as_of": "the newest book at or before the ET moment asked, no older than max_age_sec; a Session Record is never "
+              "read across a gap; l2.db skips top-of-book-only rows; auto serves the newer store",
+     "units": "price dollars, size shares, ts epoch seconds on Nova's receive clock, *_et Eastern; books best price "
+              "first, the recorder keeps at most 50 a second (coverage.fidelity counts the rest); covered=false is "
+              "unrecorded, never an empty book",
+     "mcp": "recorded_depth", "cli": "market_data.py recorded-depth SYMBOL DAY --at HH:MM[:SS]"},
+    {"name": "recorded_tape", "source": "Nova's Session Records (sim_capture prints.jsonl) and the desk cache's "
+                                        "archive.db tape_ibkr", "history": "Session Records 2026-09-19 on; archive "
+                                                                           "2026-07-15 on, every print the desk's "
+                                                                           "tape line saw for any symbol",
+     "as_of": "prints in an ET window [start, end), oldest first; auto serves a Session Record when one exists for "
+              "the symbol-day (its gaps are stated and may hold prints the archive has), else the archive",
+     "units": "price dollars, size shares; ts / receive_ts epoch seconds -- ts is when Nova RECEIVED the print, "
+              "exchange_ts IBKR's own second (Session Records only); side (ask | bid | between | unknown) / bid / ask "
+              "the desk's own judgement at receipt, unknown when no usable book; sets_price judged from conditions alone in the archive",
+     "mcp": "recorded_tape (rows: meta.capped)", "cli": "market_data.py recorded-tape SYMBOL DAY --from HH:MM --to HH:MM"},
+)
+
 CATALOG = (
     {"name": "trades", "source": "Massive flat files (SIP)", "history": "2016-01-04 on, every US stock",
      "as_of": "one stock-day; raw, never split-adjusted (adjust=true for today's terms)",
-     "units": "price dollars, size shares, sip_timestamp ns; sets_price = the print may move last/candles",
+     "units": "price dollars, size shares (fractional on 2026 days), sip_timestamp ns; sets_price = the print may move last/candles",
      "mcp": "stock_day(kind='trades')", "cli": "market_data.py trades SYMBOL DAY"},
     {"name": "quotes", "source": "Massive flat files (NBBO)", "history": "2016-01-04 on",
      "as_of": "one stock-day; Level 1 only (no depth history)", "units": "bid/ask dollars and shares",
      "mcp": "stock_day(kind='quotes')", "cli": "market_data.py quotes SYMBOL DAY"},
     {"name": "bars", "source": "Massive minute files; seconds built from trades", "history": "2016-01-04 on",
      "as_of": "one stock-day (daily bars are not a stock-day read)",
-     "units": "OHLC dollars, volume shares. Volume rule: minute bars are Massive's own (its SIP volume rules); "
-              "seconds bars count every trade except cancel/error records, so a minute of 10s bars can sum higher "
-              "(GME 2021-01-27 09:30: 185,567 from trades vs 179,397 in the minute file, +3.4%)",
-     "mcp": "stock_day(kind='bars')", "cli": "market_data.py bars SYMBOL DAY --tf 1m|5m|10s"},
+     "units": "OHLC dollars, volume shares. Volume rule: seconds bars count what the consolidated tape counts "
+              "(no cancel/error records, no cancelled or corrected originals, no official open / close or "
+              "corrected-close repeats, conditions 15, 16, 38); minute bars are Massive's own rule (in 09:30-15:59 "
+              "no extended-hours prints, outside only those, no prior-reference prints, no odd-lot-only minutes, "
+              "no closing cross at 16:00), so a minute of 10s bars sums a little higher (GME 2021-01-27 09:30: "
+              "179,822 vs 179,397) and much higher at 16:00 (docs/market-data.md). The desk's and the Sim's candles "
+              "count only price-setting prints (IBKR's bar rule, about 0.94 of the tape). A bucket with no "
+              "trade has no row: meta.gaps lists the holes (ET runs, first_et/last_et); fill_gaps adds a row per hole "
+              "with no price, zero volume and filled=true",
+     "mcp": "stock_day(kind='bars', fill_gaps?)",
+     "cli": "market_data.py bars SYMBOL DAY --tf 1m|5m|10s [--fill-gaps]"},
     {"name": "movers_index", "source": "Nova's day movers store (built from the day files)",
      "history": "2016-01-04 on, every session (2,713 through 2026-10-16)",
      "as_of": "one row per stock-day, facts of that finished day",
      "units": "*_pct percent points (the store keeps fractions; the front door converts); prices raw prior close. "
               "Likely reverse splits are left out by default in both tools (splits=exclude_likely | include | "
-              "only_suspects). float_max (movers_search) is SEC shares OUTSTANDING filed by the day, not free float",
+              "only_suspects). float_max (movers_search) is SEC shares OUTSTANDING filed by the day, not free float. "
+              "volume / prev_volume are day bars (the tape's from 2024-02-21, lower before: volume_min reads them); "
+              "pm_volume / ah_volume / dollar_volume are minute sums",
      "mcp": "movers_search (endpoint, <=500 rows) / movers_scan (bulk: needs dates, a symbol or a limit; 100,000 "
             "rows unless limit)", "cli": "market_data.py movers key=value / scan key=value"},
     {"name": "boards", "source": "Nova's leaderboard store: recorded desk boards, else rebuilt",
-     "history": "1,752 of 2,713 sessions, 2016-11-30 .. 2026-10-16, with holes (e.g. 2023-06-01, 2024-03-01); "
-                "data_status has the live count",
+     "history": "about 1,750 of 2,713 sessions, 2016-11-30 on, with holes (e.g. 2023-06-01, 2024-03-01); "
+                "data_status has the live count and counts stored boards, not lists: gainers on a rebuilt day is the "
+                "market board (to 2026-09-22), the recorded gainers board takes over 2026-09-23; large_cap exists "
+                "only on recorded days (2026-09-23 on)",
      "as_of": "the board as it stood at the minute asked; a day with no board answers covered=false with its gap",
      "units": "change_pct / gap_pct percent points (the store keeps fractions; the front door converts)",
      "mcp": "board", "cli": "market_data.py board DAY --at HH:MM"},
@@ -112,15 +182,26 @@ CATALOG = (
     {"name": "short_interest", "source": "FINRA via Massive reference", "history": "2016 on, twice monthly",
      "as_of": "a settlement counts only after its publish lag (move_reason.short_interest)",
      "units": "shares, days_to_cover", "mcp": "short_interest", "cli": "market_data.py short-interest SYMBOL DAY"},
+    {"name": "cash_runway", "source": "Massive reference balance sheets and cash-flow statements + SEC companyfacts "
+                                     "(shares) and submissions (filings)", "history": "statements and filings 2016 on",
+     "as_of": "a statement or filing counts from the day it was filed. Massive dates a period by the newest filing "
+              "that carried it (87% of quarterly cash-flow rows are dated 300+ days after their period), so the "
+              "newest statement known on a past day is often over a year old: every figure carries period_end, "
+              "filing_date, age_days and stale (over 180 days). Runway only when the cash and the burn are within "
+              "14 days of the same period; shares growth only when the two counts are a window apart",
+     "units": "statement amounts as the dump gives them (no currency field); runway in months; growth in percent "
+              "points; unknown is null, never 0; filings are counts and dates, not a verdict on any offering",
+     "mcp": "cash_runway", "cli": "market_data.py runway SYMBOL DAY"},
     *RESEARCH,
+    *RECORDINGS,
 )
 NOT_HERE = (
     "insider holdings (SEC Form 3/4/5 data sets) -- not downloaded; sec_filings lists the filings",
     "lockup terms -- no SEC dataset; 424B prospectus text or a paid vendor",
-    "Level 2 / depth history from Massive -- its stock plan is Level 1 only. Nova's own IBKR recordings exist "
-    "(F:\\Nova\\sim_capture: 20 sessions 2026-09-19 .. 2026-10-16; the desk cache's l2.db depth snapshots and "
-    "archive.db tape_ibkr prints from 2026-07-15; F:\\Nova\\book_watch) but the front door does not serve them yet "
-    "-- the Sim replays them",
+    "Level 2 / depth history from Massive -- its stock plan is Level 1 only; Nova's own recorded books are "
+    "recorded_depth (only symbols Nova recorded or the desk watched, from 2026-09-19 / 2026-07-15)",
+    "the book watcher's marks (F:\\Nova\\book_watch) and the Session Records' recorded quotes -- recorded, not "
+    "served yet (#1103); the Sim replays them",
     "news before 2021-04",
     "free float as of a past day -- float_latest is today's only; sec_shares is shares outstanding",
 )

@@ -45,6 +45,8 @@ The operator needs Chrome-style docking: grab the ticker in the floated window a
 
 7b. **Sim scrubbing preserves desk selection (2026-09-19).** Moving the Sim session clock refreshes replay charts/tape without calling `openStockView`, activating a tab, or reopening a closed replay ticker. Replay selection and the active Trader tab are separate state. Only an explicit replay ticker pick opens/activates that ticker through the existing workspace command. Regression: IMCC active with the replay ticker closed must remain that way when a clock response still names it.
 
+8. **A window that is not a desk can ask the host to open a symbol (amended 2026-10-26, the Top 9 pop-up).** `open-request` `{symbol, sourceWindowId, requestId, targetWindowId?, from?}` goes on the same desk bus; only a `host` takes it (`shouldHandleDockRequest` + `claimDockTarget`), runs its own `openStockView(symbol, {from})` -- so decisions 6 and 7 hold unchanged -- raises its window, and answers `opened` with the `requestId`. The asking window holds no Trader tabs and never counts toward the OS-window cap. Schema: `architecture/schema/scanner.md`, "The Top 9 pop-up".
+
 ## Consequences
 
 - Docking works in Vite/browser and in Electron with one protocol.
@@ -72,4 +74,5 @@ The operator needs Chrome-style docking: grab the ticker in the floated window a
 | Drag + message codec | `frontend/src/workspace/traderDesk/protocol.ts` |
 | Role / close / claim | `frontend/src/workspace/traderDesk/commands.ts` |
 | BroadcastChannel + localStorage signal | `frontend/src/workspace/traderDesk/bus.ts` |
+| Open for another window (Top 9) | `frontend/src/workspace/traderDesk/openRequest.ts`, `focusWindow.ts` |
 | Overlay when the host is on the scanner | `TraderDockLayer.tsx` |

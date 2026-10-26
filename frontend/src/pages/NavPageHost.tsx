@@ -1,7 +1,7 @@
 /**
  * Picks what the dashboard slot shows while Trader is not up: the dashboard
- * (children), or the Market / Records / Account / Bots (Bots, LiveTrader Bots -- the TraderTV hosts' page --, Strategy
- * Bots) / Cryptos pages the nav rail routes to.
+ * (children), or the Forex / Global / Market / Records / Account / Bots (Bots, LiveTrader Bots -- the TraderTV hosts' page --, Strategy
+ * Bots) / Cryptos / Congress pages the nav rail routes to.
  */
 import { lazy, Suspense, type ReactNode } from 'react';
 import { TabLazyFallback } from '../components/TabLazyFallback';
@@ -16,6 +16,9 @@ const LiveTraderBotsPage = lazy(() =>
 );
 const CryptosPage = lazy(() => import('../cryptos').then((m) => ({ default: m.CryptosPage })));
 const MarketPage = lazy(() => import('../market_board').then((m) => ({ default: m.MarketPage })));
+const GlobalPage = lazy(() => import('../global_board').then((m) => ({ default: m.GlobalPage })));
+const ForexPage = lazy(() => import('../forex_board').then((m) => ({ default: m.ForexPage })));
+const CongressPage = lazy(() => import('../congress').then((m) => ({ default: m.CongressPage })));
 
 interface Props {
   onOpenTrader: (symbol: string) => void;
@@ -24,6 +27,20 @@ interface Props {
 
 export function NavPageHost({ onOpenTrader, children }: Props) {
   const page = useNavPage();
+  if (page === 'forex') {
+    return (
+      <Suspense fallback={<TabLazyFallback />}>
+        <ForexPage />
+      </Suspense>
+    );
+  }
+  if (page === 'global') {
+    return (
+      <Suspense fallback={<TabLazyFallback />}>
+        <GlobalPage onOpenTrader={onOpenTrader} />
+      </Suspense>
+    );
+  }
   if (page === 'market') {
     return (
       <Suspense fallback={<TabLazyFallback />}>
@@ -43,6 +60,13 @@ export function NavPageHost({ onOpenTrader, children }: Props) {
     return (
       <Suspense fallback={<TabLazyFallback />}>
         <CryptosPage onOpenTrader={onOpenTrader} />
+      </Suspense>
+    );
+  }
+  if (page === 'congress') {
+    return (
+      <Suspense fallback={<TabLazyFallback />}>
+        <CongressPage onOpenTrader={onOpenTrader} />
       </Suspense>
     );
   }

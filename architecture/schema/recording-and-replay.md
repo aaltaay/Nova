@@ -488,8 +488,13 @@ desk `frontend/src/sim/massiveDaysStore.ts` and the Sim panes).
   `correction`, `trf_id`, `sequence`, `tape`, `sets_price` and `unreported: false`. `sets_price` is true when the
   conditions miss `SIM_MASSIVE_NO_PRICE_CONDITIONS` (2, 7, 10, 13, 15, 16, 20, 21, 22, 29, 32, 33, 37, 38, 52, 53;
   32 / 33 are trades reported late, IBKR's `Z`, as in "Prints that set a price" in `market-data.md`) and the
-  correction is 0 or 12; corrections 1, 7, 8 show and set nothing; 10 and 11 are dropped. Last, volume, high,
-  low, candles and practice fills read only prints that set a price.
+  correction is 0 or 12; corrections 1, 7, 8 show and set nothing; 10 and 11 are dropped, and so are records
+  with condition 15, 16 or 38 (official close / open, corrected consolidated close: `SIM_MASSIVE_REPEAT_CONDITIONS`),
+  which repeat an auction print and never reach IBKR's live tape -- a replay showed CINC 2022-08-08's opening cross
+  twice. An import stored before 2026-10-24 still holds them; `massive_store.read_print_table` leaves them out at
+  read (#1219), so no re-import is needed. `size` is a float (fractional on 2026 days); the tape sends a whole size as
+  an integer and keeps a fractional one (`sale_conditions.print_size`). Last, volume, high, low, candles and practice
+  fills read only prints that set a price.
 - **The snapshot** adds, for every window, `bid_size`, `ask_size`, `bid_exchange`, `ask_exchange`, `quote_ts`,
   `quote_source: "massive_nbbo" | null`, `quote_status` and `sides_nbbo: integer` (all null / 0 for an IBKR
   download). For a Massive window `bid` / `ask` are the last NBBO row at or before the playhead, never after;
@@ -904,3 +909,11 @@ or a recording still uses it. It opens no IBKR line and pushes or records no
 book. The panel holds it while mounted and re-asserts it every
 `SIM_HISTORY_DEPTH_LINE_REFRESH_MS`.
 
+## Reading the recordings from research (#1064)
+
+The Session Records, `l2.db` and `archive.db` described above are also read by the data front door (ADR 059,
+`research/market_reads/recordings.py`: MCP `recorded_depth` / `recorded_tape`, CLI `recorded-depth` /
+`recorded-tape`). Those reads are strictly read-only and never wait on the recorders, search a jsonl stream by byte
+offset, never read a Session Record across a gap in its segments, and state what each recording does not cover. The
+answer shapes and the stores' read rules are "Recorded sessions, Level 2 and tape through the front door" in
+`agent-desk.md`.

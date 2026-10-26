@@ -77,6 +77,11 @@ async def bot_session_patch(request: Request, body: SessionPatch) -> dict:
     try:
         if payload:
             raised = _strategies_raised(payload)
+            if raised:
+                # No bot turns on over a locked padlock (bot.padlock_gate, operator decision 2026-10-20).
+                from bot.padlock_gate import require_unlocked
+
+                require_unlocked()
             apply_patch(payload, desk=True, arm_token=desk_arm_token(request, payload))
             if raised:
                 # On flows up (operator ask 2026-10-16): a strategy turned On turns Strategy Bots and the Bot switch on.
@@ -155,7 +160,7 @@ def bot_switch(request: Request, body: SwitchBody) -> dict:
 @router.post("/bot/session/keys", dependencies=_write)
 def bot_family_key(request: Request, body: KeyBody) -> dict:
     """A family key (bot.md, "The three keys"): off, its bots place no order, nothing is sold; on turns the Bot
-    switch on too (``bot.cascade``)."""
+    switch on too (``bot.cascade``), refused over a locked padlock (``bot.padlock_gate``)."""
     from bot import family_keys
 
     payload = body.model_dump(exclude_none=True)

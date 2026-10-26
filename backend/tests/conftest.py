@@ -40,6 +40,9 @@ os.environ["NOVA_ENV_PATH"] = str(_SESSION_CACHE / "pytest-never-written.env")
 os.environ.pop("NOVA_API_KEY", None)
 # The followed traders feed is the operator's own; an app a test boots has none (its tests build their own app).
 os.environ.pop("NOVA_FOLLOW_FEED_URL", None)
+# ADR 061: no test reaches a forecaster unless it sets its own address and token.
+os.environ.pop("NOVA_AHEAD_URL", None)
+os.environ.pop("NOVA_AHEAD_TOKEN", None)
 # Starlette TestClient's Host ("testserver"): the request guard reads its allowed
 # names once, when main.py builds the app, and refuses any other name.
 os.environ["NOVA_ALLOWED_HOSTS"] = "testserver"
@@ -58,6 +61,10 @@ _OPERATOR_DATA_DIRS = {
     "NOVA_MARKET_DATA_DIR": "market_data",
     # The front door's read cache (research/market_reads/read_cache.py) defaults to F: when mounted.
     "NOVA_MARKET_READ_CACHE_DIR": "market_read_cache",
+    # The relative-volume table (#1100, research/market_reads/rvol_store.py) defaults to F: when mounted.
+    "NOVA_RVOL_DIR": "rvol",
+    # The signal table (research/market_reads/signals_store.py) defaults to F: when mounted.
+    "NOVA_SIGNALS_DIR": "signals",
     "NOVA_SHORT_TESTS_DIR": "short_tests",   # ADR 049's five-year test results
 }
 for _env, _name in _OPERATOR_DATA_DIRS.items():
@@ -178,6 +185,45 @@ def _stop_market_board_lanes():
     if refresh is not None:
         stuck = refresh.stop_for_tests()
         assert not stuck, f"Market page lanes still running after the test: {stuck}"
+
+
+@pytest.fixture(autouse=True)
+def _stop_global_board_reader():
+    # ADR 060: the Global page's reader starts with the app and on the first ask; like the Market page's lanes
+    # (#925), each test ends it, so a later test's patches and cache never get its calls or its writes.
+    import sys
+
+    yield
+    refresh = sys.modules.get("global_board.refresh")
+    if refresh is not None:
+        assert refresh.stop_for_tests(), "the Global page's reader is still running after the test"
+
+
+@pytest.fixture(autouse=True)
+def _stop_forex_board_reader():
+    # ADR 062: the Forex page's reader, like the Global page's: each test ends it.
+    import sys
+
+    yield
+    refresh = sys.modules.get("forex_board.refresh")
+    if refresh is not None:
+        assert refresh.stop_for_tests(), "the Forex page's reader is still running after the test"
+
+
+@pytest.fixture(autouse=True)
+def _stop_congress_reader():
+    # ADR 066: the Congress page's reader: each test ends it and forgets its state.
+    import sys
+
+    yield
+    refresh = sys.modules.get("congress.refresh")
+    if refresh is not None:
+        assert refresh.stop_for_tests(), "the Congress page's reader is still running after the test"
+        refresh.reset_for_tests()
+    for name in ("congress.state", "congress.roster", "congress.board"):
+        module = sys.modules.get(name)
+        if module is not None:
+            module.reset_for_tests()
 
 
 class _EveryVenue(str):

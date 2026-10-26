@@ -22,6 +22,8 @@ function Icon({ children }: { children: ReactNode }) {
 }
 
 export type NavRailIconId =
+  | 'forex'
+  | 'global'
   | 'market'
   | 'trader'
   | 'scanner'
@@ -31,9 +33,24 @@ export type NavRailIconId =
   | 'botsStrategy'
   | 'records'
   | 'cryptos'
+  | 'congress'
   | 'settings';
 
 const ICONS: Record<NavRailIconId, ReactNode> = {
+  forex: (
+    <Icon>
+      <path d="m16 3 4 4-4 4" />
+      <path d="M20 7H4" />
+      <path d="m8 21-4-4 4-4" />
+      <path d="M4 17h16" />
+    </Icon>
+  ),
+  global: (
+    <Icon>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M3.5 12h17M12 3.5c2.4 2.5 3.6 5.3 3.6 8.5s-1.2 6-3.6 8.5c-2.4-2.5-3.6-5.3-3.6-8.5s1.2-6 3.6-8.5z" />
+    </Icon>
+  ),
   market: (
     <Icon>
       <path d="M3 12h4l3-8 4 16 3-8h4" />
@@ -94,6 +111,14 @@ const ICONS: Record<NavRailIconId, ReactNode> = {
     <Icon>
       <circle cx="12" cy="12" r="8.5" />
       <path d="M10 8h3a2 2 0 0 1 0 4h-3zM10 12h3.6a2 2 0 0 1 0 4H10zM10 8v8M11 6.5V8M13 6.5V8M11 16v1.5M13 16v1.5" />
+    </Icon>
+  ),
+  // Congress (ADR 066): Lucide's "landmark", drawn at the rail's stroke.
+  congress: (
+    <Icon>
+      <path d="M3 21h18" />
+      <path d="M6 17.5V11M10 17.5V11M14 17.5V11M18 17.5V11" />
+      <path d="M12 3l8 5H4z" />
     </Icon>
   ),
   settings: (

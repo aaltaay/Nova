@@ -1,6 +1,6 @@
 import type { IChartApi } from 'lightweight-charts';
 import { describe, expect, it, vi } from 'vitest';
-import { paneWords, publishPaneWords, subscribePaneWords } from './paneWords';
+import { paneWords, paneWordsExcept, publishPaneWords, subscribePaneWords } from './paneWords';
 
 const chartOf = () => ({}) as unknown as IChartApi;
 const rect = (left: number, top = 0) => ({ left, top, right: left + 20, bottom: top + 14 });
@@ -36,6 +36,15 @@ describe('paneWords', () => {
     expect(paneWords(chart)).toBe(paneWords(chart));
     publishPaneWords(chart, 'labels', [rect(11)]);
     expect(paneWords(chart).version).toBeGreaterThan(v1);
+  });
+
+  it("answers every source's words but one, for a reader that also publishes", () => {
+    const chart = chartOf();
+    publishPaneWords(chart, 'labels', [rect(10)]);
+    publishPaneWords(chart, 'ahead', [rect(90)]);
+    expect(paneWordsExcept(chart, 'ahead').map(r => r.left)).toEqual([10]);
+    expect(paneWordsExcept(chart, 'nobody').map(r => r.left)).toEqual([10, 90]);
+    expect(paneWordsExcept(null, 'ahead')).toEqual([]);
   });
 
   it('takes back nothing it never held without a change', () => {

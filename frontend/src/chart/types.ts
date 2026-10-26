@@ -27,6 +27,8 @@ export interface ChartPaneOverlayProps {
   candleSeriesRef: RefObject<ISeriesApi<'Candlestick'> | null>;
   containerRef: RefObject<HTMLElement | null>;
   barsRevision: number;
+  /** The pane's volume histogram (an overlay in the price pane); absent where a pane has none. */
+  volSeriesRef?: RefObject<ISeriesApi<'Histogram'> | null>;
 }
 
 export type RenderPaneOverlay = (props: ChartPaneOverlayProps) => ReactNode;

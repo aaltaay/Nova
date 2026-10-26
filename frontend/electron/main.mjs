@@ -41,6 +41,7 @@ import { engineStep, openStartupSplash, STARTUP_STEPS } from './startupSplash.mj
 import { isAllowedRendererUrl, loadHostWindow } from './traderWindowLoad.mjs';
 import { openOrFocusTraderWindow } from './traderWindows.mjs';
 import { attachYouTubeReferer, isYouTubeSignInUrl, openStreamWindow, openYouTubeSignIn } from './streamPlayer.mjs';
+import { openOrFocusTopNineWindow } from './topNineWindow.mjs';
 import {
   WINDOW_ID_MAIN,
   applyStoredPlacement,
@@ -64,7 +65,7 @@ let mainWindow = null;
 /** The "Starting Nova" window until the desk shows. */
 let startup = null;
 let quitting = false;
-/** ADR 035: every monitor, recorded from launch to quit. */
+/** ADR 035: every monitor, recorded from launch to quit -- only with NOVA_SCREEN_RECORD on; paused by default (ADR 067). */
 let screenRecorder = null;
 let screenRecordBridge = null;
 /** ADR 039: share clips, cut from that recording (High quality on demand). */
@@ -77,7 +78,7 @@ let screenSampler = null;
 /** The hidden recorder, capture and export pages: never a window the operator sees or closes. */
 const hiddenWindow = (w) => Boolean(screenRecorder?.isRecorderWindow(w) || clipService?.isClipWindow(w));
 
-/** The trading screen is always recorded; nothing but a quit stops it (operator decision 2026-09-24). */
+/** The screen recording, or its paused view: NOVA_SCREEN_RECORD, read now, decides; once on, only a quit stops it. */
 function startScreenRecording() {
   screenRecordBridge = createScreenRecordBridge({
     ipcMain,
@@ -96,6 +97,7 @@ function startScreenRecording() {
     powerMonitor,
     ipcMain,
     userData: app.getPath('userData'),
+    envPath: getDesktopEnvPath,
     onView: (view) => screenRecordBridge?.publish(view),
     onSample: (ev) => screenSampler?.answer(ev),
   });
@@ -279,6 +281,27 @@ ipcMain.handle('nova:openStockView', (_event, url) => {
   return openOrFocusTraderWindow(url, windowOptions(), attachStockViewWindowOpen);
 });
 
+ipcMain.handle('nova:openTopNine', (_event, url) => openOrFocusTopNineWindow(url, windowOptions(), {
+  BrowserWindow,
+  userData: app.getPath('userData'),
+  displays: displayWorkAreas(),
+  releaseTag: novaDesktopReleaseTag(app),
+}));
+// The asking window only: a page can raise or pin itself, never another window.
+ipcMain.handle('nova:keepOnTop', (event, on) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed()) return false;
+  win.setAlwaysOnTop(on === true);
+  return win.isAlwaysOnTop();
+});
+ipcMain.handle('nova:focusWindow', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed()) return false;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+  return true;
+});
 ipcMain.handle('nova:openStream', (_event, videoId) => openStreamWindow(BrowserWindow, videoId, { icon: APP_ICON }));
 ipcMain.handle('nova:youtubeSignIn', () => signInToYouTube());
 // The header mute: every Nova window's audio, the stream's pop-out included.

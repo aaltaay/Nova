@@ -226,6 +226,7 @@ export function RecordedPane({
         candleSeriesRef,
         containerRef,
         barsRevision,
+        volSeriesRef,
       }) ?? null}
       chartApi={chartApi}
       candleSeriesRef={candleSeriesRef}

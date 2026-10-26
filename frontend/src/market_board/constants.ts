@@ -1,5 +1,5 @@
 /** The Market page's numbers and words (ADR 053). Periods and kinds mirror backend/constants_market_board.py. */
-import type { Period, TopKind } from './types';
+import type { Period, TempLabel, TopKind } from './types';
 
 export const MARKET_SCHEMA_VERSION = 1;
 export const MARKET_BOARD_PATH = '/api/market/board';
@@ -54,4 +54,19 @@ export const DAY_READ_RULE =
   'Futures: 3 of ES, NQ, RTY, YM up is green, 3 down is red. Breadth: NYSE advancing over declining at 1.5 ' +
   'or more is green, 1/1.5 or less red. VIX: down 3% or more green, up 3% red. Small caps: RTY minus ES +0.25 ' +
   'points or more green, -0.25 red. Runners: 20%+ runners at 1.25x their same-minute average green, 0.8x red. ' +
-  'Gappers: 60% or more of 20%+ gappers holding their open green, 40% or less red.';
+  'Gappers: 60% or more of 20%+ gappers holding their open green, 40% or less red. ' +
+  'The small-caps line is the Small-cap climate card\'s temperature: a separate question, never one of the checks.';
+
+/** The small-cap temperature's words and rules (ADR 053 amendment 2026-10-25; backend market_board/temperature.py). */
+export const TEMP_WORD: Record<TempLabel, string> = {
+  hot: 'HOT', warm: 'WARM', cold: 'COLD', good: 'GOOD', ok: 'OK', choppy: 'CHOPPY',
+};
+export const TEMP_RULE: Record<Period, string> = {
+  '1D': 'Stocks with a prior close of $2-20 on Nova\'s Gainers board. Hot: 2 or more up 100%, and more money in the ' +
+    'top 5 gainers than usual (the median of the sessions before, at this time of day). Cold: none up 100% and no ' +
+    'more money than usual. Warm: the rest. Money is shares traded x last price.',
+  '7D': 'The last 5 sessions. Cold: 3 or more cold days. Good: 2 or more hot days, and runners that peaked at +50% ' +
+    'kept half their gain 45% of the time or more. Choppy: they kept it under 35% of the time. OK: the rest.',
+  '30D': 'The last 21 sessions: hot days minus cold days, over the days with a label. +15% or more is hot, -15% or ' +
+    'less cold, warm in between.',
+};

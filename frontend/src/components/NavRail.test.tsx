@@ -130,13 +130,17 @@ describe('NavRail', () => {
     expect(rail.tagName).toBe('NAV');
     expect(rail.getAttribute('aria-label')).toBe('Navigation');
     const top = testIds(rail.querySelector('.nav-rail__list')!).filter((id) =>
-      ['nav-rail-market', 'nav-rail-trader', 'nav-rail-scanner', 'nav-rail-cryptos', 'nav-rail-account', 'nav-rail-bots', 'nav-rail-records'].includes(id!),
+      ['nav-rail-forex', 'nav-rail-global', 'nav-rail-market', 'nav-rail-trader', 'nav-rail-scanner', 'nav-rail-cryptos', 'nav-rail-congress', 'nav-rail-account', 'nav-rail-bots', 'nav-rail-records'].includes(id!),
     );
+    // Forex above Global, Global above Market (operator asks, 2026-10-20); Congress after Cryptos (ADR 066).
     expect(top).toEqual([
+      'nav-rail-forex',
+      'nav-rail-global',
       'nav-rail-market',
       'nav-rail-trader',
       'nav-rail-scanner',
       'nav-rail-cryptos',
+      'nav-rail-congress',
       'nav-rail-account',
       'nav-rail-bots',
       'nav-rail-records',
@@ -281,6 +285,25 @@ describe('NavRail', () => {
     expect(onOpenTrader).not.toHaveBeenCalled();
   });
 
+  it('puts the Top 9 grid button on Gappers, Gainers and After Hours only; it opens the pop-up on that list', async () => {
+    const popup = { location: { search: '', href: '' }, focus: vi.fn() };
+    const open = vi.fn(() => popup);
+    vi.stubGlobal('open', open);
+    render();
+    const buttons = Array.from(container.querySelectorAll('[data-testid^="nav-rail-top-nine-"]'))
+      .map((el) => el.getAttribute('data-testid'));
+    expect(buttons).toEqual(['nav-rail-top-nine-gappers', 'nav-rail-top-nine-gainers', 'nav-rail-top-nine-afterhours']);
+    await act(async () => {
+      (q('nav-rail-top-nine-afterhours') as HTMLButtonElement).click();
+    });
+    expect(open).toHaveBeenCalledWith('', 'nova-top-nine', expect.stringContaining('popup=yes'));
+    expect(popup.location.href).toContain('view=top9');
+    expect(JSON.parse(localStorage.getItem('nova.topNine.list') ?? '{}').value).toBe('afterhours');
+    // The button is its own control: the list row under it was not chosen.
+    expect(consumeScannerTabRequest()).toBeNull();
+    vi.unstubAllGlobals();
+  });
+
   it('routes a Scanner child through the tab latch and leaves Trader first', () => {
     const seen: string[] = [];
     const onEvent = (e: Event) => seen.push((e as CustomEvent<{ tab: string }>).detail.tab);
@@ -301,6 +324,11 @@ describe('NavRail', () => {
     expect(getNavPage()).toBe('cryptos');
     expect(consumeScannerTabRequest()).toBeNull();
     expect(q('nav-rail-cryptos')!.classList.contains('is-active')).toBe(true);
+    click('nav-rail-congress');
+    expect(getNavPage()).toBe('congress');
+    expect(consumeScannerTabRequest()).toBeNull();
+    expect(q('nav-rail-congress')!.classList.contains('is-active')).toBe(true);
+    expect(q('nav-rail-cryptos')!.classList.contains('is-active')).toBe(false);
     click('nav-rail-account');
     expect(getNavPage()).toBe('account');
     expect(consumeScannerTabRequest()).toBeNull();
@@ -309,9 +337,17 @@ describe('NavRail', () => {
     expect(getNavPage()).toBe('bots');
     expect(consumeScannerTabRequest()).toBeNull();
     expect(q('nav-rail-bots')!.classList.contains('is-active')).toBe(true);
+    click('nav-rail-forex');
+    expect(getNavPage()).toBe('forex');
+    expect(q('nav-rail-forex')!.classList.contains('is-active')).toBe(true);
+    click('nav-rail-global');
+    expect(getNavPage()).toBe('global');
+    expect(q('nav-rail-forex')!.classList.contains('is-active')).toBe(false);
+    expect(q('nav-rail-global')!.classList.contains('is-active')).toBe(true);
     click('nav-rail-market');
     expect(getNavPage()).toBe('market');
     expect(q('nav-rail-market')!.classList.contains('is-active')).toBe(true);
+    expect(q('nav-rail-global')!.classList.contains('is-active')).toBe(false);
     expect(onLeaveTrader).not.toHaveBeenCalled();
     click('nav-rail-records');
     expect(getNavPage()).toBe('records');

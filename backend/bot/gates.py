@@ -53,13 +53,15 @@ def _gate(gid: str, ok: bool, stage: str, text: str, **detail: Any) -> dict[str,
 
 
 def loss_limit(venue: str | None) -> dict[str, Any] | None:
-    """The daily loss limit's No new buys on ``venue`` (ADR 056), or None while buys are open.
+    """The daily loss limit's No new buys for the bots on ``venue`` -- the Account line or the Bots line
+    (ADR 056, ADR 061) -- or None while their buys are open.
 
     One that cannot be read counts as holding (logged): an unknown is never read as open."""
     try:
+        from constants_loss_limit import LOSS_LIMIT_LINE_BOTS
         from loss_limit.gate import stopped
 
-        return stopped(venue)
+        return stopped(venue, actor=LOSS_LIMIT_LINE_BOTS)
     except Exception as exc:
         logger.warning("bot gates: the daily loss limit could not be read -- buys count as stopped", exc_info=True)
         return {"text": f"the daily loss limit could not be read ({type(exc).__name__}): no new bot entry",
@@ -127,9 +129,10 @@ def gates(row: dict[str, Any], venue_now: tuple[str | None, bool, bool] | None =
                else "no Bot stock holds a Level 2 line: open its Level 2 or record it"),
               held=held, missing=missing, max_lines=IBKR_MAX_DEPTH_SYMBOLS),
         _gate("loss_limit", stopped is None, "fire",
-              stopped["text"] if stopped else "the daily loss limit has not stopped buys on this venue today",
+              stopped["text"] if stopped else "the daily loss limit has not stopped the bots' buys on this venue today",
               until=(stopped or {}).get("until"), tripped_at=(stopped or {}).get("tripped_at"),
-              loss=(stopped or {}).get("loss"), limit_usd=(stopped or {}).get("limit_usd"), venue=venue),
+              loss=(stopped or {}).get("loss"), limit_usd=(stopped or {}).get("limit_usd"), venue=venue,
+              line=(stopped or {}).get("line")),
         _gate("kill_switch", not killed, "fire",
               "the kill switch is tripped: nothing is sent until you reset it" if killed
               else "the kill switch is reset"),

@@ -512,8 +512,10 @@ the stocks read. A `building` job not rewritten for
 `failed`. Invalidated when the rebuilt day changes: `fingerprint` is a SHA-256
 over everything a build reads from the store -- every rebuilt Gappers row of the
 day (`minute_ts, symbol, rank, price, volume, prev_close`) and every stored
-stock's `(symbol, prev_close)` that day (about a second) -- and a request that
-finds another builds the day again. An unknown `schema_version` (either file) is never read and the day
+stock's `(symbol, prev_close)` that day (about a second), written
+`<LEADERBOARD_SECONDS_LOGIC_VERSION>:<sha256>` -- and a request that finds another builds the day again. The logic
+version moves when how a build counts changes (2, 2026-10-24: the auction repeat records left the volume, #1220), so
+a day built by older code reads stale (#1219). An unknown `schema_version` (either file) is never read and the day
 is built again. `summary`: `{candidates, from_outside_store, stocks_read,
 seconds_rows, read_indexed, checked_minutes, agreed_minutes, disagreements:
 [{minute_ts, stored, by_second}] (at most 20), build_sec}` -- each minute's list
@@ -563,10 +565,20 @@ second memory cap), one day at a time; asking for another day, or the backend sh
   rebuilt row's); the surge buffer from those bars; average volume -- the mean whole-session day-bar volume over the
   63 sessions before the day (Yahoo's `averageVolume` is a 3-month average) -- and the 52-week high -- the highest
   day-bar high over the 252 sessions before the day, never the day's own -- from Massive's `day_aggs`,
-  split-adjusted with Massive's list plus the SEC-confirmed splits; the float is **Yahoo's float now**
-  (`fundamentals.fetch_fundamentals`), because that is what the live desk reads and no float as of a past day is on
-  file (`float_basis: "yahoo_now"`; an unknown float stays unknown). Change is measured from the prior close on
-  every tick; the gap from 09:30, from the day's day-bar open, as IBKR's open tick exists only from the open.
+  split-adjusted with Massive's list plus the SEC-confirmed splits. The float is **SEC shares outstanding filed
+  before the day** (`float_basis: "sec_outstanding_prior_day"`; `day_movers.floats.sec_shares(..., before=True)`):
+  the movers store's newest count filed by the calendar day before, reported as of at most 120 days before the day
+  (`DAY_MOVERS_SEC_SHARES_MAX_AGE_DAYS`), put on the day's share basis through the store's splits -- one executing
+  on the day itself included. It is set as the snapshot's float and its shares outstanding (`float_contradicted`
+  null). A float cannot exceed shares outstanding, so the count is an upper bound: at or under a `max_float` line
+  it proves the float is; over the line the float is unknown and the strategy does not fire, as live with an
+  unknown float. A floor cannot be proven from an upper bound, so every strategy with a `min_float` line sits out
+  the run (the Medium Float strategies by default; `summary.floor_unproven` lists them). A stock with no count on
+  file has an unknown float. Until 2026-10-20 the float was Yahoo's float on the day of the build (`yahoo_now`), a
+  look-ahead for any past day; `HOD_MOMO_REBUILD_LOGIC_VERSION` 2 makes those builds out of date. Version 3
+(2026-10-24, #1219) does the same for builds whose day volume still counted the auction repeat records (#1220). Change is measured
+  from the prior close on every tick; the gap from 09:30, from the day's day-bar open, as IBKR's open tick exists
+  only from the open.
 - **The engine** runs with the operator's HOD settings and blocklist and nothing else of today's, on a clock pinned
   to each tick (`hod_momo_replay.pinned_clock`); its consolidation queue is flushed at every tick, as the live
   0.25 s flush loop does, and once more after the day's last tick at the last open burst's end. It never writes the
@@ -577,7 +589,8 @@ Persisted state (persisted-state.mdc). Owner `hod_momo_rebuild/store.py`, the on
 root>/hod_momo/`, each file written whole (temp, rename): `<date>.alerts.json` `{schema_version: 1, date,
 built_ts, fingerprint, float_basis, summary, alerts}` -- `alerts` oldest first in `alert_to_dict`'s shape;
 `summary` `{watched, watched_minutes, prints, ticks, alerts, pending_unflushed, with_float, with_avg_volume,
-with_52wk_high, index, build_sec}` -- and `<date>.job.json` `{schema_version: 1, date, status: "queued" |
+with_52wk_high, floor_unproven, index, build_sec}` (`with_float`: stocks with an SEC count; `floor_unproven`: the
+strategy ids that sat out) -- and `<date>.job.json` `{schema_version: 1, date, status: "queued" |
 "building" | "ready" | "failed" | "stopped", stage: "inputs" | "index" | "trades" | "engine" | "writing" | null,
 done, total, started_ts, updated_ts, finished_ts, error, summary, fingerprint}` (`done` / `total`: stocks while
 reading trades, ticks while running the engine). `fingerprint` is `<logic version>:<boards>:<settings>` -- a SHA-256
@@ -585,7 +598,8 @@ over every `gappers` / `afterhours` / top-50 `market` row of the day and one ove
 `/api/hod-momo/config` serves them plus the blocklist -- so a build reads out of date when the rebuilt boards, the
 operator's HOD settings or `HOD_MOMO_REBUILD_LOGIC_VERSION` change, and is built again when asked. An unknown
 `schema_version` (either file) is never read. A `building` job not rewritten for `HOD_MOMO_REBUILD_STALE_SEC`
-belonged to a process that died and reads `failed`.
+belonged to a process that died and reads `failed`. `updated_ts` and `built_ts` are the wall clock even while the
+engine pins `time.time` to the replayed day (until 2026-10-20 the engine stage stamped the replay's time).
 
 **Route.** `POST /api/hod-momo/history/{date}/rebuild` asks for it: the job, or `{status: "unavailable",
 reason}` -- Nova recorded HOD Momo that day, the day has no rebuilt boards, or its Massive trades or day-bar file is
@@ -596,6 +610,19 @@ every 5 s while it reads `none` or `stopped`; never after `failed`, and never ag
 `unavailable` or `failed`, whose reason it shows), reads the history every 2 s while it runs, and says so on the strip, the Focus rail and the count
 ("Rebuilding HOD Momo alerts from D's trades: running HOD Momo 40%…"); a rebuilt day's feed word is `rebuilt
 HH:MM`, its title naming the source and the float.
+
+**Many rebuilt days in a row** (2026-10-20, for the signal table's history). `python -m hod_momo_rebuild.batch
+--start D1 --end D2 [--workers N] [--oldest-first]` builds every calendar day of the range, newest first, each in
+the desk's own worker process (`job.spawn`: `worker_command`, below normal priority, the same memory cap), at most
+`N` at once (default 1; a busy day is about 12 million prints, so mind the cap times `N`). It skips, with the
+reason, a day the desk would refuse (`job.unavailable_reason`, or no rebuilt boards), a day whose build is ready
+and current (its `fingerprint` against the boards and the HOD settings now) and a day another process is building
+(an active job rewritten within `HOD_MOMO_REBUILD_STALE_SEC`), so running it again resumes where it stopped. A
+`STOP` file in `<leaderboard root>/hod_momo/batch/` starts no further day: the days already running finish, then
+the batch removes the file and ends. Each day's outcome and timing (`build_sec`, wall seconds, prints, alerts) is
+one line of `<leaderboard root>/hod_momo/batch/batch-<started>.log`, with the count of days built, skipped and
+failed and the median build time at the end; the workers' own logs are `hod_rebuild.log` / `.err` in the log
+directory. It writes nothing but the job and alerts files `store.py` owns and its log.
 
 **Many days at once** (2026-10-12). The live recorder gives up on a write after
 `LEADERBOARD_SQLITE_TIMEOUT_SEC` and loses that batch (`leaderboard/queue.py`),
@@ -859,3 +886,51 @@ name/exchange/class and a split on or before the day stay. "Why it's moving"
 already reads `not_read` there (`stock-read.md`); News is the replayed day's
 (`catalysts.md`).
 
+## The Top 9 pop-up (operator ask, 2026-10-26)
+
+"add a pop-up with a 3x3 grid. It shows the top 9 for the gappers, for the gainers, and for the after-hours"; "when
+we double-click, it opens in the trader. Just figure out that there's a single source of truth." Owner
+`frontend/src/top_nine/` (approved mockup v1, `F:/Nova/design/top9-grid`). Display only: it places, sizes and
+grants nothing.
+
+**One owner of the lists, one owner of the Trader.** The pop-up is its own window (`?view=top9`; desktop: one
+BrowserWindow, `electron/topNineWindow.mjs`, a second open focuses it; browser: the named popup `nova-top-nine`). It
+opens no scanner socket and holds no Trader tabs:
+
+- **Boards, desk -> pop-up.** The main desk window (`TopNinePublisher`, never a Trader pop-out float or the sample
+  desk) reads its own scanner feed and publishes on the deskSharedPoll share `top-nine`
+  (`nova.desk.poll.snap.top-nine` + BroadcastChannel `nova-desk-poll-top-nine`), only while a pop-up beats
+  `nova.topNine.viewer` (ms epoch, every 2 s, stale after 6 s), checked every 1 s, sent on change and at least every
+  4 s. Payload, `schema_version` 1:
+  `{schema_version, source, asOf, lists: {gappers|gainers|afterhours: {rows: [{symbol, rank, changePct, price,
+  volume, float, halted}], total}}}`. `asOf` is the board's minute (epoch seconds): the Sim playhead board's own
+  minute, or now's minute live (so an unchanged board is not re-sent every second); every tile's chart ends there. `rows` are the first nine rows as the scanner serves them; `rank` is row index + 1, the
+  same rule as the Trader's rank chip (`stock_view/quoteRank.ts`, `scannerListRows`); `total` is the whole list.
+  `changePct` is the list's Change column (percent points). Unknown values are `null`, never a placeholder.
+  `source` is `{kind: "live"}`, `{kind: "replay", label}` (the Sim playhead's board, labelled by `replayLabel`) or
+  `{kind: "unknown", why}` with every list empty when the desk cannot rank (`rankUnknownWhy`: a saved board, a gap,
+  loading or a failure at the playhead). The pop-up refuses another `schema_version` or a broken row, and never
+  shows an envelope older than 10 s (a closed desk's leftover): it says it is waiting for the desk.
+- **Open, pop-up -> desk.** A double-click publishes `open-request` on the Trader desk bus (ADR 011 amendment
+  2026-10-26) `{symbol, sourceWindowId, requestId, targetWindowId?: last host, from: list}`. The host claims it
+  (`claimDockTarget`), runs `openStockView(symbol, {from})` -- the preview-tab rule and `TRADER_MAX_LIVE_TABS` apply
+  unchanged, and the Focus rail follows the list -- raises itself (desktop IPC `nova:focusWindow`), and answers
+  `opened` with the same `requestId`. No answer in 600 ms: the pop-up says no desk window answered.
+
+**Rank marks.** Each list's board is compared with the last one the pop-up saw: a stock whose rank changed is marked
+up / down / new to the top nine (the first board marks nothing; a change of `source.kind` starts over). A mark is
+full for 30 s (coloured border, filled rank box, `3 → 2` pill, a countdown bar) then a soft tint on the rank box to
+2.5 min. Each switch (moves and the names that left) goes to the bottom "Switches" line, newest first, 30 kept per
+list. One short tick plays for a switch on the list on screen (switch `nova.topNine.sound`, prefStore, default on;
+the header mute silences it). Tiles slide to their new place (0.5 s).
+
+**Charts.** Each tile draws the last 90 one-minute candles of `GET /api/ticker/{symbol}/bars?timeframe=1Min&limit=1000`
+through the shared bars store, asked again every `CHART_REFETCH_SEC["1Min"]` (store-first on the backend, ADR 012 --
+the history budget and its priorities are the backend's), with the desk's session VWAP (`sessionVwapPoints`, 04:00 ET
+anchor) and a last-price tag at the board's `price`. A minute with no trade stays a hole. No Level 1, Level 2 or tape
+line is opened for a tile.
+
+**Prefs (prefStore, `schema_version` 1).** `nova.topNine.list` (`gappers` | `gainers` | `afterhours`): the list on
+screen; a grid button on the rail writes it before opening, and an open pop-up follows it (`storage` event), so a
+second button switches the tab without reloading the window. Keep-on-top is the desktop app's (`nova:keepOnTop`, the
+asking window only); a browser shows it locked with its reason.

@@ -15,7 +15,8 @@ export interface ReviewPayload {
   source: string;
   lookahead: false;
   vwap_anchor: '04:00';
-  timeframes: Partial<Record<ReviewTf, { bars: RawBar[] }>>;
+  /** `source` names where a frame's bars came from (`massive-trades`, `massive-minutes`, `massive-daily`); absent = unstated. */
+  timeframes: Partial<Record<ReviewTf, { bars: RawBar[]; source?: string }>>;
   levels: ReviewLevels;
   setups: { kind: string; time: string; price: number; label: string }[];
 }

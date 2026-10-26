@@ -11,6 +11,9 @@ export type RecordedChartFeed = {
   source: 'front-door' | 'fixture';
   bars: Partial<Record<'10Sec' | '1Min' | '5Min' | '1Day', RawBar[]>>;
   vwapBars: RawBar[];
+  /** Each pane's subtitle: where its bars really came from. A pane with no note claims no source -- the live desk's
+   * pane notes (IBKR history, the live tape) never show on a recorded feed. */
+  notes?: Partial<Record<'10Sec' | '1Min' | '5Min' | '1Day', string>>;
 };
 
 export type ChartFeed = { kind: 'live' } | RecordedChartFeed;

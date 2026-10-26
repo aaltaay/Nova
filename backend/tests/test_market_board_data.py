@@ -190,9 +190,9 @@ def test_a_session_nova_did_not_record_is_filled_from_massive_on_the_chart_only(
     from leaderboard import store
 
     db_path = Path(tmp_path / "lb") / "leaderboard.sqlite3"
-    with store.connect(db_path) as db:   # only today is recorded
+    with store.connect(db_path) as db:   # only today is recorded (a board that kept rows, none of them a runner)
         db.execute("INSERT INTO coverage VALUES (?,?,?,?,?,?,?)",
-                   (DAY.isoformat(), int(clock.at(DAY, 9 * 60 + 45)), "recorded", "gainers", "live", 0, "r"))
+                   (DAY.isoformat(), int(clock.at(DAY, 9 * 60 + 45)), "recorded", "gainers", "live", 50, "r"))
         db.commit()
     two_back, one_back = clock.sessions_back(DAY, 3)[:2]
     mv_path = tmp_path / "movers.sqlite3"

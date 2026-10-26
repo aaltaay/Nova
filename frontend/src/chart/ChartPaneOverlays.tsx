@@ -20,6 +20,7 @@ export function ChartPaneOverlays(props: {
   chart: IChartApi | null;
   candleSeriesRef: RefObject<ISeriesApi<'Candlestick'> | null>;
   containerRef: RefObject<HTMLElement | null>;
+  volSeriesRef?: RefObject<ISeriesApi<'Histogram'> | null>;
   activeTool: string | null;
   onToolClick: (toolId: string) => void;
   enabledIndicators: ChartIndicatorId[];
@@ -62,6 +63,7 @@ export function ChartPaneOverlays(props: {
         candleSeriesRef: props.candleSeriesRef,
         containerRef: props.containerRef,
         barsRevision: props.barsRevision,
+        volSeriesRef: props.volSeriesRef,
       })}
     </>
   );

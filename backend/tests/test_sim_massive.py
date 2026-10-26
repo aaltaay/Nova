@@ -157,8 +157,13 @@ def test_which_prints_set_a_price():
         return massive_files.trade(dict(zip(TRADES.split(","), fields, strict=True)), "X")
     assert trade("")["sets_price"] and trade("14,41")["sets_price"] and trade("12")["sets_price"]
     # 32 / 33 sold out of sequence: CPIX 2026-03-27's "32" print at $3.935 traded 09:30, reported 16:39.
-    for volume_only in ("37", "10,37,41", "10,2,41", "53,35,41", "7,12,37", "15", "16", "32", "14,32,41", "33"):
+    for volume_only in ("37", "10,37,41", "10,2,41", "53,35,41", "7,12,37", "32", "14,32,41", "33"):
         assert trade(volume_only)["sets_price"] is False, volume_only
+    # 15 / 16 / 38 repeat an auction print (CINC 2022-08-08 09:30: the opening cross as "17,9,41" and again as
+    # "16"); IBKR's live tape has no such record, so a replay has none either.
+    for repeat in ("15", "16", "38", "12,16"):
+        assert trade(repeat) is None, repeat
+    assert trade("17,9,41")["sets_price"] is True
     assert trade("", corr=12)["sets_price"] is True
     for busted in (1, 7, 8):
         assert trade("", corr=busted)["sets_price"] is False
@@ -189,6 +194,25 @@ def test_an_import_of_a_window_keeps_the_whole_stock_day(root):
     assert quotes[0][0] == _sec("09:29:59") and quotes[2][1] is None                  # an empty bid side
     assert [c["o"] for c in massive_store.read_candles(job["id"])] == [9.9, 10.0, 10.01, 10.2]
     assert massive_store.find(massive_import.spec(window)) is None                     # no import of the window itself
+
+
+def test_an_import_stored_before_the_repeat_fix_replays_without_the_repeat_records(root):
+    """#1219: imports written before #1220 kept the official open / close repeats (15 / 16 / 38); a read drops them,
+    so an old import replays (and feeds the eyes' history recordings) as live, without a re-import."""
+    spec = massive_import.spec(_window())
+    job = massive_store.save(dict(massive_store.new_job(spec), status="complete"))
+
+    def row(seq, hms, conditions, size):
+        return dict(ts=_sec(hms), ns=_ns(hms), symbol="IMCC", price=10.0, size=size, exchange="NASDAQ",
+                    exchange_id=12, conditions=conditions, correction=0, trf_id=0, sequence=seq, tape=3,
+                    sets_price=conditions == "", unreported=False)
+
+    massive_store.replace_window(job["id"], [row(1, "09:30:00", "", 29248.0), row(2, "09:30:00", "15", 29248.0),
+                                             row(3, "09:30:01", "", 0.4)], [], [])
+    prints = massive_store.read_prints(job["id"], "IMCC")
+    assert [(p["sequence"], p["size"]) for p in prints] == [(1, 29248.0), (3, 0.4)]
+    assert [p["sequence"] for p in massive_store.read_prints(job["id"], "IMCC",
+                                                             between=(_sec("09:30:00"), _sec("09:30:01")))] == [1]
 
 
 def _reads(monkeypatch) -> dict[str, int]:

@@ -1,4 +1,4 @@
-/* The header's screen recording chip (ADR 035): an icon while all is well, words when not. */
+/* The header's screen recording chip (ADR 035, ADR 067): muted words while paused, an icon while all is well, loud words when not. */
 .screen-rec-chip {
   position: relative;
   display: inline-flex;
@@ -40,6 +40,12 @@
 }
 
 .screen-rec-chip--quiet {
+  border-color: transparent;
+  background: transparent;
+}
+
+/* Paused (the default), or no desktop app to record: stated in muted words, never the recording dot. */
+.screen-rec-chip--off {
   border-color: transparent;
   background: transparent;
 }

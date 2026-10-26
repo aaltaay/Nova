@@ -328,6 +328,17 @@ and `.claude/skills/nova-sim-navigator/`. Nothing here places, stages or cancels
   - `GET /api/agent/desk` -> `{schema_version: 1, venue, live_edge, sim: {session_date, playhead_et, paused,
     loaded: {source, symbol, date, start, end} | null} | null, focus: {page, symbol, window_id} | null,
     listening, at_stake}`.
+  - `GET /api/agent/market-temperature?day=YYYY-MM-DD` (ADR 053 amendment 2026-10-25; operator: "we need an
+    endpoint for agents and AI to know at any time the output of this feature") -> `{schema_version: 1, day, as_of,
+    final, labels: {day: "hot" | "warm" | "cold" | null, week: "good" | "ok" | "choppy" | "cold" | null, month:
+    "hot" | "warm" | "cold" | null}, day_detail, week, month, rules: string[]}` -- the Market page's small-cap
+    temperature for `day` (default: the current session, so far). `day_detail` / `week` / `month` are the Market
+    wire's `climate.heat` (`market-board.md`) for 1 D / 7 D / 30 D ending at `day`, with the same rules and the same
+    history window, so an agent reads exactly what the page shows; `as_of` is when it was read (now, or that
+    session's close) and `final` is true once the session closed. It reads the leaderboard store whether or not the
+    Market page has run: a session Nova does not hold yet is read on the call, today again each call. A day that is
+    not an exchange session answers for the session before it (`day` says which). Refusals: `AGENT_INVALID` 400 (not
+    `YYYY-MM-DD`, or after today), `AGENT_LEADERBOARD_UNAVAILABLE` 503 (no leaderboard store). Read-only.
   - `GET /api/agent/dictionary` -> `{schema_version: 1, error, entries[]}`; `POST /api/agent/dictionary {entry}`
     adds or replaces an operator entry by `id`; `DELETE /api/agent/dictionary/{id}`.
   - The desk's side (keyed, the long poll too): `GET /api/agent/desk/next?wait=&window_id=` (the main window's
@@ -368,23 +379,48 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
 - **Tools** (each answers a JSON object; a failed read is `{ok: false, error: "<Type>: <message>"}`, never a crash):
   `data_catalog` (`{ok, datasets: [{name, source, history, as_of, units, mcp, cli}], not_here: string[]}` -- call it
   first), `data_status`, `stock_day {kind: trades|quotes|bars, symbol, day, start?, end?, tf?, adjust?,
-  output_name?}`, `movers_search {params}` (the `/api/agent/movers` answer, at most 500 rows), `movers_scan {filters,
+  fill_gaps?, output_name?}`, `movers_search {params}` (the `/api/agent/movers` answer, at most 500 rows), `movers_scan {filters,
   symbol?, kinds?, columns?, limit?, splits?, output_name?}`, `board {day, at, list_name, source?}`, `splits {symbol,
   day?, cik?}` (`price_factor` with `day`), `financials {symbol, statement, as_of?, timeframe?, cik?}`, `sec_shares
   {symbol, day?, max_age_days?, cik?}`, `sec_filings {symbol, as_of?, forms?, cik?}`, `float_latest {symbol?}`, `ipos
-  {symbol?, date_from?, date_to?}`, `ticker_details {symbol}`, `short_interest {symbol, day, at?}`.
+  {symbol?, date_from?, date_to?}`, `ticker_details {symbol}`, `short_interest {symbol, day, at?}`, `cash_runway
+  {symbol, day, cik?, lookback_days?}` (below).
 - **`stock_day` bars** take `tf` as a count and `s` / `m` / `h`; a daily `tf` (`1d`, `1w`) is refused naming the
   daily bars tool. Minute bars carry Massive's own volume; seconds bars sum every trade except cancel / error
   records (`docs/market-data.md`, "Two volume rules").
+- **Bar gaps** (#1086). A bar exists only for a bucket with a trade, so a halt or a quiet stretch is a hole in the
+  series, and a consumer plotting by row index would draw it continuous. `reads.bars` (so `stock_day` bars and
+  `market_data.py bars`) says where. `meta.gaps` lists the runs of missing buckets inside the window as `{first_et,
+  last_et, buckets}`: the window is the asked `start` .. `end` when given, else the first .. last bucket of the read;
+  `first_et` / `last_et` are the first and last missing bucket's start, both inclusive, ET `HH:MM` (`HH:MM:SS` for a
+  seconds `tf`), in time order. At most 50 runs are listed, the longest ones (`meta.gaps_truncated` true when more
+  exist); `meta.gap_runs` and `meta.gap_buckets` count every run and every missing bucket. A gap is a bucket with
+  no trade: a halt is one cause (the `halts` tool lists halts, from 2021-09-21), a dead stretch another. A seconds
+  bar that had trades but no price-setting print is a row (volume, no prices), never a gap. A read with no row has
+  no gap meta. `fill_gaps=true` (CLI `--fill-gaps`; default false, rows unchanged) inserts one row per missing
+  bucket: `open` / `high` / `low` / `close` null (no price is invented and none is carried forward), `volume` and
+  `transactions` 0, plus a boolean column `filled` (true on the inserted rows, false on the rest); `meta.gaps` is
+  the same either way.
 - **`movers_scan`** applies the capped search's split rule (`day_movers.query.splits_sql`: `splits` =
   `exclude_likely` default | `include` | `only_suspects`) and its percent-line tolerance (`query.pct_bound`); a row
   selecting `split_listed, split_suspect, prev_volume, volume` (every column does) gains `split` (`listed` |
   `likely_split` | `suspect` | null). It refuses a call without `date_from` / `date_to`, a symbol or a `limit`; a
   `limit` is 1-1,000,000; without one at most 100,000 rows return and `meta.capped` (bool) / `meta.note` say more
-  matched. `meta.filters.splits` echoes the choice.
+  matched. `meta.filters.splits` echoes the choice. `kinds` is a list of types (case-insensitive, `["ETF"]`) or the
+  one word `["common"]` / `["all"]` (`day_movers.query.kinds_sql`, the rule `movers_search` applies); omitted it
+  keeps every kind, unlike `find_stock_days` (below).
 - **`board`** answers `change_pct` / `gap_pct` in percent points (the store keeps fractions) and adds top-level
   `covered` (false when the day has no board, recorded or rebuilt), `gap` (`{start, end, reason, stop}` or null)
-  and `note` when not covered.
+  and `note` when not covered. **Coverage differs by list** (`data_status`, 2026-10-20; the counts grow with every recorded session). It counts
+  stored boards, not lists, so read it with the rule `reads.LIST_BOARD`: Gainers on a day the desk recorded is the
+  recorded `gainers` board (19 sessions, 2026-09-23 on); on every other covered day it is the rebuilt `market` board
+  (1,735 sessions, 2016-11-30 .. 2026-09-22), so Gainers has an answer on every board-covered session (1,754;
+  #1086 item 7 read the two counts as a gap). `gappers` and `losers` cover those 1,754 from 2016-11-30 and
+  `afterhours` 1,753 from 2016-12-01. `large_cap` exists only on the 19 recorded sessions (nothing rebuilds it: no
+  market cap as of the day); any other day answers `covered: false` with a note. Never read 0 rows as "no movers".
+  The same rule holds for `catalyst_verdict` on `find_stock_days` rows: the backfill judged the Five Pillars gap
+  universe from 2021-10-11 to 2026-09-21 and the leaderboard's top-10 movers from 2026-06-17 to 2026-09-21
+  (`catalysts` `verdicts_meta.coverage`), so any other stock-day has a null verdict: unknown, never "no news".
 - **A ticker two companies used** (`research/market_reads/tickers.py`, over `reference/tickers.json`): SEC shares /
   facts / filings, financials and splits read the company that held the ticker on the asked day (former holder
   until its `delisted_utc` day; today's holder from its ticker-details `list_date`, else the day after the former
@@ -395,7 +431,8 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
   the read is today's holder with `warning` naming the others. `splits` without `day` adds `holder_cik` per row
   for a reused ticker; financials keep only statements whose own `cik` is the holder's.
 - **A table answer** is `{ok: true, meta, rows, columns, data, truncated, out}`: `rows` matched, `data` the first 200
-  as records, `meta` the read's attributes (its as-of rule, units, source). `output_name` (a new plain
+  as records (a time with a zone keeps its own offset: `time_et` is `2026-09-03T09:40:00-04:00`, never the UTC
+  `...13:40:00.000Z` pandas would write, #1086), `meta` the read's attributes (its as-of rule, units, source). `output_name` (a new plain
   `*.parquet` / `*.csv` name) writes every row under `--output-root` (default `<temp>/nova-data-mcp`) and `out` names
   it; an existing name or a path is refused. Only `stock_day` and `movers_scan` write (`readOnlyHint: false`,
   `destructiveHint: false`); every other tool is `readOnlyHint: true`.
@@ -405,6 +442,64 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
   else the balance sheet's `CommonStockSharesOutstanding`, times `split_factor` (splits executed after `end` through
   `day`); `max_age_days` nulls an older one. `public_float_usd` is the 10-K's `EntityPublicFloat` (dollars). `filer`
   is `domestic` (newest annual report filed by `day` a 10-K), `foreign` (20-F / 40-F) or `unknown`.
+- **`cash_runway {symbol, day, cik?, lookback_days?}`** (#1102; operator 2026-10-20: "no cash runway or dilution
+  risk"; owner `research/market_reads/runway.py`; CLI `market_data.py runway SYMBOL DAY`): the cash, the operating
+  cash flow, the share count and the offering filings a company had on file by `day`, composed from `financials`,
+  `sec_shares` (`sec.shares_as_of`) and `sec_filings` and nothing else (no new reader of a raw store). It is one
+  method, so agents' numbers agree. Answer `{ok, symbol, day, cik, entity, ticker, rule, units, cash, burn, runway,
+  shares, offerings, notes}`. Every figure sits in a block that names its statement: `period_end`, `filing_date`,
+  `age_days` (`day` minus `period_end`) and `stale` (`age_days` over 180, two quarters). A figure the files do not
+  give is `null` and its block says why; never 0. The wording is neutral: counts, dates and ratios, no verdict.
+  - **Dates.** A statement or filing counts from the day it was filed (the stated day included). A statement is
+    dropped when its `period_end` is after `day` or after its own `filing_date` (a filing cannot report a period
+    that had not ended; `notes` counts them). Massive dates a statement by the newest filing that carried the
+    period, so 300 or more days after `period_end` for 87% of quarterly cash-flow rows and 27% of balance sheets
+    (every year 2016-2026): on a past day the newest statement known is often over a year old, and a balance sheet
+    can be newer than the newest cash-flow quarter. `stale` and `notes` say so; the read never fills the gap.
+  - **`cash`**: the newest balance sheet filed by `day` (either timeframe: newest `period_end`, then `filing_date`),
+    `{cash_and_equivalents, short_term_investments, liquid, liquid_basis, timeframe, period_end, filing_date,
+    age_days, stale}`, or null. `liquid` = `cash_and_equivalents` + `short_term_investments`; with no short-term
+    investments reported it is `cash_and_equivalents` and `liquid_basis` says so; null when cash is not reported.
+  - **`burn`**: the newest quarterly cash-flow statement filed by `day`, `{operating_cash_flow, burn, field,
+    fiscal_year, fiscal_quarter, period_end, filing_date, age_days, stale, recent_quarters}`, or null. Massive's
+    quarterly rows are stand-alone quarters (a fiscal Q4 row too; AMC 2022's four sum to its annual).
+    `operating_cash_flow` is signed as filed: `net_cash_from_operating_activities`, else
+    `cash_from_operating_activities_continuing_operations` (`field` names which). `burn` = the cash used
+    (`-operating_cash_flow`) when that is negative, else null. `recent_quarters` is up to four quarterly rows
+    newest first, `{period_end, filing_date, operating_cash_flow}`.
+  - **`runway`**: `{months, status, stale, basis, period_gap_days, max_period_gap_days}`. `months` = `cash.liquid` /
+    (`burn.burn` / 3), one decimal. `period_gap_days` = `cash.period_end` minus `burn.period_end`; beyond +/- 14
+    (`max_period_gap_days`) the two are not the same fiscal period and `months` is null, so a balance sheet one quarter
+    newer than the newest cash-flow quarter (about 91 days) is refused, never divided. Of Massive's quarterly cash-flow
+    rows 94.7% have a balance sheet with the exact same `period_end`; the other matches are days apart (52/53-week
+    years) and the next nearest period is 84 or more days away. `stale` is true when the cash or the burn it is built from is stale (null when
+    there is neither): a `computed` runway built from old statements is still a number about those quarters, so a
+    filter on `months` should read `stale` beside it. `status`: `computed`, `no_burn` (operating cash flow zero or
+    positive), `no_balance_sheet`, `no_cash_flow_statement`, `cash_not_reported`, `operating_cash_flow_not_reported`,
+    `periods_differ`. `burn` and `cash` stay in the answer either way.
+  - **`shares`**: `{outstanding, growth_4q, growth_8q}`. `outstanding` is `sec_shares`' (`{value, concept, end,
+    filed, form, age_days, split_factor}`, split-adjusted to `day`) or null. `growth_4q` / `growth_8q` =
+    `{pct, status, months_back (12 | 24), from, to, span_days}`: `to` is that count; `from` is the same read for the
+    day `months_back` earlier (`{value, end, filed, form}`), put on `day`'s share basis by dividing by
+    `splits.factor(prior_day, as_of=day)`; `pct` = (`to` / `from` - 1) x 100 percent points; `span_days` is the days
+    between their `end`s. `from.value` is rounded like `outstanding`. `status`: `computed`, `no_count_now`,
+    `no_count_then`, `same_count` (no newer count was filed in the window, so growth is unknown, not 0),
+    `span_off_window` (`span_days` is more than 100 days from `months_back` x 30.4375 -- the window plus or minus a
+    filing lag, a separate tolerance from the runway's 14 days -- e.g. a filing gap such as a
+    cover page that gives each share class its own count, which SEC's facts omit; `pct` null, `from` / `to` kept),
+    `count_then_not_positive`.
+  - **`offerings`**: the registration and prospectus filings and current reports filed in the `lookback_days` before
+    `day` (default 1095, the dilution row's longest window; 1-3650), or null when SEC has no submissions list for the
+    company (`notes` says so): `{lookback_days, from, through, forms, total, counts: {form: n}, latest: {form: filed},
+    filings: [{form, kind, filed, report_date, accession, items}], truncated}`. `filings` is newest first, at most
+    100 (`truncated`); `counts` and `latest` cover all of them. Forms: S-1, S-1/A, S-3, S-3/A, S-3ASR, F-1, F-1/A,
+    F-3, F-3/A, F-3ASR, 424B1 .. 424B5, 8-K. `kind`: `s1` (S-1, F-1), `shelf` (S-3, F-3), `prospectus` (424B1-5),
+    `current_report` (8-K); an 8-K's `items` is SEC's list ("3.02,9.01"), not read further. A filing says it was filed,
+    not that an offering priced or closed. The stock read's "Dilution on file" row (`stock-read.md`) uses the same form
+    families with its own windows and counts 424B1-8; this read is the history behind it.
+  - **`units`**: amounts are the statements' own; the dump carries no currency field, so a foreign filer reporting in
+    another currency reads in it (`months` and `pct` do not depend on it). Shares are shares; `pct` is percent points.
+    A reused ticker reads the company that held it on `day` (`ticker`); an unsettled day errors with the candidates.
 - **Units and as-of.** Movers percents are points in and out (the store keeps fractions). Financial statements count
   from `filing_date`; SEC facts and filings from `filed`; FINRA short interest from `move_reason.short_interest`'s
   publish lag. `float_latest` and `ticker_details` say `as_of: "latest_only"`: never a past day's.
@@ -438,8 +533,9 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
   values, missing fields, row order and `attrs`. A window with no row, a time that is not a whole number on every
   line, or a non-text column that is not a number somewhere that day is read the whole-day way (and cached).
 - **Momentum-research tools** (`tools/nova_data_research.py`, the second tool set; CLI `tools/market_data_research.py`):
-  - `find_stock_days {filters, symbol?, kinds?, splits?, float_max?, float_basis?, float_unknown?, catalyst?, halted?,
-    cursor?, page_size?, output_name?}` -> a table answer plus `next_cursor` (`"YYYY-MM-DD|SYMBOL"` or null). Rows:
+  - `find_stock_days {filters, symbol?, kinds?, splits?, float_max?, outstanding_max?, float_basis?, float_unknown?,
+    catalyst?, halted?, sort?, limit?, cursor?, page_size?, output_name?}` -> a table answer plus `next_cursor`
+    (`"YYYY-MM-DD|SYMBOL"` or null). Rows:
     `date, symbol, kind, prev_close, open, high, low, close, volume, dollar_volume, high_pct, low_pct, close_pct,
     gap_pct, day_high, day_high_et, day_low, day_low_et, pm_high, pm_low, pm_volume, ah_high, ah_volume, split,
     up10_et .. up300_et, down10_et .. down50_et, outstanding_shares, outstanding_as_of, outstanding_filed,
@@ -452,9 +548,39 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
     | null; `float_unknown` exclude | include | only. `catalyst` keeps the listed verdicts (`unknown` = none);
     `halted` true / false (a day the halt log does not cover has `halts` null and is left out by either). `page_size`
     1-5,000 (1-100,000 with `output_name`); one call examines at most 200,000 movers rows (`meta.note`).
+    **`kinds` defaults to common stock** (#1086 item 3): omitted, the rows are `movers_search`'s `common` kinds
+    (`day_movers.query.kinds_sql`: `kind` `CS` or `ADRC`, or an unlabelled symbol of at most four letters), so
+    warrants, rights, units, preferreds and ETFs are out (Sep 2026: 15,687 `CS` and 1,209 `ADRC` rows beside 3,288
+    `WARRANT`, 616 `RIGHT`, 6,173 `ETF`). A list of types keeps those (`["ETF"]`, `["CS", "WARRANT"]`; case does not
+    matter), `["all"]` keeps every kind, `["common"]` is the default spelled out; `all` / `common` with other items is
+    refused. A call that names a `symbol` and no `kinds` keeps every kind (the ticker is the filter, as the desk's own
+    symbol lookup does; a warrant's days must not come back empty). `meta.filters.kinds` echoes the rule used
+    (`common`, `all` or the types) and `meta.kinds_rule` says it in words. The CLI takes `kinds=common`,
+    `kinds=all` or `kinds=CS,ETF`.
+    **`sort` ranks the answer** (#1086 item 2): the choices are `movers_search`'s (`day_movers.query.SORTS`) --
+    `newest`, `oldest` (default: the order pages always had, day ascending then symbol), `high`, `close`, `gap`,
+    `volume`, `dollar_volume` (largest first), `low` (deepest first) -- with a row missing the figure last and ties
+    newest day first, then symbol (`query.sort_rows`; the rows missing the figure are ordered the same way, so
+    `movers_search` and `find_stock_days` agree on them too). The movers store orders the rows (`ORDER BY`); each chunk is
+    then enriched and filtered in that order, so `float_max`, `catalyst` and `halted` pick from the ranking and
+    `limit` 10 under `sort: "high"` is the ten largest highs that pass them. Pages stay exact: `next_cursor` is still
+    `"YYYY-MM-DD|SYMBOL"`, the last row examined, and the next call (same arguments plus `cursor`) resumes strictly
+    after that row in the same ordering (a keyset on the sort column, then day, then symbol), so pages add up to the
+    whole ranked answer without a repeat or a hole. A `cursor` naming a row the search does not hold is refused.
+    `limit` is `page_size` under the name `movers_search` uses (1-5,000; 1-100,000 with `output_name`; both given and
+    unequal is refused), and `next_cursor` still continues the ranking past it. `meta.filters.sort` echoes the choice.
+    **`outstanding_max`** (#1086 item 6) is `float_max` named for what it filters: SEC shares OUTSTANDING (insiders
+    and locked-up shares inside), never free float. It needs `float_basis` `sec_outstanding` (the default; `enrichment`
+    or `best` is refused, use `float_max`), and passing it with `float_max` is refused. `meta.filters` echoes the one
+    passed. `movers_search`'s `float_max` is a proof on either the desk's float (when it had one) or SEC shares
+    outstanding (`day_movers.floats`): `float_basis` `best` is the nearest here.
   - `daily_bars {symbol, date_from, date_to, adjust?, as_of?, output_name?}` -> rows `date, volume, open, close, high,
     low, transactions, prev_close, change_pct, gap_pct, high_pct, range_pct` (+ `split_factor` when adjusted); at most
-    3 years; `meta.volume_note`, `split_note`, `prev_close_from`, `seconds`. In-process cache only (no file).
+    3 years; `meta.volume_note`, `split_note`, `prev_close_from`, `seconds`. In-process cache only (no file). Two
+    sessions meet in one row (#1086 item 5): `volume` is the whole 04:00-20:00 session, `open` / `high` / `low` /
+    `close` are regular hours only (Massive's day files), so a bar can hold volume that built a range it does not
+    show -- FLYE 2026-09-01 has `high` 2.79 while `find_stock_days` reports `day_high` 3.97 at 05:38 ET (premarket).
+    A bar's regular-hours volume is not in this table: `stock_day_stats` splits premarket, regular and whole-day.
   - `market_context {day, symbols?}` -> `{day, lookback, symbols: {SYM: {traded, open, high, low, close, volume,
     transactions, prev_close, change_pct, gap_pct, range_pct, return_5_pct, return_lookback_pct, avg_close_lookback,
     close_vs_avg_pct}}, summary, rules, units, raw, seconds}`; nothing after `day`.
@@ -482,23 +608,264 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
     {cik, name, rule, warning}, warning, cik_history: {cik: [rows]}, as_of, rule, source, dump_as_of, notes}`.
   `find_stock_days`, `daily_bars` and `order_flow` write an `output_name` file (`readOnlyHint: false`); the rest are
   read-only. `movers_scan` gains `after` (library only) for the cursor.
+- **Relative volume across every stock, and what came next** (#1100, operator 2026-10-20: "agents using standardized
+  methods ... access to a large sum of data, standardized in the way they access this data"; tools
+  `tools/nova_data_rvol.py`, CLI `tools/market_data_rvol.py`, reads `research/market_reads/rvol.py` and
+  `rvol_outcomes.py`, builder `research/rvol/build_rvol.py`):
+  - **The table** (owner `research/market_reads/rvol_store.py`; invalidation: a day whose minute file, day file or
+    movers session changed since it was built, a split-table change, or a `builder` bump stales that day and every
+    later one -- a baseline reads earlier days). Root `NOVA_RVOL_DIR`, else `F:\Nova\rvol` when F: is mounted on
+    Windows, else `<NOVA_MARKET_DATA_DIR>/rvol`. `manifest.json` `{schema_version: 1, builder, kinds, rules,
+    splits_fingerprint, days: {YYYY-MM-DD: {minute_file: {size, mtime_ns}, day_file: {size, mtime_ns},
+    movers_built_ts, stock_days, bars, built_ts, seconds}}}`, replaced atomically after each day; another
+    `schema_version` refuses (`UnknownRvolSchema`). Two Parquet files per session (zstd; file metadata `nova_rvol`
+    `{schema_version, builder, day, table}`), both raw prices, never split-adjusted except where named:
+    `minutes/YYYY/YYYY-MM-DD.parquet` -- one row per minute bar starting 04:00-20:00 ET of a symbol of the table's
+    kinds: `date` (date), `symbol`, `m` (int16, the bar's start, minutes after ET midnight: 240..1199), `high, low,
+    close` (float64, Massive's minute file as delivered), `cum` (float64, the stock-day's volume of bars starting
+    04:00 through `m`; a bar's own volume is `cum` less the bar before it), `base` (float32, the mean of the baseline
+    sessions' `cum` through `m`; null with no
+    baseline session), `vol5` (float32, volume of bars starting in `(m-5, m]`), `base5` (float32, the baseline
+    sessions' mean of the same five minutes). Row groups are the bands 04:00-07:00, 07:00-09:30, 09:30-10:00,
+    10:00-12:00, 12:00-16:00, 16:00-20:00, each sorted by `symbol, m`. `days/YYYY/YYYY-MM-DD.parquet` -- one row per
+    stock-day of those kinds (a day-file row or minute bars): `date, symbol, kind` (`CS` | `ADRC` | `unknown`: the
+    type of the company that held the ticker that day in Massive's ticker list; `unknown` when unlisted or untyped),
+    `prev_date, prev_close` (the day file's close of the symbol's previous session within 31 days, times the listed
+    split factor through the day), `split` (`listed` | `likely_split` | null: the movers store's own rule,
+    `day_movers.query`), `day_open, day_high, day_low, day_close, day_volume` (the day file, raw; the finished day),
+    `bars, first_m, last_m, hi, hi_m, lo, lo_m, rth_close, last_close, pm_volume, volume` (minute bars 04:00-20:00:
+    `rth_close` the close of the last bar starting before 16:00, `pm_volume` bars before 09:30, `volume` their sum),
+    `base_sessions` (0-20), `day_avg_volume` (the mean `volume` of the prior day-average sessions) and
+    `day_avg_sessions` (0-50), `epoch` (int32), `basis` (float64), `reset` (null | `first_seen` | `holder_changed`
+    | `likely_split`). Kinds kept: `CS`, `ADRC`, `unknown` (ETFs, warrants, units, rights and preferreds are not in
+    the table).
+  - **Baseline sessions:** the symbol's earlier rows in the table with the same `epoch`, at most 20 (minute
+    baselines) / 50 (`day_avg_volume`), none more than 100 calendar days before the day. A session before a listed
+    split counts on the day's share basis (its volume x `basis` today / `basis` then). `epoch` starts again
+    (`reset`) the first time a symbol is seen, when the company holding the ticker changes (`tickers.resolve`), and
+    on a likely unlisted split -- its earlier volume is another share basis nobody listed.
+  - **Three measures**, each as of the end of a minute (bars starting at or before it; at a clock time `HH:MM`, the
+    bars starting before it); a zero or missing baseline is a null measure, never infinite:
+    `rvol` (cumulative by minute) = `cum / base`; `rvol_5m` (the scanner's 5-minute column) = `vol5 / base5`;
+    `rvol_daily` (the daily rate, "5x the 50-day average") = `cum / day_avg_volume`.
+  - `rvol_scan {at, filters, measure?, kinds?, splits?, min_base_sessions?, sort?, limit?, output_name?}` -> a table
+    answer, one row per stock-day as of `at` (ET `HH:MM`): `date, symbol, kind, prev_close, at, price, price_et`
+    (the close of the last bar starting before `at`, and that bar's start), `change_pct` (percent points vs
+    `prev_close`), `volume, base_volume, rvol, volume_5m, base_5m, rvol_5m, day_avg_volume, rvol_daily,
+    base_sessions, day_avg_sessions, split`. At a minute with no bar the baselines are computed from the baseline
+    sessions' own bars before `at` (the same rule, so a bar minute agrees with `minutes.base`).
+  - `rvol_triggers {rvol_min, measure?, window_from?, window_to?, filters?, kinds?, splits?, min_base_sessions?,
+    fresh?, limit?, output_name?}` -> one row per stock-day: the first bar starting in `[window_from, window_to)`
+    (default 04:00-16:00) where the measure is at least `rvol_min` and every filter holds at that bar: `date, symbol,
+    kind, prev_close, trigger_et` (the bar's start), `entry_et` (its end: the first moment it is known), `price` (its
+    close), `change_pct, volume, base_volume, rvol, volume_5m, base_5m, rvol_5m, day_avg_volume, rvol_daily,
+    above_before` (the measure was over the line on a bar before the window opened, so the window's first bar
+    triggered; `fresh: true` leaves those stock-days out), `base_sessions, split`. `filters` keys: `date_from,
+    date_to, symbol, price_min, price_max, volume_min, change_min, change_max` (`rvol_scan` adds `rvol_min,
+    rvol_max`); a call names both dates or a symbol.
+  - `rvol_outcomes {filters, at? | trigger?, up_pct?, down_pct?, horizon?, days?, group_by?, buckets?, measure?,
+    kinds?, splits?, min_base_sessions?, control?, seed?, output_name?}` -> `{ok, entries, summary, control,
+    meta, out}`. Entries come from `rvol_scan` at `at` or from `rvol_triggers` (`trigger` holds `rvol_min` and
+    optionally `measure, window_from, window_to, fresh`).
+    Entry price `P` = the close of the last bar starting before the entry clock (`at`, or `entry_et`); only bars
+    starting at or after it are read. `horizon` `close` (bars before 16:00), `session` (before 20:00) or `days`
+    (`days` 1-20: the rest of the session, then the table's next `days` trading sessions -- the symbol's `hi` /
+    `lo` on each it traded, on the entry day's basis; a reset or a likely split inside leaves the entry out as
+    `horizon_reset`, sessions past the table's last built one as `horizon_open`). `outcome`: `up` (a bar's high
+    reached `P x (1 + up_pct/100)` first), `down` (a low reached `P x (1 - down_pct/100)` first), `same_bar` (both in
+    one minute bar: the order is not known and never guessed), `same_day` (both in one later session, `days` only),
+    `neither`. `summary` rows per group (`group_by` `rvol` buckets on `measure` -- `buckets` edges, default 0, 1, 2,
+    3, 5, 10, 20, 50, 100, 1000 -- or `year`, `hour`, `none`): `group, entries, up, down, same_bar, same_day,
+    neither, p_up, p_down` (shares of entries), `p_up_resolved` (up / (up + down)), `median_max_up_pct,
+    median_max_down_pct, median_end_pct, mean_end_pct, median_minutes_to_up, median_minutes_to_down`. `control`
+    (trigger entries, on by default): one stock-day per trigger from the same date with the same kinds, price,
+    split and baseline filters and a bar before the entry clock, that had not met the trigger by then (one over the
+    line before the window opened counts as having met it), picked by a seeded hash
+    (`seed`, default 1), scored from the same clock the same way -- the same summary shape. `meta` counts what was
+    left out (`no_price`, `split`, `base_sessions`, `horizon_reset`, `horizon_open`) and states every rule. Only `output_name`
+    writes (each entry with its outcome); the three tools take a heavy-read slot.
+- **The Trader's signals on past days, and mixing them** (operator 2026-10-20: "I really need a way where we can mix
+  and match these signals, so we can iterate through which signals we can use to actually trade and watch for";
+  tools `tools/nova_data_signals.py`, CLI `tools/market_data_signals.py`, reads `research/market_reads/signals.py`
+  and `signal_outcomes.py`, the list `research/market_reads/signal_registry.py`, builder
+  `research/signals/build_signals.py`):
+  - **One rule, the desk's.** Every signal is the Trader's Signals panel row (`backend/stock_read/rows.py`,
+    `read._verdict`, `plan_liquidity.read`, `history.runs`, `strategy.five_pillars`, `move_reason.rules.read`, the
+    setup scanner's lanes through `eyes.replay.EyesReplay` on the built-in templates, `setup_scanner.tape_flow`)
+    called with the facts as they stood at the end of each minute -- never a second copy of a rule. A fact with no
+    history is `unknown` with its reason (the panel's own word), never guessed: borrow, Level 2 depth (the
+    liquidity book walk), HOD Momo's decisions (`hod_now`) and a float as of the day (SEC shares outstanding stand
+    in; see `float`).
+  - **The universe, point in time.** A stock-day is in the table when the relative-volume table holds it as `CS` or
+    `ADRC`, `prev_close` $1-$20, not a likely split, with at least 20 baseline sessions, and some bar starting
+    04:00-15:59 ET closed at least 10% over `prev_close` or had `cum / base` at least 5, with at least 50,000 shares
+    traded since 04:00 (`cum`). `in_play_m` is the first
+    such bar's start; rows exist only from it -- the day's later minutes never choose a stock earlier.
+  - **The table** (owner `research/market_reads/signals_store.py`; invalidation: a `builder` bump, or the day's
+    relative-volume row rebuilt after the signal day was built, stales that day). Root `NOVA_SIGNALS_DIR`, else
+    `F:\Nova\signals` when F: is mounted on Windows, else `<NOVA_MARKET_DATA_DIR>/signals`. `manifest.json`
+    `{schema_version: 1, builder, templates: {setup: rev}, rules, days: {YYYY-MM-DD: {rvol_built_ts, stock_days,
+    rows, built_ts, seconds, coverage: {board, halts, catalyst_checked, hod_rebuilt, short_interest}}, tape: {YYYY-
+    MM-DD: {stock_days, rows, built_ts, seconds}}}}`, each change read, made and replaced under `manifest.lock`
+    (one writer at a time across processes); another `schema_version` refuses (`UnknownSignalsSchema`). Parquet, zstd, file metadata `nova_signals` `{schema_version, builder, day, table}`:
+    `days/YYYY/YYYY-MM-DD.parquet` one row per stock-day (`date, symbol, kind, prev_close, in_play_m, epoch,
+    basis`) and `minutes/YYYY/YYYY-MM-DD.parquet` one row per minute `m` from `in_play_m` through 959 (15:59):
+    `date, symbol, m` (int16), `price` (the close of the last bar starting at or before `m`), `change_pct`
+    (percent points vs `prev_close`), `rvol, rvol_5m, rvol_daily` (the relative-volume table's three measures at
+    `m`), then each signal's columns as the registry names them. The tape stage writes
+    `tape/YYYY/YYYY-MM-DD.parquet` (`date, symbol, m, tape, tape_score, tape_flush, tape_burst`) apart; a day it has
+    not reached reads `tape` `not_built`.
+  - **Signals** (`signal_catalog` lists each with its states, its desk source and its history; states are the
+    panel's: `ok`, `warn`, `bad`, `info`, `unknown`; kinds `state`, `label` (one of its values), `text` (a name the
+    desk's rule gives, matched exactly: the catalyst category), `number`, `bool`):
+    - `in_play` (the tile: `Yes`, `Partly`, `No`, `Too thin`, `Not known`); `pillars` (state) with `pillars_n`
+      (0-5) and `pillar_price, pillar_change, pillar_rvol, pillar_catalyst, pillar_float` (bool); `rvol_state`
+      with `rvol_pace` (`market.pace_relative_volume` of volume since 04:00 over `day_avg_volume`); `catalyst`
+      (the classifier's verdict on items published after the prior session's 16:00 and by `m`: `catalyst`,
+      `negative`, `routine_only`, `noise_only`, `none_found`, `not_checked`) with `catalyst_category` (text) and
+      `catalyst_strength` (`strong`, `weak`); `why` (`move_reason.rules.read`'s likely kind) with `why_confidence`
+      (`likely`, `possible`) and `why_state`; `board` (the
+      board `find_board_row` picks at `m` from the leaderboard store: `gappers`, `gainers`, `losers`,
+      `afterhours`, `large_cap`, `market`, or null) with `board_state`; `ran_before` (state) with `runs_n` (+40%
+      sessions in the prior 260 of the same epoch, from the relative-volume table's `hi` / `last_close` on the
+      day's basis); `liquidity` (`ok`, `thin`, `unknown`) with `liquidity_day_usd, liquidity_5m_usd`;
+      `hod_today` (state) with `hod_alerts` (a rebuilt HOD Momo day's alerts raised by `m`; null on a day not
+      rebuilt).
+    - `front` (the tile: `Front side`, `Mixed`, `Back side`, `Not known`) and its counted rows `front_macd_1m,
+      front_vwap, front_ema, front_volume_profile, front_hod` (states).
+    - `setup_<lane>` for every lane the Trader shows -- `first_pullback, bull_flag, flat_top_breakout,
+      flat_top_5m, red_to_green, gap_and_go, pullback_dip, abcd`, the 5-minute `first_pullback_5m, bull_flag_5m`,
+      and the short lanes `backside_lower_high, bear_flag, failed_breakout, lost_vwap, ssr_bounce` -- each the
+      detector's state at the end of `m`: `watching`, `leg`, `pullback`, `armed`, `near`, `triggered`, `failed`.
+      Prices inside a minute are the bar's own: its open one second in, then its high (long lanes) or low (short
+      lanes) at 30 seconds -- the order inside a bar is not in the data, so a trigger needs the bar's extreme to
+      reach the line.
+    - `float` (state) with `float_shares` (SEC shares outstanding filed by the day before, as of within 120 days,
+      split-adjusted through the session, a split that day included (`floats.sec_shares` `before`): an upper bound on the float -- under 20M proves the pillar, over it leaves the float
+      `unknown`) and `rotation` (volume since 04:00 over it).
+    - `halted` (bool, null before Nasdaq's log starts 2021-09-21; a halt carried from the prior exchange day is
+      halted until today's log shows its resume), `halts_today` (state) with `halts_n`, and the
+      tile `halts` (`Halted`, `No halts`, the count, `Not known`).
+    - `tape` (the flow label at the end of `m`: `burst`, `flush`, `neutral`, `quiet`, `blind`, `not_built`) with
+      `tape_score`, `tape_flush` and `tape_burst` (any 10-second reading inside the minute so labelled): the desk's
+      flow rule over Massive's trades sided against the NBBO in force before each print, the book its top of book.
+      `not_built` marks a session the stage has not reached: every answer carries the four tape columns, and a
+      condition may not ask for `not_built` (a tape condition reads only the sessions the stage reached).
+  - `signal_series {symbol, day, signals?, start?, end?}` -> a table answer, one row per minute of that stock-day
+    (`time_et` the minute's start, `in_play_et`), from `start` up to `end` (ET `HH:MM`, end exclusive) when given.
+  - `signal_scan {day, at, when?, limit?}` -> every in-play stock-day at `at` (ET `HH:MM`) with its signals, or
+    only those meeting `when`.
+  - `signal_test {when, filters, window_from?, window_to?, fresh?, up_pct?, down_pct?, horizon?, days?, group_by?,
+    control?, seed?, output_name?}` -> `rvol_outcomes`' answer shape (`{ok, entries, summary, control, meta,
+    out}`). `when` is a list, all of which must hold at one minute: `{signal, is: state | [states]}` or
+    `{signal, min?, max?}` for a number; an unknown signal or state is refused with the registry's words. The
+    entry is the first minute `m` in `[window_from, window_to)` (default 04:00-15:59) at or after `in_play_m` where
+    every condition holds; `entry_et` is its end and `P` its `price`. `fresh: true` leaves out a stock-day where
+    they all held at a minute before the window. Outcomes, horizons and the summary are `rvol_outcomes`' own
+    (`_score`, `summarize`). The control: per entry, one in-play stock-day of the same date and filters, in play
+    by the entry minute, where the conditions had not all held by then -- seeded hash, scored the same way.
+    `group_by`: `year` (default), `hour` or `none`. Only `output_name` writes. `meta.coverage` counts the entries
+    whose conditions read a partly covered signal (board, halts, catalyst, HOD Momo, tape) as `unknown`.
 - **Tripwire** (`tools/data_access_hook.py`): Cursor `beforeShellExecution` (`{permission: "allow" | "deny",
   user_message, agent_message}`) and Claude `PreToolUse` on Bash (`hookSpecificOutput.permissionDecision: "deny"`).
-  Denied: a command naming a raw store (`nova/massive`, `nova/leaderboard`, `catalysts/edgar`, `store/reference`,
+  Denied: a command naming a raw store (`nova/massive`, `nova/leaderboard`, `catalysts/edgar`, `nova/rvol`, `nova/signals`, `store/reference`,
   the movers / leaderboard / reference-index SQLite files, SEC's zips, the Massive day-file folders) or running a
   script outside the repo that names one. Passes: the front door's tools, repo code, a code search or git not pointed
   at a data folder, and `# raw-data-ok: <reason>`. Unparseable input allows.
 
+## Recorded sessions, Level 2 and tape through the front door (ADR 059, #1064)
+
+Nova's own IBKR recordings, read by the same front door as the Massive files (`research/market_reads/recordings.py`;
+CLI `tools/market_data_recordings.py`, MCP `tools/nova_data_recordings.py`). What the Sim replays, research can now
+query. **Read-only and invisible to the live desk:** every store is opened for reading only (SQLite
+`file:...?mode=ro` with `PRAGMA query_only=ON`, jsonl files opened `rb`); a read never writes a row, creates a store,
+changes `journal_mode` or flushes a writer queue. Every database read is a short bounded statement (one row, or at most
+`CHUNK_ROWS` = 20,000 in keyset pages, the read transaction ended between statements), so a WAL checkpoint is never held
+behind a research read and the desk's writers never wait on it. Opening a WAL database read-only while no writer has it
+open leaves SQLite's own empty `-wal` / `-shm` side files beside it (the reader protocol; no content of the store). A
+read takes one heavy-read slot (`slots.heavy`). A jsonl stream is searched by byte offset (its rows are in `ts` order:
+the recorder refuses a row that moves backwards), never read whole for one moment. Tests run on fixture stores only.
+
+- **Where.** `NOVA_SIM_CAPTURE_DIR` (default `F:\Nova\sim_capture`, the recorder's own `capture.storage.capture_root`):
+  `<day>/<SYMBOL>/{manifest.json, prints.jsonl, quotes.jsonl, l2.jsonl}` (a Session Record, "Recording persistence
+  and coverage" in `recording-and-replay.md`). The desk cache holds `l2.db` (`l2_snapshots`, `record_sessions`) and
+  `archive.db` (`tape_ibkr`, `integrity_counters`): `NOVA_CACHE_DIR` when set (and only that folder), else the main
+  checkout's `backend/.cache` (a worktree keeps its own, empty one), this checkout's, then `F:\Nova\cache` (where
+  `tools/data_root.py` moves it); the first folder holding the store is read. A store that is not there is a stated
+  absence naming every place looked (`LookupError` where there is nothing else to answer).
+- **Tools** (`{ok: false, error}` on a failed read, as every front-door tool; both heavy, one at a time per process):
+  - `recorded_depth {symbol, day, at, source?, max_age_sec?}` -> the Level 2 book at ET `at` (`HH:MM[:SS]`):
+    `{ok, symbol, day, at, at_et, covered, source, book, reason, tried, coverage, rules, units, recorded_days?}`.
+    `source` is `auto` (default: the newest book at or before `at` among the stores, a tie to `capture`) | `capture` |
+    `l2_db`. `covered` is true when a book was found and `source` names the store that served it; when false,
+    `book` and `source` are null and `reason` says why per store. `book` is `{ts, time_et, age_sec, bids: [{price,
+    size}], asks: [{price, size}], best_bid, best_ask, spread, mid, bid_levels, ask_levels, source, setup?,
+    session_id?}` -- each side best price first, `age_sec` the seconds between the book and `at`. `tried` is one
+    `{source, covered, reason, book_ts, book_et, age_sec}` per store asked, so a book the other store held is
+    visible. `max_age_sec` (default 60, above 0 and at most 3,600) is how far before `at` a book still counts.
+  - `recorded_tape {symbol, day, start?, end?, source?, limit?, output_name?}` -> a table answer (rows `time_et, ts,
+    receive_ts, exchange_ts, price, size, exchange, conditions, unreported, sets_price, side, bid, ask, source`) of
+    the prints in ET `[start, end)` (default the whole ET calendar day), oldest first. `source` is `auto` (default:
+    `capture` when a usable Session Record with prints exists for the symbol-day, else `archive`) | `capture` |
+    `archive`. `limit` (default 200,000, at most 1,000,000) caps the rows; `meta.capped` says more matched.
+    `output_name` writes a new file like the other table tools. `meta` carries `source` (served), `window_et`,
+    `where` (the folder read), `coverage`, `rules`, `units`, `note` (a stated absence or a pointer to the other
+    store) and, when no row matched, `recorded_days`.
+- **Times are ET and are Nova's clock.** `at`, `start` and `end` are ET wall times `HH:MM[:SS[.fff]]` read on the
+  asked day's own clock (a day the clocks change reads right: 03:30 on the spring change is 03:30 EDT); `24:00`, and only
+  that, is the end of the day. `time_et` is `HH:MM:SS.mmm` of `ts` and every `*_et` in `coverage` is ISO
+  with the ET offset. `ts` is epoch seconds when Nova **received** the print (ib_async stamps arrival;
+  `ibkr/tape_events.py`), `receive_ts` when the desk processed it (a Session Record and the archive keep both).
+  `exchange_ts` is IBKR's own whole second when the tick carried one (Session Records only; null in `archive`, which
+  does not store it). A book's `ts` is when Nova received that book. The "day" is the ET calendar day of `ts`, the
+  folder the recorder files it under (a DST day is 23 or 25 hours).
+- **Prints.** `side` (`ask` | `bid` | `between` | `unknown`) is the desk's own judgement against the book it held at
+  receipt (`ibkr/tape_side.py`: `unknown` when no usable book was held, a missing, crossed or locked one), `bid` / `ask`
+  the top of book it was judged against (null then); `side` is null only on a row recorded before the field existed.
+  Never inferred from price (PFAI 2026-10-13 08:22:30-08:26:30: 24,257 `between`, 8,160 `ask`, 6,103 `bid`, 614 `unknown`). `sets_price` is the recorded verdict in a Session Record and
+  `sale_conditions.sets_price(conditions)` in `archive` (which does not store IBKR's `unreported` flag, so an
+  unreported print with ordinary conditions reads true there; `unreported` is null in `archive`).
+- **The sources.** `capture`: a Session Record, only for symbols someone recorded (the operator, or auto-record; at
+  most 3 at once), 2026-09-19 on, books kept at most 50 a second (`l2_max_hz`). `l2_db`: Level 2 snapshots the desk
+  sampled while a depth session was open (`record_sessions`: signal windows and about one a second); an `l1_fallback`
+  row is top of book only, never a ladder, and is skipped. `archive`: every print the desk's tape line saw for any
+  symbol, 2026-07-15 on; `l2.db` `tape_trades` holds the same prints for watched symbols (`ibkr/tape_recording.py`
+  fans each print to both) and is not read separately.
+- **What a recording does not cover** -- `coverage`, per store asked, never left out:
+  - `capture`: a Session Record whose manifest names a `schema_version` / `schema` the recorder does not know is
+    refused, as `capture.schema.read_manifest` refuses it (`covered: false` / an empty table, `reason` / `note`
+    `Unsupported capture schema ...`); otherwise `{recorded, status, stretches: [{start_et, stop_et, status, reason}], gaps: [{start_et, stop_et,
+    reason, planned}], fidelity: {l2_offered, l2_coalesced, l2_max_hz, tape_resubscribes, timestamp_regressions,
+    tape_losses: [{at_et, cause}]}}` (the manifest's own segments, an open one ending at its last write on disk) and,
+    for depth, `at_in_stretch` (true / false / null when the manifest names no segment). `l2_offered - l2_coalesced`
+    is what the recording kept of the books IBKR sent. A read at a moment no stretch holds answers nothing, and a
+    read never reaches back across a gap (`planned`: the gap followed an operator or auto-record stop; a restart or
+    failure is not planned). A quiet stretch inside a segment is not a gap. For tape, `covered_share` is the
+    fraction of the window inside a stretch.
+  - `l2_db`: `{first_ts, first_et, last_ts, last_et, sessions: [{session_id, reason, setup, started_et, ended_et}],
+    sessions_truncated, where}` for the symbol-day: outside `first`..`last` and between sessions nothing was
+    sampled. `sessions` holds at most 50 (oldest first); `sessions_truncated` is true when more overlapped the day
+    (a busy name has many short signal windows), and the served book's own session is always listed.
+  - `archive`: `{first_ts, first_et, last_ts, last_et, dropped_total, gaps}` -- the window's first and last print,
+    `dropped_total` (lifetime prints the writer shed under load: counted, not stamped by time) and `gaps`, text saying
+    the archive is a write log that marks no gap of its own (a quiet stretch and a lost tape line look alike; a
+    Session Record of the symbol-day states its gaps, and `auto` points to the archive when the record has them).
+  An unrecorded symbol-day is `covered: false` (depth) or an empty table (tape) with `reason` / `note` and
+  `recorded_days`: `{source: [YYYY-MM-DD, ...]}`, the newest days that symbol is recorded in each store (at most 30).
+- **Not here:** the book watcher's marks (`F:\Nova\book_watch`) and the Session Records' quotes (`quotes.jsonl`), both
+  recorded and not served yet (#1103), any symbol nobody recorded or watched, and any moment outside the stretches
+  and sessions above.
+
 ## Desk review charts (unified MCP)
 
-The same MCP process (`tools/nova_mcp.py`) serves the 22 data tools and one chart tool, `nova_chart`.
+The same MCP process (`tools/nova_mcp.py`) serves the 32 data tools and one chart tool, `nova_chart`.
 `docs/nova-mcp.md` is the setup. `/review` mounts the desk `ChartGrid` and `TickerChart` through a recorded
 feed (`ChartFeedProvider` in `frontend/src/chart/chartFeed.tsx`). The live desk is unchanged: with no provider
 the feed is `{kind: "live"}` and the same hooks run. The review page does not mount the trading shell, does not
 subscribe to a quote, and has no order ticket. `nova_historical_chart`, `nova_historical_chart_gallery` and
 `nova_trade_charts` are not on this server. Marked sub-minute candle-gateway PNGs stay on `tools/nova_chart_mcp.py`.
 
-- **Feed seam.** `ChartFeed` is `{kind: "live"}` or `{kind: "recorded", symbol, date, asOfIso, source, bars, vwapBars}`.
+- **Feed seam.** `ChartFeed` is `{kind: "live"}` or `{kind: "recorded", symbol, date, asOfIso, source, bars, vwapBars, notes?}`.
   `bars` holds `10Sec`, `1Min`, `5Min`, `1Day`. `TickerChart` picks `LivePane` or `RecordedPane` as two components.
   The live pane is a dynamic import, so `/review` does not load it, the bots page chunk, or the bot allowlist.
   The recorded pane paints the given bars once, builds VWAP from `vwapBars`, and keeps drawings in memory
@@ -518,16 +885,32 @@ subscribe to a quote, and has no order ticket. `nova_historical_chart`, `nova_hi
   after every visible pane has painted.
 - **Engine.** One detached process (`tools/nova_review_engine.py`) owns the loopback listener and the one Chromium.
   The first `nova_chart` call starts it. Later MCP processes attach. Health is
-  `{ok, service: "nova-review", version, renderer_starts, pid}`. The version is `"4"`. A mismatch restarts the engine.
+  `{ok, service: "nova-review", version, renderer_starts, pid, build}`. The version is `"4"`. A mismatch restarts the engine.
+  `build` is the last build check, `{state, source, build?, built_at?, fingerprint?, detail?}`: `state` is `unchecked`,
+  `fresh`, `stale` (an older build is served because building failed), `unavailable` or `override`; `source` is
+  `dist-review`, `frontend/dist`, `none` or `NOVA_REVIEW_DIST`. The field is additive; the version is `"4"` for the open-in-nova routes.
   It exits after 30 minutes idle. Default port is 18765 (`NOVA_REVIEW_PORT`), never 8765. Before it binds, a port
   whose review health check already answers as this engine is left alone. On Windows the socket sets `SO_EXCLUSIVEADDRUSE`
   so a second process cannot share the port. A taken port binds a free one and the link carries loopback `api=`
-  when the link origin is not the engine. The engine serves `frontend/dist` at `/review` and `/assets/`. A static
-  path is `os.path.realpath`'d and must start with the dist directory before the file is opened. `..` and `%2e%2e` are HTTP 404. `NOVA_REVIEW_BASE`, when set,
+  when the link origin is not the engine. The engine serves its own build at `/review` and `/assets/` (`tools/nova_review_build.py`): `frontend/dist-review/<id>/`,
+  named in `frontend/dist-review/current.json` `{schema_version: 1, build, fingerprint, built_at, previous}` (owner
+  `nova_review_build.py`; invalidated when the frontend source fingerprint changes, then rebuilt with the checkout's Vite;
+  another `schema_version` is ignored and rebuilt). The current build is asked first, then `previous`; `frontend/dist`
+  is served only when no build can be made and its bundle holds the review page; `NOVA_REVIEW_DIST` overrides all of
+  it and never builds. Before `/review` and before a screenshot the engine checks the source (at most every 30 s while
+  fresh; a failed build is retried after 5 minutes). With nothing to serve, `/review` is HTTP 503 and the chart call's
+  code is `REVIEW_BUILD_UNAVAILABLE`. A static
+  path is `os.path.realpath`'d and must start with the folder being served before the file is opened. `..` and `%2e%2e` are HTTP 404. `NOVA_REVIEW_BASE`, when set,
   is the link origin. When it is unset, links use the engine's own origin, because that process serves `/review`.
   `--review-http` / `NOVA_REVIEW_HTTP=1` starts the engine at process start. `--no-review-http` does not listen.
 - **Data.** `GET /api/review` answer: `{ok, schema_version: 1, symbol, date, as_of, as_of_iso, source, lookahead: false,
-  vwap_anchor: "04:00", timeframes: {1m|5m|10s|1d: {bars: [{t, o, h, l, c, v}]}}, levels, setups, vwap}`. Intraday `t`
+  vwap_anchor: "04:00", timeframes: {1m|5m|10s|1d: {bars: [{t, o, h, l, c, v}], source?}}, levels, setups, vwap}`.
+  `source` names where a frame's bars came from: the front door's are `massive-trades` (10s, built from Massive's
+  consolidated trades by `reads.bars`), `massive-minutes` (1m, 5m) and `massive-daily` (1d; the session's own candle
+  is summed from its minutes). A reader that names no source (a test, any other reader) sends none (additive;
+  `schema_version` stays 1). Each pane's subtitle is that source (`10s · Massive tape -- built from the consolidated
+  trades`; the fixture's is `Sample -- not a recorded day`), through the recorded feed's `notes`; a pane with no
+  source says none. The live desk's pane notes (IBKR history, the live tape) never show on a recorded feed. Intraday `t`
   is an ISO instant with an Eastern offset. Daily `t` is `YYYY-MM-DD`. Volume-only buckets and a daily row with
   non-finite OHLC are dropped, so the JSON has no `NaN` (`allow_nan` false). A bad query is HTTP 400 `{ok: false, error}`.
   An unknown path is 404. A reader failure is 500. Success is 200. The engine passes the front-door bar readers
@@ -548,7 +931,7 @@ subscribe to a quote, and has no order ticket. `nova_historical_chart`, `nova_hi
   `{ok, chat_message, date, as_of, timeframes, links: [{symbol, url}], gallery_url, images: [{symbol, sha256, bytes}]}`.
   On failure `ok` is false, `error` is `{code, detail}`, and `chat_message` still lists any links that were built.
   `REVIEW_DESK_UNREACHABLE` means the review page could not be screenshotted. `REVIEW_SHOT_UNAVAILABLE`
-  means `--no-warm-shots`. A clock that is not ASCII `HH:MM` is `BAD_REQUEST` and still returns an ASCII
+  means `--no-warm-shots`. `REVIEW_BUILD_UNAVAILABLE` means no build of the review page exists or can be made. A clock that is not ASCII `HH:MM` is `BAD_REQUEST` and still returns an ASCII
   `chat_message`. Links are built by `review_link` and `gallery_link` in `tools/nova_review_causal.py`.
 - **Shot.** `POST /api/review/shot` accepts `Content-Type: application/json` and header `X-Nova-Review-Token`.
   The token is random per engine and stored in the lease file next to `port` and `pid` (`schema_version` stays 1).

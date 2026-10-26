@@ -2,7 +2,9 @@
  * Nova Marketing Sample Data for the Market page (ADR 053): the approved mockup's figures (Monday 2026-10-12,
  * 09:52 ET), shown on the sample desk and the demo build. Nothing here is read live.
  */
-import type { BlockPeriods, BoardRow, Climate, MarketBoard, Period, QuoteTile, TopCard } from './types';
+import type {
+  BlockPeriods, BoardRow, Climate, DayTemp, Heat, HeatDay, MarketBoard, Period, QuoteTile, TempLabel, TopCard,
+} from './types';
 
 const NOW = Date.UTC(2026, 9, 12, 13, 52, 14) / 1000;
 const DAY_0400 = Date.UTC(2026, 9, 12, 8, 0, 0) / 1000;
@@ -124,6 +126,32 @@ function climateDays(): Climate['days'] {
   });
 }
 
+/** The sample's temperature: a label per recorded session of `climateDays`, none where Nova holds no board. */
+const SAMPLE_TEMPS: DayTemp[] = ['warm', 'cold', 'warm', 'warm', 'warm', 'hot', 'warm', 'cold', 'hot', 'warm', 'warm',
+  'hot', 'warm', 'cold', 'hot', 'warm', 'hot', 'warm', 'hot', 'warm', 'hot'];
+const SAMPLE_HEAT_WORD: Record<Period, TempLabel> = { '1D': 'hot', '7D': 'good', '30D': 'hot' };
+
+function sampleHeat(period: Period, days: Climate['days']): Heat {
+  const inPeriod = days.slice(-(period === '1D' ? 1 : period === '7D' ? 5 : 21));
+  const heatDays = inPeriod.map((d): HeatDay => {
+    if (d.source !== 'recorded') {
+      return { date: d.date, board: false, label: null, runners_100: null, money: null, usual_money: null, usual_days: 20,
+        hold_pct: null };
+    }
+    const label = SAMPLE_TEMPS[days.indexOf(d)];
+    return { date: d.date, board: true, label, runners_100: label === 'hot' ? 3 : label === 'cold' ? 0 : 1,
+      money: label === 'hot' ? 1.42e9 : label === 'cold' ? 2.1e8 : 6.2e8, usual_money: 5.8e8, usual_days: 20,
+      hold_pct: label === 'hot' ? 52 : 41 };
+  });
+  const labelled = heatDays.filter((d) => d.label);
+  const n = (w: DayTemp) => labelled.filter((d) => d.label === w).length;
+  const holds = labelled.map((d) => d.hold_pct ?? 0);
+  return { label: SAMPLE_HEAT_WORD[period], why: null, price_min: 2, price_max: 20, days: heatDays,
+    hot: n('hot'), warm: n('warm'), cold: n('cold'), labelled: labelled.length,
+    hold_pct: Math.round((10 * holds.reduce((a, b) => a + b, 0)) / Math.max(1, holds.length)) / 10,
+    score_pct: period === '30D' ? Math.round((1000 * (n('hot') - n('cold'))) / labelled.length) / 10 : null };
+}
+
 export function sampleMarketBoard(p: BlockPeriods): MarketBoard {
   const es = tile('es', 'S&P 500 futures', 'ES', 'future', 'CME', 'ESZ6', 6842.5, 6800.25, 11);
   const rty = tile('rty', 'Russell 2000 futures', 'RTY', 'future', 'CME', 'RTYZ6', 2486.3, 2454.2, 25);
@@ -159,7 +187,7 @@ export function sampleMarketBoard(p: BlockPeriods): MarketBoard {
       { id: 'small_caps', label: 'Small caps beating large caps', state: 'green', value: 0.69, text: '+0.69 pt', starts_at: null, why: null },
       { id: 'runners', label: 'Small-cap runners above normal', state: 'green', value: 17, text: '17 vs 11 avg', starts_at: null, why: null },
       { id: 'gappers', label: 'Gappers holding their open', state: 'amber', value: 58.3, text: '7 of 12', starts_at: null, why: null },
-    ] },
+    ], temperature: { day: 'hot', week: 'good', month: 'hot' } },
     events: { items: [
       { at: NOW + 8 * 60, kind: 'econ', title: 'CPI', detail: 'Consumer Price Index for September', source: 'bls' },
       { at: NOW + 4 * 3600 + 7 * 60 + 46, kind: 'fomc', title: 'FOMC decision', detail: 'Fed statement and rate', source: 'fed' },
@@ -179,7 +207,7 @@ export function sampleMarketBoard(p: BlockPeriods): MarketBoard {
       per_day: Math.round((10 * total) / n) / 10,
       baseline: { up20: 11, up50: 3, up100: 1, per_day: climatePeriod === '1D' ? 11 : 10.4, days: 20,
         basis: climatePeriod === '1D' ? 'same_minute' : 'per_session' },
-      temperature: climatePeriod === '30D' ? 'normal' : 'hot', days,
+      temperature: SAMPLE_HEAT_WORD[climatePeriod], heat: sampleHeat(climatePeriod, days), days,
       theme: { name: names[0], count: themes[names[0]], total, share_pct: Math.round((1000 * themes[names[0]]) / total) / 10,
         prev_share_pct: 21 },
       themes: names.map((name) => ({ name, count: themes[name], prev_count: Math.round(themes[name] * 0.7) })),

@@ -116,8 +116,8 @@ Every confirmed wire and persisted shape lives in `architecture/schema/`, one fi
 
 | Schema file | Indexed subsections |
 |---|---|
-| `architecture/schema/recording-and-replay.md` | Capture / replay truth (#316, #317); Replay progress and capture fidelity (#321, #337); Recording persistence and coverage; The Records page and turning recording off; Recorded depth in historical replay (#309); The replayed session's previous close (#542); Massive flat files in Sim replay (ADR 046); An exchange's own book in Sim replay (ADR 057); Practice venues and fills (ADR 019, ADR 020); Sim at now is live -- the live edge (ADR 020) |
-| `architecture/schema/agent-desk.md` | Agents find stock-days and show them in the Sim (ADR 050); historical OHLCV charts/MCP; The data front door over MCP (ADR 059); Desk review charts (unified MCP); Open in Nova |
+| `architecture/schema/recording-and-replay.md` | Capture / replay truth (#316, #317); Replay progress and capture fidelity (#321, #337); Recording persistence and coverage; The Records page and turning recording off; Recorded depth in historical replay (#309); The replayed session's previous close (#542); Massive flat files in Sim replay (ADR 046); An exchange's own book in Sim replay (ADR 057); Practice venues and fills (ADR 019, ADR 020); Sim at now is live -- the live edge (ADR 020); Reading the recordings from research (#1064) |
+| `architecture/schema/agent-desk.md` | Agents find stock-days and show them in the Sim (ADR 050); historical OHLCV charts/MCP; The data front door over MCP (ADR 059); Recorded sessions, Level 2 and tape through the front door (ADR 059, #1064); Desk review charts (unified MCP); Open in Nova |
 | `architecture/schema/local-historical-charts.md` | Explicit local minute-Parquet symbol/day resolution and historical chart export |
 | `architecture/schema/desk-ops.md` | Desk diagnostics (ADR 021); IBKR capacity on the desk; Which backend answers; Who may reach the API: Host names and socket origins; Where Nova keeps its data; Why the Gateway needed a phone login; premarket evidence (#14); Release notes and the update notice; Filing an issue from the desk; Symbol directory for the header search; The operator's watch list and its toasts; The close-of-day reminder; The desk's voice and the header mute |
 | `architecture/schema/scanner.md` | Scanner rows and HOD Momo alerts on the wire; Float credibility and short-interest dates (#532); The company's country; Scanner leaderboard: recorded, reconstructed, played back (ADR 023); Watchlist rows |
@@ -128,16 +128,21 @@ Every confirmed wire and persisted shape lives in `architecture/schema/`, one fi
 | `architecture/schema/performance.md` | Performance recorder (ADR 026) |
 | `architecture/schema/journal.md` | Journal statistics, operator judgment (#791) |
 | `architecture/schema/book-watch-and-luld.md` | The operator's focus and the book watcher (ADR 033); LULD bands on Level 2 (ADR 047); The LULD band on the 1-minute chart (ADR 047) |
-| `architecture/schema/screen-and-clips.md` | The trading screen is always recorded (ADR 035); The desk draws with the graphics card (#707); Share clips (ADR 039) |
+| `architecture/schema/screen-and-clips.md` | The trading screen recording, paused by default (ADR 067); The desk draws with the graphics card (#707); Share clips (ADR 039) |
 | `architecture/schema/bot.md` | Bot playbook and the read-out gate (ADR 027); The Live Trader bot: a TraderTV host copied on Paper (ADR 055); One Bots page (ADR 044); The bot trades a Sim replay (ADR 052, #814); Fills on the bot audit stream |
-| `architecture/schema/execution.md` | Who may arm the desk (ADR 018); Account identity on `/api/ibkr/status`; Orders refuse a stale view; the market path stays real time (ADR 045); Execution command (ADR 007); Execution venue provenance (#713); Live order state: orderRef, whyHeld, reconnects, IBKR's own events; The exit-only pair and two halves (#681) |
+| `architecture/schema/execution.md` | Who may arm the desk (ADR 018); Account identity on `/api/ibkr/status`; Orders refuse a stale view; the market path stays real time (ADR 045); Execution command (ADR 007); Your own order size limit on Paper and Sim (ADR 064); Execution venue provenance (#713); Live order state: orderRef, whyHeld, reconnects, IBKR's own events; The exit-only pair and two halves (#681) |
 | `architecture/schema/market-data.md` | Prints that set a price; The tape archive never stops writing; When IBKR data stops arriving (#672, #673); A Level 1 line IBKR refused; Lines IBKR answers after Nova cancelled them; When one tape line goes silent (#722); The trading session ends at 20:00 ET; Chart bars say when IBKR history stopped answering (ADR 012, #555); Earnings and splits on the daily charts; The forming candle's volume |
 | `architecture/schema/cryptos.md` | The Cryptos page (ADR 040) |
 | `architecture/schema/followed-traders.md` | Followed traders: another feed's positions, priced with IBKR |
 | `architecture/schema/market-board.md` | The Market page (ADR 053) |
+| `architecture/schema/global-board.md` | The Global page (ADR 060) |
+| `architecture/schema/forex-board.md` | The Forex page (ADR 062) |
 | `architecture/schema/volume-profile.md` | Volume profile on the 5-minute chart (ADR 058) |
+| `architecture/schema/heat-map.md` | The heat map on the Trader (ADR 061) |
+| `architecture/schema/ahead.md` | Ahead: the forecast zone on the 1-minute chart (ADR 065) |
+| `architecture/schema/congress.md` | The Congress page (ADR 066) |
 | `architecture/schema/short-selling.md` | Short selling (ADR 048, #778); The short setups on the scanner (ADR 049); The bot trades both sides (ADR 049); Operator trading judgment and Live's day cover (ADR 048, #791) |
-| `architecture/schema/loss-limit.md` | One daily loss limit (ADR 056) |
+| `architecture/schema/loss-limit.md` | One daily loss limit (ADR 056); Three lines (ADR 063) |
 
 ### CI scope output
 
@@ -160,6 +165,7 @@ Raw input (`{symbol, previous_close, current_price, gap_percent, volume, timesta
 | CoinGecko, Coinbase Exchange, alternative.me, Hyperliquid, DefiLlama, Deribit (public, keyless) | The Cryptos page's crypto reference data (ADR 040): read-only, each labelled on the page, never a stock or order source | 🧪 Fixture-tested |
 | State Street SPDR holdings files, BEA release dates (public, keyless) | The Market page's sector membership and calendar (ADR 053): never a price source | 🧪 Fixture-tested |
 | ntfy.sh (public, keyless) | The release ping (§8): a hint to ask GitHub now; never an installer, price or order source | 🧪 Fixture-tested |
+| House Clerk, Senate eFD, Bioguide, unitedstates data (public, keyless) | The Congress page (ADR 066): trades, members, photos; never a price source | 🧪 Fixture-tested |
 
 ---
 
@@ -167,14 +173,14 @@ Raw input (`{symbol, previous_close, current_price, gap_percent, volume, timesta
 
 ### Verification policy: green only (owner, 2026-10-13)
 
-Nothing ships red. Actions merges a ready PR, and `Desktop pack` publishes a `vNNN` Release (§8), only when `Backend tests`, `Frontend build`, `Frontend E2E` and `Agent contract` pass (`tools/pr_checks.py`, `tools/release_gate.py`). A merge also requires the label `merge-approved`, most recently added by GitHub user `aaltaay`. Agents never add `merge-approved`; only the owner does. Drafts never merge. `do-not-merge`, forks and conflicts hold PRs; failed checks hold with a comment and merge on a green re-run only if that label is still in place. Master protection blocks force-push and deletion (admins included) with **no required status checks** (the merge job is the gate, so status-only pushes still work); every other branch refuses force-pushes too (§5.1). Trading runtime gates, opt-ins and `auto_live` NO-GO are unchanged. Coverage: `.cursor/rules/ci-scope.mdc`.
+Nothing ships red. Actions merges a ready PR, and `Desktop pack` publishes a `vNNN` Release (§8), only when `Backend tests`, `Frontend build`, `Frontend E2E` and `Agent contract` pass (`tools/pr_checks.py`, `tools/release_gate.py`). Drafts, `do-not-merge`, forks and conflicts hold PRs; failed checks hold with a comment and merge on a green re-run. Master protection blocks force-push and deletion (admins included) with **no required status checks** (the merge job is the gate, so status-only pushes still work); every other branch refuses force-pushes too (§5.1). Trading runtime gates, opt-ins and `auto_live` NO-GO are unchanged. Coverage: `.cursor/rules/ci-scope.mdc`.
 
 - **Market data / trading:** Scanner and prices are IBKR-only (`.cursor/rules/single-market-data-feed.mdc`); Alpaca is news/listing metadata only; the Cryptos page (ADR 040, `architecture/schema/cryptos.md`) is a public reference board only. Orders go only via gated `backend/ibkr/` (Invariant #7); `auto_live` remains NO-GO. Header **Live / Paper / Sim** are venue pills (ADR 019, ADR 020, `architecture/schema/recording-and-replay.md`): **Live** routes to IBKR (port 4001 default; paper Gateway 4002 is legacy by hand only); **Paper** fills locally on the live IBKR feed; **Sim** replays a recorded/downloaded session on a scratch account that unwinds on rewind, and at the **live edge** (`live_edge` on clock and `/api/ibkr/status`) shows the live IBKR feed like Paper (no synthetic instrument; `NOVA_BROKER=sim` is bootstrap only). Operator and bots share the same gates (`architecture/schema/bot.md`): strategy bots require an allowlisted symbol with a backend-held depth line (`409 BOT_NO_DEPTH_LINE`) or replay book on Sim (ADR 052); the Live Trader bot (ADR 055) copies TraderTV hosts on Paper only using its own Level 1 line.
 - **Desk venue vs spend arming (ADR 018, #302):** Venue (`desk-venue.json`, owner `sim/mode.py`) is durable; spend arming (`ibkr/safety.py`) never survives process start or venue change. Arming goes only through `POST /api/ibkr/arm` (`architecture/schema/execution.md`): Live requires `NOVA_LIVE_ARM_PIN_HASH` (`py -3 tools/set_live_arm_pin.py`); Paper and Sim arm without a PIN. Protective sources (`flatten`, `kill`, `cancel_working`) and cancel are always exempt when disarmed.
 - **Real time or no order (ADR 045):** A desk order is refused while its Level 2, quote or Time & Sales is behind or dead (`architecture/schema/execution.md`). Flatten and cancels always work.
 - **Market Open Halt**: The gapper dashboard stops updating its data feed once the market formally opens.
 - **Configurable**: API keys and base URLs must be configurable via UI.
-- **PR-first delivery after every task:** Follow §5.1 and `.cursor/rules/github-delivery.mdc`: clean branch from `origin/master`, `.github/pull_request_template.md`, `Closes` vs `Refs`, ready (non-draft) PR finish line, Actions merges when green only after `aaltaay` adds `merge-approved` (`tools/pr_delivery.py`; agents never add that label), head branch deleted after merge/close (`tools/stale_pr_branches.py`), and master branch protection (`py -3 tools/master_branch_protection.py check`). Public source home is `aaltaay/Nova` (`aaltaay/Nova-public` is a private archive).
+- **PR-first delivery after every task:** Follow §5.1 and `.cursor/rules/github-delivery.mdc`: clean branch from `origin/master`, `.github/pull_request_template.md`, `Closes` vs `Refs`, ready (non-draft) PR finish line, Actions auto-merge when green (`tools/pr_delivery.py`), head branch deleted after merge/close (`tools/stale_pr_branches.py`), and master branch protection (`py -3 tools/master_branch_protection.py check`). Public source home is `aaltaay/Nova` (`aaltaay/Nova-public` is a private archive).
 - **Backlog work packages:** Ranked milestones in `knowledge/backlog-packages.json` (`py -3 tools/backlog_triage.py next|triage|sync|check|report`; see `CLAUDE.md`). Batch related issues into one reviewable PR; never guess gated policy decisions.
 - **Nova Delivery board:** Canonical project is https://github.com/users/aaltaay/projects/1 (user project `1`, owner `aaltaay`, id `PVT_kwHOAXJK5M4Ab7Vq`). Run `gh project item-add 1 --owner aaltaay --url <html_url>` when token scope allows; report 403 limitations truthfully (`.cursor/rules/github-delivery.mdc`).
 - **Next-move picks** (fixed lanes retired, operator report 2026-10-13): every reply that ends a task ends with the best six next moves from `tools/next_moves.py` (`card` via `show_widget` in Claude desktop, numbered `menu` elsewhere) in plain English per `.cursor/rules/next-move-footer.mdc`; specialist subagent reports keep the `**Lifecycle:**` line instead.
@@ -200,7 +206,7 @@ These gates are **MUST** and override casual phrasing ("quick fix", "just tweak"
 2. Stage explicit paths (`git add <paths>`, never `-A` or `git stash`), commit on the focused branch, and push.
 3. Open a **ready (non-draft)** PR targeting `master` from `.github/pull_request_template.md`; attach to [Nova Delivery](https://github.com/users/aaltaay/projects/1) when token scope allows.
 4. Draft or `do-not-merge` only on an explicit user hold or documented hard external blocker -- never because CI is still running.
-5. The PR URL is the finish line. Actions merges a green PR only after `aaltaay` adds `merge-approved` (agents never add it) and then deletes the head branch.
+5. The PR URL is the finish line; Actions auto-merges green PRs and deletes the head branch.
 6. **Leave it clean:** no modified/staged/untracked files, no stash, worktree removed, `py -3 tools/repo_hygiene.py status` OK (`workspace-hygiene.mdc`).
 
 Pointers: `.cursor/rules/commit-push-deploy.mdc`, `.cursor/rules/github-delivery.mdc`, `.cursor/rules/workspace-hygiene.mdc`, `.cursor/skills/github-delivery/SKILL.md`.

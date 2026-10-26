@@ -1,6 +1,7 @@
 """The diagnostics row for share clips (ADR 039).
 
-A clip is marks on the always-on screen recording, so this row is quiet in the
+A clip is marks on the screen recording (paused by default, ADR 067: a new clip
+then records in High quality), so this row is quiet in the
 ordinary run: off with no desktop app reporting (a browser desk cannot record
 clips), ok while clips are open or on file. It warns when a high-quality
 capture was lost (the screen recording fills in) or the clip list cannot be
@@ -59,8 +60,12 @@ def clip_rows(*, status: dict[str, Any]) -> list[dict[str, Any]]:
     if no_picture:
         state = DIAG_STATE_FAIL
         detail = f"{_names(no_picture)}: the clip has no picture -- {detail}"
-        cause = "The screen recording is not seeing that tab's monitor, and High quality is off, so nothing films the tab."
-        fix = "Turn High quality on for the clip (Record menu), or fix the Trading screen recording row."
+        if view.get("screen_paused"):
+            cause = "Screen recording is paused (off by default, ADR 067), and High quality is off, so nothing films the tab."
+            fix = "Turn High quality on for the clip (Record menu): while the screen recording is paused it is the only picture."
+        else:
+            cause = "The screen recording is not seeing that tab's monitor, and High quality is off, so nothing films the tab."
+            fix = "Turn High quality on for the clip (Record menu), or fix the Trading screen recording row."
     elif lost:
         state = DIAG_STATE_WARN
         detail = f"{_names(lost)}: high quality stopped, the screen recording fills in -- {detail}"

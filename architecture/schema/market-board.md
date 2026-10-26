@@ -34,7 +34,12 @@ desk (the page reads today's live market and says so).
   not answered; `amber` when the check is neither green nor red. `known` counts the checks with data (green,
   amber, red); the verdict counts only green and red: `bullish` when `green - red >=
   MARKET_DAY_READ_BULLISH_NET` and `bearish` when `red - green >= MARKET_DAY_READ_BEARISH_NET`, else `mixed`;
-  `null` under `MARKET_DAY_READ_MIN_KNOWN` known checks. Each check's rule and thresholds are constants.
+  `null` under `MARKET_DAY_READ_MIN_KNOWN` known checks. Each check's rule and thresholds are constants. The
+  `runners` check's `why` says when Nova recorded no Gainers board this session. `temperature: {day: "hot" | "warm"
+  | "cold" | null, week: "good" | "ok" | "choppy" | "cold" | null, month: "hot" | "warm" | "cold" | null} | null`
+  (ADR 053 amendment 2026-10-25) is the small-cap temperature of today, the last 5 and the last 21 sessions
+  (`climate.heat`'s rules, below), whatever period the climate card shows; `null` until the climate has answered.
+  It never counts toward the verdict.
 - `events`: `{items: [{at, kind: "econ" | "fomc" | "earnings" | "holiday", title, detail: string | null, source:
   "bls" | "bea" | "fed" | "finnhub" | "sifma" | "nyse"}], bond_market: {closed: boolean, early_close_at: number |
   null, why: string | null}}` -- today and the next `MARKET_EVENTS_DAYS_AHEAD` days, soonest first, at most
@@ -74,7 +79,7 @@ desk (the page reads today's live market and says so).
   null` with `leader_why` when no member list exists (the theme ETFs of ADR 053) or no member has a price yet.
 - `climate`: `{period, from, to, sessions, covered, lens, counts: {up20, up50, up100}, per_day: number | null,
   baseline: {up20, up50, up100, per_day, days, basis: "same_minute" | "per_session"} | null, temperature: "hot" |
-  "normal" | "cold" | null, days: [{date, source: "recorded" | "reconstructed" | null, total, themes: {name:
+  "warm" | "cold" | "good" | "ok" | "choppy" | null, heat: {...} | null (below), days: [{date, source: "recorded" | "reconstructed" | null, total, themes: {name:
   count}}] (the last 21 sessions, oldest first; `source: "massive"` = Nova holds no board that day and the Massive
   day movers index filled it, chart only (below); `source: null` = neither), theme: {name, count,
   total, share_pct, prev_share_pct} | null, themes: [{name, count, prev_count}], gappers: {held, total, rate_pct,
@@ -93,10 +98,37 @@ desk (the page reads today's live market and says so).
   `baseline`, `temperature`, `theme` / `themes`, `gappers`, `halts`, `top` or the runners tab. An index that is
   missing, unreadable or behind leaves the day `source: null`; a past day with no board is asked of the index again
   each refresh until it fills, the index opened at most once a refresh. A runner is a symbol whose `change_pct` reached 20 / 50 / 100% that session by the
-  close (by now, today). `covered` counts the period's sessions Nova recorded. 1 D's `baseline` is the same
-  minute-of-day average over the prior `MARKET_CLIMATE_BASELINE_DAYS_1D` recorded sessions; 7 D / 30 D's is the
-  per-session average over the prior `MARKET_CLIMATE_BASELINE_DAYS` (`null` when Nova recorded none). `temperature` is `hot` at `per_day >=
-  MARKET_CLIMATE_HOT_X x baseline`, `cold` at `<= MARKET_CLIMATE_COLD_X x baseline`. A theme is IBKR's industry
+  close (by now, today). `covered` counts the period's sessions Nova recorded; a session whose recorded Gainers
+  board kept no row all day (`coverage.row_count` sums to 0) is not one -- it reads as no board (2026-10-23: IBKR
+  never answered the scan, and the board was `live` and empty for 719 minutes). 1 D's `baseline` is the same
+  minute-of-day average over the prior `MARKET_CLIMATE_BASELINE_DAYS_1D` recorded sessions, the minute taken at the
+  session's own clock (after its close -- that night, a weekend -- the close); 7 D / 30 D's is the
+  per-session average over the prior `MARKET_CLIMATE_BASELINE_DAYS` (`null` when Nova recorded none).
+  **The temperature** (ADR 053 amendment 2026-10-25; `market_board/temperature.py`, thresholds `MARKET_TEMP_*`) reads
+  the same lens for stocks whose prior close is `MARKET_TEMP_PRICE_MIN`-`MARKET_TEMP_PRICE_MAX` dollars. Per session,
+  minute by minute: `runners_100` (how many reached +100%) and `money` (shares x last price of the
+  `MARKET_TEMP_TOP` biggest gainers, by peak gain of 20% or more -- an estimate the board allows, compared only with
+  itself); at the session's last minute `hold_pct`, the share of runners that peaked at `MARKET_TEMP_HOLD_PEAK`+ still
+  keeping `MARKET_TEMP_HOLD_SHARE` of that gain (one no longer on a full board whose 50th row is below that keep
+  counts as faded, otherwise as unknown and left out). A session is observed at a time of day only when its board
+  has a minute within `MARKET_TEMP_MINUTE_GAP_SEC` before it; before its recording started, or across a gap, it has
+  no observation (never zero). A day's `usual_money` is the median of the prior `MARKET_TEMP_BASELINE_DAYS` recorded
+  sessions observed at the same minute (`usual_days` of them; under `MARKET_TEMP_BASELINE_MIN`, no label). One
+  history window -- the last 21 sessions and the `MARKET_TEMP_BASELINE_DAYS` before them -- serves the 1 D, 7 D
+  and 30 D cards and `day_read.temperature`, so a session has the same usual and label wherever it shows. Day: `hot` with `MARKET_TEMP_HOT_RUNNERS`+ runners and `money > usual_money`,
+  `cold` with none and `money <= usual_money`, else `warm`. Week (7 D): `cold` with `MARKET_TEMP_WEEK_COLD_DAYS`+ cold
+  days, `good` with `MARKET_TEMP_WEEK_HOT_DAYS`+ hot days and a mean `hold_pct` of `MARKET_TEMP_WEEK_GOOD_HOLD`+,
+  `choppy` under `MARKET_TEMP_WEEK_CHOPPY_HOLD`, else `ok` (at least `MARKET_TEMP_WEEK_MIN_DAYS` labelled days). Month
+  (30 D): `score_pct` = (hot - cold) / labelled days, `hot` at `+MARKET_TEMP_MONTH_SCORE`, `cold` at minus it, else
+  `warm` (at least `MARKET_TEMP_MONTH_MIN_DAYS` labelled). Today is read as of now, past sessions at their close.
+  `temperature` is the period's label; `heat` is `{label, why: string | null (why there is no label), price_min,
+  price_max, days: [{date, board: boolean (Nova holds a board in the lens that session), label: "hot" | "warm" |
+  "cold" | null, runners_100: number | null, money: number | null, usual_money: number | null, usual_days, hold_pct:
+  number | null}] (the period's sessions, oldest first; `runners_100` / `money` `null` with no board or no
+  observation at the time read, `why` "Nova's Gainers board has no recording near this time" for today), hot, warm,
+  cold, labelled, hold_pct: number | null (the labelled days'
+  mean), score_pct: number | null (30 D only)}`. Agents read the same three blocks for any session through `GET
+  /api/agent/market-temperature` (`agent-desk.md`). A theme is IBKR's industry
   category for the symbol (contract details), `"Unclassified"` until IBKR answers; `prev_*` is the period before.
   A gapper is a symbol whose open gap (`gap_pct` after 09:30) was 20%+; it held when its last price that session
   (by now, today) is at or above its open (`prev_close x (1 + gap_pct)`) while still on the board at the period's

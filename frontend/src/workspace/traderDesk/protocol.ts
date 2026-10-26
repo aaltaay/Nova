@@ -24,7 +24,16 @@ export type TraderDeskMessageType =
   | 'offer-end'
   | 'dock-request'
   | 'tab-docked'
-  | 'dock-reject';
+  | 'dock-reject'
+  /** A window that is not a desk (the Top 9 pop-up) asks the host to open a symbol in its Trader. */
+  | 'open-request'
+  /** The host opened it: the requester's answer (same requestId). */
+  | 'opened';
+
+const SYMBOL_TYPES: ReadonlySet<TraderDeskMessageType> = new Set([
+  'offer', 'dock-request', 'tab-docked', 'dock-reject', 'open-request', 'opened',
+]);
+const ALL_TYPES: ReadonlySet<string> = new Set([...SYMBOL_TYPES, 'offer-end']);
 
 export type TraderDeskMessage = {
   v: typeof TRADER_DESK_PROTOCOL_V;
@@ -33,6 +42,8 @@ export type TraderDeskMessage = {
   sourceWindowId: string;
   targetWindowId?: string;
   requestId?: string;
+  /** open-request: the scanner list it came from, for the Trader's Focus rail (requestFocusList). */
+  from?: string;
 };
 
 function normSymbol(symbol: string): string {
@@ -80,6 +91,7 @@ export function traderDeskMessage(
     ...(symbol ? { symbol } : {}),
     ...(fields.targetWindowId ? { targetWindowId: fields.targetWindowId } : {}),
     ...(fields.requestId ? { requestId: fields.requestId } : {}),
+    ...(fields.from ? { from: fields.from } : {}),
   };
 }
 
@@ -116,30 +128,20 @@ export function parseTraderDeskMessage(raw: unknown): TraderDeskMessage | null {
   if (!raw || typeof raw !== 'object') return null;
   const data = raw as Partial<TraderDeskMessage>;
   if (data.v !== TRADER_DESK_PROTOCOL_V) return null;
-  if (
-    data.type !== 'offer'
-    && data.type !== 'offer-end'
-    && data.type !== 'dock-request'
-    && data.type !== 'tab-docked'
-    && data.type !== 'dock-reject'
-  ) {
-    return null;
-  }
+  if (typeof data.type !== 'string' || !ALL_TYPES.has(data.type)) return null;
+  const type = data.type as TraderDeskMessageType;
   if (typeof data.sourceWindowId !== 'string' || !data.sourceWindowId) return null;
   const symbol = typeof data.symbol === 'string' ? normSymbol(data.symbol) : undefined;
-  if (
-    (data.type === 'offer' || data.type === 'dock-request' || data.type === 'tab-docked' || data.type === 'dock-reject')
-    && !symbol
-  ) {
-    return null;
-  }
+  if (SYMBOL_TYPES.has(type) && !symbol) return null;
+  if ((type === 'open-request' || type === 'opened') && typeof data.requestId !== 'string') return null;
   return {
     v: TRADER_DESK_PROTOCOL_V,
-    type: data.type,
+    type,
     sourceWindowId: data.sourceWindowId,
     ...(symbol ? { symbol } : {}),
     ...(typeof data.targetWindowId === 'string' ? { targetWindowId: data.targetWindowId } : {}),
     ...(typeof data.requestId === 'string' ? { requestId: data.requestId } : {}),
+    ...(typeof data.from === 'string' && data.from ? { from: data.from } : {}),
   };
 }
 

@@ -6,17 +6,28 @@ export { TickerChart } from './TickerChart';
 export { useChartInstance } from './useChartInstance';
 export { useChartSessionHighlight } from './useChartSessionHighlight';
 export { useEphemeralDrawings } from './useEphemeralDrawings';
-export { parseBarsCoverage, setBars, upsertTapePrint10SecBar } from './barsStore';
+export {
+  ensureBars,
+  getBarsEntry,
+  parseBarsCoverage,
+  setBars,
+  subscribeBars,
+  upsertTapePrint10SecBar,
+} from './barsStore';
+export { sessionVwapPoints, type VwapPoint } from './vwapSession';
 export { sessionKindFromEtMinutes, type MarketSessionKind } from './sessionHighlight';
 export type { ChartPaneOverlayProps, ChartTradeUpdate, RenderPaneOverlay } from './types';
 export { buildSeriesTimeIndex, nearestSeriesTime, toCanonicalTime } from './chartDrawingTime';
 export { isFollowingRightEdge } from './chartViewportPaint';
+export { formatAmPmClock } from './chartTimeFormat';
 export { afterPaintSettles } from './chartBarsPaint';
 export { operatorOwnsView, watchOperatorView } from './operatorView';
 export type { SeriesTimeIndex } from './chartDrawingTime';
 export { EDGE_PRIORITY, claimEdge, edgeClaimed, edgeContents, subscribeEdge } from './edgeWords';
 export type { EdgeReserve, EdgeWord } from './edgeWords';
-export { publishPaneWords } from './paneWords';
+export { paneWords, paneWordsExcept, publishPaneWords, subscribePaneWords } from './paneWords';
 export { areaHoverId, hoverTarget, useCandleCardOpen } from './hoverTarget';
 export type { HoverTarget } from './hoverTarget';
 export type { PaneWordRect } from './paneWords';
+export { oscillatorPane, publishOscillatorPane, subscribeOscillatorPane } from './oscillatorRegistry';
+export type { OscillatorKind, OscillatorPaneHandle } from './oscillatorRegistry';

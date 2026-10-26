@@ -166,8 +166,8 @@ def _pillars(facts: dict[str, Any]) -> dict[str, Any]:
     ch = facts.get("change_pct")
     res = evaluate_five_pillars({
         "symbol": facts.get("symbol"), "price": facts.get("price"),
-        # The graders read percent past 1.0: +114.8% is 114.8, never the fraction 1.148 (AGENTS §3).
-        "change_pct": None if ch is None else ch * 100.0, "rel_volume": facts.get("rel_volume"),
+        # Percent points, named as such: +114.8% is 114.8 and +0.5% is 0.5, never read as 50% (AGENTS §3).
+        "change_points": None if ch is None else ch * 100.0, "rel_volume": facts.get("rel_volume"),
         "catalyst": facts.get("catalyst"), "float": facts.get("float_shares"),
         "float_contradicted": facts.get("float_contradicted"),
     }).to_dict()

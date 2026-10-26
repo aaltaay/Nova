@@ -17,14 +17,20 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from constants_hod_momo import HOD_MOMO_ACTIVE_SET_CAPACITY, HOD_MOMO_REBUILD_L1_TICK_SEC
+from constants_hod_momo import (
+    HOD_MOMO_ACTIVE_SET_CAPACITY,
+    HOD_MOMO_REBUILD_FLOAT_BASIS,
+    HOD_MOMO_REBUILD_L1_TICK_SEC,
+    HOD_MOMO_STRATEGY_DEFAULTS,
+)
 from constants_leaderboard import (
     LEADERBOARD_BOARD_GAPPERS,
     LEADERBOARD_BOARD_MARKET,
     LEADERBOARD_SOURCE_RECONSTRUCTED,
     LEADERBOARD_STATE_REBUILT,
 )
-from hod_momo_rebuild import daily, engine, job, playback, run, store, ticks, watch
+from day_movers import floats as mover_floats, store as movers
+from hod_momo_rebuild import batch, daily, engine, job, playback, run, store, ticks, watch
 from leaderboard import store as board_store
 from leaderboard.rows import make_row
 from sim import massive_daily, massive_days
@@ -78,13 +84,25 @@ def _stored_day():
         board_store.write_batch(db, rows=rows, coverage=coverage)
 
 
+def _sec_counts():
+    """The movers store's SEC share counts: AAA's 2,000,000 was filed the day before; the 50,000,000 filed on the
+    day itself was not on file at the open. BBB's only count was filed on the day. CCC's 30,000,000 filed before
+    the day is on the old share basis of a 1-for-10 reverse split executing on the day."""
+    with movers.connect() as db:
+        movers.replace_sec_shares(db, [
+            {"symbol": "AAA", "cik": "1", "as_of": OLDER, "filed": PRIOR, "shares": 2_000_000, "form": "10-Q"},
+            {"symbol": "AAA", "cik": "1", "as_of": PRIOR, "filed": DAY, "shares": 50_000_000, "form": "8-K"},
+            {"symbol": "BBB", "cik": "2", "as_of": OLDER, "filed": DAY, "shares": 1_000_000, "form": "10-Q"},
+            {"symbol": "CCC", "cik": "3", "as_of": OLDER, "filed": PRIOR, "shares": 30_000_000, "form": "10-Q"},
+        ])
+        movers.replace_splits(db, [{"symbol": "CCC", "execution_date": DAY, "split_from": 10, "split_to": 1}])
+
+
 @pytest.fixture
 def day(tmp_path, monkeypatch):
     root = tmp_path / "massive"
     monkeypatch.setenv("NOVA_MARKET_DATA_DIR", str(root))
     monkeypatch.setattr(job, "launch", job._launch_thread)
-    monkeypatch.setattr(daily, "floats", lambda symbols, fetch=None: {
-        s: {"float_shares": 2_000_000, "float_contradicted": False, "shares_outstanding": 3_000_000} for s in symbols})
     massive_daily.reset_for_tests()
     massive_days.reset_for_tests()
     _write(root, "trades_v1", DAY, TRADES, DAY_TRADES)
@@ -98,6 +116,7 @@ def day(tmp_path, monkeypatch):
     # A 10-for-1 split after OLDER (from 1 to 10): its 9.50 high reads 0.95 and its 2,000 shares 20,000 on the day
     (reference / "splits.json").write_text(json.dumps([
         {"ticker": "AAA", "execution_date": PRIOR, "split_from": 1, "split_to": 10}]), encoding="utf-8")
+    _sec_counts()
     _stored_day()
     yield root
     job.reset_for_tests()
@@ -165,6 +184,24 @@ def test_day_facts_are_as_of_the_day_and_split_adjusted(day):
     assert facts["ZZZ"].avg_volume is None and facts["ZZZ"].fifty_two_week_high is None
 
 
+def test_the_float_is_the_sec_count_filed_before_the_day_never_a_later_one(day):
+    floats = daily.floats(DAY, ["AAA", "BBB", "CCC", "ZZZ"])
+    assert floats["AAA"]["float_shares"] == 2_000_000          # not the 50,000,000 filed during the day
+    assert floats["AAA"]["shares_outstanding"] == 2_000_000 and floats["AAA"]["filed"] == PRIOR
+    assert floats["AAA"]["float_contradicted"] is None
+    assert floats["BBB"]["float_shares"] is None               # its only count came the day itself: unknown
+    assert floats["CCC"]["float_shares"] == 3_000_000          # on the day's basis: the reverse split that day
+    assert floats["ZZZ"]["float_shares"] is None
+    # The day-movers default still counts a filing made that day; the rebuild asks for what was known at the open.
+    with movers.connect() as db:
+        assert mover_floats.sec_shares(db, [(DAY, "AAA")])[(DAY, "AAA")]["shares"] == 50_000_000
+        assert mover_floats.sec_shares(db, [(DAY, "AAA")], before=True)[(DAY, "AAA")]["shares"] == 2_000_000
+
+
+def test_without_a_movers_store_every_float_is_unknown(day, tmp_path):
+    assert daily.floats(DAY, ["AAA"], tmp_path / "none.sqlite3")["AAA"]["float_shares"] is None
+
+
 # ── The build ───────────────────────────────────────────────────────────────
 
 def _hod_files():
@@ -179,7 +216,10 @@ def test_the_real_engine_raises_the_days_alerts_and_writes_none_of_the_live_file
     data = store.read_data(DAY)
     assert summary["watched"] == 1 and summary["ticks"] == len(RAMP)
     assert summary["pending_unflushed"] == 0          # the last burst went out at its end, as the live loop sends it
-    assert data["float_basis"] == "yahoo_now"
+    assert data["float_basis"] == HOD_MOMO_REBUILD_FLOAT_BASIS == "sec_outstanding_prior_day"
+    floors = {sid for sid, cfg in HOD_MOMO_STRATEGY_DEFAULTS.items()
+              if cfg.get("min_float") and cfg.get("enabled", True)}
+    assert floors and set(summary["floor_unproven"]) == floors     # an upper bound never proves a floor
     alerts = data["alerts"]
     assert alerts, summary
     assert {a["ticker"] for a in alerts} == {"AAA"}
@@ -187,6 +227,7 @@ def test_the_real_engine_raises_the_days_alerts_and_writes_none_of_the_live_file
     assert created == sorted(created)
     assert ts("07:40") <= created[0] and created[-1] <= ts("07:46")
     assert all(a["float_shares"] == 2_000_000 and a["rvol_source"] == "ibkr_pace" for a in alerts)
+    assert not {a["strategy_id"] for a in alerts} & floors
     assert all(a["change_pct"] and a["change_pct"] >= 100 for a in alerts)    # from the 1.00 prior close
     assert all(a["gap_pct"] is None for a in alerts)                          # premarket: no open yet
 
@@ -227,7 +268,7 @@ def test_asking_builds_it_and_the_history_serves_it_as_rebuilt(day):
     assert _wait()["status"] == "ready"
     body = client.get(f"/api/hod-momo/history/{DAY}").json()
     assert body["source"] == "rebuilt" and body["alerts"]
-    assert body["rebuild"]["float_basis"] == "yahoo_now"
+    assert body["rebuild"]["float_basis"] == "sec_outstanding_prior_day"
     early = client.get(f"/api/hod-momo/history/{DAY}", params={"until": ts("07:39:59")}).json()
     assert early["source"] == "rebuilt" and early["alerts"] == []
     # Ready and current: asking again starts nothing.
@@ -264,3 +305,71 @@ def test_only_a_calendar_day_ever_names_a_file_or_the_workers_command(day):
     client = _client()
     assert client.post("/api/hod-momo/history/2026-02-30/rebuild").json()["status"] == "unavailable"
     assert client.get("/api/hod-momo/history/2026-02-30").json() == {}
+
+
+# ── Many days in a row ──────────────────────────────────────────────────────
+
+class _Ended:
+    def __init__(self, code: int):
+        self.code = code
+
+    def poll(self) -> int:
+        return self.code
+
+
+def _build_here(started: list):
+    def launch(day: str) -> _Ended:
+        started.append(day)
+        run.run(day)
+        return _Ended(0)
+    return launch
+
+
+def test_a_batch_builds_what_it_can_and_a_second_run_skips_the_built_days(day):
+    # A day built before the float was point in time (logic version 1) is out of date: the batch builds it again.
+    store.write_data(DAY, fingerprint="1:old:old", float_basis="yahoo_now", summary={}, alerts=[])
+    store.write_job(DAY, status="ready", fingerprint="1:old:old")
+    days = batch.days_between("2026-09-15", DAY)
+    assert days == [DAY, PRIOR, OLDER, "2026-09-15"]                     # newest first
+    started: list[str] = []
+    tally = batch.run_batch(days, launch=_build_here(started), poll_sec=0.0)
+    assert started == [DAY] and [d for d, _sec in tally.built] == [DAY] and not tally.failed
+    assert tally.skipped == {"The day's Massive trades file is not on disk": 3}
+    assert store.read_data(DAY)["float_basis"] == "sec_outstanding_prior_day"
+    assert job.status(DAY)["status"] == "ready"
+
+    again: list[str] = []
+    tally = batch.run_batch(days, launch=_build_here(again), poll_sec=0.0)
+    assert again == [] and tally.built == [] and tally.skipped[batch.BUILT] == 1
+
+
+def test_a_day_with_no_rebuilt_boards_or_being_built_is_skipped(day, monkeypatch):
+    with monkeypatch.context() as patch:
+        patch.setattr(job, "_boards_mark", lambda day, fresh=False: None)
+        tally = batch.run_batch([DAY], launch=_build_here([]), poll_sec=0.0)
+    assert tally.skipped == {job.NOT_REBUILT: 1}
+    store.write_job(DAY, status="building")
+    tally = batch.run_batch([DAY], launch=_build_here([]), poll_sec=0.0)
+    assert tally.skipped == {batch.BUSY: 1}
+
+
+def test_a_worker_that_dies_reads_failed_and_the_batch_goes_on(day):
+    tally = batch.run_batch([DAY], launch=lambda d: _Ended(3), poll_sec=0.0)
+    assert tally.failed == [DAY]
+    assert job.status(DAY)["status"] == "failed" and "exit code 3" in store.read_job(DAY)["error"]
+
+
+def test_the_job_is_stamped_with_the_wall_clock_while_the_engine_pins_time(day):
+    from hod_momo_replay import ReplayClock, pinned_clock
+
+    with pinned_clock(ReplayClock(ts("09:30"))):        # the engine stage: time.time() reads the replayed day
+        record = store.write_job(DAY, status="building")
+    assert abs(record["updated_ts"] - time.time()) < 60  # so another process can tell a live build from a dead one
+
+
+def test_a_stop_file_starts_no_further_day_and_is_removed(day):
+    batch.folder().mkdir(parents=True, exist_ok=True)
+    batch.stop_path().write_text("", encoding="utf-8")
+    started: list[str] = []
+    tally = batch.run_batch([DAY], launch=_build_here(started), poll_sec=0.0)
+    assert tally.stopped and started == [] and not batch.stop_path().exists()

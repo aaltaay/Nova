@@ -8,12 +8,17 @@ gates, cooldowns and consolidation run on the day's time.
 
 A stock is primed when it first gets an L1 line, the way production seeds a new name: its session-high floor
 from the minute bars closed by then and its prior close, its surge buffer from those bars, and a snapshot with
-its prior close, Yahoo float, average volume and 52-week high (``daily``). Change is measured from the prior
-close on every tick; the gap exists from 09:30, from the day's open, as IBKR's open tick does.
+its prior close, float, average volume and 52-week high (``daily``). Change is measured from the prior close on
+every tick; the gap exists from 09:30, from the day's open, as IBKR's open tick does.
+
+The float is SEC shares outstanding filed before the day: an upper bound, which proves a float under a max-float
+line and can never prove one over a floor. So every strategy with a min-float line sits out the run
+(``floor_unproven``): live, a float it cannot judge is ``float:unknown`` and the strategy does not fire.
 """
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import heapq
 import logging
 import threading
@@ -94,6 +99,20 @@ class EngineResult:
     gate_counters: dict[str, int] = field(default_factory=dict)
     pending_unflushed: int = 0
     config: str = ""                       # ``config_digest`` of the settings the engine ran with
+    floor_unproven: list[int] = field(default_factory=list)   # strategies with a min-float line, sat out
+
+
+@contextlib.contextmanager
+def floors_sat_out(state: HodMomoState) -> Iterator[list[int]]:
+    """Inside, every enabled strategy with a min-float line is off; yields their ids. Their settings are put back
+    after, so nothing outside the run (a test's engine, ``config_digest``) sees them changed."""
+    held = {sid: cfg for sid, cfg in state.configs.items() if cfg.enabled and float(cfg.min_float or 0) > 0}
+    for sid, cfg in held.items():
+        state.configs[sid] = dataclasses.replace(cfg, enabled=False)
+    try:
+        yield sorted(int(sid) for sid in held)
+    finally:
+        state.configs.update(held)
 
 
 def _prime(symbol: str, day: SymbolDay, at: float, prev_close: float | None, facts: Facts) -> None:
@@ -136,7 +155,8 @@ def run(session_date: str, days: dict[str, SymbolDay], prev_close: dict[str, flo
         heapq.heapify(heap)
         clock = ReplayClock(heap[0][0] if heap else 0.0)
         primed: set[str] = set()
-        with pinned_clock(clock), quiet_trade_log():
+        with pinned_clock(clock), quiet_trade_log(), floors_sat_out(state) as floors:
+            result.floor_unproven = floors
             while heap:
                 ts, sym, i = heapq.heappop(heap)
                 day = days[sym]
@@ -156,7 +176,9 @@ def run(session_date: str, days: dict[str, SymbolDay], prev_close: dict[str, flo
                     change_pct=round((price / close - 1.0) * 100.0, 2) if close else None,
                     gap_pct=gap,
                 )
-                hm.on_trade_update(sym, price, ts, volume=int(day.volume[i]), day_high=float(day.high[i]))
+                # The day's volume is a sum of fractional sizes on 2026 days; HOD Momo counts whole shares, as IBKR's day
+                # counter does, so it is rounded, not truncated (#1219).
+                hm.on_trade_update(sym, price, ts, volume=round(day.volume[i]), day_high=float(day.high[i]))
                 flush_due(state, ts, result.alerts)
                 result.ticks += 1
                 if result.ticks % 20_000 == 0:

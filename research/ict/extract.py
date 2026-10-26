@@ -33,7 +33,7 @@ def one_day(symbol: str, day: str) -> pd.DataFrame:
     out = pd.DataFrame({
         "symbol": symbol, "day": day, "minute": (t.dt.hour * 60 + t.dt.minute).astype("int16"),
         "open": frame["open"], "high": frame["high"], "low": frame["low"], "close": frame["close"],
-        "volume": frame["volume"].astype("int64"),
+        "volume": frame["volume"].astype("float64"),   # fractional on 2026 days; astype(int64) truncated it (#1219)
     })
     return out[(out["minute"] >= 4 * 60) & (out["minute"] < 20 * 60)]
 

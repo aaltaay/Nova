@@ -52,6 +52,7 @@ export function GalleryBoard({
                   variant="grid"
                   fixedTimeframe={pane.id}
                   title={pane.label}
+                  subtitle={feed.notes?.[pane.id as keyof NonNullable<typeof feed.notes>]}
                   indicators={indicators}
                   compactChrome
                   renderPaneOverlay={levelOverlay(payload.levels, payload.setups)}

@@ -1,6 +1,6 @@
 ---
 name: nova-market-data
-description: "Use when a task needs past market data -- a stock's trades, NBBO quotes, intraday or daily bars on a past day (2016 on), seconds-scale moves, spreads, premarket / VWAP / relative-volume stats, order flow (dark pool, retail buy/sell, sweeps), halts, news catalysts, finding small-cap runner stock-days with their float as known that day, the day movers index, a past day's Gainers / Losers / Gappers / After Hours board, financial statements, float, shares outstanding, SEC filings, IPOs, short interest or symbol lookups -- or asks how fast or how complete that data is, or wants charts of trades with the entry and exit marked. Reads the operator's Massive files, Nova's stores, Massive's reference dump and SEC's bulk files through the nova-data MCP tools or tools/market_data.py; never write a new reader for them."
+description: "Use when a task needs past market data -- a stock's trades, NBBO quotes, intraday or daily bars on a past day (2016 on), seconds-scale moves, spreads, premarket / VWAP / relative-volume stats, order flow (dark pool, retail buy/sell, sweeps), halts, news catalysts, finding small-cap runner stock-days with their float as known that day, the day movers index, a past day's Gainers / Losers / Gappers / After Hours board, financial statements, float, shares outstanding, cash runway or dilution filings, SEC filings, IPOs, short interest or symbol lookups -- or asks how fast or how complete that data is, or wants charts of trades with the entry and exit marked. Reads the operator's Massive files, Nova's stores, Massive's reference dump and SEC's bulk files through the nova-data MCP tools or tools/market_data.py; never write a new reader for them."
 ---
 
 # Nova market data
@@ -23,19 +23,44 @@ py -3 tools/market_data.py sec-shares SYMBOL --day YYYY-MM-DD   # shares outstan
 py -3 tools/market_data.py sec-filings SYMBOL --as-of YYYY-MM-DD --forms "4,SC 13D,424B4"
 py -3 tools/market_data.py financials SYMBOL --statement balance_sheets|income_statements --as-of YYYY-MM-DD
 py -3 tools/market_data.py float SYMBOL | ipos --symbol SYMBOL | ticker SYMBOL | short-interest SYMBOL YYYY-MM-DD
+py -3 tools/market_data.py runway SYMBOL YYYY-MM-DD       # cash, burn, runway, share growth, offering filings (read age_days / stale)
 py -3 tools/market_data.py find date_from=... price_min=2 price_max=20 high_min=50 --float-max 20000000
 py -3 tools/market_data.py daily SYMBOL FROM TO | context DAY | stats SYMBOL DAY | flow SYMBOL DAY --bucket 5m
 py -3 tools/market_data.py halts --symbol SYMBOL --day DAY | catalysts SYMBOL --from DAY --to DAY | symbols QUERY
+py -3 tools/market_data.py rvol 09:30 date_from=... date_to=... price_min=1 price_max=20 rvol_min=5   # every stock-day
+py -3 tools/market_data.py rvol-triggers 10 date_from=... date_to=... --window 06:00-08:00 --fresh    # first minute over
+py -3 tools/market_data.py rvol-outcomes date_from=... date_to=... --at 09:30 --up 50 --down 50       # what came next
+py -3 tools/market_data.py signal-test date_from=... date_to=... --when "pillars_n>=4" --when "front=Front side"
 ```
+
+**The Trader's signals on past days** (any study mixing In play, Five Pillars, catalyst, boards, front side, a setup
+lane, liquidity, float, halts or the tape): use `signal_catalog` then `signal_test` / `signal_scan` / `signal_series`
+-- never re-write a panel rule or a setup detector. Each signal is the desk's own rule at the end of the minute; what
+has no history (borrow, HOD Momo's decisions, the book walk) is unknown, and boards, catalysts, halts, HOD Momo and
+the tape are partly covered (`meta.coverage` says when a test leans on one). Read `p_up` against the `control`, and
+decide the mix before it runs: search some years and confirm on others.
+
+**Relative volume across every stock** (any study of "high relative volume, then what?"): use `rvol_scan` /
+`rvol_triggers` / `rvol_outcomes` -- never loop `stock_day_stats` over many stock-days or write a minute-file
+reader. Three measures (`cumulative` by minute vs prior sessions at the same minute, `five_minute`, `daily_rate` vs
+the 50-session average day volume); say which one you used. A trigger study wants `fresh` (else a stock already hot
+at 04:00 "triggers" when the window opens), and its `p_up` is read against the `control` beside it. `same_bar`
+means both lines in one minute: never count it as up or down. `data_status` `rvol_table` says which days are built.
 
 The same reads are MCP tools on the `nova-data` server (ADR 059; `.cursor/mcp.json`, `.mcp.json`): call
 `data_catalog` first. For small-cap momentum research start with `find_stock_days` (movers + shares known that day +
 catalyst + halts + premarket marks, paged by `next_cursor`), then `stock_day_stats`, `order_flow`, `catalysts`,
-`halts`, `daily_bars` / `market_context`, `symbols`; plus `stock_day`, `movers_search` / `movers_scan`, `board`,
-`splits`, `financials`, `sec_shares`, `sec_filings`, `float_latest`, `ipos`, `ticker_details`, `short_interest`.
+`halts`, `daily_bars` / `market_context`, `symbols`, `rvol_scan` / `rvol_triggers` / `rvol_outcomes`,
+`recorded_depth` / `recorded_tape`, `signal_catalog` / `signal_series` / `signal_scan` / `signal_test`; plus
+`stock_day`, `movers_search` / `movers_scan`, `board`,
+`splits`, `financials`, `sec_shares`, `sec_filings`, `cash_runway` (cash, burn, runway, share growth and shelf /
+offering filings as known on a day), `float_latest`, `ipos`, `ticker_details`, `short_interest`.
 Percents are points in and out (the movers and board stores keep fractions); `--as-of` / `day` count a statement or
 SEC fact from the day it was filed; a float filter is SEC shares OUTSTANDING unless you pick another basis -- say
 which one you used. A ticker two companies used reads the company that held it that day (`ticker` in the answer).
+`find_stock_days` returns common stock unless `kinds` says otherwise (`["all"]` for warrants, rights, ETFs), ranks with
+`sort` + `limit` like `movers_search` (`sort: "high", limit: 10`), and `outstanding_max` is its `float_max` named for what
+it filters. Bars have no row for a minute with no trade: read `meta.gaps`, or pass `fill_gaps` for priceless rows.
 A hook blocks reading the raw stores any other way.
 
 trades / quotes / bars are raw (never split-adjusted); add `--adjust` for today's terms, or in Python
@@ -45,7 +70,8 @@ In Python: `sys.path.insert(0, "research"); from market_reads import reads` -- `
 movers / board` return pandas DataFrames (movers: the agent endpoint's answer).
 
 Before you trust a number, read `docs/market-data.md` ("The traps"): unadjusted prices, which prints set a price,
-the day bar's whole-session volume, look-ahead, news before 2021-04, no Level 2 history.
+the day bar's whole-session volume, look-ahead, news before 2021-04, no Level 2 history from Massive (Nova's own
+recorded Level 2 and tape: `recorded_depth` / `recorded_tape`, only symbols Nova recorded, coverage in the answer).
 
 - A read on a day without its seek index takes minutes; `status` shows the indexed share. Don't start a bulk
   `index` run without checking one is not already running (`E:\Nova\massive\sim\index\index-build.log`).

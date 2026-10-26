@@ -123,5 +123,8 @@ def test_windowed_ten_second_bars_equal_the_whole_days_bars_in_the_window(day):
     window = reads.bars("DEMO", DAY, "10s", "07:00", "07:02")
     inside = whole[(whole["time_et"] >= window["time_et"].min()) & (whole["time_et"] <= window["time_et"].max())]
     pd.testing.assert_frame_equal(window.reset_index(drop=True), inside.reset_index(drop=True), check_exact=True)
-    # 07:00:20 holds only a corrected print: volume, no price.
-    assert window["open"].isna().tolist() == [False, False, True, False, False]
+    # 07:00:20 holds only the original of a trade later corrected (correction 1): it printed, but the consolidated
+    # tape counts no volume for it and it sets no price, so that bucket has no bar and is listed as a gap.
+    assert window["open"].isna().tolist() == [False, False, False, False]
+    assert "07:00:20" not in window["time_et"].dt.strftime("%H:%M:%S").tolist()
+    assert any(run["first_et"] == "07:00:20" for run in window.attrs["gaps"])

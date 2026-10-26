@@ -43,6 +43,7 @@ from diagnostics.routes import router as diagnostics_router
 from leaderboard.routes import router as leaderboard_router
 from leaderboard.auto_record_routes import router as auto_record_router
 from loss_limit.routes import router as loss_limit_router
+from execution.size_limit.routes import router as order_size_limit_router
 from setup_scanner.routes import router as setups_router
 from setup_templates.routes import install as install_setup_template_refusals
 from setup_templates.routes import router as setup_templates_router
@@ -58,6 +59,9 @@ from stock_mode.routes import router as stock_mode_router
 from hot_list.routes import router as hot_list_router
 from crypto.routes import router as crypto_router
 from market_board.routes import router as market_board_router
+from global_board.routes import router as global_board_router
+from forex_board.routes import router as forex_board_router
+from congress.routes import router as congress_router
 from luld.routes import router as luld_router
 from book_watch.routes import router as book_watch_router
 from short_sale.routes import router as short_check_router
@@ -66,6 +70,7 @@ from chart_events.routes import router as chart_events_router
 from followed_traders import config as followed_traders_config
 from followed_traders.routes import router as followed_traders_router
 from volume_profile.routes import router as volume_profile_router
+from ahead.routes import router as ahead_router
 
 
 def register_routers(app: FastAPI) -> None:
@@ -109,6 +114,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(leaderboard_router)
     app.include_router(auto_record_router)
     app.include_router(loss_limit_router)
+    app.include_router(order_size_limit_router)
     app.include_router(setups_router)
     app.include_router(setup_templates_router)
     install_setup_template_refusals(app)
@@ -124,12 +130,16 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(hot_list_router)
     app.include_router(crypto_router)
     app.include_router(market_board_router)
+    app.include_router(global_board_router)
+    app.include_router(forex_board_router)
+    app.include_router(congress_router)
     app.include_router(luld_router)
     app.include_router(book_watch_router)
     app.include_router(short_check_router)
     app.include_router(agent_desk_router)
     app.include_router(chart_events_router)
     app.include_router(volume_profile_router)
+    app.include_router(ahead_router)  # ADR 065: always on; unset answers not_set_up and asks nothing
     # Only on the desk whose .env names a followed traders feed: unset, the routes do not exist.
     if followed_traders_config.enabled():
         app.include_router(followed_traders_router)

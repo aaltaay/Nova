@@ -27,6 +27,7 @@ const PLAIN_ON_PURPOSE: Record<string, { exprs: string[]; why: string }> = {
   'stock_read/ExitSheet.tsx': { exprs: ['ctx.symbol'], why: 'the Trader tab of that symbol: you are on it' },
   'stock_read/HeldCard.tsx': { exprs: ['ctx.symbol'], why: 'the Trader tab of that symbol: you are on it' },
   'stock_read/WhoTradesRow.tsx': { exprs: ['sym'], why: 'the Trader tab of that symbol: you are on it' },
+  'heat_map/HeatMapView.tsx': { exprs: ['sym'], why: 'the heat map over that symbol\'s own Trader tab: you are on it' },
   'stock_view/FloatDeskChrome.tsx': { exprs: ['sym'], why: 'the Trader window\'s own title' },
   'stock_view/StockViewDockFooter.tsx': { exprs: ['symbol', 'sym'], why: 'the Trader tab\'s own footer' },
   'stock_view/StockViewTabStrip.tsx': { exprs: ['symbol'], why: 'the Trader\'s own tab' },

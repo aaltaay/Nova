@@ -1,7 +1,7 @@
 [
   {
     "name": "data_catalog",
-    "description": "Start here: every dataset (trades, quotes, bars, daily bars, movers index, stock-day finder, boards, order flow, halts, catalysts, symbols, splits, financials, SEC shares and filings, float, IPOs, ticker details, short interest) with its source, history, as-of rule, units and the tool that reads it, plus what is NOT available.",
+    "description": "Start here: every dataset (trades, quotes, bars, daily bars, movers index, stock-day finder, boards, order flow, halts, catalysts, symbols, splits, financials, SEC shares and filings, float, IPOs, ticker details, short interest, relative volume across every stock, cash runway and dilution filings, Nova's own recorded Level 2 and tape) with its source, history, as-of rule, units and the tool that reads it, plus what is NOT available.",
     "inputSchema": {
       "properties": {},
       "title": "data_catalogArguments",
@@ -16,7 +16,7 @@
   },
   {
     "name": "data_status",
-    "description": "What is on disk: each Massive dataset's days and indexed share, the movers index and past-day boards.",
+    "description": "What is on disk: each Massive dataset's days and indexed share, the movers index, past-day boards and the relative-volume table.",
     "inputSchema": {
       "properties": {},
       "title": "data_statusArguments",
@@ -31,7 +31,7 @@
   },
   {
     "name": "stock_day",
-    "description": "One stock-day from the Massive files. kind: trades | quotes (NBBO, Level 1) | bars (tf 1m/5m/15m/1h from the minute file, 1s/10s built from trades; daily bars are not a stock-day read). day YYYY-MM-DD; start/end ET HH:MM (end exclusive). Volume: minute bars are Massive's (its SIP volume rules); seconds bars count every trade except cancel/error records, so they can sum higher (GME 2021-01-27 09:30: 185,567 vs 179,397). Raw prices unless adjust=true (today's split terms). Inline answers hold 200 rows; output_name (new .parquet/.csv) for all.",
+    "description": "One stock-day from the Massive files. kind: trades | quotes (NBBO, Level 1) | bars (tf 1m/5m/15m/1h from the minute file, 1s/10s built from trades; daily bars are not a stock-day read). day YYYY-MM-DD; start/end ET HH:MM (end exclusive). Volume: seconds bars count what the consolidated tape counts (no cancels, corrected originals or official open/close repeats); minute bars are Massive's own rule (no closing cross at 16:00, no prior-reference or odd-lot-only minutes), so seconds sum higher (GME 2021-01-27 09:30: 179,822 vs 179,397). Raw prices unless adjust=true (today's split terms). Inline answers hold 200 rows; output_name (new .parquet/.csv) for all. Bars exist only for buckets with a trade, so a halt or quiet stretch is a hole: meta.gaps lists each run of missing buckets in the window (first_et/last_et inclusive, ET; meta.gap_runs/gap_buckets count all, the longest 50 are listed) -- a plot by row index would hide it. fill_gaps=true adds a row per missing bucket with NO prices (nothing is carried or invented), volume 0 and filled=true.",
     "inputSchema": {
       "properties": {
         "kind": {
@@ -91,6 +91,11 @@
           ],
           "default": null,
           "title": "Output Name"
+        },
+        "fill_gaps": {
+          "default": false,
+          "title": "Fill Gaps",
+          "type": "boolean"
         }
       },
       "required": [
@@ -229,7 +234,7 @@
   },
   {
     "name": "board",
-    "description": "A past day's Scanner list at ET HH:MM as the Sim plays it back (recorded, else rebuilt): list_name gainers | losers | gappers | afterhours | large_cap. change_pct / gap_pct are percent points (45.6 = +45.6%), like the movers tools. Boards cover 1,752 of 2,713 sessions: a day without one answers covered=false with gap and note (0 rows then means no board, not no movers).",
+    "description": "A past day's Scanner list at ET HH:MM as the Sim plays it back (recorded, else rebuilt): list_name gainers | losers | gappers | afterhours | large_cap. change_pct / gap_pct are percent points (45.6 = +45.6%), like the movers tools. Boards cover about 1,750 of 2,713 sessions (data_status counts them): a day without one answers covered=false with gap and note (0 rows then means no board, not no movers). data_status counts stored boards, not lists: gainers on a rebuilt day is the rebuilt market board (2016-11-30 to 2026-09-22) and the recorded gainers board takes over from 2026-09-23; large_cap exists only on recorded days (2026-09-23 on).",
     "inputSchema": {
       "properties": {
         "day": {
@@ -642,7 +647,7 @@
   },
   {
     "name": "find_stock_days",
-    "description": "Momentum stock-days in one call: movers rows (filters as movers_scan: date_from/date_to, price_min/max on the raw prior close, high_min ... in percent points; needs dates or a symbol) joined with what was known that day -- outstanding_* (SEC shares OUTSTANDING filed by the day, as of <=120 days, split-adjusted; NOT free float), enrichment_float (the desk's own float, 2026-07-28 on), catalyst_* (the backfill's verdict; null = unknown), halts / first_halt_et / halt_codes, pm_high / pm_volume and up10_et..up300_et (first ET minute each +N% printed). float_max filters float_basis: sec_outstanding (default) | enrichment | best; float_source labels each value; float_unknown exclude | include | only. catalyst e.g. [\"catalyst\"] or [\"unknown\"]; halted true/false. Likely splits left out (splits=include keeps). Pages of page_size (<=5,000; with output_name <=100,000): pass next_cursor back as cursor.",
+    "description": "Momentum stock-days in one call: movers rows (filters as movers_scan: date_from/date_to, price_min/max on the raw prior close, high_min ... in percent points; needs dates or a symbol) joined with what was known that day -- outstanding_* (SEC shares OUTSTANDING filed by the day, as of <=120 days, split-adjusted; NOT free float), enrichment_float (the desk's own float, 2026-07-28 on), catalyst_* (the backfill's verdict; null = unknown), halts / first_halt_et / halt_codes, pm_high / pm_volume and up10_et..up300_et (first ET minute each +N% printed). kinds: COMMON STOCK (CS, ADRC) by default, like movers_search -- warrants, rights, units and ETFs are left out unless asked: [\"all\"] keeps every kind, [\"ETF\"] or [\"CS\", \"WARRANT\"] those types; naming a symbol with no kinds keeps every kind. sort ranks the rows like movers_search: newest | oldest (default) | high | low | close | gap | volume | dollar_volume (a row without the figure last, ties newest day first); the float / catalyst / halted filters then pick from the ranking, so sort \"high\" with limit 10 is the ten largest highs that pass them. limit = page_size (the most rows this call returns, <=5,000; with output_name <=100,000); next_cursor continues the same ranking exactly: pass it back as cursor with the same arguments. float_max filters float_basis: sec_outstanding (default) | enrichment | best; outstanding_max is the same limit under the name of what it filters (SEC shares outstanding; needs float_basis sec_outstanding, not with float_max); float_source labels each value; float_unknown exclude | include | only. catalyst e.g. [\"catalyst\"] or [\"unknown\"]; halted true/false. Likely splits left out (splits=include keeps).",
     "inputSchema": {
       "properties": {
         "filters": {
@@ -671,6 +676,9 @@
               "type": "array"
             },
             {
+              "type": "string"
+            },
+            {
               "type": "null"
             }
           ],
@@ -693,6 +701,18 @@
           ],
           "default": null,
           "title": "Float Max"
+        },
+        "outstanding_max": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Outstanding Max"
         },
         "float_basis": {
           "default": "sec_outstanding",
@@ -731,6 +751,30 @@
           "default": null,
           "title": "Halted"
         },
+        "sort": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sort"
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Limit"
+        },
         "cursor": {
           "anyOf": [
             {
@@ -744,9 +788,16 @@
           "title": "Cursor"
         },
         "page_size": {
-          "default": 200,
-          "title": "Page Size",
-          "type": "integer"
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page Size"
         },
         "output_name": {
           "anyOf": [
@@ -776,7 +827,7 @@
   },
   {
     "name": "daily_bars",
-    "description": "Daily bars for a date range from the Massive day files (2016-01-04 on): open/high/low/close/volume, prev_close, change_pct / gap_pct / range_pct in percent points. Raw unless adjust=true (split-adjusted to as_of, default today, by the splits of the company that held the ticker each day). Day volume is the whole 04:00-20:00 session; prices are regular hours.",
+    "description": "Daily bars for a date range from the Massive day files (2016-01-04 on): open/high/low/close/volume, prev_close, change_pct / gap_pct / range_pct in percent points. Raw unless adjust=true (split-adjusted to as_of, default today, by the splits of the company that held the ticker each day). Day volume is the whole 04:00-20:00 session; prices are regular hours -- so a bar's volume can have built a range it does not show (FLYE 2026-09-01: high 2.79, but find_stock_days day_high 3.97 at 05:38 ET); stock_day_stats splits premarket, regular and whole-day. Day volume is the tape's from 2024-02-21; before, it leaves out prior-reference prints and corrected trades (AAPL 2024-02-20: 10.6% under), so an average across that date steps up.",
     "inputSchema": {
       "properties": {
         "symbol": {
@@ -876,7 +927,7 @@
   },
   {
     "name": "stock_day_stats",
-    "description": "One stock-day's numbers, computed from the Massive files: premarket volume/high/low and their times, first 5 and 30 minutes, regular session OHLC and the time of the high/low, VWAP (method stated), trade count and average trade size, median NBBO spread (cents and bps; window stated), relative volume by minute vs the prior rvol_days sessions, and daily rvol. Raw prices; units and methods in the answer's rules.",
+    "description": "One stock-day's numbers, computed from the Massive files: premarket volume/high/low and their times, first 5 and 30 minutes, regular session OHLC and the time of the high/low, VWAP (method stated), trade count and average trade size, median NBBO spread (cents and bps; window stated), relative volume by minute vs the prior rvol_days sessions, and daily rvol (day bars, so it reads high for ~20 sessions after 2024-02-21 and differs from rvol_scan's rvol_daily, which divides minute sums). Raw prices; units and methods in the answer's rules.",
     "inputSchema": {
       "properties": {
         "symbol": {
@@ -1228,8 +1279,770 @@
     }
   },
   {
+    "name": "cash_runway",
+    "description": "A company's cash runway and dilution filings as known on a past day (YYYY-MM-DD; no look-ahead): the newest balance sheet's cash and short-term investments, the newest quarterly operating cash flow (burn), runway in months (null unless the cash and the burn are from the same quarter and cash is being used), shares outstanding growth over 4 and 8 quarters, and the S-1 / S-3 / F-1 / F-3 / 424B1-5 / 8-K filings in the lookback_days before the day (1-3650, default 1095) with their dates. Every figure names its statement's period_end and filing_date; unknown is null, never 0. Massive dates a period by the newest filing that carried it, so the newest statement known on a past day is often over a year old: read age_days / stale / notes. A filing is not an offering that closed. A reused ticker reads the company that held it that day (cik picks one).",
+    "inputSchema": {
+      "properties": {
+        "symbol": {
+          "title": "Symbol",
+          "type": "string"
+        },
+        "day": {
+          "title": "Day",
+          "type": "string"
+        },
+        "cik": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cik"
+        },
+        "lookback_days": {
+          "default": 1095,
+          "title": "Lookback Days",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "symbol",
+        "day"
+      ],
+      "title": "cash_runwayArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "rvol_scan",
+    "description": "Relative volume of every common stock on every day, as of one ET clock time (at HH:MM: bars starting before it), from the relative-volume table (2016 on). Each row: date, symbol, kind, prev_close, price / price_et (the last bar's close and start), change_pct, volume (since 04:00), base_volume, rvol, volume_5m, base_5m, rvol_5m, day_avg_volume, rvol_daily, base_sessions, day_avg_sessions, split. filters: date_from, date_to (or symbol), price_min / price_max (prior close, $), rvol_min / rvol_max (on measure), volume_min (shares by at), change_min / change_max (percent points). measure: cumulative (volume since 04:00 / the prior sessions' mean to the same minute) | five_minute (the last 5 minutes / the same 5 minutes before) | daily_rate (volume since 04:00 / the mean whole-session volume of up to 50 sessions: the Five Pillars' \"5x the 50-day average\"). kinds default [\"CS\", \"ADRC\"] (also \"unknown\"); likely reverse splits left out (splits=include keeps); a measure needs min_base_sessions prior sessions (default 20). Sorted by the measure, largest first; 200 rows inline, rows counts all; output_name (new .parquet/.csv) for every row.",
+    "inputSchema": {
+      "properties": {
+        "at": {
+          "title": "At",
+          "type": "string"
+        },
+        "filters": {
+          "additionalProperties": true,
+          "title": "Filters",
+          "type": "object"
+        },
+        "measure": {
+          "default": "cumulative",
+          "title": "Measure",
+          "type": "string"
+        },
+        "kinds": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kinds"
+        },
+        "splits": {
+          "default": "exclude_likely",
+          "title": "Splits",
+          "type": "string"
+        },
+        "min_base_sessions": {
+          "default": 20,
+          "title": "Min Base Sessions",
+          "type": "integer"
+        },
+        "sort": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sort"
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Limit"
+        },
+        "output_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Name"
+        }
+      },
+      "required": [
+        "at",
+        "filters"
+      ],
+      "title": "rvol_scanArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "rvol_triggers",
+    "description": "The first minute each stock-day's relative volume reached rvol_min (5 = five times its baseline) inside [window_from, window_to) ET, with every filter holding at that bar -- e.g. the 6-7 AM surge. Rows: date, symbol, kind, prev_close, trigger_et (the bar's start), entry_et (its end: the first moment it is known), price (its close), change_pct, volume, base_volume, rvol, volume_5m, base_5m, rvol_5m, day_avg_volume, rvol_daily, above_before (already over the line before the window opened, so the window's first bar triggered; fresh=true leaves those out), base_sessions, split. filters: date_from, date_to (or symbol), price_min / price_max (prior close), volume_min (shares since 04:00 at the bar), change_min / change_max (percent points at the bar). measure: cumulative (volume since 04:00 / the prior sessions' mean to the same minute) | five_minute (the last 5 minutes / the same 5 minutes before) | daily_rate (volume since 04:00 / the mean whole-session volume of up to 50 sessions). Oldest day first; 200 inline, rows counts all.",
+    "inputSchema": {
+      "properties": {
+        "rvol_min": {
+          "title": "Rvol Min",
+          "type": "number"
+        },
+        "filters": {
+          "additionalProperties": true,
+          "title": "Filters",
+          "type": "object"
+        },
+        "measure": {
+          "default": "cumulative",
+          "title": "Measure",
+          "type": "string"
+        },
+        "window_from": {
+          "default": "04:00",
+          "title": "Window From",
+          "type": "string"
+        },
+        "window_to": {
+          "default": "16:00",
+          "title": "Window To",
+          "type": "string"
+        },
+        "kinds": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kinds"
+        },
+        "splits": {
+          "default": "exclude_likely",
+          "title": "Splits",
+          "type": "string"
+        },
+        "min_base_sessions": {
+          "default": 20,
+          "title": "Min Base Sessions",
+          "type": "integer"
+        },
+        "fresh": {
+          "default": false,
+          "title": "Fresh",
+          "type": "boolean"
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Limit"
+        },
+        "output_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Name"
+        }
+      },
+      "required": [
+        "rvol_min",
+        "filters"
+      ],
+      "title": "rvol_triggersArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "rvol_outcomes",
+    "description": "What came next: from every stock-day at clock time at (rvol_scan's rows) or from the first minute it crossed a line (trigger = {\"rvol_min\": 10, \"measure\"?, \"window_from\"?, \"window_to\"?, \"fresh\"?}; filters as rvol_triggers), did a bar's high reach +up_pct% or a low reach -down_pct% of the entry price first? The entry price is the close of the last bar before the entry clock; only later bars are read. horizon: close (before 16:00) | session (before 20:00) | days (days=1-20: then the next trading sessions' high / low on the entry's share basis; a horizon past the newest built session is left out as horizon_open). Outcomes up | down | same_bar (both in one minute: order unknown, never guessed) | same_day | neither. summary per group_by (rvol buckets on measure -- buckets edges, default 0,1,2,3,5,10,20,50,100,1000 -- or year | hour | none) plus all: entries, counts, p_up, p_down, p_up_resolved, median max up / down %, median and mean end %, median minutes to each line. Trigger entries get a control (on by default): one stock-day per trigger from the same date and universe that had not crossed the line by then, scored from the same clock. meta.left_out counts what was dropped. output_name writes every scored entry.",
+    "inputSchema": {
+      "properties": {
+        "filters": {
+          "additionalProperties": true,
+          "title": "Filters",
+          "type": "object"
+        },
+        "at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "At"
+        },
+        "trigger": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Trigger"
+        },
+        "up_pct": {
+          "default": 50.0,
+          "title": "Up Pct",
+          "type": "number"
+        },
+        "down_pct": {
+          "default": 50.0,
+          "title": "Down Pct",
+          "type": "number"
+        },
+        "horizon": {
+          "default": "close",
+          "title": "Horizon",
+          "type": "string"
+        },
+        "days": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Days"
+        },
+        "group_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Group By"
+        },
+        "buckets": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Buckets"
+        },
+        "measure": {
+          "default": "cumulative",
+          "title": "Measure",
+          "type": "string"
+        },
+        "kinds": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kinds"
+        },
+        "splits": {
+          "default": "exclude_likely",
+          "title": "Splits",
+          "type": "string"
+        },
+        "min_base_sessions": {
+          "default": 20,
+          "title": "Min Base Sessions",
+          "type": "integer"
+        },
+        "control": {
+          "default": true,
+          "title": "Control",
+          "type": "boolean"
+        },
+        "seed": {
+          "default": 1,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "output_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Name"
+        }
+      },
+      "required": [
+        "filters"
+      ],
+      "title": "rvol_outcomesArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "recorded_depth",
+    "description": "Nova's own recorded Level 2 book (what the desk's IBKR depth line showed) for a symbol at ET `at` (HH:MM or HH:MM:SS) on `day`: the newest book at or before that moment, never after, no older than max_age_sec (default 60, up to 3600), best price first with size per level, best_bid / best_ask / spread / mid. source: auto (the newer of the two stores) | capture (a Session Record: only symbols the operator or auto-record recorded, 2026-09-19 on, never read across a gap in the recording) | l2_db (the desk's depth samples). `tried` shows each store's answer; `coverage` states what each recording holds and lost (recorded stretches, gaps and why, books IBKR sent that the recording did not keep, sampling sessions). covered=false with a reason and recorded_days when nothing was recorded then: not \"the book was empty\". Times are ET on Nova's receive clock. Massive has no Level 2; this is Nova's own recording.",
+    "inputSchema": {
+      "properties": {
+        "symbol": {
+          "title": "Symbol",
+          "type": "string"
+        },
+        "day": {
+          "title": "Day",
+          "type": "string"
+        },
+        "at": {
+          "title": "At",
+          "type": "string"
+        },
+        "source": {
+          "default": "auto",
+          "title": "Source",
+          "type": "string"
+        },
+        "max_age_sec": {
+          "default": 60.0,
+          "title": "Max Age Sec",
+          "type": "number"
+        }
+      },
+      "required": [
+        "symbol",
+        "day",
+        "at"
+      ],
+      "title": "recorded_depthArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "recorded_tape",
+    "description": "Nova's own recorded Time & Sales prints for a symbol on `day`, ET start (inclusive) to end (exclusive), default the whole ET day, oldest first: time_et, ts (epoch seconds when Nova RECEIVED the print), receive_ts, exchange_ts (IBKR's own whole second, Session Records only), price, size, exchange, conditions, unreported, sets_price (may the print move a candle), side (ask | bid | between | unknown) / bid / ask (the desk's own judgement against the book it held at receipt; unknown when no usable book, never inferred), source. source: auto (a Session Record when one exists, else the archive) | capture | archive (every print the desk's tape line saw, 2026-07-15 on, any symbol). meta.coverage says what the recording holds and lost (a Session Record: stretches, gaps, tape losses; the archive: first / last print and that it marks no gap of its own); a Session Record's gaps may hold prints the archive has. limit up to 1,000,000 rows (meta.capped); inline answers hold 200, output_name (new .parquet/.csv) for all.",
+    "inputSchema": {
+      "properties": {
+        "symbol": {
+          "title": "Symbol",
+          "type": "string"
+        },
+        "day": {
+          "title": "Day",
+          "type": "string"
+        },
+        "start": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start"
+        },
+        "end": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End"
+        },
+        "source": {
+          "default": "auto",
+          "title": "Source",
+          "type": "string"
+        },
+        "limit": {
+          "default": 200000,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "output_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Name"
+        }
+      },
+      "required": [
+        "symbol",
+        "day"
+      ],
+      "title": "recorded_tapeArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "signal_catalog",
+    "description": "Every signal of the Trader's Signals panel the signal table holds, for signal_test / signal_scan: its name, group (in_play, setups, front, float, halts, tape), kind (state ok | warn | bad | info | unknown, label with its values, number, bool), the desk rule that writes it, and how far back it reaches (most from 2016; boards, catalysts, halts, HOD Momo and the tape only partly). not_rebuilt names what has no history (borrow, HOD Momo's gate decisions, the Level 2 book walk). table: days built.",
+    "inputSchema": {
+      "properties": {},
+      "title": "signal_catalogArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "signal_series",
+    "description": "One in-play stock-day's signals minute by minute (time_et the minute's start; each value as of its end), from in_play_et (the first minute it was in play: a bar 10%+ over the prior close, or 5x its relative volume, with 50,000+ shares) through 15:59; start / end (ET HH:MM, end exclusive) narrow it. signals: names from signal_catalog (default all). 200 rows inline; output_name writes every row.",
+    "inputSchema": {
+      "properties": {
+        "symbol": {
+          "title": "Symbol",
+          "type": "string"
+        },
+        "day": {
+          "title": "Day",
+          "type": "string"
+        },
+        "signals": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Signals"
+        },
+        "start": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start"
+        },
+        "end": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End"
+        },
+        "output_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Name"
+        }
+      },
+      "required": [
+        "symbol",
+        "day"
+      ],
+      "title": "signal_seriesArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "signal_scan",
+    "description": "Every stock in play by at (ET HH:MM: the minute before it, as of its end) on day, with every signal -- or only those meeting when (a list, all must hold: {\"signal\": \"setup_first_pullback\", \"is\": \"triggered\"}, {\"signal\": \"pillars_n\", \"min\": 4}, {\"signal\": \"front\", \"is\": [\"Front side\", \"Mixed\"]}). Highest relative volume first.",
+    "inputSchema": {
+      "properties": {
+        "day": {
+          "title": "Day",
+          "type": "string"
+        },
+        "at": {
+          "title": "At",
+          "type": "string"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "When"
+        },
+        "output_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Name"
+        }
+      },
+      "required": [
+        "day",
+        "at"
+      ],
+      "title": "signal_scanArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "signal_test",
+    "description": "Test a mix of the Trader's signals: the first minute in [window_from, window_to) ET each in-play stock-day met every condition of when (a list: {\"signal\", \"is\": value | [values]} or {\"signal\", \"min\"?, \"max\"?}; names and values from signal_catalog), entered at that minute's end at its price -- did a bar's high reach +up_pct% or a low -down_pct% first? fresh=true leaves out stock-days where it all held before the window. horizon close (before 16:00) | session (before 20:00) | days (days=1-20). filters: date_from, date_to (or symbol), price_min / price_max (prior close). Answers rvol_outcomes' shape: summary per group_by (year | hour | none) plus all -- entries, up, down, same_bar, same_day, neither, p_up, p_down, medians -- and a control (on by default): per entry one stock-day in play by the same minute of the same date where the mix had not held, scored the same way. meta.coverage names conditions on partly covered signals. output_name writes every scored entry.",
+    "inputSchema": {
+      "properties": {
+        "when": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "When",
+          "type": "array"
+        },
+        "filters": {
+          "additionalProperties": true,
+          "title": "Filters",
+          "type": "object"
+        },
+        "window_from": {
+          "default": "04:00",
+          "title": "Window From",
+          "type": "string"
+        },
+        "window_to": {
+          "default": "16:00",
+          "title": "Window To",
+          "type": "string"
+        },
+        "fresh": {
+          "default": false,
+          "title": "Fresh",
+          "type": "boolean"
+        },
+        "up_pct": {
+          "default": 20.0,
+          "title": "Up Pct",
+          "type": "number"
+        },
+        "down_pct": {
+          "default": 20.0,
+          "title": "Down Pct",
+          "type": "number"
+        },
+        "horizon": {
+          "default": "close",
+          "title": "Horizon",
+          "type": "string"
+        },
+        "days": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Days"
+        },
+        "group_by": {
+          "default": "year",
+          "title": "Group By",
+          "type": "string"
+        },
+        "control": {
+          "default": true,
+          "title": "Control",
+          "type": "boolean"
+        },
+        "seed": {
+          "default": 1,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "output_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Name"
+        }
+      },
+      "required": [
+        "when",
+        "filters"
+      ],
+      "title": "signal_testArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
     "name": "nova_chart",
-    "description": "Desk charts for 1 to 9 symbols on one date. Post chat_message verbatim. symbols: tickers. date: YYYY-MM-DD. as_of: HH:MM Eastern, default 16:00. Timeframes are fixed: 10s, 1m, 5m, 1d, full session 04:00 to 16:00 ET. One link per symbol, plus a gallery link. PNG previews are image blocks.",
+    "description": "Desk charts for 1 to 9 symbols on one date. Post chat_message verbatim. symbols: tickers. date: YYYY-MM-DD. as_of: HH:MM Eastern, default 16:00. Timeframes are fixed: 10s, 1m, 5m, 1d, full session 04:00 to 16:00 ET. One link per symbol, plus a gallery link. PNG previews are image blocks. Volume: the 10s 16:00 bar holds the closing cross, the 1m bar does not. The date's 1d candle is its minute bars to as_of (no closing cross or after-hours, high may be premarket); prior 1d candles are official day bars, so the last candle's volume sits under the day bar's even at 16:00.",
     "inputSchema": {
       "properties": {
         "symbols": {

@@ -2,6 +2,7 @@
 
 export { ChartKey } from './ChartKey';
 export type { KeyRow, KeySection } from './paneKeyRows';
+export { paneKeySections, publishPaneKeySection } from './paneKeyExtras';
 export { StockReadProvider, useStockReadContext } from './StockReadContext';
 export type { StockReadContextValue } from './StockReadContext';
 export { StockReadRail } from './StockReadRail';
@@ -13,3 +14,6 @@ export { ShortChips } from './ShortChips';
 export { putStockMode } from './whoTradesApi';
 export { protectiveStop } from './protectiveStop';
 export { MODE_SIDES } from './whoTradesModel';
+export { TREND_COLORS } from './constants';
+export { roomAtLiveEdge } from './paneView';
+export type { StockRead } from './types';

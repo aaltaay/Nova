@@ -1,0 +1,7 @@
+{
+ "schema_version": 1,
+ "configured": false,
+ "reason": "NOVA_AHEAD_URL is not set",
+ "checked_at": 1792500065,
+ "health": null
+}

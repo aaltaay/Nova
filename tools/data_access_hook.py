@@ -21,7 +21,9 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-FOLDERS = ("nova/massive", "nova/leaderboard", "catalysts/edgar")
+# nova/rvol: the relative-volume table (research/market_reads/rvol_store.py, F:\Nova\rvol by default)
+# nova/signals: the signal table (research/market_reads/signals_store.py, F:\Nova\signals by default)
+FOLDERS = ("nova/massive", "nova/leaderboard", "catalysts/edgar", "nova/rvol", "nova/signals")
 MARKERS = (*FOLDERS, "store/reference", "day_movers.sqlite3", "leaderboard.sqlite3", "reference_index.sqlite3",
            "companyfacts.zip", "submissions.zip", "minute_aggs_v1", "trades_v1", "quotes_v1")
 # A code search or git names a store's file name as a pattern; it reads raw data only when pointed at a data folder.

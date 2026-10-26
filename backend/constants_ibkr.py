@@ -566,6 +566,8 @@ IBKR_SCANNER_RECONCILE_SEC = 1.0
 # Watchdog: warn/resubscribe once when batch age exceeds max(min, mult × cadence).
 IBKR_SCANNER_WATCHDOG_MIN_SEC = 90.0
 IBKR_SCANNER_WATCHDOG_CADENCE_MULT = 3.0
+# No first batch this long after each open: reopen (ibkr/scanner_lease_health.py).
+IBKR_SCANNER_FIRST_BATCH_RESUBSCRIBE_SEC = 60.0
 # Batch qualifyContractsAsync inside snapshot_quotes() — same hang risk as
 # scan/snapshot above (see IBKR_L1_QUALIFY_TIMEOUT_SEC's single-symbol note),
 # sized higher since discovery batches up to a full scanner page at once.

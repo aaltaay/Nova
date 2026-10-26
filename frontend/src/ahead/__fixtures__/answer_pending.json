@@ -1,0 +1,74 @@
+{
+ "schema_version": 1,
+ "symbol": "XYZ",
+ "generated_at": 1792500065,
+ "replay": false,
+ "venue": "paper",
+ "bar_t": 1792500000,
+ "as_of": 1792500060,
+ "bars": {
+  "n": 240,
+  "contiguous_tail": 240,
+  "tail_gap_sec": 0
+ },
+ "price": 4.62,
+ "prior_close": 3.1,
+ "volume_last15": 120000,
+ "ai": {
+  "state": "pending",
+  "reason": "Reading the minute that just closed.",
+  "need": null,
+  "have": null,
+  "retry_ms": 1000,
+  "retry_at": null,
+  "model": {
+   "name": "model-a",
+   "version": "1.0"
+  },
+  "exam_passed": null,
+  "exam": {
+   "passed": false,
+   "as_of": "2026-10-21",
+   "summary": "Example only: a made-up exam for tests.",
+   "scope": "Example only: made-up scope.",
+   "volume": {
+    "model": {
+     "spearman": 0.5,
+     "miss_x": 2.0
+    },
+    "baseline": {
+     "name": "time-of-day",
+     "spearman": 0.6,
+     "miss_x": 1.9
+    }
+   },
+   "range": {
+    "model": {
+     "spearman": 0.3,
+     "miss_x": 1.8
+    },
+    "baseline": {
+     "name": "time-of-day",
+     "spearman": 0.35,
+     "miss_x": 1.7
+    }
+   },
+   "band80_coverage": 0.79,
+   "sample": {
+    "days": 10,
+    "moments": 100
+   }
+  },
+  "horizon_min": 15,
+  "step_sec": 60,
+  "levels": null,
+  "close": null,
+  "volume": null,
+  "paths": null,
+  "volume_15": null,
+  "range_15": null,
+  "compute_ms": null,
+  "issued_at": null
+ },
+ "never": "A forecast only: nothing here places, blocks, sizes or delays an order."
+}

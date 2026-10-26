@@ -26,7 +26,7 @@ from constants import (
 def kind_of(timeframe: str) -> str:
     """What a request was for, from its pacing key: ``tape`` (trades read back: TraderTV exits and ticker checks,
     LULD), ``daily`` (daily bars: SSR, the Market page's ETFs, Cryptos), ``market`` (the Market page's reference
-    tiles) or ``charts`` (chart bars)."""
+    tiles), ``global`` (the Global page, ADR 060), ``forex`` (the Forex page, ADR 062) or ``charts`` (chart bars)."""
     key = str(timeframe or "")
     if key.startswith(("ticks:", "bars:")):
         return "tape"
@@ -34,10 +34,14 @@ def kind_of(timeframe: str) -> str:
         return "daily"
     if key.startswith("ref:"):
         return "market"
+    if key.startswith("global:"):
+        return "global"
+    if key.startswith("forex:"):
+        return "forex"
     return "charts"
 
 
-KINDS = ("charts", "tape", "daily", "market")
+KINDS = ("charts", "tape", "daily", "market", "global", "forex")
 
 
 class HistoricalPacing:

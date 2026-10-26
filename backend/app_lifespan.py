@@ -315,6 +315,15 @@ async def _bootstrap_runtime() -> None:
     from market_board.refresh import start_breadth_sampler
 
     start_breadth_sampler()  # ADR 053: NYSE breadth once a minute in the regular session, page open or not
+    from global_board.refresh import start as start_global_board
+
+    start_global_board()  # ADR 060: the Global page's reader, last in line for IBKR
+    from forex_board.refresh import start as start_forex_board
+
+    start_forex_board()  # ADR 062: the Forex page's reader, last in line for IBKR
+    from congress.refresh import start as start_congress
+
+    start_congress()  # ADR 066: the Congress page's reader; reads nothing until the operator agrees
     _runtime_tasks = _spawn_runtime_tasks() + perf_tasks
     global _bootstrap_complete
     _bootstrap_complete = True

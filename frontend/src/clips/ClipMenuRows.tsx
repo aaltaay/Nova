@@ -54,7 +54,13 @@ export function ClipMenuRows({ symbol, onDone }: { symbol: string; onDone: () =>
         </span>
         <span className="symbol-menu__text">
           <span className="symbol-menu__label">{open ? 'Stop the video clip' : 'Record a video clip'}</span>
-          <span className="symbol-menu__hint">{open ? 'saves it; the export opens from the toast' : `a cut of ${symbol}'s Trader tab from the screen recording`}</span>
+          <span className="symbol-menu__hint">
+            {open
+              ? 'saves it; the export opens from the toast'
+              : view?.screenPaused
+                ? `${symbol}'s Trader tab in high quality (screen recording is paused)`
+                : `a cut of ${symbol}'s Trader tab from the screen recording`}
+          </span>
         </span>
         {open ? <span className="symbol-menu__state symbol-menu__state--rec">{clockLabel(now - open.startedTs)}</span> : null}
       </button>
@@ -63,8 +69,8 @@ export function ClipMenuRows({ symbol, onDone }: { symbol: string; onDone: () =>
         role="menuitem"
         className="symbol-menu__row symbol-menu__row--rec"
         data-testid="bot-symbol-menu-clip-last"
-        disabled={!desktop || !view || busy}
-        data-why={!desktop ? 'Video clips need the desktop app' : !view ? 'The desktop app has not answered yet' : busy ? 'Working on it…' : undefined}
+        disabled={!desktop || !view || busy || Boolean(vs.saveLastWhy)}
+        data-why={!desktop ? 'Video clips need the desktop app' : !view ? 'The desktop app has not answered yet' : busy ? 'Working on it…' : vs.saveLastWhy ?? undefined}
         onClick={() => void run({ action: 'save_last', symbol, seconds: view?.lastNSec }, 'last')}
       >
         <span className="symbol-menu__icon symbol-menu__icon--rec" aria-hidden="true"><History size={ICON_PX} /></span>

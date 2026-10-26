@@ -26,6 +26,7 @@ from constants_leaderboard import (
     LEADERBOARD_RECORD_START_MIN_ET,
     LEADERBOARD_SECONDS_INDEX_POLL_SEC,
     LEADERBOARD_SECONDS_INDEX_WAIT_SEC,
+    LEADERBOARD_SECONDS_LOGIC_VERSION,
     LEADERBOARD_SECONDS_UNIVERSE_TYPES,
     LEADERBOARD_SOURCE_RECONSTRUCTED,
     LEADERBOARD_SOURCE_RECORDED,
@@ -77,8 +78,9 @@ def _gappers_where(day: str) -> tuple[str, tuple]:
 
 def fingerprint(db, day: str) -> str | None:
     """A digest of everything a build reads from the stored rebuilt day: every Gappers row (minute, symbol, rank,
-    price, volume, prior close) and every stored stock's prior close; None when the day has no rebuilt Gappers.
-    About a second on a five-year store (2026-09-01: 13,715 Gappers rows, 1,023 stocks)."""
+    price, volume, prior close) and every stored stock's prior close, behind the build logic's version
+    (``LEADERBOARD_SECONDS_LOGIC_VERSION``, so a day built by older code reads stale); None when the day has no
+    rebuilt Gappers. About a second on a five-year store (2026-09-01: 13,715 Gappers rows, 1,023 stocks)."""
     where, args = _gappers_where(day)
     digest = hashlib.sha256()
     found = False
@@ -92,7 +94,7 @@ def fingerprint(db, day: str) -> str | None:
     for row in db.execute("SELECT DISTINCT symbol, prev_close FROM rows WHERE session_date = ? AND source = ?"
                           " ORDER BY symbol, prev_close", (day, LEADERBOARD_SOURCE_RECONSTRUCTED)):
         digest.update(repr(tuple(row)).encode())
-    return digest.hexdigest()
+    return f"{LEADERBOARD_SECONDS_LOGIC_VERSION}:{digest.hexdigest()}"
 
 
 def day_sources(db, day: str) -> set[str]:
@@ -304,7 +306,9 @@ def ensure_index(day: str, stop: threading.Event | None, waiting: Callable[[], N
 class TradeRead:
     """One stock's prints on the day, up to ``until`` (epoch s): ``(ns, sequence, price, size, sets_price)``.
 
-    Cancels and errors are left out (``SIM_MASSIVE_DROPPED_CORRECTIONS``). A ticker's block is in SIP time and
+    Cancels and errors are left out (``SIM_MASSIVE_DROPPED_CORRECTIONS``), and so are the official open / close and
+    corrected-close records (``massive_files.repeats_a_print``): they repeat an auction print, which counted the
+    opening and closing cross twice in the boards' volume. A ticker's block is in SIP time and
     sequence order, so the read stops at its first print at or after ``until``. ``indexed`` says whether the read
     entered the file through its index.
     """
@@ -327,7 +331,7 @@ class TradeRead:
                                                      "conditions", "correction"))
                     for fields in csv.reader(line.decode("utf-8") for line in lines):
                         correction = int(float(fields[corr] or 0))
-                        if correction in SIM_MASSIVE_DROPPED_CORRECTIONS:
+                        if correction in SIM_MASSIVE_DROPPED_CORRECTIONS or massive_files.repeats_a_print(fields[cond]):
                             continue
                         ns = int(fields[ts])
                         if ns >= self.until_ns:

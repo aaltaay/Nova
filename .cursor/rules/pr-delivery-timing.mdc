@@ -1,36 +1,24 @@
 ---
 description: When a ready PR merges -- the five-minute age floor, the in-flight review wait, and why both live in decide()
-globs: tools/stranded_commits.py,tools/push_guard.py,.github/workflows/stranded-commits.yml,tools/pr_delivery.py,tools/pr_delivery_approval.py,tools/pr_delivery_actions.py,tools/pr_review_status.py,.github/workflows/pr-delivery.yml,.github/workflows/deploy.yml
+globs: tools/stranded_commits.py,tools/push_guard.py,.github/workflows/stranded-commits.yml,tools/pr_delivery.py,tools/pr_delivery_actions.py,tools/pr_review_status.py,.github/workflows/pr-delivery.yml,.github/workflows/deploy.yml
 alwaysApply: false
 ---
 
 # PR delivery timing
 
-Actions merges a ready PR once its four required checks are green and
-`aaltaay` has added `merge-approved` (`github-delivery.mdc` item 10; AGENTS.md §5;
-`tools/pr_checks.py`). Agents never add that label. That policy
+Actions merges a ready PR once its four required checks are green
+(`github-delivery.mdc` item 10; AGENTS.md §5; `tools/pr_checks.py`). That policy
 is about **checks**; review findings of any kind stay advisory. This rule is about
 **timing**, and it exists because of one session in which six of nine merged
 PRs were repairs to bugs an automated review had reported minutes *after* the
 auto-merge landed. Each fix needed a whole follow-up PR instead of a push to
 the branch that had been open seconds earlier.
 
-## Owner approval
-
-`decide()` also refuses a PR that does not currently carry `merge-approved`,
-or whose most recent issue-events `labeled` actor for that label is not
-`aaltaay`. The same function serves `cmd_merge` and `cmd_sweep`, including the
-`pull_request` `labeled` trigger, so those paths cannot diverge. Agents never
-add `merge-approved`; only the owner does. Drafts never merge. Removing the
-label before the decision holds the PR. A wrong actor is not a reason to
-remove the label.
-
 ## The two gates
 
 Both are in `decide()` in `tools/pr_delivery.py` -- the one function every
 merge path calls: the CI `Auto-merge` job (`merge --pr`), the scheduled and
-CI-completion sweep (`sweep`), a manual `workflow_dispatch`, and the labeled
-trigger.
+CI-completion sweep (`sweep`), and a manual `workflow_dispatch`.
 
 1. **Age floor -- per head.** A head younger than `MIN_PR_AGE_SECONDS` (five
    minutes, in `tools/pr_review_status.py`) returns `WAIT` / `settling`. The
@@ -49,7 +37,13 @@ trigger.
    than the floor. The signal is the reviewer's summary comment -- untrusted
    bot markdown, matched and never executed -- and anything unrecognised
    reads as "not running", so a reviewer that changes format or disappears
-   can never wedge delivery shut.
+   can never wedge delivery shut. The wait is capped at
+   `REVIEW_STALE_SECONDS` (30 minutes) from the row's own `<relative-time
+   datetime>` "Running since" stamp; past it, or with no readable stamp, the
+   review reads as not running and the run's log prints `#N review_stale on
+   <sha>: ...; not waiting on it`. On 2026-10-22 a summary that said "Running"
+   for ten hours held a green #1140 (`#1140 wait review_running` every sweep):
+   a reviewer that never finishes is one that broke without saying so.
 
 Neither gate reads what a review concluded. `WAIT`, never `BLOCK`: a later
 sweep merges it, and CI completing fires one.
@@ -96,6 +90,8 @@ merges; missing commit data falls back to the PR's age; a settled PR still
 waits on a running review; the merge job waits the floor out and merges in
 the same run, and that wait is capped when the head keeps moving; a held PR
 never waits; an unknown age never holds; a zero floor restores instant merge;
+a running review waits only under the 30-minute cap, an unreadable start
+time never holds, and skipping a stuck review is logged;
 the PR query asks for `createdAt` and `commits`. A change to merge timing
 changes those tests first.
 

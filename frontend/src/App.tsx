@@ -37,6 +37,7 @@ import { parseStockViewSymbol } from './utils/stockViewNav';
 import { useNovaDeskWindowTitle } from './utils/useNovaWindowTitle';
 import { AdviseHost } from './advise/AdvisePanel';
 import { AgentDeskHost } from './agent_desk';
+import { TopNinePublisher } from './top_nine';
 import { AdviseProvider } from './advise/AdviseContext';
 import { AppDialogHost } from './ux';
 import { DesktopUpdateHost } from './desktop_update';
@@ -105,6 +106,8 @@ function AppShell() {
             {!detached && <IssueReportHost />}
             {/* An agent's show / move runs here (ADR 050); the main window only. */}
             {!detached && <AgentDeskHost />}
+            {/* The Top 9 pop-up's lists come from this window's scanner feed; the main window only. */}
+            {!detached && <TopNinePublisher />}
             <MwcbBannerHost />
             <NovaOsAttentionStrip global />
             <div className="nova-app-branch">

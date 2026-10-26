@@ -1,9 +1,11 @@
 /**
  * The trading screen recording's status as the desktop app publishes it
  * (electron/screenRecorder.mjs `view()`, ADR 035; shape in AGENTS.md §3).
- * Wire data is checked here once; anything unreadable is null, never a guess.
+ * `paused` is the default (ADR 067): NOVA_SCREEN_RECORD is not on, so
+ * nothing is recorded. Wire data is checked here once; anything unreadable
+ * is null, never a guess.
  */
-export type ScreenRecordState = 'starting' | 'recording' | 'partial' | 'failed' | 'suspended' | 'stopped';
+export type ScreenRecordState = 'starting' | 'recording' | 'partial' | 'failed' | 'suspended' | 'stopped' | 'paused';
 export type ScreenDiskState = 'ok' | 'warn' | 'fail' | 'unknown';
 
 export interface ScreenRecordDisplay {
@@ -46,7 +48,7 @@ export interface ScreenRecordView {
   problems: ScreenRecordProblem[];
 }
 
-const STATES: readonly ScreenRecordState[] = ['starting', 'recording', 'partial', 'failed', 'suspended', 'stopped'];
+const STATES: readonly ScreenRecordState[] = ['starting', 'recording', 'partial', 'failed', 'suspended', 'stopped', 'paused'];
 const DISK_STATES: readonly ScreenDiskState[] = ['ok', 'warn', 'fail', 'unknown'];
 const DIR_SOURCES = ['env', 'data_drive', 'fallback'] as const;
 

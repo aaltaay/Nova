@@ -302,7 +302,10 @@ def create_server(service: data.DataService, *, review_base: str | None = None, 
 
         symbols: tickers. date: YYYY-MM-DD. as_of: HH:MM Eastern, default 16:00.
         Timeframes are fixed: 10s, 1m, 5m, 1d, full session 04:00 to 16:00 ET.
-        One link per symbol, plus a gallery link. PNG previews are image blocks."""
+        One link per symbol, plus a gallery link. PNG previews are image blocks.
+        Volume: the 10s 16:00 bar holds the closing cross, the 1m bar does not. The date's 1d candle is its minute
+        bars to as_of (no closing cross or after-hours, high may be premarket); prior 1d candles are official day bars,
+        so the last candle's volume sits under the day bar's even at 16:00."""
         return await anyio.to_thread.run_sync(lambda: build(symbols, date, as_of))
 
     _guard_unknown(server._tool_manager.get_tool("nova_chart"), CHART_ARGUMENTS)

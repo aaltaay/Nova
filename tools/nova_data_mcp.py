@@ -27,7 +27,11 @@ if str(REPO / "research") not in sys.path:
 if str(REPO / "tools") not in sys.path:
     sys.path.insert(0, str(REPO / "tools"))
 
+import nova_data_recordings as recordings  # noqa: E402  (the fourth tool set: Nova's recorded Level 2 and tape)
 import nova_data_research as research  # noqa: E402  (the second tool set: stock-days, stats, flow, halts ...)
+import nova_data_runway as runway_tools  # noqa: E402  (cash runway and dilution filings, #1102)
+import nova_data_rvol as rvol_tools  # noqa: E402  (the third: relative volume across every stock, #1100)
+import nova_data_signals as signal_tools  # noqa: E402  (the fourth: the Trader's signals on past days)
 
 INLINE_ROWS = 200
 OUTPUT_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,100}\.(parquet|csv)$")
@@ -64,17 +68,29 @@ def _json_safe(value: Any) -> Any:
     return json.loads(json.dumps(value, default=str))
 
 
+def records(frame) -> list[dict[str, Any]]:
+    """Rows as JSON records. A time with a zone keeps its own offset (``time_et`` 09:40 is
+    ``2026-09-03T09:40:00-04:00``): pandas' ISO writer would turn it into UTC with a ``Z`` under an ``_et`` name
+    (#1086)."""
+    zoned = [c for c in frame.columns if getattr(frame[c].dtype, "tz", None) is not None]
+    if zoned:
+        frame = frame.assign(**{c: frame[c].map(lambda t: None if t is None or t != t else t.isoformat())
+                                for c in zoned})
+    return json.loads(frame.to_json(orient="records", date_format="iso"))
+
+
 def table_answer(frame, out: Path | None = None, inline: int = INLINE_ROWS) -> dict[str, Any]:
     """A DataFrame as an answer: ``rows`` matched, ``columns``, the first ``inline`` rows, and the file when asked."""
     meta = {k: v for k, v in getattr(frame, "attrs", {}).items() if k != "file"}
     if out is not None:
         frame.to_parquet(out, index=False) if out.suffix == ".parquet" else frame.to_csv(out, index=False)
-    head = json.loads(frame.head(inline).to_json(orient="records", date_format="iso")) if len(frame) else []
+    head = records(frame.head(inline)) if len(frame) else []
     return {"ok": True, "meta": _json_safe(meta), "rows": int(len(frame)), "columns": [str(c) for c in frame.columns],
             "data": head, "truncated": len(frame) > inline, "out": str(out) if out else None}
 
 
-class DataService(research.ResearchTools):
+class DataService(research.ResearchTools, rvol_tools.RvolTools, runway_tools.RunwayTools,
+                  recordings.RecordingTools, signal_tools.SignalTools):
     """The tools' bodies, callable without the MCP SDK (tests drive this class)."""
 
     answer = staticmethod(table_answer)
@@ -103,12 +119,13 @@ class DataService(research.ResearchTools):
         return {"ok": True, **_json_safe(inventory.status())}
 
     def stock_day(self, kind: str, symbol: str, day: str, start: str | None = None, end: str | None = None,
-                  tf: str = "1m", adjust: bool = False, output_name: str | None = None) -> dict[str, Any]:
+                  tf: str = "1m", adjust: bool = False, output_name: str | None = None,
+                  fill_gaps: bool = False) -> dict[str, Any]:
         from market_reads import reads, slots, splits
         out = self.output_path(output_name)
         with slots.heavy(f"{kind} {symbol} {day}"):
             if kind == "bars":
-                frame = reads.bars(symbol, day, tf, start, end)
+                frame = reads.bars(symbol, day, tf, start, end, fill_gaps)
             elif kind in ("trades", "quotes"):
                 frame = getattr(reads, kind)(symbol, day, start, end)
             else:
@@ -215,24 +232,32 @@ def create_server(service: DataService, run_sync=None, server_name: str = "nova-
     async def data_catalog() -> dict:
         """Start here: every dataset (trades, quotes, bars, daily bars, movers index, stock-day finder, boards,
         order flow, halts, catalysts, symbols, splits, financials, SEC shares and filings, float, IPOs, ticker
-        details, short interest) with its source, history, as-of rule, units and the tool that reads it, plus what
-        is NOT available."""
+        details, short interest, relative volume across every stock, cash runway and dilution filings, Nova's own
+        recorded Level 2 and tape) with its source, history, as-of rule, units and the tool that reads it, plus what is NOT
+        available."""
         return await run(service.catalog)
 
     @server.tool(annotations=reads)
     async def data_status() -> dict:
-        """What is on disk: each Massive dataset's days and indexed share, the movers index and past-day boards."""
+        """What is on disk: each Massive dataset's days and indexed share, the movers index, past-day boards and the
+        relative-volume table."""
         return await run(service.status)
 
     @server.tool(annotations=writes_file)
     async def stock_day(kind: str, symbol: str, day: str, start: str | None = None, end: str | None = None,
-                        tf: str = "1m", adjust: bool = False, output_name: str | None = None) -> dict:
+                        tf: str = "1m", adjust: bool = False, output_name: str | None = None,
+                        fill_gaps: bool = False) -> dict:
         """One stock-day from the Massive files. kind: trades | quotes (NBBO, Level 1) | bars (tf 1m/5m/15m/1h from
         the minute file, 1s/10s built from trades; daily bars are not a stock-day read). day YYYY-MM-DD; start/end ET
-        HH:MM (end exclusive). Volume: minute bars are Massive's (its SIP volume rules); seconds bars count every trade
-        except cancel/error records, so they can sum higher (GME 2021-01-27 09:30: 185,567 vs 179,397). Raw prices
-        unless adjust=true (today's split terms). Inline answers hold 200 rows; output_name (new .parquet/.csv) for all."""
-        return await run(service.stock_day, kind, symbol, day, start, end, tf, adjust, output_name)
+        HH:MM (end exclusive). Volume: seconds bars count what the consolidated tape counts (no cancels, corrected
+        originals or official open/close repeats); minute bars are Massive's own rule (no closing cross at 16:00, no
+        prior-reference or odd-lot-only minutes), so seconds sum higher (GME 2021-01-27 09:30: 179,822 vs 179,397). Raw prices
+        unless adjust=true (today's split terms). Inline answers hold 200 rows; output_name (new .parquet/.csv) for all.
+        Bars exist only for buckets with a trade, so a halt or quiet stretch is a hole: meta.gaps lists each run of
+        missing buckets in the window (first_et/last_et inclusive, ET; meta.gap_runs/gap_buckets count all, the
+        longest 50 are listed) -- a plot by row index would hide it. fill_gaps=true adds a row per missing bucket with
+        NO prices (nothing is carried or invented), volume 0 and filled=true."""
+        return await run(service.stock_day, kind, symbol, day, start, end, tf, adjust, output_name, fill_gaps)
 
     @server.tool(annotations=reads)
     async def movers_search(params: dict) -> dict:
@@ -257,8 +282,10 @@ def create_server(service: DataService, run_sync=None, server_name: str = "nova-
     async def board(day: str, at: str, list_name: str = "gainers", source: str | None = None) -> dict:
         """A past day's Scanner list at ET HH:MM as the Sim plays it back (recorded, else rebuilt): list_name
         gainers | losers | gappers | afterhours | large_cap. change_pct / gap_pct are percent points (45.6 = +45.6%),
-        like the movers tools. Boards cover 1,752 of 2,713 sessions: a day without one answers covered=false with
-        gap and note (0 rows then means no board, not no movers)."""
+        like the movers tools. Boards cover about 1,750 of 2,713 sessions (data_status counts them): a day without one
+        answers covered=false with gap and note (0 rows then means no board, not no movers). data_status counts
+        stored boards, not lists: gainers on a rebuilt day is the rebuilt market board (2016-11-30 to 2026-09-22) and
+        the recorded gainers board takes over from 2026-09-23; large_cap exists only on recorded days (2026-09-23 on)."""
         return await run(service.board, day, at, list_name, source)
 
     @server.tool(annotations=reads)
@@ -314,13 +341,19 @@ def create_server(service: DataService, run_sync=None, server_name: str = "nova-
         return await run(service.short_interest, symbol, day, at)
 
     research.register(server, service, run, reads, writes_file)
+    runway_tools.register(server, service, run, reads, writes_file)
+    rvol_tools.register(server, service, run, reads, writes_file)
+    recordings.register(server, service, run, reads, writes_file)
+    signal_tools.register(server, service, run, reads, writes_file)
     return server
 
 
 PRELOAD = ("numpy", "pandas", "pyarrow", "market_reads.reads", "market_reads.splits", "market_reads.reference",
            "market_reads.sec", "market_reads.tickers", "market_reads.scan", "market_reads.inventory",
            "market_reads.catalog", "day_movers.query",
-           "agent_desk.movers_read", "leaderboard.playback", "move_reason.short_interest", *research.PRELOAD)
+           "agent_desk.movers_read", "leaderboard.playback", "move_reason.short_interest", *research.PRELOAD,
+           *rvol_tools.PRELOAD,
+           *runway_tools.PRELOAD, *recordings.PRELOAD, *signal_tools.PRELOAD)
 
 
 def preload() -> list[str]:

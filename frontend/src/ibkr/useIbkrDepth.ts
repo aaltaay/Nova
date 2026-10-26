@@ -10,6 +10,7 @@ import type { LineLent } from './lentWords';
 import type { DepthBook } from './types';
 import { countSocketMessage, frameBytes } from '../perf/perfCounters';
 import { forgetBook, noteBeat, noteBookFrame, noteRefused, noteSubscribed } from '../market_view';
+import { HEAT_LINE_LENT, noteHeatBeat, noteHeatBook, noteHeatLine, noteHeatWatch } from '../heat_map';
 
 interface DepthState {
   book: DepthBook | null;
@@ -174,6 +175,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
           if (msg.type === 'beat') {
             // ADR 045: the newest version as of the backend's `now` -- freshness only, never a render.
             noteBeat(symKey!, msg);
+            noteHeatBeat(symKey!);
             return;
           }
           if (msg.type === 'subscribed') {
@@ -194,10 +196,15 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
               l1FallbackRef.current = book.l1_fallback;
               errorRef.current = null;
             }
+            // The heat map (ADR 061) keeps this tab's books over time, hidden tab or not.
+            const kept = bookRef.current;
+            if (kept) noteHeatBook(symKey!, kept.bids, kept.asks, kept.l1_fallback);
             if (uiActiveRef.current) commitUi();
           } else if (msg.type === 'book_watch') {
             // What left the book: a reset frame on every (re)connect, then each verdict once.
             watchRef.current = applyBookWatchFrame(watchRef.current, msg.data, Date.now());
+            // The heat map (ADR 061) keeps the same verdicts for its whole window.
+            noteHeatWatch(symKey!, msg.data);
             if (uiActiveRef.current) commitUi();
           } else if (msg.type === 'luld') {
             // The LULD bands (ADR 047): sent when they change, and every few seconds.
@@ -206,6 +213,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
           } else if (msg.type === 'lent') {
             // Lent to a setup (ADR 044): this book is no longer live; the socket closes next.
             line.lend(msg);
+            noteHeatLine(symKey!, 'lent', HEAT_LINE_LENT);
             bookRef.current = null;
             watchRef.current = null;
             luldRef.current = null;
@@ -219,6 +227,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
             errorRef.current = why;
             // No Level 2: orders on this symbol lock with IBKR's reason until a book arrives (#913).
             noteRefused(symKey!, why);
+            noteHeatLine(symKey!, 'error', why);
             if (uiActiveRef.current) commitUi();
           }
         } catch {

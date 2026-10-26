@@ -258,10 +258,16 @@ SIM_MASSIVE_DAYS_TTL_SEC = 60.0
 # constants_tape.TAPE_NO_PRICE_CONDITIONS): 2 average price, 7 cash, 10 derivatively
 # priced, 13 extended hours sold out of sequence, 15 / 16 official close / open,
 # 20 next day, 21 price variation, 22 prior reference, 29 seller, 32 / 33 sold out
-# of sequence (IBKR's ``Z``: reported late, never the last, absent from IBKR's and
-# Massive's own bars), 37 odd lot, 38 corrected consolidated close, 52 contingent,
+# of sequence (IBKR's ``Z``: reported late, never the last, absent from IBKR's bars; Massive's
+# minute bars do draw them, at report time: KTTA 2021-11-24 10:28 has a $4.22 high from a
+# 09:46 trade while the market traded $3.72-3.80), 37 odd lot, 38 corrected consolidated close, 52 contingent,
 # 53 qualified contingent.
 SIM_MASSIVE_NO_PRICE_CONDITIONS = frozenset({2, 7, 10, 13, 15, 16, 20, 21, 22, 29, 32, 33, 37, 38, 52, 53})
+# Of those, 15 / 16 (official close / open) and 38 (corrected consolidated close) repeat an
+# auction print already on the tape: they carry no volume of their own either (the SIP's
+# rule; docs/massive-builders.md drops them from trades_flow_v1). Counting them doubled the
+# opening cross in seconds bars (CINC 2022-08-08 09:30: 29,248 shares twice).
+SIM_MASSIVE_REPEAT_CONDITIONS = frozenset({15, 16, 38})
 # Trade correction codes: 0 regular and 12 a correction record set prices; 1, 7, 8
 # (an original trade later corrected, marked erroneous or cancelled) printed and are
 # shown but set nothing; 10, 11 are cancel / error records, not trades, and are dropped.

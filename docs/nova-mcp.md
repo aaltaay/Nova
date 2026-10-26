@@ -8,11 +8,11 @@ py -3 tools/nova_mcp.py
 
 On Linux, `python3 tools/nova_mcp.py` is the same command. `py -3 tools/nova_data_mcp.py` starts this same server, so an existing data config keeps working. `tools/nova_chart_mcp.py` is still the older candle-and-volume exporter.
 
-The process speaks MCP on stdin/stdout. It does not open a port or a browser until `nova_chart` runs. That call starts one review engine for the whole PC (`tools/nova_review_engine.py`, default `http://127.0.0.1:18765`). Later MCP processes attach to it. The engine outlives the client that started it, serves the built review page from `frontend/dist`, and exits after 30 minutes with no requests. Pass `--review-http` or set `NOVA_REVIEW_HTTP=1` to start it before any chart call. `--no-review-http` never listens. `--no-warm-shots` still returns links, with `Preview images unavailable: REVIEW_SHOT_UNAVAILABLE`.
+The process speaks MCP on stdin/stdout. It does not open a port or a browser until `nova_chart` runs. That call starts one review engine for the whole PC (`tools/nova_review_engine.py`, default `http://127.0.0.1:18765`). Later MCP processes attach to it. The engine outlives the client that started it, serves the review page from its own build, and exits after 30 minutes with no requests. That build lives in `frontend/dist-review/` (`tools/nova_review_build.py`): the engine records which frontend source each build came from (the committed `frontend/` tree plus any uncommitted change), and when the source differs it runs the checkout's own Vite again before the next page or screenshot (a few seconds), keeps the previous build for a page already loading, and deletes older ones. `frontend/dist` (the desktop pack's build) is never written; it is served only when no build can be made and it holds the review page. When neither exists the chart call says `Preview images unavailable: REVIEW_BUILD_UNAVAILABLE` and `/review` answers 503 with the reason (`frontend/node_modules` missing, `node` not on PATH, a failed build; a failed build is tried again after 5 minutes, not on every call). `py -3 tools/nova_review_build.py` builds now and prints the state; `--check` only reports. `NOVA_REVIEW_DIST` serves a folder as given and never builds. Pass `--review-http` or set `NOVA_REVIEW_HTTP=1` to start it before any chart call. `--no-review-http` never listens. `--no-warm-shots` still returns links, with `Preview images unavailable: REVIEW_SHOT_UNAVAILABLE`.
 
 Port 8765 is the research downloads page. The review engine does not use it. If 18765 is already taken by something else, the engine binds a free port and the chart link carries `api=`. `NOVA_REVIEW_PORT` changes the preferred port.
 
-Open the desk (a second terminal), or skip this when `frontend/dist` is already built. The engine serves that build itself.
+Open the desk (a second terminal) only to develop the page with Vite. The engine builds and serves the page itself.
 
 ```text
 cd frontend
@@ -31,7 +31,7 @@ A gallery is the same page with `symbols=A,B,C` instead of `symbol`. Tabs are `1
 
 ## Data tools
 
-The 22 data tools keep their names, arguments, units and as-of rules. Start with `data_catalog`. A long read such as `data_status` takes only its own lock, so `movers_search` is not stuck behind it. Heavy disk reads still share the PC-wide slots.
+The 32 data tools keep their names, arguments, units and as-of rules (the three relative-volume tools, `rvol_scan`, `rvol_triggers` and `rvol_outcomes`, read the table `research/rvol/build_rvol.py` builds; `docs/market-data.md`, "Relative volume across every stock"; `recorded_depth` and `recorded_tape` are Nova's own recorded Level 2 and tape, read-only on the desk's stores; the four signal tools, `signal_catalog`, `signal_series`, `signal_scan` and `signal_test`, read the table `research/signals/build_signals.py` builds; "The Trader's signals on past days, and mixing them"). Start with `data_catalog`. A long read such as `data_status` takes only its own lock, so `movers_search` is not stuck behind it. Heavy disk reads still share the PC-wide slots.
 
 ## Chart tool
 
@@ -57,7 +57,7 @@ Building the links does not load bars. `nova_historical_chart`, `nova_historical
 
 There is no order button and no live quote subscription on `/review`. The symbol name is a button that opens that day in Nova. The trading desk is a different page. The review bundle does not load the bots page or the bot allowlist, and it loads the sample fixture only when the URL says `fixture=1`.
 
-The screenshot route is not a public browser form. The engine writes a random token into its lease file. Only a local MCP process reads that file and sends it as `X-Nova-Review-Token`. The request must be JSON, must not carry an `Origin` header, and must not name a URL or a file path. The engine builds the page address and the PNG path itself. Files under `/assets/` stay inside `frontend/dist`. On `127.0.0.1:18765` the engine echoes only its own origin.
+The screenshot route is not a public browser form. The engine writes a random token into its lease file. Only a local MCP process reads that file and sends it as `X-Nova-Review-Token`. The request must be JSON, must not carry an `Origin` header, and must not name a URL or a file path. The engine builds the page address and the PNG path itself. Files under `/assets/` stay inside the build folder being served. On `127.0.0.1:18765` the engine echoes only its own origin.
 
 ## Open tool
 

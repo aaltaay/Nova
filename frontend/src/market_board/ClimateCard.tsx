@@ -1,16 +1,17 @@
 /**
- * The small-cap climate (ADR 053): Nova's own Gainers board by day, week or month -- runners against their
- * average, the theme of the period, a 21-session chart coloured by theme (RunnersChart: full width, hover, a large
- * view), gappers holding, halts, top runners.
+ * The small-cap climate (ADR 053): Nova's own Gainers board by day, week or month -- its temperature (hot / warm /
+ * cold, a week good / ok / choppy / cold, with the numbers behind it), runners against their average, the theme of
+ * the period, a 21-session chart coloured by theme (RunnersChart: full width, hover, a large view), gappers holding,
+ * halts, top runners.
  */
-import { THEME_BAR_MAX, THEME_COLORS, THEME_OTHER_COLOR } from './constants';
+import { TEMP_WORD, THEME_BAR_MAX, THEME_COLORS, THEME_OTHER_COLOR } from './constants';
 import { count, etTime, shares, shortDate, signedPct } from './format';
 import { PeriodSwitch, Sym } from './parts';
 import { RunnersChart } from './RunnersChart';
+import { Temperature } from './Temperature';
 import type { Climate, Period } from './types';
 
 const WORD: Record<Period, string> = { '1D': 'day', '7D': 'week', '30D': 'month' };
-const PILL: Record<NonNullable<Climate['temperature']>, string> = { hot: 'HOT', normal: 'NORMAL', cold: 'COLD' };
 
 /** One colour per theme, stable across the chart, the bar and the chips (most runners first). */
 function palette(c: Climate): Map<string, string> {
@@ -69,9 +70,10 @@ export function ClimateCard({ c, onPeriod, onOpen }: { c: Climate | null; onPeri
       <header className="mk-card__head">
         <h3>Small-cap climate</h3>
         <PeriodSwitch value={c.period} onChange={onPeriod} label="Small-cap climate period" />
-        {c.temperature ? <span className={`mk-pill is-${c.temperature} mk-push`}>{PILL[c.temperature]} {word.toUpperCase()}</span> : null}
+        {c.temperature ? <span className={`mk-pill is-${c.temperature} mk-push`}>{TEMP_WORD[c.temperature]} {word.toUpperCase()}</span> : null}
       </header>
       <p className="mk-cover">{cover} · Nova&apos;s Gainers board (top {c.lens.rank_max}, ${c.lens.price_min}+)</p>
+      {c.heat ? <Temperature heat={c.heat} period={c.period} /> : null}
       <div className="mk-climate__top">
         {(['up20', 'up50', 'up100'] as const).map((k) => (
           <div key={k} className="mk-box" title={base ? `Average over Nova's ${base.days} recorded sessions before this ${word}${many ? '' : ', at this time of day'}` : 'Nova has not recorded enough sessions to average'}>

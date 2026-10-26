@@ -18,10 +18,18 @@ data; ``index`` writes only the seek indexes the Sim's own reader keeps (ADR 046
   scan      Bulk movers rows for research (key=value, percents in points), no 500-row cap.
   financials / float / ipos / ticker / short-interest   Massive's reference dump, as known on a day (ADR 059).
   sec-shares / sec-filings   SEC's share counts and filing list, as filed by a day.
+  runway    A company's cash, operating cash burn, runway in months, share-count growth and shelf / offering
+            filings as known on a day (market_data_runway.py).
   reference-index   Build or refresh the reference dump's index (a read does this itself when it is stale).
   find / daily / context / stats / flow / halts / catalysts / symbols   Momentum research (market_data_research.py):
             stock-days with the shares known that day, daily bars, SPY/QQQ/IWM, one stock-day's stats, minute order
             flow, halts, news and verdicts, symbol search.
+  recorded-depth / recorded-tape   Nova's own recorded IBKR Level 2 and tape (market_data_recordings.py): the book at
+            an ET moment, the prints in an ET window; read-only on the desk's stores, coverage stated.
+  rvol / rvol-triggers / rvol-outcomes   Relative volume across every stock (market_data_rvol.py): every
+            stock-day at a clock time, the first minute over a line, and +X% or -X% first after it.
+  signals / signal-series / signal-scan / signal-test   The Trader's signals on past days (market_data_signals.py):
+            the list, one stock-day minute by minute, every in-play stock at a minute, and a test of any mix.
 
 trades / quotes / bars are raw (the files are never split-adjusted); --adjust puts them in today's terms.
 The MCP server tools/nova_data_mcp.py serves the same reads to agents.
@@ -42,6 +50,7 @@ Usage (from the repo root):
   py -3 tools/market_data.py scan date_from=2021-01-01 price_min=2 price_max=20 high_min=50 --out runners.parquet
   py -3 tools/market_data.py sec-shares GURE --day 2024-03-01
   py -3 tools/market_data.py financials GURE --statement income_statements --as-of 2024-03-01
+  py -3 tools/market_data.py runway GURE 2024-03-01
 """
 from __future__ import annotations
 
@@ -53,7 +62,11 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "research"))
 
+import market_data_recordings as recordings  # noqa: E402  (recorded-depth, recorded-tape: Nova's own recordings)
 import market_data_research as research  # noqa: E402  (find, daily, context, stats, flow, halts, catalysts, symbols)
+import market_data_runway as runway_cli  # noqa: E402  (runway)
+import market_data_rvol as rvol_cli  # noqa: E402  (rvol, rvol-triggers, rvol-outcomes)
+import market_data_signals as signals_cli  # noqa: E402  (signals, signal-series, signal-scan, signal-test)
 from market_reads import inventory  # noqa: E402
 
 SHOW_ROWS = 15
@@ -129,7 +142,8 @@ def cmd_rows(args) -> int:
 
 def cmd_bars(args) -> int:
     from market_reads import reads
-    return _show(_adjusted(reads.bars(args.symbol, args.day, args.tf, args.start, args.end), args), args)
+    return _show(_adjusted(reads.bars(args.symbol, args.day, args.tf, args.start, args.end, args.fill_gaps), args),
+                 args)
 
 
 def cmd_splits(args) -> int:
@@ -252,6 +266,8 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("--to", dest="end", help="ET HH:MM, exclusive")
         if name == "bars":
             p.add_argument("--tf", default="1m", help="1m, 5m, 15m ... from the minute file; 1s, 10s ... from trades")
+            p.add_argument("--fill-gaps", dest="fill_gaps", action="store_true",
+                           help="add a row (no prices, zero volume, filled=True) for each bucket with no trade")
         p.add_argument("--adjust", action="store_true",
                        help="split-adjust to today's terms (prices x the factor, shares / it); raw without it")
         output(p)
@@ -316,10 +332,22 @@ def main(argv: list[str] | None = None) -> int:
     ri = sub.add_parser("reference-index", help="build or refresh the reference dump's index")
     ri.add_argument("--datasets", help="comma list (default: all)")
     research.add_parsers(sub, output)
+    runway_cli.add_parsers(sub, output)
+    recordings.add_parsers(sub, output)
+    rvol_cli.add_parsers(sub, output)
+    signals_cli.add_parsers(sub, output)
 
     args = parser.parse_args(argv)
     if args.cmd in research.HANDLERS:
         return research.HANDLERS[args.cmd](args, _show)
+    if args.cmd in runway_cli.HANDLERS:
+        return runway_cli.HANDLERS[args.cmd](args, _show)
+    if args.cmd in recordings.HANDLERS:
+        return recordings.HANDLERS[args.cmd](args, _show)
+    if args.cmd in rvol_cli.HANDLERS:
+        return rvol_cli.HANDLERS[args.cmd](args, _show)
+    if args.cmd in signals_cli.HANDLERS:
+        return signals_cli.HANDLERS[args.cmd](args, _show)
     handlers = {"status": cmd_status, "index": cmd_index, "trades": cmd_rows, "quotes": cmd_rows,
                 "bars": cmd_bars, "movers": cmd_movers, "board": cmd_board, "splits": cmd_splits,
                 "bench": cmd_bench, "catalog": cmd_catalog, "scan": cmd_scan, "financials": cmd_reference,

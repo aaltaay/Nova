@@ -1,0 +1,41 @@
+/* The Global page's own charts (ADR 060): Follow the sun, Do they agree?, and the row flags. Owner:
+   global_board/GlobalPage.tsx. The board's look is the shared world_board/board.css. */
+
+/* follow the sun */
+.gb-sun { overflow: visible; }
+.gb-sun__label { font-size: 11px; fill: var(--nova-text-muted); }
+.gb-sun__track { fill: color-mix(in srgb, var(--nova-text) 5%, transparent); }
+.gb-sun__session { fill: color-mix(in srgb, var(--nova-text) 22%, transparent); }
+.gb-sun__session.is-past { fill: color-mix(in srgb, var(--nova-text) 13%, transparent); }
+.gb-sun__zero { stroke: var(--gb-line); }
+.gb-sun__bar.is-up { fill: var(--gb-up); }
+.gb-sun__bar.is-down { fill: var(--gb-down); }
+.gb-sun__bar.is-forming { fill-opacity: 0.5; }
+.gb-sun__tick { font-size: 10.5px; fill: var(--nova-text-muted); }
+.gb-sun__now { stroke: var(--nova-accent); stroke-width: 2; }
+
+/* do they agree? */
+.gb-agree { overflow: visible; }
+.gb-agree__axis { stroke: var(--gb-line); }
+.gb-agree__q { font-size: 11px; font-weight: 600; opacity: 0.8; }
+.gb-agree__q.is-up { fill: var(--gb-up); }
+.gb-agree__q.is-down { fill: var(--gb-down); }
+.gb-agree__q.is-warn { fill: var(--gb-warn); }
+.gb-agree__dot { fill-opacity: 0.35; stroke-width: 1.5; }
+.gb-agree__dot.is-up { fill: var(--gb-up); stroke: var(--gb-up); }
+.gb-agree__dot.is-down { fill: var(--gb-down); stroke: var(--gb-down); }
+.gb-agree__dot.is-warn { fill: var(--gb-warn); stroke: var(--gb-warn); }
+.gb-agree__label {
+  font-size: 10.5px;
+  fill: var(--nova-text);
+  paint-order: stroke;
+  stroke: var(--nova-panel);
+  stroke-width: 3px;
+}
+.gb-agree__axislabel { font-size: 10.5px; fill: var(--nova-text-muted); }
+
+/* the rows' sizes and flags */
+.gb-row__ex { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.gb-size { color: var(--nova-text-muted); font-weight: 400; font-size: 11px; }
+.gb-via.is-etf { color: var(--gb-warn); }
+.gb-nofeed { color: var(--gb-warn); }

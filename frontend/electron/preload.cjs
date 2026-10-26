@@ -18,6 +18,12 @@ contextBridge.exposeInMainWorld('novaDesktop', {
   focus: () => ipcRenderer.invoke('nova:focus'),
   /** A separate Sim review window. The path must be /review?symbol&date. */
   openSimWindow: (url) => ipcRenderer.invoke('nova:openSimWindow', url),
+  /** The one Top 9 pop-up window (electron/topNineWindow.mjs): opened, or focused when it is already up. */
+  openTopNine: (url) => ipcRenderer.invoke('nova:openTopNine', url),
+  /** Keep the asking window above the others; answers the state now in force. */
+  setKeepOnTop: (on) => ipcRenderer.invoke('nova:keepOnTop', on === true),
+  /** Raise the asking window (the desk, after it opened a symbol the Top 9 pop-up asked for). */
+  focusWindow: () => ipcRenderer.invoke('nova:focusWindow'),
   /** Open an allowlisted HTTPS URL in the system browser. */
   openExternal: (url) => ipcRenderer.invoke('nova:openExternal', url),
   /** The followed traders' stream in a small window of its own (an 11-character YouTube id only). */

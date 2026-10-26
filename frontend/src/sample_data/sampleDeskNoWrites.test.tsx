@@ -214,6 +214,33 @@ describe("the sample workspace writes none of the operator's saved state (#449)"
     }
     q('market-page');
     expect(container.textContent).not.toMatch(/not available in Sample Data mode/);
+    // The Global page (ADR 060) too: its sample board, and its switches never write the desk's storage.
+    await press('nav-rail-global');
+    for (let i = 0; i < 50 && !container.querySelector('[data-testid="global-page"]'); i += 1) {
+      await settle(100);
+    }
+    q('global-page');
+    await press('global-color-by-move');
+    await press('global-period-7D');
+    expect(container.textContent).toMatch(/Rotation, not an exit/);
+    // The Forex page (ADR 062) too: its sample board, and its switches never write the desk's storage.
+    await press('nav-rail-forex');
+    for (let i = 0; i < 50 && !container.querySelector('[data-testid="forex-page"]'); i += 1) {
+      await settle(100);
+    }
+    q('forex-page');
+    await press('forex-color-by-futures');
+    await press('forex-period-7D');
+    expect(container.textContent).toMatch(/All forex/);
+    // The Congress page (ADR 066) too: invented members, and its switches never write the desk's storage.
+    await press('nav-rail-congress');
+    for (let i = 0; i < 50 && !container.querySelector('[data-testid="congress-page"]'); i += 1) {
+      await settle(100);
+    }
+    q('congress-page');
+    await press('congress-seats-period-30d');
+    await press('congress-topic-house');
+    expect(container.textContent).toMatch(/Nova Marketing Sample Data/);
   }
 
   beforeEach(() => {

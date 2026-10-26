@@ -19,8 +19,8 @@ import pandas as pd
 from market_reads import REPO  # noqa: F401  (puts backend/ on sys.path)
 
 from constants_sim import (
-    SIM_MASSIVE_DROPPED_CORRECTIONS,
     SIM_MASSIVE_MINUTES,
+    SIM_MASSIVE_PRICED_CORRECTIONS,
     SIM_MASSIVE_QUOTES,
     SIM_MASSIVE_TRADES,
 )
@@ -30,6 +30,7 @@ from market_reads import read_cache
 
 ET = ZoneInfo("America/New_York")
 TF_UNITS = {"s": 1, "m": 60, "h": 3600}
+GAPS_LISTED = 50         # runs of missing bars ``meta.gaps`` lists (the longest); the counts cover every run
 BOARD_PCT_COLUMNS = ("change_pct", "gap_pct")   # the board store keeps fractions; answered in percent points
 TEXT_COLUMNS = {"ticker": str, "conditions": str, "indicators": str, "id": str}
 # Only an empty field is missing: pandas' default NA strings ("NA", "NULL", "N/A", ...) are real tickers.
@@ -199,6 +200,14 @@ def sets_price(conditions: pd.Series, correction: pd.Series) -> np.ndarray:
     return answers[pair_codes]
 
 
+def repeats_a_print(conditions: pd.Series) -> np.ndarray:
+    """True for an official open / close or corrected-close record: a repeat of an auction print, no volume of its
+    own. Asked once per distinct conditions string."""
+    text_codes, texts = pd.factorize(conditions, use_na_sentinel=True)          # missing -> -1
+    answers = np.array([massive_files.repeats_a_print(text) for text in texts] + [False], dtype=bool)
+    return answers[text_codes]                                                   # -1 picks the trailing False
+
+
 def quotes(symbol: str, day: str, start: str | None = None, end: str | None = None) -> pd.DataFrame:
     """Every NBBO change: one best bid and one best offer across venues (Level 1, never depth). A side Massive
     writes as 0 has no quote."""
@@ -216,11 +225,55 @@ def _seconds(tf: str) -> int:
     return int(count) * TF_UNITS[unit]
 
 
-def bars(symbol: str, day: str, tf: str = "1m", start: str | None = None, end: str | None = None) -> pd.DataFrame:
+def _missing(buckets: np.ndarray, step: int, day: str, start: str | None, end: str | None) -> np.ndarray:
+    """Start (epoch seconds) of every bucket the window holds a slot for and the read has no bar in. The window is the
+    asked ``start`` .. ``end`` (exclusive), else the first .. last bar."""
+    low = _ns(day, start) // 10**9 if start else int(buckets[0])
+    high = _ns(day, end) // 10**9 if end else int(buckets[-1]) + step
+    return np.setdiff1d(np.arange(low // step * step, (high - 1) // step * step + 1, step), buckets)
+
+
+def _gap_meta(missing: np.ndarray, step: int) -> dict[str, Any]:
+    """``meta.gaps``: the runs of consecutive missing buckets as ET ``first_et`` / ``last_et`` (both inclusive) and
+    ``buckets``, in time order, the longest ``GAPS_LISTED`` when there are more (``gaps_truncated``)."""
+    rule = ("a gap is a bucket with no trade inside the window (a halt, or a quiet stretch; the halts tool lists "
+            "halts); no price is guessed for it. fill_gaps=true adds a row per gap")
+    if not len(missing):
+        return {"gaps": [], "gap_runs": 0, "gap_buckets": 0, "gaps_truncated": False, "gap_rule": rule}
+    breaks = np.flatnonzero(np.diff(missing) != step) + 1
+    firsts, lasts = missing[np.r_[0, breaks]], missing[np.r_[breaks - 1, len(missing) - 1]]
+    sizes = (lasts - firsts) // step + 1
+    kept = np.sort(np.argsort(-sizes, kind="stable")[:GAPS_LISTED])
+    form = "%H:%M" if step % 60 == 0 else "%H:%M:%S"
+    gaps = [{"first_et": datetime.fromtimestamp(int(firsts[i]), ET).strftime(form),
+             "last_et": datetime.fromtimestamp(int(lasts[i]), ET).strftime(form), "buckets": int(sizes[i])}
+            for i in kept]
+    return {"gaps": gaps, "gap_runs": int(len(firsts)), "gap_buckets": int(len(missing)),
+            "gaps_truncated": bool(len(firsts) > GAPS_LISTED), "gap_rule": rule}
+
+
+def _filled(out: pd.DataFrame, missing: np.ndarray) -> pd.DataFrame:
+    """``out`` with a row per missing bucket: no prices, no volume, ``filled`` true. A price is never carried over."""
+    every = np.union1d(out["bucket"].to_numpy(), missing)
+    new = ~np.isin(every, out["bucket"].to_numpy())
+    rows = out.set_index("bucket").reindex(every)
+    for column in ("volume", "transactions"):
+        rows[column] = rows[column].fillna(0).astype(out[column].dtype)
+    rows["filled"] = new
+    return rows.reset_index()
+
+
+def bars(symbol: str, day: str, tf: str = "1m", start: str | None = None, end: str | None = None,
+         fill_gaps: bool = False) -> pd.DataFrame:
     """OHLCV bars. Minutes (``1m``, ``5m``, ...) from the minute file, as delivered and summed; seconds (``10s``)
-    from the trades by the Sim's rules: a cancel or error record is no trade, only a price-setting print sets
-    open / high / low / close, and every trade counts in the volume. A bar with no price-setting print has no
-    prices (its volume stands)."""
+    from the trades by the Sim's rules: only a price-setting print sets open / high / low / close, and the volume
+    is what the consolidated tape counts (``massive_files.counts_volume``): every regular trade and correction
+    record, never a cancel / error record, a cancelled or corrected original, or an official open / close or
+    corrected-close record, which repeats an auction print. A bar with no price-setting print has no prices (its
+    volume stands).
+
+    A bucket with no trade has no row. ``df.attrs['gaps']`` says where they are (``_gap_meta``); ``fill_gaps`` adds a
+    row for each, with no prices, zero volume and ``filled`` true (#1086)."""
     step = _seconds(tf)
     if step % 60 == 0:
         frame = read_file(SIM_MASSIVE_MINUTES, symbol, day, start, end)
@@ -234,7 +287,8 @@ def bars(symbol: str, day: str, tf: str = "1m", start: str | None = None, end: s
         prints = trades(symbol, day, start, end)
         if not len(prints):
             return prints
-        kept = prints[~prints["correction"].fillna(0).astype(int).isin(SIM_MASSIVE_DROPPED_CORRECTIONS)].copy()
+        kept = prints[prints["correction"].fillna(0).astype(int).isin(SIM_MASSIVE_PRICED_CORRECTIONS)
+                      & ~repeats_a_print(prints["conditions"])].copy()
         kept["bucket"] = kept["sip_timestamp"] // (step * 10**9) * step
         priced = kept[kept["sets_price"]]
         volume = kept.groupby("bucket")["size"].agg(["sum", "count"]).rename(columns={"sum": "volume",
@@ -242,8 +296,13 @@ def bars(symbol: str, day: str, tf: str = "1m", start: str | None = None, end: s
         ohlc = priced.groupby("bucket")["price"].agg(open="first", high="max", low="min", close="last")
         out = volume.join(ohlc, how="left")[["open", "high", "low", "close", "volume", "transactions"]]
     out = out.reset_index()
+    missing = None
+    if len(out):                 # every print of a seconds window can be a discarded cancel / error: no bar, no gaps
+        missing = _missing(out["bucket"].to_numpy(), step, day, start, end)
+        if fill_gaps:
+            out = _filled(out, missing)
     out.insert(0, "time_et", pd.to_datetime(out.pop("bucket"), unit="s", utc=True).dt.tz_convert(ET))
-    out.attrs.update(symbol=symbol.upper(), day=day, tf=tf)
+    out.attrs.update(symbol=symbol.upper(), day=day, tf=tf, **({} if missing is None else _gap_meta(missing, step)))
     return out
 
 
@@ -259,7 +318,7 @@ def board(day: str, at: str, list_name: str = "gainers", source: str | None = No
     """A past day's Scanner list at ``at`` (ET HH:MM) as the Sim plays it back: recorded when the desk recorded the
     day, else rebuilt from the minute files. ``change_pct`` / ``gap_pct`` in percent points (the store keeps
     fractions). ``df.attrs`` holds the board's source, minute and gap; a day with no board (not recorded and not
-    rebuilt: boards cover 1,752 of 2,713 sessions) has ``covered`` False and a ``note`` saying so, never just 0 rows."""
+    rebuilt: boards cover about 1,750 of 2,713 sessions) has ``covered`` False and a ``note`` saying so, never just 0 rows."""
     from leaderboard import playback
     answer = playback.board_at(day, _ns(day, at) / 1e9, source)
     chosen = answer.get("source") or "recorded"

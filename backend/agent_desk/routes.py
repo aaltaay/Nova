@@ -7,7 +7,8 @@ Percentages on this wire are percent points. Nothing here places, stages or canc
 from __future__ import annotations
 
 import re
-from datetime import datetime
+import time
+from datetime import date, datetime
 from typing import Annotated, Any
 from zoneinfo import ZoneInfo
 
@@ -49,6 +50,8 @@ ENDPOINTS = (
     ("GET", "/api/agent/commands/{id}?wait=", "follow a command (waits up to `wait` seconds for a change)"),
     ("POST", "/api/agent/commands/{id}/cancel", "stop a command"),
     ("GET", "/api/agent/desk", "what the desk shows now, and what a venue switch would put at stake"),
+    ("GET", "/api/agent/market-temperature?day=", "the small-cap temperature: today's (or a past session's) day / "
+     "week / month labels and the numbers behind them, as the Market page shows them"),
     ("GET", "/api/agent/dictionary", "the operator's words for commands: read it before acting"),
     ("POST", "/api/agent/dictionary", "add or replace an entry the operator confirmed ({entry})"),
     ("DELETE", "/api/agent/dictionary/{id}", "drop an operator entry"),
@@ -116,6 +119,25 @@ def get_mover(day: str, symbol: str) -> dict[str, Any]:
         raise _refuse(404, "AGENT_NOT_IN_INDEX",
                       f"{symbol.upper()} on {day} is not in the movers index (it did not move, or that day is not built)")
     return {"schema_version": AGENT_DESK_SCHEMA_VERSION, "row": found["rows"][0], "coverage": found["coverage"]}
+
+
+@router.get("/market-temperature")
+def get_market_temperature(day: str | None = None) -> dict[str, Any]:
+    """The Market page's small-cap temperature (ADR 053 amendment 2026-10-25) for today so far or a past session."""
+    from market_board import climate, clock, temperature
+
+    now = time.time()
+    current = clock.trading_date(now)
+    if day is not None and not _DATE.match(day):
+        raise _refuse(400, "AGENT_INVALID", "day is YYYY-MM-DD", field="day")
+    asked = date.fromisoformat(day) if day else current
+    if asked > current:
+        raise _refuse(400, "AGENT_INVALID", f"{asked} is after the current session ({current})", field="day")
+    try:
+        chain = climate.heat_chain_for(asked, now)
+    except FileNotFoundError as exc:
+        raise _refuse(503, "AGENT_LEADERBOARD_UNAVAILABLE", str(exc)) from exc
+    return {"schema_version": AGENT_DESK_SCHEMA_VERSION, **temperature.report(chain, now)}
 
 
 # ── Commands for the desk ───────────────────────────────────────────────────

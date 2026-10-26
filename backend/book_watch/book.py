@@ -1,7 +1,9 @@
-"""Pure Level 2 arithmetic for the book watcher: size per price, what is wholly in view, ticks."""
+"""Pure Level 2 arithmetic for the book watcher: size per price, what is wholly in view, ticks, and the
+copies of rows IBKR was moving in recorded books (#1133)."""
 from __future__ import annotations
 
 import math
+from collections import Counter
 from dataclasses import dataclass
 from statistics import median
 from typing import Any, Iterable
@@ -10,6 +12,7 @@ from book_watch.constants_book_watch import (
     BOOK_WATCH_COLLAPSE_FROM,
     BOOK_WATCH_COLLAPSE_TO,
     BOOK_WATCH_OFF_BOOK_EXCHANGES,
+    BOOK_WATCH_ROUND_LOT,
 )
 
 
@@ -39,6 +42,87 @@ def aggregate(rows: Iterable[Any]) -> dict[float, float]:
             continue
         levels[price] = levels.get(price, 0.0) + size
     return levels
+
+
+def _row_key(row: Any) -> tuple[float, float] | None:
+    if not isinstance(row, dict):
+        return None
+    price = price_key(row.get("price"))
+    try:
+        size = float(row.get("size") or 0)
+    except (TypeError, ValueError):
+        return None
+    return None if price is None or not math.isfinite(size) else (price, size)
+
+
+def drop_moving_copies(rows: list[Any], before: list[Any] | None) -> list[Any]:
+    """A recorded side's rows less the copy of a row IBKR was moving when the book was taken (#1133).
+
+    Live books show each venue once at a price (``ibkr/depth/book.py``); a book recorded before that can
+    hold one venue's order on two rows. Rows that name their venue (``mm``) keep each venue's first row at
+    a price. Session Records keep no venue, so there a copy is told by its size and its life: a row with
+    the price and the odd size (not a round lot) of a row above it, when the book ``before`` held fewer
+    rows of that price and size. Two venues often show the same round lot at a price, so a round-lot copy
+    cannot be told from them and stays; with no book before, nothing goes.
+    """
+    rows = list(rows or ())
+    if any(isinstance(row, dict) and row.get("mm") for row in rows):
+        return _venue_once(rows)
+    if before is None:
+        return rows
+    had = Counter(_row_key(row) for row in before)
+    have: Counter[tuple[float, float] | None] = Counter()
+    out: list[Any] = []
+    for row in rows:
+        key = _row_key(row)
+        if key is not None and have[key] and key[1] % BOOK_WATCH_ROUND_LOT and have[key] >= had[key]:
+            continue
+        have[key] += 1
+        out.append(row)
+    return out
+
+
+def _venue_once(rows: list[Any]) -> list[Any]:
+    out: list[Any] = []
+    seen: set[tuple[float | None, str]] = set()
+    for row in rows:
+        venue = row.get("mm") if isinstance(row, dict) else None
+        if venue:
+            key = (price_key(row.get("price")), str(venue))
+            if key in seen:
+                continue
+            seen.add(key)
+        out.append(row)
+    return out
+
+
+class RecordedCopies:
+    """Recorded books read in order, each side through ``drop_moving_copies`` against the book before.
+
+    A side recorded unchanged keeps the rows kept from it last time: IBKR sent nothing for that side, so a
+    move it had not finished is still unfinished. Deterministic, no I/O; the books passed in are never
+    changed.
+    """
+
+    def __init__(self) -> None:
+        self._last: dict[str, tuple[list[Any], list[Any]]] = {}  # side -> (rows as recorded, rows kept)
+
+    def read(self, book: Any) -> Any:
+        if not isinstance(book, dict):
+            return book
+        out = book
+        for side in ("bids", "asks"):
+            rows = list(book.get(side) or ())
+            last = self._last.get(side)
+            if last is not None and rows == last[0]:
+                kept = last[1]
+            else:
+                kept = drop_moving_copies(rows, None if last is None else last[0])
+            self._last[side] = (rows, kept)
+            if len(kept) != len(rows):
+                out = dict(book) if out is book else out
+                out[side] = list(kept)
+        return out
 
 
 @dataclass(frozen=True)

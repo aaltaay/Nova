@@ -66,17 +66,18 @@ def venue_block(venue: str | None, replay: bool, mode: str | None = None,
     return None
 
 
-def desk_blocks() -> list[tuple[str, str]]:
-    """Every desk gate that keeps Nova from sending a buy now: ``[(code, why)]`` (empty: none).
+def desk_blocks(actor: str) -> list[tuple[str, str]]:
+    """Every desk gate that keeps Nova from sending ``actor``'s buy now: ``[(code, why)]`` (empty: none).
 
-    The padlock (``places_allowed``), the kill switch, this venue's daily loss limit (ADR 056). The
-    execution door checks the padlock and the kill switch again; asking first lets the runner skip
+    The padlock (``places_allowed``), the kill switch, this venue's daily loss limit (ADR 056) for
+    ``actor`` -- ``you`` for an approved plan (sent as yours), ``bots`` for Auto-entry and Bot (sent as
+    source ``bot``), ADR 061. The execution door checks each again; asking first lets the runner skip
     with the reason instead of sending into a refusal. A gate that cannot be read counts as closed.
     """
     checks = (
         (STOCK_MODE_BLOCK_DISARMED, STOCK_MODE_WHY_DISARMED, _disarmed),
         (STOCK_MODE_BLOCK_KILL, STOCK_MODE_WHY_KILL, _kill_tripped),
-        (STOCK_MODE_BLOCK_LOSS_LIMIT, STOCK_MODE_WHY_LOSS_LIMIT, _loss_limit_stopped),
+        (STOCK_MODE_BLOCK_LOSS_LIMIT, STOCK_MODE_WHY_LOSS_LIMIT, lambda: _loss_limit_stopped(actor)),
     )
     out: list[tuple[str, str]] = []
     for code, why, blocked in checks:
@@ -89,9 +90,9 @@ def desk_blocks() -> list[tuple[str, str]]:
     return out
 
 
-def desk_block() -> tuple[str, str] | None:
-    """The first desk gate that keeps Nova from sending a buy now: ``(code, why)``, else None."""
-    found = desk_blocks()
+def desk_block(actor: str) -> tuple[str, str] | None:
+    """The first desk gate that keeps Nova from sending ``actor``'s buy now: ``(code, why)``, else None."""
+    found = desk_blocks(actor)
     return found[0] if found else None
 
 
@@ -108,13 +109,13 @@ def _kill_tripped() -> bool:
     return bool(kill_switch.is_tripped())
 
 
-def _loss_limit_stopped() -> bool:
+def _loss_limit_stopped(actor: str) -> bool:
     from loss_limit.gate import buys_stopped
 
     venue, _replay = venue_state()
     if venue is None:
         raise RuntimeError("the desk's venue could not be read")
-    return buys_stopped(venue)
+    return buys_stopped(venue, actor=actor)
 
 
 def followed(symbol: str) -> bool | None:

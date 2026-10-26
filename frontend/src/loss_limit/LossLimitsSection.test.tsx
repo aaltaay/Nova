@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  *
- * Settings > Loss limits (ADR 056): the dollar field and three checkboxes, each saved at once.
+ * Settings > Loss limits (ADR 056, ADR 061): three dollar lines and three checkboxes, each saved at once.
  */
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -15,11 +15,12 @@ const api = vi.hoisted(() => ({
 vi.mock('./lossLimitApi', () => api);
 
 const SETTINGS: LossLimitSettings = {
-  limit_usd: 2000, warn: true, no_new_buys: true, auto_sell: false, set_at: null, source: 'default', error: null,
+  limit_usd: 2000, you_usd: null, bots_usd: null, warn: true, no_new_buys: true, auto_sell: false, set_at: null,
+  source: 'default', error: null,
 };
 
 function view(settings: Partial<LossLimitSettings> = {}): LossLimitView {
-  return { schema_version: 1, settings: { ...SETTINGS, ...settings }, day: '2026-10-15', until: 0, accounts: {}, error: null };
+  return { schema_version: 2, settings: { ...SETTINGS, ...settings }, day: '2026-10-15', until: 0, accounts: {}, error: null };
 }
 
 async function mount() {
@@ -73,6 +74,43 @@ describe('LossLimitsSection', () => {
       });
       expect(screen.getByRole('alert').textContent).toBe('Whole dollars, $10 to $1,000,000');
     }
+    expect(api.saveLossLimit).not.toHaveBeenCalled();
+  });
+
+  it('shows your trades\' and the bots\' lines empty, as no line (ADR 061)', async () => {
+    await mount();
+    const you = screen.getByLabelText(/Your trades/) as HTMLInputElement;
+    const bots = screen.getByLabelText(/Bots' trades/) as HTMLInputElement;
+    expect([you.value, bots.value]).toEqual(['', '']);
+    expect([you.placeholder, bots.placeholder]).toEqual(['off', 'off']);
+  });
+
+  it('saves the bots\' line on Enter, and an emptied box as no line', async () => {
+    api.fetchLossLimit.mockResolvedValue(view({ you_usd: 300 }));
+    api.saveLossLimit.mockImplementation(async (patch: LossLimitPatch) => view({ you_usd: 300, ...patch }));
+    await mount();
+    const bots = screen.getByLabelText(/Bots' trades/) as HTMLInputElement;
+    fireEvent.change(bots, { target: { value: '500' } });
+    await act(async () => {
+      fireEvent.keyDown(bots, { key: 'Enter' });
+    });
+    expect(api.saveLossLimit).toHaveBeenLastCalledWith({ bots_usd: 500 });
+    const you = screen.getByLabelText(/Your trades/) as HTMLInputElement;
+    fireEvent.change(you, { target: { value: '' } });
+    await act(async () => {
+      fireEvent.blur(you);
+    });
+    expect(api.saveLossLimit).toHaveBeenLastCalledWith({ you_usd: null });
+  });
+
+  it('refuses a side line out of its rule and says empty is no line', async () => {
+    await mount();
+    const you = screen.getByLabelText(/Your trades/) as HTMLInputElement;
+    fireEvent.change(you, { target: { value: '5' } });
+    await act(async () => {
+      fireEvent.keyDown(you, { key: 'Enter' });
+    });
+    expect(screen.getByRole('alert').textContent).toBe('Whole dollars, $10 to $1,000,000, or empty for no line');
     expect(api.saveLossLimit).not.toHaveBeenCalled();
   });
 

@@ -34,7 +34,7 @@ from pathlib import Path
 from constants_sim import (
     SIM_MASSIVE_DEFAULT_ROOT_WIN, SIM_MASSIVE_DIR_ENV, SIM_MASSIVE_DROPPED_CORRECTIONS, SIM_MASSIVE_EXCHANGES,
     SIM_MASSIVE_MINUTES, SIM_MASSIVE_NO_PRICE_CONDITIONS, SIM_MASSIVE_PRICED_CORRECTIONS, SIM_MASSIVE_QUOTES,
-    SIM_MASSIVE_READ_CHUNK, SIM_MASSIVE_TRADES,
+    SIM_MASSIVE_READ_CHUNK, SIM_MASSIVE_REPEAT_CONDITIONS, SIM_MASSIVE_TRADES,
 )
 from sim import massive_index
 
@@ -311,13 +311,27 @@ def sets_price(conditions: str | None, correction: int) -> bool:
             and condition_codes(conditions).isdisjoint(SIM_MASSIVE_NO_PRICE_CONDITIONS))
 
 
+def repeats_a_print(conditions: str | None) -> bool:
+    """An official open / close or corrected-close record: a repeat of an auction print already on the tape.
+
+    IBKR's live tape has no such records (the opening cross prints once), so a replay leaves them out, and no
+    volume counts them."""
+    return not condition_codes(conditions).isdisjoint(SIM_MASSIVE_REPEAT_CONDITIONS)
+
+
+def counts_volume(conditions: str | None, correction: int) -> bool:
+    """A print the consolidated tape counts in volume: a regular trade or a correction record (0 / 12), never a
+    repeat record, a cancelled or corrected original (1 / 7 / 8) or a cancel / error record (10 / 11)."""
+    return correction in SIM_MASSIVE_PRICED_CORRECTIONS and not repeats_a_print(conditions)
+
+
 def trade(row: dict[str, str], symbol: str) -> dict | None:
-    """One trade as a replay print, or ``None`` for a cancel / error record (not a trade)."""
+    """One trade as a replay print, or ``None`` for a cancel / error record or a repeat record (not a trade)."""
     correction = _int(row.get("correction"))
-    if correction in SIM_MASSIVE_DROPPED_CORRECTIONS:
+    conditions = row.get("conditions") or ""
+    if correction in SIM_MASSIVE_DROPPED_CORRECTIONS or repeats_a_print(conditions):
         return None
     ns = _int(row.get("sip_timestamp"))
-    conditions = row.get("conditions") or ""
     exchange = _int(row.get("exchange"))
     return dict(ts=ns / 1e9, ns=ns, symbol=symbol, price=float(row["price"]), size=float(row["size"]),
                 exchange=SIM_MASSIVE_EXCHANGES.get(exchange, str(exchange)), exchange_id=exchange,

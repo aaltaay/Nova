@@ -467,8 +467,13 @@
   left: 0;
   z-index: 8;
   display: none;
-  width: 330px;
+  box-sizing: border-box; /* ChartKey's height is the whole card's, padding and border included */
+  width: 352px;
   max-width: calc(100vw - 24px);
+  /* ChartKey sets the height its pane leaves it as it opens; this cap holds until then. It scrolls past either. */
+  max-height: 60vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 8px 10px;
   border: 1px solid var(--sr-border);
   border-radius: 6px;
@@ -506,6 +511,7 @@
 .sr-key__swatch--rise { transform: rotate(-20deg); }
 .sr-key__swatch--fall { transform: rotate(20deg); }
 .sr-key__swatch--band { height: 10px; border-radius: 2px; outline: 1px solid rgba(255, 255, 255, 0.12); }
+.sr-key__swatch--paths, .sr-key__swatch--diamond { height: 12px; }
 .sr-key__swatch--box { height: 10px; border: 1px solid; border-radius: 2px; }
 .sr-key__swatch--ring { width: 8px; height: 8px; margin: 0 7px; border: 1.5px solid; border-radius: 50%; }
 .sr-key__swatch--up {

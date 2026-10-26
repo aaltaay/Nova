@@ -21,14 +21,20 @@ import {
   NAV_RAIL_COLLAPSE_TITLE,
   NAV_RAIL_EXPAND_TITLE,
   NAV_RAIL_GROUP_LABELS,
+  NAV_RAIL_LABEL_CONGRESS,
   NAV_RAIL_LABEL_CRYPTOS,
+  NAV_RAIL_LABEL_FOREX,
+  NAV_RAIL_LABEL_GLOBAL,
   NAV_RAIL_LABEL_MARKET,
   NAV_RAIL_LABEL_RECORDS,
   NAV_RAIL_LABEL_SCANNER,
   NAV_RAIL_LABEL_SETTINGS,
   NAV_RAIL_LABEL_TRADER,
   NAV_RAIL_RECORDING_MAX,
+  NAV_RAIL_TITLE_CONGRESS,
   NAV_RAIL_TITLE_CRYPTOS,
+  NAV_RAIL_TITLE_FOREX,
+  NAV_RAIL_TITLE_GLOBAL,
   NAV_RAIL_TITLE_MARKET,
   NAV_RAIL_TITLE_RECORDS,
   NAV_RAIL_TITLE_SCANNER,
@@ -47,6 +53,7 @@ import {
   useNavRailSnapshot,
   type NavPage,
 } from '../workspace/navRailStore';
+import { isTopNineList, TopNineRailButton } from '../top_nine';
 import { listScannerNavGroups, type ActiveTab } from '../workspace/registry';
 import { isDockTab } from '../workspace/scannerTabs';
 import { useModuleVisibility } from '../workspace/useModuleVisibility';
@@ -135,6 +142,22 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
     >
       <div className="nav-rail__list">
         <NavRailItem
+          testId="nav-rail-forex"
+          icon={navRailIcon('forex')}
+          label={NAV_RAIL_LABEL_FOREX}
+          title={NAV_RAIL_TITLE_FOREX}
+          active={!traderActive && page === 'forex'}
+          onClick={() => goPage('forex')}
+        />
+        <NavRailItem
+          testId="nav-rail-global"
+          icon={navRailIcon('global')}
+          label={NAV_RAIL_LABEL_GLOBAL}
+          title={NAV_RAIL_TITLE_GLOBAL}
+          active={!traderActive && page === 'global'}
+          onClick={() => goPage('global')}
+        />
+        <NavRailItem
           testId="nav-rail-market"
           icon={navRailIcon('market')}
           label={NAV_RAIL_LABEL_MARKET}
@@ -173,7 +196,7 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
                   {visible.map((m) => {
                     const dock = isDockTab(m.id as ActiveTab);
                     const n = m.countKey ? (scanner.counts[m.countKey] ?? 0) : 0;
-                    return (
+                    const item = (
                       <NavRailItem
                         key={m.id}
                         testId={`nav-rail-tab-${m.id}`}
@@ -189,6 +212,14 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
                         onClick={() => goTab(m.id as ActiveTab)}
                       />
                     );
+                    // Gappers, Gainers and After Hours carry the Top 9 pop-up's grid button.
+                    if (!isTopNineList(m.id)) return item;
+                    return (
+                      <div key={m.id} className="nav-rail__pop-row">
+                        <TopNineRailButton list={m.id} label={m.title} />
+                        {item}
+                      </div>
+                    );
                   })}
                 </div>
               );
@@ -203,6 +234,14 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
           title={NAV_RAIL_TITLE_CRYPTOS}
           active={!traderActive && page === 'cryptos'}
           onClick={() => goPage('cryptos')}
+        />
+        <NavRailItem
+          testId="nav-rail-congress"
+          icon={navRailIcon('congress')}
+          label={NAV_RAIL_LABEL_CONGRESS}
+          title={NAV_RAIL_TITLE_CONGRESS}
+          active={!traderActive && page === 'congress'}
+          onClick={() => goPage('congress')}
         />
         {visibility.trading !== false && (
           <NavRailAccountItem active={accountActive} onOpen={() => goPage('account')} />

@@ -2,7 +2,7 @@
 <!--
   Share clips' high-quality capture page (ADR 039): a hidden window with its
   own renderer process, apart from the screen recorder's (ADR 035), so a crash
-  here can never stop the always-on recording. Dumb on purpose -- clipHq.mjs
+  here can never stop the screen recording. Dumb on purpose -- clipHq.mjs
   (the main process) decides what to capture and when, and owns the files. This
   page only turns "start" into a window capture + MediaRecorder and hands every
   chunk back, in order.

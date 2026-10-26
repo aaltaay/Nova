@@ -165,8 +165,11 @@ class PrintTable:
         return [results[code[self._at(k)]] for k in range(len(self))]
 
     def where_fields(self, keep: Callable[[dict], object]) -> PrintTable:
-        """A view of the rows whose fields kept with the rest pass ``keep`` (see ``judged``)."""
+        """A view of the rows whose fields kept with the rest pass ``keep`` (see ``judged``); the table itself when
+        every combination passes (no pass over the rows)."""
         passes = [bool(keep(self._rest(shape))) for shape in self._shapes]
+        if all(passes):
+            return self
         code = self._code
         return self.subset(k for k in range(len(self)) if passes[code[self._at(k)]])
 
