@@ -35,6 +35,8 @@ _SHORT_DURATION = re.compile(r"\bshort[- ](term|duration|maturity|dated|treasury
                              r"municipal|muni|government)\b", re.I)
 _LEVERED = re.compile(r"\b(daily|ultra\w*|leveraged?|\d+(?:\.\d+)?\s*x)\b", re.I)
 _LEVERAGE_WORD = re.compile(r"\bleveraged?\b", re.I)
+# "2X Long ON Daily", "Daily Target 2X Short AMD": the side words any case, the ticker only in capitals.
+_SINGLE_STOCK = re.compile(r"(?i:\b\d+(?:\.\d+)?\s*x\s+(?:long|short|inverse|bull|bear))\s+([A-Z]{1,5})\b")
 # The legal tail of a listing's name says nothing about what the fund tracks: "... ETNs due February 17, 2045",
 # "... ETF Common Shares of Beneficial Interest Shares".
 _LEGAL_TAIL = re.compile(r"\b(due\b|common shares of beneficial interest|shares of beneficial interest|"
@@ -77,6 +79,11 @@ def _leverage(name: str) -> float | None:
 
 
 def _tracks(name: str) -> str | None:
+    # A single-stock fund writes its ticker in capitals right after its side: "2X Long ON Daily", "2X Long BULL"
+    # -- tickers that are also plain words ("on", "bull") would be dropped below.
+    single = _SINGLE_STOCK.search(name)
+    if single:
+        return single.group(1)
     text = _MULTIPLE.sub(" ", name)
     low = text.lower()
     for issuer in sorted(MOVE_FUND_ISSUERS, key=len, reverse=True):

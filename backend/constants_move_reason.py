@@ -84,7 +84,7 @@ MOVE_FUND_ISSUERS = (
     "volatility shares", "axs", "tuttle", "bitwise", "grayscale", "fidelity", "franklin", "jpmorgan", "state street",
     "select sector", "xtrackers", "pacer", "simplify", "bank of montreal", "bmo", "etracs", "ubs", "credit suisse",
     "velocityshares", "ipath", "barclays", "fundstrat", "21shares", "coinshares", "teucrium", "united states",
-    "us global", "themes", "neos", "nicholas", "rex-osprey", "osprey", "canary", "hashdex", "wahed", "sprott", "corgi",
+    "us global", "themes", "neos", "nicholas", "rex-osprey", "osprey", "canary", "hashdex", "wahed", "sprott", "corgi", "capital group", "canary capital group",
 )
 # Words that say how a fund is built, never what it tracks.
 MOVE_FUND_DROP_WORDS = frozenset((
@@ -94,7 +94,7 @@ MOVE_FUND_DROP_WORDS = frozenset((
     "monthly", "pay", "covered", "call", "premium", "enhanced", "single", "stock", "tracker", "futures", "linked",
     "notes", "note", "exchange", "traded", "class", "a", "b", "inc", "inc.", "corp", "ltd", "plc", "usd", "us",
     "u.s.", "u.s", "equity", "equities", "1x", "2x", "3x", "on", "for", "in", "a-shares", "bull/bear", "active", "ftse",
-    "quarterly", "marketvector", "staking", "common",
+    "quarterly", "marketvector", "staking", "common", "llc", "l.p.", "lp",
 ))
 
 # -- the borrow feed (move_reason/borrow_feed.py) --------------------------------------------------

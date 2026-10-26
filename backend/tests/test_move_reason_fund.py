@@ -40,6 +40,14 @@ def test_the_legal_tail_and_an_unwritten_multiple_are_read_honestly():
     assert mst["leverage"] is None and describe(mst) == "Leveraged fund on MSTR"
 
 
+def test_a_ticker_that_is_also_a_word_and_a_sponsor_name_are_read_right():
+    # The second held-back review (2026-10-26): "ON" and "BULL" were dropped as words; a sponsor's
+    # "Capital Group, LLC" was read as what the fund tracks.
+    assert from_name("Leverage Shares 2X Long ON Daily ETF")["tracks"] == "ON"
+    assert from_name("Leverage Shares 2X Long BULL Daily ETF")["tracks"] == "BULL"
+    assert from_name("Canary Capital Group, LLC Canary Litecoin ETF")["tracks"] == "Litecoin"
+
+
 def test_a_name_that_does_not_say_what_it_tracks_keeps_the_rest():
     f = from_name("ETRACS Quarterly Pay 1.5x Leveraged MarketVector BDC Liquid Index ETN Series B Due 2050")
     assert f["leverage"] == 1.5 and describe(f).startswith("Leveraged 1.5x fund")
