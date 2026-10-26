@@ -534,13 +534,22 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
   line, or a non-text column that is not a number somewhere that day is read the whole-day way (and cached).
 - **Momentum-research tools** (`tools/nova_data_research.py`, the second tool set; CLI `tools/market_data_research.py`):
   - `find_stock_days {filters, symbol?, kinds?, splits?, float_max?, outstanding_max?, float_basis?, float_unknown?,
-    catalyst?, halted?, sort?, limit?, cursor?, page_size?, output_name?}` -> a table answer plus `next_cursor`
+    catalyst?, catalyst_category?, catalyst_words?, halted?, rvol_daily_min?, sort?, limit?, cursor?, page_size?,
+    output_name?}` -> a table answer plus `next_cursor`
     (`"YYYY-MM-DD|SYMBOL"` or null). Rows:
     `date, symbol, kind, prev_close, open, high, low, close, volume, dollar_volume, high_pct, low_pct, close_pct,
     gap_pct, day_high, day_high_et, day_low, day_low_et, pm_high, pm_low, pm_volume, ah_high, ah_volume, split,
     up10_et .. up300_et, down10_et .. down50_et, outstanding_shares, outstanding_as_of, outstanding_filed,
     outstanding_age_days, enrichment_float, float_shares, float_source, catalyst_verdict, catalyst_category,
-    catalyst_strength, catalyst_title, catalyst_cutoff, halts, first_halt_et, halt_codes, luld_halts`. `filters` are
+    catalyst_strength, catalyst_title, catalyst_cutoff, halts, first_halt_et, halt_codes, luld_halts, rvol_daily,
+    rvol_volume, rvol_day_avg_volume, rvol_day_avg_sessions`. **News and volume filters** (#1100 table, operator
+    2026-10-25): `catalyst_category` keeps the verdict's category (`fda_regulatory`, `clinical_data` ...; case
+    ignored); `catalyst_words` keeps a `catalyst_title` containing any of the words (case ignored; a text match, not
+    a judgment); `rvol_daily` is the stock-day's 04:00-20:00 volume over the relative-volume table's
+    `day_avg_volume` (`research/market_reads/rvol_days.py`, rounded to 0.01; `rvol_scan`'s `rvol_daily` at the
+    session's end), null when the table does not hold the stock-day or `rvol_day_avg_sessions` is under 20 --
+    unknown, never low; `rvol_daily_min` (a ratio over 0, 5 = 5x) keeps rows at or over it, leaves the unknowns out
+    and counts them in `meta.left_out.rvol_unknown` (`meta.rvol_rule` says the rule). `filters` are
     `movers_scan`'s (needs `date_from` / `date_to` or `symbol`). `float_basis` `sec_outstanding` (default: the movers
     store's `sec_shares` by `day_movers.floats.sec_shares` -- filed by the day, as of at most 120 days before it,
     split-adjusted; a reused ticker's count is dropped when its CIK is not the day's holder) | `enrichment` (desk

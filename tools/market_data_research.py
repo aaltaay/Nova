@@ -33,7 +33,10 @@ def cmd_find(args, show) -> int:
         float_max=args.float_max, outstanding_max=args.outstanding_max, float_basis=args.float_basis,
         float_unknown=args.float_unknown, catalyst=args.catalyst.split(",") if args.catalyst else None,
         halted=None if args.halted is None else args.halted == "yes", sort=args.sort, limit=args.limit,
-        cursor=args.cursor, page_size=args.page_size, to_file=bool(args.out))
+        cursor=args.cursor, page_size=args.page_size, to_file=bool(args.out),
+        catalyst_category=args.catalyst_category.split(",") if args.catalyst_category else None,
+        catalyst_words=args.catalyst_words.split(",") if args.catalyst_words else None,
+        rvol_daily_min=args.rvol_daily_min)
     return show(frame, args)
 
 
@@ -96,6 +99,12 @@ def add_parsers(sub, output) -> None:
                       choices=["sec_outstanding", "enrichment", "best"])
     find.add_argument("--float-unknown", dest="float_unknown", default="exclude", choices=["exclude", "include", "only"])
     find.add_argument("--catalyst", help="comma list of verdicts to keep (catalyst, none_found, unknown ...)")
+    find.add_argument("--catalyst-category", dest="catalyst_category",
+                      help="comma list of verdict categories to keep (fda_regulatory, clinical_data ...)")
+    find.add_argument("--catalyst-words", dest="catalyst_words",
+                      help="comma list: keep a headline containing any (approv,clear); a text match")
+    find.add_argument("--rvol-daily-min", dest="rvol_daily_min", type=float,
+                      help="ratio: the day's volume over its usual whole-session volume (5 = 5x); unknowns left out")
     find.add_argument("--halted", choices=["yes", "no"])
     find.add_argument("--sort", choices=["newest", "oldest", "high", "low", "close", "gap", "volume", "dollar_volume"],
                       help="rank the rows like the movers search (default: oldest day first)")
