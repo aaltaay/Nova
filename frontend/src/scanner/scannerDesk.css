@@ -260,3 +260,26 @@
 .table-wrapper--scanner thead th {
   z-index: 3;
 }
+
+/* ── Row shades (operator approved 2026-10-26; rules in scanner/rowShades.ts) ── */
+/* A low-float, high-relative-volume row is lit end to end; selection and hover
+   still show over it. The float and volume cells carry their own shade on any
+   row, selected or hovered, so the figure's band never disappears. An unknown
+   figure has no data attribute: no shade. */
+.table-wrapper tbody tr.scanner-row--hot:not(.row-selected):not(:hover) td {
+  background: rgba(55, 138, 221, 0.1);
+}
+
+.table-wrapper tbody tr.scanner-row td[data-col='float'][data-float-shade='low'] {
+  background: rgba(55, 138, 221, 0.3);
+}
+
+.table-wrapper tbody tr.scanner-row td[data-col='float'][data-float-shade='mid'] {
+  background: rgba(99, 153, 34, 0.28);
+}
+
+.table-wrapper tbody tr.scanner-row td[data-col='volume'][data-volume-shade='1'] { background: rgba(29, 158, 117, 0.09); }
+.table-wrapper tbody tr.scanner-row td[data-col='volume'][data-volume-shade='2'] { background: rgba(29, 158, 117, 0.18); }
+.table-wrapper tbody tr.scanner-row td[data-col='volume'][data-volume-shade='3'] { background: rgba(29, 158, 117, 0.27); }
+.table-wrapper tbody tr.scanner-row td[data-col='volume'][data-volume-shade='4'] { background: rgba(29, 158, 117, 0.36); }
+.table-wrapper tbody tr.scanner-row td[data-col='volume'][data-volume-shade='5'] { background: rgba(29, 158, 117, 0.45); }
