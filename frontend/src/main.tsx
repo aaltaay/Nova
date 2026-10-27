@@ -10,6 +10,15 @@ import { isReviewPath } from './review/reviewPath';
 
 initThemeFromStorage();
 
+// #612: on the dev server, new code on disk waits for the operator's Reload click
+// (dev_reload_hold/). Builds compile this away.
+if (import.meta.env.DEV) {
+  void import('./dev_reload_hold').then(
+    ({ startReloadHold }) => startReloadHold(window),
+    (err) => console.debug('[Nova] reload hold did not start', err),
+  );
+}
+
 if (isReviewPath(window.location.pathname)) {
   void import('./review/mountReview').then(
     ({ mountReview }) => mountReview(),
