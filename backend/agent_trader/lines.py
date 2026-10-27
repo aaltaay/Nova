@@ -7,8 +7,9 @@ subscribe (the refusal), auto-record and line lending (their free lines); the ho
 lines, taken and given back exactly like a Session Record's (``capture.feed_hold``), so it is never idle-evicted
 and never lent.
 
-Claude never takes a line from the operator: with all 3 held by the desk, ``acquire`` answers why and the watcher
-asks again; the first line the desk lets go is Claude's, because a desk request is then refused.
+Claude never takes a line from the operator: with all 3 held by the desk, the watcher first has auto-record give
+one up (``agent_trader.room``, ADR 068 decision 3 as amended 2026-10-27); with none to give, ``acquire`` answers why
+and the watcher asks again; the first line the desk lets go is Claude's, because a desk request is then refused.
 """
 from __future__ import annotations
 

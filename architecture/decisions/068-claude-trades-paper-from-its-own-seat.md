@@ -1,6 +1,6 @@
 # ADR 068 -- Claude trades Paper from its own seat
 
-**Status:** Accepted · **Date:** 2026-10-26
+**Status:** Accepted · **Date:** 2026-10-26 · **Amended:** 2026-10-27 (decision 3: an auto-record line; decision 12: the eye)
 **Amends:** [[044-one-bots-page]] (decision 6: a hidden tab's line is never Claude's, and the seat's line is never lent) · [[063-a-loss-line-for-you-and-one-for-the-bots]] (Claude's fills count on the Bots line)
 **Builds on:** [[007-centralized-trading-execution]] · [[018-desk-venue-vs-spend-arming]] · [[045-orders-refuse-a-stale-view]] · [[055-the-live-trader-bot]] (the Paper-only send pattern) · [[050-agents-find-and-show-in-the-sim]] (the `/api/agent` door and its key)
 **Decided by:** the operator, 2026-10-26 (about 20:00 ET). They asked Claude to trade Paper itself: "i want to ask you to be the one who uses your brain and place trades on paper". Then: "i agree.. lets do it ... you need to make your presence known." Then: "we only got 3 symbols to look at level 2, and you will need to control one of them.. and lock it so human wont be able to just open like 3 and you have taken one ... please think about every scenario." Limits as proposed and agreed: up to 1,000 shares, at most $150 risk a trade, 3 trades a day, long only, Paper only. On the day's max loss: "only activate this feature on a paper account without a max loss", then "i guess do a max loss of $500! for claude lane.." -- Claude's lane stops itself at -$500 a day, and the desk's shared loss lines do not stop its buys on Paper.
@@ -24,7 +24,17 @@ Claude works through tool calls. It reads Level 2 and Time & Sales from the back
    - a desk request refused for the reservation says so in words: "All 3 Level 2 lines are in use: SPIK and FLTX are yours, SMPL is Claude's. Close one of yours, or take Claude's line." It carries `agent_reserved: true`.
    - The tick-by-tick budget is not known in advance (#674), so the Time & Sales line is best effort: a refusal is shown and asked for again.
 
-3. **Never take a line from the operator.** If the seat turns on while the desk already holds 3 lines, the seat waits ("Waiting for a Level 2 line") and takes the first line that frees. It never evicts a tab, a recording or a loan.
+3. **Never take a line from the operator; take an auto-record line (amended 2026-10-27).** If the seat names a stock
+   while the desk already holds 3 lines, the seat takes an **auto-record** line: of the auto-record lines whose
+   only viewer is auto-record's own hold (stopping it frees the line), the one the desk has had in front least
+   recently -- never in front counts as longest idle --, ties broken by auto-record's own lowest rank
+   (`leaderboard.auto_record.yield_to_agent`). The recording stops as planned (segment `reason: "auto"`), the
+   Records page lists it as yielded to Claude, and the reservation keeps auto-record from taking it back. With no
+   such auto line the seat waits ("Waiting for a Level 2 line") and takes the first line that frees. It still never
+   takes a Trader tab's line, a Session Record the operator started, the L2 recorder or a loan. Why: on 2026-10-27
+   the desk and auto-record held all 3 lines and the seat waited all morning ("waiting_line"). A hidden Trader tab
+   idle past line lending's cooldown is the next candidate, but taking it changes what that tab shows, so it waits
+   for an approved desk mockup.
 
 4. **The operator overrides.** **Take Claude's line** gives the seat up: Claude's lines are released, new entries are refused, and an open trade keeps its stop and still closes at 15:55. **Stop Claude** cancels Claude's orders, sells Claude's shares and turns the seat off. Both are on the desk (mockup approval pending) and the `/api/agent/trader` routes.
 
@@ -49,12 +59,28 @@ Claude works through tool calls. It reads Level 2 and Time & Sales from the back
 
 10. **Claude is seen and heard.** `GET /api/agent/trader` answers the seat's state, stock, line, position, working orders, the day's tally, Claude's latest note and its recent events; the desk draws the header pill, the panel, the chart lines and the Sent by badge from it (design `F:\Nova\design\claude-seat\v2`, drawn on the real desk and approved by the operator 2026-10-26).
 
+12. **Claude sees the whole market at once (the eye, 2026-10-27).** The operator, driving the seat from a chat, asked for
+    a "god eye": Claude should see every stock the scanner follows and move its one line to whatever is moving.
+    `GET /api/agent/trader/eye` (read-only, loopback, opens no line) answers every symbol in the live scanner universe
+    -- the Gappers, Gainers and After Hours rows and the setup scanner's universe (HOD Momo's active set) -- with its
+    last price, day move, the price change and dollar volume over the last 10, 30 and 60 seconds, float, spread,
+    halt and catalyst, spikes ranked first, and a list of spike events. A **spike** is a move of
+    `AGENT_EYE_SPIKE_MOVE_PCT` (2%) or more, either way, over `AGENT_EYE_SPIKE_SECONDS` (60 s) with at least
+    `AGENT_EYE_SPIKE_MIN_DOLLARS` ($50,000) traded in it (`constants_agent_trader`). Every number is IBKR's: the
+    Level 1 line's last and cumulative day volume, sampled on each print (`hod_momo_metrics`, one hour kept), so the
+    dollar volume is each day-volume step times the last that came with it; a window the samples do not reach back
+    across is null, never filled in. The watcher scans once a second while the seat is on, so a spike between
+    Claude's looks is still listed; `?wait=` long-polls for the next one. The eye only reads: Claude still moves its
+    line with `POST /watch`.
+
 ## Scenarios
 
 | Scenario | What happens |
 |---|---|
 | Seat on, desk holds 1-2 lines | Claude takes a free line; the desk keeps 2 of its own. |
-| Seat on, desk holds 3 | Claude waits and says so; the first line the desk lets go is Claude's. |
+| Seat on, desk holds 3, one is auto-record's | Claude takes the auto line idle longest; the recording stops as planned. |
+| Seat on, desk holds 3, none is auto-record's | Claude waits and says so; the first line the desk lets go is Claude's. |
+| A stock spikes between Claude's looks | The eye lists the spike event; Claude moves its line with `POST /watch`. |
 | Operator opens a 3rd Level 2 while Claude holds one | Refused in words, with Take Claude's line. |
 | Operator opens Claude's stock | Shares Claude's line; no extra line. |
 | Claude moves to another stock | Old line released (its AllLast at once, #698), new line taken. A shared old line stays the desk's. |

@@ -5,14 +5,17 @@ Each pass, in order:
 1. **15:55 ET** -- Claude's shares are sold and its orders cancelled on Paper, seat on or off (the day cover's
    time); **16:00 ET** the seat turns off.
 2. **A lapsed lease** -- no check-in for ``AGENT_LEASE_SEC``: the same close, then the seat off and its line freed.
-3. **The line** -- while the seat reserves one and names a stock, take it if a depth line is free (never from the
-   operator); a seat given up or off lets its lines go.
+3. **The line** -- while the seat reserves one and names a stock, take it if a depth line is free; with all 3 held,
+   an auto-record line is given up for it first (``room``, never the operator's); a seat given up or off lets its
+   lines go.
 4. **Breaks** -- a resting break whose trigger a print reached sends its bracket at the break's top price, after
    its confirm (buyers leading, ``reflexes.confirmed``) and Claude's limits are checked again; one past its time is
    dropped.
 5. **Reflexes** -- each armed reflex on the seat's stock is judged on the live book and the last prints; one that
    holds does its action at once (``reflexes``).
 6. **Fills** -- every new fill of Claude's is said once (an event the desk toasts and speaks).
+7. **The eye** -- while the seat is on, every symbol the scanner follows is scanned once a second, so a spike between
+   Claude's looks is still listed (``eye``).
 Every outcome is an event the desk shows.
 """
 from __future__ import annotations
@@ -103,6 +106,11 @@ async def _line(t: float) -> None:
     if lines.holds_depth(sym) and lines.holds_tape(sym):
         _line_why = None
         return
+    if not lines.holds_depth(sym):
+        from agent_trader import room
+
+        if taken := await room.make_room(sym, t):
+            seat.event("line_taken", f"took {taken}'s auto-record line for {sym}: all 3 Level 2 lines were held", t)
     why = await lines.acquire(sym)
     if why != _line_why and why:
         seat.event("line_wait", f"waiting for a Level 2 line on {sym}: {why}", t)
@@ -275,6 +283,18 @@ async def run_pass(now: float | None = None) -> None:
         if seat.is_on():
             await _reflexes(t)
         await _fills(t)
+        if seat.is_on():
+            await _eye(t)
+
+
+async def _eye(t: float) -> None:
+    from agent_trader import eye
+
+    if eye.scan_due(t):
+        try:
+            await asyncio.to_thread(eye.scan, t)
+        except Exception:
+            logger.exception("AGENT eye: a scan failed")
 
 
 async def run() -> None:

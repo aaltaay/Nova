@@ -45,6 +45,16 @@ AGENT_REFLEX_DEFAULT_MIN = 60.0
 AGENT_REFLEX_MAX_MIN = 390.0
 AGENT_REFLEX_MAX = 6
 
+# The eye (decision 12): every symbol the scanner follows, over the Level 1 samples ``hod_momo_metrics`` keeps.
+AGENT_EYE_WINDOWS_SEC = (10, 30, 60)
+AGENT_EYE_SPIKE_SECONDS = 60          # a spike: this window moved ...
+AGENT_EYE_SPIKE_MOVE_PCT = 2.0        # ... this many percent or more, either way ...
+AGENT_EYE_SPIKE_MIN_DOLLARS = 50_000.0  # ... with at least this much traded in it (operator ask, 2026-10-27)
+AGENT_EYE_SCAN_SEC = 1.0              # the watcher scans this often while the seat is on
+AGENT_EYE_EVENTS_KEEP = 50
+AGENT_EYE_EVENTS_MAX_AGE_SEC = 1800.0
+AGENT_EYE_WAIT_MAX_SEC = 30.0         # the longest ``?wait=`` long-poll
+
 # Entry kinds (decision 8).
 ENTRY_LIMIT = "limit"
 ENTRY_BREAK = "break"

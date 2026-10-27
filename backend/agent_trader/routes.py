@@ -13,11 +13,12 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from agent_desk.routes import require_local
-from agent_trader import ledger, lines, look, orders, reflexes, rules, seat, view, watcher
+from agent_trader import eye, ledger, lines, look, orders, reflexes, rules, seat, view, watcher
 from agent_trader import clock
 from agent_trader.constants_agent_trader import (
     AGENT_BREAK_DEFAULT_MIN,
     AGENT_BREAK_MAX_MIN,
+    AGENT_EYE_WAIT_MAX_SEC,
     AGENT_NOT_MINE,
     AGENT_NOT_PAPER,
     AGENT_REFLEX_DEFAULT_MIN,
@@ -110,6 +111,13 @@ def get_status() -> dict[str, Any]:
 async def get_look(symbol: str = Query(min_length=1, max_length=10),
                    seconds: float = Query(default=120.0, gt=0, le=900)) -> dict[str, Any]:
     return await look.look(symbol, seconds)
+
+
+@router.get("/eye")
+async def get_eye(wait: float = Query(default=0.0, ge=0, le=AGENT_EYE_WAIT_MAX_SEC),
+                  after: float | None = Query(default=None, ge=0)) -> dict[str, Any]:
+    """Every symbol the scanner follows, spikes first (decision 12); ``wait`` long-polls for a spike after ``after``."""
+    return await eye.eye(wait, after)
 
 
 @router.post("/seat", dependencies=_keyed)

@@ -17,6 +17,7 @@ Claude's own writes also carry `X-Agent-Seat: <token>`; the operator's three but
 |---|---|---|
 | `GET /api/agent/trader` | anyone local | the status below |
 | `GET /api/agent/trader/look?symbol=&seconds=120` | anyone local | `{symbol, at, line: {depth, tape, claude_holds, book_at}, quote: {last, bid, ask}, book: {bids, asks, l1_fallback}` (top 10 rows each, the depth module's own rows), `tape: {seconds, summary: {prints, volume, high, low, vwap, at_ask, at_bid}, prints: [{ts, price, size, side?, exchange?, bid?, ask?, conditions?}]}` (newest 200), `locked}` (the view lock's answer or null). Opens no line. |
+| `GET /api/agent/trader/eye?wait=0&after=` | anyone local | the eye below: every symbol the scanner follows, spikes first, and the spike events. `wait` (0-30 s) long-polls: the answer comes once a spike event newer than `after` (epoch seconds) is listed, or when `wait` runs out. Opens no line. |
 | `POST /seat` | Claude | `{token, status}`; refused (`AGENT_SEAT_TAKEN`, 409) while another holder's lease is alive, and outside weekdays 04:00-16:00 ET (`AGENT_SEAT_OFF`) |
 | `POST /beat` | Claude | status; renews the lease |
 | `DELETE /seat` | Claude | `{problems, status}`: cancels Claude's orders, sells its shares, frees the line, seat off |
@@ -68,9 +69,31 @@ moves `replace` the same way; closes `source: "flatten"` market SELLs and cancel
 `claude` close named to Live. Practice rows carry `order_origin: "claude"`; Claude's position is its own fills, never more than Paper holds in the stock: Nova's own closes (the loss limit's Auto sell, KILL, a margin call) sell Claude's shares under their own origin, and Claude's P&L counts those shares at the price those closes got.
 Claude's fills still count in the Paper account's loss-limit totals and on the Bots line's figures (`loss_limit.accounts.by_of`, `LOSS_LIMIT_BOT_CLOSE_ORIGINS`), but no shared line refuses Claude's buys on Paper.
 
-**Events** (`kind`): `on`, `off`, `watch`, `line`, `line_wait`, `armed`, `buy_set`, `break_set`, `break_wait`, `break_end`, `refused`, `stop`, `cancel`, `close`, `fill` ("Claude bought 510 SMPL at 4.40", each fill said once), `reflex_set`, `reflex_fired`, `reflex_end`, `yielded`, `line_back`, `day_close`; the desk toasts and speaks them.
+**Events** (`kind`): `on`, `off`, `watch`, `line`, `line_wait`, `armed`, `buy_set`, `break_set`, `break_wait`, `break_end`, `refused`, `stop`, `cancel`, `close`, `fill` ("Claude bought 510 SMPL at 4.40", each fill said once), `reflex_set`, `reflex_fired`, `reflex_end`, `yielded`, `line_back`, `day_close`, `line_taken` ("took KTTA's auto-record line for SMPL", not toasted); the desk toasts and speaks them.
 
 **Reflexes** (`agent_trader.reflexes`, ADR 068 decision 11). Judged every 0.5 s on the seat's stock: the depth book's rows added up by price, and Nova's tape archive (a print at or over its ask is a buyer's, at or under its bid a seller's). `bid_pulled` fires only after it has seen its size since arming. A `sell_all` reflex is live while Claude holds shares, a `cancel_buy` while a buy or break waits; each fires once, does its action and is gone (an event says what it saw and did).
+
+**The eye** (`GET /api/agent/trader/eye`, `agent_trader.eye`, ADR 068 decision 12; `schema_version: 1`): `{generated_at,
+source: "ibkr", rule: {move_pct, seconds, min_dollars}, line, universe, spikes: [event], symbols: [row]}`. `line` is
+the symbol Claude's line is on (or null); `universe` the number of symbols. The universe is the live Gappers, Gainers
+and After Hours rows (`runtime_state`, every row, not a top N) and the setup scanner's universe (HOD Momo's active set,
+`hod_momo_active.get_active_symbols`), blocklisted symbols out. A row: `{symbol, lists: ["gappers" | "gainers" |
+"afterhours" | "setups"], last, prev_close, day_pct, windows: {"10" | "30" | "60": {pct, shares, dollars} | null},
+spike: {direction: "up" | "down", pct, dollars} | null, float_shares, bid, ask, spread, spread_pct, halted, catalyst}`.
+`last` is IBKR's Level 1 last (null while it is the prior close, `quote_quality: "close_fallback"`); `day_pct` is
+`last` against IBKR's prior close (percent points, null when either is unknown); `bid` / `ask` the Level 1 line's;
+`spread_pct` against the mid. `windows[n]` reads the Level 1 samples `hod_momo_metrics` keeps (one hour; each the
+cumulative day volume and the last that came with it): `pct` is the newest sample's last against the last at or
+before `n` seconds ago, `shares` the day-volume rise, `dollars` each rise times the last that came with it; a window
+the samples do not reach back across is null, never filled in. `float_shares` and `halted` are the scanner row's
+(`scanner_surface.surface_rows`), `catalyst` the scanner's verdict (`catalysts.board`: `{verdict, category, strength,
+title, published_ts}` or null, unread). `spike` is set when the 60-second window moved `AGENT_EYE_SPIKE_MOVE_PCT`
+(2.0) or more either way with `AGENT_EYE_SPIKE_MIN_DOLLARS` (50,000) or more traded in it (`AGENT_EYE_SPIKE_SECONDS`,
+60; `constants_agent_trader`). Rows are ranked spikes first (largest move first), then by the 60-second move's size,
+then the day move. A spike event `{symbol, at, direction, pct, dollars, last}` is listed once when a symbol starts
+spiking and again only after it stopped; newest first, the last `AGENT_EYE_EVENTS_KEEP` (50) of the last
+`AGENT_EYE_EVENTS_MAX_AGE_SEC` (1,800 s). The watcher scans once every `AGENT_EYE_SCAN_SEC` (1 s) while the seat is on;
+each read scans too. In memory only: a restart starts the event list empty.
 
 **A break.** The seat watches each break's symbol twice a second (`agent_trader.watcher`): the first print that sets a
 price at or above `trigger` -- while its `confirm` holds, when it has one -- sends the bracket with its LMT entry at `top`, after the limits are checked again. A break
@@ -82,8 +105,13 @@ that is refused by `ibkr.depth.subscribe_async` with `{ok: false, cap: true, age
 Level 2 lines are in use: SPIK and FLTX are yours, SMPL is Claude's. Close one of yours, or take Claude's line."}`.
 Auto-record and line lending count the same free lines (`agent_trader.lines.desk_free`). Claude's line is a viewer
 reference on the depth and AllLast lines, like a Session Record's: never idle-evicted, never lent;
-`GET /api/ibkr/depth/lines` shows it as `held_by: "agent"`. With 3 desk lines held, the seat waits (`waiting_line`)
-and never evicts one. "Held" means up on this IBKR session: after a reconnect the seat's reference survives, Nova's renewal of Claude's own line is admitted past the reservation, and the watcher asks again until it is up (no second reference).
+`GET /api/ibkr/depth/lines` shows it as `held_by: "agent"`. With 3 desk lines held (ADR 068 decision 3, amended
+2026-10-27), the seat takes an auto-record line: of the auto lines whose only viewer is auto-record's hold, the one
+in front least recently on the desk (`line_lending.focus` `last_shown` and the Trader tab sockets' `front_seen`;
+never counts as longest), ties by auto-record's lowest rank (`leaderboard.auto_record.yield_to_agent`). Its
+recording stops as planned (segment `reason: "auto"`) and is listed in auto-record's status `yielded`, and the
+seat says so (event `line_taken`). With no such line the seat waits (`waiting_line`); it never takes a Trader tab's line, a Session
+Record the operator started, the L2 recorder or a loan. "Held" means up on this IBKR session: after a reconnect the seat's reference survives, Nova's renewal of Claude's own line is admitted past the reservation, and the watcher asks again until it is up (no second reference).
 
 **Closes Nova makes.** A lease not renewed for 600 s, `POST /stop-claude` or `DELETE /seat`: Claude's orders
 cancelled, its shares sold, the seat off, its lines released. 15:55 ET on a weekday: Claude's shares sold and orders
