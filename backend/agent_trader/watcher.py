@@ -1,4 +1,4 @@
-"""Claude's seat, once a second (ADR 068 decisions 2, 3, 8, 9). Registered as ``agent_trader`` in
+"""Claude's seat, twice a second (ADR 068 decisions 2, 3, 8, 9, 11). Registered as ``agent_trader`` in
 ``app_runtime_tasks``.
 
 Each pass, in order:
@@ -8,7 +8,12 @@ Each pass, in order:
 3. **The line** -- while the seat reserves one and names a stock, take it if a depth line is free (never from the
    operator); a seat given up or off lets its lines go.
 4. **Breaks** -- a resting break whose trigger a print reached sends its bracket at the break's top price, after
-   Claude's limits are checked again; one past its time is dropped. Every outcome is an event the desk shows.
+   its confirm (buyers leading, ``reflexes.confirmed``) and Claude's limits are checked again; one past its time is
+   dropped.
+5. **Reflexes** -- each armed reflex on the seat's stock is judged on the live book and the last prints; one that
+   holds does its action at once (``reflexes``).
+6. **Fills** -- every new fill of Claude's is said once (an event the desk toasts and speaks).
+Every outcome is an event the desk shows.
 """
 from __future__ import annotations
 
@@ -25,13 +30,18 @@ logger = logging.getLogger(__name__)
 _line_why: str | None = None
 _cursor: dict[str, float] = {}
 _closed_day: str | None = None
+_primed: set[str] = set()              # bid_pulled reflexes that have seen the size they guard
+_waited: dict[str, float] = {}         # break id -> when "buyers do not lead" was last said
+_seen_fills: set[int] | None = None    # Claude's fills already said (None until the first pass reads them)
 _pass_lock = asyncio.Lock()
 
 
 def reset_for_tests() -> None:
-    global _line_why, _closed_day
-    _line_why, _closed_day = None, None
+    global _line_why, _closed_day, _seen_fills
+    _line_why, _closed_day, _seen_fills = None, None, None
     _cursor.clear()
+    _primed.clear()
+    _waited.clear()
 
 
 def line_why() -> str | None:
@@ -101,8 +111,16 @@ async def _line(t: float) -> None:
     _line_why = why
 
 
+async def _recent_prints(symbol: str, t: float) -> list[dict[str, Any]]:
+    """The stock's prints in the last ``reflexes.SECONDS_MAX`` seconds from Nova's tape archive (with bid / ask)."""
+    from agent_trader import reflexes
+    from l2 import tape
+
+    return await asyncio.to_thread(tape.get_trades_in_range, symbol, t - reflexes.SECONDS_MAX, t)
+
+
 async def _breaks(t: float) -> None:
-    from agent_trader import orders, rules, seat
+    from agent_trader import orders, reflexes, rules, seat
     from practice.reference import LiveReference
 
     rows = seat.breaks()
@@ -121,6 +139,14 @@ async def _breaks(t: float) -> None:
             _cursor[bid] = prints[-1][0]
         if not any(px >= float(row["trigger"]) for _, px in prints):
             continue
+        if row.get("confirm"):
+            ok, words = reflexes.confirmed(row["confirm"], await _recent_prints(row["symbol"], t), t)
+            if not ok:
+                if t - _waited.get(bid, 0.0) >= 30.0:
+                    seat.event("break_wait", f"break on {row['symbol']} reached {row['trigger']:g}, but buyers do not "
+                               f"lead ({words}): still waiting", t)
+                    _waited[bid] = t
+                continue
         order = {**row, "entry": row["top"]}
         if refused := rules.entry_refusal(order):
             seat.drop_break(bid, f"break on {row['symbol']} reached {row['trigger']:g} but was not sent: {refused[1]}", t)
@@ -133,6 +159,98 @@ async def _breaks(t: float) -> None:
                 f"break on {row['symbol']} reached {row['trigger']:g} but the door refused it: {why}")
         seat.drop_break(bid, text, t)
         _cursor.pop(bid, None)
+
+
+async def _reflexes(t: float) -> None:
+    from agent_trader import ledger, reflexes, seat
+    from ibkr import depth
+
+    rows = seat.reflexes()
+    if not rows:
+        return
+    sym = seat.symbol()
+    try:
+        held = ledger.positions()
+        buying = {str(r["symbol"]).upper() for r in ledger.working()
+                  if str(r.get("side") or "").upper() == "BUY" and r.get("leg_role") in (None, "parent")}
+    except ledger.ReadError:
+        logger.warning("AGENT reflexes: Paper could not be read; judged next pass", exc_info=True)
+        return
+    buying |= {str(b["symbol"]).upper() for b in seat.breaks()}
+    book, prints = None, None
+    for row in rows:
+        rid, rsym = row["id"], str(row["symbol"]).upper()
+        if t >= float(row["expires_at"]) or rsym != sym:
+            seat.drop_reflex(rid, f"reflex on {rsym} ended: {reflexes.text(row)}", now=t)
+            _primed.discard(rid)
+            continue
+        live = rsym in held if row["action"] == "sell_all" else rsym in buying
+        if not live:
+            continue                     # armed for later: shares to protect, or a buy to call off
+        if book is None:
+            book = depth.current_book(rsym)
+        if row["kind"] in ("sellers", "last_below") and prints is None:
+            prints = await _recent_prints(rsym, t)
+        if rid not in _primed and reflexes.primes(row, book):
+            _primed.add(rid)
+        why = reflexes.fired(row, book=book, prints=prints or [], now=t, primed=rid in _primed)
+        if why is None:
+            continue
+        done = await _act(row, rsym, held.get(rsym, 0.0))
+        seat.drop_reflex(rid, f"Reflex fired on {rsym}: {why} -- {done}", kind="reflex_fired", now=t)
+        _primed.discard(rid)
+
+
+async def _act(row: dict[str, Any], sym: str, qty: float) -> str:
+    """Do a fired reflex's action; say what was done."""
+    from agent_trader import ledger, orders, seat
+
+    try:
+        mine = [r for r in ledger.working() if str(r["symbol"]).upper() == sym]
+    except ledger.ReadError:
+        logger.warning("AGENT reflex: Paper could not be read before acting", exc_info=True)
+        mine = []
+    if row["action"] == "cancel_buy":
+        for r in mine:
+            if str(r.get("side") or "").upper() == "BUY" and r.get("leg_role") in (None, "parent"):
+                await orders.cancel(int(r["order_id"]), sym)
+        for b in seat.breaks():
+            if str(b["symbol"]).upper() == sym:
+                seat.drop_break(b["id"], None)
+        return "Claude's buy was called off"
+    for r in mine:
+        await orders.cancel(int(r["order_id"]), sym)
+    if qty <= 0:
+        return "no shares were left to sell"
+    receipt = await orders.close(sym, qty)
+    why = orders.receipt_error(receipt)
+    return f"sold {qty:g} {sym} at market" if not why else f"the sale was refused: {why}"
+
+
+async def _fills(t: float) -> None:
+    """Say each new fill of Claude's once: the desk toasts and speaks ``fill`` events."""
+    global _seen_fills
+    from agent_trader import ledger, seat
+
+    try:
+        rows = ledger.fills_today()
+    except ledger.ReadError:
+        return
+    ids = {int(r["order_id"]) for r in rows}
+    if _seen_fills is None:
+        _seen_fills = ids                # a restart says nothing it said before
+        return
+    for r in rows:
+        oid = int(r["order_id"])
+        if oid in _seen_fills:
+            continue
+        _seen_fills.add(oid)
+        side = "bought" if str(r.get("side") or "").upper() == "BUY" else "sold"
+        how = {"target": " (target)", "target2": " (target)", "stop": " (stop)"}.get(str(r.get("leg_role") or ""), "")
+        if not how and r.get("order_source") == "flatten":
+            how = " (close)"
+        seat.event("fill", f"Claude {side} {float(r.get('filled_qty') or 0):g} {r['symbol']} at "
+                   f"{float(r.get('avg_fill_price') or 0):.2f}{how}", t)
 
 
 async def run_pass(now: float | None = None) -> None:
@@ -154,6 +272,9 @@ async def run_pass(now: float | None = None) -> None:
         await _line(t)
         if seat.is_on() and not seat.is_yielded():
             await _breaks(t)
+        if seat.is_on():
+            await _reflexes(t)
+        await _fills(t)
 
 
 async def run() -> None:

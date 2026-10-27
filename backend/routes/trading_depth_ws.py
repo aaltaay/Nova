@@ -59,6 +59,12 @@ def refusal_text(symbol: str, result: dict) -> str:
         return result.get("error") or "Depth error"
 
 
+def refusal_frame(symbol: str, result: dict) -> dict:
+    """The ladder's error frame for a subscribe that failed; ``agent_reserved`` when Claude's line is the reason
+    (ADR 068), so the panel can offer Take Claude's line."""
+    return {"type": "error", "message": refusal_text(symbol, result), "agent_reserved": bool(result.get("agent_reserved"))}
+
+
 async def send_refusal(websocket: WebSocket, symbol: str) -> bool:
     """IBKR refused this symbol's line (309) since it was asked for: say why and end the socket."""
     message = _depth.refusal(symbol)
@@ -150,7 +156,7 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
         await make_room(symbol)
         result = await _depth.subscribe_async(symbol)
         if not result["ok"]:
-            await websocket.send_text(json.dumps({"type": "error", "message": refusal_text(symbol, result)}))
+            await websocket.send_text(json.dumps(refusal_frame(symbol, result)))
             await websocket.close()
             return
 
@@ -183,7 +189,7 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
         if _depth.needs_subscribe(symbol):
             result = await _depth.subscribe_async(symbol)
             if not result["ok"]:
-                await websocket.send_text(json.dumps({"type": "error", "message": refusal_text(symbol, result)}))
+                await websocket.send_text(json.dumps(refusal_frame(symbol, result)))
                 return
             try:
                 _l2_continuous.start(symbol)

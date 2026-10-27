@@ -17,7 +17,7 @@ AGENT_EVENTS_KEEP = 40
 
 # The lease: a holder that has not checked in for this long has gone quiet (decision 9).
 AGENT_LEASE_SEC = 600.0
-AGENT_TICK_SEC = 1.0
+AGENT_TICK_SEC = 0.5                # reflexes are checked this often (decision 11)
 
 # The seat's states, as the desk shows them.
 SEAT_OFF = "off"                  # nobody holds the seat
@@ -33,7 +33,7 @@ SEAT_IDLE = "idle"                # on, no stock chosen yet
 AGENT_MAX_SHARES = 1000
 AGENT_MAX_RISK_USD = 150.0
 AGENT_MAX_ENTRIES_A_DAY = 3
-AGENT_DAY_STOP_USD = -400.0
+AGENT_DAY_STOP_USD = -500.0         # Claude's lane: its own daily max loss (operator, 2026-10-26)
 AGENT_ENTRY_START_ET = (7, 0)
 AGENT_ENTRY_END_ET = (15, 30)
 AGENT_CLOSE_ET = (15, 55)          # Nova sells Claude's shares (the day cover's time, ADR 048)
@@ -41,6 +41,9 @@ AGENT_OFF_ET = (16, 0)             # the seat turns off
 AGENT_BREAK_DEFAULT_MIN = 30.0     # a break that has not triggered expires
 AGENT_BREAK_MAX_MIN = 240.0
 AGENT_NOTE_MAX_CHARS = 400
+AGENT_REFLEX_DEFAULT_MIN = 60.0
+AGENT_REFLEX_MAX_MIN = 390.0
+AGENT_REFLEX_MAX = 6
 
 # Entry kinds (decision 8).
 ENTRY_LIMIT = "limit"

@@ -260,7 +260,8 @@ async def execute(
             # operator raises the limit or unchecks it. A cover is a close and is never refused (ADR 048
             # gap 3) -- an exit pair's BUYs only ever cover (#681).
             covers = cmd.operation == "exit_oco" or _validate.covers_short(cmd)
-            locked = buy_refusal(cmd.side, cmd.source, send_venue, short_entry=bool(cmd.short_entry), covers=covers)
+            locked = buy_refusal(cmd.side, cmd.source, send_venue, short_entry=bool(cmd.short_entry), covers=covers,
+                                 origin=cmd.origin)
             # Your own order size limit on Paper and Sim (ADR 064): a hand order that opens or adds, never a close.
             locked = locked or _size_limit.refusal(cmd, send_venue, covers=covers)
             if locked is not None:

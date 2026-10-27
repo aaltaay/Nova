@@ -23,7 +23,9 @@ Claude's own writes also carry `X-Agent-Seat: <token>`; the operator's three but
 | `POST /watch {symbol}` | Claude | status; the seat's stock (refused while Claude has orders or shares on another) |
 | `POST /note {text}` | Claude | status; one line (<= 400 chars) the desk shows |
 | `POST /arm` | Claude | status; arms the desk on Paper as `actor: "bot"` (ADR 018). Refused off Paper and when the operator locked the padlock (`ibkr.safety.locked_by() == "operator"`). |
-| `POST /order` | Claude | `{order_id, stop_order_id, status}` (a limit) or `{break, status}` (a break). Body: `{kind: "limit" \| "break", symbol, qty, entry (limit), trigger + top (break), stop, target, target2?, target1_qty?, minutes? (break life, default 30, max 240), why}` |
+| `POST /order` | Claude | `{order_id, stop_order_id, status}` (a limit) or `{break, status}` (a break). Body: `{kind: "limit" \| "break", symbol, qty, entry (limit), trigger + top (break), stop, target, target2?, target1_qty?, minutes? (break life, default 30, max 240), confirm? {seconds <= 60, shares, ratio} (a break), why}` |
+| `POST /reflex {kind, action, price?, shares?, seconds?, ratio?, minutes?, why}` | Claude | `{reflex, status}`: a reflex on the seat's stock (`kind` one of `bid_pulled` {price, shares}, `ask_wall` {price, shares}, `sellers` {seconds <= 60, shares, ratio}, `last_below` {price}; `action` `sell_all` or `cancel_buy`; default life 60 min, at most 390; 6 at most) |
+| `DELETE /reflex/{id}` | Claude | status |
 | `POST /stop {order_id, stop}` | Claude | status; raises Claude's own stop leg (never lowers it) |
 | `DELETE /order/{id}` | Claude | status; cancels Claude's own working order |
 | `DELETE /break/{id}` | Claude | status |
@@ -31,6 +33,8 @@ Claude's own writes also carry `X-Agent-Seat: <token>`; the operator's three but
 | `POST /yield` | operator | status; "Take Claude's line": unfilled buys and breaks cancelled, lines released, no new trades; held shares keep their stop |
 | `POST /give-back` | operator | status |
 | `POST /stop-claude` | operator | `{problems, status}`: as `DELETE /seat` |
+
+The Level 2 socket's error frame gains `agent_reserved` (true when the desk's request waits for Claude's line), so the panel can offer Take Claude's line.
 
 Refusals are `{detail: {reason, error}}` with `reason` one of `AGENT_SEAT_TAKEN`, `AGENT_NOT_HOLDER` (403),
 `AGENT_SEAT_OFF`, `AGENT_YIELDED`, `AGENT_LIMIT`, `AGENT_NOT_PAPER`, `AGENT_NO_LINE`, `AGENT_NOT_MINE`, `AGENT_STALE`,
@@ -40,14 +44,14 @@ Refusals are `{detail: {reason, error}}` with `reason` one of `AGENT_SEAT_TAKEN`
 lease_until, lapsed, yielded, symbol, line: {symbol, depth, tape, why_not, desk_lines, desk_cap, all_lines},
 positions: [{symbol, qty, mark}], working: [{order_id, symbol, side, order_type, qty, limit_price, stop_price,
 leg_role, status, parent_id}], breaks: [{id, symbol, qty, trigger, top, stop, target, target2, target1_qty,
-expires_at, created_at, why}], today: {entries, max_entries, pnl, day_stop, fills}, limits: {max_shares,
+expires_at, created_at, why, confirm}], reflexes: [{id, symbol, kind, action, price, shares, seconds, ratio, why, expires_at, created_at, text}], today: {entries, max_entries, pnl, day_stop, fills}, limits: {max_shares,
 max_risk_usd}, note: {text, at} | null, events: [{at, kind, text}] (newest first, 12), read_error}`. `read_error`, `line.why_not` and every refusal are Nova's own words: an exception's text never reaches this wire (it goes to the log). `state` is one
 of `off`, `idle` (no stock yet), `waiting_line`, `watching`, `buy_set`, `in_trade`, `yielded`, `done`; `text` is the
 header pill's words ("Claude · In SMPL +$42.00"). The holder token is never in it.
 
 **Claude's limits** (checked before the door, `agent_trader.rules`): long only; every entry a bracket with its stop
 and one or two targets; whole shares, at most 1,000; at most $150 between entry and stop; at most 3 entries a day
-(filled entries, working entries and armed breaks); no new entry once its day is at -$400 or worse, fees included;
+(filled entries, working entries and armed breaks); Claude's lane's own daily max loss -- no new entry once its day is at -$500 or worse, fees included (the desk's shared loss lines do not refuse Claude's buys on Paper: `loss_limit.gate.buy_refusal(origin="claude")`);
 entries 07:00-15:30 ET on weekdays; only on the seat's stock with Claude's Level 2 line live; never where Paper holds
 shares or working orders that are not Claude's; never while the view lock holds (`market_view.gate.desk_lock`).
 
@@ -55,10 +59,14 @@ shares or working orders that are not Claude's; never while the view lock holds 
 moves `replace` the same way; closes `source: "flatten"` market SELLs and cancels `source: "cancel_working"`, both
 `target_venue: "paper"`. `execution.venue_door` refuses any `claude` send while the desk is not on Paper and any
 `claude` close named to Live. Practice rows carry `order_origin: "claude"`; Claude's position is its own fills, never more than Paper holds in the stock: Nova's own closes (the loss limit's Auto sell, KILL, a margin call) sell Claude's shares under their own origin, and Claude's P&L counts those shares at the price those closes got.
-Claude's fills count on the **Bots** loss line (`loss_limit.accounts.by_of`, `LOSS_LIMIT_BOT_CLOSE_ORIGINS`).
+Claude's fills still count in the Paper account's loss-limit totals and on the Bots line's figures (`loss_limit.accounts.by_of`, `LOSS_LIMIT_BOT_CLOSE_ORIGINS`), but no shared line refuses Claude's buys on Paper.
 
-**A break.** The seat watches each break's symbol every second (`agent_trader.watcher`): the first print that sets a
-price at or above `trigger` sends the bracket with its LMT entry at `top`, after the limits are checked again. A break
+**Events** (`kind`): `on`, `off`, `watch`, `line`, `line_wait`, `armed`, `buy_set`, `break_set`, `break_wait`, `break_end`, `refused`, `stop`, `cancel`, `close`, `fill` ("Claude bought 510 SMPL at 4.40", each fill said once), `reflex_set`, `reflex_fired`, `reflex_end`, `yielded`, `line_back`, `day_close`; the desk toasts and speaks them.
+
+**Reflexes** (`agent_trader.reflexes`, ADR 068 decision 11). Judged every 0.5 s on the seat's stock: the depth book's rows added up by price, and Nova's tape archive (a print at or over its ask is a buyer's, at or under its bid a seller's). `bid_pulled` fires only after it has seen its size since arming. A `sell_all` reflex is live while Claude holds shares, a `cancel_buy` while a buy or break waits; each fires once, does its action and is gone (an event says what it saw and did).
+
+**A break.** The seat watches each break's symbol twice a second (`agent_trader.watcher`): the first print that sets a
+price at or above `trigger` -- while its `confirm` holds, when it has one -- sends the bracket with its LMT entry at `top`, after the limits are checked again. A break
 past `expires_at` is dropped. Each outcome is an event.
 
 **The line kept for Claude.** While the seat is on and not yielded, every other depth subscriber may hold at most
@@ -75,5 +83,5 @@ cancelled, its shares sold, the seat off, its lines released. 15:55 ET on a week
 cancelled, seat on or off; 16:00 ET the seat turns off.
 
 **Persisted:** `backend/.cache/agent-seat.json` (`schema_version: 1`, written whole and atomically): `{holder, since,
-beat_at, yielded, yielded_at, symbol, breaks, note, events}` (the newest 40 events). A file with another
+beat_at, yielded, yielded_at, symbol, breaks, reflexes, note, events}` (the newest 40 events). A file with another
 `schema_version` starts the seat off and is logged. Spend arming is never persisted (ADR 018).

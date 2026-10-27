@@ -13,13 +13,16 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from agent_desk.routes import require_local
-from agent_trader import ledger, lines, look, orders, rules, seat, view, watcher
+from agent_trader import ledger, lines, look, orders, reflexes, rules, seat, view, watcher
 from agent_trader import clock
 from agent_trader.constants_agent_trader import (
     AGENT_BREAK_DEFAULT_MIN,
     AGENT_BREAK_MAX_MIN,
     AGENT_NOT_MINE,
     AGENT_NOT_PAPER,
+    AGENT_REFLEX_DEFAULT_MIN,
+    AGENT_REFLEX_MAX,
+    AGENT_REFLEX_MAX_MIN,
     AGENT_REFUSED,
     AGENT_SEAT_OFF,
     AGENT_VENUE,
@@ -64,7 +67,25 @@ class OrderBody(BaseModel):
     target2: float | None = Field(default=None, gt=0)
     target1_qty: float | None = Field(default=None, gt=0)
     minutes: float | None = Field(default=None, gt=0)    # a break's life
+    confirm: ConfirmBody | None = None                   # a break sends only while buyers lead (reflexes.confirmed)
     why: str = Field(min_length=1, max_length=400)       # one line for the desk
+
+
+class ConfirmBody(BaseModel):
+    seconds: float = Field(gt=0)
+    shares: float = Field(gt=0)
+    ratio: float = Field(gt=0)
+
+
+class ReflexBody(BaseModel):
+    kind: Literal["bid_pulled", "ask_wall", "sellers", "last_below"]
+    action: Literal["sell_all", "cancel_buy"]
+    price: float | None = Field(default=None, gt=0)
+    shares: float | None = Field(default=None, gt=0)
+    seconds: float | None = Field(default=None, gt=0)
+    ratio: float | None = Field(default=None, gt=0)
+    minutes: float | None = Field(default=None, gt=0)
+    why: str = Field(min_length=1, max_length=400)
 
 
 class StopBody(BaseModel):
@@ -186,8 +207,11 @@ async def place(body: OrderBody, x_agent_seat: str | None = Header(default=None)
                    f"target {body.target:g}")
         return {"order_id": getattr(receipt, "order_id", None), "stop_order_id": getattr(receipt, "stop_order_id", None),
                 "status": view.status()}
+    if why := reflexes.confirm_refusal(order.get("confirm")):
+        raise _refuse(AGENT_REFUSED, why)
     minutes = min(float(body.minutes or AGENT_BREAK_DEFAULT_MIN), AGENT_BREAK_MAX_MIN)
-    row = {k: order[k] for k in ("symbol", "qty", "trigger", "top", "stop", "target", "target2", "target1_qty")}
+    row = {k: order[k] for k in ("symbol", "qty", "trigger", "top", "stop", "target", "target2", "target1_qty",
+                                 "confirm")}
     made = seat.add_break({**row, "expires_at": clock.now() + minutes * 60.0, "why": body.why})
     return {"break": made, "status": view.status()}
 
@@ -228,6 +252,32 @@ async def cancel(order_id: int, x_agent_seat: str | None = Header(default=None))
     if why := orders.receipt_error(receipt):
         raise _refuse(getattr(receipt, "reason_code", None) or AGENT_REFUSED, why)
     seat.event("cancel", f"cancelled order {order_id} on {row['symbol']}")
+    return view.status()
+
+
+@router.post("/reflex", dependencies=_keyed)
+def arm_reflex(body: ReflexBody, x_agent_seat: str | None = Header(default=None)) -> dict[str, Any]:
+    """Arm a Level 2 / Time & Sales reflex on the seat's stock (decision 11): Nova acts the moment it holds."""
+    _holder(x_agent_seat)
+    seat.beat(x_agent_seat)
+    sym = seat.symbol()
+    if not sym:
+        raise _refuse(AGENT_REFUSED, "watch a stock first: a reflex is armed on the seat's stock")
+    row = {k: v for k, v in body.model_dump().items() if k not in ("minutes",)}
+    if why := reflexes.shape_refusal(row):
+        raise _refuse(AGENT_REFUSED, why)
+    if len(seat.reflexes()) >= AGENT_REFLEX_MAX:
+        raise _refuse(AGENT_REFUSED, f"Claude keeps {AGENT_REFLEX_MAX} reflexes at most: drop one first")
+    minutes = min(float(body.minutes or AGENT_REFLEX_DEFAULT_MIN), AGENT_REFLEX_MAX_MIN)
+    made = seat.add_reflex({**row, "symbol": sym, "expires_at": clock.now() + minutes * 60.0}, reflexes.text(row))
+    return {"reflex": made, "status": view.status()}
+
+
+@router.delete("/reflex/{reflex_id}", dependencies=_keyed)
+def drop_reflex(reflex_id: str, x_agent_seat: str | None = Header(default=None)) -> dict[str, Any]:
+    _holder(x_agent_seat)
+    if seat.drop_reflex(reflex_id, f"Claude took back reflex {reflex_id}") is None:
+        raise _refuse(AGENT_NOT_MINE, f"no reflex {reflex_id}", 404)
     return view.status()
 
 

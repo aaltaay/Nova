@@ -213,8 +213,8 @@ def test_the_day_window_and_the_day_stop():
     assert rules.window_refusal(datetime(2026, 10, 7, 15, 30, tzinfo=ET))
     assert rules.window_refusal(datetime(2026, 10, 10, 10, 0, tzinfo=ET))      # a Saturday
     assert "3 of its 3" in (rules.day_refusal(3, 0.0) or "")
-    assert "done for today" in (rules.day_refusal(1, -400.0) or "")
-    assert rules.day_refusal(2, -399.0) is None
+    assert "done for today" in (rules.day_refusal(1, -500.0) or "")
+    assert rules.day_refusal(2, -499.0) is None
 
 
 # -- Paper only -------------------------------------------------------------------------------------------
@@ -238,6 +238,16 @@ def test_claudes_fills_count_on_the_bots_line():
 
     assert by_of({"order_source": "bot", "order_origin": "claude"}) == "bots"
     assert by_of({"order_source": "flatten", "order_origin": "claude"}) == "bots"
+
+
+def test_claudes_lane_is_not_stopped_by_the_shared_paper_line(monkeypatch):
+    """Operator 2026-10-26: Claude's lane has its own -$500; the desk's shared lines do not refuse its Paper buys."""
+    from loss_limit import gate
+
+    monkeypatch.setattr(gate, "stopped", lambda venue, actor=None: {"text": "Daily loss limit reached on Paper"})
+    assert gate.buy_refusal("BUY", "bot", "paper", origin="claude") is None
+    assert gate.buy_refusal("BUY", "manual", "paper") is not None
+    assert gate.buy_refusal("BUY", "bot", "live", origin="claude") is not None   # never a pass anywhere but Paper
 
 
 def test_claude_never_unlocks_a_padlock_the_operator_locked():

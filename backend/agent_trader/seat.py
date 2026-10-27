@@ -41,7 +41,8 @@ class Refusal(NamedTuple):
 
 def _blank() -> dict[str, Any]:
     return {"schema_version": AGENT_SCHEMA_VERSION, "holder": None, "since": None, "beat_at": None,
-            "yielded": False, "yielded_at": None, "symbol": None, "breaks": [], "note": None, "events": []}
+            "yielded": False, "yielded_at": None, "symbol": None, "breaks": [], "reflexes": [], "note": None,
+            "events": []}
 
 
 def path() -> Path:
@@ -175,7 +176,8 @@ def turn_off(reason: str, now: float | None = None) -> None:
         st = _load()
         if not st.get("holder"):
             return
-        st.update(holder=None, since=None, beat_at=None, yielded=False, yielded_at=None, symbol=None, breaks=[])
+        st.update(holder=None, since=None, beat_at=None, yielded=False, yielded_at=None, symbol=None, breaks=[],
+                  reflexes=[])
         _event_locked(st, t, "off", reason)
         _save()
 
@@ -240,6 +242,40 @@ def drop_break(break_id: str, text: str | None = None, now: float | None = None)
         st["breaks"] = kept
         if gone is not None and text:
             _event_locked(st, t, "break_end", text)
+        _save()
+        return gone
+
+
+def reflexes() -> list[dict[str, Any]]:
+    with _lock:
+        return [dict(r) for r in _load().get("reflexes") or []]
+
+
+def add_reflex(row: dict[str, Any], words: str, now: float | None = None) -> dict[str, Any]:
+    t = clock.now() if now is None else now
+    with _lock:
+        st = _load()
+        made = {**row, "id": uuid.uuid4().hex[:12], "created_at": t}
+        st["reflexes"] = [*(st.get("reflexes") or []), made]
+        _event_locked(st, t, "reflex_set", f"reflex on {made['symbol']}: {words}")
+        _save()
+        return dict(made)
+
+
+def drop_reflex(reflex_id: str, text: str | None = None, *, kind: str = "reflex_end",
+                now: float | None = None) -> dict[str, Any] | None:
+    t = clock.now() if now is None else now
+    with _lock:
+        st = _load()
+        kept, gone = [], None
+        for row in st.get("reflexes") or []:
+            if row.get("id") == reflex_id and gone is None:
+                gone = row
+            else:
+                kept.append(row)
+        st["reflexes"] = kept
+        if gone is not None and text:
+            _event_locked(st, t, kind, text)
         _save()
         return gone
 

@@ -66,7 +66,7 @@ def _order(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def status(now: float | None = None) -> dict[str, Any]:
-    from agent_trader import ledger, lines, rules, seat, watcher
+    from agent_trader import ledger, lines, reflexes, rules, seat, watcher
     from ibkr import depth
 
     t = clock.now() if now is None else now
@@ -106,6 +106,7 @@ def status(now: float | None = None) -> dict[str, Any]:
         "positions": [{"symbol": s, "qty": q, "mark": marks.get(s)} for s, q in positions.items()],
         "working": [_order(r) for r in working],
         "breaks": breaks,
+        "reflexes": [{**r, "text": reflexes.text(r)} for r in st.get("reflexes") or []],
         "today": {"entries": entries, "max_entries": AGENT_MAX_ENTRIES_A_DAY, "pnl": pnl,
                   "day_stop": AGENT_DAY_STOP_USD, "fills": len(fills)},
         "limits": {"max_shares": AGENT_MAX_SHARES, "max_risk_usd": AGENT_MAX_RISK_USD},
