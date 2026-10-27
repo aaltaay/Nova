@@ -99,3 +99,17 @@ LENDING_OFF_WHY = "line lending was switched off"
 # The lent frame's sentence (the desk builds the same words from its own constants).
 LENT_TEXT = "Level 2 lent to {symbol}'s {setup} ({why}) -- back when it ends or when you bring this tab to the front"
 LENT_TEXT_NO_WHY = "Level 2 lent to {symbol}'s {setup} -- back when it ends or when you bring this tab to the front"
+
+# A loan to Claude's seat (ADR 068 decision 14, operator 2026-10-27): a hidden Trader tab's lines go to Claude when
+# all 3 are held and no auto-record line can be given up. Coming to the front never takes them back -- only the
+# operator's right-click (Take my Level 2 back from Claude), or Claude letting its line go.
+BORROWER_CLAUDE = "claude"            # the loan's ``setup_type``
+CLAUDE_WATCHING = "watching"          # the loan's tier: what Claude is doing on its stock
+CLAUDE_BUY_SET = "buy_set"
+CLAUDE_IN_TRADE = "in_trade"
+CLAUDE_WHY_WORDS = {CLAUDE_WATCHING: "watching", CLAUDE_BUY_SET: "buy set on", CLAUDE_IN_TRADE: "in a trade on"}
+LOAN_END_TAKEN_BACK = "taken_back"    # the operator right-clicked the tab
+LOAN_END_CLAUDE_LET_GO = "claude_let_go"  # Claude's seat let its line go (off, given up, quiet, its day's end)
+LOAN_END_TAB_CLOSED = "tab_closed"    # no window lists the lender's tab any more
+CLAUDE_LENT_TEXT = ("Level 2 lent to Claude ({why}) -- back when Claude lets it go, or right-click this tab to take "
+                    "it back")

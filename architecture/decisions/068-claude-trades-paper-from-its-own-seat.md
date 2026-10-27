@@ -1,7 +1,7 @@
 # ADR 068 -- Claude trades Paper from its own seat
 
-**Status:** Accepted · **Date:** 2026-10-26 · **Amended:** 2026-10-27 (decision 3: an auto-record line; decision 12: the eye; decision 13: the guard and the pop exit)
-**Amends:** [[044-one-bots-page]] (decision 6: a hidden tab's line is never Claude's, and the seat's line is never lent) · [[063-a-loss-line-for-you-and-one-for-the-bots]] (Claude's fills count on the Bots line)
+**Status:** Accepted · **Date:** 2026-10-26 · **Amended:** 2026-10-27 (decision 3: an auto-record line; decision 12: the eye; decision 13: the guard and the pop exit; decision 14: a hidden tab's line)
+**Amends:** [[044-one-bots-page]] (decision 6: the seat's line is never lent; a hidden tab's line may be Claude's, decision 14, and the front does not recall that loan) · [[063-a-loss-line-for-you-and-one-for-the-bots]] (Claude's fills count on the Bots line)
 **Builds on:** [[007-centralized-trading-execution]] · [[018-desk-venue-vs-spend-arming]] · [[045-orders-refuse-a-stale-view]] · [[055-the-live-trader-bot]] (the Paper-only send pattern) · [[050-agents-find-and-show-in-the-sim]] (the `/api/agent` door and its key)
 **Decided by:** the operator, 2026-10-26 (about 20:00 ET). They asked Claude to trade Paper itself: "i want to ask you to be the one who uses your brain and place trades on paper". Then: "i agree.. lets do it ... you need to make your presence known." Then: "we only got 3 symbols to look at level 2, and you will need to control one of them.. and lock it so human wont be able to just open like 3 and you have taken one ... please think about every scenario." Limits as proposed and agreed: up to 1,000 shares, at most $150 risk a trade, 3 trades a day, long only, Paper only. On the day's max loss: "only activate this feature on a paper account without a max loss", then "i guess do a max loss of $500! for claude lane.." -- Claude's lane stops itself at -$500 a day, and the desk's shared loss lines do not stop its buys on Paper.
 
@@ -32,9 +32,8 @@ Claude works through tool calls. It reads Level 2 and Time & Sales from the back
    Records page lists it as yielded to Claude, and the reservation keeps auto-record from taking it back. With no
    such auto line the seat waits ("Waiting for a Level 2 line") and takes the first line that frees. It still never
    takes a Trader tab's line, a Session Record the operator started, the L2 recorder or a loan. Why: on 2026-10-27
-   the desk and auto-record held all 3 lines and the seat waited all morning ("waiting_line"). A hidden Trader tab
-   idle past line lending's cooldown is the next candidate, but taking it changes what that tab shows, so it waits
-   for an approved desk mockup.
+   the desk and auto-record held all 3 lines and the seat waited all morning ("waiting_line"). With no auto line,
+   a hidden Trader tab's line is next (decision 14).
 
 4. **The operator overrides.** **Take Claude's line** gives the seat up: Claude's lines are released, new entries are refused, and an open trade keeps its stop and still closes at 15:55. **Stop Claude** cancels Claude's orders, sells Claude's shares and turns the seat off. Both are on the desk (mockup approval pending) and the `/api/agent/trader` routes.
 
@@ -87,13 +86,33 @@ Claude works through tool calls. It reads Level 2 and Time & Sales from the back
     to Claude's entry once the first half sells or at the first stall: the price reached +1% over entry, then no new
     high for 30 s (`AGENT_GUARD_STALL_AFTER_PCT`, `AGENT_GUARD_STALL_SEC`; the operator's rule, 2026-10-27).
 
+14. **A hidden Trader tab's line, kept until the operator takes it back (2026-10-27).** With all 3 lines held and no
+    auto-record line to give (decision 3), the seat borrows the Level 2 and Time & Sales of a Trader tab the
+    operator is not looking at, picked by a bot loan's rule (ADR 044 decision 6, `line_lending.lines.pick_lender`):
+    hidden, not in front in the last 30 s, the tab looked at least recently, one that can give its Time & Sales too
+    first; never a tab on a stock a bot's setup or Nova's own trade needs, never one the operator took back while it
+    stays open (`line_lending.claude_loan`, `agent_trader.tab_line`). The tab reads "Level 2 lent to Claude
+    (watching RUNR) -- back when Claude lets it go, or right-click this tab to take it back" (also "buy set on",
+    "in a trade on"), its chip says "L2 · Claude", the pill "Claude · Watching RUNR · on your SMPL tab's line".
+    **Bringing the tab to the front does not take it back**, whether Claude holds shares or only watches. The
+    operator, shown both options (back at once; kept while Claude holds shares): "no unless i explicity right
+    click and stop claude from holding the lane, let claude take care of it, the point is not to distrub claude
+    while it learns from level 2". The loan ends only when the operator right-clicks the tab or its lent pane --
+    **Take my Level 2 back from Claude** (`POST /api/agent/trader/take-back`): that line only; Claude stays on, its
+    stop and targets keep resting, it waits for another line, and the tab's Level 2 is admitted past Claude's
+    reservation --, when Claude's seat lets its line go (off, given up, gone quiet, the day's end), or when the tab
+    closes. Lending's switch is the bots' and neither makes nor ends it. Design `F:\Nova\design\claude-seat\v3`,
+    approved by the operator 2026-10-27.
+
 ## Scenarios
 
 | Scenario | What happens |
 |---|---|
 | Seat on, desk holds 1-2 lines | Claude takes a free line; the desk keeps 2 of its own. |
 | Seat on, desk holds 3, one is auto-record's | Claude takes the auto line idle longest; the recording stops as planned. |
-| Seat on, desk holds 3, none is auto-record's | Claude waits and says so; the first line the desk lets go is Claude's. |
+| Seat on, desk holds 3, none is auto-record's, a Trader tab hidden 30 s+ | Claude borrows that tab's Level 2 and Time & Sales; the tab says so, and still does in front. |
+| The operator right-clicks that tab: Take my Level 2 back from Claude | The tab's lines come back at once; Claude stays on, its stop and targets rest, it waits; that tab is not taken again while open. |
+| Seat on, desk holds 3, no auto-record line, no hidden tab | Claude waits and says so; the first line the desk lets go is Claude's. |
 | A stock spikes between Claude's looks | The eye lists the spike event; Claude moves its line with `POST /watch`. |
 | Operator opens a 3rd Level 2 while Claude holds one | Refused in words, with Take Claude's line. |
 | Operator opens Claude's stock | Shares Claude's line; no extra line. |

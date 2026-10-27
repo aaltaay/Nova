@@ -60,6 +60,7 @@ import { CAPTURE_STOP_HOLD_HINT, captureStopHoldLabel } from '../capture';
 import { botSymbolMenuPosition } from './botSymbolMenuPlacement';
 import { BotNotices } from './BotNotices';
 import { ClipMenuRows } from '../clips';
+import { ClaudeTakeBackRow } from '../claude_seat';
 import './symbolMenu.css';
 
 type Tone = 'tab' | 'hot' | 'rec' | 'bot';
@@ -290,6 +291,8 @@ function SymbolMenu() {
           }}
         />
       )}
+      {/* A Trader tab whose line Claude holds (ADR 068 decision 14): the one way to take it back. */}
+      {open.tab && <ClaudeTakeBackRow symbol={symbol} onDone={closeBotSymbolMenu} />}
       <HotListRow symbol={symbol} onDone={closeBotSymbolMenu} />
       {recording ? (
         // A recording is locked: Stop takes a deliberate hold, never a slip.
