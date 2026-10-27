@@ -3,7 +3,7 @@
 > **Single source of truth.** Every agent reads this file; `CLAUDE.md` imports it.
 >
 > **Status:** ENFORCED -- Active governance document
-> **Last Updated:** 2026-10-17
+> **Last Updated:** 2026-10-27
 > **Project:** Nova -- Stock Alert Automation System
 > **Enforcement:** Every AI agent (Cursor, Antigravity, any LLM assistant) MUST read this file before writing ANY code. Violations are NEVER acceptable.
 
@@ -11,7 +11,7 @@
 
 ## Retired ledgers (owner instruction, 2026-09-20)
 
-`BACKLOG.md`, `PROBLEM_LOG.md` and `CHANGELOG.md` are retired and archived under `docs/archive/`. Do not read, update, regenerate, or require them during ordinary agent work; read archived material only when explicitly asked for historical context. Use GitHub Issues/milestones for current work and PR descriptions plus regression tests for completed fixes. No `problem_log=` footer, changelog entry, fragment, or collation job is supported.
+`BACKLOG.md`, `PROBLEM_LOG.md`, `CHANGELOG.md` and (2026-10-27) `architecture/maintenance-log.md` are retired and archived under `docs/archive/`. Do not read, update, regenerate, or require them during ordinary agent work; read archived material only when explicitly asked for historical context. Use GitHub Issues/milestones for current work and PR descriptions plus regression tests for completed fixes. No `problem_log=` footer, changelog entry, fragment, or collation job is supported.
 
 ## 0. PURPOSE
 
@@ -49,7 +49,7 @@ These rules CANNOT be violated under ANY circumstance:
 | 5 | **SOP before code** | If logic changes, update `architecture/` or relevant `.cursor/rules/` FIRST, then write code. |
 | 6 | **Self-Annealing** | Any error -> Analyze -> Patch -> Test -> Update SOP/rules -> Record the cause, fix, and verification in the PR or issue. If the bug cannot be fixed this session, **MUST** open or update a GitHub Issue labeled `deferred` instead of a band-aid (`deferred-log.mdc`). |
 | 7 | **Broker Execution Gate** | Alpaca-sourced scanning is permanently read-only. Trade execution is permitted ONLY through the explicit opt-in `backend/ibkr/` module. Gateway default is **live** (port 4001); the paper Gateway (4002) is legacy by hand only (`POST /api/ibkr/gateway-mode {"mode":"paper"}`), never an automatic fallback (`IBKR_PAPER_GATEWAY_FALLBACK` off by default, ADR 020). Spending requires `IBKR_ENABLED=true`, `IBKR_ORDERS_ENABLED=true`, and the runtime arm latch (`POST /api/ibkr/arm`, ADR 018); live money also requires `IBKR_LIVE_TRADING_CONFIRMED=true` in `.env` and the operator's Live PIN. **Short entry (ADR 009, ADR 048):** every SELL is risk-reducing unless an explicit `short_entry` opt-in passes `backend/short_sale/` on every venue (limit + buy stop above it, never while long, margin account >= $2,000 equity, 09:35-15:50 ET, no halt, IBKR tick-236 borrow covering order + held + in-flight shorts, SSR above bid, IBKR what-if or published margin with 25% liquidation cushion; Live also requires `IBKR_SHORT_ENABLED=true`; Paper/Sim cover at 15:55 ET; readiness/research verdicts never grant or refuse permission, #791). A BUY covering a short is a close (never locked by the loss limit, buying power, or past flat). Never infer shorts from side + flat position. `auto_live` remains NO-GO, and a bot never trades Live; Claude's seat trades Paper only (ADR 068). Schemas: `architecture/schema/execution.md`, `architecture/schema/short-selling.md`, `architecture/schema/loss-limit.md`. |
-| 8 | **Constitution is Law** | No code change may contradict this document. If a contradiction is needed, update this document FIRST with a row in `architecture/maintenance-log.md`, THEN write the code. |
+| 8 | **Constitution is Law** | No code change may contradict this document. If a contradiction is needed, update this document FIRST, THEN write the code; the PR body says why. |
 
 ---
 
@@ -308,9 +308,9 @@ No open constitution compliance rows. `architecture/` (ADRs 001--058) and automa
 
 ---
 
-## 11. 🔧 Maintenance Log
+## 11. 🔧 Maintenance Log -- RETIRED (2026-10-27)
 
-Moved to `architecture/maintenance-log.md` (newest first). A change to this file or to `architecture/schema/` adds its row there in the same commit.
+Every PR added a row at the top of one shared table, so parallel PRs collided on it. Archived at `docs/archive/maintenance-log.md`; do not add rows. A change to this file or to `architecture/schema/` says what and why in its PR body (§7.1).
 
 ---
 
