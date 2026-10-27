@@ -61,7 +61,8 @@ anything trades. Paper and Sim are fake money.
    - **Gates.** Every gate the bot API meets: the level, Activate, the padlock, the
      allowlist and a held depth line, the template's window and one trade a day, the
      day lock, the kill switch, the working-order block and the budget. The entry is
-     audited as `buy_setup_limit` -- a buy kind, so it counts toward the day's cap --
+     audited as `buy_setup_limit` -- a buy kind, so it counts toward the day's cap (no daily cap since
+     2026-10-27, ADR 042 amendment; the day's count is still kept) --
      which no brain may send (it carries the scanner's price, not a preset). An
      entry cancelled unfilled gives the day back: nothing was bought.
    - **The session.** The bot claims the L2 session as brain `nova-first-pullback` and

@@ -59,11 +59,9 @@ function deactivated(raw: unknown): Loose | null {
 function entriesToday(raw: unknown): Loose | undefined {
   if (!isPlainObject(raw)) return undefined;
   const count = asNum(raw.count);
-  const cap = asNum(raw.cap);
-  if (count == null || cap == null) return undefined;
+  if (count == null) return undefined;
   return {
     count,
-    cap,
     venue_day: typeof raw.venue_day === 'string' ? raw.venue_day : null,
     entries: asList(raw.entries).filter(isPlainObject),
     approved: asNum(raw.approved) ?? 0,

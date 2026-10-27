@@ -44,7 +44,7 @@ Refusals are `{detail: {reason, error}}` with `reason` one of `AGENT_SEAT_TAKEN`
 lease_until, lapsed, yielded, symbol, line: {symbol, depth, tape, why_not, desk_lines, desk_cap, all_lines},
 positions: [{symbol, qty, mark}], working: [{order_id, symbol, side, order_type, qty, limit_price, stop_price,
 leg_role, status, parent_id}], breaks: [{id, symbol, qty, trigger, top, stop, target, target2, target1_qty,
-expires_at, created_at, why, confirm}], reflexes: [{id, symbol, kind, action, price, shares, seconds, ratio, why, expires_at, created_at, text}], today: {entries, max_entries, pnl, day_stop, fills}, limits: {max_shares,
+expires_at, created_at, why, confirm}], reflexes: [{id, symbol, kind, action, price, shares, seconds, ratio, why, expires_at, created_at, text}], today: {entries, max_entries (null: no daily trade count, 2026-10-27), pnl, day_stop, fills}, limits: {max_shares,
 max_risk_usd}, note: {text, at} | null, events: [{at, kind, text}] (newest first, 12), read_error}`. `read_error`, `line.why_not` and every refusal are Nova's own words: an exception's text never reaches this wire (it goes to the log). `state` is one
 of `off`, `idle` (no stock yet), `waiting_line`, `watching`, `buy_set`, `in_trade`, `yielded`, `done`; `text` is the
 header pill's words ("Claude · Buy set SMPL 4.39" -- the price a break triggers at or a resting buy's limit --,
@@ -57,8 +57,9 @@ on the 10-second, 1- and 5-minute charts, the violet frame on its Level 2, the l
 "Claude" in Sent by (`order_origin: "claude"`).
 
 **Claude's limits** (checked before the door, `agent_trader.rules`): long only; every entry a bracket with its stop
-and one or two targets; whole shares, at most 1,000; at most $150 between entry and stop; at most 3 entries a day
-(filled entries, working entries and armed breaks); Claude's lane's own daily max loss -- no new entry once its day is at -$500 or worse, fees included (the desk's shared loss lines do not refuse Claude's buys on Paper: `loss_limit.gate.buy_refusal(origin="claude")`);
+and one or two targets; whole shares, at most 1,000; at most $150 between entry and stop; no daily trade count
+(operator, 2026-10-27: "u have infinite trades so we LEARN!"; `AGENT_MAX_ENTRIES_A_DAY` is `None`, and an int there caps filled entries, working
+entries and armed breaks again); Claude's lane's own daily max loss -- no new entry once its day is at -$500 or worse, fees included (the desk's shared loss lines do not refuse Claude's buys on Paper: `loss_limit.gate.buy_refusal(origin="claude")`);
 entries 07:00-15:30 ET on weekdays; only on the seat's stock with Claude's Level 2 line live; never where Paper holds
 shares or working orders that are not Claude's; never while the view lock holds (`market_view.gate.desk_lock`).
 

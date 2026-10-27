@@ -26,13 +26,14 @@ SEAT_WATCHING = "watching"        # on, holding its line, no order, no shares
 SEAT_SET = "buy_set"              # a break or a buy is resting
 SEAT_IN = "in_trade"              # holds shares
 SEAT_YIELDED = "yielded"          # the operator took the line: no new trades
-SEAT_DONE = "done"                # the day's loss stop or the trade count is reached
+SEAT_DONE = "done"                # the day's loss stop is reached (or a trade count, when one is set)
 SEAT_IDLE = "idle"                # on, no stock chosen yet
 
 # Claude's own limits (the operator's yes, 2026-10-26). Checked before the door; the door's gates still apply.
 AGENT_MAX_SHARES = 1000
 AGENT_MAX_RISK_USD = 150.0
-AGENT_MAX_ENTRIES_A_DAY = 3
+# No daily trade count (operator, 2026-10-27: "u have infinite trades so we LEARN!"). An int caps it again.
+AGENT_MAX_ENTRIES_A_DAY: int | None = None
 AGENT_DAY_STOP_USD = -500.0         # Claude's lane: its own daily max loss (operator, 2026-10-26)
 AGENT_ENTRY_START_ET = (7, 0)
 AGENT_ENTRY_END_ET = (15, 30)

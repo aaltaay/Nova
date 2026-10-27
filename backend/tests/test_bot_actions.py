@@ -8,7 +8,6 @@ from bot.autonomy import apply_patch
 from bot.errors import BotError
 from bot.persist import load_session
 from constants_bot import (
-    BOT_REASON_DAY_TRADE_CAP,
     BOT_REASON_FREE_FORM_QTY,
     BOT_REASON_L0_DARK,
     BOT_REASON_L1_NO_FIRE,
@@ -265,29 +264,52 @@ async def test_entries_keep_the_material_window(monkeypatch, l2_brain):
 
 
 @pytest.mark.asyncio
-async def test_one_trade_a_day(monkeypatch, l2_brain):
+async def test_no_daily_cap_on_novas_entries(monkeypatch, l2_brain):
+    """Operator, 2026-10-27 ("u have infinite trades so we LEARN!"): a 2nd and a 4th entry the same day go."""
     seen = _count_places(monkeypatch)
-    result = await fire({"kind": "buy_market", "symbol": "ABCD"}, brain_session_id="brain-1")
-    assert result["ok"] is True
+    for _ in range(4):
+        result = await fire({"kind": "buy_market", "symbol": "ABCD"}, brain_session_id="brain-1")
+        assert result["ok"] is True
     assert seen["source"] == "bot"
+    assert seen["n"] == 4
+
+
+@pytest.mark.asyncio
+async def test_an_old_entries_per_day_changes_nothing(monkeypatch, l2_brain):
+    """A page or client that still sends the retired sleeve field is ignored; it caps nothing."""
+    apply_patch({"caps": {"entries_per_day": 1}}, desk=True)
+    assert "entries_per_day" not in load_session()["caps"]
+    seen = _count_places(monkeypatch)
+    for _ in range(2):
+        assert (await fire({"kind": "buy_market", "symbol": "ABCD"}, brain_session_id="brain-1"))["ok"] is True
+    assert seen["n"] == 2
+
+
+@pytest.mark.asyncio
+async def test_the_loss_limit_still_stops_new_entries(monkeypatch, l2_brain):
+    """ADR 056: with no daily cap, the loss limit's No new buys still refuses the next entry."""
+    from constants_loss_limit import LOSS_LIMIT_REASON_NO_NEW_BUYS
+
+    seen = _count_places(monkeypatch)
+    assert (await fire({"kind": "buy_market", "symbol": "ABCD"}, brain_session_id="brain-1"))["ok"] is True
+    monkeypatch.setattr("bot.gates.loss_limit", lambda _venue: {"text": "the loss limit: no new buys today"})
     with pytest.raises(BotError) as exc:
         await fire({"kind": "buy_market", "symbol": "ABCD"}, brain_session_id="brain-1")
-    assert exc.value.reason == BOT_REASON_DAY_TRADE_CAP
-    assert "1 Nova automatic entry a day" in exc.value.message
+    assert exc.value.reason == LOSS_LIMIT_REASON_NO_NEW_BUYS
     assert seen["n"] == 1
 
 
 @pytest.mark.asyncio
-async def test_the_sleeve_caps_entries_per_day(monkeypatch, l2_brain):
-    """ADR 042 E: the venue sleeve's ``entries_per_day`` is the cap."""
-    apply_patch({"caps": {"entries_per_day": 2}}, desk=True)
+async def test_one_trade_at_a_time_still_holds(monkeypatch, l2_brain):
+    """With no daily cap, a new entry still waits while a bot order works."""
+    from constants_bot import BOT_REASON_WORKING_BLOCK
+
     seen = _count_places(monkeypatch)
-    for _ in range(2):
-        assert (await fire({"kind": "buy_market", "symbol": "ABCD"}, brain_session_id="brain-1"))["ok"] is True
+    monkeypatch.setattr("bot.risk.working_bot_orders", lambda _row: [{"order_id": 61, "side": "BUY"}])
     with pytest.raises(BotError) as exc:
         await fire({"kind": "buy_market", "symbol": "ABCD"}, brain_session_id="brain-1")
-    assert exc.value.reason == BOT_REASON_DAY_TRADE_CAP
-    assert seen["n"] == 2
+    assert exc.value.reason == BOT_REASON_WORKING_BLOCK
+    assert seen["n"] == 0
 
 
 @pytest.mark.asyncio

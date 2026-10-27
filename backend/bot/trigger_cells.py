@@ -17,8 +17,6 @@ warm-up says the same trigger again), with its grade (its ``armed`` line) and it
 - ``bot_window``: the trigger's time against the strategy's bot window;
 - ``level2_line`` / ``tape_go``: the tape the lane read at the trigger. BLIND is the Level 2 line's
   red, never the tape's (``tape_go`` did not apply);
-- ``trades_today`` (``take_cap``): the venue's daily cap -- the first trigger that passes every other
-  gate takes it;
 - ``not_against`` and, for a short, the short check's block (ADR 049, #778 step 5): what the bot read at
   the trigger, and the trigger's own time and SSR (``bot.trigger_short``).
 
@@ -143,7 +141,6 @@ class Context:
     audit_error: str | None = None
     level_now: Callable[[str | None, str], Any] = lambda venue, setup: None
     mode_now: Callable[[str | None, str], Any] = lambda venue, symbol: UNKNOWN
-    cap_now: Callable[[str | None], Any] = lambda venue: None
 
 
 def _bot_on(bot: dict[str, Any] | None) -> dict[str, Any]:
@@ -240,7 +237,7 @@ def _tape(t: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
 
 
 def judge(t: dict[str, Any], ctx: Context) -> dict[str, dict[str, Any]]:
-    """Every gate but the daily cap (``take_cap``), in Nova's order; a short's block after them."""
+    """Every gate, in Nova's order; a short's block after them."""
     from bot import trigger_short
 
     venue = (t.get("bot") or {}).get("venue")
@@ -251,36 +248,8 @@ def judge(t: dict[str, Any], ctx: Context) -> dict[str, dict[str, Any]]:
             "setups_a_day": _setups_a_day(t, rules) if rules else cell(None, "the strategy's bot rules could not "
                                                                              "be read"),
             "bot_window": _window(t, rules), "nova_buys": _nova_buys(t, venue, ctx),
-            "level2_line": line, "tape_go": tape, "trades_today": cell(None, ""),
+            "level2_line": line, "tape_go": tape,
             "not_against": trigger_short.not_against(t, ctx.judged), **trigger_short.short_cells(t, ctx.judged)}
-
-
-def _entries(n: int) -> str:
-    return f"{n} Nova entr{'y' if n == 1 else 'ies'}"
-
-
-def take_cap(judged: list[dict[str, Any]], ctx: Context) -> None:
-    """The venue's daily cap, oldest first: the first trigger that passes every other gate takes it."""
-    taken: dict[str | None, list[dict[str, Any]]] = {}
-    for t in judged:
-        venue = (t.get("bot") or {}).get("venue")
-        read = num(ctx.timeline.cap_at(venue, t["ts"], lambda v=venue: ctx.cap_now(v)))
-        if read is None or read < 1:
-            t["cells"]["trades_today"] = cell(None, "the venue's daily cap could not be read")
-            continue
-        cap = int(read)
-        used = taken.setdefault(venue, [])
-        passes = all(c["ok"] is not False for g, c in t["cells"].items() if g != "trades_today")
-        if len(used) >= cap:
-            went = ", ".join(f"{u['symbol']} at {hhmm(u['ts'])} ET" for u in used)
-            t["cells"]["trades_today"] = cell(False, f"the day's {_entries(cap)} went to {went}")
-            continue
-        if passes:
-            used.append(t)
-            t["cells"]["trades_today"] = cell(True, f"it takes Nova's {strategy_rules.ordinal(len(used))} entry of "
-                                                    f"the day ({_entries(cap)} a day)")
-        else:
-            t["cells"]["trades_today"] = cell(True, f"{len(used)} of {_entries(cap)} a day used before it")
 
 
 def reasons(cells: dict[str, dict[str, Any]]) -> list[str]:

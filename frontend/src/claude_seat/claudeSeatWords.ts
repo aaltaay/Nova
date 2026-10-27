@@ -145,7 +145,9 @@ export function todayRow(status: ClaudeSeatStatus): string {
   const t = status.today;
   const pnl = t.pnl === null ? 'P&L unknown' : fmtMoney(t.pnl);
   const stop = t.day_stop === null ? '' : ` · I stop for the day at -$${Math.abs(Math.round(t.day_stop))}`;
-  return `Trades ${t.entries} of ${t.max_entries} · ${pnl}${stop}`;
+  // No daily trade count unless one is set (operator, 2026-10-27).
+  const count = t.max_entries === null ? `${t.entries} · no cap` : `${t.entries} of ${t.max_entries}`;
+  return `Trades ${count} · ${pnl}${stop}`;
 }
 
 export const CLAUDE_WHY_BUSY = 'Waiting for Nova to answer your last press.';

@@ -1,10 +1,10 @@
 """What the bot's audit stream says a setting was at any moment of a day (ADR 044, the squares). Pure.
 
 The triggers audit (``bot.trigger_audit``) judges each trigger by the settings it met: each strategy's
-own level, each stock's mode (Who trades) and the venue's daily cap. The stream records every change
-of them with its ``from`` and ``to`` -- ``setup_level`` (``inputs: {setup, from, to}``), ``stock_mode``
-``set`` (``inputs: {symbol, from, to}``) and ``caps`` (``inputs: {venue, changed: {KEY: {from,
-to}}}``) -- each stamped with the venue it applied to. What a setting was at ``t`` is read from the
+own level and each stock's mode (Who trades). The stream records every change of them with its ``from``
+and ``to`` -- ``setup_level`` (``inputs: {setup, from, to}``) and ``stock_mode`` ``set`` (``inputs:
+{symbol, from, to}``) -- each stamped with the venue it applied to (the venue's daily cap, read from
+``caps`` lines until 2026-10-27, is retired: there is no daily cap). What a setting was at ``t`` is read from the
 nearest record:
 
 - the last change at or before ``t`` (its ``to``);
@@ -43,16 +43,15 @@ def _sym(raw: Any) -> str:
 
 
 class Timeline:
-    """The day's recorded changes, read back at any moment (``level_at``, ``mode_at``, ``cap_at``)."""
+    """The day's recorded changes, read back at any moment (``level_at``, ``mode_at``)."""
 
     def __init__(self, rows: list[dict[str, Any]], *, restarts: list[float] | None = None):
         self.levels: dict[tuple[str | None, str], list[Event]] = {}
         self.modes: dict[tuple[str | None, str], list[Event]] = {}
-        self.caps: dict[str | None, list[Event]] = {}
         self.global_modes: list[Event] = [(float(t), RESET, None, None) for t in restarts or []]
         for row in rows:
             self._add(row)
-        for table in (self.levels, self.modes, self.caps):
+        for table in (self.levels, self.modes):
             for events in table.values():
                 events.sort(key=lambda e: e[0])
         self.global_modes.sort(key=lambda e: e[0])
@@ -78,20 +77,11 @@ class Timeline:
                         (ts, SET, gone.get("was"), STOCK_MODE_SIGNAL))
         elif action == "venue":
             self.global_modes.append((ts, RESET, None, None))
-        elif action == "caps":
-            entry = (inputs.get("changed") or {}).get("entries_per_day")
-            if isinstance(entry, dict):
-                self.caps.setdefault(inputs.get("venue") or venue, []).append(
-                    (ts, SET, entry.get("from"), entry.get("to")))
 
     # -- reads ---------------------------------------------------------------------------
     def level_at(self, venue: str | None, setup: str, t: float, now: Callable[[], Any]) -> Any:
         """A strategy's own level (0 Off, 1 Eyes, 2 On) on ``venue`` at ``t``; ``now()`` is today's."""
         return nearest(self.levels.get((venue, setup), []), t, now)
-
-    def cap_at(self, venue: str | None, t: float, now: Callable[[], Any]) -> Any:
-        """The venue sleeve's ``entries_per_day`` at ``t``."""
-        return nearest(self.caps.get(venue, []), t, now)
 
     def mode_at(self, venue: str | None, symbol: str, t: float, now: Callable[[], Any]) -> Any:
         """A stock's mode (``signal`` | ``approve`` | ``auto_entry`` | ``bot``) on ``venue`` at ``t``, or ``UNKNOWN``."""

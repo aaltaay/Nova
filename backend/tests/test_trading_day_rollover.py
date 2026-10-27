@@ -91,18 +91,18 @@ def _entry(ts: float, stamp: str | None) -> dict:
 
 
 @pytest.mark.parametrize("stamp", [MON, None])           # a stamped line, and one written before the stamp
-def test_the_daily_cap_is_still_mondays_until_four(stamp):
+def test_the_daily_count_is_still_mondays_until_four(stamp):
     rows = [_entry(at(MON, 9, 15), stamp)]
-    small_hours = entry_rules.today("paper", datetime.fromtimestamp(at(TUE, 0, 30), ET), cap=1, rows=rows)
+    small_hours = entry_rules.today("paper", datetime.fromtimestamp(at(TUE, 0, 30), ET), rows=rows)
     assert small_hours["venue_day"] == MON and small_hours["count"] == 1      # was: 0 on a day with no date yet
-    morning = entry_rules.today("paper", datetime.fromtimestamp(at(TUE, 10, 0), ET), cap=1, rows=rows)
+    morning = entry_rules.today("paper", datetime.fromtimestamp(at(TUE, 10, 0), ET), rows=rows)
     assert morning["venue_day"] == TUE and morning["count"] == 0
 
 
 def test_an_unstamped_line_from_the_small_hours_counts_for_the_day_before():
     rows = [_entry(at(TUE, 0, 30), None)]
-    assert entry_rules.today("paper", datetime.fromtimestamp(at(TUE, 3, 0), ET), cap=1, rows=rows)["count"] == 1
-    assert entry_rules.today("paper", datetime.fromtimestamp(at(TUE, 10, 0), ET), cap=1, rows=rows)["count"] == 0
+    assert entry_rules.today("paper", datetime.fromtimestamp(at(TUE, 3, 0), ET), rows=rows)["count"] == 1
+    assert entry_rules.today("paper", datetime.fromtimestamp(at(TUE, 10, 0), ET), rows=rows)["count"] == 0
 
 
 @pytest.mark.parametrize(("ts", "day"), [(at(TUE, 0, 30), MON), (at(TUE, 10, 0), TUE)])

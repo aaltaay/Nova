@@ -167,7 +167,7 @@ def test_a_short_trigger_enters_a_short_bracket_and_covers_at_the_target(paper):
     assert entry["outcome"] == "ok" and entry["inputs"]["side"] == "short" and "buy stop 4.13" in entry["reason"]
     assert {v["id"] for v in entry["inputs"]["short_check"]} >= {"borrow", "ssr", "halt", "hours", "cushion"}
     assert all(v["ok"] for v in entry["inputs"]["short_check"])
-    assert entries_today() == 1                      # a short counts toward the day's cap
+    assert entries_today() == 1                      # a short counts in the day's Nova entries
     assert load_session()["bot_qty"] == {SYM: -1.0} and paper.broker.ledger.held_qty(SYM) == -1.0
 
     paper.broker.try_fill_working(SYM, [(paper.now + 10, 3.70)])
@@ -455,9 +455,9 @@ def test_the_bot_api_shorts_with_its_buy_stop_and_covers_never_past_flat(paper):
     paper.broker.try_fill_working(SYM, [(paper.now + 1, 4.01)])
     assert paper.broker.ledger.held_qty(SYM) == -1.0
 
-    with pytest.raises(BotError) as refused:                     # the short took the day's one entry
+    with pytest.raises(BotError) as refused:                     # no daily cap, but one trade at a time
         asyncio.run(actions.fire({"kind": "short_limit_bid_offset", "symbol": SYM}, brain_session_id="brain-1"))
-    assert refused.value.status_code == 409 and "1 already sent today" in refused.value.message
+    assert refused.value.status_code == 409 and refused.value.reason == "BOT_WORKING_BLOCK"
 
     covered = asyncio.run(actions.fire({"kind": "cover_limit_ask_offset", "symbol": SYM}, brain_session_id="brain-1"))
     assert covered["ok"] is True and leg(paper, covered["order_id"])["side"] == "BUY"

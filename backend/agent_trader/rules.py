@@ -64,7 +64,8 @@ def window_refusal(now_et: datetime) -> str | None:
 
 
 def day_refusal(entries: int, pnl: float) -> str | None:
-    if entries >= AGENT_MAX_ENTRIES_A_DAY:
+    """The day stop always applies; the trade count only when ``AGENT_MAX_ENTRIES_A_DAY`` is set (None = no cap)."""
+    if AGENT_MAX_ENTRIES_A_DAY is not None and entries >= AGENT_MAX_ENTRIES_A_DAY:
         return f"Claude has opened {entries} of its {AGENT_MAX_ENTRIES_A_DAY} trades today"
     if pnl <= AGENT_DAY_STOP_USD:
         return f"Claude is done for today: ${pnl:,.2f} reached its ${AGENT_DAY_STOP_USD:,.0f} day stop"

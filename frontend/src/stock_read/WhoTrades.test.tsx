@@ -154,7 +154,7 @@ describe('who trades APUS, above Level 2', () => {
         { id: 'window', tone: 'warn', text: "The bull flag's bot window is closed (07:00-10:00 ET)." },
         { id: 'sim_waits', tone: 'info', text: 'A Sim trade waits while the desk shows another venue.' },
       ],
-      entries_today: { count: 1, cap: 1 },
+      entries_today: { count: 1 },
       last_event: { ts: 1_790_000_100, tone: 'warn', text: 'The bot skipped APUS: the bot is not active' },
       bot: { on_list: true, playing: false, reason: 'the bot is not active', setup_at_strategy: true, active: false },
     });
@@ -166,8 +166,8 @@ describe('who trades APUS, above Level 2', () => {
     expect(screen.getByTestId('who-trades-note-window').getAttribute('data-tip')).toMatch(/bot window is closed/);
     expect(screen.getByTestId('who-trades-mode').textContent).toContain('Bot');
     const entries = screen.getByTestId('who-trades-entries');
-    expect(entries.textContent).toBe("Nova's automatic trades today: 1 of 1");
-    expect(entries.className).toContain('--warn');
+    expect(entries.textContent).toBe("Nova's automatic trades today: 1");          // a count, never a cap
+    expect(entries.className).toContain('--info');
     expect(screen.getByTestId('who-trades-event').textContent).toMatch(/The bot skipped APUS: the bot is not active$/);
   });
 

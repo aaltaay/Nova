@@ -57,13 +57,14 @@ is refused `409 BOT_LIVE_NOT_BUILT`, exits and cancels included (a bot never
 touches Live). At Strategy a `buy_*` kind is also refused outside its setup's
 bot window on the venue's clock (each setup's template in play: `409
 BOT_OUTSIDE_WINDOW`), outside 09:30-16:00 ET while the venue's sleeve turns
-extended hours off, and past the venue's daily cap (`409 BOT_DAY_TRADE_CAP`):
-the sleeve's `entries_per_day` (1-3, default 1) counts Nova's automatic entries
--- the bot's and Auto-entry's together -- per venue day, from the persisted audit
+extended hours off. **No daily cap** (operator, 2026-10-27: "that 3 trades a day limit need to be removed all over the place actually"; "u have infinite trades so we LEARN!"; ADR 042
+amendment): `BOT_DAY_TRADE_CAP` and the sleeve's `entries_per_day` are gone. The day's
+count of Nova's automatic entries -- the bot's and Auto-entry's together -- is still kept
+and shown, per venue day, from the persisted audit
 stream (the day is Nova's trading day, `market.session_key_et`: the count resets at 04:00 ET,
 never at midnight, 2026-10-19; entry audit rows carry `inputs.venue_day`; an entry cancelled unfilled
--- a `missed` -- gives the day back; Approve is counted, `entries_today.approved`,
-never capped); exits and cancels are never held by either. **Commissions unknown
+-- a `missed` -- is taken back off; Approve is counted, `entries_today.approved`); it refuses
+nothing. Exits and cancels are never held. **Commissions unknown
 hold new entries** (operator decision on #564, 2026-09-24): while the session's
 commission read fails, every bot entry on Live -- a `buy_*` kind on `POST
 /api/bot/action` and the bot's own entry (both pass
@@ -102,7 +103,7 @@ trigger still needs its own), `loss_limit` (stage `fire`: the daily loss limit's
 buys for the bots on this venue -- the Account line's or the Bots line's, ADR 063 -- `detail: {text, until,
 tripped_at, loss, limit_usd, venue, line}`; `loss-limit.md`), `kill_switch`, `window`
 (per Strategy setup: `setups: [{setup, start, end, open, clipped, error}]`),
-`daily_cap` (`count`, `cap`, `venue_day`), `extended_hours` and `commissions`;
+`extended_hours` and `commissions` (the `daily_cap` gate is retired, 2026-10-27);
 the session adds `ready` / `ready_reason` (the bot would trade a go trigger now)
 with `live_fire_ready` as a one-release alias.
 
@@ -123,11 +124,13 @@ the token's presence, stays).
 
 **One sleeve per venue** (ADR 042, owner `bot/sleeve.py`, #658 item 2). Each
 venue's dial carries its own `caps: {venue, risk_usd, max_shares,
-bp_budget_usd, working_ttl_sec, extended_hours, entries_per_day, api_kinds}`
+bp_budget_usd, working_ttl_sec, extended_hours, api_kinds}`
 (`allowlist`, the localhost API's order kinds, a one-release alias of
 `api_kinds`); bounds `caps_bounds` (risk 1-10,000, shares 1-10, budget up to
-$50, TTL 1-10 s, entries 1-3); a value out of bounds is refused `400
-BOT_CAPS_INVALID`, never clamped in silence. `PATCH {caps: {venue?, ...}}`
+$50, TTL 1-10 s); a value out of bounds is refused `400
+BOT_CAPS_INVALID`, never clamped in silence. `entries_per_day` is retired (2026-10-27): a stored
+sleeve that still carries it loads without it and the next write of that venue's sleeve drops it (no
+`schema_version` change: a removed optional key); a `PATCH` that sends it changes nothing. `PATCH {caps: {venue?, ...}}`
 edits the named venue's (else the desk's); `caps_by_venue` lists all three. The
 migration copied the one sleeve to every venue. **One size**
 (`bot/sizing.py`, pure) for every Nova automatic buy: floor(`risk_usd` / the
@@ -136,8 +139,9 @@ setup's risk a share), capped by `max_shares` and by what the budget still buys
 share is a stated skip). `risk_usd` is also the Trader's risk per trade. **One
 entry timeout**: `working_ttl_sec` for the bot, Auto-entry and Approve.
 `extended_hours` (default on: the default bot windows open at 07:00 ET) binds
-the bot and Auto-entry. `entries_today: {count, cap, venue_day, entries:
-[{symbol, setup_type, by, ts, outcome}], approved, error?}`.
+the bot and Auto-entry. `entries_today: {count, venue_day, entries:
+[{symbol, setup_type, by, ts, outcome}], approved, error?}` -- shown, never a cap (`cap` left the
+wire 2026-10-27).
 
 **No loss breaker** (ADR 056, superseding ADR 032). The bot trip and the all-stop are gone, with
 their thresholds (`breakers`), the bot trip's latch (`soft_breaker_*`), the all-stop's day lock
@@ -176,12 +180,12 @@ replay" below) -- never on Live -- it hears the setup scanner's triggers (each s
 lane: `SetupEngine.add_trigger_listener`, and the Sim eyes' on a replay; the event carries `setup_type`,
 `grade`, `pillars`, `filtered` and `spread`) and plays **every setup at
 effective Strategy** on this venue's Bot stocks: the first go trigger wins, one
-trade at a time, then the shared daily cap. It takes the first of a setup on a
+trade at a time (no daily cap since 2026-10-27). It takes the first of a setup on a
 symbol that day (its kind without `second_`) with the tape at go and the plan a
 trade (NOT A TRADE is one rule, below), after every gate (`admit.for_bot`): the
 venue, Activate, the setup's level and window, extended hours, a held depth
 line, the padlock, the kill switch, this venue's daily loss limit (ADR 056), the
-working block, the sleeve's size and the daily cap; a trigger it does not take
+working block and the sleeve's size; a trigger it does not take
 is a `bot_trade` `skipped` line with every reason (`inputs.codes` /
 `reasons`) and the stock's last event on its Trader tab. Its entry is a
 **practice bracket** (`operation: "bracket"`, source `bot`: a BUY limit at the
@@ -418,8 +422,9 @@ the day before and are left out of the day's table and of its restart marks, 202
 ```
 
 - **The gates**, in Nova's order: `bot_on`, `strategy_on`, `grade`, `setups_a_day`, `bot_window`,
-  `nova_buys` ("Bot buys"), `level2_line`, `tape_go`, `trades_today`. The `hot_list` gate is retired
-  (2026-10-06): being listed decides nothing, so no square asks it.
+  `nova_buys` ("Bot buys"), `level2_line`, `tape_go`. The `hot_list` gate is retired
+  (2026-10-06): being listed decides nothing, so no square asks it. The `trades_today` square (the venue's
+  daily cap) is retired with the cap (2026-10-27): no trigger, past or now, is held back by a day's count.
 - **`cells`** maps each gate to `{ok: true | false | null, why}`; `null` means the gate did not apply.
   A trigger reads the bot's state, tape, grade (its `armed` line), `nth`, liquidity and outcome as the
   journal recorded them. It reads the stock's mode and the strategy's level from the audit stream at its
@@ -551,10 +556,10 @@ side: `backend/bot/replay_desk.py`; of the lanes: `backend/eyes/sim_eyes.py`, `e
   `note` line says so (`inputs.restored_to`), and an order of the bot's the restored trade does not know
   is cancelled (a `note` line names it). Each rewind changes the bot's idempotency keys on the replay
   (`bot:fp:sim:<replay>.<run>:<setup_id>:<step>`), so a setup played across again is sent again.
-- **The day's count** on a replay (`entry_rules.today`, the `daily_cap` gate, `assert_entry_allowed`) is
+- **The day's count** on a replay (`entry_rules.today`) is
   the replay run's own: the bot's entries sent before the playhead, a miss given back. Every bot audit
   line written on a replay carries `replay: {key, playhead_ts}`; such a line never counts toward any
-  venue's daily cap in the audit fold.
+  venue's day count in the audit fold. The count caps nothing (2026-10-27).
 - **What the bot reads** on a replay: last, bid and ask are the replay's at the playhead
   (`sim.practice.reference`, `bot.quotes`); the depth-line rule is met by the replay's own book --
   recorded Level 2, the window's NBBO, or a book Nova recorded that day -- beside the historical Level

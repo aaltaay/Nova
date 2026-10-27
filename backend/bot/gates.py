@@ -103,7 +103,6 @@ def gates(row: dict[str, Any], venue_now: tuple[str | None, bool, bool] | None =
     now = entry_rules.venue_now()
     wins = entry_rules.windows(strategy, now)
     caps = sleeve_of(row)
-    daily = _safe(lambda: entry_rules.today(venue, now, cap=int(caps["entries_per_day"])), None, "the daily count")
     late = _safe(lambda: entry_rules.extended_hours_block(caps), "the venue's clock is unreadable",
                  "regular hours")
     hold = commission_hold(venue)     # #564: Live only; never raises
@@ -141,11 +140,6 @@ def gates(row: dict[str, Any], venue_now: tuple[str | None, bool, bool] | None =
                or "no setup is at Strategy, so no window applies"),
               setups=[{k: w.get(k) for k in ("setup", "start", "end", "open", "clipped", "error")} for w in wins],
               venue_time=now.strftime("%H:%M")),
-        _gate("daily_cap", daily is not None and daily["count"] < daily["cap"], "fire",
-              (entry_rules.cap_text(daily["count"], daily["cap"]) if daily is not None
-               else "the day's entries could not be counted: Nova sends no automatic entry"),
-              count=(daily or {}).get("count"), cap=int(caps["entries_per_day"]),
-              venue_day=(daily or {}).get("venue_day")),
         _gate("extended_hours", late is None, "fire",
               late or ("extended hours allowed by the sleeve" if caps.get("extended_hours")
                        else "inside 09:30-16:00 ET"), allowed=bool(caps.get("extended_hours"))),

@@ -190,7 +190,7 @@ def _sentence(text: str) -> str:
 
 
 def _notes(sym: str, mode: str, venue: str | None, replay: bool, row: dict[str, Any] | None,
-           lane: dict[str, Any] | None, daily: dict[str, Any] | None, loaded: bool = True) -> list[dict[str, Any]]:
+           lane: dict[str, Any] | None, loaded: bool = True) -> list[dict[str, Any]]:
     """Every condition that keeps Nova from acting on this stock -- all of them, not the first."""
     from bot import entry_rules
     from bot.eligibility import holds_depth_line
@@ -241,11 +241,6 @@ def _notes(sym: str, mode: str, venue: str | None, replay: bool, row: dict[str, 
         win = entry_rules.window(setup)
         if not win.get("open"):
             out.append(_note("window", f"Outside the bot's window: {entry_rules.window_text(win)}."))
-    if daily is not None and daily.get("count") is not None and daily["count"] >= daily["cap"]:
-        out.append(_note("daily_cap", _sentence(entry_rules.cap_text(daily["count"], daily["cap"]))))
-    elif daily is not None and daily.get("count") is None:
-        out.append(_note("daily_cap", _sentence(f"the day's Nova entries could not be counted "
-                                                f"({daily.get('error') or 'unknown'}): Nova sends no automatic entry")))
     late = entry_rules.extended_hours_block(of(row))
     if late is not None:
         out.append(_note("extended_hours", _sentence(late)))
@@ -323,11 +318,11 @@ def build(symbol: str, *, now: float | None = None) -> dict[str, Any]:
         sell = STOCK_MODE_SIDE_NOVA          # Nova holds the exit of a stock you bought (the mode stays yours)
     caps = of(row) if loaded is not None else None
     try:
-        daily = entry_rules.today(venue, cap=int(caps["entries_per_day"])) if caps else None
+        daily = entry_rules.today(venue) if caps else None
     except Exception:
         logger.warning("stock mode: the day's Nova entries could not be counted", exc_info=True)
-        daily = {"count": None, "cap": (caps or {}).get("entries_per_day"),
-                 "error": "the day's entries could not be counted (the backend log has the error)", "entries": []}
+        daily = {"count": None, "error": "the day's entries could not be counted (the backend log has the error)",
+                 "entries": []}
     bot_trade = _bot_trade(sym, row)
     if bot_trade and bot_trade.get("venue") not in (None, venue):
         bot_trade = None                    # the bot's trade on another venue is not this desk's
@@ -339,7 +334,7 @@ def build(symbol: str, *, now: float | None = None) -> dict[str, Any]:
     if unread and mode != "signal":
         notes.append(_note("scanner_unreadable", f"The setup scanner's lanes for {sym} could not be read: Nova cannot "
                                                  "say which setup it would act on, or what size."))
-    notes += _notes(sym, mode, venue, replay, loaded, lane, daily, key is not None) + \
+    notes += _notes(sym, mode, venue, replay, loaded, lane, key is not None) + \
         _sim_waits(sym, venue, replay, loaded)
     mine = [e for e in (daily or {}).get("entries") or [] if e.get("symbol") == sym and e.get("outcome") != "missed"]
     return {
@@ -361,7 +356,7 @@ def build(symbol: str, *, now: float | None = None) -> dict[str, Any]:
         "size": _size(mode, row, lane, venue) if loaded is not None else None,
         "approval": store.approval(sym, key),
         "trade": _public_trade(trade),
-        "entries_today": {"count": (daily or {}).get("count"), "cap": (daily or {}).get("cap")},
+        "entries_today": {"count": (daily or {}).get("count")},     # shown, never a cap (2026-10-27)
         "nova_entries_today": len(mine),            # LEGACY (one release): Nova's entries of this stock today
         "last_event": store.event(sym),
         "bot": bot if (loaded is None or bot["on_list"] or mode == STOCK_MODE_BOT

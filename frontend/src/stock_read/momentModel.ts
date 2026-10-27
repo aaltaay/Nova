@@ -11,7 +11,7 @@ import type { BigWalls } from './bigSeller';
 import { ENTER_NOW_RISK_SHARE, ENTER_NOW_SEC, NOT_A_TRADE_NOVA, NOVA_CALL_SEC } from './constants';
 import { tradeLimits } from './exitTargets';
 import { heldCall } from './heldCalls';
-import { approveQty, capUsedText, novaBlockers, novaQty } from './novaPromise';
+import { approveQty, novaBlockers, novaQty } from './novaPromise';
 import { fmtPx, fmtStep, planBadge, planLane, setupName, sizeFor } from './planMath';
 import { notATrade, resultBadge, thinPlan } from './planVerdict';
 import { actWords, approvedWords, blockedTitle, enterWord, nearSide, shortWaitingWords } from './momentWords';
@@ -400,7 +400,7 @@ function blockedCall(i: MomentInputs, plan: StockPlan, mode: StockModeName, key:
 ): MomentCall | null {
   const why = novaBlockers(i.who, plan);
   if (!why.length) return null;
-  const title = blockedTitle(plan, mode, capUsedText(i.who) !== null, triggered);
+  const title = blockedTitle(plan, mode, triggered);
   return { id: `blocked:${mode}:${key}`, tone: 'wait', title, detail: why[0], pin: null, ping: false,
     ...(why.length > 1 ? { more: why.slice(1) } : {}) };
 }

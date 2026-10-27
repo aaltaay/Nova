@@ -454,15 +454,16 @@ def test_a_listed_name_without_its_level_2_is_skipped_with_the_reason(paper):
     assert "holds no depth line" in row["reason"] and row["inputs"]["code"] == "BOT_NO_DEPTH_LINE"
 
 
-def test_one_trade_a_day(paper):
+def test_a_second_trade_the_same_day_is_taken(paper):
+    """No daily cap (operator, 2026-10-27): once the first trade closed, the next trigger that day is bought."""
     runner.submit(trigger())
     tick(paper)
     paper.broker.try_fill_working(SYM, [(NOW + 10, 10.35)])
     tick(paper, NOW + 11)
     runner.submit(trigger(setup_id="IMCC-second", setup={"triggered_at": NOW + 12}))
     tick(paper, NOW + 12)
-    [row] = trade_rows("skipped")
-    assert "a day" in row["reason"] and row["inputs"]["code"] == "BOT_DAY_TRADE_CAP"
+    assert trade_rows("skipped") == []
+    assert [r["outcome"] for r in trade_rows()] == ["filled", "closed", "filled"]
 
 
 def test_a_live_commission_hold_does_not_hold_paper(paper, monkeypatch):

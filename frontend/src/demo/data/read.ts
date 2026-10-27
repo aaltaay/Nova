@@ -295,7 +295,7 @@ export function stockMode(symbol: string, mode = 'signal') {
   return {
     schema_version: 1, symbol, generated_at: NOW_S, venue: 'paper', mode, buy: mode === 'signal' ? 'you' : 'nova',
     sell: mode === 'bot' ? 'nova' : 'you', risk_usd: 50, set_at: null, locks: { buy: null, sell: null }, notes: [],
-    approval: null, trade: null, entries_today: { count: 0, cap: 1 }, nova_entries_today: 0,
+    approval: null, trade: null, entries_today: { count: 0 }, nova_entries_today: 0,
     size: { qty: 185, by_risk: 185, capped_by: null, text: '185 shares at $50 risk' }, last_event: null, bot: null,
   };
 }

@@ -85,11 +85,10 @@ export interface StockModeSize {
   text: string | null;
 }
 
-/** Nova's automatic buys today on the venue (the bot and Auto-entry share one count); `cap` null when the
- * backend does not say it. */
+/** Nova's automatic buys today on the venue (the bot and Auto-entry share one count). Shown, never a cap
+ * (operator, 2026-10-27). */
 export interface StockModeEntries {
   count: number;
-  cap: number | null;
 }
 
 export interface StockModeBot {

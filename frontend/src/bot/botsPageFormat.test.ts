@@ -61,8 +61,6 @@ describe('gate chips (bot/gates.py facts, ADR 042 C)', () => {
     });
     // Auto-entry stocks count too: Auto-entry buys only while the bot is Active (ADR 042 F).
     expect(gateLine(gate('allowlist', true, { count: 1, auto_entry: 2 }, 'fire')).text).toMatch(/· 1 · Auto-entry 2$/);
-    expect(gateLine(gate('daily_cap', true, { count: 0, cap: 1 }, 'fire')).text).toBe('Nova entries 0 / 1 today');
-    expect(gateLine(gate('daily_cap', false, { count: 1, cap: 1 }, 'fire')).text).toBe('Daily cap used · 1 / 1 today');
   });
 
   it('reads the daily loss limit, the windows, the kill switch and the commissions', () => {
@@ -221,7 +219,7 @@ describe('header pill, nav dot and rail card (ADR 044)', () => {
     const restarted = botHeaderState(strategySession({ deactivated: { at: null, reason: 'restart', text: null } }));
     expect(restarted.reason).toBe('Turned off — the backend restarted.');
     const closed = botHeaderState(session({ level: 2, active: true, gates: gates() }));
-    expect(closed.title).toMatch(/2 of 13 gates closed: level, setups/);
+    expect(closed.title).toMatch(/2 of 12 gates closed: level, setups/);
   });
 });
 

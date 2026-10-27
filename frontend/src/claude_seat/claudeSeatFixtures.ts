@@ -27,7 +27,7 @@ export function seatStatus(over: Partial<ClaudeSeatStatus> = {}): ClaudeSeatStat
       id: 'r1', symbol: 'SMPL', kind: 'bid_pulled', action: 'sell_all', why: null,
       text: 'Sell everything if the 4.30 bid drops under 5,000 shares', expires_at: null,
     }],
-    today: { entries: 0, max_entries: 3, pnl: 0, day_stop: -500, fills: 0 },
+    today: { entries: 0, max_entries: null, pnl: 0, day_stop: -500, fills: 0 },
     limits: { max_shares: 1000, max_risk_usd: 150 },
     note: { text: 'SMPL +54% on news: 31.2M traded on a 4.2M float.', at: SEAT_NOW - 20 },
     events: [

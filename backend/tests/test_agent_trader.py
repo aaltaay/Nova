@@ -212,9 +212,24 @@ def test_the_day_window_and_the_day_stop():
     assert rules.window_refusal(datetime(2026, 10, 7, 10, 0, tzinfo=ET)) is None
     assert rules.window_refusal(datetime(2026, 10, 7, 15, 30, tzinfo=ET))
     assert rules.window_refusal(datetime(2026, 10, 10, 10, 0, tzinfo=ET))      # a Saturday
-    assert "3 of its 3" in (rules.day_refusal(3, 0.0) or "")
     assert "done for today" in (rules.day_refusal(1, -500.0) or "")
+    assert "done for today" in (rules.day_refusal(40, -500.0) or "")
     assert rules.day_refusal(2, -499.0) is None
+
+
+def test_claude_has_no_daily_trade_count_by_default():
+    """Operator, 2026-10-27: "u have infinite trades so we LEARN!" -- a 4th (or 40th) entry passes the day check;
+    only the -$500 day stop ends Claude's day."""
+    assert rules.AGENT_MAX_ENTRIES_A_DAY is None
+    assert rules.day_refusal(3, 0.0) is None
+    assert rules.day_refusal(40, -499.0) is None
+    assert view.status()["today"]["max_entries"] is None
+
+
+def test_a_set_trade_count_still_caps_claude(monkeypatch):
+    monkeypatch.setattr(rules, "AGENT_MAX_ENTRIES_A_DAY", 3)
+    assert rules.day_refusal(2, 0.0) is None
+    assert "3 of its 3" in (rules.day_refusal(3, 0.0) or "")
 
 
 # -- Paper only -------------------------------------------------------------------------------------------
