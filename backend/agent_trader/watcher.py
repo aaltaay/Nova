@@ -6,8 +6,9 @@ Each pass, in order:
    time); **16:00 ET** the seat turns off.
 2. **A lapsed lease** -- no check-in for ``AGENT_LEASE_SEC``: the same close, then the seat off and its line freed.
 3. **The line** -- while the seat reserves one and names a stock, take it if a depth line is free; with all 3 held,
-   an auto-record line is given up for it first (``room``, never the operator's); a seat given up or off lets its
-   lines go.
+   an auto-record line is given up for it first (``room``), else a hidden Trader tab's line is borrowed
+   (``tab_line``, decision 14: only the operator's right-click takes it back); a seat given up or off lets its
+   lines go, and a tab's loan ends with it.
 4. **Breaks** -- a resting break whose trigger a print reached sends its bracket at the break's top price, after
    its confirm (buyers leading, ``reflexes.confirmed``) and Claude's limits are checked again; one past its time is
    dropped.
@@ -109,16 +110,30 @@ async def _line(t: float) -> None:
         _line_why = None
         return
     if not lines.holds_depth(sym):
-        from agent_trader import room
+        from agent_trader import room, tab_line
 
+        if tab_line.on_hold(t):
+            return                               # the operator just took a tab's line back: it reconnects first
         if taken := await room.make_room(sym, t):
             seat.event("line_taken", f"took {taken}'s auto-record line for {sym}: all 3 Level 2 lines were held", t)
+        elif room.lines_full(sym):
+            await tab_line.take(sym, t)          # the last resort: a hidden Trader tab's line (decision 14)
     why = await lines.acquire(sym)
     if why != _line_why and why:
         seat.event("line_wait", f"waiting for a Level 2 line on {sym}: {why}", t)
     elif _line_why and not why:
         seat.event("line", f"holding Level 2 and Time & Sales on {sym}", t)
     _line_why = why
+
+
+async def _tab_line(t: float) -> None:
+    """A hidden tab's line Claude holds: ended once Claude let its line go or the tab closed (``tab_line``)."""
+    from agent_trader import tab_line
+
+    try:
+        await tab_line.keep(t)
+    except Exception:
+        logger.exception("AGENT tab line: a pass failed; judged again next pass")
 
 
 async def _recent_prints(symbol: str, t: float) -> list[dict[str, Any]]:
@@ -344,6 +359,7 @@ async def run_pass(now: float | None = None) -> None:
             await end_seat("Claude went quiet for 10 minutes: Nova cancelled its orders, sold its shares and freed "
                            "its line", t)
             return
+        await _tab_line(t)
         await _line(t)
         if seat.is_on() and not seat.is_yielded():
             await _breaks(t)

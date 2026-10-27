@@ -198,3 +198,45 @@ def test_the_pill_says_where_claudes_line_came_from():
     assert view.pill_text(SEAT_WATCHING, base, holds=True, lent_from=None) == base
     assert view.pill_text(SEAT_IN, "Claude · In RUNR +$24.00", holds=False, lent_from=None) == (
         "Claude · In RUNR +$24.00 · no Level 2")
+
+
+def test_the_watcher_borrows_a_tab_only_after_auto_record_had_none(monkeypatch):
+    from agent_trader import room, watcher
+
+    seat.reset_for_tests()
+    agent_lines.reset_for_tests()
+    tab_line.reset_for_tests()
+    watcher.reset_for_tests()
+    seat.claim(now=1000.0)
+    seat.set_symbol("RUNR", now=1000.0)
+    asked: list[str] = []
+    took: list[str] = []
+
+    async def no_auto(sym, now=None):
+        asked.append("room")
+        return None
+
+    async def borrow(sym, now=None):
+        took.append(sym)
+        return "SMPL"
+
+    async def acquire(sym):
+        asked.append("acquire")
+        return "all 3 Level 2 lines are in use"
+
+    monkeypatch.setattr(room, "make_room", no_auto)
+    monkeypatch.setattr(room, "lines_full", lambda sym: True)
+    monkeypatch.setattr(tab_line, "take", borrow)
+    monkeypatch.setattr(agent_lines, "acquire", acquire)
+    monkeypatch.setattr(agent_lines, "holds_depth", lambda sym: False)
+    run(watcher._line(1001.0))
+    assert asked == ["room", "acquire"] and took == ["RUNR"]
+
+    tab_line._hold_until = 1010.0                # the operator just took a tab's line back
+    asked.clear()
+    took.clear()
+    run(watcher._line(1002.0))
+    assert asked == [] and took == []
+    seat.reset_for_tests()
+    tab_line.reset_for_tests()
+    watcher.reset_for_tests()

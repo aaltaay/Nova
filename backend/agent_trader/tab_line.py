@@ -78,7 +78,7 @@ def tier(symbol: str | None) -> str:
 async def take(symbol: str, now: float | None = None) -> str | None:
     """All 3 lines held and none ``symbol``'s: borrow a hidden tab's lines for Claude. The tab, or None."""
     global _tried_at
-    from agent_trader import lines
+    from agent_trader import lines, seat
     from line_lending import claude_loan
 
     t = clock.now() if now is None else now
@@ -90,7 +90,10 @@ async def take(symbol: str, now: float | None = None) -> str | None:
     if lender is None:
         return None
     loan = await claude_loan.lend(lender, sym, tier(sym) or "watching", lambda: lines.acquire(sym))
-    return loan.lender if loan is not None else None
+    if loan is None:
+        return None
+    seat.event("tab_line", f"took your hidden {loan.lender} tab's line · {loan.why_words() or sym}", t)
+    return loan.lender
 
 
 async def take_back(symbol: str, now: float | None = None) -> str | None:
