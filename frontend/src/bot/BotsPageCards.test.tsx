@@ -423,9 +423,9 @@ describe('Tickers today -- the hot list and the squares by ticker (ADR 044)', ()
     expect(within(grml).getByText('☆').className).toBe('bots-tk__star is-on');
     expect(within(grml).getByText(/^auto /)).toBeTruthy();
     expect(within(grml).getByText('You trade it')).toBeTruthy();
-    // Ten squares in Nova's order (being listed is no gate), the shorts-only block empty on a stock with no short
-    // strategy On: one red, said once in grey as the gate every ticker shares.
-    expect(grml.querySelectorAll('.bots-tk__cell')).toHaveLength(10);
+    // Nine squares in Nova's order (being listed is no gate; no daily cap since 2026-10-27), the shorts-only block
+    // empty on a stock with no short strategy On: one red, said once in grey as the gate every ticker shares.
+    expect(grml.querySelectorAll('.bots-tk__cell')).toHaveLength(9);
     const red = grml.querySelectorAll('.bots-tk__cell.is-bad');
     expect(red).toHaveLength(1);
     expect(red[0].getAttribute('data-tip')).toBe('the bot window 07:00–10:00 closed');
@@ -447,7 +447,7 @@ describe('Tickers today -- the hot list and the squares by ticker (ADR 044)', ()
     // Every column head says what its square asks.
     const head = Array.from(table.querySelectorAll('th.bots-tk__gh')).map(th => th.textContent);
     expect(head).toEqual(['Bot on', 'Strategy on', 'Grade', 'Setups a day', 'Bot window', 'Entry: Bot',
-      'Level 2 line', 'Tape GO', 'Trades today', 'Not against you',
+      'Level 2 line', 'Tape GO', 'Not against you',
       'Borrow', 'SSR', 'No halt 10 min', 'Margin 25%', 'Before 15:50']);
     expect(table.querySelector('th.bots-tk__gh')?.getAttribute('data-tip')).toBe('Was the Bot switch on for this venue?');
     // The tickers that triggered off the list fold into one row until opened, and each one's triggers again.
@@ -478,9 +478,9 @@ describe('Tickers today -- the hot list and the squares by ticker (ADR 044)', ()
     const short = long.nextElementSibling as HTMLElement;
     expect(long.textContent).toMatch(/▲ LONG First pullback/);
     // A long trigger leaves the shorts-only block empty.
-    expect(long.querySelectorAll('.bots-tk__cell')).toHaveLength(10);
+    expect(long.querySelectorAll('.bots-tk__cell')).toHaveLength(9);
     expect(short.textContent).toMatch(/▼ SHORT Bear flag/);
-    expect(short.querySelectorAll('.bots-tk__cell')).toHaveLength(15);
+    expect(short.querySelectorAll('.bots-tk__cell')).toHaveLength(14);
     // The SSR square is never red: amber, and it says the short sells at the ask.
     const ssr = short.querySelector('td[data-gate="short_ssr"] .bots-tk__cell') as HTMLElement;
     expect(ssr.className).toBe('bots-tk__cell is-warn');
@@ -631,22 +631,20 @@ describe('Risk sleeve (ADR 042 E: one per venue)', () => {
     await act(async () => {
       fireEvent.change(screen.getByTestId('bot-strategy-risk'), { target: { value: '35' } });
       fireEvent.blur(screen.getByTestId('bot-strategy-risk'));
-      fireEvent.change(screen.getByTestId('bot-strategy-entries'), { target: { value: '2' } });
-      fireEvent.blur(screen.getByTestId('bot-strategy-entries'));
       fireEvent.click(screen.getByTestId('bot-strategy-eh'));
       await flush();
     });
     expect(patches(fetchMock)).toEqual(expect.arrayContaining([
       { caps: { venue: 'paper', risk_usd: 35 } },
-      { caps: { venue: 'paper', entries_per_day: 2 } },
       { caps: { venue: 'paper', extended_hours: true } },
     ]));
     const risk = screen.getByTestId('bots-risk');
     expect(within(risk).getByText('Risk per trade').getAttribute('data-tip'))
       .toBe('Sizes every Nova trade and your Stage: shares = risk ÷ risk per share (to the stop under a long\'s entry, '
         + 'or the buy stop over a short\'s), capped by max shares and the budget.');
-    expect(within(risk).getByText('Nova trades a day').getAttribute('data-tip'))
-      .toMatch(/One count for the bot and Auto-entry on this venue, longs and shorts together/);
+    // No daily cap (operator, 2026-10-27): the sleeve has no "Nova trades a day" control.
+    expect(screen.queryByTestId('bot-strategy-entries')).toBeNull();
+    expect(within(risk).queryByText('Nova trades a day')).toBeNull();
     expect(screen.getByTestId('bots-sleeve-short').textContent).toBe('▼ SHORT A short adds: a buy stop always goes in '
       + 'with the entry · a 25% margin cushion · 09:35–15:50, and Nova covers what is left at 15:55 · under SSR it sells '
       + 'at the ask · never on a stock you hold.');
@@ -791,16 +789,16 @@ describe('Proposals, activity and today', () => {
   });
 
   it('says what each of today\'s counts counts, and reads the setup at Strategy first', async () => {
-    mockFetch({ session: strategySession({ entries_today: { count: 1, cap: 1, venue_day: '2026-09-30', entries: [], approved: 2 } }) });
+    mockFetch({ session: strategySession({ entries_today: { count: 1, venue_day: '2026-09-30', entries: [], approved: 2 } }) });
     await renderPage();
     const today = screen.getByTestId('bots-today');
     expect(today.textContent).not.toMatch(/bot only/);
     expect((screen.getByTestId('bots-today-setup') as HTMLSelectElement).value).toBe('first_pullback');
     expect(screen.getByTestId('bots-kpi-armed').textContent).toBe('6');
     expect(screen.getByTestId('bots-kpi-triggered').textContent).toBe('2');
-    expect(screen.getByTestId('bots-kpi-entries').textContent).toBe('1 / 1');
+    expect(screen.getByTestId('bots-kpi-entries').textContent).toBe('1');
     expect(screen.getByTestId('bots-kpi-armed').parentElement?.textContent).toBe('Armed6First pullback ▲ long');
-    expect(screen.getByTestId('bots-kpi-entries').parentElement?.textContent).toMatch(/^Nova trades1 \/ 1/);
+    expect(screen.getByTestId('bots-kpi-entries').parentElement?.textContent).toMatch(/^Nova trades1bot/);
     expect(screen.getByTestId('bots-kpi-proposed').parentElement?.textContent).toBe('Proposed0every setup');
     expect(screen.getByTestId('bots-kpi-pnl').parentElement?.textContent).toBe('Bot P&L—its own fills');
     const table = within(screen.getByTestId('bots-scoreboard'));

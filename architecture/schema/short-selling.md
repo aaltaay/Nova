@@ -371,8 +371,8 @@ long strategy buys, a short strategy shorts. Paper and Sim only, as ADR 042 says
 
 - **One trade per stock, never a flip.** The first go trigger wins, long or short. The bot, Auto-entry and Approve
   never enter against a position the venue holds (`admit.against_held`, `BOT_SKIP_HELD_OTHER_SIDE`): after a trade
-  is flat, the other side needs its own trigger. The bot holds one trade at a time overall. The daily cap
-  ("Nova trades a day", the sleeve's `entries_per_day`) counts both sides (`BOT_ENTRY_KINDS`).
+  is flat, the other side needs its own trigger. The bot holds one trade at a time overall. The day's count
+  of Nova's entries counts both sides (`BOT_ENTRY_KINDS`); there is no daily cap (2026-10-27, ADR 042 amendment).
 - **One sleeve, one daily loss limit.** A short is sized by the same caps (`bot.sizing.size(..., side)`): its
   risk a share is the buy stop minus the entry. `bot_qty` is signed: a short holds a negative count.
 - **A short trigger's own rules** (`short_side.py`), before anything is sent:
@@ -399,7 +399,7 @@ long strategy buys, a short strategy shorts. Paper and Sim only, as ADR 042 says
   `cover_limit_ask_offset` (a BUY limit at the ask + 5c), `cover_market` and `cover_pos` (protective: the whole short
   at market, never past flat). Live refuses every one (`BOT_LIVE_NOT_BUILT`).
 - **The squares** (`GET /api/bot/triggers`, "One Bots page" above). `gates` add `not_against` ("Not against you")
-  after `trades_today`, and `nova_buys` reads "Entry: Bot". The answer adds `short_gates`: `short_borrow`,
+  after `tape_go` (`trades_today` is retired, 2026-10-27), and `nova_buys` reads "Entry: Bot". The answer adds `short_gates`: `short_borrow`,
   `short_ssr`, `short_halt`, `short_margin`, `short_hours` -- borrow, SSR, no halt in 10 min, margin 25%, before
   15:50. A short trigger's are read from what the bot or Auto-entry recorded at it (the latest skip, entry or
   refusal per setup id, and its `short_check`); a long trigger's are absent. A cell may add `warn: true`, an amber

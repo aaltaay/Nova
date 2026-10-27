@@ -138,7 +138,7 @@ def test_every_stock_starts_at_signal_only_with_nothing_locked_on_paper(paper):
                              "modes": {"bot": None, "auto_entry": None, "approve": None}} and body["venue"] == "paper"
     assert body["trade"] is None and body["approval"] is None and body["notes"] == []
     assert body["risk_usd"] == 20.0 and body["size"] is None                # the venue sleeve's risk per trade
-    assert body["entries_today"] == {"count": 0, "cap": 1} and body["nova_entries_today"] == 0
+    assert body["entries_today"] == {"count": 0} and body["nova_entries_today"] == 0
 
 
 def test_writes_need_the_desk_key(paper):
@@ -333,7 +333,7 @@ def test_auto_entry_buys_the_go_trigger_sized_by_the_sleeve_and_never_sells(pape
     assert [r["outcome"] for r in mode_rows()][-2:] == ["sent", "filled"]
     view = client.get(f"/api/stock-mode/{SYM}").json()
     assert view["trade"]["exits"] == "you" and view["nova_entries_today"] == 1
-    assert view["entries_today"] == {"count": 1, "cap": 1}
+    assert view["entries_today"] == {"count": 1}
     assert "the exit is yours" in view["last_event"]["text"]
 
 
@@ -352,18 +352,32 @@ def test_no_new_entry_starts_while_the_desk_is_leaving_the_venue(paper, monkeypa
     assert paper.broker.ledger.working_orders() == []
 
 
-def test_auto_entry_and_the_bot_share_one_daily_count(paper):
+def test_auto_entry_and_the_bot_share_one_daily_count_with_no_cap(paper):
+    """No daily cap (operator, 2026-10-27): a second trigger the same day is entered; the count shows both."""
     put(paper, "nova", "you")
     runner.submit(trigger())
     tick(paper)
     runner.submit(trigger(setup_id="SECOND", ts=NOW + 60, setup={"triggered_at": NOW + 60}))
     tick(paper, NOW + 60)
+    assert mode_rows("skipped") == [] and [r["outcome"] for r in mode_rows()].count("sent") == 2
+    view = client.get(f"/api/stock-mode/{SYM}").json()
+    assert view["entries_today"] == {"count": 2} and "daily_cap" not in {n["id"] for n in view["notes"]}
+    assert "daily_cap" not in {g["id"] for g in client.get("/api/bot/session").json()["gates"]}
+
+
+def test_the_loss_limit_still_stops_auto_entry(paper, monkeypatch):
+    """With no daily cap, the loss limit's No new buys still holds Auto-entry (ADR 056)."""
+    from constants_loss_limit import LOSS_LIMIT_REASON_NO_NEW_BUYS
+
+    put(paper, "nova", "you")
+    runner.submit(trigger())
+    tick(paper)
+    monkeypatch.setattr("bot.gates.loss_limit", lambda _venue: {"text": "the loss limit: no new buys today"})
+    runner.submit(trigger(setup_id="SECOND", ts=NOW + 60, setup={"triggered_at": NOW + 60}))
+    tick(paper, NOW + 60)
     [skip] = mode_rows("skipped")
-    assert skip["inputs"]["code"] == "BOT_DAY_TRADE_CAP" and paper.broker.ledger.held_qty(SYM) == 1.0
-    assert load_session().get("trade") is None
-    notes = {n["id"]: n["text"] for n in client.get(f"/api/stock-mode/{SYM}").json()["notes"]}
-    assert notes["daily_cap"].startswith("1 Nova automatic entry a day") and notes["daily_cap"].endswith(".")
-    assert {g["id"]: g for g in client.get("/api/bot/session").json()["gates"]}["daily_cap"]["ok"] is False
+    assert skip["inputs"]["code"] == LOSS_LIMIT_REASON_NO_NEW_BUYS and paper.broker.ledger.held_qty(SYM) == 1.0
+
 
 
 @pytest.mark.parametrize("event, code, words", [

@@ -103,7 +103,7 @@ def test_a_v4_session_migrates_its_chosen_setup_sleeve_and_list_into_every_venue
     for venue in ("paper", "live", "sim"):
         caps = dial_of(row, venue)["caps"]
         assert (caps["max_shares"], caps["bp_budget_usd"], caps["api_kinds"]) == (4, 40.0, ["buy_market", "exit_pos"])
-        assert caps["risk_usd"] == 20.0 and caps["entries_per_day"] == 1
+        assert caps["risk_usd"] == 20.0 and "entries_per_day" not in caps    # retired 2026-10-27, read past
         assert "hard_lock_until_date" not in dial_of(row, venue)    # ADR 056: the day lock is gone
     assert "hard_lock_until_date" not in row
 
@@ -140,8 +140,8 @@ def test_the_daily_count_folds_the_bot_and_auto_entry_and_gives_a_miss_back():
         {"action": "buy_market", "outcome": "ok", "venue": "paper", "timestamp": 7,
          "inputs": {"venue_day": "2026-09-21"}},
     ]
-    out = today("paper", now, cap=2, rows=rows)
-    assert out["count"] == 1 and out["cap"] == 2 and out["approved"] == 1 and out["venue_day"] == "2026-09-22"
+    out = today("paper", now, rows=rows)
+    assert out["count"] == 1 and "cap" not in out and out["approved"] == 1 and out["venue_day"] == "2026-09-22"
     assert [(e["symbol"], e["by"], e["outcome"]) for e in out["entries"]] == [
         ("AAA", "bot", "missed"), ("BBB", "auto_entry", "filled")]
 

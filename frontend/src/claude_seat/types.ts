@@ -78,7 +78,7 @@ export interface ClaudeSeatStatus {
   working: ClaudeOrder[];
   breaks: ClaudeBreak[];
   reflexes: ClaudeReflex[];
-  today: { entries: number; max_entries: number; pnl: number | null; day_stop: number | null; fills: number };
+  today: { entries: number; max_entries: number | null; pnl: number | null; day_stop: number | null; fills: number };
   limits: { max_shares: number | null; max_risk_usd: number | null };
   note: { text: string; at: number } | null;
   /** Newest first. */

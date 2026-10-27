@@ -102,7 +102,7 @@ export function readClaudeSeat(raw: unknown): ClaudeSeatStatus | null {
     breaks: keep(list(r.breaks), brk),
     reflexes: keep(list(r.reflexes), reflex),
     today: {
-      entries: num(today.entries) ?? 0, max_entries: num(today.max_entries) ?? 0, pnl: num(today.pnl),
+      entries: num(today.entries) ?? 0, max_entries: num(today.max_entries), pnl: num(today.pnl),
       day_stop: num(today.day_stop), fills: num(today.fills) ?? 0,
     },
     limits: { max_shares: num(limits.max_shares), max_risk_usd: num(limits.max_risk_usd) },

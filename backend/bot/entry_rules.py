@@ -1,5 +1,5 @@
 """The rules a Nova automatic entry meets at Strategy (ADR 027, ADR 042): each setup's window,
-the venue's daily cap, extended hours, and #564's commission hold.
+extended hours, and #564's commission hold -- and the day's count of Nova's entries, shown, never capped.
 
 Only entries (``BOT_ENTRY_KINDS``: a buy or a short) are gated; exits, cancels and protective sources never
 are. The clock is the venue's (``execution.session_gate``: the replay playhead on Sim).
@@ -9,11 +9,13 @@ are. The clock is the venue's (``execution.session_gate``: the replay playhead o
   window and says so in ``Template.bot_window``). A template store that cannot be read keeps
   the material's 07:00-10:00, and the window says why.
 - **One daily count** (ADR 042 E), per trading day (04:00 ET, ``market.session_key_et``): Nova's automatic entries -- the bot's (and the localhost
-  bot API's) buys and Auto-entry's -- share the venue sleeve's ``entries_per_day``. The count
+  bot API's) buys and Auto-entry's -- are counted together. The count is information only: there is
+  no daily cap (operator, 2026-10-27: "u have infinite trades so we LEARN!"); the loss limit and
+  one trade at a time still hold. The count
   is folded from the persisted audit stream, so it survives a restart: an entry counts once
-  it was sent, and a miss (``bot_trade`` / ``stock_mode`` ``missed``, nothing bought) gives
-  the day back. Approve is the operator's own decision per trade: counted (``approved``) and
-  shown, never capped. The day is the venue's ET date stamped on the line (``venue_day``),
+  it was sent, and a miss (``bot_trade`` / ``stock_mode`` ``missed``, nothing bought) takes
+  it back off. Approve is the operator's own decision per trade: counted (``approved``) and
+  shown. The day is the venue's ET date stamped on the line (``venue_day``),
   else the line's own ET date; a line written before the audit carried its venue counts on
   every venue. On a Sim replay the day is the replay's own run -- the entries sent before the
   playhead on it (``bot.replay_desk.today`` and Auto-entry's ``stock_mode.replay.today``, ADR 052
@@ -38,7 +40,6 @@ from constants_bot import (
     BOT_ENTRY_WINDOW_END_ET,
     BOT_ENTRY_WINDOW_START_ET,
     BOT_REASON_COMMISSIONS_UNKNOWN,
-    BOT_REASON_DAY_TRADE_CAP,
     BOT_REASON_OUTSIDE_WINDOW,
     BOT_SKIP_EXTENDED_HOURS,
     BOT_TZ,
@@ -239,9 +240,9 @@ def fold(rows: list[dict[str, Any]], venue: str | None, day: str) -> dict[str, A
     return {"count": count, "entries": entries, "approved": approved}
 
 
-def today(venue: str | None = None, now: datetime | None = None, *, cap: int | None = None,
+def today(venue: str | None = None, now: datetime | None = None, *,
           rows: list[dict[str, Any]] | None = None) -> dict[str, Any]:
-    """``{count, cap, venue_day, entries, approved}`` -- the venue's Nova automatic entries today."""
+    """``{count, venue_day, entries, approved}`` -- the venue's Nova automatic entries today (no cap)."""
     from bot.gates import current_venue
     from bot.replay_desk import desk as replay_desk, today as replay_today
 
@@ -252,14 +253,11 @@ def today(venue: str | None = None, now: datetime | None = None, *, cap: int | N
         folded = _replay_run(at.timestamp(), replay_today)              # the replay's own run (ADR 052)
     else:
         folded = fold(_audit_rows(day) if rows is None else rows, here, day)
-    if cap is None:
-        cap = _cap()
-    return {"count": folded["count"], "cap": int(cap), "venue_day": day, "entries": folded["entries"],
-            "approved": folded["approved"]}
+    return {"count": folded["count"], "venue_day": day, "entries": folded["entries"], "approved": folded["approved"]}
 
 
 def _replay_run(ts: float, bot_today: Callable[[float], dict[str, Any]]) -> dict[str, Any]:
-    """The replay run's day: the bot's entries and Auto-entry's together (one cap), Approve's counted
+    """The replay run's day: the bot's entries and Auto-entry's together (one count), Approve's counted
     (``stock_mode.replay.today``, ADR 052 amendment)."""
     from stock_mode.replay import today as stock_today
 
@@ -270,25 +268,14 @@ def _replay_run(ts: float, bot_today: Callable[[float], dict[str, Any]]) -> dict
 
 def entries_today(now: datetime | None = None, *, rows: list[dict[str, Any]] | None = None) -> int:
     """This venue's Nova automatic entries today (the bot and Auto-entry)."""
-    return int(today(None, now, cap=0, rows=rows)["count"])
-
-
-def _cap() -> int:
-    from bot.persist import load_session
-    from bot.sleeve import of
-
-    return int(of(load_session())["entries_per_day"])
-
-
-def cap_text(count: int, cap: int) -> str:
-    return (f"{cap} Nova automatic entr{'y' if cap == 1 else 'ies'} a day on this venue (the bot and "
-            f"Auto-entry together) -- {count} already sent today")
+    return int(today(None, now, rows=rows)["count"])
 
 
 # -- the gate a fire meets ---------------------------------------------------------------
 def assert_entry_allowed(kind: str, setup: str | None = None) -> None:
     """Refuse an entry while Live commissions are unknown, outside its window (``setup``'s, else
-    any Strategy setup's), outside regular hours without extended hours, or past the day's cap.
+    any Strategy setup's), or outside regular hours without extended hours. No daily count caps it
+    (operator, 2026-10-27).
 
     Anything that is not an entry passes."""
     if kind not in BOT_ENTRY_KINDS:
@@ -317,10 +304,6 @@ def assert_entry_allowed(kind: str, setup: str | None = None) -> None:
     late = extended_hours_block(caps)
     if late is not None:
         raise BotError(late, 409, BOT_SKIP_EXTENDED_HOURS)
-    cap = int(caps["entries_per_day"])
-    count = int(today(None, now, cap=cap)["count"])
-    if count >= cap:
-        raise BotError(cap_text(count, cap), 409, BOT_REASON_DAY_TRADE_CAP)
 
 
 def set_clock_for_tests(fn: Callable[[], datetime] | None) -> None:

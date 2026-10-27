@@ -120,10 +120,6 @@ BOT_SETUP_DEFAULT = BOT_SETUP_FIRST_PULLBACK
 # clock (the replay playhead on Sim). Each setup's template in play sets its own.
 BOT_ENTRY_WINDOW_START_ET = "07:00"
 BOT_ENTRY_WINDOW_END_ET = "10:00"
-# The sleeve's default daily cap: Nova's automatic entries (the bot and Auto-entry) per venue day.
-BOT_ENTRIES_PER_DAY = 1
-BOT_ENTRIES_PER_DAY_MIN = 1
-BOT_ENTRIES_PER_DAY_MAX = 3
 BOT_SYMBOL_ALLOWLIST_CAP = 50
 # Default brain id for the SDK client (bot/client.py); any brain may send its own.
 BOT_BRAIN_SESSION_ID = "nova-brain"
@@ -236,11 +232,10 @@ BOT_REASON_NOT_LOOPBACK = "BOT_NOT_LOOPBACK"
 BOT_REASON_TTL_EXPIRED = "working_ttl_expired"
 BOT_REASON_SYMBOL_BLOCKED = "BOT_SYMBOL_BLOCKED"
 BOT_REASON_TRADING_LOCKED = "BOT_TRADING_LOCKED"
-# ADR 027: Strategy waits on the setup's pre-registered read-out; entries keep
-# the material's window and one trade a day.
+# ADR 027: Strategy waits on the setup's pre-registered read-out; entries keep each setup's window.
+# No daily trade count (operator, 2026-10-27): the sleeve's entries a day and BOT_DAY_TRADE_CAP are retired.
 BOT_REASON_READOUT_NOT_PASSED = "BOT_READOUT_NOT_PASSED"
 BOT_REASON_OUTSIDE_WINDOW = "BOT_OUTSIDE_WINDOW"
-BOT_REASON_DAY_TRADE_CAP = "BOT_DAY_TRADE_CAP"
 BOT_REASON_SETUP_NO_SCANNER = "BOT_SETUP_NO_SCANNER"
 # ADR 031 / 042: a level per setup with a scanner, 0 (Off) to 2 (Strategy), under the master.
 BOT_REASON_SETUP_LEVEL = "BOT_SETUP_LEVEL"
@@ -356,7 +351,6 @@ BOT_TRIGGER_GATES = (
     ("nova_buys", "Entry: Bot"),
     ("level2_line", "Level 2 line"),
     ("tape_go", "Tape GO"),
-    ("trades_today", "Trades today"),
     ("not_against", "Not against you"),
 )
 # ADR 049 (#778 step 5): the short check's own squares, behind the orange divider. A long trigger leaves them

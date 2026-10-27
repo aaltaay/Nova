@@ -134,7 +134,7 @@ async def fire(
         stopped = loss_limit(current_venue())
         if stopped is not None:
             raise BotError(stopped["text"], 409, LOSS_LIMIT_REASON_NO_NEW_BUYS)
-    assert_entry_allowed(kind)  # the Strategy setups' windows, extended hours, the shared daily cap
+    assert_entry_allowed(kind)  # the Strategy setups' windows, extended hours, the commission hold
 
     assert_no_working_buy(kind, row)
     eh = outside_rth(row)

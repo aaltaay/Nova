@@ -70,9 +70,9 @@ def test_session_get_l0_open_without_key(bot_iso):
         assert gone not in body
     assert [g["id"] for g in body["gates"]] == [
         "venue", "level", "setups", "padlock", "strategy_key", "allowlist", "depth_lines", "loss_limit",
-        "kill_switch", "window", "daily_cap", "extended_hours", "commissions"]
+        "kill_switch", "window", "extended_hours", "commissions"]
     assert set(body["caps_by_venue"]) == {"live", "paper", "sim"}
-    assert body["entries_today"]["count"] == 0 and body["entries_today"]["cap"] == 1
+    assert body["entries_today"]["count"] == 0 and "cap" not in body["entries_today"]
     alias = client.get("/bot/session")
     assert alias.status_code == 200
 

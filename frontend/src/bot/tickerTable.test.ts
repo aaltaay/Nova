@@ -7,7 +7,7 @@ import {
 import type { Cells, TickerRow, TickerTrigger } from './triggersApi';
 
 const ORDER = ['bot_on', 'strategy_on', 'grade', 'setups_a_day', 'bot_window', 'hot_list', 'nova_buys', 'level2_line',
-  'tape_go', 'trades_today'];
+  'tape_go'];
 const cell = (ok: boolean | null, why = '') => ({ ok, why });
 const mode = (symbol: string, m: StockModeRow['mode']) => ({ symbol, mode: m }) as StockModeRow;
 const trigger = (partial: Partial<TickerTrigger> = {}): TickerTrigger => ({

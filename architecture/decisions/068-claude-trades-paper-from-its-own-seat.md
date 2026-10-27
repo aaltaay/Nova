@@ -3,7 +3,7 @@
 **Status:** Accepted · **Date:** 2026-10-26 · **Amended:** 2026-10-27 (decision 3: an auto-record line; decision 12: the eye; decision 13: the guard and the pop exit; decision 14: a hidden tab's line; decisions 1 and 9: a restart and a new session; decisions 15-16: each print, the journal; decision 17: halts)
 **Amends:** [[044-one-bots-page]] (decision 6: the seat's line is never lent; a hidden tab's line may be Claude's, decision 14, and the front does not recall that loan) · [[063-a-loss-line-for-you-and-one-for-the-bots]] (Claude's fills count on the Bots line)
 **Builds on:** [[007-centralized-trading-execution]] · [[018-desk-venue-vs-spend-arming]] · [[045-orders-refuse-a-stale-view]] · [[055-the-live-trader-bot]] (the Paper-only send pattern) · [[050-agents-find-and-show-in-the-sim]] (the `/api/agent` door and its key)
-**Decided by:** the operator, 2026-10-26 (about 20:00 ET). They asked Claude to trade Paper itself: "i want to ask you to be the one who uses your brain and place trades on paper". Then: "i agree.. lets do it ... you need to make your presence known." Then: "we only got 3 symbols to look at level 2, and you will need to control one of them.. and lock it so human wont be able to just open like 3 and you have taken one ... please think about every scenario." Limits as proposed and agreed: up to 1,000 shares, at most $150 risk a trade, 3 trades a day, long only, Paper only. On the day's max loss: "only activate this feature on a paper account without a max loss", then "i guess do a max loss of $500! for claude lane.." -- Claude's lane stops itself at -$500 a day, and the desk's shared loss lines do not stop its buys on Paper.
+**Decided by:** the operator, 2026-10-26 (about 20:00 ET). They asked Claude to trade Paper itself: "i want to ask you to be the one who uses your brain and place trades on paper". Then: "i agree.. lets do it ... you need to make your presence known." Then: "we only got 3 symbols to look at level 2, and you will need to control one of them.. and lock it so human wont be able to just open like 3 and you have taken one ... please think about every scenario." Limits as proposed and agreed: up to 1,000 shares, at most $150 risk a trade, 3 trades a day (removed 2026-10-27, Amendment below), long only, Paper only. On the day's max loss: "only activate this feature on a paper account without a max loss", then "i guess do a max loss of $500! for claude lane.." -- Claude's lane stops itself at -$500 a day, and the desk's shared loss lines do not stop its buys on Paper.
 
 ## Context
 
@@ -41,7 +41,7 @@ Claude works through tool calls. It reads Level 2 and Time & Sales from the back
 
 6. **Claude's shares are only Claude's.** Claude's position is what its own fills add up to (orders with `order_origin: "claude"`). Claude may not open a trade in a stock where Paper holds any other shares or any other working order, and its closes sell only its own shares (`intent: "flatten"` while the desk is on Paper, which the door holds to the position).
 
-7. **Same gates as everyone, and its own limits.** Freeze all orders, buying power, the desk's arm latch on Paper (Claude may arm Paper as an `agent`, never Live, ADR 018) and the backend's view lock (`market_view.gate.desk_lock`: the feed, the IB loop, the symbol's Time & Sales) all apply. Claude's lane has its own daily max loss: no new entry once its day is -$500 (fees included); the desk's shared loss lines (ADR 063) do not refuse Claude's buys on Paper (`loss_limit.gate.buy_refusal` with `origin: "claude"`), while Claude's fills still count in the Paper account's totals and on the Bots line's figures. Claude's other limits, also checked before the door: long only; every entry carries a stop; at most 1,000 shares; at most $150 between entry and stop; 3 entries a day; entries 07:00-15:30 ET; only on the seat's own stock, with its Level 2 live.
+7. **Same gates as everyone, and its own limits.** Freeze all orders, buying power, the desk's arm latch on Paper (Claude may arm Paper as an `agent`, never Live, ADR 018) and the backend's view lock (`market_view.gate.desk_lock`: the feed, the IB loop, the symbol's Time & Sales) all apply. Claude's lane has its own daily max loss: no new entry once its day is -$500 (fees included); the desk's shared loss lines (ADR 063) do not refuse Claude's buys on Paper (`loss_limit.gate.buy_refusal` with `origin: "claude"`), while Claude's fills still count in the Paper account's totals and on the Bots line's figures. Claude's other limits, also checked before the door: long only; every entry carries a stop; at most 1,000 shares; at most $150 between entry and stop; no daily trade count (Amendment, 2026-10-27; it was 3 entries a day); entries 07:00-15:30 ET; only on the seat's own stock, with its Level 2 live.
 
 8. **Orders that do not need Claude's speed.** Claude is seconds to minutes slow, so the backend holds two entry kinds: a **limit** bracket sent at once, and a **break**: a trigger and a top price the seat watches every second; when a print reaches the trigger the seat sends the bracket at the top price. Both rest the stop and targets with the entry (`practice.bracket`, two halves when asked), so a fill is never unprotected. A break expires at its own time (default 30 minutes).
 
@@ -156,6 +156,7 @@ file, and the seat was lost when the PC restarted.
 | Freeze all orders | Entries refused; closes still work. |
 | Claude's stock halts | New entries refused; its resting buys and breaks cancelled; held shares keep their stop and targets; the guard waits for the reopen. |
 | Claude's day at -$500 | Its lane is done for the day: no new entries; open trades keep their stops. |
+| Claude's 4th (or 40th) trade of the day | Allowed: no daily trade count (2026-10-27); only the -$500 day stop ends Claude's day. |
 | The desk's shared loss line trips on Paper | Your and the bots' buys stop; Claude's lane runs to its own -$500. |
 | 15:55 ET with shares | Nova sells them; 16:00 seat off. |
 | A second Claude session | Its claim is refused while the first holder's lease is alive. |
@@ -169,3 +170,12 @@ file, and the seat was lost when the PC restarted.
 - Claude's trades read apart from the operator's and the bots' everywhere. Its losses still count in the Paper account's total, so a bad Claude day can trip your shared Paper line (your Paper buys stop at its limit; Claude's lane does not).
 - Claude never trades Live. Nothing here changes `auto_live` (NO-GO) or the Live arm.
 - Claude's reasoning is kept off the repository; the desk shows only the one-line note Claude sends.
+
+## Amendment, 2026-10-27: no daily trade count
+
+The operator, 2026-10-27: "that 3 trades a day limit need to be removed all over the place actually", and "u have infinite trades so we LEARN!". Claude's 3-entries-a-day limit (decision 7) is removed:
+`AGENT_MAX_ENTRIES_A_DAY` is `None` (no cap), and an int there caps the count again (filled entries, working
+entries and armed breaks, as before). The status's `today.max_entries` is null; `done` now trips only on the
+-$500 day stop. Everything else in decision 7 stands: the -$500 day stop, 1,000 shares, $150 between entry and
+stop, long only, the 07:00-15:30 ET window, the seat's own stock with its Level 2 live, Paper only. The same day
+the bot sleeve's daily cap went too (ADR 042 amendment of this date).

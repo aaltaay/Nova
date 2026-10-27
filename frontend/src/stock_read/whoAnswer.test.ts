@@ -6,7 +6,7 @@ import type { StockPlan } from './types';
 const view = (over: Partial<StockModeView>): StockModeView => ({
   schema_version: 1, symbol: 'AISP', generated_at: 0, venue: 'paper', mode: 'bot', buy: 'nova', sell: 'nova',
   risk_usd: 20, set_at: null, locks: { buy: null, sell: null }, notes: [], approval: null, trade: null,
-  entries_today: { count: 0, cap: 1 }, nova_entries_today: 0, size: null, last_event: null, bot: null, ...over,
+  entries_today: { count: 0 }, nova_entries_today: 0, size: null, last_event: null, bot: null, ...over,
 } as unknown as StockModeView);
 
 describe('the stock\'s own answer (ADR 044, amended 2026-10-06: the hot list is no part of it)', () => {

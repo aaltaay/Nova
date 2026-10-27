@@ -142,7 +142,7 @@ export function pfsaView(mode: StockModeName, over: Partial<StockModeView> = {})
     trade: null,
     // The Paper sleeve: $20 over the 0.13 risk is 153 shares, under its max shares of 200.
     size: nova ? { qty: 153, by_risk: 153, capped_by: null, text: '$20 risk over 0.13 a share' } : null,
-    entries_today: { count: 0, cap: 1 },
+    entries_today: { count: 0 },
     nova_entries_today: 0,
     last_event: null,
     bot: mode === 'bot' ? BOT_READY : null,
@@ -187,14 +187,13 @@ export function pfsaTrade(kind: StockModeTrade['kind'], state: StockModeTrade['s
 export function sleeveSessionWire(riskUsd: number | null = 20, venue: 'live' | 'paper' | 'sim' = 'paper'): Record<string, unknown> {
   const caps = (v: string, risk: number | null) => ({
     venue: v, ...(risk === null ? {} : { risk_usd: risk }), max_shares: 10, bp_budget_usd: 50, working_ttl_sec: 3,
-    extended_hours: false, entries_per_day: 1, api_kinds: [], allowlist: [],
+    extended_hours: false, api_kinds: [], allowlist: [],
   });
   return {
     level: 2,
     active: false,
     caps: caps(venue, riskUsd),
-    caps_bounds: { risk_usd: [1, 10_000], max_shares: [1, 10], bp_budget_usd: [0.01, 50], working_ttl_sec: [1, 10],
-      entries_per_day: [1, 3] },
+    caps_bounds: { risk_usd: [1, 10_000], max_shares: [1, 10], bp_budget_usd: [0.01, 50], working_ttl_sec: [1, 10] },
     caps_by_venue: { live: caps('live', riskUsd === null ? null : 20), paper: caps('paper', riskUsd),
       sim: caps('sim', riskUsd === null ? null : 20), [venue]: caps(venue, riskUsd) },
   };

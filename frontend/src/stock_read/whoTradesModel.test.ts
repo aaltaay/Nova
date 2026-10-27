@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { paneDraw } from './chartShapes';
 import { momentOf, nextHeld, NO_HELD, type HeldMemory, type MomentInputs } from './momentModel';
-import { approveQty, capUsedText, novaBlockers, novaSizeWords } from './novaPromise';
+import { approveQty, novaBlockers, novaSizeWords } from './novaPromise';
 import {
   BOT_READY,
   inputs,
@@ -49,12 +49,12 @@ describe('the view on the wire', () => {
       notes: [{ id: 'window', tone: 'warn', text: 'The window is closed' }, { id: 'odd', tone: 'loud', text: 'x' },
         { id: 'sim_waits', tone: 'info', text: 'A Sim trade waits' }, { id: 'loss_limit', tone: 'bad', text: 'No new buys' }],
       size: { qty: 10, by_risk: 200, capped_by: 'max_shares', text: '$20 over 0.10, capped at 10' },
-      entries_today: { count: 1, cap: 1 },
+      entries_today: { count: 1 },
       bot: { on_list: true, playing: false, reason: 'not active', setup_at_strategy: true, active: false },
     });
     expect(view?.notes.map(n => n.tone)).toEqual(['warn', 'warn', 'info', 'bad']);
     expect(view?.size).toEqual({ qty: 10, by_risk: 200, capped_by: 'max_shares', text: '$20 over 0.10, capped at 10' });
-    expect(view?.entries_today).toEqual({ count: 1, cap: 1 });
+    expect(view?.entries_today).toEqual({ count: 1 });
     expect(view?.bot).toMatchObject({ setup_at_strategy: true, active: false, playing: false });
     // An older backend: no size, no shared count, and the bot's fields unknown (never read as yes).
     const old = normalizeStockMode({ symbol: 'PFSA', mode: 'bot', buy: 'nova', sell: 'nova', bot: { on_list: true } });
@@ -98,16 +98,15 @@ describe('what Nova promises on the chart (ADR 042 draft)', () => {
     expect(trig?.call).toMatchObject({ title: 'THE BOT IS NOT TRADING IT', detail: notes[0].text });
   });
 
-  it("Auto-entry promises Nova's own size only when nothing blocks, and says so once the day's buy is used", () => {
+  it("Auto-entry promises Nova's own size only when nothing blocks, however many it entered today", () => {
     const auto = (over = {}) => pfsaView('auto_entry', over);
     const ok = momentOf(inputs({ read: armed, who: auto({ size: { qty: 10, by_risk: 153, capped_by: 'max_shares', text: null } }) }));
     expect(ok?.call).toMatchObject({ title: 'BOT BUYS AT 4.26' });
     expect(ok?.call?.detail).toMatch(/the bot buys 10\. Every sell is yours/);
-    const used = auto({ entries_today: { count: 1, cap: 1 } });
-    expect(capUsedText(used)).toBe("Nova's one automatic trade on Paper today is used (1 of 1): the bot and Auto-entry "
-      + 'trade again on the next day.');
-    expect(momentOf(inputs({ read: armed, who: used }))?.call).toMatchObject({ title: "THE BOT'S TRADE TODAY IS USED",
-      detail: capUsedText(used) });
+    // No daily cap (operator, 2026-10-27): a 4th entry today still promises the trade.
+    const fourth = auto({ entries_today: { count: 3 }, size: { qty: 10, by_risk: 153, capped_by: 'max_shares', text: null } });
+    expect(momentOf(inputs({ read: armed, who: fourth }))?.call).toMatchObject({ title: 'BOT BUYS AT 4.26' });
+    expect(novaBlockers(fourth, armed.plan)).toEqual([]);
     const idle = auto({ bot: { ...BOT_READY, on_list: false, active: false } });
     expect(novaBlockers(idle, armed.plan)).toEqual([
       'The bot is not active: Auto-entry enters only while it is. Turn on the Bot switch in the header.',
