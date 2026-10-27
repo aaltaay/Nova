@@ -957,6 +957,14 @@ the history budget and its priorities are the backend's), with the desk's sessio
 anchor) and a last-price tag at the board's `price`. A minute with no trade stays a hole. No Level 1, Level 2 or tape
 line is opened for a tile.
 
+**The LULD band (operator ask, 2026-10-27, approved mockup).** Each tile reads `GET /api/luld/{symbol}/trail` (the
+Trader's 1-minute band, ADR 047; `book-watch-and-luld.md`) every 3 s and draws it the Trader's way: a rose line above
+and below the candles that steps where the band moved, each step at its share of its minute, solid where exact and
+dashed where approximate. The band in force is tagged at the right edge (`▲ 15.74` / `▼ 12.88`, `≈` when
+approximate), held at the top or bottom edge when out of view, moved off the last-price tag when they meet; it never
+widens the price scale. The route reads memory only, so a stock Nova holds no tape line for has no band, and the tile
+says so ("LULD — no tape line held"; the backend's reason in the hover). A halt step draws nothing.
+
 **Prefs (prefStore, `schema_version` 1).** `nova.topNine.list` (`gappers` | `gainers` | `afterhours`): the list on
 screen; a grid button on the rail writes it before opening, and an open pop-up follows it (`storage` event), so a
 second button switches the tab without reloading the window. Keep-on-top is the desktop app's (`nova:keepOnTop`, the

@@ -6,6 +6,7 @@
   --tn-down: var(--nova-danger, #ff453a);
   --tn-new: var(--nova-accent, #0a84ff);
   --tn-halt: #ff9f0a;
+  --tn-luld: #f43f5e;
   --tn-candle-up: #10b981;
   --tn-candle-down: #ef4444;
   --tn-vwap: #f97316;
@@ -370,6 +371,32 @@
   color: var(--tn-halt);
   background: color-mix(in srgb, var(--tn-halt) 14%, transparent);
   border: 1px solid color-mix(in srgb, var(--tn-halt) 45%, transparent);
+}
+
+/* Nova's LULD band (ADR 047): the desk's LULD rose, solid where exact, dashed where approximate. */
+.top-nine-chart__luld {
+  stroke: var(--tn-luld);
+  stroke-width: 1.5;
+}
+
+.top-nine-chart__luld.is-approx {
+  stroke-dasharray: 4 3;
+}
+
+.top-nine-chart__luld-tag rect {
+  fill: var(--tn-luld);
+}
+
+.top-nine-chart__luld-tag text {
+  fill: #4c0519;
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.top-nine-chart__luld-none {
+  fill: var(--nova-text-muted);
+  font-size: 10.5px;
 }
 
 .top-nine-tile__muted {

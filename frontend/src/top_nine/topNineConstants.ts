@@ -68,6 +68,10 @@ export const TOP_NINE_HALT_NOTE_SEC = 0.09;
 export const TOP_NINE_HALT_GAP_SEC = 0.07;
 export const TOP_NINE_HALT_GAIN = 0.22;
 
+/** The LULD band on a tile: the Trader's 1-minute band, read from memory (ADR 047), every 3 s per tile. */
+export const TOP_NINE_LULD_PATH = (symbol: string) => `/api/luld/${encodeURIComponent(symbol)}/trail`;
+export const TOP_NINE_LULD_POLL_MS = 3_000;
+
 /** No answer to a double-click from a desk window in this long: say so. */
 export const TOP_NINE_OPEN_WAIT_MS = 600;
 
@@ -102,3 +106,5 @@ export const TOP_NINE_LOG_LABEL = 'Switches';
 export const TOP_NINE_LOG_EMPTY = 'No switches yet.';
 export const TOP_NINE_HALTED = 'HALTED';
 export const TOP_NINE_NO_BARS = 'No 1-minute bars yet.';
+export const TOP_NINE_LULD_NO_TAPE = 'LULD — no tape line held';
+export const TOP_NINE_LULD_NONE = 'LULD —';
