@@ -34,12 +34,22 @@ def holds(symbol: str) -> bool:
     return (symbol or "").upper() in _held
 
 
+def _ref(symbol: str, kind: str) -> bool:
+    """The seat holds a viewer reference on ``symbol``'s ``kind`` line -- a count, not proof the line is up."""
+    return bool((_held.get((symbol or "").upper()) or {}).get(kind))
+
+
 def holds_depth(symbol: str) -> bool:
-    return bool((_held.get((symbol or "").upper()) or {}).get("depth"))
+    """Claude's Level 2 on ``symbol`` is up on this IBKR session (a reconnect ends lines the reference outlives)."""
+    from ibkr import depth
+
+    return _ref(symbol, "depth") and depth.is_live((symbol or "").upper())
 
 
 def holds_tape(symbol: str) -> bool:
-    return bool((_held.get((symbol or "").upper()) or {}).get("tape"))
+    from ibkr import tape_stream
+
+    return _ref(symbol, "tape") and tape_stream.is_subscribed((symbol or "").upper())
 
 
 def _reserves() -> bool:
@@ -56,7 +66,7 @@ def desk_cap() -> int:
 def _own_viewers(symbol: str) -> int:
     from ibkr import depth
 
-    return int(depth.viewer_count(symbol)) - (1 if holds_depth(symbol) else 0)
+    return int(depth.viewer_count(symbol)) - (1 if _ref(symbol, "depth") else 0)
 
 
 def desk_lines() -> list[str]:
@@ -69,7 +79,7 @@ def desk_lines() -> list[str]:
 def claude_only_lines() -> int:
     """0 or 1: the line Claude alone watches."""
     sym = held_symbol()
-    return 1 if sym and holds_depth(sym) and _own_viewers(sym) <= 0 else 0
+    return 1 if sym and _ref(sym, "depth") and _own_viewers(sym) <= 0 else 0
 
 
 def desk_free(busy: int) -> int:
@@ -87,8 +97,8 @@ def desk_refusal(symbol: str) -> str | None:
     if not _reserves():
         return None
     sym = (symbol or "").upper()
-    if sym in depth.subscribed_symbols():
-        return None
+    if sym in depth.subscribed_symbols() or _ref(sym, "depth"):
+        return None    # a line already up costs nothing; asking again for Claude's own line (a renewal) is Claude's
     mine = desk_lines()
     if len(mine) < desk_cap():
         return None
@@ -108,34 +118,43 @@ def refusal_text(desk: list[str]) -> str:
 async def acquire(symbol: str) -> str | None:
     """Hold ``symbol``'s Level 2 and Time & Sales for Claude; return why not, or None.
 
-    Moving to a new stock lets the old lines go first (the AllLast line at once, #698). Without a free depth line
-    nothing is held and the answer says so; the watcher asks again.
+    Moving to a new stock lets the old lines go first (the AllLast line at once, #698). A line the seat already
+    references but that is not up -- an IBKR reconnect ended it -- is asked for again without a second reference.
+    Without a free depth line nothing new is held and the answer says so; the watcher asks again.
     """
     from ibkr import depth
 
     sym = (symbol or "").strip().upper()
     if not sym:
         return "no stock named"
-    if sym in _held and _held[sym].get("depth"):
-        if not _held[sym].get("tape"):
-            await _take_tape(sym)
-        return None
     for old in [s for s in _held if s != sym]:
         await release(old, at_once=True)
     hold = _held.setdefault(sym, {"tape": False, "depth": False})
+    if not depth.is_live(sym):
+        result = await depth.subscribe_async(sym, live=True, agent=True)
+        if not result.get("ok") or not depth.is_live(sym):
+            if not hold["depth"] and not hold["tape"]:
+                _held.pop(sym, None)     # nothing referenced yet: the seat holds nothing on it
+            return _depth_why(sym, result)
     if not hold["depth"]:
-        if not depth.is_live(sym):
-            result = await depth.subscribe_async(sym, live=True, agent=True)
-            if not result.get("ok"):
-                return str(result.get("error") or f"no Level 2 line for {sym}")
-        if not depth.is_live(sym):
-            return f"no live Level 2 line for {sym}"
         depth.ws_viewer_opened(sym)
         hold["depth"] = True
-    if not hold["tape"]:
+    if not holds_tape(sym):
         await _take_tape(sym)
     logger.info("AGENT lines: holding %s (%s)", sym, hold)
     return None
+
+
+def _depth_why(sym: str, result: dict) -> str:
+    """Why Claude has no Level 2 on ``sym`` yet, in Nova's own words (the door's detail goes to the log)."""
+    from ibkr import depth
+
+    if result.get("cap"):
+        held = ", ".join(sorted(depth.subscribed_symbols())) or "lines Nova cannot name"
+        return (f"all {IBKR_MAX_DEPTH_SYMBOLS} Level 2 lines are in use ({held}): Claude waits for the first one "
+                "the desk lets go")
+    logger.warning("AGENT lines: no Level 2 line for %s yet: %s", sym, result.get("error"))
+    return f"IBKR has not opened {sym}'s Level 2 line yet; Claude asks again"
 
 
 async def _take_tape(sym: str) -> str | None:
@@ -144,11 +163,11 @@ async def _take_tape(sym: str) -> str | None:
     if not tape_stream.is_subscribed(sym):
         result = await tape_stream.subscribe_async(sym)
         if not result.get("ok"):
-            why = str(result.get("error") or f"no Time & Sales line for {sym}")
-            logger.warning("AGENT lines: Time & Sales for %s refused (%s); asked again", sym, why)
-            return why
-    tape_stream.ws_viewer_opened(sym)
-    _held[sym]["tape"] = True
+            logger.warning("AGENT lines: Time & Sales for %s refused (%s); asked again", sym, result.get("error"))
+            return f"IBKR has not opened {sym}'s Time & Sales yet; Claude asks again"
+    if not _held[sym]["tape"]:
+        tape_stream.ws_viewer_opened(sym)
+        _held[sym]["tape"] = True
     return None
 
 

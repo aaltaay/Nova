@@ -41,7 +41,7 @@ lease_until, lapsed, yielded, symbol, line: {symbol, depth, tape, why_not, desk_
 positions: [{symbol, qty, mark}], working: [{order_id, symbol, side, order_type, qty, limit_price, stop_price,
 leg_role, status, parent_id}], breaks: [{id, symbol, qty, trigger, top, stop, target, target2, target1_qty,
 expires_at, created_at, why}], today: {entries, max_entries, pnl, day_stop, fills}, limits: {max_shares,
-max_risk_usd}, note: {text, at} | null, events: [{at, kind, text}] (newest first, 12), read_error}`. `state` is one
+max_risk_usd}, note: {text, at} | null, events: [{at, kind, text}] (newest first, 12), read_error}`. `read_error`, `line.why_not` and every refusal are Nova's own words: an exception's text never reaches this wire (it goes to the log). `state` is one
 of `off`, `idle` (no stock yet), `waiting_line`, `watching`, `buy_set`, `in_trade`, `yielded`, `done`; `text` is the
 header pill's words ("Claude · In SMPL +$42.00"). The holder token is never in it.
 
@@ -68,7 +68,7 @@ Level 2 lines are in use: SPIK and FLTX are yours, SMPL is Claude's. Close one o
 Auto-record and line lending count the same free lines (`agent_trader.lines.desk_free`). Claude's line is a viewer
 reference on the depth and AllLast lines, like a Session Record's: never idle-evicted, never lent;
 `GET /api/ibkr/depth/lines` shows it as `held_by: "agent"`. With 3 desk lines held, the seat waits (`waiting_line`)
-and never evicts one.
+and never evicts one. "Held" means up on this IBKR session: after a reconnect the seat's reference survives, Nova's renewal of Claude's own line is admitted past the reservation, and the watcher asks again until it is up (no second reference).
 
 **Closes Nova makes.** A lease not renewed for 600 s, `POST /stop-claude` or `DELETE /seat`: Claude's orders
 cancelled, its shares sold, the seat off, its lines released. 15:55 ET on a weekday: Claude's shares sold and orders

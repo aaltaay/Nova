@@ -13,10 +13,12 @@ from agent_trader.constants_agent_trader import AGENT_ORIGIN, AGENT_VENUE
 
 logger = logging.getLogger(__name__)
 _EPS = 1e-9
+# What the wire and the desk say when Paper could not be read; the exception's detail goes to the log only.
+UNREAD_TEXT = "Paper's orders could not be read just now, so nothing was sent; Nova's log has the detail"
 
 
 class ReadError(Exception):
-    """Paper's ledger could not be read; the caller must not guess."""
+    """Paper's ledger could not be read; the caller must not guess (and says ``UNREAD_TEXT``, never the detail)."""
 
 
 def paper() -> Any:

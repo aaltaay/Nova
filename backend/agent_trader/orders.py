@@ -99,8 +99,9 @@ async def stand_down(reason: str) -> list[str]:
             receipt = await close(sym, qty)
             if why := receipt_error(receipt):
                 problems.append(f"close {sym}: {why}")
-    except ledger.ReadError as exc:
-        problems.append(str(exc))
+    except ledger.ReadError:
+        logger.warning("AGENT stand down (%s): Paper could not be read", reason, exc_info=True)
+        problems.append(ledger.UNREAD_TEXT)
     if problems:
         logger.error("AGENT stand down (%s): %s", reason, "; ".join(problems))
     return problems

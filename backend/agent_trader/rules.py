@@ -6,6 +6,7 @@ these; this module adds what is Claude's alone and says every refusal in words. 
 """
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import Any
 
@@ -18,6 +19,8 @@ from agent_trader.constants_agent_trader import (
     AGENT_MAX_SHARES,
     AGENT_VENUE,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def shape_refusal(order: dict[str, Any]) -> str | None:
@@ -98,8 +101,9 @@ def entry_refusal(order: dict[str, Any], *, pending_breaks: int = 0) -> tuple[st
             return AGENT_NOT_MINE, why
         if why := day_refusal(ledger.entries_today() + pending_breaks, ledger.day_pnl()):
             return AGENT_LIMIT, why
-    except ledger.ReadError as exc:
-        return AGENT_STALE, str(exc)
+    except ledger.ReadError:
+        logger.warning("AGENT entry: Paper could not be read", exc_info=True)
+        return AGENT_STALE, ledger.UNREAD_TEXT
     if lock := gate.desk_lock(sym):
         return AGENT_STALE, str(lock.get("reason") or lock.get("text") or "the market view lags")
     return None

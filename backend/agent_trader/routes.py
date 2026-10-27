@@ -6,6 +6,7 @@ buttons -- take Claude's line, give it back, stop Claude -- need no token: the o
 """
 from __future__ import annotations
 
+import logging
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
@@ -27,6 +28,7 @@ from agent_trader.constants_agent_trader import (
 )
 from auth import require_agent_key
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/agent/trader", tags=["agent"], dependencies=[Depends(require_local)])
 _keyed = [Depends(require_agent_key)]
 
@@ -36,10 +38,14 @@ def _refuse(code: str, text: str, status: int = 409) -> HTTPException:
 
 
 def _holder(token: str | None) -> None:
-    try:
-        seat.check(token)
-    except seat.SeatError as exc:
-        raise _refuse(exc.code, str(exc), exc.status) from exc
+    if why := seat.refusal(token):
+        raise _refuse(why.code, why.text, why.status)
+
+
+def _unread(where: str) -> HTTPException:
+    """Paper could not be read: the words on the wire are fixed, the detail is in the log (ledger.ReadError)."""
+    logger.warning("AGENT %s: Paper could not be read", where, exc_info=True)
+    return _refuse(AGENT_REFUSED, ledger.UNREAD_TEXT)
 
 
 class WatchBody(BaseModel):
@@ -92,19 +98,16 @@ def claim_seat() -> dict[str, Any]:
     et = now_et()
     if et.weekday() >= 5 or not (4 <= et.hour < 16):
         raise _refuse(AGENT_SEAT_OFF, "Claude's seat opens on weekdays from 04:00 to 16:00 ET")
-    try:
-        token = seat.claim()
-    except seat.SeatError as exc:
-        raise _refuse(exc.code, str(exc), exc.status) from exc
+    token, why = seat.claim()
+    if why:
+        raise _refuse(why.code, why.text, why.status)
     return {"token": token, "status": view.status()}
 
 
 @router.post("/beat", dependencies=_keyed)
 def beat(x_agent_seat: str | None = Header(default=None)) -> dict[str, Any]:
-    try:
-        seat.beat(x_agent_seat or "")
-    except seat.SeatError as exc:
-        raise _refuse(exc.code, str(exc), exc.status) from exc
+    if why := seat.beat(x_agent_seat):
+        raise _refuse(why.code, why.text, why.status)
     return view.status()
 
 
@@ -123,10 +126,10 @@ async def watch(body: WatchBody, x_agent_seat: str | None = Header(default=None)
     try:
         if (held := lines.held_symbol()) and held != sym and (ledger.working() or ledger.positions()):
             raise _refuse(AGENT_REFUSED, f"Claude still has orders or shares on {held}: close them before moving")
-    except ledger.ReadError as exc:
-        raise _refuse(AGENT_REFUSED, str(exc)) from exc
+    except ledger.ReadError:
+        raise _unread("watch") from None
     seat.set_symbol(sym)
-    seat.beat(x_agent_seat or "")
+    seat.beat(x_agent_seat)
     if seat.reserves_line():
         await watcher.run_pass()
     return view.status()
@@ -136,7 +139,7 @@ async def watch(body: WatchBody, x_agent_seat: str | None = Header(default=None)
 def note(body: NoteBody, x_agent_seat: str | None = Header(default=None)) -> dict[str, Any]:
     _holder(x_agent_seat)
     seat.set_note(body.text)
-    seat.beat(x_agent_seat or "")
+    seat.beat(x_agent_seat)
     return view.status()
 
 
@@ -162,7 +165,7 @@ def arm_paper(x_agent_seat: str | None = Header(default=None)) -> dict[str, Any]
 @router.post("/order", dependencies=_keyed)
 async def place(body: OrderBody, x_agent_seat: str | None = Header(default=None)) -> dict[str, Any]:
     _holder(x_agent_seat)
-    seat.beat(x_agent_seat or "")
+    seat.beat(x_agent_seat)
     order = body.model_dump()
     order["symbol"] = body.symbol.strip().upper()
     if body.kind == ENTRY_BREAK:
@@ -192,8 +195,8 @@ async def place(body: OrderBody, x_agent_seat: str | None = Header(default=None)
 def _mine(order_id: int) -> dict[str, Any]:
     try:
         row = next((r for r in ledger.working() if int(r["order_id"]) == int(order_id)), None)
-    except ledger.ReadError as exc:
-        raise _refuse(AGENT_REFUSED, str(exc)) from exc
+    except ledger.ReadError:
+        raise _unread("order lookup") from None
     if row is None:
         raise _refuse(AGENT_NOT_MINE, f"order {order_id} is not a working order of Claude's", 404)
     return row
@@ -203,7 +206,7 @@ def _mine(order_id: int) -> dict[str, Any]:
 async def move_stop(body: StopBody, x_agent_seat: str | None = Header(default=None)) -> dict[str, Any]:
     """Raise Claude's own stop (never lower it)."""
     _holder(x_agent_seat)
-    seat.beat(x_agent_seat or "")
+    seat.beat(x_agent_seat)
     row = _mine(body.order_id)
     if row.get("leg_role") != "stop" or row.get("stop_price") is None:
         raise _refuse(AGENT_REFUSED, f"order {body.order_id} is not Claude's stop")
@@ -219,7 +222,7 @@ async def move_stop(body: StopBody, x_agent_seat: str | None = Header(default=No
 @router.delete("/order/{order_id}", dependencies=_keyed)
 async def cancel(order_id: int, x_agent_seat: str | None = Header(default=None)) -> dict[str, Any]:
     _holder(x_agent_seat)
-    seat.beat(x_agent_seat or "")
+    seat.beat(x_agent_seat)
     row = _mine(order_id)
     receipt = await orders.cancel(order_id, str(row["symbol"]))
     if why := orders.receipt_error(receipt):
@@ -240,14 +243,14 @@ def cancel_break(break_id: str, x_agent_seat: str | None = Header(default=None))
 async def close(body: CloseBody, x_agent_seat: str | None = Header(default=None)) -> dict[str, Any]:
     """Sell Claude's own shares in ``symbol`` at market, after cancelling its orders there."""
     _holder(x_agent_seat)
-    seat.beat(x_agent_seat or "")
+    seat.beat(x_agent_seat)
     sym = body.symbol.strip().upper()
     try:
         for row in [r for r in ledger.working() if str(r["symbol"]).upper() == sym]:
             await orders.cancel(int(row["order_id"]), sym)
         qty = ledger.position(sym)
-    except ledger.ReadError as exc:
-        raise _refuse(AGENT_REFUSED, str(exc)) from exc
+    except ledger.ReadError:
+        raise _unread("close") from None
     if qty <= 0:
         return view.status()
     receipt = await orders.close(sym, qty)
@@ -267,8 +270,8 @@ async def take_line() -> dict[str, Any]:
         for row in ledger.working():
             if str(row.get("side") or "").upper() == "BUY" and row.get("leg_role") in (None, "parent"):
                 await orders.cancel(int(row["order_id"]), str(row["symbol"]))
-    except ledger.ReadError as exc:
-        raise _refuse(AGENT_REFUSED, str(exc)) from exc
+    except ledger.ReadError:
+        raise _unread("take the line") from None
     seat.set_yielded(True, "you took Claude's line: no new trades; an open trade keeps its stop")
     await lines.release(at_once=True)
     return view.status()

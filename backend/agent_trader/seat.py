@@ -14,7 +14,7 @@ import secrets
 import threading
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from agent_trader import clock
 from agent_trader.constants_agent_trader import (
@@ -30,13 +30,13 @@ _lock = threading.RLock()
 _state: dict[str, Any] | None = None
 
 
-class SeatError(Exception):
-    """A seat call refused: ``code`` on the wire, ``status`` the HTTP status."""
+class Refusal(NamedTuple):
+    """A seat call refused: ``code`` on the wire, ``text`` in words, ``status`` the HTTP status. A value, never an
+    exception: what reaches the wire is these words alone."""
 
-    def __init__(self, text: str, code: str, status: int = 409) -> None:
-        super().__init__(text)
-        self.code = code
-        self.status = status
+    code: str
+    text: str
+    status: int = 409
 
 
 def _blank() -> dict[str, Any]:
@@ -128,42 +128,44 @@ def symbol() -> str | None:
         return _load().get("symbol")
 
 
-def check(token: str | None) -> None:
-    """Raise unless ``token`` holds the seat now."""
+def refusal(token: str | None) -> Refusal | None:
+    """Why ``token`` does not hold the seat now, or None."""
+    from agent_trader.constants_agent_trader import AGENT_NOT_HOLDER, AGENT_SEAT_OFF
+
     with _lock:
         held = _load().get("holder")
     if not held:
-        from agent_trader.constants_agent_trader import AGENT_SEAT_OFF
-
-        raise SeatError("Claude's seat is off: claim it first.", AGENT_SEAT_OFF)
+        return Refusal(AGENT_SEAT_OFF, "Claude's seat is off: claim it first.")
     if not token or not secrets.compare_digest(str(token), str(held)):
-        from agent_trader.constants_agent_trader import AGENT_NOT_HOLDER
+        return Refusal(AGENT_NOT_HOLDER, "Another session holds Claude's seat.", 403)
+    return None
 
-        raise SeatError("Another session holds Claude's seat.", AGENT_NOT_HOLDER, 403)
 
-
-def claim(now: float | None = None) -> str:
-    """Take the seat; returns the holder token. Refused while another holder's lease is alive."""
+def claim(now: float | None = None) -> tuple[str | None, Refusal | None]:
+    """Take the seat: ``(token, None)``, or ``(None, why)`` while another holder's lease is alive."""
     from agent_trader.constants_agent_trader import AGENT_SEAT_TAKEN
 
     t = clock.now() if now is None else now
     with _lock:
         st = _load()
         if st.get("holder") and not lapsed(t):
-            raise SeatError("Claude's seat is already held by another session; it frees when that session lets "
-                            "go or goes quiet for 10 minutes.", AGENT_SEAT_TAKEN)
+            return None, Refusal(AGENT_SEAT_TAKEN, "Claude's seat is already held by another session; it frees when "
+                                 "that session lets go or goes quiet for 10 minutes.")
         token = uuid.uuid4().hex
         st.update(holder=token, since=t, beat_at=t, yielded=False, yielded_at=None)
         _event_locked(st, t, "on", "Claude took its seat")
         _save()
-        return token
+        return token, None
 
 
-def beat(token: str, now: float | None = None) -> None:
-    check(token)
+def beat(token: str | None, now: float | None = None) -> Refusal | None:
+    """Renew the lease; why not, or None."""
+    if why := refusal(token):
+        return why
     with _lock:
         _load()["beat_at"] = clock.now() if now is None else now
         _save()
+    return None
 
 
 def turn_off(reason: str, now: float | None = None) -> None:

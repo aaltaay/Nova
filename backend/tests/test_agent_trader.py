@@ -48,21 +48,18 @@ def _fresh_seat():
 
 # -- the seat ---------------------------------------------------------------------------------------------
 def test_one_holder_at_a_time_and_a_lapsed_lease_frees_the_seat():
-    token = seat.claim(now=1000.0)
-    with pytest.raises(seat.SeatError) as taken:
-        seat.claim(now=1000.0 + AGENT_LEASE_SEC - 1)
-    assert taken.value.code == "AGENT_SEAT_TAKEN"
-    with pytest.raises(seat.SeatError) as other:
-        seat.check("not-the-token")
-    assert other.value.status == 403
-    seat.check(token)
+    token, _ = seat.claim(now=1000.0)
+    none, taken = seat.claim(now=1000.0 + AGENT_LEASE_SEC - 1)
+    assert none is None and taken.code == "AGENT_SEAT_TAKEN"
+    assert seat.refusal("not-the-token").status == 403
+    assert seat.refusal(token) is None and seat.beat("not-the-token") is not None
     assert seat.lapsed(1000.0 + AGENT_LEASE_SEC + 1)
-    second = seat.claim(now=1000.0 + AGENT_LEASE_SEC + 1)
-    assert second != token
+    second, why = seat.claim(now=1000.0 + AGENT_LEASE_SEC + 1)
+    assert why is None and second != token
 
 
 def test_the_seat_survives_a_restart_and_refuses_a_file_it_does_not_know():
-    token = seat.claim(now=1000.0)
+    token, _ = seat.claim(now=1000.0)
     seat.set_symbol("SMPL", now=1001.0)
     seat.reset_for_tests()                                   # a restart: the state is read back from the file
     assert seat.holder() == token and seat.symbol() == "SMPL"
@@ -105,6 +102,49 @@ def test_a_line_claude_shares_with_a_tab_is_the_desks(depth_lines):
     assert lines.desk_refusal("GAPX") is not None             # its 3rd waits
     depth_lines["SMPL"] = 1                                   # the tab closed: SMPL is Claude's alone
     assert lines.claude_only_lines() == 1 and lines.desk_free(busy=2) == 1
+
+
+def test_a_reconnect_does_not_leave_claude_thinking_it_holds_its_line(depth_lines, monkeypatch):
+    """Codex review on PR #1239: a reference outlives an IBKR session, so 'held' must mean 'up now'; Nova's renewal
+    of Claude's own line passes Claude's reservation; and Claude asks again without a second reference."""
+    import ibkr.depth as depth_mod
+    from ibkr import tape_stream
+
+    seat.claim()
+    live = {"SMPL": True}
+    asked: list[tuple[str, bool]] = []
+    opened: list[str] = []
+
+    async def _subscribe(sym, *, live=False, agent=False):
+        asked.append((sym, agent))
+        live_now[sym] = True
+        return {"ok": True}
+
+    live_now = live
+    monkeypatch.setattr(depth_mod, "is_live", lambda s: live_now.get(s, False))
+    monkeypatch.setattr(depth_mod, "subscribe_async", _subscribe)
+    monkeypatch.setattr(depth_mod, "ws_viewer_opened", lambda s: opened.append(s))
+    monkeypatch.setattr(tape_stream, "is_subscribed", lambda s: True)
+    lines._held["SMPL"] = {"depth": True, "tape": True}
+    depth_lines.update({"SPIK": 1, "FLTX": 1, "SMPL": 1})
+    assert lines.holds_depth("SMPL")
+    live_now["SMPL"] = False                                  # IBKR's session ended; the reference is still counted
+    assert not lines.holds_depth("SMPL")
+    assert lines.desk_refusal("SMPL") is None                 # line_session's renewal of Claude's line is admitted
+    assert lines.desk_refusal("RUNR") is not None             # the desk's 3rd still waits
+    assert asyncio.run(lines.acquire("SMPL")) is None
+    assert asked == [("SMPL", True)] and opened == []         # asked again, no second viewer reference
+    assert lines.holds_depth("SMPL")
+
+
+def test_claudes_status_never_carries_an_exceptions_text(monkeypatch):
+    """CodeQL on PR #1239: a failed Paper read says fixed words; the detail goes to the log only."""
+    def _boom():
+        raise ledger.ReadError("Traceback ... C:/secret/path.py line 12")
+
+    monkeypatch.setattr(ledger, "fills_today", _boom)
+    assert view.status()["read_error"] == ledger.UNREAD_TEXT
+    assert rules.day_refusal(0, 0.0) is None
 
 
 def test_the_depth_door_refuses_a_desk_line_past_two_and_takes_claudes(monkeypatch):
@@ -273,7 +313,12 @@ def paper(monkeypatch, short_market_open):
         lines._held[symbol.upper()] = {"depth": True, "tape": True}
         return None
 
+    import ibkr.depth as depth_mod
+    from ibkr import tape_stream
+
     monkeypatch.setattr(lines, "acquire", _hold)
+    monkeypatch.setattr(depth_mod, "is_live", lambda s: s.upper() in lines._held)
+    monkeypatch.setattr(tape_stream, "is_subscribed", lambda s: s.upper() in lines._held)
     monkeypatch.setenv("NOVA_API_KEY", "agent-test-key")
     monkeypatch.setenv("NOVA_API_HOST", "127.0.0.1")
     from main import app

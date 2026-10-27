@@ -1,6 +1,7 @@
 """``GET /api/agent/trader``: what the desk shows of Claude (ADR 068 decision 10). Read-only; never the holder token."""
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from agent_trader import clock
@@ -24,6 +25,7 @@ from agent_trader.constants_agent_trader import (
 )
 
 _EVENTS_SHOWN = 12
+logger = logging.getLogger(__name__)
 
 
 def state_of(st: dict[str, Any], *, holds_line: bool, positions: dict[str, float], working: int, breaks: int,
@@ -77,8 +79,9 @@ def status(now: float | None = None) -> dict[str, Any]:
         positions = ledger.positions(fills)
         pnl = ledger.day_pnl(fills)
         entries = ledger.entries_today(fills, working)
-    except ledger.ReadError as exc:
-        read_error = str(exc)
+    except ledger.ReadError:
+        logger.warning("AGENT status: Paper could not be read", exc_info=True)
+        read_error = ledger.UNREAD_TEXT
     done = pnl is not None and rules.day_refusal(entries, pnl) is not None
     holds = bool(sym) and lines.holds_depth(sym)
     breaks = st.get("breaks") or []
