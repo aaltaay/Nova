@@ -3070,5 +3070,46 @@
       "idempotentHint": false,
       "openWorldHint": false
     }
+  },
+  {
+    "name": "open_in_nova",
+    "description": "Open one ticker in Nova Sim, paused. Post chat_message verbatim. symbol: ticker. date: YYYY-MM-DD. as_of: HH:MM or HH:MM:SS Eastern, optional. No other arguments. The server opens the desk. This does not place, change, or cancel an order.",
+    "inputSchema": {
+      "properties": {
+        "symbol": {
+          "title": "Symbol",
+          "type": "string"
+        },
+        "date": {
+          "title": "Date",
+          "type": "string"
+        },
+        "as_of": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "As Of"
+        }
+      },
+      "required": [
+        "symbol",
+        "date"
+      ],
+      "title": "open_in_novaArguments",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
   }
 ]

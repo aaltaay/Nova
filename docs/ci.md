@@ -32,6 +32,7 @@ way:
 - Agent contract: tool tests, structural validation, doc invariants, skills
   audit and the maintainer gate.
 - Desktop pack: its Windows maintenance tests, which run after the pack.
+- Open token Windows: `pytest backend/tests/test_open_in_nova.py` on `windows-latest`, including the current-user DACL. It is not one of the four merge checks.
 
 A step that needs an earlier step's output still stops there: Desktop pack
 proves and uploads only an installer it built. Frontend E2E, Gitleaks and the
