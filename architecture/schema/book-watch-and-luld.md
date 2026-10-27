@@ -17,7 +17,7 @@ visible, page: "trader" | "forex" | "global" | "market" | "scanner" | "account" 
 "scanner_row" | null, trader_tabs: string[], last_input_ts:
 number | null, reason: "start" | "focus" | "blur" | "visibility" | "page" |
 "symbol" | "input" | "heartbeat", ui_tag}` -- `window_id` is the perf
-recorder's (`main`, `trader:SYM`), `instance_id` one per page load,
+recorder's (`main`, `trader:SYM`, `top-nine` for the Top 9 pop-up), `instance_id` one per page load,
 `focused` `document.hasFocus()`, `tab` the scanner tab on the Scanner page,
 `last_input_ts` the last click / keypress / wheel there (epoch seconds). The
 Electron main process posts `{schema_version: 1, role: "electron", window_id:

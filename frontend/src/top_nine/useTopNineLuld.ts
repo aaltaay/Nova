@@ -2,19 +2,20 @@
  * One tile's LULD trail, read every TOP_NINE_LULD_POLL_MS from `GET /api/luld/{symbol}/trail` -- the band the
  * Trader's 1-minute chart draws. It reads the backend's memory only: no Level 1, Level 2 or tape line is opened for a
  * tile, so a stock Nova holds no tape for answers no band, and the tile says so. A failed read keeps the last answer.
+ * Off (a list with no band, TOP_NINE_LULD_LISTS) it asks nothing and answers null.
  */
 import { useEffect, useState } from 'react';
 import { API_BASE_URL } from '../constants';
 import { readLuldTrail, type LuldTrail } from '../ibkr';
 import { TOP_NINE_LULD_PATH, TOP_NINE_LULD_POLL_MS } from './topNineConstants';
 
-export function useTopNineLuld(symbol: string): LuldTrail | null {
+export function useTopNineLuld(symbol: string, on: boolean): LuldTrail | null {
   const [trail, setTrail] = useState<LuldTrail | null>(null);
 
   useEffect(() => {
     setTrail(null);
     const sym = symbol.trim().toUpperCase();
-    if (!sym) return undefined;
+    if (!on || !sym) return undefined;
     const controller = new AbortController();
     let inFlight = false;
     const read = async () => {
@@ -39,7 +40,8 @@ export function useTopNineLuld(symbol: string): LuldTrail | null {
       window.clearInterval(timer);
       controller.abort();
     };
-  }, [symbol]);
+  }, [symbol, on]);
 
-  return trail;
+  // The render that turns it off already draws no band, before the effect clears the last answer.
+  return on ? trail : null;
 }
