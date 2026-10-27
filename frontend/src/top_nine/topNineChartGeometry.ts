@@ -48,6 +48,10 @@ const TOP = 8;
 const TIME_H = 16;
 const VOL_H = 40;
 const GAP_BREAK_MIN = 3;
+/** A price span under this fraction of the price is a flat chart. */
+const FLAT_SPAN = 1e-6;
+/** niceStep asks for about four ticks; a few more is a bug, never a chart. */
+const MAX_PRICE_TICKS = 12;
 
 function minuteOf(time: number): number {
   return Math.floor(time / 60);
@@ -112,7 +116,10 @@ export function topNineChartGeometry(
     lo = Math.min(lo, lastPrice);
     hi = Math.max(hi, lastPrice);
   }
-  const pad = (hi - lo) * 0.06 || hi * 0.02 || 0.01;
+  // A flat chart's VWAP can sit a rounding hair off its price (242.44999999999996 against 242.45):
+  // a span that small is flat, or the tick step falls below the price's own rounding.
+  const span = hi - lo;
+  const pad = span > Math.abs(hi) * FLAT_SPAN ? span * 0.06 : Math.abs(hi) * 0.02 || 0.01;
   lo -= pad;
   hi += pad;
   const yOf = (p: number) => TOP + ((hi - p) / (hi - lo)) * (priceBottom - TOP);
@@ -156,7 +163,11 @@ export function topNineChartGeometry(
   const step = niceStep(hi - lo, 4);
   const dec = decimalsFor(step);
   const priceTicks: { y: number; label: string }[] = [];
-  for (let v = Math.ceil(lo / step) * step; v < hi; v += step) {
+  // Counted, not summed: a step the price cannot add must still end the loop.
+  const first = Math.ceil(lo / step);
+  for (let i = 0; i < MAX_PRICE_TICKS; i += 1) {
+    const v = (first + i) * step;
+    if (!(v < hi)) break;
     const y = yOf(v);
     if (Math.abs(y - lastY) > 15) priceTicks.push({ y, label: v.toFixed(dec) });
   }
