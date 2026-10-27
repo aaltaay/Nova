@@ -258,6 +258,23 @@ float checks read unknown (below). The figure is still Yahoo's: `float_contradic
 setup grade, `LEADERS_RULES` and every max-float gate are unchanged, and nothing parses a share count out of a
 filing (PIPE shares may not trade until a resale registration, so the tradable float is not known either way).
 
+## Row shades on the Scanner lists (operator approved 2026-10-26)
+
+Presentation only: no wire shape changes. One rule (`frontend/src/scanner/rowShades.ts`, thresholds in
+`constantGroups/scanner_board.ts` `SCANNER_SHADE_*`) shades every list `ScannerTableRow` draws -- Gappers, Gainers,
+Losers, After Hours, live or played back -- and leaves the Large Cap swing table plain:
+
+- **Float cell** (`data-float-shade`): under 10M `low` (the brightest), 10M-20M `mid`, above none.
+- **Volume cell** (`data-volume-shade` 1-5): deepens with `volume` up to 1M shares, then stays at 5.
+- **Whole row** (`scanner-row--hot`): a `low` float and a day relative volume of 5x or more. "Day relative
+  volume" is the Rel vol chip's own reading (`boardFilters.dayRelVolume`): a Sim row's time-of-day RVOL is another
+  basis and never counts.
+
+An unknown figure is never shaded. A float the row itself doubts (`float_contradicted`, or `shares_issued`: the
+"?" mark above) is not shaded and cannot light the row: AMOD's "630.9K?" after its 2026-10-01 8-K stays plain.
+The news flame's heat (fresher news, hotter flame) is `NewsCell`'s,
+unchanged. The cell shades stay on a selected or hovered row; the whole-row tint gives way to both.
+
 ## The kind of security (ADR 055, operator 2026-10-14)
 
 Yahoo's fundamentals read (`fundamentals.fetch_fundamentals`, and so the ticker detail's `fundamentals`) adds
