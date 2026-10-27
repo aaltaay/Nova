@@ -1540,7 +1540,6 @@
             "backend/constants_setups.py",
             "architecture/schema/setups.md",
             "architecture/frontend-live-render-contract.md",
-            "architecture/maintenance-log.md",
             "backend/tests/bench_hod_burst.py",
             "backend/tests/test_hod_prices.py",
             "backend/tests/test_hod_momo_surge_seed_async.py",

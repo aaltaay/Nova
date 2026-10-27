@@ -1,4 +1,6 @@
-# Constitution maintenance log
+# Constitution maintenance log (retired 2026-10-27)
+
+> Retired: every PR added a row at the top of this one table, so parallel PRs collided on it. Read-only history; do not add rows. A change to `AGENTS.md` or `architecture/schema/` records what and why in its PR body (`AGENTS.md` §7.1, §11).
 
 Moved out of `AGENTS.md` §11 on 2026-10-07 so the constitution stays small enough to load on every request. Newest first; a change to `AGENTS.md` or to a file in `architecture/schema/` adds its row here in the same commit (Invariant #8).
 

@@ -13,6 +13,6 @@ Before you change a route, a socket frame, a persisted file or its `schema_versi
 1. Find its file in the §3 index (or grep `architecture/schema/` for the route or field).
 2. Update that file first, in the same commit (Invariants #1 and #5).
 3. A new domain gets a new file and a row in the §3 index.
-4. Add a row to `architecture/maintenance-log.md` when the change amends a decision.
+4. When the change amends a decision, amend its ADR and say why in the PR body (the maintenance log is retired).
 
 Do not paste schema text back into `AGENTS.md`: it loads on every request, and `maintainer_checks.py` caps its size.
