@@ -1,5 +1,6 @@
 """The recorded-session tools of the nova-data MCP server (ADR 059, #1064): Nova's own IBKR recordings -- Level 2 at a
-moment and the prints in a window -- read through ``research/market_reads/recordings.py``.
+moment, the prints in a window, and which days were recorded -- read through ``research/market_reads/recordings.py``
+and ``recorded_days.py``.
 
 The third tool set, split from ``tools/nova_data_mcp.py`` along the same seam as ``nova_data_research.py`` (the host
 class gives ``output_path`` / ``answer`` / ``json_safe``). Read-only on the stores, which are the live desk's: a read
@@ -10,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-PRELOAD = ("market_reads.recordings",)
+PRELOAD = ("market_reads.recordings", "market_reads.recorded_days")
 
 
 class RecordingTools:
@@ -27,9 +28,15 @@ class RecordingTools:
         out = self.output_path(output_name)
         return self.answer(recordings.tape(symbol, day, start, end, source, limit), out)
 
+    def recorded_days(self, date_from: str | None = None, date_to: str | None = None, symbol: str | None = None,
+                      output_name: str | None = None) -> dict[str, Any]:
+        from market_reads import recorded_days
+        out = self.output_path(output_name)
+        return self.answer(recorded_days.recorded_days(date_from, date_to, symbol), out)
+
 
 def register(server, service, run, reads, writes_file) -> None:
-    """The two tools on ``server`` (``run`` executes a body off the event loop; heavy ones one at a time)."""
+    """The three tools on ``server`` (``run`` executes a body off the event loop; heavy ones one at a time)."""
 
     @server.tool(annotations=reads)
     async def recorded_depth(symbol: str, day: str, at: str, source: str = "auto", max_age_sec: float = 60.0) -> dict:
@@ -58,3 +65,14 @@ def register(server, service, run, reads, writes_file) -> None:
         archive has. limit up to 1,000,000 rows (meta.capped); inline answers hold 200, output_name (new
         .parquet/.csv) for all."""
         return await run(service.recorded_tape, symbol, day, start, end, source, limit, output_name)
+
+    @server.tool(annotations=writes_file)
+    async def recorded_days(date_from: str | None = None, date_to: str | None = None, symbol: str | None = None,
+                            output_name: str | None = None) -> dict:
+        """Which days the operator recorded, and which stocks each day: one row per Session Record (the recorder's
+        folder <day>/<SYMBOL>, 2026-09-19 on), newest day first -- status, first_et / last_et and recorded_min of its
+        recorded stretches, stretches, gaps and unplanned_gaps, and a problem when its manifest is unreadable (listed,
+        never dropped). Filter by date_from / date_to (YYYY-MM-DD) and symbol. meta.days / meta.symbols count them.
+        Not listed: the tape archive (every print the desk's tape line saw, 2026-07-15 on, any symbol) and l2.db --
+        recorded_tape / recorded_depth answer those per stock-day."""
+        return await run(service.recorded_days, date_from, date_to, symbol, output_name)

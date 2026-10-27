@@ -1,8 +1,8 @@
 """The momentum-research tools of the nova-data MCP server (ADR 059): finding stock-days, daily bars and the market
-around a day, one stock-day's stats, minute order flow, halts, catalysts and symbols.
+around a day, one stock-day's stats, minute order flow, halts, catalysts, symbols and the operator's journal.
 
 Split from ``tools/nova_data_mcp.py`` along the tool-set seam: that file owns the server, the answer shape and the
-first fourteen tools; this one owns these nine (``ResearchTools`` bodies, ``register`` their MCP descriptions);
+first fourteen tools; this one owns these ten (``ResearchTools`` bodies, ``register`` their MCP descriptions);
 ``nova_data_runway.py`` owns ``cash_runway``.
 Same contract: read-only on the data, a table answer holds 200 rows inline, ``output_name`` writes a new file.
 """
@@ -11,7 +11,8 @@ from __future__ import annotations
 from typing import Any
 
 PRELOAD = ("market_reads.stock_days", "market_reads.day_facts", "market_reads.daily", "market_reads.stats", "market_reads.order_flow",
-           "market_reads.halts", "market_reads.catalysts", "market_reads.symbols", "pyarrow.parquet",
+           "market_reads.halts", "market_reads.catalysts", "market_reads.symbols", "market_reads.journal",
+           "pyarrow.parquet",
            "day_movers.floats", "day_movers.store")
 
 
@@ -26,7 +27,8 @@ class ResearchTools:
                         limit: int | None = None, cursor: str | None = None, page_size: int | None = None,
                         output_name: str | None = None, catalyst_category: list[str] | None = None,
                         catalyst_words: list[str] | None = None, rvol_daily_min: float | None = None,
-                        halt_codes: list[str] | None = None) -> dict[str, Any]:
+                        halt_codes: list[str] | None = None, market_cap_min: float | None = None,
+                        market_cap_max: float | None = None) -> dict[str, Any]:
         from market_reads import stock_days
         out = self.output_path(output_name)
         frame = stock_days.find_stock_days(filters=filters, symbol=symbol, kinds=kinds, splits=splits,
@@ -35,7 +37,8 @@ class ResearchTools:
                                            halted=halted, sort=sort, limit=limit, cursor=cursor,
                                            page_size=page_size, to_file=out is not None,
                                            catalyst_category=catalyst_category, catalyst_words=catalyst_words,
-                                           rvol_daily_min=rvol_daily_min, halt_codes=halt_codes)
+                                           rvol_daily_min=rvol_daily_min, halt_codes=halt_codes,
+                                           market_cap_min=market_cap_min, market_cap_max=market_cap_max)
         answer = self.answer(frame, out)
         answer["next_cursor"] = frame.attrs.get("next_cursor")
         return answer
@@ -92,6 +95,14 @@ class ResearchTools:
             raise ValueError("scope is verdicts (one judged stock-day per row) or items (headlines)")
         return self.answer(frame, out)
 
+    def journal_trades(self, symbol: str | None = None, setup: str | None = None, tag: str | None = None,
+                       adherent: bool | None = None, date_from: str | None = None, date_to: str | None = None,
+                       limit: int | None = None, include_mock: bool = False,
+                       output_name: str | None = None) -> dict[str, Any]:
+        from market_reads import journal
+        out = self.output_path(output_name)
+        return self.answer(journal.trades(symbol, setup, tag, adherent, date_from, date_to, limit, include_mock), out)
+
     def symbols(self, query: str | None = None, ticker: str | None = None, day: str | None = None,
                 active: bool | None = None, types: list[str] | None = None, limit: int = 50,
                 exchange: str | None = None, cik: str | None = None) -> dict[str, Any]:
@@ -103,7 +114,7 @@ class ResearchTools:
 
 
 def register(server, service, run, reads, writes_file) -> None:
-    """The nine tools on ``server`` (``run`` executes a body off the event loop; heavy ones one at a time)."""
+    """The ten tools on ``server`` (``run`` executes a body off the event loop; heavy ones one at a time)."""
 
     @server.tool(annotations=writes_file)
     async def find_stock_days(filters: dict, symbol: str | None = None, kinds: list[str] | str | None = None,
@@ -114,7 +125,8 @@ def register(server, service, run, reads, writes_file) -> None:
                               cursor: str | None = None, page_size: int | None = None,
                               output_name: str | None = None, catalyst_category: list[str] | None = None,
                               catalyst_words: list[str] | None = None, rvol_daily_min: float | None = None,
-                              halt_codes: list[str] | None = None) -> dict:
+                              halt_codes: list[str] | None = None, market_cap_min: float | None = None,
+                              market_cap_max: float | None = None) -> dict:
         """Momentum stock-days in one call: movers rows (filters as movers_scan: date_from/date_to, price_min/max on
         the raw prior close, high_min ... in percent points; needs dates or a symbol) joined with what was known
         that day -- outstanding_* (SEC shares OUTSTANDING filed by the day, as of <=120 days, split-adjusted; NOT free
@@ -137,10 +149,13 @@ def register(server, service, run, reads, writes_file) -> None:
         "luld" for their groups; a day the halt log does not cover is left out); news_halts / luld_halts count them.
         rvol_daily (the day's volume / its usual whole-session volume, up to 50 earlier sessions;
         null = unknown) on every row; rvol_daily_min e.g. 5 keeps 5x or more and leaves unknowns out, counted in
-        meta.left_out. Likely splits left out (splits=include keeps)."""
+        meta.left_out. market_cap is an ESTIMATE: the prior close x SEC shares outstanding known that day (null when
+        either is unknown), not the board's market cap; market_cap_min / market_cap_max (dollars) keep rows inside and
+        leave unknowns out, counted in meta.left_out.market_cap_unknown. Likely splits left out (splits=include keeps)."""
         return await run(service.find_stock_days, filters, symbol, kinds, splits, float_max, outstanding_max,
                          float_basis, float_unknown, catalyst, halted, sort, limit, cursor, page_size, output_name,
-                         catalyst_category, catalyst_words, rvol_daily_min, halt_codes)
+                         catalyst_category, catalyst_words, rvol_daily_min, halt_codes, market_cap_min,
+                         market_cap_max)
 
     @server.tool(annotations=writes_file)
     async def daily_bars(symbol: str, date_from: str, date_to: str, adjust: bool = False, as_of: str | None = None,
@@ -212,6 +227,21 @@ def register(server, service, run, reads, writes_file) -> None:
         unknown, never no news. Up to 5,000 rows (limit); output_name writes them."""
         return await run(service.news_search, date_from, date_to, verdict, category, words, scope, sources, limit,
                          output_name)
+
+    @server.tool(annotations=writes_file)
+    async def journal_trades(symbol: str | None = None, setup: str | None = None, tag: str | None = None,
+                             adherent: bool | None = None, date_from: str | None = None, date_to: str | None = None,
+                             limit: int | None = None, include_mock: bool = False,
+                             output_name: str | None = None) -> dict:
+        """The operator's own trades from the desk's journal (journal.db, read-only), newest first: symbol / setup
+        exact (any case), tag one of the trade's tags, adherent true/false (followed the plan), date_from / date_to
+        the ET day the trade opened -- the desk's own filter (GET /api/journal/trades). Rows: entry / exit / stop /
+        target, qty, side, pnl, commission, tags, notes, opened_et / closed_et. Mock (test) rows only with
+        include_mock. meta.summary sums the rows returned (closed, pnl, wins, losses); meta.journal_rows counts the
+        real and mock rows in the file. The journal is not where the desk's fills land: the Account page reads the
+        practice account's history (Paper, Sim) and IBKR's closed orders. limit default 200, up to 10,000."""
+        return await run(service.journal_trades, symbol, setup, tag, adherent, date_from, date_to, limit,
+                         include_mock, output_name)
 
     @server.tool(annotations=reads)
     async def symbols(query: str | None = None, ticker: str | None = None, day: str | None = None,

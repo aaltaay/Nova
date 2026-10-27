@@ -13,6 +13,7 @@ import json
 import sqlite3
 import time
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from constants import (
@@ -157,13 +158,22 @@ def _et_day_start(day: str, plus_days: int = 0) -> float:
     return start.timestamp()
 
 
+def _read_only(database: Path) -> sqlite3.Connection:
+    """A journal file opened read-only: never created, migrated or written."""
+    conn = sqlite3.connect(f"{Path(database).resolve().as_uri()}?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
 def get_trades(limit: int = JOURNAL_TRADES_DEFAULT_LIMIT, include_mock: bool = False, *,
                symbol: str | None = None, setup: str | None = None, tag: str | None = None,
                adherent: bool | None = None, date_from: str | None = None,
-               date_to: str | None = None) -> list[dict]:
+               date_to: str | None = None, database: Path | None = None) -> list[dict]:
     """The newest ``limit`` trades that match every filter given: ``symbol`` and ``setup`` exact (any case), ``tag``
     one of the trade's tags (any case), ``adherent`` the plan flag (a trade with none matches neither), ``date_from``
-    / ``date_to`` the ET day the trade opened (YYYY-MM-DD, inclusive). ``ValueError`` on a malformed day."""
+    / ``date_to`` the ET day the trade opened (YYYY-MM-DD, inclusive). ``ValueError`` on a malformed day.
+    ``database``: read that journal file read-only (the research front door's ``journal_trades``, which must never
+    create or change the desk's journal) instead of the desk's own connection."""
     clauses, args = ([] if include_mock else ["is_mock = 0"]), []
     for clause, value in (("upper(symbol) = ?", symbol and symbol.strip().upper()),
                           ("lower(setup) = ?", setup and setup.strip().lower()),
@@ -177,7 +187,7 @@ def get_trades(limit: int = JOURNAL_TRADES_DEFAULT_LIMIT, include_mock: bool = F
         args.append(1 if adherent else 0)
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     wanted_tag = (tag or "").strip().lower()
-    conn = get_connection()
+    conn = get_connection() if database is None else _read_only(database)
     try:
         if wanted_tag:      # tags are a JSON list: matched here, so the limit counts matches
             rows = conn.execute(f"SELECT * FROM trades {where} ORDER BY opened_ts DESC", args).fetchall()

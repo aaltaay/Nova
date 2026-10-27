@@ -106,7 +106,7 @@ def _merge(spans: list[tuple[float, float]]) -> list[tuple[float, float]]:
     return merged
 
 
-def _capture_state(symbol: str, day: str) -> dict[str, Any]:
+def capture_state(symbol: str, day: str) -> dict[str, Any]:
     """The Session Record's folder, manifest, stretches and gaps; ``usable`` / ``problem`` say whether it can answer."""
     folder = files.session_dir(day, symbol)
     state: dict[str, Any] = {"folder": folder, "usable": False, "problem": None, "spans": [], "coverage": {
@@ -177,7 +177,7 @@ def _book(ts: float, bids: list[dict], asks: list[dict], at: float, source: str,
 
 
 def _depth_capture(symbol: str, day: str, at: float, min_ts: float) -> dict[str, Any]:
-    state = _capture_state(symbol, day)
+    state = capture_state(symbol, day)
     out = {"source": "capture", "covered": False, "reason": state["problem"], "book": None,
            "coverage": state["coverage"]}
     if not state["usable"]:
@@ -301,7 +301,7 @@ def tape(symbol: str, day: str, start: str | None = None, end: str | None = None
         raise ValueError("end must be after start")
     note = None
     with slots.heavy(f"recorded_tape {symbol} {day}"):
-        state = _capture_state(symbol, day) if source in ("auto", "capture") else None
+        state = capture_state(symbol, day) if source in ("auto", "capture") else None
         has_capture = bool(state and state["usable"] and (state["folder"] / "prints.jsonl").is_file()
                            and (state["folder"] / "prints.jsonl").stat().st_size > 0)
         served = "capture" if source == "capture" or (source == "auto" and has_capture) else "archive"

@@ -23,11 +23,12 @@ data; ``index`` writes only the seek indexes the Sim's own reader keeps (ADR 046
   runway    A company's cash, operating cash burn, runway in months, share-count growth and shelf / offering
             filings as known on a day (market_data_runway.py).
   reference-index   Build or refresh the reference dump's index (a read does this itself when it is stale).
-  find / daily / context / stats / flow / halts / catalysts / symbols   Momentum research (market_data_research.py):
-            stock-days with the shares known that day, daily bars, SPY/QQQ/IWM, one stock-day's stats, minute order
-            flow, halts, news and verdicts, symbol search.
-  recorded-depth / recorded-tape   Nova's own recorded IBKR Level 2 and tape (market_data_recordings.py): the book at
-            an ET moment, the prints in an ET window; read-only on the desk's stores, coverage stated.
+  find / daily / context / stats / flow / halts / catalysts / news / symbols / journal   Momentum research
+            (market_data_research.py): stock-days with the shares known that day, daily bars, SPY/QQQ/IWM, one
+            stock-day's stats, minute order flow, halts, news and verdicts, symbol search, the operator's journal.
+  recorded-depth / recorded-tape / recorded-days   Nova's own recorded IBKR Level 2 and tape
+            (market_data_recordings.py): the book at an ET moment, the prints in an ET window, which days were
+            recorded; read-only on the desk's stores, coverage stated.
   rvol / rvol-triggers / rvol-outcomes   Relative volume across every stock (market_data_rvol.py): every
             stock-day at a clock time, the first minute over a line, and +X% or -X% first after it.
   signals / signal-series / signal-scan / signal-test   The Trader's signals on past days (market_data_signals.py):
@@ -64,7 +65,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "research"))
 
-import market_data_recordings as recordings  # noqa: E402  (recorded-depth, recorded-tape: Nova's own recordings)
+import market_data_recordings as recordings  # noqa: E402  (recorded-depth / -tape / -days: Nova's own recordings)
 import market_data_research as research  # noqa: E402  (find, daily, context, stats, flow, halts, catalysts, symbols)
 import market_data_runway as runway_cli  # noqa: E402  (runway)
 import market_data_rvol as rvol_cli  # noqa: E402  (rvol, rvol-triggers, rvol-outcomes)

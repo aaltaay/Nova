@@ -6,6 +6,7 @@ Read-only on the desk's stores; each read takes a heavy-read slot. Times are ET.
   py -3 tools/market_data.py recorded-depth GRML 2026-10-14 --at 09:31:30 --source capture --max-age 300
   py -3 tools/market_data.py recorded-tape GRML 2026-10-14 --from 09:31 --to 09:35
   py -3 tools/market_data.py recorded-tape GRML 2026-10-14 --source archive --limit 50000 --out grml.parquet
+  py -3 tools/market_data.py recorded-days --from 2026-10-01 [--symbol CLRO]
 """
 from __future__ import annotations
 
@@ -23,7 +24,12 @@ def cmd_tape(args, show) -> int:
     return show(recordings.tape(args.symbol, args.day, args.start, args.end, args.source, args.limit), args)
 
 
-HANDLERS = {"recorded-depth": cmd_depth, "recorded-tape": cmd_tape}
+def cmd_days(args, show) -> int:
+    from market_reads import recorded_days
+    return show(recorded_days.recorded_days(args.date_from, args.date_to, args.symbol), args)
+
+
+HANDLERS = {"recorded-depth": cmd_depth, "recorded-tape": cmd_tape, "recorded-days": cmd_days}
 
 
 def add_parsers(sub, output) -> None:
@@ -44,3 +50,8 @@ def add_parsers(sub, output) -> None:
                       help="auto = a Session Record when one exists for the symbol-day, else the archive")
     tape.add_argument("--limit", type=int, default=200_000, help="at most this many rows (up to 1,000,000)")
     output(tape)
+    days = sub.add_parser("recorded-days", help="which days were recorded, and which stocks each day")
+    days.add_argument("--from", dest="date_from", help="YYYY-MM-DD")
+    days.add_argument("--to", dest="date_to", help="YYYY-MM-DD")
+    days.add_argument("--symbol")
+    output(days)
