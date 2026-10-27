@@ -47,7 +47,14 @@ leg_role, status, parent_id}], breaks: [{id, symbol, qty, trigger, top, stop, ta
 expires_at, created_at, why, confirm}], reflexes: [{id, symbol, kind, action, price, shares, seconds, ratio, why, expires_at, created_at, text}], today: {entries, max_entries, pnl, day_stop, fills}, limits: {max_shares,
 max_risk_usd}, note: {text, at} | null, events: [{at, kind, text}] (newest first, 12), read_error}`. `read_error`, `line.why_not` and every refusal are Nova's own words: an exception's text never reaches this wire (it goes to the log). `state` is one
 of `off`, `idle` (no stock yet), `waiting_line`, `watching`, `buy_set`, `in_trade`, `yielded`, `done`; `text` is the
-header pill's words ("Claude · In SMPL +$42.00"). The holder token is never in it.
+header pill's words ("Claude · Buy set SMPL 4.39" -- the price a break triggers at or a resting buy's limit --,
+"Claude · In SMPL +$42.00"). The holder token is never in it.
+
+**On the desk** (`frontend/src/claude_seat/`, approved design `F:\Nova\design\claude-seat\v2`): one poll of this
+route every 1.5 s (6 s while the window is hidden) feeds the header pill and its panel (Take Claude's line, Give it
+back, Stop Claude after a confirm), Claude's toasts and voice (the header mute silences it), its order and break lines
+on the 10-second, 1- and 5-minute charts, the violet frame on its Level 2, the lines-full box (`agent_reserved`) and
+"Claude" in Sent by (`order_origin: "claude"`).
 
 **Claude's limits** (checked before the door, `agent_trader.rules`): long only; every entry a bracket with its stop
 and one or two targets; whole shares, at most 1,000; at most $150 between entry and stop; at most 3 entries a day

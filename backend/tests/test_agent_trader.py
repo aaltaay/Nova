@@ -360,6 +360,7 @@ def test_a_limit_entry_rests_its_stop_and_target_with_it_on_paper(paper):
     assert all(r["order_origin"] == "claude" and r["order_source"] == "bot" for r in rows)
     status = got.json()["status"]
     assert status["state"] == SEAT_SET and status["note"]["text"].startswith("FDA")
+    assert status["text"] == "Claude · Buy set SMPL 4.10"
 
 
 def test_an_entry_fills_then_nova_sells_claudes_shares_at_1555(paper):

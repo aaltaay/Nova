@@ -48,15 +48,17 @@ import {
 import { VolumeProfileChartLayer, VolumeProfileToolbar } from '../volume_profile';
 import { HeatMapToolbar, HeatMapView, useHeatMapShown } from '../heat_map';
 import { AheadChartLayer, AheadSheet, AheadToolbar } from '../ahead';
+import { ClaudeSeatChartLayer } from '../claude_seat';
 
-/** The bot's read on the symbol in every chart pane (ADR 036), the volume profile on the 5-minute one (ADR 058), and
- * Ahead's forecast zone on the 1-minute one (ADR 065). */
+/** The bot's read on the symbol in every chart pane (ADR 036), the volume profile on the 5-minute one (ADR 058),
+ * Ahead's forecast zone on the 1-minute one (ADR 065), and Claude's orders (ADR 068). */
 function renderStockRead(props: ChartPaneOverlayProps) {
   return (
     <>
       <StockReadChartLayer {...props} />
       <VolumeProfileChartLayer {...props} />
       <AheadChartLayer {...props} />
+      <ClaudeSeatChartLayer {...props} />
     </>
   );
 }

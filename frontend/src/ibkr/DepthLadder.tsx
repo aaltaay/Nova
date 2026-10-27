@@ -38,6 +38,7 @@ import {
 import { depthLentText } from './lentWords';
 import { computeL2Heuristics } from './l2Heuristics';
 import { useIbkrDepth } from './useIbkrDepth';
+import { ClaudeLinesFullBox } from '../claude_seat';
 import type { DepthLevel } from './types';
 import { useRenderCount } from '../perf/useRenderCount';
 import { noteBookShown } from '../market_view';
@@ -262,7 +263,7 @@ export function MontageSide({
 
 export function DepthLadder({ symbol, uiActive = true, markers, traderTab = false }: Props) {
   useRenderCount('DepthLadder');
-  const { book, connected, l1Fallback, error, watch, lent, luld } = useIbkrDepth(symbol, uiActive, { traderTab });
+  const { book, connected, l1Fallback, error, watch, lent, luld, agentReserved } = useIbkrDepth(symbol, uiActive, { traderTab });
   const { setTopOfBook } = useTopOfBook();
   // What left the book (ADR 033 amendment): the watcher reads depth, so an L1-only book carries none.
   const ladderWatch = l1Fallback ? null : watch;
@@ -301,6 +302,9 @@ export function DepthLadder({ symbol, uiActive = true, markers, traderTab = fals
       </div>
     );
   }
+
+  // All 3 lines in use and one is Claude's (ADR 068): say whose, with the button that frees one.
+  if (!book && error && agentReserved) return <ClaudeLinesFullBox message={error} />;
 
   // Keep the last book on screen across brief WS reconnects. Only show the
   // full "Connecting…" placeholder when we have nothing to display yet.

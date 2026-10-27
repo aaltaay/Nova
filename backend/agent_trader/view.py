@@ -46,18 +46,32 @@ def state_of(st: dict[str, Any], *, holds_line: bool, positions: dict[str, float
     return SEAT_SET if (working or breaks) else SEAT_WATCHING
 
 
-def text_of(state: str, sym: str | None, pnl: float | None, line_why: str | None) -> str:
+def text_of(state: str, sym: str | None, pnl: float | None, line_why: str | None,
+            buy_at: float | None = None) -> str:
     money = "" if pnl is None else f" {'+' if pnl >= 0 else '-'}${abs(pnl):,.2f}"
+    at = "" if buy_at is None else f" {buy_at:.2f}" if buy_at >= 1 else f" {buy_at:.4f}"
     return {
         SEAT_OFF: f"{AGENT_NAME} · Off",
         SEAT_IDLE: f"{AGENT_NAME} · Looking for a stock",
         SEAT_WAITING: f"{AGENT_NAME} · Waiting for a Level 2 line" + (f" ({line_why})" if line_why else ""),
         SEAT_WATCHING: f"{AGENT_NAME} · Watching {sym}",
-        SEAT_SET: f"{AGENT_NAME} · Buy set {sym}",
+        SEAT_SET: f"{AGENT_NAME} · Buy set {sym}{at}",
         SEAT_IN: f"{AGENT_NAME} · In {sym}{money}",
         SEAT_YIELDED: f"{AGENT_NAME} · Paused by you",
         SEAT_DONE: f"{AGENT_NAME} · Done for today{money}",
     }[state]
+
+
+def _buy_at(sym: str | None, breaks: list[dict[str, Any]], working: list[dict[str, Any]]) -> float | None:
+    """The price Claude's buy waits at: an armed break's trigger, else the resting entry's limit."""
+    for b in breaks:
+        if b.get("symbol") == sym and b.get("trigger") is not None:
+            return float(b["trigger"])
+    for r in working:
+        if (r.get("symbol") == sym and str(r.get("side") or "").upper() == "BUY"
+                and r.get("leg_role") in (None, "parent") and r.get("limit_price") is not None):
+            return float(r["limit_price"])
+    return None
 
 
 def _order(row: dict[str, Any]) -> dict[str, Any]:
@@ -96,7 +110,7 @@ def status(now: float | None = None) -> dict[str, Any]:
     beat = st.get("beat_at")
     return {
         "schema_version": AGENT_SCHEMA_VERSION, "generated_at": t, "name": AGENT_NAME, "venue": AGENT_VENUE,
-        "state": state, "text": text_of(state, shown, pnl, watcher.line_why()),
+        "state": state, "text": text_of(state, shown, pnl, watcher.line_why(), _buy_at(shown, breaks, working)),
         "on": bool(st.get("holder")), "since": st.get("since"), "beat_at": beat,
         "lease_until": (float(beat) + AGENT_LEASE_SEC) if beat else None, "lapsed": seat.lapsed(t),
         "yielded": bool(st.get("yielded")), "symbol": sym,

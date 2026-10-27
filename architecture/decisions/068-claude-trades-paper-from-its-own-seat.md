@@ -47,7 +47,7 @@ Claude works through tool calls. It reads Level 2 and Time & Sales from the back
     break may carry `confirm` (buyers lifting the ask lead by a ratio in the last seconds) and then sends only while
     they do. Claude's judgment sets them; Nova pulls the trigger.
 
-10. **Claude is seen and heard.** `GET /api/agent/trader` answers the seat's state, stock, line, position, working orders, the day's tally, Claude's latest note and its recent events; the desk draws the header pill, the panel, the chart lines and the Sent by badge from it (mockup `F:\Nova\design\claude-seat\v1`, built only after the operator approves it).
+10. **Claude is seen and heard.** `GET /api/agent/trader` answers the seat's state, stock, line, position, working orders, the day's tally, Claude's latest note and its recent events; the desk draws the header pill, the panel, the chart lines and the Sent by badge from it (design `F:\Nova\design\claude-seat\v2`, drawn on the real desk and approved by the operator 2026-10-26).
 
 ## Scenarios
 
