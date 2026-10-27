@@ -35,7 +35,8 @@ def test_the_ring_keeps_a_watched_stocks_prints_and_says_how_far_back_it_reaches
     assert wake.prints("OTHR", 0.0) is None
     wake.print_in({"symbol": "SMPL", "ts": 200.0, "price": 4.4, "size": 100})            # 99 s later: the first ages out
     assert wake.prints("SMPL", 120.0) == [{"ts": 200.0, "price": 4.4, "size": 100, "bid": None, "ask": None,
-                                            "exchange": None, "conditions": None}]
+                                            "exchange": None, "conditions": None, "unreported": None,
+                                            "sets_price": None}]
     assert wake.prints("SMPL", 100.0) is None                                            # trimmed past that
     wake.watch(set())
     assert wake.prints("SMPL", 150.0) is None
@@ -247,3 +248,38 @@ def test_a_buy_near_the_upper_band_is_warned_never_refused(paper, monkeypatch):
         "kind": "break", "symbol": "SMPL", "qty": 100, "trigger": 4.40, "top": 4.44, "stop": 4.20, "target": 4.90,
         "why": "x"})
     assert far.status_code == 200 and far.json()["warnings"] == []
+
+
+# -- Codex review on PR #1249 -------------------------------------------------------------------------------
+def test_the_ring_keeps_a_prints_price_verdict():
+    wake.watch({"SMPL"}, now=100.0)
+    wake.print_in({"symbol": "SMPL", "ts": 101.0, "price": 4.9, "size": 100, "unreported": True, "sets_price": False})
+    wake.print_in({"symbol": "SMPL", "ts": 102.0, "price": 4.3, "size": 100})
+    assert wake.price_prints("SMPL", 100.0) == [(102.0, 4.3)]          # the unreported print triggers no break
+
+
+def test_warming_up_the_archive_fills_in_before_the_ring(monkeypatch):
+    from l2 import tape
+
+    monkeypatch.setattr(tape, "get_trades_in_range",
+                        lambda sym, a, b: [{"ts": 950.0, "price": 4.0, "size": 10}, {"ts": 990.0, "price": 4.1, "size": 10}])
+    wake.watch({"SMPL"}, now=980.0)                                    # the ring began 20 s ago, not 60
+    wake.print_in({"symbol": "SMPL", "ts": 999.0, "price": 4.2, "size": 50})
+    got = asyncio.run(watcher._recent_prints("SMPL", 1000.0))
+    assert [p["price"] for p in got] == [4.0, 4.2]                      # 990 is the ring's: not read twice
+
+
+def test_a_trade_that_opened_and_closed_between_passes_is_journaled_once(paper):
+    h = _seat(paper)
+    paper.client.post("/api/agent/trader/order", headers=h, json={
+        "kind": "limit", "symbol": "SMPL", "qty": 100, "entry": 4.25, "stop": 4.00, "target": 4.80, "why": "quick"})
+    paper.market.now += 0.2
+    paper.client.post("/api/agent/trader/close", headers=h, json={"symbol": "SMPL"})   # no pass saw it held
+    asyncio.run(watcher.run_pass(now=paper.market.now + 1))
+    asyncio.run(watcher.run_pass(now=paper.market.now + 2))
+    trades = paper.client.get("/api/agent/trader/journal").json()["trades"]
+    assert len(trades) == 1 and trades[0]["entry"] is None and trades[0]["why"] == "quick"
+    assert trades[0]["exit_reason"] == "manual" and trades[0]["entry_price"] == pytest.approx(4.21)
+    journal.reset_for_tests()                                          # a restart reads the day back
+    asyncio.run(watcher.run_pass(now=paper.market.now + 3))
+    assert len(paper.client.get("/api/agent/trader/journal").json()["trades"]) == 1

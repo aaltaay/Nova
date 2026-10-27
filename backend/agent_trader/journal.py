@@ -34,16 +34,17 @@ _lock = threading.Lock()
 _open: dict[str, dict[str, Any]] = {}
 _whys: dict[str, str] = {}
 _exits: dict[str, tuple[str, str]] = {}
+_written: set[tuple[str, float]] | None = None   # (symbol, opened_at) of trades written today (read back at start)
 _started = False                   # the first pass after a start marks held positions late
 
 
 def reset_for_tests() -> None:
-    global _started
+    global _started, _written
     with _lock:
         _open.clear()
         _whys.clear()
         _exits.clear()
-        _started = False
+        _started, _written = False, None
 
 
 def folder() -> Path:
@@ -94,15 +95,52 @@ def open_trade(sym: str, fills: list[dict[str, Any]], snap: dict[str, Any], now:
         _exits.pop(sym, None)
 
 
+def cycles(fills: list[dict[str, Any]], sym: str) -> list[tuple[float, float | None]]:
+    """``(opened, closed)`` of each of Claude's positions in ``sym`` from its own fills (time order), flat to flat;
+    ``closed`` is None while it is open."""
+    out: list[tuple[float, float | None]] = []
+    qty, opened = 0.0, None
+    mine = [r for r in fills if str(r.get("symbol") or "").upper() == sym]
+    for r in sorted(mine, key=lambda r: (float(r.get("fill_ts") or 0.0), _side(r) != "BUY")):   # a tie: the buy first
+        n, ts = float(r.get("filled_qty") or 0.0), float(r.get("fill_ts") or 0.0)
+        if _side(r) == "BUY":
+            if qty <= 1e-9:
+                opened = ts
+            qty += n
+        else:
+            qty = max(0.0, qty - n)
+            if qty <= 1e-9 and opened is not None:
+                out.append((opened, ts))
+                opened = None
+    if opened is not None:
+        out.append((opened, None))
+    return out
+
+
 def close_trade(sym: str, fills: list[dict[str, Any]], snap: dict[str, Any], now: float,
-                nova_sold: tuple[float, float | None] | None = None) -> dict[str, Any] | None:
-    """Write the trade: its fills, how it ended and its P&L. ``nova_sold``: (shares, price) Nova sold for Claude."""
+                nova_sold: tuple[float, float | None] | None = None, *, opened: float | None = None,
+                closed: float | None = None) -> dict[str, Any] | None:
+    """Write the trade: its fills, how it ended and its P&L. ``nova_sold``: (shares, price) Nova sold for Claude.
+
+    ``opened`` / ``closed``: a cycle the fills show complete. One no pass saw held (it opened and closed between two
+    passes, or the guard closed it on the pass that first saw it) is written too, with no entry snapshot."""
     with _lock:
-        trade = _open.pop(sym, None)
+        mine = _open.get(sym)
+        if mine is not None and (opened is None or float(mine["opened_at"]) == float(opened)):
+            trade = _open.pop(sym)
+        elif opened is not None:
+            trade = {"symbol": sym, "opened_at": opened, "entry_price": None, "why": _whys.pop(sym, None),
+                     "entry": None}
+        else:
+            return None
         given = _exits.pop(sym, None)
-    if trade is None:
-        return None
-    rows = _mine(fills, sym, float(trade["opened_at"]))
+    end = float("inf") if closed is None else float(closed)
+    rows = [r for r in _mine(fills, sym, float(trade["opened_at"])) if float(r.get("fill_ts") or 0.0) <= end]
+    if trade.get("entry_price") is None:
+        buys = [r for r in rows if _side(r) == "BUY"]
+        n = sum(float(r.get("filled_qty") or 0.0) for r in buys)
+        trade["entry_price"] = (sum(float(r.get("filled_qty") or 0.0) * float(r.get("avg_fill_price") or 0.0)
+                                    for r in buys) / n) if n else None
     bought = sum(float(r.get("filled_qty") or 0.0) for r in rows if _side(r) == "BUY")
     sells = [r for r in rows if _side(r) != "BUY"]
     sold = sum(float(r.get("filled_qty") or 0.0) for r in sells)
@@ -126,10 +164,27 @@ def close_trade(sym: str, fills: list[dict[str, Any]], snap: dict[str, Any], now
         reason, detail = "unknown", "no close reason was given"
     exit_px = (sum(float(r.get("filled_qty") or 0.0) * float(r.get("avg_fill_price") or 0.0) for r in sells) / sold
                if sold else (nova_sold[1] if nova_sold else None))
-    done = {**trade, "closed_at": now, "shares": bought, "exit_price": exit_px, "exit_reason": reason,
+    done = {**trade, "closed_at": closed if closed is not None else now, "shares": bought, "exit_price": exit_px, "exit_reason": reason,
             "exit_detail": detail, "exit": snap, "pnl": cash, "fees": fees, "fills": len(rows)}
     _append(done, now)
+    with _lock:
+        _seen().add((sym, float(trade["opened_at"])))
     return done
+
+
+def _seen() -> set[tuple[str, float]]:
+    """The trades written today, read back from the day's file once (caller holds the lock)."""
+    global _written
+    if _written is None:
+        from agent_trader import clock
+        from market import session_key_for_ts
+
+        try:
+            rows = read_day(session_key_for_ts(clock.now()))["trades"]
+        except (OSError, ValueError):
+            rows = []
+        _written = {(str(r.get("symbol") or "").upper(), float(r.get("opened_at") or 0.0)) for r in rows}
+    return _written
 
 
 def _append(trade: dict[str, Any], now: float) -> None:
@@ -182,16 +237,26 @@ async def run(t: float) -> None:
         logger.warning("AGENT journal: Paper could not be read; written next pass", exc_info=True)
         return
     late, _started = not _started, True
+    done_now: list[dict[str, Any] | None] = []
+    for sym in sorted({str(r.get("symbol") or "").upper() for r in fills}):
+        for opened, closed in cycles(fills, sym):
+            with _lock:
+                written = (sym, opened) in _seen()
+            if closed is None or written:
+                continue
+            snap = snapshot(depth.current_book(sym), await watcher._recent_prints(sym, t), t)
+            done_now.append(close_trade(sym, fills, {**snap, "late": t - closed > 1.0}, t, opened=opened,
+                                        closed=closed))
     for sym in [s for s in held if s not in _open]:
         snap = snapshot(depth.current_book(sym), await watcher._recent_prints(sym, t), t)
         open_trade(sym, fills, snap, t, late=late)
     for sym in [s for s in list(_open) if s not in held]:
         snap = snapshot(depth.current_book(sym), await watcher._recent_prints(sym, t), t)
-        done = close_trade(sym, fills, snap, t, nova_sold=_nova_sold(sym, fills))
-        if done is not None:
-            pnl = float(done["pnl"])
-            seat.event("close", f"trade on {sym} closed {'+' if pnl >= 0 else '-'}${abs(pnl):,.2f}: "
-                       f"{done['exit_reason']} ({done['exit_detail']})", t)
+        done_now.append(close_trade(sym, fills, snap, t, nova_sold=_nova_sold(sym, fills)))
+    for done in [d for d in done_now if d is not None]:
+        pnl = float(done["pnl"])
+        seat.event("close", f"trade on {done['symbol']} closed {'+' if pnl >= 0 else '-'}${abs(pnl):,.2f}: "
+                   f"{done['exit_reason']} ({done['exit_detail']})", t)
 
 
 def _nova_sold(sym: str, fills: list[dict[str, Any]]) -> tuple[float, float | None] | None:

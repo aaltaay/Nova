@@ -162,7 +162,9 @@ shares, exit_price, exit_reason, exit_detail, exit: snapshot, pnl, fees, fills}`
 l1_fallback, prints}` (the book's top `AGENT_JOURNAL_BOOK_ROWS` 10 rows each side, the prints of the last
 `AGENT_JOURNAL_PRINTS_SEC` 30 s, newest `AGENT_JOURNAL_PRINTS_MAX` 100). `entry_price` is Claude's average buy since it
 was last flat; `why` the `why` of Claude's last order in the stock; `late` true when the trade was read back after a
-restart (its entry snapshot taken then). `exit_reason`: `stop` / `target` (the closing fill's bracket leg), else the
+restart (its entry snapshot taken then). Trades are Claude's own fills flat to flat, each written once (keyed by symbol
+and `opened_at`, read back from the day's file after a restart): one that opened and closed between two passes is
+written too, with `entry: null` (no pass saw it held) and an exit snapshot marked `late`. `exit_reason`: `stop` / `target` (the closing fill's bracket leg), else the
 closer's (`guard`, `reflex`, `manual`, `day_close`, `stand_down`), else `nova` (Nova sold the shares under another
 origin), else `unknown`. `pnl`: Claude's fills in the trade, fees included, plus shares Nova sold for it at the price
 those closes got. Open trades are in memory.

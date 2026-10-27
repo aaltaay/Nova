@@ -145,14 +145,18 @@ async def _recent_prints(symbol: str, t: float) -> list[dict[str, Any]]:
     from agent_trader import reflexes, wake
     from l2 import tape
 
-    live = wake.prints(symbol, t - reflexes.SECONDS_MAX)
+    start = t - reflexes.SECONDS_MAX
+    live = wake.prints(symbol, start)
     if live is not None:
         return live
+    ring = wake.tail(symbol)                # warming up: the archive before the ring, the ring's fresh prints after
+    upto = ring[0] if ring else t
     try:
-        return await asyncio.to_thread(tape.get_trades_in_range, symbol, t - reflexes.SECONDS_MAX, t)
+        older = await asyncio.to_thread(tape.get_trades_in_range, symbol, start, upto)
     except Exception:
-        logger.warning("AGENT watcher: %s's prints could not be read; judged on none", symbol, exc_info=True)
-        return []
+        logger.warning("AGENT watcher: %s's prints could not be read; judged on the live ones", symbol, exc_info=True)
+        older = []
+    return [*[r for r in older if float(r.get("ts") or 0.0) <= upto], *(ring[1] if ring else [])]
 
 
 async def _breaks(t: float) -> None:

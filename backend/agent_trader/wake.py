@@ -22,7 +22,7 @@ from agent_trader.constants_agent_trader import AGENT_WAKE_RING_SEC
 
 logger = logging.getLogger(__name__)
 
-_PRINT_KEYS = ("ts", "price", "size", "bid", "ask", "exchange", "conditions")
+_PRINT_KEYS = ("ts", "price", "size", "bid", "ask", "exchange", "conditions", "unreported", "sets_price")
 _lock = threading.Lock()
 _watched: frozenset[str] = frozenset()
 _rings: dict[str, deque[dict[str, Any]]] = {}
@@ -107,6 +107,16 @@ def prints(symbol: str, since: float) -> list[dict[str, Any]] | None:
         if ring is None or start is None or start > since:
             return None
         return [dict(r) for r in ring if float(r["ts"]) > since]
+
+
+def tail(symbol: str) -> tuple[float, list[dict[str, Any]]] | None:
+    """``(since, prints)``: every live print the ring holds and the time it holds them from; None when not watched."""
+    sym = symbol.upper()
+    with _lock:
+        ring, start = _rings.get(sym), _since.get(sym)
+        if ring is None or start is None:
+            return None
+        return start, [dict(r) for r in ring]
 
 
 def price_prints(symbol: str, after: float) -> list[tuple[float, float]]:
