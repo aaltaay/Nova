@@ -115,6 +115,29 @@ describe('TopNineApp', () => {
     expect(screen.queryByTestId('top-nine-muted-ZTG')).toBeNull();
   });
 
+  it('drops yesterday\'s mutes when the open pop-up crosses 04:00 ET', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2026-10-27T14:00:00Z')); // Tuesday 10:00 ET
+      localStorage.setItem(KEY, JSON.stringify({ ts: Date.now(), payload: snap(AT_1013) }));
+      render(<TopNineApp />);
+      for (const sym of ['ZTG', 'SMX', 'FVNNU']) {
+        fireEvent.contextMenu(screen.getByTestId(`top-nine-tile-${sym}`), { clientX: 100, clientY: 100 });
+        fireEvent.click(screen.getByTestId('top-nine-menu-mute'));
+      }
+      act(() => send(snap(AT_1014)));
+      expect(chimeTopNine).not.toHaveBeenCalled();
+
+      vi.setSystemTime(new Date('2026-10-28T14:00:00Z')); // Wednesday 10:00 ET, the pop-up never closed
+      act(() => send(snap(AT_1013)));
+      act(() => send(snap(AT_1014)));
+      expect(chimeTopNine).toHaveBeenCalled();
+      expect(screen.queryByTestId('top-nine-muted-ZTG')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('beeps when a stock on screen halts, not for one already halted on the first board', () => {
     render(<TopNineApp />);
     expect(beepTopNineHalt).not.toHaveBeenCalled();
