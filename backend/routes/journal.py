@@ -70,9 +70,24 @@ def journal_signals(limit: int = JOURNAL_SIGNALS_DEFAULT_LIMIT) -> dict:
 
 
 @router.get("/trades")
-def journal_trades(limit: int = JOURNAL_TRADES_DEFAULT_LIMIT, include_mock: bool = False) -> dict:
-    rows = get_trades(limit=limit, include_mock=include_mock)
-    return {"count": len(rows), "includes_mock_data": include_mock, "trades": rows}
+def journal_trades(
+    limit: int = JOURNAL_TRADES_DEFAULT_LIMIT,
+    include_mock: bool = False,
+    symbol: str | None = None,
+    setup: str | None = None,
+    tag: str | None = None,
+    adherent: bool | None = None,
+    date_from: str | None = Query(None, description="YYYY-MM-DD: trades opened on or after this ET day"),
+    date_to: str | None = Query(None, description="YYYY-MM-DD: trades opened on or before this ET day"),
+) -> dict:
+    try:
+        rows = get_trades(limit=limit, include_mock=include_mock, symbol=symbol, setup=setup, tag=tag,
+                          adherent=adherent, date_from=date_from, date_to=date_to)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"date_from / date_to must be YYYY-MM-DD: {exc}") from exc
+    asked = {k: v for k, v in (("symbol", symbol), ("setup", setup), ("tag", tag), ("adherent", adherent),
+                               ("date_from", date_from), ("date_to", date_to)) if v is not None}
+    return {"count": len(rows), "includes_mock_data": include_mock, "filters": asked, "trades": rows}
 
 
 @router.get("/metrics")

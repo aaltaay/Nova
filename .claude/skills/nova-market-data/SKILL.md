@@ -27,6 +27,8 @@ py -3 tools/market_data.py runway SYMBOL YYYY-MM-DD       # cash, burn, runway, 
 py -3 tools/market_data.py find date_from=... price_min=2 price_max=20 high_min=50 --float-max 20000000
 py -3 tools/market_data.py daily SYMBOL FROM TO | context DAY | stats SYMBOL DAY | flow SYMBOL DAY --bucket 5m
 py -3 tools/market_data.py halts --symbol SYMBOL --day DAY | catalysts SYMBOL --from DAY --to DAY | symbols QUERY
+py -3 tools/market_data.py news --from DAY --to DAY --category fda_regulatory --words approv,clear   # every stock
+py -3 tools/market_data.py halts --from DAY --to DAY --codes news | find ... --halt-codes luld --rvol-daily-min 5
 py -3 tools/market_data.py rvol 09:30 date_from=... date_to=... price_min=1 price_max=20 rvol_min=5   # every stock-day
 py -3 tools/market_data.py rvol-triggers 10 date_from=... date_to=... --window 06:00-08:00 --fresh    # first minute over
 py -3 tools/market_data.py rvol-outcomes date_from=... date_to=... --at 09:30 --up 50 --down 50       # what came next
@@ -49,11 +51,13 @@ means both lines in one minute: never count it as up or down. `data_status` `rvo
 
 The same reads are MCP tools on the `nova-data` server (ADR 059; `.cursor/mcp.json`, `.mcp.json`): call
 `data_catalog` first. For small-cap momentum research start with `find_stock_days` (movers + shares known that day +
-catalyst + halts + premarket marks, paged by `next_cursor`), then `stock_day_stats`, `order_flow`, `catalysts`,
-`halts`, `daily_bars` / `market_context`, `symbols`, `rvol_scan` / `rvol_triggers` / `rvol_outcomes`,
+catalyst + halts + relative volume + premarket marks, paged by `next_cursor`; filters on news type, headline words,
+halt codes and `rvol_daily_min`), then `stock_day_stats`, `order_flow`, `catalysts`, `news_search` (news across
+every stock in a date range, no symbol: verdicts by category / headline words, or headlines), `halts` (`codes`:
+`T1`, `LUDP` ... or `news` / `luld`), `daily_bars` / `market_context`, `symbols`, `rvol_scan` / `rvol_triggers` / `rvol_outcomes`,
 `recorded_depth` / `recorded_tape`, `signal_catalog` / `signal_series` / `signal_scan` / `signal_test`; plus
 `stock_day`, `movers_search` / `movers_scan`, `board`,
-`splits`, `financials`, `sec_shares`, `sec_filings`, `cash_runway` (cash, burn, runway, share growth and shelf /
+`splits`, `financials`, `sec_shares`, `sec_filings`, `sec_filings_scan` / `short_interest_scan` / `sector_scan` (who filed a form, short interest at a settlement, every company in an SIC -- across every stock), `cash_runway` (cash, burn, runway, share growth and shelf /
 offering filings as known on a day), `float_latest`, `ipos`, `ticker_details`, `short_interest`.
 Percents are points in and out (the movers and board stores keep fractions); `--as-of` / `day` count a statement or
 SEC fact from the day it was filed; a float filter is SEC shares OUTSTANDING unless you pick another basis -- say

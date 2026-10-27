@@ -243,6 +243,19 @@ def ticker_details(symbol: str) -> pd.DataFrame:
     return frame
 
 
+_DETAILS: tuple[Any, pd.DataFrame] | None = None
+
+
+def ticker_details_all() -> pd.DataFrame:
+    """Every ticker-details row of the dump, each ``ticker`` as the record writes it (``AAGpT`` beside ``AAG``),
+    read once per dump (kept until the folder or a source file's size or time changes). Latest only."""
+    global _DETAILS
+    stamp = (str(roots.reference()), _manifest("ticker_details"))
+    if _DETAILS is None or _DETAILS[0] != stamp:
+        _DETAILS = (stamp, _frame("ticker_details", None))
+    return _DETAILS[1]
+
+
 def short_interest(symbol: str, day: str, at: str = "09:30") -> dict[str, Any]:
     """FINRA short interest as published by ``day`` ``at`` ET: the newest settlement that counts by then
     (``backend/move_reason/short_interest.published_at``: ``{row, counts_from, pending}``)."""

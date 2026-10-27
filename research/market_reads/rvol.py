@@ -12,7 +12,7 @@ basis (listed splits); ``change_pct`` is percent points.
 baseline for it, so the baseline is computed here from the baseline sessions' own bars before that time -- the same
 rule the builder uses, so at a bar minute both agree. ``triggers`` finds the first bar in a window where a measure
 crosses a line, from the baselines the table stores. Reads go a year at a time (bounded memory beside the desk) under
-one heavy-read slot.
+one heavy-read slot. Day-fact filters (news, shares, halts) on ``scan`` and ``triggers``: ``rvol_facts``.
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ import pandas as pd
 import pyarrow.compute as pc
 
 from market_reads import rvol_store as rs
-from market_reads import slots
+from market_reads import rvol_facts, slots
 
 MEASURES = {"cumulative": "rvol", "five_minute": "rvol_5m", "daily_rate": "rvol_daily"}
 SCAN_FILTERS = ("date_from", "date_to", "symbol", "price_min", "price_max", "rvol_min", "rvol_max", "volume_min",
@@ -268,21 +268,23 @@ def scan_tables(at: str, filters: dict[str, Any], measure: str, kinds, splits: s
 
 def scan(at: str, *, filters: dict[str, Any], measure: str = "cumulative", kinds=None, splits: str = "exclude_likely",
          min_base_sessions: int = rs.BASE_SESSIONS, sort: str | None = None, limit: int | None = None,
-         to_file: Path | None = None) -> pd.DataFrame:
+         to_file: Path | None = None, **facts) -> pd.DataFrame:
     """Every stock-day's three measures as of ``at`` (see the module docstring); ``attrs`` holds ``rows`` (all that
     matched), the rules and the units. Rows come sorted by ``sort`` (default the chosen measure, largest first); at
-    most ``limit`` (default ``INLINE`` unless ``to_file``, which receives every row)."""
+    most ``limit`` (default ``INLINE`` unless ``to_file``, which receives every row). ``facts``: the day-fact filters
+    (``rvol_facts.Facts``)."""
     if limit is not None and not 1 <= int(limit) <= LIMIT_MAX:
         raise ValueError(f"limit must be 1-{LIMIT_MAX:,}")
+    facts = rvol_facts.Facts(**facts)
     filters, groups, tables = scan_tables(at, filters, measure, kinds, splits, min_base_sessions)
     sort_column = sort or MEASURES[measure]
     keep = int(limit) if limit else (None if to_file else INLINE)
     rows, parts = 0, []
     with slots.heavy(f"rvol scan {at}"):
-        for part in write_parts((t for _days, t in tables()), to_file):
+        for part in write_parts((facts.join(t) for _days, t in tables()), to_file):
             rows += len(part)
             if keep and len(part) > keep:
-                part = part.sort_values(sort_column, ascending=False, na_position="last").head(keep)
+                part = _finish([part], sort_column, False, keep)        # ties cut by day, then symbol
             parts.append(part)
     frame = _shape(_finish(parts, sort_column, False, keep))
     frame.attrs.update(rows=rows, at=at, measure=measure, filters=filters, kinds=list(kinds or DEFAULT_KINDS),
@@ -290,7 +292,7 @@ def scan(at: str, *, filters: dict[str, Any], measure: str = "cumulative", kinds
                        rules={**rs.RULES, "at": f"bars starting before {at}; price is the last one's close "
                                                  "(price_et its start)",
                               "five_minute": "bars starting in the five minutes before at"},
-                       sessions=sum(len(g) for g in groups))
+                       sessions=sum(len(g) for g in groups), **facts.meta())
     return frame
 
 
@@ -355,13 +357,14 @@ def run_chunks(groups: list[list[str]], sql: str):
 def triggers(rvol_min: float, *, measure: str = "cumulative", window_from: str = "04:00", window_to: str = "16:00",
              filters: dict[str, Any], kinds=None, splits: str = "exclude_likely",
              min_base_sessions: int = rs.BASE_SESSIONS, fresh: bool = False, limit: int | None = None,
-             to_file: Path | None = None) -> pd.DataFrame:
+             to_file: Path | None = None, **facts) -> pd.DataFrame:
     """The first bar each stock-day is at or above ``rvol_min`` on ``measure`` inside the window (every filter
     holding at that bar), oldest day first; ``attrs['rows']`` counts them all. ``above_before`` says the measure was
     already over the line before the window opened (so the window's first bar triggers); ``fresh`` leaves those
-    stock-days out."""
+    stock-days out. ``facts``: the day-fact filters (``rvol_facts.Facts``), on the triggers."""
     if limit is not None and not 1 <= int(limit) <= LIMIT_MAX:
         raise ValueError(f"limit must be 1-{LIMIT_MAX:,}")
+    facts = rvol_facts.Facts(**facts)
     groups, filters, sql = trigger_frames(rvol_min, measure, (window_from, window_to), filters, kinds, splits,
                                           min_base_sessions)
     keep = int(limit) if limit else (None if to_file else INLINE)
@@ -370,7 +373,7 @@ def triggers(rvol_min: float, *, measure: str = "cumulative", window_from: str =
         def hits(t):                    # triggers only (rows over the line before the window with no hit drop)
             keep = pc.is_valid(t.column("trigger_m"))
             return t.filter(pc.and_(keep, pc.invert(t.column("above_before"))) if fresh else keep)
-        tables = (hits(t) for _days, t in run_chunks(groups, sql))
+        tables = (facts.join(hits(t)) for _days, t in run_chunks(groups, sql))
         for part in write_parts(tables, to_file):
             rows += len(part)
             if keep is None or held < keep:
@@ -386,7 +389,7 @@ def triggers(rvol_min: float, *, measure: str = "cumulative", window_from: str =
                                            "holds; entry_et is its end, the first moment it is known",
                                            "above_before": "the measure was over the line on a bar before the "
                                            "window opened, so the window's first bar triggers (fresh=true leaves "
-                                           "these out)"})
+                                           "these out)"}, **facts.meta())
     return frame
 
 

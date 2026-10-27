@@ -119,6 +119,16 @@ def test_catalyst_and_halt_filters(store):
     assert list(calm["symbol"]) == ["AAA", "CCC", "REUS"]                 # DDD's day is not covered: unknown
 
 
+def test_halt_codes_keep_a_day_with_that_halt_and_leave_uncovered_days_out_counted(store):
+    def find(codes):
+        return stock_days.find_stock_days(filters={"date_from": store}, halt_codes=codes, float_unknown="include")
+    assert list(find(["ludp"])["symbol"]) == ["BBB"]                      # a code, any case
+    assert list(find(["luld"])["symbol"]) == ["BBB"]                      # the group word
+    paused = find(["news"])
+    assert paused.empty and paused.attrs["left_out"] == {"halts_unknown": 1}   # DDD: unknown, never "no halt"
+    assert paused.attrs["filters"]["halt_codes"] == ["news"]
+
+
 def _news(monkeypatch, day: str) -> None:
     def verdict(category, title):
         return {"verdict": "catalyst", "category": category, "strength": "strong", "title": title,
