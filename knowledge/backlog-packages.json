@@ -231,7 +231,10 @@
         915,
         925,
         927,
-        940
+        940,
+        1079,
+        1129,
+        1233
       ],
       "done": [
         "A full pytest run writes nothing to backend/logs/blast.log.",
@@ -346,6 +349,22 @@
             "frontend/electron/clipStore.mjs",
             "architecture/decisions/039-share-clips.md",
             "architecture/schema/screen-and-clips.md"
+          ]
+        },
+        {
+          "title": "test: size load-sensitive test deadlines from what they measure, not a quiet machine",
+          "issues": [
+            1079,
+            1129,
+            1233
+          ],
+          "note": "All three pass alone and fail only on a busy PC. #1079: the inventory bulk build's fixed 120 s communicate deadline under Windows spawn; find what it waits on, then make its stop deterministic or size the deadline from a measured worst case. #1129: the full sample desk render waits 100 x 100 ms and 5 s; give it a measured timeout and warm the lazy shell chunk once. #1233: import calendarPlacement statically so the test measures placement, not a dynamic import. Never weaken an assertion.",
+          "gated": false,
+          "touches": [
+            "backend/tests/test_market_reads_inventory.py",
+            "frontend/src/sample_data/sampleDeskNoWrites.test.tsx",
+            "frontend/src/sample_data/",
+            "frontend/src/sim/simDayCalendarModel.test.ts"
           ]
         }
       ]
@@ -827,7 +846,7 @@
       "slug": "desk-and-leftovers",
       "title": "10 - Live desk on master, plus residual product asks",
       "readiness": "ready-now",
-      "gate": "#14 is deprioritized by the operator; #612 needs the browser reload preference. For #601 and old chart clipping the operator is not sure, original geometry remains unavailable and no further prompt is requested in this pass.",
+      "gate": "#14 is deprioritized by the operator; #612 needs the browser reload preference. For #601 and old chart clipping the operator is not sure, original geometry remains unavailable and no further prompt is requested in this pass. #1090 needs the operator to choose whether the loss limit's 04:00 reset walks back over weekends; #1091's hot-list rollover waits on the same answer.",
       "objective": "Maintain unattended desk operations and the operator's browser and layout preferences. #331 is verified complete; #14 remains low-priority monitoring at the operator's request.",
       "issues": [
         14,
@@ -847,7 +866,9 @@
         742,
         744,
         764,
-        766
+        766,
+        1090,
+        1091
       ],
       "done": [
         "The deployment and Gateway recovery scope on #331 is verified complete, with issue evidence retained.",
@@ -1142,6 +1163,25 @@
             "frontend/src/stock_view/",
             "frontend/src/styles/",
             "frontend/src/styles/qa2Layout.test.ts"
+          ]
+        },
+        {
+          "title": "fix(desk): every day boundary follows the trading session over weekends and holidays",
+          "issues": [
+            1090,
+            1091
+          ],
+          "note": "Same family as #1092 (Orders and Day P&L roll at the session). #1090 is the operator's choice: the loss limit's reset walks back over weekends like the rest of the desk, or stays on the calendar day and its schema says so. The hot-list rollover in #1091 also resets yesterday's bot buys, so it moves only with that decision. Followed traders, the auto-record switch and the client's holiday keying (send the backend session_key; the client knows no NYSE holidays) need no decision and can ship first.",
+          "gated": true,
+          "touches": [
+            "backend/loss_limit/state.py",
+            "backend/loss_limit/accounts.py",
+            "backend/hot_list/store.py",
+            "backend/hot_list/auto.py",
+            "backend/followed_traders/routes.py",
+            "backend/leaderboard/auto_record_switch.py",
+            "frontend/src/utils/deskTradingDay.ts",
+            "architecture/schema/loss-limit.md"
           ]
         }
       ]
@@ -1499,22 +1539,22 @@
             "backend/hod_momo_state.py",
             "backend/constants_setups.py",
             "architecture/schema/setups.md",
-              "architecture/frontend-live-render-contract.md",
-              "architecture/maintenance-log.md",
-              "backend/tests/bench_hod_burst.py",
-              "backend/tests/test_hod_prices.py",
-              "backend/tests/test_hod_momo_surge_seed_async.py",
-              "backend/tests/test_setup_scanner_persistence.py",
-              "backend/tests/test_followed_traders.py",
-              "frontend/e2e/fixtures/desk-freezes.html",
-              "frontend/e2e/fixtures/deskFreezes.tsx",
-              "frontend/e2e/fixtures/deskFreezeFixtureTypes.ts",
-              "frontend/e2e/desk-freezes.spec.ts",
-              "frontend/e2e/baseline.spec.ts",
-              "frontend/e2e/chart-pane-maximize.spec.ts",
-              "frontend/e2e/chart-trendline.spec.ts",
-              "frontend/e2e/fund-account.spec.ts",
-              "frontend/e2e/scanner-account-dock.spec.ts"
+            "architecture/frontend-live-render-contract.md",
+            "architecture/maintenance-log.md",
+            "backend/tests/bench_hod_burst.py",
+            "backend/tests/test_hod_prices.py",
+            "backend/tests/test_hod_momo_surge_seed_async.py",
+            "backend/tests/test_setup_scanner_persistence.py",
+            "backend/tests/test_followed_traders.py",
+            "frontend/e2e/fixtures/desk-freezes.html",
+            "frontend/e2e/fixtures/deskFreezes.tsx",
+            "frontend/e2e/fixtures/deskFreezeFixtureTypes.ts",
+            "frontend/e2e/desk-freezes.spec.ts",
+            "frontend/e2e/baseline.spec.ts",
+            "frontend/e2e/chart-pane-maximize.spec.ts",
+            "frontend/e2e/chart-trendline.spec.ts",
+            "frontend/e2e/fund-account.spec.ts",
+            "frontend/e2e/scanner-account-dock.spec.ts"
           ]
         },
         {
@@ -1721,7 +1761,9 @@
         897,
         899,
         900,
-        1069
+        1069,
+        1075,
+        1143
       ],
       "done": [
         "Unavailable halt sources produce unknown state rather than a no-halt claim.",
@@ -1766,6 +1808,30 @@
             "backend/ibkr/nasdaq_halt_rss.py",
             "backend/tests/test_nasdaq_halt_rss.py",
             "research/catalysts/backfill_halts.py"
+          ]
+        },
+        {
+          "title": "fix(halts): a bot-check page is not a downloaded halt day",
+          "issues": [
+            1075
+          ],
+          "note": "Three raw Nasdaq pages are 212-byte Incapsula bot-check HTML; download() skips any file over 200 bytes, so those days read covered but empty. Treat a page that does not parse as RSS as missing, re-download, and reload the three days. Same downloader as #1115's pre-2021 backfill.",
+          "gated": false,
+          "touches": [
+            "research/catalysts/backfill_halts.py"
+          ]
+        },
+        {
+          "title": "fix(congress): read the Senate's filings again after eFD's 403",
+          "issues": [
+            1143
+          ],
+          "note": "The Congress page's Senate source is failing with 403 on the agreement page, so the seat map and Most traded show House filers only. Reproduce one request with the reader's headers, compare with a browser's, and fix in senate.py / net.py without sending anything the Senate's own page does not.",
+          "gated": false,
+          "touches": [
+            "backend/congress/senate.py",
+            "backend/congress/senate_html.py",
+            "backend/congress/net.py"
           ]
         }
       ]
@@ -1816,7 +1882,9 @@
         585,
         784,
         808,
-        1014
+        1014,
+        1096,
+        1121
       ],
       "done": [
         "Attention alerts specify a detectable condition and dismissible presentation without placing orders.",
@@ -1880,6 +1948,36 @@
             "architecture/schema/volume-profile.md",
             "architecture/decisions/058-volume-profile-on-the-5-minute-chart.md"
           ]
+        },
+        {
+          "title": "feat(agent): open a ticker in Nova from any MCP client",
+          "issues": [
+            1096
+          ],
+          "note": "#1095 is merged. PR #1097 is open (Refs #1096) with the desk go-to command, the open_in_nova MCP tool and the Windows fix; finish on that branch instead of starting a new one. Never places orders; loopback only.",
+          "gated": false,
+          "touches": [
+            "backend/agent_desk/",
+            "frontend/electron/singleInstance.mjs",
+            "frontend/electron/openInNova.mjs",
+            "frontend/src/agent_desk/",
+            "frontend/src/review/",
+            "tools/nova_mcp.py",
+            "tools/nova_open_tool.py",
+            "tools/nova_open_client.py"
+          ]
+        },
+        {
+          "title": "feat(chart): Ahead's forecaster runs on the desk",
+          "issues": [
+            1121
+          ],
+          "note": "#1131, #1132 and #1140 shipped the Ahead zone (ADR 065), off by default, with Refs #1121. Left: the local forecaster (contract ahead-forecaster/1) running on this PC, so the zone shows once the forecaster passes its exam. A chart study only: nothing places, sizes, delays or blocks an order.",
+          "gated": false,
+          "touches": [
+            "backend/ahead/",
+            "architecture/schema/ahead.md"
+          ]
         }
       ]
     },
@@ -1888,7 +1986,7 @@
       "slug": "research-data-front-door",
       "title": "21 - Research data front door answers fast and honestly",
       "readiness": "ready-now",
-      "gate": "#1066 is the operator's choice of Massive endpoints, plan and request budget. #1056 lockups need the operator to pick parsing 424B4 prospectuses or a vendor. #1057 needs the operator to pick the shape feature list first (ADR 050: Nova defines no shape words).",
+      "gate": "#1066 is the operator's choice of Massive endpoints, plan and request budget. #1056 lockups need the operator to pick parsing 424B4 prospectuses or a vendor. #1057 needs the operator to pick the shape feature list first (ADR 050: Nova defines no shape words). #1113 needs the operator to choose a borrow-fee and history source and whether the desk reads borrow before a signal; #1115's halt history before 2021-09-21 needs a source choice.",
       "objective": "Research reads over Nova's historical data (ADR 059 data front door, the nova-data MCP, the chart exporter and the Massive builders) answer from current, as-of-dated sources, say what they do not know, stay bounded beside the live desk, and leave no processes behind. Research only: no desk, order or live-feed path.",
       "issues": [
         1056,
@@ -1900,7 +1998,14 @@
         1066,
         1067,
         1068,
-        1070
+        1070,
+        1084,
+        1104,
+        1219,
+        1114,
+        1103,
+        1115,
+        1113
       ],
       "done": [
         "A chart export leaves no renderer process running, and its receipt counts the processes that are actually alive.",
@@ -1914,15 +2019,17 @@
           "title": "fix(charts): stop leaking the chart renderer and warm it for fast trade charts",
           "issues": [
             1061,
-            1062
+            1062,
+            1084
           ],
-          "note": "#1061: the Vite renderer outlives its bootstrap parent under Microsoft Store Python while the receipt says 0 live (102 node processes, about 13 GB on 2026-10-18). #1062: a warm renderer so 9 fresh trade charts draw in under 5 s, which changes the one-shot isolation design.",
+          "note": "#1061: the Vite renderer outlives its bootstrap parent under Microsoft Store Python while the receipt says 0 live (102 node processes, about 13 GB on 2026-10-18). #1062: a warm renderer so 9 fresh trade charts draw in under 5 s, which changes the one-shot isolation design. #1084: _gateway_bundle treats any rename OSError as another export having built the key and returns a target with no chart-gateway.html; confirm the bundle exists or rebuild it.",
           "gated": false,
           "touches": [
             "tools/nova_chart_processes.py",
             "tools/nova_charts.py",
             "tools/nova_historical_charts.py",
-            "tools/nova_trade_charts.py"
+            "tools/nova_trade_charts.py",
+            "tools/nova_chart_runner.py"
           ]
         },
         {
@@ -2001,6 +2108,87 @@
           "touches": [
             "research/market_reads/",
             "tools/nova_data_mcp.py"
+          ]
+        },
+        {
+          "title": "fix(data): cash runway reads the first-filed SEC facts",
+          "issues": [
+            1104
+          ],
+          "note": "Massive dates financial statements by the newest filing that carried the period, so a past day's burn is often over a year old. Read cash and operating cash flow from SEC company facts with their first filed date, difference year-to-date 10-Q cash flow into quarters, keep Massive as the fallback. Done on AMC 2024-06-28 per the issue.",
+          "gated": false,
+          "touches": [
+            "research/market_reads/sec.py",
+            "research/market_reads/runway.py",
+            "architecture/schema/agent-desk.md"
+          ]
+        },
+        {
+          "title": "fix(data): rebuild stored volumes from before the auction fix and reconcile the products",
+          "issues": [
+            1219
+          ],
+          "note": "#1218, #1220 and #1226 are merged (Refs #1219). Left: the full HOD Momo / seconds leaderboard rebuild and the signal table rebuild (long jobs; run under the heavy-read slot), and the products that disagree on one number (16:00 minute, nova_chart's session candle, daily relative volume) documented or reconciled. Volume only, never prices.",
+          "gated": false,
+          "touches": [
+            "research/signals/build_signals.py",
+            "backend/leaderboard/",
+            "backend/eyes/history_recording.py"
+          ]
+        },
+        {
+          "title": "feat(data): page quote, trade and bar reads past 200 rows and echo each request",
+          "issues": [
+            1114
+          ],
+          "note": "A remote caller cannot read output_name files on the data PC, so a 5 to 10 minute quote window on an active small cap comes back cut off. Add a cursor for quote, trade and bar reads (or return output_name through the connector in chunks) and echo symbol/start/end in every answer. Stays inside #1067's heavy-read slot rules.",
+          "gated": false,
+          "touches": [
+            "research/market_reads/",
+            "tools/nova_data_mcp.py",
+            "tools/market_data.py",
+            "architecture/schema/agent-desk.md"
+          ]
+        },
+        {
+          "title": "feat(data): serve the book watcher's marks and recorded quotes",
+          "issues": [
+            1103
+          ],
+          "note": "Follows #1064. The book-watch journal and the Session Record's quotes.jsonl need their own answer shape confirmed in agent-desk.md from book-watch-and-luld.md first. Read-only, under the heavy-read slot; the journal is the live desk's.",
+          "gated": false,
+          "touches": [
+            "research/market_reads/recordings.py",
+            "tools/nova_data_mcp.py",
+            "architecture/schema/agent-desk.md",
+            "architecture/schema/book-watch-and-luld.md"
+          ]
+        },
+        {
+          "title": "feat(data): halts before 2021-09-21 and a per-day SSR flag",
+          "issues": [
+            1115
+          ],
+          "note": "The SSR (Rule 201) flag per stock and day derives from daily bars Nova already holds and can ship first. Halt history before 2021-09-21 needs a source (an exchange archive, or gaps in the trade tape): that is the operator's choice, asked on the issue, never guessed. Same downloader as #1075.",
+          "gated": false,
+          "touches": [
+            "research/catalysts/backfill_halts.py",
+            "research/market_reads/",
+            "tools/nova_data_mcp.py",
+            "architecture/schema/agent-desk.md"
+          ]
+        },
+        {
+          "title": "feat(data): borrow, shortable and fee data at signal time",
+          "issues": [
+            1113
+          ],
+          "note": "Serving the existing borrow log is #1065. This adds what serving it cannot: borrow read before a signal fires (a desk-side IBKR tick-236 change outside this package's research-only scope) and a fee and pre-2026-10-07 history source (a new data source). Both are operator choices recorded on the issue. A research answer never grants or refuses short permission (Invariant #7).",
+          "gated": true,
+          "touches": [
+            "research/market_reads/",
+            "tools/nova_data_mcp.py",
+            "architecture/schema/short-selling.md"
           ]
         }
       ]
