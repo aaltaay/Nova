@@ -1,6 +1,6 @@
 # ADR 068 -- Claude trades Paper from its own seat
 
-**Status:** Accepted · **Date:** 2026-10-26 · **Amended:** 2026-10-27 (decision 3: an auto-record line; decision 12: the eye; decision 13: the guard and the pop exit; decision 14: a hidden tab's line)
+**Status:** Accepted · **Date:** 2026-10-26 · **Amended:** 2026-10-27 (decision 3: an auto-record line; decision 12: the eye; decision 13: the guard and the pop exit; decision 14: a hidden tab's line; decisions 1 and 9: a restart and a new session; decisions 15-16: each print, the journal; decision 17: halts)
 **Amends:** [[044-one-bots-page]] (decision 6: the seat's line is never lent; a hidden tab's line may be Claude's, decision 14, and the front does not recall that loan) · [[063-a-loss-line-for-you-and-one-for-the-bots]] (Claude's fills count on the Bots line)
 **Builds on:** [[007-centralized-trading-execution]] · [[018-desk-venue-vs-spend-arming]] · [[045-orders-refuse-a-stale-view]] · [[055-the-live-trader-bot]] (the Paper-only send pattern) · [[050-agents-find-and-show-in-the-sim]] (the `/api/agent` door and its key)
 **Decided by:** the operator, 2026-10-26 (about 20:00 ET). They asked Claude to trade Paper itself: "i want to ask you to be the one who uses your brain and place trades on paper". Then: "i agree.. lets do it ... you need to make your presence known." Then: "we only got 3 symbols to look at level 2, and you will need to control one of them.. and lock it so human wont be able to just open like 3 and you have taken one ... please think about every scenario." Limits as proposed and agreed: up to 1,000 shares, at most $150 risk a trade, 3 trades a day, long only, Paper only. On the day's max loss: "only activate this feature on a paper account without a max loss", then "i guess do a max loss of $500! for claude lane.." -- Claude's lane stops itself at -$500 a day, and the desk's shared loss lines do not stop its buys on Paper.
@@ -104,6 +104,35 @@ Claude works through tool calls. It reads Level 2 and Time & Sales from the back
     closes. Lending's switch is the bots' and neither makes nor ends it. Design `F:\Nova\design\claude-seat\v3`,
     approved by the operator 2026-10-27.
 
+15. **The seat acts on each print and book (2026-10-27).** A break's trigger, the reflexes and the guard were judged
+    on a 0.5 s tick over the tape archive, which its writer fills in batches; the AIOK break filled 13.20 against a
+    13.17 trigger. Now the IBKR AllLast and depth callbacks wake the watcher the moment a print or a changed book
+    arrives for a stock the seat watches (its stock, a break's, one it holds), at most `AGENT_WAKE_MIN_SEC` (0.1 s)
+    apart, and keep that stock's live prints in a short ring the break, reflexes and guard read before the archive
+    (`agent_trader.wake`). The callbacks only note and set a flag (ADR 010). The 0.5 s tick stays as the floor.
+
+16. **Claude's trade journal (2026-10-27).** Each trade -- from the first pass that sees Claude hold shares in a
+    stock to the first that sees it flat -- is written to `backend/.cache/agent-journal/<day>.json` with Claude's why,
+    the book's top rows and the last 30 s of prints at entry and exit, how it ended (`stop`, `target`, `guard`,
+    `reflex`, `manual`, `day_close`, `stand_down`, `nova`, `unknown`) and its P&L, fees included; `GET
+    /api/agent/trader/journal?day=` reads it back. A closed trade is also a `close` event the desk toasts and speaks,
+    with its P&L and how it ended, beside the fill, close and guard toasts the desk already makes.
+
+17. **Halts (2026-10-27).** AIOK halted at 15.74 seconds after the seat rested a buy at 15.76, and the buy rested
+    through the halt. While the scanner's halt source says a stock is halted (`ibkr.halt_status.halted_now`: IBKR's
+    tick 49, else the Nasdaq halt feed; unknown is never read as halted): a new entry is refused (`AGENT_HALTED`, said
+    on the desk); Claude's unfilled buys and armed breaks on it are cancelled at once, each said on the desk; held
+    shares keep their stop and targets resting, and the guard does not judge the stock, so it never market-sells
+    into the reopening auction (`agent_trader.halts`). Claude also reads ADR 047's LULD band on `/look` and in the eye,
+    a book whose bid sits on the upper band with nothing offered under it is marked `at_limit` (not support), and a
+    buy within 1% of the upper band or over it comes back with a warning, never a refusal (`agent_trader.bands`).
+
+**Amendment to decisions 1 and 9 (2026-10-27).** The lease counts while the backend runs: a seat read back after a
+restart gets a fresh lease from then (event `resumed`), so a reboot or a desk update no longer ends Claude's trade.
+`POST /seat?take_over=true` lets a new session pick up a held seat in one call -- its stock, breaks, reflexes,
+orders and shares stay; the old token stops working (event `taken_over`). Why: the token lived in a chat's scratch
+file, and the seat was lost when the PC restarted.
+
 ## Scenarios
 
 | Scenario | What happens |
@@ -121,9 +150,11 @@ Claude works through tool calls. It reads Level 2 and Time & Sales from the back
 | Desk switched to Live or Sim | Claude's entries refused (VENUE_CHANGED); its stop rests and fills on Paper; closes and cancels still reach Paper. |
 | Operator or a bot holds the stock | Claude refuses to open a trade there. |
 | Claude's session ends or hangs | Lease lapses after 10 min: Nova cancels, sells and frees the line. |
-| Backend restarts | Seat and lease are read back; spend arming is not (ADR 018), so entries wait for a re-arm on Paper. |
+| Backend restarts | Seat read back with a fresh lease (amended 2026-10-27); spend arming is not (ADR 018), so entries wait for a re-arm on Paper. |
+| Claude's chat lost its token | `POST /seat?take_over=true` picks the seat up; the old token stops working. |
 | Gateway drops | Lines come back through `line_session`; entries refused while the view lock holds; stops still rest. |
 | Freeze all orders | Entries refused; closes still work. |
+| Claude's stock halts | New entries refused; its resting buys and breaks cancelled; held shares keep their stop and targets; the guard waits for the reopen. |
 | Claude's day at -$500 | Its lane is done for the day: no new entries; open trades keep their stops. |
 | The desk's shared loss line trips on Paper | Your and the bots' buys stop; Claude's lane runs to its own -$500. |
 | 15:55 ET with shares | Nova sells them; 16:00 seat off. |

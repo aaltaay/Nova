@@ -73,6 +73,16 @@ def _watch_book(symbol: str, book: dict) -> None:
         logger.exception("IBKR depth: book watcher enqueue failed for %s", symbol)
 
 
+def _wake_seat(symbol: str) -> None:
+    """A changed live book wakes Claude's seat when it watches the stock (ADR 068 decision 15) -- a flag, no wait."""
+    try:
+        from agent_trader import wake
+
+        wake.book_in(symbol)
+    except Exception:
+        logger.exception("IBKR depth: waking Claude's seat failed for %s", symbol)
+
+
 def _broadcast_live(symbol: str, book: dict) -> None:
     """Show a live book to the desk's panels -- except on a Sim desk off the live edge.
 
@@ -122,6 +132,7 @@ def on_update_book(ticker: Any, symbol: str) -> None:
     else:
         state._subscriptions[symbol] = book
         _broadcast_live(symbol, book)
+        _wake_seat(symbol)
     _record_book(symbol, book)
     _watch_book(symbol, book)
 

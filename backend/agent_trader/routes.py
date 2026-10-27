@@ -7,21 +7,20 @@ buttons -- take Claude's line, give it back, stop Claude -- need no token: the o
 from __future__ import annotations
 
 import logging
-from typing import Any, Literal
+from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
-from pydantic import BaseModel, Field
 
 from agent_desk.routes import require_local
-from agent_trader import eye, ledger, lines, look, orders, reflexes, rules, seat, tab_line, view, watcher
+from agent_trader import bands, eye, journal, ledger, lines, look, orders, reflexes, rules, seat, tab_line, view, watcher
 from agent_trader import clock
+from agent_trader.bodies import WatchBody, OrderBody, ReflexBody, StopBody, CloseBody, NoteBody, TakeBackBody
 from agent_trader.constants_agent_trader import (
     AGENT_BREAK_DEFAULT_MIN,
     AGENT_BREAK_MAX_MIN,
     AGENT_EYE_WAIT_MAX_SEC,
+    AGENT_HALTED,
     AGENT_POP_PCT_DEFAULT,
-    AGENT_POP_PCT_MAX,
-    AGENT_POP_PCT_MIN,
     AGENT_NOT_MINE,
     AGENT_NOT_PAPER,
     AGENT_REFLEX_DEFAULT_MIN,
@@ -56,58 +55,6 @@ def _unread(where: str) -> HTTPException:
     return _refuse(AGENT_REFUSED, ledger.UNREAD_TEXT)
 
 
-class WatchBody(BaseModel):
-    symbol: str = Field(min_length=1, max_length=10)
-
-
-class OrderBody(BaseModel):
-    kind: Literal["limit", "break"]
-    symbol: str = Field(min_length=1, max_length=10)
-    qty: float = Field(gt=0)
-    entry: float | None = Field(default=None, gt=0)      # a limit's price
-    trigger: float | None = Field(default=None, gt=0)    # a break: a print at or above this ...
-    top: float | None = Field(default=None, gt=0)        # ... sends a buy up to this price
-    stop: float = Field(gt=0)
-    target: float = Field(gt=0)
-    target2: float | None = Field(default=None, gt=0)
-    target1_qty: float | None = Field(default=None, gt=0)
-    minutes: float | None = Field(default=None, gt=0)    # a break's life
-    confirm: ConfirmBody | None = None                   # a break sends only while buyers lead (reflexes.confirmed)
-    exit: Literal["pop"] | None = None                   # half at the first pop, then the stop to entry (decision 13)
-    pop_pct: float | None = Field(default=None, ge=AGENT_POP_PCT_MIN, le=AGENT_POP_PCT_MAX)
-    why: str = Field(min_length=1, max_length=400)       # one line for the desk
-
-
-class ConfirmBody(BaseModel):
-    seconds: float = Field(gt=0)
-    shares: float = Field(gt=0)
-    ratio: float = Field(gt=0)
-
-
-class ReflexBody(BaseModel):
-    kind: Literal["bid_pulled", "ask_wall", "sellers", "last_below"]
-    action: Literal["sell_all", "cancel_buy"]
-    price: float | None = Field(default=None, gt=0)
-    shares: float | None = Field(default=None, gt=0)
-    seconds: float | None = Field(default=None, gt=0)
-    ratio: float | None = Field(default=None, gt=0)
-    minutes: float | None = Field(default=None, gt=0)
-    why: str = Field(min_length=1, max_length=400)
-
-
-class StopBody(BaseModel):
-    order_id: int
-    stop: float = Field(gt=0)
-
-
-class CloseBody(BaseModel):
-    symbol: str = Field(min_length=1, max_length=10)
-
-
-class NoteBody(BaseModel):
-    text: str = Field(min_length=1, max_length=400)
-
-
 @router.get("")
 def get_status() -> dict[str, Any]:
     return view.status()
@@ -126,14 +73,27 @@ async def get_eye(wait: float = Query(default=0.0, ge=0, le=AGENT_EYE_WAIT_MAX_S
     return await eye.eye(wait, after)
 
 
+@router.get("/journal")
+def get_journal(day: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")) -> dict[str, Any]:
+    """Claude's trades closed on ``day`` (default today) and the ones open now (decision 16)."""
+    from market import session_key_for_ts
+
+    when = day or session_key_for_ts(clock.now())
+    try:
+        doc = journal.read_day(when)
+    except (OSError, ValueError):
+        raise _refuse(AGENT_REFUSED, f"the journal for {when} could not be read") from None
+    return {**doc, "open": journal.open_trades()}
+
+
 @router.post("/seat", dependencies=_keyed)
-def claim_seat() -> dict[str, Any]:
+def claim_seat(take_over: bool = Query(default=False)) -> dict[str, Any]:
     from market import now_et
 
     et = now_et()
     if et.weekday() >= 5 or not (4 <= et.hour < 16):
         raise _refuse(AGENT_SEAT_OFF, "Claude's seat opens on weekdays from 04:00 to 16:00 ET")
-    token, why = seat.claim()
+    token, why = seat.claim(take_over=take_over)
     if why:
         raise _refuse(why.code, why.text, why.status)
     return {"token": token, "status": view.status()}
@@ -212,8 +172,12 @@ async def place(body: OrderBody, x_agent_seat: str | None = Header(default=None)
     if body.exit == EXIT_POP and (why := _pop_exit(order, body.pop_pct)):
         raise _refuse(AGENT_REFUSED, why)
     if refused := rules.entry_refusal(order, pending_breaks=len(seat.breaks())):
+        if refused[0] == AGENT_HALTED:
+            seat.event("refused", f"Claude's buy on {order['symbol']} refused: {refused[1]}")
         raise _refuse(*refused)
     seat.set_note(body.why)
+    journal.note_why(order["symbol"], body.why)
+    warnings = [w for w in [bands.buy_warning(order["symbol"], float(order["entry"]))] if w]
     seat.set_exit(order["symbol"], {"mode": EXIT_POP, "pop_pct": order["pop_pct"]} if body.exit == EXIT_POP else None)
     if body.kind == ENTRY_LIMIT:
         receipt = await orders.send_entry(order, tag="limit")
@@ -223,14 +187,14 @@ async def place(body: OrderBody, x_agent_seat: str | None = Header(default=None)
         seat.event("buy_set", f"buy {body.qty:g} {order['symbol']} at {body.entry:g}, stop {body.stop:g}, "
                    f"target {body.target:g}")
         return {"order_id": getattr(receipt, "order_id", None), "stop_order_id": getattr(receipt, "stop_order_id", None),
-                "status": view.status()}
+                "warnings": warnings, "status": view.status()}
     if why := reflexes.confirm_refusal(order.get("confirm")):
         raise _refuse(AGENT_REFUSED, why)
     minutes = min(float(body.minutes or AGENT_BREAK_DEFAULT_MIN), AGENT_BREAK_MAX_MIN)
     row = {k: order[k] for k in ("symbol", "qty", "trigger", "top", "stop", "target", "target2", "target1_qty",
                                  "confirm")}
     made = seat.add_break({**row, "expires_at": clock.now() + minutes * 60.0, "why": body.why})
-    return {"break": made, "status": view.status()}
+    return {"break": made, "warnings": warnings, "status": view.status()}
 
 
 def _pop_exit(order: dict[str, Any], pop_pct: float | None) -> str | None:
@@ -335,6 +299,7 @@ async def close(body: CloseBody, x_agent_seat: str | None = Header(default=None)
         raise _unread("close") from None
     if qty <= 0:
         return view.status()
+    journal.note_exit(sym, "manual", "Claude closed it at market")
     receipt = await orders.close(sym, qty)
     if why := orders.receipt_error(receipt):
         raise _refuse(getattr(receipt, "reason_code", None) or AGENT_REFUSED, why)
@@ -366,10 +331,6 @@ async def give_back() -> dict[str, Any]:
     seat.set_yielded(False, "you gave Claude its line back")
     await watcher.run_pass()
     return view.status()
-
-
-class TakeBackBody(BaseModel):
-    symbol: str = Field(min_length=1, max_length=10)
 
 
 @router.post("/take-back", dependencies=_keyed)
