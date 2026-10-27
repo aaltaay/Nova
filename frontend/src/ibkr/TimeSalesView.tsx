@@ -210,7 +210,8 @@ export function TimeSalesView({
   }, [lentWords, error, connected, prints.length, filtered.length, minSize, emptyLabel]);
 
   const statusClass = `ts-panel__status ${connected ? 'ts-panel__status--live' : 'ts-panel__status--off'}`
-    + (connected && statusTone ? ` ts-panel__status--${statusTone}` : '');
+    + (connected && statusTone ? ` ts-panel__status--${statusTone}` : '')
+    + (lentWords && lentToClaude(feed.lent) ? ' ts-panel__status--claude' : '');
   // The sample desk's stated absence is not a fault (V4); nor is a lent line.
   const statusText = lentWords
     ? TAPE_STATUS_LENT

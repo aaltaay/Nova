@@ -9,6 +9,7 @@
  *   another line. A refusal stays on screen in the backend's words.
  */
 import { useEffect, useState, type MouseEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { TriangleAlert } from 'lucide-react';
 import { LENT_LINE_RECALL_EVENT } from '../constantGroups/market_ui';
 import { takeTabLineBack } from './claudeSeatApi';
@@ -69,6 +70,17 @@ export function ClaudeTakeBackRow({ symbol, onDone }: { symbol: string; onDone: 
   );
 }
 
+/** The sentence in parts, "Claude (watching RUNR)" marked, as the approved design draws it. */
+export function lentParts(text: string): { text: string; claude: boolean }[] {
+  const m = /Claude(?: \([^)]*\))?/.exec(text);
+  if (!m) return [{ text, claude: false }];
+  return [
+    { text: text.slice(0, m.index), claude: false },
+    { text: m[0], claude: true },
+    { text: text.slice(m.index + m[0].length), claude: false },
+  ].filter(p => p.text);
+}
+
 /** The lent pane's words; a right-click opens Take my Level 2 back from Claude. */
 export function ClaudeLentWords({ symbol, text, testId, className }: {
   symbol: string; text: string; testId: string; className: string;
@@ -95,13 +107,16 @@ export function ClaudeLentWords({ symbol, text, testId, className }: {
   return (
     <div className={`${className} claude-lent`} data-testid={testId} role="status" onContextMenu={open}>
       <ClaudeMark size={16} />
-      <span className="claude-lent__text">{text}</span>
-      {menu ? (
+      <span className="claude-lent__text">{lentParts(text).map((part, i) => (part.claude
+        ? <b key={i} className="claude-lent__who">{part.text}</b> : <span key={i}>{part.text}</span>))}</span>
+      {/* On the page's body: a pane's overflow never clips it. */}
+      {menu ? createPortal(
         <div className="symbol-menu claude-lent-menu" role="menu" data-testid="claude-lent-menu"
           style={{ top: menu.y, left: menu.x }} onContextMenu={e => e.preventDefault()}>
           <div className="symbol-menu__head"><span className="symbol-menu__sym">{symbol.toUpperCase()}</span></div>
           <ClaudeTakeBackRow symbol={symbol} onDone={() => setMenu(null)} />
-        </div>
+        </div>,
+        document.body,
       ) : null}
     </div>
   );
