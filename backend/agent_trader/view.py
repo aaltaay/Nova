@@ -62,6 +62,16 @@ def text_of(state: str, sym: str | None, pnl: float | None, line_why: str | None
     }[state]
 
 
+def pill_text(state: str, base: str, *, holds: bool, lent_from: str | None) -> str:
+    """The pill's words, and where Claude's line is: "· on your SMPL tab's line" while a hidden tab lent it
+    (decision 14), "· no Level 2" while Claude holds shares without one (its stop and targets still rest)."""
+    if lent_from and holds and state in (SEAT_WATCHING, SEAT_SET, SEAT_IN):
+        return f"{base} · on your {lent_from} tab's line"
+    if state == SEAT_IN and not holds:
+        return f"{base} · no Level 2"
+    return base
+
+
 def _buy_at(sym: str | None, breaks: list[dict[str, Any]], working: list[dict[str, Any]]) -> float | None:
     """The price Claude's buy waits at: an armed break's trigger, else the resting entry's limit."""
     for b in breaks:
@@ -80,7 +90,7 @@ def _order(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def status(now: float | None = None) -> dict[str, Any]:
-    from agent_trader import ledger, lines, reflexes, rules, seat, watcher
+    from agent_trader import ledger, lines, reflexes, rules, seat, tab_line, watcher
     from ibkr import depth
 
     t = clock.now() if now is None else now
@@ -108,19 +118,24 @@ def status(now: float | None = None) -> dict[str, Any]:
         except Exception:
             marks[held] = None
     beat = st.get("beat_at")
+    lent_from = tab_line.lent_from()
+    text = pill_text(state, text_of(state, shown, pnl, watcher.line_why(), _buy_at(shown, breaks, working)),
+                     holds=holds, lent_from=lent_from)
     return {
         "schema_version": AGENT_SCHEMA_VERSION, "generated_at": t, "name": AGENT_NAME, "venue": AGENT_VENUE,
-        "state": state, "text": text_of(state, shown, pnl, watcher.line_why(), _buy_at(shown, breaks, working)),
+        "state": state, "text": text,
         "on": bool(st.get("holder")), "since": st.get("since"), "beat_at": beat,
         "lease_until": (float(beat) + AGENT_LEASE_SEC) if beat else None, "lapsed": seat.lapsed(t),
         "yielded": bool(st.get("yielded")), "symbol": sym,
         "line": {"symbol": lines.held_symbol(), "depth": holds, "tape": bool(sym) and lines.holds_tape(sym),
                  "why_not": watcher.line_why(), "desk_lines": lines.desk_lines(), "desk_cap": lines.desk_cap(),
-                 "all_lines": depth.subscribed_symbols()},
+                 "all_lines": depth.subscribed_symbols(), "from_tab": lent_from,
+                 "taken_back": tab_line.taken_back()},
         "positions": [{"symbol": s, "qty": q, "mark": marks.get(s)} for s, q in positions.items()],
         "working": [_order(r) for r in working],
         "breaks": breaks,
         "reflexes": [{**r, "text": reflexes.text(r)} for r in st.get("reflexes") or []],
+        "exits": st.get("exits") or {},
         "today": {"entries": entries, "max_entries": AGENT_MAX_ENTRIES_A_DAY, "pnl": pnl,
                   "day_stop": AGENT_DAY_STOP_USD, "fills": len(fills)},
         "limits": {"max_shares": AGENT_MAX_SHARES, "max_risk_usd": AGENT_MAX_RISK_USD},

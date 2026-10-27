@@ -76,6 +76,7 @@ function line(raw: unknown): ClaudeLine {
   return {
     symbol: str(r.symbol)?.toUpperCase() ?? null, depth: r.depth === true, tape: r.tape === true,
     why_not: str(r.why_not), desk_lines: names(r.desk_lines), desk_cap: num(r.desk_cap), all_lines: names(r.all_lines),
+    from_tab: str(r.from_tab)?.toUpperCase() ?? null, taken_back: names(r.taken_back),
   };
 }
 
@@ -122,19 +123,21 @@ export async function fetchClaudeSeat(signal?: AbortSignal): Promise<ClaudeSeatS
   return view;
 }
 
-async function press(path: string): Promise<ClaudeSeatStatus | null> {
+async function press(path: string, body?: Record<string, unknown>): Promise<ClaudeSeatStatus | null> {
   if (onSampleDesk()) throw new Error(SAMPLE_WRITE_REFUSAL);
-  const res = await novaFetch(`${API_BASE_URL}${CLAUDE_SEAT_PATH}${path}`, { method: 'POST' });
-  const body: unknown = await res.json().catch(() => null);
+  const res = await novaFetch(`${API_BASE_URL}${CLAUDE_SEAT_PATH}${path}`, body === undefined
+    ? { method: 'POST' }
+    : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const answer: unknown = await res.json().catch(() => null);
   if (res.status === 401 || res.status === 503) {
     throw new Error("The desk has no API key for this: Nova needs NOVA_API_KEY to change Claude's seat.");
   }
   if (!res.ok) {
-    const detail = obj(obj(body).detail);
+    const detail = obj(obj(answer).detail);
     throw new Error(str(detail.error) ?? `Claude's seat answered ${res.status}.`);
   }
-  const b = obj(body);
-  return readClaudeSeat('status' in b ? b.status : body);
+  const b = obj(answer);
+  return readClaudeSeat('status' in b ? b.status : answer);
 }
 
 /** Take Claude's line: Claude makes no new trades; an open trade keeps its stop. */
@@ -143,3 +146,5 @@ export const takeClaudesLine = () => press('/yield');
 export const giveClaudeLineBack = () => press('/give-back');
 /** Stop Claude: its orders cancelled, its shares sold, the seat off, the line yours. */
 export const stopClaude = () => press('/stop-claude');
+/** Take my Level 2 back from Claude: the right-clicked tab's lines come back; Claude stays on and waits. */
+export const takeTabLineBack = (symbol: string) => press('/take-back', { symbol });

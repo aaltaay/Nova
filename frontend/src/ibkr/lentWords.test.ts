@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { depthLentText, lentFromFrame, lentFromLoan, tapeLentText } from './lentWords';
+import { depthLentText, lentFromFrame, lentFromLoan, lentToClaude, tapeLentText } from './lentWords';
 
 describe('depthLentText (ADR 044 decision 6)', () => {
   it("names the setup that took the line and why, and when it comes back", () => {
@@ -57,5 +57,17 @@ describe('the lent fields', () => {
     })).toEqual({
       symbol: 'AISP', setupType: 'first_pullback', tier: 'near', why: 'near its trigger', since: 5, text: null,
     });
+  });
+
+  it("says Claude and what it does there, and that only a right-click brings it back (ADR 068 decision 14)", () => {
+    const to = { symbol: 'RUNR', setupType: 'claude', tier: 'in_trade', why: 'in a trade on RUNR' };
+    expect(depthLentText(to)).toBe(
+      'Level 2 lent to Claude (in a trade on RUNR) — back when Claude lets it go, or right-click this tab to take it back');
+    expect(tapeLentText(to)).toBe('Time & Sales lent to Claude (in a trade on RUNR) — back with Level 2');
+    expect(depthLentText({ ...to, tier: 'watching' })).toContain('Claude (watching RUNR)');
+    expect(depthLentText({ ...to, tier: 'buy_set' })).toContain('Claude (buy set on RUNR)');
+    expect(depthLentText({ symbol: null, setupType: 'claude', tier: null, why: null })).toMatch(/^Level 2 lent to Claude — /);
+    expect(lentToClaude(to)).toBe(true);
+    expect(lentToClaude({ ...to, setupType: 'first_pullback' })).toBe(false);
   });
 });

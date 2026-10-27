@@ -219,3 +219,53 @@
   font-weight: 600;
 }
 .claude-chip--claude { border: 1px solid var(--claude-border); background: var(--claude-bg); color: var(--claude-ink); }
+
+/* A hidden tab's line lent to Claude (ADR 068 decision 14, design v3): the tab's panes, its chip, and the
+   right-click row that takes the line back. */
+.claude-lent,
+.claude-lent-menu,
+.sv-tab__claude,
+.symbol-menu__row--claude {
+  --claude: #8e7cf8;
+  --claude-ink: #d6ceff;
+  --claude-bg: #221d42;
+  --claude-border: #5a4cc0;
+}
+.claude-lent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 6px;
+  border: 1px solid var(--claude);
+  border-radius: 6px;
+  cursor: context-menu;
+}
+.claude-lent.ibkr-depth-empty,
+.claude-lent.ts-panel__empty { padding: 14px 10px; }
+.claude-lent__text { max-width: 30ch; }
+.claude-lent__who { color: var(--claude-ink); font-weight: 600; }
+.ts-panel__status--claude {
+  --claude-ink: #d6ceff;
+  box-shadow: inset 0 0 0 1px #5a4cc0;   /* a border would widen the badge and wrap a narrow header */
+  background: #221d42;
+  color: var(--claude-ink);
+}
+.claude-lent-menu { min-width: 280px; }
+.symbol-menu__row--claude { --row-tone: var(--claude); }
+.symbol-menu__icon--claude { background: transparent; }
+.sv-tab__claude {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 16px;
+  padding: 0 5px 0 2px;
+  border: 1px solid var(--claude-border);
+  border-radius: 4px;
+  background: var(--claude-bg);
+  color: var(--claude-ink);
+  font-size: 10.5px;
+  font-weight: 600;
+  font-style: normal;
+  white-space: nowrap;
+}

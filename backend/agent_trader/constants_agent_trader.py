@@ -19,6 +19,13 @@ AGENT_EVENTS_KEEP = 40
 AGENT_LEASE_SEC = 600.0
 AGENT_TICK_SEC = 0.5                # reflexes are checked this often (decision 11)
 
+# A hidden Trader tab's line (decision 14): looked for at most this often while the seat waits; the tab's words
+# ("watching RUNR", "in a trade on RUNR") brought up to date this often; after the operator takes a tab's line
+# back, the seat asks for no line this long, so the tab reconnects onto the line it was given back.
+AGENT_TAB_LINE_TRY_SEC = 2.0
+AGENT_TAB_TIER_SEC = 2.0
+AGENT_TAB_LINE_HOLD_SEC = 10.0
+
 # The seat's states, as the desk shows them.
 SEAT_OFF = "off"                  # nobody holds the seat
 SEAT_WAITING = "waiting_line"     # on, no Level 2 line free yet
@@ -44,6 +51,34 @@ AGENT_NOTE_MAX_CHARS = 400
 AGENT_REFLEX_DEFAULT_MIN = 60.0
 AGENT_REFLEX_MAX_MIN = 390.0
 AGENT_REFLEX_MAX = 6
+
+# The eye (decision 12): every symbol the scanner follows, over the Level 1 samples ``hod_momo_metrics`` keeps.
+AGENT_EYE_WINDOWS_SEC = (10, 30, 60)
+AGENT_EYE_SPIKE_SECONDS = 60          # a spike: this window moved ...
+AGENT_EYE_SPIKE_MOVE_PCT = 2.0        # ... this many percent or more, either way ...
+AGENT_EYE_SPIKE_MIN_DOLLARS = 50_000.0  # ... with at least this much traded in it (operator ask, 2026-10-27)
+AGENT_EYE_SCAN_SEC = 1.0              # the watcher scans this often while the seat is on
+AGENT_EYE_EVENTS_KEEP = 50
+AGENT_EYE_EVENTS_MAX_AGE_SEC = 1800.0
+AGENT_EYE_WAIT_MAX_SEC = 30.0         # the longest ``?wait=`` long-poll
+
+# The in-trade guard (decision 13): while Claude holds shares, Nova sells them the moment one of these holds
+# (operator, 2026-10-27, from the AIOK prototype that closed at -$40 against -$140 at the hard stop).
+AGENT_GUARD_SELLERS_SECONDS = 5.0       # 1. sellers lead: in the last 5 s ...
+AGENT_GUARD_SELLERS_RATIO = 2.0         # ... at least 2x what lifted the ask ...
+AGENT_GUARD_SELLERS_MIN_SHARES = 1500.0  # ... and at least 1,500 shares at the bid
+AGENT_GUARD_BID_LEVELS = 5              # 2. the top 5 bid prices ...
+AGENT_GUARD_BID_STACK_FRACTION = 1.0 / 3.0  # ... fall under a third of their size at entry
+AGENT_GUARD_BID_UNDER_ENTRY_PCT = 0.4   # 3. the best bid 0.4% or more under Claude's entry
+AGENT_GUARD_RETRY_SEC = 5.0             # a close the door refused is tried again after this
+
+# The pop exit (decision 13): half sold at the first pop, then the stop to entry.
+EXIT_POP = "pop"
+AGENT_POP_PCT_DEFAULT = 1.5             # the first half's target over entry ("about +1.5-2%")
+AGENT_POP_PCT_MIN = 0.5
+AGENT_POP_PCT_MAX = 5.0
+AGENT_GUARD_STALL_AFTER_PCT = 1.0       # the first stall: once the price reached +1% over entry ...
+AGENT_GUARD_STALL_SEC = 30.0            # ... no new high for 30 s moves the stop to entry
 
 # Entry kinds (decision 8).
 ENTRY_LIMIT = "limit"

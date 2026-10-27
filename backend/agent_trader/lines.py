@@ -7,8 +7,9 @@ subscribe (the refusal), auto-record and line lending (their free lines); the ho
 lines, taken and given back exactly like a Session Record's (``capture.feed_hold``), so it is never idle-evicted
 and never lent.
 
-Claude never takes a line from the operator: with all 3 held by the desk, ``acquire`` answers why and the watcher
-asks again; the first line the desk lets go is Claude's, because a desk request is then refused.
+Claude never takes a line from the operator: with all 3 held by the desk, the watcher first has auto-record give
+one up (``agent_trader.room``, ADR 068 decision 3 as amended 2026-10-27); with none to give, ``acquire`` answers why
+and the watcher asks again; the first line the desk lets go is Claude's, because a desk request is then refused.
 """
 from __future__ import annotations
 
@@ -76,6 +77,11 @@ def desk_lines() -> list[str]:
     return [s for s in depth.subscribed_symbols() if _own_viewers(s) > 0]
 
 
+def claude_alone(symbol: str) -> bool:
+    """Claude holds ``symbol``'s depth line and no one else watches it."""
+    return _ref(symbol, "depth") and _own_viewers(symbol) <= 0
+
+
 def claude_only_lines() -> int:
     """0 or 1: the line Claude alone watches."""
     sym = held_symbol()
@@ -99,6 +105,10 @@ def desk_refusal(symbol: str) -> str | None:
     sym = (symbol or "").upper()
     if sym in depth.subscribed_symbols() or _ref(sym, "depth"):
         return None    # a line already up costs nothing; asking again for Claude's own line (a renewal) is Claude's
+    from agent_trader import tab_line
+
+    if tab_line.may_return(sym):
+        return None    # the operator took this tab's line back from Claude (decision 14): it is theirs
     mine = desk_lines()
     if len(mine) < desk_cap():
         return None
@@ -128,6 +138,8 @@ async def acquire(symbol: str) -> str | None:
     if not sym:
         return "no stock named"
     for old in [s for s in _held if s != sym]:
+        if why := keep_shared(old, sym):
+            return why
         await release(old, at_once=True)
     hold = _held.setdefault(sym, {"tape": False, "depth": False})
     if not depth.is_live(sym):
@@ -143,6 +155,21 @@ async def acquire(symbol: str) -> str | None:
         await _take_tape(sym)
     logger.info("AGENT lines: holding %s (%s)", sym, hold)
     return None
+
+
+def keep_shared(old: str, new: str) -> str | None:
+    """Why the seat keeps its reference on ``old`` instead of moving to ``new`` yet, or None.
+
+    A line Claude shares with a tab is the desk's, so letting it go frees nothing: with every line in use the
+    desk would be left holding 3 of its own and Claude none (SXTP -> AIOK, 2026-10-27). The seat keeps its slot
+    on ``old`` until a line is free for ``new`` -- the desk closes one, or auto-record gives one up (``room``).
+    """
+    from agent_trader import room
+
+    if not (_ref(old, "depth") and _own_viewers(old) > 0) or not room.lines_full(new):
+        return None
+    return (f"all {IBKR_MAX_DEPTH_SYMBOLS} Level 2 lines are in use and {old}'s is shared with your tab: Claude "
+            f"keeps its line on {old} and moves to {new} once one frees")
 
 
 def _depth_why(sym: str, result: dict) -> str:

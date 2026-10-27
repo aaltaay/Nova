@@ -5,14 +5,20 @@ Each pass, in order:
 1. **15:55 ET** -- Claude's shares are sold and its orders cancelled on Paper, seat on or off (the day cover's
    time); **16:00 ET** the seat turns off.
 2. **A lapsed lease** -- no check-in for ``AGENT_LEASE_SEC``: the same close, then the seat off and its line freed.
-3. **The line** -- while the seat reserves one and names a stock, take it if a depth line is free (never from the
-   operator); a seat given up or off lets its lines go.
+3. **The line** -- while the seat reserves one and names a stock, take it if a depth line is free; with all 3 held,
+   an auto-record line is given up for it first (``room``), else a hidden Trader tab's line is borrowed
+   (``tab_line``, decision 14: only the operator's right-click takes it back); a seat given up or off lets its
+   lines go, and a tab's loan ends with it.
 4. **Breaks** -- a resting break whose trigger a print reached sends its bracket at the break's top price, after
    its confirm (buyers leading, ``reflexes.confirmed``) and Claude's limits are checked again; one past its time is
    dropped.
 5. **Reflexes** -- each armed reflex on the seat's stock is judged on the live book and the last prints; one that
    holds does its action at once (``reflexes``).
 6. **Fills** -- every new fill of Claude's is said once (an event the desk toasts and speaks).
+7. **The guard** -- while Claude holds shares, Nova sells them the moment sellers lead, the bids leave or the bid
+   falls under entry (``guard``, decision 13), and a pop exit's stop moves to entry once its first half sells.
+8. **The eye** -- while the seat is on, every symbol the scanner follows is scanned once a second, so a spike between
+   Claude's looks is still listed (``eye``).
 Every outcome is an event the desk shows.
 """
 from __future__ import annotations
@@ -23,7 +29,7 @@ from datetime import datetime
 from typing import Any
 
 from agent_trader import clock
-from agent_trader.constants_agent_trader import AGENT_CLOSE_ET, AGENT_OFF_ET, AGENT_TICK_SEC
+from agent_trader.constants_agent_trader import AGENT_CLOSE_ET, AGENT_GUARD_STALL_SEC, AGENT_OFF_ET, AGENT_TICK_SEC
 
 logger = logging.getLogger(__name__)
 
@@ -103,12 +109,31 @@ async def _line(t: float) -> None:
     if lines.holds_depth(sym) and lines.holds_tape(sym):
         _line_why = None
         return
+    if not lines.holds_depth(sym):
+        from agent_trader import room, tab_line
+
+        if tab_line.on_hold(t):
+            return                               # the operator just took a tab's line back: it reconnects first
+        if taken := await room.make_room(sym, t):
+            seat.event("line_taken", f"took {taken}'s auto-record line for {sym}: all 3 Level 2 lines were held", t)
+        elif room.lines_full(sym):
+            await tab_line.take(sym, t)          # the last resort: a hidden Trader tab's line (decision 14)
     why = await lines.acquire(sym)
     if why != _line_why and why:
         seat.event("line_wait", f"waiting for a Level 2 line on {sym}: {why}", t)
     elif _line_why and not why:
         seat.event("line", f"holding Level 2 and Time & Sales on {sym}", t)
     _line_why = why
+
+
+async def _tab_line(t: float) -> None:
+    """A hidden tab's line Claude holds: ended once Claude let its line go or the tab closed (``tab_line``)."""
+    from agent_trader import tab_line
+
+    try:
+        await tab_line.keep(t)
+    except Exception:
+        logger.exception("AGENT tab line: a pass failed; judged again next pass")
 
 
 async def _recent_prints(symbol: str, t: float) -> list[dict[str, Any]]:
@@ -201,6 +226,71 @@ async def _reflexes(t: float) -> None:
         _primed.discard(rid)
 
 
+async def _guard(t: float) -> None:
+    """Judge Claude's open trades every pass; sell at once when one condition holds (``guard``)."""
+    from agent_trader import guard, ledger, seat
+    from ibkr import depth, ticks
+
+    try:
+        fills = ledger.fills_today()
+        held = ledger.positions(fills)
+    except ledger.ReadError:
+        logger.warning("AGENT guard: Paper could not be read; judged next pass", exc_info=True)
+        return
+    guard.forget_except({s for s, q in held.items() if q > 0})
+    plans = seat.exits()
+    for sym, qty in held.items():
+        if qty <= 0:
+            continue
+        book = depth.current_book(sym)
+        row = guard.mark(sym, fills, book, t)
+        if row is None:
+            continue
+        if (plans.get(sym) or {}).get("mode") == "pop" and not row["breakeven"]:
+            guard.note_price(row, (ticks.last_quotes([sym]).get(sym) or {}).get("price"), t)
+            await _stop_to_entry(sym, row, fills, t)
+        if not guard.due(sym, t):
+            continue
+        try:
+            prints = await _recent_prints(sym, t)
+        except Exception:
+            logger.warning("AGENT guard: %s's prints could not be read; the book is judged alone", sym, exc_info=True)
+            prints = []
+        why = guard.judge(row, book=book, prints=prints, now=t, l1_bid=ticks.bid_ask(sym)[0])
+        if why is None:
+            continue
+        guard.note_fired(sym, t)
+        done = await _act({"action": "sell_all"}, sym, qty)
+        seat.event("reflex_fired", f"Nova's guard on {sym}: {why} -- {done}", t)
+
+
+async def _stop_to_entry(sym: str, row: dict[str, Any], fills: list[dict[str, Any]], t: float) -> None:
+    """The pop exit: once its first half sold, or at the first stall, Claude's stop rises to its entry (never
+    lowered)."""
+    from agent_trader import guard, ledger, orders, seat
+
+    if guard.first_half_sold(fills, sym, row.get("opened")):
+        cause = f"the first half of {sym} sold at the pop"
+    elif guard.stalled(row, t):
+        cause = f"{sym} stalled (no new high for {AGENT_GUARD_STALL_SEC:g} s after {row['high']:g})"
+    else:
+        return
+    entry = round(float(row["entry"]), 2 if float(row["entry"]) >= 1.0 else 4)
+    try:
+        stops = [r for r in ledger.working() if str(r["symbol"]).upper() == sym and r.get("leg_role") == "stop"]
+    except ledger.ReadError:
+        return
+    for r in stops:
+        if r.get("stop_price") is not None and float(r["stop_price"]) >= entry - 1e-9:
+            continue
+        why = orders.receipt_error(await orders.move_stop(int(r["order_id"]), sym, entry))
+        seat.event("stop", f"{cause}: stop moved up to entry {entry:g}" if not why
+                   else f"{cause}, but the stop could not move to entry: {why}", t)
+        if why:
+            return
+    row["breakeven"] = True
+
+
 async def _act(row: dict[str, Any], sym: str, qty: float) -> str:
     """Do a fired reflex's action; say what was done."""
     from agent_trader import ledger, orders, seat
@@ -269,12 +359,29 @@ async def run_pass(now: float | None = None) -> None:
             await end_seat("Claude went quiet for 10 minutes: Nova cancelled its orders, sold its shares and freed "
                            "its line", t)
             return
+        await _tab_line(t)
         await _line(t)
         if seat.is_on() and not seat.is_yielded():
             await _breaks(t)
         if seat.is_on():
             await _reflexes(t)
+            try:
+                await _guard(t)
+            except Exception:
+                logger.exception("AGENT guard: a pass failed; judged again next pass")
         await _fills(t)
+        if seat.is_on():
+            await _eye(t)
+
+
+async def _eye(t: float) -> None:
+    from agent_trader import eye
+
+    if eye.scan_due(t):
+        try:
+            await asyncio.to_thread(eye.scan, t)
+        except Exception:
+            logger.exception("AGENT eye: a scan failed")
 
 
 async def run() -> None:
