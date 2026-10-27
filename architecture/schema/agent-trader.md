@@ -34,7 +34,7 @@ Claude's own writes also carry `X-Agent-Seat: <token>`; the operator's three but
 | `POST /yield` | operator | status; "Take Claude's line": unfilled buys and breaks cancelled, lines released, no new trades; held shares keep their stop |
 | `POST /give-back` | operator | status |
 | `POST /stop-claude` | operator | `{problems, status}`: as `DELETE /seat` |
-| `POST /take-back {symbol}` | operator | status; the right-click on a Trader tab whose line Claude borrowed (decision 14): that tab's lines come back, Claude stays on and waits. `AGENT_NOT_MINE` (404) when the tab's line is not lent to Claude |
+| `POST /take-back {symbol}` | operator | status; the right-click on a Trader tab whose line Claude borrowed (decision 14): that tab's lines come back, Claude stays on and waits. `AGENT_NOT_MINE` (404) when the tab's line is not lent to Claude, or when a tab of the operator's shares Claude's line (letting Claude go would free nothing; the error says to close that Level 2 first) |
 
 The Level 2 socket's error frame gains `agent_reserved` (true when the desk's request waits for Claude's line), so the panel can offer Take Claude's line.
 

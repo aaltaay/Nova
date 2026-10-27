@@ -59,8 +59,18 @@ def lender_for(symbol: str, *, skip: set[str], now: float | None = None) -> str 
                      | {s for s in depth.subscribed_symbols() if borrowers.nova_trade(s)}
                      | {s.upper() for s in skip})
     return lines.pick_lender(focus=focus, now=ts, loan_lines=loans.loan_lines(),
-                             auto_symbols=lines.auto_record_symbols(), last_front=loans.last_front(), kept=kept,
+                             auto_symbols=lines.auto_record_symbols(), last_front=_front_history(focus), kept=kept,
                              need_tape=not tape_stream.is_subscribed(symbol))
+
+
+def _front_history(focus: _focus.FocusRead) -> dict[str, float]:
+    """When each tab was last in front: the bots' loans' record, and the focus sensor's own -- the bots' tick
+    keeps no record while lending is switched off, and the 30 s cooldown still holds for Claude (Codex review,
+    PR #1250)."""
+    seen = loans.last_front()
+    for sym, at in focus.last_shown.items():
+        seen[sym] = max(seen.get(sym, 0.0), float(at or 0.0))
+    return seen
 
 
 async def lend(lender: str, symbol: str, tier: str, take: Take, now: float | None = None) -> Loan | None:

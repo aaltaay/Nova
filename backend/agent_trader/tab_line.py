@@ -108,9 +108,14 @@ async def take_back(symbol: str, now: float | None = None) -> str | None:
     sym = (symbol or "").strip().upper()
     if lent_from() != sym:
         return f"{sym}'s Level 2 is not lent to Claude"
+    held = lines.held_symbol()
+    if held and held in lines.desk_lines():
+        # A tab of yours watches Claude's stock too: that line is the desk's, and letting Claude go frees nothing
+        # (Codex review, PR #1250). Said, never a take-back that leaves the tab refused at the cap.
+        return (f"Claude's line on {held} is shared with your {held} tab, so letting Claude go frees no line for "
+                f"{sym}. Close {held}'s Level 2 in your tab, then take {sym}'s back again.")
     _taken_back.add(sym)
     _hold_until = t + AGENT_TAB_LINE_HOLD_SEC
-    held = lines.held_symbol()
     await lines.release(at_once=True)            # the free line is the tab's: it reconnects at once
     await claude_loan.end(LOAN_END_TAKEN_BACK, "you took it back")
     shares = _holds_shares()

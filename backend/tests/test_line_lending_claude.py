@@ -150,6 +150,34 @@ def test_the_operators_right_click_gives_the_tab_its_lines_back(desk, monkeypatc
     assert last["text"] == "You took ABC's line back from Claude · RUNR stop and sell still rest"
 
 
+def test_a_take_back_that_would_free_nothing_is_refused_in_words(desk, monkeypatch):
+    """Codex review, PR #1250: a tab of the operator's on Claude's stock shares its line, so letting Claude go
+    frees no line for the lender; the take-back says so and changes nothing."""
+    now = three_tabs(desk)
+    lend_abc(desk, now)
+    desk.ws_viewer_opened("RUNR")                # the operator opened RUNR in a tab: the line is shared
+
+    async def release(symbol=None, *, at_once=False):
+        raise AssertionError("nothing is released")
+
+    monkeypatch.setattr(agent_lines, "release", release)
+    why = run(tab_line.take_back("ABC", now=now + 1))
+    assert why == ("Claude's line on RUNR is shared with your RUNR tab, so letting Claude go frees no line for ABC. "
+                   "Close RUNR's Level 2 in your tab, then take ABC's back again.")
+    assert loans.lenders() == ["ABC"] and not tab_line.may_return("ABC") and not tab_line.on_hold(now + 2)
+
+
+def test_the_cooldown_holds_while_bot_lending_is_off(desk):
+    """Codex review, PR #1250: with lending off the bots' tick records no front time; the focus sensor's own
+    history still keeps a tab just left from being taken."""
+    now = three_tabs(desk)
+    setting.set_on(False)
+    run(loans.tick(now))
+    focus_store.record_window(window("ABC", ["ABC", "DEF", "GHI"]), now=now - 1)
+    focus_store.record_window(window("DEF", ["ABC", "DEF", "GHI"]), now=now)
+    assert claude_loan.lender_for("RUNR", skip={"GHI"}, now=now) is None   # ABC left 1 s ago: not yet
+
+
 def test_the_loan_ends_when_claude_lets_its_line_go_or_the_tab_closes(desk):
     now = three_tabs(desk)
     lend_abc(desk, now)
