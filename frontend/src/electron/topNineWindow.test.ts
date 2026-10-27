@@ -1,6 +1,7 @@
 import os from 'node:os';
 import { describe, expect, it, vi } from 'vitest';
-import { isTopNineUrl, openOrFocusTopNineWindow } from '../../electron/topNineWindow.mjs';
+import { perfWindowIdForUrl } from '../../electron/perfWindowId.mjs';
+import { isTopNineUrl, openOrFocusTopNineWindow, TOP_NINE_WINDOW_ID } from '../../electron/topNineWindow.mjs';
 
 function fakeWindowClass() {
   const made: FakeWindow[] = [];
@@ -30,6 +31,14 @@ function fakeWindowClass() {
   }
   return { FakeWindow, made };
 }
+
+describe('the Top 9 window name', () => {
+  it('is the same in the perf recorder, the focus sensor and its saved bounds -- never the desk main', () => {
+    expect(perfWindowIdForUrl('http://127.0.0.1:5173/?view=top9')).toBe(TOP_NINE_WINDOW_ID);
+    expect(perfWindowIdForUrl('file:///C:/Nova/dist/index.html?view=top9')).toBe(TOP_NINE_WINDOW_ID);
+    expect(perfWindowIdForUrl('file:///C:/Nova/dist/index.html')).toBe('main');
+  });
+});
 
 describe('isTopNineUrl', () => {
   it('takes only a Nova renderer URL on ?view=top9', () => {

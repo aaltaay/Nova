@@ -71,6 +71,10 @@ export const TOP_NINE_HALT_GAIN = 0.22;
 /** The LULD band on a tile: the Trader's 1-minute band, read from memory (ADR 047), every 3 s per tile. */
 export const TOP_NINE_LULD_PATH = (symbol: string) => `/api/luld/${encodeURIComponent(symbol)}/trail`;
 export const TOP_NINE_LULD_POLL_MS = 3_000;
+/** The lists whose tiles draw the band (operator, 2026-10-27: "we dont need luld for gappers and after hours cuz
+ * there are no luld lines"). Bands run 09:30-16:00 ET; Gappers is the premarket board and After Hours starts at
+ * 16:00, so their tiles neither ask for a band nor say there is none. */
+export const TOP_NINE_LULD_LISTS: readonly TopNineList[] = ['gainers'];
 
 /** No answer to a double-click from a desk window in this long: say so. */
 export const TOP_NINE_OPEN_WAIT_MS = 600;

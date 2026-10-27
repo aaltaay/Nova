@@ -1,7 +1,8 @@
 /**
  * A tile's compact 1-minute chart (approved mockup v1, 2026-10-26): candles, volume, the desk's
  * session VWAP and a last-price tag, in an SVG sized to the tile, with Nova's LULD band over it
- * (approved mockup, 2026-10-27; topNineLuld) or the words that say why there is none.
+ * (approved mockup, 2026-10-27; topNineLuld) or the words that say why there is none. `luld` false
+ * (a list with no band, TOP_NINE_LULD_LISTS) draws and asks for neither.
  */
 import { memo, useLayoutEffect, useRef, useState } from 'react';
 import { TOP_NINE_NO_BARS } from './topNineConstants';
@@ -14,12 +15,14 @@ const TAG_W = 52;
 const TICK_CLEAR = 15;
 
 export const TopNineChart = memo(function TopNineChart(
-  { symbol, lastPrice, endTime }: { symbol: string; lastPrice: number | null; endTime: number | null },
+  { symbol, lastPrice, endTime, luld: luldOn }: {
+    symbol: string; lastPrice: number | null; endTime: number | null; luld: boolean;
+  },
 ) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState<ChartBox>({ width: 0, height: 0 });
   const { bars, vwap, error, loaded } = useTopNineBars(symbol);
-  const trail = useTopNineLuld(symbol);
+  const trail = useTopNineLuld(symbol, luldOn);
 
   useLayoutEffect(() => {
     const el = hostRef.current;

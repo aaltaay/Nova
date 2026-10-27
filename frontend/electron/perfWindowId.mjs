@@ -8,9 +8,13 @@
  * (`?view=stock&symbol=SYM`, traderWindows.mjs) is `trader:SYM`, the key
  * windowBounds.mjs keeps its bounds under. Both follow the window's current
  * URL, so a pop-out that switches its active symbol reports the new one on
- * both sides.
+ * both sides. The Top 9 pop-up (`?view=top9`, topNineWindow.mjs) is `top-nine`,
+ * its bounds key too: as `main` it overwrote the desk's own report, and the
+ * focus sensor gave the desk the Top 9's minimized / focused state.
  */
 export const PERF_WINDOW_ID_MAIN = 'main';
+export const PERF_WINDOW_ID_TOP_NINE = 'top-nine';
+const TOP_NINE_VIEW = 'top9';
 export const PERF_WINDOW_ID_MAX = 64;
 /** The hidden screen recorder (ADR 035): its own process, never a desk window. */
 export const PERF_WINDOW_ID_SCREEN_RECORDER = 'screen-recorder';
@@ -41,6 +45,7 @@ export function perfWindowIdForUrl(url) {
   if (parsed.protocol === 'file:' && SCREEN_RECORDER_PAGE.test(parsed.pathname)) return PERF_WINDOW_ID_SCREEN_RECORDER;
   if (parsed.protocol === 'file:' && CLIP_RECORDER_PAGE.test(parsed.pathname)) return PERF_WINDOW_ID_CLIP_RECORDER;
   if (CLIP_EXPORT_PAGE.test(parsed.pathname)) return PERF_WINDOW_ID_CLIP_EXPORT;
+  if (parsed.searchParams.get('view') === TOP_NINE_VIEW) return PERF_WINDOW_ID_TOP_NINE;
   if (parsed.searchParams.get('view') !== 'stock') return PERF_WINDOW_ID_MAIN;
   const symbol = (parsed.searchParams.get('symbol') || '').trim().toUpperCase();
   if (!symbol) return PERF_WINDOW_ID_MAIN;

@@ -24,6 +24,8 @@ export interface TopNineTileProps {
   move: TopNineMove | undefined;
   /** The board's minute in chart time (ET wall-clock seconds): where every tile's chart ends. */
   endTime: number | null;
+  /** The list draws the LULD band (TOP_NINE_LULD_LISTS). */
+  luld: boolean;
   now: number;
   opening: boolean;
   muted: boolean;
@@ -32,7 +34,7 @@ export interface TopNineTileProps {
 }
 
 export const TopNineTile = forwardRef<HTMLDivElement, TopNineTileProps>(function TopNineTile(
-  { row, move, endTime, now, opening, muted, onOpen, onMenu },
+  { row, move, endTime, luld, now, opening, muted, onOpen, onMenu },
   ref,
 ) {
   const phase = markPhase(move, now);
@@ -62,7 +64,7 @@ export const TopNineTile = forwardRef<HTMLDivElement, TopNineTileProps>(function
     >
       {phase === 'full' && move ? (
         <i className="top-nine-tile__timer" aria-hidden="true">
-          <b style={{ width: `${(markLeft(move, now) * 100).toFixed(1)}%` }} />
+          <b style={{ transform: `scaleX(${markLeft(move, now).toFixed(3)})` }} />
         </i>
       ) : null}
       <div className="top-nine-tile__head">
@@ -96,7 +98,7 @@ export const TopNineTile = forwardRef<HTMLDivElement, TopNineTileProps>(function
         </div>
         <span className={`top-nine-tile__chg${tone}`}>{fmtPct(row.changePct, '—')}</span>
       </div>
-      <TopNineChart symbol={row.symbol} lastPrice={row.price} endTime={endTime} />
+      <TopNineChart symbol={row.symbol} lastPrice={row.price} endTime={endTime} luld={luld} />
     </div>
   );
 });

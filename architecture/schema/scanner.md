@@ -957,13 +957,22 @@ the history budget and its priorities are the backend's), with the desk's sessio
 anchor) and a last-price tag at the board's `price`. A minute with no trade stays a hole. No Level 1, Level 2 or tape
 line is opened for a tile.
 
-**The LULD band (operator ask, 2026-10-27, approved mockup).** Each tile reads `GET /api/luld/{symbol}/trail` (the
-Trader's 1-minute band, ADR 047; `book-watch-and-luld.md`) every 3 s and draws it the Trader's way: a rose line above
+**The LULD band (operator ask, 2026-10-27, approved mockup).** On **Gainers only** (`TOP_NINE_LULD_LISTS`), each
+tile reads `GET /api/luld/{symbol}/trail` (the Trader's 1-minute band, ADR 047; `book-watch-and-luld.md`) every 3 s
+and draws it the Trader's way: a rose line above
 and below the candles that steps where the band moved, each step at its share of its minute, solid where exact and
 dashed where approximate. The band in force is tagged at the right edge (`▲ 15.74` / `▼ 12.88`, `≈` when
 approximate), held at the top or bottom edge when out of view, moved off the last-price tag when they meet; it never
 widens the price scale. The route reads memory only, so a stock Nova holds no tape line for has no band, and the tile
-says so ("LULD — no tape line held"; the backend's reason in the hover). A halt step draws nothing.
+says so ("LULD — no tape line held"; the backend's reason in the hover). A halt step draws nothing. Gappers and After
+Hours draw no band, say nothing about one and ask for none (operator, 2026-10-27: "we dont need luld for gappers
+and after hours cuz there are no luld lines"): bands run 09:30-16:00 ET, Gappers is the premarket board and After
+Hours starts at 16:00. A tile that stays on screen across a list change stops asking when its list has no band.
+
+**Its name in the desk's records.** The pop-up reports to the perf recorder (ADR 026) and the focus sensor
+(ADR 033) as `window_id` `top-nine` (role `popout` in the desktop app, `browser` elsewhere), the key its bounds are
+kept under. Until 2026-10-27 it reported as `main`: its 5 s report overwrote the desk's on `GET /api/perf/live`,
+and the Electron focus report's `main` row could hand the desk the Top 9's minimized / focused state.
 
 **Prefs (prefStore, `schema_version` 1).** `nova.topNine.list` (`gappers` | `gainers` | `afterhours`): the list on
 screen; a grid button on the rail writes it before opening, and an open pop-up follows it (`storage` event), so a
