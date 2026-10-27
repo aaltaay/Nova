@@ -21,10 +21,10 @@ TOOLS = {"data_catalog", "data_status", "stock_day", "movers_search", "movers_sc
          "find_stock_days", "daily_bars", "market_context", "stock_day_stats", "order_flow", "halts", "catalysts",
          "symbols", "rvol_scan", "rvol_triggers", "rvol_outcomes", "cash_runway", "recorded_depth", "recorded_tape",
          "signal_catalog", "signal_series", "signal_scan", "signal_test",
-         "sec_filings_scan", "short_interest_scan", "sector_scan", "news_search"}
+         "sec_filings_scan", "short_interest_scan", "sector_scan", "news_search", "journal_trades", "recorded_days"}
 WRITES = {"stock_day", "movers_scan", "find_stock_days", "daily_bars", "order_flow", "rvol_scan", "rvol_triggers",
           "rvol_outcomes", "recorded_tape", "signal_series", "signal_scan", "signal_test",
-          "sec_filings_scan", "short_interest_scan", "sector_scan", "news_search"}
+          "sec_filings_scan", "short_interest_scan", "sector_scan", "news_search", "journal_trades", "recorded_days"}
 
 
 def test_a_big_table_answers_its_first_rows_and_says_how_many_matched():
@@ -471,3 +471,25 @@ def test_symbols_pass_exchange_and_cik(monkeypatch):
     monkeypatch.setattr(symbols, "search", lambda query, **kw: asked.update(kw) or pd.DataFrame())
     m.DataService().symbols(exchange="XNAS", cik="1087294")
     assert asked["exchange"] == "XNAS" and asked["cik"] == "1087294"
+
+
+def test_journal_recorded_days_and_market_cap_reach_their_readers(monkeypatch, tmp_path):
+    from market_reads import journal, recorded_days, stock_days
+    asked = {}
+    monkeypatch.setattr(journal, "trades", lambda *args: asked.update(journal=args) or pd.DataFrame({"id": [1]}))
+    monkeypatch.setattr(recorded_days, "recorded_days",
+                        lambda *args: asked.update(days=args) or pd.DataFrame({"day": ["2026-10-26"]}))
+
+    def page(**kwargs):
+        asked["find"] = kwargs
+        return pd.DataFrame()
+
+    monkeypatch.setattr(stock_days, "find_stock_days", page)
+    service = m.DataService(tmp_path)
+    assert service.journal_trades(setup="gap_and_go", adherent=False)["data"] == [{"id": 1}]
+    assert asked["journal"] == (None, "gap_and_go", None, False, None, None, None, False)
+    answer = service.recorded_days(date_from="2026-10-01", symbol="CLRO", output_name="days.csv")
+    assert asked["days"] == ("2026-10-01", None, "CLRO") and answer["out"].endswith("days.csv")
+    service.find_stock_days({"date_from": "2026-10-01"}, market_cap_min=1e6, market_cap_max=5e7)
+    assert (asked["find"]["market_cap_min"], asked["find"]["market_cap_max"]) == (1e6, 5e7)
+

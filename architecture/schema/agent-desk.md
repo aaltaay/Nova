@@ -559,15 +559,20 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
   line, or a non-text column that is not a number somewhere that day is read the whole-day way (and cached).
 - **Momentum-research tools** (`tools/nova_data_research.py`, the second tool set; CLI `tools/market_data_research.py`):
   - `find_stock_days {filters, symbol?, kinds?, splits?, float_max?, outstanding_max?, float_basis?, float_unknown?,
-    catalyst?, catalyst_category?, catalyst_words?, halted?, halt_codes?, rvol_daily_min?, sort?, limit?, cursor?,
-    page_size?, output_name?}` -> a table answer plus `next_cursor`
+    catalyst?, catalyst_category?, catalyst_words?, halted?, halt_codes?, rvol_daily_min?, market_cap_min?,
+    market_cap_max?, sort?, limit?, cursor?, page_size?, output_name?}` -> a table answer plus `next_cursor`
     (`"YYYY-MM-DD|SYMBOL"` or null). Rows:
     `date, symbol, kind, prev_close, open, high, low, close, volume, dollar_volume, high_pct, low_pct, close_pct,
     gap_pct, day_high, day_high_et, day_low, day_low_et, pm_high, pm_low, pm_volume, ah_high, ah_volume, split,
     up10_et .. up300_et, down10_et .. down50_et, outstanding_shares, outstanding_as_of, outstanding_filed,
     outstanding_age_days, enrichment_float, float_shares, float_source, catalyst_verdict, catalyst_category,
     catalyst_strength, catalyst_title, catalyst_cutoff, halts, first_halt_et, halt_codes, luld_halts, news_halts,
-    rvol_daily, rvol_volume, rvol_day_avg_volume, rvol_day_avg_sessions`. **One join** (search gaps, operator
+    rvol_daily, rvol_volume, rvol_day_avg_volume, rvol_day_avg_sessions, market_cap`. **Market cap** (operator
+    2026-10-26): `market_cap` is an estimate, `prev_close` (the prior close, already on the day's share basis) x
+    `outstanding_shares` (SEC shares outstanding known that day), rounded to the dollar -- never the board's or a
+    vendor's market cap; null when either is unknown. `market_cap_min` / `market_cap_max` (dollars; min over max is
+    refused) keep the rows inside; a row with `market_cap` null is left out and counted in
+    `meta.left_out.market_cap_unknown`, never read as small; `meta.market_cap_rule` says the rule. **One join** (search gaps, operator
     2026-10-26): every column after the marks comes from `research/market_reads/day_facts.py` (`for_pairs`), the one
     join of shares, catalyst, halts and relative volume that `find_stock_days`, the relative-volume tools and the day
     facts export (`/api/agent/movers`) all use, and every row filter is `day_movers.facts.keep` -- so a stock-day
@@ -665,7 +670,20 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
     type, exchange, composite_figi, ticker_reused`; with `ticker`: `{symbol, day, listed, ticker_reused, companies:
     [{cik, name, active, delisted, type, exchange, held_from, held_to, composite_figi, last_updated_utc}], on_day:
     {cik, name, rule, warning}, warning, cik_history: {cik: [rows]}, as_of, rule, source, dump_as_of, notes}`.
-  `find_stock_days`, `news_search`, `daily_bars` and `order_flow` write an `output_name` file (`readOnlyHint: false`); the rest are
+  - `journal_trades {symbol?, setup?, tag?, adherent?, date_from?, date_to?, limit?, include_mock?, output_name?}`
+    (operator 2026-10-26) -> the operator's own trades from the desk's journal (`research/market_reads/journal.py`):
+    `journal.db` found by `roots.cache_store` (`NOVA_CACHE_DIR`, else the main checkout's `backend/.cache`, then
+    `F:\Nova\cache`) and filtered by `journal.store.get_trades` -- the rule `GET /api/journal/trades` uses -- on a
+    read-only connection (`database=`), so the journal is never created, migrated or written; a journal not on disk
+    is a `LookupError` naming the folders looked in. Rows `id, opened_et, closed_et, symbol, setup, side, qty,
+    entry_price, exit_price, stop_price, target_price, pnl, commission, adherent, tags, notes, is_mock, opened_ts,
+    closed_ts`, newest first; `limit` default 200, 1-10,000; mock rows only with `include_mock`. `meta.summary`
+    `{trades, closed, pnl, wins, losses, commission}` sums the rows returned, `meta.journal_rows {real, mock}` counts
+    the file, and `meta.not_here` says the desk's fills are not here (the Account page reads `GET
+    /api/practice/history` and IBKR's closed orders). The operator's journal held 0 real and 12 mock rows on
+    2026-10-26. CLI `market_data.py journal [--symbol --setup --tag --adherent yes|no --from --to --limit
+    --include-mock]`.
+  `find_stock_days`, `news_search`, `journal_trades`, `daily_bars` and `order_flow` write an `output_name` file (`readOnlyHint: false`); the rest are
   read-only. `movers_scan` gains `after` (library only) for the cursor.
 - **Across every stock: filings, short interest, sector** (search gaps, operator 2026-10-26; tools
   `tools/nova_data_scans.py`, CLI `tools/market_data_scans.py`, reads `research/market_reads/sec_scan.py` and
@@ -910,7 +928,19 @@ the recorder refuses a row that moves backwards), never read whole for one momen
   checkout's `backend/.cache` (a worktree keeps its own, empty one), this checkout's, then `F:\Nova\cache` (where
   `tools/data_root.py` moves it); the first folder holding the store is read. A store that is not there is a stated
   absence naming every place looked (`LookupError` where there is nothing else to answer).
-- **Tools** (`{ok: false, error}` on a failed read, as every front-door tool; both heavy, one at a time per process):
+- **Tools** (`{ok: false, error}` on a failed read, as every front-door tool; all heavy, one at a time per process):
+  - `recorded_days {date_from?, date_to?, symbol?, output_name?}` (operator 2026-10-26) -> which days were recorded
+    and which stocks each day (`research/market_reads/recorded_days.py`): one row per Session Record folder
+    `<day>/<SYMBOL>` under `roots.sim_capture()`, newest day first, then symbol -- `day, symbol, status, first_et,
+    last_et, recorded_min, stretches, gaps, unplanned_gaps, problem`. The times come from the manifest's recorded
+    segments merged (`recordings.capture_state`, the rule `recorded_depth` / `recorded_tape` read by); `gaps` are the
+    stops between them, `unplanned_gaps` those not a planned stop (`CAPTURE_PLANNED_STOPS`). A folder with no
+    readable manifest is listed with its `problem`, never dropped; a folder that is not a date or a ticker is not a
+    Session Record. Read-only: the root and folders are named, never made (a missing root is a `LookupError`).
+    `meta.days` / `meta.symbols` count them; `meta.not_here` says the tape archive (`archive.db` `tape_ibkr`) and
+    `l2.db` are not listed -- a whole-table scan -- and `recorded_tape` / `recorded_depth` answer them per stock-day.
+    84 Session Records over 5 days read in about 1 s on the operator's F:. CLI `market_data.py recorded-days
+    [--from --to --symbol]`.
   - `recorded_depth {symbol, day, at, source?, max_age_sec?}` -> the Level 2 book at ET `at` (`HH:MM[:SS]`):
     `{ok, symbol, day, at, at_et, covered, source, book, reason, tried, coverage, rules, units, recorded_days?}`.
     `source` is `auto` (default: the newest book at or before `at` among the stores, a tie to `capture`) | `capture` |

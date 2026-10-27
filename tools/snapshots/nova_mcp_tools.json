@@ -647,7 +647,7 @@
   },
   {
     "name": "find_stock_days",
-    "description": "Momentum stock-days in one call: movers rows (filters as movers_scan: date_from/date_to, price_min/max on the raw prior close, high_min ... in percent points; needs dates or a symbol) joined with what was known that day -- outstanding_* (SEC shares OUTSTANDING filed by the day, as of <=120 days, split-adjusted; NOT free float), enrichment_float (the desk's own float, 2026-07-28 on), catalyst_* (the backfill's verdict; null = unknown), halts / first_halt_et / halt_codes, pm_high / pm_volume and up10_et..up300_et (first ET minute each +N% printed). kinds: COMMON STOCK (CS, ADRC) by default, like movers_search -- warrants, rights, units and ETFs are left out unless asked: [\"all\"] keeps every kind, [\"ETF\"] or [\"CS\", \"WARRANT\"] those types; naming a symbol with no kinds keeps every kind. sort ranks the rows like movers_search: newest | oldest (default) | high | low | close | gap | volume | dollar_volume (a row without the figure last, ties newest day first); the float / catalyst / halted filters then pick from the ranking, so sort \"high\" with limit 10 is the ten largest highs that pass them. limit = page_size (the most rows this call returns, <=5,000; with output_name <=100,000); next_cursor continues the same ranking exactly: pass it back as cursor with the same arguments. float_max filters float_basis: sec_outstanding (default) | enrichment | best; outstanding_max is the same limit under the name of what it filters (SEC shares outstanding; needs float_basis sec_outstanding, not with float_max); float_source labels each value; float_unknown exclude | include | only. catalyst e.g. [\"catalyst\"] or [\"unknown\"]; catalyst_category e.g. [\"fda_regulatory\"] (the verdict's category); catalyst_words keeps a headline containing any word (e.g. [\"approv\", \"clear\"]: a text match, read the titles); halted true/false; halt_codes keeps a day with a halt of any code (e.g. [\"T1\", \"LUDP\"], or \"news\" / \"luld\" for their groups; a day the halt log does not cover is left out); news_halts / luld_halts count them. rvol_daily (the day's volume / its usual whole-session volume, up to 50 earlier sessions; null = unknown) on every row; rvol_daily_min e.g. 5 keeps 5x or more and leaves unknowns out, counted in meta.left_out. Likely splits left out (splits=include keeps).",
+    "description": "Momentum stock-days in one call: movers rows (filters as movers_scan: date_from/date_to, price_min/max on the raw prior close, high_min ... in percent points; needs dates or a symbol) joined with what was known that day -- outstanding_* (SEC shares OUTSTANDING filed by the day, as of <=120 days, split-adjusted; NOT free float), enrichment_float (the desk's own float, 2026-07-28 on), catalyst_* (the backfill's verdict; null = unknown), halts / first_halt_et / halt_codes, pm_high / pm_volume and up10_et..up300_et (first ET minute each +N% printed). kinds: COMMON STOCK (CS, ADRC) by default, like movers_search -- warrants, rights, units and ETFs are left out unless asked: [\"all\"] keeps every kind, [\"ETF\"] or [\"CS\", \"WARRANT\"] those types; naming a symbol with no kinds keeps every kind. sort ranks the rows like movers_search: newest | oldest (default) | high | low | close | gap | volume | dollar_volume (a row without the figure last, ties newest day first); the float / catalyst / halted filters then pick from the ranking, so sort \"high\" with limit 10 is the ten largest highs that pass them. limit = page_size (the most rows this call returns, <=5,000; with output_name <=100,000); next_cursor continues the same ranking exactly: pass it back as cursor with the same arguments. float_max filters float_basis: sec_outstanding (default) | enrichment | best; outstanding_max is the same limit under the name of what it filters (SEC shares outstanding; needs float_basis sec_outstanding, not with float_max); float_source labels each value; float_unknown exclude | include | only. catalyst e.g. [\"catalyst\"] or [\"unknown\"]; catalyst_category e.g. [\"fda_regulatory\"] (the verdict's category); catalyst_words keeps a headline containing any word (e.g. [\"approv\", \"clear\"]: a text match, read the titles); halted true/false; halt_codes keeps a day with a halt of any code (e.g. [\"T1\", \"LUDP\"], or \"news\" / \"luld\" for their groups; a day the halt log does not cover is left out); news_halts / luld_halts count them. rvol_daily (the day's volume / its usual whole-session volume, up to 50 earlier sessions; null = unknown) on every row; rvol_daily_min e.g. 5 keeps 5x or more and leaves unknowns out, counted in meta.left_out. market_cap is an ESTIMATE: the prior close x SEC shares outstanding known that day (null when either is unknown), not the board's market cap; market_cap_min / market_cap_max (dollars) keep rows inside and leave unknowns out, counted in meta.left_out.market_cap_unknown. Likely splits left out (splits=include keeps).",
     "inputSchema": {
       "properties": {
         "filters": {
@@ -867,6 +867,30 @@
           ],
           "default": null,
           "title": "Halt Codes"
+        },
+        "market_cap_min": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Market Cap Min"
+        },
+        "market_cap_max": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Market Cap Max"
         }
       },
       "required": [
@@ -1374,6 +1398,123 @@
         "date_to"
       ],
       "title": "news_searchArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "journal_trades",
+    "description": "The operator's own trades from the desk's journal (journal.db, read-only), newest first: symbol / setup exact (any case), tag one of the trade's tags, adherent true/false (followed the plan), date_from / date_to the ET day the trade opened -- the desk's own filter (GET /api/journal/trades). Rows: entry / exit / stop / target, qty, side, pnl, commission, tags, notes, opened_et / closed_et. Mock (test) rows only with include_mock. meta.summary sums the rows returned (closed, pnl, wins, losses); meta.journal_rows counts the real and mock rows in the file. The journal is not where the desk's fills land: the Account page reads the practice account's history (Paper, Sim) and IBKR's closed orders. limit default 200, up to 10,000.",
+    "inputSchema": {
+      "properties": {
+        "symbol": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Symbol"
+        },
+        "setup": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Setup"
+        },
+        "tag": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tag"
+        },
+        "adherent": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Adherent"
+        },
+        "date_from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Date From"
+        },
+        "date_to": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Date To"
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Limit"
+        },
+        "include_mock": {
+          "default": false,
+          "title": "Include Mock",
+          "type": "boolean"
+        },
+        "output_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Name"
+        }
+      },
+      "title": "journal_tradesArguments",
       "type": "object"
     },
     "annotations": {
@@ -2274,6 +2415,70 @@
         "day"
       ],
       "title": "recorded_tapeArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "recorded_days",
+    "description": "Which days the operator recorded, and which stocks each day: one row per Session Record (the recorder's folder <day>/<SYMBOL>, 2026-09-19 on), newest day first -- status, first_et / last_et and recorded_min of its recorded stretches, stretches, gaps and unplanned_gaps, and a problem when its manifest is unreadable (listed, never dropped). Filter by date_from / date_to (YYYY-MM-DD) and symbol. meta.days / meta.symbols count them. Not listed: the tape archive (every print the desk's tape line saw, 2026-07-15 on, any symbol) and l2.db -- recorded_tape / recorded_depth answer those per stock-day.",
+    "inputSchema": {
+      "properties": {
+        "date_from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Date From"
+        },
+        "date_to": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Date To"
+        },
+        "symbol": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Symbol"
+        },
+        "output_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Name"
+        }
+      },
+      "title": "recorded_daysArguments",
       "type": "object"
     },
     "annotations": {

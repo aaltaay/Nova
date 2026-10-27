@@ -56,7 +56,10 @@ filters; `next_cursor` resumes the same ranking exactly). It filters on what was
 volume". Those columns come from one join (`research/market_reads/day_facts.py`) and one filter
 (`backend/day_movers/facts.py`) that the relative-volume tools and the desk's agent search (`/api/agent/movers`,
 from the movers store's exported `day_facts`) use too, so a stock-day passes a filter the same way everywhere.
-`sec-filings-scan 424B5 FROM TO`, `short-interest-scan --day DAY --min-days-to-cover 5` and `sector-scan --sic 283*` answer the same kind of question across every stock (MCP `sec_filings_scan`, `short_interest_scan`, `sector_scan`; a filings scan spans at most 31 days). `news` searches every stock at once (no symbol): the backfill's verdicts by category and headline words, or with
+`sec-filings-scan 424B5 FROM TO`, `short-interest-scan --day DAY --min-days-to-cover 5` and `sector-scan --sic 283*` answer the same kind of question across every stock (MCP `sec_filings_scan`, `short_interest_scan`, `sector_scan`; a filings scan spans at most 31 days). `--market-cap-min` / `--market-cap-max` filter an estimate (the prior close x SEC shares outstanding known that
+day; unknowns left out and counted). `journal` lists your own trades from the desk's journal (read-only; the
+desk's fills are in the practice account's history, not there) and `recorded-days` which days you recorded and which
+stocks each day (MCP `journal_trades`, `recorded_days`). `news` searches every stock at once (no symbol): the backfill's verdicts by category and headline words, or with
 `--items` every headline containing the words. Then `stats`, `flow`, `catalysts`
 and `daily` / `context` answer the questions about one stock-day. Builders and column definitions for the derived
 tables (`trades_flow_v1` and the rest): `docs/massive-builders.md`.
