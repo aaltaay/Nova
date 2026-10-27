@@ -21,7 +21,8 @@ export const LOSS_LIMIT_AUTO_SELL_NOTE = "sell what's held";
 export const LOSS_LIMIT_DAILY_TIP =
   "The whole account. Counts only trades opened today, yours and the bots': what was lost on the ones closed, " +
   'what the open ones are down right now, and commissions. Anything held before today never counts. It has to ' +
-  'stay past the limit for 10 seconds. Starts over at 04:00 ET. Live, Paper and Sim are each counted on their own.';
+  'stay past the limit for 10 seconds. Starts over at 04:00 ET on the next trading day: a Friday holds through the ' +
+  'weekend. Live, Paper and Sim are each counted on their own.';
 export const LOSS_LIMIT_YOU_TIP =
   'Only the trades you opened today, counted the same way. At this line, No new buys stops only your buys and ' +
   'Auto sell sells only your shares: the bots keep trading. A trade counts for whoever opened it. Empty: no line ' +
@@ -32,9 +33,9 @@ export const LOSS_LIMIT_BOTS_TIP =
   'exits always work. A trade counts for whoever opened it. Empty: no line for the bots.';
 export const LOSS_LIMIT_WARN_TIP = 'A voice line and a notice at 80% of each line.';
 export const LOSS_LIMIT_NO_NEW_BUYS_TIP =
-  "At a line, new buys are refused until 04:00 ET: the daily loss limit stops yours and the bots', your trades' " +
-  "line only yours, the bots' line only the bots'. Selling, Flatten and KILL still work. Raise the limit or " +
-  'uncheck this to buy again.';
+  "At a line, new buys are refused until 04:00 ET on the next trading day: the daily loss limit stops yours and " +
+  "the bots', your trades' line only yours, the bots' line only the bots'. Selling, Flatten and KILL still work. " +
+  'Raise the limit or uncheck this to buy again.';
 export const LOSS_LIMIT_AUTO_SELL_TIP =
   'At a line, Nova sells what that line opened today, at market: the daily loss limit every position, your ' +
   "trades' line your shares, the bots' line theirs. Positions from before today are never sold.";

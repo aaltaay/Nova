@@ -46,6 +46,17 @@ The desk also said "Bot sold 10,000 shares of WETO": the voice counted a `bot_tr
 
 7. **Removed.** The bot trip and the all-stop (`bot/breakers.py`, `bot/breaker_limits.py`, the breaker loop, the bot trip's latch and re-enable, the all-stop's day lock in `bot/buy_lock.py`), the `breakers` / `soft_breaker` / `day_lock(s)` session fields and the `PATCH {breakers}` door, the `bot_trip` and `day_lock` gates and `BOT_TRIP_LATCHED`, the Bots page's breaker bar and status, the Account page's Risk pair, and the breaker notices. A bot session saved with the old fields loads with them dropped. Old orders keep their `bot_trip` / `all_stop` origins and are labelled as before; nothing sends them again.
 
+## Amendment 2026-10-27 -- the day walks back over weekends and holidays (#1090)
+
+**Decided by:** the operator, 2026-10-27, on #1090 (option 1: "walk back like the rest of the desk").
+
+"Today" (decision 2) and "until 04:00 ET" (decision 4) are the trading session the rest of the desk already uses
+(`market.session_key_et`, ADR 008 amendment 2026-10-17), not the calendar day: a weekend or NYSE holiday belongs to
+the last exchange day before it. A Friday's count, warnings and trip hold through the weekend and end at the next
+exchange day's 04:00 ET -- Monday, or Tuesday after a Monday holiday. Before this, the day was the plain calendar
+clock and Saturday 04:00 ET cleared a Friday lock and started a new count at zero. Weekdays are unchanged. Owner:
+`loss_limit/state.desk_day`; schema `architecture/schema/loss-limit.md` ("The desk day").
+
 ## Consequences
 
 - WETO's morning cannot repeat: a manual entry is never sold by a limit unless Auto sell is checked, and then only past the dollar line for 10 seconds.
