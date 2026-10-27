@@ -31,6 +31,8 @@ ROWS = [
      "delisted_utc": "2020-03-02T05:00:00Z", "type": "CS", "primary_exchange": "XNAS"},
     {"ticker": "XAAP", "cik": "0000000999", "name": "Unrelated", "active": True, "type": "ETF",
      "primary_exchange": "ARCX"},
+    {"ticker": "AURAp", "cik": "0000000222", "name": "Series A Preferred", "active": True, "type": "PFD",
+     "primary_exchange": "XNYS"},
 ]
 
 
@@ -68,6 +70,11 @@ def test_filters_narrow_by_ticker_exchange_and_cik(listing):
     assert len(symbols.search("a", limit=2)) == 2 and symbols.search("a", limit=2).attrs["matched"] > 2
     with pytest.raises(ValueError, match="needs a query"):
         symbols.search()
+
+
+def test_a_lowercase_suffix_ticker_is_shown_as_written(listing):
+    assert list(symbols.search(cik="222")["ticker"]) == ["AURAp"]            # another security, never "AURAP"
+    assert list(symbols.search(ticker="AURAp")["ticker"]) == ["AURAp"]
 
 
 def test_one_ticker_names_every_company_and_who_held_it_on_a_day(listing):

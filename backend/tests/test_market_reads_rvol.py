@@ -2,13 +2,16 @@
 fake Massive folder: its baselines are ``stock_day_stats``' own, a resumed build writes what a full build writes, a
 listed split puts earlier volume on today's basis, a likely split or a new company starts the baseline again, only
 common stocks are in it, triggers say when the stock was already over the line, outcomes read nothing before the
-entry and never guess the order inside one bar, later sessions count, and the control is a same-minute stock."""
+entry and never guess the order inside one bar, later sessions count, and the control is a same-minute stock. The
+day-fact filters (news, shares, halts: ``rvol_facts`` through ``day_facts``) join nothing unless asked, keep what
+passes, count the unknowns they leave out, group the outcomes, and hold the control pool to the same universe."""
 from __future__ import annotations
 
 import contextlib
 import json
 import shutil
 import sys
+import types
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -25,7 +28,8 @@ import pandas as pd  # noqa: E402
 import pyarrow.parquet as pq  # noqa: E402
 from test_market_reads_daily import write_gz  # noqa: E402
 
-from market_reads import daily, reads, rvol, rvol_outcomes, slots, splits, stats, tickers  # noqa: E402
+import market_reads  # noqa: E402
+from market_reads import daily, day_facts, reads, rvol, rvol_outcomes, slots, splits, stats, tickers  # noqa: E402
 from market_reads import rvol_store as rs  # noqa: E402
 
 HEADER = "ticker,volume,open,close,high,low,window_start,transactions"
@@ -299,3 +303,174 @@ def test_an_output_file_holds_this_answer_only(table, tmp_path):
     assert len(first) > len(again) and set(again["symbol"]) == {"SRG"}
     rvol.triggers(10_000_000, window_from="07:00", window_to="09:30", filters=every, to_file=out)
     assert len(pd.read_csv(out)) == 0 and "trigger_et" in pd.read_csv(out).columns
+
+
+# --- day facts on the relative-volume reads (find_stock_days' filters through day_facts' join) --------------------
+# TODAY's facts behind the join; every other stock-day is unknown (no verdict, no SEC count).
+VERDICTS = {"UPP": ("catalyst", "fda_regulatory", "FDA Approves UPP's Drug"),
+            "DWN": ("catalyst", "Clinical_Data", "Phase 2 Data Misses"),
+            "SRG": ("catalyst", "fda_regulatory", "FDA Clears SRG's Device"),
+            "BTH": ("none_found", None, None)}                          # judged: no news found -- not unknown
+SHARES = {"SRG": 2_000_000, "UPP": 3_000_000, "DWN": 8_000_000, "NTH": 12_000_000, "BTH": 30_000_000,
+          "ABC": 60_000_000}
+HALTS = {"UPP": {"halts": 1, "first_halt_et": "09:50:00", "codes": ["T1"], "luld": 0, "news": 1},
+         "DWN": {"halts": 1, "first_halt_et": "09:41:00", "codes": ["LUDP"], "luld": 1, "news": 0},
+         "NTH": {"halts": None, "codes": [], "luld": None, "news": None}}   # a day the halt log does not cover
+TODAY_ONLY = {"date_from": TODAY, "date_to": TODAY}
+WINDOW = {"window_from": "07:00", "window_to": "09:30"}
+
+
+@pytest.fixture
+def facts(table, monkeypatch):
+    """Fake stores behind ``day_facts.for_pairs``; the answer is every pair each part was asked for."""
+    asked = {"catalyst": [], "halts": [], "shares": []}
+
+    def verdicts(pairs):
+        asked["catalyst"] += pairs
+        return {p: {"verdict": VERDICTS[p[1]][0], "category": VERDICTS[p[1]][1], "title": VERDICTS[p[1]][2],
+                    "strength": "strong", "cutoff_kind": "target"} for p in pairs if p[0] == TODAY and p[1] in VERDICTS}
+
+    def stops(pairs):
+        asked["halts"] += pairs
+        return {p: HALTS.get(p[1], {"halts": 0, "codes": [], "luld": 0, "news": 0}) for p in pairs}
+
+    def counts(pairs):
+        asked["shares"] += pairs
+        return {p: {"shares": SHARES[p[1]], "as_of": "2026-06-30", "filed": "2026-08-01", "age_days": 70}
+                for p in pairs if p[0] == TODAY and p[1] in SHARES}
+    for name, fake in (("catalysts", types.SimpleNamespace(for_pairs=verdicts)),
+                       ("halts", types.SimpleNamespace(for_pairs=stops))):
+        monkeypatch.setitem(sys.modules, f"market_reads.{name}", fake)
+        monkeypatch.setattr(market_reads, name, fake, raising=False)
+    monkeypatch.setattr(day_facts, "_outstanding", counts)
+    return asked
+
+
+def _symbols(frame) -> set[str]:
+    return set(frame["symbol"])
+
+
+def test_without_a_day_fact_filter_nothing_is_joined_and_the_answer_is_as_before(facts):
+    scan = rvol.scan("09:30", filters=TODAY_ONLY, float_basis="best")       # a basis alone filters nothing
+    found = rvol.triggers(10, filters=TODAY_ONLY, **WINDOW)
+    after = rvol_outcomes.outcomes(filters=TODAY_ONLY, trigger={"rvol_min": 10, **WINDOW})
+    assert facts == {"catalyst": [], "halts": [], "shares": []}
+    for frame in (scan, found):
+        assert not {*day_facts.SHARES, *day_facts.CATALYST, *day_facts.HALTS} & set(frame.columns)
+        assert "day_facts" not in frame.attrs and "left_out" not in frame.attrs
+    assert "day_facts" not in after["meta"] and "float_buckets" not in after["meta"]
+    assert set(after["meta"]["left_out"]) == {"no_price", "split", "base_sessions", "horizon_reset", "horizon_open"}
+
+
+def test_the_news_filters_keep_what_passes_join_only_their_part_and_count_the_unknowns(facts):
+    total = len(rvol.scan("09:30", filters=TODAY_ONLY))
+    news = rvol.scan("09:30", filters=TODAY_ONLY, catalyst=["catalyst"])
+    assert _symbols(news) == {"UPP", "DWN", "SRG"} and news.attrs["rows"] == 3
+    assert news.attrs["left_out"] == {"catalyst_unknown": total - 4}       # BTH was judged none_found: not unknown
+    upp = news.set_index("symbol").loc["UPP"]
+    assert (upp["catalyst_verdict"], upp["catalyst_category"], upp["catalyst_title"]) == (
+        "catalyst", "fda_regulatory", "FDA Approves UPP's Drug")
+    assert "float_shares" not in news.columns and "halts" not in news.columns
+    assert facts["shares"] == facts["halts"] == [] and len(facts["catalyst"]) == total
+    assert news.attrs["day_facts"]["joined"] == ["catalyst"] and news.attrs["day_facts"]["examined"] == total
+    assert news.attrs["day_facts"]["filters"]["catalyst"] == ["catalyst"]
+    assert _symbols(rvol.scan("09:30", filters=TODAY_ONLY, catalyst="catalyst")) == _symbols(news)   # one bare word
+    assert _symbols(rvol.scan("09:30", filters=TODAY_ONLY, catalyst=["unknown"])) == _symbols(
+        rvol.scan("09:30", filters=TODAY_ONLY)) - {"UPP", "DWN", "SRG", "BTH"}
+    approved = rvol.scan("09:30", filters=TODAY_ONLY, catalyst_category=["FDA_Regulatory"], catalyst_words=["approv"])
+    assert _symbols(approved) == {"UPP"}
+    assert _symbols(rvol.scan("09:30", filters=TODAY_ONLY, catalyst_words=["approv", "clear"])) == {"UPP", "SRG"}
+
+
+def test_the_share_filter_reads_its_basis_and_never_reads_an_unknown_as_small(facts):
+    total = len(rvol.scan("09:30", filters=TODAY_ONLY))
+    small = rvol.scan("09:30", filters=TODAY_ONLY, float_max=10_000_000)
+    assert _symbols(small) == {"SRG", "UPP", "DWN"}
+    assert small.attrs["left_out"] == {"shares_unknown": total - len(SHARES)}
+    srg = small.set_index("symbol").loc["SRG"]
+    assert (srg["float_shares"], srg["float_source"], srg["outstanding_as_of"]) == (
+        2_000_000, "sec_shares_outstanding", "2026-06-30")
+    unknown = _symbols(rvol.scan("09:30", filters=TODAY_ONLY)) - set(SHARES)
+    included = rvol.scan("09:30", filters=TODAY_ONLY, float_max=10_000_000, float_unknown="include")
+    assert _symbols(included) == {"SRG", "UPP", "DWN"} | unknown and included.attrs["left_out"] == {}
+    assert _symbols(rvol.scan("09:30", filters=TODAY_ONLY, float_unknown="only")) == unknown
+
+
+def test_the_halt_filters_name_codes_or_groups_and_leave_an_uncovered_day_out(facts):
+    total = len(rvol.scan("09:30", filters=TODAY_ONLY))
+    news = rvol.scan("09:30", filters=TODAY_ONLY, halt_codes=["news"])
+    assert _symbols(news) == {"UPP"} and news.attrs["left_out"] == {"halts_unknown": 1}     # NTH: not covered
+    assert news.set_index("symbol").loc["UPP", "halt_codes"] == "T1"
+    assert _symbols(rvol.scan("09:30", filters=TODAY_ONLY, halt_codes=["ludp"])) == {"DWN"}
+    assert _symbols(rvol.scan("09:30", filters=TODAY_ONLY, halt_codes=["luld"])) == {"DWN"}
+    calm = rvol.scan("09:30", filters=TODAY_ONLY, halted=False)
+    assert len(calm) == total - 3 and not {"UPP", "DWN", "NTH"} & _symbols(calm)
+
+
+def test_triggers_take_the_filters_and_their_file_holds_the_fact_columns(facts, tmp_path):
+    plain = rvol.triggers(10, filters=TODAY_ONLY, **WINDOW)
+    assert _symbols(plain) == {"ABC", "SRG", "FST"}
+    out = tmp_path / "fda.parquet"
+    fda = rvol.triggers(10, filters=TODAY_ONLY, catalyst_category=["fda_regulatory"], to_file=out, **WINDOW)
+    assert list(fda["symbol"]) == ["SRG"] and fda.attrs["rows"] == 1
+    assert {p[1] for p in facts["catalyst"]} == {"ABC", "SRG", "FST"}       # only the triggers were looked up
+    assert fda.attrs["left_out"] == {"catalyst_unknown": 2}
+    written = pd.read_parquet(out)
+    assert list(written["symbol"]) == ["SRG"] and written.loc[0, "catalyst_title"] == "FDA Clears SRG's Device"
+    none = tmp_path / "none.csv"
+    rvol.triggers(10, filters=TODAY_ONLY, catalyst=["negative"], float_max=1e9, to_file=none, **WINDOW)
+    empty = pd.read_csv(none)
+    assert len(empty) == 0 and {"trigger_et", "catalyst_verdict", "float_shares"} <= set(empty.columns)
+
+
+def test_outcomes_group_by_the_verdict_its_category_and_the_float_bucket(facts):
+    def groups(answer):
+        return {g["group"]: g["entries"] for g in answer["summary"]}
+    verdict = rvol_outcomes.outcomes(filters=TODAY_ONLY, at="09:30", group_by="catalyst")
+    total = verdict["entries"]
+    assert [g["group"] for g in verdict["summary"]] == ["catalyst", "none_found", "unknown", "all"]
+    assert groups(verdict) == {"catalyst": 3, "none_found": 1, "unknown": total - 4, "all": total}
+    category = rvol_outcomes.outcomes(filters=TODAY_ONLY, at="09:30", group_by="catalyst_category")
+    assert groups(category) == {"clinical_data": 1, "fda_regulatory": 2, "no category": 1, "unknown": total - 4,
+                                "all": total}
+    size = rvol_outcomes.outcomes(filters=TODAY_ONLY, at="09:30", group_by="float")
+    assert [g["group"] for g in size["summary"]] == ["<5M", "5-10M", "10-20M", "20-50M", "50M+", "unknown", "all"]
+    assert groups(size)["<5M"] == 2 and groups(size)["unknown"] == total - len(SHARES)
+    assert size["meta"]["float_buckets"]["edges"] == [5_000_000, 10_000_000, 20_000_000, 50_000_000]
+    assert size["meta"]["day_facts"]["joined"] == ["shares"] and facts["halts"] == []
+    assert "catalyst_unknown" not in size["meta"]["left_out"]               # a group leaves nothing out
+
+
+def test_outcome_filters_narrow_the_entries_and_the_control_pool_alike(facts, tmp_path):
+    trigger = {"rvol_min": 10, **WINDOW}
+
+    def controls(seeds, **facts_asked):
+        picked, answer = set(), None
+        for seed in seeds:
+            out = tmp_path / f"c{seed}-{len(facts_asked)}.parquet"
+            answer = rvol_outcomes.outcomes(filters=TODAY_ONLY, trigger=trigger, seed=seed, to_file=out,
+                                            **facts_asked)
+            rows = pd.read_parquet(out)
+            picked |= set(rows.loc[rows["is_control"], "symbol"])
+        return picked, answer, rows
+    anyone, _answer, _rows = controls(range(1, 13))
+    assert anyone - set(SHARES)                       # unfiltered, a control can be a stock with no SEC count
+    picked, answer, rows = controls(range(1, 13), float_max=100_000_000, group_by="float")
+    assert set(rows.loc[~rows["is_control"], "symbol"]) == {"ABC", "SRG"}      # FST's count is unknown
+    assert picked and picked <= set(SHARES) - {"ABC", "SRG"}                   # the same universe
+    assert answer["meta"]["left_out"]["shares_unknown"] == 1
+    assert {g["group"]: g["entries"] for g in answer["control"]} == {"<5M": 1, "50M+": 1, "all": 2}
+    assert "control" in answer["meta"]["day_facts"]["rules"] and "group" in answer["meta"]["day_facts"]["rules"]
+
+
+def test_a_bad_day_fact_ask_is_refused_with_its_reason(facts):
+    with pytest.raises(ValueError, match="float_basis"):
+        rvol.scan("09:30", filters=TODAY_ONLY, float_basis="yahoo")
+    with pytest.raises(ValueError, match="float_unknown"):
+        rvol.triggers(10, filters=TODAY_ONLY, float_unknown="maybe", **WINDOW)
+    with pytest.raises(ValueError, match="halted"):
+        rvol.scan("09:30", filters=TODAY_ONLY, halted="no")
+    with pytest.raises(TypeError):
+        rvol.scan("09:30", filters=TODAY_ONLY, float_min=1)
+    with pytest.raises(ValueError, match="group_by"):
+        rvol_outcomes.outcomes(filters=TODAY_ONLY, at="09:30", group_by="sector")

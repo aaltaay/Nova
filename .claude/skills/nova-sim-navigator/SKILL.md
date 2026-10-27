@@ -17,6 +17,7 @@ py -3 tools/nova_agent.py status                       # index reach, the desk l
 py -3 tools/nova_agent.py dict                         # the dictionary: read it before acting
 py -3 tools/nova_agent.py find --high-min 300 --price-max 20 [--from 2025-01-01] [--float-max 10000000]
 py -3 tools/nova_agent.py find --set close_pos_min=0.67 --set giveback_max=0.3 --set high_after=09:30
+py -3 tools/nova_agent.py find --from 2021-11-01 --to 2021-12-31 --catalyst-category fda_regulatory --set catalyst_words=approv,clear --rvol-daily-min 5
 py -3 tools/nova_agent.py row 2026-09-25 MSGY          # one stock-day as the index holds it
 py -3 tools/nova_agent.py show MSGY 2026-09-25 [--at run|drop|high|low|open|premarket|09:45]
 py -3 tools/nova_agent.py move --to high | --by -5 | --pause | --play
@@ -63,6 +64,11 @@ stock-days and show them in the Sim". Percentages are percent points (300 = +300
   recorded that day or SEC shares outstanding under the limit (the count is as of its own date: shares issued
   since are not in it -- say the date). Everything else is `float: unknown`; offer `--set float_unknown=include`
   to list them. Never use today's float for a past day.
+- **News, halts and relative volume are known or unknown too**: `catalyst`, `catalyst_category`, `catalyst_words`,
+  `halted`, `halt_codes` (`news`, `luld`, `T1` ...) and `rvol_daily_min` read the movers store's exported day facts
+  (`research/movers/export_day_facts.py`; `day_facts.exported` / `last` in the answer). A stock-day the export
+  did not know is left out and counted in `excluded`, never read as "no news" -- say how many. If the answer says
+  the facts are not exported, say so; the export is a heavy run (outside 04:00-20:00 ET).
 - **Splits**: a likely split (a huge overnight jump on no more shares than the day before) is left out by default
   (`splits=include` brings it back); a `suspect` is listed -- mention it.
 - The index is built by `py -3 research/movers/build_movers.py` (newest days first, resumable). If `status` says

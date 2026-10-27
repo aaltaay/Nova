@@ -204,21 +204,32 @@ def events(symbol: str | None = None, day: str | None = None, date_from: str | N
     return _attrs(frame, symbol=symbol, date_from=lo, date_to=hi, source=source)
 
 
+def code_matches(code: Any, kind: Any, wanted: set[str]) -> bool:
+    """Whether a halt is one of ``wanted``: codes as Nasdaq / IBKR write them (``T1``, ``LUDP`` ...), or the group
+    words ``news`` (T1-T3, T12) and ``luld`` (LULD and volatility pauses)."""
+    if ("news" in wanted and is_news(code)) or ("luld" in wanted and is_luld(code, kind)):
+        return True
+    return bool({str(code or "").upper(), str(kind or "").upper()} & {w.upper() for w in wanted})
+
+
 def halts(symbol: str | None = None, day: str | None = None, date_from: str | None = None,
-          date_to: str | None = None, source: str | None = None) -> pd.DataFrame:
+          date_to: str | None = None, source: str | None = None, codes: list[str] | None = None) -> pd.DataFrame:
     """One row per halt (``HALT_COLUMNS``) that started in the range, oldest first. A halt still open at the range's
     end gets its resumption from a later day when the log has one (``end_date`` says which); ``resumed`` False
     means none is logged. ``start_ts`` None: a resumption whose start the log lacks. Since 2026-09-23 one halt can
-    appear twice, once per source."""
+    appear twice, once per source. ``codes`` keeps the halts of those codes (``code_matches``)."""
     lo, hi = _bounds(symbol, day, date_from, date_to)
+    wanted = {str(c).strip().lower() for c in codes or () if str(c).strip()}
     with closing(_connect()) as db:
         out = [h for evs in _grouped(_rows(db, symbol, lo, hi, source)).values()
                for h in _pair(db, evs, look_ahead=True)]
+    if wanted:
+        out = [h for h in out if code_matches(h["code"], h["kind"], wanted)]
     frame = pd.DataFrame(out, columns=HALT_COLUMNS)
     if len(frame):
         frame = frame.assign(_t=frame["start_ts"].fillna(frame["end_ts"])).sort_values(["_t", "symbol"]) \
             .drop(columns="_t").reset_index(drop=True)
-    return _attrs(frame, symbol=symbol, date_from=lo, date_to=hi, source=source)
+    return _attrs(frame, symbol=symbol, date_from=lo, date_to=hi, source=source, codes=sorted(wanted) or None)
 
 
 def _chunks(by_day: dict[str, set[str]]):

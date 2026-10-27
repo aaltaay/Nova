@@ -647,7 +647,7 @@
   },
   {
     "name": "find_stock_days",
-    "description": "Momentum stock-days in one call: movers rows (filters as movers_scan: date_from/date_to, price_min/max on the raw prior close, high_min ... in percent points; needs dates or a symbol) joined with what was known that day -- outstanding_* (SEC shares OUTSTANDING filed by the day, as of <=120 days, split-adjusted; NOT free float), enrichment_float (the desk's own float, 2026-07-28 on), catalyst_* (the backfill's verdict; null = unknown), halts / first_halt_et / halt_codes, pm_high / pm_volume and up10_et..up300_et (first ET minute each +N% printed). kinds: COMMON STOCK (CS, ADRC) by default, like movers_search -- warrants, rights, units and ETFs are left out unless asked: [\"all\"] keeps every kind, [\"ETF\"] or [\"CS\", \"WARRANT\"] those types; naming a symbol with no kinds keeps every kind. sort ranks the rows like movers_search: newest | oldest (default) | high | low | close | gap | volume | dollar_volume (a row without the figure last, ties newest day first); the float / catalyst / halted filters then pick from the ranking, so sort \"high\" with limit 10 is the ten largest highs that pass them. limit = page_size (the most rows this call returns, <=5,000; with output_name <=100,000); next_cursor continues the same ranking exactly: pass it back as cursor with the same arguments. float_max filters float_basis: sec_outstanding (default) | enrichment | best; outstanding_max is the same limit under the name of what it filters (SEC shares outstanding; needs float_basis sec_outstanding, not with float_max); float_source labels each value; float_unknown exclude | include | only. catalyst e.g. [\"catalyst\"] or [\"unknown\"]; catalyst_category e.g. [\"fda_regulatory\"] (the verdict's category); catalyst_words keeps a headline containing any word (e.g. [\"approv\", \"clear\"]: a text match, read the titles); halted true/false. rvol_daily (the day's volume / its usual whole-session volume, up to 50 earlier sessions; null = unknown) on every row; rvol_daily_min e.g. 5 keeps 5x or more and leaves unknowns out, counted in meta.left_out. Likely splits left out (splits=include keeps).",
+    "description": "Momentum stock-days in one call: movers rows (filters as movers_scan: date_from/date_to, price_min/max on the raw prior close, high_min ... in percent points; needs dates or a symbol) joined with what was known that day -- outstanding_* (SEC shares OUTSTANDING filed by the day, as of <=120 days, split-adjusted; NOT free float), enrichment_float (the desk's own float, 2026-07-28 on), catalyst_* (the backfill's verdict; null = unknown), halts / first_halt_et / halt_codes, pm_high / pm_volume and up10_et..up300_et (first ET minute each +N% printed). kinds: COMMON STOCK (CS, ADRC) by default, like movers_search -- warrants, rights, units and ETFs are left out unless asked: [\"all\"] keeps every kind, [\"ETF\"] or [\"CS\", \"WARRANT\"] those types; naming a symbol with no kinds keeps every kind. sort ranks the rows like movers_search: newest | oldest (default) | high | low | close | gap | volume | dollar_volume (a row without the figure last, ties newest day first); the float / catalyst / halted filters then pick from the ranking, so sort \"high\" with limit 10 is the ten largest highs that pass them. limit = page_size (the most rows this call returns, <=5,000; with output_name <=100,000); next_cursor continues the same ranking exactly: pass it back as cursor with the same arguments. float_max filters float_basis: sec_outstanding (default) | enrichment | best; outstanding_max is the same limit under the name of what it filters (SEC shares outstanding; needs float_basis sec_outstanding, not with float_max); float_source labels each value; float_unknown exclude | include | only. catalyst e.g. [\"catalyst\"] or [\"unknown\"]; catalyst_category e.g. [\"fda_regulatory\"] (the verdict's category); catalyst_words keeps a headline containing any word (e.g. [\"approv\", \"clear\"]: a text match, read the titles); halted true/false; halt_codes keeps a day with a halt of any code (e.g. [\"T1\", \"LUDP\"], or \"news\" / \"luld\" for their groups; a day the halt log does not cover is left out); news_halts / luld_halts count them. rvol_daily (the day's volume / its usual whole-session volume, up to 50 earlier sessions; null = unknown) on every row; rvol_daily_min e.g. 5 keeps 5x or more and leaves unknowns out, counted in meta.left_out. Likely splits left out (splits=include keeps).",
     "inputSchema": {
       "properties": {
         "filters": {
@@ -852,6 +852,21 @@
           ],
           "default": null,
           "title": "Rvol Daily Min"
+        },
+        "halt_codes": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Halt Codes"
         }
       },
       "required": [
@@ -1076,7 +1091,7 @@
   },
   {
     "name": "halts",
-    "description": "Trading halts (LULD pauses, news pending, ...) by symbol and/or day from Nova's halt log: one row per halt with start/end ET, duration, code and source. Needs a symbol or a day / date range; meta says the coverage.",
+    "description": "Trading halts (LULD pauses, news pending, ...) by symbol and/or day from Nova's halt log: one row per halt with start/end ET, duration, code and source. Needs a symbol or a day / date range; meta says the coverage and what each code means. codes keeps those halts: e.g. [\"T1\", \"T12\"], [\"LUDP\"], or \"news\" (T1-T3, T12) / \"luld\" (LULD and volatility pauses) for their groups.",
     "inputSchema": {
       "properties": {
         "symbol": {
@@ -1138,6 +1153,21 @@
           ],
           "default": null,
           "title": "Source"
+        },
+        "codes": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Codes"
         }
       },
       "title": "haltsArguments",
@@ -1237,8 +1267,125 @@
     }
   },
   {
+    "name": "news_search",
+    "description": "News across every stock in a date range (at most 366 days), no symbol needed. scope verdicts (default): one row per judged stock-day, newest first -- verdict e.g. [\"catalyst\"] (catalyst | negative | routine_only | noise_only | none_found), category e.g. [\"fda_regulatory\"], words in the deciding headline (a text match, e.g. [\"approv\", \"clear\"]); meta.categories counts every category in the range (the values category takes). scope items: every headline containing any of words (required), one row per item and stock it names. Only the backfill's target stock-days have verdicts and only its tickers have items: a stock-day in no row is unknown, never no news. Up to 5,000 rows (limit); output_name writes them.",
+    "inputSchema": {
+      "properties": {
+        "date_from": {
+          "title": "Date From",
+          "type": "string"
+        },
+        "date_to": {
+          "title": "Date To",
+          "type": "string"
+        },
+        "verdict": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Verdict"
+        },
+        "category": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Category"
+        },
+        "words": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Words"
+        },
+        "scope": {
+          "default": "verdicts",
+          "title": "Scope",
+          "type": "string"
+        },
+        "sources": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sources"
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Limit"
+        },
+        "output_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Name"
+        }
+      },
+      "required": [
+        "date_from",
+        "date_to"
+      ],
+      "title": "news_searchArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
     "name": "symbols",
-    "description": "Find a stock: query matches a ticker prefix or a company name; active true/false; types e.g. [\"CS\"]. With ticker: everything about it -- every company that used it and when, which one held it on day, a reused-ticker warning, and the company's other tickers (CIK history). Massive's list, latest dump.",
+    "description": "Find a stock: query matches a ticker prefix or a company name; active true/false; types e.g. [\"CS\"]; exchange e.g. \"XNAS\" (primary exchange); cik every ticker a company used. With ticker: everything about it -- every company that used it and when, which one held it on day, a reused-ticker warning, and the company's other tickers (CIK history). Massive's list, latest dump.",
     "inputSchema": {
       "properties": {
         "query": {
@@ -1308,6 +1455,30 @@
           "default": 50,
           "title": "Limit",
           "type": "integer"
+        },
+        "exchange": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exchange"
+        },
+        "cik": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cik"
         }
       },
       "title": "symbolsArguments",
@@ -1367,7 +1538,7 @@
   },
   {
     "name": "rvol_scan",
-    "description": "Relative volume of every common stock on every day, as of one ET clock time (at HH:MM: bars starting before it), from the relative-volume table (2016 on). Each row: date, symbol, kind, prev_close, price / price_et (the last bar's close and start), change_pct, volume (since 04:00), base_volume, rvol, volume_5m, base_5m, rvol_5m, day_avg_volume, rvol_daily, base_sessions, day_avg_sessions, split. filters: date_from, date_to (or symbol), price_min / price_max (prior close, $), rvol_min / rvol_max (on measure), volume_min (shares by at), change_min / change_max (percent points). measure: cumulative (volume since 04:00 / the prior sessions' mean to the same minute) | five_minute (the last 5 minutes / the same 5 minutes before) | daily_rate (volume since 04:00 / the mean whole-session volume of up to 50 sessions: the Five Pillars' \"5x the 50-day average\"). kinds default [\"CS\", \"ADRC\"] (also \"unknown\"); likely reverse splits left out (splits=include keeps); a measure needs min_base_sessions prior sessions (default 20). Sorted by the measure, largest first; 200 rows inline, rows counts all; output_name (new .parquet/.csv) for every row.",
+    "description": "Relative volume of every common stock on every day, as of one ET clock time (at HH:MM: bars starting before it), from the relative-volume table (2016 on). Each row: date, symbol, kind, prev_close, price / price_et (the last bar's close and start), change_pct, volume (since 04:00), base_volume, rvol, volume_5m, base_5m, rvol_5m, day_avg_volume, rvol_daily, base_sessions, day_avg_sessions, split. filters: date_from, date_to (or symbol), price_min / price_max (prior close, $), rvol_min / rvol_max (on measure), volume_min (shares by at), change_min / change_max (percent points). measure: cumulative (volume since 04:00 / the prior sessions' mean to the same minute) | five_minute (the last 5 minutes / the same 5 minutes before) | daily_rate (volume since 04:00 / the mean whole-session volume of up to 50 sessions: the Five Pillars' \"5x the 50-day average\"). kinds default [\"CS\", \"ADRC\"] (also \"unknown\"); likely reverse splits left out (splits=include keeps); a measure needs min_base_sessions prior sessions (default 20). Sorted by the measure, largest first; 200 rows inline, rows counts all; output_name (new .parquet/.csv) for every row. Day facts, as find_stock_days (joined only when asked, for the rows the filters above kept): catalyst verdicts e.g. [\"catalyst\"] ([\"unknown\"] = a day never judged); catalyst_category e.g. [\"fda_regulatory\"]; catalyst_words keeps a headline containing any word (e.g. [\"approv\"]: a text match); float_max on float_basis sec_outstanding (default: SEC shares OUTSTANDING filed by the day, NOT free float) | enrichment (the desk's own float, 2026-07-28 on) | best, float_unknown exclude | include | only; halted true/false; halt_codes e.g. [\"T1\", \"LUDP\"] or the groups \"news\" / \"luld\". Rows that pass add the asked parts' columns: catalyst_verdict / category / strength / title, float_shares / float_source / outstanding_*, halts / first_halt_et / halt_codes / luld_halts / news_halts. An unknown never passes: left out and counted in meta.left_out (catalyst_unknown, shares_unknown, halts_unknown), never read as no news or a small float.",
     "inputSchema": {
       "properties": {
         "at": {
@@ -1444,6 +1615,100 @@
           ],
           "default": null,
           "title": "Output Name"
+        },
+        "catalyst": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Catalyst"
+        },
+        "catalyst_category": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Catalyst Category"
+        },
+        "catalyst_words": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Catalyst Words"
+        },
+        "float_max": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Float Max"
+        },
+        "float_basis": {
+          "default": "sec_outstanding",
+          "title": "Float Basis",
+          "type": "string"
+        },
+        "float_unknown": {
+          "default": "exclude",
+          "title": "Float Unknown",
+          "type": "string"
+        },
+        "halted": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Halted"
+        },
+        "halt_codes": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Halt Codes"
         }
       },
       "required": [
@@ -1462,7 +1727,7 @@
   },
   {
     "name": "rvol_triggers",
-    "description": "The first minute each stock-day's relative volume reached rvol_min (5 = five times its baseline) inside [window_from, window_to) ET, with every filter holding at that bar -- e.g. the 6-7 AM surge. Rows: date, symbol, kind, prev_close, trigger_et (the bar's start), entry_et (its end: the first moment it is known), price (its close), change_pct, volume, base_volume, rvol, volume_5m, base_5m, rvol_5m, day_avg_volume, rvol_daily, above_before (already over the line before the window opened, so the window's first bar triggered; fresh=true leaves those out), base_sessions, split. filters: date_from, date_to (or symbol), price_min / price_max (prior close), volume_min (shares since 04:00 at the bar), change_min / change_max (percent points at the bar). measure: cumulative (volume since 04:00 / the prior sessions' mean to the same minute) | five_minute (the last 5 minutes / the same 5 minutes before) | daily_rate (volume since 04:00 / the mean whole-session volume of up to 50 sessions). Oldest day first; 200 inline, rows counts all.",
+    "description": "The first minute each stock-day's relative volume reached rvol_min (5 = five times its baseline) inside [window_from, window_to) ET, with every filter holding at that bar -- e.g. the 6-7 AM surge. Rows: date, symbol, kind, prev_close, trigger_et (the bar's start), entry_et (its end: the first moment it is known), price (its close), change_pct, volume, base_volume, rvol, volume_5m, base_5m, rvol_5m, day_avg_volume, rvol_daily, above_before (already over the line before the window opened, so the window's first bar triggered; fresh=true leaves those out), base_sessions, split. filters: date_from, date_to (or symbol), price_min / price_max (prior close), volume_min (shares since 04:00 at the bar), change_min / change_max (percent points at the bar). measure: cumulative (volume since 04:00 / the prior sessions' mean to the same minute) | five_minute (the last 5 minutes / the same 5 minutes before) | daily_rate (volume since 04:00 / the mean whole-session volume of up to 50 sessions). Oldest day first; 200 inline, rows counts all. Day facts on the triggers, as rvol_scan and find_stock_days: catalyst ([\"catalyst\"], [\"unknown\"] = never judged), catalyst_category ([\"fda_regulatory\"]), catalyst_words (headline contains any), float_max on float_basis sec_outstanding (SEC shares outstanding, not free float) | enrichment | best with float_unknown exclude | include | only, halted, halt_codes ([\"T1\", \"LUDP\"], \"news\", \"luld\"). Passing rows add the asked parts' columns (catalyst_*, float_shares / float_source / outstanding_*, halts / halt_codes ...); unknowns are left out, counted in meta.left_out.",
     "inputSchema": {
       "properties": {
         "rvol_min": {
@@ -1542,6 +1807,100 @@
           ],
           "default": null,
           "title": "Output Name"
+        },
+        "catalyst": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Catalyst"
+        },
+        "catalyst_category": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Catalyst Category"
+        },
+        "catalyst_words": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Catalyst Words"
+        },
+        "float_max": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Float Max"
+        },
+        "float_basis": {
+          "default": "sec_outstanding",
+          "title": "Float Basis",
+          "type": "string"
+        },
+        "float_unknown": {
+          "default": "exclude",
+          "title": "Float Unknown",
+          "type": "string"
+        },
+        "halted": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Halted"
+        },
+        "halt_codes": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Halt Codes"
         }
       },
       "required": [
@@ -1560,7 +1919,7 @@
   },
   {
     "name": "rvol_outcomes",
-    "description": "What came next: from every stock-day at clock time at (rvol_scan's rows) or from the first minute it crossed a line (trigger = {\"rvol_min\": 10, \"measure\"?, \"window_from\"?, \"window_to\"?, \"fresh\"?}; filters as rvol_triggers), did a bar's high reach +up_pct% or a low reach -down_pct% of the entry price first? The entry price is the close of the last bar before the entry clock; only later bars are read. horizon: close (before 16:00) | session (before 20:00) | days (days=1-20: then the next trading sessions' high / low on the entry's share basis; a horizon past the newest built session is left out as horizon_open). Outcomes up | down | same_bar (both in one minute: order unknown, never guessed) | same_day | neither. summary per group_by (rvol buckets on measure -- buckets edges, default 0,1,2,3,5,10,20,50,100,1000 -- or year | hour | none) plus all: entries, counts, p_up, p_down, p_up_resolved, median max up / down %, median and mean end %, median minutes to each line. Trigger entries get a control (on by default): one stock-day per trigger from the same date and universe that had not crossed the line by then, scored from the same clock. meta.left_out counts what was dropped. output_name writes every scored entry.",
+    "description": "What came next: from every stock-day at clock time at (rvol_scan's rows) or from the first minute it crossed a line (trigger = {\"rvol_min\": 10, \"measure\"?, \"window_from\"?, \"window_to\"?, \"fresh\"?}; filters as rvol_triggers), did a bar's high reach +up_pct% or a low reach -down_pct% of the entry price first? The entry price is the close of the last bar before the entry clock; only later bars are read. horizon: close (before 16:00) | session (before 20:00) | days (days=1-20: then the next trading sessions' high / low on the entry's share basis; a horizon past the newest built session is left out as horizon_open). Outcomes up | down | same_bar (both in one minute: order unknown, never guessed) | same_day | neither. summary per group_by (rvol buckets on measure -- buckets edges, default 0,1,2,3,5,10,20,50,100,1000 -- or year | hour | none) plus all: entries, counts, p_up, p_down, p_up_resolved, median max up / down %, median and mean end %, median minutes to each line. Trigger entries get a control (on by default): one stock-day per trigger from the same date and universe that had not crossed the line by then, scored from the same clock. meta.left_out counts what was dropped. output_name writes every scored entry. Day facts, as rvol_scan / find_stock_days -- catalyst ([\"catalyst\"], [\"unknown\"] = never judged), catalyst_category ([\"fda_regulatory\"]), catalyst_words (headline contains any), float_max on float_basis sec_outstanding (SEC shares outstanding, not free float) | enrichment | best with float_unknown exclude | include | only, halted, halt_codes ([\"T1\", \"LUDP\"], \"news\", \"luld\") -- narrow the entries AND the control pool (the same universe); unknowns are left out, counted in meta.left_out (catalyst_unknown, shares_unknown, halts_unknown). group_by also catalyst (the verdict) | catalyst_category | float (float_shares on float_basis: <5M, 5-10M, 10-20M, 20-50M, 50M+, each from its lower edge; meta. float_buckets); a stock-day with no value is the group \"unknown\" (never no news or a small float), and a control is grouped with its trigger.",
     "inputSchema": {
       "properties": {
         "filters": {
@@ -1698,6 +2057,100 @@
           ],
           "default": null,
           "title": "Output Name"
+        },
+        "catalyst": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Catalyst"
+        },
+        "catalyst_category": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Catalyst Category"
+        },
+        "catalyst_words": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Catalyst Words"
+        },
+        "float_max": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Float Max"
+        },
+        "float_basis": {
+          "default": "sec_outstanding",
+          "title": "Float Basis",
+          "type": "string"
+        },
+        "float_unknown": {
+          "default": "exclude",
+          "title": "Float Unknown",
+          "type": "string"
+        },
+        "halted": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Halted"
+        },
+        "halt_codes": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Halt Codes"
         }
       },
       "required": [
@@ -2073,6 +2526,300 @@
         "filters"
       ],
       "title": "signal_testArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "sec_filings_scan",
+    "description": "Who filed a form, across companies: every SEC filing of forms (required, matched exactly: [\"424B5\"], [\"S-1\", \"S-1/A\"], [\"8-K\"], [\"SC 13D\", \"SCHEDULE 13D\"]) filed date_from..date_to (YYYY-MM-DD, required, at most 31 days). Reads SEC's submissions.zip company by company -- every company in Massive's ticker list, active and delisted (a filer that never held a ticker Massive lists is not read unless ciks names it): about 7 s for a week, up to ~18 s for a broad form over a month, ~10 s more on a server's first SEC read; tickers (the company that held each on date_from and date_to), ciks or sic (SEC's own code today: \"2834\", or \"283*\" a prefix) narrow it. Rows: filed, accepted_et (SEC's acceptance time on its own clock, ET; accepted_clock says what placed it), form, ticker (the ticker the company held on the filing day, null before its listing), tickers (every ticker Massive gives the CIK), cik, company, sic, accession, report_date, items (8-K item numbers). A Form 4 or Schedule 13D/G is listed under the subject company too: each row names its own cik. Lists filings, not their contents; meta.scanned counts what was read. output_name (new .parquet/.csv) for all rows.",
+    "inputSchema": {
+      "properties": {
+        "forms": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Forms",
+          "type": "array"
+        },
+        "date_from": {
+          "title": "Date From",
+          "type": "string"
+        },
+        "date_to": {
+          "title": "Date To",
+          "type": "string"
+        },
+        "tickers": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tickers"
+        },
+        "ciks": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ciks"
+        },
+        "sic": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sic"
+        },
+        "output_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Name"
+        }
+      },
+      "required": [
+        "forms",
+        "date_from",
+        "date_to"
+      ],
+      "title": "sec_filings_scanArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "short_interest_scan",
+    "description": "Which stocks had short interest of at least min_shares shares and / or min_days_to_cover days, at ONE FINRA settlement: settlement (YYYY-MM-DD, twice a month) or the newest one published by day at ET HH:MM -- the same publish lag as short_interest (a settlement counts from its 8th business day; meta.picked names it, and the newer one still pending). Every row is that settlement's: a stock missing from it is missing, never read from an older one. COMMON STOCK (CS, ADRC) by default; kinds [\"all\"] keeps ETFs, preferreds, warrants and OTC names Massive's list does not type (meta.left_out counts what kinds dropped). Rows: ticker (as FINRA writes it: ABRpD), cik and company (who held the ticker that settlement day), type, settlement_date, short_interest, avg_daily_volume, days_to_cover (999.99 is FINRA's cap), counts_from. sort short_interest | days_to_cover (largest first) | ticker.",
+    "inputSchema": {
+      "properties": {
+        "settlement": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Settlement"
+        },
+        "day": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Day"
+        },
+        "at": {
+          "default": "09:30",
+          "title": "At",
+          "type": "string"
+        },
+        "min_shares": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min Shares"
+        },
+        "min_days_to_cover": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min Days To Cover"
+        },
+        "kinds": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kinds"
+        },
+        "sort": {
+          "default": "short_interest",
+          "title": "Sort",
+          "type": "string"
+        },
+        "output_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Name"
+        }
+      },
+      "title": "short_interest_scanArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "sector_scan",
+    "description": "Every listed company in an industry: SIC codes ([\"2834\"], or [\"283*\"] for every code starting 283) OR words of the SIC description ([\"pharmaceutical\"]: any word, any case), optionally on exchange (primary exchange: XNAS, XNYS, XASE, ARCX, BATS, \"OTC Link\") and active true/false. COMMON STOCK (CS, ADRC) by default; kinds [\"all\"] keeps warrants, units, preferreds. Rows: ticker, name, cik, sic, sic_description, exchange, list_date, type, active. SIC is the reference dump's LATEST (Massive ticker details), not as of a past day, and the dump has ticker details only for tickers active when it was taken: a delisted company is not here (sec_filings_scan's sic reads SEC's own code, delisted companies included).",
+    "inputSchema": {
+      "properties": {
+        "sic": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sic"
+        },
+        "sic_words": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sic Words"
+        },
+        "exchange": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exchange"
+        },
+        "active": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Active"
+        },
+        "kinds": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kinds"
+        },
+        "output_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Name"
+        }
+      },
+      "title": "sector_scanArguments",
       "type": "object"
     },
     "annotations": {

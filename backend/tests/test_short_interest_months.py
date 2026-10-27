@@ -25,6 +25,7 @@ ROWS = [
     {"settlement_date": "2026-08-31", "ticker": "SDEV", "short_interest": 1_177_802, "days_to_cover": 1.0},
     {"settlement_date": "2026-09-15", "ticker": "SDEV", "short_interest": 1_212_152, "days_to_cover": 4.4},
     {"settlement_date": "2026-09-15", "ticker": "PFAI", "short_interest": 9_077, "days_to_cover": 9.11},
+    {"settlement_date": "2026-09-15", "ticker": "SDEVp", "short_interest": 4_000, "days_to_cover": 2.0},  # preferred
     {"settlement_date": "2026-09-30", "ticker": "SDEV", "short_interest": 3_436_239, "days_to_cover": 1.0},
     {"ticker": "BAD", "short_interest": 1},
 ]
@@ -48,12 +49,15 @@ def test_the_split_is_what_the_replay_read_opens(tmp_path, monkeypatch):
 
     counts = short_interest_months.split_by_month(ref)
 
-    assert counts == {"skipped": 1, "2026-08": 1, "2026-09": 3}
+    assert counts == {"skipped": 1, "2026-08": 1, "2026-09": 4}
     assert sorted(p.name for p in (ref / "short_interest").iterdir()) == ["2026-08.jsonl", "2026-09.jsonl"]
     assert not short_interest_months.needs_split(ref)
     found = short_interest.published_at("SDEV", oct2)
     assert found["row"]["short_interest"] == 1_212_152
     assert found["pending"] == {"settlement_date": date(2026, 9, 30), "counts_from": date(2026, 10, 12)}
+    # a lowercase letter is another security (FINRA's SDEVp): read as written, never as SDEV's
+    assert short_interest.published_at("SDEVp", oct2)["row"]["short_interest"] == 4_000
+    assert short_interest.published_at("sdev", oct2)["row"]["short_interest"] == 1_212_152   # typed in lower case
 
 
 def test_a_newer_dump_is_split_again(tmp_path, monkeypatch):

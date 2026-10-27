@@ -25,6 +25,8 @@ MOVER_COLUMNS = (
 SEC_SHARES_COLUMNS = ("symbol", "cik", "as_of", "filed", "shares", "form")
 SPLIT_COLUMNS = ("symbol", "execution_date", "split_from", "split_to")
 TICKER_HOLDER_COLUMNS = ("symbol", "cik", "held_from", "held_to")
+DAY_FACT_COLUMNS = ("session_date", "symbol", "catalyst_verdict", "catalyst_category", "catalyst_strength",
+                    "catalyst_title", "halts", "halt_codes", "luld_halts", "news_halts", "rvol_daily")
 
 _REAL = {
     "prev_close", "prev_volume", "split_factor", "open", "high", "low", "close", "volume",
@@ -49,6 +51,23 @@ TICKER_HOLDERS_DDL = """CREATE TABLE IF NOT EXISTS ticker_holders (
         cik TEXT,
         held_from TEXT,
         held_to TEXT
+    )"""
+
+# What was known about a stock-day beyond its prices (``day_movers.facts``), exported whole from the research stores
+# by ``research/movers/export_day_facts.py``. A null is unknown, never "no news" / "no halt"; no row: not exported.
+DAY_FACTS_DDL = """CREATE TABLE IF NOT EXISTS day_facts (
+        session_date TEXT NOT NULL,
+        symbol TEXT NOT NULL,
+        catalyst_verdict TEXT,
+        catalyst_category TEXT,
+        catalyst_strength TEXT,
+        catalyst_title TEXT,
+        halts INTEGER,
+        halt_codes TEXT,
+        luld_halts INTEGER,
+        news_halts INTEGER,
+        rvol_daily REAL,
+        PRIMARY KEY (session_date, symbol)
     )"""
 
 DDL = (
@@ -88,6 +107,7 @@ DDL = (
     )""",
     TICKER_HOLDERS_DDL,
     "CREATE INDEX IF NOT EXISTS ticker_holders_by_symbol ON ticker_holders (symbol)",
+    DAY_FACTS_DDL,
 )
 
 

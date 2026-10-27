@@ -9,12 +9,13 @@ import logging
 import sqlite3
 from typing import Any
 
-from day_movers import floats, query, store
+from day_movers import facts, floats, query, store
 from day_movers.schema import MOVER_COLUMNS, UnknownDayMoversSchema
 
 logger = logging.getLogger(__name__)
 
 NOT_BUILT = "the movers index is not built yet: py -3 research/movers/build_movers.py"
+FACTS_NOT_EXPORTED = "py -3 research/movers/export_day_facts.py"
 
 
 class IndexUnavailable(RuntimeError):
@@ -53,7 +54,13 @@ def search(params: dict[str, Any]) -> dict[str, Any]:
         answer = query.search(
             db, q, replayable=replayable_days(),
             floats=lambda pairs, limit: floats.proofs(pairs, limit, db=db),
+            day_facts=lambda pairs: facts.read(db, pairs),
         )
+        if facts.from_query(q).asks_facts:
+            answer["day_facts"] = facts.exported(db)
+            if not answer["day_facts"]["exported"]:
+                answer["notes"].append(f"the day facts are not exported, so every news / halt / relative-volume "
+                                       f"fact is unknown: {FACTS_NOT_EXPORTED}")
     finally:
         db.close()
     answer["schema_version"] = 1

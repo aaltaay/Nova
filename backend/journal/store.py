@@ -12,6 +12,8 @@ from __future__ import annotations
 import json
 import sqlite3
 import time
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from constants import (
     JOURNAL_SIGNALS_DEFAULT_LIMIT,
@@ -20,6 +22,8 @@ from constants import (
     JOURNAL_TRADES_DEFAULT_LIMIT,
 )
 from journal.db import get_connection
+
+_ET = ZoneInfo("America/New_York")
 
 
 def _normalize_tags(tags: list[str] | None) -> list[str]:
@@ -148,12 +152,40 @@ def record_trade(
         conn.close()
 
 
-def get_trades(limit: int = JOURNAL_TRADES_DEFAULT_LIMIT, include_mock: bool = False) -> list[dict]:
+def _et_day_start(day: str, plus_days: int = 0) -> float:
+    start = datetime.combine(date.fromisoformat(day) + timedelta(days=plus_days), datetime.min.time(), _ET)
+    return start.timestamp()
+
+
+def get_trades(limit: int = JOURNAL_TRADES_DEFAULT_LIMIT, include_mock: bool = False, *,
+               symbol: str | None = None, setup: str | None = None, tag: str | None = None,
+               adherent: bool | None = None, date_from: str | None = None,
+               date_to: str | None = None) -> list[dict]:
+    """The newest ``limit`` trades that match every filter given: ``symbol`` and ``setup`` exact (any case), ``tag``
+    one of the trade's tags (any case), ``adherent`` the plan flag (a trade with none matches neither), ``date_from``
+    / ``date_to`` the ET day the trade opened (YYYY-MM-DD, inclusive). ``ValueError`` on a malformed day."""
+    clauses, args = ([] if include_mock else ["is_mock = 0"]), []
+    for clause, value in (("upper(symbol) = ?", symbol and symbol.strip().upper()),
+                          ("lower(setup) = ?", setup and setup.strip().lower()),
+                          ("opened_ts >= ?", date_from and _et_day_start(date_from)),
+                          ("opened_ts < ?", date_to and _et_day_start(date_to, 1))):
+        if value:
+            clauses.append(clause)
+            args.append(value)
+    if adherent is not None:
+        clauses.append("adherent = ?")
+        args.append(1 if adherent else 0)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    wanted_tag = (tag or "").strip().lower()
     conn = get_connection()
     try:
-        where = "" if include_mock else "WHERE is_mock = 0"
+        if wanted_tag:      # tags are a JSON list: matched here, so the limit counts matches
+            rows = conn.execute(f"SELECT * FROM trades {where} ORDER BY opened_ts DESC", args).fetchall()
+            trades = [t for t in (_row_to_trade(dict(row)) for row in rows)
+                      if wanted_tag in {str(x).lower() for x in t["tags"]}]
+            return trades[:limit]
         rows = conn.execute(
-            f"SELECT * FROM trades {where} ORDER BY opened_ts DESC LIMIT ?", (limit,)
+            f"SELECT * FROM trades {where} ORDER BY opened_ts DESC LIMIT ?", (*args, limit)
         ).fetchall()
         return [_row_to_trade(dict(row)) for row in rows]
     finally:
