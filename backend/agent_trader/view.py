@@ -135,6 +135,7 @@ def status(now: float | None = None) -> dict[str, Any]:
         "working": [_order(r) for r in working],
         "breaks": breaks,
         "reflexes": [{**r, "text": reflexes.text(r)} for r in st.get("reflexes") or []],
+        "exits": st.get("exits") or {},
         "today": {"entries": entries, "max_entries": AGENT_MAX_ENTRIES_A_DAY, "pnl": pnl,
                   "day_stop": AGENT_DAY_STOP_USD, "fills": len(fills)},
         "limits": {"max_shares": AGENT_MAX_SHARES, "max_risk_usd": AGENT_MAX_RISK_USD},
