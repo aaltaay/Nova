@@ -54,7 +54,7 @@ shares or working orders that are not Claude's; never while the view lock holds 
 **Sends.** Entries `operation: "bracket"`, `source: "bot"`, `origin: "claude"`, `expected_venue: "paper"`; stop
 moves `replace` the same way; closes `source: "flatten"` market SELLs and cancels `source: "cancel_working"`, both
 `target_venue: "paper"`. `execution.venue_door` refuses any `claude` send while the desk is not on Paper and any
-`claude` close named to Live. Practice rows carry `order_origin: "claude"`; Claude's position is its own fills.
+`claude` close named to Live. Practice rows carry `order_origin: "claude"`; Claude's position is its own fills, never more than Paper holds in the stock: Nova's own closes (the loss limit's Auto sell, KILL, a margin call) sell Claude's shares under their own origin, and Claude's P&L counts those shares at the price those closes got.
 Claude's fills count on the **Bots** loss line (`loss_limit.accounts.by_of`, `LOSS_LIMIT_BOT_CLOSE_ORIGINS`).
 
 **A break.** The seat watches each break's symbol every second (`agent_trader.watcher`): the first print that sets a

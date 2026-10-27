@@ -364,6 +364,30 @@ def test_an_entry_fills_then_nova_sells_claudes_shares_at_1555(paper):
     assert ledger.position("SMPL") == 0 and not ledger.working()
 
 
+def test_shares_nova_sells_for_claude_leave_claudes_books(paper):
+    """Codex review on PR #1239: the Bots line's Auto sell closes Claude's shares under its own origin."""
+    h = _seat(paper)
+    got = paper.client.post("/api/agent/trader/order", headers=h, json={
+        "kind": "limit", "symbol": "SMPL", "qty": 100, "entry": 4.25, "stop": 4.00, "target": 4.80, "why": "go"})
+    assert got.status_code == 200 and ledger.position("SMPL") == 100
+    for row in ledger.working():
+        asyncio.run(service.execute(ExecutionCommand(
+            operation="cancel", idempotency_key=f"ll-cancel-{row['order_id']}", source="cancel_working",
+            symbol="SMPL", order_id=int(row["order_id"]), target_venue="paper", origin="loss_limit_bots"),
+            wait_ack=False))
+    paper.market.px["SMPL"] = [4.30, 4.29, 4.31]
+    sold = asyncio.run(service.execute(ExecutionCommand(
+        operation="place", idempotency_key="ll-sell", source="flatten", origin="loss_limit_bots", symbol="SMPL",
+        side="SELL", qty=100.0, order_type="MKT", outside_rth=True, skip_risk=True, target_venue="paper",
+        intent="flatten"), wait_ack=False))
+    assert sold.ok, sold.error
+    assert paper.broker.ledger.held_qty("SMPL") == 0
+    assert ledger.position("SMPL") == 0 and ledger.positions() == {}
+    assert ledger.others_in("SMPL") is None                   # no phantom shares blocking the next trade
+    assert 6.0 < ledger.day_pnl() < 8.0                       # bought at the 4.21 ask, sold at the 4.29 bid, less fees
+    assert asyncio.run(watcher.end_seat("test")) == []        # nothing left to sell
+
+
 def test_claude_will_not_trade_a_stock_someone_else_holds(paper):
     h = _seat(paper)
     receipt = asyncio.run(service.execute(ExecutionCommand(
