@@ -148,6 +148,15 @@ export function todayRow(status: ClaudeSeatStatus): string {
   return `Trades ${t.entries} of ${t.max_entries} · ${pnl}${stop}`;
 }
 
+export const CLAUDE_WHY_BUSY = 'Waiting for Nova to answer your last press.';
+export const CLAUDE_WHY_OFF = "Claude's seat is off: it holds no line and no trade.";
+
+/** Why a seat button is locked, or undefined while it works (ux/whyTip shows it). */
+export function lockWhy(busy: boolean, on: boolean): string | undefined {
+  if (busy) return CLAUDE_WHY_BUSY;
+  return on ? undefined : CLAUDE_WHY_OFF;
+}
+
 /** "checked in 40 s ago" from the lease's last beat. */
 export function checkedIn(status: ClaudeSeatStatus, nowSec = Date.now() / 1000): string | null {
   if (status.beat_at === null) return null;

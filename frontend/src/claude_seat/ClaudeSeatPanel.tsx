@@ -7,7 +7,8 @@ import { useState } from 'react';
 import { confirmApp } from '../ux';
 import { giveClaudeLineBack, stopClaude, takeClaudesLine } from './claudeSeatApi';
 import { applyClaudeSeat } from './claudeSeatStore';
-import { buySetRow, checkedIn, etClock, fmtPrice, fmtQty, lineRow, todayRow } from './claudeSeatWords';
+import { TickerLink } from '../components/TickerLink';
+import { buySetRow, checkedIn, etClock, fmtPrice, fmtQty, lineRow, lockWhy, todayRow } from './claudeSeatWords';
 import { ClaudeMark } from './ClaudeMark';
 import type { ClaudeSeatStatus } from './types';
 
@@ -60,7 +61,7 @@ export function ClaudeSeatPanel({ status }: { status: ClaudeSeatStatus }) {
       {position ? (
         <div className="claude-panel__row">
           <span>Position</span>
-          <span>{fmtQty(position.qty)} {position.symbol}{position.mark !== null ? ` · now ${fmtPrice(position.mark)}` : ''}</span>
+          <span>{fmtQty(position.qty)} <TickerLink symbol={position.symbol} />{position.mark !== null ? ` · now ${fmtPrice(position.mark)}` : ''}</span>
         </div>
       ) : null}
       {buySet ? <div className="claude-panel__row"><span>Buy set</span><span>{buySet}</span></div> : null}
@@ -74,18 +75,18 @@ export function ClaudeSeatPanel({ status }: { status: ClaudeSeatStatus }) {
       {status.read_error ? <p className="claude-panel__warn" role="status">{status.read_error}</p> : null}
       <div className="claude-panel__btns">
         {status.yielded ? (
-          <button type="button" className="claude-btn" disabled={busy} data-testid="claude-give-back"
+          <button type="button" className="claude-btn" disabled={busy} data-why={lockWhy(busy, true)} data-testid="claude-give-back"
             onClick={() => { void run(giveClaudeLineBack); }}>
             Give Claude its line back
           </button>
         ) : (
           <button type="button" className="claude-btn claude-btn--warn" disabled={busy || !status.on}
-            data-testid="claude-take-line" onClick={() => { void run(takeClaudesLine); }}>
+            data-why={lockWhy(busy, status.on)} data-testid="claude-take-line" onClick={() => { void run(takeClaudesLine); }}>
             Take Claude's line
           </button>
         )}
         <button type="button" className="claude-btn claude-btn--stop" disabled={busy || !status.on}
-          data-testid="claude-stop" onClick={() => { void stop(); }}>
+          data-why={lockWhy(busy, status.on)} data-testid="claude-stop" onClick={() => { void stop(); }}>
           Stop Claude
         </button>
       </div>

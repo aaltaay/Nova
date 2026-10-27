@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { takeClaudesLine } from './claudeSeatApi';
 import { applyClaudeSeat, useClaudeSeat } from './claudeSeatStore';
+import { lockWhy } from './claudeSeatWords';
 import { ClaudeMark } from './ClaudeMark';
 import './claudeSeat.css';
 
@@ -42,7 +43,7 @@ export function ClaudeLinesFullBox({ message }: { message: string }) {
       {/* The chips say whose lines they are; without them, the backend's own sentence says it. */}
       <p className="claude-lines-full__msg">{yours.length || claude ? CLAUDE_LINES_WAYS : message}</p>
       <button type="button" className="claude-btn claude-btn--warn" disabled={busy || !status?.on}
-        data-testid="claude-lines-full-take" onClick={() => { void take(); }}>
+        data-why={lockWhy(busy, status?.on === true)} data-testid="claude-lines-full-take" onClick={() => { void take(); }}>
         Take Claude's line
       </button>
       {why ? <p className="claude-panel__warn" role="alert">{why}</p> : null}
