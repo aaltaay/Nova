@@ -7,6 +7,9 @@
  * the pane drew a cut label: `2026` read `026`, `10:00 AM` read `10:00 A`.
  * A label that would cross the axis edge is left out instead; its tick and
  * grid line stay, and the crosshair label (its own canvas) is untouched.
+ *
+ * Contract and its dependency on the library's canvas layout:
+ * `architecture/chart-time-axis-labels.md`.
  */
 
 import type { IChartApi } from 'lightweight-charts';
