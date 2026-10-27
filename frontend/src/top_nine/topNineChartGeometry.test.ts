@@ -45,6 +45,17 @@ describe('topNineChartGeometry', () => {
     expect(geo.plotRight - geo.candles[1].x).toBeGreaterThan(100);
   });
 
+  it('treats a rounding hair between price and VWAP as flat (MANH, 2026-10-27: the tick loop never ended)', () => {
+    // One print at 242.45; the session VWAP divides out to 242.44999999999996. A 3e-14 span made a
+    // tick step below the price's own rounding, so `v += step` never moved and the window froze.
+    const flat: IndicatorBar = { time: et(16, 5), open: 242.45, high: 242.45, low: 242.45, close: 242.45, volume: 100 };
+    const geo = topNineChartGeometry([flat], [{ time: flat.time, value: 242.44999999999996 }], 242.45, BOX)!;
+    expect(geo.priceTicks.length).toBeGreaterThan(0);
+    expect(geo.priceTicks.length).toBeLessThan(10);
+    expect(new Set(geo.priceTicks.map((t) => t.label)).size).toBe(geo.priceTicks.length);
+    expect(geo.candles[0].bodyH).toBeGreaterThanOrEqual(1);
+  });
+
   it('answers null with no bars or no room', () => {
     expect(topNineChartGeometry([], [], 1, BOX)).toBeNull();
     expect(topNineChartGeometry([bar(9, 0, 1)], [], 1, { width: 40, height: 20 })).toBeNull();
