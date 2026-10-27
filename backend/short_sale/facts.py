@@ -126,7 +126,7 @@ def gather(symbol: str, venue: str, *, borrow: dict[str, Any] | None = None, now
                      ssr=ssr.replay(sym, at, day, prints), halt=halts.replay(sym, at, day, prices=prints),
                      bid=bid, ask=ask, last=last)
     snap = borrow if borrow is not None else shortability.for_order(sym)
-    ssr.request_history(sym, at)
+    ssr.request_history(sym, at, urgent=True)
     answer = whatif.answer_for(sym, "SELL", now=time.time())
     return Facts(venue=venue, symbol=sym, now=at, replay=False, borrow=snap, borrow_why=None,
                  whatif=answer, ssr=ssr.live(sym, at), halt=halts.live(sym, at), bid=bid, ask=ask, last=last,

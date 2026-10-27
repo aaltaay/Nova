@@ -969,8 +969,11 @@ things this desk spends; the strip shows each as used of its cap, and who uses i
 **Who comes first.** Level 1: the scanner and HOD Momo plan their lines inside what every other owner -- a Trader
 tab, the bots, the followed traders -- leaves (`l1_refused.plan_budget`), and a refused line is asked again in that
 order too: a Trader tab and the Live Trader bot first, the followed traders and the scanner next, HOD Momo last
-(`l1_refused._OWNER_RANK`). History, from first to last: an open chart and the short check's SSR read down to the last
-request; background chart fills stop while `IBKR_HISTORY_TRADING_RESERVE` (10) or fewer are left; the TraderTV exits,
+(`l1_refused._OWNER_RANK`). History, from first to last: an open chart and the SSR read of the stock on the ticket or
+about to be shorted (the short check, the order door, a bot's short) down to the last request; background chart fills,
+Cryptos' daily closes and every other SSR read stop while `IBKR_HISTORY_TRADING_RESERVE` (10) or fewer are left (the
+setup scanner asks SSR for each watched stock trading under its prior close; 2026-10-27, 16 of those reads in 16 s
+filled the window and a chart opened just after waited 22 s); the TraderTV exits,
 ticker checks and LULD at 20 or fewer (`FOLLOWED_EXIT_HEADROOM`, `LULD_BACKFILL_HEADROOM`); a painted chart's
 refresh (a `warm` fill, every 45 s while its bars are stale) at 30 or fewer (`IBKR_HISTORY_WARM_RESERVE`, 2026-10-27:
 with ten charts open it spent the whole window and no TraderTV exit was read all morning); the Market, Global

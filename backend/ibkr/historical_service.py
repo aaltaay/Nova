@@ -288,14 +288,23 @@ async def _run_fetch(
             _open_chart_depth = max(0, _open_chart_depth - 1)
 
 
-async def request_daily_bars(symbol: str, duration: str, *, use_rth: bool) -> list[dict[str, Any]]:
+def _daily_reserve(urgent: bool) -> None:
+    """``HistoricalShed`` when a background daily read would spend the trading reserve; an urgent one may not be."""
+    reserved = None if urgent else _reserve_shed("background")
+    if reserved:
+        raise HistoricalShed(reserved)
+
+
+async def request_daily_bars(symbol: str, duration: str, *, use_rth: bool, urgent: bool = False) -> list[dict[str, Any]]:
     """IBKR's daily TRADES bars, ``[{date, open, high, low, close}]`` oldest first (ADR 040, ADR 048).
 
     ``use_rth``: the regular session's bars, whose close is the official one, never the last
     after-hours trade the desk's stored daily bars end on; without it, the whole 04:00-20:00 day,
     today's bar running to now (the SSR read takes its low). Background priority, paced like every
-    other historical request: ``HistoricalShed`` while an open chart is loading or pacing asks for a
-    wait, and the caller asks again later. Nothing is stored or pushed. Must run on the IB connect-loop.
+    other historical request: ``HistoricalShed`` while an open chart is loading, pacing asks for a
+    wait or ``IBKR_HISTORY_TRADING_RESERVE`` or fewer are left, and the caller asks again later.
+    ``urgent``: the SSR read of the stock on the ticket or about to be shorted, which goes down to the
+    last request like an open chart. Nothing is stored or pushed. Must run on the IB connect-loop.
     """
     assert_ib_loop()
     from ib_async import Stock
@@ -309,12 +318,14 @@ async def request_daily_bars(symbol: str, duration: str, *, use_rth: bool) -> li
         raise HistoricalShed("open chart has priority")
     if _pacing.wait_seconds(sym, key, duration) > 0:
         raise HistoricalShed("pacing asks for a wait")
+    _daily_reserve(urgent)
     ib = _client.get_ib()
     if ib is None:
         raise ConnectionError("IBKR is not connected")
     async with _semaphore():
         if _pacing.wait_seconds(sym, key, duration) > 0:
             raise HistoricalShed("pacing asks for a wait")
+        _daily_reserve(urgent)   # again, holding the slot: reads admitted together must not spend the reserve
         _pacing.record(sym, key, duration)
         qualified = await ib.qualifyContractsAsync(Stock(sym, "SMART", "USD"))
         contract = next((c for c in qualified or [] if c is not None), None)
