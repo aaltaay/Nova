@@ -215,7 +215,7 @@ def update_ticker_snapshot(
         snap.gap_pct = gap_pct
     if volume is not None:
         snap.volume = volume
-        _metrics.update_cum_volume(symbol, volume, time.time())
+        _metrics.update_cum_volume(symbol, volume, time.time(), price)
     if change_pct is not None:
         snap.change_pct = change_pct
     if fifty_two_week_high is not None:

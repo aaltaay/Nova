@@ -54,7 +54,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Any
+from typing import Any, Callable
 
 from capture.constants_capture import CAPTURE_MAX_CONCURRENT, CAPTURE_STOP_AUTO
 from market import session_key_for_ts
@@ -298,6 +298,22 @@ async def make_room_for(symbol: str, *, for_record: bool = False, tape_refused: 
         kind = "tape" if tape_refused else "record" if for_record else "depth"
         _reserved[sym] = (time.time() + LEADERBOARD_AUTO_RECORD_YIELD_HOLD_SEC, kind)
         _yielded.append({"symbol": victim, "for": sym, "at": time.time()})
+        del _yielded[:-10]
+        return victim
+
+
+async def yield_to_agent(symbol: str, choose: Callable[[list[str]], str | None]) -> str | None:
+    """Claude's seat found all 3 Level 2 lines held (ADR 068 decision 3, amended 2026-10-27): stop the auto line
+    ``choose`` picks from auto-record's lines, lowest-ranked first, at once; the symbol stopped, or None.
+
+    The seat's reservation (``agent_trader.lines.desk_free``) keeps the next tick from taking it back."""
+    async with _lock:
+        ranked = sorted(_auto, key=lambda s: (_rank(s), _auto[s]), reverse=True)
+        victim = choose(ranked)
+        if victim not in _auto:
+            return None
+        await _stop(victim, f"yielded its line to Claude's {symbol}", at_once=True)
+        _yielded.append({"symbol": victim, "for": symbol, "at": time.time(), "to": "claude"})
         del _yielded[:-10]
         return victim
 
