@@ -19,6 +19,9 @@ from agent_trader.constants_agent_trader import (
     AGENT_BREAK_DEFAULT_MIN,
     AGENT_BREAK_MAX_MIN,
     AGENT_EYE_WAIT_MAX_SEC,
+    AGENT_POP_PCT_DEFAULT,
+    AGENT_POP_PCT_MAX,
+    AGENT_POP_PCT_MIN,
     AGENT_NOT_MINE,
     AGENT_NOT_PAPER,
     AGENT_REFLEX_DEFAULT_MIN,
@@ -29,6 +32,7 @@ from agent_trader.constants_agent_trader import (
     AGENT_VENUE,
     ENTRY_BREAK,
     ENTRY_LIMIT,
+    EXIT_POP,
 )
 from auth import require_agent_key
 
@@ -69,6 +73,8 @@ class OrderBody(BaseModel):
     target1_qty: float | None = Field(default=None, gt=0)
     minutes: float | None = Field(default=None, gt=0)    # a break's life
     confirm: ConfirmBody | None = None                   # a break sends only while buyers lead (reflexes.confirmed)
+    exit: Literal["pop"] | None = None                   # half at the first pop, then the stop to entry (decision 13)
+    pop_pct: float | None = Field(default=None, ge=AGENT_POP_PCT_MIN, le=AGENT_POP_PCT_MAX)
     why: str = Field(min_length=1, max_length=400)       # one line for the desk
 
 
@@ -203,9 +209,12 @@ async def place(body: OrderBody, x_agent_seat: str | None = Header(default=None)
         order["entry"] = body.top
     elif body.entry is None:
         raise _refuse(AGENT_REFUSED, "a limit needs its entry price")
+    if body.exit == EXIT_POP and (why := _pop_exit(order, body.pop_pct)):
+        raise _refuse(AGENT_REFUSED, why)
     if refused := rules.entry_refusal(order, pending_breaks=len(seat.breaks())):
         raise _refuse(*refused)
     seat.set_note(body.why)
+    seat.set_exit(order["symbol"], {"mode": EXIT_POP, "pop_pct": order["pop_pct"]} if body.exit == EXIT_POP else None)
     if body.kind == ENTRY_LIMIT:
         receipt = await orders.send_entry(order, tag="limit")
         if why := orders.receipt_error(receipt):
@@ -222,6 +231,21 @@ async def place(body: OrderBody, x_agent_seat: str | None = Header(default=None)
                                  "confirm")}
     made = seat.add_break({**row, "expires_at": clock.now() + minutes * 60.0, "why": body.why})
     return {"break": made, "status": view.status()}
+
+
+def _pop_exit(order: dict[str, Any], pop_pct: float | None) -> str | None:
+    """Make ``order`` the pop exit: half (rounded down) at ``pop_pct`` over entry, the rest at Claude's ``target``.
+
+    The stop moves to entry once the first half sells (``guard``). Why not, or None."""
+    qty, entry = float(order["qty"]), float(order["entry"])
+    pct = float(pop_pct if pop_pct is not None else AGENT_POP_PCT_DEFAULT)
+    pop = round(entry * (1.0 + pct / 100.0), 2 if entry >= 1.0 else 4)
+    if qty < 2:
+        return "the pop exit sells half: it needs 2 shares or more"
+    if float(order["target"]) <= pop:
+        return f"the pop exit sells half at {pop:g} ({pct:g}% over entry): the target must be above it"
+    order.update(target=pop, target2=float(order["target"]), target1_qty=float(int(qty // 2)), pop_pct=pct)
+    return None
 
 
 def _mine(order_id: int) -> dict[str, Any]:

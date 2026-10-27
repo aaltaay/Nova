@@ -55,6 +55,22 @@ AGENT_EYE_EVENTS_KEEP = 50
 AGENT_EYE_EVENTS_MAX_AGE_SEC = 1800.0
 AGENT_EYE_WAIT_MAX_SEC = 30.0         # the longest ``?wait=`` long-poll
 
+# The in-trade guard (decision 13): while Claude holds shares, Nova sells them the moment one of these holds
+# (operator, 2026-10-27, from the AIOK prototype that closed at -$40 against -$140 at the hard stop).
+AGENT_GUARD_SELLERS_SECONDS = 5.0       # 1. sellers lead: in the last 5 s ...
+AGENT_GUARD_SELLERS_RATIO = 2.0         # ... at least 2x what lifted the ask ...
+AGENT_GUARD_SELLERS_MIN_SHARES = 1500.0  # ... and at least 1,500 shares at the bid
+AGENT_GUARD_BID_LEVELS = 5              # 2. the top 5 bid prices ...
+AGENT_GUARD_BID_STACK_FRACTION = 1.0 / 3.0  # ... fall under a third of their size at entry
+AGENT_GUARD_BID_UNDER_ENTRY_PCT = 0.4   # 3. the best bid 0.4% or more under Claude's entry
+AGENT_GUARD_RETRY_SEC = 5.0             # a close the door refused is tried again after this
+
+# The pop exit (decision 13): half sold at the first pop, then the stop to entry.
+EXIT_POP = "pop"
+AGENT_POP_PCT_DEFAULT = 1.5             # the first half's target over entry ("about +1.5-2%")
+AGENT_POP_PCT_MIN = 0.5
+AGENT_POP_PCT_MAX = 5.0
+
 # Entry kinds (decision 8).
 ENTRY_LIMIT = "limit"
 ENTRY_BREAK = "break"
