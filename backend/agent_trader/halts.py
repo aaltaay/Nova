@@ -1,4 +1,4 @@
-"""Claude's seat and trading halts (ADR 068 decision 16, 2026-10-27: AIOK halted at 15.74 seconds after a resting
+"""Claude's seat and trading halts (ADR 068 decision 17, 2026-10-27: AIOK halted at 15.74 seconds after a resting
 buy at 15.76, and the buy rested through the halt).
 
 The halt is the scanner's own (``ibkr.halt_status.halted_now``: IBKR's tick 49 where Nova holds a Level 1 line,

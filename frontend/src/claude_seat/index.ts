@@ -5,5 +5,6 @@ export { ClaudeSeatChartLayer } from './ClaudeSeatChartLayer';
 export { ClaudeLineFrame } from './ClaudeLineFrame';
 export { ClaudeLinesFullBox } from './ClaudeLinesFullBox';
 export { ClaudeMark } from './ClaudeMark';
+export { ClaudeLentWords, ClaudeTakeBackRow } from './ClaudeTakeBack';
 export { useClaudeSeat } from './claudeSeatStore';
 export type { ClaudeSeatStatus } from './types';

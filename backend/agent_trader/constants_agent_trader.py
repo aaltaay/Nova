@@ -18,8 +18,15 @@ AGENT_EVENTS_KEEP = 40
 # The lease: a holder that has not checked in for this long has gone quiet (decision 9).
 AGENT_LEASE_SEC = 600.0
 AGENT_TICK_SEC = 0.5                # reflexes are checked this often (decision 11) ...
-AGENT_WAKE_MIN_SEC = 0.1            # ... and on each print or book of a watched stock, this far apart at most (decision 14)
+AGENT_WAKE_MIN_SEC = 0.1            # ... and on each print or book of a watched stock, this far apart at most (decision 15)
 AGENT_WAKE_RING_SEC = 60.0          # the live prints kept per watched stock (>= the reflexes' and guard's look-back)
+
+# A hidden Trader tab's line (decision 14): looked for at most this often while the seat waits; the tab's words
+# ("watching RUNR", "in a trade on RUNR") brought up to date this often; after the operator takes a tab's line
+# back, the seat asks for no line this long, so the tab reconnects onto the line it was given back.
+AGENT_TAB_LINE_TRY_SEC = 2.0
+AGENT_TAB_TIER_SEC = 2.0
+AGENT_TAB_LINE_HOLD_SEC = 10.0
 
 # The seat's states, as the desk shows them.
 SEAT_OFF = "off"                  # nobody holds the seat
@@ -75,7 +82,7 @@ AGENT_POP_PCT_MAX = 5.0
 AGENT_GUARD_STALL_AFTER_PCT = 1.0       # the first stall: once the price reached +1% over entry ...
 AGENT_GUARD_STALL_SEC = 30.0            # ... no new high for 30 s moves the stop to entry
 
-# The trade journal (decision 15): backend/.cache/agent-journal/<YYYY-MM-DD>.json.
+# The trade journal (decision 16): backend/.cache/agent-journal/<YYYY-MM-DD>.json.
 AGENT_JOURNAL_DIR = "agent-journal"
 AGENT_JOURNAL_BOOK_ROWS = 10        # the book's top rows each side at entry and exit
 AGENT_JOURNAL_PRINTS_SEC = 30.0     # the prints of the last 30 s ...
@@ -96,7 +103,7 @@ AGENT_NO_LINE = "AGENT_NO_LINE"
 AGENT_NOT_MINE = "AGENT_NOT_MINE"
 AGENT_STALE = "AGENT_STALE"
 AGENT_REFUSED = "AGENT_REFUSED"
-AGENT_HALTED = "AGENT_HALTED"      # the stock is halted (decision 16)
+AGENT_HALTED = "AGENT_HALTED"      # the stock is halted (decision 17)
 AGENT_LULD_WARN_PCT = 1.0          # a buy this close to the upper LULD band, or over it, is warned (never refused)
 
 # Audit actions (``audit`` stream).

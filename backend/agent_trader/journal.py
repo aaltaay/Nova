@@ -1,4 +1,4 @@
-"""Claude's trade journal (ADR 068 decision 15): each trade's why, the book and tape at entry and exit, how it ended,
+"""Claude's trade journal (ADR 068 decision 16): each trade's why, the book and tape at entry and exit, how it ended,
 and its P&L -- so the seat's forward trial can be read back trade by trade.
 
 A trade opens on the first watcher pass that sees Claude hold shares in a stock and closes on the first that sees it
@@ -272,3 +272,22 @@ def _nova_sold(sym: str, fills: list[dict[str, Any]]) -> tuple[float, float | No
         return left, ledger._closed_for_claude(sym, float(trade.get("opened_at") or 0.0))
     except ledger.ReadError:
         return left, None
+
+
+def note_exits_held(reason: str, detail: str) -> None:
+    """Why every stock Claude holds is about to be sold (a stand-down, the day's close)."""
+    from agent_trader import ledger
+
+    try:
+        for sym in ledger.positions():
+            note_exit(sym, reason, detail)
+    except ledger.ReadError:
+        logger.warning("AGENT journal: Paper could not be read before %s", reason, exc_info=True)
+
+
+async def run_pass(t: float) -> None:
+    """The watcher's call: a failed pass is logged and written next pass."""
+    try:
+        await run(t)
+    except Exception:
+        logger.exception("AGENT journal: a pass failed; written next pass")

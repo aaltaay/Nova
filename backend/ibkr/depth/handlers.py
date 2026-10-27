@@ -74,7 +74,7 @@ def _watch_book(symbol: str, book: dict) -> None:
 
 
 def _wake_seat(symbol: str) -> None:
-    """A changed live book wakes Claude's seat when it watches the stock (ADR 068 decision 14) -- a flag, no wait."""
+    """A changed live book wakes Claude's seat when it watches the stock (ADR 068 decision 15) -- a flag, no wait."""
     try:
         from agent_trader import wake
 

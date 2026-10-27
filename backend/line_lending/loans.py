@@ -30,6 +30,10 @@ shows it), or lending is switched off. Both lines go back in one step: the borro
 references are dropped and its lines cancelled at once; the tab reconnects on its poll,
 or at once when it is brought to the front.
 
+**A loan to Claude's seat** (``Loan.claude``, ADR 068 decision 14) is made and ended by
+``claude_loan``, never by this tick: the front does not recall it -- a socket from the tab
+in front meets the lent frame too --, and lending's switch does not end it.
+
 Every start and end is a ``line_loan`` line on the bot audit stream, ``inputs: {lender,
 borrower, setup_type, setup_id, tape_lent?, tape_error?, end?}`` (``loan.audit``).
 """
@@ -84,10 +88,47 @@ def _note_error(text: str | None) -> None:
 
 
 # -- what a socket meets ------------------------------------------------------------
-def lent_frame(symbol: str) -> dict[str, Any] | None:
-    """The lent frame while a loan (pending or standing) names ``symbol`` as its lender."""
+def lent_frame(symbol: str, *, front: bool = False) -> dict[str, Any] | None:
+    """The lent frame while a loan (pending or standing) names ``symbol`` as its lender; for a socket from the
+    tab in front, only a loan to Claude's (the front never recalls it)."""
     loan = _loans.get(symbol.upper())
-    return loan.frame() if loan is not None else None
+    if loan is None or (front and not loan.claude):
+        return None
+    return loan.frame()
+
+
+def get(lender: str) -> Loan | None:
+    return _loans.get(lender.upper())
+
+
+def claude_loan() -> Loan | None:
+    """The loan to Claude's seat, pending or standing (one at most)."""
+    return next((loan for loan in _loans.values() if loan.claude), None)
+
+
+def last_front() -> dict[str, float]:
+    """When each lender's tab was last seen in front (a copy)."""
+    return dict(_last_front)
+
+
+def lock() -> asyncio.Lock:
+    """The loans' lock: a loan to Claude's is made and ended under it too (``claude_loan``)."""
+    return _get_lock()
+
+
+def put(loan: Loan) -> None:
+    """From here a socket for ``loan.lender`` meets its lent frame."""
+    _loans[loan.lender] = loan
+
+
+def drop(loan: Loan, error: str) -> None:
+    """A loan that could not finish: forgotten, what it took given back, the reason kept for the view."""
+    _drop(loan, error)
+
+
+def end(loan: Loan, end_kind: str, reason: str, now: float | None = None) -> None:
+    """End a standing loan now (the caller holds ``lock``)."""
+    _end(loan, end_kind, time.time() if now is None else float(now), reason)
 
 
 def lenders() -> list[str]:
@@ -112,6 +153,8 @@ async def on_socket_open(symbol: str, *, front: bool, now: float | None = None) 
     loan = _loans.get(sym)
     if loan is None:
         return None
+    if loan.claude:
+        return loan.frame()                     # the front never takes Claude's line back (ADR 068 decision 14)
     if front or _focus.read(ts).is_front(sym):
         await recall(sym, now=ts)
         return None
@@ -124,7 +167,7 @@ async def recall(lender: str, *, now: float | None = None) -> bool:
     sym = lender.upper()
     async with _get_lock():
         loan = _loans.get(sym)
-        if loan is None:
+        if loan is None or loan.claude:
             return False
         _last_front[sym] = ts
         _end(loan, LOAN_END_RECALLED, ts, loan.lost())
@@ -216,7 +259,7 @@ async def end_all(end: str, why: str, now: float | None = None) -> int:
     """End every loan (lending switched off); how many ended."""
     ts = time.time() if now is None else float(now)
     async with _get_lock():
-        standing = [loan for loan in _loans.values() if loan.state == LOAN_ACTIVE]
+        standing = [loan for loan in _loans.values() if loan.state == LOAN_ACTIVE and not loan.claude]
         for loan in standing:
             _end(loan, end, ts, loan.back(why))
         return len(standing)
@@ -257,7 +300,7 @@ async def tick(now: float | None = None) -> None:
         for sym in focus.front:                  # a tab the operator just left is not lent at once either
             _last_front[sym] = ts
         wanted = _borrowers.wanted(ts)
-        for loan in [x for x in _loans.values() if x.state == LOAN_ACTIVE]:
+        for loan in [x for x in _loans.values() if x.state == LOAN_ACTIVE and not x.claude]:
             verdict = _judge(loan, wanted, focus, ts)
             if verdict is not None:
                 _end(loan, verdict[0], ts, verdict[1])

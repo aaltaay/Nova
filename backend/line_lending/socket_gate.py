@@ -7,7 +7,7 @@ operator a line: each logs and lets the socket go ahead.
 - ``gate`` at open: the lent frame when the line is lent and this socket is not the
   tab in front, else None (a socket from the tab in front recalls the loan first);
 - ``lent_now`` after the socket's queue opened: a loan that began while it subscribed
-  pushed its frame before the queue existed;
+  pushed its frame before the queue existed (from the tab in front, only a loan to Claude's);
 - ``opened`` / ``closed`` keep ``line_lending.sockets`` beside the line's viewer count;
 - ``line_down``: a Time & Sales socket found its line down -- ``tape_heal`` asks again (#698).
 """
@@ -38,12 +38,10 @@ async def gate(symbol: str, *, front: bool) -> dict[str, Any] | None:
 
 
 def lent_now(symbol: str, *, front: bool) -> dict[str, Any] | None:
-    if front:
-        return None
     try:
         from line_lending import loans
 
-        return loans.lent_frame(symbol)
+        return loans.lent_frame(symbol, front=front)
     except Exception:
         logger.exception("line lending: could not read the loans for %s's socket", symbol)
         return None

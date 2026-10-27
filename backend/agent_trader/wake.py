@@ -1,4 +1,4 @@
-"""The seat acts on each print and book, not on the next tick (ADR 068 decision 14).
+"""The seat acts on each print and book, not on the next tick (ADR 068 decision 15).
 
 The IBKR AllLast and depth callbacks call ``print_in`` / ``book_in`` for every print and book (ADR 010: they only
 note and enqueue, never wait). For a stock the seat watches -- its stock, a break's, one Claude holds shares in --

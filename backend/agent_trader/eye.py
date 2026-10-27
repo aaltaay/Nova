@@ -222,3 +222,13 @@ async def eye(wait: float = 0.0, after: float | None = None) -> dict[str, Any]:
         if wait <= 0 or time.monotonic() >= deadline or any(float(e["at"]) > since for e in events()):
             return view(ranked, t)
         await asyncio.sleep(AGENT_EYE_SCAN_SEC)
+
+
+async def scan_pass(t: float) -> None:
+    """The watcher's call while the seat is on: a scan every ``AGENT_EYE_SCAN_SEC``; a failed one is logged."""
+    if not scan_due(t):
+        return
+    try:
+        await asyncio.to_thread(scan, t)
+    except Exception:
+        logger.exception("AGENT eye: a scan failed")

@@ -1,4 +1,4 @@
-"""The LULD band in what Claude reads (ADR 068 decision 16, with the halts; ADR 047's band, not a new one).
+"""The LULD band in what Claude reads (ADR 068 decision 17, with the halts; ADR 047's band, not a new one).
 
 ``luld.live.view`` is the band source: Nova computes it from a stock's Time & Sales, so a stock without a tape line
 answers its own ``state`` (``unknown``, ``off``, ...) with no band, and nothing here fills one in. Read-only.

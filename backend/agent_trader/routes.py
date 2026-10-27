@@ -7,22 +7,20 @@ buttons -- take Claude's line, give it back, stop Claude -- need no token: the o
 from __future__ import annotations
 
 import logging
-from typing import Any, Literal
+from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
-from pydantic import BaseModel, Field
 
 from agent_desk.routes import require_local
-from agent_trader import bands, eye, journal, ledger, lines, look, orders, reflexes, rules, seat, view, watcher
+from agent_trader import bands, eye, journal, ledger, lines, look, orders, reflexes, rules, seat, tab_line, view, watcher
 from agent_trader import clock
+from agent_trader.bodies import WatchBody, OrderBody, ReflexBody, StopBody, CloseBody, NoteBody, TakeBackBody
 from agent_trader.constants_agent_trader import (
     AGENT_BREAK_DEFAULT_MIN,
     AGENT_BREAK_MAX_MIN,
     AGENT_EYE_WAIT_MAX_SEC,
     AGENT_HALTED,
     AGENT_POP_PCT_DEFAULT,
-    AGENT_POP_PCT_MAX,
-    AGENT_POP_PCT_MIN,
     AGENT_NOT_MINE,
     AGENT_NOT_PAPER,
     AGENT_REFLEX_DEFAULT_MIN,
@@ -57,58 +55,6 @@ def _unread(where: str) -> HTTPException:
     return _refuse(AGENT_REFUSED, ledger.UNREAD_TEXT)
 
 
-class WatchBody(BaseModel):
-    symbol: str = Field(min_length=1, max_length=10)
-
-
-class OrderBody(BaseModel):
-    kind: Literal["limit", "break"]
-    symbol: str = Field(min_length=1, max_length=10)
-    qty: float = Field(gt=0)
-    entry: float | None = Field(default=None, gt=0)      # a limit's price
-    trigger: float | None = Field(default=None, gt=0)    # a break: a print at or above this ...
-    top: float | None = Field(default=None, gt=0)        # ... sends a buy up to this price
-    stop: float = Field(gt=0)
-    target: float = Field(gt=0)
-    target2: float | None = Field(default=None, gt=0)
-    target1_qty: float | None = Field(default=None, gt=0)
-    minutes: float | None = Field(default=None, gt=0)    # a break's life
-    confirm: ConfirmBody | None = None                   # a break sends only while buyers lead (reflexes.confirmed)
-    exit: Literal["pop"] | None = None                   # half at the first pop, then the stop to entry (decision 13)
-    pop_pct: float | None = Field(default=None, ge=AGENT_POP_PCT_MIN, le=AGENT_POP_PCT_MAX)
-    why: str = Field(min_length=1, max_length=400)       # one line for the desk
-
-
-class ConfirmBody(BaseModel):
-    seconds: float = Field(gt=0)
-    shares: float = Field(gt=0)
-    ratio: float = Field(gt=0)
-
-
-class ReflexBody(BaseModel):
-    kind: Literal["bid_pulled", "ask_wall", "sellers", "last_below"]
-    action: Literal["sell_all", "cancel_buy"]
-    price: float | None = Field(default=None, gt=0)
-    shares: float | None = Field(default=None, gt=0)
-    seconds: float | None = Field(default=None, gt=0)
-    ratio: float | None = Field(default=None, gt=0)
-    minutes: float | None = Field(default=None, gt=0)
-    why: str = Field(min_length=1, max_length=400)
-
-
-class StopBody(BaseModel):
-    order_id: int
-    stop: float = Field(gt=0)
-
-
-class CloseBody(BaseModel):
-    symbol: str = Field(min_length=1, max_length=10)
-
-
-class NoteBody(BaseModel):
-    text: str = Field(min_length=1, max_length=400)
-
-
 @router.get("")
 def get_status() -> dict[str, Any]:
     return view.status()
@@ -129,7 +75,7 @@ async def get_eye(wait: float = Query(default=0.0, ge=0, le=AGENT_EYE_WAIT_MAX_S
 
 @router.get("/journal")
 def get_journal(day: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")) -> dict[str, Any]:
-    """Claude's trades closed on ``day`` (default today) and the ones open now (decision 15)."""
+    """Claude's trades closed on ``day`` (default today) and the ones open now (decision 16)."""
     from market import session_key_for_ts
 
     when = day or session_key_for_ts(clock.now())
@@ -384,6 +330,15 @@ async def give_back() -> dict[str, Any]:
         raise _refuse(AGENT_SEAT_OFF, "Claude's seat is off")
     seat.set_yielded(False, "you gave Claude its line back")
     await watcher.run_pass()
+    return view.status()
+
+
+@router.post("/take-back", dependencies=_keyed)
+async def take_back(body: TakeBackBody) -> dict[str, Any]:
+    """The operator's right-click on a Trader tab, Take my Level 2 back from Claude (decision 14): that tab's lines
+    come back now; Claude stays on, its orders as they are, and waits for another line."""
+    if why := await tab_line.take_back(body.symbol):
+        raise _refuse(AGENT_NOT_MINE, why, 404)
     return view.status()
 
 

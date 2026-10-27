@@ -1,4 +1,4 @@
-"""The seat's tools (ADR 068 decisions 14 and 15, 2026-10-27): it acts on each print, keeps a trade journal, and
+"""The seat's tools (ADR 068 decisions 15 and 16, 2026-10-27): it acts on each print, keeps a trade journal, and
 survives a restart; a new session picks it up in one call.
 
 End to end on the real Paper broker through the seat suite's ``paper`` fixture (SMPL last 4.20, bid 4.19, ask 4.21).
