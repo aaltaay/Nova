@@ -9,8 +9,13 @@
  * answers (subscribed, data or an error); one that closes unanswered hands over to the backoff.
  * useIbkrDepth and useIbkrTape each keep one, so a Trader tab's Level 2 and Time & Sales -- lent
  * together -- come back together.
+ *
+ * A line lent to Claude's seat (ADR 068 decision 14) is never asked back from the front: it waits on the poll,
+ * and comes back when the loan ends -- Claude let it go, or the operator took it back with a right-click, which
+ * also asks at once (LENT_LINE_RECALL_EVENT).
  */
-import { lentFromFrame, lentFromLoan, type LineLent } from './lentWords';
+import { LENT_LINE_RECALL_EVENT } from '../constantGroups/market_ui';
+import { lentFromFrame, lentFromLoan, lentToClaude, type LineLent } from './lentWords';
 import { watchLoan } from './loanWatch';
 
 /** The document is shown (not a minimised or covered window): with the pane on screen, it is in front. */
@@ -33,6 +38,10 @@ export class LentLine {
   private takingBack = false;
   private unwatch: (() => void) | null = null;
   private readonly onVisibility = (): void => this.wake();
+  private readonly onRecall = (e: Event): void => {
+    const sym = (e as CustomEvent<{ symbol?: string }>).detail?.symbol;
+    if (typeof sym === 'string' && sym.toUpperCase() === this.symbol) this.recallNow();
+  };
   private readonly symbol: string;
   private readonly hooks: LentLineHooks;
 
@@ -40,6 +49,7 @@ export class LentLine {
     this.symbol = symbol.toUpperCase();
     this.hooks = hooks;
     if (typeof document !== 'undefined') document.addEventListener('visibilitychange', this.onVisibility);
+    if (typeof window !== 'undefined') window.addEventListener(LENT_LINE_RECALL_EVENT, this.onRecall);
   }
 
   /** The words to show while the line is lent; null while the pane has its line. */
@@ -73,18 +83,25 @@ export class LentLine {
       this.lentNow = null;
       return false;
     }
-    if (this.hooks.inFront()) this.takeBack();
+    if (this.hooks.inFront() && !lentToClaude(this.lentNow)) this.takeBack();
     else this.watch();
     return true;
   }
 
-  /** The pane came to the front (shown, or the document became visible): a lent line is asked back now. */
+  /** The pane came to the front (shown, or the document became visible): a lent line is asked back now --
+   * never one lent to Claude, which comes back only when its loan ends. */
   wake(): void {
-    if (this.lentNow && this.hooks.inFront()) this.takeBack();
+    if (this.lentNow && !lentToClaude(this.lentNow) && this.hooks.inFront()) this.takeBack();
+  }
+
+  /** The operator took the line back from Claude: ask for it now, without waiting on the poll. */
+  recallNow(): void {
+    this.takeBack();
   }
 
   dispose(): void {
     if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', this.onVisibility);
+    if (typeof window !== 'undefined') window.removeEventListener(LENT_LINE_RECALL_EVENT, this.onRecall);
     this.stopWatch();
     this.lentNow = null;
     this.takingBack = false;

@@ -105,6 +105,10 @@ def desk_refusal(symbol: str) -> str | None:
     sym = (symbol or "").upper()
     if sym in depth.subscribed_symbols() or _ref(sym, "depth"):
         return None    # a line already up costs nothing; asking again for Claude's own line (a renewal) is Claude's
+    from agent_trader import tab_line
+
+    if tab_line.may_return(sym):
+        return None    # the operator took this tab's line back from Claude (decision 14): it is theirs
     mine = desk_lines()
     if len(mine) < desk_cap():
         return None
