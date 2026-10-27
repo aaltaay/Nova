@@ -53,7 +53,8 @@ The same reads are MCP tools on the `nova-data` server (ADR 059; `.cursor/mcp.js
 `data_catalog` first. For small-cap momentum research start with `find_stock_days` (movers + shares known that day +
 catalyst + halts + relative volume + premarket marks, paged by `next_cursor`; filters on news type, headline words,
 halt codes and `rvol_daily_min`), then `stock_day_stats`, `order_flow`, `catalysts`, `news_search` (news across
-every stock in a date range, no symbol: verdicts by category / headline words, or headlines), `halts` (`codes`:
+every stock in a date range, no symbol: verdicts by category / headline words, or headlines), `journal_trades` (your own trades from the desk's journal, read-only),
+`recorded_days` (which days and stocks you recorded), `halts` (`codes`:
 `T1`, `LUDP` ... or `news` / `luld`), `daily_bars` / `market_context`, `symbols`, `rvol_scan` / `rvol_triggers` / `rvol_outcomes`,
 `recorded_depth` / `recorded_tape`, `signal_catalog` / `signal_series` / `signal_scan` / `signal_test`; plus
 `stock_day`, `movers_search` / `movers_scan`, `board`,

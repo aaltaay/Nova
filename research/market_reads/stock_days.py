@@ -18,6 +18,11 @@ stock-day with ``rvol_daily`` unknown is left out and counted in ``attrs['left_o
 ``halt_codes`` keeps a day with a halt of any code asked (``T1``, ``LUDP`` ...; ``news`` and ``luld`` name their
 groups); ``halted`` true / false any halt. A day the halt log does not cover is unknown: left out.
 
+``market_cap`` is an estimate: the prior close (on the day's share basis) times ``outstanding_shares`` -- SEC shares
+outstanding known that day -- never the board's or a vendor's market cap; null when either is unknown.
+``market_cap_min`` / ``market_cap_max`` keep rows inside the bounds (dollars); a row with ``market_cap`` unknown is left
+out and counted in ``attrs['left_out']['market_cap_unknown']``, never read as small.
+
 ``outstanding_max`` is ``float_max`` under the name of what it filters (SEC shares outstanding): it needs the
 ``sec_outstanding`` basis and is refused beside ``float_max``.
 
@@ -96,7 +101,30 @@ def enrich(frame: pd.DataFrame, float_basis: str = "sec_outstanding") -> list[di
     facts = day_facts.for_pairs([(r["date"], r["symbol"]) for r in rows], float_basis)
     for row in rows:
         row.update(facts[(row["date"], row["symbol"])])
+        price, shares = row.get("prev_close"), row.get("outstanding_shares")
+        row["market_cap"] = round(price * shares) if price and shares else None
     return rows
+
+
+def _cap_bounds(market_cap_min: float | None, market_cap_max: float | None) -> tuple[float | None, float | None]:
+    lo = None if market_cap_min is None else float(market_cap_min)
+    hi = None if market_cap_max is None else float(market_cap_max)
+    if (lo is not None and lo < 0) or (hi is not None and hi <= 0):
+        raise ValueError("market_cap_min / market_cap_max are dollars (market_cap_max over 0)")
+    if lo is not None and hi is not None and lo > hi:
+        raise ValueError("market_cap_min is over market_cap_max")
+    return lo, hi
+
+
+def _cap_ok(row: dict[str, Any], lo: float | None, hi: float | None, left_out: Counter[str]) -> bool:
+    """Inside the market-cap bounds; an unknown market cap is left out and counted, never read as small."""
+    if lo is None and hi is None:
+        return True
+    cap = row.get("market_cap")
+    if cap is None:
+        left_out["market_cap_unknown"] += 1
+        return False
+    return (lo is None or cap >= lo) and (hi is None or cap <= hi)
 
 
 def _kinds_echo(kinds: list[str]) -> str | list[str]:
@@ -129,11 +157,12 @@ def find_stock_days(*, filters: dict[str, Any] | None = None, symbol: str | None
                     limit: int | None = None, cursor: str | None = None, page_size: int | None = None,
                     to_file: bool = False, catalyst_category: list[str] | None = None,
                     catalyst_words: list[str] | None = None, rvol_daily_min: float | None = None,
-                    halt_codes: list[str] | None = None) -> pd.DataFrame:
+                    halt_codes: list[str] | None = None, market_cap_min: float | None = None,
+                    market_cap_max: float | None = None) -> pd.DataFrame:
     """One page of stock-days (see the module docstring); ``attrs`` has ``next_cursor``, ``examined`` and the rules.
     ``catalyst``: verdicts to keep (``unknown`` matches a day with none); ``halted``: only days with / without one.
     ``catalyst_category`` / ``catalyst_words`` / ``rvol_daily_min`` / ``halt_codes``: the news, volume and halt
-    filters (module docstring).
+    filters (module docstring); ``market_cap_min`` / ``market_cap_max``: dollars, on the ``market_cap`` estimate.
     ``kinds``: types, ``["common"]`` (default) or ``["all"]``; ``sort``: a movers search sort, default oldest day."""
     filters = {k: v for k, v in (filters or {}).items() if v is not None}
     if not (symbol or filters.get("date_from") or filters.get("date_to")):
@@ -141,6 +170,7 @@ def find_stock_days(*, filters: dict[str, Any] | None = None, symbol: str | None
     if float_basis not in FLOAT_BASES:
         raise ValueError(f"float_basis must be one of {', '.join(FLOAT_BASES)}")
     share_limit = _share_limit(float_max, outstanding_max, float_basis)
+    cap_lo, cap_hi = _cap_bounds(market_cap_min, market_cap_max)
     page_size = _page_of(page_size, limit)
     wanted_kinds = [kinds] if isinstance(kinds, str) else list(kinds or (["all"] if symbol else DEFAULT_KINDS))
     ceiling = PAGE_MAX_FILE if to_file else PAGE_MAX
@@ -159,7 +189,7 @@ def find_stock_days(*, filters: dict[str, Any] | None = None, symbol: str | None
         more = len(chunk) == step
         for row in enrich(chunk, float_basis):
             after = (row["date"], row["symbol"])
-            if day_facts.keep(row, rows_wanted, left_out):
+            if day_facts.keep(row, rows_wanted, left_out) and _cap_ok(row, cap_lo, cap_hi, left_out):
                 page.append(row)
                 if len(page) == page_size:
                     full = True
@@ -170,7 +200,7 @@ def find_stock_days(*, filters: dict[str, Any] | None = None, symbol: str | None
         next_cursor=next_cursor, examined=examined, rows=len(page),
         filters={**filters, "kinds": _kinds_echo(wanted_kinds), "splits": splits, **day_facts.asked(rows_wanted),
                  "float_max": float_max, "outstanding_max": outstanding_max, "float_basis": float_basis,
-                 "sort": sort or "oldest"},
+                 "market_cap_min": cap_lo, "market_cap_max": cap_hi, "sort": sort or "oldest"},
         left_out=dict(left_out),
         order_rule=("oldest day first, then symbol" if sort in (None, "oldest") else
                     f"sort={sort}: the movers search's order (a row without the figure last; ties newest day first, "
@@ -184,6 +214,8 @@ def find_stock_days(*, filters: dict[str, Any] | None = None, symbol: str | None
                     "desk's own float that day (2026-07-28 on); best = enrichment, else outstanding"),
         catalyst_rule=day_facts.CATALYST_RULE, halt_rule=day_facts.HALT_RULE,
         rvol_rule=rvol_days.RULE,
+        market_cap_rule=("market_cap = prev_close (the prior close on the day's share basis) x outstanding_shares (SEC "
+                         "shares outstanding known that day): an estimate, not the board's market cap; null = unknown"),
     )
     if left_out.get("rvol_unknown"):
         frame.attrs["note_rvol"] = (f"{left_out['rvol_unknown']:,} stock-days examined had rvol_daily unknown and were "

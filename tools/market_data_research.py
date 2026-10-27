@@ -1,6 +1,6 @@
 """The momentum-research subcommands of ``tools/market_data.py`` (ADR 059), split along the same seam as the MCP's
 ``nova_data_research.py``: find stock-days, daily bars, the market around a day, one stock-day's stats, order flow,
-halts, catalysts, news across stocks and symbols. ``add_parsers`` registers them; ``HANDLERS`` runs them.
+halts, catalysts, news across stocks, symbols and the operator's journal. ``add_parsers`` registers them; ``HANDLERS`` runs them.
 
   py -3 tools/market_data.py find date_from=2025-01-01 date_to=2025-03-31 price_min=2 price_max=20 high_min=50 --float-max 20000000
   py -3 tools/market_data.py find date_from=2026-09-01 date_to=2026-09-30 high_min=100 --sort high --limit 10
@@ -14,6 +14,8 @@ halts, catalysts, news across stocks and symbols. ``add_parsers`` registers them
   py -3 tools/market_data.py news --from 2021-11-01 --to 2021-12-31 --category fda_regulatory --words approv,clear
   py -3 tools/market_data.py halts --from 2026-09-01 --to 2026-09-05 --codes news
   py -3 tools/market_data.py symbols aurora | symbols --ticker AAP --day 2016-06-01
+  py -3 tools/market_data.py find date_from=2026-09-01 date_to=2026-09-30 high_min=50 --market-cap-max 50000000
+  py -3 tools/market_data.py journal --setup gap_and_go --from 2026-10-01 --adherent no
 """
 from __future__ import annotations
 
@@ -42,7 +44,8 @@ def cmd_find(args, show) -> int:
         cursor=args.cursor, page_size=args.page_size, to_file=bool(args.out),
         catalyst_category=args.catalyst_category.split(",") if args.catalyst_category else None,
         catalyst_words=args.catalyst_words.split(",") if args.catalyst_words else None,
-        rvol_daily_min=args.rvol_daily_min, halt_codes=_list(args.halt_codes))
+        rvol_daily_min=args.rvol_daily_min, halt_codes=_list(args.halt_codes),
+        market_cap_min=args.market_cap_min, market_cap_max=args.market_cap_max)
     return show(frame, args)
 
 
@@ -90,6 +93,13 @@ def cmd_news(args, show) -> int:
                                           _list(args.words), args.limit), args)
 
 
+def cmd_journal(args, show) -> int:
+    from market_reads import journal
+    adherent = None if args.adherent is None else args.adherent == "yes"
+    return show(journal.trades(args.symbol, args.setup, args.tag, adherent, args.date_from, args.date_to, args.limit,
+                               args.include_mock), args)
+
+
 def cmd_symbols(args, show) -> int:
     from market_reads import symbols
     if args.ticker:
@@ -101,7 +111,8 @@ def cmd_symbols(args, show) -> int:
 
 
 HANDLERS = {"find": cmd_find, "daily": cmd_daily, "context": cmd_context, "stats": cmd_stats, "flow": cmd_flow,
-            "halts": cmd_halts, "catalysts": cmd_catalysts, "news": cmd_news, "symbols": cmd_symbols}
+            "halts": cmd_halts, "catalysts": cmd_catalysts, "news": cmd_news, "symbols": cmd_symbols,
+            "journal": cmd_journal}
 
 
 def add_parsers(sub, output) -> None:
@@ -123,6 +134,9 @@ def add_parsers(sub, output) -> None:
     find.add_argument("--rvol-daily-min", dest="rvol_daily_min", type=float,
                       help="ratio: the day's volume over its usual whole-session volume (5 = 5x); unknowns left out")
     find.add_argument("--halted", choices=["yes", "no"])
+    find.add_argument("--market-cap-min", dest="market_cap_min", type=float,
+                      help="dollars: the prior close x SEC shares outstanding known that day (an estimate)")
+    find.add_argument("--market-cap-max", dest="market_cap_max", type=float, help="dollars, the same estimate")
     find.add_argument("--halt-codes", dest="halt_codes",
                       help="comma list: keep a day with a halt of any code (T1,LUDP ...; news or luld for the groups)")
     find.add_argument("--sort", choices=["newest", "oldest", "high", "low", "close", "gap", "volume", "dollar_volume"],
@@ -190,3 +204,13 @@ def add_parsers(sub, output) -> None:
     sym.add_argument("--cik", help="every ticker a company used")
     sym.add_argument("--limit", type=int, default=50)
     output(sym)
+    jrn = sub.add_parser("journal", help="the operator's own trades from the desk's journal (read-only)")
+    jrn.add_argument("--symbol")
+    jrn.add_argument("--setup")
+    jrn.add_argument("--tag")
+    jrn.add_argument("--adherent", choices=["yes", "no"], help="followed the plan")
+    jrn.add_argument("--from", dest="date_from", help="YYYY-MM-DD: opened on or after this ET day")
+    jrn.add_argument("--to", dest="date_to", help="YYYY-MM-DD: opened on or before this ET day")
+    jrn.add_argument("--limit", type=int, help="newest N (default 200, at most 10,000)")
+    jrn.add_argument("--include-mock", dest="include_mock", action="store_true", help="test rows too")
+    output(jrn)

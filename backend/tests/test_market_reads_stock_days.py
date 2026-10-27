@@ -92,6 +92,19 @@ def test_float_max_filters_shares_outstanding_and_unknowns_are_left_out(store):
     assert list(only["symbol"]) == ["CCC", "DDD", "REUS"]
 
 
+def test_market_cap_is_the_prior_close_times_shares_known_that_day_and_unknowns_are_counted(store):
+    frame = stock_days.find_stock_days(filters={"date_from": store}, float_unknown="include")
+    caps = dict(zip(frame["symbol"], frame["market_cap"], strict=True))
+    assert caps["AAA"] == 20_000_000 and caps["BBB"] == 200_000_000          # $4.00 x 5M, $4.00 x 50M
+    assert all(pd.isna(caps[s]) for s in ("CCC", "DDD", "REUS"))             # no count known that day
+    small = stock_days.find_stock_days(filters={"date_from": store}, market_cap_max=100_000_000)
+    assert list(small["symbol"]) == ["AAA"] and small.attrs["left_out"] == {"market_cap_unknown": 3}
+    assert small.attrs["filters"]["market_cap_max"] == 100_000_000 and "estimate" in small.attrs["market_cap_rule"]
+    assert list(stock_days.find_stock_days(filters={"date_from": store}, market_cap_min=1e8)["symbol"]) == ["BBB"]
+    with pytest.raises(ValueError, match="over market_cap_max"):
+        stock_days.find_stock_days(filters={"date_from": store}, market_cap_min=2e8, market_cap_max=1e8)
+
+
 def test_the_desks_own_float_is_a_basis_when_asked(store):
     from paths import cache_root
     archive = cache_root() / "archive.db"
