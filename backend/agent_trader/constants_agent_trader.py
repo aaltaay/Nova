@@ -96,6 +96,7 @@ AGENT_NO_LINE = "AGENT_NO_LINE"
 AGENT_NOT_MINE = "AGENT_NOT_MINE"
 AGENT_STALE = "AGENT_STALE"
 AGENT_REFUSED = "AGENT_REFUSED"
+AGENT_HALTED = "AGENT_HALTED"      # the stock is halted (decision 16)
 
 # Audit actions (``audit`` stream).
 AGENT_AUDIT_ACTION = "agent_trader"

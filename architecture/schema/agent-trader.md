@@ -40,7 +40,7 @@ The Level 2 socket's error frame gains `agent_reserved` (true when the desk's re
 
 Refusals are `{detail: {reason, error}}` with `reason` one of `AGENT_SEAT_TAKEN`, `AGENT_NOT_HOLDER` (403),
 `AGENT_SEAT_OFF`, `AGENT_YIELDED`, `AGENT_LIMIT`, `AGENT_NOT_PAPER`, `AGENT_NO_LINE`, `AGENT_NOT_MINE`, `AGENT_STALE`,
-`AGENT_REFUSED`, or the execution door's own code; `error` says why in words.
+`AGENT_REFUSED`, `AGENT_HALTED` (the stock is halted, decision 16), or the execution door's own code; `error` says why in words.
 
 **Status** (`schema_version: 1`): `{generated_at, name: "Claude", venue: "paper", state, text, on, since, beat_at,
 lease_until, lapsed, yielded, symbol, line: {symbol, depth, tape, why_not, desk_lines, desk_cap, all_lines},
@@ -135,6 +135,12 @@ go would free nothing (it stays the desk's), so the seat keeps its reference the
 **Closes Nova makes.** A lease not renewed for 600 s, `POST /stop-claude` or `DELETE /seat`: Claude's orders
 cancelled, its shares sold, the seat off, its lines released. 15:55 ET on a weekday: Claude's shares sold and orders
 cancelled, seat on or off; 16:00 ET the seat turns off.
+
+**Halts** (`agent_trader.halts`, decision 16). The halt is the scanner's (`ibkr.halt_status.halted_now`; `null`, not
+known, is never read as halted). While Claude's stock is halted `POST /order` is refused with `AGENT_HALTED` (also a
+`refused` event); every pass cancels Claude's unfilled buys and drops its breaks on a halted stock (`refused` events
+"SMPL is halted: Nova cancelled Claude's buy at 4.1" / "... took back Claude's break at 4.4"); held shares keep their
+resting stop and targets and the guard skips the stock until it trades again.
 
 **Each print and book** (`agent_trader.wake`, decision 14). The IBKR AllLast and depth callbacks call `wake.print_in` /
 `wake.book_in`; for a stock the seat watches (its stock, its breaks', the ones it holds) the print `{ts, price, size, bid,

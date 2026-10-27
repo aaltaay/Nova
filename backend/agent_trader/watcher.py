@@ -311,6 +311,10 @@ async def run_pass(now: float | None = None) -> None:
                            "its line", t)
             return
         await _line(t)
+        if seat.is_on():
+            from agent_trader import halts
+
+            await halts.run(t)
         if seat.is_on() and not seat.is_yielded():
             await _breaks(t)
         if seat.is_on():

@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 async def run(t: float) -> None:
     """Judge Claude's open trades every pass; sell at once when one condition holds (``guard``)."""
-    from agent_trader import guard, journal, ledger, seat, watcher
+    from agent_trader import guard, halts, journal, ledger, seat, watcher
     from ibkr import depth, ticks
 
     try:
@@ -37,8 +37,8 @@ async def run(t: float) -> None:
         if (plans.get(sym) or {}).get("mode") == "pop" and not row["breakeven"]:
             guard.note_price(row, (ticks.last_quotes([sym]).get(sym) or {}).get("price"), t)
             await _stop_to_entry(sym, row, fills, t)
-        if not guard.due(sym, t):
-            continue
+        if not guard.due(sym, t) or halts.halted(sym) is True:
+            continue              # halted: the stop and targets rest; never a market sell into the reopening auction
         prints = await watcher._recent_prints(sym, t)       # none when they cannot be read: the book is judged alone
         why = guard.judge(row, book=book, prints=prints, now=t, l1_bid=ticks.bid_ask(sym)[0])
         if why is None:

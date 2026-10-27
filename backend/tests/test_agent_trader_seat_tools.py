@@ -145,3 +145,60 @@ def test_a_new_session_picks_the_seat_up_in_one_call(paper):
     assert old.status_code == 403                                                      # the old token stops
     new = paper.client.post("/api/agent/trader/beat", headers={**paper.key, "X-Agent-Seat": got.json()["token"]})
     assert new.status_code == 200
+
+
+# -- trading halts ------------------------------------------------------------------------------------------
+@pytest.fixture
+def halted(monkeypatch):
+    """The scanner's halt source, by symbol (AIOK halted at 15.74 seconds after a resting buy, 2026-10-27)."""
+    from ibkr import halt_status
+
+    now: dict[str, bool | None] = {}
+    monkeypatch.setattr(halt_status, "halted_now", lambda syms, now_=None, **kw: {s: now.get(s) for s in syms})
+    return now
+
+
+def test_an_entry_on_a_halted_stock_is_refused_and_said(paper, halted):
+    h = _seat(paper)
+    halted["SMPL"] = True
+    got = paper.client.post("/api/agent/trader/order", headers=h, json={
+        "kind": "limit", "symbol": "SMPL", "qty": 100, "entry": 4.10, "stop": 4.00, "target": 4.60, "why": "x"})
+    assert got.status_code == 409 and got.json()["detail"]["reason"] == "AGENT_HALTED"
+    assert any(e["kind"] == "refused" and "halted" in e["text"] for e in seat.snapshot()["events"])
+    halted["SMPL"] = None                                              # not known: never inferred, the entry goes
+    ok = paper.client.post("/api/agent/trader/order", headers=h, json={
+        "kind": "limit", "symbol": "SMPL", "qty": 100, "entry": 4.10, "stop": 4.00, "target": 4.60, "why": "x"})
+    assert ok.status_code == 200, ok.text
+
+
+def test_a_halt_cancels_claudes_resting_buy_and_breaks_but_keeps_a_held_stop(paper, halted):
+    h = _seat(paper)
+    paper.client.post("/api/agent/trader/order", headers=h, json={
+        "kind": "limit", "symbol": "SMPL", "qty": 100, "entry": 4.10, "stop": 4.00, "target": 4.60, "why": "rest"})
+    paper.client.post("/api/agent/trader/order", headers=h, json={
+        "kind": "break", "symbol": "SMPL", "qty": 100, "trigger": 4.40, "top": 4.44, "stop": 4.20, "target": 4.90,
+        "why": "over 4.40"})
+    assert any(r["leg_role"] == "parent" for r in ledger.working()) and seat.breaks()
+    halted["SMPL"] = True
+    asyncio.run(watcher.run_pass(now=paper.market.now + 1))
+    assert not [r for r in ledger.working() if r["leg_role"] == "parent"] and not seat.breaks()
+    texts = [e["text"] for e in seat.snapshot()["events"]]
+    assert any("halted: Nova cancelled Claude's buy at 4.1" in t for t in texts)
+    assert any("halted: Nova took back Claude's break at 4.4" in t for t in texts)
+
+
+def test_the_guard_does_not_sell_into_a_halt(paper, halted, monkeypatch):
+    import ibkr.depth as depth
+
+    h = _seat(paper)
+    paper.client.post("/api/agent/trader/order", headers=h, json={
+        "kind": "limit", "symbol": "SMPL", "qty": 100, "entry": 4.25, "stop": 4.00, "target": 4.80, "why": "go"})
+    assert ledger.position("SMPL") == 100
+    halted["SMPL"] = True
+    monkeypatch.setattr(depth, "current_book", lambda s: {"bids": [{"price": 4.10, "size": 100}], "asks": []})
+    asyncio.run(watcher.run_pass(now=paper.market.now + 1))
+    assert ledger.position("SMPL") == 100                              # the bid is 2.6% under entry: still held
+    assert {r["leg_role"] for r in ledger.working()} == {"target", "stop"}
+    halted["SMPL"] = False                                             # it trades again: the guard judges
+    asyncio.run(watcher.run_pass(now=paper.market.now + 2))
+    assert ledger.position("SMPL") == 0

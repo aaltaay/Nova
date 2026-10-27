@@ -19,6 +19,7 @@ from agent_trader.constants_agent_trader import (
     AGENT_BREAK_DEFAULT_MIN,
     AGENT_BREAK_MAX_MIN,
     AGENT_EYE_WAIT_MAX_SEC,
+    AGENT_HALTED,
     AGENT_POP_PCT_DEFAULT,
     AGENT_POP_PCT_MAX,
     AGENT_POP_PCT_MIN,
@@ -225,6 +226,8 @@ async def place(body: OrderBody, x_agent_seat: str | None = Header(default=None)
     if body.exit == EXIT_POP and (why := _pop_exit(order, body.pop_pct)):
         raise _refuse(AGENT_REFUSED, why)
     if refused := rules.entry_refusal(order, pending_breaks=len(seat.breaks())):
+        if refused[0] == AGENT_HALTED:
+            seat.event("refused", f"Claude's buy on {order['symbol']} refused: {refused[1]}")
         raise _refuse(*refused)
     seat.set_note(body.why)
     journal.note_why(order["symbol"], body.why)
