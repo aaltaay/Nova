@@ -278,6 +278,14 @@ and `.claude/skills/nova-sim-navigator/`. Nothing here places, stages or cancels
     `find_stock_days`, the signal table, the HOD Momo rebuild) -- reads only the holder's count; a day no company
     can be named for has no count (unknown). A store exported before the table existed reads as before and logs it.
   - `splits (symbol, execution_date, split_from, split_to)`: the split list the builder adjusted prices by.
+  - `day_facts (session_date, symbol, catalyst_verdict, catalyst_category, catalyst_strength, catalyst_title, halts,
+    halt_codes, luld_halts, news_halts, rvol_daily)`: what was known about a movers row beyond its prices, written
+    whole in one transaction by `research/movers/export_day_facts.py` through the research front door's one join
+    (`market_reads.day_facts.for_pairs`: the catalyst backfill's verdict, the day's halts from the halt log, the
+    relative-volume table's `rvol_daily`) -- the backend never reads those research stores. A null is unknown
+    (never judged, a day the halt log does not cover, too little volume history); a row with nothing known is not
+    written; no table or no row reads unknown. A heavy export (every relative-volume day file): run it outside
+    04:00-20:00 ET, again after the movers index, the backfill, the halt log or the relative-volume table changes.
 - **Routes** (`/api/agent`, loopback clients only; every write needs `X-Nova-Api-Key` even on loopback;
   percentages on this wire are percent points):
   - `GET /api/agent` -> `{schema_version: 1, endpoints: [{method, path, does}], index: {ok, error, path,
@@ -292,7 +300,16 @@ and `.claude/skills/nova-sim-navigator/`. Nothing here places, stages or cancels
     / `close_pos_max` (0 = closed at the day's low, 1 = at its high), `giveback_min` / `giveback_max` (the share
     of the run over the prior close given back by the close, 0-1), `high_after` / `high_before` (`HH:MM` ET),
     `volume_min`, `dollar_volume_min`, `float_max` (shares), `float_unknown` (`exclude` | `include` | `only`),
-    `replayable` (only days whose trades file is on disk), `splits` (`exclude_likely` default | `include` |
+    `catalyst` (comma list of verdicts; `unknown` = never judged), `catalyst_category` (comma list, e.g.
+    `fda_regulatory`), `catalyst_words` (comma list: the verdict's headline contains any; a text match), `halted`
+    (`true` | `false`), `halt_codes` (comma list: `T1`, `LUDP` ...; `news` / `luld` name their groups),
+    `rvol_daily_min` (ratio, 5 = 5x the usual whole-session volume) (these six read `day_facts` and filter by
+    `day_movers.facts.keep`, the rule `find_stock_days` filters by, so a stock-day passes both searches alike: an
+    unknown fact is left out and counted in `excluded` -- `rvol_unknown`, `halts_unknown`, and `day_facts` for
+    every row the fact filters left out -- with a note; the answer carries `day_facts: {exported, first, last}`,
+    with a note naming the export when it never ran, and each row `day_facts: {catalyst_verdict,
+    catalyst_category, catalyst_strength, catalyst_title, halts, halt_codes, luld_halts, news_halts,
+    rvol_daily}`), `replayable` (only days whose trades file is on disk), `splits` (`exclude_likely` default | `include` |
     `only_suspects`), `sort` (`newest` | `oldest` | `high` | `low` | `close` | `gap` | `volume` |
     `dollar_volume`), `limit` (default 25, at most 500). A row is `{date, symbol, kind, prev_close, open, high,
     low, close, volume, dollar_volume, day_high, day_high_et, day_low, day_low_et, pm_high, ah_high, high_pct,
@@ -542,15 +559,25 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
   line, or a non-text column that is not a number somewhere that day is read the whole-day way (and cached).
 - **Momentum-research tools** (`tools/nova_data_research.py`, the second tool set; CLI `tools/market_data_research.py`):
   - `find_stock_days {filters, symbol?, kinds?, splits?, float_max?, outstanding_max?, float_basis?, float_unknown?,
-    catalyst?, catalyst_category?, catalyst_words?, halted?, rvol_daily_min?, sort?, limit?, cursor?, page_size?,
-    output_name?}` -> a table answer plus `next_cursor`
+    catalyst?, catalyst_category?, catalyst_words?, halted?, halt_codes?, rvol_daily_min?, sort?, limit?, cursor?,
+    page_size?, output_name?}` -> a table answer plus `next_cursor`
     (`"YYYY-MM-DD|SYMBOL"` or null). Rows:
     `date, symbol, kind, prev_close, open, high, low, close, volume, dollar_volume, high_pct, low_pct, close_pct,
     gap_pct, day_high, day_high_et, day_low, day_low_et, pm_high, pm_low, pm_volume, ah_high, ah_volume, split,
     up10_et .. up300_et, down10_et .. down50_et, outstanding_shares, outstanding_as_of, outstanding_filed,
     outstanding_age_days, enrichment_float, float_shares, float_source, catalyst_verdict, catalyst_category,
-    catalyst_strength, catalyst_title, catalyst_cutoff, halts, first_halt_et, halt_codes, luld_halts, rvol_daily,
-    rvol_volume, rvol_day_avg_volume, rvol_day_avg_sessions`. **News and volume filters** (#1100 table, operator
+    catalyst_strength, catalyst_title, catalyst_cutoff, halts, first_halt_et, halt_codes, luld_halts, news_halts,
+    rvol_daily, rvol_volume, rvol_day_avg_volume, rvol_day_avg_sessions`. **One join** (search gaps, operator
+    2026-10-26): every column after the marks comes from `research/market_reads/day_facts.py` (`for_pairs`), the one
+    join of shares, catalyst, halts and relative volume that `find_stock_days`, the relative-volume tools and the day
+    facts export (`/api/agent/movers`) all use, and every row filter is `day_movers.facts.keep` -- so a stock-day
+    passes or fails a filter the same way in each. `news_halts` counts the news halts (T1-T3, T12), `luld_halts`
+    the LULD / volatility pauses; both null with `halts` on a day the halt log does not cover. `halt_codes` (filter)
+    keeps a day with a halt of any listed code (`T1`, `LUDP` ...; case ignored) or of a named group (`news`,
+    `luld`); an uncovered day is left out and counted in `meta.left_out.halts_unknown` (so is one `halted` leaves
+    out). `meta.left_out` counts every unknown a filter dropped: `catalyst_unknown` (no verdict, under a news
+    filter), `shares_unknown` (no value on the basis, under `float_unknown` exclude), `rvol_unknown`,
+    `halts_unknown`. **News and volume filters** (#1100 table, operator
     2026-10-25): `catalyst_category` keeps the verdict's category (`fda_regulatory`, `clinical_data` ...; case
     ignored); `catalyst_words` keeps a `catalyst_title` containing any of the words (case ignored; a text match, not
     a judgment); `rvol_daily` is the stock-day's 04:00-20:00 volume over the relative-volume table's
@@ -611,20 +638,74 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
     (1m | 5m | 15m | 30m | 60m | day) with `time_et`, `m` and every builder column (`docs/massive-builders.md`), plus
     `off_pct, retail_buy_pct, retail_sell_pct, mid_pct, sweep_pct, odd_pct, big_pct, block_pct` (percent points of
     `vol`) and `retail_imbalance` (-1..1); `meta.day_total` sums the window.
-  - `halts {symbol?, day?, date_from?, date_to?, source?}` -> rows `symbol, session_date, source, code, kind, start_ts,
-    start_et, end_ts, end_date, end_et, duration_s, resumed`; needs a symbol or a day / range; `meta.coverage`,
-    `covered_from`, `codes`, `warning`.
+  - `halts {symbol?, day?, date_from?, date_to?, source?, codes?}` -> rows `symbol, session_date, source, code, kind,
+    start_ts, start_et, end_ts, end_date, end_et, duration_s, resumed`; needs a symbol or a day / range;
+    `meta.coverage`, `covered_from`, `codes` (what each code means), `warning`. `codes` keeps the halts of those codes
+    (`halts.code_matches`: a code or IBKR kind as written, case ignored, or the groups `news` -- T1-T3, T12 -- and
+    `luld` -- LULD and volatility pauses, IBKR's `luld` included); `meta.asked.codes` echoes them.
   - `catalysts {symbol, date_from?, date_to?, at?, sources?, limit?}` -> item rows `item_id, source, publisher,
     published_ts, published_et, title, url, form, sec_items, n_tickers` (Finnhub Benzinga copies excluded by
     `research/catalysts/store.HONEST_CLOCK_SQL`), plus `verdicts` (records `symbol, session_date, cutoff_kind,
     rules_version, verdict, category, strength, title, source, published_et, published_ts, item_id, sources_checked,
     n_items, origin, window_start_et, cutoff_et`) and `verdicts_meta`.
-  - `symbols {query?, ticker?, day?, active?, types?, limit?}` -> search rows `ticker, name, cik, active, delisted,
+  - `news_search {date_from, date_to, verdict?, category?, words?, scope?, sources?, limit?, output_name?}` -- news
+    across every stock, no symbol (search gaps, operator 2026-10-26: "every FDA headline on day X"). Both days
+    required, at most 366 days apart. `scope` `verdicts` (default, `catalysts.search_verdicts`): the newest-rules
+    verdict rows (the `verdicts` columns above), newest day first, kept by `verdict` (catalyst | negative |
+    routine_only | noise_only | none_found), `category` (case ignored) and `words` (the deciding headline contains
+    any; a text match); `meta.categories` counts every category in the range before the filters (the values
+    `category` takes), `meta.matched` the rows before `limit`. `scope` `items` (`catalysts.search_items`): every
+    headline containing any of `words` (required), one row per item and stock it names (`symbol` first, then the
+    item columns), newest first, Finnhub Benzinga copies excluded; `verdict` / `category` are refused there. Only
+    the backfill's target stock-days have verdicts and only its tickers have items: a stock-day in no row is
+    unknown, never no news. At most 5,000 rows (`limit`; `meta.truncated` for items); `output_name` writes them.
+    CLI `market_data.py news --from --to [--verdict] [--category] [--words] [--items] [--sources] [--limit]`.
+  - `symbols {query?, ticker?, day?, active?, types?, limit?, exchange?, cik?}` -> search rows (`exchange` the
+    primary exchange, e.g. `XNAS`; `cik` every ticker a company used) `ticker, name, cik, active, delisted,
     type, exchange, composite_figi, ticker_reused`; with `ticker`: `{symbol, day, listed, ticker_reused, companies:
     [{cik, name, active, delisted, type, exchange, held_from, held_to, composite_figi, last_updated_utc}], on_day:
     {cik, name, rule, warning}, warning, cik_history: {cik: [rows]}, as_of, rule, source, dump_as_of, notes}`.
-  `find_stock_days`, `daily_bars` and `order_flow` write an `output_name` file (`readOnlyHint: false`); the rest are
+  `find_stock_days`, `news_search`, `daily_bars` and `order_flow` write an `output_name` file (`readOnlyHint: false`); the rest are
   read-only. `movers_scan` gains `after` (library only) for the cursor.
+- **Across every stock: filings, short interest, sector** (search gaps, operator 2026-10-26; tools
+  `tools/nova_data_scans.py`, CLI `tools/market_data_scans.py`, reads `research/market_reads/sec_scan.py` and
+  `reference_scans.py`; each takes a heavy-read slot and writes an `output_name` file when asked):
+  - `sec_filings_scan {forms, date_from, date_to, tickers?, ciks?, sic?, output_name?}` answers who filed a form
+    across companies. `forms` is required and matched exactly as SEC writes them, asked in any case (`S-1` is not
+    `S-1/A`); `date_from` .. `date_to` (filing dates) span at most 31 days, anything wider is refused. It reads SEC's
+    `submissions.zip` one company at a time for every company in Massive's ticker list, active and delisted; a filer
+    that never held a ticker Massive lists is read only when `ciks` names it. Rows `filed, accepted_et, form, ticker,
+    tickers, cik, company, sic, accession, report_date, items, accepted_clock`: a filing counts from its filing date;
+    `accepted_et` is SEC's acceptance time placed on its own clock by the catalyst backfill's rule
+    (`research/catalysts/edgar_clock.py`, `placed`), `accepted_clock` says what placed it. `ticker` is the ticker the
+    company held on the filing day (null before its listing or after its delisting; a reused ticker only on days it
+    was this company's), `tickers` every ticker Massive gives the CIK (case kept), and each row is its own company
+    (`cik`), never merged. `tickers` (the company that held each on both ends of the span; a day the list cannot
+    settle is refused), `ciks` or `sic` (SEC's code today; `283*` is a prefix) narrow the read. Measured on the
+    operator's zip: a week about 7 s, a broad form over a month up to about 18 s, a server's first SEC read about
+    10 s more. `meta.scanned` counts the companies read, parsed and skipped.
+  - `short_interest_scan {settlement? | day? + at?, min_shares?, min_days_to_cover?, kinds?, sort?, output_name?}`
+    lists every stock's FINRA short interest at one settlement, optionally at least `min_shares` short and / or
+    `min_days_to_cover` (`days_to_cover` 999.99 is FINRA's cap). The settlement is the one named, or the newest
+    published by `day` (ET `at`, default 09:30) under `short_interest`'s publish lag (`move_reason.short_interest.
+    counts_from`: the 8th business day after settlement); `meta.picked` names it and the newer one still pending.
+    Every row is from that one settlement: a stock missing from it is missing, never read from an older one. Rows
+    `ticker, cik, company, type, settlement_date, short_interest, avg_daily_volume, days_to_cover, counts_from,
+    ticker_warning`; tickers stay as FINRA writes them (`ABRpD`, a preferred), each row naming the company that held
+    the ticker on the settlement day. Common stock by default; `kinds=["all"]` keeps ETFs, preferreds and OTC names
+    Massive does not type; `meta.left_out` counts `other_kind` / `unknown_kind`. `sort` `short_interest` (default)
+    | `days_to_cover` | `ticker`. A settlement not on file, or `settlement` with `day`, is refused. The month files
+    hold data from 2017-12 (2016-01 .. 2017-11 are empty on disk).
+  - `sector_scan {sic?, sic_words?, exchange?, active?, kinds?, output_name?}` lists every listed company in an
+    industry: SIC codes (`2834`, or `283*` for a prefix) or words in the SIC description (any word, any case; codes
+    and words combine with OR), optionally by primary exchange and `active`. Rows `ticker, name, cik, sic,
+    sic_description, exchange, list_date, type, active`. Common stock by default; `kinds=["all"]` keeps warrants,
+    units and preferreds. SIC comes from Massive's ticker details, the reference dump's latest value (not as of a
+    past day; `meta.note`), and the dump has ticker details only for tickers active when it was taken (13,901 rows,
+    6,032 with a SIC), so a delisted company is not in this scan.
+  The per-stock `short_interest` reads the ticker as written first and upper-cases it only when that has no row,
+  never mixing the two (FINRA's `ABRpD` is another security than `ABRPD`); `symbols` rows show a ticker as Massive
+  writes it (`AAp`, never `AAP`).
 - **Relative volume across every stock, and what came next** (#1100, operator 2026-10-20: "agents using standardized
   methods ... access to a large sum of data, standardized in the way they access this data"; tools
   `tools/nova_data_rvol.py`, CLI `tools/market_data_rvol.py`, reads `research/market_reads/rvol.py` and
@@ -701,6 +782,25 @@ MCP server (`tools/nova_mcp.py`, official SDK, stdio; registered in `.cursor/mcp
     (`seed`, default 1), scored from the same clock the same way -- the same summary shape. `meta` counts what was
     left out (`no_price`, `split`, `base_sessions`, `horizon_reset`, `horizon_open`) and states every rule. Only `output_name`
     writes (each entry with its outcome); the three tools take a heavy-read slot.
+  - **News, shares and halts** (search gaps, operator 2026-10-26): `rvol_scan`, `rvol_triggers` and `rvol_outcomes`
+    take find_stock_days' day-fact filters through the same join and row filter (`research/market_reads/day_facts.py`
+    and `day_movers.facts.keep`, applied by `research/market_reads/rvol_facts.py`): `catalyst` (verdicts; `unknown`
+    = a day never judged), `catalyst_category`, `catalyst_words`, `float_max` on `float_basis` (`sec_outstanding`,
+    the default: SEC shares outstanding, not free float | `enrichment` | `best`) with `float_unknown` (exclude |
+    include | only), `halted`, and `halt_codes` (`T1`, `LUDP` ...; `news` / `luld` name their groups). The facts
+    are joined only when a filter or group asks for them, only the parts asked (shares, catalyst, halts), and only
+    for the stock-days the relative-volume filters already kept, so a call without them answers exactly as before.
+    A kept row carries the joined parts' columns (`catalyst_*`; `float_shares`, `float_source`, `outstanding_*`,
+    `enrichment_float`; `halts`, `first_halt_et`, `halt_codes`, `luld_halts`, `news_halts`), and `meta.day_facts`
+    echoes the filters, the parts joined, the rows examined and the rules. An unknown never passes a filter that
+    asks about it: it is left out and counted in `meta.left_out` (`catalyst_unknown`, `shares_unknown`,
+    `halts_unknown` -- the counts `day_movers.facts.keep` keeps for every reader), never read as no news, a small
+    float or no halt. In `rvol_outcomes` the filters narrow the entries and the control pool alike (the same
+    universe), and `group_by` adds `catalyst` (the verdict), `catalyst_category` (lower case; `no category` for a
+    judged day without one) and `float` (`float_shares` on the basis: `<5M`, `5-10M`, `10-20M`, `20-50M`, `50M+`,
+    each from its lower edge up to the next, plus `unknown`; `meta.float_buckets`); a stock-day with no value is in
+    `unknown`, and each control is grouped with its trigger. `rvol_scan` with a `limit` cuts ties at the limit by
+    day, then symbol (identical calls return identical rows).
 - **The Trader's signals on past days, and mixing them** (operator 2026-10-20: "I really need a way where we can mix
   and match these signals, so we can iterate through which signals we can use to actually trade and watch for";
   tools `tools/nova_data_signals.py`, CLI `tools/market_data_signals.py`, reads `research/market_reads/signals.py`

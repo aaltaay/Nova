@@ -20,9 +20,11 @@ TOOLS = {"data_catalog", "data_status", "stock_day", "movers_search", "movers_sc
          "sec_shares", "sec_filings", "float_latest", "ipos", "ticker_details", "short_interest",
          "find_stock_days", "daily_bars", "market_context", "stock_day_stats", "order_flow", "halts", "catalysts",
          "symbols", "rvol_scan", "rvol_triggers", "rvol_outcomes", "cash_runway", "recorded_depth", "recorded_tape",
-         "signal_catalog", "signal_series", "signal_scan", "signal_test"}
+         "signal_catalog", "signal_series", "signal_scan", "signal_test",
+         "sec_filings_scan", "short_interest_scan", "sector_scan", "news_search"}
 WRITES = {"stock_day", "movers_scan", "find_stock_days", "daily_bars", "order_flow", "rvol_scan", "rvol_triggers",
-          "rvol_outcomes", "recorded_tape", "signal_series", "signal_scan", "signal_test"}
+          "rvol_outcomes", "recorded_tape", "signal_series", "signal_scan", "signal_test",
+          "sec_filings_scan", "short_interest_scan", "sector_scan", "news_search"}
 
 
 def test_a_big_table_answers_its_first_rows_and_says_how_many_matched():
@@ -327,3 +329,145 @@ def test_the_tool_descriptions_state_the_defaults_a_call_cannot_see():
     assert "rvol_daily" in find.description and "fda_regulatory" in find.description
     assert "fill_gaps" in tools["stock_day"].inputSchema["properties"] and "meta.gaps" in tools["stock_day"].description
     assert "movers_search" in find.description and "market board" in tools["board"].description
+
+
+RVOL_FACT_ARGS = {"catalyst", "catalyst_category", "catalyst_words", "float_max", "float_basis", "float_unknown",
+                  "halted", "halt_codes"}
+
+
+def test_the_rvol_tools_hand_the_day_fact_filters_to_the_reads(monkeypatch):
+    """#1100 follow-up: the news, float and halt filters go from the MCP arguments to rvol.scan / triggers /
+    outcomes by name; one left unset reaches the read as its default (nothing joined)."""
+    from market_reads import rvol, rvol_outcomes
+    asked = {}
+
+    def table(name):
+        def read(*args, **kwargs):
+            asked[name] = kwargs
+            return pd.DataFrame({"symbol": ["SRG"]})
+        return read
+
+    monkeypatch.setattr(rvol, "scan", table("scan"))
+    monkeypatch.setattr(rvol, "triggers", table("triggers"))
+    monkeypatch.setattr(rvol_outcomes, "outcomes", lambda **kwargs: asked.update(outcomes=kwargs) or {"entries": 0})
+    server = m.create_server(m.DataService())
+    every = {"date_from": "2026-09-01", "date_to": "2026-09-30"}
+    asyncio.run(server.call_tool("rvol_scan", {"at": "09:30", "filters": every, "catalyst": ["catalyst"],
+                                               "float_max": 10_000_000}))
+    asyncio.run(server.call_tool("rvol_triggers", {"rvol_min": 5, "filters": every, "halt_codes": ["news"],
+                                                   "float_basis": "best"}))
+    asyncio.run(server.call_tool("rvol_outcomes", {"filters": every, "at": "09:30", "group_by": "float",
+                                                   "catalyst_category": ["fda_regulatory"], "halted": False}))
+    assert (asked["scan"]["catalyst"], asked["scan"]["float_max"], asked["scan"]["halt_codes"]) == (
+        ["catalyst"], 10_000_000, None)
+    assert (asked["triggers"]["halt_codes"], asked["triggers"]["float_basis"], asked["triggers"]["catalyst"]) == (
+        ["news"], "best", None)
+    assert (asked["outcomes"]["group_by"], asked["outcomes"]["catalyst_category"], asked["outcomes"]["halted"],
+            asked["outcomes"]["float_unknown"]) == ("float", ["fda_regulatory"], False, "exclude")
+    tools = {t.name: t for t in asyncio.run(server.list_tools())}
+    for name in ("rvol_scan", "rvol_triggers", "rvol_outcomes"):
+        assert RVOL_FACT_ARGS <= set(tools[name].inputSchema["properties"]), name
+        assert "left_out" in tools[name].description and "fda_regulatory" in tools[name].description
+    assert "50M+" in tools["rvol_outcomes"].description and "catalyst_category" in tools["rvol_outcomes"].description
+
+
+def test_the_cross_stock_scans_hand_their_arguments_to_the_reads_and_write_only_a_new_file(monkeypatch, tmp_path):
+    """The SEC filings, short-interest and sector scans: arguments reach the library in order, a table answer holds
+    200 rows inline, output_name writes every row once."""
+    import nova_data_scans
+    from market_reads import reference_scans, sec_scan
+    asked = {}
+
+    def table(name, rows=1):
+        def read(*args):
+            asked[name] = args
+            frame = pd.DataFrame({"ticker": [f"T{i}" for i in range(rows)]})
+            frame.attrs["rule"] = name
+            return frame
+        return read
+
+    monkeypatch.setattr(sec_scan, "filings_scan", table("filings", 250))
+    monkeypatch.setattr(reference_scans, "short_interest_scan", table("short"))
+    monkeypatch.setattr(reference_scans, "sector_scan", table("sector"))
+    service = m.DataService(tmp_path)
+    answer = service.sec_filings_scan(["424B5"], "2026-09-08", "2026-09-14", sic=["2834"], output_name="f.parquet")
+    assert asked["filings"] == (["424B5"], "2026-09-08", "2026-09-14", None, None, ["2834"])
+    assert answer["rows"] == 250 and len(answer["data"]) == 200 and pd.read_parquet(answer["out"]).shape[0] == 250
+    with pytest.raises(FileExistsError):
+        service.sec_filings_scan(["424B5"], "2026-09-08", "2026-09-14", output_name="f.parquet")
+    service.short_interest_scan(day="2026-10-02", min_shares=5e6, kinds=["all"])
+    assert asked["short"] == (None, "2026-10-02", "09:30", 5e6, None, ["all"], "short_interest")
+    answer = service.sector_scan(sic_words=["pharmaceutical"], exchange=["XNAS"])
+    assert asked["sector"] == (None, ["pharmaceutical"], ["XNAS"], None, None) and answer["meta"] == {"rule": "sector"}
+    assert nova_data_scans.MAX_SPAN_DAYS == sec_scan.MAX_SPAN_DAYS
+
+
+def test_the_scans_are_heavy_and_a_wide_span_is_an_answer():
+    assert not {"sec_filings_scan", "short_interest_scan", "sector_scan"} & m.LIGHT_TOOLS
+    answer = m.call(m.DataService().sec_filings_scan, ["8-K"], "2026-08-01", "2026-09-30")
+    assert answer["ok"] is False and "at most 31 days" in answer["error"]
+
+
+def test_the_scan_descriptions_state_their_limits_and_defaults():
+    tools = {t.name: t for t in asyncio.run(m.create_server(m.DataService()).list_tools())}
+    assert "31 days" in tools["sec_filings_scan"].description and "accepted_et" in tools["sec_filings_scan"].description
+    assert "COMMON STOCK" in tools["short_interest_scan"].description
+    assert "publish lag" in tools["short_interest_scan"].description
+    assert "LATEST" in tools["sector_scan"].description and "COMMON STOCK" in tools["sector_scan"].description
+    assert {"forms", "date_from", "date_to", "tickers", "ciks", "sic", "output_name"} == set(
+        tools["sec_filings_scan"].inputSchema["properties"])
+
+
+def test_news_search_reads_verdicts_by_default_and_items_by_scope(monkeypatch, tmp_path):
+    from market_reads import catalysts
+    asked = {}
+
+    def verdicts(*args):
+        asked["verdicts"] = args
+        frame = pd.DataFrame({"symbol": ["CPIX"], "category": ["fda_regulatory"]})
+        frame.attrs["categories"] = {"fda_regulatory": 1}
+        return frame
+
+    def items(*args):
+        asked["items"] = args
+        return pd.DataFrame({"symbol": ["CPIX"], "title": ["Caldolor Is Now FDA Approved"]})
+
+    monkeypatch.setattr(catalysts, "search_verdicts", verdicts)
+    monkeypatch.setattr(catalysts, "search_items", items)
+    service = m.DataService(tmp_path)
+    answer = service.news_search("2021-11-01", "2021-12-31", category=["fda_regulatory"], words=["approv"])
+    assert answer["data"] == [{"symbol": "CPIX", "category": "fda_regulatory"}]
+    assert answer["meta"]["categories"] == {"fda_regulatory": 1}
+    assert asked["verdicts"] == ("2021-11-01", "2021-12-31", None, ["fda_regulatory"], ["approv"], None)
+    answer = service.news_search("2021-11-29", "2021-11-30", words=["fda"], scope="items",
+                                 output_name="fda.csv")
+    assert asked["items"] == ("2021-11-29", "2021-11-30", ["fda"], None, None) and answer["out"].endswith("fda.csv")
+    with pytest.raises(ValueError, match="scope='verdicts'"):
+        service.news_search("2021-11-29", "2021-11-30", category=["fda_regulatory"], scope="items")
+    with pytest.raises(ValueError, match="scope is"):
+        service.news_search("2021-11-29", "2021-11-30", scope="tweets")
+
+
+def test_halts_codes_and_find_stock_days_halt_codes_reach_their_readers(monkeypatch):
+    from market_reads import halts, stock_days
+    asked = {}
+    monkeypatch.setattr(halts, "halts", lambda *args: asked.update(halts=args) or pd.DataFrame())
+
+    def page(**kwargs):
+        asked["find"] = kwargs
+        return pd.DataFrame()
+
+    monkeypatch.setattr(stock_days, "find_stock_days", page)
+    service = m.DataService()
+    service.halts(day="2026-09-01", codes=["news"])
+    assert asked["halts"] == (None, "2026-09-01", None, None, None, ["news"])
+    service.find_stock_days({"date_from": "2026-09-01"}, halt_codes=["LUDP"])
+    assert asked["find"]["halt_codes"] == ["LUDP"]
+
+
+def test_symbols_pass_exchange_and_cik(monkeypatch):
+    from market_reads import symbols
+    asked = {}
+    monkeypatch.setattr(symbols, "search", lambda query, **kw: asked.update(kw) or pd.DataFrame())
+    m.DataService().symbols(exchange="XNAS", cik="1087294")
+    assert asked["exchange"] == "XNAS" and asked["cik"] == "1087294"

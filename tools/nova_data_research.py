@@ -2,7 +2,7 @@
 around a day, one stock-day's stats, minute order flow, halts, catalysts and symbols.
 
 Split from ``tools/nova_data_mcp.py`` along the tool-set seam: that file owns the server, the answer shape and the
-first fourteen tools; this one owns these eight (``ResearchTools`` bodies, ``register`` their MCP descriptions);
+first fourteen tools; this one owns these nine (``ResearchTools`` bodies, ``register`` their MCP descriptions);
 ``nova_data_runway.py`` owns ``cash_runway``.
 Same contract: read-only on the data, a table answer holds 200 rows inline, ``output_name`` writes a new file.
 """
@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
-PRELOAD = ("market_reads.stock_days", "market_reads.daily", "market_reads.stats", "market_reads.order_flow",
+PRELOAD = ("market_reads.stock_days", "market_reads.day_facts", "market_reads.daily", "market_reads.stats", "market_reads.order_flow",
            "market_reads.halts", "market_reads.catalysts", "market_reads.symbols", "pyarrow.parquet",
            "day_movers.floats", "day_movers.store")
 
@@ -25,8 +25,8 @@ class ResearchTools:
                         catalyst: list[str] | None = None, halted: bool | None = None, sort: str | None = None,
                         limit: int | None = None, cursor: str | None = None, page_size: int | None = None,
                         output_name: str | None = None, catalyst_category: list[str] | None = None,
-                        catalyst_words: list[str] | None = None,
-                        rvol_daily_min: float | None = None) -> dict[str, Any]:
+                        catalyst_words: list[str] | None = None, rvol_daily_min: float | None = None,
+                        halt_codes: list[str] | None = None) -> dict[str, Any]:
         from market_reads import stock_days
         out = self.output_path(output_name)
         frame = stock_days.find_stock_days(filters=filters, symbol=symbol, kinds=kinds, splits=splits,
@@ -35,7 +35,7 @@ class ResearchTools:
                                            halted=halted, sort=sort, limit=limit, cursor=cursor,
                                            page_size=page_size, to_file=out is not None,
                                            catalyst_category=catalyst_category, catalyst_words=catalyst_words,
-                                           rvol_daily_min=rvol_daily_min)
+                                           rvol_daily_min=rvol_daily_min, halt_codes=halt_codes)
         answer = self.answer(frame, out)
         answer["next_cursor"] = frame.attrs.get("next_cursor")
         return answer
@@ -62,9 +62,10 @@ class ResearchTools:
         return self.answer(order_flow.order_flow(symbol, day, start, end, bucket), out)
 
     def halts(self, symbol: str | None = None, day: str | None = None, date_from: str | None = None,
-              date_to: str | None = None, source: str | None = None) -> dict[str, Any]:
+              date_to: str | None = None, source: str | None = None,
+              codes: list[str] | None = None) -> dict[str, Any]:
         from market_reads import halts
-        return self.answer(halts.halts(symbol, day, date_from, date_to, source))
+        return self.answer(halts.halts(symbol, day, date_from, date_to, source, codes))
 
     def catalysts(self, symbol: str, date_from: str | None = None, date_to: str | None = None,
                   at: str | None = None, sources: list[str] | None = None, limit: int | None = None) -> dict:
@@ -75,16 +76,34 @@ class ResearchTools:
         answer["verdicts_meta"] = self.json_safe(dict(verdicts.attrs))
         return answer
 
+    def news_search(self, date_from: str, date_to: str, verdict: list[str] | None = None,
+                    category: list[str] | None = None, words: list[str] | None = None, scope: str = "verdicts",
+                    sources: list[str] | None = None, limit: int | None = None,
+                    output_name: str | None = None) -> dict[str, Any]:
+        from market_reads import catalysts
+        out = self.output_path(output_name)
+        if scope == "verdicts":
+            frame = catalysts.search_verdicts(date_from, date_to, verdict, category, words, limit)
+        elif scope == "items":
+            if verdict or category:
+                raise ValueError("verdict / category judge a stock-day: scope='verdicts' (items have headlines only)")
+            frame = catalysts.search_items(date_from, date_to, words or [], sources, limit)
+        else:
+            raise ValueError("scope is verdicts (one judged stock-day per row) or items (headlines)")
+        return self.answer(frame, out)
+
     def symbols(self, query: str | None = None, ticker: str | None = None, day: str | None = None,
-                active: bool | None = None, types: list[str] | None = None, limit: int = 50) -> dict[str, Any]:
+                active: bool | None = None, types: list[str] | None = None, limit: int = 50,
+                exchange: str | None = None, cik: str | None = None) -> dict[str, Any]:
         from market_reads import symbols
         if ticker:
             return {"ok": True, **self.json_safe(symbols.symbol(ticker, day))}
-        return self.answer(symbols.search(query, active=active, types=types, limit=limit))
+        return self.answer(symbols.search(query, active=active, types=types, exchange=exchange, cik=cik,
+                                          limit=limit))
 
 
 def register(server, service, run, reads, writes_file) -> None:
-    """The eight tools on ``server`` (``run`` executes a body off the event loop; heavy ones one at a time)."""
+    """The nine tools on ``server`` (``run`` executes a body off the event loop; heavy ones one at a time)."""
 
     @server.tool(annotations=writes_file)
     async def find_stock_days(filters: dict, symbol: str | None = None, kinds: list[str] | str | None = None,
@@ -94,8 +113,8 @@ def register(server, service, run, reads, writes_file) -> None:
                               halted: bool | None = None, sort: str | None = None, limit: int | None = None,
                               cursor: str | None = None, page_size: int | None = None,
                               output_name: str | None = None, catalyst_category: list[str] | None = None,
-                              catalyst_words: list[str] | None = None,
-                              rvol_daily_min: float | None = None) -> dict:
+                              catalyst_words: list[str] | None = None, rvol_daily_min: float | None = None,
+                              halt_codes: list[str] | None = None) -> dict:
         """Momentum stock-days in one call: movers rows (filters as movers_scan: date_from/date_to, price_min/max on
         the raw prior close, high_min ... in percent points; needs dates or a symbol) joined with what was known
         that day -- outstanding_* (SEC shares OUTSTANDING filed by the day, as of <=120 days, split-adjusted; NOT free
@@ -114,12 +133,14 @@ def register(server, service, run, reads, writes_file) -> None:
         float_max); float_source labels each value; float_unknown exclude | include | only. catalyst e.g.
         ["catalyst"] or ["unknown"]; catalyst_category e.g. ["fda_regulatory"] (the verdict's category);
         catalyst_words keeps a headline containing any word (e.g. ["approv", "clear"]: a text match, read the titles);
-        halted true/false. rvol_daily (the day's volume / its usual whole-session volume, up to 50 earlier sessions;
+        halted true/false; halt_codes keeps a day with a halt of any code (e.g. ["T1", "LUDP"], or "news" /
+        "luld" for their groups; a day the halt log does not cover is left out); news_halts / luld_halts count them.
+        rvol_daily (the day's volume / its usual whole-session volume, up to 50 earlier sessions;
         null = unknown) on every row; rvol_daily_min e.g. 5 keeps 5x or more and leaves unknowns out, counted in
         meta.left_out. Likely splits left out (splits=include keeps)."""
         return await run(service.find_stock_days, filters, symbol, kinds, splits, float_max, outstanding_max,
                          float_basis, float_unknown, catalyst, halted, sort, limit, cursor, page_size, output_name,
-                         catalyst_category, catalyst_words, rvol_daily_min)
+                         catalyst_category, catalyst_words, rvol_daily_min, halt_codes)
 
     @server.tool(annotations=writes_file)
     async def daily_bars(symbol: str, date_from: str, date_to: str, adjust: bool = False, as_of: str | None = None,
@@ -161,10 +182,12 @@ def register(server, service, run, reads, writes_file) -> None:
 
     @server.tool(annotations=reads)
     async def halts(symbol: str | None = None, day: str | None = None, date_from: str | None = None,
-                    date_to: str | None = None, source: str | None = None) -> dict:
+                    date_to: str | None = None, source: str | None = None, codes: list[str] | None = None) -> dict:
         """Trading halts (LULD pauses, news pending, ...) by symbol and/or day from Nova's halt log: one row per halt
-        with start/end ET, duration, code and source. Needs a symbol or a day / date range; meta says the coverage."""
-        return await run(service.halts, symbol, day, date_from, date_to, source)
+        with start/end ET, duration, code and source. Needs a symbol or a day / date range; meta says the coverage
+        and what each code means. codes keeps those halts: e.g. ["T1", "T12"], ["LUDP"], or "news" (T1-T3, T12) /
+        "luld" (LULD and volatility pauses) for their groups."""
+        return await run(service.halts, symbol, day, date_from, date_to, source, codes)
 
     @server.tool(annotations=reads)
     async def catalysts(symbol: str, date_from: str | None = None, date_to: str | None = None, at: str | None = None,
@@ -175,10 +198,27 @@ def register(server, service, run, reads, writes_file) -> None:
         is unknown, never no news."""
         return await run(service.catalysts, symbol, date_from, date_to, at, sources, limit)
 
+    @server.tool(annotations=writes_file)
+    async def news_search(date_from: str, date_to: str, verdict: list[str] | None = None,
+                          category: list[str] | None = None, words: list[str] | None = None, scope: str = "verdicts",
+                          sources: list[str] | None = None, limit: int | None = None,
+                          output_name: str | None = None) -> dict:
+        """News across every stock in a date range (at most 366 days), no symbol needed. scope verdicts (default):
+        one row per judged stock-day, newest first -- verdict e.g. ["catalyst"] (catalyst | negative | routine_only |
+        noise_only | none_found), category e.g. ["fda_regulatory"], words in the deciding headline (a text match,
+        e.g. ["approv", "clear"]); meta.categories counts every category in the range (the values category takes).
+        scope items: every headline containing any of words (required), one row per item and stock it names. Only
+        the backfill's target stock-days have verdicts and only its tickers have items: a stock-day in no row is
+        unknown, never no news. Up to 5,000 rows (limit); output_name writes them."""
+        return await run(service.news_search, date_from, date_to, verdict, category, words, scope, sources, limit,
+                         output_name)
+
     @server.tool(annotations=reads)
     async def symbols(query: str | None = None, ticker: str | None = None, day: str | None = None,
-                      active: bool | None = None, types: list[str] | None = None, limit: int = 50) -> dict:
-        """Find a stock: query matches a ticker prefix or a company name; active true/false; types e.g. ["CS"].
+                      active: bool | None = None, types: list[str] | None = None, limit: int = 50,
+                      exchange: str | None = None, cik: str | None = None) -> dict:
+        """Find a stock: query matches a ticker prefix or a company name; active true/false; types e.g. ["CS"];
+        exchange e.g. "XNAS" (primary exchange); cik every ticker a company used.
         With ticker: everything about it -- every company that used it and when, which one held it on day, a
         reused-ticker warning, and the company's other tickers (CIK history). Massive's list, latest dump."""
-        return await run(service.symbols, query, ticker, day, active, types, limit)
+        return await run(service.symbols, query, ticker, day, active, types, limit, exchange, cik)

@@ -169,7 +169,9 @@ CATALOG = (
     {"name": "sec_filings", "source": "SEC submissions.zip", "history": "all EDGAR filings",
      "as_of": "a filing counts from its filing date; the company that held the ticker on as_of",
      "units": "form, filed, report_date, accession (Forms 3/4/5, 13D/13G, 10-Q/K, 20-F, 8-K, 424B ...)",
-     "mcp": "sec_filings", "cli": "market_data.py sec-filings SYMBOL --as-of DAY --forms 4,8-K"},
+     "mcp": "sec_filings (one company) / sec_filings_scan (who filed FORMS in <=31 days, every listed company, "
+            "acceptance time ET)",
+     "cli": "market_data.py sec-filings SYMBOL --as-of DAY --forms 4,8-K / sec-filings-scan FORMS FROM TO"},
     {"name": "float_latest", "source": "Massive /stocks/vX/float", "history": "latest only -- no past days",
      "as_of": "never point-in-time; excludes insiders, 5%+ holders, locked-up/restricted shares",
      "units": "free_float shares, free_float_percent", "mcp": "float_latest", "cli": "market_data.py float SYMBOL"},
@@ -178,10 +180,14 @@ CATALOG = (
      "cli": "market_data.py ipos --symbol SYMBOL"},
     {"name": "ticker_details", "source": "Massive reference", "history": "latest only",
      "as_of": "current values as of the dump", "units": "share_class_shares_outstanding shares",
-     "mcp": "ticker_details", "cli": "market_data.py ticker SYMBOL"},
-    {"name": "short_interest", "source": "FINRA via Massive reference", "history": "2016 on, twice monthly",
+     "mcp": "ticker_details (one ticker) / sector_scan (every listed company by SIC code or description; latest "
+            "SIC, active tickers only)", "cli": "market_data.py ticker SYMBOL / sector-scan --sic 2834"},
+    {"name": "short_interest", "source": "FINRA via Massive reference",
+     "history": "2017-12 on, twice monthly (the dump's 2016-01 .. 2017-11 month files are empty)",
      "as_of": "a settlement counts only after its publish lag (move_reason.short_interest)",
-     "units": "shares, days_to_cover", "mcp": "short_interest", "cli": "market_data.py short-interest SYMBOL DAY"},
+     "units": "shares, days_to_cover", "mcp": "short_interest (one stock) / short_interest_scan (every stock at one "
+                                              "settlement, min shares / days to cover)",
+     "cli": "market_data.py short-interest SYMBOL DAY / short-interest-scan --day DAY --min-shares N"},
     {"name": "cash_runway", "source": "Massive reference balance sheets and cash-flow statements + SEC companyfacts "
                                      "(shares) and submissions (filings)", "history": "statements and filings 2016 on",
      "as_of": "a statement or filing counts from the day it was filed. Massive dates a period by the newest filing "

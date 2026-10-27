@@ -31,6 +31,7 @@ import nova_data_recordings as recordings  # noqa: E402  (the fourth tool set: N
 import nova_data_research as research  # noqa: E402  (the second tool set: stock-days, stats, flow, halts ...)
 import nova_data_runway as runway_tools  # noqa: E402  (cash runway and dilution filings, #1102)
 import nova_data_rvol as rvol_tools  # noqa: E402  (the third: relative volume across every stock, #1100)
+import nova_data_scans as scan_tools  # noqa: E402  (cross-stock scans: SEC filings, short interest, sectors)
 import nova_data_signals as signal_tools  # noqa: E402  (the fourth: the Trader's signals on past days)
 
 INLINE_ROWS = 200
@@ -90,7 +91,7 @@ def table_answer(frame, out: Path | None = None, inline: int = INLINE_ROWS) -> d
 
 
 class DataService(research.ResearchTools, rvol_tools.RvolTools, runway_tools.RunwayTools,
-                  recordings.RecordingTools, signal_tools.SignalTools):
+                  recordings.RecordingTools, signal_tools.SignalTools, scan_tools.ScanTools):
     """The tools' bodies, callable without the MCP SDK (tests drive this class)."""
 
     answer = staticmethod(table_answer)
@@ -345,6 +346,7 @@ def create_server(service: DataService, run_sync=None, server_name: str = "nova-
     rvol_tools.register(server, service, run, reads, writes_file)
     recordings.register(server, service, run, reads, writes_file)
     signal_tools.register(server, service, run, reads, writes_file)
+    scan_tools.register(server, service, run, reads, writes_file)
     return server
 
 
@@ -353,7 +355,7 @@ PRELOAD = ("numpy", "pandas", "pyarrow", "market_reads.reads", "market_reads.spl
            "market_reads.catalog", "day_movers.query",
            "agent_desk.movers_read", "leaderboard.playback", "move_reason.short_interest", *research.PRELOAD,
            *rvol_tools.PRELOAD,
-           *runway_tools.PRELOAD, *recordings.PRELOAD, *signal_tools.PRELOAD)
+           *runway_tools.PRELOAD, *recordings.PRELOAD, *signal_tools.PRELOAD, *scan_tools.PRELOAD)
 
 
 def preload() -> list[str]:

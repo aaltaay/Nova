@@ -37,6 +37,9 @@ py -3 tools/market_data.py stats IRD 2026-09-09                    # premarket, 
 py -3 tools/market_data.py flow IRD 2026-09-09 --bucket 5m         # dark pool, retail buy/sell, sweeps per minute
 py -3 tools/market_data.py halts --symbol GME --from 2021-01-25 --to 2021-01-29
 py -3 tools/market_data.py catalysts IRD --from 2026-09-08 --to 2026-09-09 [--verdicts]
+py -3 tools/market_data.py news --from 2021-11-01 --to 2021-12-31 --category fda_regulatory --words approv,clear
+py -3 tools/market_data.py news --from 2021-11-29 --to 2021-11-30 --items --words "fda approv"   # headlines, every stock
+py -3 tools/market_data.py halts --from 2026-09-01 --to 2026-09-05 --codes news   # news halts (T1-T3, T12); luld too
 py -3 tools/market_data.py symbols aurora                          # or: symbols --ticker AAP --day 2016-06-01
 ```
 
@@ -47,7 +50,14 @@ unknown), the day's halts, premarket high / volume and the first ET minute each 
 float value says its source (`float_source`). Pages come back with `next_cursor`. `find` returns common stock
 (`CS`, `ADRC`) unless `kinds` says otherwise (`kinds=all` adds warrants, rights, units and ETFs), and `--sort`
 ranks the rows like the movers search (`--sort high --limit 10` is the ten largest highs that pass your other
-filters; `next_cursor` resumes the same ranking exactly). Then `stats`, `flow`, `catalysts`
+filters; `next_cursor` resumes the same ranking exactly). It filters on what was known too: `--catalyst`,
+`--catalyst-category fda_regulatory`, `--catalyst-words approv,clear`, `--halted`, `--halt-codes news` (or `luld`,
+`T1`, `LUDP` ...) and `--rvol-daily-min 5`; an unknown is left out and counted, never read as "no news" or "low
+volume". Those columns come from one join (`research/market_reads/day_facts.py`) and one filter
+(`backend/day_movers/facts.py`) that the relative-volume tools and the desk's agent search (`/api/agent/movers`,
+from the movers store's exported `day_facts`) use too, so a stock-day passes a filter the same way everywhere.
+`sec-filings-scan 424B5 FROM TO`, `short-interest-scan --day DAY --min-days-to-cover 5` and `sector-scan --sic 283*` answer the same kind of question across every stock (MCP `sec_filings_scan`, `short_interest_scan`, `sector_scan`; a filings scan spans at most 31 days). `news` searches every stock at once (no symbol): the backfill's verdicts by category and headline words, or with
+`--items` every headline containing the words. Then `stats`, `flow`, `catalysts`
 and `daily` / `context` answer the questions about one stock-day. Builders and column definitions for the derived
 tables (`trades_flow_v1` and the rest): `docs/massive-builders.md`.
 

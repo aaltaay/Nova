@@ -12,6 +12,10 @@ The control (trigger entries): for each trigger, one stock-day from the same dat
 split and baseline filters, has a bar before the entry clock, and had not crossed the line by then -- picked by a
 seeded hash -- scored from the same clock the same way. Same day, same minute, same universe: the comparison asks
 whether crossing the line told anything the clock and the universe did not.
+
+Day facts (``rvol_facts``): find_stock_days' news, share and halt filters narrow the entries and the control pool
+alike (they are the universe); ``group_by`` ``catalyst`` / ``catalyst_category`` / ``float`` groups by them -- a
+stock-day with no value in ``unknown``, a control with its trigger.
 """
 from __future__ import annotations
 
@@ -23,11 +27,11 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from market_reads import rvol, slots
+from market_reads import rvol, rvol_facts, slots
 from market_reads import rvol_store as rs
 
 HORIZONS = {"close": rs.RTH_CLOSE_M, "session": rs.SESSION_END_M, "days": rs.SESSION_END_M}
-GROUPS = ("rvol", "year", "hour", "none")
+GROUPS = ("rvol", "year", "hour", "none", *rvol_facts.GROUPS)
 DEFAULT_BUCKETS = (0, 1, 2, 3, 5, 10, 20, 50, 100, 1000)
 MAX_DAYS = 20
 LINE_EPS = 1e-9                 # day_movers' DAY_MOVERS_LINE_EPS: a price exactly on the line is on it
@@ -166,6 +170,8 @@ def _groups(frame: pd.DataFrame, group_by: str, buckets) -> pd.Series:
         return frame["date"].map(lambda d: str(d)[:4])
     if group_by == "hour":
         return frame["entry_m"].map(lambda m: f"{int(m) // 60:02d}:00")
+    if group_by in rvol_facts.GROUPS:
+        return rvol_facts.group(frame, group_by)
     edges = list(buckets or DEFAULT_BUCKETS)
     labels = [f"{a:g}-{b:g}" for a, b in zip(edges[:-1], edges[1:], strict=False)] + [f"{edges[-1]:g}+"]
     where = np.searchsorted(edges, frame["value"].to_numpy(dtype=np.float64), side="right") - 1
@@ -216,8 +222,9 @@ def outcomes(*, filters: dict[str, Any], at: str | None = None, trigger: dict[st
              up_pct: float = 50.0, down_pct: float = 50.0, horizon: str = "close", days: int | None = None,
              group_by: str | None = None, buckets=None, measure: str = "cumulative", kinds=None,
              splits: str = "exclude_likely", min_base_sessions: int = rs.BASE_SESSIONS, control: bool = True,
-             seed: int = 1, to_file: Path | None = None) -> dict[str, Any]:
-    """``{entries, summary, control, meta}`` (see the module docstring); ``to_file`` receives every scored entry."""
+             seed: int = 1, to_file: Path | None = None, **facts) -> dict[str, Any]:
+    """``{entries, summary, control, meta}`` (see the module docstring); ``to_file`` receives every scored entry.
+    ``facts``: the day-fact filters (``rvol_facts.Facts``)."""
     if (at is None) == (trigger is None):
         raise ValueError("give at (every stock-day at a clock time) or trigger (rvol_triggers' arguments), not both")
     if horizon not in HORIZONS:
@@ -231,6 +238,7 @@ def outcomes(*, filters: dict[str, Any], at: str | None = None, trigger: dict[st
     group_by = group_by or ("rvol" if at else "none")
     if group_by not in GROUPS:
         raise ValueError(f"group_by must be one of {', '.join(GROUPS)}")
+    facts = rvol_facts.Facts(**facts, group_by=group_by)
     end = HORIZONS[horizon]
     if at is not None and rvol.minute_of(at, "at") >= end:
         raise ValueError(f"at {at} leaves no bar inside horizon '{horizon}' (it ends {rvol.hhmm(end)})")
@@ -275,7 +283,9 @@ def outcomes(*, filters: dict[str, Any], at: str | None = None, trigger: dict[st
                     e["entry_m"] = e["entry_m"].astype(np.int64)
                 e["entry_m"] = e["entry_m"] if is_trigger else rvol.minute_of(at)
                 no_price += int(e["price"].isna().sum())
-                e = e[e["price"].notna() & (e["price"] > 0)].reset_index(drop=True)
+                e = facts.join(e[e["price"].notna() & (e["price"] > 0)].reset_index(drop=True))
+                if not len(e):
+                    continue
                 e["id"] = np.arange(next_id, next_id + len(e))
                 next_id += len(e)
                 e["value"] = e[value_column]
@@ -289,7 +299,7 @@ def outcomes(*, filters: dict[str, Any], at: str | None = None, trigger: dict[st
                                        f"WHERE first_m IS NOT NULL AND {universe}",
                                        {"dfiles": rvol.posix(rs.days_path(d) for d in chunk_days)}).df()
                     pool["date"] = pd.to_datetime(pool["date"]).dt.date
-                    c = _controls(e, pool, seed, crossed)
+                    c = _controls(e, facts.pool(pool, e["date"]), seed, crossed)
                     if len(c):
                         c["id"] = np.arange(next_id, next_id + len(c))
                         next_id += len(c)
@@ -308,8 +318,9 @@ def outcomes(*, filters: dict[str, Any], at: str | None = None, trigger: dict[st
     frame["group"] = _groups(frame, group_by, buckets) if len(frame) else pd.Series(dtype=object)
     ctl = pd.concat(controls, ignore_index=True) if controls else None
     if ctl is not None:
-        ctl["group"] = _groups(ctl, group_by, buckets)
-    order = None
+        ctl["group"] = ctl["source_id"].map(dict(zip(frame["id"], frame["group"], strict=True))) \
+            if group_by in rvol_facts.GROUPS else _groups(ctl, group_by, buckets)
+    order = rvol_facts.order(group_by, frame["group"]) if group_by in rvol_facts.GROUPS else None
     if group_by == "rvol":
         edges = list(buckets or DEFAULT_BUCKETS)
         order = [f"{a:g}-{b:g}" for a, b in zip(edges[:-1], edges[1:], strict=False)] + [f"{edges[-1]:g}+",
@@ -317,7 +328,7 @@ def outcomes(*, filters: dict[str, Any], at: str | None = None, trigger: dict[st
         order = [g for g in order if g in set(frame["group"])]
     if to_file is not None:
         _write_rows(pd.concat([frame, ctl], ignore_index=True) if ctl is not None else frame, to_file)
-    return {
+    answer = {
         "entries": int(len(frame)), "summary": summarize(frame, order) if len(frame) else [],
         "control": summarize(ctl, order) if ctl is not None and len(ctl) else (
             [] if is_trigger and control else None),
@@ -332,6 +343,11 @@ def outcomes(*, filters: dict[str, Any], at: str | None = None, trigger: dict[st
                               **{k: int((frame["outcome"] == k).sum()) if len(frame) else 0 for k in LEFT_OUT}},
                  "rules": _rules(horizon, n_days), "units": "p_* shares of entries (0-1); *_pct percent points of the "
                                                             "entry price; minutes to the end of the bar that hit"}}
+    answer["meta"]["left_out"].update(facts.left())
+    answer["meta"].update(facts.meta(left_out=False, control=is_trigger and control))
+    if group_by == "float":
+        answer["meta"]["float_buckets"] = rvol_facts.FLOAT_BUCKETS
+    return answer
 
 
 def _rules(horizon: str, n_days: int) -> dict[str, str]:

@@ -84,20 +84,8 @@ def _rows(month: str, ticker: str) -> tuple[dict[str, Any], ...]:
     return _read(str(path), (st.st_size, st.st_mtime_ns), ticker)
 
 
-def published_at(symbol: str, at: float) -> dict[str, Any]:
-    """The newest settlement that counts by ``at``.
-
-    ``{row, counts_from, pending}``: ``row`` the settlement (None when none counts yet), ``pending`` the newest
-    settlement on file that does not count yet (``{settlement_date, counts_from}``) -- or ``{"reason": why}`` when
-    the archive is not on this desk. Every row returned has ``counts_from <= at``'s date.
-    """
-    sym = (symbol or "").strip().upper()
-    if not directory().is_dir():
-        if (directory().parent / "short_interest.jsonl").is_file():
-            return {"reason": ("Massive's FINRA short interest is not split by month on this desk "
-                               "(py -3 research/orb/short_interest_months.py)")}
-        return {"reason": "Massive's FINRA short-interest archive is not on this desk"}
-    day = datetime.fromtimestamp(at, ET).date()
+def _newest(sym: str, day: date) -> tuple[tuple | None, tuple | None]:
+    """``(best, pending)`` for one exact ticker: the newest settlement that counts by ``day`` and the newest after it."""
     best = pending = None
     for month in _months(day):
         for row in _rows(month, sym):
@@ -114,6 +102,29 @@ def published_at(symbol: str, at: float) -> dict[str, Any]:
                     best = (settled, start, row)
             elif pending is None or settled > pending[0]:
                 pending = (settled, start)
+    return best, pending
+
+
+def published_at(symbol: str, at: float) -> dict[str, Any]:
+    """The newest settlement that counts by ``at``.
+
+    ``{row, counts_from, pending}``: ``row`` the settlement (None when none counts yet), ``pending`` the newest
+    settlement on file that does not count yet (``{settlement_date, counts_from}``) -- or ``{"reason": why}`` when
+    the archive is not on this desk. Every row returned has ``counts_from <= at``'s date.
+    """
+    asked = (symbol or "").strip()
+    if not directory().is_dir():
+        if (directory().parent / "short_interest.jsonl").is_file():
+            return {"reason": ("Massive's FINRA short interest is not split by month on this desk "
+                               "(py -3 research/orb/short_interest_months.py)")}
+        return {"reason": "Massive's FINRA short-interest archive is not on this desk"}
+    day = datetime.fromtimestamp(at, ET).date()
+    # The ticker as written first: FINRA writes another security with a lowercase letter (ABRpD, a preferred), so
+    # upper-casing it would read nothing -- or another security. Upper case only when the exact ticker has no row.
+    for sym in dict.fromkeys((asked, asked.upper())):
+        best, pending = _newest(sym, day)
+        if best or pending:
+            break
     return {
         "row": best[2] if best else None,
         "counts_from": best[1] if best else None,

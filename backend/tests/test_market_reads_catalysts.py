@@ -103,6 +103,30 @@ def test_for_pairs_answers_every_pair_and_unknown_is_none(store, monkeypatch):
     assert catalysts.for_pairs([("2026-09-09", "IRD")], cutoff_kind="entry") == {("2026-09-09", "IRD"): None}
 
 
+def test_a_verdict_search_needs_no_symbol_and_filters_after_the_newest_version(store):
+    frame = catalysts.search_verdicts("2026-06-01", "2026-09-30")
+    assert list(frame["symbol"]) == ["IRD", "RUN"]                                  # newest day first
+    assert frame.attrs["categories"] == {"contract": 1} and frame.attrs["matched"] == 2
+    assert list(catalysts.search_verdicts("2026-06-01", "2026-09-30", category=["CONTRACT"])["symbol"]) == ["IRD"]
+    assert list(catalysts.search_verdicts("2026-06-01", "2026-09-30", verdict=["none_found"])["symbol"]) == ["RUN"]
+    assert list(catalysts.search_verdicts("2026-06-01", "2026-09-30", words=["Wins"])["symbol"]) == ["IRD"]
+    # IRD's older v7 verdict was noise_only: the filter reads the newest version, so it is never found
+    assert catalysts.search_verdicts("2026-06-01", "2026-09-30", verdict=["noise_only"]).empty
+    with pytest.raises(ValueError, match="date_from and date_to"):
+        catalysts.search_verdicts("2026-06-01", None)
+    with pytest.raises(ValueError, match="at most"):
+        catalysts.search_verdicts("2020-01-01", "2026-09-30")
+
+
+def test_a_headline_search_spans_stocks_and_keeps_the_honest_clock(store):
+    frame = catalysts.search_items("2026-09-08", "2026-09-09", ["contract", "other"])
+    assert list(frame["item_id"]) == ["alpaca:5", "alpaca:1"]                      # newest first; the copy left out
+    assert list(frame["symbol"]) == ["OTHR", "IRD"] and frame.iloc[1]["published_et"] == "2026-09-08 17:00:00"
+    assert list(catalysts.search_items("2026-09-08", "2026-09-09", ["contract"], limit=1)["item_id"]) == ["alpaca:1"]
+    with pytest.raises(ValueError, match="names words"):
+        catalysts.search_items("2026-09-08", "2026-09-09", [" "])
+
+
 def test_another_schema_version_refuses(store):
     db = sqlite3.connect(store / "catalysts.sqlite3")
     db.execute("PRAGMA user_version = 9")

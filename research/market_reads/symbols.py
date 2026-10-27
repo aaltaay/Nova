@@ -33,7 +33,7 @@ def _cik(value: Any) -> str | None:
 
 
 def _row(row: dict[str, Any], reused: bool) -> dict[str, Any]:
-    return {"ticker": str(row.get("ticker") or "").upper(), "name": row.get("name"), "cik": _cik(row.get("cik")),
+    return {"ticker": str(row.get("ticker") or "").strip(), "name": row.get("name"), "cik": _cik(row.get("cik")),
             "active": bool(row.get("active")), "delisted": (row.get("delisted_utc") or "")[:10] or None,
             "type": row.get("type"), "exchange": row.get("primary_exchange"),
             "composite_figi": row.get("composite_figi"), "ticker_reused": reused}
@@ -66,6 +66,11 @@ def _cik_index() -> dict[str, list[dict[str, Any]]]:
     return _built()[1]
 
 
+def by_cik() -> dict[str, list[dict[str, Any]]]:
+    """Every listing row by CIK (no leading zeros), each row as Massive writes it (ticker case kept: ``AAp``)."""
+    return _cik_index()
+
+
 def dump_as_of() -> str | None:
     """The newest ``last_updated_utc`` in the list: when Massive's dump was taken, at the latest."""
     return _built()[2]
@@ -90,7 +95,7 @@ def search(query: str | None = None, *, ticker: str | None = None, active: bool 
     elif wanted_cik and not q:
         pool = {}
         for row in _cik_index().get(wanted_cik, []):
-            pool.setdefault(str(row.get("ticker") or "").upper(), []).append(row)
+            pool.setdefault(tickers.key(str(row.get("ticker") or "").strip()), []).append(row)
     else:
         pool = listed
     found: list[tuple[tuple, dict[str, Any]]] = []

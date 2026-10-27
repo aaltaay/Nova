@@ -87,6 +87,15 @@ def test_a_read_without_a_symbol_or_a_day_is_refused(log):
         halts.events(day="2024-05-01", date_from="2024-05-01")
 
 
+def test_codes_keep_those_halts_and_the_group_words_name_their_codes(log):
+    window = {"date_from": "2024-05-01", "date_to": "2026-10-31"}
+    assert set(halts.halts(**window, codes=["news"])["symbol"]) == {"NEWS", "GONE"}           # T3: a news halt
+    assert set(halts.halts(**window, codes=["luld"])["symbol"]) == {"RUNR", "BOTH", "IBONLY"}  # LUDP and IBKR's luld
+    assert list(halts.halts(**window, codes=["ludp"])["source"]).count(IB) == 0              # a code is exact
+    assert halts.halts(**window, codes=["T1"]).empty
+    assert halts.halts(**window, codes=["news"]).attrs["asked"]["codes"] == ["news"]
+
+
 def test_events_are_the_raw_log_and_a_source_alias_filters(log):
     raw = halts.events(symbol="BOTH", source="ibkr")
     assert list(raw["event"]) == ["start", "end"] and set(raw["source"]) == {IB}

@@ -2,7 +2,12 @@
 
 Nothing here knows a shape word: "ascending", "fader" or "small cap" are an agent's to turn into these numbers
 (and the operator's to confirm into the dictionary). Percent arguments and answers are percent points.
+News, halt and relative-volume filters (``catalyst``, ``catalyst_category``, ``catalyst_words``, ``halted``,
+``halt_codes``, ``rvol_daily_min``) read the store's exported day facts and filter by ``day_movers.facts.keep``, the
+rule the research front door's find_stock_days uses: an unknown is left out and counted, never read as "no news".
 Blocking (SQLite) -- the route runs it off the event loop.
+
+maintainer: one-concern the agent search's argument contract -- every argument is parsed, checked and applied here
 """
 from __future__ import annotations
 
@@ -28,6 +33,7 @@ from constants_day_movers import (
     DAY_MOVERS_REAL_JUMP_MIN_VOLUME_RATIO,
     DAY_MOVERS_UP_MARKS,
 )
+from day_movers import facts
 from day_movers.schema import MOVER_COLUMNS
 
 ET = ZoneInfo("America/New_York")
@@ -89,6 +95,12 @@ class MoverQuery:
     dollar_volume_min: float | None = None
     float_max: float | None = None
     float_unknown: str = "exclude"
+    catalyst: str | None = None
+    catalyst_category: str | None = None
+    catalyst_words: str | None = None
+    halted: str | None = None
+    halt_codes: str | None = None
+    rvol_daily_min: float | None = None
     replayable: bool = False
     splits: str = "exclude_likely"
     sort: str = "newest"
@@ -156,6 +168,10 @@ def parse(params: dict[str, Any]) -> MoverQuery:
         value = getattr(q, name)
         if value is not None and not -1.0 <= value <= 2.0:
             raise QueryError(name, f"{name} is a share of the day's range (0-1)")
+    if q.halted is not None and q.halted.lower() not in facts.BOOLS:
+        raise QueryError("halted", "halted must be true or false")
+    if q.rvol_daily_min is not None and not q.rvol_daily_min > 0:
+        raise QueryError("rvol_daily_min", "rvol_daily_min is a ratio over 0 (5 = 5x the usual daily volume)")
     return q
 
 
@@ -325,11 +341,12 @@ def summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 def search(
     db: sqlite3.Connection, q: MoverQuery, *, replayable: set[str] | None = None,
-    floats: Any = None,
+    floats: Any = None, day_facts: Any = None,
 ) -> dict[str, Any]:
     """The matches for ``q``. ``replayable``: the days whose trades file is on disk (``None``: unknown).
 
-    ``floats(pairs, limit) -> {(date, symbol): proof}`` answers a float limit (``day_movers.floats``).
+    ``floats(pairs, limit) -> {(date, symbol): proof}`` answers a float limit (``day_movers.floats``);
+    ``day_facts(pairs) -> {(date, symbol): facts}`` the news / halt / relative-volume filters (``facts.read``).
     """
     clause, args = where(q)
     count = db.execute(f"SELECT count(*) FROM movers{clause}", args).fetchone()[0]
@@ -353,6 +370,9 @@ def search(
             excluded["not_replayable"] = len(raw) - len(kept)
             raw = kept
     rows = [shape(r, replayable) for r in raw]
+    wanted = facts.from_query(q)
+    if wanted.asks_facts:
+        rows = facts.filter_rows(rows, wanted, day_facts, excluded, answer["notes"])
     if q.float_max is not None:
         proofs = floats([(r["date"], r["symbol"]) for r in rows], q.float_max) if floats else {}
         for row in rows:

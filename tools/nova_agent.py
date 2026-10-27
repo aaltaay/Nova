@@ -143,8 +143,12 @@ def print_movers(answer: dict) -> None:
     print(f"{'#':>2}  {'date':10}  {'symbol':6}  {'prior':>7}  {'high':>7}  {'high%':>7}  {'at':>5}  "
           f"{'close%':>7}  {'gap%':>6}  {'pos':>4}  {'volume':>7}  {'$vol':>7}  notes")
     for i, r in enumerate(rows, 1):
+        facts = r.get("day_facts") or {}
         notes = [n for n in (r.get("split") and f"split:{r['split']}", None if r.get("replayable") is not False
-                             else "no ticks", r.get("float") and f"float:{r['float']['proof']}") if n]
+                             else "no ticks", r.get("float") and f"float:{r['float']['proof']}",
+                             facts.get("catalyst_category") and f"news:{facts['catalyst_category']}",
+                             facts.get("halts") and f"halts:{facts['halts']}({facts.get('halt_codes') or ''})",
+                             facts.get("rvol_daily") is not None and f"rvol:{facts['rvol_daily']:.1f}x") if n]
         pos = "" if r["close_pos"] is None else f"{r['close_pos']:.2f}"
         print(f"{i:>2}  {r['date']:10}  {r['symbol']:6}  {r['prev_close'] or 0:>7.3g}  {r['day_high'] or 0:>7.3g}  "
               f"{_fmt_pct(r['high_pct']):>7}  {r.get('day_high_et') or '':>5}  {_fmt_pct(r['close_pct']):>7}  "
@@ -179,7 +183,8 @@ def follow(command: dict, wait_total: float = FOLLOW_SEC, as_json: bool = False)
 
 def _movers_params(args) -> dict:
     params = {name: getattr(args, name) for name in ("high_min", "high_max", "low_max", "close_min", "close_max",
-                                                     "gap_min", "price_min", "price_max", "float_max", "symbol",
+                                                     "gap_min", "price_min", "price_max", "float_max",
+                                                     "rvol_daily_min", "catalyst_category", "halt_codes", "symbol",
                                                      "sort", "limit") if getattr(args, name) is not None}
     if args.date_from:
         params["from"] = args.date_from
@@ -203,8 +208,10 @@ def main(argv: list[str] | None = None) -> int:
     temp.add_argument("--day", help="YYYY-MM-DD (default: the current session, so far)")
     find = sub.add_parser("find")
     for name in ("high-min", "high-max", "low-max", "close-min", "close-max", "gap-min", "price-min", "price-max",
-                 "float-max"):
+                 "float-max", "rvol-daily-min"):
         find.add_argument(f"--{name}", type=float)
+    find.add_argument("--catalyst-category", help="comma list of news types, e.g. fda_regulatory")
+    find.add_argument("--halt-codes", help="comma list: T1,LUDP ... or news / luld")
     find.add_argument("--symbol")
     find.add_argument("--from", dest="date_from")
     find.add_argument("--to", dest="date_to")
