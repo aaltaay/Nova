@@ -939,14 +939,31 @@ opens no scanner socket and holds no Trader tabs:
 up / down / new to the top nine (the first board marks nothing; a change of `source.kind` starts over). A mark is
 full for 30 s (coloured border, filled rank box, `3 → 2` pill, a countdown bar) then a soft tint on the rank box to
 2.5 min. Each switch (moves and the names that left) goes to the bottom "Switches" line, newest first, 30 kept per
-list. One short tick plays for a switch on the list on screen (switch `nova.topNine.sound`, prefStore, default on;
-the header mute silences it). Tiles slide to their new place (0.5 s).
+list. Tiles slide to their new place (0.5 s).
+
+**Sounds (operator ask, 2026-10-27).** On the list on screen only, under the switch `nova.topNine.sound` (prefStore,
+default on) and the header mute: a two-note chime when a stock that is not muted moves up or comes into the top nine
+(a stock moving down is the other side of someone's rise, so a muted stock's rise stays quiet), at most once per 30 s
+-- a switch inside that window plays nothing and is not queued; and three short beeps when a stock that is not muted
+shows `halted: true` and did not on the last board of the same list and source, which the 30 s does not hold back.
+The first board after opening, a list change or a live <-> Sim change sounds nothing. A right-click on a tile mutes
+or unmutes that stock for the desk's trading day (04:00 ET): `nova.topNine.muted` (prefStore, `{day: "YYYY-MM-DD",
+symbols: [...]}`; another day's list reads as none). A muted tile shows a crossed bell; its marks and the Switches
+line are unchanged.
 
 **Charts.** Each tile draws the last 90 one-minute candles of `GET /api/ticker/{symbol}/bars?timeframe=1Min&limit=1000`
 through the shared bars store, asked again every `CHART_REFETCH_SEC["1Min"]` (store-first on the backend, ADR 012 --
 the history budget and its priorities are the backend's), with the desk's session VWAP (`sessionVwapPoints`, 04:00 ET
 anchor) and a last-price tag at the board's `price`. A minute with no trade stays a hole. No Level 1, Level 2 or tape
 line is opened for a tile.
+
+**The LULD band (operator ask, 2026-10-27, approved mockup).** Each tile reads `GET /api/luld/{symbol}/trail` (the
+Trader's 1-minute band, ADR 047; `book-watch-and-luld.md`) every 3 s and draws it the Trader's way: a rose line above
+and below the candles that steps where the band moved, each step at its share of its minute, solid where exact and
+dashed where approximate. The band in force is tagged at the right edge (`▲ 15.74` / `▼ 12.88`, `≈` when
+approximate), held at the top or bottom edge when out of view, moved off the last-price tag when they meet; it never
+widens the price scale. The route reads memory only, so a stock Nova holds no tape line for has no band, and the tile
+says so ("LULD — no tape line held"; the backend's reason in the hover). A halt step draws nothing.
 
 **Prefs (prefStore, `schema_version` 1).** `nova.topNine.list` (`gappers` | `gainers` | `afterhours`): the list on
 screen; a grid button on the rail writes it before opening, and an open pop-up follows it (`storage` event), so a

@@ -23,11 +23,13 @@ import {
   type TopNineList,
 } from './topNineConstants';
 import { readTopNineList, writeTopNineList } from './topNineNav';
-import { readTopNineSound, tickTopNine, writeTopNineSound } from './topNineSound';
+import type { TopNineSwitch } from './topNineMarks';
 import { TopNineHeader } from './TopNineHeader';
 import { TopNineSwitchLog } from './TopNineSwitchLog';
 import { TopNineTile } from './TopNineTile';
+import { TopNineTileMenu, type TopNineMenuAt } from './TopNineTileMenu';
 import { useTileSlide } from './useTileSlide';
+import { useTopNineAlerts } from './useTopNineAlerts';
 import { useTopNineFeed } from './useTopNineFeed';
 import './topNine.css';
 
@@ -48,19 +50,19 @@ function emptyText(list: TopNineList, label: string): string {
 
 export default function TopNineApp() {
   const [list, setListState] = useState<TopNineList>(() => readTopNineList());
-  const [sound, setSoundState] = useState(() => readTopNineSound());
   const [onTop, setOnTop] = useState<boolean | null>(() =>
     typeof window.novaDesktop?.setKeepOnTop === 'function' ? false : null);
   const [opening, setOpening] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [menu, setMenu] = useState<TopNineMenuAt | null>(null);
   const listRef = useRef(list);
   listRef.current = list;
-  const soundRef = useRef(sound);
-  soundRef.current = sound;
 
-  const feed = useTopNineFeed((switchedList, switched) => {
-    if (switchedList === listRef.current && switched.moves.length) tickTopNine(soundRef.current);
-  });
+  // The feed calls back on a switch; the sound hook, below it, answers.
+  const onSwitchRef = useRef<(l: TopNineList, s: TopNineSwitch) => void>(() => undefined);
+  const feed = useTopNineFeed((switchedList, switched) => onSwitchRef.current(switchedList, switched));
+  const alerts = useTopNineAlerts(list, feed.snapshot);
+  onSwitchRef.current = alerts.onSwitch;
   const now = useNow(1_000);
   const label = TOP_NINE_LISTS.find((l) => l.list === list)?.label ?? list;
 
@@ -88,10 +90,8 @@ export default function TopNineApp() {
     setListState(next);
   }, []);
 
-  const chooseSound = useCallback((on: boolean) => {
-    writeTopNineSound(on);
-    setSoundState(on);
-  }, []);
+  const openMenu = useCallback((symbol: string, x: number, y: number) => setMenu({ symbol, x, y }), []);
+  const closeMenu = useCallback(() => setMenu(null), []);
 
   const chooseOnTop = useCallback((on: boolean) => {
     const set = window.novaDesktop?.setKeepOnTop;
@@ -136,8 +136,8 @@ export default function TopNineApp() {
         onList={chooseList}
         snapshot={silent ? null : snapshot}
         now={now}
-        sound={sound}
-        onSound={chooseSound}
+        sound={alerts.sound}
+        onSound={alerts.chooseSound}
         onTop={onTop}
         onOnTop={chooseOnTop}
       />
@@ -158,7 +158,9 @@ export default function TopNineApp() {
                 endTime={endTime}
                 now={now}
                 opening={opening === row.symbol}
+                muted={alerts.muted.has(row.symbol)}
                 onOpen={openInTrader}
+                onMenu={openMenu}
               />
             ))}
             {Array.from({ length: Math.max(0, TOP_NINE_SIZE - rows.length) }, (_, i) => (
@@ -168,6 +170,14 @@ export default function TopNineApp() {
         )}
       </div>
       <TopNineSwitchLog log={marks.log} onOpen={openInTrader} />
+      {menu ? (
+        <TopNineTileMenu
+          at={menu}
+          muted={alerts.muted.has(menu.symbol)}
+          onToggle={alerts.toggleMute}
+          onClose={closeMenu}
+        />
+      ) : null}
     </div>
   );
 }
