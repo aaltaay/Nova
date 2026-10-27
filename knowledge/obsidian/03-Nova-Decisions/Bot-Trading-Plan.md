@@ -558,6 +558,67 @@ discretion), and Phase L moves on without it.
 
 **Status (2026-10-11):** the pilot is running on the desk PC. Its reading goes here.
 
+### Pilot result -- 2026-10-11 (desk PC, `F:\Nova\ledger\pilot\report.md`)
+
+The author's fills were read from his screen (the position window and clock in each recording), by two blind readers
+whose disagreements stay null, with separate critics trying to refute each fill; the flat files were read only
+afterwards, to verify.
+
+| Rule | Needed | Pilot |
+|---|---|---|
+| Trades pinned to a print | >= 80% | **45 of 86 = 52%** |
+| Days reconciled to the stated P&L | >= 80% | **17 of 20 = 85%** |
+
+**Verdict: day-level only.** The videos account for the author's P&L by day (every day whose figure comes from his
+own words reconciles) and say which stocks he traded, but not reliably the minute or the price of each trade. Even
+if every trade of the one day with prices but no times were pinned, the rate would be 64 of 86 = 74%.
+
+Limitations, which decide what happens next:
+
+- **No twelve-month ledger is possible.** The archive holds about 72 dated day records in all, spread over years; the
+  ~250-day extraction the full-ledger branch prescribes cannot be built from it.
+- **Questions 4 and 5 (timing and tape, fills) cannot be answered** at day level, as pre-registered. Questions 1-3
+  were looked at on the 20 pilot days only: one day carried over half of the 20 days' net, and at one fixed size its
+  trades made little -- the dollars were size and the liquidity to use it. Twenty chosen days are not a year, so none
+  of this is a reading of the author's edge.
+- **No rule was registered from the pilot**, so none reached gate 1. By the kill clause above, Phase L moves on
+  without the author's trades: whatever his edge is, this archive does not let Nova copy it at the trade level.
+
+## 2j. The next question: Claude's own Paper seat (decided 2026-10-27, ADR 068)
+
+**The question.** Every fixed rule read so far has failed gate 1 (§2b-§2i), and the operator's view after them is
+that a fixed rule will not do it: "I don't think fixed rules work. There has to be AI involved." (2026-10-26). So the
+next question asks whether a model's live judgment can trade small caps on Paper, where every rule written down so
+far could not -- "be the one who uses your brain and place trades on paper" (operator, 2026-10-26).
+
+**What is different from every earlier reading.**
+
+- *Forward, not historical.* Every decision is made live, after the model's training cutoff, so no outcome can be
+  remembered or fitted.
+- *Everything a trader sees.* The stock, its news and filings, float and share history, Level 2 and Time & Sales --
+  not a masked or bar-only view.
+- *Orders that do not need its speed.* The model looks every minute or two, so it rests a limit or a break order and
+  arms Level 2 reflexes that the backend judges twice a second (ADR 068, decisions 8 and 11).
+
+**Where it runs.** Claude's seat on the desk (ADR 068, `backend/agent_trader/`): one locked Level 2 line of the
+three, Paper only (the door refuses any of its sends to Live), long only, a stop on every entry, at most 1,000
+shares and $150 between entry and stop, 3 entries a day between 07:00 and 15:30 ET, its own -$500 daily stop, and
+Nova closes its shares at 15:55 ET or when it stops checking in. The operator can take its line or stop it at any
+time. Its scoring was fixed off-repo before the first trade, like the S4 and S7 material.
+
+**Limitations, stated before any result.**
+
+- Paper fills are Nova's estimate on the live feed (ADR 020), not a place in the real queue; a positive Paper result
+  still owes a measured-slippage check before it means anything at Live size.
+- One line of three: the model can only trade the one stock whose Level 2 it holds, and it competes with the desk for
+  that line (it never takes one from the operator).
+- At 3 entries a day the sample grows slowly; a few weeks of trades will not separate skill from luck, and one
+  outsized day can carry the total (the lesson of §2b and §2h).
+- Like every reading here, it is information for the operator, never trading permission: bots and Claude never trade
+  Live, and `auto_live` stays NO-GO.
+
+**Done when** the seat's read-out, with these limitations, is recorded in this section.
+
 ## 2i. A6 -- the "one trade a day" sweep and fair value gap on SPY / QQQ (pre-registered 2026-10-18)
 
 Operator ask (2026-10-18): test, as she trades it, the strategy a YouTube trader ("one trade a day
@@ -669,3 +730,5 @@ blog.traderspost.io paper-to-live guide.
 | 2026-10-11 | **S7 pre-registered: the author's own trades (§2h).** The operator asked whether the author's archive had been fully analysed: "if he makes money, we should be able to make money too." Every reading so far tested what the material teaches; none tested what its author trades. A 20-day pilot on the desk PC (`F:\Nova\ledger`) checks whether the private video archive yields a verified ledger (80% of trades pinned to a print, 80% of days reconciled to the stated P&L) before any twelve-month extraction. Its five questions (concentration, size, selection, timing and tape, fills) are fixed before any ledger exists. The material and the ledger stay on F:. | Claude for the operator |
 | 2026-10-18 | **Bollinger Bands mean-reversion screen (`research/bb_mr/`): verdict `no credible edge`.** Adapted the MT5 Bollinger Bands lower-band rejection + basket grid strategy to U.S. common stocks (long-only, $25k shared cash account, IBKR Pro Fixed + SEC/FINRA/CAT fees, bid/ask spread + slippage + 10% bar participation cap, `-0.5% E0` basket stop, `-3%` daily stop) across 1,235 trading days (`2021-10-19..2026-09-21`) on both a Liquid Reference universe ($5-$200, ADV20 >= $20M, 514 delisted tickers) and a causal Morning Active scanner ($1-$30, >= +10%, CumDVol >= $500k, top 20 per minute, 1,849 delisted tickers). Baseline A (`5m P100 K2.0 S10 E5` in `06:00-11:00` ET) lost `-$18,438` (`PF 0.482`, 5,328 baskets) on Liquid Reference and `-$22,101` (`PF 0.429`, 2,499 baskets) on Morning Active; 0 of 192 intraday grid configurations passed Development/Validation; all 6 walk-forward folds were negative out-of-sample; and multi-entry additions (`max_entries=3, 5`) strictly worsened Profit Factor and drawdown relative to single-entry (`max_entries=1`). Not promoted to Paper. `auto_live` NO-GO. | Gemini 4 Argon for the operator |
 | 2026-10-18 | **A6 verdict: not passed (§2i).** Operator ask: test a YouTube "one trade a day" strategy as she teaches it (1-hour swing levels, a first-hour sweep, a 1-minute structure shift with a fair value gap, limit entry in the gap, 2:1) on the market it was built for. Pre-registered, then run on SPY and QQQ minute bars 2016-2026: 324 trades, PF 0.94, -0.01R a trade before costs, only 2022 positive, all nine neighbours under PF 1, PF 0.84 at 2x costs. Not promoted. `auto_live` NO-GO. | Claude Opus 5.5 for the operator |
+| 2026-10-27 | **S7 pilot result recorded (§2h): day-level only** -- 52% of trades pinned (rule 80%), 85% of days reconciled; the archive holds about 72 day records, so no twelve-month ledger is possible, and no rule was registered from it. Phase L moves on without the author's trades. | Claude Opus 5.5 for the operator |
+| 2026-10-27 | **Next question: Claude's own Paper seat (§2j, ADR 068).** Operator chose it as Phase L's next research question, after every fixed rule failed gate 1: a forward trial of a model's live judgment on Paper, within ADR 068's limits. Information for the operator, never trading permission; `auto_live` NO-GO. | Operator |
