@@ -263,7 +263,8 @@ export function MontageSide({
 
 export function DepthLadder({ symbol, uiActive = true, markers, traderTab = false }: Props) {
   useRenderCount('DepthLadder');
-  const { book, connected, l1Fallback, error, watch, lent, luld, agentReserved } = useIbkrDepth(symbol, uiActive, { traderTab });
+  const { book, connected, l1Fallback, error, watch, lent, luld, agentReserved, firstBookWait } =
+    useIbkrDepth(symbol, uiActive, { traderTab });
   const { setTopOfBook } = useTopOfBook();
   // What left the book (ADR 033 amendment): the watcher reads depth, so an L1-only book carries none.
   const ladderWatch = l1Fallback ? null : watch;
@@ -311,7 +312,7 @@ export function DepthLadder({ symbol, uiActive = true, markers, traderTab = fals
   if (!book) {
     return (
       <div className="ibkr-depth-empty">
-        {depthEmptyMessage(symbol, connected, error)}
+        {depthEmptyMessage(symbol, connected, error, firstBookWait)}
       </div>
     );
   }

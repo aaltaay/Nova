@@ -22,6 +22,7 @@ from typing import Any
 
 from constants_feed import FEED_GAP_SETTLE_SEC
 from constants_market_view import (
+    BOOK_WAITING,
     FEED_STALE,
     MARKET_VIEW_SCHEMA_VERSION,
     ORDER_CLOCK_SKEW_MS,
@@ -186,7 +187,7 @@ def check(cmd: Any, *, now: float | None = None) -> Check:
     arrival = (ingress_ns / 1e6) if ingress_ns else t * 1000.0
     measures: dict[str, Any] = {
         "arrival_ms": None, "book_lag_ms": None, "quote_lag_ms": None, "feed_gap": False, "ib_stall_ms": None,
-        "tape_missing_since": None,
+        "tape_missing_since": None, "book_waiting_since": None,
     }
 
     def refuse(code: str, text: str) -> Check:
@@ -245,7 +246,8 @@ def desk_lock(symbol: str, *, now: float | None = None,
 
     One judge (ADR 045 amendment 2026-10-14): the door refuses with these words, ``GET /api/market-view/gate``
     returns them and the Time & Sales socket sends them, so the desk's lock says what the door would. It judges
-    what Nova knows without the operator's screen -- the feed, the IB loop, the symbol's Time & Sales; the screen's
+    what Nova knows without the operator's screen -- the feed, the IB loop, the symbol's Level 2 first book (#913),
+    the symbol's Time & Sales; the screen's
     own versions are ``check``'s. Nothing on a Sim desk off the live edge: its market is the replay.
     """
     out = measures if measures is not None else {}
@@ -261,6 +263,10 @@ def desk_lock(symbol: str, *, now: float | None = None,
         behind = f"its IBKR thread has been stuck for {_secs(stall)}"
     if behind is not None:
         return _lock(FEED_STALE, f"Nova is behind the market right now ({behind}), so new orders wait until it catches up.")
+    first = _first_book(symbol, t)
+    out["book_waiting_since"] = first["since"] if first else None
+    if first is not None:
+        return _lock(BOOK_WAITING, f"{first['text']} New orders on it wait for its first book.")
     tape = _tape_missing(symbol, t)
     out["tape_missing_since"] = tape["since"] if tape else None
     if tape is not None:
@@ -271,6 +277,17 @@ def desk_lock(symbol: str, *, now: float | None = None,
 def _lock(code: str, reason: str) -> dict[str, Any]:
     """``reason`` is the door's (it adds "Nothing was sent."); ``text`` is the desk's, before any click."""
     return {"code": code, "reason": reason, "text": f"{reason} {VIEW_GATE_EXEMPT_TEXT}"}
+
+
+def _first_book(symbol: str, now: float) -> dict[str, Any] | None:
+    """The symbol's live Level 2 line with no first book yet (amendment 2026-10-27, #913), or None."""
+    try:
+        from ibkr.depth import first_book
+
+        return first_book.waiting(symbol, now=now)
+    except Exception:
+        logger.exception("view gate: %s's Level 2 first book could not be judged", symbol)
+        return {"since": None, "text": f"Nova could not tell whether {symbol}'s Level 2 has sent a book."}
 
 
 def _tape_missing(symbol: str, now: float) -> dict[str, Any] | None:
