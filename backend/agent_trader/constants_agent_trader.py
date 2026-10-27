@@ -17,7 +17,9 @@ AGENT_EVENTS_KEEP = 40
 
 # The lease: a holder that has not checked in for this long has gone quiet (decision 9).
 AGENT_LEASE_SEC = 600.0
-AGENT_TICK_SEC = 0.5                # reflexes are checked this often (decision 11)
+AGENT_TICK_SEC = 0.5                # reflexes are checked this often (decision 11) ...
+AGENT_WAKE_MIN_SEC = 0.1            # ... and on each print or book of a watched stock, this far apart at most (decision 14)
+AGENT_WAKE_RING_SEC = 60.0          # the live prints kept per watched stock (>= the reflexes' and guard's look-back)
 
 # The seat's states, as the desk shows them.
 SEAT_OFF = "off"                  # nobody holds the seat
@@ -72,6 +74,12 @@ AGENT_POP_PCT_MIN = 0.5
 AGENT_POP_PCT_MAX = 5.0
 AGENT_GUARD_STALL_AFTER_PCT = 1.0       # the first stall: once the price reached +1% over entry ...
 AGENT_GUARD_STALL_SEC = 30.0            # ... no new high for 30 s moves the stop to entry
+
+# The trade journal (decision 15): backend/.cache/agent-journal/<YYYY-MM-DD>.json.
+AGENT_JOURNAL_DIR = "agent-journal"
+AGENT_JOURNAL_BOOK_ROWS = 10        # the book's top rows each side at entry and exit
+AGENT_JOURNAL_PRINTS_SEC = 30.0     # the prints of the last 30 s ...
+AGENT_JOURNAL_PRINTS_MAX = 100      # ... newest 100 at most
 
 # Entry kinds (decision 8).
 ENTRY_LIMIT = "limit"

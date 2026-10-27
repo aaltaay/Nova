@@ -106,6 +106,12 @@ def on_tape_update(ticker: Any, symbol: str, push, depth) -> None:
         except Exception:
             logger.exception("IBKR tape: book watcher enqueue failed for %s", symbol)
         try:
+            from agent_trader import wake
+
+            wake.print_in(payload)  # Claude's seat judges its breaks and guard on this print (ADR 068); no wait
+        except Exception:
+            logger.exception("IBKR tape: waking Claude's seat failed for %s", symbol)
+        try:
             from luld.live import enqueue_print as luld_print
 
             luld_print(payload)  # the LULD bands' tape (ADR 047); enqueue only

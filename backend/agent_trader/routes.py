@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from agent_desk.routes import require_local
-from agent_trader import eye, ledger, lines, look, orders, reflexes, rules, seat, view, watcher
+from agent_trader import eye, journal, ledger, lines, look, orders, reflexes, rules, seat, view, watcher
 from agent_trader import clock
 from agent_trader.constants_agent_trader import (
     AGENT_BREAK_DEFAULT_MIN,
@@ -126,14 +126,27 @@ async def get_eye(wait: float = Query(default=0.0, ge=0, le=AGENT_EYE_WAIT_MAX_S
     return await eye.eye(wait, after)
 
 
+@router.get("/journal")
+def get_journal(day: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")) -> dict[str, Any]:
+    """Claude's trades closed on ``day`` (default today) and the ones open now (decision 15)."""
+    from market import session_key_for_ts
+
+    when = day or session_key_for_ts(clock.now())
+    try:
+        doc = journal.read_day(when)
+    except (OSError, ValueError):
+        raise _refuse(AGENT_REFUSED, f"the journal for {when} could not be read") from None
+    return {**doc, "open": journal.open_trades()}
+
+
 @router.post("/seat", dependencies=_keyed)
-def claim_seat() -> dict[str, Any]:
+def claim_seat(take_over: bool = Query(default=False)) -> dict[str, Any]:
     from market import now_et
 
     et = now_et()
     if et.weekday() >= 5 or not (4 <= et.hour < 16):
         raise _refuse(AGENT_SEAT_OFF, "Claude's seat opens on weekdays from 04:00 to 16:00 ET")
-    token, why = seat.claim()
+    token, why = seat.claim(take_over=take_over)
     if why:
         raise _refuse(why.code, why.text, why.status)
     return {"token": token, "status": view.status()}
@@ -214,6 +227,7 @@ async def place(body: OrderBody, x_agent_seat: str | None = Header(default=None)
     if refused := rules.entry_refusal(order, pending_breaks=len(seat.breaks())):
         raise _refuse(*refused)
     seat.set_note(body.why)
+    journal.note_why(order["symbol"], body.why)
     seat.set_exit(order["symbol"], {"mode": EXIT_POP, "pop_pct": order["pop_pct"]} if body.exit == EXIT_POP else None)
     if body.kind == ENTRY_LIMIT:
         receipt = await orders.send_entry(order, tag="limit")
@@ -335,6 +349,7 @@ async def close(body: CloseBody, x_agent_seat: str | None = Header(default=None)
         raise _unread("close") from None
     if qty <= 0:
         return view.status()
+    journal.note_exit(sym, "manual", "Claude closed it at market")
     receipt = await orders.close(sym, qty)
     if why := orders.receipt_error(receipt):
         raise _refuse(getattr(receipt, "reason_code", None) or AGENT_REFUSED, why)

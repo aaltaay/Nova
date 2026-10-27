@@ -18,7 +18,8 @@ Claude's own writes also carry `X-Agent-Seat: <token>`; the operator's three but
 | `GET /api/agent/trader` | anyone local | the status below |
 | `GET /api/agent/trader/look?symbol=&seconds=120` | anyone local | `{symbol, at, line: {depth, tape, claude_holds, book_at}, quote: {last, bid, ask}, book: {bids, asks, l1_fallback}` (top 10 rows each, the depth module's own rows), `tape: {seconds, summary: {prints, volume, high, low, vwap, at_ask, at_bid}, prints: [{ts, price, size, side?, exchange?, bid?, ask?, conditions?}]}` (newest 200), `locked}` (the view lock's answer or null). Opens no line. |
 | `GET /api/agent/trader/eye?wait=0&after=` | anyone local | the eye below: every symbol the scanner follows, spikes first, and the spike events. `wait` (0-30 s) long-polls: the answer comes once a spike event newer than `after` (epoch seconds) is listed, or when `wait` runs out. Opens no line. |
-| `POST /seat` | Claude | `{token, status}`; refused (`AGENT_SEAT_TAKEN`, 409) while another holder's lease is alive, and outside weekdays 04:00-16:00 ET (`AGENT_SEAT_OFF`) |
+| `GET /api/agent/trader/journal?day=YYYY-MM-DD` | anyone local | the journal below for `day` (default today) plus `open`: the trades open now. Refused (`AGENT_REFUSED`) when the day's file cannot be read |
+| `POST /seat?take_over=` | Claude | `{token, status}`; with `take_over=true` a held seat is picked up (a new token, the old one stops; stock, breaks, reflexes, orders and shares kept). Without it: refused (`AGENT_SEAT_TAKEN`, 409) while another holder's lease is alive, and outside weekdays 04:00-16:00 ET (`AGENT_SEAT_OFF`) |
 | `POST /beat` | Claude | status; renews the lease |
 | `DELETE /seat` | Claude | `{problems, status}`: cancels Claude's orders, sells its shares, frees the line, seat off |
 | `POST /watch {symbol}` | Claude | status; the seat's stock (refused while Claude has orders or shares on another) |
@@ -69,7 +70,7 @@ moves `replace` the same way; closes `source: "flatten"` market SELLs and cancel
 `claude` close named to Live. Practice rows carry `order_origin: "claude"`; Claude's position is its own fills, never more than Paper holds in the stock: Nova's own closes (the loss limit's Auto sell, KILL, a margin call) sell Claude's shares under their own origin, and Claude's P&L counts those shares at the price those closes got.
 Claude's fills still count in the Paper account's loss-limit totals and on the Bots line's figures (`loss_limit.accounts.by_of`, `LOSS_LIMIT_BOT_CLOSE_ORIGINS`), but no shared line refuses Claude's buys on Paper.
 
-**Events** (`kind`): `on`, `off`, `watch`, `line`, `line_wait`, `armed`, `buy_set`, `break_set`, `break_wait`, `break_end`, `refused`, `stop`, `cancel`, `close`, `fill` ("Claude bought 510 SMPL at 4.40", each fill said once), `reflex_set`, `reflex_fired` (also the guard's closes), `reflex_end`, `yielded`, `line_back`, `day_close`, `line_taken` ("took KTTA's auto-record line for SMPL", not toasted); the desk toasts and speaks them.
+**Events** (`kind`): `on`, `off`, `watch`, `line`, `line_wait`, `armed`, `buy_set`, `break_set`, `break_wait`, `break_end`, `refused`, `stop`, `cancel`, `close`, `fill` ("Claude bought 510 SMPL at 4.40", each fill said once), `resumed` (read back after a restart), `taken_over`, `reflex_set`, `reflex_fired` (also the guard's closes), `reflex_end`, `yielded`, `line_back`, `day_close` and `close` (also each journaled trade: "trade on SMPL closed +$8.00: manual (Claude closed it at market)"), `line_taken` ("took KTTA's auto-record line for SMPL", not toasted); the desk toasts and speaks them.
 
 **Reflexes** (`agent_trader.reflexes`, ADR 068 decision 11). Judged every 0.5 s on the seat's stock: the depth book's rows added up by price, and Nova's tape archive (a print at or over its ask is a buyer's, at or under its bid a seller's). `bid_pulled` fires only after it has seen its size since arming. A `sell_all` reflex is live while Claude holds shares, a `cancel_buy` while a buy or break waits; each fires once, does its action and is gone (an event says what it saw and did).
 
@@ -135,6 +136,24 @@ go would free nothing (it stays the desk's), so the seat keeps its reference the
 cancelled, its shares sold, the seat off, its lines released. 15:55 ET on a weekday: Claude's shares sold and orders
 cancelled, seat on or off; 16:00 ET the seat turns off.
 
+**Each print and book** (`agent_trader.wake`, decision 14). The IBKR AllLast and depth callbacks call `wake.print_in` /
+`wake.book_in`; for a stock the seat watches (its stock, its breaks', the ones it holds) the print `{ts, price, size, bid,
+ask, exchange, conditions}` joins a ring of the last `AGENT_WAKE_RING_SEC` (60 s) and the watcher runs a pass at once,
+never closer than `AGENT_WAKE_MIN_SEC` (0.1 s) to the last, else every `AGENT_TICK_SEC` (0.5 s). Breaks, reflexes and the
+guard read the ring first and the tape archive only for what the ring does not reach back to. In memory only.
+
+**The journal** (`agent_trader.journal`, decision 15): `backend/.cache/agent-journal/<YYYY-MM-DD>.json`, the trading day
+the trade closed, `{schema_version: 1, day, trades: [trade]}`, written whole and atomically (a file of another
+`schema_version` is refused, logged). A trade: `{symbol, opened_at, entry_price, why, entry: snapshot & {late}, closed_at,
+shares, exit_price, exit_reason, exit_detail, exit: snapshot, pnl, fees, fills}`; a snapshot is `{at, bids, asks,
+l1_fallback, prints}` (the book's top `AGENT_JOURNAL_BOOK_ROWS` 10 rows each side, the prints of the last
+`AGENT_JOURNAL_PRINTS_SEC` 30 s, newest `AGENT_JOURNAL_PRINTS_MAX` 100). `entry_price` is Claude's average buy since it
+was last flat; `why` the `why` of Claude's last order in the stock; `late` true when the trade was read back after a
+restart (its entry snapshot taken then). `exit_reason`: `stop` / `target` (the closing fill's bracket leg), else the
+closer's (`guard`, `reflex`, `manual`, `day_close`, `stand_down`), else `nova` (Nova sold the shares under another
+origin), else `unknown`. `pnl`: Claude's fills in the trade, fees included, plus shares Nova sold for it at the price
+those closes got. Open trades are in memory.
+
 **Persisted:** `backend/.cache/agent-seat.json` (`schema_version: 1`, written whole and atomically): `{holder, since,
 beat_at, yielded, yielded_at, symbol, breaks, reflexes, exits, note, events}` (the newest 40 events). A file with another
-`schema_version` starts the seat off and is logged. Spend arming is never persisted (ADR 018).
+`schema_version` starts the seat off and is logged. A seat read back gets a fresh lease from the read (`resumed`). Spend arming is never persisted (ADR 018).

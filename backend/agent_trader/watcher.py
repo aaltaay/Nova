@@ -27,8 +27,13 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from agent_trader import clock
-from agent_trader.constants_agent_trader import AGENT_CLOSE_ET, AGENT_GUARD_STALL_SEC, AGENT_OFF_ET, AGENT_TICK_SEC
+from agent_trader import clock, guard_pass
+from agent_trader.constants_agent_trader import (
+    AGENT_CLOSE_ET,
+    AGENT_OFF_ET,
+    AGENT_TICK_SEC,
+    AGENT_WAKE_MIN_SEC,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -64,11 +69,23 @@ async def end_seat(reason: str, now: float | None = None) -> list[str]:
     """Cancel Claude's orders, sell its shares, turn the seat off and free its line; return what failed."""
     from agent_trader import lines, orders, seat
 
+    _note_exits("stand_down", reason)
     problems = await orders.stand_down(reason)
     seat.turn_off(reason if not problems else f"{reason} (not everything closed: {'; '.join(problems)})", now)
     await lines.release(at_once=True)
     _cursor.clear()
     return problems
+
+
+def _note_exits(reason: str, detail: str) -> None:
+    """Tell the journal why every stock Claude holds is about to be sold."""
+    from agent_trader import journal, ledger
+
+    try:
+        for sym in ledger.positions():
+            journal.note_exit(sym, reason, detail)
+    except ledger.ReadError:
+        logger.warning("AGENT journal: Paper could not be read before %s", reason, exc_info=True)
 
 
 async def _day_close(t: float) -> None:
@@ -85,6 +102,7 @@ async def _day_close(t: float) -> None:
         logger.warning("AGENT 15:55: Paper could not be read (%s); trying again", exc)
         return
     if busy:
+        _note_exits("day_close", "15:55 ET: Nova sells Claude's shares (the day cover's time)")
         problems = await orders.stand_down("15:55 ET")
         seat.event("day_close", "15:55 ET: Nova sold Claude's shares and cancelled its orders" +
                    (f" (not everything closed: {'; '.join(problems)})" if problems else ""), t)
@@ -122,15 +140,23 @@ async def _line(t: float) -> None:
 
 
 async def _recent_prints(symbol: str, t: float) -> list[dict[str, Any]]:
-    """The stock's prints in the last ``reflexes.SECONDS_MAX`` seconds from Nova's tape archive (with bid / ask)."""
-    from agent_trader import reflexes
+    """The stock's prints in the last ``reflexes.SECONDS_MAX`` seconds (with bid / ask): the live ring when it reaches
+    back that far (``wake``), else Nova's tape archive."""
+    from agent_trader import reflexes, wake
     from l2 import tape
 
-    return await asyncio.to_thread(tape.get_trades_in_range, symbol, t - reflexes.SECONDS_MAX, t)
+    live = wake.prints(symbol, t - reflexes.SECONDS_MAX)
+    if live is not None:
+        return live
+    try:
+        return await asyncio.to_thread(tape.get_trades_in_range, symbol, t - reflexes.SECONDS_MAX, t)
+    except Exception:
+        logger.warning("AGENT watcher: %s's prints could not be read; judged on none", symbol, exc_info=True)
+        return []
 
 
 async def _breaks(t: float) -> None:
-    from agent_trader import orders, reflexes, rules, seat
+    from agent_trader import orders, reflexes, rules, seat, wake
     from practice.reference import LiveReference
 
     rows = seat.breaks()
@@ -145,6 +171,7 @@ async def _breaks(t: float) -> None:
             continue
         after = _cursor.get(bid, float(row["created_at"]))
         prints = await asyncio.to_thread(ref.prints_between, row["symbol"], after, t)
+        prints = sorted({*prints, *wake.price_prints(row["symbol"], after)})
         if prints:
             _cursor[bid] = prints[-1][0]
         if not any(px >= float(row["trigger"]) for _, px in prints):
@@ -206,74 +233,13 @@ async def _reflexes(t: float) -> None:
         why = reflexes.fired(row, book=book, prints=prints or [], now=t, primed=rid in _primed)
         if why is None:
             continue
+        if row["action"] == "sell_all":
+            from agent_trader import journal
+
+            journal.note_exit(rsym, "reflex", f"{reflexes.text(row)}: {why}")
         done = await _act(row, rsym, held.get(rsym, 0.0))
         seat.drop_reflex(rid, f"Reflex fired on {rsym}: {why} -- {done}", kind="reflex_fired", now=t)
         _primed.discard(rid)
-
-
-async def _guard(t: float) -> None:
-    """Judge Claude's open trades every pass; sell at once when one condition holds (``guard``)."""
-    from agent_trader import guard, ledger, seat
-    from ibkr import depth, ticks
-
-    try:
-        fills = ledger.fills_today()
-        held = ledger.positions(fills)
-    except ledger.ReadError:
-        logger.warning("AGENT guard: Paper could not be read; judged next pass", exc_info=True)
-        return
-    guard.forget_except({s for s, q in held.items() if q > 0})
-    plans = seat.exits()
-    for sym, qty in held.items():
-        if qty <= 0:
-            continue
-        book = depth.current_book(sym)
-        row = guard.mark(sym, fills, book, t)
-        if row is None:
-            continue
-        if (plans.get(sym) or {}).get("mode") == "pop" and not row["breakeven"]:
-            guard.note_price(row, (ticks.last_quotes([sym]).get(sym) or {}).get("price"), t)
-            await _stop_to_entry(sym, row, fills, t)
-        if not guard.due(sym, t):
-            continue
-        try:
-            prints = await _recent_prints(sym, t)
-        except Exception:
-            logger.warning("AGENT guard: %s's prints could not be read; the book is judged alone", sym, exc_info=True)
-            prints = []
-        why = guard.judge(row, book=book, prints=prints, now=t, l1_bid=ticks.bid_ask(sym)[0])
-        if why is None:
-            continue
-        guard.note_fired(sym, t)
-        done = await _act({"action": "sell_all"}, sym, qty)
-        seat.event("reflex_fired", f"Nova's guard on {sym}: {why} -- {done}", t)
-
-
-async def _stop_to_entry(sym: str, row: dict[str, Any], fills: list[dict[str, Any]], t: float) -> None:
-    """The pop exit: once its first half sold, or at the first stall, Claude's stop rises to its entry (never
-    lowered)."""
-    from agent_trader import guard, ledger, orders, seat
-
-    if guard.first_half_sold(fills, sym, row.get("opened")):
-        cause = f"the first half of {sym} sold at the pop"
-    elif guard.stalled(row, t):
-        cause = f"{sym} stalled (no new high for {AGENT_GUARD_STALL_SEC:g} s after {row['high']:g})"
-    else:
-        return
-    entry = round(float(row["entry"]), 2 if float(row["entry"]) >= 1.0 else 4)
-    try:
-        stops = [r for r in ledger.working() if str(r["symbol"]).upper() == sym and r.get("leg_role") == "stop"]
-    except ledger.ReadError:
-        return
-    for r in stops:
-        if r.get("stop_price") is not None and float(r["stop_price"]) >= entry - 1e-9:
-            continue
-        why = orders.receipt_error(await orders.move_stop(int(r["order_id"]), sym, entry))
-        seat.event("stop", f"{cause}: stop moved up to entry {entry:g}" if not why
-                   else f"{cause}, but the stop could not move to entry: {why}", t)
-        if why:
-            return
-    row["breakeven"] = True
 
 
 async def _act(row: dict[str, Any], sym: str, qty: float) -> str:
@@ -350,12 +316,22 @@ async def run_pass(now: float | None = None) -> None:
         if seat.is_on():
             await _reflexes(t)
             try:
-                await _guard(t)
+                await guard_pass.run(t)
             except Exception:
                 logger.exception("AGENT guard: a pass failed; judged again next pass")
         await _fills(t)
+        await _journal(t)
         if seat.is_on():
             await _eye(t)
+
+
+async def _journal(t: float) -> None:
+    from agent_trader import journal
+
+    try:
+        await journal.run(t)
+    except Exception:
+        logger.exception("AGENT journal: a pass failed; written next pass")
 
 
 async def _eye(t: float) -> None:
@@ -368,16 +344,44 @@ async def _eye(t: float) -> None:
             logger.exception("AGENT eye: a scan failed")
 
 
+def _watch_set() -> set[str]:
+    """The stocks whose prints and books wake the seat: its stock, its breaks' and the ones it holds shares in."""
+    from agent_trader import ledger, seat
+
+    if not seat.is_on():
+        return set()
+    out = {s for s in [seat.symbol(), *(b["symbol"] for b in seat.breaks())] if s}
+    try:
+        out |= set(ledger.positions())
+    except ledger.ReadError:
+        logger.warning("AGENT watcher: Paper could not be read for the wake set", exc_info=True)
+    return {s.upper() for s in out}
+
+
 async def run() -> None:
-    """The runtime task: one pass a second, never two at once; a failed pass is logged and the next one runs."""
+    """The runtime task: a pass every ``AGENT_TICK_SEC``, and at once on a print or book of a stock the seat watches
+    (``wake``), never two at once and never closer than ``AGENT_WAKE_MIN_SEC``; a failed pass is logged and the next
+    one runs."""
+    from agent_trader import wake
+
+    woken = wake.bind(asyncio.get_running_loop())
     while True:
+        started = asyncio.get_running_loop().time()
+        woken.clear()
         try:
             await run_pass()
+            wake.watch(_watch_set())
         except asyncio.CancelledError:
             raise
         except Exception:
             logger.exception("AGENT watcher: a pass failed")
-        await asyncio.sleep(AGENT_TICK_SEC)
+        try:
+            await asyncio.wait_for(woken.wait(), AGENT_TICK_SEC)
+        except asyncio.TimeoutError:  # maintainer: allow-swallow the tick ends the wait
+            continue
+        rest = AGENT_WAKE_MIN_SEC - (asyncio.get_running_loop().time() - started)
+        if rest > 0:
+            await asyncio.sleep(rest)
 
 
 def describe() -> dict[str, Any]:
