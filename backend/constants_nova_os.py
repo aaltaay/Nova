@@ -95,6 +95,7 @@ EXECUTION_ORIGINS = (
     "day_cover",      # ADR 048: Nova covers every short at 15:55 ET (12:55 on an early close)
     "margin_call",    # ADR 048: equity under maintenance -- IBKR liquidates, so Paper and Sim do
     "live_trader",    # ADR 055: the Live Trader bot's steps and closes, Paper only
+    "claude",         # ADR 068: Claude's seat -- its entries, closes and cancels, Paper only
 )
 EXECUTION_OPS = ("place", "bracket", "cancel", "replace", "exit_oco")
 # ── NYSE exchange calendar ───────────────────────────────────────────────────

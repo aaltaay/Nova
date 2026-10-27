@@ -37,7 +37,7 @@ LOSS_LIMIT_ORIGIN = "loss_limit"                    # the origin on the Account 
 LOSS_LIMIT_SIDE_ORIGINS = {LOSS_LIMIT_LINE_YOU: "loss_limit_you", LOSS_LIMIT_LINE_BOTS: "loss_limit_bots"}
 LOSS_LIMIT_ORIGINS = (LOSS_LIMIT_ORIGIN, *LOSS_LIMIT_SIDE_ORIGINS.values())
 # The bots' own closes go out as source ``flatten``; these origins say they are a bot's (ADR 042, ADR 055).
-LOSS_LIMIT_BOT_CLOSE_ORIGINS = ("bot", "bot_api", "live_trader")
+LOSS_LIMIT_BOT_CLOSE_ORIGINS = ("bot", "bot_api", "live_trader", "claude")  # ADR 068: Claude is on the Bots line
 
 # Reason codes on the wire.
 LOSS_LIMIT_REASON_NO_NEW_BUYS = "LOSS_LIMIT_NO_NEW_BUYS"

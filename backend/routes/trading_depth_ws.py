@@ -48,6 +48,8 @@ def refusal_text(symbol: str, result: dict) -> str:
     """The refusal the ladder shows: for a full cap, who holds the lines and how to free one."""
     if not result.get("cap"):
         return result.get("error") or "Depth error"
+    if result.get("agent_reserved"):
+        return result.get("error") or "Depth error"   # ADR 068: the desk's lines are full while Claude holds one
     try:
         from line_lending.view import cap_refusal
 

@@ -35,10 +35,14 @@ def _facade_attr(name: str):
     return getattr(facade, name)
 
 
-async def subscribe_async(symbol: str, *, live: bool = False) -> dict:
+async def subscribe_async(symbol: str, *, live: bool = False, agent: bool = False) -> dict:
     """
     Qualify + subscribe to Level 2 (or L1 fallback).
     Safe under FastAPI's running event loop.
+
+    ``agent`` is Claude's own line (ADR 068). Every other request leaves Claude's
+    reserved line alone: past ``agent_trader.lines.desk_cap`` lines of its own it is
+    refused in words, with ``agent_reserved: true``.
 
     ``live`` opens a real IBKR line even on a Sim desk, replacing a replay slot:
     Session Record captures the live market whatever the desk is practising on
@@ -86,6 +90,9 @@ async def subscribe_async(symbol: str, *, live: bool = False) -> dict:
 
         if len(state._subscriptions) >= IBKR_MAX_DEPTH_SYMBOLS:
             await evict_for_capacity(symbol)
+        if not agent and (held_for_agent := _agent_refusal(symbol)):
+            return {"ok": False, "error": held_for_agent, "cap": True, "agent_reserved": True,
+                    "symbols": state.subscribed_symbols()}
         if len(state._subscriptions) >= IBKR_MAX_DEPTH_SYMBOLS:
             return {
                 "ok": False,
@@ -188,6 +195,13 @@ async def subscribe_async(symbol: str, *, live: bool = False) -> dict:
                 return {"ok": False, "error": str(exc2), "symbols": state.subscribed_symbols()}
 
         return {"ok": True, "error": None, "symbols": state.subscribed_symbols()}
+
+
+def _agent_refusal(symbol: str) -> str | None:
+    """Why a desk request must leave Claude's reserved line alone (ADR 068), or None."""
+    from agent_trader import lines as agent_lines
+
+    return agent_lines.desk_refusal(symbol)
 
 
 async def evict_for_capacity(incoming: str) -> None:
