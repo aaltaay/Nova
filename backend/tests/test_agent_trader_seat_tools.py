@@ -202,3 +202,48 @@ def test_the_guard_does_not_sell_into_a_halt(paper, halted, monkeypatch):
     halted["SMPL"] = False                                             # it trades again: the guard judges
     asyncio.run(watcher.run_pass(now=paper.market.now + 2))
     assert ledger.position("SMPL") == 0
+
+
+# -- the LULD band ------------------------------------------------------------------------------------------
+BAND = {"state": "bands", "upper": 4.40, "lower": 3.60, "exact": True}
+
+
+def test_the_band_as_claude_reads_it_and_none_where_the_source_has_none():
+    from agent_trader import bands
+
+    got = bands.of("SMPL", 4.00, BAND)
+    assert got["upper"] == 4.40 and got["pct_to_upper"] == pytest.approx(10.0)
+    assert got["pct_to_lower"] == pytest.approx(10.0) and got["state"] == "bands"
+    none = bands.of("SMPL", 4.00, {"state": "unknown", "upper": None, "lower": None})
+    assert none["upper"] is None and none["pct_to_upper"] is None and none["state"] == "unknown"
+
+
+def test_a_bid_on_the_upper_band_with_nothing_offered_under_it_is_at_the_limit():
+    from agent_trader import bands
+
+    pinned = {"bids": [{"price": 4.40, "size": 9_000}], "asks": [{"price": 4.45, "size": 100}]}
+    assert bands.at_limit(pinned, BAND)
+    assert not bands.at_limit({**pinned, "asks": [{"price": 4.40, "size": 100}]}, BAND)   # offered at the band
+    assert not bands.at_limit({"bids": [{"price": 4.30, "size": 9_000}], "asks": []}, BAND)
+    assert not bands.at_limit(pinned, {"state": "unknown", "upper": None})
+
+
+def test_a_buy_near_the_upper_band_is_warned_never_refused(paper, monkeypatch):
+    from luld import live
+
+    monkeypatch.setattr(live, "view", lambda s, now=None: {**BAND, "upper": 4.27})
+    h = _seat(paper)
+    got = paper.client.post("/api/agent/trader/order", headers=h, json={
+        "kind": "limit", "symbol": "SMPL", "qty": 100, "entry": 4.25, "stop": 4.00, "target": 4.80, "why": "go"})
+    assert got.status_code == 200, got.text
+    assert "upper LULD band 4.27" in got.json()["warnings"][0]
+    from l2 import tape
+
+    monkeypatch.setattr(tape, "get_trades_in_range", lambda *a, **k: [])
+    look = paper.client.get("/api/agent/trader/look?symbol=SMPL").json()
+    assert look["luld"]["upper"] == 4.27 and look["book"]["at_limit"] is False
+    monkeypatch.setattr(live, "view", lambda s, now=None: {**BAND, "upper": 9.00})
+    far = paper.client.post("/api/agent/trader/order", headers=h, json={
+        "kind": "break", "symbol": "SMPL", "qty": 100, "trigger": 4.40, "top": 4.44, "stop": 4.20, "target": 4.90,
+        "why": "x"})
+    assert far.status_code == 200 and far.json()["warnings"] == []

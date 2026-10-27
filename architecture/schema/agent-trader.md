@@ -16,7 +16,7 @@ Claude's own writes also carry `X-Agent-Seat: <token>`; the operator's three but
 | Route | Who | Answers |
 |---|---|---|
 | `GET /api/agent/trader` | anyone local | the status below |
-| `GET /api/agent/trader/look?symbol=&seconds=120` | anyone local | `{symbol, at, line: {depth, tape, claude_holds, book_at}, quote: {last, bid, ask}, book: {bids, asks, l1_fallback}` (top 10 rows each, the depth module's own rows), `tape: {seconds, summary: {prints, volume, high, low, vwap, at_ask, at_bid}, prints: [{ts, price, size, side?, exchange?, bid?, ask?, conditions?}]}` (newest 200), `locked}` (the view lock's answer or null). Opens no line. |
+| `GET /api/agent/trader/look?symbol=&seconds=120` | anyone local | `{symbol, at, line: {depth, tape, claude_holds, book_at}, quote: {last, bid, ask}, book: {bids, asks, l1_fallback, at_limit}, luld}` (top 10 rows each, the depth module's own rows), `tape: {seconds, summary: {prints, volume, high, low, vwap, at_ask, at_bid}, prints: [{ts, price, size, side?, exchange?, bid?, ask?, conditions?}]}` (newest 200), `locked}` (the view lock's answer or null). `luld` and `at_limit` as in "The LULD band" below. Opens no line. |
 | `GET /api/agent/trader/eye?wait=0&after=` | anyone local | the eye below: every symbol the scanner follows, spikes first, and the spike events. `wait` (0-30 s) long-polls: the answer comes once a spike event newer than `after` (epoch seconds) is listed, or when `wait` runs out. Opens no line. |
 | `GET /api/agent/trader/journal?day=YYYY-MM-DD` | anyone local | the journal below for `day` (default today) plus `open`: the trades open now. Refused (`AGENT_REFUSED`) when the day's file cannot be read |
 | `POST /seat?take_over=` | Claude | `{token, status}`; with `take_over=true` a held seat is picked up (a new token, the old one stops; stock, breaks, reflexes, orders and shares kept). Without it: refused (`AGENT_SEAT_TAKEN`, 409) while another holder's lease is alive, and outside weekdays 04:00-16:00 ET (`AGENT_SEAT_OFF`) |
@@ -25,7 +25,7 @@ Claude's own writes also carry `X-Agent-Seat: <token>`; the operator's three but
 | `POST /watch {symbol}` | Claude | status; the seat's stock (refused while Claude has orders or shares on another) |
 | `POST /note {text}` | Claude | status; one line (<= 400 chars) the desk shows |
 | `POST /arm` | Claude | status; arms the desk on Paper as `actor: "bot"` (ADR 018). Refused off Paper and when the operator locked the padlock (`ibkr.safety.locked_by() == "operator"`). |
-| `POST /order` | Claude | `{order_id, stop_order_id, status}` (a limit) or `{break, status}` (a break). Body: `{kind: "limit" \| "break", symbol, qty, entry (limit), trigger + top (break), stop, target, target2?, target1_qty?, minutes? (break life, default 30, max 240), confirm? {seconds <= 60, shares, ratio} (a break), exit? "pop", pop_pct? (0.5-5, default 1.5), why}`. With `exit: "pop"` Nova sets `target` to entry x (1 + pop_pct/100), `target1_qty` to half the shares rounded down and `target2` to Claude's `target` (refused under 2 shares, or with a target at or under the pop) |
+| `POST /order` | Claude | `{order_id, stop_order_id, warnings, status}` (a limit) or `{break, warnings, status}` (a break); `warnings` lists Nova's words (never a refusal) when the buy's price is within `AGENT_LULD_WARN_PCT` (1%) of the upper LULD band or over it. Body: `{kind: "limit" \| "break", symbol, qty, entry (limit), trigger + top (break), stop, target, target2?, target1_qty?, minutes? (break life, default 30, max 240), confirm? {seconds <= 60, shares, ratio} (a break), exit? "pop", pop_pct? (0.5-5, default 1.5), why}`. With `exit: "pop"` Nova sets `target` to entry x (1 + pop_pct/100), `target1_qty` to half the shares rounded down and `target2` to Claude's `target` (refused under 2 shares, or with a target at or under the pop) |
 | `POST /reflex {kind, action, price?, shares?, seconds?, ratio?, minutes?, why}` | Claude | `{reflex, status}`: a reflex on the seat's stock (`kind` one of `bid_pulled` {price, shares}, `ask_wall` {price, shares}, `sellers` {seconds <= 60, shares, ratio}, `last_below` {price}; `action` `sell_all` or `cancel_buy`; default life 60 min, at most 390; 6 at most) |
 | `DELETE /reflex/{id}` | Claude | status |
 | `POST /stop {order_id, stop}` | Claude | status; raises Claude's own stop leg (never lowers it) |
@@ -80,7 +80,7 @@ the symbol Claude's line is on (or null); `universe` the number of symbols. The 
 and After Hours rows (`runtime_state`, every row, not a top N) and the setup scanner's universe (HOD Momo's active set,
 `hod_momo_active.get_active_symbols`), blocklisted symbols out. A row: `{symbol, lists: ["gappers" | "gainers" |
 "afterhours" | "setups"], last, prev_close, day_pct, windows: {"10" | "30" | "60": {pct, shares, dollars} | null},
-spike: {direction: "up" | "down", pct, dollars} | null, float_shares, bid, ask, spread, spread_pct, halted, catalyst}`.
+spike: {direction: "up" | "down", pct, dollars} | null, float_shares, bid, ask, spread, spread_pct, halted, luld, catalyst}`.
 `last` is IBKR's Level 1 last (null while it is the prior close, `quote_quality: "close_fallback"`); `day_pct` is
 `last` against IBKR's prior close (percent points, null when either is unknown); `bid` / `ask` the Level 1 line's;
 `spread_pct` against the mid. `windows[n]` reads the Level 1 samples `hod_momo_metrics` keeps (one hour; each the
@@ -141,6 +141,13 @@ known, is never read as halted). While Claude's stock is halted `POST /order` is
 `refused` event); every pass cancels Claude's unfilled buys and drops its breaks on a halted stock (`refused` events
 "SMPL is halted: Nova cancelled Claude's buy at 4.1" / "... took back Claude's break at 4.4"); held shares keep their
 resting stop and targets and the guard skips the stock until it trades again.
+
+**The LULD band** (`agent_trader.bands`, ADR 047's band from `luld.live.view`, decision 16). `luld: {upper, lower,
+pct_to_upper, pct_to_lower, state, exact}` on `/look` and each eye row: `pct_to_upper` is the upper band over the last
+(percent), `pct_to_lower` the last over the lower; `state` is the band source's (`bands`, `limit`, `pause_due`,
+`unknown` where Nova holds no tape line for the stock, `off`, ...), with null numbers where it has no band.
+`book.at_limit` (`/look`) is true when the best bid is at or over the upper band and nothing is offered at or under it:
+buyers pinned by the band, not support.
 
 **Each print and book** (`agent_trader.wake`, decision 14). The IBKR AllLast and depth callbacks call `wake.print_in` /
 `wake.book_in`; for a stock the seat watches (its stock, its breaks', the ones it holds) the print `{ts, price, size, bid,

@@ -44,7 +44,7 @@ def tape_summary(prints: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 async def look(symbol: str, seconds: float = 120.0, max_prints: int = 200) -> dict[str, Any]:
-    from agent_trader import lines
+    from agent_trader import bands, lines
     from ibkr import depth
     from ibkr.depth import state as depth_state
     from l2 import tape
@@ -58,13 +58,15 @@ async def look(symbol: str, seconds: float = 120.0, max_prints: int = 200) -> di
     rows = await asyncio.to_thread(tape.get_trades_in_range, sym, now - float(seconds), now)
     prints = [{k: row.get(k) for k in _PRINT_KEYS if k in row} for row in rows]
     lock = gate.desk_lock(sym)
+    luld = bands.of(sym, ref.last)
     return {
         "symbol": sym, "at": now,
         "line": {"depth": depth.is_live(sym), "tape": tape.is_watched(sym), "claude_holds": lines.holds(sym),
                  "book_at": depth_state.last_book_at(sym)},
         "quote": {"last": ref.last, "bid": ref.bid, "ask": ref.ask},
         "book": {"bids": list(book.get("bids") or [])[:_BOOK_ROWS], "asks": list(book.get("asks") or [])[:_BOOK_ROWS],
-                 "l1_fallback": bool(book.get("l1_fallback"))},
+                 "l1_fallback": bool(book.get("l1_fallback")), "at_limit": bands.at_limit(book, luld)},
+        "luld": luld,
         "tape": {"seconds": float(seconds), "summary": tape_summary(prints), "prints": prints[-int(max_prints):]},
         "locked": lock,
     }

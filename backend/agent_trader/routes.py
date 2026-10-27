@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from agent_desk.routes import require_local
-from agent_trader import eye, journal, ledger, lines, look, orders, reflexes, rules, seat, view, watcher
+from agent_trader import bands, eye, journal, ledger, lines, look, orders, reflexes, rules, seat, view, watcher
 from agent_trader import clock
 from agent_trader.constants_agent_trader import (
     AGENT_BREAK_DEFAULT_MIN,
@@ -231,6 +231,7 @@ async def place(body: OrderBody, x_agent_seat: str | None = Header(default=None)
         raise _refuse(*refused)
     seat.set_note(body.why)
     journal.note_why(order["symbol"], body.why)
+    warnings = [w for w in [bands.buy_warning(order["symbol"], float(order["entry"]))] if w]
     seat.set_exit(order["symbol"], {"mode": EXIT_POP, "pop_pct": order["pop_pct"]} if body.exit == EXIT_POP else None)
     if body.kind == ENTRY_LIMIT:
         receipt = await orders.send_entry(order, tag="limit")
@@ -240,14 +241,14 @@ async def place(body: OrderBody, x_agent_seat: str | None = Header(default=None)
         seat.event("buy_set", f"buy {body.qty:g} {order['symbol']} at {body.entry:g}, stop {body.stop:g}, "
                    f"target {body.target:g}")
         return {"order_id": getattr(receipt, "order_id", None), "stop_order_id": getattr(receipt, "stop_order_id", None),
-                "status": view.status()}
+                "warnings": warnings, "status": view.status()}
     if why := reflexes.confirm_refusal(order.get("confirm")):
         raise _refuse(AGENT_REFUSED, why)
     minutes = min(float(body.minutes or AGENT_BREAK_DEFAULT_MIN), AGENT_BREAK_MAX_MIN)
     row = {k: order[k] for k in ("symbol", "qty", "trigger", "top", "stop", "target", "target2", "target1_qty",
                                  "confirm")}
     made = seat.add_break({**row, "expires_at": clock.now() + minutes * 60.0, "why": body.why})
-    return {"break": made, "status": view.status()}
+    return {"break": made, "warnings": warnings, "status": view.status()}
 
 
 def _pop_exit(order: dict[str, Any], pop_pct: float | None) -> str | None:

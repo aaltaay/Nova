@@ -106,7 +106,9 @@ Claude works through tool calls. It reads Level 2 and Time & Sales from the back
     tick 49, else the Nasdaq halt feed; unknown is never read as halted): a new entry is refused (`AGENT_HALTED`, said
     on the desk); Claude's unfilled buys and armed breaks on it are cancelled at once, each said on the desk; held
     shares keep their stop and targets resting, and the guard does not judge the stock, so it never market-sells
-    into the reopening auction (`agent_trader.halts`).
+    into the reopening auction (`agent_trader.halts`). Claude also reads ADR 047's LULD band on `/look` and in the eye,
+    a book whose bid sits on the upper band with nothing offered under it is marked `at_limit` (not support), and a
+    buy within 1% of the upper band or over it comes back with a warning, never a refusal (`agent_trader.bands`).
 
 **Amendment to decisions 1 and 9 (2026-10-27).** The lease counts while the backend runs: a seat read back after a
 restart gets a fresh lease from then (event `resumed`), so a reboot or a desk update no longer ends Claude's trade.

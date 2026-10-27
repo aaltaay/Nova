@@ -97,6 +97,7 @@ AGENT_NOT_MINE = "AGENT_NOT_MINE"
 AGENT_STALE = "AGENT_STALE"
 AGENT_REFUSED = "AGENT_REFUSED"
 AGENT_HALTED = "AGENT_HALTED"      # the stock is halted (decision 16)
+AGENT_LULD_WARN_PCT = 1.0          # a buy this close to the upper LULD band, or over it, is warned (never refused)
 
 # Audit actions (``audit`` stream).
 AGENT_AUDIT_ACTION = "agent_trader"
