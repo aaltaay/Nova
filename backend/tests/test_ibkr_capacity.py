@@ -61,6 +61,35 @@ def test_a_background_chart_fill_leaves_the_last_requests(monkeypatch):
         asyncio.run(historical_service.request_bars("AAPL", "1Min", 100, priority="background"))
 
 
+def test_a_painted_charts_refresh_leaves_the_trades_read_back_their_share(monkeypatch):
+    """2026-10-27: ten charts refreshing every 45 s spent 56 of 60 and no TraderTV exit was read all morning."""
+    import bars_store
+    from constants_scanner import IBKR_HISTORY_WARM_RESERVE
+    from followed_traders.constants_followed import FOLLOWED_EXIT_HEADROOM
+    from luld.constants_luld import LULD_BACKFILL_HEADROOM
+
+    # The exits and LULD read while more than their headroom is left: the refresh must stop above it.
+    assert IBKR_HISTORY_WARM_RESERVE > max(FOLLOWED_EXIT_HEADROOM, LULD_BACKFILL_HEADROOM)
+    historical_service.reset_for_testing()
+    monkeypatch.setattr(bars_store, "read", lambda *a, **k: None)
+    monkeypatch.setattr(historical_service, "assert_ib_loop", lambda: None)
+    monkeypatch.setattr(historical_service, "_left", lambda: IBKR_HISTORY_WARM_RESERVE)
+    with pytest.raises(historical_service.HistoricalShed, match="the trades read back"):
+        asyncio.run(historical_service.request_bars("AAPL", "1Min", 100, priority="warm"))
+
+
+def test_a_painted_chart_keeps_its_bars_when_its_refresh_is_held(monkeypatch):
+    import bars_store
+
+    painted = {"symbol": "AAPL", "timeframe": "1Min", "bars": [{"t": 1}], "coverage": {"fetched_ts": 1.0}}
+    historical_service.reset_for_testing()
+    monkeypatch.setattr(bars_store, "read", lambda *a, **k: painted)
+    monkeypatch.setattr(bars_store, "store_series_complete", lambda *a: False)
+    monkeypatch.setattr(historical_service, "assert_ib_loop", lambda: None)
+    monkeypatch.setattr(historical_service, "_left", lambda: 1)
+    assert asyncio.run(historical_service.request_bars("AAPL", "1Min", 100, priority="warm")) is painted
+
+
 def test_fills_admitted_together_recheck_the_reserve_before_they_send(monkeypatch):
     """Codex review, PR #1021: fills that all passed the first check at 11 left must not spend the reserve."""
     import bars_store
