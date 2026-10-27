@@ -41,7 +41,7 @@ class Refusal(NamedTuple):
 
 def _blank() -> dict[str, Any]:
     return {"schema_version": AGENT_SCHEMA_VERSION, "holder": None, "since": None, "beat_at": None,
-            "yielded": False, "yielded_at": None, "symbol": None, "breaks": [], "reflexes": [], "note": None,
+            "yielded": False, "yielded_at": None, "symbol": None, "breaks": [], "reflexes": [], "exits": {}, "note": None,
             "events": []}
 
 
@@ -177,7 +177,7 @@ def turn_off(reason: str, now: float | None = None) -> None:
         if not st.get("holder"):
             return
         st.update(holder=None, since=None, beat_at=None, yielded=False, yielded_at=None, symbol=None, breaks=[],
-                  reflexes=[])
+                  reflexes=[], exits={})
         _event_locked(st, t, "off", reason)
         _save()
 
@@ -278,6 +278,24 @@ def drop_reflex(reflex_id: str, text: str | None = None, *, kind: str = "reflex_
             _event_locked(st, t, kind, text)
         _save()
         return gone
+
+
+def exits() -> dict[str, dict[str, Any]]:
+    """symbol -> the exit plan Claude chose for its trade there (``{mode: "pop", pop_pct}``, decision 13)."""
+    with _lock:
+        return {k: dict(v) for k, v in (_load().get("exits") or {}).items()}
+
+
+def set_exit(symbol: str, row: dict[str, Any] | None) -> None:
+    with _lock:
+        st = _load()
+        plans = dict(st.get("exits") or {})
+        if row is None:
+            plans.pop(symbol.upper(), None)
+        else:
+            plans[symbol.upper()] = dict(row)
+        st["exits"] = plans
+        _save()
 
 
 def event(kind: str, text: str, now: float | None = None) -> None:

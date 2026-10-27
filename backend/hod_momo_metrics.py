@@ -10,10 +10,14 @@ The cumulative day-volume samples are read on every Level 1 tick (Volume boost,
 HOD Momo's 5-min RVOL), so a read is a binary search, never a scan (#619: at
 the 09:30 open, scanning an hour of samples per tick stalled the IB loop). The
 samples stay in time order and are written from more than one thread (the IB
-loop, the quote panel's REST route), so every access holds one lock.
+loop, the quote panel's REST route), so every access holds one lock. Each sample
+also keeps the Level 1 last that came with it (NaN when the writer had none), so
+Claude's eye (ADR 068 decision 12) reads a window's move and dollar volume from
+the same samples (``window_trades``).
 """
 from __future__ import annotations
 
+import math
 import threading
 from array import array
 from bisect import bisect_left, bisect_right
@@ -32,30 +36,33 @@ _ET = ZoneInfo("America/New_York")
 
 
 class _CumSeries:
-    """One symbol's (unix_ts, cumulative_day_volume) samples, oldest first.
+    """One symbol's (unix_ts, cumulative_day_volume, last) samples, oldest first.
 
-    Two flat arrays share one index; ``head`` is the first live sample. Trimming
+    Three flat arrays share one index; ``head`` is the first live sample. Trimming
     moves ``head``, and the dead front is dropped in one slice once it is large.
     """
 
-    __slots__ = ("ts", "vol", "head")
+    __slots__ = ("ts", "vol", "px", "head")
 
     def __init__(self) -> None:
         self.ts = array("d")
         self.vol = array("q")
+        self.px = array("d")
         self.head = 0
 
     def __len__(self) -> int:
         return len(self.ts) - self.head
 
-    def add(self, ts: float, v: int) -> None:
+    def add(self, ts: float, v: int, px: float = math.nan) -> None:
         if len(self) and ts < self.ts[-1]:
             i = bisect_right(self.ts, ts, lo=self.head)   # rare: a late sample keeps time order
             self.ts.insert(i, ts)
             self.vol.insert(i, v)
+            self.px.insert(i, px)
         else:
             self.ts.append(ts)
             self.vol.append(v)
+            self.px.append(px)
 
     def trim(self, cutoff: float) -> None:
         """Drop the samples older than ``cutoff``."""
@@ -63,6 +70,7 @@ class _CumSeries:
         if self.head >= _COMPACT_AT and self.head * 2 >= len(self.ts):
             del self.ts[: self.head]
             del self.vol[: self.head]
+            del self.px[: self.head]
             self.head = 0
 
     def at_or_before(self, ts: float) -> int | None:
@@ -89,8 +97,8 @@ def cum_volume_samples(symbol: str) -> list[tuple[float, int]]:
         return [(s.ts[i], int(s.vol[i])) for i in range(s.head, len(s.ts))]
 
 
-def update_cum_volume(symbol: str, cum_volume: int | None, ts: float) -> None:
-    """Record a cumulative day-volume sample (skip None / non-positive)."""
+def update_cum_volume(symbol: str, cum_volume: int | None, ts: float, price: float | None = None) -> None:
+    """Record a cumulative day-volume sample (skip None / non-positive), with the last that came with it."""
     if cum_volume is None:
         return
     try:
@@ -106,8 +114,57 @@ def update_cum_volume(symbol: str, cum_volume: int | None, ts: float) -> None:
             s = _cum_volume_buffer[symbol] = _CumSeries()
         if len(s) and s.vol[-1] == v and (ts - s.ts[-1]) < 0.5:
             return  # ignore duplicate spam within 500ms
-        s.add(ts, v)
+        s.add(ts, v, _price_or_nan(price))
         s.trim(ts - _MAX_SAMPLES_SEC)
+
+
+def _price_or_nan(price: float | None) -> float:
+    try:
+        px = float(price) if price is not None else math.nan
+    except (TypeError, ValueError):
+        return math.nan
+    return px if px > 0 and math.isfinite(px) else math.nan
+
+
+def window_trades(symbol: str, seconds: float, now: float) -> tuple[float, float, int, float] | None:
+    """Over ``(now - seconds, now]``: ``(last then, last now, shares, dollars)``, or None.
+
+    Only samples that carry a last are read: a volume-only sample (the quote panel's, whose day volume may not be
+    IBKR's) is skipped, and the day volume being cumulative, its shares land on the next sample with a last.
+    ``last then`` is the last of the newest such sample at or before the window's start, ``last now`` the newest at
+    or before ``now``; ``shares`` is the day volume's rise and ``dollars`` each rise times the last that came with
+    it. None -- never a filled-in number -- when the samples do not reach back across the window or the day volume
+    fell (a reset).
+    """
+    with _lock:
+        s = _cum_volume_buffer.get(symbol)
+        if not s:
+            return None
+        end = _priced_at_or_before(s, bisect_right(s.ts, float(now), lo=s.head) - 1)
+        start = _priced_at_or_before(s, bisect_right(s.ts, float(now) - float(seconds), lo=s.head) - 1)
+        if start is None or end is None or end < start:
+            return None
+        then, last = s.px[start], s.px[end]
+        shares, dollars, prev = 0, 0.0, s.vol[start]
+        for i in range(start + 1, end + 1):
+            if math.isnan(s.px[i]):
+                continue
+            step = s.vol[i] - prev
+            if step < 0:
+                return None
+            shares += step
+            dollars += step * s.px[i]
+            prev = s.vol[i]
+    return then, last, int(shares), dollars
+
+
+def _priced_at_or_before(s: _CumSeries, i: int) -> int | None:
+    """The newest sample at or before index ``i`` that carries a last (caller holds the lock)."""
+    while i >= s.head:
+        if not math.isnan(s.px[i]):
+            return i
+        i -= 1
+    return None
 
 
 def cum_volume_at(symbol: str, ts: float) -> int | None:

@@ -51,7 +51,7 @@ def observe_l1(
     if not sym:
         return
     now = float(ts)
-    update_cum_volume(sym, cum_volume, now)
+    update_cum_volume(sym, cum_volume, now, price)
     _watched.add(sym)
     edges = window_edges(now, VOLUME_BOOST_SPIKE_WINDOW_SEC, VOLUME_BOOST_BASELINE_WINDOW_SEC)
     metrics = spike_from_edges(
