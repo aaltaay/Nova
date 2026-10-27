@@ -85,6 +85,27 @@ describe('ScannerTable row numbers', () => {
     expect(onSort).not.toHaveBeenCalled();
   });
 
+  it('shades float and volume cells and lights a low-float, high-RVOL row, on every list but Large Cap', async () => {
+    const hot = { ...row('AMOD'), float: 630_935, volume: 111_968_235, rel_volume: 429.17, rvol_source: 'daily_avg' };
+    const calm = { ...row('SDEV'), float: 22_550_189, volume: 772_400, rel_volume: 5.97, rvol_source: 'daily_avg' };
+    const columns: [string, string][] = [['symbol', 'Symbol'], ['volume', 'Volume'], ['float', 'Float']];
+    const render = (board: string) => act(() => {
+      root.render(
+        <ScannerTable columns={columns} data={[hot, calm]} sortState={{ key: '', dir: null }} onSort={() => {}}
+          selectedSymbol={null} onSelect={() => {}} onOpenTrading={() => {}} board={board} />,
+      );
+    });
+    await render('gainers');
+    const rows = [...container.querySelectorAll('tbody tr')];
+    expect(rows.map(r => r.classList.contains('scanner-row--hot'))).toEqual([true, false]);
+    expect(rows[0].querySelector('td[data-col="float"]')?.getAttribute('data-float-shade')).toBe('low');
+    expect(rows[1].querySelector('td[data-col="float"]')?.hasAttribute('data-float-shade')).toBe(false);
+    expect(rows.map(r => r.querySelector('td[data-col="volume"]')?.getAttribute('data-volume-shade')))
+      .toEqual(['5', '4']);
+    await render('large_cap');
+    expect(container.querySelector('.scanner-row--hot, [data-float-shade], [data-volume-shade]')).toBeNull();
+  });
+
   it('shows shared News and Earnings headers on Large Cap columns', async () => {
     await act(() => {
       root.render(
