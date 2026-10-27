@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { isSampleView } from '../sample_data/sampleNav';
 import { useClaudeSeat } from './claudeSeatStore';
-import { pillShown, seatTone } from './claudeSeatWords';
+import { pillShown, pillTone } from './claudeSeatWords';
 import { ClaudeMark } from './ClaudeMark';
 import { ClaudeSeatPanel } from './ClaudeSeatPanel';
 import { ClaudeSeatToasts } from './ClaudeSeatToasts';
@@ -35,7 +35,7 @@ export function ClaudeSeatPill() {
   if (isSampleView()) return null;
   // One toast host for the window's life (first child, both ways): it must not remount when the pill appears.
   const pill = status && pillShown(status) ? status : null;
-  const tone = pill ? seatTone(pill.state) : 'off';
+  const tone = pill ? pillTone(pill) : 'off';
   return (
     <>
       <ClaudeSeatToasts />

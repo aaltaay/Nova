@@ -35,10 +35,10 @@ import {
   depthLiveBadge,
   depthLiveBadgeText,
 } from './depthUiStatus';
-import { depthLentText } from './lentWords';
+import { depthLentText, lentToClaude } from './lentWords';
 import { computeL2Heuristics } from './l2Heuristics';
 import { useIbkrDepth } from './useIbkrDepth';
-import { ClaudeLinesFullBox } from '../claude_seat';
+import { ClaudeLentWords, ClaudeLinesFullBox } from '../claude_seat';
 import type { DepthLevel } from './types';
 import { useRenderCount } from '../perf/useRenderCount';
 import { noteBookShown } from '../market_view';
@@ -295,6 +295,13 @@ export function DepthLadder({ symbol, uiActive = true, markers, traderTab = fals
   }
 
   // The line went to one of Nova's setups (ADR 044): say whose, and when it comes back.
+  // Lent to Claude (ADR 068 decision 14): the same words in Claude's violet; a right-click takes it back.
+  if (lent && lentToClaude(lent)) {
+    return (
+      <ClaudeLentWords symbol={symbol} text={depthLentText(lent)} testId="ibkr-depth-lent"
+        className="ibkr-depth-empty ibkr-depth-lent" />
+    );
+  }
   if (lent) {
     return (
       <div className="ibkr-depth-empty ibkr-depth-lent" data-testid="ibkr-depth-lent" role="status">

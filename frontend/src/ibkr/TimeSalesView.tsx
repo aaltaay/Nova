@@ -25,7 +25,8 @@ import {
 import { TAPE_STATUS_LENT, TAPE_STATUS_RETRYING } from '../constantGroups/market_ui';
 import { SAMPLE_FEED_STATUS, SAMPLE_LIVE_FEED_ABSENT } from '../sample_data/sampleCopy';
 import { createRafCoalesce } from '../utils/rafCoalesce';
-import { tapeLentText } from './lentWords';
+import { lentToClaude, tapeLentText } from './lentWords';
+import { ClaudeLentWords } from '../claude_seat';
 import { TapeMinSizeFilterMenu } from './TapeMinSizeFilterMenu';
 import {
   applyTapeMinSizeDraft,
@@ -254,7 +255,9 @@ export function TimeSalesView({
       data-rendered-count={statusLabel ? 0 : visible.length}
       data-tape-ui-active={uiActive ? '1' : '0'}
     >
-      {lentWords ? (
+      {lentWords && symbol && lentToClaude(feed.lent) ? (
+        <ClaudeLentWords symbol={symbol} text={lentWords} testId="ts-lent" className="ts-panel__empty ts-panel__lent" />
+      ) : lentWords ? (
         <div className="ts-panel__empty ts-panel__lent" data-testid="ts-lent" role="status">{lentWords}</div>
       ) : statusLabel ? (
         <div className="ts-panel__empty">{statusLabel}</div>
