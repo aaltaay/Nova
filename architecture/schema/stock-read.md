@@ -719,7 +719,7 @@ logic choice. This target does not enable autonomous Live bot entry.
 venue: "live" | "paper" | "sim" | null, mode: "signal" | "approve" | "auto_entry" | "bot", buy:
 "you" | "nova", sell: "you" | "nova", risk_usd: number | null, set_at: number | null, locks:
 {buy: string | null, sell: string | null}, notes: [{id, tone: "info" | "warn", text}], approval:
-Approval | null, trade: Trade | null, entries_today: {count, cap}, nova_entries_today: integer (one
+Approval | null, trade: Trade | null, entries_today: {count} (Nova's automatic entries today, shown, never a cap; `cap` and the `daily_cap` note left 2026-10-27), nova_entries_today: integer (one
 release), size: {qty, by_risk, capped_by, text} | null, last_event: {ts, tone: "info" | "ok" | "warn" |
 "bad", text} | null, bot: {on_list, playing, reason, setup_at_strategy, active} | null}` (ADR 042:
 `risk_usd` is the venue sleeve's, read-only here; `size` is what Nova would send for the stock's plan;
@@ -796,8 +796,8 @@ it is for: the live scanner's on Paper and at the live edge, the Sim eyes' for t
 is the venue's (the playhead on Sim).
 - **Auto-entry is the bot's rules with the exit handed to you** (ADR 042, `admit.for_auto_entry`):
   the first go trigger of a setup at effective Strategy (never one at Off or Eyes), the first of the
-  day, inside that setup's bot window, with extended hours as the sleeve says, within the shared
-  daily cap, never NOT A TRADE, at most `BOT_FP_TRIGGER_MAX_AGE_SEC` old, and only while the bot is
+  day, inside that setup's bot window, with extended hours as the sleeve says (no daily cap since
+  2026-10-27), never NOT A TRADE, at most `BOT_FP_TRIGGER_MAX_AGE_SEC` old, and only while the bot is
   Active, sends one BUY limit at that setup's entry.
   - Size: the sleeve's (one size for every Nova buy).
   - Source: `bot`. A stock on the bot list never auto-enters (the bot trades it).

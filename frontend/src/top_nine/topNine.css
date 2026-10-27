@@ -6,6 +6,7 @@
   --tn-down: var(--nova-danger, #ff453a);
   --tn-new: var(--nova-accent, #0a84ff);
   --tn-halt: #ff9f0a;
+  --tn-luld: #f43f5e;
   --tn-candle-up: #10b981;
   --tn-candle-down: #ef4444;
   --tn-vwap: #f97316;
@@ -370,6 +371,102 @@
   color: var(--tn-halt);
   background: color-mix(in srgb, var(--tn-halt) 14%, transparent);
   border: 1px solid color-mix(in srgb, var(--tn-halt) 45%, transparent);
+}
+
+/* Nova's LULD band (ADR 047): the desk's LULD rose, solid where exact, dashed where approximate. */
+.top-nine-chart__luld {
+  stroke: var(--tn-luld);
+  stroke-width: 1.5;
+}
+
+.top-nine-chart__luld.is-approx {
+  stroke-dasharray: 4 3;
+}
+
+.top-nine-chart__luld-tag rect {
+  fill: var(--tn-luld);
+}
+
+.top-nine-chart__luld-tag text {
+  fill: #4c0519;
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.top-nine-chart__luld-none {
+  fill: var(--nova-text-muted);
+  font-size: 10.5px;
+}
+
+.top-nine-tile__muted {
+  display: inline-flex;
+  align-items: center;
+  color: var(--nova-text-muted, #8e8e93);
+}
+
+/* A tile's right-click menu: one row, like the desk's symbol menu (icon tile, label, the line under it). */
+.top-nine-menu {
+  position: fixed;
+  z-index: 50;
+  width: 260px;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--nova-panel);
+  border: 1px solid var(--nova-border);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.top-nine-menu__row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--nova-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.top-nine-menu__row:hover,
+.top-nine-menu__row:focus-visible {
+  background: color-mix(in srgb, var(--nova-text) 8%, transparent);
+  outline: none;
+}
+
+.top-nine-menu__icon {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--tn-down);
+}
+
+.top-nine-menu__icon.is-on {
+  background: var(--tn-up);
+}
+
+.top-nine-menu__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.top-nine-menu__label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.top-nine-menu__hint {
+  font-size: 11px;
+  color: var(--nova-text-muted, #8e8e93);
 }
 
 .top-nine-chart {

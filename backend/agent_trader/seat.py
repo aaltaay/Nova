@@ -68,6 +68,14 @@ def _load() -> dict[str, Any]:
                 loaded.update({k: raw[k] for k in loaded if k in raw})
     except (OSError, ValueError) as exc:
         logger.exception("AGENT seat: %s could not be read (%s) -- starting with the seat off", target, exc)
+    if loaded.get("holder"):
+        # The lease counts while the backend runs: a restart (the PC rebooted, the desk updated) is not Claude going
+        # quiet, so the seat read back gets a fresh lease from now (operator, 2026-10-27).
+        t = clock.now()
+        if float(loaded.get("beat_at") or 0.0) < t:
+            loaded["beat_at"] = t
+            _event_locked(loaded, t, "resumed", "Nova restarted: Claude's seat, its stock and its breaks are kept, "
+                          "and its lease runs again from now")
     _state = loaded
     return _state
 
@@ -142,16 +150,25 @@ def refusal(token: str | None) -> Refusal | None:
     return None
 
 
-def claim(now: float | None = None) -> tuple[str | None, Refusal | None]:
-    """Take the seat: ``(token, None)``, or ``(None, why)`` while another holder's lease is alive."""
+def claim(now: float | None = None, *, take_over: bool = False) -> tuple[str | None, Refusal | None]:
+    """Take the seat: ``(token, None)``, or ``(None, why)`` while another holder's lease is alive.
+
+    ``take_over``: a new session picks up a seat that is held -- its stock, breaks, reflexes, orders and shares stay
+    as they are, the old token stops working (one call, so a chat that lost its token is never locked out)."""
     from agent_trader.constants_agent_trader import AGENT_SEAT_TAKEN
 
     t = clock.now() if now is None else now
     with _lock:
         st = _load()
+        if st.get("holder") and not lapsed(t) and take_over:
+            token = uuid.uuid4().hex
+            st.update(holder=token, beat_at=t)
+            _event_locked(st, t, "taken_over", "a new session picked up Claude's seat; the old one can no longer act")
+            _save()
+            return token, None
         if st.get("holder") and not lapsed(t):
             return None, Refusal(AGENT_SEAT_TAKEN, "Claude's seat is already held by another session; it frees when "
-                                 "that session lets go or goes quiet for 10 minutes.")
+                                 "that session lets go or goes quiet for 10 minutes, or pick it up with take_over.")
         token = uuid.uuid4().hex
         st.update(holder=token, since=t, beat_at=t, yielded=False, yielded_at=None)
         _event_locked(st, t, "on", "Claude took its seat")

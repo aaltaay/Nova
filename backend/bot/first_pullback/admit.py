@@ -34,7 +34,6 @@ from constants_bot import (
     BOT_LEVEL_STRATEGY,
     BOT_REASON_BRAIN_EXCLUSIVE,
     BOT_REASON_COMMISSIONS_UNKNOWN,
-    BOT_REASON_DAY_TRADE_CAP,
     BOT_REASON_KIND_BLOCKED,
     BOT_REASON_NO_DEPTH_LINE,
     BOT_REASON_OUTSIDE_WINDOW,
@@ -233,14 +232,6 @@ def blockers(event: dict[str, Any], row: dict[str, Any], *, now: float,
     late = entry_rules.extended_hours_block(caps)
     if late is not None:
         out.append((BOT_SKIP_EXTENDED_HOURS, late))
-    try:
-        daily = entry_rules.today(venue, clock, cap=int(caps["entries_per_day"]))
-    except Exception as exc:
-        logger.warning("bot: the day's entries could not be counted -- no automatic entry", exc_info=True)
-        out.append((BOT_REASON_DAY_TRADE_CAP, f"the day's entries could not be counted ({exc}): no automatic entry"))
-    else:
-        if daily["count"] >= daily["cap"]:
-            out.append((BOT_REASON_DAY_TRADE_CAP, entry_rules.cap_text(daily["count"], daily["cap"])))
     return out
 
 

@@ -64,8 +64,8 @@ describe('bot answers the page cannot render are refused, not rendered (C12 / C7
     expect(parseBotSession({ ...SESSION, deactivated: { at: 5, reason: 'restart', text: 'Not active -- the backend restarted' } })?.deactivated)
       .toEqual({ at: 5, reason: 'restart', text: 'Not active -- the backend restarted' });
     expect(parseBotSession({ ...SESSION, deactivated: { at: 5 } })?.deactivated).toBeNull();
-    expect(parseBotSession({ ...SESSION, entries_today: { count: 1, cap: 1, venue_day: 'd', entries: 'x' } })?.entries_today)
-      .toEqual({ count: 1, cap: 1, venue_day: 'd', entries: [], approved: 0 });
+    expect(parseBotSession({ ...SESSION, entries_today: { count: 1, venue_day: 'd', entries: 'x' } })?.entries_today)
+      .toEqual({ count: 1, venue_day: 'd', entries: [], approved: 0 });
   });
 
   it.each([

@@ -117,6 +117,7 @@ def spike_of(window: dict[str, Any] | None) -> dict[str, Any] | None:
 
 
 def _row(sym: str, lists: list[str], scanner: dict[str, Any], quote: dict[str, Any], now: float) -> dict[str, Any]:
+    from agent_trader import bands
     from catalysts import board
     from constants_ibkr import IBKR_QUOTE_QUALITY_CLOSE_FALLBACK
     from ibkr import ticks
@@ -135,7 +136,7 @@ def _row(sym: str, lists: list[str], scanner: dict[str, Any], quote: dict[str, A
         "windows": windows, "spike": spike_of(windows.get(str(AGENT_EYE_SPIKE_SECONDS))),
         "float_shares": scanner.get("float_shares"), "bid": bid, "ask": ask, "spread": spread,
         "spread_pct": spread / ((ask + bid) / 2.0) * 100.0 if spread is not None else None,
-        "halted": scanner.get("halted"),
+        "halted": scanner.get("halted"), "luld": bands.of(sym, last),
         "catalyst": {k: catalyst.get(k) for k in _CATALYST_KEYS} if isinstance(catalyst, dict) else None,
     }
 
@@ -221,3 +222,13 @@ async def eye(wait: float = 0.0, after: float | None = None) -> dict[str, Any]:
         if wait <= 0 or time.monotonic() >= deadline or any(float(e["at"]) > since for e in events()):
             return view(ranked, t)
         await asyncio.sleep(AGENT_EYE_SCAN_SEC)
+
+
+async def scan_pass(t: float) -> None:
+    """The watcher's call while the seat is on: a scan every ``AGENT_EYE_SCAN_SEC``; a failed one is logged."""
+    if not scan_due(t):
+        return
+    try:
+        await asyncio.to_thread(scan, t)
+    except Exception:
+        logger.exception("AGENT eye: a scan failed")

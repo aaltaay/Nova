@@ -9,6 +9,7 @@
 import type { IndicatorBar } from '../chartIndicators';
 import type { VwapPoint } from '../chart';
 import { TOP_NINE_CHART_MINUTES } from './topNineConstants';
+import type { LuldScale } from './topNineLuld';
 
 export interface ChartBox {
   width: number;
@@ -37,6 +38,8 @@ export interface TopNineChartGeometry {
   plotRight: number;
   volTop: number;
   volBottom: number;
+  /** The price area's scale, for the LULD band (topNineLuld). */
+  scale: LuldScale;
 }
 
 export const CHART_AXIS_W = 54;
@@ -171,5 +174,6 @@ export function topNineChartGeometry(
     plotRight,
     volTop,
     volBottom,
+    scale: { startMin, left: LEFT, right: plotRight, slot, top: TOP, bottom: priceBottom, yOf },
   };
 }

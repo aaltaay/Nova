@@ -1,7 +1,7 @@
 /**
  * "Can Nova trade right now?" in one line, for every ticker at once (ADR 044). The checks that hold for
- * every stock -- the Bot switch (the header's), the Strategy Bots key, the desk, a strategy at On, the windows, the
- * day's cap -- are named with their fix when one stops it; otherwise it names the tickers that are ready. Each ticker's own answer is
+ * every stock -- the Bot switch (the header's), the Strategy Bots key, the desk, a strategy at On, the windows --
+ * are named with their fix when one stops it; otherwise it names the tickers that are ready. Each ticker's own answer is
  * in Tickers today below and in its Trader tab's Who trades row. The desk's checks sit under it as chips,
  * then what a short needs (ADR 049, #778 step 5): a margin account, $2,000 of equity, the short hours and
  * Live -- they hold the short strategies only, never a long.
@@ -16,7 +16,7 @@ import type { BotSession, ShortChip } from './types';
 
 /** The gates that hold for every stock at once: one of them closed means no ticker can be bought. */
 const DESK_WIDE = ['venue', 'padlock', 'strategy_key', 'kill_switch', 'loss_limit', 'commissions', 'setups', 'window',
-  'daily_cap', 'extended_hours'];
+  'extended_hours'];
 const CHIPS: [string, string][] = [['venue', 'Venue'], ['padlock', 'Padlock'], ['kill_switch', 'Orders not frozen'], ['loss_limit', 'Under loss limit']];
 /** The short chips (``GET /api/bot/session`` ``shorts``), in the spec's order. */
 const SHORT_CHIPS: [keyof NonNullable<BotSession['shorts']>, string][] = [

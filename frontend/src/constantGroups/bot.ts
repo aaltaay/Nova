@@ -42,9 +42,6 @@ export const BOT_RISK_MIN_USD = 1;
 export const BOT_RISK_MAX_USD = 10_000;
 /** The slider stops here; the backend's bound may be higher (typed values still go through it). */
 export const BOT_RISK_SLIDER_MAX_USD = 500;
-/** Nova's automatic entries a day per venue (bot + Auto-entry): bounds when the API sends none. */
-export const BOT_ENTRIES_PER_DAY_MIN = 1;
-export const BOT_ENTRIES_PER_DAY_MAX = 3;
 export const BOT_LEVEL_LABELS = {
   0: 'Off',
   1: 'Eyes',
@@ -254,7 +251,6 @@ export const BOT_GATE_LABELS: Record<string, string> = {
   loss_limit: 'Loss limit',
   kill_switch: 'Freeze all orders',
   window: 'Bot window',
-  daily_cap: 'Daily cap',
   extended_hours: 'Hours',
   commissions: 'Commissions',
 };
@@ -270,7 +266,6 @@ export const BOT_GATE_TIPS: Record<string, string> = {
   loss_limit: 'No new buys after the daily loss limit (Settings > Loss limits): with No new buys checked, once this venue\'s day loss reaches the limit, buys -- yours and the bots\' -- are refused until 04:00 ET on the next trading day; once the bots\' own trades reach the Bots\' trades line, only the bots\' entries are. Selling, Flatten and KILL still work. Checked on every order.',
   kill_switch: 'Freeze all orders cancels every working order on every venue and refuses every new order on every venue -- yours and Nova\'s, a sell included -- until you unfreeze them. Flatten and cancels still work. Checked on every order.',
   window: 'Each setup\'s bot window, from its template and inside its arming window: the bot buys only a trigger inside it. Open while any setup at Strategy is inside its window now. Checked on every order.',
-  daily_cap: 'One count for Nova\'s automatic entries (the bot and Auto-entry) on this venue today, from the sleeve\'s "Nova entries a day". A missed entry gives the day back; Approve is yours and is counted, never capped. Checked on every order.',
   extended_hours: 'Outside 09:30–16:00 ET the bot and Auto-entry buy only when the sleeve allows extended hours. Checked on every order.',
   commissions: 'Live\'s day P&L needs its commissions; while they cannot be read, new entries wait (#564). Checked on every order.',
 };

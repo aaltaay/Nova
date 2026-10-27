@@ -43,7 +43,7 @@ def test_first_pullback_defaults_are_exactly_what_the_scanner_ran():
         cs.SETUPS_PILLAR_MIN_RVOL, cs.SETUPS_PILLAR_MAX_FLOAT)
     assert stock_filter(v).active is False                    # no filter: every name the scanner follows
     assert (v["bot_window_start"], v["bot_window_end"]) == ("07:00", "10:00")
-    assert "bot_entries_per_day" not in v                     # the sleeve's entries a day now (2026-09-30)
+    assert "bot_entries_per_day" not in v                     # retired 2026-09-30; no daily cap since 2026-10-27
 
 
 def _research_defaults(path: Path, cls: str) -> dict:

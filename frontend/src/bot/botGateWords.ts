@@ -134,15 +134,6 @@ function windowWords(ok: boolean, d: Record<string, unknown>): Words {
     why: `Every strategy at On is outside its bot window now: ${rows.map(one).join(', ')}.` };
 }
 
-function capWords(ok: boolean, d: Record<string, unknown>): Words {
-  const count = num(d.count) ?? 0;
-  const cap = num(d.cap);
-  const of = cap == null ? `${count}` : `${count} / ${cap}`;
-  if (ok) return { text: `Nova entries ${of} today`, why: null };
-  return { text: `Daily cap used · ${of} today`,
-    why: `Nova's automatic entries on this venue today reached the cap (${of}); a missed entry gives the day back.` };
-}
-
 /**
  * The daily loss limit's No new buys (ADR 056, Settings > Loss limits): the backend's own words when it holds
  * this venue, else when it lifts. `line` says which line holds the bots: the account's or the bots' own (ADR 063).
@@ -200,8 +191,6 @@ function wordsFor(g: BotGate, ctx: GateContext): Words {
           actions: [{ kind: 'reset_kill', label: BOTS_GATE_RESET_KILL }] };
     case 'window':
       return windowWords(ok, d);
-    case 'daily_cap':
-      return capWords(ok, d);
     case 'extended_hours': {
       const own = text(d.text);
       return ok ? { text: own ?? 'Hours · buys allowed now', why: null }

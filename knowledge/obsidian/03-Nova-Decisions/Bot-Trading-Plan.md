@@ -602,7 +602,8 @@ far could not -- "be the one who uses your brain and place trades on paper" (ope
 
 **Where it runs.** Claude's seat on the desk (ADR 068, `backend/agent_trader/`): one locked Level 2 line of the
 three, Paper only (the door refuses any of its sends to Live), long only, a stop on every entry, at most 1,000
-shares and $150 between entry and stop, 3 entries a day between 07:00 and 15:30 ET, its own -$500 daily stop, and
+shares and $150 between entry and stop, entries between 07:00 and 15:30 ET with no daily trade count (the 3 a day
+was removed 2026-10-27, ADR 068 amendment: "u have infinite trades so we LEARN!"), its own -$500 daily stop, and
 Nova closes its shares at 15:55 ET or when it stops checking in. The operator can take its line or stop it at any
 time. Its scoring was fixed off-repo before the first trade, like the S4 and S7 material.
 
@@ -612,8 +613,9 @@ time. Its scoring was fixed off-repo before the first trade, like the S4 and S7 
   still owes a measured-slippage check before it means anything at Live size.
 - One line of three: the model can only trade the one stock whose Level 2 it holds, and it competes with the desk for
   that line (it never takes one from the operator).
-- At 3 entries a day the sample grows slowly; a few weeks of trades will not separate skill from luck, and one
-  outsized day can carry the total (the lesson of §2b and §2h).
+- With no daily trade count (2026-10-27) the sample grows faster than at the first 3 a day, but trades on one stock
+  and one day are not independent; a few weeks of trades will not separate skill from luck, and one outsized day
+  can carry the total (the lesson of §2b and §2h).
 - Like every reading here, it is information for the operator, never trading permission: bots and Claude never trade
   Live, and `auto_live` stays NO-GO.
 

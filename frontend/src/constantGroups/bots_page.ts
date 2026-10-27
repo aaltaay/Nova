@@ -163,15 +163,12 @@ export const BOTS_SLEEVE_SHORT_TIP = 'The one short check Nova runs before every
 export const BOTS_RISK_LABEL = 'Risk per trade';
 export const BOTS_RISK_SLIDER_TIP =
   'Sizes every Nova trade and your Stage: shares = risk ÷ risk per share (to the stop under a long\'s entry, or the buy stop over a short\'s), capped by max shares and the budget.';
-export const BOTS_ENTRIES_LABEL = 'Nova trades a day';
-export const BOTS_ENTRIES_SLIDER_TIP =
-  'One count for the bot and Auto-entry on this venue, longs and shorts together. A missed entry gives the day back; Approve is yours and never capped.';
 export const BOTS_SHARES_LABEL = 'Max shares';
 export const BOTS_SHARES_TIP = 'The most shares one Nova trade may be, long or short, whatever the risk would size.';
 export const BOTS_BUDGET_LABEL = 'Buying-power budget';
 export const BOTS_BUDGET_TIP = 'The most one Nova trade may hold (shares × entry), long or short.';
 export const BOTS_TTL_LABEL = 'Entry time-to-live';
-export const BOTS_TTL_TIP = 'An unfilled Nova entry — the bot, Auto-entry or Approve — is cancelled after this, and a missed entry gives the day back.';
+export const BOTS_TTL_TIP = 'An unfilled Nova entry — the bot, Auto-entry or Approve — is cancelled after this.';
 export const BOTS_EH_LABEL = 'Extended hours';
 export const BOTS_EH_ON = 'On · 07:00';
 export const BOTS_EH_OFF = 'Off';
@@ -242,7 +239,7 @@ export const botsTodayTriggeredTip = (setup: string): string =>
   `${setup} setups that traded through the trigger today. Each is scored on the scoreboard; the bot traded only those it took.`;
 export const BOTS_TODAY_PROPOSED_TIP = 'Proposals every setup at Eyes or Strategy raised today (near + GO), from the bot audit stream.';
 export const BOTS_TODAY_ENTRIES_TIP =
-  'Nova\'s automatic trades today on this venue, longs and shorts: the bot and Auto-entry, one count, against the sleeve\'s cap.';
+  'Nova\'s automatic trades today on this venue, longs and shorts: the bot and Auto-entry, one count. No daily cap: the loss limit and one trade at a time still hold.';
 export const BOTS_TODAY_PNL_TIP =
   'The bot\'s own fills today in this venue\'s practice ledger (source bot), net of fees and commission. Auto-entry and your own trades are not in it.';
 

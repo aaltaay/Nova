@@ -90,9 +90,10 @@ gets `409 BOT_BRAIN_EXCLUSIVE` while it plays. `runner` on the session says
 whether it plays and why not; `trade` is its current or last trade.
 
 **Entries keep the material's rules.** At Strategy a `buy_*` kind is refused
-outside 07:00-10:00 ET on the venue's clock (`409 BOT_OUTSIDE_WINDOW`) and
-after one bot entry that venue day (`409 BOT_DAY_TRADE_CAP`). Exits and
-cancels are never held by either.
+outside its setup's bot window on the venue's clock (`409 BOT_OUTSIDE_WINDOW`).
+There is no daily cap on entries (2026-10-27; `BOT_DAY_TRADE_CAP` is retired):
+one trade at a time and the daily loss limit still hold. Exits and cancels are
+never held.
 
 `gates: [{id, ok, stage, detail}]` on the session lists every gate the Bots
 page draws: `level`, `allowlist`, `desk_armed`, `depth_lines`, `readout`,

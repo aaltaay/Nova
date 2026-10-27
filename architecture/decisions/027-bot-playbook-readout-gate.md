@@ -76,6 +76,9 @@ evidence behind it was nowhere on it.
    `BOT_ENTRIES_PER_DAY` (1) filled-or-sent bot entry that venue day
    (`BOT_DAY_TRADE_CAP`). Exits, cancels and protective sources are never
    gated by either.
+   *Amended 2026-10-27: the daily cap is removed (operator: "that 3 trades a day limit need to be removed all over the place actually"; "u have infinite trades so we LEARN!").
+   `BOT_ENTRIES_PER_DAY`, the sleeve's `entries_per_day` and `BOT_DAY_TRADE_CAP` are gone; the window
+   rule stands (ADR 042 amendment of the same date).*
 
 5. **One gate list.** `GET /api/bot/session` adds `gates: [{id, ok,
    stage, detail}]` -- level, allowlist, desk armed, depth lines, read-out,

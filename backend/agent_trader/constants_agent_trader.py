@@ -17,7 +17,9 @@ AGENT_EVENTS_KEEP = 40
 
 # The lease: a holder that has not checked in for this long has gone quiet (decision 9).
 AGENT_LEASE_SEC = 600.0
-AGENT_TICK_SEC = 0.5                # reflexes are checked this often (decision 11)
+AGENT_TICK_SEC = 0.5                # reflexes are checked this often (decision 11) ...
+AGENT_WAKE_MIN_SEC = 0.1            # ... and on each print or book of a watched stock, this far apart at most (decision 15)
+AGENT_WAKE_RING_SEC = 60.0          # the live prints kept per watched stock (>= the reflexes' and guard's look-back)
 
 # A hidden Trader tab's line (decision 14): looked for at most this often while the seat waits; the tab's words
 # ("watching RUNR", "in a trade on RUNR") brought up to date this often; after the operator takes a tab's line
@@ -33,13 +35,14 @@ SEAT_WATCHING = "watching"        # on, holding its line, no order, no shares
 SEAT_SET = "buy_set"              # a break or a buy is resting
 SEAT_IN = "in_trade"              # holds shares
 SEAT_YIELDED = "yielded"          # the operator took the line: no new trades
-SEAT_DONE = "done"                # the day's loss stop or the trade count is reached
+SEAT_DONE = "done"                # the day's loss stop is reached (or a trade count, when one is set)
 SEAT_IDLE = "idle"                # on, no stock chosen yet
 
 # Claude's own limits (the operator's yes, 2026-10-26). Checked before the door; the door's gates still apply.
 AGENT_MAX_SHARES = 1000
 AGENT_MAX_RISK_USD = 150.0
-AGENT_MAX_ENTRIES_A_DAY = 3
+# No daily trade count (operator, 2026-10-27: "u have infinite trades so we LEARN!"). An int caps it again.
+AGENT_MAX_ENTRIES_A_DAY: int | None = None
 AGENT_DAY_STOP_USD = -500.0         # Claude's lane: its own daily max loss (operator, 2026-10-26)
 AGENT_ENTRY_START_ET = (7, 0)
 AGENT_ENTRY_END_ET = (15, 30)
@@ -80,6 +83,12 @@ AGENT_POP_PCT_MAX = 5.0
 AGENT_GUARD_STALL_AFTER_PCT = 1.0       # the first stall: once the price reached +1% over entry ...
 AGENT_GUARD_STALL_SEC = 30.0            # ... no new high for 30 s moves the stop to entry
 
+# The trade journal (decision 16): backend/.cache/agent-journal/<YYYY-MM-DD>.json.
+AGENT_JOURNAL_DIR = "agent-journal"
+AGENT_JOURNAL_BOOK_ROWS = 10        # the book's top rows each side at entry and exit
+AGENT_JOURNAL_PRINTS_SEC = 30.0     # the prints of the last 30 s ...
+AGENT_JOURNAL_PRINTS_MAX = 100      # ... newest 100 at most
+
 # Entry kinds (decision 8).
 ENTRY_LIMIT = "limit"
 ENTRY_BREAK = "break"
@@ -95,6 +104,8 @@ AGENT_NO_LINE = "AGENT_NO_LINE"
 AGENT_NOT_MINE = "AGENT_NOT_MINE"
 AGENT_STALE = "AGENT_STALE"
 AGENT_REFUSED = "AGENT_REFUSED"
+AGENT_HALTED = "AGENT_HALTED"      # the stock is halted (decision 17)
+AGENT_LULD_WARN_PCT = 1.0          # a buy this close to the upper LULD band, or over it, is warned (never refused)
 
 # Audit actions (``audit`` stream).
 AGENT_AUDIT_ACTION = "agent_trader"

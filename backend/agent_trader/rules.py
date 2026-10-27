@@ -64,7 +64,8 @@ def window_refusal(now_et: datetime) -> str | None:
 
 
 def day_refusal(entries: int, pnl: float) -> str | None:
-    if entries >= AGENT_MAX_ENTRIES_A_DAY:
+    """The day stop always applies; the trade count only when ``AGENT_MAX_ENTRIES_A_DAY`` is set (None = no cap)."""
+    if AGENT_MAX_ENTRIES_A_DAY is not None and entries >= AGENT_MAX_ENTRIES_A_DAY:
         return f"Claude has opened {entries} of its {AGENT_MAX_ENTRIES_A_DAY} trades today"
     if pnl <= AGENT_DAY_STOP_USD:
         return f"Claude is done for today: ${pnl:,.2f} reached its ${AGENT_DAY_STOP_USD:,.0f} day stop"
@@ -74,8 +75,9 @@ def day_refusal(entries: int, pnl: float) -> str | None:
 def entry_refusal(order: dict[str, Any], *, pending_breaks: int = 0) -> tuple[str, str] | None:
     """``(code, text)`` when Claude may not open this trade now, else None. Reads the seat, its line, Paper and
     the backend's view lock (ADR 045: the feed, the IB loop, the symbol's Time & Sales)."""
-    from agent_trader import ledger, lines, seat
+    from agent_trader import halts, ledger, lines, seat
     from agent_trader.constants_agent_trader import (
+        AGENT_HALTED,
         AGENT_LIMIT,
         AGENT_NO_LINE,
         AGENT_NOT_MINE,
@@ -94,6 +96,8 @@ def entry_refusal(order: dict[str, Any], *, pending_breaks: int = 0) -> tuple[st
     if (why := shape_refusal(order)) or (why := window_refusal(now_et())):
         return AGENT_LIMIT, why
     sym = str(order.get("symbol") or "").upper()
+    if halts.halted(sym) is True:
+        return AGENT_HALTED, f"{sym} is halted: Claude opens no trade until it trades again"
     if sym != (seat.symbol() or "") or not lines.holds_depth(sym):
         return AGENT_NO_LINE, f"Claude trades only the stock its Level 2 line is on ({seat.symbol() or 'none'})"
     try:

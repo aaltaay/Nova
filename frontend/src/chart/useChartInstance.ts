@@ -20,6 +20,7 @@ import {
 import { removeChartAfterCleanups } from './chartDispose';
 import { measureChartFillHeight } from './measureChartFillHeight';
 import { watchOperatorView } from './operatorView';
+import { keepTimeAxisLabelsWhole } from './timeAxisEdgeLabels';
 import { isSubMinuteTimeframe } from '../tickerChartData';
 
 export interface ChartSeriesRefs {
@@ -130,6 +131,7 @@ export function useChartInstance({
 
     // Whose view it is: once the operator zooms or pans, Nova's own moves leave it alone.
     const stopViewWatch = watchOperatorView(chart);
+    const stopEdgeLabels = keepTimeAxisLabelsWhole(chart);
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
     volSeriesRef.current = volSeries;
@@ -164,6 +166,7 @@ export function useChartInstance({
       cancelAnimationFrame(firstFrame);
       ro.disconnect();
       stopViewWatch();
+      stopEdgeLabels();
       // After the overlays' own cleanups, not before them (chartDispose.ts).
       removeChartAfterCleanups(chart);
       setChartApi(null);
