@@ -5,13 +5,19 @@
  * pane says so in its own sentence, built from the desk's own words: the lent frame and the lines
  * poll carry the fields, and the backend's own sentence (`text`) is kept but not shown. A frame
  * that names no borrower still says the line is lent and when it comes back; nothing is invented.
+ * A line lent to Claude's seat (ADR 068 decision 14) says what Claude does there, and that only the operator's
+ * right-click on the tab, or Claude letting it go, brings it back.
  */
 import { BOT_SETUP_LABELS } from '../constantGroups/bot';
 import {
   L2_LENT_BACK,
+  L2_LENT_CLAUDE,
+  L2_LENT_CLAUDE_BACK,
+  L2_LENT_CLAUDE_WHY_WORDS,
   L2_LENT_PREFIX,
   L2_LENT_SOMEONE,
   L2_LENT_WHY_WORDS,
+  TAPE_LENT_CLAUDE_BACK,
   TAPE_LENT_PREFIX,
 } from '../constantGroups/market_ui';
 import type { DepthLoan } from './depthLines';
@@ -59,11 +65,26 @@ export function lentFromLoan(loan: DepthLoan): LineLent {
   };
 }
 
+/** The line went to Claude's seat, not to a setup: only the operator's right-click brings it back. */
+export function lentToClaude(to: LentTo | null | undefined): boolean {
+  return to?.setupType === L2_LENT_CLAUDE;
+}
+
+/** "Claude (watching RUNR)" -- from the tier and the stock, else the backend's own words. */
+function claudeWho(to: LentTo): string {
+  const words = to.tier ? L2_LENT_CLAUDE_WHY_WORDS[to.tier] : undefined;
+  const why = words && to.symbol ? `${words} ${to.symbol}` : to.why;
+  return why ? `Claude (${why})` : 'Claude';
+}
+
 /**
  * "<prefix> AISP's first pullback (near its trigger) — back when it ends or when you bring this
  * tab to the front".
  */
 export function lentText(prefix: string, to: LentTo): string {
+  if (lentToClaude(to)) {
+    return `${prefix} ${claudeWho(to)} — ${prefix === TAPE_LENT_PREFIX ? TAPE_LENT_CLAUDE_BACK : L2_LENT_CLAUDE_BACK}`;
+  }
   const label = to.setupType ? (BOT_SETUP_LABELS[to.setupType] ?? to.setupType.replace(/_/g, ' ')) : null;
   const who = to.symbol ? `${to.symbol}'s ${(label ?? 'setup').toLowerCase()}` : L2_LENT_SOMEONE;
   const why = (to.tier ? L2_LENT_WHY_WORDS[to.tier] : null) ?? to.why;

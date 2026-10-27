@@ -466,6 +466,11 @@ with a book and no prints would read WAIT, never GO.
   audit stream.
 - **When it ends.** `setup_ended` (the setup failed or disarmed), `trade_ended` (the scoring window and
   Nova's trade are both over), `recalled`, `lending_off`.
+- **A loan to Claude's seat** (ADR 068 decision 14): `to.setup_type: "claude"`, `to.setup_id: null`, `tier`
+  `watching` | `buy_set` | `in_trade`, `why` "watching RUNR", `text` "Level 2 lent to Claude (watching RUNR) --
+  back when Claude lets it go, or right-click this tab to take it back". A socket from the tab in front reads the
+  lent frame too: the front never recalls it, nor does lending's switch. It ends `taken_back` (the operator's
+  right-click, `POST /api/agent/trader/take-back`), `claude_let_go` or `tab_closed` (`agent-trader.md`).
 - **Routes.**
   - `GET /api/ibkr/depth/lines` -> `{schema_version: 1, generated_at, cap, lines: [{symbol, held_by: "tab" |
     "record" | "auto_record" | "loan" | "replay" | "agent" (Claude's seat, ADR 068: never lent), front: boolean | null, viewers}], lending: {on, error,

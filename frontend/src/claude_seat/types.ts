@@ -57,6 +57,10 @@ export interface ClaudeLine {
   desk_lines: string[];
   desk_cap: number | null;
   all_lines: string[];
+  /** The hidden Trader tab whose line Claude holds (ADR 068 decision 14); null when none lent it. */
+  from_tab: string | null;
+  /** Tabs the operator took back from Claude: never taken again while they are open. */
+  taken_back: string[];
 }
 
 export interface ClaudeSeatStatus {

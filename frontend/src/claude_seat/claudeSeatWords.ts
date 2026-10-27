@@ -14,6 +14,12 @@ export function seatTone(state: ClaudeSeatState): ClaudeTone {
   return 'on';
 }
 
+/** The pill's tone: amber while Claude holds shares without a Level 2 (the operator took its tab line back). */
+export function pillTone(status: ClaudeSeatStatus): ClaudeTone {
+  if (status.state === 'in_trade' && !status.line.depth) return 'wait';
+  return seatTone(status.state);
+}
+
 export function fmtPrice(p: number): string {
   return Math.abs(p) < 1 ? p.toFixed(4) : p.toFixed(2);
 }
@@ -101,12 +107,13 @@ export function claudeChartLines(status: ClaudeSeatStatus | null, symbol: string
 /** Events that pop a toast and that the desk's voice says. */
 export const CLAUDE_TOAST_KINDS: ReadonlySet<string> = new Set([
   'buy_set', 'break_set', 'fill', 'reflex_fired', 'close', 'day_close', 'yielded', 'line_back', 'refused',
-  'line_wait', 'off',
+  'line_wait', 'off', 'tab_line', 'tab_line_back',
 ]);
 
 /** "Claude set buy 510 SMPL ..." -- the event's own words after the name. */
 export function eventWords(e: ClaudeEvent): string {
-  return `Claude ${e.text}`;
+  // "You took SMPL's line back from Claude": the operator's own act, said in its own words.
+  return e.kind === 'tab_line_back' ? e.text : `Claude ${e.text}`;
 }
 
 /** Events newer than ``since`` that toast, oldest first. */
@@ -132,6 +139,9 @@ export function buySetRow(status: ClaudeSeatStatus): string | null {
 export function lineRow(status: ClaudeSeatStatus): string {
   const l = status.line;
   if (status.yielded) return 'Yours: you took Claude\'s line';
+  if (l.symbol && l.depth && l.from_tab) {
+    return `Level 2 + Time & Sales on ${l.symbol} · your ${l.from_tab} tab's line (right-click the tab to take it back)`;
+  }
   if (l.symbol && l.depth) {
     const yours = l.desk_cap ?? 2;
     return `Level 2 + Time & Sales on ${l.symbol} · 1 of 3 · you have ${yours}`;

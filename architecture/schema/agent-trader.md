@@ -34,6 +34,7 @@ Claude's own writes also carry `X-Agent-Seat: <token>`; the operator's three but
 | `POST /yield` | operator | status; "Take Claude's line": unfilled buys and breaks cancelled, lines released, no new trades; held shares keep their stop |
 | `POST /give-back` | operator | status |
 | `POST /stop-claude` | operator | `{problems, status}`: as `DELETE /seat` |
+| `POST /take-back {symbol}` | operator | status; the right-click on a Trader tab whose line Claude borrowed (decision 14): that tab's lines come back, Claude stays on and waits. `AGENT_NOT_MINE` (404) when the tab's line is not lent to Claude, or when a tab of the operator's shares Claude's line (letting Claude go would free nothing; the error says to close that Level 2 first) |
 
 The Level 2 socket's error frame gains `agent_reserved` (true when the desk's request waits for Claude's line), so the panel can offer Take Claude's line.
 
@@ -42,7 +43,8 @@ Refusals are `{detail: {reason, error}}` with `reason` one of `AGENT_SEAT_TAKEN`
 `AGENT_REFUSED`, or the execution door's own code; `error` says why in words.
 
 **Status** (`schema_version: 1`): `{generated_at, name: "Claude", venue: "paper", state, text, on, since, beat_at,
-lease_until, lapsed, yielded, symbol, line: {symbol, depth, tape, why_not, desk_lines, desk_cap, all_lines},
+lease_until, lapsed, yielded, symbol, line: {symbol, depth, tape, why_not, desk_lines, desk_cap, all_lines, from_tab,
+taken_back},
 positions: [{symbol, qty, mark}], working: [{order_id, symbol, side, order_type, qty, limit_price, stop_price,
 leg_role, status, parent_id}], breaks: [{id, symbol, qty, trigger, top, stop, target, target2, target1_qty,
 expires_at, created_at, why, confirm}], reflexes: [{id, symbol, kind, action, price, shares, seconds, ratio, why, expires_at, created_at, text}], exits: {SYMBOL: {mode: "pop", pop_pct}}, today: {entries, max_entries (null: no daily trade count, 2026-10-27), pnl, day_stop, fills}, limits: {max_shares,
@@ -70,7 +72,7 @@ moves `replace` the same way; closes `source: "flatten"` market SELLs and cancel
 `claude` close named to Live. Practice rows carry `order_origin: "claude"`; Claude's position is its own fills, never more than Paper holds in the stock: Nova's own closes (the loss limit's Auto sell, KILL, a margin call) sell Claude's shares under their own origin, and Claude's P&L counts those shares at the price those closes got.
 Claude's fills still count in the Paper account's loss-limit totals and on the Bots line's figures (`loss_limit.accounts.by_of`, `LOSS_LIMIT_BOT_CLOSE_ORIGINS`), but no shared line refuses Claude's buys on Paper.
 
-**Events** (`kind`): `on`, `off`, `watch`, `line`, `line_wait`, `armed`, `buy_set`, `break_set`, `break_wait`, `break_end`, `refused`, `stop`, `cancel`, `close`, `fill` ("Claude bought 510 SMPL at 4.40", each fill said once), `reflex_set`, `reflex_fired` (also the guard's closes), `reflex_end`, `yielded`, `line_back`, `day_close`, `line_taken` ("took KTTA's auto-record line for SMPL", not toasted); the desk toasts and speaks them.
+**Events** (`kind`): `on`, `off`, `watch`, `line`, `line_wait`, `armed`, `buy_set`, `break_set`, `break_wait`, `break_end`, `refused`, `stop`, `cancel`, `close`, `fill` ("Claude bought 510 SMPL at 4.40", each fill said once), `reflex_set`, `reflex_fired` (also the guard's closes), `reflex_end`, `yielded`, `line_back`, `day_close`, `line_taken` ("took KTTA's auto-record line for SMPL", not toasted), `tab_line` ("took your hidden SMPL tab's line · watching RUNR"), `tab_line_back` ("You took SMPL's line back from Claude · RUNR stop and sell still rest", said as written); the desk toasts and speaks them.
 
 **Reflexes** (`agent_trader.reflexes`, ADR 068 decision 11). Judged every 0.5 s on the seat's stock: the depth book's rows added up by price, and Nova's tape archive (a print at or over its ask is a buyer's, at or under its bid a seller's). `bid_pulled` fires only after it has seen its size since arming. A `sell_all` reflex is live while Claude holds shares, a `cancel_buy` while a buy or break waits; each fires once, does its action and is gone (an event says what it saw and did).
 
@@ -113,6 +115,16 @@ the first stall: Level 1's last reached `AGENT_GUARD_STALL_AFTER_PCT` (1%) over 
 **A break.** The seat watches each break's symbol twice a second (`agent_trader.watcher`): the first print that sets a
 price at or above `trigger` -- while its `confirm` holds, when it has one -- sends the bracket with its LMT entry at `top`, after the limits are checked again. A break
 past `expires_at` is dropped. Each outcome is an event.
+
+**A hidden Trader tab's line (ADR 068 decision 14, design `F:\Nova\design\claude-seat\v3`).** With all 3 lines
+held and no auto-record line to give, the seat borrows a hidden Trader tab's Level 2 and Time & Sales by a bot loan's
+rule (`line_lending.claude_loan`; the loan is `setup_type: "claude"` on `GET /api/ibkr/depth/lines`, its `tier`
+`watching` | `buy_set` | `in_trade`, its `why` "watching RUNR"). `line.from_tab` names that tab; the pill's `text`
+adds " · on your SMPL tab's line", and " · no Level 2" while Claude holds shares without a line. The front never
+recalls this loan; it ends `taken_back` (`POST /take-back`), `claude_let_go` (the seat let its line go) or
+`tab_closed`. `line.taken_back` lists the tabs the operator took back: never borrowed again while open, and their
+Level 2 is admitted past the reservation. After a take-back the seat asks for no line for 10 s
+(`AGENT_TAB_LINE_HOLD_SEC`), so the tab reconnects onto the line it was given back.
 
 **The line kept for Claude.** While the seat is on and not yielded, every other depth subscriber may hold at most
 `IBKR_MAX_DEPTH_SYMBOLS - 1` lines of its own (a line Claude shares with a tab is the desk's). A desk request past
