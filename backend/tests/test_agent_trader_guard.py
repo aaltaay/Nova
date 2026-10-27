@@ -127,3 +127,38 @@ def test_a_pop_exit_that_cannot_sell_half_is_refused_in_words(paper, change, wor
             "exit": "pop", "why": "go", **change}
     got = paper.client.post("/api/agent/trader/order", headers=h, json=body)
     assert got.status_code == 409 and words in got.json()["detail"]["error"]
+
+
+def test_the_first_stall_is_no_new_high_for_thirty_seconds_after_one_percent():
+    from agent_trader.constants_agent_trader import AGENT_GUARD_STALL_AFTER_PCT, AGENT_GUARD_STALL_SEC
+
+    row = {"entry": 4.00, "high": None, "high_at": None}
+    guard.note_price(row, 4.03, NOW)                                    # +0.75%: not far enough yet
+    assert not guard.stalled(row, NOW + AGENT_GUARD_STALL_SEC + 1)
+    up = 4.00 * (1 + AGENT_GUARD_STALL_AFTER_PCT / 100)
+    guard.note_price(row, up, NOW + 1)
+    guard.note_price(row, up - 0.01, NOW + 10)                          # lower: the high stays
+    assert not guard.stalled(row, NOW + AGENT_GUARD_STALL_SEC)
+    assert guard.stalled(row, NOW + 1 + AGENT_GUARD_STALL_SEC)
+    guard.note_price(row, up + 0.01, NOW + 40)                          # a new high starts the clock again
+    assert not guard.stalled(row, NOW + 41)
+
+
+def test_a_pop_exit_moves_the_stop_to_entry_at_the_first_stall(paper, monkeypatch):
+    from ibkr import ticks
+
+    h = _seat(paper)
+    got = paper.client.post("/api/agent/trader/order", headers=h, json={
+        "kind": "limit", "symbol": "SMPL", "qty": 500, "entry": 4.25, "stop": 4.00, "target": 4.80,
+        "exit": "pop", "why": "go"})
+    assert got.status_code == 200 and ledger.position("SMPL") == 500    # entry 4.21, the pop at 4.31
+    paper.market.px["SMPL"] = [4.26, 4.25, 4.27]                       # the market rose: a stop at entry rests
+    last = {"price": 4.26}                                              # +1.2% over 4.21, under the pop
+    monkeypatch.setattr(ticks, "last_quotes", lambda syms=None: {"SMPL": dict(last)})
+    asyncio.run(watcher.run_pass(now=paper.market.now + 1))
+    last["price"] = 4.25
+    asyncio.run(watcher.run_pass(now=paper.market.now + 20))
+    assert float(next(r for r in ledger.working() if r["leg_role"] == "stop")["stop_price"]) == 4.00
+    asyncio.run(watcher.run_pass(now=paper.market.now + 32))
+    assert float(next(r for r in ledger.working() if r["leg_role"] == "stop")["stop_price"]) == 4.21
+    assert any(e["kind"] == "stop" and "stalled" in e["text"] for e in seat.snapshot()["events"])

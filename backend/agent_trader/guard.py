@@ -12,8 +12,11 @@ and the last prints and sells Claude's shares at market the moment one holds -- 
 A condition with nothing to read (no book, a Level 1 stand-in, no prints) is not judged; the bracket's stop still
 rests. Claude's entry is the average of its buys since its position in the stock was last flat.
 
-Owner: the marks (in memory, by symbol: the entry, the bid stack then, when it was first seen, and whether the pop
-exit's stop has moved). A restart marks the stack again from the book it finds. Pure over what it is handed; the
+A pop exit's stop rises to Claude's entry once its first half sold, or at the first stall: the price reached
+``AGENT_GUARD_STALL_AFTER_PCT`` over entry and made no new high for ``AGENT_GUARD_STALL_SEC``.
+
+Owner: the marks (in memory, by symbol: the entry, the bid stack then, when it was first seen, the high since and
+when it was set, and whether the pop exit's stop has moved). A restart marks the stack again from the book it finds. Pure over what it is handed; the
 watcher does the selling (``watcher._guard``).
 """
 from __future__ import annotations
@@ -29,6 +32,8 @@ from agent_trader.constants_agent_trader import (
     AGENT_GUARD_SELLERS_MIN_SHARES,
     AGENT_GUARD_SELLERS_RATIO,
     AGENT_GUARD_SELLERS_SECONDS,
+    AGENT_GUARD_STALL_AFTER_PCT,
+    AGENT_GUARD_STALL_SEC,
 )
 
 _marks: dict[str, dict[str, Any]] = {}
@@ -86,7 +91,8 @@ def mark(symbol: str, fills: list[dict[str, Any]], book: dict[str, Any] | None, 
         return None
     row = _marks.get(sym)
     if row is None or row.get("opened") != opened:
-        row = _marks[sym] = {"entry": entry, "opened": opened, "stack": None, "at": now, "breakeven": False}
+        row = _marks[sym] = {"entry": entry, "opened": opened, "stack": None, "at": now, "breakeven": False,
+                             "high": None, "high_at": None}
     row["entry"] = entry                          # an add moves the average
     if row["stack"] is None:
         row["stack"] = bid_stack(book)
@@ -124,6 +130,24 @@ def judge(row: dict[str, Any], *, book: dict[str, Any] | None, prints: list[dict
     if bid is not None and bid <= entry * (1.0 - AGENT_GUARD_BID_UNDER_ENTRY_PCT / 100.0) + 1e-9:
         return (f"the bid is {(1.0 - bid / entry) * 100.0:.2f}% under entry ({bid:g} against {entry:.4g})")
     return None
+
+
+def note_price(row: dict[str, Any], price: float | None, now: float) -> None:
+    """The highest last since the position was first seen, and when it was set."""
+    if price is None or price <= 0:
+        return
+    if row.get("high") is None or price > float(row["high"]) + 1e-9:
+        row["high"], row["high_at"] = float(price), now
+
+
+def stalled(row: dict[str, Any], now: float) -> bool:
+    """The first stall: the price reached ``AGENT_GUARD_STALL_AFTER_PCT`` over entry, then made no new high for
+    ``AGENT_GUARD_STALL_SEC``."""
+    high, at = row.get("high"), row.get("high_at")
+    if high is None or at is None:
+        return False
+    reached = float(high) >= float(row["entry"]) * (1.0 + AGENT_GUARD_STALL_AFTER_PCT / 100.0) - 1e-9
+    return reached and now - float(at) >= AGENT_GUARD_STALL_SEC
 
 
 def first_half_sold(fills: list[dict[str, Any]], symbol: str, since: float | None) -> bool:

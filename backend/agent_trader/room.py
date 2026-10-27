@@ -1,7 +1,7 @@
 """The line Claude's seat takes when all 3 Level 2 lines are held (ADR 068 decision 3, amended 2026-10-27).
 
-Only an **auto-record** line, and only one whose sole viewer is auto-record's own hold (``capture.feed_hold``), so
-stopping it frees the line: a Trader tab, a Session Record the operator started, the L2 recorder and a loan are
+Only an **auto-record** line, and only one whose sole viewer is auto-record's own hold (``capture.feed_hold``) and
+that the L2 recorder is not recording, so stopping it frees the line: a Trader tab, a Session Record the operator started, the L2 recorder and a loan are
 never taken. Of those, the line the desk had in front least recently -- never in front counts as longest idle
 (``line_lending.focus`` ``last_shown``, the Trader tab sockets' ``front_seen``) --, ties by auto-record's own lowest
 rank (``leaderboard.auto_record.yield_to_agent``). Read-only here; auto-record stops its line.
@@ -17,21 +17,25 @@ logger = logging.getLogger(__name__)
 
 
 def lines_full(symbol: str) -> bool:
-    """Every Level 2 line IBKR gives the login is watched, and none is ``symbol``'s (a line no one watches any more
-    is the depth door's to let go)."""
+    """Every Level 2 line IBKR gives the login is watched, and none is ``symbol``'s. A line no one watches any more
+    is the depth door's to let go, and one Claude alone watches is let go when it moves (Codex review, PR #1247), so
+    neither counts."""
+    from agent_trader import lines
     from ibkr import depth
 
     up = depth.subscribed_symbols()
-    busy = [s for s in up if depth.viewer_count(s) > 0]
+    busy = [s for s in up if depth.viewer_count(s) > 0 and not lines.claude_alone(s)]
     return (symbol or "").upper() not in up and len(busy) >= IBKR_MAX_DEPTH_SYMBOLS
 
 
 def takeable(auto: list[str]) -> list[str]:
-    """The auto-record lines stopping would free: up, and watched by auto-record's hold alone."""
+    """The auto-record lines stopping would free: up, watched by auto-record's hold alone, and not recorded by the L2
+    recorder too (it keeps the line without a viewer, and the seat's subscribe would evict it mid-recording)."""
     from ibkr import depth
+    from l2 import recorder
 
     up = set(depth.subscribed_symbols())
-    return [s for s in auto if s in up and depth.viewer_count(s) <= 1]
+    return [s for s in auto if s in up and depth.viewer_count(s) <= 1 and not recorder.is_recording(s)]
 
 
 def last_in_front(symbol: str, now: float | None = None) -> float:

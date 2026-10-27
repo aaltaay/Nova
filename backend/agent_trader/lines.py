@@ -77,6 +77,11 @@ def desk_lines() -> list[str]:
     return [s for s in depth.subscribed_symbols() if _own_viewers(s) > 0]
 
 
+def claude_alone(symbol: str) -> bool:
+    """Claude holds ``symbol``'s depth line and no one else watches it."""
+    return _ref(symbol, "depth") and _own_viewers(symbol) <= 0
+
+
 def claude_only_lines() -> int:
     """0 or 1: the line Claude alone watches."""
     sym = held_symbol()

@@ -60,13 +60,23 @@ def test_a_window_the_samples_do_not_reach_back_across_is_unknown_not_filled_in(
     assert metrics.window_trades("NONE", 10, NOW) is None
 
 
-def test_a_day_volume_reset_or_a_sample_without_a_last_is_unknown():
+def test_a_day_volume_reset_is_unknown():
     _trades("RSET", [(70, 50_000, 1.0), (30, 10, 1.1)])
     assert metrics.window_trades("RSET", 60, NOW) is None
-    metrics.update_cum_volume("NOPX", 100, NOW - 70)                  # a writer with no last
-    metrics.update_cum_volume("NOPX", 200, NOW - 10, 5.0)
-    assert metrics.window_trades("NOPX", 60, NOW) is None
-    assert metrics.cum_volume_samples("NOPX") == [(NOW - 70, 100), (NOW - 10, 200)]   # the old shape stays
+
+
+def test_a_volume_only_sample_is_skipped_and_its_shares_land_on_the_next_priced_one():
+    """Codex review on PR #1247: the quote panel writes day volume without a last."""
+    _trades("PANL", [(90, 1_000, 2.00)])
+    metrics.update_cum_volume("PANL", 5_000, NOW - 40)               # the quote panel: no last
+    _trades("PANL", [(20, 9_000, 2.10)])
+    metrics.update_cum_volume("PANL", 9_500, NOW - 1)                # the newest sample has no last either
+    then, last, shares, dollars = metrics.window_trades("PANL", 60, NOW)
+    assert (then, last, shares) == (2.00, 2.10, 8_000) and dollars == pytest.approx(8_000 * 2.10)
+    metrics.update_cum_volume("ONLY", 100, NOW - 70)
+    metrics.update_cum_volume("ONLY", 200, NOW - 10)
+    assert metrics.window_trades("ONLY", 60, NOW) is None             # no last at all: unknown
+    assert metrics.cum_volume_samples("ONLY") == [(NOW - 70, 100), (NOW - 10, 200)]   # the old shape stays
 
 
 # -- the spike rule -----------------------------------------------------------------------------------------
@@ -201,6 +211,24 @@ def test_claude_never_takes_a_tab_line_or_an_auto_line_a_tab_also_watches(full_l
     assert full_lines["stopped"] == []
     full_lines["auto"]._auto.clear()
     assert asyncio.run(room.make_room("SMPL", NOW)) is None             # no auto line: the seat waits
+
+
+def test_claude_moving_off_its_own_line_takes_no_auto_line(full_lines):
+    """Codex review on PR #1247: the line Claude alone watches frees when it moves; auto-record keeps recording."""
+    full_lines["viewers"]["TABB"] = 1
+    full_lines["viewers"]["SOLO"] = 1                                   # Claude's own, nobody else's
+    del full_lines["viewers"]["LEAD"]
+    full_lines["auto"]._auto.pop("LEAD")
+    lines._held["SOLO"] = {"depth": True, "tape": True}
+    assert asyncio.run(room.make_room("NEXT", NOW)) is None and full_lines["stopped"] == []
+
+
+def test_an_auto_line_the_l2_recorder_also_records_is_not_taken(full_lines, monkeypatch):
+    """Codex review on PR #1247: the recorder keeps the line without a viewer; taking it would evict it."""
+    from l2 import recorder
+
+    monkeypatch.setattr(recorder, "is_recording", lambda s: s in ("KTTA", "LEAD"))
+    assert asyncio.run(room.make_room("SMPL", NOW)) is None and full_lines["stopped"] == []
 
 
 def test_the_watcher_says_which_line_it_took(full_lines, monkeypatch):

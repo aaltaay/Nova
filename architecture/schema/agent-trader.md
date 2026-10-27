@@ -105,8 +105,9 @@ Claude's entry, its average buy since its position in the stock was last flat. T
 orders on the stock and sells its shares at market (as a `sell_all` reflex), with event `reflex_fired` "Nova's guard
 on SMPL: <condition> -- sold 500 SMPL at market"; a sale the door refuses is tried again after
 `AGENT_GUARD_RETRY_SEC` (5 s). The marks (entry, stack, first seen) are in memory: a restart marks the stack again.
-A pop exit (`exits[SYMBOL].mode == "pop"`) raises Claude's stop leg to its entry once the `target` leg filled
-(event `stop`).
+A pop exit (`exits[SYMBOL].mode == "pop"`) raises Claude's stop leg to its entry once the `target` leg filled, or at
+the first stall: Level 1's last reached `AGENT_GUARD_STALL_AFTER_PCT` (1%) over entry and made no new high for
+`AGENT_GUARD_STALL_SEC` (30 s) (event `stop`, saying which).
 
 **A break.** The seat watches each break's symbol twice a second (`agent_trader.watcher`): the first print that sets a
 price at or above `trigger` -- while its `confirm` holds, when it has one -- sends the bracket with its LMT entry at `top`, after the limits are checked again. A break
@@ -119,7 +120,8 @@ Level 2 lines are in use: SPIK and FLTX are yours, SMPL is Claude's. Close one o
 Auto-record and line lending count the same free lines (`agent_trader.lines.desk_free`). Claude's line is a viewer
 reference on the depth and AllLast lines, like a Session Record's: never idle-evicted, never lent;
 `GET /api/ibkr/depth/lines` shows it as `held_by: "agent"`. With 3 desk lines held (ADR 068 decision 3, amended
-2026-10-27), the seat takes an auto-record line: of the auto lines whose only viewer is auto-record's hold, the one
+2026-10-27; a line Claude alone watches does not count, its move frees it), the seat takes an auto-record line: of
+the auto lines whose only viewer is auto-record's hold and that the L2 recorder is not recording, the one
 in front least recently on the desk (`line_lending.focus` `last_shown` and the Trader tab sockets' `front_seen`;
 never counts as longest), ties by auto-record's lowest rank (`leaderboard.auto_record.yield_to_agent`). Its
 recording stops as planned (segment `reason: "auto"`) and is listed in auto-record's status `yielded`, and the

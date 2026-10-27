@@ -129,31 +129,42 @@ def _price_or_nan(price: float | None) -> float:
 def window_trades(symbol: str, seconds: float, now: float) -> tuple[float, float, int, float] | None:
     """Over ``(now - seconds, now]``: ``(last then, last now, shares, dollars)``, or None.
 
-    ``last then`` is the last of the newest sample at or before the window's start, ``last now`` the newest
-    sample's at or before ``now``; ``shares`` is the day volume's rise and ``dollars`` each rise times the last that
-    came with it. None -- never a filled-in number -- when the samples do not reach back across the window, a last
-    is unknown, or the day volume fell (a reset).
+    Only samples that carry a last are read: a volume-only sample (the quote panel's, whose day volume may not be
+    IBKR's) is skipped, and the day volume being cumulative, its shares land on the next sample with a last.
+    ``last then`` is the last of the newest such sample at or before the window's start, ``last now`` the newest at
+    or before ``now``; ``shares`` is the day volume's rise and ``dollars`` each rise times the last that came with
+    it. None -- never a filled-in number -- when the samples do not reach back across the window or the day volume
+    fell (a reset).
     """
     with _lock:
         s = _cum_volume_buffer.get(symbol)
         if not s:
             return None
-        end = bisect_right(s.ts, float(now), lo=s.head) - 1
-        start = bisect_right(s.ts, float(now) - float(seconds), lo=s.head) - 1
-        if start < s.head or end < start:
+        end = _priced_at_or_before(s, bisect_right(s.ts, float(now), lo=s.head) - 1)
+        start = _priced_at_or_before(s, bisect_right(s.ts, float(now) - float(seconds), lo=s.head) - 1)
+        if start is None or end is None or end < start:
             return None
         then, last = s.px[start], s.px[end]
-        if math.isnan(then) or math.isnan(last):
-            return None
         shares, dollars, prev = 0, 0.0, s.vol[start]
         for i in range(start + 1, end + 1):
+            if math.isnan(s.px[i]):
+                continue
             step = s.vol[i] - prev
-            if step < 0 or (step and math.isnan(s.px[i])):
+            if step < 0:
                 return None
             shares += step
-            dollars += step * s.px[i] if step else 0.0
+            dollars += step * s.px[i]
             prev = s.vol[i]
     return then, last, int(shares), dollars
+
+
+def _priced_at_or_before(s: _CumSeries, i: int) -> int | None:
+    """The newest sample at or before index ``i`` that carries a last (caller holds the lock)."""
+    while i >= s.head:
+        if not math.isnan(s.px[i]):
+            return i
+        i -= 1
+    return None
 
 
 def cum_volume_at(symbol: str, ts: float) -> int | None:

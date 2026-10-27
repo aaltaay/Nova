@@ -70,6 +70,8 @@ EXIT_POP = "pop"
 AGENT_POP_PCT_DEFAULT = 1.5             # the first half's target over entry ("about +1.5-2%")
 AGENT_POP_PCT_MIN = 0.5
 AGENT_POP_PCT_MAX = 5.0
+AGENT_GUARD_STALL_AFTER_PCT = 1.0       # the first stall: once the price reached +1% over entry ...
+AGENT_GUARD_STALL_SEC = 30.0            # ... no new high for 30 s moves the stop to entry
 
 # Entry kinds (decision 8).
 ENTRY_LIMIT = "limit"

@@ -83,8 +83,9 @@ Claude works through tool calls. It reads Level 2 and Time & Sales from the back
     (`AGENT_GUARD_*`). A condition with nothing to read (no book, a Level 1 stand-in, no prints) is not judged; the
     bracket's stop still rests. Every close is a `reflex_fired` event the desk toasts and speaks ("Nova's guard on
     AIOK: sellers lead: ... -- sold 500 AIOK at market"). An entry may also carry `exit: "pop"`: half the shares
-    (rounded down) at `pop_pct` over entry (default 1.5%, `AGENT_POP_PCT_*`), the rest at Claude's target, and once the
-    first half sells the stop rises to Claude's entry.
+    (rounded down) at `pop_pct` over entry (default 1.5%, `AGENT_POP_PCT_*`), the rest at Claude's target, and the stop rises
+    to Claude's entry once the first half sells or at the first stall: the price reached +1% over entry, then no new
+    high for 30 s (`AGENT_GUARD_STALL_AFTER_PCT`, `AGENT_GUARD_STALL_SEC`; the operator's rule, 2026-10-27).
 
 ## Scenarios
 
