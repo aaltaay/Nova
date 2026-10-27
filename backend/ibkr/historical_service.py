@@ -5,7 +5,11 @@ reads come from ``bars_store``; this module replenishes the store and pushes
 ``bars_patch`` when a fill lands.
 
 Priority: open_chart > warm > background. Background is shed when an open
-chart is in flight or the pacing budget is tight -- not queued behind it. A
+chart is in flight or the pacing budget is tight -- not queued behind it.
+Each leaves the window's last requests to those under it: background the
+last ``IBKR_HISTORY_TRADING_RESERVE``, warm (a painted pane's refresh) the
+last ``IBKR_HISTORY_WARM_RESERVE``, so the trades read back (TraderTV
+exits, LULD) are never starved by charts that already show bars. A
 pair whose last fetch IBKR did not answer is shed for every priority until its
 backoff passes (``historical_failures``, #555); the pane's retry asks again.
 
@@ -34,6 +38,7 @@ from constants import (
     IBKR_BARS_DAILY_REPAIR_RETRY_SEC,
     IBKR_HISTORICAL_MAX_CONCURRENT,
     IBKR_HISTORY_TRADING_RESERVE,
+    IBKR_HISTORY_WARM_RESERVE,
 )
 from ibkr import historical_failures
 from ibkr.historical_derive import DERIVE_FROM_1MIN, derive_from_1min
@@ -93,6 +98,19 @@ def _left() -> int:
     """Historical requests left in the 10-minute window."""
     snap = _pacing.snapshot()
     return int(snap["window_max"]) - int(snap["window_used"])
+
+
+def _reserve_shed(priority: Priority) -> str | None:
+    """Why a fill of this priority may not spend the window now, or None: a background fill leaves the last
+    ``IBKR_HISTORY_TRADING_RESERVE`` to open charts and SSR, a painted chart's refresh the last
+    ``IBKR_HISTORY_WARM_RESERVE`` to those and the trades read back under them (TraderTV exits, LULD)."""
+    if priority == "background" and _left() <= int(IBKR_HISTORY_TRADING_RESERVE):
+        return (f"{int(IBKR_HISTORY_TRADING_RESERVE)} or fewer historical requests left: kept for open charts and "
+                "the short check")
+    if priority == "warm" and _left() <= int(IBKR_HISTORY_WARM_RESERVE):
+        return (f"{int(IBKR_HISTORY_WARM_RESERVE)} or fewer historical requests left: kept for open charts, the "
+                "short check and the trades read back")
+    return None
 
 
 def _semaphore() -> asyncio.Semaphore:
@@ -157,12 +175,12 @@ async def request_bars(
             return stored
         raise HistoricalShed("open chart has priority")
 
-    if priority == "background" and _left() <= int(IBKR_HISTORY_TRADING_RESERVE):
-        logger.info("historical fill shed %s %s: %d left for open charts and SSR", symbol, timeframe, _left())
+    reserved = _reserve_shed(priority)
+    if reserved:
+        logger.info("historical fill shed %s %s: %d left, priority=%s", symbol, timeframe, _left(), priority)
         if stored and stored.get("bars"):
             return stored
-        raise HistoricalShed(f"{int(IBKR_HISTORY_TRADING_RESERVE)} or fewer historical requests left: kept for "
-                             "open charts and the short check")
+        raise HistoricalShed(reserved)
 
     backoff = historical_failures.backoff_remaining(symbol, timeframe)
     if backoff > 0:
@@ -234,11 +252,11 @@ async def _run_fetch(
                 _reschedule_after_wait(symbol, timeframe, limit, priority, extra)
                 raise HistoricalShed(f"pacing wait {extra:.1f}s")
             # Again here, holding the slot: fills admitted together must not spend the reserve between them.
-            if priority == "background" and _left() <= int(IBKR_HISTORY_TRADING_RESERVE):
-                logger.info("historical fill shed %s %s: %d left for open charts and SSR (in flight)",
-                            symbol, timeframe, _left())
-                raise HistoricalShed(f"{int(IBKR_HISTORY_TRADING_RESERVE)} or fewer historical requests left: "
-                                     "kept for open charts and the short check")
+            reserved = _reserve_shed(priority)
+            if reserved:
+                logger.info("historical fill shed %s %s: %d left, priority=%s (in flight)",
+                            symbol, timeframe, _left(), priority)
+                raise HistoricalShed(reserved)
             _pacing.record(symbol, timeframe, duration)
             try:
                 result = await ibkr_bars.fetch_bars_async(

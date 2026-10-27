@@ -387,6 +387,10 @@ IBKR_HISTORICAL_FAILURE_MEMORY_SEC = 300.0
 # state, 400 / 404 a request IBKR cannot serve; neither is remembered.
 IBKR_HISTORICAL_FAILURE_STATUSES: frozenset[int] = frozenset({502, 504})
 IBKR_BARS_STORE_FRESH_INTRADAY_SEC = 45.0
+# A painted chart's refresh (a "warm" fill, each stale chart every 45 s) sends no historical request while this few
+# of the 60 a 10 minutes are left: with ten charts open it spent the whole window, and the TraderTV exits and LULD
+# under it were never read (2026-10-27).
+IBKR_HISTORY_WARM_RESERVE = 30
 IBKR_BARS_STORE_FRESH_DAILY_SEC = 900.0
 # A stored past daily bar that is not the finished session (#839) asks IBKR for the daily bars again at
 # most this often per symbol: a shed or failed fill is asked again, a read polled every second is not.
