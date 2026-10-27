@@ -61,6 +61,33 @@ def test_a_background_chart_fill_leaves_the_last_requests(monkeypatch):
         asyncio.run(historical_service.request_bars("AAPL", "1Min", 100, priority="background"))
 
 
+def test_a_daily_read_leaves_the_last_requests_unless_the_stock_is_about_to_be_shorted(monkeypatch):
+    """2026-10-27 17:23 ET: 16 SSR reads for the setup scanner filled the window; MBRX's charts waited 22 s."""
+    from datetime import date
+    from types import SimpleNamespace
+
+    sent: list[bool] = []
+
+    class _IB:
+        async def qualifyContractsAsync(self, contract):
+            return [contract]
+
+        async def reqHistoricalDataAsync(self, contract, **kwargs):
+            sent.append(kwargs["useRTH"])
+            return [SimpleNamespace(date=date(2026, 10, 26), open=9, high=10, low=8, close=9.5)]
+
+    historical_service.reset_for_testing()
+    monkeypatch.setattr(historical_service, "assert_ib_loop", lambda: None)
+    monkeypatch.setattr("ibkr.client.get_ib", lambda: _IB())
+    monkeypatch.setattr(historical_service, "_left", lambda: 10)
+    with pytest.raises(historical_service.HistoricalShed, match="kept for open charts"):
+        asyncio.run(historical_service.request_daily_bars("FADE", "5 D", use_rth=False))
+    assert sent == []
+    rows = asyncio.run(historical_service.request_daily_bars("FADE", "5 D", use_rth=False, urgent=True))
+    assert sent == [False] and rows[0]["low"] == 8.0
+    historical_service.reset_for_testing()
+
+
 def test_a_painted_charts_refresh_leaves_the_trades_read_back_their_share(monkeypatch):
     """2026-10-27: ten charts refreshing every 45 s spent 56 of 60 and no TraderTV exit was read all morning."""
     import bars_store

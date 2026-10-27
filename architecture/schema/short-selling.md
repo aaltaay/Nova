@@ -101,7 +101,10 @@ proof readiness never grant or refuse permission (2026-10-13 amendment), and a b
   trade, a stored 1-minute low or the whole-day bar did; off only when the whole day's low is known (IBKR's
   04:00-20:00 daily bar read at or after 09:30, and the day low since). Yesterday: on when its low reached
   90% of the session before's regular-hours close. IBKR's two daily reads (`historical_service.
-  request_daily_bars`, `useRTH` both ways) are asked once a stock a day on a worker thread. A past-day
+  request_daily_bars`, `useRTH` both ways) are asked once a stock a day on a worker thread. Only the stock on
+  the ticket or about to be shorted (the short check, the order door, a bot's short: `urgent`) may spend IBKR's
+  last historical requests; the setup scanner's asks leave the last `IBKR_HISTORY_TRADING_RESERVE` to open charts
+  (desk-ops "Who comes first"), and an urgent ask after such a miss reads at once. A past-day
   replay is on when its own prints reached the trigger, else unknown -- never off.
 - **Halts.** Live: `ibkr.halt_status.halted_now` (IBKR's tick 49, then the Nasdaq halt list), with the
   resumption each remembers (`halt_status.last_resume`, `clear_since`; `nasdaq_halt_feed.last_resume`). A

@@ -451,6 +451,6 @@ def short_market_open(monkeypatch):
     monkeypatch.setattr(facts, "venue_now", lambda venue: now)
     monkeypatch.setattr(halts, "live", lambda symbol, now=None: halts.HaltRead("clear", f"{symbol} is trading."))
     monkeypatch.setattr(ssr, "live", lambda symbol, now=None: ssr.SsrRead("off", "No SSR (pinned by the test)."))
-    monkeypatch.setattr(ssr, "request_history", lambda symbol, now=None: False)
+    monkeypatch.setattr(ssr, "request_history", lambda symbol, now=None, urgent=False: False)
     monkeypatch.setattr(ssr_fill, "effective_on", lambda *a, **k: False)
     return now
