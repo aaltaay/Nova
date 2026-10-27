@@ -48,6 +48,8 @@ def refusal_text(symbol: str, result: dict) -> str:
     """The refusal the ladder shows: for a full cap, who holds the lines and how to free one."""
     if not result.get("cap"):
         return result.get("error") or "Depth error"
+    if result.get("agent_reserved"):
+        return result.get("error") or "Depth error"   # ADR 068: the desk's lines are full while Claude holds one
     try:
         from line_lending.view import cap_refusal
 
@@ -55,6 +57,12 @@ def refusal_text(symbol: str, result: dict) -> str:
     except Exception:
         logger.exception("depth: could not name the line holders for %s", symbol)
         return result.get("error") or "Depth error"
+
+
+def refusal_frame(symbol: str, result: dict) -> dict:
+    """The ladder's error frame for a subscribe that failed; ``agent_reserved`` when Claude's line is the reason
+    (ADR 068), so the panel can offer Take Claude's line."""
+    return {"type": "error", "message": refusal_text(symbol, result), "agent_reserved": bool(result.get("agent_reserved"))}
 
 
 async def send_refusal(websocket: WebSocket, symbol: str) -> bool:
@@ -148,7 +156,7 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
         await make_room(symbol)
         result = await _depth.subscribe_async(symbol)
         if not result["ok"]:
-            await websocket.send_text(json.dumps({"type": "error", "message": refusal_text(symbol, result)}))
+            await websocket.send_text(json.dumps(refusal_frame(symbol, result)))
             await websocket.close()
             return
 
@@ -181,7 +189,7 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
         if _depth.needs_subscribe(symbol):
             result = await _depth.subscribe_async(symbol)
             if not result["ok"]:
-                await websocket.send_text(json.dumps({"type": "error", "message": refusal_text(symbol, result)}))
+                await websocket.send_text(json.dumps(refusal_frame(symbol, result)))
                 return
             try:
                 _l2_continuous.start(symbol)

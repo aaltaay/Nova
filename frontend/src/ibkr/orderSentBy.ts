@@ -13,7 +13,8 @@
 import type { IbkrOrder } from './types';
 
 /** `breaker`: Nova sold or covered for you (KILL, the daily loss limit, the day cover, a margin call) -- the rows to notice. */
-export type SentByTone = 'you' | 'nova' | 'breaker' | 'outside' | 'unknown';
+/** `claude`: Claude's seat (ADR 068), drawn as its violet badge. */
+export type SentByTone = 'you' | 'nova' | 'breaker' | 'outside' | 'unknown' | 'claude';
 
 export type SentBy = { label: string; tip: string; tone: SentByTone };
 
@@ -105,6 +106,12 @@ const BY_ORIGIN: Record<string, SentBy> = {
     tone: 'nova',
     tip: "The Live Trader bot (ADR 055): it copied a TraderTV host's position on Paper -- a step when they opened or "
       + 'added, the sale when they closed, went off air, or the sell-all time came.',
+  },
+  claude: {
+    label: 'Claude',
+    tone: 'claude',
+    tip: "Claude's seat (ADR 068): Paper only. Claude sent it -- an entry with its stop and targets, a stop moved up, "
+      + 'a close or a cancel. Click the Claude pill in the header for why.',
   },
   margin_call: {
     label: 'Margin call',

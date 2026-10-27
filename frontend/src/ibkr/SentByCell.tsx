@@ -1,3 +1,4 @@
+import { ClaudeMark } from '../claude_seat';
 import { tipProps } from '../ux/hoverTip';
 import { orderSentBy, SENT_BY_TITLE } from './orderSentBy';
 import type { IbkrOrder } from './types';
@@ -12,7 +13,9 @@ export function SentByTd({ order }: { order: IbkrOrder }) {
       data-tone={by.tone}
       {...tipProps(by.tip, by.label === '—' ? SENT_BY_TITLE : by.label)}
     >
-      {by.label}
+      {by.tone === 'claude'
+        ? <span className="ibkr-sent-by__claude"><ClaudeMark size={13} />{by.label}</span>
+        : by.label}
     </td>
   );
 }

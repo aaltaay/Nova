@@ -463,7 +463,7 @@ with a book and no prints would read WAIT, never GO.
   Nova's trade are both over), `recalled`, `lending_off`.
 - **Routes.**
   - `GET /api/ibkr/depth/lines` -> `{schema_version: 1, generated_at, cap, lines: [{symbol, held_by: "tab" |
-    "record" | "auto_record" | "loan" | "replay", front: boolean | null, viewers}], lending: {on, error,
+    "record" | "auto_record" | "loan" | "replay" | "agent" (Claude's seat, ADR 068: never lent), front: boolean | null, viewers}], lending: {on, error,
     loans: [{lender, borrower, setup_type, setup_id, since, why, tier, state, text, tape_lent, tape: boolean
     (a print arrived on the borrower's line), tape_state: "receiving" | "waiting" | "refused",
     tape_last_print, tape_error}], recent: [{lender, borrower, setup_type, setup_id, since, ended, end,

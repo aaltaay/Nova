@@ -661,6 +661,18 @@
   font-weight: 600;
 }
 
+/* Claude's seat (ADR 068): its violet badge. */
+.ibkr-table--orders td.ibkr-sent-by--claude { color: #d6ceff; font-weight: 600; }
+.ibkr-sent-by__claude {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px 1px 2px;
+  border-radius: 4px;
+  background: #221d42;
+}
+.ibkr-sent-by__claude .claude-mark { border-radius: 3px; }
+
 .ibkr-table--orders td.ibkr-sent-by--breaker {
   color: var(--amber, #f59e0b);
   font-weight: 700;

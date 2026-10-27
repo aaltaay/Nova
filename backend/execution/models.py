@@ -33,6 +33,7 @@ Origin = Literal[
     "day_cover",
     "margin_call",
     "live_trader",
+    "claude",
 ]
 
 

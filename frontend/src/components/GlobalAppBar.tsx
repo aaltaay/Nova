@@ -22,6 +22,7 @@ import { GLOBAL_BAR_BRAND } from '../constants';
 import { RecordingChip } from '../capture/RecordingChip';
 import { RecordingSignals } from '../capture/RecordingSignals';
 import { ScreenRecordChip } from '../screen_record';
+import { ClaudeSeatPill } from '../claude_seat';
 import { ClipChips, ClipExportHost, ClipToasts } from '../clips';
 import { GlobalBarBotKey } from '../bot/GlobalBarBotKey';
 import { GlobalBarBotRow } from '../bot/GlobalBarBotRow';
@@ -151,6 +152,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
           <RecordingChip variant="bar" onOpenSymbol={openStockView} onOpenRecords={openRecords} />
           <ClipChips />
           <ScreenRecordChip />
+          <ClaudeSeatPill />
         </div>
 
         <div className="global-app-bar__center" data-testid="global-bar-center">

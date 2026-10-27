@@ -77,6 +77,7 @@ HELD_BY_RECORD = "record"
 HELD_BY_AUTO_RECORD = "auto_record"
 HELD_BY_LOAN = "loan"
 HELD_BY_REPLAY = "replay"
+HELD_BY_AGENT = "agent"     # Claude's seat holds it (ADR 068): never lent
 
 # Why a setup borrows, best first -- auto-record's tiers (leaderboard/auto_record.py).
 WHY_TRADE = "trade"

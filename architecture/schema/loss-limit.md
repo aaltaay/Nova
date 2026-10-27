@@ -53,7 +53,9 @@ covers nothing, a SELL that opens a short -- from any non-protective source: `LO
 with the line's words, the Account line's "Daily loss limit reached on Paper at 09:32 ET (down $451.03
 against your $405 limit): no new buys until 04:00 ET Fri Oct 16. Selling what you hold, covering a
 short, cancels, Flatten and KILL still work. To buy again, raise the limit or uncheck No new buys in
-Settings > Loss limits." The bot and stock mode read `stopped(account, actor=...)` / `buys_stopped`
+Settings > Loss limits." One exception (ADR 068, operator 2026-10-26): an order with `origin: "claude"` on Paper
+is not refused here -- Claude's lane has its own daily max loss (-$500, `agent_trader.rules`); its fills still count
+in Paper's totals. The bot and stock mode read `stopped(account, actor=...)` / `buys_stopped`
 for their side. A bot's own exits -- stops, targets, the flush exit, the time stop, the Live Trader
 bot's closes and sell-all -- are never held or replaced; the limit never turns a bot off.
 

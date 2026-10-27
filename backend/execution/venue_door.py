@@ -10,7 +10,7 @@ whatever the desk shows, so a ``kill`` cancel names its ``target_venue`` and is 
 (``resolve``). Nova's own closes (ADR 048): the day cover and the margin call close a position on
 the venue that holds it, so their ``cancel_working`` cancels and their protective ``flatten``
 closes name it too, and so do the Live Trader bot's closes and cancels on Paper (ADR 055) and the daily loss
-limit's Auto sell on any venue (ADR 056). On Live only the day cover (step 6) and the loss limit's Auto sell may --
+limit's Auto sell on any venue (ADR 056), and Claude's closes and cancels on Paper (ADR 068). On Live only the day cover (step 6) and the loss limit's Auto sell may --
 IBKR liquidates Live itself, so a margin call never goes there, and the Live Trader bot never trades Live. The day
 cover's close is a market BUY; Auto sell's is the account flatten's ticket (market in regular hours, a marketable
 limit outside them). Both carry ``intent: "flatten"``, which the door checks against IBKR's own position
@@ -29,7 +29,8 @@ from execution.models import ExecutionCommand
 TARGET_REFUSED = "TARGET_VENUE_REFUSED"
 # ADR 048: the closes Nova makes on a venue whatever the desk shows; ADR 055: the Live Trader bot's, on Paper;
 # ADR 056 / 061: the daily loss limit's Auto sell, any line's, on the account that reached it.
-NOVA_CLOSE_ORIGINS = ("day_cover", "margin_call", "live_trader", "loss_limit", "loss_limit_you", "loss_limit_bots")
+NOVA_CLOSE_ORIGINS = ("day_cover", "margin_call", "live_trader", "loss_limit", "loss_limit_you", "loss_limit_bots",
+                      "claude")
 _LIVE_LOSS_LIMIT = ("loss_limit", "loss_limit_you")   # the Bots line never sells on Live: a bot never trades it
 
 
@@ -67,8 +68,8 @@ def target_refusal(cmd: ExecutionCommand) -> str | None:
         or (cmd.operation == "place" and cmd.source == "flatten" and not cmd.short_entry))
     if not (kill_cancel or nova_close):
         return ("only the kill switch's cancels and Nova's own closes (the day cover, a margin call, the Live "
-                "Trader bot, the loss limit's Auto sell) may name a venue other than the desk's -- every other "
-                "order is sent on the desk's venue")
+                "Trader bot, Claude, the loss limit's Auto sell) may name a venue other than the desk's -- every "
+                "other order is sent on the desk's venue")
     if nova_close and target == DESK_VENUE_LIVE and (why := _live_close_refusal(cmd)):
         return why
     if target == DESK_VENUE_LIVE and not ibkr_connected():
@@ -92,6 +93,8 @@ def _live_close_refusal(cmd: ExecutionCommand) -> str | None:
     Auto sell (a flatten), to the Live account, each checked against IBKR's own position."""
     if cmd.origin == "live_trader":
         return "the Live Trader bot trades Paper only: its orders never go to Live; nothing was sent"
+    if cmd.origin == "claude":
+        return "Claude trades Paper only: its orders never go to Live; nothing was sent"
     if cmd.origin == "loss_limit_bots":
         return "the bots' loss line sells only the bots' shares, and a bot never trades Live; nothing was sent"
     if cmd.origin not in ("day_cover", *_LIVE_LOSS_LIMIT):
@@ -119,7 +122,9 @@ def resolve(cmd: ExecutionCommand) -> tuple[str, str | None]:
 
 
 def wrong_venue(cmd: ExecutionCommand, send_venue: str) -> str | None:
-    """Why the desk is not where the caller meant, or None."""
+    """Why the desk is not where the caller meant, or None. Claude's sends are Paper's alone (ADR 068)."""
+    if cmd.origin == "claude" and send_venue != "paper":
+        return f"Claude trades Paper only, and the desk is on {send_venue} -- nothing was sent"
     if cmd.expected_venue and cmd.expected_venue != send_venue:
         return (f"the desk is on {send_venue}, not {cmd.expected_venue} -- an order id is only "
                 "meaningful on the venue that issued it")
