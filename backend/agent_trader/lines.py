@@ -129,6 +129,8 @@ async def acquire(symbol: str) -> str | None:
     if not sym:
         return "no stock named"
     for old in [s for s in _held if s != sym]:
+        if why := keep_shared(old, sym):
+            return why
         await release(old, at_once=True)
     hold = _held.setdefault(sym, {"tape": False, "depth": False})
     if not depth.is_live(sym):
@@ -144,6 +146,21 @@ async def acquire(symbol: str) -> str | None:
         await _take_tape(sym)
     logger.info("AGENT lines: holding %s (%s)", sym, hold)
     return None
+
+
+def keep_shared(old: str, new: str) -> str | None:
+    """Why the seat keeps its reference on ``old`` instead of moving to ``new`` yet, or None.
+
+    A line Claude shares with a tab is the desk's, so letting it go frees nothing: with every line in use the
+    desk would be left holding 3 of its own and Claude none (SXTP -> AIOK, 2026-10-27). The seat keeps its slot
+    on ``old`` until a line is free for ``new`` -- the desk closes one, or auto-record gives one up (``room``).
+    """
+    from agent_trader import room
+
+    if not (_ref(old, "depth") and _own_viewers(old) > 0) or not room.lines_full(new):
+        return None
+    return (f"all {IBKR_MAX_DEPTH_SYMBOLS} Level 2 lines are in use and {old}'s is shared with your tab: Claude "
+            f"keeps its line on {old} and moves to {new} once one frees")
 
 
 def _depth_why(sym: str, result: dict) -> str:

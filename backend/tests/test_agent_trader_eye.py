@@ -212,3 +212,53 @@ def test_the_watcher_says_which_line_it_took(full_lines, monkeypatch):
     seat.set_symbol("SMPL", now=NOW)
     asyncio.run(watcher._line(NOW))
     assert any(e["kind"] == "line_taken" and "KTTA" in e["text"] for e in seat.snapshot()["events"])
+
+
+# -- moving off a shared line -------------------------------------------------------------------------------
+@pytest.fixture
+def shared_line(monkeypatch):
+    """INIO and NEBX are the desk's; SXTP is Claude's and a tab watches it too (2026-10-27, SXTP -> AIOK)."""
+    import ibkr.depth as depth
+    from ibkr import tape_stream
+
+    viewers = {"INIO": 1, "NEBX": 1, "SXTP": 2}
+    lines._held["SXTP"] = {"depth": True, "tape": True}
+    monkeypatch.setattr(depth, "subscribed_symbols", lambda: list(viewers))
+    monkeypatch.setattr(depth, "viewer_count", lambda s: viewers.get(s, 0))
+    monkeypatch.setattr(depth, "is_live", lambda s: s in viewers)
+    asked: list[str] = []
+
+    async def _subscribe(sym, **kw):
+        asked.append(sym)
+        viewers[sym] = 0
+        return {"ok": True}
+
+    async def _release(symbol=None, *, at_once=False):
+        lines._held.pop(symbol, None)
+        viewers[symbol] -= 1
+
+    monkeypatch.setattr(depth, "subscribe_async", _subscribe)
+    monkeypatch.setattr(depth, "ws_viewer_opened", lambda s: viewers.__setitem__(s, viewers[s] + 1))
+    monkeypatch.setattr(lines, "release", _release)
+    monkeypatch.setattr(tape_stream, "is_subscribed", lambda s: True)
+    return {"viewers": viewers, "asked": asked}
+
+
+def test_moving_off_a_shared_line_with_every_line_in_use_keeps_claudes_slot(shared_line):
+    why = asyncio.run(lines.acquire("AIOK"))
+    assert "SXTP" in why and "AIOK" in why
+    assert lines.held_symbol() == "SXTP" and shared_line["viewers"]["SXTP"] == 2   # the slot is still Claude's
+    assert shared_line["asked"] == []                                             # no 4th line asked of IBKR
+
+
+def test_claude_moves_once_a_line_frees(shared_line):
+    del shared_line["viewers"]["INIO"]                                            # the operator closed INIO
+    assert asyncio.run(lines.acquire("AIOK")) is None
+    assert lines.held_symbol() == "AIOK" and shared_line["asked"] == ["AIOK"]
+    assert shared_line["viewers"]["SXTP"] == 1                                    # SXTP stays the tab's
+
+
+def test_moving_off_a_line_claude_alone_watches_lets_it_go_first(shared_line):
+    shared_line["viewers"]["SXTP"] = 1                                            # no tab on it
+    assert asyncio.run(lines.acquire("AIOK")) is None
+    assert lines.held_symbol() == "AIOK"

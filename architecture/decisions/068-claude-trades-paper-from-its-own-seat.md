@@ -84,6 +84,7 @@ Claude works through tool calls. It reads Level 2 and Time & Sales from the back
 | Operator opens a 3rd Level 2 while Claude holds one | Refused in words, with Take Claude's line. |
 | Operator opens Claude's stock | Shares Claude's line; no extra line. |
 | Claude moves to another stock | Old line released (its AllLast at once, #698), new line taken. A shared old line stays the desk's. |
+| Claude moves off a line a tab or auto-record shares, all 3 in use | Claude keeps its reference on the old line (its slot: letting it go would free nothing) and moves once a line frees or an auto-record line is given up (amended 2026-10-27; SXTP -> AIOK left the seat waiting). |
 | Desk switched to Live or Sim | Claude's entries refused (VENUE_CHANGED); its stop rests and fills on Paper; closes and cancels still reach Paper. |
 | Operator or a bot holds the stock | Claude refuses to open a trade there. |
 | Claude's session ends or hangs | Lease lapses after 10 min: Nova cancels, sells and frees the line. |

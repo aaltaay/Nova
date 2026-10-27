@@ -111,7 +111,10 @@ in front least recently on the desk (`line_lending.focus` `last_shown` and the T
 never counts as longest), ties by auto-record's lowest rank (`leaderboard.auto_record.yield_to_agent`). Its
 recording stops as planned (segment `reason: "auto"`) and is listed in auto-record's status `yielded`, and the
 seat says so (event `line_taken`). With no such line the seat waits (`waiting_line`); it never takes a Trader tab's line, a Session
-Record the operator started, the L2 recorder or a loan. "Held" means up on this IBKR session: after a reconnect the seat's reference survives, Nova's renewal of Claude's own line is admitted past the reservation, and the watcher asks again until it is up (no second reference).
+Record the operator started, the L2 recorder or a loan. Moving to another stock (`agent_trader.lines.acquire`) lets
+the old line go first, except a line Claude shares with a tab or auto-record while every line is in use: letting it
+go would free nothing (it stays the desk's), so the seat keeps its reference there and waits (`waiting_line`,
+`line.why_not` naming both stocks) until a line is free for the new stock. "Held" means up on this IBKR session: after a reconnect the seat's reference survives, Nova's renewal of Claude's own line is admitted past the reservation, and the watcher asks again until it is up (no second reference).
 
 **Closes Nova makes.** A lease not renewed for 600 s, `POST /stop-claude` or `DELETE /seat`: Claude's orders
 cancelled, its shares sold, the seat off, its lines released. 15:55 ET on a weekday: Claude's shares sold and orders
