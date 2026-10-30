@@ -20,16 +20,28 @@ interface HodMomoStreamState {
   feedError?: string | null;
 }
 
+/** The list and its count: one state, so a replacing `initial` frame sets both in one update. */
+interface HodMomoFeed {
+  alerts: AlertObject[];
+  totalToday: number;
+}
+
+const NO_FEED: HodMomoFeed = { alerts: [], totalToday: 0 };
+
 /**
  * Opens /ws/hod-momo, receives today's full alert list, then batches live alerts.
  * Keeps every alert in memory; the table only mounts the visible row window.
  * Batching limits App re-render rate without dropping older entries.
+ * Any `initial` frame is the whole list -- on connect, after Clear, and at the
+ * 04:00 ET rollover, which the backend restates to every open desk (#800): it
+ * replaces the rows and the count together, drops the alerts still waiting in
+ * the batch, and never pings or raises a watch-list toast. Only an `alert`
+ * frame this socket has not seen does.
  * While Sim replays (off the live edge) the socket stays open but a live
  * alert makes no sound (#486): the strip is showing another moment.
  */
 export function useHodMomoStream(): HodMomoStreamState {
-  const [alerts, setAlerts] = useState<AlertObject[]>([]);
-  const [totalToday, setTotalToday] = useState(0);
+  const [feed, setFeed] = useState<HodMomoFeed>(NO_FEED);
   const [connected, setConnected] = useState(false);
   const [feedError, setFeedError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -57,10 +69,9 @@ export function useHodMomoStream(): HodMomoStreamState {
       if (!mountedRef.current || pendingRef.current.length === 0) return;
       const batch = pendingRef.current;
       pendingRef.current = [];
-      setAlerts(prev => {
-        const next = [...batch, ...prev];
-        setTotalToday(next.length);
-        return next;
+      setFeed(prev => {
+        const alerts = [...batch, ...prev.alerts];
+        return { alerts, totalToday: alerts.length };
       });
     }
 
@@ -100,6 +111,7 @@ export function useHodMomoStream(): HodMomoStreamState {
         }
         try {
           if (msg.type === 'initial') {
+            // Alerts still waiting in the batch belong to the list this frame replaces.
             pendingRef.current = [];
             if (flushTimerRef.current != null) {
               clearTimeout(flushTimerRef.current);
@@ -108,11 +120,11 @@ export function useHodMomoStream(): HodMomoStreamState {
             const list = uniqueAlerts(Array.isArray(msg.alerts) ? (msg.alerts as AlertObject[]) : []);
             seenIdsRef.current = new Set(list.map(alertIdentity));
             rememberHodMomoAlertSnapshot(list);
-            setAlerts(list);
+            setFeed({
+              alerts: list,
+              totalToday: typeof msg.total === 'number' && msg.total >= 0 ? msg.total : list.length,
+            });
             setFeedError(null);
-            setTotalToday(
-              typeof msg.total === 'number' && msg.total >= 0 ? msg.total : list.length,
-            );
           } else if (msg.type === 'alert' && msg.alert && typeof msg.alert === 'object') {
             const alert = msg.alert as AlertObject;
             const key = alertIdentity(alert);
@@ -163,5 +175,5 @@ export function useHodMomoStream(): HodMomoStreamState {
     };
   }, []);
 
-  return { alerts, totalToday, connected, feedError };
+  return { alerts: feed.alerts, totalToday: feed.totalToday, connected, feedError };
 }
