@@ -59,9 +59,19 @@ describe('ClaudeSeatPill', () => {
     expect(screen.getByTestId('claude-panel-reflexes').textContent).toContain('4.30 bid drops under 5,000');
   });
 
-  it('shows nothing on a day the seat was never on', () => {
+  it('says "Claude · Off", muted, on a day the seat was never on', async () => {
+    served = seatStatus({ state: 'off', on: false, events: [], text: 'Claude · Off' });
     render(<ClaudeSeatPill />);
-    act(() => setClaudeSeatForTests(seatStatus({ state: 'off', on: false, events: [] })));
+    act(() => setClaudeSeatForTests(served));
+    const pill = await screen.findByTestId('claude-pill');
+    expect(pill.textContent).toContain('Claude · Off');
+    expect(pill.dataset.state).toBe('off');
+    expect(pill.className).toContain('claude-pill--off');
+  });
+
+  it('shows nothing before the desk has read the seat', () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => {})));
+    render(<ClaudeSeatPill />);
     expect(screen.queryByTestId('claude-pill')).toBeNull();
   });
 

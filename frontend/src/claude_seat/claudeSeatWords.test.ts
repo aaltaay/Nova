@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import { readClaudeSeat } from './claudeSeatApi';
 import { pinned, spread } from './ClaudeSeatChartLayer';
-import { SEAT_NOW, seatStatus } from './claudeSeatFixtures';
+import { seatStatus } from './claudeSeatFixtures';
 import {
   buySetRow, claudeChartLines, freshToasts, lineRow, pillShown, seatTone, todayRow,
 } from './claudeSeatWords';
@@ -42,12 +42,11 @@ describe('claudeChartLines', () => {
 });
 
 describe('the pill and the panel', () => {
-  it('shows while the seat is on, "Off" only on a day it was on, nothing otherwise', () => {
-    expect(pillShown(seatStatus(), SEAT_NOW)).toBe(true);
-    expect(pillShown(seatStatus({ state: 'off', on: false }), SEAT_NOW)).toBe(true);
-    expect(pillShown(seatStatus({ state: 'off', on: false }), SEAT_NOW + 86_400)).toBe(false);
-    expect(pillShown(seatStatus({ state: 'off', on: false, events: [] }), SEAT_NOW)).toBe(false);
-    expect(pillShown(null, SEAT_NOW)).toBe(false);
+  it('shows whenever the seat was read: on, and "Off" every day, even one it was never on', () => {
+    expect(pillShown(seatStatus())).toBe(true);
+    expect(pillShown(seatStatus({ state: 'off', on: false }))).toBe(true);
+    expect(pillShown(seatStatus({ state: 'off', on: false, events: [] }))).toBe(true);
+    expect(pillShown(null)).toBe(false);
   });
 
   it('tones the states as the design draws them', () => {

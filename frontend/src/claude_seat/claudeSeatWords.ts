@@ -40,16 +40,12 @@ export function etClock(epochSec: number, seconds = false): string {
   });
 }
 
-function etDay(epochSec: number): string {
-  return new Date(epochSec * 1000).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-}
-
-/** The pill shows while the seat is on, and "Off" (muted) only on a day the seat was on; otherwise nothing. */
-export function pillShown(status: ClaudeSeatStatus | null, nowSec = Date.now() / 1000): boolean {
-  if (!status) return false;
-  if (status.state !== 'off') return true;
-  const last = status.events[0];
-  return last != null && etDay(last.at) === etDay(nowSec);
+/**
+ * The pill shows whenever the desk has read the seat: what Claude is doing while it is on, "Claude · Off" (muted)
+ * while it is off -- every day, so the operator sees Claude is off (operator, 2026-10-30).
+ */
+export function pillShown(status: ClaudeSeatStatus | null): boolean {
+  return status != null;
 }
 
 export type ClaudeLineKind = 'buy' | 'sell' | 'stop';
