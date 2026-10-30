@@ -36,7 +36,9 @@ from bot.live_trader.constants_live_trader import (
     LT_SHORT_HOURS,
     LT_SHORTS_OFF,
     LT_SMALL_CAP,
+    LT_SSR_UNKNOWN,
     LT_TICKER_UNSETTLED,
+    LT_WAIT_SEC,
 )
 from bot.live_trader.decide import decide
 from bot.live_trader.watcher import keys_hold
@@ -578,6 +580,45 @@ def test_a_short_sells_at_the_bid_with_a_buy_stop_five_percent_over():
     w = World()
     (step,) = kinds(watching(w, row(side="short", entry_ts=NOW)), "step")
     assert step["limit"] == pytest.approx(99.96) and step["stop"] == pytest.approx(104.96)
+    assert step["ssr"] == "off"
+
+
+def test_a_short_whose_ssr_is_being_read_waits_and_sells_at_the_bid_once_it_reads_off():
+    # A short priced on the pass that first asks IBKR for the daily bars, before the read lands, rests at the ask
+    # and is cancelled unfilled, though the stock is not under SSR.
+    w = World()
+    w.ssr["XYZ"] = "unknown"
+    short = row(side="short", entry_ts=NOW)
+    out = watching(w, short)
+    assert kinds(out, "step") == [] and kinds(out, "skip") == []
+    assert [v["code"] for v in out["waits"].values()] == [LT_SSR_UNKNOWN]
+    w.ssr["XYZ"] = "off"
+    out = w.at(5).run(answer({HOST: [short]}, feed_now=NOW + 5))
+    (step,) = kinds(out, "step")
+    assert step["limit"] == pytest.approx(99.96) and step["ssr"] == "off"    # marketable: it fills as on Live
+
+
+def test_a_short_whose_ssr_never_reads_is_offered_above_the_bid_after_the_wait_never_skipped():
+    w = World()
+    w.ssr["XYZ"] = "unknown"
+    short = row(side="short", entry_ts=NOW)
+    watching(w, short)
+    out = w.at(2 + LT_WAIT_SEC - 1).run(answer({HOST: [short]}, feed_now=w.now))
+    assert kinds(out, "step") == [] and kinds(out, "skip") == []                # still waiting on the read
+    out = w.at(2 + LT_WAIT_SEC).run(answer({HOST: [short]}, feed_now=w.now))
+    (step,) = kinds(out, "step")
+    assert step["limit"] == pytest.approx(100.02) and step["ssr"] == "unknown"  # as if SSR were on: at the ask
+
+
+def test_a_short_under_ssr_on_is_priced_at_once_and_a_long_never_waits_on_ssr():
+    w = World()
+    w.ssr["XYZ"] = "on"
+    (step,) = kinds(watching(w, row(side="short", entry_ts=NOW)), "step")
+    assert step["limit"] == pytest.approx(100.02) and step["ssr"] == "on"
+    w = World()
+    w.ssr["XYZ"] = "unknown"                       # a long's SSR is never read: it buys at the ask at once
+    (step,) = kinds(watching(w, row(entry_ts=NOW)), "step")
+    assert step["limit"] == pytest.approx(100.04) and step["ssr"] is None
 
 
 def test_the_bot_never_trades_against_a_position():

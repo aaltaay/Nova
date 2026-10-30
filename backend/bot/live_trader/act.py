@@ -20,6 +20,7 @@ from bot.live_trader.constants_live_trader import (
     LT_AUDIT_ACTION,
     LT_CLOSE_MAX_TRIES,
     LT_CLOSE_RETRY_SEC,
+    LT_NOT_FILLED,
     LT_SKIPS_REMEMBERED,
     LT_VENUE,
     LT_WAIT_SEC,
@@ -86,10 +87,10 @@ def once(*key: Any) -> bool:
 
 
 # -- decisions -------------------------------------------------------------------------------------
-def skip(a: dict[str, Any], now: float) -> None:
+def skip(a: dict[str, Any], now: float, **extra: Any) -> None:
     if not once(a.get("row_id"), a.get("step"), a.get("code")):
         return
-    audit("skipped", a, now=now)
+    audit("skipped", a, now=now, **extra)
     tell(a.get("symbol"), now, "warn", f"Live Trader ({a.get('host')}): did not {_step_words(a)} -- {a.get('why')}")
 
 
@@ -189,9 +190,11 @@ async def close(a: dict[str, Any], now: float) -> None:
     if a.get("trim") and (pos["side"] != "long" or pos.get("trimmed") or qty >= pos["qty"] - EPS):
         return                                 # a trim is half a long, once: never a whole close, never a short
     if qty <= EPS:
-        done = book.forget(pos["id"], kind="outside", why="already gone from Paper before the close", ts=now)
+        kind, how, price, oid = _left_how(pos, pos["qty"], now)
+        done = book.reduce(pos["id"], pos["qty"], kind=kind, why=f"already gone from Paper before the close: {how}",
+                           ts=now, price=price, order_id=oid)
         if done is not None:
-            note({**a, "why": f"{a['why']}: the shares were already gone from Paper"}, now)
+            note({**a, "why": f"{a['why']}: the shares were already gone from Paper ({how})"}, now)
         return
     tries = int((pos.get("close") or {}).get("tries") or 0) + 1
     try:
@@ -261,10 +264,24 @@ def follow_step(pos_id: str, now: float, *, ttl: float | None = None) -> str | N
               fill=fill_progress.block(row, phase="entry", leg=order["step"], order_id=order["id"]),
               fill_ts=(row or {}).get("fill_ts"), ibkr=market_now(pos["symbol"]),
               why=f"{_verb(pos['side'])} {filled:g} {pos['symbol']} at {price_text(price)}")
+    elif state == "dead" and order.get("timed_out_ts") is not None and not (row or {}).get("error"):
+        # A trade the bot meant to copy and did not: a skip on the card, never only a line in the log.
+        skip({**a, "code": LT_NOT_FILLED, "why": _unfilled_words(pos["side"], order)}, now, order_id=order["id"])
     else:
         why = (row or {}).get("error") or ("not filled in time" if state == "dead" else "Paper has no such order")
         audit("note", a, now=now, order_id=order["id"], why=f"not filled: {why}")
     return None
+
+
+def _unfilled_words(side: str, order: dict[str, Any]) -> str:
+    worked = max(0.0, float(order["timed_out_ts"]) - float(order["sent_ts"]))
+    what = "add" if order.get("step") == "add" else "short" if side == "short" else "buy"
+    said = f"the {what} at {price_text(order.get('limit'))} was not taken in {worked:.0f} s"
+    if side == "short" and order.get("ssr") == "on":
+        return f"{said}: SSR is on, so a short may sell only above the bid"
+    if side == "short" and order.get("ssr") == "unknown":
+        return f"{said}: its SSR could not be read, so it was offered above the bid, as if SSR were on"
+    return said
 
 
 def follow_close(pos_id: str, now: float) -> None:
@@ -334,7 +351,7 @@ async def reconcile(now: float) -> None:
                 break
             take = min(pos["qty"], excess)
             excess -= take
-            kind, why, price, oid = _left_how(pos, now)
+            kind, why, price, oid = _left_how(pos, take, now)
             book.reduce(pos["id"], take, kind=kind, why=why, ts=now, price=price, order_id=oid)
             note({"kind": "reconcile", "host": pos["host"], "row_id": pos["row_id"], "symbol": symbol, "side": side,
                   "step": kind, "qty": take, "why": f"{take:g} of the bot's {symbol} left Paper: {why}"}, now)
@@ -392,7 +409,10 @@ def _stop_left(a: dict[str, Any], oid: int, why: str, now: float) -> None:
                   "so Nova cancels it every pass until Paper shows it gone -- cancel it yourself if it stays")
 
 
-def _left_how(pos: dict[str, Any], now: float) -> tuple[str, str, float | None, int | None]:
+def _left_how(pos: dict[str, Any], take: float, now: float) -> tuple[str, str, float | None, int | None]:
+    """``(kind, why, price, order_id)`` for ``take`` shares that left ``pos`` some other way. The price is Paper's
+    own fill, so the card's P/L counts the position (before 2026-10-30 a day cover or a sale outside the bot booked
+    it with no price, $0 on the card)."""
     for oid in pos["stop_order_ids"]:
         try:
             row = orders.order_row(oid)
@@ -402,5 +422,40 @@ def _left_how(pos: dict[str, Any], now: float) -> tuple[str, str, float | None, 
             price = (row or {}).get("avg_fill_price")
             return "stop", f"its buy stop filled at {price_text(price)}", price, oid
     if (pos.get("close") or {}).get("kind") == "day_cover":
-        return "day_cover", "Nova's day cover covered it", None, None
-    return "outside", "sold outside the bot (by you, the loss limit or KILL)", None, None
+        kind, why = "day_cover", "Nova's day cover covered it"
+    else:
+        kind, why = "outside", "sold outside the bot (by you, the loss limit or KILL)"
+    price, oid = _outside_fill(pos, take)
+    if kind != "day_cover":
+        oid = None               # your order (or KILL's) is not the bot's: priced, but its fee stays off the card
+    return kind, (why if price is None else f"{why} at {price_text(price)}"), price, oid
+
+
+def _outside_fill(pos: dict[str, Any], take: float) -> tuple[float | None, int | None]:
+    """What Paper got for ``take`` of the position's shares: the closing fills of its stock and side since the
+    position's own last fill, none the bot's (``orders.closed_by_others``), the newest first, averaged over the
+    shares. The order's id only when one order closed exactly these shares (the day cover's then counts on the card
+    as the bot's close). ``(None, None)`` when Paper cannot be read or shows fewer closing shares: the P/L stays
+    unknown, never a guess."""
+    mine = [*(pos.get("fills") or ()), *(pos.get("exit_fills") or ())]
+    own = {int(f["order_id"]) for f in mine if f.get("order_id") is not None}
+    since = max((float(f["ts"]) for f in mine if f.get("ts") is not None), default=float(pos.get("opened_ts") or 0.0))
+    try:
+        rows = orders.closed_by_others(pos["symbol"], pos["side"], since, not_ids=own)
+    except orders.ReadError as exc:
+        logger.warning("Live Trader bot: %s", exc)
+        return None, None
+    left, got, used = float(take), 0.0, []
+    for r in rows:
+        qty = min(left, float(r.get("filled_qty") or 0.0))
+        if qty <= EPS or r.get("avg_fill_price") is None:
+            continue
+        got += qty * float(r["avg_fill_price"])
+        left -= qty
+        used.append(r)
+        if left <= EPS:
+            break
+    if left > EPS or not used:
+        return None, None
+    alone = len(used) == 1 and abs(float(used[0].get("filled_qty") or 0.0) - float(take)) <= EPS
+    return round(got / float(take), 4), (int(used[0]["order_id"]) if alone else None)

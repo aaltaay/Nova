@@ -135,6 +135,7 @@ async def manage(now: float) -> None:
     for pos in book.positions().values():
         if pos.get("order"):
             if act.follow_step(pos["id"], now, ttl=ttl) == "cancel":
+                book.step_timed_out(pos["id"], now)
                 try:
                     await orders.cancel(pos["order"]["id"], pos["symbol"], pos["host"])
                 except Exception:

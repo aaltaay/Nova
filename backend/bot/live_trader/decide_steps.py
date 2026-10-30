@@ -129,7 +129,7 @@ class _Pass:
                                     "symbol": r["symbol"], "side": r["side"], "step": step,
                                     "qty": plan["qty"], "limit": plan["limit"], "stop": plan["stop"],
                                     "cost_usd": plan["cost_usd"], "their_price": change["price"],
-                                    "change": change, "approved": approved})
+                                    "ssr": plan.get("ssr"), "change": change, "approved": approved})
 
     def note(self, name, r, pid, step, plan, change) -> None:
         stop = f" with a buy stop {rules.price_text(plan['stop'])}" if plan.get("stop") else ""

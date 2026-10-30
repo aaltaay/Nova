@@ -173,9 +173,21 @@ def step_sent(action: dict[str, Any], *, order_id: int | None, stop_id: int | No
             pos["adds_followed"] += 1
         pos["state"] = "entering"
         pos["order"] = {"id": order_id, "step": action["step"], "sent_ts": now, "qty": action["qty"],
-                        "limit": action["limit"], "stop": action.get("stop"), "change": action["change"]}
+                        "limit": action["limit"], "stop": action.get("stop"), "change": action["change"],
+                        "ssr": action.get("ssr")}
         if stop_id is not None:
             pos["stop_order_ids"].append(int(stop_id))
+        _save_locked()
+
+
+def step_timed_out(pos_id: str, now: float) -> None:
+    """The step in flight worked past its time to live and its cancel is going out: when it ends unfilled, nobody
+    took it at its limit (``LT_NOT_FILLED``), not a cancel of the bot's own close."""
+    with _lock:
+        pos = _load_locked()["positions"].get(pos_id)
+        if pos is None or not pos.get("order") or pos["order"].get("timed_out_ts") is not None:
+            return
+        pos["order"]["timed_out_ts"] = now
         _save_locked()
 
 
@@ -276,16 +288,6 @@ def reduce(pos_id: str, qty: float, *, kind: str, why: str, ts: float | None,
             return None
         pos["exit_fills"].append({"qty": qty, "price": price, "ts": ts, "order_id": order_id, "kind": kind})
         return _reduce_locked(book, pos, qty, kind=kind, why=why, ts=ts)
-
-
-def forget(pos_id: str, *, kind: str, why: str, ts: float | None) -> dict[str, Any] | None:
-    """A position whose shares are gone already: closed as it stands."""
-    with _lock:
-        book = _load_locked()
-        pos = book["positions"].get(pos_id)
-        if pos is None:
-            return None
-        return _reduce_locked(book, pos, pos["qty"], kind=kind, why=why, ts=ts)
 
 
 def _reduce_locked(book: dict[str, Any], pos: dict[str, Any], qty: float, *, kind: str, why: str,
