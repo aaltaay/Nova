@@ -744,6 +744,28 @@ def test_a_sale_outside_the_bot_is_booked_at_papers_own_fill_not_at_zero(desk):
     assert card["today"]["realized_usd"] == pytest.approx(3.84, abs=0.01) and card["today"]["orders"] == 1
 
 
+def test_two_hosts_sold_outside_in_one_pass_are_each_booked_at_their_own_shares(desk):
+    """Two hosts' bots hold the same stock; you sell four shares, then four more at another price, before the next
+    pass. Each position is booked at its own shares of Paper's sales: no closing share prices two positions
+    (Codex review, PR #1261)."""
+    lt_settings.patch_host(OTHER, {"key": True})
+    run(desk, "10:30:00")
+    desk.feed.open("XYZ", 100.00, at("10:30:10"))
+    desk.feed.open("XYZ", 100.01, at("10:30:10"), host=OTHER)      # their own average: not the other host's row
+    run(desk, "10:30:11")
+    assert held(desk, "XYZ") == 8
+    desk.market.px["XYZ"] = [90.00, 89.98, 90.02]
+    desk.broker.place("XYZ", "SELL", 4, order_type="MKT", source="manual")
+    desk.market.px["XYZ"] = [110.00, 109.98, 110.02]
+    desk.broker.place("XYZ", "SELL", 4, order_type="MKT", source="manual")
+    run(desk, "10:30:20")
+    done = lt_book.closed_today()
+    assert len(done) == 2 and {d["kind"] for d in done} == {"outside"}
+    assert sorted(d["exit_fills"][-1]["price"] for d in done) == [pytest.approx(89.98), pytest.approx(109.98)]
+    assert sum(d["pl_usd"] for d in done) == pytest.approx(4 * 89.98 + 4 * 109.98 - 8 * 100.02, abs=0.02)
+    assert sorted(n for d in done for _oid, n in d["exit_fills"][-1]["from"]) == [4.0, 4.0]
+
+
 def test_the_day_cover_of_a_bot_short_is_booked_at_its_fill_with_its_fee(desk):
     """A bot short handed to Nova's day cover was booked with no price, so the card counted it $0. The cover's fill
     is now the exit, and its fee is the bot's: the bot handed the short to it."""

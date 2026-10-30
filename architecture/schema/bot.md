@@ -771,7 +771,10 @@ temp file and rename; unknown version refuses loud, and the bot then opens nothi
                      ssr: "on" | "off" | "unknown" | null (a short's, as priced), timed_out_ts (absent until its
                      time to live cancels it)} | null,
               stop_order_ids: [int], fills: [{step, qty, price, ts, order_id}], feed: {ts, price}}],
- closed: [{...the position, closed_ts, why, exit_fills: [{qty, price, ts, order_id}], pl_usd}],
+ closed: [{...the position, closed_ts, why, exit_fills: [{qty, price, ts, order_id, kind,
+                                                         from: [[order_id, shares]] (an exit priced from
+                                                         Paper's own closing orders: each share of those
+                                                         orders prices one position only)}], pl_usd}],
  retire: [{order_id, symbol, host, since_ts}]}
 ```
 

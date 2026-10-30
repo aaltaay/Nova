@@ -279,15 +279,33 @@ def close_filled(pos_id: str, *, qty: float, price: float | None, ts: float | No
 
 
 def reduce(pos_id: str, qty: float, *, kind: str, why: str, ts: float | None,
-           price: float | None = None, order_id: int | None = None) -> dict[str, Any] | None:
-    """Shares that left the position some other way (sold outside the bot, a buy stop, the day cover)."""
+           price: float | None = None, order_id: int | None = None,
+           sources: list[list[float]] | None = None) -> dict[str, Any] | None:
+    """Shares that left the position some other way (sold outside the bot, a buy stop, the day cover).
+    ``sources``: the ``[order_id, shares]`` of Paper's closing orders the price came from (``outside_taken``)."""
     with _lock:
         book = _load_locked()
         pos = book["positions"].get(pos_id)
         if pos is None:
             return None
-        pos["exit_fills"].append({"qty": qty, "price": price, "ts": ts, "order_id": order_id, "kind": kind})
+        fill = {"qty": qty, "price": price, "ts": ts, "order_id": order_id, "kind": kind}
+        if sources:
+            fill["from"] = [[int(oid), float(n)] for oid, n in sources]
+        pos["exit_fills"].append(fill)
         return _reduce_locked(book, pos, qty, kind=kind, why=why, ts=ts)
+
+
+def outside_taken() -> dict[int, float]:
+    """The shares of Paper's closing orders already booked as some position's exit (``exit_fills[].from``), by order
+    id, across what the bot holds and closed today: a closing share prices one position only (Codex review, #1261)."""
+    with _lock:
+        book = _load_locked()
+        out: dict[int, float] = {}
+        for pos in (*book["positions"].values(), *book["closed"]):
+            for fill in pos.get("exit_fills") or ():
+                for oid, n in fill.get("from") or ():
+                    out[int(oid)] = out.get(int(oid), 0.0) + float(n)
+        return out
 
 
 def _reduce_locked(book: dict[str, Any], pos: dict[str, Any], qty: float, *, kind: str, why: str,
