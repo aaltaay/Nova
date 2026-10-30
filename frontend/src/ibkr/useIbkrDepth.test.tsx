@@ -224,6 +224,34 @@ describe('useIbkrDepth lifecycle', () => {
     expect(viewLockReason('VLO')).toBeNull();
   });
 
+  it('a subscribed line that only beats keeps orders locked, then the ladder says what IBKR has done (#913)', () => {
+    // BKYI 2026-10-13: subscribed, then beats every 250 ms, and no book -- the ticket stayed open.
+    renderSymbol('BKYI');
+    const ws = FakeWebSocket.instances[FakeWebSocket.instances.length - 1];
+    const beat = (firstBook: unknown) =>
+      ws.onmessage?.({ data: JSON.stringify({ type: 'beat', symbol: 'BKYI', seq: 0, at: null, now: Date.now() / 1000, first_book: firstBook }) });
+    act(() => {
+      ws.onmessage?.({ data: JSON.stringify({ type: 'subscribed', symbol: 'BKYI', instance: 'x' }) });
+      beat({ since: 1, state: 'waiting', overdue: false, text: "BKYI's Level 2 is open but has sent no book yet." });
+    });
+    expect(viewLockLabel(viewLockReason('BKYI')!)).toBe('Waiting for Level 2 · locked');
+    expect(latest?.firstBookWait).toBeNull();
+    const words = "IBKR has not answered BKYI's Level 2 request in 5 s.";
+    act(() => {
+      beat({ since: 1, state: 'unanswered', overdue: true, text: words });
+    });
+    expect(latest?.firstBookWait).toBe(words);
+    expect(viewLockReason('BKYI')).toContain(words);
+    act(() => {
+      ws.onmessage?.({
+        data: JSON.stringify({ type: 'book', symbol: 'BKYI', seq: 1, at: Date.now() / 1000, sent: Date.now() / 1000,
+          data: { bids: [{ price: 2.1, size: 500 }], asks: [], l1_fallback: false } }),
+      });
+    });
+    expect(latest?.firstBookWait).toBeNull();
+    expect(viewLockReason('BKYI')).toBeNull();
+  });
+
   it('a book proves the line: the next drop retries after 1 s again', () => {
     renderSymbol('VLO');
     refusedLikeTheBackend('VLO');

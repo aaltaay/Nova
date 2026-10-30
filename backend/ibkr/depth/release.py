@@ -180,6 +180,20 @@ def answer_of(req_id: int, sub: Any) -> str | None:
     return GRANTED if ticker is not None and _rows_arrived(ticker) else None
 
 
+def line_answer(ib: Any, contract: Any) -> str | None:
+    """IBKR's answer so far to the Level 2 request ib_async holds for *contract*: GRANTED, REFUSED or None.
+
+    Read only (the first-book watch, ``ibkr/depth/first_book.py``): it never cancels or frees anything.
+    """
+    if ib is None or contract is None:
+        return None
+    sub = _registered(ib, contract)
+    req_id = getattr(sub, "reqId", None)
+    if sub is None or not isinstance(req_id, int):
+        return None
+    return answer_of(req_id, sub)
+
+
 def _note(sub: Any, req_id: int, answer: str) -> None:
     with _lock:
         known = _answers.get(req_id)

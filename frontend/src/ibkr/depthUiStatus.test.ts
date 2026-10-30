@@ -16,6 +16,12 @@ describe('depthEmptyMessage', () => {
     expect(depthEmptyMessage('SHPH', true, null)).toBe('Waiting for book data…');
   });
 
+  it("says what IBKR has done once a subscribed line has waited too long for its first book (#913)", () => {
+    const words = "IBKR has not answered SHPH's Level 2 request in 5 s.";
+    expect(depthEmptyMessage('SHPH', true, null, words)).toBe(words);
+    expect(depthEmptyMessage('SHPH', true, 'Depth error', words)).toBe('Depth error');
+  });
+
   it('says Connecting when the socket is not up yet', () => {
     expect(depthEmptyMessage('SHPH', false, null)).toBe('Connecting depth for SHPH…');
   });

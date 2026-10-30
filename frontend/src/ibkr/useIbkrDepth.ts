@@ -9,7 +9,7 @@ import { readLuldFrame, type LuldView } from './luld';
 import type { LineLent } from './lentWords';
 import type { DepthBook } from './types';
 import { countSocketMessage, frameBytes } from '../perf/perfCounters';
-import { forgetBook, noteBeat, noteBookFrame, noteRefused, noteSubscribed } from '../market_view';
+import { firstBookWords, forgetBook, noteBeat, noteBookFrame, noteRefused, noteSubscribed } from '../market_view';
 import { HEAT_LINE_LENT, noteHeatBeat, noteHeatBook, noteHeatLine, noteHeatWatch } from '../heat_map';
 
 interface DepthState {
@@ -25,6 +25,8 @@ interface DepthState {
   luld: LuldView | null;
   /** The refusal is Claude's reserved line (ADR 068): the panel offers Take Claude's line. */
   agentReserved: boolean;
+  /** No first book past the backend's wait: its words for what IBKR has done (a beat's `first_book`, #913). */
+  firstBookWait: string | null;
 }
 
 export interface DepthOptions {
@@ -45,6 +47,7 @@ const EMPTY: DepthState = {
   lent: null,
   luld: null,
   agentReserved: false,
+  firstBookWait: null,
 };
 
 /**
@@ -91,6 +94,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
   const agentReservedRef = useRef(false);
   const watchRef = useRef<BookWatchState | null>(null);
   const luldRef = useRef<LuldView | null>(null);
+  const firstBookWaitRef = useRef<string | null>(null);
   // This symbol's line while it may be lent; set by the socket effect.
   const lineRef = useRef<LentLine | null>(null);
 
@@ -110,6 +114,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
       lent: lineRef.current?.lent ?? null,
       luld: luldRef.current,
       agentReserved: agentReservedRef.current,
+      firstBookWait: firstBookWaitRef.current,
     });
   };
 
@@ -129,6 +134,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
     agentReservedRef.current = false;
     watchRef.current = null;
     luldRef.current = null;
+    firstBookWaitRef.current = null;
     lineRef.current = null;
     setState(EMPTY);
 
@@ -182,10 +188,17 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
             // ADR 045: the newest version as of the backend's `now` -- freshness only, never a render.
             noteBeat(symKey!, msg);
             noteHeatBeat(symKey!);
+            const wait = firstBookWords(msg.first_book);
+            if (wait !== firstBookWaitRef.current) {
+              // The ladder says what IBKR has done with a request that has sent no book (#913); re-render on change only.
+              firstBookWaitRef.current = wait;
+              if (uiActiveRef.current) commitUi();
+            }
             return;
           }
           if (msg.type === 'subscribed') {
             noteSubscribed(symKey!, msg.instance);
+            firstBookWaitRef.current = null;
             subscribed = true;
             connectedRef.current = true;
             errorRef.current = null;
@@ -193,6 +206,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
             if (uiActiveRef.current) commitUi();
           } else if (msg.type === 'book') {
             noteBookFrame(symKey!, msg);
+            firstBookWaitRef.current = null;
             const book: DepthBook = { ...msg.data, symbol: symKey, seq: msg.seq, at: msg.at ?? null };
             if (shouldKeepPriorBook(book, bookRef.current)) {
               connectedRef.current = true;

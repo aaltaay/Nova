@@ -199,3 +199,67 @@ describe("the backend's own lock (ADR 045 amendment 2026-10-14)", () => {
     expect(currentViewLock('GENK')).toBeNull();
   });
 });
+
+describe('a Level 2 that is open with no book yet (operator decision 2026-10-27, #913 option 1)', () => {
+  // BKYI 2026-10-13: IBKR never answered the request; the socket said subscribed and beat every 250 ms.
+  const WAIT = "No book yet on BKYI's Level 2. Orders are locked until its first book arrives. Flatten and cancels still work.";
+
+  it('locks while only subscribed and beats arrive, however timely', () => {
+    noteSubscribed('BKYI', 'proc-1', T0);
+    for (let i = 1; i <= 8; i += 1) {
+      noteBeat('BKYI', { seq: 0, now: (T0 + i * 250) / 1000, first_book: { state: 'waiting', overdue: false } }, T0 + i * 250);
+    }
+    const why = viewLockReason('BKYI', T0 + 2_010);
+    expect(why).toBe(WAIT);
+    expect(viewLockLabel(why!)).toBe('Waiting for Level 2 · locked');
+  });
+
+  it('locks on an older backend whose beats carry no first_book at all', () => {
+    noteSubscribed('BKYI', 'proc-1', T0);
+    noteBeat('BKYI', { seq: 0, now: (T0 + 250) / 1000 }, T0 + 250);
+    expect(viewLockReason('BKYI', T0 + 300)).toBe(WAIT);
+  });
+
+  it("names what IBKR has done once the backend's wait is overdue", () => {
+    noteSubscribed('BKYI', 'proc-1', T0);
+    const text = "IBKR has not answered BKYI's Level 2 request in 5 s.";
+    noteBeat('BKYI', { seq: 0, now: (T0 + 6_000) / 1000, first_book: { state: 'unanswered', overdue: true, text } }, T0 + 6_000);
+    expect(viewLockReason('BKYI', T0 + 6_010)).toBe(
+      `No book yet on BKYI's Level 2. ${text} Orders are locked until its first book arrives. Flatten and cancels still work.`,
+    );
+  });
+
+  it('opens on the first book frame', () => {
+    noteSubscribed('BKYI', 'proc-1', T0);
+    noteBookFrame('BKYI', { seq: 1, at: (T0 + 990) / 1000, sent: (T0 + 995) / 1000 }, T0 + 1_000);
+    noteBookShown('BKYI', 1, 2.1, 2.12);
+    expect(viewLockReason('BKYI', T0 + 1_010)).toBeNull();
+  });
+
+  it('opens when the backend says the line already has its book (another viewer holds it)', () => {
+    noteSubscribed('BKYI', 'proc-1', T0);
+    noteBeat('BKYI', { seq: 3, now: (T0 + 250) / 1000, first_book: null }, T0 + 250);
+    expect(viewLockReason('BKYI', T0 + 260)).toBeNull();
+  });
+
+  it('locks again on every reconnect: a book from the earlier socket does not count', () => {
+    live('BKYI');
+    expect(viewLockReason('BKYI', T0 + 10)).toBeNull();
+    noteSubscribed('BKYI', 'proc-1', T0 + 2_000);   // the socket reconnected
+    expect(viewLockReason('BKYI', T0 + 2_010)).toBe(WAIT);
+  });
+
+  it('keeps a refused line its own words', () => {
+    noteSubscribed('BKYI', 'proc-1', T0);
+    noteRefused('BKYI', 'IBKR refused this Level 2 (IB error 309).');
+    noteSubscribed('BKYI', 'proc-1', T0 + 1_200);
+    expect(viewLockLabel(viewLockReason('BKYI', T0 + 1_300)!)).toBe('No Level 2 · locked');
+  });
+
+  it("labels the backend's BOOK_WAITING lock the same way", () => {
+    const text = "BKYI's Level 2 is open but has sent no book yet. New orders on it wait for its first book. Flatten and cancels still work.";
+    noteBackendGate('BKYI', { code: 'BOOK_WAITING', text });
+    expect(viewLockReason('BKYI', T0)).toBe(text);
+    expect(viewLockLabel(text)).toBe('Waiting for Level 2 · locked');
+  });
+});

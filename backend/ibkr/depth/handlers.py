@@ -125,6 +125,8 @@ def on_update_book(ticker: Any, symbol: str) -> None:
     book = {"bids": bids, "asks": asks, "l1_fallback": False}
     prev = state._subscriptions.get(symbol)
     state.note_book(symbol)
+    if book["bids"] or book["asks"]:
+        state.note_rows(symbol)  # this request's first book (#913)
     if _same_book(prev, book):
         # One ib_async Ticker carries the symbol's L1, prints and depth, so this runs on every L1 tick
         # and print too: an unchanged book is not a new one -- no version, no frame (ADR 045).
@@ -163,6 +165,8 @@ def on_update_ticker(ticker: Any, symbol: str) -> None:
     }
     prev = state._subscriptions.get(symbol)
     state.note_book(symbol)
+    if book["bids"] or book["asks"]:
+        state.note_rows(symbol)  # this request's first book (#913)
     if _same_book(prev, book):
         book = prev
     else:

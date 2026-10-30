@@ -80,16 +80,15 @@ def counted(account: str) -> tuple[bool, str | None]:
 
 
 def _practice(account: str) -> Count:
+    from loss_limit.state import day_start
     from practice.broker import for_venue
-    from practice.clock import day_start_ts
     from practice.fees import Fees
 
     broker = for_venue(account)
     broker.rollover()
     ledger = broker.ledger
-    # The loss limit's day is the calendar one, 04:00 ET every day (ADR 056) -- not the ledger's, which
-    # walks back over a weekend so Day P&L reads Friday's. Moving this reset day is the operator's call.
-    start = day_start_ts(float(broker.reference.now_ts()))
+    # The loss limit's day walks back over a weekend or holiday like Day P&L's (ADR 056 amendment 2026-10-27).
+    start = day_start(float(broker.reference.now_ts()))
     fills: list[Fill] = []
     for row in ledger.closed_orders():
         if str(row.get("status")) != "Filled":
@@ -145,14 +144,14 @@ def _live_snapshot(account_id: str, start: float) -> tuple[list[Fill], dict[str,
 def _live(now: float) -> Count:
     from ibkr import client
     from ibkr.loop_supervisor import call_on_ib
-    from practice.clock import day_start_ts
+    from loss_limit.state import day_start
 
     if not (client.is_enabled() and client.is_ready()):
         return Count(pnl=None, unknown="IBKR is not connected, so Live cannot be counted")
     account_id = client.account_id()
     if not account_id:
         return Count(pnl=None, unknown="IBKR has not named the account, so Live cannot be counted")
-    start = day_start_ts(now)
+    start = day_start(now)
     fills, held = call_on_ib(lambda: _live_snapshot(account_id, start), _IB_READ_TIMEOUT_SEC,
                              label="loss_limit.live")
     return count(fills, held)

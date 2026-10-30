@@ -3,11 +3,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 
 from constants_market_view import MARKET_VIEW_BEAT_SEC
 from market_view import versions
 from market_view.viewer_queues import BookVersion
+
+logger = logging.getLogger(__name__)
 
 
 def should_send_current_book(book: dict | None) -> bool:
@@ -46,12 +49,24 @@ def book_frame(symbol: str, item: BookVersion, now: float | None = None) -> str:
 
 
 def beat_frame(symbol: str, now: float | None = None) -> str:
-    """``{"type": "beat", "symbol", "seq", "at", "now"}`` -- the line's newest version as of ``now``."""
+    """``{"type": "beat", "symbol", "seq", "at", "now", "first_book"}`` -- the line's newest version as of ``now``.
+
+    ``first_book`` is null once the line's request delivered a book with a row, else what it is waiting for
+    (``first_book.waiting``, #913). Left out when it cannot be read: the desk then keeps its lock.
+    """
+    t = time.time() if now is None else now
     latest = versions.latest(versions.BOOK, symbol)
-    return json.dumps({
+    frame = {
         "type": "beat",
         "symbol": symbol,
         "seq": latest.seq if latest is not None else 0,
         "at": latest.at if latest is not None else None,
-        "now": time.time() if now is None else now,
-    })
+        "now": t,
+    }
+    try:
+        from ibkr.depth import first_book
+
+        frame["first_book"] = first_book.waiting(symbol, now=t)
+    except Exception:
+        logger.exception("IBKR depth: %s's first book could not be read for its beat", symbol)
+    return json.dumps(frame)
