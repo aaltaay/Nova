@@ -1,10 +1,11 @@
 """The checks before a Live Trader step, its size and its prices (ADR 055 decisions 3 and 4). Pure.
 
 ``check`` answers one step -- an entry, a position already open, or an add -- as ``go`` (with its plan),
-``wait`` (a quote line opening, a market cap or a ticker check being read) or ``skip``, each with its code and
-the words the Bots page shows. A wait that has lasted ``LT_WAIT_SEC`` is its skip. The first rule that fails
-answers: the side, the short hours, the ticker, the market cap, the quote, the misread, an add's average that
-no add could make, a position against it, the allowance. Shapes: architecture/schema/bot.md ("The Live Trader bot").
+``wait`` (a quote line opening, a market cap, a ticker check or a short's SSR being read) or ``skip``, each with
+its code and the words the Bots page shows. A wait that has lasted ``LT_WAIT_SEC`` is its skip -- except SSR's,
+which then prices the short as if SSR were on. The first rule that fails answers: the side, the short hours, the
+ticker, the market cap, the quote, the misread, an add's average that no add could make, a position against it,
+the short's SSR, the allowance. Shapes: architecture/schema/bot.md ("The Live Trader bot").
 """
 from __future__ import annotations
 
@@ -29,6 +30,7 @@ from bot.live_trader.constants_live_trader import (
     LT_SHORT_HOURS,
     LT_SHORTS_OFF,
     LT_SMALL_CAP,
+    LT_SSR_UNKNOWN,
     LT_TICKER_UNSETTLED,
     LT_WAIT_SEC,
     LT_AGAINST,
@@ -189,6 +191,11 @@ def check(*, side: str, symbol: str, their_price: float, settings: dict[str, Any
         return _waited(LT_AGAINST, against, f"{against}, and it did not close in {LT_WAIT_SEC:.0f} s", wait_since, now)
     if against:
         return verdict(SKIP, LT_AGAINST, against)
+    if side == "short" and ssr == "unknown" and not (wait_since is not None and now - wait_since >= LT_WAIT_SEC):
+        # IBKR's daily bars are read in the background: a short priced before they land rests at the ask, where
+        # it is rarely taken before its time to live, though the stock is seldom under SSR.
+        return verdict(WAIT, LT_SSR_UNKNOWN, "reading its SSR from IBKR's daily bars: until then a short could "
+                                             "sell only above the bid")
     limit, stop = limits(side, quote or {}, float(settings["short_stop_pct"]), ssr)
     if limit is None:
         missing = "ask" if side == "long" else "bid" if ssr == "off" else "ask above the bid (SSR on or not known)"
@@ -201,7 +208,8 @@ def check(*, side: str, symbol: str, their_price: float, settings: dict[str, Any
         return verdict(SKIP, LT_ALLOWANCE, f"allowance used: {money(used_usd)} of {money(allowance)} "
                                            f"(this step is {money(cost)})")
     return verdict(GO, plan={"qty": qty, "limit": limit, "stop": stop, "cost_usd": round(cost, 2),
-                             "reference": ref, "apart_pct": round(apart, 2)})
+                             "reference": ref, "apart_pct": round(apart, 2),
+                             "ssr": ssr if side == "short" else None})
 
 
 def _cap_words(cap: float) -> str:

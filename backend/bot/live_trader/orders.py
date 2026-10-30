@@ -140,6 +140,30 @@ def order_state(row: dict[str, Any] | None) -> str:
     return "dead" if status in DEAD else "working"
 
 
+def closed_by_others(symbol: str, side: str, since_ts: float, *,
+                     not_ids: set[int] | frozenset[int] = frozenset()) -> list[dict[str, Any]]:
+    """Paper's filled orders that closed ``side`` of ``symbol`` at or after ``since_ts``, the newest first, none of
+    them the Live Trader bot's nor in ``not_ids``: what the operator, the loss limit's Auto sell, KILL or Nova's day
+    cover sold or covered. Raises ``ReadError`` when Paper cannot be read."""
+    want = "SELL" if side == "long" else "BUY"
+    try:
+        rows = _paper().ledger.closed_orders()
+    except Exception as exc:
+        raise ReadError(f"Paper's orders could not be read: {exc}") from exc
+    out = []
+    for r in rows:
+        if order_state(r) != "filled" or str(r.get("symbol") or "").upper() != symbol.upper():
+            continue
+        if str(r.get("side") or "").upper() != want or r.get("order_origin") == LT_ORIGIN:
+            continue
+        if r.get("effect") not in (None, "closes") or r.get("position_side") not in (None, side):
+            continue                       # a buy that opened a long is not the cover of a short
+        if int(r["order_id"]) in not_ids or float(r.get("fill_ts") or 0.0) < since_ts:
+            continue
+        out.append(r)
+    return out
+
+
 def held(symbol: str, side: str) -> float | None:
     """The shares Paper holds in ``symbol`` on ``side`` (a positive count); None when Paper cannot be read."""
     try:

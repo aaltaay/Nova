@@ -122,6 +122,8 @@ LT_ADD_IS_SALE = "LT_ADD_IS_SALE"        # the average moved away from the marke
 LT_NO_CLOCK = "LT_NO_CLOCK"
 LT_BLANK_BAR = "LT_BLANK_BAR"
 LT_RETURN_SWITCH = "LT_RETURN_SWITCH"
+LT_SSR_UNKNOWN = "LT_SSR_UNKNOWN"        # a wait: the short's SSR is being read, so it is not priced over the bid yet
+LT_NOT_FILLED = "LT_NOT_FILLED"          # a step its time to live cancelled: nobody took it at its limit
 
 # -- route errors ---------------------------------------------------------------------------------
 LT_ERR_INVALID = "LIVE_TRADER_INVALID"

@@ -767,9 +767,14 @@ temp file and rename; unknown version refuses loud, and the bot then opens nothi
 {schema_version: 1, day: "YYYY-MM-DD" (the desk's day, 04:00 ET),
  positions: [{id, host, row_id, symbol, side: "long" | "short", venue: "paper", qty, cost_usd, steps,
               adds_seen, adds_followed, trimmed (absent: false), opened_ts, state: "entering" | "open" | "closing",
-              order: {id, step: "entry" | "add" | "already_open" | "close", sent_ts, qty, limit, stop} | null,
+              order: {id, step: "entry" | "add" | "already_open" | "close", sent_ts, qty, limit, stop,
+                     ssr: "on" | "off" | "unknown" | null (a short's, as priced), timed_out_ts (absent until its
+                     time to live cancels it)} | null,
               stop_order_ids: [int], fills: [{step, qty, price, ts, order_id}], feed: {ts, price}}],
- closed: [{...the position, closed_ts, why, exit_fills: [{qty, price, ts, order_id}], pl_usd}],
+ closed: [{...the position, closed_ts, why, exit_fills: [{qty, price, ts, order_id, kind,
+                                                         from: [[order_id, shares]] (an exit priced from
+                                                         Paper's own closing orders: each share of those
+                                                         orders prices one position only)}], pl_usd}],
  retire: [{order_id, symbol, host, since_ts}]}
 ```
 
@@ -784,7 +789,13 @@ is the same position, re-keyed to the new `row_id`, never bought twice; so is on
 the same second, "A stock the feed reads two ways"). `closed` keeps today's (at most
 200); a day other than today's is sold at once on load ("held from DAY: never overnight") and cleared.
 Each pass reconciles with Paper's ledger: shares the account no longer holds (the operator sold them, a
-buy stop or the loss limit's Auto sell did) leave the position, said once. A short's buy stops cover what it held: when shares
+buy stop, the loss limit's Auto sell, KILL or Nova's day cover did) leave the position, said once, at Paper's own
+fill: a buy stop's, or the newest filled orders that closed that stock and side since the position's own last
+fill and are not the bot's (`orders.closed_by_others`), averaged over the shares -- so the card's P/L counts them
+(before 2026-10-30 they were booked with no price, so the card counted them $0). The day cover's
+order is the bot's close (the bot hands its shorts to it at the cover time), so its fee counts on the card when
+that one order closed exactly these shares; your own order's, or KILL's, does not. A position Paper shows fewer
+closing shares for stays unpriced (`pl_usd` null), never guessed. A short's buy stops cover what it held: when shares
 of a short leave it that way, what the bot still holds of it is covered (change `kind: "outside"`), and once the
 position holds nothing its stops wait on `retire` until Paper shows them cancelled -- a bot short never holds
 without a stop for exactly its shares, and a stale stop can never buy past flat or cover a later short. A book that cannot be written stops every new step
@@ -851,7 +862,14 @@ operator approved (Entry: You) keeps that yes through the wait and is sent once 
 is asked for again (Codex review, PR #1026); and every
 stock the bot holds short has its borrow read again before it goes stale (`shortability.refresh_due`, as an open
 Trader tab does), so the host's add finds it fresh (2026-10-16: an add 72 s after the short met a read 75 s old and
-was skipped). Working after the Paper sleeve's `working_ttl_sec`, it is cancelled. A close cancels the
+was skipped). A short whose SSR reads `unknown` -- IBKR's daily bars asked for (urgently: the bot is about to
+short) but not landed yet -- waits up to `LT_WAIT_SEC` for the read (`LT_SSR_UNKNOWN`, a wait on the card), then is
+priced as if SSR were on; priced before the read, it rested at the ask and was cancelled unfilled, though the
+stock was not under SSR. The wait is not made longer at the ask: Paper fills a resting limit on the first
+print at its price with no queue, so a longer rest would fill on Paper what Live, at the back of the queue, would
+not. Working after the Paper sleeve's `working_ttl_sec`, it is cancelled, and a step that ends so unfilled is a
+skip, `LT_NOT_FILLED`, on the card with its limit and, for a short, its SSR ("the short at 40.01 was not taken in
+4 s: SSR is on, so a short may sell only above the bid"); a step its own close cancels stays a note. A close cancels the
 position's buy stops (source `cancel_working`) and sends the protective flatten (source `flatten`, the
 practice market ticket) for the bot's shares, never more than the account holds; both name
 `target_venue: "paper"`. `live_trader` is one of the door's Nova-close origins on Paper and Sim only
@@ -870,7 +888,8 @@ time of the change. A skip is written once per position, step and code. Codes: `
 `LT_ALLOWANCE`, `LT_ADDS_DONE`, `LT_SHORTS_OFF`, `LT_AGAINST`, `LT_NOT_HELD`, `LT_VENUE`, `LT_BOT_OFF`,
 `LT_FROZEN`, `LT_AFTER_SELL_ALL`, `LT_SHORT_HOURS`, `LT_NOT_PRICEABLE`, `LT_ASK_EXPIRED`, `LT_ASK_SKIPPED`,
 `LT_ALREADY_OPEN`, `LT_OFF_AIR`, `LT_HIDDEN`, `LT_LOSS_LIMIT`, `LT_NOT_ON_BAR`, `LT_OTHER_HOST`, `LT_ROW_UNREAD`,
-`LT_ADD_IMPLAUSIBLE`, `LT_ADD_IS_SALE`, `LT_NO_CLOCK`, `LT_FAMILY_OFF`, `LT_KEY_OFF`. Lines written before 2026-10-15 may carry the
+`LT_ADD_IMPLAUSIBLE`, `LT_ADD_IS_SALE`, `LT_NO_CLOCK`, `LT_FAMILY_OFF`, `LT_KEY_OFF`, `LT_NOT_FILLED` (its line
+carries the step's `order_id`). `LT_SSR_UNKNOWN` is a wait, never a skip. Lines written before 2026-10-15 may carry the
 retired change kinds `key_off` and `bot_off` (a key or the Bot switch turned off sold everything then). `LT_BLANK_BAR` and `LT_RETURN_SWITCH` are waits, said as `note` lines
 (`step` `blank` for a held sell, `lt_blank_bar` / `lt_return_switch` for a held take), never skips.
 
