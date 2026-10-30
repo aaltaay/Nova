@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:ndaq="http://www.nasdaqtrader.com/">
+  <channel>
+    <title>NASDAQTrader.com</title>
+    <link>http://www.nasdaqtrader.com</link>
+    <description>NASDAQ Trade Halts</description>
+    <ttl>1</ttl>
+    <ndaq:numItems>1</ndaq:numItems>
+    <item>
+      <title>XYZ</title>
+      <ndaq:IssueSymbol>XYZ</ndaq:IssueSymbol>
+      <ndaq:IssueName>XYZ Example Corp</ndaq:IssueName>
+      <ndaq:Mkt>Q</ndaq:Mkt>
+      <ndaq:ReasonCode>LUDP</ndaq:ReasonCode>
+      <ndaq:PauseThresholdPrice />
+      <ndaq:HaltDate>01/05/2026</ndaq:HaltDate>
+      <ndaq:HaltTime>10:15:00</ndaq:HaltTime>
+      <ndaq:ResumptionDate>01/05/2026</ndaq:ResumptionDate>
+      <ndaq:ResumptionQuoteTime>10:15:00</ndaq:ResumptionQuoteTime>
+      <ndaq:ResumptionTradeTime>10:20:00</ndaq:ResumptionTradeTime>
+    </item>
+  </channel>
+</rss>

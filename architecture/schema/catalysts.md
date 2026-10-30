@@ -116,7 +116,9 @@ n_items, detail, checked_ts)` and `verdicts` per rules version. An `edgar` item'
 writes a `Z` on every `acceptanceDateTime`, but some filers' JSON holds Eastern wall time behind
 it (`research/catalysts/edgar_clock.py`; ADR 024 amendment 2026-09-30). SEC's bulk
 `submissions.zip` and `companyfacts.zip` are kept beside it under `edgar/`, Nasdaq's halt
-pages under `halts/raw/`. Nasdaq's halt history (2021-10 on) is loaded into the leaderboard's
+pages under `halts/raw/` (one per trading day; a day counts as downloaded only when its page reads
+as RSS, so a bot-check answer is never kept as the day and is asked for again, #1075). Nasdaq's
+halt history (2021-10 on) is loaded into the leaderboard's
 `halt_events` (source `nasdaq_trade_halt_rss`) by `research/catalysts/backfill_halts.py`, and
 its checks and labelled items into the leaderboard's `catalyst_checks` / `catalyst_items` by
 `research/catalysts/export_leaderboard.py` (#498), so Sim playback of a past day shows each

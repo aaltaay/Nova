@@ -30,10 +30,28 @@ moved replaces its rows outright: the empty-update "last-good" hold covers a
 blip inside one session only. Before this a desk left open over Monday 04:00
 kept Friday's After Hours and Losers rows all premarket (operator report,
 2026-10-19).
-The HOD Momo feed rolls the same way: when its session rolls, `/ws/hod-momo`
-restates `{"type": "initial", "alerts": [], "total": 0}` to every open desk
-(`hod_momo_alerts.broadcast_initial`, also used by `DELETE
-/api/hod-momo/alerts`), since an `alert` frame only adds to a desk's list.
+The HOD Momo feed rolls the same way (#800): when its 04:00 ET session key
+moves, the backend archives the ending session's alerts under that day,
+clears the session's collections and restates `{"type": "initial", "alerts":
+[], "total": 0}` on `/ws/hod-momo` to every open desk, with no reconnect,
+since an `alert` frame only adds to a desk's list. It is the frame a desk
+gets on connect and after `DELETE /api/hod-momo/alerts`, and one path sends
+all three (`hod_momo_alerts.restate_feed`, `add_desk`): the list changes, and
+every frame about it goes out, under the feed's lock (`HodMomoState.feed_lock`,
+also held while the flush loop adds and sends due alerts). So each desk gets
+an alert raised before the restatement ahead of it and one raised after it
+behind it, and no alert of the ending session follows the restated list. A
+desk whose send fails is dropped and never stops the others; a check that
+finds the same session sends nothing; a cold start is no rollover and keeps
+the session's saved alerts. The desk (`useHodMomoStream`) reads any `initial`
+frame as the whole list: rows and count are replaced together, alerts still
+waiting in its batch are dropped, and a snapshot never pings or raises a
+watch-list toast -- only an `alert` frame it has not seen does. The Scanner's
+HOD Momo / Running Up lists and counts and the Trader's Focus rail read that
+one list (a pop-out window holds its own socket and gets the same frame). A
+Sim desk off the live edge keeps the alert history at its playhead
+(`HodMomoProvider`); the live list underneath is replaced all the same, so the
+live edge shows the new session.
 
 No socket frame on `/ws/scanner` or `/ws/hod-momo` carries a bare `NaN` /
 `Infinity`: a non-finite float is `null` (`scanner_wire.dumps_wire`,

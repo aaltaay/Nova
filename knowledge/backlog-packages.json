@@ -234,7 +234,8 @@
         940,
         1079,
         1129,
-        1233
+        1233,
+        1244
       ],
       "done": [
         "A full pytest run writes nothing to backend/logs/blast.log.",
@@ -365,6 +366,19 @@
             "frontend/src/sample_data/sampleDeskNoWrites.test.tsx",
             "frontend/src/sample_data/",
             "frontend/src/sim/simDayCalendarModel.test.ts"
+          ]
+        },
+        {
+          "title": "test: no test changes pytest's own priority class",
+          "issues": [
+            1244
+          ],
+          "note": "Found by #1245's priority probe: in-process app boots let the trading-path keeper raise pytest itself to Above Normal at 215 test boundaries. Keep the keeper off pytest's own pid under tests (production unchanged) and fail any test that moves pytest's priority class in either direction. Routed by the 2026-10-30 triage sweep.",
+          "gated": false,
+          "touches": [
+            "backend/tests/conftest.py",
+            "backend/tests/priority_guard.py",
+            "backend/tests/test_pytest_priority_guard.py"
           ]
         }
       ]

@@ -74,6 +74,10 @@ os.environ["IBKR_GATEWAY_MODE"] = os.environ.get("IBKR_GATEWAY_MODE") or "paper"
 # watcher and writer threads running for the rest of the session; the perf
 # tests drive those modules directly (and runtime.start under their own switch).
 os.environ["NOVA_PERF"] = "0"
+# ADR 045 / #1244: the trading-path keeper raises the API's own pid -- in-process, pytest's -- to Above Normal every
+# 2 s, and the thread that boots the app to Above Normal too; one test that booted the app left both for the rest of
+# the run (and the keeper read this PC's IB Gateway). Off for every app a test boots; its tests use fake pids.
+os.environ["NOVA_PROCESS_PRIORITY"] = "0"
 # ADR 028: an app a test boots must not poll IBKR's short-stock file; the borrow tests drive the feed directly.
 os.environ["NOVA_BORROW_FEED"] = "0"
 # ADR 048's borrow recording writes on its own thread; its tests turn it on and write in-line.
@@ -100,6 +104,20 @@ import constants_hod_momo as hod_const
 import hod_momo as hm
 import hod_momo_metrics as metrics
 from hod_momo_state import HodMomoState
+from tests import priority_guard
+
+# What this run started with, before any test (#1244, #1079); None off Windows.
+_PYTEST_PRIORITY = priority_guard.read()
+
+
+@pytest.fixture(autouse=True)
+def _hold_pytest_priority():
+    # A test that moves pytest's own CPU class or main-thread priority, either way, fails here and is put back, so
+    # the next test (and every child pytest starts) runs at what the run started with.
+    yield
+    moved = priority_guard.put_back(_PYTEST_PRIORITY)
+    if moved:
+        pytest.fail(moved, pytrace=False)
 
 
 @pytest.fixture(autouse=True)
