@@ -186,17 +186,78 @@ def test_a_failed_build_leaves_no_bundle(tmp_path, monkeypatch):
     assert not any((root / "frontend/.chart-gateway-build").glob("*/chart-gateway.html"))
 
 
+def no_waits(monkeypatch):
+    monkeypatch.setattr(runner, "RENAME_RETRY_PAUSES", (0.0, 0.0, 0.0))
+
+
 def test_a_build_that_cannot_be_moved_into_place_says_why(tmp_path, monkeypatch):
     # 2026-10-18: the desk's Vite dev server watched the new build's assets folder, so Windows refused the rename
     # and every export then failed with a misleading "readiness refused HTTP 404" on a folder that never existed.
     root, _ = fake_frontend(tmp_path, monkeypatch)
+    no_waits(monkeypatch)
+    tries = []
 
     def refused(self, target):
+        tries.append((self, target))
         raise PermissionError(5, "Access is denied", str(self))
     monkeypatch.setattr(runner.Path, "rename", refused)
-    with pytest.raises(RuntimeError, match="could not be moved into place.*Access is denied"):
+    with pytest.raises(RuntimeError, match="could not be moved into place.*Access is denied") as failed:
         runner._gateway_bundle("node", root / "vite.js")
+    assert len(tries) == 4, "tried once, then once after each pause"
+    staging, bundle = tries[0]
+    assert f"renaming {staging} to {bundle} was refused 4 times" in str(failed.value)
+    assert f"{bundle} does not exist" in str(failed.value)
     assert not list((root / "frontend/.chart-gateway-build").iterdir()), "the staging folder is removed"
+
+
+def test_a_rename_refused_for_a_moment_is_tried_again(tmp_path, monkeypatch):
+    # #1084: Windows refused the move once (PermissionError 13) with no other export in sight; a brief retry lands it.
+    root, _ = fake_frontend(tmp_path, monkeypatch)
+    no_waits(monkeypatch)
+    real_rename = runner.Path.rename
+    tries = []
+
+    def refused_once(self, target):
+        tries.append(target)
+        if len(tries) == 1:
+            raise PermissionError(13, "Access is denied", str(self))
+        return real_rename(self, target)
+    monkeypatch.setattr(runner.Path, "rename", refused_once)
+    bundle = runner._gateway_bundle("node", root / "vite.js")
+    assert len(tries) == 2 and (bundle / "chart-gateway.html").is_file()
+    assert [p.name for p in bundle.parent.iterdir()] == [bundle.name], "no staging folder is left"
+
+
+def test_a_concurrent_export_that_moved_the_same_key_first_is_used(tmp_path, monkeypatch):
+    root, _ = fake_frontend(tmp_path, monkeypatch)
+    no_waits(monkeypatch)
+    tries = []
+
+    def beaten(self, target):
+        tries.append(target)
+        target.mkdir()                     # the other export's move lands first, whole
+        (target / "chart-gateway.html").write_text("<html>the other export's</html>", encoding="utf-8")
+        raise FileExistsError(183, "Cannot create a file when that file already exists", str(target))
+    monkeypatch.setattr(runner.Path, "rename", beaten)
+    bundle = runner._gateway_bundle("node", root / "vite.js")
+    assert len(tries) == 1, "a complete bundle in place is used at once"
+    assert (bundle / "chart-gateway.html").read_text(encoding="utf-8") == "<html>the other export's</html>"
+    assert [p.name for p in bundle.parent.iterdir()] == [bundle.name], "this export's build is dropped"
+
+
+def test_a_folder_without_its_page_is_never_used(tmp_path, monkeypatch):
+    # #1084: after any refused move the old code returned the key's folder, page or not; the renderer then answered
+    # "readiness refused HTTP 404".
+    root, _ = fake_frontend(tmp_path, monkeypatch)
+    no_waits(monkeypatch)
+
+    def blocked(self, target):
+        (target / "assets").mkdir(parents=True, exist_ok=True)
+        raise FileExistsError(183, "Cannot create a file when that file already exists", str(target))
+    monkeypatch.setattr(runner.Path, "rename", blocked)
+    with pytest.raises(RuntimeError, match="holds no chart-gateway.html"):
+        runner._gateway_bundle("node", root / "vite.js")
+    assert not list((root / "frontend/.chart-gateway-build").glob(".tmp-*")), "the staging folder is removed"
 
 
 def test_the_desk_dev_server_never_watches_the_chart_renderer_builds():

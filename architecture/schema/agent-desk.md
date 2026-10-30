@@ -135,7 +135,10 @@ The renderer is a production build of the chart-only page served by `vite previe
 (git-ignored; no schema, a build artifact): `key` hashes every `frontend/src` file's
 path, size and modification time plus the gateway page, its Vite config and the
 lockfile, so any edit rebuilds once (into a temp folder, then moved) and drops older
-builds. The receipt reports `renderer_bundle` and `renderer_bundle_ms`.
+builds. A move Windows refuses is tried again for about 4 s; a concurrent export's
+complete build of the same key is used instead; a folder without `chart-gateway.html` is
+never used, and a move still refused fails naming both folders (#1084). The receipt
+reports `renderer_bundle` and `renderer_bundle_ms`.
 
 On Windows, each command starts suspended, joins an owned unnamed Job, and only then
 runs, so it and everything it starts are in the Job before it executes (#1061: under
