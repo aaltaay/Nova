@@ -58,7 +58,9 @@ header pill's words ("Claude · Buy set SMPL 4.39" -- the price a break triggers
 route every 1.5 s (6 s while the window is hidden) feeds the header pill and its panel (Take Claude's line, Give it
 back, Stop Claude after a confirm), Claude's toasts and voice (the header mute silences it), its order and break lines
 on the 10-second, 1- and 5-minute charts, the violet frame on its Level 2, the lines-full box (`agent_reserved`) and
-"Claude" in Sent by (`order_origin: "claude"`).
+"Claude" in Sent by (`order_origin: "claude"`). The pill shows on every live-desk day once the route has answered:
+"Claude · Off", muted, while the seat is off, so the operator sees Claude is off (operator, 2026-10-30); never on
+the sample desk.
 
 **Claude's limits** (checked before the door, `agent_trader.rules`): long only; every entry a bracket with its stop
 and one or two targets; whole shares, at most 1,000; at most $150 between entry and stop; no daily trade count

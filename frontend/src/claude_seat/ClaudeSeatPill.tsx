@@ -1,8 +1,8 @@
 /**
  * The Claude pill in the header (ADR 068, the approved design's 1): always says what Claude is doing -- "Claude ·
  * Buy set SMPL 4.39", "Claude · In SMPL +$42.00", "Waiting for a Level 2 line", "Paused by you", "Done for today". A
- * click opens the panel (2). It shows while the seat is on, and "Off" muted on a day it was on; never on the
- * sample desk. It also hosts Claude's toasts (5), so the header mounts one element.
+ * click opens the panel (2). It always shows -- "Claude · Off" muted while the seat is off, so the operator sees
+ * Claude is off -- never on the sample desk. It also hosts Claude's toasts (5), so the header mounts one element.
  */
 import { useEffect, useRef, useState } from 'react';
 import { isSampleView } from '../sample_data/sampleNav';
