@@ -167,6 +167,22 @@ describe('stepLiveVolume', () => {
     expect(stepLiveVolume(s, at('2026-09-25T12:05:02Z'), 900).volume).toBe(500);
   });
 
+  it('starts a later day over even when its first update carried no volume', () => {
+    // PR #1276 review: yesterday's mark 1,000,000, then today null, 400, 900.
+    let s = stepLiveVolume(EMPTY_LIVE_VOLUME, at('2026-09-24T20:03:50Z'), 1_000_000);
+    s = stepLiveVolume(s, at('2026-09-25T12:04:01Z'), null);
+    expect(s).toMatchObject({ mark: null, volume: null });
+    s = stepLiveVolume(s, at('2026-09-25T12:04:20Z'), 400);
+    expect(s).toMatchObject({ mark: 400, volume: null });
+    expect(stepLiveVolume(s, at('2026-09-25T12:05:02Z'), 900).volume).toBe(500);
+  });
+
+  it('starts a later day over even when its first total is above yesterday\'s', () => {
+    let s = stepLiveVolume(EMPTY_LIVE_VOLUME, at('2026-09-24T20:03:50Z'), 1_000_000);
+    s = stepLiveVolume(s, at('2026-09-25T13:30:01Z'), 1_400_000);
+    expect(s).toMatchObject({ mark: 1_400_000, volume: null });
+  });
+
   it('takes no 10^6-scaled total for volume', () => {
     // GRAL 2026-09-21: 2,106,490, then 2,071,000,800,607 in the same second.
     let s = stepLiveVolume(EMPTY_LIVE_VOLUME, at('2026-09-21T16:35:50Z'), 2_000_000);

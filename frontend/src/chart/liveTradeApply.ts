@@ -83,11 +83,12 @@ export const EMPTY_LIVE_VOLUME: LiveVolumeState = { mark: null, bar: null, volum
  * highest total counts: a lower total the same day is a second counter or a
  * stale figure on the line (XLAB 2026-10-16 read 171,624,612 / 166,339,148 /
  * 171,624,612), so it counts nothing and the mark stays -- taken as a new
- * baseline, each return to the real total counted as new shares. A lower
- * total on a later day is that day's count: it restarts the baseline and
- * leaves that bar unknown. An update with no day volume, or a total no stock
- * trades (`CHART_LIVE_DAY_VOLUME_MAX`), keeps the mark, so the next one's
- * growth still covers it.
+ * baseline, each return to the real total counted as new shares. A later
+ * day's count starts over: its first total is a baseline and that bar stays
+ * unknown, even when the day's first update carried no volume (PR #1276
+ * review). An update with no day volume, or a total no stock trades
+ * (`CHART_LIVE_DAY_VOLUME_MAX`), keeps the mark, so the next one's growth
+ * still covers it.
  *
  * Updates arrive when the price changes; shares traded at an unchanged price
  * just before a bar closes are counted in the next bar. The store's own bar
@@ -98,21 +99,20 @@ export function stepLiveVolume(
   bar: Time,
   dayVolume: number | null | undefined,
 ): LiveVolumeState {
-  const newBar = state.bar === null || state.bar !== bar;
-  const base = newBar ? (state.mark !== null ? 0 : null) : state.volume;
+  const from = state.bar !== null && !sameEtDay(state.bar, bar) ? EMPTY_LIVE_VOLUME : state;
+  const newBar = from.bar === null || from.bar !== bar;
+  const base = newBar ? (from.mark !== null ? 0 : null) : from.volume;
   const total = typeof dayVolume === 'number' && Number.isFinite(dayVolume) && dayVolume >= 0
     && dayVolume <= CHART_LIVE_DAY_VOLUME_MAX
     ? dayVolume
     : null;
-  if (total === null) return { mark: state.mark, bar, volume: base };
-  if (state.mark === null || (total < state.mark && !sameEtDay(state.bar, bar))) {
-    return { mark: total, bar, volume: null };
-  }
-  if (total <= state.mark) return { mark: state.mark, bar, volume: base };
+  if (total === null) return { mark: from.mark, bar, volume: base };
+  if (from.mark === null) return { mark: total, bar, volume: null };
+  if (total <= from.mark) return { mark: from.mark, bar, volume: base };
   return {
     mark: total,
     bar,
-    volume: base === null ? null : base + (total - state.mark),
+    volume: base === null ? null : base + (total - from.mark),
   };
 }
 

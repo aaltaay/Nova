@@ -90,10 +90,15 @@ def _master_increment(prior: float | None, day_volume: float | None) -> tuple[fl
 
 
 def minute_counts(ticks: Iterable[tuple[float, float | None]]) -> dict[float, MinuteCounts]:
-    """Each minute's increments by both rules, in arrival order, from one symbol-day's ``(ts, day_volume)``."""
+    """Each minute's increments by both rules, in arrival order, from one symbol-day's ``(ts, day_volume)``.
+
+    An update stamped before the newest minute goes where each builder put it: the builder now counts its
+    shares in the newest minute (``l1_minute.on_last``); master dropped them, its baseline moved on.
+    """
     out: dict[float, MinuteCounts] = {}
     master = fixed = None
     last_ts: float | None = None
+    newest: float | None = None
     for ts, day_volume in ticks:
         ts = float(ts)
         if ts != int(ts):
@@ -101,15 +106,18 @@ def minute_counts(ticks: Iterable[tuple[float, float | None]]) -> dict[float, Mi
         if not in_trading_session(ts):
             master = fixed = last_ts = None
             continue
-        minute = out.setdefault(float(int(ts // 60) * 60), MinuteCounts())
+        stamped = float(int(ts // 60) * 60)
+        newest = stamped if newest is None else max(newest, stamped)
+        minute = out.setdefault(newest, MinuteCounts())
         if last_ts is not None and ts - last_ts > GAP_SEC:
             minute.after_gap = True
         last_ts = ts if last_ts is None else max(last_ts, ts)
         increment, fixed = volume_increment(fixed, size=None, cum_volume=day_volume)
         minute.fixed.append(increment)
         increment, master, dropped = _master_increment(master, day_volume)
-        minute.master.append(increment)
-        minute.drops.append(dropped)
+        if stamped == newest:
+            minute.master.append(increment)
+            minute.drops.append(dropped)
     return out
 
 
@@ -117,15 +125,17 @@ def classify(stored: float, counts: MinuteCounts) -> tuple[str, float]:
     """``(kind, volume)``: ``fragment`` and ``phantom`` take the builder's count, the rest keep ``stored``.
 
     Where master took a lower total as a baseline it added that update's lastSize, so a match may sit up to
-    ``LASTSIZE_SLACK`` a drop above master's count (exact when there was none). A phantom is told only when
-    master's count is further from the builder's than that slack. A minute after a silence only comes down:
-    its count holds the shares traded while the line was away, and a raise would land them on this minute.
+    ``LASTSIZE_SLACK`` a drop above master's count (exact when there was none). ``phantom`` is master's whole
+    count told apart from the builder's by more than that slack: it comes down where master counted a second
+    counter's return, and goes up where master dropped an update stamped before the newest minute. A minute
+    after a silence only comes down: its count holds the shares traded while the line was away, and a raise
+    would land them on this minute.
     """
     now = round(sum(counts.fixed))
     master = round(sum(counts.master))
     have = round(float(stored))
     slack = LASTSIZE_SLACK * sum(counts.drops)
-    phantom = master - now > slack and master <= have <= master + slack
+    phantom = abs(master - now) > slack and master <= have <= master + slack
     if have == now:
         return "whole", float(stored)
     if counts.after_gap:

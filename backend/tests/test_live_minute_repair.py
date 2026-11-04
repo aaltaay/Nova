@@ -106,6 +106,20 @@ def test_minute_counts_take_the_streaming_line_only_and_count_it_both_ways():
     assert at(20, 30) not in minutes
 
 
+def test_an_update_stamped_before_the_newest_minute_goes_where_each_builder_put_it():
+    """The builder counts its shares in the newest minute; master dropped them (PR #1276 review)."""
+    ticks = [(at(10, 0, 0), 1_000), (at(10, 0, 20), 1_100), (at(10, 1, 1), 1_200),
+             (at(10, 0, 30), 1_300), (at(10, 0, 40), 1_400), (at(10, 1, 20), 1_500)]
+    minutes = repair.minute_counts(ticks)
+    assert (minutes[at(10, 0)].master, minutes[at(10, 0)].fixed) == ([0.0, 100.0], [0.0, 100.0])
+    assert (minutes[at(10, 1)].master, minutes[at(10, 1)].fixed) == ([100.0, 100.0], [100.0] * 4)
+    # What the builder writes now (100, 400) is left alone, the first minute included.
+    assert repair.classify(100, minutes[at(10, 0)]) == ("whole", 100.0)
+    assert repair.classify(400, minutes[at(10, 1)]) == ("whole", 400.0)
+    # What master wrote (it lost 10:00:30 and 10:00:40) takes the builder's count.
+    assert repair.classify(200, minutes[at(10, 1)]) == ("phantom", 400.0)
+
+
 # -- the archive -------------------------------------------------------------------------------------
 
 
