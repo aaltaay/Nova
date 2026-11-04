@@ -132,6 +132,13 @@ def _past_budget(holder: str, symbol: str, new: float, used: float, budget_usd: 
     return None
 
 
+def _closes(row: dict[str, Any]) -> bool:
+    """The row says it closes: a bracket's target or stop (its entry's exit, ``parent_id`` set), or any row placed
+    as a close (``effect``). Read from the row, never from what is held now -- a short bracket's BUY stop waits
+    while nothing is held yet, and it still only ever covers (ADR 048)."""
+    return row.get("effect") == "closes" or row.get("parent_id") is not None or row.get("leg_role") in ("target", "stop")
+
+
 def budget_refusal(ledger: Any, row: dict[str, Any], price: float) -> tuple[str, str] | None:
     """The bots' budget for a working bot entry at ``price`` -- a reprice, or its fill: the bots' open shares and
     their other working entries, plus this one at ``price``. None for your orders, closes and Sim."""
@@ -141,6 +148,8 @@ def budget_refusal(ledger: Any, row: dict[str, Any], price: float) -> tuple[str,
     holder = holder_of(row)
     if owners is None or book_of(holder) != OWNER_BOTS or holder is None:
         return None
+    if _closes(row):
+        return None  # a close -- a bracket's exit, even one still waiting on its entry -- never spends the budget
     sym = str(row["symbol"]).strip().upper()
     if _direction(str(row["side"]).strip().upper(), bool(row.get("short_entry")), _held_by(holder, owners, sym)) == 0:
         return None

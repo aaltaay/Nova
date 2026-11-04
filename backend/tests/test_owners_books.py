@@ -261,3 +261,17 @@ def test_the_bots_budget_holds_through_a_reprice_and_at_the_fill() -> None:
     reason, code = order_rules.fill_refusal(broker.ledger, row, 50.0)
     assert code == OWNERS_BOTS_BUDGET_CODE and reason.endswith("This order was cancelled at its fill.")
     assert order_rules.fill_refusal(broker.ledger, row, 9.5) is None
+
+
+def test_a_bots_waiting_short_bracket_stop_is_never_charged_to_the_budget() -> None:
+    """PR #1270 review: before a bot's short entry fills, its BUY stop still only ever covers -- moving it up is
+    never a new entry against the bots' budget."""
+    from practice.broker import PracticeBroker
+
+    broker = PracticeBroker(_Quote(), _ledger(), "NOVA-PAPER", venue="paper")
+    placed = broker.place_bracket("SPCX", "SELL", 400, 45.0, None, 47.0, short_entry=True, source="bot",
+                                  origin="live_trader")
+    assert placed["ok"], placed                                   # $18,000 short entry rests over the 40.02 ask
+    moved = broker.replace(placed["stop_order_id"], stop_price=48.0)
+    assert moved["ok"] is True, moved
+    assert broker.ledger.working_row(placed["stop_order_id"])["stop_price"] == 48.0
