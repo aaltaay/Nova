@@ -14,6 +14,12 @@ const cancelAllOrdersForSymbol = vi.fn();
 const confirmApp = vi.fn();
 const alertApp = vi.fn();
 
+const desk = vi.hoisted(() => ({ venue: 'paper' as string | null }));
+
+vi.mock('../ibkr/confirmedDeskVenue', () => ({
+  getConfirmedDeskVenueSnapshot: () => ({ venue: desk.venue, generation: null }),
+}));
+
 vi.mock('../ibkr/placeOrder', () => ({
   cancelAllOrdersForSymbol: (...args: unknown[]) => cancelAllOrdersForSymbol(...args),
 }));
@@ -31,6 +37,7 @@ describe('GlobalWorkingMenu', () => {
   const onClose = vi.fn();
 
   beforeEach(() => {
+    desk.venue = 'paper';
     cancelAllOrdersForSymbol.mockReset().mockResolvedValue({
       ok: true,
       cancelled: [1],
@@ -57,23 +64,21 @@ describe('GlobalWorkingMenu', () => {
     consumeOpenTradingTabRequest();
   });
 
-  function renderMenu(workingCount = 1) {
+  function renderMenu(workingCount = 1, symbols = ['AAPL']) {
     act(() => {
       root.render(
         <GlobalWorkingMenu
           workingOrders={
             workingCount
-              ? [
-                  {
-                    order_id: 1,
-                    symbol: 'AAPL',
-                    side: 'BUY',
-                    qty: 10,
-                    order_type: 'LMT',
-                    limit_price: 1,
-                    status: 'Submitted',
-                  },
-                ]
+              ? symbols.map((symbol, index) => ({
+                  order_id: index + 1,
+                  symbol,
+                  side: 'BUY',
+                  qty: 10,
+                  order_type: 'LMT',
+                  limit_price: 1,
+                  status: 'Submitted',
+                }))
               : []
           }
           closedOrders={[
@@ -117,9 +122,56 @@ describe('GlobalWorkingMenu', () => {
       await Promise.resolve();
     });
     expect(confirmApp).toHaveBeenCalled();
-    expect(cancelAllOrdersForSymbol).toHaveBeenCalledWith('AAPL');
+    expect(cancelAllOrdersForSymbol).toHaveBeenCalledWith('AAPL', undefined, 'paper');
     expect(onRefresh).toHaveBeenCalled();
     expect(onClose).toHaveBeenCalled();
+  });
+
+  async function cancelAll() {
+    await act(async () => {
+      (container.querySelector('[data-testid="global-working-cancel-all"]') as HTMLButtonElement).click();
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(onClose).toHaveBeenCalled());
+  }
+
+  it('names the venue read before the confirm, even when the desk moves during it', async () => {
+    confirmApp.mockImplementation(async () => {
+      desk.venue = 'live'; // the desk moved while the confirm was open
+      return true;
+    });
+    renderMenu(1);
+
+    await cancelAll();
+
+    expect(cancelAllOrdersForSymbol).toHaveBeenCalledWith('AAPL', undefined, 'paper');
+  });
+
+  it('says once that the cancels stopped, however many stocks answered it', async () => {
+    const error = 'The desk moved from Paper to Live: the cancels stopped, none went to Live.';
+    cancelAllOrdersForSymbol.mockResolvedValue({ ok: false, cancelled: [], failed: [], error });
+    renderMenu(1, ['AAPL', 'MSFT']);
+
+    await cancelAll();
+
+    expect(alertApp).toHaveBeenCalledOnce();
+    expect(alertApp).toHaveBeenCalledWith({ title: 'Cancel all did not finish', message: error });
+    expect(onRefresh).toHaveBeenCalled();
+  });
+
+  it('a stock that failed still leaves the next one cancelled, and is shown', async () => {
+    cancelAllOrdersForSymbol.mockResolvedValueOnce({
+      ok: false,
+      cancelled: [],
+      failed: [{ order_id: 1, error: 'busy' }],
+      error: '1 cancel(s) failed',
+    });
+    renderMenu(1, ['AAPL', 'MSFT']);
+
+    await cancelAll();
+
+    expect(cancelAllOrdersForSymbol).toHaveBeenCalledWith('MSFT', undefined, 'paper');
+    expect(alertApp).toHaveBeenCalledWith(expect.objectContaining({ message: '1 cancel(s) failed' }));
   });
 
   it('View All Orders latches trading-tab request', () => {

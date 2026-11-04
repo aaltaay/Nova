@@ -369,6 +369,31 @@ def test_the_cancels_named_for_paper_never_reach_ibkr(book):
     assert len(for_venue("paper").working_orders()) == 1
 
 
+def test_a_stocks_cancels_named_for_paper_never_reach_ibkr(book):
+    """The header's Working menu: one DELETE per stock, each naming the venue it was confirmed on."""
+    set_venue("paper", persist=False)
+    working = for_venue("paper").place("WXYZ", "BUY", 5, "LMT", limit_price=1.0)
+    book.rows = [{"order_id": working["order_id"], "symbol": "WXYZ", "side": "SELL", "qty": 10}]
+    set_venue("live", persist=False)    # moved while the confirm was open
+
+    out = TestClient(app).delete("/api/ibkr/orders?symbol=WXYZ&venue=paper").json()
+
+    assert book.cancels == []
+    assert (out["ok"], out["cancelled"], out["symbol"]) == (False, [], "WXYZ")
+    assert "from Paper to Live" in out["error"]
+    assert len(for_venue("paper").working_orders()) == 1
+
+
+def test_a_named_cancel_still_cancels_while_the_desk_stays(book):
+    set_venue("paper", persist=False)
+    for_venue("paper").place("WXYZ", "BUY", 5, "LMT", limit_price=1.0)
+
+    out = TestClient(app).delete("/api/ibkr/orders?symbol=WXYZ&venue=paper").json()
+
+    assert (out["ok"], len(out["cancelled"]), out["error"]) == (True, 1, None)
+    assert for_venue("paper").working_orders() == []
+
+
 def test_cancel_all_holds_the_venue_it_read_on_arrival(book, monkeypatch):
     """No venue named (the Cancel All hotkey): the rows it read are still only that venue's."""
     set_venue("paper", persist=False)

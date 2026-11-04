@@ -25,6 +25,7 @@ import {
   captureBrowserAction,
 } from '../execution_latency';
 import { flattenSpendLockReason } from '../ibkr';
+import { getConfirmedDeskVenueSnapshot } from '../ibkr';
 import { shouldUseOutsideRth } from '../ibkr';
 import {
   buildBuyMarketShares,
@@ -124,6 +125,8 @@ export async function runNovaAction(
   if (action.kind === 'cancel_all_orders') {
     const gated = gateFor(action.kind, runtime);
     if (gated) return gated;
+    // Read at the keypress: the confirm names this account, so a desk that leaves it stops the cancels (#1281).
+    const { venue } = getConfirmedDeskVenueSnapshot();
     const mode = accountModeLabel(runtime.accountMode);
     const openCount = await countOpenWorkingOrders();
     const countPart =
@@ -138,6 +141,7 @@ export async function runNovaAction(
     try {
       const res = await cancelAllWorkingOrders(
         beginBrowserExecutionTiming('nova_action_cancel', actionTiming),
+        venue,
       );
       if (!res.ok && res.cancelled.length === 0) {
         return { ok: false, text: res.error ?? 'Cancel-all failed' };
