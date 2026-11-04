@@ -23,14 +23,48 @@ def isolated_archive(tmp_path, monkeypatch):
     bar_builder.reset_for_tests()
 
 
-def test_flush_elapsed_drops_quiet_open_bucket():
+def _minutes(symbol: str) -> list[tuple]:
+    conn = archive_db.get_connection()
+    try:
+        return [tuple(r) for r in conn.execute(
+            "SELECT ts, open, high, low, close, volume FROM bars_1m WHERE symbol = ? ORDER BY ts", (symbol,),
+        )]
+    finally:
+        conn.close()
+
+
+def test_flush_elapsed_writes_a_quiet_minute_once():
     m0 = int(1_700_000_000.0 // 60) * 60
     bar_builder.on_tape_print(symbol="QQQ", ts=m0 + 1, price=10.0, size=1)
     assert len(bar_builder._open) == 1
     assert bar_builder.flush_elapsed(m0 + 30, queued=False) == 0
-    assert len(bar_builder._open) == 1
     assert bar_builder.flush_elapsed(m0 + 61, queued=False) == 1
-    assert bar_builder._open == {}
+    assert bar_builder.flush_elapsed(m0 + 62, queued=False) == 0    # unchanged since: not written again
+    assert len(bar_builder._open) == 1                               # kept for a print that comes after it
+    assert _minutes("QQQ") == [(m0, 10.0, 10.0, 10.0, 10.0, 1.0)]
+
+
+def test_a_print_after_its_minute_was_written_rewrites_the_whole_minute():
+    """2026-11-04: a late print reopened an empty bucket and its one-print bar replaced the minute."""
+    m0 = int(1_700_000_000.0 // 60) * 60
+    bar_builder.on_tape_print(symbol="QQQ", ts=m0 + 1, price=10.0, size=100)
+    bar_builder.on_tape_print(symbol="QQQ", ts=m0 + 30, price=10.4, size=50)
+    assert bar_builder.flush_elapsed(m0 + 60, queued=False) == 1
+    bar_builder.on_tape_print(symbol="QQQ", ts=m0 + 59.6, price=10.2, size=7)
+    assert bar_builder.flush_elapsed(m0 + 61, queued=False) == 1
+    assert _minutes("QQQ") == [(m0, 10.0, 10.4, 10.0, 10.2, 157.0)]
+
+
+def test_a_print_stamped_before_the_newest_minute_never_writes_over_its_minute():
+    m0 = int(1_700_000_000.0 // 60) * 60
+    bar_builder.on_tape_print(symbol="QQQ", ts=m0 + 10, price=10.0, size=100)
+    bar_builder.on_tape_print(symbol="QQQ", ts=m0 + 70, price=11.0, size=10)    # rolls: m0 written
+    bar_builder.on_tape_print(symbol="QQQ", ts=m0 + 20, price=99.0, size=5)     # a clock that stepped back
+    bar_builder.flush_all()
+    assert _minutes("QQQ") == [
+        (m0, 10.0, 10.0, 10.0, 10.0, 100.0),            # untouched: no 99.00 high, no one-print bar
+        (m0 + 60, 11.0, 11.0, 11.0, 11.0, 15.0),        # the shares are real and count in the newest minute
+    ]
 
 
 def test_two_minutes_flush_two_bars():

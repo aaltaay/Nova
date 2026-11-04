@@ -459,6 +459,33 @@ changed. A store refresh no longer rebuilds the forming candle from the last
 trade (which flattened its open, high and low to one price every 30 s): the
 live tip is put back on top, merged with the store's bar for the same minute.
 
+**The store's live minute keeps every share** (operator report, 2026-11-04:
+"a bunch of volumes that are pointed towards a zero" on CRIS). `ibkr/l1_minute`
+puts an L1 update in the minute of IBKR's last-trade second, which trails the
+update's arrival (CRIS that morning: 0.76 s at the median, 13 s at most), while
+a quiet minute is written by the desk's clock once it ends. An update that
+arrived after that used to open a fresh bucket holding only itself, and its
+write replaced the minute's volume: 174 of CRIS's 271 live minutes held only
+their last one or two updates' shares (04:00 stored 641 while IBKR's day volume
+grew 130,136), 42.5M of the 82.9M shares IBKR counted. Against Massive's
+consolidated tape the stored live minutes held 58% of XLAB's volume
+(2026-10-16) and 55% of WETO's (2026-10-15), the median minute 3-5%, while the
+L1 line's own day-volume growth matched it (103%, median minute 1.000).
+
+- The symbol's newest minute stays in memory after it is written. An update
+  stamped in it joins it and the whole minute is written again; listeners
+  (the setup scanner) hear a minute once, when it is first written.
+- An update stamped before the newest minute never reopens a closed candle;
+  its shares count in the newest one. An update stamped before the session it
+  arrived in (IBKR repeats the line's last trade of an earlier day) makes no
+  minute, and its shares count in the session's first.
+- `bars_store` never lowers a stored live minute's volume (`MAX`), so a smaller
+  count -- a restarted process that joined the minute late -- cannot replace a
+  larger one. A hist row is never touched, as before.
+- IBKR's own historical minutes, which replace these, measured 93% of the
+  consolidated tape on XLAB and 90% on WETO (94.5% of the L1 count on CRIS):
+  a minute's volume drops a few percent when its hist bar lands.
+
 ## Earnings and splits on the daily charts (operator ask, 2026-10-12)
 
 "i want the earnings to show on the daily charts and same thing for reverse splits or splits", then "make

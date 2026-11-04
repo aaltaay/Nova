@@ -45,6 +45,8 @@ ON CONFLICT(symbol, timeframe, ts) DO UPDATE SET
     written_ts = excluded.written_ts
 """
 
+# A live write carries its minute's whole count, so a smaller one is never the newer truth (a process that
+# joined the minute late, after a restart): a stored live minute's volume only goes up (2026-11-04).
 _LIVE_UPSERT_SQL = f"""
 INSERT INTO bars_intraday
     (symbol, timeframe, ts, open, high, low, close, volume, source, session_date)
@@ -53,7 +55,7 @@ ON CONFLICT(symbol, timeframe, ts) DO UPDATE SET
     high = MAX(high, excluded.high),
     low = MIN(low, excluded.low),
     close = excluded.close,
-    volume = CASE WHEN excluded.volume > 0 THEN excluded.volume ELSE volume END,
+    volume = MAX(volume, excluded.volume),
     session_date = excluded.session_date
 WHERE source = '{ARCHIVE_SOURCE_IBKR_L1}'
 """
