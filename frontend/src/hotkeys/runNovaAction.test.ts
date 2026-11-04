@@ -17,6 +17,12 @@ const cancelAllOrdersForSymbol = vi.fn();
 const cancelAllWorkingOrders = vi.fn();
 const countOpenWorkingOrders = vi.fn();
 
+const desk = vi.hoisted(() => ({ venue: 'paper' as string | null }));
+
+vi.mock('../ibkr/confirmedDeskVenue', () => ({
+  getConfirmedDeskVenueSnapshot: () => ({ venue: desk.venue, generation: null }),
+}));
+
 vi.mock('../ibkr/placeOrder', () => ({
   placeIbkrOrder: (...args: unknown[]) => placeIbkrOrder(...args),
   cancelAllOrdersForSymbol: (...args: unknown[]) => cancelAllOrdersForSymbol(...args),
@@ -187,6 +193,29 @@ describe('runNovaAction Webull kinds', () => {
     expect(res.ok).toBe(true);
     expect(res.text).toMatch(/Cancelled 2/);
     expect(cancelAllWorkingOrders).toHaveBeenCalledOnce();
+  });
+
+  it('cancel_all_orders names the venue of the keypress, whatever the desk shows after the confirm', async () => {
+    desk.venue = 'paper';
+    const requestConfirm = vi.fn(async () => {
+      desk.venue = 'live'; // the desk moved while the confirm was open
+      return true;
+    });
+
+    await runNovaAction(action({ kind: 'cancel_all_orders' }), runtime({ symbol: null, requestConfirm }));
+
+    expect(requestConfirm).toHaveBeenCalledOnce();
+    expect(cancelAllWorkingOrders.mock.calls[0][1]).toBe('paper');
+    desk.venue = 'paper';
+  });
+
+  it('cancel_all_orders says the cancels stopped when the desk left', async () => {
+    const error = 'The desk moved from Paper to Live: the cancels stopped, none went to Live.';
+    cancelAllWorkingOrders.mockResolvedValueOnce({ ok: false, cancelled: [], failed: [], error });
+
+    const res = await runNovaAction(action({ kind: 'cancel_all_orders' }), runtime({ symbol: null }));
+
+    expect(res).toEqual({ ok: false, text: error });
   });
 
   it('buy Ask+0.05 / sell Bid-0.05 place 1-share EH limits', async () => {
