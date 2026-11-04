@@ -32,6 +32,7 @@ from constants import (
     IBKR_ERROR_MD_REQUIRES_SUBSCRIPTION,
     IBKR_ERROR_NO_SECURITY_DEFINITION,
     IBKR_ERROR_READ_ONLY_API,
+    IBKR_HISTORICAL_PACING_WORD,
     IBKR_READ_ONLY_API_MARKERS,
 )
 from ibkr import farm_notices as _farm_notices
@@ -243,6 +244,10 @@ def _on_ib_error(
     code = int(errorCode)
     msg = (errorString or "").strip()
     now = time.time()
+    if IBKR_HISTORICAL_PACING_WORD in msg.lower():
+        from ibkr.historical_service import refused_for_pacing
+
+        refused_for_pacing(msg)     # on any contract: the reference pages' reads spend the same window
     if code == IBKR_ERROR_NO_SECURITY_DEFINITION and getattr(contract, "secType", "") == "CRYPTO":
         # The Cryptos page asked whether IBKR lists a coin (ADR 040): "no definition" is the answer "no".
         return

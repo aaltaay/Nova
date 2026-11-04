@@ -42,7 +42,7 @@ _daily_metrics_cache_rev: dict[str, int] = {}
 # (``market.session_key_et`` changes) -- see PROBLEM_LOG 2026-08-26 chart
 # hist starvation. Daily bars do not change intraday, so re-scheduling the
 # same symbol on every roster commit / TTL miss only burns the shared
-# 60-req/10-min IBKR historical budget that Trader chart fills also need.
+# 10-minute IBKR historical budget that Trader chart fills also need.
 _scheduled_this_session: dict[str, str] = {}
 
 _EMPTY_DAILY: dict[str, Any] = {

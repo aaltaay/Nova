@@ -367,17 +367,31 @@ IBKR_HISTORICAL_TIMEOUT_SLACK_SEC = 0.5
 IBKR_HISTORICAL_WHAT_TO_SHOW = "TRADES"
 
 # ADR 012 -- IB's real historical limits (not a mutex). Official TWS pacing:
-# 60 req / 10 min, 6+ same contract / 2s is a violation, identical / 15s.
+# 6+ same contract / 2s is a violation, identical / 15s, and 60 req / 10 min for bars of 30 seconds or less.
 IBKR_HISTORICAL_MAX_CONCURRENT = 3
 IBKR_HISTORICAL_PACE_WINDOW_SEC = 600.0
-IBKR_HISTORICAL_PACE_MAX = 60
+# Every historical request in the window. IBKR publishes no number for 1-minute bars and bigger, so this one is
+# measured (ADR 012 amendment 2026-11-04): bursts ran to 438 in 10 minutes, a fifth of a second each, then answers
+# slowed to 3, 6 and 12 s without a word; a steady 300 in any 10 minutes never slowed.
+IBKR_HISTORICAL_PACE_MAX = 300
+# 10-second bars and tick reads also stay under IBKR's published 60 (``historical_pacing.is_small``). It is the
+# whole window's number for 10 minutes after IBKR says pacing or slows, for all but an open chart (``hold``).
+IBKR_HISTORICAL_SMALL_PACE_MAX = 60
+# IBKR slowing gives no word (2026-11-04: 3 s, 3 s, 0.1 s, 6 s, 6 s, 12 s, a timeout). This many of the last
+# ``IBKR_HISTORICAL_SLOW_OF`` chart answers at ``IBKR_HISTORICAL_SLOW_SEC`` or more is that: a normal day's 903
+# answers held 2 that slow, in the same second, and a median of 0.2 s.
+IBKR_HISTORICAL_SLOW_SEC = 2.5
+IBKR_HISTORICAL_SLOW_COUNT = 3
+IBKR_HISTORICAL_SLOW_OF = 5
+# How IBKR words a refused historical request (Error 162, or 420 on a tick read). Heard on any contract.
+IBKR_HISTORICAL_PACING_WORD = "pacing violation"
 IBKR_HISTORICAL_SAME_CONTRACT_WINDOW_SEC = 2.0
 IBKR_HISTORICAL_SAME_CONTRACT_MAX = 5
 IBKR_HISTORICAL_IDENTICAL_COOLDOWN_SEC = 15.0
 # #555 -- a (symbol, timeframe) whose last historical fetch failed is not sent
 # again for this long. The identical-request cooldown (15 s) is shorter than the
 # 20 s timeout, so without it every pane retry re-sent a request IBKR was not
-# answering and spent the 60 / 10 min budget. The pane's retry asks again.
+# answering and spent the 10-minute budget. The pane's retry asks again.
 IBKR_HISTORICAL_FAILURE_BACKOFF_SEC = 30.0
 # How long `/bars` coverage keeps stating that failure when nothing has asked
 # since. A later success clears it at once.
@@ -388,7 +402,7 @@ IBKR_HISTORICAL_FAILURE_MEMORY_SEC = 300.0
 IBKR_HISTORICAL_FAILURE_STATUSES: frozenset[int] = frozenset({502, 504})
 IBKR_BARS_STORE_FRESH_INTRADAY_SEC = 45.0
 # A painted chart's refresh (a "warm" fill, each stale chart every 45 s) sends no historical request while this few
-# of the 60 a 10 minutes are left: with ten charts open it spent the whole window, and the TraderTV exits and LULD
+# of its 10-minute window are left: with ten charts open it spent the whole window, and the TraderTV exits and LULD
 # under it were never read (2026-10-27).
 IBKR_HISTORY_WARM_RESERVE = 30
 IBKR_BARS_STORE_FRESH_DAILY_SEC = 900.0
@@ -419,8 +433,10 @@ IBKR_L1_DAY_VOLUME_MAX = 50_000_000_000
 IBKR_BARS_CACHE_TTL_INTRADAY_SEC = 20.0
 IBKR_BARS_CACHE_TTL_DAILY_SEC = 900.0  # 15 min for 1Day / 1Week / 1Month
 IBKR_BARS_CACHE_MAX_KEYS = 256
-# Timeframes warmed when a ticker WS opens (grid defaults; 10Sec is fetch-on-pane).
+# The grid's default timeframes (10Sec is fetch-on-pane).
 IBKR_BARS_WARM_TIMEFRAMES: tuple[str, ...] = ("1Min", "5Min", "1Day")
+# What opening a stock asks IBKR for, ahead of everything else: every pane the Trader shows.
+IBKR_BARS_OPEN_TIMEFRAMES: tuple[str, ...] = (*IBKR_BARS_WARM_TIMEFRAMES, "10Sec")
 
 
 # ── QA batch: Scanner / HOD / desk honesty (2026-09-22) ───────────────────────

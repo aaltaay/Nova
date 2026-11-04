@@ -1,6 +1,6 @@
 """IBKR's 1-minute TRADES bars of one past regular session: yesterday's profile when the chart store lacks it (ADR 058).
 
-One historical request in the one budget ``historical_service`` keeps (60 in 10 minutes, five a contract in 2 s, no
+One historical request in the one budget ``historical_service`` keeps (its 10-minute window, five a contract in 2 s, no
 identical request in 15 s), at background priority: none is sent while an open chart loads, while pacing asks for a
 wait, or with ``IBKR_HISTORY_TRADING_RESERVE`` or fewer requests left of the 10 minutes -- checked again once it holds
 its slot. ``HistoricalShed`` then, and the desk asks again later. Nothing waits on the connect-loop (ADR 010), and

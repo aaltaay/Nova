@@ -6,8 +6,8 @@ IBKR's 1-minute TRADES bars of the minutes they did not reach: each bar's averag
 live worker asks it once when it starts following a stock mid-session, so the band shows without five minutes of
 Nova's own tape (``luld/backfill.py``).
 
-Each page is a historical request in the one budget ``historical_service`` keeps (60 in 10 minutes, five a
-contract in 2 s, no identical request in 15 s): no page is sent while an open chart loads, while pacing asks for a
+Each page is a historical request in the one budget ``historical_service`` keeps (a tick read's 60 in 10 minutes, five
+a contract in 2 s, no identical request in 15 s): no page is sent while an open chart loads, while pacing asks for a
 wait, or when it would leave fewer than ``headroom`` requests of the 10 minutes -- checked again once a request holds
 its slot, since a chart may open, or other requests spend the budget, while it waits for one. Before the first page that raises
 ``HistoricalShed`` and the caller asks again later; after it, the pages stop and what was read comes back marked
@@ -44,8 +44,7 @@ def _blocked(symbol: str, page_end: float, headroom: int, key: str = PACING_KEY)
     pacing, _slots = budget()
     if pacing.wait_seconds(symbol, key, f"{page_end:.0f}") > 0:
         return "IBKR's historical pacing asks for a wait"
-    snap = pacing.snapshot()
-    if snap["window_max"] - snap["window_used"] <= headroom:
+    if pacing.left(key) <= headroom:
         return f"fewer than {headroom + 1} historical requests left in IBKR's 10-minute budget"
     return None
 

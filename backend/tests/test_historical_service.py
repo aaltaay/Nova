@@ -2,13 +2,24 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import ExitStack, contextmanager
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from constants import (
+    IBKR_HISTORICAL_PACE_MAX,
+    IBKR_HISTORICAL_SLOW_COUNT,
+    IBKR_HISTORICAL_SMALL_PACE_MAX,
+    IBKR_HISTORY_WARM_RESERVE,
+)
 from ibkr.historical_service import (
     HistoricalShed,
+    budget,
     open_chart_busy,
+    pacing_refusals,
+    pacing_snapshot,
+    refused_for_pacing,
     request_bars,
     reset_for_testing,
 )
@@ -194,7 +205,7 @@ def test_background_sheds_when_pacing_wait_and_store_has_bars():
 
 
 def test_warm_sheds_when_pacing_wait_and_store_has_bars():
-    """Warm prefetch must not burn the 60/10-min bucket when pacing says wait."""
+    """Warm prefetch must not burn the 10-minute bucket when pacing says wait."""
     fetched = {"n": 0}
 
     async def fake_fetch(symbol, timeframe, limit, *, interactive=False):
@@ -299,7 +310,7 @@ def test_historical_pacing_snapshot():
 
     snap = hs.pacing_snapshot()
     assert snap["window_used"] == 3
-    assert snap["window_max"] == 60
+    assert snap["window_max"] == IBKR_HISTORICAL_PACE_MAX
     assert snap["next_token_wait_sec"] == 0.0
     assert snap["identical_keys"] == 3
     assert snap["contract_hot"] == []
@@ -360,3 +371,74 @@ def test_rth_daily_closes_are_paced_and_read_the_regular_session():
         assert calls[0]["useRTH"] is True and calls[0]["barSizeSetting"] == "1 day"
         with pytest.raises(HistoricalShed):
             asyncio.run(hs.request_rth_daily_closes("MARA", "6 M"))   # the identical request, too soon
+
+
+@contextmanager
+def _ibkr_answers():
+    """An empty store, and IBKR answering every fill."""
+    async def fetch(symbol, timeframe, limit, *, interactive=False):
+        return _payload(symbol, timeframe)
+
+    with ExitStack() as stack:
+        stack.enter_context(patch("bars_store.read", return_value=None))
+        stack.enter_context(patch("bars_store.write_payload"))
+        stack.enter_context(patch("bars_store.coverage_from_bars", return_value={"filling": False}))
+        stack.enter_context(patch("ticker_bars_push.broadcast_bars_patch"))
+        stack.enter_context(patch("ibkr.bars.fetch_bars_async", new=AsyncMock(side_effect=fetch)))
+        stack.enter_context(patch("ibkr.historical_service._persist_derived"))
+        yield
+
+
+def _spent(key, count):
+    pacing, _slots = budget()
+    for k in range(count):
+        pacing.record(f"S{k}", key, "1 D")
+    return pacing
+
+
+def test_a_painted_chart_refreshes_past_the_published_sixty():
+    """2026-11-04: Nova's own 60 held a chart back 683 s while IBKR answered in 0.2 s; 1-minute bars are not its 60."""
+    _spent("1Min", IBKR_HISTORICAL_SMALL_PACE_MAX)
+    with _ibkr_answers():
+        got = asyncio.run(request_bars("AAPL", "1Min", 10, priority="warm"))
+    assert got["bars"]
+
+
+def test_a_painted_ten_second_chart_leaves_the_end_of_the_sixty():
+    _spent("10Sec", IBKR_HISTORICAL_SMALL_PACE_MAX - IBKR_HISTORY_WARM_RESERVE)
+    with _ibkr_answers(), pytest.raises(HistoricalShed, match="the trades read back"):
+        asyncio.run(request_bars("AAPL", "10Sec", 10, priority="warm"))
+
+
+def test_a_stock_opened_on_the_busiest_desk_still_sends_at_once():
+    """2026-11-04 08:24: CRIS's 1-minute chart landed 683 s after it opened, behind the desk's own refreshes."""
+    _spent("1Min", IBKR_HISTORICAL_PACE_MAX - IBKR_HISTORY_WARM_RESERVE)     # where every painted chart has stopped
+    with _ibkr_answers():
+        with pytest.raises(HistoricalShed, match="the trades read back"):
+            asyncio.run(request_bars("AAPL", "1Min", 10, priority="warm"))
+        got = asyncio.run(request_bars("CRIS", "1Min", 10, priority="open_chart"))
+    assert got["bars"]
+
+
+def test_a_hold_stops_a_painted_chart_and_never_an_open_one():
+    _spent("1Min", IBKR_HISTORICAL_SMALL_PACE_MAX)
+    refused_for_pacing("Historical data request pacing violation")
+    with _ibkr_answers():
+        with pytest.raises(HistoricalShed, match="the trades read back"):
+            asyncio.run(request_bars("AAPL", "1Min", 10, priority="warm"))
+        got = asyncio.run(request_bars("AAPL", "1Min", 10, priority="open_chart"))
+    assert got["bars"]
+    assert pacing_refusals() == 1
+
+
+def test_answers_that_slow_hold_the_window_as_ibkrs_word_does():
+    async def _run():
+        for k in range(IBKR_HISTORICAL_SLOW_COUNT):
+            assert pacing_snapshot()["held_sec"] == 0
+            await request_bars(f"S{k}", "1Min", 10, priority="open_chart")
+
+    with _ibkr_answers(), patch("ibkr.historical_pacing.IBKR_HISTORICAL_SLOW_SEC", 0.0):
+        asyncio.run(_run())
+    assert pacing_snapshot()["held_sec"] > 0
+    assert pacing_snapshot()["window_max"] == IBKR_HISTORICAL_SMALL_PACE_MAX
+    assert pacing_refusals() == 0

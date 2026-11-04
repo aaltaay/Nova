@@ -377,6 +377,14 @@ def test_the_page_spends_the_history_budget_under_its_own_name():
     assert cf.FOREX_HISTORY_HEADROOM == MARKET_HISTORY_HEADROOM               # in turn with the Market page
 
 
+def test_no_requests_left_never_reads_under_zero(monkeypatch):
+    """While IBKR's slowing holds the window, more can be spent than its number: the page says none are left."""
+    from ibkr import historical_service
+
+    monkeypatch.setattr(historical_service, "pacing_snapshot", lambda: {"window_max": 60, "window_used": 100})
+    assert reads.history_left() == 0
+
+
 def _shows(monkeypatch, *, market: bool = False, global_page: bool = False) -> None:
     from global_board import state as global_state
     from market_board import state as market_state

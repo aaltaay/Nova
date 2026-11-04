@@ -56,7 +56,7 @@ def test_a_background_chart_fill_leaves_the_last_requests(monkeypatch):
     historical_service.reset_for_testing()
     monkeypatch.setattr(bars_store, "read", lambda *a, **k: None)
     monkeypatch.setattr(historical_service, "assert_ib_loop", lambda: None)
-    monkeypatch.setattr(historical_service, "_left", lambda: 10)
+    monkeypatch.setattr(historical_service, "_left", lambda _key: 10)
     with pytest.raises(historical_service.HistoricalShed, match="kept for open charts"):
         asyncio.run(historical_service.request_bars("AAPL", "1Min", 100, priority="background"))
 
@@ -79,7 +79,7 @@ def test_a_daily_read_leaves_the_last_requests_unless_the_stock_is_about_to_be_s
     historical_service.reset_for_testing()
     monkeypatch.setattr(historical_service, "assert_ib_loop", lambda: None)
     monkeypatch.setattr("ibkr.client.get_ib", lambda: _IB())
-    monkeypatch.setattr(historical_service, "_left", lambda: 10)
+    monkeypatch.setattr(historical_service, "_left", lambda _key: 10)
     with pytest.raises(historical_service.HistoricalShed, match="kept for open charts"):
         asyncio.run(historical_service.request_daily_bars("FADE", "5 D", use_rth=False))
     assert sent == []
@@ -91,16 +91,23 @@ def test_a_daily_read_leaves_the_last_requests_unless_the_stock_is_about_to_be_s
 def test_a_painted_charts_refresh_leaves_the_trades_read_back_their_share(monkeypatch):
     """2026-10-27: ten charts refreshing every 45 s spent 56 of 60 and no TraderTV exit was read all morning."""
     import bars_store
+    from constants_forex_board import FOREX_HISTORY_HEADROOM
+    from constants_global_board import GLOBAL_HISTORY_HEADROOM
+    from constants_market_board import MARKET_HISTORY_HEADROOM
     from constants_scanner import IBKR_HISTORY_WARM_RESERVE
+    from constants_setups import SETUPS_SEED_HISTORY_HEADROOM
     from followed_traders.constants_followed import FOLLOWED_EXIT_HEADROOM
     from luld.constants_luld import LULD_BACKFILL_HEADROOM
 
     # The exits and LULD read while more than their headroom is left: the refresh must stop above it.
     assert IBKR_HISTORY_WARM_RESERVE > max(FOLLOWED_EXIT_HEADROOM, LULD_BACKFILL_HEADROOM)
+    # ... and the boards and the setup seeds stop above the refresh: at a request every 2 s each could spend the window.
+    assert min(MARKET_HISTORY_HEADROOM, GLOBAL_HISTORY_HEADROOM, FOREX_HISTORY_HEADROOM,
+               SETUPS_SEED_HISTORY_HEADROOM) > IBKR_HISTORY_WARM_RESERVE
     historical_service.reset_for_testing()
     monkeypatch.setattr(bars_store, "read", lambda *a, **k: None)
     monkeypatch.setattr(historical_service, "assert_ib_loop", lambda: None)
-    monkeypatch.setattr(historical_service, "_left", lambda: IBKR_HISTORY_WARM_RESERVE)
+    monkeypatch.setattr(historical_service, "_left", lambda _key: IBKR_HISTORY_WARM_RESERVE)
     with pytest.raises(historical_service.HistoricalShed, match="the trades read back"):
         asyncio.run(historical_service.request_bars("AAPL", "1Min", 100, priority="warm"))
 
@@ -113,7 +120,7 @@ def test_a_painted_chart_keeps_its_bars_when_its_refresh_is_held(monkeypatch):
     monkeypatch.setattr(bars_store, "read", lambda *a, **k: painted)
     monkeypatch.setattr(bars_store, "store_series_complete", lambda *a: False)
     monkeypatch.setattr(historical_service, "assert_ib_loop", lambda: None)
-    monkeypatch.setattr(historical_service, "_left", lambda: 1)
+    monkeypatch.setattr(historical_service, "_left", lambda _key: 1)
     assert asyncio.run(historical_service.request_bars("AAPL", "1Min", 100, priority="warm")) is painted
 
 
@@ -127,7 +134,7 @@ def test_fills_admitted_together_recheck_the_reserve_before_they_send(monkeypatc
     monkeypatch.setattr(bars_store, "write_payload", lambda *a, **k: None)   # never the desk's own bar store
     monkeypatch.setattr(historical_service, "assert_ib_loop", lambda: None)
     left = {"n": 11}
-    monkeypatch.setattr(historical_service, "_left", lambda: left["n"])
+    monkeypatch.setattr(historical_service, "_left", lambda _key: left["n"])
     sent: list[str] = []
 
     async def fetch(symbol, timeframe, limit, interactive=False):

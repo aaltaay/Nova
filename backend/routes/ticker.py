@@ -74,16 +74,16 @@ def get_ticker_bars_batch(
     )
 
 
-def _warm_timeframes_to_fill(symbol: str) -> list[str]:
-    """The warm set's timeframes whose stored series is missing, short or stale.
+def _open_timeframes_to_fill(symbol: str) -> list[str]:
+    """The opened stock's timeframes whose stored series is missing, short or stale.
 
     A SQLite read per timeframe on the 2 GB archive, so the socket runs it on a
     worker thread rather than the HTTP loop every desk socket shares.
     """
-    from constants import IBKR_BARS_WARM_TIMEFRAMES
+    from constants import IBKR_BARS_OPEN_TIMEFRAMES
 
     out: list[str] = []
-    for tf in IBKR_BARS_WARM_TIMEFRAMES:
+    for tf in IBKR_BARS_OPEN_TIMEFRAMES:
         stored = bars_store.read(symbol, tf, CHART_DEFAULT_BARS)
         if (
             stored
@@ -129,13 +129,14 @@ async def ws_ticker_detail(websocket: WebSocket, symbol: str):
     mark_resub()
     if _get_discovery_provider() == "ibkr":
         asyncio.create_task(_ibkr_ticks.subscribe(symbol))
-        # Store-first /bars is a local read. Background warm is safe: it
-        # goes through historical_service (paced, shedable) and lands as
-        # bars_patch -- it cannot cancel a chart HTTP request.
+        # Store-first /bars is a local read. Opening a stock asks ahead of everything else, even when its panes
+        # filled earlier today (operator 2026-11-04: "when I open a stock, I want to see everything being populated
+        # without a question"). It goes through historical_service (paced) and lands as bars_patch -- it cannot
+        # cancel a chart HTTP request.
         from ibkr.historical_service import schedule_fill
 
-        for tf in await asyncio.to_thread(_warm_timeframes_to_fill, symbol):
-            schedule_fill(symbol, tf, CHART_DEFAULT_BARS, priority="warm")
+        for tf in await asyncio.to_thread(_open_timeframes_to_fill, symbol):
+            schedule_fill(symbol, tf, CHART_DEFAULT_BARS, priority="open_chart")
 
     loop = asyncio.get_event_loop()
     base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
