@@ -80,6 +80,6 @@ describe('whose trades the Account page shows (ADR 069)', () => {
     ]);
     const [one] = positionsBySymbol(rows);
     expect([one.qty, one.marketValue, one.unrealized, one.owner]).toEqual([104, 14_664, 4, undefined]);
-    expect(one.avgCost).toBeCloseTo(140.96, 6);
+    expect(one.avgCost).toBeCloseTo((100 * 141 + 4 * 140) / 104, 9);   // each holder at its own cost
   });
 });
