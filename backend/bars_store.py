@@ -131,6 +131,21 @@ def is_coverage_fresh(coverage: dict[str, Any] | None, timeframe: str) -> bool:
     return (time.time() - float(fetched)) <= _fresh_ttl(timeframe)
 
 
+def history_pending(coverage: dict[str, Any] | None, timeframe: str, session_start: float | None) -> bool:
+    """No IBKR history fill the pane can show yet, so it waits on one as an empty pane does.
+
+    Never filled (``fetched_ts`` 0: the rows are the tape's or Level 1's own), or, intraday, filled before
+    ``session_start`` and holding none of today. A daily pane's earlier sessions are its content, and a bar
+    count says nothing here: tape-built 10-second bars pass 100 in a busy quarter hour.
+    """
+    fetched = float((coverage or {}).get("fetched_ts") or 0.0)
+    if fetched <= 0:
+        return True
+    if timeframe in _DAILY_TFS or session_start is None:
+        return False
+    return fetched < float(session_start)
+
+
 def store_series_complete(timeframe: str, bar_count: int) -> bool:
     """A stub (tape leftover / 1 live tip / today-only derive) is not a fill."""
     if bar_count <= 0:

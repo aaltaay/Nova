@@ -8,6 +8,7 @@ discovery_provider is explicitly alpaca.
 from __future__ import annotations
 
 import logging
+import time
 
 from fastapi import HTTPException
 
@@ -16,6 +17,7 @@ from constants import (
     CHART_DEFAULT_BARS,
     CHART_DEFAULT_TIMEFRAME,
     CHART_TIMEFRAMES,
+    IBKR_BARS_SESSION_ONLY_TIMEFRAMES,
     IBKR_BARS_WARM_TIMEFRAMES,
 )
 from ibkr import client as _ibkr_client
@@ -23,10 +25,39 @@ from ibkr import client as _ibkr_client
 logger = logging.getLogger(__name__)
 
 
+def _session_start(now: float) -> float | None:
+    """04:00 ET of the trading day on the clock (00:00-03:59, weekends and holidays belong to the last one)."""
+    from market import session_bounds_of, session_key_for_ts
+
+    bounds = session_bounds_of(session_key_for_ts(now))
+    return bounds[0] if bounds else None
+
+
 def _store_read(symbol: str, timeframe: str, limit: int) -> dict | None:
     from bars_store import read
 
-    return read(symbol, timeframe, limit)
+    floor = _session_start(time.time()) if timeframe in IBKR_BARS_SESSION_ONLY_TIMEFRAMES else None
+    return read(symbol, timeframe, limit, from_ts=floor)
+
+
+def _history_pending(timeframe: str, coverage: dict | None) -> bool:
+    from bars_store import history_pending
+
+    return history_pending(coverage, timeframe, _session_start(time.time()))
+
+
+def _fill_priority(history_pending: bool, interactive: bool) -> str:
+    """An open chart's fill for a pane still waiting on its history; a painted pane's refresh otherwise.
+
+    "warm" sheds on any pacing wait and while ``IBKR_HISTORY_WARM_RESERVE`` or fewer requests are left,
+    so a reconciliation cannot starve an empty pane's ``open_chart`` fill of the shared 60-req/10-min
+    budget (PROBLEM_LOG 2026-08-26 chart hist starvation). A pane showing only the live tape's bars or an
+    earlier session's is that empty pane: RIOX's 10-second fill (2026-11-04) was shed as "warm" at
+    08:31:19 with 30 left, nothing asked again, and the pane never showed its history.
+    """
+    if not interactive:
+        return "background"
+    return "open_chart" if history_pending else "warm"
 
 
 def _schedule_ibkr_fill(
@@ -94,23 +125,21 @@ def fetch_chart_bars(
         ready = _ibkr_client.is_ready()
         if stored and stored.get("bars"):
             coverage = dict(stored.get("coverage") or {})
+            pending = _history_pending(timeframe, coverage)
             # A complete+fresh series needs no fill: do not queue pacing debt
             # for a no-op. Incomplete or stale data still fills.
             if ready and not _store_series_settled(
                 timeframe, len(stored["bars"]), stored.get("coverage")
             ):
-                # Pane already painted something -- this is a reconciliation
-                # refresh, not a blank-screen wait. "warm" sheds on any
-                # pacing wait so it cannot starve a genuinely empty pane's
-                # open_chart fill of the shared 60-req/10-min IB budget
-                # (PROBLEM_LOG 2026-08-26 chart hist starvation).
                 _schedule_ibkr_fill(
                     symbol, timeframe, limit,
-                    priority="warm" if interactive else "background",
+                    priority=_fill_priority(pending, interactive),
                 )
                 coverage["filling"] = True
             else:
                 coverage["filling"] = False
+            # The pane keeps asking while this is true (chartBarsStuckRetry.ts).
+            coverage["history_pending"] = pending
             coverage.update(_last_failure(symbol, timeframe))
             stored["coverage"] = coverage
             stored.setdefault("source", "ibkr")
@@ -126,6 +155,7 @@ def fetch_chart_bars(
             # Still filling, and says why when IBKR stopped answering.
             empty["coverage"] = {
                 **(empty.get("coverage") or {}),
+                "history_pending": True,
                 **_last_failure(symbol, timeframe),
             }
             return empty

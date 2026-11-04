@@ -67,6 +67,8 @@ class HistoricalShed(Exception):
 _open_chart_depth = 0
 _sem: asyncio.Semaphore | None = None
 _inflight: dict[tuple[str, str], asyncio.Task] = {}
+# The pairs with an open chart's fill waiting out a pacing wait (``_reschedule_after_wait``).
+_rescheduled: set[tuple[str, str]] = set()
 _pacing = HistoricalPacing()
 _repair_asked: dict[str, float] = {}
 
@@ -77,6 +79,7 @@ def reset_for_testing() -> None:
     _sem = None
     leftover = list(_inflight.values())
     _inflight.clear()
+    _rescheduled.clear()
     _repair_asked.clear()
     _pacing.reset()
     historical_failures.reset()
@@ -454,14 +457,24 @@ def _reschedule_after_wait(
     instead would keep the fill parked on the IB connect-loop holding a hist
     semaphore slot while ``reqMktData`` L1 ticks share that loop.
     ``request_bars`` re-checks pacing on wake.
+
+    One wake per pair. A waiting pane asks again every few seconds
+    (``chartBarsStuckRetry.ts``), and each ask during a long wait queued
+    its own wake: a series the fill leaves short of complete (a quiet
+    name's 10-second bars) was sent once per wake.
     """
     from ibkr.loop_supervisor import get_loop
 
     loop = get_loop()
     if loop is None or not loop.is_running():
         return
+    key = (symbol.upper(), timeframe)
+    if key in _rescheduled:
+        return
+    _rescheduled.add(key)
 
     def _again() -> None:
+        _rescheduled.discard(key)
         try:
             schedule_fill(symbol, timeframe, limit, priority=priority)
         except Exception:
