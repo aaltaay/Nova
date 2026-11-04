@@ -19,7 +19,7 @@ vi.mock('../constants', async (importOriginal) => ({
   CHART_BARS_STUCK_RETRY_MAX_MS: 40,
 }));
 
-import { clearBarsStoreForTests } from './barsStore';
+import { clearBarsStoreForTests, upsertTapePrint10SecBar } from './barsStore';
 import { useChartBars } from './useChartBars';
 
 const TAPE_BAR = { t: '2026-11-04T13:32:00Z', o: 13.7, h: 13.7, l: 13.7, c: 13.7, v: 500 };
@@ -29,12 +29,19 @@ const HISTORY = Array.from({ length: 120 }, (_, i) => ({
 }));
 
 let historyLanded = false;
-const fetchMock = vi.fn(async () => ({
-  ok: true,
-  json: async () => (historyLanded
-    ? { bars: HISTORY, coverage: { as_of: HISTORY.at(-1)!.t, filling: false } }
-    : { bars: [TAPE_BAR], coverage: { as_of: TAPE_BAR.t, filling: true, history_pending: true } }),
-}));
+// What `/bars` holds until the history lands: the backend's tape-built bars, or nothing yet.
+let pendingBars: (typeof TAPE_BAR)[] = [TAPE_BAR];
+// Holds every answer back while set, so a live print can land while a request is on its way.
+let answersHeld: Promise<void> | null = null;
+const fetchMock = vi.fn(async () => {
+  if (answersHeld) await answersHeld;
+  return {
+    ok: true,
+    json: async () => (historyLanded
+      ? { bars: HISTORY, coverage: { as_of: HISTORY.at(-1)!.t, filling: false } }
+      : { bars: pendingBars, coverage: { as_of: pendingBars.at(-1)?.t ?? null, filling: true, history_pending: true } }),
+  };
+});
 
 function props() {
   const noop = () => {};
@@ -53,8 +60,22 @@ function props() {
   };
 }
 
+async function expectAsksUntilTheHistoryLands(hook: { result: { current: ReturnType<typeof useChartBars> } }) {
+  await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(3));
+  expect(hook.result.current.filling).toBe(true);
+
+  historyLanded = true;
+  await waitFor(() => expect(hook.result.current.indicatorBars).toHaveLength(HISTORY.length));
+  await waitFor(() => expect(hook.result.current.filling).toBe(false));
+  const asked = fetchMock.mock.calls.length;
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  expect(fetchMock.mock.calls.length).toBe(asked);
+}
+
 beforeEach(() => {
   historyLanded = false;
+  pendingBars = [TAPE_BAR];
+  answersHeld = null;
   fetchMock.mockClear();
   clearBarsStoreForTests();
   vi.stubGlobal('fetch', fetchMock);
@@ -69,15 +90,24 @@ describe('useChartBars while its history is pending', () => {
   it('keeps asking a pane painted only by the tape, and stops once the history lands', async () => {
     const hook = renderHook((p: ReturnType<typeof props>) => useChartBars(p), { initialProps: props() });
     await waitFor(() => expect(hook.result.current.indicatorBars).toHaveLength(1));
-    expect(hook.result.current.filling).toBe(true);
-    await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(3));
+    await expectAsksUntilTheHistoryLands(hook);
+    hook.unmount();
+  });
 
-    historyLanded = true;
-    await waitFor(() => expect(hook.result.current.indicatorBars).toHaveLength(HISTORY.length));
-    await waitFor(() => expect(hook.result.current.filling).toBe(false));
-    const asked = fetchMock.mock.calls.length;
-    await new Promise((resolve) => setTimeout(resolve, 150));
-    expect(fetchMock.mock.calls.length).toBe(asked);
+  it("keeps asking when the client's own tape candle beat an empty answer", async () => {
+    // The live print drew the candle while the first `/bars` was on its way and before the backend stored
+    // any bar, so the answer is empty and the pane keeps its candle (ADR 012, 2026-09-11) -- and must still
+    // learn the history is pending.
+    pendingBars = [];
+    let release: () => void = () => {};
+    answersHeld = new Promise((resolve) => { release = resolve; });
+    const hook = renderHook((p: ReturnType<typeof props>) => useChartBars(p), { initialProps: props() });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    upsertTapePrint10SecBar('RIOX', { time: '2026-11-04T13:32:03.000Z', price: 13.7, size: 500 });
+    answersHeld = null;
+    release();
+    await waitFor(() => expect(hook.result.current.indicatorBars).toHaveLength(1));
+    await expectAsksUntilTheHistoryLands(hook);
     hook.unmount();
   });
 });
