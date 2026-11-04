@@ -39,12 +39,12 @@ export const OWNER_BUDGET_NOTE = 'Every bot together: open positions and working
 export const OWNER_WHOSE_COL = 'Whose';
 export const OWNER_CLOSE_BOTS = 'Close';
 export const ownerCloseBotsTitle = (symbol: string, qty: number): string =>
-  `Sell the bots' ${Math.abs(qty)} ${symbol} at market. Your shares stay.`;
+  `Sell every bot's ${symbol} -- ${Math.abs(qty).toLocaleString('en-US')} shares in all -- at market. Your shares stay.`;
 export const OWNER_CLOSE_BOTS_OFF_PAPER = "The bots' shares are closed on Paper";
 export const OWNER_CLOSE_BOTS_SENDING = '…';
 /** Close asks once more before it sends; the question stands this long. */
 export const OWNER_CLOSE_BOTS_ARM_MS = 3000;
-export const ownerCloseBotsConfirm = (qty: number): string => `Sell ${Math.abs(qty).toLocaleString('en-US')}?`;
+export const ownerCloseBotsConfirm = (qty: number): string => `Sell all ${Math.abs(qty).toLocaleString('en-US')}?`;
 export const OWNER_CLOSE_BOTS_PATH = '/api/owners/close-bots';
 
 /** The Performance panel's P&L by day (mockup v1, approved 2026-11-03). */

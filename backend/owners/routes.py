@@ -85,6 +85,7 @@ async def close_bots(request: Request) -> dict[str, Any]:
     from bot.flatten import place_close
 
     side = "SELL" if held > 0 else "BUY"
-    out = await place_close(symbol, abs(held), side, origin=ORIGIN_CLOSE_BOTS)
+    # Paper's alone: the door refuses it if the desk moves before it is sent (``execution.venue_door``).
+    out = await place_close(symbol, abs(held), side, origin=ORIGIN_CLOSE_BOTS, expected_venue=PRACTICE_VENUE_PAPER)
     logger.info("OWNERS: the operator closed the bots' %s %s (%s)", abs(held), symbol, "ok" if out.get("ok") else out)
     return {"symbol": symbol, "qty": abs(held), "side": side, **out}

@@ -162,6 +162,16 @@ export function AccountPage({ onOpenTrader }: Props) {
     () => (books && ledger ? positionsByOwner(ledger.positions).filter((p) => shows(view, p.owner, p.bot)) : positions),
     [books, ledger, positions, view],
   );
+  // Every bot's shares per stock: what a bots' row's Close sells, whichever bot the view picks.
+  const botsQty = useMemo(() => {
+    const out = new Map<string, number>();
+    if (books && ledger) {
+      for (const p of positionsByOwner(ledger.positions)) {
+        if (p.owner === 'bots') out.set(p.symbol, (out.get(p.symbol) ?? 0) + p.qty);
+      }
+    }
+    return out;
+  }, [books, ledger]);
   // Live: commissions and fills are what IBKR reported on the session's orders (QA W17).
   const liveOrders = practiceVenue || sampleDesk ? [] : [...ibkr.orders, ...closedOrders];
   const rows = accountDetailRows(
@@ -291,6 +301,7 @@ export function AccountPage({ onOpenTrader }: Props) {
                 practice={practiceVenue != null}
                 venue={venue}
                 positions={viewPositions}
+                botsQty={botsQty}
                 working={ibkr.orders}
                 closed={closedOrders}
                 fills={fills}

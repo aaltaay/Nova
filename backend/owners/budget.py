@@ -119,8 +119,9 @@ def update(bots: Any, now: float | None = None) -> dict[str, Any]:
     return current()
 
 
-def used_usd(ledger: Any) -> float:
-    """What the bots hold now on ``ledger``: open shares at the mark plus working entries at their price."""
+def used_usd(ledger: Any, *, exclude_order_id: int | None = None) -> float:
+    """What the bots hold now on ``ledger``: open shares at the mark plus working entries at their price --
+    all but ``exclude_order_id``'s, the entry being repriced or filled."""
     from owners.whose import book_of, holder_of
 
     owners = getattr(ledger, "owners", None)
@@ -133,6 +134,8 @@ def used_usd(ledger: Any) -> float:
                 used += abs(lot.qty) * float(ledger.mark_of(symbol, lot.avg) or lot.avg)
     for row in ledger.working_orders():
         if row.get("effect") != "opens" or book_of(holder_of(row)) != OWNER_BOTS:
+            continue
+        if exclude_order_id is not None and int(row.get("order_id") or -1) == int(exclude_order_id):
             continue
         price = row.get("limit_price") or row.get("stop_price") or ledger.mark_of(str(row["symbol"]))
         used += float(row.get("remaining_qty") or row.get("qty") or 0) * float(price or 0)

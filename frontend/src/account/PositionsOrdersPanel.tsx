@@ -65,6 +65,8 @@ interface Props {
   /** Which footer the Expired rule reads (Sim: the replayed window's end). */
   venue?: DeskVenue;
   positions: AccountPosition[];
+  /** Paper (ADR 069): every bot's shares in each stock -- what a bots' row's Close sells, picked bot or not. */
+  botsQty?: ReadonlyMap<string, number>;
   working: IbkrOrder[];
   closed: IbkrOrder[];
   fills: AccountFillRow[];
@@ -186,7 +188,7 @@ function orderColumns(fillSource: ReadonlyMap<number, AccountFillRow>): SortColu
 }
 
 export function PositionsOrdersPanel({
-  practice, venue, positions, working, closed, fills, today = null, tab: drivenTab, onTab, day = null, panelRef,
+  practice, venue, positions, botsQty, working, closed, fills, today = null, tab: drivenTab, onTab, day = null, panelRef,
 }: Props) {
   const [ownTab, setOwnTab] = useState<PosTab>('orders');
   const tab = drivenTab ?? ownTab;
@@ -204,8 +206,12 @@ export function PositionsOrdersPanel({
   const held = positions.filter((p) => p.qty !== 0);
   const orderCols = useMemo(() => orderColumns(fillSource), [fillSource]);
   const positionSort = useTableSort('account.positions', held, POSITION_COLUMNS);
-  // Paper's positions are each holder's (ADR 069): the Whose column, with Close on a bots' row.
+  // Paper's positions are each holder's (ADR 069): the Whose column, with Close on a stock's first bots' row --
+  // it sells every bot's shares there.
   const whose = held.some((p) => p.owner != null);
+  const firstBotRow = new Map<string, AccountPosition>();
+  for (const p of positionSort.rows) if (p.owner === 'bots' && !firstBotRow.has(p.symbol)) firstBotRow.set(p.symbol, p);
+  const closeRow = (p: AccountPosition): boolean => firstBotRow.get(p.symbol) === p;
   const orderSort = useTableSort('account.orders', shown, orderCols);
   const fillSort = useTableSort('account.fills', newestFills, FILL_COLUMNS);
   const foot = !practice
@@ -268,7 +274,9 @@ export function PositionsOrdersPanel({
                   {whose && (
                     <td className="acct-whose-cell">
                       {p.owner && <WhoseChip owner={p.owner} bot={p.bot} />}
-                      {p.owner === 'bots' && <CloseBotsButton symbol={p.symbol} qty={p.qty} paper={venue === 'paper'} />}
+                      {p.owner === 'bots' && closeRow(p) && (
+                        <CloseBotsButton symbol={p.symbol} qty={botsQty?.get(p.symbol) ?? p.qty} paper={venue === 'paper'} />
+                      )}
                     </td>
                   )}
                   <td className="r acct-num">{formatShareQty(p.qty)}</td>

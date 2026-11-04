@@ -186,3 +186,92 @@ def test_the_history_splits_every_fill_and_day_and_still_sums_to_the_account() -
     assert {(r["owner"], r["bot"]) for r in out["by_owner"]} == {("you", None), ("bots", "live_trader")}
     last = out["equity"][-1]
     assert last["you_pnl"] + last["bots_pnl"] == pytest.approx(last["net_liquidation"] - 100_000, abs=1e-3)
+
+
+# ------------------------------------------------------- PR #1269 review
+def test_the_bots_close_is_papers_alone() -> None:
+    """A desk that moves while the Close waits for the execution lock never sells another account's shares."""
+    from execution.models import ExecutionCommand
+    from execution.venue_door import wrong_venue
+
+    cmd = ExecutionCommand(operation="place", idempotency_key="k", source="flatten", origin="close_bots",
+                           symbol="SPCX", side="SELL", qty=51, expected_venue="paper")
+    assert wrong_venue(cmd, "paper") is None
+    assert "closed on Paper" in wrong_venue(cmd, "live")
+    assert wrong_venue(cmd, "sim") is not None
+
+
+def test_a_bot_close_carries_the_venue_it_is_meant_for(monkeypatch) -> None:
+    import asyncio
+
+    from bot import flatten
+    import execution.service as service
+    import sim.mode as mode
+
+    sent = {}
+
+    class Receipt:
+        payload: dict = {}
+        execution_id = None
+
+        def legacy_place_dict(self):
+            return {"ok": True}
+
+    async def execute(cmd, wait_ack=False):
+        sent["cmd"] = cmd
+        return Receipt()
+
+    monkeypatch.setattr(service, "execute", execute)
+    monkeypatch.setattr(mode, "is_practice_venue", lambda: True)
+    asyncio.run(flatten.place_close("SPCX", 51, "SELL", origin="close_bots", expected_venue="paper"))
+    assert (sent["cmd"].origin, sent["cmd"].expected_venue) == ("close_bots", "paper")
+
+
+class _Quote:
+    def __init__(self) -> None:
+        from sim.fill_model import Reference
+
+        self.ref = Reference(40.0, 39.98, 40.02, live=True)
+
+    def reference(self, symbol: str):
+        return self.ref
+
+    def admission(self, symbol: str):
+        return True, "OK", None
+
+    def prints_between(self, symbol: str, after_ts: float, through_ts: float):
+        return []
+
+    def now_ts(self) -> float:
+        return T0 + 10_000
+
+
+def test_the_bots_budget_holds_through_a_reprice_and_at_the_fill() -> None:
+    from practice import order_rules
+    from practice.broker import PracticeBroker
+
+    broker = PracticeBroker(_Quote(), _ledger(), "NOVA-PAPER", venue="paper")
+    placed = broker.place("SPCX", "BUY", 1000, "LMT", limit_price=10.0, source="bot", origin="live_trader")
+    assert placed["ok"] and broker.ledger.working_row(placed["order_id"])  # $10,000 of $25,000: it rests
+    refused = broker.replace(placed["order_id"], limit_price=50.0)
+    assert refused["ok"] is False and refused["reason_code"] == OWNERS_BOTS_BUDGET_CODE
+    assert "the bots' $25,000 would be passed ($0 held + $50,000)" in refused["error"]
+    assert broker.replace(placed["order_id"], limit_price=9.5)["ok"] is True   # cheaper is always fine
+    row = broker.ledger.working_row(placed["order_id"])
+    reason, code = order_rules.fill_refusal(broker.ledger, row, 50.0)
+    assert code == OWNERS_BOTS_BUDGET_CODE and reason.endswith("This order was cancelled at its fill.")
+    assert order_rules.fill_refusal(broker.ledger, row, 9.5) is None
+
+
+def test_a_bots_waiting_short_bracket_stop_is_never_charged_to_the_budget() -> None:
+    """PR #1270 review: before a bot's short entry fills, its BUY stop still only ever covers -- moving it up is
+    never a new entry against the bots' budget."""
+    from practice.broker import PracticeBroker
+
+    broker = PracticeBroker(_Quote(), _ledger(), "NOVA-PAPER", venue="paper")
+    placed = broker.place_bracket("SPCX", "SELL", 400, 45.0, None, 47.0, short_entry=True, source="bot",
+                                  origin="live_trader")
+    assert placed["ok"], placed                                   # $18,000 short entry rests over the 40.02 ask
+    moved = broker.replace(placed["stop_order_id"], stop_price=48.0)
+    assert moved["ok"] is True, moved
+    assert broker.ledger.working_row(placed["stop_order_id"])["stop_price"] == 48.0
