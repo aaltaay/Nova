@@ -262,6 +262,34 @@ def test_open_chart_does_not_send_when_global_bucket_wait_exceeds_cap():
     assert rescheduled == [("AAPL", "1Hour")]
 
 
+def test_a_pair_waiting_out_a_pacing_wait_gets_one_wake():
+    """A waiting pane asks again every few seconds; each ask used to queue its own wake, and a series the
+    fill leaves short (a quiet name's 10-second bars) was sent once per wake when the window freed."""
+    import ibkr.historical_service as hs
+
+    class _Loop:
+        def __init__(self):
+            self.wakes = []
+
+        def is_running(self):
+            return True
+
+        def call_later(self, delay, callback):
+            self.wakes.append((delay, callback))
+
+    loop = _Loop()
+    with patch("ibkr.loop_supervisor.get_loop", return_value=loop), \
+            patch("ibkr.historical_service.schedule_fill") as fill:
+        for _ in range(3):
+            hs._reschedule_after_wait("riox", "10Sec", 1500, "open_chart", 40.0)
+        hs._reschedule_after_wait("RIOX", "1Min", 1000, "open_chart", 40.0)
+        assert [delay for delay, _ in loop.wakes] == [40.0, 40.0]
+        loop.wakes[0][1]()
+        fill.assert_called_once_with("riox", "10Sec", 1500, priority="open_chart")
+        hs._reschedule_after_wait("RIOX", "10Sec", 1500, "open_chart", 5.0)  # woken: a new wait waits again
+    assert len(loop.wakes) == 3
+
+
 def test_historical_pacing_snapshot():
     import ibkr.historical_service as hs
 

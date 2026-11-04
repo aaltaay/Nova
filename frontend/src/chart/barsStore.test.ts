@@ -92,6 +92,12 @@ describe('barsStore', () => {
     expect(quiet).not.toHaveProperty('lastErrorTs');
   });
 
+  it('reads a pane still waiting on its history only when the backend says so', () => {
+    expect(parseBarsCoverage({ filling: true, history_pending: true })).toMatchObject({ historyPending: true });
+    expect(parseBarsCoverage({ filling: true, history_pending: false })).not.toHaveProperty('historyPending');
+    expect(parseBarsCoverage({ filling: true })).not.toHaveProperty('historyPending');
+  });
+
   it('keeps the failure on the entry a /bars answer writes', async () => {
     (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,

@@ -406,6 +406,11 @@ IBKR_BARS_STORE_MIN_BARS: dict[str, int] = {
     "1Hour": 24,
     "4Hour": 20,
 }
+# The chart panes that read today's session only (from its 04:00 ET, ``market.session_key_for_ts``). The 10-second
+# pane read the newest 1,500 stored rows, so a stock seen on an earlier day drew that day's 10-second bars beside
+# today's and their prices stretched the axis until today's candles lay flat (RIOX 2026-11-04: 11-03's $9.13
+# tape bars beside $13.70).
+IBKR_BARS_SESSION_ONLY_TIMEFRAMES: frozenset[str] = frozenset({"10Sec"})
 
 # In-process TTL sitting on top of the durable store (hot path only).
 IBKR_BARS_CACHE_TTL_INTRADAY_SEC = 20.0

@@ -26,6 +26,11 @@ export interface BarsCoverage {
    */
   lastError?: string;
   lastErrorTs?: number | null;
+  /**
+   * No IBKR history the pane can show yet (`history_pending`): nothing filled this session, so its bars
+   * are the live tape's or an earlier session's. The pane asks again until it lands (chartBarsStuckRetry).
+   */
+  historyPending?: boolean;
 }
 
 export interface BarsStoreEntry {
@@ -107,6 +112,7 @@ export function parseBarsCoverage(raw: unknown): BarsCoverage | undefined {
         ? cov.last_error_ts
         : null,
     } : {}),
+    ...(cov.history_pending === true ? { historyPending: true } : {}),
   };
 }
 

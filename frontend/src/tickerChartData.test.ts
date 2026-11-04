@@ -4,6 +4,7 @@ import {
   canIncrementalBarsUpdate,
   timeScaleRangeForSeries,
   formatCoverageClockEt,
+  formatCoverageStampEt,
   clearEtOffsetCacheForTests,
   etCalendarDateString,
   isOutOfOrderTrade,
@@ -111,6 +112,16 @@ describe('ticker chart bar conversion', () => {
   it('formats coverage as_of in ET instead of slicing UTC', () => {
     expect(formatCoverageClockEt('2026-08-18T16:11:00Z')).toBe('12:11');
     expect(formatCoverageClockEt(null)).toBeNull();
+  });
+
+  it('names the day of an as_of that is not today in ET (RIOX 2026-11-04: "as of 11:20 ET" was 11-03)', () => {
+    const morning = Date.parse('2026-11-04T13:32:39Z'); // 08:32:39 ET
+    expect(formatCoverageStampEt('2026-11-04T13:32:00Z', morning)).toBe('08:32');
+    expect(formatCoverageStampEt('2026-11-03T16:20:00Z', morning)).toBe('Nov 3 11:20');
+    expect(formatCoverageStampEt('2025-11-03T16:20:00Z', morning)).toBe('Nov 3 2025 11:20');
+    // At 00:30 ET the evening before is another calendar day, so it is named (though the same session).
+    expect(formatCoverageStampEt('2026-11-04T00:59:00Z', Date.parse('2026-11-04T05:30:00Z'))).toBe('Nov 3 19:59');
+    expect(formatCoverageStampEt(null, morning)).toBeNull();
   });
 
 });
