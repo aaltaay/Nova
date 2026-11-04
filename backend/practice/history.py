@@ -175,6 +175,12 @@ def _walk(ledger: Ledger) -> _Walk:
     return _Walk(equity, fills, replay.unrealized_pnl())
 
 
+def ledger_fills(ledger: Ledger) -> list[dict[str, Any]]:
+    """Every fill of ``ledger``, oldest first, as ``fills[]`` reads -- with ``parts`` on a ledger that keeps the
+    books. The Reports journal builds Paper's round trips from them (``journal.paper_trips``, ADR 069)."""
+    return _walk(ledger).fills
+
+
 # --------------------------------------------------------------- aggregates
 def _aggregate(fills: Iterable[dict[str, Any]]) -> dict[str, Any]:
     realized = commissions = fees = 0.0

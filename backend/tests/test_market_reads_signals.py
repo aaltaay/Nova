@@ -28,6 +28,7 @@ import pyarrow.parquet as pq  # noqa: E402
 from test_market_reads_daily import write_gz  # noqa: E402
 
 from market_reads import daily, reads, signal_outcomes, signals, slots, splits, tickers  # noqa: E402
+from market_reads import rvol_store as rs  # noqa: E402
 from market_reads import signal_registry as reg  # noqa: E402
 from market_reads import signals_store as ss  # noqa: E402
 
@@ -102,6 +103,9 @@ def patch(mp, base: Path) -> None:
     mp.setenv("NOVA_MARKET_DATA_DIR", str(base / "massive"))
     mp.setenv("NOVA_RVOL_DIR", str(base / "rvol"))
     mp.setenv("NOVA_SIGNALS_DIR", str(base / "signals"))
+    # The drives' reserves guard the desk, not a runner's free disk: the build writes whatever the runner has.
+    mp.setattr(rs, "RESERVE_GB", 0.0)
+    mp.setattr(ss, "RESERVE_GB", 0.0)
     mp.setattr(slots, "heavy", lambda what, wait=0: contextlib.nullcontext())
     # The desk's own stores, fixed: whatever another test left in the shared folders never changes these rows.
     mp.setattr(inputs, "read_catalysts", lambda day, symbols: {s: ([], []) for s in symbols})

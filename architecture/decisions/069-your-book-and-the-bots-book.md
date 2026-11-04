@@ -1,6 +1,6 @@
 # ADR 069 -- Your book and the bots' book, inside one account
 
-**Status:** Accepted · **Date:** 2026-11-03 · **Built:** 2026-11-03 (#1267), all but the Reports tab's journal (decision 6), which follows
+**Status:** Accepted · **Date:** 2026-11-03 · **Built:** 2026-11-03 (#1267); the Reports tab's journal (decision 6) 2026-11-04, design mockup reports-v1
 **Amends:** [[063-a-loss-line-for-you-and-one-for-the-bots]] (decision 2's whose-trade rule becomes the books' rule, owned outside the loss limit; on Paper a fill no longer closes the other book's shares, except Nova's own closes and history from before this ADR) · [[020-three-venues-one-feed]] (Paper keeps each position per owner) · [[055-the-live-trader-bot]] (the Live Trader stays out of a stock you hold, not only off its other side) · [[042-one-owner-for-novas-buys]] (one budget above every bot's own sizing)
 **Builds on:** [[007-centralized-trading-execution]] (the door holds the rules) · [[048-short-selling]] (one account is never long and short a stock) · [[068-claude-trades-paper-from-its-own-seat]] (decision 6, Claude's shares are only Claude's, now holds for every bot)
 **Decided by:** the operator, 2026-11-03. The ask: "We're going to have bots with their own account, and we're going to have humans with their own account. Keep everything tied together, like the UI, the way it is." -- "I need a way to filter between bots only and human trades, and maybe do both." -- "When bots trade, I don't want it to go against my own trades. If I make money, bots lose money. I really want a separation." -- "Leave the sim alone." They chose among options put to them in three rounds before any code was written, and approved mockup v1 (`F:\Nova\design\bot-human-books\v1`, drawn from the Paper ledger's own figures). Two picks differ from the recommendation: the bots' budget is $25,000 (not $50,000), and the Account page opens on All (not You).
@@ -38,7 +38,9 @@
    - **All** is the default and shows the split beside each total: a calendar day reads its total, then yours and the bots'.
    - **Bots** opens a pick of one bot by name, using the Bots page's names (Claude counts with the bots).
    - The positions, orders and fills tables gain a **Whose** column: You, or the bot's name. Account details shows both books' Day P&L and how much of the bots' budget is in use.
-   - The Reports tab's journal stamps each trade's owner the same way and filters alike.
+   - The Reports tab's journal stamps each trade's owner the same way and filters alike. Paper's round trips join it,
+     one per holder at its own cost, built from the ledger off the order path; the tab follows the page's venue
+     and its pick (`architecture/schema/journal.md`, "Your trades and the bots' on the Reports tab").
    - On Live the switch reads You and is disabled, with its reason: "Live: every trade is yours -- a bot never trades Live."
    - Design: mockup v1, approved 2026-11-03.
 7. **The past is split too.** The history is re-derived from the ledger's events, so every past Paper day splits into yours and the bots' from the stamps each order already carries. An order with no stamp reads as yours. A fill from before this ADR that closed the other book's shares (you selling a bot's shares, or a bot's close over yours) is counted by ADR 063's rule: the shares it closed, and their P&L, belong to the book that held them. Archived Paper ledgers split the same way.
