@@ -50,7 +50,7 @@ import {
   placeMarketExit,
 } from './runNovaActionPlace';
 import { runShortHotkey, SHORT_HOTKEY_KINDS } from './runNovaActionShort';
-import type { NovaActionRuntime } from './runNovaActionRuntime';
+import { refusalNamingBots, type NovaActionRuntime } from './runNovaActionRuntime';
 import { runClipHotkey } from '../clips';
 import { viewLockReason } from '../market_view';
 
@@ -217,7 +217,7 @@ export async function runNovaAction(
     if (!built.ok) {
       return {
         ok: true,
-        text: `${cancelText} for ${symbol}. ${built.error}`,
+        text: `${cancelText} for ${symbol}. ${refusalNamingBots(built.error, runtime)}`,
       };
     }
     const exit = await placeMarketExit(
@@ -250,7 +250,7 @@ export async function runNovaAction(
     const built = action.kind === 'exit_pos'
       ? buildExitFullPosition(runtime.position?.qty)
       : buildExitPositionPercent(runtime.position?.qty, action.params.percent ?? 50);
-    if (!built.ok) return { ok: false, text: built.error };
+    if (!built.ok) return { ok: false, text: refusalNamingBots(built.error, runtime) };
 
     return placeMarketExit(
       runtime,

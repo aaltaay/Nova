@@ -19,7 +19,7 @@ import { planFlattenExit } from '../ibkr';
 import { placeIbkrOrder } from '../ibkr';
 import type { TopOfBook } from './TopOfBookContext';
 import type { NovaActionRecord, NovaActionResult } from './novaActionTypes';
-import type { NovaActionRuntime } from './runNovaActionRuntime';
+import { refusalNamingBots, type NovaActionRuntime } from './runNovaActionRuntime';
 
 export function accountModeLabel(mode?: string): string {
   const m = (mode || '').toLowerCase();
@@ -128,7 +128,7 @@ export async function placeLongPctLimit(
     return { ok: false, text: NOVA_ACTION_ACCOUNT_ERROR_MESSAGE };
   }
   const built = buildLongExitPercent(runtime.position?.qty, percent);
-  if (!built.ok) return { ok: false, text: built.error };
+  if (!built.ok) return { ok: false, text: refusalNamingBots(built.error, runtime, 'long') };
 
   const tobOrErr = requireDepth(runtime, symbol);
   if ('ok' in tobOrErr && tobOrErr.ok === false) return tobOrErr;

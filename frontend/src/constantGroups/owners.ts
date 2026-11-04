@@ -24,6 +24,8 @@ export const OWNER_BOT_NAMES: Record<string, string> = {
 };
 /** A Bots menu pick's closed trades on Reports (mockup reports-v1 item 1). */
 export const ownerTradeCount = (n: number): string => `${n.toLocaleString('en-US')} trade${n === 1 ? '' : 's'}`;
+/** Auto-entry hands you its exit, so its shares sit on your rows (backend `YOURS_TO_SELL`). */
+export const OWNER_AUTO_ENTRY = 'auto_entry';
 export const OWNER_YOU_NAME = 'You';
 export const OWNER_NOVA_NAME = 'Nova';
 export const ownerBotName = (bot: string | null | undefined): string =>
@@ -39,15 +41,28 @@ export const ownerBudgetHeld = (used: number, budget: number): string =>
 export const OWNER_BUDGET_NOTE = 'Every bot together: open positions and working entries.';
 
 export const OWNER_WHOSE_COL = 'Whose';
+export const OWNER_WHOSE_COL_TITLE = 'Whose shares: You, or the bot that holds them · Drag headers to reorder';
 export const OWNER_CLOSE_BOTS = 'Close';
+const shares = (qty: number): string => Math.abs(qty).toLocaleString('en-US');
+/** A short (`qty` below zero) is bought back, never sold (ADR 069 decision 4). */
 export const ownerCloseBotsTitle = (symbol: string, qty: number): string =>
-  `Sell every bot's ${symbol} -- ${Math.abs(qty).toLocaleString('en-US')} shares in all -- at market. Your shares stay.`;
+  qty < 0
+    ? `Buy back every bot's ${symbol} short -- ${shares(qty)} shares in all -- at market. Your shares stay.`
+    : `Sell every bot's ${symbol} -- ${shares(qty)} shares in all -- at market. Your shares stay.`;
 export const OWNER_CLOSE_BOTS_OFF_PAPER = "The bots' shares are closed on Paper";
 export const OWNER_CLOSE_BOTS_SENDING = '…';
 /** Close asks once more before it sends; the question stands this long. */
 export const OWNER_CLOSE_BOTS_ARM_MS = 3000;
-export const ownerCloseBotsConfirm = (qty: number): string => `Sell all ${Math.abs(qty).toLocaleString('en-US')}?`;
+export const ownerCloseBotsConfirm = (qty: number): string =>
+  qty < 0 ? `Buy back all ${shares(qty)}?` : `Sell all ${shares(qty)}?`;
 export const OWNER_CLOSE_BOTS_PATH = '/api/owners/close-bots';
+/** Follows a refusal: your order sent nothing, and this says where the shares are (ADR 069 decision 9). */
+export const ownerBotsHoldSentence = (qty: number): string =>
+  qty < 0
+    ? ` The ${shares(qty)} short is the bots' -- Close on their row buys it back.`
+    : ` The ${shares(qty)} shares are the bots' -- Close on their row sells them.`;
+/** Under a positions list while the read of the bots' shares fails. */
+export const OWNER_BOTS_UNREAD = "The bots' shares could not be read: they may be missing here.";
 
 /** The Performance panel's P&L by day (mockup v1, approved 2026-11-03). */
 export const OWNER_DAY_TAB = 'By day';

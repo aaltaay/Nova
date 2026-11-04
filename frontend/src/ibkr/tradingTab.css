@@ -641,6 +641,22 @@
   min-width: 4.6rem;
 }
 
+/* Close alone has no width, so this fixed table must leave it room: a narrow dock then scrolls to it instead
+   of crushing it to nothing. Whose (ADR 069 decision 9) has a width of its own, and the table grows by it. */
+.ibkr-table--orders.ibkr-table--positions {
+  width: max(100%, 66rem);
+}
+
+.ibkr-table--orders.ibkr-table--positions.ibkr-table--whose {
+  width: max(100%, 76rem);
+}
+
+.ibkr-table--orders th.ibkr-col--whose,
+.ibkr-table--orders td.ibkr-col--whose {
+  width: 6.75rem;
+  min-width: 6rem;
+}
+
 /* Sent by (2026-10-01): who placed the order. A sell Nova made for you (KILL, the loss limit) stands out. */
 .ibkr-table--orders th.ibkr-col--sent-by,
 .ibkr-table--orders td.ibkr-col--sent-by {

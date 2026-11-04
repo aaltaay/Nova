@@ -3,8 +3,8 @@
    the page's own bot indigo (--acct-bot), Claude its seat's purple. */
 
 .account-page {
-  --acct-you: #64d2ff;
-  --acct-claude: #8e7cf8;
+  --acct-you: var(--nova-owner-you);
+  --acct-claude: var(--nova-owner-claude);
 }
 
 /* -- the switch, on the tab row -- */
@@ -56,21 +56,7 @@
 .acct-daybars__tick { fill: var(--nova-text-muted); font-size: 10px; }
 .acct-daybars__key { display: inline-block; width: 14px; border-top: 2px dashed var(--nova-text-muted); vertical-align: middle; }
 
-/* -- the calendar's split and the Whose cells -- */
+/* -- the calendar's split and the Whose cells (the chip and the Close: whose.css) -- */
 .acct-cal__split { display: flex; align-items: center; justify-content: flex-end; gap: 3px; font-size: 9.5px; line-height: 12px; }
 .acct-cal__split .acct-owner__dot { width: 6px; height: 6px; }
-.acct-who { display: inline-flex; align-items: center; gap: 4px; height: 17px; padding: 0 4px; border: 1px solid; border-radius: 5px;
-  font-size: 10.5px; font-weight: 600; white-space: nowrap; }
-.acct-who.is-you { color: var(--acct-you); border-color: color-mix(in srgb, var(--acct-you) 45%, transparent);
-  background: color-mix(in srgb, var(--acct-you) 10%, transparent); }
-.acct-who.is-bots { color: color-mix(in srgb, var(--acct-bot) 35%, white); border-color: color-mix(in srgb, var(--acct-bot) 60%, transparent);
-  background: color-mix(in srgb, var(--acct-bot) 16%, transparent); }
-.acct-who.is-claude { color: color-mix(in srgb, var(--acct-claude) 40%, white); border-color: color-mix(in srgb, var(--acct-claude) 60%, transparent);
-  background: color-mix(in srgb, var(--acct-claude) 16%, transparent); }
-.acct-close-bots { display: inline-flex; align-items: center; justify-content: center; margin-left: 2px; min-width: 16px; height: 17px;
-  padding: 0 2px; border: 1px solid var(--acct-hair); border-radius: 5px; background: transparent; color: var(--nova-text-muted);
-  font-size: 10.5px; vertical-align: middle; cursor: pointer; }
-.acct-close-bots:hover { color: var(--nova-text); border-color: var(--nova-border-strong); }
-.acct-close-bots.is-armed { color: var(--nova-ask); border-color: color-mix(in srgb, var(--nova-ask) 60%, transparent); font-weight: 600; }
 .acct-table td.acct-whose-cell { padding: 0 3px; white-space: nowrap; }
-.acct-close-bots:disabled { opacity: 0.5; cursor: default; }
