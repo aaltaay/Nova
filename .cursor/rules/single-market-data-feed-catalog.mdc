@@ -130,7 +130,7 @@ Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive
 - ❌ Applying a scanner/hydration callback from a superseded IB generation, subscription epoch, or session key
 - ❌ Reviving HOD volume seeds, a `belowPrice` Gainers pass, open-ticker priority, or Losers as HOD inputs
 - ❌ Pretending table prices are live when the active-tab L1 subscription is incomplete
-- ❌ Calling `historical_service.request_bars` / `reqHistoricalData` from HOD surge seed (charts own the 60/10min budget)
+- ❌ Calling `historical_service.request_bars` / `reqHistoricalData` from HOD surge seed (charts own the 10-minute budget)
    - ❌ Feeding T&S from the Alpaca recorder (`l2.tape`) instead of `tape_stream.py`
 - ❌ Showing prior symbol's prints in T&S after a symbol switch
 - ❌ Mounting Level 2 or Time & Sales in the scanner Quote Panel (Trader tabs only)

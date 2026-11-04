@@ -85,7 +85,7 @@ function sharedRoutes(nowS: number): [RegExp, Handler][] {
       schema_version: 1, generated_at: nowS,
       l1: { used: 34, cap: 100, cap_learned: false, reserve: 5, refused: 0, by_owner: { scanner: 28, hod: 14, detail: 2 } },
       l2: { used: 1, cap: 3, symbols: [{ symbol: SMPL, held_by: 'tab' }] },
-      history: { used: 12, cap: 60, window_sec: 600, next_free_sec: 0, by_kind: { charts: 9, tape: 2, daily: 1, market: 0 } },
+      history: { used: 12, cap: 300, window_sec: 600, next_free_sec: 0, by_kind: { charts: 9, tape: 2, daily: 1, market: 0 } },
       tape: { used: 1, cap: null, symbols: [SMPL] },
     })],
     [/^\/api\/ibkr\/feed$/, () => ({

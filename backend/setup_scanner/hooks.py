@@ -82,8 +82,9 @@ async def _ask_history(sym: str) -> tuple[str, str | None]:
     from ibkr import historical_service as hist
 
     now = time.monotonic()
-    wait = send_wait(now, _last_history_send, int(hist.pacing_snapshot().get("window_used") or 0),
-                     hist.open_chart_busy())
+    snap = hist.pacing_snapshot()
+    left = max(0, int(snap["window_max"]) - int(snap["window_used"]))    # under zero in a hold
+    wait = send_wait(now, _last_history_send, left, hist.open_chart_busy())
     if wait is not None:
         return SEED_SHED, wait
     _last_history_send = now

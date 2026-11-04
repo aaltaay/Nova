@@ -50,7 +50,7 @@ def _fill_priority(history_pending: bool, interactive: bool) -> str:
     """An open chart's fill for a pane still waiting on its history; a painted pane's refresh otherwise.
 
     "warm" sheds on any pacing wait and while ``IBKR_HISTORY_WARM_RESERVE`` or fewer requests are left,
-    so a reconciliation cannot starve an empty pane's ``open_chart`` fill of the shared 60-req/10-min
+    so a reconciliation cannot starve an empty pane's ``open_chart`` fill of the shared 10-minute
     budget (PROBLEM_LOG 2026-08-26 chart hist starvation). A pane showing only the live tape's bars or an
     earlier session's is that empty pane: RIOX's 10-second fill (2026-11-04) was shed as "warm" at
     08:31:19 with 30 left, nothing asked again, and the pane never showed its history.
