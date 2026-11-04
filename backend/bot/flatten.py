@@ -88,8 +88,13 @@ def _sent_qty(receipt: Any) -> float | None:
         return None
 
 
-async def _cancel_working(*, symbol: str | None = None, owner: str | None = None) -> list[dict[str, Any]]:
-    """Every working order, or only one stock's (``symbol``) and one book's (a row's ``owner``, ADR 069)."""
+async def _cancel_working(*, symbol: str | None = None, owner: str | None = None, origin: str | None = None,
+                          expected_venue: str | None = None) -> list[dict[str, Any]]:
+    """Every working order, or only one stock's (``symbol``) and one book's (a row's ``owner``, ADR 069).
+
+    ``expected_venue``: the venue these order ids belong to; the door refuses a cancel on any other, where the same
+    number is another order (``execution.venue_door``).
+    """
     from execution.models import ExecutionCommand
     from execution.service import execute
     from ibkr import orders as _orders
@@ -115,6 +120,8 @@ async def _cancel_working(*, symbol: str | None = None, owner: str | None = None
                 source="cancel_working",
                 order_id=int(order_id),
                 skip_risk=True,
+                origin=origin,  # type: ignore[arg-type]
+                expected_venue=expected_venue,
             ),
             wait_ack=False,
         )

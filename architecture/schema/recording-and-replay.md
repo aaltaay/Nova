@@ -926,9 +926,10 @@ the fields below.
   that stock on Paper with origin `close_bots`, the way a bot's last-resort close does
   (`bot.flatten.place_close`); your shares stay. It first cancels the bots' working orders in that stock
   (`bot.flatten.cancel_working`, rows with `owner: "bots"`: their buy stops and entries; yours stay), so nothing
-  of theirs works on in a stock they no longer hold. The command names `expected_venue: "paper"` and
-  `execution.venue_door` refuses any `close_bots` send off Paper, so a desk that moves while it waits for the
-  lock never sells another account's shares. 409 `OWNERS_NOTHING_TO_CLOSE` off Paper or when the bots hold none;
+  of theirs works on in a stock they no longer hold. Each cancel and the close name `expected_venue: "paper"` and
+  origin `close_bots`, and `execution.venue_door` refuses any `close_bots` send off Paper, so a desk that moves
+  while one waits for the lock never sells another account's shares or cancels its order of the same number: the
+  receipt says `VENUE_CHANGED`. 409 `OWNERS_NOTHING_TO_CLOSE` off Paper or when the bots hold none;
   the answer is the close's receipt with `{symbol, qty, side, cancels}` (`cancels[]`: each cancel's receipt). The
   desk shows it once per stock, on its first bots' row, and its confirmation names every bot's shares it closes
   ("Sell all 112?", or "Buy back all 19?" on a short).

@@ -85,11 +85,13 @@ async def close_bots(request: Request) -> dict[str, Any]:
     from bot.flatten import cancel_working, place_close
 
     side = "SELL" if held > 0 else "BUY"
+    # Paper's alone: the door refuses each send if the desk moves first (``execution.venue_door``), so a Paper order
+    # number never cancels another venue's order, and these shares are never sold from another account.
+    on_paper = {"origin": ORIGIN_CLOSE_BOTS, "expected_venue": PRACTICE_VENUE_PAPER}
     # Their stops and entries leave first (never cancel after a place, ``bot.flatten``): a stop left working over
     # shares that are gone would sit in Working until it fired and Paper refused it.
-    cancels = await cancel_working(symbol=symbol, owner=HOLDER_BOTS_BOOK)
-    # Paper's alone: the door refuses it if the desk moves before it is sent (``execution.venue_door``).
-    out = await place_close(symbol, abs(held), side, origin=ORIGIN_CLOSE_BOTS, expected_venue=PRACTICE_VENUE_PAPER)
+    cancels = await cancel_working(symbol=symbol, owner=HOLDER_BOTS_BOOK, **on_paper)
+    out = await place_close(symbol, abs(held), side, **on_paper)
     logger.info("OWNERS: the operator closed the bots' %s %s (%s, %d cancelled)", abs(held), symbol,
                 "ok" if out.get("ok") else out, len(cancels))
     return {"symbol": symbol, "qty": abs(held), "side": side, **out, "cancels": cancels}
