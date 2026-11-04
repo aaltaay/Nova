@@ -27,6 +27,7 @@ from execution import inflight
 from execution.models import ExecutionCommand
 
 TARGET_REFUSED = "TARGET_VENUE_REFUSED"
+VENUE_CHANGED = "VENUE_CHANGED"
 # ADR 048: the closes Nova makes on a venue whatever the desk shows; ADR 055: the Live Trader bot's, on Paper;
 # ADR 056 / 061: the daily loss limit's Auto sell, any line's, on the account that reached it.
 NOVA_CLOSE_ORIGINS = ("day_cover", "margin_call", "live_trader", "loss_limit", "loss_limit_you", "loss_limit_bots",

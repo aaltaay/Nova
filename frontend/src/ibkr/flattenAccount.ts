@@ -5,6 +5,7 @@
  */
 import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL } from '../constants';
+import type { DeskVenue } from '../constantGroups/desk_venue';
 import { sampleOrderRefusal } from '../sample_data/sampleOrderGuard';
 import { executionTransportError } from './executionTransportError';
 
@@ -16,7 +17,8 @@ export interface FlattenAccountResult {
   attempt?: number;
 }
 
-export async function flattenAccount(): Promise<FlattenAccountResult> {
+/** `venue`: the one KILL was pressed on. If the desk has left it the backend sends nothing and says what is open (#1281). */
+export async function flattenAccount(venue?: DeskVenue | null): Promise<FlattenAccountResult> {
   // A flatten is the most destructive door in this module -- a whole-account
   // MKT liquidation. It must refuse on the sample route for the same reason
   // the cancel doors do, and it must refuse TOGETHER with them: guarding the
@@ -27,7 +29,8 @@ export async function flattenAccount(): Promise<FlattenAccountResult> {
   const refusal = sampleOrderRefusal();
   if (refusal) return { ok: false, error: refusal };
   try {
-    const response = await novaFetch(`${API_BASE_URL}/api/ibkr/flatten-account`, {
+    const query = venue ? `?venue=${encodeURIComponent(venue)}` : '';
+    const response = await novaFetch(`${API_BASE_URL}/api/ibkr/flatten-account${query}`, {
       method: 'POST',
     });
     const data = (await response.json().catch(() => ({}))) as {

@@ -154,7 +154,7 @@ def test_the_emergency_kill_flatten_reads_as_kill() -> None:
     fake = AsyncMock(return_value={"ok": True, "attempt": 1, "results": [], "cancels": []})
     with patch("bot.flatten.flatten_account_with_retry", fake):
         assert TestClient(app).post("/api/ibkr/flatten-account").status_code == 200
-    fake.assert_awaited_once_with(origin="emergency_kill")
+    fake.assert_awaited_once_with(origin="emergency_kill", venue=None)
 
 
 def test_the_tickets_flatten_reads_as_yours() -> None:

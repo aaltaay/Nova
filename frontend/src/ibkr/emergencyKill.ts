@@ -9,10 +9,16 @@
  * -- refusing one leg while another still fires produces a state neither branch
  * of the original design can reach. That is why the sample-desk check sits here,
  * ahead of every leg, rather than inside the individual doors (#357).
+ *
+ * The one exception is the operator's (#1281): KILL reads the venue once, at the
+ * click, and names it on both legs. If the desk leaves that venue partway the
+ * backend stops the leg and says what is still open, and nothing reaches the
+ * venue the desk moved to. A stopped KILL is reported, never finished elsewhere.
  */
 import { patchBotSession } from '../bot';
 import { refreshBotSessionNow } from '../bot/botSessionPoller';
 import { sampleKillRefusal } from '../sample_data/sampleOrderGuard';
+import { getConfirmedDeskVenueSnapshot } from './confirmedDeskVenue';
 import { flattenAccount } from './flattenAccount';
 import { cancelAllWorkingOrders } from './placeOrder';
 import { lockTicketSession } from './ticketUnlock';
@@ -74,12 +80,14 @@ async function runEmergencyKillOnce(): Promise<EmergencyKillResult> {
 
   const errors: string[] = [];
   const l0 = { value: false };
+  // Null before any status has answered: the backend then reads the desk's venue on arrival.
+  const { venue } = getConfirmedDeskVenueSnapshot();
 
   lockDesk(errors);
   await dropAutonomyL0(errors, l0);
 
   try {
-    const cancel = await cancelAllWorkingOrders();
+    const cancel = await cancelAllWorkingOrders(undefined, venue);
     if (!cancel.ok) {
       pushError(
         errors,
@@ -94,7 +102,7 @@ async function runEmergencyKillOnce(): Promise<EmergencyKillResult> {
   }
 
   try {
-    const flatten = await flattenAccount();
+    const flatten = await flattenAccount(venue);
     if (!flatten.ok) {
       pushError(errors, flatten.error?.trim() || 'Flatten all open positions failed');
     }

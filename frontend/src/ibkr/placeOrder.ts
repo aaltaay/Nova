@@ -1,5 +1,6 @@
 import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL } from '../constants';
+import type { DeskVenue } from '../constantGroups/desk_venue';
 import { sampleOrderRefusal } from '../sample_data/sampleOrderGuard';
 import { executionTransportError } from './executionTransportError';
 import { newGestureKey } from './gestureKey';
@@ -123,9 +124,13 @@ export async function cancelAllOrdersForSymbol(
   }
 }
 
-/** Cancel every working order on the connected account (ADR 007 per-order cancels). */
+/**
+ * Cancel every working order on the connected account (ADR 007 per-order cancels).
+ * `venue`: the one KILL was pressed on. If the desk has left it the cancels stop and say so (#1281).
+ */
 export async function cancelAllWorkingOrders(
   timing: BrowserExecutionTiming = beginBrowserExecutionTiming('cancel_all'),
+  venue?: DeskVenue | null,
 ): Promise<CancelAllResult> {
   const refusal = sampleOrderRefusal();
   if (refusal) {
@@ -135,8 +140,9 @@ export async function cancelAllWorkingOrders(
     return { ok: false, cancelled: [], failed: [], error: refusal };
   }
   try {
+    const named = venue ? `&venue=${encodeURIComponent(venue)}` : '';
     const response = await novaFetch(
-      `${API_BASE_URL}/api/ibkr/orders?all_symbols=true`,
+      `${API_BASE_URL}/api/ibkr/orders?all_symbols=true${named}`,
       {
         method: 'DELETE',
         headers: clientTimingHeaders(timing),
