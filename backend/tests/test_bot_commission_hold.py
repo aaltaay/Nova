@@ -152,7 +152,7 @@ async def test_exits_cancels_and_flatten_are_never_held(ledger, places, monkeypa
     out = await place_close("ABCD", 4.0, "SELL")                      # the protective flatten, on Live
     assert out["ok"] is True and [c.source for c in flattens] == ["flatten"]
     ready_l2(brain="brain-1", heartbeat=True)                         # Paper: exits and cancels pass
-    monkeypatch.setattr("bot.actions._position_qty", lambda _s: 4.0)
+    monkeypatch.setattr("bot.actions._position_qty", lambda _s, *_a: 4.0)
     monkeypatch.setattr("ibkr.orders.open_orders", lambda: [{"symbol": "ABCD", "order_id": 9}])
     for kind in ("exit_pos", "exit_pos_pct", "sell_limit_bid_offset", "sell_pos_pct_ask", "cancel_symbol"):
         await fire({"kind": kind, "symbol": "ABCD"}, brain_session_id="brain-1")

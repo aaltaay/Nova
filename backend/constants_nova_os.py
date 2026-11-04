@@ -96,6 +96,7 @@ EXECUTION_ORIGINS = (
     "margin_call",    # ADR 048: equity under maintenance -- IBKR liquidates, so Paper and Sim do
     "live_trader",    # ADR 055: the Live Trader bot's steps and closes, Paper only
     "claude",         # ADR 068: Claude's seat -- its entries, closes and cancels, Paper only
+    "close_bots",     # ADR 069: your Close on a bots' row -- the bots' shares in one stock, Paper only
 )
 EXECUTION_OPS = ("place", "bracket", "cancel", "replace", "exit_oco")
 # ── NYSE exchange calendar ───────────────────────────────────────────────────

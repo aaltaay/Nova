@@ -756,7 +756,7 @@ def test_setting_sell_to_you_takes_over_an_approved_bracket(paper, monkeypatch, 
                         {"order_id": oid, "status": "Submitted"})
     assert put(paper, "you", "nova").status_code == 200
     assert client.post(f"/api/stock-mode/{SYM}/approve", json=approve_body(), headers=headers(paper.key)).status_code == 200
-    monkeypatch.setattr(sm_orders, "held_qty", lambda sym: 153.0)     # the stubbed entry filled
+    monkeypatch.setattr(sm_orders, "held_qty", lambda sym, *_a: 153.0)     # the stubbed entry filled
     runner.submit(trigger())
     tick(paper)
     trade = tick(paper, NOW + 0.5)
@@ -782,7 +782,7 @@ def test_a_take_over_whose_cancel_is_refused_keeps_the_trade_and_says_so(paper, 
                         {"order_id": oid, "status": "Submitted"})
     put(paper, "you", "nova")
     client.post(f"/api/stock-mode/{SYM}/approve", json=approve_body(), headers=headers(paper.key))
-    monkeypatch.setattr(sm_orders, "held_qty", lambda sym: 153.0)
+    monkeypatch.setattr(sm_orders, "held_qty", lambda sym, *_a: 153.0)
     runner.submit(trigger())
     tick(paper)
     tick(paper, NOW + 0.5)

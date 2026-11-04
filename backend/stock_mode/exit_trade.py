@@ -108,7 +108,7 @@ _LEGS = exit_legs.LEGS
 
 def _held(trade: dict[str, Any]) -> float:
     """The shares the trade's side still holds on the venue."""
-    return orders.short_held_qty(trade["symbol"]) if _short(trade) else orders.held_qty(trade["symbol"])
+    return orders.held(trade)
 
 
 # -- take the exit ------------------------------------------------------------------------
@@ -140,10 +140,10 @@ async def take(symbol: str, *, stop: Any, trail: bool = True, now: float | None 
     if not stop_px > 0:
         raise StockModeError(STOCK_MODE_INVALID, "the stop is a price over zero", status=400, field="stop")
     try:
-        qty = orders.held_qty(sym)
-        short = qty <= _EPS and orders.short_held_qty(sym) > _EPS
+        qty = orders.held_qty(sym, "you")  # your own shares on Paper (ADR 069)
+        short = qty <= _EPS and orders.short_held_qty(sym, "you") > _EPS
         if short:
-            qty = orders.short_held_qty(sym)
+            qty = orders.short_held_qty(sym, "you")
         cost = avg_cost(sym, short)
     except orders.ReadError as exc:
         raise StockModeError(STOCK_MODE_NOTHING_HELD, f"Nova cannot read your {sym} position ({exc}): nothing was "

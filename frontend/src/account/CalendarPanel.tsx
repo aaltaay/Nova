@@ -36,7 +36,9 @@ import {
 import { formatSignedMoney } from '../components/globalBarMoney';
 import { formatMoney } from '../utils/formatMoney';
 import { PanelHead, toneClass, toneOf, type Tone } from './accountBits';
-import { dayLongLabel, monthGrid, monthLabel, parseIsoDate, shiftMonth } from './accountCalendar';
+import { OWNER_BOOK_BOTS, OWNER_BOOK_YOU } from '../constantGroups/owners';
+import { dayLongLabel, isoDate, monthGrid, monthLabel, parseIsoDate, shiftMonth } from './accountCalendar';
+import { monthSplit, type DaySplit } from './ownerView';
 import { monthDayTotals, type DayBreakdown, type MonthDayTotals } from './accountDayBreakdown';
 import type { PracticeHistory } from './accountHistoryTypes';
 import { CalendarDayCard, type DayCardAnchor } from './CalendarDayCard';
@@ -52,6 +54,31 @@ interface Props {
   selected: string | null;
   /** A day clicked: open it, or close it when it is the one open. */
   onSelect: (date: string | null) => void;
+  /** All on Paper (ADR 069): each date's yours and the bots', shown under the day's Net. */
+  split?: ReadonlyMap<string, DaySplit> | null;
+}
+
+const whole = (v: number): string => `${v < 0 ? '-' : '+'}$${Math.round(Math.abs(v)).toLocaleString('en-US')}`;
+
+const monthSplitOf = (split: ReadonlyMap<string, DaySplit> | null, month: { year: number; month: number }): DaySplit | null =>
+  monthSplit(split ? new Map(split) : null, isoDate(month.year, month.month, 1).slice(0, 7));
+
+function MonthSplit({ you, bots }: DaySplit) {
+  return (
+    <span data-testid="account-calendar-month-split">
+      {' · '}<i className="acct-owner__dot is-you" aria-hidden /> {OWNER_BOOK_YOU} <b className={`acct-num ${toneClass(toneOf(you))}`}>{formatSignedMoney(you)}</b>
+      {' · '}<i className="acct-owner__dot is-bots" aria-hidden /> {OWNER_BOOK_BOTS} <b className={`acct-num ${toneClass(toneOf(bots))}`}>{formatSignedMoney(bots)}</b>
+    </span>
+  );
+}
+
+function SplitLine({ you, bots }: DaySplit) {
+  return (
+    <span className="acct-cal__split" data-testid="account-calendar-split">
+      <i className="acct-owner__dot is-you" aria-hidden /><span className={`acct-num ${toneClass(toneOf(you))}`}>{you ? whole(you) : '—'}</span>
+      <i className="acct-owner__dot is-bots" aria-hidden /><span className={`acct-num ${toneClass(toneOf(bots))}`}>{bots ? whole(bots) : '—'}</span>
+    </span>
+  );
 }
 
 /** A month browsed to, and the month today was in when it was. */
@@ -106,7 +133,7 @@ const anchorOf = (el: HTMLElement): DayCardAnchor => {
   return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
 };
 
-export function CalendarPanel({ history, absence, today, days, selected, onSelect }: Props) {
+export function CalendarPanel({ history, absence, today, days, selected, onSelect, split = null }: Props) {
   const start = parseIsoDate(today) ?? { year: 1970, month: 0, day: 1 };
   const todayMonth = today.slice(0, 7);
   const [browsed, setBrowsed] = useState<Browsed | null>(null);
@@ -183,7 +210,9 @@ export function CalendarPanel({ history, absence, today, days, selected, onSelec
                 >
                   <span className="acct-cal__n">{cell.day}</span>
                   <span className={`acct-cal__p acct-num ${toneClass(shown.tone)}`}>{shown.value}</span>
-                  <span className="acct-cal__s">{shown.sub}</span>
+                  {metric === 'net' && split?.get(date)
+                    ? <SplitLine {...(split.get(date) as DaySplit)} />
+                    : <span className="acct-cal__s">{shown.sub}</span>}
                 </button>
               );
             })}
@@ -198,7 +227,8 @@ export function CalendarPanel({ history, absence, today, days, selected, onSelec
                     {archives > 0 && (
                       <><i className="acct-dot-hollow" /> {ACCOUNT_CALENDAR_ARCHIVED} <b className={`acct-num ${toneClass(toneOf(grid.archivedTotal))}`}>{formatSignedMoney(grid.archivedTotal)}</b> · </>
                     )}
-                    {ACCOUNT_CALENDAR_THIS_LEDGER} <b className={`acct-num ${toneClass(toneOf(grid.currentTotal))}`}>{formatSignedMoney(grid.currentTotal)}</b> · {ACCOUNT_CALENDAR_BLANK}
+                    {ACCOUNT_CALENDAR_THIS_LEDGER} <b className={`acct-num ${toneClass(toneOf(grid.currentTotal))}`}>{formatSignedMoney(grid.currentTotal)}</b>
+                    {monthSplitOf(split, month) && <MonthSplit {...(monthSplitOf(split, month) as DaySplit)} />} · {ACCOUNT_CALENDAR_BLANK}
                   </>
                 )}
           </p>

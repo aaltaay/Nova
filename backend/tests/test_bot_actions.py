@@ -189,7 +189,7 @@ async def test_cancel_symbol_uses_execute(monkeypatch, l2_brain):
 
 @pytest.mark.asyncio
 async def test_exit_pos_needs_long(monkeypatch, l2_brain):
-    monkeypatch.setattr("bot.actions._position_qty", lambda _s: 0)
+    monkeypatch.setattr("bot.actions._position_qty", lambda _s, *_a: 0)
     with pytest.raises(BotError) as exc:
         await fire({"kind": "exit_pos", "symbol": "ABCD"}, brain_session_id="brain-1")
     assert exc.value.status_code == 409

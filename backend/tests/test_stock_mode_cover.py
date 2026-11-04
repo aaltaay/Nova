@@ -118,14 +118,14 @@ def test_auto_entry_buys_nothing_while_you_hold_the_stock_short(shorting):
 
 
 def test_the_held_side_guard_refuses_an_unreadable_position(monkeypatch):
-    monkeypatch.setattr(fp_orders, "short_held_qty", lambda sym: 0.0)
-    monkeypatch.setattr(fp_orders, "held_qty", lambda sym: 0.0)
+    monkeypatch.setattr(fp_orders, "short_held_qty", lambda sym, *_a: 0.0)
+    monkeypatch.setattr(fp_orders, "held_qty", lambda sym, *_a: 0.0)
     assert admit.against_held("IMCC") is None and admit.against_held("IMCC", "short") is None
-    monkeypatch.setattr(fp_orders, "held_qty", lambda sym: 50.0)
+    monkeypatch.setattr(fp_orders, "held_qty", lambda sym, *_a: 50.0)
     code, why = admit.against_held("IMCC", "short")
     assert code == "BOT_SKIP_HELD_OTHER_SIDE" and why == "you hold IMCC long: Nova enters nothing on IMCC while you do"
 
-    def unreadable(sym):
+    def unreadable(sym, *_a):
         raise fp_orders.ReadError("position unreadable: Gateway down")
 
     monkeypatch.setattr(fp_orders, "short_held_qty", unreadable)

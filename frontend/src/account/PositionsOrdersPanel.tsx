@@ -55,6 +55,8 @@ import { sourceKind, sourceLabel } from './accountFigures';
 import type { AccountFillRow } from './accountLive';
 import type { AccountPosition } from './accountPositions';
 import { TickerLink } from '../components/TickerLink';
+import { OWNER_WHOSE_COL } from '../constantGroups/owners';
+import { CloseBotsButton, WhoseChip } from './WhoseCell';
 
 export type PosTab = 'positions' | 'orders' | 'fills';
 
@@ -150,6 +152,7 @@ const knownSource = (label: string): string | null => (label === '—' ? null : 
 
 const POSITION_COLUMNS: SortColumns<AccountPosition> = {
   symbol: (p) => p.symbol,
+  whose: (p) => `${p.owner ?? ''}${p.bot ?? ''}`,
   qty: (p) => p.qty,
   avg: (p) => p.avgCost,
   last: (p) => p.mark,
@@ -201,6 +204,8 @@ export function PositionsOrdersPanel({
   const held = positions.filter((p) => p.qty !== 0);
   const orderCols = useMemo(() => orderColumns(fillSource), [fillSource]);
   const positionSort = useTableSort('account.positions', held, POSITION_COLUMNS);
+  // Paper's positions are each holder's (ADR 069): the Whose column, with Close on a bots' row.
+  const whose = held.some((p) => p.owner != null);
   const orderSort = useTableSort('account.orders', shown, orderCols);
   const fillSort = useTableSort('account.fills', newestFills, FILL_COLUMNS);
   const foot = !practice
@@ -246,6 +251,7 @@ export function PositionsOrdersPanel({
             <thead>
               <tr>
                 <SortTh col="symbol" sort={positionSort.sort} onSort={positionSort.onSort}>{ACCOUNT_COL_SYMBOL}</SortTh>
+                {whose && <SortTh col="whose" sort={positionSort.sort} onSort={positionSort.onSort}>{OWNER_WHOSE_COL}</SortTh>}
                 <SortTh col="qty" sort={positionSort.sort} onSort={positionSort.onSort} className="r">{ACCOUNT_COL_QTY}</SortTh>
                 <SortTh col="avg" sort={positionSort.sort} onSort={positionSort.onSort} className="r">{ACCOUNT_COL_AVG}</SortTh>
                 <SortTh col="last" sort={positionSort.sort} onSort={positionSort.onSort} className="r">{ACCOUNT_COL_LAST}</SortTh>
@@ -255,10 +261,16 @@ export function PositionsOrdersPanel({
             </thead>
             <tbody>
               {positionSort.rows.length === 0 ? (
-                <tr><td colSpan={6} className="acct-muted">{ACCOUNT_POSITIONS_EMPTY}</td></tr>
+                <tr><td colSpan={whose ? 7 : 6} className="acct-muted">{ACCOUNT_POSITIONS_EMPTY}</td></tr>
               ) : positionSort.rows.map((p) => (
-                <tr key={p.symbol} data-testid={`account-position-${p.symbol}`}>
+                <tr key={`${p.symbol}-${p.owner ?? ''}-${p.bot ?? ''}`} data-testid={`account-position-${p.symbol}`} data-owner={p.owner ?? undefined}>
                   <td><TickerLink symbol={p.symbol} /></td>
+                  {whose && (
+                    <td className="acct-whose-cell">
+                      {p.owner && <WhoseChip owner={p.owner} bot={p.bot} />}
+                      {p.owner === 'bots' && <CloseBotsButton symbol={p.symbol} qty={p.qty} paper={venue === 'paper'} />}
+                    </td>
+                  )}
                   <td className="r acct-num">{formatShareQty(p.qty)}</td>
                   <td className="r acct-num">{p.avgCost == null ? '—' : p.avgCost.toFixed(4)}{p.estimated && p.avgCost != null && <EstChip />}</td>
                   <td className="r acct-num">{p.mark == null ? '—' : p.mark.toFixed(2)}</td>

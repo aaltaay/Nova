@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from typing import Iterable, Mapping
 
 from constants_loss_limit import LOSS_LIMIT_LINE_ACCOUNT, LOSS_LIMIT_LINE_YOU, LOSS_LIMIT_SIDES
+from owners.split import closing as _closing  # the rule's one owner (ADR 069)
 
 _EPS = 1e-6
 
@@ -83,38 +84,6 @@ class Count:
 
 def _finite(value: float | None) -> bool:
     return value is not None and math.isfinite(value)
-
-
-def _whole(*values: float) -> bool:
-    return all(abs(v - round(v)) < _EPS for v in values)
-
-
-def _closing(holders: dict[str, float], size: float, first: str | None) -> dict[str, float]:
-    """How many of a fill's ``size`` shares close each side's ``holders`` (shares held the other way)."""
-    total = sum(holders.values())
-    closing = min(size, total)
-    if closing <= _EPS:
-        return {}
-    if first in holders:
-        own = min(closing, holders[first])
-        out = {first: own}
-        other = next((side for side in holders if side != first), None)
-        if other is not None and closing - own > _EPS:
-            out[other] = closing - own
-        return out
-    if len(holders) == 1:
-        return {next(iter(holders)): closing}
-    # Nova's own close: in proportion to what each side holds, in whole shares where the shares are whole.
-    big, small = sorted(holders, key=lambda side: -holders[side])
-    part = closing * holders[big] / total
-    if _whole(closing, holders[big], holders[small]):
-        part = float(round(part))
-    part = min(part, holders[big])
-    rest = closing - part
-    if rest > holders[small]:
-        rest = holders[small]
-        part = closing - rest
-    return {big: part, small: rest}
 
 
 def _split(rows: list[Fill]) -> dict[str, dict[str, float]]:

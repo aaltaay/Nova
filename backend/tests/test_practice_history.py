@@ -28,6 +28,9 @@ SHAPE = {
     "equity", "fills", "by_source", "daily", "archives", "components", "warnings",
 }
 POINT = {"ts", "net_liquidation", "cash", "realized", "unrealized"}
+# Paper keeps the books (ADR 069): its history adds each holder, its points each book's running P&L.
+PAPER_SHAPE = SHAPE | {"by_owner"}
+PAPER_POINT = POINT | {"you_pnl", "bots_pnl", "by_bot", "you_realized", "bots_realized", "by_bot_realized"}
 FILL = {
     "ts", "order_id", "symbol", "side", "qty", "price", "source", "bot_id", "commission", "fees", "realized",
     "fill_estimated", "fill_basis",
@@ -97,18 +100,22 @@ def test_equity_is_the_net_liquidation_after_each_fill_marked_at_that_fill() -> 
     fill(ledger, 1, ts=DAY1, symbol="GRML", side="BUY", qty=100, price=8.80)
     out = history.build(ledger, venue="paper", range_key="ALL", now_ts=DAY1 + 100)
     buy_fees = for_fill("BUY", 100, 8.80).total
-    assert set(out) == SHAPE and out["ledger_opened_at"] == iso_et(OPENED) and out["starting_cash"] == 100_000
+    assert set(out) == PAPER_SHAPE and out["ledger_opened_at"] == iso_et(OPENED) and out["starting_cash"] == 100_000
     (bought,) = out["equity"]
-    assert set(bought) == POINT and bought["ts"] == DAY1
+    assert set(bought) == PAPER_POINT and bought["ts"] == DAY1
     assert bought["cash"] == pytest.approx(100_000 - 880 - buy_fees)
     assert bought["net_liquidation"] == pytest.approx(100_000 - buy_fees)  # 100 GRML marked at 8.80, the fill
     assert (bought["unrealized"], bought["realized"]) == (0.0, pytest.approx(-buy_fees))
     (entry,) = out["fills"]
-    assert set(entry) == FILL
+    assert set(entry) == FILL | {"owner", "bot", "parts"}  # whose (ADR 069)
     assert entry == {
         "ts": DAY1, "order_id": 1, "symbol": "GRML", "side": "BUY", "qty": 100.0, "price": 8.80,
         "source": "manual", "bot_id": None, "commission": 1.0, "fees": 0.0003, "realized": pytest.approx(-buy_fees),
         "fill_estimated": True, "fill_basis": "live_quote",
+        # Whose (ADR 069): your order, all of it opening your shares at your own cost.
+        "owner": "you", "bot": None,
+        "parts": [{"owner": "you", "bot": None, "qty": 100.0, "closes": False, "realized": pytest.approx(-buy_fees),
+                   "commission": 1.0, "fees": 0.0003}],
     }
     # Selling half at 9.30 marks the 50 still held at 9.30 -- the last fill, never a quote.
     fill(ledger, 2, ts=DAY1 + 60, symbol="GRML", side="SELL", qty=50, price=9.30)
@@ -239,8 +246,8 @@ def test_the_route_serves_paper_history_as_json(client) -> None:
     res = client.get("/api/practice/history", params={"venue": "Paper", "range": "1d"})
     assert res.status_code == 200
     body = res.json()
-    assert set(body) == SHAPE
-    assert (body["venue"], body["account_id"], body["range"], body["schema_version"]) == ("paper", "NOVA-PAPER", "1D", 1)
+    assert set(body) == PAPER_SHAPE
+    assert (body["venue"], body["account_id"], body["range"], body["schema_version"]) == ("paper", "NOVA-PAPER", "1D", 2)
     assert [f["symbol"] for f in body["fills"]] == ["GRML"] and body["fills"][0]["fill_estimated"] is True
     assert [d["date"] for d in body["daily"]] == ["2026-09-21"]
     assert body["archives"] == [] and body["warnings"] == []
@@ -253,7 +260,7 @@ def test_sim_with_nothing_loaded_is_the_shape_with_empty_lists(client) -> None:
     assert res.status_code == 200
     body = res.json()
     assert set(body) == SHAPE
-    assert (body["venue"], body["account_id"], body["range"], body["schema_version"]) == ("sim", "NOVA-SIM", "1D", 1)
+    assert (body["venue"], body["account_id"], body["range"], body["schema_version"]) == ("sim", "NOVA-SIM", "1D", 2)
     assert body["starting_cash"] == START and body["range_start"] is not None
     assert (body["equity"], body["fills"], body["by_source"], body["daily"]) == ([], [], [], [])
     assert (body["archives"], body["warnings"]) == ([], [])

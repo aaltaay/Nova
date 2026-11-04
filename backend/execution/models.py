@@ -34,6 +34,7 @@ Origin = Literal[
     "margin_call",
     "live_trader",
     "claude",
+    "close_bots",   # the operator's Close on a bots' row: the bots' shares in one stock (ADR 069)
 ]
 
 
