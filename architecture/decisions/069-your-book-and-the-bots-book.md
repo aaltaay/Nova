@@ -1,6 +1,6 @@
 # ADR 069 -- Your book and the bots' book, inside one account
 
-**Status:** Accepted · **Date:** 2026-11-03 · **Not built:** the build waits on the operator's go (#1267)
+**Status:** Accepted · **Date:** 2026-11-03 · **Built:** 2026-11-03 (#1267), all but the Reports tab's journal (decision 6), which follows
 **Amends:** [[063-a-loss-line-for-you-and-one-for-the-bots]] (decision 2's whose-trade rule becomes the books' rule, owned outside the loss limit; on Paper a fill no longer closes the other book's shares, except Nova's own closes and history from before this ADR) · [[020-three-venues-one-feed]] (Paper keeps each position per owner) · [[055-the-live-trader-bot]] (the Live Trader stays out of a stock you hold, not only off its other side) · [[042-one-owner-for-novas-buys]] (one budget above every bot's own sizing)
 **Builds on:** [[007-centralized-trading-execution]] (the door holds the rules) · [[048-short-selling]] (one account is never long and short a stock) · [[068-claude-trades-paper-from-its-own-seat]] (decision 6, Claude's shares are only Claude's, now holds for every bot)
 **Decided by:** the operator, 2026-11-03. The ask: "We're going to have bots with their own account, and we're going to have humans with their own account. Keep everything tied together, like the UI, the way it is." -- "I need a way to filter between bots only and human trades, and maybe do both." -- "When bots trade, I don't want it to go against my own trades. If I make money, bots lose money. I really want a separation." -- "Leave the sim alone." They chose among options put to them in three rounds before any code was written, and approved mockup v1 (`F:\Nova\design\bot-human-books\v1`, drawn from the Paper ledger's own figures). Two picks differ from the recommendation: the bots' budget is $25,000 (not $50,000), and the Account page opens on All (not You).
@@ -27,7 +27,8 @@
    - Two bots may hold the same stock the same way. Claude keeps its stricter rule and opens nothing where anyone holds shares or has an order (ADR 068 decision 6).
 3. **Never the other way.** You may trade a stock the bots hold the same way (both long, or both short), and your shares stay in your book. An order that would leave one book long and the other short in the same stock is refused, for you and for every bot. One account, like one IBKR account, is never long and short a stock at once (ADR 048): "Buy SPCX refused: the Live Trader is short 51. One account can't be long and short the same stock."
 4. **Your Sell and Flatten are yours.** These close only your book's shares: your plain Sell, your exit pair, and your Flatten (the ticket's, the quick bar's, `exit_pos`, `cancel_and_exit`). The door's `NO_POSITION`, `OVERSELL` and `OVERCOVER` checks and the Flatten size count your book, never the account. A Sell with nothing in your book is refused and says whose the shares are. A bot's close counts only its own shares.
-   - The bots' shares close by their own exits, Stop Claude, the Bots line's Auto sell, and a **Close** on a bots' row in the positions table (the operator, 2026-11-03). Close sells the bots' shares in that stock the way a bot's last-resort close does (`bot.flatten.place_close`), stamped as the bots' close, so it counts in the bots' book.
+   - **Auto-entry hands you its exit.** Auto-entry's shares stay in the bots' book (ADR 063), and your Sell and Flatten may close them too, after your own (the operator, 2026-11-03: Auto-entry buys for you and you sell by hand). No other bot's shares are yours to sell.
+   - The bots' shares close by their own exits, Stop Claude, the Bots line's Auto sell, and a **Close** on a bots' row in the positions table (the operator, 2026-11-03). Close sells the bots' shares in that stock the way a bot's last-resort close does (`bot.flatten.place_close`), stamped as the bots' close (origin `close_bots`), so it counts in the bots' book. It asks once more before it sends ("Sell 12?").
    - KILL, all stop, the day cover and the Account line still close every share, yours and the bots'.
 5. **The bots' budget.** All bots together may hold at most **$25,000** in open positions on Paper. That is shares at the mark plus working entries at their limit, the sum `bot.risk.open_plus_working_usd` already counts. An entry that would pass it is skipped and says why: "Live Trader skipped SOFI: the bots' $25,000 would be passed ($23,400 held + $2,500)."
    - It is one Paper setting, in whole dollars, default 25,000.
@@ -45,7 +46,7 @@
 
 ## Data
 
-There is no new ledger event and no new `practice-paper.json` version. The owner and the bot are read on replay from each order's `placed` stamps, so today's ledger and its archives read with the split. The build writes these shapes into `architecture/schema/` before its code (`recording-and-replay.md`, `execution.md`, `bot.md`, `loss-limit.md`):
+There is no new ledger event and no new `practice-paper.json` version. The owner and the bot are read on replay from each order's `placed` stamps, so today's ledger and its archives read with the split; a `rollover` written since ADR 069 also stamps each holder's P&L at the boundary (`holders`). The confirmed shapes are in `architecture/schema/recording-and-replay.md` ("Your book and the bots' book"), with `execution.md`, `bot.md` and `loss-limit.md`:
 
 - **`GET /api/practice/account?venue=paper`:**
   - Each `positions[]` row keeps the account's figures and adds `by_owner[]`, one `{owner, bot, qty, avg_cost, unrealized_pnl}` per holder.
@@ -54,15 +55,17 @@ There is no new ledger event and no new `practice-paper.json` version. The owner
 - **`GET /api/practice/history`** moves to `schema_version` 2:
   - Each `fills[]` row adds `owner` and `bot`.
   - Each `daily[]` row adds `you` and `bots`, each `{realized, commissions, fees, fills}`.
-  - Each `equity[]` point adds each book's running P&L.
+  - Each `equity[]` point adds each book's running P&L and its realized part (`you_pnl`, `bots_pnl`, `by_bot`, `you_realized`, `bots_realized`, `by_bot_realized`).
   - `by_owner[]` replaces `by_source[]`: `{owner, bot, realized, fills, commissions, fees}`, each priced at its holder's own cost.
 - **Practice order rows** (working, closed, and Orders (Today)) add `owner` and `bot`.
-- **Refusals at the door on Paper**, each with its sentence and a code named in the build:
-  - a bot's entry in your stock;
-  - an order against the other book's side;
-  - a bot's entry past the budget;
-  - a Sell with nothing in your book.
-- **The bots' budget** is one Paper setting, in whole dollars, default 25,000.
+- **`GET /api/ibkr/positions` on Paper** is your own shares (yours and Auto-entry's), with the account's in `account_qty`; every Sell, Flatten, cover and exit on the desk sizes from it, and a bot sizes its close from its own (`ibkr.account.long_qty(symbol, holder)`).
+- **Refusals at the door on Paper**, each with its sentence (`owners.rules`, asked again by the practice broker at placement and at the fill):
+  - `OWNERS_BOT_STAYS_OUT`: a bot's entry in your stock;
+  - `OWNERS_OTHER_SIDE`: an order against another holder's side;
+  - `OWNERS_BOTS_BUDGET`: a bot's entry past the budget;
+  - `OWNERS_NOT_YOURS`: a close past its sender's own shares while someone else holds the stock the same way.
+- **The bots' budget** is one Paper setting, in whole dollars, default 25,000: `owners-budget.json`, `GET` / `PUT /api/owners/budget`.
+- **Close on a bots' row**: `POST /api/owners/close-bots` `{symbol}`.
 
 ## Scenarios
 
@@ -73,6 +76,7 @@ There is no new ledger event and no new `practice-paper.json` version. The owner
 | The Live Trader holds SPCX long; you buy SPCX | Filled. Your shares are your book's; the account holds both. |
 | ... then you Sell or Flatten SPCX | Sells your shares only; the bot's keep their own exits. |
 | The Live Trader holds SPCX long, you hold none, and you press Sell | Refused: you hold no SPCX; the shares are the Live Trader's. |
+| Auto-entry bought SPCX for you, and you press Sell | Sells Auto-entry's shares: it hands you its exit. |
 | You press Close on the bots' SPCX row | The bots' SPCX shares sell; yours stay. |
 | The Live Trader is short SPCX; you buy SPCX | Refused: one account can't be long and short the same stock. |
 | The Live Trader is long SPCX; you short it | Refused for the same reason. |
