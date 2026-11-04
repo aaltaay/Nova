@@ -125,6 +125,9 @@ def wrong_venue(cmd: ExecutionCommand, send_venue: str) -> str | None:
     """Why the desk is not where the caller meant, or None. Claude's sends are Paper's alone (ADR 068)."""
     if cmd.origin == "claude" and send_venue != "paper":
         return f"Claude trades Paper only, and the desk is on {send_venue} -- nothing was sent"
+    if cmd.origin == "close_bots" and send_venue != "paper":
+        # ADR 069: the bots' shares are Paper's; a desk that moved mid-send never sells another account's.
+        return f"The bots' shares are closed on Paper, and the desk is on {send_venue} -- nothing was sent"
     if cmd.expected_venue and cmd.expected_venue != send_venue:
         return (f"the desk is on {send_venue}, not {cmd.expected_venue} -- an order id is only "
                 "meaningful on the venue that issued it")

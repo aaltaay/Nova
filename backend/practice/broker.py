@@ -399,6 +399,9 @@ class PracticeBroker:
         self, order_id: int, limit_price: float | None = None, stop_price: float | None = None,
     ) -> dict[str, Any]:
         now = self.reference.now_ts()
+        refused = self._reprice_refusal(int(order_id), limit_price, stop_price)
+        if refused is not None:  # a bot's entry repriced past the bots' budget (ADR 069)
+            return self._refused(*refused)
         row = self.ledger.replace(int(order_id), ts=now, limit_price=limit_price, stop_price=stop_price)
         if row is None:
             return {"ok": False, "error": f"order {order_id} not open"}
@@ -564,6 +567,18 @@ class PracticeBroker:
         return {**self.snapshot(), "archived": archived}
 
     # --------------------------------------------------------------- helpers
+    def _reprice_refusal(self, order_id: int, limit_price: float | None,
+                         stop_price: float | None) -> tuple[str, str] | None:
+        """A working bot entry repriced up must still fit the bots' budget at its new price (ADR 069)."""
+        row = self.ledger.working_row(order_id)
+        if row is None:
+            return None
+        old = row.get("limit_price") or row.get("stop_price")
+        new = limit_price if limit_price is not None else stop_price
+        if new is None or (old is not None and float(new) <= float(old)):
+            return None
+        return owner_rules.budget_refusal(self.ledger, row, float(new))
+
     def _refused(self, error: str, code: str | None) -> dict[str, Any]:
         return {"ok": False, "order_id": None, "error": error, "mode": self.venue, "reason_code": code}
 

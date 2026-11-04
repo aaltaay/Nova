@@ -912,10 +912,13 @@ the fields below.
   `{schema_version, bots_usd, used_usd, set_at, source: "default" | "operator", error}`; `PUT` `{bots_usd}`
   (400 `OWNERS_BUDGET_INVALID` with the rule). `used_usd` is the bots' open shares at the mark plus their
   working entries (`effect: "opens"`) at their own price.
-- **Close on a bots' row**: `POST /api/owners/close-bots` `{symbol}` sells (or covers) the bots' shares in
+- **Close on a bots' row**: `POST /api/owners/close-bots` `{symbol}` sells (or covers) every bot's shares in
   that stock on Paper with origin `close_bots`, the way a bot's last-resort close does
-  (`bot.flatten.place_close`); your shares stay. 409 `OWNERS_NOTHING_TO_CLOSE` off Paper or when the bots hold
-  none; the answer is the close's receipt with `{symbol, qty, side}`.
+  (`bot.flatten.place_close`); your shares stay. The command names `expected_venue: "paper"` and
+  `execution.venue_door` refuses any `close_bots` send off Paper, so a desk that moves while it waits for the
+  lock never sells another account's shares. 409 `OWNERS_NOTHING_TO_CLOSE` off Paper or when the bots hold none;
+  the answer is the close's receipt with `{symbol, qty, side}`. The desk shows it once per stock, on its first
+  bots' row, and its confirmation names every bot's shares it sells ("Sell all 112?").
 - Refusals on Paper (`owners.rules`, asked by the door's `execution.practice_checks` and again by the practice
   broker at placement and at the fill): `OWNERS_NOT_YOURS` (a close beyond its sender's own shares while
   someone else holds the stock the same way: "You hold no SPCX; the 51 are the Live Trader's. Your Sell closes
@@ -923,8 +926,9 @@ the fields below.
   "Buy SPCX refused: the Live Trader is short 51. One account can't be long and short the same stock."),
   `OWNERS_BOT_STAYS_OUT` (a bot opening a stock you hold or have an order working on, unless that bot already
   holds it the same way: "The Live Trader skipped PARA: you hold it.") and `OWNERS_BOTS_BUDGET` (a bot's entry
-  past the budget, at placement: "... the bots' $25,000 would be passed ($23,400 held + $2,500)."). A
-  refusal at the fill cancels the order with the same words.
+  past the budget: "... the bots' $25,000 would be passed ($23,400 held + $2,500)." -- at placement, on a
+  reprice up (`PracticeBroker.replace`, refused) and at its fill, each counting the entry once, at its new
+  price). A refusal at the fill cancels the order with the same words.
 
 ## Sim at now is live -- the live edge (ADR 020 amendment, operator decision 2026-09-21 evening)
 

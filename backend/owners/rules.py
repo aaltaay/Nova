@@ -12,7 +12,8 @@ in words, or None. A ledger that keeps one pile (Sim) and Nova's own closes (no 
 - **Bots stay out of yours** (``OWNERS_BOT_STAYS_OUT``): no bot opens a stock you hold or have an order working
   on; a bot already in it the same way may add.
 - **The bots' budget** (``OWNERS_BOTS_BUDGET``): a bot's entry may not take the bots' open positions and working
-  entries past the budget (placement only: a working entry is already counted).
+  entries past the budget -- at placement, when it is repriced up (``budget_refusal``), and at its fill, each
+  counting the entry once, at its new price.
 """
 from __future__ import annotations
 
@@ -121,11 +122,31 @@ def refusal(ledger: Any, *, symbol: str, side: str, qty: float, short_entry: boo
             return f"{name_of(holder)} skipped {sym}: you have an order working on it.", OWNERS_BOT_STAYS_OUT_CODE
     if at_fill or budget_usd is None or price is None:
         return None
-    new = size * float(price)
-    if float(used_usd) + new > float(budget_usd) + _BUDGET_SLACK_USD:
-        return (f"{name_of(holder)} skipped {sym}: the bots' ${float(budget_usd):,.0f} would be passed "
-                f"(${float(used_usd):,.0f} held + ${new:,.0f}).", OWNERS_BOTS_BUDGET_CODE)
+    return _past_budget(holder, sym, size * float(price), float(used_usd), float(budget_usd))
+
+
+def _past_budget(holder: str, symbol: str, new: float, used: float, budget_usd: float) -> tuple[str, str] | None:
+    if used + new > budget_usd + _BUDGET_SLACK_USD:
+        return (f"{name_of(holder)} skipped {symbol}: the bots' ${budget_usd:,.0f} would be passed "
+                f"(${used:,.0f} held + ${new:,.0f}).", OWNERS_BOTS_BUDGET_CODE)
     return None
+
+
+def budget_refusal(ledger: Any, row: dict[str, Any], price: float) -> tuple[str, str] | None:
+    """The bots' budget for a working bot entry at ``price`` -- a reprice, or its fill: the bots' open shares and
+    their other working entries, plus this one at ``price``. None for your orders, closes and Sim."""
+    from owners import budget
+
+    owners = getattr(ledger, "owners", None)
+    holder = holder_of(row)
+    if owners is None or book_of(holder) != OWNER_BOTS or holder is None:
+        return None
+    sym = str(row["symbol"]).strip().upper()
+    if _direction(str(row["side"]).strip().upper(), bool(row.get("short_entry")), _held_by(holder, owners, sym)) == 0:
+        return None
+    qty = float(row.get("remaining_qty") or row.get("qty") or 0)
+    used = budget.used_usd(ledger, exclude_order_id=int(row["order_id"]))
+    return _past_budget(holder, sym, qty * float(price), used, float(budget.bots_usd()))
 
 
 def for_order(ledger: Any, *, symbol: str, side: str, qty: float, short_entry: bool, source: str | None,
@@ -142,8 +163,11 @@ def for_order(ledger: Any, *, symbol: str, side: str, qty: float, short_entry: b
                    budget_usd=budget.bots_usd() if bots else None, used_usd=budget.used_usd(ledger) if bots else 0.0)
 
 
-def at_fill(ledger: Any, row: dict[str, Any]) -> tuple[str, str] | None:
-    """``refusal`` for a working order about to fill: who holds what may have changed since it was placed."""
+def at_fill(ledger: Any, row: dict[str, Any], price: float | None = None) -> tuple[str, str] | None:
+    """``refusal`` for a working order about to fill at ``price``: who holds what may have changed since it was
+    placed, and a bot's entry still has to fit the bots' budget at the price it fills."""
     reason = refusal(ledger, symbol=str(row["symbol"]), side=str(row["side"]), qty=float(row["qty"]),
                      short_entry=bool(row.get("short_entry")), holder=holder_of(row), at_fill=True)
+    if reason is None and price is not None:
+        reason = budget_refusal(ledger, row, float(price))
     return None if reason is None else (reason[0] + " This order was cancelled at its fill.", reason[1])

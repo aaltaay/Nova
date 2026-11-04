@@ -205,7 +205,7 @@ def fill_refusal(ledger: Any, row: dict[str, Any], price: float,
     symbol, side, qty = str(row["symbol"]), str(row["side"]), float(row["qty"])
     from owners import rules as owner_rules
 
-    owned = owner_rules.at_fill(ledger, row)  # Paper's books (ADR 069): who holds what may have changed
+    owned = owner_rules.at_fill(ledger, row, price)  # Paper's books (ADR 069): holders and the bots' budget
     if owned is not None:
         return owned
     held = float(ledger.held_qty(symbol))

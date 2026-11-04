@@ -20,7 +20,9 @@ from constants_bot import BOT_FLATTEN_RETRIES
 logger = logging.getLogger(__name__)
 
 
-async def _place_close(symbol: str, qty: float, side: str, *, origin: str | None = None) -> dict[str, Any]:
+async def _place_close(symbol: str, qty: float, side: str, *, origin: str | None = None,
+                       expected_venue: str | None = None) -> dict[str, Any]:
+    """``expected_venue``: the venue the close is meant for; the door refuses it on any other (ADR 069)."""
     from execution.flatten_exit import (
         plan_flatten_exit,
         plan_practice_flatten_exit,
@@ -51,6 +53,7 @@ async def _place_close(symbol: str, qty: float, side: str, *, origin: str | None
             qty=abs(float(qty)),
             skip_risk=True,
             origin=origin,  # type: ignore[arg-type]
+            expected_venue=expected_venue,
             **ticket_to_command_fields(ticket),
         ),
         wait_ack=False,
