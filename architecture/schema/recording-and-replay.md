@@ -897,6 +897,14 @@ the fields below.
   `market_value` and `unrealized_pnl` are your shares', `account_qty` the account's, `by_owner[]` every
   holder's; a stock only the bots hold is not listed. Every Sell, Flatten, cover and exit on the desk sizes
   from it. Sim's and Live's rows are the account's.
+- **The desk's positions lists** (ADR 069 decision 9: the header's count and menu, the positions tables, the
+  dock footer, the chart's line, the Bots page's bottom line, the header search, the close-of-day reminder) read
+  both books on Paper: your rows from `GET /api/ibkr/positions`, the bots' from `by_owner[]` of
+  `GET /api/practice/account?venue=paper` (one row per bot holder, valued at the position's `mark`), each tagged
+  `owner` / `bot` (`ibkr/deskPositions.ts`). A bots' row's `bots_qty` is every bot's shares in that stock, signed:
+  what Close on it sells. Auto-entry's shares are yours to sell, so they stay on your row and are never a bots'
+  row; `bots_qty` counts them. When the account read fails the rows are the last known and the table says so
+  (`botsStale`). Nothing sizes an order from the bots' rows; a refusal only names them (`refusalNamingBots`).
 - `GET /api/practice/history` (`schema_version: 2`, Paper): each `fills[]` row adds `owner`, `bot` (the
   order's) and `parts[]` -- `{owner, bot, qty, closes, realized, commission, fees}`, how the fill split, each
   `realized` at its holder's own cost; each `daily[]` row adds `you` and `bots` (`{realized, fills,
@@ -916,11 +924,14 @@ the fields below.
   working entries (`effect: "opens"`) at their own price.
 - **Close on a bots' row**: `POST /api/owners/close-bots` `{symbol}` sells (or covers) every bot's shares in
   that stock on Paper with origin `close_bots`, the way a bot's last-resort close does
-  (`bot.flatten.place_close`); your shares stay. The command names `expected_venue: "paper"` and
+  (`bot.flatten.place_close`); your shares stay. It first cancels the bots' working orders in that stock
+  (`bot.flatten.cancel_working`, rows with `owner: "bots"`: their buy stops and entries; yours stay), so nothing
+  of theirs works on in a stock they no longer hold. The command names `expected_venue: "paper"` and
   `execution.venue_door` refuses any `close_bots` send off Paper, so a desk that moves while it waits for the
   lock never sells another account's shares. 409 `OWNERS_NOTHING_TO_CLOSE` off Paper or when the bots hold none;
-  the answer is the close's receipt with `{symbol, qty, side}`. The desk shows it once per stock, on its first
-  bots' row, and its confirmation names every bot's shares it sells ("Sell all 112?").
+  the answer is the close's receipt with `{symbol, qty, side, cancels}` (`cancels[]`: each cancel's receipt). The
+  desk shows it once per stock, on its first bots' row, and its confirmation names every bot's shares it closes
+  ("Sell all 112?", or "Buy back all 19?" on a short).
 - Refusals on Paper (`owners.rules`, asked by the door's `execution.practice_checks` and again by the practice
   broker at placement and at the fill): `OWNERS_NOT_YOURS` (a close beyond its sender's own shares while
   someone else holds the stock the same way: "You hold no SPCX; the 51 are the Live Trader's. Your Sell closes

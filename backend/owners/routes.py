@@ -3,9 +3,9 @@
 - ``GET /api/owners/budget`` -- ``{schema_version, bots_usd, used_usd, set_at, source, error}``: the setting and
   what the bots hold against it on Paper now.
 - ``PUT /api/owners/budget`` ``{bots_usd}`` -- whole dollars; a value out of its rule is a 400 with the rule.
-- ``POST /api/owners/close-bots`` ``{symbol}`` -- sells (or covers) the bots' shares in one stock on Paper, the
-  way a bot's last-resort close does (``bot.flatten.place_close``), origin ``close_bots``; your shares stay. 409
-  while the desk is not on Paper or the bots hold nothing there.
+- ``POST /api/owners/close-bots`` ``{symbol}`` -- cancels the bots' working orders in one stock on Paper, then
+  sells (or covers) their shares there the way a bot's last-resort close does (``bot.flatten.place_close``), origin
+  ``close_bots``; your shares and orders stay. 409 while the desk is not on Paper or the bots hold nothing there.
 
 Shape: ``architecture/schema/recording-and-replay.md`` ("Your book and the bots' book").
 """
@@ -82,10 +82,14 @@ async def close_bots(request: Request) -> dict[str, Any]:
     if abs(held) < 1e-9:
         raise HTTPException(status_code=409, detail={"code": OWNERS_REASON_NOTHING_TO_CLOSE,
                                                      "error": f"The bots hold no {symbol}"})
-    from bot.flatten import place_close
+    from bot.flatten import cancel_working, place_close
 
     side = "SELL" if held > 0 else "BUY"
+    # Their stops and entries leave first (never cancel after a place, ``bot.flatten``): a stop left working over
+    # shares that are gone would sit in Working until it fired and Paper refused it.
+    cancels = await cancel_working(symbol=symbol, owner=HOLDER_BOTS_BOOK)
     # Paper's alone: the door refuses it if the desk moves before it is sent (``execution.venue_door``).
     out = await place_close(symbol, abs(held), side, origin=ORIGIN_CLOSE_BOTS, expected_venue=PRACTICE_VENUE_PAPER)
-    logger.info("OWNERS: the operator closed the bots' %s %s (%s)", abs(held), symbol, "ok" if out.get("ok") else out)
-    return {"symbol": symbol, "qty": abs(held), "side": side, **out}
+    logger.info("OWNERS: the operator closed the bots' %s %s (%s, %d cancelled)", abs(held), symbol,
+                "ok" if out.get("ok") else out, len(cancels))
+    return {"symbol": symbol, "qty": abs(held), "side": side, **out, "cancels": cancels}

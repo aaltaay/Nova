@@ -36,8 +36,42 @@ describe('heldPositionRows', () => {
   });
 });
 
+describe('heldPositionRows with both books (ADR 069 decision 9)', () => {
+  it('gives each holder of a stock its own row, yours first, and never adds them', () => {
+    const rows = heldPositionRows([
+      { ...pos('ORCL', -19), owner: 'bots', bot: 'live_trader' },
+      { ...pos('ORCL', 100), owner: 'you', bot: null },
+      { ...pos('ORCL', -5), owner: 'bots', bot: 'claude' },
+      { ...pos('AAPL', 10), owner: 'you', bot: null },
+    ]);
+    expect(rows.map((r) => [r.symbol, r.qty, r.bot ?? r.owner])).toEqual([
+      ['AAPL', 10, 'you'], ['ORCL', 100, 'you'], ['ORCL', -19, 'live_trader'], ['ORCL', -5, 'claude'],
+    ]);
+  });
+});
+
 describe('GlobalPositionsMenu', () => {
   const base = { stale: false, traderActive: false, closeTraderView: () => {}, onClose: () => {} };
+
+  it("says whose each row is on Paper, and a bots' row still opens the stock", () => {
+    const onOpenSymbol = vi.fn();
+    const rows = heldPositionRows([
+      { ...pos('ORCL', -19, { avg_cost: 125.9, unrealized_pnl: 19.19 }), owner: 'bots', bot: 'live_trader' },
+      { ...pos('ORCL', 100), owner: 'you', bot: null },
+    ]);
+    render(<GlobalPositionsMenu {...base} rows={rows} onOpenSymbol={onOpenSymbol} />);
+    expect(screen.getAllByTestId('account-whose').map((chip) => chip.textContent)).toEqual(['You', 'Live Trader']);
+    const theirs = screen.getByTestId('global-position-ORCL-live_trader');
+    expect(theirs.textContent).toContain('19 short @ $125.90');
+    fireEvent.click(theirs);
+    expect(onOpenSymbol).toHaveBeenCalledWith('ORCL');
+  });
+
+  it('draws no chip where there is one book', () => {
+    render(<GlobalPositionsMenu {...base} rows={heldPositionRows([pos('ORCL', 100)])} onOpenSymbol={() => {}} />);
+    expect(screen.queryByTestId('account-whose')).toBeNull();
+    expect(screen.getByTestId('global-position-ORCL').className).not.toContain('has-whose');
+  });
 
   it('lists each position and opens it in the Trader on click', () => {
     const onOpen = vi.fn();

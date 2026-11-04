@@ -9,6 +9,7 @@
  * as on -- its limit starts at the ask: a short under SSR may execute only above the bid. A cover is a BUY,
  * never past flat; the door and the practice broker hold that line, and the ticket says it.
  */
+import { ownerBotsHoldSentence } from '../constantGroups/owners';
 import {
   SHORT_LIMIT_NOTE_SSR,
   SHORT_LIMIT_NOTE_SSR_UNKNOWN,
@@ -54,6 +55,8 @@ export function sideButtons(args: {
   known: boolean;
   allowShort: boolean;
   shortBlock: string | null;
+  /** The bots' shares in the symbol, signed: the words only, never what the ticket sizes from (ADR 069). */
+  botsQty?: number;
 }): SideButton[] {
   const sym = args.symbol.trim().toUpperCase();
   const held = args.known ? heldSide(args.qty) : 'flat';
@@ -61,7 +64,10 @@ export function sideButtons(args: {
     ? { side: 'buy', label: SHORT_TICKET_LABEL_COVER, lock: null, tone: 'cover' }
     : { side: 'buy', label: TICKER_TRADE_LABEL_BUY, lock: null, tone: 'buy' };
   let sellLock: string | null = null;
-  if (args.known && held === 'flat') sellLock = SHORT_WHY_FLAT_SELL(sym);
+  const botsLong = args.botsQty != null && args.botsQty > 0;
+  if (args.known && held === 'flat') {
+    sellLock = SHORT_WHY_FLAT_SELL(sym) + (botsLong ? ownerBotsHoldSentence(args.botsQty ?? 0) : '');
+  }
   if (args.known && held === 'short') sellLock = SHORT_WHY_SHORT_SELL(sym);
   const sell: SideButton = { side: 'sell', label: TICKER_TRADE_LABEL_SELL, lock: sellLock, tone: 'sell' };
   if (!args.allowShort) return [buy, sell];

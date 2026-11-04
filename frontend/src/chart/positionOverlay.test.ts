@@ -1,14 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import type { Time } from 'lightweight-charts';
+import { LineStyle, type Time } from 'lightweight-charts';
 import type { IbkrOrder, IbkrPosition } from '../ibkr/types';
 import { isoToEtTime } from '../tickerChartData';
 import { deskTradingDay } from '../utils/deskTradingDay';
 import { buildSeriesTimeIndex } from './chartDrawingTime';
 import {
+  CHART_POSITION_BOTS_COLOR,
   CHART_POSITION_LONG_COLOR,
   CHART_POSITION_SHORT_COLOR,
 } from './positionOverlayConstants';
 import {
+  botsPositionLineOptions,
+  botsPositionLineTitle,
   deskDayFills,
   fillsFromOrders,
   findOpenPosition,
@@ -108,6 +111,24 @@ describe('positionPriceLineOptions', () => {
     });
     expect(line.color).toBe(CHART_POSITION_SHORT_COLOR);
     expect(line.price).toBe(11.5);
+  });
+});
+
+describe('the bots\' position line (ADR 069 decision 9)', () => {
+  const snapshot = { symbol: 'ORCL', qty: -19, avgCost: 125.9, unrealizedPnl: 19.19 };
+
+  it('says whose it is, in the words of your line', () => {
+    expect(botsPositionLineTitle('Live Trader', snapshot)).toBe('Live Trader short 19 @ $125.90  +$19.19');
+    expect(botsPositionLineTitle('Claude', { ...snapshot, qty: 40, unrealizedPnl: null })).toBe('Claude long 40 @ $125.90');
+  });
+
+  it('is dashed in the bots\' colour, whichever way they are, and priced on the axis', () => {
+    const line = botsPositionLineOptions(125.9);
+    expect(line.price).toBe(125.9);
+    expect(line.color).toBe(CHART_POSITION_BOTS_COLOR);
+    expect(line.lineStyle).toBe(LineStyle.Dashed);
+    expect(line.axisLabelVisible).toBe(true);
+    expect(line.title).toBe('');
   });
 });
 

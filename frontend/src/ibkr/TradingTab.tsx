@@ -23,6 +23,7 @@ import {
 import { useModuleVisibility } from '../workspace';
 import { useIbkrStatus } from './useIbkrStatus';
 import { useIbkrAccount } from './useIbkrAccount';
+import { useDeskPositions } from './useDeskPositions';
 import { DepthLadder } from './DepthLadder';
 import { OrderTicket } from './OrderTicket';
 import { PaperTradingBanner } from './PaperTradingBanner';
@@ -84,6 +85,8 @@ export function TradingTab({
     error: accountError,
     refresh,
   } = useIbkrAccount(status.connected);
+  // The list reads both books; the ticket below keeps your rows (ADR 069 decision 9).
+  const desk = useDeskPositions(positions);
   const { isVisible } = useModuleVisibility();
   const { topOfBook } = useTopOfBook();
   const [depthSymbol, setDepthSymbol] = useState<string | null>(null);
@@ -278,9 +281,10 @@ export function TradingTab({
           <div className="ibkr-account-col" data-testid="trading-working-orders-host">
             <PositionsPanel
               summary={summary}
-              positions={positions}
+              positions={desk.rows}
               orders={orders}
               error={accountError}
+              botsStale={desk.botsStale}
               selectedSymbol={selectedSymbol}
               onSelectSymbol={onSelectSymbol}
               onOpenTrading={onOpenTrading}

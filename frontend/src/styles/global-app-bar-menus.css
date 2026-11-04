@@ -286,6 +286,20 @@
   background: var(--hover-bg);
 }
 
+/* Paper: each row says whose (ADR 069 decision 9); the fixed column keeps the P&L in one line down the card. */
+.global-app-bar__positions-menu:has(.has-whose) {
+  min-width: 26rem;
+}
+
+.global-app-bar__position-row.has-whose {
+  grid-template-columns: 4rem 1fr auto 5.75rem;
+  align-items: center;
+}
+
+.global-app-bar__position-whose {
+  justify-self: end;
+}
+
 .global-app-bar__position-symbol {
   color: var(--nova-text);
   font-weight: 650;

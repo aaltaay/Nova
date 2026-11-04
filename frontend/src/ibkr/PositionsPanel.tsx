@@ -1,12 +1,15 @@
 import { useMemo, type ReactNode } from 'react';
+import { CloseBotsButton, WhoseChip } from '../account';
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { ClosePositionButton } from '../closed_orders';
 import { CLOSE_POSITION_ACCOUNT_ERROR_TITLE, POSITION_TABLE_SORT_HINT } from '../constants';
+import { OWNER_BOTS_UNREAD } from '../constantGroups/owners';
 import { useTableSort, type SortColumn, type SortColumns } from '../table_sort';
 import { commissionCellTitle, formatCommission } from './orderCommission';
 import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';
 import { OrderTableColumnHeader, OrderTableDnd } from './OrderTableColumnHeader';
+import type { DeskPosition } from './deskPositions';
 import { lastKnownBanner } from './disconnectCopy';
 import { positionSideClass, positionSideRowClass } from './orderDisplay';
 import { PositionSideTd } from './OrderSideCell';
@@ -14,11 +17,11 @@ import { liquidationTitle, positionSideWords } from './orderSide';
 import {
   DEFAULT_POSITION_COLUMNS,
   POSITION_COLUMN_META,
-  normalizeColumnOrder,
   type PositionColumnId,
 } from './orderTableColumns';
+import { normalizeColumnOrder } from './orderTableColumnStore';
 import type { OrderSortKey, OrderSortState } from './orderTableSort';
-import type { IbkrPosition, IbkrOrder, IbkrAccountSummary, IbkrMode } from './types';
+import type { IbkrOrder, IbkrAccountSummary, IbkrMode } from './types';
 import { useOrderTableColumnOrder } from './useOrderTableColumnOrder';
 import { WorkingOrdersPanel } from './WorkingOrdersPanel';
 import { positionsEmptyWorkingLine } from './positionsEmptyWorking';
@@ -26,11 +29,14 @@ import { TickerLink } from '../components/TickerLink';
 
 interface Props {
   summary: IbkrAccountSummary | null;
-  positions: IbkrPosition[];
+  /** On Paper both books (ADR 069 decision 9): a bots' row takes their Close, never your Sell. */
+  positions: DeskPosition[];
   orders: IbkrOrder[];
   /** Set when the last positions/orders poll failed — rows above are
    * last-good, not an honest "flat" read. */
   error?: string | null;
+  /** The read of the bots' shares failed: their rows are the last known, or missing. Your Close is untouched. */
+  botsStale?: boolean;
   selectedSymbol: string | null;
   onSelectSymbol: (symbol: string) => void;
   onOpenTrading: (symbol: string) => void;
@@ -47,8 +53,9 @@ interface Props {
 }
 
 /** What each position column sorts on, keyed by its column id: the numbers, never their text. */
-const POSITION_SORT_COLUMNS: SortColumns<IbkrPosition> = {
+const POSITION_SORT_COLUMNS: SortColumns<DeskPosition> = {
   symbol: (p) => p.symbol,
+  whose: (p) => p.bot ?? p.owner ?? null,
   side: (p) => { const w = positionSideWords(p); return w.tone === 'unknown' ? null : w.tag; },
   liq: (p) => p.liquidation_price ?? null,
   qty: (p) => p.qty,
@@ -57,13 +64,13 @@ const POSITION_SORT_COLUMNS: SortColumns<IbkrPosition> = {
   mkt_price: (p) => p.market_price,
   mkt_value: (p) => p.market_value,
   unrealized: (p) => p.unrealized_pnl,
-} satisfies Record<PositionColumnId, SortColumn<IbkrPosition>>;
+} satisfies Record<PositionColumnId, SortColumn<DeskPosition>>;
 
 const isPositionSortColumn = (id: string): boolean => id in POSITION_SORT_COLUMNS;
 
 function renderPositionCell(
   col: PositionColumnId,
-  p: IbkrPosition,
+  p: DeskPosition,
   sideCls: string,
   sideTitle: string | undefined,
 ): ReactNode {
@@ -74,6 +81,8 @@ function renderPositionCell(
           <TickerLink symbol={p.symbol} look="own" />
         </td>
       );
+    case 'whose':
+      return <td key={col} className="ibkr-col--text ibkr-col--whose">{p.owner && <WhoseChip owner={p.owner} bot={p.bot} pill />}</td>;
     case 'qty':
       return (
         <td key={col} className={`ibkr-col--num ${sideCls}`} title={sideTitle}>
@@ -143,6 +152,7 @@ export function PositionsPanel({
   positions,
   orders,
   error = null,
+  botsStale = false,
   selectedSymbol,
   onSelectSymbol,
   onOpenTrading,
@@ -160,10 +170,11 @@ export function PositionsPanel({
   // Nothing held is not nothing going on: the empty state names each working order (ADR 045, 2026-10-14).
   const workingLine = useMemo(() => positionsEmptyWorkingLine(orders), [orders]);
   const { order, reorder, reset } = useOrderTableColumnOrder('positions');
+  const split = positions.some((p) => p.owner != null);
   const columns = useMemo(
     () =>
-      normalizeColumnOrder(order, DEFAULT_POSITION_COLUMNS) as PositionColumnId[],
-    [order],
+      (normalizeColumnOrder(order, DEFAULT_POSITION_COLUMNS) as PositionColumnId[]).filter((id) => split || id !== 'whose'),
+    [order, split],
   );
   const headerMeta = useMemo(
     () => columns.map((id) => POSITION_COLUMN_META[id]),
@@ -180,6 +191,7 @@ export function PositionsPanel({
     () => (sort ? [{ key: sort.key as OrderSortKey, dir: sort.dir }] : []),
     [sort],
   );
+  const closing = new Set<string>();
 
   return (
     <div
@@ -220,8 +232,11 @@ export function PositionsPanel({
           {lastKnownBanner(error)}
         </div>
       )}
+      {botsStale && (
+        <div className="ibkr-empty ibkr-empty--error" data-testid="positions-bots-unread">{OWNER_BOTS_UNREAD}</div>
+      )}
       {positions.length === 0 ? (
-        !error && (
+        !error && !botsStale && (
           <div className="ibkr-empty" data-testid="positions-empty">
             No open positions.
             {workingLine && (
@@ -231,7 +246,7 @@ export function PositionsPanel({
         )
       ) : (
         <OrderTableDnd onReorder={reorder}>
-        <table className="ibkr-table ibkr-table--orders" data-testid="positions-table">
+        <table className={`ibkr-table ibkr-table--orders ibkr-table--positions${split ? ' ibkr-table--whose' : ''}`} data-testid="positions-table">
           <thead>
             <OrderTableColumnHeader
               columns={headerMeta}
@@ -255,6 +270,10 @@ export function PositionsPanel({
           </thead>
           <tbody>
             {sortedPositions.map((p) => {
+              // Their Close takes every bot's shares in the stock, so it sits on their first row there.
+              const botsClose = p.owner === 'bots' && !closing.has(p.symbol);
+              if (botsClose) closing.add(p.symbol);
+              const rowKey = `${p.symbol}-${p.owner ?? ''}-${p.bot ?? ''}`;
               const sideCls = positionSideClass(p.qty);
               const sideRowCls = positionSideRowClass(p.qty);
               const sideTitle = p.qty > 0 ? 'Long' : p.qty < 0 ? 'Short' : undefined;
@@ -263,15 +282,19 @@ export function PositionsPanel({
                   {columns.map((col) => renderPositionCell(col, p, sideCls, sideTitle))}
                   {showFlatten ? (
                     <td className="ibkr-col--actions">
-                      <ClosePositionButton
-                        position={p}
-                        mode={mode}
-                        connected={connected}
-                        spendStatus={spendStatus}
-                        disabled={Boolean(error)}
-                        why={error ? CLOSE_POSITION_ACCOUNT_ERROR_TITLE : null}
-                        onClosed={onPositionClosed}
-                      />
+                      {p.owner === 'bots' ? (
+                        botsClose && <CloseBotsButton symbol={p.symbol} qty={p.bots_qty ?? p.qty} paper look="word" />
+                      ) : (
+                        <ClosePositionButton
+                          position={p}
+                          mode={mode}
+                          connected={connected}
+                          spendStatus={spendStatus}
+                          disabled={Boolean(error)}
+                          why={error ? CLOSE_POSITION_ACCOUNT_ERROR_TITLE : null}
+                          onClosed={onPositionClosed}
+                        />
+                      )}
                     </td>
                   ) : null}
                 </>
@@ -279,7 +302,7 @@ export function PositionsPanel({
               if (onSelectSymbol && onOpenTrading) {
                 return (
                   <SelectableTableRow
-                    key={p.symbol}
+                    key={rowKey}
                     symbol={p.symbol}
                     selected={selectedSymbol === p.symbol}
                     onSelect={onSelectSymbol}
@@ -292,7 +315,7 @@ export function PositionsPanel({
               }
               return (
                 <tr
-                  key={p.symbol}
+                  key={rowKey}
                   className={sideRowCls || undefined}
                   data-symbol={p.symbol}
                 >

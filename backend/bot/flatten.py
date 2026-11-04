@@ -88,7 +88,8 @@ def _sent_qty(receipt: Any) -> float | None:
         return None
 
 
-async def _cancel_working() -> list[dict[str, Any]]:
+async def _cancel_working(*, symbol: str | None = None, owner: str | None = None) -> list[dict[str, Any]]:
+    """Every working order, or only one stock's (``symbol``) and one book's (a row's ``owner``, ADR 069)."""
     from execution.models import ExecutionCommand
     from execution.service import execute
     from ibkr import orders as _orders
@@ -102,6 +103,10 @@ async def _cancel_working() -> list[dict[str, Any]]:
     for row in open_rows:
         order_id = row.get("order_id")
         if order_id is None:
+            continue
+        if symbol is not None and str(row.get("symbol") or "").strip().upper() != symbol:
+            continue
+        if owner is not None and row.get("owner") != owner:
             continue
         receipt = await execute(
             ExecutionCommand(
@@ -221,3 +226,5 @@ async def flatten_account_with_retry(*, origin: str | None = None) -> dict[str, 
 
 # One symbol's protective close, for the first-pullback bot's last resort (ADR 030).
 place_close = _place_close
+# One stock's working orders in one book, before the Close on a bots' row (ADR 069 decision 9).
+cancel_working = _cancel_working

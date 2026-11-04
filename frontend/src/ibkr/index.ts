@@ -12,6 +12,9 @@ export { cancelIbkrOrderWithFeedback } from './cancelOrder';
 export { useIbkrStatus, type IbkrClientStatus } from './useIbkrStatus';
 export { useIbkrAccount } from './useIbkrAccount';
 export { useOptionalIbkrAccountContext } from './IbkrAccountContext';
+// ADR 069 decision 9: every positions list reads both books; nothing that sends an order takes these rows.
+export { botsRowsFor, type DeskPosition } from './deskPositions';
+export { useBotsQty, useDeskPositions } from './useDeskPositions';
 export {
   getIbkrStatusSnapshot,
   refreshIbkrStatusNow,
@@ -94,9 +97,9 @@ export { normalizeOrderList } from './orderRowNormalize';
 export {
   CLOSED_COLUMN_META,
   DEFAULT_CLOSED_ORDER_COLUMNS,
-  normalizeColumnOrder,
   type ClosedOrderColumnId,
 } from './orderTableColumns';
+export { normalizeColumnOrder } from './orderTableColumnStore';
 export { sortOrders } from './orderTableSort';
 export { useOrderTableColumnOrder } from './useOrderTableColumnOrder';
 export { useOrderTableSort } from './useOrderTableSort';

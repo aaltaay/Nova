@@ -227,6 +227,69 @@ def test_a_bot_close_carries_the_venue_it_is_meant_for(monkeypatch) -> None:
     assert (sent["cmd"].origin, sent["cmd"].expected_venue) == ("close_bots", "paper")
 
 
+def test_the_bots_close_cancels_only_their_working_orders_in_that_stock(monkeypatch) -> None:
+    """Your stop stays, and so does a bot's order in another stock (ADR 069 decision 9)."""
+    import asyncio
+
+    from bot import flatten
+    import execution.service as service
+    from ibkr import orders
+
+    cancelled = []
+
+    class Receipt:
+        def legacy_place_dict(self):
+            return {"ok": True}
+
+    async def execute(cmd, wait_ack=False):
+        cancelled.append((cmd.operation, cmd.source, cmd.order_id))
+        return Receipt()
+
+    monkeypatch.setattr(service, "execute", execute)
+    monkeypatch.setattr(orders, "open_orders", lambda: [
+        {"order_id": 1, "symbol": "ORCL", "owner": "bots"},
+        {"order_id": 2, "symbol": "ORCL", "owner": "you"},
+        {"order_id": 3, "symbol": "INTC", "owner": "bots"},
+    ])
+    asyncio.run(flatten.cancel_working(symbol="ORCL", owner="bots"))
+    assert cancelled == [("cancel", "cancel_working", 1)]
+    cancelled.clear()
+    asyncio.run(flatten._cancel_working())  # the whole-account flatten still takes every one
+    assert [order_id for _op, _source, order_id in cancelled] == [1, 2, 3]
+
+
+def test_the_close_on_a_bots_row_cancels_before_it_sends(monkeypatch) -> None:
+    import asyncio
+    import json
+
+    from bot import flatten
+    from owners import routes
+    import sim.account_hooks as account_hooks
+    import sim.mode as mode
+
+    steps = []
+
+    async def cancel_working(*, symbol=None, owner=None):
+        steps.append(("cancel", symbol, owner))
+        return [{"ok": True}]
+
+    async def place_close(symbol, qty, side, *, origin=None, expected_venue=None):
+        steps.append(("close", symbol, qty, side, origin, expected_venue))
+        return {"ok": True}
+
+    class Request:
+        async def json(self):
+            return json.loads('{"symbol": "orcl"}')
+
+    monkeypatch.setattr(flatten, "cancel_working", cancel_working)
+    monkeypatch.setattr(flatten, "place_close", place_close)
+    monkeypatch.setattr(mode, "venue", lambda: "paper")
+    monkeypatch.setattr(account_hooks, "held_by_if_practice", lambda symbol, holder: -19.0)
+    out = asyncio.run(routes.close_bots(Request()))
+    assert steps == [("cancel", "ORCL", "bots"), ("close", "ORCL", 19.0, "BUY", "close_bots", "paper")]
+    assert (out["side"], out["qty"], out["cancels"]) == ("BUY", 19.0, [{"ok": True}])
+
+
 class _Quote:
     def __init__(self) -> None:
         from sim.fill_model import Reference
