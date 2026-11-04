@@ -47,8 +47,10 @@
   flex-direction: column;
   gap: 4px;
   min-width: 0;
-  /* Level 2 keeps at least two fifths of the card: past that the read scrolls (or fold the plan). */
+  /* Level 2 keeps at least two fifths of the card: past that the read scrolls (or fold the plan). It never scrolls
+     sideways: the read fits the rail. */
   max-height: 60%;
+  overflow-x: hidden;
   overflow-y: auto;
   scrollbar-width: thin;
   container-type: inline-size;
@@ -170,10 +172,14 @@
   color: var(--sr-muted);
   white-space: nowrap;
 }
+/* Gives way on a narrow rail: its words lose their end (the tip has them), never the rail its edge. */
 .sr-plan__rr {
+  min-width: 0;
   margin-left: auto;
+  overflow: hidden;
   font-size: 0.56rem;
   color: var(--sr-muted);
+  text-overflow: ellipsis;
 }
 .sr-plan__rr b {
   font-size: 0.72rem;
@@ -260,11 +266,13 @@
   font-weight: 600;
 }
 
-/* The ruler: stop at the left end, the target at the right. */
+/* The ruler: stop at the left end, the target at the right. Layout containment keeps the price tick's track, slid
+   past the right end by the price (`rulerTrack`), from widening the rail; unlike a clip, it still paints the labels. */
 .sr-ruler {
   position: relative;
   height: 20px;
   margin: 3px 4px 0;
+  contain: layout;
 }
 .sr-ruler__risk,
 .sr-ruler__reward {
