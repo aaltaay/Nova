@@ -172,10 +172,14 @@
   color: var(--sr-muted);
   white-space: nowrap;
 }
+/* Gives way on a narrow rail: its words lose their end (the tip has them), never the rail its edge. */
 .sr-plan__rr {
+  min-width: 0;
   margin-left: auto;
+  overflow: hidden;
   font-size: 0.56rem;
   color: var(--sr-muted);
+  text-overflow: ellipsis;
 }
 .sr-plan__rr b {
   font-size: 0.72rem;
