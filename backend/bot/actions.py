@@ -45,29 +45,32 @@ from constants_loss_limit import LOSS_LIMIT_REASON_NO_NEW_BUYS
 from execution.models import ExecutionCommand
 from execution.service import execute
 
+_BOT_API = "bot_api"  # the bot API's own shares on Paper (ADR 069)
 
-def _position_qty(symbol: str) -> float:
+
+def _position_qty(symbol: str, holder: str | None = None) -> float:
+    """The shares held long; ``holder`` ``bot_api``: the bot API's own on Paper (ADR 069)."""
     from ibkr import account as _account
 
     try:
-        return float(_account.long_qty(symbol) or 0)
+        return float(_account.long_qty(symbol, holder) or 0)
     except Exception as exc:
         # Unknown is never "flat": an exit on an unreadable position is refused with the reason.
         raise BotError(f"the {symbol} position could not be read ({exc})", 503, "BOT_POSITION_UNREADABLE") from exc
 
 
-def _short_qty(symbol: str) -> float:
-    """The shares the venue holds short (a positive count); unknown is never flat."""
+def _short_qty(symbol: str, holder: str | None = None) -> float:
+    """The shares the venue holds short (a positive count); unknown is never flat. ``holder``: as above."""
     from ibkr import account as _account
 
     try:
-        return float(_account.short_qty(symbol) or 0)
+        return float(_account.short_qty(symbol, holder) or 0)
     except Exception as exc:
         raise BotError(f"the {symbol} position could not be read ({exc})", 503, "BOT_POSITION_UNREADABLE") from exc
 
 
 def _exit_qty(symbol: str, percent: int | None = None) -> tuple[str, float]:
-    qty = _position_qty(symbol)
+    qty = _position_qty(symbol, _BOT_API)
     if qty <= 0:
         raise BotError(f"no long position in {symbol} to exit", 409, "BOT_NO_POSITION")
     if percent is None:
@@ -243,7 +246,7 @@ async def fire(
     if side == "BUY":
         assert_bp_budget(kind, symbol, qty, limit, row)
     elif side == "SELL":
-        long_qty = _position_qty(symbol)
+        long_qty = _position_qty(symbol, _BOT_API)
         if long_qty + 1e-9 < qty:
             raise BotError("sell qty exceeds long position", 409, "BOT_NO_POSITION")
     cmd = ExecutionCommand(
@@ -305,7 +308,7 @@ async def _fire_short_side(kind: str, symbol: str, body: dict[str, Any], row: di
               inputs={"symbol": symbol, "qty": qty, "limit": limit, "stop": stop, "side": "short",
                       "venue_day": venue_day()})
         return receipt.legacy_place_dict()
-    short = _short_qty(symbol)
+    short = _short_qty(symbol, _BOT_API)
     if short <= 0:
         raise BotError(f"no short position in {symbol} to cover", 409, "BOT_NO_POSITION")
     if kind == "cover_pos":

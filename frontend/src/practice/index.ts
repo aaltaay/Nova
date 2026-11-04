@@ -3,5 +3,5 @@ export { PracticeResetAction } from './PracticeResetAction';
 export { isPracticeVenue } from './practiceAccountModel';
 export { resetPracticeAccount } from './practiceAccountResource';
 export { practiceBuyingPowerAfter } from './practiceBuyingPower';
-export type { PracticeAccount, PracticePosition } from './practiceTypes';
+export type { PracticeAccount, PracticeBookDay, PracticeBooks, PracticeOwnerHolding, PracticePosition } from './practiceTypes';
 export { useSimAccountClock, type SimAccountClock } from './useSimAccountClock';

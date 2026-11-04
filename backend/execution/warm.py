@@ -38,6 +38,9 @@ ORDER_PATH_MODULES = (
     "journal.flatten_close",
     "journal.net_pnl",
     "journal.round_trip",
+    "owners.rules",               # Paper's books (ADR 069): the door's and the broker's owner rules
+    "owners.budget",
+    "owners.books",
 )
 PAPER_BROKER = "practice.broker.for_venue(paper)"
 

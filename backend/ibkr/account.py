@@ -89,17 +89,22 @@ def get_positions() -> list[dict]:
         raise IbkrAccountError(f"get_positions failed: {detail}") from exc
 
 
-def long_qty(symbol: str) -> float:
+def long_qty(symbol: str, holder: str | None = None) -> float:
     """Verified long quantity for ``symbol`` from ``ib.positions()`` only.
 
     This is the **only** broker long-qty API for anti-short / flatten sizing.
     Sums same-symbol rows and ignores qty ≤ 0. Returns ``0.0`` when the
     account is verified flat in that symbol. Raises ``IbkrAccountError`` when
     the positions cache cannot be read — never invent a long from portfolio.
+    ``holder`` (ADR 069): on Paper only that holder's own shares -- ``you``, a
+    bot by its origin, ``bots`` for the whole bots' book; elsewhere the account's.
     """
     sym = (symbol or "").strip().upper()
     if not sym:
         return 0.0
+    own = _held_by(sym, holder)
+    if own is not None:
+        return max(0.0, own)
     total = 0.0
     for p in get_positions():
         if str(p.get("symbol") or "").upper() != sym:
@@ -113,16 +118,19 @@ def long_qty(symbol: str) -> float:
     return total
 
 
-def short_qty(symbol: str) -> float:
+def short_qty(symbol: str, holder: str | None = None) -> float:
     """Verified short quantity (positive magnitude) for ``symbol``.
 
     Sums absolute value of same-symbol rows with qty < 0. Returns ``0.0`` when
     verified flat/long-only. Raises ``IbkrAccountError`` when positions cannot
-    be read (same fail-closed contract as ``long_qty``).
+    be read (same fail-closed contract as ``long_qty``). ``holder``: as ``long_qty``.
     """
     sym = (symbol or "").strip().upper()
     if not sym:
         return 0.0
+    own = _held_by(sym, holder)
+    if own is not None:
+        return max(0.0, -own)
     total = 0.0
     for p in get_positions():
         if str(p.get("symbol") or "").upper() != sym:
@@ -136,11 +144,22 @@ def short_qty(symbol: str) -> float:
     return total
 
 
+def _held_by(symbol: str, holder: str | None) -> float | None:
+    """``holder``'s own signed shares on Paper (ADR 069); None for the account's position."""
+    if holder is None:
+        return None
+    from sim.account_hooks import held_by_if_practice
+
+    return held_by_if_practice(symbol, holder)
+
+
 def positions_for_ui() -> list[dict]:
-    """Positions rows for ``GET /api/ibkr/positions``."""
-    sim = positions_if_sim()
-    if sim is not None:
-        return sim
+    """Positions rows for ``GET /api/ibkr/positions``; on Paper your own shares (ADR 069)."""
+    from sim.account_hooks import positions_for_you_if_practice
+
+    practice = positions_for_you_if_practice()
+    if practice is not None:
+        return practice
     return join_positions_for_ui(
         get_positions(),
         get_portfolio,

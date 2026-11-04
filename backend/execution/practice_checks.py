@@ -37,6 +37,22 @@ def held_qty(broker: Any, symbol: str) -> float:
     return float(ledger.held_qty(symbol))
 
 
+def _owner_refusal(cmd: ExecutionCommand, broker: Any, symbol: str) -> tuple[str, str] | None:
+    """Paper's books (ADR 069, ``owners.rules``): bots stay out of yours, never the other way, a close is its
+    sender's own shares, the bots' budget. Sim's ledger keeps one pile and answers None."""
+    from owners import rules as owner_rules
+
+    ledger = getattr(broker, "ledger", None)
+    if ledger is None:
+        return None
+    price = cmd.entry_price or cmd.limit_price or cmd.stop_price or cmd.reference_price
+    return owner_rules.for_order(
+        ledger, symbol=symbol, side=cmd.side or "", qty=float(cmd.qty or cmd.shares or 0),
+        short_entry=bool(getattr(cmd, "short_entry", False)), source=cmd.source, origin=cmd.origin, bot_id=None,
+        price=price,
+    )
+
+
 def practice_refusal(cmd: ExecutionCommand, venue: str | None = None) -> tuple[str, str] | None:
     """``(detail, reason_code)`` when a practice venue refuses ``cmd``; ``None`` to admit it."""
     if cmd.operation not in ("place", "bracket", "exit_oco"):
@@ -47,6 +63,9 @@ def practice_refusal(cmd: ExecutionCommand, venue: str | None = None) -> tuple[s
         ok, reason, code = broker.reference.admission(symbol)
         if not ok:
             return reason, code
+    owned = _owner_refusal(cmd, broker, symbol)
+    if owned is not None:
+        return owned
     if getattr(cmd, "intent", None) == "flatten":
         # The ticket's Flatten is answered in the account stage, under the
         # execution lock (execution.flatten_intent): FLATTEN_NOT_A_CLOSE says why

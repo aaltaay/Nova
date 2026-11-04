@@ -14,6 +14,9 @@ export interface AccountPosition {
   unrealized: number | null;
   /** Practice marks are Nova's estimates, never an IBKR quote. */
   estimated: boolean;
+  /** Paper (ADR 069): whose shares the row is -- one row per holder; absent on Live and Sim. */
+  owner?: 'you' | 'bots';
+  bot?: string | null;
 }
 
 const finite = (n: number | null | undefined): number | null =>
@@ -45,6 +48,46 @@ export function positionsFromPractice(rows: PracticePosition[] | null | undefine
       estimated: true,
     };
   });
+}
+
+/** Paper's rows as each holder's (ADR 069): one row per holder, each at its own cost; a row with no holders
+ *  (Sim, an older backend) stays as it is. */
+export function positionsByOwner(rows: PracticePosition[] | null | undefined): AccountPosition[] {
+  const valid = usableRows<PracticePosition>(rows);
+  return positionsFromPractice(valid).flatMap((base, i) => {
+    const holders = valid[i].by_owner;
+    if (!Array.isArray(holders) || !holders.length) return [base];
+    return holders.map((h) => ({
+      ...base,
+      qty: h.qty,
+      avgCost: finite(h.avg_cost),
+      marketValue: base.mark == null ? null : h.qty * base.mark,
+      unrealized: finite(h.unrealized_pnl),
+      owner: h.owner,
+      bot: h.bot,
+    }));
+  });
+}
+
+/** Rows of one stock added up, one row per symbol (what the Symbol P&L table reads). */
+export function positionsBySymbol(rows: AccountPosition[]): AccountPosition[] {
+  const out = new Map<string, AccountPosition>();
+  const add = (a: number | null, b: number | null): number | null => (a == null || b == null ? null : a + b);
+  for (const row of rows) {
+    const seen = out.get(row.symbol);
+    if (!seen) {
+      out.set(row.symbol, { ...row, owner: undefined, bot: undefined });
+      continue;
+    }
+    const qty = seen.qty + row.qty;
+    const size = Math.abs(seen.qty) + Math.abs(row.qty);
+    const avg = seen.avgCost != null && row.avgCost != null && size > 0
+      ? (Math.abs(seen.qty) * seen.avgCost + Math.abs(row.qty) * row.avgCost) / size
+      : null;
+    out.set(row.symbol, { ...seen, qty, avgCost: avg, marketValue: add(seen.marketValue, row.marketValue),
+                          unrealized: add(seen.unrealized, row.unrealized) });
+  }
+  return [...out.values()];
 }
 
 export function positionsFromIbkr(rows: IbkrPosition[] | null | undefined): AccountPosition[] {

@@ -127,7 +127,10 @@ Every Live fill is yours.
 A stock's fills are read in the order they filled. Each first closes shares held the other way -- its
 own side's first, then the other side's; Nova's own close takes from each side in proportion to what it
 holds, in whole shares -- and the cash it moves and its share of the commission go to the side whose
-shares it closed. What is left opens for the side that sent it (yours for Nova's own close, which never
+shares it closed. The rule's one owner is `backend/owners/` since ADR 069 (`owners.whose.by_of`,
+`owners.split.closing`), the same rule Paper's books use; there a close sells only its sender's own shares
+(`OWNERS_NOT_YOURS`), so a fill that crosses into the other side's shares is one of Nova's own closes, or
+history from before ADR 069. The origin `close_bots` (your Close on a bots' row) is the bots'. What is left opens for the side that sent it (yours for Nova's own close, which never
 opens). Each side's P&L is its cash plus its shares at the mark; the two add up to the account's -- in
 cents, the Bots figure takes the rounding left over, on each stock and in total, so You + Bots is always the
 Account figure on the wire. So

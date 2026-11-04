@@ -1,7 +1,11 @@
 /**
- * Middle top -- Performance: Account P&L | Symbol P&L | By source, with the
+ * Middle top -- Performance: By day | Account P&L | Symbol P&L | By source, with the
  * P&L / P&L % / Account value toggle re-rendering the big number and the
  * line. On Live the absence is stated; no curve is ever fabricated.
+ *
+ * By day (ADR 069, mockup v1): your bar and the bots' for each day and the line of
+ * both, the panel's first tab. On Paper the fill markers and By source read whose
+ * each fill was (the holders' split), not its source stamp.
  */
 import { useMemo } from 'react';
 import {
@@ -46,8 +50,11 @@ import type { AccountPosition } from './accountPositions';
 import { EquityCurve, type CurveMarker } from './EquityCurve';
 import { rangeSeries, tickDecimals } from './equityPath';
 import { TickerLink } from '../components/TickerLink';
+import { OWNER_DAY_TAB } from '../constantGroups/owners';
+import { DayBars } from './DayBars';
+import { ALL_VIEW, whoName, type OwnerView } from './ownerView';
 
-export type PerfTab = 'account' | 'symbol' | 'source';
+export type PerfTab = 'day' | 'account' | 'symbol' | 'source';
 
 interface Props {
   history: PracticeHistory | null;
@@ -65,9 +72,12 @@ interface Props {
   netLiquidation: number | null;
   /** The account's open P&L at the live mark -- the headline's "open" (QA W1). */
   openPnl: number | null;
+  /** Whose trades the page shows (ADR 069); All by default. */
+  view?: OwnerView;
 }
 
 const TABS: Array<[PerfTab, string]> = [
+  ['day', OWNER_DAY_TAB],
   ['account', ACCOUNT_PERF_TAB_ACCOUNT],
   ['symbol', ACCOUNT_PERF_TAB_SYMBOL],
   ['source', ACCOUNT_PERF_TAB_SOURCE],
@@ -107,6 +117,7 @@ function perfLastLabel(mode: AccountPerfMode, value: number): string {
 
 export function PerformancePanel({
   history, absence, positions, range, onRange, mode, onMode, tab, onTab, nowTs, netLiquidation, openPnl,
+  view = ALL_VIEW,
 }: Props) {
   const net = history ? rangeNetPnl(history.components, openPnl) : null;
   const { series, baseline } = history
@@ -115,7 +126,7 @@ export function PerformancePanel({
   const markers: CurveMarker[] = history
     ? history.fills.map((f) => ({
         ts: f.ts,
-        tone: isBotFill(f) ? 'bot' : 'manual',
+        tone: (f.owner ? f.owner === 'bots' : isBotFill(f)) ? 'bot' : 'manual',
         title: `${f.side} ${f.qty} ${f.symbol} @ ${f.price} · ${f.source ?? '—'}${f.bot_id ? ` ${f.bot_id}` : ''}`,
       }))
     : [];
@@ -181,8 +192,9 @@ export function PerformancePanel({
             )
           )}
 
+          {tab === 'day' && <DayBars daily={history.daily} view={view} />}
           {tab === 'symbol' && <SymbolTable history={history} positions={positions} />}
-          {tab === 'source' && <SourceTiles history={history} />}
+          {tab === 'source' && (history.by_owner ? <OwnerTiles history={history} /> : <SourceTiles history={history} />)}
 
           <div className="acct-rows acct-rows--perf">
             <div className="acct-row"><span className="acct-row__k" data-testid="account-perf-realized-label">{ACCOUNT_PERF_ROW_REALIZED(range, resetLabel)}</span><span className="acct-row__v"><Money value={history.components.realized} signed /></span></div>
@@ -265,6 +277,33 @@ function SourceTiles({ history }: { history: PracticeHistory }) {
                   ? `${accountSourceFills(card.fills)} · comm ${formatMoney(-card.commissions)} · fees ${formatMoney(-card.fees)}`
                   : card.kind === 'auto_paper' ? ACCOUNT_SOURCE_AUTO_PAPER_NOTE : ACCOUNT_SOURCE_NO_FILLS_NOTE}
                 {!card.fills && card.kind === 'auto_paper' && <><br />{ACCOUNT_SOURCE_NO_FILLS_NOTE}</>}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="acct-foot">{ACCOUNT_SOURCE_FOOT}</p>
+    </div>
+  );
+}
+
+
+/** By source on Paper (ADR 069): one tile per holder -- you, then each bot -- each at its own cost. */
+function OwnerTiles({ history }: { history: PracticeHistory }) {
+  const rows = history.by_owner ?? [];
+  const total = rows.reduce((s, r) => s + r.fills, 0);
+  if (!rows.length) return <div className="acct-absent" data-testid="account-owner-tiles-empty">{ACCOUNT_SOURCE_NO_FILLS}</div>;
+  return (
+    <div className="acct-scroll">
+      <div className="acct-srcs" data-testid="account-owner-tiles">
+        {rows.map((row) => (
+          <div key={`${row.owner}-${row.bot ?? ''}`} className="acct-src" data-testid={`account-owner-tile-${row.bot ?? row.owner}`}>
+            <Ring share={total ? row.fills / total : 0} tone={row.owner === 'bots' ? 'bot' : 'up'} size={64} />
+            <div>
+              <div className="acct-src__k">{whoName(row.owner, row.bot)}</div>
+              <div className={`acct-src__v acct-num ${toneClass(toneOf(row.realized))}`}>{formatSignedMoney(row.realized)}</div>
+              <div className="acct-src__s">
+                {`${accountSourceFills(row.fills)} · comm ${formatMoney(-row.commissions)} · fees ${formatMoney(-row.fees)}`}
               </div>
             </div>
           </div>

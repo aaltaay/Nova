@@ -89,21 +89,23 @@ def order_state(row: dict[str, Any] | None) -> str:
     return "working"
 
 
-def held_qty(symbol: str) -> float:
+def held_qty(symbol: str, holder: str | None = None) -> float:
+    """The shares held long: the account's, or on Paper only ``holder``'s own (ADR 069)."""
     from ibkr import account as _account
 
     try:
-        return float(_account.long_qty(symbol) or 0.0)
+        return float(_account.long_qty(symbol, holder) or 0.0)
     except Exception as exc:
         raise ReadError(f"position unreadable: {exc}") from exc
 
 
-def short_held_qty(symbol: str) -> float:
-    """The shares the venue holds short (a positive count); a failed read raises ``ReadError``."""
+def short_held_qty(symbol: str, holder: str | None = None) -> float:
+    """The shares the venue holds short (a positive count); a failed read raises ``ReadError``. ``holder``:
+    as ``held_qty``."""
     from ibkr import account as _account
 
     try:
-        return float(_account.short_qty(symbol) or 0.0)
+        return float(_account.short_qty(symbol, holder) or 0.0)
     except Exception as exc:
         raise ReadError(f"position unreadable: {exc}") from exc
 
@@ -141,8 +143,9 @@ def is_short(trade: dict[str, Any]) -> bool:
 
 
 def held(trade: dict[str, Any]) -> float:
-    """The shares the venue holds on the trade's side: long for a long, short for a short."""
-    return short_held_qty(trade["symbol"]) if is_short(trade) else held_qty(trade["symbol"])
+    """The shares the bot holds on the trade's side: long for a long, short for a short (on Paper its own,
+    ADR 069)."""
+    return short_held_qty(trade["symbol"], "bot") if is_short(trade) else held_qty(trade["symbol"], "bot")
 
 
 # -- sends ---------------------------------------------------------------------

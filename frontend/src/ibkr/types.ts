@@ -230,6 +230,8 @@ export interface IbkrPosition {
   liquidation_price?: number | null;
   /** Where the liquidation price's margin came from: "IBKR what-if" or "published rules". */
   liquidation_source?: string | null;
+  /** Paper (ADR 069): `qty` is the shares yours to sell; the account holds this many. */
+  account_qty?: number | null;
 }
 
 export type FillAuditLevel = 'ok' | 'warn' | 'danger';

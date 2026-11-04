@@ -56,7 +56,7 @@ def test_account_answers_the_contract_for_both_venues(client) -> None:
     paper = client.get("/api/practice/account", params={"venue": "Paper"})
     assert paper.status_code == 200
     body = paper.json()
-    assert set(body) == CONTRACT
+    assert set(body) == CONTRACT | {"books"}  # Paper's two books (ADR 069); Sim keeps one pile
     assert (body["venue"], body["account_id"], body["starting_cash"]) == ("paper", "NOVA-PAPER", START)
     assert body["cash"] == START and body["buying_power"] == START * 4 and body["positions"] == []
 

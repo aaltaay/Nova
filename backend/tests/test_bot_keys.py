@@ -191,7 +191,7 @@ def test_with_every_key_off_your_own_close_goes_through_and_the_bot_takes_back_i
     family_keys.turn("strategy", False)
     switch.turn(False)
     paper.broker.cancel(trade["target_order_id"])
-    paper.broker.place(SYM, "SELL", 1, "MKT")                          # yours: no key stands in your way
+    paper.broker.place(SYM, "SELL", 1, "MKT", source="flatten", origin="close_bots")  # your Close on the bots' row: no key stands in its way
     tick(paper, NOW + 2)
     trade = tick(paper, NOW + 3)
     assert trade["state"] == "closed" and trade["exit_reason"] == "outside"

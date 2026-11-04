@@ -203,6 +203,11 @@ def fill_refusal(ledger: Any, row: dict[str, Any], price: float,
     at the fill, never filled.
     """
     symbol, side, qty = str(row["symbol"]), str(row["side"]), float(row["qty"])
+    from owners import rules as owner_rules
+
+    owned = owner_rules.at_fill(ledger, row)  # Paper's books (ADR 069): who holds what may have changed
+    if owned is not None:
+        return owned
     held = float(ledger.held_qty(symbol))
     if row.get("short_entry"):
         refused = short_entry_refusal(held, side)  # a long opened since it was placed: never flip

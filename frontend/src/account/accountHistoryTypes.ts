@@ -13,6 +13,41 @@ export interface EquityPoint {
   cash: number;
   realized: number;
   unrealized: number;
+  /** Paper (ADR 069): each book's running P&L since the ledger opened, at the event's marks, and its realized part. */
+  you_pnl?: number;
+  bots_pnl?: number;
+  by_bot?: Record<string, number>;
+  you_realized?: number;
+  bots_realized?: number;
+  by_bot_realized?: Record<string, number>;
+}
+
+/** Whose book (ADR 069): `you` | `bots`; null for one of Nova's own closes. */
+export type HistoryOwner = 'you' | 'bots';
+
+/** How one fill split across its holders, each at its own cost (ADR 069). */
+export interface HistoryFillPart {
+  owner: HistoryOwner;
+  /** The holder inside the bots' book (the order's origin); null for yours. */
+  bot: string | null;
+  qty: number;
+  closes: boolean;
+  realized: number;
+  commission: number;
+  fees: number;
+}
+
+/** One book's (or one bot's) sums over a day or a range. */
+export interface HistoryBookSums {
+  realized: number;
+  fills: number;
+  commissions: number;
+  fees: number;
+}
+
+export interface HistoryByOwner extends HistoryBookSums {
+  owner: HistoryOwner;
+  bot: string | null;
 }
 
 export interface HistoryFill {
@@ -32,6 +67,10 @@ export interface HistoryFill {
   realized: number;
   fill_estimated: true;
   fill_basis: string | null;
+  /** Paper (ADR 069): whose order it was, and how it split across the holders. */
+  owner?: HistoryOwner | null;
+  bot?: string | null;
+  parts?: HistoryFillPart[];
 }
 
 export interface HistoryBySource {
@@ -52,6 +91,10 @@ export interface HistoryDaily {
   fills: number;
   /** True for a day that belongs to an archived Paper ledger. */
   archived: boolean;
+  /** Paper (ADR 069): the day's yours and the bots', and each bot's. */
+  you?: HistoryBookSums;
+  bots?: HistoryBookSums;
+  by_bot?: Record<string, HistoryBookSums>;
 }
 
 export interface HistoryArchive {
@@ -68,6 +111,9 @@ export interface HistoryComponents {
   commissions: number;
   sec_finra_fees: number;
   bot_realized: number;
+  /** Paper (ADR 069): each book's realized, at its own cost. */
+  you_realized?: number;
+  bots_realized?: number;
 }
 
 export interface PracticeHistory {
@@ -83,6 +129,8 @@ export interface PracticeHistory {
   equity: EquityPoint[];
   fills: HistoryFill[];
   by_source: HistoryBySource[];
+  /** Paper (ADR 069): each holder, first-fill order. */
+  by_owner?: HistoryByOwner[];
   daily: HistoryDaily[];
   archives: HistoryArchive[];
   components: HistoryComponents;

@@ -127,7 +127,7 @@ def test_shares_sold_outside_close_with_no_fill_block(paper):
     runner.submit(trigger())
     trade = tick(paper)
     paper.broker.cancel(trade["target_order_id"])
-    paper.broker.place(SYM, "SELL", 1, "MKT")
+    paper.broker.place(SYM, "SELL", 1, "MKT", source="flatten", origin="close_bots")  # your Close on the bots' row (ADR 069)
     tick(paper, NOW + 2)
     tick(paper, NOW + 3)
     [closed] = trade_rows("closed")

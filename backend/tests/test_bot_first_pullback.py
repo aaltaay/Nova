@@ -288,7 +288,7 @@ def test_closing_the_position_by_hand_ends_the_trade(paper):
     runner.submit(trigger())
     trade = tick(paper)
     paper.broker.cancel(trade["target_order_id"])
-    paper.broker.place(SYM, "SELL", 1, "MKT")
+    paper.broker.place(SYM, "SELL", 1, "MKT", source="flatten", origin="close_bots")  # your Close on the bots' row (ADR 069)
     tick(paper, NOW + 2)
     trade = tick(paper, NOW + 3)
     assert trade["state"] == "closed" and trade["exit_reason"] == "outside"

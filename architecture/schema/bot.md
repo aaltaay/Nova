@@ -122,6 +122,15 @@ stamp from before that reads today's words (`activation.stamp_text`), never "it 
 session's `active` is the truth (`armed` a one-release alias; `has_desk_arm`,
 the token's presence, stays).
 
+**The bots' book on Paper (ADR 069).** Every bot's shares are the bots' book, apart from yours
+(`recording-and-replay.md`, "Your book and the bots' book"). Above each bot's own sizing (this sleeve, the Live
+Trader's per-host sizes, Claude's limits) all bots together may hold at most the **bots' budget** -- $25,000 by
+default, `GET` / `PUT /api/owners/budget` -- in open positions and working entries; an entry past it is skipped
+`OWNERS_BOTS_BUDGET` with the sums. No bot opens a stock you hold or have an order working on
+(`OWNERS_BOT_STAYS_OUT`; one already in it the same way may add), none holds the other side of anyone
+(`OWNERS_OTHER_SIDE`), and each bot's close sizes from its own shares (`ibkr.account.long_qty(symbol, holder)`:
+the bot API's `bot_api`, the strategy bot's `bot`, Auto-entry's `auto_entry`).
+
 **One sleeve per venue** (ADR 042, owner `bot/sleeve.py`, #658 item 2). Each
 venue's dial carries its own `caps: {venue, risk_usd, max_shares,
 bp_budget_usd, working_ttl_sec, extended_hours, api_kinds}`
