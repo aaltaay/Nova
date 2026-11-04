@@ -3,12 +3,15 @@
  * 15:50 ET for each Paper or Live position still open, escalated at 15:55, gone at 16:00, so the
  * desk is flat by the close. Once per position per day per stage: a dismissed card does not come
  * back at the same stage (the fired keys are kept for the day in localStorage), a position that
- * goes flat takes its card with it. Sim is left out -- its clock is the replay playhead.
+ * goes flat takes its card with it. Sim is left out -- its clock is the replay playhead. The bots'
+ * shares on Paper get a card of their own at 15:56 (ADR 069 decision 9), the net under never
+ * holding overnight: a bot's own sale runs by then, so it shows only when that sale did not finish.
  * Weekends are out; there is no holiday calendar on the client, and a holiday afternoon has no
  * positions changing hands to remind about. Nothing here places, stages or cancels an order.
  */
 import { readPref, writePref } from '../utils/prefStore';
 import {
+  CLOSE_REMIND_BOTS_MIN_ET,
   CLOSE_REMIND_CLOSE_MIN_ET,
   CLOSE_REMIND_FINAL_MIN_ET,
   CLOSE_REMIND_FIRED_PREF_KEY,
@@ -16,13 +19,15 @@ import {
   CLOSE_REMIND_WARN_MIN_ET,
 } from './closeReminderConstants';
 
-export type CloseReminderStage = 'warn' | 'final';
+export type CloseReminderStage = 'warn' | 'final' | 'bots';
 export type CloseReminderVenue = 'live' | 'paper';
 
 /** What the cards need of a position row (IbkrPosition is structurally one). */
 export interface HeldPosition {
   symbol: string;
   qty: number;
+  /** Paper (ADR 069): a bots' row is left out of your cards and raises its own. */
+  owner?: 'you' | 'bots';
 }
 
 export interface CloseReminder {
@@ -72,7 +77,7 @@ export function etClock(now: Date): EtClock {
 }
 
 /** The stage due at this ET minute, or null (before 15:50, or 16:00 and later). */
-export function stageAt(minutes: number): CloseReminderStage | null {
+export function stageAt(minutes: number): Exclude<CloseReminderStage, 'bots'> | null {
   if (minutes >= CLOSE_REMIND_CLOSE_MIN_ET) return null;
   if (minutes >= CLOSE_REMIND_FINAL_MIN_ET) return 'final';
   if (minutes >= CLOSE_REMIND_WARN_MIN_ET) return 'warn';
@@ -85,6 +90,20 @@ export function isReminderVenue(venue: string | null | undefined): venue is Clos
 
 export function fireKey(date: string, venue: CloseReminderVenue, symbol: string, stage: CloseReminderStage): string {
   return `${date}|${venue}|${symbol}|${stage}`;
+}
+
+/** One card per stock and book: yours moves from warn to final, the bots' stands beside it. */
+const cardKey = (r: Pick<CloseReminder, 'symbol' | 'stage'>): string => (r.stage === 'bots' ? `bots|${r.symbol}` : r.symbol);
+
+/** Each stock's shares, signed, across the rows this keeps. */
+function heldBySymbol(positions: readonly HeldPosition[], keep: (p: HeldPosition) => boolean): Map<string, number> {
+  const held = new Map<string, number>();
+  for (const p of positions) {
+    const symbol = String(p.symbol ?? '').trim().toUpperCase();
+    if (!keep(p) || !symbol || !Number.isFinite(p.qty) || p.qty === 0) continue;
+    held.set(symbol, (held.get(symbol) ?? 0) + p.qty);
+  }
+  return held;
 }
 
 /* ---------- The pure fold ---------- */
@@ -114,30 +133,30 @@ export function dueCloseReminders(input: DueInput): DueResult {
   const stage = venue && weekday ? stageAt(clock.minutes) : null;
   if (!venue || !stage) return { reminders: [], newKeys: [], date: clock.date };
 
-  const held = new Map<string, number>();
-  for (const p of input.positions) {
-    const symbol = String(p.symbol ?? '').trim().toUpperCase();
-    if (!symbol || !Number.isFinite(p.qty) || p.qty === 0) continue;
-    held.set(symbol, (held.get(symbol) ?? 0) + p.qty);
-  }
-  const current = new Map(input.current.map(r => [r.symbol, r]));
+  const current = new Map(input.current.map(r => [cardKey(r), r]));
   const reminders: CloseReminder[] = [];
   const newKeys: string[] = [];
-  for (const [symbol, qty] of held) {
-    if (qty === 0) continue;
-    const key = fireKey(clock.date, venue, symbol, stage);
-    const have = current.get(symbol);
-    if (input.fired.has(key)) {
-      if (!have) continue; // dismissed at this stage: stays dismissed
-      reminders.push(
-        have.stage === stage && have.qty === qty && have.stale === input.stale && have.venue === venue
-          ? have
-          : { ...have, stage, qty, stale: input.stale, venue },
-      );
-      continue;
+  const raise = (held: ReadonlyMap<string, number>, at: CloseReminderStage) => {
+    for (const [symbol, qty] of held) {
+      if (qty === 0) continue;
+      const key = fireKey(clock.date, venue, symbol, at);
+      const have = current.get(cardKey({ symbol, stage: at }));
+      if (input.fired.has(key)) {
+        if (!have) continue; // dismissed at this stage: stays dismissed
+        reminders.push(
+          have.stage === at && have.qty === qty && have.stale === input.stale && have.venue === venue
+            ? have
+            : { ...have, stage: at, qty, stale: input.stale, venue },
+        );
+        continue;
+      }
+      newKeys.push(key);
+      reminders.push({ symbol, qty, venue, stage: at, stale: input.stale, at: input.now.getTime() });
     }
-    newKeys.push(key);
-    reminders.push({ symbol, qty, venue, stage, stale: input.stale, at: input.now.getTime() });
+  };
+  raise(heldBySymbol(input.positions, p => p.owner !== 'bots'), stage);
+  if (venue === 'paper' && clock.minutes >= CLOSE_REMIND_BOTS_MIN_ET) {
+    raise(heldBySymbol(input.positions, p => p.owner === 'bots'), 'bots');
   }
   reminders.sort((a, b) => a.symbol.localeCompare(b.symbol));
   return { reminders, newKeys, date: clock.date };
@@ -195,8 +214,10 @@ export function noteCloseReminders(
   if (!sameCards(res.reminders, reminders)) publish(res.reminders);
 }
 
-export function dismissCloseReminder(symbol: string): void {
-  const next = reminders.filter(r => r.symbol !== symbol);
+/** `stage`: which of the stock's cards, yours (the default) or the bots'. */
+export function dismissCloseReminder(symbol: string, stage?: CloseReminderStage): void {
+  const gone = cardKey({ symbol, stage: stage ?? 'final' });
+  const next = reminders.filter(r => cardKey(r) !== gone);
   if (next.length !== reminders.length) publish(next);
 }
 

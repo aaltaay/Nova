@@ -34,6 +34,7 @@ import {
   practiceDayPnlTitle,
   practiceTavTitle,
 } from '../constantGroups/practice';
+import { useDeskPositions } from '../ibkr';
 import { resolveDeskVenue } from '../ibkr/deskVenue';
 import type { IbkrAccountSummary, IbkrMode, IbkrOrder, IbkrPosition } from '../ibkr/types';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
@@ -175,7 +176,10 @@ export function GlobalBarAccountCluster({
     : GLOBAL_BAR_DAY_PNL_TITLE;
   const tavTitle = ledger && practiceVenue ? practiceTavTitle(practiceVenue, ledger.account_id) : GLOBAL_BAR_TAV_TITLE;
   const ready = chrome === 'ready';
-  const held = heldPositionRows(positions);
+  // Every holder's shares, the way Day's P&L and Working already read the whole account (ADR 069 decision 9).
+  const desk = useDeskPositions(positions);
+  const held = heldPositionRows(desk.rows);
+  const heldStale = positionsStale || desk.botsStale;
   const toggle = (which: ClusterMenu) => () => setMenu((cur) => clusterMenuOnClick(cur, which));
   const hover = (which: ClusterMenu) => () => setMenu((cur) => clusterMenuOnHover(cur, which));
 
@@ -274,7 +278,7 @@ export function GlobalBarAccountCluster({
               >
                 <label>{GLOBAL_BAR_POSITIONS_LABEL}</label>
                 <span className="global-app-bar__positions-count">
-                  {positionsStale && held.length === 0 ? GLOBAL_BAR_OFFLINE_PLACEHOLDER : held.length}
+                  {heldStale && held.length === 0 ? GLOBAL_BAR_OFFLINE_PLACEHOLDER : held.length}
                 </span>
                 <span className="global-app-bar__caret" aria-hidden>
                   {openMenu === 'positions' ? '▴' : '▾'}
@@ -284,7 +288,7 @@ export function GlobalBarAccountCluster({
           >
             <GlobalPositionsMenu
               rows={held}
-              stale={positionsStale}
+              stale={heldStale}
               onOpenSymbol={onOpenSymbol}
               traderActive={traderActive}
               closeTraderView={closeTraderView}

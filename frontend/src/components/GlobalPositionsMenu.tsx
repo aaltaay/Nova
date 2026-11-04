@@ -1,8 +1,10 @@
 /**
  * The card under the header's Positions count: each stock held now, its
- * shares (a short says so), average cost and open P&L. A row opens that stock
- * in the Trader; View All Positions opens Account / Trading.
+ * shares (a short says so), average cost and open P&L, and on Paper whose they
+ * are (ADR 069 decision 9). A row opens that stock in the Trader; View All
+ * Positions opens Account / Trading.
  */
+import { WhoseChip } from '../account';
 import {
   GLOBAL_BAR_OFFLINE_PLACEHOLDER,
   GLOBAL_BAR_POSITIONS_EMPTY,
@@ -53,12 +55,12 @@ export function GlobalPositionsMenu({ rows, stale, onOpenSymbol, traderActive, c
       ) : (
         rows.map((r) => (
           <button
-            key={r.symbol}
+            key={`${r.symbol}-${r.owner ?? ''}-${r.bot ?? ''}`}
             type="button"
             role="menuitem"
-            className="global-app-bar__position-row"
+            className={`global-app-bar__position-row${r.owner ? ' has-whose' : ''}`}
             title={globalBarPositionOpenTitle(r.symbol)}
-            data-testid={`global-position-${r.symbol}`}
+            data-testid={`global-position-${r.symbol}${r.owner === 'bots' ? `-${r.bot ?? r.owner}` : ''}`}
             onClick={() => {
               onClose();
               onOpenSymbol(r.symbol);
@@ -76,6 +78,11 @@ export function GlobalPositionsMenu({ rows, stale, onOpenSymbol, traderActive, c
             >
               {r.openPnl == null ? GLOBAL_BAR_OFFLINE_PLACEHOLDER : formatSignedMoney(r.openPnl)}
             </span>
+            {r.owner && (
+              <span className="global-app-bar__position-whose">
+                <WhoseChip owner={r.owner} bot={r.bot} pill />
+              </span>
+            )}
           </button>
         ))
       )}

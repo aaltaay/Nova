@@ -259,6 +259,9 @@ export interface IbkrOrder {
   order_origin?: string | null;
   /** Practice rows only: the bot that placed it, when a bot did. */
   bot_id?: string | null;
+  /** Paper only (ADR 069): whose order it is, and which bot's, by its origin. */
+  owner?: 'you' | 'bots' | null;
+  bot?: string | null;
   /**
    * Nova sent this SELL as a short entry (ADR 048): practice rows stamp it, Live rows take it from
    * the execution ledger. null / absent: not recorded (placed outside Nova, or an older backend).

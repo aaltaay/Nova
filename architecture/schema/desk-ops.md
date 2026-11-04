@@ -714,7 +714,8 @@ Alpaca `/v2/assets` (listing metadata only, no price), ETFs and units
 included, sorted by symbol, cached in process for
 `SYMBOL_DIRECTORY_TTL_SEC`. A failed fetch keeps serving the last good
 directory with `error` set; no keys is `count: 0` with the reason. The
-header ticker search loads it on first focus and matches desk symbols first,
+header ticker search loads it on first focus and matches desk symbols first
+(your tabs and positions, and on Paper the bots' stocks, ADR 069 decision 9),
 then listed symbols by ticker prefix or company name; `/regex/` and `A*X`
 wildcards run over symbols only. Recent look-ups persist in `localStorage`
 `nova.search.recent` (`{schema_version: 1, symbols: string[]}`, newest first,
@@ -814,8 +815,11 @@ Owner `frontend/src/close_reminder/`, mounted once with the app bar (never on th
 takes its card with it. Once per position per day per stage: a dismissed card does not return at
 its stage. Sim is left out (its clock is the replay playhead); weekends too; there is no holiday
 calendar on the client. `localStorage` `nova.closeReminder.fired` (a `prefStore` envelope) holds `{schema_version: 1, date:
-"YYYY-MM-DD" (ET), keys: ["<date>|<venue>|<SYMBOL>|<warn | final>", ...]}`; another date or an unknown
+"YYYY-MM-DD" (ET), keys: ["<date>|<venue>|<SYMBOL>|<warn | final | bots>", ...]}`; another date or an unknown
 version is ignored. On Live the rows may be last-known (the Gateway dropped) and the card says so.
+On Paper the bots' shares get a card of their own from 15:56 to 16:00, stage `bots` (ADR 069 decision 9): a minute
+past their 15:55 sale, so it shows only when that sale did not finish; one card per stock for every bot's shares,
+beside yours, never added to it, and dismissed on its own.
 Nothing here places, stages or cancels an order.
 
 

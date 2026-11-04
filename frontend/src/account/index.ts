@@ -7,3 +7,5 @@ export type { HistoryFill } from './accountHistoryTypes';
 export { ALL_VIEW, whoName } from './ownerView';
 export type { OwnerView } from './ownerView';
 export type { BotCounts } from './OwnerSwitch';
+// Decision 9: every positions list says whose a row is and closes a bots' row the way this page does.
+export { CloseBotsButton, WhoseChip } from './WhoseCell';

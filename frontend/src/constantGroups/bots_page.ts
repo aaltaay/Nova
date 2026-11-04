@@ -246,6 +246,8 @@ export const BOTS_TODAY_PNL_TIP =
 /* ---------- Status bar ---------- */
 export const BOTS_STATUS_NO_SYMBOL = 'No symbol selected';
 export const BOTS_STATUS_FLAT = 'flat';
+/** Paper: the bots' own shares in the stock (ADR 069 decision 9). */
+export const botsStatusHeld = (shares: string): string => `bots ${shares}`;
 export const BOTS_STATUS_ORDER_KINDS = 'Order kinds (the localhost bot API):';
 
 /* ---------- Header pill and the Trader rail card ---------- */

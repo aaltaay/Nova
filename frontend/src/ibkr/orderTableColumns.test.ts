@@ -5,11 +5,9 @@ import {
   DEFAULT_CLOSED_ORDER_COLUMNS,
   DEFAULT_WORKING_ORDER_COLUMNS,
   WORKING_COLUMN_META,
-  moveColumnOrder,
-  normalizeColumnOrder,
-  parseColumnStore,
   visibleWorkingColumns,
 } from './orderTableColumns';
+import { moveColumnOrder, normalizeColumnOrder, parseColumnStore } from './orderTableColumnStore';
 
 describe('orderTableColumns', () => {
   it('defaults working columns Symbol-first (times not first)', () => {
