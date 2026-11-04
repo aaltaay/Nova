@@ -450,7 +450,8 @@ and hour panes now count it on the desk (`chart/liveTradeApply.ts`): a bar's
 volume is what the day volume grew by between its first update and its last.
 The first day volume a pane sees is a baseline, so the bar it joined mid-way
 has no live count -- the store's figure, or nothing, never a partial one. A
-total that goes down restarts the baseline and leaves that bar unknown. Updates
+lower total the same day counts nothing (another counter on the line, below); a
+later day's lower total restarts the baseline and leaves that bar unknown. Updates
 arrive on price changes, so shares traded at an unchanged price just before a
 bar closes count in the next bar; the store's bar replaces a closed bar's figure
 when it lands, and a forming bar shows the larger of the two counts. 10Sec
@@ -476,15 +477,50 @@ L1 line's own day-volume growth matched it (103%, median minute 1.000).
   stamped in it joins it and the whole minute is written again; listeners
   (the setup scanner) hear a minute once, when it is first written.
 - An update stamped before the newest minute never reopens a closed candle;
-  its shares count in the newest one. An update stamped before the session it
-  arrived in (IBKR repeats the line's last trade of an earlier day) makes no
-  minute, and its shares count in the session's first.
+  its shares count in the newest one. A written minute from an earlier day is
+  let go at ET midnight: IBKR repeats a line's last trade on the new day's
+  first update, and a minute held overnight would take that trade's shares
+  again.
 - `bars_store` never lowers a stored live minute's volume (`MAX`), so a smaller
   count -- a restarted process that joined the minute late -- cannot replace a
   larger one. A hist row is never touched, as before.
 - IBKR's own historical minutes, which replace these, measured 93% of the
   consolidated tape on XLAB and 90% on WETO (94.5% of the L1 count on CRIS):
   a minute's volume drops a few percent when its hist bar lands.
+- **Only growth above the session's highest day volume counts**
+  (`l1_minute.volume_increment`; the desk's forming bar the same,
+  `chart/liveTradeApply.stepLiveVolume`). The line carries a second counter or a
+  stale total now and then: XLAB 2026-10-16 19:59:58 read 171,624,612 (the
+  tape's own total), 166,339,148, 171,624,612. A lower total taken as a new
+  baseline counted each return to the real one again. 2,949 of 19,984 streamed
+  symbol-days gained shares no one traded, FRGT 2026-10-06 186M on a 220M day.
+  Counted this way, the line matched the consolidated tape on all 13 stock-days
+  checked (99.8-100.7%), where master's rule read up to 4.6x. A total above
+  `IBKR_L1_DAY_VOLUME_MAX` (50 billion; 10^6-scaled totals on 2026-09-18 / 09-21)
+  is no volume figure. A new session starts its own count, with or without a
+  last between the sessions.
+- **Minutes stored before these fixes** keep their wrong volume until a hist bar
+  replaces them. `tools/repair_live_minutes.py` (rule: `archive/live_minute_repair.py`)
+  is a dry run by default, reading `archive.db` read-only.
+  - It counts each minute from `l1_ticks`' streaming rows (IBKR's whole second;
+    the table reprice's rows, on the desk's clock, are left out) by master's rule
+    and by `volume_increment`.
+  - `--apply` moves a row only on a fingerprint: `fragment`, whose volume is its
+    last few updates' shares by master's rule; or `phantom`, which is master's
+    whole count where the builder's now differs. The row takes the builder's count.
+    Master also counted the lastSize of each update it took as a baseline, which
+    the archive does not keep, so a match may sit up to 10,000 shares a drop above.
+  - It never touches a hist row or a minute from the last 15 minutes. A minute
+    whose first update follows 60 s of silence (a restart, or a line back from
+    out of the line budget) only comes down: its count holds the shares traded
+    while the line was away. It writes a row only if it still holds the volume
+    the plan read.
+  - Scored against Massive's consolidated tape, the repaired live minutes of six
+    stock-days held 96-106% of their volume (13-134% as stored), median minute
+    1.000.
+  - `--json` report: `{schema_version: 1, days: [{day, whole, fragment, phantom,
+    other, gap, no_ticks, recent, shares_added, shares_removed}], totals: {the
+    same keys}, top: [{symbol, day, shares_moved}], applied: rows written | null}`.
 
 ## Earnings and splits on the daily charts (operator ask, 2026-10-12)
 

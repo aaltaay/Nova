@@ -62,6 +62,12 @@ export const CHART_CRASH_AUTO_RETRY_MS = 3_000;
 export const CHART_CRASH_AUTO_RETRY_WINDOW_MS = 60_000;
 
 /**
+ * A day volume above this on a trade update is no volume figure and the forming bar counts nothing for
+ * it: IBKR's line carried 10^6-scaled totals on 2026-09-18 / 09-21. The backend's `IBKR_L1_DAY_VOLUME_MAX`.
+ */
+export const CHART_LIVE_DAY_VOLUME_MAX = 50_000_000_000;
+
+/**
  * Session VWAP is accumulated from this one timeframe for every pane, then
  * sampled onto the pane's own bar times (``chart/vwapSession.ts``). Accumulating
  * per pane anchors wherever that pane's IB duration + bar-limit trim happens to
