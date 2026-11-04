@@ -411,6 +411,9 @@ IBKR_BARS_STORE_MIN_BARS: dict[str, int] = {
 # today's and their prices stretched the axis until today's candles lay flat (RIOX 2026-11-04: 11-03's $9.13
 # tape bars beside $13.70).
 IBKR_BARS_SESSION_ONLY_TIMEFRAMES: frozenset[str] = frozenset({"10Sec"})
+# A day volume on the L1 line above this is no volume figure, and the live 1Min builder counts nothing for it: the
+# line carried 10^6-scaled totals on 2026-09-18 / 09-21 (GRAL 2,106,490, then 2,071,000,800,607 the same second).
+IBKR_L1_DAY_VOLUME_MAX = 50_000_000_000
 
 # In-process TTL sitting on top of the durable store (hot path only).
 IBKR_BARS_CACHE_TTL_INTRADAY_SEC = 20.0

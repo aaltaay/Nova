@@ -8,6 +8,7 @@
  * no live count -- the store's figure, or nothing, never a partial guess.
  */
 import type { CandlestickData, Time } from 'lightweight-charts';
+import { CHART_LIVE_DAY_VOLUME_MAX } from '../constants';
 import {
   isDailyTimeframe,
   isOutOfOrderTrade,
@@ -63,7 +64,7 @@ export function countsLiveVolume(timeframe: string): boolean {
 
 /** Running count of the forming bar's volume from the day's volume total. */
 export interface LiveVolumeState {
-  /** The last day volume a trade update carried; null before the first. */
+  /** The day's highest volume total a trade update carried; null before the first. */
   mark: number | null;
   /** The bar `volume` counts. */
   bar: Time | null;
@@ -78,10 +79,15 @@ export const EMPTY_LIVE_VOLUME: LiveVolumeState = { mark: null, bar: null, volum
  *
  * The first day volume seen is a baseline, not a count: the bar it lands in
  * opened before the chart was watching, so its volume stays unknown. Every
- * later bar is counted from its first update. A total that goes down (a new
- * day's count, or the line changed its source) restarts the baseline and
- * leaves that bar unknown. An update with no day volume keeps the mark, so
- * the next one's growth still covers it.
+ * later bar is counted from its first update. Only growth above the day's
+ * highest total counts: a lower total the same day is a second counter or a
+ * stale figure on the line (XLAB 2026-10-16 read 171,624,612 / 166,339,148 /
+ * 171,624,612), so it counts nothing and the mark stays -- taken as a new
+ * baseline, each return to the real total counted as new shares. A lower
+ * total on a later day is that day's count: it restarts the baseline and
+ * leaves that bar unknown. An update with no day volume, or a total no stock
+ * trades (`CHART_LIVE_DAY_VOLUME_MAX`), keeps the mark, so the next one's
+ * growth still covers it.
  *
  * Updates arrive when the price changes; shares traded at an unchanged price
  * just before a bar closes are counted in the next bar. The store's own bar
@@ -95,15 +101,24 @@ export function stepLiveVolume(
   const newBar = state.bar === null || state.bar !== bar;
   const base = newBar ? (state.mark !== null ? 0 : null) : state.volume;
   const total = typeof dayVolume === 'number' && Number.isFinite(dayVolume) && dayVolume >= 0
+    && dayVolume <= CHART_LIVE_DAY_VOLUME_MAX
     ? dayVolume
     : null;
   if (total === null) return { mark: state.mark, bar, volume: base };
-  if (state.mark === null || total < state.mark) return { mark: total, bar, volume: null };
+  if (state.mark === null || (total < state.mark && !sameEtDay(state.bar, bar))) {
+    return { mark: total, bar, volume: null };
+  }
+  if (total <= state.mark) return { mark: state.mark, bar, volume: base };
   return {
     mark: total,
     bar,
     volume: base === null ? null : base + (total - state.mark),
   };
+}
+
+/** Intraday bar times are Eastern wall time read as UTC seconds (`tradeBucket`): a day is 86,400 of them. */
+function sameEtDay(a: Time | null, b: Time): boolean {
+  return typeof a === 'number' && typeof b === 'number' && Math.floor(a / 86_400) === Math.floor(b / 86_400);
 }
 
 /** The volume a forming bar shows: the larger of the live count and the store's. */

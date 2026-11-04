@@ -249,10 +249,14 @@ def test_volume_increment_baselines_then_deltas():
         0.0, 5_000_400.0,
     )
     assert l1_minute.volume_increment(None, size=75, cum_volume=None) == (75.0, None)
-    # Session reset: cumulative drops; keep this print, do not go negative.
+    # A lower total is another counter or a stale figure: it counts nothing and the high mark stays
+    # (a new session's count starts over in on_last, not here).
     assert l1_minute.volume_increment(5_000_400.0, size=80, cum_volume=120) == (
-        80.0, 120.0,
+        0.0, 5_000_400.0,
     )
+    assert l1_minute.volume_increment(5_000_400.0, size=80, cum_volume=5_000_900) == (500.0, 5_000_900.0)
+    # 10^6-scaled totals (GRAL 2026-09-21) are no volume figure.
+    assert l1_minute.volume_increment(2_106_490.0, size=80, cum_volume=2_071_000_800_607) == (0.0, 2_106_490.0)
 
 
 def test_l1_minute_stamps_cum_volume_delta(monkeypatch, tmp_path):

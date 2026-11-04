@@ -183,6 +183,54 @@ def test_yesterdays_last_minute_is_let_go_at_midnight(store):
     ]
 
 
+# -- a second counter on the line --------------------------------------------------------------------
+
+
+def _minute_volume(updates: list[tuple[float, float, float]]) -> float:
+    """Feed ``(seconds into 2026-11-04 19:59, price, day volume)`` and read back that minute's volume."""
+    m = at("2026-11-04", 19, 59)
+    for ss, price, day_volume in updates:
+        l1_minute.on_last("abcd", price, m + ss, size=100, cum_volume=day_volume)
+    l1_minute.flush_elapsed(m + 61)
+    _drain()
+    return _bars("ABCD")[0]["v"]
+
+
+def test_a_second_counter_on_the_line_adds_nothing(store):
+    """XLAB 2026-10-16 19:59:58: IBKR's RTVolume total (the tape's own 171,624,612) and a counter 3% under it
+    took turns on one line. Each return to the real total counted 5,285,464 shares again."""
+    assert _minute_volume([
+        (1, 2.14, 171_624_000), (58, 2.14, 171_624_609), (58, 2.14, 171_624_612),
+        (58, 2.14, 166_339_148), (58, 2.14, 171_624_612), (58, 2.14, 166_339_148),
+    ]) == 100 + 612
+
+
+def test_a_stale_total_then_the_real_one_adds_nothing(store):
+    """FRGT 2026-10-06 19:48:20: 331,702,034, then a stale 145,465,583, then 331,799,053 -- 186M shares
+    no one traded, on a 220M-share day."""
+    assert _minute_volume([
+        (1, 0.288, 331_702_033), (20, 0.2849, 145_465_583), (20, 0.2849, 331_799_053), (29, 0.284, 331_802_291),
+    ]) == 100 + 331_802_291 - 331_702_033
+
+
+def test_a_scaled_total_is_no_volume(store):
+    """GRAL 2026-09-21: the line read 2,106,490, then 2,071,000,800,607 in the same second."""
+    assert _minute_volume([
+        (1, 108.27, 2_106_490), (1, 108.27, 2_071_000_800_607), (30, 108.30, 2_106_590), (40, 108.2, 2_082_703_005_463),
+        (50, 108.21, 2_106_690),
+    ]) == 100 + 200
+
+
+def test_a_new_session_starts_its_own_count_with_no_last_between(store):
+    """No overnight last dropped yesterday's baseline: today's lower total is a new day, not a second counter."""
+    l1_minute.on_last("abcd", 1.36, at("2026-11-03", 19, 59, 49), size=100, cum_volume=27_206_968)
+    l1_minute.on_last("abcd", 1.32, at("2026-11-04", 4, 0, 5), size=300, cum_volume=40_000)
+    l1_minute.on_last("abcd", 1.33, at("2026-11-04", 4, 0, 20), size=100, cum_volume=40_100)
+    l1_minute.flush_elapsed(at("2026-11-04", 4, 2))
+    _drain()
+    assert [b["v"] for b in _bars("ABCD")] == [100, 400]      # 300 (a baseline) + 100
+
+
 # -- the store ---------------------------------------------------------------------------------------
 
 
@@ -217,37 +265,49 @@ def test_a_live_write_still_never_touches_a_hist_minute(store):
 # -- every share, on any arrival order the desk sees -------------------------------------------------
 
 
-def _stream(rng: random.Random, start: float, minutes: int) -> list[tuple[float, float, float, float, float]]:
-    """IBKR-like L1 updates as ``(arrival, stamp, price, size, day_volume)``.
+def _stream(rng: random.Random, start: float, minutes: int, *, noisy: bool = False) -> list[tuple]:
+    """IBKR-like L1 updates as ``(arrival, stamp, price, size, day_volume, real)``.
 
     A trade's stamp is its whole second (tick 45). Arrival trails it as on the desk on 2026-11-04 --
     mostly well under 2 s, now and then 4 s, rarely 13 s -- and IBKR delivers updates in order, so
     arrival never runs ahead of a later update's. The day volume grows by every trade; some updates
-    move only the price (no growth) or only the volume.
+    move only the price (no growth) or only the volume. ``noisy`` lines also carry what the census of
+    19,984 streamed symbol-days found: a second counter a few percent under the real one, a stale
+    earlier total, and now and then a 10^6-scaled one (``real`` False: no share of them traded).
     """
     out = []
     trade = start + rng.uniform(0, 3)
     arrival = trade
     day_volume = float(rng.randint(100_000, 50_000_000))
+    totals = [day_volume]
     gap_mean = rng.choice([0.1, 0.3, 1.0, 5.0])
     while trade < start + minutes * 60:
         size = float(rng.choice([0, 100, 100, 200, 300, 500, rng.randint(1, 99), rng.randint(100, 25_000)]))
         day_volume += size
+        totals.append(day_volume)
         roll = rng.random()
         lag = rng.uniform(0.05, 1.8) if roll < 0.9 else rng.uniform(1.8, 4.0) if roll < 0.98 else rng.uniform(4, 13)
         arrival = max(arrival + 0.001, trade + lag)
-        out.append((arrival, float(int(trade)), round(rng.uniform(1.0, 2.0), 4), size, day_volume))
+        price = round(rng.uniform(1.0, 2.0), 4)
+        out.append((arrival, float(int(trade)), price, size, day_volume, True))
+        if noisy and rng.random() < 0.06:
+            kind = rng.random()
+            other = (day_volume * rng.uniform(0.95, 0.99) if kind < 0.5 else rng.choice(totals) if kind < 0.9
+                     else day_volume * 1e6)
+            arrival += 0.001
+            out.append((arrival, float(int(trade)), price, 0.0, other, False))
         trade += rng.expovariate(1.0 / gap_mean)
     return out
 
 
 def _expected(updates) -> dict[float, list[float]]:
-    """Each minute's candle and volume, straight from the stream (the baseline rule included)."""
+    """Each minute's candle and volume, straight from the stream: its real counter's growth (baseline rule
+    included); the other figures' updates move the candle, never the volume."""
     minutes: dict[float, list[float]] = {}
     prior = None
-    for _arrival, stamp, price, size, day_volume in updates:
-        inc = size if prior is None else day_volume - prior
-        prior = day_volume
+    for _arrival, stamp, price, size, day_volume, real in updates:
+        inc = 0.0 if not real else size if prior is None else day_volume - prior
+        prior = day_volume if real else prior
         minute = float(int(stamp // 60) * 60)
         bar = minutes.get(minute)
         if bar is None:
@@ -261,7 +321,7 @@ def _expected(updates) -> dict[float, list[float]]:
 def _replay(updates, end: float) -> None:
     """Deliver the stream on its arrival clock, with the flush loop ticking every FLUSH_EVERY between."""
     clock = updates[0][0] if updates else end
-    for arrival, stamp, price, size, day_volume in updates:
+    for arrival, stamp, price, size, day_volume, _real in updates:
         while clock + FLUSH_EVERY <= arrival:
             clock += FLUSH_EVERY
             l1_minute.flush_elapsed(clock)
@@ -271,8 +331,7 @@ def _replay(updates, end: float) -> None:
         l1_minute.flush_elapsed(clock)
 
 
-@pytest.mark.parametrize("seed", range(300))
-def test_every_share_lands_once_in_its_own_minute(seed, monkeypatch):
+def _check_every_share(seed: int, monkeypatch, *, noisy: bool) -> None:
     l1_minute.reset_for_tests()
     writes: dict[float, list[tuple]] = {}
     heard: list[float] = []
@@ -281,7 +340,7 @@ def test_every_share_lands_once_in_its_own_minute(seed, monkeypatch):
     monkeypatch.setattr(l1_minute, "_listeners", [lambda kind, _s, p: heard.append(p["t"]) if kind == "bar" else None])
     rng = random.Random(seed)
     start = at("2026-11-04", 9, 30)
-    updates = _stream(rng, start, minutes=rng.choice([2, 4, 8]))
+    updates = _stream(rng, start, minutes=rng.choice([2, 4, 8]), noisy=noisy)
     _replay(updates, end=updates[-1][0] + 120)
     expected = _expected(updates)
 
@@ -291,9 +350,20 @@ def test_every_share_lands_once_in_its_own_minute(seed, monkeypatch):
         vols = [w[4] for w in writes[minute]]
         assert vols == sorted(vols), f"seed {seed}: a write lowered minute {minute}: {vols}"
     assert heard == sorted(expected)                                   # each minute heard once, in order
-    first = updates[0]
-    assert sum(w[-1][4] for w in writes.values()) == pytest.approx(first[3] + updates[-1][4] - first[4])
+    real = [u for u in updates if u[5]]
+    assert sum(w[-1][4] for w in writes.values()) == pytest.approx(real[0][3] + real[-1][4] - real[0][4])
     l1_minute.reset_for_tests()
+
+
+@pytest.mark.parametrize("seed", range(300))
+def test_every_share_lands_once_in_its_own_minute(seed, monkeypatch):
+    _check_every_share(seed, monkeypatch, noisy=False)
+
+
+@pytest.mark.parametrize("seed", range(300))
+def test_a_second_counter_or_a_stale_total_never_adds_a_share(seed, monkeypatch):
+    """The same streams with the census's other figures mixed in: each minute still holds its real growth."""
+    _check_every_share(seed, monkeypatch, noisy=True)
 
 
 def test_the_random_streams_reach_the_late_path():
