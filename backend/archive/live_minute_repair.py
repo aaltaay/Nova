@@ -14,11 +14,15 @@ the table reprice also writes there, on the desk's own clock, and is left out. E
 both rules: master's, to recognise what it wrote, and the builder's own now (``volume_increment``). A
 stored row moves only when it carries one of the two fingerprints: its volume is the shares of the
 minute's last few updates by master's rule (``fragment``), or it is master's whole count while the
-builder's now is different (``phantom``). It is then set to the builder's count. Everything else stays:
-already the builder's count, a value that matches neither (a restart's baseline inside the minute), a
-minute whose first update follows ``GAP_SEC`` of silence (a restart or a dropped line, whose jump belongs
-to no one minute), no ticks, or a minute so recent that a running builder may still write it. IBKR's
-own history rows are never touched.
+builder's now is different (``phantom``). Master also counted the lastSize of each update it took as a
+baseline, which the archive does not keep, so a match may sit up to ``LASTSIZE_SLACK`` a drop above
+master's count. The row is then set to the builder's count. Everything else stays: already the builder's
+count, a value that matches neither (a restart's baseline inside the minute), no ticks, or a minute so
+recent that a running builder may still write it. A minute whose first update follows ``GAP_SEC`` of
+silence (a restart, or a line that dropped out of the budget and came back) may only come down: its count
+holds the shares traded while the line was away, and a raise would land them on that one minute. Scored
+against Massive's consolidated tape, the repaired live minutes of six stock-days held 96-106% of their
+volume (13-134% as stored). IBKR's own history rows are never touched.
 """
 from __future__ import annotations
 
@@ -35,6 +39,7 @@ from market import in_trading_session
 
 ET = ZoneInfo("America/New_York")
 GAP_SEC = 60.0
+LASTSIZE_SLACK = 10_000.0
 RECENT_SKIP_SEC = 900.0
 SCHEMA_VERSION = 1
 KINDS = ("whole", "fragment", "phantom", "other", "gap", "no_ticks", "recent")
@@ -52,6 +57,7 @@ class Change:
 class MinuteCounts:
     master: list[float] = field(default_factory=list)   # master's rule: a lower total was a new baseline
     fixed: list[float] = field(default_factory=list)    # the builder's rule now
+    drops: list[bool] = field(default_factory=list)     # master took the update as a baseline (and added its lastSize)
     after_gap: bool = False
 
 
@@ -70,14 +76,17 @@ class DayPlan:
         return sum(max(0.0, c.stored - c.volume) for c in self.changes)
 
 
-def _master_increment(prior: float | None, day_volume: float | None) -> tuple[float, float | None]:
-    """Master's ``volume_increment`` without the update's lastSize, which the archive does not keep."""
+def _master_increment(prior: float | None, day_volume: float | None) -> tuple[float, float | None, bool]:
+    """Master's ``volume_increment``, and whether it took a lower total as a new baseline. Master also counted
+    that update's lastSize there, which the archive does not keep (``LASTSIZE_SLACK`` stands for it)."""
     if day_volume is None or day_volume < 0:
-        return 0.0, prior
+        return 0.0, prior, False
     cum = float(day_volume)
-    if prior is None or cum < prior:
-        return 0.0, cum
-    return cum - prior, cum
+    if prior is None:
+        return 0.0, cum, False
+    if cum < prior:
+        return 0.0, cum, True
+    return cum - prior, cum, False
 
 
 def minute_counts(ticks: Iterable[tuple[float, float | None]]) -> dict[float, MinuteCounts]:
@@ -98,27 +107,37 @@ def minute_counts(ticks: Iterable[tuple[float, float | None]]) -> dict[float, Mi
         last_ts = ts if last_ts is None else max(last_ts, ts)
         increment, fixed = volume_increment(fixed, size=None, cum_volume=day_volume)
         minute.fixed.append(increment)
-        increment, master = _master_increment(master, day_volume)
+        increment, master, dropped = _master_increment(master, day_volume)
         minute.master.append(increment)
+        minute.drops.append(dropped)
     return out
 
 
 def classify(stored: float, counts: MinuteCounts) -> tuple[str, float]:
-    """``(kind, volume)``: ``fragment`` and ``phantom`` take the builder's count, the rest keep ``stored``."""
+    """``(kind, volume)``: ``fragment`` and ``phantom`` take the builder's count, the rest keep ``stored``.
+
+    Where master took a lower total as a baseline it added that update's lastSize, so a match may sit up to
+    ``LASTSIZE_SLACK`` a drop above master's count (exact when there was none). A phantom is told only when
+    master's count is further from the builder's than that slack. A minute after a silence only comes down:
+    its count holds the shares traded while the line was away, and a raise would land them on this minute.
+    """
     now = round(sum(counts.fixed))
     master = round(sum(counts.master))
     have = round(float(stored))
-    if counts.after_gap:
-        return "gap", float(stored)
+    slack = LASTSIZE_SLACK * sum(counts.drops)
+    phantom = master - now > slack and master <= have <= master + slack
     if have == now:
         return "whole", float(stored)
+    if counts.after_gap:
+        return ("phantom", float(now)) if phantom and now < have else ("gap", float(stored))
     if 0 < have < master:
-        tail = 0.0
-        for increment in reversed(counts.master[1:]):
+        tail, tail_drops = 0.0, 0
+        for increment, dropped in zip(reversed(counts.master[1:]), reversed(counts.drops[1:]), strict=True):
             tail += increment
-            if round(tail) == have:
+            tail_drops += dropped
+            if 0 <= have - round(tail) <= LASTSIZE_SLACK * tail_drops:
                 return "fragment", float(now)
-    if have == master:
+    if phantom:
         return "phantom", float(now)
     return "other", float(stored)
 

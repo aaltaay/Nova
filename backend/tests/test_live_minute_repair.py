@@ -58,8 +58,10 @@ def run(db, *, apply: bool = False) -> tuple[dict, int | None]:
     return repair.report(planned, applied=written), written
 
 
-def counts(master: list[float], fixed: list[float] | None = None, after_gap: bool = False) -> repair.MinuteCounts:
-    return repair.MinuteCounts(master=master, fixed=list(master) if fixed is None else fixed, after_gap=after_gap)
+def counts(master: list[float], fixed: list[float] | None = None, drops: list[bool] | None = None,
+           after_gap: bool = False) -> repair.MinuteCounts:
+    return repair.MinuteCounts(master=master, fixed=list(master) if fixed is None else fixed,
+                               drops=[False] * len(master) if drops is None else drops, after_gap=after_gap)
 
 
 # -- the rule ----------------------------------------------------------------------------------------
@@ -74,11 +76,18 @@ def test_classify_reads_the_two_fingerprints():
     assert repair.classify(0, clean) == ("other", 0.0)                 # a zero never replaced a stored volume
     assert repair.classify(5_000, clean) == ("other", 5_000.0)         # more than any count of the ticks
     # A second counter's return: master counted 186,236,451 shares again; the builder now does not.
-    phantom = counts([0.0, 0.0, 186_333_470.0, 3_238.0], fixed=[0.0, 0.0, 97_020.0, 3_238.0])
+    phantom = counts([0.0, 0.0, 186_333_470.0, 3_238.0], fixed=[0.0, 0.0, 97_020.0, 3_238.0],
+                     drops=[False, True, False, False])
     assert repair.classify(186_336_708, phantom) == ("phantom", 100_258.0)
+    assert repair.classify(186_337_209, phantom) == ("phantom", 100_258.0)   # + the drop update's lastSize, 501
+    assert repair.classify(186_356_709, phantom) == ("other", 186_356_709.0)  # more than one lastSize above it
     assert repair.classify(3_238, phantom) == ("fragment", 100_258.0)
     assert repair.classify(100_258, phantom) == ("whole", 100_258.0)
-    assert repair.classify(641, counts([0.0, 641.0], after_gap=True)) == ("gap", 641.0)
+    # A minute after a silence only comes down: its count holds the shares traded while the line was away.
+    assert repair.classify(641, counts([0.0, 641.0, 900.0], after_gap=True)) == ("gap", 641.0)
+    gap_phantom = counts([0.0, 5_000_000.0, 300.0], fixed=[0.0, 0.0, 300.0], drops=[False, True, False],
+                         after_gap=True)
+    assert repair.classify(5_000_300, gap_phantom) == ("phantom", 300.0)
 
 
 def test_minute_counts_take_the_streaming_line_only_and_count_it_both_ways():

@@ -508,9 +508,16 @@ L1 line's own day-volume growth matched it (103%, median minute 1.000).
   - `--apply` moves a row only on a fingerprint: `fragment`, whose volume is its
     last few updates' shares by master's rule; or `phantom`, which is master's
     whole count where the builder's now differs. The row takes the builder's count.
-  - It never touches a hist row, a minute from the last 15 minutes, or a minute
-    whose first update follows 60 s of silence (a restart or a dropped line). It
-    writes a row only if it still holds the volume the plan read.
+    Master also counted the lastSize of each update it took as a baseline, which
+    the archive does not keep, so a match may sit up to 10,000 shares a drop above.
+  - It never touches a hist row or a minute from the last 15 minutes. A minute
+    whose first update follows 60 s of silence (a restart, or a line back from
+    out of the line budget) only comes down: its count holds the shares traded
+    while the line was away. It writes a row only if it still holds the volume
+    the plan read.
+  - Scored against Massive's consolidated tape, the repaired live minutes of six
+    stock-days held 96-106% of their volume (13-134% as stored), median minute
+    1.000.
   - `--json` report: `{schema_version: 1, days: [{day, whole, fragment, phantom,
     other, gap, no_ticks, recent, shares_added, shares_removed}], totals: {the
     same keys}, top: [{symbol, day, shares_moved}], applied: rows written | null}`.
