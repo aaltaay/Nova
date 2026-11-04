@@ -1,6 +1,8 @@
-/** Expanded month view: daily P&L cells + week totals (TraderVue-style). */
-import type { CalendarDay, MonthCalendarResponse } from './types';
+/** Expanded month view: daily P&L cells + week totals (TraderVue-style); Paper's All view adds yours and the bots'. */
+import type { BookSums, BooksSplit, CalendarDay, MonthCalendarResponse } from './types';
 import { DOW_LABELS, MONTH_NAMES, fmtPnl, fmtPnlShort } from './format';
+import { pnlSplit } from './reportsView';
+import { SplitLine } from './SplitLine';
 
 interface Props {
   data: MonthCalendarResponse;
@@ -12,6 +14,10 @@ function dayMap(days: CalendarDay[]): Map<string, CalendarDay> {
   for (const d of days) map.set(d.date, d);
   return map;
 }
+
+/** A cell's split, where it has a trade: a day or week with none shows its total alone. */
+const cellSplit = (split: BooksSplit<BookSums> | undefined, count: number) =>
+  count > 0 ? <SplitLine split={pnlSplit(split, fmtPnlShort)} /> : null;
 
 function parseIso(iso: string): { year: number; month: number; day: number } {
   const [y, m, d] = iso.split('-').map(Number);
@@ -34,6 +40,7 @@ export function MonthDetail({ data, onClose }: Props) {
               {fmtPnl(data.pnl)}
             </strong>
           </span>
+          <SplitLine split={pnlSplit(data.by_owner, fmtPnl)} />
           <span>{data.trade_count} trades</span>
           <button type="button" className="reports-month-close-btn" onClick={onClose}>
             Close
@@ -67,12 +74,14 @@ export function MonthDetail({ data, onClose }: Props) {
                   <span className="reports-day-num">{day}</span>
                   <span className="reports-day-pnl">{fmtPnlShort(cell?.pnl ?? 0)}</span>
                   <span className="reports-day-trades">{cell?.trade_count ?? 0} trades</span>
+                  {cellSplit(cell?.by_owner, cell?.trade_count ?? 0)}
                 </div>
               );
             })}
             <div className="reports-week-total">
               <span className="reports-day-pnl">{fmtPnlShort(week.pnl)}</span>
               <span className="reports-day-trades">{week.trade_count} trades</span>
+              {cellSplit(week.by_owner, week.trade_count)}
             </div>
           </div>
         ))}

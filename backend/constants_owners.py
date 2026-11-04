@@ -25,6 +25,13 @@ BOTS_BOOK_CLOSE_ORIGINS = ("loss_limit_bots", ORIGIN_CLOSE_BOTS)
 # A bot's own close (sent as source ``flatten`` with the bot's origin) is the bots' (ADR 063).
 BOT_CLOSE_ORIGINS = (*LOSS_LIMIT_BOT_CLOSE_ORIGINS, ORIGIN_CLOSE_BOTS)
 
+# The trade journal on the Reports tab (ADR 069 decision 6, architecture/schema/journal.md): a read asks for
+# ``live`` -- every row that is not Paper's (IBKR round trips and imported files, the journal as it was) -- or
+# ``paper``, Paper's round trips, one per holder.
+JOURNAL_VENUE_LIVE = "live"
+JOURNAL_VENUE_PAPER = "paper"
+JOURNAL_VENUES = (JOURNAL_VENUE_LIVE, JOURNAL_VENUE_PAPER)
+
 # The bots' budget (ADR 069 decision 5): every bot together, open positions at the mark plus working
 # entries at their limit, on Paper. The operator's setting, in the operator cache.
 OWNERS_BUDGET_FILE = "owners-budget.json"

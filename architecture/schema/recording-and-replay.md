@@ -906,6 +906,8 @@ the fields below.
   marks; `by_owner[]` is `{owner, bot, realized, fills, commissions, fees}` per holder, first-fill order;
   `components` adds `you_realized` and `bots_realized` (and `bot_realized` is the bots' book's). Archived
   Paper ledgers split the same way. `by_source[]` stays for Sim.
+- **The Reports tab's journal** builds Paper's round trips from the same parts, one per holder, and reads them by
+  venue and view: `architecture/schema/journal.md` ("Your trades and the bots' on the Reports tab").
 - **The bots' budget** (`owners/budget.py`, file `owners-budget.json` in the operator cache:
   `{schema_version: 1, bots_usd, set_at}`, whole dollars, default 25,000; rewritten whole on every change; an
   unknown version or unreadable file reads the default and says so in `error`). `GET /api/owners/budget` ->

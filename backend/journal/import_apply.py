@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 from typing import Any
 
+from constants_owners import OWNER_YOU
 from journal.import_parse import parse_import_bytes
 from journal.store import record_trade
 
@@ -51,6 +52,7 @@ def apply_parsed_trades(trades: list[dict[str, Any]], *, source: str) -> dict[st
             is_mock=False,
             close_key=import_close_key(trade),
             commission=trade.get("commission"),
+            owner=OWNER_YOU,    # an imported file is yours (ADR 069)
         )
         if trade_id:
             imported += 1

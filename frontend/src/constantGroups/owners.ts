@@ -22,6 +22,8 @@ export const OWNER_BOT_NAMES: Record<string, string> = {
   live_trader: 'Live Trader',
   claude: 'Claude',
 };
+/** A Bots menu pick's closed trades on Reports (mockup reports-v1 item 1). */
+export const ownerTradeCount = (n: number): string => `${n.toLocaleString('en-US')} trade${n === 1 ? '' : 's'}`;
 export const OWNER_YOU_NAME = 'You';
 export const OWNER_NOVA_NAME = 'Nova';
 export const ownerBotName = (bot: string | null | undefined): string =>

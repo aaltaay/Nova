@@ -1,5 +1,8 @@
-/** Fetches journal calendar aggregates for the Reports tab. */
-import { useEffect, useState } from 'react';
+/**
+ * Fetches journal calendar aggregates for the Reports tab. `viewQuery` is the venue and the All / You / Bots
+ * pick (`reportsView.journalViewQuery`); a new pick drops the old figures rather than show them under it.
+ */
+import { useEffect, useRef, useState } from 'react';
 import { API_BASE_URL, JOURNAL_POLL_INTERVAL_MS } from '../constants';
 import type { MonthCalendarResponse, YearCalendarResponse } from './types';
 
@@ -18,15 +21,22 @@ export function useCalendar(
   month: number | null,
   includeMock: boolean,
   refreshToken = 0,
+  viewQuery = '',
 ): UseCalendarReturn {
   const [yearData, setYearData] = useState<YearCalendarResponse | null>(null);
   const [monthData, setMonthData] = useState<MonthCalendarResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const shownQuery = useRef(viewQuery);
 
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
+    if (shownQuery.current !== viewQuery) {
+      shownQuery.current = viewQuery;
+      setYearData(null);
+      setMonthData(null);
+    }
     // Per effect run, not a shared ref (QA V42): a shared flag let the first
     // run's still-open request -- whose answer the cleanup discards -- block
     // the next run's first poll, so the calendar waited a whole interval.
@@ -36,7 +46,7 @@ export function useCalendar(
       if (inFlight.current) return;
       inFlight.current = true;
       try {
-        const mockQ = includeMock ? '&include_mock=true' : '';
+        const mockQ = `${includeMock ? '&include_mock=true' : ''}${viewQuery ? `&${viewQuery}` : ''}`;
         const yearRes = await fetch(`${JOURNAL_API}/calendar?year=${year}${mockQ}`);
         if (!yearRes.ok) throw new Error(`HTTP ${yearRes.status}`);
         const yearJson = (await yearRes.json()) as YearCalendarResponse;
@@ -72,7 +82,7 @@ export function useCalendar(
       cancelled = true;
       clearInterval(interval);
     };
-  }, [enabled, year, month, includeMock, refreshToken]);
+  }, [enabled, year, month, includeMock, refreshToken, viewQuery]);
 
   return { yearData, monthData, loading, error };
 }

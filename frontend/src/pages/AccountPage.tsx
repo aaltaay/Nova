@@ -16,6 +16,8 @@
  * Paper keeps your book and the bots' (ADR 069): the tab row's All / You / Bots
  * switch narrows every panel to one book or one bot (`account/ownerView`), All
  * shows yours and the bots' beside each total, and every page open starts on All.
+ * Reports keeps the same switch and the same pick; its Bots menu counts the
+ * journal's trades (ADR 069 decision 6, mockup reports-v1).
  */
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from 'react';
 import '../account/account.css';
@@ -39,7 +41,7 @@ import { readAccountRangePref, writeAccountRangePref } from '../account/accountR
 import { CalendarPanel } from '../account/CalendarPanel';
 import { ComponentsPanel } from '../account/ComponentsPanel';
 import { LedgerPanel } from '../account/LedgerPanel';
-import { OwnerSwitch } from '../account/OwnerSwitch';
+import { OwnerSwitch, type BotCounts } from '../account/OwnerSwitch';
 import {
   ALL_VIEW,
   botsOf,
@@ -117,6 +119,7 @@ export function AccountPage({ onOpenTrader }: Props) {
   const [mode, setMode] = useState<AccountPerfMode>('pnl');
   const [perfTab, setPerfTab] = useState<PerfTab>('day');
   const [ownerView, setOwnerView] = useState<OwnerView>(ALL_VIEW);
+  const [reportCounts, setReportCounts] = useState<BotCounts | null>(null);
   const [tab, setTab] = useState<PageTab>('overview');
   const [hidden, setHidden] = useState(false);
   const [openDay, setOpenDay] = useState<string | null>(null);
@@ -234,8 +237,9 @@ export function AccountPage({ onOpenTrader }: Props) {
                 {label}
               </button>
             ))}
-            {activeTab === 'overview' && (books || (venue === 'live' && !sampleDesk)) && (
-              <OwnerSwitch view={view} onView={setOwnerView} bots={botsOf(calendarHist)} live={!books} />
+            {(activeTab === 'overview' || activeTab === 'reports') && (books || (venue === 'live' && !sampleDesk)) && (
+              <OwnerSwitch view={view} onView={setOwnerView} bots={botsOf(calendarHist)} live={!books}
+                counts={activeTab === 'reports' ? reportCounts : null} />
             )}
             <span className="account-page__venue" data-testid="account-page-venue">
               {sampleDesk
@@ -323,6 +327,7 @@ export function AccountPage({ onOpenTrader }: Props) {
                   initialSection={activeTab === 'reports' ? 'reports' : 'overview'}
                   sections={HOSTED_SECTIONS[activeTab === 'reports' ? 'reports' : 'broker']}
                   showTicket={false}
+                  reports={{ venue, view, onBotCounts: setReportCounts }}
                 />
               </Suspense>
             </div>

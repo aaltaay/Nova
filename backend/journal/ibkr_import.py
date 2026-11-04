@@ -11,6 +11,7 @@ import time
 from typing import Any
 
 from constants import JOURNAL_IBKR_IMPORT_MAX_ROWS, JOURNAL_TAGS_MAX_PER_TRADE
+from constants_owners import OWNER_YOU
 from journal.store import record_trade
 
 logger = logging.getLogger(__name__)
@@ -79,6 +80,7 @@ def import_trades_from_json(rows: list[dict]) -> dict[str, Any]:
                 notes=notes,
                 tags=tags,
                 is_mock=False,
+                owner=OWNER_YOU,    # an imported trade is yours (ADR 069)
             )
             imported += 1
         except (KeyError, TypeError, ValueError) as exc:

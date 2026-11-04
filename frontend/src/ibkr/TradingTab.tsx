@@ -42,6 +42,7 @@ import {
   type TradingTabSection,
 } from './TradingSectionNav';
 import type { IbkrOrder } from './types';
+import type { ReportsHost } from '../reports';
 
 /** Why View Book is locked (ux/whyTip.ts). */
 const VIEW_BOOK_NO_SYMBOL_WHY = 'Type a symbol first.';
@@ -59,6 +60,8 @@ interface TradingTabProps {
    * Trader, and the Account page places nothing (QA V23).
    */
   showTicket?: boolean;
+  /** The Account page's venue and All / You / Bots pick, which its Reports section follows (ADR 069). */
+  reports?: ReportsHost;
 }
 
 export function TradingTab({
@@ -68,6 +71,7 @@ export function TradingTab({
   initialSection = 'overview',
   sections = TRADING_TAB_SECTIONS,
   showTicket = true,
+  reports,
 }: TradingTabProps) {
   const [section, setSection] = useState<TradingTabSection>(
     sections.includes(initialSection) ? initialSection : sections[0] ?? 'overview',
@@ -126,7 +130,7 @@ export function TradingTab({
       )}
       {section === 'reports' ? (
         <Suspense fallback={<TabLazyFallback />}>
-          <ReportsTab />
+          <ReportsTab {...reports} />
         </Suspense>
       ) : section === 'activity' ? (
         <ActivityDashboard />

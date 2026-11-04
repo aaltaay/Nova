@@ -66,10 +66,16 @@ _TRADES_MIGRATIONS = [
     ("close_key", "TEXT"),
     ("commission", "REAL"),
     ("fill_ids", "TEXT"),
+    # Whose trade (ADR 069 decision 6): ``venue`` ``paper`` for Paper's round trips, null for the rest;
+    # ``owner`` ``you`` | ``bots`` and the holder ``bot``. A row from before stays null and reads as yours.
+    ("venue", "TEXT"),
+    ("owner", "TEXT"),
+    ("bot", "TEXT"),
 ]
 
 
-def _db_path() -> Path:
+def db_path() -> Path:
+    """The journal file this process reads and writes."""
     return cache_dir() / JOURNAL_DB_FILENAME
 
 
@@ -78,7 +84,7 @@ def get_connection() -> sqlite3.Connection:
     volumes (one row per signal / trade), and it avoids cross-thread reuse
     issues since this is called from both the asyncio scan loop and FastAPI
     request handlers."""
-    conn = sqlite3.connect(_db_path())
+    conn = sqlite3.connect(db_path())
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
