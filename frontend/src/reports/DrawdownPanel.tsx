@@ -19,6 +19,8 @@ interface Props {
 
 /** The shortest bar, so the curve's lowest point still shows. */
 const CURVE_MIN_PCT = 3;
+/** The share of each trade's slot left empty between bars; it scales with the slot, so any count fits. */
+const CURVE_GAP = 0.2;
 
 /** Each bar's height in percent: the running P&L between the curve's lowest point and its highest. */
 export function curveHeights(equity: number[]): number[] {
@@ -75,18 +77,30 @@ export function DrawdownPanel({ data, loading, books = false }: Props) {
         </div>
       </div>
       {data.curve.length > 0 && (
-        <div className="reports-v2-curve" aria-label="Equity curve by closed trade">
+        <svg
+          className="reports-v2-curve"
+          viewBox={`0 0 ${data.curve.length} 100`}
+          preserveAspectRatio="none"
+          role="img"
+          aria-label="Equity curve by closed trade"
+        >
           {data.curve.map((pt, idx) => (
-            <div
+            <rect
               key={`${pt.trade_id ?? idx}-${pt.closed_ts}`}
               className={`reports-v2-curve-bar${books && pt.owner ? ` is-${pt.owner}` : ''}`}
-              style={{ height: `${heights[idx]}%` }}
-              title={books && pt.owner
-                ? `${pt.symbol} · ${whoName(pt.owner, pt.bot)}: ${fmtPnl(pt.equity)}`
-                : `${pt.symbol}: ${fmtPnl(pt.equity)}`}
-            />
+              x={idx + CURVE_GAP / 2}
+              width={1 - CURVE_GAP}
+              y={100 - heights[idx]}
+              height={heights[idx]}
+            >
+              <title>
+                {books && pt.owner
+                  ? `${pt.symbol} · ${whoName(pt.owner, pt.bot)}: ${fmtPnl(pt.equity)}`
+                  : `${pt.symbol}: ${fmtPnl(pt.equity)}`}
+              </title>
+            </rect>
           ))}
-        </div>
+        </svg>
       )}
       {books && <p className="reports-v2-hint">{REPORTS_DRAWDOWN_PAPER_HINT}</p>}
     </section>

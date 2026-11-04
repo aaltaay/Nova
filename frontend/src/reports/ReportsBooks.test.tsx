@@ -97,9 +97,13 @@ describe('ReportsTab on Paper', () => {
     expect(screen.getByTestId('reports-r-hint').textContent)
       .toContain("2 of your 2 sent none, and 0 of the bots' 1.");
     const bars = document.querySelectorAll('.reports-v2-curve-bar');
-    expect([...bars].map((b) => b.className)).toEqual([
+    expect([...bars].map((b) => b.getAttribute('class'))).toEqual([
       'reports-v2-curve-bar is-you', 'reports-v2-curve-bar is-you', 'reports-v2-curve-bar is-bots',
     ]);
+    // One slot per trade across the whole chart: however many trades, the newest is never cut off.
+    expect(document.querySelector('svg.reports-v2-curve')?.getAttribute('viewBox')).toBe('0 0 3 100');
+    const last = bars[bars.length - 1];
+    expect(Number(last.getAttribute('x')) + Number(last.getAttribute('width'))).toBeLessThanOrEqual(3);
   });
 
   it('asks for one bot alone', async () => {
