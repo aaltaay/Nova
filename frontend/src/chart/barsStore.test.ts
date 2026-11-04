@@ -281,6 +281,32 @@ describe('barsStore', () => {
     expect(getBarsEntry('SPCI', '10Sec')?.bars).toHaveLength(1);
   });
 
+  it("keeps a late empty answer's coverage beside the tape candle it leaves in place", async () => {
+    let resolveFetch: (v: unknown) => void = () => {};
+    (fetch as ReturnType<typeof vi.fn>).mockReturnValue(new Promise((resolve) => {
+      resolveFetch = resolve;
+    }));
+    const request = ensureBars('RIOX', '10Sec', undefined, 1500);
+
+    upsertTapePrint10SecBar('RIOX', { time: '2026-11-04T13:32:03.000Z', price: 13.7, size: 500 });
+    resolveFetch({
+      ok: true,
+      json: async () => ({
+        bars: [],
+        coverage: { filling: true, history_pending: true, last_error: 'IBKR historical data did not answer within 20s', last_error_ts: 5 },
+      }),
+    });
+
+    await expect(request).resolves.toHaveLength(1);
+    const entry = getBarsEntry('RIOX', '10Sec');
+    expect(entry?.bars).toHaveLength(1);
+    expect(entry?.coverage).toMatchObject({
+      filling: true,
+      historyPending: true,
+      lastError: 'IBKR historical data did not answer within 20s',
+    });
+  });
+
   it('does not let an empty bars_patch wipe a painted pane', () => {
     setBars('NNNN', '1Min', [bar(0), bar(1)], parseBarsCoverage({ filling: true }));
 

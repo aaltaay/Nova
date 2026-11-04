@@ -314,6 +314,10 @@ async function fetchSingleBars(
   const bars = data.bars ?? [];
   const current = getBarsEntry(symbol, timeframe);
   if (!coverage?.replay && bars.length === 0 && current && current.bars.length > 0) {
+    // The held candles stay, but the answer still says what the history is doing (filling, pending, its
+    // last failure): a 10-second pane whose first tape print beat this answer would otherwise never learn
+    // its history is pending, and its retry would not run (chartBarsStuckRetry.ts).
+    if (coverage) setBars(symbol, timeframe, current.bars, coverage);
     return current.bars;
   }
   setBars(symbol, timeframe, bars, coverage);
