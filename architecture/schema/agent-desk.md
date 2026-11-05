@@ -1037,7 +1037,7 @@ subscribe to a quote, and has no order ticket. `nova_historical_chart`, `nova_hi
   The first `nova_chart` call starts it. Later MCP processes attach. Health is
   `{ok, service: "nova-review", version, renderer_starts, pid, build}`. The version is `"3"`. A mismatch restarts the engine.
   `build` is the last build check, `{state, source, build?, built_at?, fingerprint?, detail?}`: `state` is `unchecked`,
-  `fresh`, `stale` (an older build is served because building failed), `unavailable` or `override`; `source` is
+  `fresh`, `stale` (an older build is served because building failed or a new one is running), `unavailable` or `override`; `source` is
   `dist-review`, `frontend/dist`, `none` or `NOVA_REVIEW_DIST`. The field is additive, so the version stays `"3"`.
   It exits after 30 minutes idle. Default port is 18765 (`NOVA_REVIEW_PORT`), never 8765. Before it binds, a port
   whose review health check already answers as this engine is left alone. On Windows the socket sets `SO_EXCLUSIVEADDRUSE`
@@ -1045,10 +1045,13 @@ subscribe to a quote, and has no order ticket. `nova_historical_chart`, `nova_hi
   when the link origin is not the engine. The engine serves its own build at `/review` and `/assets/` (`tools/nova_review_build.py`): `frontend/dist-review/<id>/`,
   named in `frontend/dist-review/current.json` `{schema_version: 1, build, fingerprint, built_at, previous}` (owner
   `nova_review_build.py`; invalidated when the frontend source fingerprint changes, then rebuilt with the checkout's Vite;
-  another `schema_version` is ignored and rebuilt). The current build is asked first, then `previous`; `frontend/dist`
+  another `schema_version` is ignored and rebuilt). A finished build is renamed to `<id>/`, or copied there when Windows
+  refuses the rename; `current.json` is written only after that. A build that cannot be put in place is a failed build:
+  `stale` or `unavailable`, with the reason in `detail`. The current build is asked first, then `previous`; `frontend/dist`
   is served only when no build can be made and its bundle holds the review page; `NOVA_REVIEW_DIST` overrides all of
   it and never builds. Before `/review` and before a screenshot the engine checks the source (at most every 30 s while
-  fresh; a failed build is retried after 5 minutes). With nothing to serve, `/review` is HTTP 503 and the chart call's
+  fresh; a failed build is retried after 5 minutes). A request never waits for a build while an older one can be served:
+  the new one builds behind it, and only a request with nothing to serve waits. The health check never waits. With nothing to serve, `/review` is HTTP 503 and the chart call's
   code is `REVIEW_BUILD_UNAVAILABLE`. A static
   path is `os.path.realpath`'d and must start with the folder being served before the file is opened. `..` and `%2e%2e` are HTTP 404. `NOVA_REVIEW_BASE`, when set,
   is the link origin. When it is unset, links use the engine's own origin, because that process serves `/review`.

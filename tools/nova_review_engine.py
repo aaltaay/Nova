@@ -108,7 +108,7 @@ def read_dist_asset(url_path: str) -> tuple[bytes, str] | None:
 
 def page_ready() -> dict[str, Any] | None:
     """None when /review can be served; else the error a chart call reports (the build could not be made)."""
-    status = review_build.ensure_fresh()
+    status = review_build.ensure_serving()
     if dist_dirs():
         return None
     return {"ok": False, "error": {"code": "REVIEW_BUILD_UNAVAILABLE",
