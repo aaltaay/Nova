@@ -16,6 +16,14 @@ describe('closeFullPosition', () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
+  it('names the venue its caller confirmed on (#1283)', async () => {
+    const spy = vi.spyOn(placeOrder, 'placeIbkrOrder').mockResolvedValue({
+      ok: true, order_id: 99, error: null, mode: 'paper',
+    });
+    await closeFullPosition('AAPL', 150, { outsideRth: false, venue: 'paper' });
+    expect(spy.mock.calls[0][0]).toMatchObject({ intent: 'flatten', venue: 'paper' });
+  });
+
   it('places a full SELL market exit for a long via placeIbkrOrder', async () => {
     const spy = vi.spyOn(placeOrder, 'placeIbkrOrder').mockResolvedValue({
       ok: true,

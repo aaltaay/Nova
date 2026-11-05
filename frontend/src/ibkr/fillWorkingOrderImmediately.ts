@@ -8,6 +8,7 @@
 import {
   APP_DIALOG_FILL_LABEL,
 } from '../constants';
+import type { DeskVenue } from '../constantGroups/desk_venue';
 import {
   beginBrowserExecutionTiming,
   captureBrowserAction,
@@ -15,6 +16,7 @@ import {
 } from '../execution_latency';
 import { confirmApp } from '../ux';
 import { cancelIbkrOrder } from './cancelOrder';
+import { getConfirmedDeskVenueSnapshot } from './confirmedDeskVenue';
 import { beginDeskAction } from './deskActionFlight';
 import {
   planFillWorkingOrder,
@@ -42,6 +44,8 @@ export type FillWorkingOrderResult =
 
 export type FillWorkingOrderOptions = PlanFillWorkingOrderOptions & {
   book?: FillWorkingBook | null;
+  /** The venue the confirm named: its order number is that venue's, and so is the fill (#1283). */
+  venue?: DeskVenue | null;
 };
 
 /** Confirm dialog then fill -- for panel buttons. */
@@ -54,6 +58,8 @@ export async function confirmAndFillWorkingOrder(
   if (!plan.ok) {
     return { ok: false, error: plan.error };
   }
+  // Read before the dialog: a desk that leaves this venue cancels nothing and sends nothing (#1283).
+  const { venue } = getConfirmedDeskVenueSnapshot();
   const ok = await confirmApp({
     title: 'Fill working order now?',
     message: plan.confirmMessage,
@@ -63,10 +69,10 @@ export async function confirmAndFillWorkingOrder(
   if (!ok) {
     return { ok: false, error: 'Fill now cancelled' };
   }
-  return fillWorkingOrderImmediately(order, actionTiming, options);
+  return fillWorkingOrderImmediately(order, actionTiming, { ...options, venue });
 }
 
-function placePayload(plan: FillWorkingPlanOk) {
+function placePayload(plan: FillWorkingPlanOk, venue?: DeskVenue | null) {
   if (plan.order_type === 'LMT') {
     return {
       symbol: plan.symbol,
@@ -75,6 +81,7 @@ function placePayload(plan: FillWorkingPlanOk) {
       order_type: 'LMT' as const,
       limit_price: plan.limit_price,
       outside_rth: true,
+      venue,
     };
   }
   return {
@@ -83,6 +90,7 @@ function placePayload(plan: FillWorkingPlanOk) {
     qty: plan.qty,
     order_type: 'MKT' as const,
     outside_rth: plan.outside_rth,
+    venue,
   };
 }
 
@@ -107,6 +115,7 @@ export async function fillWorkingOrderImmediately(
       const cancel = await cancelIbkrOrder(
         order.order_id,
         beginBrowserExecutionTiming('fill_now_cancel', actionTiming),
+        options?.venue,
       );
       if (!cancel.ok) {
         return {
@@ -120,7 +129,7 @@ export async function fillWorkingOrderImmediately(
 
     try {
       const place = await placeIbkrOrder(
-        placePayload(plan),
+        placePayload(plan, options?.venue),
         undefined,
         {
           timing: beginBrowserExecutionTiming('fill_now_place', actionTiming),

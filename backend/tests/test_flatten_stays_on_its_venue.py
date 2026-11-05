@@ -1,5 +1,7 @@
 """KILL stays on one venue, and stops if the desk leaves it (#1281; the operator's decision, 2026-11-04).
 
+So does every order the desk sends, a hotkey's exit first among them (#1283): the same stop, the same policy.
+
 Each test sends through the real ``execution.service.execute`` and the real Paper and Sim ledgers; only IBKR's edge
 is faked. ``book.sent`` and ``book.cancels`` are what would have reached IBKR. The desk is disarmed throughout: moving
 it always disarms, so these are the sends a KILL makes with no arm at all.
@@ -490,3 +492,133 @@ def test_kill_may_not_name_a_venue(book):
 
     assert (receipt.ok, receipt.reason_code) == (False, venue_door.TARGET_REFUSED)
     assert book.sent == []
+
+
+# ── a desk order names the venue the operator acted on (#1283) ──
+
+def _order(symbol: str, qty: float, side: str = "SELL", **body):
+    return TestClient(app).post("/api/ibkr/order", json={
+        "symbol": symbol, "side": side, "qty": qty, "order_type": "MKT", "intent": "flatten", **body,
+    })
+
+
+def _stopped_order(out: dict, venue: str, moved_to: str) -> None:
+    assert (out["ok"], out["reason_code"]) == (False, "VENUE_CHANGED")
+    assert out["error"] == f"The desk moved from {venue.capitalize()} to {moved_to.capitalize()}: nothing was sent."
+
+
+def test_a_hotkey_exit_confirmed_on_paper_never_sells_on_live(book):
+    """The send a move's disarm cannot stop: a flatten, and Live holds the same stock, so it would close it."""
+    set_venue("paper", persist=False)
+    for_venue("paper").place("ABCD", "BUY", 100, "MKT")
+    book.positions = {"ABCD": 100.0}
+    set_venue("live", persist=False)    # moved while the confirm was open
+
+    out = _order("ABCD", 100, venue="paper").json()
+
+    assert book.sent == []
+    _stopped_order(out, "paper", "live")
+    assert _held("paper") == {"ABCD": 100.0}
+
+
+def test_the_same_exit_naming_no_venue_is_the_gap_this_closes(book):
+    """The desk's venue on arrival, as a caller that names none still gets: this is what reached Live."""
+    book.positions = {"ABCD": 100.0}
+    set_venue("live", persist=False)
+
+    out = _order("ABCD", 100).json()
+
+    assert out["ok"] is True
+    assert [(order["symbol"], order["side"], order["qty"]) for order in book.sent] == [("ABCD", "SELL", 100)]
+
+
+def test_a_hotkey_cover_confirmed_on_paper_never_buys_on_live(book):
+    set_venue("paper", persist=False)
+    _short("paper", "ABCD", 50)
+    book.positions = {"ABCD": -50.0}
+    set_venue("live", persist=False)
+
+    out = _order("ABCD", 50, side="BUY", venue="paper").json()
+
+    assert book.sent == []
+    _stopped_order(out, "paper", "live")
+    assert _held("paper") == {"ABCD": -50.0}
+
+
+def test_an_exit_confirmed_on_live_never_sells_paper(book):
+    book.positions = {"ABCD": 100.0}
+    set_venue("paper", persist=False)
+    for_venue("paper").place("ABCD", "BUY", 100, "MKT")
+
+    out = _order("ABCD", 100, venue="live").json()
+
+    assert book.sent == []
+    _stopped_order(out, "live", "paper")
+    assert _held("paper") == {"ABCD": 100.0}
+
+
+def test_a_cover_confirmed_on_paper_never_buys_on_sim(book):
+    _short("paper", "ABCD", 100)
+    _short("sim", "ABCD", 100)
+    set_venue("sim", persist=False)
+
+    out = _order("ABCD", 100, side="BUY", venue="paper").json()
+
+    _stopped_order(out, "paper", "sim")
+    assert (_held("paper"), _held("sim")) == ({"ABCD": -100.0}, {"ABCD": -100.0})
+
+
+def test_an_ordinary_order_says_the_desk_moved_rather_than_that_it_is_disarmed(book):
+    """Moving always disarms, so the arm latch would refuse it too, and name the wrong reason."""
+    set_venue("live", persist=False)
+
+    out = TestClient(app).post("/api/ibkr/order", json={
+        "symbol": "ABCD", "side": "BUY", "qty": 5, "order_type": "LMT", "limit_price": 9.0, "venue": "paper",
+    }).json()
+
+    assert book.sent == []
+    _stopped_order(out, "paper", "live")
+
+
+def test_a_bracket_names_its_venue_too(book):
+    """The ticket's legs, and a short with its buy stop: both go out through the same command."""
+    set_venue("live", persist=False)
+
+    out = TestClient(app).post("/api/ibkr/order", json={
+        "symbol": "ABCD", "side": "BUY", "qty": 5, "order_type": "LMT", "limit_price": 9.0,
+        "take_profit_price": 10.0, "stop_loss_price": 8.0, "venue": "paper",
+    }).json()
+
+    assert book.sent == []
+    _stopped_order(out, "paper", "live")
+
+
+def test_a_named_exit_still_closes_while_the_desk_stays(book):
+    set_venue("paper", persist=False)
+    for_venue("paper").place("ABCD", "BUY", 100, "MKT")
+
+    out = _order("ABCD", 100, venue="paper").json()
+
+    assert out["ok"] is True
+    assert _held("paper") == {}
+
+
+def test_an_order_refuses_a_venue_that_does_not_exist_rather_than_say_the_desk_moved(book):
+    set_venue("paper", persist=False)
+    for_venue("paper").place("ABCD", "BUY", 100, "MKT")
+
+    res = _order("ABCD", 100, venue="mars")
+
+    assert res.status_code == 400
+    assert "moved" not in res.text
+    assert _held("paper") == {"ABCD": 100.0}
+
+
+def test_a_cancel_by_number_keeps_its_own_words(book):
+    """A new order's refusal is for the operator; a number's still says why a number cannot cross venues."""
+    set_venue("live", persist=False)
+
+    out = TestClient(app).delete("/api/ibkr/order/7?venue=paper").json()
+
+    assert book.cancels == []
+    assert out["ok"] is False and "an order id is only meaningful" in out["error"]

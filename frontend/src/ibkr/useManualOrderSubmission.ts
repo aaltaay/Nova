@@ -75,7 +75,8 @@ export function useManualOrderSubmission(params: Params) {
   const inFlightRef = useRef(false);
   const gestureKeyRef = useRef<string | null>(null);
   // The order the confirm names. The limit can follow the live book, so a
-  // tick between the click and Confirm must not change what is sent.
+  // tick between the click and Confirm must not change what is sent, and it
+  // holds the click's venue: a desk that leaves it sends nothing (#1283).
   const confirmedRef = useRef<BuildOrderResult | null>(null);
 
   // #657/#658: Settings owns this confirmed venue's TIF and optional TP/SL.
@@ -129,6 +130,7 @@ export function useManualOrderSubmission(params: Params) {
         payload: {
           ...built.payload,
           tif: prefs.tif,
+          venue: params.venue,
           stop_loss_price: Number(params.buyStop),
           ...(legsPlan.kind === 'attach' ? { take_profit_price: legsPlan.takeProfitPrice } : {}),
         },
@@ -139,6 +141,7 @@ export function useManualOrderSubmission(params: Params) {
       payload: {
         ...built.payload,
         tif: prefs.tif,
+        venue: params.venue,
         ...(legsPlan.kind === 'attach'
           ? {
               take_profit_price: legsPlan.takeProfitPrice,
