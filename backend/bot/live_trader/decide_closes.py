@@ -101,9 +101,10 @@ def _reason(pos: dict[str, Any], answer: dict[str, Any], ctx: dict[str, Any], fl
 
 
 def _sale_left(pos: dict[str, Any]) -> tuple | None:
-    """A sale on a losing add that did not fill: the add was judged once, so its close is sent again from here."""
-    close = pos.get("close") or {}
-    return (LT_SELL_ON_ADD, close.get("why"), close.get("sent_ts")) if close.get("kind") == LT_SELL_ON_ADD else None
+    """A sale on a losing add still owed (``book.sale_owed``): the add was judged once, so its close is sent from here
+    until the shares are gone."""
+    sale = pos.get("sale_on_add")
+    return (LT_SELL_ON_ADD, sale["why"], sale["ts"]) if sale else None
 
 
 def _no_hold(_host: str) -> None:

@@ -24,6 +24,7 @@ from bot.audit import list_entries
 from bot.live_trader import book as lt_book
 from bot.live_trader import lines as lt_lines
 from bot.live_trader import market as lt_market
+from bot.live_trader import orders as lt_orders
 from bot.live_trader import settings as lt_settings
 from bot.live_trader import watcher
 from execution import inflight, service, telemetry
@@ -285,6 +286,27 @@ def test_a_host_selling_part_sells_half_the_bots_shares_once_on_paper(desk):
     assert held(desk, "XYZ") == 0
     (done,) = lt_book.closed_today()
     assert [f["kind"] for f in done["exit_fills"]] == ["trim", "close"]
+
+
+def test_a_sale_on_a_losing_add_outlives_a_paper_read_that_failed(desk, monkeypatch):
+    """The add is judged once: Paper unreadable as its close goes out must not lose the sale (Codex review, #1285)."""
+    lt_settings.patch_host(HOST, {"adds": 0, "sell_on_add": True})
+    run(desk, "10:30:00")
+    t = desk.feed.open("XYZ", 100.00, at("10:30:10"))
+    run(desk, "10:30:11")
+    assert held(desk, "XYZ") == 4
+    desk.market.px["XYZ"] = [99.50, 99.48, 99.52]
+    desk.feed.add(t, 99.70, at("10:31:00"))
+    read = lt_orders.held
+    monkeypatch.setattr(lt_orders, "held", lambda symbol, side: None)
+    run(desk, "10:31:06")
+    assert held(desk, "XYZ") == 4
+    assert lt_book.positions()[f"{HOST}|long|XYZ"]["sale_on_add"]["ts"] is not None
+    monkeypatch.setattr(lt_orders, "held", read)
+    run(desk, "10:31:08")
+    assert held(desk, "XYZ") == 0
+    (done,) = lt_book.closed_today()
+    assert done["kind"] == "sell_on_add" and lt_book.positions() == {}
 
 
 def test_the_card_counts_the_bots_orders_and_takes_their_fees_off(desk):

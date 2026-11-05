@@ -245,6 +245,16 @@ def rekey(pos_id: str, row_id: str) -> None:
 
 
 # -- closes ----------------------------------------------------------------------------------------
+def sale_owed(pos_id: str, *, why: str, ts: float | None) -> None:
+    """A sale on a losing add, written before its close is tried: the add is judged once, so a close that never got
+    out (Paper unreadable, a try too soon) is owed until the shares are gone (``decide_closes``; Codex review, #1285)."""
+    with _lock:
+        pos = _load_locked()["positions"].get(pos_id)
+        if pos is not None and not pos.get("sale_on_add"):
+            pos["sale_on_add"] = {"why": why, "ts": ts}
+            _save_locked()
+
+
 def close_sent(pos_id: str, *, order_id: int | None, kind: str, why: str, now: float, qty: float) -> None:
     with _lock:
         pos = _load_locked()["positions"].get(pos_id)

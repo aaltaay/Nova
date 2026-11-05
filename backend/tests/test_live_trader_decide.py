@@ -407,12 +407,12 @@ def test_with_exit_on_you_the_losing_add_is_said_and_the_shares_stay():
     assert "the exit is yours" in note["why"]
 
 
-def test_a_sale_on_a_losing_add_that_did_not_fill_is_sent_again():
+def test_a_sale_on_a_losing_add_still_owed_is_sent_again():
     w = World(adds=0, sell_on_add=True)
     base = row(entry_ts=NOW)
     watching(w, base)
     pos = next(iter(w.book.values()))
-    pos["close"] = {"kind": LT_SELL_ON_ADD, "why": "the host added", "sent_ts": NOW + 30, "failed_ts": NOW + 31}
+    pos["sale_on_add"] = {"why": "the host added", "ts": NOW + 30}
     out = w.at(40).run(answer({HOST: [base]}, feed_now=NOW + 40))
     (close,) = kinds(out, "close")
     assert close["change"]["kind"] == LT_SELL_ON_ADD and close["why"] == "the host added"

@@ -763,8 +763,9 @@ against `cost_usd / qty`), sells all of the bot's shares at market: a `close` wi
 or a read in doubt sell nothing and go on as they would. An add the allowance or a short's SSR read would have held
 is still a real buy. A position level or ahead follows the add as ever. A step that is blocked -- a key, the Bot
 switch, off air, past the sell-all time -- sells nothing: the add is that skip, and the position leaves with the host.
-Exit: You keeps the shares, said as a `note`. A close that did not fill is sent again (`decide_closes`, `pos.close.kind`),
-and the row is never bought back that day (`book.no_reentry`); the host's next new trade in the stock is a new row,
+Exit: You keeps the shares, said as a `note`. The add is judged once, so the sale is written on the position before
+its close is tried (`sale_on_add`, `book.sale_owed`) and sent again until the shares are gone (`decide_closes`): a close
+that did not fill, or never went out because Paper could not be read, is not lost. The row is never bought back that day (`book.no_reentry`); the host's next new trade in the stock is a new row,
 judged as any other.
 
 **Settings** (`live-trader-bots.json` in the operator cache; owner `bot/live_trader/settings.py`; written
@@ -788,7 +789,8 @@ temp file and rename; unknown version refuses loud, and the bot then opens nothi
 ```
 {schema_version: 1, day: "YYYY-MM-DD" (the desk's day, 04:00 ET),
  positions: [{id, host, row_id, symbol, side: "long" | "short", venue: "paper", qty, cost_usd, steps,
-              adds_seen, adds_followed, trimmed (absent: false), opened_ts, state: "entering" | "open" | "closing",
+              adds_seen, adds_followed, trimmed (absent: false), sale_on_add: {why, ts} (absent: none owed), opened_ts,
+              state: "entering" | "open" | "closing",
               order: {id, step: "entry" | "add" | "already_open" | "close", sent_ts, qty, limit, stop,
                      ssr: "on" | "off" | "unknown" | null (a short's, as priced), timed_out_ts (absent until its
                      time to live cancels it)} | null,

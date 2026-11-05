@@ -21,6 +21,7 @@ from bot.live_trader.constants_live_trader import (
     LT_CLOSE_MAX_TRIES,
     LT_CLOSE_RETRY_SEC,
     LT_NOT_FILLED,
+    LT_SELL_ON_ADD,
     LT_SKIPS_REMEMBERED,
     LT_VENUE,
     LT_WAIT_SEC,
@@ -158,6 +159,9 @@ def _change_words(a: dict[str, Any]) -> str:
 async def close(a: dict[str, Any], now: float) -> None:
     """Sell (or cover) the bot's whole position: its order in flight and a short's buy stops cancelled first.
     A trim (``a["trim"]``, a long only) sells ``a["qty"]`` of it, once: the host sold part (``decide_steps.trim``)."""
+    change = a.get("change") or {}
+    if change.get("kind") == LT_SELL_ON_ADD:
+        book.sale_owed(a["pos_id"], why=a["why"], ts=change.get("ts"))
     pos = book.get(a["pos_id"])
     if pos is None or pos["state"] == "closing":
         return
