@@ -26,7 +26,6 @@ from constants_market_board import (
     MARKET_SCHEMA_VERSION,
     MARKET_SECTORS,
     MARKET_SPREAD_LEGS,
-    MARKET_THEME_FRESH_SEC,
     MARKET_TNX_TENTHS_ABOVE,
 )
 from constants_scanner import SESSION_RTH_OPEN_MIN_ET
@@ -164,7 +163,7 @@ def compose(st: Store, now: float, *, enabled: bool, replay_desk: bool, params: 
         "sectors": sectors.board("sectors", params["sectors"], ctx),
         "industries": sectors.board("industries", params["industries"], ctx),
         "climate": clim,
-        "themes": themes.board(st.merged("theme_quotes:", now, MARKET_THEME_FRESH_SEC)),
+        "themes": themes.board(themes.fresh_quotes(st, now)),
         "top": sectors.top(params["top"], params["top_period"], ctx, runners),
         "sources": st.statuses(now),
     }

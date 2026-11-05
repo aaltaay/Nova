@@ -8,9 +8,21 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from constants_market_board import MARKET_THEMES
+from constants_market_board import MARKET_THEME_FRESH_SEC, MARKET_THEMES
+from market_board.state import Store
 
 RULE = "Each group's change is the plain average of its priced stocks today, not weighted by size."
+PREFIX = "theme_quotes:"
+
+
+def fresh_quotes(st: Store, now: float) -> dict[str, Any]:
+    """Every group's quotes younger than ``MARKET_THEME_FRESH_SEC``, by each answer's own time: ``Store.get`` keeps
+    a failed read's answer for ``MARKET_STALE_MAX_SEC``, longer than a price may count here."""
+    out: dict[str, Any] = {}
+    for value, at in st.entries(lambda key: key.startswith(PREFIX)).values():
+        if now - at <= MARKET_THEME_FRESH_SEC and isinstance(value, dict):
+            out.update(value)
+    return out
 
 
 def _change(quote: Mapping | None) -> float | None:

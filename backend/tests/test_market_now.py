@@ -7,11 +7,13 @@ from types import SimpleNamespace
 import pytest
 
 import constants_global_board as cg
+import constants_market_board as cmb
 from agent_desk import market_now
 from global_board import board as global_board
 from global_board import markets
 from global_board.state import store as global_store
 from market_board import themes
+from market_board.state import Store
 from market_news import feed, store
 
 
@@ -68,6 +70,17 @@ def test_a_group_averages_only_what_ibkr_priced():
     assert (got["change_pct"], got["priced"], got["total"]) == (0.0, 2, 3)
     assert got["rows"][2]["change_pct"] is None
     assert themes.group(spec, {})["change_pct"] is None
+
+
+def test_a_group_quote_past_its_limit_is_unknown_though_the_store_still_holds_it():
+    st = Store()
+    now = ts("2026-11-05T15:00")
+    limit = cmb.MARKET_THEME_FRESH_SEC
+    assert limit < cmb.MARKET_STALE_MAX_SEC          # the store's own rule would keep it: the group must not
+    st.put("theme_quotes:a", "ibkr", {"OLD": {"price": 90.0, "prev_close": 100.0}}, now - limit - 1)
+    st.put("theme_quotes:b", "ibkr", {"NEW": {"price": 110.0, "prev_close": 100.0}}, now - limit)
+    assert st.get("theme_quotes:a", now, limit) is not None
+    assert set(themes.fresh_quotes(st, now)) == {"NEW"}
 
 
 def article(url: str, at: str, headline: str) -> dict:
