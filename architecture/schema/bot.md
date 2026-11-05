@@ -754,6 +754,20 @@ without the host trading. The answer carries each host's `bar` as the feed last 
   changing within `LT_SWITCH_SEC` onto an empty bar -- rows opening together while every older row of the host has
   closed by then (a bar back after a blank, the slots switching at a hand-over) -- were already open, not entered.
 
+**Selling on a losing add** (`sell_on_add`, per host, off by default; operator 2026-11-04, a Paper test; owner
+`bot/live_trader/decide_held.py`). With it on, a settled add of a position the bot holds, read as a real buy while
+the market is on the wrong side of what the bot paid (under it on a long, over it on a short, `reference_price`
+against `cost_usd / qty`), sells all of the bot's shares at market: a `close` with `step` and change kind
+`sell_on_add`, which comes before following the add, whatever `adds` says. "A real buy" is every add's judgement
+(`read_doubt`, `rules.check`): a misread, an implausible average, a partial sale (which trims as ever), a stale quote
+or a read in doubt sell nothing and go on as they would. An add the allowance or a short's SSR read would have held
+is still a real buy. A position level or ahead follows the add as ever. A step that is blocked -- a key, the Bot
+switch, off air, past the sell-all time -- sells nothing: the add is that skip, and the position leaves with the host.
+Exit: You keeps the shares, said as a `note`. The add is judged once, so the sale is written on the position before
+its close is tried (`sale_on_add`, `book.sale_owed`) and sent again until the shares are gone (`decide_closes`): a close
+that did not fill, or never went out because Paper could not be read, is not lost. The row is never bought back that day (`book.no_reentry`); the host's next new trade in the stock is a new row,
+judged as any other.
+
 **Settings** (`live-trader-bots.json` in the operator cache; owner `bot/live_trader/settings.py`; written
 through a temp file and a rename; an unknown version or an unreadable file refuses loud: every host reads
 off and writes answer 409 `LIVE_TRADER_SETTINGS_UNREADABLE`):
@@ -762,11 +776,11 @@ off and writes answer 409 `LIVE_TRADER_SETTINGS_UNREADABLE`):
 {schema_version: 1, sell_all_at: "HH:MM" (ET, 09:30-15:55),
  hosts: {NAME: {key: bool, entry: "you" | "nova", exit: "you" | "nova", step_usd: 50-10000,
                 adds: 0 | 2 | 4 | null (every add), allowance_usd: 100-50000, sides: "long" | "both",
-                short_stop_pct: 1-20, take_open: bool, updated_at: epoch}}}
+                short_stop_pct: 1-20, take_open: bool, sell_on_add: bool, updated_at: epoch}}}
 ```
 
 A host missing from the file reads key off with the defaults: `entry`/`exit` `"nova"`, `step_usd` 500,
-`adds` 2, `allowance_usd` 2,500, `sides` `"both"`, `short_stop_pct` 5, `take_open` true. `NAME` is 1-16 of
+`adds` 2, `allowance_usd` 2,500, `sides` `"both"`, `short_stop_pct` 5, `take_open` true, `sell_on_add` false. `NAME` is 1-16 of
 `A-Z0-9`. `entry`/`exit` are stock mode's wire values (ADR 037): the mode is `stock_mode.model.mode_of`.
 
 **What the bot holds** (`live-trader-book.json` in the operator cache; owner `bot/live_trader/book.py`;
@@ -775,7 +789,8 @@ temp file and rename; unknown version refuses loud, and the bot then opens nothi
 ```
 {schema_version: 1, day: "YYYY-MM-DD" (the desk's day, 04:00 ET),
  positions: [{id, host, row_id, symbol, side: "long" | "short", venue: "paper", qty, cost_usd, steps,
-              adds_seen, adds_followed, trimmed (absent: false), opened_ts, state: "entering" | "open" | "closing",
+              adds_seen, adds_followed, trimmed (absent: false), sale_on_add: {why, ts} (absent: none owed), opened_ts,
+              state: "entering" | "open" | "closing",
               order: {id, step: "entry" | "add" | "already_open" | "close", sent_ts, qty, limit, stop,
                      ssr: "on" | "off" | "unknown" | null (a short's, as priced), timed_out_ts (absent until its
                      time to live cancels it)} | null,
@@ -848,7 +863,7 @@ without a stop for exactly its shares, and a stale stop can never buy past flat 
   seconds_left}], held: [{host, symbol, side, qty, state}]}` from memory only: every desk window polls it for
   the asks' toasts, and the Bot switch reads `held` before it asks to sell.
 - `PATCH /api/bot/live-traders {sell_all_at}` and `PATCH /api/bot/live-traders/{name} {key?, entry?, exit?,
-  step_usd?, adds?, allowance_usd?, sides?, short_stop_pct?, take_open?}` answer the view; a value out of
+  step_usd?, adds?, allowance_usd?, sides?, short_stop_pct?, take_open?, sell_on_add?}` answer the view; a value out of
   bounds is 400 `LIVE_TRADER_INVALID` with `field`, never clamped. `key: false` sells nothing: the host's
   bot places no order until it is on again (2026-10-15; it used to sell them). Each change is a `live_trader` `settings`
   audit line `{host, from, to}`.
@@ -891,7 +906,7 @@ holds, is entering or waits to enter; never a Level 2 line (ADR 055 decision 3).
 filled in part: "Fills on the bot audit stream" below) | `filled` | `closed` (a
 close sent) | `skipped` | `asked` | `answered` | `refused` (the door's words) | `settings` | `note` |
 `error`; `inputs: {host, row_id, symbol, side, step, qty, limit, stop, order_id, code, why, change: {kind:
-"open" | "add" | "already_open" | "close" | "trim" | "off_air" | "hidden" | "sell_all" | "stale_day" | "outside", ts, price}, late_sec, venue: "paper"}`. `late_sec` is the send's wall time less the feed's
+"open" | "add" | "already_open" | "close" | "trim" | "sell_on_add" | "off_air" | "hidden" | "sell_all" | "stale_day" | "outside", ts, price}, late_sec, venue: "paper"}`. `late_sec` is the send's wall time less the feed's
 time of the change. A skip is written once per position, step and code. Codes: `LT_FEED_BEHIND`,
 `LT_FEED_DOWN`, `LT_TICKER_UNSETTLED`, `LT_MISREAD`, `LT_OPEN_TOO_FAR`, `LT_SMALL_CAP`, `LT_CAP_UNKNOWN`, `LT_NO_QUOTE`,
 `LT_ALLOWANCE`, `LT_ADDS_DONE`, `LT_SHORTS_OFF`, `LT_AGAINST`, `LT_NOT_HELD`, `LT_VENUE`, `LT_BOT_OFF`,
