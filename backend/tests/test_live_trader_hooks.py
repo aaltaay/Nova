@@ -15,7 +15,7 @@ from bot import activation, switch
 from bot.live_trader import book as lt_book
 from bot.live_trader import settings as lt_settings
 from bot.live_trader import watcher
-from bot.live_trader.constants_live_trader import LT_BOOK_FILE, LT_SETTINGS_FILE
+from bot.live_trader.constants_live_trader import LT_BOOK_FILE, LT_SELL_ON_ADD, LT_SETTINGS_FILE
 from bot.live_trader.settings import SettingsError
 from constants_bot import BOT_REASON_NO_SETUP_AT_STRATEGY
 from execution import venue_door
@@ -102,7 +102,9 @@ def test_settings_default_to_the_operators_answers_and_check_every_field():
             st["take_open"], st["entry"], st["exit"]) == (False, 500.0, 2500.0, 2, "both", 5.0, True, "nova", "nova")
     before, after = lt_settings.patch_host("alpha", {"key": True, "adds": None})
     assert before["key"] is False and after["key"] is True and after["adds"] is None
-    for bad in ({"step_usd": 5}, {"adds": 3}, {"sides": "short"}, {"entry": "bot"}, {"nope": 1}):
+    assert st["sell_on_add"] is False
+    assert lt_settings.patch_host("ALPHA", {"sell_on_add": True})[1]["sell_on_add"] is True
+    for bad in ({"step_usd": 5}, {"adds": 3}, {"sides": "short"}, {"entry": "bot"}, {"nope": 1}, {"sell_on_add": 1}):
         with pytest.raises(SettingsError) as exc:
             lt_settings.patch_host("ALPHA", bad)
         assert exc.value.code == "LIVE_TRADER_INVALID"
@@ -121,6 +123,17 @@ def test_an_unknown_settings_version_is_refused_loud_and_never_overwritten(tmp_p
         lt_settings.patch_host("ALPHA", {"key": True})
     assert exc.value.status == 409
     assert json.loads(path.read_text(encoding="utf-8"))["schema_version"] == 99
+
+
+def test_a_row_sold_on_a_losing_add_is_not_bought_back_after_a_restart():
+    a = {"pos_id": "P", "host": "ALPHA", "row_id": "ROW", "symbol": "XYZ", "side": "long", "step": "entry", "qty": 4,
+         "limit": 100.0, "change": {"ts": 1.0, "price": 100.0}}
+    lt_book.step_sent(a, order_id=1, stop_id=None, now=1.0)
+    lt_book.step_done("P", filled=4, price=100.0, ts=1.0, basis=None)
+    lt_book.close_sent("P", order_id=2, kind=LT_SELL_ON_ADD, why="the host added", now=2.0, qty=4)
+    lt_book.close_filled("P", qty=4, price=99.5, ts=2.0, order_id=2, kind=LT_SELL_ON_ADD, why="the host added")
+    lt_book.reset_for_tests()
+    assert lt_book.no_reentry() == {"ROW"}
 
 
 def test_a_book_from_another_day_is_sold_and_an_unknown_one_refused():

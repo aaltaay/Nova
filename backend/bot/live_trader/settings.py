@@ -28,6 +28,7 @@ from bot.live_trader.constants_live_trader import (
     LT_DEFAULT_EXIT,
     LT_DEFAULT_KEY,
     LT_DEFAULT_SELL_ALL_AT,
+    LT_DEFAULT_SELL_ON_ADD,
     LT_DEFAULT_SHORT_STOP_PCT,
     LT_DEFAULT_SIDES,
     LT_DEFAULT_STEP_USD,
@@ -47,7 +48,8 @@ from constants_stock_mode import STOCK_MODE_SIDES
 logger = logging.getLogger(__name__)
 NAME_RE = re.compile(rf"^[A-Z0-9]{{1,{LT_NAME_MAX}}}$")
 HHMM_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
-FIELDS = ("key", "entry", "exit", "step_usd", "adds", "allowance_usd", "sides", "short_stop_pct", "take_open")
+FIELDS = ("key", "entry", "exit", "step_usd", "adds", "allowance_usd", "sides", "short_stop_pct", "take_open",
+          "sell_on_add")
 
 _lock = threading.Lock()
 _state: dict[str, Any] | None = None       # the file as read: {"sell_all_at", "hosts"}
@@ -64,7 +66,7 @@ def defaults() -> dict[str, Any]:
     return {"key": LT_DEFAULT_KEY, "entry": LT_DEFAULT_ENTRY, "exit": LT_DEFAULT_EXIT,
             "step_usd": LT_DEFAULT_STEP_USD, "adds": LT_DEFAULT_ADDS, "allowance_usd": LT_DEFAULT_ALLOWANCE_USD,
             "sides": LT_DEFAULT_SIDES, "short_stop_pct": LT_DEFAULT_SHORT_STOP_PCT,
-            "take_open": LT_DEFAULT_TAKE_OPEN}
+            "take_open": LT_DEFAULT_TAKE_OPEN, "sell_on_add": LT_DEFAULT_SELL_ON_ADD}
 
 
 def bounds() -> dict[str, Any]:
@@ -194,6 +196,8 @@ def _clean(row: Any, *, field_prefix: str = "") -> dict[str, Any]:
 def _checked(row: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(row["key"], bool) or not isinstance(row["take_open"], bool):
         raise SettingsError(LT_ERR_INVALID, "key and take_open are true or false", field="key")
+    if not isinstance(row["sell_on_add"], bool):
+        raise SettingsError(LT_ERR_INVALID, "sell_on_add is true or false", field="sell_on_add")
     for side in ("entry", "exit"):
         if row[side] not in STOCK_MODE_SIDES:
             raise SettingsError(LT_ERR_INVALID, f"{side} is 'you' or 'nova'", field=side)

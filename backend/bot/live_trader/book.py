@@ -25,11 +25,17 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from bot.live_trader.constants_live_trader import LT_BOOK_FILE, LT_BOOK_SCHEMA_VERSION, LT_CLOSED_KEEP
+from bot.live_trader.constants_live_trader import (
+    LT_BOOK_FILE,
+    LT_BOOK_SCHEMA_VERSION,
+    LT_CLOSED_KEEP,
+    LT_SELL_ON_ADD,
+)
 
 logger = logging.getLogger(__name__)
 EPS = 1e-9
-NO_REENTRY_KINDS = ("outside", "stop")     # sold by someone else, or its buy stop: never bought back today
+# Sold by someone else, its buy stop, or the host's add while it lost: never bought back today.
+NO_REENTRY_KINDS = ("outside", "stop", LT_SELL_ON_ADD)
 
 _lock = threading.RLock()
 _book: dict[str, Any] | None = None
@@ -139,7 +145,7 @@ def closed_today() -> list[dict[str, Any]]:
 
 
 def no_reentry() -> set[str]:
-    """Rows the bot must not enter again today: sold by someone else, or stopped out."""
+    """Rows the bot must not enter again today: sold by someone else, stopped out, or sold on a losing add."""
     with _lock:
         return {c["row_id"] for c in _load_locked()["closed"] if c.get("kind") in NO_REENTRY_KINDS}
 

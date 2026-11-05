@@ -7,7 +7,8 @@ not hold is one entry decision, remembered in the snapshot so it is made once: `
 ``waiting`` (a quote, a market cap or a ticker check), ``blocked`` (the bot could not open when the row was
 first seen) or ``released`` (the bot sold it off air or while the bar was hidden). A blocked or released row,
 and every open row when the key turns on or the host comes back on air, is already open: ``take_open`` decides.
-A held position follows its host's adds, one settled add at a time (``feed_rows.add_groups``), up to ``adds``.
+A held position follows its host's adds, one settled add at a time (``feed_rows.add_groups``), up to ``adds``; with
+``sell_on_add`` on, an add while the bot is losing sells it instead (``decide_held.losing_add``).
 A read in doubt opens and adds nothing (bot.md, "Bad reads"): a row another host showed (``LT_OTHER_HOST``), a side
 the reader could not read whole (``LT_ROW_UNREAD``), an add no add could make (``LT_ADD_IMPLAUSIBLE``), no stream
 clock (``LT_NO_CLOCK``). The bar's own moves (``decide_bar``) hold a take while a whole bar is blank
@@ -231,6 +232,12 @@ class _Pass:
         g = groups[i]
         prev = g["from_price"] or (groups[i - 1]["to_price"] if i > 0 else r.get("entry_price"))
         change = {"kind": "add", "ts": g["last_ts"], "price": g["to_price"]}
+        if st["sell_on_add"] and not blocked:
+            why = decide_held.losing_add(self, name, st, r, rs, pos, prev, g, unread)
+            if why:
+                rs["groups_done"] += 1
+                decide_held.sell_on_add(self, name, st, r, pos, change, why)
+                return
         limit = st["adds"]
         spent = limit is not None and pos["adds_followed"] >= limit
         if blocked or spent:
