@@ -19,10 +19,10 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from bot.live_trader.constants_live_trader import LT_BLANK_BAR, LT_HIDDEN_SEC
+from bot.live_trader.constants_live_trader import LT_BLANK_BAR, LT_HIDDEN_SEC, LT_SELL_ON_ADD
 
 ET = ZoneInfo("America/New_York")
-HOST_REASONS = ("close", "off_air", "hidden", "lost")
+HOST_REASONS = ("close", "off_air", "hidden", "lost", LT_SELL_ON_ADD)
 TOLD_KEEP = 400
 
 
@@ -100,6 +100,13 @@ def _reason(pos: dict[str, Any], answer: dict[str, Any], ctx: dict[str, Any], fl
     return _row_reason(pos, (answer.get("hosts") or {}).get(pos["host"]), now)
 
 
+def _sale_left(pos: dict[str, Any]) -> tuple | None:
+    """A sale on a losing add still owed (``book.sale_owed``): the add was judged once, so its close is sent from here
+    until the shares are gone."""
+    sale = pos.get("sale_on_add")
+    return (LT_SELL_ON_ADD, sale["why"], sale["ts"]) if sale else None
+
+
 def _no_hold(_host: str) -> None:
     return None
 
@@ -123,7 +130,7 @@ def closes(snap: dict[str, Any], answer: dict[str, Any], book: dict[str, dict[st
     for pos in sorted(book.values(), key=lambda p: p.get("opened_ts") or 0):
         if pos["state"] == "closing":
             continue
-        found = _reason(pos, answer, ctx, flags, snap)
+        found = _reason(pos, answer, ctx, flags, snap) or _sale_left(pos)
         if found is None:
             continue
         kind, words, ts = found

@@ -2,6 +2,8 @@
 
 - ``trim``: the host sold part -- the bot sells half its shares, once (operator 2026-10-16, "Sell half, once"): a
   ``close`` action with ``trim: true`` for ``act.close``.
+- ``losing_add`` / ``sell_on_add``: with ``sell_on_add`` on, the host added while the bot is losing -- it sells all
+  of it (a Paper test, operator 2026-11-04): a ``close`` action of kind ``LT_SELL_ON_ADD``.
 - ``key_off_adds``: the host's key is off -- each add of what the bot holds is a skip (``LT_KEY_OFF``).
 
 The bar shows the host's average, never the shares they sold: an average that moved away from the market is a sale
@@ -13,7 +15,17 @@ from __future__ import annotations
 from typing import Any
 
 from bot.live_trader import feed_rows, rules
-from bot.live_trader.constants_live_trader import LT_ADD_IS_SALE, LT_KEY_OFF, LT_SALE_LEAD_SEC
+from bot.live_trader.constants_live_trader import (
+    LT_ADD_IS_SALE,
+    LT_ALLOWANCE,
+    LT_KEY_OFF,
+    LT_SALE_LEAD_SEC,
+    LT_SELL_ON_ADD,
+    LT_SSR_UNKNOWN,
+)
+
+# An add's check that stops here has passed every read of the add: only the bot's own room or a short's SSR is left.
+REAL_ADD_CODES = (LT_ALLOWANCE, LT_SSR_UNKNOWN)
 
 
 def trim(run: Any, name: str, st: dict[str, Any], r: dict[str, Any], pos: dict[str, Any],
@@ -58,6 +70,37 @@ def sale_of(run: Any, name: str, st: dict[str, Any], r: dict[str, Any], rs: dict
     v = run.check(name, st, r["side"], r["symbol"], g["to_price"], None, None, entry=False, prev_price=prev,
                   change_ts=g["first_ts"])
     return v["text"] if v["verdict"] == rules.SKIP and v["code"] == LT_ADD_IS_SALE else None
+
+
+def losing_add(run: Any, name: str, st: dict[str, Any], r: dict[str, Any], rs: dict[str, Any], pos: dict[str, Any],
+               prev: float | None, g: dict[str, Any], unread: set[str]) -> str | None:
+    """Why the add group ``g`` sells the position, or None: a real buy of the host's (judged as every add is) while
+    the market is on the wrong side of what the bot paid."""
+    if pos["qty"] <= 0 or run.read_doubt(name, r, rs.get("add_since"), unread, entry=False) is not None:
+        return None
+    v = run.check(name, st, r["side"], r["symbol"], g["to_price"], None, None, entry=False, prev_price=prev,
+                  change_ts=g["first_ts"])
+    if v["verdict"] != rules.GO and v["code"] not in REAL_ADD_CODES:
+        return None
+    ref = feed_rows.reference_price(run.ctx["quote"](r["symbol"]))
+    paid = pos["cost_usd"] / pos["qty"]
+    if ref is None or (ref >= paid if r["side"] == "long" else ref <= paid):
+        return None
+    return (f"{name} added to {r['symbol']} (average {rules.price_text(g['to_price'])}) with the bot losing: the market "
+            f"{rules.price_text(ref)} against the {rules.price_text(paid)} it paid")
+
+
+def sell_on_add(run: Any, name: str, st: dict[str, Any], r: dict[str, Any], pos: dict[str, Any],
+                change: dict[str, Any], why: str) -> None:
+    """All the bot's shares, once. Exit: You keeps them, said as a note."""
+    base = {"host": name, "pos_id": pos["id"], "row_id": r["id"], "symbol": r["symbol"], "side": r["side"],
+            "step": LT_SELL_ON_ADD, "change": {**change, "kind": LT_SELL_ON_ADD}}
+    if st["exit"] == "you":
+        run.out["actions"].append({**base, "kind": "note", "why": f"{why}: the exit is yours (Exit: You) -- the bot "
+                                                                  f"keeps its {pos['qty']:g} shares"})
+        return
+    run.closing.add(pos["id"])
+    run.out["actions"].append({**base, "kind": "close", "qty": pos["qty"], "why": why})
 
 
 def hold_trim(run: Any, name: str, r: dict[str, Any], rs: dict[str, Any], pos: dict[str, Any],
