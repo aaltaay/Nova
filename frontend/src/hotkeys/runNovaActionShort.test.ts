@@ -78,7 +78,7 @@ describe('Short / Cover hotkeys (ADR 048)', () => {
     expect(placeIbkrOrder).toHaveBeenCalledOnce();
     expect(placeIbkrOrder.mock.calls[0][0]).toEqual({
       symbol: 'RDYN', side: 'SELL', qty: 1, order_type: 'LMT', outside_rth: false,
-      limit_price: 5.8, short_entry: true, stop_loss_price: 5.9,
+      limit_price: 5.8, short_entry: true, stop_loss_price: 5.9, venue: null,
     });
   });
 
@@ -145,6 +145,7 @@ describe('Short / Cover hotkeys (ADR 048)', () => {
     expect(res.ok).toBe(true);
     expect(placeIbkrOrder.mock.calls[0][0]).toEqual({
       symbol: 'RDYN', side: 'BUY', qty: 200, order_type: 'LMT', outside_rth: false, limit_price: 5.83, intent: 'flatten',
+      venue: null,
     });
   });
 

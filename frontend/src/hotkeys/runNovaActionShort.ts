@@ -73,7 +73,7 @@ async function send(
   const mode = accountModeLabel(runtime.accountMode);
   try {
     const res = await placeIbkrOrder(
-      { symbol, side, qty, order_type: 'LMT', outside_rth: false, ...extra },
+      { symbol, side, qty, order_type: 'LMT', outside_rth: false, venue: runtime.venue, ...extra },
       idempotencyKey,
       { timing: beginBrowserExecutionTiming('nova_action_place', actionTiming), referencePrice: base },
     );

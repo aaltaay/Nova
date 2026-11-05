@@ -2,6 +2,7 @@
  * Runtime shape for Nova Action execution (shared across executor modules).
  */
 
+import type { DeskVenue } from '../constantGroups/desk_venue';
 import { ownerBotsHoldSentence } from '../constantGroups/owners';
 import type { IbkrPosition } from '../ibkr';
 import type { TopOfBook } from './TopOfBookContext';
@@ -20,6 +21,8 @@ export interface NovaActionRuntime {
   topOfBook: TopOfBook | null;
   /** Called when place-confirm is required; return true to proceed. */
   requestConfirm?: (summary: string) => Promise<boolean>;
+  /** The venue this keypress landed on, read once by `runNovaAction`: every send names it (#1283). */
+  venue?: DeskVenue | null;
 }
 
 /**

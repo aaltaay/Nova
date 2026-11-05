@@ -18,6 +18,7 @@ import {
   TICKER_TRADE_UNLOCK_LABEL,
 } from '../constants';
 import { TopOfBookProvider } from '../hotkeys/TopOfBookContext';
+import { _resetConfirmedDeskVenueStoreForTests, confirmDeskVenue } from './confirmedDeskVenueStore';
 import { spendLockReason } from './spendLock';
 import { TickerTradeActionBar } from './TickerTradeActionBar';
 import type { IbkrAccountSummary, IbkrMode, IbkrPosition } from './types';
@@ -138,6 +139,23 @@ describe('the rail Flatten on a disarmed desk (ADR 018)', () => {
     expect(mocks.confirm).toHaveBeenCalledOnce();
     expect(mocks.close).toHaveBeenCalledWith('GRML', 2, expect.objectContaining({ mode: 'live' }));
     expect(mount.querySelector('[data-testid="manual-order-result"]')?.textContent).toContain('Flatten order #9');
+  });
+
+  it('names the venue of the click, whatever the desk shows after the dialog (#1283)', async () => {
+    confirmDeskVenue('paper');
+    mocks.confirm.mockImplementation(async () => {
+      confirmDeskVenue('live'); // the desk moved while the dialog was open
+      return true;
+    });
+    mocks.close.mockResolvedValue({
+      ok: true, order_id: 9, side: 'SELL', qty: 2, mode: 'paper', outside_rth: false, order_type: 'MKT',
+    });
+    const flatten = await render();
+    await act(async () => { flatten.click(); });
+    await act(async () => { await Promise.resolve(); });
+
+    expect(mocks.close).toHaveBeenCalledWith('GRML', 2, expect.objectContaining({ venue: 'paper' }));
+    _resetConfirmedDeskVenueStoreForTests();
   });
 
   it('does not send when the confirm is declined', async () => {

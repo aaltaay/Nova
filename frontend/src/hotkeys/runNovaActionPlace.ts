@@ -90,6 +90,7 @@ export async function placeMarketExit(
         order_type: ticket.order_type,
         outside_rth: ticket.outside_rth,
         limit_price: ticket.limit_price,
+        venue: runtime.venue,
         ...(intent ? { intent } : {}),
       },
       idempotencyKey,
@@ -168,6 +169,7 @@ export async function placeLongPctLimit(
         order_type: 'LMT',
         limit_price: Number(limit.toFixed(4)),
         outside_rth,
+        venue: runtime.venue,
       },
       idempotencyKey,
       {
@@ -234,6 +236,7 @@ export async function placeBookOffsetLimit(
         order_type: 'LMT',
         limit_price: Number(limit.toFixed(4)),
         outside_rth,
+        venue: runtime.venue,
       },
       idempotencyKey,
       {

@@ -93,6 +93,8 @@ class OrderRequest(BaseModel):
     intent: Literal["flatten"] | None = None
     # ADR 045: what the screen showed when the operator acted; a manual priced order without it is refused.
     view: ViewStamp | None = None
+    # The venue the operator acted on; the door refuses VENUE_CHANGED when the desk is elsewhere (#1283).
+    venue: str | None = None
 
     @model_validator(mode="after")
     def _legs_ride_a_limit_entry(self) -> "OrderRequest":
@@ -160,6 +162,7 @@ def _manual_order_command(
         # Checked in the door against the position less the closes already
         # working, inside the execution lock (execution.flatten_intent, QA R42).
         intent=req.intent,
+        expected_venue=_named_venue(req.venue),
         symbol=req.symbol.upper(),
         side=req.side.upper(),
         qty=req.qty,

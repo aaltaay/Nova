@@ -7,6 +7,7 @@
  * After hours / weekend: EH LMT at bid/ask/last (same ticket as Fill now).
  * "RTH" is judged by the venue's clock -- the Sim playhead on Sim (QA R21).
  */
+import type { DeskVenue } from '../constantGroups/desk_venue';
 import {
   beginBrowserExecutionTiming,
   type BrowserActionStamp,
@@ -39,6 +40,8 @@ export async function closeFullPosition(
     book?: FlattenExitBook | null;
     /** The desk's venue: on Sim the flatten plans against the playhead, not the wall clock (R21). */
     mode?: string | null;
+    /** The venue the caller confirmed on, read before its dialog: a desk that has left it sends nothing (#1283). */
+    venue?: DeskVenue | null;
   },
 ): Promise<CloseFullPositionResult> {
   const built = buildExitFullPosition(positionQty);
@@ -77,6 +80,7 @@ export async function closeFullPosition(
         outside_rth: ticket.outside_rth,
         limit_price: ticket.limit_price,
         intent: 'flatten',
+        venue: options?.venue,
       },
       undefined,
       { timing, referencePrice: options?.referencePrice },

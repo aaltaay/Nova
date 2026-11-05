@@ -131,6 +131,8 @@ def wrong_venue(cmd: ExecutionCommand, send_venue: str) -> str | None:
         # cancels its order of the same number.
         return f"The bots' shares are closed on Paper, and the desk is on {send_venue} -- nothing was sent"
     if cmd.expected_venue and cmd.expected_venue != send_venue:
+        if cmd.order_id is None:    # a new order has no number to explain: the operator reads this (#1283)
+            return f"The desk moved from {cmd.expected_venue.capitalize()} to {send_venue.capitalize()}: nothing was sent."
         return (f"the desk is on {send_venue}, not {cmd.expected_venue} -- an order id is only "
                 "meaningful on the venue that issued it")
     return None

@@ -80,8 +80,9 @@ class ExecutionCommand:
     # closes already working (execution.flatten_intent), under the lock.
     intent: str | None = None
     # The venue the caller means (live | paper | sim). An order id is only meaningful on the
-    # venue that issued it, so a cancel or replace of a known id names it; the door refuses
-    # ``VENUE_CHANGED`` when the desk is elsewhere by the time it runs (audit 2026-09-30).
+    # venue that issued it, so a cancel or replace of a known id names it, and a desk order names the
+    # venue the operator acted on (#1283); the door refuses ``VENUE_CHANGED`` when the desk is
+    # elsewhere by the time it runs (audit 2026-09-30).
     expected_venue: str | None = None
     # The venue to send to instead of the desk's: the kill switch's sweep (spec D, #656) and Nova's
     # own closes -- the day cover and the margin call (ADR 048), the Live Trader bot's (ADR 055) and

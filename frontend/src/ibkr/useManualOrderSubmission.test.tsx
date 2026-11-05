@@ -90,6 +90,34 @@ describe('useManualOrderSubmission gesture identity', () => {
     expect(key).toMatch(/^manual:/);
   });
 
+  it('sends the venue the confirm named, even when the desk moved behind it (#1283)', async () => {
+    skipConfirm = false;
+    const { result, rerender } = renderHook(
+      (props: { venue: 'paper' | 'live' }) => useManualOrderSubmission({ ...params(), venue: props.venue }),
+      { initialProps: { venue: 'paper' as 'paper' | 'live' } },
+    );
+    await act(async () => {
+      result.current.submit({ preventDefault: () => undefined } as never);
+    });
+    rerender({ venue: 'live' });
+    await act(async () => {
+      await result.current.executeOrder();
+    });
+    expect(placeIbkrOrder.mock.calls[0][0].venue).toBe('paper');
+  });
+
+  it('a short names its venue too: it goes out on its own branch of the build (#1283)', async () => {
+    const { result } = renderHook(() =>
+      useManualOrderSubmission({
+        ...params(), side: 'SELL', shortEntry: true, orderType: 'LMT', limitPrice: '10', buyStop: '10.5',
+      }),
+    );
+    await act(async () => {
+      await result.current.executeOrder();
+    });
+    expect(placeIbkrOrder.mock.calls[0][0]).toMatchObject({ short_entry: true, venue: 'paper' });
+  });
+
   it('places the limit the confirm named, even when the price moved behind it', async () => {
     skipConfirm = false;
     const { result, rerender } = renderHook(

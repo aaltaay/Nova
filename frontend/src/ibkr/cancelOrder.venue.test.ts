@@ -27,6 +27,12 @@ describe('cancelIbkrOrder venue', () => {
     expect(String(fetchMock.mock.calls[0][0])).toMatch(/\/api\/ibkr\/order\/12\?venue=paper$/);
   });
 
+  it('sends the venue a confirm named, whatever the rows say by now (#1283)', async () => {
+    const fetchMock = stubFetch();
+    await cancelIbkrOrder(12, undefined, 'live');
+    expect(String(fetchMock.mock.calls[0][0])).toMatch(/\/api\/ibkr\/order\/12\?venue=live$/);
+  });
+
   it('sends none while the rows name no venue', async () => {
     vi.mocked(getIbkrAccountSnapshot).mockReturnValueOnce({ venue: null } as never);
     const fetchMock = stubFetch();
