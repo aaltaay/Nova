@@ -65,6 +65,11 @@ drives Nova's private `/api/agent` endpoints (ADR 050) -- the day movers index, 
 Read the dictionary first (`dict`), say the numbers you used for any word, and save the wording the operator
 confirms. Never send `--confirm` before the operator agreed to what it lists as at stake.
 
+## today's market
+
+Any question about today's market goes to Nova first: `market_now` on `nova-data` (or
+`py -3 tools/nova_agent.py market`). The day files lag. Web sources are for outside opinion only, labelled so.
+
 ## ledger
 
 There is **no changelog** (AGENTS.md §7.1). `CHANGELOG.md` is retired and

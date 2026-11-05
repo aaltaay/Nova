@@ -172,7 +172,8 @@ def register(server, service, run, reads, writes_file) -> None:
     @server.tool(annotations=reads)
     async def market_context(day: str, symbols: list[str] | None = None) -> dict:
         """The market around a day (default SPY, QQQ, IWM): each one's day change, gap, range, 5- and 20-session
-        returns and close vs its 20-day average, plus a one-line summary. Nothing after the day is read."""
+        returns and close vs its 20-day average, plus a one-line summary. Nothing after the day is read. The day files
+        lag: for today use market_now."""
         return await run(service.market_context, day, symbols)
 
     @server.tool(annotations=reads)

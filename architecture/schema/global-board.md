@@ -125,3 +125,8 @@ that reads its ETF says "via EWZ"; a market IBKR has not answered says "no feed"
 size shows on its hover card ("Market size ≈ $68.0T", the parts, the month and source, "published monthly, not live")
 and beside each exchange's name on its row ("NYSE $29.5T + Nasdaq $38.5T", "JPX $7.7T": a label naming
 several exchanges pairs with the size's parts in order); "How to read" says where the sizes come from.
+
+**An old read is not today's (operator, 2026-11-05).** On the 1 D view a market's `flow` and its bar-based `move` read
+`null` with `error` "waiting for IBKR's read of this session" when the kept read belongs to an earlier session, or
+when the session is open and the read is older than `GLOBAL_FLOW_MAX_AGE_SEC` (the reader rests in the desk's hours
+until the page is asked for). They never count in `world`, `regions` or `read`. A closed market keeps its last session.

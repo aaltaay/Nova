@@ -3,6 +3,7 @@ name: nova-market-data
 description: "Use when a task needs past market data -- a stock's trades, NBBO quotes, intraday or daily bars on a past day (2016 on), seconds-scale moves, spreads, premarket / VWAP / relative-volume stats, order flow (dark pool, retail buy/sell, sweeps), halts, news catalysts, finding small-cap runner stock-days with their float as known that day, the day movers index, a past day's Gainers / Losers / Gappers / After Hours board, financial statements, float, shares outstanding, cash runway or dilution filings, SEC filings, IPOs, short interest or symbol lookups -- or asks how fast or how complete that data is, or wants charts of trades with the entry and exit marked. Reads the operator's Massive files, Nova's stores, Massive's reference dump and SEC's bulk files through the nova-data MCP tools or tools/market_data.py; never write a new reader for them."
 ---
 
+**Today's market is not in these files.** They lag: use `market_now` (the running desk: prices, sectors, AI groups, headlines) for anything about today.
 # Nova market data
 
 Every US stock's trades, NBBO quotes and minute / daily bars from 2016-01-04 are on the operator's E: drive, plus

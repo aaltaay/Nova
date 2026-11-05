@@ -1101,4 +1101,21 @@ subscribe to a quote, and has no order ticket. `nova_historical_chart`, `nova_hi
   to call `nova_chart` and post that text verbatim. The tool enforces the shape without the prompt.
 - **Drawings** on `/review` stay in the page's memory. They are not written to the operator's drawing store.
 
+## Today's market for agents (operator, 2026-11-05)
 
+Operator: "Why are you using sources that are not even related to Nova when Nova should be supporting these things far
+faster?" The day files lag, so a question about today goes to the running desk.
+
+- `GET /api/agent/market-now?words=a,b&limit=20` (loopback; `limit` 1-100) -> `{schema_version, as_of, replay_desk,
+  session, day_read, quotes: [{id, label, last, change_pct, at, stale, error}], breadth, sectors, top, themes,
+  world: {read, totals, regions}, headlines: {items: [{published_ts, headline, source, url, symbols}], spans:
+  [[start_ts, end_ts]], at, error}, missing: string[], rule}`. The Market and Global wires' own blocks
+  (`market-board.md`, `global-board.md`). Asking marks both pages wanted and never waits on IBKR, so a first ask may
+  answer with holes; `missing` names each one. Read-only.
+- `market_now {words?, limit?}` on `nova-data` and `nova_agent.py market [--words] [--limit]` are this answer; with the
+  backend down the tool answers `{ok: false, error}`.
+- **Kept headlines:** `market_news/feed.py` polls Alpaca's all-market news every `MARKET_NEWS_POLL_SEC` into
+  `market_news.sqlite3` beside the catalyst feed (`user_version` 1; owner `market_news`; no invalidation, items are
+  history; `NOVA_MARKET_NEWS=0` turns it off). `words` match the headline or summary over the last
+  `MARKET_NEWS_WINDOW_SEC`. `spans` are stretches proven read: outside one, no headline means unknown, never no news.
+  Never a price or order source, and apart from the catalyst verdicts (ADR 024).

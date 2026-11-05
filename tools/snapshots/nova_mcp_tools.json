@@ -30,6 +30,42 @@
     }
   },
   {
+    "name": "market_now",
+    "description": "TODAY's market, live from the running desk -- use this, not the day files, for anything about today: the day read, futures, VIX, yields, sectors with their biggest stocks, the AI groups (chips, memory, power, neoclouds, platforms), the world's money and the kept headlines (words: any of these, in a headline or its summary). missing[] says what has no answer yet; a first ask starts the reads, so ask again in a minute.",
+    "inputSchema": {
+      "properties": {
+        "words": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Words"
+        },
+        "limit": {
+          "default": 20,
+          "title": "Limit",
+          "type": "integer"
+        }
+      },
+      "title": "market_nowArguments",
+      "type": "object"
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
     "name": "stock_day",
     "description": "One stock-day from the Massive files. kind: trades | quotes (NBBO, Level 1) | bars (tf 1m/5m/15m/1h from the minute file, 1s/10s built from trades; daily bars are not a stock-day read). day YYYY-MM-DD; start/end ET HH:MM (end exclusive). Volume: seconds bars count what the consolidated tape counts (no cancels, corrected originals or official open/close repeats); minute bars are Massive's own rule (no closing cross at 16:00, no prior-reference or odd-lot-only minutes), so seconds sum higher (GME 2021-01-27 09:30: 179,822 vs 179,397). Raw prices unless adjust=true (today's split terms). Inline answers hold 200 rows; output_name (new .parquet/.csv) for all. Bars exist only for buckets with a trade, so a halt or quiet stretch is a hole: meta.gaps lists each run of missing buckets in the window (first_et/last_et inclusive, ET; meta.gap_runs/gap_buckets count all, the longest 50 are listed) -- a plot by row index would hide it. fill_gaps=true adds a row per missing bucket with NO prices (nothing is carried or invented), volume 0 and filled=true.",
     "inputSchema": {
@@ -970,7 +1006,7 @@
   },
   {
     "name": "market_context",
-    "description": "The market around a day (default SPY, QQQ, IWM): each one's day change, gap, range, 5- and 20-session returns and close vs its 20-day average, plus a one-line summary. Nothing after the day is read.",
+    "description": "The market around a day (default SPY, QQQ, IWM): each one's day change, gap, range, 5- and 20-session returns and close vs its 20-day average, plus a one-line summary. Nothing after the day is read. The day files lag: for today use market_now.",
     "inputSchema": {
       "properties": {
         "day": {

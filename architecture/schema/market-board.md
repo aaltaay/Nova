@@ -219,3 +219,9 @@ is recorded on that tile (`market_board.ibkr_reads.note_error`) and never sets t
 - Desk: `localStorage nova.marketBoard.periods.v1` `{schema_version: 1, sectors, industries, climate, top: {kind,
   period}}` (owner `frontend/src/market_board/periods.ts`; an unknown version or value falls back to `1D` /
   `biggest`, a saved `movers` among them).
+
+**The AI groups (operator, 2026-11-05).** `themes: {rule, groups: [{id, label, priced, total, change_pct: number |
+null, rows: [{symbol, last: number | null, change_pct: number | null}]}]}` -- `MARKET_THEMES`, Nova's own grouping of
+the AI trade (chips, memory and storage, power and build-out, neoclouds, platforms), each stock from a brief IBKR line
+(`theme_quotes:<id>`, not kept across restarts; older than `MARKET_THEME_FRESH_SEC` reads `null`). `change_pct` is the
+plain average of the priced stocks. On the wire for agents (`/api/agent/market-now`); the page does not draw it.

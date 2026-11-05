@@ -49,6 +49,15 @@ MARKET_IDLE_LINES_TTL_SEC = 600.0                # the tiles' 5-minute lines (30
 MARKET_IDLE_BARS_TTL_SEC = 600.0                 # ETFs' / movers' daily bars when no line is spare
 MARKET_IDLE_CLIMATE_TTL_SEC = 300.0              # today's climate from the leaderboard store
 MARKET_IDLE_WAIT_SEC = 5.0                       # a refresher's sleep when nothing was due and nobody looks
+# The AI trade by what each company sells into it, for agents (`market-board.md`): Nova's own grouping, edit freely.
+MARKET_THEMES = (
+    {"id": "ai_chips", "label": "AI chips", "symbols": ("NVDA", "AVGO", "AMD", "TSM", "MRVL", "ARM")},
+    {"id": "ai_memory", "label": "Memory and storage", "symbols": ("MU", "SNDK", "WDC", "STX")},
+    {"id": "ai_power", "label": "Power and build-out", "symbols": ("VST", "CEG", "GEV", "ETN", "VRT", "FIX")},
+    {"id": "ai_neocloud", "label": "Neoclouds", "symbols": ("CRWV", "NBIS", "IREN", "ORCL")},
+    {"id": "ai_platforms", "label": "Platforms", "symbols": ("MSFT", "AMZN", "GOOGL", "META", "AAPL")},
+)
+MARKET_THEME_FRESH_SEC = 300.0                   # a theme quote older than this reads unknown
 MARKET_POOL_CHUNK = 10                           # biggest names per quote read, so tile quotes run in between
 # IBKR's answers kept across restarts (market_board/keep.py, board-store.json).
 MARKET_KEEP_FILE = "board-store.json"

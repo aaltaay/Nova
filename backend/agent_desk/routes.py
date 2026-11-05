@@ -50,6 +50,8 @@ ENDPOINTS = (
     ("GET", "/api/agent/desk", "what the desk shows now, and what a venue switch would put at stake"),
     ("GET", "/api/agent/market-temperature?day=", "the small-cap temperature: today's (or a past session's) day / "
      "week / month labels and the numbers behind them, as the Market page shows them"),
+    ("GET", "/api/agent/market-now?words=&limit=", "the market right now: the day read, futures, sectors, the AI "
+     "groups, the world's money and the kept headlines, each with what is missing"),
     ("GET", "/api/agent/dictionary", "the operator's words for commands: read it before acting"),
     ("POST", "/api/agent/dictionary", "add or replace an entry the operator confirmed ({entry})"),
     ("DELETE", "/api/agent/dictionary/{id}", "drop an operator entry"),
@@ -136,6 +138,14 @@ def get_market_temperature(day: str | None = None) -> dict[str, Any]:
     except FileNotFoundError as exc:
         raise _refuse(503, "AGENT_LEADERBOARD_UNAVAILABLE", str(exc)) from exc
     return {"schema_version": AGENT_DESK_SCHEMA_VERSION, **temperature.report(chain, now)}
+
+
+@router.get("/market-now")
+def get_market_now(words: str | None = None, limit: int = Query(default=20, ge=1, le=100)) -> dict[str, Any]:
+    """Today's market as the desk reads it: answers from memory and the news store, never waits on IBKR."""
+    from agent_desk import market_now
+
+    return {"schema_version": AGENT_DESK_SCHEMA_VERSION, **market_now.report(words, limit, time.time())}
 
 
 # ── Commands for the desk ───────────────────────────────────────────────────
