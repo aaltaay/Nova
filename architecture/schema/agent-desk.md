@@ -1045,7 +1045,9 @@ subscribe to a quote, and has no order ticket. `nova_historical_chart`, `nova_hi
   when the link origin is not the engine. The engine serves its own build at `/review` and `/assets/` (`tools/nova_review_build.py`): `frontend/dist-review/<id>/`,
   named in `frontend/dist-review/current.json` `{schema_version: 1, build, fingerprint, built_at, previous}` (owner
   `nova_review_build.py`; invalidated when the frontend source fingerprint changes, then rebuilt with the checkout's Vite;
-  another `schema_version` is ignored and rebuilt). The current build is asked first, then `previous`; `frontend/dist`
+  another `schema_version` is ignored and rebuilt). A finished build is renamed to `<id>/`, or copied there when Windows
+  refuses the rename; `current.json` is written only after that. A build that cannot be put in place is a failed build:
+  `stale` or `unavailable`, with the reason in `detail`. The current build is asked first, then `previous`; `frontend/dist`
   is served only when no build can be made and its bundle holds the review page; `NOVA_REVIEW_DIST` overrides all of
   it and never builds. Before `/review` and before a screenshot the engine checks the source (at most every 30 s while
   fresh; a failed build is retried after 5 minutes). With nothing to serve, `/review` is HTTP 503 and the chart call's

@@ -12,6 +12,9 @@ Layout: ``frontend/dist-review/current.json`` names the build in use; each build
 ``frontend/dist-review/<id>/``. The previous build is kept, so a page that loaded before a rebuild still finds its
 assets. Older builds are deleted.
 
+A finished build reaches its own name by rename, else by copy (``_swap_in``). A build that cannot be put in place
+ends as ``stale`` or ``unavailable`` like any failed build, never as an exception.
+
     py -3 tools/nova_review_build.py            # build when stale, print the status
     py -3 tools/nova_review_build.py --check    # report only
 """
@@ -136,8 +139,11 @@ def read_current() -> dict[str, Any] | None:
 def _write_current(body: dict[str, Any]) -> None:
     root = build_root()
     tmp = root / f"current.json.tmp-{os.getpid()}"
-    tmp.write_text(json.dumps(body, indent=1), encoding="utf-8")
-    os.replace(tmp, root / "current.json")
+    try:
+        tmp.write_text(json.dumps(body, indent=1), encoding="utf-8")
+        os.replace(tmp, root / "current.json")
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def vite_build(front: Path, out_dir: Path) -> tuple[bool, str]:
@@ -162,6 +168,46 @@ def vite_build(front: Path, out_dir: Path) -> tuple[bool, str]:
         return False, f"vite build did not start: {exc}"
     tail = (done.stdout + done.stderr).decode("utf-8", "replace")[-2000:]
     return done.returncode == 0, tail
+
+
+def _swap_in(tmp: Path, final: Path) -> None:
+    """Give a finished build its own name: rename it, or copy it when Windows refuses the rename.
+
+    Windows refuses to rename a folder while anything holds a handle on a folder inside it. A Vite dev server
+    watching frontend/ holds one on assets/ (WinError 5 on 2026-11-04), and a retry does not help while it runs.
+    Reading the files is still allowed, so the copy works. current.json is written after this returns, so a page
+    never loads a half-copied build, and a failed copy leaves no folder for serving_dirs to find.
+    """
+    shutil.rmtree(final, ignore_errors=True)
+    try:
+        os.replace(tmp, final)
+        return
+    except OSError as exc:
+        print(f"nova-review-build: copying {tmp.name}, the rename was refused: {exc}", file=sys.stderr)
+    try:
+        shutil.copytree(tmp, final, dirs_exist_ok=True)
+    except OSError:
+        shutil.rmtree(final, ignore_errors=True)
+        raise
+
+
+def _build(tmp: Path, wanted: str, fingerprint: str, current: dict[str, Any] | None,
+           builder: Builder | None) -> tuple[dict[str, Any] | None, str]:
+    """Build into tmp and make it the current build. Returns the new current.json, or None and why not."""
+    build_root().mkdir(parents=True, exist_ok=True)
+    shutil.rmtree(tmp, ignore_errors=True)
+    ok, tail = (builder or vite_build)(frontend_dir(), tmp)
+    (build_root() / "build.log").write_text(tail, encoding="utf-8")
+    if not ok:
+        return None, (tail.strip().splitlines() or ["vite build failed"])[-1]
+    if not has_review_page(tmp):
+        return None, "the build has no review page"
+    _swap_in(tmp, build_root() / wanted)
+    body = {"schema_version": SCHEMA_VERSION, "build": wanted, "fingerprint": fingerprint,
+            "built_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "previous": (current or {}).get("build") if (current or {}).get("build") != wanted else None}
+    _write_current(body)
+    return body, ""
 
 
 def _prune(keep: list[str]) -> None:
@@ -214,25 +260,17 @@ def ensure_fresh(builder: Builder | None = None, max_age: float | None = None) -
             return dict(_LAST)
         if _FAILED[0] == fingerprint and time.monotonic() - _FAILED[1] < RETRY_FAILED_SEC and max_age != 0:
             return dict(_LAST)                       # the same source failed a moment ago: do not rebuild per request
-        build_root().mkdir(parents=True, exist_ok=True)
         tmp = build_root() / f"{wanted}.tmp-{os.getpid()}"
+        try:
+            body, detail = _build(tmp, wanted, fingerprint, current, builder)
+        except OSError as exc:
+            body, detail = None, f"the build could not be put in place: {exc}"
         shutil.rmtree(tmp, ignore_errors=True)
-        ok, tail = (builder or vite_build)(frontend_dir(), tmp)
-        (build_root() / "build.log").write_text(tail, encoding="utf-8")
-        if ok and has_review_page(tmp):
-            final = build_root() / wanted
-            shutil.rmtree(final, ignore_errors=True)
-            os.replace(tmp, final)
-            body = {"schema_version": SCHEMA_VERSION, "build": wanted, "fingerprint": fingerprint,
-                    "built_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                    "previous": (current or {}).get("build") if (current or {}).get("build") != wanted else None}
-            _write_current(body)
+        if body:
             _prune([name for name in (body["build"], body["previous"]) if name][:KEEP_BUILDS])
             _LAST, _LAST_AT = _status("fresh", body), time.monotonic()
             return dict(_LAST)
-        shutil.rmtree(tmp, ignore_errors=True)
         _FAILED = (fingerprint, time.monotonic())
-        detail = "the build has no review page" if ok else (tail.strip().splitlines() or ["vite build failed"])[-1]
         usable = serving_dirs()
         state = "stale" if usable else "unavailable"
         source = "dist-review" if usable and usable[0].parent == build_root() else ("frontend/dist" if usable else "none")
