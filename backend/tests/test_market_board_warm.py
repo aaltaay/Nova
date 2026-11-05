@@ -141,7 +141,8 @@ def test_the_biggest_names_are_read_always_in_chunks_with_tile_quotes_first(monk
     # MARKET_SECTORS order (XLV before XLU), each sector's top MARKET_LEADER_POOL holdings.
     assert sum(chunks, []) == ["NVDA", "MSFT", "AAPL", "AVGO", "ORCL", "LLY", "JNJ", "ABBV", "UNH", "MRK",
                                "NEE", "SO", "DUK", "CEG", "AEP"]
-    assert keys[3:] == [f"pool_quotes:{i}" for i in range(len(chunks))]
+    assert keys[3:] == ([f"pool_quotes:{i}" for i in range(len(chunks))]
+                        + [f"theme_quotes:{t['id']}" for t in cmb.MARKET_THEMES])
 
 
 def test_tile_quotes_run_between_biggest_name_chunks(monkeypatch):

@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 
 from constants_global_board import (
+    GLOBAL_FLOW_MAX_AGE_SEC,
     GLOBAL_IDLE_QUOTES_TTL_SEC,
     GLOBAL_MARKET_SIZES,
     GLOBAL_MARKETS,
@@ -29,6 +30,7 @@ from global_board.state import Store
 QUOTE_FRESH_SEC = 2 * GLOBAL_IDLE_QUOTES_TTL_SEC
 HOUR = 3600.0
 WAITING = "waiting for IBKR"
+WAITING_TODAY = "waiting for IBKR's read of this session"
 READ_RULE = (f"Money in when the world's pressure is +{GLOBAL_READ_NET_PCT:g}% or more of the money that traded, "
              f"money out at -{GLOBAL_READ_NET_PCT:g}% or less; otherwise rotation when one region is at "
              f"+{GLOBAL_READ_REGION_PCT:g}% or more and another at -{GLOBAL_READ_REGION_PCT:g}% or less, else "
@@ -67,10 +69,26 @@ def _why(st: Store, key: str) -> str:
     return failed[0] if failed else WAITING
 
 
-def _flow_1d(st: Store, m: Mapping, now: float) -> dict:
+def _current_flow(st: Store, m: Mapping, now: float) -> tuple[dict | None, str | None]:
+    """The market's 1-minute read and None, or None and why: a read of an earlier session, or one too old while the
+    session trades, is not this session's -- the reader rests in the desk's hours until the page is asked for."""
     value = st.get(f"flow:{m['id']}", now)
     if value is None:
-        return _empty_flow(_why(st, f"flow:{m['id']}"))
+        return None, _why(st, f"flow:{m['id']}")
+    sm = jobs.session_market(m, value.get("basis"))
+    shown = markets.shown(sm, now)
+    if shown and value.get("session_date") not in (None, shown[0].isoformat()):
+        return None, WAITING_TODAY
+    read_at = st.answered_at(f"flow:{m['id']}")
+    if read_at and markets.state(sm, now) == "open" and now - read_at > GLOBAL_FLOW_MAX_AGE_SEC:
+        return None, WAITING_TODAY
+    return value, None
+
+
+def _flow_1d(st: Store, m: Mapping, now: float) -> dict:
+    value, why = _current_flow(st, m, now)
+    if value is None:
+        return _empty_flow(why)
     rate, fx = _rate(st, value.get("currency"), now)
     sums = value.get("sums") or {}
     return {**_empty_flow(None), "basis": value.get("basis"), "instrument": value.get("instrument"),
@@ -128,7 +146,8 @@ def _closed_day_move(rows: Sequence[Mapping], day: str | None) -> dict | None:
 
 def _move_1d(st: Store, m: Mapping, session: Mapping, quotes: Mapping, quotes_at: float | None,
              now: float) -> dict:
-    flow = st.get(f"flow:{m['id']}", now) or {}
+    current, why = _current_flow(st, m, now)
+    flow = current or {}
     index = contracts.instrument("index", m["index"]) if m["index"] else None
     quote = quotes.get(m["id"]) or {}
     open_now = session["state"] in ("open", "break")
@@ -141,7 +160,7 @@ def _move_1d(st: Store, m: Mapping, session: Mapping, quotes: Mapping, quotes_at
             return _move("index", index, got, daily.get("read_at"))
     if flow.get("move"):
         return _move(flow.get("basis"), flow.get("instrument"), flow["move"], flow.get("read_at"))
-    return _move(None, index, None, None, error=quote.get("error") or _why(st, f"flow:{m['id']}"))
+    return _move(None, index, None, None, error=quote.get("error") or why)
 
 
 def _move_days(st: Store, m: Mapping, period: str, now: float) -> dict:

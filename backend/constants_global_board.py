@@ -25,6 +25,7 @@ GLOBAL_SHED_RETRY_SEC = 30.0                     # the historical service or the
 GLOBAL_REFUSED_RETRY_SEC = 6 * 3600.0            # an instrument IBKR refused is not asked again before this
 GLOBAL_FLOW_TTL_SEC = 300.0                      # an open market's flow while the page shows
 GLOBAL_IDLE_FLOW_TTL_SEC = 900.0                 # ... while nobody looks (never in the desk's own hours, below)
+GLOBAL_FLOW_MAX_AGE_SEC = 1800.0                 # an open market's flow older than this reads null, never as now
 GLOBAL_QUOTES_TTL_SEC = 60.0                     # the index quotes (a line held for a moment) while the page shows
 GLOBAL_IDLE_QUOTES_TTL_SEC = 600.0               # ... while nobody looks
 GLOBAL_STALE_MAX_SEC = 2 * 86400.0               # a read's last answer is shown at most this long after it

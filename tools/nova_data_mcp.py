@@ -39,7 +39,7 @@ OUTPUT_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,100}\.(parquet|csv)$")
 DEFAULT_OUTPUT = Path(tempfile.gettempdir()) / "nova-data-mcp"
 # Light reads run beside anything: no index build, no file written, no first-use DuckDB open (#1067). Every other tool
 # is heavy: one at a time per process here, and the PC-wide heavy-read slots bound them across processes.
-LIGHT_TOOLS = frozenset({"catalog", "symbols", "halts", "catalysts", "sec_filings"})
+LIGHT_TOOLS = frozenset({"catalog", "symbols", "halts", "catalysts", "sec_filings", "market_now"})
 _HEAVY_ONE_AT_A_TIME = threading.Lock()
 
 
@@ -114,6 +114,13 @@ class DataService(research.ResearchTools, rvol_tools.RvolTools, runway_tools.Run
     def catalog(self) -> dict[str, Any]:
         from market_reads import catalog
         return {"ok": True, "datasets": list(catalog.CATALOG), "not_here": list(catalog.NOT_HERE)}
+
+    def market_now(self, words: list[str] | None = None, limit: int = 20) -> dict[str, Any]:
+        import nova_agent
+        try:
+            return {"ok": True, **nova_agent.market_now(",".join(words) if words else None, limit)}
+        except SystemExit as exc:                        # the backend is down: the answer, not the server's end
+            return {"ok": False, "error": f"{exc}"}
 
     def status(self) -> dict[str, Any]:
         from market_reads import inventory
@@ -243,6 +250,14 @@ def create_server(service: DataService, run_sync=None, server_name: str = "nova-
         """What is on disk: each Massive dataset's days and indexed share, the movers index, past-day boards and the
         relative-volume table."""
         return await run(service.status)
+
+    @server.tool(annotations=reads)
+    async def market_now(words: list[str] | None = None, limit: int = 20) -> dict:
+        """TODAY's market, live from the running desk -- use this, not the day files, for anything about today: the
+        day read, futures, VIX, yields, sectors with their biggest stocks, the AI groups (chips, memory, power,
+        neoclouds, platforms), the world's money and the kept headlines (words: any of these, in a headline or its
+        summary). missing[] says what has no answer yet; a first ask starts the reads, so ask again in a minute."""
+        return await run(service.market_now, words, limit)
 
     @server.tool(annotations=writes_file)
     async def stock_day(kind: str, symbol: str, day: str, start: str | None = None, end: str | None = None,

@@ -45,6 +45,7 @@ from constants_market_board import (
     MARKET_SECTORS,
     MARKET_SHED_RETRY_SEC,
     MARKET_TEMP_BASELINE_DAYS,
+    MARKET_THEMES,
 )
 from market_board import climate, clock, events, holdings, ibkr_reads, industries
 from market_board.state import Stated, store
@@ -153,6 +154,9 @@ def ibkr_jobs(now: float) -> list[Job]:
     for i, chunk in enumerate(pool_chunks()):
         jobs.append(Job(f"pool_quotes:{i}", ibkr_reads.SOURCE, MARKET_HOLDINGS_QUOTES_TTL_SEC,
                         partial(ibkr_reads.stock_quotes, chunk), idle=MARKET_IDLE_POOL_TTL_SEC))
+    for theme in MARKET_THEMES:
+        jobs.append(Job(f"theme_quotes:{theme['id']}", ibkr_reads.SOURCE, MARKET_HOLDINGS_QUOTES_TTL_SEC,
+                        partial(ibkr_reads.stock_quotes, list(theme["symbols"])), idle=MARKET_IDLE_POOL_TTL_SEC))
     return jobs
 
 
