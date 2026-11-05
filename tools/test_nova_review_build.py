@@ -7,7 +7,9 @@ build not retried on every request, and NOVA_REVIEW_DIST left alone.
 
 On 2026-11-04 Windows refused the rename of a finished build (WinError 5, a dev server's watcher held assets/),
 the exception left ensure_fresh, and /review gave an empty reply. A refused rename now falls back to a copy, and a
-build that cannot be put in place is a stale or unavailable status.
+build that cannot be put in place is a stale or unavailable status. When master moved, links waited on the whole
+build, so requests now get the last good page while the new one builds behind them. The engine has no console, so
+every child it starts says no window.
 """
 from __future__ import annotations
 
@@ -16,6 +18,7 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 import pytest
@@ -24,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import nova_review_build as rb  # noqa: E402
 import nova_review_engine as engine  # noqa: E402
+import nova_review_warm as warm  # noqa: E402
 
 
 def _git(repo: Path, *args: str) -> None:
@@ -43,6 +47,7 @@ def repo(tmp_path, monkeypatch):
     monkeypatch.setattr(rb, "_LAST", {"state": "unchecked"})
     monkeypatch.setattr(rb, "_LAST_AT", 0.0)
     monkeypatch.setattr(rb, "_FAILED", ("", 0.0))
+    monkeypatch.setattr(rb, "_REBUILD", None)
     return root
 
 
@@ -161,6 +166,52 @@ def test_the_last_build_stays_served_when_the_next_cannot_be_put_in_place(repo, 
     assert status["state"] == "stale" and status["source"] == "dist-review" and status["build"] == first["build"]
     assert rb.serving_dirs()[0].name == first["build"] and rb.read_current()["build"] == first["build"]
     assert _leftovers() == []
+
+
+def test_a_request_gets_the_last_good_page_while_the_new_one_builds_behind_it(repo, monkeypatch):
+    first = rb.ensure_fresh(_builder([]), max_age=0)
+    (repo / "frontend" / "src" / "main.tsx").write_text("export const a = 6;\n", encoding="utf-8")
+    started, release = threading.Event(), threading.Event()
+    build = _builder([])
+
+    def slow_build(front: Path, out_dir: Path) -> tuple[bool, str]:
+        started.set()
+        assert release.wait(10)
+        return build(front, out_dir)
+
+    monkeypatch.setattr(rb, "vite_build", slow_build)
+    monkeypatch.setattr(rb, "CHECK_EVERY_SEC", 0)
+    assert engine.page_ready() is None and started.wait(5)
+    assert engine.page_ready() is None                                               # the build is still running
+    assert rb.serving_dirs()[0].name == first["build"]
+    assert rb.last_status()["state"] == "stale" and rb.last_status()["detail"] == "a new build is running"
+    thread = rb._REBUILD
+    release.set()
+    thread.join(10)
+    assert rb.last_status()["state"] == "fresh" and rb.serving_dirs()[0].name != first["build"]
+
+
+def test_a_request_with_nothing_to_serve_waits_for_the_build(repo, monkeypatch):
+    monkeypatch.setattr(rb, "vite_build", _builder([]))
+    assert engine.page_ready() is None and rb.last_status()["state"] == "fresh"
+
+
+def test_no_child_of_the_engine_opens_a_console_window(repo, monkeypatch):
+    seen: list = []
+
+    def run(cmd, **kwargs):
+        seen.append((cmd[0], kwargs.get("creationflags")))
+        raise OSError("not started")
+
+    monkeypatch.setattr(rb.subprocess, "run", run)
+    monkeypatch.setattr(rb.subprocess, "Popen", run)
+    monkeypatch.setattr(rb.shutil, "which", lambda _name: "node")
+    (repo / "frontend" / "node_modules" / "vite" / "bin").mkdir(parents=True)
+    (repo / "frontend" / "node_modules" / "vite" / "bin" / "vite.js").write_text("", encoding="utf-8")
+    assert rb._git("status") is None
+    assert rb.vite_build(rb.frontend_dir(), rb.build_root() / "x")[0] is False
+    assert warm.ReviewShots().start()["ok"] is False
+    assert seen == [("git", rb.NO_WINDOW), ("node", rb.NO_WINDOW), ("node", warm.NO_WINDOW)]
 
 
 def test_the_dev_server_does_not_watch_the_review_builds():

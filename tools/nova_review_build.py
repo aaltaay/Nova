@@ -13,7 +13,11 @@ Layout: ``frontend/dist-review/current.json`` names the build in use; each build
 assets. Older builds are deleted.
 
 A finished build reaches its own name by rename, else by copy (``_swap_in``). A build that cannot be put in place
-ends as ``stale`` or ``unavailable`` like any failed build, never as an exception.
+ends as ``stale`` or ``unavailable`` like any failed build, never as an exception. A request never waits for a
+build while an older one can be served (``ensure_serving``): the new one builds behind it.
+
+The engine has no console (DETACHED_PROCESS), so Windows opens a window for any console child without
+``NO_WINDOW``.
 
     py -3 tools/nova_review_build.py            # build when stale, print the status
     py -3 tools/nova_review_build.py --check    # report only
@@ -40,11 +44,14 @@ BUILD_TIMEOUT_SEC = 300
 CHECK_EVERY_SEC = 30.0
 RETRY_FAILED_SEC = 300.0
 KEEP_BUILDS = 2
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 _LOCK = threading.Lock()
 _LAST: dict[str, Any] = {"state": "unchecked"}
 _LAST_AT = 0.0
 _FAILED: tuple[str, float] = ("", 0.0)      # (fingerprint, when) of the last build that failed
+_REBUILD_LOCK = threading.Lock()
+_REBUILD: threading.Thread | None = None    # the build running behind the requests
 
 Builder = Callable[[Path, Path], tuple[bool, str]]
 
@@ -59,7 +66,8 @@ def build_root() -> Path:
 
 def _git(*args: str) -> str | None:
     try:
-        out = subprocess.run(["git", "-C", str(REPO), *args], capture_output=True, timeout=20, check=False)
+        out = subprocess.run(["git", "-C", str(REPO), *args], capture_output=True, timeout=20, check=False,
+                             creationflags=NO_WINDOW)
     except (OSError, subprocess.TimeoutExpired):
         return None
     return out.stdout.decode("utf-8", "replace") if out.returncode == 0 else None
@@ -154,13 +162,10 @@ def vite_build(front: Path, out_dir: Path) -> tuple[bool, str]:
         return False, "node is not on PATH"
     if not vite.is_file():
         return False, "frontend/node_modules is missing (run npm ci in frontend)"
-    kwargs: dict[str, Any] = {}
-    if os.name == "nt":
-        kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
     try:
         done = subprocess.run(
             [node, str(vite), "build", "--outDir", str(out_dir), "--emptyOutDir", "--logLevel", "warn"],
-            cwd=str(front), capture_output=True, timeout=BUILD_TIMEOUT_SEC, check=False, **kwargs,
+            cwd=str(front), capture_output=True, timeout=BUILD_TIMEOUT_SEC, check=False, creationflags=NO_WINDOW,
         )
     except subprocess.TimeoutExpired:
         return False, f"vite build took more than {BUILD_TIMEOUT_SEC} s"
@@ -226,6 +231,13 @@ def _status(state: str, current: dict[str, Any] | None, detail: str = "", source
     return out
 
 
+def _not_fresh(current: dict[str, Any] | None, detail: str) -> dict[str, Any]:
+    usable = serving_dirs()
+    state = "stale" if usable else "unavailable"
+    source = "dist-review" if usable and usable[0].parent == build_root() else ("frontend/dist" if usable else "none")
+    return _status(state, current, detail, source)
+
+
 def serving_dirs() -> list[Path]:
     """Folders to serve from, best first: the current build, the previous one, else a fallback with the review page."""
     override = os.environ.get("NOVA_REVIEW_DIST")
@@ -260,6 +272,7 @@ def ensure_fresh(builder: Builder | None = None, max_age: float | None = None) -
             return dict(_LAST)
         if _FAILED[0] == fingerprint and time.monotonic() - _FAILED[1] < RETRY_FAILED_SEC and max_age != 0:
             return dict(_LAST)                       # the same source failed a moment ago: do not rebuild per request
+        _LAST = _not_fresh(current, "a new build is running")
         tmp = build_root() / f"{wanted}.tmp-{os.getpid()}"
         try:
             body, detail = _build(tmp, wanted, fingerprint, current, builder)
@@ -271,16 +284,30 @@ def ensure_fresh(builder: Builder | None = None, max_age: float | None = None) -
             _LAST, _LAST_AT = _status("fresh", body), time.monotonic()
             return dict(_LAST)
         _FAILED = (fingerprint, time.monotonic())
-        usable = serving_dirs()
-        state = "stale" if usable else "unavailable"
-        source = "dist-review" if usable and usable[0].parent == build_root() else ("frontend/dist" if usable else "none")
-        _LAST, _LAST_AT = _status(state, current, detail, source), time.monotonic()
+        _LAST, _LAST_AT = _not_fresh(current, detail), time.monotonic()
         return dict(_LAST)
+
+
+def ensure_serving() -> dict[str, Any]:
+    """What a request calls: a page already built answers at once, and any new one builds behind it.
+
+    On 2026-11-04 master moved, and links waited on the whole build. Only a request with nothing to serve waits.
+    """
+    global _REBUILD
+    if os.environ.get("NOVA_REVIEW_DIST") or not serving_dirs():
+        return ensure_fresh()
+    if _LAST.get("state") == "fresh" and time.monotonic() - _LAST_AT < CHECK_EVERY_SEC:
+        return dict(_LAST)
+    with _REBUILD_LOCK:
+        if _REBUILD is None or not _REBUILD.is_alive():
+            _REBUILD = threading.Thread(target=ensure_fresh, name="nova-review-build", daemon=True)
+            _REBUILD.start()
+    return last_status()
 
 
 def last_status() -> dict[str, Any]:
-    with _LOCK:
-        return dict(_LAST)
+    """Takes no lock, so the health check answers during a build: _LAST is replaced, never changed in place."""
+    return dict(_LAST)
 
 
 def main(argv: list[str] | None = None) -> int:
