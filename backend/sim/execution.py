@@ -203,7 +203,8 @@ async def _send_bracket(
         float(cmd.stop_price or 0),
         tif=cmd.tif, outside_rth=cmd.outside_rth, source=cmd.source, short_entry=bool(cmd.short_entry),
         origin=cmd.origin, good_for_sec=cmd.good_for_sec,
-        target2_price=cmd.target2_price, target1_qty=cmd.target1_qty, stop_limit=stop_shape.exit_limit(cmd),
+        target2_price=cmd.target2_price, target1_qty=cmd.target1_qty,
+        stop_limit=stop_shape.exit_limit(cmd, broker.reference.now_ts()),
     )
     parent = raw.get("parent_order_id")
     if not raw.get("ok") or parent is None:

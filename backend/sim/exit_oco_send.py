@@ -39,7 +39,7 @@ async def send_exit_oco(
     raw = broker.place_exit_oco(
         symbol, side, float(cmd.qty or 0), float(cmd.stop_price or 0), float(cmd.target_price or 0),
         target2_price=cmd.target2_price, target1_qty=cmd.target1_qty, tif=cmd.tif, source=cmd.source,
-        origin=cmd.origin, stop_limit=exit_limit(cmd),
+        origin=cmd.origin, stop_limit=exit_limit(cmd, broker.reference.now_ts()),
     )
     stop_id = raw.get("stop_order_id")
     if not raw.get("ok") or stop_id is None:

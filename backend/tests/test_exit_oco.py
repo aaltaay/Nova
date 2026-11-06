@@ -80,6 +80,15 @@ def row(p, oid) -> dict:
     return p.broker.ledger.order_row(int(oid))
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("now, shape", [(NOW, "STP"), (NOW + 8 * 3600, "STP LMT")])       # 10:13, then 18:13 ET
+async def test_the_pairs_stop_shape_reads_the_venues_clock_not_extended_hours(paper, monkeypatch, now, shape) -> None:
+    monkeypatch.setattr(FakeLive, "now_ts", lambda _self: now)
+    receipt = await service.execute(pair(outside_rth=True))
+    assert receipt.ok is True, receipt.error
+    assert row(paper, receipt.stop_order_id)["order_type"] == shape
+
+
 # -- the halves ----------------------------------------------------------------------------
 @pytest.mark.parametrize("qty, t2, fraction, want", [
     (100, 10.6, None, (50, 50)),

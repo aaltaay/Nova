@@ -90,7 +90,13 @@ Sim and Live alike, its limit 2% past the stop (`execution/stop_shape.py`). In r
 
 - It rests at the venue, so it works with Nova or the feed down.
 - A gap through the limit leaves it unfilled, working at its limit: the stated price of this choice. Nothing chases it.
-- The shape is chosen when the stop is sent. A stop-limit that lives past 09:30 stays one.
+- Outside regular hours is the venue's own clock: the wall clock on Live and Paper, the playhead on Sim, 13:00 on an
+  early close. `outside_rth` is the order's permission, not the session: the ticket sets it from a saved preference,
+  so a 10:00 bracket with Extended Hours on keeps a plain stop.
+- The order must also hold that permission. Without it a stop cannot work before the open, and from the open a plain
+  stop is the better shape.
+- The shape is chosen when the stop is sent. A stop-limit that lives past 09:30 stays one, and a plain stop that lives
+  past the close stays one: IBKR's published answers say it would not trigger then, while Paper and Sim still fill it.
 - Moving the stop moves its limit with it.
 - The 2% is a starting value, not measured on past premarket gaps.
 - How IBKR treats `outsideRth` on an API stop-limit rests on its published answers, not on a real order.
