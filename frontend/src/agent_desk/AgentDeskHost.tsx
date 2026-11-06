@@ -10,6 +10,7 @@ import { AGENT_DESK_NOTICE_DONE_MS } from './agentDeskConstants';
 import { listenForAgentCommands } from './agentDeskListen';
 import { AgentDeskNotice } from './AgentDeskNotice';
 import type { AgentNotice } from './runAgentCommand';
+import { viewToSim } from './viewToSim';
 import './agentDesk.css';
 
 const IS_DEMO = import.meta.env.VITE_NOVA_DEMO === '1';
@@ -26,6 +27,17 @@ export function AgentDeskHost() {
     void listenForAgentCommands(controller.signal, {
       openTab: symbol => openTab.current(symbol),
       notice: setNotice,
+      viewToSim,
+      focusDesk: () => { void window.novaDesktop?.focus?.(); },
+      openSeparateSim: (plan) => {
+        if (!plan.review_path) return;
+        const desktop = window.novaDesktop;
+        if (desktop?.openSimWindow) {
+          void desktop.openSimWindow(plan.review_path);
+          return;
+        }
+        window.open(plan.review_path, 'nova-sim-review');
+      },
     });
     return () => controller.abort();
   }, []);

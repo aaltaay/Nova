@@ -14,10 +14,6 @@ export const SETUPS_ROWS_PATH = '/api/setups/rows';
 export const SETUPS_RECONNECT_MAX_MS = 30_000;
 export const SETUPS_SCOREBOARD_POLL_MS = 30_000;
 export const SETUPS_SCOREBOARD_DAYS = [1, 5, 20, 0] as const;   // 0 = all
-export const SETUPS_SOUND_STORAGE_KEY = 'nova.setups.sound.v1';
-export const SETUPS_PING_HZ = 1175;
-export const SETUPS_PING_GAIN = 0.05;
-export const SETUPS_PING_SEC = 0.22;
 /** A staged ticket waits this long for the Trader tab's ticket to mount. */
 export const SETUPS_STAGE_TICKET_DELAY_MS = 400;
 

@@ -107,7 +107,7 @@ describe('useHodMomoStream alert ping', () => {
         createGain() {
           return {
             connect() {},
-            gain: { value: 0, exponentialRampToValueAtTime() {} },
+            gain: { value: 0, setValueAtTime() {}, exponentialRampToValueAtTime() {} },
           };
         }
       },

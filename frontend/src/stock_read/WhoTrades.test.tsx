@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NOVA_API_KEY_HEADER, NOVA_API_KEY_STORAGE } from '../constantGroups/api_auth';
 import { _resetSleeveForTests } from '../setups/sleeveRisk';
 import { ChartLegend } from './ChartLegend';
-import { STOCK_MODE_SOUND_KEY } from './constants';
+import { DESK_SOUND_KEYS } from '../sound';
 import { StockReadProvider, useStockReadContext } from './StockReadContext';
 import { StockReadRail } from './StockReadRail';
 import { apusReadWire } from './stockReadFixtures';
@@ -260,7 +260,7 @@ describe('on the 1-minute chart', () => {
     expect(screen.getByTestId('stock-read-badge').textContent).toBe('BULL FLAG · FORMING 1 OF 2');
     fireEvent.click(screen.getByTestId('moment-bell'));
     expect(screen.getByTestId('moment-bell').getAttribute('aria-pressed')).toBe('false');
-    expect(JSON.parse(localStorage.getItem(STOCK_MODE_SOUND_KEY) ?? '{}')).toEqual({ schema_version: 1, value: false });
+    expect(JSON.parse(localStorage.getItem(DESK_SOUND_KEYS.calls) ?? '{}')).toEqual({ schema_version: 1, value: false });
   });
 });
 

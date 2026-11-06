@@ -1,14 +1,10 @@
 /**
  * Nova OS attention framework (P3) — muteable toast strip + short Web Audio cues.
  * Kill/risk visuals must remain visible even when muted (sound only is silenced).
- * The header mute (sound/) silences the cue too.
+ * The cue's switch and volume live in sound/ (the header's sound menu sets them too); the header mute silences it too.
  */
-import {
-  NOVA_OS_ATTENTION_COPY,
-  NOVA_OS_ATTENTION_MUTE_STORAGE_KEY,
-  NOVA_OS_ATTENTION_MUTED_DEFAULT,
-} from '../constants';
-import { isDeskMuted } from '../sound';
+import { NOVA_OS_ATTENTION_COPY } from '../constants';
+import { DESK_TONE_ALARM, deskSoundAudible, deskSoundOn, playDeskTone, setDeskSoundOn } from '../sound';
 
 /** The verdict, staged-ticket, fill and mode-reset kinds went with the Nova OS
  * verdict and the executor (ADR 025); these three still come from the event log. */
@@ -25,59 +21,25 @@ export interface NovaOsAttentionEvent {
 type Listener = (events: NovaOsAttentionEvent[]) => void;
 
 const MAX_EVENTS = 8;
-let muted = NOVA_OS_ATTENTION_MUTED_DEFAULT;
 let events: NovaOsAttentionEvent[] = [];
 const listeners = new Set<Listener>();
-let audioCtx: AudioContext | null = null;
-
-function readMute(): boolean {
-  try {
-    const raw = localStorage.getItem(NOVA_OS_ATTENTION_MUTE_STORAGE_KEY);
-    if (raw == null) return NOVA_OS_ATTENTION_MUTED_DEFAULT;
-    return raw === '1' || raw === 'true';
-  } catch {
-    return NOVA_OS_ATTENTION_MUTED_DEFAULT;
-  }
-}
-
-muted = readMute();
 
 function emit() {
   const snapshot = [...events];
   for (const listener of listeners) listener(snapshot);
 }
 
-/** One low alarm tone: every remaining kind (kill, risk halt, archive failure) is a warning. */
+/** One low alarm tone: every remaining kind (kill, risk halt, archive failure) is a warning. Web Audio unavailable: the strip still works. */
 function playCue() {
-  if (muted || isDeskMuted()) return;
-  try {
-    if (!audioCtx) audioCtx = new AudioContext();
-    const ctx = audioCtx;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.frequency.value = 220;
-    gain.gain.value = 0.04;
-    osc.start();
-    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
-    osc.stop(ctx.currentTime + 0.2);
-  } catch {
-    // Web Audio unavailable — visual strip still works.
-  }
+  if (deskSoundAudible('alarm')) playDeskTone('alarm', DESK_TONE_ALARM);
 }
 
 export function isNovaOsAttentionMuted(): boolean {
-  return muted;
+  return !deskSoundOn('alarm');
 }
 
 export function setNovaOsAttentionMuted(next: boolean): void {
-  muted = next;
-  try {
-    localStorage.setItem(NOVA_OS_ATTENTION_MUTE_STORAGE_KEY, next ? '1' : '0');
-  } catch {
-    // ignore quota / private mode
-  }
+  setDeskSoundOn('alarm', !next);
   emit();
 }
 

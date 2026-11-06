@@ -15,6 +15,7 @@ import argparse
 import base64
 import hashlib
 import hmac
+import ipaddress
 import json
 import os
 import secrets
@@ -36,8 +37,10 @@ import nova_review_http as review_http
 import nova_review_load as review_load
 import nova_review_warm as review_warm
 
-ENGINE_VERSION = "3"
+ENGINE_VERSION = "4"
 SHOT_HEADER = "X-Nova-Review-Token"
+HOST_NOT_ALLOWED = "HOST_NOT_ALLOWED"
+_THIS_PC = (ipaddress.ip_address("127.0.0.1"), ipaddress.ip_address("::1"))
 IDLE_SEC = 30 * 60
 REPO = Path(__file__).resolve().parents[1]
 PNG_STUB = base64.b64decode(
@@ -60,6 +63,60 @@ class _State:
 
 STATE = _State()
 _OWNER = None
+
+
+def this_pc_host(host: str) -> bool:
+    """localhost, 127.0.0.1, or ::1. ipaddress equality, never a 127. prefix."""
+    name = host.lower().rstrip(".")
+    if name == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(name) in _THIS_PC
+    except ValueError:
+        return False
+
+
+def _port_ok(port: str) -> bool:
+    return port.isascii() and port.isdigit() and 1 <= len(port) <= 5
+
+
+def host_header_allowed(raw: str | None) -> bool:
+    """Host is exactly 127.0.0.1, localhost, or ::1, with an optional port.
+
+    A DNS name such as 127.0.0.1.evil.example is refused. 127.0.0.2 is refused
+    too: only those three hosts, not every address in 127.0.0.0/8.
+    """
+    if raw is None or len(raw) > 255 or "\r" in raw or "\n" in raw:
+        return False
+    value = raw.strip().lower()
+    if not value or any(ch.isspace() for ch in value) or "@" in value or "/" in value:
+        return False
+    if value.startswith("["):
+        end = value.find("]")
+        if end < 0:
+            return False
+        rest = value[end + 1:]
+        if rest and not (rest.startswith(":") and _port_ok(rest[1:])):
+            return False
+        return this_pc_host(value[1:end])
+    if ":" in value:
+        name, _, port = value.rpartition(":")
+        if not _port_ok(port) or ":" in name:
+            return False
+        return this_pc_host(name)
+    return this_pc_host(value)
+
+
+def _refuse_open_host(handler) -> bool:
+    """True when this open route must stop. DNS rebinding sends a foreign Host."""
+    if host_header_allowed(handler.headers.get("Host")):
+        return False
+    handler._send(400, {  # noqa: SLF001 -- the engine handler owns the reply
+        "ok": False,
+        "reason": HOST_NOT_ALLOWED,
+        "error": "this open path refuses that Host",
+    })
+    return True
 
 
 def dist_dirs() -> list[Path]:
@@ -395,6 +452,8 @@ def make_engine_handler(bars_reader=None, daily_reader=None):
             if parsed.path.startswith("/assets/"):
                 self._send_asset(parsed.path)
                 return
+            if parsed.path == "/api/review/open-token" and _refuse_open_host(self):
+                return
             super().do_GET()
 
         def _cors(self) -> None:
@@ -430,6 +489,12 @@ def make_engine_handler(bars_reader=None, daily_reader=None):
 
         def do_POST(self) -> None:  # noqa: N802
             self._touch()
+            import nova_review_open as review_open
+
+            if urlparse(self.path).path == review_open.OPEN_PATH and _refuse_open_host(self):
+                return
+            if review_open.try_post(self):
+                return
             parsed = urlparse(self.path)
             if parsed.path != "/api/review/shot":
                 self._send(404, {"ok": False, "error": "not found"})

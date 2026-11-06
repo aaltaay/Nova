@@ -4,6 +4,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DESK_POLL_SNAP_KEY_PREFIX } from '../constantGroups/global_bar';
+import { DESK_SOUND_KEYS, resetDeskSoundsForTests } from '../sound';
 import {
   TOP_NINE_LIST_KEY,
   TOP_NINE_LULD_POLL_MS,
@@ -59,6 +60,7 @@ function send(s: TopNineSnapshot) {
 describe('TopNineApp', () => {
   beforeEach(() => {
     localStorage.clear();
+    resetDeskSoundsForTests();
     requestOpenOnDesk.mockClear();
     chimeTopNine.mockClear();
     beepTopNineHalt.mockClear();
@@ -99,6 +101,19 @@ describe('TopNineApp', () => {
     const bar = screen.getByTestId('top-nine-tile-ZTG').querySelector<HTMLElement>('.top-nine-tile__timer b');
     expect(bar?.style.transform).toMatch(/^scaleX\(/);
     expect(bar?.style.width).toBe('');
+  });
+
+  it('its sound button follows the header\'s menu, moved in the desk window', () => {
+    render(<TopNineApp />);
+    const btn = screen.getByTestId('top-nine-sound');
+    expect(btn.getAttribute('aria-pressed')).toBe('true');
+    act(() => {
+      localStorage.setItem(DESK_SOUND_KEYS.topNine, JSON.stringify({ schema_version: 1, value: false }));
+      window.dispatchEvent(new StorageEvent('storage', { key: DESK_SOUND_KEYS.topNine }));
+    });
+    expect(btn.getAttribute('aria-pressed')).toBe('false');
+    act(() => send(snap(AT_1014)));
+    expect(chimeTopNine).toHaveBeenLastCalledWith(false);
   });
 
   it('chimes for a switch on screen, and not for one whose only riser was muted by a right-click', () => {

@@ -52,7 +52,7 @@ import type { GlobalAppBarScanner } from './globalAppBarScanner';
 import { useRenderCount } from '../perf/useRenderCount';
 import { WatchListToasts } from '../watch_list/WatchListToasts';
 import { FollowedToasts } from '../followed_traders';
-import { DeskMuteButton } from '../sound';
+import { DeskSoundButton } from '../sound';
 
 export type { GlobalAppBarScanner };
 
@@ -181,7 +181,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
             refresh={refresh}
             venue={deskVenue}
           />
-          <DeskMuteButton />
+          <DeskSoundButton />
           {!isSampleView() && <GlobalBarBotKey />}
           <TradingSessionLockButton />
           <GlobalBarGearMenu

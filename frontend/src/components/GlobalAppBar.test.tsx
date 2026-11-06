@@ -389,7 +389,7 @@ describe('GlobalAppBar', () => {
     expect(rightKids[0].querySelector('[data-testid="stop-sign-icon"]')).toBeTruthy();
     expect(rightKids[1].dataset.testid).toBe('global-bar-account');
     // The header mute (operator ask 2026-10-14): every Nova sound, left of the padlock.
-    expect(rightKids[2].dataset.testid).toBe('global-bar-mute');
+    expect(rightKids[2].querySelector('[data-testid="global-bar-mute"]')).toBeTruthy();
     expect(rightKids[3].dataset.testid).toBe('global-bar-trade-lock');
     expect(rightKids[4].querySelector('[data-testid="global-bar-gear"]')).toBeTruthy();
     expect(rightKids).toHaveLength(5);

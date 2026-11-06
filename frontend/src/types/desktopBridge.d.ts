@@ -8,6 +8,10 @@ interface Window {
     getVersion: () => Promise<string>;
     /** Electron IPC: open Stock View in a child BrowserWindow. */
     openStockView?: (url: string) => Promise<boolean>;
+    /** Electron IPC: focus the main desk window. */
+    focus?: () => Promise<boolean>;
+    /** Electron IPC: open /review in a separate window. Does not change the live desk. */
+    openSimWindow?: (url: string) => Promise<boolean>;
     /** Electron IPC: open (or focus) the one Top 9 pop-up window (top_nine/, `?view=top9`). */
     openTopNine?: (url: string) => Promise<boolean>;
     /** Electron IPC: keep the asking window above the others (the Top 9 pop-up's switch); answers the state. */
@@ -24,6 +28,14 @@ interface Window {
     onYoutubeSignedIn?: (cb: (signedIn: boolean) => void) => () => void;
     /** Electron IPC: the header mute (sound/) -- every Nova window's audio, the stream's pop-out included. */
     setSoundMuted?: (muted: boolean) => void;
+    /** Electron IPC: the sound menu's YouTube row, applied to the stream's pop-out (sound/streamSound.ts). */
+    setStreamSound?: (sound: { on: boolean; level: number }) => void;
+    /** Electron IPC: whether the pop-out is open and has its sound on. */
+    streamWindowState?: () => Promise<{ open: boolean; on: boolean }>;
+    /** Called when the pop-out opens or closes; returns the unsubscribe. */
+    onStreamWindow?: (cb: (open: boolean) => void) => () => void;
+    /** Called when another page moves the pop-out's switch; returns the unsubscribe. */
+    onStreamSwitch?: (cb: (on: boolean) => void) => () => void;
     /** Electron IPC: stop + start the local FastAPI sidecar, then wait for health. */
     /** `from` / `to`: the backend's revision before and after (null when it does not say). */
     restartApi?: () => Promise<{ ok: boolean; error?: string; from?: string | null; to?: string | null }>;

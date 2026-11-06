@@ -1,91 +1,43 @@
 /** One short ping when the bot raises a proposal (a setup near its trigger with
- * the tape saying go). Its own mute switch, separate from HOD Momo's; the header
- * mute (sound/) silences it too. */
+ * the tape saying go). Its own switch and volume, separate from HOD Momo's, live in
+ * sound/ (the header's sound menu sets them too); the header mute silences it too. */
 import {
-  SETUPS_PING_GAIN,
-  SETUPS_PING_HZ,
-  SETUPS_PING_SEC,
-  SETUPS_SOUND_STORAGE_KEY,
-} from '../constants';
-import { isDeskMuted } from '../sound';
+  DESK_TONE_SETUPS,
+  deskSoundAudible,
+  deskSoundOn,
+  playDeskTone,
+  resetDeskSoundsForTests,
+  resetDeskTonesForTests,
+  setDeskSoundOn,
+  subscribeDeskSounds,
+} from '../sound';
 
 type Listener = (enabled: boolean) => void;
 
 const heard = new Set<string>();
-const listeners = new Set<Listener>();
-let enabled = readEnabled();
-let ctx: AudioContext | null = null;
-
-function readEnabled(): boolean {
-  try {
-    return window.localStorage.getItem(SETUPS_SOUND_STORAGE_KEY) !== 'off';
-  } catch {
-    return true;
-  }
-}
 
 export function isSetupsSoundEnabled(): boolean {
-  return enabled;
+  return deskSoundOn('setups');
 }
 
 export function setSetupsSoundEnabled(next: boolean): void {
-  enabled = next;
-  try {
-    window.localStorage.setItem(SETUPS_SOUND_STORAGE_KEY, next ? 'on' : 'off');
-  } catch {
-    // storage blocked: the switch still works for this page
-  }
-  for (const fn of listeners) fn(enabled);
+  setDeskSoundOn('setups', next);
 }
 
 export function subscribeSetupsSound(fn: Listener): () => void {
-  listeners.add(fn);
-  return () => listeners.delete(fn);
-}
-
-function audio(): AudioContext | null {
-  if (ctx) return ctx;
-  try {
-    const Ctor = window.AudioContext
-      ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    ctx = Ctor ? new Ctor() : null;
-  } catch {
-    ctx = null;
-  }
-  return ctx;
-}
-
-function ping(): boolean {
-  const ac = audio();
-  if (!ac) return false;
-  try {
-    if (ac.state === 'suspended') void ac.resume();
-    const osc = ac.createOscillator();
-    const gain = ac.createGain();
-    osc.connect(gain);
-    gain.connect(ac.destination);
-    osc.frequency.value = SETUPS_PING_HZ;
-    gain.gain.value = SETUPS_PING_GAIN;
-    osc.start();
-    const end = ac.currentTime + SETUPS_PING_SEC;
-    gain.gain.exponentialRampToValueAtTime(0.0001, end);
-    osc.stop(end + 0.02);
-    return true;
-  } catch {
-    return false;
-  }
+  return subscribeDeskSounds(() => fn(deskSoundOn('setups')));
 }
 
 /** Ping once per proposal id. Returns what happened, for tests. */
 export function noteSetupProposal(id: string): 'pinged' | 'duplicate' | 'muted' | 'silent' {
   if (heard.has(id)) return 'duplicate';
   heard.add(id);
-  if (!enabled || isDeskMuted()) return 'muted';
-  return ping() ? 'pinged' : 'silent';
+  if (!deskSoundAudible('setups')) return 'muted';
+  return playDeskTone('setups', DESK_TONE_SETUPS) ? 'pinged' : 'silent';
 }
 
 export function resetSetupsSoundForTests(): void {
   heard.clear();
-  ctx = null;
-  enabled = readEnabled();
+  resetDeskTonesForTests();
+  resetDeskSoundsForTests();
 }

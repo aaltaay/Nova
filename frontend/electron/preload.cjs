@@ -14,6 +14,10 @@ contextBridge.exposeInMainWorld('novaDesktop', {
   getVersion: () => ipcRenderer.invoke('app:version'),
   /** Open Stock View in a dedicated BrowserWindow (double-click / Stock View btn). */
   openStockView: (url) => ipcRenderer.invoke('nova:openStockView', url),
+  /** Focus the main desk. Used when an open-in-nova command arrives. */
+  focus: () => ipcRenderer.invoke('nova:focus'),
+  /** A separate Sim review window. The path must be /review?symbol&date. */
+  openSimWindow: (url) => ipcRenderer.invoke('nova:openSimWindow', url),
   /** The one Top 9 pop-up window (electron/topNineWindow.mjs): opened, or focused when it is already up. */
   openTopNine: (url) => ipcRenderer.invoke('nova:openTopNine', url),
   /** Keep the asking window above the others; answers the state now in force. */
@@ -34,6 +38,22 @@ contextBridge.exposeInMainWorld('novaDesktop', {
   },
   /** The header mute (electron/deskSound.mjs): every Nova window's audio follows it. Channel repeated (sandboxed preload). */
   setSoundMuted: (muted) => ipcRenderer.send('nova:sound:muted', muted === true),
+  /** The sound menu's YouTube row, applied to the stream's pop-out (electron/deskSound.mjs). */
+  setStreamSound: (sound) => ipcRenderer.send('nova:sound:stream', { on: sound?.on === true, level: Number(sound?.level) }),
+  /** Whether the pop-out is open and has its sound on, for a page that reloads under it. */
+  streamWindowState: () => ipcRenderer.invoke('nova:stream:state'),
+  /** Called when the pop-out opens or closes; returns the unsubscribe. */
+  onStreamWindow: (cb) => {
+    const listener = (_event, open) => cb(Boolean(open));
+    ipcRenderer.on('nova:stream:window', listener);
+    return () => ipcRenderer.removeListener('nova:stream:window', listener);
+  },
+  /** Called when another page moves the pop-out's switch; returns the unsubscribe. */
+  onStreamSwitch: (cb) => {
+    const listener = (_event, on) => cb(on === true);
+    ipcRenderer.on('nova:stream:switch', listener);
+    return () => ipcRenderer.removeListener('nova:stream:switch', listener);
+  },
   /** Kill + restart the local FastAPI sidecar when the UI shows Backend unreachable. */
   restartApi: () => ipcRenderer.invoke('nova:restartApi'),
   /**

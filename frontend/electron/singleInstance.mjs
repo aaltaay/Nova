@@ -6,8 +6,8 @@
 
 export function applySingleInstance(app, onSecondInstance) {
   if (!app.requestSingleInstanceLock()) return false;
-  app.on('second-instance', () => {
-    onSecondInstance?.();
+  app.on('second-instance', (_event, argv) => {
+    onSecondInstance?.(argv);
   });
   return true;
 }

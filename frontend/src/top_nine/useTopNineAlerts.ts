@@ -5,12 +5,13 @@
  * left open past 04:00 ET drops yesterday's mutes the first time it next decides a sound.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { setDeskSoundOn, unlockDeskTones, useDeskSoundOn } from '../sound';
 import { deskTradingDay } from '../utils/deskTradingDay';
 import type { TopNineList } from './topNineConstants';
 import { chimeWorthy, haltedSymbols, newlyHalted, readTopNineMuted, writeTopNineMuted } from './topNineAlerts';
 import type { TopNineSwitch } from './topNineMarks';
 import type { TopNineSnapshot } from './topNineSnapshot';
-import { beepTopNineHalt, chimeTopNine, readTopNineSound, unlockTopNineAudio, writeTopNineSound } from './topNineSound';
+import { beepTopNineHalt, chimeTopNine } from './topNineSound';
 
 interface HaltSeen {
   list: TopNineList;
@@ -19,7 +20,7 @@ interface HaltSeen {
 }
 
 export function useTopNineAlerts(list: TopNineList, snapshot: TopNineSnapshot | null) {
-  const [sound, setSound] = useState(() => readTopNineSound());
+  const sound = useDeskSoundOn('topNine');
   const [muted, setMuted] = useState(() => readTopNineMuted());
   const listRef = useRef(list);
   listRef.current = list;
@@ -31,8 +32,8 @@ export function useTopNineAlerts(list: TopNineList, snapshot: TopNineSnapshot | 
   const haltSeen = useRef<HaltSeen | null>(null);
 
   useEffect(() => {
-    window.addEventListener('pointerdown', unlockTopNineAudio, { once: true });
-    return () => window.removeEventListener('pointerdown', unlockTopNineAudio);
+    window.addEventListener('pointerdown', unlockDeskTones, { once: true });
+    return () => window.removeEventListener('pointerdown', unlockDeskTones);
   }, []);
 
   // Today's mutes: a new desk day reads the stored list again, which holds none of yesterday's.
@@ -61,10 +62,7 @@ export function useTopNineAlerts(list: TopNineList, snapshot: TopNineSnapshot | 
     if (same && newlyHalted(prev.symbols, rows, muted).length) beepTopNineHalt(soundRef.current);
   }, [snapshot, list, currentMuted]);
 
-  const chooseSound = useCallback((on: boolean) => {
-    writeTopNineSound(on);
-    setSound(on);
-  }, []);
+  const chooseSound = useCallback((on: boolean) => setDeskSoundOn('topNine', on), []);
 
   const toggleMute = useCallback((symbol: string) => {
     const now = Date.now();
