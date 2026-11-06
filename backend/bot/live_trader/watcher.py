@@ -144,6 +144,7 @@ async def manage(now: float) -> None:
         elif pos["state"] == "closing":
             act.follow_close(pos["id"], now)
     await act.reconcile(now)
+    await act.restore_stops(now)
     await act.clear_stops(now)
 
 

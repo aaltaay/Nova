@@ -1219,12 +1219,13 @@ def test_the_market_since_a_change_is_sampled_each_pass(monkeypatch):
     market.reset_for_tests()
 
 
-def test_a_host_sale_never_trims_a_short_or_a_single_share():
+def test_a_host_cover_halves_a_short_and_a_single_share_has_no_half():
     w, base = _sale_world(side="short")
     sold = dict(base, price=364.62, adds=[_add(NOW + 30, 364.62, 364.32)])   # a short's average up, market under
     w.quotes["TSLA"] = {"last": 362.0, "bid": 361.98, "ask": 362.02, "fresh": True}
     out = w.at(40).run(answer({HOST: [sold]}, feed_now=NOW + 40))
-    assert kinds(out, "close") == [] and any("cannot shrink its buy stop" in n["why"] for n in kinds(out, "note"))
+    (close,) = kinds(out, "close")
+    assert close["trim"] and "covers half" in close["why"]
     w1, base1 = _sale_world(qty_usd=500.0)
     out = w1.at(40).run(answer({HOST: [dict(base1, price=364.02, adds=[_add(NOW + 30, 364.02, 364.32)])]},
                                feed_now=NOW + 40))

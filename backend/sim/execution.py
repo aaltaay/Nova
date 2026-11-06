@@ -122,12 +122,13 @@ async def send_practice_broker(
             int(cmd.order_id or 0),
             limit_price=cmd.limit_price,
             stop_price=cmd.stop_price,
+            resize_qty=cmd.resize_qty,
         )
         if not raw.get("ok"):
             return reject(
                 execution_id, cmd, timings,
                 str(raw.get("error") or "replace failed"),
-                "REPLACE_NOT_OPEN",
+                str(raw.get("reason_code") or "REPLACE_NOT_OPEN"),
             )
         timings.broker_sent_ns = time.perf_counter_ns()
         persist_nova_placed_at(execution_id, raw.get("nova_placed_at"))

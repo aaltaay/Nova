@@ -9,7 +9,7 @@ Two exceptions. The kill switch (spec D, #656): its sweep cancels every venue's 
 whatever the desk shows, so a ``kill`` cancel names its ``target_venue`` and is sent there
 (``resolve``). Nova's own closes (ADR 048): the day cover and the margin call close a position on
 the venue that holds it, so their ``cancel_working`` cancels and their protective ``flatten``
-closes name it too, and so do the Live Trader bot's closes and cancels on Paper (ADR 055) and the daily loss
+closes name it too, and so do the Live Trader bot's closes, cancels and stop resizes on Paper (ADR 055, #1023) and the daily loss
 limit's Auto sell on any venue (ADR 056), and Claude's closes and cancels on Paper (ADR 068). On Live only the day cover (step 6) and the loss limit's Auto sell may --
 IBKR liquidates Live itself, so a margin call never goes there, and the Live Trader bot never trades Live. The day
 cover's close is a market BUY; Auto sell's is the account flatten's ticket (market in regular hours, a marketable
@@ -67,6 +67,10 @@ def target_refusal(cmd: ExecutionCommand) -> str | None:
     nova_close = cmd.origin in NOVA_CLOSE_ORIGINS and (
         (cmd.operation == "cancel" and cmd.source == "cancel_working")
         or (cmd.operation == "place" and cmd.source == "flatten" and not cmd.short_entry))
+    # #1023: the Live Trader bot's buy stop resized to its shares, the size alone: no price moves on another venue.
+    stop_resize = (cmd.origin == "live_trader" and cmd.operation == "replace" and cmd.source == "cancel_working"
+                   and cmd.resize_qty is not None and cmd.limit_price is None and cmd.stop_price is None)
+    nova_close = nova_close or stop_resize
     if not (kill_cancel or nova_close):
         return ("only the kill switch's cancels and Nova's own closes (the day cover, a margin call, the Live "
                 "Trader bot, Claude, the loss limit's Auto sell) may name a venue other than the desk's -- every "

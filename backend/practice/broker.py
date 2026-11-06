@@ -397,12 +397,16 @@ class PracticeBroker:
 
     def replace(
         self, order_id: int, limit_price: float | None = None, stop_price: float | None = None,
+        resize_qty: float | None = None,
     ) -> dict[str, Any]:
         now = self.reference.now_ts()
         refused = self._reprice_refusal(int(order_id), limit_price, stop_price)
-        if refused is not None:  # a bot's entry repriced past the bots' budget (ADR 069)
+        if refused is None and resize_qty is not None:
+            refused = self._resize_refusal(int(order_id), float(resize_qty))
+        if refused is not None:  # a bot's entry repriced past the bots' budget (ADR 069), or a stop past flat (#1023)
             return self._refused(*refused)
-        row = self.ledger.replace(int(order_id), ts=now, limit_price=limit_price, stop_price=stop_price)
+        row = self.ledger.replace(int(order_id), ts=now, limit_price=limit_price, stop_price=stop_price,
+                                  qty=resize_qty)
         if row is None:
             return {"ok": False, "error": f"order {order_id} not open"}
         fill = fill_model.at_placement(
@@ -578,6 +582,25 @@ class PracticeBroker:
         if new is None or (old is not None and float(new) <= float(old)):
             return None
         return owner_rules.budget_refusal(self.ledger, row, float(new))
+
+    def _resize_refusal(self, order_id: int, qty: float) -> tuple[str, str] | None:
+        """A resize is a live stop's, and that side's working stops never close past the shares held (#1023)."""
+        from constants_practice import PRACTICE_RESIZE_REFUSED_CODE
+
+        row = self.ledger.working_row(order_id)
+        if row is None:
+            return None
+        if str(row.get("order_type")).upper() != "STP" or bracket.is_waiting(row) or qty <= _EPS:
+            return f"order {order_id} is not a live stop that can be resized", PRACTICE_RESIZE_REFUSED_CODE
+        held = self.ledger.held_qty(row["symbol"])
+        closable = held if row["side"] == "SELL" else -held
+        others = sum(bracket.open_qty(r) for r in self.ledger.working_orders()
+                     if r["symbol"] == row["symbol"] and r["side"] == row["side"] and int(r["order_id"]) != order_id
+                     and str(r.get("order_type")).upper() == "STP" and not bracket.is_waiting(r))
+        if others + qty > closable + _EPS:
+            return (f"a stop for {qty:g} {row['symbol']} would close past the {max(closable, 0.0):g} held",
+                    PRACTICE_RESIZE_REFUSED_CODE)
+        return None
 
     def _refused(self, error: str, code: str | None) -> dict[str, Any]:
         return {"ok": False, "order_id": None, "error": error, "mode": self.venue, "reason_code": code}

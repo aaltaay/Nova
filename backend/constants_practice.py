@@ -254,6 +254,10 @@ PRACTICE_OCO_CANCELLED_REASON_DEFAULT = "One-cancels-other: the other exit fille
 EXIT_OCO_LIVE_CODE = "EXIT_OCO_LIVE"
 EXIT_OCO_LIVE_REASON = ("Live's exit pair -- a stop with targets beside it, or a bracket that sells in two "
                         "halves -- is not supported by the Live execution adapter: nothing was sent")
+# ``replace`` with ``resize_qty`` (#1023): a working stop covers fewer or more shares, never past what is held.
+REPLACE_RESIZE_LIVE_CODE = "REPLACE_RESIZE_LIVE"
+REPLACE_RESIZE_LIVE_REASON = "Resizing a working stop is not supported on Live: nothing was sent"
+PRACTICE_RESIZE_REFUSED_CODE = "PRACTICE_RESIZE_REFUSED"
 EXIT_OCO_FIELDS_CODE = "EXIT_OCO_FIELDS"
 EXIT_OCO_GEOMETRY_CODE = "EXIT_OCO_GEOMETRY"
 # A pair that would open a position instead of closing one (a BUY pair with nothing short).
