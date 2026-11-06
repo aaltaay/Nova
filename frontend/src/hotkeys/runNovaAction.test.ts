@@ -9,6 +9,7 @@ import {
   type NovaActionKind,
 } from '../constants';
 import { spendLockReason } from '../ibkr/spendLock';
+import { noteBackendGate, resetViewRegistryForTests } from '../market_view/viewRegistry';
 import type { NovaActionRecord } from './novaActionTypes';
 import { runNovaAction, type NovaActionRuntime } from './runNovaAction';
 
@@ -280,6 +281,40 @@ describe('runNovaAction Webull kinds', () => {
     expect(res.ok).toBe(false);
     expect(res.text).toMatch(/L2/i);
     expect(placeIbkrOrder).not.toHaveBeenCalled();
+  });
+});
+
+describe('a lag holds a new buy, never a sell or a cover (ADR 045 amendment 2026-11-06)', () => {
+  beforeEach(() => {
+    placeIbkrOrder.mockReset();
+    placeIbkrOrder.mockResolvedValue({ ok: true, order_id: 9, error: null });
+    noteBackendGate('AAPL', { code: 'TAPE_STALE', text: "AAPL's Time & Sales is behind." });
+  });
+
+  afterEach(() => {
+    resetViewRegistryForTests();
+  });
+
+  const long = runtime();
+  const short = runtime({ position: { ...long.position!, qty: -4 } });
+
+  it('refuses the buy with the reason', async () => {
+    const out = await runNovaAction(action({ kind: 'buy_market', params: { shares: 1 } }), long);
+    expect(out).toEqual({ ok: false, text: "AAPL's Time & Sales is behind." });
+    expect(placeIbkrOrder).not.toHaveBeenCalled();
+  });
+
+  it('sends the sell', async () => {
+    const params = { shares: 1, offsetDollars: 0.05, outsideRth: true };
+    const out = await runNovaAction(action({ kind: 'sell_limit_bid_offset', params }), long);
+    expect(out.ok).toBe(true);
+    expect(placeIbkrOrder.mock.calls[0][0]).toMatchObject({ side: 'SELL' });
+  });
+
+  it('sends a buy that covers', async () => {
+    const out = await runNovaAction(action({ kind: 'buy_market', params: { shares: 1 } }), short);
+    expect(out.ok).toBe(true);
+    expect(placeIbkrOrder.mock.calls[0][0]).toMatchObject({ side: 'BUY' });
   });
 });
 

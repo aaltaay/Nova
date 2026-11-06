@@ -23,7 +23,7 @@ import { notifyOrderRejected } from './notifyOrderRejected';
 import { beginDeskAction } from './deskActionFlight';
 import { placeIbkrOrder, type PlaceOrderResult } from './placeOrder';
 import { readSkipPlaceConfirm } from './placeConfirmPrefs';
-import { viewLockReason } from '../market_view';
+import { orderCloses, viewLockReason } from '../market_view';
 import type {
   IbkrAccountSummary,
   IbkrMode,
@@ -181,8 +181,10 @@ export function useManualOrderSubmission(params: Params) {
       fail('Orders remain locked by Nova environment safety settings.', 'ORDERS_GATE');
       return;
     }
-    // ADR 045: a Confirm clicked while Level 2 lags never sends (the backend would refuse it anyway).
-    const lagging = viewLockReason(params.symbol);
+    // ADR 045: a Confirm clicked on a new buy or short while the data lags never sends (the backend would refuse it).
+    const lagging = orderCloses(params.side, params.shortEntry, params.position?.qty)
+      ? null
+      : viewLockReason(params.symbol);
     if (lagging) {
       fail(lagging, 'VIEW_STALE');
       return;

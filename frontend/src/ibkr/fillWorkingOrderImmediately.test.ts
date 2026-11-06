@@ -3,6 +3,7 @@ import {
   confirmAndFillWorkingOrder,
   fillWorkingOrderImmediately,
 } from './fillWorkingOrderImmediately';
+import { noteBackendGate, resetViewRegistryForTests } from '../market_view/viewRegistry';
 import * as placeOrder from './placeOrder';
 import type { IbkrOrder } from './types';
 
@@ -160,6 +161,24 @@ describe('fillWorkingOrderImmediately', () => {
         referencePrice: 6.67,
       }),
     );
+  });
+
+  it('a lag holds Fill now on a working buy, never on a working sell (ADR 045 amendment 2026-11-06)', async () => {
+    const cancel = vi.spyOn(placeOrder, 'placeIbkrOrder').mockResolvedValue({ ok: true, order_id: 7 } as never);
+    (novaFetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true, status: 200, json: async () => ({ ok: true }),
+    } as never);
+    noteBackendGate('AAPL', { code: 'TAPE_STALE', text: "AAPL's Time & Sales is behind." });
+    const held = await fillWorkingOrderImmediately(ORDER);
+    expect(held).toEqual({ ok: false, error: "AAPL's Time & Sales is behind." });
+    expect(novaFetch).not.toHaveBeenCalled();
+
+    const sold = await fillWorkingOrderImmediately({ ...ORDER, side: 'SELL' });
+    expect(sold.ok).toBe(true);
+    const cover = await fillWorkingOrderImmediately({ ...ORDER, effect: 'closes' });
+    expect(cover.ok).toBe(true);
+    resetViewRegistryForTests();
+    cancel.mockRestore();
   });
 
   it('does not place when nothing remains', async () => {

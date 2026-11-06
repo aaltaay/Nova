@@ -8,6 +8,7 @@ socket's loop from the IB thread and never replays a backlog, and the gate that 
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import threading
 import time
 from types import SimpleNamespace
@@ -188,14 +189,15 @@ def test_book_and_beat_frames_say_how_current_the_book_is():
 # ── the gate ──────────────────────────────────────────────────────────────
 
 
-def _cmd(*, view=..., source="manual", operation="place", act_ms=None, arrival_ms=None, timing=True):
+def _cmd(*, view=..., source="manual", operation="place", act_ms=None, arrival_ms=None, timing=True, side="BUY"):
     act = act_ms if act_ms is not None else time.time() * 1000.0
     arrival = arrival_ms if arrival_ms is not None else act + 30.0
     if view is ...:
         view = {"schema_version": 1, "symbol": "APUS", "action_wall_ms": act,
                 "instance": instance_identity.INSTANCE_ID, "book": None, "quote": None, "desk": None}
     return SimpleNamespace(
-        operation=operation, source=source, symbol="APUS", view=view,
+        operation=operation, source=source, symbol="APUS", view=view, side=side, short_entry=False, order_id=None,
+        normalized_symbol=lambda: "APUS",
         client_timing={"action_wall_ms": act} if timing else None,
         backend_ingress_wall_ns=int(arrival * 1e6),
     )
@@ -212,10 +214,10 @@ def test_flatten_kill_cancels_and_novas_own_senders_are_never_gated():
 def test_a_desk_order_without_its_view_is_refused():
     check = gate.check(_cmd(view=None))
     assert check.refused and check.code == VIEW_MISSING
-    assert "Flatten and cancels still work" in (check.text or "")
+    assert "Sells, covers, Flatten and cancels still work" in (check.text or "")
 
 
-def test_the_apus_sell_is_refused_its_book_had_been_replaced_for_seconds(monkeypatch):
+def test_a_buy_priced_from_a_book_replaced_seconds_ago_is_refused(monkeypatch):
     """The screen showed version 1 (bid 6.58), replaced 6 s before the click."""
     act = time.time() * 1000.0
     versions.bump(versions.BOOK, "APUS", at=act / 1000.0 - 7.0)
@@ -230,6 +232,78 @@ def test_the_apus_sell_is_refused_its_book_had_been_replaced_for_seconds(monkeyp
     assert check.code == VIEW_STALE
     assert check.measures["book_lag_ms"] == pytest.approx(6000.0, abs=1.0)
     assert "6.58" in check.text and "6.5 x 6.55" in check.text
+
+
+def _stale_view_cmd(**kwargs):
+    act = time.time() * 1000.0
+    versions.bump(versions.BOOK, "APUS", at=act / 1000.0 - 7.0)
+    versions.bump(versions.BOOK, "APUS", at=act / 1000.0 - 6.0)
+    cmd = _cmd(act_ms=act, **kwargs)
+    cmd.view["book"] = {"seq": 1, "at": act / 1000.0 - 7.0, "bid": 6.58, "ask": 6.65}
+    return cmd
+
+
+def test_the_apus_sell_goes_and_its_lag_stays_on_the_record():
+    """"We should never, ever just be locking the sell" (amendment 2026-11-06): the same stale book, on a sell."""
+    check = gate.check(_stale_view_cmd(side="SELL"))
+    assert check.verdict == "close" and not check.refused and check.text is None
+    assert check.code == VIEW_STALE
+    assert check.record()["book_lag_ms"] == pytest.approx(6000.0, abs=1.0)
+
+
+def test_a_sell_with_no_view_at_all_goes(monkeypatch):
+    check = gate.check(_cmd(view=None, side="SELL"))
+    assert check.verdict == "close" and not check.refused and check.code == VIEW_MISSING
+
+
+def test_a_cover_goes_and_a_short_entry_does_not(monkeypatch):
+    from execution import position_checks
+
+    monkeypatch.setattr(position_checks, "covers_short", lambda cmd: True)
+    assert gate.check(_stale_view_cmd(side="BUY")).verdict == "close"
+    short = _stale_view_cmd(side="SELL")
+    short.short_entry = True
+    assert gate.check(short).refused
+
+
+def test_a_bracket_is_an_entry_and_stays_gated():
+    assert gate.check(_stale_view_cmd(side="BUY", operation="bracket")).refused
+
+
+def test_repricing_a_working_sell_goes_and_repricing_a_working_entry_does_not(monkeypatch):
+    from execution import venue_door
+    import practice.broker as broker
+
+    rows = [{"order_id": 7, "effect": "closes"}, {"order_id": 8, "effect": "opens"}]
+    monkeypatch.setattr(venue_door, "resolve", lambda cmd: ("paper", None))
+    monkeypatch.setattr(broker, "for_venue", lambda venue: SimpleNamespace(working_orders=lambda: rows))
+    sell = _stale_view_cmd(side=None, operation="replace")
+    sell.order_id = 7
+    assert gate.check(sell).verdict == "close"
+    entry = _stale_view_cmd(side=None, operation="replace")
+    entry.order_id = 8
+    assert gate.check(entry).refused
+    unknown = _stale_view_cmd(side=None, operation="replace")
+    unknown.order_id = 9
+    assert gate.check(unknown).refused
+
+
+def test_a_live_replace_reads_its_side_from_nova_s_own_record(monkeypatch):
+    from execution import store_orders, venue_door
+
+    monkeypatch.setattr(venue_door, "resolve", lambda cmd: ("live", None))
+    monkeypatch.setattr(store_orders, "rows_by_order_id", lambda ids, venue: [
+        {"operation": "place", "payload": {"side": "SELL", "position_at_send": 100.0}}])
+    cmd = _stale_view_cmd(side=None, operation="replace")
+    cmd.order_id = 7
+    assert gate.check(cmd).verdict == "close"
+
+
+def test_a_close_has_no_send_deadline_and_a_buy_does():
+    assert gate.send_deadline(_cmd(side="SELL")) is None
+    assert gate.send_deadline(_cmd(side="BUY")) is not None
+    late = _cmd(side="SELL", act_ms=time.time() * 1000.0 - 5000.0)
+    assert gate.late_at_send(late) is None
 
 
 def test_a_book_replaced_a_moment_before_the_click_is_fine():
@@ -330,7 +404,7 @@ def test_the_door_refuses_a_stale_view_before_anything_is_sent(monkeypatch):
     versions.bump(versions.BOOK, "APUS", at=act / 1000.0 - 7.0)
     versions.bump(versions.BOOK, "APUS", at=act / 1000.0 - 6.0)
     cmd = ExecutionCommand(
-        operation="place", idempotency_key=f"stale-{act}", source="manual", symbol="APUS", side="SELL",
+        operation="place", idempotency_key=f"stale-{act}", source="manual", symbol="APUS", side="BUY",
         qty=100, order_type="LMT", limit_price=6.58, skip_risk=True,
         client_timing={"action_wall_ms": act, "action_performance_ms": 1.0,
                        "request_wall_ms": act, "request_performance_ms": 1.0},
@@ -345,6 +419,12 @@ def test_the_door_refuses_a_stale_view_before_anything_is_sent(monkeypatch):
     assert row["status"] == "rejected"
     assert row["payload"]["view_check"]["code"] == VIEW_STALE
     assert row["payload"]["view"]["book"]["bid"] == 6.58
+    # The same stale book on a sell gets past the gate to the door's next check, and the record keeps what it found.
+    sell = dataclasses.replace(cmd, side="SELL", idempotency_key=f"stale-sell-{act}")
+    receipt = asyncio.run(service.execute(sell, wait_ack=False))
+    assert receipt.reason_code != VIEW_STALE
+    check = store.get_by_id(receipt.execution_id)["payload"]["view_check"]
+    assert check["verdict"] == "close" and check["code"] == VIEW_STALE
     inflight.reset_for_tests()
     telemetry.reset_for_tests()
     reset_venue()

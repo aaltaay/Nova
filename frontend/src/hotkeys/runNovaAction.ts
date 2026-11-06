@@ -53,7 +53,7 @@ import {
 import { runShortHotkey, SHORT_HOTKEY_KINDS } from './runNovaActionShort';
 import { refusalNamingBots, type NovaActionRuntime } from './runNovaActionRuntime';
 import { runClipHotkey } from '../clips';
-import { viewLockReason } from '../market_view';
+import { orderCloses, viewLockReason } from '../market_view';
 
 export type { NovaActionRuntime } from './runNovaActionRuntime';
 
@@ -73,6 +73,17 @@ export const PROTECTIVE_KINDS: Partial<Record<NovaActionKind, 'cancel' | 'flatte
   cover_limit_ask_offset: 'flatten',
 };
 
+/** The kinds that only ever sell what is held: a SELL with no `short_entry`. */
+const SELL_KINDS: readonly NovaActionKind[] = [
+  'exit_pos_pct', 'sell_limit_bid_offset', 'sell_limit_ask_offset', 'sell_pos_pct_ask', 'sell_pos_pct_bid_offset',
+];
+
+/** A sell, or a buy while short: getting out is never locked for lag (ADR 045 amendment 2026-11-06). */
+export function actionCloses(kind: NovaActionKind, heldQty: number | null | undefined): boolean {
+  if (SELL_KINDS.includes(kind)) return true;
+  return (kind === 'buy_market' || kind === 'buy_limit_ask_offset') && orderCloses('BUY', false, heldQty);
+}
+
 /** Why *kind* cannot run now, or null when it may. */
 function gateFor(kind: NovaActionKind, runtime: NovaActionRuntime): NovaActionResult | null {
   const protective = PROTECTIVE_KINDS[kind];
@@ -90,7 +101,8 @@ function gateFor(kind: NovaActionKind, runtime: NovaActionRuntime): NovaActionRe
   if (!gate.allowed) {
     return { ok: false, text: gate.reason ?? NOVA_ACTION_SPEND_LOCKED_MESSAGE };
   }
-  const lagging = viewLockReason(runtime.symbol);  // ADR 045: priced from a Level 2 that lags
+  // ADR 045: a new buy or short priced from data that lags.
+  const lagging = actionCloses(kind, runtime.position?.qty) ? null : viewLockReason(runtime.symbol);
   return lagging ? { ok: false, text: lagging } : null;
 }
 

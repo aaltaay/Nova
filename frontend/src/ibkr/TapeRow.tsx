@@ -9,15 +9,15 @@ import { STOCK_VIEW_CLOCK_TIMEZONE } from '../constantGroups/chart_api';
 import { tapePrintSetsPrice, type TapePrint, type TapeSide } from './tapeFeed';
 
 /** HH:MM:SS Eastern whatever the browser's zone -- the desk's one clock (QA W24). */
-export function fmtTapeTime(iso: string): string {
+export function fmtTapeTime(when: string | number): string {
   try {
-    const d = new Date(iso);
+    const d = new Date(when);
     return d.toLocaleTimeString('en-US', {
       hourCycle: 'h23', hour: '2-digit', minute: '2-digit', second: '2-digit',
       timeZone: STOCK_VIEW_CLOCK_TIMEZONE,
     });
   } catch {
-    return iso.slice(11, 19) || iso;
+    return String(when).slice(11, 19) || String(when);
   }
 }
 
@@ -75,7 +75,8 @@ export const TapeRow = memo(function TapeRow({ print }: { print: TapePrint }) {
       data-unreported={print.unreported ? '1' : undefined}
       data-sets-price={setsPrice ? undefined : '0'}
     >
-      <span className="ts-col--time">{fmtTapeTime(print.time)}</span>
+      {/* When the trade happened, by IBKR's second: never a late print stamped as if it just traded. */}
+      <span className="ts-col--time">{fmtTapeTime(print.exchangeTs != null ? print.exchangeTs * 1000 : print.time)}</span>
       <span className="ts-col--price">{fmtPrice(print.price)}</span>
       <span className="ts-col--size" data-testid="ts-size" data-size={print.size}>
         {fmtSize(print.size)}
@@ -86,7 +87,7 @@ export const TapeRow = memo(function TapeRow({ print }: { print: TapePrint }) {
 }, (previous, next) => {
   const a = previous.print, b = next.print;
   return a === b || (a.replayId != null && a.replayId === b.replayId
-    && a.price === b.price && a.size === b.size && a.time === b.time
+    && a.price === b.price && a.size === b.size && a.time === b.time && a.exchangeTs === b.exchangeTs
     && a.exchange === b.exchange && a.side === b.side && a.unreported === b.unreported
     && a.setsPrice === b.setsPrice);
 });

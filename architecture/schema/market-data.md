@@ -20,6 +20,8 @@ Practice fills follow the same rule (#511): on Paper, and on Sim at the live edg
 
 **Print times (#563).** ib_async 2.1.0 stamps each AllLast tick with the moment its message reached Nova (`Wrapper.lastTime`) and throws IBKR's own `time` argument away. A live print's `time` / `ts` is that arrival time, and it says so: `ts_source: "receive"`. IBKR's whole epoch second for the print rides beside it as `exchange_ts: integer | null`, on each live print on `/ws/ibkr/tape/{symbol}` and on each Session Record print row; `ibkr/tape_exchange_time.py` keeps the `time` argument with a thin override of `Wrapper.tickByTickAllLast`, installed on the IB that opens the tape line. `exchange_ts` is `null` when the override did not see the tick. Prints stay ordered by arrival, because the books they are classified against are arrival-timed too. Rows recorded before #563 say `ts_source: "exchange"` but hold arrival times as well, and carry no `exchange_ts`; they load as they are and are never rewritten. `l2.db` `tape_trades` and the archive keep no `exchange_ts`.
 
+**A Time & Sales row shows when the trade happened (ADR 045 amendment 2026-11-06).** Its Time is `exchange_ts`, arrival only when that is missing. Rows stay in arrival order, so a tape running behind shows as old times arriving now.
+
 **A 10-second candle has one clock and one writer (#721; operator report 2026-10-05: "two candles drawing
 together ... the previous candle should never move").** Built from prints -- the Trader's client bar
 (`chart/barsStore.upsertTapePrint10SecBar`) and the backend's `ibkr/tape_10sec` -- a candle is keyed by
@@ -305,11 +307,14 @@ kept arriving, so this is not a feed gap (above).
     symbol halted. Nothing here asks IBKR for anything. A line that turns dead or silent is logged once per
     silence and written to the perf day file as `{schema_version: 1, kind: "tape_silence", ts, symbol,
     reading}` (`architecture/schema/performance.md`).
-- **Missing trades, no wait** (`tape_silence.missed_trades(symbol)`, memory only; ADR 045 amendment
+- **Behind, not just quiet** (`tape_silence.missed_trades(symbol)`, memory only; ADR 045 amendment
   2026-10-14): `{since, last_print_ts, l1_trade_ts, text}` while Nova holds an AllLast line for the symbol on
   this IBKR session, it is not halted, and its Level 1 shows a trade `TAPE_DEAD_L1_LEAD_SEC` (3) after the
   line's last print (or opening) by IBKR's second -- the `dead` proof without `TAPE_SILENT_SEC`; else `null`.
-  The order gate (`TAPE_STALE`, execution.md) and Paper's resting fills (practice-fills.md) read it.
+  The order gate reads `tape_silence.behind(symbol)`, the same answer once it has held for
+  `TAPE_PRINT_WAIT_SEC` (2) of reads in a row (amendment 2026-11-06): normal delivery trails IBKR's second by
+  up to 1.7 s, so a print in flight lands first, and a line that stays behind, dead or late, still locks.
+  Paper's resting fills (practice-fills.md) read `missed_trades`; `TAPE_STALE` (execution.md) reads `behind`.
 - **The wire.** Each idle `ping` on `/ws/ibkr/tape/{symbol}` (every `TAPE_STREAM_HEARTBEAT_SEC` (1) without
   a print; it was 15, then 5 -- which let GENK's order through on 2026-10-14) carries `silence: reading | null`
   on a live line (`null` on a replay desk) and `gate: {code, text} | null`, the order gate's own answer for the

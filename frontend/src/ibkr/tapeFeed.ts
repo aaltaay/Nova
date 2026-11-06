@@ -11,7 +11,10 @@ export interface TapePrint {
   /** Stable canonical replay print identity; absent for the live feed. */
   replayId?: string;
   symbol: string;
+  /** When the print reached Nova: it keeps the rows in order. */
   time: string;
+  /** IBKR's own second for the trade: what the Time column shows (ADR 045 amendment 2026-11-06). */
+  exchangeTs?: number | null;
   price: number;
   size: number;
   exchange: string;

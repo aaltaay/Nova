@@ -205,7 +205,7 @@ export const TickerTradeActionBar = memo(function TickerTradeActionBar({
         accountError={accountError}
       />
       {/* Its outcomes land on the ticket's Last line below (QA R35). */}
-      <TradingQuickBar status={false} />
+      <TradingQuickBar status={false} heldQty={position?.qty} />
       <div className="ticker-trade-bar-top">
         {showAccount && (
           <div className="ticker-trade-bar-account">

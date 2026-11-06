@@ -14,8 +14,9 @@ import {
   readTradeDefaultsPrefs,
   writeTradeDefaultsPrefs,
 } from '../settings/tradeDefaultsPrefs';
+import { noteBackendGate, resetViewRegistryForTests } from '../market_view/viewRegistry';
 import { ManualOrderTicket } from './ManualOrderTicket';
-import type { IbkrAccountSummary, IbkrMode } from './types';
+import type { IbkrAccountSummary, IbkrMode, IbkrPosition } from './types';
 
 const placeIbkrOrder = vi.fn();
 const confirmed = vi.hoisted(() => ({ current: { venue: 'paper' as 'paper' | 'live' | null, generation: 'paper-1' as string | null } }));
@@ -71,9 +72,10 @@ describe('ManualOrderTicket compact layout', () => {
   afterEach(() => {
     act(() => root.unmount());
     mount.remove();
+    resetViewRegistryForTests();
   });
 
-  function renderTicket(opts: { book?: TopOfBook | null; mode?: IbkrMode } = {}) {
+  function renderTicket(opts: { book?: TopOfBook | null; mode?: IbkrMode; position?: IbkrPosition | null } = {}) {
     const venue = opts.mode === 'live' ? 'live' : 'paper';
     if (confirmed.current.venue !== venue) confirmed.current = { venue, generation: `${venue}-1` };
     act(() => {
@@ -86,7 +88,7 @@ describe('ManualOrderTicket compact layout', () => {
             connected
             spendStatus="paper_armed"
             summary={SUMMARY}
-            position={null}
+            position={opts.position ?? null}
             referencePrice={8.6}
           />
         </TopOfBookProvider>,
@@ -102,6 +104,19 @@ describe('ManualOrderTicket compact layout', () => {
       form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     });
   }
+
+  it('a Time & Sales lock holds the Buy button and never the Sell button (ADR 045 amendment 2026-11-06)', () => {
+    noteBackendGate('GRML', { code: 'TAPE_STALE', text: "GRML's Time & Sales is behind." });
+    renderTicket({
+      position: { symbol: 'GRML', qty: 2000, market_price: 8.6, market_value: 17200, avg_cost: 8, unrealized_pnl: 0, realized_pnl: 0 },
+    });
+    const submit = () => q<HTMLButtonElement>('[data-testid="manual-order-submit"]');
+    expect(submit().textContent).toContain('Time & Sales behind');
+    const sell = Array.from(mount.querySelectorAll('button')).find((b) => b.textContent === 'Sell')!;
+    act(() => sell.click());
+    expect(submit().textContent).not.toContain('behind');
+    expect(submit().disabled).toBe(false);
+  });
 
   it('heads the card with TRADE · SYM, the practice venue tag and a TIF segmented control', () => {
     renderTicket();
