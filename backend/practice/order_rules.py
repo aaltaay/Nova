@@ -312,7 +312,7 @@ def admission_price(
 
     ``ref`` is the venue's ``fill_model.Reference`` (or None when it has none).
     """
-    if typ == "LMT" and limit_price is not None:
+    if typ in ("LMT", "STP LMT") and limit_price is not None:
         return float(limit_price)
     if typ == "STP" and stop_price is not None:
         return float(stop_price)

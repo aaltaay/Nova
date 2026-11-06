@@ -59,6 +59,8 @@ class ExecutionCommand:
     entry_price: float | None = None
     outside_rth: bool = False
     order_id: int | None = None
+    # A ``replace`` that resizes a working stop on Paper or Sim (#1023): the whole shares it now covers.
+    resize_qty: float | None = None
     setup: str | None = None
     shares: int | None = None
     skip_risk: bool = False

@@ -28,6 +28,8 @@ from bot.live_trader import orders as lt_orders
 from bot.live_trader import settings as lt_settings
 from bot.live_trader import watcher
 from execution import inflight, service, telemetry
+from execution.models import ExecutionCommand
+from execution.validate import validate_command
 from followed_traders import exits, feed, routes
 from followed_traders.constants_followed import FOLLOWED_FEED_URL_ENV
 from ibkr import client as ibkr_client
@@ -286,6 +288,64 @@ def test_a_host_selling_part_sells_half_the_bots_shares_once_on_paper(desk):
     assert held(desk, "XYZ") == 0
     (done,) = lt_book.closed_today()
     assert [f["kind"] for f in done["exit_fills"]] == ["trim", "close"]
+
+
+def _short_then_host_covers_part(desk):
+    run(desk, "10:30:00")
+    t = desk.feed.open("FADE", 40.00, at("10:30:10"), side="short")
+    run(desk, "10:30:11")
+    assert held(desk, "FADE") == -12
+    desk.market.px["FADE"] = [39.70, 39.68, 39.72]             # the stock down, their average up: a cover
+    desk.feed.add(t, 40.10, at("10:31:00"))
+    return t
+
+
+def _stop_shares(side="short", symbol="FADE"):
+    pos = lt_book.positions()[f"{HOST}|{side}|{symbol}"]
+    rows = [lt_orders.order_row(oid) for oid in pos["stop_order_ids"]]
+    return sum(lt_orders.open_qty(r) for r in rows if lt_orders.order_state(r) == "working")
+
+
+def test_a_host_covering_part_covers_half_the_short_and_its_stop_shrinks_on_paper(desk):
+    """#1023: the bot covers half once, and its buy stop then covers exactly the shares left: never past flat."""
+    t = _short_then_host_covers_part(desk)
+    run(desk, "10:31:06")
+    assert held(desk, "FADE") == -6 and _stop_shares() == 6
+    assert lt_book.positions()[f"{HOST}|short|FADE"]["trimmed"]
+    desk.feed.add(t, 40.20, at("10:32:00"))                    # another cover: nothing more is bought
+    run(desk, "10:32:06")
+    assert held(desk, "FADE") == -6
+    desk.feed.close(t, at("10:33:00"))
+    run(desk, "10:33:01")
+    assert held(desk, "FADE") == 0
+    (done,) = lt_book.closed_today()
+    assert [f["kind"] for f in done["exit_fills"]] == ["trim", "close"]
+
+
+def test_a_refused_half_cover_grows_the_buy_stop_back(desk, monkeypatch):
+    """#1023: the stop shrinks before the cover goes, so a cover refused must not leave shares unprotected."""
+    _short_then_host_covers_part(desk)
+    send = lt_orders.close
+
+    async def refused(*_a, **_k):
+        raise RuntimeError("no cover")
+
+    monkeypatch.setattr(lt_orders, "close", refused)
+    run(desk, "10:31:06")
+    assert any("was refused" in r["inputs"]["why"] for r in lines_("refused"))
+    monkeypatch.setattr(lt_orders, "close", send)
+    run(desk, "10:31:08")
+    assert held(desk, "FADE") == -12 and _stop_shares() == 12
+
+
+def test_a_stop_is_never_resized_past_what_is_held_or_on_live(desk):
+    _short_then_host_covers_part(desk)
+    (oid,) = lt_book.positions()[f"{HOST}|short|FADE"]["stop_order_ids"]
+    receipt = asyncio.run(lt_orders.resize_stop(oid, 13, "FADE", HOST))
+    assert not receipt.ok and receipt.reason_code == "PRACTICE_RESIZE_REFUSED" and _stop_shares() == 12
+    cmd = ExecutionCommand(operation="replace", idempotency_key="k", source="cancel_working", order_id=oid,
+                           resize_qty=6)
+    assert validate_command(cmd, "live")[2] == "REPLACE_RESIZE_LIVE"
 
 
 def test_a_sale_on_a_losing_add_outlives_a_paper_read_that_failed(desk, monkeypatch):

@@ -74,6 +74,14 @@ async def cancel(order_id: int, symbol: str, host: str) -> Any:
         setup=f"{LT_SETUP_PREFIX}{host}"))
 
 
+async def resize_stop(order_id: int, qty: float, symbol: str, host: str) -> Any:
+    """A short's buy stop now covers ``qty`` shares (#1023): protective, as its cancel is, so disarmed never blocks it."""
+    return await _execute(ExecutionCommand(
+        operation="replace", idempotency_key=f"{LT_KEY_PREFIX}resize:{order_id}:{uuid.uuid4()}",
+        source="cancel_working", symbol=symbol, order_id=int(order_id), resize_qty=float(qty),
+        target_venue=LT_VENUE, origin=LT_ORIGIN, setup=f"{LT_SETUP_PREFIX}{host}"))
+
+
 async def close(pos: dict[str, Any], qty: float, *, tries: int, now: float) -> Any:
     """Sell (or cover) ``qty`` of the bot's shares at market on Paper: the day cover's own close.
 
@@ -128,6 +136,13 @@ def fees_of(order_id: int | None) -> float | None:
         return None
     total = ((row or {}).get("fees") or {}).get("total")
     return float(total) if isinstance(total, (int, float)) else None
+
+
+def open_qty(row: dict[str, Any] | None) -> float:
+    """The shares a working order still has to fill."""
+    from practice.bracket import open_qty as left
+
+    return left(row or {})
 
 
 def order_state(row: dict[str, Any] | None) -> str:

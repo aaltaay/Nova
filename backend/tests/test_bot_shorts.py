@@ -450,7 +450,7 @@ def test_the_bot_api_shorts_with_its_buy_stop_and_covers_never_past_flat(paper):
     assert out["ok"] is True
     entry = leg(paper, out["order_id"])
     assert entry["side"] == "SELL" and entry["limit_price"] == 4.00 and entry["position_side"] == "short"
-    stops = [r for r in paper.broker.ledger.working_orders() if r["order_type"] == "STP"]
+    stops = [r for r in paper.broker.ledger.working_orders() if r["order_type"] in ("STP", "STP LMT")]
     assert [(r["side"], r["stop_price"]) for r in stops] == [("BUY", 4.10)]     # its buy stop rides with it
     paper.broker.try_fill_working(SYM, [(paper.now + 1, 4.01)])
     assert paper.broker.ledger.held_qty(SYM) == -1.0

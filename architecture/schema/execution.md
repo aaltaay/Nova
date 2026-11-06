@@ -212,6 +212,21 @@ Paper and live share this path; only Gateway credentials/port and safety gates d
 
 ---
 
+## A protective stop outside regular hours (ADR 007, operator decision 2026-11-05)
+
+With `outside_rth` true, the stop leg of a `bracket` or `exit_oco`, and Nova's exit stop, is `STP LMT` on Paper, Sim
+and Live, its limit 2% past the stop (`execution/stop_shape.py`). In regular hours it is a plain `STP`. The shape is
+fixed when sent; moving the stop moves its limit. A practice stop-limit that gaps past its limit becomes a `LMT` by a
+`replaced` event carrying `order_type` (`architecture/practice-fills.md`).
+
+## Resizing a working stop on Paper and Sim (#1023)
+
+`replace` takes an optional `resize_qty`: the whole shares a working `STP` now covers, its price kept unless
+`stop_price` moves it. Paper and Sim only; Live refuses it `REPLACE_RESIZE_LIVE`, nothing sent. The venue refuses
+`PRACTICE_RESIZE_REFUSED` for anything but a stop that is live (not waiting on its entry) or a size that would take
+that side's working stops past the shares held, so a resized stop can never close past flat. The `replaced` ledger
+event carries `qty` only on a resize: older events read as before, with no schema bump.
+
 ## The exit-only pair and two halves (#681, ADR 007 amendment, operator ask 2026-10-12)
 
 The operator asked Nova to follow their material's exits instead of the retired 2:1 target: sell in two halves (target 1, target 2), keep the stop where it is after the first half, and let Nova rest a target beside its exit stop on a stock you already hold. The target prices come from the setup scanners and the held read (#845, `setups.md` / `stock-read.md`); this is the order side. Owner `execution/exit_oco.py` (the rules), `practice/bracket.py` (the group on Paper and Sim), `sim/exit_oco_send.py` (the send).

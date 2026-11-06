@@ -258,16 +258,14 @@ the same shape:
   two exits once, and exits still waiting on a working entry not at all: they
   sell what the entry has not bought yet.
 
-**Stops before 09:30: Paper protects where Live would not.** A practice `STP`
-triggers on any price-setting print, premarket included, and so does a
-bracket's stop leg. IBKR holds a plain stop until 09:30 even with
-`outsideRth`, so before the open a Live bracket's stop does not protect the
-position while Paper's does. This is a known implementation mismatch. On
-2026-10-13 the operator required one source of truth for manual plan and
-protection behavior across Paper, Sim and Live (#604 / #606; ADR 007). The
-shared design must resolve this premarket parity gap before the missing Live
-plan support is released. Current behavior stays explicit until that work
-and lifecycle regressions ship; there is no separate venue-policy question remaining.
+**Stops outside regular hours are stop-limits (ADR 007, 2026-11-05).** A
+protective exit sent outside regular hours is a `STP LMT`, its limit 2% past
+the stop, on every venue. A print at or through the stop triggers it: it fills
+at that print when the print is at the limit or better, and otherwise becomes a
+`LMT` at its limit (a `replaced` event with `order_type`) and rests, as a broker
+stop-limit does after a gap. A stop already through the market when placed fills
+if the touch is inside the limit, and otherwise waits for a print. A plain `STP`
+still triggers on any price-setting print.
 
 ## Shorts under SSR (ADR 048 step 2)
 

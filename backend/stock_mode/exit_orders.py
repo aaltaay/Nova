@@ -13,6 +13,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from execution import stop_shape
 from execution.models import ExecutionCommand
 from execution.service import execute
 from stock_mode import orders
@@ -27,7 +28,10 @@ def short(trade: dict[str, Any]) -> bool:
 
 
 async def place_stop(trade: dict[str, Any], stop: float) -> Any:
-    """One stop for every share of the trade: a SELL stop under a long, a BUY stop over a short (a cover)."""
+    """One stop for every share of the trade: a SELL stop under a long, a BUY stop over a short (a cover).
+    Outside regular hours it is a stop-limit (``execution.stop_shape``)."""
+    side = "BUY" if short(trade) else "SELL"
+    outside = orders._outside_rth()              # the stock-mode orders' own clock
     return await execute(
         ExecutionCommand(
             operation="place",
@@ -35,12 +39,13 @@ async def place_stop(trade: dict[str, Any], stop: float) -> Any:
             source="manual",
             origin="nova_exit",    # you handed Nova the exit; Nova placed and manages it
             symbol=trade["symbol"],
-            side="BUY" if short(trade) else "SELL",
+            side=side,
             qty=float(trade["qty"]),
-            order_type="STP",
+            order_type=stop_shape.STOP_LIMIT if outside else stop_shape.STOP,
+            limit_price=stop_shape.limit_for(side, stop) if outside else None,
             stop_price=round(float(stop), 4),
             reference_price=round(float(stop), 4),
-            outside_rth=orders._outside_rth(),   # the stock-mode orders' own clock
+            outside_rth=outside,
             skip_risk=True,
             expected_venue=trade.get("venue"),
         ),

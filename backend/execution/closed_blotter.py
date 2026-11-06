@@ -41,7 +41,7 @@ _PRACTICE_PAPER = "paper"
 _PRACTICE_SIM = "sim"
 # payload.order_type spellings whose requested_price is the limit / the stop.
 _LIMIT_TYPES = frozenset({"LMT", "STPLMT", "LIMIT", "STOPLIMIT"})
-_STOP_TYPES = frozenset({"STP", "TRAIL", "STOP", "TRAILINGSTOP"})
+_STOP_TYPES = frozenset({"STP", "STP LMT", "TRAIL", "STOP", "TRAILINGSTOP"})
 
 
 @dataclass(frozen=True)

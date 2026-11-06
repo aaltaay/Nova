@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 from constants_practice import PRACTICE_VENUE_SIM
 from constants_sim import SIM_ORDER_TYPE_CODE
 from execution import inflight
+from execution import stop_shape
 from execution import store
 from execution import telemetry
 from execution.models import ExecutionCommand, ExecutionReceipt, StageTimings
@@ -122,12 +123,13 @@ async def send_practice_broker(
             int(cmd.order_id or 0),
             limit_price=cmd.limit_price,
             stop_price=cmd.stop_price,
+            resize_qty=cmd.resize_qty,
         )
         if not raw.get("ok"):
             return reject(
                 execution_id, cmd, timings,
                 str(raw.get("error") or "replace failed"),
-                "REPLACE_NOT_OPEN",
+                str(raw.get("reason_code") or "REPLACE_NOT_OPEN"),
             )
         timings.broker_sent_ns = time.perf_counter_ns()
         persist_nova_placed_at(execution_id, raw.get("nova_placed_at"))
@@ -143,7 +145,7 @@ async def send_practice_broker(
     if typ not in SUPPORTED_ORDER_TYPES:
         return reject(
             execution_id, cmd, timings,
-            "Practice orders support MKT, LMT and STP",
+            "Practice orders support MKT, LMT, STP and STP LMT",
             SIM_ORDER_TYPE_CODE,
         )
 
@@ -201,7 +203,7 @@ async def _send_bracket(
         float(cmd.stop_price or 0),
         tif=cmd.tif, outside_rth=cmd.outside_rth, source=cmd.source, short_entry=bool(cmd.short_entry),
         origin=cmd.origin, good_for_sec=cmd.good_for_sec,
-        target2_price=cmd.target2_price, target1_qty=cmd.target1_qty,
+        target2_price=cmd.target2_price, target1_qty=cmd.target1_qty, stop_limit=stop_shape.exit_limit(cmd),
     )
     parent = raw.get("parent_order_id")
     if not raw.get("ok") or parent is None:

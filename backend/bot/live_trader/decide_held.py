@@ -30,24 +30,24 @@ REAL_ADD_CODES = (LT_ALLOWANCE, LT_SSR_UNKNOWN)
 
 def trim(run: Any, name: str, st: dict[str, Any], r: dict[str, Any], pos: dict[str, Any],
          change: dict[str, Any]) -> None:
-    """Half the bot's long, once per position. A short keeps every share: Paper cannot shrink its buy stop to the
-    rest. A single share has no half; Exit: You keeps them. Each of those is said as a note."""
+    """Half the bot's shares, once per position; a short's buy stops shrink to the rest first (``act.close``, #1023).
+    A single share has no half; Exit: You keeps them. Each of those is said as a note."""
     if pos.get("trimmed"):
         return
     sym = r["symbol"]
     base = {"host": name, "pos_id": pos["id"], "row_id": r["id"], "symbol": sym, "side": r["side"],
             "step": "trim", "change": {**change, "kind": "trim"}}
     half = int(pos["qty"] // 2)
+    short = r["side"] == "short"
+    sold = "covered" if short else "sold"
     if st["exit"] == "you":
-        why = f"{name} sold part of {sym}: the exit is yours (Exit: You) -- the bot keeps its {pos['qty']:g} shares"
-    elif r["side"] == "short":
-        why = (f"{name} covered part of {sym}: the bot keeps its {pos['qty']:g} short -- Paper cannot shrink its buy "
-               "stop to the shares left, so it covers when they close")
+        why = f"{name} {sold} part of {sym}: the exit is yours (Exit: You) -- the bot keeps its {pos['qty']:g} shares"
     elif half < 1:
-        why = f"{name} sold part of {sym}: the bot holds {pos['qty']:g} share, nothing to halve"
+        why = f"{name} {sold} part of {sym}: the bot holds {pos['qty']:g} share, nothing to halve"
     else:
         run.out["actions"].append({**base, "kind": "close", "qty": float(half), "trim": True,
-                                   "why": f"{name} sold part of {sym}: the bot sells half, once"})
+                                   "why": f"{name} {sold} part of {sym}: the bot "
+                                          f"{'covers' if short else 'sells'} half, once"})
         return
     run.out["actions"].append({**base, "kind": "note", "why": why})
 
@@ -107,7 +107,7 @@ def hold_trim(run: Any, name: str, r: dict[str, Any], rs: dict[str, Any], pos: d
               change: dict[str, Any], why: str) -> None:
     """A sale while a key or the Bot switch is off: the half waits on the row (memory) and sells once they are back
     on, as a held close does; said once."""
-    if pos.get("trimmed") or r["side"] != "long" or rs.get("trim_change"):
+    if pos.get("trimmed") or rs.get("trim_change"):
         return
     rs["trim_change"] = change
     run.out["actions"].append({"kind": "note", "host": name, "pos_id": pos["id"], "row_id": r["id"],

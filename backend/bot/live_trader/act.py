@@ -158,7 +158,8 @@ def _change_words(a: dict[str, Any]) -> str:
 
 async def close(a: dict[str, Any], now: float) -> None:
     """Sell (or cover) the bot's whole position: its order in flight and a short's buy stops cancelled first.
-    A trim (``a["trim"]``, a long only) sells ``a["qty"]`` of it, once: the host sold part (``decide_steps.trim``)."""
+    A trim (``a["trim"]``) sells ``a["qty"]`` of it, once: the host sold part (``decide_steps.trim``). A short's trim
+    keeps its stops, shrunk to the shares left before the cover goes (``_fit_stops``, #1023): never past flat."""
     change = a.get("change") or {}
     if change.get("kind") == LT_SELL_ON_ADD:
         book.sale_owed(a["pos_id"], why=a["why"], ts=change.get("ts"))
@@ -174,8 +175,9 @@ async def close(a: dict[str, Any], now: float) -> None:
         note({**a, "kind": "day_cover", "why": f"{a['why']}: Nova's day cover covers every Paper short at this "
                                               "time, this one with them"}, now)
         return
-    cancels = ([pos["order"]["id"]] if pos.get("order") and pos["order"].get("id") else []) + pos["stop_order_ids"]
-    for oid in cancels:
+    short_trim = bool(a.get("trim")) and pos["side"] == "short"
+    cancels = ([pos["order"]["id"]] if pos.get("order") and pos["order"].get("id") else [])
+    for oid in cancels + ([] if short_trim else pos["stop_order_ids"]):
         try:
             if orders.order_state(orders.order_row(oid)) == "working":
                 await orders.cancel(oid, pos["symbol"], pos["host"])
@@ -191,8 +193,8 @@ async def close(a: dict[str, Any], now: float) -> None:
         audit("error", a, why="Paper's positions could not be read: the close was not sent (tried again)", now=now)
         return
     qty = min(float(a["qty"]) if a.get("trim") else pos["qty"], held)
-    if a.get("trim") and (pos["side"] != "long" or pos.get("trimmed") or qty >= pos["qty"] - EPS):
-        return                                 # a trim is half a long, once: never a whole close, never a short
+    if a.get("trim") and (pos.get("trimmed") or qty >= pos["qty"] - EPS):
+        return                                 # a trim is half, once: never a whole close
     if qty <= EPS:
         kind, how, price, oid, sources = _left_how(pos, pos["qty"], now, book.outside_taken())
         done = book.reduce(pos["id"], pos["qty"], kind=kind, why=f"already gone from Paper before the close: {how}",
@@ -201,13 +203,16 @@ async def close(a: dict[str, Any], now: float) -> None:
             note({**a, "why": f"{a['why']}: the shares were already gone from Paper ({how})"}, now)
         return
     tries = int((pos.get("close") or {}).get("tries") or 0) + 1
-    try:
-        receipt = await orders.close(pos, qty, tries=tries, now=now)
-    except Exception as exc:
-        logger.exception("Live Trader bot: the close of %s did not go out", pos["symbol"])
-        receipt, error = None, f"{type(exc).__name__}: {exc}"
-    else:
-        error = None if receipt.ok else orders.receipt_error(receipt)
+    error = await _fit_stops(pos, pos["qty"] - qty) if short_trim else None
+    receipt = None
+    if error is None:
+        try:
+            receipt = await orders.close(pos, qty, tries=tries, now=now)
+        except Exception as exc:
+            logger.exception("Live Trader bot: the close of %s did not go out", pos["symbol"])
+            error = f"{type(exc).__name__}: {exc}"
+        else:
+            error = None if receipt.ok else orders.receipt_error(receipt)
     if error is not None:
         book.close_sent(pos["id"], order_id=None, kind=a["change"]["kind"], why=a["why"], now=now, qty=qty)
         n = book.close_failed(pos["id"], now=now, error=error)
@@ -376,6 +381,52 @@ async def _retire_stops(pos: dict[str, Any], why: str, now: float) -> None:
                      "symbol": pos["symbol"], "side": "short", "qty": left["qty"],
                      "why": f"{why}: its buy stop no longer matches what it holds, so the bot covers the rest",
                      "change": {"kind": "outside", "ts": now, "price": None}}, now)
+
+
+async def _fit_stops(pos: dict[str, Any], want: float) -> str | None:
+    """A short's working buy stops resized to cover ``want`` shares: the newest give shares up first, and growing
+    adds to the oldest still working. None when they fit, else why not (#1023)."""
+    try:
+        rows = [(oid, orders.open_qty(row)) for oid in pos["stop_order_ids"]
+                if orders.order_state(row := orders.order_row(oid)) == "working"]
+        total = sum(n for _, n in rows)
+        if abs(total - want) <= EPS:
+            return None
+        if not rows:
+            return "no working buy stop to resize"
+        if total < want:
+            receipt = await orders.resize_stop(rows[0][0], rows[0][1] + want - total, pos["symbol"], pos["host"])
+            return None if receipt is not None and receipt.ok else orders.receipt_error(receipt)
+        excess = total - want
+        for oid, n in reversed(rows):
+            if excess <= EPS:
+                break
+            take = min(n, excess)
+            excess -= take
+            receipt = (await orders.cancel(oid, pos["symbol"], pos["host"]) if n - take <= EPS
+                       else await orders.resize_stop(oid, n - take, pos["symbol"], pos["host"]))
+            if receipt is None or not receipt.ok:
+                return orders.receipt_error(receipt)
+    except orders.ReadError as exc:
+        return str(exc)
+    except Exception as exc:
+        logger.exception("Live Trader bot: %s's buy stops were not resized", pos["symbol"])
+        return f"{type(exc).__name__}: {exc}"
+    return None
+
+
+async def restore_stops(now: float) -> None:
+    """A short's trim that was refused or never filled left its stops shrunk: they grow back to what it still holds,
+    tried every pass, so no share stays unprotected (#1023)."""
+    for pos in book.positions().values():
+        close_ = pos.get("close") or {}
+        if pos["side"] != "short" or pos["state"] != "open" or pos.get("order") or close_.get("kind") != "trim":
+            continue
+        why = await _fit_stops(pos, pos["qty"])
+        if why is not None and once("stop_short", pos["id"], why):
+            audit("error", {"host": pos["host"], "symbol": pos["symbol"], "side": "short", "step": "stop"}, now=now,
+                  why=f"the buy stops on {pos['symbol']} cover fewer shares than the bot holds ({why}): Nova tries "
+                      "every pass -- protect it yourself if this stays")
 
 
 async def clear_stops(now: float) -> None:

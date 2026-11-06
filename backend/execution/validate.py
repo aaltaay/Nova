@@ -13,6 +13,8 @@ from constants_practice import (
     GOOD_FOR_LIVE_CODE,
     GOOD_FOR_LIVE_REASON,
     PRACTICE_GOOD_FOR_INVALID_CODE,
+    REPLACE_RESIZE_LIVE_CODE,
+    REPLACE_RESIZE_LIVE_REASON,
 )
 from execution import exit_oco as _exit_oco
 from execution import flatten_intent as _flatten_intent
@@ -88,8 +90,12 @@ def validate_command(cmd: ExecutionCommand, venue: str | None = None) -> tuple[b
     if cmd.operation == "replace":
         if cmd.order_id is None:
             return False, "order_id required for replace", "ORDER_ID_MISSING"
-        if cmd.limit_price is None and cmd.stop_price is None:
+        if cmd.limit_price is None and cmd.stop_price is None and cmd.resize_qty is None:
             return False, "replace requires limit_price or stop_price", "REPLACE_PRICE_MISSING"
+        if cmd.resize_qty is not None and not _practice(venue):
+            return False, REPLACE_RESIZE_LIVE_REASON, REPLACE_RESIZE_LIVE_CODE
+        if cmd.resize_qty is not None and not is_whole_share_qty(cmd.resize_qty):
+            return False, IBKR_FRACTIONAL_ORDER_API_MSG, "QTY_NOT_WHOLE"
         if cmd.side is not None or cmd.qty is not None or cmd.symbol is not None:
             # Callers must not attempt to mutate immutable fields via replace.
             pass
