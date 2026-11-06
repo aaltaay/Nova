@@ -36,11 +36,11 @@ import { attachRendererGuards, recoverWindowIfErrorPage } from './rendererGuards
 import { applySingleInstance, focusExistingWindow } from './singleInstance.mjs';
 import { createSeparateSimWindow, deliverOpen, readOpenRequest, reviewWindowUrl } from './openInNova.mjs';
 import { skipApiSidecar } from './sidecarSkip.mjs';
-import { wireDeskSound } from './deskSound.mjs';
+import { announceStreamWindow, wireDeskSound } from './deskSound.mjs';
 import { engineStep, openStartupSplash, STARTUP_STEPS } from './startupSplash.mjs';
 import { isAllowedRendererUrl, loadHostWindow } from './traderWindowLoad.mjs';
 import { openOrFocusTraderWindow } from './traderWindows.mjs';
-import { attachYouTubeReferer, isYouTubeSignInUrl, openStreamWindow, openYouTubeSignIn } from './streamPlayer.mjs';
+import { attachYouTubeReferer, currentStreamWindow, isYouTubeSignInUrl, openStreamWindow, openYouTubeSignIn } from './streamPlayer.mjs';
 import { openOrFocusTopNineWindow } from './topNineWindow.mjs';
 import {
   WINDOW_ID_MAIN,
@@ -302,10 +302,13 @@ ipcMain.handle('nova:focusWindow', (event) => {
   win.focus();
   return true;
 });
-ipcMain.handle('nova:openStream', (_event, videoId) => openStreamWindow(BrowserWindow, videoId, { icon: APP_ICON }));
+ipcMain.handle('nova:openStream', (_event, videoId) => openStreamWindow(BrowserWindow, videoId, {
+  icon: APP_ICON,
+  onChange: (open) => announceStreamWindow(BrowserWindow, open),
+}));
 ipcMain.handle('nova:youtubeSignIn', () => signInToYouTube());
 // The header mute: every Nova window's audio, the stream's pop-out included.
-wireDeskSound({ ipcMain, app, BrowserWindow });
+wireDeskSound({ ipcMain, app, BrowserWindow, streamWindow: currentStreamWindow });
 
 ipcMain.handle('nova:openExternal', async (_event, url) => {
   const parsed = new URL(String(url));

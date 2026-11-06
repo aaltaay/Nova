@@ -8,6 +8,7 @@ import {
   STREAM_REFERER,
   YOUTUBE_SIGN_IN_URL,
   attachYouTubeReferer,
+  currentStreamWindow,
   isSignedInToYouTube,
   isStreamVideoId,
   isYouTubeSignInUrl,
@@ -44,8 +45,9 @@ describe('stream player', () => {
     expect(isStreamVideoId('../../x')).toBe(false);
     expect(isStreamVideoId('R5YIugCJar0x')).toBe(false);
     const loadURL = vi.fn(async () => undefined);
+    let closed = false;
     const win = {
-      isDestroyed: () => false, show: vi.fn(), focus: vi.fn(), loadURL, on: vi.fn(),
+      isDestroyed: () => closed, show: vi.fn(), focus: vi.fn(), loadURL, on: vi.fn(),
       webContents: { setWindowOpenHandler: vi.fn(), on: vi.fn() },
     };
     const BrowserWindow = vi.fn(function BrowserWindow() { return win; });
@@ -54,6 +56,33 @@ describe('stream player', () => {
     await openStreamWindow(BrowserWindow, 'R5YIugCJar0');
     expect(loadURL).toHaveBeenCalledWith(streamEmbedUrl('R5YIugCJar0'));
     expect(win.webContents.setWindowOpenHandler.mock.calls[0][0]()).toEqual({ action: 'deny' });
+    closed = true; // the module keeps one window: the next test opens its own
+  });
+
+  it('says when the pop-out opens and closes, and answers for it while it is open', async () => {
+    const on: Record<string, () => void> = {};
+    let destroyed = false;
+    const win = {
+      isDestroyed: () => destroyed,
+      show: vi.fn(),
+      focus: vi.fn(),
+      loadURL: vi.fn(async () => undefined),
+      on: (ev: string, fn: () => void) => {
+        on[ev] = fn;
+      },
+      webContents: { setWindowOpenHandler: vi.fn(), on: vi.fn() },
+    };
+    const BrowserWindow = vi.fn(function BrowserWindow() {
+      return win;
+    });
+    const onChange = vi.fn();
+    await openStreamWindow(BrowserWindow, 'R5YIugCJar0', { onChange });
+    expect(onChange).toHaveBeenLastCalledWith(true);
+    expect(currentStreamWindow()).toBe(win);
+    destroyed = true;
+    on.closed();
+    expect(onChange).toHaveBeenLastCalledWith(false);
+    expect(currentStreamWindow()).toBeNull();
   });
 
   it('plays YouTube’s ordinary embed, the one that carries the desk’s YouTube sign-in', () => {

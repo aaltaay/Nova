@@ -38,6 +38,16 @@ contextBridge.exposeInMainWorld('novaDesktop', {
   },
   /** The header mute (electron/deskSound.mjs): every Nova window's audio follows it. Channel repeated (sandboxed preload). */
   setSoundMuted: (muted) => ipcRenderer.send('nova:sound:muted', muted === true),
+  /** The sound menu's YouTube row, applied to the stream's pop-out (electron/deskSound.mjs). */
+  setStreamSound: (sound) => ipcRenderer.send('nova:sound:stream', { on: sound?.on === true, level: Number(sound?.level) }),
+  /** Whether the pop-out is open and has its sound on, for a page that reloads under it. */
+  streamWindowState: () => ipcRenderer.invoke('nova:stream:state'),
+  /** Called when the pop-out opens or closes; returns the unsubscribe. */
+  onStreamWindow: (cb) => {
+    const listener = (_event, open) => cb(Boolean(open));
+    ipcRenderer.on('nova:stream:window', listener);
+    return () => ipcRenderer.removeListener('nova:stream:window', listener);
+  },
   /** Kill + restart the local FastAPI sidecar when the UI shows Backend unreachable. */
   restartApi: () => ipcRenderer.invoke('nova:restartApi'),
   /**

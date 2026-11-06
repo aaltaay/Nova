@@ -37,7 +37,7 @@ describe('novaOsAttention', () => {
         return { connect() {}, frequency: { value: 0 }, start() {}, stop() {} };
       }
       createGain() {
-        return { connect() {}, gain: { value: 0, exponentialRampToValueAtTime() {} } };
+        return { connect() {}, gain: { value: 0, setValueAtTime() {}, exponentialRampToValueAtTime() {} } };
       }
     });
     let latest = 0;
