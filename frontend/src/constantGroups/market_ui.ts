@@ -107,10 +107,6 @@ export const NOVA_OS_EVENT_ATTENTION_POLL_INTERVAL_MS = 5000;
 /** How many recent events to fetch per poll — must comfortably exceed the
  * number of receipts one poll interval could produce so nothing is missed. */
 export const NOVA_OS_EVENT_ATTENTION_POLL_LIMIT = 25;
-/** localStorage key for the muteable attention-sound preference. */
-export const NOVA_OS_ATTENTION_MUTE_STORAGE_KEY = 'nova_os_attention_muted';
-/** When true, attention cues are silent by default until the user unmutes. */
-export const NOVA_OS_ATTENTION_MUTED_DEFAULT = false;
 /** Plain-language subtitles for the attention strip event kinds. */
 export const NOVA_OS_ATTENTION_COPY: Record<string, string> = {
   risk_halt: 'Walk-away rule hit — see Journal › Risk. It does not block manual or bot orders.',

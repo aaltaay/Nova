@@ -39,10 +39,9 @@ export const TOP_NINE_PUBLISH_HEARTBEAT_MS = 4_000;
 /** No board from the desk for this long: the pop-up says the desk is not answering. */
 export const TOP_NINE_DESK_SILENT_MS = 10_000;
 
-/** prefStore keys: the list on screen (a grid button sets it too), the switch sound, and the stocks
- * muted for the day (right-click a tile). */
+/** prefStore keys: the list on screen (a grid button sets it too), and the stocks muted for the day
+ * (right-click a tile). The switch sound's lives in sound/. */
 export const TOP_NINE_LIST_KEY = 'nova.topNine.list';
-export const TOP_NINE_SOUND_KEY = 'nova.topNine.sound';
 export const TOP_NINE_MUTED_KEY = 'nova.topNine.muted';
 
 /** A switch is marked in full (border, pill, timer bar) this long, then a soft tint on the rank. */
@@ -58,15 +57,6 @@ export const TOP_NINE_CHART_MINUTES = 90;
 /** A switch chimes, then the next switch inside this long stays quiet (operator ask, 2026-10-27:
  * "once every 30 seconds"). A halt is not held back by it. */
 export const TOP_NINE_CHIME_COOLDOWN_MS = 30_000;
-/** The switch chime: two rising notes, loud enough to hear over the desk (the old 0.05 tick was not). */
-export const TOP_NINE_CHIME_NOTES_HZ: readonly number[] = [880, 1_320];
-export const TOP_NINE_CHIME_NOTE_SEC = 0.12;
-export const TOP_NINE_CHIME_GAIN = 0.2;
-/** A stock on screen halted: three short lower beeps, unlike the chime. */
-export const TOP_NINE_HALT_NOTES_HZ: readonly number[] = [740, 740, 740];
-export const TOP_NINE_HALT_NOTE_SEC = 0.09;
-export const TOP_NINE_HALT_GAP_SEC = 0.07;
-export const TOP_NINE_HALT_GAIN = 0.22;
 
 /** The LULD band on a tile: the Trader's 1-minute band, read from memory (ADR 047), every 3 s per tile. */
 export const TOP_NINE_LULD_PATH = (symbol: string) => `/api/luld/${encodeURIComponent(symbol)}/trail`;

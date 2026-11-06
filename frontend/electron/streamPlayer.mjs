@@ -55,8 +55,13 @@ export function attachYouTubeReferer(session) {
 
 let streamWindow = null;
 
-/** One small window for the stream; a second Pop out shows the new stream in it. */
-export async function openStreamWindow(BrowserWindow, id, { icon } = {}) {
+/** The pop-out while it is open (the header's sound reaches it through deskSound.mjs). */
+export function currentStreamWindow() {
+  return streamWindow && !streamWindow.isDestroyed() ? streamWindow : null;
+}
+
+/** One small window for the stream; a second Pop out shows the new stream in it. `onChange` hears it open and close. */
+export async function openStreamWindow(BrowserWindow, id, { icon, onChange } = {}) {
   if (!isStreamVideoId(id)) throw new Error('Not a stream id');
   if (!streamWindow || streamWindow.isDestroyed()) {
     streamWindow = new BrowserWindow({
@@ -76,11 +81,13 @@ export async function openStreamWindow(BrowserWindow, id, { icon } = {}) {
     });
     streamWindow.on('closed', () => {
       streamWindow = null;
+      onChange?.(false);
     });
   }
   await streamWindow.loadURL(streamEmbedUrl(id));
   streamWindow.show();
   streamWindow.focus();
+  onChange?.(true);
   return true;
 }
 

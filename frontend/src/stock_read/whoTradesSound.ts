@@ -1,15 +1,22 @@
 /**
  * The chart's ping (ADR 037): one short sound per call -- ENTER NOW, SELL NOW, what Nova just did --
- * keyed on the call's id, so a call that stays on screen pings once per page. Its own mute,
- * `nova.stockRead.sound` = `{schema_version: 1, value: boolean}`, shared by every Trader tab. The header mute
- * (sound/) silences it too.
+ * keyed on the call's id, so a call that stays on screen pings once per page. Its own switch and volume live in
+ * sound/ (`nova.stockRead.sound`, shared by every Trader tab; the header's sound menu sets them too). The header
+ * mute silences it too.
  */
-import { readPref, writePref } from '../utils/prefStore';
-import { isDeskMuted } from '../sound';
-import { STOCK_MODE_SOUND_KEY } from './constants';
+import {
+  DESK_TONE_CALL,
+  deskSoundAudible,
+  deskSoundOn,
+  playDeskTone,
+  resetDeskSoundsForTests,
+  resetDeskTonesForTests,
+  setDeskSoundOn,
+  subscribeDeskSounds,
+} from '../sound';
 import type { CallTone } from './momentModel';
 
-type Listener = (enabled: boolean) => void;
+type Listener = () => void;
 
 /** Two notes for a call to act (enter, sell), one for Nova's news. */
 const NOTES: Partial<Record<CallTone, number[]>> = {
@@ -19,82 +26,32 @@ const NOTES: Partial<Record<CallTone, number[]>> = {
   nova: [784],
   done: [1047],
 };
-const NOTE_SEC = 0.11;
-const GAIN = 0.06;
 
 const heard = new Set<string>();
-const listeners = new Set<Listener>();
-let enabled = readEnabled();
-let ctx: AudioContext | null = null;
-
-function readEnabled(): boolean {
-  if (typeof localStorage === 'undefined') return true; // no storage (a worker, a test): the ping is on
-  return readPref(STOCK_MODE_SOUND_KEY, true, raw => (typeof raw === 'boolean' ? raw : null));
-}
 
 export function isStockReadSoundOn(): boolean {
-  return enabled;
+  return deskSoundOn('calls');
 }
 
 export function setStockReadSound(next: boolean): void {
-  enabled = next;
-  writePref(STOCK_MODE_SOUND_KEY, next);
-  for (const fn of listeners) fn(enabled);
+  setDeskSoundOn('calls', next);
 }
 
 export function subscribeStockReadSound(fn: Listener): () => void {
-  listeners.add(fn);
-  return () => {
-    listeners.delete(fn);
-  };
-}
-
-function audio(): AudioContext | null {
-  if (ctx) return ctx;
-  try {
-    const Ctor = window.AudioContext
-      ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    ctx = Ctor ? new Ctor() : null;
-  } catch {
-    ctx = null; // no audio in this window: the call still shows
-  }
-  return ctx;
-}
-
-function play(notes: number[]): boolean {
-  const ac = audio();
-  if (!ac) return false;
-  try {
-    if (ac.state === 'suspended') void ac.resume();
-    notes.forEach((hz, n) => {
-      const osc = ac.createOscillator();
-      const gain = ac.createGain();
-      osc.connect(gain);
-      gain.connect(ac.destination);
-      osc.frequency.value = hz;
-      const start = ac.currentTime + n * (NOTE_SEC + 0.03);
-      gain.gain.setValueAtTime(GAIN, start);
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + NOTE_SEC);
-      osc.start(start);
-      osc.stop(start + NOTE_SEC + 0.02);
-    });
-    return true;
-  } catch {
-    return false; // the browser refused to play: the call still shows
-  }
+  return subscribeDeskSounds(fn);
 }
 
 /** Ping once per call id. Returns what happened, for tests. */
 export function pingCall(id: string, tone: CallTone): 'pinged' | 'duplicate' | 'muted' | 'silent' {
   if (heard.has(id)) return 'duplicate';
   heard.add(id);
-  if (!enabled || isDeskMuted()) return 'muted';
+  if (!deskSoundAudible('calls')) return 'muted';
   const notes = NOTES[tone];
-  return notes && play(notes) ? 'pinged' : 'silent';
+  return notes && playDeskTone('calls', { ...DESK_TONE_CALL, hz: notes }) ? 'pinged' : 'silent';
 }
 
 export function resetStockReadSoundForTests(): void {
   heard.clear();
-  ctx = null;
-  enabled = readEnabled();
+  resetDeskTonesForTests();
+  resetDeskSoundsForTests();
 }

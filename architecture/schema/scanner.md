@@ -960,7 +960,8 @@ full for 30 s (coloured border, filled rank box, `3 → 2` pill, a countdown bar
 list. Tiles slide to their new place (0.5 s).
 
 **Sounds (operator ask, 2026-10-27).** On the list on screen only, under the switch `nova.topNine.sound` (prefStore,
-default on) and the header mute: a two-note chime when a stock that is not muted moves up or comes into the top nine
+default on; also the Moved up row of the header's sound menu, which sets the volume of both sounds, `desk-ops.md`, and the
+pop-up follows a change made there) and the header mute: a two-note chime when a stock that is not muted moves up or comes into the top nine
 (a stock moving down is the other side of someone's rise, so a muted stock's rise stays quiet), at most once per 30 s
 -- a switch inside that window plays nothing and is not queued; and three short beeps when a stock that is not muted
 shows `halted: true` and did not on the last board of the same list and source, which the 30 s does not hold back.

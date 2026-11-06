@@ -1,18 +1,27 @@
 /**
  * The desk's voice: the computer's own speech (`speechSynthesis`, an English voice installed on the PC).
- * Nothing is sent anywhere, and the header mute silences it -- mid-word when it is clicked mid-sentence.
- * A window that cannot speak keeps the reason for the mute button's hover (no silent blocker).
+ * Nothing is sent anywhere, and the header mute silences it -- mid-word when it is clicked mid-sentence, as
+ * the sound menu's Fill voice switch does. A window that cannot speak keeps the reason for the speaker
+ * button's hover (no silent blocker).
  */
 import {
+  DESK_SOUND_LEVEL_MAX,
+  DESK_SOUND_ON_SPOKEN,
   DESK_VOICE_FAILED,
   DESK_VOICE_MAX_QUEUED,
   DESK_VOICE_NO_SPEECH,
   DESK_VOICE_NOT_ALLOWED,
   DESK_VOICE_RATE,
 } from './constants';
-import { isDeskMuted, subscribeDeskMute } from './deskMute';
+import { isDeskMuted, setDeskMuted, subscribeDeskMute } from './deskMute';
+import { deskSoundAudible, deskSoundLevel, deskSoundOn, subscribeDeskSounds } from './deskSounds';
 
 export type SpeakResult = 'spoken' | 'muted' | 'unavailable';
+
+export interface SpeakOptions {
+  /** The sound menu's Play: heard with the Fill voice row off; the header mute still holds. */
+  evenIfOff?: boolean;
+}
 
 type ProblemListener = (problem: string | null) => void;
 
@@ -42,9 +51,9 @@ function englishVoice(s: SpeechSynthesis): SpeechSynthesisVoice | null {
     ?? null;
 }
 
-/** Say `text` unless the desk is muted. Sentences queue; a long queue drops what waits for the newest. */
-export function speakDesk(text: string): SpeakResult {
-  if (isDeskMuted()) return 'muted';
+/** Say `text` unless the desk or the voice is muted. Sentences queue; a long queue drops what waits for the newest. */
+export function speakDesk(text: string, { evenIfOff = false }: SpeakOptions = {}): SpeakResult {
+  if (evenIfOff ? isDeskMuted() : !deskSoundAudible('voice')) return 'muted';
   const s = synth();
   if (!s) {
     setProblem(DESK_VOICE_NO_SPEECH);
@@ -57,6 +66,7 @@ export function speakDesk(text: string): SpeakResult {
   if (voice) u.voice = voice;
   u.lang = voice?.lang ?? 'en-US';
   u.rate = DESK_VOICE_RATE;
+  u.volume = deskSoundLevel('voice') / DESK_SOUND_LEVEL_MAX;
   u.onend = () => {
     if (mine !== generation) return;
     queued = Math.max(0, queued - 1);
@@ -76,6 +86,13 @@ export function speakDesk(text: string): SpeakResult {
   return 'spoken';
 }
 
+/** The speaker's right click and the menu's All sounds. Back on: say so, which proves the speaker works. */
+export function flipDeskMute(): void {
+  const next = !isDeskMuted();
+  setDeskMuted(next);
+  if (!next) speakDesk(DESK_SOUND_ON_SPOKEN);
+}
+
 /** Stop speaking now and forget what waits. */
 export function hushDesk(): void {
   generation += 1;
@@ -85,6 +102,13 @@ export function hushDesk(): void {
 
 subscribeDeskMute((nowMuted) => {
   if (nowMuted) hushDesk();
+});
+
+let voiceOn = deskSoundOn('voice');
+subscribeDeskSounds(() => {
+  const next = deskSoundOn('voice');
+  if (voiceOn && !next) hushDesk();
+  voiceOn = next;
 });
 
 export function deskVoiceProblem(): string | null {

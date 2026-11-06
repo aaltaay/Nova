@@ -112,6 +112,7 @@ export const FT_STREAM_MUTED = 'Muted';
 export const FT_STREAM_SOUND_ON = 'Sound on';
 export const FT_STREAM_POP_OUT = 'Pop out';
 export const FT_STREAM_POP_OUT_TIP = 'Watch it in a small window of its own';
+export const FT_STREAM_POP_OUT_HAS_SOUND = 'The pop-out has the sound. The speaker in the header sets it.';
 export const FT_STREAM_CLOSE = 'Close the stream';
 export const FT_STREAM_YOUTUBE = 'Open on YouTube';
 export const FT_STREAM_TITLE = 'The followed traders’ live stream';

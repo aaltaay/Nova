@@ -833,14 +833,44 @@ windows). Display only: the voice reads the order rows the desk already polls, a
 sits on the order path and never places, stages, cancels or delays an order.
 
 - **The header's mute** (a speaker, left of the padlock) is one switch for every sound Nova makes: the
-  voice, the HOD Momo ping, the Setups ping, the Trader's call ping, the Nova OS alarm and the TraderTV
-  stream. Muting stops a sentence mid-word. On the desktop it also mutes every Nova window's audio, the
+  voice, the HOD Momo ping, the Setups ping, the Top 9 chime and halt beeps, the Trader's call ping, the
+  Nova OS alarm and the TraderTV stream. **A right click on the speaker flips it**, as does All sounds at
+  the top of the sound menu (operator, 2026-11-05: a left click opens the menu, so the one-click mute moved to
+  the right click). Muting stops a sentence mid-word. On the desktop it also mutes every Nova window's audio, the
   stream's pop-out included (`webContents.setAudioMuted`, applied to windows opened later too). Each
   source's own switch still works under it; while the header mute is on, each says so on hover, and the
   in-page stream's Sound on button is disabled with that reason. `localStorage` `nova.desk.sound.muted`
   (a `prefStore` envelope, `{schema_version: 1, value: boolean}`), shared by every window: a click in
   one window reaches the others through the `storage` event. Missing, or an unknown version, reads as
   sound on.
+- **The sound menu (operator ask, 2026-11-05: "a dropdown menu controlling the other sounds ... very nicely
+  divided"; approved mockup v1).** A left click on the speaker opens it under the speaker; a click outside or
+  Escape closes it. Display only: it changes what the desk plays and nothing else. All sounds on top, then four
+  sections: **Scanner** (HOD alerts, Setups), **Nine charts** (Moved up: the Top 9 chime and halt beeps, one
+  switch as before), **Trades** (Fill voice, Trader calls, Alarm), **YouTube** (TraderTV). Every row has a switch,
+  a 0-100 volume and, but for YouTube, a Play button that plays the desk's own sound through the same code at that
+  volume, even with the row off; Play is locked with its reason under the header mute and at volume 0. Releasing a
+  slider plays the row once while it is on. A row off or under the header mute dims, and keeps its switch and volume.
+- **One owner of every sound's switch and volume** (`sound/deskSounds.ts`): the menu and each source's own button
+  (the HOD strip's speaker, Setups' Sound on, the Trader's bell, the Top 9's Sound on switch, the attention strip's)
+  are the same setting, and a change in one window reaches the others through the `storage` event, the Top 9
+  pop-up included. The switches keep their keys and shapes: `nova.hodMomo.alertSound.enabled`, `nova.topNine.sound`,
+  `nova.stockRead.sound` (`prefStore`, `{schema_version: 1, value: boolean}`), `nova.setups.sound.v1` (`on` / `off`),
+  `nova_os_attention_muted` (`1` / `0`, inverted). New: `nova.desk.voice.on` (`prefStore` boolean, default on; off
+  also silences the spoken loss-limit lines and "Order rejected.", which only the header mute did before).
+  `nova.desk.sound.levels` (`prefStore`, `{schema_version: 1, value: {hod, setups, topNine, voice, calls, alarm,
+  stream}}`, each an integer 0-100; a missing or bad entry, or an unknown version, reads as its default). The
+  defaults are the levels the desk always played, as a share of its loudest sound: HOD 18, Setups 23, Moved up 91,
+  Fill voice 100, Trader calls 27, Alarm 18, TraderTV 50. A sound plays at its own gain times level / default, so a
+  desk that never moves a slider sounds as it did; volume 0 is silent, the source's `muted` result. The voice's level
+  is the utterance's `volume`.
+- **The YouTube row** (`sound/streamSound.ts`) turns the stream's sound on and off and sets its volume. Its switch is
+  held in memory, never stored, and starts off: a stream never starts talking on its own. The sound goes to one
+  player: the desktop pop-out while it is open, otherwise the in-page player (`followed-traders.md`, "On the desk").
+  The row shows Live while one of them is on air; with neither it is locked with why (off air, or not open). Opening
+  the pop-out turns the row on, as the pop-out always played with sound, and quiets the page; closing it turns the row
+  off. A player that goes away or reloads turns it off too. The header mute turns it off for the in-page player, which
+  stays muted until asked, as it always has; the pop-out comes back with the desk.
 - **What speaks: fills, on the desk's venue.** From the working and closed order rows
   (`/api/ibkr/orders`, `/api/ibkr/orders/closed`, as `ibkr/ibkrAccountPoller.ts` reads them): an order
   whose `filled_qty` grew says the shares filled since the last read -- "Bought 100 shares of A B C."

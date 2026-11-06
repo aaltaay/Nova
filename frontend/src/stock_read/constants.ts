@@ -295,8 +295,6 @@ export const LANE_LABELS: Record<string, string> = {
 /** Who trades the stock (ADR 037): the switch's view, read while the Trader tab shows. */
 export const STOCK_MODE_PATH = '/api/stock-mode';
 export const STOCK_MODE_POLL_MS = 1_500;
-/** `{schema_version: 1, value: boolean}`: false mutes the chart's ping. */
-export const STOCK_MODE_SOUND_KEY = 'nova.stockRead.sound';
 /** ENTER NOW stays up this long after the trigger, while the price is within this share of a risk. (Every
  * Nova entry's time limit is the sleeve's `working_ttl_sec`, read with the risk per trade.) */
 export const ENTER_NOW_SEC = 30;
