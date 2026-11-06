@@ -38,6 +38,7 @@ from ibkr import orders as _orders
 from ibkr import send_hop
 from ibkr.order_build import normalize_tif, tif_error
 from market_view import gate as _view_gate
+from short_sale.hours import venue_now
 
 logger = logging.getLogger(__name__)
 
@@ -241,7 +242,7 @@ async def bracket(
             tif=cmd.tif,
             outside_rth=cmd.outside_rth,
             order_ref=ref,
-            stop_limit=stop_shape.exit_limit(cmd),
+            stop_limit=stop_shape.exit_limit(cmd, venue_now("live")),
         )
         inflight.attach_order(execution_id, raw.get("parent_order_id"))
         watch = _watch(

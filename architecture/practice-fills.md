@@ -259,8 +259,11 @@ the same shape:
   sell what the entry has not bought yet.
 
 **Stops outside regular hours are stop-limits (ADR 007, 2026-11-05).** A
-protective exit sent outside regular hours is a `STP LMT`, its limit 2% past
-the stop, on every venue. A print at or through the stop triggers it: it fills
+protective exit sent with `outside_rth` while the venue's clock stands outside
+regular hours is a `STP LMT`, its limit 2% past the stop, on every venue; a
+10:00 bracket with Extended Hours saved keeps a plain `STP`. A plain `STP`
+carried past the close still triggers here, where IBKR's published answers say
+it would not. A print at or through the stop triggers a `STP LMT`: it fills
 at that print when the print is at the limit or better, and otherwise becomes a
 `LMT` at its limit (a `replaced` event with `order_type`) and rests, as a broker
 stop-limit does after a gap. A stop already through the market when placed fills

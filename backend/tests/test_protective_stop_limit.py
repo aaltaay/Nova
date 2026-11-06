@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from constants_nova_os import NOVA_OS_NYSE_EARLY_CLOSES
 from constants_practice import PRACTICE_NO_LIVE_PRINT_CODE
 from execution import stop_shape, telemetry
 from execution.models import ExecutionCommand
@@ -65,11 +66,30 @@ def test_the_limit_sits_two_percent_past_the_stop_on_each_side():
 
 def test_only_a_stop_sent_outside_regular_hours_is_a_stop_limit():
     base = dict(idempotency_key="k", source="manual", stop_price=10.0)
-    assert stop_shape.exit_limit(ExecutionCommand(operation="bracket", outside_rth=True, **base)) == 9.8
+    assert stop_shape.exit_limit(ExecutionCommand(operation="bracket", outside_rth=True, **base), NOW) == 9.8
     assert stop_shape.exit_limit(ExecutionCommand(operation="bracket", outside_rth=True, short_entry=True,
-                                                  **base)) == 10.2
-    assert stop_shape.exit_limit(ExecutionCommand(operation="exit_oco", outside_rth=True, side="BUY", **base)) == 10.2
-    assert stop_shape.exit_limit(ExecutionCommand(operation="bracket", outside_rth=False, **base)) is None
+                                                  **base), NOW) == 10.2
+    assert stop_shape.exit_limit(ExecutionCommand(operation="exit_oco", outside_rth=True, side="BUY", **base),
+                                 NOW) == 10.2
+    assert stop_shape.exit_limit(ExecutionCommand(operation="bracket", outside_rth=False, **base), NOW) is None
+
+
+_EARLY_CLOSE = datetime.fromisoformat(sorted(NOVA_OS_NYSE_EARLY_CLOSES)[0]).replace(tzinfo=ET)
+
+
+@pytest.mark.parametrize("when, limit", [
+    (datetime(2026, 9, 21, 9, 29, tzinfo=ET), 9.8),
+    (datetime(2026, 9, 21, 9, 30, tzinfo=ET), None),
+    (datetime(2026, 9, 21, 10, 0, tzinfo=ET), None),      # Extended Hours saved, a 10:00 bracket: a plain stop
+    (datetime(2026, 9, 21, 15, 59, tzinfo=ET), None),
+    (datetime(2026, 9, 21, 16, 0, tzinfo=ET), 9.8),
+    (datetime(2026, 9, 19, 12, 0, tzinfo=ET), 9.8),       # a Saturday
+    (_EARLY_CLOSE.replace(hour=12, minute=30), None),
+    (_EARLY_CLOSE.replace(hour=13, minute=30), 9.8),      # past an early close, though 16:00 has not come
+])
+def test_extended_hours_is_a_permission_and_the_venues_clock_is_the_session(when, limit):
+    cmd = ExecutionCommand(operation="bracket", idempotency_key="k", source="manual", stop_price=10.0, outside_rth=True)
+    assert stop_shape.exit_limit(cmd, when.timestamp()) == limit
 
 
 def test_a_print_inside_the_limit_fills_and_a_gap_past_it_does_not():

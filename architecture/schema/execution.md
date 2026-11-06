@@ -214,10 +214,13 @@ Paper and live share this path; only Gateway credentials/port and safety gates d
 
 ## A protective stop outside regular hours (ADR 007, operator decision 2026-11-05)
 
-With `outside_rth` true, the stop leg of a `bracket` or `exit_oco`, and Nova's exit stop, is `STP LMT` on Paper, Sim
-and Live, its limit 2% past the stop (`execution/stop_shape.py`). In regular hours it is a plain `STP`. The shape is
-fixed when sent; moving the stop moves its limit. A practice stop-limit that gaps past its limit becomes a `LMT` by a
-`replaced` event carrying `order_type` (`architecture/practice-fills.md`).
+Sent while the venue's clock stands outside regular hours with `outside_rth` true, the stop leg of a `bracket` or
+`exit_oco`, and Nova's exit stop, is `STP LMT` on Paper, Sim and Live, its limit 2% past the stop
+(`execution/stop_shape.py`). Otherwise it is a plain `STP`. `outside_rth` alone proves nothing: the ticket sets it from
+the saved trading-hours preference, so it is true on a 10:00 bracket too. The clock is the send's own venue: the wall
+clock on Live and Paper, the playhead on Sim, 13:00 on an early close. The shape is fixed when sent; moving the stop
+moves its limit. A practice stop-limit that gaps past its limit becomes a `LMT` by a `replaced` event carrying
+`order_type` (`architecture/practice-fills.md`).
 
 ## Resizing a working stop on Paper and Sim (#1023)
 

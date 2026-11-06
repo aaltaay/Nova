@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import threading
 import time
+from datetime import datetime
 from types import SimpleNamespace
 
 import pytest
@@ -16,6 +17,7 @@ from execution.models import ExecutionCommand, ExecutionReceipt, StageTimings
 from execution.telemetry_handlers import make_handlers
 from ibkr import client as _client
 from ibkr import loop_supervisor
+from practice.clock import ET
 
 
 @pytest.fixture(autouse=True)
@@ -151,6 +153,30 @@ def test_every_bracket_leg_is_watched_before_any_status(monkeypatch):
     ))
     assert watched == [True, True, True]
     assert receipt.ok is True and receipt.broker_status == "Submitted"
+
+
+@pytest.mark.parametrize("hour, stop_limit", [(10, None), (8, 1.86)])
+def test_a_live_bracket_reads_the_clock_not_extended_hours_for_its_stop(monkeypatch, hour, stop_limit):
+    """The ticket's Extended Hours is a saved preference: a 10:00 bracket keeps its plain stop."""
+    sent: dict = {}
+
+    def fake_bracket(**kwargs):
+        sent.update(kwargs)
+        return {"ok": True, "parent_order_id": 701, "target_order_id": 702, "stop_order_id": 703,
+                "error": None, "mode": "live", "nova_placed_at": None}
+
+    now = datetime(2026, 9, 21, hour, 0, tzinfo=ET).timestamp()
+    monkeypatch.setattr(orders_mod, "place_bracket_order", fake_bracket)
+    monkeypatch.setattr("execution.live_send.venue_now", lambda _venue: now)
+    key = f"live-shape-{hour}"
+    cmd = ExecutionCommand(
+        operation="bracket", idempotency_key=key, source="manual", symbol="ZTG", side="BUY", qty=1,
+        entry_price=2.0, stop_price=1.9, target_price=2.2, order_type="LMT", outside_rth=True,
+    )
+    asyncio.run(send_broker(
+        cmd, _reserve(key), StageTimings(received_ns=1), wait_ack=False, reject=_refuse([]), venue="live",
+    ))
+    assert (sent["outside_rth"], sent["stop_limit"]) == (True, stop_limit)
 
 
 def test_a_desk_order_the_ib_loop_takes_after_its_deadline_is_refused_and_never_placed(monkeypatch):
