@@ -232,6 +232,7 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
               const print: TapePrint = {
                 symbol: item.symbol ?? msg.symbol,
                 time: item.time,
+                exchangeTs: typeof item.exchange_ts === 'number' ? item.exchange_ts : null,
                 price: item.price,
                 size: item.size,
                 exchange: item.exchange ?? '',
@@ -250,7 +251,7 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
                 size: print.size,
                 setsPrice: print.setsPrice,
                 // IBKR's own second: the 10-second candle's key, as in IBKR's history (#721).
-                exchangeTs: typeof item.exchange_ts === 'number' ? item.exchange_ts : null,
+                exchangeTs: print.exchangeTs,
               });
               // The heat map's dots and volume (ADR 061): the print's own time, size and the desk's side verdict.
               noteHeatPrint(symKey!, print.time, print.price, print.size, print.side);

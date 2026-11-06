@@ -103,8 +103,8 @@ export async function fillWorkingOrderImmediately(
   if (!plan.ok) {
     return { ok: false, error: plan.error };
   }
-  // ADR 045: never cancel the working order when the fill would be refused for a lagging view.
-  const lagging = viewLockReason(plan.symbol);
+  // ADR 045: never cancel a working entry when the fill would be refused for a lagging view; a close is never refused.
+  const lagging = plan.side === 'SELL' || order.effect === 'closes' ? null : viewLockReason(plan.symbol);
   if (lagging) {
     return { ok: false, error: lagging };
   }

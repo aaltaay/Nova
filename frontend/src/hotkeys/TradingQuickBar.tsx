@@ -19,7 +19,7 @@ import { useHotkeyDispatchOptional } from './HotkeyDispatchContext';
 import { QuickTradeGearIcon, QuickTradeIcon } from './quickTradeIcons';
 import { quickTradeLabelPieces, quickTradeShortLabel, quickTradeTone } from './quickTradeLabel';
 import { useTopOfBook } from './TopOfBookContext';
-import { PROTECTIVE_KINDS } from './runNovaAction';
+import { actionCloses, PROTECTIVE_KINDS } from './runNovaAction';
 import { useViewLock } from '../market_view';
 
 interface Props {
@@ -29,13 +29,15 @@ interface Props {
    * QA R35) turns it off, so one outcome is not written twice.
    */
   status?: boolean;
+  /** The shares held in this symbol, signed: a buy while short is a cover, and a cover never locks. */
+  heldQty?: number | null;
 }
 
-export function TradingQuickBar({ status = true }: Props = {}) {
+export function TradingQuickBar({ status = true, heldQty = null }: Props = {}) {
   const dispatch = useHotkeyDispatchOptional();
   const settings = useSettingsOptional();
   const { topOfBook } = useTopOfBook();
-  // ADR 045: while this symbol's Level 2 lags, every action that places (all but cancels and Flatten) locks.
+  // ADR 045: while this symbol's data lags, a new buy or short locks; sells, covers, cancels and Flatten never do.
   const viewLock = useViewLock(topOfBook?.symbol);
 
   if (!dispatch) return null;
@@ -57,7 +59,8 @@ export function TradingQuickBar({ status = true }: Props = {}) {
       >
         {buttons.map((action) => {
           const needsDepth = NOVA_ACTION_NEEDS_DEPTH.includes(action.kind);
-          const places = !(action.kind in PROTECTIVE_KINDS) && !action.kind.startsWith('clip_');
+          const places = !(action.kind in PROTECTIVE_KINDS) && !action.kind.startsWith('clip_')
+            && !actionCloses(action.kind, heldQty);
           const why = needsDepth && !depthOk ? NOVA_ACTION_DEPTH_DISABLED_REASON : places ? viewLock : null;
           const disabled = why != null;
           return (

@@ -21,6 +21,9 @@
  * own words, Level 2 or not (ADR 045 amendment 2026-10-14). GENK's tape missed every trade from 09:25:11 on
  * 2026-10-14, and an order went out at 09:25:19 because nothing here knew.
  *
+ * A lock holds a new buy or short only. A sell or a cover is never locked (`orderCloses`; ADR 045 amendment
+ * 2026-11-06, "we should never, ever just be locking the sell"), and the backend lets it through too.
+ *
  * In memory, per window. Desk and backend run on one machine (the backend binds 127.0.0.1), so the
  * backend's `sent` / `now` and this window's `Date.now()` are one clock.
  */
@@ -244,6 +247,15 @@ export function viewLockReason(symbol: string | null | undefined, now = Date.now
     return `Level 2 is behind the market: the desk has not drawn its newest book for ${secs(now - view.behindSince)}. ${VIEW_LOCK_TAIL}`;
   }
   return null;
+}
+
+/** A sell out of a long or a buy to cover: never locked for lag. Mirrors the backend's `gate.closes`. */
+export function orderCloses(
+  side: 'BUY' | 'SELL',
+  shortEntry: boolean,
+  heldQty: number | null | undefined,
+): boolean {
+  return !shortEntry && (side === 'SELL' || (heldQty ?? 0) < 0);
 }
 
 /** The order button's words for a lock reason: Time & Sales behind, Nova behind, no Level 2, or Level 2 behind. */

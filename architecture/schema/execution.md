@@ -70,7 +70,8 @@ the order reached the backend 2-3 s after the click and rested above the market.
   (epoch ms), the Level 2 book and the quote the screen showed (null when it showed none), and the desk's own
   measures at that moment. The desk attaches it to every order it sends (`ibkr/placeOrder.ts`).
 - **The gate** (owner `market_view/gate.py`; constants `constants_market_view.py`). For a `manual` place,
-  bracket or replace that came through those routes (it carries `client_timing`), the execution door refuses,
+  bracket or replace that came through those routes (it carries `client_timing`) and opens a position (a close
+  is never refused, below), the execution door refuses,
   after the duplicate-key replay and before anything is validated or sent, HTTP 200 `{ok: false, reason_code,
   error}` like its other refusals:
   - `VIEW_STALE`: the book or quote the screen showed had been replaced for more than `ORDER_VIEW_MAX_LAG_MS`
@@ -82,10 +83,11 @@ the order reached the backend 2-3 s after the click and rested above the market.
   - `FEED_STALE`: an IBKR feed gap is open or settling (`ibkr/feed_pulse`), or the IB loop is stalled now for
     more than `ORDER_MAX_IB_STALL_MS` (500) (`perf/stall_watch.stalled_ms`) -- never on a Sim desk off the live
     edge, whose market is the replay;
-  - `TAPE_STALE` (amendment 2026-10-14, GENK order #255): the symbol's Time & Sales is missing trades -- Nova
+  - `TAPE_STALE` (amendment 2026-10-14, GENK order #255): the symbol's Time & Sales is behind -- Nova
     holds an AllLast line for it on this IBKR session, the symbol is not halted, and its Level 1 line reported a
     trade (IBKR's Last Timestamp or RTVolume time) at least `TAPE_DEAD_L1_LEAD_SEC` (3) after the line's last
-    print by IBKR's second (or after the line opened) -- with no further wait (`ibkr.tape_silence.missed_trades`).
+    print by IBKR's second (or after the line opened), and it has stayed so for `TAPE_PRINT_WAIT_SEC` (2)
+    (`ibkr.tape_silence.behind`; amendment 2026-11-06).
     No line, no judgment; never on a Sim desk off the live edge;
   - `VIEW_MISSING`: no `view` (an older desk).
 
@@ -95,23 +97,28 @@ the order reached the backend 2-3 s after the click and rested above the market.
   text: string | null, checked_at}` and the Time & Sales socket's `gate` (market-data.md), so the ticket's lock
   says what the door would ("one funnel", operator 2026-10-14).
 
+  **A close is never refused for lag (amendment 2026-11-06):** a SELL without `short_entry`, a BUY covering a
+  short and a replace of a working order that closes (`gate.closes`; unknown is not a close). Its verdict is
+  `close` with the `code` it would have been refused under, and it has no send deadline.
+
   The protective sources (`flatten`, `kill`, `cancel_working`), cancels and every command without
   `client_timing` (the bot, stock modes, the loss limit's Auto sell) are exempt. The arithmetic mixes the desk's and the
   backend's wall clocks, sound because the backend binds 127.0.0.1; an action more than 1 s in the backend's
   future is `VIEW_STALE` ("the clocks disagree"). The execution row's payload keeps `view` and `view_check:
-  {schema_version: 1, verdict: "ok" | "refused" | "exempt" | "missing", code, arrival_ms, book_lag_ms,
+  {schema_version: 1, verdict: "ok" | "refused" | "close" | "exempt" | "missing", code, arrival_ms, book_lag_ms,
   quote_lag_ms, feed_gap: boolean | null (null on a replay desk), ib_stall_ms, tape_missing_since: number | null}`
   (`tape_missing_since`: epoch seconds the symbol's tape stopped keeping up, when it had; absent on rows before
   2026-10-14).
 - **The desk locks first** (owner `frontend/src/market_view/`). A symbol's view is stale while its Level 2 has
   had no frame or beat for `VIEW_SILENT_LOCK_MS` (750), a frame took more than `VIEW_TRANSIT_LOCK_MS` (500)
   from `sent` to arrival, or a received book has not been drawn for `VIEW_UNDRAWN_LOCK_MS` (500). Then Place,
-  the quick bar's and the hotkeys' priced actions and Fill now are locked with the reason (`data-why`); Flatten
-  and cancels never are. No age readout: locked or live.
+  the quick bar's and the hotkeys' priced actions and Fill now are locked with the reason (`data-why`) for a new
+  buy or short; a sell, a cover (`market_view.orderCloses`, hotkeys `actionCloses`), Flatten and cancels never
+  are. No age readout: locked or live.
   - **No Level 2 is not "behind"** (operator decision 2026-10-13, #913: lock, with the true reason). A Level 2
     IBKR refused or ended (the socket's `error`) locks the symbol's orders at once and steadily, until a book
-    arrives: "No Level 2 for VLO: <IBKR's reason> Orders are locked until a Level 2 is live. Flatten and
-    cancels still work.", on a button reading "No Level 2 · locked". A retry's `subscribed` does not open it.
+    arrives: "No Level 2 for VLO: <IBKR's reason> New buys and shorts wait until a Level 2 is live. Sells,
+    covers, Flatten and cancels still work.", on a button reading "No Level 2 · locked". A retry's `subscribed` does not open it.
     On 2026-10-13 a refused line read "Market view behind · locked" and flipped open and locked every 1.2 s.
   - **The backend's own lock** (amendment 2026-10-14). The Time & Sales socket's `gate` (`{code, text}` or
     `null`, on every ping and as a `gate` frame when it changes) locks the symbol's orders with the door's words,

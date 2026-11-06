@@ -8,7 +8,7 @@ import {
   type QuantityMode,
 } from './orderEntry';
 import { useTopOfBook } from '../hotkeys/TopOfBookContext';
-import { useViewLock } from '../market_view';
+import { orderCloses, useViewLock } from '../market_view';
 import { TICKET_WHY_SENDING } from '../constantGroups/trader_chrome';
 import { TRADE_DEFAULTS_WAITING } from '../constantGroups/trade_defaults';
 import type { IbkrListingFlags } from '../types/ticker';
@@ -87,7 +87,7 @@ export function ManualOrderTicket({
   const { venue, generation } = useSyncExternalStore(subscribeConfirmedDeskVenue, getConfirmedDeskVenueSnapshot);
   const prefs = useTradeDefaultsPrefs(venue);
   const { topOfBook } = useTopOfBook();
-  const viewLockWhy = useViewLock(symbol);  // ADR 045: Level 2 behind the market locks Place
+  const viewLock = useViewLock(symbol);  // ADR 045: data behind the market locks a new buy or short
   // Only this symbol's live book prices a Market order's Cost (R36).
   const liveBook = topOfBook && topOfBook.symbol.toUpperCase() === symbol.trim().toUpperCase()
     ? { bid: topOfBook.bid, ask: topOfBook.ask }
@@ -100,6 +100,7 @@ export function ManualOrderTicket({
     clampTicketSide(orderSideToTicketSide(initial.side), allowShort),
   );
   const { side, shortEntry } = ticketSideToOrder(ticketSide);
+  const viewLockWhy = orderCloses(side, shortEntry, position?.qty) ? null : viewLock;
   const [orderType, setOrderType] = useState<ManualOrderType>(initial.orderType);
   const shortBlockReason = shortDisabledReason(ibkrStatus.short_enabled, listingIbkr, mode);
   const [quantityMode, setQuantityMode] = useState<QuantityMode>('shares');

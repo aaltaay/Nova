@@ -21,6 +21,7 @@ vi.mock('./placeConfirmPrefs', () => ({
 }));
 
 import { useManualOrderSubmission } from './useManualOrderSubmission';
+import { noteBackendGate, resetViewRegistryForTests } from '../market_view/viewRegistry';
 import {
   defaultTradeDefaultsPrefs,
   writeTradeDefaultsPrefs,
@@ -56,6 +57,25 @@ describe('useManualOrderSubmission gesture identity', () => {
     localStorage.clear();
     placeIbkrOrder.mockReset();
     placeIbkrOrder.mockResolvedValue({ ok: true, order_id: 7, error: null });
+  });
+
+  it('a lag stops a new buy at Confirm and never a sell or a cover (ADR 045 amendment 2026-11-06)', async () => {
+    noteBackendGate('AAPL', { code: 'TAPE_STALE', text: "AAPL's Time & Sales is behind." });
+    const buy = renderHook(() => useManualOrderSubmission(params()));
+    await act(async () => { await buy.result.current.executeOrder(); });
+    expect(placeIbkrOrder).not.toHaveBeenCalled();
+    expect(buy.result.current.result?.text ?? '').toContain('Time & Sales is behind');
+
+    const sell = renderHook(() => useManualOrderSubmission({ ...params(), side: 'SELL' as never }));
+    await act(async () => { await sell.result.current.executeOrder(); });
+    expect(placeIbkrOrder).toHaveBeenCalledTimes(1);
+
+    const cover = renderHook(() => useManualOrderSubmission({
+      ...params(), position: { symbol: 'AAPL', qty: -10 } as never,
+    }));
+    await act(async () => { await cover.result.current.executeOrder(); });
+    expect(placeIbkrOrder).toHaveBeenCalledTimes(2);
+    resetViewRegistryForTests();
   });
 
   it('places once when Submit fires twice inside one tick', async () => {

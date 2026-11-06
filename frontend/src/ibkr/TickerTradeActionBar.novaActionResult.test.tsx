@@ -111,7 +111,7 @@ describe('a Nova Action reports on the ticket (QA R35)', () => {
     publish({ ok: true, text: 'Exit order #12', symbol: 'GRML' });
     expect(last()?.textContent).toContain('Exit order #12');
     expect(last()?.className).toContain('ok');
-    expect(mocks.quickBar).toHaveBeenLastCalledWith({ status: false });
+    expect(mocks.quickBar).toHaveBeenLastCalledWith({ status: false, heldQty: POSITION.qty });
   });
 
   it('shows a refusal too', () => {

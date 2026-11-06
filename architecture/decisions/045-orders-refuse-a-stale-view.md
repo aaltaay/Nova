@@ -84,3 +84,32 @@ A send the IB loop started and did not finish within 30 s is `SEND_UNKNOWN`: Nov
 6. **The evidence goes to the operator, for IBKR.** IBKR's connectivity losses and restores (1100 / 1101 / 1102) are kept in the perf day file beside the farm notices (`ib_notice`). `py -3 tools/ibkr_feed_report.py --date YYYY-MM-DD` writes the day's IBKR feed incidents from Nova's own records -- connectivity losses, farm breaks, each Time & Sales stall with its lines, the Level 1 trades IBKR delivered during it and the prints it did not, chart-history silence, and Nova's reconnect attempts with their outcomes -- in words the operator can send to IBKR support. Nova never contacts IBKR itself.
 
 **Consequences.** An order on a stock whose Time & Sales is missing trades is refused before anything is sent, with the reason, and the ticket is locked before the click. A shared stall locks every affected stock at once. Paper's positions follow the market even while IBKR's tape is down. Whether Reconnect Data shortens a stall is measured on each incident. The cause upstream -- the Gateway's link to IBKR (six 1100s on 2026-10-14 between 08:34 and 09:24, with no Wi-Fi reconnect logged) -- is outside Nova; the report is what goes to IBKR.
+
+
+## Amendment 2026-11-06 -- Getting out is never locked, and Time & Sales says when the trade happened
+
+**Decided by:** the operator, 2026-11-06, after the ticket locked on a VIVK Paper position at the open:
+- "we should never, ever just be locking the [sell]"
+- "I only probably would say lock the buy"
+- "the data is not being honest, and we need honest data."
+
+**What happened.** The operator bought 2,000 VIVK at 0.8198 at 09:29:57 ET. The ticket read "Time & Sales behind · locked" from 09:30:05 to 09:30:20 (15.2 s), and they flattened at 09:30:22 at 0.8676. A priced sell was locked because the gate covered every hand order and only Flatten and cancels were exempt: nothing had ever separated getting out from getting in.
+
+Measured against IBKR's own record of the trades (`reqHistoricalTicks`, 5,799 trades, 09:29:58-09:30:26), print by print:
+
+- The tape really was behind. Trades of 09:30:01 reached Nova a median 3.5 s after IBKR's second, those of 09:30:03 7.3 s after, then the backlog drained at about 0.4 s a second, under 1 s by 09:30:21. (IBKR's stamp is a whole second, so each figure can read up to 1 s high.) No volume was lost: by 09:30:27 the tape held what IBKR's record did, within the last second's flow.
+- IBKR's record and Level 1's volume agree to the second, and in every lock line Level 1's newest trade was the wall clock's own second. The same trades reached Nova on time on Level 1 and late on AllLast, over the one socket Nova holds to IB Gateway.
+- Nova held each print at most 12.3 ms from arrival to its handler; the IB thread's worst delay was 86 ms and no loop stalled. The desk was on Ethernet with no adapter errors and no Wi-Fi events. LRCU and AEHG, printing a few times a second, stayed under 1.6 s through the same seconds.
+- So the hold-up is before Nova's socket and on AllLast alone. Whether it sits inside IB Gateway on the desk PC or in IBKR's tick-by-tick service is **not settled**: nothing Nova records can separate them.
+- Nova made it worse. A Time & Sales row showed the print's arrival time, so a trade from 09:30:03 read 09:30:10 at 09:30:10: an old trade stamped as if it had just happened.
+- 7 of the day's 14 lock windows lasted about a second (FROG, 08:17-08:39). After a quiet stretch a Level 1 trade lands just ahead of its print, which is normal (prints trailed IBKR's second by at most 1.7 s across VIVK's 99,487 recorded that morning), and the rule locked with "no further wait".
+
+**Decision.**
+
+1. **A close is never refused for lag.** A SELL without `short_entry`, a BUY covering a short, and a replace of a working order that closes go through the gate whatever it finds (`market_view.gate.closes`). The verdict is `close`, with the code it would have been refused under, so the row keeps the evidence. It has no send deadline. The desk's ticket, quick bar, hotkeys and Fill now do not lock them. This replaces decision 1's refusal for these orders, on every venue.
+2. **New buys and shorts still lock while the data is bad**, on everything this ADR already judges.
+3. **A trade must go unprinted before it counts.** A Level 1 trade `TAPE_DEAD_L1_LEAD_SEC` past the tape's newest print locks only after it has stayed that way for `TAPE_PRINT_WAIT_SEC` (2). A tape that stays behind, dead or lagging, still locks; a print that was merely in flight no longer does.
+4. **The lock says what it measured.** "VIVK's Time & Sales is behind: its newest print is from 09:30:03 ET, while IBKR's Level 1 shows trades up to 09:30:06 ET": both on IBKR's clock. It used to print the arrival time beside IBKR's, which read "09:30:06 ... up to 09:30:06", and "missing" for prints that were late.
+5. **A Time & Sales row shows when the trade happened**: IBKR's second (`exchange_ts`), arrival only when that is missing. Prints stay in arrival order, so a tape running behind is visible row by row, with no readout. The print's `time` / `ts` on the wire are unchanged.
+
+**Consequences.** A sell priced from a screen that lags can rest above the market, as APUS's did (decision 1 of this ADR existed for that case). It shows as Working, and Flatten and cancels still clear it. The operator chose this over a locked exit. Kill switch, disarm, a changed venue and the share checks (`OVERSELL`, `NO_POSITION`, `POSITION_UNAVAILABLE`) are not lag and are unchanged.

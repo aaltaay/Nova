@@ -54,6 +54,7 @@ from constants_tape import (
     TAPE_DEAD_L1_LEAD_SEC,
     TAPE_PIPELINE_DEAD_SEC,
     TAPE_PIPELINE_SAME_SEC,
+    TAPE_PRINT_WAIT_SEC,
     TAPE_SILENT_BOOK_FRESH_SEC,
     TAPE_SILENT_SEC,
 )
@@ -70,10 +71,13 @@ QUIET = "quiet"
 
 # The (state, since) last written per symbol: one record per silence, however many sockets ping.
 _noted: dict[str, tuple[str, float]] = {}
+# (first, last) read that found a Level 1 trade the tape has not printed, per symbol.
+_unprinted: dict[str, tuple[float, float]] = {}
 
 
 def reset_for_tests() -> None:
     _noted.clear()
+    _unprinted.clear()
 
 
 def _num(value: Any) -> float | None:
@@ -203,10 +207,28 @@ def _effective_producer(sym: str) -> tuple[bool, dict[str, Any], bool]:
     return subscribed, producer, False
 
 
-def missed_trades(symbol: str, *, now: float | None = None) -> dict[str, Any] | None:
-    """The symbol's AllLast line is missing trades right now, or None (ADR 045 amendment 2026-10-14).
+def behind(symbol: str, *, now: float | None = None) -> dict[str, Any] | None:
+    """``missed_trades`` once it has held for TAPE_PRINT_WAIT_SEC of reads in a row: the order gate's question.
 
-    The order gate's and Paper's question, not the badge's: the Level 1 line reported a trade at least
+    A print in flight lands inside the wait; a tape that stays behind, dead or running late, does not. A gap
+    between reads starts the wait over (ADR 045 amendment 2026-11-06).
+    """
+    ts = time.time() if now is None else float(now)
+    sym = (symbol or "").strip().upper()
+    out = missed_trades(sym, now=ts)
+    if out is None:
+        _unprinted.pop(sym, None)
+        return None
+    first, last = _unprinted.get(sym, (ts, ts))
+    first = ts if ts - last > TAPE_PRINT_WAIT_SEC else first
+    _unprinted[sym] = (first, ts)
+    return out if ts - first >= TAPE_PRINT_WAIT_SEC else None
+
+
+def missed_trades(symbol: str, *, now: float | None = None) -> dict[str, Any] | None:
+    """The symbol's AllLast line is behind its Level 1 right now, or None (ADR 045 amendment 2026-10-14).
+
+    Paper's question and the re-ask's, not the badge's: the Level 1 line reported a trade at least
     TAPE_DEAD_L1_LEAD_SEC after the line's last print (or its opening) by IBKR's second, with no wait
     for TAPE_SILENT_SEC. ``{since, last_print_ts, l1_trade_ts, text}``. None with no line on this IBKR
     session (no tape to judge), while the symbol is halted, or while the tape keeps up. Memory only.
@@ -228,12 +250,13 @@ def missed_trades(symbol: str, *, now: float | None = None) -> dict[str, Any] | 
     ts = time.time() if now is None else float(now)
     if halt_status.halted_now([sym], now=ts).get(sym) is True:
         return None
-    no_print = f"its last print came at {_clock(last)}" if last else "it has printed nothing since it opened"
+    newest = _num(producer.get("last_print_exchange_ts")) or last   # the same clock as the Level 1 trade beside it
+    no_print = f"its newest print is from {_clock(newest)}" if newest else "it has printed nothing since it opened"
     return {
         "since": silence_start(last_print_ts=last, line_since=opened),
         "last_print_ts": last,
         "l1_trade_ts": trade,
-        "text": (f"{sym}'s Time & Sales is missing trades: {no_print}, while IBKR's Level 1 shows trades "
+        "text": (f"{sym}'s Time & Sales is behind: {no_print}, while IBKR's Level 1 shows trades "
                  f"up to {_clock(trade)}."),
     }
 
