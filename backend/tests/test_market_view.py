@@ -179,7 +179,7 @@ def test_book_and_beat_frames_say_how_current_the_book_is():
     frame = json.loads(book_frame("APUS", item, now=124.0))
     assert frame == {"type": "book", "symbol": "APUS", "data": item.book, "seq": 7, "at": 123.5, "sent": 124.0}
     assert json.loads(beat_frame("APUS", now=125.0)) == {
-        "type": "beat", "symbol": "APUS", "seq": 0, "at": None, "now": 125.0,
+        "type": "beat", "symbol": "APUS", "seq": 0, "at": None, "now": 125.0, "first_book": None,
     }
     versions.bump(versions.BOOK, "APUS", at=126.0)
     assert json.loads(beat_frame("APUS", now=127.0))["seq"] == 1

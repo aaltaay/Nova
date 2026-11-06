@@ -54,6 +54,12 @@ _book_at: dict[str, float] = {}
 # more than one place at once). Only the LAST viewer closing should release.
 _ws_viewers: dict[str, int] = {}
 
+# symbol -> when its live line was requested, and when that request first delivered a book with a row
+# (epoch seconds). A request with no rows yet is not a live view (ADR 045 amendment 2026-10-27, #913);
+# each new request starts again, so an earlier request's book never counts.
+_requested_at: dict[str, float] = {}
+_first_rows_at: dict[str, float] = {}
+
 # symbol -> (when, what the ladder shows) for the line IBKR last refused (309); cleared by the
 # next request. A socket that subscribed in the same instant reads it instead of streaming beats.
 _refused: dict[str, tuple[float, str]] = {}
@@ -83,6 +89,8 @@ def reset_all() -> None:
     _books.clear()
     _ws_viewers.clear()
     _refused.clear()
+    _requested_at.clear()
+    _first_rows_at.clear()
     _error_hooked_ib_ids.clear()
     _shared_l1.clear()
     _line_ibs.clear()
@@ -115,10 +123,28 @@ def load_ib_types() -> bool:
         return False
 
 
-def stamp_line(symbol: str) -> None:
-    """The symbol's live line is requested on the current IBKR session."""
+def stamp_line(symbol: str, now: float | None = None) -> None:
+    """The symbol's live line is requested on the current IBKR session: it has no first book yet."""
     _generations[symbol] = line_session.generation()
     _refused.pop(symbol, None)
+    _requested_at[symbol] = time.time() if now is None else float(now)
+    _first_rows_at.pop(symbol, None)
+
+
+def note_rows(symbol: str, now: float | None = None) -> None:
+    """The symbol's live line delivered a book with a row (the IB loop's handlers; a dict write, no wait)."""
+    if symbol not in _first_rows_at:
+        _first_rows_at[symbol] = time.time() if now is None else float(now)
+
+
+def requested_at(symbol: str) -> float | None:
+    """When the symbol's live line was requested; None without a live line."""
+    return _requested_at.get(symbol) if is_live(symbol) else None
+
+
+def first_rows_at(symbol: str) -> float | None:
+    """When the symbol's live line's request first delivered a book with a row; None before that."""
+    return _first_rows_at.get(symbol) if is_live(symbol) else None
 
 
 def note_refused(symbol: str, message: str, now: float | None = None) -> None:
@@ -313,6 +339,8 @@ def pop_line_ib(symbol: str) -> Any | None:
 def clear_symbol(symbol: str) -> None:
     _tickers.pop(symbol, None)
     _generations.pop(symbol, None)
+    _requested_at.pop(symbol, None)
+    _first_rows_at.pop(symbol, None)
     _books.pop(symbol, None)
     _shared_l1.discard(symbol)
     drop_slot(symbol)

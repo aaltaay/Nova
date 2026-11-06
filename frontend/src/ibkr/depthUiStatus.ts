@@ -4,13 +4,15 @@
  * A lent line's sentence is lentWords.ts's (the ladder's and Time & Sales' alike).
  */
 
+/** `firstBookWait`: the backend's words once a subscribed line has gone too long without a book (#913). */
 export function depthEmptyMessage(
   symbol: string,
   connected: boolean,
   error: string | null,
+  firstBookWait: string | null = null,
 ): string {
   if (error) return error;
-  if (connected) return 'Waiting for book data…';
+  if (connected) return firstBookWait ?? 'Waiting for book data…';
   return `Connecting depth for ${symbol}…`;
 }
 

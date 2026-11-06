@@ -9,6 +9,7 @@ import { resolveReleaseTag } from './electron/releaseTagSource.mjs'
 import { readDevNovaApiKey, shouldInjectDevNovaApiKey } from './scripts/vite-nova-api-key'
 import { novaLaunchGatewayPlugin } from './scripts/vite-nova-launch-gateway'
 import { novaStartApiPlugin } from './scripts/vite-nova-start-api'
+import { LIVE_RELOAD_ENV, liveReloadRequested, novaReloadHoldPlugin } from './scripts/vite-nova-reload-hold'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -46,6 +47,15 @@ function applyLocalNovaApiKey(mode: string): void {
   if (key) process.env.VITE_NOVA_API_KEY = key
 }
 
+/** #612: open pages wait for the operator's Reload unless NOVA_DEV_LIVE_RELOAD=1 (env or .env). */
+function devReloadHeld(mode: string): boolean {
+  const value =
+    process.env[LIVE_RELOAD_ENV] ??
+    loadEnv(mode, __dirname, '')[LIVE_RELOAD_ENV] ??
+    loadEnv(mode, path.resolve(__dirname, '..'), '')[LIVE_RELOAD_ENV]
+  return !liveReloadRequested(value)
+}
+
 // https://vite.dev/config/
 export default defineConfig(({ command, mode }) => {
   // Vitest resolves this config with command === 'serve' too -- see
@@ -73,6 +83,10 @@ export default defineConfig(({ command, mode }) => {
     tailwindcss(),
     novaStartApiPlugin(),
     novaLaunchGatewayPlugin(),
+    // Dev server only (apply: 'serve'); Vitest resolves this config too and never holds.
+    ...(process.env.VITEST
+      ? []
+      : [novaReloadHoldPlugin({ hold: devReloadHeld(mode), repoRoot: path.resolve(__dirname, '..') })]),
     {
       name: 'inject-nova-window-title',
       transformIndexHtml(html) {

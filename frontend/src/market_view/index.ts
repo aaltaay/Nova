@@ -1,4 +1,5 @@
 export {
+  firstBookWords,
   forgetBackendGate,
   forgetBook,
   noteBackendGate,

@@ -27,6 +27,16 @@ export const LEVEL2_REFUSED_TAIL = 'Orders are locked until a Level 2 is live. F
 export const TICKET_LEVEL2_REFUSED_LABEL = 'No Level 2 · locked';
 
 /**
+ * A Level 2 that is open but has sent no book yet (operator decision 2026-10-27, #913 option 1). BKYI, 2026-10-13:
+ * IBKR never answered the request, the socket beat every 250 ms, and the ticket stayed open. Each `subscribed`
+ * locks until a book arrives; the backend's `BOOK_WAITING` reads the same.
+ */
+export const LEVEL2_WAITING_LEAD = 'No book yet on';
+export const LEVEL2_WAITING_TAIL = 'Orders are locked until its first book arrives. Flatten and cancels still work.';
+export const TICKET_LEVEL2_WAITING_LABEL = 'Waiting for Level 2 · locked';
+export const BOOK_WAITING_CODE = 'BOOK_WAITING';
+
+/**
  * The backend's own lock (ADR 045 amendment 2026-10-14, "one funnel"): the Time & Sales socket sends the order
  * gate's answer for the symbol (`market_view.gate.desk_lock`), and the ticket locks with the door's own words.
  * GENK, 2026-10-14: the tape missed every trade from 09:25:11 while an order went out at 09:25:19.
@@ -39,4 +49,4 @@ export const TICKET_FEED_LOCKED_LABEL = 'Nova behind the market · locked';
 export const VIEW_LOCK_REPORT_PATH = '/market-view/lock';
 
 /** The backend's refusal codes (`market_view.gate`). */
-export const VIEW_REFUSAL_CODES = ['VIEW_STALE', 'ORDER_LATE', 'FEED_STALE', 'TAPE_STALE', 'VIEW_MISSING'] as const;
+export const VIEW_REFUSAL_CODES = ['VIEW_STALE', 'ORDER_LATE', 'FEED_STALE', 'BOOK_WAITING', 'TAPE_STALE', 'VIEW_MISSING'] as const;

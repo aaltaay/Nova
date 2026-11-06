@@ -6,10 +6,16 @@ One dollar line for every account -- Live, Paper and Sim -- that counts your tra
 alike: since ADR 063 the **Account** line, beside a line for your trades and one for the bots' ("Three
 lines" below). It replaces the bot trip and the all-stop (ADR 032, superseded). Owner: `backend/loss_limit/`.
 
-**What it counts** (`loss_limit/count.py`, pure). Per account, the trades opened today (from 04:00 ET,
-`practice.clock.day_start_ts`, the plain calendar clock -- it turns on a Saturday and a Sunday too, where Day P&L and the
-boards walk back to Friday's session (`practice.clock.session_day_start_ts`, 2026-10-19); whether this reset should walk
-back as well is the operator's decision, not changed here): for each stock with fills today, the cash those fills moved (a buy pays, a sell
+**The desk day** (`loss_limit/state.desk_day`, operator decision 2026-10-27, #1090). The loss limit's day is the
+trading session the rest of the desk uses (`market.session_key_et`, read through `practice.clock.session_day_start_ts`):
+it begins at 04:00 ET of an exchange day, and a weekend or NYSE holiday belongs to the last exchange day before it.
+So a Friday's count and its warnings and trips hold through Saturday and Sunday and end at the next exchange day's
+04:00 ET -- Monday, or Tuesday after a Monday holiday (`market.next_exchange_day`). Weekdays are unchanged: 03:59 ET
+is still the day before, 04:00 ET the new day. Until 2026-10-27 it was the plain calendar clock
+(`practice.clock.day_start_ts`), which turned at 04:00 on a Saturday and a Sunday too and so cleared a Friday lock.
+
+**What it counts** (`loss_limit/count.py`, pure). Per account, the trades opened today (since the desk day began):
+for each stock with fills today, the cash those fills moved (a buy pays, a sell
 receives), less their commissions and fees, plus the shares still held at the account's own mark. A
 stock the account already held when the day began -- its shares now less today's net fills is not
 zero -- never counts and is never sold, however it was traded today. An open position with no usable
@@ -81,15 +87,15 @@ tripped_loss, limit_usd, sell, sold, sell_error}}}}` (`sell`: `pending` | `done`
 sell), `ACCOUNT` one of `live` / `paper` / `sim`, `LINE` one of `account` / `you` / `bots`. A version 1
 file kept one record per account (`accounts: {ACCOUNT: {warned_at, ...}}`); it reads as each account's
 `account` line, so a trip from before the upgrade still holds. A file from an earlier desk day reads
-empty. A file Nova cannot read reads empty with `error` set: the watcher counts again within a second
+empty; on a Saturday or Sunday Friday's file is still today's. A file Nova cannot read reads empty with `error` set: the watcher counts again within a second
 and trips again if the loss is still past the line. Any change to the setting clears today's records
 on every account and line.
 
 **On the wire.**
 
 - `GET /api/loss-limit` -> `{schema_version: 2, settings: {limit_usd, you_usd, bots_usd, warn,
-  no_new_buys, auto_sell, set_at, source: "operator" | "default", error}, day, until (epoch of the next
-  04:00 ET), accounts: {ACCOUNT: {name, counted_at, pnl, loss, unknown, stocks: [{symbol, pnl, shares,
+  no_new_buys, auto_sell, set_at, source: "operator" | "default", error}, day (the desk day's session key),
+  until (epoch of the next exchange day's 04:00 ET), accounts: {ACCOUNT: {name, counted_at, pnl, loss, unknown, stocks: [{symbol, pnl, shares,
   by: {you: {pnl, shares}, bots: {pnl, shares}}}], held_before: [symbol], costs_unknown, lines: {LINE:
   {on, pnl, loss, warned_at, warned_loss, tripped_at, tripped_loss, limit_usd, sell, sold, sell_error,
   no_new_buys: STOP | null}}, no_new_buys: {you: STOP | null, bots: STOP | null}}}, error, rules:
@@ -108,7 +114,7 @@ trades ($, empty: off), Bots' trades ($, empty: off), then Warn me, No new buys 
 what's held") for every line, each with a hover tip in the words above. The desk's notices read
 `GET /api/loss-limit` and raise one notice per account, line and day for a warning and for a trip
 younger than 10 minutes -- with the voice -- naming the line ("The bots' loss limit reached on Paper."),
-the account, the loss against the limit, and what followed (no new buys until 04:00 ET; each stock sold
+the account, the loss against the limit, and what followed (no new buys until the next exchange day's 04:00 ET; each stock sold
 with its order id, or why not). The voice and the Orders table name a close by its origin: `loss_limit`
 "Loss limit", `loss_limit_you` "Loss limit · You" (voice "Your loss limit."), `loss_limit_bots` "Loss
 limit · Bots" (voice "Bots' loss limit."); rows from before ADR 056 keep their `bot_trip` / `all_stop` labels.

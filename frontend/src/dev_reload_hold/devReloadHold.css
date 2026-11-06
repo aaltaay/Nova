@@ -1,0 +1,64 @@
+/* The browser development desk's pending-code notice and its folded chip (#612). */
+
+.nova-dev-hold,
+.nova-dev-hold-chip {
+  position: fixed;
+  left: 0.75rem;
+  bottom: 2.25rem;
+  z-index: 2147483000;
+  font-size: 0.78rem;
+  color: var(--nova-text, #e5e7eb);
+}
+
+.nova-dev-hold {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  max-width: min(32rem, calc(100vw - 1.5rem));
+  padding: 0.5rem 0.75rem;
+  background: color-mix(in srgb, var(--nova-accent, #f59e0b) 16%, var(--nova-panel, #111827));
+  border: 1px solid color-mix(in srgb, var(--nova-accent, #f59e0b) 55%, transparent);
+  border-radius: var(--radius-control, 6px);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 35%);
+}
+
+.nova-dev-hold__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.nova-dev-hold__line {
+  color: var(--nova-text-muted, #9ca3af);
+}
+
+.nova-dev-hold__actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 0.4rem;
+}
+
+.nova-dev-hold__btn,
+.nova-dev-hold-chip {
+  padding: 0.2rem 0.65rem;
+  font: inherit;
+  font-weight: 600;
+  color: var(--nova-text, #e5e7eb);
+  background: var(--nova-raised, #1f2937);
+  border: 1px solid var(--nova-border-strong, #4b5563);
+  border-radius: var(--radius-control, 6px);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.nova-dev-hold__btn--primary {
+  color: #fff;
+  background: var(--nova-accent, #f59e0b);
+  border-color: var(--nova-accent, #f59e0b);
+}
+
+.nova-dev-hold-chip {
+  border-color: color-mix(in srgb, var(--nova-accent, #f59e0b) 70%, transparent);
+}

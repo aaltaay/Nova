@@ -65,6 +65,14 @@ def previous_exchange_day(day: date) -> date:
     return day
 
 
+def next_exchange_day(day: date) -> date:
+    """The exchange day strictly after ``day``: the walk forward over weekends and NYSE holidays."""
+    day += timedelta(days=1)
+    while not is_exchange_day(day):
+        day += timedelta(days=1)
+    return day
+
+
 def news_window_start(now: datetime | None = None) -> datetime:
     """Where the news for the trading session on screen begins: the previous exchange day's close (16:00 ET,
     13:00 on an NYSE early close).

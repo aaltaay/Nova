@@ -27,6 +27,11 @@ FEED_STALE = "FEED_STALE"
 # The symbol's Time & Sales is missing trades its Level 1 reports (ADR 045 amendment 2026-10-14).
 TAPE_STALE = "TAPE_STALE"
 VIEW_MISSING = "VIEW_MISSING"
+# A live Level 2 line that has not delivered a book with a row since its request (amendment 2026-10-27, #913).
+BOOK_WAITING = "BOOK_WAITING"
+# How long a Level 2 request waits for its first book before its words say what IBKR has done (#913).
+# Information only: the request is never cancelled, its slot never freed, no gate changes.
+MARKET_VIEW_FIRST_BOOK_WAIT_SEC = 5.0
 
 # A Time & Sales socket re-asks the gate (``desk_lock``) this often while prints flow, and sends its
 # answer as a ``gate`` frame when it changes; each idle ping carries it too (amendment 2026-10-14).

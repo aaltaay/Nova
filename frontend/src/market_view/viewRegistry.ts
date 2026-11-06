@@ -16,6 +16,11 @@
  * On 2026-10-13 a refused line instead read "behind" and flipped open and locked every 1.2 s, because
  * each retry's `subscribed` restarted the silence clock. Every flip is reported to the backend log.
  *
+ * A Level 2 that is open but has sent no book is not live either (operator decision 2026-10-27, #913): each
+ * `subscribed` locks its symbol until a `book` frame arrives, or a `beat` says the line already has its first
+ * book (`first_book: null`). Beats alone never open it -- BKYI's ticket stayed open on 2026-10-13 while IBKR
+ * never answered its request and the socket beat every 250 ms.
+ *
  * The backend judges what it knows without the screen -- the feed, the IB loop and the symbol's Time & Sales -- and
  * the Time & Sales socket sends that answer (`noteBackendGate`): while it says locked, orders lock with the door's
  * own words, Level 2 or not (ADR 045 amendment 2026-10-14). GENK's tape missed every trade from 09:25:11 on
@@ -23,13 +28,19 @@
  *
  * In memory, per window. Desk and backend run on one machine (the backend binds 127.0.0.1), so the
  * backend's `sent` / `now` and this window's `Date.now()` are one clock.
+ *
+ * maintainer: one-concern every frame that decides whether a symbol's orders lock is judged in this one place
  */
 import {
+  BOOK_WAITING_CODE,
   LEVEL2_REFUSED_LEAD,
   LEVEL2_REFUSED_TAIL,
+  LEVEL2_WAITING_LEAD,
+  LEVEL2_WAITING_TAIL,
   TAPE_STALE_CODE,
   TICKET_FEED_LOCKED_LABEL,
   TICKET_LEVEL2_REFUSED_LABEL,
+  TICKET_LEVEL2_WAITING_LABEL,
   TICKET_TAPE_LOCKED_LABEL,
   TICKET_VIEW_LOCKED_LABEL,
   VIEW_LOCK_TAIL,
@@ -60,6 +71,10 @@ interface BookView {
   atBySeq: Map<number, number | null>;
   /** IBKR refused or ended this Level 2 (the socket's `error` message); cleared by the next book. */
   refused: string | null;
+  /** Subscribed, and no book since (#913): set by every `subscribed`, cleared by a book or `first_book: null`. */
+  awaitingFirstBook: boolean;
+  /** The backend's words for that wait once it is overdue (`first_book.text`), else null. */
+  firstBookText: string | null;
 }
 
 interface QuoteView {
@@ -104,7 +119,7 @@ function bookFor(symbol: string): BookView {
     view = {
       instance: null, latestSeq: null, receivedSeq: null, lastWordWall: null, transitMs: null,
       shownSeq: null, shownAt: null, shownBid: null, shownAsk: null, behindSince: null, atBySeq: new Map(),
-      refused: null,
+      refused: null, awaitingFirstBook: false, firstBookText: null,
     };
     books.set(k, view);
   }
@@ -124,6 +139,9 @@ export function noteSubscribed(symbol: string, instance: unknown, wall = Date.no
   const view = bookFor(symbol);
   view.instance = typeof instance === 'string' ? instance : null;
   view.lastWordWall = wall;
+  // A new request, retry or reconnect: only a book sent after this one proves the line (#913).
+  view.awaitingFirstBook = true;
+  view.firstBookText = null;
 }
 
 /** A `book` frame arrived. */
@@ -137,6 +155,8 @@ export function noteBookFrame(
   const sent = num(frame.sent);
   view.lastWordWall = wall;
   view.refused = null; // a book proves the line
+  view.awaitingFirstBook = false;
+  view.firstBookText = null;
   view.transitMs = sent != null ? Math.max(0, wall - sent * 1000) : null;
   if (seq != null) {
     view.receivedSeq = seq;
@@ -157,10 +177,30 @@ export function noteRefused(symbol: string, message: string): void {
   bookFor(symbol).refused = message.trim() || 'IBKR ended this Level 2.';
 }
 
-/** A `beat` arrived: the line's newest version as of the backend's `now`. */
-export function noteBeat(symbol: string, frame: { seq?: unknown; now?: unknown }, wall = Date.now()): void {
+/** A beat's `first_book` words once overdue (#913); null within the wait, after the first book, or absent. */
+export function firstBookWords(firstBook: unknown): string | null {
+  if (!firstBook || typeof firstBook !== 'object') return null;
+  const fb = firstBook as { overdue?: unknown; text?: unknown };
+  return fb.overdue === true && typeof fb.text === 'string' && fb.text.trim() ? fb.text.trim() : null;
+}
+
+/**
+ * A `beat` arrived: the line's newest version as of the backend's `now`, and `first_book` -- null once the line's
+ * request has delivered a book, else what it waits for (#913). An older backend leaves `first_book` out.
+ */
+export function noteBeat(
+  symbol: string,
+  frame: { seq?: unknown; now?: unknown; first_book?: unknown },
+  wall = Date.now(),
+): void {
   const view = bookFor(symbol);
   view.lastWordWall = wall;
+  if (frame.first_book === null) {
+    view.awaitingFirstBook = false;   // the line has its book (another viewer's, or one with no rows now)
+    view.firstBookText = null;
+  } else if (frame.first_book !== undefined) {
+    view.firstBookText = firstBookWords(frame.first_book);
+  }
   const now = num(frame.now);
   // A beat that took long to arrive says the socket is behind, just like a slow book frame.
   if (now != null) view.transitMs = Math.max(0, wall - now * 1000);
@@ -237,6 +277,10 @@ export function viewLockReason(symbol: string | null | undefined, now = Date.now
   if (silent > VIEW_SILENT_LOCK_MS) {
     return `Level 2 is behind the market: no word from Nova for ${secs(silent)}. ${VIEW_LOCK_TAIL}`;
   }
+  if (view.awaitingFirstBook) {
+    const detail = view.firstBookText ? `${view.firstBookText} ` : '';
+    return `${LEVEL2_WAITING_LEAD} ${key(symbol)}'s Level 2. ${detail}${LEVEL2_WAITING_TAIL}`;
+  }
   if (view.transitMs != null && view.transitMs > VIEW_TRANSIT_LOCK_MS) {
     return `Level 2 is behind the market: its last update took ${secs(view.transitMs)} to arrive. ${VIEW_LOCK_TAIL}`;
   }
@@ -246,12 +290,18 @@ export function viewLockReason(symbol: string | null | undefined, now = Date.now
   return null;
 }
 
-/** The order button's words for a lock reason: Time & Sales behind, Nova behind, no Level 2, or Level 2 behind. */
+/**
+ * The order button's words for a lock reason: Time & Sales behind, Nova behind, no Level 2, waiting for Level 2's
+ * first book, or Level 2 behind.
+ */
 export function viewLockLabel(why: string): string {
   for (const gate of gates.values()) {
-    if (gate.text === why) return gate.code === TAPE_STALE_CODE ? TICKET_TAPE_LOCKED_LABEL : TICKET_FEED_LOCKED_LABEL;
+    if (gate.text !== why) continue;
+    if (gate.code === TAPE_STALE_CODE) return TICKET_TAPE_LOCKED_LABEL;
+    return gate.code === BOOK_WAITING_CODE ? TICKET_LEVEL2_WAITING_LABEL : TICKET_FEED_LOCKED_LABEL;
   }
-  return why.startsWith(LEVEL2_REFUSED_LEAD) ? TICKET_LEVEL2_REFUSED_LABEL : TICKET_VIEW_LOCKED_LABEL;
+  if (why.startsWith(LEVEL2_REFUSED_LEAD)) return TICKET_LEVEL2_REFUSED_LABEL;
+  return why.startsWith(LEVEL2_WAITING_LEAD) ? TICKET_LEVEL2_WAITING_LABEL : TICKET_VIEW_LOCKED_LABEL;
 }
 
 /** What an order says it was priced from (ADR 045): the moment and the versions on screen. */

@@ -58,7 +58,13 @@ the order reached the backend 2-3 s after the click and rested above the market.
   - `{"type": "book", "symbol", "data": {bids, asks, l1_fallback}, "seq", "at", "sent"}` -- `data` unchanged.
   - `{"type": "beat", "symbol", "seq", "at", "now"}` every `MARKET_VIEW_BEAT_SEC` (0.25) without a book frame:
     the line's newest version (`seq` 0 and `at` null before its first book) as of `now`. It replaces the
-    15 s `ping`.
+    15 s `ping`. `first_book` (amendment 2026-10-27, #913): `null` while the line has delivered a book with a
+    row since its request (always `null` on a Sim desk off the live edge, and for a replay slot), else
+    `{since, state, overdue, text}` -- `since` epoch seconds of the request, `state` `"waiting"` (within
+    `MARKET_VIEW_FIRST_BOOK_WAIT_SEC`, 5), `"unanswered"` (IBKR has not answered it), `"granted"` (IBKR
+    granted it but sent no rows), `"refused"` (IBKR refused it; the line is being let go) or `"l1_waiting"`
+    (the Level 1 fallback has no bid or ask), `overdue`
+    true past the wait, and `text` the ladder's words. Absent from an older backend.
 - **Time & Sales** (`/ws/ibkr/tape/{symbol}`). Each viewer's prints wait in a thread-safe FIFO
   (`IBKR_TAPE_QUEUE_MAXSIZE`, oldest dropped and counted in `tape.viewer_dropped`) with the same wake-up; two or
   more waiting prints go as one `{"type": "prints", "symbol", "items": [print...], "sent"}` frame, a single one
@@ -87,9 +93,15 @@ the order reached the backend 2-3 s after the click and rested above the market.
     trade (IBKR's Last Timestamp or RTVolume time) at least `TAPE_DEAD_L1_LEAD_SEC` (3) after the line's last
     print by IBKR's second (or after the line opened) -- with no further wait (`ibkr.tape_silence.missed_trades`).
     No line, no judgment; never on a Sim desk off the live edge;
+  - `BOOK_WAITING` (amendment 2026-10-27, #913, operator option 1): Nova holds a live IBKR Level 2 line for the
+    symbol (depth or its Level 1 fallback, whoever asked for it) that has not delivered a book with a row since
+    that request (`ibkr.depth.first_book.waiting`). A new request, retry or reconnect starts again. No line, no
+    judgment (the quote path above applies); never on a Sim desk off the live edge. Past
+    `MARKET_VIEW_FIRST_BOOK_WAIT_SEC` (5) its words say whether IBKR has not answered or granted the line
+    without rows, and the log says so once per request; nothing is cancelled or freed;
   - `VIEW_MISSING`: no `view` (an older desk).
 
-  `FEED_STALE` and `TAPE_STALE` are one function, `market_view.gate.desk_lock(symbol)` -> `{code, text} | null`:
+  `FEED_STALE`, `BOOK_WAITING` and `TAPE_STALE` are one function, `market_view.gate.desk_lock(symbol)` -> `{code, text} | null`:
   the door refuses with its `text` + " Nothing was sent.", and the same answer is
   `GET /api/market-view/gate?symbol=` -> `{schema_version: 1, symbol, locked: boolean, code: string | null,
   text: string | null, checked_at}` and the Time & Sales socket's `gate` (market-data.md), so the ticket's lock
@@ -100,9 +112,10 @@ the order reached the backend 2-3 s after the click and rested above the market.
   backend's wall clocks, sound because the backend binds 127.0.0.1; an action more than 1 s in the backend's
   future is `VIEW_STALE` ("the clocks disagree"). The execution row's payload keeps `view` and `view_check:
   {schema_version: 1, verdict: "ok" | "refused" | "exempt" | "missing", code, arrival_ms, book_lag_ms,
-  quote_lag_ms, feed_gap: boolean | null (null on a replay desk), ib_stall_ms, tape_missing_since: number | null}`
+  quote_lag_ms, feed_gap: boolean | null (null on a replay desk), ib_stall_ms, tape_missing_since: number | null, book_waiting_since: number | null}`
   (`tape_missing_since`: epoch seconds the symbol's tape stopped keeping up, when it had; absent on rows before
-  2026-10-14).
+  2026-10-14; `book_waiting_since`: epoch seconds the symbol's live Level 2 request was made, while it had no
+  first book, absent on rows before 2026-10-27).
 - **The desk locks first** (owner `frontend/src/market_view/`). A symbol's view is stale while its Level 2 has
   had no frame or beat for `VIEW_SILENT_LOCK_MS` (750), a frame took more than `VIEW_TRANSIT_LOCK_MS` (500)
   from `sent` to arrival, or a received book has not been drawn for `VIEW_UNDRAWN_LOCK_MS` (500). Then Place,
@@ -113,6 +126,12 @@ the order reached the backend 2-3 s after the click and rested above the market.
     arrives: "No Level 2 for VLO: <IBKR's reason> Orders are locked until a Level 2 is live. Flatten and
     cancels still work.", on a button reading "No Level 2 · locked". A retry's `subscribed` does not open it.
     On 2026-10-13 a refused line read "Market view behind · locked" and flipped open and locked every 1.2 s.
+  - **No book yet is not live** (operator decision 2026-10-27, #913 option 1). After each `subscribed` the
+    symbol's orders lock until a `book` frame arrives or a `beat` carries `first_book: null`: "No book yet on
+    BKYI's Level 2. <the beat's `first_book.text`, once known> Orders are locked until its first book arrives.
+    Flatten and cancels still work.", on a button reading "Waiting for Level 2 · locked" (the backend's `BOOK_WAITING` `gate` reads
+    the same). Heartbeats and repeated `subscribed` frames never open it. The ladder's empty message shows the
+    beat's `first_book.text` once `overdue`.
   - **The backend's own lock** (amendment 2026-10-14). The Time & Sales socket's `gate` (`{code, text}` or
     `null`, on every ping and as a `gate` frame when it changes) locks the symbol's orders with the door's words,
     Level 2 or not, on a button reading "Time & Sales behind · locked" (`TAPE_STALE`) or "Nova behind the market

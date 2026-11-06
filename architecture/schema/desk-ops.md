@@ -637,6 +637,77 @@ Release; a PR delivery dispatch runs every check and releases when green. Hand
 tag: `py -3 tools/bump_version.py --ensure-tag --push-tag`; re-run:
 `gh workflow run desktop-pack.yml --ref vNNN`.
 
+**The browser development desk holds new code (#612; operator decision
+2026-10-27: "always wait for my Reload click").** A page the Vite dev server
+serves (`npm run dev`, the browser desk `Run Nova.bat` opens, its pop-outs,
+`npm run electron:dev`) never hot-replaces its code, reloads itself, changes
+its route or symbol or resets a chart because the checkout changed under it --
+an agent's edit, a pull, or the installed desk's backend bringing the
+checkout to its release (ADR 038 amendment). It shows a pending-code notice,
+and only its Reload button applies the code, at any hour. Owners:
+`frontend/scripts/vite-nova-reload-hold.ts` (the dev server) and
+`frontend/src/dev_reload_hold/` (the page). Builds have no dev server and
+compile the page side away (`import.meta.env.DEV`), so the installed desk, `npm
+run build`, the demo build (`npm run build:demo`) and the installed-release
+follow behave exactly as before. How each path is held, checked against the
+pinned Vite (8.3.4):
+
+- *A source file changed, was created or deleted (CSS too):* the dev server
+  runs with `server.hmr: false`, so Vite sends no `update`. Its module graph
+  still follows the disk, so a newly opened or reloaded page loads current code.
+- *An HTML entry changed, and every other Vite `full-reload` (dependency
+  re-optimization, a `tsconfig` change):* the hot channel drops `full-reload`
+  while HMR is off, and the plugin wraps `server.ws.send` (the client
+  environment's channel) so any `update`, `full-reload` or `prune` that is
+  still sent becomes a pending-code notice instead.
+- *`vite.config.ts`, a file it imports, or an `.env` file changed:* Vite does
+  not restart by itself while HMR is off, so the plugin announces the change
+  and restarts the server as Vite would; open pages are then held by the next
+  path.
+- *The dev server stopped or restarted (a config or dependency change, a new
+  `npm run dev`):* `@vite/client`, on losing its socket, polls the server and
+  then reloads unconditionally. It awaits every `vite:ws:disconnect` listener
+  first (`notifyListeners`, `Promise.allSettled`), and the page's listener
+  never settles, so the page is not reloaded; the notice says the dev server
+  stopped, the page asks it for its HTML every 2 s, and once it answers the
+  notice says it restarted and, from that HTML's meta tag, which `head` it
+  serves now. The page keeps the same never-settling
+  listener on `vite:beforeUpdate` and `vite:beforeFullReload` as a second
+  guard. This rests on `@vite/client`'s order, not a documented promise: a
+  Vitest suite reads the installed client and fails when the order changes, so
+  a Vite upgrade re-checks it.
+- *Not held:* a module the page has never loaded (a lazy page or pane opened
+  for the first time after a change) is served from disk when it first loads,
+  bound to the modules the page already runs; after a restart whose
+  dependencies changed such a first load can fail. The notice is already up by
+  then and Reload fixes it. The operator's own reload (F5, the browser's
+  button) reloads as always.
+
+*The wire.* Server to every open page, custom HMR event `nova:dev-code`
+`{schema_version: 1, boot, seq, head, at, recent: [{seq, kind, file}]}`, sent
+200 ms after the last of a burst of changes: `boot` names this dev-server
+start, `seq` counts the held changes since it, `head` is the checkout's `git
+rev-parse --short HEAD` when read (`null` when git cannot say), `at` ISO time,
+`recent` the last 20 changes, newest first (`kind`: `source`, `html`, `config`
+or `reload` -- a Vite reload or update the plugin held; `file` relative to
+`frontend/`, `null` for a `reload`). A page sends `nova:dev-code:hello` once it
+starts and the server answers that page alone with the same object. The page's
+own revision is the one its HTML was served with: `<meta name="nova-dev-code"
+content="<boot>.<seq>" data-head="<head>">`. A page is pending when the
+server's `<boot>.<seq>` differs from its own; the notice counts the changes
+after its own `seq` (every listed one, "the dev server restarted", across a
+`boot` change), names up to three files, and says "this page runs <head>; the
+checkout is at <head>" when the two differ.
+
+*The notice.* A strip at the bottom left of every window and pop-out (each
+has its own socket, so each says the same). Reload is `location.reload()`;
+Later folds it into a small "Code pending" chip that opens it again -- folded,
+nothing applies and nothing reloads. It never takes keyboard focus.
+`NOVA_DEV_LIVE_RELOAD` (`1` / `true` / `yes` / `on`; the process env,
+`frontend/.env` or the repository `.env`, read when the dev server starts)
+restores Vite's normal hot updates and reloads for development work: no meta
+tag, no notice. Vitest never loads the hold. Nothing is persisted.
+
 ## Filing an issue from the desk (operator ask, 2026-09-24)
 
 "When I do the update, I can also click and say 'File an issue' ... it goes

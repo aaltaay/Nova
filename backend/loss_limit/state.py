@@ -4,7 +4,7 @@ The file ``loss-limit-state.json`` in the operator cache (``architecture/schema/
 ``{schema_version: 2, day: "YYYY-MM-DD", accounts: {ACCOUNT: {LINE: {warned_at, warned_loss,
 tripped_at, tripped_loss, limit_usd, sell, sold, sell_error}}}}`` (``LINE`` one of ``account`` /
 ``you`` / ``bots``; ``sell``: ``pending`` | ``done``, Auto sell only). Owner: this module.
-Invalidation: a file from an earlier desk day (04:00 ET, ``practice.clock``) reads empty; any change
+Invalidation: a file from an earlier desk day (04:00 ET of the trading session, ``day_start``) reads empty; any change
 to the setting clears today's records (``clear``). A version 1 file -- one record per account, the
 one line ADR 056 had -- reads as each account's Account line, so a trip from before the upgrade
 still holds. An unreadable file or an unknown version reads as no trip -- logged and stated in
@@ -44,12 +44,26 @@ def path() -> Path:
     return cache_dir() / LOSS_LIMIT_STATE_FILE
 
 
-def desk_day(ts: float) -> tuple[str, float]:
-    """The desk day at ``ts`` (it turns at 04:00 ET) and the epoch second the next one begins."""
-    from practice.clock import at, day_start_ts
+def day_start(ts: float) -> float:
+    """The epoch second the desk day ``ts`` belongs to began: 04:00 ET of its trading session.
 
-    start = at(day_start_ts(ts))
-    return start.date().isoformat(), (start + timedelta(days=1)).timestamp()
+    The session is the rest of the desk's (``market.session_key_et``): a weekend or NYSE holiday belongs
+    to the last exchange day before it, so a Friday's count holds until the next exchange day (#1090).
+    """
+    from practice.clock import session_day_start_ts
+
+    return session_day_start_ts(ts)
+
+
+def desk_day(ts: float) -> tuple[str, float]:
+    """The desk day at ``ts`` and the epoch second the next one begins: the next exchange day's 04:00 ET."""
+    from market import next_exchange_day
+    from practice.clock import at
+
+    start = at(day_start(ts))
+    after = next_exchange_day(start.date())
+    # Same wall clock on the later date: 04:00 ET in either offset across a DST weekend.
+    return start.date().isoformat(), (start + timedelta(days=(after - start.date()).days)).timestamp()
 
 
 def _lines(row: Any) -> dict[str, dict[str, Any]]:
@@ -143,7 +157,7 @@ def clear(now: float | None = None) -> None:
 
 
 def until(now: float | None = None) -> float:
-    """The epoch second today's records end: the next 04:00 ET."""
+    """The epoch second today's records end: the next exchange day's 04:00 ET."""
     return desk_day(time.time() if now is None else float(now))[1]
 
 
