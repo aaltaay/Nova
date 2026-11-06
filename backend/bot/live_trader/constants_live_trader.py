@@ -35,6 +35,7 @@ LT_DEFAULT_ALLOWANCE_USD = 2500.0
 LT_DEFAULT_SIDES = "both"               # "long" | "both"
 LT_DEFAULT_SHORT_STOP_PCT = 5.0         # a short's buy stop over its entry
 LT_DEFAULT_TAKE_OPEN = True             # positions already open: take one step (within the misread rule)
+LT_DEFAULT_SELL_ON_ADD = False          # a Paper test (2026-11-04): sell all when the host adds and the bot is losing
 LT_DEFAULT_SELL_ALL_AT = "15:55"        # ET; the early close's 12:55 comes first (short_sale.hours)
 
 LT_STEP_USD_BOUNDS = (50.0, 10_000.0)
@@ -122,6 +123,11 @@ LT_ADD_IS_SALE = "LT_ADD_IS_SALE"        # the average moved away from the marke
 LT_NO_CLOCK = "LT_NO_CLOCK"
 LT_BLANK_BAR = "LT_BLANK_BAR"
 LT_RETURN_SWITCH = "LT_RETURN_SWITCH"
+LT_SSR_UNKNOWN = "LT_SSR_UNKNOWN"        # a wait: the short's SSR is being read, so it is not priced over the bid yet
+LT_NOT_FILLED = "LT_NOT_FILLED"          # a step its time to live cancelled: nobody took it at its limit
+
+# -- a close's kind (bot.md, "Selling on a losing add") --------------------------------------------
+LT_SELL_ON_ADD = "sell_on_add"
 
 # -- route errors ---------------------------------------------------------------------------------
 LT_ERR_INVALID = "LIVE_TRADER_INVALID"

@@ -91,7 +91,7 @@ def test_a_write_that_sends_the_retired_daily_cap_is_refused_with_where_it_went(
         with pytest.raises(TemplateError) as err:
             call()
         assert err.value.code == "TEMPLATE_INVALID" and err.value.field == "bot_entries_per_day"
-        assert "sleeve" in err.value.message and "entries_per_day" in err.value.message
+        assert "no daily cap" in err.value.message
     assert "bot_entries_per_day" not in {p["key"] for g in catalogue.wire(FP)["groups"] for p in g["params"]}
 
 

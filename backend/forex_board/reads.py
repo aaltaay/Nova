@@ -4,8 +4,8 @@
   (``NoHeadroom``) while fewer than ``IBKR_BRIEF_MIN_FREE_LINES`` lines are spare. Spot forex needs no extra IBKR
   market-data subscription.
 - ``bars``: an instrument's bars through the paced historical service at background priority, under the pacing kind
-  ``forex`` -- shed (``HistoricalShed``) while ``headroom()`` or fewer of the 10-minute 60 are left: the Market and
-  Global pages' own 30, or 40 while one of them shows and this one does not.
+  ``forex`` -- shed (``HistoricalShed``) while ``headroom()`` or fewer of the 10-minute window are left: the Market and
+  Global pages' own line, or ten more while one of them shows and this one does not.
 
 An instrument IBKR refuses (no permission, unknown contract) raises ``Refused`` with IBKR's code and words; the caller
 remembers it. Errors on forex and futures never touch the stock session's flags (``ibkr.reference_errors``, ADR 053
@@ -54,14 +54,14 @@ def history_left() -> int | None:
 
     try:
         snap = historical_service.pacing_snapshot()
-        return int(snap["window_max"]) - int(snap["window_used"])
+        return max(0, int(snap["window_max"]) - int(snap["window_used"]))     # under zero in a hold
     except (KeyError, TypeError, ValueError):
         return None
 
 
 def headroom(now: float | None = None) -> int:
-    """How many of the 10-minute 60 Forex leaves: the Market and Global pages' own 30, so the three take turns --
-    40 while one of them shows and this one does not, so the page on screen goes first."""
+    """How many of the 10-minute window Forex leaves: the Market and Global pages' own line, so the three take turns
+    -- ten more while one of them shows and this one does not, so the page on screen goes first."""
     from forex_board.state import store
     from global_board.state import store as global_store
     from market_board.state import store as market_store

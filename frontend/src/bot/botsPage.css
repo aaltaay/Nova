@@ -300,6 +300,7 @@
   font-size: 11.5px;
 }
 .bots-status__kinds { text-align: right; }
+.bots-status__held { color: var(--nova-owner-bot-ink, #c9c8ff); font-weight: 600; }
 
 /* At a main column of 1280 px or less the page stacks (the Account page's rule). */
 @container main-col (max-width: 1280px) {

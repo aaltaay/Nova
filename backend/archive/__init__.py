@@ -6,6 +6,8 @@ Cold path: finished-day JSONL + sha256 manifests under ``archive_cold/``.
 R2: optional content-addressed upload (``r2``) — credentials in ``.env`` only.
 Reads: ``replay.bars_by_symbol_for_day`` + ``replay.slice_bars_as_of`` (the
 backtest's no-hindsight bars). The ``decide()`` replay was retired (ADR 025).
+Repairs: ``l1_cleanup`` (epoch-0 L1 rows), ``live_minute_repair`` (live minutes
+the pre-#1273 builder cut down, raised from ``l1_ticks``).
 """
 from __future__ import annotations
 

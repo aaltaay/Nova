@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -15,6 +16,14 @@ from market_reads import inventory  # noqa: E402
 from sim import massive_index  # noqa: E402
 
 pytestmark = pytest.mark.skipif(not massive_index.available(), reason="indexed_gzip is not installed")
+
+
+@pytest.fixture(autouse=True)
+def _pytest_keeps_its_priority(monkeypatch):
+    """``_build_one`` and ``build_indexes`` lower their own process below normal. Called here in-process, that process
+    is pytest's for the rest of the run, and Windows passes the class on to every child it starts: a busy PC then
+    starves the whole suite (#1079)."""
+    monkeypatch.setattr(inventory, "below_normal", lambda: None)
 
 
 @pytest.fixture
@@ -75,31 +84,73 @@ def test_a_staged_copy_is_deleted_when_the_task_stops(day_file, tmp_path):
 
 
 RUN_BUILD = """
-import sys, threading
+import sys, threading, time
 from pathlib import Path
 sys.path[:0] = [{research!r}, {backend!r}]
 from market_reads import inventory
 
+# Normal priority, the test's own: below normal, a busy PC starves the build outright (#1079: one worker start took
+# 147 s with every core busy), and what is tested here is the stop, not the build's yielding to the desk. At the top
+# level, so each pool worker (which runs this file as __mp_main__) gets it too.
+inventory.below_normal = lambda: None
+STOP_PART_WAY = {stop_part_way!r}
+
+
+def stop_after_the_first_build(index):
+    # On the run's own progress, not a timer: a timer could fire before the run clears an old STOP (#1079).
+    log = index / inventory.INDEX_LOG
+    while not (log.exists() and " built in " in log.read_text(encoding="utf-8")):
+        time.sleep(0.01)
+    (index / inventory.INDEX_STOP).write_text("")
+
+
 if __name__ == "__main__":
-    stop = Path({root!r}) / "sim" / "index" / inventory.INDEX_STOP
-    if {stop_after!r} is not None:
-        threading.Timer({stop_after!r}, lambda: (stop.parent.mkdir(parents=True, exist_ok=True),
-                                                 stop.write_text(""))).start()
+    index = Path({root!r}) / "sim" / "index"
+    if STOP_PART_WAY:
+        threading.Thread(target=stop_after_the_first_build, args=(index,), daemon=True).start()
     stage = Path({stage!r}) if {stage!r} else None
-    print("failed", inventory.build_indexes(["trades_v1"], workers=2, read_mb=1, stage=stage, stage_gb=1e-6),
-          flush=True)
+    # No memory floor: the build would wait up to RAM_WAIT_SEC for this PC's free memory (#1079); that wait has
+    # its own tests below.
+    print("failed", inventory.build_indexes(["trades_v1"], workers=2, read_mb=1, stage=stage, stage_gb=1e-6,
+                                            ram_floor_gb=0.0), flush=True)
 """
+BUILD_FILES = 20
+BUILD_DEADLINE_FLOOR_SEC = 60.0
+WORKER_START_MARGIN = 3.0          # the deadline allows each file's worker start three times what one takes now
+# The build and its probe run at normal priority, whatever class pytest runs at (Windows hands it down to children).
+_NORMAL_PRIORITY = getattr(subprocess, "NORMAL_PRIORITY_CLASS", 0)
 
 
-def _run_build(tmp_path, *, stop_after, stage):
+def _worker_start_sec(here: Path) -> float:
+    """One cold start of a build worker on this machine, now: a fresh process importing the build, as the pool starts
+    one per file (``max_tasks_per_child=1``). A busy PC slows it (#1079)."""
+    import time
+
+    code = f"import sys; sys.path[:0] = [{str(here / 'research')!r}]; from market_reads import inventory"
+    t0 = time.monotonic()
+    subprocess.run([sys.executable, "-c", code], check=True, creationflags=_NORMAL_PRIORITY)
+    return time.monotonic() - t0
+
+
+def build_deadline_sec(worker_start_sec: float, files: int = BUILD_FILES) -> float:
+    """The deadline a bulk build of ``files`` gets: sized from what one worker start costs on this machine now, so a
+    loaded PC gets the time its load needs and a hang still fails."""
+    return BUILD_DEADLINE_FLOOR_SEC + WORKER_START_MARGIN * files * worker_start_sec
+
+
+def test_the_build_deadline_grows_with_the_machine_s_load():
+    assert build_deadline_sec(0.5) == 90.0
+    assert build_deadline_sec(10.0) > 120.0 > build_deadline_sec(0.5)   # 120 s, the old fixed deadline
+
+
+def _run_build(tmp_path, *, stop_part_way, stage):
     """The bulk build in its own process, killed with its pool at the deadline, so a hang fails the test instead of
     hanging the suite. Returns the Massive root."""
     import os
     import signal
-    import subprocess
 
     root = tmp_path / "massive"
-    for i in range(1, 21):
+    for i in range(1, BUILD_FILES + 1):
         path = root / "trades_v1" / "2026" / "09" / f"2026-09-{i:02d}.csv.gz"
         path.parent.mkdir(parents=True, exist_ok=True)
         with gzip.open(path, "wt", newline="") as fh:
@@ -107,21 +158,23 @@ def _run_build(tmp_path, *, stop_after, stage):
     here = Path(__file__).resolve().parents[2]
     script = tmp_path / "run_build.py"
     script.write_text(RUN_BUILD.format(research=str(here / "research"), backend=str(here / "backend"),
-                                       root=str(root), stop_after=stop_after, stage=str(stage) if stage else ""),
+                                       root=str(root), stop_part_way=stop_part_way, stage=str(stage) if stage else ""),
                       encoding="utf-8")
+    deadline = build_deadline_sec(_worker_start_sec(here))
     # Its own process group, so the deadline kills the build and its pool with the OS's own tools (CI has no psutil).
-    group = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if os.name == "nt" else {"start_new_session": True}
+    group = ({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP | _NORMAL_PRIORITY} if os.name == "nt"
+             else {"start_new_session": True})
     proc = subprocess.Popen([sys.executable, str(script)], stdout=subprocess.PIPE, text=True,
                             env={**os.environ, "NOVA_MARKET_DATA_DIR": str(root)}, **group)
     try:
-        out, _ = proc.communicate(timeout=120)
+        out, _ = proc.communicate(timeout=deadline)
     except subprocess.TimeoutExpired:
         if os.name == "nt":
             subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True, check=False)
         else:
             os.killpg(proc.pid, signal.SIGKILL)
         proc.communicate()
-        pytest.fail("the bulk build did not end within 120 s")
+        pytest.fail(f"the bulk build did not end within {deadline:.0f} s")
     assert proc.returncode == 0 and "failed 0" in out
     return root
 
@@ -132,7 +185,7 @@ def test_a_bulk_build_stopped_part_way_ends(tmp_path, staged):
     forever (with no workers). Each task now checks STOP itself, so the run always ends; a staged run stops copying
     too, and leaves no copy behind."""
     stage = tmp_path / "stage" if staged else None
-    root = _run_build(tmp_path, stop_after=0.5, stage=stage)
+    root = _run_build(tmp_path, stop_part_way=True, stage=stage)
     log = (root / "sim" / "index" / inventory.INDEX_LOG).read_text(encoding="utf-8")
     assert "index: stopped with" in log or "index: finished" in log
     if staged:
@@ -146,7 +199,7 @@ def test_a_staged_bulk_build_indexes_every_day_and_leaves_no_copies(tmp_path, mo
     left = stage / inventory.STAGE_DIR
     left.mkdir(parents=True)
     (left / "trades_v1__2026-01-02.csv.gz.part").write_bytes(b"from a run that died")   # cleared at the start
-    root = _run_build(tmp_path, stop_after=None, stage=stage)
+    root = _run_build(tmp_path, stop_part_way=False, stage=stage)
     assert all(massive_index.is_current(path, root) for path in inventory.day_files("trades_v1"))
     assert not list(left.iterdir())
     assert "index: finished, 0 failed" in (root / "sim" / "index" / inventory.INDEX_LOG).read_text(encoding="utf-8")

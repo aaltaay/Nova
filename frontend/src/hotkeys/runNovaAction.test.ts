@@ -17,6 +17,12 @@ const cancelAllOrdersForSymbol = vi.fn();
 const cancelAllWorkingOrders = vi.fn();
 const countOpenWorkingOrders = vi.fn();
 
+const desk = vi.hoisted(() => ({ venue: 'paper' as string | null }));
+
+vi.mock('../ibkr/confirmedDeskVenue', () => ({
+  getConfirmedDeskVenueSnapshot: () => ({ venue: desk.venue, generation: null }),
+}));
+
 vi.mock('../ibkr/placeOrder', () => ({
   placeIbkrOrder: (...args: unknown[]) => placeIbkrOrder(...args),
   cancelAllOrdersForSymbol: (...args: unknown[]) => cancelAllOrdersForSymbol(...args),
@@ -189,6 +195,29 @@ describe('runNovaAction Webull kinds', () => {
     expect(cancelAllWorkingOrders).toHaveBeenCalledOnce();
   });
 
+  it('cancel_all_orders names the venue of the keypress, whatever the desk shows after the confirm', async () => {
+    desk.venue = 'paper';
+    const requestConfirm = vi.fn(async () => {
+      desk.venue = 'live'; // the desk moved while the confirm was open
+      return true;
+    });
+
+    await runNovaAction(action({ kind: 'cancel_all_orders' }), runtime({ symbol: null, requestConfirm }));
+
+    expect(requestConfirm).toHaveBeenCalledOnce();
+    expect(cancelAllWorkingOrders.mock.calls[0][1]).toBe('paper');
+    desk.venue = 'paper';
+  });
+
+  it('cancel_all_orders says the cancels stopped when the desk left', async () => {
+    const error = 'The desk moved from Paper to Live: the cancels stopped, none went to Live.';
+    cancelAllWorkingOrders.mockResolvedValueOnce({ ok: false, cancelled: [], failed: [], error });
+
+    const res = await runNovaAction(action({ kind: 'cancel_all_orders' }), runtime({ symbol: null }));
+
+    expect(res).toEqual({ ok: false, text: error });
+  });
+
   it('buy Ask+0.05 / sell Bid-0.05 place 1-share EH limits', async () => {
     const buy = await runNovaAction(
       action({
@@ -271,6 +300,91 @@ describe('runNovaAction whole-position exits (QA R32)', () => {
   it('a partial exit is not a flatten', async () => {
     await runNovaAction(action({ kind: 'exit_pos_pct', params: { percent: 50 } }), runtime());
     expect(placeIbkrOrder.mock.calls[0][0].intent).toBeUndefined();
+  });
+});
+
+describe('every send names the venue of the keypress (#1283)', () => {
+  const CANCELS: NovaActionKind[] = ['cancel_symbol', 'cancel_all_orders'];
+  const CLIPS: NovaActionKind[] = ['clip_toggle', 'clip_save_last'];
+  // Every kind that places -- a new one included -- holds the venue the confirm names.
+  const PLACING = NOVA_ACTION_KINDS.filter((kind) => !CANCELS.includes(kind) && !CLIPS.includes(kind));
+
+  function held(kind: NovaActionKind): NovaActionRuntime['position'] {
+    const qty = kind.startsWith('cover') ? -4 : kind.startsWith('short') ? 0 : 4;
+    return { ...runtime().position!, qty };
+  }
+
+  /** The desk moves while the confirm is open. */
+  function movingConfirm() {
+    return vi.fn(async () => {
+      desk.venue = 'live';
+      return true;
+    });
+  }
+
+  beforeEach(() => {
+    desk.venue = 'paper';
+    placeIbkrOrder.mockReset();
+    cancelAllOrdersForSymbol.mockReset();
+    placeIbkrOrder.mockResolvedValue({ ok: true, order_id: 9, error: null });
+    cancelAllOrdersForSymbol.mockResolvedValue({ ok: true, cancelled: [7], failed: [], error: null });
+  });
+
+  afterEach(() => {
+    desk.venue = 'paper';
+  });
+
+  it.each(PLACING)('%s sends the venue the confirm named, whatever the desk shows after it', async (kind) => {
+    const requestConfirm = movingConfirm();
+
+    const res = await runNovaAction(
+      action({ kind, params: { shares: 1, percent: 50, offsetDollars: 0.05, stopOffsetDollars: 0.1 } }),
+      runtime({ requestConfirm, position: held(kind) }),
+    );
+
+    expect(res.ok).toBe(true);
+    expect(requestConfirm).toHaveBeenCalledOnce();
+    expect(placeIbkrOrder).toHaveBeenCalledOnce();
+    expect(placeIbkrOrder.mock.calls[0][0].venue).toBe('paper');
+  });
+
+  it('cancel_and_exit holds one venue across its cancels and its exit', async () => {
+    await runNovaAction(action({ kind: 'cancel_and_exit' }), runtime({ requestConfirm: movingConfirm() }));
+
+    expect(cancelAllOrdersForSymbol.mock.calls[0][2]).toBe('paper');
+    expect(placeIbkrOrder.mock.calls[0][0].venue).toBe('paper');
+  });
+
+  it('cancel_symbol names the venue of the keypress', async () => {
+    await runNovaAction(action({ kind: 'cancel_symbol' }), runtime());
+
+    expect(cancelAllOrdersForSymbol.mock.calls[0][2]).toBe('paper');
+  });
+
+  it('names no venue before any status has answered: the door reads the desk as it always did', async () => {
+    desk.venue = null;
+
+    await runNovaAction(action({ kind: 'exit_pos' }), runtime());
+
+    expect(placeIbkrOrder.mock.calls[0][0].venue).toBeNull();
+  });
+
+  it('says what the door said when the desk left, and keeps its reason for the pop-up', async () => {
+    const error = 'The desk moved from Paper to Live: nothing was sent.';
+    placeIbkrOrder.mockResolvedValue({ ok: false, order_id: null, error, reason_code: 'VENUE_CHANGED' });
+
+    const res = await runNovaAction(action({ kind: 'exit_pos' }), runtime());
+
+    expect(res).toMatchObject({ ok: false, text: error, reasonCode: 'VENUE_CHANGED' });
+  });
+
+  it('cancel_and_exit says its cancels went and its exit did not', async () => {
+    const error = 'The desk moved from Paper to Live: nothing was sent.';
+    placeIbkrOrder.mockResolvedValue({ ok: false, order_id: null, error, reason_code: 'VENUE_CHANGED' });
+
+    const res = await runNovaAction(action({ kind: 'cancel_and_exit' }), runtime());
+
+    expect(res).toEqual({ ok: false, text: `Cancelled 1 for AAPL. Flatten: ${error}` });
   });
 });
 

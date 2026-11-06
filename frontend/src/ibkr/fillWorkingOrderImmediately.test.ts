@@ -14,6 +14,12 @@ vi.mock('../ux', () => ({
   confirmApp: vi.fn(),
 }));
 
+const desk = vi.hoisted(() => ({ venue: 'paper' as string | null }));
+
+vi.mock('./confirmedDeskVenue', () => ({
+  getConfirmedDeskVenueSnapshot: () => ({ venue: desk.venue, generation: null }),
+}));
+
 import { novaFetch } from '../api/novaFetch';
 import { confirmApp } from '../ux';
 
@@ -226,5 +232,41 @@ describe('confirmAndFillWorkingOrder', () => {
       }),
     );
     expect(res.ok).toBe(true);
+  });
+
+  it('names the venue of the click on its cancel and its fill, whatever the desk shows after the confirm (#1283)', async () => {
+    desk.venue = 'paper';
+    const spy = vi.spyOn(placeOrder, 'placeIbkrOrder').mockResolvedValue({ ok: true, order_id: 99, error: null });
+    vi.mocked(confirmApp).mockImplementation(async () => {
+      desk.venue = 'live'; // the desk moved while the confirm was open
+      return true;
+    });
+
+    await confirmAndFillWorkingOrder(FTFT, {
+      sessionKind: 'premarket',
+      book: { symbol: 'FTFT', bid: 6.67, ask: 6.8 },
+    });
+
+    expect(String(vi.mocked(novaFetch).mock.calls[0][0])).toMatch(/\/api\/ibkr\/order\/115067\?venue=paper$/);
+    expect(spy.mock.calls[0][0]).toMatchObject({ symbol: 'FTFT', venue: 'paper' });
+    desk.venue = 'paper';
+  });
+
+  it('never fills on the venue the desk moved to: a cancel the door refuses ends it (#1283)', async () => {
+    const spy = vi.spyOn(placeOrder, 'placeIbkrOrder');
+    vi.mocked(confirmApp).mockResolvedValue(true);
+    vi.mocked(novaFetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: false, error: 'the desk is on live, not paper' }),
+    } as Response);
+
+    const res = await confirmAndFillWorkingOrder(FTFT, {
+      sessionKind: 'premarket',
+      book: { symbol: 'FTFT', bid: 6.67, ask: 6.8 },
+    });
+
+    expect(res).toMatchObject({ ok: false, error: 'the desk is on live, not paper' });
+    expect(spy).not.toHaveBeenCalled();
   });
 });

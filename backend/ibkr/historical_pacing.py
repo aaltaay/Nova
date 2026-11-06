@@ -1,10 +1,14 @@
-"""IBKR historical pacing budget -- the constraints TWS actually enforces.
+"""IBKR historical pacing budget -- the limits Nova keeps (ADR 012).
 
-Official limits (interactivebrokers.github.io/tws-api/historical_limitations.html):
-- 60 historical requests in any 10-minute window
+IBKR's published limits (interactivebrokers.github.io/tws-api/historical_limitations.html):
+- 60 historical requests in any 10-minute window, for bars of 30 seconds or less
 - 6+ requests for the same contract / exchange / tick type within 2 seconds
 - identical request repeated within 15 seconds
 - 50 simultaneous open historical requests (Nova caps well below that)
+
+IBKR publishes no number for 1-minute bars and bigger. It slows them, without a word, past a count Nova measured
+(``IBKR_HISTORICAL_PACE_MAX``). So every request counts in the whole window, the small ones (``is_small``) in the 60
+as well, and when IBKR says pacing or slows, ``hold`` sets the whole window's number back to the 60 for 10 minutes.
 
 This module is a clock + counters. It does not talk to IB. ``snapshot()['by_kind']`` names what spent the window
 (``kind_of``; the capacity strip, architecture/schema/desk-ops.md "IBKR capacity on the desk").
@@ -12,7 +16,7 @@ This module is a clock + counters. It does not talk to IB. ``snapshot()['by_kind
 from __future__ import annotations
 
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 
 from constants import (
     IBKR_HISTORICAL_IDENTICAL_COOLDOWN_SEC,
@@ -20,6 +24,10 @@ from constants import (
     IBKR_HISTORICAL_PACE_WINDOW_SEC,
     IBKR_HISTORICAL_SAME_CONTRACT_MAX,
     IBKR_HISTORICAL_SAME_CONTRACT_WINDOW_SEC,
+    IBKR_HISTORICAL_SLOW_COUNT,
+    IBKR_HISTORICAL_SLOW_OF,
+    IBKR_HISTORICAL_SLOW_SEC,
+    IBKR_HISTORICAL_SMALL_PACE_MAX,
 )
 
 
@@ -44,25 +52,41 @@ def kind_of(timeframe: str) -> str:
 KINDS = ("charts", "tape", "daily", "market", "global", "forex")
 
 
+def is_small(timeframe: str) -> bool:
+    """Whether a pacing key stays under IBKR's published 60: 10-second bars, which it names, and tick reads, which
+    nothing has measured past it."""
+    key = str(timeframe or "")
+    return key == "10Sec" or key.startswith("ticks:")
+
+
 class HistoricalPacing:
     """Sliding-window token budget for ``reqHistoricalData`` sends."""
 
     def __init__(self, now_fn=time.monotonic):
         self._now = now_fn
         self._all: list[float] = []
+        self._small: list[float] = []
         self._kinds: list[tuple[float, str]] = []
         self._contract: dict[str, list[float]] = defaultdict(list)
         self._identical: dict[tuple[str, str, str], float] = {}
+        self._held_until = 0.0
+        self._refusals = 0
+        self._answers: deque[bool] = deque(maxlen=int(IBKR_HISTORICAL_SLOW_OF))
 
     def reset(self) -> None:
         self._all.clear()
+        self._small.clear()
         self._kinds.clear()
         self._contract.clear()
         self._identical.clear()
+        self._held_until = 0.0
+        self._refusals = 0
+        self._answers.clear()
 
     def _prune(self, now: float) -> None:
         cutoff = now - float(IBKR_HISTORICAL_PACE_WINDOW_SEC)
         self._all = [t for t in self._all if t > cutoff]
+        self._small = [t for t in self._small if t > cutoff]
         self._kinds = [(t, k) for t, k in self._kinds if t > cutoff]
         ccut = now - float(IBKR_HISTORICAL_SAME_CONTRACT_WINDOW_SEC)
         for key, times in list(self._contract.items()):
@@ -79,13 +103,21 @@ class HistoricalPacing:
         for ident in stale:
             del self._identical[ident]
 
+    def _cap(self, now: float) -> int:
+        """What everyone but an open chart may spend of the whole window: the 60 during a hold."""
+        return int(IBKR_HISTORICAL_SMALL_PACE_MAX if now < self._held_until else IBKR_HISTORICAL_PACE_MAX)
+
     def wait_seconds(self, symbol: str, timeframe: str, duration: str) -> float:
-        """Seconds until a send is legal. 0 means send now."""
+        """Seconds until a send is legal. 0 means send now. A hold is not a wait: it spends the reserves every caller
+        but an open chart keeps (``left``), so an open chart still goes."""
         now = float(self._now())
         self._prune(now)
+        window = float(IBKR_HISTORICAL_PACE_WINDOW_SEC)
         waits: list[float] = []
         if len(self._all) >= int(IBKR_HISTORICAL_PACE_MAX):
-            waits.append(self._all[0] + float(IBKR_HISTORICAL_PACE_WINDOW_SEC) - now)
+            waits.append(self._all[-int(IBKR_HISTORICAL_PACE_MAX)] + window - now)
+        if is_small(timeframe) and len(self._small) >= int(IBKR_HISTORICAL_SMALL_PACE_MAX):
+            waits.append(self._small[-int(IBKR_HISTORICAL_SMALL_PACE_MAX)] + window - now)
         contract_times = self._contract.get(symbol.upper(), [])
         if len(contract_times) >= int(IBKR_HISTORICAL_SAME_CONTRACT_MAX):
             waits.append(
@@ -103,20 +135,47 @@ class HistoricalPacing:
         now = float(self._now())
         self._prune(now)
         self._all.append(now)
+        if is_small(timeframe):
+            self._small.append(now)
         self._kinds.append((now, kind_of(timeframe)))
         self._contract[symbol.upper()].append(now)
         self._identical[(symbol.upper(), timeframe, duration)] = now
 
+    def left(self, timeframe: str) -> int:
+        """Requests left for a send of this key: the whole window's, and a small one's own 60. Below zero in a hold."""
+        now = float(self._now())
+        self._prune(now)
+        room = self._cap(now) - len(self._all)
+        if is_small(timeframe):
+            return min(room, int(IBKR_HISTORICAL_SMALL_PACE_MAX) - len(self._small))
+        return room
+
+    def hold(self, *, refused: bool = False) -> None:
+        """IBKR slowed, or (``refused``) said pacing: the whole window holds to the 60 for the next 10 minutes."""
+        self._held_until = float(self._now()) + float(IBKR_HISTORICAL_PACE_WINDOW_SEC)
+        self._refusals += int(refused)
+        self._answers.clear()
+
+    def refusals(self) -> int:
+        """How many requests IBKR has refused for pacing: a refusal reaches its caller as an empty answer."""
+        return self._refusals
+
+    def note_answer(self, seconds: float) -> bool:
+        """One chart answer's time. True when it is the one that shows IBKR slowing: the caller then ``hold``s."""
+        self._answers.append(float(seconds) >= float(IBKR_HISTORICAL_SLOW_SEC))
+        return sum(self._answers) >= int(IBKR_HISTORICAL_SLOW_COUNT)
+
     def snapshot(self) -> dict:
-        """Read-only view of the current budget for observability (no I/O)."""
+        """Read-only view of the current budget for observability (no I/O). ``window_max`` is what every caller but
+        an open chart may spend, so it is the 60 during a hold; ``held_sec`` is how long that lasts."""
         now = float(self._now())
         self._prune(now)
         window_used = len(self._all)
-        window_max = int(IBKR_HISTORICAL_PACE_MAX)
+        window_max = self._cap(now)
         next_token_wait_sec = 0.0
         if window_used >= window_max and self._all:
             next_token_wait_sec = max(
-                0.0, self._all[0] + float(IBKR_HISTORICAL_PACE_WINDOW_SEC) - now
+                0.0, self._all[-window_max] + float(IBKR_HISTORICAL_PACE_WINDOW_SEC) - now
             )
         contract_hot = [
             sym
@@ -128,6 +187,9 @@ class HistoricalPacing:
             "window_max": window_max,
             "window_sec": float(IBKR_HISTORICAL_PACE_WINDOW_SEC),
             "next_token_wait_sec": round(next_token_wait_sec, 1),
+            "small_used": len(self._small),
+            "small_max": int(IBKR_HISTORICAL_SMALL_PACE_MAX),
+            "held_sec": round(max(0.0, self._held_until - now), 1),
             "identical_keys": len(self._identical),
             "contract_hot": sorted(contract_hot),
             "by_kind": {kind: sum(1 for _t, k in self._kinds if k == kind) for kind in KINDS},

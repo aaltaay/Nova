@@ -11,7 +11,7 @@ import type { Cells, TickerRow, TickerTrigger } from './triggersApi';
 export type Side = 'you' | 'nova';
 
 /** The gates whose red is the same for every ticker now: said once by the answer line, greyed per row. */
-export const SHARED_GATES = new Set(['bot_on', 'bot_window', 'trades_today']);
+export const SHARED_GATES = new Set(['bot_on', 'bot_window']);
 
 const SIDES: Record<StockModeName, [Side, Side]> = {
   signal: ['you', 'you'], approve: ['you', 'nova'], auto_entry: ['nova', 'you'], bot: ['nova', 'nova'],
@@ -30,7 +30,6 @@ export const GATE_TIPS: Record<string, string> = {
   nova_buys: "Was the ticker's Entry set to Bot (and today's 04:00 reset of yesterday's bot entries done)?",
   level2_line: "Did Nova hold the ticker's Level 2 line, so it could read the tape? Red is BLIND.",
   tape_go: "Did the tape read GO at the trigger?",
-  trades_today: "Was there room under the day's cap of Nova's trades, longs and shorts together, with no trade open?",
   not_against: 'Did you hold none of the stock the other way? The bot never enters against your position: no short '
     + 'while you hold it long, no buy while you hold it short.',
   short_borrow: 'Shorts only: did IBKR list shares to borrow, enough for the order and the short already held?',
@@ -109,7 +108,6 @@ export function stopWord(id: string, t?: { grade?: string | null; tape?: string 
     case 'nova_buys': return 'Entry is You';
     case 'level2_line': return 'BLIND: no Level 2 line';
     case 'tape_go': return t?.tape ? `tape ${t.tape.toUpperCase()}` : 'tape not GO';
-    case 'trades_today': return "the day's trades used";
     case 'not_against': return 'you held it the other way';
     case 'short_borrow': return 'no borrow';
     case 'short_ssr': return 'SSR';

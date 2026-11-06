@@ -17,7 +17,7 @@ visible, page: "trader" | "forex" | "global" | "market" | "scanner" | "account" 
 "scanner_row" | null, trader_tabs: string[], last_input_ts:
 number | null, reason: "start" | "focus" | "blur" | "visibility" | "page" |
 "symbol" | "input" | "heartbeat", ui_tag}` -- `window_id` is the perf
-recorder's (`main`, `trader:SYM`), `instance_id` one per page load,
+recorder's (`main`, `trader:SYM`, `top-nine` for the Top 9 pop-up), `instance_id` one per page load,
 `focused` `document.hasFocus()`, `tab` the scanner tab on the Scanner page,
 `last_input_ts` the last click / keypress / wheel there (epoch seconds). The
 Electron main process posts `{schema_version: 1, role: "electron", window_id:
@@ -503,7 +503,7 @@ most. Read-only, like the rest: nothing places, gates or cancels on it.
     one stock in 2 s. Shed or failed, the trades stand without them (`minutes_note` says why).
   - Every page is a historical request in Nova's one pacing budget (ADR 012, `historical_service.budget()`): none is
     sent while an open chart loads or pacing asks for a wait, and none takes the last `LULD_BACKFILL_HEADROOM` of
-    IBKR's 60 requests in 10 minutes. One backfill is in flight at a time.
+    IBKR's 60 tick reads in 10 minutes (the 1-minute bars, of the whole window). One backfill is in flight at a time.
   - It runs as a task on the IB connect-loop and its answer goes onto the LULD worker's queue (ADR 010); it never
     waits out a pacing delay there. Shed, it is asked again every 2 s; failed, every 15 s, three times at most --
     while the tracker has no reference of its own.

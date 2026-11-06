@@ -210,6 +210,86 @@ def verdicts(symbol: str | None = None, day: str | None = None, date_from: str |
     return frame
 
 
+SEARCH_MAX_DAYS = 366                 # one search spans at most a year of session days
+SEARCH_ROWS_MAX = 5_000
+SEARCH_ITEM_COLUMNS = ["symbol", *ITEM_COLUMNS]
+
+
+def _span(date_from: str, date_to: str) -> None:
+    if not (date_from and date_to):
+        raise ValueError("a search across stocks names date_from and date_to (YYYY-MM-DD)")
+    days = (date.fromisoformat(date_to) - date.fromisoformat(date_from)).days
+    if not 0 <= days < SEARCH_MAX_DAYS:
+        raise ValueError(f"date_from..date_to must run forward and span at most {SEARCH_MAX_DAYS} days")
+
+
+def _words(words: list[str] | None) -> list[str]:
+    return [w.strip().lower() for w in words or () if w.strip()]
+
+
+def search_verdicts(date_from: str, date_to: str, verdict: list[str] | None = None,
+                    category: list[str] | None = None, words: list[str] | None = None,
+                    limit: int | None = None) -> pd.DataFrame:
+    """Every stock's verdicts in a date range (the newest rules version each), filtered by ``verdict`` (catalyst,
+    negative, routine_only, noise_only, none_found), ``category`` (the verdict's, e.g. fda_regulatory) and ``words``
+    (the deciding headline contains any; a text match). Newest day first. ``attrs['categories']`` counts every
+    category in the range before the filters (the values ``category`` can take); a stock-day with no verdict was
+    never judged and is in no row: unknown, never "no news"."""
+    _span(date_from, date_to)
+    frame = verdicts(date_from=date_from, date_to=date_to)
+    categories = {str(k): int(v) for k, v in frame["category"].dropna().value_counts().items()}
+    if verdict:
+        frame = frame[frame["verdict"].isin({v.strip().lower() for v in verdict})]
+    if category:
+        frame = frame[frame["category"].fillna("").str.lower().isin({c.strip().lower() for c in category})]
+    wanted = _words(words)
+    if wanted:
+        titles = frame["title"].fillna("").str.lower()
+        frame = frame[titles.map(lambda t: any(w in t for w in wanted))]
+    frame = frame.sort_values(["session_date", "symbol"], ascending=[False, True]).reset_index(drop=True)
+    matched = len(frame)
+    frame = frame.head(min(int(limit or SEARCH_ROWS_MAX), SEARCH_ROWS_MAX))
+    frame.attrs.update(rule=RULE, coverage=COVERAGE, source=str(db_path()), matched=matched, categories=categories,
+                       asked={"date_from": date_from, "date_to": date_to, "verdict": verdict, "category": category,
+                              "words": wanted or None},
+                       units="published_ts epoch seconds; *_et ET",
+                       note="verdicts exist only for the backfill's target stock-days: a stock-day in no row is "
+                            "unknown, never no news")
+    return frame
+
+
+def search_items(date_from: str, date_to: str, words: list[str], sources: list[str] | None = None,
+                 limit: int | None = None) -> pd.DataFrame:
+    """Items whose headline contains any of ``words`` (case ignored; a text match), published from ``date_from``
+    00:00 ET through ``date_to`` 23:59:59 ET, one row per item and stock it names, newest first. Only the tickers
+    the backfill targeted have items (module docstring): a stock with no row may still have made news."""
+    _span(date_from, date_to)
+    wanted = _words(words)
+    if not wanted:
+        raise ValueError("a headline search across stocks names words (e.g. ['fda', 'approv'])")
+    where = ["t.published_ts >= ?", "t.published_ts < ?", HONEST_CLOCK_SQL,
+             "(" + " OR ".join("lower(i.title) LIKE ?" for _ in wanted) + ")"]
+    args: list[Any] = [_day_ts(date_from), _day_ts(date_to, 1), *[f"%{w}%" for w in wanted]]
+    if sources:
+        unknown = sorted(set(sources) - set(SOURCES))
+        if unknown:
+            raise ValueError(f"sources {unknown}: the store holds {', '.join(SOURCES)}")
+        where, args = [*where, f"i.source IN ({', '.join('?' * len(sources))})"], [*args, *sources]
+    cap = min(int(limit or SEARCH_ROWS_MAX), SEARCH_ROWS_MAX)
+    sql = ("SELECT t.ticker, i.item_id, i.source, i.publisher, i.published_ts, i.title, i.url, i.form, i.sec_items, "
+           f"i.n_tickers FROM item_tickers t JOIN items i USING (item_id) WHERE {' AND '.join(where)} "
+           "ORDER BY i.published_ts DESC, i.item_id, t.ticker LIMIT ?")
+    with closing(_connect()) as db:
+        rows = db.execute(sql, [*args, cap + 1]).fetchall()
+    cols = [c for c in SEARCH_ITEM_COLUMNS if c != "published_et"]
+    frame = pd.DataFrame([dict(zip(cols, r, strict=True)) for r in rows[:cap]], columns=cols)
+    frame.insert(5, "published_et", [_et(t) for t in frame["published_ts"]])
+    frame.attrs.update(rule=RULE, coverage=COVERAGE, source=str(db_path()), truncated=len(rows) > cap,
+                       asked={"date_from": date_from, "date_to": date_to, "words": wanted, "sources": sources},
+                       units="published_ts epoch seconds; published_et ET")
+    return frame
+
+
 ITEM_KEYS = ("title", "summary", "source", "publisher", "n_tickers", "form", "sec_items", "url", "published_ts",
              "item_id")
 

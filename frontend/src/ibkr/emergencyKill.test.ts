@@ -21,11 +21,16 @@ vi.mock('../bot/botSessionPoller', () => ({
 vi.mock('./ticketUnlock', () => ({
   lockTicketSession: (...args: unknown[]) => lockTicketSession(...args),
 }));
+const desk: { venue: string | null } = { venue: 'live' };
+vi.mock('./confirmedDeskVenue', () => ({
+  getConfirmedDeskVenueSnapshot: () => ({ venue: desk.venue, generation: null }),
+}));
 
 import { runEmergencyKill } from './emergencyKill';
 
 describe('runEmergencyKill', () => {
   beforeEach(() => {
+    desk.venue = 'live';
     cancelAllWorkingOrders.mockReset();
     flattenAccount.mockReset();
     patchBotSession.mockReset();
@@ -73,6 +78,53 @@ describe('runEmergencyKill', () => {
     ]);
     expect(patchBotSession).toHaveBeenCalledOnce();
     expect(refreshBotSessionNow).toHaveBeenCalledOnce();
+  });
+
+  it('names the venue read at the click on both legs, even when the desk moves between them', async () => {
+    cancelAllWorkingOrders.mockImplementation(async () => {
+      desk.venue = 'paper'; // the pill clicked while the cancels ran
+      return { ok: true, cancelled: [], failed: [], error: null };
+    });
+
+    await runEmergencyKill();
+
+    expect(cancelAllWorkingOrders).toHaveBeenCalledWith(undefined, 'live');
+    expect(flattenAccount).toHaveBeenCalledWith('live');
+  });
+
+  it('reads the venue before anything it runs can wait on the bot or the lock', async () => {
+    patchBotSession.mockImplementation(async () => {
+      desk.venue = 'sim'; // moved while the bot dropped to L0
+      return { level: 0 };
+    });
+
+    await runEmergencyKill();
+
+    expect(flattenAccount).toHaveBeenCalledWith('live');
+  });
+
+  it('names no venue before a status has said one, and still runs', async () => {
+    desk.venue = null;
+
+    const result = await runEmergencyKill();
+
+    expect(cancelAllWorkingOrders).toHaveBeenCalledWith(undefined, null);
+    expect(flattenAccount).toHaveBeenCalledWith(null);
+    expect(result).toEqual({ ok: true, errors: [] });
+  });
+
+  it('shows what a stopped KILL says, and still drops to L0 and locks', async () => {
+    const cancels = 'The desk moved from Live to Paper: the cancels stopped, none went to Paper.';
+    const flatten = 'The desk moved from Live to Paper, so KILL stopped and sent nothing to Paper. '
+      + 'Still open on Live: ABCD 100.';
+    cancelAllWorkingOrders.mockResolvedValue({ ok: false, cancelled: [], failed: [], error: cancels });
+    flattenAccount.mockResolvedValue({ ok: false, error: flatten });
+
+    const result = await runEmergencyKill();
+
+    expect(result).toEqual({ ok: false, errors: [cancels, flatten] });
+    expect(patchBotSession).toHaveBeenCalledWith({ level: 0 });
+    expect(lockTicketSession).toHaveBeenCalledTimes(2);
   });
 
   it('reuses one in-flight compose when called twice', async () => {

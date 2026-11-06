@@ -116,3 +116,66 @@ Rejected: putting the read on every scanner row server-side (the read touches th
 record per symbol; on the scanner push that is the socket loop's time, #797); sorting the column by cause (the
 sort stays the newest headline, the column's old key); reading a frozen row at the last trade (the cell would
 contradict the row it sits in).
+
+## Amendment 2026-10-26 (4) -- rules that learn, a model never on the desk; the first: funds
+
+The operator asked why BRZD (+76%) and BZQ (+50%) read "Unexplained" on 2026-10-26. They are inverse Brazil
+funds, up because Lula won Brazil's runoff the day before; the read knows only company causes, so a fund falls
+through every rung. A free local model (Qwen3.5-9B, llama.cpp on the desk's graphics card) was then tested as a
+live explainer on 150 past "no news" movers and 70 live board rows (private study, F:\Nova\private\why-ai-test,
+operator ask 2026-10-26). It named the cause whenever the free headlines held it, but 7 of the 44 causes it would
+have shown were wrong (16%), it rated every answer 0.95 sure so no confidence cut removes them, and it added
+0.3-0.5% slow desk frames at the open. The operator: "I don't want AI to make mistakes, so I prefer deterministic,
+but rules can't be static; I need an agent with some level of comprehension."
+
+Decision:
+
+1. **The desk stays deterministic.** No model runs in the read or writes what the desk shows. "Rejected: an
+   LLM explanation now" stands for the desk.
+2. **An agent keeps the rules growing.** An agent (Claude Code, or a local model) reads the movers the read left
+   `unexplained` or `thin_trading`, finds their causes, and proposes rules with the evidence. A rule reaches the
+   desk only through a pull request the operator approves, and only after it passes a test written before it:
+   - **A held-back test set.** The rule is written from cases the agent saw and must also pass labelled cases
+     it never saw (later days, or a set drawn before the rule was written).
+   - **A pass bar fixed before the test runs**, written in the pull request or this ADR, never adjusted after.
+   - **Mislabels counted on their own.** A rule fails if it puts a plausible but wrong reason on a stock (a
+     Brazilian name that moved on its own news read as "Brazil-wide sell-off"), even when its hit count is high.
+3. **The first rule: a fund says so, its own name quoted.** A symbol Yahoo calls a fund (`quote_type` `ETF`,
+   which Yahoo also gives ETNs) reads "A fund: it moves with what it tracks, not on company news", with the fund's
+   name exactly as Yahoo gives it ("ProShares UltraShort MSCI Brazil Capped"). Nothing is read out of the name. It
+   sits after company news and before the short squeeze; a fund with company news keeps news. Unknown while
+   Yahoo's fundamentals are not read, and on a Sim replay (a replay never reads Yahoo). The first version read the
+   side, the multiple and what the fund tracks from the name, against a pass bar fixed before it was written: (a)
+   zero wrong directions where the tracked thing parses to a ticker with its own daily bar that day; (b) the
+   parsed leverage within 25% of the fund's move over the ticker's on at least 95% of those; (c) a reviewer that
+   did not write the rule reads 40 random parsed names and finds at least 95% right. It never passed (the record
+   below), and the operator chose the quoted name (2026-10-26): "Fund's own name".
+4. **Law-firm adverts and halt notices are never a cause** -- already the catalyst classifier's noise
+   (`law_firm`, `halt_notice`); nothing changes.
+
+Not decided here: funds on the small-cap boards at all. `scanner._is_common_stock` drops names with "ETF",
+"Fund", "Trust" or "Index", so "MicroSectors -3x Short Brazil ETNs" and "ProShares UltraShort MSCI Brazil
+Capped" pass it; whether to filter by security type is the operator's call. A same-country or same-theme group
+rule ("Brazil-wide sell-off") waits for its mislabel count: Yahoo gives XP Inc., a Brazilian broker, the
+country "Cayman Islands".
+
+**The held-back record (2026-10-26), every run kept** (private study, F:\Nova\private\why-ai-test\fund_rule):
+
+| Run | Window | Fund-days checked | (a) direction | (b) leverage | (c) 40 names | Then |
+|---|---|---|---|---|---|---|
+| 1 | 2026-06-17..09-21 | 1,523 | 0 wrong | 98.9% | 37/40 -- fail | legal tail; "Leveraged" with no number |
+| 2 | 2026-09-22..10-16 | 765 | 0 wrong | 100% | 37/40 -- fail | a ticker that is a word ("ON", "BULL"); sponsor names |
+| 3 | 2026-01-02..06-16 | 5,406 | 7 wrong -- fail | 99.8% | not run | "Short ... Option Income" read long (6); KLAC's 10-for-1 split (1, the data) |
+| 4 | 2025-07-01..12-31 | 2,459 | 3 wrong -- fail | 98.6% | see the PR | parsed right; a payout moved the fund, not its stock |
+
+Run 4's three (AVL -13% and PLTU -10% on 2025-12-10, SMUP -15% on 2025-12-24, each while its stock rose) are
+parsed right: the fund fell for a reason its name cannot know, so "down 13%, so AVGO fell" would have been a wrong
+claim. The bar was not changed; the claim was removed -- the cause says only what the fund is and which way it
+moves with what it tracks. Each fix was committed before the next window was drawn, and no window was run twice.
+
+After run 4 the reading was frozen once more and a fresh reviewer read 40 names no reviewer had seen: 30 of 40
+right (Roundhill WeeklyPay funds run 1.2x with no number in the name; sponsor fragments such as "AG Silver" and
+"Galaxy Ethereum"; a brand read as what the fund tracks, "IncomeMax"). Across four reviews 75-93% of names were read
+fully right and every fix moved the misses elsewhere, while Yahoo's fund type and the quoted name were never wrong.
+The rule that ships quotes the name and reads nothing out of it.
+

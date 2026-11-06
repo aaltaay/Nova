@@ -1,6 +1,11 @@
-/** Year grid of 12 month mini-calendars with daily P&L coloring. */
+/**
+ * Year grid of 12 month mini-calendars with daily P&L coloring. On Paper's All view each month adds yours and the
+ * bots' under its total, and a day keeps its total with the split in its tooltip (ADR 069, mockup reports-v1).
+ */
 import type { CalendarDay, CalendarMonthSummary } from './types';
 import { DOW_LABELS, MONTH_NAMES, fmtPnlShort } from './format';
+import { pnlSplit, splitWords } from './reportsView';
+import { SplitLine } from './SplitLine';
 
 interface Props {
   months: CalendarMonthSummary[];
@@ -54,6 +59,7 @@ function MiniMonth({
         {fmtPnlShort(month.pnl)}
         <span className="reports-month-card-trades"> · {month.trade_count} trades</span>
       </div>
+      {month.trade_count > 0 && <SplitLine split={pnlSplit(month.by_owner, fmtPnlShort)} />}
       <div className="reports-mini-dow">
         {DOW_LABELS.map(l => (
           <span key={l}>{l}</span>
@@ -79,7 +85,10 @@ function MiniMonth({
               className={cls}
               title={
                 cell.data
-                  ? `${cell.data.date}: ${fmtPnlShort(cell.data.pnl)} (${cell.data.trade_count} trades)`
+                  ? [
+                      `${cell.data.date}: ${fmtPnlShort(cell.data.pnl)} (${cell.data.trade_count} trades)`,
+                      splitWords(pnlSplit(cell.data.by_owner, fmtPnlShort)),
+                    ].filter(Boolean).join(' · ')
                   : undefined
               }
             >

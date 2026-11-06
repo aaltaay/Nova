@@ -113,6 +113,24 @@ class _Part:
         return (clock, "part") if clock else ("", "")
 
 
+def _place(row: Row, own: tuple[str, str], part, filer) -> tuple[str, str]:
+    """One row by the order above: its own time, then ``part()``'s neighbours, then ``filer()``'s majority -- each
+    asked only when the one before cannot place it."""
+    if len(row[1]) < 19:
+        return "", ""
+    if own[0]:
+        return own
+    near = part().neighbours(row[1])
+    if near[0]:
+        return near
+    clock = filer()
+    return (clock, "filer") if clock else (UTC, "default")
+
+
+def _filer(placed: list[_Part]) -> str:
+    return _majority(sum(len(p.days) for p in placed), sum(p.et_before[-1] for p in placed))
+
+
 def clocks(parts: list[list[Row]]) -> list[list[tuple[str, str]]]:
     """``(clock, how)`` for every row of one filer's JSON parts (the recent block, then each file).
 
@@ -121,20 +139,32 @@ def clocks(parts: list[list[Row]]) -> list[list[tuple[str, str]]]:
     (no evidence anywhere: UTC). A row without a full raw time is ``('', '')``.
     """
     placed = [_Part(rows) for rows in parts]
-    filer = _majority(sum(len(p.days) for p in placed), sum(p.et_before[-1] for p in placed))
-    out = []
-    for p in placed:
-        marks = []
-        for (_form, raw, _fd), own in zip(p.rows, p.own, strict=True):
-            if len(raw) < 19:
-                marks.append(("", ""))
-            elif own[0]:
-                marks.append(own)
-            else:
-                near = p.neighbours(raw)
-                marks.append(near if near[0] else (filer, "filer") if filer else (UTC, "default"))
-        out.append(marks)
-    return out
+    filer = _filer(placed)
+    return [[_place(row, own, lambda p=p: p, lambda: filer) for row, own in zip(p.rows, p.own, strict=True)]
+            for p in placed]
+
+
+def placed(parts: list[list[Row]], picks: list[tuple[int, int]], others=lambda: []) -> list[tuple[str, str]]:
+    """``clocks``' answer for only the rows ``picks`` names -- ``(part, row)`` indexes into ``parts`` -- as if
+    ``parts`` plus ``others()`` were the filer's whole JSON. A part's votes are counted only when a pick in it
+    has no clock of its own, and ``others()`` (the filer's remaining parts) is called only when a pick needs the
+    filer's majority: a scan across companies places a few rows of a big filer without placing its thousands
+    (``research/market_reads/sec_scan.py``)."""
+    built: dict[int, _Part] = {}
+    majority: list[str] = []
+
+    def part(k: int) -> _Part:
+        if k not in built:
+            built[k] = _Part(parts[k])
+        return built[k]
+
+    def filer() -> str:
+        if not majority:
+            every = [part(k) for k in range(len(parts))] + [_Part(rows) for rows in others()]
+            majority.append(_filer(every))
+        return majority[0]
+
+    return [_place(parts[k][i], own_clock(*parts[k][i]), lambda k=k: part(k), filer) for k, i in picks]
 
 
 def accepted_ts(raw: str, clock: str) -> float:

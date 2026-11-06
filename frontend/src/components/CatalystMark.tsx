@@ -28,6 +28,8 @@ export function CatalystMark({ face }: { face: CatalystFace }) {
       return <span className={`cc-dot cc-dot--lowfloat${hollow}`} data-mark="lowfloat" />;
     case 'thin':
       return <span className="cc-dot cc-dot--thin" data-mark="thin" />;
+    case 'fund':
+      return <span className="cc-dot cc-dot--fund" data-mark="fund">F</span>;
     case 'unexplained':
       return <span className="cc-dot cc-dot--unexplained" data-mark="unexplained">?</span>;
     case 'reading':

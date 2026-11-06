@@ -59,6 +59,7 @@ export const CATALYST_CAUSE_WORDS: Record<string, string> = {
   routine_news: 'Routine',
   thin_trading: 'Thin',
   unexplained: 'Unexplained',
+  fund: 'Fund',
 };
 export const CATALYST_NEWS_WORD = 'News';
 /** Company news the classifier could not place (the ring): "Headline", as the approved mockup words it. */

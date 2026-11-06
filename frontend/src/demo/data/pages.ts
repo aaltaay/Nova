@@ -90,7 +90,7 @@ export function practiceHistory(range: string, venue: string) {
 const gate = (id: string, stage: string, detail: Record<string, unknown> = {}) => ({ id, ok: true, stage, detail });
 const caps = (venue: string) => ({
   venue, risk_usd: 50, max_shares: 10, bp_budget_usd: 50, working_ttl_sec: 3, extended_hours: true,
-  entries_per_day: 3, api_kinds: [], allowlist: [],
+  api_kinds: [], allowlist: [],
 });
 
 /** The daily loss limit's defaults (ADR 056, ADR 061): $2,000, no You or Bots line, Warn me and No new buys on, Auto sell off. */
@@ -158,7 +158,6 @@ export function botSession(nowS: number, venue: string) {
       gate('loss_limit', 'fire', { text: null, until: null, tripped_at: null, loss: null, limit_usd: LOSS_LIMIT_USD, venue }),
       gate('kill_switch', 'fire'),
       gate('window', 'fire', { setups: [{ setup: 'first_pullback', start: '07:00', end: '11:30', open: true, clipped: false }], venue_time: null }),
-      gate('daily_cap', 'fire', { count: 1, cap: 3, venue_day: DAY }),
       gate('extended_hours', 'fire'),
       gate('commissions', 'fire'),
     ],
@@ -174,10 +173,10 @@ export function botSession(nowS: number, venue: string) {
     // The family keys under the Bot switch (2026-10-15): both on.
     keys: { venue, error: null, strategy: { on: true, why_off: null }, live_trader: { on: true, why_off: null } },
     caps: caps(venue),
-    caps_bounds: { risk_usd: [1, 10000], max_shares: [1, 10], bp_budget_usd: [0.01, 50], working_ttl_sec: [1, 10], entries_per_day: [1, 3] },
+    caps_bounds: { risk_usd: [1, 10000], max_shares: [1, 10], bp_budget_usd: [0.01, 50], working_ttl_sec: [1, 10] },
     caps_by_venue: { paper: caps('paper'), sim: caps('sim'), live: caps('live') },
     entries_today: {
-      count: 1, cap: 3, venue_day: DAY,
+      count: 1, venue_day: DAY,
       entries: [{ symbol: 'SMPL', setup_type: 'first_pullback', by: 'bot', ts: at(8, 52, 3), outcome: 'filled' }], approved: 0,
     },
     brain_session_id: 'nova-first-pullback', brain_heartbeat_ts: nowS - 1, brain_alive: true,
@@ -353,7 +352,7 @@ export function hotList() {
 export function stockModes(venue: string) {
   const view = (symbol: string, mode: string, buy: string, sell: string, last: { ts: number; tone: string; text: string } | null) => ({
     schema_version: 1, symbol, generated_at: NOW_S, venue, mode, buy, sell, risk_usd: 50, set_at: at(6, 59),
-    locks: { buy: null, sell: null }, notes: [], approval: null, trade: null, entries_today: { count: 1, cap: 3 }, nova_entries_today: 1,
+    locks: { buy: null, sell: null }, notes: [], approval: null, trade: null, entries_today: { count: 1 }, nova_entries_today: 1,
     size: { qty: 10, by_risk: 185, capped_by: 'max_shares', text: '10 shares (max shares)' }, last_event: last,
     bot: { on_list: mode === 'bot', playing: mode === 'bot', reason: null, setup_at_strategy: true, active: true },
   });

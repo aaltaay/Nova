@@ -199,7 +199,10 @@ def financials(symbol: str, statement: str = "balance_sheets", as_of: str | None
     if held["ticker_reused"] or cik:
         held = tickers.require(symbol, as_of, cik)
     frame, matched = _frame(statement, symbol, as_of), "ticker"
-    if not frame.empty and held["cik"] and (held["ticker_reused"] or cik) and "cik" in frame:
+    # The index keys tickers upper-case, so a lowercase-suffix security's issuer (CDw beside CDW) can sit under the
+    # same key: whenever the rows name more than one issuer, keep the named company's, as for a reused ticker.
+    mixed = "cik" in frame and frame["cik"].map(_cik).dropna().nunique() > 1
+    if not frame.empty and held["cik"] and (held["ticker_reused"] or cik or mixed) and "cik" in frame:
         frame, matched = frame[frame["cik"].map(_cik) == held["cik"]], f"ticker, cik {held['cik']}"
     if frame.empty and held["cik"]:
         frame, matched = _frame(statement, None, as_of, cik=held["cik"]), f"cik {held['cik']}"
@@ -238,6 +241,19 @@ def ticker_details(symbol: str) -> pd.DataFrame:
     frame.attrs.update(dataset="ticker_details", symbol=symbol.upper(), as_of="latest_only",
                        rule="current values as of the reference dump")
     return frame
+
+
+_DETAILS: tuple[Any, pd.DataFrame] | None = None
+
+
+def ticker_details_all() -> pd.DataFrame:
+    """Every ticker-details row of the dump, each ``ticker`` as the record writes it (``AAGpT`` beside ``AAG``),
+    read once per dump (kept until the folder or a source file's size or time changes). Latest only."""
+    global _DETAILS
+    stamp = (str(roots.reference()), _manifest("ticker_details"))
+    if _DETAILS is None or _DETAILS[0] != stamp:
+        _DETAILS = (stamp, _frame("ticker_details", None))
+    return _DETAILS[1]
 
 
 def short_interest(symbol: str, day: str, at: str = "09:30") -> dict[str, Any]:

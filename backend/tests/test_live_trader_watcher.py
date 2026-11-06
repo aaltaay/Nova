@@ -24,6 +24,7 @@ from bot.audit import list_entries
 from bot.live_trader import book as lt_book
 from bot.live_trader import lines as lt_lines
 from bot.live_trader import market as lt_market
+from bot.live_trader import orders as lt_orders
 from bot.live_trader import settings as lt_settings
 from bot.live_trader import watcher
 from execution import inflight, service, telemetry
@@ -287,6 +288,27 @@ def test_a_host_selling_part_sells_half_the_bots_shares_once_on_paper(desk):
     assert [f["kind"] for f in done["exit_fills"]] == ["trim", "close"]
 
 
+def test_a_sale_on_a_losing_add_outlives_a_paper_read_that_failed(desk, monkeypatch):
+    """The add is judged once: Paper unreadable as its close goes out must not lose the sale (Codex review, #1285)."""
+    lt_settings.patch_host(HOST, {"adds": 0, "sell_on_add": True})
+    run(desk, "10:30:00")
+    t = desk.feed.open("XYZ", 100.00, at("10:30:10"))
+    run(desk, "10:30:11")
+    assert held(desk, "XYZ") == 4
+    desk.market.px["XYZ"] = [99.50, 99.48, 99.52]
+    desk.feed.add(t, 99.70, at("10:31:00"))
+    read = lt_orders.held
+    monkeypatch.setattr(lt_orders, "held", lambda symbol, side: None)
+    run(desk, "10:31:06")
+    assert held(desk, "XYZ") == 4
+    assert lt_book.positions()[f"{HOST}|long|XYZ"]["sale_on_add"]["ts"] is not None
+    monkeypatch.setattr(lt_orders, "held", read)
+    run(desk, "10:31:08")
+    assert held(desk, "XYZ") == 0
+    (done,) = lt_book.closed_today()
+    assert done["kind"] == "sell_on_add" and lt_book.positions() == {}
+
+
 def test_the_card_counts_the_bots_orders_and_takes_their_fees_off(desk):
     """Today on a host's card: every order the bot's trades filled (entry, close), what Paper charged for each, and
     the P/L after those fees -- the operator's own order in the same stock is neither counted nor charged to it
@@ -294,9 +316,9 @@ def test_the_card_counts_the_bots_orders_and_takes_their_fees_off(desk):
     from bot.live_trader import view as lt_view
 
     run(desk, "10:30:00")
-    desk.broker.place("XYZ", "BUY", 100, order_type="MKT", source="manual")      # the operator's own order
     t = desk.feed.open("XYZ", 100.00, at("10:30:10"))
     run(desk, "10:30:11")
+    desk.broker.place("XYZ", "BUY", 100, order_type="MKT", source="manual")      # the operator joins it (ADR 069)
     desk.feed.close(t, at("10:31:00"))
     run(desk, "10:31:01")
     sends = [r for r in desk.broker.closed_orders() if r["order_origin"] == "live_trader" and r["status"] == "Filled"]
@@ -339,13 +361,23 @@ def test_the_card_counts_every_buy_stop_one_print_filled(monkeypatch):
 
 def test_the_bots_shares_are_its_own_never_yours(desk):
     run(desk, "10:30:00")
-    desk.broker.place("XYZ", "BUY", 100, order_type="MKT", source="manual")      # the operator's own 100
     t = desk.feed.open("XYZ", 100.00, at("10:30:10"))
     run(desk, "10:30:11")
+    desk.broker.place("XYZ", "BUY", 100, order_type="MKT", source="manual")      # the operator joins with 100
     assert held(desk, "XYZ") == 104
     desk.feed.close(t, at("10:31:00"))
     run(desk, "10:31:01")
     assert held(desk, "XYZ") == 100                                # it sold its 4, never yours
+
+
+def test_the_bot_stays_out_of_a_stock_you_hold(desk):
+    """ADR 069 decision 2: a host's call on a stock you already hold is skipped, and the skip says why."""
+    run(desk, "10:30:00")
+    desk.broker.place("XYZ", "BUY", 100, order_type="MKT", source="manual")      # the operator's own 100
+    desk.feed.open("XYZ", 100.00, at("10:30:10"))
+    run(desk, "10:30:11")
+    assert held(desk, "XYZ") == 100 and lt_book.positions() == {}
+    assert any("you hold it" in (line.get("reason") or "") for line in lines_())
 
 
 # -- off air, hidden, the clock --------------------------------------------------------------------
@@ -687,8 +719,9 @@ def test_a_position_from_an_earlier_day_a_key_held_is_sold_when_the_key_is_back_
     assert held(desk, "XYZ") == 0
 
 
-def test_with_every_key_off_your_own_cover_of_the_bots_short_goes_through(desk):
-    """Keys stop the bots, never you: a cover is a close at the door, and the bot's stale stop is taken back."""
+def test_with_every_key_off_your_close_on_the_bots_row_covers_the_bots_short(desk):
+    """Keys stop the bots, never you: your Close on the bots' row (ADR 069) is a close at the door, and the bot's
+    stale stop is taken back."""
     run(desk, "10:30:00")
     desk.feed.open("FADE", 40.00, at("10:30:10"), side="short")
     run(desk, "10:30:11")
@@ -696,7 +729,7 @@ def test_with_every_key_off_your_own_cover_of_the_bots_short_goes_through(desk):
     lt_settings.patch_host(HOST, {"key": False})
     family_keys.turn("live_trader", False)
     switch.turn(False)
-    desk.broker.place("FADE", "BUY", 12, order_type="MKT", source="manual")     # you covered all of it
+    desk.broker.place("FADE", "BUY", 12, order_type="MKT", source="flatten", origin="close_bots")  # you covered all of it
     run(desk, "10:30:20")
     assert held(desk, "FADE") == 0
     assert desk.broker.ledger.order_row(stop_id)["status"] == "Cancelled"     # a cancel places nothing
@@ -719,11 +752,110 @@ def test_shares_sold_outside_leave_the_position_and_are_not_bought_back(desk):
     run(desk, "10:30:00")
     desk.feed.open("XYZ", 100.00, at("10:30:10"))
     run(desk, "10:30:11")
-    desk.broker.place("XYZ", "SELL", 4, order_type="MKT", source="manual")     # you sold the bot's shares
+    desk.broker.place("XYZ", "SELL", 4, order_type="MKT", source="flatten", origin="close_bots")  # you closed the bots' shares
     run(desk, "10:30:20")
     assert lt_book.positions() == {} and lt_book.closed_today()[0]["kind"] == "outside"
     run(desk, "10:30:30")
     assert held(desk, "XYZ") == 0
+
+
+def test_a_sale_outside_the_bot_is_booked_at_papers_own_fill_not_at_zero(desk):
+    """Your close of the bot's shares (the Close on the bots' row, ADR 069) closed the position with no price, so
+    the card counted it $0. It is now Paper's own fill; the order is not the bot's, so its fee stays off the bot's
+    card."""
+    from bot.live_trader import view as lt_view
+
+    run(desk, "10:30:00")
+    desk.feed.open("XYZ", 100.00, at("10:30:10"))
+    run(desk, "10:30:11")                                          # 4 shares at the ask, 100.02
+    desk.market.px["XYZ"] = [101.00, 100.98, 101.02]
+    desk.broker.place("XYZ", "SELL", 4, order_type="MKT", source="flatten", origin="close_bots")  # you close them at the bid
+    run(desk, "10:30:20")
+    (done,) = lt_book.closed_today()
+    assert done["kind"] == "outside" and done["pl_usd"] == pytest.approx(4 * (100.98 - 100.02), abs=0.01)
+    assert done["exit_fills"][-1]["price"] == pytest.approx(100.98) and done["exit_fills"][-1]["order_id"] is None
+    (card,) = [h for h in lt_view.build()["hosts"] if h["name"] == HOST]
+    assert card["today"]["realized_usd"] == pytest.approx(3.84, abs=0.01) and card["today"]["orders"] == 1
+
+
+def test_two_hosts_sold_outside_in_one_pass_are_each_booked_at_their_own_shares(desk):
+    """Two hosts' bots hold the same stock; you sell four shares, then four more at another price, before the next
+    pass (the Close on the bots' row, ADR 069). Each position is booked at its own shares of Paper's sales: no
+    closing share prices two positions (Codex review, PR #1261)."""
+    lt_settings.patch_host(OTHER, {"key": True})
+    run(desk, "10:30:00")
+    desk.feed.open("XYZ", 100.00, at("10:30:10"))
+    desk.feed.open("XYZ", 100.01, at("10:30:10"), host=OTHER)      # their own average: not the other host's row
+    run(desk, "10:30:11")
+    assert held(desk, "XYZ") == 8
+    desk.market.px["XYZ"] = [90.00, 89.98, 90.02]
+    desk.broker.place("XYZ", "SELL", 4, order_type="MKT", source="flatten", origin="close_bots")
+    desk.market.px["XYZ"] = [110.00, 109.98, 110.02]
+    desk.broker.place("XYZ", "SELL", 4, order_type="MKT", source="flatten", origin="close_bots")
+    run(desk, "10:30:20")
+    done = lt_book.closed_today()
+    assert len(done) == 2 and {d["kind"] for d in done} == {"outside"}
+    assert sorted(d["exit_fills"][-1]["price"] for d in done) == [pytest.approx(89.98), pytest.approx(109.98)]
+    assert sum(d["pl_usd"] for d in done) == pytest.approx(4 * 89.98 + 4 * 109.98 - 8 * 100.02, abs=0.02)
+    assert sorted(n for d in done for _oid, n in d["exit_fills"][-1]["from"]) == [4.0, 4.0]
+
+
+def test_the_day_cover_of_a_bot_short_is_booked_at_its_fill_with_its_fee(desk):
+    """A bot short handed to Nova's day cover was booked with no price, so the card counted it $0. The cover's fill
+    is now the exit, and its fee is the bot's: the bot handed the short to it."""
+    from bot.live_trader import view as lt_view
+
+    run(desk, "10:30:00")
+    t = desk.feed.open("FADE", 40.00, at("10:30:10"), side="short")
+    run(desk, "10:30:11")
+    assert held(desk, "FADE") == -12                               # shorted at the bid, 39.99
+    desk.market.cover = at("10:30:30")                             # the day cover's time has come
+    desk.feed.close(t, at("10:31:00"))
+    run(desk, "10:31:01")
+    pos = lt_book.positions()[f"{HOST}|short|FADE"]
+    assert pos["state"] == "closing" and pos["close"]["kind"] == "day_cover"
+    cover = desk.broker.place("FADE", "BUY", 12, order_type="MKT", source="flatten", origin="day_cover")   # at the ask
+    run(desk, "10:31:10")
+    (done,) = lt_book.closed_today()
+    assert done["kind"] == "day_cover" and done["pl_usd"] == pytest.approx(12 * (39.99 - 40.01), abs=0.01)
+    assert done["exit_fills"][-1]["order_id"] == int(cover["order_id"])
+    (card,) = [h for h in lt_view.build()["hosts"] if h["name"] == HOST]
+    assert card["today"]["realized_usd"] == pytest.approx(-0.24, abs=0.01) and card["today"]["orders"] == 2
+    assert card["today"]["fees_usd"] >= 2.0 and card["today"]["fees_unread"] == 0
+
+
+def test_a_short_nobody_takes_before_its_time_to_live_is_a_skip_on_the_card(desk, monkeypatch):
+    """SSR on: the short may sell only above the bid, so it rests at the ask. Nobody takes it before the Paper
+    sleeve's time to live and the bot cancels it: that was a note in the log only. It is a skip with its reason
+    now, counted on the card (operator: no silent blockers)."""
+    from bot.live_trader import view as lt_view
+
+    monkeypatch.setattr(lt_market, "ssr", lambda symbol: "on")
+    run(desk, "10:30:00")
+    desk.feed.open("FADE", 40.00, at("10:30:10"), side="short")
+    run(desk, "10:30:11")
+    assert held(desk, "FADE") == 0                                 # resting at the ask, 40.01: no print reaches it
+    run(desk, "10:30:20")                                          # past the time to live: cancelled
+    run(desk, "10:30:22")
+    (skip,) = [r for r in lines_("skipped") if r["inputs"]["code"] == "LT_NOT_FILLED"]
+    assert "the short at 40.01 was not taken in" in skip["reason"] and "SSR is on" in skip["reason"]
+    assert skip["order_id"] is not None and held(desk, "FADE") == 0
+    assert len([r for r in lines_("order") if r["inputs"]["symbol"] == "FADE"]) == 1     # said once, not re-sent
+    (card,) = [h for h in lt_view.build()["hosts"] if h["name"] == HOST]
+    assert card["today"]["skipped"] >= 1
+
+
+def test_a_step_cancelled_by_the_hosts_own_close_is_not_a_missed_trade(desk, monkeypatch):
+    """A resting short the host closes before it fills is cancelled by the bot's close, not its time to live:
+    that is a note, never an LT_NOT_FILLED skip."""
+    monkeypatch.setattr(lt_market, "ssr", lambda symbol: "on")
+    run(desk, "10:30:00")
+    t = desk.feed.open("FADE", 40.00, at("10:30:10"), side="short")
+    run(desk, "10:30:11")
+    desk.feed.close(t, at("10:30:12"))
+    run(desk, "10:30:13")
+    assert not [r for r in lines_("skipped") if r["inputs"]["code"] == "LT_NOT_FILLED"]
+    assert held(desk, "FADE") == 0
 
 
 def test_a_restart_resumes_what_the_bot_holds(desk):
@@ -872,7 +1004,7 @@ def test_a_short_covered_in_part_outside_has_its_stop_cancelled_and_the_rest_cov
     desk.feed.open("FADE", 40.00, at("10:30:10"), side="short")
     run(desk, "10:30:11")
     (stop_id,) = lt_book.positions()[f"{HOST}|short|FADE"]["stop_order_ids"]
-    desk.broker.place("FADE", "BUY", 5, order_type="MKT", source="manual")      # you covered 5 of the bot's 12
+    desk.broker.place("FADE", "BUY", 5, order_type="MKT", source="flatten", origin="close_bots")  # you covered 5 of the bot's 12
     run(desk, "10:30:20")
     run(desk, "10:30:22")
     assert held(desk, "FADE") == 0
@@ -885,7 +1017,7 @@ def test_a_short_covered_in_full_outside_leaves_no_stop_to_cover_the_next_short(
     desk.feed.open("FADE", 40.00, at("10:30:10"), side="short")
     run(desk, "10:30:11")
     (stop_id,) = lt_book.positions()[f"{HOST}|short|FADE"]["stop_order_ids"]
-    desk.broker.place("FADE", "BUY", 12, order_type="MKT", source="manual")     # you covered all of it
+    desk.broker.place("FADE", "BUY", 12, order_type="MKT", source="flatten", origin="close_bots")  # you covered all of it
     run(desk, "10:30:20")
     assert held(desk, "FADE") == 0
     assert desk.broker.ledger.order_row(stop_id)["status"] == "Cancelled"
@@ -904,7 +1036,7 @@ def test_a_stop_whose_cancel_is_refused_is_cancelled_on_a_later_pass_even_after_
         return SimpleNamespace(ok=False, error="refused for the test", reason_code="TEST")
 
     monkeypatch.setattr(lt_orders, "cancel", refused)
-    desk.broker.place("FADE", "BUY", 12, order_type="MKT", source="manual")     # you covered all of it
+    desk.broker.place("FADE", "BUY", 12, order_type="MKT", source="flatten", origin="close_bots")  # you covered all of it
     run(desk, "10:30:20")
     assert desk.broker.ledger.order_row(stop_id)["status"] != "Cancelled"
     assert [r["order_id"] for r in lt_book.retiring()] == [stop_id]

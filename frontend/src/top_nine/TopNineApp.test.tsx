@@ -4,28 +4,43 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DESK_POLL_SNAP_KEY_PREFIX } from '../constantGroups/global_bar';
-import { TOP_NINE_LIST_KEY, TOP_NINE_NO_DESK, TOP_NINE_OPEN_WAIT_MS, TOP_NINE_SHARE, TOP_NINE_VIEWER_KEY } from './topNineConstants';
+import {
+  TOP_NINE_LIST_KEY,
+  TOP_NINE_LULD_POLL_MS,
+  TOP_NINE_NO_DESK,
+  TOP_NINE_OPEN_WAIT_MS,
+  TOP_NINE_SHARE,
+  TOP_NINE_VIEWER_KEY,
+} from './topNineConstants';
 import { TOP_NINE_SCHEMA_VERSION, type TopNineRow, type TopNineSnapshot } from './topNineSnapshot';
+
+const chimeTopNine = vi.fn((_on: boolean) => 'played');
+const beepTopNineHalt = vi.fn((_on: boolean) => 'played');
+vi.mock('./topNineSound', async (load) => ({
+  ...(await load<typeof import('./topNineSound')>()),
+  chimeTopNine: (on: boolean) => chimeTopNine(on),
+  beepTopNineHalt: (on: boolean) => beepTopNineHalt(on),
+}));
 
 const requestOpenOnDesk = vi.fn(async (_symbol: string, _opts: { from?: string; waitMs: number }) => false);
 vi.mock('../workspace', () => ({ requestOpenOnDesk: (s: string, o: { from?: string; waitMs: number }) => requestOpenOnDesk(s, o) }));
 
 import TopNineApp from './TopNineApp';
 
-function board(symbols: string[]): TopNineRow[] {
+function board(symbols: string[], halted: readonly string[] = ['SMX']): TopNineRow[] {
   return symbols.map((symbol, i) => ({
-    symbol, rank: i + 1, changePct: 30 - i, price: 2, volume: 5_800_000, float: 81_400, halted: symbol === 'SMX',
+    symbol, rank: i + 1, changePct: 0.7 - i / 10, price: 2, volume: 5_800_000, float: 81_400, halted: halted.includes(symbol),
   }));
 }
 
-function snap(gainers: string[]): TopNineSnapshot {
+function snap(gainers: string[], halted?: readonly string[]): TopNineSnapshot {
   return {
     schema_version: TOP_NINE_SCHEMA_VERSION,
     source: { kind: 'live' },
     asOf: 1_792_160_040,
     lists: {
       gappers: { rows: [], total: 14 },
-      gainers: { rows: board(gainers), total: 50 },
+      gainers: { rows: board(gainers, halted), total: 50 },
       afterhours: { rows: [], total: 0 },
     },
   };
@@ -45,6 +60,8 @@ describe('TopNineApp', () => {
   beforeEach(() => {
     localStorage.clear();
     requestOpenOnDesk.mockClear();
+    chimeTopNine.mockClear();
+    beepTopNineHalt.mockClear();
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ bars: [] }), { status: 200 })));
     localStorage.setItem(KEY, JSON.stringify({ ts: Date.now(), payload: snap(AT_1013) }));
   });
@@ -60,6 +77,9 @@ describe('TopNineApp', () => {
     expect(tiles.map((t) => t.getAttribute('data-testid'))).toEqual(AT_1013.map((s) => `top-nine-tile-${s}`));
     expect(screen.getByTestId('top-nine-tile-ZTG').getAttribute('data-rank')).toBe('3');
     expect(screen.getByTestId('top-nine-tile-SMX').textContent).toContain('HALTED');
+    // Change is the Scanner's fraction of the previous close: 0.7 reads +70%, never +0.7%.
+    expect(screen.getByTestId('top-nine-tile-XLAB').textContent).toContain('+70.00%');
+    expect(screen.getByTestId('top-nine-tile-XLAB').textContent).not.toContain('+0.7%');
     expect(screen.getByTestId('top-nine-tab-gainers').textContent).toBe('Gainers50');
     expect(Number(localStorage.getItem(TOP_NINE_VIEWER_KEY))).toBeGreaterThan(0);
     // Nothing moved yet: the first board is never marked.
@@ -75,6 +95,67 @@ describe('TopNineApp', () => {
     expect(screen.getByTestId('top-nine-pill-WORX').textContent).toBe('▼ 2 → 5');
     expect(screen.getByTestId('top-nine-tile-XLAB').getAttribute('data-mark')).toBe('none');
     expect(screen.getByTestId('top-nine-log').textContent).toContain('WORX ▼2→5');
+    // The countdown runs on the compositor (a transform), never a width the window must lay out every frame.
+    const bar = screen.getByTestId('top-nine-tile-ZTG').querySelector<HTMLElement>('.top-nine-tile__timer b');
+    expect(bar?.style.transform).toMatch(/^scaleX\(/);
+    expect(bar?.style.width).toBe('');
+  });
+
+  it('chimes for a switch on screen, and not for one whose only riser was muted by a right-click', () => {
+    render(<TopNineApp />);
+    act(() => send(snap(AT_1014)));
+    expect(chimeTopNine).toHaveBeenCalledTimes(1);
+
+    // ZTG, SMX and FVNNU rose on that board; mute all three and send the reverse: only WORX rises.
+    for (const sym of ['ZTG', 'SMX', 'FVNNU']) {
+      fireEvent.contextMenu(screen.getByTestId(`top-nine-tile-${sym}`), { clientX: 100, clientY: 100 });
+      expect(screen.getByTestId('top-nine-menu-mute').textContent).toContain(`Mute ${sym}`);
+      fireEvent.click(screen.getByTestId('top-nine-menu-mute'));
+    }
+    expect(screen.queryByTestId('top-nine-menu')).toBeNull();
+    expect(screen.getByTestId('top-nine-muted-ZTG')).toBeTruthy();
+    act(() => send(snap(AT_1013)));
+    expect(chimeTopNine).toHaveBeenCalledTimes(2);
+    act(() => send(snap(['XLAB', 'ZTG', 'WORX', 'SMX', 'FVNNU', 'SGRX', 'TCRT', 'SITC', 'CORD'])));
+    expect(chimeTopNine).toHaveBeenCalledTimes(2);
+
+    // Unmute from the same menu.
+    fireEvent.contextMenu(screen.getByTestId('top-nine-tile-ZTG'), { clientX: 100, clientY: 100 });
+    expect(screen.getByTestId('top-nine-menu-mute').textContent).toContain('Unmute ZTG');
+    fireEvent.click(screen.getByTestId('top-nine-menu-mute'));
+    expect(screen.queryByTestId('top-nine-muted-ZTG')).toBeNull();
+  });
+
+  it('drops yesterday\'s mutes when the open pop-up crosses 04:00 ET', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2026-10-27T14:00:00Z')); // Tuesday 10:00 ET
+      localStorage.setItem(KEY, JSON.stringify({ ts: Date.now(), payload: snap(AT_1013) }));
+      render(<TopNineApp />);
+      for (const sym of ['ZTG', 'SMX', 'FVNNU']) {
+        fireEvent.contextMenu(screen.getByTestId(`top-nine-tile-${sym}`), { clientX: 100, clientY: 100 });
+        fireEvent.click(screen.getByTestId('top-nine-menu-mute'));
+      }
+      act(() => send(snap(AT_1014)));
+      expect(chimeTopNine).not.toHaveBeenCalled();
+
+      vi.setSystemTime(new Date('2026-10-28T14:00:00Z')); // Wednesday 10:00 ET, the pop-up never closed
+      act(() => send(snap(AT_1013)));
+      act(() => send(snap(AT_1014)));
+      expect(chimeTopNine).toHaveBeenCalled();
+      expect(screen.queryByTestId('top-nine-muted-ZTG')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('beeps when a stock on screen halts, not for one already halted on the first board', () => {
+    render(<TopNineApp />);
+    expect(beepTopNineHalt).not.toHaveBeenCalled();
+    act(() => send(snap(AT_1013, ['SMX', 'XLAB'])));
+    expect(beepTopNineHalt).toHaveBeenCalledTimes(1);
+    act(() => send(snap(AT_1013, ['SMX', 'XLAB'])));
+    expect(beepTopNineHalt).toHaveBeenCalledTimes(1);
   });
 
   it('asks the desk to open a double-clicked stock in its Trader, and says so when no desk answers', async () => {
@@ -84,6 +165,40 @@ describe('TopNineApp', () => {
     });
     expect(requestOpenOnDesk).toHaveBeenCalledWith('ZTG', { from: 'gainers', waitMs: TOP_NINE_OPEN_WAIT_MS });
     expect(screen.getByTestId('top-nine-notice').textContent).toBe(TOP_NINE_NO_DESK);
+  });
+
+  it('asks for the LULD band on Gainers only: Gappers and After Hours have none to draw', () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      const all = snap(AT_1013);
+      // XLAB tops Gappers too: its tile stays mounted across the switch and must stop asking.
+      all.lists.gappers = { rows: board(['XLAB', 'GAPA', 'GAPB']), total: 14 };
+      all.lists.afterhours = { rows: board(['AHA', 'AHB']), total: 2 };
+      localStorage.setItem(KEY, JSON.stringify({ ts: Date.now(), payload: all }));
+      const luldAsks = () => vi.mocked(fetch).mock.calls
+        .map(([url]) => String(url))
+        .filter((url) => url.includes('/api/luld/'))
+        .map((url) => url.split('/api/luld/')[1].split('/')[0]);
+
+      render(<TopNineApp />);
+      expect(luldAsks().sort()).toEqual([...AT_1013].sort());
+
+      for (const list of ['gappers', 'afterhours'] as const) {
+        vi.mocked(fetch).mockClear();
+        fireEvent.click(screen.getByTestId(`top-nine-tab-${list}`));
+        act(() => {
+          vi.advanceTimersByTime(TOP_NINE_LULD_POLL_MS * 3);
+        });
+        expect(screen.getByTestId('top-nine-app').getAttribute('data-list')).toBe(list);
+        expect(luldAsks()).toEqual([]);
+      }
+
+      vi.mocked(fetch).mockClear();
+      fireEvent.click(screen.getByTestId('top-nine-tab-gainers'));
+      expect(luldAsks()).toHaveLength(9);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('follows the list a rail button chose', () => {

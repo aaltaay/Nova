@@ -25,6 +25,22 @@
   filter: brightness(1.08);
 }
 
+/* The bots' line says whose at the pane's left, just above the line, and takes no click (ADR 069 decision 9). */
+.chart-bots-position {
+  position: absolute;
+  left: 8px;
+  z-index: 5;
+  transform: translateY(calc(-100% - 2px));
+  color: #c9c8ff;
+  font: 600 12px/1.2 ui-sans-serif, system-ui, sans-serif;
+  white-space: pre;
+  pointer-events: none;
+}
+
+.chart-bots-position.is-under {
+  transform: translateY(2px);
+}
+
 .chart-position-menu {
   position: absolute;
   top: calc(100% + 0.28rem);

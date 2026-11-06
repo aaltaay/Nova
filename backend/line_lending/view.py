@@ -2,7 +2,8 @@
 
 ``{schema_version: 1, cap, lines: [{symbol, held_by, front, viewers}], lending: {on, loans, recent, error}}``
 -- ``held_by`` is ``replay`` (a Sim replay slot), ``loan``, ``auto_record``, ``record`` (a Session
-Record or the L2 recorder) or ``tab`` (a Trader tab's or another panel's Level 2); ``front`` whether
+Record or the L2 recorder), ``agent`` (Claude's seat, ADR 068) or ``tab`` (a Trader tab's or another panel's
+Level 2); ``front`` whether
 a visible window shows the symbol's Trader tab (null while the focus is unknown); ``viewers``
 ``ibkr.depth``'s count (sockets and holds alike). Reads memory only.
 """
@@ -39,6 +40,7 @@ _HOLDER_WORDS = {
     "tab": "in another Level 2",
     "loan": "lent to a setup",
     "replay": "a Sim replay",
+    "agent": "Claude's (its seat, ADR 068)",
 }
 
 

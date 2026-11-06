@@ -81,9 +81,8 @@ export function actWords(plan: StockPlan, mode: StockModeName, approveQty: numbe
   return short ? SHORT_ACT : ' Your click.';
 }
 
-/** Why Nova will not trade it by itself, as the chart's title; the day's cap counts both sides. */
-export function blockedTitle(plan: StockPlan, mode: StockModeName, used: boolean, triggered: boolean): string {
-  if (used) return 'THE BOT\'S TRADE TODAY IS USED';
+/** Why Nova will not trade it by itself, as the chart's title. */
+export function blockedTitle(plan: StockPlan, mode: StockModeName, triggered: boolean): string {
   if (mode === 'bot') return triggered ? 'THE BOT IS NOT TRADING IT' : 'THE BOT WILL NOT TRADE THIS';
   const verb = isShortPlan(plan) ? 'SHORT' : 'BUY';
   return triggered ? `THE BOT IS NOT ${verb}ING IT` : `THE BOT WILL NOT ${verb} THIS`;

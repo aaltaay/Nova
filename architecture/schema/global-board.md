@@ -79,7 +79,7 @@ answered or failed once in this process (or was kept from the last one); `replay
   session; `sessions` are the markets' session segments clipped to the window.
 - `sources[]`: `{id: "ibkr", label, ok: boolean | null, at, error}` -- `ok: null` until asked.
 - `budget`: `{history_left: number | null, history_headroom, waiting: "history" | "lines" | null}` -- why reads are
-  waiting: the page sends no historical request while `history_headroom` or fewer of IBKR's 60-a-10-minutes are left
+  waiting: the page sends no historical request while `history_headroom` or fewer of the 10-minute window are left
   (`GLOBAL_HISTORY_HEADROOM`, or `GLOBAL_YIELD_HEADROOM` while the Market or Forex page shows and this one does not), and opens no line while fewer than `IBKR_BRIEF_MIN_FREE_LINES` are spare.
 
 **The markets** (`GLOBAL_MARKETS`; the instruments are IBKR's, the hours each market's own, in its own time zone):
@@ -100,10 +100,10 @@ after a close they were read before. Not wanted: the same
 flows, quotes and FX closes at `GLOBAL_IDLE_FLOW_TTL_SEC` / `GLOBAL_IDLE_QUOTES_TTL_SEC`, but never from 09:30 to
 16:00 ET, the desk's own hours, and no daily bars (`NOVA_GLOBAL_BOARD_WARM=0` reads only while wanted). Every historical request goes through the
 paced service at background priority, under its own pacing kind `global` (the capacity strip's History hover names
-it), and only while more than `GLOBAL_HISTORY_HEADROOM` (30) are left: charts, the short check, the TraderTV exits
-and LULD come first, and the Market page, which stops at the same 30, takes turns with it -- at least
+it), and only while more than `GLOBAL_HISTORY_HEADROOM` (100) are left: charts, the short check, the TraderTV exits
+and LULD come first, and the Market page, which stops at the same 100, takes turns with it -- at least
 `GLOBAL_HISTORY_GAP_SEC` between two of Global's requests, the Market page's own pace -- except that while the Market
-page or the Forex page (ADR 062) shows and Global does not, Global leaves `GLOBAL_YIELD_HEADROOM` (40): the page on
+page or the Forex page (ADR 062) shows and Global does not, Global leaves `GLOBAL_YIELD_HEADROOM` (110): the page on
 screen goes first (ADR 060 amendment). A refused instrument is not asked again for `GLOBAL_REFUSED_RETRY_SEC`.
 
 **Kept across restarts** (`backend/global_board/keep.py`): `<cache_dir>/global-board/global-store.json`,
@@ -125,3 +125,8 @@ that reads its ETF says "via EWZ"; a market IBKR has not answered says "no feed"
 size shows on its hover card ("Market size ≈ $68.0T", the parts, the month and source, "published monthly, not live")
 and beside each exchange's name on its row ("NYSE $29.5T + Nasdaq $38.5T", "JPX $7.7T": a label naming
 several exchanges pairs with the size's parts in order); "How to read" says where the sizes come from.
+
+**An old read is not today's (operator, 2026-11-05).** On the 1 D view a market's `flow` and its bar-based `move` read
+`null` with `error` "waiting for IBKR's read of this session" when the kept read belongs to an earlier session, or
+when the session is open and the read is older than `GLOBAL_FLOW_MAX_AGE_SEC` (the reader rests in the desk's hours
+until the page is asked for). They never count in `world`, `regions` or `read`. A closed market keeps its last session.

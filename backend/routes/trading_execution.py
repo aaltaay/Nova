@@ -9,12 +9,12 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field, model_validator
 
 from constants_ibkr import IBKR_ORDER_TIF_DEFAULT
+from constants_sim import DESK_VENUES
 from execution import service as _execution_service
 from execution import verification_gate
+from execution.cancel_many import cancel_open_orders
 from execution.models import ExecutionCommand
 from execution.timing import ingress_stamps
-from ibkr import orders as _orders
-from ibkr.errors import IbkrAccountError
 from ibkr.order_build import normalize_order_type, normalize_tif
 
 logger = logging.getLogger(__name__)
@@ -93,6 +93,8 @@ class OrderRequest(BaseModel):
     intent: Literal["flatten"] | None = None
     # ADR 045: what the screen showed when the operator acted; a manual priced order without it is refused.
     view: ViewStamp | None = None
+    # The venue the operator acted on; the door refuses VENUE_CHANGED when the desk is elsewhere (#1283).
+    venue: str | None = None
 
     @model_validator(mode="after")
     def _legs_ride_a_limit_entry(self) -> "OrderRequest":
@@ -160,6 +162,7 @@ def _manual_order_command(
         # Checked in the door against the position less the closes already
         # working, inside the execution lock (execution.flatten_intent, QA R42).
         intent=req.intent,
+        expected_venue=_named_venue(req.venue),
         symbol=req.symbol.upper(),
         side=req.side.upper(),
         qty=req.qty,
@@ -250,85 +253,45 @@ async def cancel_order(
     }
 
 
+def _named_venue(venue: str | None) -> str | None:
+    """A venue the caller named, or 400: one that does not exist must not read as "the desk moved"."""
+    if venue is not None and venue not in DESK_VENUES:
+        raise HTTPException(status_code=400, detail=f"venue must be one of {', '.join(DESK_VENUES)}, not {venue!r}")
+    return venue
+
+
 @router.delete("/orders")
 async def cancel_orders_for_symbol(
     request: Request,
     symbol: str | None = None,
     all_symbols: bool = False,
+    venue: str | None = None,
 ) -> dict:
     """Cancel working orders via per-order ADR 007 cancels (no SDK bypass).
 
     - ``symbol=XYZ``: cancel that symbol only (legacy).
     - ``all_symbols=true``: cancel every open order on the connected account.
+    - ``venue``: the one the caller means, else the desk's now (``execution.cancel_many``, #1281).
     """
-    sym = (symbol or "").strip().upper()
-    if not all_symbols and not sym:
-        return {
-            "ok": False, "error": "symbol is required (or pass all_symbols=true)",
-            "cancelled": [], "failed": [],
-        }
-    try:
-        open_list = _orders.open_orders()
-    except IbkrAccountError as exc:
-        return {
-            "ok": False, "error": str(exc), "cancelled": [], "failed": [],
-        }
     ingress_perf, ingress_wall = ingress_stamps(request)
-    browser = _browser_timing(request)
-    cancelled: list[int] = []
-    failed: list[dict] = []
-    scope_key = "ALL" if all_symbols else sym
-    for row in open_list:
-        row_sym = str(row.get("symbol", "")).upper()
-        if row.get("order_id") is None:
-            continue
-        if not all_symbols and row_sym != sym:
-            continue
-        oid = int(row["order_id"])
-        receipt = await _execution_service.execute(
-            ExecutionCommand(
-                operation="cancel",
-                idempotency_key=f"cancel-all:{scope_key}:{oid}:{uuid.uuid4()}",
-                source="manual",
-                symbol=row_sym or None,
-                order_id=oid,
-                skip_risk=True,
-                client_timing=browser,
-                backend_ingress_wall_ns=ingress_wall,
-            ),
-            received_ns=ingress_perf,
-        )
-        _execution_service.finalize_http_response(
-            receipt.execution_id, duplicate=receipt.duplicate,
-        )
-        if receipt.ok:
-            cancelled.append(oid)
-        else:
-            failed.append({"order_id": oid, "error": receipt.error})
-    out: dict = {
-        "ok": not failed,
-        "cancelled": cancelled,
-        "failed": failed,
-        "error": None if not failed else f"{len(failed)} cancel(s) failed",
-    }
-    if not all_symbols:
-        out["symbol"] = sym
-    else:
-        out["all_symbols"] = True
-    return out
+    return await cancel_open_orders(
+        symbol, all_symbols, _named_venue(venue), client_timing=_browser_timing(request),
+        received_ns=ingress_perf, ingress_wall_ns=ingress_wall,
+    )
 
 
 @router.post("/flatten-account")
-async def flatten_account_route() -> dict:
+async def flatten_account_route(venue: str | None = None) -> dict:
     """Whole-account MKT flatten -- the KILL's, through the same door.
 
     Calls ``bot.flatten.flatten_account_with_retry`` (execution source=flatten).
     Not a second place / cancel stack. Its only desk caller is the header's
-    Emergency KILL, so its closes read "KILL" in the Orders table.
+    Emergency KILL, so its closes read "KILL" in the Orders table. ``venue`` is the
+    one KILL was pressed on: a desk that left it stops the flatten, and it says so (#1281).
     """
     from bot.flatten import flatten_account_with_retry
 
-    return await flatten_account_with_retry(origin="emergency_kill")
+    return await flatten_account_with_retry(origin="emergency_kill", venue=_named_venue(venue))
 
 
 @router.patch("/order/{order_id}")

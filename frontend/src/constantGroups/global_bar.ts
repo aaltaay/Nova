@@ -140,6 +140,7 @@ export const GLOBAL_BAR_CANCEL_ALL_CONFIRM_BODY =
   + 'It sells nothing, and other venues keep theirs. This cannot be undone.';
 export const GLOBAL_BAR_CANCEL_ALL_CONFIRM_LABEL = 'Cancel all';
 export const GLOBAL_BAR_CANCEL_ALL_EMPTY_TITLE = 'No working stock orders to cancel';
+export const GLOBAL_BAR_CANCEL_ALL_FAILED_TITLE = 'Cancel all did not finish';
 /** Why a Working-menu row is locked (ux/whyTip.ts): the counts are information, not actions. */
 export const GLOBAL_BAR_WORKING_COUNT_WHY = 'A count, not an action -- View All Orders opens the orders behind it.';
 export const GLOBAL_BAR_CANCEL_ALL_BUSY_WHY =

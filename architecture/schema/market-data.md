@@ -409,7 +409,15 @@ print as "the 09:30 open" and armed SDEV at 00:12).
 
 ## Chart bars say when IBKR history stopped answering (ADR 012, #555)
 
-`GET /api/ticker/{symbol}/bars` on the IBKR store-first path (not a Sim replay, not Alpaca) and every `bars_patch` frame on `/ws/ticker/{symbol}` carry, in `coverage` beside `filling`, `last_error: string | null` and `last_error_ts: number | null` (epoch seconds): the backend's reason and time for the last historical fetch of that (symbol, timeframe) that IBKR did not answer -- a timeout (504) or an error answer / failed qualify (502), never a Gateway-down 503 or a 400 / 404. Both are `null` when there is none; a success clears the pair at once, and a failure nobody has asked about again is forgotten after `IBKR_HISTORICAL_FAILURE_MEMORY_SEC` (owner `ibkr/historical_failures.py`, in memory only, never stored in `bars_coverage`). A failed pair is not sent to IBKR again, for any priority, for `IBKR_HISTORICAL_FAILURE_BACKOFF_SEC`: the request is shed and the pane's own retry asks again, so a farm outage stops spending the 60 / 10 min budget. A pane with no bars that is filling with `last_error` set reads "IBKR history did not answer — retrying" with the reason, not "Loading IBKR historical…"; a painted pane's header hint says the same.
+`GET /api/ticker/{symbol}/bars` on the IBKR store-first path (not a Sim replay, not Alpaca) and every `bars_patch` frame on `/ws/ticker/{symbol}` carry, in `coverage` beside `filling`, `last_error: string | null` and `last_error_ts: number | null` (epoch seconds): the backend's reason and time for the last historical fetch of that (symbol, timeframe) that IBKR did not answer -- a timeout (504) or an error answer / failed qualify (502), never a Gateway-down 503 or a 400 / 404. Both are `null` when there is none; a success clears the pair at once, and a failure nobody has asked about again is forgotten after `IBKR_HISTORICAL_FAILURE_MEMORY_SEC` (owner `ibkr/historical_failures.py`, in memory only, never stored in `bars_coverage`). A failed pair is not sent to IBKR again, for any priority, for `IBKR_HISTORICAL_FAILURE_BACKOFF_SEC`: the request is shed and the pane's own retry asks again, so a farm outage stops spending the 10-minute budget. IBKR refusing a request for pacing is an error answer too (502): ib_async hands the caller an empty list, and Nova keeps it from reading as "no bars" (`ibkr/bars.py`). A pane with no bars that is filling with `last_error` set reads "IBKR history did not answer — retrying" with the reason, not "Loading IBKR historical…"; a painted pane's header hint says the same.
+
+**A pane still waiting on its history (operator report 2026-11-04).** "after a whole minute ... the 10-second chart isn't moving". RIOX's 10-second pane held 11-03's tape-built bars at $9.13 and today's first few at $13.70, with no IBKR fill on record. `/bars` took any stored bar for a painted pane and asked as `warm`, which is shed while `IBKR_HISTORY_WARM_RESERVE` (30) or fewer of the 60 are left: it was shed at 08:31:19 with 30 left. The pane has no poll and its retry ran only while it had no bars, so nothing asked again; 15 minutes later it still had no history, and the two days' prices stretched its axis until today's candles lay flat.
+
+- `coverage` (IBKR store-first path) adds `history_pending: boolean` (owner `bars_store.history_pending`): true while the pane has no IBKR history it can show -- nothing stored, never filled (no `bars_coverage` row: the rows are the tape's or Level 1's own), or, intraday, last filled before this session's 04:00 ET (`market.session_key_for_ts`: 00:00-03:59, weekends and holidays belong to the last session). A daily pane's earlier sessions are its content. No bar count enters it: tape-built 10-second bars pass 100 in a busy quarter hour.
+- An interactive read while `history_pending` asks as `open_chart`, an empty pane's priority; a painted pane's refresh stays `warm`, so the only new `open_chart` asks are each pane's first fill of the session. An `open_chart` fill waiting out pacing has one wake per (symbol, timeframe) (`historical_service._reschedule_after_wait`).
+- The pane's capped retry (`chart/chartBarsStuckRetry.ts`) runs while it is `filling` with no bars or `history_pending`; a `bars_patch` or `/bars` answer without it stops the retry. An empty answer that leaves the client's tape candle in place (ADR 012, 2026-09-11) still writes its coverage to the entry (`chart/barsStore.ts`), so a pane whose first tape print beat its answer learns its history is pending too.
+- `/bars?timeframe=10Sec` reads today's session only (`IBKR_BARS_SESSION_ONLY_TIMEFRAMES`): the stored rows from the session's 04:00 ET. Earlier sessions' 10-second rows stay in the store; every other timeframe reads as before.
+- A painted pane's header hint names the day of an `as_of` that is not today's in ET (`formatCoverageStampEt`): "as of Nov 3 11:20 ET, filling…".
 
 **A daily bar stored mid-session is not the finished day (#839).** `archive.db` `bars_intraday` adds
 `written_ts REAL` (owner `bars_store.py`; added in place by `archive.db.migrate_bars_intraday_written_ts`,
@@ -442,7 +450,8 @@ and hour panes now count it on the desk (`chart/liveTradeApply.ts`): a bar's
 volume is what the day volume grew by between its first update and its last.
 The first day volume a pane sees is a baseline, so the bar it joined mid-way
 has no live count -- the store's figure, or nothing, never a partial one. A
-total that goes down restarts the baseline and leaves that bar unknown. Updates
+lower total the same day counts nothing (another counter on the line, below); a
+later day's lower total restarts the baseline and leaves that bar unknown. Updates
 arrive on price changes, so shares traded at an unchanged price just before a
 bar closes count in the next bar; the store's bar replaces a closed bar's figure
 when it lands, and a forming bar shows the larger of the two counts. 10Sec
@@ -450,6 +459,68 @@ volume stays the tape's own prints and daily volume the store's. No wire field
 changed. A store refresh no longer rebuilds the forming candle from the last
 trade (which flattened its open, high and low to one price every 30 s): the
 live tip is put back on top, merged with the store's bar for the same minute.
+
+**The store's live minute keeps every share** (operator report, 2026-11-04:
+"a bunch of volumes that are pointed towards a zero" on CRIS). `ibkr/l1_minute`
+puts an L1 update in the minute of IBKR's last-trade second, which trails the
+update's arrival (CRIS that morning: 0.76 s at the median, 13 s at most), while
+a quiet minute is written by the desk's clock once it ends. An update that
+arrived after that used to open a fresh bucket holding only itself, and its
+write replaced the minute's volume: 174 of CRIS's 271 live minutes held only
+their last one or two updates' shares (04:00 stored 641 while IBKR's day volume
+grew 130,136), 42.5M of the 82.9M shares IBKR counted. Against Massive's
+consolidated tape the stored live minutes held 58% of XLAB's volume
+(2026-10-16) and 55% of WETO's (2026-10-15), the median minute 3-5%, while the
+L1 line's own day-volume growth matched it (103%, median minute 1.000).
+
+- The symbol's newest minute stays in memory after it is written. An update
+  stamped in it joins it and the whole minute is written again; listeners
+  (the setup scanner) hear a minute once, when it is first written.
+- An update stamped before the newest minute never reopens a closed candle;
+  its shares count in the newest one. A written minute from an earlier day is
+  let go at ET midnight: IBKR repeats a line's last trade on the new day's
+  first update, and a minute held overnight would take that trade's shares
+  again.
+- `bars_store` never lowers a stored live minute's volume (`MAX`), so a smaller
+  count -- a restarted process that joined the minute late -- cannot replace a
+  larger one. A hist row is never touched, as before.
+- IBKR's own historical minutes, which replace these, measured 93% of the
+  consolidated tape on XLAB and 90% on WETO (94.5% of the L1 count on CRIS):
+  a minute's volume drops a few percent when its hist bar lands.
+- **Only growth above the session's highest day volume counts**
+  (`l1_minute.volume_increment`; the desk's forming bar the same,
+  `chart/liveTradeApply.stepLiveVolume`). The line carries a second counter or a
+  stale total now and then: XLAB 2026-10-16 19:59:58 read 171,624,612 (the
+  tape's own total), 166,339,148, 171,624,612. A lower total taken as a new
+  baseline counted each return to the real one again. 2,949 of 19,984 streamed
+  symbol-days gained shares no one traded, FRGT 2026-10-06 186M on a 220M day.
+  Counted this way, the line matched the consolidated tape on all 13 stock-days
+  checked (99.8-100.7%), where master's rule read up to 4.6x. A total above
+  `IBKR_L1_DAY_VOLUME_MAX` (50 billion; 10^6-scaled totals on 2026-09-18 / 09-21)
+  is no volume figure. A new session starts its own count, with or without a
+  last between the sessions.
+- **Minutes stored before these fixes** keep their wrong volume until a hist bar
+  replaces them. `tools/repair_live_minutes.py` (rule: `archive/live_minute_repair.py`)
+  is a dry run by default, reading `archive.db` read-only.
+  - It counts each minute from `l1_ticks`' streaming rows (IBKR's whole second;
+    the table reprice's rows, on the desk's clock, are left out) by master's rule
+    and by `volume_increment`.
+  - `--apply` moves a row only on a fingerprint: `fragment`, whose volume is its
+    last few updates' shares by master's rule; or `phantom`, which is master's
+    whole count where the builder's now differs. The row takes the builder's count.
+    Master also counted the lastSize of each update it took as a baseline, which
+    the archive does not keep, so a match may sit up to 10,000 shares a drop above.
+  - It never touches a hist row or a minute from the last 15 minutes. A minute
+    whose first update follows 60 s of silence (a restart, or a line back from
+    out of the line budget) only comes down: its count holds the shares traded
+    while the line was away. It writes a row only if it still holds the volume
+    the plan read.
+  - Scored against Massive's consolidated tape, the repaired live minutes of six
+    stock-days held 96-106% of their volume (13-134% as stored), median minute
+    1.000.
+  - `--json` report: `{schema_version: 1, days: [{day, whole, fragment, phantom,
+    other, gap, no_ticks, recent, shares_added, shares_removed}], totals: {the
+    same keys}, top: [{symbol, day, shares_moved}], applied: rows written | null}`.
 
 ## Earnings and splits on the daily charts (operator ask, 2026-10-12)
 

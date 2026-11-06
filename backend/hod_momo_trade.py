@@ -103,7 +103,7 @@ def on_trade_update(
     snap.price = price
     if volume is not None:
         snap.volume = volume
-        _metrics.update_cum_volume(symbol, volume, ts)
+        _metrics.update_cum_volume(symbol, volume, ts, price)
         if snap.avg_volume is not None and snap.avg_volume > 0 and volume > 0:
             if HOD_MOMO_RVOL_USE_PACE:
                 paced = pace_relative_volume(volume, snap.avg_volume)

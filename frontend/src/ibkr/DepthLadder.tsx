@@ -35,9 +35,10 @@ import {
   depthLiveBadge,
   depthLiveBadgeText,
 } from './depthUiStatus';
-import { depthLentText } from './lentWords';
+import { depthLentText, lentToClaude } from './lentWords';
 import { computeL2Heuristics } from './l2Heuristics';
 import { useIbkrDepth } from './useIbkrDepth';
+import { ClaudeLentWords, ClaudeLinesFullBox } from '../claude_seat';
 import type { DepthLevel } from './types';
 import { useRenderCount } from '../perf/useRenderCount';
 import { noteBookShown } from '../market_view';
@@ -262,7 +263,7 @@ export function MontageSide({
 
 export function DepthLadder({ symbol, uiActive = true, markers, traderTab = false }: Props) {
   useRenderCount('DepthLadder');
-  const { book, connected, l1Fallback, error, watch, lent, luld } = useIbkrDepth(symbol, uiActive, { traderTab });
+  const { book, connected, l1Fallback, error, watch, lent, luld, agentReserved } = useIbkrDepth(symbol, uiActive, { traderTab });
   const { setTopOfBook } = useTopOfBook();
   // What left the book (ADR 033 amendment): the watcher reads depth, so an L1-only book carries none.
   const ladderWatch = l1Fallback ? null : watch;
@@ -294,6 +295,13 @@ export function DepthLadder({ symbol, uiActive = true, markers, traderTab = fals
   }
 
   // The line went to one of Nova's setups (ADR 044): say whose, and when it comes back.
+  // Lent to Claude (ADR 068 decision 14): the same words in Claude's violet; a right-click takes it back.
+  if (lent && lentToClaude(lent)) {
+    return (
+      <ClaudeLentWords symbol={symbol} text={depthLentText(lent)} testId="ibkr-depth-lent"
+        className="ibkr-depth-empty ibkr-depth-lent" />
+    );
+  }
   if (lent) {
     return (
       <div className="ibkr-depth-empty ibkr-depth-lent" data-testid="ibkr-depth-lent" role="status">
@@ -301,6 +309,9 @@ export function DepthLadder({ symbol, uiActive = true, markers, traderTab = fals
       </div>
     );
   }
+
+  // All 3 lines in use and one is Claude's (ADR 068): say whose, with the button that frees one.
+  if (!book && error && agentReserved) return <ClaudeLinesFullBox message={error} />;
 
   // Keep the last book on screen across brief WS reconnects. Only show the
   // full "Connecting…" placeholder when we have nothing to display yet.

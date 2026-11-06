@@ -30,7 +30,7 @@ from tests.bot_helpers import headers, on_practice
 
 client = TestClient(app)
 GATE_IDS = ["venue", "level", "setups", "padlock", "strategy_key", "allowlist", "depth_lines", "loss_limit",
-            "kill_switch", "window", "daily_cap", "extended_hours", "commissions"]
+            "kill_switch", "window", "extended_hours", "commissions"]
 
 
 @pytest.fixture
@@ -230,8 +230,8 @@ def test_ready_says_why_not(api_key):
     gates = {g["id"]: g for g in view["gates"]}
     assert gates["setups"]["detail"]["at_strategy"] == ["first_pullback"]
     assert gates["depth_lines"]["detail"]["held"] == ["ABCD"] and gates["depth_lines"]["detail"]["max_lines"] == 3
-    assert gates["daily_cap"]["detail"] == {"count": 0, "cap": 1, "venue_day": gates["daily_cap"]["detail"]["venue_day"],
-                                            "text": gates["daily_cap"]["detail"]["text"]}
+    assert "daily_cap" not in gates                       # no daily cap (operator, 2026-10-27)
+    assert view["entries_today"]["count"] == 0 and "cap" not in view["entries_today"]
     window = gates["window"]["detail"]["setups"][0]
     assert window["setup"] == "first_pullback" and window["open"] is True
 

@@ -23,8 +23,9 @@ from main import app
 
 ET = ZoneInfo("America/New_York")
 DAY = "2026-09-30"
+# No "trades_today" square: Nova's entries have no daily cap (operator, 2026-10-27).
 GATES = ["bot_on", "strategy_on", "grade", "setups_a_day", "bot_window", "nova_buys", "level2_line", "tape_go",
-         "trades_today", "not_against"]
+         "not_against"]
 SHORT_GATES = ["short_borrow", "short_ssr", "short_halt", "short_margin", "short_hours"]
 client = TestClient(app)
 
@@ -170,15 +171,14 @@ def test_the_shape_the_gates_and_the_sources(day):
     assert all(t["now"] is None for t in body["tickers"])              # a past day has no "now"
 
 
-def test_a_trigger_that_passes_every_gate_takes_the_days_cap(day):
+def test_a_trigger_that_passes_every_gate_is_all_green(day):
     aisp = by_symbol(get())["AISP"]["triggers"]
     assert [t["setup_id"] for t in aisp] == ["AISP-1", "AISP-BF", "AISP-2"]     # once each, oldest first
     first = aisp[0]
     assert first["ts"] == at(9, 41) and first["grade"] == "A" and first["tape"] == "go"
     assert first["outcome"] == "target_first" and first["r"] == 1.5 and first["nth"] == 1
-    assert oks(first["cells"]) == [True] * 10 and first["reasons"] == [] and list(first["cells"]) == GATES
+    assert oks(first["cells"]) == [True] * 9 and first["reasons"] == [] and list(first["cells"]) == GATES
     assert first["side"] == "long" and first["cells"]["not_against"]["why"] == "you held no AISP short"
-    assert first["cells"]["trades_today"]["why"].startswith("it takes Nova's 1st entry of the day")
     assert first["cells"]["nova_buys"]["why"].startswith("Entry was Bot (Bot")
 
 
@@ -188,7 +188,7 @@ def test_each_red_square_says_why(day):
     assert bull["cells"]["strategy_on"] == {"ok": False, "why": "the bull flag was Off: Nova trades only the "
                                                                  "strategies that are On"}
     assert bull["cells"]["grade"]["ok"] is True                         # B, and the bull flag buys A and B
-    assert bull["cells"]["trades_today"] == {"ok": False, "why": "the day's 1 Nova entry went to AISP at 09:41 ET"}
+    assert "trades_today" not in bull["cells"]                          # a 2nd entry the same day is not held back
     cells = second["cells"]
     assert cells["setups_a_day"] == {"ok": False, "why": "a 2nd first pullback: this strategy buys the 1st of "
                                                           "the day only"}
@@ -206,7 +206,6 @@ def test_what_was_set_at_the_trigger_is_read_from_the_records(day):
     assert "hot_list" not in cells                                       # listed at 07:30, after it: no square
     assert cells["nova_buys"]["ok"] is False and cells["nova_buys"]["why"].startswith("Entry was You (Signal only)")
     assert cells["tape_go"] == {"ok": False, "why": "WAIT: burst of red"}
-    assert cells["trades_today"]["ok"] is True                          # the cap still had room at 07:16
 
 
 def test_an_unlisted_ticker_and_not_a_trade(day):
@@ -220,8 +219,7 @@ def test_an_unlisted_ticker_and_not_a_trade(day):
 def test_the_impact_of_each_gate(day):
     impact = {i["gate"]: i for i in get()["impact"]}
     assert list(impact) == GATES + SHORT_GATES
-    assert impact["trades_today"] == {"gate": "trades_today", "blocked": 3, "target_first": 1, "stop_first": 1,
-                                      "r": 1.0}
+    assert "trades_today" not in impact                                 # retired with the daily cap
     assert "hot_list" not in impact
     assert impact["level2_line"] == {"gate": "level2_line", "blocked": 1, "target_first": 1, "stop_first": 0,
                                      "r": 2.0}
@@ -374,7 +372,7 @@ def test_a_stock_taken_off_the_hot_list_before_its_trigger_is_judged_the_same(da
                   "inputs": {"event": "remove", "symbol": "AISP"}}])
     tickers = by_symbol(get())
     first = tickers["AISP"]["triggers"][0]
-    assert oks(first["cells"]) == [True] * 10 and first["reasons"] == []
+    assert oks(first["cells"]) == [True] * 9 and first["reasons"] == []
     lghl = tickers["LGHL"]["triggers"][0]
     assert not any("hot list" in r or "listed" in r for r in lghl["reasons"])
 
@@ -504,7 +502,7 @@ def _mixed_desk(on: list[str], *, long_window_open: bool = True):
     window = {"start": "09:30", "end": "11:30"}
     rules = {"first_pullback": {"window": {**window, "open": long_window_open}, "setups_a_day": 1},
              "bear_flag": {"window": {**window, "start": "09:35", "open": True}, "setups_a_day": 1}}
-    return SimpleNamespace(on=on, rules=rules, row={}, venue="paper", cap=2, used=0,
+    return SimpleNamespace(on=on, rules=rules, row={}, venue="paper",
                            now=SimpleNamespace(mode=lambda venue, sym: "bot"))
 
 

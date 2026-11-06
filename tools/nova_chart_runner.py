@@ -27,6 +27,9 @@ ROOT = Path(__file__).resolve().parents[1]
 BUILD_DIR = ".chart-gateway-build"
 BUILD_TIMEOUT_SECONDS = 300
 BUILD_INPUTS = ("chart-gateway.html", "vite.chart-gateway.config.ts", "package-lock.json")
+# Waits before each further try to move a new build into place: Windows can refuse the rename while something holds
+# a file in the new folder for a moment (#1084). Bounded: about 4 s in all.
+RENAME_RETRY_PAUSES = (0.1, 0.25, 0.5, 1.0, 2.0)
 
 
 def _bundle_key(frontend: Path) -> str:
@@ -39,6 +42,34 @@ def _bundle_key(frontend: Path) -> str:
         info = path.stat()
         digest.update(f"{path.relative_to(frontend).as_posix()}|{info.st_size}|{info.st_mtime_ns}\n".encode())
     return digest.hexdigest()[:20]
+
+
+def _move_into_place(staging: Path, bundle: Path) -> None:
+    """Rename the new build to its key. A concurrent export that built the same key first wins: its bundle is used
+    once its page is there, and this build is dropped. A refusal with no complete bundle in place is tried again
+    (``RENAME_RETRY_PAUSES``), then says which folders and why; a folder without its page is never used (#1084)."""
+    page = bundle / "chart-gateway.html"
+    error: OSError | None = None
+    for pause in (0.0, *RENAME_RETRY_PAUSES):
+        time.sleep(pause)
+        try:
+            staging.rename(bundle)
+            return
+        except OSError as refused:
+            error = refused
+        if page.is_file():
+            shutil.rmtree(staging, ignore_errors=True)
+            return
+    shutil.rmtree(staging, ignore_errors=True)
+    if bundle.exists():
+        there = f"{bundle} holds no chart-gateway.html: it is no renderer build; delete it and export again"
+    else:
+        there = (f"{bundle} does not exist: a process watching or scanning {bundle.parent} holds the new folder "
+                 "open; the next export builds again")
+    raise RuntimeError(
+        f"Chart renderer build could not be moved into place: renaming {staging} to {bundle} was refused "
+        f"{1 + len(RENAME_RETRY_PAUSES)} times in {sum(RENAME_RETRY_PAUSES):.1f} s ({error}). {there}"
+    ) from error
 
 
 def _gateway_bundle(node: str, vite: Path) -> Path:
@@ -57,13 +88,7 @@ def _gateway_bundle(node: str, vite: Path) -> Path:
     if result.returncode or not (staging / "chart-gateway.html").is_file():
         shutil.rmtree(staging, ignore_errors=True)
         raise RuntimeError(f"Chart renderer build failed: {(result.stderr or result.stdout)[-2000:]}")
-    try:
-        staging.rename(bundle)
-    except OSError as error:
-        shutil.rmtree(staging, ignore_errors=True)
-        if not (bundle / "chart-gateway.html").is_file():  # Not a concurrent export that built the same key first.
-            raise RuntimeError(f"Chart renderer build could not be moved into place ({error}); a process watching "
-                               f"{builds} holds it open") from error
+    _move_into_place(staging, bundle)
     for old in builds.iterdir():  # Dot names are in-flight builds and the warm renderer's files.
         if old != bundle and not old.name.startswith("."):
             shutil.rmtree(old, ignore_errors=True)

@@ -16,7 +16,7 @@ export const TOP_NINE_SCHEMA_VERSION = 1;
 export interface TopNineRow {
   symbol: string;
   rank: number;
-  /** The list's Change column, in percent points. */
+  /** The list's Change column, as the Scanner holds it: a fraction of the previous close (0.7 is +70%). */
   changePct: number | null;
   price: number | null;
   volume: number | null;

@@ -5,7 +5,7 @@ import type { CatalystVerdict } from './catalystVerdict';
 export type WhyCheckState = 'yes' | 'no' | 'unknown';
 
 export interface WhyCheck {
-  /** news | halts | float | float_rotation | reverse_split | short_interest | borrow | volume */
+  /** news | halts | fund | float | float_rotation | reverse_split | short_interest | borrow | volume */
   id: string;
   label: string;
   state: WhyCheckState;
@@ -18,7 +18,7 @@ export interface WhyCheck {
 
 /** One rung of the ladder (`likely.steps`, rules v5): a cause in the rules' order, whether it fits, and why. */
 export interface WhyStep {
-  /** move (the move itself, first) | news_pending | news | short_squeeze | routine_news | split_squeeze |
+  /** move (the move itself, first) | news_pending | news | fund | short_squeeze | routine_news | split_squeeze |
    * low_float_momentum | thin_trading | unexplained */
   kind: string;
   name: string;
@@ -28,7 +28,7 @@ export interface WhyStep {
 }
 
 export interface WhyLikely {
-  /** not_moving | news_pending | news | short_squeeze | routine_news | split_squeeze | low_float_momentum | thin_trading | unexplained,
+  /** not_moving | news_pending | news | fund | short_squeeze | routine_news | split_squeeze | low_float_momentum | thin_trading | unexplained,
    * or not_read (a Sim replay no record reaches: no checks, the reason in `detail`) */
   kind: string;
   label: string;
@@ -42,6 +42,11 @@ export interface WhyLikely {
 /** Which price a read used (backend `MOVE_PRICED_BY_*`). */
 export type WhyPricedBy = 'board_row' | 'last_trade' | 'row' | 'quote' | 'replay';
 
+/** A fund (rules v7, ADR 028 amendment 4): its name exactly as Yahoo gives it, never read. */
+export interface WhyFund {
+  name: string | null;
+}
+
 /** The few facts the Catalyst hover names beside the checks. */
 export interface WhyReadFacts {
   /** The board whose row was read (gappers | gainers | losers | afterhours | large_cap), else null. */
@@ -53,6 +58,8 @@ export interface WhyReadFacts {
   last_trade: { price: number; change_pct: number | null; ts: number } | null;
   /** The news verdict the read used: its headline, source and time. */
   catalyst: CatalystVerdict | null;
+  /** Set when Yahoo calls the symbol a fund; null otherwise and before rules v7. */
+  fund: WhyFund | null;
 }
 
 export interface WhyMovingRead {

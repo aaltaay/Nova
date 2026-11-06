@@ -1,9 +1,11 @@
-"""Write a journal trade when a Nova-placed symbol position returns to flat."""
+"""Write a journal trade -- the opening order's holder's (ADR 069) -- when a Nova-placed position returns to flat."""
 from __future__ import annotations
 
 import logging
 import time
 from dataclasses import dataclass, field
+
+from owners.whose import book_of, bot_of, holder_of_order
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +25,7 @@ class FillEvent:
     source: str = "manual"
     parent_order_id: int | None = None
     setup: str | None = None
+    holder: str | None = None
 
 
 @dataclass
@@ -41,6 +44,7 @@ class OpenCycle:
     net_qty: float = 0.0
     last_execution_id: str = ""
     execution_ids: list[str] = field(default_factory=list)
+    holder: str | None = None
 
 
 _open: dict[str, OpenCycle] = {}
@@ -114,6 +118,7 @@ def apply_fill(
             source=event.source,
             parent_order_id=event.parent_order_id,
             setup=event.setup,
+            holder=event.holder,
         )
         _seen.discard((event.execution_id, event.side))
         _open[event.symbol] = _new_cycle(flip, leftover_sign * leftover)
@@ -177,8 +182,15 @@ def notify_watch_filled(watch: object) -> None:
         source=str(row.get("source") or ""),
         parent_order_id=parent,
         setup=str(payload.get("setup") or "") or None,
+        holder=_holder_of(row),
     )
     apply_fill(event, persist=True, record_risk=True)
+
+
+def _holder_of(row: dict) -> str | None:
+    """Who sent the order an execution row records, from its own stamps (ADR 069)."""
+    payload = row.get("payload") or {}
+    return holder_of_order(row.get("source"), payload.get("origin"), payload.get("bot_id"))
 
 
 def events_from_ledger_row(row: dict) -> list[FillEvent]:
@@ -221,6 +233,7 @@ def events_from_ledger_row(row: dict) -> list[FillEvent]:
             source=source,
             parent_order_id=parent,
             setup=str(payload.get("setup") or "") or None,
+            holder=_holder_of(row),
         )
     ]
 
@@ -264,6 +277,7 @@ def _new_cycle(event: FillEvent, signed: float) -> OpenCycle:
         net_qty=signed,
         last_execution_id=event.execution_id,
         execution_ids=[event.execution_id] if event.execution_id else [],
+        holder=event.holder,
     )
 
 
@@ -337,6 +351,8 @@ def _close_cycle(
         close_key=row["close_key"],
         commission=row.get("commission"),
         fill_ids=row.get("fill_ids"),
+        owner=book_of(cycle.holder),
+        bot=bot_of(cycle.holder),
     )
     if not trade_id:
         return None
@@ -377,6 +393,7 @@ def _events_from_evidence(row: dict, fills: list[dict]) -> list[FillEvent]:
             source=str(row.get("source") or ""),
             parent_order_id=parent,
             setup=str(payload.get("setup") or "") or None,
+            holder=_holder_of(row),
         )
     order = ("BUY", "SELL") if str(payload.get("side") or "").upper() != "SELL" else ("SELL", "BUY")
     return [by_side[side] for side in order if side in by_side]

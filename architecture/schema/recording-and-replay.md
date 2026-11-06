@@ -831,7 +831,7 @@ since the broker's notice ran before that row carried the order id (QA R41).
 (default `1D`; owner `practice/history.py`, a pure derivation from the ledger
 events -- no live mark is ever read or invented) answers `venue`,
 `account_id`, `range`, `range_start` (epoch of the first practice day the
-range covers, `null` for `ALL`), `schema_version: 1`, `starting_cash`,
+range covers, `null` for `ALL`), `schema_version: 2` (ADR 069 added whose, below), `starting_cash`,
 `ledger_opened_at` (ISO ET) and:
 
 - `equity[]` -- `{ts, net_liquidation, cash, realized, unrealized}`, one point
@@ -873,6 +873,76 @@ contributes `daily` rows and its `archives` entry only. Sim answers from its
 scratch ledger with `archives: []`; nothing loaded is the shape with empty
 lists, never a guess. Unknown `venue` or `range` is a 400. Constants:
 `constants_practice.PRACTICE_HISTORY_*`.
+
+**Your book and the bots' book (ADR 069; owner `backend/owners/`).** Paper keeps one account and, inside it,
+whose every share is: yours or the bots', and inside the bots' book which bot (`bot`: `bot` the strategy bot,
+`auto_entry`, `bot_api`, `live_trader`, `claude`). Whose an order is comes from its own stamps
+(`owners.whose.by_of`, ADR 063's rule; `holder_of` names the bot by `order_origin`; `close_bots` and
+`loss_limit_bots` close the whole bots' book; Nova's own closes have no owner). Each fill splits across the
+stock's holders (`owners.split`: between the books ADR 063's rule; inside a book the sender's own shares first,
+then the others' in proportion) and each part is booked at its holder's own average cost
+(`owners.holdings`), so the account's position, cost and realized P&L are the holders' together. There is no
+new event and no `practice-paper.json` version: a `rollover` event written since ADR 069 also carries
+`holders: {<holder>: pnl}` (each holder's P&L at the boundary, at the equity's own marks), and one written
+before reads at the last fill prices. Sim's ledger keeps one pile (`split_owners` off) and carries none of
+the fields below.
+
+- `GET /api/practice/account?venue=paper` adds `books: {you, bots}`, each `{day_pnl, realized_today,
+  unrealized_pnl, fills_today, commissions_today}`; `books.bots` adds `budget_usd`, `budget_used_usd` and
+  `by_bot: {<bot>: {same five}}`. The two `day_pnl` add up to the account's (the bots' takes what rounding,
+  or a rollover from before ADR 069, leaves). Each `positions[]` row adds `by_owner[]`: `{owner, bot, qty,
+  avg_cost, unrealized_pnl}` per holder with shares. Working and closed order rows add `owner` and `bot`
+  (null `owner`: one of Nova's own closes).
+- `GET /api/ibkr/positions` on Paper is **your** position (`owners.books.yours`): `qty`, `avg_cost`,
+  `market_value` and `unrealized_pnl` are your shares', `account_qty` the account's, `by_owner[]` every
+  holder's; a stock only the bots hold is not listed. Every Sell, Flatten, cover and exit on the desk sizes
+  from it. Sim's and Live's rows are the account's.
+- **The desk's positions lists** (ADR 069 decision 9: the header's count and menu, the positions tables, the
+  dock footer, the chart's line, the Bots page's bottom line, the header search, the close-of-day reminder) read
+  both books on Paper: your rows from `GET /api/ibkr/positions`, the bots' from `by_owner[]` of
+  `GET /api/practice/account?venue=paper` (one row per bot holder, valued at the position's `mark`), each tagged
+  `owner` / `bot` (`ibkr/deskPositions.ts`). A bots' row's `bots_qty` is every bot's shares in that stock, signed:
+  what Close on it sells. Auto-entry's shares are yours to sell, so they stay on your row and are never a bots'
+  row; `bots_qty` counts them. When the account read fails the rows are the last known and the table says so
+  (`botsStale`). Nothing sizes an order from the bots' rows; a refusal only names them (`refusalNamingBots`).
+- `GET /api/practice/history` (`schema_version: 2`, Paper): each `fills[]` row adds `owner`, `bot` (the
+  order's) and `parts[]` -- `{owner, bot, qty, closes, realized, commission, fees}`, how the fill split, each
+  `realized` at its holder's own cost; each `daily[]` row adds `you` and `bots` (`{realized, fills,
+  commissions, fees}`, a fill counting once for every holder it touched) and `by_bot`; each `equity[]` point
+  adds `you_pnl`, `bots_pnl`, `by_bot` and their realized part (`you_realized`, `bots_realized`,
+  `by_bot_realized`): each book's running P&L since the ledger opened, at the event's
+  marks; `by_owner[]` is `{owner, bot, realized, fills, commissions, fees}` per holder, first-fill order;
+  `components` adds `you_realized` and `bots_realized` (and `bot_realized` is the bots' book's). Archived
+  Paper ledgers split the same way. `by_source[]` stays for Sim.
+- **The Reports tab's journal** builds Paper's round trips from the same parts, one per holder, and reads them by
+  venue and view: `architecture/schema/journal.md` ("Your trades and the bots' on the Reports tab").
+- **The bots' budget** (`owners/budget.py`, file `owners-budget.json` in the operator cache:
+  `{schema_version: 1, bots_usd, set_at}`, whole dollars, default 25,000; rewritten whole on every change; an
+  unknown version or unreadable file reads the default and says so in `error`). `GET /api/owners/budget` ->
+  `{schema_version, bots_usd, used_usd, set_at, source: "default" | "operator", error}`; `PUT` `{bots_usd}`
+  (400 `OWNERS_BUDGET_INVALID` with the rule). `used_usd` is the bots' open shares at the mark plus their
+  working entries (`effect: "opens"`) at their own price.
+- **Close on a bots' row**: `POST /api/owners/close-bots` `{symbol}` sells (or covers) every bot's shares in
+  that stock on Paper with origin `close_bots`, the way a bot's last-resort close does
+  (`bot.flatten.place_close`); your shares stay. It first cancels the bots' working orders in that stock
+  (`bot.flatten.cancel_working`, rows with `owner: "bots"`: their buy stops and entries; yours stay), so nothing
+  of theirs works on in a stock they no longer hold. Each cancel and the close name `expected_venue: "paper"` and
+  origin `close_bots`, and `execution.venue_door` refuses any `close_bots` send off Paper, so a desk that moves
+  while one waits for the lock never sells another account's shares or cancels its order of the same number: the
+  receipt says `VENUE_CHANGED`. 409 `OWNERS_NOTHING_TO_CLOSE` off Paper or when the bots hold none;
+  the answer is the close's receipt with `{symbol, qty, side, cancels}` (`cancels[]`: each cancel's receipt). The
+  desk shows it once per stock, on its first bots' row, and its confirmation names every bot's shares it closes
+  ("Sell all 112?", or "Buy back all 19?" on a short).
+- Refusals on Paper (`owners.rules`, asked by the door's `execution.practice_checks` and again by the practice
+  broker at placement and at the fill): `OWNERS_NOT_YOURS` (a close beyond its sender's own shares while
+  someone else holds the stock the same way: "You hold no SPCX; the 51 are the Live Trader's. Your Sell closes
+  only your shares."), `OWNERS_OTHER_SIDE` (an order that would leave one holder long and another short:
+  "Buy SPCX refused: the Live Trader is short 51. One account can't be long and short the same stock."),
+  `OWNERS_BOT_STAYS_OUT` (a bot opening a stock you hold or have an order working on, unless that bot already
+  holds it the same way: "The Live Trader skipped PARA: you hold it.") and `OWNERS_BOTS_BUDGET` (a bot's entry
+  past the budget: "... the bots' $25,000 would be passed ($23,400 held + $2,500)." -- at placement, on a
+  reprice up (`PracticeBroker.replace`, refused) and at its fill, each counting the entry once, at its new
+  price). A refusal at the fill cancels the order with the same words.
 
 ## Sim at now is live -- the live edge (ADR 020 amendment, operator decision 2026-09-21 evening)
 

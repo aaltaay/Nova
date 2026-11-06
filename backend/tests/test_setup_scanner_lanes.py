@@ -216,7 +216,7 @@ def test_a_fixed_target_is_entry_plus_the_amount():
 
 
 def test_the_bot_window_comes_from_each_setups_template_in_play(tmp_path):
-    """ADR 042: each setup at Strategy has its template's bot window; the daily cap is the venue sleeve's."""
+    """ADR 042: each setup at Strategy has its template's bot window; the day's entries are counted, never capped."""
     from bot import entry_rules
     from bot.autonomy import apply_patch
     from bot.errors import BotError
@@ -232,7 +232,7 @@ def test_the_bot_window_comes_from_each_setups_template_in_play(tmp_path):
     win = entry_rules.window(FP, at)
     assert (win["start"], win["end"], win["open"]) == ("09:30", "11:00", True)
     assert win["template"]["id"] == t.id
-    assert entry_rules.today(cap=None, now=at)["cap"] == 1                  # the sleeve's entries_per_day
+    assert "cap" not in entry_rules.today(now=at)                           # no daily cap (2026-10-27)
     entry_rules.set_clock_for_tests(lambda: datetime(2026, 9, 23, 11, 5, tzinfo=ET))
     with pytest.raises(BotError) as err:
         entry_rules.assert_entry_allowed("buy_market")

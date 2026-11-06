@@ -19,7 +19,7 @@ import { planFlattenExit } from '../ibkr';
 import { placeIbkrOrder } from '../ibkr';
 import type { TopOfBook } from './TopOfBookContext';
 import type { NovaActionRecord, NovaActionResult } from './novaActionTypes';
-import type { NovaActionRuntime } from './runNovaActionRuntime';
+import { refusalNamingBots, type NovaActionRuntime } from './runNovaActionRuntime';
 
 export function accountModeLabel(mode?: string): string {
   const m = (mode || '').toLowerCase();
@@ -90,6 +90,7 @@ export async function placeMarketExit(
         order_type: ticket.order_type,
         outside_rth: ticket.outside_rth,
         limit_price: ticket.limit_price,
+        venue: runtime.venue,
         ...(intent ? { intent } : {}),
       },
       idempotencyKey,
@@ -128,7 +129,7 @@ export async function placeLongPctLimit(
     return { ok: false, text: NOVA_ACTION_ACCOUNT_ERROR_MESSAGE };
   }
   const built = buildLongExitPercent(runtime.position?.qty, percent);
-  if (!built.ok) return { ok: false, text: built.error };
+  if (!built.ok) return { ok: false, text: refusalNamingBots(built.error, runtime, 'long') };
 
   const tobOrErr = requireDepth(runtime, symbol);
   if ('ok' in tobOrErr && tobOrErr.ok === false) return tobOrErr;
@@ -168,6 +169,7 @@ export async function placeLongPctLimit(
         order_type: 'LMT',
         limit_price: Number(limit.toFixed(4)),
         outside_rth,
+        venue: runtime.venue,
       },
       idempotencyKey,
       {
@@ -234,6 +236,7 @@ export async function placeBookOffsetLimit(
         order_type: 'LMT',
         limit_price: Number(limit.toFixed(4)),
         outside_rth,
+        venue: runtime.venue,
       },
       idempotencyKey,
       {

@@ -138,7 +138,8 @@ free-form qty, REST quote polls, a second broker path) was rejected.
     (`setup`, `setups` on the session); Strategy -- Activate and every L2
     fire -- waits on the first-pullback read-out
     (`409 BOT_READOUT_NOT_PASSED`), and L2 entries keep the material's
-    07:00-10:00 ET window and one trade a day. Items 1-10, 12, 14-16 stand.
+    07:00-10:00 ET window and one trade a day (the daily cap was removed 2026-10-27, ADR 042
+    amendment). Items 1-10, 12, 14-16 stand.
 
 ## Consequences
 

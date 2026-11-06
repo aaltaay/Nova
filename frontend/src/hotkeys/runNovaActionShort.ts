@@ -27,7 +27,7 @@ import { getConfirmedDeskVenueSnapshot, placeIbkrOrder } from '../ibkr';
 import { readTradeDefaultsPrefs } from '../settings';
 import type { NovaActionRecord, NovaActionResult } from './novaActionTypes';
 import { accountModeLabel, placeMarketExit, requireDepth } from './runNovaActionPlace';
-import type { NovaActionRuntime } from './runNovaActionRuntime';
+import { refusalNamingBots, type NovaActionRuntime } from './runNovaActionRuntime';
 import type { TopOfBook } from './TopOfBookContext';
 
 export const SHORT_HOTKEY_KINDS: ReadonlySet<NovaActionKind> = new Set<NovaActionKind>([
@@ -73,7 +73,7 @@ async function send(
   const mode = accountModeLabel(runtime.accountMode);
   try {
     const res = await placeIbkrOrder(
-      { symbol, side, qty, order_type: 'LMT', outside_rth: false, ...extra },
+      { symbol, side, qty, order_type: 'LMT', outside_rth: false, venue: runtime.venue, ...extra },
       idempotencyKey,
       { timing: beginBrowserExecutionTiming('nova_action_place', actionTiming), referencePrice: base },
     );
@@ -101,7 +101,7 @@ export async function runShortHotkey(
   const mode = accountModeLabel(runtime.accountMode);
 
   if (action.kind === 'cover_pos') {
-    if (!(held < 0)) return { ok: false, text: SHORT_HOTKEY_NO_SHORT(symbol) };
+    if (!(held < 0)) return { ok: false, text: refusalNamingBots(SHORT_HOTKEY_NO_SHORT(symbol), runtime, 'short') };
     return placeMarketExit(
       runtime, symbol, 'BUY', Math.abs(held), 'cover all', actionTiming, maybeConfirm, idempotencyKey, 'flatten',
     );
@@ -112,7 +112,7 @@ export async function runShortHotkey(
   const tob = tobOrErr as TopOfBook;
 
   if (action.kind === 'cover_limit_ask_offset') {
-    if (!(held < 0)) return { ok: false, text: SHORT_HOTKEY_NO_SHORT(symbol) };
+    if (!(held < 0)) return { ok: false, text: refusalNamingBots(SHORT_HOTKEY_NO_SHORT(symbol), runtime, 'short') };
     if (tob.ask == null || !(tob.ask > 0)) return { ok: false, text: NOVA_ACTION_DEPTH_DISABLED_REASON };
     const limit = cents(tob.ask + (action.params.offsetDollars ?? NOVA_ACTION_DEFAULT_OFFSET_DOLLARS));
     const qty = Math.abs(held);

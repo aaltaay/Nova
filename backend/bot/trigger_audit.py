@@ -47,7 +47,6 @@ def build(day: str, *, lines: list[dict[str, Any]], ctx: trigger_cells.Context, 
     found = trigger_cells.triggers(lines)
     for t in found:
         t["cells"] = trigger_cells.judge(t, ctx)
-    trigger_cells.take_cap(found, ctx)
     by_symbol: dict[str, list[dict[str, Any]]] = {}
     for t in found:
         by_symbol.setdefault(t["symbol"], []).append(t)
@@ -94,7 +93,7 @@ def answer(day: str, now: float, *, today: bool) -> dict[str, Any]:
         timeline=Timeline(rows, restarts=trigger_cells.restarts(lines, start)), rules=rules, listed=listed,
         judged=trigger_short.judgments(rows), audit_error=None if audit_src["ok"] else audit_src["error"])
     if state is not None:
-        ctx.level_now, ctx.mode_now, ctx.cap_now = state.level, state.mode, state.cap
+        ctx.level_now, ctx.mode_now = state.level, state.mode
     now_row: NowRow | None = None
     bot_buys: list[str] = []
     if today:

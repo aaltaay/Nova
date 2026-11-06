@@ -15,7 +15,7 @@ import pytest
 from fastapi import HTTPException
 
 from ibkr import bars, bars_cache
-from ibkr.historical_service import request_bars, reset_for_testing
+from ibkr.historical_service import refused_for_pacing, request_bars, reset_for_testing
 
 
 @pytest.fixture(autouse=True)
@@ -27,7 +27,7 @@ def _reset():
     reset_for_testing()
 
 
-def _fake_ib(monkeypatch, answer_after_sec: float):
+def _fake_ib(monkeypatch, answer_after_sec: float, said: str = ""):
     contract = SimpleNamespace(symbol="AAPL")
 
     class _IB:
@@ -36,6 +36,8 @@ def _fake_ib(monkeypatch, answer_after_sec: float):
 
         async def reqHistoricalDataAsync(self, *_args, **_kwargs):
             await asyncio.sleep(answer_after_sec)
+            if said:
+                refused_for_pacing(said)
             return []
 
     monkeypatch.setattr(bars, "_load_ib_types", lambda: True)
@@ -60,6 +62,17 @@ def test_timeout_raises_and_is_not_cached(monkeypatch):
         asyncio.run(bars.fetch_bars_async("AAPL", "1Day"))
 
     assert err.value.status_code == 504
+    assert bars_cache.get_cached("AAPL", "1Day", 500) is None
+
+
+def test_a_pacing_refusal_raises_and_is_not_cached(monkeypatch):
+    """ib_async answers a refused request with an empty list too: IBKR said no, it did not say "no bars"."""
+    _fake_ib(monkeypatch, answer_after_sec=0.0, said="Historical data request pacing violation")
+
+    with pytest.raises(HTTPException) as err:
+        asyncio.run(bars.fetch_bars_async("AAPL", "1Day"))
+
+    assert err.value.status_code == 502
     assert bars_cache.get_cached("AAPL", "1Day", 500) is None
 
 

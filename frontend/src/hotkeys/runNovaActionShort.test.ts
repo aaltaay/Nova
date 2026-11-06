@@ -9,6 +9,7 @@ import { SHORT_HOTKEY_NO_SHORT, SHORT_WHY_LONG } from '../constantGroups/short_t
 import type { NovaActionRecord } from './novaActionTypes';
 import { runNovaAction, type NovaActionRuntime } from './runNovaAction';
 import { planShortHotkey } from './runNovaActionShort';
+import { refusalNamingBots } from './runNovaActionRuntime';
 
 const placeIbkrOrder = vi.fn();
 vi.mock('../ibkr/placeOrder', () => ({
@@ -77,7 +78,7 @@ describe('Short / Cover hotkeys (ADR 048)', () => {
     expect(placeIbkrOrder).toHaveBeenCalledOnce();
     expect(placeIbkrOrder.mock.calls[0][0]).toEqual({
       symbol: 'RDYN', side: 'SELL', qty: 1, order_type: 'LMT', outside_rth: false,
-      limit_price: 5.8, short_entry: true, stop_loss_price: 5.9,
+      limit_price: 5.8, short_entry: true, stop_loss_price: 5.9, venue: null,
     });
   });
 
@@ -109,11 +110,42 @@ describe('Short / Cover hotkeys (ADR 048)', () => {
     expect(placeIbkrOrder).not.toHaveBeenCalled();
   });
 
+  it("a refused Cover says the short is the bots' while it is, and sends nothing (ADR 069 decision 9)", async () => {
+    const res = await runNovaAction(action({ kind: 'cover_pos' }), runtime(0, { botsQty: -19 }));
+    expect(res).toEqual({
+      ok: false,
+      text: `${SHORT_HOTKEY_NO_SHORT('RDYN')} The 19 short is the bots' -- Close on their row buys it back.`,
+    });
+    expect(placeIbkrOrder).not.toHaveBeenCalled();
+  });
+
+  it('a Cover of your own short never reads the bots\' shares', async () => {
+    await runNovaAction(action({ kind: 'cover_pos' }), runtime(-416, { botsQty: -19 }));
+    expect(placeIbkrOrder.mock.calls[0][0]).toMatchObject({ side: 'BUY', qty: 416 });
+  });
+
+  it('a refused Sell or Flatten says where the shares are, and sends nothing', async () => {
+    const res = await runNovaAction(action({ kind: 'exit_pos' }), runtime(0, { botsQty: 40 }));
+    expect(res).toEqual({
+      ok: false, text: "No open position to exit The 40 shares are the bots' -- Close on their row sells them.",
+    });
+    expect(placeIbkrOrder).not.toHaveBeenCalled();
+  });
+
+  it('a refusal that is not about the shares stays as it was', () => {
+    const held = runtime(5, { botsQty: -19 });
+    expect(refusalNamingBots('Exit size rounds to zero shares', held)).toBe('Exit size rounds to zero shares');
+    expect(refusalNamingBots('No long position to sell', runtime(-5, { botsQty: -19 }), 'long')).toBe('No long position to sell');
+    expect(refusalNamingBots('No long position to sell', runtime(-5, { botsQty: 40 }), 'long'))
+      .toBe("No long position to sell The 40 shares are the bots' -- Close on their row sells them.");
+  });
+
   it('Cover at Ask + offset buys the whole short back with a limit, as the protective flatten', async () => {
     const res = await runNovaAction(action({ kind: 'cover_limit_ask_offset', params: { offsetDollars: 0.03 } }), runtime(-200));
     expect(res.ok).toBe(true);
     expect(placeIbkrOrder.mock.calls[0][0]).toEqual({
       symbol: 'RDYN', side: 'BUY', qty: 200, order_type: 'LMT', outside_rth: false, limit_price: 5.83, intent: 'flatten',
+      venue: null,
     });
   });
 

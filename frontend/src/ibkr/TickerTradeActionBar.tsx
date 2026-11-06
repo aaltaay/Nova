@@ -15,6 +15,7 @@ import { confirmApp } from '../ux';
 import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';
 import { closeFullPosition } from './closeFullPosition';
+import { getConfirmedDeskVenueSnapshot } from './confirmedDeskVenue';
 import { executionTransportError } from './executionTransportError';
 import { GATEWAY_STATUS_KNOWN, gatewayLockWhy, type GatewayStatusFact } from './gatewayStatusWording';
 import { ManualOrderTicket } from './ManualOrderTicket';
@@ -129,6 +130,8 @@ export const TickerTradeActionBar = memo(function TickerTradeActionBar({
   async function handleClose() {
     if (!canFlatten || !position || position.qty === 0) return;
     // No padlock step: arming here would also unlock every order that opens.
+    // Read before the dialog: it names this account, so a desk that leaves it sends nothing (#1283).
+    const { venue } = getConfirmedDeskVenueSnapshot();
     const absQty = formatShareQty(Math.abs(position.qty));
     const closeSide: 'BUY' | 'SELL' = position.qty > 0 ? 'SELL' : 'BUY';
     // A short's flatten buys the borrowed shares back: it says Cover (ADR 048).
@@ -151,6 +154,7 @@ export const TickerTradeActionBar = memo(function TickerTradeActionBar({
       const data = await closeFullPosition(symbol, position.qty, {
         referencePrice: position.market_price,
         mode,
+        venue,
       });
       if (data.ok) {
         setResultMsg({

@@ -54,10 +54,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Any
+from typing import Any, Callable
 
 from capture.constants_capture import CAPTURE_MAX_CONCURRENT, CAPTURE_STOP_AUTO
-from constants_ibkr import IBKR_MAX_DEPTH_SYMBOLS
 from market import session_key_for_ts
 from constants_leaderboard import (
     LEADERBOARD_AUTO_RECORD_FAILED_START_PAUSE_SEC,
@@ -169,12 +168,13 @@ def free_lines(now: float | None = None, *, symbol: str | None = None) -> int:
     held = [(s, kind) for s, (until, kind) in _reserved.items() if until > ts]
     if any(kind == "tape" and not _tape_up(s) for s, kind in held):
         return 0  # every start takes a tick-by-tick line: the operator's Time & Sales is waiting for one
+    from agent_trader import lines as agent_lines
     from ibkr import tape_admission
 
     tape_free = tape_admission.available(symbol)
     return max(0, min(
         *([] if tape_free is None else [tape_free]),
-        IBKR_MAX_DEPTH_SYMBOLS - len(busy) - sum(1 for s, _ in held if s not in busy),
+        agent_lines.desk_free(len(busy)) - sum(1 for s, _ in held if s not in busy),  # ADR 068: Claude's line
         CAPTURE_MAX_CONCURRENT - len(recording) - sum(1 for s, kind in held if kind == "record" and s not in recording)
         - sum(1 for s in _resuming() if s not in recording),
     ))
@@ -279,10 +279,12 @@ async def make_room_for(symbol: str, *, for_record: bool = False, tape_refused: 
     ``tape_refused``: IBKR refused their Time & Sales on ``symbol`` for its tick-by-tick cap -- the
     lines are full whatever Nova counts, so one is given back (#698).
     """
+    from agent_trader import lines as agent_lines
+
     sym = (symbol or "").strip().upper()
     async with _lock:
         busy = _busy_lines()
-        lines_full = sym not in busy and len(busy) >= IBKR_MAX_DEPTH_SYMBOLS
+        lines_full = sym not in busy and agent_lines.desk_free(len(busy)) <= 0  # ADR 068: Claude's line stays
         recording = _recording()
         slots_full = for_record and sym not in recording and len(recording) >= CAPTURE_MAX_CONCURRENT
         if not sym or not (lines_full or slots_full or tape_refused):
@@ -296,6 +298,22 @@ async def make_room_for(symbol: str, *, for_record: bool = False, tape_refused: 
         kind = "tape" if tape_refused else "record" if for_record else "depth"
         _reserved[sym] = (time.time() + LEADERBOARD_AUTO_RECORD_YIELD_HOLD_SEC, kind)
         _yielded.append({"symbol": victim, "for": sym, "at": time.time()})
+        del _yielded[:-10]
+        return victim
+
+
+async def yield_to_agent(symbol: str, choose: Callable[[list[str]], str | None]) -> str | None:
+    """Claude's seat found all 3 Level 2 lines held (ADR 068 decision 3, amended 2026-10-27): stop the auto line
+    ``choose`` picks from auto-record's lines, lowest-ranked first, at once; the symbol stopped, or None.
+
+    The seat's reservation (``agent_trader.lines.desk_free``) keeps the next tick from taking it back."""
+    async with _lock:
+        ranked = sorted(_auto, key=lambda s: (_rank(s), _auto[s]), reverse=True)
+        victim = choose(ranked)
+        if victim not in _auto:
+            return None
+        await _stop(victim, f"yielded its line to Claude's {symbol}", at_once=True)
+        _yielded.append({"symbol": victim, "for": symbol, "at": time.time(), "to": "claude"})
         del _yielded[:-10]
         return victim
 

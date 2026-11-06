@@ -86,6 +86,8 @@ interface Props {
   absence?: string | null;
   /** The sample desk: its account is Nova Marketing Sample Data, never "IBKR" (W31). */
   sample?: boolean;
+  /** Paper (ADR 069): your book and the bots' under the account's day line. */
+  booksSlot?: React.ReactNode;
 }
 
 /** `100,014.74`: cents only while the ticks are closer than a dollar (W26). */
@@ -105,7 +107,7 @@ function Row({ label, children, note }: { label: string; children: React.ReactNo
 
 export function AccountDetailsPanel({
   venue, figures, rows, positions, history, range, onRange, maxSharesCap, hidden, onToggleHidden, nowTs,
-  absence = null, sample = false,
+  absence = null, sample = false, booksSlot = null,
 }: Props) {
   const practice = venue !== 'live';
   const live = venue === 'live' && !sample;
@@ -158,6 +160,7 @@ export function AccountDetailsPanel({
       <div className={`acct-hero__sub acct-num ${toneClass(toneOf(figures.dayPnl))}`} data-testid="account-day-line">
         {hidden ? ACCOUNT_TAV_HIDDEN : `${formatSignedMoney(figures.dayPnl)}  ${formatSignedPercent(dayPct)}`} {ACCOUNT_TODAY_SUFFIX}
       </div>
+      {booksSlot}
       <div className="acct-ranges" role="tablist" aria-label="Range">
         {ACCOUNT_HISTORY_RANGES.map((r) => (
           <button

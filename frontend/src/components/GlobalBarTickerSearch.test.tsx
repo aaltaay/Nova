@@ -5,6 +5,12 @@ import { GlobalBarTickerSearch } from './GlobalBarTickerSearch';
 import { buildSymbolDirectory, resetSymbolDirectoryForTests } from './symbolDirectory';
 import { resetRecentsForTests } from './tickerSearchRecents';
 
+const desk = vi.hoisted(() => ({ botsBook: new Map<string, number>() }));
+vi.mock('../ibkr/useDeskPositions', () => ({
+  useBotsQty: () => 0,
+  useDeskPositions: () => ({ botsBook: desk.botsBook }),
+}));
+
 const LISTED = [
   ['AAPL', 'Apple Inc. Common Stock', 'NASDAQ'],
   ['APLE', 'Apple Hospitality REIT, Inc.', 'NYSE'],
@@ -47,6 +53,7 @@ function footer(): string | null {
 beforeEach(() => {
   // No backend in tests: the directory load fails unless a test installs one.
   vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('offline'))));
+  desk.botsBook = new Map();
 });
 
 afterEach(() => {
@@ -223,6 +230,16 @@ describe('GlobalBarTickerSearch', () => {
     type(input, 'a');
     expect(rows()).toEqual(['A*', 'AAPL', 'AMD', 'AAL']);
     expect(footer()).toContain('Listed symbols unavailable (offline)');
+  });
+
+  it("offers the stocks the bots hold with yours, once each (ADR 069 decision 9)", () => {
+    desk.botsBook = new Map([['ORCL', -19], ['AAL', 5]]);
+    const { input } = mount();
+    type(input, 'o');
+    expect(rows()).toEqual(['O*', 'ORCL']);
+    expect(document.body.querySelector('[data-testid="global-bar-search-option-ORCL"]')?.textContent).toContain('Position');
+    type(input, 'aa');
+    expect(rows()).toEqual(['AA*', 'AAPL', 'AAL']);
   });
 
   it('loads the directory on first focus', async () => {

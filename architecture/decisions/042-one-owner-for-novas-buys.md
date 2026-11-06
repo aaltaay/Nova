@@ -112,3 +112,14 @@ strategy turned Off (or the last Live Trader host key turned off) clearing Activ
 family's exits. Activate is still refused with no setup at Strategy and no host key on, and still cleared on every
 start, a locked padlock, a venue change and the master below Strategy. Older `deactivated` stamps and audit lines may
 read `no_setup`.
+
+## Amendment, 2026-10-27: no daily cap on Nova's automatic entries
+
+The operator, 2026-10-27: "that 3 trades a day limit need to be removed all over the place actually", and "u have infinite trades so we LEARN!". Decision 4's `entries_per_day` and decision 3's `daily_cap` gate
+are withdrawn. Nova's automatic entries (the bot and Auto-entry) are no longer limited per day; the day's count is
+still kept and shown (`entries_today: {count, venue_day, entries, approved}`, no `cap`). A stored sleeve that
+still carries `entries_per_day` loads without it (the next write of that venue's sleeve drops it), and a `PATCH`
+that sends it changes nothing. The triggers audit's `trades_today` square (ADR 044) is retired with it. What
+still holds: the daily loss limit and its lines (ADR 056 / 063), one trade at a time and the working-order block,
+the sleeve's size, budget and timeout, each setup's window and setups a stock a day, and Live untouched (a bot
+never trades Live). Claude's seat lost its own 3-a-day count the same day (ADR 068 amendment).

@@ -29,6 +29,10 @@ describe('notifyOrderRejected copy', () => {
     expect(isSoftOrderWarning('Warning 2109: Attribute \'outsideRth\' ignored')).toBe(true);
   });
 
+  it('says the order was not sent when the desk moved (#1283)', () => {
+    expect(orderRejectTitle('VENUE_CHANGED')).toBe('The desk moved -- the order was not sent');
+  });
+
   it('gives Client Portal verification its own title', () => {
     expect(orderRejectTitle('IBKR_VERIFICATION_REQUIRED')).toBe(
       'Order not placed -- IBKR verification required',

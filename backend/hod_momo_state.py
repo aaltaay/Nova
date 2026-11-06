@@ -6,6 +6,7 @@ mutable fields, so tests and startup recovery can replace the owner atomically.
 """
 from __future__ import annotations
 
+import asyncio
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -59,6 +60,10 @@ class HodMomoState:
     session_date: str = ""
     today_alerts: list[AlertObject] = field(default_factory=list)
     hod_ws_clients: set[Any] = field(default_factory=set)
+    # Held while the live list changes and while each /ws/hod-momo frame about it is sent
+    # (hod_momo_alerts), so no desk gets a restated list older than an alert it already holds,
+    # or an alert of a session after that session's list was replaced (#800).
+    feed_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     total_trades_seen: int = 0
     gate_counters: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     recent_decisions: deque[DecisionRecord] = field(

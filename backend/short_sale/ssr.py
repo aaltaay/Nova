@@ -20,7 +20,9 @@ know that day's whole tape or the day before), so a replayed short is priced as 
 
 ``request_history`` asks IBKR for the two daily reads on a worker thread -- once a stock a day, again
 after 09:30 for today's premarket, again ``SSR_HISTORY_RETRY_SEC`` after a miss -- and keeps them
-for the day, in memory.
+for the day, in memory. Only an ``urgent`` ask (the stock on the ticket or about to be shorted) may spend
+IBKR's last historical requests; the setup scanner's asks, one for each watched stock trading under its
+prior close, leave them to open charts, and an urgent ask after such a miss reads at once.
 """
 from __future__ import annotations
 
@@ -107,31 +109,34 @@ def history_for(symbol: str, now: float) -> dict[str, Any] | None:
     return got
 
 
-def _due(symbol: str, now: float) -> bool:
+def _due(symbol: str, now: float, urgent: bool = False) -> bool:
     got = history_for(symbol, now)
     if got is None:
         return True
     if got.get("error"):
+        if urgent and not got.get("urgent"):   # the miss left IBKR's last requests to open charts; this read may not
+            return True
         return now - float(got.get("fetched_at") or 0) >= SSR_HISTORY_RETRY_SEC
     opened = _rth_open(_et_day(now))
     return now >= opened and float(got.get("fetched_at") or 0) < opened
 
 
-async def _fetch(symbol: str) -> dict[str, Any]:
+async def _fetch(symbol: str, urgent: bool) -> dict[str, Any]:
     from ibkr import historical_service
 
-    whole = await historical_service.request_daily_bars(symbol, SSR_HISTORY_DURATION, use_rth=False)
-    regular = await historical_service.request_daily_bars(symbol, SSR_HISTORY_DURATION, use_rth=True)
+    whole = await historical_service.request_daily_bars(symbol, SSR_HISTORY_DURATION, use_rth=False, urgent=urgent)
+    regular = await historical_service.request_daily_bars(symbol, SSR_HISTORY_DURATION, use_rth=True, urgent=urgent)
     return {"all": whole, "rth": regular}
 
 
-def _ask_in_background(symbol: str) -> None:
+def _ask_in_background(symbol: str, urgent: bool) -> None:
     from ibkr.client_bridge import run_coro
 
     now = time.time()
-    entry: dict[str, Any] = {"day": _et_day(now).isoformat(), "fetched_at": now, "all": [], "rth": [], "error": None}
+    entry: dict[str, Any] = {"day": _et_day(now).isoformat(), "fetched_at": now, "all": [], "rth": [], "error": None,
+                             "urgent": urgent}
     try:
-        got = run_coro(_fetch(symbol), SSR_HISTORY_TIMEOUT_SEC, label="ssr history")
+        got = run_coro(_fetch(symbol, urgent), SSR_HISTORY_TIMEOUT_SEC, label="ssr history")
         entry.update(all=list(got.get("all") or []), rth=list(got.get("rth") or []))
     except Exception as exc:  # paced, busy or disconnected: SSR stays unknown (counts as on) and says why
         entry["error"] = f"IBKR's daily bars were not read ({exc})"
@@ -142,11 +147,12 @@ def _ask_in_background(symbol: str) -> None:
             _asking.discard(symbol)
 
 
-def request_history(symbol: str, now: float | None = None) -> bool:
-    """Ask IBKR for the stock's daily bars on a worker thread, when due; False when not asked."""
+def request_history(symbol: str, now: float | None = None, *, urgent: bool = False) -> bool:
+    """Ask IBKR for the stock's daily bars on a worker thread, when due; False when not asked. ``urgent``: the stock
+    is on the ticket or about to be shorted, and its read may spend IBKR's last historical requests."""
     sym = (symbol or "").strip().upper()
     ts = time.time() if now is None else float(now)
-    if not sym or not _due(sym, ts):
+    if not sym or not _due(sym, ts, urgent):
         return False
     from ibkr import client as _client
 
@@ -160,7 +166,7 @@ def request_history(symbol: str, now: float | None = None) -> bool:
         if _pool is None:
             _pool = ThreadPoolExecutor(max_workers=SSR_HISTORY_WORKERS, thread_name_prefix="nova-ssr")
         pool = _pool
-    pool.submit(_ask_in_background, sym)
+    pool.submit(_ask_in_background, sym, urgent)
     return True
 
 

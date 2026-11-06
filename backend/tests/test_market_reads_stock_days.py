@@ -31,6 +31,7 @@ def _ts(day: str, hhmm: str) -> int:
 @pytest.fixture
 def store(tmp_path, monkeypatch):
     monkeypatch.setenv("NOVA_MARKET_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("NOVA_RVOL_DIR", str(tmp_path / "rvol"))       # no table: every rvol_daily unknown
     path = roots.movers_db()
     path.parent.mkdir(parents=True)
     db = sqlite3.connect(path)
@@ -45,6 +46,8 @@ def store(tmp_path, monkeypatch):
         ("BBB", "2", "2025-01-31", "2025-02-14", 50_000_000, "10-Q"),
         ("DDD", "4", "2024-06-30", "2024-08-14", 1_000_000, "10-Q"),      # as of 246 days before: too old
         ("REUS", "99", "2025-01-31", "2025-02-14", 2_000_000, "10-Q")])   # the ticker's former company
+    db.executemany("INSERT INTO ticker_holders VALUES (?, ?, ?, ?)", [
+        ("REUS", "99", None, "2020-01-02"), ("REUS", "7", "2020-01-03", None)])
     db.commit()
     db.close()
     ref = tmp_path / "store" / "reference"
@@ -89,6 +92,19 @@ def test_float_max_filters_shares_outstanding_and_unknowns_are_left_out(store):
     assert list(only["symbol"]) == ["CCC", "DDD", "REUS"]
 
 
+def test_market_cap_is_the_prior_close_times_shares_known_that_day_and_unknowns_are_counted(store):
+    frame = stock_days.find_stock_days(filters={"date_from": store}, float_unknown="include")
+    caps = dict(zip(frame["symbol"], frame["market_cap"], strict=True))
+    assert caps["AAA"] == 20_000_000 and caps["BBB"] == 200_000_000          # $4.00 x 5M, $4.00 x 50M
+    assert all(pd.isna(caps[s]) for s in ("CCC", "DDD", "REUS"))             # no count known that day
+    small = stock_days.find_stock_days(filters={"date_from": store}, market_cap_max=100_000_000)
+    assert list(small["symbol"]) == ["AAA"] and small.attrs["left_out"] == {"market_cap_unknown": 3}
+    assert small.attrs["filters"]["market_cap_max"] == 100_000_000 and "estimate" in small.attrs["market_cap_rule"]
+    assert list(stock_days.find_stock_days(filters={"date_from": store}, market_cap_min=1e8)["symbol"]) == ["BBB"]
+    with pytest.raises(ValueError, match="over market_cap_max"):
+        stock_days.find_stock_days(filters={"date_from": store}, market_cap_min=2e8, market_cap_max=1e8)
+
+
 def test_the_desks_own_float_is_a_basis_when_asked(store):
     from paths import cache_root
     archive = cache_root() / "archive.db"
@@ -114,6 +130,80 @@ def test_catalyst_and_halt_filters(store):
                                            float_unknown="include")["symbol"]) == ["BBB"]
     calm = stock_days.find_stock_days(filters={"date_from": store}, halted=False, float_unknown="include")
     assert list(calm["symbol"]) == ["AAA", "CCC", "REUS"]                 # DDD's day is not covered: unknown
+
+
+def test_halt_codes_keep_a_day_with_that_halt_and_leave_uncovered_days_out_counted(store):
+    def find(codes):
+        return stock_days.find_stock_days(filters={"date_from": store}, halt_codes=codes, float_unknown="include")
+    assert list(find(["ludp"])["symbol"]) == ["BBB"]                      # a code, any case
+    assert list(find(["luld"])["symbol"]) == ["BBB"]                      # the group word
+    paused = find(["news"])
+    assert paused.empty and paused.attrs["left_out"] == {"halts_unknown": 1}   # DDD: unknown, never "no halt"
+    assert paused.attrs["filters"]["halt_codes"] == ["news"]
+
+
+def _news(monkeypatch, day: str) -> None:
+    def verdict(category, title):
+        return {"verdict": "catalyst", "category": category, "strength": "strong", "title": title,
+                "cutoff_kind": "target"}
+    fake = types.SimpleNamespace(for_pairs=lambda pairs: {
+        (day, "AAA"): verdict("clinical_data", "Positive Phase 2 Data"),
+        (day, "BBB"): verdict("fda_regulatory", "FDA Approves BBB's Drug"),
+        (day, "CCC"): verdict("FDA_Regulatory", "FDA Grants Orphan Drug Designation")})
+    monkeypatch.setitem(sys.modules, "market_reads.catalysts", fake)
+    monkeypatch.setattr(market_reads, "catalysts", fake, raising=False)
+
+
+def test_the_news_type_and_headline_words_filter_the_verdicts(store, monkeypatch):
+    """#1100 follow-up: 'FDA approval news' is the category plus a headline word, not the bare verdict."""
+    _news(monkeypatch, store)
+    fda = stock_days.find_stock_days(filters={"date_from": store}, catalyst_category=["fda_regulatory"],
+                                     float_unknown="include")
+    assert _symbols(fda) == ["BBB", "CCC"]                               # the category's case is ignored
+    approved = stock_days.find_stock_days(filters={"date_from": store}, catalyst_category=["fda_regulatory"],
+                                          catalyst_words=["APPROV", "clear"], float_unknown="include")
+    assert _symbols(approved) == ["BBB"]
+    assert approved.attrs["filters"]["catalyst_words"] == ["approv", "clear"]
+    either = stock_days.find_stock_days(filters={"date_from": store}, catalyst_words=["data", "approv"],
+                                        float_unknown="include")
+    assert _symbols(either) == ["AAA", "BBB"]                            # any word; no verdict, no headline
+
+
+def test_rvol_daily_joins_every_row_and_its_minimum_leaves_unknowns_out_counted(store, monkeypatch):
+    known = {"AAA": (12.5, 50), "BBB": (3.0, 50), "CCC": (None, 7)}      # CCC: too few earlier sessions
+    monkeypatch.setattr(stock_days.rvol_days, "for_pairs", lambda pairs: {
+        p: ({"rvol_daily": known[p[1]][0], "rvol_volume": 1e6, "rvol_day_avg_volume": 8e4,
+             "rvol_day_avg_sessions": known[p[1]][1]} if p[1] in known else None) for p in pairs})
+    rows = {r["symbol"]: r for r in stock_days.find_stock_days(filters={"date_from": store},
+                                                               float_unknown="include").to_dict("records")}
+    assert rows["AAA"]["rvol_daily"] == 12.5 and rows["AAA"]["rvol_day_avg_sessions"] == 50
+    assert pd.isna(rows["DDD"]["rvol_daily"])                            # not in the table: unknown
+    hot = stock_days.find_stock_days(filters={"date_from": store}, rvol_daily_min=5, float_unknown="include")
+    assert _symbols(hot) == ["AAA"]
+    assert hot.attrs["left_out"] == {"rvol_unknown": 3}                  # CCC, DDD, REUS -- never read as low
+    assert hot.attrs["note_rvol"].startswith("3 stock-days") and "day_avg_volume" in hot.attrs["rvol_rule"]
+    with pytest.raises(ValueError, match="rvol_daily_min"):
+        stock_days.find_stock_days(filters={"date_from": store}, rvol_daily_min=0)
+
+
+def test_rvol_days_reads_the_tables_day_rows(tmp_path, monkeypatch):
+    pa = pytest.importorskip("pyarrow")
+    pq = pytest.importorskip("pyarrow.parquet")
+    from market_reads import rvol_days, rvol_store
+    monkeypatch.setenv("NOVA_RVOL_DIR", str(tmp_path))
+    manifest = rvol_store.new_manifest()
+    manifest["days"]["2025-03-03"] = {}
+    (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    path = rvol_store.days_path("2025-03-03")
+    path.parent.mkdir(parents=True)
+    pq.write_table(pa.table({"symbol": ["AAA", "NEW", "ZERO"], "volume": [1_000_000.0, 50_000.0, 10.0],
+                             "day_avg_volume": [80_000.0, 1_000.0, 0.0], "day_avg_sessions": [50, 3, 40]}), path)
+    got = rvol_days.for_pairs([("2025-03-03", "aaa"), ("2025-03-03", "NEW"), ("2025-03-03", "ZERO"),
+                               ("2025-03-03", "GONE"), ("2025-03-04", "AAA")])
+    assert got[("2025-03-03", "AAA")]["rvol_daily"] == 12.5
+    assert got[("2025-03-03", "NEW")]["rvol_daily"] is None              # 3 earlier sessions: too little history
+    assert got[("2025-03-03", "ZERO")]["rvol_daily"] is None             # a zero average is no ratio
+    assert got[("2025-03-03", "GONE")] is None and got[("2025-03-04", "AAA")] is None   # not held / not built
 
 
 def test_cursor_pages_add_up_to_the_whole_answer(store):
@@ -156,6 +246,7 @@ BY_HIGH = ["DDD", "BBB", "UNLB", "EEE", "CCC", "AAA", "NONE", "NULB"]   # ties n
 @pytest.fixture
 def ranked(tmp_path, monkeypatch):
     monkeypatch.setenv("NOVA_MARKET_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("NOVA_RVOL_DIR", str(tmp_path / "rvol"))
     path = roots.movers_db()
     path.parent.mkdir(parents=True)
     db = sqlite3.connect(path)

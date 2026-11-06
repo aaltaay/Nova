@@ -176,7 +176,11 @@ def gather(symbol: str, at: float, board_name: str | None = None, snapshot: dict
         "borrow": borrow,
         "catalyst": catalyst,
         "shares_issued": _try("the share issuances", lambda: shares_issued_at(sym, at)),
-        "check_notes": notes,
+        # A replay never reads Yahoo, so whether the symbol is a fund stays unknown (ADR 028 amendment 4).
+        "quote_type": None,
+        "fund": None,
+        "check_notes": {**notes, "fund": {"unknown_value": "Not read on a replay",
+                                          "note": "Yahoo's security type is read live only; a replay never reads Yahoo"}},
     }
 
 

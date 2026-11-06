@@ -28,6 +28,7 @@ import {
 } from '../constants';
 import { TRADER_TAB_CHANGE_TITLE } from '../constantGroups/trader_view';
 import { WatchMark } from '../watch_list';
+import { ClaudeMark } from '../claude_seat';
 import { catalystInitial, formatSignedPct, pctTone, type TabContext } from './tabContext';
 
 export interface StockViewTabProps {
@@ -40,6 +41,8 @@ export interface StockViewTabProps {
   clipping?: boolean;
   /** ADR 011 preview tabs: an unpinned symbol is replaced by the next ticker opened. */
   pinned: boolean;
+  /** Claude holds this tab's Level 2 line (ADR 068 decision 14): right-click the tab to take it back. */
+  lentToClaude?: boolean;
   context: TabContext | null;
   showDock: boolean;
   showExtract: boolean;
@@ -63,7 +66,8 @@ export interface StockViewTabProps {
 }
 
 export function StockViewTab({
-  label, isActive, isDraft, suspended, recording, clipping = false, pinned, context, showDock, showExtract,
+  label, isActive, isDraft, suspended, recording, clipping = false, pinned, lentToClaude = false, context, showDock,
+  showExtract,
   moveTitle, dockWhy = null, extractWhy = null, editing, draft, inputRef, onDraftChange, onCommitEdit, onCancelEdit,
   onActivate, onExtract, onDock, onTogglePin, onClose,
 }: StockViewTabProps) {
@@ -118,6 +122,12 @@ export function StockViewTab({
               title={TRADER_TAB_CHANGE_TITLE}
             >
               {gap}
+            </span>
+          )}
+          {lentToClaude && !isDraft && (
+            <span className="sv-tab__claude" data-testid={`sv-tab-claude-${label}`}
+              title="Claude holds this tab's Level 2. Right-click the tab to take it back.">
+              <ClaudeMark size={12} />L2 · Claude
             </span>
           )}
           {chip && (

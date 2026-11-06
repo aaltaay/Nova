@@ -1,6 +1,6 @@
 """The momentum-research subcommands of ``tools/market_data.py`` (ADR 059), split along the same seam as the MCP's
 ``nova_data_research.py``: find stock-days, daily bars, the market around a day, one stock-day's stats, order flow,
-halts, catalysts and symbols. ``add_parsers`` registers them; ``HANDLERS`` runs them.
+halts, catalysts, news across stocks, symbols and the operator's journal. ``add_parsers`` registers them; ``HANDLERS`` runs them.
 
   py -3 tools/market_data.py find date_from=2025-01-01 date_to=2025-03-31 price_min=2 price_max=20 high_min=50 --float-max 20000000
   py -3 tools/market_data.py find date_from=2026-09-01 date_to=2026-09-30 high_min=100 --sort high --limit 10
@@ -11,11 +11,19 @@ halts, catalysts and symbols. ``add_parsers`` registers them; ``HANDLERS`` runs 
   py -3 tools/market_data.py flow IRD 2026-09-09 --bucket 5m
   py -3 tools/market_data.py halts --symbol GME --from 2021-01-25 --to 2021-01-29
   py -3 tools/market_data.py catalysts IRD --from 2026-09-08 --to 2026-09-09
+  py -3 tools/market_data.py news --from 2021-11-01 --to 2021-12-31 --category fda_regulatory --words approv,clear
+  py -3 tools/market_data.py halts --from 2026-09-01 --to 2026-09-05 --codes news
   py -3 tools/market_data.py symbols aurora | symbols --ticker AAP --day 2016-06-01
+  py -3 tools/market_data.py find date_from=2026-09-01 date_to=2026-09-30 high_min=50 --market-cap-max 50000000
+  py -3 tools/market_data.py journal --setup gap_and_go --from 2026-10-01 --adherent no
 """
 from __future__ import annotations
 
 import json
+
+
+def _list(raw: str | None) -> list[str] | None:
+    return raw.split(",") if raw else None
 
 
 def _print(answer) -> int:
@@ -33,7 +41,11 @@ def cmd_find(args, show) -> int:
         float_max=args.float_max, outstanding_max=args.outstanding_max, float_basis=args.float_basis,
         float_unknown=args.float_unknown, catalyst=args.catalyst.split(",") if args.catalyst else None,
         halted=None if args.halted is None else args.halted == "yes", sort=args.sort, limit=args.limit,
-        cursor=args.cursor, page_size=args.page_size, to_file=bool(args.out))
+        cursor=args.cursor, page_size=args.page_size, to_file=bool(args.out),
+        catalyst_category=args.catalyst_category.split(",") if args.catalyst_category else None,
+        catalyst_words=args.catalyst_words.split(",") if args.catalyst_words else None,
+        rvol_daily_min=args.rvol_daily_min, halt_codes=_list(args.halt_codes),
+        market_cap_min=args.market_cap_min, market_cap_max=args.market_cap_max)
     return show(frame, args)
 
 
@@ -60,7 +72,8 @@ def cmd_flow(args, show) -> int:
 
 def cmd_halts(args, show) -> int:
     from market_reads import halts
-    return show(halts.halts(args.symbol, args.day, args.date_from, args.date_to, args.source), args)
+    return show(halts.halts(args.symbol, args.day, args.date_from, args.date_to, args.source,
+                            _list(args.codes)), args)
 
 
 def cmd_catalysts(args, show) -> int:
@@ -71,17 +84,35 @@ def cmd_catalysts(args, show) -> int:
     return show(catalysts.items(args.symbol, args.date_from, args.date_to, args.at, sources, args.limit), args)
 
 
+def cmd_news(args, show) -> int:
+    from market_reads import catalysts
+    if args.items:
+        return show(catalysts.search_items(args.date_from, args.date_to, _list(args.words) or [],
+                                           _list(args.sources), args.limit), args)
+    return show(catalysts.search_verdicts(args.date_from, args.date_to, _list(args.verdict), _list(args.category),
+                                          _list(args.words), args.limit), args)
+
+
+def cmd_journal(args, show) -> int:
+    from market_reads import journal
+    adherent = None if args.adherent is None else args.adherent == "yes"
+    return show(journal.trades(args.symbol, args.setup, args.tag, adherent, args.date_from, args.date_to, args.limit,
+                               args.include_mock), args)
+
+
 def cmd_symbols(args, show) -> int:
     from market_reads import symbols
     if args.ticker:
         return _print(symbols.symbol(args.ticker, args.day))
     active = None if args.active is None else args.active == "yes"
     types = args.types.split(",") if args.types else None
-    return show(symbols.search(args.query, active=active, types=types, limit=args.limit), args)
+    return show(symbols.search(args.query, active=active, types=types, exchange=args.exchange, cik=args.cik,
+                               limit=args.limit), args)
 
 
 HANDLERS = {"find": cmd_find, "daily": cmd_daily, "context": cmd_context, "stats": cmd_stats, "flow": cmd_flow,
-            "halts": cmd_halts, "catalysts": cmd_catalysts, "symbols": cmd_symbols}
+            "halts": cmd_halts, "catalysts": cmd_catalysts, "news": cmd_news, "symbols": cmd_symbols,
+            "journal": cmd_journal}
 
 
 def add_parsers(sub, output) -> None:
@@ -96,7 +127,18 @@ def add_parsers(sub, output) -> None:
                       choices=["sec_outstanding", "enrichment", "best"])
     find.add_argument("--float-unknown", dest="float_unknown", default="exclude", choices=["exclude", "include", "only"])
     find.add_argument("--catalyst", help="comma list of verdicts to keep (catalyst, none_found, unknown ...)")
+    find.add_argument("--catalyst-category", dest="catalyst_category",
+                      help="comma list of verdict categories to keep (fda_regulatory, clinical_data ...)")
+    find.add_argument("--catalyst-words", dest="catalyst_words",
+                      help="comma list: keep a headline containing any (approv,clear); a text match")
+    find.add_argument("--rvol-daily-min", dest="rvol_daily_min", type=float,
+                      help="ratio: the day's volume over its usual whole-session volume (5 = 5x); unknowns left out")
     find.add_argument("--halted", choices=["yes", "no"])
+    find.add_argument("--market-cap-min", dest="market_cap_min", type=float,
+                      help="dollars: the prior close x SEC shares outstanding known that day (an estimate)")
+    find.add_argument("--market-cap-max", dest="market_cap_max", type=float, help="dollars, the same estimate")
+    find.add_argument("--halt-codes", dest="halt_codes",
+                      help="comma list: keep a day with a halt of any code (T1,LUDP ...; news or luld for the groups)")
     find.add_argument("--sort", choices=["newest", "oldest", "high", "low", "close", "gap", "volume", "dollar_volume"],
                       help="rank the rows like the movers search (default: oldest day first)")
     find.add_argument("--cursor", help="next_cursor of the previous page (same arguments)")
@@ -131,6 +173,7 @@ def add_parsers(sub, output) -> None:
     halt.add_argument("--from", dest="date_from")
     halt.add_argument("--to", dest="date_to")
     halt.add_argument("--source")
+    halt.add_argument("--codes", help="comma list: T1,T12,LUDP ... or news / luld for their groups")
     output(halt)
     cat = sub.add_parser("catalysts", help="news items naming a stock (or --verdicts) in a window")
     cat.add_argument("symbol")
@@ -141,11 +184,33 @@ def add_parsers(sub, output) -> None:
     cat.add_argument("--limit", type=int)
     cat.add_argument("--verdicts", action="store_true", help="the catalyst verdicts instead of the items")
     output(cat)
+    news = sub.add_parser("news", help="news across every stock in a date range: verdicts (default) or --items")
+    news.add_argument("--from", dest="date_from", required=True)
+    news.add_argument("--to", dest="date_to", required=True)
+    news.add_argument("--verdict", help="comma list: catalyst,negative,routine_only,noise_only,none_found")
+    news.add_argument("--category", help="comma list of verdict categories (fda_regulatory ...)")
+    news.add_argument("--words", help="comma list: a headline containing any (a text match)")
+    news.add_argument("--items", action="store_true", help="headlines (needs --words) instead of verdicts")
+    news.add_argument("--sources", help="with --items, comma list: edgar,alpaca,finnhub,massive")
+    news.add_argument("--limit", type=int)
+    output(news)
     sym = sub.add_parser("symbols", help="find a stock by ticker or name; --ticker for one ticker's history")
     sym.add_argument("query", nargs="?")
     sym.add_argument("--ticker")
     sym.add_argument("--day", help="with --ticker: which company held it that day")
     sym.add_argument("--active", choices=["yes", "no"])
     sym.add_argument("--types", help="comma list: CS,ADRC,ETF ...")
+    sym.add_argument("--exchange", help="primary exchange, e.g. XNAS")
+    sym.add_argument("--cik", help="every ticker a company used")
     sym.add_argument("--limit", type=int, default=50)
     output(sym)
+    jrn = sub.add_parser("journal", help="the operator's own trades from the desk's journal (read-only)")
+    jrn.add_argument("--symbol")
+    jrn.add_argument("--setup")
+    jrn.add_argument("--tag")
+    jrn.add_argument("--adherent", choices=["yes", "no"], help="followed the plan")
+    jrn.add_argument("--from", dest="date_from", help="YYYY-MM-DD: opened on or after this ET day")
+    jrn.add_argument("--to", dest="date_to", help="YYYY-MM-DD: opened on or before this ET day")
+    jrn.add_argument("--limit", type=int, help="newest N (default 200, at most 10,000)")
+    jrn.add_argument("--include-mock", dest="include_mock", action="store_true", help="test rows too")
+    output(jrn)

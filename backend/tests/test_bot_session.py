@@ -30,7 +30,7 @@ def test_default_session_is_l0_dark():
     view = get_session()
     assert view["level"] == 0 and view["active"] is False and view["deactivated"] is None
     assert view["brain_session_id"] is None
-    assert view["caps"]["risk_usd"] == 20.0 and view["caps"]["entries_per_day"] == 1
+    assert view["caps"]["risk_usd"] == 20.0 and "entries_per_day" not in view["caps"]
     assert view["caps"]["api_kinds"] == view["caps"]["allowlist"]
 
 
@@ -112,19 +112,31 @@ def test_strategy_needs_no_activate_token_and_never_activates():
 def test_the_sleeve_takes_values_inside_its_bounds_and_refuses_the_rest():
     view = get_session()
     assert view["caps_bounds"] == {"risk_usd": [1.0, 10000.0], "max_shares": [1, 10], "bp_budget_usd": [0.01, 50.0],
-                                   "working_ttl_sec": [1, 10], "entries_per_day": [1, 3]}
+                                   "working_ttl_sec": [1, 10]}
     apply_patch({"caps": {"max_shares": BOT_MAX_SHARES_CAP, "bp_budget_usd": 50, "working_ttl_sec": 10,
-                          "extended_hours": True, "risk_usd": 35, "entries_per_day": 2}}, desk=True)
+                          "extended_hours": True, "risk_usd": 35}}, desk=True)
     caps = get_session()["caps"]
     assert caps["max_shares"] == BOT_MAX_SHARES_CAP and caps["bp_budget_usd"] == 50.0
     assert caps["working_ttl_sec"] == 10 and caps["extended_hours"] is True
-    assert caps["risk_usd"] == 35.0 and caps["entries_per_day"] == 2
-    for bad in ({"max_shares": 99}, {"bp_budget_usd": 500}, {"working_ttl_sec": 0}, {"entries_per_day": 4},
+    assert caps["risk_usd"] == 35.0
+    for bad in ({"max_shares": 99}, {"bp_budget_usd": 500}, {"working_ttl_sec": 0},
                 {"risk_usd": 0}, {"api_kinds": ["buy_everything"]}, {"no_such": 1}):
         with pytest.raises(BotError) as refused:
             apply_patch({"caps": bad}, desk=True)
         assert refused.value.reason == BOT_REASON_CAPS_INVALID and refused.value.status_code == 400
     assert get_session()["caps"]["max_shares"] == BOT_MAX_SHARES_CAP     # nothing changed in silence
+
+
+def test_a_stored_sleeve_with_the_retired_daily_cap_loads_and_drops_it():
+    """No daily cap (operator, 2026-10-27): a sleeve written before it loads without ``entries_per_day``; a PATCH
+    that still sends it changes nothing."""
+    from bot import sleeve
+
+    old = {**sleeve.defaults(), "risk_usd": 30, "entries_per_day": 3}
+    assert "entries_per_day" not in sleeve.normalize(old) and sleeve.normalize(old)["risk_usd"] == 30.0
+    after, changed = sleeve.apply(old, {"entries_per_day": 1})
+    assert "entries_per_day" not in after and changed == {}
+    assert "entries_per_day" not in sleeve.bounds()
 
 
 def test_each_venue_keeps_its_own_sleeve():

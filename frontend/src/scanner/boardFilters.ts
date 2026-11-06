@@ -26,6 +26,15 @@ export type ChipRow = Pick<
 /** A Sim playback row's time-of-day RVOL is another basis than the chip's day multiple (ADR 023): unknown here. */
 const OTHER_RVOL_BASIS = 'time_of_day_20';
 
+/**
+ * The row's relative volume as a multiple of the average day, or null: unknown, or another basis (a Sim playback
+ * row's time-of-day RVOL, ADR 023) that is never compared with a day multiple. The Rel vol chip and the row shades
+ * (`rowShades.ts`) both read it, so they never disagree on what counts.
+ */
+export function dayRelVolume(row: Pick<ChipRow, 'rel_volume' | 'rvol_source'>): number | null {
+  return row.rel_volume == null || row.rvol_source === OTHER_RVOL_BASIS ? null : row.rel_volume;
+}
+
 export function isChipId(value: unknown): value is ScannerChipId {
   return typeof value === 'string' && (SCANNER_CHIP_IDS as readonly string[]).includes(value);
 }
@@ -37,8 +46,10 @@ export function chipPasses(id: ScannerChipId, row: ChipRow): boolean {
       return row.gap_percent == null || row.gap_percent * 100 >= SCANNER_CHIP_GAP_MIN_PCT;
     case 'float':
       return row.float == null || row.float <= SCANNER_CHIP_FLOAT_MAX_SHARES;
-    case 'relvol':
-      return row.rel_volume == null || row.rvol_source === OTHER_RVOL_BASIS || row.rel_volume >= SCANNER_CHIP_RELVOL_MIN;
+    case 'relvol': {
+      const rvol = dayRelVolume(row);
+      return rvol == null || rvol >= SCANNER_CHIP_RELVOL_MIN;
+    }
     case 'news':
       // A live row with a verdict (ADR 024): company news only -- a movers list or a market wrap
       // naming the ticker is not news about it. A verdict not read yet is unknown, and unknowns pass.

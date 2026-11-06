@@ -22,6 +22,9 @@ ROWS = [
     {"ticker": "AAP", "cik": "0000004281", "name": "Alcoa Inc. $3.75 Preferred Stock", "active": False,
      "delisted_utc": "2016-11-01T04:00:00Z", "type": "PFD", "primary_exchange": "XASE"},
     {"ticker": "SOLO", "cik": "0000000111", "name": "Solo Corp", "active": True, "type": "CS"},
+    {"ticker": "CDW", "cik": "0000000555", "name": "CDW Corp", "active": True, "type": "CS"},
+    {"ticker": "CDw", "cik": "0000000444", "name": "Old Co Warrants", "active": False,
+     "delisted_utc": "2019-01-02T05:00:00Z", "type": "WARRANT"},
     {"ticker": "OVLP", "cik": "0000000222", "name": "New Owner Inc", "active": True, "type": "CS"},
     {"ticker": "OVLP", "cik": "0000000333", "name": "Old Owner Inc", "active": False,
      "delisted_utc": "2016-06-01T04:00:00Z", "type": "CS"},
@@ -97,3 +100,29 @@ def test_an_asked_cik_wins_and_an_unknown_ticker_has_none(listing):
 def test_the_window_each_company_held_the_ticker(listing):
     held = {c["cik"]: (c["held_from"], c["held_to"]) for c in tickers.resolve("AAP")["candidates"]}
     assert held == {"4281": (None, "2016-11-01"), "1158449": ("2016-11-02", None)}
+
+
+def test_holder_runs_give_resolves_answer_for_every_day(listing):
+    """The movers store's ``ticker_holders`` is written from these runs: a day in a run reads that run's company,
+    a day resolve cannot settle is in none, and a ticker one company used has none at all."""
+    runs = tickers.holder_runs("OVLP")
+
+    def held(day):
+        return [r["cik"] for r in runs if (r["held_from"] is None or r["held_from"] <= day)
+                and (r["held_to"] is None or day <= r["held_to"])]
+    for day in ("2014-01-01", "2015-06-01", "2016-03-01", "2016-06-01", "2016-06-02", "2026-09-02", "2030-01-01"):
+        assert held(day) == ([c] if (c := tickers.resolve("OVLP", day)["cik"]) else []), day
+    assert held("2016-03-01") == [] and held("2016-06-02") == ["222"]       # both filed that day: no holder
+    assert tickers.holder_runs("AAP") == [{"cik": "4281", "held_from": None, "held_to": "2016-11-01"},
+                                          {"cik": "1158449", "held_from": "2016-11-02", "held_to": None}]
+    assert tickers.holder_runs("SOLO") == [] and tickers.holder_runs("NOPE") == []
+
+
+def test_a_lowercase_letter_is_another_security_never_the_same_ticker(listing):
+    """Massive writes a preferred or warrant with a lowercase letter (AAp, CDw). Folding case made 84 common stocks
+    read another security's company on past days (CDW before 2019 read the warrants' issuer)."""
+    for asked in ("CDW", "cdw", " CDW "):
+        answer = tickers.resolve(asked, "2017-05-01")
+        assert answer["cik"] == "555" and answer["ticker_reused"] is False and answer["symbol"] == "CDW", asked
+    assert tickers.resolve("CDw", "2017-05-01")["cik"] == "444"
+    assert tickers.holder_runs("CDW") == [] and tickers.key("cdw") == "CDW" and tickers.key("CDw") == "CDw"

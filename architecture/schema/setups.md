@@ -99,7 +99,7 @@ symbol stays `seeding` while IBKR's 1-minute history of today is asked for (`hoo
 charts' paced `historical_service.request_bars`, background priority, on the IB loop; nothing is asked
 when IBKR filled today's minutes and the stored ones start by then). Requests are asked one symbol at a time, oldest
 first; at most one every `SETUPS_SEED_HISTORY_SPACING_SEC`; never while a chart's history loads; only
-while fewer than `SETUPS_SEED_HISTORY_BUDGET` (30) of IBKR's 60 per 10 minutes went out. Then the
+while more than `SETUPS_SEED_HISTORY_HEADROOM` (100) of the 10-minute window are left. Then the
 symbol is seeded from the store again. The Level 1 line's minutes since the follow keep their place,
 so no minute counts twice. The minute now forming is never seeded. A name that leaves the followed set
 keeps its place in the queue. History that does not come (two unanswered asks, or 10 minutes) is given
@@ -750,8 +750,8 @@ filter kept the name out, and the reason says which rule); a proposal adds
 `template_id`, `template_name` and `source`. The read-out's `rules` adds
 `template: {id, rev, name}` and counts only that template revision's rows.
 `bot/entry_rules` reads each setup's bot window from its template in play
-(`bot_window_start` / `bot_window_end`); the daily cap is the venue sleeve's
-`entries_per_day` (ADR 042), and `bot_entries_per_day` left the catalogue: a
+(`bot_window_start` / `bot_window_end`); there is no daily cap on the bot's
+entries (2026-10-27, ADR 042 amendment), and `bot_entries_per_day` left the catalogue: a
 stored template that carries it loads without it (listed on the wire as
 `retired: [{key, value, text}]`), and a write that sends it is refused
 `TEMPLATE_INVALID`. **The bot's rules never restart a read-out** (ADR 042):

@@ -6,8 +6,8 @@
  * restarts), and the editor says so before it saves -- only then: the bot's own
  * parameters (its window) are left out of the template's revision, so changing them
  * keeps the read-out counting. The bot window shows clipped when a stored one sat
- * outside the arming window. How many entries a day is the sleeve's, not a
- * template's. Nothing here places an order.
+ * outside the arming window. There is no daily cap on entries (2026-10-27).
+ * Nothing here places an order.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';

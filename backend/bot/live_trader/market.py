@@ -99,7 +99,7 @@ def ssr(symbol: str) -> str:
 
     sym = (symbol or "").strip().upper()
     try:
-        _ssr.request_history(sym)
+        _ssr.request_history(sym, urgent=True)
         return _ssr.live(sym).state
     except Exception:  # noqa: BLE001 -- an unread SSR is unknown, which prices the short as if SSR were on
         logger.warning("Live Trader: SSR for %s not read", sym, exc_info=True)

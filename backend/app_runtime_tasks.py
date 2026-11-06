@@ -21,7 +21,9 @@ import setup_scanner.engine as _setup_scanner
 from catalysts import board as _catalyst_board
 from catalysts import feed as _catalyst_feed
 from catalysts import issuance as _catalyst_issuance
+from market_news import feed as _market_news_feed
 from move_reason import borrow_feed as _borrow_feed
+from agent_trader import watcher as _agent_trader
 from alpaca import _get_discovery_provider
 from archive.scheduler import archive_maintenance_loop, maintenance_enabled
 import archive.write_queue as _archive_write_queue
@@ -129,6 +131,8 @@ def spawn_runtime_tasks() -> list[asyncio.Task]:
         ("stock_mode.runner", _stock_mode_runner.run),
         # The Live Trader bot (ADR 055): copies a TraderTV host's bar on Paper; idle while no host's key is on.
         ("bot.live_trader", _live_trader.run),
+        # Claude's seat (ADR 068): its line, its breaks, its 15:55 close; Paper only, idle while the seat is off.
+        ("agent_trader", _agent_trader.run),
         # Today's hot list (ADR 044): the 04:00 ET rollover, and the leaders' top N from 07:00 to 16:00 ET.
         ("hot_list.auto", _hot_list_auto.run),
         # Session Record: resume after a restart / failure / Gateway drop, then say so.
@@ -145,6 +149,8 @@ def spawn_runtime_tasks() -> list[asyncio.Task]:
         ("line_lending", _line_lending.run),
         # Catalysts (ADR 024): SEC filings and the press-release wires, recorded as they publish.
         ("catalysts.feed", _catalyst_feed.run),
+        # The market's headlines, kept and searchable for agents (Alpaca's all-market news; never a price source).
+        ("market_news.feed", _market_news_feed.run),
         # Why it's moving (ADR 028): IBKR's short-stock file, recorded as it changes.
         ("move_reason.borrow_feed", _borrow_feed.run),
         # #619: once startup settles, full collections stop walking the process's code and module state.

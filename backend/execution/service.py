@@ -226,7 +226,7 @@ async def execute(
             return _reject(execution_id, cmd, timings, target_why, venue_door.TARGET_REFUSED)
         targeted = cmd.target_venue is not None     # the desk may show another venue: never "moved"
         if not targeted and (why := venue_door.wrong_venue(cmd, send_venue)):
-            return _reject(execution_id, cmd, timings, why, "VENUE_CHANGED")
+            return _reject(execution_id, cmd, timings, why, venue_door.VENUE_CHANGED)
         if view_check.refused:  # "If it lags, then we cannot place an order" (ADR 045)
             timings.validation_completed_ns = time.perf_counter_ns()
             return _reject(execution_id, cmd, timings, view_check.text or "", view_check.code or "VIEW_STALE")
@@ -235,7 +235,7 @@ async def execute(
             timings.validation_completed_ns = time.perf_counter_ns()
             return _reject(execution_id, cmd, timings, detail, reason or "VALIDATION")
         if not targeted and (why := venue_door.moved(send_venue)):
-            return _reject(execution_id, cmd, timings, why, "VENUE_CHANGED")
+            return _reject(execution_id, cmd, timings, why, venue_door.VENUE_CHANGED)
 
         # Kill switch is checked BEFORE skip_risk (D-037): a tripped kill means
         # no Nova-originated spend of any source, so manual ticket places and
@@ -260,7 +260,8 @@ async def execute(
             # operator raises the limit or unchecks it. A cover is a close and is never refused (ADR 048
             # gap 3) -- an exit pair's BUYs only ever cover (#681).
             covers = cmd.operation == "exit_oco" or _validate.covers_short(cmd)
-            locked = buy_refusal(cmd.side, cmd.source, send_venue, short_entry=bool(cmd.short_entry), covers=covers)
+            locked = buy_refusal(cmd.side, cmd.source, send_venue, short_entry=bool(cmd.short_entry), covers=covers,
+                                 origin=cmd.origin)
             # Your own order size limit on Paper and Sim (ADR 064): a hand order that opens or adds, never a close.
             locked = locked or _size_limit.refusal(cmd, send_venue, covers=covers)
             if locked is not None:

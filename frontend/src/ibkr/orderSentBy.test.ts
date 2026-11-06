@@ -14,6 +14,12 @@ describe('orderSentBy (operator report 2026-10-01: "I don\'t remember selling it
     expect(orderSentBy({ order_source: 'flatten', order_origin: 'bot_trip' }).tip).not.toMatch(/Bots page/);
   });
 
+  it("names Claude's seat in its own violet tone (ADR 068), entries and closes alike", () => {
+    expect(orderSentBy({ order_source: 'bot', order_origin: 'claude' })).toMatchObject({ label: 'Claude', tone: 'claude' });
+    expect(orderSentBy({ order_source: 'flatten', order_origin: 'claude' }).label).toBe('Claude');
+    expect(orderSentBy({ order_source: 'bot', order_origin: 'claude' }).tip).toMatch(/Paper only/);
+  });
+
   it('names the daily loss limit\'s Auto sell (ADR 056)', () => {
     const by = orderSentBy({ order_source: 'flatten', order_origin: 'loss_limit' });
     expect(by).toMatchObject({ label: 'Loss limit', tone: 'breaker' });

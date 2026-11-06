@@ -99,6 +99,11 @@ describe('perf window identity', () => {
     });
     expect(perfWindowIdentity(liveWin())).toEqual({ windowId: 'main', role: 'browser' });
   });
+
+  it('names the Top 9 pop-up top-nine, never main: as main it overwrote the desk\'s own report', () => {
+    expect(perfWindowIdentity(liveWin('?view=top9', true))).toEqual({ windowId: 'top-nine', role: 'popout' });
+    expect(perfWindowIdentity(liveWin('?view=top9'))).toEqual({ windowId: 'top-nine', role: 'browser' });
+  });
 });
 
 describe('perf report', () => {

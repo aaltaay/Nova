@@ -45,6 +45,7 @@ import {
 import { StockViewVenueTag } from './StockViewVenueTag';
 import { depthUnavailableHint } from './depthUnavailableHint';
 import { ShortChips, StockReadRail, WhoTradesRow, useLevel2Markers } from '../stock_read';
+import { ClaudeLineFrame } from '../claude_seat';
 
 interface Props {
   selectedSymbol: string;
@@ -285,31 +286,34 @@ export function StockViewDepthTape({
       <QuoteHead symbol={depthSymbol} view={quoteView} replayDay={captureReplay ? replayDay : null} />
       {read}
       {whoTrades}
-      <DepthAndTapeColumns
-        symbol={depthSymbol}
-        chips={captureReplay ? <CaptureReplayL2Chip clock={clock} /> : (
-          <>
-            <HaltEtaChip halt={quote.halt} />
-            <ShortabilityChip ibkr={listingIbkr} />
-            <ShortChips />
-          </>
-        )}
-        level2={showL2 ? (gap ? <HistoricalDepth depth={null} watch={CAPTURE_GAP_WATCH} />
-          : <Level2Module key={feedKey} symbol={depthSymbol} uiActive={uiActive}
-            markers={markers} traderTab />) : null}
-        tape={showTape ? (
-          <TimeSalesModule
-            key={feedKey}
-            symbol={depthSymbol}
-            embedded
-            uiActive={uiActive}
-            connectedText={captureReplay ? SIM_REPLAY_TAPE_STATUS : undefined}
-            statusTitle={captureReplay ? SIM_CAPTURE_TAPE_TITLE : undefined}
-            emptyLabel={gap ? SIM_CAPTURE_TAPE_NOT_RECORDED : undefined}
-            traderTab
-          />
-        ) : null}
-      />
+      {/* Claude's line (ADR 068): framed while Claude holds this stock's Level 2. */}
+      <ClaudeLineFrame symbol={captureReplay ? null : depthSymbol}>
+        <DepthAndTapeColumns
+          symbol={depthSymbol}
+          chips={captureReplay ? <CaptureReplayL2Chip clock={clock} /> : (
+            <>
+              <HaltEtaChip halt={quote.halt} />
+              <ShortabilityChip ibkr={listingIbkr} />
+              <ShortChips />
+            </>
+          )}
+          level2={showL2 ? (gap ? <HistoricalDepth depth={null} watch={CAPTURE_GAP_WATCH} />
+            : <Level2Module key={feedKey} symbol={depthSymbol} uiActive={uiActive}
+              markers={markers} traderTab />) : null}
+          tape={showTape ? (
+            <TimeSalesModule
+              key={feedKey}
+              symbol={depthSymbol}
+              embedded
+              uiActive={uiActive}
+              connectedText={captureReplay ? SIM_REPLAY_TAPE_STATUS : undefined}
+              statusTitle={captureReplay ? SIM_CAPTURE_TAPE_TITLE : undefined}
+              emptyLabel={gap ? SIM_CAPTURE_TAPE_NOT_RECORDED : undefined}
+              traderTab
+            />
+          ) : null}
+        />
+      </ClaudeLineFrame>
     </StockViewModuleCard>
   );
 }

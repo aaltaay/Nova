@@ -195,6 +195,26 @@ test.describe("The bot's read on one stock", () => {
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
 
+  test('the rail has nothing to scroll sideways while the price tick sits along the ruler', async ({ page }) => {
+    await openApus(page);
+    await page.getByTestId('stock-read-plan-fold').click();
+    const track = page.getByTestId('stock-read-ruler').locator('.sr-ruler__track');
+    await expect(track).toHaveAttribute('style', /translateX\((?!0%)/);
+    // A narrow rail, the desk's own, and the wide one the operator reported it on.
+    for (const width of ['300px', '', '950px']) {
+      const rail = await page.getByTestId('stock-read-rail').evaluate((el, w) => {
+        (el as HTMLElement).style.width = w;
+        return { scroll: el.scrollWidth, client: el.clientWidth };
+      }, width);
+      expect(rail.scroll, `rail at ${width || 'desk width'}`).toBeLessThanOrEqual(rail.client);
+      await shot(page, `rail-${width || 'desk'}`);
+    }
+    await page.getByTestId('stock-read-rail').evaluate(el => { (el as HTMLElement).style.width = ''; });
+    // The tick itself still shows: containment stops the track widening the rail, not painting.
+    await expect(page.getByTestId('stock-read-ruler').locator('.sr-ruler__now')).toBeVisible();
+    await shot(page, 'rail-no-sideways-scroll');
+  });
+
   test("opens every signal, the bot's day and the history in the sheet", async ({ page }) => {
     const { errors } = attachErrorCollector(page);
     const { mutations } = await openApus(page);

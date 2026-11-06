@@ -91,7 +91,18 @@ def gather(symbol: str, now: float | None = None, board: str | None = None,
         "borrow": _borrow(sym, now),
         "catalyst": row.get("catalyst") if isinstance(row.get("catalyst"), dict) else None,
         "shares_issued": _shares_issued(sym),
+        **_fund(fund),
     }
+
+
+def _fund(fund: dict[str, Any] | None) -> dict[str, Any]:
+    """Yahoo's ``quote_type`` (None while unknown) and, for a fund, its name as Yahoo gives it (ADR 028 amendment 4)."""
+    from move_reason import fund as fund_mod
+
+    quote_type = (fund or {}).get("quote_type") or None
+    if not fund_mod.is_fund(quote_type):
+        return {"quote_type": quote_type, "fund": None}
+    return {"quote_type": quote_type, "fund": fund_mod.fact(fund.get("company_name"))}
 
 
 def _shares_issued(sym: str) -> dict[str, Any] | None:

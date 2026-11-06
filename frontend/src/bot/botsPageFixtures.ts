@@ -27,7 +27,6 @@ export function gates(overrides: Partial<Record<string, Partial<BotGate>>> = {})
     { id: 'loss_limit', ok: true, stage: 'fire', detail: { text: null, until: null, tripped_at: null, loss: null, limit_usd: 2000, venue: 'paper' } },
     { id: 'kill_switch', ok: true, stage: 'fire', detail: {} },
     { id: 'window', ok: true, stage: 'fire', detail: { setups: [], venue_time: null } },
-    { id: 'daily_cap', ok: true, stage: 'fire', detail: { count: 0, cap: 1, venue_day: '2026-09-30' } },
     { id: 'extended_hours', ok: true, stage: 'fire', detail: {} },
     { id: 'commissions', ok: true, stage: 'fire', detail: {} },
   ];
@@ -48,7 +47,7 @@ export function openGates(overrides: Partial<Record<string, Partial<BotGate>>> =
 export function caps(venue = 'paper', partial: Partial<BotCaps> = {}): BotCaps {
   return {
     venue, risk_usd: 20, max_shares: 1, bp_budget_usd: 50, working_ttl_sec: 3, extended_hours: false,
-    entries_per_day: 1, api_kinds: [], allowlist: [], ...partial,
+    api_kinds: [], allowlist: [], ...partial,
   };
 }
 
@@ -103,9 +102,9 @@ export function session(partial: Partial<BotSession> = {}): BotSession {
     symbol_allowlist: ['GRML', 'IMCC'],
     brain_session_id: null, brain_alive: false,
     caps: caps('paper'),
-    caps_bounds: { risk_usd: [1, 10000], max_shares: [1, 10], bp_budget_usd: [0.01, 50], working_ttl_sec: [1, 10], entries_per_day: [1, 3] },
+    caps_bounds: { risk_usd: [1, 10000], max_shares: [1, 10], bp_budget_usd: [0.01, 50], working_ttl_sec: [1, 10] },
     caps_by_venue: { paper: caps('paper'), sim: caps('sim'), live: caps('live') },
-    entries_today: { count: 0, cap: 1, venue_day: '2026-09-30', entries: [], approved: 0 },
+    entries_today: { count: 0, venue_day: '2026-09-30', entries: [], approved: 0 },
     level_venue: 'paper',
     // The family keys (2026-10-15): both on by default, as a key the file does not hold reads.
     keys: keysView(),
@@ -200,7 +199,7 @@ export function stockModeView(symbol: string, buy: string, sell: string, partial
   return {
     schema_version: 1, symbol, generated_at: 0, venue: 'paper', mode: MODE_OF[`${buy}/${sell}`] ?? 'signal', buy, sell,
     risk_usd: 20, set_at: 0, locks: { buy: null, sell: null }, notes: [], approval: null, trade: null,
-    entries_today: { count: 0, cap: 1 }, last_event: null, bot: null, size: null, ...partial,
+    entries_today: { count: 0 }, last_event: null, bot: null, size: null, ...partial,
   };
 }
 
@@ -212,7 +211,7 @@ export function triggersView(partial: Record<string, unknown> = {}): Record<stri
   const cell = (ok: boolean | null, why = '') => ({ ok, why });
   const allOk = {
     bot_on: cell(true), strategy_on: cell(true), grade: cell(true), setups_a_day: cell(true), bot_window: cell(true),
-    nova_buys: cell(true), level2_line: cell(true), tape_go: cell(true), trades_today: cell(true),
+    nova_buys: cell(true), level2_line: cell(true), tape_go: cell(true),
     not_against: cell(true, 'you held no GRML the other way'),
   };
   return {
@@ -221,7 +220,7 @@ export function triggersView(partial: Record<string, unknown> = {}): Record<stri
       gate('bot_on', 'Bot on'), gate('strategy_on', 'Strategy on'), gate('grade', 'Grade'),
       gate('setups_a_day', 'Setups a day'), gate('bot_window', 'Bot window'),
       gate('nova_buys', 'Entry: Bot'), gate('level2_line', 'Level 2 line'), gate('tape_go', 'Tape GO'),
-      gate('trades_today', 'Trades today'), gate('not_against', 'Not against you'),
+      gate('not_against', 'Not against you'),
     ],
     short_gates: [
       gate('short_borrow', 'Borrow'), gate('short_ssr', 'SSR'), gate('short_halt', 'No halt 10 min'),

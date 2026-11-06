@@ -14,7 +14,7 @@ const notes = [
   { id: 'window', tone: 'info', text: 'Every bot window is closed now.' },
   { id: 'not_active', tone: 'warn', text: 'The bot is not active: turn on the Bot switch in the header.' },
   { id: 'no_depth', tone: 'warn', text: 'Nova holds no Level 2 line for APUS.' },
-  { id: 'daily_cap', tone: 'warn', text: "Nova's one automatic buy today is used." },
+  { id: 'extended_hours', tone: 'warn', text: 'Outside 09:30-16:00 ET: the sleeve does not allow extended hours.' },
   { id: 'not_followed', tone: 'info', text: 'The scanner does not follow APUS.' },
 ] as const;
 

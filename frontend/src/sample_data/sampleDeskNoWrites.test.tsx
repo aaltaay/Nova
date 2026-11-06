@@ -14,7 +14,7 @@
  */
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../App';
 import { GLOBAL_BAR_SEARCH_RECENTS_STORAGE_KEY } from '../constantGroups/global_bar';
 import { LAYOUT_STORAGE_KEY, MODULE_VISIBILITY_STORAGE_KEY } from '../constantGroups/market_ui';
@@ -43,6 +43,28 @@ import {
 vi.mock('../chart/TickerChart', () => ({ TickerChart: () => null }));
 
 const BACKEND = /^(?:https?|wss?):\/\/(?:127\.0\.0\.1|localhost):8000\/|^\/(?:api|ws|__nova)\//;
+
+/*
+ * #1129: sized from what a cold desk costs, not a quiet PC. With every core
+ * busy, the first transform of the sample shell's lazy chunk alone outran the
+ * 100 x 100 ms header wait and the 5 s test. The chunks are now warmed once,
+ * and the waits run by the clock (a busy PC runs fewer settle steps a second).
+ */
+const WARM_CHUNKS_MS = 120_000;   // beforeAll: every lazy chunk the tests open, transformed once
+const MOUNT_WAIT_MS = 20_000;     // a warmed chunk mounting
+// Each test outlasts its own waits, so a page that never mounts fails on its assertion, not on the clock.
+const DESK_TEST_MS = MOUNT_WAIT_MS + 10_000;           // the desk and its checks
+const WORKSPACE_TEST_MS = 5 * MOUNT_WAIT_MS + 20_000;  // the desk, four pages, and the walk between them
+
+beforeAll(async () => {
+  await Promise.all([
+    import('./SampleShell'),
+    import('../market_board'),
+    import('../global_board'),
+    import('../forex_board'),
+    import('../congress'),
+  ]);
+}, WARM_CHUNKS_MS);
 
 let root: Root;
 let container: HTMLDivElement;
@@ -96,14 +118,20 @@ function mount(path: string, gate: boolean): void {
   root = createRoot(container);
 }
 
+/** Settles until `testId` is on screen or `MOUNT_WAIT_MS` has passed; the caller asserts it. */
+async function waitForTestId(testId: string): Promise<void> {
+  const until = Date.now() + MOUNT_WAIT_MS;
+  while (!container.querySelector(`[data-testid="${testId}"]`) && Date.now() < until) {
+    await settle(100);
+  }
+}
+
 async function renderSampleDesk(): Promise<void> {
   await act(async () => {
     root.render(<App />);
   });
   // The sample shell is a lazy chunk; wait for it to mount.
-  for (let i = 0; i < 100 && !container.querySelector('[data-testid="global-app-bar"]'); i += 1) {
-    await settle(100);
-  }
+  await waitForTestId('global-app-bar');
   await settle(200);
   expect(
     container.querySelector('[data-testid="global-app-bar"]'),
@@ -134,7 +162,7 @@ describe('the sample desk sends nothing of its own accord', () => {
     await renderSampleDesk();
     expect(writesSent(), 'no write from the sample desk').toEqual([]);
     expect(backendSockets(), 'no live depth / tape / scanner line').toEqual([]);
-  });
+  }, DESK_TEST_MS);
 });
 
 describe('the sample desk reaches no backend', () => {
@@ -157,7 +185,7 @@ describe('the sample desk reaches no backend', () => {
     expect(writesSent(), 'no write left the sample desk').toEqual([]);
     expect(reads, 'no backend read left the sample desk').toEqual([]);
     expect(backendSockets(), 'no backend socket').toEqual([]);
-  });
+  }, DESK_TEST_MS);
 });
 
 /*
@@ -209,34 +237,26 @@ describe("the sample workspace writes none of the operator's saved state (#449)"
     expect(container.querySelector('[data-testid="sv-tab-NWSR"]'), 'popped out, so gone here').toBeNull();
     await press('nav-rail-market');
     // The page is a lazy chunk; wait for it to mount.
-    for (let i = 0; i < 50 && !container.querySelector('[data-testid="market-page"]'); i += 1) {
-      await settle(100);
-    }
+    await waitForTestId('market-page');
     q('market-page');
     expect(container.textContent).not.toMatch(/not available in Sample Data mode/);
     // The Global page (ADR 060) too: its sample board, and its switches never write the desk's storage.
     await press('nav-rail-global');
-    for (let i = 0; i < 50 && !container.querySelector('[data-testid="global-page"]'); i += 1) {
-      await settle(100);
-    }
+    await waitForTestId('global-page');
     q('global-page');
     await press('global-color-by-move');
     await press('global-period-7D');
     expect(container.textContent).toMatch(/Rotation, not an exit/);
     // The Forex page (ADR 062) too: its sample board, and its switches never write the desk's storage.
     await press('nav-rail-forex');
-    for (let i = 0; i < 50 && !container.querySelector('[data-testid="forex-page"]'); i += 1) {
-      await settle(100);
-    }
+    await waitForTestId('forex-page');
     q('forex-page');
     await press('forex-color-by-futures');
     await press('forex-period-7D');
     expect(container.textContent).toMatch(/All forex/);
     // The Congress page (ADR 066) too: invented members, and its switches never write the desk's storage.
     await press('nav-rail-congress');
-    for (let i = 0; i < 50 && !container.querySelector('[data-testid="congress-page"]'); i += 1) {
-      await settle(100);
-    }
+    await waitForTestId('congress-page');
     q('congress-page');
     await press('congress-seats-period-30d');
     await press('congress-topic-house');
@@ -267,7 +287,7 @@ describe("the sample workspace writes none of the operator's saved state (#449)"
     await workTheSampleWorkspace();
     expect(stored.filter((key) => WORKSPACE_KEYS.includes(key))).toEqual([]);
     expect(writesSent(), 'no write left the sample desk').toEqual([]);
-  }, 60_000);
+  }, WORKSPACE_TEST_MS);
 
   it('with both gates: nothing reaches the browser storage but the reload guard', async () => {
     mount('/?view=sample&symbol=SMPL', true);
@@ -278,5 +298,5 @@ describe("the sample workspace writes none of the operator's saved state (#449)"
     expect(writesSent(), 'no write left the sample desk').toEqual([]);
     expect(sent().filter((r) => BACKEND.test(r.url)), 'no backend read').toEqual([]);
     expect(backendSockets(), 'no backend socket').toEqual([]);
-  }, 60_000);
+  }, WORKSPACE_TEST_MS);
 });

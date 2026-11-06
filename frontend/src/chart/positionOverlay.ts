@@ -20,6 +20,7 @@ import {
   type SeriesTimeIndex,
 } from './chartDrawingTime';
 import {
+  CHART_POSITION_BOTS_COLOR,
   CHART_POSITION_LINE_WIDTH,
   CHART_POSITION_LONG_COLOR,
   CHART_POSITION_MARKER_SIZE,
@@ -99,6 +100,24 @@ export function positionPriceLineOptions(
     lineStyle: LineStyle.Solid,
     axisLabelVisible: true,
     // HTML badge owns Long/Short copy so the tag can receive clicks.
+    title: '',
+  };
+}
+
+/** The words on a bots' line: "Live Trader short 19 @ $125.90  +$19.19". */
+export function botsPositionLineTitle(name: string, position: ChartPositionSnapshot): string {
+  const title = positionLineTitle(position);
+  return `${name} ${title.charAt(0).toLowerCase()}${title.slice(1)}`;
+}
+
+/** The bots' average, priced on the axis like your line; its words sit at the pane's left (`ChartBotsPositions`). */
+export function botsPositionLineOptions(avgCost: number): ChartPositionLineOptions {
+  return {
+    price: avgCost,
+    color: CHART_POSITION_BOTS_COLOR,
+    lineWidth: CHART_POSITION_LINE_WIDTH,
+    lineStyle: LineStyle.Dashed,
+    axisLabelVisible: true,
     title: '',
   };
 }

@@ -34,6 +34,7 @@ import {
 import { useScannerDockRows } from '../scanner';
 import type { TraderMoveLocks } from '../workspace';
 import { useSimReplayDesk } from '../sim';
+import { useClaudeSeat } from '../claude_seat';
 import { StockViewTab } from './StockViewTab';
 import { tabContextFor } from './tabContext';
 import { TRADER_DRAFT_SYMBOL } from './traderTabsState';
@@ -79,6 +80,8 @@ export function StockViewTabStrip({
   const scannerRows = useScannerDockRows();
   // Off the live edge the Sim desk is another day: no live gap / news chip (QA W10).
   const replayDesk = useSimReplayDesk();
+  // The tab whose Level 2 Claude holds (ADR 068 decision 14) says so on its chip.
+  const claudeTab = useClaudeSeat().status?.line.from_tab ?? null;
   // Re-render when the recording set changes; isTabRecording reads the store.
   useSyncExternalStore(subscribeSessionRecord, () => getRecordingSymbols().join(','), () => '');
   const overflowing = useStripOverflow(tabsRef, [tabs.join(','), active, Boolean(trailing)]);
@@ -177,6 +180,7 @@ export function StockViewTabStrip({
                 recording={recording}
                 clipping={!isDraft && openClipFor(clipsView, symbol) !== null}
                 pinned={isPinned}
+                lentToClaude={!isDraft && claudeTab === symbol.toUpperCase()}
                 onTogglePin={togglePin}
                 context={isDraft || replayDesk ? null : tabContextFor(symbol, scannerRows)}
                 showDock={showDock && Boolean(onDock)}

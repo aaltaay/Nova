@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { TopOfBookLike } from './applyTicketDefaults';
 import type { QuantityMode } from './orderEntry';
 import { marginNumbers, SHORT_CHECK_TICKET_POLL_MS, useShortCheck, type ShortCheckState } from './shortCheck';
+import { useBotsQty } from './useDeskPositions';
 import { useShortFacts } from './shortFacts';
 import {
   buyStopRefusal,
@@ -79,9 +80,10 @@ export function useShortTicket(a: Args): ShortTicket {
   const known = a.summary != null;
   const orderQty = a.quantityMode === 'shares' ? a.quantityValue : '';
   const shortLock = a.allowShort ? a.shortBlock : null;
+  const botsQty = useBotsQty(a.symbol);
   const buttons = useMemo(
-    () => sideButtons({ symbol: a.symbol, qty, known, allowShort: a.allowShort, shortBlock: shortLock }),
-    [a.symbol, qty, known, a.allowShort, shortLock],
+    () => sideButtons({ symbol: a.symbol, qty, known, allowShort: a.allowShort, shortBlock: shortLock, botsQty }),
+    [a.symbol, qty, known, a.allowShort, shortLock, botsQty],
   );
   const shortChosen = a.ticketSide === 'short';
   const shortAvailable = openSide(buttons, 'short') != null;

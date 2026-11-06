@@ -174,11 +174,6 @@ class Now:
                 return model.mode_of(sw.get("buy"), sw.get("sell"))
         return STOCK_MODE_SIGNAL
 
-    def cap(self, venue: str | None) -> int:
-        from bot.sleeve import normalize
-
-        return int(normalize(self.dial(venue).get("caps"))["entries_per_day"])
-
 
 def reset_for_tests() -> None:
     global _today

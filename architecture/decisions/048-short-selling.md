@@ -101,7 +101,7 @@ The design session read the code at `7d9948d` (2026-10-06); master at `60cbc82` 
 8. **One bot, one list, both sides.**
    - **Strategies.** Every strategy, long or short, is Off · Eyes · On (ADR 044). A long strategy buys and a short strategy shorts.
    - **One trade per stock.** On one stock the bot holds one trade at a time. The first go trigger wins, and the bot never flips: once a trade is flat, the other side needs its own trigger.
-   - **Shared limits.** Both sides count toward the venue's daily cap, and share one sleeve, one bot trip and one all-stop.
+   - **Shared limits.** Both sides count toward the venue's daily cap (removed 2026-10-27, ADR 042 amendment: both sides still count in the day's count), and share one sleeve, one bot trip and one all-stop.
    - **The test gate.** A short strategy may be On only after its five-year test passed (ADR 049). A failed or missing test keeps it at Eyes, with On locked. This is for shorts only; longs keep today's rule.
    - **SSR.** Under SSR the bot's short goes in as a limit at the ask.
    - **The localhost bot API** (ADR 016) adds short kinds. Every short carries its buy stop, and Live stays refused (`BOT_LIVE_NOT_BUILT`).

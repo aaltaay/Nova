@@ -119,8 +119,6 @@ export type BotCaps = {
   bp_budget_usd: number;
   working_ttl_sec: number;
   extended_hours: boolean;
-  /** One count for the bot and Auto-entry per venue day. */
-  entries_per_day?: number | null;
   /** The localhost bot API's order kinds. */
   api_kinds: BotActionKind[];
   /** LEGACY alias of `api_kinds` (one release). */
@@ -132,19 +130,17 @@ export type BotCapsBounds = {
   max_shares: [number, number];
   bp_budget_usd: [number, number];
   working_ttl_sec: [number, number];
-  entries_per_day: [number, number];
 };
 
 /** One of today's Nova automatic entries (the bot or Auto-entry) on this venue. */
 export type BotEntry = { symbol: string; setup_type: string | null; by: 'bot' | 'auto_entry' | string; ts: number; outcome: string };
 
-/** Nova's automatic entries today on this venue: one count for the bot and Auto-entry (ADR 042). */
+/** Nova's automatic entries today on this venue: one count for the bot and Auto-entry (ADR 042), never a cap. */
 export type BotEntriesToday = {
   count: number;
-  cap: number;
   venue_day: string | null;
   entries: BotEntry[];
-  /** Approve's brackets sent today: the operator's own, counted and never capped. */
+  /** Approve's brackets sent today: the operator's own, counted. */
   approved: number;
 };
 

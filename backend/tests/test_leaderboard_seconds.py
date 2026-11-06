@@ -391,6 +391,9 @@ def test_the_worker_runs_one_build(day, monkeypatch):
     from leaderboard.seconds import worker
 
     monkeypatch.setenv("NOVA_BOARD_SECONDS_MEMORY_MB", "0")
+    # In-process, the worker's own priority drop would be pytest's for the rest of the run, passed on to every child
+    # it starts (#1079); on Linux ``os.nice`` cannot even be undone.
+    monkeypatch.setattr(worker, "lower_priority", lambda: None)
     assert worker.main(["--board-seconds", "--date", DAY]) == 0
     assert store.read_job(DAY, "gappers")["status"] == "ready"
 

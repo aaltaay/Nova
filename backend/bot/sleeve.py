@@ -7,8 +7,11 @@ The session's ``caps`` are the desk venue's own sleeve -- the venue's dial carri
 - ``max_shares`` / ``bp_budget_usd``: the most it may hold (``bot.sizing``);
 - ``working_ttl_sec``: how long any Nova entry may rest unfilled (the bot, Auto-entry, Approve);
 - ``extended_hours``: whether the bot and Auto-entry may buy outside 09:30-16:00 ET;
-- ``entries_per_day``: Nova's automatic entries per venue day, the bot and Auto-entry together;
 - ``api_kinds``: the order kinds the localhost bot API may send (``allowlist`` until ADR 042).
+
+There is no daily entry count (operator, 2026-10-27: "u have infinite trades so we LEARN!"): a stored
+sleeve that still carries ``entries_per_day`` loads without it (the next write drops it), and a ``PATCH``
+that sends it changes nothing.
 
 A value outside its bounds is refused with them (``BOT_CAPS_INVALID``), never clamped in
 silence. Owner: this module (the rules; the session file is ``bot.persist``'s).
@@ -28,9 +31,6 @@ from constants_bot import (
     BOT_DEFAULT_MAX_SHARES,
     BOT_DEFAULT_RISK_USD,
     BOT_DEFAULT_WORKING_TTL_SEC,
-    BOT_ENTRIES_PER_DAY,
-    BOT_ENTRIES_PER_DAY_MAX,
-    BOT_ENTRIES_PER_DAY_MIN,
     BOT_MAX_SHARES_CAP,
     BOT_MAX_SHARES_MIN,
     BOT_REASON_CAPS_INVALID,
@@ -46,17 +46,18 @@ BOUNDS: dict[str, tuple[float, float]] = {
     "max_shares": (BOT_MAX_SHARES_MIN, BOT_MAX_SHARES_CAP),
     "bp_budget_usd": (BOT_BP_BUDGET_MIN_USD, BOT_BP_BUDGET_HARD_MAX_USD),
     "working_ttl_sec": (BOT_WORKING_TTL_MIN_SEC, BOT_WORKING_TTL_MAX_SEC),
-    "entries_per_day": (BOT_ENTRIES_PER_DAY_MIN, BOT_ENTRIES_PER_DAY_MAX),
 }
-_INTS = frozenset({"max_shares", "working_ttl_sec", "entries_per_day"})
+_INTS = frozenset({"max_shares", "working_ttl_sec"})
 _LABELS = {"risk_usd": "risk per trade", "max_shares": "max shares", "bp_budget_usd": "buying-power budget",
-           "working_ttl_sec": "entry time to live", "entries_per_day": "entries a day"}
+           "working_ttl_sec": "entry time to live"}
+# Fields that left the sleeve: read past on load, ignored on a PATCH (an older page or client may still send one).
+RETIRED = frozenset({"entries_per_day"})
 
 
 def defaults() -> dict[str, Any]:
     return {"risk_usd": BOT_DEFAULT_RISK_USD, "max_shares": BOT_DEFAULT_MAX_SHARES,
             "bp_budget_usd": BOT_DEFAULT_BP_BUDGET_USD, "working_ttl_sec": BOT_DEFAULT_WORKING_TTL_SEC,
-            "extended_hours": True, "entries_per_day": BOT_ENTRIES_PER_DAY, "api_kinds": default_allowlist()}
+            "extended_hours": True, "api_kinds": default_allowlist()}
 
 
 def bounds() -> dict[str, list[float]]:
@@ -106,7 +107,7 @@ def apply(current: Any, patch: dict[str, Any]) -> tuple[dict[str, Any], dict[str
     before = normalize(current)
     after = dict(before)
     for key, value in patch.items():
-        if key == "venue":
+        if key == "venue" or key in RETIRED:
             continue
         if key in BOUNDS:
             lo, hi = BOUNDS[key]

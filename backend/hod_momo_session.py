@@ -174,14 +174,14 @@ async def reset_and_tell_desks() -> bool:
 
     A desk's alert list only grows from ``alert`` frames; without the restated
     ``initial`` frame a desk open over 04:00 kept yesterday's alerts under
-    today's (operator report, 2026-10-19).
+    today's (operator report, 2026-10-19). The check and the restatement hold the
+    feed lock the flush loop holds while it adds and sends alerts
+    (``hod_momo_alerts.restate_feed``), so no alert of the ending session joins
+    the new list or reaches a desk after it (#800).
     """
-    if not check_and_reset_session():
-        return False
-    from hod_momo_alerts import broadcast_initial
+    from hod_momo_alerts import restate_feed
 
-    await broadcast_initial()
-    return True
+    return bool(await restate_feed(check_and_reset_session))
 
 
 async def session_reset_loop() -> None:

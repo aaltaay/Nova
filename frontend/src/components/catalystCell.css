@@ -4,6 +4,7 @@
   --catalyst-squeeze: #a855f7;   /* a short squeeze, and a squeeze after a reverse split */
   --catalyst-lowfloat: #14b8a6;  /* buyers chasing a small float with no news */
   --catalyst-quiet: #6b7280;     /* thin trading, unexplained */
+  --catalyst-fund: #3b82f6;      /* a fund: it moves with what it tracks (ADR 028 amendment 4) */
 }
 
 .cc-cell {
@@ -64,6 +65,7 @@
 .cc-dot--lowfloat { background: var(--catalyst-lowfloat); box-shadow: 0 0 5px var(--catalyst-lowfloat); }
 .cc-dot--thin { border: 2px dashed var(--catalyst-quiet); }
 .cc-dot--unexplained { border: 2px solid var(--catalyst-quiet); color: var(--text-secondary); }
+.cc-dot--fund { background: var(--catalyst-fund); color: #fff; }
 /* Possible: a deciding fact is unknown -- the mark goes hollow, the word carries a "?". */
 .cc-dot--squeeze.cc-dot--possible { background: transparent; box-shadow: none; border: 2px solid var(--catalyst-squeeze); }
 .cc-dot--lowfloat.cc-dot--possible { background: transparent; box-shadow: none; border: 2px solid var(--catalyst-lowfloat); }

@@ -14,7 +14,7 @@ function row(symbol: string, change_pct: number, extra: Partial<ScannerRow> = {}
 }
 
 const GAINERS = ['XLAB', 'ZTG', 'SMX', 'FVNNU', 'WORX', 'SGRX', 'TCRT', 'SITC', 'CORD', 'BLNE', 'MRKR']
-  .map((s, i) => row(s, 140 - i * 10, s === 'XLAB' ? { halted: true } : {}));
+  .map((s, i) => row(s, (14 - i) / 10,s === 'XLAB' ? { halted: true } : {}));
 
 describe('buildTopNineSnapshot', () => {
   it('takes the first nine rows as served, ranked like the Trader rank chip, with the list total', () => {
@@ -30,7 +30,7 @@ describe('buildTopNineSnapshot', () => {
     const chip = symbolRanks('ZTG', feed);
     expect(chip.state === 'ranked' && chip.ranks.find((r) => r.list === 'gainers')?.rank).toBe(2);
     expect(snap.lists.gainers.rows[1]).toEqual({
-      symbol: 'ZTG', rank: 2, changePct: 130, price: 2, volume: 1_000_000, float: 4_083_260, halted: false,
+      symbol: 'ZTG', rank: 2, changePct: 1.3, price: 2, volume: 1_000_000, float: 4_083_260, halted: false,
     });
     expect(snap.lists.gainers.rows[0].halted).toBe(true);
   });

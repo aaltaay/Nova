@@ -64,9 +64,17 @@ def is_short(trade: dict[str, Any]) -> bool:
     return trade.get("side") == "short"
 
 
+def holder(trade: dict[str, Any]) -> str:
+    """Whose shares the trade trades on Paper (ADR 069): Auto-entry's are the bots', the rest yours."""
+    from constants_stock_mode import STOCK_MODE_AUTO_ENTRY
+
+    return "auto_entry" if trade.get("kind") == STOCK_MODE_AUTO_ENTRY else "you"
+
+
 def held(trade: dict[str, Any]) -> float:
-    """The shares the venue holds on the trade's side (long, or short as a positive count)."""
-    return short_held_qty(trade["symbol"]) if is_short(trade) else held_qty(trade["symbol"])
+    """The shares the trade's holder holds on its side (long, or short as a positive count)."""
+    who = holder(trade)
+    return short_held_qty(trade["symbol"], who) if is_short(trade) else held_qty(trade["symbol"], who)
 
 
 async def place_entry(trade: dict[str, Any]) -> Any:

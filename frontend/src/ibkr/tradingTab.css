@@ -641,6 +641,22 @@
   min-width: 4.6rem;
 }
 
+/* Close alone has no width, so this fixed table must leave it room: a narrow dock then scrolls to it instead
+   of crushing it to nothing. Whose (ADR 069 decision 9) has a width of its own, and the table grows by it. */
+.ibkr-table--orders.ibkr-table--positions {
+  width: max(100%, 66rem);
+}
+
+.ibkr-table--orders.ibkr-table--positions.ibkr-table--whose {
+  width: max(100%, 76rem);
+}
+
+.ibkr-table--orders th.ibkr-col--whose,
+.ibkr-table--orders td.ibkr-col--whose {
+  width: 6.75rem;
+  min-width: 6rem;
+}
+
 /* Sent by (2026-10-01): who placed the order. A sell Nova made for you (KILL, the loss limit) stands out. */
 .ibkr-table--orders th.ibkr-col--sent-by,
 .ibkr-table--orders td.ibkr-col--sent-by {
@@ -660,6 +676,18 @@
   color: var(--accent, #3b82f6);
   font-weight: 600;
 }
+
+/* Claude's seat (ADR 068): its violet badge. */
+.ibkr-table--orders td.ibkr-sent-by--claude { color: #d6ceff; font-weight: 600; }
+.ibkr-sent-by__claude {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px 1px 2px;
+  border-radius: 4px;
+  background: #221d42;
+}
+.ibkr-sent-by__claude .claude-mark { border-radius: 3px; }
 
 .ibkr-table--orders td.ibkr-sent-by--breaker {
   color: var(--amber, #f59e0b);

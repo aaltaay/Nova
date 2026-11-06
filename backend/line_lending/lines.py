@@ -3,7 +3,8 @@
 Read-only, over ``ibkr.depth`` and ``ibkr.tape_stream`` (moving a line is ``line_moves``):
 
 - a depth line's **holder**: a replay slot, a loan, auto-record, a Record hold, else a Trader tab;
-- the **free** depth lines: ``IBKR_MAX_DEPTH_SYMBOLS`` less the lines a viewer holds. Depth
+- the **free** depth lines: ``IBKR_MAX_DEPTH_SYMBOLS`` less the lines a viewer holds and the one
+  kept for Claude's seat (ADR 068, ``agent_trader.lines``). Depth
   only -- a loan records nothing, so the Session Record slots auto-record also counts
   (``auto_record.free_lines``) do not matter here;
 - whether a line **may be lent**, and why not: only a live line whose every viewer is a
@@ -17,9 +18,9 @@ from __future__ import annotations
 
 import logging
 
-from constants_ibkr import IBKR_MAX_DEPTH_SYMBOLS
 from line_lending import sockets
 from line_lending.constants_line_lending import (
+    HELD_BY_AGENT,
     HELD_BY_AUTO_RECORD,
     HELD_BY_LOAN,
     HELD_BY_RECORD,
@@ -54,6 +55,10 @@ def holder_of(symbol: str, *, loan_lines: set[str], auto_symbols: set[str]) -> s
         return HELD_BY_REPLAY
     if symbol in loan_lines:
         return HELD_BY_LOAN
+    from agent_trader import lines as agent_lines
+
+    if agent_lines.holds_depth(symbol):
+        return HELD_BY_AGENT
     if symbol in auto_symbols:
         return HELD_BY_AUTO_RECORD
     if record_holds(symbol):
@@ -62,10 +67,12 @@ def holder_of(symbol: str, *, loan_lines: set[str], auto_symbols: set[str]) -> s
 
 
 def free_lines() -> int:
+    """Depth lines no one holds, less the one kept for Claude while its seat is on (ADR 068)."""
+    from agent_trader import lines as agent_lines
     from ibkr import depth
 
     busy = [s for s in depth.subscribed_symbols() if depth.viewer_count(s) > 0]
-    return max(0, IBKR_MAX_DEPTH_SYMBOLS - len(busy))
+    return agent_lines.desk_free(len(busy))
 
 
 def tape_lendable(symbol: str) -> bool:

@@ -5,6 +5,10 @@ Cancel leftover working first, then place closes -- never cancel after place.
 Weekday RTH closes are MKT. After hours / weekend uses an EH LMT so IBKR
 cannot hold the exit until the next regular session.
 
+One venue, read once (#1281): every cancel and close names it (``expected_venue``), the retry stays on it, and at the
+first sign the desk left it the flatten stops -- nothing more is sent, nothing reaches the venue the desk moved to, and
+the answer says what is still open there (the operator's decision, 2026-11-04: stop and say so, never finish there).
+
 Every close carries its caller's ``origin`` (``emergency_kill``, or ``bot`` for the bot's own
 last-resort exit), so the Orders table says who sold. The daily loss limit's Auto sell closes only
 what was opened today, on its own (``loss_limit.sell``, ADR 056).
@@ -20,18 +24,20 @@ from constants_bot import BOT_FLATTEN_RETRIES
 logger = logging.getLogger(__name__)
 
 
-async def _place_close(symbol: str, qty: float, side: str, *, origin: str | None = None) -> dict[str, Any]:
+async def _place_close(symbol: str, qty: float, side: str, *, origin: str | None = None,
+                       expected_venue: str | None = None) -> dict[str, Any]:
+    """``expected_venue``: the venue the close is meant for; the door refuses it on any other (ADR 069)."""
     from execution.flatten_exit import (
         plan_flatten_exit,
         plan_practice_flatten_exit,
         resolve_flatten_marks,
         ticket_to_command_fields,
     )
+    from execution import venue_door
     from execution.models import ExecutionCommand
     from execution.service import execute
-    from sim.mode import is_practice_venue
 
-    if is_practice_venue():
+    if venue_door.is_practice(expected_venue):
         # The practice broker closes a held position at the last mark at any
         # hour, feed or no feed (ADR 018 / 019) -- no EH sweep, no mark needed.
         ticket = plan_practice_flatten_exit()
@@ -51,6 +57,7 @@ async def _place_close(symbol: str, qty: float, side: str, *, origin: str | None
             qty=abs(float(qty)),
             skip_risk=True,
             origin=origin,  # type: ignore[arg-type]
+            expected_venue=expected_venue,
             **ticket_to_command_fields(ticket),
         ),
         wait_ack=False,
@@ -85,7 +92,14 @@ def _sent_qty(receipt: Any) -> float | None:
         return None
 
 
-async def _cancel_working() -> list[dict[str, Any]]:
+async def _cancel_working(*, symbol: str | None = None, owner: str | None = None, origin: str | None = None,
+                          expected_venue: str | None = None) -> list[dict[str, Any]]:
+    """Every working order, or only one stock's (``symbol``) and one book's (a row's ``owner``, ADR 069).
+
+    ``expected_venue``: the venue these order ids belong to; the door refuses a cancel on any other, where the same
+    number is another order (``execution.venue_door``). The first such refusal ends the run: the door would refuse the
+    rest too.
+    """
     from execution.models import ExecutionCommand
     from execution.service import execute
     from ibkr import orders as _orders
@@ -100,6 +114,10 @@ async def _cancel_working() -> list[dict[str, Any]]:
         order_id = row.get("order_id")
         if order_id is None:
             continue
+        if symbol is not None and str(row.get("symbol") or "").strip().upper() != symbol:
+            continue
+        if owner is not None and row.get("owner") != owner:
+            continue
         receipt = await execute(
             ExecutionCommand(
                 operation="cancel",
@@ -107,11 +125,22 @@ async def _cancel_working() -> list[dict[str, Any]]:
                 source="cancel_working",
                 order_id=int(order_id),
                 skip_risk=True,
+                origin=origin,  # type: ignore[arg-type]
+                expected_venue=expected_venue,
             ),
             wait_ack=False,
         )
         results.append(receipt.legacy_place_dict())
+        if _refused_as_moved(results[-1]):
+            break
     return results
+
+
+def _refused_as_moved(answer: dict[str, Any]) -> bool:
+    """The door refused this send because the desk is not on the venue it named."""
+    from execution import venue_door
+
+    return answer.get("reason_code") == venue_door.VENUE_CHANGED
 
 
 def _short_close(close: dict[str, Any], qty: float) -> str | None:
@@ -143,16 +172,24 @@ def _position_closes(positions: list[dict[str, Any]]) -> list[tuple[str, float, 
     return closes
 
 
-async def flatten_account_once(*, origin: str | None = None) -> dict[str, Any]:
+async def flatten_account_once(*, origin: str | None = None, venue: str | None = None) -> dict[str, Any]:
+    """One pass on ``venue``, or on the desk's now.
+
+    Its reads are the desk's, so each is taken while the desk is there.
+    """
+    from execution import venue_door
     from ibkr import account as _account
     from ibkr.errors import IbkrAccountError
 
-    from sim.mode import desk_connected, is_practice_venue
+    from sim.mode import desk_connected
 
+    on = venue or venue_door.current()
+    if venue_door.current() != on:
+        return _stopped(on)
     # A practice account is a local ledger whose broker closes a held position
     # at the last mark with the Gateway dark (ADR 018 / 019) -- the same
     # exemption execution.validate.check_account_and_position gives it.
-    if not is_practice_venue() and not desk_connected():
+    if not venue_door.is_practice(on) and not desk_connected():
         return {"ok": False, "error": "IBKR not connected -- cannot flatten", "results": []}
     try:
         positions = _account.get_positions()
@@ -161,19 +198,24 @@ async def flatten_account_once(*, origin: str | None = None) -> dict[str, Any]:
 
     # Cancel leftover working first. Never cancel after place -- openTrades
     # can include the unfilled liquidation MKTs (wait_ack=False) and kill them.
-    cancels = await _cancel_working()
+    cancels = await _cancel_working(expected_venue=on)
+    # Off the venue now, these reads may be the other venue's: a flat list there is no proof of anything here.
+    if venue_door.current() != on or any(_refused_as_moved(cancel) for cancel in cancels):
+        return _stopped(on, cancels=cancels)
     results: list[dict[str, Any]] = []
     for symbol, qty, side in _position_closes(positions):
-        close = await _place_close(symbol, qty, side, origin=origin)
+        close = await _place_close(symbol, qty, side, origin=origin, expected_venue=on)
         short = _short_close(close, qty)
         if short:
             close = {**close, "ok": False, "error": short, "reason_code": "FLATTEN_PARTIAL"}
             logger.error("bot flatten: %s %s -- %s", side, symbol, short)
         results.append({"symbol": symbol, "qty": qty, "side": side, "close": close})
+        if _refused_as_moved(close):
+            return _stopped(on, results=results, cancels=cancels)
     ok = all((r.get("close") or {}).get("ok") for r in results) if results else True
     if cancels and not results:
         ok = all(c.get("ok") for c in cancels)
-    left = _practice_left_open(positions) if ok and results and is_practice_venue() else []
+    left = _practice_left_open(positions, on) if ok and results and venue_door.is_practice(on) else []
     if left:
         # The practice broker fills a protective close at placement, so any share
         # still held means the close did not cover it -- never report success.
@@ -190,31 +232,76 @@ async def flatten_account_once(*, origin: str | None = None) -> dict[str, Any]:
     return out
 
 
-def _practice_left_open(before: list[dict[str, Any]]) -> list[str] | None:
-    """``["GRML 1"]`` for symbols the flatten closed that still hold shares;
+def _practice_left_open(before: list[dict[str, Any]], venue: str) -> list[str] | None:
+    """``["GRML 1"]`` for symbols the flatten closed that ``venue`` still holds, whatever the desk shows by now;
     None when the positions cannot be re-read (unproven, never "flat")."""
-    from ibkr import account as _account
-    from ibkr.errors import IbkrAccountError
+    from kill_switch.sweep import held_positions
 
     closed = {symbol for symbol, _qty, _side in _position_closes(before)}
-    try:
-        after = _account.get_positions()
-    except IbkrAccountError as exc:
-        logger.warning("bot flatten: could not re-read positions after close: %s", exc)
+    held = held_positions(venue)
+    if held is None:
         return None
-    return [f"{symbol} {qty:g}" for symbol, qty, _side in _position_closes(after) if symbol in closed]
+    return [f"{symbol} {abs(qty):g}" for symbol, qty in held.items() if symbol in closed]
 
 
-async def flatten_account_with_retry(*, origin: str | None = None) -> dict[str, Any]:
+def _stopped(venue: str, *, results: list[dict[str, Any]] | None = None,
+             cancels: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    """The desk left ``venue``: what the flatten answers. What is still open is read from that venue's own book,
+    whatever the desk shows; a book that cannot be read is said, never "flat"."""
+    from execution import venue_door
+    from kill_switch.sweep import held_positions, read_working
+
+    now = venue_door.current()
+    held = held_positions(venue)
+    rows = read_working(venue)[0]
+    left = None if held is None else [f"{symbol} {qty:g}" for symbol, qty in sorted(held.items())]
+    working = None if rows is None else len(rows)
+    sent = [row["symbol"] for row in results or [] if (row.get("close") or {}).get("ok")]
+    logger.error(
+        "bot flatten: the desk moved from %s to %s, stopped; left open %s, %s working",
+        venue, now, left, working,
+    )
+    return {"ok": False, "reason_code": venue_door.VENUE_CHANGED, "venue": venue, "moved_to": now,
+            "error": _stopped_text(venue, now, left, working, sent), "results": results or [],
+            "cancels": cancels or [], "left_open": left, "working_orders": working}
+
+
+def _stopped_text(venue: str, now: str, left: list[str] | None, working: int | None, sent: list[str]) -> str:
+    name, other = venue.capitalize(), now.capitalize()
+    parts = [f"The desk moved from {name} to {other}, so KILL stopped and sent nothing to {other}."]
+    if sent:
+        parts.append(f"Closes already sent on {name}: {', '.join(sent)}.")
+    still_open = list(left or [])
+    if working:
+        still_open.append(f"{working} working order{'' if working == 1 else 's'}")
+    if still_open:
+        parts.append(f"Still open on {name}: {', '.join(still_open)}.")
+    if left is None or working is None:
+        parts.append(f"{name}'s book could not be read in full: check it there.")
+    elif not still_open:
+        parts.append(f"Nothing is open on {name}.")
+    if left:
+        parts.append("KILL cancels first, so a position left open may have no stop.")
+    return " ".join(parts)
+
+
+async def flatten_account_with_retry(*, origin: str | None = None, venue: str | None = None) -> dict[str, Any]:
+    """``venue``: the one KILL was pressed on, else the desk's now, read once. A pass that read the desk again would
+    find the venue it moved to flat and answer ``ok`` with this one's shares still open (#1281)."""
+    from execution import venue_door
+
+    on = venue or venue_door.current()
     last: dict[str, Any] = {"ok": False, "error": "flatten not attempted", "results": []}
     attempts = 1 + int(BOT_FLATTEN_RETRIES)
     for attempt in range(attempts):
-        last = await flatten_account_once(origin=origin)
+        last = await flatten_account_once(origin=origin, venue=on)
         last["attempt"] = attempt + 1
-        if last.get("ok"):
+        if last.get("ok") or _refused_as_moved(last):
             return last
     return last
 
 
 # One symbol's protective close, for the first-pullback bot's last resort (ADR 030).
 place_close = _place_close
+# One stock's working orders in one book, before the Close on a bots' row (ADR 069 decision 9).
+cancel_working = _cancel_working

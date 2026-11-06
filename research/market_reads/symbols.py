@@ -33,7 +33,7 @@ def _cik(value: Any) -> str | None:
 
 
 def _row(row: dict[str, Any], reused: bool) -> dict[str, Any]:
-    return {"ticker": str(row.get("ticker") or "").upper(), "name": row.get("name"), "cik": _cik(row.get("cik")),
+    return {"ticker": str(row.get("ticker") or "").strip(), "name": row.get("name"), "cik": _cik(row.get("cik")),
             "active": bool(row.get("active")), "delisted": (row.get("delisted_utc") or "")[:10] or None,
             "type": row.get("type"), "exchange": row.get("primary_exchange"),
             "composite_figi": row.get("composite_figi"), "ticker_reused": reused}
@@ -66,6 +66,11 @@ def _cik_index() -> dict[str, list[dict[str, Any]]]:
     return _built()[1]
 
 
+def by_cik() -> dict[str, list[dict[str, Any]]]:
+    """Every listing row by CIK (no leading zeros), each row as Massive writes it (ticker case kept: ``AAp``)."""
+    return _cik_index()
+
+
 def dump_as_of() -> str | None:
     """The newest ``last_updated_utc`` in the list: when Massive's dump was taken, at the latest."""
     return _built()[2]
@@ -86,11 +91,11 @@ def search(query: str | None = None, *, ticker: str | None = None, active: bool 
     wanted_types = {t.upper() for t in types} if types else None
     wanted_cik = _cik(cik)
     if ticker:
-        pool = {ticker.strip().upper(): listed.get(ticker.strip().upper(), [])}
+        pool = {tickers.key(ticker): listed.get(tickers.key(ticker), [])}
     elif wanted_cik and not q:
         pool = {}
         for row in _cik_index().get(wanted_cik, []):
-            pool.setdefault(str(row.get("ticker") or "").upper(), []).append(row)
+            pool.setdefault(tickers.key(str(row.get("ticker") or "").strip()), []).append(row)
     else:
         pool = listed
     found: list[tuple[tuple, dict[str, Any]]] = []
@@ -98,9 +103,9 @@ def search(query: str | None = None, *, ticker: str | None = None, active: bool 
         reused = _reused(listed.get(symbol, rows))
         for row in rows:
             name = str(row.get("name") or "")
-            if q and symbol == q_upper:
+            if q and symbol in (q, q_upper):
                 rank = (0, 0)
-            elif q and symbol.startswith(q_upper):
+            elif q and symbol.upper().startswith(q_upper):   # AAp (a preferred) after AAP, never in its place
                 rank = (1, len(symbol))
             elif q and q_lower in name.lower():
                 rank = (2, len(symbol))
@@ -129,7 +134,7 @@ def symbol(ticker: str, day: str | None = None) -> dict[str, Any]:
     """Everything the list knows about one ticker: ``companies`` (every company that used it, with ``held_from`` /
     ``held_to``), ``on_day`` (who held it on ``day`` -- today without one -- and by which rule), ``ticker_reused``,
     ``warning``, ``cik_history`` (per company: every ticker row naming its CIK) and ``as_of``."""
-    sym = ticker.strip().upper()
+    sym = tickers.key(ticker)
     rows = tickers.listings().get(sym, [])
     held = tickers.resolve(sym, day)
     by_cik = _cik_index()

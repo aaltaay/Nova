@@ -18,6 +18,11 @@ an order and again when a resting order fills. The day figures roll at
 the equity at the boundary: ``day_pnl`` is net liquidation less that equity.
 Persistence lives in ``practice.persist``.
 
+Whose shares (ADR 069): with ``split_owners`` on -- Paper's ledger; Sim's keeps one pile -- every fill is
+booked to its holders (``owners.holdings``: you, or a bot by its origin), each at its own average cost, and
+the account's position, cost and realized P&L are the holders' together. A ``rollover`` event then also
+stamps each holder's P&L at the boundary (``holders``), at the same marks as its ``equity``.
+
 A bracket (#606) adds no event type (``practice.bracket``): applying an entry's
 ``filled`` event wakes the exits waiting on it, applying a target's shrinks its
 group's stop to the shares left (#681), and ``fill`` / ``cancel`` record what the
@@ -41,6 +46,8 @@ from constants_practice import (
     PRACTICE_VENUE_PAPER,
     PRACTICE_VENUE_SIM,
 )
+from owners.holdings import Holdings
+from owners.whose import book_of, bot_of, holder_of
 from practice import bracket, margin
 from practice.clock import ET, iso_et, iso_utc, session_day_start_ts  # noqa: F401 -- ET re-exported for persist
 from practice.fees import Fees, for_fill
@@ -73,6 +80,7 @@ class Ledger:
         created_ts: float | None = None,
         events: list[dict[str, Any]] | None = None,
         first_order_id: int = 1,
+        split_owners: bool = True,
     ) -> None:
         cash = float(starting_cash)
         if not cash > 0:
@@ -85,6 +93,8 @@ class Ledger:
         # Each stock's margin ratio -- IBKR's what-if over the published rules, or 1 (ADR 048 decision
         # 2). The venue's broker sets it; never persisted.
         self.margin_ratio: margin.RatioFn = margin.published_ratio
+        # Whose shares (ADR 069): on for Paper, off for Sim. The venue's broker sets it; never persisted.
+        self.split_owners = bool(split_owners)
         self._derive()
 
     # ------------------------------------------------------------------ derive
@@ -100,8 +110,18 @@ class Ledger:
         self.day_start_equity = self.starting_cash
         # Realized P&L when the current practice day began; replayed, never stored.
         self.realized_at_day_start = 0.0
+        self.owners: Holdings | None = Holdings() if self.split_owners else None
         for event in self.events:
             self._apply(event)
+
+    def use_owners(self, on: bool) -> None:
+        """Turn whose-shares bookkeeping on or off (ADR 069); the events are replayed when it changes."""
+        if bool(on) != self.split_owners:
+            self.split_owners = bool(on)
+            self._derive()
+
+    def mark_or_cost(self, symbol: str) -> float:
+        return float(self._marks.get(symbol, self.avg_cost(symbol)))
 
     def _apply(self, event: dict[str, Any]) -> None:
         kind = event.get("type")
@@ -120,6 +140,8 @@ class Ledger:
             self.day_started_ts = float(event["ts"])
             self.day_start_equity = float(event["equity"])
             self.realized_at_day_start = self.realized
+            if self.owners is not None:
+                self.owners.mark_day_start(event.get("holders"), self.mark_or_cost)
         else:
             raise ValueError(f"unknown ledger event {kind!r}")
 
@@ -142,6 +164,10 @@ class Ledger:
             return
         if not float(row.get("filled_qty") or 0):
             row["commission"] = None  # no fill, no commission -- older events stamped 0.0 (QA C30)
+        if self.owners is not None:
+            # Whose order (ADR 069), read from its own stamps -- a row placed before ADR 069 reads the same.
+            holder = holder_of(row)
+            row["owner"], row["bot"] = book_of(holder), bot_of(holder)
         # When it was first placed: a replace re-dates ``placed_ts``, never this (a short entry's session).
         row["entered_ts"] = float(event["ts"])
         self._working[oid] = row
@@ -186,7 +212,7 @@ class Ledger:
         )
         symbol = str(row["symbol"]).upper()
         self._marks[symbol] = price
-        self._apply_position(symbol, str(row["side"]).upper(), qty, price, fees.total)
+        self._apply_position(symbol, str(row["side"]).upper(), qty, price, fees, holder_of(row))
         self._closed.append(row)
         # A bracket's exits wake with their entry's fill, placed at that moment:
         # only a later print can fill them, and a rewind before it puts them back.
@@ -196,7 +222,22 @@ class Ledger:
         # rewind before it puts the stop back.
         bracket.shrink_stops(self._working.values(), row)
 
-    def _apply_position(self, symbol: str, side: str, qty: float, price: float, fee_total: float) -> None:
+    def _apply_position(self, symbol: str, side: str, qty: float, price: float, fees: Fees,
+                        holder: str | None) -> None:
+        if self.owners is None:
+            self._apply_one_pile(symbol, side, qty, price, fees.total)
+            return
+        # Each holder at its own cost (ADR 069); the account's position and realized are theirs together.
+        pos = self._positions.setdefault(symbol, {"qty": 0.0, "avg_cost": 0.0, "realized": 0.0})
+        pnl = self.owners.apply(symbol, side, qty, price, holder, total=fees.total, commission=fees.commission,
+                                fees=fees.regulatory)
+        self.cash += -qty * price if side == "BUY" else qty * price
+        pos["qty"], pos["avg_cost"] = self.owners.position(symbol)
+        self.cash -= float(fees.total)
+        self.realized += pnl
+        pos["realized"] = float(pos["realized"]) + pnl
+
+    def _apply_one_pile(self, symbol: str, side: str, qty: float, price: float, fee_total: float) -> None:
         pos = self._positions.setdefault(symbol, {"qty": 0.0, "avg_cost": 0.0, "realized": 0.0})
         cur = float(pos["qty"])
         avg = float(pos["avg_cost"])
@@ -239,7 +280,10 @@ class Ledger:
         boundary = session_day_start_ts(now_ts)
         if boundary <= self.day_started_ts + _EPS:
             return False
-        self._append({"type": EVENT_ROLLOVER, "ts": boundary, "equity": self.net_liquidation()})
+        event: dict[str, Any] = {"type": EVENT_ROLLOVER, "ts": boundary, "equity": self.net_liquidation()}
+        if self.owners is not None:
+            event["holders"] = self.owners.pnl(self.mark_or_cost)  # at the equity's own marks (ADR 069)
+        self._append(event)
         return True
 
     def place(self, row: dict[str, Any], *, ts: float, source: str, bot_id: str | None = None) -> dict[str, Any]:
@@ -342,8 +386,9 @@ class Ledger:
     def held_symbols(self) -> list[str]:
         return [s for s, p in self._positions.items() if abs(float(p.get("qty") or 0)) > _EPS]
 
-    def position_rows(self) -> list[dict[str, Any]]:
-        """Rows in the shape ``/api/ibkr/positions`` serves today."""
+    def position_rows(self, *, by_owner: bool = False) -> list[dict[str, Any]]:
+        """Rows in the shape ``/api/ibkr/positions`` serves today; ``by_owner`` adds each row's holders
+        (ADR 069) where this ledger keeps them."""
         out: list[dict[str, Any]] = []
         for sym, pos in self._positions.items():
             qty = float(pos.get("qty") or 0)
@@ -357,6 +402,10 @@ class Ledger:
                 "unrealized_pnl": round((mark - avg) * qty, 4),
                 "realized_pnl": round(float(pos.get("realized") or 0), 4),
             })
+            if by_owner and self.owners is not None:
+                from owners.books import position_owners
+
+                out[-1]["by_owner"] = position_owners(self, sym, mark)
         return out
 
     def unrealized_pnl(self) -> float:
@@ -453,8 +502,9 @@ class Ledger:
                 {
                     "symbol": r["symbol"], "qty": r["qty"], "avg_cost": r["avg_cost"],
                     "mark": r["market_price"], "unrealized": r["unrealized_pnl"],
+                    **({"by_owner": r["by_owner"]} if "by_owner" in r else {}),
                 }
-                for r in self.position_rows()
+                for r in self.position_rows(by_owner=True)
             ],
             "working": self.working_orders(),
             "fills_today": self.fills_today(),

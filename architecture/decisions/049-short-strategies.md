@@ -308,7 +308,8 @@ only (ADR 042: a bot never trades Live). What the build chose where §6.3 gives 
 
 - **One trade per stock, never a flip.** The bot, Auto-entry and Approve read one rule (`admit.against_held`): no
   short while the venue holds the stock long, no buy while it holds it short, nothing while the position cannot be
-  read. The daily cap counts both sides; the bot holds one trade at a time overall, as before.
+  read. The day's count of Nova's entries counts both sides (no daily cap since 2026-10-27, ADR 042
+  amendment); the bot holds one trade at a time overall, as before.
 - **The short's price** (CHOSEN). Off SSR it sells at the scanner's entry, as a long buys at its entry: it never
   chases. Under SSR, on or not known, it sells at the higher of the entry and the ask: above the bid, as Rule 201
   requires, and never under the plan. No ask, an ask not above the bid, or an ask at or over the buy stop is a

@@ -169,20 +169,18 @@
   color: var(--text-secondary);
 }
 
+/* One SVG scaled to the panel: every closed trade gets its slot, the newest included, however many
+   Paper's round trips run to (ADR 069) -- nothing is cut off the right-hand end. */
 .reports-v2-curve {
-  display: flex;
-  align-items: flex-end;
-  gap: 2px;
+  display: block;
+  width: 100%;
   height: 72px;
   margin-top: 0.75rem;
   padding: 0.25rem 0;
 }
 
 .reports-v2-curve-bar {
-  flex: 1;
-  min-width: 4px;
-  background: var(--accent, #3b82f6);
-  border-radius: 2px 2px 0 0;
+  fill: var(--accent, #3b82f6);
   opacity: 0.85;
 }
 
@@ -587,3 +585,74 @@ body.is-resizing-side-panel * {
   overflow: visible;
 }
 
+
+/* ── Yours and the bots' beside each total (ADR 069 decision 6, mockup reports-v1) ──
+   Paper's All view only. The books' colours are the Account page's (--acct-you, --acct-bot). */
+
+.reports-split {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--text-secondary);
+}
+
+.reports-split.is-stacked {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+}
+
+.reports-split__part {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
+
+.reports-split__dot {
+  display: inline-block;
+  flex: none;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 2px;
+}
+
+.reports-split__dot.is-you {
+  background: var(--acct-you, #64d2ff);
+}
+
+.reports-split__dot.is-bots {
+  background: var(--acct-bot, #5e5ce6);
+}
+
+.reports-v2-curve-bar.is-you {
+  fill: var(--acct-you, #64d2ff);
+}
+
+.reports-v2-curve-bar.is-bots {
+  fill: var(--acct-bot, #5e5ce6);
+}
+
+/* The book's name for a screen reader; the dot says it on screen. */
+.reports-split__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.reports-week-total .reports-split {
+  justify-content: center;
+}
+
+.reports-import-elsewhere {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}

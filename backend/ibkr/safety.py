@@ -120,6 +120,9 @@ _armed: bool = False
 # change's disarm (ADR 018 amendment, 2026-09-23).
 _armed_venue: str | None = None
 _armed_by: str | None = None
+# Who last locked the padlock through ``arm`` (cleared by the next arm; a restart starts with None). Claude's
+# seat never unlocks a padlock the operator locked (ADR 068).
+_locked_by: str | None = None
 
 DISARMED_REASON = (
     "Desk is disarmed -- arm trading in this session before placing "
@@ -189,8 +192,10 @@ def arm(value: bool, *, pin: str | None = None, actor: str = "operator") -> tupl
     read once and stamped on the latch, so a venue change between the check and
     the arm leaves the desk disarmed on the new venue.
     """
+    global _locked_by
     if not value:
         set_armed(False, reason=f"{actor} disarm")
+        _locked_by = actor
         return None, ""
     venue_now = _current_venue()
     if venue_now in ARM_PIN_VENUES:
@@ -201,7 +206,13 @@ def arm(value: bool, *, pin: str | None = None, actor: str = "operator") -> tupl
             logger.warning("IBKR: %s arm on %s refused -- %s", actor, venue_now, code)
             return code, reason
     set_armed(True, reason=f"{actor} on {venue_now}", venue=venue_now, actor=actor)
+    _locked_by = None
     return None, ""
+
+
+def locked_by() -> str | None:
+    """Who last locked the padlock through ``arm`` since this process started, or None."""
+    return _locked_by
 
 
 def assert_armed_for(source: str | None) -> tuple[bool, str]:

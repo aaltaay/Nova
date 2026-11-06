@@ -7,10 +7,27 @@ this file holds only what the rebuild itself decides.
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_DIR = REPO_ROOT / "backend"
+_CATALYSTS_DIR = REPO_ROOT / "research" / "catalysts"
+if str(_CATALYSTS_DIR) not in sys.path:
+    sys.path.append(str(_CATALYSTS_DIR))   # last: only cat_config is wanted from there, nothing it could shadow
+from cat_config import checkouts  # noqa: E402  (this checkout, then the main one from a worktree)
+
+
+def archive_db(repo: Path = REPO_ROOT) -> Path:
+    """Nova's ``archive.db`` (#1068): ``NOVA_ARCHIVE_DB``, else the main checkout's -- the desk's -- then, from a
+    linked worktree, the worktree's own; the first on disk, else the main checkout's. The main checkout's comes
+    first because a backend started in a worktree leaves an empty archive there."""
+    explicit = os.environ.get("NOVA_ARCHIVE_DB")
+    if explicit:
+        return Path(explicit)
+    candidates = [root / "backend" / ".cache" / "archive.db" for root in reversed(checkouts(repo))]
+    return next((path for path in candidates if path.is_file()), candidates[0])
+
 
 # ── Inputs ──────────────────────────────────────────────────────────────────
 # Massive flat files (same env override as research/orb/common.py).
@@ -20,8 +37,8 @@ DAY_SUBDIR = "day_aggs_v1"
 REFERENCE_SUBDIR = Path("store") / "reference"
 RESEARCH_DB = DATA_ROOT / "store" / "orb.duckdb"
 # Nova's own enrichment snapshots (float as known that day, 2026-07-28 onward).
-# Opened read-only; the main checkout's archive, not a worktree's.
-ARCHIVE_DB = Path(os.environ.get("NOVA_ARCHIVE_DB") or r"C:\Users\aalta\github\Nova\backend\.cache\archive.db")
+# Opened read-only; the main checkout's archive, not a worktree's (``archive_db``).
+ARCHIVE_DB = archive_db()
 
 TZ_NAME = "America/New_York"
 # One row per ticker per minute; volume is fractional from 2026 on, so DOUBLE.

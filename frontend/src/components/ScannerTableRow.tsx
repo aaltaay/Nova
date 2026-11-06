@@ -19,6 +19,7 @@ import {
 } from '../constantGroups/scanner_board';
 import { FloatCell, GapCell, ShortInterestCell, fmtChangeAbs, pctClass, rvolSourceMark } from './ScannerRowCells';
 import { SCANNER_QUOTE_CLOSE_FALLBACK } from '../scanner/scannerRowShape';
+import { rowShades } from '../scanner/rowShades';
 import { LEADERBOARD_HALTED_LABEL, LEADERBOARD_HALTED_TITLE } from '../leaderboard/leaderboardConstants';
 import type { ScannerRow } from '../types/scanner';
 import type { WatchlistEntry } from '../strategy/types';
@@ -239,6 +240,7 @@ function ScannerTableRowView({
   board = null,
 }: ScannerTableRowProps) {
   const last = columns.length - 1;
+  const shades = rowShades(row, board);   // one rule for every list (scanner/rowShades.ts)
   return (
     <SelectableTableRow
       symbol={row.symbol}
@@ -247,7 +249,7 @@ function ScannerTableRowView({
       onOpenTrading={onOpenTrading}
       openOnRowClick={false}
       symbolMenu
-      className="scanner-row"
+      className={shades.hot ? 'scanner-row scanner-row--hot' : 'scanner-row'}
     >
       <ScannerRowNumCell index={index} />
       {columns.map(([key], i) =>
@@ -272,6 +274,8 @@ function ScannerTableRowView({
           <td
             key={key}
             data-col={key}
+            data-float-shade={key === 'float' ? shades.float ?? undefined : undefined}
+            data-volume-shade={key === 'volume' ? shades.volume ?? undefined : undefined}
             className={`${scannerColClass(key)}${i === last ? ' scanner-row-actions-host' : ''}`}
           >
             {renderCell(key, row, flash, stale, gapScaleMax, board)}

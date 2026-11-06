@@ -107,12 +107,15 @@ export default defineConfig(({ command, mode }) => {
     // release/win-unpacked.tmp -> release/win-unpacked with EPERM while the
     // desk is running (2026-09-22: three packs failed on the same rename), and
     // the chart renderer's .chart-gateway-build/.tmp-* -> <key> rename the same
-    // way (2026-10-18: every chart export from the desk's checkout failed).
+    // way (2026-10-18: every chart export from the desk's checkout failed), and
+    // the review page's dist-review/<id>.tmp-* -> <id> rename (2026-11-04: two
+    // builds refused, nova_chart had no page).
     // Build outputs are never sources; leave them to the packager.
     watch: {
       ignored: [
         '**/release/**',
         '**/dist/**',
+        '**/dist-review/**',
         '**/dist-electron/**',
         '**/.vite-cache/**',
         '**/.chart-gateway-build/**',

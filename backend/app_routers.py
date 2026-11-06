@@ -43,6 +43,7 @@ from diagnostics.routes import router as diagnostics_router
 from leaderboard.routes import router as leaderboard_router
 from leaderboard.auto_record_routes import router as auto_record_router
 from loss_limit.routes import router as loss_limit_router
+from owners.routes import router as owners_router
 from execution.size_limit.routes import router as order_size_limit_router
 from setup_scanner.routes import router as setups_router
 from setup_templates.routes import install as install_setup_template_refusals
@@ -66,6 +67,7 @@ from luld.routes import router as luld_router
 from book_watch.routes import router as book_watch_router
 from short_sale.routes import router as short_check_router
 from agent_desk.routes import router as agent_desk_router
+from agent_trader.routes import router as agent_trader_router
 from chart_events.routes import router as chart_events_router
 from followed_traders import config as followed_traders_config
 from followed_traders.routes import router as followed_traders_router
@@ -114,6 +116,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(leaderboard_router)
     app.include_router(auto_record_router)
     app.include_router(loss_limit_router)
+    app.include_router(owners_router)
     app.include_router(order_size_limit_router)
     app.include_router(setups_router)
     app.include_router(setup_templates_router)
@@ -136,6 +139,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(luld_router)
     app.include_router(book_watch_router)
     app.include_router(short_check_router)
+    app.include_router(agent_trader_router)  # ADR 068: Claude's seat, its line and its Paper orders
     app.include_router(agent_desk_router)
     app.include_router(chart_events_router)
     app.include_router(volume_profile_router)

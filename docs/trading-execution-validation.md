@@ -98,9 +98,9 @@ calls existing doors in this order:
 1. Desk trade lock + Bot Autonomy L0 (best-effort) -- stop bot re-entry and
    Place before broker cleanup. Lock echoes to peer desk windows via
    BroadcastChannel + `localStorage` (`TICKER_TRADE_UNLOCK_SYNC_KEY`).
-2. `cancelAllWorkingOrders` -- `DELETE /api/ibkr/orders?all_symbols=true`
-3. `flatten_account_with_retry` -- `POST /api/ibkr/flatten-account` (same
-   function the bot's last-resort exit uses; `source=flatten`). Flatten cancels leftover
+2. `cancelAllWorkingOrders` -- `DELETE /api/ibkr/orders?all_symbols=true&venue=`
+3. `flatten_account_with_retry` -- `POST /api/ibkr/flatten-account?venue=`
+   (`source=flatten`). Flatten cancels leftover
    working **before** placing closes so it cannot cancel those exits. Weekday
    RTH closes stay MKT (`outside_rth=false`). After hours / weekend / holiday
    uses an EH LMT at bid/ask/last (`outside_rth=true`) -- IBKR ignores
@@ -111,6 +111,11 @@ calls existing doors in this order:
    cancel stay protective and do not use that gate to refuse an exit.
 4. Bot Autonomy L0 + desk lock again (reaffirm; L0 retries if the first PATCH
    failed)
+
+KILL reads the venue once, at the click, and names it on steps 2 and 3. If the
+desk leaves that venue partway, KILL stops: nothing more is sent, nothing
+reaches the venue the desk moved to, and the failure dialog says what is still
+open (#1281, `architecture/schema/execution.md`).
 
 Cancel and flatten still run if the bot PATCH fails. Unlock is the existing
 header lock (the daily loss limit's No new buys is separate: Settings > Loss limits, ADR 056). `auto_live` stays NO-GO. The confirm guard is taken before the

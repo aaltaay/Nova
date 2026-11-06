@@ -714,7 +714,8 @@ Alpaca `/v2/assets` (listing metadata only, no price), ETFs and units
 included, sorted by symbol, cached in process for
 `SYMBOL_DIRECTORY_TTL_SEC`. A failed fetch keeps serving the last good
 directory with `error` set; no keys is `count: 0` with the reason. The
-header ticker search loads it on first focus and matches desk symbols first,
+header ticker search loads it on first focus and matches desk symbols first
+(your tabs and positions, and on Paper the bots' stocks, ADR 069 decision 9),
 then listed symbols by ticker prefix or company name; `/regex/` and `A*X`
 wildcards run over symbols only. Recent look-ups persist in `localStorage`
 `nova.search.recent` (`{schema_version: 1, symbols: string[]}`, newest first,
@@ -814,8 +815,11 @@ Owner `frontend/src/close_reminder/`, mounted once with the app bar (never on th
 takes its card with it. Once per position per day per stage: a dismissed card does not return at
 its stage. Sim is left out (its clock is the replay playhead); weekends too; there is no holiday
 calendar on the client. `localStorage` `nova.closeReminder.fired` (a `prefStore` envelope) holds `{schema_version: 1, date:
-"YYYY-MM-DD" (ET), keys: ["<date>|<venue>|<SYMBOL>|<warn | final>", ...]}`; another date or an unknown
+"YYYY-MM-DD" (ET), keys: ["<date>|<venue>|<SYMBOL>|<warn | final | bots>", ...]}`; another date or an unknown
 version is ignored. On Live the rows may be last-known (the Gateway dropped) and the card says so.
+On Paper the bots' shares get a card of their own from 15:56 to 16:00, stage `bots` (ADR 069 decision 9): a minute
+past their 15:55 sale, so it shows only when that sale did not finish; one card per stock for every bot's shares,
+beside yours, never added to it, and dismissed on its own.
 Nothing here places, stages or cancels an order.
 
 
@@ -959,7 +963,11 @@ things this desk spends; the strip shows each as used of its cap, and who uses i
   `IBKR_L1_STREAM_BUDGET`. `reserve` (`IBKR_L1_STREAM_RESERVE`) is kept free for an opening Trader tab. `by_owner`
   counts a line once per owner (one line can serve several).
 - **l2**, Level 2 books (`line_lending.view`): `IBKR_MAX_DEPTH_SYMBOLS` (3).
-- **history**, IBKR's historical requests (`historical_service.pacing_snapshot`): 60 in 10 minutes. `by_kind` names
+- **history**, IBKR's historical requests (`historical_service.pacing_snapshot`): `cap` is
+  `IBKR_HISTORICAL_PACE_MAX` (300) in 10 minutes, the count IBKR answered at once when Nova measured it (ADR 012
+  amendment 2026-11-04), and its published 60 for the 10 minutes after it says pacing or slows its answers: everyone
+  but an open chart stops then, so `used` can read over `cap` and `next_free_sec` is the wait to come back under it.
+  Ten-second bars and tick reads also stay inside that 60 (`IBKR_HISTORICAL_SMALL_PACE_MAX`). `by_kind` names
   what spent the window: `charts` (chart bars), `tape` (trades read back: the TraderTV exits and ticker checks,
   LULD), `daily` (daily bars: the short check's SSR, the Market page's ETFs, Cryptos), `market` (the Market page's
   futures, indexes and crypto tiles), `global` (the Global page's futures, indexes, ETFs and exchange rates, ADR 060), `forex` (the Forex page's
@@ -969,13 +977,20 @@ things this desk spends; the strip shows each as used of its cap, and who uses i
 **Who comes first.** Level 1: the scanner and HOD Momo plan their lines inside what every other owner -- a Trader
 tab, the bots, the followed traders -- leaves (`l1_refused.plan_budget`), and a refused line is asked again in that
 order too: a Trader tab and the Live Trader bot first, the followed traders and the scanner next, HOD Momo last
-(`l1_refused._OWNER_RANK`). History, from first to last: an open chart and the short check's SSR read down to the last
-request; background chart fills stop while `IBKR_HISTORY_TRADING_RESERVE` (10) or fewer are left; the TraderTV exits,
-ticker checks and LULD at 20 or fewer (`FOLLOWED_EXIT_HEADROOM`, `LULD_BACKFILL_HEADROOM`); the Market, Global
-and Forex pages last, in turn, at 30 (`MARKET_HISTORY_HEADROOM`, `GLOBAL_HISTORY_HEADROOM`,
-`FOREX_HISTORY_HEADROOM`) -- the one on screen first: Global leaves 40 while the Market or Forex page shows and it
-does not (`GLOBAL_YIELD_HEADROOM`), Forex 40 while the Market or Global page shows and it does not
-(`FOREX_YIELD_HEADROOM`).
+(`l1_refused._OWNER_RANK`). History, from first to last, counting what is left of the whole window (of the 60 for ten-second bars and tick reads):
+an open chart (a stock being opened asks for every pane missing, short or stale this way, `ws/ticker`) and the SSR read
+of the stock on the ticket or about to be shorted (the short check, the order door, a bot's short) down to the last
+request; background chart fills,
+Cryptos' daily closes and every other SSR read stop while `IBKR_HISTORY_TRADING_RESERVE` (10) or fewer are left (the
+setup scanner asks SSR for each watched stock trading under its prior close; 2026-10-27, 16 of those reads in 16 s
+filled the window and a chart opened just after waited 22 s); the TraderTV exits,
+ticker checks and LULD at 20 or fewer (`FOLLOWED_EXIT_HEADROOM`, `LULD_BACKFILL_HEADROOM`); a painted chart's
+refresh (a `warm` fill, every 45 s while its bars are stale) at 30 or fewer (`IBKR_HISTORY_WARM_RESERVE`, 2026-10-27:
+with ten charts open it spent the whole window and no TraderTV exit was read all morning); the Market, Global
+and Forex pages last, in turn, at 100 (`MARKET_HISTORY_HEADROOM`, `GLOBAL_HISTORY_HEADROOM`,
+`FOREX_HISTORY_HEADROOM`), with the setup scanner's seeds (`SETUPS_SEED_HISTORY_HEADROOM`) -- the one on screen first:
+Global leaves 110 while the Market or Forex page shows and it does not (`GLOBAL_YIELD_HEADROOM`), Forex 110 while the
+Market or Global page shows and it does not (`FOREX_YIELD_HEADROOM`).
 
 **On the desk** (`frontend/src/capacity/`): a strip at the very bottom of the main window, read every 5 s, one cell
 per cap -- "Level 1 48 / 53", "Level 2 3 / 3", "History 60 / 60 · next in 2:27", "Time & Sales 4" -- each with a

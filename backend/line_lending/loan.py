@@ -2,7 +2,8 @@
 
 A loan takes a hidden Trader tab's Level 2 line -- and its AllLast line, when every
 viewer of that line is the tab's Time & Sales -- for a setup Nova may buy, and holds the
-borrower's two lines. ``frame`` is what the lender's sockets read before they close;
+borrower's two lines. A loan to Claude's seat (``setup_type`` ``claude``, ADR 068 decision 14)
+holds none: the seat holds its own, and the loan only says whose line the tab gave. ``frame`` is what the lender's sockets read before they close;
 ``public`` is its row on ``GET /api/ibkr/depth/lines``; ``audit`` writes its ``line_loan``
 lines on the bot audit stream.
 """
@@ -14,6 +15,9 @@ from typing import Any
 
 from line_lending import line_moves
 from line_lending.constants_line_lending import (
+    BORROWER_CLAUDE,
+    CLAUDE_LENT_TEXT,
+    CLAUDE_WHY_WORDS,
     LENT_TEXT,
     LENT_TEXT_NO_WHY,
     LINE_LENDING_AUDIT_ACTION,
@@ -45,27 +49,51 @@ class Loan:
     tape_tries: int = 0           # times the borrower's AllLast line was asked for again (not the first ask)
     tape_asked_at: float = 0.0    # when it was last asked for
 
+    @property
+    def claude(self) -> bool:
+        """Lent to Claude's seat: only the operator's right-click, or Claude letting go, ends it."""
+        return self.setup_type == BORROWER_CLAUDE
+
     def setup_words(self) -> str:
         return SETUP_WORDS.get(self.setup_type, self.setup_type.replace("_", " "))
+
+    def why_words(self) -> str | None:
+        """The reason in words: "near its trigger"; for Claude, what it does on its stock ("watching RUNR")."""
+        if self.claude:
+            words = CLAUDE_WHY_WORDS.get(self.why)
+            return f"{words} {self.borrower}" if words else None
+        return WHY_WORDS.get(self.why)
+
+    def borrower_words(self) -> str:
+        """Who has the lines: "AISP's first pullback", or "Claude (watching RUNR)"."""
+        if self.claude:
+            words = self.why_words()
+            return f"Claude ({words})" if words else "Claude"
+        return f"{self.borrower}'s {self.setup_words()}"
 
     def lines_words(self) -> str:
         return "Level 2 and Time & Sales" if self.tape_lent else "Level 2"
 
     def text(self) -> str:
         """The lent frame's sentence (the contract's words; the desk builds its own per pane)."""
+        if self.claude:
+            return CLAUDE_LENT_TEXT.format(why=self.why_words() or "its seat")
         words = WHY_WORDS.get(self.why)
         template = LENT_TEXT if words else LENT_TEXT_NO_WHY
         return template.format(symbol=self.borrower, setup=self.setup_words(), why=words)
 
     def lent(self) -> str:
         """The sentence a loan starts with, on the audit stream."""
+        if self.claude:
+            return f"{self.lender}'s {self.lines_words()} lent to {self.borrower_words()}"
         words = WHY_WORDS.get(self.why, self.why)
         return f"{self.lender}'s {self.lines_words()} lent to {self.borrower}'s {self.setup_words()} ({words})"
 
     def back(self, why: str) -> str:
         """The sentence a loan that gives the lines back ends with."""
         verb = "go" if self.tape_lent else "goes"
-        return f"{self.lender}'s {self.lines_words()} {verb} back from {self.borrower}'s {self.setup_words()}: {why}"
+        who = "Claude" if self.claude else f"{self.borrower}'s {self.setup_words()}"
+        return f"{self.lender}'s {self.lines_words()} {verb} back from {who}: {why}"
 
     def lost(self) -> str:
         """The sentence a recalled loan ends with: the setup lost its lines."""
@@ -76,12 +104,17 @@ class Loan:
         """What the lender's Level 2 and Time & Sales sockets send before they close."""
         return {"type": "lent", "symbol": self.lender,
                 "to": {"symbol": self.borrower, "setup_type": self.setup_type, "setup_id": self.setup_id},
-                "why": WHY_WORDS.get(self.why, self.why), "tier": self.why, "since": self.since, "text": self.text()}
+                "why": self._why_wire(), "tier": self.why, "since": self.since, "text": self.text()}
+
+    def _why_wire(self) -> str:
+        if self.claude:
+            return self.why_words() or self.why
+        return WHY_WORDS.get(self.why, self.why)
 
     def public(self) -> dict[str, Any]:
         tape = line_moves.tape_state(self.borrower, held=self.tape_held, error=self.tape_error)
         return {"lender": self.lender, "borrower": self.borrower, "setup_type": self.setup_type,
-                "setup_id": self.setup_id, "since": self.since, "why": WHY_WORDS.get(self.why, self.why),
+                "setup_id": self.setup_id, "since": self.since, "why": self._why_wire(),
                 "tier": self.why, "state": self.state, "text": self.text(),
                 "tape": tape.state == TAPE_RECEIVING, "tape_state": tape.state, "tape_error": tape.error,
                 "tape_lent": self.tape_lent, "tape_last_print": tape.last_print}

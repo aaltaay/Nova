@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { LeaderboardDay } from '../leaderboard/leaderboardTypes';
+// Static, so the picker's import is paid while the file loads and the test times the placement alone (#1233).
+import { calendarPlacement } from './SimDayPicker';
 import { cellTitle, cellWhy, dayFacts, monthGrid, monthRange, shiftMonth } from './simDayCalendarModel';
 import type { CaptureSessions } from './useSimSessionController';
 
@@ -98,8 +100,7 @@ describe('month navigation', () => {
 });
 
 describe('calendarPlacement', () => {
-  it('sits under its button, inside the window, and flips up when the bottom is short', async () => {
-    const { calendarPlacement } = await import('./SimDayPicker');
+  it('sits under its button, inside the window, and flips up when the bottom is short', () => {
     const view = { width: 1500, height: 950 };
     expect(calendarPlacement({ top: 60, bottom: 82, left: 600 }, view)).toEqual({ top: 86, left: 600 });
     expect(calendarPlacement({ top: 60, bottom: 82, left: 1400 }, view).left).toBe(1500 - 248 - 8);

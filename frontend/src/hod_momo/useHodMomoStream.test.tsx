@@ -4,12 +4,14 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { HOD_MOMO_ALERT_BATCH_MS } from '../constants';
 import {
   noteHodMomoLiveAlert,
   rememberHodMomoAlertSnapshot,
   resetHodMomoAlertSoundForTests,
   setHodMomoAlertSoundEnabled,
 } from './hodMomoAlertSound';
+import { subscribeHodMomoLiveAlerts } from './hodMomoLiveAlerts';
 import { useHodMomoStream } from './useHodMomoStream';
 
 const mocks = vi.hoisted(() => ({ replayDesk: false, ping: vi.fn() }));
@@ -46,10 +48,14 @@ class FakeWebSocket {
   }
 }
 
+let latest: ReturnType<typeof useHodMomoStream> | null = null;
+
 function Harness() {
-  useHodMomoStream();
+  latest = useHodMomoStream();
   return null;
 }
+
+const shownIds = () => latest?.alerts.map(alert => alert.id);
 
 function send(ws: FakeWebSocket, payload: unknown) {
   ws.onmessage?.({ data: JSON.stringify(payload) });
@@ -193,5 +199,59 @@ describe('useHodMomoStream alert ping', () => {
     });
     expect(vi.mocked(noteHodMomoLiveAlert).mock.results.at(-1)?.value).toBe('pinged');
     expect(mocks.ping).toHaveBeenCalledTimes(1);
+  });
+
+  it('a second initial frame on one socket replaces the list: batch dropped, count reset, no ping or toast (#800)', () => {
+    vi.useFakeTimers();
+    const toasts = vi.fn();
+    const unsubscribe = subscribeHodMomoLiveAlerts(toasts);
+    try {
+      const ws = FakeWebSocket.instances[0];
+      act(() => send(ws, { type: 'initial', alerts: [hodAlert('fri-1', 'OLDA'), hodAlert('fri-2', 'OLDB')], total: 2 }));
+      expect(shownIds()).toEqual(['fri-1', 'fri-2']);
+      expect(latest?.totalToday).toBe(2);
+
+      // A Friday alert still waits in the batch when the 04:00 rollover restates the list.
+      act(() => send(ws, { type: 'alert', alert: hodAlert('fri-3', 'OLDC') }));
+      expect(toasts).toHaveBeenCalledTimes(1);
+      expect(mocks.ping).toHaveBeenCalledTimes(1);
+      act(() => send(ws, { type: 'initial', alerts: [], total: 0 }));
+      expect(shownIds()).toEqual([]);
+      expect(latest?.totalToday).toBe(0);
+      act(() => { vi.advanceTimersByTime(HOD_MOMO_ALERT_BATCH_MS * 4); });
+      expect(shownIds()).toEqual([]);
+      expect(latest?.totalToday).toBe(0);
+
+      // A snapshot never pings or toasts, even for an alert this desk never saw.
+      act(() => send(ws, { type: 'initial', alerts: [hodAlert('mon-0', 'SNAP')], total: 1 }));
+      expect(shownIds()).toEqual(['mon-0']);
+      act(() => send(ws, { type: 'initial', alerts: [], total: 0 }));
+      expect(noteHodMomoLiveAlert).toHaveBeenCalledTimes(1);
+      expect(mocks.ping).toHaveBeenCalledTimes(1);
+      expect(toasts).toHaveBeenCalledTimes(1);
+
+      // Monday's first alert behaves as any fresh one: one row, one ping, one toast; a re-send adds nothing.
+      act(() => { vi.advanceTimersByTime(1_000); });
+      act(() => send(ws, { type: 'alert', alert: hodAlert('mon-1', 'NEW') }));
+      act(() => send(ws, { type: 'alert', alert: hodAlert('mon-1', 'NEW') }));
+      act(() => { vi.advanceTimersByTime(HOD_MOMO_ALERT_BATCH_MS * 2); });
+      expect(shownIds()).toEqual(['mon-1']);
+      expect(latest?.totalToday).toBe(1);
+      expect(mocks.ping).toHaveBeenCalledTimes(2);
+      expect(toasts).toHaveBeenCalledTimes(2);
+      expect(toasts).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'mon-1' }));
+
+      // Restated with it (as on a reconnect), then sent once more: still one row, no second ping or toast.
+      act(() => send(ws, { type: 'initial', alerts: [hodAlert('mon-1', 'NEW')], total: 1 }));
+      act(() => send(ws, { type: 'alert', alert: hodAlert('mon-1', 'NEW') }));
+      act(() => { vi.advanceTimersByTime(HOD_MOMO_ALERT_BATCH_MS * 2); });
+      expect(shownIds()).toEqual(['mon-1']);
+      expect(latest?.totalToday).toBe(1);
+      expect(mocks.ping).toHaveBeenCalledTimes(2);
+      expect(toasts).toHaveBeenCalledTimes(2);
+    } finally {
+      unsubscribe();
+      vi.useRealTimers();
+    }
   });
 });

@@ -118,14 +118,19 @@ def buy_refusal(
     *,
     short_entry: bool = False,
     covers: bool = False,
+    origin: str | None = None,
 ) -> dict[str, Any] | None:
     """``{code, text}`` when ``venue`` refuses this order under No new buys, else None.
 
     It refuses what opens or adds: a BUY that covers nothing, or a SELL that opens a short -- held by
-    the Account line, or by the line of the side the order's source names."""
+    the Account line, or by the line of the side the order's source names. Claude's lane on Paper has its own
+    daily max loss (ADR 068, operator 2026-10-26: "a max loss of $500 ... for claude lane"), checked by
+    ``agent_trader.rules`` before the door, so the shared lines do not stop Claude's buys there."""
     upper = (side or "").upper()
     opens = (upper == "BUY" and not covers) or (upper == "SELL" and short_entry)
     if not opens or source in _PROTECTIVE:
+        return None
+    if origin == "claude" and venue == "paper":
         return None
     held = stopped(venue, actor=actor_of(source))
     if held is None:

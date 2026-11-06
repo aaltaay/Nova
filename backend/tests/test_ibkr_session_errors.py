@@ -215,3 +215,35 @@ def test_a_coin_ibkr_does_not_list_is_an_answer_not_an_error():
     assert se.last_error() is None
     ib.errorEvent.fire(8, 200, "No security definition has been found for the request", _Contract("STK"))
     assert se.last_error()["code"] == 200   # the same answer about a stock is still recorded
+
+
+def test_ibkrs_pacing_word_holds_the_history_window():
+    from ibkr import historical_service
+
+    historical_service.reset_for_testing()
+    se._on_ib_error(9, 162, "Historical Market Data Service error message:Historical data request pacing violation")
+    assert historical_service.pacing_refusals() == 1
+    assert historical_service.pacing_snapshot()["held_sec"] > 0
+    historical_service.reset_for_testing()
+
+
+def test_the_pacing_word_on_a_reference_contract_holds_the_same_window():
+    """The Market, Forex and Global pages read the window the charts do; their errors stop short of the stock session."""
+    from types import SimpleNamespace
+
+    from ibkr import historical_service
+
+    historical_service.reset_for_testing()
+    se._on_ib_error(9, 162, "Historical data request pacing violation",
+                    SimpleNamespace(secType="CONTFUT", symbol="ES", conId=495512563))
+    assert historical_service.pacing_refusals() == 1
+    historical_service.reset_for_testing()
+
+
+def test_any_other_history_error_is_not_a_refusal():
+    from ibkr import historical_service
+
+    historical_service.reset_for_testing()
+    se._on_ib_error(9, 162, "Historical Market Data Service error message:HMDS query returned no data")
+    assert historical_service.pacing_refusals() == 0
+    assert historical_service.pacing_snapshot()["held_sec"] == 0

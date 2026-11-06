@@ -5,7 +5,7 @@
  * again when the loan ends or at once from the front, and keeps its words until its line answers.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { L2_LENT_POLL_MS } from '../constantGroups/market_ui';
+import { L2_LENT_POLL_MS, LENT_LINE_RECALL_EVENT } from '../constantGroups/market_ui';
 import { LentLine } from './lentLine';
 import { loanWatchersForTests, resetLoanWatchForTests } from './loanWatch';
 
@@ -103,5 +103,33 @@ describe('LentLine', () => {
     front = true;
     document.dispatchEvent(new Event('visibilitychange'));
     expect(reconnect).toHaveBeenCalledTimes(1);
+  });
+
+  describe('lent to Claude (ADR 068 decision 14)', () => {
+    const CLAUDE = {
+      type: 'lent', symbol: 'ABC', to: { symbol: 'RUNR', setup_type: 'claude', setup_id: null },
+      why: 'watching RUNR', tier: 'watching', since: 1, text: 'Level 2 lent to Claude ...',
+    };
+
+    it('never asks for the line back from the front: it waits on the poll', () => {
+      front = true;
+      line.lend(CLAUDE);
+      expect(line.closed()).toBe(true);
+      expect(reconnect).not.toHaveBeenCalled();
+      expect(loanWatchersForTests()).toBe(1);
+      document.dispatchEvent(new Event('visibilitychange'));
+      line.wake();
+      expect(reconnect).not.toHaveBeenCalled();
+    });
+
+    it("comes back when the operator's right-click takes it back, for its own symbol only", () => {
+      line.lend(CLAUDE);
+      line.closed();
+      window.dispatchEvent(new CustomEvent(LENT_LINE_RECALL_EVENT, { detail: { symbol: 'XYZ' } }));
+      expect(reconnect).not.toHaveBeenCalled();
+      window.dispatchEvent(new CustomEvent(LENT_LINE_RECALL_EVENT, { detail: { symbol: 'abc' } }));
+      expect(reconnect).toHaveBeenCalledTimes(1);
+      expect(loanWatchersForTests()).toBe(0);
+    });
   });
 });

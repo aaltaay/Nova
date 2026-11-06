@@ -12,6 +12,7 @@ import {
   type StockViewDockSurface,
 } from '../constants';
 import { drawerSampleBanner } from '../constantGroups/trader_chrome';
+import { botsRowsFor, useDeskPositions } from '../ibkr';
 import { PositionsPanel } from '../ibkr/PositionsPanel';
 import type {
   IbkrAccountSummary,
@@ -105,7 +106,9 @@ export const StockViewOpenOrdersDock = memo(function StockViewOpenOrdersDock({
   // The sample, the rows shown and every count (QA V22): useDrawerDisplay.
   const { wantsWorkingSample, usingSample, displayOrders, displayClosed, openCount, filterCounts } =
     useDrawerDisplay({ surface, filter, orders, closedOrders, sampleHidden, symbolKey });
-  const positionCount = positions.length;
+  // Every holder's shares (ADR 069 decision 9); a Sell from this drawer still sizes from yours.
+  const desk = useDeskPositions(positions);
+  const positionCount = desk.rows.length;
 
   useEffect(() => {
     if (
@@ -113,7 +116,7 @@ export const StockViewOpenOrdersDock = memo(function StockViewOpenOrdersDock({
       orders.length > 0 ||
       closedOrders.length > 0 ||
       usingSample ||
-      positions.length > 0
+      positionCount > 0
     ) {
       setCollapsed(false);
       writeCollapsed(false);
@@ -123,7 +126,7 @@ export const StockViewOpenOrdersDock = memo(function StockViewOpenOrdersDock({
     orders.length,
     closedOrders.length,
     usingSample,
-    positions.length,
+    positionCount,
   ]);
 
   useEffect(() => {
@@ -225,9 +228,10 @@ export const StockViewOpenOrdersDock = memo(function StockViewOpenOrdersDock({
               <div data-testid="stock-view-positions">
                 <PositionsPanel
                   summary={summary}
-                  positions={positions}
+                  positions={desk.rows}
                   orders={orders}
                   error={accountError}
+                  botsStale={desk.botsStale}
                   selectedSymbol={symbolKey}
                   onSelectSymbol={onSelectSymbol}
                   onOpenTrading={onOpenTrading ?? onSelectSymbol}
@@ -265,7 +269,8 @@ export const StockViewOpenOrdersDock = memo(function StockViewOpenOrdersDock({
             symbol={symbolKey}
             mode={mode}
             position={symbolPosition}
-            openPositions={positions.filter((p) => p.qty !== 0).length}
+            botsRows={botsRowsFor(desk.rows, symbolKey)}
+            openPositions={desk.rows.filter((p) => p.qty !== 0).length}
           />
         </>
       )}

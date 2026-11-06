@@ -10,11 +10,11 @@ async def test_flatten_cancels_working_before_placing_closes(monkeypatch):
 
     order: list[str] = []
 
-    async def fake_cancel() -> list[dict]:
+    async def fake_cancel(**_kw) -> list[dict]:
         order.append("cancel")
         return [{"ok": True, "order_id": 1}]
 
-    async def fake_place(symbol: str, qty: float, side: str, *, origin: str | None = None) -> dict:
+    async def fake_place(symbol: str, qty: float, side: str, *, origin: str | None = None, **_kw) -> dict:
         order.append(f"place:{symbol}:{side}:{qty}")
         return {"ok": True, "order_id": 99}
 
@@ -39,10 +39,10 @@ async def test_flatten_cancels_working_before_placing_closes(monkeypatch):
 async def test_flatten_still_places_closes_when_cancel_fails(monkeypatch):
     from bot import flatten as flatten_mod
 
-    async def fake_cancel() -> list[dict]:
+    async def fake_cancel(**_kw) -> list[dict]:
         return [{"ok": False, "error": "busy"}]
 
-    async def fake_place(symbol: str, qty: float, side: str, *, origin: str | None = None) -> dict:
+    async def fake_place(symbol: str, qty: float, side: str, *, origin: str | None = None, **_kw) -> dict:
         return {"ok": True, "order_id": 7}
 
     monkeypatch.setattr(flatten_mod, "_cancel_working", fake_cancel)
@@ -152,11 +152,11 @@ async def test_flatten_on_a_practice_venue_proceeds_with_the_gateway_dark(monkey
 
     order: list[str] = []
 
-    async def fake_cancel() -> list[dict]:
+    async def fake_cancel(**_kw) -> list[dict]:
         order.append("cancel")
         return []
 
-    async def fake_place(symbol: str, qty: float, side: str, *, origin: str | None = None) -> dict:
+    async def fake_place(symbol: str, qty: float, side: str, *, origin: str | None = None, **_kw) -> dict:
         order.append(f"place:{symbol}:{side}:{qty}")
         return {"ok": True, "order_id": 3}
 
@@ -164,8 +164,8 @@ async def test_flatten_on_a_practice_venue_proceeds_with_the_gateway_dark(monkey
     monkeypatch.setattr(flatten_mod, "_place_close", fake_place)
     monkeypatch.setattr("ibkr.client.is_connected", lambda: False)
     # The practice broker fills a protective close at placement: held before, flat after.
-    reads = iter([[{"symbol": "IMCC", "qty": 7}], []])
-    monkeypatch.setattr("ibkr.account.get_positions", lambda: next(reads))
+    monkeypatch.setattr("ibkr.account.get_positions", lambda: [{"symbol": "IMCC", "qty": 7}])
+    monkeypatch.setattr("kill_switch.sweep.held_positions", lambda venue: {})
 
     result = await flatten_mod.flatten_account_once()
 
@@ -217,10 +217,10 @@ async def test_a_close_that_sent_less_than_the_position_is_a_failure(monkeypatch
     """QA R6: a KILL must never report success while shares remain."""
     from bot import flatten as flatten_mod
 
-    async def fake_cancel() -> list[dict]:
+    async def fake_cancel(**_kw) -> list[dict]:
         return []
 
-    async def short_place(symbol: str, qty: float, side: str, *, origin: str | None = None) -> dict:
+    async def short_place(symbol: str, qty: float, side: str, *, origin: str | None = None, **_kw) -> dict:
         return {"ok": True, "order_id": 8, "sent_qty": 1.0}
 
     monkeypatch.setattr(flatten_mod, "_cancel_working", fake_cancel)
@@ -238,20 +238,19 @@ async def test_a_close_that_sent_less_than_the_position_is_a_failure(monkeypatch
 
 
 @pytest.mark.asyncio
-async def test_practice_flatten_rereads_positions_and_fails_when_shares_remain(monkeypatch):
+async def test_practice_flatten_rereads_positions_and_fails_when_shares_remain(monkeypatch, practice_venue):
     from bot import flatten as flatten_mod
 
-    async def fake_cancel() -> list[dict]:
+    async def fake_cancel(**_kw) -> list[dict]:
         return []
 
-    async def whole_place(symbol: str, qty: float, side: str, *, origin: str | None = None) -> dict:
+    async def whole_place(symbol: str, qty: float, side: str, *, origin: str | None = None, **_kw) -> dict:
         return {"ok": True, "order_id": 9, "sent_qty": qty}
 
-    reads = iter([[{"symbol": "GRML", "qty": 2}], [{"symbol": "GRML", "qty": 1}]])
     monkeypatch.setattr(flatten_mod, "_cancel_working", fake_cancel)
     monkeypatch.setattr(flatten_mod, "_place_close", whole_place)
-    monkeypatch.setattr("sim.mode.is_practice_venue", lambda: True)
-    monkeypatch.setattr("ibkr.account.get_positions", lambda: next(reads))
+    monkeypatch.setattr("ibkr.account.get_positions", lambda: [{"symbol": "GRML", "qty": 2}])
+    monkeypatch.setattr("kill_switch.sweep.held_positions", lambda venue: {"GRML": 1.0})
 
     result = await flatten_mod.flatten_account_once()
 
@@ -261,20 +260,19 @@ async def test_practice_flatten_rereads_positions_and_fails_when_shares_remain(m
 
 
 @pytest.mark.asyncio
-async def test_practice_flatten_that_leaves_nothing_open_succeeds(monkeypatch):
+async def test_practice_flatten_that_leaves_nothing_open_succeeds(monkeypatch, practice_venue):
     from bot import flatten as flatten_mod
 
-    async def fake_cancel() -> list[dict]:
+    async def fake_cancel(**_kw) -> list[dict]:
         return []
 
-    async def whole_place(symbol: str, qty: float, side: str, *, origin: str | None = None) -> dict:
+    async def whole_place(symbol: str, qty: float, side: str, *, origin: str | None = None, **_kw) -> dict:
         return {"ok": True, "order_id": 10, "sent_qty": qty}
 
-    reads = iter([[{"symbol": "GRML", "qty": 2}], []])
     monkeypatch.setattr(flatten_mod, "_cancel_working", fake_cancel)
     monkeypatch.setattr(flatten_mod, "_place_close", whole_place)
-    monkeypatch.setattr("sim.mode.is_practice_venue", lambda: True)
-    monkeypatch.setattr("ibkr.account.get_positions", lambda: next(reads))
+    monkeypatch.setattr("ibkr.account.get_positions", lambda: [{"symbol": "GRML", "qty": 2}])
+    monkeypatch.setattr("kill_switch.sweep.held_positions", lambda venue: {})
 
     result = await flatten_mod.flatten_account_once()
 
@@ -283,30 +281,21 @@ async def test_practice_flatten_that_leaves_nothing_open_succeeds(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_practice_flatten_that_cannot_reread_positions_is_not_reported_flat(monkeypatch):
+async def test_practice_flatten_that_cannot_reread_positions_is_not_reported_flat(monkeypatch, practice_venue):
     """The re-read is the proof: when it fails, the closes were sent but flat
     is unproven -- never ``ok`` (it used to read as "nothing left open")."""
     from bot import flatten as flatten_mod
-    from ibkr.errors import IbkrAccountError
 
-    async def fake_cancel() -> list[dict]:
+    async def fake_cancel(**_kw) -> list[dict]:
         return []
 
-    async def whole_place(symbol: str, qty: float, side: str, *, origin: str | None = None) -> dict:
+    async def whole_place(symbol: str, qty: float, side: str, *, origin: str | None = None, **_kw) -> dict:
         return {"ok": True, "order_id": 11, "sent_qty": qty}
-
-    reads = iter([[{"symbol": "GRML", "qty": 2}], IbkrAccountError("ledger unreadable")])
-
-    def get_positions():
-        item = next(reads)
-        if isinstance(item, Exception):
-            raise item
-        return item
 
     monkeypatch.setattr(flatten_mod, "_cancel_working", fake_cancel)
     monkeypatch.setattr(flatten_mod, "_place_close", whole_place)
-    monkeypatch.setattr("sim.mode.is_practice_venue", lambda: True)
-    monkeypatch.setattr("ibkr.account.get_positions", get_positions)
+    monkeypatch.setattr("ibkr.account.get_positions", lambda: [{"symbol": "GRML", "qty": 2}])
+    monkeypatch.setattr("kill_switch.sweep.held_positions", lambda venue: None)
 
     result = await flatten_mod.flatten_account_once()
 

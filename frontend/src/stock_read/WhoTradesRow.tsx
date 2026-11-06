@@ -1,8 +1,8 @@
 /**
  * "Who trades SYMBOL", directly above Level 2 (ADR 037): Buy (You | Bot) and Sell (You | Bot), the mode
  * they make, and under them everything the view says (ADR 042 draft): a refused change, every note that
- * keeps Nova from acting (each toned; none hidden behind the first), Nova's automatic trades today against
- * the day's cap, and the stock's last event -- the bot's skips on it included. A locked side carries its
+ * keeps Nova from acting (each toned; none hidden behind the first), Nova's automatic trades today (a count,
+ * never a cap), and the stock's last event -- the bot's skips on it included. A locked side carries its
  * reason; the same switch is the chip on the 1-minute chart.
  */
 import { useState } from 'react';
@@ -11,7 +11,6 @@ import type { DepthMarker } from '../ibkr';
 import { tipProps, whyProps } from '../ux';
 import { STOCK_MODE_COLORS, WHO_TRADES_NOTES_SHOWN } from './constants';
 import { heldAnyQty, shortQty } from './momentShort';
-import { capUsedText } from './novaPromise';
 import { useStockReadContext, type StockReadContextValue } from './StockReadContext';
 import { hhmmssEt } from './timeWords';
 import type { StockModeView, StockSide } from './types';
@@ -64,17 +63,14 @@ function SideSwitch({ label, value, lockYou, lockNova, onPick, testId }: {
   );
 }
 
-/** Nova's automatic trades today (longs and shorts) against the day's shared cap, in a mode where Nova enters
- * by itself. */
-function entriesLine(view: StockModeView | null): { text: string; tip: string; used: boolean } | null {
+/** Nova's automatic trades today (longs and shorts), in a mode where Nova enters by itself: a count, never a cap
+ * (operator, 2026-10-27). */
+function entriesLine(view: StockModeView | null): { text: string; tip: string } | null {
   if (!view || (view.mode !== 'bot' && view.mode !== 'auto_entry') || !view.entries_today) return null;
-  const { count, cap } = view.entries_today;
-  const used = capUsedText(view);
   return {
-    text: `Nova's automatic trades today: ${count}${cap !== null ? ` of ${cap}` : ''}`,
-    tip: used ?? 'The bot and Auto-entry share one count a day on this venue, longs and shorts together; an entry that '
-      + 'missed gives its place back.',
-    used: used !== null,
+    text: `Nova's automatic trades today: ${view.entries_today.count}`,
+    tip: 'The bot and Auto-entry share one count a day on this venue, longs and shorts together; an entry that '
+      + 'missed is taken back off. There is no daily cap: the loss limit and one trade at a time still hold.',
   };
 }
 
@@ -214,7 +210,7 @@ function WhoTradesRowView({ ctx }: { ctx: StockReadContextValue }) {
       )}
       {notes.length > 0 && <NotesList notes={notes} sym={sym} />}
       {entries && (
-        <p className={`sr-who__note sr-who__note--${entries.used ? 'warn' : 'info'}`}
+        <p className="sr-who__note sr-who__note--info"
           {...tipProps(entries.tip, 'Nova\'s automatic trades today')} data-testid="who-trades-entries">
           {entries.text}
         </p>

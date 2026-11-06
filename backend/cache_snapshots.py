@@ -199,12 +199,17 @@ def load_hod_momo_snapshot() -> tuple[list[dict], float]:
 
 
 def load_hod_momo_snapshot_for_date(date_str: str) -> dict:
-    return _cache._read_dated_json(_cache.HOD_MOMO_ALERTS_PREFIX, date_str)
+    """The day's HOD Momo snapshot; {} when none is on file or it cannot be read.
+
+    Both lookups here find the day's file by listing the folder (``cache._find_dated_file``).
+    """
+    path = _cache._find_dated_file(_cache.HOD_MOMO_ALERTS_PREFIX, date_str)
+    return _cache._read_dated_file(path, _cache.HOD_MOMO_ALERTS_PREFIX) if path else {}
 
 
 def hod_momo_snapshot_on_file(date_str: str) -> bool:
     """Whether HOD Momo saved an alert snapshot for the day (an empty one counts)."""
-    return os.path.isfile(_cache._dated_path(_cache.HOD_MOMO_ALERTS_PREFIX, date_str))
+    return _cache._find_dated_file(_cache.HOD_MOMO_ALERTS_PREFIX, date_str) is not None
 
 
 def save_hod_momo_highs(data: dict) -> None:

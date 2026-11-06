@@ -33,10 +33,13 @@ from bot.live_trader.constants_live_trader import (
     LT_RETURN_HOLD_SEC,
     LT_RETURN_SWITCH,
     LT_ROW_UNREAD,
+    LT_SELL_ON_ADD,
     LT_SHORT_HOURS,
     LT_SHORTS_OFF,
     LT_SMALL_CAP,
+    LT_SSR_UNKNOWN,
     LT_TICKER_UNSETTLED,
+    LT_WAIT_SEC,
 )
 from bot.live_trader.decide import decide
 from bot.live_trader.watcher import keys_hold
@@ -65,7 +68,7 @@ def answer(hosts=None, *, left=None, feed_now=None, age=1.0, behind=2.0, visible
 
 def settings(**over):
     out = {"key": True, "entry": "nova", "exit": "nova", "step_usd": 500.0, "adds": 2, "allowance_usd": 2500.0,
-           "sides": "both", "short_stop_pct": 5.0, "take_open": True}
+           "sides": "both", "short_stop_pct": 5.0, "take_open": True, "sell_on_add": False}
     out.update(over)
     return out
 
@@ -305,6 +308,114 @@ def test_an_add_far_from_the_market_is_a_misread():
     out = w.at(40).run(answer({HOST: [moved]}, feed_now=NOW + 40))
     (skip,) = kinds(out, "skip")
     assert skip["code"] == LT_MISREAD and skip["step"] == "add"
+
+
+# -- selling on a losing add ------------------------------------------------------------------------
+def _at(price):
+    return {"last": price, "bid": price - 0.02, "ask": price + 0.02, "fresh": True}
+
+
+def _losing_add(w, *, side="long", to=99.5, market=99.4, prev=100.0, at=40):
+    """A position bought near 100, then the host's average moving ``prev`` -> ``to`` with the market at ``market``."""
+    base = row(entry_ts=NOW, side=side, price=prev)
+    watching(w, base)
+    w.quotes["XYZ"] = _at(market)
+    moved = dict(base, price=to, adds=[_add(NOW + 30, to, prev)])
+    return moved, w.at(at).run(answer({HOST: [moved]}, feed_now=NOW + at))
+
+
+def test_an_add_while_the_bot_is_losing_sells_all_of_it_with_the_rule_on():
+    w = World(adds=0, sell_on_add=True)
+    moved, out = _losing_add(w)
+    (close,) = kinds(out, "close")
+    assert close["step"] == LT_SELL_ON_ADD and close["change"]["kind"] == LT_SELL_ON_ADD and close["qty"] == 4
+    assert "TRADER1 added to XYZ (average 99.50) with the bot losing" in close["why"]
+    assert kinds(out, "skip") == [] and kinds(out, "step") == [] and w.book == {}
+    again = w.at(44).run(answer({HOST: [moved]}, feed_now=NOW + 44))
+    assert kinds(again, "step") == [] and kinds(again, "close") == []       # the row is not bought back
+
+
+def test_the_rule_comes_before_following_the_add():
+    w = World(adds=2, sell_on_add=True)
+    _moved, out = _losing_add(w)
+    assert len(kinds(out, "close")) == 1 and kinds(out, "step") == []
+
+
+def test_a_short_is_covered_when_the_host_adds_and_the_market_is_over_what_it_got():
+    w = World(adds=0, sell_on_add=True)
+    _moved, out = _losing_add(w, side="short", to=100.3, market=100.6)
+    (close,) = kinds(out, "close")
+    assert close["step"] == LT_SELL_ON_ADD and close["side"] == "short"
+
+
+def test_with_the_rule_off_a_losing_add_sells_nothing():
+    w = World(adds=0)
+    _moved, out = _losing_add(w)
+    assert kinds(out, "close") == [] and [s["code"] for s in kinds(out, "skip")] == [LT_ADDS_DONE]
+
+
+def test_an_add_while_the_bot_is_ahead_sells_nothing():
+    w = World(adds=0, sell_on_add=True)
+    _moved, out = _losing_add(w, to=100.2, market=100.5)
+    assert kinds(out, "close") == [] and [s["code"] for s in kinds(out, "skip")] == [LT_ADDS_DONE]
+
+
+def test_a_partial_sale_still_trims_and_is_never_the_losing_add():
+    w = World(adds=0, sell_on_add=True)
+    base = row(entry_ts=NOW, price=99.0)
+    watching(w, base)
+    w.quotes["XYZ"] = _at(99.9)                       # under what the bot paid, over the host's average
+    moved = dict(base, price=98.9, adds=[_add(NOW + 30, 98.9, 99.0)])
+    out = w.at(40).run(answer({HOST: [moved]}, feed_now=NOW + 40))
+    (close,) = kinds(out, "close")
+    assert close.get("trim") is True and close["step"] == "trim"
+    assert [s["code"] for s in kinds(out, "skip")] == [LT_ADD_IS_SALE]
+
+
+def test_a_misread_add_sells_nothing():
+    w = World(adds=2, sell_on_add=True)
+    _moved, out = _losing_add(w, to=97.0, market=99.4)
+    assert kinds(out, "close") == [] and [s["code"] for s in kinds(out, "skip")] == [LT_MISREAD]
+
+
+def test_a_stale_quote_sells_nothing():
+    w = World(adds=0, sell_on_add=True)
+    base = row(entry_ts=NOW)
+    watching(w, base)
+    w.quotes["XYZ"] = {**_at(99.4), "fresh": False}
+    moved = dict(base, price=99.5, adds=[_add(NOW + 30, 99.5, 100.0)])
+    out = w.at(40).run(answer({HOST: [moved]}, feed_now=NOW + 40))
+    assert kinds(out, "close") == []
+
+
+def test_a_blocked_step_sells_nothing_and_says_why():
+    w = World(adds=0, sell_on_add=True)
+    base = row(entry_ts=NOW)
+    watching(w, base)
+    w.can = {"ok": False, "code": LT_BOT_OFF, "why": "the Bot switch is off"}
+    w.quotes["XYZ"] = _at(99.4)
+    moved = dict(base, price=99.5, adds=[_add(NOW + 30, 99.5, 100.0)])
+    out = w.at(40).run(answer({HOST: [moved]}, feed_now=NOW + 40))
+    assert kinds(out, "close") == [] and [s["code"] for s in kinds(out, "skip")] == [LT_BOT_OFF]
+
+
+def test_with_exit_on_you_the_losing_add_is_said_and_the_shares_stay():
+    w = World(adds=0, sell_on_add=True, exit="you")
+    _moved, out = _losing_add(w)
+    assert kinds(out, "close") == [] and len(w.book) == 1
+    (note,) = [a for a in kinds(out, "note") if a["step"] == LT_SELL_ON_ADD]
+    assert "the exit is yours" in note["why"]
+
+
+def test_a_sale_on_a_losing_add_still_owed_is_sent_again():
+    w = World(adds=0, sell_on_add=True)
+    base = row(entry_ts=NOW)
+    watching(w, base)
+    pos = next(iter(w.book.values()))
+    pos["sale_on_add"] = {"why": "the host added", "ts": NOW + 30}
+    out = w.at(40).run(answer({HOST: [base]}, feed_now=NOW + 40))
+    (close,) = kinds(out, "close")
+    assert close["change"]["kind"] == LT_SELL_ON_ADD and close["why"] == "the host added"
 
 
 # -- the position leaves the bar ------------------------------------------------------------------
@@ -578,6 +689,45 @@ def test_a_short_sells_at_the_bid_with_a_buy_stop_five_percent_over():
     w = World()
     (step,) = kinds(watching(w, row(side="short", entry_ts=NOW)), "step")
     assert step["limit"] == pytest.approx(99.96) and step["stop"] == pytest.approx(104.96)
+    assert step["ssr"] == "off"
+
+
+def test_a_short_whose_ssr_is_being_read_waits_and_sells_at_the_bid_once_it_reads_off():
+    # A short priced on the pass that first asks IBKR for the daily bars, before the read lands, rests at the ask
+    # and is cancelled unfilled, though the stock is not under SSR.
+    w = World()
+    w.ssr["XYZ"] = "unknown"
+    short = row(side="short", entry_ts=NOW)
+    out = watching(w, short)
+    assert kinds(out, "step") == [] and kinds(out, "skip") == []
+    assert [v["code"] for v in out["waits"].values()] == [LT_SSR_UNKNOWN]
+    w.ssr["XYZ"] = "off"
+    out = w.at(5).run(answer({HOST: [short]}, feed_now=NOW + 5))
+    (step,) = kinds(out, "step")
+    assert step["limit"] == pytest.approx(99.96) and step["ssr"] == "off"    # marketable: it fills as on Live
+
+
+def test_a_short_whose_ssr_never_reads_is_offered_above_the_bid_after_the_wait_never_skipped():
+    w = World()
+    w.ssr["XYZ"] = "unknown"
+    short = row(side="short", entry_ts=NOW)
+    watching(w, short)
+    out = w.at(2 + LT_WAIT_SEC - 1).run(answer({HOST: [short]}, feed_now=w.now))
+    assert kinds(out, "step") == [] and kinds(out, "skip") == []                # still waiting on the read
+    out = w.at(2 + LT_WAIT_SEC).run(answer({HOST: [short]}, feed_now=w.now))
+    (step,) = kinds(out, "step")
+    assert step["limit"] == pytest.approx(100.02) and step["ssr"] == "unknown"  # as if SSR were on: at the ask
+
+
+def test_a_short_under_ssr_on_is_priced_at_once_and_a_long_never_waits_on_ssr():
+    w = World()
+    w.ssr["XYZ"] = "on"
+    (step,) = kinds(watching(w, row(side="short", entry_ts=NOW)), "step")
+    assert step["limit"] == pytest.approx(100.02) and step["ssr"] == "on"
+    w = World()
+    w.ssr["XYZ"] = "unknown"                       # a long's SSR is never read: it buys at the ask at once
+    (step,) = kinds(watching(w, row(entry_ts=NOW)), "step")
+    assert step["limit"] == pytest.approx(100.04) and step["ssr"] is None
 
 
 def test_the_bot_never_trades_against_a_position():

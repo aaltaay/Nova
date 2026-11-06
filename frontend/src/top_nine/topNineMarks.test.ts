@@ -5,7 +5,7 @@ import type { TopNineRow } from './topNineSnapshot';
 
 function rows(...symbols: string[]): TopNineRow[] {
   return symbols.map((symbol, i) => ({
-    symbol, rank: i + 1, changePct: 10, price: 1, volume: 1, float: 1, halted: false,
+    symbol, rank: i + 1, changePct: 0.1, price: 1, volume: 1, float: 1, halted: false,
   }));
 }
 

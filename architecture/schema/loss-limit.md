@@ -53,7 +53,9 @@ covers nothing, a SELL that opens a short -- from any non-protective source: `LO
 with the line's words, the Account line's "Daily loss limit reached on Paper at 09:32 ET (down $451.03
 against your $405 limit): no new buys until 04:00 ET Fri Oct 16. Selling what you hold, covering a
 short, cancels, Flatten and KILL still work. To buy again, raise the limit or uncheck No new buys in
-Settings > Loss limits." The bot and stock mode read `stopped(account, actor=...)` / `buys_stopped`
+Settings > Loss limits." One exception (ADR 068, operator 2026-10-26): an order with `origin: "claude"` on Paper
+is not refused here -- Claude's lane has its own daily max loss (-$500, `agent_trader.rules`); its fills still count
+in Paper's totals. The bot and stock mode read `stopped(account, actor=...)` / `buys_stopped`
 for their side. A bot's own exits -- stops, targets, the flush exit, the time stop, the Live Trader
 bot's closes and sell-all -- are never held or replaced; the limit never turns a bot off.
 
@@ -125,7 +127,10 @@ Every Live fill is yours.
 A stock's fills are read in the order they filled. Each first closes shares held the other way -- its
 own side's first, then the other side's; Nova's own close takes from each side in proportion to what it
 holds, in whole shares -- and the cash it moves and its share of the commission go to the side whose
-shares it closed. What is left opens for the side that sent it (yours for Nova's own close, which never
+shares it closed. The rule's one owner is `backend/owners/` since ADR 069 (`owners.whose.by_of`,
+`owners.split.closing`), the same rule Paper's books use; there a close sells only its sender's own shares
+(`OWNERS_NOT_YOURS`), so a fill that crosses into the other side's shares is one of Nova's own closes, or
+history from before ADR 069. The origin `close_bots` (your Close on a bots' row) is the bots'. What is left opens for the side that sent it (yours for Nova's own close, which never
 opens). Each side's P&L is its cash plus its shares at the mark; the two add up to the account's -- in
 cents, the Bots figure takes the rounding left over, on each stock and in total, so You + Bots is always the
 Account figure on the wire. So

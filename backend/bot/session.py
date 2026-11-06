@@ -66,7 +66,6 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
     ready_reason = None if ready else ("the bot is not active: turn the Bot switch on" if not active
                                        else str(closed["detail"].get("text") or closed["id"]))
     caps = sleeve.view(row.get("caps"), venue)
-    daily = next((g["detail"] for g in gate_list if g["id"] == "daily_cap"), {})
     return {
         "level": level,
         "active": active,
@@ -91,7 +90,7 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
         "caps_bounds": sleeve.bounds(),
         "caps_by_venue": sleeve.by_venue(row),
         "symbol_allowlist": normalize_symbols(row.get("symbol_allowlist")),
-        "entries_today": _entries_today(venue, daily),
+        "entries_today": _entries_today(venue),
         "brain_session_id": brain_id,
         "brain_heartbeat_ts": row.get("brain_heartbeat_ts") if brain_id else None,
         "brain_alive": alive,
@@ -133,17 +132,17 @@ def _deactivated(value: Any) -> dict[str, Any] | None:
     return {"at": value.get("at"), "reason": value.get("reason"), "text": stamp_text(value)}
 
 
-def _entries_today(venue: str | None, daily: dict[str, Any]) -> dict[str, Any]:
-    """``{count, cap, venue_day, entries, approved}`` -- the shared Nova count (ADR 042 E)."""
+def _entries_today(venue: str | None) -> dict[str, Any]:
+    """``{count, venue_day, entries, approved}`` -- the shared Nova count (ADR 042 E), shown, never a cap."""
     from bot import entry_rules
 
     try:
-        out = entry_rules.today(venue, cap=int(daily.get("cap") or 0) or None)
+        out = entry_rules.today(venue)
     except Exception:
         # Said on the page, never read as zero; the exception itself stays in the log (CodeQL: no
         # exception text in an API answer).
         logger.warning("bot session: the day's Nova entries could not be counted", exc_info=True)
-        return {"count": None, "cap": daily.get("cap"), "venue_day": None, "entries": [], "approved": None,
+        return {"count": None, "venue_day": None, "entries": [], "approved": None,
                 "error": "the day's entries could not be counted (the backend log has the error)"}
     return out
 

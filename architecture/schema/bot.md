@@ -57,13 +57,14 @@ is refused `409 BOT_LIVE_NOT_BUILT`, exits and cancels included (a bot never
 touches Live). At Strategy a `buy_*` kind is also refused outside its setup's
 bot window on the venue's clock (each setup's template in play: `409
 BOT_OUTSIDE_WINDOW`), outside 09:30-16:00 ET while the venue's sleeve turns
-extended hours off, and past the venue's daily cap (`409 BOT_DAY_TRADE_CAP`):
-the sleeve's `entries_per_day` (1-3, default 1) counts Nova's automatic entries
--- the bot's and Auto-entry's together -- per venue day, from the persisted audit
+extended hours off. **No daily cap** (operator, 2026-10-27: "that 3 trades a day limit need to be removed all over the place actually"; "u have infinite trades so we LEARN!"; ADR 042
+amendment): `BOT_DAY_TRADE_CAP` and the sleeve's `entries_per_day` are gone. The day's
+count of Nova's automatic entries -- the bot's and Auto-entry's together -- is still kept
+and shown, per venue day, from the persisted audit
 stream (the day is Nova's trading day, `market.session_key_et`: the count resets at 04:00 ET,
 never at midnight, 2026-10-19; entry audit rows carry `inputs.venue_day`; an entry cancelled unfilled
--- a `missed` -- gives the day back; Approve is counted, `entries_today.approved`,
-never capped); exits and cancels are never held by either. **Commissions unknown
+-- a `missed` -- is taken back off; Approve is counted, `entries_today.approved`); it refuses
+nothing. Exits and cancels are never held. **Commissions unknown
 hold new entries** (operator decision on #564, 2026-09-24): while the session's
 commission read fails, every bot entry on Live -- a `buy_*` kind on `POST
 /api/bot/action` and the bot's own entry (both pass
@@ -102,7 +103,7 @@ trigger still needs its own), `loss_limit` (stage `fire`: the daily loss limit's
 buys for the bots on this venue -- the Account line's or the Bots line's, ADR 063 -- `detail: {text, until,
 tripped_at, loss, limit_usd, venue, line}`; `loss-limit.md`), `kill_switch`, `window`
 (per Strategy setup: `setups: [{setup, start, end, open, clipped, error}]`),
-`daily_cap` (`count`, `cap`, `venue_day`), `extended_hours` and `commissions`;
+`extended_hours` and `commissions` (the `daily_cap` gate is retired, 2026-10-27);
 the session adds `ready` / `ready_reason` (the bot would trade a go trigger now)
 with `live_fire_ready` as a one-release alias.
 
@@ -121,13 +122,24 @@ stamp from before that reads today's words (`activation.stamp_text`), never "it 
 session's `active` is the truth (`armed` a one-release alias; `has_desk_arm`,
 the token's presence, stays).
 
+**The bots' book on Paper (ADR 069).** Every bot's shares are the bots' book, apart from yours
+(`recording-and-replay.md`, "Your book and the bots' book"). Above each bot's own sizing (this sleeve, the Live
+Trader's per-host sizes, Claude's limits) all bots together may hold at most the **bots' budget** -- $25,000 by
+default, `GET` / `PUT /api/owners/budget` -- in open positions and working entries; an entry past it is skipped
+`OWNERS_BOTS_BUDGET` with the sums. No bot opens a stock you hold or have an order working on
+(`OWNERS_BOT_STAYS_OUT`; one already in it the same way may add), none holds the other side of anyone
+(`OWNERS_OTHER_SIDE`), and each bot's close sizes from its own shares (`ibkr.account.long_qty(symbol, holder)`:
+the bot API's `bot_api`, the strategy bot's `bot`, Auto-entry's `auto_entry`).
+
 **One sleeve per venue** (ADR 042, owner `bot/sleeve.py`, #658 item 2). Each
 venue's dial carries its own `caps: {venue, risk_usd, max_shares,
-bp_budget_usd, working_ttl_sec, extended_hours, entries_per_day, api_kinds}`
+bp_budget_usd, working_ttl_sec, extended_hours, api_kinds}`
 (`allowlist`, the localhost API's order kinds, a one-release alias of
 `api_kinds`); bounds `caps_bounds` (risk 1-10,000, shares 1-10, budget up to
-$50, TTL 1-10 s, entries 1-3); a value out of bounds is refused `400
-BOT_CAPS_INVALID`, never clamped in silence. `PATCH {caps: {venue?, ...}}`
+$50, TTL 1-10 s); a value out of bounds is refused `400
+BOT_CAPS_INVALID`, never clamped in silence. `entries_per_day` is retired (2026-10-27): a stored
+sleeve that still carries it loads without it and the next write of that venue's sleeve drops it (no
+`schema_version` change: a removed optional key); a `PATCH` that sends it changes nothing. `PATCH {caps: {venue?, ...}}`
 edits the named venue's (else the desk's); `caps_by_venue` lists all three. The
 migration copied the one sleeve to every venue. **One size**
 (`bot/sizing.py`, pure) for every Nova automatic buy: floor(`risk_usd` / the
@@ -136,8 +148,9 @@ setup's risk a share), capped by `max_shares` and by what the budget still buys
 share is a stated skip). `risk_usd` is also the Trader's risk per trade. **One
 entry timeout**: `working_ttl_sec` for the bot, Auto-entry and Approve.
 `extended_hours` (default on: the default bot windows open at 07:00 ET) binds
-the bot and Auto-entry. `entries_today: {count, cap, venue_day, entries:
-[{symbol, setup_type, by, ts, outcome}], approved, error?}`.
+the bot and Auto-entry. `entries_today: {count, venue_day, entries:
+[{symbol, setup_type, by, ts, outcome}], approved, error?}` -- shown, never a cap (`cap` left the
+wire 2026-10-27).
 
 **No loss breaker** (ADR 056, superseding ADR 032). The bot trip and the all-stop are gone, with
 their thresholds (`breakers`), the bot trip's latch (`soft_breaker_*`), the all-stop's day lock
@@ -176,12 +189,12 @@ replay" below) -- never on Live -- it hears the setup scanner's triggers (each s
 lane: `SetupEngine.add_trigger_listener`, and the Sim eyes' on a replay; the event carries `setup_type`,
 `grade`, `pillars`, `filtered` and `spread`) and plays **every setup at
 effective Strategy** on this venue's Bot stocks: the first go trigger wins, one
-trade at a time, then the shared daily cap. It takes the first of a setup on a
+trade at a time (no daily cap since 2026-10-27). It takes the first of a setup on a
 symbol that day (its kind without `second_`) with the tape at go and the plan a
 trade (NOT A TRADE is one rule, below), after every gate (`admit.for_bot`): the
 venue, Activate, the setup's level and window, extended hours, a held depth
 line, the padlock, the kill switch, this venue's daily loss limit (ADR 056), the
-working block, the sleeve's size and the daily cap; a trigger it does not take
+working block and the sleeve's size; a trigger it does not take
 is a `bot_trade` `skipped` line with every reason (`inputs.codes` /
 `reasons`) and the stock's last event on its Trader tab. Its entry is a
 **practice bracket** (`operation: "bracket"`, source `bot`: a BUY limit at the
@@ -418,8 +431,9 @@ the day before and are left out of the day's table and of its restart marks, 202
 ```
 
 - **The gates**, in Nova's order: `bot_on`, `strategy_on`, `grade`, `setups_a_day`, `bot_window`,
-  `nova_buys` ("Bot buys"), `level2_line`, `tape_go`, `trades_today`. The `hot_list` gate is retired
-  (2026-10-06): being listed decides nothing, so no square asks it.
+  `nova_buys` ("Bot buys"), `level2_line`, `tape_go`. The `hot_list` gate is retired
+  (2026-10-06): being listed decides nothing, so no square asks it. The `trades_today` square (the venue's
+  daily cap) is retired with the cap (2026-10-27): no trigger, past or now, is held back by a day's count.
 - **`cells`** maps each gate to `{ok: true | false | null, why}`; `null` means the gate did not apply.
   A trigger reads the bot's state, tape, grade (its `armed` line), `nth`, liquidity and outcome as the
   journal recorded them. It reads the stock's mode and the strategy's level from the audit stream at its
@@ -461,9 +475,14 @@ with a book and no prints would read WAIT, never GO.
   audit stream.
 - **When it ends.** `setup_ended` (the setup failed or disarmed), `trade_ended` (the scoring window and
   Nova's trade are both over), `recalled`, `lending_off`.
+- **A loan to Claude's seat** (ADR 068 decision 14): `to.setup_type: "claude"`, `to.setup_id: null`, `tier`
+  `watching` | `buy_set` | `in_trade`, `why` "watching RUNR", `text` "Level 2 lent to Claude (watching RUNR) --
+  back when Claude lets it go, or right-click this tab to take it back". A socket from the tab in front reads the
+  lent frame too: the front never recalls it, nor does lending's switch. It ends `taken_back` (the operator's
+  right-click, `POST /api/agent/trader/take-back`), `claude_let_go` or `tab_closed` (`agent-trader.md`).
 - **Routes.**
   - `GET /api/ibkr/depth/lines` -> `{schema_version: 1, generated_at, cap, lines: [{symbol, held_by: "tab" |
-    "record" | "auto_record" | "loan" | "replay", front: boolean | null, viewers}], lending: {on, error,
+    "record" | "auto_record" | "loan" | "replay" | "agent" (Claude's seat, ADR 068: never lent), front: boolean | null, viewers}], lending: {on, error,
     loans: [{lender, borrower, setup_type, setup_id, since, why, tier, state, text, tape_lent, tape: boolean
     (a print arrived on the borrower's line), tape_state: "receiving" | "waiting" | "refused",
     tape_last_print, tape_error}], recent: [{lender, borrower, setup_type, setup_id, since, ended, end,
@@ -551,10 +570,10 @@ side: `backend/bot/replay_desk.py`; of the lanes: `backend/eyes/sim_eyes.py`, `e
   `note` line says so (`inputs.restored_to`), and an order of the bot's the restored trade does not know
   is cancelled (a `note` line names it). Each rewind changes the bot's idempotency keys on the replay
   (`bot:fp:sim:<replay>.<run>:<setup_id>:<step>`), so a setup played across again is sent again.
-- **The day's count** on a replay (`entry_rules.today`, the `daily_cap` gate, `assert_entry_allowed`) is
+- **The day's count** on a replay (`entry_rules.today`) is
   the replay run's own: the bot's entries sent before the playhead, a miss given back. Every bot audit
   line written on a replay carries `replay: {key, playhead_ts}`; such a line never counts toward any
-  venue's daily cap in the audit fold.
+  venue's day count in the audit fold. The count caps nothing (2026-10-27).
 - **What the bot reads** on a replay: last, bid and ask are the replay's at the playhead
   (`sim.practice.reference`, `bot.quotes`); the depth-line rule is met by the replay's own book --
   recorded Level 2, the window's NBBO, or a book Nova recorded that day -- beside the historical Level
@@ -735,6 +754,20 @@ without the host trading. The answer carries each host's `bar` as the feed last 
   changing within `LT_SWITCH_SEC` onto an empty bar -- rows opening together while every older row of the host has
   closed by then (a bar back after a blank, the slots switching at a hand-over) -- were already open, not entered.
 
+**Selling on a losing add** (`sell_on_add`, per host, off by default; operator 2026-11-04, a Paper test; owner
+`bot/live_trader/decide_held.py`). With it on, a settled add of a position the bot holds, read as a real buy while
+the market is on the wrong side of what the bot paid (under it on a long, over it on a short, `reference_price`
+against `cost_usd / qty`), sells all of the bot's shares at market: a `close` with `step` and change kind
+`sell_on_add`, which comes before following the add, whatever `adds` says. "A real buy" is every add's judgement
+(`read_doubt`, `rules.check`): a misread, an implausible average, a partial sale (which trims as ever), a stale quote
+or a read in doubt sell nothing and go on as they would. An add the allowance or a short's SSR read would have held
+is still a real buy. A position level or ahead follows the add as ever. A step that is blocked -- a key, the Bot
+switch, off air, past the sell-all time -- sells nothing: the add is that skip, and the position leaves with the host.
+Exit: You keeps the shares, said as a `note`. The add is judged once, so the sale is written on the position before
+its close is tried (`sale_on_add`, `book.sale_owed`) and sent again until the shares are gone (`decide_closes`): a close
+that did not fill, or never went out because Paper could not be read, is not lost. The row is never bought back that day (`book.no_reentry`); the host's next new trade in the stock is a new row,
+judged as any other.
+
 **Settings** (`live-trader-bots.json` in the operator cache; owner `bot/live_trader/settings.py`; written
 through a temp file and a rename; an unknown version or an unreadable file refuses loud: every host reads
 off and writes answer 409 `LIVE_TRADER_SETTINGS_UNREADABLE`):
@@ -743,11 +776,11 @@ off and writes answer 409 `LIVE_TRADER_SETTINGS_UNREADABLE`):
 {schema_version: 1, sell_all_at: "HH:MM" (ET, 09:30-15:55),
  hosts: {NAME: {key: bool, entry: "you" | "nova", exit: "you" | "nova", step_usd: 50-10000,
                 adds: 0 | 2 | 4 | null (every add), allowance_usd: 100-50000, sides: "long" | "both",
-                short_stop_pct: 1-20, take_open: bool, updated_at: epoch}}}
+                short_stop_pct: 1-20, take_open: bool, sell_on_add: bool, updated_at: epoch}}}
 ```
 
 A host missing from the file reads key off with the defaults: `entry`/`exit` `"nova"`, `step_usd` 500,
-`adds` 2, `allowance_usd` 2,500, `sides` `"both"`, `short_stop_pct` 5, `take_open` true. `NAME` is 1-16 of
+`adds` 2, `allowance_usd` 2,500, `sides` `"both"`, `short_stop_pct` 5, `take_open` true, `sell_on_add` false. `NAME` is 1-16 of
 `A-Z0-9`. `entry`/`exit` are stock mode's wire values (ADR 037): the mode is `stock_mode.model.mode_of`.
 
 **What the bot holds** (`live-trader-book.json` in the operator cache; owner `bot/live_trader/book.py`;
@@ -756,10 +789,16 @@ temp file and rename; unknown version refuses loud, and the bot then opens nothi
 ```
 {schema_version: 1, day: "YYYY-MM-DD" (the desk's day, 04:00 ET),
  positions: [{id, host, row_id, symbol, side: "long" | "short", venue: "paper", qty, cost_usd, steps,
-              adds_seen, adds_followed, trimmed (absent: false), opened_ts, state: "entering" | "open" | "closing",
-              order: {id, step: "entry" | "add" | "already_open" | "close", sent_ts, qty, limit, stop} | null,
+              adds_seen, adds_followed, trimmed (absent: false), sale_on_add: {why, ts} (absent: none owed), opened_ts,
+              state: "entering" | "open" | "closing",
+              order: {id, step: "entry" | "add" | "already_open" | "close", sent_ts, qty, limit, stop,
+                     ssr: "on" | "off" | "unknown" | null (a short's, as priced), timed_out_ts (absent until its
+                     time to live cancels it)} | null,
               stop_order_ids: [int], fills: [{step, qty, price, ts, order_id}], feed: {ts, price}}],
- closed: [{...the position, closed_ts, why, exit_fills: [{qty, price, ts, order_id}], pl_usd}],
+ closed: [{...the position, closed_ts, why, exit_fills: [{qty, price, ts, order_id, kind,
+                                                         from: [[order_id, shares]] (an exit priced from
+                                                         Paper's own closing orders: each share of those
+                                                         orders prices one position only)}], pl_usd}],
  retire: [{order_id, symbol, host, since_ts}]}
 ```
 
@@ -774,7 +813,13 @@ is the same position, re-keyed to the new `row_id`, never bought twice; so is on
 the same second, "A stock the feed reads two ways"). `closed` keeps today's (at most
 200); a day other than today's is sold at once on load ("held from DAY: never overnight") and cleared.
 Each pass reconciles with Paper's ledger: shares the account no longer holds (the operator sold them, a
-buy stop or the loss limit's Auto sell did) leave the position, said once. A short's buy stops cover what it held: when shares
+buy stop, the loss limit's Auto sell, KILL or Nova's day cover did) leave the position, said once, at Paper's own
+fill: a buy stop's, or the newest filled orders that closed that stock and side since the position's own last
+fill and are not the bot's (`orders.closed_by_others`), averaged over the shares -- so the card's P/L counts them
+(before 2026-10-30 they were booked with no price, so the card counted them $0). The day cover's
+order is the bot's close (the bot hands its shorts to it at the cover time), so its fee counts on the card when
+that one order closed exactly these shares; your own order's, or KILL's, does not. A position Paper shows fewer
+closing shares for stays unpriced (`pl_usd` null), never guessed. A short's buy stops cover what it held: when shares
 of a short leave it that way, what the bot still holds of it is covered (change `kind: "outside"`), and once the
 position holds nothing its stops wait on `retire` until Paper shows them cancelled -- a bot short never holds
 without a stop for exactly its shares, and a stale stop can never buy past flat or cover a later short. A book that cannot be written stops every new step
@@ -818,7 +863,7 @@ without a stop for exactly its shares, and a stale stop can never buy past flat 
   seconds_left}], held: [{host, symbol, side, qty, state}]}` from memory only: every desk window polls it for
   the asks' toasts, and the Bot switch reads `held` before it asks to sell.
 - `PATCH /api/bot/live-traders {sell_all_at}` and `PATCH /api/bot/live-traders/{name} {key?, entry?, exit?,
-  step_usd?, adds?, allowance_usd?, sides?, short_stop_pct?, take_open?}` answer the view; a value out of
+  step_usd?, adds?, allowance_usd?, sides?, short_stop_pct?, take_open?, sell_on_add?}` answer the view; a value out of
   bounds is 400 `LIVE_TRADER_INVALID` with `field`, never clamped. `key: false` sells nothing: the host's
   bot places no order until it is on again (2026-10-15; it used to sell them). Each change is a `live_trader` `settings`
   audit line `{host, from, to}`.
@@ -841,7 +886,14 @@ operator approved (Entry: You) keeps that yes through the wait and is sent once 
 is asked for again (Codex review, PR #1026); and every
 stock the bot holds short has its borrow read again before it goes stale (`shortability.refresh_due`, as an open
 Trader tab does), so the host's add finds it fresh (2026-10-16: an add 72 s after the short met a read 75 s old and
-was skipped). Working after the Paper sleeve's `working_ttl_sec`, it is cancelled. A close cancels the
+was skipped). A short whose SSR reads `unknown` -- IBKR's daily bars asked for (urgently: the bot is about to
+short) but not landed yet -- waits up to `LT_WAIT_SEC` for the read (`LT_SSR_UNKNOWN`, a wait on the card), then is
+priced as if SSR were on; priced before the read, it rested at the ask and was cancelled unfilled, though the
+stock was not under SSR. The wait is not made longer at the ask: Paper fills a resting limit on the first
+print at its price with no queue, so a longer rest would fill on Paper what Live, at the back of the queue, would
+not. Working after the Paper sleeve's `working_ttl_sec`, it is cancelled, and a step that ends so unfilled is a
+skip, `LT_NOT_FILLED`, on the card with its limit and, for a short, its SSR ("the short at 40.01 was not taken in
+4 s: SSR is on, so a short may sell only above the bid"); a step its own close cancels stays a note. A close cancels the
 position's buy stops (source `cancel_working`) and sends the protective flatten (source `flatten`, the
 practice market ticket) for the bot's shares, never more than the account holds; both name
 `target_venue: "paper"`. `live_trader` is one of the door's Nova-close origins on Paper and Sim only
@@ -854,13 +906,14 @@ holds, is entering or waits to enter; never a Level 2 line (ADR 055 decision 3).
 filled in part: "Fills on the bot audit stream" below) | `filled` | `closed` (a
 close sent) | `skipped` | `asked` | `answered` | `refused` (the door's words) | `settings` | `note` |
 `error`; `inputs: {host, row_id, symbol, side, step, qty, limit, stop, order_id, code, why, change: {kind:
-"open" | "add" | "already_open" | "close" | "trim" | "off_air" | "hidden" | "sell_all" | "stale_day" | "outside", ts, price}, late_sec, venue: "paper"}`. `late_sec` is the send's wall time less the feed's
+"open" | "add" | "already_open" | "close" | "trim" | "sell_on_add" | "off_air" | "hidden" | "sell_all" | "stale_day" | "outside", ts, price}, late_sec, venue: "paper"}`. `late_sec` is the send's wall time less the feed's
 time of the change. A skip is written once per position, step and code. Codes: `LT_FEED_BEHIND`,
 `LT_FEED_DOWN`, `LT_TICKER_UNSETTLED`, `LT_MISREAD`, `LT_OPEN_TOO_FAR`, `LT_SMALL_CAP`, `LT_CAP_UNKNOWN`, `LT_NO_QUOTE`,
 `LT_ALLOWANCE`, `LT_ADDS_DONE`, `LT_SHORTS_OFF`, `LT_AGAINST`, `LT_NOT_HELD`, `LT_VENUE`, `LT_BOT_OFF`,
 `LT_FROZEN`, `LT_AFTER_SELL_ALL`, `LT_SHORT_HOURS`, `LT_NOT_PRICEABLE`, `LT_ASK_EXPIRED`, `LT_ASK_SKIPPED`,
 `LT_ALREADY_OPEN`, `LT_OFF_AIR`, `LT_HIDDEN`, `LT_LOSS_LIMIT`, `LT_NOT_ON_BAR`, `LT_OTHER_HOST`, `LT_ROW_UNREAD`,
-`LT_ADD_IMPLAUSIBLE`, `LT_ADD_IS_SALE`, `LT_NO_CLOCK`, `LT_FAMILY_OFF`, `LT_KEY_OFF`. Lines written before 2026-10-15 may carry the
+`LT_ADD_IMPLAUSIBLE`, `LT_ADD_IS_SALE`, `LT_NO_CLOCK`, `LT_FAMILY_OFF`, `LT_KEY_OFF`, `LT_NOT_FILLED` (its line
+carries the step's `order_id`). `LT_SSR_UNKNOWN` is a wait, never a skip. Lines written before 2026-10-15 may carry the
 retired change kinds `key_off` and `bot_off` (a key or the Bot switch turned off sold everything then). `LT_BLANK_BAR` and `LT_RETURN_SWITCH` are waits, said as `note` lines
 (`step` `blank` for a held sell, `lt_blank_bar` / `lt_return_switch` for a held take), never skips.
 

@@ -492,3 +492,41 @@ def test_a_clock_time_is_the_et_wall_time_even_on_a_day_the_clock_changes():
     for bad in ("24:30", "24:00:01", "25:00", "-1:00", "12:60", "12:00:60", "12:00:nan", "12", "1:2:3:4", "", "noon"):
         with pytest.raises(ValueError, match="not an ET clock time"):
             recordings._clock(spring, bad)
+
+
+def test_recorded_days_list_every_session_record_newest_day_first(stores):
+    from market_reads import recorded_days
+    make_record(stores["cap"])                                         # GRML: 09:30-09:40, a restart, 09:50-10:00
+    make_record(stores["cap"], symbol="ABCD", day="2026-10-15", segments=[
+        {"started_et": datetime.fromtimestamp(T("07:00:00", "2026-10-15"), ET).isoformat(),
+         "stopped_et": datetime.fromtimestamp(T("08:30:00", "2026-10-15"), ET).isoformat(),
+         "status": "stopped_partial_ok", "reason": "operator"}])
+    broken = stores["cap"] / DAY / "BADX"
+    broken.mkdir()
+    (broken / "manifest.json").write_text("{not json", encoding="utf-8")
+    (stores["cap"] / "historical").mkdir()                             # not a day folder: never listed
+    before = sorted(str(p) for p in stores["cap"].rglob("*"))
+    frame = recorded_days.recorded_days()
+    assert list(zip(frame["day"], frame["symbol"], strict=True)) == [
+        ("2026-10-15", "ABCD"), (DAY, "BADX"), (DAY, "GRML")]
+    grml = frame[frame["symbol"] == "GRML"].iloc[0]
+    assert (grml["first_et"], grml["last_et"], grml["recorded_min"]) == ("09:30:00", "10:00:00", 20.0)
+    assert (grml["stretches"], grml["gaps"], grml["unplanned_gaps"]) == (2, 1, 1)   # the restart was not planned
+    assert frame[frame["symbol"] == "BADX"].iloc[0]["problem"]                      # listed, never dropped
+    assert frame.attrs["days"] == 2 and frame.attrs["symbols"] == 3 and "archive.db" in frame.attrs["not_here"]
+    assert sorted(str(p) for p in stores["cap"].rglob("*")) == before                  # nothing written
+
+
+def test_recorded_days_filter_by_day_and_symbol_and_say_a_missing_folder(stores, tmp_path, monkeypatch):
+    from market_reads import recorded_days
+    make_record(stores["cap"])
+    make_record(stores["cap"], symbol="ABCD", day="2026-10-15")
+    assert list(recorded_days.recorded_days(date_from="2026-10-15")["symbol"]) == ["ABCD"]
+    assert list(recorded_days.recorded_days(date_to=DAY, symbol="grml")["day"]) == [DAY]
+    with pytest.raises(ValueError):
+        recorded_days.recorded_days(date_from="10/15/2026")
+    monkeypatch.setenv("NOVA_SIM_CAPTURE_DIR", str(tmp_path / "nowhere"))
+    with pytest.raises(LookupError, match="not on disk"):
+        recorded_days.recorded_days()
+    assert not (tmp_path / "nowhere").exists()                                       # named, never made
+

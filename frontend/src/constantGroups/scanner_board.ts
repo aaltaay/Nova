@@ -20,6 +20,20 @@ export const SCANNER_CHIP_FLOAT_MAX_SHARES = 20_000_000;
 /** `rel_volume` is a multiple of the average day. */
 export const SCANNER_CHIP_RELVOL_MIN = 3;
 
+// ── Row shades (operator approved 2026-10-26; rules in scanner/rowShades.ts) ─
+/** A float under this is the brightest float shade (shares). */
+export const SCANNER_SHADE_FLOAT_LOW_MAX = 10_000_000;
+/** A float from the low line up to this (inclusive) is the second shade; above it, none. */
+export const SCANNER_SHADE_FLOAT_MID_MAX = 20_000_000;
+/** The volume shade deepens up to this many shares, then stays the same. */
+export const SCANNER_SHADE_VOLUME_FULL = 1_000_000;
+/** How many volume shades there are (1 = lightest). */
+export const SCANNER_SHADE_VOLUME_STEPS = 5;
+/** The whole row is lit when its float is under the low line and its day relative volume is at least this. */
+export const SCANNER_SHADE_HOT_RVOL_MIN = 5;
+/** The boards whose rows are not shaded: the Large Cap swing table reads other columns (ADR 014). */
+export const SCANNER_SHADE_SKIP_BOARDS: readonly string[] = ['large_cap'];
+
 export const SCANNER_CHIP_IDS = ['gap', 'float', 'relvol', 'news', 'halted'] as const;
 export type ScannerChipId = (typeof SCANNER_CHIP_IDS)[number];
 

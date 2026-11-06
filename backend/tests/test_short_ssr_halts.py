@@ -60,6 +60,48 @@ def test_the_live_read_needs_the_daily_bar_read_after_0930_and_the_day_low(monke
     ssr.reset_for_tests()
 
 
+def test_only_the_stock_about_to_be_shorted_may_spend_ibkrs_last_history(monkeypatch):
+    """2026-10-27 17:23 ET: the setup scanner's SSR reads (16 in 16 s) filled IBKR's 60 and a chart waited 22 s."""
+    import asyncio
+
+    from ibkr import historical_service
+
+    asked: list[tuple[bool, bool]] = []
+
+    async def daily(symbol, duration, *, use_rth, urgent=False):
+        asked.append((use_rth, urgent))
+        return []
+
+    monkeypatch.setattr(historical_service, "request_daily_bars", daily)
+    asyncio.run(ssr._fetch("FADE", False))
+    asyncio.run(ssr._fetch("FADE", True))
+    assert asked == [(False, False), (True, False), (False, True), (True, True)]
+
+
+def test_a_sweeps_miss_does_not_make_the_short_check_wait(monkeypatch):
+    now = _ts("2026-10-27", "17:23")
+    ssr.reset_for_tests()
+    ssr.remember_history_for_tests("FADE", {"day": "2026-10-27", "fetched_at": now, "all": [], "rth": [],
+                                            "error": "IBKR's daily bars were not read (10 or fewer left)",
+                                            "urgent": False})
+    assert ssr._due("FADE", now + 5, urgent=True)
+    assert not ssr._due("FADE", now + 5)                     # the sweep asks again after its retry gap
+    ssr.remember_history_for_tests("FADE", {"day": "2026-10-27", "fetched_at": now, "all": [], "rth": [],
+                                            "error": "IBKR's daily bars were not read (pacing)", "urgent": True})
+    assert not ssr._due("FADE", now + 5, urgent=True)        # an urgent miss waits its retry gap too
+    ssr.reset_for_tests()
+
+
+def test_the_live_trader_bots_short_asks_urgently(monkeypatch):
+    from bot.live_trader import market
+
+    asks: list[dict] = []
+    monkeypatch.setattr(ssr, "request_history", lambda symbol, now=None, **k: asks.append(k) or False)
+    monkeypatch.setattr(ssr, "live", lambda symbol, now=None: ssr.SsrRead("unknown", "x"))
+    market.ssr("FADE")
+    assert asks == [{"urgent": True}]
+
+
 def test_a_replay_is_on_when_its_prints_reach_the_trigger_and_otherwise_unknown(monkeypatch):
     import sim.prior_close as prior
 

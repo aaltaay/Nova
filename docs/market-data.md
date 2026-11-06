@@ -37,6 +37,9 @@ py -3 tools/market_data.py stats IRD 2026-09-09                    # premarket, 
 py -3 tools/market_data.py flow IRD 2026-09-09 --bucket 5m         # dark pool, retail buy/sell, sweeps per minute
 py -3 tools/market_data.py halts --symbol GME --from 2021-01-25 --to 2021-01-29
 py -3 tools/market_data.py catalysts IRD --from 2026-09-08 --to 2026-09-09 [--verdicts]
+py -3 tools/market_data.py news --from 2021-11-01 --to 2021-12-31 --category fda_regulatory --words approv,clear
+py -3 tools/market_data.py news --from 2021-11-29 --to 2021-11-30 --items --words "fda approv"   # headlines, every stock
+py -3 tools/market_data.py halts --from 2026-09-01 --to 2026-09-05 --codes news   # news halts (T1-T3, T12); luld too
 py -3 tools/market_data.py symbols aurora                          # or: symbols --ticker AAP --day 2016-06-01
 ```
 
@@ -47,7 +50,17 @@ unknown), the day's halts, premarket high / volume and the first ET minute each 
 float value says its source (`float_source`). Pages come back with `next_cursor`. `find` returns common stock
 (`CS`, `ADRC`) unless `kinds` says otherwise (`kinds=all` adds warrants, rights, units and ETFs), and `--sort`
 ranks the rows like the movers search (`--sort high --limit 10` is the ten largest highs that pass your other
-filters; `next_cursor` resumes the same ranking exactly). Then `stats`, `flow`, `catalysts`
+filters; `next_cursor` resumes the same ranking exactly). It filters on what was known too: `--catalyst`,
+`--catalyst-category fda_regulatory`, `--catalyst-words approv,clear`, `--halted`, `--halt-codes news` (or `luld`,
+`T1`, `LUDP` ...) and `--rvol-daily-min 5`; an unknown is left out and counted, never read as "no news" or "low
+volume". Those columns come from one join (`research/market_reads/day_facts.py`) and one filter
+(`backend/day_movers/facts.py`) that the relative-volume tools and the desk's agent search (`/api/agent/movers`,
+from the movers store's exported `day_facts`) use too, so a stock-day passes a filter the same way everywhere.
+`sec-filings-scan 424B5 FROM TO`, `short-interest-scan --day DAY --min-days-to-cover 5` and `sector-scan --sic 283*` answer the same kind of question across every stock (MCP `sec_filings_scan`, `short_interest_scan`, `sector_scan`; a filings scan spans at most 31 days). `--market-cap-min` / `--market-cap-max` filter an estimate (the prior close x SEC shares outstanding known that
+day; unknowns left out and counted). `journal` lists your own trades from the desk's journal (read-only; the
+desk's fills are in the practice account's history, not there) and `recorded-days` which days you recorded and which
+stocks each day (MCP `journal_trades`, `recorded_days`). `news` searches every stock at once (no symbol): the backfill's verdicts by category and headline words, or with
+`--items` every headline containing the words. Then `stats`, `flow`, `catalysts`
 and `daily` / `context` answer the questions about one stock-day. Builders and column definitions for the derived
 tables (`trades_flow_v1` and the rest): `docs/massive-builders.md`.
 
@@ -252,10 +265,13 @@ MCP: `signal_catalog`, `signal_series`, `signal_scan`, `signal_test`. Contract: 
 - **A null `catalyst_verdict` is not covered, never "no news".** The backfill judged the Five Pillars gap universe
   from 2021-10-11 to 2026-09-21 and the leaderboard's top-10 movers from 2026-06-17 to 2026-09-21; any other
   stock-day, and every day before 2021-10-11, has no verdict (`catalysts` `verdicts_meta.coverage` says so).
-- **Two companies, one ticker.** 84 tickers in Massive's list belonged to two companies (AAP was Alcoa's preferred
-  until 2016-11-01). SEC shares and filings, financials and splits read the company that held the ticker on the
-  day asked (`research/market_reads/tickers.py`), say so in `ticker`, and refuse a day they cannot settle with the
-  candidate CIKs (`--cik` picks one). Without a day they read today's holder and warn.
+- **Two companies, one ticker.** Tickers are matched exactly as Massive writes them: a lowercase letter is another
+  security (`AAp` was Alcoa's preferred until 2016-11-01; `AAP` is Advance Auto Parts). Folding case once made 84
+  such pairs look like one ticker two companies shared, so 29 common stocks read another company on past days; the
+  2026-10 list has no ticker two companies share exactly. When one does, SEC shares and filings, financials, splits
+  and the movers store's share counts read the company that held the ticker on the day asked
+  (`research/market_reads/tickers.py`), say so in `ticker`, and refuse a day they cannot settle with the candidate
+  CIKs (`--cik` picks one). Without a day they read today's holder and warn.
 - **Three volume rules.** `bars --tf 10s` counts what the consolidated tape counts (`massive_files.counts_volume`):
   every regular trade and correction record, never a cancel / error record, a cancelled or corrected original, or an
   official open / close or corrected-close record (conditions 15, 16, 38), which repeats an auction print. Counting

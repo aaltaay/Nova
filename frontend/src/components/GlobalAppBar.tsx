@@ -22,12 +22,13 @@ import { GLOBAL_BAR_BRAND } from '../constants';
 import { RecordingChip } from '../capture/RecordingChip';
 import { RecordingSignals } from '../capture/RecordingSignals';
 import { ScreenRecordChip } from '../screen_record';
+import { ClaudeSeatPill } from '../claude_seat';
 import { ClipChips, ClipExportHost, ClipToasts } from '../clips';
 import { GlobalBarBotKey } from '../bot/GlobalBarBotKey';
 import { GlobalBarBotRow } from '../bot/GlobalBarBotRow';
-import { CloseReminders } from '../close_reminder';
+import { CloseReminders, type CloseRemindersProps } from '../close_reminder';
 import { useClosedOrders } from '../closed_orders/useClosedOrders';
-import { FillVoiceHost, useIbkrStatus } from '../ibkr';
+import { FillVoiceHost, useDeskPositions, useIbkrStatus, type IbkrPosition } from '../ibkr';
 import { GatewayModeCapsule } from '../ibkr/GatewayModeCapsule';
 import { useIbkrAccountContext } from '../ibkr/IbkrAccountContext';
 import { TradingSessionLockButton } from '../ibkr/TradingSessionLockButton';
@@ -54,6 +55,12 @@ import { FollowedToasts } from '../followed_traders';
 import { DeskMuteButton } from '../sound';
 
 export type { GlobalAppBarScanner };
+
+/** The cards read both books (ADR 069 decision 9); their own component, so the account poll re-renders them alone. */
+function DeskCloseReminders({ positions, ...rest }: Omit<CloseRemindersProps, 'positions'> & { positions: IbkrPosition[] }) {
+  const { rows } = useDeskPositions(positions);
+  return <CloseReminders positions={rows} {...rest} />;
+}
 
 export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarScanner }) {
   useRenderCount('GlobalAppBar');
@@ -119,7 +126,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
       <FollowedToasts onOpenPage={leaveTraderToScanner} />
       {!isSampleView() && <FillVoiceHost />}
       {!isSampleView() && (
-        <CloseReminders positions={positions} venue={deskVenue} stale={accountStale} liveCover={liveShortCover}
+        <DeskCloseReminders positions={positions} venue={deskVenue} stale={accountStale} liveCover={liveShortCover}
           onOpenSymbol={openStockView} />
       )}
       <ClipToasts />
@@ -151,6 +158,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
           <RecordingChip variant="bar" onOpenSymbol={openStockView} onOpenRecords={openRecords} />
           <ClipChips />
           <ScreenRecordChip />
+          <ClaudeSeatPill />
         </div>
 
         <div className="global-app-bar__center" data-testid="global-bar-center">

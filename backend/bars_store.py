@@ -45,6 +45,8 @@ ON CONFLICT(symbol, timeframe, ts) DO UPDATE SET
     written_ts = excluded.written_ts
 """
 
+# A live write carries its minute's whole count, so a smaller one is never the newer truth (a process that
+# joined the minute late, after a restart): a stored live minute's volume only goes up (2026-11-04).
 _LIVE_UPSERT_SQL = f"""
 INSERT INTO bars_intraday
     (symbol, timeframe, ts, open, high, low, close, volume, source, session_date)
@@ -53,7 +55,7 @@ ON CONFLICT(symbol, timeframe, ts) DO UPDATE SET
     high = MAX(high, excluded.high),
     low = MIN(low, excluded.low),
     close = excluded.close,
-    volume = CASE WHEN excluded.volume > 0 THEN excluded.volume ELSE volume END,
+    volume = MAX(volume, excluded.volume),
     session_date = excluded.session_date
 WHERE source = '{ARCHIVE_SOURCE_IBKR_L1}'
 """
@@ -129,6 +131,21 @@ def is_coverage_fresh(coverage: dict[str, Any] | None, timeframe: str) -> bool:
     if fetched is None:
         return False
     return (time.time() - float(fetched)) <= _fresh_ttl(timeframe)
+
+
+def history_pending(coverage: dict[str, Any] | None, timeframe: str, session_start: float | None) -> bool:
+    """No IBKR history fill the pane can show yet, so it waits on one as an empty pane does.
+
+    Never filled (``fetched_ts`` 0: the rows are the tape's or Level 1's own), or, intraday, filled before
+    ``session_start`` and holding none of today. A daily pane's earlier sessions are its content, and a bar
+    count says nothing here: tape-built 10-second bars pass 100 in a busy quarter hour.
+    """
+    fetched = float((coverage or {}).get("fetched_ts") or 0.0)
+    if fetched <= 0:
+        return True
+    if timeframe in _DAILY_TFS or session_start is None:
+        return False
+    return fetched < float(session_start)
 
 
 def store_series_complete(timeframe: str, bar_count: int) -> bool:

@@ -9,11 +9,26 @@
  *
  * The venue is the status's own `venue` (C26). On the sample desk the page
  * shows the Nova Marketing Sample Data account and polls nothing (V4).
+ *
+ * A Calendar day clicked opens in the Ledger's place, and the Fills tab lists
+ * that day's fills until the day closes (operator ask, 2026-10-26).
+ *
+ * Paper keeps your book and the bots' (ADR 069): the tab row's All / You / Bots
+ * switch narrows every panel to one book or one bot (`account/ownerView`), All
+ * shows yours and the bots' beside each total, and every page open starts on All.
+ * Reports keeps the same switch and the same pick; its Bots menu counts the
+ * journal's trades (ADR 069 decision 6, mockup reports-v1).
  */
-import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useMemo, useRef, useState } from 'react';
 import '../account/account.css';
 import '../account/account-panels.css';
+import '../account/account-day.css';
+import '../account/account-owners.css';
 import { AccountDetailsPanel } from '../account/AccountDetailsPanel';
+import { BooksCards } from '../account/BooksCards';
+import { dayShortLabel } from '../account/accountCalendar';
+import { dayBreakdowns, fillDay } from '../account/accountDayBreakdown';
+import { DayBreakdownPanel } from '../account/DayBreakdownPanel';
 import {
   accountDetailRows,
   todayDailyRow,
@@ -21,13 +36,24 @@ import {
 } from '../account/accountFigures';
 import { useAccountHistory } from '../account/accountHistoryResource';
 import { liveCommissionsToday, liveFillRows, practiceFillRows } from '../account/accountLive';
-import { positionsFromIbkr, positionsFromPractice } from '../account/accountPositions';
+import { positionsByOwner, positionsBySymbol, positionsFromIbkr, positionsFromPractice } from '../account/accountPositions';
 import { readAccountRangePref, writeAccountRangePref } from '../account/accountRangePref';
 import { CalendarPanel } from '../account/CalendarPanel';
 import { ComponentsPanel } from '../account/ComponentsPanel';
 import { LedgerPanel } from '../account/LedgerPanel';
+import { OwnerSwitch, type BotCounts } from '../account/OwnerSwitch';
+import {
+  ALL_VIEW,
+  botsOf,
+  daySplits,
+  monthSplit,
+  shows,
+  viewBookDay,
+  viewHistory,
+  type OwnerView,
+} from '../account/ownerView';
 import { PerformancePanel, type PerfTab } from '../account/PerformancePanel';
-import { PositionsOrdersPanel } from '../account/PositionsOrdersPanel';
+import { PositionsOrdersPanel, type PosTab } from '../account/PositionsOrdersPanel';
 import { useBotSession } from '../bot/useBotSession';
 import { useClosedOrders } from '../closed_orders/useClosedOrders';
 import { TabLazyFallback } from '../components/TabLazyFallback';
@@ -41,6 +67,7 @@ import {
   ACCOUNT_TAB_BROKER,
   ACCOUNT_TAB_OVERVIEW,
   ACCOUNT_TAB_REPORTS,
+  ACCOUNT_TAV_HIDDEN,
   type AccountPerfMode,
   type AccountRange,
 } from '../constantGroups/account_page';
@@ -90,9 +117,14 @@ export function AccountPage({ onOpenTrader }: Props) {
   const { session } = useBotSession();
   const [range, setRangeState] = useState<AccountRange>(readAccountRangePref);
   const [mode, setMode] = useState<AccountPerfMode>('pnl');
-  const [perfTab, setPerfTab] = useState<PerfTab>('account');
+  const [perfTab, setPerfTab] = useState<PerfTab>('day');
+  const [ownerView, setOwnerView] = useState<OwnerView>(ALL_VIEW);
+  const [reportCounts, setReportCounts] = useState<BotCounts | null>(null);
   const [tab, setTab] = useState<PageTab>('overview');
   const [hidden, setHidden] = useState(false);
+  const [openDay, setOpenDay] = useState<string | null>(null);
+  const [posTab, setPosTab] = useState<PosTab>('orders');
+  const posRef = useRef<HTMLElement>(null);
   const history = useAccountHistory(practiceVenue, range);
   // The calendar shows whole months whatever the Performance range (QA W5):
   // it reads every day the ledger (and its archives) hold.
@@ -120,11 +152,34 @@ export function AccountPage({ onOpenTrader }: Props) {
   const hist = simEmpty ? null : loadedHist;
   const loadedCalendar = calendarHistory.data && calendarHistory.data.venue === practiceVenue ? calendarHistory.data : null;
   const calendarHist = simEmpty ? null : loadedCalendar;
+  // Your book and the bots' (ADR 069): Paper only; the view narrows every panel below.
+  const books = practiceVenue === 'paper' ? ledger?.books ?? null : null;
+  const view = books ? ownerView : ALL_VIEW;
+  const viewed = useMemo(() => viewHistory(hist, view), [hist, view]);
+  const viewedCalendar = useMemo(() => viewHistory(calendarHist, view), [calendarHist, view]);
+  const allSplits = useMemo(() => (books ? daySplits(calendarHist) : null), [books, calendarHist]);
+  const viewDay = viewBookDay(books, view);
+  const viewOpenPnl = viewDay ? viewDay.unrealized_pnl : figures.openPnl;
+  // Each holder's rows (ADR 069) for the tables; Account details keeps the account's own, one per stock.
+  const viewPositions = useMemo(
+    () => (books && ledger ? positionsByOwner(ledger.positions).filter((p) => shows(view, p.owner, p.bot)) : positions),
+    [books, ledger, positions, view],
+  );
+  // Every bot's shares per stock: what a bots' row's Close sells, whichever bot the view picks.
+  const botsQty = useMemo(() => {
+    const out = new Map<string, number>();
+    if (books && ledger) {
+      for (const p of positionsByOwner(ledger.positions)) {
+        if (p.owner === 'bots') out.set(p.symbol, (out.get(p.symbol) ?? 0) + p.qty);
+      }
+    }
+    return out;
+  }, [books, ledger]);
   // Live: commissions and fills are what IBKR reported on the session's orders (QA W17).
   const liveOrders = practiceVenue || sampleDesk ? [] : [...ibkr.orders, ...closedOrders];
   const rows = accountDetailRows(
     figures,
-    todayDailyRow(hist, today),
+    todayDailyRow(hist, today),   // the account's own rows: the books are their cards
     hist != null,
     practiceVenue ? null : liveCommissionsToday(liveOrders),
   );
@@ -147,7 +202,21 @@ export function AccountPage({ onOpenTrader }: Props) {
   // The session's own cap, or none: the product ceiling is not this bot's cap (C35).
   const sessionCap = session?.caps?.max_shares;
   const maxSharesCap = typeof sessionCap === 'number' && Number.isFinite(sessionCap) ? sessionCap : null;
-  const fills = practiceVenue ? practiceFillRows(hist?.fills ?? []) : liveFillRows(liveOrders);
+  const fills = practiceVenue ? practiceFillRows(viewed?.fills ?? []) : liveFillRows(liveOrders);
+  const days = useMemo(() => (viewedCalendar ? dayBreakdowns(viewedCalendar) : null), [viewedCalendar]);
+  // The day open on the page, while this venue's history still has it.
+  const day = openDay ? days?.get(openDay) ?? null : null;
+  const fillsDay = day && viewedCalendar
+    ? {
+        label: dayShortLabel(day.date),
+        fills: practiceFillRows(viewedCalendar.fills.filter((f) => fillDay(f.ts) === day.date)),
+        onClear: () => setOpenDay(null),
+      }
+    : null;
+  const showDayFills = () => {
+    setPosTab('fills');
+    posRef.current?.scrollIntoView?.({ block: 'nearest' });
+  };
 
   const tabs: Array<[PageTab, string]> = sampleDesk
     ? [['overview', ACCOUNT_TAB_OVERVIEW]]
@@ -168,6 +237,10 @@ export function AccountPage({ onOpenTrader }: Props) {
                 {label}
               </button>
             ))}
+            {(activeTab === 'overview' || activeTab === 'reports') && (books || (venue === 'live' && !sampleDesk)) && (
+              <OwnerSwitch view={view} onView={setOwnerView} bots={botsOf(calendarHist)} live={!books}
+                counts={activeTab === 'reports' ? reportCounts : null} />
+            )}
             <span className="account-page__venue" data-testid="account-page-venue">
               {sampleDesk
                 ? SAMPLE_MARKETING_LABEL
@@ -184,10 +257,14 @@ export function AccountPage({ onOpenTrader }: Props) {
                 figures={figures}
                 rows={rows}
                 positions={positions}
-                history={hist}
+                history={viewed}
                 range={range}
                 onRange={setRange}
                 maxSharesCap={maxSharesCap}
+                booksSlot={books ? (
+                  <BooksCards books={books} view={view} month={monthSplit(allSplits, today.slice(0, 7))} hidden={hidden}
+                    hiddenText={ACCOUNT_TAV_HIDDEN} />
+                ) : null}
                 hidden={hidden}
                 onToggleHidden={() => setHidden((h) => !h)}
                 nowTs={nowTs}
@@ -196,9 +273,9 @@ export function AccountPage({ onOpenTrader }: Props) {
                 sample={sampleDesk}
               />
               <PerformancePanel
-                history={hist}
+                history={viewed}
                 absence={absence}
-                positions={positions}
+                positions={positionsBySymbol(viewPositions)}
                 range={range}
                 onRange={setRange}
                 mode={mode}
@@ -207,25 +284,36 @@ export function AccountPage({ onOpenTrader }: Props) {
                 onTab={setPerfTab}
                 nowTs={nowTs}
                 netLiquidation={figures.netLiquidation}
-                openPnl={figures.openPnl}
+                openPnl={viewOpenPnl}
+                view={view}
               />
-              <ComponentsPanel history={hist} absence={absence} range={range} openPnl={figures.openPnl} />
-              <LedgerPanel
-                venue={venue}
-                history={hist}
-                absence={absence}
-                accountId={ledger?.account_id ?? hist?.account_id ?? null}
-                startingCash={ledger?.starting_cash ?? hist?.starting_cash ?? null}
-              />
-              <CalendarPanel history={calendarHist} absence={calendarAbsence} today={today} />
+              <ComponentsPanel history={viewed} absence={absence} range={range} openPnl={viewOpenPnl} />
+              {day ? (
+                <DayBreakdownPanel key={day.date} day={day} onClose={() => setOpenDay(null)} onShowFills={showDayFills} />
+              ) : (
+                <LedgerPanel
+                  venue={venue}
+                  history={viewed}
+                  absence={absence}
+                  accountId={ledger?.account_id ?? hist?.account_id ?? null}
+                  startingCash={ledger?.starting_cash ?? hist?.starting_cash ?? null}
+                />
+              )}
+              <CalendarPanel history={viewedCalendar} absence={calendarAbsence} today={today} days={days} selected={day?.date ?? null} onSelect={setOpenDay}
+                split={view.book === 'all' ? allSplits : null} />
               <PositionsOrdersPanel
                 practice={practiceVenue != null}
                 venue={venue}
-                positions={positions}
+                positions={viewPositions}
+                botsQty={botsQty}
                 working={ibkr.orders}
                 closed={closedOrders}
                 fills={fills}
                 today={today}
+                tab={posTab}
+                onTab={setPosTab}
+                day={fillsDay}
+                panelRef={posRef}
               />
             </div>
           ) : (
@@ -239,6 +327,7 @@ export function AccountPage({ onOpenTrader }: Props) {
                   initialSection={activeTab === 'reports' ? 'reports' : 'overview'}
                   sections={HOSTED_SECTIONS[activeTab === 'reports' ? 'reports' : 'broker']}
                   showTicket={false}
+                  reports={{ venue, view, onBotCounts: setReportCounts }}
                 />
               </Suspense>
             </div>

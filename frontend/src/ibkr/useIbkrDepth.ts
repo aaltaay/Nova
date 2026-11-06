@@ -23,6 +23,8 @@ interface DepthState {
   lent: LineLent | null;
   /** The stock's LULD bands, Nova's calculation (ADR 047); null until the first frame. */
   luld: LuldView | null;
+  /** The refusal is Claude's reserved line (ADR 068): the panel offers Take Claude's line. */
+  agentReserved: boolean;
 }
 
 export interface DepthOptions {
@@ -42,6 +44,7 @@ const EMPTY: DepthState = {
   watch: null,
   lent: null,
   luld: null,
+  agentReserved: false,
 };
 
 /**
@@ -85,6 +88,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
   const connectedRef = useRef(false);
   const l1FallbackRef = useRef(false);
   const errorRef = useRef<string | null>(null);
+  const agentReservedRef = useRef(false);
   const watchRef = useRef<BookWatchState | null>(null);
   const luldRef = useRef<LuldView | null>(null);
   // This symbol's line while it may be lent; set by the socket effect.
@@ -105,6 +109,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
       watch: watchRef.current,
       lent: lineRef.current?.lent ?? null,
       luld: luldRef.current,
+      agentReserved: agentReservedRef.current,
     });
   };
 
@@ -121,6 +126,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
     connectedRef.current = false;
     l1FallbackRef.current = false;
     errorRef.current = null;
+    agentReservedRef.current = false;
     watchRef.current = null;
     luldRef.current = null;
     lineRef.current = null;
@@ -183,6 +189,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
             subscribed = true;
             connectedRef.current = true;
             errorRef.current = null;
+            agentReservedRef.current = false;
             if (uiActiveRef.current) commitUi();
           } else if (msg.type === 'book') {
             noteBookFrame(symKey!, msg);
@@ -190,11 +197,13 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
             if (shouldKeepPriorBook(book, bookRef.current)) {
               connectedRef.current = true;
               errorRef.current = null;
+              agentReservedRef.current = false;
             } else {
               bookRef.current = book;
               connectedRef.current = true;
               l1FallbackRef.current = book.l1_fallback;
               errorRef.current = null;
+              agentReservedRef.current = false;
             }
             // The heat map (ADR 061) keeps this tab's books over time, hidden tab or not.
             const kept = bookRef.current;
@@ -219,12 +228,14 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
             luldRef.current = null;
             connectedRef.current = false;
             errorRef.current = null;
+            agentReservedRef.current = false;
             if (uiActiveRef.current) commitUi();
           } else if (msg.type === 'error') {
             refused = true;
             connectedRef.current = false;
             const why = typeof msg.message === 'string' ? msg.message : 'Depth error';
             errorRef.current = why;
+            agentReservedRef.current = msg.agent_reserved === true;
             // No Level 2: orders on this symbol lock with IBKR's reason until a book arrives (#913).
             noteRefused(symKey!, why);
             noteHeatLine(symKey!, 'error', why);

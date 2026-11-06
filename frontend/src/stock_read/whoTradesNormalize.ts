@@ -153,7 +153,7 @@ function size(raw: unknown): StockModeSize | null {
 function entries(raw: unknown): StockModeEntries | null {
   const e = obj(raw);
   const count = num(e?.count);
-  return e && count !== null ? { count, cap: num(e.cap) } : null;
+  return e && count !== null ? { count } : null;
 }
 
 function bool(v: unknown): boolean | null {

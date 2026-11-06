@@ -25,6 +25,7 @@ import {
   captureBrowserAction,
 } from '../execution_latency';
 import { flattenSpendLockReason } from '../ibkr';
+import { getConfirmedDeskVenueSnapshot } from '../ibkr';
 import { shouldUseOutsideRth } from '../ibkr';
 import {
   buildBuyMarketShares,
@@ -50,7 +51,7 @@ import {
   placeMarketExit,
 } from './runNovaActionPlace';
 import { runShortHotkey, SHORT_HOTKEY_KINDS } from './runNovaActionShort';
-import type { NovaActionRuntime } from './runNovaActionRuntime';
+import { refusalNamingBots, type NovaActionRuntime } from './runNovaActionRuntime';
 import { runClipHotkey } from '../clips';
 import { viewLockReason } from '../market_view';
 
@@ -110,16 +111,18 @@ async function maybeConfirm(
 
 export async function runNovaAction(
   action: NovaActionRecord,
-  runtime: NovaActionRuntime,
+  desk: NovaActionRuntime,
 ): Promise<NovaActionResult> {
   // A share clip places nothing: it never reaches a gate or the order path (ADR 039).
   if (action.kind === 'clip_toggle' || action.kind === 'clip_save_last') {
-    return runClipHotkey(action.kind, runtime.symbol);
+    return runClipHotkey(action.kind, desk.symbol);
   }
   const actionTiming = captureBrowserAction('user_action');
   // One keypress is one gesture: every place this invocation makes carries
   // the same key, so a re-fired hotkey replays instead of doubling up.
   const idempotencyKey = newGestureKey(`nova_action:${action.kind}`);
+  // And one venue, read here: the confirm names this account, so a desk that leaves it sends nothing (#1281, #1283).
+  const runtime: NovaActionRuntime = { ...desk, venue: getConfirmedDeskVenueSnapshot().venue };
 
   if (action.kind === 'cancel_all_orders') {
     const gated = gateFor(action.kind, runtime);
@@ -138,6 +141,7 @@ export async function runNovaAction(
     try {
       const res = await cancelAllWorkingOrders(
         beginBrowserExecutionTiming('nova_action_cancel', actionTiming),
+        runtime.venue,
       );
       if (!res.ok && res.cancelled.length === 0) {
         return { ok: false, text: res.error ?? 'Cancel-all failed' };
@@ -178,6 +182,7 @@ export async function runNovaAction(
       const res = await cancelAllOrdersForSymbol(
         symbol,
         beginBrowserExecutionTiming('nova_action_cancel', actionTiming),
+        runtime.venue,
       );
       if (res.ok) {
         const n = res.cancelled.length;
@@ -203,6 +208,7 @@ export async function runNovaAction(
       const res = await cancelAllOrdersForSymbol(
         symbol,
         beginBrowserExecutionTiming('nova_action_cancel', actionTiming),
+        runtime.venue,
       );
       if (!res.ok) {
         return { ok: false, text: res.error ?? 'Cancel-all failed before flatten' };
@@ -217,7 +223,7 @@ export async function runNovaAction(
     if (!built.ok) {
       return {
         ok: true,
-        text: `${cancelText} for ${symbol}. ${built.error}`,
+        text: `${cancelText} for ${symbol}. ${refusalNamingBots(built.error, runtime)}`,
       };
     }
     const exit = await placeMarketExit(
@@ -250,7 +256,7 @@ export async function runNovaAction(
     const built = action.kind === 'exit_pos'
       ? buildExitFullPosition(runtime.position?.qty)
       : buildExitPositionPercent(runtime.position?.qty, action.params.percent ?? 50);
-    if (!built.ok) return { ok: false, text: built.error };
+    if (!built.ok) return { ok: false, text: refusalNamingBots(built.error, runtime) };
 
     return placeMarketExit(
       runtime,
@@ -284,6 +290,7 @@ export async function runNovaAction(
           qty: built.qty,
           order_type: 'MKT',
           outside_rth,
+          venue: runtime.venue,
         },
         idempotencyKey,
         {

@@ -203,6 +203,20 @@ export const L2_LENT_SOMEONE = "one of Nova's setups";
  * so a setup that got only the book would read no prints. It says the same, in its own words.
  */
 export const TAPE_LENT_PREFIX = 'Time & Sales lent to';
+/**
+ * Lent to Claude's seat (ADR 068 decision 14): what Claude does on its stock (mirrors CLAUDE_WHY_WORDS in backend
+ * line_lending/constants_line_lending.py), and how the line comes back -- never by coming to the front.
+ */
+export const L2_LENT_CLAUDE = 'claude';
+export const L2_LENT_CLAUDE_WHY_WORDS: Record<string, string> = {
+  watching: 'watching',
+  buy_set: 'buy set on',
+  in_trade: 'in a trade on',
+};
+export const L2_LENT_CLAUDE_BACK = 'back when Claude lets it go, or right-click this tab to take it back';
+export const TAPE_LENT_CLAUDE_BACK = 'back with Level 2';
+/** The window event that asks a tab's lent panes for their lines now (the operator took them back from Claude). */
+export const LENT_LINE_RECALL_EVENT = 'nova:lent-line-recall';
 /** Time & Sales' badge while its line is lent (not a fault: the words say whose and when it comes back). */
 export const TAPE_STATUS_LENT = 'LENT';
 /** IBKR refused or ended the line and the backend is asking again by itself (#698). */

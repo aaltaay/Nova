@@ -1,8 +1,8 @@
 """The squares' ``now`` row (ADR 044): would the bot trade this stock if its setup triggered this minute?
 
 The same gates as a trigger (``bot.trigger_cells``), read from the desk as it stands -- the desk
-venue's dial, the strategies' rules today, the live setup board, the Who trades switch, the depth
-lines held and the day's Nova entries:
+venue's dial, the strategies' rules today, the live setup board, the Who trades switch and the depth
+lines held:
 
 - ``bot_on``: the Bot switch reads ON (``bot.switch``) and the Strategy Bots key is on (``bot.family_keys``),
   else why not;
@@ -16,7 +16,6 @@ lines held and the day's Nova entries:
 - ``level2_line``: Nova holds the stock's Level 2 line now; ``null`` when it does not -- a line may
   still open, or be lent, before the trigger;
 - ``tape_go``: ``null`` -- the tape is read at the trigger;
-- ``trades_today``: the venue's daily cap has room;
 - ``not_against`` and, with a short strategy On, the short block (ADR 049, #778 step 5): the position you
   hold against the sides the On strategies enter, and the short check's facts now (``bot.trigger_short``).
 
@@ -43,7 +42,6 @@ class Desk:
     """What every ``now`` row of one answer shares: read once."""
 
     def __init__(self, now_state: Any, rules: dict[str, dict[str, Any]]):
-        from bot import entry_rules
         from bot.setup_levels import own_levels
 
         self.now = now_state
@@ -52,12 +50,6 @@ class Desk:
         self.venue = now_state.venue
         own = own_levels(self.row)
         self.on = [s for s, level in own.items() if level >= BOT_LEVEL_STRATEGY]
-        self.cap = now_state.cap(self.venue)
-        try:
-            self.used: int | None = int(entry_rules.today(self.venue, cap=self.cap)["count"])
-        except Exception:
-            logger.warning("triggers audit: the day's Nova entries could not be counted", exc_info=True)
-            self.used = None
 
 
 def desk(now_state: Any, rules: dict[str, dict[str, Any]]) -> Desk | None:
@@ -179,16 +171,6 @@ def _line(sym: str) -> dict[str, Any]:
                        f"{unread or 'lending is off'}: a trigger now would read BLIND")
 
 
-def _trades(desk: Desk) -> dict[str, Any]:
-    from bot import entry_rules
-
-    if desk.used is None:
-        return cell(None, "the day's Nova entries could not be counted (the backend log has the error)")
-    if desk.used >= desk.cap:
-        return cell(False, entry_rules.cap_text(desk.used, desk.cap))
-    return cell(True, f"{desk.used} of {desk.cap} Nova entr{'y' if desk.cap == 1 else 'ies'} a day used")
-
-
 def _short_block(sym: str, desk: Desk) -> dict[str, Any]:
     """The short check's squares now, when a short strategy is On; nothing otherwise (the block stays empty)."""
     shorts = [s for s in desk.on if setup_side(s) == SIDE_SHORT]
@@ -248,7 +230,6 @@ def row(desk: Desk | None, sym: str, todays: list[dict[str, Any]]) -> dict[str, 
             "nova_buys": _nova_buys(sym, desk),
             "level2_line": _line(sym),
             "tape_go": cell(None, "the tape is read at the trigger"),
-            "trades_today": _trades(desk),
             "not_against": trigger_short.not_against_now(sym, sides, against),
             **_short_block(sym, desk),
         }

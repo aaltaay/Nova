@@ -24,6 +24,9 @@ MOVER_COLUMNS = (
 
 SEC_SHARES_COLUMNS = ("symbol", "cik", "as_of", "filed", "shares", "form")
 SPLIT_COLUMNS = ("symbol", "execution_date", "split_from", "split_to")
+TICKER_HOLDER_COLUMNS = ("symbol", "cik", "held_from", "held_to")
+DAY_FACT_COLUMNS = ("session_date", "symbol", "catalyst_verdict", "catalyst_category", "catalyst_strength",
+                    "catalyst_title", "halts", "halt_codes", "luld_halts", "news_halts", "rvol_daily")
 
 _REAL = {
     "prev_close", "prev_volume", "split_factor", "open", "high", "low", "close", "volume",
@@ -40,6 +43,32 @@ def _mover_column_sql(name: str) -> str:
         return f"{name} REAL"
     return f"{name} INTEGER"
 
+
+# A reused ticker's holder by date (``market_reads.tickers.holder_runs``): a share count is the holder's only. Every
+# reused ticker has a row; ``cik`` null is a ticker two companies used that no day can be settled for (unknown).
+TICKER_HOLDERS_DDL = """CREATE TABLE IF NOT EXISTS ticker_holders (
+        symbol TEXT NOT NULL,
+        cik TEXT,
+        held_from TEXT,
+        held_to TEXT
+    )"""
+
+# What was known about a stock-day beyond its prices (``day_movers.facts``), exported whole from the research stores
+# by ``research/movers/export_day_facts.py``. A null is unknown, never "no news" / "no halt"; no row: not exported.
+DAY_FACTS_DDL = """CREATE TABLE IF NOT EXISTS day_facts (
+        session_date TEXT NOT NULL,
+        symbol TEXT NOT NULL,
+        catalyst_verdict TEXT,
+        catalyst_category TEXT,
+        catalyst_strength TEXT,
+        catalyst_title TEXT,
+        halts INTEGER,
+        halt_codes TEXT,
+        luld_halts INTEGER,
+        news_halts INTEGER,
+        rvol_daily REAL,
+        PRIMARY KEY (session_date, symbol)
+    )"""
 
 DDL = (
     """CREATE TABLE IF NOT EXISTS sessions (
@@ -76,6 +105,9 @@ DDL = (
         split_to REAL NOT NULL,
         PRIMARY KEY (symbol, execution_date)
     )""",
+    TICKER_HOLDERS_DDL,
+    "CREATE INDEX IF NOT EXISTS ticker_holders_by_symbol ON ticker_holders (symbol)",
+    DAY_FACTS_DDL,
 )
 
 

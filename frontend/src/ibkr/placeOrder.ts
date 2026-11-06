@@ -1,5 +1,6 @@
 import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL } from '../constants';
+import type { DeskVenue } from '../constantGroups/desk_venue';
 import { sampleOrderRefusal } from '../sample_data/sampleOrderGuard';
 import { executionTransportError } from './executionTransportError';
 import { newGestureKey } from './gestureKey';
@@ -96,10 +97,14 @@ export interface CancelAllResult {
   error: string | null;
 }
 
-/** Cancel all open orders for a symbol (backend orchestrates per-order cancels). */
+/**
+ * Cancel all open orders for a symbol (backend orchestrates per-order cancels).
+ * `venue`: the one the caller confirmed on. If the desk has left it the cancels stop and say so (#1281).
+ */
 export async function cancelAllOrdersForSymbol(
   symbol: string,
   timing: BrowserExecutionTiming = beginBrowserExecutionTiming('cancel_symbol'),
+  venue?: DeskVenue | null,
 ): Promise<CancelAllResult> {
   const refusal = sampleOrderRefusal();
   if (refusal) {
@@ -109,8 +114,9 @@ export async function cancelAllOrdersForSymbol(
     return { ok: false, cancelled: [], failed: [], error: refusal };
   }
   try {
+    const named = venue ? `&venue=${encodeURIComponent(venue)}` : '';
     const response = await novaFetch(
-      `${API_BASE_URL}/api/ibkr/orders?symbol=${encodeURIComponent(symbol.toUpperCase())}`,
+      `${API_BASE_URL}/api/ibkr/orders?symbol=${encodeURIComponent(symbol.toUpperCase())}${named}`,
       {
         method: 'DELETE',
         headers: clientTimingHeaders(timing),
@@ -123,9 +129,14 @@ export async function cancelAllOrdersForSymbol(
   }
 }
 
-/** Cancel every working order on the connected account (ADR 007 per-order cancels). */
+/**
+ * Cancel every working order on the connected account (ADR 007 per-order cancels).
+ * `venue`: the one the caller confirmed on, or KILL was pressed on. If the desk has left it the
+ * cancels stop and say so (#1281).
+ */
 export async function cancelAllWorkingOrders(
   timing: BrowserExecutionTiming = beginBrowserExecutionTiming('cancel_all'),
+  venue?: DeskVenue | null,
 ): Promise<CancelAllResult> {
   const refusal = sampleOrderRefusal();
   if (refusal) {
@@ -135,8 +146,9 @@ export async function cancelAllWorkingOrders(
     return { ok: false, cancelled: [], failed: [], error: refusal };
   }
   try {
+    const named = venue ? `&venue=${encodeURIComponent(venue)}` : '';
     const response = await novaFetch(
-      `${API_BASE_URL}/api/ibkr/orders?all_symbols=true`,
+      `${API_BASE_URL}/api/ibkr/orders?all_symbols=true${named}`,
       {
         method: 'DELETE',
         headers: clientTimingHeaders(timing),
