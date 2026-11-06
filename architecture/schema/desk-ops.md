@@ -870,7 +870,9 @@ sits on the order path and never places, stages, cancels or delays an order.
   The row shows Live while one of them is on air; with neither it is locked with why (off air, or not open). Opening
   the pop-out turns the row on, as the pop-out always played with sound, and quiets the page; closing it turns the row
   off. A player that goes away or reloads turns it off too. The header mute turns it off for the in-page player, which
-  stays muted until asked, as it always has; the pop-out comes back with the desk.
+  stays muted until asked, as it always has; the pop-out comes back with the desk. The pop-out has one switch: while it
+  is open the desktop app tells every other page when it moves, so no page holds an old one. An in-page player's switch
+  belongs to its own page.
 - **What speaks: fills, on the desk's venue.** From the working and closed order rows
   (`/api/ibkr/orders`, `/api/ibkr/orders/closed`, as `ibkr/ibkrAccountPoller.ts` reads them): an order
   whose `filled_qty` grew says the shares filled since the last read -- "Bought 100 shares of A B C."

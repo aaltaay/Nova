@@ -55,6 +55,13 @@ function notePopOut(open: boolean, on: boolean): void {
   emit();
 }
 
+/** Another page moved the pop-out's switch: this row follows, with nothing to tell. An in-page switch stays its page's. */
+function followPopOut(on: boolean): void {
+  if (!popOutOpen) return;
+  told = JSON.stringify({ on, level: deskSoundLevel('stream') });
+  setDeskSoundOn('stream', on);
+}
+
 /** The desktop app applies the row to the pop-out; it hears only what changed. */
 function tellDesktop(): void {
   const sound = { on: deskSoundOn('stream'), level: deskSoundLevel('stream') };
@@ -72,6 +79,7 @@ export function wireStreamWindow(): () => void {
   const desktop = window.novaDesktop;
   if (!desktop?.onStreamWindow) return () => undefined;
   const offWindow = desktop.onStreamWindow(open => notePopOut(open, open));
+  const offSwitch = desktop.onStreamSwitch?.(followPopOut);
   const offSounds = subscribeDeskSounds(tellDesktop);
   // A page reloaded under an open pop-out picks up where it was.
   void desktop.streamWindowState?.()
@@ -81,6 +89,7 @@ export function wireStreamWindow(): () => void {
     .catch((err: unknown) => console.warn('[nova] could not read the stream window', err));
   return () => {
     offWindow();
+    offSwitch?.();
     offSounds();
   };
 }

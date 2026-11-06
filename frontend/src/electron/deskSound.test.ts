@@ -3,6 +3,7 @@ import {
   DESK_SOUND_CHANNEL,
   DESK_STREAM_SOUND_CHANNEL,
   DESK_STREAM_STATE_CHANNEL,
+  DESK_STREAM_SWITCH_CHANNEL,
   DESK_STREAM_WINDOW_CHANNEL,
   announceStreamWindow,
   deskSoundMuted,
@@ -14,7 +15,7 @@ import {
 type Handler = (event: unknown, ...args: unknown[]) => void;
 
 function fakeWindow() {
-  return { isDestroyed: () => false, webContents: { setAudioMuted: vi.fn() } };
+  return { isDestroyed: () => false, webContents: { setAudioMuted: vi.fn(), send: vi.fn() } };
 }
 
 function wire(windows: ReturnType<typeof fakeWindow>[]) {
@@ -68,7 +69,11 @@ describe('the YouTube row on the pop-out', () => {
     };
   }
 
-  function wireStream(desk: ReturnType<typeof fakeWindow>, pop: ReturnType<typeof streamWindow> | null) {
+  function wireStream(
+    desk: ReturnType<typeof fakeWindow>,
+    pop: ReturnType<typeof streamWindow> | null,
+    others: ReturnType<typeof fakeWindow>[] = [],
+  ) {
     const ipc = new Map<string, Handler>();
     const handlers = new Map<string, () => unknown>();
     wireDeskSound({
@@ -77,12 +82,12 @@ describe('the YouTube row on the pop-out', () => {
         handle: (ch: string, fn: () => unknown) => handlers.set(ch, fn),
       },
       app: { on: vi.fn() },
-      BrowserWindow: { getAllWindows: () => (pop ? [desk, pop] : [desk]) },
+      BrowserWindow: { getAllWindows: () => [desk, ...others, ...(pop ? [pop] : [])] },
       streamWindow: () => pop,
     });
     return {
       mute: (v: unknown) => ipc.get(DESK_SOUND_CHANNEL)?.({}, v),
-      sound: (v: unknown) => ipc.get(DESK_STREAM_SOUND_CHANNEL)?.({}, v),
+      sound: (v: unknown, sender?: unknown) => ipc.get(DESK_STREAM_SOUND_CHANNEL)?.({ sender }, v),
       state: () => handlers.get(DESK_STREAM_STATE_CHANNEL)?.(),
     };
   }
@@ -116,6 +121,23 @@ describe('the YouTube row on the pop-out', () => {
     expect(state()).toEqual({ open: false, on: true });
     expect(() => sound({ on: false, level: 20 })).not.toThrow();
     expect(state()).toEqual({ open: false, on: false });
+  });
+
+  it('tells the other pages the pop-out\'s switch moved, never the page that moved it', () => {
+    const desk = fakeWindow();
+    const other = fakeWindow();
+    const { sound } = wireStream(desk, streamWindow(), [other]);
+    sound({ on: false, level: 30 }, desk.webContents);
+    expect(other.webContents.send).toHaveBeenCalledWith(DESK_STREAM_SWITCH_CHANNEL, false);
+    expect(desk.webContents.send).not.toHaveBeenCalled();
+  });
+
+  it('with no pop-out open, tells no page: each in-page switch is its own', () => {
+    const desk = fakeWindow();
+    const other = fakeWindow();
+    const { sound } = wireStream(desk, null, [other]);
+    sound({ on: true, level: 30 }, desk.webContents);
+    expect(other.webContents.send).not.toHaveBeenCalled();
   });
 
   it('builds the volume only from a number, clamped', () => {

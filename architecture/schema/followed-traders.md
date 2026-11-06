@@ -461,8 +461,9 @@ images again with each answer.
   row, `desk-ops.md`; locked with why while the header mute is on or the pop-out has the sound), Pop out (a small window
   of its own on the desktop, a browser tab elsewhere), close, and Open on YouTube (the system browser). On the desktop
   the row reaches the pop-out through the main process: `nova:sound:stream` `{on, level}` mutes that window's audio and
-  asks YouTube's player in it for the volume; `nova:stream:window` tells the pages it opened or closed, and
-  `nova:stream:state` answers `{open, on}` for a page that reloads. It plays **only while the stream is on
+  asks YouTube's player in it for the volume; `nova:stream:window` tells the pages it opened or closed,
+  `nova:stream:switch` tells the other pages its switch moved, and `nova:stream:state` answers `{open, on}` for a page
+  that reloads. It plays **only while the stream is on
   air**: the capture live and read within `FOLLOWED_CAPTURE_STALE_SEC`, its `age_sec` advanced by the time since
   the answer arrived so a backend that stops answering never keeps it on air (amendment, operator 2026-10-13: "if we're on
   the live right now for today, then I don't want it to be allowing me to show some video in the past or history";

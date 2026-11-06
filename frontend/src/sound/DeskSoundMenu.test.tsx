@@ -3,7 +3,13 @@
  */
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DESK_MUTE_REASON, DESK_SOUND_LEVEL_DEFAULTS, DESK_STREAM_NOT_OPEN, DESK_STREAM_OFF_AIR } from './constants';
+import {
+  DESK_MUTE_REASON,
+  DESK_SOUND_LEVEL_DEFAULTS,
+  DESK_SOUND_LEVELS_KEY,
+  DESK_STREAM_NOT_OPEN,
+  DESK_STREAM_OFF_AIR,
+} from './constants';
 import { isDeskMuted, setDeskMuted } from './deskMute';
 import { deskSoundLevel, deskSoundOn, resetDeskSoundsForTests, setDeskSoundLevel, setDeskSoundOn } from './deskSounds';
 import { DeskSoundMenu } from './DeskSoundMenu';
@@ -166,6 +172,7 @@ describe('the YouTube row', () => {
   describe('on the desktop', () => {
     function desktop(state: { open: boolean; on: boolean } = { open: false, on: true }) {
       let tellOpen: (open: boolean) => void = () => undefined;
+      let tellSwitch: (on: boolean) => void = () => undefined;
       const setStreamSound = vi.fn();
       (window as { novaDesktop?: unknown }).novaDesktop = {
         isDesktop: true,
@@ -176,9 +183,13 @@ describe('the YouTube row', () => {
           tellOpen = cb;
           return () => undefined;
         },
+        onStreamSwitch: (cb: (on: boolean) => void) => {
+          tellSwitch = cb;
+          return () => undefined;
+        },
       };
       const unwire = wireStreamWindow();
-      return { open: (open: boolean) => tellOpen(open), setStreamSound, unwire };
+      return { open: (open: boolean) => tellOpen(open), otherPage: (on: boolean) => tellSwitch(on), setStreamSound, unwire };
     }
 
     it('drives the pop-out: on as it opens, off with the row, off when it closes', () => {
@@ -211,6 +222,34 @@ describe('the YouTube row', () => {
       expect(setStreamSound).toHaveBeenLastCalledWith({ on: true, level: 35 });
       act(() => open(true));
       expect(setStreamSound).toHaveBeenCalledTimes(2);
+      unwire();
+    });
+
+    it('follows the pop-out\'s switch moved in another page, and never sends an old one back', () => {
+      const { open, otherPage, setStreamSound, unwire } = desktop();
+      render(<DeskSoundMenu id="m" />);
+      act(() => open(true));
+      setStreamSound.mockClear();
+      act(() => otherPage(false));
+      expect(flip('stream').getAttribute('aria-checked')).toBe('false');
+      expect(setStreamSound).not.toHaveBeenCalled();
+      // That page's slider reaches this one through storage, and this one tells the desktop app too.
+      act(() => {
+        localStorage.setItem(DESK_SOUND_LEVELS_KEY, JSON.stringify({ schema_version: 1, value: { stream: 20 } }));
+        window.dispatchEvent(new StorageEvent('storage', { key: DESK_SOUND_LEVELS_KEY }));
+      });
+      expect(setStreamSound).toHaveBeenCalledTimes(1);
+      expect(setStreamSound).toHaveBeenLastCalledWith({ on: false, level: 20 });
+      unwire();
+    });
+
+    it('with no pop-out open, another page\'s switch is not this page\'s', () => {
+      const { otherPage, unwire } = desktop();
+      render(<DeskSoundMenu id="m" />);
+      act(() => setStreamPlayerState('live'));
+      fireEvent.click(flip('stream'));
+      act(() => otherPage(false));
+      expect(deskSoundOn('stream')).toBe(true);
       unwire();
     });
 
