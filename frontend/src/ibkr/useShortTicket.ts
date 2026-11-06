@@ -9,6 +9,7 @@
  * - While Short is chosen the short check is asked with the ticket's numbers (`useShortCheck`), so the SHORT
  *   CHECK box lists every rule the door will run, with its numbers, before the operator presses.
  */
+import { plainPrice } from '../utils/priceTick';
 import { useEffect, useMemo, useState } from 'react';
 import type { TopOfBookLike } from './applyTicketDefaults';
 import type { QuantityMode } from './orderEntry';
@@ -117,7 +118,7 @@ export function useShortTicket(a: Args): ShortTicket {
     seed: () => {
       const follow = shortLimitSide(ssrEffective);
       const price = bookPrice(a.topOfBook, a.symbol, follow);
-      const limit = price != null ? price.toFixed(2) : null;
+      const limit = price != null ? plainPrice(price) : null;
       return { limit, follow, stop: seedBuyStop(limit ?? a.limitPrice, a.stopOffset) };
     },
     stopFor: (limit: string) => seedBuyStop(limit, a.stopOffset),

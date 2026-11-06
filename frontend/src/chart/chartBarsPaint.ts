@@ -19,6 +19,7 @@ import {
   snapshotChartViewport,
   type ChartViewportSnapshot,
 } from './chartViewportPaint';
+import { keepPriceDigits } from './chartPriceDigits';
 import { releaseView } from './operatorView';
 
 export interface ChartSeriesRefs {
@@ -105,6 +106,7 @@ export function paintBars(
   viewportOverride: ChartViewportSnapshot | null = null,
 ): PaintBarsResult {
   const { candles, volumes } = rawBarsToSeries(bars, tf);
+  keepPriceDigits(candleSeriesRef.current, candles[candles.length - 1]?.close);
   const snapshot = viewportOverride
     ?? (prevBars == null
       ? null

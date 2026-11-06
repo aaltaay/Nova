@@ -20,6 +20,7 @@ function seriesStub() {
   return {
     update: vi.fn(),
     setData: vi.fn(),
+    applyOptions: vi.fn(),
   };
 }
 

@@ -7,6 +7,7 @@
  * desk the note is the sample label, never a real venue's (W31). On Paper the
  * bots' shares in the stock follow yours, each with its chip (ADR 069 decision 9).
  */
+import { plainPrice } from '../utils/priceTick';
 import { WhoseChip } from '../account';
 import {
   DRAWER_LIVE_NOTE,
@@ -55,7 +56,7 @@ function HeldLine({ symbol, position, practice }: { symbol: string; position: De
       <b className={position.qty > 0 ? 'is-up' : 'is-down'}>
         {symbol} {position.qty > 0 ? '+' : ''}
         {formatShareQty(position.qty)} @{' '}
-        {position.avg_cost != null ? position.avg_cost.toFixed(2) : DRAWER_UNREALIZED_UNKNOWN}
+        {position.avg_cost != null ? plainPrice(position.avg_cost) : DRAWER_UNREALIZED_UNKNOWN}
       </b>
       {practice ? (
         <>

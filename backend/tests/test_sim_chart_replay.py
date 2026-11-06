@@ -210,6 +210,20 @@ def test_penny_bar_leaves_exact_cents_alone():
     assert (bar["open"], bar["high"], bar["low"], bar["close"]) == (763.30, 763.31, 762.81, 762.82)
 
 
+def test_penny_bar_keeps_four_digits_under_a_dollar():
+    from sim.chart_replay import penny_bar
+
+    bar = penny_bar(dict(ts=0, open=0.3188, high=0.31884, low=0.31131, close=0.3145, volume=5))
+    assert (bar["open"], bar["high"], bar["low"], bar["close"]) == (0.3188, 0.3189, 0.3113, 0.3145)
+
+
+def test_penny_bar_rounds_each_price_on_its_own_tick():
+    from sim.chart_replay import penny_bar
+
+    bar = penny_bar(dict(ts=0, open=0.9987, high=1.0234, low=0.9912, close=1.0156, volume=5))
+    assert (bar["open"], bar["high"], bar["low"], bar["close"]) == (0.9987, 1.03, 0.9912, 1.02)
+
+
 def test_fill_flat_buckets_spans_gaps_and_sorts():
     from sim.chart_replay import fill_flat_buckets
 

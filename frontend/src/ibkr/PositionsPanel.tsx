@@ -1,3 +1,4 @@
+import { fmtPrice } from '../utils/quoteFormat';
 import { useMemo, type ReactNode } from 'react';
 import { CloseBotsButton, WhoseChip } from '../account';
 import { SelectableTableRow } from '../components/SelectableTableRow';
@@ -94,13 +95,13 @@ function renderPositionCell(
     case 'liq':
       return (
         <td key={col} className="ibkr-col--num ibkr-col--liq" title={liquidationTitle(p)}>
-          {p.liquidation_price == null ? '—' : formatMoney(p.liquidation_price)}
+          {p.liquidation_price == null ? '—' : fmtPrice(p.liquidation_price)}
         </td>
       );
     case 'avg_cost':
       return (
         <td key={col} className="ibkr-col--num">
-          {formatMoney(p.avg_cost)}
+          {fmtPrice(p.avg_cost)}
         </td>
       );
     case 'commission':
@@ -120,7 +121,7 @@ function renderPositionCell(
     case 'mkt_price':
       return (
         <td key={col} className="ibkr-col--num">
-          {formatMoney(p.market_price)}
+          {fmtPrice(p.market_price)}
         </td>
       );
     case 'mkt_value':

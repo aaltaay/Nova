@@ -67,6 +67,11 @@ describe('Short / Cover hotkeys (ADR 048)', () => {
       { bid: 5.79, ask: 5.85 },
     )).toEqual({ limit: 5.84, stop: 5.96, base: 5.85 });
     expect(planShortHotkey(action({ kind: 'short_limit_bid_offset' }), { bid: null, ask: 5.8 })).toHaveProperty('error');
+    const under = planShortHotkey(
+      action({ kind: 'short_limit_ask_offset', params: { offsetDollars: 0, stopOffsetDollars: 0.0212 } }),
+      { bid: 0.3185, ask: 0.3188 },
+    );
+    expect(under).toMatchObject({ limit: 0.3188, stop: 0.34 });
   });
 
   it('SS1 Bid+1 from flat sends a short entry with its buy stop, in regular hours only', async () => {

@@ -12,6 +12,7 @@
  * Trial T1's flush call is a long's (sellers flushing the tape); no trial reads a short's mirror, so none is
  * called here.
  */
+import { plainPrice } from '../utils/priceTick';
 import { NOVA_CALL_SEC } from './constants';
 import { bigCall, newerCall, type HeldCall } from './heldCalls';
 import { rowOf } from './heldRead';
@@ -182,9 +183,9 @@ function lowerCall(i: MomentInputs, qty: number): HeldCall | null {
     badge: `SHORT ${qty} · ${broke}`, at: down.at,
     call: {
       id: `broke-short:${h.since ?? 0}:${down.round}`, tone: 'go', title: broke,
-      detail: `${down.text}? A candle closed under $${down.round.toFixed(2)}; only a close moves a stop. Lower stop on `
+      detail: `${down.text}? A candle closed under $${plainPrice(down.round)}; only a close moves a stop. Lower stop on `
         + 'the plan box sets it.',
-      pin: { label: `BROKE $${down.round.toFixed(2)}`, price: down.round, at: down.at }, ping: true,
+      pin: { label: `BROKE $${plainPrice(down.round)}`, price: down.round, at: down.at }, ping: true,
     },
   };
 }

@@ -1,5 +1,6 @@
 /** Trading action bar — Open / Close.
  * Reuses the IBKR order API; does not invent a second order path. */
+import { plainPrice } from '../utils/priceTick';
 import { memo, useEffect, useRef, useState } from 'react';
 import {
   APP_DIALOG_FLATTEN_LABEL,
@@ -222,7 +223,7 @@ export const TickerTradeActionBar = memo(function TickerTradeActionBar({
             {hasPosition && (
               <span className="ticker-trade-bar-metric">
                 <label>Pos</label> <PositionQty qty={position!.qty} /> @{' '}
-                {position!.avg_cost?.toFixed(2) ?? '—'}
+                {position!.avg_cost != null ? plainPrice(position!.avg_cost) : '—'}
               </span>
             )}
           </div>
@@ -232,7 +233,7 @@ export const TickerTradeActionBar = memo(function TickerTradeActionBar({
           <div className="ticker-trade-bar-account ticker-trade-bar-account--pos-only">
             <span className="ticker-trade-bar-metric">
               <label>Pos</label> <PositionQty qty={position!.qty} /> @{' '}
-              {position!.avg_cost?.toFixed(2) ?? '—'}
+              {position!.avg_cost != null ? plainPrice(position!.avg_cost) : '—'}
             </span>
           </div>
         )}

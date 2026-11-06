@@ -4,6 +4,7 @@
  * the period, a 21-session chart coloured by theme (RunnersChart: full width, hover, a large view), gappers holding,
  * halts, top runners.
  */
+import { plainPrice } from '../utils/priceTick';
 import { TEMP_WORD, THEME_BAR_MAX, THEME_COLORS, THEME_OTHER_COLOR } from './constants';
 import { count, etTime, shares, shortDate, signedPct } from './format';
 import { PeriodSwitch, Sym } from './parts';
@@ -130,7 +131,7 @@ export function ClimateCard({ c, onPeriod, onOpen }: { c: Climate | null; onPeri
           <>
             <Sym symbol={c.top[0].symbol} onOpen={onOpen} />
             <span className="is-up mk-b">{signedPct(c.top[0].change_pct, 0)}</span>
-            {c.top[0].price != null ? <span>${c.top[0].price.toFixed(2)}</span> : null}
+            {c.top[0].price != null ? <span>${plainPrice(c.top[0].price)}</span> : null}
             <span className="mk-muted">float {shares(c.top[0].float_shares)} · {c.top[0].theme}{c.top[0].news_at ? ` · news ${etTime(c.top[0].news_at)}` : ''}</span>
           </>
         ) : c.top.map((r) => (

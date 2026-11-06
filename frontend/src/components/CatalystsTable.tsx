@@ -1,6 +1,7 @@
 /** News Catalysts tab: on-roster names (IBKR Gappers / Gainers / AH) that also
  * have a recent headline, sorted by absolute gap magnitude. The full news
  * AI-in-trading desk lives on Nova News -- this table is not that product. */
+import { plainPrice } from '../utils/priceTick';
 import { Fragment, useState } from 'react';
 import { SymbolSelectButton } from './SymbolSelectButton';
 import { SelectableTableRow } from './SelectableTableRow';
@@ -112,10 +113,10 @@ export function CatalystsTable({
                         />
                       </td>
                       <td data-col="previous_close" className={scannerColClass('previous_close')}>
-                        ${c.previous_close.toFixed(2)}
+                        ${plainPrice(c.previous_close)}
                       </td>
                       <td data-col="current_price" className={scannerColClass('current_price')}>
-                        ${c.current_price.toFixed(2)}
+                        ${plainPrice(c.current_price)}
                       </td>
                       <td
                         data-col="gap_percent"

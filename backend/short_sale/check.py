@@ -44,6 +44,7 @@ from constants_shorts import (
     SHORT_SSR_AT_BID,
     SHORT_SSR_NO_BID,
     SHORT_WHILE_LONG,
+    STOCK_SUBPENNY_UNDER,
 )
 from short_sale import hours as short_hours
 from short_sale import margin
@@ -102,6 +103,11 @@ def _money(value: float) -> str:
     return f"${value:,.2f}"
 
 
+def _px(value: float, at: float | None = None) -> str:
+    """A price on the listed tick of ``at`` (the stock's price; ``value`` when it is one itself)."""
+    return f"{value:.4f}" if (value if at is None else at) < STOCK_SUBPENNY_UNDER else f"{value:.2f}"
+
+
 def _ok(rule: str, label: str, text: str, value: str | None = None, **numbers: Any) -> Verdict:
     return Verdict(rule, label, True, "ok", text, None, value, numbers)
 
@@ -123,11 +129,11 @@ def _order(order: Order) -> Verdict:
                     "A short goes out with its buy stop above the entry: no stop price, no short. Set the Buy stop.")
     if order.stop <= order.entry:
         return _bad("order", "The stop", SHORT_NEEDS_STOP,
-                    f"The buy stop ({order.stop:.2f}) must sit above the short's price ({order.entry:.2f}).")
+                    f"The buy stop ({_px(order.stop)}) must sit above the short's price ({_px(order.entry)}).")
     risk = order.stop - order.entry
-    return _ok("order", "The stop", (f"Short {order.qty:,.0f} at {order.entry:.2f}, buy stop {order.stop:.2f}: "
-                                     f"{risk:.2f} a share, {_money(risk * order.qty)} at risk."),
-               f"stop {order.stop:.2f}", risk_per_share=round(risk, 4))
+    return _ok("order", "The stop", (f"Short {order.qty:,.0f} at {_px(order.entry)}, buy stop {_px(order.stop)}: "
+                                     f"{_px(risk, order.entry)} a share, {_money(risk * order.qty)} at risk."),
+               f"stop {_px(order.stop)}", risk_per_share=round(risk, 4))
 
 
 def _not_long(order: Order, account: Account) -> Verdict:
@@ -243,11 +249,11 @@ def _ssr(order: Order, facts: Facts) -> Verdict:
                      "wait for a quote."), "no bid", state="unknown", **numbers)
     entry = float(order.entry or 0)
     if entry <= facts.bid:
-        ask = f", at the ask {facts.ask:.2f}" if facts.ask is not None else ""
+        ask = f", at the ask {_px(facts.ask)}" if facts.ask is not None else ""
         return _bad("ssr", "SSR", SHORT_SSR_AT_BID,
-                    (f"{read.text} {entry:.2f} is at or below the bid {facts.bid:.2f}: price it above the bid{ask}."),
+                    (f"{read.text} {_px(entry)} is at or below the bid {_px(facts.bid)}: price it above the bid{ask}."),
                     "at the ask", **numbers)
-    return _ok("ssr", "SSR", f"{read.text} {entry:.2f} is above the bid {facts.bid:.2f}.",
+    return _ok("ssr", "SSR", f"{read.text} {_px(entry)} is above the bid {_px(facts.bid)}.",
                "on · at the ask" if read.state == "on" else "unknown · at the ask", **numbers)
 
 
@@ -310,14 +316,14 @@ def _margin(order: Order, facts: Facts, account: Account, equity: float) -> list
                              flying=priced, held=(held, held_mark) if held_mark is not None else None)
     qty = float(verdict["qty"] or 0)
     fill = float(verdict["fill_price"] or entry)
-    at = f"at {entry:.2f}" if fill <= entry else f"up to {fill:.2f} (the shorts on the way keep their prices)"
+    at = f"at {_px(entry)}" if fill <= entry else f"up to {_px(fill)} (the shorts on the way keep their prices)"
     liq = verdict["liquidation_price"]
     need = float(verdict["requirement"] or 0)
     left = max(0.0, equity - other)
     numbers = {"source": source, "ratio": round(ratio, 4), "requirement": round(need, 2), "excess": round(left, 2),
                "liquidation_price": liq, "cushion_price": verdict["cushion_price"], "fill_price": fill,
                "held_short": held, "held_mark": held_mark, "whatif_error": refused}
-    held_note = f" (the {held:g} already short counted from its mark {held_mark:.2f})" if held_mark is not None else ""
+    held_note = f" (the {held:g} already short counted from its mark {_px(held_mark)})" if held_mark is not None else ""
     at += held_note
     if not verdict["fits"]:
         return [_bad("margin", "Margin", SHORT_MARGIN,
@@ -327,16 +333,16 @@ def _margin(order: Order, facts: Facts, account: Account, equity: float) -> list
     fits = _ok("margin", "Margin", f"Margin ({source}): {_money(need)} of {_money(left)}.{why}", _money(need),
                **numbers)
     if not verdict["ok"]:
-        where = f"IBKR would liquidate near {liq:.2f}" if isinstance(liq, float) else "IBKR would liquidate at once"
+        where = f"IBKR would liquidate near {_px(liq)}" if isinstance(liq, float) else "IBKR would liquidate at once"
         return [fits, _bad("cushion", "25% cushion", SHORT_CUSHION,
-                           (f"Margin ({source}): {where}, under {verdict['cushion_price']:.2f}, the "
-                            f"{SHORT_CUSHION_PCT:.0%} move against a short at {fill:.2f}{held_note}. Nova keeps a "
+                           (f"Margin ({source}): {where}, under {_px(verdict['cushion_price'])}, the "
+                            f"{SHORT_CUSHION_PCT:.0%} move against a short at {_px(fill)}{held_note}. Nova keeps a "
                             f"{SHORT_CUSHION_PCT:.0%} cushion: short fewer shares."),
-                           f"LIQ {liq:.2f}" if isinstance(liq, float) else None, **numbers)]
+                           f"LIQ {_px(liq)}" if isinstance(liq, float) else None, **numbers)]
     return [fits, _ok("cushion", "25% cushion",
-                      (f"IBKR would liquidate near {liq:.2f}, over {verdict['cushion_price']:.2f} (a "
+                      (f"IBKR would liquidate near {_px(liq)}, over {_px(verdict['cushion_price'])} (a "
                        f"{SHORT_CUSHION_PCT:.0%} move against the short)."),
-                      f"LIQ {liq:.2f}" if isinstance(liq, float) else None, **numbers)]
+                      f"LIQ {_px(liq)}" if isinstance(liq, float) else None, **numbers)]
 
 
 def rules(order: Order, facts: Facts, account: Account, *, live_key: bool | None) -> list[Verdict]:

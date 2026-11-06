@@ -1,7 +1,7 @@
 /**
  * IBKR CommissionReport display -- never invent from avg_cost - fill.
  */
-import { formatMoney } from '../utils/formatMoney';
+import { fmtPrice } from '../utils/quoteFormat';
 
 export function formatCommission(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return '—';
@@ -24,7 +24,7 @@ export function commissionCellTitle(opts: {
     `Commission ${formatCommission(opts.commission)} (IBKR CommissionReport)`,
   ];
   if (opts.avgFill != null && Number.isFinite(opts.avgFill)) {
-    parts.push(`Avg fill ${formatMoney(opts.avgFill)}`);
+    parts.push(`Avg fill ${fmtPrice(opts.avgFill)}`);
   }
   if (
     opts.avgCost != null
@@ -33,7 +33,7 @@ export function commissionCellTitle(opts: {
     && Math.abs(opts.avgCost - opts.avgFill) > 1e-6
   ) {
     parts.push(
-      `Avg cost ${formatMoney(opts.avgCost)} includes commission -- not a second fill`,
+      `Avg cost ${fmtPrice(opts.avgCost)} includes commission -- not a second fill`,
     );
   }
   if ((opts.filledQty ?? 0) <= 0) {

@@ -7,6 +7,7 @@
  * Live the Fills tab reads IBKR's filled orders (W17). While a Calendar day is
  * open the Fills tab lists that day's fills, until the day closes.
  */
+import { plainPrice } from '../utils/priceTick';
 import { useMemo, useState, type Ref } from 'react';
 import type { DeskVenue } from '../constantGroups/desk_venue';
 import {
@@ -281,7 +282,7 @@ export function PositionsOrdersPanel({
                   )}
                   <td className="r acct-num">{formatShareQty(p.qty)}</td>
                   <td className="r acct-num">{p.avgCost == null ? '—' : p.avgCost.toFixed(4)}{p.estimated && p.avgCost != null && <EstChip />}</td>
-                  <td className="r acct-num">{p.mark == null ? '—' : p.mark.toFixed(2)}</td>
+                  <td className="r acct-num">{p.mark == null ? '—' : plainPrice(p.mark)}</td>
                   <td className="r"><Money value={p.marketValue} /></td>
                   <td className="r"><Money value={p.unrealized} signed /></td>
                 </tr>
@@ -321,7 +322,7 @@ export function PositionsOrdersPanel({
                       className={`r acct-num${bucket === 'canceled' || bucket === 'expired' || price == null ? ' acct-muted' : ''}`}
                       title={price == null ? ACCOUNT_PRICE_NONE_TITLE : undefined}
                     >
-                      {price == null ? ACCOUNT_PRICE_NONE : price.toFixed(2)}{bucket === 'filled' && price != null && (o.fill_estimated || practice) && <EstChip />}
+                      {price == null ? ACCOUNT_PRICE_NONE : plainPrice(price)}{bucket === 'filled' && price != null && (o.fill_estimated || practice) && <EstChip />}
                     </td>
                     <td className={bucket === 'filled' || bucket === 'working' ? '' : 'acct-muted'}>{orderStatusLabel(o)}</td>
                     <td className={`acct-src${src.bot ? ' is-bot' : ''}`} data-testid={`account-order-source-${o.order_id}`}>
@@ -356,7 +357,7 @@ export function PositionsOrdersPanel({
                   <td><TickerLink symbol={f.symbol} /></td>
                   <td className={f.side === 'BUY' ? 'acct-side--buy' : 'acct-side--sell'}>{f.side}</td>
                   <td className="r acct-num">{formatShareQty(f.qty)}</td>
-                  <td className="r acct-num">{f.price.toFixed(2)}{f.estimated && <EstChip />}</td>
+                  <td className="r acct-num">{plainPrice(f.price)}{f.estimated && <EstChip />}</td>
                   <td className="r acct-num">{formatMoney(f.commission)}</td>
                   <td className="r acct-num">{formatMoney(f.fees)}</td>
                   <td className={`acct-src${sourceKind(f.source) === 'bot' || f.botId ? ' is-bot' : ''}`}>{sourceLabel(f.source, f.botId)}</td>

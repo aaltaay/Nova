@@ -5,6 +5,7 @@
  * timeframe, which the library's per-array cumulative indicator cannot give.
  * See `chart/vwapSession.ts`.
  */
+import { plainPrice } from './utils/priceTick';
 import { EMA, MACD, RSI } from 'lightweight-charts-indicators';
 import type { Time, LineData, HistogramData, WhitespaceData } from 'lightweight-charts';
 import type { Bar } from 'oakscriptjs';
@@ -122,7 +123,7 @@ export function computeEmaOverlays(bars: IndicatorBar[]): EmaOverlayData {
  * the number understates real session volume.
  */
 export function formatVwapAxisTitle(value: number, partial = false): string {
-  return `VWAP $${value.toFixed(2)}${partial ? ' (partial)' : ''}`;
+  return `VWAP $${plainPrice(value)}${partial ? ' (partial)' : ''}`;
 }
 
 export function vwapWaitingTitle(): string {

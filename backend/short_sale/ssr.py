@@ -43,6 +43,7 @@ from constants_shorts import (
     SSR_HISTORY_TIMEOUT_SEC,
     SSR_HISTORY_WORKERS,
     SSR_TRIGGER_FRACTION,
+    STOCK_SUBPENNY_UNDER,
 )
 
 logger = logging.getLogger(__name__)
@@ -83,7 +84,9 @@ def _num(value: Any) -> float | None:
 
 
 def _money(x: float | None) -> str:
-    return "?" if x is None else f"{x:,.2f}"
+    if x is None:
+        return "?"
+    return f"{x:.4f}" if x < STOCK_SUBPENNY_UNDER else f"{x:,.2f}"
 
 
 # -- IBKR's daily bars, per stock, for the day ------------------------------------------------

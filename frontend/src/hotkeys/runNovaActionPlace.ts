@@ -2,6 +2,7 @@
  * Shared place helpers for runNovaAction (keeps executor under file-size limit).
  */
 
+import { plainPrice, roundToTick } from '../utils/priceTick';
 import {
   NOVA_ACTION_ACCOUNT_ERROR_MESSAGE,
   NOVA_ACTION_DEFAULT_OFFSET_DOLLARS,
@@ -154,7 +155,7 @@ export async function placeLongPctLimit(
         ? ` +$${offsetDollars.toFixed(2)}`
         : ` -$${offsetDollars.toFixed(2)}`;
   const summary =
-    `SELL ${built.qty} ${symbol} (${percent}% long) LMT @ $${limit.toFixed(2)} `
+    `SELL ${built.qty} ${symbol} (${percent}% long) LMT @ $${plainPrice(limit)} `
     + `(${ref}${off}) on ${mode} account.`;
   if (!(await maybeConfirm(runtime, summary))) {
     return { ok: false, text: 'Order cancelled' };
@@ -167,7 +168,7 @@ export async function placeLongPctLimit(
         side: 'SELL',
         qty: built.qty,
         order_type: 'LMT',
-        limit_price: Number(limit.toFixed(4)),
+        limit_price: roundToTick(limit),
         outside_rth,
         venue: runtime.venue,
       },
@@ -222,7 +223,7 @@ export async function placeBookOffsetLimit(
   const outside_rth = shouldUseOutsideRth(Boolean(action.params.outsideRth));
   const mode = accountModeLabel(runtime.accountMode);
   const summary =
-    `${side} ${shares} ${symbol} (LMT @ $${limit.toFixed(2)}${outside_rth ? ' EH' : ''}) `
+    `${side} ${shares} ${symbol} (LMT @ $${plainPrice(limit)}${outside_rth ? ' EH' : ''}) `
     + `on ${mode} account.`;
   if (!(await maybeConfirm(runtime, summary))) {
     return { ok: false, text: 'Order cancelled' };
@@ -234,7 +235,7 @@ export async function placeBookOffsetLimit(
         side,
         qty: shares,
         order_type: 'LMT',
-        limit_price: Number(limit.toFixed(4)),
+        limit_price: roundToTick(limit),
         outside_rth,
         venue: runtime.venue,
       },

@@ -3,6 +3,7 @@
  * which takes effect when the short fills). It starts at the venue's Settings > Trade offset over the limit
  * and says what the short loses at it.
  */
+import { priceStep } from '../utils/priceTick';
 import {
   SHORT_STOP_NOTE_OVER,
   SHORT_TICKET_BUY_STOP_LABEL,
@@ -33,7 +34,7 @@ export function BuyStopField({ value, limit, orderQty, disabled, why, refusal, o
         className={`manual-order-price${refusal ? ' is-refused' : ''}`}
         type="number"
         min="0"
-        step="0.01"
+        step={priceStep(Number(value))}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         disabled={disabled}

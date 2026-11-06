@@ -8,6 +8,7 @@
  * folded into a stronger line says one word there (`foldWord`). Its card says what it is, how far it is, why it is
  * there and what usually happens, from the level study. Which zones a chart draws is `levelPicks.ts`.
  */
+import { plainPrice } from '../utils/priceTick';
 import { LEVEL_COLORS } from './constants';
 import type { ShapeStory } from './ShapeTip';
 import type { LevelMember, LevelZone } from './levelTypes';
@@ -62,7 +63,7 @@ export function zoneColor(z: LevelZone): string {
 
 function priceText(z: LevelZone): string {
   const r = z.members.find(m => ROUND.has(m.kind));
-  return r ? `$${r.price.toFixed(2)}` : z.price.toFixed(2);
+  return r ? `$${plainPrice(r.price)}` : plainPrice(z.price);
 }
 
 /** The one word that says what a level is, strongest reason first. */
@@ -108,15 +109,15 @@ export function shortLabel(z: LevelZone): string {
 export function bandLabel(z: LevelZone): string {
   const kind = WORD_ORDER.find(k => has(z, k));
   const round = z.members.find(m => ROUND.has(m.kind));
-  return [`${z.lo.toFixed(2)}–${z.hi.toFixed(2)}`, kind ? WORD[kind] : null, candleWords(z) || null,
-    round ? `$${round.price.toFixed(2)}` : null].filter(Boolean).join(' · ');
+  return [`${plainPrice(z.lo)}–${plainPrice(z.hi)}`, kind ? WORD[kind] : null, candleWords(z) || null,
+    round ? `$${plainPrice(round.price)}` : null].filter(Boolean).join(' · ');
 }
 
 /** What a level says in a stronger line's label at its price: its round number, else what it is, else what the
  * candles made of it ("$4.00", "PMH", "top ×5"). */
 export function foldWord(z: LevelZone): string {
   const round = z.members.find(m => ROUND.has(m.kind));
-  if (round) return `$${round.price.toFixed(2)}`;
+  if (round) return `$${plainPrice(round.price)}`;
   const kind = WORD_ORDER.find(k => has(z, k));
   return (kind ? WORD[kind] : null) ?? (candleWords(z) || z.tag);
 }
@@ -207,7 +208,7 @@ export function levelStory(id: string, read: StockRead): ShapeStory | null {
   if (!lm || !id.startsWith('level:')) return null;
   const z = [...lm.intraday, ...(lm.five_minute ?? []), ...lm.daily].find(x => levelHoverId(x) === id);
   if (!z) return null;
-  const range = z.hi - z.lo > 0.004 ? `  ${z.lo.toFixed(2)}–${z.hi.toFixed(2)}` : '';
+  const range = z.hi - z.lo > 0.004 ? `  ${plainPrice(z.lo)}–${plainPrice(z.hi)}` : '';
   const sections = [{ head: 'Why it is here', items: z.members.map(m => reasonWords(m, CANDLE_NAMES[z.home])) }];
   // A backend older than the round scale counted half dollars on every price: read as the study's.
   const next = whatHappens(z, lm.rounds?.measured ?? true);

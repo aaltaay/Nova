@@ -4,6 +4,7 @@
  * are (ADR 069 decision 9). A row opens that stock in the Trader; View All
  * Positions opens Account / Trading.
  */
+import { fmtPrice } from '../utils/quoteFormat';
 import { WhoseChip } from '../account';
 import {
   GLOBAL_BAR_OFFLINE_PLACEHOLDER,
@@ -16,7 +17,6 @@ import {
   GLOBAL_BAR_VIEW_ALL_POSITIONS,
   globalBarPositionOpenTitle,
 } from '../constantGroups/global_bar';
-import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';
 import { formatSignedMoney, pnlToneClass } from './globalBarMoney';
 import type { HeldPositionRow } from './globalPositionsRows';
@@ -70,7 +70,7 @@ export function GlobalPositionsMenu({ rows, stale, onOpenSymbol, traderActive, c
             <span className="global-app-bar__position-qty">
               {formatShareQty(Math.abs(r.qty))}
               {r.qty < 0 && <em> {GLOBAL_BAR_POSITIONS_SHORT}</em>}
-              {r.avgCost != null && <> @ {formatMoney(r.avgCost)}</>}
+              {r.avgCost != null && <> @ {fmtPrice(r.avgCost)}</>}
             </span>
             <span
               className={`global-app-bar__position-pnl ${pnlToneClass(r.openPnl)}`}
