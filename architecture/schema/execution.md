@@ -98,8 +98,9 @@ the order reached the backend 2-3 s after the click and rested above the market.
   says what the door would ("one funnel", operator 2026-10-14).
 
   **A close is never refused for lag (amendment 2026-11-06):** a SELL without `short_entry`, a BUY covering a
-  short and a replace of a working order that closes (`gate.closes`; unknown is not a close). Its verdict is
-  `close` with the `code` it would have been refused under, and it has no send deadline.
+  short and a replace of a working order that closes (`gate.closes`; unknown is not a close). A Live replace
+  reads the working order itself, so a bracket's stop and target count. Its verdict is `close` with the `code`
+  it would have been refused under, and it has no send deadline.
 
   The protective sources (`flatten`, `kill`, `cancel_working`), cancels and every command without
   `client_timing` (the bot, stock modes, the loss limit's Auto sell) are exempt. The arithmetic mixes the desk's and the

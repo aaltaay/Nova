@@ -288,15 +288,48 @@ def test_repricing_a_working_sell_goes_and_repricing_a_working_entry_does_not(mo
     assert gate.check(unknown).refused
 
 
-def test_a_live_replace_reads_its_side_from_nova_s_own_record(monkeypatch):
+def test_a_live_replace_reads_the_working_order_itself(monkeypatch):
+    """A bracket's stop and target have ids no execution row holds as its ``order_id``, so the order answers."""
     from execution import store_orders, venue_door
+    from ibkr import account, orders
+
+    working = [
+        {"order_id": 7, "side": "SELL", "symbol": "APUS"},    # a long bracket's stop, or a plain sell
+        {"order_id": 8, "side": "SELL", "symbol": "APUS"},    # a short entry
+        {"order_id": 9, "side": "BUY", "symbol": "APUS"},     # a short bracket's stop, or a new buy
+    ]
+    held_short = [0.0]
+    monkeypatch.setattr(venue_door, "resolve", lambda cmd: ("live", None))
+    monkeypatch.setattr(orders, "open_orders", lambda ibkr_only=False: working)
+    monkeypatch.setattr(store_orders, "short_entries", lambda ids: {8: {}} if 8 in ids else {})
+    monkeypatch.setattr(account, "short_qty", lambda symbol: held_short[0])
+
+    def verdict(order_id):
+        cmd = _stale_view_cmd(side=None, operation="replace")
+        cmd.order_id = order_id
+        return gate.check(cmd)
+
+    assert verdict(7).verdict == "close"
+    assert verdict(8).refused
+    assert verdict(9).refused
+    held_short[0] = 500.0
+    assert verdict(9).verdict == "close"
+    assert verdict(10).refused                                # not working: judged as an entry
+
+
+def test_a_live_replace_nova_cannot_read_is_judged_as_an_entry(monkeypatch):
+    from execution import venue_door
+    from ibkr import orders
+    from ibkr.errors import IbkrAccountError
+
+    def down(ibkr_only=False):
+        raise IbkrAccountError("IBKR not connected")
 
     monkeypatch.setattr(venue_door, "resolve", lambda cmd: ("live", None))
-    monkeypatch.setattr(store_orders, "rows_by_order_id", lambda ids, venue: [
-        {"operation": "place", "payload": {"side": "SELL", "position_at_send": 100.0}}])
+    monkeypatch.setattr(orders, "open_orders", down)
     cmd = _stale_view_cmd(side=None, operation="replace")
     cmd.order_id = 7
-    assert gate.check(cmd).verdict == "close"
+    assert gate.check(cmd).refused
 
 
 def test_a_close_has_no_send_deadline_and_a_buy_does():

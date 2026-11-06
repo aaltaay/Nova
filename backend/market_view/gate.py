@@ -95,11 +95,14 @@ def closes(cmd: Any) -> bool:
 
 
 def _reprices_a_close(cmd: Any) -> bool:
+    """Whether the working order a replace reprices is a way out, read from the order itself: a bracket's
+    exit legs have ids of their own, which no execution row holds as its ``order_id``."""
     order_id = getattr(cmd, "order_id", None)
     if order_id is None:
         return False
     try:
-        from execution import order_side, store_orders, venue_door
+        from execution import store_orders, venue_door
+        from ibkr import account, orders
         from practice.broker import for_venue
 
         venue, _why = venue_door.resolve(cmd)
@@ -107,11 +110,12 @@ def _reprices_a_close(cmd: Any) -> bool:
         if venue in ("paper", "sim"):
             row = next((r for r in for_venue(venue).working_orders() if int(r.get("order_id") or 0) == oid), None)
             return row is not None and row.get("effect") == "closes"
-        rows = store_orders.rows_by_order_id([oid], venue="live")
-        if not rows:
+        row = next((o for o in orders.open_orders(ibkr_only=True) if int(o.get("order_id") or 0) == oid), None)
+        if row is None:
             return False
-        payload = rows[-1].get("payload") or {}
-        return order_side.from_record(payload, payload.get("side"), rows[-1].get("operation"))[1] == "closes"
+        if str(row.get("side") or "").upper() == "SELL":
+            return oid not in store_orders.short_entries([oid])
+        return account.short_qty(str(row.get("symbol") or "")) > 0
     except Exception:
         logger.exception("view gate: order %s's side could not be read; judging it as an entry", order_id)
         return False
