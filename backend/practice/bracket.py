@@ -92,7 +92,8 @@ def leg_fields(parent_id: int, role: str) -> dict[str, Any]:
 
 
 def _legs(stop_id: int, stop: float, target_id: int | None, target: float | None, target2_id: int | None,
-          target2: float | None, qty: float, target1_qty: float | None) -> list[tuple[int, str, str, Any, Any, float]]:
+          target2: float | None, qty: float, target1_qty: float | None,
+          stop_limit: float | None = None) -> list[tuple[int, str, str, Any, Any, float]]:
     """``(id, role, type, limit, trigger, qty)`` for a group: the targets first, then the stop for every share."""
     wanted = []
     second = target2 is not None and target2_id is not None and target1_qty is not None
@@ -102,13 +103,14 @@ def _legs(stop_id: int, stop: float, target_id: int | None, target: float | None
         if second:
             wanted.append((int(target2_id), PRACTICE_LEG_TARGET2, "LMT", float(target2), None,
                            float(qty) - first))
-    wanted.append((int(stop_id), PRACTICE_LEG_STOP, "STP", None, float(stop), float(qty)))
+    wanted.append((int(stop_id), PRACTICE_LEG_STOP, "STP LMT" if stop_limit is not None else "STP", stop_limit,
+                   float(stop), float(qty)))
     return wanted
 
 
 def exit_rows(entry: dict[str, Any], target_id: int | None, stop_id: int, target: float | None,
               stop: float, *, target2_id: int | None = None, target2: float | None = None,
-              target1_qty: float | None = None) -> list[dict[str, Any]]:
+              target1_qty: float | None = None, stop_limit: float | None = None) -> list[dict[str, Any]]:
     """The exits of the bracket whose entry row is ``entry``, as Live's ``bracketOrder`` builds them.
 
     Each is the entry's row on the reverse side -- the same symbol, TIF, expiry,
@@ -125,7 +127,7 @@ def exit_rows(entry: dict[str, Any], target_id: int | None, stop_id: int, target
         {**entry, "order_id": oid, "perm_id": oid, "side": reverse, "order_type": typ, "limit_price": limit,
          "stop_price": trigger, "qty": share, "remaining_qty": share, **leg_fields(parent_id, role)}
         for oid, role, typ, limit, trigger, share in _legs(stop_id, stop, target_id, target, target2_id, target2,
-                                                            qty, target1_qty)
+                                                            qty, target1_qty, stop_limit)
     ]
 
 
@@ -141,7 +143,7 @@ def exit_pair_rows(stop_row: dict[str, Any], target_id: int, target: float, *, t
          "leg_role": role}
         for oid, role, typ, limit, trigger, share in _legs(stop_id, float(stop_row["stop_price"]), target_id,
                                                             target, target2_id, target2, float(stop_row["qty"]),
-                                                            target1_qty)
+                                                            target1_qty, stop_row.get("limit_price"))
     ]
 
 

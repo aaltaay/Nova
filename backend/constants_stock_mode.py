@@ -77,7 +77,7 @@ STOCK_MODE_WHY_LIVE_BUY = (
     "the bot trades on Paper and Sim only."
 )
 STOCK_MODE_WHY_LIVE_SELL = (
-    "Approve on Live waits on your answer to #604 (how the stop protects before 9:30). "
+    "Approve on Live is not built yet (#604): its two-target exits still have to reach IBKR. "
     "Paper and Sim first."
 )
 STOCK_MODE_WHY_VENUE_UNKNOWN = "Nova cannot read the desk's venue, so it counts as Live: Nova places nothing."

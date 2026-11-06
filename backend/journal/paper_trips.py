@@ -56,7 +56,7 @@ def _entry_stops(ledger: Ledger) -> dict[int, float]:
     stops: dict[int, float] = {}
     for event in ledger.events:
         row = event.get("row") if event.get("type") == EVENT_PLACED else None
-        if not isinstance(row, dict) or row.get("order_type") != "STP":
+        if not isinstance(row, dict) or row.get("order_type") not in ("STP", "STP LMT"):
             continue
         parent, stop = row.get("parent_id"), row.get("stop_price")
         if parent and stop:

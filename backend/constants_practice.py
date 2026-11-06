@@ -254,6 +254,8 @@ PRACTICE_OCO_CANCELLED_REASON_DEFAULT = "One-cancels-other: the other exit fille
 EXIT_OCO_LIVE_CODE = "EXIT_OCO_LIVE"
 EXIT_OCO_LIVE_REASON = ("Live's exit pair -- a stop with targets beside it, or a bracket that sells in two "
                         "halves -- is not supported by the Live execution adapter: nothing was sent")
+# A protective stop outside regular hours is a stop-limit this far past its stop (ADR 007, 2026-11-05).
+PROTECTIVE_STOP_LIMIT_FRACTION = 0.02
 # ``replace`` with ``resize_qty`` (#1023): a working stop covers fewer or more shares, never past what is held.
 REPLACE_RESIZE_LIVE_CODE = "REPLACE_RESIZE_LIVE"
 REPLACE_RESIZE_LIVE_REASON = "Resizing a working stop is not supported on Live: nothing was sent"

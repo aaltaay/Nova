@@ -203,6 +203,7 @@ class PracticeBroker:
         good_for_sec: float | None = None,
         target2_price: float | None = None,
         target1_qty: float | None = None,
+        stop_limit: float | None = None,
     ) -> dict[str, Any]:
         """Place the bracket Live sends: a LMT entry, then exits that wait on it (``practice.bracket``).
 
@@ -267,7 +268,7 @@ class PracticeBroker:
                            origin=origin, short_entry=short)
         parent.update(bracket.leg_fields(parent_id, PRACTICE_LEG_PARENT))
         exits = bracket.exit_rows(parent, target_id, stop_id, target_price, stop_price, target2_id=target2_id,
-                                  target2=target2_price, target1_qty=target1_qty)
+                                  target2=target2_price, target1_qty=target1_qty, stop_limit=stop_limit)
         for leg in exits:
             leg.update(order_rules.exit_side_fields(parent))
         parent.update(order_rules.good_for_fields(parent, good_for_sec))  # the entry's alone: exits keep the TIF's
@@ -298,6 +299,7 @@ class PracticeBroker:
         source: str = "manual",
         bot_id: str | None = None,
         origin: str | None = None,
+        stop_limit: float | None = None,
     ) -> dict[str, Any]:
         """The exit-only pair (#681): for shares the ledger already holds, a STP for every share and a LMT per
         half on the same side, one group (``bracket.exit_pair_rows``) -- the stop's fill cancels the targets, a
@@ -339,8 +341,8 @@ class PracticeBroker:
         stop_id = self.ledger.alloc_id()
         target_id = self.ledger.alloc_id()
         target2_id = self.ledger.alloc_id() if target2_price is not None else None
-        stop_row = self._row(stop_id, sym, side_u, qty_f, "STP", None, stop_price, now, source, bot_id, tif_u,
-                             origin=origin)
+        stop_row = self._row(stop_id, sym, side_u, qty_f, "STP LMT" if stop_limit is not None else "STP", stop_limit,
+                             stop_price, now, source, bot_id, tif_u, origin=origin)
         legs = bracket.exit_pair_rows(stop_row, target_id, target_price, target2_id=target2_id,
                                       target2=target2_price, target1_qty=target1_qty)
         for leg in legs:
@@ -405,6 +407,11 @@ class PracticeBroker:
             refused = self._resize_refusal(int(order_id), float(resize_qty))
         if refused is not None:  # a bot's entry repriced past the bots' budget (ADR 069), or a stop past flat (#1023)
             return self._refused(*refused)
+        working = self.ledger.working_row(int(order_id))
+        if working is not None and working["order_type"] == "STP LMT" and stop_price is not None and limit_price is None:
+            from execution.stop_shape import limit_for
+
+            limit_price = limit_for(working["side"], stop_price)      # the limit moves with its stop
         row = self.ledger.replace(int(order_id), ts=now, limit_price=limit_price, stop_price=stop_price,
                                   qty=resize_qty)
         if row is None:
@@ -447,6 +454,9 @@ class PracticeBroker:
                     limit=row.get("limit_price"), stop=row.get("stop_price"),
                 )
                 if fill is None:
+                    if (row["order_type"] == "STP LMT"
+                            and fill_model.stop_limit_triggered(row["side"], float(price), float(row["stop_price"]))):
+                        self.ledger.replace(int(row["order_id"]), ts=float(ts), order_type="LMT")   # gapped past it
                     continue
                 if basis:
                     fill = fill_model.Fill(fill.price, basis)
@@ -586,17 +596,18 @@ class PracticeBroker:
     def _resize_refusal(self, order_id: int, qty: float) -> tuple[str, str] | None:
         """A resize is a live stop's, and that side's working stops never close past the shares held (#1023)."""
         from constants_practice import PRACTICE_RESIZE_REFUSED_CODE
+        from execution.stop_shape import STOP_TYPES
 
         row = self.ledger.working_row(order_id)
         if row is None:
             return None
-        if str(row.get("order_type")).upper() != "STP" or bracket.is_waiting(row) or qty <= _EPS:
+        if str(row.get("order_type")).upper() not in STOP_TYPES or bracket.is_waiting(row) or qty <= _EPS:
             return f"order {order_id} is not a live stop that can be resized", PRACTICE_RESIZE_REFUSED_CODE
         held = self.ledger.held_qty(row["symbol"])
         closable = held if row["side"] == "SELL" else -held
         others = sum(bracket.open_qty(r) for r in self.ledger.working_orders()
                      if r["symbol"] == row["symbol"] and r["side"] == row["side"] and int(r["order_id"]) != order_id
-                     and str(r.get("order_type")).upper() == "STP" and not bracket.is_waiting(r))
+                     and str(r.get("order_type")).upper() in STOP_TYPES and not bracket.is_waiting(r))
         if others + qty > closable + _EPS:
             return (f"a stop for {qty:g} {row['symbol']} would close past the {max(closable, 0.0):g} held",
                     PRACTICE_RESIZE_REFUSED_CODE)

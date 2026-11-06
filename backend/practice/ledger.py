@@ -183,6 +183,8 @@ class Ledger:
             row["stop_price"] = float(event["stop_price"])
         if event.get("qty") is not None:        # a resized stop (#1023); absent on every other replace
             row.update(qty=float(event["qty"]), remaining_qty=float(event["qty"]))
+        if event.get("order_type"):             # a stop-limit gapped through its limit: a limit order from here on
+            row["order_type"] = str(event["order_type"])
         row["placed_ts"] = float(event["ts"])
         row["updated_at"] = self._stamp(event)
 
@@ -303,7 +305,7 @@ class Ledger:
 
     def replace(
         self, order_id: int, *, ts: float, limit_price: float | None = None, stop_price: float | None = None,
-        qty: float | None = None,
+        qty: float | None = None, order_type: str | None = None,
     ) -> dict[str, Any] | None:
         oid = int(order_id)
         if oid not in self._working:
@@ -314,6 +316,7 @@ class Ledger:
             "limit_price": float(limit_price) if limit_price is not None else None,
             "stop_price": float(stop_price) if stop_price is not None else None,
             **({"qty": float(qty)} if qty is not None else {}),
+            **({"order_type": order_type} if order_type else {}),
         })
         return dict(self._working[oid])
 

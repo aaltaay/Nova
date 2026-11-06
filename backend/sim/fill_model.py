@@ -20,7 +20,7 @@ BASIS_LIVE_PRINT = "live_print"
 # Last (tick 4, reportable trades only) as on a print (ADR 045 amendment 2026-10-14).
 BASIS_L1_LAST = "l1_last"
 
-SUPPORTED_ORDER_TYPES = ("MKT", "LMT", "STP")
+SUPPORTED_ORDER_TYPES = ("MKT", "LMT", "STP", "STP LMT")
 
 
 @dataclass(frozen=True)
@@ -70,7 +70,15 @@ def at_placement(
     if typ == "STP" and stop is not None and ref.last is not None:
         if (buy and ref.last >= stop) or (not buy and ref.last <= stop):
             return Fill(touch, BASIS_STOP_TRIGGER)
+    if typ == "STP LMT" and stop is not None and limit is not None and ref.last is not None:
+        if stop_limit_triggered(side, ref.last, stop) and ((buy and touch <= limit) or (not buy and touch >= limit)):
+            return Fill(touch, BASIS_STOP_TRIGGER)
     return None
+
+
+def stop_limit_triggered(side: str, price: float, stop: float) -> bool:
+    """A print at or through a stop-limit's stop: it is a limit order from here on."""
+    return price >= stop if side.upper() == "BUY" else price <= stop
 
 
 def on_print(
@@ -89,5 +97,8 @@ def on_print(
             return Fill(limit, BASIS_PRINT_CROSS)
     if typ == "STP" and stop is not None:
         if (buy and price >= stop) or (not buy and price <= stop):
+            return Fill(price, BASIS_STOP_TRIGGER)
+    if typ == "STP LMT" and stop is not None and limit is not None and stop_limit_triggered(side, price, stop):
+        if (buy and price <= limit) or (not buy and price >= limit):
             return Fill(price, BASIS_STOP_TRIGGER)
     return None

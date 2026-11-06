@@ -49,7 +49,7 @@ class FakeBroker:
         self.calls.append(("cancel", (order_id, source)))
         return {"ok": True, "error": None, "verified_gone": True, "mode": self.venue}
 
-    def replace(self, order_id: int, limit_price=None, stop_price=None) -> dict[str, Any]:
+    def replace(self, order_id: int, limit_price=None, stop_price=None, resize_qty=None) -> dict[str, Any]:
         self.calls.append(("replace", (order_id, limit_price, stop_price)))
         return {
             "ok": True, "order_id": order_id, "error": None, "mode": self.venue,
