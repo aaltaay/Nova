@@ -13,6 +13,7 @@
  * and Sim fill the same shape on the practice broker (#606), so the legs
  * attach whatever venue the desk is on.
  */
+import { plainPrice, roundToTick } from '../utils/priceTick';
 import {
   TICKET_LEGS_EXIT_NOTE,
   TICKET_LEGS_LIMIT_ONLY_ERROR,
@@ -40,17 +41,6 @@ export interface ProtectiveLegsInput {
   limitPrice: number | null;
   /** Broker position in this symbol; negative is short. */
   positionQty: number | null;
-}
-
-/** IBKR minimum tick: a cent at or above $1, a hundredth of a cent below it. */
-export function roundToTick(price: number): number {
-  const decimals = price >= 1 ? 2 : 4;
-  const factor = 10 ** decimals;
-  return Math.round(price * factor) / factor;
-}
-
-export function formatLegPrice(price: number): string {
-  return price >= 1 ? price.toFixed(2) : price.toFixed(4);
 }
 
 /** True when this ticket opens exposure rather than reducing it. */
@@ -100,7 +90,7 @@ export function planProtectiveLegs(input: ProtectiveLegsInput): ProtectiveLegsPl
     takeProfitPrice,
     stopLossPrice,
     note:
-      `Bracket: take profit $${formatLegPrice(takeProfitPrice)} · ` +
-      `stop loss $${formatLegPrice(stopLossPrice)}`,
+      `Bracket: take profit $${plainPrice(takeProfitPrice)} · ` +
+      `stop loss $${plainPrice(stopLossPrice)}`,
   };
 }

@@ -56,6 +56,8 @@ forward, and backfill skipped gaps from the window start afterwards. The
 snapshot adds `covered: boolean` (the playhead's second is downloaded); an
 uncovered playhead returns no tape prints, and candles are never built or
 flat-filled across a gap.
+Candles built from prints sit on the listed tick (`sim.chart_replay.penny_bar`): cents at $1 and over, four
+decimals under it.
 A complete candles (`bars`) job covers its window (`coverage` is the window,
 `progress_pct` 100). The selection's `download_status` is its job's status now,
 in the listing and in the snapshot -- a worker that died leaves `running` in

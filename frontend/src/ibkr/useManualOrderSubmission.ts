@@ -1,3 +1,4 @@
+import { plainPrice } from '../utils/priceTick';
 import { useRef, useState, type FormEvent } from 'react';
 import {
   beginBrowserExecutionTiming,
@@ -12,7 +13,7 @@ import {
   type ManualOrderType,
   type QuantityMode,
 } from './orderEntry';
-import { formatLegPrice, planProtectiveLegs } from './protectiveLegs';
+import { planProtectiveLegs } from './protectiveLegs';
 import { SHORT_LEGS_NOTE } from '../constantGroups/short_ticket';
 import { useTradeDefaultsPrefs } from '../settings';
 import type { DeskVenue } from '../constantGroups/desk_venue';
@@ -60,8 +61,8 @@ interface Params {
 
 /** A short's confirm names its buy stop, and its cover target when Settings' legs add one. */
 function shortLegsText(payload: ManualOrderPayload): string {
-  const stop = payload.stop_loss_price != null ? ` Buy stop ${payload.stop_loss_price.toFixed(2)}` : '';
-  const target = payload.take_profit_price != null ? `, cover target ${payload.take_profit_price.toFixed(2)}` : '';
+  const stop = payload.stop_loss_price != null ? ` Buy stop ${plainPrice(payload.stop_loss_price)}` : '';
+  const target = payload.take_profit_price != null ? `, cover target ${plainPrice(payload.take_profit_price)}` : '';
   return stop ? `${stop}${target}.` : '';
 }
 
@@ -96,7 +97,7 @@ export function useManualOrderSubmission(params: Params) {
   const legsNote = legsPlan.kind === 'refuse'
     ? legsPlan.error
     : params.shortEntry && legsPlan.kind === 'attach'
-      ? SHORT_LEGS_NOTE(formatLegPrice(legsPlan.takeProfitPrice))
+      ? SHORT_LEGS_NOTE(plainPrice(legsPlan.takeProfitPrice))
       : legsPlan.note;
 
   function build(): BuildOrderResult {

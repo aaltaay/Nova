@@ -9,6 +9,7 @@
  * as on -- its limit starts at the ask: a short under SSR may execute only above the bid. A cover is a BUY,
  * never past flat; the door and the practice broker hold that line, and the ticket says it.
  */
+import { plainPrice } from '../utils/priceTick';
 import { ownerBotsHoldSentence } from '../constantGroups/owners';
 import {
   SHORT_LIMIT_NOTE_SSR,
@@ -115,7 +116,7 @@ export function sideNote(ticketSide: TicketSide, qty: number | null | undefined,
 
 function px(raw: string | number | null | undefined): string | null {
   const n = typeof raw === 'number' ? raw : Number(String(raw ?? '').trim());
-  return raw === '' || raw == null || !Number.isFinite(n) || n <= 0 ? null : n.toFixed(2);
+  return raw === '' || raw == null || !Number.isFinite(n) || n <= 0 ? null : plainPrice(n);
 }
 
 /**
@@ -161,7 +162,7 @@ export function buyStopRefusal(limit: string, buyStop: string): string | null {
 export function seedBuyStop(limit: string | number | null | undefined, offset: number): string {
   const lim = px(limit);
   if (lim === null || !(offset > 0)) return '';
-  return (Number(lim) + offset).toFixed(2);
+  return plainPrice(Number(lim) + offset);
 }
 
 /** Where a short's limit starts: the ask while SSR is on or not known (above the bid, as SSR requires), else the bid. */

@@ -7,6 +7,7 @@
  * gap in the recording, or with nothing loaded for this tab, the head says so
  * instead of showing a price. The company's country rides beside the symbol as its flag (`CountryFlag`).
  */
+import { plainPrice } from '../utils/priceTick';
 import type { TickerDetail } from '../types/ticker';
 import { fmtPct } from '../utils/quoteFormat';
 import { useWorkspace } from '../workspace';
@@ -37,7 +38,7 @@ export function StockViewQuotePrice({ detail }: Props) {
       <WatchMark symbol={detail.symbol} className="sv-quote-card__star" />
       <StockViewQuoteRank symbol={detail.symbol} />
       {price != null ? (
-        <LiveText className="sv-quote-card__last" text={`$${price.toFixed(2)}`} />
+        <LiveText className="sv-quote-card__last" text={`$${plainPrice(price)}`} />
       ) : (
         <span
           className="sv-quote-card__last sv-quote-card__last--missing"

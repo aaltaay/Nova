@@ -5,6 +5,7 @@
  * end -- taken, pulled, out of view. The stop and target calls stay `momentModel`'s; these come after them.
  * A big seller is shown, never acted on: no order, no stop move, no gate.
  */
+import { plainPrice } from '../utils/priceTick';
 import { bigLine, pickWall } from './bigSeller';
 import { NOVA_CALL_SEC, STOCK_READ_FLUSH_AFTER_SEC } from './constants';
 import { rowOf } from './heldRead';
@@ -56,9 +57,9 @@ function raiseCall(i: MomentInputs): HeldCall | null {
     badge: `BROKE $${up.round.toFixed(2)}${nextWords}`, at: up.at,
     call: {
       id: `broke:${h.since ?? 0}:${up.round}`, tone: 'go', title: `BROKE $${up.round.toFixed(2)}${nextWords}`,
-      detail: `${up.text}? A candle closed over $${up.round.toFixed(2)}; only a close moves a stop. Raise stop on the `
+      detail: `${up.text}? A candle closed over $${plainPrice(up.round)}; only a close moves a stop. Raise stop on the `
         + 'plan box sets it.',
-      pin: { label: `BROKE $${up.round.toFixed(2)}`, price: up.round, at: up.at }, ping: true,
+      pin: { label: `BROKE $${plainPrice(up.round)}`, price: up.round, at: up.at }, ping: true,
     },
   };
 }

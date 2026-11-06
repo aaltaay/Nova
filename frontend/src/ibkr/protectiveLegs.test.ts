@@ -12,7 +12,8 @@ import {
   TICKET_LEGS_OFFSET_ERROR,
 } from '../constantGroups/trade_defaults';
 import { defaultTradeDefaultsPrefs } from '../settings/tradeDefaultsPrefs';
-import { planProtectiveLegs, roundToTick } from './protectiveLegs';
+import { roundToTick } from '../utils/priceTick'
+import { planProtectiveLegs } from './protectiveLegs';
 import type { ProtectiveLegsInput } from './protectiveLegs';
 
 function input(over: Partial<ProtectiveLegsInput> = {}): ProtectiveLegsInput {

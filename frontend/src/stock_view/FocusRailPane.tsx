@@ -10,6 +10,7 @@
  * only the ones in view (useStripRowWindow): the day's alerts never set the
  * page's DOM size.
  */
+import { plainPrice } from '../utils/priceTick';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, ChevronDown } from 'lucide-react';
 import { openBotSymbolMenu } from '../bot';
@@ -287,7 +288,7 @@ export function FocusRailPane({ tid, half, view, onPick, onSort: setSort, shared
                   <>
                     <span className="focus-rail__px"
                       data-testid={`${tid}-px-${row.symbol}`}>
-                      {row.price != null ? row.price.toFixed(2) : '—'}
+                      {row.price != null ? plainPrice(row.price) : '—'}
                     </span>
                     <span className={`focus-rail__gap focus-rail__gap--${pctTone(row.changePct)}`} title={TRADER_TAB_CHANGE_TITLE}>
                       {formatSignedPct(row.changePct)}

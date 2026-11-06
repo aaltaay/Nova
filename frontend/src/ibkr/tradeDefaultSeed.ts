@@ -1,6 +1,7 @@
 /**
  * Pure helpers: seed limit/stop from Trade Settings prefs + quote.
  */
+import { plainPrice } from '../utils/priceTick';
 import type { TradeDefaultLimitSource } from '../constantGroups/trade_defaults';
 import type { ManualOrderSide } from './orderEntry';
 
@@ -66,7 +67,8 @@ export function seedTrailAmount(
   return amount > 0 ? amount : null;
 }
 
-export function formatSeedPrice(n: number | null): string {
+/** `at` is the stock price when `n` is not one itself: a trail amount moves in the stock's tick. */
+export function formatSeedPrice(n: number | null, at: number | null = n): string {
   if (n == null) return '';
-  return n.toFixed(2);
+  return plainPrice(n, at ?? n);
 }

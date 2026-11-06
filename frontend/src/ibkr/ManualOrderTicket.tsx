@@ -302,6 +302,7 @@ export function ManualOrderTicket({
       <ManualOrderFields
         symbol={symbol}
         topOfBook={topOfBook}
+        referencePrice={referencePrice}
         priceFollowing={priceFollow.following}
         onPriceFollow={followBook}
         cost={cost}

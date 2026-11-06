@@ -7,12 +7,12 @@
  * flattened round trip keeps its arrows) -- never invent a fill candle from
  * avg cost alone.
  */
+import { fmtPrice } from '../utils/quoteFormat';
 import { LineStyle, type SeriesMarker, type Time } from 'lightweight-charts';
 import type { IbkrOrder, IbkrPosition } from '../ibkr';
 import { formatSignedMoney } from '../components/globalBarMoney';
 import { isoToEtTime, isDailyTimeframe } from '../tickerChartData';
 import { deskTradingDay } from '../utils/deskTradingDay';
-import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';
 import {
   nearestSeriesTime,
@@ -83,7 +83,7 @@ export function findOpenPosition(
 export function positionLineTitle(position: ChartPositionSnapshot): string {
   const side = position.qty < 0 ? 'Short' : 'Long';
   const qty = formatShareQty(Math.abs(position.qty));
-  const avg = formatMoney(position.avgCost);
+  const avg = fmtPrice(position.avgCost);
   if (position.unrealizedPnl == null || !Number.isFinite(position.unrealizedPnl)) {
     return `${side} ${qty} @ ${avg}`;
   }
@@ -206,7 +206,7 @@ export function seriesMarkersForFills(
       position: buy ? 'belowBar' : 'aboveBar',
       shape: buy ? 'arrowUp' : 'arrowDown',
       color: buy ? CHART_POSITION_LONG_COLOR : CHART_POSITION_SHORT_COLOR,
-      text: formatMoney(fill.price),
+      text: fmtPrice(fill.price),
       size: CHART_POSITION_MARKER_SIZE,
       id: `fill-${fill.orderId}`,
     });
