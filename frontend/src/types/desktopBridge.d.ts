@@ -34,6 +34,8 @@ interface Window {
     streamWindowState?: () => Promise<{ open: boolean; on: boolean }>;
     /** Called when the pop-out opens or closes; returns the unsubscribe. */
     onStreamWindow?: (cb: (open: boolean) => void) => () => void;
+    /** Called when another page moves the pop-out's switch; returns the unsubscribe. */
+    onStreamSwitch?: (cb: (on: boolean) => void) => () => void;
     /** Electron IPC: stop + start the local FastAPI sidecar, then wait for health. */
     /** `from` / `to`: the backend's revision before and after (null when it does not say). */
     restartApi?: () => Promise<{ ok: boolean; error?: string; from?: string | null; to?: string | null }>;

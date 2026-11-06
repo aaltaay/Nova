@@ -48,6 +48,12 @@ contextBridge.exposeInMainWorld('novaDesktop', {
     ipcRenderer.on('nova:stream:window', listener);
     return () => ipcRenderer.removeListener('nova:stream:window', listener);
   },
+  /** Called when another page moves the pop-out's switch; returns the unsubscribe. */
+  onStreamSwitch: (cb) => {
+    const listener = (_event, on) => cb(on === true);
+    ipcRenderer.on('nova:stream:switch', listener);
+    return () => ipcRenderer.removeListener('nova:stream:switch', listener);
+  },
   /** Kill + restart the local FastAPI sidecar when the UI shows Backend unreachable. */
   restartApi: () => ipcRenderer.invoke('nova:restartApi'),
   /**

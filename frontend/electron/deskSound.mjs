@@ -12,6 +12,7 @@ export const DESK_SOUND_CHANNEL = 'nova:sound:muted';
 export const DESK_STREAM_SOUND_CHANNEL = 'nova:sound:stream';
 export const DESK_STREAM_STATE_CHANNEL = 'nova:stream:state';
 export const DESK_STREAM_WINDOW_CHANNEL = 'nova:stream:window';
+export const DESK_STREAM_SWITCH_CHANNEL = 'nova:stream:switch';
 
 let muted = false;
 /** The pop-out plays with sound until the page says otherwise. */
@@ -48,6 +49,14 @@ function applyStreamLevel(win) {
     .catch((err) => console.warn('[nova] could not set the stream\'s volume', err));
 }
 
+/** The pop-out has one switch: the other pages' rows follow it, so none sends an old one back. */
+function tellOtherPages(BrowserWindow, sender, popOut) {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (win === popOut || win.isDestroyed?.() || win.webContents === sender) continue;
+    win.webContents.send(DESK_STREAM_SWITCH_CHANNEL, streamOn);
+  }
+}
+
 /** Every window now, and each one opened later. `streamWindow` answers the pop-out, or null. */
 export function wireDeskSound({ ipcMain, app, BrowserWindow, streamWindow }) {
   ipcMain.on(DESK_SOUND_CHANNEL, (_event, next) => {
@@ -56,12 +65,13 @@ export function wireDeskSound({ ipcMain, app, BrowserWindow, streamWindow }) {
     muted = value;
     for (const win of BrowserWindow.getAllWindows()) applyTo(win, streamWindow);
   });
-  ipcMain.on(DESK_STREAM_SOUND_CHANNEL, (_event, next) => {
+  ipcMain.on(DESK_STREAM_SOUND_CHANNEL, (event, next) => {
     streamOn = next?.on === true;
     streamLevel = Number.isFinite(next?.level) ? next.level : streamLevel;
     const win = streamWindow?.();
     applyTo(win, streamWindow);
     applyStreamLevel(win);
+    if (win) tellOtherPages(BrowserWindow, event.sender, win);
   });
   ipcMain.handle(DESK_STREAM_STATE_CHANNEL, () => ({ open: Boolean(streamWindow?.()), on: streamOn }));
   app.on('browser-window-created', (_event, win) => applyTo(win, streamWindow));
