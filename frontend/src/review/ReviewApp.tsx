@@ -9,6 +9,7 @@ import { feedFromPayload } from './reviewFeed';
 import { GalleryBoard } from './GalleryBoard';
 import { levelOverlay } from './RecordedLevelsOverlay';
 import { parseReviewQuery, TF_PANE, REVIEW_TFS, type ReviewTf } from './reviewQuery';
+import { ReviewSymbolButton } from './ReviewSymbolButton';
 
 function loadOne(symbol: string, date: string, asOf: string, fixture: boolean, api: string): Promise<ReviewPayload> {
   if (fixture) {
@@ -23,6 +24,7 @@ export function ReviewApp() {
   const [gtf, setGtf] = useState<ReviewTf>(query.gtf);
   const [payloads, setPayloads] = useState<ReviewPayload[] | null>(null);
   const [ready, setReady] = useState<'0' | '1' | 'error'>('0');
+  const [openNote, setOpenNote] = useState<string | null>(null);
   const source = query.fixture ? 'fixture' : 'front-door';
   const paintKey = query.gallery ? `${gtf}` : query.symbols.join(',');
   const expected = query.gallery ? query.symbols.length : 4;
@@ -87,12 +89,21 @@ export function ReviewApp() {
   return (
     <div className="review-app" data-review-ready={payloads ? ready : '0'} data-review-source={source}>
       <header className="review-header">
-        <strong>{title}</strong>
+        {query.gallery ? <strong>{title}</strong> : (
+          <ReviewSymbolButton
+            symbol={query.symbols[0]}
+            date={query.date}
+            asOf={query.asOf}
+            onNote={setOpenNote}
+            showNote={false}
+          />
+        )}
         <span>{query.date}</span>
         {frameLabel && <span>{frameLabel}</span>}
         <span>as of {query.asOf} ET</span>
         <span>{query.fixture ? 'Fixture' : 'Front door'}</span>
         <span className="review-header__note">Read only. No orders.</span>
+        {openNote ? <span className="review-open__note" role="status">{openNote}</span> : null}
       </header>
       {query.gallery
         ? payloads && (
@@ -107,7 +118,19 @@ export function ReviewApp() {
         : feed && desk && (
           <div className="review-desk">
             <ChartFeedProvider feed={feed} onPanePainted={onPanePainted}>
-              <ChartGrid symbol={desk.symbol} renderPaneOverlay={levelOverlay(desk.levels, desk.setups)} />
+              <ChartGrid
+                symbol={desk.symbol}
+                renderPaneOverlay={levelOverlay(desk.levels, desk.setups)}
+                toolbarExtra={(
+                  <ReviewSymbolButton
+                    symbol={desk.symbol}
+                    date={query.date}
+                    asOf={query.asOf}
+                    showNote={false}
+                    onNote={setOpenNote}
+                  />
+                )}
+              />
             </ChartFeedProvider>
           </div>
         )}

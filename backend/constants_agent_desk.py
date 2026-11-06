@@ -40,6 +40,10 @@ AGENT_WINDOW_LEAD_MIN = 30
 AGENT_FALLBACK_WINDOWS_MIN = (60, 30)
 # The anchors a show or a move may name besides an ET time (HH:MM).
 AGENT_AT_ANCHORS = ("run", "drop", "high", "low", "open", "premarket")
+# Open in Nova parks this long before the first setup when the caller omits as_of.
+OPEN_IN_NOVA_TRIGGER_LEAD_SEC = 120
+# Browser and MCP send this header. It is not the desk API key.
+OPEN_IN_NOVA_HEADER = "X-Nova-Open-Token"
 
 # ── The dictionary (operator data, in the cache) ────────────────────────────
 AGENT_DICTIONARY_FILENAME = "agent-dictionary.json"

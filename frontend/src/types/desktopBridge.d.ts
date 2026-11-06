@@ -8,6 +8,10 @@ interface Window {
     getVersion: () => Promise<string>;
     /** Electron IPC: open Stock View in a child BrowserWindow. */
     openStockView?: (url: string) => Promise<boolean>;
+    /** Electron IPC: focus the main desk window. */
+    focus?: () => Promise<boolean>;
+    /** Electron IPC: open /review in a separate window. Does not change the live desk. */
+    openSimWindow?: (url: string) => Promise<boolean>;
     /** Electron IPC: open (or focus) the one Top 9 pop-up window (top_nine/, `?view=top9`). */
     openTopNine?: (url: string) => Promise<boolean>;
     /** Electron IPC: keep the asking window above the others (the Top 9 pop-up's switch); answers the state. */

@@ -14,6 +14,10 @@ contextBridge.exposeInMainWorld('novaDesktop', {
   getVersion: () => ipcRenderer.invoke('app:version'),
   /** Open Stock View in a dedicated BrowserWindow (double-click / Stock View btn). */
   openStockView: (url) => ipcRenderer.invoke('nova:openStockView', url),
+  /** Focus the main desk. Used when an open-in-nova command arrives. */
+  focus: () => ipcRenderer.invoke('nova:focus'),
+  /** A separate Sim review window. The path must be /review?symbol&date. */
+  openSimWindow: (url) => ipcRenderer.invoke('nova:openSimWindow', url),
   /** The one Top 9 pop-up window (electron/topNineWindow.mjs): opened, or focused when it is already up. */
   openTopNine: (url) => ipcRenderer.invoke('nova:openTopNine', url),
   /** Keep the asking window above the others; answers the state now in force. */

@@ -101,6 +101,47 @@ jobs:
         if: ${{ !cancelled() && needs.changes.outputs.backend == 'true' && steps.install.outcome == 'success' }}
         run: pytest tools/test_nova_data_mcp.py tools/test_nova_mcp.py tools/test_nova_review_build.py tools/test_market_reads_bars.py -x -q --tb=short
 
+  open-token-windows:
+    name: Open token Windows
+    needs: [changes]
+    if: always()
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Verify scope decision
+        shell: bash
+        env:
+          SCOPE_RESULT: ${{ needs.changes.result }}
+          SELECTED: ${{ needs.changes.outputs.backend }}
+        run: |
+          test "$SCOPE_RESULT" = success
+          case "$SELECTED" in
+            true) echo 'Selected: running verification.' >> "$GITHUB_STEP_SUMMARY" ;;
+            false) echo 'Unaffected: heavy verification not needed.' >> "$GITHUB_STEP_SUMMARY" ;;
+            *) echo 'Invalid CI scope output'; exit 1 ;;
+          esac
+
+      - uses: actions/checkout@v4
+        if: needs.changes.outputs.backend == 'true'
+
+      - uses: actions/setup-python@v5
+        if: needs.changes.outputs.backend == 'true'
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        id: install
+        if: needs.changes.outputs.backend == 'true'
+        shell: bash
+        run: pip install -r backend/requirements.txt pytest pytest-asyncio
+
+      - name: Open in Nova token tests
+        if: ${{ !cancelled() && needs.changes.outputs.backend == 'true' && steps.install.outcome == 'success' }}
+        shell: bash
+        run: pytest backend/tests/test_open_in_nova.py -q --tb=short
+
   frontend-build:
     name: Frontend build
     needs: [changes]

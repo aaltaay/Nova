@@ -78,6 +78,49 @@ describe('runAgentCommand', () => {
     expect(d.land).not.toHaveBeenCalled();
   });
 
+  it('opens a separate Sim window during the plan and never moves the venue', async () => {
+    const separate = vi.fn();
+    const view = vi.fn();
+    const d = deps({ openSeparateSim: separate, viewToSim: view });
+    const command = parseAgentCommand({
+      id: 'o1', kind: 'show', status: 'running',
+      plan: {
+        symbol: 'IMCC', date: '2026-09-18', at: '10:00', park_et: '10:00:00', park_ts: 1, window: W,
+        fallback_windows: [], switch_venue: false, separate_sim: true, switch_view: false,
+        review_path: '/review?symbol=IMCC&date=2026-09-18&as_of=10:00',
+      },
+    });
+    await runAgentCommand(command as AgentCommand, d);
+    expect(d.moveVenue).not.toHaveBeenCalled();
+    expect(d.land).not.toHaveBeenCalled();
+    expect(d.openTab).not.toHaveBeenCalled();
+    expect(view).not.toHaveBeenCalled();
+    expect(separate).toHaveBeenCalledOnce();
+    expect(d.reports.at(-1)?.status).toBe('done');
+    expect(d.notices.at(-1)?.text).toContain('separate Sim window');
+    expect(d.notices.at(-1)?.text).toContain('live desk stayed');
+  });
+
+  it('outside regular hours switches the view locally and lands, without the venue cancel path', async () => {
+    const separate = vi.fn();
+    const view = vi.fn();
+    const d = deps({ openSeparateSim: separate, viewToSim: view });
+    const command = parseAgentCommand({
+      id: 'o2', kind: 'show', status: 'running',
+      plan: {
+        symbol: 'IMCC', date: '2026-09-18', at: '10:00', park_et: '10:00:00', park_words: 'at 10:00', park_ts: 1,
+        window: W, fallback_windows: [], switch_venue: false, separate_sim: false, switch_view: true,
+        review_path: '/review?symbol=IMCC&date=2026-09-18&as_of=10:00',
+      },
+    });
+    await runAgentCommand(command as AgentCommand, d);
+    expect(d.moveVenue).not.toHaveBeenCalled();
+    expect(separate).not.toHaveBeenCalled();
+    expect(view).toHaveBeenCalledOnce();
+    expect(d.land).toHaveBeenCalledOnce();
+    expect(d.reports.at(-1)).toMatchObject({ status: 'done', step: 'parked' });
+  });
+
   it('says where it parked in words', () => {
     expect(atWords('run')).toBe('5 min before the run');
     expect(atWords('high')).toBe('at the high');

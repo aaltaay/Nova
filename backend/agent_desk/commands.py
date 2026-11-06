@@ -120,11 +120,12 @@ class CommandBoard:
     def create(self, kind: str, args: dict[str, Any], plan: dict[str, Any] | None) -> dict[str, Any]:
         self._expire()
         now = self._now()
-        if kind == "show":
+        if kind in ("show", "open_in_nova"):
             for cid in self._order:
                 other = self._commands[cid]
-                if other["kind"] == "show" and other["status"] in ACTIVE:
-                    self._finish(other, "cancelled", error="replaced by a newer show")
+                if other["kind"] == kind and other["status"] in ACTIVE:
+                    noun = "show" if kind == "show" else "open"
+                    self._finish(other, "cancelled", error=f"replaced by a newer {noun}")
         command = {
             "id": uuid.uuid4().hex[:12], "kind": kind, "status": "queued", "created_ts": now, "updated_ts": now,
             "args": dict(args), "plan": plan, "step": None, "steps": [], "result": None, "error": None,
