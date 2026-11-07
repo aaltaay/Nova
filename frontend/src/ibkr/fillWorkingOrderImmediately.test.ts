@@ -52,6 +52,8 @@ const FTFT: IbkrOrder = {
 
 describe('fillWorkingOrderImmediately', () => {
   beforeEach(() => {
+    // A gate one test noted never reaches the next (a failed assertion skips the reset at its end).
+    resetViewRegistryForTests();
     vi.restoreAllMocks();
     vi.mocked(novaFetch).mockClear();
     vi.mocked(novaFetch).mockResolvedValue({
@@ -169,13 +171,16 @@ describe('fillWorkingOrderImmediately', () => {
       ok: true, status: 200, json: async () => ({ ok: true }),
     } as never);
     noteBackendGate('AAPL', { code: 'TAPE_STALE', text: "AAPL's Time & Sales is behind." });
-    const held = await fillWorkingOrderImmediately(ORDER);
+    // The session is pinned: read from the clock, an evening run plans an overnight sweep, which refuses the
+    // buy for its missing ask before the lag is ever asked (PR #1302 CI, 21:05 ET).
+    const rth = { sessionKind: 'rth' as const };
+    const held = await fillWorkingOrderImmediately(ORDER, undefined, rth);
     expect(held).toEqual({ ok: false, error: "AAPL's Time & Sales is behind." });
     expect(novaFetch).not.toHaveBeenCalled();
 
-    const sold = await fillWorkingOrderImmediately({ ...ORDER, side: 'SELL' });
+    const sold = await fillWorkingOrderImmediately({ ...ORDER, side: 'SELL' }, undefined, rth);
     expect(sold.ok).toBe(true);
-    const cover = await fillWorkingOrderImmediately({ ...ORDER, effect: 'closes' });
+    const cover = await fillWorkingOrderImmediately({ ...ORDER, effect: 'closes' }, undefined, rth);
     expect(cover.ok).toBe(true);
     resetViewRegistryForTests();
     cancel.mockRestore();

@@ -30,6 +30,8 @@ import { placeMarkers, splitMarkers, type DepthMarker, type PlacedMarker } from 
 import { luldMarkers } from './luld';
 import { withBands } from './LuldRows';
 import { LuldStrip } from './LuldStrip';
+import { Level2Frame } from './Level2Frame';
+import { Level2SpreadRow } from './Level2SpreadRow';
 import {
   depthEmptyMessage,
   depthLiveBadge,
@@ -326,8 +328,6 @@ export function DepthLadder({ symbol, uiActive = true, markers, traderTab = fals
   const { askStacked, bidHeavy, wideSpread } = computeL2Heuristics(book);
   const bestBid = book.bids[0]?.price;
   const bestAsk = book.asks[0]?.price;
-  const spread =
-    bestBid != null && bestAsk != null ? Math.abs(bestAsk - bestBid) : null;
   const liveBadge = depthLiveBadge(connected, error, l1Fallback);
   const liveBadgeText = depthLiveBadgeText(liveBadge);
   const overnightOnly = isOvernightOnlyBook(book);
@@ -340,7 +340,7 @@ export function DepthLadder({ symbol, uiActive = true, markers, traderTab = fals
     : plan;
 
   return (
-    <div className="das-l2">
+    <Level2Frame>
       {liveBadgeText && (
         <div className="ibkr-depth-fallback-badge" title={liveBadgeText}>
           {liveBadgeText}
@@ -365,23 +365,13 @@ export function DepthLadder({ symbol, uiActive = true, markers, traderTab = fals
           <span className="ibkr-heuristic-badge ibkr-heuristic-idle">{L2_HEURISTIC_IDLE_LABEL}</span>
         )}
       </div>
+      <Level2SpreadRow bid={bestBid} ask={bestAsk} />
       <PullsStrip watch={ladderWatch} />
       <LuldStrip view={luld} />
       <div className="das-l2-montage">
         <MontageSide side="bid" levels={book.bids} peak={peak} markers={sides.bid} watch={ladderWatch} nowMs={nowMs} />
         <MontageSide side="ask" levels={book.asks} peak={peak} markers={sides.ask} watch={ladderWatch} nowMs={nowMs} />
       </div>
-      {spread != null && (
-        <div className="das-l2-spread">
-          spread {fmtPrice(spread)}
-          {bestBid != null && bestAsk != null && (
-            <span className="das-l2-bbo">
-              {' '}
-              · {fmtPrice(bestBid)} × {fmtPrice(bestAsk)}
-            </span>
-          )}
-        </div>
-      )}
-    </div>
+    </Level2Frame>
   );
 }

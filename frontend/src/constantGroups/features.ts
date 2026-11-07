@@ -49,6 +49,21 @@ export const TAPE_MIN_SIZE_FILTER_HINT = 'Empty or 0 shows all prints';
 export const TAPE_MIN_SIZE_FILTER_MENU_WIDTH_PX = 220;
 export const TAPE_MIN_SIZE_FILTER_MENU_HEIGHT_PX = 104;
 export const TAPE_MIN_SIZE_FILTER_MENU_PAD_PX = 8;
+// ── Level 2 pane: the spread on top and its size (operator ask, 2026-11-06) ──
+/** localStorage: the Level 2 pane's size, one choice for every ladder and window (a prefStore envelope). */
+export const L2_SIZE_STORAGE_KEY = 'nova.level2.size';
+export const L2_SIZES = ['small', 'medium', 'large'] as const;
+/** Mockup v1 B (2026-11-06): the rows fill the pane, 24 px digits on the operator's desk. */
+export const L2_SIZE_DEFAULT = 'large';
+export const L2_SIZE_MENU_TITLE = 'Level 2 size';
+export const L2_SIZE_LABELS = { small: 'Small', medium: 'Medium', large: 'Large' } as const;
+export const L2_SIZE_MENU_WIDTH_PX = 160;
+export const L2_SIZE_MENU_HEIGHT_PX = 132;
+/** The spread row over the book: best bid, the spread (and its share of the ask), best ask. */
+export const L2_SPREAD_LABELS = { bid: 'Bid', spread: 'Spread', ask: 'Ask' } as const;
+/** The band over the tape, level with the spread row: the newest print. */
+export const TAPE_LAST_LABEL = 'Last';
+export const TAPE_LAST_EMPTY = '\u2014';
 /** Aggressor labels (legacy / tests). Tape UI encodes side via row tint only. */
 export const TAPE_SIDE_LABELS = {
   ask: 'ASK',

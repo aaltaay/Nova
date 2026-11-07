@@ -18,7 +18,7 @@
  * (The rail hides .ibkr-depth-fallback-badge, so the notes use their own class.)
  */
 import {
-  MontageSide, PullsStrip, applyBookWatchFrame, bookPeak, useBookWatchClock, type BookWatchState,
+  Level2Frame, Level2SpreadRow, MontageSide, PullsStrip, applyBookWatchFrame, bookPeak, useBookWatchClock, type BookWatchState,
 } from '../ibkr';
 import { ExchangeBookBanner, ExchangeBookGap, ExchangeBookNote, exchangeBookAbsence, venueLabels, venueNames }
   from './ExchangeBookNotes';
@@ -86,7 +86,7 @@ export function HistoricalDepth({ depth = null, holdLineFor = null, snapshot = n
   const books = snapshot?.exchange_books ?? [];
   const absent = depth == null ? exchangeBookAbsence(books) : null;
   return (
-    <div className="das-l2" data-testid="historical-l2" data-depth-source={depth?.source ?? 'none'}>
+    <Level2Frame data-testid="historical-l2" data-depth-source={depth?.source ?? 'none'}>
       {depth && venue ? <ExchangeBookNote depth={depth} /> : depth ? (
         <div className="sim-replay-l2-note" data-testid={nbbo ? 'historical-l2-nbbo' : 'historical-l2-recorded'}
           title={nbbo ? SIM_REPLAY_L2_NBBO_TITLE : undefined}>
@@ -103,12 +103,13 @@ export function HistoricalDepth({ depth = null, holdLineFor = null, snapshot = n
       )}
       <ExchangeBookBanner books={books} showing={venue} />
       {depth && venue ? <ExchangeBookGap depth={depth} /> : null}
+      <Level2SpreadRow bid={bids[0]?.price} ask={asks[0]?.price} />
       <PullsStrip watch={resolvedWatch} />
       <div className="das-l2-montage">
         <MontageSide side="bid" levels={bids} peak={peak} watch={resolvedWatch} nowMs={nowMs} />
         <MontageSide side="ask" levels={asks} peak={peak} watch={resolvedWatch} nowMs={nowMs} />
       </div>
-    </div>
+    </Level2Frame>
   );
 }
 
