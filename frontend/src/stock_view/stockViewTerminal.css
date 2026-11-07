@@ -631,20 +631,30 @@
   font-size: clamp(0.72rem, 3.6cqh, calc(0.72rem * var(--l2-scale)));
 }
 
-/* Both bands shrink with the pane (the pane's live layer is a size container, #707) so a short pane keeps
-   its book and its tape; on the operator's 760 px pane each is the full row. */
+/* Both bands take one height from the pane (the pane's live layer is a size container, #707): the same on
+   the book's pane and the tape's, so the rows under them start together, and a short pane keeps its book
+   and its tape; on the operator's 760 px pane each is the full row. */
 .stock-view-page .sv-rail .l2-band {
+  box-sizing: border-box;
+  height: clamp(1.25rem, 7.5cqh, 2.4rem);
   margin-top: 4px;
-  padding-top: clamp(2px, 1cqh, calc(5px * var(--l2-scale)));
-  padding-bottom: clamp(2px, 1cqh, calc(5px * var(--l2-scale)));
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .stock-view-page .sv-rail .l2-band__num {
   font-size: clamp(0.8rem, 5.5cqh, var(--l2-band-num));
 }
 
+/* The spread row's numbers also cap against its pane's width (cqi): a 480 px pane with four-digit prices
+   under $1 keeps "0.7824 · 0.003 0.38% · 0.7854" on its one line instead of clipping the ask. The tape's
+   band is narrower and short, so it keeps the height cap alone. */
+.stock-view-page .sv-rail .das-l2-spread .l2-band__num {
+  font-size: clamp(0.8rem, min(5.5cqh, 4.6cqi), var(--l2-band-num));
+}
+
 .stock-view-page .sv-rail .das-l2-spread__mid .l2-band__num {
-  font-size: clamp(0.7rem, 4.3cqh, calc(var(--l2-band-num) * 0.78));
+  font-size: clamp(0.7rem, min(4.3cqh, 3.6cqi), calc(var(--l2-band-num) * 0.78));
 }
 
 .stock-view-page .sv-rail .l2-band__label,

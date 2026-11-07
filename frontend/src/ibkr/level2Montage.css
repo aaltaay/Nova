@@ -151,12 +151,14 @@
 /* The band over the book and the band over the tape (operator asks, 2026-11-06; mockup tape-align v1,
    option 1): one line of the same height on both panes, so their column heads and rows start together.
    Over the book: the best bid, the spread with its share of the ask, the best ask, side by side in the
-   middle. Over the tape: the newest print's price in its side's colour and its size. */
+   middle. Over the tape: the newest print's price in its side's colour and its size. The box centres one
+   inner line whose words sit on one baseline; in the rail the box takes its height from the pane, so the
+   two bands match whatever their own numbers' size (the spread row's also caps against its pane's width). */
 .l2-band {
   flex-shrink: 0;
   display: flex;
   justify-content: center;
-  align-items: baseline;
+  align-items: center;
   min-width: 0;
   margin: 0 0 4px;
   padding: calc(5px * var(--l2-scale)) 10px;
@@ -166,6 +168,12 @@
   font-variant-numeric: tabular-nums;
   overflow: hidden;
   white-space: nowrap;
+}
+
+.l2-band__inner {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
 }
 
 .l2-band__label {
@@ -219,9 +227,12 @@
 /* The tape's band: the print's colours are the tape rows' own (timeSales.css). */
 .ts-last {
   justify-content: flex-start;
-  gap: 0.5em;
   padding-left: 12px;
   padding-right: 12px;
+}
+
+.ts-last .l2-band__inner {
+  gap: 0.5em;
 }
 
 .ts-last__price--ask { color: #86efac; }

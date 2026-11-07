@@ -18,11 +18,13 @@ export function TapeLastBand({ print }: Props) {
   const side = print?.side === 'ask' || print?.side === 'bid' ? print.side : 'mid';
   return (
     <div className="l2-band ts-last" data-l2-size={size} data-testid="ts-last">
-      <span className="l2-band__label">{TAPE_LAST_LABEL}</span>
-      <span className={`l2-band__num ts-last__price ts-last__price--${side}`} data-testid="ts-last-price">
-        {print ? formatTapePrice(print.price) : TAPE_LAST_EMPTY}
-      </span>
-      {print && <span className="ts-last__size" data-testid="ts-last-size">{formatTapeSize(print.size)}</span>}
+      <div className="l2-band__inner">
+        <span className="l2-band__label">{TAPE_LAST_LABEL}</span>
+        <span className={`l2-band__num ts-last__price ts-last__price--${side}`} data-testid="ts-last-price">
+          {print ? formatTapePrice(print.price) : TAPE_LAST_EMPTY}
+        </span>
+        {print && <span className="ts-last__size" data-testid="ts-last-size">{formatTapeSize(print.size)}</span>}
+      </div>
     </div>
   );
 }

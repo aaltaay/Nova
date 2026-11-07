@@ -1049,6 +1049,11 @@ Display only: nothing here touches the depth line, the book watcher or an order.
   colour (green at the ask, red at the bid, plain between) and its size (`formatTapePrice`,
   `formatTapeSize`); with no print it shows a dash and keeps its height. The print is the newest the tape
   holds, before the "Size ≥" display filter. It carries `data-l2-size` too, so it follows the pane's size.
+- **Short and narrow panes.** The rail's digits, column heads and bands cap their type against the pane's
+  height (container units) and never go under the size the pane had before. Under 260 px of pane height both
+  bands hide, so the ladder's ten rows keep their 18 px floor and a level past the rows still shows on the
+  last one. Under 300 px of pane width the spread row keeps its three numbers only (no words, no percent),
+  and the tape's band drops its "Last" word under 180 px.
 - **The size** (`ibkr/level2Size.ts`, `ibkr/Level2Frame.tsx`): a right click anywhere on the pane opens a
   cursor-anchored menu (`role="menu"`, three `menuitemradio` rows: Small, Medium, Large, the current one
   ticked); a pick, a click outside or Escape closes it. The pane's root carries `data-l2-size`, and the

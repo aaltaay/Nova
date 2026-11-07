@@ -24,6 +24,7 @@ export function Level2SpreadRow({ bid, ask }: Props) {
   const pct = spreadPercent(bid, ask);
   return (
     <div className="l2-band das-l2-spread" data-testid="l2-spread">
+      <div className="l2-band__inner">
       <div className="das-l2-spread__side das-l2-spread__side--bid">
         <span className="l2-band__label">{L2_SPREAD_LABELS.bid}</span>
         <span className="l2-band__num" data-testid="l2-spread-bid">{formatDepthPrice(bid)}</span>
@@ -36,6 +37,7 @@ export function Level2SpreadRow({ bid, ask }: Props) {
       <div className="das-l2-spread__side das-l2-spread__side--ask">
         <span className="l2-band__label">{L2_SPREAD_LABELS.ask}</span>
         <span className="l2-band__num" data-testid="l2-spread-ask">{formatDepthPrice(ask)}</span>
+      </div>
       </div>
     </div>
   );
