@@ -31,6 +31,8 @@
   position: absolute;
   inset: 0;
   contain: strict;
+  /* A size container too: the spread row's type is capped against the pane's height (cqh). */
+  container-type: size;
 }
 
 .stock-view-page .sv-quote-depth-card .sv-quote-stats.compact-grid {
@@ -73,13 +75,14 @@
 @container md-pane (max-width: 259px) {
   .stock-view-page .sv-rail .sv-md-pane .das-l2-row {
     padding: 0 2px;
-    font-size: clamp(0.64rem, calc(3.7px + 3.85cqi), 0.82rem);
+    --l2-narrow: clamp(0.64rem, calc(3.7px + 3.85cqi), 0.82rem);
+    font-size: clamp(var(--l2-narrow), 4.2cqh, calc(var(--l2-scale) * var(--l2-narrow)));
   }
 
   .stock-view-page .sv-rail .sv-md-pane .das-l2-colhead {
     padding-left: 2px;
     padding-right: 2px;
-    font-size: 0.62rem;
+    font-size: calc(0.62rem * var(--l2-scale));
   }
 }
 

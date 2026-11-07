@@ -1029,3 +1029,35 @@ per cap -- "Level 1 48 / 53", "Level 2 3 / 3", "History 60 / 60 · next in 2:27"
 bar of its slots, amber at 80% of the cap and red when full. A cell's hover lists who uses it. A read that fails
 says "Capacity: not read" with why; it never shows a guessed count.
 
+
+## The Level 2 pane: the spread on top and its size (operator ask, 2026-11-06)
+
+"Move the spread to the top and enlarge everything, including the level 2 font ... if we do a right-click on
+the level 2, we can maybe make it small, medium, or large." Mockup v1 B approved (the rows fill the pane).
+Display only: nothing here touches the depth line, the book watcher or an order.
+
+- **The spread row** (`ibkr/Level2SpreadRow.tsx`) sits under the pane head, over the pulls line and the
+  book, in every Level 2: the live ladder, a Session Record replaying, and the Sim's recorded or venue book
+  (`sim/HistoricalDepth.tsx`, which had no spread line before). One line (operator, 2026-11-06: "the bid and
+  ask next to each other"): the best bid in the bid colour, the spread (`formatDepthPrice`, four digits under
+  $1) with its share of the ask, two decimals (`0.003` and `0.38%` for 0.7824 × 0.7854), and the best ask in
+  the ask colour, side by side in the middle. Nothing is drawn without both sides. The muted line under the
+  book is gone.
+- **The band over the tape** (`ibkr/TapeLastBand.tsx`, the rail's embedded Time & Sales only; mockup
+  tape-align v1 option 1): the same box (`.l2-band`) at the same height as the spread row, so the two panes'
+  column heads and rows start on one line. It shows the newest print's price in the tape rows' own side
+  colour (green at the ask, red at the bid, plain between) and its size (`formatTapePrice`,
+  `formatTapeSize`); with no print it shows a dash and keeps its height. The print is the newest the tape
+  holds, before the "Size ≥" display filter. It carries `data-l2-size` too, so it follows the pane's size.
+- **The size** (`ibkr/level2Size.ts`, `ibkr/Level2Frame.tsx`): a right click anywhere on the pane opens a
+  cursor-anchored menu (`role="menu"`, three `menuitemradio` rows: Small, Medium, Large, the current one
+  ticked); a pick, a click outside or Escape closes it. The pane's root carries `data-l2-size`, and the
+  stylesheet (`ibkr/level2Montage.css`, `stock_view/stockViewTerminal.css`) turns it into one scale for every
+  font, tag and chip in the pane: **small** is the pane as it was (13 px digits in the rail, rows capped at
+  1.45 rem); **medium** scales 1.4× and caps the rail's rows at 2.75 rem (44 px); **large**, the default,
+  scales 1.8× and lifts the cap, so the ten rows share the pane (about 62 px rows and 24 px digits on the
+  operator's desk). The digits never pass a share of the book's height (the montage is a size container), so
+  a large pane in a short window shrinks its type instead of clipping it. One choice for every ladder and
+  window: `localStorage` `nova.level2.size` (a `prefStore` envelope, `{schema_version: 1, value:
+  "small" | "medium" | "large"}`, in the prefs bundle), shared through the `storage` event; missing, or an
+  unknown value, reads as large.

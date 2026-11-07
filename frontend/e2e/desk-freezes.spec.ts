@@ -119,7 +119,8 @@ test('changed depth, annotations and hidden resume display their latest values a
   const fixture = await isolate(page);
   await page.clock.setFixedTime(new Date(NOW * 1000));
   await page.goto(FIXTURE_PATH);
-  await expect(page.locator('.das-l2-bbo')).toContainText('10.00 × 10.01');
+  await expect(page.getByTestId('l2-spread-bid')).toHaveText('10.00');
+  await expect(page.getByTestId('l2-spread-ask')).toHaveText('10.01');
   fixture.send(watch());
   fixture.send(luld());
   await expect(page.getByTestId('l2-marker-stop')).toHaveClass(/--working/);
@@ -135,7 +136,8 @@ test('changed depth, annotations and hidden resume display their latest values a
     await expect(page.locator('.das-l2-side--bid .das-l2-row:not(.das-l2-row--luld)').first())
       .toContainText(`1,0${String(seq).padStart(2, '0')}`);
   }
-  await expect(page.locator('.das-l2-bbo')).toContainText('10.10 × 10.11');
+  await expect(page.getByTestId('l2-spread-bid')).toHaveText('10.10');
+  await expect(page.getByTestId('l2-spread-ask')).toHaveText('10.11');
   expect(await page.evaluate(() => window.deskFreezeFixture.lock())).toBeNull();
   await page.getByRole('button', { name: 'Hide depth' }).click();
   await expect(page.getByRole('button', { name: 'Show depth' })).toBeVisible();
@@ -152,7 +154,8 @@ test('changed depth, annotations and hidden resume display their latest values a
   expect(await page.evaluate(() => window.deskFreezeFixture.metrics.depthCommits)).toBe(hiddenCommits);
   expect(await page.evaluate(() => window.deskFreezeFixture.stamp().book?.seq)).toBe(10);
   await page.getByRole('button', { name: 'Show depth' }).click();
-  await expect(page.locator('.das-l2-bbo')).toContainText('10.26 × 10.27');
+  await expect(page.getByTestId('l2-spread-bid')).toHaveText('10.26');
+  await expect(page.getByTestId('l2-spread-ask')).toHaveText('10.27');
   await expect.poll(() => page.evaluate(() => window.deskFreezeFixture.stamp().book?.seq)).toBe(12);
   fixture.send(watch(7200));
   fixture.send(luld(10.09));

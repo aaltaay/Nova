@@ -42,6 +42,7 @@ import {
   tapeScrollAfterPrepend,
 } from './tapeWindow';
 import { TapeRow, tapeRowKey } from './TapeRow';
+import { TapeLastBand } from './TapeLastBand';
 import type { TapeState } from './tapeFeed';
 
 export interface TimeSalesViewProps {
@@ -297,6 +298,7 @@ export function TimeSalesView({
         </div>
         <div className="sv-md-pane__body">
           <div className="sv-md-pane__live">
+            <TapeLastBand print={prints[0] ?? null} />
             {cols}
             {noticeLine}
             {rows}

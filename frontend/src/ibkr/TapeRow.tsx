@@ -21,11 +21,11 @@ export function fmtTapeTime(when: string | number): string {
   }
 }
 
-function fmtPrice(p: number): string {
+export function formatTapePrice(p: number): string {
   return p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 }
 
-function fmtSize(s: number): string {
+export function formatTapeSize(s: number): string {
   return s.toLocaleString('en-US');
 }
 
@@ -77,9 +77,9 @@ export const TapeRow = memo(function TapeRow({ print }: { print: TapePrint }) {
     >
       {/* When the trade happened, by IBKR's second: never a late print stamped as if it just traded. */}
       <span className="ts-col--time">{fmtTapeTime(print.exchangeTs != null ? print.exchangeTs * 1000 : print.time)}</span>
-      <span className="ts-col--price">{fmtPrice(print.price)}</span>
+      <span className="ts-col--price">{formatTapePrice(print.price)}</span>
       <span className="ts-col--size" data-testid="ts-size" data-size={print.size}>
-        {fmtSize(print.size)}
+        {formatTapeSize(print.size)}
       </span>
       <span className="ts-col--exch">{print.exchange || '—'}</span>
     </div>

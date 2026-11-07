@@ -1,8 +1,36 @@
 /* DAS-style Level 2 montage (components layer). Imported by marketData.css. Owner: ibkr/DepthLadder.tsx. */
 /* ── DAS Level 2 montage (shared tokens; Stock View densifies in feature CSS) */
+/* The pane's size (operator ask, 2026-11-06; Level2Frame sets data-l2-size from nova.level2.size, and the
+   tape's Last band carries the same): one scale for every font, tag and chip in the pane, the two bands' type,
+   and the rail's row cap. Small is the pane as it was; medium caps the rail's rows at 44 px; large (the
+   default, mockup v1 B) lets ten rows fill the pane. */
+.das-l2,
+.ts-last {
+  --l2-scale: 1;
+  --l2-row-max: 1.45rem;
+  --l2-band-num: 1.1rem;
+  --l2-band-label: 0.6rem;
+}
+
 .das-l2 {
   width: 100%;
   font-variant-numeric: tabular-nums;
+}
+
+.das-l2[data-l2-size="medium"],
+.ts-last[data-l2-size="medium"] {
+  --l2-scale: 1.4;
+  --l2-row-max: 2.75rem;
+  --l2-band-num: 1.4rem;
+  --l2-band-label: 0.66rem;
+}
+
+.das-l2[data-l2-size="large"],
+.ts-last[data-l2-size="large"] {
+  --l2-scale: 1.8;
+  --l2-row-max: none;
+  --l2-band-num: 1.65rem;
+  --l2-band-label: 0.72rem;
 }
 
 .das-l2-montage {
@@ -24,7 +52,7 @@
   grid-template-columns: 1fr 1fr 1fr;
   gap: 0;
   padding: 0.2rem 0.25rem;
-  font-size: 0.7rem;
+  font-size: calc(0.7rem * var(--l2-scale));
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -48,21 +76,21 @@
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   align-items: center;
-  min-height: 1.5rem;
+  min-height: calc(1.5rem * var(--l2-scale));
   padding: 0.1rem 0.25rem;
-  font-size: 0.88rem;
+  font-size: calc(0.88rem * var(--l2-scale));
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .das-l2-row--empty {
   opacity: 0.25;
-  min-height: 1.15rem;
+  min-height: calc(1.15rem * var(--l2-scale));
 }
 
 .das-l2-mm {
   color: var(--nova-text, #e5e7eb);
-  font-size: 0.78rem;
+  font-size: calc(0.78rem * var(--l2-scale));
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -99,7 +127,7 @@
 .das-l2-gauge {
   position: absolute;
   bottom: 0;
-  height: 4px;
+  height: calc(4px * var(--l2-scale));
   min-width: 3px;
   max-width: 100%;
   pointer-events: none;
@@ -120,15 +148,127 @@
   top: -1px;
 }
 
-.das-l2-spread {
-  margin-top: 0.35rem;
-  text-align: center;
-  font-size: 0.8rem;
+/* The band over the book and the band over the tape (operator asks, 2026-11-06; mockup tape-align v1,
+   option 1): one line of the same height on both panes, so their column heads and rows start together.
+   Over the book: the best bid, the spread with its share of the ask, the best ask, side by side in the
+   middle. Over the tape: the newest print's price in its side's colour and its size. */
+.l2-band {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  min-width: 0;
+  margin: 0 0 4px;
+  padding: calc(5px * var(--l2-scale)) 10px;
+  border: 1px solid var(--nova-border-strong, #222);
+  border-radius: 4px;
+  background: var(--nova-raised, #141414);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.l2-band__label {
+  font-size: var(--l2-band-label);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--nova-text-muted, var(--text-secondary));
 }
 
-.das-l2-bbo {
-  color: var(--nova-text, #d1d5db);
+.l2-band__num {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--l2-band-num);
+  font-weight: 700;
+  line-height: 1.05;
+  color: var(--nova-text, #f3f4f6);
+}
+
+.das-l2-spread__side,
+.das-l2-spread__mid {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45em;
+  min-width: 0;
+  padding: 0 12px;
+}
+
+.das-l2-spread__mid {
+  border-left: 1px solid var(--nova-border-strong, #222);
+  border-right: 1px solid var(--nova-border-strong, #222);
+}
+
+.das-l2-spread__side--bid .l2-band__num {
+  color: var(--bid-color, #3dba7a);
+}
+
+.das-l2-spread__side--ask .l2-band__num {
+  color: var(--ask-color, #e35d6a);
+}
+
+.das-l2-spread__mid .l2-band__num {
+  font-size: calc(var(--l2-band-num) * 0.78);
+}
+
+.das-l2-spread__pct {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--l2-band-label);
+  color: var(--nova-text-muted, var(--text-secondary));
+}
+
+/* The tape's band: the print's colours are the tape rows' own (timeSales.css). */
+.ts-last {
+  justify-content: flex-start;
+  gap: 0.5em;
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.ts-last__price--ask { color: #86efac; }
+.ts-last__price--bid { color: #fca5a5; }
+
+.ts-last__size {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: calc(var(--l2-band-num) * 0.6);
+  font-weight: 600;
+  color: var(--nova-text, #f3f4f6);
+}
+
+/* The size menu (a right click anywhere on the pane): three rows, the current one ticked. */
+.l2-size-menu {
+  padding: 0.5rem 0.4rem 0.4rem;
+}
+
+.l2-size-menu .ts-filter-menu__label {
+  padding: 0 0.5rem;
+}
+
+.l2-size-menu__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--nova-text, #e8eaed);
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.l2-size-menu__item:hover,
+.l2-size-menu__item:focus-visible {
+  outline: none;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.l2-size-menu__item--on {
+  color: var(--nova-accent, #60a5fa);
+  font-weight: 600;
 }
 
 .ibkr-depth-empty {
@@ -247,9 +387,9 @@
   border-radius: 2px;
   background: var(--das-l2-marker);
   color: #fff;
-  font-size: 8.5px;
+  font-size: calc(8.5px * var(--l2-scale));
   font-weight: 700;
-  line-height: 11px;
+  line-height: calc(11px * var(--l2-scale));
   letter-spacing: 0.03em;
   white-space: nowrap;
   text-shadow: 0 0 2px rgba(0, 0, 0, 0.45);
@@ -267,10 +407,10 @@
   display: flex;
   justify-content: space-between;
   gap: 4px;
-  height: 13px;
+  height: calc(13px * var(--l2-scale));
   margin-bottom: 2px;
-  font-size: 0.62rem;
-  line-height: 13px;
+  font-size: calc(0.62rem * var(--l2-scale));
+  line-height: calc(13px * var(--l2-scale));
   font-weight: 600;
   color: var(--nova-text-muted, var(--text-secondary));
 }
@@ -376,9 +516,9 @@
   border-radius: 2px;
   background: rgba(10, 10, 12, 0.92);
   font-family: system-ui, sans-serif;
-  font-size: 9px;
+  font-size: calc(9px * var(--l2-scale));
   font-weight: 700;
-  line-height: 10px;
+  line-height: calc(10px * var(--l2-scale));
   white-space: nowrap;
   pointer-events: auto;
   transition: opacity 250ms linear;
@@ -438,9 +578,9 @@
   background: #ffffff;
   color: #0a0a0a;
   font-family: system-ui, sans-serif;
-  font-size: 9px;
+  font-size: calc(9px * var(--l2-scale));
   font-weight: 700;
-  line-height: 11px;
+  line-height: calc(11px * var(--l2-scale));
   white-space: nowrap;
   pointer-events: none;
 }
@@ -474,7 +614,7 @@
   z-index: 3;
   display: flex;
   align-items: center;
-  height: 1.3rem;
+  height: calc(1.3rem * var(--l2-scale));
   padding: 0 3px;
   pointer-events: none;
   transition: opacity 250ms linear;
@@ -490,9 +630,9 @@
   border: 1px solid transparent;
   border-radius: 3px;
   font-family: system-ui, sans-serif;
-  font-size: 10px;
+  font-size: calc(10px * var(--l2-scale));
   font-weight: 700;
-  line-height: 15px;
+  line-height: calc(15px * var(--l2-scale));
   text-overflow: ellipsis;
   white-space: nowrap;
   pointer-events: auto;

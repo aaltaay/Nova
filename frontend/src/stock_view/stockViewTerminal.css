@@ -591,6 +591,9 @@
   min-height: 0;
   overflow: hidden;
   align-items: stretch;
+  /* A size container: the rows' digits are capped against the book's height (cqh), so a large pane in a
+     short window shrinks its type instead of clipping it. */
+  container-type: size;
 }
 
 .stock-view-page .sv-rail .das-l2-side {
@@ -604,31 +607,53 @@
 .stock-view-page .sv-rail .das-l2-colhead {
   flex-shrink: 0;
   padding: 0.12rem 0.2rem;
-  font-size: 0.68rem;
+  font-size: clamp(0.68rem, 3.2cqh, calc(0.68rem * var(--l2-scale)));
 }
 
+/* The pane's size (level2Montage.css): the rows grow to the size's cap -- none at large, so ten rows share
+   the pane -- and the digits scale with it, never past a share of the book's height and never under the
+   size the pane had before (a short pane reads as it did, it never shrinks). */
 .stock-view-page .sv-rail .das-l2-row {
   flex: 1 1 0;
   min-height: 18px;
-  max-height: 1.45rem;
+  max-height: var(--l2-row-max);
   padding: 0 0.2rem;
-  font-size: 0.82rem;
+  font-size: clamp(0.82rem, 4.2cqh, calc(0.82rem * var(--l2-scale)));
   border-bottom-color: rgba(255, 255, 255, 0.03);
 }
 
 .stock-view-page .sv-rail .das-l2-row--empty {
   min-height: 14px;
-  max-height: 1.25rem;
+  max-height: calc(1.25rem * var(--l2-scale));
 }
 
 .stock-view-page .sv-rail .das-l2-mm {
-  font-size: 0.72rem;
+  font-size: clamp(0.72rem, 3.6cqh, calc(0.72rem * var(--l2-scale)));
 }
 
-.stock-view-page .sv-rail .das-l2-spread {
-  flex-shrink: 0;
-  margin-top: 1px;
-  font-size: 0.72rem;
+/* Both bands shrink with the pane (the pane's live layer is a size container, #707) so a short pane keeps
+   its book and its tape; on the operator's 760 px pane each is the full row. */
+.stock-view-page .sv-rail .l2-band {
+  margin-top: 4px;
+  padding-top: clamp(2px, 1cqh, calc(5px * var(--l2-scale)));
+  padding-bottom: clamp(2px, 1cqh, calc(5px * var(--l2-scale)));
+}
+
+.stock-view-page .sv-rail .l2-band__num {
+  font-size: clamp(0.8rem, 5.5cqh, var(--l2-band-num));
+}
+
+.stock-view-page .sv-rail .das-l2-spread__mid .l2-band__num {
+  font-size: clamp(0.7rem, 4.3cqh, calc(var(--l2-band-num) * 0.78));
+}
+
+.stock-view-page .sv-rail .l2-band__label,
+.stock-view-page .sv-rail .das-l2-spread__pct {
+  font-size: clamp(0.5rem, 2cqh, var(--l2-band-label));
+}
+
+.stock-view-page .sv-rail .ts-last__size {
+  font-size: clamp(0.6rem, 3.3cqh, calc(var(--l2-band-num) * 0.6));
 }
 
 .stock-view-page .sv-rail .ts-panel {
