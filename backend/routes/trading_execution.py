@@ -194,6 +194,16 @@ def _manual_order_command(
     )
 
 
+def opens_a_position(req: OrderRequest) -> bool:
+    """Whether the door would judge ``req`` as a new entry and not a way out (ADR 045): a Flatten, a sell out of a
+    long and a buy that covers a short are ways out."""
+    from market_view import gate
+
+    if req.intent == "flatten":
+        return False
+    return not gate.closes(_manual_order_command(req, "judge", None, 0))
+
+
 @router.post("/order")
 async def place_order(req: OrderRequest, request: Request) -> dict:
     ingress_perf, ingress_wall = ingress_stamps(request)

@@ -73,6 +73,7 @@ from followed_traders import config as followed_traders_config
 from followed_traders.routes import router as followed_traders_router
 from volume_profile.routes import router as volume_profile_router
 from ahead.routes import router as ahead_router
+from phone.routes import router as phone_router
 
 
 def register_routers(app: FastAPI) -> None:
@@ -112,6 +113,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(focus_router)
     app.include_router(practice_router)
     app.include_router(desk_router)
+    app.include_router(phone_router)  # ADR 070: the phone PIN's session and its Paper-only orders
     app.include_router(diagnostics_router)
     app.include_router(leaderboard_router)
     app.include_router(auto_record_router)

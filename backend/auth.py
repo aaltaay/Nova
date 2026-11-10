@@ -23,6 +23,8 @@ from fastapi.security import APIKeyHeader
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse, Response
 
+from phone.constants_phone import is_phone_path
+
 from constants import (
     DIAG_STOP_PATH,
     NOVA_API_KEY_HEADER,
@@ -195,6 +197,9 @@ class MutatingApiKeyMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         path = request.url.path
         if is_open_in_nova_path(path):
+            return await call_next(request)
+        if is_phone_path(path):
+            # ADR 070: the phone's routes are opened by the phone PIN's session; the desk's key never leaves the PC.
             return await call_next(request)
         mutating = request.method in _MUTATING
         bot = (is_bot_mutate(request.method, path) or is_setup_template_mutate(request.method, path)

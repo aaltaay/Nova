@@ -14,6 +14,7 @@ from functools import lru_cache
 
 from api_process_guard import DEFAULT_API_HOST
 from constants import CORS_ALLOWED_ORIGINS_DEFAULT, NOVA_API_LOOPBACK_HOSTS
+from phone.constants_phone import is_phone_path
 from request_guard.constants_request_guard import (
     ALLOWED_HOSTS_ANY,
     ALLOWED_HOSTS_ENV,
@@ -212,6 +213,9 @@ def remote_refusal(
     normalized = path.rstrip("/") or "/"
     if any(normalized == p or normalized.startswith(p + "/") for p in REMOTE_CLOSED_PREFIXES):
         return REASON_REMOTE_LOCAL_ONLY
+    if is_phone_path(normalized):
+        # The phone's own door (ADR 070 amendment): its routes ask for the phone PIN's session themselves.
+        return None
     if kind == "http" and method.upper() in REMOTE_WRITE_METHODS:
         return REASON_REMOTE_VIEW_ONLY
     return None

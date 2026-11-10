@@ -74,6 +74,27 @@ npx cross-env VITE_API_BASE_URL=https://<pc-name>:8443 npm run build
 Everything the desk tries to write from the phone is refused with "Nova is view-only from another device", and its own
 lag lock reads the phone's uncorrected clock. Use the link test, not the desk, to judge lag.
 
+## Paper orders from the phone
+
+The phone can send Paper orders from the link-test page: buy, sell, flatten, cancel. Never Live: the order door refuses
+a phone order whenever the desk is not on Paper, and the phone cannot move the desk's venue.
+
+1. **Set a phone PIN, once, on the PC.** Six digits, typed at a hidden prompt; only its hash is stored. Use a
+   different one from your Live PIN.
+
+   ```bash
+   py -3 tools/set_phone_pin.py
+   ```
+
+2. **Put the desk on Paper** (the header pill), on the PC.
+3. On the phone, on the link-test page with a run started: enter the PIN under **Paper orders**, unlock, then open
+   Paper's padlock.
+4. Send an order. The page shows the time from your tap to Nova's answer, and Nova's own words when it refuses.
+
+An unlock lasts 8 hours, or until you press Lock, unlock from another phone, or the backend restarts. Five wrong PINs
+lock the phone for five minutes. An order tapped while the feed is behind or dropped is refused by the same rule the
+desk has (a sell, a flatten and a cancel always go).
+
 ## Turn it off
 
 ```bash

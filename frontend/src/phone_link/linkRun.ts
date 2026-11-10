@@ -1,7 +1,7 @@
 /**
  * One run of the phone link test (ADR 070): the measuring, with no screen. For one symbol it asks
  * the order gate's read route once a second and holds the desk's own Level 2 and Time & Sales
- * sockets, and keeps what they show. It reads only -- no API key, no order.
+ * sockets, and keeps what they show. It reads only -- no API key, no order (orders are `linkOrders.ts`).
  *
  * It is built to be left running: a socket that closes or goes silent dials again, every drop is
  * timed from the last frame heard to the first frame back, and time the page was hidden (the
@@ -24,7 +24,9 @@ import {
   type ClockSample,
 } from './linkStats';
 
-const API_BASE = apiBaseFor(window.location);
+import type { OrderContext } from './linkOrders';
+
+export const API_BASE = apiBaseFor(window.location);
 const WS_BASE = wsBaseFor(API_BASE);
 const PING_EVERY_MS = 1_000;
 
@@ -58,6 +60,9 @@ export interface Run {
   hiddenAt: number | null;
   /** Counts every hide and show, so a round trip that was in flight across one is thrown away. */
   spans: number;
+  /** The backend process the Level 2 socket subscribed to, and the last book it sent. */
+  instance: string | null;
+  book: OrderContext['book'];
 }
 
 let run: Run | null = null;
@@ -108,6 +113,29 @@ async function ping(r: Run): Promise<void> {
   }
 }
 
+function topPrice(levels: unknown): number | null {
+  const first = Array.isArray(levels) ? (levels[0] as { price?: unknown } | undefined) : undefined;
+  return typeof first?.price === 'number' && Number.isFinite(first.price) ? first.price : null;
+}
+
+/** Keep which backend the Level 2 socket subscribed to and the last book it sent: an order's view (ADR 045). */
+function noteView(r: Run, frame: Record<string, unknown>): void {
+  if (frame.type === 'subscribed') {
+    r.instance = typeof frame.instance === 'string' ? frame.instance : null;
+    return;
+  }
+  if (frame.type !== 'book' || typeof frame.seq !== 'number') return;
+  const data = (frame.data ?? {}) as { bids?: unknown; asks?: unknown };
+  r.book = { seq: frame.seq, at: typeof frame.at === 'number' ? frame.at : null, bid: topPrice(data.bids), ask: topPrice(data.asks) };
+}
+
+/** What an order tapped now would carry, or null when no test runs. */
+export function orderContext(): OrderContext | null {
+  const r = run;
+  if (!r) return null;
+  return { symbol: r.symbol, offsetMs: bestClock(r.clock)?.offsetMs ?? null, instance: r.instance, book: r.book };
+}
+
 /** The feed went quiet: time the drop, hang up what is left of the socket, and dial again shortly. */
 function redial(r: Run, feed: Feed, why: string, since: number = Date.now()): void {
   if (run !== r) return;
@@ -136,8 +164,6 @@ function openSocket(r: Run, feed: Feed): void {
     if (run !== r || feed.ws !== ws) return;
     const now = Date.now();
     feed.lastFrameAt = now;
-    // A hidden page measures nothing: no sample, and an open drop ends on the first frame after it shows again.
-    if (r.hiddenAt != null) return;
     const raw = typeof ev.data === 'string' ? ev.data : '';
     let frame: Record<string, unknown>;
     try {
@@ -147,6 +173,10 @@ function openSocket(r: Run, feed: Feed): void {
       return;
     }
     const type = frame.type;
+    // What an order would be priced from is kept even while hidden: it is what this device holds, measured or not.
+    if (feed.name === 'Level 2') noteView(r, frame);
+    // A hidden page measures nothing: no sample, and an open drop ends on the first frame after it shows again.
+    if (r.hiddenAt != null) return;
     if (type === 'error' || type === 'lent') {
       r.notes.set(feed.name, `${feed.name}: ${String(frame.message ?? frame.text ?? type)}`);
       return;
@@ -234,6 +264,7 @@ export function startRun(symbol: string, draw: () => void, drawEveryMs: number):
     symbol, startedWall: Date.now(), roundTrip: new Rolling(), roundTripWhole: new Tally(),
     feeds: [newFeed('Level 2', '/ws/ibkr/depth'), newFeed('Time & Sales', '/ws/ibkr/tape')],
     clock: [], timers: [], notes: new Map(), gate: 'not read yet', failedPings: 0, hiddenMs: 0, hiddenAt: null, spans: 0,
+    instance: null, book: null,
   };
   run = r;
   void ping(r);

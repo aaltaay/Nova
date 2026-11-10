@@ -91,9 +91,42 @@ existing Nova, not a new app." -- data and the trade round trip "both under 500 
 - A test's `TestClient` Host (`testserver`) stands for this PC (`backend/tests/conftest.py`), so existing tests' writes
   are not refused.
 
+## Amendment 2026-11-10 -- the phone sends Paper orders, after its own PIN
+
+**Decided by:** the operator, the same day, after the link passed on cellular (round trip p95 102 ms, Level 2 age p95
+159 ms) and recovered from two forced drops: "let's run a real end to end test", "all of it, use paper trading". Asked
+how Nova should know an order is theirs, they chose a phone PIN; asked what the phone may send, "all major operations
+using paper money".
+
+Decision 4 narrows, as decision 6 said it would:
+
+9. **One door for another device's writes: `/api/phone`.** Every other write from another device is still refused
+   `REMOTE_VIEW_ONLY`, and decision 5 stands. The phone's routes are opened by the phone PIN, not by
+   `X-Nova-Api-Key`: the desk's key never leaves the PC.
+10. **A phone PIN, set on the PC.** `py -3 tools/set_phone_pin.py` stores its hash (`NOVA_PHONE_PIN_HASH`, the Live
+    PIN's form). A correct PIN buys one session, held in memory: it ends after 8 hours, on Lock, on a newer unlock, or
+    when the backend restarts. Five wrong PINs lock the phone for five minutes, counted apart from the Live PIN.
+11. **Paper only, held by the order door.** A phone order names Paper as its venue and goes through the desk's own
+    handlers, so the door refuses it `VENUE_CHANGED` if the desk is anywhere else when it is sent; the phone's route
+    says so first in plain words (`PHONE_NOT_PAPER`). The phone cannot move the desk's venue, so it can never reach
+    Live. It sends a buy, a sell, a flatten and a cancel, and works Paper's padlock: no short entry, no bracket, no
+    setting.
+12. **Same gates as the desk.** The arm latch, the stale-view rules (ADR 045), the order size limit (ADR 064) and the
+    loss limit all judge a phone order, because it is the same command. The order's timing and its view are required
+    fields: without them the door would not judge lag at all.
+13. **One clock.** The phone stamps its tap on the PC's clock, using the offset the link test measures, so the door's
+    500 ms rules read one clock again (decision 6's first item). The view carries the Level 2 version the phone last
+    received, so the door checks what the phone was shown, not only when it tapped.
+
+What decision 6 still holds back: the phone's order pad. These orders are sent from the link-test page, a measuring
+tool with plain buttons; the pad the operator trades from is still drawn and approved first. Reads from another device
+still carry no proof of the page; only writes do (the PIN's session).
+
 ## Rules and maps
 
 - Shapes: `architecture/schema/desk-ops.md`, "Who may reach the API" (another device) and "The phone link test".
 - Setup and the measurement: `docs/phone-link.md`.
 - Code: `backend/request_guard/` (`policy.remote_refusal`, `middleware`, `constants_request_guard.py`);
   `frontend/link-test.html`, `frontend/src/phone_link/`.
+- The phone's door: `architecture/schema/execution.md`, "Paper orders from the phone"; `backend/phone/`,
+  `tools/set_phone_pin.py`.

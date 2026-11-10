@@ -1,12 +1,13 @@
 /**
  * The phone link test (ADR 070): one light page that measures the link between this device and
- * Nova on the PC, before any phone layout is built on it. It reads only -- it holds no API key and
- * sends no order.
+ * Nova on the PC, before any phone layout is built on it. The test reads only and holds no API key;
+ * the Paper orders block under it (`linkOrdersPanel.ts`) sends only after the phone PIN.
  *
  * This file is the screen: the form, the last-30-seconds table, the whole-run block and the text
  * Copy puts on the clipboard. The measuring itself is `linkRun.ts`; its arithmetic, `linkStats.ts`.
  */
-import { currentRun, onVisibility, startRun, stopRun, type Run } from './linkRun';
+import { ORDERS_STYLE, buildOrdersPanel } from './linkOrdersPanel';
+import { API_BASE, currentRun, onVisibility, orderContext, startRun, stopRun, type Run } from './linkRun';
 import { LINK_LIMIT_MS, bestClock, durationText, linkVerdict, type ClockSample, type Spread } from './linkStats';
 
 const DRAW_EVERY_MS = 500;
@@ -103,11 +104,11 @@ function summary(r: Run, now: number): string {
 }
 
 function build(): void {
-  document.head.append(el('style', STYLE));
+  document.head.append(el('style', STYLE + ORDERS_STYLE));
   const main = el('main');
   main.append(
     el('h1', 'Nova link test'),
-    el('p', 'Measures this device against Nova on the PC. Reads only: no key, no orders.'),
+    el('p', 'Measures this device against Nova on the PC. The test only reads; Paper orders below need your phone PIN.'),
   );
   const form = el('form');
   const input = el('input');
@@ -131,7 +132,7 @@ function build(): void {
   });
   const whole = el('div', '', 'whole');
   const notes = el('div', '', 'notes');
-  main.append(form, verdict, table, el('h2', 'Whole run'), whole, notes);
+  main.append(form, verdict, table, el('h2', 'Whole run'), whole, notes, buildOrdersPanel(API_BASE, orderContext));
   document.body.append(main);
 
   const draw = (): void => {
