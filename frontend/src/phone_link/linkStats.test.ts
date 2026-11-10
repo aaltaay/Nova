@@ -105,6 +105,25 @@ describe('the whole run', () => {
     expect(outages.totalMs).toBe(5_000);
   });
 
+  it('does not grow a drop over time the page was hidden', () => {
+    // Down at 10 s, hidden 12 s to 72 s, back at 75 s: 2 s before hiding and 3 s after, not 65 s.
+    const before = new Outages();
+    before.down(10_000);
+    before.skip(12_000, 72_000);
+    before.up(75_000);
+    expect(before.longestMs).toBe(5_000);
+    // One that began while hidden begins when measuring resumed.
+    const during = new Outages();
+    during.down(30_000);
+    during.skip(12_000, 72_000);
+    during.up(73_500);
+    expect(during.longestMs).toBe(1_500);
+    // Nothing open: nothing to move.
+    const none = new Outages();
+    none.skip(12_000, 72_000);
+    expect(none.text(80_000)).toBe('no drops');
+  });
+
   it('writes a span the way a person reads it', () => {
     expect(durationText(41_300)).toBe('41 s');
     expect(durationText(245_000)).toBe('4 m 05 s');

@@ -3,37 +3,12 @@
  * Nova on the PC, before any phone layout is built on it. It reads only -- it holds no API key and
  * sends no order.
  *
- * For one symbol it opens the desk's own Level 2 and Time & Sales sockets and, once a second, asks
- * the order gate's read route. From those it shows the round trip, this device's clock against the
- * PC's, how old each Level 2 and tape frame is on arrival, and how much traffic the symbol makes.
- *
- * It is built to be left running: a socket that drops or goes silent dials again, every drop is
- * timed, and the whole run keeps its own count beside the last 30 seconds.
+ * This file is the screen: the form, the last-30-seconds table, the whole-run block and the text
+ * Copy puts on the clipboard. The measuring itself is `linkRun.ts`; its arithmetic, `linkStats.ts`.
  */
-import {
-  CLOCK_SAMPLES_KEEP,
-  FAILED_ROUND_TRIP_MS,
-  LINK_LIMIT_MS,
-  Outages,
-  PING_TIMEOUT_MS,
-  RECONNECT_WAIT_MS,
-  Rolling,
-  SILENCE_LIMIT_MS,
-  Tally,
-  apiBaseFor,
-  bestClock,
-  clockSample,
-  durationText,
-  frameAgeMs,
-  linkVerdict,
-  wsBaseFor,
-  type ClockSample,
-  type Spread,
-} from './linkStats';
+import { currentRun, onVisibility, startRun, stopRun, type Run } from './linkRun';
+import { LINK_LIMIT_MS, bestClock, durationText, linkVerdict, type ClockSample, type Spread } from './linkStats';
 
-const API_BASE = apiBaseFor(window.location);
-const WS_BASE = wsBaseFor(API_BASE);
-const PING_EVERY_MS = 1_000;
 const DRAW_EVERY_MS = 500;
 
 const STYLE = `
@@ -65,204 +40,6 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, text = '', id = ''): 
   if (text) node.textContent = text;
   if (id) node.id = id;
   return node;
-}
-
-type FeedName = 'Level 2' | 'Time & Sales';
-
-interface Feed {
-  name: FeedName;
-  path: string;
-  /** Level 2 beats four times a second, so silence means a dead socket; the tape is quiet whenever nobody trades. */
-  beats: boolean;
-  recent: Rolling;
-  whole: Tally;
-  outages: Outages;
-  ws: WebSocket | null;
-  lastFrameAt: number | null;
-  retry: number | null;
-}
-
-interface Run {
-  symbol: string;
-  startedWall: number;
-  roundTrip: Rolling;
-  roundTripWhole: Tally;
-  feeds: Feed[];
-  clock: ClockSample[];
-  timers: number[];
-  notes: Map<string, string>;
-  gate: string;
-  failedPings: number;
-  /** Time the page was hidden (screen off, another app): the browser stops it, so nothing is measured. */
-  hiddenMs: number;
-  hiddenAt: number | null;
-}
-
-let run: Run | null = null;
-
-function newFeed(name: FeedName, path: string, beats: boolean): Feed {
-  return { name, path, beats, recent: new Rolling(), whole: new Tally(), outages: new Outages(), ws: null, lastFrameAt: null, retry: null };
-}
-
-function offsetMs(r: Run): number | null {
-  return bestClock(r.clock)?.offsetMs ?? null;
-}
-
-async function ping(r: Run): Promise<void> {
-  if (r.hiddenAt != null) return;
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), PING_TIMEOUT_MS);
-  const asked = Date.now();
-  const askedMono = performance.now();
-  try {
-    const res = await fetch(`${API_BASE}/api/market-view/gate?symbol=${encodeURIComponent(r.symbol)}`, {
-      cache: 'no-store',
-      signal: controller.signal,
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const body = (await res.json()) as { checked_at?: number; locked?: boolean; text?: string | null };
-    const rtt = performance.now() - askedMono;
-    if (run !== r) return;
-    r.roundTrip.add(Date.now(), rtt);
-    r.roundTripWhole.add(rtt);
-    if (typeof body.checked_at === 'number') {
-      r.clock.push(clockSample(asked, asked + rtt, body.checked_at));
-      if (r.clock.length > CLOCK_SAMPLES_KEEP) r.clock.shift();
-    }
-    r.gate = body.locked ? `locked: ${body.text ?? ''}` : 'open';
-  } catch (err) {
-    if (run !== r || r.hiddenAt != null) return;
-    // A failed round trip is a slow one, not a missing one: it counts against the verdict.
-    r.roundTrip.add(Date.now(), FAILED_ROUND_TRIP_MS);
-    r.roundTripWhole.add(FAILED_ROUND_TRIP_MS);
-    r.failedPings += 1;
-    r.notes.set('round trip', `Round trips failed: ${r.failedPings} (each counted as ${FAILED_ROUND_TRIP_MS} ms). Last: ${err instanceof Error ? err.message : String(err)}`);
-  } finally {
-    window.clearTimeout(timeout);
-  }
-}
-
-/** The feed went quiet: time the drop, hang up what is left of the socket, and dial again shortly. */
-function redial(r: Run, feed: Feed, why: string, since: number = Date.now()): void {
-  if (run !== r) return;
-  feed.outages.down(since);
-  r.notes.set(feed.name, `${feed.name}: ${why}; dialling again`);
-  const old = feed.ws;
-  feed.ws = null;
-  if (old) {
-    old.onclose = null;
-    old.onmessage = null;
-    old.close();
-  }
-  if (feed.retry != null) return;
-  feed.retry = window.setTimeout(() => {
-    feed.retry = null;
-    if (run === r) openSocket(r, feed);
-  }, RECONNECT_WAIT_MS);
-}
-
-function openSocket(r: Run, feed: Feed): void {
-  const ws = new WebSocket(`${WS_BASE}${feed.path}/${encodeURIComponent(r.symbol)}`);
-  feed.ws = ws;
-  // A dial that never connects must not sit forever either.
-  feed.lastFrameAt = Date.now();
-  ws.onmessage = (ev) => {
-    if (run !== r || feed.ws !== ws) return;
-    const now = Date.now();
-    feed.lastFrameAt = now;
-    const raw = typeof ev.data === 'string' ? ev.data : '';
-    let frame: Record<string, unknown>;
-    try {
-      frame = JSON.parse(raw) as Record<string, unknown>;
-    } catch {
-      r.notes.set(feed.name, `${feed.name}: a frame that is not JSON`);
-      return;
-    }
-    const type = frame.type;
-    if (type === 'error' || type === 'lent') {
-      r.notes.set(feed.name, `${feed.name}: ${String(frame.message ?? frame.text ?? type)}`);
-      return;
-    }
-    if (feed.outages.isDown()) {
-      feed.outages.up(now);
-      r.notes.delete(feed.name);
-    }
-    if (type === 'subscribed') {
-      r.notes.delete(feed.name);
-      return;
-    }
-    // A book or a batch of prints says when it was sent; a beat says the PC's clock now; one print, when it arrived there.
-    const sent = type === 'beat' ? frame.now : type === 'print' ? frame.ts : frame.sent;
-    const counted = type === 'book' || type === 'beat' || type === 'print' || type === 'prints';
-    if (!counted) return;
-    const offset = offsetMs(r);
-    const age = offset == null ? null : frameAgeMs(now, offset, sent);
-    feed.recent.add(now, age, raw.length);
-    feed.whole.add(age);
-  };
-  ws.onclose = (ev) => {
-    if (run !== r || feed.ws !== ws) return;
-    redial(r, feed, `socket closed (${ev.code})`);
-  };
-}
-
-/** Once a second: a beating feed with nothing for too long is dead even when its socket still looks open. */
-function watch(r: Run): void {
-  if (r.hiddenAt != null) return;
-  const now = Date.now();
-  const dead = r.feeds.find((f) => f.beats && f.ws != null && f.lastFrameAt != null && now - f.lastFrameAt > SILENCE_LIMIT_MS);
-  if (!dead) return;
-  // The drop began at the last frame heard, not when the silence was noticed. Every feed rides the
-  // same link, so the quiet tape, which cannot show it is dead, dials again with it.
-  const since = dead.lastFrameAt ?? now;
-  for (const feed of r.feeds) {
-    if (feed.ws != null) redial(r, feed, feed === dead ? `silent for ${(SILENCE_LIMIT_MS / 1000).toFixed(0)} s` : 'the link dropped', since);
-  }
-}
-
-function onVisibility(): void {
-  const r = run;
-  if (!r) return;
-  const now = Date.now();
-  if (document.hidden) {
-    r.hiddenAt = now;
-    return;
-  }
-  if (r.hiddenAt != null) r.hiddenMs += now - r.hiddenAt;
-  r.hiddenAt = null;
-  // The browser froze the page: give each feed a fresh allowance before silence counts as a drop.
-  for (const feed of r.feeds) if (feed.lastFrameAt != null) feed.lastFrameAt = now;
-  void keepAwake(r);
-}
-
-interface WakeLockNavigator {
-  wakeLock?: { request(type: 'screen'): Promise<unknown> };
-}
-
-/** Ask the browser to keep the screen on, so a long run is not frozen by the lock screen. */
-async function keepAwake(r: Run): Promise<void> {
-  const lock = (navigator as Navigator & WakeLockNavigator).wakeLock;
-  if (!lock) {
-    r.notes.set('awake', 'This browser cannot keep the screen on: keep it awake by hand for a long run.');
-    return;
-  }
-  try {
-    await lock.request('screen');
-    r.notes.delete('awake');
-  } catch {
-    r.notes.set('awake', 'The screen may turn off: the browser refused to keep it on.');
-  }
-}
-
-function stop(): void {
-  if (!run) return;
-  const r = run;
-  run = null;
-  r.timers.forEach((t) => window.clearInterval(t));
-  for (const feed of r.feeds) {
-    if (feed.retry != null) window.clearTimeout(feed.retry);
-    feed.ws?.close();
-  }
 }
 
 function ms(value: number | undefined, limit = LINK_LIMIT_MS): { text: string; over: boolean } {
@@ -358,7 +135,7 @@ function build(): void {
   document.body.append(main);
 
   const draw = (): void => {
-    const r = run;
+    const r = currentRun();
     if (!r) return;
     const now = Date.now();
     const [bookFeed, tapeFeed] = r.feeds;
@@ -386,8 +163,8 @@ function build(): void {
 
   form.addEventListener('submit', (ev) => {
     ev.preventDefault();
-    if (run) {
-      stop();
+    if (currentRun()) {
+      stopRun();
       startButton.textContent = 'Start';
       return;
     }
@@ -396,28 +173,16 @@ function build(): void {
       verdict.textContent = 'Enter a stock symbol.';
       return;
     }
-    const r: Run = {
-      symbol, startedWall: Date.now(), roundTrip: new Rolling(), roundTripWhole: new Tally(),
-      feeds: [newFeed('Level 2', '/ws/ibkr/depth', true), newFeed('Time & Sales', '/ws/ibkr/tape', false)],
-      clock: [], timers: [], notes: new Map(), gate: 'not read yet', failedPings: 0, hiddenMs: 0, hiddenAt: null,
-    };
-    run = r;
+    startRun(symbol, draw, DRAW_EVERY_MS);
     startButton.textContent = 'Stop';
     copyButton.textContent = 'Copy';
-    void ping(r);
-    void keepAwake(r);
-    r.timers.push(
-      window.setInterval(() => void ping(r), PING_EVERY_MS),
-      window.setInterval(() => watch(r), PING_EVERY_MS),
-      window.setInterval(draw, DRAW_EVERY_MS),
-    );
-    r.feeds.forEach((feed) => openSocket(r, feed));
     draw();
   });
 
   copyButton.addEventListener('click', () => {
-    if (!run) return;
-    const text = summary(run, Date.now());
+    const r = currentRun();
+    if (!r) return;
+    const text = summary(r, Date.now());
     navigator.clipboard?.writeText(text).then(
       () => { copyButton.textContent = 'Copied'; },
       () => { notes.textContent = text; },

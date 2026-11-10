@@ -130,7 +130,10 @@ export class Rolling {
   }
 }
 
-/** Level 2 sends a beat every 250 ms, so this long with nothing means the socket is dead, closed or not. */
+/**
+ * Level 2 sends a beat every 250 ms and the tape a ping every second even when nobody trades, so
+ * this long with nothing on either means that socket is dead, closed or not.
+ */
 export const SILENCE_LIMIT_MS = 3_000;
 /** How long a dropped socket waits before it dials again. */
 export const RECONNECT_WAIT_MS = 1_000;
@@ -176,6 +179,15 @@ export class Outages {
     this.totalMs += lasted;
     if (lasted > this.longestMs) this.longestMs = lasted;
     this.downAt = null;
+  }
+
+  /**
+   * The page was not measuring from *fromMs* to *toMs* (hidden, so the browser froze it): an open
+   * outage does not grow over that span. One that began inside it begins when measuring resumed.
+   */
+  skip(fromMs: number, toMs: number): void {
+    if (this.downAt == null || toMs <= fromMs) return;
+    this.downAt = this.downAt < fromMs ? this.downAt + (toMs - fromMs) : toMs;
   }
 
   isDown(): boolean {
