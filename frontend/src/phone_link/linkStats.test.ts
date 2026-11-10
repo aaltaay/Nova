@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   FAILED_ROUND_TRIP_MS,
+  Outages,
   Rolling,
+  Tally,
+  durationText,
   apiBaseFor,
   bestClock,
   clockSample,
@@ -73,6 +76,38 @@ describe('a measure over the window', () => {
     rolling.add(500, 40, 10);
     expect(rolling.spread(500)?.n).toBe(1);
     expect(rolling.rate(500).perSec).toBe(2);
+  });
+});
+
+describe('the whole run', () => {
+  it('counts every sample and the ones over the limit, long after the window forgot them', () => {
+    const tally = new Tally();
+    for (let i = 0; i < 198; i += 1) tally.add(60);
+    tally.add(900);
+    tally.add(1_400);
+    tally.add(null);
+    expect(tally.text()).toBe('200, over 500 ms: 2 (1.0%), worst 1400 ms');
+    expect(new Tally().text()).toBe('none');
+  });
+
+  it('times a drop from going quiet to the first frame back, and says when one is still open', () => {
+    const outages = new Outages();
+    expect(outages.text(0)).toBe('no drops');
+    outages.down(10_000);
+    outages.down(11_000); // still the same outage
+    expect(outages.isDown()).toBe(true);
+    expect(outages.text(12_500)).toBe('1 drop, longest 2.5 s, down now');
+    outages.up(14_200);
+    outages.up(15_000); // a later frame ends nothing
+    outages.down(60_000);
+    outages.up(60_800);
+    expect(outages.text(70_000)).toBe('2 drops, longest 4.2 s');
+    expect(outages.totalMs).toBe(5_000);
+  });
+
+  it('writes a span the way a person reads it', () => {
+    expect(durationText(41_300)).toBe('41 s');
+    expect(durationText(245_000)).toBe('4 m 05 s');
   });
 });
 

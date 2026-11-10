@@ -1023,6 +1023,15 @@ asks `GET /api/market-view/gate?symbol=` once a second.
   round trip is at most 500 ms (the order door's `ORDER_MAX_ARRIVAL_MS`), fails
   when either is over, and waits until both were measured. **Copy** puts the
   figures on the clipboard as text.
+- **Left running:** a socket that closes dials again after 1 s. Level 2 beats
+  every 250 ms, so 3 s with no frame is a dead socket whether or not it closed,
+  and it dials again too; the tape is quiet whenever nobody trades, so only a
+  close redials it. A drop runs from going quiet to the first frame back. Under
+  the 30 s table, **Whole run** keeps what the window forgets: how long it ran,
+  and for the round trips and each feed how many samples, how many over 500 ms,
+  the worst, and its drops with the longest. The page asks the browser to keep
+  the screen on; time the page was hidden is shown and not measured, since the
+  browser stops a hidden page.
 
 
 ## IBKR capacity on the desk (operator ask, 2026-10-16)
