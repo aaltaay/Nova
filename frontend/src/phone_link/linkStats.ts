@@ -130,6 +130,84 @@ export class Rolling {
   }
 }
 
+/**
+ * Level 2 sends a beat every 250 ms and the tape a ping every second even when nobody trades, so
+ * this long with nothing on either means that socket is dead, closed or not.
+ */
+export const SILENCE_LIMIT_MS = 3_000;
+/** How long a dropped socket waits before it dials again. */
+export const RECONNECT_WAIT_MS = 1_000;
+
+/** A measure over the whole run, where the rolling window forgets: how many, how many over the limit, the worst. */
+export class Tally {
+  n = 0;
+  over = 0;
+  worst = 0;
+
+  add(value: number | null, limitMs: number = LINK_LIMIT_MS): void {
+    if (value == null || !Number.isFinite(value)) return;
+    this.n += 1;
+    if (value > limitMs) this.over += 1;
+    if (value > this.worst) this.worst = value;
+  }
+
+  text(): string {
+    if (!this.n) return 'none';
+    const share = (this.over / this.n) * 100;
+    return `${this.n}, over ${LINK_LIMIT_MS} ms: ${this.over} (${share.toFixed(share > 0 && share < 10 ? 1 : 0)}%), worst ${Math.round(this.worst)} ms`;
+  }
+}
+
+/** One feed's drops over the run: each runs from the moment it went quiet to its first frame back. */
+export class Outages {
+  count = 0;
+  longestMs = 0;
+  totalMs = 0;
+  private downAt: number | null = null;
+
+  /** The feed went quiet at *nowMs*. A second call while already down is the same outage. */
+  down(nowMs: number): void {
+    if (this.downAt != null) return;
+    this.downAt = nowMs;
+    this.count += 1;
+  }
+
+  /** A frame arrived at *nowMs*: any open outage ends here. */
+  up(nowMs: number): void {
+    if (this.downAt == null) return;
+    const lasted = Math.max(0, nowMs - this.downAt);
+    this.totalMs += lasted;
+    if (lasted > this.longestMs) this.longestMs = lasted;
+    this.downAt = null;
+  }
+
+  /**
+   * The page was not measuring from *fromMs* to *toMs* (hidden, so the browser froze it): an open
+   * outage does not grow over that span. One that began inside it begins when measuring resumed.
+   */
+  skip(fromMs: number, toMs: number): void {
+    if (this.downAt == null || toMs <= fromMs) return;
+    this.downAt = this.downAt < fromMs ? this.downAt + (toMs - fromMs) : toMs;
+  }
+
+  isDown(): boolean {
+    return this.downAt != null;
+  }
+
+  text(nowMs: number): string {
+    if (!this.count) return 'no drops';
+    const open = this.downAt == null ? 0 : Math.max(0, nowMs - this.downAt);
+    const longest = Math.max(this.longestMs, open);
+    return `${this.count} drop${this.count === 1 ? '' : 's'}, longest ${(longest / 1000).toFixed(1)} s${this.downAt == null ? '' : ', down now'}`;
+  }
+}
+
+/** A span as "4 m 05 s" or "41 s". */
+export function durationText(ms: number): string {
+  const sec = Math.max(0, Math.round(ms / 1000));
+  return sec < 60 ? `${sec} s` : `${Math.floor(sec / 60)} m ${String(sec % 60).padStart(2, '0')} s`;
+}
+
 export type Verdict = 'pass' | 'fail' | 'waiting';
 
 /** Under the limit only when 95 in 100 of both the data and the round trip are; waiting until both were measured. */
