@@ -972,6 +972,54 @@ The policy is read once, when `main.py` builds the app; a change to `.env`
 needs an API restart. The bot and agent routes keep their own loopback checks
 on the caller's address (`/bot/*`, `/api/bot/*`, `/ws/bot/*`, `/api/agent/*`).
 
+**Another device is view-only (ADR 070).** A request that passed the Host and
+Origin rules is from another device when its Host is not a loopback name (or
+any `127.x` address) or the bind host -- so a name that is only in
+`NOVA_ALLOWED_HOSTS` is one -- or when it carries any of `Forwarded`,
+`X-Forwarded-For`, `X-Forwarded-Host`, `Tailscale-User-Login`. The headers are
+what tell a tunnel on this PC from the desk: it calls from `127.0.0.1`, and may
+rewrite the Host. From another device:
+
+- an HTTP `POST`, `PUT`, `PATCH` or `DELETE` on any path is refused before the
+  API key is read: status 403, `{"detail": "Nova is view-only from another
+  device: orders, cancels and settings go from the desk on the PC. Nothing was
+  sent.", "reason": "REMOTE_VIEW_ONLY"}`;
+- any request or socket under `/bot`, `/api/bot`, `/ws/bot` or `/api/agent` is
+  refused, reads too: status 403, `{"detail": "Nova's bot and agent routes
+  answer only on the PC, not from another device.", "reason":
+  "REMOTE_LOCAL_ONLY"}` (a socket where the server cannot answer the handshake:
+  close code 1008);
+- every other GET and socket passes, with no key, as on the PC.
+
+These are logged (the first of each reason at WARNING, the rest at DEBUG) and
+are not counted in the `api_refusals` row, which explains names and origins.
+
+## The phone link test (ADR 070)
+
+`frontend/link-test.html` (code `frontend/src/phone_link/`) is a second page in
+the desk's build, served over the private tunnel (`docs/phone-link.md`). It
+holds no API key and makes no write. For one symbol it opens
+`/ws/ibkr/depth/{symbol}` and `/ws/ibkr/tape/{symbol}` as the desk does, and
+asks `GET /api/market-view/gate?symbol=` once a second.
+
+- **Where the API is.** A page on a loopback name (or a file) uses
+  `http://127.0.0.1:8000`; a page on any other name uses port 8443 of that
+  name over HTTPS, where the tunnel serves the API whole.
+- **Round trip:** the gate request out and its answer back, ms.
+- **Clock:** each answer's `checked_at` against the middle of its round trip
+  gives "the PC's clock minus this device's"; the quickest of the last 20 round
+  trips is kept, good to half its round trip.
+- **Age of a frame on arrival:** this device's clock, corrected, minus the
+  frame's own time on the PC's clock -- `sent` on a `book` and a `prints` frame,
+  `now` on a `beat`, `ts` on a single `print`. No age is shown before the clock
+  is measured.
+- **Traffic:** frames and bytes a second per socket.
+- Each measure shows its middle, 95th percentile and worst over the last 30 s.
+  The verdict passes when the 95th percentile of both the Level 2 age and the
+  round trip is at most 500 ms (the order door's `ORDER_MAX_ARRIVAL_MS`), fails
+  when either is over, and waits until both were measured. **Copy** puts the
+  figures on the clipboard as text.
+
 
 ## IBKR capacity on the desk (operator ask, 2026-10-16)
 

@@ -62,6 +62,25 @@ ORIGIN_REFUSED_DETAIL = (
 WS_CLOSE_REASON_HOST = "Host not allowed: add it to NOVA_ALLOWED_HOSTS"
 WS_CLOSE_REASON_ORIGIN = "Origin not allowed: add it to NOVA_CORS_ALLOWED_ORIGINS"
 
+# A phone on the private tunnel is view-only (ADR 070): a write that did not come
+# straight from this PC is refused before the API key is read. "Straight from this
+# PC" is a loopback Host name (or the bind host) and none of these headers, which a
+# forwarder adds and the desk, the bots and the tools never send.
+REMOTE_WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+FORWARDED_HEADERS = frozenset({b"forwarded", b"x-forwarded-for", b"x-forwarded-host", b"tailscale-user-login"})
+REMOTE_REFUSED_STATUS = 403
+REASON_REMOTE_VIEW_ONLY = "REMOTE_VIEW_ONLY"
+REMOTE_WRITE_REFUSED_DETAIL = (
+    "Nova is view-only from another device: orders, cancels and settings go from the desk "
+    "on the PC. Nothing was sent."
+)
+# The bot and agent routes are this PC's alone: they check the caller's address, and a
+# tunnel on this PC calls from 127.0.0.1. Another device reaches none of them, reads included.
+REMOTE_CLOSED_PREFIXES = ("/bot", "/api/bot", "/ws/bot", "/api/agent")
+REASON_REMOTE_LOCAL_ONLY = "REMOTE_LOCAL_ONLY"
+REMOTE_LOCAL_ONLY_DETAIL = "Nova's bot and agent routes answer only on the PC, not from another device."
+WS_CLOSE_REASON_REMOTE = "Not from another device: this route answers only on the PC"
+
 # One WARNING per refused (kind, header, value) per window; the refusals in
 # between are counted on the next line. The key map is cleared when it grows
 # past the cap, so values an attacker varies cannot grow memory.

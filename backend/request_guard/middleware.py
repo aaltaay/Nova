@@ -17,20 +17,26 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from starlette.websockets import WebSocketClose
 
 from request_guard.constants_request_guard import (
+    FORWARDED_HEADERS,
     HOST_REFUSED_DETAIL,
     HOST_REFUSED_STATUS,
     LOGGED_VALUE_MAX_CHARS,
     ORIGIN_REFUSED_DETAIL,
     REASON_HOST_NOT_ALLOWED,
+    REASON_REMOTE_VIEW_ONLY,
     REFUSAL_LOG_KEYS_MAX,
     REFUSAL_LOG_WINDOW_SEC,
+    REMOTE_LOCAL_ONLY_DETAIL,
+    REMOTE_REFUSED_STATUS,
+    REMOTE_WRITE_REFUSED_DETAIL,
     WS_CLOSE_REASON_HOST,
     WS_CLOSE_REASON_ORIGIN,
+    WS_CLOSE_REASON_REMOTE,
     WS_POLICY_VIOLATION,
     WS_REFUSED_HTTP_STATUS,
 )
 from request_guard import recent_refusals
-from request_guard.policy import GuardPolicy, Refusal, check_request
+from request_guard.policy import GuardPolicy, Refusal, check_request, remote_refusal
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +94,11 @@ def _hosts_and_origins(scope: Scope) -> tuple[list[str], list[str]]:
     return hosts, origins
 
 
+def _forwarded(scope: Scope) -> bool:
+    """Whether a forwarder's header is on the request: the desk, the bots and the tools send none."""
+    return any(name in FORWARDED_HEADERS for name, _ in scope.get("headers") or ())
+
+
 async def _refuse(scope: Scope, receive: Receive, send: Send, refusal: Refusal) -> None:
     host = refusal.reason == REASON_HOST_NOT_ALLOWED
     body = {"detail": HOST_REFUSED_DETAIL if host else ORIGIN_REFUSED_DETAIL, "reason": refusal.reason}
@@ -109,6 +120,28 @@ class RequestGuardMiddleware:
         self.app = app
         self.policy = policy
         self.refusals = RefusalLog()
+        self._remote_said: set[str] = set()
+
+    async def _refuse_remote(self, scope: Scope, receive: Receive, send: Send, reason: str) -> None:
+        """Another device may read, not write, and never reaches this PC's own routes (ADR 070).
+        Not a ``recent_refusals`` entry: that row explains Host names and page origins, and a
+        phone's desk reports to the API all day."""
+        what = scope.get("method") or scope["type"]
+        path = str(scope.get("path", ""))[:LOGGED_VALUE_MAX_CHARS]
+        if reason not in self._remote_said:
+            self._remote_said.add(reason)
+            logger.warning(
+                "request guard: refused %s %r from another device -- %s (ADR 070); "
+                "later ones are logged at DEBUG", what, path, reason,
+            )
+        else:
+            logger.debug("request guard: refused %s %r from another device -- %s", what, path, reason)
+        view_only = reason == REASON_REMOTE_VIEW_ONLY
+        body = {"detail": REMOTE_WRITE_REFUSED_DETAIL if view_only else REMOTE_LOCAL_ONLY_DETAIL, "reason": reason}
+        if scope["type"] == "http" or _WS_DENIAL_EXTENSION in (scope.get("extensions") or {}):
+            await JSONResponse(body, status_code=REMOTE_REFUSED_STATUS)(scope, receive, send)
+            return
+        await WebSocketClose(code=WS_POLICY_VIOLATION, reason=WS_CLOSE_REASON_REMOTE)(scope, receive, send)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         kind = scope["type"]
@@ -118,6 +151,12 @@ class RequestGuardMiddleware:
         hosts, origins = _hosts_and_origins(scope)
         refusal = check_request(self.policy, kind, hosts, origins)
         if refusal is None:
+            remote = remote_refusal(
+                self.policy, kind, scope.get("method", ""), scope.get("path", ""), hosts, _forwarded(scope)
+            )
+            if remote is not None:
+                await self._refuse_remote(scope, receive, send, remote)
+                return
             await self.app(scope, receive, send)
             return
         path = scope.get("path", "")

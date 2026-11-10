@@ -110,6 +110,18 @@ from tests import priority_guard
 _PYTEST_PRIORITY = priority_guard.read()
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _testserver_is_this_pc():
+    """TestClient's Host stands for the desk on this PC: a name in NOVA_ALLOWED_HOSTS alone is
+    another device, which is view-only (ADR 070), and every test's POST would be refused."""
+    from request_guard import policy
+
+    before = policy.THIS_PC_NAMES
+    policy.THIS_PC_NAMES = before | {"testserver"}
+    yield
+    policy.THIS_PC_NAMES = before
+
+
 @pytest.fixture(autouse=True)
 def _hold_pytest_priority():
     # A test that moves pytest's own CPU class or main-thread priority, either way, fails here and is put back, so
