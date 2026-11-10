@@ -9,7 +9,9 @@
  */
 import {
   CLOCK_SAMPLES_KEEP,
+  FAILED_ROUND_TRIP_MS,
   LINK_LIMIT_MS,
+  PING_TIMEOUT_MS,
   Rolling,
   apiBaseFor,
   bestClock,
@@ -25,7 +27,6 @@ const API_BASE = apiBaseFor(window.location);
 const WS_BASE = wsBaseFor(API_BASE);
 const PING_EVERY_MS = 1_000;
 const DRAW_EVERY_MS = 500;
-const PING_TIMEOUT_MS = 5_000;
 
 const STYLE = `
   :root { color-scheme: dark; }
@@ -67,6 +68,7 @@ interface Run {
   timers: number[];
   notes: Map<string, string>;
   gate: string;
+  failedPings: number;
 }
 
 let run: Run | null = null;
@@ -85,6 +87,7 @@ async function ping(r: Run): Promise<void> {
       cache: 'no-store',
       signal: controller.signal,
     });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const body = (await res.json()) as { checked_at?: number; locked?: boolean; text?: string | null };
     const rtt = performance.now() - askedMono;
     if (run !== r) return;
@@ -94,11 +97,12 @@ async function ping(r: Run): Promise<void> {
       if (r.clock.length > CLOCK_SAMPLES_KEEP) r.clock.shift();
     }
     r.gate = body.locked ? `locked: ${body.text ?? ''}` : 'open';
-    r.notes.delete('round trip');
   } catch (err) {
     if (run !== r) return;
-    r.roundTrip.add(Date.now(), null);
-    r.notes.set('round trip', `Round trip failed: ${err instanceof Error ? err.message : String(err)}`);
+    // A failed round trip is a slow one, not a missing one: it counts against the verdict.
+    r.roundTrip.add(Date.now(), FAILED_ROUND_TRIP_MS);
+    r.failedPings += 1;
+    r.notes.set('round trip', `Round trips failed: ${r.failedPings} (each counted as ${FAILED_ROUND_TRIP_MS} ms). Last: ${err instanceof Error ? err.message : String(err)}`);
   } finally {
     window.clearTimeout(timeout);
   }
@@ -257,7 +261,7 @@ function build(): void {
     }
     const r: Run = {
       symbol, startedWall: Date.now(), roundTrip: new Rolling(), book: new Rolling(), tape: new Rolling(),
-      clock: [], sockets: [], timers: [], notes: new Map(), gate: 'not read yet',
+      clock: [], sockets: [], timers: [], notes: new Map(), gate: 'not read yet', failedPings: 0,
     };
     run = r;
     startButton.textContent = 'Stop';

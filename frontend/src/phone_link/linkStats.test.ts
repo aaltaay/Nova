@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  FAILED_ROUND_TRIP_MS,
   Rolling,
   apiBaseFor,
   bestClock,
@@ -84,5 +85,15 @@ describe('the verdict', () => {
     expect(linkVerdict(spread(120), spread(90))).toBe('pass');
     expect(linkVerdict(spread(620), spread(90))).toBe('fail');
     expect(linkVerdict(spread(120), spread(501))).toBe('fail');
+  });
+
+  it('fails a link that drops round trips, however quick the ones that got through', () => {
+    // 9 in 10 answer in 40 ms; 1 in 10 times out. Left out, the timeouts would read as a clean pass.
+    const roundTrip = new Rolling(60_000);
+    for (let i = 0; i < 30; i += 1) roundTrip.add(i * 1000, i % 10 === 0 ? FAILED_ROUND_TRIP_MS : 40);
+    const got = roundTrip.spread(30_000);
+    expect(got?.n).toBe(30);
+    expect(got?.p50).toBe(40);
+    expect(linkVerdict(spread(120), got)).toBe('fail');
   });
 });

@@ -9,6 +9,14 @@
 
 /** The order door refuses a new entry that arrives later than this after the tap (backend ORDER_MAX_ARRIVAL_MS). */
 export const LINK_LIMIT_MS = 500;
+/** How long a round trip may take before the page gives up on it. */
+export const PING_TIMEOUT_MS = 5_000;
+/**
+ * What a round trip that failed counts as: one that timed out, was refused or could not be read is a
+ * round trip of the full timeout, never a missing sample -- or a link that drops half its requests
+ * would be judged on the half that got through.
+ */
+export const FAILED_ROUND_TRIP_MS = PING_TIMEOUT_MS;
 /** How far back each measure's spread reads. */
 export const LINK_WINDOW_MS = 30_000;
 /** Round trips kept for the clock offset. */

@@ -1005,7 +1005,11 @@ asks `GET /api/market-view/gate?symbol=` once a second.
 - **Where the API is.** A page on a loopback name (or a file) uses
   `http://127.0.0.1:8000`; a page on any other name uses port 8443 of that
   name over HTTPS, where the tunnel serves the API whole.
-- **Round trip:** the gate request out and its answer back, ms.
+- **Round trip:** the gate request out and its answer back, ms. One that times
+  out (5 s), is refused or cannot be read counts as a 5,000 ms round trip, never
+  as a missing sample, and the page counts them.
+- **Not in the demo build** (`--mode demo`, ADR 043): this page does not load
+  the demo's stubbed transports, so it is left out of that build.
 - **Clock:** each answer's `checked_at` against the middle of its round trip
   gives "the PC's clock minus this device's"; the quickest of the last 20 round
   trips is kept, good to half its round trip.
