@@ -140,6 +140,10 @@ export default defineConfig(({ command, mode }) => {
       input: {
         main: path.resolve(__dirname, 'index.html'),
         clipExport: path.resolve(__dirname, 'clip-export.html'),
+        // The phone link test (ADR 070): its own light page, so a phone measures the link without loading the desk.
+        // Never in the public demo (ADR 043): this page does not load main.tsx, so the demo's stubbed
+        // fetch and WebSocket would not cover it and it would make real requests.
+        ...(mode === 'demo' ? {} : { linkTest: path.resolve(__dirname, 'link-test.html') }),
       },
       output: {
         // Keep function and class names through minification so a long

@@ -26,6 +26,10 @@ from request_guard.constants_request_guard import (
     NEVER_ALLOWED_ORIGINS,
     REASON_HOST_NOT_ALLOWED,
     REASON_ORIGIN_NOT_ALLOWED,
+    REASON_REMOTE_LOCAL_ONLY,
+    REASON_REMOTE_VIEW_ONLY,
+    REMOTE_CLOSED_PREFIXES,
+    REMOTE_WRITE_METHODS,
     WILDCARD_BIND_HOSTS,
 )
 
@@ -35,6 +39,8 @@ class GuardPolicy:
     hosts: frozenset[str]
     any_host: bool
     ws_origins: frozenset[str]
+    # The bind host when it is a name or address: with the loopback names, where "this PC" is (ADR 070).
+    bind_host: str | None = None
 
 
 @dataclass(frozen=True)
@@ -171,7 +177,44 @@ def load_policy(environ: Mapping[str, str]) -> tuple[GuardPolicy, list[str]]:
             f"{CORS_ORIGINS_ENV} lists {', '.join(repr(o) for o in dropped)}; "
             f"sockets never take those origins (any website can send them){instead}"
         )
-    return GuardPolicy(frozenset(hosts), any_host, frozenset(ws_origins)), warnings
+    return GuardPolicy(frozenset(hosts), any_host, frozenset(ws_origins), bind), warnings
+
+
+THIS_PC_NAMES = frozenset(_canonical(h) for h in NOVA_API_LOOPBACK_HOSTS)
+
+
+def host_is_this_pc(policy: GuardPolicy, name: str | None) -> bool:
+    """A loopback name or the bind host: a name in NOVA_ALLOWED_HOSTS alone is another device's way in."""
+    if name is None:
+        return False
+    if name in THIS_PC_NAMES or name == policy.bind_host:
+        return True
+    try:
+        return ipaddress.ip_address(name).is_loopback
+    except ValueError:
+        return False
+
+
+def remote_refusal(
+    policy: GuardPolicy, kind: str, method: str, path: str, hosts: Iterable[str], forwarded: bool
+) -> str | None:
+    """Why a request from another device is refused (ADR 070), or None when it may pass.
+
+    Another device is one that did not come straight from this PC: its Host is not a
+    loopback name or the bind host, or it carries a forwarder's header (``forwarded``)
+    -- a tunnel that rewrote the Host to a loopback name is still another device, and
+    its caller address is this PC's. It may read; it may not write (HTTP), and it may
+    not reach the routes that are this PC's alone, by any method or socket.
+    """
+    host_values = list(hosts)
+    if not forwarded and len(host_values) == 1 and host_is_this_pc(policy, host_name(host_values[0])):
+        return None
+    normalized = path.rstrip("/") or "/"
+    if any(normalized == p or normalized.startswith(p + "/") for p in REMOTE_CLOSED_PREFIXES):
+        return REASON_REMOTE_LOCAL_ONLY
+    if kind == "http" and method.upper() in REMOTE_WRITE_METHODS:
+        return REASON_REMOTE_VIEW_ONLY
+    return None
 
 
 def host_allowed(policy: GuardPolicy, name: str | None) -> bool:
