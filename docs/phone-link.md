@@ -56,6 +56,10 @@ The page shows the round trip, the phone's clock against the PC's, how old Level
 and how much traffic the symbol makes. The verdict is green only when 95 in 100 of both the data and the round trips are
 under 500 ms, the same limit the order door uses (ADR 045).
 
+For a long run, leave it going ten minutes or more and do what breaks links: switch Wi-Fi to cellular, walk around.
+The page keeps the screen on, dials a dropped feed again, and under **Whole run** counts every sample over 500 ms and
+every drop with how long the longest lasted. Copy includes it.
+
 "Round trip" is a read of the order gate, not an order. A real order adds the door's own work (about 10 ms on Paper)
 and, on Live, IBKR's answer.
 
