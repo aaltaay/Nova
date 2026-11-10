@@ -51,21 +51,29 @@ def valid_pin_shape(pin: str) -> bool:
     return len(pin) == ARM_PIN_LENGTH and pin.isdigit()
 
 
-def read_hash(env_name: str) -> str | None:
-    """The hash stored under *env_name*: the process environment first, else the desk's ``.env``, read now."""
-    value = (os.environ.get(env_name) or "").strip()
-    if value:
-        return value
+def _from_file(env_name: str) -> str | None:
     from dotenv import dotenv_values
 
     from paths import env_file_path
 
     try:
-        value = str(dotenv_values(env_file_path()).get(env_name) or "").strip()
+        return str(dotenv_values(env_file_path()).get(env_name) or "").strip() or None
     except OSError:
         logger.warning("ARM: could not read .env for %s", env_name, exc_info=True)
         return None
-    return value or None
+
+
+def read_hash(env_name: str, *, file_first: bool = False) -> str | None:
+    """The hash stored under *env_name*: the process environment first, else the desk's ``.env``, read now.
+
+    ``file_first`` reads the file first and the environment only when the file has none. The API loads
+    ``.env`` into its environment at start, so environment-first keeps answering with the hash it started
+    with after the file is rewritten; a caller whose PIN must change without a restart asks for the file.
+    """
+    env = (os.environ.get(env_name) or "").strip() or None
+    if file_first:
+        return _from_file(env_name) or env
+    return env or _from_file(env_name)
 
 
 def stored_hash() -> str | None:

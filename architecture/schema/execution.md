@@ -304,7 +304,8 @@ through (every other one is still `403 REMOTE_VIEW_ONLY`), and the API key middl
 `X-Nova-Api-Key`: the phone PIN's session opens them, and the desk's key never leaves the PC.
 
 **The PIN.** `NOVA_PHONE_PIN_HASH` in `.env`, written by `py -3 tools/set_phone_pin.py` on the PC (6 digits, the
-Live PIN's hash form, re-read on every unlock). Five wrong PINs in a row lock the phone for 300 s; the count is its
+Live PIN's hash form). Every unlock reads the file, and the file wins over the API's environment, which still holds
+the hash the API started with: a changed PIN replaces the old one at once. Five wrong PINs in a row lock the phone for 300 s; the count is its
 own, apart from the Live PIN's.
 
 **The session.** One random token in memory. It ends 8 hours after the unlock, on Lock, on a newer unlock, and when
@@ -327,6 +328,7 @@ Refusals are `{"detail": {"reason": <code>, "error": <words>}}`:
 | 401 | `PHONE_LOCKED` | no session, an ended one, or a wrong token |
 | 403 | `PHONE_PIN_REQUIRED`, `PHONE_PIN_NOT_SET`, `PHONE_PIN_INVALID`, `PHONE_PIN_LOCKED` | the unlock |
 | 409 | `PHONE_NOT_PAPER` | the desk is on Live or Sim: "the phone trades Paper only. Nothing was sent." |
+| 409 | `PHONE_NO_VIEW` | a new entry whose `view` has no `book` or no `instance`: the phone received no Level 2 to price it from. A sell out of a long, a buy that covers and a Flatten are not held |
 | 422 | -- | an order without `client_timing` or `view`, or with a field the phone does not send |
 
 **What an order becomes.** The phone's route builds the desk's own `OrderRequest` with `venue: "paper"` and calls the

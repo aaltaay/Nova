@@ -19,6 +19,7 @@ from phone import pin, session
 from phone.constants_phone import (
     PHONE_API_PREFIX,
     PHONE_LOCKED,
+    PHONE_NO_VIEW,
     PHONE_NOT_PAPER,
     PHONE_SCHEMA_VERSION,
     PHONE_VENUE,
@@ -135,6 +136,12 @@ async def place(body: PhoneOrder, request: Request, _token: str = Depends(requir
         idempotency_key=body.idempotency_key, client_timing=body.client_timing, view=body.view,
         venue=PHONE_VENUE,
     )
+    # ADR 045 on the desk lets a view without a book through (a desk with no Level 2 pane still has its quote).
+    # The phone's only market is the Level 2 it received, so a new entry without one was priced from nothing.
+    if (body.view.book is None or body.view.instance is None) and desk.opens_a_position(order):
+        raise _refuse(PHONE_NO_VIEW, f"Your phone has not received Level 2 for {order.symbol} yet, so the buy was "
+                      "not sent. Wait for the test to show Level 2, then tap again. A sell, Flatten and Cancel still "
+                      "work.", 409)
     return await desk.place_order(order, request)
 
 

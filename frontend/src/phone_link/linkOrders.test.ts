@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { closingOrder, orderStamp, refusalText, type OrderContext } from './linkOrders';
-import { blockedWhy } from './linkOrdersPanel';
+import { blockedWhy, buyBlockedWhy } from './linkOrdersPanel';
 
 const ctx = (over: Partial<OrderContext> = {}): OrderContext => ({
   symbol: 'F',
@@ -60,5 +60,13 @@ describe('why the order buttons are off', () => {
     expect(blockedWhy({ ...status, venue: 'live', paper: false }, true)).toContain('Paper only');
     expect(blockedWhy(status, false)).toContain('Press Start');
     expect(blockedWhy(status, true)).toBeNull();
+  });
+
+  it('holds Buy alone until this device has the clock and a Level 2 book', () => {
+    expect(buyBlockedWhy(ctx())).toBeNull();
+    expect(buyBlockedWhy(ctx({ book: null }))).toContain('No Level 2 received for F');
+    expect(buyBlockedWhy(ctx({ instance: null }))).toContain('Sell, Flatten and Cancel still work');
+    expect(buyBlockedWhy(ctx({ offsetMs: null }))).toContain('clock');
+    expect(buyBlockedWhy(null)).toBeNull();
   });
 });

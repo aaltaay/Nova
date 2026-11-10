@@ -46,6 +46,17 @@ export function blockedWhy(status: PhoneStatus | null, hasRun: boolean): string 
   return null;
 }
 
+/**
+ * Why Buy alone is off, or null: a new entry needs the Level 2 this device received (the backend refuses one
+ * without it, `PHONE_NO_VIEW`). Sell, Flatten and Cancel are ways out and never wait for it.
+ */
+export function buyBlockedWhy(ctx: OrderContext | null): string | null {
+  if (!ctx) return null;
+  if (ctx.offsetMs == null) return "Measuring the PC's clock: a buy waits for it.";
+  if (!ctx.book || !ctx.instance) return `No Level 2 received for ${ctx.symbol} yet: a buy needs it. Sell, Flatten and Cancel still work.`;
+  return null;
+}
+
 /** Build the block. `context` is the running test's view of the link, or null when no test runs. */
 export function buildOrdersPanel(apiBase: string, context: () => OrderContext | null): HTMLElement {
   const door = new PhoneDoor(apiBase);
@@ -98,15 +109,18 @@ export function buildOrdersPanel(apiBase: string, context: () => OrderContext | 
   root.append(state, pinRow, sizeRow, sendRow, outRow, log);
 
   const draw = (): void => {
-    const why = blockedWhy(status, context() != null);
+    const ctx = context();
+    const why = blockedWhy(status, ctx != null);
+    const buyWhy = why == null ? buyBlockedWhy(ctx) : null;
     const unlocked = Boolean(status?.unlocked);
-    state.textContent = why ?? `Unlocked · desk on Paper · padlock ${status?.armed ? 'open' : 'closed (a buy is refused until it is open)'}`;
+    state.textContent = why ?? buyWhy ?? `Unlocked · desk on Paper · padlock ${status?.armed ? 'open' : 'closed (a buy is refused until it is open)'}`;
     pinInput.hidden = unlocked;
     unlockButton.textContent = unlocked ? 'Lock phone' : 'Unlock';
     unlockButton.disabled = busy || !status?.pin_set;
     padlockButton.textContent = status?.armed ? 'Close padlock' : 'Open padlock';
     padlockButton.disabled = busy || !unlocked;
-    for (const b of [buyButton, sellButton, flattenButton, cancelButton]) b.disabled = busy || why != null;
+    for (const b of [sellButton, flattenButton, cancelButton]) b.disabled = busy || why != null;
+    buyButton.disabled = busy || why != null || buyWhy != null;
     log.replaceChildren(...lines.map((line) => {
       const row = el('div', line.text);
       if (!line.ok) row.className = 'no';
@@ -180,6 +194,8 @@ export function buildOrdersPanel(apiBase: string, context: () => OrderContext | 
   });
 
   void refresh();
+  // The buttons follow the test: Buy opens when the first Level 2 book arrives, with no tap needed.
+  window.setInterval(() => { if (!document.hidden) draw(); }, 1_000);
   window.setInterval(() => { if (!busy && !document.hidden) void refresh(); }, STATUS_EVERY_MS);
   return root;
 }

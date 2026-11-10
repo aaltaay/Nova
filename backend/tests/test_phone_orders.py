@@ -27,7 +27,8 @@ PHONE = "desk.tail1234.ts.net"
 REMOTE = {"host": PHONE, "tailscale-user-login": "operator@example.com"}
 PIN = "246810"
 TIMING = {"action_wall_ms": 1.0, "action_performance_ms": 1.0, "request_wall_ms": 2.0, "request_performance_ms": 2.0}
-ORDER = {"symbol": "f", "side": "BUY", "qty": 1, "client_timing": TIMING, "view": {"action_wall_ms": 1.0}}
+ORDER = {"symbol": "f", "side": "BUY", "qty": 1, "client_timing": TIMING,
+         "view": {"action_wall_ms": 1.0, "instance": "this-backend", "book": {"seq": 4}}}
 
 
 @pytest.fixture
@@ -54,6 +55,7 @@ def phone(monkeypatch):
         state["sent"].append(("cancel_symbol", symbol, all_symbols, venue))
         return {"ok": True, "cancelled": []}
 
+    monkeypatch.setattr(routes.desk, "opens_a_position", lambda order: order.side == "BUY")
     monkeypatch.setattr(routes.desk, "place_order", place_order)
     monkeypatch.setattr(routes.desk, "cancel_order", cancel_order)
     monkeypatch.setattr(routes.desk, "cancel_orders_for_symbol", cancel_orders_for_symbol)
@@ -108,10 +110,42 @@ def test_the_pin_unlocks_and_wrong_pins_lock_it_out(phone, monkeypatch):
     assert pin.check(PIN, now=pin._locked_until + 1) == (None, "")
     assert PHONE_PIN_LOCKOUT_SEC > 0
     monkeypatch.delenv(PHONE_PIN_HASH_ENV)
-    monkeypatch.setattr(arm_pin, "read_hash", lambda name: None)
+    monkeypatch.setattr(arm_pin, "read_hash", lambda name, **_: None)
     pin.reset_for_tests()
     assert pin.check(PIN)[0] == PHONE_PIN_NOT_SET
     assert client.get("/api/phone", headers=REMOTE).json()["pin_set"] is False
+
+
+def test_a_pin_changed_on_the_pc_replaces_the_old_one_without_a_restart(monkeypatch, tmp_path):
+    # The API loaded .env into its environment at start, so the environment still holds the old hash.
+    import paths
+
+    env_file = tmp_path / ".env"
+    env_file.write_text(f"{PHONE_PIN_HASH_ENV}={arm_pin.hash_pin('111111', iterations=1000)}\n", encoding="utf-8")
+    monkeypatch.setattr(paths, "env_file_path", lambda: env_file)
+    monkeypatch.setenv(PHONE_PIN_HASH_ENV, arm_pin.hash_pin(PIN, iterations=1000))
+    pin.reset_for_tests()
+    assert pin.check("111111") == (None, "")
+    assert pin.check(PIN)[0] == PHONE_PIN_INVALID
+    # No line in the file: the environment's value still counts (a desk configured by environment alone).
+    env_file.write_text("", encoding="utf-8")
+    pin.reset_for_tests()
+    assert pin.check(PIN) == (None, "")
+    pin.reset_for_tests()
+
+
+def test_a_buy_without_a_received_level_2_is_refused_and_a_sell_goes(phone):
+    from phone.constants_phone import PHONE_NO_VIEW
+
+    client, state = phone
+    unlocked = _unlock(client)
+    for view in ({"action_wall_ms": 1.0}, {"action_wall_ms": 1.0, "book": {"seq": 4}}, {"action_wall_ms": 1.0, "instance": "x"}):
+        res = client.post("/api/phone/order", headers=unlocked, json={**ORDER, "view": view})
+        assert res.status_code == 409 and res.json()["detail"]["reason"] == PHONE_NO_VIEW
+        assert "Level 2" in res.json()["detail"]["error"]
+    assert state["sent"] == []
+    assert client.post("/api/phone/order", headers=unlocked, json={**ORDER, "side": "SELL", "view": {"action_wall_ms": 1.0}}).status_code == 200
+    assert [o.side for o in state["sent"]] == ["SELL"]
 
 
 def test_an_unlocked_phone_orders_on_paper_through_the_desks_own_handlers(phone):
