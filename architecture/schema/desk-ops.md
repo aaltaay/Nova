@@ -980,7 +980,8 @@ any `127.x` address) or the bind host -- so a name that is only in
 what tell a tunnel on this PC from the desk: it calls from `127.0.0.1`, and may
 rewrite the Host. From another device:
 
-- an HTTP `POST`, `PUT`, `PATCH` or `DELETE` on any path is refused before the
+- an HTTP `POST`, `PUT`, `PATCH` or `DELETE` on any path but `/api/phone` (the
+  phone PIN's Paper-only door, `architecture/schema/execution.md`) is refused before the
   API key is read: status 403, `{"detail": "Nova is view-only from another
   device: orders, cancels and settings go from the desk on the PC. Nothing was
   sent.", "reason": "REMOTE_VIEW_ONLY"}`;

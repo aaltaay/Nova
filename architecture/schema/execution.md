@@ -297,6 +297,52 @@ Every refusal ends "Selling what you hold, covering a short, cancels, Flatten an
 
 ---
 
+## Paper orders from the phone (ADR 070 amendment, operator decision 2026-11-10)
+
+Another device may write to one prefix, `/api/phone` (owner `backend/phone/`). The request guard lets those writes
+through (every other one is still `403 REMOTE_VIEW_ONLY`), and the API key middleware does not ask them for
+`X-Nova-Api-Key`: the phone PIN's session opens them, and the desk's key never leaves the PC.
+
+**The PIN.** `NOVA_PHONE_PIN_HASH` in `.env`, written by `py -3 tools/set_phone_pin.py` on the PC (6 digits, the
+Live PIN's hash form, re-read on every unlock). Five wrong PINs in a row lock the phone for 300 s; the count is its
+own, apart from the Live PIN's.
+
+**The session.** One random token in memory. It ends 8 hours after the unlock, on Lock, on a newer unlock, and when
+the backend restarts. Every write but the unlock carries it in `X-Nova-Phone-Session`.
+
+| Route | Body | Answer |
+|---|---|---|
+| `GET /api/phone` | -- | `{schema_version: 1, pin_set, unlocked, expires_at, venue, paper, armed}`; `unlocked` and `expires_at` read the session header when sent |
+| `POST /api/phone/unlock` | `{pin}` | the status, plus `token` |
+| `POST /api/phone/lock` | -- | the status |
+| `POST /api/phone/arm` | `{armed: bool}` | the status. Locking always goes; unlocking only while the desk is on Paper |
+| `POST /api/phone/order` | `{symbol, side: "BUY"\|"SELL", qty, order_type: "MKT"\|"LMT", limit_price?, outside_rth?, intent?: "flatten", idempotency_key?, client_timing, view}` | what `POST /api/ibkr/order` answers |
+| `DELETE /api/phone/order/{order_id}` | -- | what `DELETE /api/ibkr/order/{order_id}` answers |
+| `DELETE /api/phone/orders?symbol=` | -- | what `DELETE /api/ibkr/orders?symbol=` answers |
+
+Refusals are `{"detail": {"reason": <code>, "error": <words>}}`:
+
+| Status | `reason` | When |
+|---|---|---|
+| 401 | `PHONE_LOCKED` | no session, an ended one, or a wrong token |
+| 403 | `PHONE_PIN_REQUIRED`, `PHONE_PIN_NOT_SET`, `PHONE_PIN_INVALID`, `PHONE_PIN_LOCKED` | the unlock |
+| 409 | `PHONE_NOT_PAPER` | the desk is on Live or Sim: "the phone trades Paper only. Nothing was sent." |
+| 422 | -- | an order without `client_timing` or `view`, or with a field the phone does not send |
+
+**What an order becomes.** The phone's route builds the desk's own `OrderRequest` with `venue: "paper"` and calls the
+desk's own handler, so the command is the one a desk order makes (`source: "manual"`, or `flatten` with
+`intent: "flatten"`) with `expected_venue: "paper"`. The door refuses it `VENUE_CHANGED` if the desk is not on Paper
+when it is sent; `PHONE_NOT_PAPER` is the same answer given first in plain words. Every gate of the door judges it: the
+arm latch, the stale view (ADR 045), the size limit (ADR 064), the loss limit. It never carries `short_entry`, bracket
+legs or a `target_venue`.
+
+**Its clock and its view.** `client_timing` and `view` are required, so the stale-view gate never skips a phone order.
+The phone writes `action_wall_ms` on the PC's clock (its own clock plus the offset the link test measures from
+`GET /api/market-view/gate`'s `checked_at`), and `view.book` is the last Level 2 version its socket received, with the
+`instance` from that socket's `subscribed` frame.
+
+---
+
 ## Execution venue provenance (#713)
 
 Execution ledger payload JSON adds `venue: "live" | "paper" | "sim"`, stamped

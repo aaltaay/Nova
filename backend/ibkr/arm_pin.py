@@ -51,9 +51,9 @@ def valid_pin_shape(pin: str) -> bool:
     return len(pin) == ARM_PIN_LENGTH and pin.isdigit()
 
 
-def stored_hash() -> str | None:
-    """The configured hash, or ``None`` when no Live PIN is set."""
-    value = (os.environ.get(ARM_PIN_HASH_ENV) or "").strip()
+def read_hash(env_name: str) -> str | None:
+    """The hash stored under *env_name*: the process environment first, else the desk's ``.env``, read now."""
+    value = (os.environ.get(env_name) or "").strip()
     if value:
         return value
     from dotenv import dotenv_values
@@ -61,11 +61,31 @@ def stored_hash() -> str | None:
     from paths import env_file_path
 
     try:
-        value = str(dotenv_values(env_file_path()).get(ARM_PIN_HASH_ENV) or "").strip()
+        value = str(dotenv_values(env_file_path()).get(env_name) or "").strip()
     except OSError:
-        logger.warning("ARM: could not read .env for the Live PIN hash", exc_info=True)
+        logger.warning("ARM: could not read .env for %s", env_name, exc_info=True)
         return None
     return value or None
+
+
+def stored_hash() -> str | None:
+    """The configured hash, or ``None`` when no Live PIN is set."""
+    return read_hash(ARM_PIN_HASH_ENV)
+
+
+def is_hash(stored: str | None) -> bool:
+    """Whether *stored* is a hash this module wrote."""
+    return _parse(stored) is not None
+
+
+def matches(stored: str | None, pin: str) -> bool | None:
+    """Whether *pin* is the one *stored* was made from; ``None`` when *stored* is not a hash this module wrote."""
+    parsed = _parse(stored)
+    if parsed is None:
+        return None
+    iterations, salt, digest = parsed
+    candidate = hashlib.pbkdf2_hmac("sha256", str(pin).encode(), salt, iterations)
+    return hmac.compare_digest(candidate, digest)
 
 
 def pin_is_set() -> bool:
@@ -93,15 +113,13 @@ def check(pin: str | None, *, now: float | None = None) -> tuple[str | None, str
         )
     if not pin:
         return "ARM_PIN_REQUIRED", "Live needs your PIN to unlock"
-    parsed = _parse(stored_hash())
-    if parsed is None:
+    right = matches(stored_hash(), str(pin))
+    if right is None:
         return "ARM_PIN_NOT_SET", (
             "No Live PIN is set -- run  py -3 tools/set_live_arm_pin.py  "
             "on the desk PC, then unlock again"
         )
-    iterations, salt, digest = parsed
-    candidate = hashlib.pbkdf2_hmac("sha256", str(pin).encode(), salt, iterations)
-    if hmac.compare_digest(candidate, digest):
+    if right:
         _failures = 0
         return None, ""
     _failures += 1
