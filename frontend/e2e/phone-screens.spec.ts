@@ -74,7 +74,20 @@ test('Scan pages a long list, and a row and its chip lead to different screens',
   await expect(page.getByTestId('phone-scan-count')).toHaveText('1 to 12 of 34');
   await page.getByRole('button', { name: 'Next ›' }).click();
   await expect(page.getByTestId('phone-scan-count')).toHaveText('13 to 24 of 34');
+  // The second page carries on from 13: a row's number is its place on the whole list.
+  await expect(list.locator('.ph-scan__rank').first()).toHaveText('13');
   await page.getByRole('button', { name: '‹ Prev' }).click();
+  await expect(page.getByTestId('phone-scan-row-ABCD').locator('.ph-scan__rank')).toHaveText('1');
+  await expect(page.getByTestId('phone-scan-row-WXYZ').locator('.ph-scan__rank')).toHaveText('2');
+  // A filter hides rows and leaves the numbers of the rest alone: only the halted row (number 3) stays.
+  await page.getByTestId('phone-scan-filter').click();
+  await page.getByRole('menuitemcheckbox', { name: 'Halted' }).click();
+  await expect(list.locator('.ph-scan__row')).toHaveCount(1);
+  await expect(page.getByTestId('phone-scan-row-QRST').locator('.ph-scan__rank')).toHaveText('3');
+  await expect(page.getByTestId('phone-scan-count')).toContainText('33 hidden');
+  await page.getByRole('menuitemcheckbox', { name: 'Halted' }).click();
+  await page.getByTestId('phone-scan-filter').click();
+  await expect(list.locator('.ph-scan__row')).toHaveCount(12);
 
   // The halted row says so, in the place the news goes.
   await expect(page.getByTestId('phone-scan-row-QRST')).toContainText('Halted');

@@ -17,6 +17,13 @@ const SYMBOLS = [
   'STUV', 'YZAB', 'BCDE', 'FGHI', 'JKLM', 'NOPQ', 'RSTU', 'VWXY',
 ];
 
+/** A sample ticker for place `i`, never the same twice on one list. */
+function sampleSymbol(i: number): string {
+  if (i < SYMBOLS.length) return SYMBOLS[i];
+  const n = i - SYMBOLS.length;
+  return `S${String.fromCharCode(65 + (n % 26))}${String.fromCharCode(65 + Math.floor(n / 26))}X`;
+}
+
 function catalyst(kind: 'catalyst' | 'none_found', nowSec: number, i: number) {
   return {
     verdict: kind, category: kind === 'catalyst' ? 'company_news' : null, strength: kind === 'catalyst' ? 'strong' : null,
@@ -31,7 +38,7 @@ function rows(count: number, nowSec: number, start = 0) {
     const prev = 1 + i * 0.37;
     const change = 0.382 - i * 0.017;
     return {
-      symbol: SYMBOLS[(start + i) % SYMBOLS.length], rank: i + 1, exchange: 'NASDAQ',
+      symbol: sampleSymbol(start + i), rank: i + 1, exchange: 'NASDAQ',
       price: Number((prev * (1 + change)).toFixed(2)), prev_close: Number(prev.toFixed(2)),
       change_pct: change, change_abs: Number((prev * change).toFixed(2)), gap_percent: change * 0.6,
       volume: 2_100_000 - i * 61_000, rel_volume: 14.2 - i * 0.6, float: 4_200_000 + i * 900_000,

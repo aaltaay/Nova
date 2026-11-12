@@ -1073,6 +1073,10 @@ read below is one the desk already makes, and every write goes to `/api/phone`
   its list, Home `gainers`, over `/ws/scanner` (`set_active_tab`), as a desk tab
   does. The backend serves the union of every client's lists inside one Level 1
   budget.
+- **A row's number.** Every Scan row, and each of Home's five Gainers rows,
+  leads with its place on the list as the scanner serves it (row i is number
+  i + 1, the number the desk's rank chip shows). A filter that hides rows does
+  not renumber the rest; the Hot list is numbered in its own order.
 - **Top 9 on the phone.** The pop-up is fed by the desk window in the same
   browser; the phone builds the same snapshot from its own scanner feed
   (`buildTopNineSnapshot`) once a second and steps the same marks

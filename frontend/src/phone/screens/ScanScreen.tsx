@@ -79,13 +79,14 @@ function readList(): ScanListId {
     (ALL_LISTS.some((l) => l.id === raw && !l.notYet) ? (raw as ScanListId) : null));
 }
 
-function ScanRow({ row, board, starred, nowMs }: {
-  row: ScannerRow; board: BoardListId | null; starred: boolean; nowMs: number;
+function ScanRow({ row, rank, board, starred, nowMs }: {
+  row: ScannerRow; rank: number | null; board: BoardListId | null; starred: boolean; nowMs: number;
 }) {
   const cat = usePhoneCatalyst(row.symbol, board, { verdict: row.catalyst, halted: row.halted === true, nowMs });
   const tone = toneOf(row.change_pct == null ? null : row.change_pct * 100, 1);
   return (
     <div className="ph-scan__row" data-testid={`phone-scan-row-${row.symbol}`}>
+      <div className="ph-scan__rank" aria-label={rank == null ? undefined : `Number ${rank} on the list`}>{rank ?? ''}</div>
       <div className="ph-scan__sym">
         <TickerChip symbol={row.symbol} />
         <div className="ph-scan__cat" data-tone={cat.tone}>
@@ -157,6 +158,11 @@ export function ScanScreen() {
       short_interest: null, short_ratio: null,
     } satisfies ScannerRow));
   }
+
+  // A row's number is its place on the list as the scanner serves it (the number the desk's rank chip shows),
+  // so a filter that hides rows above it does not renumber it. The Hot list is numbered in its own order.
+  const served: readonly ScannerRow[] = isBoardList(list) ? lists[list] : rows;
+  const rankOf = new Map(served.map((r, i) => [r.symbol, i + 1]));
 
   const pages = Math.max(1, Math.ceil(rows.length / perPage));
   const at = Math.min(page, pages - 1);
@@ -255,6 +261,7 @@ export function ScanScreen() {
       </div>
 
       <div className="ph-scan__head">
+        <div>#</div>
         <div>Symbol</div>
         <div>Price</div>
         <div>Change</div>
@@ -267,6 +274,7 @@ export function ScanScreen() {
           <ScanRow
             key={row.symbol}
             row={row}
+            rank={rankOf.get(row.symbol) ?? null}
             board={isBoardList(list) ? list : null}
             starred={howListed(hot.view, row.symbol) === 'star'}
             nowMs={nowMs}

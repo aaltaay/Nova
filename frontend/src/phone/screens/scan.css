@@ -56,20 +56,22 @@
 
 .ph-scan__head, .ph-scan__row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 52px 66px 48px 44px;
+  grid-template-columns: 18px minmax(0, 1fr) 54px 62px 46px 42px;
   align-items: center;
 }
 .ph-scan__head {
   height: 18px;
   flex-shrink: 0;
-  padding: 0 12px;
+  padding: 0 10px 0 4px;
   color: var(--ph-faint);
   font-size: 9px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
-.ph-scan__head > div:not(:first-child) { text-align: right; }
+.ph-scan__head > div:nth-child(n + 3) { text-align: right; }
+.ph-scan__head > div:nth-child(3) { padding-right: 5px; }
+.ph-scan__head > div:first-child { text-align: center; }
 
 .ph-scan__rows {
   flex: 1 1 0;
@@ -82,11 +84,13 @@
   position: relative;
   height: 42px;
   flex-shrink: 0;
-  padding: 0 12px 0 10px;
+  padding: 0 10px 0 4px;
   border-top: 1px solid var(--ph-hair);
   font-size: 13px;
 }
-.ph-scan__sym { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
+/* Its place on the list: 1 is the top of the scanner. */
+.ph-scan__rank { text-align: center; font-size: 11px; font-weight: 700; color: var(--ph-muted); }
+.ph-scan__sym { padding-left: 3px; display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
 .ph-scan__cat { min-width: 0; display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
 .ph-scan__cat b {
   font-size: 10px;
@@ -110,7 +114,7 @@
 }
 .ph-scan__cat em { min-width: 0; font-style: normal; overflow: hidden; text-overflow: ellipsis; }
 .ph-scan__star { flex-shrink: 0; color: var(--ph-star); }
-.ph-scan__px { text-align: right; font-weight: 600; white-space: nowrap; }
+.ph-scan__px { padding-right: 5px; text-align: right; font-weight: 600; white-space: nowrap; }
 .ph-scan__chg { display: flex; justify-content: flex-end; }
 .ph-scan__chg span {
   padding: 2px 4px;

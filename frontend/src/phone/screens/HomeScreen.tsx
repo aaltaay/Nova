@@ -117,10 +117,11 @@ function DayReadCard() {
   );
 }
 
-function RunnerRow({ row, nowMs }: { row: ScannerRow; nowMs: number }) {
+function RunnerRow({ row, rank, nowMs }: { row: ScannerRow; rank: number | null; nowMs: number }) {
   const cat = usePhoneCatalyst(row.symbol, 'gainers', { verdict: row.catalyst, halted: row.halted === true, nowMs });
   return (
     <div className="ph-home__runner" data-testid={`phone-runner-${row.symbol}`}>
+      <span className="ph-home__runner-rank" aria-label={rank == null ? undefined : `Number ${rank} on Gainers`}>{rank ?? ''}</span>
       <TickerChip symbol={row.symbol} />
       <span className="ph-home__runner-cat" data-tone={cat.tone}>{catalystLine(cat)}</span>
       <span className="ph-home__runner-px">{px(row.price)}</span>
@@ -216,6 +217,8 @@ export function HomeScreen() {
   }, [setL1ActiveTab]);
 
   const runners = exchangeFilter.filterRows(feed.gainers).slice(0, RUNNERS);
+  // Each row's number is its place on Gainers as the scanner serves it.
+  const gainerRank = new Map(feed.gainers.map((r, i) => [r.symbol, i + 1]));
   return (
     <PhoneScreen
       name="home"
@@ -261,7 +264,9 @@ export function HomeScreen() {
             <button type="button" className="ph-home__all" onClick={() => go({ screen: 'scan' })}>All ›</button>
           </div>
           <div className="ph-card ph-home__runners">
-            {runners.length ? runners.map((row) => <RunnerRow key={row.symbol} row={row} nowMs={feed.now * 1000} />) : (
+            {runners.length ? runners.map((row) => (
+              <RunnerRow key={row.symbol} row={row} rank={gainerRank.get(row.symbol) ?? null} nowMs={feed.now * 1000} />
+            )) : (
               <div className="ph-home__holdrow is-note">{feed.restError ?? 'No rows on Gainers right now.'}</div>
             )}
           </div>
