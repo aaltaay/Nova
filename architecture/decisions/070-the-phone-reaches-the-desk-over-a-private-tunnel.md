@@ -122,11 +122,52 @@ What decision 6 still holds back: the phone's order pad. These orders are sent f
 tool with plain buttons; the pad the operator trades from is still drawn and approved first. Reads from another device
 still carry no proof of the page; only writes do (the PIN's session).
 
+## Amendment 2026-11-11 -- the phone's screens, drawn first and built on the desk's own data
+
+**Decided by:** the operator, 2026-11-11, after a day of mockups: "I think I'm good to freeze the mobile ui and ready
+to implement." -- "I want the desk to be the center of the logic ... It's the same logic as the desk. It's just the UI
+is shaped differently." -- "No scrolls allowed." Asked for the order, they confirmed Paper, then Sim, then Live, each
+tried on the phone before the next.
+
+Decision 6's last item is met for the screens: the operator approved them from mockups (kept on the operator's disk;
+the build is judged against them). What follows is how they are built.
+
+14. **A second page, `phone.html`, in the same build.** It is a React page of its own (`frontend/src/phone/`), not
+    the desk shell squeezed onto a phone. Like the link test it works out the API's address from the page's own
+    name and holds no API key. It is left out of the demo build for the same reason the link test is.
+15. **The desk's providers and hooks, not copies.** The phone mounts the desk's account, settings and scanner
+    providers and reads every figure through the hook the desk reads it with: the scanner feed and its chips, the
+    Catalyst call, the Top 9 boards and their rank marks, the market board's day read, the practice ledger and its
+    two books, the loss limit, the ticker stream, the chart. Where a desk function drew for a desk-sized box, it
+    gained a parameter with the desk's value as its default (the Top 9 chart's margins and minutes). The phone
+    writes no rule about a rank, a mark, a catalyst, a fill or a limit.
+16. **A workspace of its own, with no Trader tabs.** The desk's workspace provider keeps the Trader's tabs and
+    tells the bots which Level 2 lines they hold. A second, empty copy of that list from a phone page opened on
+    the PC would overwrite the desk's. The phone's workspace reads the desk's config and Gateway status the same
+    way and holds no tabs; it posts nothing.
+17. **No screen scrolls.** Each screen is drawn for 360 x 720 (the big chart for 740 x 320) and fills anything
+    larger. On anything smaller the whole page shrinks by one factor. A list longer than its box pages.
+18. **Every tap is answered.** A banner says Sending, then what the desk answered; a refusal is the desk's own
+    words in red and stays until tapped. A control that cannot act yet is disabled and says why when pressed.
+19. **Built in steps, each tried on the phone.** Step 1 is every screen but Trade: they read, and they work the
+    two locks and cancel a working order, all through the door that already exists. The Trade screen is step 2,
+    with the door's additions decided then. Sim, then Live, follow; Live needs decision 11 rewritten first, by
+    the operator, and until then the phone cannot move the venue or send anything but Paper.
+
+What step 1 does not do, and says so on the control: change the venue, star a stock, draw on the chart (each is a
+write the door has no route for), the 10-second chart (it follows the tape, opened with the Trade screen), and four
+of the Scan lists (HOD Momo, Running Up, Volume boost, Setups).
+
+**Level 1 lines.** A screen declares the scanner list it shows, as a desk tab does, so its prices move. The backend
+serves the union of every window's lists inside one budget, so a phone on a list the desk is not showing shares that
+budget with the desk's.
+
 ## Rules and maps
 
 - Shapes: `architecture/schema/desk-ops.md`, "Who may reach the API" (another device) and "The phone link test".
 - Setup and the measurement: `docs/phone-link.md`.
 - Code: `backend/request_guard/` (`policy.remote_refusal`, `middleware`, `constants_request_guard.py`);
-  `frontend/link-test.html`, `frontend/src/phone_link/`.
+  `frontend/link-test.html`, `frontend/src/phone_link/`; the screens: `frontend/phone.html`, `frontend/src/phone/`
+  (shapes: `architecture/schema/desk-ops.md`, "Nova on the phone: the screens").
 - The phone's door: `architecture/schema/execution.md`, "Paper orders from the phone"; `backend/phone/`,
   `tools/set_phone_pin.py`.

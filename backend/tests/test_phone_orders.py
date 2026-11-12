@@ -2,6 +2,8 @@
 only after the phone PIN, and only Paper orders -- handed to the desk's own order door."""
 from __future__ import annotations
 
+import time
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -97,6 +99,8 @@ def test_a_locked_phone_sends_nothing(phone):
     assert state["sent"] == []
     status = client.get("/api/phone", headers=REMOTE).json()
     assert (status["pin_set"], status["unlocked"], status["venue"]) == (True, False, "paper")
+    # The phone's screens time the link and correct their clock against this.
+    assert abs(status["now"] - time.time()) < 5
 
 
 def test_the_pin_unlocks_and_wrong_pins_lock_it_out(phone, monkeypatch):

@@ -10,6 +10,7 @@ no venue change, no setting: a buy, a sell, a flatten, a cancel, and Paper's pad
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -89,6 +90,8 @@ def _status(token: str | None) -> dict[str, Any]:
         "venue": where,
         "paper": where == PHONE_VENUE,
         "armed": bool(safety.armed()),
+        # The PC's clock (epoch s): the phone's once-a-second read of this route measures its link and its clock.
+        "now": time.time(),
     }
 
 

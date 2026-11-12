@@ -1,0 +1,155 @@
+/* Home (frozen mockup R2-Home). */
+/* Six things share this row: the gaps and the two icon buttons are tighter than on the other screens. */
+.ph-home__head { padding-right: 2px; gap: 6px; }
+.ph-home__head .ph-icon-btn { width: 26px; }
+.ph-home__head .ph-head__sub { font-size: 10.5px; }
+
+.ph-home {
+  flex: 1 1 0;
+  min-height: 0;
+  padding: 4px 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ph-home__money {
+  height: 48px;
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr;
+  align-items: center;
+  text-align: left;
+  white-space: nowrap;
+}
+.ph-home__money > span { min-width: 0; padding: 0 12px; display: flex; flex-direction: column; gap: 2px; }
+.ph-home__money > span + span { border-left: 1px solid var(--ph-hair); }
+.ph-home__money i { font-style: normal; font-size: 10px; color: var(--ph-muted); }
+.ph-home__money b { font-size: 14px; font-weight: 600; line-height: 1.1; }
+.ph-home__money b.is-big { font-size: 16px; font-weight: 700; }
+.ph-home__money em { font-style: normal; font-weight: 400; color: var(--ph-muted); }
+
+.ph-home__read {
+  flex-shrink: 0;
+  padding: 12px 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  --ph-read: var(--ph-muted);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--ph-read) 10%, transparent), transparent 55%), var(--ph-card);
+}
+.ph-home__read[data-verdict='bullish'] { --ph-read: var(--ph-good); }
+.ph-home__read[data-verdict='bearish'] { --ph-read: var(--ph-bad); }
+.ph-home__read[data-verdict='mixed'] { --ph-read: var(--ph-warn); }
+.ph-home__read.is-empty {
+  height: 96px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 12px;
+  color: var(--ph-muted);
+}
+.ph-home__read-top { display: flex; align-items: center; justify-content: space-between; white-space: nowrap; }
+.ph-home__read-words { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ph-home__verdict { font-size: 26px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.1; color: var(--ph-read); }
+.ph-home__temp { min-height: 14px; font-size: 11px; color: var(--ph-muted); }
+.ph-home__temp b { font-weight: 400; color: var(--ph-warn); }
+.ph-home__temp b[data-temp='hot'], .ph-home__temp b[data-temp='good'] { color: var(--ph-good); }
+.ph-home__temp b[data-temp='cold'] { color: #7FB5FF; }
+.ph-home__temp b[data-temp='none'] { color: var(--ph-faint); }
+.ph-home__ring { flex-shrink: 0; color: var(--ph-read); }
+.ph-home__ring text { fill: var(--ph-text); font-family: var(--ph-ui); }
+.ph-home__ring .ph-home__ring-label { fill: var(--ph-muted); }
+
+.ph-home__checks { padding-top: 4px; display: flex; flex-direction: column; border-top: 1px solid var(--ph-hair); }
+.ph-home__check {
+  height: 21px;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  white-space: nowrap;
+  font-size: 12px;
+  --ph-check: var(--ph-faint);
+}
+.ph-home__check[data-state='green'] { --ph-check: var(--ph-good); }
+.ph-home__check[data-state='amber'] { --ph-check: var(--ph-warn); }
+.ph-home__check[data-state='red'] { --ph-check: var(--ph-bad); }
+.ph-home__check i {
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--ph-check) 16%, transparent);
+  color: var(--ph-check);
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+}
+.ph-home__check span { color: var(--ph-dim); overflow: hidden; text-overflow: ellipsis; }
+.ph-home__check b { padding-left: 8px; font-weight: 600; color: var(--ph-check); }
+
+.ph-home__block { flex-shrink: 0; display: flex; flex-direction: column; gap: 5px; min-height: 0; }
+.ph-home__blockhead { padding: 0 4px; display: flex; justify-content: space-between; }
+.ph-home__stale {
+  display: block;
+  color: var(--ph-bad-soft);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ph-home__all { color: var(--ph-accent); font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+
+.ph-home__runners { display: flex; flex-direction: column; }
+.ph-home__runner {
+  position: relative;
+  height: 33px;
+  padding: 0 12px 0 4px;
+  display: grid;
+  grid-template-columns: 14px 66px minmax(0, 1fr) auto 58px;
+  column-gap: 6px;
+  align-items: center;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.ph-home__runner + .ph-home__runner { border-top: 1px solid var(--ph-hair); }
+.ph-home__runner .ph-chip { height: 25px; }
+.ph-home__runner-rank { text-align: center; font-size: 11px; font-weight: 700; color: var(--ph-muted); }
+.ph-home__runner-cat { font-size: 11px; color: var(--ph-muted); overflow: hidden; text-overflow: ellipsis; }
+.ph-home__runner-cat[data-tone='news'] { color: var(--ph-accent); }
+.ph-home__runner-cat[data-tone='bad'] { color: var(--ph-bad-soft); }
+.ph-home__runner-px { text-align: right; font-weight: 600; }
+.ph-home__runner-chg { text-align: right; font-weight: 700; }
+
+/* What you hold fills what is left of the screen and shows only what fits. */
+.ph-home__holdings { flex: 1 1 0; }
+.ph-home__hold { flex: 1 1 0; min-height: 33px; display: flex; flex-direction: column; overflow: hidden; }
+.ph-home__holdrow {
+  width: 100%;
+  height: 33px;
+  flex-shrink: 0;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  font-size: 12px;
+  text-align: left;
+}
+.ph-home__holdrow + .ph-home__holdrow { border-top: 1px solid var(--ph-hair); }
+.ph-home__holdrow.is-position {
+  display: grid;
+  grid-template-columns: 46px 34px minmax(0, 1fr) auto;
+  column-gap: 6px;
+}
+.ph-home__holdrow.is-position > b:first-child { font-size: 13px; font-weight: 700; }
+.ph-home__holdrow.is-position > span.ph-muted { overflow: hidden; text-overflow: ellipsis; }
+.ph-home__holdrow.is-position > b:last-child { text-align: right; font-weight: 700; }
+.ph-home__holdrow.is-order { padding-right: 6px; justify-content: space-between; gap: 8px; }
+.ph-home__holdrow.is-order > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ph-home__holdrow.is-order b { font-weight: 700; }
+.ph-home__holdrow.is-note { color: var(--ph-muted); }
+.ph-home__holdrow.is-more { justify-content: center; color: var(--ph-accent); font-weight: 600; }

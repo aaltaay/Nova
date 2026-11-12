@@ -1,0 +1,34 @@
+/* Trade, until its own build lands. */
+.ph-trade-soon {
+  flex: 1 1 0;
+  min-height: 0;
+  padding: 0 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+}
+.ph-trade-soon__icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 24px;
+  background: var(--ph-chip-bg);
+  color: var(--ph-accent);
+}
+.ph-trade-soon b { font-size: 17px; font-weight: 700; }
+.ph-trade-soon p { margin: 0; font-size: 13px; line-height: 1.4; color: var(--ph-muted); }
+.ph-trade-soon__btn {
+  height: 42px;
+  padding: 0 18px;
+  border-radius: 14px;
+  background: var(--ph-accent);
+  color: #04131C;
+  font-size: 14px;
+  font-weight: 700;
+}
+.ph-trade-soon__link { color: var(--ph-accent); font-size: 12px; font-weight: 600; text-decoration: none; }

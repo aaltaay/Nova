@@ -1,0 +1,64 @@
+/*
+ * The desk sheets the phone borrows, and how the desk's chart sits in a phone box.
+ *
+ * The phone draws the desk's own chart (chart/TickerChart), so it needs the chart's sheet and the
+ * tokens that sheet reads. They keep the desk's cascade layers (ADR 006); the phone's own rules are
+ * unlayered, so they win. The why-tip (ux/whyTip) brings its own sheet.
+ */
+@layer reset, tokens, base, layout, components, features, utilities, overrides;
+
+@import "../styles/tokens-shell.css" layer(tokens);
+@import "../chart/tickerChart.css" layer(features);
+@import "../chart/chartPositionTag.css" layer(features);
+
+.ph-chart {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* The phone supplies the timeframe switch and the indicator menu, so the chart's own header is not shown. */
+.ph-chart .chart-header { display: none; }
+/* The chart fills its box, whatever the box: the desk gives a grid pane its height the same way
+   (styles/stock-view.css, .chart-card--grid), in the Trader's own sheet, which the phone does not load. */
+.ph-chart > .chart-portal-slot,
+.ph-chart .chart-portal-host {
+  flex: 1 1 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.ph-chart .chart-card {
+  flex: 1 1 0;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: hidden;
+}
+.ph-chart .chart-body {
+  flex: 1 1 0;
+  min-height: 0 !important;
+  height: auto !important;
+  overflow: hidden;
+}
+.ph-chart .chart-card > .resize-handle--horizontal { flex: 0 0 6px; height: 6px; align-self: stretch; z-index: 2; }
+.ph-chart .chart-oscillators {
+  flex: 0 0 var(--chart-osc-pct, 26%);
+  min-height: 44px;
+  max-height: none;
+  overflow: hidden;
+  border-top: none;
+}
+.ph-chart .chart-oscillator-pane { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+.ph-chart .chart-oscillator-body { flex: 1 1 0; min-height: 0; height: auto; }

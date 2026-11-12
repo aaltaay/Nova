@@ -6,11 +6,13 @@
  * the top nine. The first board a list shows marks nothing -- there is nothing to compare it with.
  */
 import {
+  TOP_NINE_LISTS,
   TOP_NINE_LOG_MAX,
   TOP_NINE_MARK_FULL_MS,
   TOP_NINE_MARK_SOFT_MS,
+  type TopNineList,
 } from './topNineConstants';
-import type { TopNineRow } from './topNineSnapshot';
+import type { TopNineRow, TopNineSnapshot } from './topNineSnapshot';
 
 export type TopNineMoveKind = 'up' | 'down' | 'new';
 
@@ -106,6 +108,46 @@ function sameRanks(a: Record<string, number> | null, b: Record<string, number>):
   if (!a) return false;
   const ak = Object.keys(a);
   return ak.length === Object.keys(b).length && ak.every((k) => a[k] === b[k]);
+}
+
+export type TopNineMarksByList = Record<TopNineList, TopNineListMarks>;
+
+export const NO_TOP_NINE_MARKS: TopNineMarksByList = {
+  gappers: EMPTY_LIST_MARKS,
+  gainers: EMPTY_LIST_MARKS,
+  afterhours: EMPTY_LIST_MARKS,
+};
+
+/** Every list's marks, and where their boards came from (live or a Sim replay). */
+export interface TopNineMarksState {
+  marks: TopNineMarksByList;
+  sourceKind: string | null;
+}
+
+export const NO_TOP_NINE_STATE: TopNineMarksState = { marks: NO_TOP_NINE_MARKS, sourceKind: null };
+
+/**
+ * Take the next snapshot of all three lists, seen at `at` (ms epoch). Marks are kept for every list, so a
+ * tab switched to shows its recent switches. A board from a different source (live <-> Sim) starts the marks
+ * over: comparing a replayed minute with today's board would mark every row. The pop-up (fed by the desk
+ * window) and the phone (fed by its own scanner feed) both step their marks here.
+ */
+export function nextSnapshotMarks(
+  prev: TopNineMarksState,
+  snapshot: TopNineSnapshot,
+  at: number,
+): { state: TopNineMarksState; fired: [TopNineList, TopNineSwitch][] } {
+  const fired: [TopNineList, TopNineSwitch][] = [];
+  const next = { ...(prev.sourceKind === snapshot.source.kind ? prev.marks : NO_TOP_NINE_MARKS) };
+  for (const { list } of TOP_NINE_LISTS) {
+    const step = nextListMarks(next[list], snapshot.lists[list].rows, at, {
+      asOf: snapshot.asOf,
+      replay: snapshot.source.kind === 'replay',
+    });
+    next[list] = step.state;
+    if (step.switched) fired.push([list, step.switched]);
+  }
+  return { state: { marks: next, sourceKind: snapshot.source.kind }, fired };
 }
 
 /** `▲ 4 → 3`, `▼ 2 → 5`, `NEW`. */

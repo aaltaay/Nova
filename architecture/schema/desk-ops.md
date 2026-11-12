@@ -1037,6 +1037,79 @@ asks `GET /api/market-view/gate?symbol=` once a second.
   a hide or a show is thrown away, and an open drop does not grow over it.
 
 
+## Nova on the phone: the screens (ADR 070, amendment 2026-11-11)
+
+`frontend/phone.html` (code `frontend/src/phone/`) is a third page in the desk's
+build, served over the private tunnel beside the link test. It holds no API key.
+It is not in the demo build. It adds no route and no socket of its own: every
+read below is one the desk already makes, and every write goes to `/api/phone`
+(`architecture/schema/execution.md`, "Paper orders from the phone").
+
+- **Where the API is:** as the link test works it out (a loopback page uses
+  `http://127.0.0.1:8000`; any other name uses port 8443 of that name over
+  HTTPS). The page sets it before any desk module loads.
+- **Where it is in the page:** the screen is named in the hash, so the phone's
+  Back gesture walks the screens: `#/home`, `#/scan`, `#/top9`, `#/account`,
+  `#/settings`, `#/trade[/SYM]`, `#/stock/SYM`, `#/chart/SYM`. An unknown hash is
+  Home.
+- **The heartbeat:** `GET /api/phone` once a second, with the session header
+  when the phone holds one. One answer gives the header its venue, the padlock
+  and whether the phone is unlocked, and times the link: the round trip (the
+  pill shows the middle of the last 30 s; green while 95 in 100 are at most
+  500 ms, amber over, red when the PC does not answer), the PC's clock against
+  the phone's (from `now`), and a count of the times the PC stopped answering.
+  A read that takes over 3 s is a miss. A hidden page reads nothing.
+- **What each screen reads** (all GETs and sockets the desk makes):
+
+  | Screen | Reads |
+  |---|---|
+  | Every screen | `/api/phone`, `/api/ibkr/status`, `/api/config`, the scanner routes and `/ws/scanner`, `/api/ibkr/account`, `/positions`, `/orders`, `/orders/closed` |
+  | Home | `/api/market/board` (the day read), `/api/practice/account`, `/api/loss-limit`, `/api/why?symbols=` (the Catalyst call for the five Gainers rows) |
+  | Scan | the scanner feed; `/api/why?symbols=` per row; `/api/hot-list` (the star, and the Hot list) |
+  | Top 9 | the scanner feed; per tile `/api/ticker/{symbol}/bars` (1-minute, store-first) and, on Gainers, `/api/luld/{symbol}/trail` |
+  | Account | `/api/practice/account`, `/api/practice/history?range=1D` (Paper and Sim), `/api/loss-limit` |
+  | Stock, big chart | `/ws/ticker/{symbol}` and the chart's bars; `/api/why?symbols=` |
+- **The scanner list a screen declares.** Scan declares the list on screen, Top 9
+  its list, Home `gainers`, over `/ws/scanner` (`set_active_tab`), as a desk tab
+  does. The backend serves the union of every client's lists inside one Level 1
+  budget.
+- **A row's number.** Every Scan row, and each of Home's five Gainers rows,
+  leads with its place on the list as the scanner serves it (row i is number
+  i + 1, the number the desk's rank chip shows). A filter that hides rows does
+  not renumber the rest; the Hot list is numbered in its own order.
+- **Top 9 on the phone.** The pop-up is fed by the desk window in the same
+  browser; the phone builds the same snapshot from its own scanner feed
+  (`buildTopNineSnapshot`) once a second and steps the same marks
+  (`nextSnapshotMarks`). It takes no board before the feed's first answer, so the
+  first board marks nothing. A tile's chart keeps a 34 px gutter for the
+  last-price tag, no time row, and shows 30 minutes where the pop-up shows 90.
+- **The bid and ask on the stock page** are the quote in the ticker stream's
+  first frame: Level 1 sends no later bid or ask, and the phone opens Level 2
+  only on the Trade screen. Older than 3 s, the strip is grey and says its age.
+- **The chart** is the desk's chart with its header hidden. The phone claims the
+  pane's edge (the lines' names move to the phone's legend), sets the price
+  scales to a fixed 50 px with 10 px type, and on the first paint of a stock and
+  timeframe shows one candle about every 6 px.
+- **Kept on the phone** (localStorage, `utils/prefStore` envelopes; a bad or
+  unknown value reads as the default): `nova.phone.scan.list`,
+  `nova.phone.chart.frame`, `nova.phone.chart.indicators`. The Top 9 list and the
+  scanner chips use the desk's own keys, so they are the phone browser's copy of
+  the same preference. The PIN's session token is never stored.
+- **How the page is served.** `tools/serve_phone_page.py` serves the built
+  `frontend/dist` on `127.0.0.1:4181` (GET and HEAD only; never another
+  interface), and the tunnel forwards port 443 to it. Connections stay open
+  (HTTP/1.1) and a burst is queued. `Cache-Control` is
+  `public, max-age=31536000, immutable` under `/assets/` (the name carries the
+  content's hash) and `no-cache` for everything else. Each file's type comes
+  from the tool's own table, never the operating system's.
+- **The chart's right-click menu is not mounted** (`TickerChart`'s
+  `contextMenu={false}`): it reads `/api/bot/*`, which another device is
+  refused (`REMOTE_LOCAL_ONLY`), and its Buy and Sell stage the desk's ticket.
+- **Every ticker on a phone screen opens the Trader** (the chip, a ticker in a
+  line of words, a Top 9 switch), as on the desk.
+- **No scroll:** a viewport under 360 x 720 (740 x 320 for the big chart, held
+  sideways) shrinks the whole page by `min(width / 360, height / 720)`.
+
 ## IBKR capacity on the desk (operator ask, 2026-10-16)
 
 The operator, watching the Live Trader bots: "add, at the very bottom ... an entire banner with slots saying how many

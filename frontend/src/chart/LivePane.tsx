@@ -61,6 +61,7 @@ export function LivePane({
   maximizeInGrid = false,
   layoutEpoch = null,
   renderPaneOverlay,
+  contextMenu = true,
 }: TickerChartProps) {
   useRenderCount('TickerChart');
   const chartHeight = chartHeightForVariant(variant);
@@ -270,6 +271,7 @@ export function LivePane({
           enabledIndicators={enabledIndicators}
           onIndicatorToggle={handleIndicatorToggle}
           renderOverlay={renderPaneOverlay}
+          contextMenu={contextMenu}
         />
       )}
       hover={(

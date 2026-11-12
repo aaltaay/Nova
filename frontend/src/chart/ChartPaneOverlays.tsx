@@ -27,6 +27,8 @@ export function ChartPaneOverlays(props: {
   enabledIndicators: ChartIndicatorId[];
   onIndicatorToggle: (id: ChartIndicatorId) => void;
   renderOverlay?: RenderPaneOverlay;
+  /** False: no right-click menu on this pane (TickerChartProps.contextMenu). */
+  contextMenu?: boolean;
 }) {
   return (
     <>
@@ -44,18 +46,20 @@ export function ChartPaneOverlays(props: {
         containerRef={props.containerRef}
         barsRevision={props.barsRevision}
       />
-      <ChartContextMenuHost
-        symbol={props.symbol}
-        timeframe={props.timeframe}
-        barCount={props.barCount}
-        chart={props.chart}
-        candleSeriesRef={props.candleSeriesRef}
-        containerRef={props.containerRef}
-        activeTool={props.activeTool}
-        onToolClick={props.onToolClick}
-        enabledIndicators={props.enabledIndicators}
-        onIndicatorToggle={props.onIndicatorToggle}
-      />
+      {props.contextMenu === false ? null : (
+        <ChartContextMenuHost
+          symbol={props.symbol}
+          timeframe={props.timeframe}
+          barCount={props.barCount}
+          chart={props.chart}
+          candleSeriesRef={props.candleSeriesRef}
+          containerRef={props.containerRef}
+          activeTool={props.activeTool}
+          onToolClick={props.onToolClick}
+          enabledIndicators={props.enabledIndicators}
+          onIndicatorToggle={props.onIndicatorToggle}
+        />
+      )}
       <ChartEventMarkers
         symbol={props.symbol}
         timeframe={props.timeframe}

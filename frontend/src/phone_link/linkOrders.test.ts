@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { closingOrder, orderStamp, refusalText, type OrderContext } from './linkOrders';
+/** @vitest-environment jsdom */
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { PhoneDoor, closingOrder, orderStamp, refusalText, type OrderContext } from './linkOrders';
 import { blockedWhy, buyBlockedWhy } from './linkOrdersPanel';
 
 const ctx = (over: Partial<OrderContext> = {}): OrderContext => ({
@@ -68,5 +69,86 @@ describe('why the order buttons are off', () => {
     expect(buyBlockedWhy(ctx({ instance: null }))).toContain('Sell, Flatten and Cancel still work');
     expect(buyBlockedWhy(ctx({ offsetMs: null }))).toContain('clock');
     expect(buyBlockedWhy(null)).toBeNull();
+  });
+});
+
+describe("the door, as the phone's screens use it", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const answer = (status: number, body: unknown) =>
+    Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }));
+  const STATUS = { schema_version: 1, pin_set: true, unlocked: true, expires_at: 99, venue: 'paper', paper: true, armed: false, now: 1_794_400_000 };
+
+  it('reads the status with its session, timed, and holds no session before an unlock', async () => {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => answer(200, STATUS));
+    vi.stubGlobal('fetch', fetchMock);
+    const door = new PhoneDoor('https://pc.test:8443');
+    expect(door.hasSession()).toBe(false);
+    const beat = await door.beat();
+    expect(beat.status).toMatchObject({ venue: 'paper', now: 1_794_400_000 });
+    expect(beat.ms).toBeGreaterThanOrEqual(0);
+    expect(fetchMock.mock.calls[0][0]).toBe('https://pc.test:8443/api/phone');
+    expect(fetchMock.mock.calls[0][1]?.method).toBe('GET');
+
+    fetchMock.mockImplementationOnce(() => answer(200, { ...STATUS, token: 'tok-1' }));
+    expect((await door.unlock('123456')).ok).toBe(true);
+    expect(door.hasSession()).toBe(true);
+    await door.beat();
+    const headers = fetchMock.mock.calls[2][1]?.headers as Record<string, string>;
+    expect(headers['X-Nova-Phone-Session']).toBe('tok-1');
+  });
+
+  it('answers "no status" when Nova cannot be reached, and drops a session the backend no longer accepts', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new TypeError('Failed to fetch'))));
+    const door = new PhoneDoor('https://pc.test:8443');
+    expect((await door.beat()).status).toBeNull();
+
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => answer(200, { ...STATUS, token: 'tok-2' }));
+    vi.stubGlobal('fetch', fetchMock);
+    await door.unlock('123456');
+    fetchMock.mockImplementationOnce(() => answer(401, { detail: { reason: 'PHONE_LOCKED', error: 'Unlock with your phone PIN first. Nothing was sent.' } }));
+    expect((await door.beat()).status).toBeNull();
+    expect(door.hasSession()).toBe(false);
+  });
+
+  it('drops its session when the status says it ended: 8 hours, a backend restart, or a newer unlock', async () => {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => answer(200, { ...STATUS, token: 'tok-3' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const door = new PhoneDoor('https://pc.test:8443');
+    await door.unlock('123456');
+    await door.beat();
+    expect(door.hasSession()).toBe(true);
+    // The status still answers 200; it only stops saying the session is good.
+    fetchMock.mockImplementationOnce(() => answer(200, { ...STATUS, unlocked: false, expires_at: null }));
+    expect((await door.beat()).status).toMatchObject({ unlocked: false });
+    expect(door.hasSession()).toBe(false);
+  });
+
+  it('keeps a fresh session when a read that left before the unlock comes back saying "locked"', async () => {
+    let release!: (r: Response) => void;
+    const slow = new Promise<Response>((resolve) => { release = resolve; });
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => answer(200, { ...STATUS, token: 'tok-4' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const door = new PhoneDoor('https://pc.test:8443');
+    // A heartbeat goes out with no token, and is still in the air when the PIN is accepted.
+    fetchMock.mockImplementationOnce(() => slow);
+    const early = door.beat();
+    await door.unlock('123456');
+    release(new Response(JSON.stringify({ ...STATUS, unlocked: false, expires_at: null }), { status: 200 }));
+    await early;
+    expect(door.hasSession()).toBe(true);
+  });
+
+  it("cancels one working order by its id, and says the refusal in the door's words", async () => {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => answer(200, { ok: true, order_id: 41 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const door = new PhoneDoor('https://pc.test:8443');
+    const done = await door.cancelOrder(41, 'ABCD Sell 250');
+    expect(done).toMatchObject({ ok: true, text: 'Cancelled: ABCD Sell 250.' });
+    expect(fetchMock.mock.calls[0][0]).toBe('https://pc.test:8443/api/phone/order/41');
+    expect(fetchMock.mock.calls[0][1]?.method).toBe('DELETE');
+
+    fetchMock.mockImplementationOnce(() => answer(409, { detail: { reason: 'PHONE_NOT_PAPER', error: 'The desk is on Sim: the phone trades Paper only. Nothing was sent.' } }));
+    expect(await door.cancelOrder(41, 'ABCD Sell 250')).toMatchObject({ ok: false, text: 'The desk is on Sim: the phone trades Paper only. Nothing was sent.' });
   });
 });

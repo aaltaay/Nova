@@ -313,7 +313,7 @@ the backend restarts. Every write but the unlock carries it in `X-Nova-Phone-Ses
 
 | Route | Body | Answer |
 |---|---|---|
-| `GET /api/phone` | -- | `{schema_version: 1, pin_set, unlocked, expires_at, venue, paper, armed}`; `unlocked` and `expires_at` read the session header when sent |
+| `GET /api/phone` | -- | `{schema_version: 1, pin_set, unlocked, expires_at, venue, paper, armed, now}`; `unlocked` and `expires_at` read the session header when sent; `now` is the PC's clock (epoch s), which the phone's screens read once a second to time the link and correct their clock |
 | `POST /api/phone/unlock` | `{pin}` | the status, plus `token` |
 | `POST /api/phone/lock` | -- | the status |
 | `POST /api/phone/arm` | `{armed: bool}` | the status. Locking always goes; unlocking only while the desk is on Paper |
