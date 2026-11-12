@@ -9,6 +9,7 @@ import { LINK_LIMIT_MS } from '../../phone_link';
 import { BackButton, LinkPill, PhoneScreen } from '../PhoneChrome';
 import { PIN_NOT_SET } from '../PhonePinSheet';
 import { usePhoneSession, type Venue } from '../PhoneSession';
+import { lastLevel2Age } from '../trade/usePhoneTrade';
 import './settings.css';
 
 const VENUES: readonly { id: Venue; name: string; note: string }[] = [
@@ -40,6 +41,7 @@ export function SettingsScreen() {
   const pcNowSec = (nowMs + (s.link.offsetMs ?? 0)) / 1000;
   const rt = s.link.roundTrip;
   const reachable = s.link.reachable !== false;
+  const book = lastLevel2Age();
   const onPaper = s.venue === 'paper';
   const padlockWords = s.armed == null
     ? 'Waiting for the desk'
@@ -161,7 +163,7 @@ export function SettingsScreen() {
           <div className="ph-label ph-set__label"><span>Link to your PC</span><span className="ph-faint">Last 30 s</span></div>
           <div className="ph-card ph-set__link" data-testid="phone-settings-link">
             <div>
-              <i>Tap to answer</i>
+              <i>Tap</i>
               <b className={!reachable ? 'ph-bad' : rt ? (rt.p50 <= LINK_LIMIT_MS ? 'ph-good' : 'ph-warn') : ''}>
                 {!reachable ? 'No link' : rt ? `${Math.round(rt.p50)} ms` : '…'}
               </b>
@@ -174,9 +176,15 @@ export function SettingsScreen() {
               <i>Drops</i>
               <b className={s.link.drops ? 'ph-warn' : ''}>{s.link.drops}</b>
             </div>
+            <div data-testid="phone-settings-level2">
+              <i>Level 2</i>
+              <b className={book ? (book.ms <= LINK_LIMIT_MS ? 'ph-good' : 'ph-warn') : 'ph-faint'}>
+                {book ? (book.ms < 1_000 ? `${Math.round(book.ms)} ms` : `${(book.ms / 1_000).toFixed(1)} s`) : '—'}
+              </b>
+            </div>
           </div>
           <div className="ph-set__note">
-            Limit {LINK_LIMIT_MS} ms. Over it, new buys and shorts are held. Level 2 age shows on the Trade screen.
+            Limit {LINK_LIMIT_MS} ms. Over it, new buys are held. Level 2 is {book ? `${book.symbol}'s book, as last seen on Trade` : 'measured once Trade opens a book'}.
           </div>
         </section>
       </div>

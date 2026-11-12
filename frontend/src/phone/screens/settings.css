@@ -73,7 +73,7 @@
 .ph-set__link {
   height: 50px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: center;
   white-space: nowrap;
 }

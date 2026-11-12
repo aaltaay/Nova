@@ -149,6 +149,15 @@ export class PhoneDoor {
   }
 
   /**
+   * The header a write through the phone's door carries, for the desk's own ticket code (`ibkr/orderDoor`):
+   * the Trade screen sends an order with the function the desk's ticket sends it with. Empty while locked,
+   * and the backend then refuses the write `PHONE_LOCKED`.
+   */
+  sessionHeaders(): Record<string, string> {
+    return this.token ? { [SESSION_HEADER]: this.token } : {};
+  }
+
+  /**
    * One timed read of the door's status: what the phone's screens ask once a second. `status` is null
    * when Nova did not answer; `ms` is the round trip either way, and `asked` this device's clock when it left.
    */

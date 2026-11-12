@@ -30,6 +30,11 @@ export function signedMoney(n: number | null | undefined, decimals = 2): string 
   return n > 0 && !roundsToZero(n, decimals) ? `+${text}` : text;
 }
 
+/** Whole dollars: "$22,640". A missing figure is a dash. */
+export function money0(n: number | null | undefined): string {
+  return n == null || !Number.isFinite(n) ? DASH : formatMoney(n, 0);
+}
+
 export type Tone = 'good' | 'bad' | '';
 
 /** Green above zero, red below, plain when flat or unknown. */

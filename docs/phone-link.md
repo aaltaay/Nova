@@ -84,7 +84,22 @@ it on the home screen, full screen; it opens there from then on.
 - **To use the padlock or cancel an order,** the phone asks for the phone PIN first (set it on the PC as below). The
   unlock lasts 8 hours and ends when the page is reloaded.
 - **Nothing scrolls.** A long list has Prev and Next.
-- **Trade is the next build.** Until then Paper orders go from the link-test page, as below.
+- **Trade** shows one stock: its chart, Level 2, the tape and the order ticket. Tap a blue ticker chip to open a
+  stock there; the Trade tab reopens the last one.
+  - *Quick:* choose the size (100, 500, 1000 or your own number), then one tap is the order. Each button says what
+    it sends: buy at market, buy with a limit 5 cents over the Ask, sell half or all at the Ask (it rests), sell
+    half or all into the Bid (it fills now).
+  - *Custom:* Buy or Sell; Market, Limit or Stop; the price and the shares with the + and - buttons; one send
+    button. **Set a stop...** opens it on a sell stop for the shares you hold.
+  - *The banner* answers every tap: Sending, Sent (the desk has it), Filled, or a red NOT SENT with the desk's
+    reason, which stays until you tap it.
+  - *The two dots* at the right are your position in the stock and your working orders. Tap one to see it; press
+    and hold to flatten, or to cancel every order, after a warning. Drag a dot to move it.
+  - *The grab handle* under the chart trades chart height for Level 2 rows. Tap the chart for the full chart.
+  - *When the padlock is locked* the buttons are grey and a tap sends nothing; tap **Locked** to open it. Flatten
+    and Cancel all still work.
+  - *When Level 2 reaches the phone late* the buys are held and say so. Sells, Flatten and Cancel still go.
+- The big chart opens upright from the round icon in the corner of a stock's chart; its sideways button turns it.
 - The venue is changed on the PC. The phone sends orders on Paper only.
 
 After a new build (`npm run build`), reload the page on the phone to get it: the file server tells the phone to
@@ -103,8 +118,9 @@ lag lock reads the phone's uncorrected clock. Use the link test, not the desk, t
 
 ## Paper orders from the phone
 
-The phone can send Paper orders from the link-test page: buy, sell, flatten, cancel. Never Live: the order door refuses
-a phone order whenever the desk is not on Paper, and the phone cannot move the desk's venue.
+The phone sends Paper orders from its Trade screen, and from the link-test page (buy, sell, flatten, cancel). Never
+Live: the order door refuses a phone order whenever the desk is not on Paper, and the phone cannot move the desk's
+venue.
 
 1. **Set a phone PIN, once, on the PC.** Six digits, typed at a hidden prompt; only its hash is stored. Use a
    different one from your Live PIN.
@@ -114,9 +130,10 @@ a phone order whenever the desk is not on Paper, and the phone cannot move the d
    ```
 
 2. **Put the desk on Paper** (the header pill), on the PC.
-3. On the phone, on the link-test page with a run started: enter the PIN under **Paper orders**, unlock, then open
-   Paper's padlock.
-4. Send an order. The page shows the time from your tap to Nova's answer, and Nova's own words when it refuses.
+3. On the phone, open **Trade** on a stock and tap a button: the phone asks for the PIN once, then tap the padlock
+   (or **Locked**) to open Paper's padlock. On the link-test page with a run started, the same two steps are under
+   **Paper orders**.
+4. Send an order. The banner says Sent and how long the desk took to answer, and Nova's own words when it refuses.
 
 An unlock lasts 8 hours, or until you press Lock, unlock from another phone, or the backend restarts. Five wrong PINs
 lock the phone for five minutes. An order tapped while the feed is behind or dropped is refused by the same rule the

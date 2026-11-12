@@ -65,3 +65,5 @@
 /* Your position's line and its badge are the desk chart's. The badge's desk menu (Close position, View details)
    is not the phone's: the phone closes a position from its own controls, through its own door. */
 .ph-chart .chart-position-tag { pointer-events: none; }
+/* On the Trade screen's strip the line stays and the legend above it says the average: the badge would cover the candles. */
+.ph-chart[data-mini='true'] .chart-position-tag { display: none; }

@@ -230,3 +230,41 @@ def test_the_desk_on_this_pc_still_needs_its_key(phone):
     client, _state = phone
     local = {"host": "127.0.0.1:8000"}
     assert client.post("/api/ibkr/arm", headers=local, json={"armed": False}).status_code == 401
+
+
+def test_a_stop_and_the_price_it_was_read_from_reach_the_desks_handler(phone):
+    """The Trade screen (amendment 2026-11-12): a stop order, and the bid or ask a limit was priced from."""
+    client, state = phone
+    unlocked = _unlock(client)
+    stop = {**ORDER, "side": "SELL", "qty": 500, "order_type": "STP", "stop_price": 4.6}
+    assert client.post("/api/phone/order", headers=unlocked, json=stop).status_code == 200
+    limit = {**ORDER, "order_type": "LMT", "limit_price": 4.87, "reference_price": 4.82}
+    assert client.post("/api/phone/order", headers=unlocked, json=limit).status_code == 200
+    sent_stop, sent_limit = state["sent"]
+    assert (sent_stop.order_type, sent_stop.stop_price, sent_stop.limit_price) == ("STP", 4.6, None)
+    assert (sent_limit.limit_price, sent_limit.reference_price) == (4.87, 4.82)
+    assert {sent_stop.venue, sent_limit.venue} == {"paper"}
+
+
+def test_the_desks_own_order_body_is_read_past_never_trusted(phone):
+    """The phone's ticket sends the body the desk's ticket sends: a venue, a time in force and a short flag in it
+    change nothing. Every phone order is Paper and never opens a short."""
+    client, state = phone
+    unlocked = _unlock(client)
+    body = {**ORDER, "venue": "live", "tif": "GTC", "short_entry": True, "take_profit_price": 9.0, "stop_loss_price": 1.0}
+    assert client.post("/api/phone/order", headers=unlocked, json=body).status_code == 200
+    order = state["sent"][0]
+    assert (order.venue, order.short_entry, order.take_profit_price, order.stop_loss_price) == ("paper", False, None, None)
+    assert order.tif == "DAY"
+    # An order type the phone does not send is not an order.
+    assert client.post("/api/phone/order", headers=unlocked, json={**ORDER, "order_type": "TRAIL"}).status_code == 422
+
+
+def test_cancel_all_reaches_every_symbol_on_paper_only(phone):
+    client, state = phone
+    unlocked = _unlock(client)
+    # The desk's own client names the venue it acted on; the phone's is Paper whatever it says.
+    assert client.delete("/api/phone/orders?all_symbols=true&venue=live", headers=unlocked).status_code == 200
+    assert client.delete("/api/phone/orders?symbol=F&venue=paper", headers=unlocked).status_code == 200
+    assert state["sent"] == [("cancel_symbol", None, True, "paper"), ("cancel_symbol", "F", False, "paper")]
+    assert client.delete("/api/phone/orders?all_symbols=true", headers=REMOTE).status_code == 401

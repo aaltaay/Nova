@@ -155,14 +155,17 @@ export function PhoneBannerView() {
       data-tone={banner.tone}
       data-testid="phone-banner"
       aria-live="assertive"
-      onClick={dismissBanner}
+      onClick={() => {
+        dismissBanner();
+        banner.onTap?.();
+      }}
     >
       <span className="ph-banner__dot" aria-hidden="true">
-        {banner.tone === 'sending' ? <Clock size={18} /> : banner.tone === 'done' ? <Check size={18} strokeWidth={2.6} /> : <X size={18} strokeWidth={2.6} />}
+        {banner.tone === 'sending' ? <Clock size={18} /> : banner.tone === 'refused' ? <X size={18} strokeWidth={2.6} /> : <Check size={18} strokeWidth={2.6} />}
       </span>
       <span className="ph-banner__words">
         <span className="ph-banner__title">{banner.title}</span>
-        <span className="ph-banner__note">{banner.tone === 'refused' ? `${banner.note} Tap to close.` : banner.note}</span>
+        <span className="ph-banner__note">{banner.tone === 'refused' && !banner.onTap ? `${banner.note} Tap to close.` : banner.note}</span>
       </span>
     </button>
   );

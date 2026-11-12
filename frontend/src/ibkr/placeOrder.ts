@@ -12,6 +12,8 @@ import {
 } from '../execution_latency';
 import type { ManualOrderPayload } from './orderEntry';
 import { viewStampFor } from '../market_view';
+import { deskNow } from '../utils/deskClock';
+import { orderDoor } from './orderDoor';
 
 export interface PlaceOrderResult {
   ok: boolean;
@@ -27,6 +29,12 @@ export interface PlaceOrderResult {
   parent_order_id?: number | null;
   target_order_id?: number | null;
   stop_order_id?: number | null;
+}
+
+/** The timing headers plus the door's own (the phone's session). */
+function withDoor(headers: Headers, extra: Record<string, string>): Headers {
+  for (const [name, value] of Object.entries(extra)) headers.set(name, value);
+  return headers;
 }
 
 // Callers own the key: pass one per user gesture so a retry of that gesture
@@ -61,11 +69,12 @@ export async function placeIbkrOrder(
   // ADR 045: what the screen shows as the order leaves -- after any confirm dialog, so a confirmed
   // order is judged on the market at the moment it is sent. The backend refuses an order priced from
   // a view that lags (VIEW_STALE / ORDER_LATE / FEED_STALE), and a manual one without it (VIEW_MISSING).
-  const view = viewStampFor(payload.symbol, Date.now());
+  const view = viewStampFor(payload.symbol, deskNow());
+  const door = orderDoor();
   try {
-    const response = await novaFetch(`${API_BASE_URL}/api/ibkr/order`, {
+    const response = await novaFetch(`${API_BASE_URL}${door.prefix}/order`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...door.headers() },
       body: JSON.stringify({
         ...payload,
         idempotency_key: idempotencyKey || newGestureKey('place'),
@@ -115,11 +124,12 @@ export async function cancelAllOrdersForSymbol(
   }
   try {
     const named = venue ? `&venue=${encodeURIComponent(venue)}` : '';
+    const door = orderDoor();
     const response = await novaFetch(
-      `${API_BASE_URL}/api/ibkr/orders?symbol=${encodeURIComponent(symbol.toUpperCase())}${named}`,
+      `${API_BASE_URL}${door.prefix}/orders?symbol=${encodeURIComponent(symbol.toUpperCase())}${named}`,
       {
         method: 'DELETE',
-        headers: clientTimingHeaders(timing),
+        headers: withDoor(clientTimingHeaders(timing), door.headers()),
       },
     );
     return await parseTimedExecutionResponse<CancelAllResult>(response, timing);
@@ -147,11 +157,12 @@ export async function cancelAllWorkingOrders(
   }
   try {
     const named = venue ? `&venue=${encodeURIComponent(venue)}` : '';
+    const door = orderDoor();
     const response = await novaFetch(
-      `${API_BASE_URL}/api/ibkr/orders?all_symbols=true${named}`,
+      `${API_BASE_URL}${door.prefix}/orders?all_symbols=true${named}`,
       {
         method: 'DELETE',
-        headers: clientTimingHeaders(timing),
+        headers: withDoor(clientTimingHeaders(timing), door.headers()),
       },
     );
     return await parseTimedExecutionResponse<CancelAllResult>(response, timing);

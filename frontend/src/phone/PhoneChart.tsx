@@ -105,16 +105,22 @@ const SCALE_FONT_PX = 10;
  *   once per stock and timeframe. After that the view is the chart's own: it follows the newest candle, and a
  *   pinch or a drag is kept.
  */
-function PhoneChartFit({ chart, candleSeriesRef, barsRevision, symbol, timeframe }: ChartPaneOverlayProps) {
+function PhoneChartFit({ chart, candleSeriesRef, barsRevision, symbol, timeframe, mini }: ChartPaneOverlayProps & { mini?: boolean }) {
   const done = useRef<string | null>(null);
 
   useEffect(() => {
     if (!chart) return undefined;
     chart.applyOptions({ layout: { fontSize: SCALE_FONT_PX } });
+    // The small chart on Trade is a strip a few candles tall: no time row and no logo, which the full
+    // chart it opens carries.
+    if (mini) {
+      chart.applyOptions({ layout: { attributionLogo: false } });
+      chart.timeScale().applyOptions({ visible: false });
+    }
     chart.priceScale('right').applyOptions({ minimumWidth: SCALE_WIDTH_PX });
     chart.priceScale('volume').applyOptions({ minimumWidth: SCALE_WIDTH_PX });
     return claimEdge(chart);
-  }, [chart]);
+  }, [chart, mini]);
 
   useEffect(() => {
     const key = `${symbol}:${timeframe}`;
@@ -122,7 +128,8 @@ function PhoneChartFit({ chart, candleSeriesRef, barsRevision, symbol, timeframe
     // After the desk's own paint of this revision, which runs after this effect.
     const frame = window.requestAnimationFrame(() => {
       const count = candleSeriesRef.current?.data().length ?? 0;
-      const width = chart.timeScale().width();
+      // The small chart hides its time row, whose width then reads 0: the pane is as wide.
+      const width = chart.timeScale().width() || chart.paneSize().width;
       if (!count || !(width > 0)) return;
       done.current = key;
       const keep = Math.max(MIN_BARS, Math.round(width / PX_PER_BAR));
@@ -134,15 +141,18 @@ function PhoneChartFit({ chart, candleSeriesRef, barsRevision, symbol, timeframe
 }
 
 const renderFit = (props: ChartPaneOverlayProps) => <PhoneChartFit {...props} />;
+const renderMiniFit = (props: ChartPaneOverlayProps) => <PhoneChartFit {...props} mini />;
 
-export function PhoneChart({ symbol, frame, indicators, onIndicatorToggle }: {
+export function PhoneChart({ symbol, frame, indicators, onIndicatorToggle, mini = false }: {
   symbol: string;
   frame: string;
   indicators: ChartIndicatorId[];
   onIndicatorToggle: (id: ChartIndicatorId) => void;
+  /** The strip on the Trade screen: candles and lines only. */
+  mini?: boolean;
 }) {
   return (
-    <div className="ph-chart" data-testid="phone-chart" data-frame={frame}>
+    <div className="ph-chart" data-testid="phone-chart" data-frame={frame} data-mini={mini ? 'true' : 'false'}>
       <TickerChart
         key={frame}
         symbol={symbol}
@@ -153,7 +163,7 @@ export function PhoneChart({ symbol, frame, indicators, onIndicatorToggle }: {
         indicators={indicators}
         onIndicatorToggle={onIndicatorToggle}
         activeTool={null}
-        renderPaneOverlay={renderFit}
+        renderPaneOverlay={mini ? renderMiniFit : renderFit}
         contextMenu={false}
       />
     </div>

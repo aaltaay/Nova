@@ -1069,6 +1069,7 @@ read below is one the desk already makes, and every write goes to `/api/phone`
   | Top 9 | the scanner feed; per tile `/api/ticker/{symbol}/bars` (1-minute, store-first) and, on Gainers, `/api/luld/{symbol}/trail` |
   | Account | `/api/practice/account`, `/api/practice/history?range=1D` (Paper and Sim), `/api/loss-limit` |
   | Stock, big chart | `/ws/ticker/{symbol}` and the chart's bars; `/api/why?symbols=` |
+  | Trade | `/ws/ticker/{symbol}`, the chart's bars, `/ws/ibkr/depth/{symbol}` and `/ws/ibkr/tape/{symbol}` (opened only while Trade is up: Level 2 takes one of the desk's three books) |
 - **The scanner list a screen declares.** Scan declares the list on screen, Top 9
   its list, Home `gainers`, over `/ws/scanner` (`set_active_tab`), as a desk tab
   does. The backend serves the union of every client's lists inside one Level 1
@@ -1107,6 +1108,43 @@ read below is one the desk already makes, and every write goes to `/api/phone`
   refused (`REMOTE_LOCAL_ONLY`), and its Buy and Sell stage the desk's ticket.
 - **Every ticker on a phone screen opens the Trader** (the chip, a ticker in a
   line of words, a Top 9 switch), as on the desk.
+- **The Trade screen** (amendment 2026-11-12; `phone/screens/TradeScreen.tsx`,
+  `phone/trade/`). The book and the tape are the desk's hooks (`useIbkrDepth`,
+  `useIbkrTape`), drawn as many rows as the box holds; a book's rows take the
+  desk's montage colours (one per price). Each book drawn is reported to the
+  view registry (`noteBookShown`), and the registry's lock reason is what holds
+  the buys. Sizes are written short in the narrow columns ("1.2K"); a tape
+  size is whole under 10,000.
+  - *Every order is the desk's ticket code.* A Quick button is a desk action
+    (`runNovaAction`): `buy_market`, `buy_limit_ask_offset` (Ask + $0.05),
+    `sell_pos_pct_ask` (50 or 100), `sell_pos_pct_bid_offset` (Bid - $0.03, 50
+    or 100), `cancel_and_exit`, `cancel_all_orders`. Custom posts through
+    `placeIbkrOrder`: side, Market / Limit / Stop, a price and a share count;
+    a stop is seeded 1% past the market on the order's side
+    (`seedStopPrice`). Both go to the page's order door (`ibkr/orderDoor`),
+    which on the phone is `/api/phone` with the session header.
+  - *The PC's clock.* The heartbeat's offset is set once for the page
+    (`utils/deskClock.setDeskClockOffsetMs`); the view registry, the order's
+    `view` and its `client_timing` read `deskNow()`. An order tapped before
+    the first offset is not sent.
+  - *The banner.* Sending; Sent once the desk answered ok; NOT SENT with the
+    desk's words, which stays; Filled when your position in the stock changes
+    after the account was read ("Filled · Bought 500 ABCD", then where you
+    stand). A second tap while one is on its way is ignored.
+  - *The header pill.* Data is how late the last Level 2 frame reached the
+    phone (the registry's `transit_ms`, or the silence once it passes 1 s);
+    Tap is the middle round trip of the last 30 s. Settings' link card shows
+    the last Data figure.
+  - *The two dots* show while there is a position in the stock, or a working
+    order on any stock. Tap: what it holds. Press and hold 600 ms: the
+    warning. Drag: it stays where it is left (`nova.phone.trade.dots`, a
+    share of the screen).
+  - *Kept on the phone:* `nova.phone.trade.symbol` (the Trade tab reopens
+    it), `.mode` (Quick or Custom), `.size`, `.frame`, `.chart` (the small
+    chart's height, 92 to 172 px), `.dots`.
+  - *The small chart* is the desk's chart with no time row, no logo and no
+    position badge (its line stays; the legend says the average). A tap opens
+    the big chart. The 10-second frame is on here: the tape is open.
 - **The big chart opens upright** (operator, 2026-11-12), from the round icon
   in the corner of the stock page's chart. A phone on its side gets the wide
   drawing. The sideways button asks the browser for the whole screen and then

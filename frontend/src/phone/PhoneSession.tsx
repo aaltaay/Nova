@@ -15,16 +15,28 @@ import {
   type ReactNode,
 } from 'react';
 import { API_BASE_URL } from '../constants';
+import { useIbkrAccountContext } from '../ibkr/IbkrAccountContext';
+import { refreshIbkrStatusNow } from '../ibkr/ibkrStatusPoller';
+import { setOrderDoor } from '../ibkr/orderDoor';
 import { PhoneDoor, type Answer } from '../phone_link';
+import { setDeskClockOffsetMs } from '../utils/deskClock';
 import { createPhoneLink, type PhoneLinkView } from './phoneLink';
 import { PhonePinSheet } from './PhonePinSheet';
 
-export type BannerTone = 'sending' | 'done' | 'refused';
+export type BannerTone = 'sending' | 'done' | 'sent' | 'filled' | 'refused';
 
 export interface PhoneBanner {
   tone: BannerTone;
   title: string;
   note: string;
+  /** What a tap on the banner does besides closing it (a locked padlock's banner opens it). */
+  onTap?: () => void;
+}
+
+/** What the desk's ticket code answers for one order or cancel. */
+export interface TicketAnswer {
+  ok: boolean;
+  text: string;
 }
 
 export type Venue = 'live' | 'paper' | 'sim';
@@ -52,6 +64,14 @@ export interface PhoneSessionValue {
   askPin: (then?: () => void) => void;
   /** Send one write through the door, with a banner from tap to answer. Asks for the PIN first when locked. */
   send: (label: string, write: (door: PhoneDoor) => Promise<Answer>) => void;
+  /**
+   * Send one order through the desk's own ticket code (which goes out by the phone's door). The banner says
+   * Sending, then Sent once the desk has answered, or NOT SENT in the desk's words, which stays. A tap while
+   * one is on its way is ignored. `how: 'done'` is for a cancel: the banner then says what the desk did.
+   */
+  order: (label: string, run: () => Promise<TicketAnswer>, how?: 'sent' | 'done') => void;
+  /** Put a banner up: a fill, a padlock that is locked. */
+  notify: (banner: PhoneBanner) => void;
 }
 
 const Ctx = createContext<PhoneSessionValue | null>(null);
@@ -71,17 +91,41 @@ export function PhoneSessionProvider({ children }: { children: ReactNode }) {
   const [pinOpen, setPinOpen] = useState(false);
   const afterPin = useRef<(() => void) | null>(null);
   const doneTimer = useRef<number | null>(null);
+  const onItsWay = useRef(false);
+  const refreshAccount = useIbkrAccountContext().refresh;
+
+  /**
+   * After a write: read the door's status now, and have the desk's own readers read too. The desk's ticket code
+   * judges the padlock from the desk's status poll and sizes a sell from the account poll, so neither may wait
+   * for its next turn after this phone changed one of them.
+   */
+  const reread = useCallback(() => {
+    link.refresh();
+    refreshIbkrStatusNow();
+    refreshAccount();
+  }, [link, refreshAccount]);
 
   useEffect(() => {
     link.start();
     return () => link.stop();
   }, [link]);
 
+  // The desk's ticket code sends through this page's door, and stamps on the PC's clock.
+  useEffect(() => {
+    setOrderDoor({ prefix: '/api/phone', headers: () => door.sessionHeaders() });
+    return () => setOrderDoor(null);
+  }, [door]);
+  useEffect(() => {
+    setDeskClockOffsetMs(view.offsetMs);
+  }, [view.offsetMs]);
+
   const show = useCallback((next: PhoneBanner | null) => {
     if (doneTimer.current != null) window.clearTimeout(doneTimer.current);
     doneTimer.current = null;
     setBanner(next);
-    if (next?.tone === 'done') doneTimer.current = window.setTimeout(() => setBanner(null), DONE_MS);
+    if (next && next.tone !== 'sending' && next.tone !== 'refused') {
+      doneTimer.current = window.setTimeout(() => setBanner(null), DONE_MS);
+    }
   }, []);
 
   const status = view.status;
@@ -96,7 +140,7 @@ export function PhoneSessionProvider({ children }: { children: ReactNode }) {
     const run = (): void => {
       show({ tone: 'sending', title: `Sending · ${label}`, note: 'Waiting for the desk.' });
       void write(door).then((answer) => {
-        link.refresh();
+        reread();
         if (answer.ok) {
           show({ tone: 'done', title: answer.text, note: `The desk answered in ${Math.round(answer.ms)} ms` });
         } else {
@@ -106,7 +150,37 @@ export function PhoneSessionProvider({ children }: { children: ReactNode }) {
     };
     if (door.hasSession()) run();
     else askPin(run);
-  }, [askPin, door, link, show]);
+  }, [askPin, door, reread, show]);
+
+  const order = useCallback((label: string, run: () => Promise<TicketAnswer>, how: 'sent' | 'done' = 'sent') => {
+    const start = (): void => {
+      if (onItsWay.current) return;
+      if (view.offsetMs == null) {
+        show({ tone: 'refused', title: `NOT SENT · ${label}`, note: "The PC's clock is not measured yet. Wait a second and tap again." });
+        return;
+      }
+      onItsWay.current = true;
+      const tapped = performance.now();
+      show({ tone: 'sending', title: `Sending · ${label}`, note: 'Waiting for the desk. A second tap is ignored.' });
+      run()
+        .then((answer) => {
+          const ms = Math.round(performance.now() - tapped);
+          if (!answer.ok) show({ tone: 'refused', title: `NOT SENT · ${label}`, note: answer.text });
+          else if (how === 'done') show({ tone: 'done', title: answer.text, note: `The desk answered in ${ms} ms` });
+          else show({ tone: 'sent', title: `Sent · ${label}`, note: `The desk has it · answered in ${ms} ms` });
+        })
+        .catch((err: unknown) => {
+          console.warn('[Nova phone] an order did not get an answer', err);
+          show({ tone: 'refused', title: `NOT SENT · ${label}`, note: 'Nova could not be reached. Check Orders before sending again.' });
+        })
+        .finally(() => {
+          onItsWay.current = false;
+          reread();
+        });
+    };
+    if (door.hasSession()) start();
+    else askPin(start);
+  }, [askPin, door, reread, show, view.offsetMs]);
 
   const setArmed = useCallback((armed: boolean) => {
     send(armed ? 'Open the padlock' : 'Lock the padlock', (d) => d.arm(armed));
@@ -145,7 +219,9 @@ export function PhoneSessionProvider({ children }: { children: ReactNode }) {
     lockPhone,
     askPin,
     send,
-  }), [askPin, banner, door, lockPhone, send, setArmed, show, status, unlocked, view]);
+    order,
+    notify: show,
+  }), [askPin, banner, door, lockPhone, order, send, setArmed, show, status, unlocked, view]);
 
   return (
     <Ctx.Provider value={value}>

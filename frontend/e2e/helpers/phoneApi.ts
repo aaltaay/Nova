@@ -93,6 +93,25 @@ export interface PhoneApiOptions {
   positions?: number;
   pinSet?: boolean;
   venue?: 'paper' | 'sim' | 'live';
+  /** The Level 2 the Trade screen gets: live (the default), or every frame 1.4 s old when it arrives. */
+  book?: 'live' | 'behind';
+  /** The padlock when the page opens (locked by default, as after a backend start). */
+  armed?: boolean;
+}
+
+/** One order as the Trade screen sent it to `POST /api/phone/order`. */
+export interface SentOrder {
+  symbol: string;
+  side: 'BUY' | 'SELL';
+  qty: number;
+  order_type: string;
+  limit_price?: number | null;
+  stop_price?: number | null;
+  reference_price?: number | null;
+  outside_rth?: boolean;
+  intent?: string | null;
+  view?: { instance?: string | null; book?: { seq: number; bid: number | null; ask: number | null } | null; action_wall_ms?: number };
+  client_timing?: Record<string, number>;
 }
 
 export interface PhoneApi {
@@ -102,16 +121,33 @@ export interface PhoneApi {
   asked: string[];
   /** Paths this stand-in had no answer for. */
   unanswered: string[];
-  /** `accountDown`: the account, positions and orders reads fail from now on, as when the Gateway or the ledger drops. */
-  state: { armed: boolean; unlocked: boolean; working: number[]; accountDown: boolean };
+  /** Every order the Trade screen sent, in order. */
+  orders: SentOrder[];
+  /** Every cancel-many the screen sent: the query it carried. */
+  cancels: string[];
+  /**
+   * `accountDown`: the account, positions and orders reads fail from now on, as when the Gateway or the ledger drops.
+   * `held`: your shares of the first symbol; an order that fills moves it, as the ledger would.
+   */
+  state: { armed: boolean; unlocked: boolean; working: number[]; accountDown: boolean; held: number };
 }
+
+const BID = 4.81;
+const ASK = 4.82;
+const BIDS: readonly [string, number, number][] = [['NSDQ', 4.81, 1200], ['ARCA', 4.81, 800], ['EDGX', 4.81, 300], ['BATS', 4.80, 3400], ['NSDQ', 4.80, 1000], ['ARCA', 4.79, 900], ['NYSE', 4.79, 500], ['EDGX', 4.79, 200], ['NSDQ', 4.78, 5000], ['BATS', 4.78, 700], ['ARCA', 4.77, 700], ['NSDQ', 4.77, 400], ['EDGX', 4.76, 2200], ['BATS', 4.75, 600], ['NSDQ', 4.74, 900]];
+const ASKS: readonly [string, number, number][] = [['ARCA', 4.82, 800], ['NSDQ', 4.82, 500], ['EDGX', 4.83, 2100], ['BATS', 4.83, 600], ['NSDQ', 4.83, 200], ['ARCA', 4.84, 500], ['NSDQ', 4.85, 6300], ['NYSE', 4.85, 1100], ['EDGX', 4.85, 400], ['BATS', 4.86, 1000], ['ARCA', 4.86, 300], ['NSDQ', 4.87, 400], ['EDGX', 4.88, 3900], ['BATS', 4.89, 500], ['NSDQ', 4.90, 800]];
 
 export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Promise<PhoneApi> {
   const api: PhoneApi = {
     writes: [],
     asked: [],
     unanswered: [],
-    state: { armed: false, unlocked: false, working: Array.from({ length: opts.working ?? 1 }, (_, i) => 7 + i), accountDown: false },
+    orders: [],
+    cancels: [],
+    state: {
+      armed: opts.armed ?? false, unlocked: false, working: Array.from({ length: opts.working ?? 1 }, (_, i) => 7 + i), accountDown: false,
+      held: (opts.positions ?? 2) > 0 ? 500 : 0,
+    },
   };
   const venue = opts.venue ?? 'paper';
   const pinSet = opts.pinSet ?? true;
@@ -121,10 +157,22 @@ export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Prom
     expires_at: api.state.unlocked && token === TOKEN ? nowSec() + 7 * 3600 + 12 * 60 : null,
     venue, paper: venue === 'paper', armed: api.state.armed, now: nowSec(),
   });
-  const positions = Array.from({ length: opts.positions ?? 2 }, (_, i) => ({
-    symbol: SYMBOLS[i], qty: 500 - i * 200, market_price: 4.82 - i * 2.65, market_value: 2410, avg_cost: 4.71 - i * 2.66,
-    unrealized_pnl: 55 - i * 19, realized_pnl: 0, position_side: 'long',
-  }));
+  const others = Array.from({ length: Math.max(0, (opts.positions ?? 2) - 1) }, (_, k) => {
+    const i = k + 1;
+    return {
+      symbol: SYMBOLS[i], qty: 500 - i * 200, market_price: 4.82 - i * 2.65, market_value: 2410, avg_cost: 4.71 - i * 2.66,
+      unrealized_pnl: 55 - i * 19, realized_pnl: 0, position_side: 'long',
+    };
+  });
+  /** Your rows now: the first symbol follows `state.held`. */
+  const positionsNow = () => [
+    ...(api.state.held ? [{
+      symbol: SYMBOLS[0], qty: api.state.held, market_price: 4.82, market_value: api.state.held * 4.82, avg_cost: 4.71,
+      unrealized_pnl: Math.round(api.state.held * 0.11), realized_pnl: 0, position_side: 'long',
+    }] : []),
+    ...others,
+  ];
+  let nextOrderId = 40;
   const order = (id: number) => ({
     order_id: id, symbol: SYMBOLS[0], side: 'SELL', qty: 250, remaining_qty: 250, order_type: 'LMT', limit_price: 4.95,
     status: 'Submitted', venue, owner: 'you', outside_rth: true,
@@ -159,6 +207,26 @@ export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Prom
         api.state.armed = (req.postDataJSON() as { armed?: boolean } | null)?.armed === true;
         return json(status(token));
       }
+      if (path === '/api/phone/order' && method === 'POST') {
+        const body = req.postDataJSON() as SentOrder;
+        api.orders.push(body);
+        // The padlock holds everything but a Flatten, as the desk's arm latch does.
+        if (!api.state.armed && body.intent !== 'flatten') {
+          return json({ ok: false, order_id: null, error: 'The desk is locked: open the padlock to send orders.', reason_code: 'DISARMED' });
+        }
+        nextOrderId += 1;
+        const rests = body.order_type === 'STP' || (body.order_type === 'LMT' && body.side === 'SELL' && (body.limit_price ?? 0) >= ASK)
+          || (body.order_type === 'LMT' && body.side === 'BUY' && (body.limit_price ?? 0) < ASK);
+        if (rests) api.state.working = [...api.state.working, nextOrderId];
+        else api.state.held += body.side === 'BUY' ? body.qty : -body.qty;
+        return json({ ok: true, order_id: nextOrderId, broker_status: rests ? 'Submitted' : 'Filled' });
+      }
+      if (path === '/api/phone/orders' && method === 'DELETE') {
+        api.cancels.push(url.search);
+        const cancelled = api.state.working;
+        api.state.working = [];
+        return json({ ok: true, cancelled, failed: [], error: null });
+      }
       const cancel = /^\/api\/phone\/order\/(\d+)$/.exec(path);
       if (cancel && method === 'DELETE') {
         api.state.working = api.state.working.filter((id) => id !== Number(cancel[1]));
@@ -176,6 +244,7 @@ export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Prom
       case '/api/config': return json({ discovery_provider: 'ibkr', data_feed: 'ibkr', scanner_persistent_enabled: true, scanner_persistent_authoritative: true });
       case '/api/ibkr/status': return json({
         connected: true, transport_connected: true, session: 'ready', mode: venue, venue, armed: api.state.armed,
+        spend_status: api.state.armed ? `${venue}_armed` : 'locked_disarmed', arm_requires_pin: venue === 'live',
         gateway_mode: 'live', broker_account_kind: 'live', trading_allowed: true,
       });
       case '/api/gappers': return json(envelope(t, { gappers: rows(34, t) }));
@@ -196,7 +265,7 @@ export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Prom
         net_liquidation: 25_412.6, gross_position_value: 2_772.6, realized_pnl: 321.6, unrealized_pnl: 91, unrealized_at_bid: 88,
         day_pnl: 412.6, realized_today: 321.6, commissions_today: 8.4, fills_today: 6, day_started_et: '2026-11-11T04:00:00-05:00',
         updated_at: new Date().toISOString(),
-        positions: positions.map((p, i) => ({
+        positions: positionsNow().map((p, i) => ({
           symbol: p.symbol, qty: p.qty, avg_cost: p.avg_cost, market_price: p.market_price, market_value: p.market_value,
           unrealized_pnl: p.unrealized_pnl,
           by_owner: [{ owner: i ? 'bots' : 'you', bot: i ? 'first_pullback' : null, qty: p.qty, avg_cost: p.avg_cost, unrealized_pnl: p.unrealized_pnl }],
@@ -222,7 +291,7 @@ export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Prom
         components: { realized: 321.6, commissions: 8.4, fees: 0 },
       });
       case '/api/ibkr/account': return json({ NetLiquidation: 25_412.6, BuyingPower: 22_640, RealizedPnL: 321.6, UnrealizedPnL: 91 });
-      case '/api/ibkr/positions': return json(positions);
+      case '/api/ibkr/positions': return json(positionsNow());
       case '/api/ibkr/orders': return json(api.state.working.map(order));
       case '/api/ibkr/orders/closed': return json([]);
       case '/api/loss-limit': return json({
@@ -238,6 +307,8 @@ export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Prom
       default:
     }
     if (/^\/api\/ticker\/[A-Z.]+\/bars$/.test(path)) return json({ bars: bars(t) });
+    // The lines drawn on the desk's chart: none on the stand-in.
+    if (/^\/api\/chart-drawings\/[A-Z.]+$/.test(path)) return json({ drawings: [] });
     // An API from before the batch Catalyst read: the phone falls back to each row's own news verdict.
     if (path === '/api/why') return json({ detail: 'Not Found' }, 404);
     api.unanswered.push(path);
@@ -245,7 +316,37 @@ export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Prom
   });
 
   // The scanner's rows came by REST; its socket stays open and silent, as on a quiet tape.
-  await page.routeWebSocket(/127\.0\.0\.1:8000\/ws\/(?!ticker\/)/, () => undefined);
+  await page.routeWebSocket(/127\.0\.0\.1:8000\/ws\/(?!ticker\/|ibkr\/(depth|tape)\/)/, () => undefined);
+  // Level 2: the desk's depth socket. `behind`: every frame says it was sent 1.4 s before it arrives.
+  const late = opts.book === 'behind' ? 1.4 : 0;
+  await page.routeWebSocket(/127\.0\.0\.1:8000\/ws\/ibkr\/depth\//, (socket) => {
+    const symbol = decodeURIComponent(new URL(socket.url()).pathname.split('/').pop() ?? '').toUpperCase();
+    const level = (side: 'bid' | 'ask') => ([mm, price, size]: readonly [string, number, number]) => ({ mm, price, size, side });
+    socket.send(JSON.stringify({ type: 'subscribed', symbol, instance: 'stand-in-backend' }));
+    socket.send(JSON.stringify({
+      type: 'book', symbol, seq: 4, at: nowSec() - late, sent: nowSec() - late,
+      data: { bids: BIDS.map(level('bid')), asks: ASKS.map(level('ask')), l1_fallback: false },
+    }));
+    const beat = setInterval(() => socket.send(JSON.stringify({ type: 'beat', symbol, seq: 4, now: nowSec() - late })), 250);
+    socket.onClose(() => clearInterval(beat));
+  });
+  await page.routeWebSocket(/127\.0\.0\.1:8000\/ws\/ibkr\/tape\//, (socket) => {
+    const symbol = decodeURIComponent(new URL(socket.url()).pathname.split('/').pop() ?? '').toUpperCase();
+    socket.send(JSON.stringify({ type: 'subscribed', symbol }));
+    if (opts.book === 'behind') return;
+    const sizes = [500, 200, 1000, 300, 100, 700, 400, 2500, 100, 600, 300, 900, 200, 500, 800, 150];
+    socket.send(JSON.stringify({
+      type: 'prints', symbol,
+      // Oldest first, as the socket sends a batch.
+      items: sizes.map((size, i) => {
+        const at = Date.now() - (sizes.length - i) * 700;
+        const up = i % 3 !== 2;
+        return { symbol, time: new Date(at).toISOString(), exchange_ts: Math.floor(at / 1000), price: up ? ASK : BID, size, exchange: 'Q', side: up ? 'ask' : 'bid', bid: BID, ask: ASK };
+      }),
+    }));
+    const ping = setInterval(() => socket.send(JSON.stringify({ type: 'ping', symbol, gate: null })), 1000);
+    socket.onClose(() => clearInterval(ping));
+  });
   await page.routeWebSocket(/127\.0\.0\.1:8000\/ws\/ticker\//, (socket) => {
     const symbol = decodeURIComponent(new URL(socket.url()).pathname.split('/').pop() ?? '').toUpperCase();
     socket.send(JSON.stringify({

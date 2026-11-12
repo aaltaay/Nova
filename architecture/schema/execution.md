@@ -317,9 +317,10 @@ the backend restarts. Every write but the unlock carries it in `X-Nova-Phone-Ses
 | `POST /api/phone/unlock` | `{pin}` | the status, plus `token` |
 | `POST /api/phone/lock` | -- | the status |
 | `POST /api/phone/arm` | `{armed: bool}` | the status. Locking always goes; unlocking only while the desk is on Paper |
-| `POST /api/phone/order` | `{symbol, side: "BUY"\|"SELL", qty, order_type: "MKT"\|"LMT", limit_price?, outside_rth?, intent?: "flatten", idempotency_key?, client_timing, view}` | what `POST /api/ibkr/order` answers |
+| `POST /api/phone/order` | `{symbol, side: "BUY"\|"SELL", qty, order_type: "MKT"\|"LMT"\|"STP", limit_price?, stop_price?, reference_price?, outside_rth?, intent?: "flatten", idempotency_key?, client_timing, view}` | what `POST /api/ibkr/order` answers |
 | `DELETE /api/phone/order/{order_id}` | -- | what `DELETE /api/ibkr/order/{order_id}` answers |
 | `DELETE /api/phone/orders?symbol=` | -- | what `DELETE /api/ibkr/orders?symbol=` answers |
+| `DELETE /api/phone/orders?all_symbols=true` | -- | what `DELETE /api/ibkr/orders?all_symbols=true` answers: every working Paper order, on every stock |
 
 Refusals are `{"detail": {"reason": <code>, "error": <words>}}`:
 
@@ -338,10 +339,20 @@ when it is sent; `PHONE_NOT_PAPER` is the same answer given first in plain words
 arm latch, the stale view (ADR 045), the size limit (ADR 064), the loss limit. It never carries `short_entry`, bracket
 legs or a `target_venue`.
 
+**The Trade screen sends the desk's own order body** (amendment 2026-11-12): the phone's ticket is the desk's ticket
+code (`hotkeys/runNovaAction`, `ibkr/placeOrder`) posting to this prefix, so a body may also carry `venue`, `tif`,
+`short_entry`, `take_profit_price` and `stop_loss_price`, and a cancel-many may carry `venue`. The route reads past
+all of them: the order is built with `venue: "paper"`, the default time in force (DAY), no short entry and no legs.
+`stop_price` (a `STP` order's trigger) and `reference_price` (the bid or ask a limit was priced from) are passed on.
+An `order_type` other than `MKT`, `LMT` or `STP` is `422`.
+
 **Its clock and its view.** `client_timing` and `view` are required, so the stale-view gate never skips a phone order.
 The phone writes `action_wall_ms` on the PC's clock (its own clock plus the offset the link test measures from
 `GET /api/market-view/gate`'s `checked_at`), and `view.book` is the last Level 2 version its socket received, with the
-`instance` from that socket's `subscribed` frame.
+`instance` from that socket's `subscribed` frame. On the phone's screens the offset comes from the heartbeat
+(`GET /api/phone`'s `now`) and is set once for the page (`utils/deskClock`): the desk's view registry and the
+desk's order stamps read that clock, so `view` is the desk's own stamp -- the book version the phone drew, with
+`desk: {silent_ms, transit_ms, undrawn_ms}` measured on the PC's clock.
 
 ---
 
