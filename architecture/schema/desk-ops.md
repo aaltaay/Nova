@@ -1088,9 +1088,13 @@ read below is one the desk already makes, and every write goes to `/api/phone`
   first frame: Level 1 sends no later bid or ask, and the phone opens Level 2
   only on the Trade screen. Older than 3 s, the strip is grey and says its age.
 - **The chart** is the desk's chart with its header hidden. The phone claims the
-  pane's edge (the lines' names move to the phone's legend), sets the price
-  scales to a fixed 50 px with 10 px type, and on the first paint of a stock and
-  timeframe shows one candle about every 6 px.
+  pane's edge (the lines' names move to the phone's legend), and on the first
+  paint of a stock and timeframe shows one candle about every 6 px. Its price
+  scale is as narrow as its numbers (at least 36 px, 10 px type, no tick
+  marks), and the forming candle's countdown is a label on that scale, under
+  the last price (`TickerChart`'s `countdownOnScale`; operator, 2026-11-12:
+  "make them more compact ... don't forget the countdown"). The desk's chip
+  beside the candle is not drawn on the phone.
 - **Kept on the phone** (localStorage, `utils/prefStore` envelopes; a bad or
   unknown value reads as the default): `nova.phone.scan.list`,
   `nova.phone.chart.frame`, `nova.phone.chart.indicators`. The Top 9 list and the
@@ -1142,8 +1146,9 @@ read below is one the desk already makes, and every write goes to `/api/phone`
   - *Kept on the phone:* `nova.phone.trade.symbol` (the Trade tab reopens
     it), `.mode` (Quick or Custom), `.size`, `.frame`, `.chart` (the small
     chart's height, 92 to 172 px), `.dots`.
-  - *The small chart* is the desk's chart with no time row, no logo and no
-    position badge (its line stays; the legend says the average). A tap opens
+  - *The small chart* is the desk's chart with no time row, no logo, no
+    volume figure on the scale and no position badge (its line stays; the
+    legend says the average). The price and the countdown are its two labels. A tap opens
     the big chart. The 10-second frame is on here: the tape is open.
 - **The big chart opens upright** (operator, 2026-11-12), from the round icon
   in the corner of the stock page's chart. A phone on its side gets the wide

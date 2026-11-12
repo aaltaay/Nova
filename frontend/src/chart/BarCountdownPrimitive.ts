@@ -4,6 +4,9 @@
  * sits). Drawn on the pane's canvas, so it follows every scroll, zoom and
  * autoscale on the chart's own paint; the clock only asks for a repaint when
  * the digits change.
+ *
+ * `onScale` (the phone's charts): the countdown is a label on the price scale instead, directly under the
+ * last price's own label, so it never sits on the candles of a chart a few centimetres wide.
  */
 import type { CanvasRenderingTarget2D } from 'fancy-canvas';
 import {
@@ -13,6 +16,7 @@ import {
   type IPrimitivePaneView,
   type ISeriesApi,
   type ISeriesPrimitive,
+  type ISeriesPrimitiveAxisView,
   type PrimitivePaneViewZOrder,
   type SeriesAttachedParameter,
   type SeriesType,
@@ -30,6 +34,7 @@ import {
   CHART_BAR_COUNTDOWN_BORDER_COLOR,
   CHART_BAR_COUNTDOWN_FONT,
   CHART_BAR_COUNTDOWN_RADIUS_PX,
+  CHART_BAR_COUNTDOWN_SCALE_BACK_COLOR,
   CHART_BAR_COUNTDOWN_TEXT_COLOR,
   CHART_BAR_COUNTDOWN_WARN_COLOR,
 } from './barCountdownConstants';
@@ -145,6 +150,55 @@ export class BarCountdownPaneView implements IPrimitivePaneView {
   }
 }
 
+/**
+ * The countdown as a label on the price scale: one label's height under the last price, where the chart's own
+ * last-price label sits. The scale keeps labels from covering each other, so it settles just under that one.
+ */
+class BarCountdownScaleView implements ISeriesPrimitiveAxisView {
+  private readonly _source: BarCountdownPrimitive;
+
+  constructor(source: BarCountdownPrimitive) {
+    this._source = source;
+  }
+
+  private _now(): { y: number; text: string; warn: boolean } | null {
+    const { chart, series } = this._source;
+    if (!chart || !series) return null;
+    const last = this._source.lastBar();
+    const countdown = this._source.countdown(last);
+    if (!last || !countdown) return null;
+    const y = series.priceToCoordinate(last.close);
+    if (y === null) return null;
+    // A scale label is its type plus its padding tall.
+    const labelHeight = (chart.options().layout.fontSize ?? 12) + 7;
+    return { y: y + labelHeight, text: countdown.text, warn: countdown.warn };
+  }
+
+  coordinate(): number {
+    return this._now()?.y ?? 0;
+  }
+
+  text(): string {
+    return this._now()?.text ?? '';
+  }
+
+  textColor(): string {
+    return this._now()?.warn ? CHART_BAR_COUNTDOWN_WARN_COLOR : CHART_BAR_COUNTDOWN_TEXT_COLOR;
+  }
+
+  backColor(): string {
+    return CHART_BAR_COUNTDOWN_SCALE_BACK_COLOR;
+  }
+
+  visible(): boolean {
+    return this._now() !== null;
+  }
+
+  tickVisible(): boolean {
+    return false;
+  }
+}
+
 function isCandleRow(row: unknown): row is BarCountdownBar {
   if (!row || typeof row !== 'object') return false;
   const r = row as Record<string, unknown>;
@@ -154,6 +208,7 @@ function isCandleRow(row: unknown): row is BarCountdownBar {
 export class BarCountdownPrimitive implements ISeriesPrimitive<Time> {
   private readonly _timeframe: string;
   private readonly _paneViews: BarCountdownPaneView[];
+  private readonly _scaleViews: BarCountdownScaleView[];
   private _chart: IChartApi | null = null;
   private _series: ISeriesApi<SeriesType> | null = null;
   private _requestUpdate: (() => void) | null = null;
@@ -164,9 +219,10 @@ export class BarCountdownPrimitive implements ISeriesPrimitive<Time> {
   private _wordsUsed = -1;
   private _unsubscribeWords: (() => void) | null = null;
 
-  constructor(timeframe: string) {
+  constructor(timeframe: string, onScale = false) {
     this._timeframe = timeframe;
-    this._paneViews = [new BarCountdownPaneView(this)];
+    this._paneViews = onScale ? [] : [new BarCountdownPaneView(this)];
+    this._scaleViews = onScale ? [new BarCountdownScaleView(this)] : [];
   }
 
   get chart(): IChartApi | null {
@@ -183,7 +239,7 @@ export class BarCountdownPrimitive implements ISeriesPrimitive<Time> {
     this._requestUpdate = param.requestUpdate;
     // The pane's words can change in a paint that ran after the chip's own: place it against them once more.
     this._unsubscribeWords = subscribePaneWords(param.chart, () => {
-      if (this._paneViews[0].data && paneWords(this._chart).version !== this._wordsUsed) this._requestUpdate?.();
+      if (this._paneViews[0]?.data && paneWords(this._chart).version !== this._wordsUsed) this._requestUpdate?.();
     });
     this._requestUpdate();
   }
@@ -204,6 +260,10 @@ export class BarCountdownPrimitive implements ISeriesPrimitive<Time> {
 
   paneViews(): readonly IPrimitivePaneView[] {
     return this._paneViews;
+  }
+
+  priceAxisViews(): readonly ISeriesPrimitiveAxisView[] {
+    return this._scaleViews;
   }
 
   noteWordsUsed(version: number): void {

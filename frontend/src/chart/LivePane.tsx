@@ -62,6 +62,7 @@ export function LivePane({
   layoutEpoch = null,
   renderPaneOverlay,
   contextMenu = true,
+  countdownOnScale = false,
 }: TickerChartProps) {
   useRenderCount('TickerChart');
   const chartHeight = chartHeightForVariant(variant);
@@ -189,7 +190,7 @@ export function LivePane({
   });
 
   // Minute panes count down to the forming candle's close on the venue's clock.
-  useChartBarCountdown({ chartApi, candleSeriesRef, timeframe, chartActive });
+  useChartBarCountdown({ chartApi, candleSeriesRef, timeframe, chartActive, onScale: countdownOnScale });
 
   // Price-level drawings put their price on the axis, not clipped in the plot.
   useChartDrawingAxisLabels({ candleSeriesRef, symbol, seriesRevision: barsRevision });

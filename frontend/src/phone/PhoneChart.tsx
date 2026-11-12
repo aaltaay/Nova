@@ -87,8 +87,12 @@ export function FrameSwitch({ frame, onFrame }: { frame: string; onFrame: (id: s
 /** One candle about every this many pixels on first paint. */
 const PX_PER_BAR = 6;
 const MIN_BARS = 20;
-/** The price scale: wide enough for a price and the padded volume chip at the phone's type size, and no wider. */
-const SCALE_WIDTH_PX = 50;
+/**
+ * The price scale: as narrow as the numbers on it. The least it may be holds a price like "4.82" and the
+ * candle's countdown ("00:26", drawn on the scale under the last price); a longer price or a volume figure
+ * widens it by what it needs (operator, 2026-11-12: "make them more compact ... don't forget the countdown").
+ */
+const SCALE_WIDTH_PX = 36;
 const SCALE_FONT_PX = 10;
 
 /**
@@ -105,7 +109,7 @@ const SCALE_FONT_PX = 10;
  *   once per stock and timeframe. After that the view is the chart's own: it follows the newest candle, and a
  *   pinch or a drag is kept.
  */
-function PhoneChartFit({ chart, candleSeriesRef, barsRevision, symbol, timeframe, mini }: ChartPaneOverlayProps & { mini?: boolean }) {
+function PhoneChartFit({ chart, candleSeriesRef, volSeriesRef, barsRevision, symbol, timeframe, mini }: ChartPaneOverlayProps & { mini?: boolean }) {
   const done = useRef<string | null>(null);
 
   useEffect(() => {
@@ -116,11 +120,15 @@ function PhoneChartFit({ chart, candleSeriesRef, barsRevision, symbol, timeframe
     if (mini) {
       chart.applyOptions({ layout: { attributionLogo: false } });
       chart.timeScale().applyOptions({ visible: false });
+      // The strip is three labels tall at most: the price and the countdown take two, so the volume figure
+      // (it is in the header's day numbers) gives up its label. The bars stay.
+      volSeriesRef?.current?.applyOptions({ lastValueVisible: false, priceLineVisible: false });
     }
-    chart.priceScale('right').applyOptions({ minimumWidth: SCALE_WIDTH_PX });
-    chart.priceScale('volume').applyOptions({ minimumWidth: SCALE_WIDTH_PX });
+    // No tick marks: on a scale this narrow they are four pixels of nothing beside every number.
+    chart.priceScale('right').applyOptions({ minimumWidth: SCALE_WIDTH_PX, ticksVisible: false });
+    chart.priceScale('volume').applyOptions({ minimumWidth: SCALE_WIDTH_PX, ticksVisible: false });
     return claimEdge(chart);
-  }, [chart, mini]);
+  }, [chart, mini, volSeriesRef]);
 
   useEffect(() => {
     const key = `${symbol}:${timeframe}`;
@@ -164,6 +172,7 @@ export function PhoneChart({ symbol, frame, indicators, onIndicatorToggle, mini 
         onIndicatorToggle={onIndicatorToggle}
         activeTool={null}
         renderPaneOverlay={mini ? renderMiniFit : renderFit}
+        countdownOnScale
         contextMenu={false}
       />
     </div>

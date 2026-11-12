@@ -54,6 +54,11 @@ export interface TickerChartProps {
    * routes, which another device may not. Absent or true: the menu, as on every desk pane.
    */
   contextMenu?: boolean;
+  /**
+   * True draws the forming candle's countdown as a label on the price scale, under the last price, instead of a
+   * chip beside the candle. The phone's charts (ADR 070): a chip there covers the newest candles.
+   */
+  countdownOnScale?: boolean;
 }
 
 /**
