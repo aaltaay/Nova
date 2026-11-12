@@ -12,6 +12,7 @@ import { TRADE_DEFAULT_STOP_OFFSET_PCT } from '../../constantGroups/trade_defaul
 import { shouldUseOutsideRth } from '../../ibkr/extendedSession';
 import type { ManualOrderPayload } from '../../ibkr/orderEntry';
 import { seedStopPrice } from '../../ibkr/tradeDefaultSeed';
+import { orderCloses } from '../../market_view';
 import { plainPrice, priceStep, roundToTick } from '../../utils/priceTick';
 import { readPref, writePref } from '../../utils/prefStore';
 import { usePhoneSession } from '../PhoneSession';
@@ -111,7 +112,9 @@ export function TradeTicket({ trade, buyingPower, onFlatten, onCancelAll }: {
     </div>
   );
 
-  const buyWhy = offPaper ?? lag;
+  // A buy while short is a way out (the desk's own rule, `orderCloses`): lag never holds it, here or at the door.
+  const buyLag = orderCloses('BUY', false, heldQty) ? null : lag;
+  const buyWhy = offPaper ?? buyLag;
   const half = sellShares(long, 50);
   const all = sellShares(long, 100);
   const noShares = `You hold no ${symbol} to sell.`;
@@ -235,7 +238,7 @@ export function TradeTicket({ trade, buyingPower, onFlatten, onCancelAll }: {
         : (price != null && bid != null && price <= bid ? 'fills now' : 'rests');
   const about = price != null ? `${kind === 'MKT' ? 'about ' : ''}${money0(qty * price)}` : '';
   const customWhy = offPaper
-    ?? (buy && kind !== 'STP' ? lag : null)
+    ?? (buy && kind !== 'STP' ? buyLag : null)
     ?? (!buy && !long ? noShares : null)
     ?? (kind !== 'MKT' && price == null ? 'Waiting for Level 2 to price it.' : null);
   const sendWords = `${buy ? 'Buy' : 'Sell'} ${qty.toLocaleString('en-US')} · ${kind === 'MKT' ? 'Market' : `${KIND_WORD[kind]} ${priceWord(price)}`}`;
@@ -315,7 +318,7 @@ export function TradeTicket({ trade, buyingPower, onFlatten, onCancelAll }: {
           onClick={sendCustom}
         >
           <b>{sendWords}</b>
-          <i>{customWhy && buy && lag && !offPaper ? HELD_WORD : `${about ? `${about} · ` : ''}${how} · ${outside ? 'Day + extended hours' : 'Day'}`}</i>
+          <i>{customWhy && buy && buyLag && !offPaper ? HELD_WORD : `${about ? `${about} · ` : ''}${how} · ${outside ? 'Day + extended hours' : 'Day'}`}</i>
         </button>
         {locked ? (
           <button type="button" className="ph-trade__lockpill" onClick={() => session.setArmed(true)} data-testid="phone-trade-locked">

@@ -1,6 +1,6 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
 import { attachErrorCollector } from './helpers/errorCollector';
-import { PHONE_PIN, mockPhoneApi, phoneOverflow } from './helpers/phoneApi';
+import { PHONE_PIN, mockPhoneApi, phoneOverflow, type PhoneApi } from './helpers/phoneApi';
 
 // The phone's Trade screen (ADR 070, amendment 2026-11-12) against a stand-in API. Nothing here reaches a real
 // backend: every order below is one the stand-in records.
@@ -11,6 +11,18 @@ async function openTrade(page: Page) {
   await expect(page.getByTestId('phone-buy-market')).toBeVisible();
   // The book has been drawn, so an order has a view to say it was priced from.
   await expect(page.getByTestId('phone-book').locator('.ph-book__row')).not.toHaveCount(0);
+}
+
+/**
+ * The first tap on a locked phone asks for the PIN and sends nothing: prices move while a PIN is typed, so the
+ * banner says to tap again.
+ */
+async function unlockWithATap(page: Page, button: Locator, api: PhoneApi) {
+  const sentBefore = api.orders.length;
+  await button.click();
+  await typePin(page);
+  await expect(page.getByTestId('phone-banner')).toContainText('Unlocked · tap again to send');
+  expect(api.orders.length).toBe(sentBefore);
 }
 
 async function typePin(page: Page) {
@@ -63,9 +75,9 @@ test('a tap is the order: the desk gets its own order body, priced from the book
   await openTrade(page);
 
   await page.getByRole('button', { name: '500', exact: true }).click();
+  // A locked phone asks for the PIN first, and the tap that asked is not sent.
+  await unlockWithATap(page, page.getByTestId('phone-buy-market'), api);
   await page.getByTestId('phone-buy-market').click();
-  // A locked phone asks for its PIN first; the order goes once, after it.
-  await typePin(page);
   const banner = page.getByTestId('phone-banner');
   // Sent, then Filled as soon as the position moves: on Paper a market order fills at once.
   await expect(banner).toContainText(/Sent · Buy 500 market|Filled · Bought 500 ABCD/);
@@ -120,8 +132,8 @@ test('Custom sends a stop under the bid, and a refusal is the desk\'s words and 
   await expect(send).toContainText('Sell 500 · Stop 4.76');
   await page.getByRole('button', { name: 'Price down' }).click();
   await expect(send).toContainText('Stop 4.75');
+  await unlockWithATap(page, send, api);
   await send.click();
-  await typePin(page);
   await expect.poll(() => api.orders.length).toBe(1);
   expect(api.orders[0]).toMatchObject({ side: 'SELL', qty: 500, order_type: 'STP', stop_price: 4.75 });
   await expect(page.getByTestId('phone-banner')).toContainText('Sent · Sell 500 stop 4.75');
@@ -164,8 +176,11 @@ test('hold the position dot to flatten, behind a warning; cancel all reaches eve
 
   await dot.click();
   await page.getByTestId('phone-dot-pop').getByRole('button', { name: /^Flatten 500/ }).click();
+  await unlockWithATap(page, page.getByTestId('phone-ask-yes'), api);
+  expect(api.cancels).toEqual([]);
+  await dot.click();
+  await page.getByTestId('phone-dot-pop').getByRole('button', { name: /^Flatten 500/ }).click();
   await page.getByTestId('phone-ask-yes').click();
-  await typePin(page);
   // The desk's own Cancel + Flatten: the stock's orders, then the whole position as a protective flatten.
   await expect.poll(() => api.orders.length).toBe(1);
   expect(api.cancels[0]).toContain('symbol=ABCD');
@@ -197,10 +212,32 @@ test('a book that arrives late holds the buys and says why; a sell still goes', 
   await expect(buy).toHaveAttribute('data-why', /behind the market/);
   expect(await phoneOverflow(page)).toEqual([]);
   // Getting out is never held for lag.
+  await unlockWithATap(page, page.getByTestId('phone-sell-100-bid'), api);
   await page.getByTestId('phone-sell-100-bid').click();
-  await typePin(page);
   await expect.poll(() => api.orders.length).toBe(1);
   expect(api.orders[0]).toMatchObject({ side: 'SELL', qty: 500, order_type: 'LMT' });
+});
+
+test('a buy that covers a short opened on the desk is never held for lag', async ({ page }) => {
+  const api = await mockPhoneApi(page, { armed: true, book: 'behind', held: -300 });
+  await openTrade(page);
+  const lag = page.getByTestId('phone-lag');
+  await expect(lag).toBeVisible({ timeout: 10_000 });
+  await expect(lag).toContainText('A buy that covers');
+  // The desk's own rule (orderCloses): a buy while short is a way out, so the late book does not hold it.
+  const buy = page.getByTestId('phone-buy-market');
+  await expect(buy).toBeEnabled();
+  await expect(buy).toContainText('market · fills now');
+  await expect(page.getByTestId('phone-buy-limit')).toBeEnabled();
+  // The phone never adds to a short: there are no shares to sell.
+  await expect(page.getByTestId('phone-sell-100-bid')).toBeDisabled();
+  await page.getByRole('button', { name: 'Custom', exact: true }).first().click();
+  await expect(page.getByTestId('phone-send')).toBeEnabled();
+  await page.getByRole('button', { name: 'Quick', exact: true }).click();
+  await unlockWithATap(page, buy, api);
+  await buy.click();
+  await expect.poll(() => api.orders.length).toBe(1);
+  expect(api.orders[0]).toMatchObject({ side: 'BUY', qty: 100, order_type: 'MKT' });
 });
 
 test('off Paper the ticket is drawn and locked, and says the phone trades Paper only', async ({ page }) => {

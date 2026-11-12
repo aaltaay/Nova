@@ -97,6 +97,8 @@ export interface PhoneApiOptions {
   book?: 'live' | 'behind';
   /** The padlock when the page opens (locked by default, as after a backend start). */
   armed?: boolean;
+  /** Your shares of the first symbol when the page opens; negative is a short opened on the desk. Default 500. */
+  held?: number;
 }
 
 /** One order as the Trade screen sent it to `POST /api/phone/order`. */
@@ -146,7 +148,7 @@ export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Prom
     cancels: [],
     state: {
       armed: opts.armed ?? false, unlocked: false, working: Array.from({ length: opts.working ?? 1 }, (_, i) => 7 + i), accountDown: false,
-      held: (opts.positions ?? 2) > 0 ? 500 : 0,
+      held: opts.held ?? ((opts.positions ?? 2) > 0 ? 500 : 0),
     },
   };
   const venue = opts.venue ?? 'paper';
@@ -168,7 +170,7 @@ export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Prom
   const positionsNow = () => [
     ...(api.state.held ? [{
       symbol: SYMBOLS[0], qty: api.state.held, market_price: 4.82, market_value: api.state.held * 4.82, avg_cost: 4.71,
-      unrealized_pnl: Math.round(api.state.held * 0.11), realized_pnl: 0, position_side: 'long',
+      unrealized_pnl: Math.round(api.state.held * 0.11), realized_pnl: 0, position_side: api.state.held < 0 ? 'short' : 'long',
     }] : []),
     ...others,
   ];

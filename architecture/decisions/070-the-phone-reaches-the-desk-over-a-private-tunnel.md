@@ -191,6 +191,18 @@ continue!"). Step 2 is the Trade screen of the frozen design, on Paper.
 25. **A flatten and a cancel of everything sit behind a warning that fills the screen**, from the two dots (tap,
     or press and hold) and from the ticket. One tap sends an order; one tap never empties a position by accident.
 26. **Still Paper only.** Off Paper the ticket is drawn, locked, and says the phone trades Paper only.
+27. **One PIN** (operator, 2026-11-12, on meeting the phone's PIN sheet: "Just have the same one as the computer
+    one"). The phone unlocks with the desk's own PIN, the one typed on the PC (`NOVA_LIVE_ARM_PIN_HASH`). This
+    replaces the 2026-11-10 rule that the phone has a PIN of its own and that it should differ. A separate phone
+    PIN can still be set (`tools/set_phone_pin.py`); while one is, the phone takes that one and not the desk's.
+    What the PIN opens does not change: the phone's Paper door, for 8 hours. It arms nothing; Live is armed only
+    on the PC. Wrong PINs typed on the phone are counted on the phone, apart from those typed on the PC.
+28. **An order tapped on a locked phone is not sent when the PIN opens it.** The bid, the ask and the position
+    move while a PIN is typed, and a one-tap order sends what its button says at the tap. The banner says the
+    phone is unlocked and to tap again. (The padlock and a cancel of one order, which carry no price, still go
+    after the PIN.)
+29. **A buy that covers a short is never held for lag**, on the ticket as at the door: the desk's own rule
+    (`orderCloses`). The phone opens no short; one opened on the desk can be covered from the phone.
 
 Not in step 2, and listed in #1309: the Trade screen on its side (the frozen landscape board is a Live board and
 comes with Live), starring and drawing from the phone, the venue switch, the four other Scan lists.

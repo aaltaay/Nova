@@ -303,10 +303,13 @@ Another device may write to one prefix, `/api/phone` (owner `backend/phone/`). T
 through (every other one is still `403 REMOTE_VIEW_ONLY`), and the API key middleware does not ask them for
 `X-Nova-Api-Key`: the phone PIN's session opens them, and the desk's key never leaves the PC.
 
-**The PIN.** `NOVA_PHONE_PIN_HASH` in `.env`, written by `py -3 tools/set_phone_pin.py` on the PC (6 digits, the
-Live PIN's hash form). Every unlock reads the file, and the file wins over the API's environment, which still holds
-the hash the API started with: a changed PIN replaces the old one at once. Five wrong PINs in a row lock the phone for 300 s; the count is its
-own, apart from the Live PIN's.
+**The PIN** (amended 2026-11-12: one PIN). The phone unlocks with the desk's own PIN, `NOVA_LIVE_ARM_PIN_HASH` in
+`.env` (`py -3 tools/set_live_arm_pin.py`). While a separate phone PIN is set (`NOVA_PHONE_PIN_HASH`, written by
+`py -3 tools/set_phone_pin.py`; 6 digits, the same hash form), the phone takes that one and not the desk's.
+`pin_set` is true when either exists. Every unlock reads the file, and the file wins over the API's environment,
+which still holds the hash the API started with: a changed PIN replaces the old one at once. Five wrong PINs in a
+row lock the phone for 300 s; the count is its own, apart from the count of wrong PINs typed on the PC. The unlock
+opens the phone's Paper door only: it never arms the desk.
 
 **The session.** One random token in memory. It ends 8 hours after the unlock, on Lock, on a newer unlock, and when
 the backend restarts. Every write but the unlock carries it in `X-Nova-Phone-Session`.

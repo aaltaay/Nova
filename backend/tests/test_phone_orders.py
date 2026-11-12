@@ -138,6 +138,39 @@ def test_a_pin_changed_on_the_pc_replaces_the_old_one_without_a_restart(monkeypa
     pin.reset_for_tests()
 
 
+def test_the_phone_unlocks_with_the_desks_own_pin_unless_it_has_one_of_its_own(monkeypatch, tmp_path):
+    """Operator, 2026-11-12: "Just have the same one as the computer one"."""
+    import paths
+    from constants_ibkr import ARM_PIN_HASH_ENV
+
+    desk, own = "135790", "246810"
+    env_file = tmp_path / ".env"
+    env_file.write_text(f"{ARM_PIN_HASH_ENV}={arm_pin.hash_pin(desk, iterations=1000)}\n", encoding="utf-8")
+    monkeypatch.setattr(paths, "env_file_path", lambda: env_file)
+    monkeypatch.delenv(PHONE_PIN_HASH_ENV, raising=False)
+    monkeypatch.delenv(ARM_PIN_HASH_ENV, raising=False)
+    pin.reset_for_tests()
+    # No phone PIN of its own: the desk's PIN is the phone's.
+    assert pin.pin_is_set() is True
+    assert pin.check(desk) == (None, "")
+    assert pin.check("000000")[0] == PHONE_PIN_INVALID
+    # Given one of its own, the phone takes that one and no longer the desk's.
+    env_file.write_text(
+        f"{ARM_PIN_HASH_ENV}={arm_pin.hash_pin(desk, iterations=1000)}\n"
+        f"{PHONE_PIN_HASH_ENV}={arm_pin.hash_pin(own, iterations=1000)}\n", encoding="utf-8")
+    pin.reset_for_tests()
+    assert pin.check(own) == (None, "")
+    assert pin.check(desk)[0] == PHONE_PIN_INVALID
+    # A wrong PIN on the phone is counted on the phone: the desk's own count of wrong PINs is untouched.
+    assert arm_pin.check(desk)[0] is None
+    # Neither set: the phone says where to set the PIN.
+    env_file.write_text("", encoding="utf-8")
+    pin.reset_for_tests()
+    code, words = pin.check(desk)
+    assert code == PHONE_PIN_NOT_SET and "set_live_arm_pin.py" in words
+    pin.reset_for_tests()
+
+
 def test_a_buy_without_a_received_level_2_is_refused_and_a_sell_goes(phone):
     from phone.constants_phone import PHONE_NO_VIEW
 

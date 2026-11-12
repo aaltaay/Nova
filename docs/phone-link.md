@@ -81,8 +81,9 @@ it on the home screen, full screen; it opens there from then on.
 - **Bottom bar:** Scan, Trade, Home, Top 9, Account. Tap a row for the stock's page; tap the blue ticker chip for the
   Trader.
 - **The header** says the desk's venue, how fast the PC answers, and the padlock. Tap the venue for Settings.
-- **To use the padlock or cancel an order,** the phone asks for the phone PIN first (set it on the PC as below). The
-  unlock lasts 8 hours and ends when the page is reloaded.
+- **To use the padlock, cancel or send an order,** the phone asks for your PIN first: the same PIN you type on the
+  PC. The unlock lasts 8 hours and ends when the page is reloaded. An order tapped while the phone was locked is
+  not sent when the PIN opens it: tap again.
 - **Nothing scrolls.** A long list has Prev and Next.
 - **Trade** shows one stock: its chart, Level 2, the tape and the order ticket. Tap a blue ticker chip to open a
   stock there; the Trade tab reopens the last one.
@@ -122,8 +123,9 @@ The phone sends Paper orders from its Trade screen, and from the link-test page 
 Live: the order door refuses a phone order whenever the desk is not on Paper, and the phone cannot move the desk's
 venue.
 
-1. **Set a phone PIN, once, on the PC.** Six digits, typed at a hidden prompt; only its hash is stored. Use a
-   different one from your Live PIN.
+1. **The PIN is the one you already use on the PC.** Nothing to set up. To give the phone a different PIN
+   instead, run this on the PC (six digits, typed at a hidden prompt; only its hash is stored). While it is set
+   the phone takes that one and not the PC's:
 
    ```bash
    py -3 tools/set_phone_pin.py

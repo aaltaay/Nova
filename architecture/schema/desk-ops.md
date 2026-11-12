@@ -1134,7 +1134,9 @@ read below is one the desk already makes, and every write goes to `/api/phone`
   - *The banner.* Sending; Sent once the desk answered ok; NOT SENT with the
     desk's words, which stays; Filled when your position in the stock changes
     after the account was read ("Filled · Bought 500 ABCD", then where you
-    stand). A second tap while one is on its way is ignored.
+    stand). A second tap while one is on its way is ignored. A tap on a locked
+    phone asks for the PIN and is not sent when it opens ("Unlocked · tap
+    again to send"): prices move while a PIN is typed.
   - *The header pill.* Data is how late the last Level 2 frame reached the
     phone (the registry's `transit_ms`, or the silence once it passes 1 s);
     Tap is the middle round trip of the last 30 s. Settings' link card shows

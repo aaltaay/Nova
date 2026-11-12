@@ -121,7 +121,7 @@ export function SettingsScreen() {
                 <i>
                   {s.unlocked
                     ? `${timeLeft(s.expiresAt, pcNowSec)} · ends if Nova restarts`
-                    : s.pinSet === false ? 'No phone PIN is set on the PC yet' : 'Your phone PIN opens it for 8 hours'}
+                    : s.pinSet === false ? 'No PIN is set on the PC yet' : 'The PIN you use on your PC opens it for 8 hours'}
                 </i>
               </span>
               {s.unlocked ? (

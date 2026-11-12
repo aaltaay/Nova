@@ -52,7 +52,7 @@ export interface PhoneSessionValue {
   unlocked: boolean;
   /** When that session ends, epoch seconds. */
   expiresAt: number | null;
-  /** A phone PIN exists on the PC; null before the first answer. */
+  /** A PIN that unlocks the phone exists on the PC (the desk's own, or the phone's); null before the first answer. */
   pinSet: boolean | null;
   banner: PhoneBanner | null;
   dismissBanner: () => void;
@@ -68,6 +68,10 @@ export interface PhoneSessionValue {
    * Send one order through the desk's own ticket code (which goes out by the phone's door). The banner says
    * Sending, then Sent once the desk has answered, or NOT SENT in the desk's words, which stays. A tap while
    * one is on its way is ignored. `how: 'done'` is for a cancel: the banner then says what the desk did.
+   *
+   * On a locked phone the tap asks for the PIN and the order is NOT sent when it opens: the bid, the ask and
+   * the position moved while the PIN was typed, and a one-tap order sends what its button says at the tap.
+   * The banner says to tap again.
    */
   order: (label: string, run: () => Promise<TicketAnswer>, how?: 'sent' | 'done') => void;
   /** Put a banner up: a fill, a padlock that is locked. */
@@ -179,7 +183,13 @@ export function PhoneSessionProvider({ children }: { children: ReactNode }) {
         });
     };
     if (door.hasSession()) start();
-    else askPin(start);
+    else {
+      askPin(() => show({
+        tone: 'done',
+        title: 'Unlocked · tap again to send',
+        note: `${label} was not sent: prices move while a PIN is typed.`,
+      }));
+    }
   }, [askPin, door, reread, show, view.offsetMs]);
 
   const setArmed = useCallback((armed: boolean) => {

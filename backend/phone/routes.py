@@ -73,7 +73,7 @@ def _venue() -> str:
 
 def require_session(x_nova_phone_session: str | None = Header(default=None)) -> str:
     if not session.valid(x_nova_phone_session):
-        raise _refuse(PHONE_LOCKED, "Unlock with your phone PIN first. Nothing was sent.", 401)
+        raise _refuse(PHONE_LOCKED, "Unlock with your PIN first. Nothing was sent.", 401)
     return str(x_nova_phone_session)
 
 
@@ -113,7 +113,7 @@ def unlock(body: UnlockBody) -> dict[str, Any]:
     if code:
         raise _refuse(code, reason, 403)
     token, _expires = session.open_session()
-    logger.warning("PHONE: unlocked with the phone PIN (Paper only)")
+    logger.warning("PHONE: unlocked with the operator's PIN (Paper only)")
     return {"token": token, **_status(token)}
 
 

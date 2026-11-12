@@ -1,7 +1,7 @@
 /**
  * Trade (frozen mockup R2-Trade): one stock's chart, Level 2, tape and the order ticket on one screen that
  * never scrolls. The book and the tape are the desk's own sockets; every order is the desk's own ticket
- * code, sent through the phone's door after the phone PIN. Paper only (ADR 070).
+ * code, sent through the phone's door after the operator's PIN. Paper only (ADR 070).
  *
  * The grab handle under the chart trades chart height for book rows. Every tap is answered by the banner:
  * Sending, Sent once the desk has it, Filled when the position changes, or NOT SENT in the desk's words.
@@ -166,7 +166,7 @@ function TradeFor({ symbol }: { symbol: string }) {
           <div>
             {/* The desk's first sentence says what is behind; the rest of it is what the buttons below already say. */}
             <b>{trade.lag.split(/(?<=\.)\s/)[0]}</b>
-            <span>Buys are held. Sell, Flatten and Cancel still work.</span>
+            <span>{trade.heldQty < 0 ? 'A buy that covers, Flatten and Cancel still work.' : 'Buys are held. Sell, Flatten and Cancel still work.'}</span>
           </div>
         </div>
       ) : null}
