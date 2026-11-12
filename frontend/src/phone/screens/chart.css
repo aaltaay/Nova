@@ -1,0 +1,99 @@
+/* The big chart (frozen mockup R2-Charts), drawn for 740 x 320. */
+.ph-bigchart__head {
+  height: 34px;
+  flex-shrink: 0;
+  padding: 0 8px 0 2px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  white-space: nowrap;
+}
+.ph-bigchart__head .ph-icon-btn { width: 28px; height: 34px; }
+.ph-bigchart__head .ph-chip { height: 26px; }
+.ph-bigchart__px { font-size: 15px; font-weight: 700; }
+.ph-bigchart__pct { padding: 2px 6px; border-radius: 6px; background: var(--ph-soft); font-style: normal; font-size: 12px; font-weight: 700; }
+.ph-bigchart__head [data-tone='good'] { color: var(--ph-good); }
+.ph-bigchart__head [data-tone='bad'] { color: var(--ph-bad); }
+.ph-bigchart__pct[data-tone='good'] { background: var(--ph-good-bg); }
+.ph-bigchart__pct[data-tone='bad'] { background: var(--ph-bad-bg); }
+.ph-bigchart__rvol { font-size: 11px; color: var(--ph-muted); }
+.ph-bigchart__rvol b { color: var(--ph-text); font-weight: 600; }
+.ph-bigchart__head .ph-frames button { width: 38px; }
+
+.ph-bigchart__cat { height: 24px; margin: 0 6px 5px; border-radius: 9px; }
+
+.ph-bigchart__main { flex: 1 1 0; min-height: 0; display: flex; }
+.ph-bigchart__rail { width: 44px; flex-shrink: 0; padding: 0 0 6px 6px; display: flex; }
+.ph-bigchart__rail > div {
+  flex: 1 1 0;
+  padding: 3px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 12px;
+}
+.ph-bigchart__rail button {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  color: var(--ph-muted);
+}
+.ph-bigchart__rail button[aria-pressed='true'] { background: rgba(92, 200, 250, 0.16); color: var(--ph-accent-ink); }
+.ph-bigchart__rail button:disabled { color: var(--ph-faint); opacity: 0.55; }
+.ph-bigchart__rail i { width: 22px; height: 1px; flex-shrink: 0; background: rgba(255, 255, 255, 0.08); }
+
+.ph-bigchart__box {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0 6px 6px;
+  display: flex;
+  border-radius: 12px;
+  background: var(--ph-chart);
+  border: 1px solid var(--ph-hair);
+  overflow: hidden;
+}
+.ph-bigchart__layers {
+  position: absolute;
+  z-index: 6;
+  left: 6px;
+  bottom: 6px;
+  width: 300px;
+  padding: 5px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  border-radius: 12px;
+  background: #1A2130;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
+}
+.ph-bigchart__layers button {
+  height: 30px;
+  border-radius: 8px;
+  color: var(--ph-faint);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ph-bigchart__layers button[aria-checked='true'] { background: rgba(255, 255, 255, 0.10); color: var(--ph-text); }
+.ph-bigchart__layers button:disabled { opacity: 0.6; }
+
+.ph-bigchart__turn {
+  flex: 1 1 0;
+  padding: 0 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+  color: var(--ph-muted);
+}
+.ph-bigchart__turn b { font-size: 17px; color: var(--ph-text); }
+.ph-bigchart__turn span { font-size: 13px; line-height: 1.4; }

@@ -1,0 +1,430 @@
+/*
+ * Nova on the phone (ADR 070): the look every phone screen shares, from the frozen mockup
+ * (F:\Nova\design\phone-r2, r2-theme.css). Unlayered on purpose: these rules win over the desk
+ * sheets the phone borrows for the desk's own chart.
+ *
+ * No screen scrolls. Each one is a column that fills the viewport; when the viewport is smaller
+ * than the 360 x 720 the screens were drawn for, phoneFit.ts shrinks the whole page to fit.
+ */
+:root {
+  --ph-ui: 'Inter Variable', Inter, system-ui, sans-serif;
+  --ph-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, monospace;
+
+  --ph-bg: #0A0D12;
+  --ph-panel: #0D1118;
+  --ph-card: #121722;
+  --ph-chart: #0E131B;
+  --ph-hair: rgba(255, 255, 255, 0.06);
+  --ph-soft: rgba(255, 255, 255, 0.06);
+  --ph-text: #E8ECF2;
+  --ph-dim: #C9D1DD;
+  --ph-muted: #8A96AA;
+  --ph-faint: #6B778B;
+
+  --ph-accent: #5CC8FA;
+  --ph-accent-ink: #BDE7FD;
+  --ph-good: #3DDC84;
+  --ph-good-bg: rgba(61, 220, 132, 0.12);
+  --ph-bad: #FF6B6B;
+  --ph-bad-soft: #FF9A9A;
+  --ph-bad-bg: rgba(255, 107, 107, 0.14);
+  --ph-bad-line: rgba(255, 107, 107, 0.45);
+  --ph-sell: #E5484D;
+  --ph-warn: #F5B942;
+  --ph-warn-bg: rgba(245, 185, 66, 0.16);
+  --ph-halt: #FF9F0A;
+  --ph-chip-bg: rgba(92, 200, 250, 0.13);
+  --ph-chip-line: rgba(92, 200, 250, 0.38);
+  --ph-star: #F4D04D;
+}
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--ph-bg);
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#root {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+
+.ph-root {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: hidden;
+  background: var(--ph-bg);
+  color: var(--ph-text);
+  font-family: var(--ph-ui);
+  font-size: 13px;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.ph-root *, .ph-sheet * { box-sizing: border-box; }
+/* :where keeps this reset weaker than any class below it. */
+:where(.ph-root, .ph-sheet) button {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.ph-root button:disabled, .ph-root [aria-disabled='true'] { cursor: default; }
+
+.ph-screen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.ph-body {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Header ───────────────────────────────────────────────────────────── */
+.ph-head {
+  height: 40px;
+  flex-shrink: 0;
+  padding: 0 6px 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+.ph-head.has-back { padding-left: 4px; gap: 8px; }
+.ph-head__title { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+.ph-head__sub { font-size: 11px; color: var(--ph-muted); overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ph-grow { flex: 1 1 0; min-width: 0; }
+
+.ph-icon-btn {
+  width: 32px;
+  height: 38px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ph-muted);
+}
+.ph-icon-btn.is-back { width: 30px; }
+
+.ph-venue {
+  flex-shrink: 0;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--ph-hair);
+  background: var(--ph-soft);
+  color: var(--ph-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.25;
+}
+.ph-venue[data-venue='paper'] { background: rgba(249, 115, 22, 0.16); border-color: rgba(249, 115, 22, 0.5); color: #FDBA74; }
+.ph-venue[data-venue='sim'] { background: rgba(232, 121, 249, 0.14); border-color: rgba(232, 121, 249, 0.5); color: #F5D0FE; }
+.ph-venue[data-venue='live'] { background: var(--ph-good-bg); border-color: rgba(61, 220, 132, 0.5); color: var(--ph-good); }
+
+.ph-link {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--ph-soft);
+  color: var(--ph-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.ph-link i { width: 6px; height: 6px; border-radius: 3px; background: currentColor; }
+.ph-link[data-tone='good'] { background: var(--ph-good-bg); color: var(--ph-good); }
+.ph-link[data-tone='slow'] { background: var(--ph-warn-bg); color: var(--ph-warn); }
+.ph-link[data-tone='down'] { background: var(--ph-bad-bg); color: var(--ph-bad-soft); }
+
+.ph-padlock { color: var(--ph-good); }
+.ph-padlock span {
+  width: 28px;
+  height: 28px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ph-padlock[data-armed='false'] span { background: var(--ph-warn); color: #1F1602; }
+.ph-padlock[data-armed='unknown'] { color: var(--ph-faint); }
+
+/* ── The ticker chip: tap it for the Trader, tap the row for the stock page ── */
+.ph-chip {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  width: 65px;
+  height: 27px;
+  padding: 0 6px 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--ph-chip-line);
+  border-radius: 8px;
+  background: var(--ph-chip-bg);
+  color: #DDF2FE;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.ph-chip i { font-style: normal; font-size: 11px; color: var(--ph-accent); }
+.ph-chip.is-long { font-size: 11px; padding: 0 4px 0 5px; }
+.ph-chip.is-small { width: 56px; height: 22px; border-radius: 7px; padding: 0 5px 0 7px; font-size: 12px; }
+.ph-chip.is-small.is-long { font-size: 10px; padding: 0 3px 0 4px; }
+.ph-chip.is-small i { font-size: 10px; }
+
+/* A row whose whole face opens the stock page; the chip sits above it. */
+.ph-rowlink {
+  position: absolute;
+  inset: 0;
+}
+
+/* ── Bottom bar ───────────────────────────────────────────────────────── */
+.ph-tabs {
+  height: 48px;
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: center;
+  border-top: 1px solid var(--ph-hair);
+  background: var(--ph-panel);
+}
+.ph-tabs button {
+  height: 47px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: var(--ph-faint);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+.ph-tabs button > span:first-child {
+  width: 26px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+}
+.ph-tabs button[aria-current='page'] { color: var(--ph-accent-ink); }
+.ph-tabs button[aria-current='page'] > span:first-child { width: 46px; background: rgba(92, 200, 250, 0.16); }
+
+/* ── Shared pieces ────────────────────────────────────────────────────── */
+.ph-card {
+  border-radius: 14px;
+  background: var(--ph-card);
+  border: 1px solid var(--ph-hair);
+}
+.ph-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ph-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.ph-good { color: var(--ph-good); }
+.ph-bad { color: var(--ph-bad); }
+.ph-warn { color: var(--ph-warn); }
+.ph-muted { color: var(--ph-muted); }
+.ph-faint { color: var(--ph-faint); }
+
+.ph-seg {
+  height: 28px;
+  padding: 2px;
+  display: flex;
+  border-radius: 10px;
+  background: var(--ph-soft);
+}
+.ph-seg button {
+  flex: 1 1 0;
+  min-width: 38px;
+  border-radius: 8px;
+  color: var(--ph-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.ph-seg button[aria-pressed='true'] { background: var(--ph-text); color: var(--ph-bg); font-weight: 700; }
+
+.ph-undertabs {
+  flex-shrink: 0;
+  padding: 0 14px;
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--ph-hair);
+  white-space: nowrap;
+}
+.ph-undertabs button {
+  padding: 2px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border-bottom: 2px solid transparent;
+  color: var(--ph-muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+.ph-undertabs button[aria-pressed='true'] { color: var(--ph-text); font-weight: 700; border-bottom-color: var(--ph-accent); }
+.ph-count {
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 15px;
+}
+
+.ph-pill-btn {
+  height: 24px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.10);
+  color: var(--ph-text);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ph-pill-btn:disabled { background: rgba(255, 255, 255, 0.04); color: var(--ph-faint); }
+.ph-pill-btn.is-danger { background: var(--ph-bad-bg); color: var(--ph-bad-soft); font-weight: 700; }
+
+.ph-empty {
+  flex: 1 1 0;
+  min-height: 0;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--ph-muted);
+  font-size: 12px;
+}
+
+.ph-who {
+  justify-self: start;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--ph-dim);
+  font-size: 10px;
+  font-weight: 600;
+}
+.ph-who[data-owner='bots'] { background: var(--ph-chip-bg); color: var(--ph-accent); }
+
+/* ── The banner that answers a tap ────────────────────────────────────── */
+.ph-banner {
+  position: absolute;
+  z-index: 8;
+  left: 8px;
+  right: 8px;
+  top: 42px;
+  min-height: 52px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  text-align: left;
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  border-radius: 14px;
+  background: #1A2130;
+  color: var(--ph-text);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.6);
+}
+.ph-banner[data-tone='done'] { background: #12303F; border-color: var(--ph-accent); color: #DDF2FE; }
+.ph-banner[data-tone='refused'] { background: var(--ph-sell); border-color: var(--ph-bad-soft); color: #FFFFFF; }
+.ph-banner__dot {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ph-banner__words { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ph-banner__title { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.15; }
+.ph-banner__note { font-size: 11px; font-weight: 600; opacity: 0.85; line-height: 1.2; }
+
+/* ── The PIN sheet ────────────────────────────────────────────────────── */
+.ph-sheet {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(4, 6, 10, 0.72);
+  color: var(--ph-text);
+  font-family: var(--ph-ui);
+}
+.ph-pin {
+  width: 100%;
+  padding: 18px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  border-radius: 20px 20px 0 0;
+  background: #1A2130;
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+}
+.ph-pin__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 20px;
+  background: var(--ph-chip-bg);
+  color: var(--ph-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ph-pin__title { font-size: 17px; font-weight: 700; }
+.ph-pin__dots { display: flex; gap: 12px; padding: 4px 0; }
+.ph-pin__dots i { width: 12px; height: 12px; border-radius: 6px; border: 1.5px solid var(--ph-muted); }
+.ph-pin__dots i.is-on { background: var(--ph-text); border-color: var(--ph-text); }
+.ph-pin__words { min-height: 30px; max-width: 300px; text-align: center; font-size: 12px; color: var(--ph-muted); }
+.ph-pin__words.is-bad { color: var(--ph-bad-soft); }
+.ph-pin__keys {
+  width: 100%;
+  max-width: 320px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.ph-pin__keys button {
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 22px;
+  font-weight: 600;
+}
+.ph-pin__keys button.is-plain { background: none; font-size: 13px; color: var(--ph-muted); }

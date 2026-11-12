@@ -29,6 +29,8 @@ export interface PhoneStatus {
   venue: string;
   paper: boolean;
   armed: boolean;
+  /** The PC's clock when it answered, epoch seconds. */
+  now?: number;
 }
 
 /** One answer from Nova: whether it did what was asked, how long the tap took to be answered, and its words. */
@@ -139,6 +141,32 @@ export class PhoneDoor {
       const aborted = err instanceof DOMException && err.name === 'AbortError';
       return { ok: false, ms: TIMEOUT_MS, text: aborted ? 'No answer from Nova in 8 s. Check Orders on the desk before sending again.' : 'Nova could not be reached. Nothing is known to have been sent.' };
     }
+  }
+
+  /** Whether this page holds a session token. The backend decides whether it is still good. */
+  hasSession(): boolean {
+    return this.token != null;
+  }
+
+  /**
+   * One timed read of the door's status: what the phone's screens ask once a second. `status` is null
+   * when Nova did not answer; `ms` is the round trip either way, and `asked` this device's clock when it left.
+   */
+  async beat(): Promise<{ status: PhoneStatus | null; ms: number; asked: number }> {
+    const asked = Date.now();
+    const started = performance.now();
+    try {
+      const res = await this.call('GET', '/api/phone');
+      if (res.status === 401) this.token = null;
+      return { status: res.status === 200 ? (res.body as PhoneStatus) : null, ms: res.ms, asked };
+    } catch {
+      return { status: null, ms: performance.now() - started, asked };
+    }
+  }
+
+  /** Cancel one working Paper order by its id. */
+  cancelOrder(orderId: number, label: string): Promise<Answer> {
+    return this.ask('DELETE', `/api/phone/order/${encodeURIComponent(String(orderId))}`, undefined, () => `Cancelled: ${label}.`);
   }
 
   async status(): Promise<PhoneStatus | null> {
