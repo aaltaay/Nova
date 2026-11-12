@@ -1,6 +1,6 @@
 # ADR 071 -- Three lanes for Level 2: yours, Claude's, the bots'
 
-**Status:** Proposed (design for the operator's approval; nothing is built) · **Date:** 2026-11-12
+**Status:** Accepted (the design; the build follows in the order below) · **Date:** 2026-11-12
 **Replaces:** [[023-scanner-leaderboard]] decisions 5-6 (auto-record of the leaders) · [[041-signal-trials]] decision 2
 ("Auto-record takes setups first") · [[044-one-bots-page]] decision 6 (line lending) ·
 [[068-claude-trades-paper-from-its-own-seat]] decisions 3 and 14 (Claude takes an auto-record line; a hidden tab's line)
@@ -14,7 +14,8 @@ complicated and if it is, I think we need to shorten it and make it better but d
 empty lane for me! One empty lane for Claude training and one lane for bots trading .. keep it simple". On recording:
 "the recording only starts when bots, Claude, or I are watching at level 2. We don't need random recorders when
 nobody's watching anything". Asked whether they may use Claude's or the bots' lane while it sits empty, they chose no:
-strict lanes.
+strict lanes. Asked where the lane goes when they hold a stock with an order resting and open another, they chose
+that it moves, and the resting order fills from Level 1 (decision 9).
 
 ## Context
 
@@ -134,7 +135,7 @@ strict lanes.
 - **Borrowing an empty lane** (the operator's second stock on Claude's or the bots' lane while idle). It keeps a lend,
   a recall and a "taken back" state alive. The operator chose strict lanes.
 - **Keeping the operator's lane on a stock while an order rests there.** The operator could not look at a second stock
-  without cancelling their stop.
+  without cancelling their stop. Offered both, the operator chose the lane that moves.
 - **A shorter linger, or a longer one.** Any timer that cancels the operator's line meets IBKR's 15 seconds on the way
   back.
 
