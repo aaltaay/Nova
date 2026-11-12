@@ -88,7 +88,7 @@ export function ChartScreen({ symbol }: { symbol: string }) {
   if (!sideways) {
     return (
       <div className="ph-screen" data-testid="phone-screen-chart">
-        <div className="ph-head has-back">{back}<div className="ph-head__title">{symbol}</div></div>
+        <div className="ph-head has-back">{back}<TickerChip symbol={symbol} /></div>
         <div className="ph-bigchart__turn" role="status">
           <RotateCw size={28} aria-hidden="true" />
           <b>Turn your phone sideways</b>

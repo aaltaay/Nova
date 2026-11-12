@@ -98,6 +98,8 @@ export interface PhoneApiOptions {
 export interface PhoneApi {
   /** Every request that was not a GET, as "METHOD /path". */
   writes: string[];
+  /** Every path asked for, whatever the method. */
+  asked: string[];
   /** Paths this stand-in had no answer for. */
   unanswered: string[];
   /** `accountDown`: the account, positions and orders reads fail from now on, as when the Gateway or the ledger drops. */
@@ -107,6 +109,7 @@ export interface PhoneApi {
 export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Promise<PhoneApi> {
   const api: PhoneApi = {
     writes: [],
+    asked: [],
     unanswered: [],
     state: { armed: false, unlocked: false, working: Array.from({ length: opts.working ?? 1 }, (_, i) => 7 + i), accountDown: false },
   };
@@ -132,6 +135,7 @@ export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Prom
     const url = new URL(req.url());
     const path = url.pathname;
     const method = req.method();
+    api.asked.push(path);
     const json = (body: unknown, code = 200) => route.fulfill({ status: code, contentType: 'application/json', body: JSON.stringify(body) });
     const refuse = (code: number, reason: string, error: string) => json({ detail: { reason, error } }, code);
     const token = req.headers()['x-nova-phone-session'] ?? null;

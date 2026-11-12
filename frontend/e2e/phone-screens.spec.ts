@@ -198,3 +198,17 @@ test('a session that ended asks for the PIN on the next tap instead of sending a
   // Nothing was sent before the PIN was asked for.
   expect(api.writes).toEqual([]);
 });
+
+test("the phone's chart asks for nothing another device may not read, and a long press opens no desk menu", async ({ page }) => {
+  const api = await mockPhoneApi(page);
+  await open(page, 'stock/ABCD');
+  const chart = page.getByTestId('ticker-chart-1Min');
+  await expect(chart).toHaveAttribute('data-bar-count', /^[1-9]/);
+  // The desk pane's right-click menu reads the bot routes, which the API refuses to another device
+  // (REMOTE_LOCAL_ONLY), and its Buy and Sell stage the desk's ticket. The phone's chart mounts none of it.
+  await chart.locator('.chart-body').dispatchEvent('contextmenu', { clientX: 120, clientY: 400, bubbles: true, cancelable: true });
+  await page.waitForTimeout(1_500);
+  await expect(page.getByTestId('chart-context-menu')).toHaveCount(0);
+  const closed = api.asked.filter((p) => /^\/(api\/)?bot(\/|$)|^\/api\/agent(\/|$)|^\/ws\/bot/.test(p));
+  expect(closed).toEqual([]);
+});

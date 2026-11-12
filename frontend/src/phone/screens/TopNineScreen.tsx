@@ -27,6 +27,7 @@ import { useTopNineAlerts } from '../../top_nine/useTopNineAlerts';
 import { etChartSeconds } from '../../tickerChartData';
 import { LinkPill, PadlockButton, PhoneScreen, RowLink, TickerChip, VenuePill } from '../PhoneChrome';
 import { compact, pct1, toneOf } from '../phoneFormat';
+import { go } from '../phoneRoute';
 import { usePhoneTopNine } from '../usePhoneTopNine';
 import { TopNineTileChart } from './TopNineTileChart';
 import './topNine.css';
@@ -208,7 +209,16 @@ export function TopNineScreen() {
       <div className="ph-t9log" data-testid="phone-top9-log">
         <span className="ph-t9log__label">Switches</span>
         {chips.length ? chips.map((c) => (
-          <span key={c.key} className="ph-t9log__chip" data-kind={c.kind}><b>{c.symbol}</b> {c.text}</span>
+          <button
+            key={c.key}
+            type="button"
+            className="ph-t9log__chip"
+            data-kind={c.kind}
+            aria-label={`Open ${c.symbol} in the Trader`}
+            onClick={() => go({ screen: 'trade', symbol: c.symbol })}
+          >
+            <b>{c.symbol}</b> {c.text}
+          </button>
         )) : <span className="ph-faint">None yet</span>}
       </div>
     </PhoneScreen>

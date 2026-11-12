@@ -186,7 +186,13 @@ function Holdings() {
           </button>
         ) : (
           <div key={item.key} className="ph-home__holdrow is-order">
-            <span><span className="ph-muted">Working</span> · <b>{item.order.symbol}</b> · {orderWords(item.order)}</span>
+            <span>
+              <span className="ph-muted">Working</span>
+              {' · '}
+              <button type="button" className="ph-tickerword" onClick={() => go({ screen: 'trade', symbol: item.order.symbol })}>{item.order.symbol}</button>
+              {' · '}
+              {orderWords(item.order)}
+            </span>
             <button
               type="button"
               className="ph-pill-btn is-danger"

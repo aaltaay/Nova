@@ -3,6 +3,9 @@
  * session VWAP, MACD, your average-price line and the lines drawn on the desk are all the desk
  * chart's; the phone hides its header and supplies the switches itself (`phoneDesk.css`).
  *
+ * The desk pane's right-click menu is left out (`contextMenu={false}`): a long press must not open a menu whose
+ * Buy and Sell stage the desk's ticket, and the menu reads bot routes another device may not.
+ *
  * What the phone chart cannot do yet, said where the control is:
  * - the 10-second chart follows the tape, which the phone opens only on the Trade screen;
  * - drawing saves to the desk, and the phone's door has no route for that yet.
@@ -151,6 +154,7 @@ export function PhoneChart({ symbol, frame, indicators, onIndicatorToggle }: {
         onIndicatorToggle={onIndicatorToggle}
         activeTool={null}
         renderPaneOverlay={renderFit}
+        contextMenu={false}
       />
     </div>
   );

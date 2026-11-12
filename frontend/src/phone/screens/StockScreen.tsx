@@ -72,11 +72,11 @@ function NewsSheet({ symbol, news, nowMs, onClose }: { symbol: string; news: New
     <div className="ph-sheet ph-stock__sheet" role="dialog" aria-modal="true" aria-label={`News for ${symbol}`}>
       <div className="ph-stock__news">
         <div className="ph-stock__news-head">
-          <b>News · {symbol}</b>
+          <b>News</b>
           <button type="button" className="ph-icon-btn" aria-label="Close" onClick={onClose}><X size={18} aria-hidden="true" /></button>
         </div>
         <div className="ph-stock__news-list" ref={boxRef}>
-          {!news.length ? <div className="ph-empty">No news on file for {symbol}.</div> : news.slice(0, fit).map((n) => (
+          {!news.length ? <div className="ph-empty">No news on file for this stock.</div> : news.slice(0, fit).map((n) => (
             <a key={`${n.url}-${n.created_at}`} href={n.url} target="_blank" rel="noreferrer noopener">
               <span>{n.headline}</span>
               <i>{n.source} · {agoShort(nowMs - Date.parse(n.created_at))}</i>
@@ -123,7 +123,9 @@ export function StockScreen({ symbol }: { symbol: string }) {
         <div className="ph-head has-back">
           <BackButton to={{ screen: 'scan' }} label="Back" />
           <VenuePill />
-          <div className="ph-head__title">{symbol}</div>
+          <button type="button" className="ph-head__title ph-tickerword" aria-label={`Open ${symbol} in the Trader`} onClick={() => go({ screen: 'trade', symbol })}>
+            {symbol}
+          </button>
           <div className="ph-head__sub">{detail?.asset?.exchange ?? ''}</div>
           <div className="ph-grow" />
           <LinkPill />
@@ -156,7 +158,7 @@ export function StockScreen({ symbol }: { symbol: string }) {
       </div>
 
       {fetchFailed && !detail ? (
-        <div className="ph-stock__cat is-bad" role="alert">Nova could not read {symbol}. Check the link, then go back and open it again.</div>
+        <div className="ph-stock__cat is-bad" role="alert">Nova could not read this stock. Check the link, then go back and open it again.</div>
       ) : (
         <a
           className="ph-stock__cat"

@@ -24,11 +24,16 @@ Installing Tailscale and signing in are yours to do; Nova never does them.
    npm run build
    ```
 
-5. **Serve it on the tunnel**, from an Administrator console (serving a folder needs one on Windows). Use the full path
-   of `frontend\dist`:
+5. **Serve it on the tunnel.** Start Nova's own file server for the built page; leave it running:
 
    ```bash
-   tailscale serve --bg --https=443 "C:\path\to\Nova\frontend\dist"
+   py -3 tools/serve_phone_page.py
+   ```
+
+   It serves `frontend\dist` on `127.0.0.1:4181` and nothing else. Then point the tunnel at it and at the API:
+
+   ```bash
+   tailscale serve --bg --https=443 http://127.0.0.1:4181
    ```
 
    ```bash
@@ -36,6 +41,11 @@ Installing Tailscale and signing in are yours to do; Nova never does them.
    ```
 
    `tailscale serve status` shows both. Never use `tailscale funnel`: that one is public.
+
+   Do not put `python -m http.server` behind the tunnel instead. The phone's screens load about eighty files at
+   once, and behind that server a share of them came back 502 and the page did not start (measured 2026-11-11:
+   69 of 240). Serving the folder straight from Tailscale (`tailscale serve --https=443 "C:\...\frontend\dist"`,
+   from an Administrator console) also works.
 
 ## Check it before measuring
 
@@ -77,7 +87,8 @@ it on the home screen, full screen; it opens there from then on.
 - **Trade is the next build.** Until then Paper orders go from the link-test page, as below.
 - The venue is changed on the PC. The phone sends orders on Paper only.
 
-After a new build (`npm run build`), reload the page on the phone to get it.
+After a new build (`npm run build`), reload the page on the phone to get it: the file server tells the phone to
+ask for the page again every time, and to keep only the files whose names change when their content does.
 
 ## Looking at the whole desk on the phone
 

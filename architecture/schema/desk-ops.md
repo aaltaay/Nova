@@ -1095,6 +1095,18 @@ read below is one the desk already makes, and every write goes to `/api/phone`
   `nova.phone.chart.frame`, `nova.phone.chart.indicators`. The Top 9 list and the
   scanner chips use the desk's own keys, so they are the phone browser's copy of
   the same preference. The PIN's session token is never stored.
+- **How the page is served.** `tools/serve_phone_page.py` serves the built
+  `frontend/dist` on `127.0.0.1:4181` (GET and HEAD only; never another
+  interface), and the tunnel forwards port 443 to it. Connections stay open
+  (HTTP/1.1) and a burst is queued. `Cache-Control` is
+  `public, max-age=31536000, immutable` under `/assets/` (the name carries the
+  content's hash) and `no-cache` for everything else. Each file's type comes
+  from the tool's own table, never the operating system's.
+- **The chart's right-click menu is not mounted** (`TickerChart`'s
+  `contextMenu={false}`): it reads `/api/bot/*`, which another device is
+  refused (`REMOTE_LOCAL_ONLY`), and its Buy and Sell stage the desk's ticket.
+- **Every ticker on a phone screen opens the Trader** (the chip, a ticker in a
+  line of words, a Top 9 switch), as on the desk.
 - **No scroll:** a viewport under 360 x 720 (740 x 320 for the big chart, held
   sideways) shrinks the whole page by `min(width / 360, height / 720)`.
 
