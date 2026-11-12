@@ -63,6 +63,22 @@ every drop with how long the longest lasted. Copy includes it.
 "Round trip" is a read of the order gate, not an order. A real order adds the door's own work (about 10 ms on Paper)
 and, on Live, IBKR's answer.
 
+## Nova on the phone: the screens
+
+Once the link passes, open `https://<pc-name>/phone.html` on the phone. In Chrome's menu, **Add to Home screen** puts
+it on the home screen, full screen; it opens there from then on.
+
+- **Bottom bar:** Scan, Trade, Home, Top 9, Account. Tap a row for the stock's page; tap the blue ticker chip for the
+  Trader.
+- **The header** says the desk's venue, how fast the PC answers, and the padlock. Tap the venue for Settings.
+- **To use the padlock or cancel an order,** the phone asks for the phone PIN first (set it on the PC as below). The
+  unlock lasts 8 hours and ends when the page is reloaded.
+- **Nothing scrolls.** A long list has Prev and Next.
+- **Trade is the next build.** Until then Paper orders go from the link-test page, as below.
+- The venue is changed on the PC. The phone sends orders on Paper only.
+
+After a new build (`npm run build`), reload the page on the phone to get it.
+
 ## Looking at the whole desk on the phone
 
 Optional, for looking only. Build with the tunnel's API address, then serve as above:

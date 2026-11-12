@@ -3,7 +3,7 @@
  * own (`catalystFace`, ADR 028): this file only picks which of its words fit -- the desk's word on
  * top, and under it how old the news is, where the desk's cell has room for the headline. Pure.
  */
-import { CATALYST_SOURCE_LABELS } from '../constants';
+import { CATALYST_CATEGORY_SHORT, CATALYST_SOURCE_LABELS } from '../constants';
 import type { CatalystVerdict } from '../types/catalystVerdict';
 import type { CatalystFace } from '../utils/catalystCause';
 import { agoShort } from './phoneFormat';
@@ -55,6 +55,12 @@ export function phoneCatalyst({ face, verdict, halted, resumeTs = null, nowMs }:
   if (face.mark === 'pending') return { word: face.word, when: face.detail ?? '', tone: 'bad', headline, url };
   if (face.mark === 'reading') return { word: 'Reading', when: '', tone: 'plain', headline: null, url: null };
   if (face.word) return { word: face.word, when: face.detail ?? '', tone: 'plain', headline, url };
+  // No read of the cause (it is still loading, or the API is from before the batch read): the row's own news
+  // verdict still says there is news, as the desk's cell falls back to its news mark.
+  if (verdict?.verdict === 'catalyst' || verdict?.verdict === 'negative') {
+    const word = (verdict.category && CATALYST_CATEGORY_SHORT[verdict.category]) || 'News';
+    return { word, when: published, tone: verdict.verdict === 'negative' ? 'bad' : 'news', headline, url };
+  }
   // No cause named. Only a verdict that looked and found nothing may say so.
   if (verdict?.verdict === 'none_found') return { word: 'No news', when: 'found', tone: 'plain', headline: null, url: null };
   return { word: '—', when: '', tone: 'plain', headline: null, url: null };

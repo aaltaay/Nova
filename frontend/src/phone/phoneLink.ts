@@ -74,7 +74,7 @@ export function createPhoneLink(door: BeatSource, doc: Document = document): Pho
   const roundTrips = new Rolling();
   const outages = new Outages();
   let clock: ClockSample[] = [];
-  let timer: number | null = null;
+  let timer: ReturnType<typeof setInterval> | null = null;
   let hiddenAt: number | null = null;
   /** Counts every hide and show: a read in flight across one measured the browser, not the link. */
   let span = 0;
@@ -130,12 +130,12 @@ export function createPhoneLink(door: BeatSource, doc: Document = document): Pho
       if (timer != null) return;
       hiddenAt = doc.hidden ? Date.now() : null;
       doc.addEventListener('visibilitychange', onVisibility);
-      timer = window.setInterval(() => void beat(), BEAT_EVERY_MS);
+      timer = setInterval(() => void beat(), BEAT_EVERY_MS);
       void beat();
     },
     stop() {
       if (timer == null) return;
-      window.clearInterval(timer);
+      clearInterval(timer);
       timer = null;
       doc.removeEventListener('visibilitychange', onVisibility);
     },

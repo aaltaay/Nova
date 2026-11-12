@@ -9,17 +9,16 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Crosshair, Layers, Minus, MoveUpRight, RotateCw, Slash, SeparatorVertical, Trash2, Zap } from 'lucide-react';
 import { CHART_INDICATORS, type ChartIndicatorId } from '../../constants';
-import { useCatalystRead } from '../../hooks/useCatalystRead';
 import { useTickerStream } from '../../hooks/useTickerStream';
 import { computeQuoteMetrics } from '../../modules';
-import { catalystFace } from '../../utils/catalystCause';
 import { fmtRvol } from '../../utils/quoteFormat';
 import { useWorkspace } from '../../workspace';
 import { BackButton, LinkPill, PhoneBannerView, TickerChip, VenuePill } from '../PhoneChrome';
 import { FrameSwitch, PhoneChart, usePhoneChartPrefs } from '../PhoneChart';
-import { catalystLine, phoneCatalyst } from '../phoneCatalyst';
+import { catalystLine } from '../phoneCatalyst';
 import { useViewport } from '../phoneFit';
 import { pct1, px, toneOf } from '../phoneFormat';
+import { usePhoneCatalyst } from '../usePhoneCatalyst';
 import './chart.css';
 
 const DRAW_ON_DESK = 'Drawing from the phone comes in a later build. Lines you draw on the desk show here.';
@@ -71,13 +70,19 @@ export function ChartScreen({ symbol }: { symbol: string }) {
   const { detail } = useTickerStream(symbol);
   const { discoveryProvider } = useWorkspace();
   const chart = usePhoneChartPrefs();
-  const read = useCatalystRead(symbol, null);
   const [layers, setLayers] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 10_000);
     return () => window.clearInterval(timer);
   }, []);
+
+  const halt = detail?.halt?.halted ? detail.halt : null;
+  const cat = usePhoneCatalyst(symbol, null, {
+    halted: Boolean(halt),
+    resumeTs: halt?.exchange?.trade_resume ?? halt?.exchange?.quote_resume ?? null,
+    nowMs: now,
+  });
 
   const back = <BackButton to={{ screen: 'stock', symbol }} label="Back to the stock page" />;
   if (!sideways) {
@@ -95,12 +100,6 @@ export function ChartScreen({ symbol }: { symbol: string }) {
 
   const m = detail ? computeQuoteMetrics(detail, discoveryProvider) : null;
   const tone = toneOf(m?.mainChangePct == null ? null : m.mainChangePct * 100, 1) || 'flat';
-  const verdict = read.read?.facts?.catalyst ?? null;
-  const halt = detail?.halt?.halted ? detail.halt : null;
-  const cat = phoneCatalyst({
-    face: catalystFace(read.read, verdict, now, read.loading), verdict, halted: Boolean(halt),
-    resumeTs: halt?.exchange?.trade_resume ?? halt?.exchange?.quote_resume ?? null, nowMs: now,
-  });
   const rvol = fmtRvol(detail?.rel_volume);
 
   return (

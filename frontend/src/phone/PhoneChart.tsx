@@ -29,6 +29,7 @@ export const PHONE_FRAMES: readonly PhoneFrame[] = [
   { id: '1Day', name: 'D' },
 ];
 
+/** Kept on the phone: owner this file, `utils/prefStore` envelopes; an unknown value reads as the default. */
 const FRAME_KEY = 'nova.phone.chart.frame';
 const INDICATORS_KEY = 'nova.phone.chart.indicators';
 const DEFAULT_INDICATORS: ChartIndicatorId[] = ['emas', 'vwap'];

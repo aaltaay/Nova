@@ -14,7 +14,6 @@ import {
   SCANNER_CHIP_RELVOL_MIN,
   type ScannerChipId,
 } from '../../constantGroups/scanner_board';
-import { useCatalystRead } from '../../hooks/useCatalystRead';
 import { howListed, useHotList } from '../../hot_list';
 import { useLiveScannerFeed } from '../../scanner/ScannerDataContext';
 import type { BoardListId } from '../../scanner/boardListForSymbol';
@@ -23,11 +22,10 @@ import { useBoardFilters } from '../../scanner/useBoardFilters';
 import { useBoardRows } from '../../scanner/useBoardRows';
 import { useSettings } from '../../settings';
 import type { ScannerRow } from '../../types/scanner';
-import { catalystFace } from '../../utils/catalystCause';
 import { readPref, writePref } from '../../utils/prefStore';
 import { LinkPill, PadlockButton, PhoneScreen, RowLink, TickerChip, VenuePill } from '../PhoneChrome';
-import { phoneCatalyst } from '../phoneCatalyst';
 import { compact, pct1, px, rvolShort, toneOf } from '../phoneFormat';
+import { usePhoneCatalyst } from '../usePhoneCatalyst';
 import { useRowsThatFit } from '../useRowsThatFit';
 import './scan.css';
 
@@ -59,6 +57,7 @@ const MORE_LISTS: readonly ScanList[] = [
 const ALL_LISTS = [...MAIN_LISTS, ...MORE_LISTS];
 const BOARD_LISTS: readonly string[] = ['gappers', 'gainers', 'losers', 'afterhours', 'large_cap'];
 
+/** Kept on the phone: owner this file, a `utils/prefStore` envelope; a list that is gone or locked reads as Gappers. */
 const LIST_KEY = 'nova.phone.scan.list';
 const ROW_PX = 42;
 
@@ -83,9 +82,7 @@ function readList(): ScanListId {
 function ScanRow({ row, board, starred, nowMs }: {
   row: ScannerRow; board: BoardListId | null; starred: boolean; nowMs: number;
 }) {
-  const read = useCatalystRead(row.symbol, board);
-  const face = catalystFace(read.read, row.catalyst, nowMs, read.loading);
-  const cat = phoneCatalyst({ face, verdict: read.read?.facts?.catalyst ?? row.catalyst, halted: row.halted === true, nowMs });
+  const cat = usePhoneCatalyst(row.symbol, board, { verdict: row.catalyst, halted: row.halted === true, nowMs });
   const tone = toneOf(row.change_pct == null ? null : row.change_pct * 100, 1);
   return (
     <div className="ph-scan__row" data-testid={`phone-scan-row-${row.symbol}`}>

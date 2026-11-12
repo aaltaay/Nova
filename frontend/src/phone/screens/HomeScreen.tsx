@@ -10,7 +10,6 @@ import type { AccountPosition } from '../../account/accountPositions';
 import { whoName } from '../../account/ownerView';
 import { sessionChipView } from '../../components/globalBarSession';
 import { formatMoney } from '../../utils/formatMoney';
-import { useCatalystRead } from '../../hooks/useCatalystRead';
 import { formatOrderType } from '../../ibkr/orderDisplay';
 import type { IbkrOrder } from '../../ibkr/types';
 import { MARKET_OFF, MARKET_OLD_API, TEMP_WORD } from '../../market_board/constants';
@@ -20,13 +19,13 @@ import { useMarketBoard } from '../../market_board/useMarketBoard';
 import { useLiveScannerFeed } from '../../scanner/ScannerDataContext';
 import { useSettings } from '../../settings';
 import type { ScannerRow } from '../../types/scanner';
-import { catalystFace } from '../../utils/catalystCause';
 import { LinkPill, PadlockButton, PhoneScreen, RowLink, TickerChip, VenuePill } from '../PhoneChrome';
-import { catalystLine, phoneCatalyst } from '../phoneCatalyst';
+import { catalystLine } from '../phoneCatalyst';
 import { pct1, px, shares, signedMoney, toneClass } from '../phoneFormat';
 import { go } from '../phoneRoute';
 import { usePhoneSession } from '../PhoneSession';
 import { usePhoneAccount } from '../usePhoneAccount';
+import { usePhoneCatalyst } from '../usePhoneCatalyst';
 import { usePhoneLossLimit } from '../usePhoneLossLimit';
 import { useRowsThatFit } from '../useRowsThatFit';
 import './home.css';
@@ -119,9 +118,7 @@ function DayReadCard() {
 }
 
 function RunnerRow({ row, nowMs }: { row: ScannerRow; nowMs: number }) {
-  const read = useCatalystRead(row.symbol, 'gainers');
-  const face = catalystFace(read.read, row.catalyst, nowMs, read.loading);
-  const cat = phoneCatalyst({ face, verdict: read.read?.facts?.catalyst ?? row.catalyst, halted: row.halted === true, nowMs });
+  const cat = usePhoneCatalyst(row.symbol, 'gainers', { verdict: row.catalyst, halted: row.halted === true, nowMs });
   return (
     <div className="ph-home__runner" data-testid={`phone-runner-${row.symbol}`}>
       <TickerChip symbol={row.symbol} />

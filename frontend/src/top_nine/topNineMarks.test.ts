@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { TOP_NINE_LOG_MAX, TOP_NINE_MARK_FULL_MS, TOP_NINE_MARK_SOFT_MS } from './topNineConstants';
-import { EMPTY_LIST_MARKS, diffTopNine, markLeft, markPhase, moveText, nextListMarks } from './topNineMarks';
-import type { TopNineRow } from './topNineSnapshot';
+import {
+  EMPTY_LIST_MARKS,
+  NO_TOP_NINE_STATE,
+  diffTopNine,
+  markLeft,
+  markPhase,
+  moveText,
+  nextListMarks,
+  nextSnapshotMarks,
+} from './topNineMarks';
+import type { TopNineRow, TopNineSnapshot, TopNineSource } from './topNineSnapshot';
 
 function rows(...symbols: string[]): TopNineRow[] {
   return symbols.map((symbol, i) => ({
@@ -102,5 +111,39 @@ describe('nextListMarks', () => {
     state = nextListMarks(state, without, 2).state;
     expect(state.marks.WORX).toBeUndefined();
     expect(state.log[0].left).toEqual(['WORX']);
+  });
+});
+
+describe('nextSnapshotMarks', () => {
+  const snap = (gainers: TopNineRow[], source: TopNineSource = { kind: 'live' }, asOf = 1_794_000_000): TopNineSnapshot => ({
+    schema_version: 1,
+    source,
+    asOf,
+    lists: { gappers: { rows: [], total: 0 }, gainers: { rows: gainers, total: gainers.length }, afterhours: { rows: [], total: 0 } },
+  });
+
+  it('marks nothing on the first snapshot, then each list by its own last board', () => {
+    const first = nextSnapshotMarks(NO_TOP_NINE_STATE, snap(AT_1013), 1);
+    expect(first.fired).toEqual([]);
+    expect(first.state.sourceKind).toBe('live');
+    const second = nextSnapshotMarks(first.state, snap(AT_1014), 2);
+    expect(second.fired.map(([list]) => list)).toEqual(['gainers']);
+    expect(second.state.marks.gainers.marks.WORX).toMatchObject({ from: 2, to: 5, kind: 'down', at: 2 });
+    // A list that did not change keeps its marks object, so nothing above it draws again.
+    expect(second.state.marks.gappers).toBe(first.state.marks.gappers);
+  });
+
+  it("stamps a switch with its board's minute and whether it was a replay's", () => {
+    const first = nextSnapshotMarks(NO_TOP_NINE_STATE, snap(AT_1013, { kind: 'replay', label: 'Oct 16' }, 100), 1);
+    const second = nextSnapshotMarks(first.state, snap(AT_1014, { kind: 'replay', label: 'Oct 16' }, 160), 2);
+    expect(second.fired[0][1].board).toEqual({ asOf: 160, replay: true });
+  });
+
+  it("starts the marks over when the boards' source changes: a replayed minute is not compared with today", () => {
+    const live = nextSnapshotMarks(NO_TOP_NINE_STATE, snap(AT_1013), 1);
+    const replay = nextSnapshotMarks(live.state, snap(AT_1014, { kind: 'replay', label: 'Oct 16' }), 2);
+    expect(replay.fired).toEqual([]);
+    expect(replay.state.marks.gainers.marks).toEqual({});
+    expect(replay.state.sourceKind).toBe('replay');
   });
 });

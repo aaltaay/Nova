@@ -9,19 +9,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeftRight, Layers, Maximize2, Newspaper, Star, X, Zap } from 'lucide-react';
 import { CHART_EMA_COLORS, CHART_EMA_LENGTHS, CHART_INDICATORS, CHART_VWAP_COLOR } from '../../constants';
-import { useCatalystRead } from '../../hooks/useCatalystRead';
 import { useTickerStream } from '../../hooks/useTickerStream';
 import { howListed, useHotList } from '../../hot_list';
 import { computeQuoteMetrics } from '../../modules';
 import type { NewsArticle, TickerDetail } from '../../types/ticker';
-import { catalystFace } from '../../utils/catalystCause';
 import { fmtMarketCap, fmtRvol, fmtVolume, sessionPriceOrNull } from '../../utils/quoteFormat';
 import { useWorkspace } from '../../workspace';
 import { BackButton, LinkPill, PhoneScreen, VenuePill } from '../PhoneChrome';
 import { FrameSwitch, PhoneChart, usePhoneChartPrefs } from '../PhoneChart';
-import { catalystLine, phoneCatalyst } from '../phoneCatalyst';
+import { catalystLine } from '../phoneCatalyst';
 import { agoShort, pct1, px, toneOf } from '../phoneFormat';
 import { go } from '../phoneRoute';
+import { usePhoneCatalyst } from '../usePhoneCatalyst';
 import { useRowsThatFit } from '../useRowsThatFit';
 import './stock.css';
 
@@ -94,7 +93,6 @@ export function StockScreen({ symbol }: { symbol: string }) {
   const { discoveryProvider } = useWorkspace();
   const hot = useHotList();
   const chart = usePhoneChartPrefs();
-  const read = useCatalystRead(symbol, null);
   const nowMs = useNow(1_000);
   const [menu, setMenu] = useState(false);
   const [news, setNews] = useState(false);
@@ -104,10 +102,7 @@ export function StockScreen({ symbol }: { symbol: string }) {
   const f = detail?.fundamentals ?? null;
   const tone = toneOf(m?.mainChangePct == null ? null : m.mainChangePct * 100, 1);
   const halt = detail?.halt?.halted ? detail.halt : null;
-  const verdict = read.read?.facts?.catalyst ?? null;
-  const cat = phoneCatalyst({
-    face: catalystFace(read.read, verdict, nowMs, read.loading),
-    verdict,
+  const cat = usePhoneCatalyst(symbol, null, {
     halted: Boolean(halt),
     resumeTs: halt?.exchange?.trade_resume ?? halt?.exchange?.quote_resume ?? null,
     nowMs,

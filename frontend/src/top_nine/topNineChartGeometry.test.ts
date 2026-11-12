@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { IndicatorBar } from '../chartIndicators';
 import { TOP_NINE_CHART_MINUTES } from './topNineConstants';
-import { topNineChartGeometry } from './topNineChartGeometry';
+import { CHART_AXIS_W, DESK_CHART_INSETS, topNineChartGeometry, type ChartInsets } from './topNineChartGeometry';
 
 /** ET wall-clock seconds for 2026-10-16 hh:mm (the chart's time encoding). */
 function et(hh: number, mm: number): number {
@@ -54,6 +54,30 @@ describe('topNineChartGeometry', () => {
     expect(geo.priceTicks.length).toBeLessThan(10);
     expect(new Set(geo.priceTicks.map((t) => t.label)).size).toBe(geo.priceTicks.length);
     expect(geo.candles[0].bodyH).toBeGreaterThanOrEqual(1);
+  });
+
+  it("keeps the pop-up's margins and minutes unless a caller gives its own", () => {
+    const bars: IndicatorBar[] = [];
+    for (let m = 0; m < 120; m += 1) bars.push(bar(8 + Math.floor(m / 60), m % 60, 2 + m / 1000));
+    // The scale carries a function, so the two are compared as what they draw.
+    expect(JSON.stringify(topNineChartGeometry(bars, [], null, BOX, null, DESK_CHART_INSETS)))
+      .toBe(JSON.stringify(topNineChartGeometry(bars, [], null, BOX)));
+    expect(topNineChartGeometry(bars, [], null, BOX)!.plotRight).toBe(BOX.width - CHART_AXIS_W);
+
+    // A tile too small for an axis or a time row: a gutter for the tag, thirty minutes, a short volume strip.
+    const small: ChartInsets = { axisW: 34, left: 2, top: 5, timeH: 0, volH: 16, minW: 60, minH: 44, minutes: 30 };
+    const box = { width: 112, height: 96 };
+    const geo = topNineChartGeometry(bars, [], null, box, null, small)!;
+    expect(geo.candles).toHaveLength(30);
+    expect(geo.plotRight).toBe(78);
+    expect(geo.volBottom).toBe(94);
+    expect(geo.volBottom - geo.volTop).toBe(16);
+    // Every candle sits inside the plot, clear of the tag's gutter.
+    expect(Math.max(...geo.candles.map((c) => c.x + geo.bodyW / 2))).toBeLessThanOrEqual(78);
+    expect(Math.min(...geo.candles.map((c) => c.x - geo.bodyW / 2))).toBeGreaterThanOrEqual(2);
+    // The desk's own box limit does not refuse it; its own does.
+    expect(topNineChartGeometry(bars, [], null, box)).not.toBeNull();
+    expect(topNineChartGeometry(bars, [], null, { width: 50, height: 96 }, null, small)).toBeNull();
   });
 
   it('answers null with no bars or no room', () => {
