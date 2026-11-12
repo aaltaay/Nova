@@ -40,10 +40,32 @@ for (const screen of SCREENS) {
   });
 }
 
-test('the big chart is drawn for a phone on its side, and says to turn an upright one', async ({ page }) => {
+test('the big chart opens upright from the corner icon, and is drawn wide for a phone on its side', async ({ page }) => {
+  // A desktop browser turns no screen: the sideways button must say so, and leave the chart as it was.
+  await page.addInitScript(() => {
+    Element.prototype.requestFullscreen = () => Promise.resolve();
+    Object.defineProperty(window.screen.orientation, 'lock', { configurable: true, value: () => Promise.reject(new Error('not on this device')) });
+  });
   await mockPhoneApi(page);
-  await open(page, 'chart/ABCD');
-  await expect(page.getByText('Turn your phone sideways')).toBeVisible();
+  await open(page, 'stock/ABCD');
+  // The position held is on the chart, as the desk's chart draws it: its line and its badge.
+  await expect(page.getByTestId('chart-position-tag')).toContainText('Long 500 @ $4.71');
+  await page.getByTestId('phone-stock-expand').click();
+  await expect(page.getByTestId('phone-screen-chart')).toBeVisible();
+  await expect(page.getByTestId('chart-position-tag')).toContainText('Long 500 @ $4.71');
+  // Upright: the whole chart, no request to turn the phone.
+  await expect(page.getByTestId('phone-chart')).toBeVisible();
+  await expect(page.getByTestId('ticker-chart-1Min')).toHaveAttribute('data-bar-count', /^[1-9]/);
+  const box = await page.getByTestId('phone-chart').boundingBox();
+  expect(box?.height ?? 0).toBeGreaterThan(480);
+  expect(await phoneOverflow(page)).toEqual([]);
+  await page.getByRole('button', { name: 'Turn the chart sideways' }).click();
+  await expect(page.getByTestId('phone-chart-not-turned')).toBeVisible();
+  expect(await phoneOverflow(page)).toEqual([]);
+  await page.getByRole('button', { name: /^Indicators/ }).click();
+  await expect(page.getByTestId('phone-chart-layers').getByRole('menuitemcheckbox', { name: 'MACD' })).toBeEnabled();
+  await page.getByRole('button', { name: /^Indicators/ }).click();
+
   await page.setViewportSize(LANDSCAPE);
   await expect(page.getByTestId('phone-chart')).toBeVisible();
   await expect(page.getByTestId('ticker-chart-1Min')).toHaveAttribute('data-bar-count', /^[1-9]/);

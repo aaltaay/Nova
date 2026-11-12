@@ -63,6 +63,7 @@
 .ph-stock__cat[data-tone='bad'] b { color: var(--ph-bad-soft); }
 
 .ph-stock__chartcard {
+  position: relative;
   flex: 1 1 0;
   min-height: 0;
   margin: 8px 12px 0;
@@ -87,7 +88,22 @@
 }
 .ph-stock__legend > span { display: flex; align-items: center; gap: 4px; }
 .ph-stock__legend i { width: 6px; height: 6px; border-radius: 3px; }
-.ph-stock__legend button { display: flex; align-items: center; gap: 4px; color: var(--ph-muted); font-size: 10px; font-weight: 600; }
+/* The corner icon that opens the big chart: in the chart's empty corner, under the price scale and beside the times. */
+.ph-stock__expand {
+  position: absolute;
+  z-index: 5;
+  right: 13px;
+  bottom: 2px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: rgba(26, 33, 48, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--ph-text);
+}
 
 .ph-stock__controls {
   position: relative;

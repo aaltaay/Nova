@@ -1107,8 +1107,16 @@ read below is one the desk already makes, and every write goes to `/api/phone`
   refused (`REMOTE_LOCAL_ONLY`), and its Buy and Sell stage the desk's ticket.
 - **Every ticker on a phone screen opens the Trader** (the chip, a ticker in a
   line of words, a Top 9 switch), as on the desk.
-- **No scroll:** a viewport under 360 x 720 (740 x 320 for the big chart, held
-  sideways) shrinks the whole page by `min(width / 360, height / 720)`.
+- **The big chart opens upright** (operator, 2026-11-12), from the round icon
+  in the corner of the stock page's chart. A phone on its side gets the wide
+  drawing. The sideways button asks the browser for the whole screen and then
+  to turn it (a page may turn the screen only from a tap, and only full
+  screen); a browser that refuses is said on the chart. Leaving the screen, or
+  the full screen, gives the turn back. The installed page stays upright by
+  itself (`orientation: portrait` in the manifest), so the other screens never
+  shrink into a turned phone.
+- **No scroll:** a viewport under 360 x 720 (740 x 320 for the big chart on its
+  side) shrinks the whole page by `min(width / 360, height / 720)`.
 
 ## IBKR capacity on the desk (operator ask, 2026-10-16)
 

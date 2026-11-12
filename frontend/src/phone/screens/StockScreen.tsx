@@ -184,12 +184,11 @@ export function StockScreen({ symbol }: { symbol: string }) {
             </>
           ) : null}
           {chart.indicators.includes('vwap') ? <span><i style={{ background: CHART_VWAP_COLOR }} />VWAP</span> : null}
-          <span className="ph-grow" />
-          <button type="button" onClick={() => go({ screen: 'chart', symbol })} aria-label="Open the big chart">
-            <Maximize2 size={12} aria-hidden="true" />Big chart
-          </button>
         </div>
         <PhoneChart symbol={symbol} frame={chart.frame} indicators={chart.indicators} onIndicatorToggle={chart.toggleIndicator} />
+        <button type="button" className="ph-stock__expand" onClick={() => go({ screen: 'chart', symbol })} aria-label="Open the big chart" data-testid="phone-stock-expand">
+          <Maximize2 size={13} aria-hidden="true" />
+        </button>
       </div>
 
       <div className="ph-stock__controls">

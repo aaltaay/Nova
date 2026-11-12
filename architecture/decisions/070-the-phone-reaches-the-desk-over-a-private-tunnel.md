@@ -145,8 +145,8 @@ the build is judged against them). What follows is how they are built.
     tells the bots which Level 2 lines they hold. A second, empty copy of that list from a phone page opened on
     the PC would overwrite the desk's. The phone's workspace reads the desk's config and Gateway status the same
     way and holds no tabs; it posts nothing.
-17. **No screen scrolls.** Each screen is drawn for 360 x 720 (the big chart for 740 x 320) and fills anything
-    larger. On anything smaller the whole page shrinks by one factor. A list longer than its box pages.
+17. **No screen scrolls.** Each screen is drawn for 360 x 720 (the big chart also for 740 x 320, on its side: it
+    opens upright, operator 2026-11-12, and a button turns it) and fills anything larger. On anything smaller the whole page shrinks by one factor. A list longer than its box pages.
 18. **Every tap is answered.** A banner says Sending, then what the desk answered; a refusal is the desk's own
     words in red and stays until tapped. A control that cannot act yet is disabled and says why when pressed.
 19. **Built in steps, each tried on the phone.** Step 1 is every screen but Trade: they read, and they work the
