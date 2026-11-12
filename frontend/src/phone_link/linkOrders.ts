@@ -155,10 +155,16 @@ export class PhoneDoor {
   async beat(): Promise<{ status: PhoneStatus | null; ms: number; asked: number }> {
     const asked = Date.now();
     const started = performance.now();
+    // The token this read carries: its answer speaks for that token only.
+    const sent = this.token;
     try {
       const res = await this.call('GET', '/api/phone');
-      if (res.status === 401) this.token = null;
-      return { status: res.status === 200 ? (res.body as PhoneStatus) : null, ms: res.ms, asked };
+      const status = res.status === 200 ? (res.body as PhoneStatus) : null;
+      // The status answers 200 whether or not the session is good. One that ended (8 hours, a backend restart, a
+      // newer unlock) reads `unlocked: false`: drop the token, so the next tap asks for the PIN instead of being
+      // sent and refused. A read that left before an unlock carried no token; its answer must not drop the new one.
+      if (sent != null && this.token === sent && (res.status === 401 || status?.unlocked === false)) this.token = null;
+      return { status, ms: res.ms, asked };
     } catch {
       return { status: null, ms: performance.now() - started, asked };
     }

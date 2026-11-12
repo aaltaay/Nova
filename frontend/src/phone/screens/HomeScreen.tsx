@@ -157,13 +157,18 @@ function Holdings() {
   const shown = over ? items.slice(0, Math.max(0, fit - 1)) : items;
   return (
     <div className="ph-home__block ph-home__holdings">
-      <div className="ph-home__blockhead ph-label">
-        <span>Your positions · {account.positions.length}</span>
-        <span>Orders · {account.working.length}</span>
-      </div>
+      {account.error ? (
+        // The rows under this are the last ones read: say so in the place their counts go.
+        <div className="ph-home__blockhead ph-home__stale" role="alert" data-testid="phone-holdings-error">{account.error}</div>
+      ) : (
+        <div className="ph-home__blockhead ph-label">
+          <span>Your positions · {account.positions.length}</span>
+          <span>Orders · {account.working.length}</span>
+        </div>
+      )}
       <div className="ph-card ph-home__hold" ref={boxRef} data-testid="phone-holdings">
         {!items.length ? (
-          <div className="ph-home__holdrow is-note">{account.error ?? 'No positions and no working orders.'}</div>
+          <div className="ph-home__holdrow is-note">{account.error ? 'Nothing was read.' : 'No positions and no working orders.'}</div>
         ) : null}
         {shown.map((item) => item.kind === 'position' ? (
           <button
@@ -176,7 +181,7 @@ function Holdings() {
             <span className="ph-who" data-owner={item.position.owner ?? 'you'}>
               {item.position.owner === 'bots' ? 'Bot' : whoName('you', null)}
             </span>
-            <span className="ph-muted">{shares(item.position.qty)} at {px(item.position.avgCost)} · now {px(item.position.mark)}</span>
+            <span className="ph-muted">{item.position.qty < 0 ? 'Short ' : ''}{shares(item.position.qty)} at {px(item.position.avgCost)} · now {px(item.position.mark)}</span>
             <b className={toneClass(item.position.unrealized)}>{signedMoney(item.position.unrealized)}</b>
           </button>
         ) : (

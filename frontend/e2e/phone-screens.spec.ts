@@ -162,3 +162,39 @@ test('a desk that is not on Paper is shown as it is, and the phone will not open
   await expect(unlock).toBeDisabled();
   await expect(unlock).toHaveAttribute('data-why', /Paper only/);
 });
+
+test('when the account stops answering, the last rows stay and the screen says they are not current', async ({ page }) => {
+  const api = await mockPhoneApi(page);
+  await open(page, 'account');
+  await expect(page.getByTestId('phone-position-ABCD')).toBeVisible();
+  await expect(page.getByTestId('phone-account-error')).toHaveCount(0);
+  api.state.accountDown = true;
+  await expect(page.getByTestId('phone-account-error')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('phone-position-ABCD')).toBeVisible();
+  expect(await phoneOverflow(page)).toEqual([]);
+
+  await page.getByRole('button', { name: 'Home' }).click();
+  await expect(page.getByTestId('phone-holdings-error')).toBeVisible();
+  await expect(page.getByTestId('phone-holdings')).toContainText('ABCD');
+  expect(await phoneOverflow(page)).toEqual([]);
+});
+
+test('a session that ended asks for the PIN on the next tap instead of sending a write that is refused', async ({ page }) => {
+  const api = await mockPhoneApi(page);
+  await open(page, 'home');
+  const holdings = page.getByTestId('phone-holdings');
+  await holdings.getByRole('button', { name: 'Cancel' }).click();
+  const sheet = page.getByTestId('phone-pin-sheet');
+  for (const digit of PHONE_PIN) await sheet.getByRole('button', { name: digit, exact: true }).click();
+  await expect(holdings).not.toContainText('Working');
+  // The backend restarts: the session is gone, and a new order is working.
+  api.state.unlocked = false;
+  api.state.working = [9];
+  api.writes.length = 0;
+  await expect(holdings).toContainText('Working', { timeout: 15_000 });
+  await page.waitForTimeout(1_500);
+  await holdings.getByRole('button', { name: 'Cancel' }).click();
+  await expect(sheet).toBeVisible();
+  // Nothing was sent before the PIN was asked for.
+  expect(api.writes).toEqual([]);
+});

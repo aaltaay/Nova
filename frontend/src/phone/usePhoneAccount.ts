@@ -45,9 +45,15 @@ export interface PhoneAccount {
   history: PracticeHistory | null;
   /** "Now" for the curve: the Sim playhead on Sim, the clock otherwise. Epoch seconds. */
   nowTs: number;
-  /** Why the account could not be read; null while it can. */
+  /**
+   * Why the account on screen is not current; null while it is. The desk keeps the last rows it read when a read
+   * fails (a Gateway that dropped, a ledger that did not answer), so this is set while rows are still shown.
+   */
   error: string | null;
 }
+
+/** Said when a read is stale and the desk gave no words of its own for it. */
+export const LAST_KNOWN = 'Last known account: Nova is not answering now.';
 
 export function usePhoneAccount(view: OwnerView = ALL_VIEW): PhoneAccount {
   const { ibkrMode, ibkrConnected } = useWorkspace();
@@ -103,6 +109,8 @@ export function usePhoneAccount(view: OwnerView = ALL_VIEW): PhoneAccount {
       : practiceVenue ? figures.feesToday : liveCommissionsToday(liveOrders),
     history: viewed,
     nowTs: simClock.nowTs ?? Date.now() / 1000,
-    error: practiceVenue ? practice.error : ibkr.error,
+    // Paper and Sim read the ledger for the account and positions, and the desk's account poll for working orders.
+    error: (practiceVenue ? practice.error : null) ?? ibkr.error
+      ?? ((practiceVenue && practice.stale === true) || ibkr.stale ? LAST_KNOWN : null),
   };
 }

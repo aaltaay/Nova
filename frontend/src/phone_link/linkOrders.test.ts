@@ -111,6 +111,34 @@ describe("the door, as the phone's screens use it", () => {
     expect(door.hasSession()).toBe(false);
   });
 
+  it('drops its session when the status says it ended: 8 hours, a backend restart, or a newer unlock', async () => {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => answer(200, { ...STATUS, token: 'tok-3' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const door = new PhoneDoor('https://pc.test:8443');
+    await door.unlock('123456');
+    await door.beat();
+    expect(door.hasSession()).toBe(true);
+    // The status still answers 200; it only stops saying the session is good.
+    fetchMock.mockImplementationOnce(() => answer(200, { ...STATUS, unlocked: false, expires_at: null }));
+    expect((await door.beat()).status).toMatchObject({ unlocked: false });
+    expect(door.hasSession()).toBe(false);
+  });
+
+  it('keeps a fresh session when a read that left before the unlock comes back saying "locked"', async () => {
+    let release!: (r: Response) => void;
+    const slow = new Promise<Response>((resolve) => { release = resolve; });
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => answer(200, { ...STATUS, token: 'tok-4' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const door = new PhoneDoor('https://pc.test:8443');
+    // A heartbeat goes out with no token, and is still in the air when the PIN is accepted.
+    fetchMock.mockImplementationOnce(() => slow);
+    const early = door.beat();
+    await door.unlock('123456');
+    release(new Response(JSON.stringify({ ...STATUS, unlocked: false, expires_at: null }), { status: 200 }));
+    await early;
+    expect(door.hasSession()).toBe(true);
+  });
+
   it("cancels one working order by its id, and says the refusal in the door's words", async () => {
     const fetchMock = vi.fn((_url: string, _init?: RequestInit) => answer(200, { ok: true, order_id: 41 }));
     vi.stubGlobal('fetch', fetchMock);

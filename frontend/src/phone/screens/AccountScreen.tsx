@@ -241,11 +241,16 @@ export function AccountScreen() {
           </button>
         ))}
       </div>
-      <div className={`ph-acct__head is-${tab}`}>
-        {HEADS[tab].map((h, i) => <div key={`${h}-${i}`}>{h}</div>)}
-      </div>
+      {account.error ? (
+        // The rows under this are the last ones read: the reason takes the column heads' line, so nothing moves.
+        <div className="ph-acct__stale" role="alert" data-testid="phone-account-error">{account.error}</div>
+      ) : (
+        <div className={`ph-acct__head is-${tab}`}>
+          {HEADS[tab].map((h, i) => <div key={`${h}-${i}`}>{h}</div>)}
+        </div>
+      )}
       <div className="ph-acct__list" ref={listRef} data-testid="phone-account-list">
-        {!total ? <div className="ph-empty" role="status">{account.error ?? EMPTY[tab]}</div> : null}
+        {!total ? <div className="ph-empty" role="status">{account.error ? 'Nothing was read.' : EMPTY[tab]}</div> : null}
         {tab === 'positions' ? account.positions.slice(from, from + perPage).map((p) => (
           <PositionRow key={`${p.symbol}-${p.owner ?? ''}-${p.bot ?? ''}`} p={p} split={split} />
         )) : null}

@@ -100,14 +100,15 @@ export interface PhoneApi {
   writes: string[];
   /** Paths this stand-in had no answer for. */
   unanswered: string[];
-  state: { armed: boolean; unlocked: boolean; working: number[] };
+  /** `accountDown`: the account, positions and orders reads fail from now on, as when the Gateway or the ledger drops. */
+  state: { armed: boolean; unlocked: boolean; working: number[]; accountDown: boolean };
 }
 
 export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Promise<PhoneApi> {
   const api: PhoneApi = {
     writes: [],
     unanswered: [],
-    state: { armed: false, unlocked: false, working: Array.from({ length: opts.working ?? 1 }, (_, i) => 7 + i) },
+    state: { armed: false, unlocked: false, working: Array.from({ length: opts.working ?? 1 }, (_, i) => 7 + i), accountDown: false },
   };
   const venue = opts.venue ?? 'paper';
   const pinSet = opts.pinSet ?? true;
@@ -160,6 +161,10 @@ export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Prom
         return json({ ok: true, order_id: Number(cancel[1]) });
       }
       return refuse(404, 'NOT_FOUND', 'No such route.');
+    }
+
+    if (api.state.accountDown && /^\/api\/(practice\/account|ibkr\/(account|positions|orders))/.test(path)) {
+      return json({ detail: 'The ledger did not answer.' }, 500);
     }
 
     switch (path) {
