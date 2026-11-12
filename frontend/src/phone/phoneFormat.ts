@@ -54,6 +54,36 @@ export function agoShort(ms: number): string {
   return `${Math.floor(hours / 24)} d ago`;
 }
 
+const UNITS: readonly [number, string][] = [[1e3, 'K'], [1e6, 'M'], [1e9, 'B']];
+
+/**
+ * A count in at most five characters: "876K", "5.0M", "26.3M", "195M", "1.23B" reads "1.2B". One decimal under
+ * 100 of a unit, none from there; a value that rounds to 1000 of a unit moves up one ("1.0M", never "1000K").
+ * The desk's own formatter keeps one decimal throughout, which a phone column has no room for.
+ */
+export function compact(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return DASH;
+  const abs = Math.abs(v);
+  const sign = v < 0 ? '-' : '';
+  if (abs < 999.5) return `${sign}${Math.round(abs)}`;
+  let i = 0;
+  while (i + 1 < UNITS.length && abs >= UNITS[i + 1][0] * 0.9995) i += 1;
+  let n = abs / UNITS[i][0];
+  if (n >= 999.5 && i + 1 < UNITS.length) {
+    i += 1;
+    n = abs / UNITS[i][0];
+  }
+  return `${sign}${n >= 99.95 ? n.toFixed(0) : n.toFixed(1)}${UNITS[i][1]}`;
+}
+
+/** A relative volume in a narrow column: "14.2x", "3.61x", "150x". */
+export function rvolShort(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return '';
+  if (v < 0.01) return '<0.01x';
+  if (v >= 100) return `${v.toFixed(0)}x`;
+  return `${v >= 10 ? v.toFixed(1) : Number(v.toFixed(2))}x`;
+}
+
 /** A share count without decimals, grouped: 1500 is "1,500". */
 export function shares(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return DASH;

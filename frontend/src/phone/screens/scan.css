@@ -56,7 +56,7 @@
 
 .ph-scan__head, .ph-scan__row {
   display: grid;
-  grid-template-columns: 2.3fr 0.75fr 1fr 0.9fr 0.65fr;
+  grid-template-columns: minmax(0, 1fr) 52px 66px 48px 44px;
   align-items: center;
 }
 .ph-scan__head {
@@ -107,8 +107,8 @@
   line-height: 1.1;
   color: var(--ph-faint);
   overflow: hidden;
-  text-overflow: ellipsis;
 }
+.ph-scan__cat em { min-width: 0; font-style: normal; overflow: hidden; text-overflow: ellipsis; }
 .ph-scan__star { flex-shrink: 0; color: var(--ph-star); }
 .ph-scan__px { text-align: right; font-weight: 600; white-space: nowrap; }
 .ph-scan__chg { display: flex; justify-content: flex-end; }

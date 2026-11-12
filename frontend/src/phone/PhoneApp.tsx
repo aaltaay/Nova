@@ -1,6 +1,6 @@
 /**
- * Nova on the phone (ADR 070): the desk's own providers -- workspace, account, settings, scanner --
- * under a phone-shaped set of screens. The phone is a second screen, not a second system: every
+ * Nova on the phone (ADR 070): the desk's own providers -- account, settings, scanner -- under a
+ * phone-shaped set of screens, with a workspace of the phone's own (PhoneWorkspace.tsx: no Trader tabs). The phone is a second screen, not a second system: every
  * number here is read by the hook the desk reads it with, and every write goes through the desk's
  * order door (`/api/phone`).
  */
@@ -8,10 +8,10 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { IbkrAccountProvider } from '../ibkr/IbkrAccountContext';
 import { ScannerDataProvider } from '../scanner/ScannerDataContext';
 import { SettingsProvider } from '../settings/SettingsContext';
-import { WorkspaceProvider } from '../workspace';
 import { LANDSCAPE, PORTRAIT, fitFor, useViewport } from './phoneFit';
 import { ROUTE_EVENT, parseRoute, tabOf, type PhoneRoute } from './phoneRoute';
 import { PhoneSessionProvider } from './PhoneSession';
+import { PhoneWorkspaceProvider } from './PhoneWorkspace';
 import { AccountScreen } from './screens/AccountScreen';
 import { ChartScreen } from './screens/ChartScreen';
 import { HomeScreen } from './screens/HomeScreen';
@@ -70,7 +70,7 @@ function PhoneFrame({ route, children }: { route: PhoneRoute; children: ReactNod
 export default function PhoneApp() {
   const route = usePhoneRoute();
   return (
-    <WorkspaceProvider>
+    <PhoneWorkspaceProvider>
       <IbkrAccountProvider>
         <SettingsProvider>
           <ScannerDataProvider>
@@ -80,6 +80,6 @@ export default function PhoneApp() {
           </ScannerDataProvider>
         </SettingsProvider>
       </IbkrAccountProvider>
-    </WorkspaceProvider>
+    </PhoneWorkspaceProvider>
   );
 }

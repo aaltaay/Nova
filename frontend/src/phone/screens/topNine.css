@@ -131,12 +131,13 @@
 .ph-t9tile__foot {
   height: 18px;
   flex-shrink: 0;
-  padding: 0 7px;
+  padding: 0 5px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 3px;
   white-space: nowrap;
-  font-size: 9.5px;
+  font-size: 9px;
   color: var(--ph-faint);
 }
 .ph-t9tile__foot b { color: var(--ph-dim); font-weight: 600; }

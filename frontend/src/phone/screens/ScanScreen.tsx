@@ -25,10 +25,9 @@ import { useSettings } from '../../settings';
 import type { ScannerRow } from '../../types/scanner';
 import { catalystFace } from '../../utils/catalystCause';
 import { readPref, writePref } from '../../utils/prefStore';
-import { fmtRvol, fmtVolume } from '../../utils/quoteFormat';
 import { LinkPill, PadlockButton, PhoneScreen, RowLink, TickerChip, VenuePill } from '../PhoneChrome';
 import { phoneCatalyst } from '../phoneCatalyst';
-import { pct1, px, toneOf } from '../phoneFormat';
+import { compact, pct1, px, rvolShort, toneOf } from '../phoneFormat';
 import { useRowsThatFit } from '../useRowsThatFit';
 import './scan.css';
 
@@ -95,7 +94,7 @@ function ScanRow({ row, board, starred, nowMs }: {
         <div className="ph-scan__cat" data-tone={cat.tone}>
           <b>{cat.word}</b>
           <span>
-            {cat.when}
+            <em>{cat.when}</em>
             {starred ? <Star className="ph-scan__star" size={9} fill="currentColor" aria-label="On your hot list" /> : null}
           </span>
         </div>
@@ -103,10 +102,10 @@ function ScanRow({ row, board, starred, nowMs }: {
       <div className="ph-scan__px">{px(row.price)}</div>
       <div className="ph-scan__chg"><span data-tone={tone || 'flat'}>{pct1(row.change_pct)}</span></div>
       <div className="ph-scan__vol">
-        <span>{fmtVolume(row.volume)}</span>
-        <i>{fmtRvol(row.rel_volume) ?? ''}</i>
+        <span>{compact(row.volume)}</span>
+        <i>{rvolShort(row.rel_volume)}</i>
       </div>
-      <div className="ph-scan__flt">{fmtVolume(row.float)}</div>
+      <div className="ph-scan__flt">{compact(row.float)}</div>
       <RowLink symbol={row.symbol} />
     </div>
   );
@@ -169,7 +168,8 @@ export function ScanScreen() {
   }, [at, page]);
   const shown = rows.slice(at * perPage, at * perPage + perPage);
   const inMore = MORE_LISTS.some((l) => l.id === list);
-  const nowMs = feed.now;
+  // The feed's clock is in seconds.
+  const nowMs = feed.now * 1000;
 
   let empty: string | null = null;
   if (!rows.length) {

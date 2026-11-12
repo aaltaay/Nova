@@ -35,6 +35,9 @@ export function usePhoneTopNine(
     let marks = NO_TOP_NINE_STATE;
     let last: TopNineSnapshot | null = null;
     const tick = () => {
+      // Before the scanner's first answer every list is empty. Taking that as a board would mark every stock
+      // "new" on the next one; the pop-up never sees it, because the desk window's feed is long loaded.
+      if (feedRef.current.health.status === 'loading') return;
       const now = Date.now();
       const snapshot = buildTopNineSnapshot(feedRef.current, now);
       if (sameTopNine(last, snapshot)) return;

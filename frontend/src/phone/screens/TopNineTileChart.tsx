@@ -5,7 +5,7 @@
  * last-price tag over the plot's right edge.
  */
 import { memo, useLayoutEffect, useRef, useState } from 'react';
-import { TOP_NINE_NO_BARS } from '../../top_nine/topNineConstants';
+import { TOP_NINE_LULD_NONE, TOP_NINE_NO_BARS } from '../../top_nine/topNineConstants';
 import { topNineChartGeometry, type ChartBox, type ChartInsets } from '../../top_nine/topNineChartGeometry';
 import { topNineLuldShape } from '../../top_nine/topNineLuld';
 import { useTopNineBars } from '../../top_nine/useTopNineBars';
@@ -87,7 +87,8 @@ export const TopNineTileChart = memo(function TopNineTileChart(
               {geo.last.label}
             </span>
           ) : null}
-          {luld?.none ? <span className="ph-t9chart__none" title={luld.none.why}>{luld.none.text}</span> : null}
+          {/* A tile this small has room for the short form only; the pop-up's tile spells the reason out. */}
+          {luld?.none ? <span className="ph-t9chart__none" title={luld.none.why}>{TOP_NINE_LULD_NONE}</span> : null}
         </>
       ) : bars.length ? null : (
         <span className="ph-t9chart__empty" role="status">

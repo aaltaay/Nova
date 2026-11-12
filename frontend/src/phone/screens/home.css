@@ -1,5 +1,7 @@
 /* Home (frozen mockup R2-Home). */
-.ph-home__head { padding-right: 4px; }
+.ph-home__head { padding-right: 2px; gap: 7px; }
+.ph-home__head .ph-icon-btn { width: 30px; }
+.ph-home__head .ph-head__sub { flex-shrink: 0; }
 
 .ph-home {
   flex: 1 1 0;

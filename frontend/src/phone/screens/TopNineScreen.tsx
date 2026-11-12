@@ -25,9 +25,8 @@ import { readTopNineList, writeTopNineList } from '../../top_nine/topNineNav';
 import type { TopNineRow } from '../../top_nine/topNineSnapshot';
 import { useTopNineAlerts } from '../../top_nine/useTopNineAlerts';
 import { etChartSeconds } from '../../tickerChartData';
-import { fmtVolume } from '../../utils/quoteFormat';
 import { LinkPill, PadlockButton, PhoneScreen, RowLink, TickerChip, VenuePill } from '../PhoneChrome';
-import { pct1, toneOf } from '../phoneFormat';
+import { compact, pct1, toneOf } from '../phoneFormat';
 import { usePhoneTopNine } from '../usePhoneTopNine';
 import { TopNineTileChart } from './TopNineTileChart';
 import './topNine.css';
@@ -89,8 +88,8 @@ function Tile({ row, move, endTime, luld, now }: {
       </div>
       <TopNineTileChart symbol={row.symbol} lastPrice={row.price} endTime={endTime} luld={luld} />
       <div className="ph-t9tile__foot">
-        <span>Vol <b>{fmtVolume(row.volume)}</b></span>
-        <span>Float <b>{fmtVolume(row.float)}</b></span>
+        <span>Vol <b>{compact(row.volume)}</b></span>
+        <span>Float <b>{compact(row.float)}</b></span>
       </div>
       <RowLink symbol={row.symbol} />
     </div>

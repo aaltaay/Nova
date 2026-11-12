@@ -35,8 +35,9 @@ const RUNNERS = 5;
 const HOLD_ROW_PX = 33;
 const CHECK_ICON: Record<Check['state'], string> = { green: '✓', amber: '!', red: '✕', waiting: '–', unknown: '?' };
 const PHASE_WORD: Record<Session['phase'], string> = {
-  premarket: 'premarket', regular: 'open', after_hours: 'after hours', closed: 'closed',
+  premarket: 'pre', regular: 'open', after_hours: 'after', closed: 'closed',
 };
+const CHIP_WORD = { premarket: 'pre', open: 'open', afterhours: 'after', closed: 'closed' } as const;
 const VERDICT: Record<NonNullable<DayRead['verdict']>, string> = { bullish: 'Bullish', mixed: 'Mixed', bearish: 'Bearish' };
 const SPANS = ['day', 'week', 'month'] as const;
 const ET_HM = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false });
@@ -52,7 +53,7 @@ function useMinuteClock(): Date {
 
 /** "09:31 ET · open". The phase is the market board's (it knows a holiday); the desk's clock chip until it loads. */
 function sessionLine(now: Date, session: Session | null): string {
-  const phase = session ? PHASE_WORD[session.phase] : sessionChipView(now).label.toLowerCase();
+  const phase = session ? PHASE_WORD[session.phase] : CHIP_WORD[sessionChipView(now).kind];
   return `${ET_HM.format(now)} ET · ${phase}`;
 }
 
@@ -263,7 +264,7 @@ export function HomeScreen() {
             <button type="button" className="ph-home__all" onClick={() => go({ screen: 'scan' })}>All ›</button>
           </div>
           <div className="ph-card ph-home__runners">
-            {runners.length ? runners.map((row) => <RunnerRow key={row.symbol} row={row} nowMs={feed.now} />) : (
+            {runners.length ? runners.map((row) => <RunnerRow key={row.symbol} row={row} nowMs={feed.now * 1000} />) : (
               <div className="ph-home__holdrow is-note">{feed.restError ?? 'No rows on Gainers right now.'}</div>
             )}
           </div>

@@ -7,8 +7,9 @@
  * - the 10-second chart follows the tape, which the phone opens only on the Trade screen;
  * - drawing saves to the desk, and the phone's door has no route for that yet.
  */
-import { useCallback, useState } from 'react';
-import { TickerChart } from '../chart';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { LogicalRange } from 'lightweight-charts';
+import { TickerChart, claimEdge, type ChartPaneOverlayProps } from '../chart';
 import { CHART_INDICATORS, type ChartIndicatorId } from '../constants';
 import { readPref, writePref } from '../utils/prefStore';
 
@@ -79,6 +80,57 @@ export function FrameSwitch({ frame, onFrame }: { frame: string; onFrame: (id: s
   );
 }
 
+/** One candle about every this many pixels on first paint. */
+const PX_PER_BAR = 6;
+const MIN_BARS = 20;
+/** The price scale: wide enough for a price and the padded volume chip at the phone's type size, and no wider. */
+const SCALE_WIDTH_PX = 50;
+const SCALE_FONT_PX = 10;
+
+/**
+ * What makes the desk's chart fit a phone box. Each is asked of the chart through its own surface, so the chart
+ * stays the desk's:
+ *
+ * - The price scale. The desk reserves 96 px for it, so a growing volume chip never shoves the plot; in a phone
+ *   box that is a quarter of the chart. Here it keeps a fixed width sized to the phone's smaller type.
+ * - The lines' names. The desk writes "9 EMA", "VWAP $4.31" at the right edge, over the newest candles of a
+ *   narrow pane. The phone names the lines in its own legend row, so it claims the edge (chart/edgeWords), which
+ *   is how any pane tells the series to leave their titles to it.
+ * - The first view. The desk opens a 1-minute pane on its last 500 candles; here that is under a pixel a candle.
+ *   So once the desk has painted, the phone asks for as many of the newest candles as its width shows clearly,
+ *   once per stock and timeframe. After that the view is the chart's own: it follows the newest candle, and a
+ *   pinch or a drag is kept.
+ */
+function PhoneChartFit({ chart, candleSeriesRef, barsRevision, symbol, timeframe }: ChartPaneOverlayProps) {
+  const done = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!chart) return undefined;
+    chart.applyOptions({ layout: { fontSize: SCALE_FONT_PX } });
+    chart.priceScale('right').applyOptions({ minimumWidth: SCALE_WIDTH_PX });
+    chart.priceScale('volume').applyOptions({ minimumWidth: SCALE_WIDTH_PX });
+    return claimEdge(chart);
+  }, [chart]);
+
+  useEffect(() => {
+    const key = `${symbol}:${timeframe}`;
+    if (!chart || done.current === key) return undefined;
+    // After the desk's own paint of this revision, which runs after this effect.
+    const frame = window.requestAnimationFrame(() => {
+      const count = candleSeriesRef.current?.data().length ?? 0;
+      const width = chart.timeScale().width();
+      if (!count || !(width > 0)) return;
+      done.current = key;
+      const keep = Math.max(MIN_BARS, Math.round(width / PX_PER_BAR));
+      if (count > keep) chart.timeScale().setVisibleLogicalRange({ from: count - keep, to: count + 1 } as LogicalRange);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [chart, candleSeriesRef, barsRevision, symbol, timeframe]);
+  return null;
+}
+
+const renderFit = (props: ChartPaneOverlayProps) => <PhoneChartFit {...props} />;
+
 export function PhoneChart({ symbol, frame, indicators, onIndicatorToggle }: {
   symbol: string;
   frame: string;
@@ -97,6 +149,7 @@ export function PhoneChart({ symbol, frame, indicators, onIndicatorToggle }: {
         indicators={indicators}
         onIndicatorToggle={onIndicatorToggle}
         activeTool={null}
+        renderPaneOverlay={renderFit}
       />
     </div>
   );
