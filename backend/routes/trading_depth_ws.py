@@ -150,6 +150,10 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
         return
 
     from l2 import continuous as _l2_continuous
+    from line_lanes import sockets as _lane
+
+    # In front: the operator's lane leaves any other stock now, so its line is free for this one (ADR 071).
+    await _lane.opening(symbol, front=front)
 
     # Auto-subscribe if not already (a Sim tab at the live edge needs the real line, not its replay slot)
     if _depth.needs_subscribe(symbol):
@@ -195,6 +199,9 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
                 _l2_continuous.start(symbol)
             except Exception:
                 logger.exception("l2.continuous: failed to restart for WS %s", symbol)
+
+        # The lane keeps this line up after the socket closes: no timer ends it (ADR 071 decision 3).
+        _lane.opened(symbol, _lane.DEPTH, front=front)
 
         # Own queue per viewer -- a shared per-symbol queue makes concurrent
         # viewers (StrictMode double-mount, or a second Trader tab on the

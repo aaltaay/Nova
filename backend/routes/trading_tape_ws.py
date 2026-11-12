@@ -39,6 +39,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from constants_market_view import FEED_STALE, MARKET_VIEW_GATE_SEND_SEC, VIEW_GATE_EXEMPT_TEXT
 from ibkr import tape_silence
 from ibkr import tape_stream as _tape
+from line_lanes import sockets as _lane
 from line_lending import socket_gate
 from line_lending.sockets import TAPE
 from sim.mode import desk_connected, is_replay_desk
@@ -63,6 +64,9 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
         await websocket.close()
         return
 
+    # In front: the operator's lane leaves any other stock now, so its line is free for this one (ADR 071).
+    await _lane.opening(symbol, front=front)
+
     if not is_replay_desk() and not _tape.is_subscribed(symbol):
         result = await _tape.subscribe_async(symbol)
         if not result["ok"]:
@@ -84,6 +88,9 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
             if not result["ok"]:
                 await websocket.send_text(json.dumps({"type": "error", "message": result["error"]}))
                 return
+
+        # The lane keeps this line up after the socket closes: no timer ends it (ADR 071 decision 3).
+        _lane.opened(symbol, _lane.TAPE, front=front)
 
         queue = _tape.open_viewer_queue(symbol)
         # A loan of this line that began while this socket subscribed pushed its frame before the queue existed.

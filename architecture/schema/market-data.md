@@ -385,6 +385,30 @@ kept arriving, so this is not a feed gap (above).
   IBKR messages near each stall, Nova's Reconnect Data attempts and the question for IBKR, in Markdown. Nova
   never sends it.
 
+## The operator's lane: lines no timer ends (ADR 071, operator report 2026-11-12)
+
+On 2026-11-12 the operator held 100 XLAB on Paper from the phone; the page went to the background for 16 s, Nova
+cancelled XLAB's AllLast line ("no viewer left"), and IBKR's rule (one tick-by-tick request per instrument per
+15 s) kept Time & Sales dark for 13 s after they came back.
+
+- **Owner:** `backend/line_lanes/yours.py`. Memory only; a restart closes every socket and the first one in front
+  names the lane again.
+- **What names the lane:** a `/ws/ibkr/depth/{symbol}` or `/ws/ibkr/tape/{symbol}` socket opened with `front=1`
+  (the Trader tab in front, the phone's Trade screen), on a desk that is not replaying. A socket with `front=0`
+  never moves it.
+- **What the lane holds:** one viewer reference on that stock's Level 2 line and one on its AllLast line, each
+  taken once the line is up, exactly as a Session Record's (`capture.feed_hold`). The socket closing therefore
+  leaves both lines up: the 16 s tape linger and the 0.75 s depth grace start only when the *last* viewer leaves,
+  and the lane is one.
+- **When it moves:** only when a socket in front opens another stock. The lane's references on the old stock are
+  dropped before the new line is asked for; a line nothing else watches is cancelled at once (no linger), so its
+  line is free for the new stock. A stock another pane still watches keeps its lines.
+- **What it never does:** open a line (the socket that named the stock does), move on a timer, or get lent
+  (`line_lending.lines.why_not_lend`: a line with a viewer that is not a Trader tab's socket is never lent).
+- **Unchanged for now:** auto-record, lending and Claude's line still follow their own rules (ADR 071's build
+  order replaces them step by step); IBKR's 15 s still applies to a tape Nova cancelled, which now happens only
+  when the lane moves.
+
 ## The trading session ends at 20:00 ET (operator report, 2026-10-01 23:33)
 
 "How come these things are getting triggered right now? ... the entire market is closed, no?" -- the Bots

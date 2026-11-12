@@ -183,6 +183,16 @@ def _reset_order_state_memory():
         module.reset_for_tests()
 
 
+@pytest.fixture(autouse=True)
+def _reset_your_lane():
+    # The operator's lane (ADR 071) lives for the process; each test starts with it on no stock.
+    from line_lanes import yours
+
+    yours.reset_for_tests()
+    yield
+    yours.reset_for_tests()
+
+
 def _clear_session_error_state() -> None:
     from ibkr import farm_notices, l1_refused, reference_errors, scanner_l1, session_errors
 
