@@ -87,8 +87,12 @@ export function FrameSwitch({ frame, onFrame }: { frame: string; onFrame: (id: s
 /** One candle about every this many pixels on first paint. */
 const PX_PER_BAR = 6;
 const MIN_BARS = 20;
-/** The price scale: wide enough for a price and the padded volume chip at the phone's type size, and no wider. */
-const SCALE_WIDTH_PX = 50;
+/**
+ * The price scale: as narrow as the numbers on it. The least it may be holds a price like "4.82" and the
+ * candle's countdown ("00:26", drawn on the scale under the last price); a longer price or a volume figure
+ * widens it by what it needs (operator, 2026-11-12: "make them more compact ... don't forget the countdown").
+ */
+const SCALE_WIDTH_PX = 36;
 const SCALE_FONT_PX = 10;
 
 /**
@@ -105,16 +109,26 @@ const SCALE_FONT_PX = 10;
  *   once per stock and timeframe. After that the view is the chart's own: it follows the newest candle, and a
  *   pinch or a drag is kept.
  */
-function PhoneChartFit({ chart, candleSeriesRef, barsRevision, symbol, timeframe }: ChartPaneOverlayProps) {
+function PhoneChartFit({ chart, candleSeriesRef, volSeriesRef, barsRevision, symbol, timeframe, mini }: ChartPaneOverlayProps & { mini?: boolean }) {
   const done = useRef<string | null>(null);
 
   useEffect(() => {
     if (!chart) return undefined;
     chart.applyOptions({ layout: { fontSize: SCALE_FONT_PX } });
-    chart.priceScale('right').applyOptions({ minimumWidth: SCALE_WIDTH_PX });
-    chart.priceScale('volume').applyOptions({ minimumWidth: SCALE_WIDTH_PX });
+    // The small chart on Trade is a strip a few candles tall: no time row and no logo, which the full
+    // chart it opens carries.
+    if (mini) {
+      chart.applyOptions({ layout: { attributionLogo: false } });
+      chart.timeScale().applyOptions({ visible: false });
+      // The strip is three labels tall at most: the price and the countdown take two, so the volume figure
+      // (it is in the header's day numbers) gives up its label. The bars stay.
+      volSeriesRef?.current?.applyOptions({ lastValueVisible: false, priceLineVisible: false });
+    }
+    // No tick marks: on a scale this narrow they are four pixels of nothing beside every number.
+    chart.priceScale('right').applyOptions({ minimumWidth: SCALE_WIDTH_PX, ticksVisible: false });
+    chart.priceScale('volume').applyOptions({ minimumWidth: SCALE_WIDTH_PX, ticksVisible: false });
     return claimEdge(chart);
-  }, [chart]);
+  }, [chart, mini, volSeriesRef]);
 
   useEffect(() => {
     const key = `${symbol}:${timeframe}`;
@@ -122,7 +136,8 @@ function PhoneChartFit({ chart, candleSeriesRef, barsRevision, symbol, timeframe
     // After the desk's own paint of this revision, which runs after this effect.
     const frame = window.requestAnimationFrame(() => {
       const count = candleSeriesRef.current?.data().length ?? 0;
-      const width = chart.timeScale().width();
+      // The small chart hides its time row, whose width then reads 0: the pane is as wide.
+      const width = chart.timeScale().width() || chart.paneSize().width;
       if (!count || !(width > 0)) return;
       done.current = key;
       const keep = Math.max(MIN_BARS, Math.round(width / PX_PER_BAR));
@@ -134,15 +149,18 @@ function PhoneChartFit({ chart, candleSeriesRef, barsRevision, symbol, timeframe
 }
 
 const renderFit = (props: ChartPaneOverlayProps) => <PhoneChartFit {...props} />;
+const renderMiniFit = (props: ChartPaneOverlayProps) => <PhoneChartFit {...props} mini />;
 
-export function PhoneChart({ symbol, frame, indicators, onIndicatorToggle }: {
+export function PhoneChart({ symbol, frame, indicators, onIndicatorToggle, mini = false }: {
   symbol: string;
   frame: string;
   indicators: ChartIndicatorId[];
   onIndicatorToggle: (id: ChartIndicatorId) => void;
+  /** The strip on the Trade screen: candles and lines only. */
+  mini?: boolean;
 }) {
   return (
-    <div className="ph-chart" data-testid="phone-chart" data-frame={frame}>
+    <div className="ph-chart" data-testid="phone-chart" data-frame={frame} data-mini={mini ? 'true' : 'false'}>
       <TickerChart
         key={frame}
         symbol={symbol}
@@ -153,7 +171,8 @@ export function PhoneChart({ symbol, frame, indicators, onIndicatorToggle }: {
         indicators={indicators}
         onIndicatorToggle={onIndicatorToggle}
         activeTool={null}
-        renderPaneOverlay={renderFit}
+        renderPaneOverlay={mini ? renderMiniFit : renderFit}
+        countdownOnScale
         contextMenu={false}
       />
     </div>

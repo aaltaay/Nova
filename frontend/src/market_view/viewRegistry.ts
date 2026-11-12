@@ -25,8 +25,11 @@
  * 2026-11-06, "we should never, ever just be locking the sell"), and the backend lets it through too.
  *
  * In memory, per window. Desk and backend run on one machine (the backend binds 127.0.0.1), so the
- * backend's `sent` / `now` and this window's `Date.now()` are one clock.
+ * backend's `sent` / `now` and this window's `Date.now()` are one clock. On the phone they are two, so
+ * every moment here is read from `deskNow()` (utils/deskClock): this device's clock plus the offset its
+ * heartbeat measures, which is 0 on the desk.
  */
+import { deskNow } from '../utils/deskClock';
 import {
   LEVEL2_REFUSED_LEAD,
   LEVEL2_REFUSED_TAIL,
@@ -123,7 +126,7 @@ function noteLatest(view: BookView, seq: number | null, wall: number): void {
 }
 
 /** The Level 2 socket subscribed: which backend process its frames come from. */
-export function noteSubscribed(symbol: string, instance: unknown, wall = Date.now()): void {
+export function noteSubscribed(symbol: string, instance: unknown, wall = deskNow()): void {
   const view = bookFor(symbol);
   view.instance = typeof instance === 'string' ? instance : null;
   view.lastWordWall = wall;
@@ -133,7 +136,7 @@ export function noteSubscribed(symbol: string, instance: unknown, wall = Date.no
 export function noteBookFrame(
   symbol: string,
   frame: { seq?: unknown; at?: unknown; sent?: unknown },
-  wall = Date.now(),
+  wall = deskNow(),
 ): void {
   const view = bookFor(symbol);
   const seq = num(frame.seq);
@@ -161,7 +164,7 @@ export function noteRefused(symbol: string, message: string): void {
 }
 
 /** A `beat` arrived: the line's newest version as of the backend's `now`. */
-export function noteBeat(symbol: string, frame: { seq?: unknown; now?: unknown }, wall = Date.now()): void {
+export function noteBeat(symbol: string, frame: { seq?: unknown; now?: unknown }, wall = deskNow()): void {
   const view = bookFor(symbol);
   view.lastWordWall = wall;
   const now = num(frame.now);
@@ -226,7 +229,7 @@ function secs(ms: number): string {
 }
 
 /** Why orders on *symbol* are locked now, or null while its view is live (or not judged here). */
-export function viewLockReason(symbol: string | null | undefined, now = Date.now()): string | null {
+export function viewLockReason(symbol: string | null | undefined, now = deskNow()): string | null {
   if (!symbol) return null;
   const gate = gates.get(key(symbol));
   if (gate) return gate.text;                               // the backend's own lock, in the door's words
@@ -267,7 +270,7 @@ export function viewLockLabel(why: string): string {
 }
 
 /** What an order says it was priced from (ADR 045): the moment and the versions on screen. */
-export function viewStampFor(symbol: string, actionWallMs: number, now = Date.now()): ViewStamp {
+export function viewStampFor(symbol: string, actionWallMs: number, now = deskNow()): ViewStamp {
   const k = key(symbol);
   const view = books.get(k);
   const quote = quotes.get(k);
@@ -327,7 +330,7 @@ function sameLock(prev: string | null, next: string | null): boolean {
   return viewLockLabel(prev) === viewLockLabel(next);
 }
 
-function recompute(now = Date.now()): void {
+function recompute(now = deskNow()): void {
   let changed = false;
   const seen = new Set<string>();
   for (const k of new Set([...books.keys(), ...gates.keys()])) {
@@ -383,6 +386,6 @@ export function resetViewRegistryForTests(): void {
 }
 
 /** Re-judge now (tests, and a reader that must not wait a tick). */
-export function recomputeViewLocks(now = Date.now()): void {
+export function recomputeViewLocks(now = deskNow()): void {
   recompute(now);
 }

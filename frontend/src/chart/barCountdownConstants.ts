@@ -11,6 +11,8 @@ export const CHART_BAR_COUNTDOWN_WARN_COLOR = '#f59e0b';
 /** The chart background (#161921), nearly opaque, so wicks and grid lines never run through the digits. */
 export const CHART_BAR_COUNTDOWN_BACK_COLOR = 'rgba(22, 25, 33, 0.88)';
 export const CHART_BAR_COUNTDOWN_BORDER_COLOR = 'rgba(139, 146, 165, 0.45)';
+/** The countdown as a label on the price scale (the phone's charts): a quiet plate under the last price's own. */
+export const CHART_BAR_COUNTDOWN_SCALE_BACK_COLOR = '#2A3140';
 
 export const CHART_BAR_COUNTDOWN_PAD_X_PX = 5;
 export const CHART_BAR_COUNTDOWN_HEIGHT_PX = 16;

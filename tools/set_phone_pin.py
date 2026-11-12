@@ -1,4 +1,5 @@
-"""Set the operator's phone PIN (ADR 070, amendment 2026-11-10).
+"""Set a separate PIN for the phone (ADR 070, amendment 2026-11-10). Optional since 2026-11-12: with none
+set, the phone unlocks with the desk's own PIN. Run this only to give the phone a different one.
 
 Side effect, on purpose: writes ``NOVA_PHONE_PIN_HASH`` into the desk's ``.env`` (``NOVA_ENV_PATH``
 when set, else the repo root). Only a salted PBKDF2 hash is stored -- the PIN is typed at a hidden

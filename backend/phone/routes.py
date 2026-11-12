@@ -5,7 +5,10 @@ not by ``X-Nova-Api-Key`` (``auth``): the key never leaves the PC. Every order n
 venue and is handed to the desk's own handlers, so the one order door judges it -- the arm latch,
 the stale-view rules (ADR 045), the size limit (ADR 064), the loss limit -- and refuses it
 ``VENUE_CHANGED`` if the desk is anywhere but Paper when it is sent. No short entry, no bracket,
-no venue change, no setting: a buy, a sell, a flatten, a cancel, and Paper's padlock.
+no venue change, no setting: a buy, a sell, a stop, a flatten, a cancel, and Paper's padlock.
+
+The phone's Trade screen (amendment 2026-11-12) sends the desk's own order body here, so the fields it
+does not take (a venue, a time in force) are read past, never trusted: every order is Paper, DAY.
 """
 from __future__ import annotations
 
@@ -45,8 +48,12 @@ class PhoneOrder(BaseModel):
     symbol: str = Field(min_length=1, max_length=16)
     side: Literal["BUY", "SELL"]
     qty: float = Field(gt=0)
-    order_type: Literal["MKT", "LMT"] = "MKT"
+    order_type: Literal["MKT", "LMT", "STP"] = "MKT"
     limit_price: float | None = Field(default=None, gt=0)
+    # A stop: the price that wakes it. A sell stop under a long, or a buy stop above the market.
+    stop_price: float | None = Field(default=None, gt=0)
+    # The bid or ask a limit was priced from, for the door's slippage check; never the order's price.
+    reference_price: float | None = Field(default=None, gt=0)
     outside_rth: bool = False
     intent: Literal["flatten"] | None = None
     idempotency_key: str | None = Field(default=None, max_length=128)
@@ -66,7 +73,7 @@ def _venue() -> str:
 
 def require_session(x_nova_phone_session: str | None = Header(default=None)) -> str:
     if not session.valid(x_nova_phone_session):
-        raise _refuse(PHONE_LOCKED, "Unlock with your phone PIN first. Nothing was sent.", 401)
+        raise _refuse(PHONE_LOCKED, "Unlock with your PIN first. Nothing was sent.", 401)
     return str(x_nova_phone_session)
 
 
@@ -106,7 +113,7 @@ def unlock(body: UnlockBody) -> dict[str, Any]:
     if code:
         raise _refuse(code, reason, 403)
     token, _expires = session.open_session()
-    logger.warning("PHONE: unlocked with the phone PIN (Paper only)")
+    logger.warning("PHONE: unlocked with the operator's PIN (Paper only)")
     return {"token": token, **_status(token)}
 
 
@@ -135,7 +142,8 @@ async def place(body: PhoneOrder, request: Request, _token: str = Depends(requir
     _paper_only()
     order = desk.OrderRequest(
         symbol=body.symbol.strip().upper(), side=body.side, qty=body.qty, order_type=body.order_type,
-        limit_price=body.limit_price, outside_rth=body.outside_rth, intent=body.intent,
+        limit_price=body.limit_price, stop_price=body.stop_price, reference_price=body.reference_price,
+        outside_rth=body.outside_rth, intent=body.intent,
         idempotency_key=body.idempotency_key, client_timing=body.client_timing, view=body.view,
         venue=PHONE_VENUE,
     )
@@ -143,7 +151,7 @@ async def place(body: PhoneOrder, request: Request, _token: str = Depends(requir
     # The phone's only market is the Level 2 it received, so a new entry without one was priced from nothing.
     if (body.view.book is None or body.view.instance is None) and desk.opens_a_position(order):
         raise _refuse(PHONE_NO_VIEW, f"Your phone has not received Level 2 for {order.symbol} yet, so the buy was "
-                      "not sent. Wait for the test to show Level 2, then tap again. A sell, Flatten and Cancel still "
+                      "not sent. Wait for the book to show, then tap again. A sell, Flatten and Cancel still "
                       "work.", 409)
     return await desk.place_order(order, request)
 
@@ -155,7 +163,11 @@ async def cancel(order_id: int, request: Request, _token: str = Depends(require_
 
 
 @router.delete("/orders")
-async def cancel_symbol(symbol: str, request: Request, _token: str = Depends(require_session)) -> dict:
-    """Cancel every working Paper order on one symbol."""
+async def cancel_many(
+    request: Request, symbol: str | None = None, all_symbols: bool = False, _token: str = Depends(require_session),
+) -> dict:
+    """Cancel every working Paper order on one symbol, or (``all_symbols=true``) on every symbol."""
     _paper_only()
-    return await desk.cancel_orders_for_symbol(request, symbol=symbol, all_symbols=False, venue=PHONE_VENUE)
+    return await desk.cancel_orders_for_symbol(
+        request, symbol=None if all_symbols else symbol, all_symbols=all_symbols, venue=PHONE_VENUE,
+    )

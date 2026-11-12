@@ -145,8 +145,8 @@ the build is judged against them). What follows is how they are built.
     tells the bots which Level 2 lines they hold. A second, empty copy of that list from a phone page opened on
     the PC would overwrite the desk's. The phone's workspace reads the desk's config and Gateway status the same
     way and holds no tabs; it posts nothing.
-17. **No screen scrolls.** Each screen is drawn for 360 x 720 (the big chart for 740 x 320) and fills anything
-    larger. On anything smaller the whole page shrinks by one factor. A list longer than its box pages.
+17. **No screen scrolls.** Each screen is drawn for 360 x 720 (the big chart also for 740 x 320, on its side: it
+    opens upright, operator 2026-11-12, and a button turns it) and fills anything larger. On anything smaller the whole page shrinks by one factor. A list longer than its box pages.
 18. **Every tap is answered.** A banner says Sending, then what the desk answered; a refusal is the desk's own
     words in red and stays until tapped. A control that cannot act yet is disabled and says why when pressed.
 19. **Built in steps, each tried on the phone.** Step 1 is every screen but Trade: they read, and they work the
@@ -162,6 +162,51 @@ of the Scan lists (HOD Momo, Running Up, Volume boost, Setups).
 serves the union of every window's lists inside one budget, so a phone on a list the desk is not showing shares that
 budget with the desk's.
 
+## Amendment 2026-11-12 -- the Trade screen, on Paper
+
+The operator tried step 1 on the phone ("It's loading and I'm able to see the charts! I think we are good to
+continue!"). Step 2 is the Trade screen of the frozen design, on Paper.
+
+20. **The phone's ticket is the desk's ticket code.** Every one-tap button is one of the desk's own actions
+    (`hotkeys/runNovaAction`: buy at market, buy with a limit over the Ask, sell a share of the long at the Ask or
+    into the Bid, cancel and flatten, cancel every order), run with the numbers on the button. The Custom ticket
+    sends through the desk's `placeIbkrOrder`. So the gate, the price read from Level 2, the size read from the
+    position and the order body are one piece of code on the desk and on the phone. The phone writes the words on
+    a button; it never works out the price an order goes out at.
+21. **One seam for the door, one for the clock.** The desk's ticket code posts to the page's order door
+    (`ibkr/orderDoor`): `/api/ibkr` on the desk, `/api/phone` with the PIN's session on the phone. Everything that
+    compares a moment with the backend's reads the PC's clock (`utils/deskClock`): the page's own clock on the
+    desk, plus the offset the phone's heartbeat measures on the phone. Without it a phone would judge a Level 2
+    frame's lateness, and stamp an order, on a clock the backend does not share.
+22. **The door takes what the ticket sends, and trusts none of it.** `POST /api/phone/order` gains `STP` with
+    `stop_price`, and `reference_price`; `DELETE /api/phone/orders` gains `all_symbols=true`. The desk's order
+    body also carries a venue, a time in force and, on the desk, short and bracket fields: the phone's route reads
+    past them. Every phone order is Paper, DAY, never a short entry, never a bracket.
+23. **The book and the tape are the desk's sockets** (`useIbkrDepth`, `useIbkrTape`), so the desk's view registry
+    judges whether the phone's view is live, in the desk's words, and the order carries the book version the phone
+    drew. A view that is behind holds the buys and says so on them; a sell, a flatten and a cancel still go. Level 2
+    is opened only while the Trade screen is up: it takes one of the desk's three books.
+24. **A locked padlock sends nothing.** The buttons are greyed under "Locked", and a tap is answered NOT SENT
+    with nothing sent; the banner opens the padlock. Flatten and Cancel all are never held by it, as on the desk.
+25. **A flatten and a cancel of everything sit behind a warning that fills the screen**, from the two dots (tap,
+    or press and hold) and from the ticket. One tap sends an order; one tap never empties a position by accident.
+26. **Still Paper only.** Off Paper the ticket is drawn, locked, and says the phone trades Paper only.
+27. **One PIN** (operator, 2026-11-12, on meeting the phone's PIN sheet: "Just have the same one as the computer
+    one"). The phone unlocks with the desk's own PIN, the one typed on the PC (`NOVA_LIVE_ARM_PIN_HASH`). This
+    replaces the 2026-11-10 rule that the phone has a PIN of its own and that it should differ. A separate phone
+    PIN can still be set (`tools/set_phone_pin.py`); while one is, the phone takes that one and not the desk's.
+    What the PIN opens does not change: the phone's Paper door, for 8 hours. It arms nothing; Live is armed only
+    on the PC. Wrong PINs typed on the phone are counted on the phone, apart from those typed on the PC.
+28. **An order tapped on a locked phone is not sent when the PIN opens it.** The bid, the ask and the position
+    move while a PIN is typed, and a one-tap order sends what its button says at the tap. The banner says the
+    phone is unlocked and to tap again. (The padlock and a cancel of one order, which carry no price, still go
+    after the PIN.)
+29. **A buy that covers a short is never held for lag**, on the ticket as at the door: the desk's own rule
+    (`orderCloses`). The phone opens no short; one opened on the desk can be covered from the phone.
+
+Not in step 2, and listed in #1309: the Trade screen on its side (the frozen landscape board is a Live board and
+comes with Live), starring and drawing from the phone, the venue switch, the four other Scan lists.
+
 ## Rules and maps
 
 - Shapes: `architecture/schema/desk-ops.md`, "Who may reach the API" (another device) and "The phone link test".
@@ -171,3 +216,5 @@ budget with the desk's.
   (shapes: `architecture/schema/desk-ops.md`, "Nova on the phone: the screens").
 - The phone's door: `architecture/schema/execution.md`, "Paper orders from the phone"; `backend/phone/`,
   `tools/set_phone_pin.py`.
+- The Trade screen: `frontend/src/phone/screens/TradeScreen.tsx`, `frontend/src/phone/trade/`; the two seams
+  `frontend/src/ibkr/orderDoor.ts` and `frontend/src/utils/deskClock.ts`.

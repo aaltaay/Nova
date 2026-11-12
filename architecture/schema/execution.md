@@ -303,10 +303,13 @@ Another device may write to one prefix, `/api/phone` (owner `backend/phone/`). T
 through (every other one is still `403 REMOTE_VIEW_ONLY`), and the API key middleware does not ask them for
 `X-Nova-Api-Key`: the phone PIN's session opens them, and the desk's key never leaves the PC.
 
-**The PIN.** `NOVA_PHONE_PIN_HASH` in `.env`, written by `py -3 tools/set_phone_pin.py` on the PC (6 digits, the
-Live PIN's hash form). Every unlock reads the file, and the file wins over the API's environment, which still holds
-the hash the API started with: a changed PIN replaces the old one at once. Five wrong PINs in a row lock the phone for 300 s; the count is its
-own, apart from the Live PIN's.
+**The PIN** (amended 2026-11-12: one PIN). The phone unlocks with the desk's own PIN, `NOVA_LIVE_ARM_PIN_HASH` in
+`.env` (`py -3 tools/set_live_arm_pin.py`). While a separate phone PIN is set (`NOVA_PHONE_PIN_HASH`, written by
+`py -3 tools/set_phone_pin.py`; 6 digits, the same hash form), the phone takes that one and not the desk's.
+`pin_set` is true when either exists. Every unlock reads the file, and the file wins over the API's environment,
+which still holds the hash the API started with: a changed PIN replaces the old one at once. Five wrong PINs in a
+row lock the phone for 300 s; the count is its own, apart from the count of wrong PINs typed on the PC. The unlock
+opens the phone's Paper door only: it never arms the desk.
 
 **The session.** One random token in memory. It ends 8 hours after the unlock, on Lock, on a newer unlock, and when
 the backend restarts. Every write but the unlock carries it in `X-Nova-Phone-Session`.
@@ -317,9 +320,10 @@ the backend restarts. Every write but the unlock carries it in `X-Nova-Phone-Ses
 | `POST /api/phone/unlock` | `{pin}` | the status, plus `token` |
 | `POST /api/phone/lock` | -- | the status |
 | `POST /api/phone/arm` | `{armed: bool}` | the status. Locking always goes; unlocking only while the desk is on Paper |
-| `POST /api/phone/order` | `{symbol, side: "BUY"\|"SELL", qty, order_type: "MKT"\|"LMT", limit_price?, outside_rth?, intent?: "flatten", idempotency_key?, client_timing, view}` | what `POST /api/ibkr/order` answers |
+| `POST /api/phone/order` | `{symbol, side: "BUY"\|"SELL", qty, order_type: "MKT"\|"LMT"\|"STP", limit_price?, stop_price?, reference_price?, outside_rth?, intent?: "flatten", idempotency_key?, client_timing, view}` | what `POST /api/ibkr/order` answers |
 | `DELETE /api/phone/order/{order_id}` | -- | what `DELETE /api/ibkr/order/{order_id}` answers |
 | `DELETE /api/phone/orders?symbol=` | -- | what `DELETE /api/ibkr/orders?symbol=` answers |
+| `DELETE /api/phone/orders?all_symbols=true` | -- | what `DELETE /api/ibkr/orders?all_symbols=true` answers: every working Paper order, on every stock |
 
 Refusals are `{"detail": {"reason": <code>, "error": <words>}}`:
 
@@ -338,10 +342,20 @@ when it is sent; `PHONE_NOT_PAPER` is the same answer given first in plain words
 arm latch, the stale view (ADR 045), the size limit (ADR 064), the loss limit. It never carries `short_entry`, bracket
 legs or a `target_venue`.
 
+**The Trade screen sends the desk's own order body** (amendment 2026-11-12): the phone's ticket is the desk's ticket
+code (`hotkeys/runNovaAction`, `ibkr/placeOrder`) posting to this prefix, so a body may also carry `venue`, `tif`,
+`short_entry`, `take_profit_price` and `stop_loss_price`, and a cancel-many may carry `venue`. The route reads past
+all of them: the order is built with `venue: "paper"`, the default time in force (DAY), no short entry and no legs.
+`stop_price` (a `STP` order's trigger) and `reference_price` (the bid or ask a limit was priced from) are passed on.
+An `order_type` other than `MKT`, `LMT` or `STP` is `422`.
+
 **Its clock and its view.** `client_timing` and `view` are required, so the stale-view gate never skips a phone order.
 The phone writes `action_wall_ms` on the PC's clock (its own clock plus the offset the link test measures from
 `GET /api/market-view/gate`'s `checked_at`), and `view.book` is the last Level 2 version its socket received, with the
-`instance` from that socket's `subscribed` frame.
+`instance` from that socket's `subscribed` frame. On the phone's screens the offset comes from the heartbeat
+(`GET /api/phone`'s `now`) and is set once for the page (`utils/deskClock`): the desk's view registry and the
+desk's order stamps read that clock, so `view` is the desk's own stamp -- the book version the phone drew, with
+`desk: {silent_ms, transit_ms, undrawn_ms}` measured on the PC's clock.
 
 ---
 

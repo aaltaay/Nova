@@ -1,14 +1,15 @@
 /**
- * The big chart (frozen mockup R2-Charts): the desk's chart on its side, with the timeframe switch,
- * what moves the stock, and the layers the chart draws.
+ * The big chart: the desk's chart filling the phone, with the timeframe switch, what moves the stock,
+ * and the layers the chart draws.
  *
- * Drawn for a phone held sideways. Entering it asks the phone to turn the screen; where the browser
- * will not, and the phone is still upright, the screen says to turn it rather than squeeze a wide
- * chart into a tall one.
+ * It opens upright, as the phone is held (operator, 2026-11-12: "instead of asking people to turn the
+ * phone around ... it shows the whole thing"). On its side it is the frozen mockup R2-Charts: the phone
+ * turned by hand, or the sideways button, which asks the browser for the whole screen and then to turn
+ * it. A page may not turn the screen by itself, so the first build's request on entry did nothing.
  */
-import { useEffect, useState, type ReactNode } from 'react';
-import { Crosshair, Layers, Minus, MoveUpRight, RotateCw, Slash, SeparatorVertical, Trash2, Zap } from 'lucide-react';
-import { CHART_INDICATORS, type ChartIndicatorId } from '../../constants';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { ArrowLeftRight, Crosshair, Layers, Minus, MoveUpRight, RectangleHorizontal, RectangleVertical, Slash, SeparatorVertical, Trash2, Zap } from 'lucide-react';
+import { CHART_EMA_COLORS, CHART_EMA_LENGTHS, CHART_INDICATORS, CHART_VWAP_COLOR, type ChartIndicatorId } from '../../constants';
 import { useTickerStream } from '../../hooks/useTickerStream';
 import { computeQuoteMetrics } from '../../modules';
 import { fmtRvol } from '../../utils/quoteFormat';
@@ -18,6 +19,7 @@ import { FrameSwitch, PhoneChart, usePhoneChartPrefs } from '../PhoneChart';
 import { catalystLine } from '../phoneCatalyst';
 import { useViewport } from '../phoneFit';
 import { pct1, px, toneOf } from '../phoneFormat';
+import { go } from '../phoneRoute';
 import { usePhoneCatalyst } from '../usePhoneCatalyst';
 import './chart.css';
 
@@ -48,23 +50,69 @@ interface OrientationLock {
   unlock?: () => void;
 }
 
-/** Ask the phone to turn the screen while this screen is up. Browsers allow it only for an installed page. */
-function useSideways(): void {
-  useEffect(() => {
-    const orientation = window.screen?.orientation as (ScreenOrientation & OrientationLock) | undefined;
-    orientation?.lock?.('landscape').catch((err: unknown) => console.debug('[Nova phone] the screen was not turned', err));
-    return () => {
-      try {
-        orientation?.unlock?.();
-      } catch (err) {
-        console.debug('[Nova phone] the screen lock was not released', err);
-      }
-    };
+const NOT_TURNED = 'This browser would not turn the screen. Switch auto-rotate on and turn the phone.';
+
+/**
+ * Turn the screen on its side for this screen, and back. Browsers turn a page only from a tap and only once it
+ * has the whole screen, so `turn` asks for both in that order. `turned` is true while this screen holds the
+ * turn; leaving the screen gives it back.
+ */
+function useSideways(): { turned: boolean; refused: boolean; turn: () => void; upright: () => void } {
+  const [turned, setTurned] = useState(false);
+  const [refused, setRefused] = useState(false);
+  const held = useRef(false);
+
+  const release = useCallback(() => {
+    if (!held.current) return;
+    held.current = false;
+    try {
+      (window.screen?.orientation as (ScreenOrientation & OrientationLock) | undefined)?.unlock?.();
+    } catch (err) {
+      console.debug('[Nova phone] the screen lock was not released', err);
+    }
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch((err: unknown) => console.debug('[Nova phone] the full screen was not left', err));
+    }
   }, []);
+
+  const turn = useCallback(() => {
+    const orientation = window.screen?.orientation as (ScreenOrientation & OrientationLock) | undefined;
+    const ask = async (): Promise<void> => {
+      if (!orientation?.lock) throw new Error('no orientation lock');
+      if (!document.fullscreenElement) await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+      held.current = true;
+      await orientation.lock('landscape');
+    };
+    ask().then(() => {
+      setRefused(false);
+      setTurned(true);
+    }).catch((err: unknown) => {
+      console.debug('[Nova phone] the screen was not turned', err);
+      release();
+      setRefused(true);
+    });
+  }, [release]);
+
+  const upright = useCallback(() => {
+    release();
+    setTurned(false);
+  }, [release]);
+
+  useEffect(() => release, [release]);
+  // The Back key leaves the full screen: the turn goes with it.
+  useEffect(() => {
+    const left = (): void => {
+      if (!document.fullscreenElement && held.current) upright();
+    };
+    document.addEventListener('fullscreenchange', left);
+    return () => document.removeEventListener('fullscreenchange', left);
+  }, [upright]);
+
+  return { turned, refused, turn, upright };
 }
 
 export function ChartScreen({ symbol }: { symbol: string }) {
-  useSideways();
+  const side = useSideways();
   const viewport = useViewport();
   const sideways = viewport.width > viewport.height;
   const { detail } = useTickerStream(symbol);
@@ -85,22 +133,77 @@ export function ChartScreen({ symbol }: { symbol: string }) {
   });
 
   const back = <BackButton to={{ screen: 'stock', symbol }} label="Back to the stock page" />;
-  if (!sideways) {
-    return (
-      <div className="ph-screen" data-testid="phone-screen-chart">
-        <div className="ph-head has-back">{back}<TickerChip symbol={symbol} /></div>
-        <div className="ph-bigchart__turn" role="status">
-          <RotateCw size={28} aria-hidden="true" />
-          <b>Turn your phone sideways</b>
-          <span>The big chart is drawn wide. If the screen does not turn, switch auto-rotate on.</span>
-        </div>
-      </div>
-    );
-  }
-
   const m = detail ? computeQuoteMetrics(detail, discoveryProvider) : null;
   const tone = toneOf(m?.mainChangePct == null ? null : m.mainChangePct * 100, 1) || 'flat';
   const rvol = fmtRvol(detail?.rel_volume);
+  const layersMenu = layers ? (
+    <div className="ph-bigchart__layers" role="menu" data-testid="phone-chart-layers">
+      {CHART_INDICATORS.map((o) => {
+        const on = chart.indicators.includes(o.id as ChartIndicatorId);
+        return (
+          <button key={o.id} type="button" role="menuitemcheckbox" aria-checked={on} onClick={() => chart.toggleIndicator(o.id as ChartIndicatorId)}>
+            {o.label}
+          </button>
+        );
+      })}
+      {FIXED_LAYERS.map((l) => (
+        <button key={l.name} type="button" role="menuitemcheckbox" aria-checked={l.on} disabled data-why={l.why}>{l.name}</button>
+      ))}
+    </div>
+  ) : null;
+  const catalyst = (
+    <a className="ph-stock__cat ph-bigchart__cat" data-tone={cat.tone} href={cat.url ?? undefined} target="_blank" rel="noreferrer noopener">
+      <Zap size={12} aria-hidden="true" />
+      <b>{catalystLine(cat)}</b>
+      <span>{cat.headline ?? ''}</span>
+      {cat.url ? <i aria-hidden="true">›</i> : null}
+    </a>
+  );
+
+  if (!sideways) {
+    return (
+      <div className="ph-screen ph-bigchart is-upright" data-testid="phone-screen-chart">
+        <div className="ph-head has-back">
+          {back}
+          <TickerChip symbol={symbol} />
+          <b className="ph-bigchart__px" data-tone={tone}>{px(m?.mainPrice)}</b>
+          <i className="ph-bigchart__pct" data-tone={tone}>{pct1(m?.mainChangePct)}</i>
+          <span className="ph-grow" />
+          <LinkPill />
+        </div>
+        {catalyst}
+        <div className="ph-bigchart__box">
+          <div className="ph-stock__legend">
+            {chart.indicators.includes('emas') ? (
+              <>
+                <span className="ph-faint">EMA</span>
+                {CHART_EMA_LENGTHS.map((n) => <span key={n}><i style={{ background: CHART_EMA_COLORS[n] }} />{n}</span>)}
+              </>
+            ) : null}
+            {chart.indicators.includes('vwap') ? <span><i style={{ background: CHART_VWAP_COLOR }} />VWAP</span> : null}
+            {rvol ? <><span className="ph-grow" /><span>RVOL {rvol}</span></> : null}
+          </div>
+          <PhoneChart symbol={symbol} frame={chart.frame} indicators={chart.indicators} onIndicatorToggle={chart.toggleIndicator} />
+          {layersMenu}
+          {side.refused ? <div className="ph-bigchart__note" role="status" data-testid="phone-chart-not-turned">{NOT_TURNED}</div> : null}
+        </div>
+        <div className="ph-bigchart__bar">
+          <button type="button" className="ph-bigchart__trade" aria-label={`Trade ${symbol}`} onClick={() => go({ screen: 'trade', symbol })}>
+            <ArrowLeftRight size={16} strokeWidth={2.2} aria-hidden="true" />Trade
+          </button>
+          <FrameSwitch frame={chart.frame} onFrame={chart.setFrame} />
+          <span className="ph-grow" />
+          <button type="button" className="ph-bigchart__tool" aria-label="Indicators: choose what the chart shows" aria-expanded={layers} aria-pressed={layers} onClick={() => setLayers(!layers)}>
+            <Layers size={18} aria-hidden="true" />
+          </button>
+          <button type="button" className="ph-bigchart__tool" aria-label="Turn the chart sideways" onClick={side.turn}>
+            <RectangleHorizontal size={18} aria-hidden="true" />
+          </button>
+        </div>
+        <PhoneBannerView />
+      </div>
+    );
+  }
 
   return (
     <div className="ph-screen ph-bigchart" data-testid="phone-screen-chart">
@@ -114,13 +217,13 @@ export function ChartScreen({ symbol }: { symbol: string }) {
         <span className="ph-grow" />
         <FrameSwitch frame={chart.frame} onFrame={chart.setFrame} />
         <LinkPill />
+        {side.turned ? (
+          <button type="button" className="ph-icon-btn" aria-label="Turn the chart upright" onClick={side.upright}>
+            <RectangleVertical size={18} aria-hidden="true" />
+          </button>
+        ) : null}
       </div>
-      <a className="ph-stock__cat ph-bigchart__cat" data-tone={cat.tone} href={cat.url ?? undefined} target="_blank" rel="noreferrer noopener">
-        <Zap size={12} aria-hidden="true" />
-        <b>{catalystLine(cat)}</b>
-        <span>{cat.headline ?? ''}</span>
-        {cat.url ? <i aria-hidden="true">›</i> : null}
-      </a>
+      {catalyst}
       <div className="ph-bigchart__main">
         <div className="ph-bigchart__rail">
           <div className="ph-card">
@@ -144,21 +247,7 @@ export function ChartScreen({ symbol }: { symbol: string }) {
         </div>
         <div className="ph-bigchart__box">
           <PhoneChart symbol={symbol} frame={chart.frame} indicators={chart.indicators} onIndicatorToggle={chart.toggleIndicator} />
-          {layers ? (
-            <div className="ph-bigchart__layers" role="menu" data-testid="phone-chart-layers">
-              {CHART_INDICATORS.map((o) => {
-                const on = chart.indicators.includes(o.id as ChartIndicatorId);
-                return (
-                  <button key={o.id} type="button" role="menuitemcheckbox" aria-checked={on} onClick={() => chart.toggleIndicator(o.id as ChartIndicatorId)}>
-                    {o.label}
-                  </button>
-                );
-              })}
-              {FIXED_LAYERS.map((l) => (
-                <button key={l.name} type="button" role="menuitemcheckbox" aria-checked={l.on} disabled data-why={l.why}>{l.name}</button>
-              ))}
-            </div>
-          ) : null}
+          {layersMenu}
         </div>
       </div>
       <PhoneBannerView />

@@ -19,7 +19,7 @@ const SCREENS: readonly { hash: string; name: string; ready: string }[] = [
   { hash: 'account', name: 'account', ready: 'phone-position-ABCD' },
   { hash: 'settings', name: 'settings', ready: 'phone-settings-link' },
   { hash: 'stock/ABCD', name: 'stock', ready: 'phone-stock-quote' },
-  { hash: 'trade/ABCD', name: 'trade', ready: 'phone-trade-soon' },
+  { hash: 'trade/ABCD', name: 'trade', ready: 'phone-buy-market' },
 ];
 
 for (const screen of SCREENS) {
@@ -31,7 +31,8 @@ for (const screen of SCREENS) {
     await expect(page.getByTestId(screen.ready)).toBeVisible();
     // Settings shows the venue as its three tiles; every other screen carries the pill.
     if (screen.name !== 'settings') await expect(page.getByTestId('phone-venue')).toHaveText('PAPER');
-    await expect(page.getByTestId('phone-link').first()).toHaveAttribute('data-tone', 'good');
+    // Trade's pill carries the book's age beside the link's.
+    await expect(page.getByTestId(screen.name === 'trade' ? 'phone-fresh' : 'phone-link').first()).toHaveAttribute('data-tone', 'good');
     expect(await phoneOverflow(page)).toEqual([]);
     // A screen that only reads sends no write at all, and asks for nothing the stand-in does not know.
     expect(api.writes).toEqual([]);
@@ -40,11 +41,35 @@ for (const screen of SCREENS) {
   });
 }
 
-test('the big chart is drawn for a phone on its side, and says to turn an upright one', async ({ page }) => {
+test('the big chart opens upright from the corner icon, and is drawn wide for a phone on its side', async ({ page }) => {
+  // A desktop browser turns no screen: the sideways button must say so, and leave the chart as it was.
+  await page.addInitScript(() => {
+    Element.prototype.requestFullscreen = () => Promise.resolve();
+    Object.defineProperty(window.screen.orientation, 'lock', { configurable: true, value: () => Promise.reject(new Error('not on this device')) });
+  });
   await mockPhoneApi(page);
-  await open(page, 'chart/ABCD');
-  await expect(page.getByText('Turn your phone sideways')).toBeVisible();
+  await open(page, 'stock/ABCD');
+  // The position held is on the chart, as the desk's chart draws it: its line and its badge.
+  await expect(page.getByTestId('chart-position-tag')).toContainText('Long 500 @ $4.71');
+  await page.getByTestId('phone-stock-expand').click();
+  await expect(page.getByTestId('phone-screen-chart')).toBeVisible();
+  await expect(page.getByTestId('chart-position-tag')).toContainText('Long 500 @ $4.71');
+  // Upright: the whole chart, no request to turn the phone.
+  await expect(page.getByTestId('phone-chart')).toBeVisible();
+  await expect(page.getByTestId('ticker-chart-1Min')).toHaveAttribute('data-bar-count', /^[1-9]/);
+  const box = await page.getByTestId('phone-chart').boundingBox();
+  expect(box?.height ?? 0).toBeGreaterThan(480);
+  expect(await phoneOverflow(page)).toEqual([]);
+  await page.getByRole('button', { name: 'Turn the chart sideways' }).click();
+  await expect(page.getByTestId('phone-chart-not-turned')).toBeVisible();
+  expect(await phoneOverflow(page)).toEqual([]);
+  await page.getByRole('button', { name: /^Indicators/ }).click();
+  await expect(page.getByTestId('phone-chart-layers').getByRole('menuitemcheckbox', { name: 'MACD' })).toBeEnabled();
+  await page.getByRole('button', { name: /^Indicators/ }).click();
+
   await page.setViewportSize(LANDSCAPE);
+  // The wide drawing has replaced the upright one.
+  await expect(page.locator('.ph-bigchart.is-upright')).toHaveCount(0);
   await expect(page.getByTestId('phone-chart')).toBeVisible();
   await expect(page.getByTestId('ticker-chart-1Min')).toHaveAttribute('data-bar-count', /^[1-9]/);
   expect(await phoneOverflow(page)).toEqual([]);

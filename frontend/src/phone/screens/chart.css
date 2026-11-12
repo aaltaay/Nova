@@ -1,4 +1,4 @@
-/* The big chart (frozen mockup R2-Charts), drawn for 740 x 320. */
+/* The big chart: upright it fills 360 x 720; on its side it is the frozen mockup R2-Charts, drawn for 740 x 320. */
 .ph-bigchart__head {
   height: 34px;
   flex-shrink: 0;
@@ -84,16 +84,56 @@
 .ph-bigchart__layers button[aria-checked='true'] { background: rgba(255, 255, 255, 0.10); color: var(--ph-text); }
 .ph-bigchart__layers button:disabled { opacity: 0.6; }
 
-.ph-bigchart__turn {
-  flex: 1 1 0;
-  padding: 0 32px;
+/* Upright: the head, what moves it, the chart, and one row of controls. */
+.ph-bigchart.is-upright .ph-head [data-tone='good'] { color: var(--ph-good); }
+.ph-bigchart.is-upright .ph-head [data-tone='bad'] { color: var(--ph-bad); }
+.ph-bigchart.is-upright .ph-bigchart__cat { margin: 0 10px 6px; }
+.ph-bigchart.is-upright .ph-bigchart__box { margin: 0 10px; flex-direction: column; }
+.ph-bigchart__bar {
+  height: 52px;
+  flex-shrink: 0;
+  padding: 0 10px;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.ph-bigchart__trade {
+  height: 34px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 11px;
+  background: var(--ph-accent);
+  color: #04202E;
+  font-size: 13px;
+  font-weight: 700;
+}
+.ph-bigchart__bar .ph-frames button { width: 38px; }
+.ph-bigchart__tool {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  text-align: center;
-  color: var(--ph-muted);
+  border-radius: 11px;
+  background: var(--ph-soft);
+  color: var(--ph-dim);
 }
-.ph-bigchart__turn b { font-size: 17px; color: var(--ph-text); }
-.ph-bigchart__turn span { font-size: 13px; line-height: 1.4; }
+.ph-bigchart__tool[aria-pressed='true'] { background: rgba(92, 200, 250, 0.16); color: var(--ph-accent-ink); }
+.ph-bigchart__note {
+  position: absolute;
+  z-index: 6;
+  left: 8px;
+  right: 8px;
+  top: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #2A2210;
+  border: 1px solid #F5B942;
+  color: #F5D48A;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+}

@@ -358,7 +358,10 @@ html, body {
   color: var(--ph-text);
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.6);
 }
-.ph-banner[data-tone='done'] { background: #12303F; border-color: var(--ph-accent); color: #DDF2FE; }
+.ph-banner[data-tone='done'], .ph-banner[data-tone='sent'] { background: #12303F; border-color: var(--ph-accent); color: #DDF2FE; }
+.ph-banner[data-tone='sent'] .ph-banner__dot { background: rgba(92, 200, 250, 0.22); }
+.ph-banner[data-tone='filled'] { background: var(--ph-good); border-color: var(--ph-good); color: #04210F; }
+.ph-banner[data-tone='filled'] .ph-banner__dot { background: rgba(4, 33, 15, 0.16); }
 .ph-banner[data-tone='refused'] { background: var(--ph-sell); border-color: var(--ph-bad-soft); color: #FFFFFF; }
 .ph-banner__dot {
   width: 30px;
