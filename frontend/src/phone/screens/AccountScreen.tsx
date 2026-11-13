@@ -160,7 +160,8 @@ export function AccountScreen() {
   const account = usePhoneAccount(BOOKS.find((b) => b.id === book)?.view ?? ALL_VIEW, { range, calendar: mode === 'calendar' || day != null });
   const limit = usePhoneLossLimit(account.venue);
   const listRef = useRef<HTMLDivElement>(null);
-  const fit = useRowsThatFit(listRef, ROW_PX);
+  // The list leaves the page on Calendar: measure the new one when Overview comes back.
+  const fit = useRowsThatFit(listRef, ROW_PX, mode);
   const split = account.books != null;
   // Off Paper there is one book: the switch falls back to All and says why.
   const shownBook: Book = split ? book : 'all';

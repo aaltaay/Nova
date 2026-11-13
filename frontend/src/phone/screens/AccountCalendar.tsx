@@ -23,7 +23,9 @@ import type { PhoneAccount } from '../usePhoneAccount';
 
 const METRIC_NAMES: Record<AccountCalendarMetric, string> = { net: 'Net', gross: 'Gross', commissions: 'Comm.', trades: 'Trades' };
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
-const TOTALS_ONLY = 'An archived ledger keeps only this day\'s totals, so there is no chart to draw.';
+/** A ledger reset mid-day: the day's net counts both ledgers, the line could only draw this one. */
+const PART_ARCHIVED = 'Part of this day is in an archived ledger, which keeps totals only, so a chart would not match the day\'s net.';
+const TOTALS_ONLY ='An archived ledger keeps only this day\'s totals, so there is no chart to draw.';
 
 /** The figure one square shows, in whole dollars so it fits; null tone for a count. */
 function squareFigure(metric: AccountCalendarMetric, day: DayBreakdown): { text: string; tone: string } {
@@ -64,8 +66,8 @@ function DayBox({ day, split, onChart }: {
       <button
         type="button"
         className="ph-cal__chart"
-        disabled={!day.detailed}
-        data-why={!day.detailed ? TOTALS_ONLY : undefined}
+        disabled={!day.detailed || day.partial}
+        data-why={!day.detailed ? TOTALS_ONLY : day.partial ? PART_ARCHIVED : undefined}
         onClick={() => onChart(day.date)}
       >
         <LineChart size={13} aria-hidden /> See this day's chart

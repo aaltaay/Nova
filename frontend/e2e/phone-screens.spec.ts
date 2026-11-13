@@ -101,6 +101,8 @@ test("Account's chart takes the desk's ranges, and the Calendar opens a day's ch
   await page.getByRole('button', { name: "See this day's chart" }).click();
   await expect(page.getByTestId('phone-account-day')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByTestId('phone-position-ABCD')).toBeVisible();
+  // The list that came back is measured afresh: both positions fit, as before the Calendar was opened.
+  await expect(page.getByTestId('phone-position-WXYZ')).toBeVisible();
   // A range takes the chart back from the day.
   await page.getByTestId('phone-account-range-1D').click();
   await expect(page.getByTestId('phone-account-day')).toHaveCount(0);
