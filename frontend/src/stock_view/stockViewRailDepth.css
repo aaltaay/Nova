@@ -48,6 +48,23 @@
   }
 }
 
+/* Level 2's floor in the quote card (operator report, 2026-11-13: "it was all small ... no bid, no ask, and
+   no spread"). The stock read above it grows with the plan, and Level 2 took what was left: a long plan on a
+   1440 px desk left the pane 211 px, under the 260 px where the bands hide and the rows sit at their 18 px
+   floor. The book now keeps --sv-depth-min (the pane's 260 px plus its head), or half the card on a short
+   one, and the read scrolls past that (stockRead.css). Claude's frame is the card's child while it is on. */
+.stock-view-page .sv-rail .sv-quote-depth-card .sv-depth-and-tape {
+  min-height: min(var(--sv-depth-min), 50%);
+}
+
+.stock-view-page .sv-rail .sv-quote-depth-card .claude-line-frame:not(.claude-line-frame--off) {
+  min-height: min(calc(var(--sv-depth-min) + 13px), 50%);
+}
+
+.stock-view-page .sv-rail .sv-quote-depth-card .claude-line-frame:not(.claude-line-frame--off) .sv-depth-and-tape {
+  min-height: 0;
+}
+
 .stock-view-page .sv-quote-depth-card .sv-quote-stats.compact-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0 8px;

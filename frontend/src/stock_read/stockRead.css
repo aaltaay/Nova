@@ -43,12 +43,15 @@
 /* ── The rail block ───────────────────────────────────────────────────── */
 .sr-rail {
   display: flex;
-  flex: 0 0 auto;
+  /* The read gives way to Level 2: the quote card holds a floor under the book (stockViewRailDepth.css), and
+     a read too long for what is left scrolls (or fold the plan). It used to keep its whole height up to 60%
+     of the card, and a long plan on a tall desk took the book's spread row and its large rows. */
+  flex: 0 1 auto;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
-  /* Level 2 keeps at least two fifths of the card: past that the read scrolls (or fold the plan). It never scrolls
-     sideways: the read fits the rail. */
+  /* Never more than three fifths of the card, whatever the floor. It never scrolls sideways: the read fits
+     the rail. */
   max-height: 60%;
   overflow-x: hidden;
   overflow-y: auto;
