@@ -12,6 +12,7 @@ export const PHONE_API = 'http://127.0.0.1:8000';
 export const PHONE_PIN = '246810';
 const TOKEN = 'sample-session-token';
 
+const ET_DATE = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' });
 const SYMBOLS = [
   'ABCD', 'WXYZ', 'QRST', 'LMNO', 'EFGH', 'IJKL', 'UVWX', 'MNOP', 'CDEF', 'GHIJ', 'KLMN', 'OPQR',
   'STUV', 'YZAB', 'BCDE', 'FGHI', 'JKLM', 'NOPQ', 'RSTU', 'VWXY',
@@ -131,7 +132,7 @@ export interface PhoneApi {
    * `accountDown`: the account, positions and orders reads fail from now on, as when the Gateway or the ledger drops.
    * `held`: your shares of the first symbol; an order that fills moves it, as the ledger would.
    */
-  state: { armed: boolean; unlocked: boolean; working: number[]; accountDown: boolean; held: number };
+  state: { armed: boolean; unlocked: boolean; working: number[]; accountDown: boolean; held: number; halted?: boolean };
 }
 
 const BID = 4.81;
@@ -289,7 +290,16 @@ export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Prom
           source: 'manual', bot_id: null, commission: 1.4, fees: 0, realized: i % 2 ? 64 : 0, fill_estimated: true, fill_basis: 'quote',
           owner: 'you', bot: null, parts: [],
         })),
-        by_source: [], by_owner: [], daily: [],
+        // The last seven practice days (04:00 ET rollover), newest first: the calendar's rows.
+        // Today is always a row, whatever day the test runs on.
+        by_source: [], by_owner: [], daily: Array.from({ length: 9 }, (_, k) => {
+          const realized = k ? (k % 3 ? 120 * k : -85 * k) : 321.6;
+          const date = ET_DATE.format(new Date((t - 4 * 3600 - k * 86_400) * 1000));
+          return {
+            date, realized, commissions: 8.4, fees: 0.6, fills: 6, archived: false, weekday: new Date(`${date}T00:00:00Z`).getUTCDay(),
+            you: { realized: realized - 30, fills: 4, commissions: 6.4, fees: 0.6 }, bots: { realized: 30, fills: 2, commissions: 2, fees: 0 },
+          };
+        }).filter((row, k) => k === 0 || (row.weekday !== 0 && row.weekday !== 6)),
         components: { realized: 321.6, commissions: 8.4, fees: 0 },
       });
       case '/api/ibkr/account': return json({ NetLiquidation: 25_412.6, BuyingPower: 22_640, RealizedPnL: 321.6, UnrealizedPnL: 91 });
@@ -363,7 +373,8 @@ export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Prom
         { headline: '[Sample headline, one line]', summary: '', author: '', source: 'Sample Wire', url: 'https://example.test/news', created_at: new Date(Date.now() - 9 * 60_000).toISOString(), symbols: [symbol], images: [] },
       ],
       fundamentals: { market_cap: 48_000_000, shares_outstanding: 10_000_000, float_shares: 4_200_000, short_interest: null, short_ratio: null, short_percent_of_float: 0.182 },
-      halt: null,
+      // A LULD pause that began 65 s ago, when a test asks for one.
+      halt: api.state.halted ? { halted: true, kind: 'luld', halt_start: Date.now() / 1000 - 65, start_late: false } : null,
     }));
   });
   return api;

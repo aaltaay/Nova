@@ -9,9 +9,10 @@ import { useAccountHistory } from '../account/accountHistoryResource';
 import type { PracticeHistory } from '../account/accountHistoryTypes';
 import { liveCommissionsToday, liveFillRows, practiceFillRows, type AccountFillRow } from '../account/accountLive';
 import { positionsByOwner, positionsFromIbkr, positionsFromPractice, type AccountPosition } from '../account/accountPositions';
-import { ALL_VIEW, shows, viewBookDay, viewHistory, type OwnerView } from '../account/ownerView';
+import { ALL_VIEW, daySplits, shows, viewBookDay, viewHistory, type DaySplit, type OwnerView } from '../account/ownerView';
 import { useClosedOrders } from '../closed_orders/useClosedOrders';
 import { figuresFromPractice, figuresFromSummary, type HeaderAccountFigures } from '../components/headerAccountFigures';
+import type { AccountRange } from '../constantGroups/account_page';
 import type { DeskVenue } from '../constantGroups/desk_venue';
 import { resolveDeskVenue } from '../ibkr/deskVenue';
 import { useIbkrAccountContext } from '../ibkr/IbkrAccountContext';
@@ -43,6 +44,14 @@ export interface PhoneAccount {
   commissionsToday: number | null;
   /** Today's ledger history for the curve; null on Live (IBKR sends none) or before it loads. */
   history: PracticeHistory | null;
+  /** The ledger over the chart's range, narrowed to `view`; today's while the range is 1D. */
+  rangeHistory: PracticeHistory | null;
+  /** Every day the ledger and its archives hold, narrowed to `view`: the calendar. Null unless asked for. */
+  calendar: PracticeHistory | null;
+  /** Each date's yours and the bots' (Paper, All); null with no split or no calendar. */
+  daySplits: ReadonlyMap<string, DaySplit> | null;
+  /** Why the calendar has nothing to show; null while it has. */
+  calendarAbsence: string | null;
   /** "Now" for the curve: the Sim playhead on Sim, the clock otherwise. Epoch seconds. */
   nowTs: number;
   /**
@@ -55,7 +64,16 @@ export interface PhoneAccount {
 /** Said when a read is stale and the desk gave no words of its own for it. */
 export const LAST_KNOWN = 'Last known account: Nova is not answering now.';
 
-export function usePhoneAccount(view: OwnerView = ALL_VIEW): PhoneAccount {
+export interface PhoneAccountAsk {
+  /** The chart's range; the day by default. */
+  range?: AccountRange;
+  /** Read every day too (the calendar). Off by default: Home never needs it. */
+  calendar?: boolean;
+}
+
+const NO_CALENDAR_ON_LIVE = "IBKR sends no day-by-day history. The calendar is Paper's and Sim's.";
+
+export function usePhoneAccount(view: OwnerView = ALL_VIEW, ask: PhoneAccountAsk = {}): PhoneAccount {
   const { ibkrMode, ibkrConnected } = useWorkspace();
   const status = useIbkrStatus();
   const resolved = resolveDeskVenue(status, ibkrMode);
@@ -65,6 +83,8 @@ export function usePhoneAccount(view: OwnerView = ALL_VIEW): PhoneAccount {
   const practice = usePracticeAccount(practiceVenue);
   const { orders: closedOrders } = useClosedOrders(ibkrConnected);
   const history = useAccountHistory(practiceVenue, '1D');
+  const ranged = useAccountHistory(practiceVenue, ask.range ?? '1D');
+  const every = useAccountHistory(ask.calendar ? practiceVenue : null, 'ALL');
   const simClock = useSimAccountClock(practiceVenue === 'sim');
 
   const ledger = practiceVenue && practice.data?.venue === practiceVenue ? practice.data : null;
@@ -73,6 +93,11 @@ export function usePhoneAccount(view: OwnerView = ALL_VIEW): PhoneAccount {
   const shown = books ? view : ALL_VIEW;
   const hist = history.data && history.data.venue === practiceVenue ? history.data : null;
   const viewed = useMemo(() => viewHistory(hist, shown), [hist, shown]);
+  const rangeHist = ranged.data && ranged.data.venue === practiceVenue ? ranged.data : null;
+  const viewedRange = useMemo(() => viewHistory(rangeHist, shown), [rangeHist, shown]);
+  const everyHist = every.data && every.data.venue === practiceVenue ? every.data : null;
+  const viewedEvery = useMemo(() => viewHistory(everyHist, shown), [everyHist, shown]);
+  const splits = useMemo(() => (books && shown.book === 'all' ? daySplits(everyHist) : null), [books, shown, everyHist]);
 
   const positions = useMemo(() => {
     if (books && ledger) return positionsByOwner(ledger.positions).filter((p) => shows(shown, p.owner, p.bot));
@@ -108,6 +133,12 @@ export function usePhoneAccount(view: OwnerView = ALL_VIEW): PhoneAccount {
       ? bookDay.commissions_today
       : practiceVenue ? figures.feesToday : liveCommissionsToday(liveOrders),
     history: viewed,
+    rangeHistory: viewedRange,
+    calendar: viewedEvery,
+    daySplits: splits,
+    calendarAbsence: viewedEvery
+      ? null
+      : !practiceVenue ? NO_CALENDAR_ON_LIVE : every.error ? `The ledger did not answer: ${every.error}` : 'Reading the ledger…',
     nowTs: simClock.nowTs ?? Date.now() / 1000,
     // Paper and Sim read the ledger for the account and positions, and the desk's account poll for working orders.
     error: (practiceVenue ? practice.error : null) ?? ibkr.error

@@ -10,7 +10,12 @@ export function rowsThatFit(boxHeight: number, rowHeight: number): number {
   return Math.max(1, Math.floor((boxHeight + 0.5) / rowHeight));
 }
 
-export function useRowsThatFit(ref: RefObject<HTMLElement | null>, rowHeight: number): number {
+/**
+ * `mounted` names what the box is part of when the list can leave the page and come back (Account's
+ * Overview and Calendar): the ref object stays the same across that, so a change of `mounted` is what
+ * measures the new element and moves the observer onto it.
+ */
+export function useRowsThatFit(ref: RefObject<HTMLElement | null>, rowHeight: number, mounted: unknown = null): number {
   const [count, setCount] = useState(1);
   useLayoutEffect(() => {
     const el = ref.current;
@@ -21,6 +26,6 @@ export function useRowsThatFit(ref: RefObject<HTMLElement | null>, rowHeight: nu
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [ref, rowHeight]);
+  }, [ref, rowHeight, mounted]);
   return count;
 }

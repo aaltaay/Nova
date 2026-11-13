@@ -1067,9 +1067,9 @@ read below is one the desk already makes, and every write goes to `/api/phone`
   | Home | `/api/market/board` (the day read), `/api/practice/account`, `/api/loss-limit`, `/api/why?symbols=` (the Catalyst call for the five Gainers rows) |
   | Scan | the scanner feed; `/api/why?symbols=` per row; `/api/hot-list` (the star, and the Hot list) |
   | Top 9 | the scanner feed; per tile `/api/ticker/{symbol}/bars` (1-minute, store-first) and, on Gainers, `/api/luld/{symbol}/trail` |
-  | Account | `/api/practice/account`, `/api/practice/history?range=1D` (Paper and Sim), `/api/loss-limit` |
+  | Account | `/api/practice/account`, `/api/practice/history?range=1D` (Paper and Sim), `/api/loss-limit`; the chart's range buttons read the same route with the desk's `range` (`1D` `5D` `1M` `3M` `YTD` `ALL`); the Calendar view, and one past day's chart opened from it, read `range=ALL` (only while either is open). The calendar's figures are the desk Calendar panel's (`account/accountCalendar`, `account/accountDayBreakdown`); the phone shows Monday to Friday unless a weekend traded that month |
   | Stock, big chart | `/ws/ticker/{symbol}` and the chart's bars; `/api/why?symbols=` |
-  | Trade | `/ws/ticker/{symbol}`, the chart's bars, `/ws/ibkr/depth/{symbol}` and `/ws/ibkr/tape/{symbol}` (opened only while Trade is up: Level 2 takes one of the desk's three books) |
+  | Trade | `/ws/ticker/{symbol}`, the chart's bars, `/ws/ibkr/depth/{symbol}` and `/ws/ibkr/tape/{symbol}` (opened only while Trade is up: Level 2 takes one of the desk's three books). A halt (`halt` on the ticker read) is said over the tape with the desk's own halt clock (`ibkr/haltEta`, the Level 2 header's chip): time gone and time left for a LULD pause and its auction, no countdown for a news halt or past ten minutes |
 - **The scanner list a screen declares.** Scan declares the list on screen, Top 9
   its list, Home `gainers`, over `/ws/scanner` (`set_active_tab`), as a desk tab
   does. The backend serves the union of every client's lists inside one Level 1
@@ -1244,6 +1244,11 @@ Display only: nothing here touches the depth line, the book watcher or an order.
   bands hide, so the ladder's ten rows keep their 18 px floor and a level past the rows still shows on the
   last one. Under 300 px of pane width the spread row keeps its three numbers only (no words, no percent),
   and the tape's band drops its "Last" word under 180 px.
+- **The floor under the book** (operator report, 2026-11-13: "it was all small ... no bid, no ask, and no
+  spread"). In the Trader's quote card the stock read sits over Level 2 and grows with the plan; Level 2 and
+  Time & Sales keep `--sv-depth-min` (290 px: the 260 px pane plus its head; half the card on a card too
+  short for that), and a read too long for what is left scrolls (`stock_view/stockViewRailDepth.css`,
+  `stock_read/stockRead.css`). A long plan on a tall desk no longer takes the spread row.
 - **The size** (`ibkr/level2Size.ts`, `ibkr/Level2Frame.tsx`): a right click anywhere on the pane opens a
   cursor-anchored menu (`role="menu"`, three `menuitemradio` rows: Small, Medium, Large, the current one
   ticked); a pick, a click outside or Escape closes it. The pane's root carries `data-l2-size`, and the

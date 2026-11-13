@@ -243,4 +243,29 @@ test.describe('Who trades the stock', () => {
     expect(mutations).toEqual([]);
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
+
+  test('a long plan scrolls, and Level 2 keeps its spread row and its room', async ({ page }) => {
+    // Operator report, 2026-11-13: on a tall desk a long plan left Level 2 under the 260 px where it drops
+    // the bid / spread / ask row and its rows sit at their floor.
+    await page.setViewportSize({ width: 2560, height: 1440 });
+    const longRead = () => ({
+      ...apusReadWire,
+      plan: { ...apusReadWire.plan, checks: [
+        ...(apusReadWire.plan?.checks ?? []),
+        ...Array.from({ length: 10 }, (_, i) => ({ id: `long-${i}`, state: 'warn',
+          text: `one more line the plan carries on a busy stock, number ${i + 1}, long enough to fill the row` })),
+      ] },
+    });
+    await openApus(page, { read: longRead });
+    await expect(page.getByTestId('stock-read-entry')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('l2-spread')).toBeVisible();
+    await expect(page.getByTestId('l2-spread-bid')).toHaveText('5.43');
+    await expect(page.getByTestId('l2-spread-ask')).toHaveText('5.44');
+    const pane = await page.locator('.sv-md-pane__live').first().boundingBox();
+    expect(pane && pane.height).toBeGreaterThanOrEqual(260);
+    const rail = await page.getByTestId('stock-read-rail')
+      .evaluate(el => ({ scroll: el.scrollHeight, client: el.clientHeight }));
+    expect(rail.scroll).toBeGreaterThan(rail.client);
+    await shot(page, 'who-long-plan');
+  });
 });

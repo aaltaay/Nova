@@ -11,8 +11,9 @@
   --sv-gap: 6px;
   --sv-pad: 8px;
   --sv-rail-gap: 5px;
-  /* Soft floor for L2 — rail itself never scrolls (mirrors STOCK_VIEW_DEPTH_MIN_PX) */
-  --sv-depth-min: 260px;
+  /* Floor for L2 + T&S in the quote card (mirrors STOCK_VIEW_DEPTH_MIN_PX; applied in
+     stockViewRailDepth.css): the 260 px pane where the bands still show, plus the pane's head. */
+  --sv-depth-min: 290px;
   --sv-quote-max: 18%;
   --sv-card-radius: 6px;
   --sv-card-pad: 4px 6px;
