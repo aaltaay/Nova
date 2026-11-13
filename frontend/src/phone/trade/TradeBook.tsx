@@ -6,8 +6,11 @@
  * price takes the next colour (ibkr/dasDepthTiers). Each book this component draws is reported to the
  * desk's view registry (`noteBookShown`), which is what an order says it was priced from (ADR 045).
  */
-import { memo, useLayoutEffect, useRef, type CSSProperties } from 'react';
-import { Clock } from 'lucide-react';
+import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { Clock, Pause } from 'lucide-react';
+import { HALT_BADGE_LULD } from '../../constantGroups/halt_eta';
+import { haltChipView } from '../../ibkr/haltEta';
+import type { HaltSnapshot } from '../../types/ticker';
 import { assignPriceTiers, tierBackground } from '../../ibkr/dasDepthTiers';
 import { formatDepthPrice } from '../../ibkr/depthNumberFormat';
 import { fmtTapeTime, formatTapePrice, formatTapeSize, tapeRowKey } from '../../ibkr/TapeRow';
@@ -120,17 +123,46 @@ const TapeLine = memo(function TapeLine({ print }: { print: TapePrint }) {
   );
 });
 
-export function TradeTape({ prints, why }: { prints: readonly TapePrint[]; why: string | null }) {
+/**
+ * The halt, in the desk's own words and on the desk's own clock (the Level 2 header's chip, `ibkr/haltEta`):
+ * "LULD · 4:05 · 0:55 left", "Auction · 6:10 · 3:50 left", "NEWS · HALTED". It ticks once a second and sits
+ * over the tape, where a halted stock otherwise only shows prints that stopped.
+ */
+function HaltLine({ halt }: { halt: HaltSnapshot }) {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  const view = haltChipView(halt, nowMs);
+  if (!view) return null;
+  const [head, ...rest] = view.label.split(' · ');
+  return (
+    <div className="ph-tape__halt" role="status" data-testid="phone-halt" data-kind={view.kind} data-phase={view.phase}>
+      <b><Pause size={11} aria-hidden="true" /> {head === HALT_BADGE_LULD ? 'LULD halt' : head}</b>
+      {rest.length ? <span>{rest.join(' · ')}</span> : null}
+    </div>
+  );
+}
+
+export function TradeTape({ prints, why, halt = null }: {
+  prints: readonly TapePrint[];
+  why: string | null;
+  /** The stock's live halt, as the desk's ticker read carries it; null while it trades. */
+  halt?: HaltSnapshot | null;
+}) {
   const boxRef = useRef<HTMLDivElement>(null);
   const fit = useRowsThatFit(boxRef, ROW_PX);
+  const halted = halt?.halted ? halt : null;
   return (
     <div className="ph-tape" data-testid="phone-tape">
       <div className="ph-tape__cols"><span>Time</span><span>Price</span><span>Size</span></div>
+      {halted ? <HaltLine halt={halted} /> : null}
       <div className="ph-tape__rows" ref={boxRef}>
         {!prints.length ? (
           <div className="ph-tape__wait" role="status">
             <Clock size={18} aria-hidden="true" />
-            <span>{why ?? 'Tape waiting…'}</span>
+            <span>{why ?? (halted ? 'No prints while it is halted.' : 'Tape waiting…')}</span>
           </div>
         ) : prints.slice(0, fit).map((p) => <TapeLine key={tapeRowKey(p)} print={p} />)}
       </div>

@@ -1069,7 +1069,7 @@ read below is one the desk already makes, and every write goes to `/api/phone`
   | Top 9 | the scanner feed; per tile `/api/ticker/{symbol}/bars` (1-minute, store-first) and, on Gainers, `/api/luld/{symbol}/trail` |
   | Account | `/api/practice/account`, `/api/practice/history?range=1D` (Paper and Sim), `/api/loss-limit`; the chart's range buttons read the same route with the desk's `range` (`1D` `5D` `1M` `3M` `YTD` `ALL`); the Calendar view, and one past day's chart opened from it, read `range=ALL` (only while either is open). The calendar's figures are the desk Calendar panel's (`account/accountCalendar`, `account/accountDayBreakdown`); the phone shows Monday to Friday unless a weekend traded that month |
   | Stock, big chart | `/ws/ticker/{symbol}` and the chart's bars; `/api/why?symbols=` |
-  | Trade | `/ws/ticker/{symbol}`, the chart's bars, `/ws/ibkr/depth/{symbol}` and `/ws/ibkr/tape/{symbol}` (opened only while Trade is up: Level 2 takes one of the desk's three books) |
+  | Trade | `/ws/ticker/{symbol}`, the chart's bars, `/ws/ibkr/depth/{symbol}` and `/ws/ibkr/tape/{symbol}` (opened only while Trade is up: Level 2 takes one of the desk's three books). A halt (`halt` on the ticker read) is said over the tape with the desk's own halt clock (`ibkr/haltEta`, the Level 2 header's chip): time gone and time left for a LULD pause and its auction, no countdown for a news halt or past ten minutes |
 - **The scanner list a screen declares.** Scan declares the list on screen, Top 9
   its list, Home `gainers`, over `/ws/scanner` (`set_active_tab`), as a desk tab
   does. The backend serves the union of every client's lists inside one Level 1

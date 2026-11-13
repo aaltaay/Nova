@@ -70,6 +70,31 @@ test('Trade shows the book and the tape the desk sends, and fits the phone in ev
   expect(errors).toEqual([]);
 });
 
+test('a halted stock says so over the tape, on the desk\'s halt clock, and it counts down', async ({ page }) => {
+  const api = await mockPhoneApi(page, { armed: true });
+  await openTrade(page);
+  await expect(page.getByTestId('phone-halt')).toHaveCount(0);
+  api.state.halted = true;
+  await page.reload();
+  // The stand-in's LULD pause began 65 s ago: a minute and some gone, under four minutes left.
+  const halt = page.getByTestId('phone-halt');
+  await expect(halt).toContainText('LULD halt');
+  await expect(halt).toContainText(/1:\d\d · 3:\d\d left/);
+  await expect(halt).toHaveAttribute('data-phase', 'luld_pause');
+  const first = await halt.textContent();
+  await expect.poll(() => halt.textContent(), { timeout: 4_000 }).not.toBe(first);
+  // The prints that came before the halt are still under it, and nothing is pushed off the screen.
+  await expect(page.getByTestId('phone-tape').locator('.ph-tape__row')).not.toHaveCount(0);
+  expect(await phoneOverflow(page)).toEqual([]);
+  // Room to spare, so a phone whose fonts run wider still shows the whole clock.
+  const spare = await halt.locator('span').evaluate((el) => {
+    const text = document.createRange();
+    text.selectNodeContents(el);
+    return el.getBoundingClientRect().width - text.getBoundingClientRect().width;
+  });
+  expect(spare).toBeGreaterThanOrEqual(15);
+});
+
 test('a tap is the order: the desk gets its own order body, priced from the book on the screen', async ({ page }) => {
   const api = await mockPhoneApi(page, { armed: true });
   await openTrade(page);

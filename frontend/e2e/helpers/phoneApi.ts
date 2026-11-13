@@ -132,7 +132,7 @@ export interface PhoneApi {
    * `accountDown`: the account, positions and orders reads fail from now on, as when the Gateway or the ledger drops.
    * `held`: your shares of the first symbol; an order that fills moves it, as the ledger would.
    */
-  state: { armed: boolean; unlocked: boolean; working: number[]; accountDown: boolean; held: number };
+  state: { armed: boolean; unlocked: boolean; working: number[]; accountDown: boolean; held: number; halted?: boolean };
 }
 
 const BID = 4.81;
@@ -373,7 +373,8 @@ export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Prom
         { headline: '[Sample headline, one line]', summary: '', author: '', source: 'Sample Wire', url: 'https://example.test/news', created_at: new Date(Date.now() - 9 * 60_000).toISOString(), symbols: [symbol], images: [] },
       ],
       fundamentals: { market_cap: 48_000_000, shares_outstanding: 10_000_000, float_shares: 4_200_000, short_interest: null, short_ratio: null, short_percent_of_float: 0.182 },
-      halt: null,
+      // A LULD pause that began 65 s ago, when a test asks for one.
+      halt: api.state.halted ? { halted: true, kind: 'luld', halt_start: Date.now() / 1000 - 65, start_late: false } : null,
     }));
   });
   return api;
