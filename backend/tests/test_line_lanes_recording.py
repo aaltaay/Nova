@@ -247,12 +247,18 @@ def level_1(monkeypatch):
 
     seen: dict = {"subs": [], "unsubs": [], "watched": set(), "session": None, "lines": [], "refuse": False}
 
+    seen["owners"] = {}
+
     async def subscribe(sym, owner):
         seen["subs"].append((sym, owner))
-        return not seen["refuse"]
+        if seen["refuse"]:
+            return False
+        seen["owners"].setdefault(sym, set()).add(owner)
+        return True
 
     async def unsubscribe(sym, owner):
         seen["unsubs"].append((sym, owner))
+        seen["owners"].get(sym, set()).discard(owner)
 
     async def a_line(sym, **_kw):
         seen["lines"].append(sym)
@@ -260,6 +266,7 @@ def level_1(monkeypatch):
 
     monkeypatch.setattr(ticks, "subscribe", subscribe)
     monkeypatch.setattr(ticks, "unsubscribe", unsubscribe)
+    monkeypatch.setattr(ticks, "owners_for", lambda sym: set(seen["owners"].get(sym, set())))
     monkeypatch.setattr(depth, "subscribe_async", a_line)
     monkeypatch.setattr(tape_stream, "subscribe_async", a_line)
     monkeypatch.setattr(tape, "is_watched", lambda s: s in seen["watched"])
@@ -280,6 +287,17 @@ def test_a_resting_order_keeps_a_level_1_line_and_the_archive_watch_and_no_lane_
     asyncio.run(watch.reconcile([]))
     assert seen["unsubs"] == [("XLAB", "practice")] and seen["watched"] == set()
     assert seen["lines"] == []                                    # no Level 2, no Time & Sales line
+
+
+def test_a_reconnect_that_cleared_the_level_1_line_opens_it_again_on_the_next_pass(level_1):
+    """PR #1312 review: ``ticks.clear_all_subscriptions`` at a reconnect drops the line; the hold must not trust its
+    own memory of it, or the order's ``l1_last`` fills stop."""
+    seen, watch = level_1
+    asyncio.run(watch.reconcile(["XLAB"]))
+    seen["owners"].clear()                                        # IBKR reconnected: every Level 1 line let go
+    assert asyncio.run(watch.reconcile(["XLAB"])) == {}
+    assert seen["subs"] == [("XLAB", "practice"), ("XLAB", "practice")]
+    assert watch.held("XLAB") == {"l1": True, "watch": True}
 
 
 def test_a_watch_a_recorder_took_over_stays_and_a_refused_level_1_line_is_said(level_1):

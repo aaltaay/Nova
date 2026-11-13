@@ -42,6 +42,13 @@ def test_nothing_takes_the_lane_from_a_trade():
     assert held == ("RUNR", None)
 
 
+def test_a_held_trade_keeps_the_lane_while_a_newer_setup_on_its_stock_is_only_armed():
+    """PR #1312 review: Nova still holds RUNR from an earlier setup and a new one there is armed; a near setup on
+    AISP must not take the lane and end the held stock's lines."""
+    held = choose("RUNR", _w(("AISP", "near"), ("RUNR", "armed")), lambda s: s == "RUNR")
+    assert held[0] == "RUNR" and held[1] is not None and held[1].why == "armed"
+
+
 def test_a_failed_read_moves_nothing():
     assert choose("RUNR", _w(error="the setup scanner could not be read"), no_trade)[0] == "RUNR"
     assert choose(None, _w(error="the bot session could not be read"), no_trade) == (None, None)

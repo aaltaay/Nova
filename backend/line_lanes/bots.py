@@ -41,8 +41,10 @@ def choose(current: str | None, wanted: Wanted, nova_trade: Callable[[str], bool
         return current, wanted.get(current) if current else None
     if current:
         mine = wanted.get(current)
-        if mine is not None or nova_trade(current):
-            in_trade = (mine is not None and mine.why == WHY_TRADE) or (mine is None)
+        # A trade Nova holds keeps the lane even while a newer setup on the stock is only armed (PR #1312 review).
+        held = nova_trade(current)
+        if mine is not None or held:
+            in_trade = held or (mine is not None and mine.why == WHY_TRADE)
             better = best is not None and best.symbol != current and (
                 mine is None or rank(best.why) < rank(mine.why))
             if in_trade or not better:

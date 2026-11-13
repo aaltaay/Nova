@@ -5,7 +5,9 @@ A resting order holds no Level 2 or Time & Sales line: those are the lanes' (``l
 stock's prints while a lane is on the stock, and on IBKR's Level 1 Last otherwise (``fill_basis: "l1_last"``,
 ``practice.reference.PaperReference.l1_trade_while_tape_missing``). So the order keeps:
 
-- a Level 1 line (``ibkr.ticks``, owner ``practice``) -- IBKR's Last, the stand-in when no lane is on the stock;
+- a Level 1 line (``ibkr.ticks``, owner ``practice``) -- IBKR's Last, the stand-in when no lane is on the stock.
+  Each pass asks ``ticks`` whether the line is still this module's: a reconnect clears every Level 1 line
+  (``ticks.clear_all_subscriptions``), and the next pass opens it again (PR #1312 review);
 - the tape archive's watch (``l2.tape``): resting fills read their prints from the archive, which persists only
   symbols somebody registered. The watch is withdrawn on release unless a recorder has since taken the symbol over
   (it stamps a session id; this module never does).
@@ -54,8 +56,10 @@ async def acquire(symbol: str) -> str | None:
     sym = symbol.strip().upper()
     hold = _held.setdefault(sym, {"l1": False, "watch": False})
     _ensure_watch(sym)
-    if hold["l1"]:
+    # The line, not this module's memory of it: a reconnect let go of every Level 1 line under the hold.
+    if hold["l1"] and OWNER in ticks.owners_for(sym):
         return None
+    hold["l1"] = False
     if not await ticks.subscribe(sym, OWNER):
         return f"IBKR did not open {sym}'s Level 1 line"
     hold["l1"] = True
