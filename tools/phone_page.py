@@ -7,8 +7,9 @@ invisible until the operator asked why the phone had not changed. This names bot
 
 - **Packages:** every package ``frontend/package.json`` asks for is installed, at the version
   ``package-lock.json`` pins. A missing one fails the build.
-- **Build:** the built page is newer than every file it is built from. A file changed since (a pull,
-  a merge) is not on the phone until the page is built again.
+- **Build:** the built page is newer than everything it is built from: the code, the build's settings and
+  the local files those import, and the folders that hold them (so a file removed counts too). A change
+  since (a pull, a merge) is not on the phone until the page is built again.
 
     py -3 tools/phone_page.py check     # read only; exit 0 when the phone has this PC's code, 1 when not
     py -3 tools/phone_page.py update    # side effects: npm install (only when a package is off), then npm run build
@@ -20,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -67,17 +69,45 @@ def package_problems(frontend: Path) -> list[str]:
     return problems
 
 
+BUILD_CONFIG = "vite.config.ts"
+IMPORT_RE = re.compile(r"""^\s*import\s[^'"]*['"](\.{1,2}/[^'"]+)['"]""", re.MULTILINE)
+IMPORT_EXTS = ("", ".ts", ".mts", ".mjs", ".js")
+
+
+def build_helpers(frontend: Path) -> list[Path]:
+    """Every local file the build's settings import, and what those import in turn (``electron/appTitle.mjs``
+    rewrites each built page's title, ``scripts/`` adds plugins): a change there changes the page too."""
+    seen: set[Path] = set()
+    todo = [frontend / BUILD_CONFIG]
+    while todo:
+        path = todo.pop()
+        if path in seen or not path.is_file():
+            continue
+        seen.add(path)
+        for spec in IMPORT_RE.findall(path.read_text(encoding="utf-8", errors="replace")):
+            base = (path.parent / spec).resolve()
+            found = next((base.with_name(base.name + ext) for ext in IMPORT_EXTS if base.with_name(base.name + ext).is_file()), None)
+            if found and frontend.resolve() in found.parents:
+                todo.append(found)
+    return sorted(seen)
+
+
 def newest_source(frontend: Path) -> tuple[float, Path] | None:
-    """The most recently changed file the build reads, by its time on disk (a pull or a checkout sets it)."""
+    """The most recent change to what the build reads, by its time on disk (a pull or a checkout sets it).
+
+    Folders count as well as files: deleting a file changes its folder's time, and a page built before a
+    file was removed still holds what that file put there.
+    """
     best: tuple[float, Path] | None = None
-    for name in SOURCES:
-        root = frontend / name
-        files = [root] if root.is_file() else (p for p in root.rglob("*") if p.is_file()) if root.is_dir() else []
-        for path in files:
+    roots = [frontend / name for name in SOURCES] + build_helpers(frontend)
+    for root in roots:
+        paths = [root] if root.is_file() else [root, *root.rglob("*")] if root.is_dir() else []
+        for path in paths:
             if SKIP_DIRS.intersection(path.relative_to(frontend).parts):
                 continue
             stamp = path.stat().st_mtime
-            if best is None or stamp > best[0]:
+            # On a tie a file is named over its folder: it says more about what changed.
+            if best is None or (stamp, path.is_file()) > (best[0], best[1].is_file()):
                 best = (stamp, path)
     return best
 

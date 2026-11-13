@@ -19,9 +19,13 @@ from tools import phone_page  # noqa: E402
 
 
 def _write(path: Path, text: str, mtime: float) -> None:
+    """A file arriving at *mtime*, as a pull writes it: its folders change at the same moment."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
-    os.utime(path, (mtime, mtime))
+    for p in (path, *path.parents):
+        if p.name.startswith("pytest-") or p.name.startswith("test_"):
+            break
+        os.utime(p, (mtime, mtime))
 
 
 @pytest.fixture
@@ -34,6 +38,13 @@ def frontend(tmp_path: Path) -> Path:
     _write(tmp_path / "node_modules/react/package.json", json.dumps({"version": "19.2.0"}), 50)
     _write(tmp_path / "node_modules/vite/package.json", json.dumps({"version": "8.0.1"}), 50)
     _write(tmp_path / "src/phone/AccountScreen.tsx", "export {}", 100)
+    _write(tmp_path / "public/phone/icon.svg", "<svg/>", 100)
+    _write(tmp_path / "vite.config.ts", "import { injectNovaTitle } from './electron/appTitle.mjs'\nimport react from '@vitejs/plugin-react'\n", 100)
+    _write(tmp_path / "electron/appTitle.mjs", "import { tag } from './releaseTag.mjs'\nexport const injectNovaTitle = 1\n", 100)
+    _write(tmp_path / "electron/releaseTag.mjs", "export const tag = 1\n", 100)
+    _write(tmp_path / "electron/main.mjs", "// the desktop app: not part of the page\n", 100)
+    for folder in ("src/phone", "src", "public/phone", "public", "electron"):
+        os.utime(tmp_path / folder, (100, 100))
     _write(tmp_path / "dist/phone.html", "<html>", 200)
     return tmp_path
 
@@ -50,6 +61,29 @@ def test_code_changed_after_the_build_says_the_phone_is_behind_and_which_file(fr
     assert not report.ok
     assert report.newest == "src/phone/screens/AccountCalendar.tsx"
     assert "built before the code" in report.build
+
+
+def test_a_pull_that_only_deletes_a_file_still_says_the_phone_is_behind(frontend: Path) -> None:
+    # Review of PR 1316: the files left keep their old times, but the folder that held the deleted one does not.
+    (frontend / "public/phone/icon.svg").unlink()
+    os.utime(frontend / "public/phone", (300, 300))
+    report = phone_page.check(frontend)
+    assert not report.ok
+    assert report.newest == "public/phone"
+
+
+def test_a_change_to_a_helper_the_build_settings_import_says_the_phone_is_behind(frontend: Path) -> None:
+    # Review of PR 1316: vite.config.ts imports electron/appTitle.mjs, which rewrites every built page's title.
+    _write(frontend / "electron/releaseTag.mjs", "export const tag = 2\n", 300)   # imported by an import
+    report = phone_page.check(frontend)
+    assert report.newest == "electron/releaseTag.mjs"
+    assert [p.name for p in phone_page.build_helpers(frontend)] == ["appTitle.mjs", "releaseTag.mjs", "vite.config.ts"]
+
+
+def test_a_desktop_file_the_build_never_imports_does_not_count(frontend: Path) -> None:
+    _write(frontend / "electron/main.mjs", "// changed\n", 300)
+    os.utime(frontend / "electron", (100, 100))
+    assert phone_page.check(frontend).ok
 
 
 def test_a_package_the_code_needs_but_nobody_installed_is_named(frontend: Path) -> None:
@@ -77,6 +111,8 @@ def test_a_page_never_built_is_said(frontend: Path) -> None:
 def test_installed_packages_are_not_read_as_code(frontend: Path) -> None:
     # node_modules sits beside src, never under a source folder; a test snapshot never counts either.
     _write(frontend / "src/phone/__snapshots__/x.snap", "", 999)
+    for folder in ("src/phone", "src"):
+        os.utime(frontend / folder, (100, 100))
     assert phone_page.check(frontend).ok
 
 
