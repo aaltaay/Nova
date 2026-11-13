@@ -6,7 +6,7 @@ from datetime import datetime
 
 import pytest
 
-from practice import matcher, tape_hold
+from practice import matcher, resting_watch
 from practice.broker import PracticeBroker
 from practice.clock import ET
 from practice.ledger import Ledger
@@ -42,7 +42,7 @@ def desk(monkeypatch):
         holds.append(sorted(wanted))
         return dict(errors)
 
-    monkeypatch.setattr(tape_hold, "reconcile", reconcile)
+    monkeypatch.setattr(resting_watch, "reconcile", reconcile)
     matcher.reset_for_tests()
     ref = FakeLive()
     broker = PracticeBroker(ref, Ledger(100_000, created_ts=NOW), "NOVA-PAPER", venue="paper")

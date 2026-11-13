@@ -103,10 +103,16 @@ def _push_queue(symbol: str, payload: dict) -> None:
                 logger.warning("IBKR tape: queue still full for %s after drop", symbol)
 
 
-def push_lent(symbol: str, frame: dict) -> None:
-    """Tell every viewer the AllLast line is lent (ADR 044 decision 6, ``line_lending``): each
-    socket sends ``frame`` and closes, and its tab waits instead of reconnecting by its backoff."""
-    _push_queue(symbol.upper(), dict(frame, type="lent"))
+def push_lane(symbol: str, message: str, lane: dict) -> None:
+    """No lane is on this stock any more (ADR 071, ``line_lanes``): every viewer's socket sends
+    ``{"type": "lane", symbol, message, lane}`` and closes, and its pane waits for the operator."""
+    sym = symbol.upper()
+    _push_queue(sym, {"type": "lane", "symbol": sym, "message": message, "lane": dict(lane)})
+
+
+def forget_viewers(symbol: str) -> None:
+    """The line is ending under its viewers (ADR 071): their count goes with it (``ibkr.depth.forget_viewers``)."""
+    _ws_viewers.pop(symbol.upper(), None)
 
 
 def _on_tape_update(ticker: Any, symbol: str) -> None:
@@ -207,8 +213,16 @@ async def subscribe_async(symbol: str, *, automatic: bool = False) -> dict:
 
     Returns {"ok": True/False, "error": None/"..."}.
     Safe to call multiple times — idempotent once subscribed.
+
+    A line opens only for a stock a lane is on (ADR 071, ``line_lanes.lanes.refusal``): any other request is
+    refused in words with ``lane: true`` and nothing is asked of IBKR.
     """
     symbol = symbol.upper()
+    from line_lanes import lanes as _lanes
+
+    no_lane = _lanes.refusal(symbol)
+    if no_lane is not None:
+        return {"ok": False, "error": no_lane, "lane": True}
     _cancel_linger(symbol)
     ib = _client.get_ib()
     if ib is None:

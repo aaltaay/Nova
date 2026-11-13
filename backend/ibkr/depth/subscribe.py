@@ -35,14 +35,14 @@ def _facade_attr(name: str):
     return getattr(facade, name)
 
 
-async def subscribe_async(symbol: str, *, live: bool = False, agent: bool = False) -> dict:
+async def subscribe_async(symbol: str, *, live: bool = False) -> dict:
     """
     Qualify + subscribe to Level 2 (or L1 fallback).
     Safe under FastAPI's running event loop.
 
-    ``agent`` is Claude's own line (ADR 068). Every other request leaves Claude's
-    reserved line alone: past ``agent_trader.lines.desk_cap`` lines of its own it is
-    refused in words, with ``agent_reserved: true``.
+    A live line opens only for a stock a lane is on (ADR 071, ``line_lanes.lanes.refusal``): any other
+    request is refused in words with ``lane: true`` and no IBKR request is sent. A replay slot is not a
+    line and is not asked.
 
     ``live`` opens a real IBKR line even on a Sim desk, replacing a replay slot:
     Session Record captures the live market whatever the desk is practising on
@@ -71,6 +71,12 @@ async def subscribe_async(symbol: str, *, live: bool = False, agent: bool = Fals
     if is_sim_mode():
         live = True
 
+    from line_lanes import lanes as _lanes
+
+    no_lane = _lanes.refusal(symbol)
+    if no_lane is not None:
+        return {"ok": False, "error": no_lane, "lane": True, "symbols": state.subscribed_symbols()}
+
     if not _client.is_ready():
         return {
             "ok": False,
@@ -90,9 +96,6 @@ async def subscribe_async(symbol: str, *, live: bool = False, agent: bool = Fals
 
         if len(state._subscriptions) >= IBKR_MAX_DEPTH_SYMBOLS:
             await evict_for_capacity(symbol)
-        if not agent and (held_for_agent := _agent_refusal(symbol)):
-            return {"ok": False, "error": held_for_agent, "cap": True, "agent_reserved": True,
-                    "symbols": state.subscribed_symbols()}
         if len(state._subscriptions) >= IBKR_MAX_DEPTH_SYMBOLS:
             return {
                 "ok": False,
@@ -197,24 +200,19 @@ async def subscribe_async(symbol: str, *, live: bool = False, agent: bool = Fals
         return {"ok": True, "error": None, "symbols": state.subscribed_symbols()}
 
 
-def _agent_refusal(symbol: str) -> str | None:
-    """Why a desk request must leave Claude's reserved line alone (ADR 068), or None."""
-    from agent_trader import lines as agent_lines
-
-    return agent_lines.desk_refusal(symbol)
-
-
 async def evict_for_capacity(incoming: str) -> None:
     """Free idle depth slot(s) so `incoming` can subscribe.
 
-    Live viewers (``viewer_count > 0``) are never evicted -- a 4th symbol
-    is refused by the caller (ADR 011 / D-027). Idle-only eviction stays
-    so a leaked empty slot cannot wedge the cap.
+    Live viewers (``viewer_count > 0``) and a lane's stock (ADR 071) are
+    never evicted -- a 4th symbol is refused by the caller (ADR 011 / D-027).
+    Idle-only eviction stays so a leaked empty slot cannot wedge the cap.
     """
+    from line_lanes import lanes as _lanes
+
     while len(state._subscriptions) >= IBKR_MAX_DEPTH_SYMBOLS:
         idle = [
             s for s in list(state._subscriptions.keys())
-            if s != incoming and state.viewer_count(s) <= 0
+            if s != incoming and state.viewer_count(s) <= 0 and not _lanes.on_lane(s)
         ]
         if not idle:
             logger.warning(

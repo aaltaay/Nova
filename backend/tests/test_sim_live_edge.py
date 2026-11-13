@@ -20,7 +20,7 @@ import pytest
 from constants_practice import PRACTICE_NO_LIVE_PRINT_CODE
 from ibkr import client as _client
 from practice import broker as practice_broker
-from practice import matcher, tape_hold
+from practice import matcher, resting_watch
 from sim import broker, feed, practice, replay, routes as sim_routes
 from sim import live_edge as edge
 from sim import session_clock as clock
@@ -149,7 +149,7 @@ async def test_the_live_matcher_holds_sim_lines_at_the_edge_and_paper_always(wal
         held.append(sorted(wanted))
         return {}
 
-    monkeypatch.setattr(tape_hold, "reconcile", reconcile)
+    monkeypatch.setattr(resting_watch, "reconcile", reconcile)
     matcher.reset_for_tests()
     broker.place("IMCC", "BUY", 5, "LMT", limit_price=9.5)
     assert [b.venue for b in matcher.live_brokers()] == ["paper", "sim"]

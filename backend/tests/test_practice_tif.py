@@ -21,7 +21,7 @@ from constants_practice import (
     PRACTICE_TIF_EXPIRED_CODE,
     PRACTICE_TIF_EXPIRED_REASON,
 )
-from practice import broker as practice_broker, matcher, tape_hold
+from practice import broker as practice_broker, matcher, resting_watch
 from practice.broker import for_venue, reset_for_tests
 from practice.clock import ET
 from practice.ledger import EVENT_EXPIRED, EVENT_PLACED
@@ -62,7 +62,7 @@ def paper(monkeypatch):
     async def reconcile(wanted):
         return {}
 
-    monkeypatch.setattr(tape_hold, "reconcile", reconcile)
+    monkeypatch.setattr(resting_watch, "reconcile", reconcile)
     yield SimpleNamespace(broker=for_venue("paper"), ref=fake)
     reset_for_tests()
     matcher.reset_for_tests()

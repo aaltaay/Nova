@@ -69,7 +69,7 @@
 .bots-botcard__note { margin: 0; font-size: 11.5px; color: var(--nova-text-muted); line-height: 1.45; }
 .bots-botcard__trade { margin: 0; font-size: 12.5px; line-height: 1.45; font-variant-numeric: tabular-nums; }
 
-/* The Bot switch and the lending switch are buttons with role="switch" (the older .bots-switch wraps a
+/* The Bot switch is a button with role="switch" (the older .bots-switch wraps a
    checkbox: botsPage.css). */
 button.bots-switch {
   font: inherit;
@@ -108,18 +108,6 @@ button.bots-switch.is-on .bots-switch__track::after { transform: translateX(18px
   background: color-mix(in srgb, var(--nova-text-muted) 18%, transparent);
 }
 .bots-switch__state.is-on { color: #04140a; background: var(--bots-green); }
-
-button.bots-switch--small { width: auto; flex: 0 1 340px; padding: 6px 9px; }
-button.bots-switch--small .bots-switch__track { width: 30px; height: 18px; border-radius: 9px; }
-button.bots-switch--small .bots-switch__track::after { width: 14px; height: 14px; }
-button.bots-switch--small.is-on {
-  border-color: color-mix(in srgb, var(--bots-blue) 55%, transparent);
-  background: color-mix(in srgb, var(--bots-blue) 8%, transparent);
-}
-button.bots-switch--small.is-on .bots-switch__track { background: var(--bots-blue); }
-button.bots-switch--small.is-on .bots-switch__track::after { transform: translateX(12px); }
-button.bots-switch--small .bots-switch__txt b { font-size: 12.5px; }
-button.bots-switch--small .bots-switch__txt small { font-size: 11px; }
 
 .bots-confirm {
   display: flex;

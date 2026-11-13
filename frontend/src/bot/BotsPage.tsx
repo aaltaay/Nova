@@ -3,7 +3,7 @@
  * decides whether the strategies' bot trades, long or short, on one page. Top to bottom: the Strategy Bots key (the
  * family's, under the header's Bot switch); "Can Nova buy right now?" in one line for every ticker; the Bot card
  * (Freeze all orders, what the bot may risk); the strategies, each Off / Eyes / On with its bot rules; IBKR's Level 2
- * lines and lending; Tickers today (the hot list and the squares by ticker); then today's numbers, the proposals and
+ * lines, one per lane; Tickers today (the hot list and the squares by ticker); then today's numbers, the proposals and
  * the activity. A shell page like Account (nav rail -> NavPageHost). Nothing here places an order except through the
  * bot's own gated path, and nothing that keeps Nova from buying is hidden.
  */

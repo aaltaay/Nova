@@ -15,7 +15,6 @@ import { useIbkrAccountContext } from '../../ibkr/IbkrAccountContext';
 import { newGestureKey } from '../../ibkr/gestureKey';
 import type { ManualOrderPayload } from '../../ibkr/orderEntry';
 import { placeIbkrOrder } from '../../ibkr/placeOrder';
-import { depthLentText } from '../../ibkr/lentWords';
 import type { DepthBook, IbkrOrder, IbkrPosition } from '../../ibkr/types';
 import { useBotsQty } from '../../ibkr/useDeskPositions';
 import { useIbkrDepth } from '../../ibkr/useIbkrDepth';
@@ -89,7 +88,8 @@ export function useLevel2Age(symbol: string | null): number | null {
 }
 
 function bookWhyOf(depth: ReturnType<typeof useIbkrDepth>): string | null {
-  if (depth.lent) return depthLentText(depth.lent);
+  // No lane on the stock (ADR 071): coming back to this screen brings your lane here.
+  if (depth.laneWait) return depth.laneWait.plain;
   if (depth.error) return depth.error;
   if (depth.book?.l1_fallback) return 'IBKR sent no Level 2 for this stock: this is the top of book only.';
   return null;

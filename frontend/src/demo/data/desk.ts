@@ -63,7 +63,7 @@ export function ibkrStatus(venue: Venue, nowS: number) {
     capture: false, recording: false, capture_symbol: null, capture_symbols: [], capture_sessions: [], capture_resume: [],
     capture_stopped: [], capture_error: null, capture_errors: {},
     leaderboard_recorder: { recording: true, ok: true, error: null, since: nowS - 20_000, run_id: 'lb-2026-09-30' },
-    auto_record: null, live_edge: false,
+    lanes: null, recording_switch: null, live_edge: false,
   };
 }
 

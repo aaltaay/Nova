@@ -85,33 +85,6 @@ def test_record_opens_and_holds_both_lines_like_a_viewer(lines):
     assert feed_hold.held("IMCC") == {"tape": True, "depth": True}
 
 
-def test_automatic_renewals_keep_their_admission_class_until_operator_takes_over(lines, monkeypatch):
-    from leaderboard import auto_record
-
-    monkeypatch.setitem(auto_record._auto, "IMCC", 1.0)
-    assert asyncio.run(feed_hold.acquire("IMCC", automatic=True)) is None
-    lines.tape.subscribed.clear()
-    assert asyncio.run(feed_hold.renew_tape("IMCC")) is None
-    assert lines.tape.automatic == [True, True]
-    auto_record._auto.pop("IMCC")  # manual takeover: keep the held reference, change only ownership
-    lines.tape.subscribed.clear()
-    assert asyncio.run(feed_hold.renew_tape("IMCC")) is None
-    assert lines.tape.automatic == [True, True, False]
-    assert lines.tape.viewers["IMCC"] == 1
-
-
-def test_an_operator_viewer_sharing_auto_record_keeps_renewal_priority(lines, monkeypatch):
-    from leaderboard import auto_record
-
-    monkeypatch.setitem(auto_record._auto, "IMCC", 1.0)
-    assert asyncio.run(feed_hold.acquire("IMCC", automatic=True)) is None
-    lines.tape.ws_viewer_opened("IMCC")
-    lines.tape.subscribed.clear()
-    assert asyncio.run(feed_hold.renew_tape("IMCC")) is None
-    assert lines.tape.automatic == [True, False]
-    assert lines.tape.viewers["IMCC"] == 2
-
-
 def test_a_panel_closing_cannot_pull_the_recording_feed(lines):
     asyncio.run(feed_hold.acquire("IMCC"))
     lines.tape.ws_viewer_opened("IMCC")                  # a Time & Sales panel opens...

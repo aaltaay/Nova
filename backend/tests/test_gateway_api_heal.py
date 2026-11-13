@@ -139,13 +139,3 @@ def test_the_launcher_sees_a_running_gateway_and_starts_no_second(monkeypatch):
 
     monkeypatch.setattr(gateway_process, "running", lambda now=None: True)
     assert launch_gateway._gateway_process_running() is True
-
-
-def test_the_ladder_names_who_holds_every_line():
-    from line_lending.view import cap_words
-
-    lines = [{"symbol": "SDEV", "held_by": "record"}, {"symbol": "SSM", "held_by": "record"},
-             {"symbol": "AMOD", "held_by": "tab"}]
-    words = cap_words("AZTA", lines)
-    assert "AMOD in another Level 2" in words and "SDEV and SSM recording" in words
-    assert "AZTA's book comes up by itself" in words

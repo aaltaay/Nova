@@ -12,7 +12,7 @@ import pytest
 from ib_async import IB, Stock
 
 from ibkr import client, halt_status, stray_lines, tape_recording, tape_silence, tape_stream as tape
-from line_lending import sockets, tape_heal
+from line_lanes import sockets, tape_heal
 
 
 async def _until(test):
@@ -54,7 +54,7 @@ def sdk(monkeypatch):
     monkeypatch.setattr(tape_recording, "_errors", {})
     monkeypatch.setattr(tape_silence, "l1_trade_at", lambda sym: clock["now"])
     monkeypatch.setattr(halt_status, "halted_now", lambda syms, now=None: {s: False for s in syms})
-    monkeypatch.setattr(tape_heal, "LINE_LENDING_TAPE_HEAL_POLL_SEC", 0.001)
+    monkeypatch.setattr(tape_heal, "LANES_TAPE_HEAL_POLL_SEC", 0.001)
     from capture import feed_hold
     from ibkr import tape_recovery
     from sim import mode
@@ -96,7 +96,7 @@ def test_registered_missing_trades_and_late_old_prints_never_imply_recovery(sdk,
             _print(ib, requests[-1])
         assert (await tape.subscribe_async("SCNI"))["ok"]  # opened into the shared stall, never printed
         tape.ws_viewer_opened(target)
-        sockets.opened(target, tab=True, front=True, now=clock["now"], kind=sockets.TAPE)
+        sockets.opened(target, tab=True, front=True, kind=sockets.TAPE)
         queue1, queue2 = tape.open_viewer_queue(target), tape.open_viewer_queue(target)
         tape.ws_viewer_opened(target)
         old_req = ib.wrapper.subscriptions.find_market_data(tape._contracts[target].conId, "AllLast").reqId

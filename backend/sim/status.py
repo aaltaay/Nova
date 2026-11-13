@@ -52,7 +52,8 @@ def _recording_fields() -> dict[str, Any]:
 
 
 def _leaderboard_fields() -> dict[str, Any]:
-    """The always-on scanner recorder and auto-record (ADR 023) -- quiet unless broken."""
+    """The always-on scanner recorder (ADR 023), the three lanes and their recording switch (ADR 071) -- quiet
+    unless broken."""
     out: dict[str, Any] = {}
     try:
         from leaderboard import recorder as leaderboard_recorder
@@ -65,15 +66,14 @@ def _leaderboard_fields() -> dict[str, Any]:
             "since": None, "run_id": None,
         }
     try:
-        from leaderboard import auto_record
+        from line_lanes import view as lanes_view
 
-        out["auto_record"] = auto_record.status()
+        out["lanes"] = lanes_view.view()
+        out["recording_switch"] = lanes_view.recording_switch()
     except Exception:
-        logger.exception("LEADERBOARD: auto-record status unavailable")
-        out["auto_record"] = {
-            "active": False, "window": "", "symbols": [], "yielded": [],
-            "last_error": "Auto-record status unavailable",
-        }
+        logger.exception("LANES: status unavailable")
+        out["lanes"] = None
+        out["recording_switch"] = None
     return out
 
 

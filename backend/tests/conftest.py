@@ -183,6 +183,25 @@ def _reset_order_state_memory():
         module.reset_for_tests()
 
 
+@pytest.fixture(autouse=True)
+def _reset_lanes():
+    # The three lanes (ADR 071) live for the process; each test starts with them empty. The lanes' gate is open by
+    # default here, so a test that drives a line without putting a lane on its stock keeps working; the lanes' own
+    # tests (test_line_lanes_*.py) close it with ``lanes.enforce(True)``.
+    from line_lanes import bots, lanes, recording, sockets
+
+    def reset() -> None:
+        lanes.reset_for_tests()
+        bots.reset_for_tests()
+        recording.reset_for_tests()
+        sockets.reset_for_tests()
+        lanes.enforce(False)
+
+    reset()
+    yield
+    reset()
+
+
 def _clear_session_error_state() -> None:
     from ibkr import farm_notices, l1_refused, reference_errors, scanner_l1, session_errors
 

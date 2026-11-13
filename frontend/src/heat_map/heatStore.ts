@@ -54,7 +54,8 @@ export interface HeatBurst {
 }
 
 export interface HeatLine {
-  state: 'lent' | 'error';
+  /** `lane`: no lane is on the stock (ADR 071); `error`: IBKR refused the line. */
+  state: 'lane' | 'error';
   why: string;
 }
 
@@ -90,7 +91,7 @@ export interface HeatSymbol {
 
 const VOL_SLOTS = HEAT_KEEP_SEC + 120;
 const stocks = new Map<string, HeatSymbol>();
-/** A refused or lent line before the stock's first book or print: kept so the view can say why (bounded). */
+/** A refused line, or a stock no lane is on, before its first book or print: kept so the view can say why (bounded). */
 const pendingLines = new Map<string, HeatLine>();
 const PENDING_LINES_KEEP = 16;
 
@@ -247,7 +248,7 @@ export function noteHeatBeat(symbol: string, wallMs = Date.now()): void {
   s.version += 1;
 }
 
-/** The depth line was lent to a setup or refused: the view says so, with or without a book yet. */
+/** No lane is on the stock, or IBKR refused the depth line: the view says so, with or without a book yet. */
 export function noteHeatLine(symbol: string, state: HeatLine['state'], why: string): void {
   const s = stocks.get(symbol);
   if (s) {
@@ -260,7 +261,7 @@ export function noteHeatLine(symbol: string, state: HeatLine['state'], why: stri
   if (pendingLines.size > PENDING_LINES_KEEP) pendingLines.delete(pendingLines.keys().next().value as string);
 }
 
-/** Why a stock with no heat yet has no line (refused or lent), or null. */
+/** Why a stock with no heat yet has no line (refused, or no lane on it), or null. */
 export function heatPendingLine(symbol: string): HeatLine | null {
   return pendingLines.get(symbol) ?? null;
 }

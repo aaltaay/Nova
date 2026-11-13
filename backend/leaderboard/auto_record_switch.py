@@ -75,17 +75,17 @@ def read(at: Path) -> tuple[dict[str, Any] | None, str | None]:
         return None, None
     except (OSError, ValueError) as exc:
         logger.warning("AUTO-RECORD: %s is unreadable -- the switch reads On", at, exc_info=True)
-        return None, f"Nova could not read the saved switch ({type(exc).__name__}), so auto-record is on"
+        return None, f"Nova could not read the saved switch ({type(exc).__name__}), so recording is on"
     version = doc.get("schema_version") if isinstance(doc, dict) else None
     if version != AUTO_RECORD_SWITCH_SCHEMA_VERSION:
         logger.warning("AUTO-RECORD: %s has schema_version %s; this build reads %s -- the switch reads On",
                        at, version, AUTO_RECORD_SWITCH_SCHEMA_VERSION)
         return None, (f"The saved switch is version {version}; this Nova reads version "
-                      f"{AUTO_RECORD_SWITCH_SCHEMA_VERSION}, so auto-record is on")
+                      f"{AUTO_RECORD_SWITCH_SCHEMA_VERSION}, so recording is on")
     mode = doc.get("mode")
     if mode not in MODES:
         logger.warning("AUTO-RECORD: %s names mode %r -- the switch reads On", at, mode)
-        return None, f"The saved switch names an unknown setting ({mode!r}), so auto-record is on"
+        return None, f"The saved switch names an unknown setting ({mode!r}), so recording is on"
     day = doc.get("day")
     set_at = doc.get("set_at")
     return {"mode": mode, "day": day if isinstance(day, str) else None,

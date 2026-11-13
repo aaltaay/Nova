@@ -138,7 +138,7 @@ def test_a_line_that_never_printed_counts_from_its_opening(monkeypatch):
 
 
 def test_unverified_reask_keeps_the_order_gate_locked_across_guard_and_resubscribe(monkeypatch):
-    from line_lending import tape_heal
+    from line_lanes import tape_heal
 
     now = time.time()
     outage = {"since": now - 40, "last_print_ts": now - 40, "last_print_exchange_ts": now - 40, "line_since": now - 300}
@@ -341,14 +341,14 @@ class _Live:
 
 @pytest.fixture
 def paper(monkeypatch):
-    from practice import matcher, tape_hold
+    from practice import matcher, resting_watch
     from practice.broker import PracticeBroker
     from practice.ledger import Ledger
 
     async def reconcile(wanted):
         return {}
 
-    monkeypatch.setattr(tape_hold, "reconcile", reconcile)
+    monkeypatch.setattr(resting_watch, "reconcile", reconcile)
     monkeypatch.setattr(matcher, "_note_silence", lambda symbol: None)
     matcher.reset_for_tests()
     ref = _Live()
@@ -397,7 +397,7 @@ def test_the_tape_socket_sends_the_gates_answer_on_pings_and_when_it_changes(mon
     from fastapi.testclient import TestClient
 
     from ibkr import tape_stream
-    from line_lending import socket_gate
+    from line_lanes import sockets as lane_sockets
 
     ws_mod = trading_tape_ws
 
@@ -408,17 +408,16 @@ def test_the_tape_socket_sends_the_gates_answer_on_pings_and_when_it_changes(mon
     silence = {"state": "dead", "since": T0, "text": "Registered tape is missing Level 1 trades", "pipeline": []}
     recovery_calls = []
     monkeypatch.setattr(ws_mod, "_silence", lambda symbol, halt_seen_at: silence)
-    monkeypatch.setattr(socket_gate, "line_down", lambda symbol, **kwargs: recovery_calls.append((symbol, kwargs)))
+    monkeypatch.setattr(lane_sockets, "line_down", lambda symbol, **kwargs: recovery_calls.append((symbol, kwargs)))
     monkeypatch.setattr(ws_mod, "_gate", lambda symbol: next(answers))
     monkeypatch.setattr(ws_mod, "MARKET_VIEW_GATE_SEND_SEC", 0.0)
 
-    async def gate(symbol, front=False):
+    async def opening(symbol, front=False):
         return None
 
-    monkeypatch.setattr(socket_gate, "gate", gate)
-    monkeypatch.setattr(socket_gate, "opened", lambda symbol, **kw: 1)
-    monkeypatch.setattr(socket_gate, "closed", lambda symbol, token, kind: None)
-    monkeypatch.setattr(socket_gate, "lent_now", lambda symbol, front=False: None)
+    monkeypatch.setattr(lane_sockets, "opening", opening)
+    monkeypatch.setattr(lane_sockets, "opened", lambda symbol, **kw: 1)
+    monkeypatch.setattr(lane_sockets, "closed", lambda symbol, token, kind=None: None)
     monkeypatch.setattr(tape_stream, "is_subscribed", lambda symbol: True)
     monkeypatch.setattr(tape_stream, "ws_viewer_opened", lambda symbol: None)
     monkeypatch.setattr(tape_stream, "ws_viewer_closed", lambda symbol: False)

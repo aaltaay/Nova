@@ -84,9 +84,18 @@ function sharedRoutes(nowS: number): [RegExp, Handler][] {
     [/^\/api\/ibkr\/capacity$/, () => ({
       schema_version: 1, generated_at: nowS,
       l1: { used: 34, cap: 100, cap_learned: false, reserve: 5, refused: 0, by_owner: { scanner: 28, hod: 14, detail: 2 } },
-      l2: { used: 1, cap: 3, symbols: [{ symbol: SMPL, held_by: 'tab' }] },
+      l2: { used: 1, cap: 3, symbols: [{ symbol: SMPL, held_by: 'you' }] },
       history: { used: 12, cap: 300, window_sec: 600, next_free_sec: 0, by_kind: { charts: 9, tape: 2, daily: 1, market: 0 } },
       tape: { used: 1, cap: null, symbols: [SMPL] },
+    })],
+    // ADR 071: the three lanes -- your lane on the sample stock, Claude's and the bots' empty.
+    [/^\/api\/ibkr\/lanes$/, () => ({
+      schema_version: 1, generated_at: nowS,
+      you: { symbol: SMPL, since: nowS - 1_800, depth: true, tape: true, recording: false, error: null },
+      claude: { symbol: null, since: null, depth: false, tape: false, recording: false, error: null },
+      bots: { symbol: null, since: null, depth: false, tape: false, recording: false, error: null, setup: null, why: null,
+        waiting: [] },
+      tape_capacity: null, recording_error: null,
     })],
     [/^\/api\/ibkr\/feed$/, () => ({
       schema_version: 1, now: nowS, connected: true, in_session: true, last_data_ts: nowS - 0.2, silent_sec: 0.2,

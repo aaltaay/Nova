@@ -9,8 +9,9 @@ after its linger, and the depth line after its grace window.
 
 Here Record takes its own reference on both lines, counted exactly like a
 viewer, for as long as it records. Panels opening, closing or switching to Sim
-cannot pull the feed; stop releases through the same linger / grace paths the
-panels use, so a panel still watching keeps its line. The depth line is best
+cannot pull the feed. Since ADR 071 the lines are a lane's: Record joins them,
+and its stop drops only its references -- a lane's line ends only when its lane
+leaves (``line_lanes.lanes``), after the lanes have ended its recording. The depth line is best
 effort: without it prints still record (with an explicit status warning), but
 quotes, Level 2 and the live print side -- classified against that book -- do
 not.
@@ -44,16 +45,6 @@ def held_symbols() -> list[str]:
     return list(_held)
 
 
-def automatic_tape_only(symbol: str) -> bool:
-    """A shared operator viewer makes renewal an operator request, even on an auto recording."""
-    from ibkr import tape_stream
-    from leaderboard import auto_record
-
-    sym = symbol.upper()
-    own_viewer = int(bool((_held.get(sym) or {}).get("tape")))
-    return sym in auto_record.held_symbols() and tape_stream.viewer_count(sym) <= own_viewer
-
-
 def orphans(recording: Iterable[str], now: float | None = None) -> list[str]:
     """Holds no recording uses -- e.g. the recorder stopped itself on a disk error.
 
@@ -68,11 +59,12 @@ def orphans(recording: Iterable[str], now: float | None = None) -> list[str]:
             if sym not in wanted and stamp - _taken_at.get(sym, 0.0) >= CAPTURE_HOLD_ORPHAN_GRACE_SEC]
 
 
-async def acquire(symbol: str, *, automatic: bool = False) -> str | None:
+async def acquire(symbol: str) -> str | None:
     """Open (or join) the tape and depth lines and hold them; return an error or None.
 
     Idempotent per symbol. A tape failure refuses the recording -- there is
-    nothing to record without prints -- and holds nothing.
+    nothing to record without prints -- and holds nothing. Only a stock a lane is on
+    opens (ADR 071): any other is refused with the lanes' words.
     """
     from ibkr import depth, tape_stream
 
@@ -80,8 +72,7 @@ async def acquire(symbol: str, *, automatic: bool = False) -> str | None:
     if sym in _held:
         return None
     if not tape_stream.is_subscribed(sym):
-        options = {"automatic": True} if automatic else {}
-        result = await tape_stream.subscribe_async(sym, **options)
+        result = await tape_stream.subscribe_async(sym)
         if not result.get("ok"):
             return result.get("error") or f"Could not open the IBKR tape for {sym}"
     tape_stream.ws_viewer_opened(sym)
@@ -114,13 +105,11 @@ async def renew_tape(symbol: str) -> str | None:
     from ibkr import tape_stream
 
     sym = symbol.strip().upper()
-    automatic = automatic_tape_only(sym)
     if sym not in _held:
-        return await acquire(sym, automatic=automatic)
+        return await acquire(sym)
     if tape_stream.is_subscribed(sym):
         return None
-    options = {"automatic": True} if automatic else {}
-    result = await tape_stream.subscribe_async(sym, **options)
+    result = await tape_stream.subscribe_async(sym)
     if result.get("ok"):
         logger.warning("RECORD: re-requested the IBKR tape line for %s", sym)
         return None
@@ -128,17 +117,26 @@ async def renew_tape(symbol: str) -> str | None:
 
 
 async def release(symbol: str, *, at_once: bool = False) -> None:
-    """Drop this module's references; lines close only if no panel still watches.
+    """Drop this module's references. A lane's line never ends here: only its lane leaving ends it (ADR 071).
+    A line no lane is on (a test with the lanes' gate open) closes as before, if no panel still watches.
 
     ``at_once``: the AllLast line is cancelled now, not after its remount linger -- the line is
     being given to another symbol, and a lingering line still counts against IBKR's cap (#698).
     """
     from ibkr import depth, tape_line, tape_stream
+    from line_lanes import lanes
 
     sym = symbol.strip().upper()
     hold = _held.pop(sym, None)
     _taken_at.pop(sym, None)
     if hold is None:
+        return
+    if lanes.on_lane(sym):
+        if hold["tape"]:
+            tape_stream.ws_viewer_closed(sym)
+        if hold["depth"]:
+            depth.ws_viewer_closed(sym)
+        logger.info("RECORD: released its references on %s (its lane keeps the lines)", sym)
         return
     if hold["tape"] and tape_stream.ws_viewer_closed(sym):
         if not (at_once and tape_line.release_now(sym, "Record gave its line to another symbol")):

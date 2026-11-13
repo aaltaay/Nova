@@ -199,7 +199,7 @@ def _effective_producer(sym: str) -> tuple[bool, dict[str, Any], bool]:
     subscribed = tape_stream.is_subscribed(sym)
     producer = producer_status(sym)
     if not subscribed or producer.get("last_print_ts") is None:
-        from line_lending import tape_heal
+        from line_lanes import tape_heal
 
         reask = tape_heal.unverified_reask(sym)
         if reask is not None:

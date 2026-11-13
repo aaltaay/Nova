@@ -91,7 +91,7 @@ def test_the_drive_is_named_by_its_letter_else_by_its_folder(store_path, where):
     # Every wording on every host: CI's temp store only ever reaches the folder form.
     disk = {"store_bytes": 0, "free_bytes": 42 * GB, "size_error": None, "free_error": None}
     [row, _auto] = collect_leaderboard.leaderboard_rows(
-        recorder=dict(RECORDING), auto={}, store_path=store_path, disk=disk)
+        recorder=dict(RECORDING), lanes={}, switch=None, store_path=store_path, disk=disk)
     assert row["state"] == "warn"
     assert row["detail"].startswith(f"{where} has 42 GB free (warns under 50 GB); the store is 0 MB")
     assert f"Free space on {where}, or move NOVA_LEADERBOARD_DIR" in row["fix"]
@@ -117,13 +117,13 @@ def test_a_store_folder_that_is_not_there_is_unknown_not_ok(monkeypatch):
 def test_an_unreadable_size_is_unknown_with_the_reason():
     disk = {"store_bytes": None, "free_bytes": 800 * GB, "size_error": "PermissionError: denied", "free_error": None}
     [row, _auto] = collect_leaderboard.leaderboard_rows(
-        recorder=dict(RECORDING), auto={}, store_path=r"F:\Nova\leaderboard\leaderboard.sqlite3", disk=disk)
+        recorder=dict(RECORDING), lanes={}, switch=None, store_path=r"F:\Nova\leaderboard\leaderboard.sqlite3", disk=disk)
     assert row["state"] == "unknown" and "PermissionError: denied" in row["detail"]
     assert row["evidence"]["disk_error"] == "PermissionError: denied"
     # Too little room still fails: an unknown size never hides it.
     disk["free_bytes"] = 5 * GB
     [row, _auto] = collect_leaderboard.leaderboard_rows(
-        recorder=dict(RECORDING), auto={}, store_path=r"F:\Nova\leaderboard\leaderboard.sqlite3", disk=disk)
+        recorder=dict(RECORDING), lanes={}, switch=None, store_path=r"F:\Nova\leaderboard\leaderboard.sqlite3", disk=disk)
     assert row["state"] == "fail" and row["detail"].startswith("F: has 5.0 GB free (fails under 10 GB)")
 
 

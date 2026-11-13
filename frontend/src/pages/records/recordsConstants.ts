@@ -17,10 +17,9 @@ export const RECORDS_STOP_ALL_LABEL = 'Hold to stop every recording';
 export const RECORDS_STOP = 'Hold to stop';
 export const RECORDS_STOP_SHORT = 'Stop';
 export const RECORDS_OPEN_TRADER = 'Open in Trader';
-export const RECORDS_TAG_AUTO = 'auto';
+export const RECORDS_TAG_AUTO = 'lane';
 export const RECORDS_TAG_YOU = 'you';
 export const RECORDS_STARTED_BY_YOU = 'You started it';
-export const RECORDS_AUTO_RECORD = 'Auto-record';
 export const recordsSegmentLine = (args: {
   elapsed: string; since: string | null; resumedAt: string | null; resumedWhy: string | null; prints: number; l2: number;
 }): string => {
@@ -35,16 +34,16 @@ export const RECORDS_RESUMED_AFTER: Record<string, string> = {
 };
 export const RECORDS_FREE_SLOT = 'free slot';
 export const RECORDS_FREE_AUTO_ON =
-  'Auto-record may use it while its window is open. Your own Record and your Level 2 always come first: it gives a line back the moment you need one.';
-export const RECORDS_FREE_AUTO_OFF = 'Auto-record is off, so only a Record you start uses it.';
+  'A lane may use it: Nova records a stock while you, Claude or a bot watches it on a lane.';
+export const RECORDS_FREE_AUTO_OFF = 'Recording is off, so only a Record you start uses it.';
 export const RECORDS_STOP_FAILED = 'Stop did not go through:';
 export const RECORDS_NOTHING_AUTO_ON =
-  'Nothing is recording. Auto-record starts one on a free line when a setup arms in its window; you can record any symbol yourself.';
+  'Nothing is recording. Nova records a stock while a lane watches it -- yours, Claude\'s or the bots\' -- and you can record a stock on a lane yourself.';
 export const recordsNothingAutoOff = (mode: AutoRecordMode, until: string | null): string =>
   mode === 'off_today'
-    ? `Auto-record is off for today and starts nothing. It comes back on at ${until ?? '04:00 ET'}.`
-    : 'Auto-record is off and starts nothing until you turn it on.';
-export const RECORDS_TURN_AUTO_ON = 'Turn auto-record on now';
+    ? `Recording is off for today and records nothing a lane watches. It comes back on at ${until ?? '04:00 ET'}.`
+    : 'Recording is off and records nothing a lane watches until you turn it on.';
+export const RECORDS_TURN_AUTO_ON = 'Turn recording on now';
 export const RECORDS_RECORD_A_SYMBOL = 'Record a symbol…';
 export const RECORDS_RECORD_SYMBOL_PLACEHOLDER = 'Symbol';
 export const RECORDS_RECORD_START = 'Record';
@@ -53,39 +52,31 @@ export const RECORDS_RECORD_FAILED = 'Record did not start:';
 export const RECORDS_RECORD_BUSY = 'Starting the recording -- this unlocks when Nova answers.';
 export const RECORDS_RECORD_NEEDS_SYMBOL = 'Type the symbol to record first.';
 
-/* ── Auto-record ── */
-export const RECORDS_AUTO_TITLE = 'Auto-record';
-export const RECORDS_AUTO_SUB = 'starts recordings on its own';
+/* ── The recording switch (ADR 071: Nova records what a lane watches) ── */
+export const RECORDS_AUTO_TITLE = 'Recording';
+export const RECORDS_AUTO_SUB = 'what a lane watches';
 export const RECORDS_AUTO_MODES: { mode: AutoRecordMode; label: string }[] = [
   { mode: 'on', label: 'On' },
   { mode: 'off_today', label: 'Off for today' },
   { mode: 'off', label: 'Off' },
 ];
-export const RECORDS_AUTO_SWITCH_LABEL = 'Auto-record';
+export const RECORDS_AUTO_SWITCH_LABEL = 'Recording';
 export const RECORDS_AUTO_BUSY = 'Saving the switch -- this unlocks when Nova answers.';
 export const RECORDS_AUTO_UNAVAILABLE =
-  'Nova did not say how auto-record is set (a backend older than this switch, or no status yet).';
-export const RECORDS_AUTO_ENV = 'NOVA_AUTO_RECORD=0 in .env keeps auto-record off. Remove that line and restart Nova to use this switch.';
+  'Nova did not say how recording is set (a backend older than this switch, or no status yet).';
+export const RECORDS_AUTO_ENV = 'NOVA_AUTO_RECORD=0 in .env keeps recording off. Remove that line and restart Nova to use this switch.';
 export const RECORDS_AUTO_FAILED = 'The switch did not change:';
-export const RECORDS_AUTO_OPEN_NOW = 'Open now:';
-export const recordsOpenWindows = (labels: string, until: string): string => ` ${labels}, until ${until} ET.`;
-export const recordsHolding = (symbols: string): string => ` It is holding ${symbols}.`;
-export const RECORDS_HOLDING_NONE = ' It holds no line now.';
-export const recordsOpensAt = (at: string): string => `Closed now. It opens at ${at} ET.`;
-export const RECORDS_CLOSED_TODAY = 'Closed for today. It opens again on the next trading day.';
-export const RECORDS_AUTO_OFF_TODAY = (until: string): string => `Off for today. It starts nothing until ${until}.`;
-export const RECORDS_AUTO_OFF = 'Off. It starts nothing until you turn it on.';
+export const recordsOnRecording = (symbols: string): string => `On. Recording ${symbols}.`;
+export const RECORDS_ON_NOTHING = 'On. No lane watches a stock now, so nothing is recorded.';
+export const RECORDS_AUTO_OFF_TODAY = (until: string): string => `Off for today. It records nothing until ${until}.`;
+export const RECORDS_AUTO_OFF = 'Off. It records nothing until you turn it on.';
 export const recordsTurningOffStops = (symbols: string): string =>
   `Turning it off stops ${symbols} now. A recording you started yourself keeps going.`;
-export const RECORDS_TURNING_OFF_NOTHING = 'Turning it off starts nothing new. A recording you started yourself is never touched.';
+export const RECORDS_TURNING_OFF_NOTHING = 'Turning it off records nothing new. A recording you started yourself is never touched.';
 export const RECORDS_AUTO_FINE_TODAY = 'Off for today';
 export const RECORDS_AUTO_FINE_TODAY_TAIL = ' comes back on at 04:00 ET tomorrow. ';
 export const RECORDS_AUTO_FINE_OFF = 'Off';
 export const RECORDS_AUTO_FINE_OFF_TAIL = ' stays off, through restarts, until you turn it on.';
-export const RECORDS_LEADERS_LABEL = 'Top gainers';
-export const RECORDS_NOW = 'now';
-export const recordsWindowTitle = (label: string, start: string, end: string, open: boolean): string =>
-  `${label}: ${start}-${end} ET${open ? ' (open now)' : ''}`;
 export const recordsSwitchError = (error: string): string => `${error}.`;
 
 /* ── The day's table ── */
@@ -151,9 +142,10 @@ export const RECORDS_ENDED_STATUS: Record<string, { words: string; tone: EndedTo
 export const RECORDS_ENDED_STOPPED: Record<string, { words: string; tone: EndedTone }> = {
   operator: { words: 'Stopped by you', tone: 'muted' },
   auto: { words: 'Stopped by auto-record', tone: 'muted' },
+  lane: { words: 'Ended with its lane', tone: 'muted' },
   failure: { words: 'Stopped on its own', tone: 'bad' },
   restart: { words: 'Cut by a Nova restart', tone: 'warn' },
   rotation: { words: 'Rolled to a new day', tone: 'muted' },
 };
 /** Stops somebody chose: the gap after them is not missing data. Mirrors backend CAPTURE_PLANNED_STOPS. */
-export const RECORDS_PLANNED_STOP_REASONS: ReadonlySet<string> = new Set(['operator', 'auto']);
+export const RECORDS_PLANNED_STOP_REASONS: ReadonlySet<string> = new Set(['operator', 'auto', 'lane']);

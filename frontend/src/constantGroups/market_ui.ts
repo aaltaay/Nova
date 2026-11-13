@@ -177,44 +177,29 @@ export const L2_BIG_BACK_MIN = 5;
 export const L2_BIG_NOTE =
   'Resting size much larger than the book around it, at or just past the price: one order or several at one price look the same here. A description of the book, shown, never acted on.';
 
-// ── Level 2: a hidden Trader tab lends its line (ADR 044 decision 6, backend line_lending/) ──
-/** Who holds each Level 2 line, and the loans. */
-export const L2_DEPTH_LINES_PATH = '/api/ibkr/depth/lines';
-/** Line lending on / off (needs the desk's API key). */
-export const L2_DEPTH_LENDING_PATH = '/api/ibkr/depth/lending';
-/** While its line is lent, a tab asks this often whether the loan still stands; it never reconnects by its backoff. */
-export const L2_LENT_POLL_MS = 5_000;
-/** Why the line went, in the sentence (mirrors WHY_WORDS in backend line_lending/constants_line_lending.py). */
-export const L2_LENT_WHY_WORDS: Record<string, string> = {
-  trade: 'in a trade',
-  near: 'near its trigger',
-  armed: 'armed',
-};
-export const L2_LENT_PREFIX = 'Level 2 lent to';
-export const L2_LENT_BACK = 'back when it ends or when you bring this tab to the front';
-/** The borrower when a frame names none (an older or a broken frame). */
-export const L2_LENT_SOMEONE = "one of Nova's setups";
+// ── The three lanes (ADR 071, backend line_lanes/): who holds each Level 2 and Time & Sales line ──
+/** `GET /api/ibkr/lanes`: the stock each lane is on, its lines, and what Nova records. */
+export const LANES_PATH = '/api/ibkr/lanes';
+/** While a pane waits for a lane, it asks this often whether one came to its stock; it never asks by its backoff. */
+export const LANE_WAIT_POLL_MS = 5_000;
 /**
- * The tab's Time & Sales goes with its Level 2: IBKR counts tick-by-tick lines like depth lines,
- * so a setup that got only the book would read no prints. It says the same, in its own words.
+ * A pane on a stock no lane is on (operator, 2026-11-13: the human lane). The pane never takes your lane back by
+ * itself -- two windows in front would pass it to and fro -- so the words say how: a click on them, or bringing
+ * the tab to the front.
  */
-export const TAPE_LENT_PREFIX = 'Time & Sales lent to';
-/**
- * Lent to Claude's seat (ADR 068 decision 14): what Claude does on its stock (mirrors CLAUDE_WHY_WORDS in backend
- * line_lending/constants_line_lending.py), and how the line comes back -- never by coming to the front.
- */
-export const L2_LENT_CLAUDE = 'claude';
-export const L2_LENT_CLAUDE_WHY_WORDS: Record<string, string> = {
-  watching: 'watching',
-  buy_set: 'buy set on',
-  in_trade: 'in a trade on',
-};
-export const L2_LENT_CLAUDE_BACK = 'back when Claude lets it go, or right-click this tab to take it back';
-export const TAPE_LENT_CLAUDE_BACK = 'back with Level 2';
-/** The window event that asks a tab's lent panes for their lines now (the operator took them back from Claude). */
-export const LENT_LINE_RECALL_EVENT = 'nova:lent-line-recall';
-/** Time & Sales' badge while its line is lent (not a fault: the words say whose and when it comes back). */
-export const TAPE_STATUS_LENT = 'LENT';
+export const laneWaitYours = (pane: string, lane: string, symbol: string): string =>
+  `Your ${pane} is on ${lane} — click here or bring this tab to the front to have it on ${symbol}`;
+export const laneWaitNone = (pane: string, symbol: string): string =>
+  `No lane is on ${symbol} — click here or bring this tab to the front to have your ${pane} here`;
+/** The same, where a click does nothing (the order lock, the heat map, the phone): "Your Level 2 is on TGHL". */
+export const laneWaitPlain = (pane: string, lane: string | null, symbol: string): string =>
+  lane ? `Your ${pane} is on ${lane}, not ${symbol}` : `No lane is on ${symbol}`;
+/** The window event a click on a waiting pane's words sends: that stock's panes ask for your lane now. */
+export const LANE_BRING_EVENT = 'nova:lane-bring';
+export const LANE_PANE_DEPTH = 'Level 2';
+export const LANE_PANE_TAPE = 'Time & Sales';
+/** Time & Sales' badge while it waits for a lane (not a fault: the words say where your lane is). */
+export const TAPE_STATUS_NO_LANE = 'NO LANE';
 /** IBKR refused or ended the line and the backend is asking again by itself (#698). */
 export const TAPE_STATUS_RETRYING = 'RETRYING';
 /**
@@ -636,7 +621,7 @@ export function chartBarsFetchPriority(timeframe: string): number {
 }
 /**
  * The 10-second pane's forming candle is the tape's while the tape delivered a print this recently
- * (#721); the Level 1 last paints it only when no tape is feeding it (Time & Sales hidden, lent or
+ * (#721); the Level 1 last paints it only when no tape is feeding it (Time & Sales hidden, waiting for a lane or
  * silent). Two writers on two clocks drew the newest two candles at once and moved the closed one.
  */
 export const CHART_10SEC_TAPE_OWNS_MS = 15_000;

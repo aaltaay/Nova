@@ -103,13 +103,12 @@ export function claudeChartLines(status: ClaudeSeatStatus | null, symbol: string
 /** Events that pop a toast and that the desk's voice says. */
 export const CLAUDE_TOAST_KINDS: ReadonlySet<string> = new Set([
   'buy_set', 'break_set', 'fill', 'reflex_fired', 'close', 'day_close', 'yielded', 'line_back', 'refused',
-  'line_wait', 'off', 'tab_line', 'tab_line_back',
+  'line_wait', 'off',
 ]);
 
 /** "Claude set buy 510 SMPL ..." -- the event's own words after the name. */
 export function eventWords(e: ClaudeEvent): string {
-  // "You took SMPL's line back from Claude": the operator's own act, said in its own words.
-  return e.kind === 'tab_line_back' ? e.text : `Claude ${e.text}`;
+  return `Claude ${e.text}`;
 }
 
 /** Events newer than ``since`` that toast, oldest first. */
@@ -134,14 +133,9 @@ export function buySetRow(status: ClaudeSeatStatus): string | null {
 /** The panel's "My line" row. */
 export function lineRow(status: ClaudeSeatStatus): string {
   const l = status.line;
-  if (status.yielded) return 'Yours: you took Claude\'s line';
-  if (l.symbol && l.depth && l.from_tab) {
-    return `Level 2 + Time & Sales on ${l.symbol} · your ${l.from_tab} tab's line (right-click the tab to take it back)`;
-  }
-  if (l.symbol && l.depth) {
-    const yours = l.desk_cap ?? 2;
-    return `Level 2 + Time & Sales on ${l.symbol} · 1 of 3 · you have ${yours}`;
-  }
+  if (status.yielded) return 'Empty: you took Claude\'s line, so its lane holds nothing';
+  // Claude's own lane (ADR 071): one of the three lines, never yours or the bots'.
+  if (l.symbol && l.depth) return `Level 2 + Time & Sales on ${l.symbol} · Claude's lane`;
   if (status.state === 'waiting_line') return l.why_not ?? 'Waiting for a Level 2 line';
   return 'None yet';
 }

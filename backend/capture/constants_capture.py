@@ -81,10 +81,13 @@ CAPTURE_STOP_OPERATOR = "operator"
 CAPTURE_STOP_ROTATION = "rotation"
 CAPTURE_STOP_FAILURE = "failure"
 CAPTURE_STOP_RESTART = "restart"
-# Auto-record (ADR 023) rotated or yielded the line: planned, like an operator stop.
+# Auto-record (ADR 023) rotated or yielded the line: planned, like an operator stop. Recordings made before ADR 071
+# keep it; nothing writes it any more.
 CAPTURE_STOP_AUTO = "auto"
+# The stock left its lane, or the lanes' recording ended (ADR 071 decision 8): planned too.
+CAPTURE_STOP_LANE = "lane"
 # Stops that were asked for -- the gap after one is not "missing".
-CAPTURE_PLANNED_STOPS = frozenset({CAPTURE_STOP_OPERATOR, CAPTURE_STOP_AUTO})
+CAPTURE_PLANNED_STOPS = frozenset({CAPTURE_STOP_OPERATOR, CAPTURE_STOP_AUTO, CAPTURE_STOP_LANE})
 
 # --- The recording's tape line (#525) -----------------------------------------
 # A recording can lose its AllLast line while its book keeps coming (IPDN and

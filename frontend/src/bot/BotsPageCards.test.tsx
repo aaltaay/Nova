@@ -3,7 +3,7 @@
  *
  * The Bots page cards (ADR 044, approved mockup v8): every control is a real one -- each
  * strategy's own Off / Eyes / On and its bot rules, the add-a-setup door, IBKR's Level 2
- * lines and lending, Tickers today (the hot list, Buy / Sell per stock, the squares), the
+ * lines (one per lane), Tickers today (the hot list, Buy / Sell per stock, the squares), the
  * sleeve per venue that saves once let go, proposals that say who takes them, the
  * timeline and today's numbers.
  */
@@ -584,35 +584,37 @@ describe('Tickers today -- the hot list and the squares by ticker (ADR 044)', ()
   });
 });
 
-describe('Level 2 lines (ADR 044)', () => {
-  it('shows who holds each of IBKR\'s three lines, and switches lending', async () => {
-    const fetchMock = mockFetch({ lines: linesView({ lending: { on: true, loans: [
-      { lender: 'NXL', borrower: 'AISP', setup_type: 'first_pullback', setup_id: 'a1', since: null, why: 'near its trigger',
-        tier: 'near', text: null, tape: true, tape_state: 'receiving', tape_error: null, tape_lent: true },
-      { lender: 'ACN', borrower: 'MEDS', setup_type: 'bull_flag', setup_id: 'm1', since: null, why: 'armed',
-        tier: 'armed', text: null, tape: false, tape_state: 'refused', tape_error: 'IBKR 10190: tick-by-tick limit', tape_lent: false },
-    ], recent: [] } }) });
+describe('Level 2 lines, one per lane (ADR 071)', () => {
+  it('shows each lane\'s stock and lines, the bots\' setup and the setups waiting for it, and switches nothing', async () => {
+    const fetchMock = mockFetch({ lines: linesView({
+      claude: { symbol: 'SMPL', since: null, depth: false, tape: false, recording: false, error: 'IBKR 309: max depth requests' },
+    }) });
     await renderPage();
-    expect(screen.getByTestId('bots-line-GRML').textContent).toBe('GRMLyour Trader tab · in front');
-    expect(screen.getByTestId('bots-line-NXL').textContent).toBe('NXLyour Trader tab · hidden');
-    expect(screen.getByTestId('bots-line-free-2').textContent).toBe('freeno line held');
-    expect(screen.getByTestId('bots-lines-loan-NXL').textContent)
-      .toBe('Now: NXL\'s lines are lent to AISP (first pullback) · its prints arrive');
-    // A borrower without its prints is said, with IBKR's words: no silent BLIND.
-    const refused = screen.getByTestId('bots-lines-loan-ACN');
-    expect(refused.textContent).toMatch(/no Time & Sales line \(IBKR 10190: tick-by-tick limit\)$/);
-    expect(refused.className).toBe('is-bad');
-    const lending = screen.getByTestId('bots-lines-lending');
-    expect(lending.getAttribute('aria-checked')).toBe('true');
-    await act(async () => { fireEvent.click(lending); await flush(); });
-    expect(calls(fetchMock, '/ibkr/depth/lending', 'PATCH').map(c => c.body)).toEqual(['{"on":false}']);
-    expect(screen.getByTestId('bots-lines-lending').getAttribute('aria-checked')).toBe('false');
+    expect(screen.getByTestId('bots-line-you').textContent).toBe('GRMLyour lane · Level 2 + Time & Sales · recording');
+    // A lane whose line did not open says IBKR's words: no silent BLIND.
+    expect(screen.getByTestId('bots-line-claude').textContent)
+      .toBe("SMPLClaude's lane · opening its linesIBKR 309: max depth requests");
+    expect(screen.getByTestId('bots-line-bots').textContent).toBe("AISPthe bots' lane · Level 2, no Time & Sales");
+    expect(screen.getByTestId('bots-lines-bots').textContent)
+      .toMatch(/^Bots: AISP's first pullback \(near its trigger\)Waiting: RUNR's bull flag \(armed, waiting on its trigger\)$/);
+    expect(screen.queryByTestId('bots-lines-lending')).toBeNull();
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/api/ibkr/lanes'))).toBe(true);
+    expect(calls(fetchMock, '/ibkr/depth', 'PATCH')).toEqual([]);
+  });
+
+  it('says the bots\' lane is empty when no setup a bot may buy stands', async () => {
+    mockFetch({ lines: linesView({ bots: { symbol: null, since: null, depth: false, tape: false, recording: false,
+      error: null, setup: null, why: null, waiting: [] } }) });
+    await renderPage();
+    expect(screen.getByTestId('bots-line-bots').textContent).toBe("emptythe bots' lane · empty");
+    expect(screen.getByTestId('bots-lines-bots').textContent).toBe("No setup a bot may buy now: the bots' lane is empty.");
   });
 
   it('says a backend that cannot say who holds the lines needs a reload', async () => {
-    mockFetch({ lines: { schema_version: 2 } });
+    mockFetch({ lines: { lines: [] } });
     await renderPage();
-    expect((screen.getByTestId('bots-lines-lending') as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByTestId('bots-lines-bots').textContent)
+      .toBe('The Level 2 lines answered in a shape this desk does not read.');
   });
 });
 

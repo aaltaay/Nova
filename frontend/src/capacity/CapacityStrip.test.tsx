@@ -15,7 +15,7 @@ const ANSWER = {
   schema_version: 1,
   generated_at: 1,
   l1: { used: 48, cap: 53, cap_learned: true, reserve: 5, refused: 0, by_owner: { scanner: 45, hod: 23, live_trader: 2 } },
-  l2: { used: 3, cap: 3, symbols: [{ symbol: 'AAPL', held_by: 'tab' }, { symbol: 'AEHL', held_by: 'auto_record' }, { symbol: 'CHPX', held_by: 'auto_record' }] },
+  l2: { used: 3, cap: 3, symbols: [{ symbol: 'AAPL', held_by: 'you' }, { symbol: 'AEHL', held_by: 'claude+bots' }, { symbol: 'CHPX', held_by: 'no lane' }] },
   history: { used: 60, cap: 60, window_sec: 600, next_free_sec: 147.4, by_kind: { charts: 5, tape: 10, daily: 40, market: 5 } },
   tape: { used: 4, cap: null, symbols: ['AAPL', 'NFLX'] },
 };
@@ -34,6 +34,11 @@ describe('capacity strip', () => {
     expect(screen.getByTestId('capacity-history').textContent).toContain('next in 2:28');
     expect(screen.getByTestId('capacity-tape').textContent).toContain('4');
     expect(screen.getByTestId('capacity-l1').getAttribute('title')).toContain('Live Trader bot: 2');
+    // ADR 071: each line says the lanes on its stock.
+    const l2 = screen.getByTestId('capacity-l2').getAttribute('title') ?? '';
+    expect(l2).toContain('AAPL (your lane)');
+    expect(l2).toContain("AEHL (Claude's lane + the bots' lane)");
+    expect(l2).toContain('CHPX (no lane)');
     expect(screen.getByTestId('capacity-history').getAttribute('title')).toContain('Daily bars: SSR, Market ETFs, Cryptos: 40');
   });
 

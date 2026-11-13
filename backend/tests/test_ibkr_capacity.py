@@ -24,13 +24,17 @@ def test_pacing_names_what_spent_the_window():
 
 
 def test_the_view_reads_every_cap(monkeypatch):
+    import ibkr.depth as depth
     from ibkr import tape_admission, ticks
-    from line_lending import view as lending_view
+    from line_lanes import lanes
+    from line_lanes.table import Lanes
 
     monkeypatch.setattr(ticks, "ticker_budget_status", lambda: {
         "reqMktData_lines": 48, "reqMktData_limit": 100, "reqMktData_cap": 53, "reqMktData_refused": 0,
         "reqMktData_by_owner": {"scanner": 45, "hod": 23, "live_trader": 2, "depth": 0}})
-    monkeypatch.setattr(lending_view, "build", lambda: {"cap": 3, "lines": [{"symbol": "AAPL", "held_by": "tab"}]})
+    lanes._lanes = Lanes(you="AAPL", bots="AAPL")
+    monkeypatch.setattr(depth, "subscribed_symbols", lambda: ["AAPL", "NFLX", "RPLY"])
+    monkeypatch.setattr(depth, "is_live", lambda s: s != "RPLY")
     monkeypatch.setattr(historical_service, "pacing_snapshot", lambda: {
         "window_used": 60, "window_max": 60, "window_sec": 600.0, "next_token_wait_sec": 102.5,
         "by_kind": {"charts": 5, "tape": 10, "daily": 40, "market": 5}})
@@ -39,7 +43,9 @@ def test_the_view_reads_every_cap(monkeypatch):
     v = capacity.view(now=1.0)
     assert v["l1"] == {"used": 48, "cap": 53, "cap_learned": True, "reserve": 5, "refused": 0,
                        "by_owner": {"scanner": 45, "hod": 23, "live_trader": 2}}
-    assert v["l2"] == {"used": 1, "cap": 3, "symbols": [{"symbol": "AAPL", "held_by": "tab"}]}
+    assert v["l2"] == {"used": 3, "cap": 3, "symbols": [{"symbol": "AAPL", "held_by": "you+bots"},
+                                                        {"symbol": "NFLX", "held_by": "no lane"},
+                                                        {"symbol": "RPLY", "held_by": "replay"}]}
     assert v["history"]["used"] == 60 and v["history"]["next_free_sec"] == 102.5
     assert v["tape"] == {"used": 4, "cap": None, "symbols": ["AAPL", "NFLX"]}
 

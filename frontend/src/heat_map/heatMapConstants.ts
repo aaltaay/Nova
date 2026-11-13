@@ -148,7 +148,6 @@ export const heatWaiting = (symbol: string) =>
 export const heatStale = (clock: string) => `No Level 2 since ${clock}: the screen stays black until the book is back.`;
 export const HEAT_L1_ONLY = 'IBKR is sending only the best bid and ask for this stock (no depth), so there are no lines to draw.';
 export const heatLineDown = (why: string) => `Level 2 is not live: ${why}`;
-export const HEAT_LINE_LENT = "lent to one of Nova's setups; it comes back when this tab is in front.";
 export const HEAT_LEGEND_TRADED = 'traded';
 export const HEAT_LEGEND_PULLED = 'pulled';
 export const HEAT_LEGEND_HIDDEN = 'hidden';

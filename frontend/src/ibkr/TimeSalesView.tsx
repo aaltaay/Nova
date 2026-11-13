@@ -6,8 +6,8 @@
  * A print that does not set a price -- IBKR flags it unreported, or its sale
  * conditions report it for volume only (odd lot, average price, ...) -- is a
  * dimmed row (AGENTS.md §3, #543).
- * A line lent to one of Nova's setups with the tab's Level 2 (ADR 044 decision 6) reads LENT, and
- * the pane says whose setup took it and when it comes back, as the ladder does.
+ * A stock no lane is on (ADR 071) reads NO LANE, and the pane says where your lane is and that a
+ * click brings it here, as the ladder does.
  * DOM mounts a viewport window; the feed ring still holds TAPE_UI_MAX_ROWS.
  * Right-click opens a min-size display filter (does not change the tape stream).
  */
@@ -22,11 +22,10 @@ import {
   TAPE_STICK_TOP_PX,
   TAPE_VIEWPORT_FALLBACK_ROWS,
 } from '../constants';
-import { TAPE_STATUS_LENT, TAPE_STATUS_RETRYING } from '../constantGroups/market_ui';
+import { TAPE_STATUS_NO_LANE, TAPE_STATUS_RETRYING } from '../constantGroups/market_ui';
 import { SAMPLE_FEED_STATUS, SAMPLE_LIVE_FEED_ABSENT } from '../sample_data/sampleCopy';
 import { createRafCoalesce } from '../utils/rafCoalesce';
-import { lentToClaude, tapeLentText } from './lentWords';
-import { ClaudeLentWords } from '../claude_seat';
+import { LaneWaitText } from './LaneWaitText';
 import { TapeMinSizeFilterMenu } from './TapeMinSizeFilterMenu';
 import {
   applyTapeMinSizeDraft,
@@ -105,8 +104,8 @@ export function TimeSalesView({
   noticeTitle = null,
 }: TimeSalesViewProps) {
   const { prints, connected, error } = feed;
-  // Lent to one of Nova's setups (ADR 044 decision 6): the pane says whose, in place of the rows.
-  const lentWords = feed.lent ? tapeLentText(feed.lent) : null;
+  // No lane is on the stock (ADR 071): the pane says where your lane is, in place of the rows.
+  const laneWords = feed.laneWait?.text ?? null;
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportPx, setViewportPx] = useState(
@@ -202,20 +201,19 @@ export function TimeSalesView({
   const visible = filtered.slice(range.startIndex, range.endIndex);
 
   const statusLabel = useMemo(() => {
-    if (lentWords) return lentWords;
+    if (laneWords) return laneWords;
     if (error) return error;
     if (!connected) return 'Connecting…';
     if (prints.length === 0) return emptyLabel;
     if (filtered.length === 0 && minSize > 0) return tapeMinSizeEmptyLabel(minSize);
     return null;
-  }, [lentWords, error, connected, prints.length, filtered.length, minSize, emptyLabel]);
+  }, [laneWords, error, connected, prints.length, filtered.length, minSize, emptyLabel]);
 
   const statusClass = `ts-panel__status ${connected ? 'ts-panel__status--live' : 'ts-panel__status--off'}`
-    + (connected && statusTone ? ` ts-panel__status--${statusTone}` : '')
-    + (lentWords && lentToClaude(feed.lent) ? ' ts-panel__status--claude' : '');
-  // The sample desk's stated absence is not a fault (V4); nor is a lent line.
-  const statusText = lentWords
-    ? TAPE_STATUS_LENT
+    + (connected && statusTone ? ` ts-panel__status--${statusTone}` : '');
+  // The sample desk's stated absence is not a fault (V4); nor is a stock no lane is on.
+  const statusText = laneWords
+    ? TAPE_STATUS_NO_LANE
     : connected
       ? connectedText
       : error
@@ -226,7 +224,7 @@ export function TimeSalesView({
       badge={badge}
       statusClass={statusClass}
       statusText={statusText}
-      statusTitle={lentWords ?? statusTitle}
+      statusTitle={laneWords ?? statusTitle}
     />
   );
 
@@ -239,7 +237,7 @@ export function TimeSalesView({
     </div>
   );
 
-  const noticeLine = notice && !lentWords ? (
+  const noticeLine = notice && !laneWords ? (
     <div className="ts-panel__notice" data-testid="ts-silence" role="status" title={noticeTitle ?? undefined}>
       {notice}
     </div>
@@ -257,10 +255,8 @@ export function TimeSalesView({
       data-rendered-count={statusLabel ? 0 : visible.length}
       data-tape-ui-active={uiActive ? '1' : '0'}
     >
-      {lentWords && symbol && lentToClaude(feed.lent) ? (
-        <ClaudeLentWords symbol={symbol} text={lentWords} testId="ts-lent" className="ts-panel__empty ts-panel__lent" />
-      ) : lentWords ? (
-        <div className="ts-panel__empty ts-panel__lent" data-testid="ts-lent" role="status">{lentWords}</div>
+      {laneWords && symbol ? (
+        <LaneWaitText symbol={symbol} text={laneWords} className="ts-panel__empty" testId="ts-lane" />
       ) : statusLabel ? (
         <div className="ts-panel__empty">{statusLabel}</div>
       ) : (

@@ -35,12 +35,12 @@ describe('tapeSymbolKey', () => {
 });
 
 describe('emptyTapeState', () => {
-  it('clears prints, connection flags, a lent line, a retry and a silence (symbol-change reset)', () => {
+  it('clears prints, connection flags, a lane wait, a retry and a silence (symbol-change reset)', () => {
     expect(emptyTapeState()).toEqual({
       prints: [],
       connected: false,
       error: null,
-      lent: null,
+      laneWait: null,
       retryAt: null,
       silence: null,
     });
