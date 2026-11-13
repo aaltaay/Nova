@@ -106,6 +106,21 @@ it on the home screen, full screen; it opens there from then on.
 After a new build (`npm run build`), reload the page on the phone to get it: the file server tells the phone to
 ask for the page again every time, and to keep only the files whose names change when their content does.
 
+**The phone shows the built page, not the code.** A change that is merged and pulled onto the PC is not on the
+phone until the page is built again, and a build fails when a package the new code needs was never installed
+(2026-11-13: both, for hours). After every pull, run the check; it says which is off and how to fix it:
+
+```bash
+py -3 tools/phone_page.py check
+```
+
+```bash
+py -3 tools/phone_page.py update
+```
+
+`update` installs missing packages only when one is off, builds, and checks again. It restarts nothing. The file
+server also prints the check's warning when it starts.
+
 ## Looking at the whole desk on the phone
 
 Optional, for looking only. Build with the tunnel's API address, then serve as above:
