@@ -206,7 +206,7 @@ function TradeFor({ symbol }: { symbol: string }) {
 
       <div className="ph-trade__market">
         <TradeBook symbol={symbol} book={trade.book} why={trade.bookWhy} dim={Boolean(trade.lag)} />
-        <TradeTape prints={trade.tape.prints} why={trade.tape.error} />
+        <TradeTape prints={trade.tape.prints} why={trade.tape.error} halt={detail?.halt ?? null} />
       </div>
 
       <TradeTicket
