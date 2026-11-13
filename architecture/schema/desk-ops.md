@@ -1067,7 +1067,7 @@ read below is one the desk already makes, and every write goes to `/api/phone`
   | Home | `/api/market/board` (the day read), `/api/practice/account`, `/api/loss-limit`, `/api/why?symbols=` (the Catalyst call for the five Gainers rows) |
   | Scan | the scanner feed; `/api/why?symbols=` per row; `/api/hot-list` (the star, and the Hot list) |
   | Top 9 | the scanner feed; per tile `/api/ticker/{symbol}/bars` (1-minute, store-first) and, on Gainers, `/api/luld/{symbol}/trail` |
-  | Account | `/api/practice/account`, `/api/practice/history?range=1D` (Paper and Sim), `/api/loss-limit` |
+  | Account | `/api/practice/account`, `/api/practice/history?range=1D` (Paper and Sim), `/api/loss-limit`; the chart's range buttons read the same route with the desk's `range` (`1D` `5D` `1M` `3M` `YTD` `ALL`); the Calendar view, and one past day's chart opened from it, read `range=ALL` (only while either is open). The calendar's figures are the desk Calendar panel's (`account/accountCalendar`, `account/accountDayBreakdown`); the phone shows Monday to Friday unless a weekend traded that month |
   | Stock, big chart | `/ws/ticker/{symbol}` and the chart's bars; `/api/why?symbols=` |
   | Trade | `/ws/ticker/{symbol}`, the chart's bars, `/ws/ibkr/depth/{symbol}` and `/ws/ibkr/tape/{symbol}` (opened only while Trade is up: Level 2 takes one of the desk's three books) |
 - **The scanner list a screen declares.** Scan declares the list on screen, Top 9

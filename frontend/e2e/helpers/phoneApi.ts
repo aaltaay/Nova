@@ -12,6 +12,7 @@ export const PHONE_API = 'http://127.0.0.1:8000';
 export const PHONE_PIN = '246810';
 const TOKEN = 'sample-session-token';
 
+const ET_DATE = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' });
 const SYMBOLS = [
   'ABCD', 'WXYZ', 'QRST', 'LMNO', 'EFGH', 'IJKL', 'UVWX', 'MNOP', 'CDEF', 'GHIJ', 'KLMN', 'OPQR',
   'STUV', 'YZAB', 'BCDE', 'FGHI', 'JKLM', 'NOPQ', 'RSTU', 'VWXY',
@@ -289,7 +290,16 @@ export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Prom
           source: 'manual', bot_id: null, commission: 1.4, fees: 0, realized: i % 2 ? 64 : 0, fill_estimated: true, fill_basis: 'quote',
           owner: 'you', bot: null, parts: [],
         })),
-        by_source: [], by_owner: [], daily: [],
+        // The last seven practice days (04:00 ET rollover), newest first: the calendar's rows.
+        // Today is always a row, whatever day the test runs on.
+        by_source: [], by_owner: [], daily: Array.from({ length: 9 }, (_, k) => {
+          const realized = k ? (k % 3 ? 120 * k : -85 * k) : 321.6;
+          const date = ET_DATE.format(new Date((t - 4 * 3600 - k * 86_400) * 1000));
+          return {
+            date, realized, commissions: 8.4, fees: 0.6, fills: 6, archived: false, weekday: new Date(`${date}T00:00:00Z`).getUTCDay(),
+            you: { realized: realized - 30, fills: 4, commissions: 6.4, fees: 0.6 }, bots: { realized: 30, fills: 2, commissions: 2, fees: 0 },
+          };
+        }).filter((row, k) => k === 0 || (row.weekday !== 0 && row.weekday !== 6)),
         components: { realized: 321.6, commissions: 8.4, fees: 0 },
       });
       case '/api/ibkr/account': return json({ NetLiquidation: 25_412.6, BuyingPower: 22_640, RealizedPnL: 321.6, UnrealizedPnL: 91 });

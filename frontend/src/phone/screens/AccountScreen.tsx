@@ -4,24 +4,32 @@
  * figures (`usePhoneAccount`); the curve is the desk's own curve geometry over today's ledger.
  */
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { X } from 'lucide-react';
+import { dayShortLabel } from '../../account/accountCalendar';
+import { rangeNetPnl } from '../../account/accountFigures';
 import type { AccountPosition } from '../../account/accountPositions';
 import type { AccountFillRow } from '../../account/accountLive';
 import { lineGeometry, rangeSeries, type Frame } from '../../account/equityPath';
 import { ALL_VIEW, type OwnerView } from '../../account/ownerView';
+import { ACCOUNT_HISTORY_RANGES, type AccountRange } from '../../constantGroups/account_page';
 import { OWNER_BOOK_BOTS, OWNER_BOOK_YOU } from '../../constantGroups/owners';
 import { formatOrderType } from '../../ibkr/orderDisplay';
 import type { IbkrOrder } from '../../ibkr/types';
 import { formatMoney } from '../../utils/formatMoney';
 import { LinkPill, PadlockButton, PhoneScreen, RowLink, TickerChip, VenuePill } from '../PhoneChrome';
+import { daySeries } from '../phoneCalendar';
 import { px, shares, signedMoney, toneClass, toneOf } from '../phoneFormat';
 import { usePhoneSession } from '../PhoneSession';
 import { usePhoneAccount, type PhoneAccount } from '../usePhoneAccount';
 import { usePhoneLossLimit } from '../usePhoneLossLimit';
 import { useRowsThatFit } from '../useRowsThatFit';
+import { AccountCalendar } from './AccountCalendar';
 import './account.css';
 
 type Book = 'all' | 'you' | 'bots';
 type ListTab = 'positions' | 'orders' | 'fills';
+type Mode = 'overview' | 'calendar';
+const MODES: readonly { id: Mode; name: string }[] = [{ id: 'overview', name: 'Overview' }, { id: 'calendar', name: 'Calendar' }];
 
 const BOOKS: readonly { id: Book; name: string; view: OwnerView }[] = [
   { id: 'all', name: 'All', view: ALL_VIEW },
@@ -33,30 +41,39 @@ const ROW_PX = 42;
 const CURVE: Frame = { width: 336, height: 64, padLeft: 0, padRight: 0, padTop: 6, padBottom: 4 };
 const ET_HM = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false });
 
-function Curve({ account, book }: { account: PhoneAccount; book: Book }) {
+/** What the chart covers: one of the desk's ranges, or one past day opened from the calendar. */
+type Span = { range: AccountRange } | { day: string };
+
+function Curve({ account, book, span, net }: { account: PhoneAccount; book: Book; span: Span; net: number | null }) {
+  const day = 'day' in span ? span.day : null;
   const geo = useMemo(() => {
-    if (!account.history) return null;
+    if (day) {
+      const series = account.calendar ? daySeries(account.calendar, day) : [];
+      return series.length > 1 ? lineGeometry(series, CURVE, 0) : null;
+    }
+    if (!account.rangeHistory) return null;
     // The whole account is drawn as its value; one book as its own P&L, from zero.
     const { series, baseline } = rangeSeries(
-      account.history,
+      account.rangeHistory,
       book === 'all' ? 'value' : 'pnl',
       { openPnl: account.openPnl, netLiquidation: account.figures.netLiquidation },
       account.nowTs,
     );
     return series.length > 1 ? lineGeometry(series, CURVE, baseline, account.nowTs) : null;
-  }, [account.history, account.openPnl, account.figures.netLiquidation, account.nowTs, book]);
-  const tone = toneOf(account.dayPnl) === 'bad' ? 'bad' : 'good';
+  }, [day, account.calendar, account.rangeHistory, account.openPnl, account.figures.netLiquidation, account.nowTs, book]);
+  const tone = toneOf(net) === 'bad' ? 'bad' : 'good';
   if (!geo) {
+    const reading = day ? account.calendar : account.rangeHistory;
     return (
       <div className="ph-acct__curve is-empty" role="status">
-        {account.venue === 'live' ? 'IBKR sends no curve for today.' : account.history ? 'No fills yet today.' : 'Reading today\'s ledger…'}
+        {account.venue === 'live' ? 'IBKR sends no curve.' : reading ? 'No fills to draw here.' : 'Reading the ledger…'}
       </div>
     );
   }
   return (
     <div className="ph-acct__curve" data-tone={tone}>
       <svg viewBox={`0 0 ${CURVE.width} ${CURVE.height}`} preserveAspectRatio="none" role="img"
-        aria-label={book === 'all' ? "Today's account value" : "Today's P&L for this book"}>
+        aria-label={day ? `P&L on ${dayShortLabel(day)}` : book === 'all' ? 'Account value over the range' : 'P&L of this book over the range'}>
         <path className="ph-acct__curve-area" d={geo.area} />
         {geo.baselineY != null ? <line className="ph-acct__curve-base" x1={0} x2={CURVE.width} y1={geo.baselineY} y2={geo.baselineY} /> : null}
         <path className="ph-acct__curve-line" d={geo.line} vectorEffect="non-scaling-stroke" />
@@ -130,14 +147,21 @@ const EMPTY: Record<ListTab, string> = {
   fills: 'No fills today.',
 };
 
+const RANGE_NAMES: Record<AccountRange, string> = { '1D': '1D', '5D': '5D', '1M': '1M', '3M': '3M', YTD: 'YTD', ALL: 'All' };
+
 export function AccountScreen() {
   const [book, setBook] = useState<Book>('all');
+  const [mode, setMode] = useState<Mode>('overview');
+  const [span, setSpan] = useState<Span>({ range: '1D' });
   const [tab, setTab] = useState<ListTab>('positions');
   const [page, setPage] = useState(0);
-  const account = usePhoneAccount(BOOKS.find((b) => b.id === book)?.view ?? ALL_VIEW);
+  const day = 'day' in span ? span.day : null;
+  const range = 'range' in span ? span.range : '1D';
+  const account = usePhoneAccount(BOOKS.find((b) => b.id === book)?.view ?? ALL_VIEW, { range, calendar: mode === 'calendar' || day != null });
   const limit = usePhoneLossLimit(account.venue);
   const listRef = useRef<HTMLDivElement>(null);
-  const fit = useRowsThatFit(listRef, ROW_PX);
+  // The list leaves the page on Calendar: measure the new one when Overview comes back.
+  const fit = useRowsThatFit(listRef, ROW_PX, mode);
   const split = account.books != null;
   // Off Paper there is one book: the switch falls back to All and says why.
   const shownBook: Book = split ? book : 'all';
@@ -165,6 +189,15 @@ export function AccountScreen() {
     { name: `${OWNER_BOOK_BOTS} · today`, value: split ? signedMoney(account.books?.bots.day_pnl) : '—', tone: split ? toneClass(account.books?.bots.day_pnl) : '' },
   ];
   const usedShare = limit.used != null && limit.limit ? Math.min(1, limit.used / limit.limit) : 0;
+  // The figure beside the chart is the chart's: the day opened from the calendar, the range, or today.
+  const dayNet = day && account.calendar ? account.calendar.daily.filter((d) => d.date === day).reduce((s, d) => s + d.realized, 0) : null;
+  const net = day ? dayNet
+    : range === '1D' ? account.dayPnl
+    : account.rangeHistory ? rangeNetPnl(account.rangeHistory.components, account.openPnl) : null;
+  const whose = shownBook === 'all' ? '' : shownBook === 'you' ? 'You, ' : 'Bots, ';
+  const netName = day ? `${whose}${dayShortLabel(day)}`
+    : range === '1D' ? (shownBook === 'all' ? 'Today, net' : `${whose}today`)
+    : `${whose}${RANGE_NAMES[range]}${shownBook === 'all' ? ', net' : ''}`;
 
   return (
     <PhoneScreen
@@ -180,7 +213,12 @@ export function AccountScreen() {
         </div>
       )}
     >
-      <div className="ph-acct__top">
+      <div className="ph-acct__switches">
+        <div className="ph-seg ph-acct__books" role="group" aria-label="Which view">
+          {MODES.map((m) => (
+            <button key={m.id} type="button" aria-pressed={m.id === mode} data-testid={`phone-account-${m.id}`} onClick={() => setMode(m.id)}>{m.name}</button>
+          ))}
+        </div>
         <div className="ph-seg ph-acct__books" role="group" aria-label="Whose book">
           {BOOKS.map((b) => (
             <button
@@ -195,19 +233,36 @@ export function AccountScreen() {
             </button>
           ))}
         </div>
-
-        <div className="ph-card ph-acct__value" data-tone={toneOf(account.dayPnl) || 'flat'} data-testid="phone-account-value">
+      </div>
+      {mode === 'calendar' ? (
+        <AccountCalendar account={account} onChart={(date) => { setSpan({ day: date }); setMode('overview'); }} />
+      ) : (
+      <>
+      <div className="ph-acct__top">
+        <div className="ph-card ph-acct__value" data-tone={toneOf(net) || 'flat'} data-testid="phone-account-value">
           <div className="ph-acct__value-top">
             <div>
               <div className="ph-label">Total account value</div>
               <div className="ph-acct__tav">{formatMoney(f.netLiquidation)}</div>
             </div>
             <div className="ph-acct__net">
-              <div className="ph-label">{shownBook === 'all' ? 'Today, net' : shownBook === 'you' ? 'You today' : 'Bots today'}</div>
-              <div className={`ph-acct__netpill ${toneClass(account.dayPnl)}`}>{signedMoney(account.dayPnl)}</div>
+              <div className="ph-label" data-testid="phone-account-net-name">{netName}</div>
+              <div className={`ph-acct__netpill ${toneClass(net)}`}>{signedMoney(net)}</div>
             </div>
           </div>
-          <Curve account={account} book={shownBook} />
+          <Curve account={account} book={shownBook} span={span} net={net} />
+          <div className="ph-acct__ranges" role="group" aria-label="What the chart covers">
+            {day ? (
+              <button type="button" aria-pressed data-testid="phone-account-day" onClick={() => setSpan({ range: '1D' })}>
+                {dayShortLabel(day).split(', ')[1]} <X size={11} aria-hidden />
+              </button>
+            ) : null}
+            {ACCOUNT_HISTORY_RANGES.map((r) => (
+              <button key={r} type="button" aria-pressed={!day && r === range} data-testid={`phone-account-range-${r}`} onClick={() => setSpan({ range: r })}>
+                {RANGE_NAMES[r]}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="ph-card ph-acct__stats">
@@ -266,6 +321,8 @@ export function AccountScreen() {
           </div>
         ) : null}
       </div>
+      </>
+      )}
     </PhoneScreen>
   );
 }
