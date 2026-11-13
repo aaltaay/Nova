@@ -101,6 +101,21 @@ def make_server(directory: Path, port: int) -> PhonePageServer:
     return PhonePageServer((LOOPBACK, port), partial(PhonePageHandler, directory=str(directory)))
 
 
+def _say_if_behind(directory: Path) -> None:
+    """Warn, never refuse, when the page served is not this PC's code (tools/phone_page.py)."""
+    if directory != DEFAULT_DIRECTORY.resolve():
+        return
+    try:
+        from tools import phone_page
+    except ImportError:
+        import phone_page  # run as a script from tools/
+    report = phone_page.check()
+    if not report.ok:
+        print("WARNING: the phone will not show this PC's code.", file=sys.stderr)
+        for line in phone_page.describe(report):
+            print(line, file=sys.stderr)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Serve the built phone page to the private tunnel.")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
@@ -110,6 +125,7 @@ def main(argv: list[str] | None = None) -> int:
     if not (directory / "phone.html").is_file():
         print(f"No phone.html in {directory}. Build the page first: npm run build (in frontend/).", file=sys.stderr)
         return 2
+    _say_if_behind(directory)
     server = make_server(directory, args.port)
     print(f"Serving {directory} on http://{LOOPBACK}:{server.server_address[1]} (Ctrl+C stops it).", flush=True)
     try:
