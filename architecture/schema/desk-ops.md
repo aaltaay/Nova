@@ -1244,6 +1244,11 @@ Display only: nothing here touches the depth line, the book watcher or an order.
   bands hide, so the ladder's ten rows keep their 18 px floor and a level past the rows still shows on the
   last one. Under 300 px of pane width the spread row keeps its three numbers only (no words, no percent),
   and the tape's band drops its "Last" word under 180 px.
+- **The floor under the book** (operator report, 2026-11-13: "it was all small ... no bid, no ask, and no
+  spread"). In the Trader's quote card the stock read sits over Level 2 and grows with the plan; Level 2 and
+  Time & Sales keep `--sv-depth-min` (290 px: the 260 px pane plus its head; half the card on a card too
+  short for that), and a read too long for what is left scrolls (`stock_view/stockViewRailDepth.css`,
+  `stock_read/stockRead.css`). A long plan on a tall desk no longer takes the spread row.
 - **The size** (`ibkr/level2Size.ts`, `ibkr/Level2Frame.tsx`): a right click anywhere on the pane opens a
   cursor-anchored menu (`role="menu"`, three `menuitemradio` rows: Small, Medium, Large, the current one
   ticked); a pick, a click outside or Escape closes it. The pane's root carries `data-l2-size`, and the

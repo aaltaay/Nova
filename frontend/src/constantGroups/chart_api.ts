@@ -418,10 +418,11 @@ export const TICKER_TRADE_SIDE_WIDTH_MAX_PX = 720;
 /** Desktop breakpoint (px): 2×2 charts + right rail; below stacks rail under charts. */
 export const STOCK_VIEW_DESKTOP_MIN_PX = 900;
 /**
- * Soft floor (px) for Stock View L2+T&S when space allows.
+ * Floor (px) for Stock View L2+T&S in the quote card (half the card on a short one): the 260 px pane
+ * where Level 2 still shows its spread row, plus the pane's head.
  * Mirrored as `--sv-depth-min` in stockViewTerminal.css.
  */
-export const STOCK_VIEW_DEPTH_MIN_PX = 260;
+export const STOCK_VIEW_DEPTH_MIN_PX = 290;
 /** localStorage key: user's saved Stock View quote-panel width (drag-to-resize). */
 export const STOCK_VIEW_SIDE_WIDTH_KEY = 'nova.stockView.sideWidthPx';
 /**
