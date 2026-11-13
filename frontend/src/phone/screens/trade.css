@@ -215,8 +215,8 @@
 .ph-tape__halt {
   height: 40px;
   flex-shrink: 0;
-  margin: 0 6px 2px 4px;
-  padding: 0 6px;
+  margin: 0 4px 2px 2px;
+  padding: 0 5px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -228,7 +228,8 @@
   overflow: hidden;
 }
 .ph-tape__halt b { display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; }
-.ph-tape__halt span { font: 600 11px var(--ph-mono); }
+/* The interface type, not the tape's wide one: "6:10 · 3:50 left" must fit the column on every phone's fonts. */
+.ph-tape__halt span { font: 600 11px var(--ph-ui); font-variant-numeric: tabular-nums; letter-spacing: 0; }
 .ph-tape__rows { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .ph-tape__row {
   height: 20px;

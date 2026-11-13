@@ -86,6 +86,13 @@ test('a halted stock says so over the tape, on the desk\'s halt clock, and it co
   // The prints that came before the halt are still under it, and nothing is pushed off the screen.
   await expect(page.getByTestId('phone-tape').locator('.ph-tape__row')).not.toHaveCount(0);
   expect(await phoneOverflow(page)).toEqual([]);
+  // Room to spare, so a phone whose fonts run wider still shows the whole clock.
+  const spare = await halt.locator('span').evaluate((el) => {
+    const text = document.createRange();
+    text.selectNodeContents(el);
+    return el.getBoundingClientRect().width - text.getBoundingClientRect().width;
+  });
+  expect(spare).toBeGreaterThanOrEqual(15);
 });
 
 test('a tap is the order: the desk gets its own order body, priced from the book on the screen', async ({ page }) => {
