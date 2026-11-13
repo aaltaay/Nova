@@ -81,6 +81,33 @@ test('the big chart opens upright from the corner icon, and is drawn wide for a 
   expect(await phoneOverflow(page)).toEqual([]);
 });
 
+test("Account's chart takes the desk's ranges, and the Calendar opens a day's chart; neither scrolls", async ({ page }) => {
+  const { errors } = attachErrorCollector(page);
+  const api = await mockPhoneApi(page);
+  await open(page, 'account');
+  await expect(page.getByTestId('phone-position-ABCD')).toBeVisible();
+  await expect(page.getByTestId('phone-account-net-name')).toHaveText('Today, net');
+  await page.getByTestId('phone-account-range-5D').click();
+  await expect(page.getByTestId('phone-account-net-name')).toHaveText('5D, net');
+  expect(await phoneOverflow(page)).toEqual([]);
+
+  await page.getByTestId('phone-account-calendar').click();
+  await expect(page.getByTestId('phone-calendar')).toBeVisible();
+  // A day is already picked (today, or the month's last traded day), so its box is never empty.
+  await expect(page.getByTestId('phone-calendar-day')).toContainText('Gross · costs');
+  await expect(page.locator('.ph-cal__d[aria-pressed="true"]')).toHaveCount(1);
+  expect(await phoneOverflow(page)).toEqual([]);
+
+  await page.getByRole('button', { name: "See this day's chart" }).click();
+  await expect(page.getByTestId('phone-account-day')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('phone-position-ABCD')).toBeVisible();
+  // A range takes the chart back from the day.
+  await page.getByTestId('phone-account-range-1D').click();
+  await expect(page.getByTestId('phone-account-day')).toHaveCount(0);
+  expect(api.writes).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
 test('a viewport smaller than the drawing shrinks the whole page instead of scrolling', async ({ page }) => {
   await mockPhoneApi(page);
   await page.setViewportSize({ width: 360, height: 600 });
