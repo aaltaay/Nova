@@ -192,12 +192,14 @@ describe('RecordingChip', () => {
   it('the card stops the recording after a full hold, says who started it, and opens Records (operator ask 2026-10-14)', async () => {
     const records = vi.fn();
     await mount(<RecordingChip variant="bar" onOpenRecords={records} />);
-    await poll({ ...recording, auto_record: {
-      active: true, window: '', symbols: ['GRML'], yielded: [], last_error: null,
-      why: { GRML: 'near' }, setup: { GRML: 'flat_top_5m' },
+    const empty = { symbol: null, since: null, depth: false, tape: false, recording: false, error: null };
+    await poll({ ...recording, lanes: {
+      schema_version: 1, you: empty, claude: empty, recording_error: null,
+      bots: { ...empty, symbol: 'GRML', depth: true, tape: true, recording: true, setup: 'flat_top_5m', why: 'near', waiting: [] },
     } });
     const card = await openCard(screen.getByTestId('status-chip-recording'));
-    expect(card).toContain('5-minute flat top · near its trigger');
+    expect(card).toContain("lane -- recorded while a lane watches it");
+    expect(card).toContain("the bots' lane · 5-minute flat top · near its trigger");
     const stop = document.body.querySelector('[data-testid="status-chip-recording-stop"]') as HTMLElement;
     command.mockResolvedValue(response({ capture: false, capture_symbols: [] }));
     fireEvent.pointerDown(stop, { button: 0 });

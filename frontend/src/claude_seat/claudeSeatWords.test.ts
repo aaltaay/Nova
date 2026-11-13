@@ -59,7 +59,7 @@ describe('the pill and the panel', () => {
 
   it("writes the panel's rows: the line, the buy set with its risk, and the day with the -$500 stop", () => {
     const status = seatStatus();
-    expect(lineRow(status)).toBe('Level 2 + Time & Sales on SMPL · 1 of 3 · you have 2');
+    expect(lineRow(status)).toBe("Level 2 + Time & Sales on SMPL · Claude's lane");
     expect(buySetRow(status)).toMatch(/^510 over 4.39 · risk \$148 · ends \d\d:\d\d$/);
     expect(todayRow(status)).toBe('Trades 0 · no cap · $0.00 · I stop for the day at -$500');
     expect(todayRow(seatStatus({ today: { ...status.today, entries: 2, max_entries: 3 } })))

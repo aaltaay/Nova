@@ -177,7 +177,7 @@ function openSocket(r: Run, feed: Feed): void {
     if (feed.name === 'Level 2') noteView(r, frame);
     // A hidden page measures nothing: no sample, and an open drop ends on the first frame after it shows again.
     if (r.hiddenAt != null) return;
-    if (type === 'error' || type === 'lent') {
+    if (type === 'error' || type === 'lane') {
       r.notes.set(feed.name, `${feed.name}: ${String(frame.message ?? frame.text ?? type)}`);
       return;
     }

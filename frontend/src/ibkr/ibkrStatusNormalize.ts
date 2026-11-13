@@ -11,7 +11,7 @@
  * becomes the empty value of its type; a field that is absent stays absent;
  * a well-formed payload comes back unchanged.
  */
-import { parseAutoRecordStatus } from './autoRecordStatusParse';
+import { parseLanes, parseRecordingSwitch } from './lanes';
 import type { IbkrMode, IbkrStatus, LeaderboardRecorderStatus } from './types';
 
 const MODES: readonly IbkrMode[] = ['paper', 'live', 'sim', 'disconnected'];
@@ -102,7 +102,8 @@ export function normalizeIbkrStatus(raw: unknown): IbkrStatus | null {
   }
   if ('gateway_self_heal' in raw && !isPlainObject(raw.gateway_self_heal)) out.gateway_self_heal = null;
   if ('leaderboard_recorder' in raw) out.leaderboard_recorder = leaderboardRecorder(raw.leaderboard_recorder);
-  if ('auto_record' in raw) out.auto_record = parseAutoRecordStatus(raw.auto_record);
+  if ('lanes' in raw) out.lanes = parseLanes(raw.lanes);
+  if ('recording_switch' in raw) out.recording_switch = parseRecordingSwitch(raw.recording_switch);
   return out as unknown as IbkrStatus;
 }
 

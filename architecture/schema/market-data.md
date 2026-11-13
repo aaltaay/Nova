@@ -418,7 +418,11 @@ recordings are hurting me more than helping me".
   frame and is closed: depth `{type: "error", symbol, message, evicted: true, lane: Lanes}`, tape
   `{type: "lane", symbol, message, lane: Lanes}`. A socket opened with `front=0` on a stock no lane is on gets the
   same frame at once. `message` names where your Level 2 is ("Your Level 2 is on XLAB -- open TGHL to bring it
-  here"). The socket's pane does not ask again by itself (decision 4); opening the stock in front does.
+  here"). The socket's pane does not ask again by itself (decision 4); opening the stock in front does. On the desk
+  (ADR 071 amendment 8, `frontend/src/ibkr/laneWait.ts`) the pane shows its own words from `lane.you`, asks with
+  `front=1` when it comes to the front or its words are clicked, and with `front=0` when its window's one
+  `GET /api/ibkr/lanes` poll (every 5 s while a pane waits) finds a lane on its stock -- never by its backoff, and
+  never by itself from the front.
 - **IBKR's 15 seconds:** a tape Nova cancelled may not be asked for again for `IBKR_TAPE_RESUBSCRIBE_GUARD_SEC` (16 s)
   after the cancel, unchanged until decision 10's measurement.
 - **On the wire.** `GET /api/ibkr/lanes` and `/api/ibkr/status` `lanes`: `{schema_version: 1, you: Lane, claude:

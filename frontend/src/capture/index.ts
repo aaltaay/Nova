@@ -16,7 +16,9 @@ export {
 } from './sessionRecordStore';
 export { HoldToStopButton } from './HoldToStopButton';
 export {
+  AUTO_RECORD_WHY_WORDS,
   CAPTURE_STOP_HOLD_HINT,
   captureStopHoldLabel,
+  LANE_OWNER_WORDS,
   RECORDING_PLANNED_STOP_REASONS,
 } from './constants';

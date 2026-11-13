@@ -32,7 +32,7 @@ interface Props {
   statusTitle?: string;
   /** Empty-tape message while connected. */
   emptyLabel?: string;
-  /** A Trader tab's Time & Sales: its line may be lent while the tab is hidden (ADR 044 decision 6). */
+  /** A Trader tab's Time & Sales: its socket says `tab=1`, and only the tab in front moves your lane (ADR 071). */
   traderTab?: boolean;
 }
 

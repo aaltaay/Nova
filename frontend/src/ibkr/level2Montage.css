@@ -289,6 +289,11 @@
   padding: 1.5rem 0;
 }
 
+/* A pane no lane is on (ADR 071): its words bring your lane here on a click. */
+.lane-wait {
+  cursor: pointer;
+}
+
 .ibkr-depth-fallback-badge {
   font-size: 0.65rem;
   background: rgba(234, 179, 8, 0.1);

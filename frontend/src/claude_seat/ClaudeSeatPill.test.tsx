@@ -6,7 +6,6 @@
  */
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ClaudeLinesFullBox } from './ClaudeLinesFullBox';
 import { ClaudeSeatPill } from './ClaudeSeatPill';
 import { resetClaudeSeatForTests, setClaudeSeatForTests } from './claudeSeatStore';
 import { seatStatus } from './claudeSeatFixtures';
@@ -54,7 +53,7 @@ describe('ClaudeSeatPill', () => {
     fireEvent.click(pill);
     const panel = screen.getByTestId('claude-panel');
     expect(panel.textContent).toContain('SMPL +54% on news');
-    expect(panel.textContent).toContain('1 of 3 · you have 2');
+    expect(panel.textContent).toContain("Level 2 + Time & Sales on SMPL · Claude's lane");
     expect(panel.textContent).toContain('I stop for the day at -$500');
     expect(screen.getByTestId('claude-panel-reflexes').textContent).toContain('4.30 bid drops under 5,000');
   });
@@ -118,15 +117,3 @@ describe('ClaudeSeatPill', () => {
   });
 });
 
-describe('ClaudeLinesFullBox', () => {
-  it('names whose lines they are and offers Take Claude\'s line', async () => {
-    render(<ClaudeLinesFullBox message="All 3 Level 2 lines are in use: SPIK and FLTX are yours, SMPL is Claude's." />);
-    act(() => setClaudeSeatForTests(seatStatus()));
-    const box = screen.getByTestId('claude-lines-full');
-    expect(box.textContent).toContain('All 3 Level 2 lines are in use');
-    expect(box.textContent).toContain('SPIK · you');
-    expect(box.textContent).toContain('SMPL · Claude');
-    fireEvent.click(screen.getByTestId('claude-lines-full-take'));
-    await waitFor(() => expect(calls.some(c => c.url.endsWith('/api/agent/trader/yield') && c.method === 'POST')).toBe(true));
-  });
-});

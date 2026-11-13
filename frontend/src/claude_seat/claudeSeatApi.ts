@@ -72,11 +72,9 @@ function event(raw: unknown): ClaudeEvent | null {
 
 function line(raw: unknown): ClaudeLine {
   const r = obj(raw);
-  const names = (v: unknown) => list(v).filter((s): s is string => typeof s === 'string').map(s => s.toUpperCase());
   return {
     symbol: str(r.symbol)?.toUpperCase() ?? null, depth: r.depth === true, tape: r.tape === true,
-    why_not: str(r.why_not), desk_lines: names(r.desk_lines), desk_cap: num(r.desk_cap), all_lines: names(r.all_lines),
-    from_tab: str(r.from_tab)?.toUpperCase() ?? null, taken_back: names(r.taken_back),
+    why_not: str(r.why_not),
   };
 }
 
@@ -147,4 +145,3 @@ export const giveClaudeLineBack = () => press('/give-back');
 /** Stop Claude: its orders cancelled, its shares sold, the seat off, the line yours. */
 export const stopClaude = () => press('/stop-claude');
 /** Take my Level 2 back from Claude: the right-clicked tab's lines come back; Claude stays on and waits. */
-export const takeTabLineBack = (symbol: string) => press('/take-back', { symbol });

@@ -1,16 +1,15 @@
 /**
  * @vitest-environment jsdom
  *
- * A Trader tab's Time & Sales whose line went with its Level 2 to a setup (ADR 044 decision 6):
- * it says so, drops the tape it can no longer keep live, never reconnects by its backoff, and
- * comes back with the tab's Level 2 -- on the same poll when the loan ends, or at once when the
- * tab comes to the front.
+ * A Time & Sales on a stock no lane is on (ADR 071): it drops the tape it can no longer keep live, says where your
+ * lane is, never reconnects by its backoff and never takes your lane back by itself, and comes back with the tab's
+ * Level 2 -- on the same poll when a lane comes to its stock, or at once when the tab comes to the front.
  */
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { L2_LENT_POLL_MS } from '../constantGroups/market_ui';
-import { resetLoanWatchForTests } from './loanWatch';
+import { LANE_WAIT_POLL_MS } from '../constantGroups/market_ui';
+import { resetLaneWatchForTests } from './laneWait';
 import { useIbkrDepth } from './useIbkrDepth';
 import { useIbkrTape, type TapeState } from './useIbkrTape';
 
@@ -40,32 +39,25 @@ class FakeWebSocket {
 
 type DepthState = ReturnType<typeof useIbkrDepth>;
 
-const LENT = {
-  type: 'lent',
-  symbol: 'ABC',
-  to: { symbol: 'AISP', setup_type: 'first_pullback', setup_id: 'AISP-2026-10-01-1' },
-  why: 'near its trigger',
-  tier: 'near',
-  since: 1_790_900_000,
-  text: "Level 2 lent to AISP's first pullback (near its trigger) -- back when it ends or when you bring this tab to the front",
-};
-
-const LOAN = {
-  lender: 'ABC', borrower: 'AISP', setup_type: 'first_pullback', setup_id: 'AISP-2026-10-01-1',
-  since: 1_790_900_000, why: 'in a trade', tier: 'trade', text: null, tape: true, tape_state: 'receiving',
-  tape_error: null, tape_lent: true, tape_last_print: 1_790_900_010,
-};
+const lane = { you: 'TGHL', claude: null, bots: null };
+const TAPE_LANE = { type: 'lane', symbol: 'ABC', message: 'Your Level 2 moved to TGHL.', lane };
+const DEPTH_LANE = { type: 'error', symbol: 'ABC', message: 'Your Level 2 moved to TGHL.', evicted: true, lane };
 
 const PRINT = {
   type: 'print', symbol: 'ABC', time: '2026-10-01T13:45:00.000Z', price: 5.12, size: 300, exchange: 'NSDQ',
   conditions: '', side: 'ask', bid: 5.11, ask: 5.12,
 };
 
-function linesAnswer(loans: unknown[]) {
+const empty = { symbol: null, since: null, depth: false, tape: false, recording: false, error: null };
+
+function lanesAnswer(you: string | null, claude: string | null = null) {
   return {
     ok: true,
     status: 200,
-    json: async () => ({ schema_version: 1, cap: 3, lines: [], lending: { on: true, loans, recent: [], error: null } }),
+    json: async () => ({
+      schema_version: 1, you: { ...empty, symbol: you }, claude: { ...empty, symbol: claude },
+      bots: { ...empty, setup: null, why: null, waiting: [] }, recording_error: null,
+    }),
   };
 }
 
@@ -89,7 +81,7 @@ function TabHarness({ uiActive, onDepth, onTape }: {
   return null;
 }
 
-describe('useIbkrTape with a lent line', () => {
+describe('useIbkrTape on a stock no lane is on', () => {
   let container: HTMLDivElement;
   let root: Root;
   let tape: TapeState | null;
@@ -108,9 +100,9 @@ describe('useIbkrTape with a lent line', () => {
     });
   }
 
-  function lend(ws: FakeWebSocket) {
+  function noLane(ws: FakeWebSocket, frame: unknown = TAPE_LANE) {
     act(() => {
-      ws.frame(LENT);
+      ws.frame(frame);
       ws.close();
     });
   }
@@ -143,7 +135,7 @@ describe('useIbkrTape with a lent line', () => {
       root.unmount();
     });
     container.remove();
-    resetLoanWatchForTests();
+    resetLaneWatchForTests();
     vi.useRealTimers();
     vi.unstubAllGlobals();
   });
@@ -163,7 +155,7 @@ describe('useIbkrTape with a lent line', () => {
     expect(sockets()[0].url).not.toContain('tab=1');
   });
 
-  it('a lent frame drops the tape it can no longer keep live and says whose setup took it', async () => {
+  it('a lane frame drops the tape it can no longer keep live, says where your lane is and never asks by itself', async () => {
     render(true);
     act(() => {
       sockets()[0].frame({ type: 'subscribed', symbol: 'ABC' });
@@ -171,16 +163,17 @@ describe('useIbkrTape with a lent line', () => {
     });
     await wait(20);                                          // the print reaches the pane
     expect(tape?.prints).toHaveLength(1);
-    lend(sockets()[0]);                                      // lent while in front (the focus report trailed)
+    noLane(sockets()[0]);                                    // your lane moved on while this pane is in front
     expect(tape?.prints).toEqual([]);
     expect(tape?.connected).toBe(false);
     expect(tape?.error).toBeNull();
-    expect(tape?.lent).toMatchObject({ symbol: 'AISP', setupType: 'first_pullback', tier: 'near' });
-    expect(sockets()).toHaveLength(2);                       // the pane in front asks for it back at once
-    expect(sockets()[1].url).toContain('front=1');
+    expect(tape?.laneWait?.text).toBe('Your Time & Sales is on TGHL — click here or bring this tab to the front to have it on ABC');
+    fetchMock.mockResolvedValue(lanesAnswer('TGHL'));
+    await wait(60_000);
+    expect(sockets()).toHaveLength(1);                       // two windows in front never pass the lane to and fro
   });
 
-  it('a hidden pane shows the lent words, and no old tape, when it is shown', async () => {
+  it('a hidden pane shows the lane words, and no old tape, when it is shown', async () => {
     render(true);
     act(() => {
       sockets()[0].frame({ type: 'subscribed', symbol: 'ABC' });
@@ -188,49 +181,49 @@ describe('useIbkrTape with a lent line', () => {
     });
     await wait(20);
     render(false);
-    lend(sockets()[0]);
+    noLane(sockets()[0]);
     expect(tape?.prints).toHaveLength(1);                    // a hidden pane draws nothing new
-    render(true);
+    render(true);                                            // shown: your lane is asked for, the words stay until it answers
     expect(tape?.prints).toEqual([]);
-    expect(tape?.lent).toMatchObject({ symbol: 'AISP' });
+    expect(tape?.laneWait).toMatchObject({ you: 'TGHL' });
   });
 
-  it('never reconnects by its backoff while lent, and comes back when the loan ends', async () => {
+  it('never reconnects by its backoff, and views a lane that comes to its stock', async () => {
     render(false);
-    lend(sockets()[0]);
-    fetchMock.mockResolvedValueOnce(linesAnswer([LOAN]));
-    await wait(L2_LENT_POLL_MS);
-    expect(sockets()).toHaveLength(1);                       // the loan stands: no socket
-    fetchMock.mockResolvedValueOnce(linesAnswer([]));
-    await wait(L2_LENT_POLL_MS);
-    expect(sockets()).toHaveLength(2);                       // it ended: the line is asked for again
+    noLane(sockets()[0]);
+    fetchMock.mockResolvedValueOnce(lanesAnswer('TGHL'));
+    await wait(LANE_WAIT_POLL_MS);
+    expect(sockets()).toHaveLength(1);                       // no lane on ABC: no socket
+    fetchMock.mockResolvedValueOnce(lanesAnswer('TGHL', 'ABC'));
+    await wait(LANE_WAIT_POLL_MS);
+    expect(sockets()).toHaveLength(2);                       // Claude's lane came to ABC: asked again
     expect(sockets()[1].url).toContain('/ws/ibkr/tape/ABC?tab=1&front=0');
     await wait(30_000);
     expect(fetchMock).toHaveBeenCalledTimes(2);              // and the poll stopped
   });
 
-  it('takes the line back the moment the tab comes to the front, showing why until it answers', () => {
+  it('brings your lane the moment the tab comes to the front, showing why until it answers', () => {
     render(false);
-    lend(sockets()[0]);
+    noLane(sockets()[0]);
     render(true);
     expect(sockets()).toHaveLength(2);
     expect(sockets()[1].url).toContain('/ws/ibkr/tape/ABC?tab=1&front=1');
-    expect(tape?.lent).toMatchObject({ symbol: 'AISP' });
+    expect(tape?.laneWait).toMatchObject({ you: 'TGHL' });
     act(() => sockets()[1].frame({ type: 'subscribed', symbol: 'ABC' }));
-    expect(tape?.lent).toBeNull();
+    expect(tape?.laneWait).toBeNull();
     expect(tape?.connected).toBe(true);
   });
 
-  it('a take-back the backend refuses says why, then falls back to the backoff', async () => {
+  it('an ask the backend refuses says why, then falls back to the backoff', async () => {
     render(false);
-    lend(sockets()[0]);
+    noLane(sockets()[0]);
     render(true);
     act(() => {
-      sockets()[1].frame({ type: 'error', symbol: 'ABC', message: 'Resubscribing in 9s — please wait' });
+      sockets()[1].frame({ type: 'error', symbol: 'ABC', message: 'IBKR allows ABC\'s tape again in 9 s' });
       sockets()[1].close();
     });
-    expect(tape?.lent).toBeNull();
-    expect(tape?.error).toBe('Resubscribing in 9s — please wait');
+    expect(tape?.laneWait).toBeNull();
+    expect(tape?.error).toBe('IBKR allows ABC\'s tape again in 9 s');
     await wait(1_000);
     expect(sockets()).toHaveLength(3);
   });
@@ -239,14 +232,14 @@ describe('useIbkrTape with a lent line', () => {
     renderTab(false);
     expect(depthSockets()).toHaveLength(1);
     expect(tapeSockets()).toHaveLength(1);
-    lend(depthSockets()[0]);
-    lend(tapeSockets()[0]);
-    fetchMock.mockResolvedValueOnce(linesAnswer([LOAN]));
-    await wait(L2_LENT_POLL_MS);
+    noLane(depthSockets()[0], DEPTH_LANE);
+    noLane(tapeSockets()[0]);
+    fetchMock.mockResolvedValueOnce(lanesAnswer('TGHL'));
+    await wait(LANE_WAIT_POLL_MS);
     expect(fetchMock).toHaveBeenCalledTimes(1);              // one request for both panes
-    expect(sockets()).toHaveLength(2);                       // the loan stands: neither asks
-    fetchMock.mockResolvedValueOnce(linesAnswer([]));
-    await wait(L2_LENT_POLL_MS);
+    expect(sockets()).toHaveLength(2);                       // no lane on ABC: neither asks
+    fetchMock.mockResolvedValueOnce(lanesAnswer('ABC'));
+    await wait(LANE_WAIT_POLL_MS);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(depthSockets().map((s) => s.url.split('?')[1])).toEqual(['tab=1&front=0', 'tab=1&front=0']);
     expect(tapeSockets().map((s) => s.url.split('?')[1])).toEqual(['tab=1&front=0', 'tab=1&front=0']);
@@ -254,23 +247,23 @@ describe('useIbkrTape with a lent line', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);              // and the poll stopped
   });
 
-  it("brought to the front, the tab asks for both lines back at once, saying why until they answer", async () => {
+  it('brought to the front, the tab asks for both lines at once, saying where your lane was until they answer', async () => {
     renderTab(false);
-    lend(depthSockets()[0]);
-    lend(tapeSockets()[0]);
-    fetchMock.mockResolvedValueOnce(linesAnswer([LOAN]));
-    await wait(L2_LENT_POLL_MS);
+    noLane(depthSockets()[0], DEPTH_LANE);
+    noLane(tapeSockets()[0]);
+    fetchMock.mockResolvedValueOnce(lanesAnswer('RUNR'));
+    await wait(LANE_WAIT_POLL_MS);
     renderTab(true);
     expect(depthSockets().map((s) => s.url.split('?')[1])).toEqual(['tab=1&front=0', 'tab=1&front=1']);
     expect(tapeSockets().map((s) => s.url.split('?')[1])).toEqual(['tab=1&front=0', 'tab=1&front=1']);
-    expect(depth?.lent).toMatchObject({ symbol: 'AISP', tier: 'trade' });   // the poll's newest reason
-    expect(tape?.lent).toMatchObject({ symbol: 'AISP', tier: 'trade' });
+    expect(depth?.laneWait).toMatchObject({ you: 'RUNR' });  // the poll's newest word
+    expect(tape?.laneWait).toMatchObject({ you: 'RUNR' });
     act(() => {
       depthSockets()[1].frame({ type: 'subscribed', symbol: 'ABC' });
       tapeSockets()[1].frame({ type: 'subscribed', symbol: 'ABC' });
     });
-    expect(depth?.lent).toBeNull();
-    expect(tape?.lent).toBeNull();
+    expect(depth?.laneWait).toBeNull();
+    expect(tape?.laneWait).toBeNull();
     await wait(30_000);
     expect(fetchMock).toHaveBeenCalledTimes(1);              // nothing waits on the poll any more
   });

@@ -5,7 +5,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IbkrClientStatus } from '../ibkr/useIbkrStatus';
-import type { AutoRecordStatus } from '../ibkr/types';
+import type { AutoRecordSwitch } from '../ibkr/types';
 import type { CaptureSessions } from '../sim/useSimSessionController';
 import { formatMissingSeconds, RecordsPage, todayEasternDate } from './RecordsPage';
 
@@ -70,18 +70,19 @@ function etOffset(day: string): string {
 /** Epoch seconds of an ET clock time on `day`. */
 const at = (day: string, hm: string) => Date.parse(`${day}T${hm}:00${etOffset(day)}`) / 1000;
 
-const WINDOWS: AutoRecordStatus['windows'] = {
-  open: 'setups',
-  setups: {
-    open: true, start: '07:00', end: '15:30', error: null,
-    by_setup: [
-      { setup: 'flat_top_5m', start: '07:00', end: '15:30', open: true },
-      { setup: 'first_pullback', start: '07:00', end: '11:30', open: false },
-      { setup: 'red_to_green', start: '09:30', end: '10:30', open: false },
-    ],
-  },
-  leaders: { open: false, start: '07:00', end: '10:00' },
-};
+const EMPTY_LANE = { symbol: null, since: null, depth: false, tape: false, recording: false, error: null };
+const ON: AutoRecordSwitch = { mode: 'on', source: 'default', day: null, until: null, error: null };
+
+/** The lanes on the wire (ADR 071): `you` and `bots` on these stocks, each recording. */
+function lanes(you: string | null, bots: string | null, recording = true) {
+  return {
+    schema_version: 1, recording_error: null,
+    you: { ...EMPTY_LANE, symbol: you, depth: true, tape: true, recording: recording && you != null },
+    claude: EMPTY_LANE,
+    bots: { ...EMPTY_LANE, symbol: bots, depth: true, tape: true, recording: recording && bots != null,
+      setup: bots ? 'flat_top_5m' : null, why: bots ? 'near' : null, waiting: [] },
+  };
+}
 
 describe('RecordsPage', () => {
   let container: HTMLDivElement;
@@ -282,11 +283,8 @@ describe('RecordsPage', () => {
         { symbol: 'AXTQ', started_et: `${today}T14:44:00${etOffset(today)}`, segment_started_et: `${today}T14:44:00${etOffset(today)}`, segment: 1,
           counts: { prints: 3, quotes: 1, l2: 10 } },
       ],
-      auto_record: {
-        active: true, window: '', symbols: ['COHQ', 'AXTQ'], yielded: [], last_error: null,
-        why: { COHQ: 'near', AXTQ: 'armed' }, setup: { COHQ: 'flat_top_5m', AXTQ: 'flat_top_5m' }, windows: WINDOWS,
-        switch: { mode: 'on', source: 'default', day: null, until: null, error: null },
-      },
+      lanes: lanes('AXTQ', 'COHQ'),
+      recording_switch: ON,
     } as unknown as IbkrClientStatus;
     render();
     act(() => {
@@ -298,7 +296,8 @@ describe('RecordsPage', () => {
     });
     const now = row('records-now')!;
     expect(now.textContent).toMatch(/2 of 3 recording slots in use/);
-    expect(row('records-now-COHQ')!.textContent).toMatch(/Auto-record · 5-minute flat top · near its trigger/);
+    expect(row('records-now-COHQ')!.textContent).toMatch(/The bots' lane · 5-minute flat top · near its trigger/);
+    expect(row('records-now-AXTQ')!.textContent).toMatch(/Your lane/);
     expect(row('records-now-COHQ')!.textContent).toMatch(/since 13:58, resumed 14:36 after a Nova restart/);
     expect(row('records-now-free')!.textContent).toMatch(/free slot/);
     const stop = row('records-now-stop-COHQ') as HTMLElement;
@@ -316,20 +315,17 @@ describe('RecordsPage', () => {
     expect(store.stopAll).toHaveBeenCalledTimes(1);
   });
 
-  it('turns auto-record off from its switch, and says what it would stop and why it is locked', async () => {
-    const auto = (over: Partial<AutoRecordStatus>): IbkrClientStatus => ({
-      connected: true, stale: false, mode: 'paper',
-      auto_record: {
-        active: true, window: '', symbols: ['COHQ'], yielded: [], last_error: null, windows: WINDOWS,
-        switch: { mode: 'on', source: 'default', day: null, until: null, error: null }, ...over,
-      },
+  it('turns recording off from its switch, and says what the lanes record, what it would stop and why it is locked', async () => {
+    const auto = (sw: AutoRecordSwitch | null, you: string | null = 'COHQ'): IbkrClientStatus => ({
+      connected: true, stale: false, mode: 'paper', lanes: lanes(you, null), recording_switch: sw,
     }) as unknown as IbkrClientStatus;
-    status.current = auto({});
+    status.current = auto(ON);
     render();
     act(() => publish({ data: { days: [], tickers_by_day: {} }, error: null }));
     const card = row('records-auto-record')!;
+    expect(card.textContent).toMatch(/On\. Recording COHQ \(your lane\)\./);
     expect(card.textContent).toMatch(/Turning it off stops COHQ now/);
-    expect(row('records-auto-windows')!.textContent).toMatch(/5-minute flat top/);
+    expect(row('records-auto-windows')).toBeNull();
     expect(row('records-auto-on')!.getAttribute('aria-pressed')).toBe('true');
     fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) } as Response);
     await act(async () => { (row('records-auto-off_today') as HTMLButtonElement).click(); });
@@ -342,17 +338,21 @@ describe('RecordsPage', () => {
     await act(async () => { (row('records-auto-off') as HTMLButtonElement).click(); });
     expect(card.textContent).toMatch(/The switch did not change: Nova could not save the switch/);
 
-    status.current = auto({ symbols: [], switch: { mode: 'off', source: 'env', day: null, until: null, error: null } });
+    status.current = auto({ mode: 'off', source: 'env', day: null, until: null, error: null }, null);
     render();
     expect(row('records-auto-on')!.hasAttribute('disabled')).toBe(true);
     expect(row('records-auto-on')!.getAttribute('data-why')).toMatch(/NOVA_AUTO_RECORD=0/);
-    status.current = auto({ switch: undefined });
+    status.current = auto(null);
     render();
-    expect(row('records-auto-on')!.getAttribute('data-why')).toMatch(/did not say how auto-record is set/);
+    expect(row('records-auto-on')!.getAttribute('data-why')).toMatch(/did not say how recording is set/);
+    // On with no lane on a stock: nothing records, and the card says why.
+    status.current = auto(ON, null);
+    render();
+    expect(row('records-auto-line')!.textContent).toBe('On. No lane watches a stock now, so nothing is recorded.');
     // Off for today: nothing records, and the card offers to turn it back on.
-    status.current = auto({ symbols: [], switch: { mode: 'off_today', source: 'operator', day: today, until: null, error: null } });
+    status.current = auto({ mode: 'off_today', source: 'operator', day: today, until: null, error: null }, null);
     render();
-    expect(row('records-now')!.textContent).toMatch(/Auto-record is off for today/);
+    expect(row('records-now')!.textContent).toMatch(/Recording is off for today/);
     expect(row('records-auto-on-now')).toBeTruthy();
   });
 

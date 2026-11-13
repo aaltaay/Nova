@@ -165,6 +165,22 @@ working on the desktop". Asked what each word means, they chose:
 6. **`evict_for_capacity` stays, as a guard against leaked lines** (amends "What this removes"): it cancels only a line
    no lane, socket or recording holds, and never a lane's.
 7. **Decision 10's measurement is not made yet.** The 16 s guard stays as it is until it is.
+8. **No new screens** (operator, shown the screens mockup: "We don't need any UI for this. We're keeping the same
+   UI"). The desk keeps its panes, cards and switches as they look; only what they read changes:
+   - A Level 2 or Time & Sales pane on a stock no lane is on shows, in its own empty-state look, where your lane is
+     ("Your Level 2 is on TGHL — click here or bring this tab to the front to have it on XLAB"; Time & Sales badge
+     NO LANE). It never asks again by its backoff, and never by itself from the front: two windows in front would pass
+     your lane to and fro and end each other's lines. It asks with `front=1` when it comes to the front (its tab
+     shown, its document made visible) or its words are clicked, and with `front=0` when one `GET /api/ibkr/lanes`
+     poll per window (every 5 s while a pane waits) finds Claude's or the bots' lane on its stock -- so viewing their
+     line never moves yours. The order lock, the heat map and the phone say the same without the click.
+   - Records' switch card keeps On / Off for today / Off and says what the lanes record ("On. Recording XLAB (your
+     lane)."); a recording's row and the REC chip's card say whose lane keeps it. A lane's planned stop
+     (`reason: "lane"`) is quiet like the operator's own, never a toast and never a "missing" gap.
+   - The Bots page's Level 2 lines card shows the three lanes in its three slots and the bots' setup with the
+     setups waiting for it; the lending switch goes.
+   - What only lending or Claude's borrowing drew goes: the lent words, "Take it back" on a tab, the tab's "L2 ·
+     Claude" chip, and the "All 3 lines are in use" box.
 
 ## Build order
 
@@ -173,4 +189,4 @@ working on the desktop". Asked what each word means, they chose:
    `desk-ops.md`, `execution.md`.
 3. The lanes on the backend, recording on the lanes, the removals above; the panes keep working with the words they
    have.
-4. The screens (Records, the Bots page, the "your Level 2 is on" pane, the tab's Record menu), mockup first.
+4. The panes, Records, the Bots page and the REC chips read the lanes, with no new screen (amendment 8).

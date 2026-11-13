@@ -37,10 +37,9 @@ import {
   depthLiveBadge,
   depthLiveBadgeText,
 } from './depthUiStatus';
-import { depthLentText, lentToClaude } from './lentWords';
 import { computeL2Heuristics } from './l2Heuristics';
 import { useIbkrDepth } from './useIbkrDepth';
-import { ClaudeLentWords, ClaudeLinesFullBox } from '../claude_seat';
+import { LaneWaitText } from './LaneWaitText';
 import type { DepthLevel } from './types';
 import { useRenderCount } from '../perf/useRenderCount';
 import { noteBookShown } from '../market_view';
@@ -52,7 +51,7 @@ interface Props {
   uiActive?: boolean;
   /** The plan's ENTRY / STOP / TARGET, drawn where they sit in the book (ADR 037). */
   markers?: readonly DepthMarker[];
-  /** A Trader tab's Level 2: its line may be lent while the tab is hidden (ADR 044 decision 6). */
+  /** A Trader tab's Level 2: its socket says `tab=1`, and only the tab in front moves your lane (ADR 071). */
   traderTab?: boolean;
 }
 
@@ -265,7 +264,7 @@ export function MontageSide({
 
 export function DepthLadder({ symbol, uiActive = true, markers, traderTab = false }: Props) {
   useRenderCount('DepthLadder');
-  const { book, connected, l1Fallback, error, watch, lent, luld, agentReserved } = useIbkrDepth(symbol, uiActive, { traderTab });
+  const { book, connected, l1Fallback, error, watch, laneWait, luld } = useIbkrDepth(symbol, uiActive, { traderTab });
   const { setTopOfBook } = useTopOfBook();
   // What left the book (ADR 033 amendment): the watcher reads depth, so an L1-only book carries none.
   const ladderWatch = l1Fallback ? null : watch;
@@ -296,24 +295,10 @@ export function DepthLadder({ symbol, uiActive = true, markers, traderTab = fals
     return <div className="ibkr-depth-empty">Enter a symbol to view the order book.</div>;
   }
 
-  // The line went to one of Nova's setups (ADR 044): say whose, and when it comes back.
-  // Lent to Claude (ADR 068 decision 14): the same words in Claude's violet; a right-click takes it back.
-  if (lent && lentToClaude(lent)) {
-    return (
-      <ClaudeLentWords symbol={symbol} text={depthLentText(lent)} testId="ibkr-depth-lent"
-        className="ibkr-depth-empty ibkr-depth-lent" />
-    );
+  // No lane is on the stock (ADR 071): say where your lane is; a click on the words brings it here.
+  if (laneWait) {
+    return <LaneWaitText symbol={symbol} text={laneWait.text} className="ibkr-depth-empty" testId="ibkr-depth-lane" />;
   }
-  if (lent) {
-    return (
-      <div className="ibkr-depth-empty ibkr-depth-lent" data-testid="ibkr-depth-lent" role="status">
-        {depthLentText(lent)}
-      </div>
-    );
-  }
-
-  // All 3 lines in use and one is Claude's (ADR 068): say whose, with the button that frees one.
-  if (!book && error && agentReserved) return <ClaudeLinesFullBox message={error} />;
 
   // Keep the last book on screen across brief WS reconnects. Only show the
   // full "Connecting…" placeholder when we have nothing to display yet.

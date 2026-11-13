@@ -6,7 +6,8 @@ import { noteHeatPrint, resetHeat } from '../heat_map';
 import { SAMPLE_LIVE_FEED_ABSENT } from '../sample_data/sampleCopy';
 import { onSampleDesk } from '../sample_data/sampleOrderGuard';
 import { createRafCoalesce } from '../utils/rafCoalesce';
-import { documentVisible, LentLine } from './lentLine';
+import { LANE_PANE_TAPE } from '../constantGroups/market_ui';
+import { documentVisible, LaneWait } from './laneWait';
 import {
   appendTapePrint,
   applyTapeSilentRecoveryFrame,
@@ -40,10 +41,9 @@ interface TapeWirePrint {
 
 export interface TapeOptions {
   /**
-   * A Trader tab's Time & Sales: its socket says so (`tab=1`), so the backend may lend its AllLast
-   * line with the tab's Level 2 line while no visible window shows the tab (ADR 044 decision 6:
-   * IBKR counts tick-by-tick lines like depth lines). Any Time & Sales says whether it is in front
-   * (`front=1`), which recalls a loan of its line.
+   * A Trader tab's Time & Sales: its socket says so (`tab=1`), so the backend knows a hidden tab from a pane
+   * shown elsewhere. Any Time & Sales says whether it is in front (`front=1`), which moves your lane to its
+   * stock (ADR 071).
    */
   traderTab?: boolean;
 }
@@ -59,11 +59,11 @@ export interface TapeOptions {
  * animation frame while ``uiActive``. Hidden live tabs keep the socket and
  * ring (and 10Sec upsert); they do not commit tape UI until shown again.
  *
- * A lent line (ADR 044 decision 6): the backend sends `{type: "lent", ...}` and closes. The ring
- * is cleared (the tape is no longer live, and a gap would not show), the pane says whose setup took
- * it, and the hook never reconnects by its backoff (LentLine): it reconnects when the shared lines
- * poll finds the loan ended, or at once when this Time & Sales comes to the front -- the same
- * moment as the tab's Level 2.
+ * No lane on the stock (ADR 071): the backend sends `{type: "lane", ...}` and closes. The ring is
+ * cleared (the tape is no longer live, and a gap would not show), the pane says where your lane is, and
+ * the hook never reconnects by its backoff (LaneWait): it asks again when the operator brings it to the
+ * front or clicks its words (your lane comes here), or when the lanes poll finds a lane on its stock --
+ * the same moments as the tab's Level 2.
  *
  * A live line with no print for a while (#722): each idle `ping` carries the backend's reading
  * (`silence`: halted, silent or quiet), and any print clears it. Each ping, and a `gate` frame whenever it
@@ -83,14 +83,14 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
   const errorRef = useRef<string | null>(null);
   // When the backend asks IBKR again for a refused line (#698); null when it is not retrying.
   const retryAtRef = useRef<number | null>(null);
-  // This symbol's line while it may be lent; set by the socket effect.
-  const lineRef = useRef<LentLine | null>(null);
+  // This symbol's wait for a lane; set by the socket effect.
+  const lineRef = useRef<LaneWait | null>(null);
   // The backend's word on a line with no print for a while (#722); null while it prints.
   const silenceRef = useRef<TapeSilence | null>(null);
 
   useEffect(() => {
     uiActiveRef.current = uiActive;
-    if (uiActive) lineRef.current?.wake();     // shown: a lent line is taken back now
+    if (uiActive) lineRef.current?.wake();     // shown: your lane comes here
   }, [uiActive]);
 
 
@@ -100,7 +100,7 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
       prints: printsRef.current,
       connected: connectedRef.current,
       error: errorRef.current,
-      lent: lineRef.current?.lent ?? null,
+      laneWait: lineRef.current?.waiting ?? null,
       retryAt: retryAtRef.current,
       silence: silenceRef.current,
     });
@@ -139,12 +139,12 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
     }
 
     const inFront = () => uiActiveRef.current && documentVisible();
-    const line = new LentLine(symKey, {
+    const line = new LaneWait(symKey, LANE_PANE_TAPE, {
       inFront,
-      // The loan ended, or this Time & Sales came to the front (its socket recalls the loan): ask now.
-      reconnect: () => {
+      // A lane came to this stock, or the operator brought this Time & Sales here: ask now.
+      reconnect: (front) => {
         backoffRef.current = 1000;
-        connect();
+        connect(front);
       },
       changed: () => {
         if (uiActiveRef.current) commitUi();
@@ -152,9 +152,9 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
     });
     lineRef.current = line;
 
-    function connect() {
+    function connect(front = inFront()) {
       if (!mountedRef.current) return;
-      const params = `?${traderTab ? 'tab=1&' : ''}front=${inFront() ? 1 : 0}`;
+      const params = `?${traderTab ? 'tab=1&' : ''}front=${front ? 1 : 0}`;
       const ws = new WebSocket(`${WS_BASE_URL}/ws/ibkr/tape/${symKey}${params}`);
       wsRef.current = ws;
 
@@ -257,9 +257,9 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
               noteHeatPrint(symKey!, print.time, print.price, print.size, print.side);
             }
             if (uiActiveRef.current) raf.schedule();
-          } else if (msg.type === 'lent') {
-            // Lent to a setup with the tab's Level 2 (ADR 044): this tape is no longer live; the socket closes next.
-            line.lend(msg);
+          } else if (msg.type === 'lane') {
+            // No lane is on this stock (ADR 071): this tape is no longer live; the socket closes next.
+            line.wait(msg);
             printsRef.current = [];
             connectedRef.current = false;
             errorRef.current = null;
@@ -294,13 +294,13 @@ export function useIbkrTape(symbol: string | null, uiActive = true, options: Tap
         connectedRef.current = false;
         silenceRef.current = null;
         forgetBackendGate(symKey!);
-        // Lent: never by the backoff -- when the loan ends (the poll), or now if this pane is in front.
-        const lent = line.closed();
+        // Waiting for a lane: never by the backoff -- the operator brings it, or a lane comes to the stock.
+        const waiting = line.closed();
         if (uiActiveRef.current) commitUi();
-        if (lent) return;
+        if (waiting) return;
         const delay = backoffRef.current;
         backoffRef.current = Math.min(delay * 2, 30_000);
-        reconnectTimerRef.current = setTimeout(connect, delay);
+        reconnectTimerRef.current = setTimeout(() => connect(), delay);
       };
     }
 

@@ -15,8 +15,7 @@ export function seatStatus(over: Partial<ClaudeSeatStatus> = {}): ClaudeSeatStat
     lapsed: false,
     yielded: false,
     symbol: 'SMPL',
-    line: { symbol: 'SMPL', depth: true, tape: true, why_not: null, desk_lines: ['SPIK', 'FLTX'], desk_cap: 2,
-      all_lines: ['FLTX', 'SMPL', 'SPIK'], from_tab: null, taken_back: [] },
+    line: { symbol: 'SMPL', depth: true, tape: true, why_not: null },
     positions: [],
     working: [],
     breaks: [{

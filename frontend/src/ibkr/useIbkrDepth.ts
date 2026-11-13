@@ -1,16 +1,15 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { IBKR_DEPTH_REFUSED_RETRY_MAX_MS, IBKR_DEPTH_RETRY_MAX_MS, WS_BASE_URL } from '../constants';
+import { IBKR_DEPTH_REFUSED_RETRY_MAX_MS, IBKR_DEPTH_RETRY_MAX_MS, LANE_PANE_DEPTH, WS_BASE_URL } from '../constants';
 import { SAMPLE_LIVE_FEED_ABSENT } from '../sample_data/sampleCopy';
 import { onSampleDesk } from '../sample_data/sampleOrderGuard';
 import { shouldKeepPriorBook } from './depthBookGuards';
 import { applyBookWatchFrame, type BookWatchState } from './bookWatch';
-import { documentVisible, LentLine } from './lentLine';
+import { documentVisible, LaneWait, type LaneWaitWords } from './laneWait';
 import { readLuldFrame, type LuldView } from './luld';
-import type { LineLent } from './lentWords';
 import type { DepthBook } from './types';
 import { countSocketMessage, frameBytes } from '../perf/perfCounters';
 import { forgetBook, noteBeat, noteBookFrame, noteRefused, noteSubscribed } from '../market_view';
-import { HEAT_LINE_LENT, noteHeatBeat, noteHeatBook, noteHeatLine, noteHeatWatch } from '../heat_map';
+import { noteHeatBeat, noteHeatBook, noteHeatLine, noteHeatWatch } from '../heat_map';
 
 interface DepthState {
   book: DepthBook | null;
@@ -19,19 +18,17 @@ interface DepthState {
   error: string | null;
   /** The book watcher's verdicts on this live line (ADR 033 amendment); null until its first frame. */
   watch: BookWatchState | null;
-  /** The line is lent to one of Nova's setups (ADR 044 decision 6); null while this tab has it. */
-  lent: LineLent | null;
+  /** No lane is on the stock (ADR 071): where your lane is; null while the pane has its line. */
+  laneWait: LaneWaitWords | null;
   /** The stock's LULD bands, Nova's calculation (ADR 047); null until the first frame. */
   luld: LuldView | null;
-  /** The refusal is Claude's reserved line (ADR 068): the panel offers Take Claude's line. */
-  agentReserved: boolean;
 }
 
 export interface DepthOptions {
   /**
-   * A Trader tab's Level 2: its socket says so (`tab=1`), so the backend may lend the line while no
-   * visible window shows the tab. Any Level 2 says whether it is in front (`front=1`), which recalls
-   * a loan of its line.
+   * A Trader tab's Level 2: its socket says so (`tab=1`), so the backend knows a hidden tab from a pane
+   * shown elsewhere. Any Level 2 says whether it is in front (`front=1`), which moves your lane to its
+   * stock (ADR 071).
    */
   traderTab?: boolean;
 }
@@ -42,9 +39,8 @@ const EMPTY: DepthState = {
   l1Fallback: false,
   error: null,
   watch: null,
-  lent: null,
+  laneWait: null,
   luld: null,
-  agentReserved: false,
 };
 
 /**
@@ -59,11 +55,11 @@ const EMPTY: DepthState = {
  * Hidden live tabs keep the socket and latest book in refs. React / ladder
  * paint waits until ``uiActive`` so a background tab cannot burn the main thread.
  *
- * A lent line (ADR 044 decision 6): the backend sends `{type: "lent", ...}` and closes. The hook
- * then never reconnects by its backoff (LentLine): it waits on the shared lines poll and reconnects
- * once no loan names this symbol -- or at once when this Level 2 comes to the front (`uiActive` and
- * the document visible), which opens with `front=1` and recalls the loan. The tab's Time & Sales
- * (useIbkrTape) went with it and comes back the same way.
+ * No lane on the stock (ADR 071): the backend sends `{type: "error", evicted: true, lane, ...}` and
+ * closes. The hook then never reconnects by its backoff (LaneWait): it asks again when the operator
+ * brings this Level 2 to the front (`uiActive` and the document visible) or clicks its words -- `front=1`,
+ * your lane comes here -- or when the lanes poll finds a lane on its stock (`front=0`). The tab's Time &
+ * Sales (useIbkrTape) waits with it and comes back the same way.
  */
 export function useIbkrDepth(symbol: string | null, uiActive = true, options: DepthOptions = {}): DepthState {
   const traderTab = options.traderTab === true;
@@ -88,15 +84,14 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
   const connectedRef = useRef(false);
   const l1FallbackRef = useRef(false);
   const errorRef = useRef<string | null>(null);
-  const agentReservedRef = useRef(false);
   const watchRef = useRef<BookWatchState | null>(null);
   const luldRef = useRef<LuldView | null>(null);
-  // This symbol's line while it may be lent; set by the socket effect.
-  const lineRef = useRef<LentLine | null>(null);
+  // This symbol's wait for a lane; set by the socket effect.
+  const lineRef = useRef<LaneWait | null>(null);
 
   useEffect(() => {
     uiActiveRef.current = uiActive;
-    if (uiActive) lineRef.current?.wake();     // shown: a lent line is taken back now
+    if (uiActive) lineRef.current?.wake();     // shown: your lane comes here
   }, [uiActive]);
 
   const commitUi = () => {
@@ -107,9 +102,8 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
       l1Fallback: l1FallbackRef.current,
       error: errorRef.current,
       watch: watchRef.current,
-      lent: lineRef.current?.lent ?? null,
+      laneWait: lineRef.current?.waiting ?? null,
       luld: luldRef.current,
-      agentReserved: agentReservedRef.current,
     });
   };
 
@@ -126,7 +120,6 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
     connectedRef.current = false;
     l1FallbackRef.current = false;
     errorRef.current = null;
-    agentReservedRef.current = false;
     watchRef.current = null;
     luldRef.current = null;
     lineRef.current = null;
@@ -144,12 +137,12 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
     }
 
     const inFront = () => uiActiveRef.current && documentVisible();
-    const line = new LentLine(symKey, {
+    const line = new LaneWait(symKey, LANE_PANE_DEPTH, {
       inFront,
-      // The loan ended, or this Level 2 came to the front (its socket recalls the loan): ask now.
-      reconnect: () => {
+      // A lane came to this stock, or the operator brought this Level 2 here: ask now.
+      reconnect: (front) => {
         backoffRef.current = 1000;
-        connect();
+        connect(front);
       },
       changed: () => {
         if (uiActiveRef.current) commitUi();
@@ -157,9 +150,9 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
     });
     lineRef.current = line;
 
-    function connect() {
+    function connect(front = inFront()) {
       if (!mountedRef.current) return;
-      const params = `?${traderTab ? 'tab=1&' : ''}front=${inFront() ? 1 : 0}`;
+      const params = `?${traderTab ? 'tab=1&' : ''}front=${front ? 1 : 0}`;
       const ws = new WebSocket(`${WS_BASE_URL}/ws/ibkr/depth/${symKey}${params}`);
       wsRef.current = ws;
 
@@ -189,7 +182,6 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
             subscribed = true;
             connectedRef.current = true;
             errorRef.current = null;
-            agentReservedRef.current = false;
             if (uiActiveRef.current) commitUi();
           } else if (msg.type === 'book') {
             noteBookFrame(symKey!, msg);
@@ -197,13 +189,11 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
             if (shouldKeepPriorBook(book, bookRef.current)) {
               connectedRef.current = true;
               errorRef.current = null;
-              agentReservedRef.current = false;
             } else {
               bookRef.current = book;
               connectedRef.current = true;
               l1FallbackRef.current = book.l1_fallback;
               errorRef.current = null;
-              agentReservedRef.current = false;
             }
             // The heat map (ADR 061) keeps this tab's books over time, hidden tab or not.
             const kept = bookRef.current;
@@ -219,23 +209,23 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
             // The LULD bands (ADR 047): sent when they change, and every few seconds.
             luldRef.current = readLuldFrame(msg.data, symKey!);
             if (uiActiveRef.current) commitUi();
-          } else if (msg.type === 'lent') {
-            // Lent to a setup (ADR 044): this book is no longer live; the socket closes next.
-            line.lend(msg);
-            noteHeatLine(symKey!, 'lent', HEAT_LINE_LENT);
+          } else if (msg.type === 'error' && msg.lane != null && typeof msg.lane === 'object') {
+            // No lane is on this stock (ADR 071): this book is no longer live; the socket closes next.
+            line.wait(msg);
+            noteHeatLine(symKey!, 'lane', line.waiting?.plain ?? '');
             bookRef.current = null;
             watchRef.current = null;
             luldRef.current = null;
             connectedRef.current = false;
             errorRef.current = null;
-            agentReservedRef.current = false;
+            // No Level 2: orders on this symbol lock with the lane's words until a book arrives (#913).
+            noteRefused(symKey!, line.waiting?.plain ?? 'No lane is on this stock');
             if (uiActiveRef.current) commitUi();
           } else if (msg.type === 'error') {
             refused = true;
             connectedRef.current = false;
             const why = typeof msg.message === 'string' ? msg.message : 'Depth error';
             errorRef.current = why;
-            agentReservedRef.current = msg.agent_reserved === true;
             // No Level 2: orders on this symbol lock with IBKR's reason until a book arrives (#913).
             noteRefused(symKey!, why);
             noteHeatLine(symKey!, 'error', why);
@@ -252,15 +242,15 @@ export function useIbkrDepth(symbol: string | null, uiActive = true, options: De
       ws.onclose = () => {
         if (!mountedRef.current || ws !== wsRef.current) return;
         connectedRef.current = false;
-        // Lent: never by the backoff -- when the loan ends (the poll), or now if this Level 2 is in front.
-        const lent = line.closed();
+        // Waiting for a lane: never by the backoff -- the operator brings it, or a lane comes to the stock.
+        const waiting = line.closed();
         if (uiActiveRef.current) commitUi();
-        if (lent) return;
+        if (waiting) return;
         if (subscribed && !refused) backoffRef.current = 1000;   // a line that worked dropped: ask again soon
         const ceiling = refused ? IBKR_DEPTH_REFUSED_RETRY_MAX_MS : IBKR_DEPTH_RETRY_MAX_MS;
         const delay = Math.min(backoffRef.current, ceiling);
         backoffRef.current = Math.min(delay * 2, ceiling);
-        reconnectTimerRef.current = setTimeout(connect, delay);
+        reconnectTimerRef.current = setTimeout(() => connect(), delay);
       };
     }
 
