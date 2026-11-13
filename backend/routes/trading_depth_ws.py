@@ -1,9 +1,12 @@
 """Level 2 depth WebSocket handler (split from ``routes.trading`` for the 400-line rule).
 
-``/ws/ibkr/depth/{symbol}`` stays registered on ``routes.trading.ws_router``;
-this module holds its body and the auto-record yield (ADR 023): the operator
-never loses Level 2 to auto-record, which gives back a line before the
-subscribe runs.
+``/ws/ibkr/depth/{symbol}`` stays registered on ``routes.trading.ws_router``; this module holds its body.
+
+The lanes hold every live line (ADR 071, ``line_lanes``). A socket opened in front (``front=1``) puts your lane on
+its stock before it asks for its line; any other socket joins a stock a lane is on, and for a stock no lane is on it
+reads the lanes' refusal (``lane``: who is on what) and closes. A socket closing never ends a lane's line; when the
+lane leaves its stock, the socket reads ``{"type": "error", message, evicted: true, lane}`` and closes, and its pane
+waits for the operator instead of asking again.
 
 Every book frame carries its version (``seq``, ``at``) and ``sent``; with nothing new for
 ``MARKET_VIEW_BEAT_SEC`` the socket says the newest version is still current (``beat``), so the
@@ -14,12 +17,6 @@ socket closes so the ladder asks again on its backoff. A refusal that lands befo
 queue exists is read from ``depth.refusal`` instead, so a refused ladder never streams beats as if
 a book were coming (operator report 2026-10-13: "Waiting for book data..." for good).
 
-A hidden Trader tab lends its line (ADR 044 decision 6, ``line_lending``): the
-Trader tab's Level 2 opens with ``?tab=1`` and ``front=1`` while it is the tab in
-front. While a loan stands, a socket for the lender gets ``{"type": "lent", ...}``
-and closes; one from the tab in front recalls the loan first. A standing socket
-whose line is lent reads the same frame from its queue and closes
-(``line_lending.socket_gate``; the Time & Sales socket does the same).
 """
 from __future__ import annotations
 
@@ -38,31 +35,20 @@ from constants_market_view import MARKET_VIEW_BEAT_SEC
 from ibkr import depth as _depth
 from ibkr.depth.state import book_version
 from ibkr.depth.stream import beat_frame, book_frame
-from line_lending import socket_gate
+from line_lanes import lanes as _lanes
+from line_lanes import sockets as _lane
 from market_view.viewer_queues import BookVersion
 
 logger = logging.getLogger(__name__)
 
 
-def refusal_text(symbol: str, result: dict) -> str:
-    """The refusal the ladder shows: for a full cap, who holds the lines and how to free one."""
-    if not result.get("cap"):
-        return result.get("error") or "Depth error"
-    if result.get("agent_reserved"):
-        return result.get("error") or "Depth error"   # ADR 068: the desk's lines are full while Claude holds one
-    try:
-        from line_lending.view import cap_refusal
-
-        return cap_refusal(symbol)
-    except Exception:
-        logger.exception("depth: could not name the line holders for %s", symbol)
-        return result.get("error") or "Depth error"
-
-
 def refusal_frame(symbol: str, result: dict) -> dict:
-    """The ladder's error frame for a subscribe that failed; ``agent_reserved`` when Claude's line is the reason
-    (ADR 068), so the panel can offer Take Claude's line."""
-    return {"type": "error", "message": refusal_text(symbol, result), "agent_reserved": bool(result.get("agent_reserved"))}
+    """The ladder's error frame for a subscribe that failed; with ``lane`` (who is on what) when no lane is on the
+    stock (ADR 071), so the pane waits for the operator instead of asking again."""
+    frame = {"type": "error", "symbol": symbol, "message": result.get("error") or "Depth error"}
+    if result.get("lane"):
+        frame.update(evicted=True, lane=_lanes.wire())
+    return frame
 
 
 async def send_refusal(websocket: WebSocket, symbol: str) -> bool:
@@ -73,16 +59,6 @@ async def send_refusal(websocket: WebSocket, symbol: str) -> bool:
     await websocket.send_text(json.dumps({"type": "error", "symbol": symbol, "message": message, "evicted": True}))
     await websocket.close()
     return True
-
-
-async def make_room(symbol: str) -> None:
-    """Auto-record yields its lowest-ranked line when every line is in use."""
-    try:
-        from leaderboard import auto_record
-
-        await auto_record.make_room_for(symbol)
-    except Exception:
-        logger.exception("AUTO-RECORD: could not yield a line for %s", symbol)
 
 
 class _WatchFrames:
@@ -140,34 +116,27 @@ class _LuldFrames:
 async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
     symbol = symbol.upper()
     await websocket.accept()
-    tab, front = socket_gate.flags(websocket.query_params)
-
-    # The line is lent (ADR 044): say so and close -- unless this is the tab in front, which recalled it.
-    lent = await socket_gate.gate(symbol, front=front)
-    if lent is not None:
-        await websocket.send_text(json.dumps(lent))
-        await websocket.close()
-        return
+    tab, front = _lane.flags(websocket.query_params)
 
     from l2 import continuous as _l2_continuous
-    from line_lanes import sockets as _lane
 
-    # In front: the operator's lane leaves any other stock now, so its line is free for this one (ADR 071).
+    # In front: your lane goes to this stock now -- the old stock's lines end first (ADR 071).
     await _lane.opening(symbol, front=front)
 
     # Auto-subscribe if not already (a Sim tab at the live edge needs the real line, not its replay slot)
     if _depth.needs_subscribe(symbol):
-        await make_room(symbol)
         result = await _depth.subscribe_async(symbol)
         if not result["ok"]:
             await websocket.send_text(json.dumps(refusal_frame(symbol, result)))
             await websocket.close()
             return
 
-    try:
-        _l2_continuous.start(symbol)
-    except Exception:
-        logger.exception("l2.continuous: failed to start for WS %s", symbol)
+    if _lane.ends_line(symbol):
+        # A lane's Level 2 snapshots follow the lane (``line_lanes.lanes``); a replay slot's follow its sockets.
+        try:
+            _l2_continuous.start(symbol)
+        except Exception:
+            logger.exception("l2.continuous: failed to start for WS %s", symbol)
 
     # Everything from here on must be inside the try/finally: if the client
     # disconnects before the first send_text() completes (React effect
@@ -181,8 +150,8 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
     try:
         _depth.ws_viewer_opened(symbol)
         viewer_opened = True
-        # No await between: the lending registry and the viewer count move together.
-        socket_token = socket_gate.opened(symbol, tab=tab, front=front)
+        # No await between: the sockets' registry and the viewer count move together.
+        socket_token = _lane.opened(symbol, tab=tab, front=front, kind=_lane.DEPTH)
 
         # IBKR refused the line it was just asked for: no re-subscribe, the ladder's backoff asks again.
         if await send_refusal(websocket, symbol):
@@ -195,13 +164,11 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
             if not result["ok"]:
                 await websocket.send_text(json.dumps(refusal_frame(symbol, result)))
                 return
-            try:
-                _l2_continuous.start(symbol)
-            except Exception:
-                logger.exception("l2.continuous: failed to restart for WS %s", symbol)
-
-        # The lane keeps this line up after the socket closes: no timer ends it (ADR 071 decision 3).
-        _lane.opened(symbol, _lane.DEPTH, front=front)
+            if _lane.ends_line(symbol):
+                try:
+                    _l2_continuous.start(symbol)
+                except Exception:
+                    logger.exception("l2.continuous: failed to restart for WS %s", symbol)
 
         # Own queue per viewer -- a shared per-symbol queue makes concurrent
         # viewers (StrictMode double-mount, or a second Trader tab on the
@@ -210,10 +177,10 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
         queue = _depth.open_viewer_queue(symbol)
         if await send_refusal(websocket, symbol):  # refused before this queue could hear it
             return
-        # A loan of this line that began while this socket subscribed pushed its frame before the queue existed.
-        lent = socket_gate.lent_now(symbol, front=front)
-        if lent is not None:
-            await websocket.send_text(json.dumps(lent))
+        no_lane = _lanes.refusal(symbol)
+        if no_lane is not None and not _depth.is_subscribed(symbol):
+            # The lane left this stock while this socket subscribed: its frame went out before the queue existed.
+            await websocket.send_text(json.dumps(refusal_frame(symbol, {"error": no_lane, "lane": True})))
             await websocket.close()
             return
         await websocket.send_text(json.dumps(
@@ -250,25 +217,14 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
                 await websocket.send_text(book_frame(symbol, item))
                 last_view = mono
                 continue
-            if item.get("type") == "lent":
-                # Lent to a setup (ADR 044): the tab waits for it to come back, never by its backoff.
-                await websocket.send_text(json.dumps(item))
-                await websocket.close()
-                break
             if item.get("type") == "error":
-                # Line torn down out from under this viewer -- tell the
-                # client, then close so its onclose backoff reconnects
-                # (PROBLEM_LOG 2026-08-25). Live 4th-symbol refuses never
-                # evict, so this path is unsubscribe / idle reclaim.
-                await websocket.send_text(
-                    json.dumps(
-                        {
-                            "type": "error",
-                            "symbol": symbol,
-                            "message": item.get("message") or "Depth error",
-                        }
-                    )
-                )
+                # Line torn down out from under this viewer -- tell the client, then close. ``lane``: its lane
+                # left the stock (ADR 071), and the pane waits for the operator; otherwise its backoff reconnects
+                # (PROBLEM_LOG 2026-08-25).
+                frame = {"type": "error", "symbol": symbol, "message": item.get("message") or "Depth error"}
+                if item.get("lane") is not None:
+                    frame.update(evicted=True, lane=item["lane"])
+                await websocket.send_text(json.dumps(frame))
                 if item.get("evicted"):
                     await websocket.close()
                     break
@@ -284,13 +240,10 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
     finally:
         if queue is not None:
             _depth.close_viewer_queue(symbol, queue)
-        socket_gate.closed(symbol, socket_token)
-        # Release only once the LAST viewer is gone — and only after a short
-        # grace window so React StrictMode / DepthLadder reconnects can
-        # reattach without tearing down reqMktDepth (Connecting-depth flicker).
-        # continuous.stop belongs here too: stopping it on every viewer close
-        # killed recording for any remaining viewers of the same symbol.
-        if viewer_opened and _depth.ws_viewer_closed(symbol):
+        _lane.closed(symbol, socket_token, _lane.DEPTH)
+        # A lane's line never ends here (ADR 071): only its lane leaving ends it. A line no lane is on (a Sim
+        # replay slot) is released once the LAST viewer is gone, after a short grace so a remount can reattach.
+        if viewer_opened and _depth.ws_viewer_closed(symbol) and _lane.ends_line(symbol):
             idle = await _depth.release_when_idle(symbol)
             if idle:
                 try:

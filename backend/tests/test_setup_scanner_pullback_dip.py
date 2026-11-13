@@ -261,16 +261,18 @@ def test_the_stock_modes_approve_and_the_plan_say_not_a_trade():
     assert choose([dip], 110.0) is dip                  # alone, the dip leads (and its plan is NOT A TRADE)
 
 
-def test_it_takes_no_auto_record_line_and_a_dip_that_died_refused_no_trade():
+def test_it_never_takes_the_bots_lane_and_a_dip_that_died_refused_no_trade():
+    from constants_bot import BOT_LEVEL_STRATEGY
     from eyes.aftermath import after
-    from leaderboard.auto_record_picks import pick_setups
+    from line_lanes.bots_pick import pick
 
     def fake(setup: str) -> SimpleNamespace:
-        return SimpleNamespace(p=SimpleNamespace(setup=setup, short=False), trade_symbols=lambda now: {SYM},
-                               watching=lambda: set(), det={})
+        return SimpleNamespace(setup=setup, trades=lambda now: ["t1"], rows={"t1": {"symbol": SYM}},
+                               watching=lambda: [], det={}, active_id={})
 
-    assert pick_setups([fake(DIP)], 0.0) == []
-    assert pick_setups([fake("first_pullback")], 0.0) == [(SYM, "trade")]
+    on = {DIP: BOT_LEVEL_STRATEGY, "first_pullback": BOT_LEVEL_STRATEGY}
+    assert pick([fake(DIP)], on, {SYM}, 0.0) == []                    # watch-only (#847): never a bot's
+    assert [(c.symbol, c.why) for c in pick([fake("first_pullback")], on, {SYM}, 0.0)] == [(SYM, "trade")]
     ep = {"setup_type": DIP, "died_at": 100.0, "end": "failed", "leg": {"t": 0.0, "high": 4.39, "low": 3.99},
           "setup": None, "died_bar_t": 60.0}
     assert after(ep, [], now=1_000.0) is None

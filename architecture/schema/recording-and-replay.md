@@ -170,13 +170,9 @@ let go held IBKR's tick-by-tick lines; IBKR refused AMOD's with 10190 after the
 request, and the socket sat on a dead line reading ERROR until the operator switched
 tabs. Owner `line_lending/tape_heal.py`. While a `/ws/ibkr/tape/{symbol}` socket
 watches a symbol whose AllLast line IBKR refused or ended (or a heartbeat finds it
-down), one task per symbol brings it back: after a cap refusal (10190) it first
-cancels every line no viewer watches (`tape_line.release_idle`: a closed socket's
-line lingers 16 s for a remount, still counting against the cap), then, for the tab
-in front by the focus sensor (else a socket opened with `front=1`, or a panel
-outside a Trader tab), has auto-record give back its lowest-ranked line
-(`auto_record.make_room_for(symbol, tape_refused=True)`); a recording the operator
-started is never touched. It asks again once IBKR's 15 s same-instrument rule allows,
+down), one task per symbol brings it back, for a stock a lane is on (ADR 071: since
+only the lanes hold lines, nothing is given up to make room -- a cap refusal means
+lines IB Gateway still holds, and the message says so). It asks again once IBKR's 15 s same-instrument rule allows,
 plus `LINE_LENDING_TAPE_HEAL_BACKOFF_SEC` after refusals in a row (at once when a
 hidden tab comes to the front), never while IBKR is not ready, and never stops while
 a socket watches. The socket's frames: IBKR's own `{"type": "error", message}`, then
@@ -186,19 +182,21 @@ new line stood `LINE_LENDING_TAPE_HEAL_CONFIRM_SEC` without IBKR ending it. The 
 reads RETRYING while `retry_at` is set, and any print clears a stale error.
 
 Every manifest segment carries `reason: "operator" | "rotation" | "failure" |
-"restart" | "auto"` naming why it ended (`auto`: auto-record's planned stop, ADR 023) (`restart` is stamped by the startup finalizer,
+"restart" | "auto" | "lane"` naming why it ended (`auto`: auto-record's planned stop, ADR 023, in recordings made
+before ADR 071; `lane`: its stock left its lane, or the lane's recording ended -- planned, like `operator` and
+`auto`, below) (`restart` is stamped by the startup finalizer,
 whose `stopped_et` is the dead process's last write on disk -- `recovered_et`
 keeps when the recovery ran).
 `/api/capture/sessions` rows add `segments: integer`, `missing_sec: integer`
 (seconds between the first segment start and the last segment stop that no
-segment covers, except the gaps after a segment the operator stopped --
-`reason: "operator"` -- which were not recorded but went missing from nothing),
+segment covers, except the gaps after a segment stopped on purpose --
+`reason: "operator"`, `"auto"` or `"lane"` -- which were not recorded but went missing from nothing),
 `last_reason: string | null`, `spans: [[start, stop], ...]`
 (whole epoch seconds per segment, sorted; an open segment runs to now) and
 `gaps: [[start, stop, reason], ...]` (2026-10-14: each stretch between the first
 start and the last stop that no segment covers, sorted, with `reason` the segment
 reason that ended the stretch before it, `null` when that one named none; a gap
-after `operator` or `auto` was stopped on purpose, and every other gap is what
+after `operator`, `auto` or `lane` was stopped on purpose, and every other gap is what
 `missing_sec` adds up, so the two cannot disagree). Segment
 counts, spans and `replay_load.segments` include the segment still being
 written (`stopped_et: null` while this process records it; a manifest still
@@ -229,7 +227,42 @@ stops it. All three are empty lists while nothing is recording or pending. The U
 as quiet state (chip, hairline, window title) and an unrequested stop as the
 loud one.
 
+## Recording follows the lanes (ADR 071 decision 8, operator 2026-11-12 and 2026-11-13)
+
+Operator, 2026-11-12: "the recording only starts when bots, Claude, or I are watching at level 2. We don't need
+random recorders when nobody's watching anything". 2026-11-13, on three recordings of setups that had ended: "I no
+longer want to see these recordings being automatically recorded".
+
+- **Owner:** `backend/line_lanes/recording.py`, ticking with the bots' lane (`LANES_BOTS_TICK_SEC`) and at once on
+  every lane move. Memory only.
+- **What is recorded**, while the switch is On (below), on a desk whose lines are live:
+  - the bots' lane's stock, while it is on the lane;
+  - Claude's lane's stock, while it is on the lane;
+  - your lane's stock while you watch it -- a fresh window of the desk shows it in front (the focus sensor, ADR
+    033: a visible, not minimized window's Trader tab, a pop-out's, the Desk's Trader slot), or a socket opened with
+    `front=1` on it is still open and no desk window lists it as a hidden Trader tab (the phone, a browser) -- and
+    for `LANES_YOU_RECORD_TAIL_SEC` (300 s) after (operator, 2026-11-13: "a Trader tab I can see").
+- **A recording holds no line.** It records the lines its lane holds and ends, as a planned stop (segment
+  `reason: "lane"`), before its stock's lines end. Each stay on a lane is a segment of that stock's day.
+- **Record by hand** (`POST /api/capture {enabled: true, symbol}`) records a stock a lane is on and nothing else:
+  any other answers 409 `{detail: "<SYMBOL> is on no lane: open it in front to record it"}`. It ends with
+  `reason: "lane"` when the stock leaves every lane. A stop by hand ends it as before (`reason: "operator"`), and
+  the lanes' recording does not start that stock again that day.
+- **The resume after a failure** (`capture.keepalive`) brings a recording back only while its stock is on a lane.
+- **The switch** is unchanged: `auto-record-switch.json` and `POST /api/auto-record {mode: "on" | "off_today" |
+  "off"}` (`scanner.md`), now for the lanes' recording; `NOVA_AUTO_RECORD=0` still holds it off. Off stops the
+  lanes' recordings at once (planned, `reason: "lane"`); the lanes keep their lines. A Record by hand works with the
+  switch off.
+- **On the wire:** `/api/ibkr/status` `lanes` (`market-data.md`): each lane's `recording`; `recording_switch` is the
+  switch's `{mode, source, day, until, error}` (formerly `auto_record.switch`).
+- **Removed:** auto-record (`leaderboard/auto_record*.py` but the switch): the leaders, the arming windows,
+  rotation, the give-back to the operator, the failed-start pause, `/api/ibkr/status` `auto_record`, and its
+  restart file `auto-record.json` (left on disk, never read again).
+
 ## The Records page and turning recording off (operator ask, 2026-10-14)
+
+*ADR 071 (2026-11-13): the auto-record card below becomes the lanes' recording; the page's words change in the
+screens step, after a mockup the operator approves.*
 
 Operator, 2026-10-14: "i need a way to turn off the recording and i feel like this
 entire screen need better ux". Both recordings on screen were auto-record's (the
@@ -656,7 +689,8 @@ commission subtracted twice (QA W2; the daily loss limit counts trades opened to
 `NOVA-SIM` there. A filled practice row carries `fill_estimated: true` and
 `fill_basis: "quote" | "last_print" | "print_cross" | "stop_trigger" |
 "last_mark" | "live_quote" | "live_print" | "l1_last"` (`l1_last`: a resting Paper order filled on IBKR's Level 1
-Last while its Time & Sales missed trades, ADR 045 amendment 2026-10-14); a practice fill is never displayed
+Last while its Time & Sales missed trades, ADR 045 amendment 2026-10-14, or while no lane holds its stock's Time &
+Sales: a resting order holds no line, ADR 071 decision 9, and `practice/tape_hold.py` is removed); a practice fill is never displayed
 as a recorded print. Refusals: `SIM_NO_REPLAY`, `SIM_SYMBOL_MISMATCH`,
 `SIM_NO_TRADES`, `SIM_NO_PRICE`, `SIM_ORDER_TYPE` (Sim),
 `PRACTICE_NO_LIVE_PRINT` (Paper: no fresh last and no recent tape print --

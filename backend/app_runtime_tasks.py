@@ -50,10 +50,9 @@ from ibkr_bridge import (
     symbols_for_tab,
 )
 import loop_lag as _loop_lag
-from leaderboard import auto_record as _leaderboard_auto_record
 from leaderboard import queue as _leaderboard_queue
 from leaderboard import recorder as _leaderboard_recorder
-from line_lending import loans as _line_lending
+from line_lanes import runner as _line_lanes
 from practice import matcher as _practice_matcher
 from short_sale import runner as _short_runner
 from scan_loop import scan_loop
@@ -143,10 +142,9 @@ def spawn_runtime_tasks() -> list[asyncio.Task]:
         # Scanner leaderboard (ADR 023): always recording, enqueue + one writer.
         ("leaderboard.write_queue", _leaderboard_queue.drain_loop),
         ("leaderboard.recorder", _leaderboard_recorder.run),
-        # 07:00-10:00 ET: record the leaders on free Level 2 lines only.
-        ("leaderboard.auto_record", _leaderboard_auto_record.run),
-        # ADR 044: a hidden Trader tab lends its Level 2 line to a setup Nova may buy. Never places.
-        ("line_lending", _line_lending.run),
+        # ADR 071: the three lanes -- the bots' lane chosen, lines that are down asked for again, and Nova records
+        # what a lane watches. Never places.
+        ("line_lanes", _line_lanes.run),
         # Catalysts (ADR 024): SEC filings and the press-release wires, recorded as they publish.
         ("catalysts.feed", _catalyst_feed.run),
         # The market's headlines, kept and searchable for agents (Alpaca's all-market news; never a price source).

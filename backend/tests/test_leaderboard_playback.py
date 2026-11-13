@@ -7,11 +7,19 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from constants_leaderboard import LEADERBOARD_RECORD_SETTLE_SEC, LEADERBOARD_SCHEMA_VERSION
-from leaderboard import auto_record, halts, playback, queue, recorder, store
+from leaderboard import halts, playback, queue, recorder, store
+from leaderboard.ranking import leader_symbols
+from leaderboard.rows import from_desk_row
 
 ET = ZoneInfo("America/New_York")
 DAY = "2026-09-18"  # a Friday, an exchange day
 LONG_AFTER = datetime(2026, 9, 19, 12, 0, tzinfo=ET).timestamp()
+
+
+def live_leaders(rows: list[dict], minute_ts: int) -> list[str]:
+    """The desk's live rows ranked by the one ranking, as the recorder stores them."""
+    return leader_symbols([from_desk_row(r, minute_ts=minute_ts, board="gainers", rank=i + 1)
+                           for i, r in enumerate(rows)])
 
 
 def et(hh: int, mm: int, ss: int = 0) -> int:
@@ -36,7 +44,6 @@ def fresh():
     queue.reset_for_tests()
     recorder.reset_for_tests()
     halts.reset_for_tests()
-    auto_record.reset_for_tests()
     recorder.start_for_tests("run-1")
     yield
     queue.reset_for_tests()
@@ -83,17 +90,17 @@ def test_rows_keep_the_desk_order_and_unknowns_null():
     assert "session_date" not in rows[0]
 
 
-def test_playback_leaders_and_auto_record_share_one_ranking():
+def test_playback_leaders_and_the_research_rebuild_share_one_ranking():
     record(et(7, 50))
     shown = playback.board_at(DAY, et(7, 50, 20), now=LONG_AFTER)["leaders"]
     assert shown["board"] == "gainers"
     assert shown["symbols"] == ["AAA", "CCC", "EEE"]
-    assert auto_record.pick_leaders(GAINERS, et(7, 50, 20)) == shown["symbols"]
+    assert live_leaders(GAINERS, et(7, 50)) == shown["symbols"]
 
 
-def test_a_contradicted_float_is_kept_so_playback_and_auto_record_still_agree():
+def test_a_contradicted_float_is_kept_so_playback_and_the_ranking_still_agree():
     """#532: the desk row's float check is recorded with the row, so a played-back minute refuses the
-    same contradicted float auto-record refused live -- and keeps one small shares outstanding rescues."""
+    same contradicted float the ranking refuses live -- and keeps one small shares outstanding rescues."""
     gainers = [
         desk("SECZ", 9.0, 3.0, float=8.45e6, float_contradicted=True, shares_outstanding=163.27e6),
         desk("WHLR", 6.0, 2.5, float=54e3, float_contradicted=True, shares_outstanding=568e3),
@@ -106,7 +113,7 @@ def test_a_contradicted_float_is_kept_so_playback_and_auto_record_still_agree():
     assert (rows["SECZ"]["float_contradicted"], rows["SECZ"]["shares_outstanding"]) == (True, 163.27e6)
     assert rows["EEE"]["float_contradicted"] is False and rows["CCC"]["float_contradicted"] is None
     assert out["leaders"]["symbols"] == ["WHLR", "CCC", "EEE"]
-    assert auto_record.pick_leaders(gainers, et(7, 51, 20)) == out["leaders"]["symbols"]
+    assert live_leaders(gainers, et(7, 51)) == out["leaders"]["symbols"]
 
 
 def test_a_restart_is_a_gap_with_its_reason_never_the_last_board():

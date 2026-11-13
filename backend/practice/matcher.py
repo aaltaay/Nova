@@ -5,17 +5,18 @@ The Sim feed matches practice orders against replay prints
 tape for every venue that fills on it right now -- Paper always, and Sim
 while its clock is at the live edge (ADR 020 live-edge amendment, where the
 Sim broker's reference is Paper's ``LiveReference``). Each pass rolls the
-practice day if the clock crossed the boundary, holds the tape line of every
-symbol with a resting order across those venues (``practice.tape_hold``) and
-releases the others, then hands the prints since the last pass to
+practice day if the clock crossed the boundary, keeps a Level 1 line and the tape
+archive's watch for every symbol with a resting order across those venues
+(``practice.resting_watch``; a resting order holds no Time & Sales line, ADR 071
+decision 9) and releases the others, then hands the prints since the last pass to
 ``PracticeBroker.try_fill_working`` and finally expires every DAY order whose
 session has closed (``PracticeBroker.expire_due``) -- after the match, so a
 print at the close itself still fills and a print past it never does.
 Registered from ``app_runtime_tasks`` as ``practice.matcher``.
 
-While a symbol's Time & Sales misses trades its Level 1 line reports, the pass also hands the broker
-IBKR's Level 1 Last as one print (``fill_basis: "l1_last"``), so Paper fills when Live would (ADR 045
-amendment 2026-10-14).
+While a symbol's Time & Sales misses trades its Level 1 line reports -- or no lane holds its Time & Sales at
+all (ADR 071) -- the pass also hands the broker IBKR's Level 1 Last as one print (``fill_basis: "l1_last"``),
+so Paper fills when Live would (ADR 045 amendment 2026-10-14).
 
 A pass reads prints only as far as the reference has them: the live tape
 archive is written by its own thread (``ibkr.tape_sink``), so a pass stops at
@@ -30,7 +31,7 @@ import logging
 from typing import Any
 
 from constants_practice import PRACTICE_MATCHER_INTERVAL_SEC, PRACTICE_VENUE_PAPER, PRACTICE_VENUE_SIM
-from practice import tape_hold
+from practice import resting_watch
 from sim.fill_model import BASIS_L1_LAST
 
 logger = logging.getLogger(__name__)
@@ -125,9 +126,10 @@ def _readable_through(reference: Any, now_ts: float) -> float:
 
 
 async def _hold_lines(wanted: list[str]) -> None:
-    errors = await tape_hold.reconcile(wanted)
+    errors = await resting_watch.reconcile(wanted)
     for sym, error in errors.items():
-        logger.warning("PRACTICE: tape line for %s unavailable, resting orders wait (%s)", sym, error)
+        logger.warning("PRACTICE: Level 1 line for %s unavailable; its resting orders fill on prints only (%s)",
+                       sym, error)
 
 
 async def _match(broker: Any, *, now: float | None) -> list[dict[str, Any]]:

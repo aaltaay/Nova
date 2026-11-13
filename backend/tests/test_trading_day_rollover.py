@@ -17,7 +17,7 @@ import pytest
 from bot import entry_rules, trigger_inputs
 from bot.trigger_cells import restarts
 from constants_eyes import EYES_SCHEMA_VERSION
-from leaderboard import auto_record, auto_record_state
+from line_lanes import recording
 from market import session_bounds_of, session_key_for_ts
 from setup_scanner.store import session_date
 from tests.test_setup_scanner_row_per_trigger import armed_bars, make, run
@@ -147,16 +147,16 @@ def test_a_days_triggers_table_starts_at_four_with_no_late_night_restart():
         assert restarts(kept, trigger_inputs.day_start(day)) == [at(day, 9, 31)]
 
 
-# -- 4. auto-record's declined list -------------------------------------------------------------
+# -- 4. the lanes' recording: a stock the operator stopped stays declined -------------------------
 def test_a_symbol_the_operator_stopped_stays_declined_until_four():
-    auto_record.reset_for_tests()
+    recording.reset_for_tests()
     try:
-        auto_record.operator_stopped("AAA", now=at(MON, 15, 0))
-        declined_on = auto_record._declined["AAA"]
+        recording.operator_stopped("AAA", now=at(MON, 15, 0))
+        declined_on = recording._declined["AAA"]
         assert declined_on == MON
-        assert auto_record_state.today(at(TUE, 0, 30)) == declined_on           # still declined at 00:30
-        assert auto_record_state.today(at(TUE, 10, 0)) != declined_on           # a new day lifts it
-        auto_record.operator_stopped("BBB", now=at(TUE, 0, 30))
-        assert auto_record._declined["BBB"] == MON                              # a small-hours stop is Monday's
+        assert session_key_for_ts(at(TUE, 0, 30)) == declined_on                # still declined at 00:30
+        assert session_key_for_ts(at(TUE, 10, 0)) != declined_on                # a new day lifts it
+        recording.operator_stopped("BBB", now=at(TUE, 0, 30))
+        assert recording._declined["BBB"] == MON                                # a small-hours stop is Monday's
     finally:
-        auto_record.reset_for_tests()
+        recording.reset_for_tests()

@@ -153,22 +153,18 @@ def _line(sym: str) -> dict[str, Any]:
     if holds_depth_line(sym):
         return cell(True, f"Nova holds {sym}'s Level 2 line")
     try:
-        from line_lending import lines, setting
+        from line_lanes import lanes
 
-        free = lines.free_lines()
-        lending, unread = setting.is_on()
+        on = lanes.table().bots
     except Exception:
-        logger.warning("triggers audit: who could give %s a Level 2 line is unknown", sym, exc_info=True)
-        return cell(None, f"Nova holds no Level 2 line on {sym} now, and whether one would open could not be read "
+        logger.warning("triggers audit: the bots' lane could not be read for %s", sym, exc_info=True)
+        return cell(None, f"Nova holds no Level 2 line on {sym} now, and the bots' lane could not be read "
                           "(the backend log has the error)")
-    if free:
-        return cell(None, f"Nova holds no Level 2 line on {sym} now; {free} of IBKR's lines are free for a setup "
-                          "that comes near")
-    if lending:
-        return cell(None, f"Nova holds no Level 2 line on {sym} now and every line is taken; a Trader tab you are not "
-                          "looking at lends its lines when a setup comes near")
-    return cell(False, f"Nova holds no Level 2 line on {sym}, every line is taken and "
-                       f"{unread or 'lending is off'}: a trigger now would read BLIND")
+    if on is None:
+        return cell(None, f"Nova holds no Level 2 line on {sym} now; the bots' lane is free for the first setup a "
+                          "bot may buy that comes near (ADR 071)")
+    return cell(None, f"Nova holds no Level 2 line on {sym} now: the bots' lane is on {on}, and it moves to {sym} "
+                      "only when its setup ends or a better one comes (a trigger now would read BLIND)")
 
 
 def _short_block(sym: str, desk: Desk) -> dict[str, Any]:

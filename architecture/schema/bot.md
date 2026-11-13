@@ -457,45 +457,16 @@ the day before and are left out of the day's table and of its restart marks, 202
   no trade yet (IBKR's prior close is not one, #541), no board and no line, a read that failed, or a Sim
   replay desk (its quotes are the replay's, the boards live). `null` on a past day.
 
-**A hidden Trader tab lends its Level 2 and Time & Sales lines** (owner `backend/line_lending/`). IBKR
-caps tick-by-tick lines too (ADR 044 took it for the depth lines' 3; on 2026-10-02 it carried 4 at once and
-refused a 6th while Nova held 5, #698), so a loan moves both: a borrower
-with a book and no prints would read WAIT, never GO.
-- **When.** A setup of a strategy at On, on a stock whose Buy is Nova (Bot or Auto-entry), with the Bot on,
-  is armed, near or in a trade; no line is free; and `line_lending` is on (`bot-session.json`, desk-wide,
-  default true). Then the lines of a Trader tab that no visible window shows (the focus sensor) are lent to
-  it. Checked every few seconds, so a setup has its lines before its trigger.
-- **Never lent:** the tab in front, or one in front in the last 30 s; a line a Session Record, auto-record
-  or the L2 recorder holds; a line a Level 2 outside a Trader tab watches; a stock Nova needs a line on
-  itself; anything while the focus sensor cannot say which tab is in front.
-- **On the lender's sockets.** A Trader tab opens `/ws/ibkr/depth/{symbol}` and `/ws/ibkr/tape/{symbol}` with
-  `?tab=1&front=0|1`. Both send `{"type": "lent", symbol, to: {symbol, setup_type, setup_id}, why, tier,
-  since, text}` (`why` in words, `tier` its code) and close. A socket opened with `front=1` -- the tab came
-  to the front -- recalls the loan: both lines come back together, and the borrower's loss is said in the
-  audit stream.
-- **When it ends.** `setup_ended` (the setup failed or disarmed), `trade_ended` (the scoring window and
-  Nova's trade are both over), `recalled`, `lending_off`.
-- **A loan to Claude's seat** (ADR 068 decision 14): `to.setup_type: "claude"`, `to.setup_id: null`, `tier`
-  `watching` | `buy_set` | `in_trade`, `why` "watching RUNR", `text` "Level 2 lent to Claude (watching RUNR) --
-  back when Claude lets it go, or right-click this tab to take it back". A socket from the tab in front reads the
-  lent frame too: the front never recalls it, nor does lending's switch. It ends `taken_back` (the operator's
-  right-click, `POST /api/agent/trader/take-back`), `claude_let_go` or `tab_closed` (`agent-trader.md`).
-- **Routes.**
-  - `GET /api/ibkr/depth/lines` -> `{schema_version: 1, generated_at, cap, lines: [{symbol, held_by: "tab" |
-    "record" | "auto_record" | "loan" | "replay" | "agent" (Claude's seat, ADR 068: never lent), front: boolean | null, viewers}], lending: {on, error,
-    loans: [{lender, borrower, setup_type, setup_id, since, why, tier, state, text, tape_lent, tape: boolean
-    (a print arrived on the borrower's line), tape_state: "receiving" | "waiting" | "refused",
-    tape_last_print, tape_error}], recent: [{lender, borrower, setup_type, setup_id, since, ended, end,
-    tape_lent, text}]}}`. A borrower's tape line IBKR refuses or ends (10190) is `tape_state: "refused"`
-    with `tape_error`, and is asked for again.
-  - `PATCH /api/ibkr/depth/lending {on}` (API key) answers the same view; a `line_lending` audit line.
-  - Every loan is a `line_loan` audit line: `lent` (with `tape_lent`, and the tape's error when the
-    borrower got none), `ended`, `tape_refused` (once per refusal) and `tape_opened`.
-- **On the desk** the lender's Level 2 and Time & Sales read "Level 2 lent to AISP's first pullback (near
-  its trigger) -- back when it ends or when you bring this tab to the front". They reconnect when the loan
-  ends or the tab comes to the front, never by their own backoff. A tab brought to the front within IBKR's
-  15 s same-instrument rule shows its Time & Sales resubscribing for those seconds; the 10-second chart,
-  built from those prints, has a gap for the length of the loan.
+**The bots' lane** (ADR 071 decision 6; owner `backend/line_lanes/bots.py`; replaces line lending, ADR 044
+decision 6). One Level 2 line and its Time & Sales line are the bots', on one setup at a time: the best setup a bot
+may buy now -- the strategy at effective On on the desk's venue, the venue's Bot on, Nova may buy there, the stock's
+Buy is Nova (Bot or Auto-entry) -- in a trade first, then near its trigger, then armed (`market-data.md` "Three
+lanes"). A setup in a trade, or a stock Nova holds a trade on, keeps the lane until it ends. The lane is never lent,
+never taken by the operator or Claude, and takes no one else's line; a second setup with no lane reads `blind` with
+why. `GET /api/ibkr/lanes` `bots` says which stock, which setup, why and who waits. Line lending, its switch
+(`line_lending` in `bot-session.json`, no longer read), `GET /api/ibkr/depth/lines`, `PATCH /api/ibkr/depth/lending`
+and the `line_loan` / `line_lending` audit lines are removed; the desk's lent words and LENT badge go with the
+screens step.
 
 **On the desk.** The nav rail's **Bots** is a group (operator decision 2026-10-15): **Bots** itself, empty for now
 ("keep it empty for now"), then its two children, **LiveTrader Bots** (the TraderTV hosts' page, each host's bot in their

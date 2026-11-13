@@ -1,4 +1,4 @@
-"""Diagnostics rows for the always-on scanner recorder and auto-record (ADR 023).
+"""Diagnostics rows for the always-on scanner recorder (ADR 023) and the three lanes (ADR 071).
 
 #485 (operator decision 2026-09-24): the leaderboard keeps every day, so the
 recorder row also guards its drive. ``disk`` is ``{store_bytes, free_bytes,
@@ -79,7 +79,8 @@ def _disk_error(disk: dict[str, Any]) -> str | None:
 
 
 def leaderboard_rows(
-    *, recorder: dict[str, Any], auto: dict[str, Any], store_path: str, disk: dict[str, Any],
+    *, recorder: dict[str, Any], lanes: dict[str, Any] | None, switch: dict[str, Any] | None, store_path: str,
+    disk: dict[str, Any],
 ) -> list[dict[str, Any]]:
     if not recorder.get("ok", True):
         state, detail = DIAG_STATE_FAIL, f"cannot write the scanner board: {recorder.get('error')}"
@@ -111,44 +112,56 @@ def leaderboard_rows(
         evidence={**recorder, "store": store_path, "store_bytes": disk.get("store_bytes"),
                   "free_bytes": disk.get("free_bytes"), "disk_error": _disk_error(disk)},
     )]
-    symbols = list(auto.get("symbols") or [])
-    why = auto.get("why") or {}
-    held = [f"{s} ({why[s]})" if s in why else s for s in symbols]
-    if auto.get("last_error"):
-        a_state, a_detail = DIAG_STATE_WARN, f"last problem: {auto['last_error']}"
-    elif auto.get("setups_error"):
-        a_state, a_detail = DIAG_STATE_WARN, f"setup scanner unreadable: {auto['setups_error']}"
-    elif symbols:
-        a_state, a_detail = DIAG_STATE_OK, f"recording {', '.join(held)}"
-    elif (auto.get("switch") or {}).get("mode") in ("off", "off_today"):
-        a_state, a_detail = DIAG_STATE_OFF, _switched_off(auto["switch"])
-    elif auto.get("active"):
-        a_state, a_detail = DIAG_STATE_OK, f"watching {_watching(auto)}; no free Level 2 line or none yet"
-    else:
-        a_state, a_detail = DIAG_STATE_OFF, f"outside {auto.get('window') or 'its window'}"
-    rows.append(row(
-        id="auto_record",
-        group=DIAG_GROUP_RECORDER,
-        title="Auto-record (setups, leaders)",
-        state=a_state,
-        detail=a_detail,
-        cause=("Records setups in a trade, near or armed, then the top leaders, on free Level 2 lines only;"
-               " yields a line when you open Level 2 (ADR 041)."),
-        fix="Nothing to do." if a_state != DIAG_STATE_WARN else "It retries on its own; Record by hand if a leader matters now.",
-        evidence=dict(auto),
-    ))
+    rows.append(_lanes_row(lanes, switch))
     return rows
 
 
-def _watching(auto: dict[str, Any]) -> str:
-    """Which of auto-record's two windows is open (ADR 041): setups run to the last arming window, leaders to 10:00."""
-    open_now = ((auto.get("windows") or {}).get("open"))
-    return {"setups_and_leaders": "the setups and leaders", "setups": "the setups (the leaders' window is closed)",
-            "leaders": "the leaders (no setup is in its arming window)"}.get(open_now, "the setups and leaders")
+_OWNERS = (("you", "yours"), ("claude", "Claude's"), ("bots", "the bots'"))
+
+
+def _lanes_row(lanes: dict[str, Any] | None, switch: dict[str, Any] | None) -> dict[str, Any]:
+    """Which stock each lane is on, whether its lines are up, and what Nova records (ADR 071)."""
+    if not lanes:
+        return row(id="lanes", group=DIAG_GROUP_RECORDER, title="Level 2 lanes and recording",
+                   state=DIAG_STATE_UNKNOWN, detail="the lanes could not be read",
+                   cause="The lanes' status raised; the backend log has the error.", fix="Restart the backend.",
+                   evidence={})
+    parts, problems = [], []
+    for key, word in _OWNERS:
+        lane = lanes.get(key) or {}
+        sym = lane.get("symbol")
+        if not sym:
+            parts.append(f"{word} empty")
+            continue
+        up = lane.get("depth") and lane.get("tape")
+        parts.append(f"{word} on {sym}{'' if up else ' (asking IBKR)'}{', recording' if lane.get('recording') else ''}")
+        if lane.get("error"):
+            problems.append(f"{sym}: {lane['error']}")
+    for why in ((lanes.get("bots") or {}).get("error"), lanes.get("recording_error")):
+        if why:
+            problems.append(str(why))
+    detail = "; ".join(parts)
+    if problems:
+        state, detail = DIAG_STATE_WARN, f"{detail} -- {'; '.join(problems)}"
+    elif (switch or {}).get("mode") in ("off", "off_today"):
+        state, detail = DIAG_STATE_OFF, f"{detail} -- recording {_switched_off(switch or {})}"
+    else:
+        state = DIAG_STATE_OK
+    return row(
+        id="lanes",
+        group=DIAG_GROUP_RECORDER,
+        title="Level 2 lanes and recording",
+        state=state,
+        detail=detail,
+        cause=("Three lanes hold Level 2 and Time & Sales: yours, Claude's and the bots' (one setup a bot may buy). "
+               "Nova records only what a lane watches (ADR 071)."),
+        fix="Nothing to do." if state != DIAG_STATE_WARN else "Each lane asks IBKR again on its own every 15 s.",
+        evidence={"lanes": lanes, "switch": switch},
+    )
 
 
 def _switched_off(switch: dict[str, Any]) -> str:
-    """Who turned auto-record off (operator ask 2026-10-14): the switch on Records, or ``.env``."""
+    """Who turned recording off (operator ask 2026-10-14): the switch on Records, or ``.env``."""
     if switch.get("source") == "env":
         return "off: NOVA_AUTO_RECORD=0 in .env"
     if switch.get("mode") == "off_today":

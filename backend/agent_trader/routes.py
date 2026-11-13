@@ -12,9 +12,9 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 
 from agent_desk.routes import require_local
-from agent_trader import bands, eye, journal, ledger, lines, look, orders, reflexes, rules, seat, tab_line, view, watcher
+from agent_trader import bands, eye, journal, ledger, lines, look, orders, reflexes, rules, seat, view, watcher
 from agent_trader import clock
-from agent_trader.bodies import WatchBody, OrderBody, ReflexBody, StopBody, CloseBody, NoteBody, TakeBackBody
+from agent_trader.bodies import WatchBody, OrderBody, ReflexBody, StopBody, CloseBody, NoteBody
 from agent_trader.constants_agent_trader import (
     AGENT_BREAK_DEFAULT_MIN,
     AGENT_BREAK_MAX_MIN,
@@ -330,15 +330,6 @@ async def give_back() -> dict[str, Any]:
         raise _refuse(AGENT_SEAT_OFF, "Claude's seat is off")
     seat.set_yielded(False, "you gave Claude its line back")
     await watcher.run_pass()
-    return view.status()
-
-
-@router.post("/take-back", dependencies=_keyed)
-async def take_back(body: TakeBackBody) -> dict[str, Any]:
-    """The operator's right-click on a Trader tab, Take my Level 2 back from Claude (decision 14): that tab's lines
-    come back now; Claude stays on, its orders as they are, and waits for another line."""
-    if why := await tab_line.take_back(body.symbol):
-        raise _refuse(AGENT_NOT_MINE, why, 404)
     return view.status()
 
 

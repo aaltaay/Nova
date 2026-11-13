@@ -1,11 +1,12 @@
-"""Which Trader tabs the operator can see, from the focus sensor (ADR 033), for line lending (ADR 044).
+"""Which stocks the operator can see in front, from the focus sensor (ADR 033), for the lanes' recording (ADR 071).
 
 A tab is **in front** when a fresh, visible, not-minimized window shows it: the
 Trader page's active tab, a pop-out's, or the Trader slot beside the Desk board
 (``symbol_source: "trader_tab"``). A window behind another app but not minimized
 still shows its tab: in front. A tab is **known** when a fresh window lists it
 among its Trader tabs. With no fresh window report the answer is unknown, and an
-unknown answer lends nothing (``known`` False).
+unknown answer records nothing on its word (``known`` False): the lanes' recording then reads the sockets opened
+in front (``line_lanes.sockets``).
 
 Pure over ``sensors.focus_store.resolve()``'s answer, plus a reader.
 """
@@ -71,5 +72,5 @@ def read(now: float | None = None) -> FocusRead:
     try:
         return from_resolved(focus_store.resolve(time.time() if now is None else now))
     except Exception as exc:
-        logger.warning("line lending: the focus sensor could not be read -- no line is lent", exc_info=True)
+        logger.warning("LANES: the focus sensor could not be read", exc_info=True)
         return FocusRead(known=False, error=f"the focus sensor could not be read ({type(exc).__name__})")

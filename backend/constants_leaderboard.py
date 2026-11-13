@@ -114,30 +114,6 @@ LEADERBOARD_LEADERS_TOP_N = 3
 LEADERBOARD_S5_MIN_RVOL = 5.0
 LEADERBOARD_S5_TOP_N = 3
 
-# ── Auto-record (ADR 023, ADR 041) ──────────────────────────────────────────
-# The leaders' window is 07:00-10:00 ET. Setups have their own: whenever a setup's
-# template in play is inside its arming window (07:00-11:30 ET by default; operator
-# ask 2026-09-30), so a trigger after 10:00 still has its tape.
-LEADERBOARD_AUTO_RECORD_START_MIN_ET = 7 * 60
-LEADERBOARD_AUTO_RECORD_END_MIN_ET = 10 * 60
-LEADERBOARD_AUTO_RECORD_TOP_N = LEADERBOARD_LEADERS_TOP_N
-LEADERBOARD_AUTO_RECORD_BOARD = LEADERBOARD_BOARD_GAINERS
-# A leader must hold its place this long before auto-record rotates to it, so a
-# name flickering in and out of the top 3 does not churn the Level 2 lines.
-LEADERBOARD_AUTO_RECORD_MIN_HOLD_SEC = 120.0
-LEADERBOARD_AUTO_RECORD_TICK_SEC = 15.0
-# A setup (in a scored trade, near, or armed; ADR 041) outranks a leader for a
-# line, but only once that leader has been recorded this long -- IB refuses a
-# depth line asked again within 15 s, and a line that barely opened recorded nothing.
-LEADERBOARD_AUTO_RECORD_SETUP_MIN_KEEP_SEC = 60.0
-# A line given back to the operator stays theirs this long while their subscribe lands (#698:
-# AIXI's Level 2 took 6 s, and auto-record's next tick took the line back in between).
-LEADERBOARD_AUTO_RECORD_YIELD_HOLD_SEC = 30.0
-# A start that failed (IBKR refused its Time & Sales or Level 2 line) pauses every new start this
-# long: each try opens and lets go of two lines, and the next stock is refused the same way
-# (operator report 2026-10-13: a try a second while IBKR was full left Level 2 lines stuck).
-LEADERBOARD_AUTO_RECORD_FAILED_START_PAUSE_SEC = 60.0
-
 # ── Playback API ────────────────────────────────────────────────────────────
 # Every day on file: five years of rebuilt sessions plus recorded ones (~330 ms at 1,255 days).
 LEADERBOARD_DAYS_LIMIT = 2_500

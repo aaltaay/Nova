@@ -258,10 +258,16 @@ def push_error(symbol: str, message: str, *, evicted: bool = False) -> None:
     )
 
 
-def push_lent(symbol: str, frame: dict) -> None:
-    """Tell every viewer the line is lent (ADR 044 decision 6, ``line_lending``): each socket
-    sends ``frame`` and closes, and its tab waits instead of reconnecting by its backoff."""
-    _broadcast(symbol, dict(frame, type="lent"))
+def push_lane(symbol: str, message: str, lane: dict) -> None:
+    """No lane is on this stock any more (ADR 071, ``line_lanes``): every viewer's socket sends the error with
+    ``lane`` (who is on what) and closes, and its pane waits for the operator instead of asking again."""
+    _broadcast(symbol, {"type": "error", "symbol": symbol, "message": message, "evicted": True, "lane": dict(lane)})
+
+
+def forget_viewers(symbol: str) -> None:
+    """The line is ending under its viewers (ADR 071): their count goes with it, so a socket that closes later
+    can never count down a reference a lane took on the stock since."""
+    _ws_viewers.pop(symbol, None)
 
 
 def reserve_slot(symbol: str) -> None:

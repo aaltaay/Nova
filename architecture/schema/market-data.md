@@ -202,9 +202,6 @@ the day before. Meanwhile the ladder read "Waiting for book data…" for good, b
   refusal (kept `IBKR_DEPTH_REFUSAL_KEEP_SEC`) instead of streaming beats. The frames a refused socket sends
   are kept in `frontend/src/ibkr/__fixtures__/depth_refused_frames.json`, written by the backend's own route
   test, and the desk's tests replay that file.
-- **Auto-record stops asking while IBKR is full** (owner `leaderboard/auto_record.py`). A start that fails
-  ends the tick and pauses new starts for `LEADERBOARD_AUTO_RECORD_FAILED_START_PAUSE_SEC`. Each try opens and
-  lets go of a Time & Sales and a Level 2 line, and the next stock would be refused the same way.
 - **Shared tape admission (#674)** (owner `ibkr/tape_admission.py`, memory only). AllLast requests reserve
   one slot per distinct symbol before qualification, through the request and its cancellation dispatch.
   Pending qualifications and quiet active lines count independently of depth and recording slots;
@@ -222,7 +219,7 @@ the day before. Meanwhile the ladder read "Waiting for book data…" for good, b
   (the late-print behavior remains owned by #922). Session changes discard pending work and learned
   ceilings; lines IBKR kept on 1102 are counted again, and an old qualification/error cannot mutate a
   replacement line. The 16-second same-instrument guard is unchanged.
-  `auto_record.tape_capacity` reports `{limit: integer | null, source: "unknown" | "configured" |
+  `lanes.tape_capacity` (was `auto_record.tape_capacity`, ADR 071) reports `{limit: integer | null, source: "unknown" | "configured" |
   "refusal" | "configured+refusal", used: integer, pending: string[], active: string[],
   uncertain: string[], free: integer | null, error: string | null}` (invalid configuration refuses
   automatic requests with an explicit `error`). Known-full automatic work waits without opening a tape
@@ -234,7 +231,6 @@ the day before. Meanwhile the ladder read "Waiting for book data…" for good, b
     counts: {cancelled, held, cancelled_on_answer, forgotten, taken_back}, late_grants: {count, last:
     {symbol, req_id, at, cancelled_at} | null}}` (memory only; every count an integer since the process
     started).
-  - `auto_record` adds `paused_until` (`number | null`, epoch seconds).
   - The depth socket's `error` frame is unchanged: `{type, symbol, message, evicted}`.
 
 Lines stuck before this change stay stuck until IB Gateway logs in again (an IBC restart, or the 23:45
@@ -385,29 +381,58 @@ kept arriving, so this is not a feed gap (above).
   IBKR messages near each stall, Nova's Reconnect Data attempts and the question for IBKR, in Markdown. Nova
   never sends it.
 
-## The operator's lane: lines no timer ends (ADR 071, operator report 2026-11-12)
+## Three lanes: who holds a Level 2 and a Time & Sales line (ADR 071, operator 2026-11-12 and 2026-11-13)
 
 On 2026-11-12 the operator held 100 XLAB on Paper from the phone; the page went to the background for 16 s, Nova
 cancelled XLAB's AllLast line ("no viewer left"), and IBKR's rule (one tick-by-tick request per instrument per
-15 s) kept Time & Sales dark for 13 s after they came back.
+15 s) kept Time & Sales dark for 13 s after they came back. On 2026-11-13 auto-record held all 3 Level 2 lines on
+stocks whose setups had ended (DGXX, SSII, MRLN): "I need the level 2 lane to always be for a human ... These auto
+recordings are hurting me more than helping me".
 
-- **Owner:** `backend/line_lanes/yours.py`. Memory only; a restart closes every socket and the first one in front
-  names the lane again.
-- **What names the lane:** a `/ws/ibkr/depth/{symbol}` or `/ws/ibkr/tape/{symbol}` socket opened with `front=1`
-  (the Trader tab in front, the phone's Trade screen), on a desk that is not replaying. A socket with `front=0`
-  never moves it.
-- **What the lane holds:** one viewer reference on that stock's Level 2 line and one on its AllLast line, each
-  taken once the line is up, exactly as a Session Record's (`capture.feed_hold`). The socket closing therefore
-  leaves both lines up: the 16 s tape linger and the 0.75 s depth grace start only when the *last* viewer leaves,
-  and the lane is one.
-- **When it moves:** only when a socket in front opens another stock. The lane's references on the old stock are
-  dropped before the new line is asked for; a line nothing else watches is cancelled at once (no linger), so its
-  line is free for the new stock. A stock another pane still watches keeps its lines.
-- **What it never does:** open a line (the socket that named the stock does), move on a timer, or get lent
-  (`line_lending.lines.why_not_lend`: a line with a viewer that is not a Trader tab's socket is never lent).
-- **Unchanged for now:** auto-record, lending and Claude's line still follow their own rules (ADR 071's build
-  order replaces them step by step); IBKR's 15 s still applies to a tape Nova cancelled, which now happens only
-  when the lane moves.
+- **Owner:** `backend/line_lanes/` -- `table.py` (pure: which stock each lane is on, and which lines a change ends
+  and opens), `lanes.py` (the only code that opens or ends a live Level 2 or AllLast line), `yours.py`,
+  `claude.py`, `bots.py` (what moves each lane), `recording.py` (below), `view.py` (on the wire). Memory only: after
+  a restart the first socket in front names your lane, the seat names Claude's, and the bots' next pick (within
+  `LANES_BOTS_TICK_SEC`, 15 s) names theirs.
+- **A lane is one Level 2 line and one AllLast line on one stock.** Three lanes, three owners: `you`, `claude`,
+  `bots`. No owner takes, borrows or is lent another's lane, and an empty lane stays empty. A stock two lanes are on
+  is one pair of lines; it ends only when the last lane leaves it.
+- **Only a lane opens a live line.** `ibkr.depth.subscribe_async` and `ibkr.tape_stream.subscribe_async` open a live
+  line only for a stock a lane is on; any other request is refused with `{ok: false, lane: true, error: <words>}`
+  (no IBKR request is sent). A replay slot (a Sim desk off the live edge) is not a line and is unchanged.
+- **Your lane** is on the last stock you opened in front: a `/ws/ibkr/depth/{symbol}` or `/ws/ibkr/tape/{symbol}`
+  socket opened with `front=1` (the Trader tab in front, a pop-out's tab, the Desk's Trader slot, the phone's
+  Trade screen) on a desk that is not replaying moves it there before the socket asks for its line. A socket with
+  `front=0` never moves it. No timer ends it: closing the pane, hiding the tab, locking the phone or losing the
+  link leave both lines up. It moves only when you open another stock in front, and then at once.
+- **Claude's lane** is on the stock the seat names (ADR 068 decision 2) and empty otherwise, whether the seat is on
+  or off. No one else uses it.
+- **The bots' lane** is on one setup at a time, chosen every `LANES_BOTS_TICK_SEC` among the setups of the
+  templates in play that a bot may buy now (operator, 2026-11-13: "only what a bot may buy"): the strategy at
+  effective On on the desk's venue, the venue's bot active, Nova may buy there (never Live, never a replay desk),
+  and the stock's Buy is Nova. A setup in a trade first (its scoring window, or a Nova trade held on the stock),
+  then near its trigger, then armed; a watch-only setup (#847) and a short at Eyes or Off never qualify. The stock
+  on the lane keeps it while it qualifies; a better tier takes it from an armed or near one, never from one in a
+  trade. With none, the lane is empty. A setup with no lane reads `blind` on its row, as before.
+- **A line ends only when no lane is on its stock**, at once: no linger, no grace. Every socket still on it gets one
+  frame and is closed: depth `{type: "error", symbol, message, evicted: true, lane: Lanes}`, tape
+  `{type: "lane", symbol, message, lane: Lanes}`. A socket opened with `front=0` on a stock no lane is on gets the
+  same frame at once. `message` names where your Level 2 is ("Your Level 2 is on XLAB -- open TGHL to bring it
+  here"). The socket's pane does not ask again by itself (decision 4); opening the stock in front does.
+- **IBKR's 15 seconds:** a tape Nova cancelled may not be asked for again for `IBKR_TAPE_RESUBSCRIBE_GUARD_SEC` (16 s)
+  after the cancel, unchanged until decision 10's measurement.
+- **On the wire.** `GET /api/ibkr/lanes` and `/api/ibkr/status` `lanes`: `{schema_version: 1, you: Lane, claude:
+  Lane, bots: Lane & {setup: string | null, why: "trade" | "near" | "armed" | null, waiting: [{symbol, setup,
+  why}], error: string | null}, tape_capacity}` where `Lane = {symbol: string | null, since: number | null, depth:
+  boolean, tape: boolean, recording: boolean}` (`depth` / `tape`: the line is up; `recording`: Nova records it,
+  `recording-and-replay.md`; `waiting`: the setups that qualify and are not on the lane, best first; `error`: the
+  setup scanner, the bot session or the venue could not be read -- the lane then stays where it is, never a
+  guess). `tape_capacity` is the shared tape admission below (formerly `auto_record.tape_capacity`).
+- **Replaced:** auto-record's lines, line lending (`line_lending/`, `GET /api/ibkr/depth/lines`,
+  `PATCH /api/ibkr/depth/lending`), Claude's take-back and its borrowing of an auto-record or a tab line
+  (`agent_trader/room.py`, `tab_line.py`, `POST /api/agent/trader/take-back`), a resting Paper order's tape line
+  (`practice/tape_hold.py`, `execution.md`), idle eviction at the cap (`evict_for_capacity`), the 16 s tape linger
+  and the 0.75 s depth grace.
 
 ## The trading session ends at 20:00 ET (operator report, 2026-10-01 23:33)
 

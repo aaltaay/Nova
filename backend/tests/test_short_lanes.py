@@ -113,31 +113,30 @@ def test_a_short_arms_proposes_triggers_downward_and_scores_with_its_side_and_ss
     assert eng.store.rows()[0]["outcome"] == "target_first"
 
 
-def test_auto_record_gives_a_short_setup_a_line_only_while_its_strategy_is_on(monkeypatch):
-    """#778 step 5: the bot trades a short at On, and a trigger without a line reads BLIND."""
+def test_the_bots_lane_takes_a_short_setup_only_while_its_strategy_is_on():
+    """#778 step 5 / ADR 071: the bot trades a short at On, and a trigger without the bots' lane reads BLIND."""
     from types import SimpleNamespace
 
-    from leaderboard import auto_record_picks
-    from leaderboard.auto_record_picks import pick_setups
-    from leaderboard.auto_record_windows import _windows_of
-    from setup_templates import catalogue
+    from constants_bot import BOT_LEVEL_EYES, BOT_LEVEL_STRATEGY
+    from line_lanes.bots_pick import pick
 
     class Lane:
         def __init__(self, short):
-            self.p = SimpleNamespace(short=short, setup=SETUP if short else "first_pullback")
+            self.setup = SETUP if short else "first_pullback"
             self.det = {"X": SimpleNamespace(state="near")}
+            self.active_id = {"X": f"{self.setup}-X"}
+            self.rows: dict = {}
 
-        def trade_symbols(self, now):
+        def trades(self, now):
             return []
 
         def watching(self):
-            return {"X"}
+            return ["X"]
 
-    monkeypatch.setattr(auto_record_picks, "shorts_on", lambda: set())          # at Eyes or Off
-    assert pick_setups([Lane(short=True)], 0.0) == [] and pick_setups([Lane(short=False)], 0.0) == [("X", "near")]
-    found = {setup for setup, _start, _end in _windows_of(catalogue.defaults)}
-    assert SETUP not in found and "ssr_bounce" not in found and "first_pullback" in found
-    monkeypatch.setattr(auto_record_picks, "shorts_on", lambda: {SETUP})        # the bear flag On
-    assert pick_setups([Lane(short=True)], 0.0) == [("X", "near")]
-    found = {setup for setup, _start, _end in _windows_of(catalogue.defaults)}
-    assert SETUP in found and "ssr_bounce" not in found
+    def got(levels):
+        return [(c.symbol, c.why) for c in pick([Lane(short=True)], levels, {"X"}, 0.0)]
+
+    assert got({SETUP: BOT_LEVEL_EYES}) == []                                   # at Eyes or Off
+    assert [(c.symbol, c.why) for c in pick([Lane(short=False)], {"first_pullback": BOT_LEVEL_STRATEGY}, {"X"}, 0.0)
+            ] == [("X", "near")]
+    assert got({SETUP: BOT_LEVEL_STRATEGY}) == [("X", "near")]                  # the bear flag On

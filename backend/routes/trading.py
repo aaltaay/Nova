@@ -19,8 +19,7 @@ Endpoints:
   POST /api/ibkr/depth/unsubscribe -- unsubscribe symbol
   GET  /api/ibkr/capacity         -- Level 1 / Level 2 / history / Time & Sales used of IBKR's caps
   GET  /api/ibkr/depth            -- list currently subscribed depth symbols
-  GET  /api/ibkr/depth/lines      -- who holds each Level 2 line, and the loans (line_lending/routes.py, ADR 044)
-  PATCH /api/ibkr/depth/lending   -- line lending on / off (API key)
+  GET  /api/ibkr/lanes            -- who holds each Level 2 and Time & Sales line (line_lanes/routes.py, ADR 071)
   WS   /ws/ibkr/depth/{symbol}    -- streaming Level 2 book updates
   WS   /ws/ibkr/tape/{symbol}     -- streaming Time & Sales (AllLast tick-by-tick)
 """
@@ -43,7 +42,7 @@ from ibkr import orders as _orders
 from ibkr import account as _account
 from ibkr.errors import IbkrAccountError
 from ibkr.feed_routes import router as feed_router
-from line_lending.routes import router as line_lending_router
+from line_lanes.routes import router as lanes_router
 from routes.trading_execution import router as execution_router
 
 logger = logging.getLogger(__name__)
@@ -51,7 +50,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ibkr", tags=["ibkr"])
 router.include_router(execution_router)
 router.include_router(feed_router)
-router.include_router(line_lending_router)
+router.include_router(lanes_router)
 ws_router = APIRouter(tags=["ibkr-ws"])
 
 
@@ -320,14 +319,13 @@ class DepthSubscribeRequest(BaseModel):
 
 @router.post("/depth/subscribe")
 async def depth_subscribe(req: DepthSubscribeRequest) -> dict:
-    symbol = req.symbol.upper()
-    if _depth.needs_subscribe(symbol):
-        from routes.trading_depth_ws import make_room
+    """Join a stock a lane is on, or a replay slot; a live line for a stock no lane is on is refused (ADR 071)."""
+    from line_lanes import lanes as _lanes
 
-        await make_room(symbol)
+    symbol = req.symbol.upper()
     result = await _depth.subscribe_async(symbol)
-    if result.get("ok"):
-        # Continuous local L2 + tape recorder while DepthLadder is open.
+    if result.get("ok") and not _lanes.on_lane(symbol):
+        # A replay slot's snapshots follow it; a lane's follow the lane.
         from l2 import continuous as _l2_continuous
         try:
             _l2_continuous.start(symbol)
@@ -338,7 +336,12 @@ async def depth_subscribe(req: DepthSubscribeRequest) -> dict:
 
 @router.post("/depth/unsubscribe")
 async def depth_unsubscribe(req: DepthSubscribeRequest) -> None:
+    """Let go of a stock no lane is on (a replay slot). A lane's line ends only when its lane leaves (ADR 071)."""
+    from line_lanes import lanes as _lanes
+
     symbol = req.symbol.upper()
+    if _lanes.on_lane(symbol):
+        return
     from l2 import continuous as _l2_continuous
     try:
         await _l2_continuous.stop(symbol)

@@ -1184,7 +1184,9 @@ things this desk spends; the strip shows each as used of its cap, and who uses i
   line (Error 101, `cap_learned` true) -- the login's lines are shared with every platform it is signed in to -- else
   `IBKR_L1_STREAM_BUDGET`. `reserve` (`IBKR_L1_STREAM_RESERVE`) is kept free for an opening Trader tab. `by_owner`
   counts a line once per owner (one line can serve several).
-- **l2**, Level 2 books (`line_lending.view`): `IBKR_MAX_DEPTH_SYMBOLS` (3).
+- **l2**, Level 2 books (`line_lanes.lanes`, ADR 071): `IBKR_MAX_DEPTH_SYMBOLS` (3), one per lane. `held_by` is the
+  lanes on the stock joined with `+` (`you`, `claude`, `bots`), `replay` for a Sim replay slot, or `no lane` for a live
+  line no lane holds (the idle guard cancels it when a lane needs the slot).
 - **history**, IBKR's historical requests (`historical_service.pacing_snapshot`): `cap` is
   `IBKR_HISTORICAL_PACE_MAX` (300) in 10 minutes, the count IBKR answered at once when Nova measured it (ADR 012
   amendment 2026-11-04), and its published 60 for the 10 minutes after it says pacing or slows its answers: everyone

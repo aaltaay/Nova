@@ -1,22 +1,33 @@
-"""The operator's lane (ADR 071 decisions 2, 3): no timer ends its lines; it moves only to another stock, at once."""
+"""The three lanes (ADR 071): only a lane opens a live line; your lane moves only to a stock you open in front, at
+once, and no timer ends it; Claude's lane is the seat's; a stock two lanes are on is one pair of lines."""
+from __future__ import annotations
+
 import asyncio
 
 import pytest
 
-from line_lanes import sockets as lane
-from line_lanes import yours
+from line_lanes import lanes
+from line_lanes import sockets as lane_sockets
+from line_lanes.table import BOTS, CLAUDE, YOU
 
 
 class _Lines:
-    """One kind of line: which stocks are up and how many viewers each has."""
+    """One kind of IBKR line: which stocks are up, their viewers, what ended, and the frames pushed to viewers."""
 
     def __init__(self) -> None:
         self.up: set[str] = set()
         self.viewers: dict[str, int] = {}
+        self.asked: list[str] = []
         self.ended: list[str] = []
+        self.frames: list[tuple[str, str, dict]] = []
 
-    def open(self, symbol: str) -> None:
+    async def subscribe_async(self, symbol: str, **_kw) -> dict:
+        why = lanes.refusal(symbol)
+        if why is not None:
+            return {"ok": False, "error": why, "lane": True}
+        self.asked.append(symbol)
         self.up.add(symbol)
+        return {"ok": True, "error": None}
 
     def ws_viewer_opened(self, symbol: str) -> None:
         self.viewers[symbol] = self.viewers.get(symbol, 0) + 1
@@ -29,133 +40,143 @@ class _Lines:
         self.viewers[symbol] = left
         return False
 
-    def viewer_count(self, symbol: str) -> int:
-        return self.viewers.get(symbol, 0)
+    def forget_viewers(self, symbol: str) -> None:
+        self.viewers.pop(symbol, None)
 
-    def end(self, symbol: str) -> None:
+    def push_lane(self, symbol: str, message: str, lane: dict) -> None:
+        self.frames.append((symbol, message, dict(lane)))
+
+    def end(self, symbol: str, *_args) -> bool:
+        if symbol not in self.up:
+            return False
         self.up.discard(symbol)
         self.ended.append(symbol)
+        return True
 
 
 @pytest.fixture
 def desk(monkeypatch):
     from ibkr import depth, tape_line, tape_stream
-    from l2 import continuous, recorder
+    from l2 import continuous
     from sim import mode
 
     book, tape = _Lines(), _Lines()
-    lingering: list[str] = []
     monkeypatch.setattr(mode, "is_replay_desk", lambda: False)
-    for name in ("ws_viewer_opened", "ws_viewer_closed", "viewer_count"):
-        monkeypatch.setattr(depth, name, getattr(book, name))
-        monkeypatch.setattr(tape_stream, name, getattr(tape, name))
+    for mod, lines in ((depth, book), (tape_stream, tape)):
+        for name in ("subscribe_async", "ws_viewer_opened", "ws_viewer_closed", "forget_viewers", "push_lane"):
+            monkeypatch.setattr(mod, name, getattr(lines, name))
     monkeypatch.setattr(depth, "is_live", lambda s: s in book.up)
     monkeypatch.setattr(depth, "is_subscribed", lambda s: s in book.up)
     monkeypatch.setattr(depth, "unsubscribe", book.end)
     monkeypatch.setattr(tape_stream, "is_subscribed", lambda s: s in tape.up)
-    monkeypatch.setattr(tape_stream, "unsubscribe", lingering.append)
+    monkeypatch.setattr(tape_line, "drop_line", tape.end)
+    monkeypatch.setattr(continuous, "start", lambda s: {"ok": True})
 
-    def release_now(symbol, why):
-        if tape.viewer_count(symbol) > 0 or symbol not in tape.up:
-            return False
-        tape.end(symbol)
-        return True
-
-    async def stop(symbol):
+    async def stop(_symbol):
         return None
 
-    monkeypatch.setattr(tape_line, "release_now", release_now)
     monkeypatch.setattr(continuous, "stop", stop)
-    monkeypatch.setattr(recorder, "is_recording", lambda s: False)
-    return book, tape, lingering
+    lanes.enforce(True)
+    return book, tape
 
 
-def _socket_opens(book, tape, symbol, *, front=True):
-    """A pane's two sockets open: each moves the lane, asks for its line, counts as a viewer, then the lane holds."""
-    for lines, kind in ((book, lane.DEPTH), (tape, lane.TAPE)):
-        asyncio.run(lane.opening(symbol, front=front))
-        lines.open(symbol)
-        lines.ws_viewer_opened(symbol)
-        lane.opened(symbol, kind, front=front)
+def _open_pane(symbol: str, *, front: bool = True) -> None:
+    """What a Trader tab's Level 2 socket does first: in front, it moves your lane."""
+    asyncio.run(lane_sockets.opening(symbol, front=front))
 
 
-def _socket_closes(book, tape, symbol):
-    """Both sockets close; True for a line whose last viewer that was (the line would then end on its timer)."""
-    return book.ws_viewer_closed(symbol), tape.ws_viewer_closed(symbol)
+def test_a_pane_in_front_puts_your_lane_and_both_lines_on_its_stock(desk):
+    book, tape = desk
+    _open_pane("XLAB")
+    assert lanes.table().you == "XLAB"
+    assert book.up == {"XLAB"} and tape.up == {"XLAB"}
+    assert book.viewers == {"XLAB": 1} and tape.viewers == {"XLAB": 1}   # the lane's own reference on each line
 
 
-def test_the_phone_leaving_ends_nothing_both_lines_stay_up(desk):
-    book, tape, lingering = desk
-    _socket_opens(book, tape, "XLAB")
-    assert yours.stock() == "XLAB"
-
-    assert _socket_closes(book, tape, "XLAB") == (False, False)   # the lane still watches both
-
-    assert book.viewer_count("XLAB") == 1 and tape.viewer_count("XLAB") == 1
-    assert book.ended == [] and tape.ended == [] and lingering == []
+def test_no_timer_ends_your_lane_closing_the_pane_leaves_both_lines_up(desk):
+    book, tape = desk
+    _open_pane("XLAB")
+    book.ws_viewer_opened("XLAB")          # the socket counts as a viewer ...
+    book.ws_viewer_closed("XLAB")          # ... and the phone's page goes to the background
+    assert lane_sockets.ends_line("XLAB") is False                    # the route never ends a lane's line
+    assert book.up == {"XLAB"} and tape.up == {"XLAB"} and not book.ended and not tape.ended
 
 
-def test_coming_back_joins_the_lines_that_never_ended(desk):
-    book, tape, _ = desk
-    _socket_opens(book, tape, "XLAB")
-    _socket_closes(book, tape, "XLAB")
-    _socket_opens(book, tape, "XLAB")
-    assert book.viewer_count("XLAB") == 2 and tape.viewer_count("XLAB") == 2   # the lane's and the pane's, once each
-    assert tape.ended == []
+def test_opening_another_stock_moves_the_lane_at_once_and_tells_the_old_panes(desk):
+    book, tape = desk
+    _open_pane("XLAB")
+    _open_pane("TGHL")
+    assert lanes.table().you == "TGHL"
+    assert book.ended == ["XLAB"] and tape.ended == ["XLAB"]       # cancelled at once, before TGHL's were asked
+    assert book.asked == ["XLAB", "TGHL"] and book.up == {"TGHL"} and tape.up == {"TGHL"}
+    symbol, message, on = book.frames[-1]
+    assert symbol == "XLAB" and "Your Level 2 moved to TGHL" in message and on["you"] == "TGHL"
+    assert tape.frames[-1][0] == "XLAB"
 
 
-def test_opening_another_stock_ends_the_old_lines_at_once(desk):
-    book, tape, lingering = desk
-    _socket_opens(book, tape, "XLAB")
-    _socket_closes(book, tape, "XLAB")
+def test_a_pane_not_in_front_never_moves_the_lane_and_opens_no_line(desk):
+    book, tape = desk
+    _open_pane("XLAB")
+    _open_pane("TGHL", front=False)
+    assert lanes.table().you == "XLAB"
+    result = asyncio.run(book.subscribe_async("TGHL"))
+    assert result["ok"] is False and result["lane"] is True
+    assert result["error"] == "Your Level 2 is on XLAB -- open TGHL in front to bring it here."
+    assert "TGHL" not in book.up and "TGHL" not in tape.up
 
-    asyncio.run(lane.opening("TGHL", front=True))               # before TGHL's line is even asked for
 
+def test_the_gate_names_no_lane_before_you_opened_a_stock():
+    lanes.enforce(True)
+    assert lanes.refusal("AMOD") == "No lane is on AMOD: open it in front to bring your Level 2 here."
+    lanes.enforce(False)
+    assert lanes.refusal("AMOD") is None
+
+
+def test_claudes_lane_is_the_seats_and_never_yours(desk):
+    from agent_trader import lines as claude
+
+    book, tape = desk
+    _open_pane("XLAB")
+    assert asyncio.run(claude.acquire("RUNR")) is None
+    assert lanes.table().claude == "RUNR" and claude.holds_depth("RUNR") and claude.holds_tape("RUNR")
+    assert book.up == {"XLAB", "RUNR"}
+    _open_pane("TGHL")                                              # your lane moves; Claude's stays
+    assert lanes.table().claude == "RUNR" and "RUNR" in book.up and book.ended == ["XLAB"]
+    asyncio.run(claude.release())
+    assert lanes.table().claude is None and book.ended == ["XLAB", "RUNR"]
+
+
+def test_a_stock_two_lanes_are_on_is_one_pair_of_lines_and_ends_with_the_last(desk):
+    book, tape = desk
+    _open_pane("XLAB")
+    asyncio.run(lanes.put(BOTS, "XLAB"))
+    assert book.asked == ["XLAB"] and lanes.table().owners_of("XLAB") == (YOU, BOTS)
+    _open_pane("TGHL")                                              # you leave: the bots still watch XLAB
+    assert "XLAB" in book.up and book.ended == []
+    asyncio.run(lanes.put(BOTS, None))
     assert book.ended == ["XLAB"] and tape.ended == ["XLAB"]
-    assert lingering == []                                       # cancelled now, not after a linger
-    assert yours.stock() == "TGHL"
 
 
-def test_a_stock_another_pane_still_watches_keeps_its_lines_when_the_lane_moves(desk):
-    book, tape, _ = desk
-    _socket_opens(book, tape, "SPY")                             # a Trader tab, left open
-    _socket_opens(book, tape, "XLAB")                            # the phone
-    assert book.ended == [] and tape.ended == []                 # SPY's own sockets still watch it
-    assert book.viewer_count("SPY") == 1 and tape.viewer_count("SPY") == 1
+def test_a_recording_ends_before_its_stocks_lines_do(desk):
+    book, _tape = desk
+    order: list[str] = []
+
+    async def before(symbol: str) -> None:
+        order.append(f"record off {symbol} (line up: {symbol in book.up})")
+
+    lanes.on_before_close(before)
+    try:
+        asyncio.run(lanes.put(CLAUDE, "RUNR"))
+        asyncio.run(lanes.put(CLAUDE, None))
+    finally:
+        lanes._before_close.remove(before)
+    assert order == ["record off RUNR (line up: True)"] and book.ended == ["RUNR"]
 
 
-def test_a_hidden_socket_never_moves_the_lane(desk):
-    book, tape, _ = desk
-    _socket_opens(book, tape, "XLAB")
-    _socket_opens(book, tape, "SPY", front=False)
-    assert yours.stock() == "XLAB"
-    assert book.viewer_count("SPY") == 1                         # its own socket only: no lane reference
-
-
-def test_a_line_that_is_not_up_is_not_held(desk):
-    book, tape, _ = desk
-    asyncio.run(lane.opening("XLAB", front=True))
-    lane.opened("XLAB", lane.TAPE, front=True)                   # IBKR's 15 seconds: the tape was refused
-    assert tape.viewer_count("XLAB") == 0
-    assert not yours.holds("XLAB", lane.TAPE)
-    tape.open("XLAB")
-    lane.opened("XLAB", lane.TAPE, front=True)                   # the next try got it
-    assert yours.holds("XLAB", lane.TAPE)
-
-
-def test_a_replay_desk_has_no_lane(desk, monkeypatch):
-    from sim import mode
-
-    book, tape, _ = desk
-    monkeypatch.setattr(mode, "is_replay_desk", lambda: True)
-    _socket_opens(book, tape, "XLAB")
-    assert yours.stock() is None
-    assert book.viewer_count("XLAB") == 1
-
-
-def test_a_lane_fault_never_costs_the_socket(desk, monkeypatch):
-    async def boom(symbol):
-        raise RuntimeError("lane table broke")
-
-    monkeypatch.setattr(yours, "moving_to", boom)
-    asyncio.run(lane.opening("XLAB", front=True))                # logged, not raised
+def test_ensure_asks_again_for_a_lane_line_ibkr_ended(desk):
+    book, tape = desk
+    asyncio.run(lanes.put(BOTS, "AISP"))
+    tape.up.discard("AISP")                                         # IBKR ended the AllLast line
+    asyncio.run(lanes.ensure())
+    assert "AISP" in tape.up and tape.asked == ["AISP", "AISP"]
+    assert tape.viewers == {"AISP": 1}                              # the lane's reference is never doubled

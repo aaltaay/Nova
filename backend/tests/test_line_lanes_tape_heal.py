@@ -2,9 +2,9 @@
 
 2026-10-02 07:54 ET: three recordings held IBKR's tick-by-tick lines, IBKR refused AMOD's with
 10190 after the request, and the tab's Time & Sales read ERROR until the operator switched tabs.
-Here the same cap, refused the same way: the line comes back by itself -- idle lines cancelled,
-auto-record's lowest line given back for the tab in front, asked again after IBKR's 15 s rule --
-and the socket is told what is happening and when the line is back.
+Here the same cap, refused the same way: the line comes back by itself -- idle lines cancelled, asked
+again after IBKR's 15 s rule, and nothing a lane holds is ever given up (ADR 071) -- and the socket is told
+what is happening and when the line is back.
 """
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ import pytest
 
 import ibkr.tape_stream as tape
 from ibkr import tape_line
-from line_lending import focus, socket_gate, sockets, tape_heal
+from line_lanes import focus, sockets, tape_heal
 
 CAP = 3  # this fake IBKR's tick-by-tick cap
 
@@ -81,7 +81,6 @@ def desk(monkeypatch):
     tape_heal.reset_for_tests()
     sockets.reset_for_tests()
     from ibkr import client
-    from leaderboard import auto_record
     from sim import mode
 
     monkeypatch.setattr(tape._client, "get_ib", lambda: fake)
@@ -91,24 +90,12 @@ def desk(monkeypatch):
     monkeypatch.setattr(tape, "IBKR_TAPE_RESUBSCRIBE_GUARD_SEC", 0.05)
     monkeypatch.setattr(client, "is_ready", lambda: True)
     monkeypatch.setattr(mode, "is_replay_desk", lambda: False)
-    monkeypatch.setattr(tape_heal, "LINE_LENDING_TAPE_HEAL_BACKOFF_SEC", (0.0, 0.05))
-    monkeypatch.setattr(tape_heal, "LINE_LENDING_TAPE_HEAL_CONFIRM_SEC", 0.05)
-    monkeypatch.setattr(tape_heal, "LINE_LENDING_TAPE_HEAL_POLL_SEC", 0.01)
+    monkeypatch.setattr(tape_heal, "LANES_TAPE_HEAL_BACKOFF_SEC", (0.0, 0.05))
+    monkeypatch.setattr(tape_heal, "LANES_TAPE_HEAL_CONFIRM_SEC", 0.05)
+    monkeypatch.setattr(tape_heal, "LANES_TAPE_HEAL_POLL_SEC", 0.01)
     fake.front = {"AMOD"}
     monkeypatch.setattr(focus, "read", lambda now=None: focus.FocusRead(
         known=True, front=frozenset(fake.front), tabs=frozenset({"AMOD"})))
-    fake.gave_back: list[str] = []
-
-    async def make_room_for(symbol, *, tape_refused=False, for_record=False):
-        assert tape_refused
-        victim = "SSM"                                  # auto-record's lowest-ranked recording
-        fake.gave_back.append(victim)
-        tape.ws_viewer_closed(victim)                   # the recording lets go of its line...
-        tape_line.release_now(victim, "Record gave its line to another symbol")  # ...at once
-        return victim
-
-    monkeypatch.setattr(auto_record, "make_room_for", make_room_for)
-    monkeypatch.setattr(auto_record, "held_symbols", lambda: ["SSM"])
     yield fake
     tape_heal.reset_for_tests()
     tape.reset_for_tests()
@@ -124,7 +111,7 @@ async def _recordings(*symbols):
 async def _open_socket(sym):
     """What /ws/ibkr/tape does: a viewer, a registered socket, a queue, a subscribe."""
     tape.ws_viewer_opened(sym)
-    token = sockets.opened(sym, tab=True, front=True, now=time.time(), kind=sockets.TAPE)
+    token = sockets.opened(sym, tab=True, front=True, kind=sockets.TAPE)
     queue = tape.open_viewer_queue(sym)
     assert (await tape.subscribe_async(sym))["ok"]      # IBKR says no only after the request
     await asyncio.sleep(0.01)
@@ -147,27 +134,25 @@ async def _until(cond, timeout=3.0):
     return False
 
 
-def test_the_tab_in_front_gets_its_time_and_sales_back_by_itself(desk):
+def test_the_tab_in_front_takes_no_ones_line_and_says_who_holds_them(desk):
     async def scenario():
         await _recordings("SDEV", "TNMG", "SSM")
         _token, queue = await _open_socket("AMOD")
         assert desk.refused == ["AMOD"] and not tape.is_subscribed("AMOD")
-        first = _drain(queue)
-        assert first[-1]["type"] == "error" and "10190" in first[-1]["message"]
-        socket_gate.line_down("AMOD")                   # the socket read IBKR's error
+        sockets.line_down("AMOD")                       # the socket read IBKR's error
+        await asyncio.sleep(0.3)
+        held = _drain(queue)
+        assert "SSM" in tape._tickers                   # nothing anyone holds is given up (ADR 071)
+        status = next(f for f in held if f.get("healing"))
+        assert "every tick-by-tick line is in use" in status["message"]
+        assert "IB Gateway" in status["message"] and isinstance(status["retry_at"], float)
+        tape.ws_viewer_closed("SSM")                    # a recording stops: a line frees
+        tape_line.release_now("SSM", "stopped")
         seen: list[dict] = []
-        healed = await _until(lambda: seen.extend(_drain(queue)) or any(f["type"] == "subscribed" for f in seen))
-        return healed, seen
+        return await _until(lambda: seen.extend(_drain(queue)) or any(f["type"] == "subscribed" for f in seen))
 
-    healed, seen = asyncio.run(scenario())
-    assert healed
-    assert desk.gave_back == ["SSM"]                    # auto-record's line, once, for the tab in front
-    assert "SSM" not in tape._tickers                   # cancelled at once, not after the linger
-    status = next(f for f in seen if f.get("healing"))
-    assert "every tick-by-tick line is in use" in status["message"]
-    assert "auto-record gave back SSM's recording line" in status["message"]
-    assert isinstance(status["retry_at"], float)
-    assert tape.is_subscribed("AMOD") and desk.refused == ["AMOD"]
+    assert asyncio.run(scenario())
+    assert tape.is_subscribed("AMOD")
 
 
 def test_idle_lines_are_cancelled_before_any_recording_is_touched(desk):
@@ -176,26 +161,25 @@ def test_idle_lines_are_cancelled_before_any_recording_is_touched(desk):
         assert (await tape.subscribe_async("AIXI"))["ok"]   # a tab closed: its line lingers
         _token, queue = await _open_socket("AMOD")
         assert desk.refused == ["AMOD"]
-        socket_gate.line_down("AMOD")
+        sockets.line_down("AMOD")
         return await _until(lambda: tape.is_subscribed("AMOD"))
 
     assert asyncio.run(scenario())
-    assert desk.gave_back == []                         # the idle AIXI line made the room
-    assert "AIXI" not in tape._tickers
+    assert "AIXI" not in tape._tickers                  # the idle AIXI line made the room
 
 
-def test_a_hidden_tab_never_takes_a_recording_and_waits_for_a_line(desk):
+def test_a_hidden_tab_waits_for_a_line(desk):
     desk.front = set()                                  # the operator looks at another tab
 
     async def scenario():
         await _recordings("SDEV", "TNMG", "SSM")
         _token, queue = await _open_socket("AMOD")
-        socket_gate.line_down("AMOD")
+        sockets.line_down("AMOD")
         await asyncio.sleep(0.3)
         held = _drain(queue)
-        assert desk.gave_back == [] and len(desk.refused) >= 2      # it kept asking; it took nothing
+        assert len(desk.refused) >= 2                   # it kept asking; it took nothing
         assert not any(f["type"] == "subscribed" for f in held)
-        assert any("held by" in f.get("message", "") and "SSM (auto-record)" in f["message"] for f in held)
+        assert any("Nova holds" in f.get("message", "") and "SSM" in f["message"] for f in held)
         tape.ws_viewer_closed("SDEV")                   # a recording stops: a line frees
         tape_line.release_now("SDEV", "stopped")
         seen: list[dict] = []
@@ -211,7 +195,7 @@ def test_it_stops_asking_once_no_socket_watches(desk):
     async def scenario():
         await _recordings("SDEV", "TNMG", "SSM")
         token, _queue = await _open_socket("AMOD")
-        socket_gate.line_down("AMOD")
+        sockets.line_down("AMOD")
         assert tape_heal.healing("AMOD")
         sockets.closed("AMOD", token, sockets.TAPE)     # the tab closed
         return await _until(lambda: not tape_heal.healing("AMOD"))

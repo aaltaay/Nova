@@ -4,8 +4,10 @@ Its callers share it so they can never disagree about who led:
 
 * playback (``leaderboard.playback``) orders a stored minute and names its leaders;
 * the rebuild and the S5 rolling universe (``research/leaderboard``) rank each
-  minute's whole market offline: its board, its Losers and its Gappers;
-* live auto-record (``leaderboard.auto_record``) picks what to record 07:00-10:00.
+  minute's whole market offline: its board, its Losers and its Gappers.
+
+(Live auto-record picked what to record from it until ADR 071 retired it: Nova
+now records only what a lane watches, ``line_lanes.recording``.)
 
 A row qualifies first, then qualified rows are ordered by ``change_pct``
 (biggest gainer first, or biggest loser first under ``worst_first``; an

@@ -139,6 +139,33 @@ that it moves, and the resting order fills from Level 1 (decision 9).
 - **A shorter linger, or a longer one.** Any timer that cancels the operator's line meets IBKR's 15 seconds on the way
   back.
 
+## Amendment 2026-11-13: what "watching" means, decided by the operator
+
+The operator, seeing REC chips on DGXX, SSII and VTSI that nobody watched: "if a bot is watching a specific stock, if a
+human is watching a stock, or if we're looking at a stock only, then we start the recordings". Then: "I need the
+level 2 lane to always be for a human because a human could be trading on the web application, and a human could be
+working on the desktop". Asked what each word means, they chose:
+
+1. **A bot watches only what a bot may buy** (amends decision 6). A setup qualifies for the bots' lane only when its
+   strategy is at effective On, the venue's bot is active, Nova may buy on that venue and the stock's Buy is Nova --
+   then a setup in a trade first, near second, armed third. A setup a bot only watches (Eyes, a watch-only template
+   such as the pullback dip, #847) never takes the lane. A stock Nova holds a trade in keeps the lane until it is flat;
+   a better tier takes the lane from an armed or near stock only; a read that fails moves nothing.
+2. **You watch a stock while a Trader tab you can see shows it** (amends decision 8 for your lane). Your lane's stock
+   is recorded while a desk window shows it in front, or a socket opened in front on it (the phone, a browser) is
+   still open and no desk window lists it as a hidden tab -- and for 5 minutes after (`LANES_YOU_RECORD_TAIL_SEC`).
+   Your lane's lines stay up all the while (decision 3); only the recording stops. Claude's and the bots' lane stocks
+   are recorded while on the lane, as decision 8 says.
+3. **Record by hand needs a lane on the stock.** `POST /api/capture` refuses a stock no lane is on (409, in the lanes'
+   words); the keepalive resumes a recording only while a lane holds its stock, and says why it gave up otherwise.
+4. **A resting Paper or Sim order keeps a Level 1 line** (owner `practice`) and the tape archive's watch, so decision
+   9's Level 1 Last has a quote to read off-lane. It holds no Level 2 and no Time & Sales line.
+5. **A socket never ends a lane's line.** A socket that closes ends its line only when no lane is on its stock (a Sim
+   replay slot, or a test with the lanes off).
+6. **`evict_for_capacity` stays, as a guard against leaked lines** (amends "What this removes"): it cancels only a line
+   no lane, socket or recording holds, and never a lane's.
+7. **Decision 10's measurement is not made yet.** The 16 s guard stays as it is until it is.
+
 ## Build order
 
 1. Measure IBKR's rule (decision 10) after 20:00 ET on a stock nobody watches.

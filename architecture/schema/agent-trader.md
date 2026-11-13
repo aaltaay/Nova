@@ -35,17 +35,13 @@ Claude's own writes also carry `X-Agent-Seat: <token>`; the operator's three but
 | `POST /yield` | operator | status; "Take Claude's line": unfilled buys and breaks cancelled, lines released, no new trades; held shares keep their stop |
 | `POST /give-back` | operator | status |
 | `POST /stop-claude` | operator | `{problems, status}`: as `DELETE /seat` |
-| `POST /take-back {symbol}` | operator | status; the right-click on a Trader tab whose line Claude borrowed (decision 14): that tab's lines come back, Claude stays on and waits. `AGENT_NOT_MINE` (404) when the tab's line is not lent to Claude, or when a tab of the operator's shares Claude's line (letting Claude go would free nothing; the error says to close that Level 2 first) |
-
-The Level 2 socket's error frame gains `agent_reserved` (true when the desk's request waits for Claude's line), so the panel can offer Take Claude's line.
 
 Refusals are `{detail: {reason, error}}` with `reason` one of `AGENT_SEAT_TAKEN`, `AGENT_NOT_HOLDER` (403),
 `AGENT_SEAT_OFF`, `AGENT_YIELDED`, `AGENT_LIMIT`, `AGENT_NOT_PAPER`, `AGENT_NO_LINE`, `AGENT_NOT_MINE`, `AGENT_STALE`,
 `AGENT_REFUSED`, `AGENT_HALTED` (the stock is halted, decision 17), or the execution door's own code; `error` says why in words.
 
 **Status** (`schema_version: 1`): `{generated_at, name: "Claude", venue: "paper", state, text, on, since, beat_at,
-lease_until, lapsed, yielded, symbol, line: {symbol, depth, tape, why_not, desk_lines, desk_cap, all_lines, from_tab,
-taken_back},
+lease_until, lapsed, yielded, symbol, line: {symbol, depth, tape, why_not},
 positions: [{symbol, qty, mark}], working: [{order_id, symbol, side, order_type, qty, limit_price, stop_price,
 leg_role, status, parent_id}], breaks: [{id, symbol, qty, trigger, top, stop, target, target2, target1_qty,
 expires_at, created_at, why, confirm}], reflexes: [{id, symbol, kind, action, price, shares, seconds, ratio, why, expires_at, created_at, text}], exits: {SYMBOL: {mode: "pop", pop_pct}}, today: {entries, max_entries (null: no daily trade count, 2026-10-27), pnl, day_stop, fills}, limits: {max_shares,
@@ -119,33 +115,16 @@ the first stall: Level 1's last reached `AGENT_GUARD_STALL_AFTER_PCT` (1%) over 
 price at or above `trigger` -- while its `confirm` holds, when it has one -- sends the bracket with its LMT entry at `top`, after the limits are checked again. A break
 past `expires_at` is dropped. Each outcome is an event.
 
-**A hidden Trader tab's line (ADR 068 decision 14, design `F:\Nova\design\claude-seat\v3`).** With all 3 lines
-held and no auto-record line to give, the seat borrows a hidden Trader tab's Level 2 and Time & Sales by a bot loan's
-rule (`line_lending.claude_loan`; the loan is `setup_type: "claude"` on `GET /api/ibkr/depth/lines`, its `tier`
-`watching` | `buy_set` | `in_trade`, its `why` "watching RUNR"). `line.from_tab` names that tab; the pill's `text`
-adds " · on your SMPL tab's line", and " · no Level 2" while Claude holds shares without a line. The front never
-recalls this loan; it ends `taken_back` (`POST /take-back`), `claude_let_go` (the seat let its line go) or
-`tab_closed`. `line.taken_back` lists the tabs the operator took back: never borrowed again while open, and their
-Level 2 is admitted past the reservation. After a take-back the seat asks for no line for 10 s
-(`AGENT_TAB_LINE_HOLD_SEC`), so the tab reconnects onto the line it was given back.
-
-**The line kept for Claude.** While the seat is on and not yielded, every other depth subscriber may hold at most
-`IBKR_MAX_DEPTH_SYMBOLS - 1` lines of its own (a line Claude shares with a tab is the desk's). A desk request past
-that is refused by `ibkr.depth.subscribe_async` with `{ok: false, cap: true, agent_reserved: true, error: "All 3
-Level 2 lines are in use: SPIK and FLTX are yours, SMPL is Claude's. Close one of yours, or take Claude's line."}`.
-Auto-record and line lending count the same free lines (`agent_trader.lines.desk_free`). Claude's line is a viewer
-reference on the depth and AllLast lines, like a Session Record's: never idle-evicted, never lent;
-`GET /api/ibkr/depth/lines` shows it as `held_by: "agent"`. With 3 desk lines held (ADR 068 decision 3, amended
-2026-10-27; a line Claude alone watches does not count, its move frees it), the seat takes an auto-record line: of
-the auto lines whose only viewer is auto-record's hold and that the L2 recorder is not recording, the one
-in front least recently on the desk (`line_lending.focus` `last_shown` and the Trader tab sockets' `front_seen`;
-never counts as longest), ties by auto-record's lowest rank (`leaderboard.auto_record.yield_to_agent`). Its
-recording stops as planned (segment `reason: "auto"`) and is listed in auto-record's status `yielded`, and the
-seat says so (event `line_taken`). With no such line the seat waits (`waiting_line`); it never takes a Trader tab's line, a Session
-Record the operator started, the L2 recorder or a loan. Moving to another stock (`agent_trader.lines.acquire`) lets
-the old line go first, except a line Claude shares with a tab or auto-record while every line is in use: letting it
-go would free nothing (it stays the desk's), so the seat keeps its reference there and waits (`waiting_line`,
-`line.why_not` naming both stocks) until a line is free for the new stock. "Held" means up on this IBKR session: after a reconnect the seat's reference survives, Nova's renewal of Claude's own line is admitted past the reservation, and the watcher asks again until it is up (no second reference).
+**Claude's lane (ADR 071 decision 5; replaces ADR 068 decisions 3 and 14).** One Level 2 line and its Time & Sales
+line are the seat's, whether the seat is on or off: on the stock the seat names (`agent_trader.lines.acquire` puts
+Claude's lane there through `line_lanes.claude`) and empty otherwise. No one else uses it, and the seat never takes,
+borrows or waits for another's line: a stock your lane or the bots' is already on costs no line (one pair of lines,
+`market-data.md` "Three lanes"). Moving to another stock moves the lane at once; the old stock's lines end unless
+another lane is on it. "Held" means up on this IBKR session: after a reconnect the lane's lines are asked for again
+until they are up. Removed: the borrowing of an auto-record line or a hidden tab's line (`agent_trader/room.py`,
+`tab_line.py`, `line_lending/claude_loan.py`), the desk's cap of 2 (`lines.desk_cap`, `desk_refusal`,
+`agent_reserved` on the Level 2 error frame), `POST /take-back`, the event `line_taken` (`waiting_line` now means the lane asked IBKR and the line is not up yet), and
+`line.desk_lines`, `desk_cap`, `all_lines`, `from_tab`, `taken_back`.
 
 **Closes Nova makes.** A lease not renewed for 600 s, `POST /stop-claude` or `DELETE /seat`: Claude's orders
 cancelled, its shares sold, the seat off, its lines released. 15:55 ET on a weekday: Claude's shares sold and orders

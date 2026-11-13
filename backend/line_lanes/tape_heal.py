@@ -9,18 +9,18 @@ dead line and said so, and nothing asked again until the operator switched tabs 
 While a Time & Sales socket watches a symbol whose AllLast line is down (IBKR refused or ended it),
 one task per symbol brings it back:
 
-- after a cap refusal (``LINE_LENDING_TAPE_CAP_CODES``) it makes room first, once per refusal:
-  every line no viewer watches is cancelled now, not after its 16 s remount linger; failing that,
-  for the tab in front (or a panel outside a Trader tab), auto-record gives back its lowest-ranked
-  line (``auto_record.make_room_for``). A recording the operator started is never touched;
-- it waits out IBKR's 15 s same-instrument rule, plus ``LINE_LENDING_TAPE_HEAL_BACKOFF_SEC`` after
+- after a cap refusal (``LANES_TAPE_CAP_CODES``) it cancels, once per refusal, any line no lane is on and no
+  viewer watches; nothing a lane holds is ever given up (ADR 071), so a cap refusal on a lane's stock means
+  lines IB Gateway still holds, and the words say so;
+- it waits out IBKR's 15 s same-instrument rule, plus ``LANES_TAPE_HEAL_BACKOFF_SEC`` after
   refusals in a row, then asks again -- at once when a hidden tab comes to the front; while IBKR is
   not ready it waits without counting a try. It never stops while a socket watches;
 - it tells the socket what it is doing: an ``error`` frame with the reason, what it freed or who
   holds the lines, and ``retry_at``; ``subscribed`` once the new line stood
-  ``LINE_LENDING_TAPE_HEAL_CONFIRM_SEC`` without IBKR ending it.
+  ``LANES_TAPE_HEAL_CONFIRM_SEC`` without IBKR ending it.
 
-A recording's own line is the keepalive's (``capture.tape_watch``); a loan's is ``loan_tape``'s.
+A recording's own line is the keepalive's (``capture.tape_watch``); a lane with no socket on it is asked again by
+the lanes' tick (``lanes.ensure``).
 A replay desk opens no line, so nothing is asked there.
 
 Registered-dead Trader lines (#722) hold through a shared stall, then make one re-ask when a
@@ -38,12 +38,12 @@ from zoneinfo import ZoneInfo
 
 from constants_ibkr import IBKR_TAPE_LINE_REQ_KEEP
 from constants_tape import TAPE_RECOVERY_HOLD_SEC, TAPE_RECOVERY_VERIFY_SEC
-from line_lending import sockets
-from line_lending.constants_line_lending import (
-    LINE_LENDING_TAPE_CAP_CODES,
-    LINE_LENDING_TAPE_HEAL_BACKOFF_SEC,
-    LINE_LENDING_TAPE_HEAL_CONFIRM_SEC,
-    LINE_LENDING_TAPE_HEAL_POLL_SEC,
+from line_lanes import sockets
+from line_lanes.constants_lanes import (
+    LANES_TAPE_CAP_CODES,
+    LANES_TAPE_HEAL_BACKOFF_SEC,
+    LANES_TAPE_HEAL_CONFIRM_SEC,
+    LANES_TAPE_HEAL_POLL_SEC,
 )
 
 logger = logging.getLogger(__name__)
@@ -209,7 +209,7 @@ async def _heal_silent(sym: str, row: dict) -> None:
             if time.time() >= hold_until:
                 _silent_say(sym, row, "holding", "The shared tape is still stalled; keeping its original line, with no repeated re-asks.")
                 return
-            await asyncio.sleep(LINE_LENDING_TAPE_HEAL_POLL_SEC)
+            await asyncio.sleep(LANES_TAPE_HEAL_POLL_SEC)
         if not watched(sym) or not tape_stream.is_subscribed(sym):
             return
         if not client.is_ready():
@@ -242,7 +242,7 @@ async def _heal_silent(sym: str, row: dict) -> None:
             if not tape_stream.is_subscribed(sym):
                 _silent_say(sym, row, "failed", "IBKR ended the re-asked tape line; its refusal healer will handle it.")
                 return
-            await asyncio.sleep(LINE_LENDING_TAPE_HEAL_POLL_SEC)
+            await asyncio.sleep(LANES_TAPE_HEAL_POLL_SEC)
         if watched(sym):
             _silent_say(sym, row, "failed", "The tape re-ask brought no prints; no further silence-driven re-ask will be made until prints return.")
     except asyncio.CancelledError:
@@ -265,7 +265,7 @@ def _down(sym: str) -> bool:
 
 def _in_front(sym: str) -> bool:
     """The operator is looking at this Time & Sales: the focus sensor's word, else the socket's own."""
-    from line_lending import focus
+    from line_lanes import focus
 
     front = focus.read().is_front(sym)
     return front if front is not None else sockets.opened_in_front(sym, sockets.TAPE)
@@ -276,46 +276,29 @@ def _cap_refusal(sym: str) -> float | None:
     from ibkr import tape_line
 
     ended = tape_line.ended(sym) or {}
-    return ended.get("at") if ended.get("code") in LINE_LENDING_TAPE_CAP_CODES else None
+    return ended.get("at") if ended.get("code") in LANES_TAPE_CAP_CODES else None
 
 
 def _holders(sym: str) -> str:
-    """Who holds the other AllLast lines, in words."""
-    from capture import feed_hold
+    """Who holds the other AllLast lines, in words: the lanes on them."""
     from ibkr import tape_stream
-    from leaderboard import auto_record
+    from line_lanes import lanes
 
-    auto = set(auto_record.held_symbols())
+    table = lanes.table()
     words = []
     for other in sorted(s for s in tape_stream._tickers if s != sym):
-        if other in auto:
-            words.append(f"{other} (auto-record)")
-        elif feed_hold.held(other):
-            words.append(f"{other} (your recording)")
-        elif sockets.count(other, sockets.TAPE):
-            words.append(f"{other} (a Trader tab)")
-        else:
-            words.append(other)
+        owners = table.owners_of(other)
+        words.append(f"{other} ({' and '.join(owners)})" if owners else other)
     return ", ".join(words) or "nothing Nova holds"
 
 
 async def _make_room(sym: str) -> str | None:
-    """Free one line for ``sym`` after a cap refusal; what was freed, in words, or None."""
+    """After a cap refusal: cancel the idle lines no lane is on; what was freed, in words, or None. A lane's line is
+    never given up (ADR 071)."""
     from ibkr import tape_line
 
     idle = tape_line.release_idle(keep=sym, why=f"{sym}'s Time & Sales needs IBKR's room")
-    if idle:
-        return f"cancelled the idle line of {', '.join(idle)}"
-    if not _in_front(sym):
-        return None
-    try:
-        from leaderboard import auto_record
-
-        victim = await auto_record.make_room_for(sym, tape_refused=True)
-    except Exception:
-        logger.exception("IBKR tape: auto-record could not give a line back for %s", sym)
-        return None
-    return f"auto-record gave back {victim}'s recording line" if victim else None
+    return f"cancelled the idle line of {', '.join(idle)}" if idle else None
 
 
 def _say(sym: str, message: str, retry_at: float | None, *,
@@ -335,7 +318,8 @@ def _words(sym: str, *, capped: bool, freed: str | None, error: str | None, retr
     when = datetime.fromtimestamp(retry_at, ET).strftime("%H:%M:%S")
     if capped:
         head = "IBKR refused this Time & Sales: every tick-by-tick line is in use (IB error 10190)"
-        tail = f"; {freed}" if freed else f"; held by {_holders(sym)} -- stop a recording or close a tab to free one"
+        tail = (f"; {freed}" if freed else f"; Nova holds {_holders(sym)} -- any other line is one IB Gateway "
+                "still holds, and a Gateway restart frees it")
         return f"{head}{tail}. Asking again at {when} ET."
     return f"{error or 'IBKR ended this Time & Sales line'}. Asking again at {when} ET."
 
@@ -346,7 +330,7 @@ async def _wait(sym: str, seconds: float, *, guard_until: float) -> bool:
     end = time.time() + seconds
     was_front = _in_front(sym)
     while time.time() < end:
-        await asyncio.sleep(min(LINE_LENDING_TAPE_HEAL_POLL_SEC, max(0.0, end - time.time())))
+        await asyncio.sleep(min(LANES_TAPE_HEAL_POLL_SEC, max(0.0, end - time.time())))
         if not watched(sym):
             return False
         if not was_front and time.time() >= guard_until and _in_front(sym):
@@ -366,7 +350,7 @@ async def _heal(sym: str) -> None:
                 room_for = refused_at
                 freed = await _make_room(sym)
             guard = tape_stream.guard_remaining(sym)
-            backoff = LINE_LENDING_TAPE_HEAL_BACKOFF_SEC[min(tries, len(LINE_LENDING_TAPE_HEAL_BACKOFF_SEC) - 1)]
+            backoff = LANES_TAPE_HEAL_BACKOFF_SEC[min(tries, len(LANES_TAPE_HEAL_BACKOFF_SEC) - 1)]
             wait = guard + backoff
             retry_at = time.time() + wait
             ended = tape_line.ended(sym) or {}
@@ -377,7 +361,7 @@ async def _heal(sym: str) -> None:
             if not _down(sym):
                 break                           # another socket or a hold brought it back
             if not client.is_ready():
-                await asyncio.sleep(LINE_LENDING_TAPE_HEAL_POLL_SEC)
+                await asyncio.sleep(LANES_TAPE_HEAL_POLL_SEC)
                 continue                        # IBKR is down: not a try
             tries += 1
             result = await tape_stream.subscribe_async(sym)
@@ -385,7 +369,7 @@ async def _heal(sym: str) -> None:
                 error = result.get("error")
                 continue
             error = None
-            if not await _wait(sym, LINE_LENDING_TAPE_HEAL_CONFIRM_SEC, guard_until=float("inf")):
+            if not await _wait(sym, LANES_TAPE_HEAL_CONFIRM_SEC, guard_until=float("inf")):
                 return
         if watched(sym) and not _down(sym):
             tape_stream._push_queue(sym, {"type": "subscribed", "symbol": sym})

@@ -433,24 +433,21 @@ def test_now_says_the_bot_buys_nothing_before_todays_reset(monkeypatch):
     assert now["reasons"] == [now["cells"]["nova_buys"]["why"]]
 
 
-def test_now_says_whether_a_level_2_line_would_come(monkeypatch):
-    """No line held now: a free line or a hidden tab's loan may still come (unknown), or none can: BLIND."""
+def test_now_says_whether_the_bots_lane_would_come(monkeypatch):
+    """No line held now: the bots' lane may still come to the stock (unknown), and says where it is (ADR 071)."""
     from bot import trigger_now
+    from line_lanes import lanes
+    from line_lanes.table import Lanes
 
     monkeypatch.setattr("bot.eligibility.holds_depth_line", lambda sym: sym == "HELD")
     assert trigger_now._line("HELD")["ok"] is True
-    monkeypatch.setattr("line_lending.lines.free_lines", lambda: 1)
-    monkeypatch.setattr("line_lending.setting.is_on", lambda: (False, None))
+    lanes._lanes = Lanes()
     free = trigger_now._line("AISP")
-    assert free["ok"] is None and "1 of IBKR's lines are free" in free["why"]
-    monkeypatch.setattr("line_lending.lines.free_lines", lambda: 0)
-    monkeypatch.setattr("line_lending.setting.is_on", lambda: (True, None))
-    lent = trigger_now._line("AISP")
-    assert lent["ok"] is None and "lends its lines when a setup comes near" in lent["why"]
-    monkeypatch.setattr("line_lending.setting.is_on", lambda: (False, None))
-    blind = trigger_now._line("AISP")
-    assert blind == {"ok": False, "why": "Nova holds no Level 2 line on AISP, every line is taken and lending is off: "
-                                         "a trigger now would read BLIND"}
+    assert free["ok"] is None and "the bots' lane is free" in free["why"]
+    lanes._lanes = Lanes(bots="RUNR")
+    taken = trigger_now._line("AISP")
+    assert taken["ok"] is None and "the bots' lane is on RUNR" in taken["why"]
+    assert "BLIND" in taken["why"]
 
 
 # -- both sides (ADR 049, #778 step 5) --------------------------------------------------------------
