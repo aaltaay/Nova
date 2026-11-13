@@ -5,7 +5,7 @@
  * the desk's own (`account/accountCalendar`, `account/accountDayBreakdown`); the rows shrink to fit,
  * so the screen never scrolls.
  */
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { ChevronLeft, ChevronRight, LineChart } from 'lucide-react';
 import { dayShortLabel, isoDate, monthGrid, monthLabel, parseIsoDate, shiftMonth } from '../../account/accountCalendar';
 import { dayBreakdowns, monthDayTotals, type DayBreakdown } from '../../account/accountDayBreakdown';
@@ -88,11 +88,9 @@ export function AccountCalendar({ account, onChart }: { account: PhoneAccount; o
   const prefix = isoDate(month.year, month.month, 1).slice(0, 7);
 
   const history = account.calendar;
-  const days = useMemo(() => (history ? dayBreakdowns(history) : null), [history]);
-  const shown = useMemo(
-    () => (history ? phoneMonth(monthGrid(month.year, month.month, history.daily, today)) : null),
-    [history, month.year, month.month, today],
-  );
+  // Plain derivations: the React Compiler memoizes them, and a hand-written memo here stops it.
+  const days = history ? dayBreakdowns(history) : null;
+  const shown = history ? phoneMonth(monthGrid(month.year, month.month, history.daily, today)) : null;
   if (!history || !days || !shown) {
     return <div className="ph-empty ph-cal__absent" role="status" data-testid="phone-calendar-absent">{account.calendarAbsence}</div>;
   }
