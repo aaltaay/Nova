@@ -119,6 +119,25 @@ describe('the depth chart over the book', () => {
     expect(mount(watch([wall({ state: 'pulled', ended_ts: 99 })])).queryByTestId('l2-depth-wall')).toBeNull();
   });
 
+  it('reads the hovered price from the newest book while the pointer rests (Codex review, PR #1320)', () => {
+    act(() => setLevel2DepthChart(true));
+    const view = (asks: DepthLevel[]) => <Level2Frame><Level2DepthChart bids={BIDS} asks={asks} /></Level2Frame>;
+    const { getByTestId, rerender } = render(view([row('ask', 4.47, 100)]));
+    const plot = getByTestId('l2-depth-chart').querySelector('.l2-depth__plot') as HTMLElement;
+    plot.getBoundingClientRect = () => ({ left: 0, top: 0, width: 400, height: 60, right: 400, bottom: 60, x: 0, y: 0, toJSON: () => ({}) });
+    fireEvent.mouseMove(plot, { clientX: 300 });
+    expect(getByTestId('l2-depth-read').textContent).toContain('(100 at that price)');
+    rerender(view([row('ask', 4.47, 900)]));
+    expect(getByTestId('l2-depth-read').textContent).toContain('(900 at that price)');
+  });
+
+  it('sums only the rows the ladder draws (Codex review, PR #1320)', () => {
+    act(() => setLevel2DepthChart(true));
+    const many = Array.from({ length: 20 }, (_, i) => row('ask', 4.47 + i / 100, 100));
+    const { getByTestId } = render(<Level2Frame><Level2DepthChart bids={BIDS} asks={many} /></Level2Frame>);
+    expect(getByTestId('l2-depth-total-ask').textContent).toContain('1,000');
+  });
+
   it('draws nothing for an empty book', () => {
     act(() => setLevel2DepthChart(true));
     const { queryByTestId } = render(<Level2Frame><Level2DepthChart bids={[]} asks={[]} /></Level2Frame>);

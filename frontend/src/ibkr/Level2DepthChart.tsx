@@ -8,7 +8,7 @@
  * screen: one step per price, nothing past the last row.
  */
 import { useState, type CSSProperties, type MouseEvent } from 'react';
-import { L2_DEPTH_CHART_HINT, L2_DEPTH_CHART_LABELS } from '../constants';
+import { L2_DEPTH_CHART_HINT, L2_DEPTH_CHART_LABELS, TICKER_TRADE_DEPTH_LEVELS } from '../constants';
 import { markPrice, markShares, markWhole, type BookSide, type BookWatchState } from './bookWatch';
 import { depthDollars, depthSteps, useLevel2DepthChart, type DepthStep } from './level2DepthSwitch';
 import type { DepthLevel } from './types';
@@ -55,9 +55,12 @@ function area(steps: readonly DepthStep[], dir: 1 | -1, y: (shares: number) => n
 
 export function Level2DepthChart({ bids, asks, watch = null }: Props) {
   const on = useLevel2DepthChart();
-  const [hover, setHover] = useState<{ x: number; text: string } | null>(null);
+  // The pointer's place only: its words are read from the book on screen at each draw, never kept.
+  const [hoverX, setHoverX] = useState<number | null>(null);
   if (!on) return null;
-  const sides: Record<BookSide, DepthStep[]> = { bid: depthSteps(bids), ask: depthSteps(asks) };
+  // The rows the ladder draws (MontageSide), no more: a Sim book of several venues can hold more.
+  const rows = (levels: readonly DepthLevel[]) => depthSteps(levels.slice(0, TICKER_TRADE_DEPTH_LEVELS));
+  const sides: Record<BookSide, DepthStep[]> = { bid: rows(bids), ask: rows(asks) };
   if (!sides.bid.length && !sides.ask.length) return null;
   const total = (side: BookSide) => sides[side][sides[side].length - 1];
   const max = Math.max(total('bid')?.shares ?? 0, total('ask')?.shares ?? 0);
@@ -77,13 +80,13 @@ export function Level2DepthChart({ bids, asks, watch = null }: Props) {
   const onMove = (event: MouseEvent<HTMLDivElement>) => {
     const box = event.currentTarget.getBoundingClientRect();
     if (!(box.width > 0)) return;
-    const x = Math.min(100, Math.max(0, ((event.clientX - box.left) / box.width) * 100));
-    const side: BookSide = x >= HALF ? 'ask' : 'bid';
-    const steps = sides[side];
-    if (!steps.length) return setHover(null);
-    const i = Math.min(steps.length - 1, Math.floor((Math.abs(x - HALF) / HALF) * steps.length));
-    setHover({ x, text: depthReadout(side, steps[i]) });
+    setHoverX(Math.min(100, Math.max(0, ((event.clientX - box.left) / box.width) * 100)));
   };
+  const hoverSide: BookSide = hoverX != null && hoverX >= HALF ? 'ask' : 'bid';
+  const hoverSteps = sides[hoverSide];
+  const hoverStep = hoverX == null || !hoverSteps.length ? null
+    : hoverSteps[Math.min(hoverSteps.length - 1, Math.floor((Math.abs(hoverX - HALF) / HALF) * hoverSteps.length))];
+  const hover = hoverX != null && hoverStep ? { x: hoverX, text: depthReadout(hoverSide, hoverStep) } : null;
 
   const edge = (side: BookSide) => {
     const t = total(side);
@@ -106,7 +109,7 @@ export function Level2DepthChart({ bids, asks, watch = null }: Props) {
         {edge('bid')}
         {edge('ask')}
       </div>
-      <div className="l2-depth__plot" onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
+      <div className="l2-depth__plot" onMouseMove={onMove} onMouseLeave={() => setHoverX(null)}>
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label={L2_DEPTH_CHART_LABELS.aria}>
           <path className="l2-depth__area l2-depth__area--bid" d={area(sides.bid, -1, y)} />
           <path className="l2-depth__area l2-depth__area--ask" d={area(sides.ask, 1, y)} />
