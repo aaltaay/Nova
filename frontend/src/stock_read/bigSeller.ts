@@ -24,6 +24,10 @@ export interface BigWall {
   sizeNow: number;
   traded: number;
   multiple: number | null;
+  /** Its size over the last minute's lit volume, in seconds; null with no pace (or once it ended). */
+  clearSec: number | null;
+  /** `light`: under a minute of that volume -- a seller, not a big one. A backend that sends none reads heavy. */
+  light: boolean;
   firstSeenTs: number;
   /** Big in the first book Nova read: it may have been there longer. */
   seenFromStart: boolean;
@@ -68,6 +72,8 @@ function normalizeWall(raw: unknown): BigWall | null {
     sizeNow: num(w.size_now) ?? 0,
     traded: num(w.traded) ?? 0,
     multiple: num(w.multiple),
+    clearSec: num(w.clear_sec),
+    light: w.weight === 'light' || w.weight === 'unknown',
     firstSeenTs: firstSeen,
     seenFromStart: w.seen_from_start === true,
     calledTs: num(w.called_ts),
@@ -215,17 +221,24 @@ export function bigLine(r: BigWalls | null, short: boolean, error: string | null
   if (w.state === 'holding' || w.state === 'left') {
     const past = pastWords(w.distance, w.price, W.past);
     const held = heldWords(w.heldSec, w.seenFromStart);
-    const head = `${W.who} ${fmtShares(w.sizeNow)} @ ${fmtPx(w.price)}`;
+    // A light one (under a minute of the last minute's lit volume) is a seller, never called big.
+    const vol = w.clearSec !== null ? heldWords(w.clearSec, false) : null;
+    const head = w.light
+      ? `${W.one} ${fmtShares(w.sizeNow)} @ ${fmtPx(w.price)}${vol ? ` · light, ${vol} of volume` : ''}`
+      : `${W.who} ${fmtShares(w.sizeNow)} @ ${fmtPx(w.price)}`;
+    const weighed = vol
+      ? ` ${vol} of the last minute's lit volume: ${w.light ? 'light, under a minute' : 'heavy, a minute or more'}.`
+      : '';
     const mult = w.multiple !== null ? `, ${w.multiple.toFixed(0)}x the other ${W.others}` : '';
     const traded = w.traded > 0 ? ` ${fmtShares(w.traded)} traded there so far.` : '';
     const since = w.seenFromStart ? `there before ${hhmmssEt(w.firstSeenTs)}` : `there since ${hhmmssEt(w.firstSeenTs)}`;
     const detail = `${fmtShares(w.sizeNow)} shares ${W.what} at ${fmtPx(w.price)}${mult}, ${past}; ${since}, first seen at `
-      + `${fmtShares(w.sizeFirst)}.${traded} Shown, never acted on.`;
+      + `${fmtShares(w.sizeFirst)}.${traded}${weighed} Shown, never acted on.`;
     if (w.state === 'left') {
       return { tone: 'warn', text: `${W.who} @ ${fmtPx(w.price)} · LEFT THE BOOK`, wall: w,
         detail: 'The book shows it gone; the tape says within a second whether it traded or was pulled.' };
     }
-    return { tone: 'warn', text: `${head} · ${past} · held ${held}`, detail, wall: w };
+    return { tone: w.light ? 'info' : 'warn', text: `${head} · ${past} · held ${held}`, detail, wall: w };
   }
   return { ...endedWords(w, short), wall: w };
 }

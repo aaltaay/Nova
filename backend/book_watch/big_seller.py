@@ -10,6 +10,15 @@ price for an ask -- just under it for a bid -- no further than the window (``Big
 price is the last print that sets one, else the middle of the inside. It is **called** a big seller (a
 big buyer) once it has stayed big ``BOOK_WATCH_BIG_MIN_HOLD_SEC``.
 
+A called price is weighed against the trading as well as the book (operator, 2026-11-14). ``weight`` is
+``heavy`` when its size is ``BOOK_WATCH_BIG_HEAVY_SEC`` or more of the last minute's lit volume (``pace.py``;
+with no lit trade in that minute it is heavy too), ``light`` under it, ``unknown`` before there is a pace; a
+heavy one stays heavy down to ``BOOK_WATCH_BIG_HEAVY_OFF_SEC`` so it does not blink at the line. The floors
+above are low on purpose -- a few thousand shares are a wall on a slow stock -- so a called price is **shown**
+(listed in ``reading``) only when it is heavy, or when it is over the old floors, big against the book alone
+(``BOOK_WATCH_BIG_BOOK_SHARES`` and ``BOOK_WATCH_BIG_BOOK_DOLLARS``, ``over_book``). One over those floors is
+followed down to them, as before; a smaller one down to the low floors.
+
 A called price is followed through its life:
 
 - ``holding``: the book still shows at least the floors there (whatever the other levels do since).
@@ -51,6 +60,10 @@ from typing import Any
 from book_watch.book import SideView, collapsed, in_view
 from book_watch.constants_book_watch import (
     BOOK_WATCH_BIG_BACK_SEC,
+    BOOK_WATCH_BIG_BOOK_DOLLARS,
+    BOOK_WATCH_BIG_BOOK_SHARES,
+    BOOK_WATCH_BIG_HEAVY_OFF_SEC,
+    BOOK_WATCH_BIG_HEAVY_SEC,
     BOOK_WATCH_BIG_KEEP,
     BOOK_WATCH_BIG_MEDIAN_MULT,
     BOOK_WATCH_BIG_MIN_DOLLARS,
@@ -74,12 +87,18 @@ from sale_conditions import sets_price
 SIDES = ("ask", "bid")
 KIND = {"ask": "big_seller", "bid": "big_buyer"}
 HOLDING, LEFT, EATEN, PULLED, LOST, SMALLER = "holding", "left", "eaten", "pulled", "lost", "smaller"
+HEAVY, LIGHT, UNKNOWN = "heavy", "light", "unknown"
+WEIGH_EVERY_SEC = 0.25  # the weights are read again at most this often between books
 
 
 @dataclass(frozen=True)
 class BigParams:
     min_shares: float = BOOK_WATCH_BIG_MIN_SHARES
     min_dollars: float = BOOK_WATCH_BIG_MIN_DOLLARS
+    book_shares: float = BOOK_WATCH_BIG_BOOK_SHARES
+    book_dollars: float = BOOK_WATCH_BIG_BOOK_DOLLARS
+    heavy_sec: float = BOOK_WATCH_BIG_HEAVY_SEC
+    heavy_off_sec: float = BOOK_WATCH_BIG_HEAVY_OFF_SEC
     median_mult: float = BOOK_WATCH_BIG_MEDIAN_MULT
     min_other_levels: int = BOOK_WATCH_BIG_MIN_OTHER_LEVELS
     min_hold_sec: float = BOOK_WATCH_BIG_MIN_HOLD_SEC
@@ -94,6 +113,10 @@ class BigParams:
     def floor(self, price: float) -> float:
         """The fewest shares at ``price`` that are big: the share floor, or the dollar floor's shares."""
         return max(self.min_shares, self.min_dollars / price)
+
+    def book_floor(self, price: float) -> float:
+        """The fewest shares at ``price`` that are big against the book alone, whatever the trading."""
+        return max(self.book_shares, self.book_dollars / price)
 
     def window(self, ref: float) -> float:
         """How far past the price a big size may sit: the larger of the cents and the percent, capped."""
@@ -121,6 +144,9 @@ class Wall:
     dist_called: float | None = None  # how far past the price when it was called
     back: dict[str, float] | None = None  # walls pulled at this price shortly before it was called
     on_approach: bool | None = None  # pulled as the price came closer; None unless pulled
+    over_book: bool = False       # it has been over the old floors: big against the book alone
+    weight: str = UNKNOWN         # against the last minute's lit volume, as of the last weighing
+    shown: bool = False           # heavy, or over the old floors: listed in the reading
     state: str = HOLDING
     ended_ts: float | None = None
     how: str | None = None
@@ -155,6 +181,7 @@ class BigWallTracker:
         self.spent: dict[tuple[str, float], float] = {}
         self.pace = LitPace()                            # how fast it trades, for clear_sec (pace.py)
         self.version = 0                                 # moves whenever a called wall says something new
+        self.weighed_ts: float | None = None             # when the weights were last read
 
     # -- input ---------------------------------------------------------------
 
@@ -175,9 +202,11 @@ class BigWallTracker:
                 if price in self.walls[side] or self._spent(side, price, size, ts):
                     continue
                 if self._big(side, price, size, shown, ref) is not None:
-                    self.walls[side][price] = Wall(side, price, ts, size, self.fresh, size_now=size, peak=size)
+                    self.walls[side][price] = Wall(side, price, ts, size, self.fresh, size_now=size, peak=size,
+                                                   over_book=size >= self.p.book_floor(price))
             out += self._call_due(side, ts, shown, ref)
         self.views, self.prev_ts, self.fresh = views, ts, False
+        self._weigh(ts, force=True)
         return out
 
     def on_print(self, ts: float, key: float, shares: float, *, lit: bool, conditions: Any,
@@ -209,6 +238,7 @@ class BigWallTracker:
                     wall.traded += shares
                     if wall.called_ts is not None:
                         self.version += 1
+        self._weigh(ts)
         return out
 
     def tick(self, now: float) -> list[dict[str, Any]]:
@@ -279,6 +309,36 @@ class BigWallTracker:
         med = float(median(others))
         return med if size >= self.p.median_mult * med else None
 
+    def _floor(self, wall: Wall) -> float:
+        """The size under which ``wall`` has left: the old floors for one that was over them, else the low ones."""
+        return self.p.book_floor(wall.price) if wall.over_book else self.p.floor(wall.price)
+
+    def _weigh_one(self, wall: Wall, pace: dict[str, float] | None, per_sec: float | None) -> None:
+        if pace is None:
+            weight = UNKNOWN  # under BOOK_WATCH_BIG_PACE_MIN_SEC of watching: no minute to weigh it against
+        elif per_sec is None:
+            weight = HEAVY    # no lit trade in the last minute: nothing is trading it
+        else:
+            line = self.p.heavy_off_sec if wall.weight == HEAVY else self.p.heavy_sec
+            weight = HEAVY if wall.size_now / per_sec >= line else LIGHT
+        shown = weight == HEAVY or wall.over_book
+        if (weight, shown) != (wall.weight, wall.shown):
+            wall.weight, wall.shown = weight, shown
+            self.version += 1
+
+    def _weigh(self, ts: float, *, force: bool = False) -> None:
+        """Every called price still there, against the last minute's lit volume."""
+        if not force and self.weighed_ts is not None and 0 <= ts - self.weighed_ts < WEIGH_EVERY_SEC:
+            return
+        self.weighed_ts = ts
+        called = [w for walls in self.walls.values() for w in walls.values()
+                  if w.called_ts is not None and w.state == HOLDING]
+        if not called:
+            return
+        pace, per_sec = self.pace.rate(ts)
+        for wall in called:
+            self._weigh_one(wall, pace, per_sec)
+
     def _spent(self, side: str, price: float, size: float, ts: float) -> bool:
         """A print went through ``price`` and the book may not show it yet: not a new candidate."""
         at = self.spent.get((side, price))
@@ -320,7 +380,9 @@ class BigWallTracker:
                     out += self._end(wall, LOST, ts, "cut_off")
                 continue
             size = shown.get(price, 0.0)
-            if size < self.p.floor(price):
+            if size >= self.p.book_floor(price):
+                wall.over_book = True
+            if size < self._floor(wall):
                 if wall.called_ts is None:
                     del self.walls[side][price]
                     continue
@@ -349,12 +411,14 @@ class BigWallTracker:
                 wall.dist_called = _distance(side, price, ref)
                 wall.back = self._back(side, price, ts)
                 self.version += 1
+                self._weigh_one(wall, *self.pace.rate(ts))
                 out.append(self._event(wall, ts))
         return out
 
     def _back(self, side: str, price: float, ts: float) -> dict[str, float] | None:
         """The walls pulled at ``price`` on ``side`` in the ``back_sec`` before ``ts``, or None."""
-        gone = [w for w in self.ended if w.side == side and w.state == PULLED and abs(w.price - price) <= PRICE_EPS
+        gone = [w for w in self.ended if w.side == side and w.state == PULLED and w.shown
+                and abs(w.price - price) <= PRICE_EPS
                 and w.ended_ts is not None and w.ended_ts >= ts - self.p.back_sec]
         if not gone:
             return None
@@ -410,6 +474,7 @@ class BigWallTracker:
             "clear_sec": (round(wall.size_now / per_sec, 1) if per_sec and wall.ended_ts is None and wall.size_now > 0
                           else None),
             "how": wall.how, "left": wall.left,
+            "weight": wall.weight, "over_book": wall.over_book, "shown": wall.shown,
         }
 
     def _event(self, wall: Wall, ts: float) -> dict[str, Any]:
@@ -417,20 +482,22 @@ class BigWallTracker:
                 **self._wall(wall, ts, self._reference(self.views), self.pace.rate(ts)[1])}
 
     def holding(self) -> bool:
-        """Is any called price still there (its ``clear_sec`` moves with the pace even when nothing else does)?"""
-        return any(w.called_ts is not None for walls in self.walls.values() for w in walls.values())
+        """Is any shown price still there (its ``clear_sec`` moves with the pace even when nothing else does)?"""
+        return any(w.called_ts is not None and w.shown for walls in self.walls.values() for w in walls.values())
 
     def reading(self, now: float) -> dict[str, Any]:
-        """Each side's called prices (nearest the price first), then those ended in the last
-        ``show_ended_sec`` (newest first)."""
+        """Each side's shown prices (nearest the price first), then those ended in the last
+        ``show_ended_sec`` (newest first). A called price that is light and under the old floors is not listed."""
         ref = self._reference(self.views)
         pace, per_sec = self.pace.rate(now)
         sides: dict[str, list[dict[str, Any]]] = {}
         for side in SIDES:
-            live = [self._wall(w, now, ref, per_sec) for w in self.walls[side].values() if w.called_ts is not None]
+            live = [self._wall(w, now, ref, per_sec) for w in self.walls[side].values()
+                    if w.called_ts is not None and w.shown]
             live.sort(key=lambda w: (w["distance"] if w["distance"] is not None else float("inf")))
             gone = [self._wall(w, now, ref) for w in reversed(self.ended)
-                    if w.side == side and w.ended_ts is not None and w.ended_ts >= now - self.p.show_ended_sec]
+                    if w.side == side and w.shown and w.ended_ts is not None
+                    and w.ended_ts >= now - self.p.show_ended_sec]
             sides[side] = live + gone
         return {
             "last": self.last, "last_ts": None if self.last_ts is None else round(self.last_ts, 3),

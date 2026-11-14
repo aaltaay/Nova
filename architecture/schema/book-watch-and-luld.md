@@ -344,15 +344,29 @@ told the operator that a large seller sat just over the price of a stock they ho
 Level 2 line only, never inferred from anything else. Read-only: nothing here places, gates, moves or cancels an
 order.
 - **Big.** A price on one side whose resting size (summed across venues, wholly in view) is at least
-  `BOOK_WATCH_BIG_MIN_SHARES` (10,000) shares and `BOOK_WATCH_BIG_MIN_DOLLARS` ($20,000), and at least
+  `BOOK_WATCH_BIG_MIN_SHARES` (2,000) shares and `BOOK_WATCH_BIG_MIN_DOLLARS` ($4,000) -- the floors to be
+  **followed**, low on purpose (2026-11-14: a few thousand shares are a wall on a slow stock; see "Its weight"
+  for which followed prices are shown) -- and at least
   `BOOK_WATCH_BIG_MEDIAN_MULT` (5) x the median of the other levels in view on its side -- at least
   `BOOK_WATCH_BIG_MIN_OTHER_LEVELS` (3) of them, else nothing is weighed -- at or just over the price for an ask
   (just under it for a bid): no further than the larger of `BOOK_WATCH_BIG_WINDOW_DOLLARS` (5c) and
   `BOOK_WATCH_BIG_WINDOW_PCT` (1%) of the price, capped at `BOOK_WATCH_BIG_WINDOW_MAX_PCT` (3%). The price is the
   last print that sets one (`sale_conditions.sets_price`), else the middle of the inside. It is **called** a big
   seller (big buyer) once it has stayed big for `BOOK_WATCH_BIG_MIN_HOLD_SEC` (3 s); one that drops out of the
-  rule during the hold starts over. Chosen, not measured: a description of the book.
-- **Its life.** `holding` while the book shows at least the floors there (whatever the other levels do since);
+  rule during the hold starts over. A description of the book.
+- **Its weight** (operator decision 2026-11-14: "How do we know it's a big seller? Is it based on the volume or
+  based on the relative volume?"; size against the book alone called walls the tape trades in seconds). Each
+  followed price carries `weight`: `"heavy"` when its `clear_sec` (below) is at least `BOOK_WATCH_BIG_HEAVY_SEC`
+  (60 s -- a minute or more of the last minute's lit volume), or when the pace is known and no lit share
+  printed in it; `"light"` when it is less; `"unknown"` before there is a pace (the first 10 s of a line). A
+  heavy one stays heavy until it falls under `BOOK_WATCH_BIG_HEAVY_OFF_SEC` (40 s), so a mark does not flicker
+  at the line. `over_book` is true when it was also at least `BOOK_WATCH_BIG_BOOK_SHARES` (10,000) and
+  `BOOK_WATCH_BIG_BOOK_DOLLARS` ($20,000) when first seen -- the floors before 2026-11-14. `shown` = heavy or
+  `over_book`: only shown prices are listed in the reading and on the ladder, and only a shown pulled wall
+  counts in `back`. So a small wall is listed only while heavy; a wall over the old floors is always listed,
+  heavy or light. Weighed on every book and at most every 0.25 s on prints.
+- **Its life.** `holding` while the book shows at least the floors there (whatever the other levels do since;
+  an `over_book` wall's floors stay the old ones, so it leaves where it always did);
   `left` when the book shows it under them -- judged `BOOK_WATCH_SETTLE_SEC` later, as every drop is
   (`matching.py`), and `holding` again if its full size is back first (above); `eaten` (said "taken") when a lit, price-setting print goes through it (over a seller, under a
   buyer: `how: "through"`, at once) or the lit prints at its price inside the matching window cover at least
@@ -383,14 +397,17 @@ order.
   (big in the first book the tracker saw: it may have been there longer), called_ts, ended_ts, held_sec,
   distance (signed: over the price for an ask, under it for a bid; 0 or less is at the price), distance_pct,
   distance_called (the distance when it was called), on_approach: boolean | null, back: {pulled, last_ended_ts,
-  last_size} | null, clear_sec: number | null, how, left: {before, after, filled} | null}` -- once when called
+  last_size} | null, clear_sec: number | null, weight: "heavy" | "light" | "unknown", over_book: boolean,
+  shown: boolean, how, left: {before, after, filled} | null}` -- once when called (for every followed price,
+  shown or not: `shown` says which)
   and once when it ends; the journal keeps
   them (`event: "big"`), and `book_watch/replay.py`'s result adds `big[]` (the last word on each).
 - **The reading.** `GET /api/book-watch/{symbol}/big-sellers` (owner `book_watch/routes.py` and `big_read.py`;
   sync, memory reads only) and `GET /sensors/big-sellers?symbol=` (sensor 21, the reading as `data`, `reason`
   as `error`) answer `{schema_version: 1, symbol, source: "live" | "replay", as_of, rule: {min_shares,
   min_dollars, median_mult, min_other_levels, min_hold_sec, window_dollars, window_pct, window_max_pct,
-  taken_share, show_ended_sec}, note, watching, reason: string | null, sellers[], buyers[]}`, and while
+  taken_share, show_ended_sec, book_shares, book_dollars, heavy_sec}, note, watching, reason: string | null,
+  sellers[], buyers[]}` (shown prices only), and while
   watching also `since, last_book_ts, last_book_age_sec, last, last_ts, reference, reference_source: "last" |
   "mid" | null, window, pace: {window_sec, lit_shares} | null, sides: {ask | bid: {levels, enough}}` (a replay
   adds `lookback_sec, books_per_sec`).
@@ -419,7 +436,12 @@ order.
   digits and a white frame (no other row is black or white: the eight price-tier colours include orange, and amber
   already means pulled), tagged "Big seller" / "Big buyer" over the venue column of the boundary above it, never
   over a size or a price; while prints trade into it a slate bar along its last row fills with traded / (traded +
-  size now). Over the side's column head a banner names the nearest one that holds -- "Big seller 3.45 · 48.2K ·
+  size now). That block is for a **heavy** one only. A light or not-yet-weighed one (`weight` not `"heavy"`;
+  an older backend sends none and reads heavy) keeps its row's colour inside a thin dashed outline, tagged with
+  its seconds of volume ("12 s") on a dark chip, never "Big seller"; its banner says "Seller" / "Buyer" on a
+  dark dashed chip. The held-trade card says "SELLER ... · light, 12 s of volume" in the quiet tone, pins
+  "SELLER" and does not ping; the phone's book draws the same two marks (`phone/trade/BookMarks.tsx`). Over
+  the side's column head a banner names the nearest one that holds -- "Big seller 3.45 · 48.2K ·
   1.9% of float · 40 s of lit volume" (the float share from `big_float`, "?" after it when the float is
   contradicted, left out with no float; the seconds from `clear_sec`), "back · 2nd in 5 min" when it came back --
   and, with none holding, the newest one that ended: taken (slate, "✓", with what traded at its price, or "traded

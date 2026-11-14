@@ -9,6 +9,8 @@ import type { BookSide } from './bookWatch';
 export type BigState = 'holding' | 'left' | 'eaten' | 'pulled' | 'lost' | 'smaller';
 const STATES: ReadonlySet<string> = new Set<BigState>(['holding', 'left', 'eaten', 'pulled', 'lost', 'smaller']);
 
+export type BigWeight = 'heavy' | 'light' | 'unknown';
+
 export interface HeldBig {
   id: string;
   side: BookSide;
@@ -20,6 +22,9 @@ export interface HeldBig {
   medianLevel: number | null;
   /** Its size over the last minute's lit volume, in seconds; null with no pace (or once it ended). */
   clearSec: number | null;
+  /** The watcher's weighing against the last minute's lit volume: `heavy` at a minute or more (or with nothing
+   * trading), `light` under it, `unknown` before there is a pace. A backend that sends none reads `heavy`. */
+  weight: BigWeight;
   /** Pulled as the price came closer to it. */
   onApproach: boolean;
   /** Walls pulled at this price in the minutes before it was called; never a claim it is the same order. */
@@ -76,6 +81,7 @@ function readWall(raw: unknown, atOf: (ts: number) => number): HeldBig | null {
     multiple: num(w.multiple),
     medianLevel: num(w.median_level),
     clearSec: num(w.clear_sec),
+    weight: w.weight === 'light' || w.weight === 'unknown' ? w.weight : 'heavy',
     onApproach: w.on_approach === true,
     back: back && backEnded !== null
       ? { pulled: num(back.pulled) ?? 1, lastEndedMs: atOf(backEnded), lastSize: num(back.last_size) ?? 0 }

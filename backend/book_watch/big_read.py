@@ -27,7 +27,8 @@ logger = logging.getLogger(__name__)
 
 def rule() -> dict[str, Any]:
     p = DEFAULT_BIG
-    return {"min_shares": p.min_shares, "min_dollars": p.min_dollars, "median_mult": p.median_mult,
+    return {"min_shares": p.min_shares, "min_dollars": p.min_dollars, "book_shares": p.book_shares,
+            "book_dollars": p.book_dollars, "heavy_sec": p.heavy_sec, "median_mult": p.median_mult,
             "min_other_levels": p.min_other_levels, "min_hold_sec": p.min_hold_sec,
             "window_dollars": p.window_dollars, "window_pct": p.window_pct, "window_max_pct": p.window_max_pct,
             "taken_share": p.taken_share, "show_ended_sec": p.show_ended_sec}

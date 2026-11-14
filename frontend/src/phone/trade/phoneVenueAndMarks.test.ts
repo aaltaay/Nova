@@ -12,7 +12,7 @@ import type { SimClockState } from '../../sim';
 import { parseRoute, routeHash, tabOf } from '../phoneRoute';
 import { readCards } from '../screens/BookScreen';
 import { effectsFoot, simRowNote } from '../VenueMenu';
-import { bannerWords, sideMarks } from './BookMarks';
+import { bannerWords, rowMarkClass, sideMarks } from './BookMarks';
 import { LEVEL2_MARKS_KEY, readLevel2Marks, setLevel2Marks } from './level2MarksSwitch';
 import { simStripState } from './SimStrip';
 import { CAPTURE_GAP, LIVE_LOOK_ONLY, massiveNote, tradeVenueView } from './tradeVenueView';
@@ -123,6 +123,12 @@ describe("the desk's marks on the phone's book", () => {
     expect(m.banner).not.toBeNull();
     // The float and the pace stay on the desk's banner and on the read page's card.
     expect(bannerWords(m.banner!)).toBe('Big seller 3.45 · 48.2K');
+  });
+
+  it('keeps the white block for a heavy one and a dashed outline for a light one', () => {
+    const heavy = sideMarks(watch(), 'ask', ASKS, NOW_MS).big.get(1)!;
+    expect(rowMarkClass(heavy, false, false)).toBe('is-big is-big-first');
+    expect(rowMarkClass({ ...heavy, light: true }, false, false)).toBe('is-biglight');
   });
 
   it('draws nothing with no watch, and nothing on a side with no rows', () => {
