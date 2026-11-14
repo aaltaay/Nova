@@ -29,7 +29,7 @@ SCHEMA_VERSION = 1
 HORIZONS_SEC = (10, 30, 60, 300)
 # A wall the last minute's lit volume would trade in under this many seconds is "breakable", else "heavy".
 BREAKABLE_SEC = 60.0
-ENDS = {"eaten": "taken", "pulled": "pulled", "lost": "lost"}
+ENDS = {"eaten": "taken", "pulled": "pulled", "lost": "lost", "smaller": "smaller"}
 SIDES = ("ask", "bid")
 
 
@@ -160,7 +160,7 @@ def summarize(evs: list[dict[str, Any]]) -> dict[str, Any]:
             "all": _block(rows, "from_call"),
             "by_end": {k: {"from_call": _block([e for e in rows if e["ended"] == k], "from_call"),
                            "from_end": _block([e for e in rows if e["ended"] == k], "from_end")}
-                       for k in ("taken", "pulled", "lost", "open")},
+                       for k in ("taken", "pulled", "smaller", "lost", "open")},
             "on_approach": _block([e for e in rows if e["on_approach"] is True], "from_end"),
             "by_weight": {k: _block([e for e in rows if e["weight"] == k], "from_call")
                           for k in ("breakable", "heavy", "none")},

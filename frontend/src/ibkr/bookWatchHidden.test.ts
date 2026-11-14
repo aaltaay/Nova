@@ -79,6 +79,14 @@ describe('the marks', () => {
     expect(hiddenMarks(state(), 'bid', ASKS, NOW_MS)).toEqual([]);
   });
 
+  it('says what else traded there on exchanges this Level 2 does not show, and only then', () => {
+    expect(hiddenMarks(state(), 'ask', ASKS, NOW_MS)[0].tip).not.toContain('does not show');
+    const s = state({ hidden: [word(2, { unseen: 8_977 })] });
+    expect(s.hidden[0].unseen).toBe(8_977);
+    expect(hiddenMarks(s, 'ask', ASKS, NOW_MS)[0].tip)
+      .toContain('Another 8,977 traded there on exchanges this Level 2 does not show: not counted.');
+  });
+
   it('says how it ended, then fades like a pull mark', () => {
     const ended = state({ hidden: [word(2, { state: 'broke', ts: NOW_S, ended_ts: NOW_S })] });
     expect(hiddenMarks(ended, 'ask', ASKS, NOW_MS)[0].label).toBe('◆ 12.4K · broke');

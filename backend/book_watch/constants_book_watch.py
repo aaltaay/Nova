@@ -31,6 +31,8 @@ BOOK_WATCH_SETTLE_SEC = 0.75
 BOOK_WATCH_PRINT_KEEP_SEC = 10.0
 # Prints on these venues trade off the lit book, so they never fill a level.
 BOOK_WATCH_OFF_BOOK_EXCHANGES = ("FINRA",)
+# The tape and the book name one exchange differently: the tape's name -> the book row's ``mm``.
+BOOK_WATCH_BOOK_NAME_OF_TAPE_VENUE = {"NASDAQ": "NSDQ"}
 
 # A pull is large when it is at least this many shares AND this many times the
 # median size of the visible levels on its side.
@@ -128,6 +130,10 @@ BOOK_WATCH_BIG_MIN_HOLD_SEC = 3.0
 # "pulled". A lit print through it (over a seller, under a buyer) reads taken at once: a displayed price
 # cannot be traded through (the sweep rule, matching.py).
 BOOK_WATCH_BIG_TAKEN_SHARE = 0.5
+# A called price that fell under the floors with at least this share of its size still resting there is
+# "smaller", not gone: the card says how much is still there and what the rest did (operator, 2026-11-13,
+# after AIRS 0.85 read "pulled" with 19,001 of 24,001 still offered). Chosen, not measured.
+BOOK_WATCH_BIG_SMALLER_SHARE = 0.5
 # Ended ones stay in the reading this long, so the held card can say "taken" or "pulled".
 BOOK_WATCH_BIG_SHOW_ENDED_SEC = 30.0
 # Ended ones kept per line (the journal keeps them all).

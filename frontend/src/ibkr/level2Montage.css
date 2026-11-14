@@ -658,6 +658,7 @@
 .das-l2-bigbanner__chip--taken { background: rgba(10, 10, 12, 0.92); border-color: #cbd5e1; color: #cbd5e1; }
 .das-l2-bigbanner__chip--pulled { background: rgba(10, 10, 12, 0.92); border: 1px dashed #f59e0b; color: #f59e0b; }
 .das-l2-bigbanner__chip--approach { background: #f59e0b; border-color: #f59e0b; color: #111111; }
+.das-l2-bigbanner__chip--smaller { background: rgba(10, 10, 12, 0.92); border-color: #f59e0b; color: #fbbf24; }
 .das-l2-bigbanner__chip--lost { background: rgba(10, 10, 12, 0.92); border-color: #6b7280; color: #9ca3af; }
 
 /* A narrower ladder keeps who and how big (a side holds about half the pane): under 750 px it drops the seconds of

@@ -67,7 +67,8 @@ never a detection: on a busy premarket name they are frequent (PFSA
 2026-09-24: 299 in 93 minutes), so read them as a description of the book, not
 an alarm. `GET /sensors/book-pulls?symbol=` -> `data: {schema_version: 1,
 source: "ibkr_depth", watching, since, feed: {books, prints, books_per_sec,
-median_gap_ms, last_book_age_ms, window_sec}, window_sec, pulled_shares,
+median_gap_ms, last_book_age_ms, window_sec, venues[] (the exchanges and dealers
+the line's rows have named; empty when they name none)}, window_sec, pulled_shares,
 filled_shares, pulls, fills, large_pulls, sides: {bid | ask: {pulled_shares,
 filled_shares, large_pulls}}, flags[], pulls_recent[] (newest first, at most
 `BOOK_WATCH_READ_LIMIT`), caveats[], note}` over the last
@@ -144,7 +145,8 @@ book could not follow (a collapsed side, its price cut off, a reset) never is. I
 event `{event: "hidden", id: "<started_ms>-<SYMBOL>-<side>-<price>", kind: "hidden_seller" |
 "hidden_buyer", symbol, ts, side: "ask" | "bid", price, state: "holding" | "broke" | "faded" | "moved" |
 "auction" | "reset", hidden (printed beyond shown_max), printed, shown_max, shown_now: number | null,
-prints, refills, started_ts, last_print_ts, flagged_ts, ended_ts: number | null}` when flagged, as it
+prints, refills, unseen (lit shares printed there on exchanges the book does not show: never part of
+`printed` or `hidden`), started_ts, last_print_ts, flagged_ts, ended_ts: number | null}` when flagged, as it
 grows (at most every `BOOK_WATCH_HIDDEN_UPDATE_SEC`) and once when it ends (`broke`: a print went
 through it; `faded`: no print there for `BOOK_WATCH_HIDDEN_GAP_SEC`; `moved`: the offer came down or
 the bid went up); the journal keeps each. The readings' `sides.{bid,ask}` add `hidden_shares` (the
@@ -306,6 +308,33 @@ bid arrived, the 0.7353 bid of 4,500 was on no row for 71 ms, and the watcher ju
   With the rule 258 of the 3,112 are still marked, 32 of them with nothing leaving; the 6,819 pulled marks
   that stayed gone and the 4,135 traded marks read as before.
 
+**Only what the book shows** (operator, 2026-11-13: "we do really want accurate results here"; #1317). Three
+marks claimed more than the book could know.
+- **Only exchanges the book shows.** Each exchange sells its book separately and the tape carries them all.
+  The watch keeps every venue a row on its line has named (`SymbolWatch.venues`, from the rows' `mm`; the
+  reading's `feed.venues`). A lit print on an exchange with no row there yet (`SymbolWatch.seen`; the tape says
+  NASDAQ where the book says NSDQ, `BOOK_WATCH_BOOK_NAME_OF_TAPE_VENUE`) took nothing this book showed: it fills
+  no drop, takes no big seller or buyer, and is a hidden stretch's `unseen` size, never its `printed`. It still
+  holds a stretch's price, still trades through a price, and still counts in the pace. A print that names no
+  exchange counts as before, and so does every print on a line whose rows name no venue (a Session Record keeps
+  none), so a replay of a Session Record reads as before unless it is given the venues.
+- **What it cannot tell.** An exchange counts as shown once one row has named it, for the rest of the watch --
+  even if it shows no row at the price or the moment of a print. An exchange with a row only now and then is
+  counted as shown throughout. Dealers' rows name the dealer, and their trades print on the tape as FINRA,
+  which never counted.
+- **A big seller that shrank is smaller** (state `smaller`, below). AIRS 0.85, 2026-11-13: 5,000 of 24,001
+  left and the card read "pulled" with 19,001 still offered. The half is the operator's choice, not measured.
+  The ladder's banner reads "Seller 0.85 smaller · 19.0K still there · 5,000 pulled" and the held card
+  "SELLER @ 0.85 SMALLER · 19,001 still there".
+- **A blink is not a refill.** A hidden stretch's `refills` no longer counts size back to no more than it was
+  within `BOOK_WATCH_SETTLE_SEC` of its fall (the row IBKR was still moving, above).
+- **Measured** on the same 14 Session Records, each replayed with the venues `l2.db` named for that stock
+  that day (8 of them) or, where it kept none, the 14 exchanges every ladder showed before NYSE Arca was
+  bought (an assumption for those 6): hidden calls 38 -> 12 (hidden shares 310,511 -> 106,367; 17,308 shares
+  at the 12 left traded where the book could not look); large drops marked traded 600 -> 532 and pulled
+  1,441 -> 1,504; big sellers and buyers ended 14, of them `smaller` 2, the same either way. Not measured:
+  a live line with Arca and Cboe BZX rows (first full session 2026-11-16).
+
 **A big seller on the ask, a big buyer on the bid** (ADR 033 amendment, operator ask 2026-10-12, #846: the
 operator's material lists "high selling pressure / big sellers on the ask" as a reason to get out, and nothing
 told the operator that a large seller sat just over the price of a stock they hold). Owner
@@ -326,7 +355,9 @@ order.
   (`matching.py`), and `holding` again if its full size is back first (above); `eaten` (said "taken") when a lit, price-setting print goes through it (over a seller, under a
   buyer: `how: "through"`, at once) or the lit prints at its price inside the matching window cover at least
   `BOOK_WATCH_BIG_TAKEN_SHARE` (half) of the drop (`how: "traded"`); `pulled` when they do not (`how:
-  "no_prints"`); `lost` when the book stops showing the price (`how: "cut_off"`: past the rows shown;
+  "no_prints"`); `smaller`, instead of either, when at least `BOOK_WATCH_BIG_SMALLER_SHARE` (half) of its
+  size still rests there (`left.after`; `how` says what the part that left did, `"traded"` | `"no_prints"`) --
+  no longer big by the rule and not gone, never counted as a pull in `back`; `lost` when the book stops showing the price (`how: "cut_off"`: past the rows shown;
   `"collapsed"`; `"reset"`) -- unknown, never pulled. Off-exchange, cross, volume-only and odd-lot prints prove
   nothing (`BOOK_WATCH_SWEEP_SKIP_CONDITIONS`). After a print goes through a price, no new candidate starts
   there until the book shows it under the floors or `BOOK_WATCH_SWEEP_HOLD_SEC` passes (the book can trail its
@@ -343,7 +374,7 @@ order.
   that pace -- the seconds the last minute's lit volume would take to trade it -- `null` with no pace or no lit
   print in it. A ratio of what Nova saw, never a forecast.
 - **Events.** `{event: "big", symbol, ts, id: "<first_seen_ms>-<SYMBOL>-<side>-<price>", kind: "big_seller" |
-  "big_buyer", side: "ask" | "bid", price, state: "holding" | "left" | "eaten" | "pulled" | "lost", size_first
+  "big_buyer", side: "ask" | "bid", price, state: "holding" | "left" | "eaten" | "pulled" | "smaller" | "lost", size_first
   (when first seen big), size_now, size_peak, traded (lit prints at its price since first seen), median_level
   and multiple (the other levels' median and size / median when it was called), first_seen_ts, seen_from_start
   (big in the first book the tracker saw: it may have been there longer), called_ts, ended_ts, held_sec,
