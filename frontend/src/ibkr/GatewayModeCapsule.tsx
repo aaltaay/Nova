@@ -8,9 +8,9 @@
  * live Gateway through POST /api/ibkr/gateway-mode. Sim falls back to the
  * legacy POST /api/sim when the venue route is missing (stale API process).
  * Never sets IBKR_LIVE_TRADING_CONFIRMED -- live spend stays a separate gate.
- * Session Record is per-tab (right-click), not a capsule mode. Leaving a venue
- * cancels Nova's working entries there first (ADR 042 F): the answer's `left`
- * lists them, and each is a bot notice in this window.
+ * Session Record is per-tab (right-click), not a capsule mode. The answer's
+ * `left` is empty since the bots retired (ADR 072): nothing of Nova's waits to
+ * fill on a venue; an old backend's `left` still shows as a notice.
  */
 import { useState } from 'react';
 import {

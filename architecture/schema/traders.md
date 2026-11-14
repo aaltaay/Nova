@@ -110,7 +110,10 @@ each with its switch; the words open the trader's panel (lane, position, today a
 link to Settings, and for the brain what it is reading now). Settings > Loss limits has one column per trader:
 daily loss limit, max shares, risk a trade, budget, flat by; your column shows the You loss line and your own order
 size limit (`execution.md`, ADR 064) with budget and flat by not applying. Every split reads All / You / Claude /
-The brain / Earlier bots.
+The brain / Earlier bots, the Account page's Calendar included, and the phone's too (the operator, 2026-11-13: "update
+the calendar with you, Brain, and Claude. Including the phone version"): the phone's Account screen has its own
+All / You / Bots list (`phone/screens/AccountScreen.tsx`), so batch 3 changes it with the desk's switch -- its pills,
+the Calendar and its day card, the "today" rows (one per trader) and the who-chip on each position and order.
 
 **Live.** On Live every fill is yours, no switch turns On, and `execution.venue_door` refuses any `claude` or `brain`
 send to Live in words. Nothing here changes arming, `auto_live` (NO-GO) or Invariant #7.

@@ -1,7 +1,7 @@
 /**
  * A short on the Trader, pure (ADR 048, #778 step 3): the moment while you hold one (the badge, COVER NOW, BROKE ·
- * NEXT with the lower offered, the bot holding the cover), the held query and the stop resting at the broker, and
- * a short plan's numbers, ruler, drag and chart lines. RDYN short 416 at 5.77, the price 5.46, the buy stop 5.89.
+ * NEXT with the lower offered), the held query and the stop resting at the broker, and a short plan's numbers, ruler,
+ * drag and chart lines. RDYN short 416 at 5.77, the price 5.46, the buy stop 5.89.
  */
 import { describe, expect, it } from 'vitest';
 import { heldRuler } from './heldView';
@@ -11,19 +11,18 @@ import { heldQty, NO_HELD, type MomentInputs } from './momentModel';
 import { heldAnyQty, momentOfSides, nextHeldSides, shortQty } from './momentShort';
 import { planActions } from './planActions';
 import { planFootnote, planSubLines, rulerLayout } from './planMath';
+import { inputs, pfsaPlan, pfsaRead } from './momentFixtures';
 import { protectiveStop } from './protectiveStop';
-import type { StockModeTrade } from './types';
+import { levelTitle } from './tradeLevels';
 import { draggedPlan } from './usePlanDrag';
 import { heldQuery } from './useHeldTrade';
 import { planQuery, readQuery } from './useStockRead';
-import { inputs, PFSA_TRIGGER, pfsaPlan, pfsaRead, pfsaTrade, pfsaView } from './whoTradesFixtures';
-import { levelTitle } from './whoTradesModel';
 
 const HELD = normalizeHeld(rdynShortWire)!;
 const short = { position: { qty: -416, avgCost: 5.77 }, last: 5.46 };
 const at = (over: Partial<MomentInputs> = {}, wire = rdynShortWire) => inputs({
   read: { ...pfsaRead('triggered'), symbol: 'RDYN', price: 5.46, plan: null, held: normalizeHeld(wire) },
-  who: pfsaView('signal'), ...short, now: RDYN_SHORT_NOW, ...over,
+  ...short, now: RDYN_SHORT_NOW, ...over,
 }, { ...NO_HELD, since: RDYN_SHORT_SINCE });
 
 const SHORT_PLAN = pfsaPlan('manual', {
@@ -44,11 +43,9 @@ describe('the moment while you hold a short', () => {
     expect(shortQty(i)).toBe(416);
     expect(heldQty(i)).toBe(0);
     expect(heldAnyQty(i)).toBe(416);
-    // Nova's short trade is a short, not a long the positions read has not caught up with.
-    const trade = { kind: 'exit', side: 'short', state: 'holding', qty: 416, exits: 'nova' } as unknown as StockModeTrade;
-    const nova = at({ position: null, who: pfsaView('signal', { trade }) });
-    expect(heldQty(nova)).toBe(0);
-    expect(shortQty(nova)).toBe(416);
+    // Flat is flat: no shares either way.
+    const flat = at({ position: null });
+    expect([heldQty(flat), shortQty(flat), heldAnyQty(flat)]).toEqual([0, 0, 0]);
   });
 
   it('BROKE $5.50 · NEXT 5.35 offers the lower, on the badge and as a call; the track reads Short, Your cover', () => {
@@ -76,44 +73,11 @@ describe('the moment while you hold a short', () => {
     expect(momentOfSides({ ...first, last: 5.52, held: targetHit })?.badge).toBe('TARGET ↓ 5.57 HIT · COVER');
   });
 
-  it('says Nova\'s own short the short\'s way: sent, shorted, covering, covered, missed (#778 step 5)', () => {
-    const short = { side: 'short' as const, setup_type: 'bear_flag', entry: 4.25, stop: 4.38, target: 3.99, qty: 10 };
-    const withTrade = (trade: StockModeTrade) => inputs({ position: null, who: pfsaView('bot', { trade }) });
-    const sent = momentOfSides(withTrade(pfsaTrade('bot', 'entering', short)));
-    expect(sent).toMatchObject({ side: 'short', step: 1, badge: 'BOT SHORTING · 10 @ 4.25' });
-    expect(sent?.call?.detail).toMatch(/^The bot sent its short with its buy stop 4\.38 and cover 3\.99/);
-    const filled = momentOfSides(withTrade(pfsaTrade('bot', 'holding', { ...short, fill_price: 4.25 })));
-    expect(filled).toMatchObject({ side: 'short', step: 2, exitLabel: 'Target / stop' });
-    expect(filled?.call).toMatchObject({ title: 'BOT SHORTED 10 @ 4.25', tone: 'nova', ping: true });
-    expect(filled?.call?.detail).toMatch(/The buy stop 4\.38 and the cover 3\.99 rest at the broker/);
-    const covering = momentOfSides(withTrade(pfsaTrade('bot', 'holding', { ...short, fill_price: 4.25, exiting: true })));
-    expect(covering?.badge).toBe('BOT IS COVERING');
-    const covered = momentOfSides(withTrade(pfsaTrade('bot', 'closed', { ...short, fill_price: 4.25, exit_price: 3.99,
-      exit_reason: 'target', closed_at: PFSA_TRIGGER + 1 })));
-    expect(covered).toMatchObject({ side: 'short', badge: 'COVERED 3.99 · +$2.60' });
-    const missed = momentOfSides(withTrade(pfsaTrade('bot', 'missed', { ...short, closed_at: PFSA_TRIGGER + 1 })));
-    expect(missed?.badge).toBe('THE BOT\'S SHORT MISSED');
-    expect(missed?.call?.detail).toMatch(/A miss gives the day's trade back/);
-  });
-
-  it('Auto-entry\'s short leaves its buy stop at the broker and the cover to you', () => {
-    const trade = pfsaTrade('auto_entry', 'holding', { side: 'short', setup_type: 'bear_flag', entry: 4.25, stop: 4.38,
-      target: 3.99, qty: 10, fill_price: 4.25, stop_order_id: 103 });
-    const first = inputs({ position: null, who: pfsaView('auto_entry', { trade }), last: 4.2 });
-    const m = momentOfSides(first);
-    expect(m?.call?.title).toBe('BOT SHORTED 10 @ 4.25');
-    expect(m?.call?.detail).toBe('Its buy stop 4.38 rests at the broker. The cover is yours.');
-    const stopHit = nextHeldSides(nextHeldSides(first.held, first), { ...first, last: 4.39 });
-    const hit = momentOfSides({ ...first, last: 4.39, held: stopHit });
-    expect(hit?.call?.detail).toMatch(/Its buy stop rests at the broker and covers it there\./);
-  });
-
-  it('says the bot holds the cover while it does', () => {
-    const trade = { kind: 'exit', side: 'short', state: 'holding', exits: 'nova', stop: 5.55, target: null,
-      fill_price: 5.77, entry: 5.77, qty: 416, trail: true, raised: [] } as unknown as StockModeTrade;
-    const m = momentOfSides(at({ who: pfsaView('signal', { trade }) }));
-    expect(m).toMatchObject({ exitLabel: 'Target / stop', side: 'short' });
-    expect(m?.badge).toBe('BOT HOLDS THE COVER · +$128.96');
+  it("offers no lower on Nova's own resting buy stop", () => {
+    const nova = { ...rdynShortWire, stop: { ...(rdynShortWire.stop as object), source: 'nova' } };
+    const m = momentOfSides(at({}, nova));
+    expect(m?.badge).toBe('SHORT 416 · +$128.96');
+    expect(m?.call).toBeNull();
   });
 });
 
@@ -186,32 +150,19 @@ describe('a short plan', () => {
 
   it('names its chart lines SHORT, STOP ↑ and TARGET 1 ↓ / TARGET 2 ↓', () => {
     expect(levelTitle('entry', 'plan', true)).toBe('SHORT');
-    expect(levelTitle('stop', 'order', true)).toBe('STOP ↑ · order');
+    expect(levelTitle('entry', 'held', true)).toBe('SHORT · held');
+    expect(levelTitle('stop', 'plan', true)).toBe('STOP ↑ · plan');
     expect(levelTitle('target', 'plan', true)).toBe('TARGET 1 ↓ · plan');
     expect(levelTitle('target2', 'plan', true)).toBe('TARGET 2 ↓ · plan');
-    expect(levelTitle('target', 'order', true)).toBe('TARGET ↓ · order');
     expect(levelTitle('entry', 'plan')).toBe('ENTRY');
     expect(levelTitle('target', 'plan')).toBe('TARGET 1 · plan');
   });
 
-  it('stages a short in the ticket, and Approve sends it with its buy stop and cover (#778 step 5)', () => {
+  it('stages a short in the ticket with its buy stop', () => {
     const read = { ...pfsaRead('triggered'), plan: SHORT_PLAN };
-    const signal = planActions({ moment: null, inputs: inputs({ read, who: pfsaView('signal') }), bid: 5.76,
+    const actions = planActions({ moment: null, inputs: inputs({ read }), bid: 5.76,
       listening: true, stageLocked: null, symbol: 'RDYN' });
-    expect(signal.actions.map(a => a.label)).toEqual(['Stage short in ticket']);
-    expect(signal.actions[0].tip).toMatch(/with the plan's buy stop/);
-    // A short setup's plan, triggered: Approve sends the short now, with its buy stop and cover.
-    const setupPlan = pfsaPlan('triggered', { side: 'short', setup_type: 'bear_flag', kind: 'bear_flag', trigger: 5.78,
-      entry: 5.77, stop: 5.89, target: 5.53, risk: 0.12, reward: 0.24 });
-    const approve = planActions({ moment: null, bid: 5.76, listening: true, stageLocked: null, symbol: 'RDYN',
-      inputs: inputs({ read: { ...pfsaRead('triggered'), plan: setupPlan }, who: pfsaView('approve') }) });
-    expect(approve.actions[0]).toMatchObject({ id: 'approve-now', locked: null });
-    expect(approve.actions[0].label).toMatch(/^Approve: short \S+ now$/);
-    expect(approve.actions[0].tip).toMatch(/with its buy stop 5\.89 and cover 5\.53 at the broker\. Under SSR it sells at the ask/);
-    // Armed: Approve once, and Nova sends it at the trigger.
-    const armed = planActions({ moment: null, bid: 5.76, listening: true, stageLocked: null, symbol: 'RDYN',
-      inputs: inputs({ read: { ...pfsaRead('armed'), plan: { ...setupPlan, state: 'armed' } }, who: pfsaView('approve') }) });
-    expect(armed.actions[0].label).toMatch(/^Approve short \S+ @ 5\.77$/);
-    expect(armed.actions[0].tip).toMatch(/^At the trigger, with the tape at go, Nova sends short /);
+    expect(actions.map(a => a.label)).toEqual(['Stage short in ticket']);
+    expect(actions[0].tip).toMatch(/with the plan's buy stop/);
   });
 });

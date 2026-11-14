@@ -4,7 +4,9 @@ Part of `AGENTS.md` §3 (Data Schema), which indexes every file in this folder. 
 
 **ADR 072 retires the bots' trading** ("Three traders: the strategies watch, the brain trades", the last section): no
 strategy, Auto-entry or Live Trader sends an order, the Bots page goes, and the bot API becomes the brain's door. The
-sections below describe the desk until each batch lands.
+retirement is built ("Built: the bots retire", in that section); the sections below about the Bots page, the Bot switch
+and keys, the strategy bot's and the Live Trader's orders, proposals and the triggers' squares are history, kept so old
+audit lines and persisted files still read. The brain's parts land with its own batch.
 
 ## Bot playbook and the read-out gate (ADR 027, operator decision 2026-09-23)
 
@@ -946,6 +948,46 @@ were whatever each caller typed.
 
 **Confirmed for the build; each batch rewrites the sections above that it replaces.** Who owns what, the rules, the
 switches and the limits: `traders.md`.
+
+**Built: the bots retire (ADR 072 build order 2; approved mockup `retire-bots` v1).**
+- **The door refuses a retired sender** (`execution/retired_senders.py`): a `place`, `bracket`, `replace` or
+  `exit_oco` whose `origin` is `bot`, `auto_entry`, `approve`, `bot_api`, `nova_exit` or `live_trader`, or whose
+  `source` is `bot` with any origin but `claude`, is refused before anything is sent, reason code `BOTS_RETIRED`, in
+  words ("The strategy bot is retired (ADR 072) ... Nothing was sent."; the bot API's says it waits to become the
+  brain's door). A `cancel`, and a `flatten` / `kill` / `cancel_working` source, always go, so whatever a retired
+  sender still holds can be closed and its orders cancelled. Claude's seat (`origin: "claude"`) is untouched.
+- **Nothing runs a strategy's trades.** The first-pullback bot's runner, the Who trades runner and the Live Trader's
+  watcher are not started, and their packages are gone (`backend/bot/first_pullback/`, `backend/stock_mode/`,
+  `backend/bot/live_trader/`); `/api/stock-mode*` and `/api/bot/live-traders*` are not mounted.
+- **The bot routes that stay:** `GET /api/bot/session` (read; the day-cover alarms and the risk per trade use it),
+  `PATCH /api/bot/session {caps: {venue?, risk_usd?, ...}}` for your risk per trade alone (`bot/caps.py`: the
+  Trader's plan card and the Setups board size Stage by it; any other key is refused `410 BOT_STRATEGIES_WATCH`
+  naming it, a brain's PATCH `403 BOT_CAPS_DESK_ONLY`), the heartbeat, claim and watch, `POST /api/bot/action`
+  (refused at the door until the brain's batch stamps it `brain`) and `GET /api/bot/audit`, with `/ws/bot/eyes` and
+  `/ws/bot/audit`. Gone: `/session/arm`, `/switch`, `/keys`, `/disarm`, `/allowlist`, `/proposals*`, `/focus*`,
+  `/pnl`, `/triggers`. The session read no longer carries `bot_on`, `keys`, `armed`, `has_desk_arm`, `deactivated`,
+  `ready`, `ready_reason`, `live_fire_ready`, `gates`, `entries_today`, `runner` or `trade`, and `shorts` keeps only
+  `day_cover: {alarms}` (the day cover's alarms, `short_sale.cover_alarm`, which every desk window polls here and
+  `DayCoverAlarms` shows; the short chips went with the Bots page); the stock read's fact `bot` is `desk`; `/api/desk/venue`'s `left` is always empty; the restart check has no `bot_trade` or
+  `stock_modes` kind.
+- **Every strategy reads Eyes** (`bot/setup_levels.py`): a stored level reads as watching; a level write is refused
+  `410 BOT_STRATEGIES_WATCH` ("Every strategy watches on Level 1 and none trades ... Its numbers are in Settings >
+  Strategies.").
+- **The lanes propose nothing** (`setup_scanner/lane.py`, `lane_announce.py`): no proposal is raised, the board's
+  `proposing` is always `false`, the tape's reading is journalled as what it said and gates nothing, and ADR 034's
+  flush never changes a setup's scoring. Triggers are still told to the host's listeners; none listens until the
+  brain does.
+- **On the desk:** the Bots page, its rail group and the header's Bot key are gone. **Freeze** sits right of KILL (the
+  same `/api/kill-switch` latch). Its hover: "Cancels every working order on Live, Paper and Sim, except a stop that
+  protects a position you hold, and refuses every new order, a sell included, until you unfreeze. It sells nothing
+  — KILL is the one that sells." Frozen it reads "Frozen · Unfreeze", and a card under it says what it did on each
+  venue. KILL no longer sets a bot level. **Settings > Strategies** lists each strategy with a scanner: side, template
+  in play, "Level 1", its setups on today's board (a click opens Scanner > Contenders > Setups on it) and Edit -- the
+  template editor without the bot group (window, grades, setups a stock a day) or the read-out counts. The Setups
+  board loses its Tape column. **TraderTV** is back on the rail (`followed-traders.md`). The Who trades row, the
+  chart's bot calls, the scanner's bot dots and "Let the bot trade" are gone (`stock-read.md`).
+- **Left for the brain's batch:** the setups feed (`GET /api/brain/setups`) and the Level 1 flush signal below are
+  not built yet.
 
 **The strategies watch on Level 1.** Flat top 1m / 5m, the 5-minute setups, the first pullback, the pullback dip, the
 ABCD, trend lines and levels form setups from bars and Level 1 on every venue and send no order anywhere, Sim

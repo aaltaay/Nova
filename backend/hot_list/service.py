@@ -1,15 +1,13 @@
 """Today's hot list, changed (ADR 044): every write goes through here, under one lock.
 
 ``today`` is the list a write starts from. When the file belongs to an earlier day it rolls over first:
-the old day is kept as its day copy, its names become ``yesterday`` (``store.roll``), every bot buy left
-from it is reset (``nova_buys.clear_all``, at most once a day per process) with a ``hot_list`` audit
-line ``{event: "rollover", cleared}``, and today's list is written. The bot buys nothing until today's
-file exists (``store.day_reset_block``). ``peek`` is the same list for a
-reader, rolled in memory only. A file that cannot be read refuses every write (``HOT_LIST_UNREADABLE``),
-and so does one that cannot be written.
+the old day is kept as its day copy, its names become ``yesterday`` (``store.roll``), today's list is written
+and a ``hot_list`` audit line ``{event: "rollover"}`` says so. (The reset of yesterday's bot buys it also ran
+retired with the bots, ADR 072.) ``peek`` is the same list for a reader, rolled in memory only. A file that
+cannot be read refuses every write (``HOT_LIST_UNREADABLE``), and so does one that cannot be written.
 
 Every change is a ``hot_list`` line on the bot's audit stream, ``inputs: {event, symbol?, ...}`` (events
-in ``constants_hot_list``), so the triggers audit can tell what the list held at any moment.
+in ``constants_hot_list``), so a reader can tell what the list held at any moment.
 """
 from __future__ import annotations
 
@@ -41,7 +39,6 @@ from hot_list.errors import HotListError
 logger = logging.getLogger(__name__)
 
 _lock = threading.RLock()
-_cleared_for: str | None = None      # the day whose rollover already reset yesterday's bot buys
 
 
 def listed(doc: dict[str, Any]) -> list[str]:
@@ -75,7 +72,6 @@ def _save(doc: dict[str, Any]) -> None:
 
 def today(now: float | None = None) -> dict[str, Any]:
     """Today's list for a write: rolled over first when the file is an earlier day's (see the module)."""
-    global _cleared_for
     ts = time.time() if now is None else float(now)
     day = store.trading_day(ts)
     with _lock:
@@ -84,48 +80,20 @@ def today(now: float | None = None) -> dict[str, Any]:
             raise HotListError(HOT_LIST_UNREADABLE, f"today's hot list cannot be read ({error}): nothing changes "
                                                     "until the file is fixed or removed")
         if doc is not None and doc.get("date") == day:
-            return _retry_reset(doc) if doc.get("reset_error") else doc
+            return doc
         fresh = store.roll(doc, day)
-        cleared: list[dict[str, Any]] = []
-        clear_error = archive_error = None
+        archive_error = None
         if doc is not None:
             if str(doc["date"]) > day:
-                logger.warning("hot list: the file is dated %s, after today (%s) -- the clock moved back; "
-                               "nothing is cleared", doc["date"], day)
-            elif _cleared_for != day:
-                from hot_list import nova_buys
-
-                cleared, clear_error = nova_buys.clear_all(ts)
-                if clear_error is None:
-                    _cleared_for = day      # a failed clear is tried again, never marked done
+                logger.warning("hot list: the file is dated %s, after today (%s) -- the clock moved back", doc["date"],
+                               day)
             archive_error = store.archive(doc)
-        if clear_error:
-            fresh["reset_error"] = clear_error        # the bot buys nothing until a retry resets them
         _save(fresh)
     if doc is not None:
         _wake()
-        _audit(HOT_LIST_EVENT_ROLLOVER,
-               f"today's hot list started fresh ({day}); {len(cleared)} bot buy(s) left from {doc['date']} "
-               "reset to you -- trades the bot holds keep their exits",
-               {"from": doc["date"], "to": day, "cleared": cleared, "yesterday": fresh["yesterday"],
-                "error": clear_error or archive_error})
+        _audit(HOT_LIST_EVENT_ROLLOVER, f"today's hot list started fresh ({day})",
+               {"from": doc["date"], "to": day, "yesterday": fresh["yesterday"], "error": archive_error})
     return fresh
-
-
-def _retry_reset(doc: dict[str, Any]) -> dict[str, Any]:
-    """Today's reset of the bot's buys failed: try it again (under ``_lock``). The bot buys nothing meanwhile
-    (``store.day_reset_block``)."""
-    from hot_list import nova_buys
-
-    cleared, error = nova_buys.clear_lists()      # only the lists: a switch set since then is today's
-    if error:
-        logger.warning("hot list: the 04:00 reset of the bot's buys failed again: %s", error)
-        return doc
-    doc = {k: v for k, v in doc.items() if k != "reset_error"}
-    _save(doc)
-    _audit(HOT_LIST_EVENT_ROLLOVER, f"the 04:00 reset of the bot's buys ran after a retry; {len(cleared)} bot buy(s) "
-           "reset to you", {"from": doc["date"], "to": doc["date"], "cleared": cleared, "retry": True})
-    return doc
 
 
 def _wake() -> None:
@@ -276,6 +244,4 @@ def bring_back(*, now: float | None = None) -> list[str]:
 
 
 def reset_for_tests() -> None:
-    global _cleared_for
-    _cleared_for = None
     store.forget_cache_for_tests()

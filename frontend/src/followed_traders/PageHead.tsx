@@ -1,5 +1,5 @@
 /**
- * The page's head, one row: title, what another feature draws after it (the LiveTrader Bots key, slots.ts), the capture pill, the stream's title and Watch live, the record span with
+ * The page's head, one row: title, what another feature draws after it (slots.ts; nothing since ADR 072), the capture pill, the stream's title and Watch live, the record span with
  * everyone's record, why open positions are not priced (when they are not), the day (previous / calendar / next
  * among the feed's days), when today resets (04:00 ET, the desk's own day) and the Alerts switch. Previous and next
  * step through days the feed has; one with nowhere to go is disabled and says why, as is Watch live when the feed

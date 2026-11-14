@@ -69,7 +69,7 @@ def last(eng, price, ts, bar_open):
     eng.on_l1_minute("last", SYM, {"price": price, "ts": ts, "bar_open": bar_open})
 
 
-def test_a_short_arms_proposes_triggers_downward_and_scores_with_its_side_and_ssr(tmp_path):
+def test_a_short_arms_triggers_downward_and_scores_with_its_side_and_ssr(tmp_path):
     eng, audits, lines, triggers, clock = make(tmp_path)
     run(eng, clock["t"])
     [lane] = eng.playing_lanes()
@@ -91,9 +91,8 @@ def test_a_short_arms_proposes_triggers_downward_and_scores_with_its_side_and_ss
     [brow] = board["rows"]
     assert brow["side"] == "short" and brow["ssr"] == "off" and brow["distance"] == pytest.approx(0.02)
     assert board["setups"][0]["side"] == "short" and board["setups"][0]["test"]["state"] == "queued"
-    [prop] = board["proposals"]
-    assert prop["side"] == "short" and prop["ssr"] == "off" and prop["taken_by"] is None   # nothing takes a short
-    assert prop["tape_now"] == "go" and audits[0]["outcome"] == "proposed"
+    assert board["proposals"] == []                                 # ADR 072: the strategies only watch
+    assert not [a for a in audits if a["action"] == "setup_proposal"]
 
     clock["t"] += 2
     last(eng, 5.46, clock["t"], 5.48)                              # at the entry: triggered

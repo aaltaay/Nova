@@ -169,7 +169,8 @@ def build_active_set(
     """Deterministic bounded admission -- the ADR 008 HOD union.
 
     1. The reserved block, ``HOD_MOMO_FORMER_MOMO_MAX_SLOTS`` slots: the
-       bot's stocks (``bot_symbols``), today's hot list (``hot_symbols``),
+       bot's stocks (``bot_symbols``; the bridge passes none since the bots
+       retired, ADR 072), today's hot list (``hot_symbols``),
        then manual Former Momo (``priority_symbols``) -- ``hod_momo_reserved``
        says who takes them and the reason for each name left out; live movers
        keep the rest of the pool.

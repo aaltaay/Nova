@@ -192,11 +192,11 @@ describe("the door, as the phone's screens use it", () => {
 
   it('reads what a switch would cancel, and says nothing was read when Nova does not answer', async () => {
     const fetchMock = vi.fn((_url: string, _init?: RequestInit) => answer(200, {
-      venue: 'paper', lines: ["Cancels on Paper: the Bot's buy of F.", 7], unknown: ['bot'],
+      venue: 'paper', lines: ['The desk is armed on Paper: switching disarms it', 7], unknown: ['armed'],
     }));
     vi.stubGlobal('fetch', fetchMock);
     const door = new PhoneDoor('https://pc.test:8443');
-    expect(await door.venueEffects()).toEqual({ venue: 'paper', lines: ["Cancels on Paper: the Bot's buy of F."], unknown: ['bot'] });
+    expect(await door.venueEffects()).toEqual({ venue: 'paper', lines: ['The desk is armed on Paper: switching disarms it'], unknown: ['armed'] });
     fetchMock.mockImplementationOnce(() => answer(503, null));
     expect(await door.venueEffects()).toBeNull();
   });

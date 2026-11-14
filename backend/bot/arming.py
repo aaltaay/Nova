@@ -1,13 +1,15 @@
-"""Desk Activate token + brain heartbeat (ADR 016 arming lock).
+"""The bot session's Activate fields and the brain's heartbeat (ADR 016 arming lock).
 
-Owner: this module (token issue/disarm + heartbeat stamp).
-Invalidation: Stop, L0, new Activate, or a stale heartbeat window.
+ADR 072: the Bot switch and Activate are retired, so nothing turns Activate on any more. The fields stay in the
+session file: a file from before the upgrade is read with them cleared (``bot.persist``: Activate never survives a
+start), and the bot API's door reads them shut (``bot.door``) until the brain's own switch replaces them.
+
+Owner: this module (the Activate fields' rules and the heartbeat stamp; the file is ``bot.persist``'s).
+Invalidation: a process start, a venue change, or a stale heartbeat window.
 schema_version: BOT_SCHEMA_VERSION on the session file.
 """
 from __future__ import annotations
 
-import hmac
-import secrets
 import time
 from typing import Any
 
@@ -15,73 +17,25 @@ from bot.errors import BotError
 from bot.persist import load_session, save_session
 from constants_bot import (
     BOT_HEARTBEAT_STALE_SEC,
-    BOT_REASON_ARM_DESK_ONLY,
-    BOT_REASON_ARM_REQUIRED,
     BOT_REASON_BRAIN_EXCLUSIVE,
     BOT_REASON_HEARTBEAT_STALE,
 )
 
 
-def issue_arm_token() -> str:
-    """Desk Activate. Rotates the token and drops any prior brain claim.
-
-    The rules Activate meets first are ``bot.activation.assert_can_activate``'s; this only
-    turns it on."""
-    row = load_session()
-    token = secrets.token_urlsafe(24)
-    row["desk_arm_token"] = token
-    row["armed"] = True
-    row["deactivated"] = None
+def clear_arm_fields(row: dict[str, Any]) -> bool:
+    """Clear Activate and the brain's claim on ``row`` (the caller saves it). Returns whether Activate was on."""
+    was = is_desk_active(row)
+    row["desk_arm_token"] = None
+    row["armed"] = False
     row["brain_session_id"] = None
     row["claim_arm_token"] = None
     row["brain_heartbeat_ts"] = None
-    save_session(row)
-    return token
-
-
-def disarm_session(reason: str = "operator") -> dict[str, Any]:
-    """Desk Stop. Claim cannot outlive Activate; ``deactivated`` says who stopped it."""
-    from bot.activation import deactivate
-
-    row = load_session()
-    deactivate(row, reason)
-    return save_session(row)
-
-
-def clear_arm_fields(row: dict[str, Any]) -> dict[str, Any]:
-    _clear_arm_state(row)
-    return row
-
-
-def require_matching_arm_token(row: dict[str, Any], arm_token: str | None) -> str:
-    held = (row.get("desk_arm_token") or "").strip()
-    incoming = (arm_token or "").strip()
-    if not held or not incoming or not hmac.compare_digest(incoming, held):
-        raise BotError(
-            "this needs an Activate token from the Bot switch in the header",
-            403,
-            BOT_REASON_ARM_REQUIRED,
-        )
-    return incoming
-
-
-def assert_desk_activate(brain_session_id: str | None) -> None:
-    if (brain_session_id or "").strip():
-        raise BotError(
-            "brains cannot Activate or Stop -- desk header only",
-            403,
-            BOT_REASON_ARM_DESK_ONLY,
-        )
-
-
-def has_desk_arm(row: dict[str, Any]) -> bool:
-    """Session SSOT: desk token present (UI `has_desk_arm`)."""
-    return bool((row.get("desk_arm_token") or "").strip())
+    return was
 
 
 def is_desk_active(row: dict[str, Any]) -> bool:
-    """Session SSOT: Activate is on (`armed` and `has_desk_arm`)."""
-    return bool(row.get("armed")) and has_desk_arm(row)
+    """Session SSOT: Activate is on (``armed`` and a desk token)."""
+    return bool(row.get("armed")) and bool((row.get("desk_arm_token") or "").strip())
 
 
 def heartbeat_is_fresh(row: dict[str, Any], *, now: float | None = None) -> bool:
@@ -115,11 +69,3 @@ def assert_fresh_heartbeat(row: dict[str, Any]) -> None:
             409,
             BOT_REASON_HEARTBEAT_STALE,
         )
-
-
-def _clear_arm_state(row: dict[str, Any]) -> None:
-    row["desk_arm_token"] = None
-    row["armed"] = False
-    row["brain_session_id"] = None
-    row["claim_arm_token"] = None
-    row["brain_heartbeat_ts"] = None

@@ -1,5 +1,4 @@
 /** @vitest-environment jsdom */
-import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DeskVenue } from '../constantGroups/desk_venue';
 import { DESK_POLL_BOT_SHARE, DESK_POLL_SNAP_KEY_PREFIX } from '../constantGroups/global_bar';
@@ -16,15 +15,9 @@ import {
 } from './botSessionPoller';
 import { strategySession } from './botsPageFixtures';
 import * as api from './api';
-import { toggleBotStock } from './useBotAllowlist';
-import { useBotSession } from './useBotSession';
 import type { BotSession } from './types';
 
-vi.mock('./api', () => ({
-  fetchBotSession: vi.fn(), fetchBotProposals: vi.fn(), fetchBotAudit: vi.fn(),
-  postBotAllowlist: vi.fn(), patchBotSession: vi.fn(), armBotSession: vi.fn(),
-  disarmBotSession: vi.fn(), switchBotSession: vi.fn(), resolveProposal: vi.fn(),
-}));
+vi.mock('./api', () => ({ fetchBotSession: vi.fn(), fetchBotAudit: vi.fn() }));
 
 const flush = async () => { for (let i = 0; i < 16; i += 1) await Promise.resolve(); };
 const session = (venue: DeskVenue, symbol = venue.toUpperCase()) => strategySession({
@@ -61,7 +54,6 @@ describe('venue-scoped bot snapshots', () => {
       ok: true, json: async () => ({ enabled: true, connected: true, mode: 'paper', venue }),
     }) as Response));
     vi.mocked(api.fetchBotSession).mockImplementation(async () => session(venue));
-    vi.mocked(api.fetchBotProposals).mockResolvedValue([]);
     vi.mocked(api.fetchBotAudit).mockResolvedValue([]);
     confirmDeskVenue(venue);
   });
@@ -138,36 +130,17 @@ describe('venue-scoped bot snapshots', () => {
     off();
   });
 
-  it('does not hand an old allowlist write result to its UI caller', async () => {
+  it('does not hand an old venue\'s write result to its caller', async () => {
     const off = subscribeBotSession(() => {});
     await flush();
     const old = deferred<BotSession>();
-    vi.mocked(api.postBotAllowlist).mockReturnValueOnce(old.promise);
-    const writing = toggleBotStock('OLD', 'add', true);
+    const writing = runBotSessionWrite(() => old.promise);
     switchTo('live');
     await flush();
     old.resolve(session('paper', 'OLD'));
-    expect(await writing).toEqual({ session: null, error: null });
+    expect(await writing).toBeNull();
     expect(getBotSessionSnapshot().session?.level_venue).toBe('live');
     off();
-  });
-
-  it('does not stick an old mutation failure on the new venue through useBotSession', async () => {
-    const { result, unmount } = renderHook(() => useBotSession());
-    await act(flush);
-    const old = deferred<BotSession>();
-    vi.mocked(api.patchBotSession).mockReturnValueOnce(old.promise);
-    let writing!: Promise<BotSession | null>;
-    act(() => { writing = result.current.patch({ level: 1 }); });
-    await act(async () => { switchTo('live'); await flush(); });
-    await act(async () => {
-      old.reject(new Error('Paper refused this patch'));
-      expect(await writing).toBeNull();
-    });
-    expect(result.current.error).toBeNull();
-    expect(result.current.session?.level_venue).toBe('live');
-    expect(result.current.busy).toBe(false);
-    unmount();
   });
 
   it('refuses unstamped or foreign sessions and keeps queued refresh failure on the current venue', async () => {

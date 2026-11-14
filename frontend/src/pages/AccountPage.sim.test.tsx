@@ -36,7 +36,6 @@ vi.mock('../ibkr/IbkrAccountContext', () => ({
   useIbkrAccountContext: () => mocks.ibkr,
   useOptionalIbkrAccountContext: () => mocks.ibkr,
 }));
-vi.mock('../bot/useBotSession', () => ({ useBotSession: () => ({ session: null }) }));
 vi.mock('../ibkr/TradingTab', () => ({ TradingTab: () => <div data-testid="legacy-trading-tab" /> }));
 
 // The replay playhead: Fri 2026-09-18 10:00 ET -- days before the browser's clock.

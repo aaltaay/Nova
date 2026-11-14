@@ -2,10 +2,10 @@
  * The stock read on one chart pane (ADR 036). The 1-minute pane gets the setups' shapes -- the day's
  * setups that ended faint under the live ones, each telling its story under the pointer -- the plan's
  * zones and lines, the day's levels, a legend of the lanes and the plan's badge -- with the trade's
- * track, the Who trades chip and the call's pin (ADR 037); the 5-minute pane carries today's level map and
+ * track and the call's pin (ADR 037); the 5-minute pane carries today's level map and
  * the Full Day pane the daily one, each level's card under the pointer (ADR 036 amendment 2026-09-30);
  * the 10-second pane draws the plan as the 1-minute pane does, a setup's plan its strategy box on its own candles and a
- * level an order stands behind a thin named line -- the 5-minute pane never draws the plan (2026-10-13); the daily pane
+ * level shares are held at a thin named line -- the 5-minute pane never draws the plan (2026-10-13); the daily pane
  * marks every +40% run.
  * The pane's right edge is the scene's (operator report 2026-09-30: "everything is getting on top of each
  * other in the charts!"): it claims the edge (`claimEdge`), so the EMAs' and VWAP's tags, the plan's
@@ -175,9 +175,9 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
   );
   const index = useMemo(() => seriesIndex(series), [series, barsRevision]); // eslint-disable-line react-hooks/exhaustive-deps
   const focusEvent = ctx?.focus?.event ?? null;
-  // Who trades (ADR 037): the levels with what stands behind them (a drag shows the plan's own), the pin.
-  const levels = preview ? null : ctx?.who.levels ?? null;
-  const call = ctx?.who.moment?.call ?? null;
+  // The trade's moment (ADR 037): the levels with what stands behind them (a drag shows the plan's own), the pin.
+  const levels = preview ? null : ctx?.trade.levels ?? null;
+  const call = ctx?.trade.moment?.call ?? null;
   // The setups that ended: this desk's, and on a replay the Sim eyes' up to the playhead -- never a read from after it
   // (`pastNowOf`, #815), nor one kept from the other side of the live edge.
   const past = ctx?.pastNow?.episodes ?? null;

@@ -27,11 +27,8 @@ from agent_trader import watcher as _agent_trader
 from alpaca import _get_discovery_provider
 from archive.scheduler import archive_maintenance_loop, maintenance_enabled
 import archive.write_queue as _archive_write_queue
-from bot.first_pullback import runner as _bot_first_pullback
-from bot.live_trader import watcher as _live_trader
 from bot.loops import commission_loop, ttl_loop
 from loss_limit import watch as _loss_limit
-from stock_mode import runner as _stock_mode_runner
 from hot_list import auto as _hot_list_auto
 from followed_traders import keeper as _followed_keeper
 from capture import keepalive as _capture_keepalive
@@ -124,12 +121,6 @@ def spawn_runtime_tasks() -> list[asyncio.Task]:
         ("bot.commission_hold", commission_loop),
         # The daily loss limit (ADR 056, ADR 063): every account -- its line, yours and the bots'.
         ("loss_limit.watch", _loss_limit.watch_loop),
-        # The first-pullback bot (ADR 030): trades go triggers on Paper and Sim; never on Live.
-        ("bot.first_pullback", _bot_first_pullback.run),
-        # Who trades the stock (ADR 037): Auto-entry and Approve on Paper and Sim; never on Live.
-        ("stock_mode.runner", _stock_mode_runner.run),
-        # The Live Trader bot (ADR 055): copies a TraderTV host's bar on Paper; idle while no host's key is on.
-        ("bot.live_trader", _live_trader.run),
         # Claude's seat (ADR 068): its line, its breaks, its 15:55 close; Paper only, idle while the seat is off.
         ("agent_trader", _agent_trader.run),
         # Today's hot list (ADR 044): the 04:00 ET rollover, and the leaders' top N from 07:00 to 16:00 ET.

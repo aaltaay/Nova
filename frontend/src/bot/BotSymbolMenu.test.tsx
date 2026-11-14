@@ -10,10 +10,6 @@ import { _resetIbkrStatusPollerForTests, _setIbkrStatusPollerFetchForTests } fro
 
 const command = vi.hoisted(() => vi.fn());
 vi.mock('../api/novaFetch', () => ({ novaFetch: command }));
-const toggle = vi.hoisted(() => vi.fn());
-vi.mock('./useBotAllowlist', () => ({ useBotAllowlist: () => ({
-  isAllowed: () => false, add: vi.fn(), remove: vi.fn(), toggle,
-}) }));
 // Today's hot list (ADR 044) is its own store: GRML is on it, AAPL is not.
 const hot = vi.hoisted(() => ({
   state: { view: { entries: [{ symbol: 'GRML' }] }, error: null as string | null, busy: false },
@@ -33,7 +29,6 @@ beforeEach(() => {
   sessionStorage.clear();
   _resetIbkrStatusPollerForTests();
   command.mockReset();
-  toggle.mockReset();
   hot.star.mockReset().mockResolvedValue(null);
   hot.unstar.mockReset().mockResolvedValue(null);
   vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -122,20 +117,13 @@ it('offers Pin / Unpin first when a Trader tab opened it (ADR 011 preview tabs)'
   expect(container.querySelector('[data-testid="bot-symbol-menu-pin"]')).toBeNull();
 });
 
-describe('Let the bot trade it (ADR 042 F)', () => {
-  it('names the stock, waits for the answer, and keeps a refusal on screen in the backend’s words', async () => {
-    toggle.mockResolvedValueOnce({ session: null, error: 'Nova places for a stock only on Paper and Sim' });
+describe('No bot row (ADR 072)', () => {
+  it('offers no way to let a bot trade the stock: the strategies only watch', async () => {
     await open();
-    const row = container.querySelector('[data-testid="bot-symbol-menu-toggle"]') as HTMLButtonElement;
-    expect(row.textContent).toContain('Let the bot trade AAPL (bot buys and sells)');
-    await act(async () => { row.click(); });
-    expect(toggle).toHaveBeenCalledWith('AAPL', 'add', true);
-    expect(container.querySelector('[data-testid="bot-symbol-menu-bot-error"]')?.textContent)
-      .toBe('Nova places for a stock only on Paper and Sim');
-    expect(container.querySelector('[role="menu"]')).not.toBeNull();
-    toggle.mockResolvedValueOnce({ session: {}, error: null });
-    await act(async () => { (container.querySelector('[data-testid="bot-symbol-menu-toggle"]') as HTMLButtonElement).click(); });
-    expect(container.querySelector('[role="menu"]')).toBeNull();
+    expect(container.querySelector('[data-testid="bot-symbol-menu-toggle"]')).toBeNull();
+    expect(container.textContent).not.toContain('Let the bot trade');
+    expect(container.querySelector('[data-testid="bot-symbol-menu-hot"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="bot-symbol-menu-record"]')).not.toBeNull();
   });
 });
 

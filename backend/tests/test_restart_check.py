@@ -12,7 +12,6 @@ from zoneinfo import ZoneInfo
 from fastapi.testclient import TestClient
 
 from diagnostics import restart_check as rc
-from stock_mode import store
 
 
 def _reader(items):
@@ -87,24 +86,11 @@ def test_ibkr_lists_cached_positions_and_open_orders(monkeypatch):
     assert [(i["kind"], i["symbol"]) for i in items] == [("position", "MSGY"), ("working_order", "SSTI")]
 
 
-def test_an_open_bot_trade_is_listed(monkeypatch):
-    monkeypatch.setattr("bot.session.raw", lambda: {"trade": {"state": "open", "symbol": "APUS", "venue": "paper"}})
-    assert [i["symbol"] for i in rc.bot_trade()] == ["APUS"]
-    monkeypatch.setattr("bot.session.raw", lambda: {"trade": {"state": "closed", "symbol": "APUS"}})
-    assert rc.bot_trade() == []
-
-
-def test_stock_modes_in_memory_are_listed():
-    store.reset_for_tests()
-    try:
-        store.set_switch("APUS", {"buy": "nova", "sell": "you", "risk_usd": 50, "set_at": 1.0})
-        store.set_switch("QUIET", {"buy": "you", "sell": "you", "risk_usd": None, "set_at": 1.0})
-        store.set_approval("MSGY", {"state": "waiting", "setup_id": "x"})
-        items = rc.stock_modes()
-        assert [i["symbol"] for i in items] == ["APUS", "MSGY"]
-        assert "Signal only" in items[0]["text"]
-    finally:
-        store.reset_for_tests()
+def test_the_retired_bot_trade_and_stock_mode_readers_are_gone():
+    """ADR 072: no strategy bot trade or Who trades switch is left to interrupt, so neither is read."""
+    kinds = {name for name, _reader in rc.READERS}
+    assert not hasattr(rc, "bot_trade") and not hasattr(rc, "stock_modes")
+    assert not kinds & {"bot_trade", "stock_modes", "stock_mode"}
 
 
 def test_running_downloads_are_listed(monkeypatch):

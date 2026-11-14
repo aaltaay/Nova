@@ -82,43 +82,34 @@ def test_an_unknown_venue_is_not_a_venue(phone, desk):
     assert desk["venue"] == []
 
 
-def test_the_menu_reads_what_leaving_would_cancel(phone, monkeypatch):
+def test_the_menu_reads_what_leaving_would_change(phone, monkeypatch):
+    """The padlock is all a switch changes now: the Bot and Nova's own entries retired with the bots (ADR 072)."""
     from agent_desk import safety
-    from stock_mode import leave
 
     client, state = phone
     state["venue"] = "paper"
-    monkeypatch.setattr(leave, "work_on", lambda old: ["the Bot's buy of F"] if old == "paper" else [])
     monkeypatch.setattr(safety, "switch_changes", lambda old: (
-        [{"kind": "bot", "text": "The Bot is on for Paper: switching turns it off"}], []))
+        [{"kind": "armed", "text": "The desk is armed on Paper: switching disarms it"}], []))
     # A read: no session needed, and another device may make it.
     res = client.get("/api/phone/venue/effects", headers=REMOTE)
     assert res.status_code == 200
     assert res.json() == {"venue": "paper", "unknown": [], "lines": [
-        "Cancels on Paper: the Bot's buy of F.", "The Bot is on for Paper: switching turns it off"]}
+        "The desk is armed on Paper: switching disarms it"]}
 
 
 def test_a_check_that_cannot_be_read_is_unknown_never_nothing(phone, monkeypatch):
     from agent_desk import safety
-    from stock_mode import leave
 
     client, _state = phone
-
-    def broken(old):
-        raise OSError("bot session file locked")
-
-    monkeypatch.setattr(leave, "work_on", broken)
     monkeypatch.setattr(safety, "switch_changes", lambda old: ([], [{"kind": "armed", "error": "x"}]))
     body = client.get("/api/phone/venue/effects", headers=REMOTE).json()
-    assert body["lines"] == [] and body["unknown"] == ["Nova's working entries", "armed"]
+    assert body["lines"] == [] and body["unknown"] == ["armed"]
 
 
 def test_nothing_waiting_reads_as_no_lines(phone, monkeypatch):
     from agent_desk import safety
-    from stock_mode import leave
 
     client, _state = phone
-    monkeypatch.setattr(leave, "work_on", lambda old: [])
     monkeypatch.setattr(safety, "switch_changes", lambda old: ([], []))
     assert client.get("/api/phone/venue/effects", headers=REMOTE).json() == {"venue": "paper", "lines": [], "unknown": []}
 
@@ -142,42 +133,15 @@ def test_the_phone_asks_the_sim_clock_for_a_pause_or_a_minute_only(phone, desk, 
     assert desk["clock"] == []
 
 
-def test_leave_lists_nova_work_one_line_per_stock_and_sender(monkeypatch):
-    """``stock_mode.leave.work_on``: what ``leave`` would cancel, in the menu's words; ``has_work`` is its truth."""
-    import bot.persist
-    from stock_mode import leave, store
-
-    monkeypatch.setattr(bot.persist, "load_session", lambda: {
-        "trade": {"state": "entering", "venue": "paper", "symbol": "F"},
-        "working": [{"side": "BUY", "venue": "paper", "symbol": "F"}, {"side": "SELL", "venue": "paper", "symbol": "G"},
-                    {"side": "BUY", "venue": "sim", "symbol": "H"}],
-    })
-    monkeypatch.setattr(store, "trades", lambda: [
-        {"venue": "paper", "state": "entering", "kind": "auto_entry", "symbol": "K"},
-        {"venue": "paper", "state": "holding", "kind": "approve", "symbol": "L"},
-    ])
-    assert leave.work_on("paper") == ["the Bot's buy of F", "Nova's auto-entry buy of K"]
-    assert leave.has_work("paper") is True
-    assert leave.work_on("live") == [] and leave.has_work("live") is False
-
-
-
-def test_a_switch_words_an_open_bot_trade_as_a_switch_not_a_restart(monkeypatch):
-    """The menu says what the switch does: the restart check's words ("resumes after the restart") would mislead."""
+def test_a_switch_names_only_the_padlock(monkeypatch):
+    """No Bot to turn off and no Nova entry to cancel (ADR 072): an armed desk is the one thing a switch changes."""
     from agent_desk import safety
-    from bot import session as bot_session
-    from diagnostics import restart_check
     from ibkr import safety as ibkr_safety
 
-    monkeypatch.setattr(bot_session, "get_session", lambda: {"active": True})
-    monkeypatch.setattr(restart_check, "bot_trade", lambda: [{
-        "kind": "bot_trade", "venue": "paper", "symbol": "F",
-        "text": "Bot trade F (holding): its stop watch pauses; it resumes after the restart",
-    }])
-    monkeypatch.setattr(ibkr_safety, "armed", lambda: False)
+    monkeypatch.setattr(ibkr_safety, "armed", lambda: True)
     items, unknown = safety.switch_changes("paper")
     assert unknown == []
-    assert [i["text"] for i in items] == [
-        "The Bot is on for Paper: switching turns it off",
-        "The Bot has a trade open on F: the switch turns the Bot off; check that trade on the desk",
-    ]
+    assert [i["kind"] for i in items] == ["armed"]
+    assert items[0]["text"] == "The desk is armed on Paper: switching disarms it"
+    monkeypatch.setattr(ibkr_safety, "armed", lambda: False)
+    assert safety.switch_changes("paper") == ([], [])

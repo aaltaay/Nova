@@ -94,7 +94,8 @@ class ExecutionCommand:
     target_venue: str | None = None
     # Who in Nova sent it (``Origin``): recorded with the order and shown in the Orders table's
     # "Sent by" so a loss limit's or a bot's order never reads as the operator's own. None for the
-    # operator's own ticket. A label, never a permission: no gate reads it.
+    # operator's own ticket. A label, never a permission -- one refusal reads it: a retired sender's new order
+    # (ADR 072, ``execution.retired_senders``) never goes; its closes and cancels still do.
     origin: Origin | None = None
     # What the operator's screen showed when they acted (ADR 045): ``action_wall_ms``, the Level 2
     # book's and the quote's versions, the desk's own measures. Only the desk's routes set it; the

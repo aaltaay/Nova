@@ -21,7 +21,6 @@ from stock_read.plan import setup_name
 from stock_read.rows import hhmm, row, shares
 
 ET = ZoneInfo("America/New_York")
-LEVEL_NAMES = {0: "Off", 1: "Eyes", 2: "Strategy"}
 NO_SCANNER = [
     {"setup_type": "micro_pullback", "label": "Micro pullback", "reason": "Parked: it needs one-second bars."},
 ]
@@ -80,30 +79,12 @@ def setup_rows(f: dict[str, Any], plan: dict[str, Any] | None) -> list[dict[str,
                        {"go": "ok", "wait": "warn", "veto": "bad"}.get(verdict, "unknown"), "The setup's tape gate",
                        "; ".join(tape.get("reasons") or []) or None))
     else:
-        line = (f.get("bot") or {}).get("depth_line")
+        line = (f.get("desk") or {}).get("depth_line")
         out.append(row("tape_gate", "Tape at the trigger", "Not read yet", "info" if line else "unknown",
                        "The setup's tape gate",
                        "The tape gate reads a setup only while it is armed or near." + (
                            "" if line else " Nova also holds no Level 2 line for it: open its Level 2 or record it.")))
-    out.append(_bot_row(f.get("bot")))
     return out
-
-
-def _bot_row(bot: dict[str, Any] | None) -> dict[str, Any]:
-    src = "The bot's session"
-    if not bot:
-        return row("bot", "The bot on it", "Not known", "unknown", src, "The bot session could not be read")
-    level = LEVEL_NAMES.get(int(bot.get("level") or 0), str(bot.get("level")))
-    value = f"{level} · {'active' if bot.get('active') else 'not active'}"
-    missing = [w for w, ok in (("not set to Bot on this venue", bot.get("allowlisted")),
-                               ("no Level 2 line held", bot.get("depth_line"))) if not ok]
-    trade = bot.get("trade")
-    strategy = [setup_name(s) for s, lvl in (bot.get("levels") or {}).items() if lvl == 2]
-    detail = ((f"At Strategy: {', '.join(strategy)}. " if strategy else "No setup is at Strategy. ") +
-              (f"It cannot fire here: {', '.join(missing)}. " if missing else "Allowlisted with a depth line. ") +
-              (f"Its trade: {trade.get('state')} {trade.get('qty')} @ {trade.get('entry_fill_price') or trade.get('entry_planned')}."
-               if trade else "No bot trade on it."))
-    return row("bot", "The bot on it", value, "warn" if missing else "info", src, detail)
 
 
 # -- tape and book ------------------------------------------------------------------------------------

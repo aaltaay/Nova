@@ -343,7 +343,7 @@ describe('GlobalAppBar', () => {
     onLookup: () => {},
   };
 
-  it('lays the row out to the mockup: brand · session · clock · connection · venue · REC | search | KILL · account · mute · lock · gear', () => {
+  it('lays the row out to the mockup: brand · session · clock · connection · venue · REC | search | KILL · Freeze · account · mute · lock · gear', () => {
     act(() => {
       root.render(<GlobalAppBar scanner={scannerProps} />);
     });
@@ -387,12 +387,14 @@ describe('GlobalAppBar', () => {
     // A stop sign; its hover card (EmergencyKillButton.test) lists the operations.
     expect(rightKids[0].getAttribute('aria-label')).toBe(GLOBAL_BAR_EMERGENCY_KILL_LABEL);
     expect(rightKids[0].querySelector('[data-testid="stop-sign-icon"]')).toBeTruthy();
-    expect(rightKids[1].dataset.testid).toBe('global-bar-account');
+    // Freeze all orders, right of KILL (ADR 072, approved mockup retire-bots v1); the Bot key is gone.
+    expect(rightKids[1].querySelector('[data-testid="global-bar-freeze"]')).toBeTruthy();
+    expect(rightKids[2].dataset.testid).toBe('global-bar-account');
     // The header mute (operator ask 2026-10-14): every Nova sound, left of the padlock.
-    expect(rightKids[2].querySelector('[data-testid="global-bar-mute"]')).toBeTruthy();
-    expect(rightKids[3].dataset.testid).toBe('global-bar-trade-lock');
-    expect(rightKids[4].querySelector('[data-testid="global-bar-gear"]')).toBeTruthy();
-    expect(rightKids).toHaveLength(5);
+    expect(rightKids[3].querySelector('[data-testid="global-bar-mute"]')).toBeTruthy();
+    expect(rightKids[4].dataset.testid).toBe('global-bar-trade-lock');
+    expect(rightKids[5].querySelector('[data-testid="global-bar-gear"]')).toBeTruthy();
+    expect(rightKids).toHaveLength(6);
   });
 
   it('Enter in the ticker search opens the symbol in the Trader', () => {

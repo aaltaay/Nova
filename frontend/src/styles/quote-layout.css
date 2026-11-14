@@ -185,19 +185,6 @@
 .cq-wl-kv dd.num { font-variant-numeric: tabular-nums; }
 .cq-wl-reason { margin-top: 0.3rem; font-size: 0.74rem; color: var(--text-secondary); }
 
-.cq-wl-bot {
-  margin-top: 0.5rem;
-  font: inherit;
-  font-size: 0.76rem;
-  padding: 0.2rem 0.6rem;
-  border-radius: 4px;
-  border: 1px solid var(--border-color);
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-.cq-wl-bot.is-on { color: var(--accent-color); border-color: var(--accent-color); }
-
 @container side-panel (max-width: 640px) {
   .cq-info-row {
     grid-template-columns: 1fr 1fr;

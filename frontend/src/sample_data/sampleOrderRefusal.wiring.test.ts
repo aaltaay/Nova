@@ -9,7 +9,7 @@
  * flatten ship unguarded behind a green suite. The order doors under src/ibkr/
  * are placeIbkrOrder, cancelIbkrOrder, cancelAllOrdersForSymbol,
  * cancelAllWorkingOrders and flattenAccount; runEmergencyKill composes two of
- * them plus a bot-session PATCH. All six are asserted below, at the novaFetch
+ * them (ADR 072 retired its bot-session PATCH). They are asserted below, at the novaFetch
  * boundary, together with the live-route control that proves the guard is not
  * blocking real orders.
  *
@@ -175,7 +175,7 @@ describe('Emergency KILL on the sample desk refuses as one unit', () => {
     window.history.replaceState({}, '', '/');
   });
 
-  it('fires no leg at all — not the bot PATCH, not cancel, not flatten', async () => {
+  it('fires no leg at all — not cancel, not flatten', async () => {
     // The defect this replaces: cancel was refused while flatten still POSTed,
     // so the account was market-flattened with its resting orders left live —
     // a state neither master nor a fully-guarded route can produce — while the
@@ -218,7 +218,8 @@ describe('Emergency KILL on the sample desk refuses as one unit', () => {
     expect(cancelAt, `no cancel-all in ${urls.join(', ')}`).toBeGreaterThanOrEqual(0);
     expect(flattenAt, `no flatten in ${urls.join(', ')}`).toBeGreaterThanOrEqual(0);
     expect(cancelAt).toBeLessThan(flattenAt);
-    expect(urls.some(u => u.includes('/bot/session'))).toBe(true);
+    // ADR 072: KILL no longer sets a bot level, so it sends nothing to the bot session.
+    expect(urls.some(u => u.includes('/bot/session'))).toBe(false);
     expect(result.ok).toBe(true);
   });
 });

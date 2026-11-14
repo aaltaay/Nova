@@ -38,7 +38,7 @@
 }
 
 /* A short pane keeps the ladder whole: ten rows at their 18 px floor plus the column head need about
-   200 px, and a level past the rows is drawn on the last one (who-trades E2E, "a level takes no row of the
+   200 px, and a level past the rows is drawn on the last one (trade-moment E2E, "a level takes no row of the
    ladder's fixed height"). Under 260 px both bands -- the spread row and the tape's Last -- give their height
    back; the best bid and ask are the book's first rows anyway. The same rule on both panes keeps their
    column heads on one line. */

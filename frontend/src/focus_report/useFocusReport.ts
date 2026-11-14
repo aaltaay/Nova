@@ -35,12 +35,11 @@ export function focusViewOf(parts: FocusViewParts): FocusView {
     const symbol = parts.selectedSymbol;
     return { page: 'scanner', tab: parts.scannerTab, symbol, symbolSource: symbol ? 'scanner_row' : null, traderTabs: tabs };
   }
-  // Forex, Global, Market, Cryptos, Congress, Account, Bots and Records are shell pages with no symbol of their own (the sensor's own page
-  // names, constants_sensors.FOCUS_PAGES). LiveTrader Bots is the followed traders' page, so it reads as "followed",
-  // as it did as TraderTV LIVE; the rest of the Bots group reads as "bots".
+  // Forex, Global, Market, Cryptos, Congress, Account and Records are shell pages with no symbol of their own (the sensor's
+  // own page names, constants_sensors.FOCUS_PAGES). TraderTV is the followed traders' page, so it reads as "followed",
+  // as it did as TraderTV LIVE and LiveTrader Bots (ADR 072 retired the Bots group).
   const page = parts.navPage === 'dashboard' ? 'account'
-    : parts.navPage === 'bots-live-trader' ? 'followed'
-      : parts.navPage === 'bots-strategy' ? 'bots' : parts.navPage;
+    : parts.navPage === 'tradertv' ? 'followed' : parts.navPage;
   return { page, tab: null, symbol: null, symbolSource: null, traderTabs: tabs };
 }
 

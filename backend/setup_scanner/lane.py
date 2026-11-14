@@ -21,9 +21,12 @@ its prints vouch for). Nothing here places an order.
 ADR 034: every tape read carries the tape flow score, and a triggered setup's
 flow is read through its scoring window (``setup_scanner/lane_flow.py``).
 
-ADR 042 H: proposals and triggers carry the grade, the pillars' count, the stock
-filter's verdict and the spread, and a proposal says whether it is a trade and who
-takes it (``setup_scanner/lane_announce.py``).
+ADR 042 H: triggers carry the grade, the pillars' count, the stock filter's verdict
+and the spread (``setup_scanner/lane_announce.py``).
+
+ADR 072: the strategies only watch. The tape gates nothing and no lane raises a
+proposal; the tape's reading is journalled as what it said, and its flush never
+changes a setup's scoring.
 
 ADR 022 amendment 2026-09-30: the tape for a trigger, and for a setup coming near,
 is read when the lane sees that price (``read_at``), not at the price's own stamp.
@@ -48,12 +51,10 @@ from typing import Any
 
 from constants_bot import BOT_SETUP_FIRST_PULLBACK, watch_only
 from constants_setups import (
-    SETUP_STATE_NEAR,
     SETUP_STATE_PULLBACK,
     SETUP_TEMPLATE_DEFAULT_ID,
     SETUPS_BAR_SEC,
     TAPE_VERDICT_BLIND,
-    TAPE_VERDICT_GO,
 )
 from setup_scanner import lane_ids, lane_liquidity, lane_rows, lane_trigger, lane_view, target_choices
 from setup_scanner.bars import Bar
@@ -96,10 +97,7 @@ class Lane:
         self._tape_said: dict[str, str] = {}
         self._said: dict[str, tuple[str, str]] = {}          # the (state, reason) the journal implies
         self._priced: dict[str, tuple[float, float]] = {}    # (ts, price) of the last price line
-        self.flow_last: dict[str, dict] = {}      # setup id -> the newest flow reading after its trigger
         self.bars: dict[str, list[Bar]] = {}      # symbol -> its one-minute bars (the liquidity reads them)
-        self._flow_said: dict[str, str] = {}
-        self._flow_next: dict[str, float] = {}
         self.attempts: dict[str, str] = {}               # a key's first id -> the row its latest setup arms (lane_ids)
         self.stored_triggered: dict[str, set[str]] = {}  # symbol -> today's ids stored with a trigger before this lane
 
@@ -131,7 +129,7 @@ class Lane:
     def clear(self) -> None:
         for store in (self.det, self.rows, self.active_id, self.trackers, self.choices, self.tape_view,
                       self.proposals, self.filtered, self.forming, self.tf5, self.candles, self._tape_said,
-                      self._said, self._priced, self.flow_last, self._flow_said, self._flow_next, self.bars,
+                      self._said, self._priced, self.bars,
                       self.attempts, self.stored_triggered):
             store.clear()
         self.alerts = []
@@ -336,10 +334,6 @@ class Lane:
         """The tape flow at ``now`` under this template's numbers (``lane_flow.flow``)."""
         return lane_flow.flow(self, sym, now)
 
-    def read_trades(self, now: float) -> None:
-        """Each trade on: read its flow and let the template's flush exit act (``lane_flow.read_trades``)."""
-        lane_flow.read_trades(self, now)
-
     def gate(self, now: float) -> None:
         wanted = self.watching()
         for sym in list(self.tape_view):
@@ -353,19 +347,8 @@ class Lane:
                 self._tape_said[sid] = res["verdict"]
                 self.journal("tape", sym, setup_id=sid, verdict=res["verdict"], reasons=res.get("reasons"),
                              metrics=res.get("metrics"), line=res.get("line"), last=self.det[sym].last_price)
-            prop = self.proposals.get(sid) if sid else None
-            if prop is not None and prop["status"] == "open":
-                prop["tape_now"] = res["verdict"]
-            elif (sid and self.playing and self.det[sym].state == SETUP_STATE_NEAR
-                  and res["verdict"] == TAPE_VERDICT_GO and self.host.can_propose(self.p.setup)
-                  and not lane_liquidity.thin(self.rows.get(sid))):
-                # No open proposal: none yet, or the last one was withdrawn when the
-                # setup re-armed at new levels or was disarmed and armed again.
-                self._propose(sym, sid, res, now)
-        self.read_trades(now)
-
-    def _propose(self, sym: str, sid: str, res: dict, now: float) -> None:
-        lane_announce.propose(self, sym, sid, res, now)
+        # ADR 072: the tape gates nothing. A setup forms on Level 1, raises no proposal, and the tape's flush
+        # never changes its scoring; the reading above is kept only as what the tape said on a lane's stock.
 
     def _announce_trigger(self, sym: str, sid: str, setup: dict, tape: dict, ts: float) -> None:
         lane_announce.trigger(self, sym, sid, setup, tape, ts)

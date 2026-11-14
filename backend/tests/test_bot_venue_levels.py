@@ -2,6 +2,9 @@
 
 "When I switch between L0 and L2 in the paper, it stays persistent when I
 switch to live, and I feel like that shouldn't happen."
+
+ADR 072 retired the Bot switch and Activate: the dial is written straight to the session file here, and a venue
+change still clears the Activate fields an older file may carry.
 """
 from __future__ import annotations
 
@@ -10,12 +13,12 @@ import json
 import pytest
 
 from bot import persist
-from bot.arming import is_desk_active, issue_arm_token
+from bot.arming import is_desk_active
 from bot.audit import list_entries
-from bot.autonomy import apply_patch
 from bot.persist import load_session, save_session
 from bot.session import get_session
 from sim.mode import reset_for_tests as reset_venue, set_venue
+from tests.bot_helpers import set_level
 
 
 @pytest.fixture
@@ -27,18 +30,20 @@ def paper():
 
 
 def _strategy_on_paper() -> None:
-    apply_patch({"level": 2, "setup_levels": {"first_pullback": 2, "bull_flag": 1}}, desk=True)
-    issue_arm_token()
+    """Paper's dial at Strategy, with Activate's fields on as a file from before ADR 072 holds them."""
+    row = load_session()
+    row.update(level=2, setup_levels={"first_pullback": 2, "bull_flag": 1}, armed=True, desk_arm_token="t")
+    save_session(row)
     assert is_desk_active(load_session())
 
 
 def test_papers_strategy_does_not_follow_the_desk_to_live(paper):
     _strategy_on_paper()
     set_venue("live", persist=False)
+    row = load_session()
+    assert row["level"] == 0 and row["setup_levels"] == {} and not is_desk_active(row)
     view = get_session()
-    assert view["level"] == 0 and view["armed"] is False and "strategy" not in view
-    assert view["setup_levels"]["bull_flag"] == 0 and view["setup_levels"]["first_pullback"] == 0
-    assert view["deactivated"]["reason"] == "venue"
+    assert view["level"] == 0 and view["active"] is False and "strategy" not in view
     assert view["level_venue"] == "live"
     assert view["levels_by_venue"] == {"live": 0, "paper": 2, "sim": 0}
 
@@ -46,12 +51,12 @@ def test_papers_strategy_does_not_follow_the_desk_to_live(paper):
 def test_coming_back_finds_the_level_but_not_active(paper):
     _strategy_on_paper()
     set_venue("live", persist=False)
-    apply_patch({"level": 1}, desk=True)             # Eyes on Live is Live's own
+    set_level(1)                                      # Eyes on Live is Live's own
     set_venue("paper", persist=False)
-    view = get_session()
-    assert view["level"] == 2 and view["armed"] is False
-    assert view["setup_levels"]["bull_flag"] == 1
-    assert view["levels_by_venue"] == {"live": 1, "paper": 2, "sim": 0}
+    row = load_session()
+    assert row["level"] == 2 and not is_desk_active(row)
+    assert row["setup_levels"] == {"first_pullback": 2, "bull_flag": 1}
+    assert get_session()["levels_by_venue"] == {"live": 1, "paper": 2, "sim": 0}
     set_venue("live", persist=False)
     assert get_session()["level"] == 1
 
@@ -60,17 +65,15 @@ def test_the_switch_is_on_the_timeline(paper):
     _strategy_on_paper()
     set_venue("live", persist=False)
     [row] = [r for r in list_entries(limit=50) if r["action"] == "venue" and r["outcome"] == "paper->live"]
-    assert row["outcome"] == "paper->live"
-    assert row["inputs"] == {"from": "paper", "to": "live", "level_before": 2, "level_after": 0,
-                             "deactivated": True}
-    assert "Activate again" in row["reason"]
+    assert row["inputs"] == {"from": "paper", "to": "live", "level_before": 2, "level_after": 0}
+    assert "the desk moved to live" in row["reason"]
 
 
 def test_the_same_venue_again_changes_nothing(paper):
     _strategy_on_paper()
     set_venue("paper", persist=False)
-    view = get_session()
-    assert view["level"] == 2 and view["armed"] is True
+    row = load_session()
+    assert row["level"] == 2 and is_desk_active(row)
 
 
 def test_an_old_session_belongs_to_the_venue_it_was_set_on(paper):
@@ -111,18 +114,6 @@ def test_an_old_session_loads_with_the_loss_breakers_dropped(paper):
     assert again["venue_levels"]["live"] == {"level": 1}
 
 
-def test_the_daily_entry_cap_counts_this_venues_entries(paper):
-    from bot.audit import record
-    from bot.entry_rules import entries_today, venue_day
-
-    record(action="buy_market", outcome="ok", inputs={"symbol": "ABCD", "venue_day": venue_day()})
-    assert entries_today() == 1
-    set_venue("live", persist=False)
-    assert entries_today() == 0
-    old = {"action": "buy_market", "outcome": "ok", "inputs": {"venue_day": venue_day()}}
-    assert entries_today(rows=[old]) == 1                            # an unstamped row counts everywhere
-
-
 @pytest.mark.asyncio
 async def test_papers_working_order_is_never_cancelled_on_live(paper, monkeypatch):
     import bot.ttl as ttl
@@ -147,16 +138,3 @@ async def test_papers_working_order_is_never_cancelled_on_live(paper, monkeypatc
     set_venue("paper", persist=False)
     assert [w["order_id"] for w in load_session()["working"]] == [12]  # still Paper's to cancel
 
-
-@pytest.mark.asyncio
-async def test_papers_bot_trade_cannot_be_taken_over_on_live(paper):
-    from bot.errors import BotError
-    from bot.first_pullback.runner import hand_over
-
-    row = load_session()
-    row["trade"] = {"symbol": "ABCD", "venue": "paper", "state": "open", "qty": 10, "target_order_id": 12}
-    save_session(row)
-    set_venue("live", persist=False)
-    with pytest.raises(BotError) as refused:
-        await hand_over("ABCD")
-    assert "is on paper" in refused.value.message

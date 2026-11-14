@@ -11,6 +11,11 @@ bid with its buy stop (``BOT_DEFAULT_SHORT_STOP_OFFSET_USD`` over the limit) in 
 short check at the door; never while the venue holds the stock long. The covers buy back what the venue holds
 short and never past it: ``cover_limit_ask_offset`` and ``cover_market`` up to the max shares, ``cover_pos``
 the whole short as a protective close (like Flatten).
+
+ADR 072: the bots are retired and this becomes the brain's door. Nothing sends through it until the brain is built:
+``bot.door.assert_can_fire`` refuses first (Activate is gone with the Bot switch), and the execution door refuses any
+``bot_api`` order (``execution.retired_senders``). The strategy windows, the Strategy Bots key and the bot's entry
+count went with the strategy bot.
 """
 from __future__ import annotations
 
@@ -18,7 +23,7 @@ import uuid
 from typing import Any
 
 from bot.audit import record as audit
-from bot.autonomy import assert_can_fire
+from bot.door import assert_can_fire, current_venue, loss_limit
 from bot.errors import BotError
 from bot.kinds import is_entry_kind
 from bot.risk import (
@@ -35,7 +40,6 @@ from bot.risk import (
     resolve_shares,
 )
 from bot.eligibility import assert_symbol_can_fire
-from bot.entry_rules import assert_entry_allowed, venue_day
 from bot.session import require_l2_brain
 from constants_bot import (
     BOT_DEFAULT_ASK_OFFSET_USD,
@@ -76,6 +80,14 @@ def _exit_qty(symbol: str, percent: int | None = None) -> tuple[str, float]:
     if percent is None:
         return "SELL", qty
     return "SELL", max(1.0, round(qty * (percent / 100.0)))
+
+
+def _best(symbol: str, side: int) -> float | None:
+    """The live best bid (``side`` 0) or ask (1); None without a positive one."""
+    from bot.quotes import top_of_book
+
+    price = top_of_book(symbol)[side]
+    return float(price) if price is not None and price > 0 else None
 
 
 async def _cancel_symbol(symbol: str) -> dict[str, Any]:
@@ -121,23 +133,12 @@ async def fire(
     row = assert_can_fire()      # Live / a replay desk refuse first (BOT_LIVE_NOT_BUILT)
     require_l2_brain(brain_session_id, claim=True)
     kind = assert_kind(str(body.get("kind") or body.get("action") or ""), row)
-    if kind != "cancel_symbol":
-        # The Strategy Bots key (2026-10-15): with it off a bot places no order, not even a sell; a cancel places none.
-        from bot import family_keys
-        from constants_bot import BOT_FAMILY_STRATEGY
-
-        family = family_keys.block(BOT_FAMILY_STRATEGY)
-        if family is not None:
-            raise BotError(family[1], 409, family[0])
     symbol = assert_symbol_can_fire(str(body.get("symbol") or ""), row)
     if is_entry_kind(kind):
-        from bot.gates import current_venue, loss_limit
-
         # ADR 056: the daily loss limit's No new buys holds this venue (the door refuses it too).
         stopped = loss_limit(current_venue())
         if stopped is not None:
             raise BotError(stopped["text"], 409, LOSS_LIMIT_REASON_NO_NEW_BUYS)
-    assert_entry_allowed(kind)  # the Strategy setups' windows, extended hours, the commission hold
 
     assert_no_working_buy(kind, row)
     eh = outside_rth(row)
@@ -209,7 +210,7 @@ async def fire(
         receipt = await execute(cmd, wait_ack=False)
         if receipt.ok:
             adjust_bot_qty(symbol, qty)
-        audit(action=kind, outcome="ok" if receipt.ok else "failed", order_id=receipt.order_id, reason=receipt.reason_code, inputs={"symbol": symbol, "qty": qty, "venue_day": venue_day()}, brain_session_id=brain_session_id)
+        audit(action=kind, outcome="ok" if receipt.ok else "failed", order_id=receipt.order_id, reason=receipt.reason_code, inputs={"symbol": symbol, "qty": qty}, brain_session_id=brain_session_id)
         return receipt.legacy_place_dict()
 
     if kind in ("short_limit_bid_offset", "cover_limit_ask_offset", "cover_market", "cover_pos"):
@@ -267,8 +268,6 @@ async def fire(
     if receipt.ok and receipt.order_id is not None:
         remember_working(order_id=int(receipt.order_id), symbol=symbol, side=side, qty=qty, price=limit, kind=kind, ttl_sec=ttl)
     inputs = {"symbol": symbol, "qty": qty, "limit": limit}
-    if side == "BUY":
-        inputs["venue_day"] = venue_day()
     audit(action=kind, outcome="ok" if receipt.ok else "failed", order_id=receipt.order_id, reason=receipt.reason_code, inputs=inputs, brain_session_id=brain_session_id)
     return receipt.legacy_place_dict()
 
@@ -276,7 +275,6 @@ async def fire(
 async def _fire_short_side(kind: str, symbol: str, body: dict[str, Any], row: dict[str, Any], *, eh: bool,
                            ttl: int, brain_session_id: str | None) -> dict[str, Any]:
     """A short with its buy stop, or a cover of what the venue holds short (see the module)."""
-    from bot.first_pullback.orders import best_ask, best_bid
     from bot.flatten import place_close
 
     key = str(body.get("idempotency_key") or f"bot:{kind}:{symbol}:{uuid.uuid4()}")
@@ -288,7 +286,7 @@ async def _fire_short_side(kind: str, symbol: str, body: dict[str, Any], row: di
         if held > 0:
             raise BotError(f"you hold {symbol} long: Nova never shorts a stock you hold long", 409,
                            "BOT_SKIP_HELD_OTHER_SIDE")
-        bid = best_bid(symbol)
+        bid = _best(symbol, 0)
         if bid is None:
             raise BotError("needs a live bid for the focused symbol", 409, "BOT_NEEDS_DEPTH")
         qty = float(resolve_shares(kind, body, row))
@@ -305,8 +303,7 @@ async def _fire_short_side(kind: str, symbol: str, body: dict[str, Any], row: di
                              kind=kind, ttl_sec=ttl, short_entry=True)
         audit(action=kind, outcome="ok" if receipt.ok else "failed", order_id=receipt.order_id,
               reason=receipt.reason_code, brain_session_id=brain_session_id,
-              inputs={"symbol": symbol, "qty": qty, "limit": limit, "stop": stop, "side": "short",
-                      "venue_day": venue_day()})
+              inputs={"symbol": symbol, "qty": qty, "limit": limit, "stop": stop, "side": "short"})
         return receipt.legacy_place_dict()
     short = _short_qty(symbol, _BOT_API)
     if short <= 0:
@@ -324,7 +321,7 @@ async def _fire_short_side(kind: str, symbol: str, body: dict[str, Any], row: di
                                side="BUY", qty=qty, order_type="MKT", outside_rth=eh, skip_risk=True)
         limit = None
     else:
-        ask = best_ask(symbol)
+        ask = _best(symbol, 1)
         if ask is None:
             raise BotError("needs a live ask for the focused symbol", 409, "BOT_NEEDS_DEPTH")
         limit = round(ask + BOT_DEFAULT_ASK_OFFSET_USD, 4)

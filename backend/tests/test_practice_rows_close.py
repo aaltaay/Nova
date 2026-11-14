@@ -10,8 +10,8 @@ only the place row's ``broker_status``, and no callback follows a practice venue
 answer -- so a resting Paper order it filled later read ``acked`` too (AIFF, NXL, CNTB).
 The bracket row's ``perm_id`` read 79: each exit leg's watch wrote its own over the entry's.
 
-These run the real door on a Paper broker with each sender's own commands: Nova's bot,
-Who trades the stock (Approve's bracket, Auto-entry's limit) and the ticket.
+These run the real door on a Paper broker with each living sender's own commands: Claude's seat
+(ADR 068) and the ticket. Nova's strategy bot, Approve and Auto-entry retired (ADR 072).
 """
 from __future__ import annotations
 
@@ -81,22 +81,12 @@ def _open_ids() -> set[str]:
 
 
 # -- each sender's own bracket and cancel ---------------------------------------
-async def _bot(attempt: str):
-    from bot.first_pullback import orders
+async def _claude(attempt: str):
+    from agent_trader import orders
 
-    trade = {"venue": "paper", "setup_id": f"IMCC-{attempt}", "symbol": SYM, "qty": 1,
-             "entry_planned": 9.90, "target1": 10.50, "stop": 9.50, "setup_type": "first_pullback"}
-    placed = await orders.place_entry(trade)
-    return placed, lambda oid: orders.cancel(trade, oid)
-
-
-async def _approve(attempt: str):
-    from stock_mode import orders
-
-    trade = {"kind": "approve", "venue": "paper", "symbol": SYM, "attempt": attempt, "qty": 1,
-             "entry": 9.90, "stop": 9.50, "target": 10.50, "setup_type": "first_pullback"}
-    placed = await orders.send_bracket(trade)
-    return placed, lambda oid: orders.cancel(trade, oid, source="manual")
+    order = {"symbol": SYM, "qty": 1, "entry": 9.90, "stop": 9.50, "target": 10.50}
+    placed = await orders.send_entry(order, tag=attempt)
+    return placed, lambda oid: orders.cancel(oid, SYM)
 
 
 async def _ticket(attempt: str):
@@ -114,7 +104,7 @@ async def _ticket(attempt: str):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("send", [_bot, _approve, _ticket], ids=["bot", "approve", "ticket"])
+@pytest.mark.parametrize("send", [_claude, _ticket], ids=["claude", "ticket"])
 async def test_a_bracket_cancelled_unfilled_ends_both_rows_cancelled_at_once(paper, send) -> None:
     placed, cancel = await send("tnmg")
     p = placed.parent_order_id
@@ -134,21 +124,6 @@ async def test_a_bracket_cancelled_unfilled_ends_both_rows_cancelled_at_once(pap
     assert _open_ids().isdisjoint({placed.execution_id, done.execution_id})
     assert paper.broker.working_orders() == []  # the exits went with their entry
     assert inflight.committed_qty(SYM, "BUY") == 0.0
-
-
-@pytest.mark.asyncio
-async def test_auto_entrys_limit_cancelled_unfilled_ends_both_rows_cancelled(paper) -> None:
-    from stock_mode import orders
-
-    trade = {"kind": "auto_entry", "venue": "paper", "symbol": SYM, "attempt": 1, "qty": 1,
-             "entry": 9.90, "setup_type": "first_pullback"}
-    placed = await orders.place_entry(trade)
-    assert (placed.ok, placed.broker_status) == (True, "Submitted"), placed.error
-
-    done = await orders.cancel(trade, placed.order_id)
-
-    assert store.get_by_id(placed.execution_id)["status"] == "cancelled"
-    assert store.get_by_id(done.execution_id)["status"] == "cancelled"
 
 
 # -- what the venue closes by itself, after its first answer --------------------

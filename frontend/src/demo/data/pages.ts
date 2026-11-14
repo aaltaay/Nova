@@ -3,7 +3,7 @@
  * the setups board and the per-stock modes. Every figure reconciles with the account in desk.ts:
  * today's net realized 409.35 + open 41.00 = the day's 450.35; lifetime net realized 1,864.25.
  */
-import { DAY, NOW_S, etMs, r2 } from './market';
+import { DAY, etMs, r2 } from './market';
 
 const at = (h: number, m: number, s = 0) => etMs(h, m, s) / 1000;
 
@@ -346,23 +346,6 @@ export function hotList() {
     auto: { n: 5, start: '07:00', end: '16:00', rule: 'the leaders rule: $3-10, float 10M or less, 100K shares or more', error: null },
     entries: [entry('SMPL', 'star', at(6, 58), null, null), entry('GAPX', 'auto', at(7, 12), 2, 0.42)],
     yesterday: [], error: null,
-  };
-}
-
-export function stockModes(venue: string) {
-  const view = (symbol: string, mode: string, buy: string, sell: string, last: { ts: number; tone: string; text: string } | null) => ({
-    schema_version: 1, symbol, generated_at: NOW_S, venue, mode, buy, sell, risk_usd: 50, set_at: at(6, 59),
-    locks: { buy: null, sell: null }, notes: [], approval: null, trade: null, entries_today: { count: 1 }, nova_entries_today: 1,
-    size: { qty: 10, by_risk: 185, capped_by: 'max_shares', text: '10 shares (max shares)' }, last_event: last,
-    bot: { on_list: mode === 'bot', playing: mode === 'bot', reason: null, setup_at_strategy: true, active: true },
-  });
-  return {
-    schema_version: 1, generated_at: NOW_S, venue,
-    stocks: [
-      view('SMPL', 'bot', 'nova', 'nova', { ts: at(9, 3, 31), tone: 'ok', text: 'Sold 10 at 4.02 · target · +2.0R' }),
-      view('RUNR', 'bot', 'nova', 'nova', null),
-      view('GAPX', 'signal', 'you', 'nova', { ts: at(9, 37, 20), tone: 'info', text: 'Nova holds the exit: stop 1.82' }),
-    ],
   };
 }
 

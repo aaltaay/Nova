@@ -1,9 +1,8 @@
-"""``/api/hot-list``, and that the list never decides who trades a stock (ADR 044, amended 2026-10-06).
+"""``/api/hot-list``, and that the list never decides who trades a stock (ADR 044, amended 2026-10-06; ADR 072).
 
-The list's writes need the desk's API key. A star is watching only: it never sets a stock's Buy / Sell (there
-is no default side any more), Buy to Nova never stars a stock (and a full list never refuses it), and taking
-a star off leaves who trades the stock as it was -- also while Nova trades it. The file, rollover and feed
-are ``test_hot_list.py``.
+The list's writes need the desk's API key. A star is watching only: it never puts a stock on a bot list (there is
+no default side any more, and the per-stock Buy / Sell switch retired with the bots, ADR 072), and taking a star
+off leaves every venue's bot list as it was. The file, rollover and feed are ``test_hot_list.py``.
 """
 from __future__ import annotations
 
@@ -18,7 +17,6 @@ from bot.persist import load_session, save_session
 from constants_hot_list import HOT_LIST_CAP
 from hot_list import auto, service, store
 from main import app
-from stock_mode import store as stock_store
 from tests.bot_helpers import headers, on_practice
 
 client = TestClient(app)
@@ -28,11 +26,9 @@ client = TestClient(app)
 def fresh():
     service.reset_for_tests()
     auto.reset_for_tests()
-    stock_store.reset_for_tests()
     yield
     service.reset_for_tests()
     auto.reset_for_tests()
-    stock_store.reset_for_tests()
 
 
 @pytest.fixture
@@ -47,12 +43,6 @@ def fill(n: int) -> None:
     doc["entries"] = [{"symbol": f"F{i:02d}", "how": "star", "at": time.time(), "board": None, "rank": None,
                        "change_pct": None} for i in range(n)]
     store.save(doc)
-
-
-def mode_of(sym: str, key: dict) -> dict:
-    res = client.get(f"/api/stock-mode/{sym}", headers=key)
-    assert res.status_code == 200
-    return res.json()
 
 
 # -- the routes ------------------------------------------------------------------------------------
@@ -172,94 +162,26 @@ def test_bring_back_stars_yesterdays_names_up_to_the_cap(key):
 
 
 # -- a star never sets who trades the stock --------------------------------------------------------
-def test_a_star_leaves_a_new_name_at_signal_only(key):
-    """No default side: a starred stock stays You · You, on Paper as on Live, and nothing says otherwise."""
+def test_a_star_puts_a_name_on_no_bot_list(key):
+    """No default side: starring a stock lists it and nothing else, on Paper as on Live."""
     on_practice("paper")
     assert client.post("/api/hot-list/star", json={"symbol": "XYZ"}, headers=key).status_code == 200
-    view = mode_of("XYZ", key)
-    assert view["mode"] == "signal" and "XYZ" not in load_session()["symbol_allowlist"]
-    assert not {"hot_list_default", "not_listed"} & {n["id"] for n in view["notes"]}
-    assert [r for r in list_entries(limit=50) if r["action"] == "stock_mode"] == []
+    assert hot_list.is_listed("XYZ") and "XYZ" not in (load_session().get("symbol_allowlist") or [])
     assert [r["inputs"]["event"] for r in list_entries(limit=50) if r["action"] == "hot_list"] == ["star"]
 
 
-def test_on_live_a_starred_name_is_signal_only_and_says_nothing_of_the_list(key):
-    client.post("/api/hot-list/star", json={"symbol": "XYZ"}, headers=key)        # the desk is on Live
-    view = mode_of("XYZ", key)
-    assert view["mode"] == "signal" and [n for n in view["notes"] if "hot list" in n["text"]] == []
-
-
-def test_a_stock_with_its_own_switch_keeps_it_when_starred_and_brought_back(key):
-    on_practice("paper")
-    assert client.put("/api/stock-mode/XYZ", json={"buy": "you", "sell": "nova"}, headers=key).status_code == 200
-    assert client.put("/api/stock-mode/ABC", json={"buy": "nova", "sell": "you"}, headers=key).status_code == 200
-    client.post("/api/hot-list/star", json={"symbol": "XYZ"}, headers=key)
-    store.save({**store.read_raw()[0], "yesterday": ["ABC"]})                     # ABC was listed yesterday
-    client.post("/api/hot-list/bring-back", headers=key)
-    assert hot_list.is_listed("ABC") and hot_list.is_listed("XYZ")
-    assert mode_of("XYZ", key)["mode"] == "approve" and mode_of("ABC", key)["mode"] == "auto_entry"
-
-
-# -- Buy to Nova leaves the list alone --------------------------------------------------------------
-def test_buy_to_nova_leaves_the_hot_list_alone(key):
-    on_practice("paper")
-    res = client.put("/api/stock-mode/AISP", json={"buy": "nova", "sell": "nova"}, headers=key)
-    assert res.status_code == 200 and res.json()["mode"] == "bot"
-    assert not hot_list.is_listed("AISP")
-    assert client.put("/api/stock-mode/LGHL", json={"buy": "nova", "sell": "you"}, headers=key).json()["mode"] == \
-        "auto_entry"
-    assert not hot_list.is_listed("LGHL")
-    assert [r for r in list_entries(limit=50) if r["action"] == "hot_list"] == []
-
-
-def test_a_full_hot_list_never_refuses_buy_to_nova(key):
-    on_practice("paper")
-    fill(HOT_LIST_CAP)
-    res = client.put("/api/stock-mode/AISP", json={"buy": "nova", "sell": "you"}, headers=key)
-    assert res.status_code == 200 and res.json()["mode"] == "auto_entry"
-    assert not hot_list.is_listed("AISP") and len(hot_list.listed_symbols()) == HOT_LIST_CAP
-    assert [r["outcome"] for r in list_entries(limit=20) if r["action"] == "stock_mode"] == ["set"]
-
-
-def test_the_bot_list_routes_leave_the_hot_list_alone(key):
-    on_practice("paper")
-    res = client.post("/api/bot/allowlist", json={"symbol": "abcd", "op": "add"}, headers=key)
-    assert res.status_code == 200 and "ABCD" in load_session()["symbol_allowlist"]
-    res = client.patch("/api/bot/session", json={"symbol_allowlist": ["abcd", "efgh"]}, headers=key)
-    assert res.status_code == 200 and res.json()["symbol_allowlist"] == ["ABCD", "EFGH"]
-    assert hot_list.listed_symbols() == []
-    assert [r for r in list_entries(limit=50) if r["action"] == "hot_list"] == []
-
-
 # -- taking a star off -------------------------------------------------------------------------------
-def test_removing_the_star_leaves_who_trades_it_on_every_venue(key):
+def test_removing_the_star_leaves_every_venues_bot_list(key):
     on_practice("paper")
     client.post("/api/hot-list/star", json={"symbol": "AISP"}, headers=key)
-    assert client.put("/api/stock-mode/AISP", json={"buy": "nova", "sell": "nova"}, headers=key).status_code == 200
     row = load_session()
+    row["symbol_allowlist"] = ["AISP"]
     row["venue_levels"] = {**(row.get("venue_levels") or {}), "sim": {"level": 0, "symbol_allowlist": ["AISP", "KEEP"]}}
     save_session(row)
-    before = len([r for r in list_entries(limit=50) if r["action"] == "stock_mode"])
     res = client.delete("/api/hot-list/aisp", headers=key)
     assert res.status_code == 200 and res.json()["entries"] == []
     row = load_session()
-    assert "AISP" in row["symbol_allowlist"] and row["venue_levels"]["sim"]["symbol_allowlist"] == ["AISP", "KEEP"]
-    assert mode_of("AISP", key)["mode"] == "bot" and not hot_list.is_listed("AISP")
+    assert row["symbol_allowlist"] == ["AISP"] and row["venue_levels"]["sim"]["symbol_allowlist"] == ["AISP", "KEEP"]
+    assert not hot_list.is_listed("AISP")
     assert [r["inputs"]["event"] for r in list_entries(limit=50) if r["action"] == "hot_list"][-1] == "remove"
-    assert len([r for r in list_entries(limit=50) if r["action"] == "stock_mode"]) == before
     assert client.delete("/api/hot-list/AISP", headers=key).status_code == 200        # not listed: nothing to do
-
-
-def test_removing_the_star_while_nova_trades_the_stock_keeps_the_trade(key):
-    on_practice("paper")
-    client.post("/api/hot-list/star", json={"symbol": "AISP"}, headers=key)
-    trade = {"venue": "sim", "symbol": "AISP", "kind": "approve", "state": "holding", "exits": "nova",
-             "sent_at": time.time()}
-    stock_store.set_trade(trade)
-    row = load_session()
-    row["trade"] = {"symbol": "AISP", "state": "open", "venue": "paper", "setup_id": "x"}
-    save_session(row)
-    res = client.delete("/api/hot-list/AISP", headers=key)
-    assert res.status_code == 200 and not hot_list.is_listed("AISP")
-    assert stock_store.trade("sim", "AISP")["state"] == "holding"
-    assert load_session()["trade"]["state"] == "open"

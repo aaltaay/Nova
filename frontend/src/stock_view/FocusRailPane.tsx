@@ -23,8 +23,6 @@ import { WatchMark } from '../watch_list';
 import {
   FOCUS_RAIL_ALERT_COLS,
   FOCUS_RAIL_ALERT_ORDER_TITLE,
-  FOCUS_RAIL_BOT_HELD_TITLE,
-  FOCUS_RAIL_BOT_QUIET_TITLE,
   FOCUS_RAIL_CARD_HIDE_MS,
   FOCUS_RAIL_REC_TITLE,
   FOCUS_RAIL_SORT_LABELS,
@@ -44,11 +42,9 @@ export interface FocusPaneShared {
   /** Sim off the live edge with no board at the playhead: live values stay off the rows. */
   replayDesk: boolean;
   watchList: readonly string[];
-  isAllowed: (symbol: string) => boolean;
   isRecording: (symbol: string) => boolean;
   /** The Trader's active symbol, upper-case, or null. */
   active: string | null;
-  traderLiveTabs: readonly string[];
   open: (symbol: string) => void;
   modules: readonly NovaModule[];
 }
@@ -131,7 +127,7 @@ export interface FocusRailPaneProps {
 }
 
 export function FocusRailPane({ tid, half, view, onPick, onSort: setSort, shared, title, pickAria, control, folded = false }: FocusRailPaneProps) {
-  const { replayDesk, watchList, isAllowed, isRecording, active, traderLiveTabs, open, modules } = shared;
+  const { replayDesk, watchList, isRecording, active, open, modules } = shared;
   const { list, title: listTitle, rows, absent, sort, sortable, alerts } = view;
   const [cursor, setCursor] = useState(-1);
   const [hover, setHover] = useState<FocusRailHover | null>(null);
@@ -239,11 +235,9 @@ export function FocusRailPane({ tid, half, view, onPick, onSort: setSort, shared
             </>
           ) : rows.map((row, index) => {
             const recording = isRecording(row.symbol);
-            const allowed = isAllowed(row.symbol);
-            const held = allowed && (recording || traderLiveTabs.includes(row.symbol));
             const isActive = row.symbol === active;
-            // One card for the row, from the circle or the dots (news first, then status).
-            const card = { row, news: !replayDesk, recording, allowed, held };
+            // One card for the row, from the circle or the dot (news first, then status).
+            const card = { row, news: !replayDesk, recording };
             const openCard = card.news || hasStatus(card)
               ? (event: React.MouseEvent<HTMLElement>) => showCard(event.currentTarget, card)
               : undefined;
@@ -271,11 +265,6 @@ export function FocusRailPane({ tid, half, view, onPick, onSort: setSort, shared
                 </span>
                 <span className="focus-rail__dots" data-testid={`${tid}-dots-${row.symbol}`} onMouseEnter={openCard}>
                   {recording && <i className="focus-rail__dot focus-rail__dot--rec" aria-label={FOCUS_RAIL_REC_TITLE} data-testid={`${tid}-rec-${row.symbol}`} />}
-                  {allowed && (
-                    <i className={`focus-rail__dot focus-rail__dot--bot${held ? '' : ' focus-rail__dot--quiet'}`}
-                      aria-label={held ? FOCUS_RAIL_BOT_HELD_TITLE : FOCUS_RAIL_BOT_QUIET_TITLE}
-                      data-testid={`${tid}-bot-${row.symbol}`} data-held={held ? '1' : '0'} />
-                  )}
                 </span>
                 {watchList.includes(row.symbol) ? (
                   <span className="focus-rail__sym is-watched" data-testid={`${tid}-watched-${row.symbol}`}>

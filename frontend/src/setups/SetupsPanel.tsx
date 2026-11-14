@@ -1,8 +1,7 @@
-/** Watchlist > Setups (ADR 022, ADR 031): every setup's live scanner on one board,
- * a chip per setup to filter it, and each setup's own scoreboard. What each level
- * does is said here (ADR 042 draft): Eyes proposes, Strategy also lets Nova buy
- * (the bot, Auto-entry) on Paper and Sim while the bot is Active. "Stage ticket"
- * only fills a ticket, sized by the venue sleeve's risk per trade. */
+/** Contenders > Setups (ADR 022, ADR 031): every setup's live scanner on one board,
+ * a chip per setup to filter it, and each setup's own scoreboard. Since ADR 072 every
+ * strategy only watches, on Level 1: nothing proposes and nothing buys, and the board
+ * says so. "Stage ticket" only fills a ticket, sized by the venue sleeve's risk per trade. */
 import { useEffect, useState } from 'react';
 import { BOT_SETUP_IDS, BOT_SETUP_NEXT } from '../constantGroups/bot';
 import { SETUPS_FILTER_ALL, SETUPS_FILTER_TIP, SETUPS_LEVEL_WORDS } from '../constantGroups/setups';
@@ -29,21 +28,8 @@ interface Props {
 
 type View = 'board' | 'scoreboard';
 
-function proposingWords(board: Board): string {
-  const setups = board.setups ?? [];
-  if (board.proposing) {
-    const eyes = setups.filter(s => s.proposing).map(s => setupShort(s.id).toLowerCase());
-    return eyes.length ? `proposing: ${eyes.join(', ')}` : 'proposing';
-  }
-  if (!setups.some(s => s.level >= 1)) return 'every setup at Off: scoring in silence';
-  // A setup's own level is capped by the Bots page's master level (ADR 042 draft).
-  const known = setups.filter(s => typeof s.effective === 'number');
-  if (known.length && known.every(s => (s.effective ?? 0) < 1)) {
-    return 'the Bot\'s master level is Off: no setup proposes, every one scores in silence';
-  }
-  if (known.some(s => (s.effective ?? 0) >= 1)) return 'no proposals on a replay desk';
-  return 'no setup proposes now: the Bot\'s master level is Off, or this desk replays another moment';
-}
+/** ADR 072: no strategy proposes or trades; the line says what the board is. */
+const WATCH_ONLY_WORDS = 'watching only: no strategy trades';
 
 function statusLine(board: Board | null, connected: boolean, summary: SetupSummary | null): string {
   if (!connected) return 'Connecting to the setup scanner…';
@@ -57,7 +43,7 @@ function statusLine(board: Board | null, connected: boolean, summary: SetupSumma
     parts.push(`${board.setups.length} setups`);
   }
   if (board.seeding > 0) parts.push(`loading today's bars for ${board.seeding}`);
-  parts.push(proposingWords(board));
+  parts.push(WATCH_ONLY_WORDS);
   return parts.join(' · ');
 }
 
@@ -108,7 +94,7 @@ export function SetupsPanel({ selectedSymbol, onSelectSymbol, onOpenTrading }: P
     <div className="setups-panel">
       <div className="watchlist-description" data-testid="setups-description">
         One scanner per setup on the HOD Momo names: the long ones (first pullback, bull flag, flat-top breakout, red
-        to green, Gap and Go) and the five shorts, marked ▼. Near the trigger the bot reads Level 2 and the tape.
+        to green, Gap and Go) and the five shorts, marked ▼.
         {' '}{SETUPS_LEVEL_WORDS} &ldquo;Stage ticket&rdquo; only fills your ticket, sized by your risk per trade: a
         short goes in on its Short side with its buy stop. You press Place. Hover any chip for what it means.
       </div>

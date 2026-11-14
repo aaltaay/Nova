@@ -1,7 +1,7 @@
 /**
  * Emergency KILL compose -- existing doors only.
- * L0 + desk lock first (stop bot re-entry), then cancel -> flatten,
- * then L0 + lock again. Cancel and flatten still run if a bot PATCH fails.
+ * Desk lock first (nothing re-enters), then cancel -> flatten, then lock again.
+ * ADR 072 retired the bots, so there is no bot level to set Off any more.
  *
  * Cancel-before-flatten is the invariant this module exists to hold: a resting
  * working order that survives the flatten can immediately re-open the position
@@ -15,8 +15,6 @@
  * backend stops the leg and says what is still open, and nothing reaches the
  * venue the desk moved to. A stopped KILL is reported, never finished elsewhere.
  */
-import { patchBotSession } from '../bot';
-import { refreshBotSessionNow } from '../bot/botSessionPoller';
 import { sampleKillRefusal } from '../sample_data/sampleOrderGuard';
 import { getConfirmedDeskVenueSnapshot } from './confirmedDeskVenue';
 import { flattenAccount } from './flattenAccount';
@@ -55,23 +53,10 @@ function lockDesk(errors: string[]): void {
   }
 }
 
-async function dropAutonomyL0(
-  errors: string[],
-  alreadyOk: { value: boolean },
-): Promise<void> {
-  if (alreadyOk.value) return;
-  try {
-    await patchBotSession({ level: 0 });
-    alreadyOk.value = true;
-  } catch (error) {
-    pushError(errors, asError(error, 'Set Bot Autonomy to L0 failed'));
-  }
-  refreshBotSessionNow();
-}
 
 async function runEmergencyKillOnce(): Promise<EmergencyKillResult> {
-  // The sample desk refuses the composite as one unit: no bot PATCH, no desk
-  // lock, no cancel, no flatten. Nothing partial -- see the module header.
+  // The sample desk refuses the composite as one unit: no desk lock, no
+  // cancel, no flatten. Nothing partial -- see the module header.
   // The caller (EmergencyKillButton) surfaces `errors` in a danger dialog, so
   // the operator is told plainly that nothing happened and where a real kill
   // lives, instead of reading a refusal while the account was flattened.
@@ -79,12 +64,10 @@ async function runEmergencyKillOnce(): Promise<EmergencyKillResult> {
   if (killRefusal) return { ok: false, errors: [killRefusal] };
 
   const errors: string[] = [];
-  const l0 = { value: false };
   // Null before any status has answered: the backend then reads the desk's venue on arrival.
   const { venue } = getConfirmedDeskVenueSnapshot();
 
   lockDesk(errors);
-  await dropAutonomyL0(errors, l0);
 
   try {
     const cancel = await cancelAllWorkingOrders(undefined, venue);
@@ -110,7 +93,6 @@ async function runEmergencyKillOnce(): Promise<EmergencyKillResult> {
     pushError(errors, asError(error, 'Flatten all open positions failed'));
   }
 
-  await dropAutonomyL0(errors, l0);
   lockDesk(errors);
 
   return { ok: errors.length === 0, errors };

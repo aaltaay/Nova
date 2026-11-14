@@ -2,8 +2,8 @@
 
 ``HOD_MOMO_FORMER_MOMO_MAX_SLOTS`` slots of the active set are kept off the live movers' round-robin:
 
-1. the stocks the bot buys (``bot_symbols``: Buy set to Bot on the desk's venue -- the bot can only buy
-   what a lane reads), reason ``bot_buy``;
+1. the stocks the bot buys (``bot_symbols``), reason ``bot_buy`` -- the bridge passes none since the bots
+   retired (ADR 072);
 2. today's hot list (``hot_symbols``) in list order, reason ``hot_list``;
 3. the manual Former Momo list (``priority_symbols``) in what is left, reason ``former_momo``.
 

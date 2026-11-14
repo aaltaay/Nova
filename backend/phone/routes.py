@@ -207,25 +207,14 @@ async def cancel_many(
 def venue_effects() -> dict[str, Any]:
     """What leaving the desk's venue now would cancel or change, said before the tap (a read: no session).
 
-    Nova's entries still waiting to fill there (``stock_mode.leave``), the Bot and the padlock
-    (``agent_desk.safety``). A check that cannot be read is named in ``unknown``, never read as nothing."""
+    The padlock (``agent_desk.safety``): Nova's own entries and the Bot a switch used to cancel or turn off retired
+    with the bots (ADR 072). A check that cannot be read is named in ``unknown``, never read as nothing."""
     from agent_desk import safety
-    from stock_mode import leave
 
     where = _venue()
-    lines: list[str] = []
-    unknown: list[str] = []
-    try:
-        work = leave.work_on(where)
-    except Exception:
-        logger.warning("PHONE: could not read Nova's working entries on %s", where, exc_info=True)
-        unknown.append("Nova's working entries")
-    else:
-        if work:
-            lines.append(f"Cancels on {where.capitalize()}: {', '.join(work)}.")
     items, failed = safety.switch_changes(where)
-    lines += [str(item.get("text") or item.get("kind")) for item in items]
-    unknown += [str(f.get("kind")) for f in failed]
+    lines = [str(item.get("text") or item.get("kind")) for item in items]
+    unknown = [str(f.get("kind")) for f in failed]
     return {"venue": where, "lines": lines, "unknown": unknown}
 
 

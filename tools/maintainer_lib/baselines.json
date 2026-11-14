@@ -3,8 +3,6 @@
   "description": "Frozen counts of legacy findings per kind and 'path|detail'. A finding past its count is new and fails CI. Rewrite with `py -3 tools/maintainer_checks.py --update-baselines` and say why in the PR if a count goes up.",
   "counts": {
     "cross_feature_import": {
-      "frontend/src/bot/BotsStatusBar.tsx|bot imports internals of ibkr": 1,
-      "frontend/src/chart/ChartContextMenuHost.tsx|chart imports internals of bot": 1,
       "frontend/src/chart/useChartPositionContext.ts|chart imports internals of ibkr": 1,
       "frontend/src/chart/useChartPositionOverlay.ts|chart imports internals of ibkr": 1,
       "frontend/src/closed_orders/useClosedOrders.ts|closed_orders imports internals of ibkr": 1,
@@ -12,7 +10,6 @@
       "frontend/src/ibkr/ManualOrderTicket.tsx|ibkr imports internals of hotkeys": 1,
       "frontend/src/ibkr/ManualOrderTicketHeader.tsx|ibkr imports internals of stock_view": 1,
       "frontend/src/ibkr/TradingTab.tsx|ibkr imports internals of hotkeys": 1,
-      "frontend/src/ibkr/emergencyKill.ts|ibkr imports internals of bot": 1,
       "frontend/src/ibkr/extendedSession.ts|ibkr imports internals of chart": 1,
       "frontend/src/ibkr/useIbkrTape.ts|ibkr imports internals of chart": 1,
       "frontend/src/leaderboard/LeaderboardRecorderToast.tsx|leaderboard imports internals of ibkr": 1,
@@ -23,14 +20,10 @@
       "frontend/src/sim/useSimReplayDesk.ts|sim imports internals of ibkr": 1,
       "frontend/src/sim/useSimReplayOffer.ts|sim imports internals of ibkr": 1,
       "frontend/src/sim/useSimReplayTarget.ts|sim imports internals of ibkr": 1,
-      "frontend/src/stock_view/FocusRail.tsx|stock_view imports internals of bot": 1,
       "frontend/src/stock_view/StockViewDepthTape.tsx|stock_view imports internals of sim": 3,
       "frontend/src/stock_view/StockViewOpenOrdersDock.tsx|stock_view imports internals of ibkr": 1,
-      "frontend/src/stock_view/StockViewRail.tsx|stock_view imports internals of bot": 1,
       "frontend/src/stock_view/StockViewRail.tsx|stock_view imports internals of ibkr": 1,
-      "frontend/src/stock_view/StockViewTabs.tsx|stock_view imports internals of sim": 1,
-      "frontend/src/strategy/WatchlistTable.tsx|strategy imports internals of bot": 1,
-      "frontend/src/workspace/traderDesk/useTraderDeskBinding.ts|workspace imports internals of bot": 1
+      "frontend/src/stock_view/StockViewTabs.tsx|stock_view imports internals of sim": 1
     },
     "import_main": {
       "tools/execution_safety_probe.py|production import of main (use explicit state owner)": 1

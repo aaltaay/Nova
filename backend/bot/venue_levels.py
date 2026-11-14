@@ -16,9 +16,9 @@ dial:
 - the other venues' dials wait in ``venue_levels: {VENUE: dial}``; a venue with
   none starts Off, every setup Off, the default sleeve, no stocks;
 - a venue change (``sim.mode.set_venue``) puts the old venue's dial away,
-  takes the new one's and deactivates the bot: Activate never carries into
+  takes the new one's and clears Activate's fields: nothing carries into
   another venue, like spend arming (ADR 018). Coming back finds the old
-  level, not active.
+  level. (ADR 072 retired Activate with the Bot switch; the fields stay shut.)
 
 A session written before this has no ``level_venue``: its dial is the venue the
 desk showed when it was last changed (the old venue on a switch, the current
@@ -110,9 +110,9 @@ def switch(row: dict[str, Any], new: str | None, *, owner: str | None = None) ->
     row["venue_levels"] = stored
     row.update(mine)
     row["level_venue"] = new
-    from bot.activation import deactivate
+    from bot.arming import clear_arm_fields
 
-    deactivate(row, "venue", f"the desk moved from {held} to {new}: Activate never carries into another venue")
+    clear_arm_fields(row)
     return held
 
 
@@ -128,9 +128,6 @@ def venue_changed(old: str | None, new: str) -> None:
     try:
         row = load_session()
         before = int(row.get("level") or BOT_LEVEL_OFF)
-        from bot.arming import is_desk_active
-
-        was_active = is_desk_active(row)
         stamp = row.get("level_venue")
         came_from = switch(row, new, owner=old)
         if came_from is None:
@@ -138,7 +135,7 @@ def venue_changed(old: str | None, new: str) -> None:
                 save_session(row)        # an old session's dial, stamped with its venue
             return
         save_session(row)
-        _audit(came_from, new, before, int(row.get("level") or BOT_LEVEL_OFF), was_active)
+        _audit(came_from, new, before, int(row.get("level") or BOT_LEVEL_OFF))
     except Exception:
         # The venue still changes: an unreadable session file is the bot's to refuse
         # (``bot.persist``), never a reason to keep the desk on the old venue.
@@ -177,17 +174,12 @@ def migrate_v5(row: dict[str, Any], here: str, chosen: str | None) -> None:
     row["venue_levels"] = stored
 
 
-def _audit(old: str, new: str, before: int, after: int, was_active: bool) -> None:
+def _audit(old: str, new: str, before: int, after: int) -> None:
     from bot.audit import record
 
     try:
         record(action="venue", outcome=f"{old}->{new}",
-               reason=(f"the desk moved to {new}: the bot takes {new}'s own level ({after}); "
-                       f"{old} keeps {before}" + (" -- the bot stopped, Activate again" if was_active else "")),
-               inputs={"from": old, "to": new, "level_before": before, "level_after": after,
-                       "deactivated": was_active})
-        if was_active:
-            record(action="deactivate", outcome="ok", reason=f"the desk moved from {old} to {new}",
-                   inputs={"reason": "venue", "from": old, "to": new})
+               reason=f"the desk moved to {new}: the bot takes {new}'s own level ({after}); {old} keeps {before}",
+               inputs={"from": old, "to": new, "level_before": before, "level_after": after})
     except Exception:
         logger.warning("bot audit: venue change not recorded", exc_info=True)

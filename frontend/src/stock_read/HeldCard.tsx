@@ -2,22 +2,20 @@
  * The plan box while you hold the stock (ADR 036 amendment 2026-10-01; operator on mockup v4b: keep the
  * plan box, "i like that bar ... but i also really like the 'then' 'next' 'now' 'broke'"). The same box --
  * header, six numbers, ruler, level rows, checks, buttons -- about your position and measured from the
- * price, with the ladder under the ruler. Its stop is yours to set (never an order); "Nova takes the exit"
- * hands Nova the sell (Paper and Sim; `ExitSheet`).
+ * price, with the ladder under the ruler. Its stop is yours to set (never an order), and so is the sell: Nova takes
+ * no exit (ADR 072).
  *
  * Its targets are the target menu's defaults off your average (#845): Target 1 and Target 2, each with the share it
  * sells and its rule; there is no R-multiple target (R stays the unit your open trade is measured in).
  * A short (ADR 048) is the mirror: Shorted at, Buy stop, Next (under the price), At the stop, Cover 1 and Cover 2; a
- * round a 1-minute candle closed under offers "Lower stop to X"; Stage cover fills a buy at the ask, and "Nova
- * takes the cover" hands Nova a buy stop that only moves down. The stop order resting at the broker is the
- * card's stop until you set one for the tab.
+ * round a 1-minute candle closed under offers "Lower stop to X"; Stage cover fills a buy at the ask. The stop order
+ * resting at the broker is the card's stop until you set one for the tab.
  */
 import { requestOrderTicketPrefill, useOrderTicketListening } from '../ibkr';
 import { targetShare } from '../setups';
 import { tipProps, whyProps } from '../ux';
 import { LiveText } from '../ux/LiveText';
 import { BigSellerLine } from './BigSellerLine';
-import { ExitSheet } from './ExitSheet';
 import { ROLE_WORDS, rowOf, stopWords, type HeldTarget, type StockHeld } from './heldRead';
 import { heldAtPrice, heldRuler } from './heldView';
 import { fmtPnl } from './momentModel';
@@ -27,7 +25,6 @@ import { CheckList, rulerGlide, rulerTrack, useWidth } from './PlanRuler';
 import { fmtPx } from './planMath';
 import type { StockReadContextValue } from './StockReadContext';
 import { useTapePrice } from './useTapePrice';
-import { HELD_LIVE_COVER_WHY, HELD_LIVE_EXIT_WHY } from './whoTradesModel';
 import './heldTrade.css';
 import './shortRead.css';
 
@@ -35,21 +32,16 @@ import './shortRead.css';
 const LONG_WORDS = {
   avg: 'Average', stop: 'Stop', yourStop: 'Your stop', stopWord: 'stop', target: 'Target', partVerb: 'sell',
   noNext: 'no level above',
-  noR: 'no stop under your average', stopHit: 'STOP', novaHolds: 'NOVA HOLDS THE EXIT',
-  novaStatus: 'Nova holds the exit · stop', trail: ' · raised as levels break', stage: 'Stage sell',
-  stageTip: 'Fills this tab\'s ticket with a sell limit at the bid. It never sends.', novaTakes: 'Nova takes the exit',
-  novaTip: 'Hand Nova the sell: a resting stop, raised as round numbers break.',
-  novaRests: 'Nova\'s stop rests at the broker', noOrder: 'your stop and targets: no order is working',
+  noR: 'no stop under your average', stopHit: 'STOP', stage: 'Stage sell',
+  stageTip: 'Fills this tab\'s ticket with a sell limit at the bid. It never sends.',
+  noOrder: 'your stop and targets: no order is working',
 };
 const SHORT_WORDS: typeof LONG_WORDS = {
   avg: 'Shorted at', stop: 'Buy stop', yourStop: 'Your buy stop', stopWord: 'buy stop', target: 'Cover',
   partVerb: 'are covered',
-  noNext: 'no level below', noR: 'no buy stop over your average', stopHit: 'STOP ↑', novaHolds: 'NOVA HOLDS THE COVER',
-  novaStatus: 'Nova holds the cover · buy stop', trail: ' · lowered as levels break', stage: 'Stage cover',
+  noNext: 'no level below', noR: 'no buy stop over your average', stopHit: 'STOP ↑', stage: 'Stage cover',
   stageTip: 'Fills this tab\'s ticket with a buy limit at the ask: the cover. It never sends.',
-  novaTakes: 'Nova takes the cover',
-  novaTip: 'Hand Nova the cover: a resting buy stop, lowered as round numbers break. Paper and Sim only.',
-  novaRests: 'Nova\'s buy stop rests at the broker', noOrder: 'your buy stop and covers: no order is working',
+  noOrder: 'your buy stop and covers: no order is working',
 };
 
 const SHORT_TAG_TIP = 'You hold it short: borrowed through IBKR and sold. You make money as it falls; the buy stop '
@@ -161,11 +153,7 @@ export function HeldCard({ ctx, held, folded = false, onFold }: {
   folded?: boolean;
   onFold?: () => void;
 }) {
-  const who = ctx.who;
-  const view = who.view;
   const listening = useOrderTicketListening(ctx.symbol);
-  const trade = view?.trade ?? null;
-  const novaExit = trade && trade.kind === 'exit' && trade.state === 'holding' && trade.exits === 'nova' ? trade : null;
   const short = held.side === 'short';
   const w = short ? SHORT_WORDS : LONG_WORDS;
   const next = rowOf(held, 'next');
@@ -175,15 +163,13 @@ export function HeldCard({ ctx, held, folded = false, onFold }: {
   const move = short ? held.lower ?? null : held.raise;
   // A long sells at the bid; a short covers with a buy at the ask.
   const quote = short ? ctx.topOfBook?.ask ?? null : ctx.topOfBook?.bid ?? null;
-  const live = (view?.venue ?? null) === 'live';
-  const exitLock = view?.locks.sell ? (live ? (short ? HELD_LIVE_COVER_WHY : HELD_LIVE_EXIT_WHY) : view.locks.sell) : null;
   const sellLock = !listening ? 'This tab has no order ticket open to fill. Show the Order Entry module on the rail.'
     : quote === null ? `No ${short ? 'ask' : 'bid'} on Level 2 yet.` : null;
   const atStop = stop ? (short ? held.avg - stop.price : stop.price - held.avg) * held.qty : null;
-  const resting = !novaExit && stop && stop.source === 'yours' && ctx.held.track.stop === null
+  const resting = stop && stop.source === 'yours' && ctx.held.track.stop === null
     && ctx.position?.workingStop != null && Math.abs(ctx.position.workingStop - stop.price) < 1e-6;
   const badge = move ? `BROKE $${move.round.toFixed(2)}`
-    : stop?.printed ? `${w.stopHit} ${fmtPx(stop.price)} HIT` : novaExit ? w.novaHolds : 'IN THE TRADE';
+    : stop?.printed ? `${w.stopHit} ${fmtPx(stop.price)} HIT` : 'IN THE TRADE';
   const badgeCls = move ? 'broke' : stop?.printed ? 'stophit' : 'held';
   return (
     <section className="sr-plan sr-plan--held" data-testid="held-card" aria-label="The trade you hold">
@@ -210,12 +196,8 @@ export function HeldCard({ ctx, held, folded = false, onFold }: {
         </div>
         <div className="sr-num sr-num--stop" {...tipProps(stop ? `${stopWords(stop)}: ${stop.rule}` : 'No stop yet.', w.stop)}>
           <span className="sr-num__k">{w.stop}{stop?.source === 'proposed' ? ' · proposed' : ''}</span>
-          {novaExit ? (
-            <span className="sr-num__v" data-testid="held-stop">{fmtPx(stop?.price ?? novaExit.stop)}</span>
-          ) : (
-            <PriceInput value={stop?.price ?? null} label={w.yourStop} testId="held-stop-input"
-              onCommit={v => ctx.held.setStop(v)} />
-          )}
+          <PriceInput value={stop?.price ?? null} label={w.yourStop} testId="held-stop-input"
+            onCommit={v => ctx.held.setStop(v)} />
           <span className="sr-num__s">{resting ? 'resting at the broker' : stop ? stop.rule : 'type one'}</span>
         </div>
         <div className="sr-num sr-num--target">
@@ -236,44 +218,26 @@ export function HeldCard({ ctx, held, folded = false, onFold }: {
       <LevelRowList levels={held.levels} />
       <CheckList checks={held.checks} />
       <footer className="sr-plan__foot">
-        {novaExit ? (
-          <>
-            <span className="sr-plan__status sr-plan__status--done" data-testid="held-nova-status">
-              {w.novaStatus} {fmtPx(novaExit.stop)}{novaExit.trail ? w.trail : ''}
-            </span>
-            <button type="button" className="sr-btn" disabled={who.busy !== null} {...whyProps(who.busy !== null, who.busy)}
-              onClick={() => void who.takeOver()} data-testid="held-take-back">Take it back</button>
-          </>
-        ) : (
-          <>
-            {stop?.source === 'proposed' && (
-              <button type="button" className="sr-btn sr-btn--primary" onClick={() => ctx.held.setStop(stop.price)}
-                {...tipProps(`Makes ${fmtPx(stop.price)} your ${w.stopWord} for this trade. It places nothing.`)}
-                data-testid="held-use-stop">Use stop {fmtPx(stop.price)}</button>
-            )}
-            {move && (
-              <button type="button" className="sr-btn sr-btn--good" onClick={() => ctx.held.setStop(move.to)}
-                {...tipProps(`${move.text}. Your ${w.stopWord} for this trade; it places nothing.`)}
-                data-testid={short ? 'held-lower' : 'held-raise'}>{short ? 'Lower' : 'Raise'} stop to {fmtPx(move.to)}</button>
-            )}
-            <button type="button" className="sr-btn" disabled={sellLock !== null} {...whyProps(sellLock !== null, sellLock)}
-              {...(sellLock === null ? tipProps(w.stageTip) : {})}
-              onClick={() => quote !== null && requestOrderTicketPrefill({ symbol: ctx.symbol, side: short ? 'BUY' : 'SELL',
-                orderType: 'LMT', quantityValue: String(held.qty), limitPrice: fmtPx(quote) })}
-              data-testid={short ? 'held-stage-cover' : 'held-stage-sell'}>{w.stage} {held.qty.toLocaleString('en-US')}</button>
-            <button type="button" className="sr-btn sr-btn--nova" disabled={exitLock !== null}
-              {...whyProps(exitLock !== null, exitLock)}
-              {...(exitLock === null ? tipProps(w.novaTip) : {})}
-              onClick={() => ctx.exitSheet.setOpen(true)} data-testid="held-nova-exit">{w.novaTakes} ›</button>
-          </>
+        {stop?.source === 'proposed' && (
+          <button type="button" className="sr-btn sr-btn--primary" onClick={() => ctx.held.setStop(stop.price)}
+            {...tipProps(`Makes ${fmtPx(stop.price)} your ${w.stopWord} for this trade. It places nothing.`)}
+            data-testid="held-use-stop">Use stop {fmtPx(stop.price)}</button>
         )}
+        {move && (
+          <button type="button" className="sr-btn sr-btn--good" onClick={() => ctx.held.setStop(move.to)}
+            {...tipProps(`${move.text}. Your ${w.stopWord} for this trade; it places nothing.`)}
+            data-testid={short ? 'held-lower' : 'held-raise'}>{short ? 'Lower' : 'Raise'} stop to {fmtPx(move.to)}</button>
+        )}
+        <button type="button" className="sr-btn" disabled={sellLock !== null} {...whyProps(sellLock !== null, sellLock)}
+          {...(sellLock === null ? tipProps(w.stageTip) : {})}
+          onClick={() => quote !== null && requestOrderTicketPrefill({ symbol: ctx.symbol, side: short ? 'BUY' : 'SELL',
+            orderType: 'LMT', quantityValue: String(held.qty), limitPrice: fmtPx(quote) })}
+          data-testid={short ? 'held-stage-cover' : 'held-stage-sell'}>{w.stage} {held.qty.toLocaleString('en-US')}</button>
         <span className="sr-plan__note" data-testid="held-note">
-          {novaExit ? w.novaRests : resting ? `your ${w.stopWord} ${fmtPx(stop!.price)} is working at the broker`
-            : w.noOrder}
+          {resting ? `your ${w.stopWord} ${fmtPx(stop!.price)} is working at the broker` : w.noOrder}
         </span>
       </footer>
       </>)}
-      {ctx.exitSheet.open && !novaExit && <ExitSheet ctx={ctx} held={held} lock={exitLock} />}
     </section>
   );
 }

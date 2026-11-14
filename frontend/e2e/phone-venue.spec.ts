@@ -12,9 +12,9 @@ async function typePin(page: Page) {
   await expect(sheet).toBeHidden();
 }
 
-test('the venue pill opens the menu, says what a switch would cancel, and a tap switches the desk', async ({ page }) => {
+test('the venue pill opens the menu, says what a switch would change, and a tap switches the desk', async ({ page }) => {
   const { errors } = attachErrorCollector(page);
-  const api = await mockPhoneApi(page, { armed: true, effects: ["Cancels on Paper: the Bot's buy of ABCD.", 'The desk is armed on Paper: switching disarms it'] });
+  const api = await mockPhoneApi(page, { armed: true, effects: ['The desk is armed on Paper: switching disarms it'] });
   await page.goto('/phone.html#/trade/ABCD');
   await expect(page.getByTestId('phone-buy-market')).toBeVisible();
 
@@ -24,7 +24,7 @@ test('the venue pill opens the menu, says what a switch would cancel, and a tap 
   await expect(menu.getByRole('menuitemradio')).toHaveCount(3);
   await expect(page.getByTestId('phone-venue-paper')).toHaveAttribute('aria-checked', 'true');
   await expect(page.getByTestId('phone-venue-live')).toContainText('look only from the phone');
-  await expect(page.getByTestId('phone-venue-stake')).toContainText("Cancels on Paper: the Bot's buy of ABCD.");
+  await expect(page.getByTestId('phone-venue-stake')).toContainText('The desk is armed on Paper: switching disarms it');
   await expect(page.getByTestId('phone-venue-stake')).toContainText('Your own orders and shares stay on Paper.');
   expect(await phoneOverflow(page)).toEqual([]);
   // Opening the menu reads; it writes nothing.

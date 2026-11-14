@@ -21,6 +21,7 @@ import { TradeSettingsSection } from '../settings/TradeSettingsSection';
 import { SensorBoard } from '../sensors/SensorBoard';
 import { LossLimitsSection } from '../loss_limit';
 import { OrderSizeLimitSection } from '../order_size_limit';
+import { StrategiesSettings } from '../bot/StrategiesSettings';
 
 export type SettingsSection = SettingsSectionId;
 
@@ -136,6 +137,7 @@ export function SettingsWorkspace(props: SettingsWorkspaceProps) {
                 <OrderSizeLimitSection />
               </>
             )}
+            {section === 'strategies' && <StrategiesSettings onClose={props.onCancel} />}
           </div>
         </div>
       </div>

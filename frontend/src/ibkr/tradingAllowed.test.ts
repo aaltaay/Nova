@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { NOVA_ACTION_PIN_LOCKED_MESSAGE } from '../constants';
 import {
-  BOT_STATE_ACTIVE,
-  BOT_STATE_NOT_ACTIVE,
-  NOVA_ACTION_PIN_LOCKED_MESSAGE,
-} from '../constants';
-import {
-  botArmDisplayState,
   evaluateTradingAllowed,
   padlockLooksUnlocked,
 } from './tradingAllowed';
@@ -76,27 +71,5 @@ describe('evaluateTradingAllowed', () => {
     });
     expect(gate.blockers).toEqual(['spend', 'pin']);
     expect(gate.reason).toBe('IBKR session not ready');
-  });
-
-  it('Activate must not look Active when places are blocked', () => {
-    const blocked = evaluateTradingAllowed({
-      connected: true,
-      spendStatus: 'paper_armed',
-      sessionUnlocked: false,
-      backendAllowed: true,
-    });
-    const display = botArmDisplayState(true, blocked);
-    expect(display.looksActive).toBe(false);
-    expect(display.label).toContain(BOT_STATE_ACTIVE);
-    expect(display.label).toContain(NOVA_ACTION_PIN_LOCKED_MESSAGE);
-    expect(botArmDisplayState(true, {
-      allowed: true,
-      reason: null,
-      blockers: [],
-    })).toEqual({ label: BOT_STATE_ACTIVE, looksActive: true });
-    expect(botArmDisplayState(false, blocked)).toEqual({
-      label: BOT_STATE_NOT_ACTIVE,
-      looksActive: false,
-    });
   });
 });

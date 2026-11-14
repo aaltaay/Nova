@@ -294,7 +294,7 @@
   gap: 5px;
 }
 
-/* ── Row marks (REC / bot) ─────────────────────────────────────────────── */
+/* ── Row marks (REC) ───────────────────────────────────────────────────── */
 .scanner-mark {
   display: inline-block;
   width: 7px;
@@ -308,11 +308,3 @@
   background: #ff3b30;
 }
 
-.scanner-mark--bot {
-  background: var(--accent-color, #3b82f6);
-}
-
-.scanner-mark--bot.is-quiet {
-  background: transparent;
-  border: 1.5px solid var(--accent-color, #3b82f6);
-}

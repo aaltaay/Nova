@@ -41,8 +41,6 @@ SETUP_WORDS = {"first_pullback": "first pullback", "bull_flag": "bull flag",
                "flat_top_breakout": "flat-top breakout", "flat_top_5m": "5-minute flat top",
                "red_to_green": "red to green", "gap_and_go": "Gap and Go", "pullback_dip": "pullback dip", "abcd": "ABCD"}
 
-# Nova's own trades that keep the bots' lane past the scanner's scoring window.
-BOT_TRADE_LIVE_STATES = ("entering", "open", "exiting")
 
 
 # The words a socket or a request reads when no lane is on its stock.

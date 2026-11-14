@@ -1,7 +1,8 @@
 """Optional MCP/SDK adapter contract -- not imported by routes.
 
 Maps MCP-style tool names to the localhost OpenAPI. Adapters never raise
-autonomy and never place except via POST /api/bot/action. Do not start an
+autonomy and never place except via POST /api/bot/action (the brain's door to be,
+ADR 072; it sends nothing yet). ADR 072 retired proposals. Do not start an
 MCP server from this module. Do not marry a model vendor.
 """
 from __future__ import annotations
@@ -14,14 +15,11 @@ TOOLS = (
     {"name": "bot_session_claim", "method": "POST", "path": "/api/bot/session/claim", "auth": True},
     {"name": "bot_heartbeat", "method": "POST", "path": "/api/bot/session/heartbeat", "auth": True},
     {"name": "bot_action", "method": "POST", "path": "/api/bot/action", "auth": True},
-    {"name": "bot_propose", "method": "POST", "path": "/api/bot/proposals", "auth": True},
 )
 
-DESK_ONLY = (
-    {"name": "bot_arm", "method": "POST", "path": "/api/bot/session/arm"},
-    {"name": "bot_disarm", "method": "POST", "path": "/api/bot/session/disarm"},
-    {"name": "bot_session_patch", "method": "PATCH", "path": "/api/bot/session"},
-)
+# The desk-only routes an adapter must never call. ADR 072 retired the last of them -- Activate, Stop and the
+# session's PATCH went with the Bot switch -- so the bot API has none left.
+DESK_ONLY: tuple[dict[str, str], ...] = ()
 
 
 def client(**kwargs) -> BotApiClient:

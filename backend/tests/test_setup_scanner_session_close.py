@@ -115,7 +115,7 @@ def test_a_restart_after_the_close_shows_the_day_ended_not_forming(tmp_path):
     assert [ln["event"] for ln in lines[said:]] in ([], ["beat"])
 
 
-def test_the_close_disarms_an_armed_setup_and_withdraws_its_proposal(tmp_path):
+def test_the_close_disarms_an_armed_setup(tmp_path):
     """A thin name armed and near at 08:58 that never printed again: it stood "near" into the night."""
     bars = add(leg_up(base_morning(), [4.08, 4.18, 4.28, 4.38]), 4.38, 4.37, 4.30, 4.32, 30_000)
     day = "2026-09-21"
@@ -126,14 +126,11 @@ def test_the_close_disarms_an_armed_setup_and_withdraws_its_proposal(tmp_path):
     tick(eng, clock, clock["t"])
     eng.on_l1_minute("last", "ABCD", {"price": 4.35, "ts": clock["t"], "bar_open": 4.32})
     tick(eng, clock, clock["t"])
-    assert eng.det["ABCD"].state == "near"
-    prop = next(iter(eng.proposals.values()))
-    assert prop["status"] == "open"
+    assert eng.det["ABCD"].state == "near" and eng.proposals == {}      # ADR 072: no proposal to withdraw
 
     tick(eng, clock, at(20, 0, 0.2, day=day))
     assert eng.det["ABCD"].state == "watching" and eng.det["ABCD"].reason == SETUPS_SESSION_CLOSED_REASON
-    assert prop["status"] == "disarmed"
-    assert any(a["action"] == "setup_proposal" and a["outcome"] == "disarmed" for a in audits)
+    assert not [a for a in audits if a["action"] == "setup_proposal"]
     saved = eng.store.rows()[0]
     assert saved["disarmed_at"] and not saved.get("triggered_at")
     assert eng.board(clock["t"])["rows"] == [] and eng.tape.synced == set()   # no tape line held for it

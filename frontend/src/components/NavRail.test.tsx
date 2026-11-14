@@ -124,15 +124,16 @@ describe('NavRail', () => {
   const testIds = (scope: Element) =>
     Array.from(scope.querySelectorAll('[data-testid]')).map((el) => el.getAttribute('data-testid'));
 
-  it('lists Market, Trader, Scanner, Cryptos, Account, Bots, Records top to bottom and pins Settings + collapse at the foot', () => {
+  it('lists Market, Trader, Scanner, Cryptos, Congress, TraderTV, Account, Records top to bottom and pins Settings + collapse at the foot', () => {
     render();
     const rail = q('nav-rail')!;
     expect(rail.tagName).toBe('NAV');
     expect(rail.getAttribute('aria-label')).toBe('Navigation');
     const top = testIds(rail.querySelector('.nav-rail__list')!).filter((id) =>
-      ['nav-rail-forex', 'nav-rail-global', 'nav-rail-market', 'nav-rail-trader', 'nav-rail-scanner', 'nav-rail-cryptos', 'nav-rail-congress', 'nav-rail-account', 'nav-rail-bots', 'nav-rail-records'].includes(id!),
+      ['nav-rail-forex', 'nav-rail-global', 'nav-rail-market', 'nav-rail-trader', 'nav-rail-scanner', 'nav-rail-cryptos', 'nav-rail-congress', 'nav-rail-tradertv', 'nav-rail-account', 'nav-rail-records'].includes(id!),
     );
-    // Forex above Global, Global above Market (operator asks, 2026-10-20); Congress after Cryptos (ADR 066).
+    // Forex above Global, Global above Market (operator asks, 2026-10-20); Congress after Cryptos (ADR 066);
+    // TraderTV under Congress, and no Bots group (ADR 072, approved mockup retire-bots v1).
     expect(top).toEqual([
       'nav-rail-forex',
       'nav-rail-global',
@@ -141,8 +142,8 @@ describe('NavRail', () => {
       'nav-rail-scanner',
       'nav-rail-cryptos',
       'nav-rail-congress',
+      'nav-rail-tradertv',
       'nav-rail-account',
-      'nav-rail-bots',
       'nav-rail-records',
     ]);
     const foot = rail.querySelector('.nav-rail__foot')!;
@@ -150,13 +151,15 @@ describe('NavRail', () => {
     expect(q('nav-rail-settings')!.textContent).toMatch(/Settings/);
   });
 
-  it('has no TraderTV LIVE item, feed or not: its page is Bots > LiveTrader Bots (operator, 2026-10-15)', () => {
+  it('opens TraderTV, the hosts\' page, from its own item, feed or not (ADR 072)', () => {
     followed.current = true;
     render();
     expect(q('nav-rail-followed')).toBeNull();
-    expect(container.textContent).not.toContain('TraderTV LIVE');
-    click('nav-rail-bots-live-trader');
-    expect(getNavPage()).toBe('bots-live-trader');
+    expect(q('nav-rail-bots')).toBeNull();
+    expect(q('nav-rail-tradertv')!.textContent).toBe('TraderTV');
+    click('nav-rail-tradertv');
+    expect(getNavPage()).toBe('tradertv');
+    expect(q('nav-rail-tradertv')!.classList.contains('is-active')).toBe(true);
   });
 
   it('builds the Scanner tree from the registry groups, in registry order, with group labels', () => {
@@ -224,50 +227,25 @@ describe('NavRail', () => {
     expect(q('nav-rail-tab-hod_momo')!.getAttribute('aria-pressed')).toBe('false');
   });
 
-  it('marks Account from the dashboard tab, Bots from its page, and Trader while traderActive', () => {
+  it('marks Account from the dashboard tab, TraderTV from its page, and Trader while traderActive', () => {
     render();
     act(() => {
       publishScannerNavState({ activeTab: 'trading', railHighlight: 'trading', counts: {} });
     });
     expect(q('nav-rail-account')!.classList.contains('is-active')).toBe(true);
     expect(q('nav-rail-scanner')!.classList.contains('is-active')).toBe(false);
-    // Bots is a shell page (approved mockup v4), no longer a dashboard tab.
-    act(() => setNavPage('bots'));
-    expect(q('nav-rail-bots')!.classList.contains('is-active')).toBe(true);
+    act(() => setNavPage('tradertv'));
+    expect(q('nav-rail-tradertv')!.classList.contains('is-active')).toBe(true);
     expect(q('nav-rail-account')!.classList.contains('is-active')).toBe(false);
     expect(q('nav-rail-scanner')!.classList.contains('is-active')).toBe(false);
 
     render({ traderActive: true });
     expect(q('nav-rail-trader')!.classList.contains('is-active')).toBe(true);
     expect(q('nav-rail-trader')!.getAttribute('aria-current')).toBe('page');
-    expect(q('nav-rail-bots')!.classList.contains('is-active')).toBe(false);
+    expect(q('nav-rail-tradertv')!.classList.contains('is-active')).toBe(false);
     expect(q('nav-rail-scanner')!.classList.contains('is-active')).toBe(false);
   });
 
-  it('makes Bots a group: LiveTrader Bots and Strategy Bots under it, each its own page (2026-10-15)', () => {
-    render({ traderActive: true });
-    const tree = q('nav-rail-bots-tree')!;
-    const items = [...tree.querySelectorAll('button')].map(b => b.getAttribute('data-testid'));
-    expect(items).toEqual(['nav-rail-bots', 'nav-rail-bots-live-trader', 'nav-rail-bots-strategy']);
-    expect(q('nav-rail-bots-live-trader')!.textContent).toBe('LiveTrader Bots');
-    expect(q('nav-rail-bots-strategy')!.textContent).toBe('Strategy Bots');
-    expect(q('nav-rail-bots-live-trader')!.classList.contains('nav-rail__child')).toBe(true);
-    click('nav-rail-bots-live-trader');
-    expect(onLeaveTrader).toHaveBeenCalled();
-    expect(getNavPage()).toBe('bots-live-trader');
-    render();
-    // The child carries the bar; the parent reads active quietly, as the Scanner tree does.
-    expect(q('nav-rail-bots-live-trader')!.getAttribute('aria-current')).toBe('page');
-    expect(q('nav-rail-bots')!.classList.contains('is-active')).toBe(true);
-    expect(q('nav-rail-bots-strategy')!.classList.contains('is-active')).toBe(false);
-    click('nav-rail-bots-strategy');
-    expect(getNavPage()).toBe('bots-strategy');
-    expect(q('nav-rail-bots-strategy')!.classList.contains('is-active')).toBe(true);
-    expect(q('nav-rail-bots-live-trader')!.classList.contains('is-active')).toBe(false);
-    click('nav-rail-bots');
-    expect(getNavPage()).toBe('bots');
-    expect(q('nav-rail-bots-strategy')!.classList.contains('is-active')).toBe(false);
-  });
 
   it('opens Trader for the selected symbol, SPY when none, and is a no-op while Trader is up', () => {
     render();
@@ -318,7 +296,7 @@ describe('NavRail', () => {
     expect(getNavPage()).toBe('dashboard');
   });
 
-  it('Cryptos, Account, Bots, Market and Records each switch the shell page', () => {
+  it('Cryptos, Congress, TraderTV, Account, Market and Records each switch the shell page', () => {
     render();
     click('nav-rail-cryptos');
     expect(getNavPage()).toBe('cryptos');
@@ -333,10 +311,10 @@ describe('NavRail', () => {
     expect(getNavPage()).toBe('account');
     expect(consumeScannerTabRequest()).toBeNull();
     expect(q('nav-rail-account')!.classList.contains('is-active')).toBe(true);
-    click('nav-rail-bots');
-    expect(getNavPage()).toBe('bots');
+    click('nav-rail-tradertv');
+    expect(getNavPage()).toBe('tradertv');
     expect(consumeScannerTabRequest()).toBeNull();
-    expect(q('nav-rail-bots')!.classList.contains('is-active')).toBe(true);
+    expect(q('nav-rail-tradertv')!.classList.contains('is-active')).toBe(true);
     click('nav-rail-forex');
     expect(getNavPage()).toBe('forex');
     expect(q('nav-rail-forex')!.classList.contains('is-active')).toBe(true);
@@ -523,7 +501,7 @@ describe('NavRail', () => {
     expect(q('global-bar-fund-account')).toBeTruthy();
   });
 
-  it('hides Scanner children, Account and Bots that the Modules setting turned off', () => {
+  it('hides Scanner children and Account that the Modules setting turned off; there is no Bots item (ADR 072)', () => {
     visibility.current = { gainers: false, trading: false, strategy: false };
     render();
     expect(q('nav-rail-tab-gappers')).toBeTruthy();

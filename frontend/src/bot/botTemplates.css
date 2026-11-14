@@ -1,6 +1,6 @@
-/* Setup templates on the Bots page (ADR 029): the template row on each setup
-   card, and the parameter editor. The editor renders in a portal outside
-   .bots-page, so it carries the page's tokens itself. Owner: bot/BotStrategiesCard.tsx. */
+/* Setup templates (ADR 029): the parameter editor, opened from Settings > Strategies (ADR 072). The editor
+   renders in a portal, so it carries its own tokens, and its buttons, error line and badge since the Bots page
+   and its stylesheets are gone. Owner: bot/BotTemplateEditor.tsx. */
 
 /* -- The template row on a setup card ------------------------------------- */
 .bots-strat__tpl {
@@ -136,3 +136,43 @@
 
 /* ADR 042 G: the template's bot window, amber when it was clipped to the arming window. */
 .bots-tpl__botwin.is-clipped { color: #f59e0b; }
+
+/* The editor's buttons, error line and "in play" badge (from the retired Bots page's stylesheets, ADR 072). */
+.bots-tpl .bots-btn {
+  font: inherit;
+  font-size: 12.5px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--nova-border-strong, var(--nova-border));
+  background: transparent;
+  color: var(--nova-text);
+  cursor: pointer;
+}
+.bots-tpl .bots-btn:hover:not(:disabled) { background: var(--hover-bg, rgba(255, 255, 255, 0.06)); }
+.bots-tpl .bots-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.bots-tpl .bots-btn--primary { background: var(--bots-blue); border-color: var(--bots-blue); color: #fff; font-weight: 600; }
+.bots-tpl .bots-btn--primary:hover:not(:disabled) { background: var(--accent-hover, var(--bots-blue)); }
+.bots-tpl .bots-btn--primary:disabled {
+  background: color-mix(in srgb, var(--nova-text-muted) 18%, transparent);
+  border-color: var(--nova-border);
+  color: var(--nova-text-muted);
+  opacity: 1;
+}
+.bots-tpl .bots-btn--danger {
+  color: var(--bots-red);
+  border-color: color-mix(in srgb, var(--bots-red) 55%, transparent);
+  background: color-mix(in srgb, var(--bots-red) 12%, transparent);
+}
+.bots-tpl .bots-btn--danger:hover:not(:disabled) { background: color-mix(in srgb, var(--bots-red) 20%, transparent); }
+.bots-tpl .bots-hero__error { margin: 0; color: var(--bots-red); font-size: 12px; line-height: 1.4; }
+.bots-tpl .bots-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--bots-amber);
+  background: color-mix(in srgb, var(--bots-amber) 15%, transparent);
+  border-radius: 4px;
+  padding: 0 6px;
+  line-height: 18px;
+}

@@ -4,12 +4,11 @@
  * collapsed it is a tray of child icons with a hairline between groups
  * (operator ask, 2026-09-22); it no longer folds (operator ask, 2026-09-23).
  * Shared by every view -- Market, Trader, Scanner (the registry's grouped tab
- * modules), Cryptos, Followed traders (only with a feed configured), Account, Bots
- * (a group: LiveTrader Bots and Strategy Bots under it, NavRailBotsTree), Records,
- * then Advise + Settings + collapse pinned at the foot.
+ * modules), Cryptos, Congress, TraderTV (the hosts' page, back on the rail when ADR 072 retired the Bots
+ * group), Account, Records, then Advise + Settings + collapse pinned at the foot.
  *
- * Routing: Trader is the workspace's Stock View; Market / Cryptos / Followed traders /
- * Records / Account / Bots are shell pages (navRailStore); Scanner children are dashboard tabs asked for
+ * Routing: Trader is the workspace's Stock View; Market / Cryptos / Congress / TraderTV /
+ * Records / Account are shell pages (navRailStore); Scanner children are dashboard tabs asked for
  * through the store's latch so the request survives a remount.
  */
 import { useCallback, useMemo, useState } from 'react';
@@ -30,6 +29,7 @@ import {
   NAV_RAIL_LABEL_SCANNER,
   NAV_RAIL_LABEL_SETTINGS,
   NAV_RAIL_LABEL_TRADER,
+  NAV_RAIL_LABEL_TRADERTV,
   NAV_RAIL_RECORDING_MAX,
   NAV_RAIL_TITLE_CONGRESS,
   NAV_RAIL_TITLE_CRYPTOS,
@@ -40,6 +40,7 @@ import {
   NAV_RAIL_TITLE_SCANNER,
   NAV_RAIL_TITLE_SETTINGS,
   NAV_RAIL_TITLE_TRADER,
+  NAV_RAIL_TITLE_TRADERTV,
   NAV_RAIL_STRIP_FOCUS_TITLE,
   navRailAlertSymbolsTitle,
   navRailRecordingTitle,
@@ -59,7 +60,6 @@ import { isDockTab } from '../workspace/scannerTabs';
 import { useModuleVisibility } from '../workspace/useModuleVisibility';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import { NavRailAccountItem } from './NavRailAccountItem';
-import { NavRailBotsTree } from './NavRailBotsTree';
 import { navRailIcon } from './navRailIcons';
 import { NavRailItem } from './NavRailItem';
 import { readNavRailPrefs, writeNavRailPrefs, type NavRailPrefs } from './navRailPersist';
@@ -243,11 +243,16 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
           active={!traderActive && page === 'congress'}
           onClick={() => goPage('congress')}
         />
+        <NavRailItem
+          testId="nav-rail-tradertv"
+          icon={navRailIcon('tradertv')}
+          label={NAV_RAIL_LABEL_TRADERTV}
+          title={NAV_RAIL_TITLE_TRADERTV}
+          active={!traderActive && page === 'tradertv'}
+          onClick={() => goPage('tradertv')}
+        />
         {visibility.trading !== false && (
           <NavRailAccountItem active={accountActive} onOpen={() => goPage('account')} />
-        )}
-        {visibility.strategy !== false && (
-          <NavRailBotsTree page={traderActive ? null : page} onOpen={goPage} />
         )}
         <NavRailItem
           testId="nav-rail-records"

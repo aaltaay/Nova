@@ -26,7 +26,6 @@ const mocks = vi.hoisted(() => ({
     staleSince: null as number | null,
     refresh: vi.fn(),
   },
-  bot: { session: null as unknown },
 }));
 
 vi.mock('../api/novaFetch', () => ({ novaFetch: mocks.fetch }));
@@ -36,7 +35,6 @@ vi.mock('../ibkr/IbkrAccountContext', () => ({
   useIbkrAccountContext: () => mocks.ibkr,
   useOptionalIbkrAccountContext: () => mocks.ibkr,
 }));
-vi.mock('../bot/useBotSession', () => ({ useBotSession: () => mocks.bot }));
 // The page follows the status's own venue (C26); here it states none, so the workspace mode decides.
 vi.mock('../ibkr/useIbkrStatus', () => ({ useIbkrStatus: () => ({ mode: mocks.workspace.ibkrMode }) }));
 vi.mock('../ibkr/TradingTab', () => ({
@@ -67,7 +65,6 @@ beforeEach(() => {
   mocks.ibkr.summary = null;
   mocks.ibkr.orders = [];
   mocks.ibkr.closedOrders = [];
-  mocks.bot.session = null;
   mocks.fetch.mockImplementation(async (url: string, init?: RequestInit) => {
     const u = String(url);
     if (u.includes('/api/practice/history')) return { ok: true, status: 200, json: async () => paperHistoryFixture() };
@@ -207,21 +204,11 @@ describe('AccountPage', () => {
     expect(screen.getByTestId('legacy-trading-tab').getAttribute('data-ticket')).toBe('off');
   });
 
-  it('with no bot session the order size is unavailable, never the product ceiling (C35)', async () => {
-    mocks.workspace.ibkrMode = 'live';
-    mocks.bot.session = null;
-    render(<AccountPage onOpenTrader={() => {}} />);
-    expect(screen.getByTestId('account-bot-order-size').textContent).toMatch(/unavailable/);
-    expect(screen.getByTestId('account-bot-order-size').textContent).not.toMatch(/10 sh/);
-  });
-
-  it('shows the bot cap as the size of each bot order and the largest position as every source\'s (W11)', async () => {
-    mocks.bot.session = { caps: { max_shares: 1 } };
+  it('shows the largest position as every source\'s, and no bot order size (W11, ADR 072)', async () => {
     render(<AccountPage onOpenTrader={() => {}} />);
     await waitFor(() => expect(screen.getByTestId('account-largest-position').textContent).toBe('400 sh GRML · every source'));
-    expect(screen.getByTestId('account-bot-order-size').textContent).toBe('1 sh per bot order');
-    // Nothing reads "400 / 1 sh": the two figures are not compared.
-    expect(screen.getByTestId('account-risk').textContent).not.toMatch(/\/ 1 sh/);
+    expect(screen.queryByTestId('account-bot-order-size')).toBeNull();
+    expect(screen.getByTestId('account-risk').textContent).not.toMatch(/per bot order/);
   });
 
   it('the Performance headline adds the live open P&L, agreeing with Day\'s P&L (W1)', async () => {

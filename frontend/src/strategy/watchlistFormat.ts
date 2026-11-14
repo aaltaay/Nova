@@ -8,7 +8,7 @@ import {
 import { rowRank, setupShort, setupTypeOf, stateWords, type SetupRow } from '../setups';
 import type { WatchlistEntry } from './types';
 
-export type WatchlistFilter = 'all' | 'pillars5' | 'setup_live' | 'allowlist';
+export type WatchlistFilter = 'all' | 'pillars5' | 'setup_live';
 
 /** A setup still in play: its trigger can still print. */
 const LIVE_STATES = new Set(['near', 'armed', 'pullback', 'leg']);
@@ -114,11 +114,9 @@ export function applyFilter(
   entries: WatchlistEntry[],
   filter: WatchlistFilter,
   setups: Map<string, SetupRow>,
-  isAllowed: (symbol: string) => boolean,
 ): WatchlistEntry[] {
   if (filter === 'pillars5') return entries.filter(e => e.five_pillars.all_pass);
   if (filter === 'setup_live') return entries.filter(e => isSetupLive(setups.get(e.symbol)));
-  if (filter === 'allowlist') return entries.filter(e => isAllowed(e.symbol));
   return entries;
 }
 
@@ -127,26 +125,22 @@ export interface WatchlistSummary {
   allPass: number;
   setupsLive: number;
   near: number;
-  allowlisted: number;
 }
 
 export function summarize(
   entries: WatchlistEntry[],
   setups: Map<string, SetupRow>,
-  isAllowed: (symbol: string) => boolean,
 ): WatchlistSummary {
   let allPass = 0;
   let setupsLive = 0;
   let near = 0;
-  let allowlisted = 0;
   for (const e of entries) {
     if (e.five_pillars.all_pass) allPass += 1;
     const row = setups.get(e.symbol);
     if (isSetupLive(row)) setupsLive += 1;
     if (row?.state === 'near') near += 1;
-    if (isAllowed(e.symbol)) allowlisted += 1;
   }
-  return { total: entries.length, allPass, setupsLive, near, allowlisted };
+  return { total: entries.length, allPass, setupsLive, near };
 }
 
 /** Board rows by symbol; a symbol on several setups (ADR 031) shows its most advanced one. */

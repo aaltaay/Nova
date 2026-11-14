@@ -1,33 +1,26 @@
 """The setups a bot may buy now, best first: who wants the bots' lane (ADR 071 decision 6, operator 2026-11-13).
 
+ADR 072 retired the bots: no strategy trades on any venue, Auto-entry and the bot list's writers are gone, and lane 3
+becomes the brain's in a later build. So ``wanted`` names no candidate and says why (``blocked``), and ``nova_trade``
+is never true -- the lane stays empty. ``pick`` keeps the rule the lane followed, pure:
+
 A **candidate** is a setup of the template in play (``SetupEngine.playing_lanes``) that is armed, near its trigger
-or in a trade (its scoring window, ``lane.trades``), when:
-
-- its strategy is at effective On (``bot.setup_levels.effective`` >= Strategy): a short only at On (ADR 049), a
-  watch-only setup never (#847) -- the operator chose "only what a bot may buy";
-- the venue's bot is active (``bot.arming.is_desk_active``);
-- Nova may buy on this venue (``stock_mode.model.locks``: never Live, never a replay desk);
-- the stock's Buy is Nova: on this venue's bot list (Nova / Nova) or switched to Auto-entry (Nova / You).
-
-One candidate per symbol, its best tier first (trade, near, armed). A stock Nova holds a live trade on keeps the
-lane (``nova_trade``), so the flush exit and the tape keep their book until the trade ends.
-
-Every read fails closed: an unreadable session, venue or scanner names no candidate, and says why -- the lane then
-stays where it is.
+or in a trade (its scoring window, ``lane.trades``), when its strategy is at effective On (a watch-only setup never,
+#847) and the stock's Buy is Nova. One candidate per symbol, its best tier first (trade, near, armed).
 """
 from __future__ import annotations
 
 import logging
-import time
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
 from constants_bot import BOT_LEVEL_STRATEGY, watch_only
 from constants_setups import SETUP_STATE_NEAR
-from constants_stock_mode import STOCK_MODE_SIDE_NOVA, STOCK_MODE_TRADE_ENTERING, STOCK_MODE_TRADE_HOLDING
-from line_lanes.constants_lanes import BOT_TRADE_LIVE_STATES, SETUP_WORDS, WHY_ARMED, WHY_NEAR, WHY_ORDER, WHY_TRADE
+from line_lanes.constants_lanes import SETUP_WORDS, WHY_ARMED, WHY_NEAR, WHY_ORDER, WHY_TRADE
 
 logger = logging.getLogger(__name__)
+
+BOTS_RETIRED_TEXT = "the bots are retired (ADR 072): no strategy trades, so the bots' lane follows no setup"
 
 
 @dataclass(frozen=True)
@@ -100,67 +93,13 @@ def pick(lanes: Iterable[Any], levels: dict[str, int], nova_buys: set[str], now:
     return sorted(best.values(), key=lambda b: (rank(b.why), b.symbol))
 
 
-def nova_buys(row: dict[str, Any], switches: dict[str, dict[str, Any]]) -> set[str]:
-    """The stocks whose Buy is Nova on this venue: the bot list, and every Auto-entry switch."""
-    from bot.eligibility import normalize_symbols
-
-    listed = set(normalize_symbols(row.get("symbol_allowlist")))
-    return listed | {str(s).upper() for s, sw in switches.items() if (sw or {}).get("buy") == STOCK_MODE_SIDE_NOVA}
-
-
-def _lanes() -> list[Any]:
-    from setup_scanner.engine import get_engine
-
-    return get_engine().playing_lanes()
-
-
 def wanted(now: float | None = None) -> Wanted:
-    """Every candidate now (empty with the reason when Nova may not buy, or a read failed)."""
-    from bot.arming import is_desk_active
-    from bot.persist import load_session
-    from bot.setup_levels import effective
-    from stock_mode import gates, model, store
-
-    ts = time.time() if now is None else float(now)
-    try:
-        row = load_session()
-    except Exception as exc:
-        logger.warning("LANES (bots): the bot session could not be read", exc_info=True)
-        return Wanted(error=f"the bot session could not be read ({type(exc).__name__})")
-    if not is_desk_active(row):
-        return Wanted(blocked="the bot is off")
-    venue, replay = gates.venue_state()
-    lock = model.locks(venue, replay)["buy"]
-    if lock is not None:
-        return Wanted(blocked=lock)
-    store.sync_venue(venue)
-    levels = effective(row)
-    buys = nova_buys(row, store.switches())
-    try:
-        lanes = _lanes()
-    except Exception as exc:
-        logger.warning("LANES (bots): the setup scanner could not be read", exc_info=True)
-        return Wanted(error=f"the setup scanner could not be read ({type(exc).__name__})")
-    return Wanted(candidates=tuple(pick(lanes, levels, buys, ts)), nova_buys=frozenset(buys), levels=dict(levels))
+    """No candidate: the bots are retired (ADR 072), so the bots' lane follows no setup."""
+    del now
+    return Wanted(blocked=BOTS_RETIRED_TEXT)
 
 
 def nova_trade(symbol: str) -> bool:
-    """Nova holds a live trade on ``symbol`` on the desk's venue (the bot's, or a stock-mode trade).
-
-    Unreadable counts as a trade: the lane never leaves a stock on a read that failed.
-    """
-    from bot.persist import load_session
-    from stock_mode import gates, store
-
-    sym = symbol.upper()
-    try:
-        venue, _replay = gates.venue_state()
-        bot_trade = load_session().get("trade")
-        if (isinstance(bot_trade, dict) and str(bot_trade.get("symbol") or "").upper() == sym
-                and bot_trade.get("state") in BOT_TRADE_LIVE_STATES and bot_trade.get("venue") in (None, venue)):
-            return True
-        mine = store.trade(venue, sym)
-        return bool(mine and mine.get("state") in (STOCK_MODE_TRADE_ENTERING, STOCK_MODE_TRADE_HOLDING))
-    except Exception:
-        logger.warning("LANES (bots): Nova's trades on %s could not be read -- the lane stays", sym, exc_info=True)
-        return True
+    """Never: Nova holds no trade of its own since the bots retired (ADR 072)."""
+    del symbol
+    return False

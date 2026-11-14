@@ -99,8 +99,8 @@ describe('the venue menu, before the tap', () => {
     expect(effectsFoot('paper', null)).toBeNull();
     expect(effectsFoot('paper', { venue: 'paper', lines: [], unknown: [] }))
       .toEqual({ stake: false, text: 'Nothing working on Paper. Your own orders and shares stay on Paper.' });
-    expect(effectsFoot('paper', { venue: 'paper', lines: ["Cancels on Paper: the Bot's buy of F.", 'The Bot is on for Paper: switching turns it off'], unknown: [] }))
-      .toEqual({ stake: true, text: "Cancels on Paper: the Bot's buy of F. The Bot is on for Paper: switching turns it off. Your own orders and shares stay on Paper." });
+    expect(effectsFoot('paper', { venue: 'paper', lines: ['The desk is armed on Paper: switching disarms it'], unknown: [] }))
+      .toEqual({ stake: true, text: 'The desk is armed on Paper: switching disarms it. Your own orders and shares stay on Paper.' });
     expect(effectsFoot('sim', { venue: 'sim', lines: [], unknown: ['armed'] })?.text).toContain('Nova could not read: armed.');
     expect(effectsFoot('sim', 'none')).toMatchObject({ stake: true });
   });

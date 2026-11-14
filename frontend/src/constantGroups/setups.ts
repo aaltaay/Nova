@@ -36,7 +36,7 @@ export const SETUP_STATE_TITLES: Record<string, string> = {
   leg: 'Forming: the pattern has started (a leg, a pole, a push into the high, or red under the open) and has not armed yet.',
   failed: 'The pattern broke a rule before it triggered. The reason says which.',
   watching: 'Nothing to act on.',
-  filtered: "The pattern armed, but the template's stock filter keeps this name out. The card follows the pattern, greyed: it never proposes and the bot never takes it. The reason says which rule.",
+  filtered: "The pattern armed, but the template's stock filter keeps this name out. The card follows the pattern, greyed, and it is not scored. The reason says which rule.",
 };
 
 /** What a setup's trigger is, where "the trigger" would say less: the alert card and the watch toasts. */
@@ -159,7 +159,7 @@ export const SETUP_FT_BROKE_TIP = (level: string, at: string, n: number, minutes
 
 /** The tape verdicts' hover heads (the reasons and numbers follow). */
 export const TAPE_VERDICT_TIPS: Record<string, string> = {
-  go: 'GO: green prints at the ask and nothing big holding the level. This is what the bot waits for — at Eyes it proposes, at Strategy the bot may buy.',
+  go: 'GO: green prints at the ask and nothing big holding the level. Nova only reads it and scores the setup; it places no order (ADR 072).',
   wait: 'WAIT: not yet. A seller at the level that is not thinning, a burst of selling on the tape, or no green prints yet.',
   veto: 'VETO: no. The spread is too wide, a very big seller sits at the level, or a hidden seller is soaking up the buying.',
   blind: 'BLIND: Nova holds no Level 2 line for this symbol, so the tape cannot be read. Blind setups are still scored — they are the read-out\'s control group. Open its Level 2 in the Trader to read it.',
@@ -231,16 +231,6 @@ export const SETUP_WINDOW_WORDS = {
   open: (start: string, end: string) => `window ${start}–${end}`,
   after: (end: string) => `window closed ${end}`,
 } as const;
-export const SETUP_WINDOW_TIP =
-  'The arming window: no setup arms before it opens, and none arms or triggers after it closes. The bot\'s own trade window can be narrower (its template\'s Bot entries).';
-export const SETUP_STATUS_TIPS = {
-  watching: 'The scanner follows these names on one-minute bars, on every template of this setup at once.',
-  seeding: 'Symbols still loading today\'s one-minute bars: the scanner cannot judge them until they arrive.',
-  disconnected: 'The setup scanner is not connected, so this card cannot show what it sees.',
-  idle: 'Nothing is forming right now. Rows show up here as soon as a name starts the pattern.',
-} as const;
-export const SETUP_OPEN_BOARD = 'Open board ↗';
-export const SETUP_OPEN_BOARD_TIP = 'Watchlist › Setups, filtered to this setup: every row with its levels, pillars and catalyst.';
 
 /* ---------- The Setups board's filter (Watchlist › Setups) ---------- */
 export const SETUPS_FILTER_ALL = 'All';
@@ -281,24 +271,15 @@ export const PROPOSAL_TAKEN_LOCK: Record<'bot' | 'auto_entry', string> = {
 /** A proposal that is not a trade is still shown, and blocks every buy: Nova's and your Stage. */
 export const PROPOSAL_NOT_A_TRADE_NOVA = 'Nova does not buy it either: not the bot, not Auto-entry, not Approve.';
 
-/** What each level of a setup does under the Bots page's master level (ADR 042 draft). */
-export const SETUPS_LEVEL_WORDS = 'Each setup has its own level, under the Bots page\'s master level. Off watches and '
-  + 'scores in silence. Eyes proposes when a setup is near its trigger and the tape says go. Strategy also lets Nova '
-  + 'buy its go triggers on Paper and Sim while the bot is Active: the bot on the stocks set to Bot, Auto-entry on the '
-  + 'stocks set to Auto-entry. Everywhere else it proposes, as at Eyes. Nova never buys by itself on Live.';
+/** What the strategies do (ADR 072): every one only watches; the board is where its setups show. */
+export const SETUPS_LEVEL_WORDS = 'Every strategy watches on Level 1 and none places an order, on any venue: its '
+  + 'setups form, trigger and are scored here and on the charts. Each strategy\'s numbers are in Settings > Strategies.';
 
 export const TAPE_VERDICT_LABELS: Record<string, string> = {
   go: 'Tape: go',
   wait: 'Tape: wait',
   veto: 'Tape: no',
   blind: 'Tape: blind',
-};
-
-export const TAPE_VERDICT_TITLES: Record<string, string> = {
-  go: 'Green on the tape and no seller holding the level. The bot would take this.',
-  wait: 'Not yet: a seller at the level that is not thinning, a burst of red, or no green on the tape.',
-  veto: 'No: spread too wide, a 100k+ seller at the level, or a hidden seller soaking up the buying.',
-  blind: 'Nova holds no Level 2 line for this symbol. Open it in the Trader so the bot can read the tape.',
 };
 
 /* Catalyst labels (CATALYST_CATEGORY_LABELS / _SHORT / CATALYST_VERDICT_TITLES) live in constantGroups/catalysts.ts. */

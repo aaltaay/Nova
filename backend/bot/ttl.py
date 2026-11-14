@@ -33,7 +33,7 @@ async def cancel_due() -> list[dict[str, Any]]:
     from execution.service import execute
 
     results: list[dict[str, Any]] = []
-    from bot.gates import current_venue
+    from bot.door import current_venue
 
     here = current_venue()
     for item in due_working():

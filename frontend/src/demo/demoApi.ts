@@ -24,9 +24,9 @@ import { chartEvents } from './data/events';
 import { DAY, NOW_S } from './data/market';
 import { sampleProfile } from './data/profile';
 import {
-  botAudit, botSession, hotList, lossLimitView, orderSizeLimitView, practiceHistory, setupRows, setupsBoard, stockModes,
+  botAudit, botSession, hotList, lossLimitView, orderSizeLimitView, practiceHistory, setupRows, setupsBoard,
 } from './data/pages';
-import { decisions, history, pastSetups, stockMode, stockRead, targetChoices } from './data/read';
+import { decisions, history, pastSetups, stockRead, targetChoices } from './data/read';
 import { hodHistory, leaderboardBoard, leaderboardCoverage, leaderboardDays, simClock, simStatus } from './data/sim';
 import { CATALYSTS, GAINERS, GAPPERS, HOD_CONFIG, LOSERS, WATCHLIST } from './data/universe';
 
@@ -141,8 +141,6 @@ function sharedRoutes(nowS: number): [RegExp, Handler][] {
     [/^\/api\/order-size-limit$/, () => orderSizeLimitView()],
     [/^\/api\/kill-switch$/, () => ({ tripped: false, reason: null, ts: null })],
     [/^\/api\/hot-list$/, () => hotList()],
-    [/^\/api\/stock-mode$/, () => stockModes(venue)],
-    [/^\/api\/stock-mode\/([^/]+)$/, (m) => stockMode(sym(m))],
     [/^\/api\/setups\/templates$/, () => setupTemplates],
     [/^\/api\/setups\/rows$/, () => ({ date: DAY, setup_type: 'all', template: null, rows: setupRows() })],
     [/^\/api\/setups\/scoreboard$/, () => ({ ...SAMPLE_SETUPS_SCOREBOARD, date_from: '2026-09-24' })],

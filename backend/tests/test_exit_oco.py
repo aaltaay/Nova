@@ -63,8 +63,9 @@ def paper(monkeypatch):
 
 
 def pair(key: str = "pair", **kw) -> ExecutionCommand:
-    """SELL 100: stop 9.80, target 1 10.30 for 50, target 2 10.60 for the other 50."""
-    base = dict(operation="exit_oco", idempotency_key=key, source="manual", origin="nova_exit", symbol=SYM,
+    """SELL 100: stop 9.80, target 1 10.30 for 50, target 2 10.60 for the other 50 -- sent as yours (Nova's exit,
+    its first sender, retired with the bots, ADR 072)."""
+    base = dict(operation="exit_oco", idempotency_key=key, source="manual", origin=None, symbol=SYM,
                 side="SELL", qty=100, order_type="STP", stop_price=9.80, target_price=10.30, target2_price=10.60,
                 target1_qty=50, skip_risk=True)
     base.update(kw)
@@ -121,7 +122,7 @@ async def test_the_pair_is_committed_once_and_answers_its_three_ids(paper) -> No
     assert (row(paper, t1)["limit_price"], row(paper, t1)["qty"], row(paper, t1)["leg_role"]) == (10.30, 50, "target")
     assert (row(paper, t2)["limit_price"], row(paper, t2)["qty"], row(paper, t2)["leg_role"]) == (10.60, 50, "target2")
     assert {row(paper, i)["oca_group"] for i in (stop, t1, t2)} == {f"oca-{stop}"}
-    assert {row(paper, i)["order_origin"] for i in (stop, t1, t2)} == {"nova_exit"}
+    assert {row(paper, i)["order_origin"] for i in (stop, t1, t2)} == {None}
     # One commitment for every share: the pair's legs sell the same shares.
     held = inflight.snapshot("paper")
     assert [(c["side"], c["qty"], c["order_id"]) for c in held] == [("SELL", 100.0, stop)]

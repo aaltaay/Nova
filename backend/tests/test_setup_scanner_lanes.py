@@ -1,6 +1,6 @@
 """One lane per first-pullback template (ADR 029): every template watches the same
-bars and tape and scores its own rows; only the template in play proposes; a
-stock filter keeps setups out on the record; the read-out is per template."""
+bars and tape and scores its own rows; none proposes since the strategies only watch
+(ADR 072); a stock filter keeps setups out on the record; the read-out is per template."""
 from __future__ import annotations
 
 import asyncio
@@ -48,7 +48,7 @@ def run(eng, now):
     asyncio.run(eng.tick(now))
 
 
-def test_every_template_scores_but_only_the_one_in_play_proposes(tmp_path):
+def test_every_template_scores_and_none_proposes(tmp_path):
     templates = TemplateStore(tmp_path / "t.json")
     wide = templates.create(FP, name="Wide stop", values={"stop_cap": 0.5})
     eng, audits, journal, clock = make(tmp_path, armed_bars(), templates)
@@ -58,7 +58,7 @@ def test_every_template_scores_but_only_the_one_in_play_proposes(tmp_path):
     eng.on_l1_minute("last", SYM, {"price": 4.35, "ts": clock["t"], "bar_open": 4.32})
     run(eng, clock["t"])
     other = eng.lanes[1]
-    assert len(eng.proposals) == 1 and other.proposals == {}
+    assert eng.proposals == {} and other.proposals == {}                # ADR 072: the strategies only watch
     assert other.det[SYM].state == "near" and other.tape_view[SYM]["verdict"] == "go"
     rows = eng.store.rows()
     assert {(r["template_id"], r["template_rev"]) for r in rows} == {("default", SETUP_TEMPLATE_DEFAULT_REV), (wide.id, 1)}
@@ -68,24 +68,22 @@ def test_every_template_scores_but_only_the_one_in_play_proposes(tmp_path):
     armed = [e for e in journal if e["event"] == "armed"]
     assert {e["template"] for e in armed} == {"default", wide.id}
     assert all(e["bot"] == {"level": 1, "active": True, "venue": "paper"} and e["source"] == "live" for e in armed)
-    assert any(e["event"] == "proposal" and e["status"] == "proposed" and e["template"] == "default" for e in journal)
-    assert audits and all(a["inputs"]["template_id"] == "default" for a in audits)
+    assert not [e for e in journal if e["event"] == "proposal"]
+    assert not [a for a in audits if a["action"] == "setup_proposal"]
 
 
-def test_putting_another_template_in_play_withdraws_the_open_proposal(tmp_path):
+def test_putting_another_template_in_play_moves_the_board_to_it(tmp_path):
     templates = TemplateStore(tmp_path / "t.json")
     other = templates.create(FP, name="Other")
     eng, audits, journal, clock = make(tmp_path, armed_bars(), templates)
     run(eng, clock["t"])
     eng.on_l1_minute("last", SYM, {"price": 4.35, "ts": clock["t"], "bar_open": 4.32})
     run(eng, clock["t"])
-    first = next(iter(eng.proposals.values()))
     templates.play(FP, other.id)
     run(eng, clock["t"] + 1)
-    assert first["status"] == "template"
     assert eng.playing.p.template_id == other.id
-    # The new template in play reads go on the same near setup and proposes on its own levels.
-    assert [p["template_id"] for p in eng.board(clock["t"] + 1)["proposals"]] == [other.id]
+    # The new template in play reads the same near setup on its own levels, and proposes nothing (ADR 072).
+    assert eng.board(clock["t"] + 1)["proposals"] == []
     assert eng.board(clock["t"] + 1)["setups"][0]["template"]["id"] == other.id
 
 
@@ -213,30 +211,6 @@ def test_a_fixed_target_is_entry_plus_the_amount():
     det.on_bars(armed_bars())
     assert det.armed["target1"] == round(det.armed["entry"] + 0.20, 4)
     assert det.armed["target2"] is None and det.armed["target1_fraction"] == 1.0
-
-
-def test_the_bot_window_comes_from_each_setups_template_in_play(tmp_path):
-    """ADR 042: each setup at Strategy has its template's bot window; the day's entries are counted, never capped."""
-    from bot import entry_rules
-    from bot.autonomy import apply_patch
-    from bot.errors import BotError
-    from setup_templates.store import set_store_for_tests
-
-    templates = TemplateStore(tmp_path / "t.json")
-    set_store_for_tests(templates)
-    t = templates.create(FP, name="Late", values={"bot_window_start": "09:30", "bot_window_end": "11:00"})
-    templates.play(FP, t.id)
-    apply_patch({"level": 2, "setup_levels": {FP: 2}}, desk=True)
-    at = datetime(2026, 9, 23, 10, 30, tzinfo=ET)
-    entry_rules.set_clock_for_tests(lambda: at)
-    win = entry_rules.window(FP, at)
-    assert (win["start"], win["end"], win["open"]) == ("09:30", "11:00", True)
-    assert win["template"]["id"] == t.id
-    assert "cap" not in entry_rules.today(now=at)                           # no daily cap (2026-10-27)
-    entry_rules.set_clock_for_tests(lambda: datetime(2026, 9, 23, 11, 5, tzinfo=ET))
-    with pytest.raises(BotError) as err:
-        entry_rules.assert_entry_allowed("buy_market")
-    assert err.value.reason == "BOT_OUTSIDE_WINDOW" and "09:30-11:00" in err.value.message
 
 
 def test_the_scoreboard_answers_for_the_template_in_play_unless_asked(tmp_path, monkeypatch):

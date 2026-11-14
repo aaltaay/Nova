@@ -1,23 +1,9 @@
 /** The bot's read on one stock (ADR 036): the wire shapes of `/api/stock-read/{symbol}` and its
- * decisions / history reads (AGENTS.md §3, "The bot's read on one stock"). Who trades the stock's own endpoint
- * (ADR 037) has its shapes in `stockModeTypes.ts`, re-exported here. */
+ * decisions / history reads (AGENTS.md §3, "The bot's read on one stock"). */
 
 import type { LiquidityRead, SetupTargets, TargetFields } from '../setups';
 import type { StockHeld } from './heldRead';
 import type { LevelMap, PlanLevels } from './levelTypes';
-
-export type {
-  StockModeApproval,
-  StockModeBot,
-  StockModeEntries,
-  StockModeHalf,
-  StockModeName,
-  StockModeNote,
-  StockModeSize,
-  StockModeTrade,
-  StockModeView,
-  StockSide,
-} from './stockModeTypes';
 
 export type ReadState = 'ok' | 'warn' | 'bad' | 'unknown' | 'info';
 

@@ -1,8 +1,9 @@
 /**
  * Focus rail hover card: one card per row. Hovering the row's Catalyst mark or
- * its REC / bot dots opens the same card -- what is moving the stock and every
+ * its REC dot opens the same card -- what is moving the stock and every
  * fact behind it (the Catalyst column's read, ADR 028), the symbol's news since
- * the prior close (the Trader's News panel read, ADR 024), then what the dots mean. It
+ * the prior close (the Trader's News panel read, ADR 024), then what the dot means
+ * (the bot dot is gone: the strategies only watch, ADR 072). It
  * was two cards, and the pointer crossing the dots on its way to a headline
  * swapped the news for the status (operator report 2026-09-24: "I can't move
  * my mouse and read the news because the other widget always takes its
@@ -17,10 +18,6 @@ import { ItemRow, VerdictBlock } from '../components/CatalystNewsSection';
 import { useCatalystRead } from '../hooks/useCatalystRead';
 import { CATALYST_PANEL_HIDDEN_NOISE, CATALYST_PANEL_NO_COMPANY_ITEMS, CATALYST_PANEL_UNREAD } from '../constants';
 import {
-  FOCUS_RAIL_CARD_BOT_HELD_BODY,
-  FOCUS_RAIL_CARD_BOT_HELD_HEAD,
-  FOCUS_RAIL_CARD_BOT_QUIET_BODY,
-  FOCUS_RAIL_CARD_BOT_QUIET_HEAD,
   FOCUS_RAIL_CARD_GAP_PX,
   FOCUS_RAIL_CARD_MAX_ITEMS,
   FOCUS_RAIL_CARD_NEWS_UNAVAILABLE,
@@ -51,13 +48,11 @@ export interface FocusRailHover {
   /** Show today's news (false on a Sim replay desk, which hides it). */
   news: boolean;
   recording: boolean;
-  allowed: boolean;
-  held: boolean;
 }
 
-/** True when the row has a REC or bot dot the card explains. */
-export function hasStatus(hover: Pick<FocusRailHover, 'recording' | 'allowed'>): boolean {
-  return hover.recording || hover.allowed;
+/** True when the row has a REC dot the card explains. */
+export function hasStatus(hover: Pick<FocusRailHover, 'recording'>): boolean {
+  return hover.recording;
 }
 
 /** Beside the anchor (right, else left), top-aligned, kept inside the viewport. */
@@ -165,7 +160,7 @@ function NewsSection({ row }: { row: FocusRow }) {
   );
 }
 
-/** What the REC / bot dots mean. Under the news it is a section of the same
+/** What the REC dot means. Under the news it is a section of the same
  * card; alone (a Sim replay desk) it carries the symbol's title. */
 function StatusSection({ hover }: { hover: FocusRailHover }) {
   return (
@@ -178,15 +173,6 @@ function StatusSection({ hover }: { hover: FocusRailHover }) {
         <div className="focus-rail-card__status" data-testid="focus-rail-card-rec">
           <i className="focus-rail__dot focus-rail__dot--rec" />
           <div><b>{FOCUS_RAIL_CARD_REC_HEAD}</b><p>{FOCUS_RAIL_CARD_REC_BODY}</p></div>
-        </div>
-      )}
-      {hover.allowed && (
-        <div className="focus-rail-card__status" data-testid="focus-rail-card-bot" data-held={hover.held ? '1' : '0'}>
-          <i className={`focus-rail__dot focus-rail__dot--bot${hover.held ? '' : ' focus-rail__dot--quiet'}`} />
-          <div>
-            <b>{hover.held ? FOCUS_RAIL_CARD_BOT_HELD_HEAD : FOCUS_RAIL_CARD_BOT_QUIET_HEAD}</b>
-            <p>{hover.held ? FOCUS_RAIL_CARD_BOT_HELD_BODY : FOCUS_RAIL_CARD_BOT_QUIET_BODY}</p>
-          </div>
         </div>
       )}
     </div>

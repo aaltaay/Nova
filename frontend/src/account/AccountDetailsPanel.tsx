@@ -27,8 +27,6 @@ import {
   ACCOUNT_LEGEND_UNSETTLED_LIVE,
   ACCOUNT_LEGEND_UNSETTLED_NA,
   ACCOUNT_LIVE_NO_LEDGER,
-  ACCOUNT_RISK_BOT_ORDER_SIZE,
-  ACCOUNT_RISK_BOT_ORDER_SIZE_NONE,
   ACCOUNT_RISK_LARGEST_POSITION,
   ACCOUNT_RISK_LOSS_LIMIT,
   ACCOUNT_RISK_LOSS_LIMIT_WHERE,
@@ -54,7 +52,6 @@ import {
   ACCOUNT_TAV_HIDDEN,
   ACCOUNT_TAV_LABEL,
   ACCOUNT_TODAY_SUFFIX,
-  accountRiskBotOrderSize,
   accountRiskLargestPosition,
   type AccountRange,
 } from '../constantGroups/account_page';
@@ -78,7 +75,6 @@ interface Props {
   history: PracticeHistory | null;
   range: AccountRange;
   onRange: (range: AccountRange) => void;
-  maxSharesCap: number | null;
   hidden: boolean;
   onToggleHidden: () => void;
   nowTs: number;
@@ -106,7 +102,7 @@ function Row({ label, children, note }: { label: string; children: React.ReactNo
 }
 
 export function AccountDetailsPanel({
-  venue, figures, rows, positions, history, range, onRange, maxSharesCap, hidden, onToggleHidden, nowTs,
+  venue, figures, rows, positions, history, range, onRange, hidden, onToggleHidden, nowTs,
   absence = null, sample = false, booksSlot = null,
 }: Props) {
   const practice = venue !== 'live';
@@ -260,14 +256,8 @@ export function AccountDetailsPanel({
         <h3>{ACCOUNT_RISK_TITLE}</h3>
       </div>
       <div className="acct-risk" data-testid="account-risk">
-        {/* The cap sizes each bot order; it is not a position limit, so no meter compares the two (W11). */}
+        {/* No bot order size: the strategy bots are retired, the strategies only watch (ADR 072). */}
         <div className="acct-rrow">
-          <div className="acct-rrow__kv">
-            <span className="acct-row__k">{ACCOUNT_RISK_BOT_ORDER_SIZE}</span>
-            <span className={maxSharesCap == null ? 'acct-muted' : 'acct-num'} data-testid="account-bot-order-size">
-              {maxSharesCap == null ? ACCOUNT_RISK_BOT_ORDER_SIZE_NONE : accountRiskBotOrderSize(formatShareQty(maxSharesCap))}
-            </span>
-          </div>
           <div className="acct-rrow__kv">
             <span className="acct-row__k">{ACCOUNT_RISK_LARGEST_POSITION}</span>
             <span className="acct-num" data-testid="account-largest-position">

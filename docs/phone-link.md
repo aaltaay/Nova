@@ -102,8 +102,8 @@ it on the home screen, full screen; it opens there from then on.
   - *When Level 2 reaches the phone late* the buys are held and say so. Sells, Flatten and Cancel still go.
 - The big chart opens upright from the round icon in the corner of a stock's chart; its sideways button turns it.
 - *The venue pill* (PAPER / SIM / LIVE, on every screen) opens a small menu: tap a row and the desk switches with
-  it. Before the tap it says, in amber, what leaving the venue would cancel (Nova's working entries, the Bot, the
-  padlock); your own orders and shares stay where they are. Settings' venue row does the same.
+  it. Before the tap it says, in amber, what leaving the venue would change (an armed desk disarms); your own
+  orders and shares stay where they are. Settings' venue row does the same.
 - *On Sim* a strip under the header follows the desk's replay: pause / play and a minute back or forward. The day
   and stock are chosen on the PC. A stock that is not the one replaying shows the desk's words instead of a book.
 - *On Live* the phone looks only: the account, the orders and the market show; the ticket is grey and says Live

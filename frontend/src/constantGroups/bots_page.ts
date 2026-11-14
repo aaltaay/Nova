@@ -1,36 +1,11 @@
 /**
- * The Bots page (approved mockup v4, ADR 027, ADR 042): its copy and tunables. The
- * bot's API constants stay in ./bot.ts; this group is what the page itself says.
+ * What the strategies' screens say since the bots retired (ADR 072): Settings > Strategies and its template
+ * editor, the Freeze card's sweep words and the day cover's alarm. The bot's API constants stay in ./bot.ts.
  */
-import type { DeskVenue } from './desk_venue';
 
-/** Bots > Strategy Bots (2026-10-15): the page that was Bots. */
-export const BOTS_PAGE_TITLE = 'Strategy Bots';
-export const BOTS_PAGE_SUB =
-  'Your playbook, run by the bot: what it watches, what it may risk, what it proposed and did.';
-export const BOTS_PAGE_LOADING = 'Loading the bot session…';
-/** Bots > LiveTrader Bots, and Bots itself -- empty for now (operator, 2026-10-15: "keep it empty for now"). */
-export const LT_BOTS_PAGE_TITLE = 'LiveTrader Bots';
-export const BOTS_GROUP_TITLE = 'Bots';
-export const BOTS_GROUP_EMPTY = 'Open LiveTrader Bots or Strategy Bots on the left.';
-export const BOTS_PAGE_SAVING = 'Saving…';
-
-/** The venue chip's second half: whose money the bot would be spending. */
-export const BOTS_VENUE_NOTES: Record<DeskVenue, string> = {
-  live: 'Live account — real money · Nova\'s bot does not trade here',
-  paper: 'Nova Paper — fake money on the live feed',
-  sim: 'Sim scratch account — rewinds with the playhead',
-};
-export const BOTS_VENUE_LABELS: Record<DeskVenue, string> = { live: 'Live', paper: 'Paper', sim: 'Sim' };
-export const BOTS_VENUE_UNKNOWN = 'Venue unknown — the desk status has not answered';
 /** The venue a gate or a line names, as the header pills say it. */
 export const BOTS_VENUE_NAMES: Record<string, string> = { live: 'Live', paper: 'Paper', sim: 'Sim' };
 
-export const BOTS_KILL_TRIP_NOTE =
-  'Cancels every working order on every venue but the stops that protect a position, and refuses every new order, from you or from Nova, a sell included, until you unfreeze. It sells nothing; the red KILL at the top is the one that sells.';
-export const BOTS_KILL_RESET_LABEL = 'Unfreeze orders';
-export const BOTS_KILL_TRIPPED_NOTE = 'Orders are frozen: every new order is refused on every venue until you unfreeze (Flatten and cancels still work)';
-export const BOTS_KILL_SWEEP_HEAD = 'Freezing cancelled';
 export const botsKillSweepCancelled = (n: number, ids: string): string =>
   `cancelled ${n} order${n === 1 ? '' : 's'}${ids ? ` (${ids})` : ''}`;
 export const botsKillSweepFailed = (n: number, ids: string): string =>
@@ -40,71 +15,8 @@ export const botsKillSweepKept = (n: number, ids: string): string =>
   `kept ${n} protective stop${n === 1 ? '' : 's'} resting${ids ? ` (${ids})` : ''}`;
 export const BOTS_KILL_SWEEP_NOTHING = 'nothing was working';
 
-/** Gate chip actions: the link text after the dash. */
-export const BOTS_GATE_UNLOCK = 'unlock padlock';
-export const BOTS_GATE_OPEN_L2 = (symbol: string): string => `open ${symbol} Level 2`;
-export const BOTS_GATE_ADD_SYMBOL = 'add a stock';
-export const BOTS_GATE_SETUPS = 'set a card to Strategy';
-export const BOTS_GATE_RESET_KILL = 'unfreeze';
-
-/* ---------- Strategies ---------- */
-export const BOTS_STRATEGIES_TITLE = 'Strategies';
-export const BOTS_STRATEGIES_SOURCE = 'from your course material';
-export const BOTS_STRATEGIES_SUB =
-  'every scanner runs at once · each strategy is Off, Eyes or On · Nova acts on those at On while the Bot is on';
-export const BOTS_STRATEGIES_SUB_TIP =
-  'Every setup with a scanner runs at the same time: each follows the HOD Momo names and today\'s hot list on one-minute bars, reads the tape at its trigger and scores every setup it arms on its own read-out.\n'
-  + 'Each strategy is Off (silent, draws nothing on your charts), Eyes (draws its setups and alerts you near + GO) or On (everything Eyes does, and Nova may act on its GO triggers while the Bot is on, Paper and Sim only). Any number can be at each.\n'
-  + 'While the Bot is off, a strategy at On alerts you like Eyes, and says so.';
-
-/* ---------- A scanner for every setup (ADR 031) ---------- */
-/** Rows a setup card's own scanner shows; "Open board" has the rest. */
-export const BOTS_SCANNER_MAX_ROWS = 7;
-export const BOTS_SCAN_FOOT = (shown: number, total: number): string =>
-  total > shown ? `${shown} of ${total} · nearest the trigger first` : `${total} on the board · nearest the trigger first`;
-export const BOTS_SCAN_FOOT_TIP =
-  'This setup\'s names on the live board: near the trigger first, then armed, triggered in the last 30 minutes, forming, and failed in the last 5 minutes.';
-export const BOTS_STATUS_WATCHING = (n: number): string => `Watching ${n} name${n === 1 ? '' : 's'}`;
-export const BOTS_STATUS_SEEDING = (n: number): string => `${n} seeding bars`;
-export const BOTS_STATUS_NOT_CONNECTED = 'Scanner not connected';
-/** A recorded moment in Sim (backend eyes/playback.py): this setup's scanner was not running then. */
-export const BOTS_STATUS_NOT_RECORDED = 'Not running at this moment';
-export const BOTS_STATUS_NOT_RECORDED_TIP =
-  'Nova\'s eyes have no record of this setup at the playhead: Nova was closed, its eyes were off, or this setup\'s '
-  + 'scanner did not exist yet. Nothing is drawn rather than a guess.';
-export const BOTS_FUNNEL_TODAY = 'Today';
-export const BOTS_FUNNEL_TIP =
-  'Today on this setup\'s scanner, in the order a setup moves: forming, armed, near the trigger, triggered — then how many failed and how many raised a proposal. The first four are a funnel; each step is a subset of the one before it.';
-export const BOTS_READOUT_SHORT = 'Read-out';
-export const BOTS_READOUT_GO_SHORT = 'go';
-export const BOTS_NO_SCANNER_WHY_HEAD = 'Why it can\'t watch yet.';
-export const BOTS_NO_SCANNER_UNBLOCK_HEAD = 'Unblocks when';
-export const BOTS_TEMPLATE_RULES_TIP = (lines: string): string =>
-  `The template in play, in the numbers the scanner runs:\n${lines}\nParameters opens every one of them.`;
-export const BOTS_TAPE_GATE_HEAD = 'Tape gate';
-export const BOTS_RESEARCH_BADGES: Record<string, string> = {
-  failed: 'Bars alone: failed',
-  not_tested: 'Not tested',
-  testing: 'Testing',
-};
-/** Where the operator's catalogue lives on the desk PC (off the repo, ADR 027). */
-export const BOTS_CATALOGUE_PATH = 'F:\\Nova\\private\\strategy-catalogue';
-export const BOTS_ADD_SETUP_LABEL = 'Add a setup from your catalogue';
-export const BOTS_ADD_SETUP_HINT =
-  'The full list is on your desk PC (F:). Each one lands here with its rules, a backtest and a scanner.';
-export const BOTS_ADD_SETUP_MESSAGE =
-  `Your catalogue is on this PC at ${BOTS_CATALOGUE_PATH}. A setup lands here with three things: a live scanner that finds it, a backtest on the five-year history, and a read-out that measures it. Until then it is listed without a level. Pick one from the catalogue and ask for it to be built.`;
-export const BOTS_ADD_SETUP_COPY = 'Copy catalogue path';
-export const BOTS_ADD_SETUP_CLOSE = 'Close';
-export const BOTS_READOUT_GO_SO_FAR = 'GO so far';
-export const BOTS_READOUT_VS = 'vs blind / wait';
-export const BOTS_READOUT_NEEDS = (minR: number): string => `needs > +${minR.toFixed(2)}R and above blind / wait`;
-
 /* ---------- Templates (ADR 029): every setup's parameters and its variations ---------- */
 export const BOTS_TEMPLATES_POLL_MS = 30_000;
-export const BOTS_TEMPLATE_LABEL = 'Template';
-export const BOTS_TEMPLATE_PARAMS = (n: number): string => `Parameters (${n})`;
-export const BOTS_TEMPLATE_PICK_TITLE = 'The template in play for this setup: the one that proposes, the bot trades and draws its rows. Every template of the setup is watched and scored at once.';
 export const BOTS_TEMPLATE_BUILTIN_WHY =
   'The default is the pre-registered rules and stays as it is -- use "New from this" to make a variation you can change';
 export const BOTS_TEMPLATE_SAVING_WHY = 'Saving the last change -- wait for Nova to answer';
@@ -115,192 +27,30 @@ export const BOTS_TEMPLATE_LIMIT_WHY = (n: number): string =>
   `A setup keeps at most ${n} templates, the default included -- delete one first`;
 export const BOTS_TEMPLATE_NO_PARAMS =
   'No parameters yet: this setup has never been tested. They are set when its one-second test (S5) is built.';
-export const BOTS_TEMPLATE_NO_PARAMS_WHY = 'No parameters yet -- this setup has never been tested';
-export const BOTS_TEMPLATE_UNREAD_WHY = (err: string | null): string =>
-  `The templates did not load${err ? ` -- ${err}` : ''}`;
-export const BOTS_TEMPLATE_LOADING_WHY = 'Loading the templates -- wait for Nova to answer';
 export const BOTS_TEMPLATE_DELETE_CONFIRM = (name: string): string =>
   `Delete "${name}"? The setups it scored stay on record; the scanner stops watching its rules.`;
 export const BOTS_TEMPLATE_EVIDENCE_RESET = (name: string, rev: number, scored: number, keys: string): string =>
   `Saving new scanner rules on "${name}" (${keys}) starts its evidence over: its read-out restarts at 0 of 50, because the setups `
   + `so far were found by the old rules. The ${scored} go setup${scored === 1 ? '' : 's'} it has now stay on record under revision ${rev}.`;
-export const BOTS_TEMPLATE_BOT_ONLY_NOTE =
-  'Only bot parameters changed: the read-out keeps counting, because they do not change what the scanner finds.';
-export const BOTS_TEMPLATE_BOT_WINDOW = (start: string, end: string, clipped: boolean): string =>
-  `Bot window ${start}–${end}${clipped ? ' (clipped to the arming window: the bot never buys outside where the setup can arm)' : ''}`;
 export const BOTS_PARAM_FILTER_OFF_WHY = 'Off -- tick the box beside it to use this filter';
-
-/* ---------- Why a Bots page control is locked (ux/whyTip.ts) ---------- */
-export const BOTS_BUSY_WHY = 'Saving the last change to the bot -- wait for Nova to answer';
-export const BOTS_SESSION_LOADING_WHY = 'The bot session has not loaded yet';
-export const BOTS_KEY_EMPTY_WHY = 'Paste the API key first';
-export const BOTS_KILL_BUSY_WHY = 'The kill switch is answering the last press -- wait for Nova';
-export const BOTS_KILL_UNREAD_WHY = (err: string | null): string =>
-  `The kill switch state has not loaded${err ? ` -- ${err}` : ''}`;
-export const BOTS_SETUP_NO_LEVELS_WHY =
-  'This API keeps one level for every setup -- restart the backend to give each setup its own';
-export const BOTS_NOT_TRADING_NOW = 'Not trading now';
-/** Anchor of the Strategies card, for the "set a card to Strategy" gate link. */
-export const BOTS_STRATEGIES_ANCHOR = 'bots-strategies-card';
-
-export const BOTS_STOCK_MODES_POLL_MS = 5_000;
-
-/* ---------- Risk sleeve (ADR 042 E): one per venue ---------- */
-export const BOTS_RISK_TITLE = 'Risk sleeve';
-export const BOTS_RISK_SUB = 'every Nova trade, long or short, on the venue shown';
-export const BOTS_RISK_TIP =
-  'One sleeve per venue sizes and caps every automatic Nova trade there, long or short — the bot and Auto-entry — and sets the risk your Stage sizes by. Each venue keeps its own; the tab shows which one you are editing.';
-export const BOTS_RISK_LIVE_NOTE = 'Nova trades nothing by itself on Live: these numbers size your own Stage there and bind no bot.';
-export const BOTS_SLIDER_COMMIT_MS = 400;
-/** One sleeve for both sides (ADR 049, #778 step 5): what a short adds to it. */
-export const BOTS_SLEEVE_SHORT_LINE = 'A short adds: a buy stop always goes in with the entry · a 25% margin cushion · '
-  + '09:35–15:50, and Nova covers what is left at 15:55 · under SSR it sells at the ask · never on a stock you hold.';
-export const BOTS_SLEEVE_SHORT_TIP = 'The one short check Nova runs before every short, the bot\'s or yours (ADR 048): '
-  + 'the buy stop goes in with the entry as one bracket; the margin must leave 25% before IBKR would liquidate; no new '
-  + 'short after 15:50 ET (12:50 on an early close) and Nova covers every short left at 15:55; under SSR a short sells '
-  + 'only above the bid, so the bot sells at the ask; and Nova never shorts a stock you hold long, nor buys one you '
-  + 'hold short.';
-export const BOTS_RISK_LABEL = 'Risk per trade';
-export const BOTS_RISK_SLIDER_TIP =
-  'Sizes every Nova trade and your Stage: shares = risk ÷ risk per share (to the stop under a long\'s entry, or the buy stop over a short\'s), capped by max shares and the budget.';
-export const BOTS_SHARES_LABEL = 'Max shares';
-export const BOTS_SHARES_TIP = 'The most shares one Nova trade may be, long or short, whatever the risk would size.';
-export const BOTS_BUDGET_LABEL = 'Buying-power budget';
-export const BOTS_BUDGET_TIP = 'The most one Nova trade may hold (shares × entry), long or short.';
-export const BOTS_TTL_LABEL = 'Entry time-to-live';
-export const BOTS_TTL_TIP = 'An unfilled Nova entry — the bot, Auto-entry or Approve — is cancelled after this.';
-export const BOTS_EH_LABEL = 'Extended hours';
-export const BOTS_EH_ON = 'On · 07:00';
-export const BOTS_EH_OFF = 'Off';
-export const BOTS_EH_HINT = 'Off: the bot and Auto-entry skip triggers outside 09:30–16:00 ET, and say so';
-export const BOTS_KINDS_LABEL = 'Order kinds (the localhost bot API)';
-export const BOTS_KINDS_TIP =
-  'What an external bot on the localhost bot API may send on Paper and Sim. Nova\'s own bot and Auto-entry use their own entry and bracket. The API refuses Live.';
-
-/* ---------- Proposals ---------- */
-export const BOTS_PROPOSALS_TITLE = 'Proposals';
-export const BOTS_PROPOSALS_SUB = 'Stage fills your ticket · you press Place';
-export const BOTS_PROPOSALS_EMPTY =
-  'No open proposals. A setup at Eyes or above raises one when it is near its trigger and the tape says go.';
-export const BOTS_PROPOSALS_FOOT = 'Proposals pop up on every tab; this is where they are kept.';
-export const BOTS_PROPOSAL_UNDER = 'under the trigger';
-export const BOTS_PROPOSAL_AT = 'at the trigger';
-export const BOTS_PROPOSAL_STAGE = 'Stage ticket';
-export const BOTS_PROPOSAL_DISMISS = 'Dismiss';
-export const BOTS_PROPOSAL_CLOSED_KEEP_SEC = 30 * 60;
-export const BOTS_PROPOSAL_CLOSED_MAX = 4;
-export const BOTS_PROPOSAL_TAKEN: Record<string, string> = {
-  bot: 'The bot is taking this — nothing to do',
-  auto_entry: 'Auto-entry is taking this — nothing to do',
-};
-export const BOTS_PROPOSAL_TAKEN_WHY: Record<string, string> = {
-  bot: 'Nova\'s bot is taking this trigger -- staging your own ticket would trade it twice',
-  auto_entry: 'Auto-entry is taking this trigger -- staging your own ticket would trade it twice',
-};
-export const botsNotATrade = (reasons: string): string => `Not a trade: ${reasons}`;
-export const botsNotATradeWhy = (reasons: string): string => `Not a trade -- ${reasons}`;
-/** Why a proposal left the open list (backend setup_scanner PROPOSAL_CLOSE_REASONS). */
-export const BOTS_PROPOSAL_CLOSED_LABELS: Record<string, string> = {
-  rearmed: 'withdrawn',
-  disarmed: 'withdrawn',
-  failed: 'withdrawn',
-  triggered: 'triggered',
-  template: 'withdrawn',
-  edited: 'withdrawn',
-  deleted: 'withdrawn',
-};
-
-/* ---------- Activity ---------- */
-export const BOTS_ACTIVITY_TITLE = 'Activity';
-export const BOTS_ACTIVITY_EMPTY = 'Nothing yet today.';
-export const BOTS_ACTIVITY_LIMIT = 30;
-export const BOTS_SETUP_ROWS_POLL_MS = 15_000;
-
-/* ---------- Today ---------- */
-export const BOTS_TODAY_TITLE = 'Today';
-export const BOTS_TODAY_SCOREBOARD_DAYS = 5;
-export const BOTS_TODAY_PNL_LIVE_TITLE =
-  'Live keeps no practice ledger here, and Nova\'s bot does not trade Live: your own fills show on the Account page';
-export const BOTS_TODAY_SCOREBOARD_TITLE = (setup: string): string => `${setup} scoreboard`;
-export const BOTS_TODAY_SETUP_PICK = 'Setup the counts and the scoreboard read';
-/** Which target would have paid (#845): the read-out's first day -- the first session every target choice was scored
- * side by side on the same triggers. */
-export const BOTS_TARGET_CHOICES_FROM = '2026-10-13';
-export const BOTS_TARGET_CHOICES_LABEL = 'Which target pays';
-export const BOTS_TARGET_CHOICES_TIP = 'Every trigger of this setup since the date, scored once for each target choice: '
-  + 'a fixed 10c, 20c or 30c, 1c before the next level of today\'s map, the pullback\'s high, 1c before the high of day '
-  + '(each selling everything there) and the template\'s own two targets. Best first by mean R net of the stated cost '
-  + 'a share a fill. R is the risk a share: the unit the scores are measured in. No choice leads below the minimum '
-  + 'count, and a lead changes nothing on its own: the template is yours to change.';
-export const BOTS_TODAY_SCORES_NOTE ='Scores, not fills — the strategy\'s exit (its target 1 and target 2, the stop where it is) on every armed setup of the template in play.';
-export const botsTodayArmedTip = (setup: string): string =>
-  `${setup} setups the scanner armed today (its template in play): the pattern was in place with a trigger and a stop. Scores, not trades.`;
-export const botsTodayTriggeredTip = (setup: string): string =>
-  `${setup} setups that traded through the trigger today. Each is scored on the scoreboard; the bot traded only those it took.`;
-export const BOTS_TODAY_PROPOSED_TIP = 'Proposals every setup at Eyes or Strategy raised today (near + GO), from the bot audit stream.';
-export const BOTS_TODAY_ENTRIES_TIP =
-  'Nova\'s automatic trades today on this venue, longs and shorts: the bot and Auto-entry, one count. No daily cap: the loss limit and one trade at a time still hold.';
-export const BOTS_TODAY_PNL_TIP =
-  'The bot\'s own fills today in this venue\'s practice ledger (source bot), net of fees and commission. Auto-entry and your own trades are not in it.';
-
-/* ---------- Status bar ---------- */
-export const BOTS_STATUS_NO_SYMBOL = 'No symbol selected';
-export const BOTS_STATUS_FLAT = 'flat';
-/** Paper: the bots' own shares in the stock (ADR 069 decision 9). */
-export const botsStatusHeld = (shares: string): string => `bots ${shares}`;
-export const BOTS_STATUS_ORDER_KINDS = 'Order kinds (the localhost bot API):';
-
-/* ---------- Header pill and the Trader rail card ---------- */
-export const BOTS_PILL_LABEL = 'Bot';
-export const BOTS_PILL_TITLE = 'Open Strategy Bots';
-
-/* ---------- The three keys (operator decisions 2026-10-15) ---------- */
-/** A bot places orders only while the header's Bot switch, its family's key and its own key are all on; off at any
- *  level, it places none -- "Bots can not place order or sell orders". */
-export const BOT_FAMILY_NAMES = { strategy: 'Strategy Bots', live_trader: 'LiveTrader Bots' } as const;
-export const BOT_KEY_OFF_LINE = "Off: bots can't place orders or sell.";
-export const botKeyOnLine = (name: string, venue: string): string => `On: ${name} may place orders on ${venue}.`;
-export const BOT_KEY_LIVE_WHY = 'Bots never trade Live.';
-export const botKeyUnreadable = (name: string): string =>
-  `The ${name} key could not be read from the backend's answer: its bots count as off until it reads.`;
-export const botKeyTip = (name: string): string =>
-  `The ${name} key. A bot places orders only while the Bot switch in the header, this key and its own key are all `
-  + 'on. Off at any level, it places none, not even a sell: what it holds stays until you sell it or turn the keys '
-  + 'back on. Orders already resting at the broker (a stop, a target) still fill.';
-export const BOT_HEADER_KEY_TIP =
-  'The Bot switch: every bot on this venue. Off, no bot places an order, not even a sell. Click to turn it on or off.';
-export const botsStrategiesOn = (n: number): string => (n === 1 ? '1 strategy On' : `${n} strategies On`);
-
-/* ---------- Strategy buckets (ADR 049, #778 step 5): one bot, both sides ---------- */
-export const BOTS_BUCKETS = [
-  { level: 2, title: 'On', sub: 'the bot trades these',
-    tip: 'While the Bot is on, the bot trades these strategies\' GO triggers on Paper and Sim: a long strategy buys, a '
-      + 'short strategy shorts. While it is off they alert you like Eyes.' },
-  { level: 1, title: 'Eyes', sub: 'alerts you, Nova never trades',
-    tip: 'These draw their setups on your charts and alert you near the trigger with the tape at GO. Nova never trades '
-      + 'them: you press Place.' },
-  { level: 0, title: 'Off', sub: 'watches and scores, silent',
-    tip: 'These still watch and score every setup they arm, so their read-out or test keeps counting, but they never '
-      + 'alert you and draw nothing on your charts.' },
-] as const;
-export const BOTS_BUCKET_EMPTY: Record<number, string> = {
-  2: 'No strategy is On: the bot trades nothing.',
-  1: 'None at Eyes.',
-  0: 'None Off.',
-};
-export const BOTS_BUCKET_BOT_OFF = 'The Bot is off: these alert you like Eyes until it is on.';
-export const BOTS_BUCKETS_RULE = 'On one stock the bot holds one trade at a time: the first go trigger wins, long or '
-  + 'short. It never flips: after a long closes, a short needs its own trigger, and the reverse. The day\'s trades count '
-  + 'both sides.';
-export const BOTS_BUCKET_NO_TEST = 'Test not reported';
-export const BOTS_BUCKET_NO_TEST_TIP = 'This backend does not report the five-year test of this short strategy.';
-export const BOTS_BUCKET_LOADING_READOUT = 'Read-out loading';
-export const BOTS_BUCKET_LOADING_READOUT_TIP = 'The template in play has not loaded yet, so its read-out is not known.';
-export const BOTS_BUCKET_NO_READOUT = 'No read-out reported';
-export const BOTS_BUCKET_NO_READOUT_TIP = 'The backend reports no read-out for this strategy\'s template in play.';
 
 /* ---------- The day cover's alarm (ADR 048 decision 5, step 6): every desk window ---------- */
 export const DAY_COVER_ALARM_TITLE = 'DAY COVER';
 export const DAY_COVER_ALARM_HIDE = 'Hide 10 min';
 export const DAY_COVER_ALARM_HIDE_MS = 10 * 60_000;
 export const DAY_COVER_ALARM_VENUES: Record<string, string> = { live: 'Live', paper: 'Paper', sim: 'Sim' };
+
+/* ---------- Settings > Strategies (ADR 072, approved mockup retire-bots v1) ---------- */
+export const STRATEGIES_SETTINGS_NAV_LABEL = 'Strategies';
+export const STRATEGIES_SETTINGS_TITLE = 'Strategies';
+export const STRATEGIES_SETTINGS_BLURB =
+  'Every strategy watches on Level 1, draws its setups on the charts and alerts on your stars. None places an order, '
+  + 'on any venue. Each strategy\'s numbers and named templates are edited here.';
+export const STRATEGIES_SETTINGS_WATCHING = 'Level 1';
+export const STRATEGIES_SETTINGS_YOURS = 'yours';
+export const STRATEGIES_SETTINGS_LOADING = 'Loading the strategies…';
+export const STRATEGIES_SETTINGS_EDITOR_NOTE =
+  'The editor keeps every number the scanner reads and your named templates. Each strategy\'s setups today are on '
+  + 'Scanner > Contenders > Setups: click its number to open it there.';
+export const STRATEGIES_SETTINGS_OPEN_BOARD = (label: string): string =>
+  `${label}'s setups on today's board. Click to open Scanner > Contenders > Setups on ${label}, where its forming names are.`;

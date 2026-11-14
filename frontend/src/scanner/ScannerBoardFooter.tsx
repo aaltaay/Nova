@@ -1,11 +1,10 @@
 /**
  * Board footer: `N of M match`, what the chips hid (with Show all), what the
- * exchange filter hid, and the one-line legend for the row dots. Rendered
- * only for scanner-row lists.
+ * exchange filter hid, and the one-line legend for the row's REC dot (the bot
+ * dots are gone: the strategies only watch, ADR 072). Rendered only for
+ * scanner-row lists.
  */
 import {
-  SCANNER_FOOTER_LEGEND_BOT_HELD,
-  SCANNER_FOOTER_LEGEND_BOT_QUIET,
   SCANNER_FOOTER_LEGEND_REC,
   SCANNER_FOOTER_SHOW_ALL,
   scannerFooterHiddenByChips,
@@ -49,8 +48,6 @@ export function ScannerBoardFooter({ shown, total, hiddenByChips, hiddenByExchan
       <span className="scanner-board__spacer" />
       <span className="scanner-board__legend" aria-label="Row mark legend">
         <span><i className="scanner-mark scanner-mark--rec" aria-hidden="true" />{SCANNER_FOOTER_LEGEND_REC}</span>
-        <span><i className="scanner-mark scanner-mark--bot" aria-hidden="true" />{SCANNER_FOOTER_LEGEND_BOT_HELD}</span>
-        <span><i className="scanner-mark scanner-mark--bot is-quiet" aria-hidden="true" />{SCANNER_FOOTER_LEGEND_BOT_QUIET}</span>
       </span>
     </footer>
   );

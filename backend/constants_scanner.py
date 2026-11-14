@@ -11,7 +11,6 @@ SMALL_CAP_MIN = 300_000_000  # $300 M
 SMALL_CAP_MAX = 2_000_000_000  # $2 B
 MID_CAP_MIN = 2_000_000_000  # $2 B
 MID_CAP_MAX = 10_000_000_000  # $10 B
-LARGE_CAP_MIN = 10_000_000_000  # $10 B
 
 # ── News flame thresholds (hours) ─────────────────────────────────────────
 NEWS_FLAME_HOT_HOURS = 2   # red badge    (0 –  2 h)

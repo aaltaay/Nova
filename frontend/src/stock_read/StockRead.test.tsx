@@ -13,7 +13,7 @@ import { StockReadProvider, useStockReadContext } from './StockReadContext';
 import { StockReadRail } from './StockReadRail';
 import { StockReadToolbar } from './StockReadToolbar';
 import { apusAt, apusDecisionsWire, apusHistoryWire, apusReadWire } from './stockReadFixtures';
-import { sleeveSessionWire } from './whoTradesFixtures';
+import { sleeveSessionWire } from './momentFixtures';
 
 type Json = Record<string, unknown>;
 let responses: { match: RegExp; status?: number; body: Json }[] = [];
@@ -182,10 +182,9 @@ describe('the plan on the rail', () => {
     expect(screen.getByTestId('stock-read-plan-grade').textContent).toBe('C 1/5');
     expect(screen.getByTestId('stock-read-plan-verdict').textContent).toBe('NOT A TRADE');
     expect(screen.queryByTestId('stock-read-plan-rr')).toBeNull();          // moot on a plan that is not a trade
-    // One rule (ADR 042 draft): the plan says it blocks Nova's buys as well as its own Stage.
-    expect(screen.getByTestId('stock-read-plan-notrade').textContent).toBe('Not a trade: grade C: 1 of 5 pillars. '
-      + "It blocks Nova's buys too: the bot, Auto-entry and Approve do not take it.");
-    expect(screen.getByTestId('stock-read-plan-verdict').getAttribute('data-tip')).toMatch(/blocks Nova's buys too/);
+    // The reasons, said once; nothing of Nova's buys -- the strategies only watch (ADR 072).
+    expect(screen.getByTestId('stock-read-plan-notrade').textContent).toBe('Not a trade: grade C: 1 of 5 pillars.');
+    expect(screen.getByTestId('stock-read-plan-verdict').getAttribute('data-tip')).toBe('Not a trade: grade C: 1 of 5 pillars.');
     let off = () => {};
     act(() => {
       off = subscribeOrderTicketPrefill('APUS', () => {});
