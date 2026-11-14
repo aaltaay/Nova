@@ -247,10 +247,35 @@ here, as decision 19 required.
     every mark spelled out. Nothing is worked out on the phone, and nothing there is a buy or sell signal. A switch
     in Settings turns the marks and the chart off, kept on the phone.
 
+## Amendment 2026-11-14 -- the desk keeps the phone page built and served
+
+**Decided by:** the operator, 2026-11-14, after a merged phone change sat on the PC unbuilt and the page server was
+found stopped: "It needs to get reloaded as a part of the installation. Automatically", and, shown the plan
+(rebuild after every release, keep the server running, say so on the desk), "Yes, build it".
+
+35. **The installed desk rebuilds the phone page when its checkout moves.** Once a minute the desk asks the owner's
+    checkout (ADR 038: the checkout its backend runs from) whether the phone page is that checkout's code
+    (`tools/phone_page.py check`). When it is not -- a release pulled the checkout forward, at Restart to update or
+    by the backend following the desk -- the desk runs `tools/phone_page.py update` there, below normal priority so
+    the trading path keeps the PC first. Never while the desk is pulling or restarting the backend. A build that
+    fails leaves the phone the page it had; the desk tries again after 30 minutes, or at once when the checkout
+    moves again. Every outcome goes to `update.log`.
+36. **The installed desk keeps the page server running.** Once a minute the desk asks `127.0.0.1:4181` for the
+    page; when nothing answers it starts `tools/serve_phone_page.py` from the owner's checkout, with no window, in
+    a process of its own that outlives the desk (as the backend does). Nothing else changes: the server listens on
+    loopback only and serves the built folder, and Tailscale is still the only way in (decisions 1-4). A server
+    already answering is left alone. `NOVA_PHONE_PAGE=0` turns both off.
+37. **The desk says so only when the phone is behind.** The update view carries `phone_page`; a strip like the
+    backend notice shows only while the page could not be rebuilt or the server could not be started, in plain
+    words, and goes away by itself once it is fixed. A dev desk (run from a checkout) does neither.
+
 ## Rules and maps
 
 - Shapes: `architecture/schema/desk-ops.md`, "Who may reach the API" (another device) and "The phone link test".
 - Setup and the measurement: `docs/phone-link.md`.
+- The desk keeping the page built and served: `frontend/electron/phonePageKeeper.mjs`, the strip
+  `frontend/src/desktop_update/PhonePageNotice.tsx`; shape `architecture/schema/desk-ops.md`, "Release notes and the
+  update notice" (`phone_page`).
 - Code: `backend/request_guard/` (`policy.remote_refusal`, `middleware`, `constants_request_guard.py`);
   `frontend/link-test.html`, `frontend/src/phone_link/`; the screens: `frontend/phone.html`, `frontend/src/phone/`
   (shapes: `architecture/schema/desk-ops.md`, "Nova on the phone: the screens").
