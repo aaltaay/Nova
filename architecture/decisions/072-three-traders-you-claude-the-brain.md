@@ -203,12 +203,13 @@ Agreed by the operator, 2026-11-13: one PR each, and each carries the screens it
 a control that does nothing or reads wrong.
 
 1. **ADR and schema** (this change).
-2. **Books, rules and the switches:** three books and Earlier bots, owners on Sim, decisions 3-6, the per-trader
+2. **The strategies watch on Level 1:** decision 9, the retired senders (decision 12, the Who trades switch
+   included), the Bots page, its rail entry and the header Bots key gone, TraderTV back on the rail. First, so the
+   books never have to handle a bot that still trades (the operator, 2026-11-13: "Retire the bots first").
+3. **Books, rules and the switches:** three books and Earlier bots, owners on Sim, decisions 3-6, the per-trader
    budget, every split reading All / You / Claude / The brain / Earlier bots, and Claude's pill with its switch.
-3. **Limits and loss lines in Settings:** decisions 7-8, the four lines, one column per trader, Claude's code limits
+4. **Limits and loss lines in Settings:** decisions 7-8, the four lines, one column per trader, Claude's code limits
    moved into the setting.
-4. **The strategies watch on Level 1:** decision 9, the retired senders (decision 12, the Who trades switch
-   included), the Bots page, its rail entry and the header Bots key gone, TraderTV back on the rail.
 5. **The brain:** decision 10, lane 3 and the door stamped `brain`, the brain's pill and panel.
 
 ## Consequences
