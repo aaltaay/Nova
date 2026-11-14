@@ -30,6 +30,7 @@ import { placeMarkers, splitMarkers, type DepthMarker, type PlacedMarker } from 
 import { luldMarkers } from './luld';
 import { withBands } from './LuldRows';
 import { LuldStrip } from './LuldStrip';
+import { Level2DepthChart } from './Level2DepthChart';
 import { Level2Frame } from './Level2Frame';
 import { Level2SpreadRow } from './Level2SpreadRow';
 import {
@@ -353,6 +354,7 @@ export function DepthLadder({ symbol, uiActive = true, markers, traderTab = fals
       <Level2SpreadRow bid={bestBid} ask={bestAsk} />
       <PullsStrip watch={ladderWatch} />
       <LuldStrip view={luld} />
+      <Level2DepthChart bids={book.bids} asks={book.asks} watch={ladderWatch} />
       <div className="das-l2-montage">
         <MontageSide side="bid" levels={book.bids} peak={peak} markers={sides.bid} watch={ladderWatch} nowMs={nowMs} />
         <MontageSide side="ask" levels={book.asks} peak={peak} markers={sides.ask} watch={ladderWatch} nowMs={nowMs} />

@@ -18,7 +18,7 @@
  * (The rail hides .ibkr-depth-fallback-badge, so the notes use their own class.)
  */
 import {
-  Level2Frame, Level2SpreadRow, MontageSide, PullsStrip, applyBookWatchFrame, bookPeak, useBookWatchClock, type BookWatchState,
+  Level2DepthChart, Level2Frame, Level2SpreadRow, MontageSide, PullsStrip, applyBookWatchFrame, bookPeak, useBookWatchClock, type BookWatchState,
 } from '../ibkr';
 import { ExchangeBookBanner, ExchangeBookGap, ExchangeBookNote, exchangeBookAbsence, venueLabels, venueNames }
   from './ExchangeBookNotes';
@@ -105,6 +105,7 @@ export function HistoricalDepth({ depth = null, holdLineFor = null, snapshot = n
       {depth && venue ? <ExchangeBookGap depth={depth} /> : null}
       <Level2SpreadRow bid={bids[0]?.price} ask={asks[0]?.price} />
       <PullsStrip watch={resolvedWatch} />
+      <Level2DepthChart bids={bids} asks={asks} watch={resolvedWatch} />
       <div className="das-l2-montage">
         <MontageSide side="bid" levels={bids} peak={peak} watch={resolvedWatch} nowMs={nowMs} />
         <MontageSide side="ask" levels={asks} peak={peak} watch={resolvedWatch} nowMs={nowMs} />

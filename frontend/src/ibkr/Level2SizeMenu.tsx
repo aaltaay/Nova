@@ -1,11 +1,13 @@
 /**
- * The Level 2 pane's right-click menu: Small / Medium / Large, the current one ticked. Same cursor-anchored
- * portal and clamp as the Time & Sales min-size menu; a pick, a click outside or Escape closes it.
+ * The Level 2 pane's right-click menu: Small / Medium / Large, the current one ticked, and under them the
+ * depth chart's switch (ticked while on). Same cursor-anchored portal and clamp as the Time & Sales min-size
+ * menu; a pick, a click outside or Escape closes it.
  */
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Check } from 'lucide-react';
 import {
+  L2_DEPTH_CHART_MENU_LABEL,
   L2_SIZES,
   L2_SIZE_LABELS,
   L2_SIZE_MENU_HEIGHT_PX,
@@ -20,10 +22,12 @@ interface Props {
   y: number;
   size: Level2Size;
   onPick: (size: Level2Size) => void;
+  depthChart: boolean;
+  onDepthChart: (on: boolean) => void;
   onClose: () => void;
 }
 
-export function Level2SizeMenu({ x, y, size, onPick, onClose }: Props) {
+export function Level2SizeMenu({ x, y, size, onPick, depthChart, onDepthChart, onClose }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const pos = tapeFilterMenuPosition({
     x,
@@ -35,7 +39,7 @@ export function Level2SizeMenu({ x, y, size, onPick, onClose }: Props) {
   });
 
   useEffect(() => {
-    ref.current?.querySelector<HTMLButtonElement>('[aria-checked="true"]')?.focus();
+    ref.current?.querySelector<HTMLButtonElement>('[role="menuitemradio"][aria-checked="true"]')?.focus();
   }, []);
 
   useEffect(() => {
@@ -82,6 +86,18 @@ export function Level2SizeMenu({ x, y, size, onPick, onClose }: Props) {
           </button>
         );
       })}
+      <div className="l2-size-menu__rule" role="separator" />
+      <button
+        type="button"
+        role="menuitemcheckbox"
+        aria-checked={depthChart}
+        className={`l2-size-menu__item${depthChart ? ' l2-size-menu__item--on' : ''}`}
+        data-testid="l2-depth-chart-switch"
+        onClick={() => onDepthChart(!depthChart)}
+      >
+        <span>{L2_DEPTH_CHART_MENU_LABEL}</span>
+        {depthChart && <Check size={14} strokeWidth={2.2} aria-hidden="true" />}
+      </button>
     </div>,
     document.body,
   );

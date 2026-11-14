@@ -58,7 +58,21 @@ export const L2_SIZE_DEFAULT = 'large';
 export const L2_SIZE_MENU_TITLE = 'Level 2 size';
 export const L2_SIZE_LABELS = { small: 'Small', medium: 'Medium', large: 'Large' } as const;
 export const L2_SIZE_MENU_WIDTH_PX = 160;
-export const L2_SIZE_MENU_HEIGHT_PX = 132;
+export const L2_SIZE_MENU_HEIGHT_PX = 164;
+// ── Level 2 pane: the depth chart behind a right-click switch (operator ask, 2026-11-13) ──
+/** localStorage: the depth chart's switch, off until the operator turns it on (a prefStore envelope). */
+export const L2_DEPTH_CHART_STORAGE_KEY = 'nova.level2.depthChart';
+export const L2_DEPTH_CHART_MENU_LABEL = 'Depth chart';
+export const L2_DEPTH_CHART_HINT = 'Hover a price: what rests up to it.';
+export const L2_DEPTH_CHART_LABELS = {
+  bid: 'bid',
+  ask: 'offered',
+  bidReach: 'bid down to',
+  askReach: 'offered up to',
+  seller: 'Seller',
+  buyer: 'Buyer',
+  aria: 'Depth chart: the shares this Level 2 shows, stacked outward from the inside, bids left, offers right',
+} as const;
 /** The spread row over the book: best bid, the spread (and its share of the ask), best ask. */
 export const L2_SPREAD_LABELS = { bid: 'Bid', spread: 'Spread', ask: 'Ask' } as const;
 /** The band over the tape, level with the spread row: the newest print. */
