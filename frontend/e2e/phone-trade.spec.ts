@@ -120,7 +120,8 @@ test('a tap is the order: the desk gets its own order body, priced from the book
   // A limit over the Ask, with the Ask it was read from.
   await page.getByTestId('phone-buy-limit').click();
   await expect.poll(() => api.orders.length).toBe(2);
-  expect(api.orders[1]).toMatchObject({ side: 'BUY', qty: 500, order_type: 'LMT', limit_price: 4.87, reference_price: 4.82 });
+  // The venue the ticket showed at the tap rides with the order: a desk that moved since refuses it.
+  expect(api.orders[1]).toMatchObject({ side: 'BUY', qty: 500, order_type: 'LMT', limit_price: 4.87, reference_price: 4.82, venue: 'paper' });
 
   // Sell all at the Ask rests: it becomes a working order, and the orders dot counts it.
   await expect(page.getByTestId('phone-sell-100-ask')).toContainText('SELL ALL 1,500', { timeout: 10_000 });
@@ -167,7 +168,9 @@ test('Custom sends a stop under the bid, and a refusal is the desk\'s words and 
   api.state.armed = false;
   await page.getByRole('button', { name: 'Buy', exact: true }).click();
   await page.getByRole('button', { name: 'Market', exact: true }).click();
-  await page.getByTestId('phone-send').click({ force: true });
+  // Send itself, not a point on the screen: once the phone's poll reads the closed padlock, the lock pill drawn over
+  // Send would take a click there and open the padlock. Either way the answer is NOT SENT (the door's, or the ticket's).
+  await page.getByTestId('phone-send').dispatchEvent('click');
   const banner = page.getByTestId('phone-banner');
   await expect(banner).toContainText('NOT SENT');
   await page.waitForTimeout(5_000);
@@ -209,7 +212,8 @@ test('hold the position dot to flatten, behind a warning; cancel all reaches eve
   // The desk's own Cancel + Flatten: the stock's orders, then the whole position as a protective flatten.
   await expect.poll(() => api.orders.length).toBe(1);
   expect(api.cancels[0]).toContain('symbol=ABCD');
-  expect(api.orders[0]).toMatchObject({ side: 'SELL', qty: 500, intent: 'flatten' });
+  expect(api.cancels[0]).toContain('venue=paper');
+  expect(api.orders[0]).toMatchObject({ side: 'SELL', qty: 500, intent: 'flatten', venue: 'paper' });
   await expect(dot).toBeHidden({ timeout: 10_000 });
 
   // Cancel all: every stock, after the same warning.

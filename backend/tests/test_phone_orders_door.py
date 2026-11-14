@@ -145,7 +145,36 @@ def test_the_desk_on_live_refuses_the_phone_at_its_route_and_a_move_at_the_door(
     from phone import routes
 
     set_venue("sim")
-    monkeypatch.setattr(routes, "_trade_venue", lambda: "paper")
+    monkeypatch.setattr(routes, "_trade_venue", lambda tapped=None: "paper")
     moved = client.post("/api/phone/order", headers=unlocked, json=_order()).json()
     assert (moved["ok"], moved["reason_code"]) == (False, "VENUE_CHANGED")
     assert for_venue("paper").working_orders() == []
+
+
+def test_a_tap_on_paper_never_trades_sim_after_the_desk_moved(phone):
+    """The venue the phone names is the one the operator tapped on; the door refuses it once the desk left it."""
+    client, unlocked = phone
+    _safety.set_armed(True, reason="test")
+    set_venue("sim")
+    _safety.set_armed(True, reason="test")
+    moved = client.post("/api/phone/order", headers=unlocked, json=_order(venue="paper", side="SELL")).json()
+    assert (moved["ok"], moved["reason_code"]) == (False, "VENUE_CHANGED")
+    assert for_venue("sim").working_orders() == [] and for_venue("paper").working_orders() == []
+    # A cancel tapped on Paper does not cancel Sim's orders: the door's own words say the desk moved.
+    cancel = client.delete(f"/api/phone/orders?symbol={SYM}&venue=paper", headers=unlocked).json()
+    assert (cancel["ok"], cancel["cancelled"]) == (False, [])
+    assert "moved from Paper to Sim" in cancel["error"]
+    one = client.delete("/api/phone/order/41?venue=paper", headers=unlocked).json()
+    assert one["ok"] is False, one
+    # A tap on Live is look only, whatever the desk is on now; a venue that does not exist is not read at all.
+    live = client.post("/api/phone/order", headers=unlocked, json=_order(venue="live"))
+    assert live.status_code == 409 and live.json()["detail"]["reason"] == PHONE_LIVE_LOOK_ONLY
+    assert client.delete(f"/api/phone/orders?symbol={SYM}&venue=bank", headers=unlocked).status_code == 422
+
+
+def test_a_tap_on_sim_trades_sim(phone):
+    client, unlocked = phone
+    set_venue("sim")
+    _safety.set_armed(True, reason="test")
+    placed = client.post("/api/phone/order", headers=unlocked, json=_order(venue="sim")).json()
+    assert placed.get("reason_code") != "VENUE_CHANGED", placed

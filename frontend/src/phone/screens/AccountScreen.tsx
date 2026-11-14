@@ -106,7 +106,8 @@ function orderPrice(o: IbkrOrder): string {
 }
 
 function OrderRow({ o, split }: { o: IbkrOrder; split: boolean }) {
-  const { send } = usePhoneSession();
+  // The row is the venue's on screen: the cancel names it, so a desk that moved since refuses it.
+  const { send, venue } = usePhoneSession();
   const words = `${o.symbol} ${o.side === 'BUY' ? 'Buy' : 'Sell'} ${shares(o.remaining_qty ?? o.qty)}`;
   return (
     <div className="ph-acct__row is-order" data-testid={`phone-order-${o.order_id}`}>
@@ -115,7 +116,7 @@ function OrderRow({ o, split }: { o: IbkrOrder; split: boolean }) {
       <b className={o.side === 'BUY' ? 'ph-good' : 'ph-bad'}>{o.side === 'BUY' ? 'Buy' : 'Sell'} {shares(o.remaining_qty ?? o.qty)}</b>
       <span>{orderPrice(o)}</span>
       <span className="ph-acct__act">
-        <button type="button" className="ph-pill-btn is-danger" onClick={() => send(`Cancel ${words}`, (door) => door.cancelOrder(o.order_id, words))}>
+        <button type="button" className="ph-pill-btn is-danger" onClick={() => send(`Cancel ${words}`, (door) => door.cancelOrder(o.order_id, words, venue))}>
           Cancel
         </button>
       </span>

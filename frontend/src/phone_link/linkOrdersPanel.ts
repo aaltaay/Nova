@@ -36,6 +36,11 @@ function button(text: string, cls = ''): HTMLButtonElement {
   return b;
 }
 
+/** The desk's venue as a word: `paper` is Paper. */
+export function venueWord(venue: string | null | undefined): string {
+  return venue ? venue.charAt(0).toUpperCase() + venue.slice(1) : 'an unknown venue';
+}
+
 /** Why the order buttons are off, in the operator's words; null when they may be pressed. */
 export function blockedWhy(status: PhoneStatus | null, hasRun: boolean): string | null {
   if (!status) return 'Nova could not be reached.';
@@ -114,7 +119,7 @@ export function buildOrdersPanel(apiBase: string, context: () => OrderContext | 
     const why = blockedWhy(status, ctx != null);
     const buyWhy = why == null ? buyBlockedWhy(ctx) : null;
     const unlocked = Boolean(status?.unlocked);
-    state.textContent = why ?? buyWhy ?? `Unlocked · desk on Paper · padlock ${status?.armed ? 'open' : 'closed (a buy is refused until it is open)'}`;
+    state.textContent = why ?? buyWhy ?? `Unlocked · desk on ${venueWord(status?.venue)} · padlock ${status?.armed ? 'open' : 'closed (a buy is refused until it is open)'}`;
     pinInput.hidden = unlocked;
     unlockButton.textContent = unlocked ? 'Lock phone' : 'Unlock';
     unlockButton.disabled = busy || !status?.pin_set;
@@ -147,6 +152,12 @@ export function buildOrdersPanel(apiBase: string, context: () => OrderContext | 
     await refresh();
   };
 
+  /** The test's view at the tap, with the venue the panel showed: the door refuses once the desk has left it. */
+  const tapped = (): OrderContext | null => {
+    const ctx = context();
+    return ctx ? { ...ctx, venue: status?.venue ?? null } : null;
+  };
+
   const sized = (): { qty: number; limit: number | null } | string => {
     const qty = Number(qtyInput.value);
     if (!Number.isFinite(qty) || qty <= 0 || !Number.isInteger(qty)) return 'Enter a whole number of shares.';
@@ -158,7 +169,7 @@ export function buildOrdersPanel(apiBase: string, context: () => OrderContext | 
   };
 
   const send = (side: 'BUY' | 'SELL'): void => {
-    const ctx = context();
+    const ctx = tapped();
     const size = sized();
     if (!ctx) return;
     if (typeof size === 'string') {
@@ -186,12 +197,12 @@ export function buildOrdersPanel(apiBase: string, context: () => OrderContext | 
   buyButton.addEventListener('click', () => send('BUY'));
   sellButton.addEventListener('click', () => send('SELL'));
   flattenButton.addEventListener('click', () => {
-    const ctx = context();
+    const ctx = tapped();
     if (ctx) void tap(`Flatten ${ctx.symbol}`, () => door.flatten(ctx));
   });
   cancelButton.addEventListener('click', () => {
-    const ctx = context();
-    if (ctx) void tap(`Cancel orders on ${ctx.symbol}`, () => door.cancelSymbol(ctx.symbol));
+    const ctx = tapped();
+    if (ctx) void tap(`Cancel orders on ${ctx.symbol}`, () => door.cancelSymbol(ctx.symbol, ctx.venue));
   });
 
   void refresh();

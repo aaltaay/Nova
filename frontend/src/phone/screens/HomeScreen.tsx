@@ -144,7 +144,8 @@ type HoldItem =
 
 function Holdings() {
   const account = usePhoneAccount();
-  const { send } = usePhoneSession();
+  // A row is the venue's on screen: a cancel names it, so a desk that moved since refuses it.
+  const { send, venue } = usePhoneSession();
   const boxRef = useRef<HTMLDivElement>(null);
   const fit = useRowsThatFit(boxRef, HOLD_ROW_PX);
   const items: HoldItem[] = [
@@ -197,7 +198,7 @@ function Holdings() {
               type="button"
               className="ph-pill-btn is-danger"
               onClick={() => send(`Cancel ${item.order.symbol} ${orderWords(item.order)}`,
-                (door) => door.cancelOrder(item.order.order_id, `${item.order.symbol} ${orderWords(item.order)}`))}
+                (door) => door.cancelOrder(item.order.order_id, `${item.order.symbol} ${orderWords(item.order)}`, venue))}
             >
               Cancel
             </button>

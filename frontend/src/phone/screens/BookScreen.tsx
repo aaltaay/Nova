@@ -6,6 +6,10 @@
  *
  * It holds the same Level 2 line as the Trade screen (`useIbkrDepth`), and every word is the desk's: the cards are
  * the marks' own titles and hovers (`ibkr/bookWatch*`). Nothing is sent from here.
+ *
+ * On Sim it follows the Trade screen's rule (`tradeVenueView`): across the live edge the page remounts, so the book
+ * reopens the real line or the replay instead of keeping the socket it opened on the other side, and a Sim the
+ * phone does not draw (or a gap in the recording) shows the desk's words in place of the book.
  */
 import { useMemo, useRef, useState } from 'react';
 import { TICKER_TRADE_DEPTH_LEVELS } from '../../constants';
@@ -15,11 +19,14 @@ import { pullsLine, type BookSide, type BookWatchState } from '../../ibkr/bookWa
 import { formatDepthPrice } from '../../ibkr/depthNumberFormat';
 import type { DepthLevel } from '../../ibkr/types';
 import { useIbkrDepth } from '../../ibkr/useIbkrDepth';
+import { useSimReplayTarget } from '../../sim';
 import { plainPrice } from '../../utils/priceTick';
 import { BackButton, PhoneScreen, VenuePill } from '../PhoneChrome';
+import { usePhoneSession } from '../PhoneSession';
 import { go } from '../phoneRoute';
 import { sideMarks } from '../trade/BookMarks';
 import { useLevel2Marks } from '../trade/level2MarksSwitch';
+import { CAPTURE_GAP, tradeVenueView } from '../trade/tradeVenueView';
 import { useRowsThatFit } from '../useRowsThatFit';
 import '../../ibkr/level2DepthChart.css';
 import '../trade/bookMarks.css';
@@ -86,9 +93,18 @@ function LastMinute({ watch }: { watch: BookWatchState | null }) {
 }
 
 export function BookScreen({ symbol }: { symbol: string }) {
+  const { venue } = usePhoneSession();
+  const replay = useSimReplayTarget(symbol);
+  const view = tradeVenueView(symbol, venue, replay.clock, replay.sim);
+  const blank = view.note ?? (view.gap ? CAPTURE_GAP : null);
+  return <BookRead key={`${symbol}:${view.feedKey}`} symbol={symbol} blank={blank} />;
+}
+
+/** The page for one feed. `blank`: the desk's words drawn in place of the book; null draws the book. */
+function BookRead({ symbol, blank }: { symbol: string; blank: string | null }) {
   const marksOn = useLevel2Marks();
   const depth = useIbkrDepth(symbol, true);
-  const book = depth.book;
+  const book = blank ? null : depth.book;
   const watch = book && !book.l1_fallback ? depth.watch : null;
   const nowMs = useBookWatchClock(watch, Boolean(watch));
   const bids = useMemo(() => book?.bids ?? [], [book]);
@@ -101,7 +117,7 @@ export function BookScreen({ symbol }: { symbol: string }) {
   const [page, setPage] = useState(0);
   const pages = Math.max(1, Math.ceil(cards.length / perPage));
   const at = Math.min(page, pages - 1);
-  const why = depth.laneWait?.plain ?? depth.error ?? (book?.l1_fallback ? 'IBKR sent no Level 2 for this stock: this is the top of book only.' : null);
+  const why = blank ?? depth.laneWait?.plain ?? depth.error ?? (book?.l1_fallback ? 'IBKR sent no Level 2 for this stock: this is the top of book only.' : null);
 
   return (
     <PhoneScreen
@@ -128,9 +144,9 @@ export function BookScreen({ symbol }: { symbol: string }) {
         <div className="ph-read__chart">
           {book && (bids.length || asks.length)
             ? <Level2DepthChart bids={bids} asks={asks} watch={watch} alwaysOn hint={TAP_HINT} />
-            : <div className="ph-read__wait" role="status">{why ?? 'Opening Level 2…'}</div>}
+            : <div className="ph-read__wait" role="status" data-testid={blank ? 'phone-sim-note' : undefined}>{why ?? 'Opening Level 2…'}</div>}
         </div>
-        {!marksOn ? (
+        {blank ? null : !marksOn ? (
           <div className="ph-read__note" role="status">The Level 2 marks are off on this phone. Settings turns them on.</div>
         ) : (
           <>

@@ -71,6 +71,21 @@ test("on Sim with another stock replaying, the desk's words take the book's plac
   expect(api.writes).toEqual([]);
 });
 
+test("the Level 2 read follows the Sim: another stock replaying shows the desk's words, not a live book", async ({ page }) => {
+  const api = await mockPhoneApi(page, {
+    venue: 'sim', armed: true,
+    simClock: { live_edge: false, replay_source: 'capture', replay_symbol: 'KLMN', replay_ok: true, session_date: '2026-11-12' },
+  });
+  await page.goto('/phone.html#/book/ABCD');
+  const read = page.getByTestId('phone-book-read');
+  await expect(read.getByTestId('phone-sim-note')).toContainText('KLMN');
+  await expect(read.locator('.l2-depth')).toHaveCount(0);
+  await expect(read.locator('.ph-read__cards')).toHaveCount(0);
+  await expect(read.locator('.ph-read__spread')).not.toContainText('4.81');
+  expect(await phoneOverflow(page)).toEqual([]);
+  expect(api.writes).toEqual([]);
+});
+
 test('the Level 2 read page fits the phone, and Back returns to Trade', async ({ page }) => {
   const { errors } = attachErrorCollector(page);
   const api = await mockPhoneApi(page);

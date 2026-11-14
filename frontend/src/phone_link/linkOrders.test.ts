@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PhoneDoor, closingOrder, orderStamp, refusalText, type OrderContext } from './linkOrders';
-import { blockedWhy, buyBlockedWhy } from './linkOrdersPanel';
+import { blockedWhy, buyBlockedWhy, venueWord } from './linkOrdersPanel';
 
 const ctx = (over: Partial<OrderContext> = {}): OrderContext => ({
   symbol: 'F',
@@ -63,6 +63,11 @@ describe('why the order buttons are off', () => {
     expect(blockedWhy({ ...status, venue: 'sim', paper: false, trades: true }, true)).toBeNull();
     expect(blockedWhy(status, false)).toContain('Press Start');
     expect(blockedWhy(status, true)).toBeNull();
+  });
+
+  it("names the desk's venue as a word", () => {
+    expect(venueWord('sim')).toBe('Sim');
+    expect(venueWord(null)).toBe('an unknown venue');
   });
 
   it('holds Buy alone until this device has the clock and a Level 2 book', () => {
@@ -152,6 +157,23 @@ describe("the door, as the phone's screens use it", () => {
 
     fetchMock.mockImplementationOnce(() => answer(409, { detail: { reason: 'PHONE_LIVE_LOOK_ONLY', error: 'The desk is on Live: from the phone, Live is look only. Send Live orders from the PC. Nothing was sent.' } }));
     expect(await door.cancelOrder(41, 'ABCD Sell 250')).toMatchObject({ ok: false, text: 'The desk is on Live: from the phone, Live is look only. Send Live orders from the PC. Nothing was sent.' });
+  });
+
+  it('names the venue the tap was on, so a desk that moved since refuses instead of acting on the other account', async () => {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => answer(200, { ok: true, order_id: 41, cancelled: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+    const door = new PhoneDoor('https://pc.test:8443');
+    await door.cancelOrder(41, 'ABCD Sell 250', 'paper');
+    expect(fetchMock.mock.calls[0][0]).toBe('https://pc.test:8443/api/phone/order/41?venue=paper');
+    await door.cancelSymbol('ABCD', 'sim');
+    expect(fetchMock.mock.calls[1][0]).toBe('https://pc.test:8443/api/phone/orders?symbol=ABCD&venue=sim');
+    await door.order(ctx({ venue: 'paper' }), 'SELL', 5, null);
+    expect(JSON.parse(String(fetchMock.mock.calls[2][1]?.body))).toMatchObject({ symbol: 'F', side: 'SELL', venue: 'paper' });
+    // Nothing known is not a venue: the door then reads the desk's own.
+    await door.cancelSymbol('ABCD', 'bank');
+    expect(fetchMock.mock.calls[3][0]).toBe('https://pc.test:8443/api/phone/orders?symbol=ABCD');
+    await door.order(ctx(), 'SELL', 5, null);
+    expect(JSON.parse(String(fetchMock.mock.calls[4][1]?.body))).not.toHaveProperty('venue');
   });
 
   it("moves the desk's venue through the door and says what the desk cancelled", async () => {
