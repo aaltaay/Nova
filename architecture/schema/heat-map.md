@@ -19,7 +19,7 @@ nothing feeds a bot, a setup or a scanner row.
 - **The book watcher's verdicts** on the same socket (`book-watch-and-luld.md`, "What left the book, on the ladder"):
   every `book_watch` frame of `schema_version` 1 -- `source`, `now`, `reset`, `watching`, `reason`, each of `drops[]`
   (`ts`, `side`, `price`, `pulled`, `filled`, `outcome`, `level_before`, `on_approach`) and each of `hidden[]` (`id`,
-  `ts`, `side`, `price`, `state`, `hidden`, `printed`, `shown_max`, `started_ts`, `last_print_ts`, `ended_ts`). Another
+  `ts`, `side`, `price`, `state`, `hidden`, `printed`, `unseen`, `shown_max`, `started_ts`, `last_print_ts`, `ended_ts`). Another
   `schema_version` is ignored. The same frames the Level 2 ladder folds (`ibkr/bookWatch.ts`); nothing is asked for.
 - **Time & Sales** (`/ws/ibkr/tape/{symbol}`): every print of a `print` / `prints` frame -- `time` (ISO; a Sim
   replay's own time, Nova's receipt live), `price`, `size`, `side` (`ask` | `bid` | `between` | `unknown`) -- and
@@ -89,7 +89,9 @@ the verdicts above -- never judged from the picture, where the book trails the t
   counts each time). Numbers are whole below 10,000, then the ladder's `15.2K`. Chips at one price never overlap and never leave the plot:
   laid left to right after their caps, then packed back from the right edge in the same order.
 - **Hidden buyers and sellers.** A violet (`#a78bfa`) dashed box along the price from `t0` to `t1`, cut to the window,
-  and `◆ 97.1K hidden` (the watcher's `hidden`) at its end.
+  and `◆ 97.1K hidden` (the watcher's `hidden`) at its end, then ` · 8,977 unseen` when the watcher's `unseen` is
+  over 0: lit shares that traded there on exchanges the Level 2 does not show, never part of `hidden`
+  (`book-watch-and-luld.md`, "Only what the book shows").
 - **The dots' numbers.** A buy or sell dot whose radius reaches `HEAT_DOT_LABEL_MIN_R` (11 CSS px, about a fifth of the
   window's biggest dot) carries its shares inside it (`850`, `7.9K`, `52K`). Grey (between or unknown) dots never do:
   they mix midpoint, dark and odd-lot prints, and on a busy stock one grey burst can run for seconds (OLOX 2026-10-21:

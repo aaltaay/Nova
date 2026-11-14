@@ -43,6 +43,8 @@ export interface HeatHidden {
   hidden: number;
   printed: number;
   shownMax: number;
+  /** Lit shares traded there on exchanges the Level 2 does not show: never part of `hidden`. */
+  unseen: number;
   state: string;
   /** When the watcher said this: a newer word replaces an older one. */
   said: number;
@@ -106,6 +108,7 @@ function readHidden(raw: unknown): HeatHidden | null {
     hidden,
     printed: num(h.printed) ?? hidden,
     shownMax: num(h.shown_max) ?? 0,
+    unseen: num(h.unseen) ?? 0,
     state: typeof h.state === 'string' ? h.state : 'holding',
     said,
   };
