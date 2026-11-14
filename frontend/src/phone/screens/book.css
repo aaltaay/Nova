@@ -1,0 +1,83 @@
+/* The Level 2 read (ADR 070 amendment 2026-11-13). Owner: phone/screens/BookScreen.tsx. One screen, no scroll:
+   the cards' box pages what does not fit. The marks keep the desk ladder's colours (white big, violet hidden,
+   amber pulled, slate traded). */
+.ph-read { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; gap: 6px; padding: 6px 12px 8px; }
+.ph-read__spread {
+  height: 24px;
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  font: 700 14px var(--ph-mono);
+  white-space: nowrap;
+}
+.ph-read__spread .is-bid { color: var(--ph-good); }
+.ph-read__spread .is-ask { text-align: right; color: var(--ph-bad); }
+.ph-read__spread i { font: 600 9px var(--ph-ui); font-style: normal; letter-spacing: 0.08em; color: var(--ph-faint); }
+.ph-read__pill { padding: 1px 8px; border-radius: 999px; background: var(--ph-soft); font: 600 10px var(--ph-ui); color: var(--ph-muted); }
+
+.ph-read__chart {
+  flex-shrink: 0;
+  height: 196px;
+  border: 1px solid var(--ph-hair);
+  border-radius: 10px;
+  background: var(--ph-chart);
+  overflow: hidden;
+  --l2-band-label: 10px;
+}
+.ph-read__chart .l2-depth { border-bottom: 0; height: 100%; display: flex; flex-direction: column; color: var(--ph-faint); }
+.ph-read__chart .l2-depth__plot { flex: 1 1 0; height: auto; min-height: 0; }
+.ph-read__chart .l2-depth__read { color: var(--ph-dim); }
+.ph-read__chart .l2-depth__walltag { font-weight: 700; }
+.ph-read__wait, .ph-read__quiet, .ph-read__note {
+  padding: 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--ph-faint);
+  text-align: center;
+}
+.ph-read__wait { height: 100%; display: flex; align-items: center; justify-content: center; }
+.ph-read__label { flex-shrink: 0; margin-top: 2px; }
+
+.ph-read__cards { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
+.ph-read__card {
+  height: 58px;
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--ph-hair);
+  background: var(--ph-card);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+.ph-read__card b { font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ph-read__card span {
+  font-size: 10.5px;
+  line-height: 1.3;
+  color: var(--ph-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ph-read__card[data-kind='big'] { border: 2px solid #ffffff; background: #0b0b0b; }
+.ph-read__card[data-kind='hidden'] { border-color: rgba(167, 139, 250, 0.6); }
+.ph-read__card[data-kind='hidden'] b { color: #a78bfa; }
+.ph-read__card[data-kind='pulled'], .ph-read__card[data-kind='approach'] { border-color: rgba(245, 158, 11, 0.55); }
+.ph-read__card[data-kind='pulled'] b, .ph-read__card[data-kind='approach'] b { color: #f59e0b; }
+.ph-read__card[data-kind='traded'] b { color: #cbd5e1; }
+
+.ph-read__pager { flex-shrink: 0; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 11px; color: var(--ph-muted); }
+
+.ph-read__minute { flex-shrink: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.ph-read__minute > div { padding: 5px 9px; border-radius: 10px; border: 1px solid var(--ph-hair); background: var(--ph-card); display: flex; flex-direction: column; gap: 1px; }
+.ph-read__minute b { font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.ph-read__minute [data-side='bid'] b { color: var(--ph-good); }
+.ph-read__minute [data-side='ask'] b { color: var(--ph-bad); }
+.ph-read__minute span { display: flex; justify-content: space-between; font-size: 11px; color: var(--ph-muted); }
+.ph-read__minute em { font-style: normal; font-family: var(--ph-mono); color: var(--ph-text); }
+.ph-read__minute [data-warn='true'] span:first-of-type em { color: #f59e0b; }
+.ph-read__minute.is-off { display: block; font-size: 11px; color: var(--ph-faint); }
+.ph-read__foot { flex-shrink: 0; font-size: 10px; color: var(--ph-faint); text-align: center; }

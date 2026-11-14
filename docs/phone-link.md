@@ -101,7 +101,16 @@ it on the home screen, full screen; it opens there from then on.
     and Cancel all still work.
   - *When Level 2 reaches the phone late* the buys are held and say so. Sells, Flatten and Cancel still go.
 - The big chart opens upright from the round icon in the corner of a stock's chart; its sideways button turns it.
-- The venue is changed on the PC. The phone sends orders on Paper only.
+- *The venue pill* (PAPER / SIM / LIVE, on every screen) opens a small menu: tap a row and the desk switches with
+  it. Before the tap it says, in amber, what leaving the venue would change (an armed desk disarms); your own
+  orders and shares stay where they are. Settings' venue row does the same.
+- *On Sim* a strip under the header follows the desk's replay: pause / play and a minute back or forward. The day
+  and stock are chosen on the PC. A stock that is not the one replaying shows the desk's words instead of a book.
+- *On Live* the phone looks only: the account, the orders and the market show; the ticket is grey and says Live
+  orders go from the PC.
+- *Level 2's marks* are the desk's: a big seller or buyer is a dark block framed in white, a hidden seller or buyer
+  a violet mark, what was pulled an amber one. The small depth chart under the book opens a page with it large and
+  every mark spelled out. Settings turns the marks and the chart off.
 
 After a new build (`npm run build`), reload the page on the phone to get it: the file server tells the phone to
 ask for the page again every time, and to keep only the files whose names change when their content does.
@@ -132,11 +141,10 @@ npx cross-env VITE_API_BASE_URL=https://<pc-name>:8443 npm run build
 Everything the desk tries to write from the phone is refused with "Nova is view-only from another device", and its own
 lag lock reads the phone's uncorrected clock. Use the link test, not the desk, to judge lag.
 
-## Paper orders from the phone
+## Paper and Sim orders from the phone
 
-The phone sends Paper orders from its Trade screen, and from the link-test page (buy, sell, flatten, cancel). Never
-Live: the order door refuses a phone order whenever the desk is not on Paper, and the phone cannot move the desk's
-venue.
+The phone sends orders on Paper and on Sim from its Trade screen, and from the link-test page (buy, sell, flatten,
+cancel). Never Live: on Live the phone looks only, and the order door refuses a phone order sent after the desk moved.
 
 1. **The PIN is the one you already use on the PC.** Nothing to set up. To give the phone a different PIN
    instead, run this on the PC (six digits, typed at a hidden prompt; only its hash is stored). While it is set
@@ -146,9 +154,9 @@ venue.
    py -3 tools/set_phone_pin.py
    ```
 
-2. **Put the desk on Paper** (the header pill), on the PC.
+2. **Put the desk on Paper or Sim** (the header pill on the PC, or the venue pill on the phone).
 3. On the phone, open **Trade** on a stock and tap a button: the phone asks for the PIN once, then tap the padlock
-   (or **Locked**) to open Paper's padlock. On the link-test page with a run started, the same two steps are under
+   (or **Locked**) to open the padlock. On the link-test page with a run started, the same two steps are under
    **Paper orders**.
 4. Send an order. The banner says Sent and how long the desk took to answer, and Nova's own words when it refuses.
 

@@ -187,8 +187,8 @@ def _stake_check(*, switching: bool, reloading: bool, confirm: bool) -> None:
     if stake["safe"] or confirm:
         return
     names = "; ".join(i["text"] for i in stake["items"]) or "a check could not be read"
-    what = (f"the desk is on {current.capitalize()} -- a venue change disarms, turns the Bot off and cancels "
-            "Nova's working entries there" if switching and current != "sim" else "the Sim is loaded")
+    what = (f"the desk is on {current.capitalize()} -- a venue change disarms"
+            if switching and current != "sim" else "the Sim is loaded")
     raise _refuse(
         409, "AGENT_AT_STAKE",
         f"{what}, and this puts something at stake: {names}. Ask the operator; send confirm: true only after "

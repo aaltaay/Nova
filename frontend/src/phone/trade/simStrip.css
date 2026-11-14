@@ -1,0 +1,48 @@
+/* The Sim strip and the Live band on Trade (ADR 070 amendment 2026-11-13, mockup v3). Owner: phone/trade/SimStrip.tsx.
+   One 26 px line each, under the header; the venue's own colours (Sim pink, Live green). */
+.ph-simstrip, .ph-liveband {
+  height: 26px;
+  flex-shrink: 0;
+  margin: 2px 10px 0;
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 8px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.ph-simstrip { background: rgba(232, 121, 249, 0.14); border: 1px solid rgba(232, 121, 249, 0.5); color: #F5D0FE; }
+.ph-simstrip button {
+  width: 24px;
+  height: 20px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+.ph-simstrip button:disabled { opacity: 0.45; }
+.ph-simstrip b { margin-left: 2px; font-family: var(--ph-mono); font-size: 12px; color: #ffffff; }
+.ph-simstrip i { font-style: normal; font-weight: 700; font-size: 10.5px; }
+.ph-liveband { padding: 0 8px; background: var(--ph-good-bg); border: 1px solid rgba(61, 220, 132, 0.5); color: var(--ph-good); font-weight: 700; }
+.ph-liveband span { color: var(--ph-muted); font-weight: 500; }
+
+/* On Sim with nothing for this stock, the book and the tape give their room to the desk's words. */
+.ph-trade__simnote {
+  flex: 1 1 0;
+  min-height: 0;
+  margin: 4px 10px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed rgba(232, 121, 249, 0.45);
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ph-muted);
+  text-align: center;
+}

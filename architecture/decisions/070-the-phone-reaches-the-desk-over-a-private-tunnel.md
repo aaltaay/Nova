@@ -207,6 +207,46 @@ continue!"). Step 2 is the Trade screen of the frozen design, on Paper.
 Not in step 2, and listed in #1309: the Trade screen on its side (the frozen landscape board is a Live board and
 comes with Live), starring and drawing from the phone, the venue switch, the four other Scan lists.
 
+## Amendment 2026-11-13 -- the venue from the phone, Sim, Live to look at, and the Level 2 marks
+
+**Decided by:** the operator, 2026-11-13, from mockups (`F:\Nova\design\phone-l2-venue\` v1 to v3): "the phone version
+is not able to switch between paper, sim, and live"; "I want level 2 upgrades to be on the phone as well, so we can
+identify big orders, big wall, hidden sellers, and the depth". They picked the Level 2 option with the depth chart
+("I really like C because it includes the depth, but maybe when we click on the depth, it opens that screen"), a
+dropdown on the venue pill ("Instead of opening a whole page, why don't we just have a dropdown"), and, asked "Build it
+with Live look-only and Sim following the desk's replay?", answered "Yes, build it". Decision 11 is rewritten by them
+here, as decision 19 required.
+
+30. **The phone moves the desk's venue.** There is one venue, the desk's: a switch on the phone switches the PC too.
+    `POST /api/phone/venue` hands the switch to the desk's own route (`POST /api/desk/venue`), and on Live it also
+    asks for the live Gateway as the desk's pill does. So it does what a switch on the desk does: it never arms
+    (it disarms), the Bot's dial follows the venue, and Nova's working entries on the venue left are cancelled
+    first (ADR 042 F). The pill on every screen opens a small menu; one tap on a row switches, as the desk's pill
+    does on one click.
+31. **The menu says what the switch would cancel before the tap.** `GET /api/phone/venue/effects` reads what the
+    desk would lose by leaving its venue, in the desk's own checks: Nova's entries still waiting to fill there
+    (`stock_mode.leave`), the Bot when it is on and a trade it holds open (in a switch's words, never a restart's),
+    the padlock when it is open. A check that cannot be read is said as
+    unknown, never as nothing. The operator's own orders and positions stay on the venue left, and the menu says so.
+32. **Orders on Paper and on Sim; Live is look only.** Decision 11 now reads: a phone order names the desk's venue
+    when it is Paper or Sim, and goes through the desk's own handlers, so the door refuses it `VENUE_CHANGED` if the
+    desk has moved by the time it is sent. On Live the phone shows the account, the positions, the orders and the
+    market, and sends nothing: the route says so first (`PHONE_LIVE_LOOK_ONLY`), and the padlock opens from the phone
+    on Paper and Sim only. Live is still armed only on the PC, with its PIN.
+33. **Sim follows the desk's replay.** The Sim's playhead is the desk's: pause, play, and a step back or forward of
+    the desk strip's one minute go through `POST /api/phone/sim/clock` to the desk's own `POST /api/sim/clock`. What
+    is loaded (the day, the stock) is chosen on the PC. The Trade screen shows a Sim stock as the desk's Trader does
+    with the same sockets: at the live edge, and on a Session Record of that stock (its quote is the recording's,
+    `captureQuoteDetail`). Every other Sim state -- nothing loaded, another stock loaded, loading, failed, and a
+    Massive-file window, which the desk draws with its own replay panes -- shows the desk's words in place of the
+    book and tape, and its ticket sends nothing. The Massive-file window is listed in #1309.
+34. **The Level 2 marks are the desk's.** The phone's book draws the book watcher's verdicts with the desk's own
+    functions (`ibkr/bookWatch`, `bookWatchHidden`, `bookWatchBig`): a big seller or buyer's block and its banner, a
+    hidden seller or buyer, what was pulled. The depth chart is the desk's (`Level2DepthChart`), drawn under the
+    rows while ten rows still fit beside it; a tap opens a page of its own (`#/book/SYM`) with the chart large and
+    every mark spelled out. Nothing is worked out on the phone, and nothing there is a buy or sell signal. A switch
+    in Settings turns the marks and the chart off, kept on the phone.
+
 ## Rules and maps
 
 - Shapes: `architecture/schema/desk-ops.md`, "Who may reach the API" (another device) and "The phone link test".
@@ -214,7 +254,10 @@ comes with Live), starring and drawing from the phone, the venue switch, the fou
 - Code: `backend/request_guard/` (`policy.remote_refusal`, `middleware`, `constants_request_guard.py`);
   `frontend/link-test.html`, `frontend/src/phone_link/`; the screens: `frontend/phone.html`, `frontend/src/phone/`
   (shapes: `architecture/schema/desk-ops.md`, "Nova on the phone: the screens").
-- The phone's door: `architecture/schema/execution.md`, "Paper orders from the phone"; `backend/phone/`,
+- The phone's door: `architecture/schema/execution.md`, "Paper and Sim orders from the phone"; `backend/phone/`,
   `tools/set_phone_pin.py`.
+- The venue menu and the Sim strip: `frontend/src/phone/VenueMenu.tsx`, `frontend/src/phone/trade/SimStrip.tsx`;
+  the Level 2 marks and the read page: `frontend/src/phone/trade/BookMarks.tsx`,
+  `frontend/src/phone/screens/BookScreen.tsx`.
 - The Trade screen: `frontend/src/phone/screens/TradeScreen.tsx`, `frontend/src/phone/trade/`; the two seams
   `frontend/src/ibkr/orderDoor.ts` and `frontend/src/utils/deskClock.ts`.

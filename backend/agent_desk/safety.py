@@ -67,6 +67,19 @@ def _read(venue: str, readers: tuple[tuple[str, Callable[[str], list[Item]]], ..
     return items, unknown
 
 
+# What a venue switch changes on the desk itself, whatever it leaves behind: the padlock. The Bot it also turned
+# off retired with the bots (ADR 072); nothing of Nova's waits to fill on a venue any more.
+SWITCH_READERS: tuple[tuple[str, Callable[[str], list[Item]]], ...] = (("armed", _armed),)
+
+
+def switch_changes(venue: str) -> tuple[list[Item], list[dict]]:
+    """``(items, unknown)``: the padlock a switch away from ``venue`` would close.
+
+    The phone's venue menu reads it before the tap (ADR 070 amendment 2026-11-13); a check that cannot be
+    read is in ``unknown``, never "nothing there"."""
+    return _read(venue, SWITCH_READERS)
+
+
 def at_stake(venue: str, *, switching: bool = True, reloading: bool = False,
              readers: tuple[tuple[str, Callable[[str], list[Item]]], ...] | None = None,
              sim_readers: tuple[tuple[str, Callable[[str], list[Item]]], ...] | None = None) -> dict[str, Any]:

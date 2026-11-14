@@ -1043,15 +1043,15 @@ asks `GET /api/market-view/gate?symbol=` once a second.
 build, served over the private tunnel beside the link test. It holds no API key.
 It is not in the demo build. It adds no route and no socket of its own: every
 read below is one the desk already makes, and every write goes to `/api/phone`
-(`architecture/schema/execution.md`, "Paper orders from the phone").
+(`architecture/schema/execution.md`, "Paper and Sim orders from the phone").
 
 - **Where the API is:** as the link test works it out (a loopback page uses
   `http://127.0.0.1:8000`; any other name uses port 8443 of that name over
   HTTPS). The page sets it before any desk module loads.
 - **Where it is in the page:** the screen is named in the hash, so the phone's
   Back gesture walks the screens: `#/home`, `#/scan`, `#/top9`, `#/account`,
-  `#/settings`, `#/trade[/SYM]`, `#/stock/SYM`, `#/chart/SYM`. An unknown hash is
-  Home.
+  `#/settings`, `#/trade[/SYM]`, `#/stock/SYM`, `#/chart/SYM`, `#/book/SYM`. An
+  unknown hash is Home.
 - **The heartbeat:** `GET /api/phone` once a second, with the session header
   when the phone holds one. One answer gives the header its venue, the padlock
   and whether the phone is unlocked, and times the link: the round trip (the
@@ -1069,7 +1069,9 @@ read below is one the desk already makes, and every write goes to `/api/phone`
   | Top 9 | the scanner feed; per tile `/api/ticker/{symbol}/bars` (1-minute, store-first) and, on Gainers, `/api/luld/{symbol}/trail` |
   | Account | `/api/practice/account`, `/api/practice/history?range=1D` (Paper and Sim), `/api/loss-limit`; the chart's range buttons read the same route with the desk's `range` (`1D` `5D` `1M` `3M` `YTD` `ALL`); the Calendar view, and one past day's chart opened from it, read `range=ALL` (only while either is open). The calendar's figures are the desk Calendar panel's (`account/accountCalendar`, `account/accountDayBreakdown`); the phone shows Monday to Friday unless a weekend traded that month. Its All / You / Bots pills become All / You / Claude / The brain / Earlier bots with the desk's switch (ADR 072 batch 3, `traders.md`) |
   | Stock, big chart | `/ws/ticker/{symbol}` and the chart's bars; `/api/why?symbols=` |
-  | Trade | `/ws/ticker/{symbol}`, the chart's bars, `/ws/ibkr/depth/{symbol}` and `/ws/ibkr/tape/{symbol}` (opened only while Trade is up: Level 2 takes one of the desk's three books). A halt (`halt` on the ticker read) is said over the tape with the desk's own halt clock (`ibkr/haltEta`, the Level 2 header's chip): time gone and time left for a LULD pause and its auction, no countdown for a news halt or past ten minutes |
+  | Trade | `/ws/ticker/{symbol}`, the chart's bars, `/ws/ibkr/depth/{symbol}` and `/ws/ibkr/tape/{symbol}` (opened only while Trade is up: Level 2 takes one of the desk's three books). A halt (`halt` on the ticker read) is said over the tape with the desk's own halt clock (`ibkr/haltEta`, the Level 2 header's chip): time gone and time left for a LULD pause and its auction, no countdown for a news halt or past ten minutes. On Sim, `/api/sim/clock` |
+  | Level 2 read (`#/book/SYM`) | the same `/ws/ibkr/depth/{symbol}` line as Trade |
+  | The venue menu | `/api/phone/venue/effects` while it is open; `/api/sim/clock` for the Sim row |
 - **The scanner list a screen declares.** Scan declares the list on screen, Top 9
   its list, Home `gainers`, over `/ws/scanner` (`set_active_tab`), as a desk tab
   does. The backend serves the union of every client's lists inside one Level 1
@@ -1160,6 +1162,50 @@ read below is one the desk already makes, and every write goes to `/api/phone`
   the full screen, gives the turn back. The installed page stays upright by
   itself (`orientation: portrait` in the manifest), so the other screens never
   shrink into a turned phone.
+- **The venue menu** (amendment 2026-11-13; `phone/VenueMenu.tsx`). The venue
+  pill on every screen opens a menu under it: Paper, Sim, Live, the desk's
+  venue ticked. A tap on another row is `POST /api/phone/venue` (the desk
+  switches with it); the banner says Switched once the desk answered, and how
+  many of Nova's entries it cancelled. While the menu is open it reads
+  `GET /api/phone/venue/effects` and says those lines in amber before the tap,
+  or that nothing of Nova's waits on the venue; an `unknown` check is said as
+  unknown. The Sim row names what the desk has loaded (`/api/sim/clock`'s
+  `replay_symbol` and `session_date`, or the live edge). The Live row says the
+  phone looks only. Settings' venue row switches the same way. A tap outside
+  the menu, or Back, closes it.
+- **On Sim** (`phone/trade/SimStrip.tsx`) a strip under the Trade screen's
+  header reads `/api/sim/clock` (the desk's `simClockResource`): the playhead's
+  time and day, pause / play, and a step back or forward of the desk strip's
+  `SIM_STRIP_STEP_MINUTES`, each `POST /api/phone/sim/clock`. The book and the
+  tape follow the desk's Trader (`sim/simReplayTarget`): at the live edge and on
+  a Session Record of the stock they are the same sockets, the screen is drawn
+  again when the playhead crosses the edge, and a recording's price heads the
+  screen (`captureQuoteDetail`); anything else shows the desk's rail note
+  (`simRailNote`, or "this replay shows on the PC" for a Massive-file window)
+  in place of the book and the tape, and the ticket sends nothing.
+- **On Live** the ticket is drawn grey with its reason ("from the phone, Live is
+  look only"); the account, the orders and the market read as on the other
+  venues.
+- **Level 2's marks** (amendment 2026-11-13; `phone/trade/BookMarks.tsx`). The
+  depth socket's `book_watch` frames (`useIbkrDepth().watch`) go through the
+  desk ladder's own functions for the rows on screen: `bigRows` (a big seller
+  or buyer's rows: a dark block in a white frame, "Big seller" on its first
+  row, a slate bar of what traded there) and `bigBanner` (over the side's
+  column head: its lead, price, size and verdict; the float and pace go to the
+  read page), `hiddenHere` / `hiddenMarks` (a violet outline and `◆` mark),
+  `pullMarks` (amber `✕` marks between rows), aged by `useBookWatchClock`. An
+  L1-only book draws none.
+  - *The depth chart* is the desk's `Level2DepthChart` (`alwaysOn`, the desk's
+    switch not read), under the rows, while every row of the book (up to ten)
+    still fits beside it. It is one button: a tap opens `#/book/SYM`.
+  - *The read page* (`phone/screens/BookScreen.tsx`, `#/book/SYM`) holds the
+    same socket (it counts as the Trade screen's book): the spread line, the
+    depth chart large (a touch reads a price, as the desk's hover does), one
+    card per big seller or buyer (the banner's words in full: float, pace),
+    hidden seller or buyer (with what traded where the Level 2 does not look),
+    and pull, and each side's last minute (`pullsLine`). Back returns to Trade.
+  - *Kept on the phone:* `nova.phone.level2.marks` (on unless turned off in
+    Settings).
 - **No scroll:** a viewport under 360 x 720 (740 x 320 for the big chart on its
   side) shrinks the whole page by `min(width / 360, height / 720)`.
 

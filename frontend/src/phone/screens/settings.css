@@ -68,6 +68,8 @@
   background: rgba(255, 255, 255, 0.12);
 }
 .ph-set__switch > span > i { width: 20px; height: 20px; border-radius: 10px; background: var(--ph-muted); }
+.ph-set__switch[aria-checked='true'] > span { justify-content: flex-end; background: rgba(92, 200, 250, 0.35); }
+.ph-set__switch[aria-checked='true'] > span > i { background: var(--ph-accent); }
 .ph-set__off { width: 20px; flex-shrink: 0; font-size: 11px; font-weight: 700; color: var(--ph-faint); }
 
 .ph-set__link {

@@ -183,7 +183,7 @@ test('the padlock asks for the phone PIN, refuses a wrong one in the door\'s wor
 
   for (const digit of PHONE_PIN) await sheet.getByRole('button', { name: digit, exact: true }).click();
   await expect(sheet).toBeHidden();
-  await expect(page.getByTestId('phone-banner')).toContainText("Paper's padlock is open.");
+  await expect(page.getByTestId('phone-banner')).toContainText('The padlock is open.');
   await expect(page.getByTestId('phone-settings-padlock')).toContainText('Padlock open');
   await expect(page.getByTestId('phone-settings-phone')).toContainText('This phone is unlocked');
   await expect(page.getByTestId('phone-settings-phone')).toContainText('7 h');
@@ -208,13 +208,13 @@ test('Home cancels a working order through the door and says what the desk answe
   expect(api.writes).toEqual(['POST /api/phone/unlock', 'DELETE /api/phone/order/7']);
 });
 
-test('a desk that is not on Paper is shown as it is, and the phone will not open its padlock', async ({ page }) => {
-  await mockPhoneApi(page, { venue: 'sim' });
+test('a desk on Live is shown as it is, and the phone will not open its padlock: Live is look only', async ({ page }) => {
+  await mockPhoneApi(page, { venue: 'live' });
   await open(page, 'settings');
-  await expect(page.getByTestId('phone-settings-venues').locator('[aria-pressed="true"]')).toHaveAttribute('data-venue', 'sim');
+  await expect(page.getByTestId('phone-settings-venues').locator('[aria-pressed="true"]')).toHaveAttribute('data-venue', 'live');
   const unlock = page.getByTestId('phone-settings-padlock').getByRole('button', { name: 'Unlock' });
   await expect(unlock).toBeDisabled();
-  await expect(unlock).toHaveAttribute('data-why', /Paper only/);
+  await expect(unlock).toHaveAttribute('data-why', /Live is look only/);
 });
 
 test('when the account stops answering, the last rows stay and the screen says they are not current', async ({ page }) => {

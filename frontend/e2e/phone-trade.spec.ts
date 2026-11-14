@@ -265,14 +265,17 @@ test('a buy that covers a short opened on the desk is never held for lag', async
   expect(api.orders[0]).toMatchObject({ side: 'BUY', qty: 100, order_type: 'MKT' });
 });
 
-test('off Paper the ticket is drawn and locked, and says the phone trades Paper only', async ({ page }) => {
-  const api = await mockPhoneApi(page, { venue: 'sim', armed: true });
+test('on Live the ticket is drawn and locked, and says Live is look only from the phone', async ({ page }) => {
+  const api = await mockPhoneApi(page, { venue: 'live', armed: true });
   await openTrade(page);
+  await expect(page.getByTestId('phone-live-band')).toContainText('look only from the phone');
   const buy = page.getByTestId('phone-buy-market');
   await expect(buy).toBeDisabled();
-  await expect(buy).toHaveAttribute('data-why', /the phone trades Paper only/);
+  await expect(buy).toHaveAttribute('data-why', /Live is look only/);
+  await expect(buy).toContainText('Live · look only');
   await expect(page.getByTestId('phone-sell-100-bid')).toBeDisabled();
   await expect(page.getByTestId('phone-cancel-all')).toBeDisabled();
+  expect(await phoneOverflow(page)).toEqual([]);
   expect(api.writes).toEqual([]);
 });
 

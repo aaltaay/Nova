@@ -1,7 +1,9 @@
 /**
  * Trade (frozen mockup R2-Trade): one stock's chart, Level 2, tape and the order ticket on one screen that
  * never scrolls. The book and the tape are the desk's own sockets; every order is the desk's own ticket
- * code, sent through the phone's door after the operator's PIN. Paper only (ADR 070).
+ * code, sent through the phone's door after the operator's PIN. Paper and Sim; Live is there to look at
+ * (ADR 070 amendment 2026-11-13). On Sim the strip under the header moves the desk's playhead, and the
+ * screen follows the desk's replay by the desk's own rules (`trade/tradeVenueView.ts`).
  *
  * The grab handle under the chart trades chart height for book rows. Every tap is answered by the banner:
  * Sending, Sent once the desk has it, Filled when the position changes, or NOT SENT in the desk's words.
@@ -14,6 +16,7 @@ import { computeQuoteMetrics } from '../../modules';
 import { fmtVolume, sessionPriceOrNull } from '../../utils/quoteFormat';
 import { plainPrice } from '../../utils/priceTick';
 import { readPref, writePref } from '../../utils/prefStore';
+import { captureQuoteDetail, simEmptyQuoteDetail, useSimReplayTarget } from '../../sim';
 import { useWorkspace } from '../../workspace';
 import { LinkPill, PadlockButton, PhoneScreen, VenuePill } from '../PhoneChrome';
 import { PHONE_FRAMES, PhoneChart, usePhoneChartPrefs } from '../PhoneChart';
@@ -22,10 +25,13 @@ import { compact, pct1, px, rvolShort, toneOf } from '../phoneFormat';
 import { cleanSymbol, go } from '../phoneRoute';
 import { usePhoneSession } from '../PhoneSession';
 import { usePhoneAccount } from '../usePhoneAccount';
+import { LiveBand, SimStrip } from '../trade/SimStrip';
 import { TradeBook, TradeTape } from '../trade/TradeBook';
+import { useLevel2Marks } from '../trade/level2MarksSwitch';
 import { TradeAsk, TradeDots, type Ask } from '../trade/TradeDots';
 import { TradeTicket } from '../trade/TradeTicket';
 import { cancelAll, flatten } from '../trade/tradeActions';
+import { CAPTURE_GAP, tradeVenueView } from '../trade/tradeVenueView';
 import { useLevel2Age, usePhoneTrade } from '../trade/usePhoneTrade';
 import './trade.css';
 
@@ -87,14 +93,22 @@ function TradeFor({ symbol }: { symbol: string }) {
   const trade = usePhoneTrade(symbol);
   const account = usePhoneAccount();
   const prefs = usePhoneChartPrefs();
+  const marksOn = useLevel2Marks();
   const [frame, setFrameState] = useState<string>(() => readPref<string>(FRAME_KEY, '1Min', (raw) => (PHONE_FRAMES.some((f) => f.id === raw) ? (raw as string) : null)));
   const [chartH, setChartH] = useState<number>(() => readPref<number>(CHART_KEY, CHART_MIN, (raw) => (typeof raw === 'number' && raw >= CHART_MIN && raw <= CHART_MAX ? raw : null)));
   const [ask, setAsk] = useState<Ask | null>(null);
   const drag = useRef<{ y: number; h: number; scale: number; moved: boolean } | null>(null);
+  const replay = useSimReplayTarget(symbol);
+  const view = tradeVenueView(symbol, session.venue, replay.clock, replay.sim);
 
-  const m = detail ? computeQuoteMetrics(detail, discoveryProvider) : null;
+  // Off the live edge the quote is the replay's at the playhead, or none: never today's over a past session.
+  const day = replay.clock?.session_date ?? replay.clock?.replay_date ?? null;
+  const shown = view.quote === 'capture' && replay.clock
+    ? captureQuoteDetail(detail, replay.clock, symbol)
+    : view.quote === 'empty' ? simEmptyQuoteDetail(detail, symbol, day) : detail;
+  const m = shown ? computeQuoteMetrics(shown, discoveryProvider) : null;
   const tone = toneOf(m?.mainChangePct == null ? null : m.mainChangePct * 100, 1) || 'flat';
-  const daily = detail?.snapshot?.daily_bar ?? null;
+  const daily = shown?.snapshot?.daily_bar ?? null;
   const avg = trade.position?.avg_cost ?? null;
   useFillBanner(symbol, trade.heldQty, avg, trade.accountCurrent);
 
@@ -152,10 +166,11 @@ function TradeFor({ symbol }: { symbol: string }) {
         </div>
       )}
     >
+      {session.venue === 'live' ? <LiveBand /> : replay.sim ? <SimStrip symbol={symbol} clock={replay.clock} /> : null}
       <div className="ph-trade__stats">
-        <span>Float <b>{fmtVolume(detail?.fundamentals?.float_shares)}</b></span>
+        <span>Float <b>{fmtVolume(shown?.fundamentals?.float_shares)}</b></span>
         <span>Vol <b>{compact(daily?.volume)}</b></span>
-        <span>RVOL <b>{rvolShort(detail?.rel_volume) || '—'}</b></span>
+        <span>RVOL <b>{rvolShort(shown?.rel_volume) || '—'}</b></span>
         <span>High <b>{px(sessionPriceOrNull(daily?.high))}</b></span>
         <span>Low <b>{px(sessionPriceOrNull(daily?.low))}</b></span>
       </div>
@@ -205,19 +220,33 @@ function TradeFor({ symbol }: { symbol: string }) {
       </button>
 
       <div className="ph-trade__market">
-        <TradeBook symbol={symbol} book={trade.book} why={trade.bookWhy} dim={Boolean(trade.lag)} />
-        <TradeTape prints={trade.tape.prints} why={trade.tape.error} halt={detail?.halt ?? null} />
+        {view.note ? (
+          <div className="ph-trade__simnote" role="status" data-testid="phone-sim-note">{view.note}</div>
+        ) : (
+          <>
+            <TradeBook
+              symbol={symbol}
+              book={view.gap ? null : trade.book}
+              why={view.gap ? CAPTURE_GAP : trade.bookWhy}
+              dim={Boolean(trade.lag)}
+              watch={trade.watch}
+              marksOn={marksOn}
+            />
+            <TradeTape prints={trade.tape.prints} why={trade.tape.error} halt={shown?.halt ?? null} />
+          </>
+        )}
       </div>
 
       <TradeTicket
         trade={trade}
+        blocked={view.blocked}
         buyingPower={account.figures.buyingPower}
         onFlatten={() => setAsk('flatten')}
         onCancelAll={() => setAsk('cancel')}
       />
 
       <TradeDots trade={trade} onAsk={setAsk} />
-      {ask && session.venue === 'paper' ? <TradeAsk ask={ask} trade={trade} onNo={() => setAsk(null)} onYes={confirm} /> : null}
+      {ask && session.trades && !view.blocked ? <TradeAsk ask={ask} trade={trade} onNo={() => setAsk(null)} onYes={confirm} /> : null}
     </PhoneScreen>
   );
 }
@@ -226,6 +255,10 @@ export function TradeScreen({ symbol }: { symbol: string | null }) {
   // The Trade tab opens the stock traded last; a ticker chip or a row's Trade button names its own.
   const [last] = useState<string | null>(() => readPref<string | null>(SYMBOL_KEY, null, (raw) => cleanSymbol(typeof raw === 'string' ? raw : null)));
   const sym = symbol ?? last;
+  const { venue } = usePhoneSession();
+  const replay = useSimReplayTarget(sym ?? '');
+  // Across the Sim's live edge the book and tape remount, so they reopen the real line or the replay (the desk's rule).
+  const feedKey = tradeVenueView(sym ?? '', venue, replay.clock, replay.sim).feedKey;
   useEffect(() => {
     if (symbol) writePref(SYMBOL_KEY, symbol);
   }, [symbol]);
@@ -254,5 +287,5 @@ export function TradeScreen({ symbol }: { symbol: string | null }) {
       </PhoneScreen>
     );
   }
-  return <TradeFor key={sym} symbol={sym} />;
+  return <TradeFor key={`${sym}:${feedKey}`} symbol={sym} />;
 }
