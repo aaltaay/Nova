@@ -13,7 +13,7 @@ import { markPrice, markShares, markWhole, priceKey, type BookSide, type BookWat
 import type { BigFloat, HeldBig } from './bookWatchBigRead';
 import type { DepthLevel } from './types';
 
-export type BigBannerKind = 'holding' | 'taken' | 'pulled' | 'approach' | 'lost';
+export type BigBannerKind = 'holding' | 'taken' | 'pulled' | 'approach' | 'lost' | 'smaller';
 
 /** One row of a big seller's or buyer's block. */
 export interface BigRow {
@@ -48,6 +48,7 @@ export interface BigBanner {
 
 const WHO: Record<BookSide, string> = { ask: 'Big seller', bid: 'Big buyer' };
 const ONE: Record<BookSide, string> = { ask: 'seller', bid: 'buyer' };
+const ONE_CAP: Record<BookSide, string> = { ask: 'Seller', bid: 'Buyer' };
 const RESTING: Record<BookSide, string> = { ask: 'offered', bid: 'bid' };
 const LIVE = new Set(['holding', 'left']);
 
@@ -81,6 +82,7 @@ function untraded(w: HeldBig): number {
 }
 
 function endKind(w: HeldBig): BigBannerKind {
+  if (w.state === 'smaller' && w.left) return 'smaller';
   if (w.state === 'eaten') return 'taken';
   if (w.state === 'pulled') return w.onApproach ? 'approach' : 'pulled';
   return 'lost';
@@ -118,6 +120,9 @@ export function bigTip(w: HeldBig, float: BigFloat | null, nowMs: number): strin
   }
   if (kind === 'pulled') lines.push(`Pulled: it left the book and prints at ${p} took less than half of it (${markWhole(untraded(w))} left untraded).`);
   if (kind === 'approach') lines.push(`Pulled as the price came closer to it: ${markWhole(untraded(w))} left untraded. A hint consistent with spoofing, never a detection.`);
+  if (kind === 'smaller' && w.left) {
+    lines.push(`Smaller: ${markWhole(w.left.before - w.left.after)} left the book (${markWhole(w.left.filled)} traded at ${p}) and ${markWhole(w.left.after)} is still there, under the size Nova calls big. It is no longer followed.`);
+  }
   if (kind === 'lost') lines.push(`Out of view: the book stopped showing ${p} (past the rows shown, or the line restarted). Unknown, never called pulled.`);
   lines.push(L2_BIG_NOTE);
   return lines.join('\n');
@@ -183,13 +188,25 @@ export function bigBanner(state: BookWatchState | null, side: BookSide, nowMs: n
     return { kind: 'holding', parts, opacity: 1, title: `${WHO[side]} at ${p}`, tip };
   }
   const kind = endKind(w) as Exclude<BigBannerKind, 'holding'>;
-  const mark: Record<typeof kind, string> = { taken: '✓ ', pulled: '✕ ', approach: '✕ ', lost: '' };
-  const verdict: Record<typeof kind, string> = { taken: 'taken', pulled: 'pulled', approach: 'pulled', lost: 'out of view' };
+  if (kind === 'smaller' && w.left) {
+    const did = w.how === 'traded' ? 'taken' : 'pulled';
+    const parts: BigBannerPart[] = [
+      { key: 'lead', sep: '', text: ONE_CAP[side] },
+      { key: 'price', sep: ' ', text: p },
+      { key: 'verdict', sep: ' ', text: 'smaller' },
+      { key: 'size', sep: ' · ', text: `${markShares(w.left.after)} still there` },
+      { key: 'detail', sep: ' · ', text: `${markShares(w.left.before - w.left.after)} ${did}` },
+    ];
+    return { kind, parts, opacity: opacity(w, nowMs), title: `${ONE_CAP[side]} at ${p}, smaller`, tip };
+  }
+  const mark: Record<typeof kind, string> = { taken: '✓ ', pulled: '✕ ', approach: '✕ ', lost: '', smaller: '' };
+  const verdict: Record<typeof kind, string> = { taken: 'taken', pulled: 'pulled', approach: 'pulled', lost: 'out of view', smaller: 'smaller' };
   const result: Record<typeof kind, string> = {
     taken: w.how === 'through' ? 'traded through' : `${markShares(w.traded)} traded`,
     pulled: `${markShares(untraded(w))} untraded`,
     approach: `${markShares(untraded(w))} untraded`,
     lost: 'unknown',
+    smaller: 'unknown',
   };
   const parts: BigBannerPart[] = [
     { key: 'lead', sep: '', text: `${mark[kind]}${WHO[side]}` },

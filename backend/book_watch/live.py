@@ -87,7 +87,7 @@ def enqueue_print(payload: Any) -> None:
         symbol = str(payload["symbol"]).upper()
         ts = float(payload.get("receive_ts") or time.time())
         _put(("print", symbol, ts, payload.get("price"), payload.get("size"), lit_print(payload),
-              payload.get("conditions")))
+              payload.get("conditions"), payload.get("exchange")))
     except (KeyError, TypeError, ValueError):
         _counts["dropped"] += 1
 
@@ -114,7 +114,8 @@ def _apply(item: tuple) -> list[dict[str, Any]]:
         watch = _watches[symbol] = SymbolWatch(symbol, num_rows=_num_rows())
     if kind == "book":
         return watch.on_book(item[2], item[3], item[4])
-    return watch.on_print(item[2], item[3], item[4], lit=item[5], conditions=item[6] if len(item) > 6 else None)
+    return watch.on_print(item[2], item[3], item[4], lit=item[5], conditions=item[6] if len(item) > 6 else None,
+                          exchange=item[7] if len(item) > 7 else None)
 
 
 def process(item: tuple) -> list[dict[str, Any]]:

@@ -61,6 +61,8 @@ export interface HeldHidden {
   printed: number;
   shownMax: number;
   refills: number;
+  /** Lit prints there on exchanges this Level 2 does not show: never part of `printed` or `hidden`. */
+  unseen: number;
   heldSec: number;
   atMs: number;
 }
@@ -185,6 +187,7 @@ function readHidden(raw: unknown, atOf: (ts: number) => number): HeldHidden | nu
     printed: num(h.printed) ?? hidden,
     shownMax: num(h.shown_max) ?? 0,
     refills: num(h.refills) ?? 0,
+    unseen: num(h.unseen) ?? 0,
     heldSec: started != null && last != null ? Math.max(0, last - started) : 0,
     atMs: atOf(ts),
   };

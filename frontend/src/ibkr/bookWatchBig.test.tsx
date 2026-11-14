@@ -124,6 +124,16 @@ describe('the banner', () => {
     expect(bigBanner(end({ state: 'lost' }), 'ask', NOW_MS)?.tip).toContain('never called pulled');
   });
 
+  it('says smaller, never pulled or taken, when most of it still rests there', () => {
+    const end = (over: Record<string, unknown>) => state({ big: [wall({ ended_ts: NOW_S - 1, state: 'smaller', ...over })] });
+    const left = { before: 24_001, after: 19_001, filled: 0 };
+    expect(text(end({ how: 'no_prints', left }))).toBe('Seller 3.45 smaller · 19.0K still there · 5,000 pulled');
+    expect(text(end({ how: 'traded', left: { ...left, filled: 5_000 } }))).toBe('Seller 3.45 smaller · 19.0K still there · 5,000 taken');
+    const banner = bigBanner(end({ how: 'no_prints', left }), 'ask', NOW_MS);
+    expect(banner?.kind).toBe('smaller');
+    expect(banner?.tip).toContain('Smaller: 5,000 left the book (0 traded at 3.45) and 19,001 is still there');
+  });
+
   it('prefers one that holds over one that ended, and fades the ended one out', () => {
     const both = state({ big: [wall({ id: 'a', price: 3.47, state: 'pulled', ended_ts: NOW_S - 1 }), wall()] });
     expect(bigBanner(both, 'ask', NOW_MS)?.kind).toBe('holding');

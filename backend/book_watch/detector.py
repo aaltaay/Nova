@@ -24,11 +24,18 @@ no mark, no flag. An order really pulled and posted again at the same size insid
 ``BOOK_WATCH_SETTLE_SEC`` reads the same; a price at the edge of the rows counts, since the size it
 shows there is at least what rests there.
 
+**Only exchanges the book shows.** Each exchange sells its book separately, and the tape carries every
+exchange. A lit print on an exchange that has never had a row on this line (``venues``, from the rows'
+``mm``) cannot have taken size this book showed: it fills no drop, takes no big seller, and is a hidden
+stretch's ``unseen`` size, not its ``printed``. A book whose rows name no venue (a Session Record) cannot
+tell, and every lit print counts as before.
+
 maintainer: one-concern one symbol's drops are judged in the order its books and prints arrived
 """
 from __future__ import annotations
 
 from collections import deque
+from collections.abc import Iterable
 from itertools import pairwise
 from statistics import median
 from typing import Any
@@ -43,6 +50,7 @@ from book_watch.book import (
     side_view,
 )
 from book_watch.constants_book_watch import (
+    BOOK_WATCH_BOOK_NAME_OF_TAPE_VENUE,
     BOOK_WATCH_DROPS_KEEP,
     BOOK_WATCH_FLAGS_KEEP,
     BOOK_WATCH_LARGE_MEDIAN_MULT,
@@ -80,7 +88,7 @@ def _large(shares: float, median_size: float | None) -> bool:
 class SymbolWatch:
     def __init__(self, symbol: str, *, num_rows: int, hidden: HiddenParams = DEFAULT_HIDDEN,
                  hidden_history: list[Stretch] | None = None, match: MatchParams = DEFAULT_MATCH,
-                 judged: list[dict[str, Any]] | None = None) -> None:
+                 judged: list[dict[str, Any]] | None = None, venues: Iterable[str] = ()) -> None:
         self.symbol = symbol
         self.num_rows = num_rows
         self.match = match
@@ -105,6 +113,8 @@ class SymbolWatch:
         # Large drops with a sequence number, for the ladder (live.ladder_view).
         self.drops: deque[dict[str, Any]] = deque(maxlen=BOOK_WATCH_DROPS_KEEP)
         self.drop_seq = 0
+        # Every venue a row on this line has named (``mm``); empty: the rows name none, coverage unknown.
+        self.venues: set[str] = {str(v).upper() for v in venues}
         self.returned = 0  # drops forgotten because the size was back before they were judged
         self.books = 0
         self.prints_seen = 0
@@ -121,6 +131,7 @@ class SymbolWatch:
     def on_book(self, ts: float, bids: list[Any], asks: list[Any]) -> list[dict[str, Any]]:
         out = self.tick(ts)
         cur = {"bid": side_view(bids, "bid", self.num_rows), "ask": side_view(asks, "ask", self.num_rows)}
+        self.venues.update(str(r["mm"]).upper() for r in (*bids, *asks) if isinstance(r, dict) and r.get("mm"))
         self.books += 1
         self.since = ts if self.since is None else self.since
         self.last_book_ts = ts
@@ -136,8 +147,15 @@ class SymbolWatch:
         self.prev, self.prev_ts = cur, ts
         return out
 
+    def seen(self, exchange: Any) -> bool:
+        """Does this line's book show ``exchange`` (the tape's name for it)? True when it cannot be told."""
+        name = str(exchange or "").upper()
+        if not name or not self.venues:
+            return True
+        return BOOK_WATCH_BOOK_NAME_OF_TAPE_VENUE.get(name, name) in self.venues
+
     def on_print(self, ts: float, price: Any, size: Any, *, lit: bool,
-                 conditions: Any = None) -> list[dict[str, Any]]:
+                 conditions: Any = None, exchange: Any = None) -> list[dict[str, Any]]:
         out = self.tick(ts)
         key = price_key(price)
         try:
@@ -154,14 +172,16 @@ class SymbolWatch:
                 self.side_volume["ask"] += shares
             elif bid is not None and key <= bid:
                 self.side_volume["bid"] += shares
+        seen = self.seen(exchange)
         if lit:
-            self.prints.append([ts, key, shares])
+            if seen:
+                self.prints.append([ts, key, shares])
             self.sweeps.note(ts, key, conditions, self.prev, self.last_book_ts)
         while self.prints and self.prints[0][0] < ts - BOOK_WATCH_PRINT_KEEP_SEC:
             self.prints.popleft()
-        out += self.big.on_print(ts, key, shares, lit=lit, conditions=conditions)
+        out += self.big.on_print(ts, key, shares, lit=lit, conditions=conditions, seen=seen)
         return out + self.hidden.on_print(ts, key, shares, lit=lit, conditions=conditions, views=self.prev,
-                                          book_ts=self.last_book_ts)
+                                          book_ts=self.last_book_ts, seen=seen)
 
     def reset(self) -> list[dict[str, Any]]:
         """IBKR restarted the book (error 317, a new request): what came before is not comparable."""
@@ -391,6 +411,8 @@ class SymbolWatch:
             "median_gap_ms": round(median(gaps) * 1000, 1) if gaps else None,
             "last_book_age_ms": None if self.last_book_ts is None else round((now - self.last_book_ts) * 1000, 1),
             "window_sec": BOOK_WATCH_RATE_WINDOW_SEC,
+            # The exchanges and dealers this line's rows have named; empty when the rows name none.
+            "venues": sorted(self.venues),
         }
 
     def totals(self, now: float) -> dict[str, Any]:

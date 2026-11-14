@@ -12,8 +12,8 @@ import { fmtPx } from './planMath';
 import { num, obj, str } from './normalize';
 import { hhmmssEt } from './timeWords';
 
-export type BigState = 'holding' | 'left' | 'eaten' | 'pulled' | 'lost';
-const STATES: ReadonlySet<string> = new Set<BigState>(['holding', 'left', 'eaten', 'pulled', 'lost']);
+export type BigState = 'holding' | 'left' | 'eaten' | 'pulled' | 'lost' | 'smaller';
+const STATES: ReadonlySet<string> = new Set<BigState>(['holding', 'left', 'eaten', 'pulled', 'lost', 'smaller']);
 
 export interface BigWall {
   id: string;
@@ -111,9 +111,9 @@ export function normalizeBigWalls(raw: unknown): BigWalls | null {
 // -- words --------------------------------------------------------------------------------------------
 
 const WORDS = {
-  long: { who: 'BIG SELLER', side: 'ask', what: 'offered', past: 'over', others: 'asks', taker: 'bought',
+  long: { who: 'BIG SELLER', one: 'SELLER', side: 'ask', what: 'offered', past: 'over', others: 'asks', taker: 'bought',
     gone: 'The seller is gone.' },
-  short: { who: 'BIG BUYER', side: 'bid', what: 'bid', past: 'under', others: 'bids', taker: 'sold',
+  short: { who: 'BIG BUYER', one: 'BUYER', side: 'bid', what: 'bid', past: 'under', others: 'bids', taker: 'sold',
     gone: 'The buyer is gone.' },
 } as const;
 
@@ -159,6 +159,15 @@ function endedWords(w: BigWall, short: boolean): { text: string; detail: string;
   const W = short ? WORDS.short : WORDS.long;
   const at = `${W.who} @ ${fmtPx(w.price)}`;
   const size = fmtShares(w.sizeFirst);
+  if (w.state === 'smaller' && w.left) {
+    // Most of it still rests there, under the size that counts as big: smaller, not gone.
+    const gone = w.left.before - w.left.after;
+    const did = w.how === 'traded' ? 'taken' : 'pulled';
+    return { tone: 'warn', text: `${W.one} @ ${fmtPx(w.price)} SMALLER · ${fmtShares(w.left.after)} still there`,
+      detail: `${fmtShares(gone)} of the ${fmtShares(w.left.before)} ${W.what} at ${fmtPx(w.price)} left the book `
+        + `(${fmtShares(w.left.filled)} traded there: ${did}). ${fmtShares(w.left.after)} is still ${W.what} there, `
+        + 'under the size Nova calls big, so it is no longer followed.' };
+  }
   if (w.state === 'eaten') {
     const how = w.how === 'through'
       ? `A print went through ${fmtPx(w.price)} at ${hhmmssEt(w.endedTs)}: the size ${W.what} there traded.`
