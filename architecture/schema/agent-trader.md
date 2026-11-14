@@ -126,6 +126,22 @@ until they are up. Removed: the borrowing of an auto-record line or a hidden tab
 `agent_reserved` on the Level 2 error frame), `POST /take-back`, the event `line_taken` (`waiting_line` now means the lane asked IBKR and the line is not up yet), and
 `line.desk_lines`, `desk_cap`, `all_lines`, `from_tab`, `taken_back`.
 
+**Claude's switch and limits (ADR 072; confirmed for the build).** Claude trades only while the operator's switch
+is On (`traders.md`, "The switches"); the seat's claim, lease, lane, look, eye and note are apart from it and work
+with the switch Off.
+- `POST /order` and `POST /reflex` are refused `AGENT_SWITCH_OFF` while it is Off ("Claude is off: the operator's
+  switch is Off."); `POST /watch` still moves the lane. Turning it Off cancels Claude's unfilled buys, breaks and
+  reflexes, keeps its stop and targets resting, stops the guard on that stock and hands the position to you
+  (events `switch_off`, `handed`); `switch_on` when it comes back On.
+- Claude's limits are read from `trader-limits.json` (`traders.md`, "The limits") instead of `AGENT_MAX_SHARES`,
+  `AGENT_MAX_RISK_USD` and `AGENT_CLOSE_ET`; its day stop is Claude's loss line (`loss-limit.md`, "Four lines")
+  instead of `AGENT_DAY_STOP_USD`. The Account line now stops Claude's buys too.
+- The status adds `switch: {on, at, can_turn_on, why_not_on}`, and `today.day_stop` reads Claude's line.
+- Retired: `POST /yield`, `POST /give-back` and `POST /stop-claude` (Take Claude's line, Give it back and Stop
+  Claude), and the `yielded` state. The 15:55 close becomes Claude's flat-by time; a lapsed lease still cancels and
+  sells as below, but neither touches a position handed to you. Claude's fills count on Claude's line and in
+  Claude's book, never the bots'.
+
 **Closes Nova makes.** A lease not renewed for 600 s, `POST /stop-claude` or `DELETE /seat`: Claude's orders
 cancelled, its shares sold, the seat off, its lines released. 15:55 ET on a weekday: Claude's shares sold and orders
 cancelled, seat on or off; 16:00 ET the seat turns off.

@@ -701,6 +701,11 @@ note.
 
 ## Who trades the stock (ADR 037, operator ask 2026-09-24, #604, #606)
 
+**ADR 072 retires this switch** (confirmed for the build; the operator, 2026-11-13): Buy = Bot (Auto-entry) and
+Sell = Nova (Approve, Nova takes the exit) go with the bots, and `/api/stock-mode` with them. An exit Nova had resting
+for you at the upgrade stays resting as your own order; Nova no longer moves it. Old rows keep their `auto_entry`,
+`approve` and `nova_exit` labels. This section describes the desk until that batch lands.
+
 "When may Nova buy for you? I want a clear option next to level 2 ... if I selected the exit is on
 me, then I'm going to be the one who exits, not the bot." Owner `backend/stock_mode/`: the routes,
 the in-memory store and the runner. Nova places for a stock only on Paper, or on Sim -- at the live

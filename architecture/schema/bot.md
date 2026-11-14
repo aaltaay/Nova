@@ -2,6 +2,10 @@
 
 Part of `AGENTS.md` §3 (Data Schema), which indexes every file in this folder. Owners: backend/bot/, backend/hot_list/, backend/line_lending/. Same law as the constitution: a wire or persisted shape changes here first, in the same commit as the code (Invariants #1 and #5).
 
+**ADR 072 retires the bots' trading** ("Three traders: the strategies watch, the brain trades", the last section): no
+strategy, Auto-entry or Live Trader sends an order, the Bots page goes, and the bot API becomes the brain's door. The
+sections below describe the desk until each batch lands.
+
 ## Bot playbook and the read-out gate (ADR 027, operator decision 2026-09-23)
 
 The bot packs (halt-luld, quote-spike, volume, llm-decide), `POST
@@ -937,3 +941,36 @@ were whatever each caller typed.
   that had filled part before the start is said once more, with the same numbers.
 - **Where partials come from.** Paper and Sim fill an order whole, so no `partial` line appears there
   today; the rule reads the venue's order row, so it holds on any venue that fills a bot's order in parts.
+
+## Three traders: the strategies watch, the brain trades (ADR 072, operator decisions 2026-11-13)
+
+**Confirmed for the build; each batch rewrites the sections above that it replaces.** Who owns what, the rules, the
+switches and the limits: `traders.md`.
+
+**The strategies watch on Level 1.** Flat top 1m / 5m, the 5-minute setups, the first pullback, the pullback dip, the
+ABCD, trend lines and levels form setups from bars and Level 1 on every venue and send no order anywhere, Sim
+included. They draw on the charts as today.
+- The first pullback's tape gate (`tape`: GO / WAIT / VETO / BLIND) leaves its trigger; its go forms on Level 1.
+  ADR 034's flush exit becomes a Level 1 flush signal (Level 1's last and day volume), watch-only. The tape flow
+  score is read only on a lane's stock and gates nothing.
+- `setup_levels` and each strategy's bot rules (`bot_grades`, `bot_setups_a_day`, the bot window) and the read-out
+  collecting counts go; a stored level reads as watching. `BOT_NO_DEPTH_LINE` no longer applies to a strategy.
+- **The setups feed** (`GET /api/brain/setups?since=`, loopback, read-only): `{schema_version: 1, generated_at,
+  setups: [{at, symbol, setup, side, stage, score, grade, trigger, stop, source: "level1" | "lane"}]}`, newest first,
+  today's only. `source` says whether the setup was read with a lane's Level 2 and tape on the stock.
+
+**Retired senders.** The strategy bot's entries and exits, the Who trades switch (`backend/stock_mode/`,
+`/api/stock-mode`: Auto-entry, Approve and Nova takes the exit; an exit Nova had resting for you stays resting as your
+own order and is no longer moved), the Live Trader (`backend/bot/live_trader/`: no step, add or close; the hosts'
+page goes back on the rail as TraderTV without the bot parts, `followed-traders.md`), the Bot switch and the family keys
+(`POST /api/bot/session/switch`, `/keys`, `bot-keys.json`), `GET /api/bot/triggers` (the squares), the bots' budget
+and `POST /api/owners/close-bots`. The bot audit stream (`bot-audit.jsonl`, `/api/bot/audit`, `/ws/bot/audit`) stays
+readable; old lines keep their kinds.
+
+**The brain's door.** The localhost bot API (`POST /api/bot/action`, keyed by `brain_session_id`) becomes the brain's
+order door: every order it sends is stamped origin `brain` (source `bot` for an entry, as Claude's are), long only,
+on Paper or Sim, within the brain's limits and budget (`traders.md`) and only while its switch is On (`409
+BRAIN_SWITCH_OFF`). Its stock must be on lane 3 with a live Level 2 (`BOT_NO_DEPTH_LINE` keeps its words for the
+brain). It may name lane 3's stock (`POST /api/brain/watch {symbol, why}`). The brain's events (`switch_on`,
+`switch_off`, `handed`, `watch`, `buy_set`, `fill`, `close`, `refused`) and its note feed its header pill and panel.
+The exact routes are confirmed here before the brain's batch is built.
