@@ -3,11 +3,8 @@
  * menu (#845: target 1 at a half / whole dollar or a fixed amount, target 2 at the high of day or the next level, each
  * with its share) -- or the operator's own when nothing is forming, with the menu's default targets -- with the risk,
  * the size the venue sleeve's risk per trade
- * buys, a ruler of what stands between and the checks. Its buttons follow who trades the stock (ADR 037):
- * Signal only stages the ticket (a BUY limit at the entry, or a sell once shares are held) and never
- * places; Approve approves the plan, or buys now after the trigger; Auto-entry and Bot turn off; and
- * whenever Nova holds the exits, the operator can take them over. In a Nova mode it says the size Nova
- * sends, and NOT A TRADE says it blocks Nova's buys too.
+ * buys, a ruler of what stands between and the checks. Its button stages the ticket (a BUY limit at the entry, or a
+ * sell once shares are held) and never places: who trades the stock is the operator (ADR 072).
  */
 import { useEffect, useState } from 'react';
 import { tickerLastTrade } from '../hooks/tickerStore';
@@ -15,8 +12,6 @@ import { useTickerSelect } from '../hooks/useTickerStream';
 import { requestOrderTicketPrefill, useOrderTicketListening } from '../ibkr';
 import { riskSourceWords } from '../setups';
 import { tipProps, whyProps } from '../ux';
-import { NOT_A_TRADE_NOVA } from './constants';
-import { novaSizeWords } from './novaPromise';
 import { EmptyPlan } from './PlanEmpty';
 import { PlanNumbers } from './PlanNumbers';
 import { PlanLevels } from './PlanLevels';
@@ -40,8 +35,7 @@ import { gradeChip, gradeTip, notATrade, thinPlan } from './planVerdict';
 import type { StockReadContextValue } from './StockReadContext';
 import type { StockPlan } from './types';
 import { planActions, type PlanAction } from './planActions';
-import { modeSentence } from './whoTradesModel';
-import './whoTrades.css';
+import './tradeMoment.css';
 import './shortRead.css';
 
 const STAGED_NOTE_MS = 8_000;
@@ -54,12 +48,6 @@ const SHORT_PLAN_TIP = 'A short plan (ADR 048): sell at the entry, a buy stop ov
 const SHORT: Record<PlanAction['id'], string> = {
   stage: 'Stage',
   'stage-sell': 'Stage sell',
-  approve: 'Approve',
-  'approve-now': 'Buy now',
-  'cancel-approval': 'Cancel',
-  'take-over': 'Take over',
-  'auto-off': 'Auto-entry off',
-  'bot-off': 'Bot off',
 };
 
 function stageLock(plan: StockPlan, size: number | null, riskUsd: number, listening: boolean): string | null {
@@ -68,20 +56,6 @@ function stageLock(plan: StockPlan, size: number | null, riskUsd: number, listen
   if (size === null) return `$${riskUsd} of risk buys no whole share at ${fmtStep(plan.risk, plan.entry)} a share.`;
   if (!listening) return 'This tab has no order ticket open to fill. Show the Order Entry module on the rail.';
   return null;
-}
-
-/** In a Nova mode, the size Nova sends for the plan and why (spec E); nothing in Signal only. */
-function NovaSizeLine({ ctx }: { ctx: StockReadContextValue }) {
-  const view = ctx.who.view;
-  if (!view || view.mode === 'signal') return null;
-  const words = novaSizeWords(view.size);
-  if (!words) return null;
-  return (
-    <p className={`sr-plan__nova-size${words.skip ? ' sr-plan__nova-size--skip' : ''}`}
-      {...tipProps(words.tip, 'The size Nova sends')} data-testid="stock-read-nova-size">
-      {words.text}
-    </p>
-  );
 }
 
 /** The header's R hover: how far each target is in R, the unit results are measured in, and the strategy's rule. */
@@ -122,7 +96,7 @@ export function PlanCard({ ctx, roomy = true }: {
   const mode = ctx.layers.plan;
   const folded = mode === 'folded' || (mode === 'auto' && !roomy);
   // While you hold the stock the box is the trade's (ADR 036 amendment 2026-10-01), folded the same way.
-  if (read.held && heldAnyQty(ctx.who.inputs) > 0) {
+  if (read.held && heldAnyQty(ctx.trade.inputs) > 0) {
     return <HeldCard ctx={ctx} held={read.held} folded={folded}
       onFold={() => ctx.setLayers({ plan: folded ? 'open' : 'folded' })} />;
   }
@@ -159,19 +133,14 @@ export function PlanCard({ ctx, roomy = true }: {
       : `Staged BUY ${size} LMT ${fmtPx(plan.entry)}: ${sized} Set the stop ${fmtPx(plan.stop)} and the `
         + `target${two ? 's' : ''} ${aims} yourself: the ticket takes no bracket from the plan.`);
   };
-  const who = ctx.who;
-  const whoMode = who.view?.mode ?? 'signal';
-  // The folded line keeps Nova's size beside yours in a Nova mode, so folding hides neither.
-  const novaSize = whoMode !== 'signal' ? who.view?.size ?? null : null;
-  const novaFolded = novaSize ? (novaSize.qty >= 1 ? Math.floor(novaSize.qty).toLocaleString('en-US') : 'none') : null;
+  const trade = ctx.trade;
   const trouble = riskTrouble(ctx);
-  const { actions, status } = planActions({
-    moment: who.moment,
-    inputs: lastNoBid === null ? who.inputs : { ...who.inputs, last: lastNoBid },
+  const actions = planActions({
+    moment: trade.moment,
+    inputs: lastNoBid === null ? trade.inputs : { ...trade.inputs, last: lastNoBid },
     bid,
     listening,
     stageLocked: locked,
-    notTrade: noTrade,
     symbol: ctx.symbol,
   });
   const act = (a: PlanAction) => {
@@ -188,23 +157,10 @@ export function PlanCard({ ctx, roomy = true }: {
           limitPrice: fmtPx(a.sell.price),
         });
         return setStaged(`Staged SELL ${a.sell.qty} LMT ${fmtPx(a.sell.price)}. Nothing is sent until you send it.`);
-      case 'approve':
-        return void who.approve(false);
-      case 'approve-now':
-        return void who.approve(true);
-      case 'cancel-approval':
-        return void who.withdraw();
-      case 'take-over':
-        return void who.takeOver();
-      case 'auto-off':
-        return void who.setSides('you', who.view?.sell ?? 'you');
-      case 'bot-off':
-        return void who.setSides('you', 'you');
     }
   };
-  const lockOf = (a: PlanAction) => a.locked ?? (a.id !== 'stage' && a.id !== 'stage-sell' ? who.busy : null);
   const actionButton = (a: PlanAction, folded: boolean) => {
-    const why = lockOf(a);
+    const why = a.locked;
     const testId = a.id === 'stage' ? (folded ? 'stock-read-stage-line' : 'stock-read-stage')
       : `stock-read-action-${a.id}${folded ? '-line' : ''}`;
     return (
@@ -222,8 +178,7 @@ export function PlanCard({ ctx, roomy = true }: {
       </button>
     );
   };
-  const note = staged
-    ?? (whoMode === 'signal' ? (plan ? planFootnote(plan, lane) : '') : modeSentence(whoMode, ctx.symbol));
+  const note = staged ?? (plan ? planFootnote(plan, lane) : '');
 
   return (
     <section
@@ -264,12 +219,12 @@ export function PlanCard({ ctx, roomy = true }: {
         {plan && thinPlan(plan) && plan.liquidity ? (
           // Too thin to trade (2026-10-01): said even after it played out -- nobody could have traded it.
           <span className="sr-plan__verdict sr-plan__verdict--thin"
-            {...tipProps(`${liquidityTip(plan.liquidity)}\n${NOT_A_TRADE_NOVA}`, 'Too thin to trade')}
+            {...tipProps(liquidityTip(plan.liquidity), 'Too thin to trade')}
             data-testid="stock-read-plan-verdict">
             TOO THIN
           </span>
         ) : noTrade && !plan?.result && (
-          <span className="sr-plan__verdict" {...tipProps(`${noTrade}\n${NOT_A_TRADE_NOVA}`, 'Not a trade')}
+          <span className="sr-plan__verdict" {...tipProps(noTrade, 'Not a trade')}
             data-testid="stock-read-plan-verdict">
             NOT A TRADE
           </span>
@@ -277,11 +232,9 @@ export function PlanCard({ ctx, roomy = true }: {
         {folded && plan && (
           <span className="sr-plan__folded" data-testid="stock-read-plan-line"
             {...tipProps(`${short ? 'Short at / buy stop / cover 1' : 'Entry / stop / target 1'}${
-              plan.target2 != null ? (short ? ' / cover 2' : ' / target 2') : ''} · your size${
-              novaFolded ? ' · the size Nova sends' : ''}`, 'The plan')}>
+              plan.target2 != null ? (short ? ' / cover 2' : ' / target 2') : ''} · your size`, 'The plan')}>
             {fmtPx(plan.entry)}/{fmtPx(plan.stop)}/{fmtPx(plan.target)}{plan.target2 != null ? `/${fmtPx(plan.target2)}` : ''}
             {size !== null ? ` · ${size.toLocaleString('en-US')} sh` : ''}
-            {novaFolded ? ` · Nova ${novaFolded}` : ''}
           </span>
         )}
         {folded && !plan && (
@@ -302,7 +255,7 @@ export function PlanCard({ ctx, roomy = true }: {
       {!folded && (
         <>
           {noTrade && (
-            <p className="sr-plan__notrade" data-testid="stock-read-plan-notrade">{noTrade} {NOT_A_TRADE_NOVA}</p>
+            <p className="sr-plan__notrade" data-testid="stock-read-plan-notrade">{noTrade}</p>
           )}
           {plan ? (
             <PlanNumbers
@@ -315,7 +268,6 @@ export function PlanCard({ ctx, roomy = true }: {
           ) : (
             <EmptyPlan ctx={ctx} read={read} />
           )}
-          {plan && <NovaSizeLine ctx={ctx} />}
           {plan && trouble && (
             <p className="sr-plan__risk-note" {...tipProps(trouble, 'Risk per trade')} data-testid="stock-read-risk-note">
               {trouble}
@@ -326,14 +278,6 @@ export function PlanCard({ ctx, roomy = true }: {
           {plan && <PlanChecks plan={plan} />}
           {plan && <ShortPlanChecks symbol={ctx.symbol} plan={plan} size={size} />}
           <footer className="sr-plan__foot">
-            {status && (
-              <span
-                className={`sr-plan__status sr-plan__status--${status.startsWith('Closed · -') ? 'stop' : 'done'}`}
-                data-testid="stock-read-plan-status"
-              >
-                {status}
-              </span>
-            )}
             {actions.map(a => actionButton(a, false))}
             <button
               type="button"

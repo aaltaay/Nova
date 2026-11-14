@@ -12,14 +12,9 @@ vi.mock('../hot_list', async () => (await import('../hot_list/hotListFake')).hot
 import { ScannerRowActions } from './ScannerRowActions';
 import { ScannerRowMarks } from './ScannerRowMarks';
 
-const facts = { recording: false, allowlisted: false, depthHeld: false };
+const facts = { recording: false };
 vi.mock('./useScannerRowFacts', () => ({
   useScannerRowFacts: () => facts,
-}));
-
-const allowlist = { add: vi.fn(async () => null), remove: vi.fn(async () => null) };
-vi.mock('../bot/useBotAllowlist', () => ({
-  useBotAllowlist: () => ({ symbols: [], isAllowed: () => false, refresh: vi.fn(), ...allowlist }),
 }));
 
 const record = { start: vi.fn(async () => null as string | null), stop: vi.fn(async () => null as string | null) };
@@ -31,10 +26,6 @@ vi.mock('../capture/sessionRecordStore', () => ({
 describe('ScannerRowActions', () => {
   beforeEach(() => {
     facts.recording = false;
-    facts.allowlisted = false;
-    facts.depthHeld = false;
-    allowlist.add.mockClear();
-    allowlist.remove.mockClear();
     record.start.mockClear();
     record.stop.mockClear();
     _resetPinnedRowsForTests();
@@ -44,7 +35,7 @@ describe('ScannerRowActions', () => {
     cleanup();
   });
 
-  it('opens Trader, starts a recording, allowlists and pins -- and never reaches the row', () => {
+  it('opens Trader, starts a recording and pins -- and never reaches the row', () => {
     const onOpenTrading = vi.fn();
     const rowClick = vi.fn();
     render(
@@ -56,9 +47,8 @@ describe('ScannerRowActions', () => {
     expect(onOpenTrading).toHaveBeenCalledWith('GRML');
     fireEvent.click(screen.getByTestId('scanner-row-record'));
     expect(record.start).toHaveBeenCalledWith('GRML');
-    expect(screen.getByTestId('scanner-row-allowlist').textContent).toBe('Let bot trade');
-    fireEvent.click(screen.getByTestId('scanner-row-allowlist'));
-    expect(allowlist.add).toHaveBeenCalledWith('GRML');
+    // The strategies only watch (ADR 072): no row button lets a bot trade the symbol.
+    expect(screen.queryByTestId('scanner-row-allowlist')).toBeNull();
     expect(screen.getByTestId('scanner-row-pin').textContent).toBe('Pin');
     fireEvent.click(screen.getByTestId('scanner-row-pin'));
     expect(getPinnedRows().has('GRML')).toBe(true);
@@ -66,10 +56,8 @@ describe('ScannerRowActions', () => {
     expect(rowClick).not.toHaveBeenCalled();
   });
 
-  it('labels follow the facts: Stop rec is a hold, Allowlisted removes', async () => {
+  it('labels follow the facts: Stop rec is a hold', async () => {
     facts.recording = true;
-    facts.allowlisted = true;
-    facts.depthHeld = true;
     render(<ScannerRowActions symbol="QNME" onOpenTrading={() => {}} />);
     expect(screen.queryByTestId('scanner-row-record')).toBeNull();
     const stop = screen.getByTestId('scanner-row-stop-rec');
@@ -81,9 +69,6 @@ describe('ScannerRowActions', () => {
     });
     vi.useRealTimers();
     expect(record.stop).toHaveBeenCalledWith('QNME');
-    expect(screen.getByTestId('scanner-row-allowlist').textContent).toBe('Bot trades ✓');
-    fireEvent.click(screen.getByTestId('scanner-row-allowlist'));
-    expect(allowlist.remove).toHaveBeenCalledWith('QNME');
   });
 
   it('★ stars the symbol onto today\'s hot list and reads Listed until pressed again', async () => {
@@ -122,8 +107,6 @@ describe('ScannerRowActions', () => {
 describe('ScannerRowMarks', () => {
   beforeEach(() => {
     facts.recording = false;
-    facts.allowlisted = false;
-    facts.depthHeld = false;
   });
   afterEach(() => cleanup());
 
@@ -143,22 +126,10 @@ describe('ScannerRowMarks', () => {
     resetWatchListForTests();
   });
 
-  it('draws the REC dot and a filled bot dot for a recording allowlisted symbol', () => {
+  it('draws the REC dot for a recording symbol, and no bot dot (ADR 072)', () => {
     facts.recording = true;
-    facts.allowlisted = true;
-    facts.depthHeld = true;
     render(<ScannerRowMarks symbol="GRML" />);
     expect(screen.getByTestId('scanner-mark-rec')).toBeTruthy();
-    expect(screen.getByTestId('scanner-mark-bot').getAttribute('data-held')).toBe('1');
-  });
-
-  it('draws a hollow bot dot for an allowlisted symbol with no held line known here', () => {
-    facts.allowlisted = true;
-    render(<ScannerRowMarks symbol="BRNQ" />);
-    expect(screen.queryByTestId('scanner-mark-rec')).toBeNull();
-    const bot = screen.getByTestId('scanner-mark-bot');
-    expect(bot.getAttribute('data-held')).toBe('0');
-    expect(bot.className).toContain('is-quiet');
-    expect(bot.getAttribute('title')).toMatch(/no held depth line/);
+    expect(screen.queryByTestId('scanner-mark-bot')).toBeNull();
   });
 });

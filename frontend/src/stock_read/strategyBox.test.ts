@@ -17,7 +17,7 @@ import { apusAt, apusReadWire } from './stockReadFixtures';
 import { boxedPlan, formingPlan, strategyOf, strategyWords } from './strategyBox';
 import { columnLeft, drawStrategy, fitName, strategySpan, type StrategyPx } from './strategyBoxRender';
 import type { SetupLevels, StockPlan, StockRead } from './types';
-import type { OrderLevels } from './whoTradesModel';
+import type { OrderLevels } from './tradeLevels';
 import { etChartSeconds } from '../tickerChartData';
 
 const LAYERS = {
@@ -42,8 +42,8 @@ describe('which plans are only forming', () => {
     expect(formingPlan(gapAndGo, planLevels(gapAndGo))).toBe(true);
     expect(formingPlan({ ...gapAndGo, state: 'armed', provisional: false }, planLevels(gapAndGo))).toBe(false);
     expect(formingPlan({ ...gapAndGo, source: 'manual', state: 'manual' }, planLevels(gapAndGo))).toBe(false);
-    // An order at the entry is real: the plan's zones and lines say what stands there.
-    const working = { ...planLevels(gapAndGo), entry: { price: 2.91, behind: 'order' as const } };
+    // Shares held at the entry are real: the plan's zones and lines say what stands there.
+    const working = { ...planLevels(gapAndGo), entry: { price: 2.91, behind: 'held' as const } };
     expect(formingPlan(gapAndGo, working)).toBe(false);
     expect(formingPlan(null, planLevels(gapAndGo))).toBe(false);
   });
@@ -54,11 +54,9 @@ describe('which plans are only forming', () => {
     }
     expect(boxedPlan({ ...gapAndGo, state: 'triggered' }, planLevels(gapAndGo))).toBe(false);
     expect(boxedPlan({ ...gapAndGo, source: 'manual', state: 'manual' }, planLevels(gapAndGo))).toBe(false);
-    // An order at the entry, or Nova watching the stop: the zones and lines say what stands there.
+    // Shares held at the entry: the zones and lines say what stands there.
     expect(boxedPlan({ ...gapAndGo, state: 'armed' },
-      { ...planLevels(gapAndGo), entry: { price: 2.91, behind: 'order' } })).toBe(false);
-    expect(boxedPlan({ ...gapAndGo, state: 'triggered' },
-      { ...planLevels(gapAndGo), stop: { price: 2.79, behind: 'watched' } })).toBe(false);
+      { ...planLevels(gapAndGo), entry: { price: 2.91, behind: 'held' } })).toBe(false);
     expect(formingPlan({ ...gapAndGo, state: 'armed' }, planLevels(gapAndGo))).toBe(false);
   });
 });
@@ -137,11 +135,11 @@ describe('the box once the setup is near or armed', () => {
       expect(off.lines.filter(l => ids.includes(l.id))).toEqual([]);
       expect(off.scene.strategy ?? null).toBeNull();
     }
-    // An order behind a level is real: hiding the lane never hides what stands in the market.
-    const levels = { ...planLevels(armed.plan!), entry: { price: armed.plan!.entry!, behind: 'order' as const } };
+    // A position behind a level is real: hiding the lane never hides what stands in the market.
+    const levels = { ...planLevels(armed.plan!), entry: { price: armed.plan!.entry!, behind: 'held' as const } };
     const thin = paneDraw(armed, { pane: 'thin', layers: hidden, toTime: identity, lastBar, levels });
     expect(thin.lines.filter(l => ids.includes(l.id)).map(l => [l.id, l.title])).toEqual([
-      ['entry', 'ENTRY · working'], ['stop', 'STOP · plan'], ['target', 'TARGET 1 · plan'], ['target2', 'TARGET 2 · plan'],
+      ['entry', 'ENTRY · held'], ['stop', 'STOP · plan'], ['target', 'TARGET 1 · plan'], ['target2', 'TARGET 2 · plan'],
     ]);
   });
 });

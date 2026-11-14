@@ -1,7 +1,7 @@
 """Open in Nova: strict arguments, the install token, and a separate Sim window during regular hours.
 
 The request queues the existing ``show`` command. The desk's show landing calls ``jump_to_day`` and
-``scrub_to_second``. This route does not. It does not call the order path or ``leave_safely``.
+``scrub_to_second``. This route does not. It does not call the order path.
 ``POST /api/agent/show`` stays on the API key.
 """
 from __future__ import annotations
@@ -139,8 +139,6 @@ def test_outside_rth_jumps_and_scrubs_without_touching_orders(calls, monkeypatch
     monkeypatch.setattr("ibkr.orders.place_order", _boom)
     monkeypatch.setattr("ibkr.orders.cancel_order", _boom)
     monkeypatch.setattr("execution.service.execute", _boom)
-    monkeypatch.setattr("stock_mode.leave.leave_safely", _boom)
-    monkeypatch.setattr("stock_mode.leave.leave_sync", _boom)
     result = _open({"symbol": "IMCC", "date": DAY, "as_of": "10:00:00"}, now=WEEKDAY)
     assert result["separate_sim"] is False
     assert result["chat_message"] == "Opened IMCC in Nova Sim on 2026-09-18 at 10:00:00 ET, paused."
@@ -435,8 +433,6 @@ def test_switch_view_passes_an_empty_left_list(monkeypatch):
         return {}
 
     monkeypatch.setattr("sim.mode.set_venue", set_venue)
-    monkeypatch.setattr("stock_mode.leave.leave_sync", _boom)
-    monkeypatch.setattr("stock_mode.leave.leave_safely", _boom)
     switch_main_view_to_sim()
     assert seen == {"target": "sim", "left": []}
 

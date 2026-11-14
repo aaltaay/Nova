@@ -1,9 +1,9 @@
 """Bot session snapshot + exclusive L2 brain claim.
 
-``public_view`` is ``GET /api/bot/session`` (ADR 042's wire contract): the desk venue's
-dial -- the master ``level``, each setup's own and effective level, the sleeve, the bot's
-stocks -- with ``active`` / ``ready`` and every gate and its reason (the daily loss limit's No new
-buys is the ``loss_limit`` gate, ADR 056).
+``public_view`` is ``GET /api/bot/session`` (ADR 042's wire contract, trimmed by ADR 072): the desk venue's dial --
+the master ``level``, each setup's own and effective level (every strategy watches: Eyes), the sleeve the desk's risk
+per trade is read from, the bot's stocks -- and the brain's claim. ADR 072 retired the Bot switch, the family keys,
+Activate's gates, the strategy bot's trade and its entry count, so their fields left the answer.
 """
 from __future__ import annotations
 
@@ -11,10 +11,11 @@ import logging
 from typing import Any
 
 from bot import persist
-from bot.arming import has_desk_arm, heartbeat_is_fresh, is_desk_active
+from bot.arming import heartbeat_is_fresh, is_desk_active
 from bot.eligibility import normalize_symbols
 from bot.errors import BotError
 from constants_bot import (
+    BOT_BRAIN_DOOR_CLOSED_TEXT,
     BOT_LEVEL_STRATEGY,
     BOT_REASON_ARM_REQUIRED,
     BOT_REASON_BRAIN_EXCLUSIVE,
@@ -47,50 +48,31 @@ def get_session() -> dict[str, Any]:
 
 
 def public_view(row: dict[str, Any]) -> dict[str, Any]:
-    from bot import activation, family_keys, sleeve, switch
-    from bot.gates import first_closed, gates
+    from bot import sleeve
+    from bot.door import current_venue
     from bot.setup_levels import effective, master, own_levels
+    from bot.venue_levels import by_venue
     from ibkr.trading_allowed import places_allowed
 
     level = master(row)
-    venue_now = activation.venue_state()
-    venue = venue_now[0]
-    active = is_desk_active(row)
+    venue = current_venue()
     brain_id = row.get("brain_session_id") if level >= BOT_LEVEL_STRATEGY else None
     alive = heartbeat_is_fresh(row) and bool(brain_id)
     places_ok, places_reason = places_allowed()
     own, eff = own_levels(row), effective(row)
-    gate_list = gates(row, venue_now)
-    closed = first_closed(gate_list)
-    ready = active and closed is None
-    ready_reason = None if ready else ("the bot is not active: turn the Bot switch on" if not active
-                                       else str(closed["detail"].get("text") or closed["id"]))
-    caps = sleeve.view(row.get("caps"), venue)
     return {
         "level": level,
-        "active": active,
-        # ADR 044: the Bot switch -- ON is the master at Strategy and Active, and why it is off.
-        **switch.view(row, venue),
-        # The family keys under the Bot switch (bot.md, "The three keys"): the desk venue's.
-        "keys": family_keys.view(venue),
-        "armed": active,                         # LEGACY alias of ``active`` (one release)
-        "has_desk_arm": has_desk_arm(row),
-        "deactivated": _deactivated(row.get("deactivated")),
-        # ADR 042: every setup with a scanner has its own level; effective = min(master, own).
+        "active": is_desk_active(row),
+        # ADR 042: every setup with a scanner has its own level; ADR 072: each reads Eyes -- every strategy watches.
         "setups": [{"id": sid, "scanner": sid in BOT_SETUPS_WITH_SCANNER,
                     "level": own.get(sid) if sid in BOT_SETUPS_WITH_SCANNER else None,
                     "effective": eff.get(sid) if sid in BOT_SETUPS_WITH_SCANNER else None,
                     **short_view(sid)} for sid in BOT_SETUPS],
         "setup_levels": dict(own),
-        "ready": ready,
-        "ready_reason": ready_reason,
-        "live_fire_ready": ready,                # LEGACY alias of ``ready`` (one release)
-        "gates": gate_list,
-        "caps": caps,
+        "caps": sleeve.view(row.get("caps"), venue),
         "caps_bounds": sleeve.bounds(),
         "caps_by_venue": sleeve.by_venue(row),
         "symbol_allowlist": normalize_symbols(row.get("symbol_allowlist")),
-        "entries_today": _entries_today(venue),
         "brain_session_id": brain_id,
         "brain_heartbeat_ts": row.get("brain_heartbeat_ts") if brain_id else None,
         "brain_alive": alive,
@@ -98,75 +80,15 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
         "trading_allowed_reason": None if places_ok else places_reason or None,
         # The dial is per venue too (operator report 2026-09-30): ``level`` is the desk's own.
         "level_venue": row.get("level_venue"),
-        "levels_by_venue": _levels_by_venue(row),
+        "levels_by_venue": by_venue(row),
         "focus": list(row.get("focus") or []),
         "trader_live": list(row.get("trader_live") or []),
         "working": list(row.get("working") or []),
-        # Nova's own bot (ADR 030, 042): whether it plays, and its current or last trade.
-        "runner": _runner_view(row),
-        "trade": _trade_view(row.get("trade"), venue),
-        # ADR 049 (#778 step 5): what a short needs from the account and the clock, for the answer line.
-        "shorts": _shorts(venue),
         # Sim time travel (ADR 020): the last scratch-account unwind this
         # process published, so a polling bot re-reads the ledger after it.
         "last_rewind": _last_rewind(),
         "updated_ts": row.get("updated_ts"),
     }
-
-
-def _shorts(venue: str | None) -> dict[str, Any]:
-    from bot import shorts_view
-
-    try:
-        return shorts_view.view(venue)
-    except Exception as exc:
-        logger.warning("bot: the short chips could not be read", exc_info=True)
-        return {"venue": venue, "error": f"the short facts could not be read ({exc})"}
-
-
-def _deactivated(value: Any) -> dict[str, Any] | None:
-    if not isinstance(value, dict):
-        return None
-    from bot.activation import stamp_text
-
-    return {"at": value.get("at"), "reason": value.get("reason"), "text": stamp_text(value)}
-
-
-def _entries_today(venue: str | None) -> dict[str, Any]:
-    """``{count, venue_day, entries, approved}`` -- the shared Nova count (ADR 042 E), shown, never a cap."""
-    from bot import entry_rules
-
-    try:
-        out = entry_rules.today(venue)
-    except Exception:
-        # Said on the page, never read as zero; the exception itself stays in the log (CodeQL: no
-        # exception text in an API answer).
-        logger.warning("bot session: the day's Nova entries could not be counted", exc_info=True)
-        return {"count": None, "venue_day": None, "entries": [], "approved": None,
-                "error": "the day's entries could not be counted (the backend log has the error)"}
-    return out
-
-
-def _levels_by_venue(row: dict[str, Any]) -> dict[str, int]:
-    from bot.venue_levels import by_venue
-
-    return by_venue(row)
-
-
-def _trade_view(trade: Any, venue: str | None) -> dict[str, Any] | None:
-    if not isinstance(trade, dict):
-        return None
-    from bot.first_pullback.runner import waiting_text
-
-    out = dict(trade)
-    out["waiting"] = waiting_text(out, venue)
-    return out
-
-
-def _runner_view(row: dict[str, Any]) -> dict[str, Any]:
-    from bot.first_pullback.runner import status
-
-    return status(row)
 
 
 def _last_rewind() -> dict[str, Any] | None:
@@ -189,11 +111,7 @@ def require_l2_brain(brain_session_id: str | None, *, claim: bool = True) -> str
         raise BotError("L2 brain required only at Strategy level", 409, BOT_REASON_BRAIN_EXCLUSIVE)
     desk_token = (row.get("desk_arm_token") or "").strip()
     if not is_desk_active(row):
-        raise BotError(
-            "Activate (the Bot switch in the header) before a brain can claim",
-            409,
-            BOT_REASON_ARM_REQUIRED,
-        )
+        raise BotError(BOT_BRAIN_DOOR_CLOSED_TEXT, 409, BOT_REASON_ARM_REQUIRED)
     incoming = (brain_session_id or "").strip()
     if not incoming:
         raise BotError(

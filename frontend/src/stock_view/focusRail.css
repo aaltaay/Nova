@@ -277,15 +277,6 @@
   background: var(--rec, #ff3b30);
 }
 
-.focus-rail__dot--bot {
-  background: var(--accent, #3b82f6);
-}
-
-.focus-rail__dot--quiet {
-  background: transparent;
-  border: 1px solid var(--accent, #3b82f6);
-}
-
 .focus-rail__sym {
   flex: 0 0 52px; /* the symbol and its hot list ★ / ☆ */
   display: inline-flex;

@@ -44,7 +44,7 @@ import {
 } from '../sim';
 import { StockViewVenueTag } from './StockViewVenueTag';
 import { depthUnavailableHint } from './depthUnavailableHint';
-import { ShortChips, StockReadRail, WhoTradesRow, useLevel2Markers } from '../stock_read';
+import { ShortChips, StockReadRail, useLevel2Markers } from '../stock_read';
 import { ClaudeLineFrame } from '../claude_seat';
 
 interface Props {
@@ -256,11 +256,10 @@ export function StockViewDepthTape({
     );
   }
 
-  // The bot's read on the stock sits between the quote and Level 2 (ADR 036), and who trades the stock
-  // right above Level 2 (ADR 037). On a Sim replay -- a Session Record too -- both are the replay's at the
-  // playhead (ADR 052): the bot trades a replay, so its stock can be set to Bot here.
+  // The bot's read on the stock sits between the quote and Level 2 (ADR 036). On a Sim replay -- a Session
+  // Record too -- it is the replay's at the playhead (ADR 052). Who trades the stock is the operator: the
+  // strategies only watch (ADR 072), so there is no Who trades row.
   const read = <StockReadRail />;
-  const whoTrades = <WhoTradesRow />;
 
   if (!showL2 && !showTape) {
     return (
@@ -271,7 +270,6 @@ export function StockViewDepthTape({
       >
         <QuoteHead symbol={depthSymbol} view={quoteView} replayDay={captureReplay ? replayDay : null} />
         {read}
-        {whoTrades}
       </StockViewModuleCard>
     );
   }
@@ -285,7 +283,6 @@ export function StockViewDepthTape({
     >
       <QuoteHead symbol={depthSymbol} view={quoteView} replayDay={captureReplay ? replayDay : null} />
       {read}
-      {whoTrades}
       {/* Claude's line (ADR 068): framed while Claude holds this stock's Level 2. */}
       <ClaudeLineFrame symbol={captureReplay ? null : depthSymbol}>
         <DepthAndTapeColumns

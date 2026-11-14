@@ -32,7 +32,7 @@ HOT_LIST_DATE_RE = r"^\d{4}-\d{2}-\d{2}$"
 
 # Every change is a line on the bot's audit stream: ``action`` this, ``inputs.event`` one of the events.
 HOT_LIST_AUDIT_ACTION = "hot_list"
-HOT_LIST_EVENT_ROLLOVER = "rollover"       # 04:00 ET: a fresh list, and yesterday's bot buys reset
+HOT_LIST_EVENT_ROLLOVER = "rollover"       # 04:00 ET: a fresh list (no bot buys to reset since ADR 072)
 HOT_LIST_EVENT_AUTO = "auto"               # the auto feed added a leader
 HOT_LIST_EVENT_STAR = "star"               # a star: the operator, or bring-back
 HOT_LIST_EVENT_REMOVE = "remove"           # off the list (who trades the stock is unchanged)
@@ -41,7 +41,7 @@ HOT_LIST_EVENT_SETTINGS = "settings"       # auto_n changed
 HOT_LIST_BY_OPERATOR = "operator"
 HOT_LIST_BY_BRING_BACK = "bring_back"
 
-# HOD Momo's active set admits the stocks the bot buys first (Buy set to the bot on the desk's venue), then
+# HOD Momo's active set admits a caller's bot stocks first (none since the bots retired, ADR 072), then
 # listed names, into the reserved block they share with Former Momo (``HOD_MOMO_FORMER_MOMO_MAX_SLOTS``;
 # ``hod_momo_active.build_active_set``), under these reasons.
 BOT_BUY_ACTIVE_REASON = "bot_buy"

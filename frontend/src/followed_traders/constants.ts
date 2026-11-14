@@ -3,7 +3,7 @@
  * (FOLLOWED_SCHEMA_VERSION, FOLLOWED_CAPTURE_STALE_SEC). Schema: architecture/schema/followed-traders.md.
  */
 
-import { NAV_RAIL_LABEL_BOTS_LIVE_TRADER } from '../constantGroups/nav_rail';
+import { NAV_RAIL_LABEL_TRADERTV } from '../constantGroups/nav_rail';
 
 export const FOLLOWED_SCHEMA_VERSION = 1;
 export const FOLLOWED_CONFIG_PATH = '/api/followed-traders/config';
@@ -57,8 +57,8 @@ export const FT_FOLD_LINE_PX = 34;
 
 /** The channel the feed reads (operator ask 2026-10-14): a toast names it as its source. */
 export const FOLLOWED_CHANNEL = 'TraderTV LIVE';
-/** The page is Bots > LiveTrader Bots (operator, 2026-10-15): its title and the proof's back link read so. */
-export const FT_TITLE = NAV_RAIL_LABEL_BOTS_LIVE_TRADER;
+/** The page is TraderTV on the rail (ADR 072): its title and the proof's back link read so. */
+export const FT_TITLE = NAV_RAIL_LABEL_TRADERTV;
 export const FT_LOADING = 'Asking the feed…';
 export const FT_OFF = 'The followed traders feed is not configured on this desk (NOVA_FOLLOW_FEED_URL in the backend’s .env).';
 export const FT_UNREACHABLE = 'The feed is not answering';

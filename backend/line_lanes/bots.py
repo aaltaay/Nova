@@ -10,6 +10,9 @@ puts the lane (``choose``, pure):
 
 A read that failed leaves the lane where it is and says why (``status()['error']``), never a guess. The lane is
 never lent and takes no one else's line; a setup with no lane reads ``blind`` on its row, as before.
+
+ADR 072: the bots are retired, so ``wanted`` names no candidate (``status()['blocked']`` says why) and the lane
+stays empty until it becomes the brain's.
 """
 from __future__ import annotations
 

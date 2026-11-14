@@ -4,10 +4,9 @@
  * The symbol is named once in the head; each action is a row that looks like a
  * button -- an icon tile in the action's colour, a label that says what the
  * click does, a line saying what that means, and a state chip when it is
- * already on (Hot list, REC, Bot). Stopping a recording stays a hold. The ★ puts
- * the stock on today's hot list from anywhere (ADR 044). "Let the
- * bot trade" goes through the stock-mode rules (ADR 042 F): the menu waits for
- * the answer and shows a refusal in the backend's words instead of closing.
+ * already on (Hot list, REC). Stopping a recording stays a hold. The ★ puts
+ * the stock on today's hot list from anywhere (ADR 044). No row lets a bot
+ * trade the stock: the strategies only watch and never trade (ADR 072).
  *
  * The host also mounts the bot's notices (bot/BotNotices.tsx): it is the one bot
  * chrome every window has -- the main desk with its app bar, each pop-out, the
@@ -22,22 +21,16 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from 'react';
-import { Bot, BotOff, Circle, Pin, PinOff, Square, Star, TriangleAlert } from 'lucide-react';
+import { Circle, Pin, PinOff, Square, Star, TriangleAlert } from 'lucide-react';
 import { hotListActions, listedOn, useHotList } from '../hot_list';
 import {
-  SYMBOL_MENU_ALLOW_HINT,
-  SYMBOL_MENU_ALLOW_STATE,
-  SYMBOL_MENU_BOT_BUSY_WHY,
   SYMBOL_MENU_CAPTION,
   SYMBOL_MENU_PIN_HINT,
   SYMBOL_MENU_REC_STATE,
   SYMBOL_MENU_RECORD,
   SYMBOL_MENU_RECORD_HINT,
   SYMBOL_MENU_STOP_RECORD,
-  SYMBOL_MENU_UNALLOW_HINT,
   SYMBOL_MENU_UNPIN_HINT,
-  botTradeAddLabel,
-  botTradeRemoveLabel,
 } from '../constantGroups/bot';
 import { SCANNER_ACTION_STARTING_REC_WHY, SCANNER_ACTION_STOPPING_REC_WHY } from '../constantGroups/scanner_board';
 import { TRADER_TAB_PIN_LABEL, TRADER_TAB_UNPIN_LABEL } from '../constantGroups/trader_view';
@@ -46,7 +39,6 @@ import {
   subscribeBotSymbolMenu,
   type BotSymbolMenuOpen,
 } from './botSymbolMenuStore';
-import { useBotAllowlist } from './useBotAllowlist';
 import {
   getRecordingSymbols,
   getSessionRecordError,
@@ -62,7 +54,7 @@ import { BotNotices } from './BotNotices';
 import { ClipMenuRows } from '../clips';
 import './symbolMenu.css';
 
-type Tone = 'tab' | 'hot' | 'rec' | 'bot';
+type Tone = 'tab' | 'hot' | 'rec';
 const ICON_PX = 15;
 
 /** Icon tile, label, the line under it, and the chip that says it is already on. */
@@ -132,8 +124,8 @@ function HotListRow({ symbol, onDone }: { symbol: string; onDone: () => void }) 
         icon={<Star size={ICON_PX} fill={listed && !auto ? 'currentColor' : 'none'} />}
         label={listed ? `Take ${symbol} off today's hot list` : `★ ${symbol} on today's hot list`}
         hint={listed
-          ? 'The scanners no longer keep it followed, and its hot list toasts stop. Who trades it (Buy / Sell) stays as it is.'
-          : 'The scanners follow it all day, with a toast when it alerts. Watching only: the bot trades it only where Buy / Sell says Bot. The list starts empty at 04:00.'}
+          ? 'The scanners no longer keep it followed, and its hot list toasts stop.'
+          : 'The scanners follow it all day, with a toast when it alerts. Watching only: a star never trades it. The list starts empty at 04:00.'}
         state={listed ? (auto ? 'Auto ☆' : 'Hot list') : null}
         disabled={why !== undefined}
         why={why}
@@ -178,11 +170,8 @@ function SymbolMenu() {
   const [open, setOpen] = useState<BotSymbolMenuOpen>(null);
   const [recordError, setRecordError] = useState<string | null>(null);
   const [recordBusy, setRecordBusy] = useState(false);
-  const [botBusy, setBotBusy] = useState(false);
-  const [botError, setBotError] = useState<string | null>(null);
   const [menuHeight, setMenuHeight] = useState(0);
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const { isAllowed, toggle } = useBotAllowlist();
   const recordEpoch = useSyncExternalStore(
     subscribeSessionRecord,
     () => `${getRecordingSymbols().join(',')}|${getSessionRecordError() || ''}`,
@@ -191,7 +180,6 @@ function SymbolMenu() {
 
   useEffect(() => subscribeBotSymbolMenu(value => {
     setRecordError(null);
-    setBotError(null);
     setMenuHeight(0);
     setOpen(value);
   }), []);
@@ -201,7 +189,7 @@ function SymbolMenu() {
   useLayoutEffect(() => {
     const height = menuRef.current?.getBoundingClientRect().height ?? 0;
     if (height > 0 && Math.abs(height - menuHeight) > 1) setMenuHeight(height);
-  }, [open, menuHeight, recordError, botError, recordEpoch]);
+  }, [open, menuHeight, recordError, recordEpoch]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -223,7 +211,6 @@ function SymbolMenu() {
 
   if (!open) return null;
   const { symbol } = open;
-  const allowed = isAllowed(symbol);
   const recording = isTabRecording(symbol);
   void recordEpoch;
   const toggleRecord = async (stop: boolean) => {
@@ -238,18 +225,6 @@ function SymbolMenu() {
     closeBotSymbolMenu();
   };
   const error = recordError || getSessionRecordError(symbol);
-  // The bot's answer decides whether the menu closes: a refusal stays on screen, in its own words.
-  const toggleBot = async () => {
-    setBotBusy(true);
-    setBotError(null);
-    const answer = await toggle(symbol, allowed ? 'remove' : 'add', true);
-    setBotBusy(false);
-    if (answer.error) {
-      setBotError(answer.error);
-      return;
-    }
-    closeBotSymbolMenu();
-  };
 
   // Below the app bar, never over the Sim session bar under the tabs; wholly on screen.
   const appBar = document.querySelector('[data-testid="global-app-bar"]');
@@ -329,23 +304,6 @@ function SymbolMenu() {
       )}
       {/* ADR 039: the same video choices as the Trader tab's red button. */}
       <ClipMenuRows symbol={symbol} onDone={closeBotSymbolMenu} />
-      <MenuRow
-        tone="bot"
-        testId="bot-symbol-menu-toggle"
-        icon={allowed ? <BotOff size={ICON_PX} /> : <Bot size={ICON_PX} />}
-        label={allowed ? botTradeRemoveLabel(symbol) : botTradeAddLabel(symbol)}
-        hint={allowed ? SYMBOL_MENU_UNALLOW_HINT : SYMBOL_MENU_ALLOW_HINT}
-        state={allowed ? SYMBOL_MENU_ALLOW_STATE : null}
-        disabled={botBusy}
-        why={SYMBOL_MENU_BOT_BUSY_WHY}
-        onClick={() => void toggleBot()}
-      />
-      {botError && (
-        <div className="symbol-menu__error" role="alert" data-testid="bot-symbol-menu-bot-error">
-          <TriangleAlert size={13} aria-hidden="true" />
-          <span>{botError}</span>
-        </div>
-      )}
     </div>
   );
 }

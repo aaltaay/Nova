@@ -15,10 +15,8 @@ export const NAV_RAIL_LABEL_MARKET = 'Market';
 export const NAV_RAIL_LABEL_TRADER = 'Trader';
 export const NAV_RAIL_LABEL_SCANNER = 'Scanner';
 export const NAV_RAIL_LABEL_ACCOUNT = 'Account';
-export const NAV_RAIL_LABEL_BOTS = 'Bots';
 /** Bots is a group (operator decision 2026-10-15): its two children, a key on top of each. */
-export const NAV_RAIL_LABEL_BOTS_LIVE_TRADER = 'LiveTrader Bots';
-export const NAV_RAIL_LABEL_BOTS_STRATEGY = 'Strategy Bots';
+export const NAV_RAIL_LABEL_TRADERTV = 'TraderTV';
 export const NAV_RAIL_LABEL_RECORDS = 'Records';
 export const NAV_RAIL_LABEL_CRYPTOS = 'Cryptos';
 export const NAV_RAIL_LABEL_CONGRESS = 'Congress';
@@ -35,11 +33,8 @@ export const NAV_RAIL_TITLE_TRADER =
 export const NAV_RAIL_TITLE_SCANNER = 'Scanner lists and signals';
 export const NAV_RAIL_TITLE_ACCOUNT =
   'Account overview -- positions, orders, and trading habit reports';
-export const NAV_RAIL_TITLE_BOTS = 'Bots -- LiveTrader Bots and Strategy Bots';
-export const NAV_RAIL_TITLE_BOTS_LIVE_TRADER =
-  'LiveTrader Bots -- the TraderTV hosts: what they hold and closed, priced with IBKR, and each host’s bot on Paper';
-export const NAV_RAIL_TITLE_BOTS_STRATEGY =
-  'Strategy Bots -- the strategies Off / Eyes / On, Level 2 lines, tickers, and their key';
+export const NAV_RAIL_TITLE_TRADERTV =
+  'TraderTV -- the hosts on air, what they hold and closed, the stream and the Activity, priced with IBKR';
 export const NAV_RAIL_TITLE_RECORDS = 'Records -- Session Records';
 export const NAV_RAIL_TITLE_CRYPTOS = 'Cryptos -- the 24/7 crypto market, and the stocks it moves';
 export const NAV_RAIL_TITLE_CONGRESS =

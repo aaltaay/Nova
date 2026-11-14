@@ -76,13 +76,10 @@ export const WATCHLIST_FILTER_LABELS: Record<string, string> = {
   all: 'All',
   pillars5: '5/5 pillars',
   setup_live: 'Setup live',
-  allowlist: 'Bot trades it',
 };
 
 export const WATCHLIST_FOOTNOTE =
-  'Click a row for pillars and setup in the side panel · click the ticker to open Trader · Bot ● lets the bot trade it (bot buys and sells), or stops it.';
-export const WATCHLIST_BOT_ON_TITLE = 'The bot trades it (bot buys and sells) -- click to stop the bot trading it';
-export const WATCHLIST_BOT_OFF_TITLE = 'Let the bot trade it (bot buys and sells). The bot trades only these stocks; the scanners still watch every name.';
+  'Click a row for pillars and setup in the side panel · click the ticker to open Trader.';
 
 /** Side-panel strip under News Headline — the symbol's Five Pillars grade, as on the Contenders tab. */
 export const TICKER_WATCHLIST_STRIP_TITLE = 'Pillars';
@@ -110,7 +107,7 @@ export const NOVA_OS_EVENT_ATTENTION_POLL_LIMIT = 25;
 /** Plain-language subtitles for the attention strip event kinds. */
 export const NOVA_OS_ATTENTION_COPY: Record<string, string> = {
   risk_halt: 'Walk-away rule hit — see Journal › Risk. It does not block manual or bot orders.',
-  kill: 'Kill switch tripped — every new order is blocked until you reset it on Strategy Bots.',
+  kill: 'Orders are frozen — every new order is refused until you press Unfreeze in the header.',
   archive_fail: 'Archive upload failed for a prior day — see Archive health.',
 };
 

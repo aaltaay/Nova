@@ -7,7 +7,7 @@ import { levelHoverId, levelStory, zoneColor } from './levelZone';
 import { drawLevels, fitText } from './levelRender';
 import type { StockReadLayers } from './StockReadContext';
 import type { LevelMap, LevelZone } from './levelTypes';
-import { pfsaRead } from './whoTradesFixtures';
+import { pfsaRead } from './momentFixtures';
 
 /** LGHL at 08:52 ET on 2026-09-30, as the backend's level map would say it (price 6.99). */
 function zone(id: string, lo: number, hi: number, side: LevelZone['side'], strength: number, label: string,

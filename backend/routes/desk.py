@@ -32,16 +32,14 @@ def get_desk_venue() -> dict:
 async def post_desk_venue(body: DeskVenueRequest) -> dict:
     """Settle the desk venue. 400 on anything but live / paper / sim.
 
-    Nova's entries still working on the venue the desk leaves are cancelled there first (ADR 042 F);
-    the answer lists them as ``left: [{venue, symbol, order_id, by, text, ok}]`` for the desk to toast."""
+    The answer's ``left`` is always empty: the Nova entries a venue change used to cancel first (ADR 042 F)
+    retired with the bots (ADR 072)."""
     key = (body.venue or "").strip().lower()
     if key not in DESK_VENUES:
         raise HTTPException(
             status_code=400,
             detail=f"venue must be one of {', '.join(DESK_VENUES)}, not {body.venue!r}",
         )
-    from sim.mode import set_venue, venue
-    from stock_mode.leave import leave_safely
+    from sim.mode import set_venue
 
-    left = await leave_safely(venue(), key)
-    return {"ok": True, "schema_version": DESK_VENUE_SCHEMA_VERSION, **set_venue(key, left=left)}
+    return {"ok": True, "schema_version": DESK_VENUE_SCHEMA_VERSION, **set_venue(key)}

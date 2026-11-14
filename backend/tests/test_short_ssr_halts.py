@@ -92,16 +92,6 @@ def test_a_sweeps_miss_does_not_make_the_short_check_wait(monkeypatch):
     ssr.reset_for_tests()
 
 
-def test_the_live_trader_bots_short_asks_urgently(monkeypatch):
-    from bot.live_trader import market
-
-    asks: list[dict] = []
-    monkeypatch.setattr(ssr, "request_history", lambda symbol, now=None, **k: asks.append(k) or False)
-    monkeypatch.setattr(ssr, "live", lambda symbol, now=None: ssr.SsrRead("unknown", "x"))
-    market.ssr("FADE")
-    assert asks == [{"urgent": True}]
-
-
 def test_a_replay_is_on_when_its_prints_reach_the_trigger_and_otherwise_unknown(monkeypatch):
     import sim.prior_close as prior
 

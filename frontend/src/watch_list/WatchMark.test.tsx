@@ -40,7 +40,7 @@ describe('the hot list mark', () => {
     expect(auto.dataset.how).toBe('auto');
     expect(auto.querySelector('path')?.getAttribute('fill')).toBe('none');
     expect(auto.title).toMatch(/^AIXI was auto-starred onto today's hot list/);
-    expect(auto.title).toMatch(/the bot trades it only where its Buy \/ Sell says Bot$/);
+    expect(auto.title).toMatch(/Watching only: a star never trades it, and the strategies only watch$/);
   });
 
   it('appears and goes as the ticker is starred and taken off', () => {

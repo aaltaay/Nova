@@ -18,8 +18,8 @@ at 6.64 it read "$5.50 is 42c above". This measures from the price.
 - **The ladder**: the next two zones over the price, the price, the through and broke rounds, a support,
   the stop and the average -- highest first.
 
-Nothing here places or moves an order: it says what the levels are. ``stock_mode.exit_trade`` raises
-Nova's own stop by the same rule (``raise_for``). A short you hold is ``held_short``'s mirror (ADR 048).
+Nothing here places or moves an order: it says what the levels are (``raise_for`` is the rule for raising a stop).
+A short you hold is ``held_short``'s mirror (ADR 048). ADR 072 retired Nova's exit, the stop Nova held for you.
 """
 from __future__ import annotations
 
@@ -113,10 +113,8 @@ def proposed_stop(bars: list[dict[str, Any]], price: float, intraday: list[dict[
 
 
 def _stop(bars: list[dict[str, Any]], price: float | None, intraday: list[dict[str, Any]],
-          yours: float | None, nova: float | None, since: float | None) -> dict[str, Any] | None:
-    if nova is not None:
-        price_s, source, rule = nova, "nova", "Nova's resting stop"
-    elif yours is not None:
+          yours: float | None, since: float | None) -> dict[str, Any] | None:
+    if yours is not None:
         price_s, source, rule = yours, "yours", "your stop"
     elif price is not None:
         got = proposed_stop(bars, price, intraday)
@@ -178,15 +176,13 @@ def _levels(price: float | None, avg: float, risk: float | None, stop: dict[str,
 
 def build(*, bars: list[dict[str, Any]], price: float | None, level_map: dict[str, Any] | None, avg: float,
           qty: float, now: float, since: float | None = None, stop: float | None = None,
-          nova_stop: float | None = None, risk: float | None = None,
-          checks: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+          risk: float | None = None, checks: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """``held`` for the read (AGENTS.md "Managing a trade you hold"). ``bars``: the session's closed 1-minute
-    candles, oldest first; ``stop``: yours; ``nova_stop``: Nova's resting stop when it holds the exit;
-    ``risk``: the risk a share you measure R in."""
+    candles, oldest first; ``stop``: yours; ``risk``: the risk a share you measure R in."""
     lm = level_map or {}
     intraday = list(lm.get("intraday") or [])
     rnd = rounds.of(lm.get("price")) or rounds.of(price) or rounds.of(avg)
-    st = _stop(bars, price, intraday, _f(stop), _f(nova_stop), since)
+    st = _stop(bars, price, intraday, _f(stop), since)
     stop_px = st["price"] if st else None
     risk_v = _f(risk)
     if risk_v is None and stop_px is not None and stop_px < avg - EPS:

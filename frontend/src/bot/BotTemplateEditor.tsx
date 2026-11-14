@@ -3,18 +3,15 @@
  * on, grouped as the scanner reads them, and the operator's named variations. The
  * built-in default is the pre-registered rules and stays locked -- New copies it.
  * Saving new scanner rules on a template starts its evidence over (its own read-out
- * restarts), and the editor says so before it saves -- only then: the bot's own
- * parameters (its window) are left out of the template's revision, so changing them
- * keeps the read-out counting. The bot window shows clipped when a stored one sat
- * outside the arming window. There is no daily cap on entries (2026-10-27).
- * Nothing here places an order.
+ * restarts), and the editor says so before it saves. Opened from Settings > Strategies
+ * (ADR 072): the strategies only watch, so the bot's own group (its window, the grades
+ * Nova buys, setups a stock a day) and the read-out counts are not shown -- their
+ * stored values stay in the template, unread. Nothing here places an order.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { BOT_SETUP_LABELS } from '../constantGroups/bot';
 import {
-  BOTS_TEMPLATE_BOT_ONLY_NOTE,
-  BOTS_TEMPLATE_BOT_WINDOW,
   BOTS_TEMPLATE_BUILTIN_WHY,
   BOTS_TEMPLATE_DELETE_CONFIRM,
   BOTS_TEMPLATE_EVIDENCE_RESET,
@@ -27,7 +24,8 @@ import {
 } from '../constantGroups/bots_page';
 import { confirmApp, promptApp } from '../ux/appDialogApi';
 import { BotParamField } from './BotParamField';
-import { changedKeys, readoutText } from './templateFormat';
+import './botTemplates.css';
+import { changedKeys } from './templateFormat';
 import { createTemplate, deleteTemplate, playTemplate, updateTemplate } from './templatesApi';
 import { TemplateApiError, type ParamValue, type SetupTemplate, type SetupTemplates } from './templateTypes';
 
@@ -39,6 +37,9 @@ interface Props {
   /** A write's answer: the setup as it now stands. */
   onApply: (setup: SetupTemplates) => void;
 }
+
+/** The catalogue group of the bot's own parameters, which no strategy reads since ADR 072. */
+const BOT_PARAM_GROUP = 'bot';
 
 function stamp(ts: number | null): string {
   return ts ? new Date(ts * 1000).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
@@ -73,7 +74,8 @@ export function BotTemplateEditor({ open, setup, maxPerSetup, onClose, onApply }
 
   if (!setup) return null;
   const label = BOT_SETUP_LABELS[setup.id] ?? setup.id;
-  const groups = setup.catalogue.groups;
+  // ADR 072: no bot trades, so the bot's own parameters (window, grades, setups a stock a day) are not shown.
+  const groups = setup.catalogue.groups.filter(g => g.id !== BOT_PARAM_GROUP);
   const dirty = selected ? changedKeys(selected.values, draft) : [];
   const specs = new Map(groups.flatMap(g => g.params).map(p => [p.key, p]));
   // A parameter the API does not mark is read as one that restarts the read-out: never hide a restart.
@@ -168,7 +170,6 @@ export function BotTemplateEditor({ open, setup, maxPerSetup, onClose, onApply }
                       <span>
                         {t.in_play ? <em className="bots-badge">in play</em> : null}
                         {t.builtin ? 'locked' : `rev ${t.rev}`}
-                        {readoutText(t) ? ` · ${readoutText(t)}` : ''}
                       </span>
                       {t.error ? <small className="bots-tpl__bad">{t.error}</small> : null}
                       {t.migrated ? (
@@ -195,12 +196,6 @@ export function BotTemplateEditor({ open, setup, maxPerSetup, onClose, onApply }
                 <p className="bots-tpl__meta" data-testid="bots-template-meta">
                   <b>{selected.name}</b> · {selected.builtin ? 'the pre-registered rules, locked' : `rev ${selected.rev}`}
                   {selected.updated_at ? ` · saved ${stamp(selected.updated_at)}` : ''}
-                  {selected.readout?.reason ? ` · ${selected.readout.reason}` : ''}
-                  {selected.bot_window ? (
-                    <span className={`bots-tpl__botwin${selected.bot_window.clipped ? ' is-clipped' : ''}`} data-testid="bots-template-bot-window">
-                      {' · '}{BOTS_TEMPLATE_BOT_WINDOW(selected.bot_window.start, selected.bot_window.end, selected.bot_window.clipped)}
-                    </span>
-                  ) : null}
                 </p>
               ) : null}
               {groups.map(g => (
@@ -226,7 +221,6 @@ export function BotTemplateEditor({ open, setup, maxPerSetup, onClose, onApply }
           <div className="bots-tpl__foot">
             <span className="bots-muted" data-testid="bots-template-dirty">
               {dirty.length ? `${dirty.length} change${dirty.length === 1 ? '' : 's'} not saved` : ''}
-              {dirty.length && resets.length === 0 && setup.scanner ? ` · ${BOTS_TEMPLATE_BOT_ONLY_NOTE}` : ''}
             </span>
             <button type="button" className="bots-btn" data-testid="bots-template-discard" disabled={dirty.length === 0 || busy}
               data-why={dirty.length === 0 || busy ? (busy ? BOTS_TEMPLATE_SAVING_WHY : BOTS_TEMPLATE_NOTHING_CHANGED_WHY) : undefined}

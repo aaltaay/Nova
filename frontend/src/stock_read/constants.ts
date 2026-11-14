@@ -292,11 +292,7 @@ export const LANE_LABELS: Record<string, string> = {
   bot: 'BOT',
 };
 
-/** Who trades the stock (ADR 037): the switch's view, read while the Trader tab shows. */
-export const STOCK_MODE_PATH = '/api/stock-mode';
-export const STOCK_MODE_POLL_MS = 1_500;
-/** ENTER NOW stays up this long after the trigger, while the price is within this share of a risk. (Every
- * Nova entry's time limit is the sleeve's `working_ttl_sec`, read with the risk per trade.) */
+/** ENTER NOW stays up this long after the trigger, while the price is within this share of a risk. */
 export const ENTER_NOW_SEC = 30;
 export const ENTER_NOW_RISK_SHARE = 0.5;
 /** The plan ruler's labels (operator report 2026-10-01: ACN's 27 marks printed their prices on top of each
@@ -311,20 +307,8 @@ export const RULER_DEFAULT_WIDTH_PX = 600;
 export const RULER_LABEL_RANK: Readonly<Record<string, number>> = {
   wall: 0, target: 1, hod: 1, level: 2, vwap: 2, pmh: 2, open: 2, round: 3,
 };
-/** What Nova just did (bought, sold, missed) stays in the chart's corner this long. */
-export const NOVA_CALL_SEC = 30;
-/** NOT A TRADE is one rule (spec H): it stops Nova's buys as well as the plan's own Stage. */
-export const NOT_A_TRADE_NOVA = "It blocks Nova's buys too: the bot, Auto-entry and Approve do not take it.";
-/** The words of the four modes, and the dot each wears (grey, blue, orange, orange). */
-export const STOCK_MODE_COLORS = {
-  signal: '#8e8e93',
-  approve: '#0a84ff',
-  auto_entry: '#ff9f0a',
-  bot: '#ff9f0a',
-} as const;
-
-/** Who trades: notes shown on their own lines before the rest fold into "+N more" (Level 2 keeps its room). */
-export const WHO_TRADES_NOTES_SHOWN = 3;
+/** A BROKE $X call (the raise or lower a candle's close offers) stays in the chart's corner this long after it. */
+export const BROKE_CALL_SEC = 600;
 
 /** Level 2's short chips (ADR 048): SSR, the halt cool-off and where IBKR would liquidate the position. */
 export const SHORT_CHIP_LIQ = 'LIQ';

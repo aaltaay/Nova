@@ -1,18 +1,14 @@
+/**
+ * The bot API reads that stay after ADR 072 retired the bots: `GET /api/bot/session` (the day cover the alarms read)
+ * and `GET /api/bot/audit` (history kept on disk). Every write the Bots page made -- level, arm, switch, keys,
+ * allowlist, proposals, focus -- went with its route.
+ */
 import { novaFetch } from '../api/novaFetch';
 import { API_URL } from '../constantGroups/chart_api';
-import {
-  BOT_DESK_ARM_HEADER,
-  BOT_DESK_ARM_STORAGE,
-  BOT_LABEL_AUDIT,
-  BOT_LABEL_PROPOSALS,
-  BOT_LABEL_SESSION,
-} from '../constantGroups/bot';
-import { SAMPLE_WRITE_REFUSAL } from '../sample_data/sampleCopy';
-import { onSampleDesk } from '../sample_data/sampleOrderGuard';
+import { BOT_LABEL_AUDIT, BOT_LABEL_SESSION } from '../constantGroups/bot';
 import { botApiError } from './botApiError';
-import { withPadlockPrompt } from './padlockPrompt';
-import { botUnreadableMessage, parseBotAudit, parseBotProposals, parseBotSession } from './botPayload';
-import type { BotAuditEntry, BotFamily, BotProposal, BotSession } from './types';
+import { botUnreadableMessage, parseBotAudit, parseBotSession } from './botPayload';
+import type { BotAuditEntry, BotSession } from './types';
 
 const BOT = `${API_URL}/bot`;
 
@@ -38,153 +34,12 @@ function required<T>(parsed: T | null, label: string, res: Response): T {
   return parsed;
 }
 
-/** V4: bot controls change the live desk, so the sample desk refuses them before any request. */
-function refuseOnSampleDesk(): void {
-  if (onSampleDesk()) throw new Error(SAMPLE_WRITE_REFUSAL);
-}
-
-export function readDeskArmToken(): string {
-  if (typeof localStorage === 'undefined') return '';
-  return localStorage.getItem(BOT_DESK_ARM_STORAGE)?.trim() || '';
-}
-
-export function writeDeskArmToken(token: string | null): void {
-  if (typeof localStorage === 'undefined') return;
-  if (token) localStorage.setItem(BOT_DESK_ARM_STORAGE, token);
-  else localStorage.removeItem(BOT_DESK_ARM_STORAGE);
-}
-
-function withArm(init: RequestInit = {}, armToken?: string): RequestInit {
-  const headers = new Headers(init.headers);
-  const token = (armToken ?? readDeskArmToken()).trim();
-  if (token && !headers.has(BOT_DESK_ARM_HEADER)) {
-    headers.set(BOT_DESK_ARM_HEADER, token);
-  }
-  return { ...init, headers };
-}
-
 export async function fetchBotSession(): Promise<BotSession> {
   const res = await novaFetch(`${BOT}/session`);
   return required(parseBotSession(await readJson(res, BOT_LABEL_SESSION)), BOT_LABEL_SESSION, res);
 }
 
-/** A strategy set On over a locked padlock asks to unlock it first (`withPadlockPrompt`). */
-export async function patchBotSession(body: Record<string, unknown>): Promise<BotSession> {
-  refuseOnSampleDesk();
-  return withPadlockPrompt(async () => {
-    const res = await novaFetch(
-      `${BOT}/session`,
-      withArm({
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      }),
-    );
-    return (await readJson(res, BOT_LABEL_SESSION)) as BotSession;
-  });
-}
-
-/** Activate (ADR 042 B): over a locked padlock it asks to unlock it first (`withPadlockPrompt`). */
-export async function armBotSession(): Promise<BotSession> {
-  refuseOnSampleDesk();
-  return withPadlockPrompt(postArm);
-}
-
-async function postArm(): Promise<BotSession> {
-  const res = await novaFetch(`${BOT}/session/arm`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({}),
-  });
-  const next = (await readJson(res, BOT_LABEL_SESSION)) as BotSession;
-  if (next.desk_arm_token) writeDeskArmToken(next.desk_arm_token);
-  return next;
-}
-
-/**
- * ADR 044: the Bot switch. On is Strategy and Activate in one call, refused like Activate -- over a locked padlock it
- * asks to unlock it first (`withPadlockPrompt`); off leaves Eyes running and is never refused.
- */
-export async function switchBotSession(on: boolean): Promise<BotSession> {
-  refuseOnSampleDesk();
-  return withPadlockPrompt(() => postSwitch(on));
-}
-
-async function postSwitch(on: boolean): Promise<BotSession> {
-  const res = await novaFetch(`${BOT}/session/switch`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ on }),
-  });
-  const next = (await readJson(res, BOT_LABEL_SESSION)) as BotSession;
-  if (next.desk_arm_token) writeDeskArmToken(next.desk_arm_token);
-  if (!on) writeDeskArmToken(null);
-  return next;
-}
-
-/**
- * A family's key on the desk venue (bot.md, "The three keys"): off, its bots place no order, not even a sell. On over
- * a locked padlock asks to unlock it first (`withPadlockPrompt`).
- */
-export async function setBotFamilyKey(family: BotFamily, on: boolean): Promise<BotSession> {
-  refuseOnSampleDesk();
-  return withPadlockPrompt(async () => {
-    const res = await novaFetch(`${BOT}/session/keys`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ family, on }),
-    });
-    return (await readJson(res, BOT_LABEL_SESSION)) as BotSession;
-  });
-}
-
-export async function disarmBotSession(): Promise<BotSession> {
-  refuseOnSampleDesk();
-  const res = await novaFetch(`${BOT}/session/disarm`, { method: 'POST' });
-  const next = (await readJson(res, BOT_LABEL_SESSION)) as BotSession;
-  writeDeskArmToken(null);
-  return next;
-}
-
-export async function postBotAllowlist(symbol: string, op: 'add' | 'remove'): Promise<BotSession> {
-  refuseOnSampleDesk();
-  const res = await novaFetch(`${BOT}/allowlist`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ symbol, op }),
-  });
-  return (await readJson(res, BOT_LABEL_SESSION)) as BotSession;
-}
-
-export async function fetchBotProposals(): Promise<BotProposal[]> {
-  const res = await novaFetch(`${BOT}/proposals`);
-  return required(parseBotProposals(await readJson(res, BOT_LABEL_PROPOSALS)), BOT_LABEL_PROPOSALS, res);
-}
-
-export async function resolveProposal(id: string, action: 'accept' | 'reject'): Promise<BotProposal> {
-  refuseOnSampleDesk();
-  const res = await novaFetch(`${BOT}/proposals/${id}/${action}`, { method: 'POST' });
-  return (await readJson(res, BOT_LABEL_PROPOSALS)) as BotProposal;
-}
-
 export async function fetchBotAudit(limit = 40): Promise<BotAuditEntry[]> {
   const res = await novaFetch(`${BOT}/audit?limit=${limit}`);
   return required(parseBotAudit(await readJson(res, BOT_LABEL_AUDIT)), BOT_LABEL_AUDIT, res);
-}
-
-/**
- * The Trader's live L2 tabs, so bot Eyes share the max-3 cap. Never from the
- * sample desk: its empty list used to overwrite the live bot's (V4).
- */
-export function syncTraderLive(live: string[]): Promise<void> {
-  if (onSampleDesk()) return Promise.resolve();
-  void novaFetch(`${BOT}/focus/sync`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ live }),
-  }).catch((err) => {
-    // Eyes stay honest on the next successful sync.
-    console.warn('[Nova] bot focus sync failed', err);
-  });
-  return Promise.resolve();
 }

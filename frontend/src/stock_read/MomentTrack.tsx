@@ -1,14 +1,14 @@
 /**
  * The trade's moment on the 1-minute chart (ADR 037): the badge's track -- Forming, Trigger, Holding,
- * then the exit (Your exit, or Target / stop) -- that moves by itself, and the call in the corner:
- * ENTER NOW, SELL NOW, or what Nova just did, in words. The bell mutes the ping on every Trader tab.
+ * then your exit (a short's: Your cover) -- that moves by itself, and the call in the corner: ENTER NOW,
+ * SELL NOW, or what the tape says while you hold, in words. The bell mutes the ping on every Trader tab.
  */
 import { useSyncExternalStore } from 'react';
 import { DESK_MUTE_REASON, useDeskMuted } from '../sound';
 import { tipProps } from '../ux';
 import { STEP_NAMES, type Moment, type MomentCall } from './momentModel';
-import { isStockReadSoundOn, setStockReadSound, subscribeStockReadSound } from './whoTradesSound';
-import './whoTrades.css';
+import { isStockReadSoundOn, setStockReadSound, subscribeStockReadSound } from './momentSound';
+import './tradeMoment.css';
 import './shortRead.css';
 
 function useSoundOn(): boolean {
@@ -21,8 +21,7 @@ const STEP_TIPS: Record<string, string> = {
   Holding: 'Shares are held.',
   Short: 'Shares are held short: borrowed through IBKR and sold. Nova covers what is left at 15:55 ET.',
   'Your exit': 'The exit is yours: Nova places no sell.',
-  'Your cover': 'The cover is yours: Nova buys nothing back unless you hand it the cover.',
-  'Target / stop': 'Nova holds the exit: the target, the stop.',
+  'Your cover': 'The cover is yours: Nova buys nothing back.',
 };
 
 /** A short's track (ADR 048): Forming · Trigger · Short · Your cover. */
@@ -56,7 +55,7 @@ export function MomentTrack({ moment }: { moment: Moment }) {
         aria-label={sound ? 'Mute the ping' : 'Hear the ping'}
         onClick={() => setStockReadSound(!sound)}
         {...tipProps(deskMuted ? DESK_MUTE_REASON
-          : sound ? 'A ping sounds for ENTER NOW, SELL NOW and what Nova just did. Click to mute it on '
+          : sound ? 'A ping sounds for ENTER NOW, SELL NOW and a broken level. Click to mute it on '
           + 'every Trader tab.' : 'The ping is muted on every Trader tab. Click to hear the calls again.', 'Ping')}
         data-testid="moment-bell"
       >

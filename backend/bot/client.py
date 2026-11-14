@@ -78,10 +78,3 @@ class BotApiClient:
             "/api/bot/action",
             {"kind": kind, "symbol": symbol, "brain_session_id": self.brain_id},
         )
-
-    def propose(self, body: dict[str, Any]) -> dict[str, Any]:
-        payload = dict(body)
-        payload.pop("qty", None)
-        payload.pop("shares", None)
-        payload["brain_session_id"] = self.brain_id
-        return self.post("/api/bot/proposals", payload)

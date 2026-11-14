@@ -9,7 +9,7 @@ not have: a separate Sim window while the session is open (premarket, regular ho
 and after-hours, including a 13:00 early close), an install token instead of the API
 key, and strict arguments. A venue change runs the show at-stake check first and
 refuses when anything is at stake. It does not jump the clock itself, and it never
-calls ``leave_safely`` or an order route.
+calls an order route.
 
 The browser caller uses ``X-Nova-Open-Token``, not ``X-Nova-Api-Key``.
 """
@@ -200,7 +200,7 @@ def park_before_setup(day: str, setups: list[dict[str, Any]] | None) -> int | No
 
 
 def switch_main_view_to_sim() -> None:
-    """Move the desk view to Sim without cancelling working orders (``left=[]`` skips ADR 042 F)."""
+    """Move the desk view to Sim. A venue change cancels nothing (its leave retired with the bots, ADR 072)."""
     from sim.mode import set_venue, venue
 
     if venue() == "sim":
@@ -256,7 +256,7 @@ def perform(
     switched = False
     if not separate:
         # The desk's show landing moves the day and the playhead. Switch the view
-        # here, with no order cancel, so that landing does not call leave_safely.
+        # here, with no order cancel.
         # set_venue persists the desk, disarms the padlock, and leaves broker
         # orders unwatched, so the show at-stake check runs first and a refusal
         # does not switch.

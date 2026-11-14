@@ -205,13 +205,12 @@ export const GLOBAL_BAR_SETTINGS_LABEL = 'Settings';
 export const GLOBAL_BAR_SETTINGS_TITLE = 'Open Settings';
 
 /**
- * Header Emergency KILL -- compose existing cancel / flatten / bot Off / desk lock, on the
- * venue the desk shows. Every line says what it really sends (spec D, 2026-09-30): the flatten
+ * Header Emergency KILL -- compose existing cancel / flatten / desk lock, on the
+ * venue the desk shows (no bot to set Off since ADR 072). Every line says what it really sends (spec D, 2026-09-30): the flatten
  * is a market order only in regular hours (backend execution/flatten_exit.py).
  */
 export const GLOBAL_BAR_EMERGENCY_KILL_LABEL = 'Emergency KILL';
 export const GLOBAL_BAR_EMERGENCY_KILL_OPS = [
-  'Set the bot to Off',
   'Lock the padlock (you unlock it yourself)',
   'Cancel every working order on this venue',
   'Flatten every position on this venue: a market order in regular hours, an extended-hours limit outside them (Paper and Sim close at market any time)',
@@ -220,8 +219,8 @@ export const GLOBAL_BAR_EMERGENCY_KILL_TITLE =
   GLOBAL_BAR_EMERGENCY_KILL_OPS.join('\n');
 export const GLOBAL_BAR_EMERGENCY_KILL_CONFIRM_TITLE = 'Emergency KILL?';
 export const GLOBAL_BAR_EMERGENCY_KILL_CONFIRM_BODY = [
-  'The bot goes to Off and the padlock locks first, so nothing re-enters while the cancel and the flatten run -- then both again after.',
-  'It acts on the venue the desk shows. Freeze all orders on Strategy Bots cancels every venue\'s working orders.',
+  'The padlock locks first, so nothing re-enters while the cancel and the flatten run -- then again after.',
+  'It acts on the venue the desk shows. Freeze, beside it, cancels every venue\'s working orders and sells nothing.',
   '',
   ...GLOBAL_BAR_EMERGENCY_KILL_OPS.map((op) => `- ${op}`),
   '',
@@ -237,6 +236,31 @@ export const GLOBAL_BAR_EMERGENCY_KILL_BUSY_WHY =
 export const GLOBAL_BAR_EMERGENCY_KILL_HINT =
   'Click to review and confirm -- nothing runs until you confirm.';
 export const GLOBAL_BAR_EMERGENCY_KILL_TOOLTIP_DELAY_MS = 120;
+
+/**
+ * Header Freeze, right of KILL (ADR 072, approved mockup retire-bots v1): the one freeze latch
+ * (`/api/kill-switch`, D-037, ADR 042 D) that lived on the Bots page. Its hover says exactly what a
+ * click does (operator, 2026-11-13: "The hover must clearly say what it does").
+ */
+export const GLOBAL_BAR_FREEZE_LABEL = 'Freeze';
+export const GLOBAL_BAR_FROZEN_LABEL = 'Frozen · Unfreeze';
+export const GLOBAL_BAR_FREEZE_TIP_TITLE = 'Freeze all orders';
+export const GLOBAL_BAR_FREEZE_TIP =
+  'Cancels every working order on Live, Paper and Sim, except a stop that protects a position you hold, and refuses '
+  + 'every new order, a sell included, until you unfreeze. It sells nothing — KILL is the one that sells. Flatten, '
+  + 'KILL and cancels still work while frozen. Nothing runs until you confirm.';
+export const GLOBAL_BAR_FROZEN_TIP_TITLE = 'Orders are frozen';
+export const GLOBAL_BAR_FROZEN_TIP =
+  'Every new order is refused on Live, Paper and Sim until you unfreeze. Click to unfreeze and let new orders '
+  + 'through again. Flatten, KILL and cancels still work.';
+export const GLOBAL_BAR_FREEZE_BUSY_WHY = 'Freeze is answering the last press -- wait for Nova';
+export const globalBarFreezeUnreadWhy = (err: string | null): string =>
+  `Nova has not said yet whether orders are frozen${err ? ` -- ${err}` : ''}`;
+/** The card that opens under Freeze after a click: what it did on each venue. */
+export const GLOBAL_BAR_FREEZE_DID_HEAD = 'What Freeze did';
+export const GLOBAL_BAR_FREEZE_DID_NOTHING = 'Nothing was working on any venue.';
+export const GLOBAL_BAR_FREEZE_DID_FOOT = 'Unfreeze lets new orders through again.';
+export const GLOBAL_BAR_FREEZE_DID_CLOSE = 'Close what Freeze did';
 
 /**
  * Redesigned global bar (approved mockup, 2026-09-22) -- one row on every view:

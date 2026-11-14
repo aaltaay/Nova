@@ -194,8 +194,7 @@ def held_read(f: dict[str, Any], ctx: dict[str, Any], held: dict[str, Any], now:
     short = held.get("side") == "short"
     builder = held_short.build if short else held_mod.build
     built = builder(bars=ctx.get("bars") or [], price=price, level_map=ctx.get("level_map"), avg=avg, qty=qty,
-                    now=now, since=held.get("since"), stop=held.get("stop"),
-                    nova_stop=(f.get("nova_exit") or {}).get("stop"), risk=held.get("risk"))
+                    now=now, since=held.get("since"), stop=held.get("stop"), risk=held.get("risk"))
     stop_px = (built.get("stop") or {}).get("price")
     nxt = next((row["price"] for row in built["ladder"] if row["role"] == "next"), None)
     risk = None
@@ -240,7 +239,7 @@ def build(f: dict[str, Any], *, entry: float | None = None, stop: float | None =
            "spread": (f.get("l2") or {}).get("spread_dollars"),
            "flow": f.get("flow"), "bid_pulls": d["bid_pulls"], "halted": f.get("halted"), "bars": d["bars"],
            "level_map": levels, "tf5": d["tf5"], "volume": (((f.get("why") or {}).get("facts")) or {}).get("volume"),
-           "risk_usd": (f.get("bot") or {}).get("risk_usd"), "l1_only": bool((f.get("l2") or {}).get("l1_fallback"))}
+           "risk_usd": (f.get("desk") or {}).get("risk_usd"), "l1_only": bool((f.get("l2") or {}).get("l1_fallback"))}
     plan = plan_mod.build(setups, ctx, now=now, entry=entry, stop=stop, side=side)
     liquid = (plan or {}).get("liquidity") or plan_liquidity.read(ctx, now)
     held_out = held_read(f, ctx, held, now) if held else None

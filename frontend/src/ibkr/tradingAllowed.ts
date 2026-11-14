@@ -20,8 +20,6 @@
  * #548).
  */
 import {
-  BOT_STATE_ACTIVE,
-  BOT_STATE_NOT_ACTIVE,
   NOVA_ACTION_PIN_LOCKED_MESSAGE,
   NOVA_ACTION_SPEND_LOCKED_MESSAGE,
 } from '../constants';
@@ -77,22 +75,6 @@ export function evaluateTradingAllowed(input: TradingAllowedInput): TradingAllow
   }
 
   return { allowed: blockers.length === 0, reason, blockers };
-}
-
-export function botArmDisplayState(
-  armed: boolean,
-  gate: TradingAllowed,
-): { label: string; looksActive: boolean } {
-  if (armed && gate.allowed) {
-    return { label: BOT_STATE_ACTIVE, looksActive: true };
-  }
-  if (armed && !gate.allowed) {
-    return {
-      label: `${BOT_STATE_ACTIVE} -- ${gate.reason ?? 'places blocked'}`,
-      looksActive: false,
-    };
-  }
-  return { label: BOT_STATE_NOT_ACTIVE, looksActive: false };
 }
 
 export function padlockLooksUnlocked(gate: TradingAllowed): boolean {

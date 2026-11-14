@@ -134,24 +134,16 @@ def _hold_pytest_priority():
 
 @pytest.fixture(autouse=True)
 def _reset_bot_persist():
-    from bot import day_pnl, entry_rules, family_keys, fill_progress, replay_desk
+    from bot import day_pnl
     from bot.persist import reset_for_tests
     from setup_scanner import readout
-    from tests.bot_helpers import open_entry_window, release_depth_lines
+    from tests.bot_helpers import release_depth_lines
 
     reset_for_tests()
-    family_keys.reset_for_tests()     # the family keys' file is read once per cache dir (bot.md, "The three keys")
-    replay_desk.reset_for_tests()     # the bot's memory of a Sim replay is process-local (ADR 052)
-    fill_progress.reset_for_tests()   # the partial fills last said are process-local (2026-10-16)
     readout.reset_for_tests()
     day_pnl.reset_for_tests()   # #564: no commission hold carries between tests
-    # The venue clock inside the entry window, so bot tests exercise their own
-    # gate. The tests about the entry rules close it explicitly. (ADR 042: the
-    # read-out no longer gates the bot.)
-    open_entry_window()
     yield
     reset_for_tests()
-    entry_rules.set_clock_for_tests(None)
     readout.reset_for_tests()
     day_pnl.reset_for_tests()
     # Depth lines a bot test held (ready_l2 / hold_depth_line) must not leak

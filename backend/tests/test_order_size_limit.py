@@ -252,14 +252,15 @@ def test_the_door_refuses_your_oversized_order_and_sends_nothing(door, venue):
     assert ok.ok is True and door == [(venue, 100)]
 
 
-def test_the_door_never_limits_a_close_a_cover_flatten_or_a_bot(door, monkeypatch):
+def test_the_door_never_limits_a_close_a_cover_flatten_or_claudes_seat(door, monkeypatch):
+    """The bots keep their own caps: Claude's seat is the bot that sends now (ADR 068, ADR 072)."""
     from sim.mode import set_venue
 
     set_venue("paper", persist=False)
     _limit(shares=1, risk=1)
     assert _run(_place(500, side="SELL", key="sell")).ok is True                       # selling what you hold
     assert _run(_place(500, source="flatten", intent="flatten", side="SELL", key="flat")).ok is True
-    assert _run(_place(500, source="bot", key="bot")).ok is True
+    assert _run(_place(500, source="bot", origin="claude", expected_venue="paper", key="bot")).ok is True
     monkeypatch.setattr("execution.validate.covers_short", lambda cmd: True)
     assert _run(_place(500, key="cover")).ok is True                                  # a BUY that covers a short
     assert [venue for venue, _qty in door] == ["paper"] * 4

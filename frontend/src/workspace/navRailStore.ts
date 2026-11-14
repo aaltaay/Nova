@@ -4,7 +4,7 @@
  *
  * The rail lives in the app shell while the scanner tab state lives in
  * DashboardPage / SampleDashboardPage, which unmount on Trader and on the
- * shell pages (Market, Records, Account, Bots, Cryptos). So the dashboard publishes here (like ScannerBarBridge does for the
+ * shell pages (Market, Records, Account, Cryptos, Congress, TraderTV). So the dashboard publishes here (like ScannerBarBridge does for the
  * header) and the rail asks for a tab through a latch that survives a remount
  * -- the same shape as the old openTradingTabNav, generalised to any tab.
  */
@@ -15,15 +15,11 @@ import { NAV_RAIL_SELECT_TAB_EVENT } from '../constantGroups/nav_rail';
 import { DEFAULT_ACTIVE_TAB } from './defaultTab';
 import { getModule, isTabModuleId, type ActiveTab, type ModuleCountKey } from './registry';
 
-/** What the dashboard slot shows while Trader is not up. Bots is a group (operator decision 2026-10-15): the parent
- *  page (empty for now) and its two children, LiveTrader Bots (the TraderTV hosts' page, with their bots) and Strategy
- *  Bots. */
+/** What the dashboard slot shows while Trader is not up. ADR 072 retired the Bots group (Bots, LiveTrader Bots,
+ *  Strategy Bots); the TraderTV hosts' page is its own page again, and each strategy's settings are in
+ *  Settings > Strategies. */
 export type NavPage =
-  | 'dashboard' | 'forex' | 'global' | 'market' | 'records' | 'account' | 'bots' | 'bots-live-trader' | 'bots-strategy' | 'cryptos'
-  | 'congress';
-
-/** Every page of the Bots group. */
-export const BOTS_PAGES: readonly NavPage[] = ['bots', 'bots-live-trader', 'bots-strategy'];
+  | 'dashboard' | 'forex' | 'global' | 'market' | 'records' | 'account' | 'tradertv' | 'cryptos' | 'congress';
 
 /** The registry id the Bots page kept from when it was a dashboard tab (persisted state, visibility). */
 export const BOTS_MODULE_ID = 'strategy';
@@ -120,11 +116,8 @@ export function clearScannerNavState(): void {
  */
 export function requestScannerTab(tab: ActiveTab): void {
   if (!isTabModuleId(tab)) return;
-  // Bots is a shell page now (approved mockup v4): an old request for its tab opens Strategy Bots, the page it was.
-  if (tab === BOTS_MODULE_ID) {
-    setNavPage('bots-strategy');
-    return;
-  }
+  // The Bots page is gone (ADR 072): an old request for its tab opens nothing; its settings are in Settings.
+  if (tab === BOTS_MODULE_ID) return;
   pendingTab = tab;
   setNavPage('dashboard');
   if (typeof window === 'undefined') return;

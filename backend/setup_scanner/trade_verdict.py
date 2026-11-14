@@ -12,9 +12,8 @@ A setup is **not a trade** -- each reason a sentence -- when:
 - the setup is watch only (#847, ``constants_bot.BOT_WATCH_ONLY_SETUPS``: the pullback dip): the eyes draw and
   score it, and Nova never trades it -- the one reason no other check can clear.
 
-The Trader's plan (``stock_read.plan``), Nova's bot and Auto-entry
-(``bot.first_pullback.admit``), Approve (``stock_mode.actions``) and the proposals
-(``setup_scanner.lane_announce``) all ask this one function. It only reads what it is given.
+The Trader's plan (``stock_read.plan``) asks this one function (Nova's bot, Auto-entry, Approve
+and the proposals asked it too until the bots retired, ADR 072). It only reads what it is given.
 """
 from __future__ import annotations
 

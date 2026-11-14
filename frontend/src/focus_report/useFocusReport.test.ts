@@ -44,13 +44,10 @@ describe('what a window shows', () => {
     expect(focusViewOf({ ...BASE, selectedSymbol: null })).toMatchObject({ symbol: null, symbolSource: null });
   });
 
-  it('Account and Bots show no symbol', () => {
+  it('Account and TraderTV show no symbol', () => {
     expect(focusViewOf({ ...BASE, scannerTab: 'trading' })).toMatchObject({ page: 'account', symbol: null });
-    expect(focusViewOf({ ...BASE, navPage: 'bots' })).toMatchObject({ page: 'bots', symbol: null });
-    // Every page of the Bots group reads as the sensor's "bots" (2026-10-15).
-    // LiveTrader Bots is the followed traders' page: it reads as it did as TraderTV LIVE (2026-10-15).
-    expect(focusViewOf({ ...BASE, navPage: 'bots-live-trader' }).page).toBe('followed');
-    expect(focusViewOf({ ...BASE, navPage: 'bots-strategy' }).page).toBe('bots');
+    // TraderTV is the followed traders' page: it reads as it did as TraderTV LIVE and LiveTrader Bots (ADR 072).
+    expect(focusViewOf({ ...BASE, navPage: 'tradertv' })).toMatchObject({ page: 'followed', symbol: null });
     expect(focusViewOf({ ...BASE, navPage: 'records' }).page).toBe('records');
     expect(focusViewOf({ ...BASE, navPage: 'cryptos' }).page).toBe('cryptos');
   });

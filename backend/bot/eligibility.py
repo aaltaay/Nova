@@ -1,7 +1,8 @@
 """Symbol gates.
 
-Eyes (watch / propose) see **allowlist AND live Trader focus** -- the tabs the
-UI reports through ``POST /api/bot/focus/sync``. A bot **fires** only on a
+Eyes see **allowlist AND live Trader focus** -- the tabs the UI reported (ADR 072
+retired ``POST /api/bot/focus/sync`` and the bot list's writers, so both stay as
+the session file holds them). A bot API order **fires** only on a
 symbol that is on its allowlist AND whose depth line the backend itself holds
 (ADR 020 second pass, 2026-09-21): the backend cannot see UI tabs, so the held
 line -- an open Trader Level 2 or a Session Record line, per
@@ -15,7 +16,6 @@ from typing import Any
 from bot.errors import BotError
 from constants_bot import (
     BOT_NO_DEPTH_LINE_HINT,
-    BOT_REASON_ALLOWLIST_FULL,
     BOT_REASON_NO_DEPTH_LINE,
     BOT_REASON_SYMBOL_BLOCKED,
     BOT_SYMBOL_ALLOWLIST_CAP,
@@ -125,26 +125,3 @@ def assert_symbol_can_fire(symbol: str, row: dict[str, Any]) -> str:
             BOT_REASON_SYMBOL_BLOCKED,
         )
     return assert_depth_line(sym)
-
-
-def add_symbol(row: dict[str, Any], symbol: str) -> list[str]:
-    """Put ``symbol`` on this venue's bot list. Only ``stock_mode`` calls this (one owner, ADR 042);
-    a full list is a refusal, never a change that did not happen."""
-    current = normalize_symbols(row.get("symbol_allowlist"))
-    sym = (symbol or "").strip().upper()
-    if not sym:
-        raise BotError("symbol is required", 400, "SYMBOL_MISSING")
-    if sym not in current:
-        if len(current) >= BOT_SYMBOL_ALLOWLIST_CAP:
-            raise BotError(f"the bot's list is full ({BOT_SYMBOL_ALLOWLIST_CAP} stocks on this venue): set one "
-                           f"back to Signal only before adding {sym}", 409, BOT_REASON_ALLOWLIST_FULL)
-        current.append(sym)
-    row["symbol_allowlist"] = current
-    return current
-
-
-def remove_symbol(row: dict[str, Any], symbol: str) -> list[str]:
-    sym = (symbol or "").strip().upper()
-    current = [s for s in normalize_symbols(row.get("symbol_allowlist")) if s != sym]
-    row["symbol_allowlist"] = current
-    return current

@@ -15,7 +15,7 @@ import type { SceneMark } from './sceneTypes';
 import { apusAt, apusReadWire } from './stockReadFixtures';
 import { boxedPlan, strategyOf, triggeredPlan, triggerMark } from './strategyBox';
 import type { SetupLane, SetupLevels, StockPlan, StockRead } from './types';
-import type { OrderLevels } from './whoTradesModel';
+import type { OrderLevels } from './tradeLevels';
 
 const LAYERS = {
   setups: true, levels: true, past: true, labels: 'compact' as const, hidden: [] as string[], plan: 'auto' as const,
@@ -49,9 +49,8 @@ describe('which plans leave the chart once triggered', () => {
     expect(strategyOf(plan, planLevels(plan), 5.99, BAR as Time, BAR, setup)).toBeNull();
     expect(triggeredPlan({ ...plan, state: 'armed' }, planLevels(plan))).toBe(false);
     expect(triggeredPlan({ ...plan, source: 'manual', state: 'manual' }, planLevels(plan))).toBe(false);
-    // An order at the entry, or Nova watching the stop: it is a trade, and its zones and lines say so.
-    expect(triggeredPlan(plan, { ...planLevels(plan), entry: { price: 5.44, behind: 'order' } })).toBe(false);
-    expect(triggeredPlan(plan, { ...planLevels(plan), stop: { price: 5.33, behind: 'watched' } })).toBe(false);
+    // Shares held at the entry: it is a trade, and its zones and lines say so.
+    expect(triggeredPlan(plan, { ...planLevels(plan), entry: { price: 5.44, behind: 'held' } })).toBe(false);
   });
 });
 
@@ -76,8 +75,8 @@ describe('a triggered plan on the panes', () => {
     }
   });
 
-  it('draws the zones and lines once an order stands behind it, and no mark', () => {
-    const levels = { ...planLevels(plan), entry: { price: 5.44, behind: 'order' as const } };
+  it('draws the zones and lines once shares are held behind it, and no mark', () => {
+    const levels = { ...planLevels(plan), entry: { price: 5.44, behind: 'held' as const } };
     const { scene, lines } = paneDraw(read, { pane: 'full', layers: LAYERS, toTime: identity, highAt, levels });
     expect(scene.boxes.filter(b => b.t2 === null)).toHaveLength(2);
     expect(lines.find(l => l.id === 'entry')).toMatchObject({ style: 'solid', width: 2 });
@@ -85,7 +84,7 @@ describe('a triggered plan on the panes', () => {
     // The 10-second pane keeps a trade's thin lines, named, the entry solid; the 5-minute pane never draws the plan.
     const thin = paneDraw(read, { pane: 'thin', layers: LAYERS, toTime: identity, highAt, levels });
     expect(thin.lines.filter(l => PLAN_IDS.includes(l.id)).map(l => [l.id, l.width, l.style, l.title])).toEqual([
-      ['entry', 1, 'solid', 'ENTRY · working'], ['stop', 1, 'dashed', 'STOP · plan'],
+      ['entry', 1, 'solid', 'ENTRY · held'], ['stop', 1, 'dashed', 'STOP · plan'],
       ['target', 1, 'dashed', 'TARGET 1 · plan'], ['target2', 1, 'dashed', 'TARGET 2 · plan'],
     ]);
     const map = paneDraw(read, { pane: 'map', layers: LAYERS, toTime: identity, highAt, levels });

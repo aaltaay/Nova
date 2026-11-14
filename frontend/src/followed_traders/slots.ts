@@ -1,8 +1,8 @@
 /**
- * What another feature draws on the followed traders' page (ADR 005: the page imports no other feature). Bots >
- * LiveTrader Bots gives the LiveTrader Bots key for the head, each host's bot for the middle of their card, and a chip
- * for an open row the bot copies (operator, 2026-10-15). Each slot is a component that reads its own data, so the page
- * never re-renders for it. Schema: architecture/schema/bot.md, "The Live Trader bot".
+ * What another feature may draw on the followed traders' page (ADR 005: the page imports no other feature): something
+ * in the head, in the middle of a trader's card, and a chip on an open row. LiveTrader Bots filled them with the Live
+ * Trader bot's key, card and BOT chip until ADR 072 retired that bot; the TraderTV page passes none. Each slot is a
+ * component that reads its own data, so the page never re-renders for it.
  */
 import { createContext, useContext, type ComponentType } from 'react';
 import type { FollowedTrade } from './types';

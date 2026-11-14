@@ -70,7 +70,7 @@ def bar_msg(b):
     return {"t": b.t, "o": b.o, "h": b.h, "l": b.lo, "c": b.c, "v": b.v}
 
 
-def test_seed_leg_then_armed_near_proposal_trigger_score(tmp_path):
+def test_seed_leg_then_armed_near_trigger_score(tmp_path):
     bars = leg_up(base_morning(), [4.08, 4.18, 4.28, 4.38])
     eng, audits, clock = make(tmp_path, bars)
     run(eng, clock["t"])
@@ -90,16 +90,14 @@ def test_seed_leg_then_armed_near_proposal_trigger_score(tmp_path):
     eng.on_l1_minute("last", SYM, {"price": 4.35, "ts": clock["t"], "bar_open": 4.32})
     run(eng, clock["t"])
     assert eng.det[SYM].state == "near"
-    assert len(eng.proposals) == 1 and audits and audits[0]["action"] == "setup_proposal"
-    prop = next(iter(eng.proposals.values()))
-    assert prop["trigger"] == 4.37 and prop["status"] == "open"
-    assert eng.board(clock["t"])["rows"][0]["proposal"]["id"] == prop["id"]
+    # ADR 072: the strategies only watch -- near its trigger with the tape at go, the setup proposes nothing.
+    assert eng.proposals == {} and not [a for a in audits if a["action"] == "setup_proposal"]
+    assert eng.board(clock["t"])["rows"][0].get("proposal") is None
 
     clock["t"] += 2
     eng.on_l1_minute("last", SYM, {"price": 4.38, "ts": clock["t"], "bar_open": 4.32})
     run(eng, clock["t"])
     assert eng.det[SYM].state == "triggered"
-    assert prop["status"] == "triggered"
     saved = eng.store.rows()[0]
     assert saved["triggered_at"] and saved["trigger_tape"]["verdict"] == "go"
     assert saved["near_tape"]["verdict"] == "go"
@@ -110,31 +108,22 @@ def test_seed_leg_then_armed_near_proposal_trigger_score(tmp_path):
     assert eng.store.rows()[0]["outcome"] == "target_first"
 
 
-def test_a_rearm_withdraws_the_proposal_and_a_fresh_read_raises_one_at_the_new_levels(tmp_path):
+def test_a_rearm_moves_the_setup_to_the_new_levels_and_proposes_nothing(tmp_path):
     bars = add(leg_up(base_morning(), [4.08, 4.18, 4.28, 4.38]), 4.38, 4.37, 4.30, 4.32, 30_000)
     eng, audits, clock = make(tmp_path, bars)
     run(eng, clock["t"])
     eng.on_l1_minute("last", SYM, {"price": 4.35, "ts": clock["t"], "bar_open": 4.32})
     run(eng, clock["t"])
-    first = next(iter(eng.proposals.values()))
-    assert first["trigger"] == 4.37 and first["status"] == "open"
+    assert eng.det[SYM].armed["trigger"] == 4.37 and eng.proposals == {}
 
     pb2 = add(list(bars), 4.32, 4.34, 4.27, 4.30, 20_000)[-1]      # the trigger moves down
     eng.on_l1_minute("bar", SYM, bar_msg(pb2))
     clock["t"] = pb2.t + 61
     run(eng, clock["t"])
-    assert first["status"] == "rearmed"
-    # The last price (4.35) is already at the new trigger and the tape still says
-    # go, so the same tick raises a fresh proposal at the new levels.
-    fresh = eng.board(clock["t"])["proposals"]
-    assert len(fresh) == 1 and fresh[0]["trigger"] == 4.34 and fresh[0]["entry"] == 4.35
-    assert fresh[0]["id"] != first["id"]
-    # The withdrawn proposal is on the audit stream: the fresh one replaces it in the engine.
-    assert [a["outcome"] for a in audits] == ["proposed", "rearmed", "proposed"]
-    withdrawn = audits[1]
-    assert withdrawn["action"] == "setup_proposal" and withdrawn["inputs"]["id"] == first["id"]
-    assert withdrawn["inputs"]["trigger"] == 4.37 and withdrawn["inputs"]["closed_at"]
-    assert withdrawn["reason"].startswith("re-armed at new levels")
+    # The last price (4.35) is already at the new trigger and the tape still says go: ADR 072, still no proposal.
+    assert eng.det[SYM].armed["trigger"] == 4.34 and eng.det[SYM].armed["entry"] == 4.35
+    assert eng.board(clock["t"])["proposals"] == []
+    assert not [a for a in audits if a["action"] == "setup_proposal"]
 
 
 def test_no_proposal_when_the_tape_is_red(tmp_path):

@@ -1,4 +1,7 @@
-"""The daily loss limit's No new buys at the execution door (ADR 056): yours and the bots' alike."""
+"""The daily loss limit's No new buys at the execution door (ADR 056): yours and the bots' alike.
+
+ADR 072: no bot but Claude sends now. A retired bot's buy is refused at the door (``BOTS_RETIRED``) before any
+loss line is read; the Bots line is kept for the brain, and Claude's Paper lane has its own max loss (ADR 068)."""
 from __future__ import annotations
 
 import asyncio
@@ -39,7 +42,7 @@ def _paper_desk(monkeypatch) -> list[int]:
     return called
 
 
-def test_no_new_buys_refuses_your_buy_and_the_bots_but_never_a_flatten(monkeypatch):
+def test_no_new_buys_refuses_your_buy_a_retired_bot_is_refused_anyway_and_a_flatten_goes(monkeypatch):
     called = _paper_desk(monkeypatch)
     from sim.mode import venue
 
@@ -49,7 +52,7 @@ def test_no_new_buys_refuses_your_buy_and_the_bots_but_never_a_flatten(monkeypat
     assert "Daily loss limit reached" in manual.error and "$451.03" in manual.error and "$405" in manual.error
     assert "Settings > Loss limits" in manual.error
     bot = asyncio.run(exec_svc.execute(_cmd("bot", "ll-bot"), wait_ack=False))
-    assert bot.ok is False and bot.reason_code == "LOSS_LIMIT_NO_NEW_BUYS"
+    assert bot.ok is False and bot.reason_code == "BOTS_RETIRED"
     flatten = asyncio.run(exec_svc.execute(_cmd("flatten", "ll-flat"), wait_ack=False))
     assert flatten.reason_code != "LOSS_LIMIT_NO_NEW_BUYS"
     assert called == [1]
@@ -106,17 +109,22 @@ def test_the_door_reads_its_own_venues_limit(monkeypatch):
         reset_venue()
 
 
-def test_the_bots_line_refuses_a_bot_buy_and_lets_yours_through(monkeypatch):
-    """ADR 061: the side comes from the order's own source; the Bots line holds only source ``bot``."""
+def test_the_bots_line_holds_a_bot_source_and_lets_yours_through(monkeypatch):
+    """ADR 061: the side comes from the order's own source; the Bots line holds only source ``bot``. A retired
+    bot's buy never reaches it (ADR 072): the door refuses it first."""
     called = _paper_desk(monkeypatch)
     from loss_limit import settings, state
+    from loss_limit.gate import buy_refusal
     from sim.mode import venue
 
     settings.update({"bots_usd": 500})
     state.write(venue(), {"tripped_at": time.time(), "tripped_loss": 510.0, "limit_usd": 500}, line="bots")
+    held = buy_refusal("BUY", "bot", venue())
+    assert held["code"] == "LOSS_LIMIT_NO_NEW_BUYS"
+    assert "The bots' daily loss limit reached" in held["text"] and "$510" in held["text"]
+    assert buy_refusal("BUY", "manual", venue()) is None
     bot = asyncio.run(exec_svc.execute(_cmd("bot", "ll-bots-line-bot"), wait_ack=False))
-    assert bot.ok is False and bot.reason_code == "LOSS_LIMIT_NO_NEW_BUYS"
-    assert "The bots' daily loss limit reached" in bot.error and "$510" in bot.error
+    assert bot.ok is False and bot.reason_code == "BOTS_RETIRED"
     manual = asyncio.run(exec_svc.execute(_cmd("manual", "ll-bots-line-manual"), wait_ack=False))
     assert manual.reason_code != "LOSS_LIMIT_NO_NEW_BUYS"
     assert called == [1]

@@ -9,7 +9,7 @@ import type { LevelMap, LevelZone } from './levelTypes';
 import { columnItems, shownLevels, type TrendPx } from './sceneRender';
 import type { Scene, SceneTrend, SceneWord } from './sceneTypes';
 import type { ShapeStory } from './ShapeTip';
-import { pfsaRead } from './whoTradesFixtures';
+import { pfsaRead } from './momentFixtures';
 
 /** The operator's 1-minute chart on 2026-10-13 at 09:19 ET (report: "there are way too many lines here"): price 4.04, a
  * Gap and Go forming with entry 4.20, stop 4.03, T1 4.40 and T2 4.49. */

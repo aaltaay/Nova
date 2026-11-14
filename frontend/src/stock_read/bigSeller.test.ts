@@ -10,7 +10,7 @@ import { RDYN_SHORT_NOW, RDYN_SHORT_SINCE, rdynShortWire } from './heldFixtures'
 import { normalizeHeld } from './heldRead';
 import { NO_HELD, type MomentInputs } from './momentModel';
 import { momentOfSides } from './momentShort';
-import { inputs, pfsaRead, pfsaView } from './whoTradesFixtures';
+import { inputs, pfsaRead } from './momentFixtures';
 
 const T = 1_791_382_000;
 
@@ -146,7 +146,7 @@ describe('the chart call', () => {
     const buyer = wall({ side: 'bid', kind: 'big_buyer', price: 5.40, distance: 0.06, called_ts: lowerAt + 10 });
     const i = inputs({
       read: { ...pfsaRead('triggered'), symbol: 'RDYN', price: 5.46, plan: null, held: normalizeHeld(rdynShortWire) },
-      who: pfsaView('signal'), position: { qty: -416, avgCost: 5.77 }, last: 5.46, now: RDYN_SHORT_NOW,
+      position: { qty: -416, avgCost: 5.77 }, last: 5.46, now: RDYN_SHORT_NOW,
       big: read({ symbol: 'RDYN', sellers: [], buyers: [buyer] }),
     }, { ...NO_HELD, since: RDYN_SHORT_SINCE });
     const m = momentOfSides(i);

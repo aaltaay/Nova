@@ -126,9 +126,9 @@ def test_a_replay_arms_reads_the_recorded_tape_triggers_and_scores():
     assert row["outcome"] == "target_first" and row["triggered_at"]
     kinds = [e["event"] for e in events]
     assert kinds.index("armed") < kinds.index("near") < kinds.index("triggered")
-    assert any(e["event"] == "proposal" and e["status"] == "proposed" for e in events)
+    assert not [e for e in events if e["event"] == "proposal"]             # ADR 072: the strategies only watch
     assert all(e["source"] == "backtest" and e["replay"] == {"date": DAY, "symbol": SYM} for e in events)
-    assert rep.take_alerts() and rep.take_alerts() == []
+    assert rep.take_alerts() == []                                          # alerts came from proposals
 
 
 def test_outside_the_recording_nothing_is_near_and_nothing_triggers():
@@ -189,13 +189,12 @@ def test_sim_eyes_follow_the_playhead_and_journal_each_moment_once(tmp_path):
     eyes.tick(0)
     board = eyes.board(0)
     first = next(s for s in board["setups"] if s["id"] == "first_pullback")
-    assert fp(board)[0]["state"] == "near" and first["template"]["id"] == "default" and first["proposing"]
+    assert fp(board)[0]["state"] == "near" and first["template"]["id"] == "default"
     assert board["schema_version"] == 2 and [s["id"] for s in board["setups"]] == [
         "first_pullback", "bull_flag", "flat_top_breakout", "flat_top_5m", "red_to_green", "gap_and_go", "pullback_dip",
         "abcd", "backside_lower_high", "bear_flag", "failed_breakout", "lost_vwap", "ssr_bounce"]   # ADR 049
-    assert all(not s["proposing"] for s in board["setups"] if s["id"] != "first_pullback")
-    assert board["proposals"] and all(p["setup_type"] == "first_pullback" for p in board["proposals"])
-    assert eyes.take_alerts()
+    assert all(not s["proposing"] for s in board["setups"]) and board["proposals"] == []    # ADR 072
+    assert eyes.take_alerts() == []                      # no proposal, so no alert (ADR 072)
     seen = len(events)
     target["playhead"] = rec.bars[-1].t + 30             # rewind: rebuilt silently
     eyes.tick(0)

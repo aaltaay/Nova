@@ -12,7 +12,7 @@
  * price (`levelFold.ts`, 2026-10-13): a lane's named line within reach of the plan's is the plan's word.
  * The 5-minute pane carries its own level map and the 5-minute setups (`fiveMinuteShapes.ts`; on the
  * 1-minute pane a 5-minute setup in reach is a dashed trigger line). The 10-second pane draws the plan as the 1-minute
- * pane does -- a setup's plan its strategy box, a level an order stands behind a thin line named as the 1-minute pane
+ * pane does -- a setup's plan its strategy box, a level shares are held at a thin line named as the 1-minute pane
  * names it -- and the 5-minute pane draws its own setups and never the 1-minute plan (operator report 2026-10-13,
  * AIXI's forming Gap and Go: four unnamed dotted lines across both charts -- "whats the points of these dotted
  * lines??", then "for which strategy is this specifically?"; of three mockups, the box). While you hold the stock
@@ -20,10 +20,10 @@
  * THEN, NEXT, SUPPORT, STOP, the average and the rounds broken or traded through -- are the 10-second
  * pane's, with their names (operator, 2026-10-01: "lets move these targets ... to the 10 seconds chart");
  * no other pane draws the plan's lines or zones then. The Full Day pane carries the daily level map (`levelPicks.ts`). A plan's
- * level is dashed while it is only a plan and solid while an order stands behind it. Nothing here is
- * estimated: every price is the scanner's, the read's or Nova's order's own.
+ * level is dashed while it is only a plan and its entry solid once shares are held there. Nothing here is
+ * estimated: every price is the scanner's, the read's or the position's own.
  * A setup plan on a stock too thin to trade (2026-10-01) draws no plan: no zones, no plan-only lines, its
- * lane faded like the others -- an order that stands behind a level is still drawn.
+ * lane faded like the others -- a position's levels are still drawn.
  * A setup plan with only the plan behind its levels (operator asks 2026-10-12) draws on the 1-minute and 10-second panes
  * its strategy box (`strategyBox.ts`), faint while forming and in full colour once near or armed: no zones, no line
  * across the pane, and a frame from its stop to target 1, never to target 2. Once armed its prices keep their axis tags
@@ -52,7 +52,7 @@ import { trendScene } from './trendLines';
 import type { Scene, SceneBox, SceneDot, SceneMark, ScenePath, SceneWord } from './sceneTypes';
 import type { StockReadLayers } from './StockReadContext';
 import type { SetupLane, SetupLeg, StockPlan, StockRead } from './types';
-import { levelTitle, type OrderLevel, type OrderLevels } from './whoTradesModel';
+import { levelTitle, type OrderLevel, type OrderLevels } from './tradeLevels';
 
 export { laneHoverId };
 
@@ -86,7 +86,7 @@ export interface DrawOptions {
   /** The high of the pane's candle that starts at an epoch second (a flat top's break). */
   highAt?: (epochSec: number) => number | null;
   focus?: { ts: number; title: string; setup: { trigger: number; stop: number; target1: number; armed_bar_t?: number } | null } | null;
-  /** The levels with what stands behind each (Who trades, ADR 037); without them the plan's own, dashed. */
+  /** The levels with what stands behind each (`tradeLevels.ts`); without them the plan's own, dashed. */
   levels?: OrderLevels | null;
   /** The moment's call: its pin goes on its candle. */
   call?: MomentCall | null;
@@ -103,7 +103,6 @@ export const CALL_COLORS: Record<CallTone, string> = {
   go: '#30d158',
   target: '#ff9f0a',
   stop: '#ff453a',
-  nova: '#0a84ff',
   done: '#30d158',
   wait: '#8e8e93',
   info: '#8e8e93',
@@ -150,7 +149,7 @@ function planOnly(price: number | null): OrderLevel | null {
   return price === null ? null : { price, behind: 'plan' };
 }
 
-/** The levels a pane draws: the ones Who trades knows what stands behind, else the plan's own -- none for a
+/** The levels a pane draws: the ones the trade's moment knows what stands behind, else the plan's own -- none for a
  * setup plan too thin to trade (2026-10-01). */
 export function drawnLevels(plan: StockPlan | null, levels: OrderLevels | null | undefined): OrderLevels | null {
   if (levels) return levels;
@@ -161,8 +160,7 @@ export function drawnLevels(plan: StockPlan | null, levels: OrderLevels | null |
   };
 }
 
-/** Target 2 (#845), drawn while target 1 is: the levels' own -- an approved bracket's second limit stands behind
- * it -- else the plan's, only a plan. */
+/** Target 2 (#845), drawn while target 1 is: the levels' own, else the plan's, only a plan. */
 function target2Of(plan: StockPlan | null, lv: OrderLevels): OrderLevel | null {
   if (!lv.target) return null;
   if (lv.target2 !== undefined) return lv.target2;

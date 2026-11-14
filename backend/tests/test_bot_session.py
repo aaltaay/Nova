@@ -1,25 +1,32 @@
-"""Bot session persist, autonomy ladder, exclusive L2 brain (ADR 016, ADR 042)."""
+"""Bot session persist, the level the file holds, and the bot API's door (ADR 016, ADR 042, ADR 072).
+
+ADR 072 retired the Bot switch, Activate and the session's PATCH: the levels and the sleeve are read as the file
+holds them, every strategy reads Eyes, and the brain's claim and every send are refused until the brain is built.
+"""
 from __future__ import annotations
 
 import pytest
 
-from bot.autonomy import apply_desk_level, apply_patch, assert_can_fire, assert_not_dark
+from bot.arming import heartbeat_is_fresh, is_desk_active
+from bot.door import assert_can_fire, assert_not_dark
 from bot.errors import BotError
-from bot.persist import default_session, load_session
+from bot.persist import default_session, load_session, save_session
 from bot.session import get_session, require_l2_brain
 from constants_bot import (
+    BOT_BRAIN_DOOR_CLOSED_TEXT,
+    BOT_HEARTBEAT_STALE_SEC,
+    BOT_LEVEL_EYES,
     BOT_LEVEL_OFF,
-    BOT_MAX_SHARES_CAP,
+    BOT_REASON_ARM_REQUIRED,
     BOT_REASON_BRAIN_EXCLUSIVE,
-    BOT_REASON_CAPS_INVALID,
     BOT_REASON_L0_DARK,
     BOT_REASON_L1_NO_FIRE,
-    BOT_REASON_L3_PARKED,
+    BOT_REASON_LIVE_NOT_BUILT,
     BOT_REASON_NOT_ACTIVE,
-    BOT_REASON_TRADING_LOCKED,
+    BOT_SCANNER_SETUPS,
     BOT_SCHEMA_VERSION,
 )
-from tests.bot_helpers import on_practice, ready_l2
+from tests.bot_helpers import on_practice, set_level
 
 
 def test_default_session_is_l0_dark():
@@ -28,13 +35,23 @@ def test_default_session_is_l0_dark():
     assert row["level"] == BOT_LEVEL_OFF
     assert row["armed"] is False
     view = get_session()
-    assert view["level"] == 0 and view["active"] is False and view["deactivated"] is None
+    assert view["level"] == 0 and view["active"] is False
     assert view["brain_session_id"] is None
     assert view["caps"]["risk_usd"] == 20.0 and "entries_per_day" not in view["caps"]
     assert view["caps"]["api_kinds"] == view["caps"]["allowlist"]
 
 
-def test_l0_refuses_fire_and_focus_writes():
+def test_the_retired_fields_left_the_answer_and_every_strategy_reads_eyes():
+    view = get_session()
+    for gone in ("bot_on", "keys", "gates", "ready", "ready_reason", "runner", "trade", "entries_today", "shorts",
+                 "deactivated", "has_desk_arm", "armed", "live_fire_ready"):
+        assert gone not in view
+    assert view["setup_levels"] == {sid: BOT_LEVEL_EYES for sid in BOT_SCANNER_SETUPS}
+    scanners = [s for s in view["setups"] if s["scanner"]]
+    assert scanners and all(s["level"] == s["effective"] == BOT_LEVEL_EYES for s in scanners)
+
+
+def test_l0_refuses_fire():
     on_practice()
     with pytest.raises(BotError) as exc:
         assert_not_dark()
@@ -44,22 +61,14 @@ def test_l0_refuses_fire_and_focus_writes():
     assert exc.value.reason == BOT_REASON_L0_DARK
 
 
-def test_l3_is_parked():
+def test_the_bot_api_never_fires_on_live():
+    set_level(2)
     with pytest.raises(BotError) as exc:
-        apply_patch({"level": 3}, desk=True)
-    assert exc.value.reason == BOT_REASON_L3_PARKED
-    assert load_session()["level"] == BOT_LEVEL_OFF
+        assert_can_fire()
+    assert exc.value.reason == BOT_REASON_LIVE_NOT_BUILT
 
 
-def test_l3_is_parked_through_the_desk_shortcut():
-    # apply_desk_level is the internal/test shortcut -- it must not bypass the park.
-    with pytest.raises(BotError) as exc:
-        apply_desk_level(3)
-    assert exc.value.reason == BOT_REASON_L3_PARKED
-    assert load_session()["level"] == BOT_LEVEL_OFF
-
-
-def _seed_session_file(level: int) -> None:
+def _seed_session_file(level: int, **fields) -> None:
     """Write a session file straight to disk and drop the in-memory copy."""
     import json
 
@@ -70,13 +79,14 @@ def _seed_session_file(level: int) -> None:
     row = default_session()
     row["level"] = level
     row["armed"] = True
+    row.update(fields)
     (cache_dir() / BOT_SESSION_FILENAME).write_text(json.dumps(row), encoding="utf-8")
     persist._session = None
 
 
 @pytest.mark.parametrize("level", [3, 4, 99])
 def test_persisted_parked_level_loads_dark(level):
-    # The park must hold on the read door too, not only on apply_patch (#216).
+    # The park holds on the read door (#216).
     _seed_session_file(level)
     row = load_session()
     assert row["level"] == BOT_LEVEL_OFF
@@ -86,16 +96,17 @@ def test_persisted_parked_level_loads_dark(level):
     assert exc.value.reason == BOT_REASON_L0_DARK
 
 
-def test_persisted_l2_still_loads_l2():
-    # The clamp is surgical: proven levels survive a reload untouched (Activate does not: ADR 042).
-    _seed_session_file(2)
+def test_persisted_l2_still_loads_l2_and_activate_never_survives_a_start():
+    # The clamp is surgical: the level survives a reload; Activate and the brain's claim do not (ADR 042, ADR 072).
+    _seed_session_file(2, desk_arm_token="tok", brain_session_id="brain-a", claim_arm_token="tok")
     row = load_session()
-    assert row["level"] == 2 and row["armed"] is False
+    assert row["level"] == 2 and row["armed"] is False and is_desk_active(row) is False
+    assert row["desk_arm_token"] is None and row["brain_session_id"] is None
 
 
 def test_l1_eyes_cannot_fire():
     on_practice()
-    apply_patch({"level": 1}, desk=True)
+    set_level(1)
     row = assert_not_dark()
     assert row["level"] == 1
     with pytest.raises(BotError) as exc:
@@ -103,33 +114,43 @@ def test_l1_eyes_cannot_fire():
     assert exc.value.reason == BOT_REASON_L1_NO_FIRE
 
 
-def test_strategy_needs_no_activate_token_and_never_activates():
-    apply_patch({"level": 2}, desk=True)
-    view = get_session()
-    assert view["level"] == 2 and view["active"] is False
+def test_at_strategy_the_door_stays_shut_until_the_brain_is_built():
+    on_practice()
+    set_level(2)
+    with pytest.raises(BotError) as exc:
+        assert_can_fire()
+    assert exc.value.reason == BOT_REASON_NOT_ACTIVE and exc.value.message == BOT_BRAIN_DOOR_CLOSED_TEXT
 
 
-def test_the_sleeve_takes_values_inside_its_bounds_and_refuses_the_rest():
+def test_no_brain_can_claim_the_session():
+    with pytest.raises(BotError) as exc:
+        require_l2_brain("brain-a", claim=True)
+    assert exc.value.reason == BOT_REASON_BRAIN_EXCLUSIVE           # below Strategy
+    set_level(2)
+    with pytest.raises(BotError) as exc:
+        require_l2_brain("brain-a", claim=True)
+    assert exc.value.reason == BOT_REASON_ARM_REQUIRED and exc.value.message == BOT_BRAIN_DOOR_CLOSED_TEXT
+    assert get_session()["brain_session_id"] is None
+
+
+def test_the_sleeve_bounds_and_its_rules():
+    from bot import sleeve
+    from constants_bot import BOT_REASON_CAPS_INVALID
+
     view = get_session()
     assert view["caps_bounds"] == {"risk_usd": [1.0, 10000.0], "max_shares": [1, 10], "bp_budget_usd": [0.01, 50.0],
                                    "working_ttl_sec": [1, 10]}
-    apply_patch({"caps": {"max_shares": BOT_MAX_SHARES_CAP, "bp_budget_usd": 50, "working_ttl_sec": 10,
-                          "extended_hours": True, "risk_usd": 35}}, desk=True)
-    caps = get_session()["caps"]
-    assert caps["max_shares"] == BOT_MAX_SHARES_CAP and caps["bp_budget_usd"] == 50.0
-    assert caps["working_ttl_sec"] == 10 and caps["extended_hours"] is True
-    assert caps["risk_usd"] == 35.0
+    after, changed = sleeve.apply(view["caps"], {"max_shares": 10, "risk_usd": 35})
+    assert after["max_shares"] == 10 and after["risk_usd"] == 35.0 and set(changed) == {"max_shares", "risk_usd"}
     for bad in ({"max_shares": 99}, {"bp_budget_usd": 500}, {"working_ttl_sec": 0},
                 {"risk_usd": 0}, {"api_kinds": ["buy_everything"]}, {"no_such": 1}):
         with pytest.raises(BotError) as refused:
-            apply_patch({"caps": bad}, desk=True)
+            sleeve.apply(view["caps"], bad)
         assert refused.value.reason == BOT_REASON_CAPS_INVALID and refused.value.status_code == 400
-    assert get_session()["caps"]["max_shares"] == BOT_MAX_SHARES_CAP     # nothing changed in silence
 
 
 def test_a_stored_sleeve_with_the_retired_daily_cap_loads_and_drops_it():
-    """No daily cap (operator, 2026-10-27): a sleeve written before it loads without ``entries_per_day``; a PATCH
-    that still sends it changes nothing."""
+    """No daily cap (operator, 2026-10-27): a sleeve written before it loads without ``entries_per_day``."""
     from bot import sleeve
 
     old = {**sleeve.defaults(), "risk_usd": 30, "entries_per_day": 3}
@@ -140,97 +161,27 @@ def test_a_stored_sleeve_with_the_retired_daily_cap_loads_and_drops_it():
 
 
 def test_each_venue_keeps_its_own_sleeve():
+    from bot.venue_levels import put
+    from sim.mode import set_venue
+
     on_practice()
-    apply_patch({"caps": {"max_shares": 5}}, desk=True)                      # the desk's: Paper
-    apply_patch({"caps": {"venue": "sim", "max_shares": 7}}, desk=True)
+    row = load_session()
+    row["caps"] = {**row["caps"], "max_shares": 5}                    # the desk's: Paper
+    put(row, "sim", "caps", {**row["caps"], "max_shares": 7})
+    save_session(row)
     view = get_session()
     assert view["caps"]["venue"] == "paper" and view["caps"]["max_shares"] == 5
     assert view["caps_by_venue"]["sim"]["max_shares"] == 7 and view["caps_by_venue"]["live"]["max_shares"] == 1
-    from sim.mode import set_venue
-
     set_venue("sim", persist=False)
     assert get_session()["caps"]["max_shares"] == 7
     set_venue("paper", persist=False)
     assert get_session()["caps"]["max_shares"] == 5
 
 
-def test_exclusive_l2_brain():
-    apply_desk_level(2)
-    with pytest.raises(BotError) as exc:
-        require_l2_brain(None, claim=True)
-    assert exc.value.reason == BOT_REASON_BRAIN_EXCLUSIVE
-    assert require_l2_brain("brain-a", claim=True) == "brain-a"
-    assert get_session()["brain_session_id"] == "brain-a"
-    with pytest.raises(BotError) as exc:
-        require_l2_brain("brain-b", claim=True)
-    assert exc.value.reason == BOT_REASON_BRAIN_EXCLUSIVE
-    assert require_l2_brain("brain-a", claim=True) == "brain-a"
-
-
-def test_drop_to_l0_clears_brain():
-    apply_desk_level(2)
-    require_l2_brain("brain-a", claim=True)
-    apply_patch({"level": 0}, desk=True)
-    view = get_session()
-    assert view["level"] == 0
-    assert view["brain_session_id"] is None
-    assert view["active"] is False and view["armed"] is False
-    assert view["has_desk_arm"] is False
-    assert view["ready"] is False and view["live_fire_ready"] is False
-    assert view["deactivated"]["reason"] == "level"
-
-
-def test_l2_to_eyes_deactivates():
-    ready_l2(brain="brain-a", heartbeat=True)
-    assert get_session()["ready"] is True
-    apply_patch({"level": 1}, desk=True)
-    view = get_session()
-    assert view["level"] == 1
-    assert view["active"] is False and view["has_desk_arm"] is False
-    assert view["brain_session_id"] is None
-    assert view["ready"] is False
-    with pytest.raises(BotError) as exc:
-        assert_can_fire()
-    assert exc.value.reason == BOT_REASON_L1_NO_FIRE
-
-
-def test_l2_not_active_assert_can_fire():
-    from bot.arming import disarm_session
-
-    ready_l2(brain="brain-a", heartbeat=True)
-    disarm_session()
-    view = get_session()
-    assert view["level"] == 2
-    assert view["active"] is False and view["has_desk_arm"] is False
-    assert view["ready"] is False and view["ready_reason"].startswith("the bot is not active")
-    with pytest.raises(BotError) as exc:
-        assert_can_fire()
-    assert exc.value.reason == BOT_REASON_NOT_ACTIVE
-
-
-def test_a_token_issued_outside_the_rules_is_cleared_by_the_next_level_below_strategy():
-    from bot.arming import issue_arm_token
-
-    issue_arm_token()                                   # a legacy session: Active at Off
-    apply_patch({"level": 1}, desk=True)
-    view = get_session()
-    assert view["level"] == 1 and view["active"] is False and view["deactivated"]["reason"] == "level"
-
-
-def test_places_blocked_clears_ready_and_assert_can_fire(monkeypatch):
-    from ibkr import trading_allowed as ta
-
-    ready_l2(brain="brain-a", heartbeat=True)
-    assert get_session()["ready"] is True
-    monkeypatch.setattr(ta, "places_allowed", lambda: (False, "orders locked"))
-    view = get_session()
-    assert view["trading_allowed"] is False
-    assert view["trading_allowed_reason"] == "orders locked"
-    assert view["active"] is True
-    assert view["ready"] is False and "padlock" in view["ready_reason"]
-    with pytest.raises(BotError) as exc:
-        assert_can_fire()
-    assert exc.value.reason == BOT_REASON_TRADING_LOCKED
+def test_a_heartbeat_is_fresh_only_inside_its_window():
+    assert heartbeat_is_fresh({"brain_heartbeat_ts": 1000.0}, now=1000.0 + BOT_HEARTBEAT_STALE_SEC) is True
+    assert heartbeat_is_fresh({"brain_heartbeat_ts": 1000.0}, now=1001.0 + BOT_HEARTBEAT_STALE_SEC) is False
+    assert heartbeat_is_fresh({}, now=1000.0) is False
 
 
 def test_persist_reset_survives_windows_os_name(monkeypatch):

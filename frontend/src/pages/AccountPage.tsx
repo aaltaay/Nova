@@ -54,7 +54,6 @@ import {
 } from '../account/ownerView';
 import { PerformancePanel, type PerfTab } from '../account/PerformancePanel';
 import { PositionsOrdersPanel, type PosTab } from '../account/PositionsOrdersPanel';
-import { useBotSession } from '../bot/useBotSession';
 import { useClosedOrders } from '../closed_orders/useClosedOrders';
 import { TabLazyFallback } from '../components/TabLazyFallback';
 import { figuresFromPractice, figuresFromSummary } from '../components/headerAccountFigures';
@@ -114,7 +113,6 @@ export function AccountPage({ onOpenTrader }: Props) {
   const ibkr = useIbkrAccountContext();
   const practice = usePracticeAccount(practiceVenue);
   const { orders: closedOrders } = useClosedOrders(ibkrConnected);
-  const { session } = useBotSession();
   const [range, setRangeState] = useState<AccountRange>(readAccountRangePref);
   const [mode, setMode] = useState<AccountPerfMode>('pnl');
   const [perfTab, setPerfTab] = useState<PerfTab>('day');
@@ -199,9 +197,6 @@ export function AccountPage({ onOpenTrader }: Props) {
     ? null
     : absence
       ?? (calendarHistory.error ? `${ACCOUNT_HISTORY_UNAVAILABLE}: ${calendarHistory.error}` : ACCOUNT_HISTORY_LOADING);
-  // The session's own cap, or none: the product ceiling is not this bot's cap (C35).
-  const sessionCap = session?.caps?.max_shares;
-  const maxSharesCap = typeof sessionCap === 'number' && Number.isFinite(sessionCap) ? sessionCap : null;
   const fills = practiceVenue ? practiceFillRows(viewed?.fills ?? []) : liveFillRows(liveOrders);
   const days = useMemo(() => (viewedCalendar ? dayBreakdowns(viewedCalendar) : null), [viewedCalendar]);
   // The day open on the page, while this venue's history still has it.
@@ -260,7 +255,6 @@ export function AccountPage({ onOpenTrader }: Props) {
                 history={viewed}
                 range={range}
                 onRange={setRange}
-                maxSharesCap={maxSharesCap}
                 booksSlot={books ? (
                   <BooksCards books={books} view={view} month={monthSplit(allSplits, today.slice(0, 7))} hidden={hidden}
                     hiddenText={ACCOUNT_TAV_HIDDEN} />

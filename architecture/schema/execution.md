@@ -210,6 +210,13 @@ sends `bot`, `auto_entry`, `bot_api`, `live_trader` or `close_bots` again; their
 Earlier bots. Sent by adds "The brain", "Loss limit · Claude", "Loss limit · The brain" and "Takeover". The owner
 refusals at the door (`OWNERS_TRADERS_STOCK`, `OWNERS_TRADER_ON`, `OWNERS_BUDGET`) are in `traders.md`.
 
+**Built: retired senders are refused (ADR 072, `execution/retired_senders.py`).** Since the bots retired, the door
+refuses `BOTS_RETIRED`, in words and before anything is sent, a `place` / `bracket` / `replace` / `exit_oco` whose
+`origin` is `bot`, `auto_entry`, `approve`, `bot_api`, `nova_exit` or `live_trader`, or whose `source` is `bot` with
+an origin other than `claude`. A `cancel` and a protective source (`flatten`, `kill`, `cancel_working`) always go. This
+is the one place an origin is read as more than a label besides `target_venue` above (`bot.md`, "Built: the bots
+retire").
+
 **Prices follow the listed tick (Reg NMS Rule 612):** a cent at $1.00 and over, a hundredth of a cent under it, so a stock under $1 takes up to four decimals. `limit_price`, `stop_price` and the bracket legs carry them unrounded, and IBKR refuses a price off the tick (Error 110). The ticket, the hotkeys and every desk price read the rule from `frontend/src/utils/priceTick.ts`; a trail amount takes the stock's tick, not its own size.
 
 `STP LMT` requires both `limit_price` and `stop_price`. `TRAIL` uses `stop_price` as the IBKR trail dollar amount (`auxPrice`); trail percent is not a ticket field. `tif` defaults to `DAY` (`IBKR_ORDER_TIF_DEFAULT`), so a caller that omits it is unchanged; anything outside `DAY | GTC` is refused `TIF_INVALID`. `place` and every `bracket` leg carry `tif` and `outside_rth`; `replace` keeps the working order's own TIF. **Market orders need regular hours** (operator decision, 2026-09-21): a `MKT` place from a non-protective source is refused `MKT_OUTSIDE_RTH` ("use a limit at the ask") whenever the venue's clock is outside weekday 09:30-16:00 ET, NYSE holidays excluded -- no US exchange takes an unpriced order then and IBKR would hold it until the next open (Warning 399) while ignoring `outsideRth` on it (Warning 2109). The clock is the venue's (the replay playhead on Sim). Owner `execution/session_gate.py`; the practice broker repeats the check (`practice/order_rules.py`). Protective sources are exempt (flatten plans an extended-hours limit); `STP` orders are unchanged.

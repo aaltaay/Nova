@@ -58,6 +58,10 @@ export const SAMPLE_FEED_STATUS = 'SAMPLE';
 export const SAMPLE_BOT_ABSENT =
   'Nova Marketing Sample Data — bots are not part of the sample desk.';
 
+/** The TraderTV page (ADR 072): the sample desk has no hosts' feed. */
+export const SAMPLE_TRADERTV_ABSENT =
+  'Nova Marketing Sample Data — the TraderTV feed is not part of the sample desk.';
+
 /** Account page panels that read the practice ledger's history. */
 export const SAMPLE_ACCOUNT_HISTORY_ABSENT =
   'Nova Marketing Sample Data — the sample desk has no ledger history. Exit the sample desk to see your account.';

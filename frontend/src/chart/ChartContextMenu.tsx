@@ -60,8 +60,6 @@ export interface ChartContextMenuProps {
   onViewDetails: () => void;
   onReset: () => void;
   onSnapshot: () => void;
-  onBotAllowlist?: (op: 'add' | 'remove') => void;
-  allowlisted?: boolean;
   onDismiss: () => void;
 }
 
@@ -97,7 +95,6 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
     hasPosition: Boolean(props.position && props.position.qty !== 0),
     heldQty: props.position?.qty ?? null,
     ticketReady,
-    allowlisted: props.allowlisted,
     watched,
   });
 
@@ -152,10 +149,6 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
       addToWatchList(props.symbol);
     } else if (id === 'watch_list_remove') {
       removeFromWatchList(props.symbol);
-    } else if (id === 'bot_allowlist_add') {
-      props.onBotAllowlist?.('add');
-    } else if (id === 'bot_allowlist_remove') {
-      props.onBotAllowlist?.('remove');
     }
     props.onDismiss();
   }

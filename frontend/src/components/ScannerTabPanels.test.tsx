@@ -10,10 +10,7 @@ import type { Gapper } from '../types/scanner';
 import { ScannerTabPanels } from './ScannerTabPanels';
 
 vi.mock('./useScannerRowFacts', () => ({
-  useScannerRowFacts: () => ({ recording: false, allowlisted: false, depthHeld: false }),
-}));
-vi.mock('../bot/useBotAllowlist', () => ({
-  useBotAllowlist: () => ({ symbols: [], isAllowed: () => false, add: vi.fn(), remove: vi.fn(), refresh: vi.fn() }),
+  useScannerRowFacts: () => ({ recording: false }),
 }));
 
 const AEHL: Gapper = {

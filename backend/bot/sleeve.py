@@ -1,12 +1,14 @@
-"""The sleeve: one per venue, for every Nova automatic buy (ADR 042 E).
+"""The sleeve: one per venue (ADR 042 E).
 
 The session's ``caps`` are the desk venue's own sleeve -- the venue's dial carries them
-(``bot.venue_levels``), so Paper, Sim and Live each keep theirs. A sleeve is:
+(``bot.venue_levels``), so Paper, Sim and Live each keep theirs. ADR 072 retired the strategy bot, Auto-entry
+and Approve that it sized; what still reads it is the desk's risk per trade (the operator's Stage, the setup
+scanner's liquidity walk, the stock read's plan) and the bot API's limits. A sleeve is:
 
-- ``risk_usd``: the risk per trade a Nova automatic buy (the bot, Auto-entry) is sized by;
-- ``max_shares`` / ``bp_budget_usd``: the most it may hold (``bot.sizing``);
-- ``working_ttl_sec``: how long any Nova entry may rest unfilled (the bot, Auto-entry, Approve);
-- ``extended_hours``: whether the bot and Auto-entry may buy outside 09:30-16:00 ET;
+- ``risk_usd``: the desk's risk per trade;
+- ``max_shares`` / ``bp_budget_usd``: the most a bot API order may hold (``bot.risk``);
+- ``working_ttl_sec``: how long a bot API entry may rest unfilled (``bot.ttl``);
+- ``extended_hours``: whether a bot API order may go outside 09:30-16:00 ET;
 - ``api_kinds``: the order kinds the localhost bot API may send (``allowlist`` until ADR 042).
 
 There is no daily entry count (operator, 2026-10-27: "u have infinite trades so we LEARN!"): a stored

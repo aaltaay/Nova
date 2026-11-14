@@ -1,6 +1,6 @@
-"""The tape flow on the record (ADR 034): a replayed lane reads it after the trigger,
-a template's flush exit acts on the scoring, a backtest sweeps variants against a
-base, and the study measures what an onset was followed by."""
+"""The tape flow on the record (ADR 034): the trigger's tape read carries it, a backtest sweeps variants
+against a base, and the study measures what an onset was followed by. ADR 072: the strategies read Level 1,
+so a template's flush exit no longer acts on the scoring -- every template scores the same trade alike."""
 from __future__ import annotations
 
 import json
@@ -91,7 +91,7 @@ def test_command_line_words_read_in_the_parameters_own_kind():
 
 
 # -- the replay ------------------------------------------------------------------------------------
-def test_a_replayed_flush_exits_the_template_that_says_so_and_only_it(store):
+def test_a_replayed_flush_never_changes_a_templates_scoring(store):
     out = store.create("first_pullback", name="Flush out", values={"flush_exit": "exit", "flush_hold_sec": 5})
     events: list[dict] = []
     rep = EyesReplay(flush_recording(), [default_template("first_pullback"), out], source="backtest",
@@ -101,16 +101,10 @@ def test_a_replayed_flush_exits_the_template_that_says_so_and_only_it(store):
     assert set(rows) == {"default", out.id}
     base, mine = rows["default"], rows[out.id]
     assert base["trigger_tape"]["flow"]["label"] in ("burst", "neutral", "quiet")    # the flow rides on the read
-    assert mine["bar_exit_reason"] == "flush" and mine["flush_action"] == "exit"
-    assert base["bar_exit_reason"] == "bailout" and base["flush_action"] is None
-    assert mine["bar_r"] > base["bar_r"]
-    flow_lines = [e for e in events if e["event"] == "flow" and e["label"] == "flush"]
-    assert {e["template"] for e in flow_lines} == {"default", out.id}                  # every lane journals it
-    [flush_line] = [e for e in events if e["event"] == "flush"]
-    assert flush_line["template"] == out.id and flush_line["action"] == "exit"
-    lane = next(lane for lane in rep.lanes if lane.p.template_id == out.id)
-    # The newest reading comes after the recorded stretch ended: no tape there reads blind, never quiet.
-    assert lane.flow_last[mine["id"]]["label"] == "blind"
+    for row in (base, mine):                                                         # ADR 072: no flush exit
+        assert row["bar_exit_reason"] == "bailout" and row["flush_action"] is None
+    assert mine["bar_r"] == base["bar_r"]
+    assert not [e for e in events if e["event"] in ("flush", "flow")]                 # no trade's flow is read
 
 
 def test_a_backtest_sweeps_variants_against_the_base_without_storing_them(store):
@@ -123,9 +117,10 @@ def test_a_backtest_sweeps_variants_against_the_base_without_storing_them(store)
     assert [t.id for t in store.templates("first_pullback")] == ["default"]           # nothing stored
     summary = backtest.read_summary(man["run_id"])["templates"]
     assert summary["var-01"]["vs_base"] is None and summary["var-01"]["exits"] == {"bailout": 1}
-    assert summary["var-02"]["exits"] == {"flush": 1} and summary["var-02"]["flush"] == {"exit": 1}
+    # ADR 072: a flush variant scores as the base does -- its flush exit no longer acts.
+    assert summary["var-02"]["exits"] == {"bailout": 1} and summary["var-02"]["flush"] == {}
     vs = summary["var-02"]["vs_base"]
-    assert vs["paired"] == 1 and vs["better"] == 1 and vs["avg_r_delta"] > 0
+    assert vs["paired"] == 1 and vs["same"] == 1 and vs["avg_r_delta"] == 0.0
     assert "flow_at_trigger" in summary["var-02"]["summary"]["by"]
 
 

@@ -401,9 +401,11 @@ whose ticker is checking or unchecked holds none; a corrected one holds the long
 
 ### On the desk
 
-**ADR 072 (confirmed for the build):** the Live Trader retires and the Bots group leaves the rail; this page goes back
-on the rail as **TraderTV**, the hosts' rows, positions and P/L as below, without the bot parts (the key, Entry / Exit,
-allowance, skips, asks, the BOT chip and the head's LiveTrader Bots key). Links that open it open TraderTV.
+**ADR 072 (built):** the Live Trader retired and the Bots group left the rail; this page is back on the rail as
+**TraderTV**, under Congress (`frontend/src/pages/TraderTvPage.tsx`, nav page `tradertv`), the hosts' rows, positions
+and P/L as below, without the bot parts (the key, Entry / Exit, allowance, skips, asks, the BOT chip and the head's
+LiveTrader Bots key). Links and toasts that opened LiveTrader Bots open TraderTV; the focus sensor still names it
+`followed`. The sample desk shows a stated absence.
 
 The followed traders' page is **Bots > LiveTrader Bots** (operator, 2026-10-15: "i want all content from the
 original tradertv live to be inside livetrader bots"; approved from a render of the desk on that day's answers, "i

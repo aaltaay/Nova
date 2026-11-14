@@ -2,13 +2,11 @@
 from __future__ import annotations
 
 from bot.audit import list_entries, record
-from bot.autonomy import apply_desk_level
-from bot.session import require_l2_brain
+from tests.bot_helpers import set_level
 
 
 def test_audit_fields_and_append():
-    apply_desk_level(2)
-    require_l2_brain("brain-9", claim=True)
+    set_level(2)
     first = record(
         action="buy_market",
         outcome="ok",
@@ -16,6 +14,7 @@ def test_audit_fields_and_append():
         order_id=11,
         advise_spend=0.0,
         inputs={"symbol": "ABCD", "qty": 1},
+        brain_session_id="brain-9",
     )
     second = record(action="advise", outcome="book", advise_spend=0.0, inputs={"symbol": "AAPL"})
     rows = list_entries(limit=10)

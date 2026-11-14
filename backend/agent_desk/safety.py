@@ -1,10 +1,9 @@
 """What an agent's show or move would put at stake (ADR 050 decision 5).
 
 The operator: an agent may switch the desk to the Sim "when nothing is at stake". On the venue the desk would
-leave, a position, a working order, the Bot on, an open bot or Nova trade, a Nova stock mode or approval, or an
-armed desk is at stake -- a venue change disarms, turns the Bot off and cancels Nova's working entries there
-(ADR 042). Loading another Sim window starts the Sim's scratch account over, so its positions and working
-orders are at stake too. Memory reads only, as ``diagnostics/restart_check`` does; a check that cannot be read
+leave, a position, a working order or an armed desk is at stake -- a venue change disarms (ADR 018). (The Bot
+switch, the bot's trade and Nova's stock modes retired with the bots, ADR 072.) Loading another Sim window starts
+the Sim's scratch account over, so its positions and working orders are at stake too. Memory reads only, as ``diagnostics/restart_check`` does; a check that cannot be read
 is at stake.
 """
 from __future__ import annotations
@@ -32,23 +31,6 @@ def _positions_and_orders(venue: str) -> list[Item]:
     return []
 
 
-def _bot(venue: str) -> list[Item]:
-    from bot.session import get_session
-
-    session = get_session()
-    items: list[Item] = []
-    if session.get("active") or session.get("bot_on"):
-        items.append(_item("bot", f"The Bot is on for {venue.capitalize()}: switching turns it off", venue))
-    for row in restart_check.bot_trade():
-        if row.get("venue") in (None, venue):
-            items.append(row)
-    return items
-
-
-def _stock_modes(venue: str) -> list[Item]:
-    return [i for i in restart_check.stock_modes() if i.get("venue") in (None, venue)]
-
-
 def _armed(venue: str) -> list[Item]:
     from ibkr import safety
 
@@ -59,8 +41,6 @@ def _armed(venue: str) -> list[Item]:
 
 READERS: tuple[tuple[str, Callable[[str], list[Item]]], ...] = (
     ("orders", _positions_and_orders),
-    ("bot", _bot),
-    ("stock_mode", _stock_modes),
     ("armed", _armed),
 )
 

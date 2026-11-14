@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import { heldMarkers } from './heldView';
 import { normalizeHeld } from './heldRead';
-import { level2Markers } from './whoTradesModel';
+import { level2Markers } from './tradeLevels';
 
 const LEVELS = {
   entry: { price: 5.77, behind: 'plan' as const },

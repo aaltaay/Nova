@@ -42,6 +42,8 @@ export {
 } from './deskSharedPoll';
 export { useTradingPinGate } from './useTradingPinGate';
 export { armDesk } from './armDesk';
+// ADR 072: the freeze latch's button, right of KILL in the header.
+export { FreezeOrdersButton } from './FreezeOrdersButton';
 export { simPlayhead, venueClockNow } from './marketOutsideRth';
 export { etMinutesNow, shouldUseOutsideRth } from './extendedSession';
 export { flattenSpendLockReason, isDisarmed, spendStatusLabel } from './spendLock';

@@ -1,8 +1,8 @@
 """The pullback dip (#847; operator ask 2026-10-12): the first pullback's run and pullback, bought at the candle
 that bottoms it -- a bottoming wick or the first green close -- with the high of the pullback as target 1.
 
-Watch only: the eyes watch, score and draw it; it never proposes, never reaches Nova's bot, Auto-entry or Approve,
-and its On is locked.
+Watch only: the eyes watch, score and draw it; it never proposes and its On is locked (since ADR 072 every strategy
+only watches, and Nova's bot, Auto-entry and Approve are retired).
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import pytest
 
 from bot.errors import BotError
 from bot.setup_levels import apply, effective, on_lock
-from constants_bot import BOT_REASON_SETUP_WATCH_ONLY, BOT_WATCH_ONLY_SETUPS, watch_only
+from constants_bot import BOT_REASON_STRATEGIES_WATCH, BOT_WATCH_ONLY_SETUPS, watch_only
 from setup_scanner import dip_candle, target_choices
 from setup_scanner.bars import Bar
 from setup_scanner.detectors import make_detector
@@ -221,39 +221,22 @@ def test_it_is_the_one_watch_only_setup_and_never_a_trade():
 
 
 def test_its_on_is_locked_and_an_old_on_reads_as_eyes():
+    """ADR 072: no setup's level changes any more, and every stored On -- the dip's or a tradeable one's -- reads
+    as Eyes."""
     row = {"level": 2, "setup_levels": {}}
-    with pytest.raises(BotError) as refused:
-        apply(row, {DIP: 2})
-    assert refused.value.status_code == 409 and refused.value.reason == BOT_REASON_SETUP_WATCH_ONLY
-    assert "watch only" in refused.value.message and on_lock(DIP) and on_lock("first_pullback") is None
-    assert apply(row, {DIP: 1}) == {DIP: (0, 1)}
+    for patch in ({DIP: 2}, {DIP: 1}):
+        with pytest.raises(BotError) as refused:
+            apply(row, patch)
+        assert refused.value.status_code == 410 and refused.value.reason == BOT_REASON_STRATEGIES_WATCH
+    assert row["setup_levels"] == {} and on_lock(DIP) and on_lock("first_pullback") is None
     assert effective({"level": 2, "setup_levels": {DIP: 2, "first_pullback": 2}})[DIP] == 1
-    assert effective({"level": 2, "setup_levels": {DIP: 2, "first_pullback": 2}})["first_pullback"] == 2
+    assert effective({"level": 2, "setup_levels": {DIP: 2, "first_pullback": 2}})["first_pullback"] == 1
 
 
-def test_the_bot_and_auto_entry_hold_it_back_whatever_its_level():
-    from bot.first_pullback.admit import blockers, taker
-    from bot.persist import load_session
-    from tests.bot_helpers import ready_l2
-
-    now = 1_790_000_000.0
-    event = {"symbol": "IMCC", "setup_id": "IMCC-2026-09-24-1@pullback_dip", "setup_type": DIP,
-             "setup": {"kind": "pullback_dip", "trigger": 10.0, "entry": 10.01, "stop": 9.9, "risk": 0.11,
-                       "target1": 10.2, "triggered_at": now, "nth": 1},
-             "tape": {"verdict": "go", "reasons": ["green"]}, "grade": "A",
-             "pillars": {"passed": 5, "known": 5, "total": 5}, "filtered": None, "spread": 0.02}
-    ready_l2(brain=None, symbols=("IMCC",), setups=("first_pullback",))
-    held = dict(blockers(event, load_session(), now=now))
-    assert "watch only" in held["BOT_SETUP_NOT_STRATEGY"]
-    assert taker("IMCC", DIP) is None
-
-
-def test_the_stock_modes_approve_and_the_plan_say_not_a_trade():
-    from stock_mode.model import lane_verdict
+def test_the_plan_says_not_a_trade():
     from stock_read.plan import choose, trade_verdict
 
     lane = {"setup_type": DIP, "state": "triggered", "grade": "A", "setup": {"risk": 0.1}}
-    assert lane_verdict(lane)["ok"] is False
     assert trade_verdict({"source": "setup", "setup_type": DIP, "grade": "A", "state": "armed"}, lane)["ok"] is False
     dip = {"setup_type": DIP, "state": "triggered", "setup": {"triggered_at": 100.0}, "level": 1}
     pull = {"setup_type": "first_pullback", "state": "leg", "forming": {"entry": 1.0}, "level": 1}

@@ -2,8 +2,8 @@
  * @vitest-environment jsdom
  *
  * The plan box while you hold the stock (ADR 036 / 037 amendment 2026-10-01), against a fake backend:
- * the box keeps its look and becomes the trade's, Raise stop asks the read again with your stop, the Sell
- * switch and "Nova takes the exit" open the sheet, the sheet hands Nova the stop, and Live is locked.
+ * the box keeps its look and becomes the trade's, Raise stop asks the read again with your stop, and the sell is
+ * yours alone -- Nova takes no exit (ADR 072).
  */
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -15,23 +15,11 @@ import { apusHeldWire } from './heldFixtures';
 import { StockReadProvider } from './StockReadContext';
 import { StockReadRail } from './StockReadRail';
 import { apusReadWire } from './stockReadFixtures';
-import { sleeveSessionWire } from './whoTradesFixtures';
-import { WhoTradesRow } from './WhoTradesRow';
+import { sleeveSessionWire } from './momentFixtures';
 
 type Json = Record<string, unknown>;
 let calls: { url: string; method: string; body: Json | null }[] = [];
-let view: Json;
 let heldWire: Json = apusHeldWire;
-let clock = 1_790_000_000;
-
-function modeWire(over: Json = {}): Json {
-  clock += 1;
-  return {
-    schema_version: 1, symbol: 'APUS', generated_at: clock, venue: 'paper', mode: 'signal', buy: 'you', sell: 'you',
-    risk_usd: null, set_at: null, locks: { buy: null, sell: null }, notes: [], approval: null, trade: null,
-    nova_entries_today: 0, last_event: null, bot: null, ...over,
-  };
-}
 
 const answer = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
@@ -40,7 +28,6 @@ beforeEach(() => {
   localStorage.setItem(NOVA_API_KEY_STORAGE, 'desk-key');
   _resetSleeveForTests();
   calls = [];
-  view = modeWire();
   heldWire = apusHeldWire;
   vi.stubGlobal('fetch', vi.fn(async (input: unknown, init?: RequestInit) => {
     const url = String(input);
@@ -52,13 +39,6 @@ beforeEach(() => {
       return answer({ ...apusReadWire, price: 6.64, held: /held_qty=/.test(url) ? heldWire : null });
     }
     if (/\/api\/bot\/session$/.test(url)) return answer(sleeveSessionWire(20));
-    if (/\/api\/stock-mode\/APUS\/take-exit$/.test(url)) {
-      view = modeWire({ sell: 'nova', trade: { kind: 'exit', state: 'holding', exits: 'nova', venue: 'paper', qty: 100,
-        entry: 5.075, fill_price: 5.075, stop: body?.stop, target: null, trail: body?.trail, raised: [],
-        stop_order_id: 41, target_order_id: null, entry_order_id: null, filled_at: clock, sent_at: clock } });
-      return answer(view);
-    }
-    if (/\/api\/stock-mode\/APUS$/.test(url)) return answer(view);
     return answer({}, 404);
   }));
 });
@@ -73,7 +53,6 @@ function renderTab(venue = 'paper') {
     <StockReadProvider symbol="APUS" active replay={false} venue={venue} position={{ qty: 100, avgCost: 5.075 }}
       lastPrice={6.64} topOfBook={{ symbol: 'APUS', bid: 6.61, ask: 6.64, depthSubscribed: true } as never}>
       <StockReadRail />
-      <WhoTradesRow />
     </StockReadProvider>,
   );
 }
@@ -153,74 +132,14 @@ describe('the plan box while you hold APUS', () => {
     expect(calls.filter(c => c.method !== 'GET')).toEqual([]);
   });
 
-  it('hands Nova the exit from the sheet: a stop, raised as levels break', async () => {
-    heldWire = { ...apusHeldWire, target2: null };
+  it('the sell is yours alone: Stage sell, and no "Nova takes the exit" (ADR 072)', async () => {
     renderTab();
-    fireEvent.click(await screen.findByTestId('held-nova-exit'));
-    const sheet = await screen.findByTestId('exit-sheet');
-    // The read's target is behind the 6.64 price and none follows it: no target starts filled, the stop goes alone.
-    expect((within(sheet).getByTestId('exit-target1') as HTMLInputElement).value).toBe('');
-    expect(within(sheet).getByTestId('exit-target').getAttribute('aria-disabled')).toBeNull();
-    expect(within(sheet).getByTestId('exit-flush').getAttribute('data-why')).toMatch(/trial T1/);
-    expect(within(sheet).getByTestId('exit-sends').textContent).toMatch(/SELL 100 APUS STP 5.95, replaced at each broken level\. Nothing else/);
-    fireEvent.click(within(sheet).getByTestId('exit-send'));
-    await waitFor(() => expect(calls.find(c => c.method === 'POST')).toMatchObject({
-      body: { stop: 5.95, trail: true },
-    }));
-    expect(calls.find(c => c.method === 'POST')?.body).not.toHaveProperty('target');
-    expect(calls.find(c => c.method === 'POST')?.url).toMatch(/\/api\/stock-mode\/APUS\/take-exit$/);
-    await waitFor(() => expect(screen.queryByTestId('exit-sheet')).toBeNull());
-  });
-
-  it('rests two targets beside the stop from the read: half at target 1, the rest at target 2 (#681)', async () => {
-    heldWire = { ...apusHeldWire, target: { price: 7.0, rule: '1c under $7.00', traded_at: null },
-      target2: { price: 7.5, rule: '1c under the high of day', traded_at: null }, target1_fraction: 0.5 };
-    renderTab();
-    fireEvent.click(await screen.findByTestId('held-nova-exit'));
-    const sheet = await screen.findByTestId('exit-sheet');
-    expect((within(sheet).getByTestId('exit-target1') as HTMLInputElement).value).toBe('7.00');
-    expect((within(sheet).getByTestId('exit-target2') as HTMLInputElement).value).toBe('7.50');
-    expect(within(sheet).getByTestId('exit-target2-row').textContent).toMatch(/the rest, 50 shares; the stop stays/);
-    expect(within(sheet).getByTestId('exit-sends').textContent)
-      .toMatch(/STP 5.95, replaced at each broken level; LMT 7.00 x 50 and LMT 7.50 x 50 beside it, one-cancels-other/);
-    fireEvent.click(within(sheet).getByTestId('exit-send'));
-    await waitFor(() => expect(calls.find(c => c.method === 'POST')).toMatchObject({
-      body: { stop: 5.95, trail: true, target: 7, target2: 7.5, target1_fraction: 0.5 },
-    }));
-  });
-
-  it('a target you type behind the price is said on the sheet and never sent', async () => {
-    renderTab();
-    fireEvent.click(await screen.findByTestId('held-nova-exit'));
-    const sheet = await screen.findByTestId('exit-sheet');
-    const t1 = within(sheet).getByTestId('exit-target1');
-    fireEvent.change(t1, { target: { value: '6.50' } });
-    fireEvent.blur(t1);
-    const send = within(sheet).getByTestId('exit-send') as HTMLButtonElement;
-    await waitFor(() => expect(send.disabled).toBe(true));
-    expect(send.getAttribute('data-why')).toMatch(/would sell at once/);
-    fireEvent.change(t1, { target: { value: '7.10' } });
-    fireEvent.blur(t1);
-    await waitFor(() => expect(send.disabled).toBe(false));
-    expect(within(sheet).getByTestId('exit-sends').textContent).toMatch(/LMT 7.10 x 100 beside it/);
-    expect(calls.filter(c => c.method === 'POST')).toEqual([]);
-  });
-
-  it('Sell: Nova on the switch opens the sheet instead of a refused switch', async () => {
-    renderTab();
-    await screen.findByTestId('held-card');
-    await waitFor(() => expect(screen.getByTestId('who-trades-mode').textContent).toContain('Signal only'));
-    fireEvent.click(screen.getByTestId('who-trades-sell-nova'));
-    expect(await screen.findByTestId('exit-sheet')).toBeTruthy();
-    expect(calls.filter(c => c.method === 'PUT')).toEqual([]);
-  });
-
-  it('on Live, Nova takes no exit and says why', async () => {
-    view = modeWire({ venue: 'live', locks: { buy: 'On Live, Nova never buys by itself.', sell: '#604' } });
-    renderTab('live');
-    const btn = await screen.findByTestId('held-nova-exit');
-    await waitFor(() => expect(btn.getAttribute('data-why')).toMatch(/never moves a Live order by itself/));
-    expect((btn as HTMLButtonElement).disabled).toBe(true);
+    const card = await screen.findByTestId('held-card');
+    expect(within(card).getByTestId('held-stage-sell').textContent).toBe('Stage sell 100');
+    expect(within(card).queryByTestId('held-nova-exit')).toBeNull();
+    expect(screen.queryByTestId('exit-sheet')).toBeNull();
+    expect(within(card).getByTestId('held-note').textContent).toBe('your stop and targets: no order is working');
+    expect(calls.some(c => c.url.includes('/api/stock-mode'))).toBe(false);
   });
 
   it('names the sender of Nova exit orders', () => {

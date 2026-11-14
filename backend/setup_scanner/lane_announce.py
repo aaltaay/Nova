@@ -1,25 +1,23 @@
-"""What a lane tells the rest of Nova (ADR 022, ADR 030, ADR 042 H): its proposals and its triggers.
+"""What a lane tells the rest of Nova (ADR 022, ADR 030, ADR 042 H): its triggers.
 
 Moved out of ``lane.py`` so the lane keeps one concern -- turning detector events into rows
-and tape reads. Both carry what a consumer needs to judge the setup without asking again:
+and tape reads. A trigger carries what a consumer needs to judge the setup without asking again:
 the grade and the pillars' count, whether the template's stock filter kept the name out, the
 book's spread at the moment, and whether the stock is too thin to trade (``liquidity``,
-2026-10-01). A proposal also says whether it is a trade at all (``not_a_trade``,
-``setup_scanner.trade_verdict``) and who will take it by itself
-(``taken_by``: Nova's bot or Auto-entry, the live host's ``taker``); it is still raised, so
-the desk can say "the bot is taking this -- nothing to do" or "not a trade: ...". Nothing
-here places an order.
+2026-10-01). Nothing here places an order.
+
+ADR 072: the strategies only watch. A lane raises no proposal any more (``propose`` and its
+``taken_by`` are gone); ``close`` still closes a proposal a lane already holds, and a trigger is
+still told to the host's listeners, which no bot hears until the brain listens (ADR 072, batch 5).
 """
 from __future__ import annotations
 
 import logging
-import uuid
 from typing import Any
 
 from constants_bot import watch_only
 from setup_scanner.grade import pillar_count
 from setup_scanner.lane_view import PROPOSAL_CLOSE_REASONS
-from setup_scanner.trade_verdict import verdict
 
 logger = logging.getLogger(__name__)
 
@@ -36,54 +34,11 @@ def _count(row: dict) -> dict | None:
     return pillar_count(((row.get("pillars") or {}).get("checks")))
 
 
-def _taker(lane: Any, sym: str) -> str | None:
-    """Who takes this setup by itself (the live host knows; a replay host has no ``taker``)."""
-    ask = getattr(lane.host, "taker", None)
-    if ask is None:
-        return None
-    try:
-        return ask(sym, lane.p.setup)
-    except Exception:
-        logger.warning("setup scanner: who takes %s's %s could not be read", sym, lane.p.setup, exc_info=True)
-        return None
-
 
 def silent(lane: Any) -> bool:
     """A watch-only setup's lane (#847) proposes nothing and tells no one its triggers: its rows, scores, journal
     lines and drawings are all it has."""
     return watch_only(lane.p.setup)
-
-
-def propose(lane: Any, sym: str, sid: str, res: dict, now: float) -> dict | None:
-    """Raise a proposal: the setup is near its trigger and the tape says go (never on a watch-only setup)."""
-    if silent(lane):
-        return None
-    row = lane.rows.get(sid) or {}
-    spread = _spread(res)
-    judged = verdict(grade=row.get("grade"), pillars=_count(row), spread=spread, risk=row.get("risk"),
-                     liquidity=row.get("liquidity"), setup_type=lane.p.setup)
-    not_a_trade = None if judged["ok"] else {"reasons": judged["reasons"]}
-    prop = {"id": str(uuid.uuid4()), "setup_id": sid, "symbol": sym, "kind": row.get("kind"),
-            "trigger": row.get("trigger"), "entry": row.get("entry_planned"), "stop": row.get("stop"),
-            "target1": row.get("target1"), "target2": row.get("target2"),
-            "target1_fraction": row.get("target1_fraction"), "risk": row.get("risk"), "grade": row.get("grade"),
-            "pillars": _count(row), "spread": spread, "reasons": res.get("reasons"), "created_at": now,
-            "status": "open", "tape_now": res["verdict"], "template_id": lane.p.template_id,
-            "template_name": lane.p.name, "source": lane.host.source, "setup_type": lane.p.setup,
-            "side": lane.p.side, "ssr": row.get("ssr"),
-            "not_a_trade": not_a_trade, "taken_by": None if not_a_trade else _taker(lane, sym)}
-    lane.proposals[sid] = prop
-    lane.alerts.append(prop)
-    row["proposal_id"] = prop["id"]
-    lane.host.save(row)
-    lane.journal("proposal", sym, setup_id=sid, status="proposed", proposal=prop)
-    said = {"bot": " -- the bot is taking it", "auto_entry": " -- Auto-entry is taking it"}.get(prop["taken_by"] or "")
-    lane.host.audit(action="setup_proposal", outcome="proposed",
-                    reason=(f"{str(prop['kind'] or 'setup').replace('_', ' ')} on {sym}: trigger "
-                            f"{prop['trigger']}, stop {prop['stop']} -- tape go"
-                            + (f"; not a trade: {'; '.join(not_a_trade['reasons'])}" if not_a_trade else said or "")),
-                    inputs=prop)
-    return prop
 
 
 def close(lane: Any, sid: str, status: str) -> None:

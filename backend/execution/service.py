@@ -26,7 +26,9 @@ from execution.qty_gate import apply_force_one_share
 from execution.record_payload import build_reserve_payload
 from execution.size_limit import gate as _size_limit
 from execution.store_facts import lookup_symbol_for_order_id
+from execution import retired_senders as _retired
 from execution import venue_door, verification_gate
+from constants_nova_os import BOTS_RETIRED_CODE
 from execution.venue_door import commit_position as _commit_position
 from ibkr import client as _client
 import loop_lag as _loop_lag
@@ -224,6 +226,8 @@ async def execute(
 
         if target_why:
             return _reject(execution_id, cmd, timings, target_why, venue_door.TARGET_REFUSED)
+        if retired_why := _retired.refusal(cmd):   # ADR 072: the bots are retired; closes and cancels still go
+            return _reject(execution_id, cmd, timings, retired_why, BOTS_RETIRED_CODE)
         targeted = cmd.target_venue is not None     # the desk may show another venue: never "moved"
         if not targeted and (why := venue_door.wrong_venue(cmd, send_venue)):
             return _reject(execution_id, cmd, timings, why, venue_door.VENUE_CHANGED)
