@@ -299,9 +299,11 @@ bid arrived, the 0.7353 bid of 4,500 was on no row for 71 ms, and the watcher ju
   IBKR's, and Nova does not guess a row back into them.
 - **Measured** on Session Records of 2026-11-12 and 2026-11-13 (14 recordings): large drops marked pulled
   1,984 -> 1,441; those with the same size back at the price within 1 s, 682 -> 52 (what is left came back
-  after the verdict). Checked against Nasdaq's own order-by-order record on 48 older
-  stock-days, before the rule: of 1,539 such drops Nasdaq could judge, 1,012 had nothing leave and 322 a
-  cancel, no more than the same test 30 s earlier finds by chance.
+  after the verdict). Checked against Nasdaq's own order-by-order record on 48 older stock-days: of 1,539
+  such drops Nasdaq could judge, 1,012 had nothing leave and 322 were a cancel (152 by the same test 30 s
+  earlier, so about one in nine was a real cancel posted again within a second -- what the rule cannot tell).
+  With the rule 258 of the 3,112 are still marked, 32 of them with nothing leaving; the 6,819 pulled marks
+  that stayed gone and the 4,135 traded marks read as before.
 
 **A big seller on the ask, a big buyer on the bid** (ADR 033 amendment, operator ask 2026-10-12, #846: the
 operator's material lists "high selling pressure / big sellers on the ask" as a reason to get out, and nothing
