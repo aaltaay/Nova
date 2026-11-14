@@ -6,8 +6,8 @@
  */
 import type { BookSide } from './bookWatch';
 
-export type BigState = 'holding' | 'left' | 'eaten' | 'pulled' | 'lost';
-const STATES: ReadonlySet<string> = new Set<BigState>(['holding', 'left', 'eaten', 'pulled', 'lost']);
+export type BigState = 'holding' | 'left' | 'eaten' | 'pulled' | 'lost' | 'smaller';
+const STATES: ReadonlySet<string> = new Set<BigState>(['holding', 'left', 'eaten', 'pulled', 'lost', 'smaller']);
 
 export interface HeldBig {
   id: string;

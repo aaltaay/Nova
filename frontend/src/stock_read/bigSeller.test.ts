@@ -79,6 +79,18 @@ describe('the held card line', () => {
     expect(lost.detail).toMatch(/whether it traded or was pulled is unknown/);
   });
 
+  it('says smaller, with what is still there, when most of it still rests (AIRS 0.85, 2026-11-13)', () => {
+    const left = { before: 24_001, after: 19_001, filled: 0 };
+    const smaller = bigLine(read({ sellers: [wall({ state: 'smaller', how: 'no_prints', ended_ts: T + 50, left })] }), false);
+    expect(smaller.tone).toBe('warn');
+    expect(smaller.text).toBe('SELLER @ 4.50 SMALLER · 19,001 still there');
+    expect(smaller.detail).toBe('5,000 of the 24,001 offered at 4.50 left the book (0 traded there: pulled). '
+      + '19,001 is still offered there, under the size Nova calls big, so it is no longer followed.');
+    const traded = bigLine(read({ sellers: [wall({ state: 'smaller', how: 'traded', ended_ts: T + 50,
+      left: { ...left, filled: 5_000 } })] }), false);
+    expect(traded.detail).toContain('(5,000 traded there: taken)');
+  });
+
   it('tells the nearest one still there before any that ended', () => {
     const r = read({ sellers: [wall({ price: 4.52, distance: 0.05 }), wall({ state: 'pulled', ended_ts: T + 40 })] });
     expect(bigLine(r, false).text).toContain('@ 4.52');

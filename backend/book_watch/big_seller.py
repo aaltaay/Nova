@@ -1,5 +1,7 @@
 """A big seller on the ask, a big buyer on the bid (ADR 033 amendment, operator ask 2026-10-12, #846).
 
+maintainer: one-concern a called price's life (holding, left, taken, pulled, smaller, lost) is one state machine
+
 From the held Level 2 line only. A price on one side is **big** when its resting size (summed across
 venues, wholly in view) is at least ``BOOK_WATCH_BIG_MIN_SHARES`` shares and
 ``BOOK_WATCH_BIG_MIN_DOLLARS`` dollars and ``BOOK_WATCH_BIG_MEDIAN_MULT`` x the median of the other
@@ -21,6 +23,9 @@ A called price is followed through its life:
   (``how: "traded"``). Either way the seller is gone.
 - ``pulled``: it left and the prints at its price do not cover that share (``how: "no_prints"``) --
   ``on_approach`` when the price was closer to it as it left than when it was called.
+- ``smaller``: it fell under the floors with at least ``BOOK_WATCH_BIG_SMALLER_SHARE`` of its size
+  still resting there (``left.after``): no longer big by the rule, and not gone. ``how`` says what the
+  part that left did (``traded`` | ``no_prints``). Never counted as a pull.
 - ``lost``: the book stopped showing that price -- it scrolled past the rows shown, the side collapsed
   at once, the book restarted: unknown, never pulled.
 
@@ -35,8 +40,6 @@ price look the same here; a description of the book, never an order, a stop move
 
 Pure: books (as ``book.SideView`` pairs) and prints in, ``big`` events out -- one when a price is
 called and one when it ends; ``reading`` is the state at a moment.
-
-maintainer: one-concern a called price's life (holding, left, taken, pulled, lost) is one state machine
 """
 from __future__ import annotations
 
@@ -55,6 +58,7 @@ from book_watch.constants_book_watch import (
     BOOK_WATCH_BIG_MIN_OTHER_LEVELS,
     BOOK_WATCH_BIG_MIN_SHARES,
     BOOK_WATCH_BIG_SHOW_ENDED_SEC,
+    BOOK_WATCH_BIG_SMALLER_SHARE,
     BOOK_WATCH_BIG_TAKEN_SHARE,
     BOOK_WATCH_BIG_WINDOW_DOLLARS,
     BOOK_WATCH_BIG_WINDOW_MAX_PCT,
@@ -69,7 +73,7 @@ from sale_conditions import sets_price
 
 SIDES = ("ask", "bid")
 KIND = {"ask": "big_seller", "bid": "big_buyer"}
-HOLDING, LEFT, EATEN, PULLED, LOST = "holding", "left", "eaten", "pulled", "lost"
+HOLDING, LEFT, EATEN, PULLED, LOST, SMALLER = "holding", "left", "eaten", "pulled", "lost", "smaller"
 
 
 @dataclass(frozen=True)
@@ -83,6 +87,7 @@ class BigParams:
     window_pct: float = BOOK_WATCH_BIG_WINDOW_PCT
     window_max_pct: float = BOOK_WATCH_BIG_WINDOW_MAX_PCT
     taken_share: float = BOOK_WATCH_BIG_TAKEN_SHARE
+    smaller_share: float = BOOK_WATCH_BIG_SMALLER_SHARE
     show_ended_sec: float = BOOK_WATCH_BIG_SHOW_ENDED_SEC
     back_sec: float = BOOK_WATCH_BIG_BACK_SEC
 
@@ -175,7 +180,10 @@ class BigWallTracker:
         self.views, self.prev_ts, self.fresh = views, ts, False
         return out
 
-    def on_print(self, ts: float, key: float, shares: float, *, lit: bool, conditions: Any) -> list[dict[str, Any]]:
+    def on_print(self, ts: float, key: float, shares: float, *, lit: bool, conditions: Any,
+                 seen: bool = True) -> list[dict[str, Any]]:
+        """``seen`` False: a lit print on an exchange this book does not show. It can go through a price
+        (a displayed price cannot be traded through, wherever the print was), but it took nothing shown here."""
         codes = str(conditions or "")
         ref = self._reference(self.views)  # the price before this print: how far past it a taken one sat
         if sets_price(codes):
@@ -184,7 +192,8 @@ class BigWallTracker:
         self.pace.on_print(ts, shares, lit=lit, conditions=codes)
         if not lit or set(codes) & BOOK_WATCH_SWEEP_SKIP_CONDITIONS:
             return out
-        self.prints.append([ts, key, shares])
+        if seen:
+            self.prints.append([ts, key, shares])
         while self.prints and self.prints[0][0] < ts - BOOK_WATCH_PRINT_KEEP_SEC:
             self.prints.popleft()
         for side in SIDES:
@@ -196,7 +205,7 @@ class BigWallTracker:
                         del self.walls[side][price]  # traded through before it held: no seller there
                     else:
                         out += self._end(wall, EATEN, ts, "through", ref=ref)
-                elif abs(key - price) <= PRICE_EPS:
+                elif seen and abs(key - price) <= PRICE_EPS:
                     wall.traded += shares
                     if wall.called_ts is not None:
                         self.version += 1
@@ -221,7 +230,11 @@ class BigWallTracker:
                 self.version += 1
                 continue
             wall.left = {"before": d["before"], "after": d["after"], "filled": filled}
-            out += self._end(wall, EATEN if taken else PULLED, d["t1"], "traded" if taken else "no_prints")
+            if d["after"] >= self.p.smaller_share * d["before"]:
+                state = SMALLER  # most of it still rests there, under the floors: not gone
+            else:
+                state = EATEN if taken else PULLED
+            out += self._end(wall, state, d["t1"], "traded" if taken else "no_prints")
         return out
 
     def reset(self, ts: float | None) -> list[dict[str, Any]]:

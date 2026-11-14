@@ -59,7 +59,7 @@ def feed(watch: SymbolWatch, kind: str, ts: float, row: dict[str, Any]) -> list[
     if kind == "book":
         return watch.on_book(ts, row.get("bids") or [], row.get("asks") or [])
     return watch.on_print(ts, row.get("price"), row.get("size"), lit=lit_print(row),
-                          conditions=row.get("conditions"))
+                          conditions=row.get("conditions"), exchange=row.get("exchange"))
 
 
 def replay(directory: Path, *, num_rows: int = 10, symbol: str | None = None) -> dict[str, Any]:
