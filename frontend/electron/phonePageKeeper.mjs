@@ -8,7 +8,8 @@
  * was gone after a reboot. So, once a minute, the installed desk:
  * - asks the owner's checkout (ADR 038, the one the backend runs from) whether the page is its code
  *   (`phone_page.py check`) and, when not, rebuilds it there (`phone_page.py update`) below normal priority --
- *   never while the desk pulls or restarts the backend, and a failed build waits 30 minutes (or a new checkout);
+ *   under the lock the desk pulls and restarts the backend with (engineSync `whileCheckoutHeld`), so the checkout
+ *   never moves under a build, and a failed build waits 30 minutes (or a new checkout);
  * - asks 4181 for the page and, when nothing answers, starts `tools/serve_phone_page.py` from that checkout,
  *   with no window, in a process of its own that outlives the desk.
  * Every outcome goes to update.log and to the update view's `phone_page` part. `NOVA_PHONE_PAGE=0` turns it off.
@@ -111,7 +112,8 @@ export function startPageServer(python, root, { spawnFn = spawn } = {}) {
 }
 
 /**
- * @param {{ root: () => string | null, busy?: () => boolean, revision?: (root: string) => Promise<string | null>,
+ * @param {{ root: () => string | null, busy?: () => boolean, lock?: (fn: () => Promise<void>) => Promise<void>,
+ *   revision?: (root: string) => Promise<string | null>,
  *   publish: (view: object) => void, logger: { info: Function, warn: Function },
  *   python?: () => string | null, run?: typeof runTool, probe?: () => Promise<boolean>,
  *   start?: (python: string, root: string) => void, exists?: (p: string) => boolean, now?: () => number }} deps
@@ -119,6 +121,7 @@ export function startPageServer(python, root, { spawnFn = spawn } = {}) {
 export function createPhonePageKeeper({
   root,
   busy = () => false,
+  lock = (fn) => fn(),
   revision = async () => null,
   publish,
   logger,
@@ -212,8 +215,9 @@ export function createPhonePageKeeper({
         if (view?.last?.text !== NO_PYTHON) record('failed', NO_PYTHON, { served: false });
         return;
       }
-      // A pull or restart under way changes the files the build reads: the next look builds.
-      if (!busy()) await keepBuilt(checkout, exe);
+      // The check and the build hold the checkout: no pull or restart starts until they end. One already under way
+      // is not queued behind: the next look builds.
+      if (!busy()) await lock(() => keepBuilt(checkout, exe));
       await keepServed(checkout, exe);
     } catch (err) {
       record('failed', `The phone page check failed: ${message(err)}`);

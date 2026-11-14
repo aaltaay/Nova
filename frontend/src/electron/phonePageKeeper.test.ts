@@ -20,15 +20,26 @@ function keeper({ check = { code: 0 } as Reply, update = { code: 0 } as Reply, s
   busy = false, python = PY as string | null, rev = 'v1538' } = {}) {
   const t = { now: 1_000_000, check, update, served, busy, rev };
   const run = vi.fn(async (_py: string, _root: string, args: string[], _opts: { low?: boolean }) => {
+    held.push(`${args[1]}:${holding ? 'held' : 'free'}`);
     const reply = args[1] === 'check' ? t.check : t.update;
     return { code: reply.code, stdout: reply.stdout ?? '', stderr: reply.stderr ?? '' };
   });
   const start = vi.fn();
   const publish = vi.fn();
   const logger = { info: vi.fn(), warn: vi.fn() };
+  const held: string[] = [];
+  let holding = false;
   const k = createPhonePageKeeper({
     root: () => root,
     busy: () => t.busy,
+    lock: async (fn: () => Promise<void>) => {
+      holding = true;
+      try {
+        await fn();
+      } finally {
+        holding = false;
+      }
+    },
     revision: async () => t.rev,
     publish,
     logger,
@@ -40,7 +51,7 @@ function keeper({ check = { code: 0 } as Reply, update = { code: 0 } as Reply, s
     now: () => t.now,
   });
   const actions = () => run.mock.calls.map((c) => c[2][1]);
-  return { k, t, run, start, publish, logger, actions };
+  return { k, t, run, start, publish, logger, actions, held };
 }
 
 describe('the desk keeps the phone page built', () => {
@@ -76,6 +87,12 @@ describe('the desk keeps the phone page built', () => {
     t.rev = 'v1539';
     await k.tick();
     expect(actions().filter((a) => a === 'update')).toHaveLength(3);
+  });
+
+  it("checks and builds holding the backend's checkout lock, so no pull starts under a build", async () => {
+    const { k, held } = keeper({ check: { code: 1 } });
+    await k.tick();
+    expect(held).toEqual(['check:held', 'update:held']);
   });
 
   it('never builds while the desk pulls or restarts the backend, but still keeps the server', async () => {
