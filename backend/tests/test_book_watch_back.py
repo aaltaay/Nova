@@ -91,6 +91,15 @@ def test_a_big_seller_gone_for_one_book_and_back_is_still_holding():
     assert seller["state"] == "holding" and seller["size_now"] == 56100 and seller["held_sec"] == 8.0
 
 
+def test_a_big_seller_back_before_a_late_print_arrives_still_reads_taken():
+    w = SymbolWatch("SOC", num_rows=10)
+    _called(w)
+    events = w.on_book(5.000, BIDS, NO_WALL) + w.on_book(5.100, BIDS, WALL)
+    events += w.on_print(5.2, 0.75, 56100, lit=True)       # inside the drop's window, after the size was back
+    events += w.on_book(9.0, BIDS, WALL)
+    assert big_states(events)[0] == "eaten"
+
+
 def test_a_big_seller_that_stays_gone_is_still_pulled():
     w = SymbolWatch("SOC", num_rows=10)
     _called(w)

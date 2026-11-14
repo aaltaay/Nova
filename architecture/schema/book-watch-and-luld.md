@@ -293,7 +293,8 @@ bid arrived, the 0.7353 bid of 4,500 was on no row for 71 ms, and the watcher ju
   has none of it read pulled: what lit prints filled still reads traded (a level taken and posted again), and
   with no print there is no `drop`, `pull` or flag, and the minute counts nothing. A price at the edge of the
   rows counts -- the size it shows there is at least what rests there. A called big seller or buyer in `left`
-  whose full size is back, with no lit prints that would read taken, is `holding` again with no end event.
+  whose full size is back is still judged at its settle time, so a print that arrives late counts: taken if
+  the prints read taken, else `holding` again with no end event.
 - **What it cannot tell.** An order really pulled and posted again at the same size inside the settle time
   reads as never having left. The ladder still shows the row missing for that one book: the kept rows are
   IBKR's, and Nova does not guess a row back into them.
