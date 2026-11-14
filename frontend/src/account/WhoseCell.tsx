@@ -1,86 +1,65 @@
 /**
- * Whose a row is (ADR 069): the chip -- You, or the bot's name -- and, on a bots' position row on Paper, the
- * Close that sells the bots' shares in that stock (`POST /api/owners/close-bots`; your shares stay). Close asks
- * once more before it sends ("Sell all 12?", "Buy back all 19?", for a few seconds), and a refused Close says why
- * on the row; nothing is ever silent. The Account page draws the small chip and the icon; every other positions
- * list the pill and the word (decision 9).
+ * Whose a row is (ADR 072, mockup three-books v1 section 6): one chip in the book's colour -- You, Claude, The
+ * brain, or Earlier bots with the retired bot's name ("Earlier bots · Live Trader"). A trade you closed after its
+ * trader handed it to you reads "The brain · closed by you" (its P&L stays on that trader's record); a switched-off
+ * trader's open position, handed to you, reads "The brain's · yours to close", dashed. One of Nova's own closes
+ * (no owner) reads "Nova". There is no Close on another trader's row: you switch the trader off (ADR 072). The
+ * Account page and every other positions list draw the same chip.
  */
-import { useEffect, useState, type MouseEvent } from 'react';
-import { X } from 'lucide-react';
 import {
-  OWNER_CLOSE_BOTS,
-  OWNER_CLOSE_BOTS_ARM_MS,
-  OWNER_CLOSE_BOTS_OFF_PAPER,
-  OWNER_CLOSE_BOTS_SENDING,
-  ownerCloseBotsConfirm,
-  ownerCloseBotsTitle,
+  OWNER_NAMES,
+  ownerBotName,
+  ownerClosedByYou,
+  ownerYoursToClose,
+  type Owner,
 } from '../constantGroups/owners';
-import { closeBots } from './ownersApi';
 import { whoName } from './ownerView';
 import './whose.css';
 
-interface ChipProps {
-  owner: 'you' | 'bots' | null | undefined;
-  bot: string | null | undefined;
-  /** The desk's lists draw a pill; the Account page's tight rows the small chip. */
+export interface WhoseTag {
+  owner: Owner | null | undefined;
+  bot?: string | null;
+  /** An open position a switched-off trader (or a retired bot) handed you. */
+  handed?: boolean;
+  /** A trade you closed after its trader handed it to you. */
+  closedByYou?: boolean;
+}
+
+interface ChipProps extends WhoseTag {
+  /** Kept for the desk's lists; the chip is the mockup's pill everywhere. */
   pill?: boolean;
 }
 
-export function WhoseChip({ owner, bot, pill = false }: ChipProps) {
-  // Auto-entry's shares sit on your row, yours to sell: the chip still names who bought them.
-  const who = bot ? 'bots' : owner;
-  const tone = who === 'you' ? 'is-you' : bot === 'claude' ? 'is-claude' : 'is-bots';
-  return <span className={`acct-who ${tone}${pill ? ' is-pill' : ''}`} data-testid="account-whose">{whoName(who, bot)}</span>;
-}
-
-interface CloseProps {
-  symbol: string;
-  /** Every bot's shares in the stock, signed: what the Close sells or buys back. */
-  qty: number;
-  paper: boolean;
-  /** The Account page's X, or the word every other positions list shows. */
-  look?: 'icon' | 'word';
-}
-
-export function CloseBotsButton({ symbol, qty, paper, look = 'icon' }: CloseProps) {
-  const [armed, setArmed] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    if (!armed) return undefined;
-    const timer = window.setTimeout(() => setArmed(false), OWNER_CLOSE_BOTS_ARM_MS);
-    return () => window.clearTimeout(timer);
-  }, [armed]);
-  const why = paper ? null : OWNER_CLOSE_BOTS_OFF_PAPER;
-  const title = why ?? ownerCloseBotsTitle(symbol, qty);
-  const press = async (e: MouseEvent) => {
-    e.stopPropagation();  // a table row's click opens the Trader
-    if (!armed) {
-      setArmed(true);
-      return;
-    }
-    setArmed(false);
-    setBusy(true);
-    setError(null);
-    try {
-      await closeBots(symbol);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+/** The chip's words: the book's name, then what follows its " · " (null for none). */
+export function whoseWords({ owner, bot, handed, closedByYou }: WhoseTag): { main: string; sub: string | null; by: boolean } {
+  const split = (text: string, by: boolean) => {
+    const at = text.indexOf(' · ');
+    return at < 0 ? { main: text, sub: null, by } : { main: text.slice(0, at), sub: text.slice(at + 3), by };
   };
-  const rest = look === 'word' ? OWNER_CLOSE_BOTS : <X size={11} strokeWidth={2.2} aria-hidden />;
+  if (!owner) return { main: whoName(null, null), sub: null, by: false };
+  if (owner !== 'you' && closedByYou) return split(ownerClosedByYou(owner), true);
+  if (owner !== 'you' && handed) return split(ownerYoursToClose(owner), false);
+  if (owner === 'earlier_bots' && bot) return { main: OWNER_NAMES.earlier_bots, sub: ownerBotName(bot), by: false };
+  return { main: OWNER_NAMES[owner], sub: null, by: false };
+}
+
+export function WhoseChip({ owner, bot = null, pill = false, handed = false, closedByYou = false }: ChipProps) {
+  const words = whoseWords({ owner, bot, handed, closedByYou });
+  const isHanded = handed && !closedByYou && owner != null && owner !== 'you';
+  const cls = `acct-who is-${owner ?? 'nova'}${isHanded ? ' is-handed' : ''}${pill ? ' is-pill' : ''}`;
   return (
-    <>
-      <button type="button" className={`acct-close-bots${look === 'word' ? ' is-word' : ''}${armed ? ' is-armed' : ''}`}
-        disabled={busy || !paper}
-        aria-disabled={busy || !paper} data-why={why ?? undefined} title={title}
-        aria-label={armed ? ownerCloseBotsConfirm(qty) : `${OWNER_CLOSE_BOTS}: ${title}`}
-        data-testid={`account-close-bots-${symbol}`} onClick={press}>
-        {busy ? OWNER_CLOSE_BOTS_SENDING : armed ? ownerCloseBotsConfirm(qty) : rest}
-      </button>
-      {error && <span className="acct-close-bots__why" role="alert" data-testid="account-close-bots-error"> {error}</span>}
-    </>
+    <span className={cls} data-testid="account-whose" data-owner={owner ?? 'nova'}>
+      {words.main}
+      {words.sub && <em className={words.by ? 'is-by' : undefined}>{` · ${words.sub}`}</em>}
+    </span>
+  );
+}
+
+/** Every holder a row touched (a fill that split across books), one chip each. */
+export function WhoseChips({ tags }: { tags: readonly WhoseTag[] }) {
+  return (
+    <span className="acct-whose-chips">
+      {tags.map((t) => <WhoseChip key={`${t.owner ?? 'nova'}-${t.bot ?? ''}-${t.closedByYou ? 'by' : ''}`} {...t} />)}
+    </span>
   );
 }

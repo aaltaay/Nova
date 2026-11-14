@@ -1,9 +1,10 @@
 /**
  * Equity curve summary + max drawdown (Reports v2). Each bar is the running P&L after one closed trade, drawn
- * between the curve's lowest point and its highest; on Paper it is coloured by whose trade it was and the All
- * view adds yours and the bots' beside each figure (ADR 069, mockup reports-v1 item 8).
+ * between the curve's lowest point and its highest; on Paper it is coloured by whose trade it was, in that book's
+ * colour, and the All view adds the four books beside each figure (ADR 072, mockup reports-v1 item 8).
  */
 import { whoName } from '../account';
+import { OWNER_COLORS } from '../constantGroups/owners';
 import type { DrawdownBookSummary, DrawdownResponse } from './types';
 import { REPORTS_DRAWDOWN_PAPER_HINT } from './booksConstants';
 import { fmtPnl } from './format';
@@ -88,6 +89,7 @@ export function DrawdownPanel({ data, loading, books = false }: Props) {
             <rect
               key={`${pt.trade_id ?? idx}-${pt.closed_ts}`}
               className={`reports-v2-curve-bar${books && pt.owner ? ` is-${pt.owner}` : ''}`}
+              style={books && pt.owner ? { fill: OWNER_COLORS[pt.owner] } : undefined}
               x={idx + CURVE_GAP / 2}
               width={1 - CURVE_GAP}
               y={100 - heights[idx]}

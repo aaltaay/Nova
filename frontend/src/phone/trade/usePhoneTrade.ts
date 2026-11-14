@@ -17,7 +17,7 @@ import type { ManualOrderPayload } from '../../ibkr/orderEntry';
 import { placeIbkrOrder } from '../../ibkr/placeOrder';
 import type { BookWatchState } from '../../ibkr/bookWatch';
 import type { DepthBook, IbkrOrder, IbkrPosition } from '../../ibkr/types';
-import { useBotsQty } from '../../ibkr/useDeskPositions';
+import { useOthersHold } from '../../ibkr/useDeskPositions';
 import { useIbkrDepth } from '../../ibkr/useIbkrDepth';
 import { useIbkrStatus } from '../../ibkr/useIbkrStatus';
 import { useIbkrTape, type TapeState } from '../../ibkr/useIbkrTape';
@@ -105,7 +105,7 @@ export function usePhoneTrade(symbol: string): PhoneTrade {
   const depth = useIbkrDepth(symbol, true);
   const tape = useIbkrTape(symbol, true);
   const lag = useViewLock(symbol);
-  const botsQty = useBotsQty(symbol);
+  const othersHold = useOthersHold(symbol);
 
   const book = depth.book;
   const bid = book?.bids[0]?.price ?? null;
@@ -122,11 +122,11 @@ export function usePhoneTrade(symbol: string): PhoneTrade {
     accountMode: status.mode,
     accountError,
     position,
-    botsQty,
+    othersHold,
     topOfBook: { symbol, bid, ask, depthSubscribed },
     // One tap is the order: the phone's ticket shows what a button sends on the button.
     requestConfirm: () => Promise.resolve(true),
-  }), [symbol, status.connected, status.spend_status, status.mode, accountError, position, botsQty, bid, ask, depthSubscribed]);
+  }), [symbol, status.connected, status.spend_status, status.mode, accountError, position, othersHold, bid, ask, depthSubscribed]);
 
   const { order, venue: shownVenue } = session;
   const act = useCallback((label: string, action: NovaActionRecord, how: 'sent' | 'done' = 'sent') => {

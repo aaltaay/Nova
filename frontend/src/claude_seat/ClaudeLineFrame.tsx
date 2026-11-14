@@ -1,6 +1,6 @@
 /**
  * Claude's Level 2 line on the Trader (ADR 068, the approved design's 4): while the stock in this card is the one
- * Claude holds its line on, Level 2 and Time & Sales sit in a violet frame tagged "Claude's line · you share it" --
+ * Claude holds its line on, Level 2 and Time & Sales sit in a coral frame tagged "Claude's line · you share it" --
  * a tab on Claude's stock costs no extra line.
  */
 import type { ReactNode } from 'react';

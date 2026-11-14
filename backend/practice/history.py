@@ -13,10 +13,12 @@ read-only and flagged ``archived``; a damaged archive is skipped with a logged
 warning and named in ``warnings``, never a 500. Sim answers from its scratch
 ledger with no archives; nothing loaded is the shape with empty lists.
 
-Whose (ADR 069, ``schema_version`` 2): on a ledger that keeps the books (Paper), each fill also says whose order it
-was (``owner``, ``bot``) and how it split across the holders (``parts``, each at its holder's own cost), each day
-row and equity point carries yours and the bots' beside the account's, and ``by_owner`` sums each holder. Read from
-the stamps every order already carries, so past days split too; Sim's one pile carries none of these.
+Whose (ADR 072, ``schema_version`` 3): on a ledger that keeps the books (Paper and Sim), each fill also says whose
+order it was (``owner``, ``bot``) and how it split across the holders (``parts``, each at its holder's own cost); a
+part of your close that sold shares handed to you is booked on the trader that held them with ``closed_by: "you"``
+(and the fill says ``closed_by`` when any part does). Each day row and equity point carries ``you``, ``claude``,
+``brain`` and ``earlier_bots`` beside the account's (``by_bot`` for Earlier bots), and ``by_owner`` sums each holder.
+Read from the stamps every order already carries, so past days split too.
 """
 from __future__ import annotations
 
@@ -36,7 +38,7 @@ from constants_practice import (
 )
 from practice.clock import at, iso_et, session_day_start_ts
 from practice.fees import Fees
-from constants_owners import OWNER_BOTS, OWNER_YOU
+from constants_owners import BOOKS, OWNER_EARLIER_BOTS, OWNER_YOU
 from owners.whose import book_of, bot_of, holder_of
 from practice.ledger import ACCOUNT_IDS, EVENT_FILLED, EVENT_ROLLOVER, Ledger
 
@@ -109,24 +111,28 @@ def _point(replay: Ledger, ts: float) -> dict[str, Any]:
         "unrealized": _money(replay.unrealized_pnl()),
     }
     if replay.owners is not None:
-        # Each book's running P&L since the ledger opened, at the event's marks (ADR 069).
+        # Each book's running P&L since the ledger opened, at the event's marks (ADR 072).
         pnl = replay.owners.pnl(replay.mark_or_cost)
         realized = replay.owners.realized
-        for book in (OWNER_YOU, OWNER_BOTS):
+        for book in BOOKS:
             point[f"{book}_pnl"] = _money(sum(v for h, v in pnl.items() if book_of(h) == book))
             point[f"{book}_realized"] = _money(sum(v for h, v in realized.items() if book_of(h) == book))
-        point["by_bot"] = {h: _money(v) for h, v in pnl.items() if book_of(h) == OWNER_BOTS}
-        point["by_bot_realized"] = {h: _money(v) for h, v in realized.items() if book_of(h) == OWNER_BOTS}
+        point["by_bot"] = {h: _money(v) for h, v in pnl.items() if book_of(h) == OWNER_EARLIER_BOTS}
+        point["by_bot_realized"] = {h: _money(v) for h, v in realized.items() if book_of(h) == OWNER_EARLIER_BOTS}
     return point
 
 
-def _parts(replay: Ledger) -> list[dict[str, Any]]:
-    """How the fill just applied split across its holders (ADR 069), each at its own cost."""
-    return [
-        {"owner": book_of(p.holder), "bot": bot_of(p.holder), "qty": p.shares, "closes": p.closes,
-         "realized": _money(p.realized), "commission": _money(p.commission), "fees": _money(p.fees)}
-        for p in replay.owners.last_parts
-    ]
+def _parts(replay: Ledger, sender: str | None) -> list[dict[str, Any]]:
+    """How the fill just applied split across its holders (ADR 069), each at its own cost; a part your close took
+    from another holder's shares -- handed to you -- says ``closed_by: "you"`` (ADR 072)."""
+    out = []
+    for p in replay.owners.last_parts:
+        part = {"owner": book_of(p.holder), "bot": bot_of(p.holder), "qty": p.shares, "closes": p.closes,
+                "realized": _money(p.realized), "commission": _money(p.commission), "fees": _money(p.fees)}
+        if p.closes and sender == OWNER_YOU and p.holder != OWNER_YOU:
+            part["closed_by"] = OWNER_YOU
+        out.append(part)
+    return out
 
 
 def _fill_entry(event: dict[str, Any], row: dict[str, Any], realized_delta: float,
@@ -137,6 +143,8 @@ def _fill_entry(event: dict[str, Any], row: dict[str, Any], realized_delta: floa
     if parts is not None:
         holder = holder_of(row)
         whose = {"owner": book_of(holder), "bot": bot_of(holder), "parts": parts}
+        if any(p.get("closed_by") for p in parts):
+            whose["closed_by"] = OWNER_YOU
     return {
         "ts": float(event["ts"]),
         "order_id": int(row["order_id"]),
@@ -165,7 +173,7 @@ def _walk(ledger: Ledger) -> _Walk:
         closed = replay.push(event)
         kind = event.get("type")
         if kind == EVENT_FILLED and closed is not None:
-            parts = _parts(replay) if replay.owners is not None else None
+            parts = _parts(replay, book_of(holder_of(closed))) if replay.owners is not None else None
             # The parts' own sum: a fill's realized and its parts' round alike (ADR 069).
             delta = sum(p.realized for p in replay.owners.last_parts) if parts is not None else replay.realized - before
             fills.append(_fill_entry(event, closed, delta, parts))
@@ -227,19 +235,20 @@ def _rounded(agg: dict[str, Any]) -> dict[str, Any]:
 
 
 def _books(fills: list[dict[str, Any]]) -> dict[str, Any]:
-    """A day's (or a range's) ``you`` / ``bots`` / ``by_bot`` sums; empty for fills with no parts (Sim)."""
+    """A day's (or a range's) ``you`` / ``claude`` / ``brain`` / ``earlier_bots`` / ``by_bot`` sums; empty for fills
+    with no parts (a ledger without books)."""
     split = _split(fills)
     if not split:
         return {}
     blank = {"realized": 0.0, "fills": 0, "commissions": 0.0, "fees": 0.0}
-    books = {OWNER_YOU: dict(blank), OWNER_BOTS: dict(blank)}
+    books = {book: dict(blank) for book in BOOKS}
     by_bot: dict[str, dict[str, Any]] = {}
     for (owner, bot), agg in split.items():
         for key in blank:
             books[owner][key] += agg[key]
-        if owner == OWNER_BOTS and bot:
+        if owner == OWNER_EARLIER_BOTS and bot:
             by_bot[bot] = agg
-    return {OWNER_YOU: _rounded(books[OWNER_YOU]), OWNER_BOTS: _rounded(books[OWNER_BOTS]),
+    return {**{book: _rounded(books[book]) for book in BOOKS},
             "by_bot": {bot: _rounded(agg) for bot, agg in by_bot.items()}}
 
 
@@ -266,10 +275,10 @@ def _components(fills: list[dict[str, Any]], unrealized: float) -> dict[str, flo
     }
     books = _books(fills)
     if books:
-        # The books' realized, each at its own cost (ADR 069); the bots' is bot_realized too.
-        out["you_realized"] = books[OWNER_YOU]["realized"]
-        out["bots_realized"] = books[OWNER_BOTS]["realized"]
-        out["bot_realized"] = books[OWNER_BOTS]["realized"]
+        # Each book's realized, at its own cost (ADR 072); every book but yours is bot_realized too (ADR 007's ring).
+        for book in BOOKS:
+            out[f"{book}_realized"] = books[book]["realized"]
+        out["bot_realized"] = _money(sum(books[b]["realized"] for b in BOOKS if b != OWNER_YOU))
     return out
 
 

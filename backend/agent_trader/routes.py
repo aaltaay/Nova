@@ -1,8 +1,9 @@
-"""``/api/agent/trader`` (ADR 068): Claude's seat, its line, its Paper orders, and the operator's two buttons.
+"""``/api/agent/trader`` (ADR 068): Claude's seat, its line and its Paper orders.
 
 Loopback only, like every ``/api/agent`` route; every write needs the desk's API key (``auth.is_agent_mutate``).
 Claude's own calls also name the seat with ``X-Agent-Seat`` (the token ``POST /seat`` returned). The operator's
-buttons -- take Claude's line, give it back, stop Claude -- need no token: the operator is never locked out.
+control is Claude's switch (ADR 072, ``PUT /api/traders/claude/switch``): Off hands its positions to you and cancels
+its unfilled entries; the old buttons -- take Claude's line, give it back, stop Claude -- are retired.
 """
 from __future__ import annotations
 
@@ -28,6 +29,7 @@ from agent_trader.constants_agent_trader import (
     AGENT_REFLEX_MAX_MIN,
     AGENT_REFUSED,
     AGENT_SEAT_OFF,
+    AGENT_SWITCH_OFF,
     AGENT_VENUE,
     ENTRY_BREAK,
     ENTRY_LIMIT,
@@ -256,6 +258,8 @@ def arm_reflex(body: ReflexBody, x_agent_seat: str | None = Header(default=None)
     """Arm a Level 2 / Time & Sales reflex on the seat's stock (decision 11): Nova acts the moment it holds."""
     _holder(x_agent_seat)
     seat.beat(x_agent_seat)
+    if not seat.switch_on():
+        raise _refuse(AGENT_SWITCH_OFF, "Claude's switch is Off: no new reflexes until the operator switches it On")
     sym = seat.symbol()
     if not sym:
         raise _refuse(AGENT_REFUSED, "watch a stock first: a reflex is armed on the seat's stock")
@@ -305,36 +309,3 @@ async def close(body: CloseBody, x_agent_seat: str | None = Header(default=None)
         raise _refuse(getattr(receipt, "reason_code", None) or AGENT_REFUSED, why)
     seat.event("close", f"sold {qty:g} {sym} at market")
     return view.status()
-
-
-# -- the operator's buttons ---------------------------------------------------------------------------------
-@router.post("/yield", dependencies=_keyed)
-async def take_line() -> dict[str, Any]:
-    """Take Claude's line: no new trades, its unfilled buys and breaks cancelled, its stop on held shares kept."""
-    if not seat.is_on():
-        raise _refuse(AGENT_SEAT_OFF, "Claude's seat is off")
-    try:
-        for row in ledger.working():
-            if str(row.get("side") or "").upper() == "BUY" and row.get("leg_role") in (None, "parent"):
-                await orders.cancel(int(row["order_id"]), str(row["symbol"]))
-    except ledger.ReadError:
-        raise _unread("take the line") from None
-    seat.set_yielded(True, "you took Claude's line: no new trades; an open trade keeps its stop")
-    await lines.release(at_once=True)
-    return view.status()
-
-
-@router.post("/give-back", dependencies=_keyed)
-async def give_back() -> dict[str, Any]:
-    if not seat.is_on():
-        raise _refuse(AGENT_SEAT_OFF, "Claude's seat is off")
-    seat.set_yielded(False, "you gave Claude its line back")
-    await watcher.run_pass()
-    return view.status()
-
-
-@router.post("/stop-claude", dependencies=_keyed)
-async def stop_claude() -> dict[str, Any]:
-    """Stop Claude: its orders cancelled, its shares sold, the seat off, the line yours."""
-    problems = await watcher.end_seat("you stopped Claude")
-    return {"problems": problems, "status": view.status()}

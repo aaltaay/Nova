@@ -32,27 +32,24 @@ Claude's own writes also carry `X-Agent-Seat: <token>`; the operator's three but
 | `DELETE /order/{id}` | Claude | status; cancels Claude's own working order |
 | `DELETE /break/{id}` | Claude | status |
 | `POST /close {symbol}` | Claude | status; cancels Claude's orders on it, sells Claude's shares at market |
-| `POST /yield` | operator | status; "Take Claude's line": unfilled buys and breaks cancelled, lines released, no new trades; held shares keep their stop |
-| `POST /give-back` | operator | status |
-| `POST /stop-claude` | operator | `{problems, status}`: as `DELETE /seat` |
 
 Refusals are `{detail: {reason, error}}` with `reason` one of `AGENT_SEAT_TAKEN`, `AGENT_NOT_HOLDER` (403),
-`AGENT_SEAT_OFF`, `AGENT_YIELDED`, `AGENT_LIMIT`, `AGENT_NOT_PAPER`, `AGENT_NO_LINE`, `AGENT_NOT_MINE`, `AGENT_STALE`,
+`AGENT_SEAT_OFF`, `AGENT_SWITCH_OFF`, `AGENT_LIMIT`, `AGENT_NOT_PAPER`, `AGENT_NO_LINE`, `AGENT_NOT_MINE`, `AGENT_STALE`,
 `AGENT_REFUSED`, `AGENT_HALTED` (the stock is halted, decision 17), or the execution door's own code; `error` says why in words.
 
 **Status** (`schema_version: 1`): `{generated_at, name: "Claude", venue: "paper", state, text, on, since, beat_at,
-lease_until, lapsed, yielded, symbol, line: {symbol, depth, tape, why_not},
+lease_until, lapsed, switch: {on, at, can_turn_on, why_not_on: {reason, error} | null}, symbol, line: {symbol, depth, tape, why_not},
 positions: [{symbol, qty, mark}], working: [{order_id, symbol, side, order_type, qty, limit_price, stop_price,
 leg_role, status, parent_id}], breaks: [{id, symbol, qty, trigger, top, stop, target, target2, target1_qty,
 expires_at, created_at, why, confirm}], reflexes: [{id, symbol, kind, action, price, shares, seconds, ratio, why, expires_at, created_at, text}], exits: {SYMBOL: {mode: "pop", pop_pct}}, today: {entries, max_entries (null: no daily trade count, 2026-10-27), pnl, day_stop, fills}, limits: {max_shares,
 max_risk_usd}, note: {text, at} | null, events: [{at, kind, text}] (newest first, 12), read_error}`. `read_error`, `line.why_not` and every refusal are Nova's own words: an exception's text never reaches this wire (it goes to the log). `state` is one
-of `off`, `idle` (no stock yet), `waiting_line`, `watching`, `buy_set`, `in_trade`, `yielded`, `done`; `text` is the
+of `off`, `idle` (no stock yet), `waiting_line`, `watching`, `buy_set`, `in_trade`, `done`; `text` is the
 header pill's words ("Claude · Buy set SMPL 4.39" -- the price a break triggers at or a resting buy's limit --,
 "Claude · In SMPL +$42.00"). The holder token is never in it.
 
 **On the desk** (`frontend/src/claude_seat/`, approved design `F:\Nova\design\claude-seat\v2`): one poll of this
-route every 1.5 s (6 s while the window is hidden) feeds the header pill and its panel (Take Claude's line, Give it
-back, Stop Claude after a confirm), Claude's toasts and voice (the header mute silences it), its order and break lines
+route every 1.5 s (6 s while the window is hidden) feeds the header pill and its panel (Claude's On / Off switch,
+`PUT /api/traders/claude/switch`, ADR 072), Claude's toasts and voice (the header mute silences it), its order and break lines
 on the 10-second, 1- and 5-minute charts, the violet frame on its Level 2, the lines-full box (`agent_reserved`) and
 "Claude" in Sent by (`order_origin: "claude"`). The pill shows on every live-desk day once the route has answered:
 "Claude · Off", muted, while the seat is off, so the operator sees Claude is off (operator, 2026-10-30); never on
@@ -71,7 +68,7 @@ moves `replace` the same way; closes `source: "flatten"` market SELLs and cancel
 `claude` close named to Live. Practice rows carry `order_origin: "claude"`; Claude's position is its own fills, never more than Paper holds in the stock: Nova's own closes (the loss limit's Auto sell, KILL, a margin call) sell Claude's shares under their own origin, and Claude's P&L counts those shares at the price those closes got.
 Claude's fills still count in the Paper account's loss-limit totals and on the Bots line's figures (`loss_limit.accounts.by_of`, `LOSS_LIMIT_BOT_CLOSE_ORIGINS`), but no shared line refuses Claude's buys on Paper.
 
-**Events** (`kind`): `on`, `off`, `watch`, `line`, `line_wait`, `armed`, `buy_set`, `break_set`, `break_wait`, `break_end`, `refused`, `stop`, `cancel`, `close`, `fill` ("Claude bought 510 SMPL at 4.40", each fill said once), `resumed` (read back after a restart), `taken_over`, `reflex_set`, `reflex_fired` (also the guard's closes), `reflex_end`, `yielded`, `line_back`, `day_close` and `close` (also each journaled trade: "trade on SMPL closed +$8.00: manual (Claude closed it at market)"), `line_taken` ("took KTTA's auto-record line for SMPL", not toasted), `tab_line` ("took your hidden SMPL tab's line · watching RUNR"), `tab_line_back` ("You took SMPL's line back from Claude · RUNR stop and sell still rest", said as written); the desk toasts and speaks them.
+**Events** (`kind`): `on`, `off`, `watch`, `line`, `line_wait`, `armed`, `buy_set`, `break_set`, `break_wait`, `break_end`, `refused`, `stop`, `cancel`, `close`, `fill` ("Claude bought 510 SMPL at 4.40", each fill said once), `resumed` (read back after a restart), `taken_over`, `reflex_set`, `reflex_fired` (also the guard's closes), `reflex_end`, `switch_off`, `handed`, `day_close` and `close` (also each journaled trade: "trade on SMPL closed +$8.00: manual (Claude closed it at market)"), `line_taken` ("took KTTA's auto-record line for SMPL", not toasted), `tab_line` ("took your hidden SMPL tab's line · watching RUNR"), `tab_line_back` ("You took SMPL's line back from Claude · RUNR stop and sell still rest", said as written); the desk toasts and speaks them.
 
 **Reflexes** (`agent_trader.reflexes`, ADR 068 decision 11). Judged every 0.5 s on the seat's stock: the depth book's rows added up by price, and Nova's tape archive (a print at or over its ask is a buyer's, at or under its bid a seller's). `bid_pulled` fires only after it has seen its size since arming. A `sell_all` reflex is live while Claude holds shares, a `cancel_buy` while a buy or break waits; each fires once, does its action and is gone (an event says what it saw and did).
 
@@ -126,23 +123,26 @@ until they are up. Removed: the borrowing of an auto-record line or a hidden tab
 `agent_reserved` on the Level 2 error frame), `POST /take-back`, the event `line_taken` (`waiting_line` now means the lane asked IBKR and the line is not up yet), and
 `line.desk_lines`, `desk_cap`, `all_lines`, `from_tab`, `taken_back`.
 
-**Claude's switch and limits (ADR 072; confirmed for the build).** Claude trades only while the operator's switch
-is On (`traders.md`, "The switches"); the seat's claim, lease, lane, look, eye and note are apart from it and work
-with the switch Off.
-- `POST /order` and `POST /reflex` are refused `AGENT_SWITCH_OFF` while it is Off ("Claude is off: the operator's
-  switch is Off."); `POST /watch` still moves the lane. Turning it Off cancels Claude's unfilled buys, breaks and
-  reflexes, keeps its stop and targets resting, stops the guard on that stock and hands the position to you
-  (events `switch_off`, `handed`); `switch_on` when it comes back On.
-- Claude's limits are read from `trader-limits.json` (`traders.md`, "The limits") instead of `AGENT_MAX_SHARES`,
-  `AGENT_MAX_RISK_USD` and `AGENT_CLOSE_ET`; its day stop is Claude's loss line (`loss-limit.md`, "Four lines")
-  instead of `AGENT_DAY_STOP_USD`. The Account line now stops Claude's buys too.
-- The status adds `switch: {on, at, can_turn_on, why_not_on}`, and `today.day_stop` reads Claude's line.
+**Claude's switch (ADR 072, built in batch 3).** Claude trades only while the operator's switch is On
+(`traders.md`, "The switches"); the seat's claim, lease, lane, look, eye and note are apart from it and work with the
+switch Off.
+- `POST /order` and `POST /reflex` are refused `AGENT_SWITCH_OFF` while it is Off ("Claude's switch is Off: no new
+  trades until the operator switches it On"), and the door refuses any new order stamped `claude` (`TRADER_OFF`);
+  `POST /watch` still moves the lane, and the seat holds no Level 2 line while Off. Turning it Off hands every
+  position Claude holds to you, cancels its unfilled entries, drops its breaks and reflexes, keeps its stop and
+  targets resting, and the guard skips a handed stock (`agent_trader.ledger.positions` leaves it out); events
+  `switch_off`, then `handed` per position ("Claude is off: its 300 SMPL are yours to close. Its stop at 4 keeps
+  resting.").
+- The status adds `switch: {on, at, can_turn_on, why_not_on}`; the `yielded` field, the `yielded` state and the seat
+  file's `yielded` / `yielded_at` are gone (a file that still has them reads as before, the two ignored).
 - Retired: `POST /yield`, `POST /give-back` and `POST /stop-claude` (Take Claude's line, Give it back and Stop
-  Claude), and the `yielded` state. The 15:55 close becomes Claude's flat-by time; a lapsed lease still cancels and
-  sells as below, but neither touches a position handed to you. Claude's fills count on Claude's line and in
-  Claude's book, never the bots'.
+  Claude): the switch replaces them. Claude's fills are Claude's book (`recording-and-replay.md`, "Three traders'
+  books"); until its own loss line lands they count on the Bots line (`loss-limit.md`).
+- Still to come (ADR 072 build order 4): Claude's limits read from `trader-limits.json` instead of `AGENT_MAX_SHARES`,
+  `AGENT_MAX_RISK_USD` and `AGENT_CLOSE_ET`, and its day stop from Claude's loss line instead of `AGENT_DAY_STOP_USD`
+  (the switch's `TRADER_DAY_STOP` reads that day stop now).
 
-**Closes Nova makes.** A lease not renewed for 600 s, `POST /stop-claude` or `DELETE /seat`: Claude's orders
+**Closes Nova makes.** A lease not renewed for 600 s or `DELETE /seat`: Claude's orders
 cancelled, its shares sold, the seat off, its lines released. 15:55 ET on a weekday: Claude's shares sold and orders
 cancelled, seat on or off; 16:00 ET the seat turns off.
 
@@ -180,5 +180,5 @@ origin), else `unknown`. `pnl`: Claude's fills in the trade, fees included, plus
 those closes got. Open trades are in memory.
 
 **Persisted:** `backend/.cache/agent-seat.json` (`schema_version: 1`, written whole and atomically): `{holder, since,
-beat_at, yielded, yielded_at, symbol, breaks, reflexes, exits, note, events}` (the newest 40 events). A file with another
+beat_at, symbol, breaks, reflexes, exits, note, events}` (the newest 40 events). A file with another
 `schema_version` starts the seat off and is logged. A seat read back gets a fresh lease from the read (`resumed`). Spend arming is never persisted (ADR 018).

@@ -7,9 +7,11 @@
  * flat and counts on the day it closes. An archived ledger sends only its day
  * totals, so its days list no stocks or trades -- stated, never guessed. Pure.
  */
+import type { Owner } from '../constantGroups/owners';
 import { deskTradingDay } from '../utils/deskTradingDay';
 import { isBotFill } from './accountFigures';
 import type { HistoryDaily, HistoryFill } from './accountHistoryTypes';
+import { emptySplit, type DaySplit } from './ownerView';
 
 /** Shares left on a position below this are float noise, not a holding. */
 const FLAT_EPS = 1e-9;
@@ -204,6 +206,35 @@ export function dayBreakdowns(history: { daily: readonly HistoryDaily[]; fills: 
       lost: trades.filter((t) => cents(t.net) < 0).length,
       stocks: stocksOf(fills, trades),
     });
+  }
+  return out;
+}
+
+/**
+ * Each book's closed trades per day (ADR 072): every holder's own parts of each fill walked from flat on their own
+ * -- one retired bot at a time inside Earlier bots -- so a trade is that trader's stock from no shares back to none,
+ * counted on the day it closes. A part you closed for its trader stays its trader's. Null when the fills carry no
+ * split (an older ledger).
+ */
+export function ownerDayTrades(fills: readonly HistoryFill[]): Map<string, DaySplit> | null {
+  if (!fills.some((f) => Array.isArray(f.parts))) return null;
+  const byHolder = new Map<string, { owner: Owner; fills: HistoryFill[] }>();
+  for (const fill of fills) {
+    for (const part of fill.parts ?? []) {
+      const key = `${part.owner}|${part.bot ?? ''}`;
+      const holder = byHolder.get(key) ?? { owner: part.owner, fills: [] };
+      holder.fills.push({ ...fill, qty: part.qty, realized: part.realized, commission: part.commission, fees: part.fees });
+      byHolder.set(key, holder);
+    }
+  }
+  const out = new Map<string, DaySplit>();
+  for (const holder of byHolder.values()) {
+    for (const trade of roundTrips(holder.fills)) {
+      const day = fillDay(trade.closeTs);
+      const split = out.get(day) ?? emptySplit();
+      split[holder.owner] += 1;
+      out.set(day, split);
+    }
   }
   return out;
 }

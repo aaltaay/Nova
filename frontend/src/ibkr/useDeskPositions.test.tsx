@@ -3,7 +3,7 @@ import { renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PracticeAccount } from '../practice';
 import type { IbkrPosition } from './types';
-import { useBotsQty, useDeskPositions } from './useDeskPositions';
+import { useDeskPositions, useOthersHold } from './useDeskPositions';
 
 const read = vi.hoisted(() => ({
   venue: 'paper' as string | null,
@@ -27,7 +27,7 @@ const account = {
   books: {},
   positions: [{
     symbol: 'ORCL', qty: -19, avg_cost: 125.9, mark: 124.89, unrealized: 19.19,
-    by_owner: [{ owner: 'bots', bot: 'live_trader', qty: -19, avg_cost: 125.9, unrealized_pnl: 19.19 }],
+    by_owner: [{ owner: 'claude', bot: null, qty: -19, avg_cost: 125.9, unrealized_pnl: 19.19, handed: false }],
   }],
 } as unknown as PracticeAccount;
 
@@ -43,15 +43,17 @@ beforeEach(() => {
   read.asked = [];
 });
 
-describe('useDeskPositions', () => {
-  it("adds the bots' rows on Paper", () => {
+describe('useDeskPositions (ADR 072)', () => {
+  it.each(['paper', 'sim'])("adds the other traders' rows on %s", (venue) => {
+    read.venue = venue;
     const { result } = renderHook(() => useDeskPositions(MINE));
-    expect(result.current.rows.map((r) => [r.symbol, r.owner])).toEqual([['INTC', 'you'], ['ORCL', 'bots']]);
+    expect(result.current.rows.map((r) => [r.symbol, r.owner])).toEqual([['INTC', 'you'], ['ORCL', 'claude']]);
     expect(result.current.split).toBe(true);
-    expect(result.current.botsBook.get('ORCL')).toBe(-19);
+    expect(result.current.othersBook.get('ORCL')).toEqual([{ owner: 'claude', qty: -19 }]);
+    expect(read.asked).toContain(venue);
   });
 
-  it.each(['live', 'sim', null])('asks for nothing on %s and hands your rows back', (venue) => {
+  it.each(['live', null])('asks for nothing on %s and hands your rows back', (venue) => {
     read.venue = venue;
     const { result } = renderHook(() => useDeskPositions(MINE));
     expect(result.current.rows).toBe(MINE);
@@ -68,18 +70,18 @@ describe('useDeskPositions', () => {
     expect(read.asked.every((v) => v == null)).toBe(true);
   });
 
-  it('says so when the read of the bots\' shares fails', () => {
+  it("says so when the read of the other traders' shares fails", () => {
     read.practice = { data: null, error: 'Practice account request failed', stale: false };
-    expect(renderHook(() => useDeskPositions(MINE)).result.current.botsStale).toBe(true);
+    expect(renderHook(() => useDeskPositions(MINE)).result.current.othersStale).toBe(true);
     read.practice = { data: account, error: null, stale: true };
-    expect(renderHook(() => useDeskPositions(MINE)).result.current.botsStale).toBe(true);
+    expect(renderHook(() => useDeskPositions(MINE)).result.current.othersStale).toBe(true);
   });
 });
 
-describe('useBotsQty', () => {
-  it("reads the bots' shares in one stock, signed, whatever the case", () => {
-    expect(renderHook(() => useBotsQty(' orcl ')).result.current).toBe(-19);
-    expect(renderHook(() => useBotsQty('INTC')).result.current).toBe(0);
-    expect(renderHook(() => useBotsQty(null)).result.current).toBe(0);
+describe('useOthersHold', () => {
+  it('reads the other trader in one stock and its shares, signed, whatever the case', () => {
+    expect(renderHook(() => useOthersHold(' orcl ')).result.current).toEqual({ owner: 'claude', qty: -19 });
+    expect(renderHook(() => useOthersHold('INTC')).result.current).toBeNull();
+    expect(renderHook(() => useOthersHold(null)).result.current).toBeNull();
   });
 });

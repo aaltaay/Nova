@@ -174,21 +174,36 @@ export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Prom
     expires_at: api.state.unlocked && token === TOKEN ? nowSec() + 7 * 3600 + 12 * 60 : null,
     venue, paper: venue === 'paper', trades: venue !== 'live', armed: api.state.armed, now: nowSec(),
   });
+  // The other holders (ADR 072), one per stock after the first: Claude's, then the brain's handed to you (switched
+  // off, yours to close), then a retired bot's (Earlier bots, handed too).
+  const HOLDERS = [
+    { owner: 'claude', bot: null, handed: false },
+    { owner: 'brain', bot: null, handed: true },
+    { owner: 'earlier_bots', bot: 'first_pullback', handed: true },
+  ] as const;
   const others = Array.from({ length: Math.max(0, (opts.positions ?? 2) - 1) }, (_, k) => {
     const i = k + 1;
     return {
-      symbol: SYMBOLS[i], qty: 500 - i * 200, market_price: 4.82 - i * 2.65, market_value: 2410, avg_cost: 4.71 - i * 2.66,
-      unrealized_pnl: 55 - i * 19, realized_pnl: 0, position_side: 'long',
+      symbol: SYMBOLS[i], qty: Math.max(100, 500 - i * 200), market_price: 4.82 - i * 1.15, market_value: 2410,
+      avg_cost: 4.71 - i * 1.16, unrealized_pnl: 55 - i * 19, realized_pnl: 0, position_side: 'long',
+      holder: HOLDERS[k % HOLDERS.length],
     };
   });
-  /** Your rows now: the first symbol follows `state.held`. */
+  /** Every row now, each with its holder: the first symbol is yours and follows `state.held`. */
   const positionsNow = () => [
     ...(api.state.held ? [{
       symbol: SYMBOLS[0], qty: api.state.held, market_price: 4.82, market_value: api.state.held * 4.82, avg_cost: 4.71,
       unrealized_pnl: Math.round(api.state.held * 0.11), realized_pnl: 0, position_side: api.state.held < 0 ? 'short' : 'long',
+      holder: { owner: 'you', bot: null, handed: false },
     }] : []),
     ...others,
   ];
+  /** `/api/ibkr/positions`: Live's rows are the account's; on Paper and Sim only the shares yours to close. */
+  const yoursNow = () => positionsNow()
+    .filter((p) => venue === 'live' || p.holder.owner === 'you' || p.holder.handed)
+    .map(({ holder, ...p }) => (venue === 'live' ? p : {
+      ...p, account_qty: p.qty, handed_qty: holder.handed ? p.qty : 0, handed_from: holder.handed ? holder.owner : null,
+    }));
   let nextOrderId = 40;
   const order = (id: number) => ({
     order_id: id, symbol: SYMBOLS[0], side: 'SELL', qty: 250, remaining_qty: 250, order_type: 'LMT', limit_price: 4.95,
@@ -299,42 +314,76 @@ export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Prom
         net_liquidation: 25_412.6, gross_position_value: 2_772.6, realized_pnl: 321.6, unrealized_pnl: 91, unrealized_at_bid: 88,
         day_pnl: 412.6, realized_today: 321.6, commissions_today: 8.4, fills_today: 6, day_started_et: '2026-11-11T04:00:00-05:00',
         updated_at: new Date().toISOString(),
-        positions: positionsNow().map((p, i) => ({
-          symbol: p.symbol, qty: p.qty, avg_cost: p.avg_cost, market_price: p.market_price, market_value: p.market_value,
-          unrealized_pnl: p.unrealized_pnl,
-          by_owner: [{ owner: i ? 'bots' : 'you', bot: i ? 'first_pullback' : null, qty: p.qty, avg_cost: p.avg_cost, unrealized_pnl: p.unrealized_pnl }],
+        positions: positionsNow().map((p) => ({
+          symbol: p.symbol, qty: p.qty, avg_cost: p.avg_cost, market_price: p.market_price, mark: p.market_price,
+          market_value: p.market_value, unrealized_pnl: p.unrealized_pnl, unrealized: p.unrealized_pnl,
+          by_owner: [{ ...p.holder, qty: p.qty, avg_cost: p.avg_cost, unrealized_pnl: p.unrealized_pnl }],
         })),
         working: api.state.working.map(order),
+        // The four books (ADR 072): their day_pnl add up to the account's 412.6.
         books: {
-          you: { day_pnl: 376.6, realized_today: 321.6, unrealized_pnl: 55, fills_today: 4, commissions_today: 6.4 },
-          bots: { day_pnl: 36, realized_today: 0, unrealized_pnl: 36, fills_today: 2, commissions_today: 2, budget_usd: 25_000, budget_used_usd: 615, by_bot: {} },
+          you: { day_pnl: 304.2, realized_today: 249.2, unrealized_pnl: 55, fills_today: 2, commissions_today: 2.8 },
+          claude: { day_pnl: 66, realized_today: 30, unrealized_pnl: 36, fills_today: 2, commissions_today: 2.8, budget_usd: 5_000, budget_used_usd: 615 },
+          brain: { day_pnl: 42.4, realized_today: 42.4, unrealized_pnl: 0, fills_today: 2, commissions_today: 2.8, budget_usd: 5_000, budget_used_usd: 0 },
+          earlier_bots: { day_pnl: 0, realized_today: 0, unrealized_pnl: 0, fills_today: 0, commissions_today: 0, by_bot: {} },
         },
       });
-      case '/api/practice/history': return json({
-        schema_version: 1, venue, account_id: 'SAMPLE', range: '1D', range_start: t - 6 * 3600, starting_cash: 25_000,
-        ledger_opened_at: '2026-11-01T04:00:00-05:00',
-        equity: Array.from({ length: 6 }, (_, i) => ({
-          ts: t - (6 - i) * 1800, net_liquidation: 25_000 + i * 70, cash: 22_640, realized: i * 64, unrealized: i * 6,
-        })),
-        fills: Array.from({ length: 6 }, (_, i) => ({
-          ts: t - (6 - i) * 1800, order_id: 100 + i, symbol: SYMBOLS[i % 3], side: i % 2 ? 'SELL' : 'BUY', qty: 250, price: 4.7 + i * 0.03,
-          source: 'manual', bot_id: null, commission: 1.4, fees: 0, realized: i % 2 ? 64 : 0, fill_estimated: true, fill_basis: 'quote',
-          owner: 'you', bot: null, parts: [],
-        })),
-        // The last seven practice days (04:00 ET rollover), newest first: the calendar's rows.
-        // Today is always a row, whatever day the test runs on.
-        by_source: [], by_owner: [], daily: Array.from({ length: 9 }, (_, k) => {
-          const realized = k ? (k % 3 ? 120 * k : -85 * k) : 321.6;
-          const date = ET_DATE.format(new Date((t - 4 * 3600 - k * 86_400) * 1000));
+      case '/api/practice/history': {
+        // Schema version 3 (ADR 072): each fill's owner and its parts; each day and each equity point by book.
+        const FILL_OWNERS = ['you', 'you', 'claude', 'claude', 'brain', 'you'] as const;
+        const fills = Array.from({ length: 6 }, (_, i) => {
+          const sell = i % 2 === 1;
+          const realized = sell ? 64 : 0;
+          // The last fill is your close of shares the brain handed you: booked on the brain's record.
+          const handed = i === 5;
           return {
-            date, realized, commissions: 8.4, fees: 0.6, fills: 6, archived: false, weekday: new Date(`${date}T00:00:00Z`).getUTCDay(),
-            you: { realized: realized - 30, fills: 4, commissions: 6.4, fees: 0.6 }, bots: { realized: 30, fills: 2, commissions: 2, fees: 0 },
+            ts: t - (6 - i) * 1800, order_id: 100 + i, symbol: SYMBOLS[i % 3], side: sell ? 'SELL' : 'BUY', qty: 250, price: 4.7 + i * 0.03,
+            source: 'manual', bot_id: null, commission: 1.4, fees: 0, realized, fill_estimated: true, fill_basis: 'quote',
+            owner: FILL_OWNERS[i], bot: null, closed_by: handed ? 'you' : null,
+            parts: [{
+              owner: handed ? 'brain' : FILL_OWNERS[i], bot: null, qty: 250, closes: sell, realized, commission: 1.4, fees: 0,
+              closed_by: handed ? 'you' : null,
+            }],
           };
-        }).filter((row, k) => k === 0 || (row.weekday !== 0 && row.weekday !== 6)),
-        components: { realized: 321.6, commissions: 8.4, fees: 0 },
-      });
+        });
+        const sums = (realized: number, n: number) => ({ realized, fills: n, commissions: 1.4 * n, fees: 0 });
+        return json({
+          schema_version: 3, venue, account_id: 'SAMPLE', range: '1D', range_start: t - 6 * 3600, starting_cash: 25_000,
+          ledger_opened_at: '2026-11-01T04:00:00-05:00',
+          equity: Array.from({ length: 6 }, (_, i) => ({
+            ts: t - (6 - i) * 1800, net_liquidation: 25_000 + i * 70, cash: 22_640, realized: i * 64, unrealized: i * 6,
+            you_pnl: i * 40, claude_pnl: i * 20, brain_pnl: i * 10, earlier_bots_pnl: 0,
+            you_realized: i * 36, claude_realized: i * 18, brain_realized: i * 10, earlier_bots_realized: 0, by_bot: {}, by_bot_realized: {},
+          })),
+          fills,
+          by_source: [],
+          by_owner: [
+            { owner: 'you', bot: null, ...sums(249.2, 2) }, { owner: 'claude', bot: null, ...sums(30, 2) },
+            { owner: 'brain', bot: null, ...sums(42.4, 2) },
+          ],
+          // The last seven practice days (04:00 ET rollover), newest first: the calendar's rows. Today is always a
+          // row, whatever day the test runs on. Each day splits by book; the books add up to the day.
+          daily: Array.from({ length: 9 }, (_, k) => {
+            const realized = k ? (k % 3 ? 120 * k : -85 * k) : 321.6;
+            const claude = k % 2 ? -18 : 30;
+            const brain = k === 0 ? 42.4 : 0;
+            const earlier = k % 3 === 1 ? -12 : 0;
+            const date = ET_DATE.format(new Date((t - 4 * 3600 - k * 86_400) * 1000));
+            return {
+              date, realized, commissions: 8.4, fees: 0.6, fills: 6, archived: false, weekday: new Date(`${date}T00:00:00Z`).getUTCDay(),
+              you: sums(Number((realized - claude - brain - earlier).toFixed(2)), 2), claude: sums(claude, 2),
+              brain: sums(brain, brain ? 2 : 0), earlier_bots: sums(earlier, earlier ? 1 : 0), by_bot: {},
+            };
+          }).filter((row, k) => k === 0 || (row.weekday !== 0 && row.weekday !== 6)),
+          components: {
+            realized: 321.6, unrealized: 91, commissions: 8.4, sec_finra_fees: 0, bot_realized: 72.4,
+            you_realized: 249.2, claude_realized: 30, brain_realized: 42.4, earlier_bots_realized: 0,
+          },
+          archives: [], warnings: [],
+        });
+      }
       case '/api/ibkr/account': return json({ NetLiquidation: 25_412.6, BuyingPower: 22_640, RealizedPnL: 321.6, UnrealizedPnL: 91 });
-      case '/api/ibkr/positions': return json(positionsNow());
+      case '/api/ibkr/positions': return json(yoursNow());
       case '/api/ibkr/orders': return json(api.state.working.map(order));
       case '/api/ibkr/orders/closed': return json([]);
       case '/api/loss-limit': return json({

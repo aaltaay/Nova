@@ -71,6 +71,9 @@ _TRADES_MIGRATIONS = [
     ("venue", "TEXT"),
     ("owner", "TEXT"),
     ("bot", "TEXT"),
+    # ADR 072: ``owner`` is ``you`` | ``claude`` | ``brain`` | ``earlier_bots`` (a stored ``bots`` row reads through
+    # ``journal.split``); ``closed_by`` ``you`` on a trader's round trip you closed after it handed it to you.
+    ("closed_by", "TEXT"),
 ]
 
 

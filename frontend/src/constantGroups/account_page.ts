@@ -387,3 +387,5 @@ export const accountRiskLargestPosition = (held: string, symbol: string | null):
 export const ACCOUNT_TAG_SAMPLE = 'Sample';
 /** Orders (Today): a working order from an earlier day shows its date (QA W4). */
 export const accountOrderStampOtherDay = (date: string, time: string): string => `${date} ${time}`;
+/** ADR 072 (mockup three-books v1): the account's fills today, split by book under the count. */
+export const ACCOUNT_ROW_FILLS_TODAY = 'Fills today';

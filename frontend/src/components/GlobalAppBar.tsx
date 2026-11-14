@@ -55,7 +55,7 @@ import { DeskSoundButton } from '../sound';
 
 export type { GlobalAppBarScanner };
 
-/** The cards read both books (ADR 069 decision 9); their own component, so the account poll re-renders them alone. */
+/** The cards read every book (ADR 072); their own component, so the account poll re-renders them alone. */
 function DeskCloseReminders({ positions, ...rest }: Omit<CloseRemindersProps, 'positions'> & { positions: IbkrPosition[] }) {
   const { rows } = useDeskPositions(positions);
   return <CloseReminders positions={rows} {...rest} />;

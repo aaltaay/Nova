@@ -129,7 +129,7 @@ session's `active` is the truth (`armed` a one-release alias; `has_desk_arm`,
 the token's presence, stays).
 
 **The bots' book on Paper (ADR 069).** Every bot's shares are the bots' book, apart from yours
-(`recording-and-replay.md`, "Your book and the bots' book"). Above each bot's own sizing (this sleeve, the Live
+(`recording-and-replay.md`, "Three traders' books"). Above each bot's own sizing (this sleeve, the Live
 Trader's per-host sizes, Claude's limits) all bots together may hold at most the **bots' budget** -- $25,000 by
 default, `GET` / `PUT /api/owners/budget` -- in open positions and working entries; an entry past it is skipped
 `OWNERS_BOTS_BUDGET` with the sums. No bot opens a stock you hold or have an order working on

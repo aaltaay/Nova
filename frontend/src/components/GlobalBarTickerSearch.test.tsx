@@ -5,10 +5,10 @@ import { GlobalBarTickerSearch } from './GlobalBarTickerSearch';
 import { buildSymbolDirectory, resetSymbolDirectoryForTests } from './symbolDirectory';
 import { resetRecentsForTests } from './tickerSearchRecents';
 
-const desk = vi.hoisted(() => ({ botsBook: new Map<string, number>() }));
+const desk = vi.hoisted(() => ({ othersBook: new Map<string, { owner: string; qty: number }[]>() }));
 vi.mock('../ibkr/useDeskPositions', () => ({
-  useBotsQty: () => 0,
-  useDeskPositions: () => ({ botsBook: desk.botsBook }),
+  useOthersHold: () => null,
+  useDeskPositions: () => ({ othersBook: desk.othersBook }),
 }));
 
 const LISTED = [
@@ -53,7 +53,7 @@ function footer(): string | null {
 beforeEach(() => {
   // No backend in tests: the directory load fails unless a test installs one.
   vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('offline'))));
-  desk.botsBook = new Map();
+  desk.othersBook = new Map();
 });
 
 afterEach(() => {
@@ -232,8 +232,8 @@ describe('GlobalBarTickerSearch', () => {
     expect(footer()).toContain('Listed symbols unavailable (offline)');
   });
 
-  it("offers the stocks the bots hold with yours, once each (ADR 069 decision 9)", () => {
-    desk.botsBook = new Map([['ORCL', -19], ['AAL', 5]]);
+  it("offers the stocks the other traders hold with yours, once each (ADR 072)", () => {
+    desk.othersBook = new Map([['ORCL', [{ owner: 'claude', qty: -19 }]], ['AAL', [{ owner: 'brain', qty: 5 }]]]);
     const { input } = mount();
     type(input, 'o');
     expect(rows()).toEqual(['O*', 'ORCL']);

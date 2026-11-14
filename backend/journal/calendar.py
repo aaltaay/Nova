@@ -16,7 +16,7 @@ from datetime import date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from constants_owners import OWNERS
+from constants_owners import BOOKS
 from journal import split
 
 _ET = ZoneInfo("America/New_York")
@@ -44,7 +44,7 @@ def trade_day(trade: dict) -> date | None:
 
 
 def _no_split() -> dict[str, dict[str, Any]]:
-    return {book: {"pnl": 0.0, "trade_count": 0} for book in OWNERS}
+    return {book: {"pnl": 0.0, "trade_count": 0} for book in BOOKS}
 
 
 def _add_split(into: dict[str, dict[str, Any]], other: dict[str, dict[str, Any]]) -> None:

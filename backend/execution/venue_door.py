@@ -98,8 +98,9 @@ def _live_close_refusal(cmd: ExecutionCommand) -> str | None:
     Auto sell (a flatten), to the Live account, each checked against IBKR's own position."""
     if cmd.origin == "live_trader":
         return "the Live Trader bot trades Paper only: its orders never go to Live; nothing was sent"
-    if cmd.origin == "claude":
-        return "Claude trades Paper only: its orders never go to Live; nothing was sent"
+    if cmd.origin in ("claude", "brain"):
+        who = "Claude trades Paper" if cmd.origin == "claude" else "The brain trades Paper and Sim"
+        return f"{who} only: its orders never go to Live; nothing was sent"
     if cmd.origin == "loss_limit_bots":
         return "the bots' loss line sells only the bots' shares, and a bot never trades Live; nothing was sent"
     if cmd.origin not in ("day_cover", *_LIVE_LOSS_LIMIT):

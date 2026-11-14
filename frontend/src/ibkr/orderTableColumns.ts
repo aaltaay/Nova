@@ -271,7 +271,7 @@ export const POSITION_COLUMN_META: Record<PositionColumnId, ColumnMeta> = {
     className: 'ibkr-col--text ibkr-col--symbol',
     title: TICKER_OPEN_TRADER_TITLE,
   },
-  // Paper only: the table drops it where there is one book (ADR 069 decision 9).
+  // Paper and Sim: the table drops it on Live, where every row is yours (ADR 072).
   whose: {
     id: 'whose',
     label: OWNER_WHOSE_COL,

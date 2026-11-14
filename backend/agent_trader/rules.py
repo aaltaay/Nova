@@ -83,14 +83,14 @@ def entry_refusal(order: dict[str, Any], *, pending_breaks: int = 0) -> tuple[st
         AGENT_NOT_MINE,
         AGENT_NOT_PAPER,
         AGENT_STALE,
-        AGENT_YIELDED,
+        AGENT_SWITCH_OFF,
     )
     from market import now_et
     from market_view import gate
     from sim.mode import venue
 
-    if seat.is_yielded():
-        return AGENT_YIELDED, "the operator has Claude's line: no new trades until it is given back"
+    if not seat.switch_on():
+        return AGENT_SWITCH_OFF, "Claude's switch is Off: no new trades until the operator switches it On"
     if venue() != AGENT_VENUE:
         return AGENT_NOT_PAPER, f"the desk is on {venue()}: Claude opens trades only while it is on Paper"
     if (why := shape_refusal(order)) or (why := window_refusal(now_et())):

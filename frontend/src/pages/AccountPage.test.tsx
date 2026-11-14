@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { dayShortLabel } from '../account/accountCalendar';
 import { fillDay } from '../account/accountDayBreakdown';
 import { todayPracticeDate } from '../account/accountFigures';
-import { PAPER_ACCOUNT_TODAY, paperHistoryFixture } from '../account/accountFixtures';
+import { PAPER_ACCOUNT_TODAY, paperHistoryFixture, threeBooksHistoryFixture, THREE_BOOKS_ACCOUNT } from '../account/accountFixtures';
 import { resetAccountHistoryResourcesForTests } from '../account/accountHistoryResource';
 import { ACCOUNT_LIVE_NO_LEDGER } from '../constantGroups/account_page';
 import type { IbkrAccountSummary, IbkrOrder } from '../ibkr/types';
@@ -305,5 +305,61 @@ describe('AccountPage', () => {
     } finally {
       window.history.replaceState({}, '', '/');
     }
+  });
+});
+
+describe('AccountPage: three books, one account (ADR 072, mockup three-books v1)', () => {
+  beforeEach(() => {
+    mocks.fetch.mockImplementation(async (url: string) => {
+      const u = String(url);
+      if (u.includes('/api/practice/history')) return { ok: true, status: 200, json: async () => threeBooksHistoryFixture() };
+      if (u.includes('/api/practice/account')) return { ok: true, status: 200, json: async () => THREE_BOOKS_ACCOUNT };
+      return { ok: false, status: 404, json: async () => ({}) };
+    });
+  });
+
+  const text = (id: string) => screen.getByTestId(id).textContent;
+
+  it("opens on All with five picks, the three books' cards, each trader's own budget and the split rows", async () => {
+    render(<AccountPage onOpenTrader={() => {}} />);
+    await waitFor(() => expect(screen.getByTestId('account-books')).toBeTruthy());
+    const picks = screen.getByTestId('account-owner-switch').querySelectorAll('button');
+    expect([...picks].map((b) => b.textContent)).toEqual(['All', 'You', 'Claude', 'The brain', 'Earlier bots▾']);
+    expect(screen.getByTestId('account-owner-all').getAttribute('aria-pressed')).toBe('true');
+    expect(text('account-book-you')).toContain('+$19.98');
+    expect(text('account-book-claude')).toContain('+$63.76');
+    await waitFor(() => expect(text('account-book-brain-month')).toBe('no trades yet'));
+    expect(text('account-budget-claude')).toContain('$592.11 of $25,000.00 held');
+    expect(text('account-budget-brain')).toContain('$0.00 of $25,000.00 held');
+    expect(screen.queryByTestId('account-bots-budget')).toBeNull();
+    expect(text('account-day-pnl-split')).toBe('+$19.98+$63.76$0.00');
+    expect(text('account-fills-today')).toBe('6');
+    expect(text('account-fills-today-split')).toBe('240');
+  });
+
+  it("says whose every fill and position is; a part you closed stays Claude's, and there is no Close", async () => {
+    render(<AccountPage onOpenTrader={() => {}} />);
+    await waitFor(() => expect(screen.getByTestId('account-books')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('account-pos-tab-fills'));
+    await waitFor(() => expect(screen.getByTestId('account-fill-whose-8')).toBeTruthy());
+    expect(text('account-fill-whose-8')).toBe('Claude · closed by you');
+    expect(text('account-fill-whose-3')).toBe('You');
+    fireEvent.click(screen.getByTestId('account-pos-tab-positions'));
+    const rows = screen.getAllByTestId('account-position-RUNR');
+    expect(rows.map((r) => [r.getAttribute('data-owner'), r.querySelector('[data-testid="account-whose"]')?.textContent]))
+      .toEqual(expect.arrayContaining([['you', 'You'], ['claude', "Claude's · yours to close"]]));
+    expect(screen.queryByTestId(/^account-close-bots/)).toBeNull();
+  });
+
+  it("a pick narrows the page to that book: Claude's fills, the other cards dimmed", async () => {
+    render(<AccountPage onOpenTrader={() => {}} />);
+    await waitFor(() => expect(screen.getByTestId('account-books')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('account-owner-claude'));
+    fireEvent.click(screen.getByTestId('account-pos-tab-fills'));
+    await waitFor(() => expect(screen.getAllByTestId(/^account-fill-\d/)).toHaveLength(4));
+    expect(screen.getByTestId('account-book-you').className).toMatch(/is-dim/);
+    expect(screen.getByTestId('account-book-claude').className).not.toMatch(/is-dim/);
+    fireEvent.click(screen.getByTestId('account-pos-tab-positions'));
+    expect(screen.getAllByTestId('account-position-RUNR').map((r) => r.getAttribute('data-owner'))).toEqual(['claude']);
   });
 });

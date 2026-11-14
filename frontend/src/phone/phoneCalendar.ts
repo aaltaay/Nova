@@ -1,12 +1,14 @@
 /**
- * The phone calendar's two derivations over the desk's own history: the month laid out for a narrow
- * screen, and one past day's P&L line. Pure. The figures are the desk's (`account/accountCalendar`,
- * `account/accountDayBreakdown`); only the layout is the phone's.
+ * The phone calendar's derivations over the desk's own history: the month laid out for a narrow screen, one past
+ * day's P&L line, and each trader's share of a day (ADR 072). Pure. The figures are the desk's
+ * (`account/accountCalendar`, `account/accountDayBreakdown`, `account/ownerView`); only the layout is the phone's.
  */
 import type { CalendarCell, CalendarMonth } from '../account/accountCalendar';
 import { fillDay } from '../account/accountDayBreakdown';
 import type { SeriesPoint } from '../account/equityPath';
 import type { PracticeHistory } from '../account/accountHistoryTypes';
+import { tradedIn, type DaySplit } from '../account/ownerView';
+import type { Owner } from '../constantGroups/owners';
 
 export interface PhoneMonth {
   /** 5 (Monday to Friday) unless a Saturday or Sunday traded this month, then 7. */
@@ -43,4 +45,23 @@ export function daySeries(history: PracticeHistory, date: string): SeriesPoint[]
     series.push({ ts: history.equity[i].ts, value: at(i) - before });
   }
   return series;
+}
+
+/** One trader's part of a day: its realized, and its share of the colour bar along the square's foot. */
+export interface SplitPart {
+  owner: Owner;
+  value: number;
+  /** Its realized's size against every trader's that day, 0 to 1: a loss takes room as a gain does. */
+  share: number;
+}
+
+/**
+ * Each trader that traded in `split`, in the order every split reads them, with its share of the bar (three books
+ * v1: each colour as wide as that trader's share of the day). Empty for no split or a day nobody's P&L moved.
+ */
+export function splitParts(split: DaySplit | null | undefined): SplitPart[] {
+  const owners = tradedIn(split);
+  if (!split || !owners.length) return [];
+  const sum = owners.reduce((s, o) => s + Math.abs(split[o]), 0);
+  return owners.map((owner) => ({ owner, value: split[owner], share: Math.abs(split[owner]) / sum }));
 }

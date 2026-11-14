@@ -10,7 +10,7 @@ import {
   todayDailyRow,
   todayPracticeDate,
 } from './accountFigures';
-import { PAPER_ACCOUNT_TODAY, paperHistoryFixture } from './accountFixtures';
+import { PAPER_ACCOUNT_TODAY, paperHistoryFixture, threeBooksHistoryFixture } from './accountFixtures';
 
 describe('accountDetailRows', () => {
   it('reads realized / commissions / fees from today\'s ledger row and reconciles to Day\'s P&L', () => {
@@ -91,6 +91,28 @@ describe('symbolPnlRows', () => {
     expect(total.realized).toBe(97.5);
     expect(total.costs).toBeCloseTo(10.4, 6);
     expect(total.net).toBeCloseTo(142.1, 6);
+  });
+
+  it("by holder (ADR 072): each fill's parts go to their own book's row, each position's open P&L to its holder's", () => {
+    const history = threeBooksHistoryFixture(1_790_000_000);
+    const { rows, total } = symbolPnlRows(history.fills, [
+      { symbol: 'RUNR', unrealized: 18, owner: 'you', bot: null },
+      { symbol: 'RUNR', unrealized: -2.04, owner: 'claude', bot: null },
+    ], true);
+    expect(rows.map((r) => [r.symbol, r.owner, r.bot])).toEqual([
+      ['FCUV', 'you', null], ['LFTO', 'claude', null], ['QNME', 'earlier_bots', 'live_trader'],
+      ['RUNR', 'you', null], ['RUNR', 'claude', null], ['VTSI', 'claude', null],
+    ]);
+    // You closed Claude's VTSI: the loss stays on Claude's row.
+    expect(rows[5].net).toBeCloseTo(-30.5, 6);
+    expect(rows[3].open).toBe(18);
+    expect(total.net).toBeCloseTo(76.77 + 15.96, 6);
+    // Per stock, as before: the holders added up.
+    const plain = symbolPnlRows(history.fills, [{ symbol: 'RUNR', unrealized: 15.96 }]);
+    expect(plain.rows.map((r) => [r.symbol, r.owner])).toEqual([
+      ['FCUV', undefined], ['LFTO', undefined], ['QNME', undefined], ['RUNR', undefined], ['VTSI', undefined],
+    ]);
+    expect(plain.total.net).toBeCloseTo(total.net, 6);
   });
 });
 

@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 
 from agent_trader import clock as agent_clock
 from agent_trader import ledger, lines, rules, seat, view, watcher
-from agent_trader.constants_agent_trader import AGENT_LEASE_SEC, SEAT_IN, SEAT_SET, SEAT_WAITING, SEAT_YIELDED
+from agent_trader.constants_agent_trader import AGENT_LEASE_SEC, SEAT_IN, SEAT_SET, SEAT_WAITING
 from execution import inflight, service, telemetry
 from execution import venue_door
 from execution.models import ExecutionCommand
@@ -286,7 +286,9 @@ def paper(monkeypatch, short_market_open):
     monkeypatch.setenv("NOVA_API_KEY", "agent-test-key")
     monkeypatch.setenv("NOVA_API_HOST", "127.0.0.1")
     from main import app
+    from traders import switches
 
+    switches.set_switch("claude", True, "test")                     # the operator switched Claude On (ADR 072)
     yield SimpleNamespace(market=m, broker=for_venue("paper"), client=TestClient(app), key=headers("agent-test-key"))
     for mod in (service, inflight, telemetry):
         mod.reset_for_tests()
@@ -399,27 +401,52 @@ def test_a_quiet_claude_is_closed_out_and_the_seat_freed(paper):
     assert seat.holder() is None and lines.held_symbol() is None
 
 
-def test_take_claudes_line_stops_new_trades_and_keeps_the_stop(paper):
+def test_switching_claude_off_hands_its_shares_to_you_and_keeps_its_stop(paper):
+    """ADR 072: Off hands Claude's position to you -- its stop keeps resting, it opens and closes nothing more there,
+    and your Sell reaches its shares after cancelling its exits (origin takeover)."""
     h = _seat(paper)
     paper.client.post("/api/agent/trader/order", headers=h, json={
         "kind": "limit", "symbol": "SMPL", "qty": 300, "entry": 4.25, "stop": 4.00, "target": 4.80, "why": "go"})
-    got = paper.client.post("/api/agent/trader/yield", headers=paper.key)
-    assert got.status_code == 200 and got.json()["state"] == SEAT_IN
-    assert "stop" in {r["leg_role"] for r in ledger.working()} and lines.held_symbol() is None
+    got = paper.client.put("/api/traders/claude/switch", headers=paper.key, json={"on": False})
+    assert got.status_code == 200, got.text
+    claude = got.json()["traders"]["claude"]
+    assert claude["on"] is False and claude["state"] == "off" and claude["text"] == "Claude · Off · SMPL is yours to close"
+    assert claude["handed"][0]["symbol"] == "SMPL" and claude["handed"][0]["qty"] == 300
+    assert "stop" in {r["leg_role"] for r in paper.broker.ledger.working_orders()}
+    assert ledger.positions() == {}                                  # the guard no longer watches it
     again = paper.client.post("/api/agent/trader/order", headers=h, json={
         "kind": "limit", "symbol": "SMPL", "qty": 100, "entry": 4.10, "stop": 4.00, "target": 4.60, "why": "x"})
-    assert again.json()["detail"]["reason"] == "AGENT_YIELDED"
-    paper.client.post("/api/agent/trader/close", headers=h, json={"symbol": "SMPL"})
-    assert view.status()["state"] == SEAT_YIELDED
+    assert again.json()["detail"]["reason"] == "AGENT_SWITCH_OFF"
+    events = [e["kind"] for e in view.status()["events"]]
+    assert "switch_off" in events and "handed" in events
+    mine = [p for p in paper.client.get("/api/ibkr/positions").json() if p["symbol"] == "SMPL"]
+    assert mine and mine[0]["qty"] == 300 and mine[0]["handed_qty"] == 300 and mine[0]["handed_from"] == "claude"
+    # Your Sell of the handed shares: Claude's resting exits go first (TAKEOVER), the fill is booked on Claude's book.
+    sold = paper.broker.place("SMPL", "SELL", 300, "MKT", source="manual")
+    assert sold["ok"], sold
+    assert not [r for r in paper.broker.ledger.working_orders() if r["symbol"] == "SMPL"]
+    cancelled = [r for r in paper.broker.ledger.closed_orders() if r.get("reason_code") == "TAKEOVER"]
+    assert {r["leg_role"] for r in cancelled} >= {"stop"}
+    from practice.history import ledger_fills
+
+    last = ledger_fills(paper.broker.ledger)[-1]
+    assert last["owner"] == "you" and last["closed_by"] == "you"
+    assert last["parts"][0]["owner"] == "claude" and last["parts"][0]["closed_by"] == "you"
 
 
-def test_stop_claude_cancels_sells_and_frees_everything(paper):
-    h = _seat(paper)
-    paper.client.post("/api/agent/trader/order", headers=h, json={
-        "kind": "limit", "symbol": "SMPL", "qty": 300, "entry": 4.25, "stop": 4.00, "target": 4.80, "why": "go"})
-    got = paper.client.post("/api/agent/trader/stop-claude", headers=paper.key)
-    assert got.status_code == 200 and got.json()["problems"] == []
-    assert ledger.position("SMPL") == 0 and seat.holder() is None
+def test_claude_turns_on_only_off_live_and_only_from_the_operator(paper):
+    off = paper.client.put("/api/traders/claude/switch", headers=paper.key, json={"on": False})
+    assert off.status_code == 200 and off.json()["traders"]["claude"]["on"] is False
+    by_claude = paper.client.put("/api/traders/claude/switch", headers={**paper.key, "X-Agent-Seat": "x"},
+                                 json={"on": True})
+    assert by_claude.status_code == 409 and by_claude.json()["detail"]["reason"] == "TRADER_OPERATOR_ONLY"
+    set_venue("live")
+    live = paper.client.put("/api/traders/claude/switch", headers=paper.key, json={"on": True})
+    assert live.status_code == 409 and live.json()["detail"]["reason"] == "TRADER_LIVE"
+    set_venue("paper")
+    on = paper.client.put("/api/traders/claude/switch", headers=paper.key, json={"on": True})
+    assert on.status_code == 200 and on.json()["traders"]["claude"]["on"] is True
+    assert paper.client.put("/api/traders/nobody/switch", headers=paper.key, json={"on": True}).status_code == 404
 
 
 def test_the_seat_waits_for_a_line_and_says_why(paper, monkeypatch):

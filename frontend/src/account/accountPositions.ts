@@ -2,6 +2,7 @@
  * One position shape whichever account is THE account on the venue: the
  * practice ledger's rows on Paper / Sim, IBKR's on Live. Pure.
  */
+import type { Owner } from '../constantGroups/owners';
 import type { IbkrPosition } from '../ibkr';
 import type { PracticePosition } from '../practice';
 
@@ -14,9 +15,11 @@ export interface AccountPosition {
   unrealized: number | null;
   /** Practice marks are Nova's estimates, never an IBKR quote. */
   estimated: boolean;
-  /** Paper (ADR 069): whose shares the row is -- one row per holder; absent on Live and Sim. */
-  owner?: 'you' | 'bots';
+  /** Paper and Sim (ADR 072): whose shares the row is -- one row per holder; absent on Live. */
+  owner?: Owner;
   bot?: string | null;
+  /** These shares are handed to you: a switched-off trader's, or a retired bot's -- yours to close. */
+  handed?: boolean;
 }
 
 const finite = (n: number | null | undefined): number | null =>
@@ -50,8 +53,9 @@ export function positionsFromPractice(rows: PracticePosition[] | null | undefine
   });
 }
 
-/** Paper's rows as each holder's (ADR 069): one row per holder, each at its own cost; a row with no holders
- *  (Sim, an older backend) stays as it is. */
+/** Paper and Sim's rows as each holder's (ADR 072): one row per holder -- you, Claude, the brain, a retired bot --
+ *  each at its own cost and its own size; nothing on one row sizes from another's. A row with no holders (an older
+ *  backend) stays as it is. */
 export function positionsByOwner(rows: PracticePosition[] | null | undefined): AccountPosition[] {
   const valid = usableRows<PracticePosition>(rows);
   return positionsFromPractice(valid).flatMap((base, i) => {
@@ -65,6 +69,7 @@ export function positionsByOwner(rows: PracticePosition[] | null | undefined): A
       unrealized: finite(h.unrealized_pnl),
       owner: h.owner,
       bot: h.bot,
+      handed: h.handed === true,
     }));
   });
 }
@@ -76,7 +81,7 @@ export function positionsBySymbol(rows: AccountPosition[]): AccountPosition[] {
   for (const row of rows) {
     const seen = out.get(row.symbol);
     if (!seen) {
-      out.set(row.symbol, { ...row, owner: undefined, bot: undefined });
+      out.set(row.symbol, { ...row, owner: undefined, bot: undefined, handed: undefined });
       continue;
     }
     const qty = seen.qty + row.qty;

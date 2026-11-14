@@ -61,7 +61,7 @@ interface TradingTabProps {
    * Trader, and the Account page places nothing (QA V23).
    */
   showTicket?: boolean;
-  /** The Account page's venue and All / You / Bots pick, which its Reports section follows (ADR 069). */
+  /** The Account page's venue and its five-pick switch, which its Reports section follows (ADR 072). */
   reports?: ReportsHost;
 }
 
@@ -85,7 +85,7 @@ export function TradingTab({
     error: accountError,
     refresh,
   } = useIbkrAccount(status.connected);
-  // The list reads both books; the ticket below keeps your rows (ADR 069 decision 9).
+  // The list reads every book; the ticket below keeps your rows (ADR 072).
   const desk = useDeskPositions(positions);
   const { isVisible } = useModuleVisibility();
   const { topOfBook } = useTopOfBook();
@@ -284,7 +284,7 @@ export function TradingTab({
               positions={desk.rows}
               orders={orders}
               error={accountError}
-              botsStale={desk.botsStale}
+              othersStale={desk.othersStale}
               selectedSymbol={selectedSymbol}
               onSelectSymbol={onSelectSymbol}
               onOpenTrading={onOpenTrading}

@@ -21,7 +21,6 @@ from agent_trader.constants_agent_trader import (
     SEAT_SET,
     SEAT_WAITING,
     SEAT_WATCHING,
-    SEAT_YIELDED,
 )
 
 _EVENTS_SHOWN = 12
@@ -35,8 +34,6 @@ def state_of(st: dict[str, Any], *, holds_line: bool, positions: dict[str, float
         return SEAT_OFF
     if positions:
         return SEAT_IN
-    if st.get("yielded"):
-        return SEAT_YIELDED
     if done:
         return SEAT_DONE
     if not st.get("symbol"):
@@ -57,7 +54,6 @@ def text_of(state: str, sym: str | None, pnl: float | None, line_why: str | None
         SEAT_WATCHING: f"{AGENT_NAME} · Watching {sym}",
         SEAT_SET: f"{AGENT_NAME} · Buy set {sym}{at}",
         SEAT_IN: f"{AGENT_NAME} · In {sym}{money}",
-        SEAT_YIELDED: f"{AGENT_NAME} · Paused by you",
         SEAT_DONE: f"{AGENT_NAME} · Done for today{money}",
     }[state]
 
@@ -84,6 +80,16 @@ def _buy_at(sym: str | None, breaks: list[dict[str, Any]], working: list[dict[st
 def _order(row: dict[str, Any]) -> dict[str, Any]:
     return {k: row.get(k) for k in ("order_id", "symbol", "side", "order_type", "qty", "limit_price", "stop_price",
                                     "leg_role", "status", "parent_id")}
+
+
+def _switch(t: float) -> dict[str, Any]:
+    """The operator's switch for Claude (ADR 072, ``traders.switches``): ``{on, at, can_turn_on, why_not_on}``."""
+    from traders import switches
+
+    state, _ = switches.current(t)
+    why = switches.on_refusal("claude", t)
+    return {"on": bool(state["claude"]["on"]), "at": state["claude"]["at"], "can_turn_on": why is None,
+            "why_not_on": None if why is None else {"reason": why[0], "error": why[1]}}
 
 
 def status(now: float | None = None) -> dict[str, Any]:
@@ -121,7 +127,7 @@ def status(now: float | None = None) -> dict[str, Any]:
         "state": state, "text": text,
         "on": bool(st.get("holder")), "since": st.get("since"), "beat_at": beat,
         "lease_until": (float(beat) + AGENT_LEASE_SEC) if beat else None, "lapsed": seat.lapsed(t),
-        "yielded": bool(st.get("yielded")), "symbol": sym,
+        "switch": _switch(t), "symbol": sym,
         "line": {"symbol": lines.held_symbol(), "depth": holds, "tape": bool(sym) and lines.holds_tape(sym),
                  "why_not": watcher.line_why()},
         "positions": [{"symbol": s, "qty": q, "mark": marks.get(s)} for s, q in positions.items()],

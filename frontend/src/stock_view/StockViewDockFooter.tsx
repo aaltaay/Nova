@@ -4,11 +4,11 @@
  * a practice venue (Paper / Sim), where the average cost came from estimated
  * fills; a missing unrealized figure is a dash, never a guess. With no symbol
  * selected it says so and counts the open positions (QA W29); on the sample
- * desk the note is the sample label, never a real venue's (W31). On Paper the
- * bots' shares in the stock follow yours, each with its chip (ADR 069 decision 9).
+ * desk the note is the sample label, never a real venue's (W31). On Paper and Sim
+ * the other traders' shares in the stock follow yours, each with its chip, and
+ * shares handed to you say so on your line (ADR 072).
  */
 import { plainPrice } from '../utils/priceTick';
-import { WhoseChip } from '../account';
 import {
   DRAWER_LIVE_NOTE,
   DRAWER_NO_POSITION,
@@ -20,7 +20,7 @@ import {
   DRAWER_UNREALIZED_UNKNOWN,
   drawerOpenPositions,
 } from '../constantGroups/trader_chrome';
-import type { DeskPosition, IbkrMode, IbkrPosition } from '../ibkr';
+import { RowWhose, type DeskPosition, type IbkrMode, type IbkrPosition } from '../ibkr';
 import { SAMPLE_MARKETING_LABEL } from '../sample_data/sampleCopy';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import { formatMoney } from '../utils/formatMoney';
@@ -31,8 +31,8 @@ type Props = {
   symbol: string;
   mode: IbkrMode;
   position: IbkrPosition | null;
-  /** The bots' rows in this stock, on Paper. */
-  botsRows?: readonly DeskPosition[];
+  /** The other traders' rows in this stock, on Paper and Sim. */
+  othersRows?: readonly DeskPosition[];
   /** Open positions on the account, for the no-symbol line. */
   openPositions?: number;
 };
@@ -48,8 +48,13 @@ function venueNote(mode: IbkrMode): string | null {
   return null;
 }
 
+/** Another trader's line says whose; yours only when some of its shares were handed to you. */
+const whoseOf = (p: DeskPosition): DeskPosition | null =>
+  (p.owner && p.owner !== 'you' ? p : p.handed_from ? { ...p, owner: 'you' } : null);
+
 function HeldLine({ symbol, position, practice }: { symbol: string; position: DeskPosition; practice: boolean }) {
   const pnl = position.unrealized_pnl;
+  const whose = whoseOf(position);
   return (
     <>
       {DRAWER_POSITION_LABEL}{' '}
@@ -64,10 +69,10 @@ function HeldLine({ symbol, position, practice }: { symbol: string; position: De
           <EstChip />
         </>
       ) : null}
-      {position.owner === 'bots' ? (
+      {whose ? (
         <>
           {' '}
-          <WhoseChip owner={position.owner} bot={position.bot} pill />
+          <RowWhose row={whose} />
         </>
       ) : null}
       {' · '}
@@ -79,19 +84,19 @@ function HeldLine({ symbol, position, practice }: { symbol: string; position: De
   );
 }
 
-export function StockViewDockFooter({ symbol, mode, position, botsRows = [], openPositions = 0 }: Props) {
+export function StockViewDockFooter({ symbol, mode, position, othersRows = [], openPositions = 0 }: Props) {
   const sample = useSampleDataOptional() != null;
   const held = position != null && position.qty !== 0;
   const practice = mode === 'paper' || mode === 'sim';
   const note = sample ? SAMPLE_MARKETING_LABEL : venueNote(mode);
   const sym = symbol.trim();
-  const lines: DeskPosition[] = [...(held ? [position] : []), ...botsRows];
+  const lines: DeskPosition[] = [...(held ? [position] : []), ...othersRows];
   return (
     <footer className="sv-open-orders-dock__foot" data-testid="stock-view-dock-footer">
       <span className="sv-open-orders-dock__foot-pos">
         {lines.length > 0 ? (
           lines.map((line, i) => (
-            <span key={line.bot ?? 'yours'}>
+            <span key={`${line.owner ?? 'yours'}-${line.bot ?? ''}`}>
               {i > 0 ? ' · ' : ''}
               <HeldLine symbol={symbol} position={line} practice={practice} />
             </span>

@@ -30,7 +30,8 @@ SHAPE = {
 POINT = {"ts", "net_liquidation", "cash", "realized", "unrealized"}
 # Paper keeps the books (ADR 069): its history adds each holder, its points each book's running P&L.
 PAPER_SHAPE = SHAPE | {"by_owner"}
-PAPER_POINT = POINT | {"you_pnl", "bots_pnl", "by_bot", "you_realized", "bots_realized", "by_bot_realized"}
+PAPER_POINT = POINT | {f"{book}_{part}" for book in ("you", "claude", "brain", "earlier_bots")
+                       for part in ("pnl", "realized")} | {"by_bot", "by_bot_realized"}
 FILL = {
     "ts", "order_id", "symbol", "side", "qty", "price", "source", "bot_id", "commission", "fees", "realized",
     "fill_estimated", "fill_basis",
@@ -247,7 +248,7 @@ def test_the_route_serves_paper_history_as_json(client) -> None:
     assert res.status_code == 200
     body = res.json()
     assert set(body) == PAPER_SHAPE
-    assert (body["venue"], body["account_id"], body["range"], body["schema_version"]) == ("paper", "NOVA-PAPER", "1D", 2)
+    assert (body["venue"], body["account_id"], body["range"], body["schema_version"]) == ("paper", "NOVA-PAPER", "1D", 3)
     assert [f["symbol"] for f in body["fills"]] == ["GRML"] and body["fills"][0]["fill_estimated"] is True
     assert [d["date"] for d in body["daily"]] == ["2026-09-21"]
     assert body["archives"] == [] and body["warnings"] == []
@@ -259,8 +260,8 @@ def test_sim_with_nothing_loaded_is_the_shape_with_empty_lists(client) -> None:
     res = client.get("/api/practice/history", params={"venue": "sim"})
     assert res.status_code == 200
     body = res.json()
-    assert set(body) == SHAPE
-    assert (body["venue"], body["account_id"], body["range"], body["schema_version"]) == ("sim", "NOVA-SIM", "1D", 2)
+    assert set(body) == PAPER_SHAPE                        # Sim keeps the books too (ADR 072)
+    assert (body["venue"], body["account_id"], body["range"], body["schema_version"]) == ("sim", "NOVA-SIM", "1D", 3)
     assert body["starting_cash"] == START and body["range_start"] is not None
     assert (body["equity"], body["fills"], body["by_source"], body["daily"]) == ([], [], [], [])
     assert (body["archives"], body["warnings"]) == ([], [])

@@ -28,7 +28,7 @@ import { getConfirmedDeskVenueSnapshot, placeIbkrOrder } from '../ibkr';
 import { readTradeDefaultsPrefs } from '../settings';
 import type { NovaActionRecord, NovaActionResult } from './novaActionTypes';
 import { accountModeLabel, placeMarketExit, requireDepth } from './runNovaActionPlace';
-import { refusalNamingBots, type NovaActionRuntime } from './runNovaActionRuntime';
+import { refusalNamingTrader, type NovaActionRuntime } from './runNovaActionRuntime';
 import type { TopOfBook } from './TopOfBookContext';
 
 export const SHORT_HOTKEY_KINDS: ReadonlySet<NovaActionKind> = new Set<NovaActionKind>([
@@ -100,7 +100,7 @@ export async function runShortHotkey(
   const mode = accountModeLabel(runtime.accountMode);
 
   if (action.kind === 'cover_pos') {
-    if (!(held < 0)) return { ok: false, text: refusalNamingBots(SHORT_HOTKEY_NO_SHORT(symbol), runtime, 'short') };
+    if (!(held < 0)) return { ok: false, text: refusalNamingTrader(SHORT_HOTKEY_NO_SHORT(symbol), runtime, 'short') };
     return placeMarketExit(
       runtime, symbol, 'BUY', Math.abs(held), 'cover all', actionTiming, maybeConfirm, idempotencyKey, 'flatten',
     );
@@ -111,7 +111,7 @@ export async function runShortHotkey(
   const tob = tobOrErr as TopOfBook;
 
   if (action.kind === 'cover_limit_ask_offset') {
-    if (!(held < 0)) return { ok: false, text: refusalNamingBots(SHORT_HOTKEY_NO_SHORT(symbol), runtime, 'short') };
+    if (!(held < 0)) return { ok: false, text: refusalNamingTrader(SHORT_HOTKEY_NO_SHORT(symbol), runtime, 'short') };
     if (tob.ask == null || !(tob.ask > 0)) return { ok: false, text: NOVA_ACTION_DEPTH_DISABLED_REASON };
     const limit = roundToTick(tob.ask + (action.params.offsetDollars ?? NOVA_ACTION_DEFAULT_OFFSET_DOLLARS));
     const qty = Math.abs(held);

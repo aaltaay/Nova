@@ -136,7 +136,9 @@ def test_every_warmed_module_exists(name):
 def test_two_threads_asking_for_the_paper_broker_get_one(monkeypatch):
     """Startup opens Paper off the request loop while the loop may ask for it: one ledger, read once."""
     reads, gate = [], threading.Event()
-    real = practice_broker._paper_ledger
+    from practice import persist
+
+    real = persist.load_paper
 
     def slow_ledger(path, now):
         reads.append(path)
@@ -144,7 +146,7 @@ def test_two_threads_asking_for_the_paper_broker_get_one(monkeypatch):
         return real(path, now)
 
     practice_broker.reset_for_tests("paper")
-    monkeypatch.setattr(practice_broker, "_paper_ledger", slow_ledger)
+    monkeypatch.setattr(persist, "load_paper", slow_ledger)
     got: list = []
     threads = [threading.Thread(target=lambda: got.append(practice_broker.for_venue("paper"))) for _ in range(2)]
     for t in threads:

@@ -108,7 +108,7 @@ async def _line(t: float) -> None:
     sym = seat.symbol()
     if not seat.reserves_line() or not sym:
         _line_why = None
-        if lines.held_symbol() and (not seat.is_on() or seat.is_yielded()):
+        if lines.held_symbol() and (not seat.is_on() or not seat.switch_on()):
             await lines.release(at_once=True)
         return
     if lines.holds_depth(sym) and lines.holds_tape(sym):
@@ -302,7 +302,7 @@ async def run_pass(now: float | None = None) -> None:
             from agent_trader import halts
 
             await halts.run(t)
-        if seat.is_on() and not seat.is_yielded():
+        if seat.is_on() and seat.switch_on():
             await _breaks(t)
         if seat.is_on():
             await _reflexes(t)

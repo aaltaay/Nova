@@ -3,9 +3,10 @@
  * P&L / P&L % / Account value toggle re-rendering the big number and the
  * line. On Live the absence is stated; no curve is ever fabricated.
  *
- * By day (ADR 069, mockup v1): your bar and the bots' for each day and the line of
- * both, the panel's first tab. On Paper the fill markers and By source read whose
- * each fill was (the holders' split), not its source stamp.
+ * By day (ADR 072, mockup three-books v1 item 4): a bar per book for each day and
+ * the line of all of them, the panel's first tab. On Paper and Sim the fill
+ * markers, Symbol P&L and By source read whose each fill was (the holders'
+ * split), each book in its own colour, not its source stamp.
  */
 import { useMemo } from 'react';
 import {
@@ -45,14 +46,15 @@ import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import { formatMoney } from '../utils/formatMoney';
 import { EstChip, Money, PanelHead, Ring, etShortDate, toneClass, toneOf } from './accountBits';
 import { isBotFill, rangeNetPnl, sourceCards, symbolPnlRows, type SymbolPnlRow } from './accountFigures';
-import type { PracticeHistory } from './accountHistoryTypes';
+import type { HistoryOwner as PracticeHistoryOwner, PracticeHistory } from './accountHistoryTypes';
 import type { AccountPosition } from './accountPositions';
 import { EquityCurve, type CurveMarker } from './EquityCurve';
 import { rangeSeries, tickDecimals } from './equityPath';
 import { TickerLink } from '../components/TickerLink';
-import { OWNER_DAY_TAB } from '../constantGroups/owners';
+import { OWNER_DAY_TAB, OWNER_NAMES, OWNER_WHOSE_COL, OWNERS } from '../constantGroups/owners';
 import { DayBars } from './DayBars';
-import { ALL_VIEW, whoName, type OwnerView } from './ownerView';
+import { ALL_VIEW, type OwnerView } from './ownerView';
+import { WhoseChip, whoseWords } from './WhoseCell';
 
 export type PerfTab = 'day' | 'account' | 'symbol' | 'source';
 
@@ -126,7 +128,8 @@ export function PerformancePanel({
   const markers: CurveMarker[] = history
     ? history.fills.map((f) => ({
         ts: f.ts,
-        tone: (f.owner ? f.owner === 'bots' : isBotFill(f)) ? 'bot' : 'manual',
+        // Whose order it was (ADR 072), in its book's colour; an older ledger by its source stamp.
+        tone: f.owner !== undefined ? f.owner ?? 'nova' : isBotFill(f) ? 'bot' : 'manual',
         title: `${f.side} ${f.qty} ${f.symbol} @ ${f.price} · ${f.source ?? '—'}${f.bot_id ? ` ${f.bot_id}` : ''}`,
       }))
     : [];
@@ -134,6 +137,8 @@ export function PerformancePanel({
     ? etShortDate(history.archives[history.archives.length - 1].closed_at)
     : null;
   const botIds = history ? [...new Set(history.fills.filter(isBotFill).map((f) => f.bot_id).filter(Boolean))] : [];
+  const owned = history ? OWNERS.filter((o) => history.fills.some((f) => f.owner === o)) : [];
+  const byHolder = history ? history.fills.some((f) => Array.isArray(f.parts)) : false;
   const formatTick = (v: number, step: number): string => perfTick(mode, v, step);
 
   return (
@@ -182,8 +187,14 @@ export function PerformancePanel({
               <>
                 <EquityCurve series={series} baseline={baseline} endTs={nowTs} formatTick={formatTick} lastLabel={series.length ? perfLastLabel(mode, series[series.length - 1].value) : null} markers={markers} height={150} padLeft={56} testId="account-perf-curve" />
                 <div className="acct-clegend">
-                  <span><i className="acct-sw is-accent" />{ACCOUNT_PERF_LEGEND_MANUAL}</span>
-                  <span><i className="acct-sw is-bot" />{ACCOUNT_PERF_LEGEND_BOT}{botIds.length ? ` · ${botIds.join(', ')}` : ''}</span>
+                  {owned.length ? owned.map((o) => (
+                    <span key={o} data-owner={o}><i className={`acct-sw acct-owner__dot is-${o}`} />{OWNER_NAMES[o]}</span>
+                  )) : (
+                    <>
+                      <span><i className="acct-sw is-accent" />{ACCOUNT_PERF_LEGEND_MANUAL}</span>
+                      <span><i className="acct-sw is-bot" />{ACCOUNT_PERF_LEGEND_BOT}{botIds.length ? ` · ${botIds.join(', ')}` : ''}</span>
+                    </>
+                  )}
                   <span>{ACCOUNT_PERF_LEGEND_EST} <EstChip /> {ACCOUNT_PERF_LEGEND_EST_NOTE}</span>
                 </div>
               </>
@@ -193,7 +204,7 @@ export function PerformancePanel({
           )}
 
           {tab === 'day' && <DayBars daily={history.daily} view={view} />}
-          {tab === 'symbol' && <SymbolTable history={history} positions={positions} />}
+          {tab === 'symbol' && <SymbolTable history={history} positions={positions} byHolder={byHolder} />}
           {tab === 'source' && (history.by_owner ? <OwnerTiles history={history} /> : <SourceTiles history={history} />)}
 
           <div className="acct-rows acct-rows--perf">
@@ -208,6 +219,7 @@ export function PerformancePanel({
 
 const SYMBOL_COLUMNS: SortColumns<SymbolPnlRow> = {
   symbol: (r) => r.symbol,
+  whose: (r) => `${r.owner ? OWNERS.indexOf(r.owner) : ''}${r.bot ?? ''}`,
   realized: (r) => r.realized,
   open: (r) => r.open,
   // The cell shows costs as a debit (-$1.20), so they sort on that signed figure.
@@ -215,10 +227,13 @@ const SYMBOL_COLUMNS: SortColumns<SymbolPnlRow> = {
   net: (r) => r.net,
 };
 
-function SymbolTable({ history, positions }: { history: PracticeHistory; positions: AccountPosition[] }) {
+/** Per stock -- and, on a ledger with books (ADR 072), per stock and holder with its Whose chip. */
+function SymbolTable({ history, positions, byHolder }: {
+  history: PracticeHistory; positions: AccountPosition[]; byHolder: boolean;
+}) {
   const { rows, total } = useMemo(
-    () => symbolPnlRows(history.fills, positions.map((p) => ({ symbol: p.symbol, unrealized: p.unrealized }))),
-    [history.fills, positions],
+    () => symbolPnlRows(history.fills, positions, byHolder),
+    [history.fills, positions, byHolder],
   );
   // The Total row stays last whatever the sort.
   const { rows: sorted, sort, onSort } = useTableSort('account.symbol-pnl', rows, SYMBOL_COLUMNS);
@@ -229,6 +244,7 @@ function SymbolTable({ history, positions }: { history: PracticeHistory; positio
         <thead>
           <tr>
             <SortTh col="symbol" sort={sort} onSort={onSort}>{ACCOUNT_SYMBOL_COL_SYMBOL}</SortTh>
+            {byHolder && <SortTh col="whose" sort={sort} onSort={onSort}>{OWNER_WHOSE_COL}</SortTh>}
             <SortTh col="realized" sort={sort} onSort={onSort} className="r">{ACCOUNT_SYMBOL_COL_REALIZED}</SortTh>
             <SortTh col="open" sort={sort} onSort={onSort} className="r">{ACCOUNT_SYMBOL_COL_OPEN}</SortTh>
             <SortTh col="costs" sort={sort} onSort={onSort} className="r">{ACCOUNT_SYMBOL_COL_COSTS}</SortTh>
@@ -237,8 +253,10 @@ function SymbolTable({ history, positions }: { history: PracticeHistory; positio
         </thead>
         <tbody>
           {sorted.map((row) => (
-            <tr key={row.symbol} data-testid={`account-symbol-row-${row.symbol}`}>
+            <tr key={`${row.symbol}-${row.owner ?? ''}-${row.bot ?? ''}`} data-testid={`account-symbol-row-${row.symbol}`}
+              data-owner={row.owner}>
               <td><TickerLink symbol={row.symbol} /></td>
+              {byHolder && <td className="acct-whose-cell">{row.owner && <WhoseChip owner={row.owner} bot={row.bot} />}</td>}
               <td className="r"><Money value={row.realized} signed /></td>
               <td className="r">{row.open == null ? <span className="acct-muted">—</span> : <Money value={row.open} signed />}</td>
               <td className="r"><Money value={-row.costs} signed={row.costs !== 0} kind="cost" /></td>
@@ -247,6 +265,7 @@ function SymbolTable({ history, positions }: { history: PracticeHistory; positio
           ))}
           <tr className="acct-table__total">
             <td>{ACCOUNT_SYMBOL_TOTAL}</td>
+            {byHolder && <td />}
             <td className="r"><Money value={total.realized} signed /></td>
             <td className="r">{total.open == null ? <span className="acct-muted">—</span> : <Money value={total.open} signed />}</td>
             <td className="r"><Money value={-total.costs} signed={total.costs !== 0} kind="cost" /></td>
@@ -288,7 +307,14 @@ function SourceTiles({ history }: { history: PracticeHistory }) {
 }
 
 
-/** By source on Paper (ADR 069): one tile per holder -- you, then each bot -- each at its own cost. */
+/** A holder's tile name: its book, and a retired bot's own name ("Earlier bots · Live Trader"). */
+function tileName(owner: PracticeHistoryOwner, bot: string | null): string {
+  const words = whoseWords({ owner, bot });
+  return words.sub ? `${words.main} · ${words.sub}` : words.main;
+}
+
+/** By source on Paper and Sim (ADR 072): one tile per holder -- you, Claude, the brain, each retired bot -- each at
+ *  its own cost, its ring in its book's colour. */
 function OwnerTiles({ history }: { history: PracticeHistory }) {
   const rows = history.by_owner ?? [];
   const total = rows.reduce((s, r) => s + r.fills, 0);
@@ -297,10 +323,10 @@ function OwnerTiles({ history }: { history: PracticeHistory }) {
     <div className="acct-scroll">
       <div className="acct-srcs" data-testid="account-owner-tiles">
         {rows.map((row) => (
-          <div key={`${row.owner}-${row.bot ?? ''}`} className="acct-src" data-testid={`account-owner-tile-${row.bot ?? row.owner}`}>
-            <Ring share={total ? row.fills / total : 0} tone={row.owner === 'bots' ? 'bot' : 'up'} size={64} />
+          <div key={`${row.owner}-${row.bot ?? ''}`} className={`acct-src is-${row.owner}`} data-testid={`account-owner-tile-${row.bot ?? row.owner}`}>
+            <Ring share={total ? row.fills / total : 0} tone="flat" size={64} />
             <div>
-              <div className="acct-src__k">{whoName(row.owner, row.bot)}</div>
+              <div className="acct-src__k">{tileName(row.owner, row.bot)}</div>
               <div className={`acct-src__v acct-num ${toneClass(toneOf(row.realized))}`}>{formatSignedMoney(row.realized)}</div>
               <div className="acct-src__s">
                 {`${accountSourceFills(row.fills)} · comm ${formatMoney(-row.commissions)} · fees ${formatMoney(-row.fees)}`}

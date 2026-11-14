@@ -41,6 +41,7 @@ import {
   ACCOUNT_ROW_DAY_PNL,
   ACCOUNT_ROW_EXCESS_LIQUIDITY,
   ACCOUNT_ROW_FEES_TODAY,
+  ACCOUNT_ROW_FILLS_TODAY,
   ACCOUNT_ROW_LONG_VALUE,
   ACCOUNT_ROW_OPEN_PNL,
   ACCOUNT_ROW_REALIZED_TODAY,
@@ -62,6 +63,7 @@ import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';
 import { Money, PanelHead, toneClass, toneOf } from './accountBits';
 import type { AccountDetailRows } from './accountFigures';
+import { BookSplitMini, type BookRows } from './BooksCards';
 import type { PracticeHistory } from './accountHistoryTypes';
 import { largestPosition, longMarketValue, positionSymbols, shortMarketValue, type AccountPosition } from './accountPositions';
 import { EquityCurve } from './EquityCurve';
@@ -82,8 +84,10 @@ interface Props {
   absence?: string | null;
   /** The sample desk: its account is Nova Marketing Sample Data, never "IBKR" (W31). */
   sample?: boolean;
-  /** Paper (ADR 069): your book and the bots' under the account's day line. */
+  /** Paper and Sim (ADR 072): the three books under the account's day line. */
   booksSlot?: React.ReactNode;
+  /** Paper and Sim (ADR 072): Day's P&L and Fills today split by book, and the account's fills today. */
+  bookRows?: (BookRows & { fillsToday: number }) | null;
 }
 
 /** `100,014.74`: cents only while the ticks are closer than a dollar (W26). */
@@ -92,18 +96,20 @@ function valueTick(value: number, step: number): string {
   return value.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 
-function Row({ label, children, note }: { label: string; children: React.ReactNode; note?: boolean }) {
+function Row({ label, children, note, split }: {
+  label: string; children: React.ReactNode; note?: boolean; split?: React.ReactNode;
+}) {
   return (
-    <div className={`acct-row${note ? ' acct-row--note' : ''}`}>
+    <div className={`acct-row${note ? ' acct-row--note' : ''}${split ? ' acct-row--split' : ''}`}>
       <span className="acct-row__k">{label}</span>
-      <span className="acct-row__v">{children}</span>
+      <span className="acct-row__v">{children}{split}</span>
     </div>
   );
 }
 
 export function AccountDetailsPanel({
   venue, figures, rows, positions, history, range, onRange, hidden, onToggleHidden, nowTs,
-  absence = null, sample = false, booksSlot = null,
+  absence = null, sample = false, booksSlot = null, bookRows = null,
 }: Props) {
   const practice = venue !== 'live';
   const live = venue === 'live' && !sample;
@@ -202,7 +208,16 @@ export function AccountDetailsPanel({
       </div>
       <div className="acct-rows" data-testid="account-rows">
         <Row label={ACCOUNT_ROW_OPEN_PNL}><Money value={rows.openPnl} signed /></Row>
-        <Row label={ACCOUNT_ROW_DAY_PNL}><Money value={rows.dayPnl} signed /></Row>
+        <Row label={ACCOUNT_ROW_DAY_PNL}
+          split={bookRows && <BookSplitMini split={bookRows.dayPnl} money testId="account-day-pnl-split" />}>
+          <Money value={rows.dayPnl} signed />
+        </Row>
+        {bookRows && (
+          <Row label={ACCOUNT_ROW_FILLS_TODAY}
+            split={<BookSplitMini split={bookRows.fills} money={false} testId="account-fills-today-split" />}>
+            <span className="acct-num" data-testid="account-fills-today">{bookRows.fillsToday.toLocaleString('en-US')}</span>
+          </Row>
+        )}
         <Row label={ACCOUNT_ROW_REALIZED_TODAY}><Money value={rows.realizedToday} signed /></Row>
         <Row label={ACCOUNT_ROW_BUYING_POWER}><Money value={rows.buyingPower} /></Row>
         <Row label={ACCOUNT_ROW_EXCESS_LIQUIDITY}>

@@ -7,7 +7,7 @@
 import type { RefObject } from 'react';
 import type { IChartApi, ISeriesApi } from 'lightweight-charts';
 import type { ChartIndicatorId } from '../constants';
-import { ChartBotsPositions } from './ChartBotsPositions';
+import { ChartTradersPositions } from './ChartTradersPositions';
 import { ChartContextMenuHost } from './ChartContextMenuHost';
 import { ChartEventMarkers } from './ChartEventMarkers';
 import { ChartPositionTagHost } from './ChartPositionTag';
@@ -39,7 +39,7 @@ export function ChartPaneOverlays(props: {
         containerRef={props.containerRef}
         barsRevision={props.barsRevision}
       />
-      <ChartBotsPositions
+      <ChartTradersPositions
         symbol={props.symbol}
         chart={props.chart}
         candleSeriesRef={props.candleSeriesRef}

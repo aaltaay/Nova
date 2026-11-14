@@ -1,16 +1,19 @@
 /**
- * Whose trades the Account page shows (ADR 069): All, You, or Bots (one bot when picked). Pure.
+ * Whose trades the Account page shows (ADR 072): All, You, Claude, the brain, or Earlier bots (one retired bot when
+ * picked). Pure.
  *
- * `viewHistory` narrows a Paper history to one book, or one bot, from the stamps the backend already split
- * (architecture/schema/recording-and-replay.md, "Your book and the bots' book"): each fill becomes its parts
- * for that book (dropped when it has none), each day its book's sums, each equity point that book's running
- * P&L. All, and a history with no parts (Sim, an older backend), pass through unchanged -- so every panel
- * draws the view with the code it already has.
+ * `viewHistory` narrows a history to one book, or one retired bot, from the stamps the backend already split
+ * (architecture/schema/recording-and-replay.md, "Three traders' books"): each fill becomes its parts for that book
+ * (dropped when it has none), each day its book's sums, each equity point that book's running P&L. All, and a
+ * history with no parts (an older backend), pass through unchanged -- so every panel draws the view with the code it
+ * already has.
  */
 import {
+  OWNER_NAMES,
   OWNER_NOVA_NAME,
-  OWNER_YOU_NAME,
+  OWNERS,
   ownerBotName,
+  type Owner,
   type OwnerBook,
 } from '../constantGroups/owners';
 import type {
@@ -26,32 +29,32 @@ import type { PracticeBookDay, PracticeBooks } from '../practice';
 
 export interface OwnerView {
   book: OwnerBook;
-  /** One bot inside the bots' book (its origin), or null for every bot. */
+  /** One retired bot inside Earlier bots (its origin), or null for all of them. */
   bot: string | null;
 }
 
 /** The page opens on All every time (the operator, 2026-11-03). */
 export const ALL_VIEW: OwnerView = { book: 'all', bot: null };
 
-/** "You", the bot's name, or "Nova" for one of Nova's own closes. */
+/** "You", "Claude", "The brain", the retired bot's name, or "Nova" for one of Nova's own closes. */
 export function whoName(owner: HistoryOwner | null | undefined, bot: string | null | undefined): string {
-  if (owner === 'you') return OWNER_YOU_NAME;
-  if (owner === 'bots') return ownerBotName(bot);
+  if (owner === 'earlier_bots') return ownerBotName(bot);
+  if (owner && owner in OWNER_NAMES) return OWNER_NAMES[owner];
   return OWNER_NOVA_NAME;
 }
 
 /** True when `view` shows a holder. */
 export function shows(view: OwnerView, owner: HistoryOwner | null | undefined, bot: string | null | undefined): boolean {
   if (view.book === 'all') return true;
-  if (view.book === 'you') return owner === 'you';
-  return owner === 'bots' && (view.bot == null || bot === view.bot);
+  if (owner !== view.book) return false;
+  return view.book !== 'earlier_bots' || view.bot == null || bot === view.bot;
 }
 
-/** The bots that ever traded in `history`, first-fill order. */
+/** The retired bots that ever traded in `history`, first-fill order. */
 export function botsOf(history: PracticeHistory | null): string[] {
   const out: string[] = [];
   for (const row of history?.by_owner ?? []) {
-    if (row.owner === 'bots' && row.bot && !out.includes(row.bot)) out.push(row.bot);
+    if (row.owner === 'earlier_bots' && row.bot && !out.includes(row.bot)) out.push(row.bot);
   }
   return out;
 }
@@ -59,9 +62,9 @@ export function botsOf(history: PracticeHistory | null): string[] {
 const splits = (history: PracticeHistory): boolean => history.fills.some((f) => Array.isArray(f.parts));
 
 function daySums(row: HistoryDaily, view: OwnerView): HistoryBookSums | null {
-  if (view.book === 'you') return row.you ?? null;
-  if (view.bot) return row.by_bot?.[view.bot] ?? null;
-  return row.bots ?? null;
+  if (view.book === 'all') return null;
+  if (view.book === 'earlier_bots' && view.bot) return row.by_bot?.[view.bot] ?? null;
+  return row[view.book] ?? null;
 }
 
 function viewFill(fill: HistoryFill, view: OwnerView): HistoryFill | null {
@@ -72,9 +75,11 @@ function viewFill(fill: HistoryFill, view: OwnerView): HistoryFill | null {
 }
 
 function pointFigures(p: EquityPoint, view: OwnerView): { pnl: number; realized: number } {
-  if (view.book === 'you') return { pnl: p.you_pnl ?? 0, realized: p.you_realized ?? 0 };
-  if (view.bot) return { pnl: p.by_bot?.[view.bot] ?? 0, realized: p.by_bot_realized?.[view.bot] ?? 0 };
-  return { pnl: p.bots_pnl ?? 0, realized: p.bots_realized ?? 0 };
+  if (view.book === 'earlier_bots' && view.bot) {
+    return { pnl: p.by_bot?.[view.bot] ?? 0, realized: p.by_bot_realized?.[view.bot] ?? 0 };
+  }
+  const book = view.book as Owner;
+  return { pnl: p[`${book}_pnl`] ?? 0, realized: p[`${book}_realized`] ?? 0 };
 }
 
 /** `history` as `view` sees it; All (or a history with no split) unchanged. */
@@ -100,40 +105,50 @@ export function viewHistory(history: PracticeHistory | null, view: OwnerView): P
     unrealized: last ? last.unrealized : 0,
     commissions: fills.reduce((s, f) => s + f.commission, 0),
     sec_finra_fees: fills.reduce((s, f) => s + f.fees, 0),
-    bot_realized: view.book === 'bots' ? realized : 0,
+    bot_realized: view.book === 'you' ? 0 : realized,
   };
   const by_owner = (history.by_owner ?? []).filter((r) => shows(view, r.owner, r.bot));
   const by_source = history.by_source.filter(() => false);
   return { ...history, fills, daily, equity, components, by_owner, by_source };
 }
 
-export interface DaySplit {
-  you: number;
-  bots: number;
-}
+/** Each book's realized on one day (or over a month). */
+export type DaySplit = Record<Owner, number>;
 
-/** Each date's yours and the bots' realized (archived rows included), for the calendar's All view; null with
- *  no split (Sim, an older backend). */
+export const emptySplit = (): DaySplit => ({ you: 0, claude: 0, brain: 0, earlier_bots: 0 });
+
+/** The books that traded in `split` (a non-zero figure), in the order every split reads them. */
+export const tradedIn = (split: DaySplit | null | undefined): Owner[] =>
+  split ? OWNERS.filter((o) => Math.abs(split[o]) >= 0.005) : [];
+
+/** Each date's realized per book (archived rows included), for the calendar's All view; null with no split. */
 export function daySplits(history: PracticeHistory | null): Map<string, DaySplit> | null {
-  if (!history || !history.daily.some((row) => row.you || row.bots)) return null;
+  if (!history || !history.daily.some((row) => OWNERS.some((o) => row[o]))) return null;
   const out = new Map<string, DaySplit>();
   for (const row of history.daily) {
-    const day = out.get(row.date) ?? { you: 0, bots: 0 };
-    day.you += row.you?.realized ?? 0;
-    day.bots += row.bots?.realized ?? 0;
+    const day = out.get(row.date) ?? emptySplit();
+    for (const owner of OWNERS) day[owner] += row[owner]?.realized ?? 0;
     out.set(row.date, day);
   }
+  return out;
+}
+
+/** Each book's fills on one date, for the day card's "By trader" rows. */
+export function dayFillCounts(history: PracticeHistory | null, date: string): DaySplit | null {
+  const rows = (history?.daily ?? []).filter((row) => row.date === date);
+  if (!rows.length || !rows.some((row) => OWNERS.some((o) => row[o]))) return null;
+  const out = emptySplit();
+  for (const row of rows) for (const owner of OWNERS) out[owner] += row[owner]?.fills ?? 0;
   return out;
 }
 
 /** Each book's realized over the dates that start with `prefix` (YYYY-MM): the book cards' month. */
 export function monthSplit(splits: Map<string, DaySplit> | null, prefix: string): DaySplit | null {
   if (!splits) return null;
-  const out = { you: 0, bots: 0 };
+  const out = emptySplit();
   for (const [date, day] of splits) {
     if (!date.startsWith(prefix)) continue;
-    out.you += day.you;
-    out.bots += day.bots;
+    for (const owner of OWNERS) out[owner] += day[owner];
   }
   return out;
 }
@@ -141,6 +156,6 @@ export function monthSplit(splits: Map<string, DaySplit> | null, prefix: string)
 /** The view's book on the account's day (`books` of /api/practice/account); null for All or no books. */
 export function viewBookDay(books: PracticeBooks | null | undefined, view: OwnerView): PracticeBookDay | null {
   if (!books || view.book === 'all') return null;
-  if (view.book === 'you') return books.you;
-  return view.bot ? books.bots.by_bot[view.bot] ?? null : books.bots;
+  if (view.book === 'earlier_bots' && view.bot) return books.earlier_bots?.by_bot?.[view.bot] ?? null;
+  return books[view.book] ?? null;
 }

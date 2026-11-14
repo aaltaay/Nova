@@ -1,42 +1,55 @@
 /**
- * Account (frozen mockup R2-Account): what the account is worth, today's result, both books, the
- * loss limit, and positions, working orders and fills. The figures are the desk's Account page
- * figures (`usePhoneAccount`); the curve is the desk's own curve geometry over today's ledger.
+ * Account (frozen mockup R2-Account, three books v1): what the account is worth, today's result, the three
+ * traders' days (ADR 072), the loss limit, and positions, working orders and fills, each saying whose. The figures
+ * are the desk's Account page figures (`usePhoneAccount`); the curve is the desk's own curve geometry over today's
+ * ledger.
  */
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { useLayoutEffect, useMemo, useRef, useState, type ComponentType } from 'react';
+import { CalendarDays, LayoutDashboard, X } from 'lucide-react';
 import { dayShortLabel } from '../../account/accountCalendar';
 import { rangeNetPnl } from '../../account/accountFigures';
-import type { AccountPosition } from '../../account/accountPositions';
-import type { AccountFillRow } from '../../account/accountLive';
 import { lineGeometry, rangeSeries, type Frame } from '../../account/equityPath';
 import { ALL_VIEW, type OwnerView } from '../../account/ownerView';
 import { ACCOUNT_HISTORY_RANGES, type AccountRange } from '../../constantGroups/account_page';
-import { OWNER_BOOK_BOTS, OWNER_BOOK_YOU } from '../../constantGroups/owners';
+import {
+  AI_TRADERS,
+  OWNER_BOOKS,
+  OWNER_COLORS,
+  OWNER_LIVE_WHY,
+  OWNER_SHORT_LABELS,
+  OWNER_TODAY,
+  OWNER_WHOSE_COL,
+  type Owner,
+  type OwnerBook,
+} from '../../constantGroups/owners';
 import { formatOrderType } from '../../ibkr/orderDisplay';
 import type { IbkrOrder } from '../../ibkr/types';
 import { formatMoney } from '../../utils/formatMoney';
 import { LinkPill, PadlockButton, PhoneScreen, RowLink, TickerChip, VenuePill } from '../PhoneChrome';
 import { daySeries } from '../phoneCalendar';
 import { px, shares, signedMoney, toneClass, toneOf } from '../phoneFormat';
+import { orderWhose, type PhoneFillRow, type PhonePosition } from '../phoneWhose';
 import { usePhoneSession } from '../PhoneSession';
 import { usePhoneAccount, type PhoneAccount } from '../usePhoneAccount';
 import { usePhoneLossLimit } from '../usePhoneLossLimit';
 import { useRowsThatFit } from '../useRowsThatFit';
+import { WhoChip } from '../WhoChip';
 import { AccountCalendar } from './AccountCalendar';
 import './account.css';
 
-type Book = 'all' | 'you' | 'bots';
 type ListTab = 'positions' | 'orders' | 'fills';
 type Mode = 'overview' | 'calendar';
-const MODES: readonly { id: Mode; name: string }[] = [{ id: 'overview', name: 'Overview' }, { id: 'calendar', name: 'Calendar' }];
-
-const BOOKS: readonly { id: Book; name: string; view: OwnerView }[] = [
-  { id: 'all', name: 'All', view: ALL_VIEW },
-  { id: 'you', name: 'You', view: { book: 'you', bot: null } },
-  { id: 'bots', name: 'Bots', view: { book: 'bots', bot: null } },
+/** Overview and Calendar as two icons, so the five books share their row (three books v1, choice 2). */
+const MODES: readonly { id: Mode; name: string; Icon: ComponentType<{ size?: number; 'aria-hidden'?: boolean }> }[] = [
+  { id: 'overview', name: 'Overview', Icon: LayoutDashboard },
+  { id: 'calendar', name: 'Calendar', Icon: CalendarDays },
 ];
-const ONE_BOOK = 'Only Paper keeps your book and the bots\' book apart.';
+
+const BOOKS: readonly { id: OwnerBook; name: string; view: OwnerView }[] = OWNER_BOOKS.map((id) => ({
+  id, name: OWNER_SHORT_LABELS[id], view: id === 'all' ? ALL_VIEW : { book: id, bot: null },
+}));
+/** The day row of three under the account's figures: you, Claude, the brain. */
+const TODAY_BOOKS: readonly Owner[] = ['you', ...AI_TRADERS];
 const ROW_PX = 42;
 const CURVE: Frame = { width: 336, height: 64, padLeft: 0, padRight: 0, padTop: 6, padBottom: 4 };
 const ET_HM = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false });
@@ -44,7 +57,7 @@ const ET_HM = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', h
 /** What the chart covers: one of the desk's ranges, or one past day opened from the calendar. */
 type Span = { range: AccountRange } | { day: string };
 
-function Curve({ account, book, span, net }: { account: PhoneAccount; book: Book; span: Span; net: number | null }) {
+function Curve({ account, book, span, net }: { account: PhoneAccount; book: OwnerBook; span: Span; net: number | null }) {
   const day = 'day' in span ? span.day : null;
   const geo = useMemo(() => {
     if (day) {
@@ -82,15 +95,11 @@ function Curve({ account, book, span, net }: { account: PhoneAccount; book: Book
   );
 }
 
-function who(owner: 'you' | 'bots' | null | undefined) {
-  return <span className="ph-who" data-owner={owner ?? 'you'}>{owner === 'bots' ? 'Bot' : 'You'}</span>;
-}
-
-function PositionRow({ p, split }: { p: AccountPosition; split: boolean }) {
+function PositionRow({ p }: { p: PhonePosition }) {
   return (
     <div className="ph-acct__row is-position" data-testid={`phone-position-${p.symbol}`}>
       <span><TickerChip symbol={p.symbol} /></span>
-      {split ? who(p.owner) : <span />}
+      <WhoChip whose={p.whose} />
       <b>{p.qty < 0 ? '-' : ''}{shares(p.qty)}</b>
       <span className="ph-muted">{px(p.avgCost)}</span>
       <span>{px(p.mark)}</span>
@@ -112,7 +121,7 @@ function OrderRow({ o, split }: { o: IbkrOrder; split: boolean }) {
   return (
     <div className="ph-acct__row is-order" data-testid={`phone-order-${o.order_id}`}>
       <span><TickerChip symbol={o.symbol} /></span>
-      {split ? who(o.owner) : <span />}
+      <WhoChip whose={split ? orderWhose(o) : null} />
       <b className={o.side === 'BUY' ? 'ph-good' : 'ph-bad'}>{o.side === 'BUY' ? 'Buy' : 'Sell'} {shares(o.remaining_qty ?? o.qty)}</b>
       <span>{orderPrice(o)}</span>
       <span className="ph-acct__act">
@@ -125,10 +134,11 @@ function OrderRow({ o, split }: { o: IbkrOrder; split: boolean }) {
   );
 }
 
-function FillRow({ f }: { f: AccountFillRow }) {
+function FillRow({ f }: { f: PhoneFillRow }) {
   return (
-    <div className="ph-acct__row is-fill">
+    <div className="ph-acct__row is-fill" data-testid={`phone-fill-${f.key}`}>
       <span><TickerChip symbol={f.symbol} /></span>
+      <WhoChip whose={f.whose} />
       <b className={f.side === 'BUY' ? 'ph-good' : 'ph-bad'}>{f.side === 'BUY' ? 'Buy' : 'Sell'} {shares(f.qty)}</b>
       <span>{px(f.price)}</span>
       <span className="ph-muted">{f.ts != null ? ET_HM.format(new Date(f.ts * 1000)) : '—'}</span>
@@ -137,10 +147,11 @@ function FillRow({ f }: { f: AccountFillRow }) {
   );
 }
 
+/** The column heads; the second is "Whose" while the venue keeps books (Paper and Sim). */
 const HEADS: Record<ListTab, readonly string[]> = {
-  positions: ['Symbol', '', 'Qty', 'Avg', 'Last', 'Open P&L'],
-  orders: ['Symbol', '', 'Order', 'Price', ''],
-  fills: ['Symbol', 'Fill', 'Price', 'Time ET'],
+  positions: ['Symbol', OWNER_WHOSE_COL, 'Qty', 'Avg', 'Last', 'Open P&L'],
+  orders: ['Symbol', OWNER_WHOSE_COL, 'Order', 'Price', ''],
+  fills: ['Symbol', OWNER_WHOSE_COL, 'Fill', 'Price', 'Time'],
 };
 const EMPTY: Record<ListTab, string> = {
   positions: 'No open positions.',
@@ -151,7 +162,7 @@ const EMPTY: Record<ListTab, string> = {
 const RANGE_NAMES: Record<AccountRange, string> = { '1D': '1D', '5D': '5D', '1M': '1M', '3M': '3M', YTD: 'YTD', ALL: 'All' };
 
 export function AccountScreen() {
-  const [book, setBook] = useState<Book>('all');
+  const [book, setBook] = useState<OwnerBook>('all');
   const [mode, setMode] = useState<Mode>('overview');
   const [span, setSpan] = useState<Span>({ range: '1D' });
   const [tab, setTab] = useState<ListTab>('positions');
@@ -164,8 +175,8 @@ export function AccountScreen() {
   // The list leaves the page on Calendar: measure the new one when Overview comes back.
   const fit = useRowsThatFit(listRef, ROW_PX, mode);
   const split = account.books != null;
-  // Off Paper there is one book: the switch falls back to All and says why.
-  const shownBook: Book = split ? book : 'all';
+  // Off Paper and Sim there is one book: the switch falls back to All and says why.
+  const shownBook: OwnerBook = split ? book : 'all';
 
   const counts: Record<ListTab, number> = {
     positions: account.positions.length, orders: account.working.length, fills: account.fills.length,
@@ -186,16 +197,19 @@ export function AccountScreen() {
     { name: 'Realized today', value: signedMoney(account.realizedToday), tone: toneClass(account.realizedToday) },
     { name: 'Buying power', value: formatMoney(f.buyingPower, 0), tone: '' },
     { name: 'Commissions today', value: formatMoney(account.commissionsToday), tone: '' },
-    { name: `${OWNER_BOOK_YOU} · today`, value: split ? signedMoney(account.books?.you.day_pnl) : '—', tone: split ? toneClass(account.books?.you.day_pnl) : '' },
-    { name: `${OWNER_BOOK_BOTS} · today`, value: split ? signedMoney(account.books?.bots.day_pnl) : '—', tone: split ? toneClass(account.books?.bots.day_pnl) : '' },
   ];
+  // Each trader's day, in its colour; a dash off Paper and Sim, where every trade is yours.
+  const today = TODAY_BOOKS.map((owner) => {
+    const pnl = account.books?.[owner]?.day_pnl;
+    return { owner, value: split ? signedMoney(pnl) : '—', tone: split ? toneClass(pnl) : '' };
+  });
   const usedShare = limit.used != null && limit.limit ? Math.min(1, limit.used / limit.limit) : 0;
   // The figure beside the chart is the chart's: the day opened from the calendar, the range, or today.
   const dayNet = day && account.calendar ? account.calendar.daily.filter((d) => d.date === day).reduce((s, d) => s + d.realized, 0) : null;
   const net = day ? dayNet
     : range === '1D' ? account.dayPnl
     : account.rangeHistory ? rangeNetPnl(account.rangeHistory.components, account.openPnl) : null;
-  const whose = shownBook === 'all' ? '' : shownBook === 'you' ? 'You, ' : 'Bots, ';
+  const whose = shownBook === 'all' ? '' : `${OWNER_SHORT_LABELS[shownBook]}, `;
   const netName = day ? `${whose}${dayShortLabel(day)}`
     : range === '1D' ? (shownBook === 'all' ? 'Today, net' : `${whose}today`)
     : `${whose}${RANGE_NAMES[range]}${shownBook === 'all' ? ', net' : ''}`;
@@ -215,19 +229,30 @@ export function AccountScreen() {
       )}
     >
       <div className="ph-acct__switches">
-        <div className="ph-seg ph-acct__books" role="group" aria-label="Which view">
-          {MODES.map((m) => (
-            <button key={m.id} type="button" aria-pressed={m.id === mode} data-testid={`phone-account-${m.id}`} onClick={() => setMode(m.id)}>{m.name}</button>
+        <div className="ph-seg ph-acct__modes" role="group" aria-label="Which view">
+          {MODES.map(({ id, name, Icon }) => (
+            <button
+              key={id}
+              type="button"
+              aria-pressed={id === mode}
+              aria-label={name}
+              title={name}
+              data-testid={`phone-account-${id}`}
+              onClick={() => setMode(id)}
+            >
+              <Icon size={15} aria-hidden />
+            </button>
           ))}
         </div>
-        <div className="ph-seg ph-acct__books" role="group" aria-label="Whose book">
+        <div className="ph-seg ph-acct__books" role="group" aria-label="Whose book" data-testid="phone-account-books">
           {BOOKS.map((b) => (
             <button
               key={b.id}
               type="button"
               aria-pressed={b.id === shownBook}
               disabled={!split && b.id !== 'all'}
-              data-why={!split && b.id !== 'all' ? ONE_BOOK : undefined}
+              data-why={!split && b.id !== 'all' ? OWNER_LIVE_WHY : undefined}
+              data-testid={`phone-account-book-${b.id}`}
               onClick={() => { setBook(b.id); setPage(0); }}
             >
               {b.name}
@@ -266,13 +291,23 @@ export function AccountScreen() {
           </div>
         </div>
 
-        <div className="ph-card ph-acct__stats">
-          {stats.map((s) => (
-            <div key={s.name}>
-              <i>{s.name}</i>
-              <b className={s.tone}>{s.value}</b>
-            </div>
-          ))}
+        <div className="ph-card">
+          <div className="ph-acct__stats">
+            {stats.map((s) => (
+              <div key={s.name}>
+                <i>{s.name}</i>
+                <b className={s.tone}>{s.value}</b>
+              </div>
+            ))}
+          </div>
+          <div className="ph-acct__today" data-testid="phone-account-today">
+            {today.map((t) => (
+              <div key={t.owner} data-owner={t.owner}>
+                <i><span className="ph-owner-dot" style={{ background: OWNER_COLORS[t.owner] }} aria-hidden />{OWNER_SHORT_LABELS[t.owner]} · {OWNER_TODAY}</i>
+                <b className={t.tone}>{t.value}</b>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="ph-card ph-acct__limit" data-testid="phone-loss-limit">
@@ -302,13 +337,13 @@ export function AccountScreen() {
         <div className="ph-acct__stale" role="alert" data-testid="phone-account-error">{account.error}</div>
       ) : (
         <div className={`ph-acct__head is-${tab}`}>
-          {HEADS[tab].map((h, i) => <div key={`${h}-${i}`}>{h}</div>)}
+          {HEADS[tab].map((h, i) => <div key={`${h}-${i}`}>{i === 1 && !split ? '' : h}</div>)}
         </div>
       )}
       <div className="ph-acct__list" ref={listRef} data-testid="phone-account-list">
         {!total ? <div className="ph-empty" role="status">{account.error ? 'Nothing was read.' : EMPTY[tab]}</div> : null}
         {tab === 'positions' ? account.positions.slice(from, from + perPage).map((p) => (
-          <PositionRow key={`${p.symbol}-${p.owner ?? ''}-${p.bot ?? ''}`} p={p} split={split} />
+          <PositionRow key={`${p.symbol}-${p.owner ?? ''}-${p.bot ?? ''}`} p={p} />
         )) : null}
         {tab === 'orders' ? account.working.slice(from, from + perPage).map((o) => <OrderRow key={o.order_id} o={o} split={split} />) : null}
         {tab === 'fills' ? account.fills.slice(from, from + perPage).map((row) => <FillRow key={row.key} f={row} />) : null}

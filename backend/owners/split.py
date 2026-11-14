@@ -1,19 +1,27 @@
-"""How one fill splits across the holders of a stock (ADR 063 decision 2, ADR 069 decision 1). Pure.
+"""How one fill splits across the holders of a stock (ADR 063 decision 2, ADR 069 decision 1, ADR 072). Pure.
 
-A fill first closes shares held the other way. **Between the books** (``closing``, ADR 063 unchanged): its
-own book's first, then the other book's; Nova's own close takes from each book in proportion to what it
-holds, in whole shares. **Inside a book**: the sender's own shares first, then the book's other holders' in
-proportion; Nova's own close and a close of the whole bots' book take from every holder in proportion. What
-is left opens for the holder that sent it -- Nova's own close never opens; if one did, it is yours, and a
-close of the whole bots' book is the strategy bot's. Your close that reaches into the bots' book takes
-Auto-entry's shares first: Auto-entry hands its exit to you (``YOURS_TO_SELL``).
+A fill first closes shares held the other way, on two sides: **you**, and **everyone else** (Claude, the brain,
+Earlier bots -- ADR 069's bots' book). **Between the sides** (``closing``, ADR 063 unchanged): its own side's
+first, then the other's; Nova's own close takes from each side in proportion to what it holds, in whole shares.
+**Inside a side**: the sender's own shares first, then the others' in proportion; Nova's own close and a close of
+every holder but you take from each in proportion. What is left opens for the holder that sent it -- Nova's own
+close never opens; if one did, it is yours, and a whole-book close's is the strategy bot's.
+
+Your close reaches past your own shares only into a position handed to you (``owners.rules`` refuses the rest):
+a switched-off trader's, or a retired bot's (Auto-entry's first, as it always handed you its exit). Keeping the two
+sides is what keeps every ledger written before ADR 072 splitting exactly as it did.
 """
 from __future__ import annotations
 
 from constants_owners import HOLDER_AUTO_ENTRY, HOLDER_BOTS_BOOK, HOLDER_STRATEGY_BOT, HOLDER_YOU
-from owners.whose import book_of
 
 _EPS = 1e-6
+_OTHERS = "others"
+
+
+def _side(holder: str | None) -> str:
+    """You, or everyone else."""
+    return HOLDER_YOU if holder == HOLDER_YOU else _OTHERS
 
 
 def whole(*values: float) -> bool:
@@ -74,10 +82,10 @@ def split_fill(held: dict[str, float], size: float, buy: bool, sender: str | Non
     by_book: dict[str, dict[str, float]] = {}
     for holder, qty in held.items():
         if qty * sign < -_EPS:  # held the other way: this fill closes it
-            by_book.setdefault(book_of(holder) or HOLDER_YOU, {})[holder] = abs(qty)
+            by_book.setdefault(_side(holder), {})[holder] = abs(qty)
     parts: list[tuple[str, float, bool]] = []
     totals = {book: sum(inside.values()) for book, inside in by_book.items()}
-    for book, amount in closing(totals, size, book_of(sender)).items():
+    for book, amount in closing(totals, size, None if sender is None else _side(sender)).items():
         inside = by_book[book]
         first = sender if sender in inside else HOLDER_AUTO_ENTRY if sender == HOLDER_YOU else None
         if first in inside:

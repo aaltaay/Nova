@@ -1,7 +1,11 @@
-/** Expanded month view: daily P&L cells + week totals (TraderVue-style); Paper's All view adds yours and the bots'. */
-import type { BookSums, BooksSplit, CalendarDay, MonthCalendarResponse } from './types';
+/**
+ * Expanded month view: daily P&L cells + week totals (TraderVue-style). Paper's All view adds the four books (ADR
+ * 072, mockup three-books v1): a day's cell lists only the traders who closed a trade that day; the month line and
+ * the week column always list all four, in the books' order.
+ */
+import type { CalendarDay, MonthCalendarResponse } from './types';
 import { DOW_LABELS, MONTH_NAMES, fmtPnl, fmtPnlShort } from './format';
-import { pnlSplit } from './reportsView';
+import { pnlSplit, tradedBooks } from './reportsView';
 import { SplitLine } from './SplitLine';
 
 interface Props {
@@ -14,10 +18,6 @@ function dayMap(days: CalendarDay[]): Map<string, CalendarDay> {
   for (const d of days) map.set(d.date, d);
   return map;
 }
-
-/** A cell's split, where it has a trade: a day or week with none shows its total alone. */
-const cellSplit = (split: BooksSplit<BookSums> | undefined, count: number) =>
-  count > 0 ? <SplitLine split={pnlSplit(split, fmtPnlShort)} /> : null;
 
 function parseIso(iso: string): { year: number; month: number; day: number } {
   const [y, m, d] = iso.split('-').map(Number);
@@ -74,14 +74,16 @@ export function MonthDetail({ data, onClose }: Props) {
                   <span className="reports-day-num">{day}</span>
                   <span className="reports-day-pnl">{fmtPnlShort(cell?.pnl ?? 0)}</span>
                   <span className="reports-day-trades">{cell?.trade_count ?? 0} trades</span>
-                  {cellSplit(cell?.by_owner, cell?.trade_count ?? 0)}
+                  {cell && cell.trade_count > 0 && (
+                    <SplitLine split={pnlSplit(cell.by_owner, fmtPnlShort)} books={tradedBooks(cell.by_owner)} />
+                  )}
                 </div>
               );
             })}
             <div className="reports-week-total">
               <span className="reports-day-pnl">{fmtPnlShort(week.pnl)}</span>
               <span className="reports-day-trades">{week.trade_count} trades</span>
-              {cellSplit(week.by_owner, week.trade_count)}
+              {week.trade_count > 0 && <SplitLine split={pnlSplit(week.by_owner, fmtPnlShort)} />}
             </div>
           </div>
         ))}

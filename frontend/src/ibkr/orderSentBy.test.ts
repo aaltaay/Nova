@@ -14,10 +14,18 @@ describe('orderSentBy (operator report 2026-10-01: "I don\'t remember selling it
     expect(orderSentBy({ order_source: 'flatten', order_origin: 'bot_trip' }).tip).not.toMatch(/Bots page/);
   });
 
-  it("names Claude's seat in its own violet tone (ADR 068), entries and closes alike", () => {
+  it("names Claude's seat in its own tone (ADR 068), entries and closes alike", () => {
     expect(orderSentBy({ order_source: 'bot', order_origin: 'claude' })).toMatchObject({ label: 'Claude', tone: 'claude' });
     expect(orderSentBy({ order_source: 'flatten', order_origin: 'claude' }).label).toBe('Claude');
     expect(orderSentBy({ order_source: 'bot', order_origin: 'claude' }).tip).toMatch(/Paper only/);
+    // The pill has no Take Claude's line any more (ADR 072): the tip sends nobody there.
+    expect(orderSentBy({ order_source: 'bot', order_origin: 'claude' }).tip).not.toMatch(/pill/);
+  });
+
+  it("names a takeover's cancels (ADR 072): a switched-off trader's entries, or its exits before your close", () => {
+    const by = orderSentBy({ order_source: 'cancel_working', order_origin: 'takeover' });
+    expect(by).toMatchObject({ label: 'Takeover', tone: 'nova' });
+    expect(by.tip).toMatch(/switched it Off/);
   });
 
   it('names the daily loss limit\'s Auto sell (ADR 056)', () => {

@@ -11,8 +11,14 @@
  * Each day square shows Net, Gross, Commissions or Trades (the switch), with
  * the day's trade count under it; hovering a day opens its breakdown card and
  * clicking it opens the whole day on the page (operator ask, 2026-10-26).
+ *
+ * On All (ADR 072, mockup three-books v1 item 5, approved 2026-11-14): under a
+ * day's Net, one line per trader that traded that day -- You, Claude, The
+ * brain, Earlier bots, in that order -- and a colour bar along the foot, each
+ * colour as wide as that trader's share of the day; the month's foot lists all
+ * four, and the hover card each trader that traded with its trades.
  */
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ACCOUNT_CALENDAR_ARCHIVED,
   ACCOUNT_CALENDAR_BLANK,
@@ -36,12 +42,12 @@ import {
 import { formatSignedMoney } from '../components/globalBarMoney';
 import { formatMoney } from '../utils/formatMoney';
 import { PanelHead, toneClass, toneOf, type Tone } from './accountBits';
-import { OWNER_BOOK_BOTS, OWNER_BOOK_YOU } from '../constantGroups/owners';
+import { OWNER_NAMES, OWNERS, type Owner } from '../constantGroups/owners';
 import { dayLongLabel, isoDate, monthGrid, monthLabel, parseIsoDate, shiftMonth } from './accountCalendar';
-import { monthSplit, type DaySplit } from './ownerView';
-import { monthDayTotals, type DayBreakdown, type MonthDayTotals } from './accountDayBreakdown';
+import { dayFillCounts, monthSplit, tradedIn, type DaySplit } from './ownerView';
+import { monthDayTotals, ownerDayTrades, type DayBreakdown, type MonthDayTotals } from './accountDayBreakdown';
 import type { PracticeHistory } from './accountHistoryTypes';
-import { CalendarDayCard, type DayCardAnchor } from './CalendarDayCard';
+import { CalendarDayCard, type DayCardAnchor, type DayCardTrader } from './CalendarDayCard';
 
 interface Props {
   history: PracticeHistory | null;
@@ -54,7 +60,7 @@ interface Props {
   selected: string | null;
   /** A day clicked: open it, or close it when it is the one open. */
   onSelect: (date: string | null) => void;
-  /** All on Paper (ADR 069): each date's yours and the bots', shown under the day's Net. */
+  /** All on Paper and Sim (ADR 072): each date's realized per book, shown under the day's Net. */
   split?: ReadonlyMap<string, DaySplit> | null;
 }
 
@@ -63,22 +69,61 @@ const whole = (v: number): string => `${v < 0 ? '-' : '+'}$${Math.round(Math.abs
 const monthSplitOf = (split: ReadonlyMap<string, DaySplit> | null, month: { year: number; month: number }): DaySplit | null =>
   monthSplit(split ? new Map(split) : null, isoDate(month.year, month.month, 1).slice(0, 7));
 
-function MonthSplit({ you, bots }: DaySplit) {
+/** The month's foot: all four books, always, in the same order. */
+function MonthSplit({ split }: { split: DaySplit }) {
   return (
-    <span data-testid="account-calendar-month-split">
-      {' · '}<i className="acct-owner__dot is-you" aria-hidden /> {OWNER_BOOK_YOU} <b className={`acct-num ${toneClass(toneOf(you))}`}>{formatSignedMoney(you)}</b>
-      {' · '}<i className="acct-owner__dot is-bots" aria-hidden /> {OWNER_BOOK_BOTS} <b className={`acct-num ${toneClass(toneOf(bots))}`}>{formatSignedMoney(bots)}</b>
+    <span className="acct-cal-month" data-testid="account-calendar-month-split">
+      {OWNERS.map((o) => (
+        <span key={o} data-owner={o}>
+          {' · '}<i className={`acct-owner__dot is-${o}`} aria-hidden /> {OWNER_NAMES[o]} <b className={`acct-num ${toneClass(toneOf(split[o]))}`}>{formatSignedMoney(split[o])}</b>
+        </span>
+      ))}
     </span>
   );
 }
 
-function SplitLine({ you, bots }: DaySplit) {
+/** One line per trader that traded the day, in the books' order. */
+function TraderLines({ split }: { split: DaySplit }) {
   return (
-    <span className="acct-cal__split" data-testid="account-calendar-split">
-      <i className="acct-owner__dot is-you" aria-hidden /><span className={`acct-num ${toneClass(toneOf(you))}`}>{you ? whole(you) : '—'}</span>
-      <i className="acct-owner__dot is-bots" aria-hidden /><span className={`acct-num ${toneClass(toneOf(bots))}`}>{bots ? whole(bots) : '—'}</span>
+    <span data-testid="account-calendar-split">
+      {tradedIn(split).map((o) => (
+        <span key={o} className="acct-cal__o" data-owner={o}>
+          <i className={`acct-owner__dot is-${o}`} aria-hidden />
+          <span className={`acct-num ${toneClass(toneOf(split[o]))}`}>{whole(split[o])}</span>
+        </span>
+      ))}
     </span>
   );
+}
+
+/** Each trader's share of the day (by the size of its realized), in the books' order. */
+export function shareWidths(split: DaySplit): Array<[Owner, number]> {
+  const traded = tradedIn(split);
+  const sum = traded.reduce((s, o) => s + Math.abs(split[o]), 0);
+  return sum > 0 ? traded.map((o) => [o, Math.abs(split[o]) / sum]) : [];
+}
+
+/** The colour bar along a day's foot: one colour per trader, as wide as its share. */
+function ShareBar({ split }: { split: DaySplit }) {
+  const widths = shareWidths(split);
+  if (!widths.length) return null;
+  return (
+    <span className="acct-cal__share" data-testid="account-calendar-share" aria-hidden>
+      {widths.map(([o, share]) => <i key={o} className={`is-${o}`} data-owner={o} style={{ flex: share }} />)}
+    </span>
+  );
+}
+
+/** The hover card's "By trader" rows: each trader that traded, its P&L and its trades (fills for an archived day). */
+function cardTraders(
+  split: DaySplit | undefined, trades: DaySplit | undefined, fills: DaySplit | null, detailed: boolean,
+): DayCardTrader[] | null {
+  if (!split) return null;
+  return tradedIn(split).map((owner) => ({
+    owner,
+    pnl: split[owner],
+    count: detailed && trades ? accountTradeCount(trades[owner]) : fills ? accountFillCount(fills[owner]) : null,
+  }));
 }
 
 /** A month browsed to, and the month today was in when it was. */
@@ -145,6 +190,11 @@ export function CalendarPanel({ history, absence, today, days, selected, onSelec
   const archives = history?.archives.length ?? 0;
   const totals = grid && days ? monthDayTotals(days, grid.cells.flatMap((c) => (c.date ? [c.date] : []))) : null;
   const hovered = hover ? days?.get(hover.date) ?? null : null;
+  const fills = history?.fills;
+  const trades = useMemo(() => (split && fills ? ownerDayTrades(fills) : null), [split, fills]);
+  const traders = hover && hovered
+    ? cardTraders(split?.get(hover.date), trades?.get(hover.date), dayFillCounts(history, hover.date), hovered.detailed)
+    : null;
 
   return (
     <section className="acct-panel acct-panel--cal" data-testid="account-calendar" aria-label={ACCOUNT_CALENDAR_TITLE}>
@@ -192,6 +242,9 @@ export function CalendarPanel({ history, absence, today, days, selected, onSelec
               const open = selected === date;
               if (open) cls.push('is-sel');
               const shown = dayFigure(metric, day);
+              const daySplit = split?.get(date);
+              const lines = metric === 'net' && daySplit != null && tradedIn(daySplit).length > 0;
+              if (daySplit && shareWidths(daySplit).length) cls.push('has-split');
               const show = (el: HTMLElement) => setHover({ date, anchor: anchorOf(el) });
               return (
                 <button
@@ -210,9 +263,8 @@ export function CalendarPanel({ history, absence, today, days, selected, onSelec
                 >
                   <span className="acct-cal__n">{cell.day}</span>
                   <span className={`acct-cal__p acct-num ${toneClass(shown.tone)}`}>{shown.value}</span>
-                  {metric === 'net' && split?.get(date)
-                    ? <SplitLine {...(split.get(date) as DaySplit)} />
-                    : <span className="acct-cal__s">{shown.sub}</span>}
+                  {lines && daySplit ? <TraderLines split={daySplit} /> : <span className="acct-cal__s">{shown.sub}</span>}
+                  {daySplit && <ShareBar split={daySplit} />}
                 </button>
               );
             })}
@@ -228,13 +280,13 @@ export function CalendarPanel({ history, absence, today, days, selected, onSelec
                       <><i className="acct-dot-hollow" /> {ACCOUNT_CALENDAR_ARCHIVED} <b className={`acct-num ${toneClass(toneOf(grid.archivedTotal))}`}>{formatSignedMoney(grid.archivedTotal)}</b> · </>
                     )}
                     {ACCOUNT_CALENDAR_THIS_LEDGER} <b className={`acct-num ${toneClass(toneOf(grid.currentTotal))}`}>{formatSignedMoney(grid.currentTotal)}</b>
-                    {monthSplitOf(split, month) && <MonthSplit {...(monthSplitOf(split, month) as DaySplit)} />} · {ACCOUNT_CALENDAR_BLANK}
+                    {monthSplitOf(split, month) && <MonthSplit split={monthSplitOf(split, month) as DaySplit} />} · {ACCOUNT_CALENDAR_BLANK}
                   </>
                 )}
           </p>
         </>
       )}
-      {hover && hovered && <CalendarDayCard day={hovered} anchor={hover.anchor} />}
+      {hover && hovered && <CalendarDayCard day={hovered} anchor={hover.anchor} traders={traders} />}
     </section>
   );
 }

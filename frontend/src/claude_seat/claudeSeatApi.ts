@@ -1,20 +1,23 @@
 /**
- * Claude's seat on the wire (ADR 068): `GET /api/agent/trader` read into one shape, and the operator's three
- * buttons -- take Claude's line, give it back, stop Claude. The buttons carry the desk's API key (`novaFetch`)
- * and the sample desk refuses them before any request. A refusal is said in words, never swallowed.
+ * Claude's seat on the wire (ADR 068): `GET /api/agent/trader` read into one shape, and the operator's one write --
+ * Claude's On / Off switch, `PUT /api/traders/claude/switch {on}` (ADR 072, `architecture/schema/traders.md`). The
+ * switch carries the desk's API key (`novaFetch`) and the sample desk refuses it before any request. A refusal (a
+ * 409 when On is refused) is said in Nova's own words, never swallowed.
  */
 import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL } from '../constants';
 import { SAMPLE_WRITE_REFUSAL } from '../sample_data/sampleCopy';
 import { onSampleDesk } from '../sample_data/sampleOrderGuard';
 import type {
-  ClaudeBreak, ClaudeEvent, ClaudeLine, ClaudeOrder, ClaudeReflex, ClaudeSeatState, ClaudeSeatStatus,
+  ClaudeBreak, ClaudeEvent, ClaudeLine, ClaudeOrder, ClaudeReflex, ClaudeSeatState, ClaudeSeatStatus, ClaudeSwitch,
 } from './types';
 
 export const CLAUDE_SEAT_PATH = '/api/agent/trader';
+export const CLAUDE_SWITCH_PATH = '/api/traders/claude/switch';
+export const CLAUDE_SWITCH_NO_KEY = "The desk has no API key for this: Nova needs NOVA_API_KEY to switch Claude.";
 
 const STATES: readonly ClaudeSeatState[] = [
-  'off', 'idle', 'waiting_line', 'watching', 'buy_set', 'in_trade', 'yielded', 'done',
+  'off', 'idle', 'waiting_line', 'watching', 'buy_set', 'in_trade', 'done',
 ];
 
 const obj = (v: unknown): Record<string, unknown> =>
@@ -78,6 +81,18 @@ function line(raw: unknown): ClaudeLine {
   };
 }
 
+/** The switch as the seat reports it; null on a backend from before ADR 072. */
+function switchOf(raw: unknown): ClaudeSwitch | null {
+  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const r = obj(raw);
+  const why = obj(r.why_not_on);
+  const error = str(why.error);
+  return {
+    on: r.on === true, at: num(r.at), can_turn_on: r.can_turn_on === true,
+    why_not_on: error ? { reason: str(why.reason) ?? '', error } : null,
+  };
+}
+
 const keep = <T,>(rows: unknown[], read: (raw: unknown) => T | null): T[] =>
   rows.map(read).filter((x): x is T => x !== null);
 
@@ -91,7 +106,7 @@ export function readClaudeSeat(raw: unknown): ClaudeSeatStatus | null {
   const note = obj(r.note);
   return {
     state, text: str(r.text) ?? 'Claude', on: r.on === true, since: num(r.since), beat_at: num(r.beat_at),
-    lease_until: num(r.lease_until), lapsed: r.lapsed === true, yielded: r.yielded === true,
+    lease_until: num(r.lease_until), lapsed: r.lapsed === true, switch: switchOf(r.switch),
     symbol: str(r.symbol)?.toUpperCase() ?? null, line: line(r.line),
     positions: list(r.positions).map(obj).filter(p => str(p.symbol)).map(p => ({
       symbol: String(p.symbol).toUpperCase(), qty: num(p.qty) ?? 0, mark: num(p.mark),
@@ -121,27 +136,25 @@ export async function fetchClaudeSeat(signal?: AbortSignal): Promise<ClaudeSeatS
   return view;
 }
 
-async function press(path: string, body?: Record<string, unknown>): Promise<ClaudeSeatStatus | null> {
-  if (onSampleDesk()) throw new Error(SAMPLE_WRITE_REFUSAL);
-  const res = await novaFetch(`${API_BASE_URL}${CLAUDE_SEAT_PATH}${path}`, body === undefined
-    ? { method: 'POST' }
-    : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  const answer: unknown = await res.json().catch(() => null);
-  if (res.status === 401 || res.status === 503) {
-    throw new Error("The desk has no API key for this: Nova needs NOVA_API_KEY to change Claude's seat.");
-  }
-  if (!res.ok) {
-    const detail = obj(obj(answer).detail);
-    throw new Error(str(detail.error) ?? `Claude's seat answered ${res.status}.`);
-  }
-  const b = obj(answer);
-  return readClaudeSeat('status' in b ? b.status : answer);
+/** The 409's own words (`{detail: {reason, error}}`), else what the desk answered. */
+function refusal(status: number, answer: unknown): string {
+  const detail = obj(obj(answer).detail);
+  return str(detail.error) ?? `Claude's switch answered ${status}.`;
 }
 
-/** Take Claude's line: Claude makes no new trades; an open trade keeps its stop. */
-export const takeClaudesLine = () => press('/yield');
-/** Give Claude its line back. */
-export const giveClaudeLineBack = () => press('/give-back');
-/** Stop Claude: its orders cancelled, its shares sold, the seat off, the line yours. */
-export const stopClaude = () => press('/stop-claude');
-/** Take my Level 2 back from Claude: the right-clicked tab's lines come back; Claude stays on and waits. */
+/**
+ * Switch Claude On or Off (ADR 072). Off hands Claude's open trades to you, untouched; On is refused after its day
+ * stop, after 15:55 ET, or on Live, in Nova's words. Resolves with the seat as it reads after the flip.
+ */
+export async function setClaudeSwitch(on: boolean): Promise<ClaudeSeatStatus | null> {
+  if (onSampleDesk()) throw new Error(SAMPLE_WRITE_REFUSAL);
+  const res = await novaFetch(`${API_BASE_URL}${CLAUDE_SWITCH_PATH}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ on }),
+  });
+  const answer: unknown = await res.json().catch(() => null);
+  if (res.status === 401 || res.status === 503) throw new Error(CLAUDE_SWITCH_NO_KEY);
+  if (!res.ok) throw new Error(refusal(res.status, answer));
+  return fetchClaudeSeat();
+}

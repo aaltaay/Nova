@@ -84,8 +84,8 @@ def test_two_holders_in_one_stock_are_two_trades_each_at_its_own_cost() -> None:
     trade(ledger, ids, "SOFI", "SELL", 100, 11.0)                 # you sell yours
     trade(ledger, ids, "SOFI", "SELL", 100, 13.0, **LT_CLOSE)     # the Live Trader its own
     trips = {t["owner"]: t for t in paper_trips.round_trips(ledger)}
-    assert set(trips) == {"you", "bots"}
-    yours, its = trips["you"], trips["bots"]
+    assert set(trips) == {"you", "earlier_bots"}
+    yours, its = trips["you"], trips["earlier_bots"]
     assert (yours["bot"], yours["side"], yours["qty"], yours["entry_price"], yours["exit_price"]) == \
         (None, "long", 100, 10.0, 11.0)
     assert (its["bot"], its["entry_price"], its["exit_price"]) == ("live_trader", 12.0, 13.0)
@@ -101,7 +101,7 @@ def test_novas_own_close_closes_each_holders_own_trade() -> None:
     trade(ledger, ids, "ABC", "BUY", 50, 10.0, **LT)
     trade(ledger, ids, "ABC", "SELL", 150, 11.0, source="kill")   # KILL: no owner, closes both
     trips = paper_trips.round_trips(ledger)
-    assert sorted((t["owner"], t["qty"]) for t in trips) == [("bots", 50), ("you", 100)]
+    assert sorted((t["owner"], t["qty"]) for t in trips) == [("earlier_bots", 50), ("you", 100)]
 
 
 def test_a_short_round_trip_and_a_position_still_open() -> None:
@@ -193,9 +193,11 @@ def test_the_venue_and_the_view_pick_the_rows() -> None:
     assert symbols() == ["LIVE"]                                   # the journal as it was
     assert symbols(venue="paper") == ["AAA", "BBB", "CCC"]
     assert symbols(venue="paper", owner="you") == ["AAA"]
-    assert symbols(venue="paper", owner="bots") == ["BBB", "CCC"]
-    assert symbols(venue="paper", bot="claude") == ["CCC"]
-    assert [t["symbol"] for t in store.get_trades(venue="paper", owner="bots", limit=1)] == ["CCC"]
+    assert symbols(venue="paper", owner="earlier_bots") == ["BBB"]
+    assert symbols(venue="paper", owner="claude") == ["CCC"]
+    assert symbols(venue="paper", owner="brain") == []
+    assert symbols(venue="paper", bot="live_trader") == ["BBB"]
+    assert [t["symbol"] for t in store.get_trades(venue="paper", owner="claude", limit=1)] == ["CCC"]
 
 
 def test_the_risk_engine_and_the_metrics_never_read_a_paper_trade() -> None:
@@ -207,18 +209,20 @@ def test_the_risk_engine_and_the_metrics_never_read_a_paper_trade() -> None:
     assert [t["symbol"] for t in store.get_closed_trades(include_mock=True)] == ["LIVE"]
 
 
-def test_holders_list_you_first_then_the_bots_by_count() -> None:
-    trades = [{"owner": "bots", "bot": "claude"}, {"owner": "bots", "bot": "live_trader"},
-              {"owner": "bots", "bot": "live_trader"}, {"owner": None, "bot": None}]
+def test_holders_list_the_books_in_order_then_the_retired_bots_by_count() -> None:
+    trades = [{"owner": "claude", "bot": None}, {"owner": "earlier_bots", "bot": "live_trader"},
+              {"owner": "earlier_bots", "bot": "live_trader"}, {"owner": None, "bot": None},
+              {"owner": "earlier_bots", "bot": "auto_entry"}]
     assert split.holders(trades) == [
         {"owner": "you", "bot": None, "trade_count": 1},
-        {"owner": "bots", "bot": "live_trader", "trade_count": 2},
-        {"owner": "bots", "bot": "claude", "trade_count": 1},
+        {"owner": "claude", "bot": None, "trade_count": 1},
+        {"owner": "earlier_bots", "bot": "live_trader", "trade_count": 2},
+        {"owner": "earlier_bots", "bot": "auto_entry", "trade_count": 1},
     ]
 
 
 # ----------------------------------------------------------------- the routes
-def test_the_all_view_carries_yours_and_the_bots_beside_each_total(paper) -> None:
+def test_the_all_view_carries_every_book_beside_each_total(paper) -> None:
     from routes.journal import journal_calendar, journal_drawdown, journal_r_multiples, journal_tags
 
     ledger, ids = paper
@@ -228,21 +232,23 @@ def test_the_all_view_carries_yours_and_the_bots_beside_each_total(paper) -> Non
     assert (year["venue"], year["view"]) == ("paper", {"owner": None, "bot": None})
     assert year["year_trade_count"] == 3
     assert year["by_owner"]["you"] == {"pnl": pytest.approx(98.0), "trade_count": 1}
-    assert year["by_owner"]["bots"]["trade_count"] == 2
+    assert (year["by_owner"]["claude"]["trade_count"], year["by_owner"]["earlier_bots"]["trade_count"]) == (1, 1)
+    assert year["by_owner"]["brain"] == {"pnl": 0.0, "trade_count": 0}
     september = year["months"][8]
-    assert september["by_owner"]["bots"]["trade_count"] == 2
+    assert september["by_owner"]["earlier_bots"]["trade_count"] == 1
     assert all("by_owner" in day for day in september["days"])
-    assert [(h["owner"], h["bot"]) for h in year["holders"]] == [("you", None), ("bots", "claude"),
-                                                                 ("bots", "live_trader")]
+    assert [(h["owner"], h["bot"]) for h in year["holders"]] == [("you", None), ("claude", None),
+                                                                 ("earlier_bots", "live_trader")]
     month = journal_calendar(year=2026, month=9, include_mock=False, venue="paper")
     assert month["by_owner"]["you"]["trade_count"] == 1
     assert all("by_owner" in week for week in month["weeks"])
     r = journal_r_multiples(include_mock=False, venue="paper")
     assert r["by_owner"]["you"]["skipped_no_stop"] == 1
-    assert (r["by_owner"]["bots"]["scored_count"], r["by_owner"]["bots"]["trade_count"]) == (1, 2)
+    assert (r["by_owner"]["claude"]["scored_count"], r["by_owner"]["claude"]["trade_count"]) == (1, 1)
+    assert (r["by_owner"]["earlier_bots"]["scored_count"], r["by_owner"]["earlier_bots"]["trade_count"]) == (0, 1)
     dd = journal_drawdown(include_mock=False, venue="paper")
-    assert [p["owner"] for p in dd["curve"]] == ["you", "bots", "bots"]
-    assert set(dd["by_owner"]) == {"you", "bots"}
+    assert [p["owner"] for p in dd["curve"]] == ["you", "earlier_bots", "claude"]
+    assert set(dd["by_owner"]) == {"you", "claude", "brain", "earlier_bots"}
     assert journal_tags(include_mock=False, venue="paper")["venue"] == "paper"
 
 
@@ -254,9 +260,11 @@ def test_one_book_reads_alone_and_live_reads_as_before(paper) -> None:
     _live_trade()
     yours = journal_calendar(year=2026, month=None, include_mock=False, venue="paper", owner="you")
     assert yours["year_trade_count"] == 1 and "by_owner" not in yours
-    assert len(yours["holders"]) == 3                              # the Bots menu still counts everyone
-    claude = journal_calendar(year=2026, month=None, include_mock=False, venue="paper", bot="claude")
-    assert claude["view"] == {"owner": "bots", "bot": "claude"} and claude["year_trade_count"] == 1
+    assert len(yours["holders"]) == 3                              # the switch still counts everyone
+    claude = journal_calendar(year=2026, month=None, include_mock=False, venue="paper", owner="claude")
+    assert claude["view"] == {"owner": "claude", "bot": None} and claude["year_trade_count"] == 1
+    lt = journal_calendar(year=2026, month=None, include_mock=False, venue="paper", bot="live_trader")
+    assert lt["view"] == {"owner": "earlier_bots", "bot": "live_trader"} and lt["year_trade_count"] == 1
     live = journal_calendar(year=2026, month=None, include_mock=False)
     assert live["year_trade_count"] == 1 and "holders" not in live and "by_owner" not in live
-    assert "by_owner" not in journal_r_multiples(include_mock=False, venue="paper", owner="bots")
+    assert "by_owner" not in journal_r_multiples(include_mock=False, venue="paper", owner="claude")

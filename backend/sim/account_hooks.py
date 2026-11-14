@@ -56,21 +56,15 @@ def positions_for_you_if_practice() -> list[dict[str, Any]] | None:
 
 
 def held_by_if_practice(symbol: str, holder: str) -> float | None:
-    """``holder``'s signed shares in ``symbol`` on Paper (ADR 069) -- for ``you`` the shares yours to sell,
-    yours and Auto-entry's (``YOURS_TO_SELL``); None where the venue keeps one pile or is IBKR's -- the
-    account's position answers there."""
+    """``holder``'s signed shares in ``symbol`` its close may reach on Paper and Sim (ADR 072) -- for ``you`` your own
+    plus those handed to you (``owners.rules.closable``); None on IBKR's account, where its position answers."""
     broker = practice_broker()
-    owners = getattr(getattr(broker, "ledger", None), "owners", None)
-    if owners is None:
+    ledger = getattr(broker, "ledger", None)
+    if getattr(ledger, "owners", None) is None:
         return None
-    from constants_owners import HOLDER_BOTS_BOOK, HOLDER_YOU, OWNER_BOTS, YOURS_TO_SELL
+    from owners.rules import closable
 
-    sym = (symbol or "").strip().upper()
-    if holder == HOLDER_BOTS_BOOK:
-        return owners.book_qty(sym, OWNER_BOTS)
-    if holder == HOLDER_YOU:
-        return sum(owners.qty_of(sym, h) for h in YOURS_TO_SELL)
-    return owners.qty_of(sym, holder)
+    return closable(ledger, symbol, holder)
 
 
 def summary_if_sim() -> dict[str, Any] | None:

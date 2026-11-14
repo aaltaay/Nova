@@ -44,6 +44,7 @@ from constants_practice import (
     PRACTICE_VENUE_SIM,
 )
 from constants_sim import SIM_ORDER_TYPE_CODE
+from owners import handover
 from owners import rules as owner_rules
 from practice import bracket, order_rules
 from practice.fees import for_fill
@@ -83,8 +84,9 @@ class PracticeBroker:
     def ledger(self, value: Ledger) -> None:
         # Every ledger this venue holds -- loaded, reset, a new replay's -- reads IBKR's margin.
         value.margin_ratio = self._margin_ratio
-        # Paper keeps your book and the bots' (ADR 069); Sim keeps one pile.
-        value.use_owners(self.venue == PRACTICE_VENUE_PAPER)
+        # Paper and Sim keep each trader's book (ADR 072); the rules read whose venue it is (``traders.handed``).
+        value.use_owners(True)
+        value.venue = self.venue
         self._ledger = value
 
     def _margin_ratio(self, symbol: str, position_side: str) -> tuple[float, str]:
@@ -157,8 +159,9 @@ class PracticeBroker:
         power_price = order_rules.admission_price(typ, side_u, limit_price, stop_price, ref)
         owned = owner_rules.for_order(self.ledger, symbol=sym, side=side_u, qty=qty_f, short_entry=short_entry,
                                       source=source, origin=origin, bot_id=bot_id, price=power_price)
-        if owned is not None:  # Paper's books (ADR 069): the door asks first, this repeats it
+        if owned is not None:  # the traders' books (ADR 072): the door asks first, this repeats it
             return self._refused(*owned)
+        handover.before_close(self, sym, side_u, qty_f, source=source, origin=origin, bot_id=bot_id)
         if power_price is not None:
             afford, needed, available = self.ledger.can_afford(sym, side_u, qty_f, power_price)
             if not afford:
@@ -251,7 +254,7 @@ class PracticeBroker:
         self.ledger.rollover(now)
         owned = owner_rules.for_order(self.ledger, symbol=sym, side=side_u, qty=qty_f, short_entry=short,
                                       source=source, origin=origin, bot_id=bot_id, price=float(entry_price))
-        if owned is not None:  # Paper's books (ADR 069)
+        if owned is not None:  # the traders' books (ADR 072)
             return self._bracket_refused(*owned)
         afford, needed, available = self.ledger.can_afford(sym, side_u, qty_f, float(entry_price))
         if not afford:
@@ -334,8 +337,9 @@ class PracticeBroker:
             return self._bracket_refused(PRACTICE_OVERCOVER_REASON, PRACTICE_OVERCOVER_CODE)
         owned = owner_rules.for_order(self.ledger, symbol=sym, side=side_u, qty=qty_f, short_entry=False,
                                       source=source, origin=origin, bot_id=bot_id, price=None)
-        if owned is not None:  # Paper's books (ADR 069): a pair closes only its sender's own shares
+        if owned is not None:  # the traders' books (ADR 072): a pair closes only its sender's own (and handed) shares
             return self._bracket_refused(*owned)
+        handover.before_close(self, sym, side_u, qty_f, source=source, origin=origin, bot_id=bot_id)
         now = self.reference.now_ts()
         self.ledger.rollover(now)
         stop_id = self.ledger.alloc_id()
@@ -364,7 +368,8 @@ class PracticeBroker:
             "nova_placed_at": stop_row["nova_placed_at"], **answer_facts(current),
         }
 
-    def cancel(self, order_id: int, *, source: str = "manual", bot_id: str | None = None) -> dict[str, Any]:
+    def cancel(self, order_id: int, *, source: str = "manual", bot_id: str | None = None,
+               reason: str | None = None, code: str | None = None) -> dict[str, Any]:
         """Cancel one working order; an entry takes the exits waiting on it along (``practice.bracket``).
 
         An order already past its own expiry by the venue's clock -- a Sim jump the
@@ -382,7 +387,7 @@ class PracticeBroker:
                 "ok": True, "error": None, "verified_gone": True, "mode": self.venue,
                 "closed_by": (lapsed or {}).get("reason_code"),
             }
-        row = self.ledger.cancel(int(order_id), ts=now, source=source, bot_id=bot_id)
+        row = self.ledger.cancel(int(order_id), ts=now, reason=reason, code=code, source=source, bot_id=bot_id)
         if row is None:
             gone = self.ledger.order_row(int(order_id))
             if gone is not None and bracket.closed_by_bracket(gone):
@@ -494,9 +499,9 @@ class PracticeBroker:
         return self.ledger.position_rows(by_owner=True)
 
     def positions_for_you(self) -> list[dict[str, Any]]:
-        """The rows the operator's own controls size from (ADR 069): on Paper each row is your shares, at
-        your cost, with the account's in ``account_qty`` and every holder in ``by_owner``; a stock only the
-        bots hold is not yours to sell. Sim's rows are the account's."""
+        """The rows the operator's own controls size from (ADR 072): each row is your shares and those handed to
+        you (``handed_qty``, ``handed_from``), with the account's in ``account_qty`` and every holder in
+        ``by_owner``; a stock only another trader holds is not yours to close."""
         from owners.books import yours
 
         return yours(self.positions())
@@ -538,12 +543,10 @@ class PracticeBroker:
         replay_key = key_fn() if callable(key_fn) else None
         out = self.ledger.snapshot(self.venue, self.account_id, replay_key=replay_key)
         out["unrealized_at_bid"] = self.unrealized_at_bid()
-        if self.ledger.owners is not None:  # your book and the bots' (ADR 069); Sim has none
-            from owners import budget
+        if self.ledger.owners is not None:  # the three traders' books and Earlier bots' (ADR 072)
             from owners.books import books
 
-            out["books"] = books(self.ledger, account_day_pnl=out["day_pnl"], budget_usd=budget.bots_usd(),
-                                 used_usd=budget.used_usd(self.ledger))
+            out["books"] = books(self.ledger, account_day_pnl=out["day_pnl"])
         return out
 
     # ------------------------------------------------------------- lifecycle
@@ -741,20 +744,6 @@ _brokers: dict[str, PracticeBroker] = {}
 _brokers_lock = threading.RLock()
 
 
-def _paper_ledger(path: str, now: float) -> Ledger:
-    from practice import persist
-
-    try:
-        ledger = persist.load(path)
-    except persist.LedgerSchemaError as exc:
-        archived = persist.archive(path)
-        logger.exception(
-            "PRACTICE paper: refusing %s (%s); archived as %s, starting a fresh account", path, exc, archived,
-        )
-        ledger = None
-    return ledger if ledger is not None else Ledger(PRACTICE_STARTING_CASH, created_ts=now)
-
-
 def for_venue(venue: str) -> PracticeBroker:
     """The venue's broker: ``sim`` (scratch, replay) or ``paper`` (persistent, live feed)."""
     key = (venue or "").strip().lower()
@@ -779,7 +768,7 @@ def _new_broker(key: str, venue: str) -> PracticeBroker:
 
         path = persist.paper_ledger_path()
         ref = LiveReference()
-        ledger = _paper_ledger(path, ref.now_ts())
+        ledger = persist.load_paper(path, ref.now_ts())
         broker = PracticeBroker(ref, ledger, PRACTICE_ACCOUNT_ID_PAPER, venue=key, persist_path=path)
     else:
         raise ValueError(f"unknown practice venue {venue!r}")

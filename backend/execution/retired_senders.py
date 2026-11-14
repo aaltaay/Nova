@@ -19,7 +19,7 @@ _NAMES = {
     "live_trader": "The Live Trader",
     "bot_api": "The bot API",
 }
-_AI_TRADERS = ("claude",)
+_AI_TRADERS = ("claude", "brain")   # their own door: a switched-off one is ``traders.door``'s
 
 
 def refusal(cmd: Any) -> str | None:

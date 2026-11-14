@@ -22,6 +22,7 @@ from constants_practice import (
     PRACTICE_LEDGER_SCHEMA_VERSION,
     PRACTICE_PAPER_ARCHIVE_STAMP,
     PRACTICE_PAPER_LEDGER_FILE,
+    PRACTICE_STARTING_CASH,
 )
 from practice.ledger import ET, EVENT_TYPES, Ledger
 
@@ -110,6 +111,19 @@ def load(path: str) -> Ledger | None:
     except (OSError, ValueError) as exc:
         raise LedgerSchemaError(f"practice ledger {path} is unreadable: {exc}") from exc
     return from_dict(data)
+
+
+def load_paper(path: str, now: float) -> Ledger:
+    """Paper's ledger at ``path``, or a fresh account: one this build cannot read is archived beside it first."""
+    try:
+        ledger = load(path)
+    except LedgerSchemaError as exc:
+        archived = archive(path)
+        logger.exception(
+            "PRACTICE paper: refusing %s (%s); archived as %s, starting a fresh account", path, exc, archived,
+        )
+        ledger = None
+    return ledger if ledger is not None else Ledger(PRACTICE_STARTING_CASH, created_ts=now)
 
 
 def archive_path(path: str, now: datetime | None = None, attempt: int = 0) -> str:

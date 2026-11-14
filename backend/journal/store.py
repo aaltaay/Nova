@@ -9,6 +9,8 @@ decision 6, architecture/schema/journal.md): ``live`` -- the default, and all
 the risk engine and the metrics ever read -- is every row that is not Paper's.
 See journal/metrics.py for how an empty trades table is reported honestly
 rather than faked.
+
+maintainer: one-concern the journal's one SQL door -- every read and write of the trades table and the venue / book clauses that pick its rows
 """
 from __future__ import annotations
 
@@ -25,14 +27,14 @@ from constants import (
     JOURNAL_TAGS_MAX_PER_TRADE,
     JOURNAL_TRADES_DEFAULT_LIMIT,
 )
-from constants_owners import JOURNAL_VENUE_LIVE, JOURNAL_VENUE_PAPER, OWNER_BOTS, OWNER_YOU
+from constants_owners import JOURNAL_VENUE_LIVE, JOURNAL_VENUE_PAPER, OWNER_CLAUDE, OWNER_EARLIER_BOTS, OWNER_YOU
 from journal.db import get_connection
 
 _ET = ZoneInfo("America/New_York")
 
 # What a round trip's ledger decides; an upsert rewrites these and keeps the rest (tags, notes, adherent).
 _FIGURES = ("opened_ts", "closed_ts", "side", "qty", "entry_price", "exit_price", "stop_price", "pnl",
-            "commission", "fill_ids", "owner", "bot")
+            "commission", "fill_ids", "owner", "bot", "closed_by")
 
 
 def _normalize_tags(tags: list[str] | None) -> list[str]:
@@ -48,8 +50,12 @@ def _tags_to_json(tags: list[str] | None) -> str:
 
 def _row_to_trade(row: dict) -> dict:
     trade = dict(row)
-    for column in ("venue", "owner", "bot"):    # a journal from before, read as it is, has none of the three
+    for column in ("venue", "owner", "bot", "closed_by"):    # a journal from before, read as it is, may lack them
         trade.setdefault(column, None)
+    from journal.split import LEGACY_BOTS, book_of_trade, bot_of_trade
+
+    if trade.get("owner") == LEGACY_BOTS:   # ADR 069's ``bots``, read as the book it is now (ADR 072)
+        trade["owner"], trade["bot"] = book_of_trade(trade), bot_of_trade(trade)
     raw = trade.get("tags", JOURNAL_TAGS_DEFAULT_JSON)
     if isinstance(raw, str):
         try:
@@ -227,10 +233,10 @@ def _read_only(database: Path) -> sqlite3.Connection:
 
 def _view_clauses(conn: sqlite3.Connection, venue: str, owner: str | None,
                   bot: str | None) -> tuple[list[str], list] | None:
-    """The venue's and the view's SQL (ADR 069 decision 6): ``live`` is every row that is not Paper's, ``paper``
-    Paper's round trips (and the demo rows, which belong to no venue); ``you`` your book -- an owner left null
-    reads as yours -- and ``bots`` the bots' book, or one ``bot`` in it. None when the file (a journal from
-    before, read as it is) can hold no such row."""
+    """The venue's and the view's SQL (ADR 072): ``live`` is every row that is not Paper's, ``paper`` Paper's round
+    trips (and the demo rows, which belong to no venue); ``you`` your book -- an owner left null reads as yours --
+    ``claude``, ``brain``, ``earlier_bots`` theirs (a stored ADR 069 ``bots`` row by its ``bot``), or one ``bot``
+    in Earlier bots. None when the file (a journal from before, read as it is) can hold no such row."""
     columns = {row[1] for row in conn.execute("PRAGMA table_info(trades)")}
     clauses: list[str] = []
     args: list = []
@@ -240,17 +246,24 @@ def _view_clauses(conn: sqlite3.Connection, venue: str, owner: str | None,
         args.append(JOURNAL_VENUE_PAPER)
     elif paper:
         return None
-    book = OWNER_BOTS if bot else owner
+    book = OWNER_EARLIER_BOTS if bot else owner
     if book is None:
         return clauses, args
     if "owner" not in columns:
         return (clauses, args) if book == OWNER_YOU else None
     if book == OWNER_YOU:
-        clauses.append("(owner IS NULL OR owner <> ?)")
-        args.append(OWNER_BOTS)
+        clauses.append("(owner IS NULL OR owner = ?)")
+        args.append(OWNER_YOU)
         return clauses, args
-    clauses.append("owner = ?")
-    args.append(OWNER_BOTS)
+    if book == OWNER_CLAUDE:
+        clauses.append("(owner = ? OR (owner = 'bots' AND bot = ?))")
+        args.extend([OWNER_CLAUDE, OWNER_CLAUDE])
+    elif book == OWNER_EARLIER_BOTS:
+        clauses.append("(owner = ? OR (owner = 'bots' AND COALESCE(bot, '') <> ?))")
+        args.extend([OWNER_EARLIER_BOTS, OWNER_CLAUDE])
+    else:
+        clauses.append("owner = ?")
+        args.append(book)
     if bot:
         clauses.append("bot = ?")
         args.append(bot)

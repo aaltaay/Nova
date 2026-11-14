@@ -6,7 +6,9 @@
  * (positions at their last fill) under +$20.48 / Day's +$28.40.
  */
 import { describe, expect, it } from 'vitest';
+import { threeBooksHistoryFixture } from './accountFixtures';
 import type { PracticeHistory } from './accountHistoryTypes';
+import { viewHistory } from './ownerView';
 import { lineGeometry, rangeSeries, tickDecimals } from './equityPath';
 import { perfTick } from './PerformancePanel';
 
@@ -92,5 +94,16 @@ describe('axis labels', () => {
     expect(tickDecimals(0.005, 'pct')).toBe(3);
     expect(perfTick('value', 100_014.2, 0.5)).toBe('100,014.20');
     expect(perfTick('value', 100_014, 5)).toBe('100,014');
+  });
+});
+
+describe('rangeSeries of one book (ADR 072)', () => {
+  it("plots the book's own running P&L, never the account's", () => {
+    const history = threeBooksHistoryFixture(T0);
+    const claude = viewHistory(history, { book: 'claude', bot: null })!;
+    const { series } = rangeSeries(claude, 'pnl', { openPnl: 0, netLiquidation: 100_065.8 }, T0);
+    expect(series[series.length - 1].value).toBeCloseTo(65.8, 6);
+    const brain = viewHistory(history, { book: 'brain', bot: null })!;
+    expect(rangeSeries(brain, 'pnl', { openPnl: 0, netLiquidation: 100_000 }, T0).series.every((p) => p.value === 0)).toBe(true);
   });
 });

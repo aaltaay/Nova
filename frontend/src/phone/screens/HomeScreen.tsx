@@ -6,8 +6,6 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { Settings } from 'lucide-react';
-import type { AccountPosition } from '../../account/accountPositions';
-import { whoName } from '../../account/ownerView';
 import { sessionChipView } from '../../components/globalBarSession';
 import { formatMoney } from '../../utils/formatMoney';
 import { formatOrderType } from '../../ibkr/orderDisplay';
@@ -25,6 +23,8 @@ import { pct1, px, shares, signedMoney, toneClass } from '../phoneFormat';
 import { go } from '../phoneRoute';
 import { usePhoneSession } from '../PhoneSession';
 import { usePhoneAccount } from '../usePhoneAccount';
+import type { PhonePosition, Whose } from '../phoneWhose';
+import { WhoChip } from '../WhoChip';
 import { usePhoneCatalyst } from '../usePhoneCatalyst';
 import { usePhoneLossLimit } from '../usePhoneLossLimit';
 import { useRowsThatFit } from '../useRowsThatFit';
@@ -138,8 +138,11 @@ function orderWords(o: IbkrOrder): string {
   return `${side} ${shares(o.remaining_qty ?? o.qty)} ${at}`;
 }
 
+/** A row the wire gives no book (Live, where every trade is yours). */
+const YOURS: Whose = { owner: 'you', bot: null, handed: false, closedByYou: false };
+
 type HoldItem =
-  | { kind: 'position'; key: string; position: AccountPosition }
+  | { kind: 'position'; key: string; position: PhonePosition }
   | { kind: 'order'; key: string; order: IbkrOrder };
 
 function Holdings() {
@@ -179,9 +182,7 @@ function Holdings() {
             onClick={() => go({ screen: 'trade', symbol: item.position.symbol })}
           >
             <b>{item.position.symbol}</b>
-            <span className="ph-who" data-owner={item.position.owner ?? 'you'}>
-              {item.position.owner === 'bots' ? 'Bot' : whoName('you', null)}
-            </span>
+            <WhoChip whose={item.position.whose ?? YOURS} />
             <span className="ph-muted">{item.position.qty < 0 ? 'Short ' : ''}{shares(item.position.qty)} at {px(item.position.avgCost)} · now {px(item.position.mark)}</span>
             <b className={toneClass(item.position.unrealized)}>{signedMoney(item.position.unrealized)}</b>
           </button>

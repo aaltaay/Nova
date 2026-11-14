@@ -4,7 +4,8 @@
  * lives in a portal so the calendar panel's own scroll never cuts it, sits
  * under the day (above it near the screen's foot) and closes when the pointer
  * leaves the day. A day only an archived ledger traded shows its totals and
- * says why nothing more is listed.
+ * says why nothing more is listed. On All (ADR 072, mockup three-books v1 item
+ * 5) it lists each trader that traded the day, its P&L and its trades.
  */
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -27,10 +28,19 @@ import {
   accountDayStocks,
   accountDayWonLost,
 } from '../constantGroups/account_page';
+import { OWNER_BY_TRADER, OWNER_NAMES, type Owner } from '../constantGroups/owners';
 import { formatShareQty } from '../utils/formatShareQty';
 import { Money } from './accountBits';
 import { dayLongLabel } from './accountCalendar';
 import type { DayBreakdown } from './accountDayBreakdown';
+
+/** One "By trader" row: a trader that traded the day, its P&L, and its trades (or fills) that day. */
+export interface DayCardTrader {
+  owner: Owner;
+  pnl: number;
+  /** `1 trade`, `3 fills`; null when the day's split says nothing more. */
+  count: string | null;
+}
 
 export interface DayCardAnchor {
   left: number;
@@ -66,7 +76,9 @@ function Row({ k, children, title }: { k: string; children: ReactNode; title?: s
   );
 }
 
-export function CalendarDayCard({ day, anchor }: { day: DayBreakdown; anchor: DayCardAnchor }) {
+export function CalendarDayCard({ day, anchor, traders = null }: {
+  day: DayBreakdown; anchor: DayCardAnchor; traders?: DayCardTrader[] | null;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   useLayoutEffect(() => {
@@ -91,12 +103,27 @@ export function CalendarDayCard({ day, anchor }: { day: DayBreakdown; anchor: Da
       <Row k={ACCOUNT_COMP_COMMISSIONS}><Money value={-day.commissions} signed kind="cost" /></Row>
       <Row k={ACCOUNT_COMP_FEES}><Money value={-day.fees} signed kind="cost" /></Row>
       <div className="acct-day-card__rule" />
+      {traders && traders.length > 0 && (
+        <>
+          <div role="group" aria-label={OWNER_BY_TRADER} data-testid="account-calendar-card-traders">
+            {traders.map((t) => (
+              <div key={t.owner} className="acct-day-card__row" data-owner={t.owner}>
+                <span className="acct-day-card__who"><i className={`acct-owner__dot is-${t.owner}`} aria-hidden />{OWNER_NAMES[t.owner]}</span>
+                <span className="acct-num">
+                  <Money value={t.pnl} signed />{t.count && <span className="acct-muted"> · {t.count}</span>}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="acct-day-card__rule" />
+        </>
+      )}
       {day.detailed && (
         <Row k={ACCOUNT_DAY_TRADES} title={ACCOUNT_TRADE_DEFINITION}>
           {day.trades.length} · {accountDayWonLost(day.won, day.lost)}
         </Row>
       )}
-      <Row k={ACCOUNT_DAY_FILLS}>{accountDayFillsBot(day.fills, day.botFills)}</Row>
+      <Row k={ACCOUNT_DAY_FILLS}>{traders ? String(day.fills) : accountDayFillsBot(day.fills, day.botFills)}</Row>
       {day.detailed && (
         <>
           <Row k={ACCOUNT_DAY_SHARES}>{accountDayShares(formatShareQty(day.sharesBought), formatShareQty(day.sharesSold))}</Row>

@@ -96,8 +96,8 @@ def long_qty(symbol: str, holder: str | None = None) -> float:
     Sums same-symbol rows and ignores qty ≤ 0. Returns ``0.0`` when the
     account is verified flat in that symbol. Raises ``IbkrAccountError`` when
     the positions cache cannot be read — never invent a long from portfolio.
-    ``holder`` (ADR 069): on Paper only that holder's own shares -- ``you``, a
-    bot by its origin, ``bots`` for the whole bots' book; elsewhere the account's.
+    ``holder`` (ADR 072): on Paper and Sim only the shares that holder's close may
+    reach -- yours plus handed ones for ``you``; elsewhere the account's.
     """
     sym = (symbol or "").strip().upper()
     if not sym:
@@ -145,7 +145,7 @@ def short_qty(symbol: str, holder: str | None = None) -> float:
 
 
 def _held_by(symbol: str, holder: str | None) -> float | None:
-    """``holder``'s own signed shares on Paper (ADR 069); None for the account's position."""
+    """``holder``'s closable signed shares on Paper and Sim (ADR 072); None for the account's position."""
     if holder is None:
         return None
     from sim.account_hooks import held_by_if_practice
