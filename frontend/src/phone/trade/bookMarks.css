@@ -1,0 +1,129 @@
+/* The desk's Level 2 marks on the phone's book (ADR 070 amendment 2026-11-13). Owner: phone/trade/BookMarks.tsx.
+   The desk ladder's colours (ibkr/level2Montage.css): white is a big seller or buyer, violet hidden, amber pulled,
+   slate traded -- never green or red, which mean bid and ask. Nothing here adds height to a row. */
+
+.ph-book__rows { position: relative; }
+
+/* A big seller or buyer: a dark block in a white frame, its digits white (the row's background is set inline). */
+.ph-book__row > div.is-big { position: relative; color: #ffffff; box-shadow: inset 2px 0 0 #fff, inset -2px 0 0 #fff; }
+.ph-book__row > div.is-big.is-big-first { box-shadow: inset 2px 0 0 #fff, inset -2px 0 0 #fff, inset 0 2px 0 #fff; }
+.ph-book__row > div.is-big.is-big-last { box-shadow: inset 2px 0 0 #fff, inset -2px 0 0 #fff, inset 0 -2px 0 #fff; }
+.ph-book__row > div.is-big.is-big-first.is-big-last { box-shadow: inset 0 0 0 2px #fff; }
+.ph-book__row > div.is-hidden:not(.is-big) { box-shadow: inset 0 0 0 2px #a78bfa; }
+.ph-book__row > div.is-pulled:not(.is-big) {
+  background-image: repeating-linear-gradient(135deg, rgba(0, 0, 0, 0.2) 0 2px, transparent 2px 6px);
+}
+/* The row's half clips its digits; the tag rides over the edge above, so the big row lets it out. */
+.ph-book__row > div.is-big { overflow: visible; }
+
+.ph-marks__bigtag {
+  position: absolute;
+  top: -6px;
+  z-index: 3;
+  padding: 0 4px;
+  border-radius: 2px;
+  background: #ffffff;
+  color: #0a0a0a;
+  font: 800 8px/10px var(--ph-ui);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.ph-book__row > .is-bid .ph-marks__bigtag { left: 3px; }
+.ph-book__row > .is-ask .ph-marks__bigtag { right: 3px; }
+.ph-marks__bigbar { position: absolute; left: 3px; right: 3px; bottom: 3px; height: 2px; border-radius: 2px; background: rgba(255, 255, 255, 0.18); pointer-events: none; }
+.ph-marks__bigbar > span { display: block; height: 100%; border-radius: 2px; background: #94a3b8; }
+
+/* The banner sits over its side's column head and takes no height. */
+.ph-book__cols { position: relative; }
+.ph-marks__banner {
+  position: absolute;
+  top: 0;
+  height: 16px;
+  width: 50%;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 3px;
+  pointer-events: none;
+  transition: opacity 250ms linear;
+}
+.ph-marks__banner[data-side='bid'] { left: 0; justify-content: flex-end; }
+.ph-marks__banner[data-side='ask'] { right: 0; justify-content: flex-start; }
+.ph-marks__banner b {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: #ffffff;
+  color: #0a0a0a;
+  font: 800 8.5px/13px var(--ph-ui);
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+.ph-marks__banner:not([data-kind='holding']) b { background: #1a2130; color: #e8ecf2; border: 1px solid rgba(255, 255, 255, 0.4); line-height: 11px; }
+
+/* The marks between rows: a line where the size was and a chip per verdict, over one side's half. */
+.ph-marks__line {
+  position: absolute;
+  z-index: 4;
+  width: 50%;
+  height: 0;
+  pointer-events: none;
+  transition: opacity 250ms linear;
+}
+.ph-marks__line[data-side='bid'] { left: 0; }
+.ph-marks__line[data-side='ask'] { right: 0; }
+.ph-marks__line::before { content: ''; position: absolute; left: 0; right: 0; top: -1px; border-top: 1px dashed currentColor; }
+.ph-marks__line[data-edge='head']::before { display: none; }
+.ph-marks__line[data-kind='approach']::before { border-top: 2px solid currentColor; }
+.ph-marks__line[data-kind='hidden']::before { border-top: 2px dashed currentColor; }
+.ph-marks__line[data-kind='pulled'], .ph-marks__line[data-kind='approach'] { color: #f59e0b; }
+.ph-marks__line[data-kind='traded'] { color: #cbd5e1; }
+.ph-marks__line[data-kind='hidden'] { color: #a78bfa; }
+.ph-marks__line i {
+  position: absolute;
+  top: -6px;
+  padding: 0 4px;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  background: rgba(10, 13, 18, 0.94);
+  font: 800 8px/10px var(--ph-ui);
+  font-style: normal;
+  white-space: nowrap;
+}
+.ph-marks__line[data-edge='head'] i { top: 1px; }
+.ph-marks__line[data-edge='end'] i { top: -11px; }
+.ph-marks__line[data-side='bid'] i { left: 3px; }
+.ph-marks__line[data-side='ask'] i { right: 3px; }
+.ph-marks__line i + i { display: none; }
+.ph-marks__line i[data-kind='pulled'] { color: #f59e0b; }
+.ph-marks__line i[data-kind='traded'] { color: #cbd5e1; }
+.ph-marks__line i[data-kind='hidden'] { color: #a78bfa; }
+.ph-marks__line i[data-kind='approach'] { color: #111111; background: #f59e0b; border-color: #f59e0b; }
+
+/* The depth chart under the rows: the desk's chart at the phone's size, one button over all of it. */
+.ph-depth {
+  position: relative;
+  flex-shrink: 0;
+  margin: 4px 4px 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+  --l2-band-label: 8.5px;
+}
+.ph-depth .l2-depth { border-bottom: 0; color: var(--ph-faint); }
+.ph-depth .l2-depth__totals, .ph-depth .l2-depth__axis { padding: 1px 5px; gap: 4px; }
+.ph-depth .l2-depth__edge { gap: 0.4em; }
+.ph-depth .l2-depth__word, .ph-depth .l2-depth__read { display: none; }
+.ph-depth .l2-depth__plot { height: 23px; min-height: 0; }
+.ph-depth .l2-depth__axis { font-size: 8px; }
+/* On the phone a big seller's step is white, as its block in the rows is. */
+.ph-depth .l2-depth__wall, .ph-book-read .l2-depth__wall { stroke: #ffffff; }
+.ph-depth .l2-depth__walltag, .ph-book-read .l2-depth__walltag { color: #ffffff; }
+/* The tag sits over the white step: a dark ground keeps the line from crossing its words. */
+.ph-depth .l2-depth__walltag, .ph-book-read .l2-depth__walltag { padding: 0 3px; border-radius: 2px; background: rgba(10, 13, 18, 0.92); }
+.ph-depth__open { position: absolute; top: 2px; left: 50%; transform: translateX(-50%); color: var(--ph-dim); line-height: 0; }
+.ph-depth__btn { position: absolute; inset: 0; z-index: 5; background: transparent; }

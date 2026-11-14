@@ -15,6 +15,7 @@ import { useIbkrAccountContext } from '../../ibkr/IbkrAccountContext';
 import { newGestureKey } from '../../ibkr/gestureKey';
 import type { ManualOrderPayload } from '../../ibkr/orderEntry';
 import { placeIbkrOrder } from '../../ibkr/placeOrder';
+import type { BookWatchState } from '../../ibkr/bookWatch';
 import type { DepthBook, IbkrOrder, IbkrPosition } from '../../ibkr/types';
 import { useBotsQty } from '../../ibkr/useDeskPositions';
 import { useIbkrDepth } from '../../ibkr/useIbkrDepth';
@@ -29,6 +30,8 @@ export interface PhoneTrade {
   book: DepthBook | null;
   /** Why there is no live Level 2 for the stock, in the desk's words; null while there is one. */
   bookWhy: string | null;
+  /** The book watcher's verdicts on the line (the desk ladder's marks); null before its first frame. */
+  watch: BookWatchState | null;
   tape: TapeState;
   bid: number | null;
   ask: number | null;
@@ -147,6 +150,7 @@ export function usePhoneTrade(symbol: string): PhoneTrade {
     symbol,
     book,
     bookWhy: bookWhyOf(depth),
+    watch: depth.watch,
     tape,
     bid,
     ask,

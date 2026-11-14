@@ -18,6 +18,13 @@ interface Props {
   asks: readonly DepthLevel[];
   /** The line's book watch: its big sellers and buyers still holding are marked on their steps. */
   watch?: BookWatchState | null;
+  /**
+   * Drawn whatever the desk's switch says: a page that shows the chart as its own choice (the phone's book,
+   * ADR 070 amendment 2026-11-13). The desk leaves it off and reads its right-click switch.
+   */
+  alwaysOn?: boolean;
+  /** The read line before a price is pointed at: the phone, which has no hover, says a tap. */
+  hint?: string;
 }
 
 const HALF = 50;
@@ -53,8 +60,8 @@ function area(steps: readonly DepthStep[], dir: 1 | -1, y: (shares: number) => n
   return `${d} L${HALF + dir * HALF} 100 Z`;
 }
 
-export function Level2DepthChart({ bids, asks, watch = null }: Props) {
-  const on = useLevel2DepthChart();
+export function Level2DepthChart({ bids, asks, watch = null, alwaysOn = false, hint = L2_DEPTH_CHART_HINT }: Props) {
+  const on = useLevel2DepthChart() || alwaysOn;
   // The pointer's place only: its words are read from the book on screen at each draw, never kept.
   const [hoverX, setHoverX] = useState<number | null>(null);
   if (!on) return null;
@@ -137,7 +144,7 @@ export function Level2DepthChart({ bids, asks, watch = null }: Props) {
         </span>
         <span>{total('ask') ? markPrice(total('ask').price) : ''}</span>
       </div>
-      <div className="l2-depth__read" data-testid="l2-depth-read">{hover?.text ?? L2_DEPTH_CHART_HINT}</div>
+      <div className="l2-depth__read" data-testid="l2-depth-read">{hover?.text ?? hint}</div>
     </div>
   );
 }

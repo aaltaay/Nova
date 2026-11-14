@@ -13,7 +13,9 @@ export type PhoneRoute =
   | { screen: 'settings' }
   | { screen: 'trade'; symbol: string | null }
   | { screen: 'stock'; symbol: string }
-  | { screen: 'chart'; symbol: string };
+  | { screen: 'chart'; symbol: string }
+  /** The Level 2 read: the depth chart large and every mark (amendment 2026-11-13). */
+  | { screen: 'book'; symbol: string };
 
 export const HOME: PhoneRoute = { screen: 'home' };
 
@@ -39,6 +41,7 @@ export function parseRoute(hash: string): PhoneRoute {
       return { screen: 'trade', symbol };
     case 'stock':
     case 'chart':
+    case 'book':
       return symbol ? { screen: head, symbol } : HOME;
     default:
       return HOME;
@@ -59,6 +62,9 @@ export function tabOf(route: PhoneRoute): PhoneTab | null {
     case 'account':
     case 'trade':
       return route.screen;
+    // The Level 2 read belongs to the Trade screen it opens from.
+    case 'book':
+      return 'trade';
     default:
       return null;
   }

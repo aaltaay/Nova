@@ -157,8 +157,8 @@
 /* The rows set the columns in characters of the book's own type, so the header reads them in that type's width. */
 .ph-book__cols > div { font-family: var(--ph-mono); font-size: 11px; letter-spacing: 0; }
 .ph-book__cols span { font: 600 9px var(--ph-ui); letter-spacing: 0.06em; overflow: hidden; }
-.ph-book__cols > div:first-child, .ph-book__row > .is-bid { grid-template-columns: minmax(0, 1fr) 5ch var(--ph-book-px, 4ch); }
-.ph-book__cols > div:last-child, .ph-book__row > .is-ask { grid-template-columns: var(--ph-book-px, 4ch) 5ch minmax(0, 1fr); }
+.ph-book__cols > div:first-of-type, .ph-book__row > .is-bid { grid-template-columns: minmax(0, 1fr) 5ch var(--ph-book-px, 4ch); }
+.ph-book__cols > div:last-of-type, .ph-book__row > .is-ask { grid-template-columns: var(--ph-book-px, 4ch) 5ch minmax(0, 1fr); }
 .ph-book__cols span:not(:first-child), .ph-book__row > div > :not(:first-child) { text-align: right; }
 .ph-book__rows { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .ph-book__row {

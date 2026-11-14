@@ -5,10 +5,11 @@
  * One rule runs through all of it: tapping a row opens the stock page, tapping the blue ticker
  * chip opens the Trader.
  */
-import type { ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import {
   ArrowLeftRight,
   Check,
+  ChevronDown,
   ChevronLeft,
   Clock,
   House,
@@ -22,23 +23,46 @@ import {
 import { linkText, linkTone } from './phoneLink';
 import { go, goBack, type PhoneRoute, type PhoneTab } from './phoneRoute';
 import { usePhoneSession } from './PhoneSession';
+import { VenueMenu } from './VenueMenu';
 
 const VENUE_WORD = { live: 'LIVE', paper: 'PAPER', sim: 'SIM' } as const;
 
-/** The desk's venue. Tap it for Settings, where the venue and the locks live. */
+/**
+ * The desk's venue. A tap opens the venue menu under it (mockup v3): Paper, Sim and Live, and a tap on one
+ * switches the desk. The menu opens on the side of the screen the pill sits on.
+ */
 export function VenuePill() {
   const { venue } = usePhoneSession();
+  const [open, setOpen] = useState<'left' | 'right' | null>(null);
+  const ref = useRef<HTMLButtonElement>(null);
+  const toggle = (): void => {
+    if (open) {
+      setOpen(null);
+      return;
+    }
+    // Layout px on both sides of the comparison: the frame's zoom does not move it.
+    const pill = ref.current;
+    const screen = pill?.closest<HTMLElement>('.ph-screen');
+    setOpen(pill && screen && pill.offsetLeft > screen.offsetWidth / 2 ? 'right' : 'left');
+  };
   return (
-    <button
-      type="button"
-      className="ph-venue"
-      data-venue={venue ?? 'unknown'}
-      data-testid="phone-venue"
-      aria-label={venue ? `The desk is on ${VENUE_WORD[venue]}. Open Settings` : 'Waiting for the desk. Open Settings'}
-      onClick={() => go({ screen: 'settings' })}
-    >
-      {venue ? VENUE_WORD[venue] : '…'}
-    </button>
+    <>
+      <button
+        ref={ref}
+        type="button"
+        className="ph-venue"
+        data-venue={venue ?? 'unknown'}
+        data-testid="phone-venue"
+        aria-haspopup="menu"
+        aria-expanded={open != null}
+        aria-label={venue ? `The desk is on ${VENUE_WORD[venue]}. Switch the venue` : 'Waiting for the desk. Switch the venue'}
+        onClick={toggle}
+      >
+        {venue ? VENUE_WORD[venue] : '…'}
+        <ChevronDown size={11} strokeWidth={2.6} aria-hidden="true" className="ph-venue__chev" />
+      </button>
+      {open ? <VenueMenu side={open} onClose={() => setOpen(null)} /> : null}
+    </>
   );
 }
 

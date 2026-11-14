@@ -1,11 +1,12 @@
 /**
- * The phone's Paper orders (ADR 070, amendment 2026-11-10): the calls to `/api/phone`, with no screen.
+ * The phone's orders (ADR 070, amendments 2026-11-10 and 2026-11-13): the calls to `/api/phone`, with no screen.
  *
  * The phone PIN buys a session token, kept in memory only -- a reload locks the phone again. Every
  * order carries when it was tapped on the PC's clock (this device's clock plus the offset the link
  * test measures) and the Level 2 version this device last received, so the order door judges a
- * phone order by the same stale-view rules as the desk's (ADR 045). Paper only: the backend refuses
- * anything else, whatever this file sends.
+ * phone order by the same stale-view rules as the desk's (ADR 045). Paper and Sim only: on Live the
+ * backend refuses every order, whatever this file sends. The venue and the Sim's playhead move through
+ * the desk's own handlers (`/api/phone/venue`, `/api/phone/sim/clock`).
  */
 
 const SESSION_HEADER = 'X-Nova-Phone-Session';
@@ -28,6 +29,8 @@ export interface PhoneStatus {
   expires_at: number | null;
   venue: string;
   paper: boolean;
+  /** Whether the phone may send orders on the desk's venue now: Paper or Sim, never Live. */
+  trades?: boolean;
   armed: boolean;
   /** The PC's clock when it answered, epoch seconds. */
   now?: number;
@@ -91,6 +94,28 @@ export function refusalText(status: number, body: unknown): string {
   if (typeof b.detail === 'string') return b.detail;
   if (typeof b.error === 'string' && b.error) return b.error;
   return `Nova answered ${status}.`;
+}
+
+/** What leaving the desk's venue now would cancel or change, in the desk's words, read before the tap. */
+export interface VenueEffects {
+  venue: string;
+  lines: string[];
+  /** Checks Nova could not read: never read as nothing. */
+  unknown: string[];
+}
+
+/** One move of the Sim's playhead from the phone: pause / play, or a step to a minute of the session. */
+export type SimClockMove = { paused: boolean; symbol?: string } | { minute_from_open: number; symbol?: string };
+
+const VENUE_NAME: Record<string, string> = { live: 'Live', paper: 'Paper', sim: 'Sim' };
+
+/** The banner's words for a venue switch: where the desk went, what it cancelled, and the Gateway's own words. */
+export function venueMovedText(next: string, body: Record<string, unknown>): string {
+  const left = Array.isArray(body.left) ? body.left.length : 0;
+  const parts = [`Switched to ${VENUE_NAME[next] ?? next}. The desk switched too.`];
+  if (left) parts.push(`Cancelled ${left} working order${left === 1 ? '' : 's'} on the venue left.`);
+  if (typeof body.gateway === 'string' && body.gateway) parts.push(body.gateway);
+  return parts.join(' ');
 }
 
 /** The side and size that close a position row from `/api/ibkr/positions`, or null when there is none. */
@@ -179,7 +204,7 @@ export class PhoneDoor {
     }
   }
 
-  /** Cancel one working Paper order by its id. */
+  /** Cancel one working order on the desk's venue by its id. */
   cancelOrder(orderId: number, label: string): Promise<Answer> {
     return this.ask('DELETE', `/api/phone/order/${encodeURIComponent(String(orderId))}`, undefined, () => `Cancelled: ${label}.`);
   }
@@ -196,7 +221,7 @@ export class PhoneDoor {
   async unlock(pin: string): Promise<Answer> {
     const answer = await this.ask('POST', '/api/phone/unlock', { pin }, (b) => {
       this.token = typeof b.token === 'string' ? b.token : null;
-      return 'Unlocked: Paper orders only.';
+      return 'Unlocked: Paper and Sim orders.';
     });
     return answer;
   }
@@ -209,7 +234,7 @@ export class PhoneDoor {
   }
 
   arm(armed: boolean): Promise<Answer> {
-    return this.ask('POST', '/api/phone/arm', { armed }, () => (armed ? "Paper's padlock is open." : "Paper's padlock is closed."));
+    return this.ask('POST', '/api/phone/arm', { armed }, () => (armed ? 'The padlock is open.' : 'The padlock is closed.'));
   }
 
   async order(ctx: OrderContext, side: 'BUY' | 'SELL', qty: number, limitPrice: number | null, intent?: 'flatten'): Promise<Answer> {
@@ -238,9 +263,43 @@ export class PhoneDoor {
     }
     const row = Array.isArray(rows) ? rows.find((r) => String((r as { symbol?: unknown }).symbol ?? '').toUpperCase() === ctx.symbol) : undefined;
     const close = closingOrder(row as { qty?: unknown; position_side?: unknown } | undefined);
-    if (!close) return { ok: false, ms: 0, text: `No ${ctx.symbol} position on Paper to flatten.` };
-    // Paper closes at market at any hour (the desk's own flatten ticket on a practice venue).
+    if (!close) return { ok: false, ms: 0, text: `No ${ctx.symbol} position to flatten.` };
+    // A practice venue closes at market at any hour (the desk's own flatten ticket on Paper and Sim).
     return this.order(ctx, close.side, close.qty, null, 'flatten');
+  }
+
+  /** Move the desk's venue, as the header's pill on the PC does. One venue for the desk and the phone. */
+  moveVenue(next: 'live' | 'paper' | 'sim'): Promise<Answer> {
+    return this.ask('POST', '/api/phone/venue', { venue: next }, (b) => venueMovedText(next, b));
+  }
+
+  /** What leaving the desk's venue now would cancel or change; null when Nova did not answer. */
+  async venueEffects(): Promise<VenueEffects | null> {
+    try {
+      const res = await this.call('GET', '/api/phone/venue/effects');
+      const b = (res.body ?? {}) as Partial<VenueEffects>;
+      if (res.status !== 200 || typeof b.venue !== 'string') return null;
+      return {
+        venue: b.venue,
+        lines: Array.isArray(b.lines) ? b.lines.filter((l): l is string => typeof l === 'string') : [],
+        unknown: Array.isArray(b.unknown) ? b.unknown.filter((u): u is string => typeof u === 'string') : [],
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Move the Sim's playhead through the desk's own clock handler. `clock` is the desk's answer (the new
+   * clock), for the shared Sim clock poll to take in at once; null when it refused.
+   */
+  async simClock(move: SimClockMove, label: string): Promise<Answer & { clock: unknown }> {
+    let clock: unknown = null;
+    const answer = await this.ask('POST', '/api/phone/sim/clock', move, (b) => {
+      clock = b;
+      return label;
+    });
+    return { ...answer, clock };
   }
 
   cancelSymbol(symbol: string): Promise<Answer> {

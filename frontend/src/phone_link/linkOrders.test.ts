@@ -32,8 +32,8 @@ describe("an order's stamp", () => {
 
 describe("Nova's words for a refusal", () => {
   it('reads the phone door, the request guard and the order door', () => {
-    expect(refusalText(409, { detail: { reason: 'PHONE_NOT_PAPER', error: 'The desk is on Live: the phone trades Paper only. Nothing was sent.' } }))
-      .toBe('The desk is on Live: the phone trades Paper only. Nothing was sent.');
+    expect(refusalText(409, { detail: { reason: 'PHONE_LIVE_LOOK_ONLY', error: 'The desk is on Live: from the phone, Live is look only. Send Live orders from the PC. Nothing was sent.' } }))
+      .toBe('The desk is on Live: from the phone, Live is look only. Send Live orders from the PC. Nothing was sent.');
     expect(refusalText(403, { detail: 'Nova is view-only from another device', reason: 'REMOTE_VIEW_ONLY' })).toBe('Nova is view-only from another device');
     expect(refusalText(200, { ok: false, error: 'Your Level 2 was 1.2 s behind', reason_code: 'VIEW_STALE' })).toBe('Your Level 2 was 1.2 s behind');
     expect(refusalText(422, { detail: [{ msg: 'Field required' }] })).toBe('Nova did not accept that order as written.');
@@ -58,7 +58,9 @@ describe('why the order buttons are off', () => {
     expect(blockedWhy(null, true)).toBe('Nova could not be reached.');
     expect(blockedWhy({ ...status, pin_set: false }, true)).toContain('tools/set_phone_pin.py');
     expect(blockedWhy({ ...status, unlocked: false }, true)).toBe('Locked. Enter your phone PIN.');
-    expect(blockedWhy({ ...status, venue: 'live', paper: false }, true)).toContain('Paper only');
+    expect(blockedWhy({ ...status, venue: 'live', paper: false, trades: false }, true)).toContain('look only');
+    // Sim trades from the phone: the door says so in `trades`.
+    expect(blockedWhy({ ...status, venue: 'sim', paper: false, trades: true }, true)).toBeNull();
     expect(blockedWhy(status, false)).toContain('Press Start');
     expect(blockedWhy(status, true)).toBeNull();
   });
@@ -148,7 +150,43 @@ describe("the door, as the phone's screens use it", () => {
     expect(fetchMock.mock.calls[0][0]).toBe('https://pc.test:8443/api/phone/order/41');
     expect(fetchMock.mock.calls[0][1]?.method).toBe('DELETE');
 
-    fetchMock.mockImplementationOnce(() => answer(409, { detail: { reason: 'PHONE_NOT_PAPER', error: 'The desk is on Sim: the phone trades Paper only. Nothing was sent.' } }));
-    expect(await door.cancelOrder(41, 'ABCD Sell 250')).toMatchObject({ ok: false, text: 'The desk is on Sim: the phone trades Paper only. Nothing was sent.' });
+    fetchMock.mockImplementationOnce(() => answer(409, { detail: { reason: 'PHONE_LIVE_LOOK_ONLY', error: 'The desk is on Live: from the phone, Live is look only. Send Live orders from the PC. Nothing was sent.' } }));
+    expect(await door.cancelOrder(41, 'ABCD Sell 250')).toMatchObject({ ok: false, text: 'The desk is on Live: from the phone, Live is look only. Send Live orders from the PC. Nothing was sent.' });
+  });
+
+  it("moves the desk's venue through the door and says what the desk cancelled", async () => {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => answer(200, {
+      pin_set: true, unlocked: true, expires_at: null, venue: 'sim', paper: false, trades: true, armed: false,
+      left: [{ venue: 'paper', symbol: 'F', order_id: 7 }], gateway: null,
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const door = new PhoneDoor('https://pc.test:8443');
+    const moved = await door.moveVenue('sim');
+    expect(fetchMock.mock.calls[0][0]).toBe('https://pc.test:8443/api/phone/venue');
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ venue: 'sim' });
+    expect(moved).toMatchObject({ ok: true, text: 'Switched to Sim. The desk switched too. Cancelled 1 working order on the venue left.' });
+    expect(moved.status?.venue).toBe('sim');
+  });
+
+  it('reads what a switch would cancel, and says nothing was read when Nova does not answer', async () => {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => answer(200, {
+      venue: 'paper', lines: ["Cancels on Paper: the Bot's buy of F.", 7], unknown: ['bot'],
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const door = new PhoneDoor('https://pc.test:8443');
+    expect(await door.venueEffects()).toEqual({ venue: 'paper', lines: ["Cancels on Paper: the Bot's buy of F."], unknown: ['bot'] });
+    fetchMock.mockImplementationOnce(() => answer(503, null));
+    expect(await door.venueEffects()).toBeNull();
+  });
+
+  it("steps the Sim's playhead and hands back the desk's new clock", async () => {
+    const clock = { sim: true, paused: true, minute_from_open: 331 };
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => answer(200, clock));
+    vi.stubGlobal('fetch', fetchMock);
+    const door = new PhoneDoor('https://pc.test:8443');
+    const moved = await door.simClock({ minute_from_open: 331, symbol: 'F' }, 'Back a minute');
+    expect(fetchMock.mock.calls[0][0]).toBe('https://pc.test:8443/api/phone/sim/clock');
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ minute_from_open: 331, symbol: 'F' });
+    expect(moved).toMatchObject({ ok: true, text: 'Back a minute', clock });
   });
 });

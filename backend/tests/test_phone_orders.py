@@ -1,5 +1,6 @@
 """The phone's door (ADR 070, amendment 2026-11-10): another device may write only to ``/api/phone``,
-only after the phone PIN, and only Paper orders -- handed to the desk's own order door."""
+only after the phone PIN, and only orders on Paper or Sim (amendment 2026-11-13) -- handed to the desk's own
+order door. On Live the phone looks only."""
 from __future__ import annotations
 
 import time
@@ -10,8 +11,8 @@ from fastapi.testclient import TestClient
 from ibkr import arm_pin
 from phone import pin, routes, session
 from phone.constants_phone import (
+    PHONE_LIVE_LOOK_ONLY,
     PHONE_LOCKED,
-    PHONE_NOT_PAPER,
     PHONE_PIN_HASH_ENV,
     PHONE_PIN_INVALID,
     PHONE_PIN_LOCKED,
@@ -207,18 +208,31 @@ def test_the_command_the_door_gets_names_paper():
     assert (cmd.expected_venue, cmd.source, cmd.short_entry) == ("paper", "manual", False)
 
 
-@pytest.mark.parametrize("venue", ["live", "sim"])
-def test_off_paper_the_phone_sends_nothing_and_says_why(phone, venue):
+def test_on_live_the_phone_sends_nothing_and_says_why(phone):
     client, state = phone
     unlocked = _unlock(client)
-    state["venue"] = venue
+    state["venue"] = "live"
     for res in (client.post("/api/phone/order", headers=unlocked, json=ORDER),
                 client.delete("/api/phone/order/3", headers=unlocked),
                 client.delete("/api/phone/orders?symbol=F", headers=unlocked),
                 client.post("/api/phone/arm", headers=unlocked, json={"armed": True})):
-        assert res.status_code == 409 and res.json()["detail"]["reason"] == PHONE_NOT_PAPER
-        assert "Paper only" in res.json()["detail"]["error"] and "Nothing was sent" in res.json()["detail"]["error"]
+        assert res.status_code == 409 and res.json()["detail"]["reason"] == PHONE_LIVE_LOOK_ONLY
+        assert "Live is look only" in res.json()["detail"]["error"] and "Nothing was sent" in res.json()["detail"]["error"]
     assert state["sent"] == []
+    assert client.get("/api/phone", headers=unlocked).json()["trades"] is False
+
+
+def test_on_sim_the_phone_trades_the_sim(phone):
+    client, state = phone
+    unlocked = _unlock(client)
+    state["venue"] = "sim"
+    assert client.post("/api/phone/order", headers=unlocked, json=ORDER).json()["ok"] is True
+    client.delete("/api/phone/order/3", headers=unlocked)
+    client.delete("/api/phone/orders?all_symbols=true", headers=unlocked)
+    order, *cancels = state["sent"]
+    assert order.venue == "sim"
+    assert cancels == [("cancel", 3, "sim"), ("cancel_symbol", None, True, "sim")]
+    assert client.get("/api/phone", headers=unlocked).json()["trades"] is True
 
 
 def test_an_order_without_its_timing_or_its_view_is_not_an_order(phone):
