@@ -13,6 +13,8 @@ A called price is followed through its life:
 - ``holding``: the book still shows at least the floors there (whatever the other levels do since).
 - ``left``: the book showed it fall under the floors; it is judged ``settle_sec`` later, as the
   watcher judges every drop (``matching.py``), so a print that arrives after the book still counts.
+  Its full size back at the price before then with no prints that would read taken, and it never
+  left: ``holding`` again, no end.
 - ``eaten`` (said "taken"): a lit, price-setting print went through it (over a seller, under a buyer):
   a displayed price cannot be traded through, so its size traded (``how: "through"``); or lit prints at
   its price inside the matching window cover at least ``BOOK_WATCH_BIG_TAKEN_SHARE`` of the drop
@@ -33,6 +35,8 @@ price look the same here; a description of the book, never an order, a stop move
 
 Pure: books (as ``book.SideView`` pairs) and prints in, ``big`` events out -- one when a price is
 called and one when it ends; ``reading`` is the state at a moment.
+
+maintainer: one-concern a called price's life (holding, left, taken, pulled, lost) is one state machine
 """
 from __future__ import annotations
 
@@ -270,7 +274,12 @@ class BigWallTracker:
         out: list[dict[str, Any]] = []
         for price, wall in list(self.walls[side].items()):
             if wall.state == LEFT:
-                continue
+                if view.levels.get(price, 0.0) < wall.size_now or self._printed(wall, ts):
+                    continue
+                # Its full size is back before its leaving was judged and nothing printed there: it never
+                # left (a row IBKR was still moving shows on no row for a book -- detector.py).
+                wall.state = HOLDING
+                self.pending = [d for d in self.pending if d["wall"] is not wall]
             if not in_view(price, side, view.cutoff):
                 # Scrolled past the rows shown, or at the edge of them: unknown, never pulled.
                 if wall.called_ts is None:
@@ -293,6 +302,15 @@ class BigWallTracker:
             wall.size_now = size
             wall.peak = max(wall.peak, size)
         return out
+
+    def _printed(self, wall: Wall, ts: float) -> bool:
+        """Did lit prints at a left wall's price, so far, cover the share of its drop that reads taken?"""
+        d = next((d for d in self.pending if d["wall"] is wall), None)
+        if d is None:
+            return True  # already judged
+        got = sum(p[2] for p in self.prints if p[0] > d["t0"] - self.match.before_sec and p[0] <= ts
+                  and abs(p[1] - wall.price) <= PRICE_EPS)
+        return got >= self.p.taken_share * d["drop"]
 
     def _call_due(self, side: str, ts: float, shown: dict[float, float], ref: float | None) -> list[dict[str, Any]]:
         """Every candidate that has stayed big long enough is called; one that no longer is, forgotten."""
