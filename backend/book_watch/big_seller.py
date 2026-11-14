@@ -298,7 +298,13 @@ class BigWallTracker:
                     # What the newest book shows there: "smaller" is said of this, not of the first drop.
                     for d in self.pending:
                         if d["wall"] is wall:
-                            d["now"] = shown.get(price, 0.0)
+                            now = shown.get(price, 0.0)
+                            if now < d.get("now", d["after"]):
+                                # It shrank again: the drop the prints must cover is all that left, and
+                                # its prints get their settle time from this book.
+                                d["t1"], d["drop"] = ts, d["before"] - now
+                                d["deadline"] = ts + self.match.settle_sec
+                            d["now"] = now
                 if view.levels.get(price, 0.0) >= wall.size_now:
                     # Its full size is back before its leaving was judged (a row IBKR was still moving
                     # shows on no row for a book -- detector.py). The verdict still waits for its prints.

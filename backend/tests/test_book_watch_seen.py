@@ -206,3 +206,13 @@ def test_the_sim_ladder_replay_passes_each_prints_exchange_to_the_watch():
 
     src = inspect.getsource(ladder_replay)
     assert src.count("watch.on_print(") == src.count('exchange=row.get("exchange")') == 2
+
+
+def test_prints_must_cover_half_of_all_that_left_not_of_the_first_drop():
+    """Codex review of PR #1321: 4,250 printed, 18,000 -> 9,500 -> gone read "taken" for the whole wall."""
+    w = SymbolWatch("TEST", num_rows=10)
+    _called(w)
+    w.on_print(4.9, 4.50, 4_250, lit=True, exchange="NASDAQ")
+    events = w.on_book(5.0, B, asks(9_500)) + w.on_book(5.2, B, asks(0)[:-1]) + w.on_book(9.0, B, asks(0)[:-1])
+    (end,) = [e for e in events if e["event"] == "big"]
+    assert end["state"] == "pulled" and end["left"] == {"before": 18_000, "after": 0, "filled": 4_250}
