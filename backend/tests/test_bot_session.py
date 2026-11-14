@@ -53,6 +53,19 @@ def test_the_retired_fields_left_the_answer_and_every_strategy_reads_eyes():
     assert scanners and all(s["level"] == s["effective"] == BOT_LEVEL_EYES for s in scanners)
 
 
+def test_a_broken_alarm_read_says_so_without_the_exceptions_text(monkeypatch):
+    from short_sale import cover_alarm
+
+    def boom():
+        raise RuntimeError("C:\\secret\\path line 42")
+
+    monkeypatch.setattr(cover_alarm, "view", boom)
+    shorts = get_session()["shorts"]
+    assert shorts["day_cover"] == {"alarms": []}
+    assert "could not be read" in shorts["error"]
+    assert "secret" not in shorts["error"] and "42" not in shorts["error"]
+
+
 def test_l0_refuses_fire():
     on_practice()
     with pytest.raises(BotError) as exc:

@@ -100,9 +100,10 @@ def _shorts() -> dict[str, Any]:
 
     try:
         return {"day_cover": cover_alarm.view()}
-    except Exception as exc:
+    except Exception:
+        # The exception's own text stays in the log: the read goes to every window, never a stack detail (CodeQL).
         logger.warning("bot: the day cover's alarms could not be read", exc_info=True)
-        return {"day_cover": {"alarms": []}, "error": f"the day cover's alarms could not be read ({exc})"}
+        return {"day_cover": {"alarms": []}, "error": "the day cover's alarms could not be read -- see the backend log"}
 
 
 def _last_rewind() -> dict[str, Any] | None:
