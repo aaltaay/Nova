@@ -155,6 +155,7 @@ export const HEAT_MARKS_TITLE =
   "Where a bright line shrinks or ends, a mark says why: Nova's book watcher, the same verdicts the Level 2 ladder "
   + 'shows, kept here for the whole window. ✓ traded: trades at that price took it. ✕ pulled: it left with no trade '
   + 'there (solid amber: pulled as the price came closer). ◆ hidden: more traded at a price than the book ever showed '
-  + 'there. Only lines that read yellow or hotter get a mark, so brightness changes how many. Hints, never a detection.';
+  + 'there, counting only exchanges this Level 2 shows; "unseen" beside it is what else traded there on exchanges it '
+  + 'does not show. Only lines that read yellow or hotter get a mark, so brightness changes how many. Hints, never a detection.';
 export const heatMarksOff = (why: string) => `No traded / pulled marks now: ${why}`;
 export const HEAT_MARKS_IDLE = 'the book watcher is not following this line.';

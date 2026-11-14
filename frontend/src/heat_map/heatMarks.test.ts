@@ -126,5 +126,8 @@ describe('hidden size', () => {
     expect(m.boxes[0].x0).toBe(0);
     expect(m.boxes[0].x1).toBeCloseTo(G.X(T1 - 10));
     expect(m.chips.map((c) => c.text)).toEqual(['◆ 97.1K hidden']);
+    feed([], [{ id: 'h1', side: 'bid', price: 161.95, state: 'moved', hidden: 97127, printed: 113244, unseen: 8977,
+      shown_max: 16117, started_ts: T1 - 40, ended_ts: T1 - 10, ts: T1 - 9 }]);
+    expect(layout(45).chips.map((c) => c.text)).toEqual(['◆ 97.1K hidden · 8,977 unseen']);
   });
 });
