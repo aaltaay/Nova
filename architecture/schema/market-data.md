@@ -407,6 +407,10 @@ recordings are hurting me more than helping me".
   link leave both lines up. It moves only when you open another stock in front, and then at once.
 - **Claude's lane** is on the stock the seat names (ADR 068 decision 2) and empty otherwise, whether the seat is on
   or off. No one else uses it.
+- **The bots' lane becomes the brain's (ADR 072; confirmed for the build).** Owner `brain` replaces `bots`; the lane
+  is on the one stock the brain names (`{symbol, why}`) and empty until it names one; no other owner uses it, with
+  no rate limit and no minimum hold. The setup picker below (`bots.py`, `bots_pick.py`, `LANES_BOTS_TICK_SEC`) goes
+  with that batch. Until then:
 - **The bots' lane** is on one setup at a time, chosen every `LANES_BOTS_TICK_SEC` among the setups of the
   templates in play that a bot may buy now (operator, 2026-11-13: "only what a bot may buy"): the strategy at
   effective On on the desk's venue, the venue's bot active, Nova may buy there (never Live, never a replay desk),

@@ -980,6 +980,28 @@ the fields below.
   reprice up (`PracticeBroker.replace`, refused) and at its fill, each counting the entry once, at its new
   price). A refusal at the fill cancels the order with the same words.
 
+**Three traders' books (ADR 072; confirmed for the build, replacing "Your book and the bots' book" above when its
+batch lands).** Paper and Sim's scratch account each keep one cash and, inside it, three books: `you`, `claude`,
+`brain`, plus read-only `earlier_bots` for history (whose an order is, the rules and the handover:
+`architecture/schema/traders.md`). Sim's ledger splits like Paper's (`split_owners` on for both; a rewind replays the
+books with the account). On Live every row stays the account's and yours.
+
+- `GET /api/practice/account?venue=paper|sim`: `books: {you, claude, brain, earlier_bots}`, each `{day_pnl,
+  realized_today, unrealized_pnl, fills_today, commissions_today}`; `claude` and `brain` add `budget_usd` and
+  `budget_used_usd`; `earlier_bots` adds `by_bot`. The four `day_pnl` add up to the account's. `positions[].by_owner[]`
+  is `{owner, bot, qty, avg_cost, unrealized_pnl, handed}`. Order rows carry `owner` (null for Nova's own close) and
+  `bot` (Earlier bots only). `books.bots` and its budget fields go.
+- `GET /api/ibkr/positions` on Paper and Sim: your shares as before, plus `handed_qty` and `handed_from` (`claude` |
+  `brain` | `earlier_bots`) where a switched-off trader's position is yours to close; every Sell, Flatten, cover and
+  exit on the desk sizes from `qty + handed_qty`.
+- `GET /api/practice/history` moves to `schema_version` 3: `fills[]` add `closed_by` (`you` | null) and each
+  `parts[]` row has `owner`, `bot` and `closed_by`; `daily[]` rows carry `you`, `claude`, `brain` and `earlier_bots`
+  (each `{realized, fills, commissions, fees}`) and `by_bot` for Earlier bots; `equity[]` points carry `you_pnl`,
+  `claude_pnl`, `brain_pnl`, `earlier_bots_pnl` and their `*_realized`; `by_owner[]` is `{owner, bot, realized,
+  fills, commissions, fees}`. A version 2 reader's `bots` / `bots_pnl` fields go. Sim answers the same shape.
+- The bots' budget (`owners-budget.json`, `/api/owners/budget`) and Close on a bots' row (`POST
+  /api/owners/close-bots`) retire; each trader's budget is in `trader-limits.json` (`traders.md`).
+
 ## Sim at now is live -- the live edge (ADR 020 amendment, operator decision 2026-09-21 evening)
 
 The Sim clock payload (`GET /api/sim/clock`) and `/api/ibkr/status` on the Sim

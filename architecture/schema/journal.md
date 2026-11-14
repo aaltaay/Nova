@@ -90,3 +90,22 @@ first, then the bots by count (the switch's Bots menu). Live and Sim answer with
 for Overview and Reports, opening on All. Paper reads `venue=paper` with the view, and its Import row says an
 import is Live's. Live reads the journal as before, with the switch shown as You and disabled
 (`OWNER_LIVE_WHY`). Sim is unchanged: no switch ("Leave the sim alone").
+
+## Three traders and Earlier bots on the Reports tab (ADR 072)
+
+**Confirmed for the build; replaces the section above when its batch lands.**
+
+- **The columns.** `owner` is `you` | `claude` | `brain` | `earlier_bots` | null (null reads as yours); `bot` is set
+  only for `earlier_bots` (`bot`, `auto_entry`, `bot_api`, `live_trader`). One more column, `closed_by` (`you` |
+  null), added by `journal.db._TRADES_MIGRATIONS` (no data loss). Stored rows are read through `owners.whose`: a row
+  with `owner` `bots` and `bot` `claude` reads as `claude`, any other `bots` row as `earlier_bots`; the next Paper sync
+  writes them so.
+- **Round trips** are built per holder as before, from the same `parts[]`; a round trip whose closing parts carry
+  `closed_by: "you"` is stamped `closed_by: "you"` and stays on the trader's record. Sim's trades are not written
+  to the journal (a rewind unwinds them); Sim's books show on the Account page from the account and history wire
+  (`recording-and-replay.md`, "Three traders' books").
+- **Reading by view.** `owner` takes `you` | `claude` | `brain` | `earlier_bots` (another value is a 422); `bot`
+  narrows Earlier bots only. With no `owner` (All), each aggregate's `by_owner` is `{you, claude, brain,
+  earlier_bots}`; `holders` lists every owner with a closed trade that year. Live answers without them, as before.
+- **The tab** reads All / You / Claude / The brain / Earlier bots on Paper, opening on All; Live shows You,
+  disabled, with its reason.

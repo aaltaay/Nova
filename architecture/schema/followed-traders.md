@@ -401,6 +401,10 @@ whose ticker is checking or unchecked holds none; a corrected one holds the long
 
 ### On the desk
 
+**ADR 072 (confirmed for the build):** the Live Trader retires and the Bots group leaves the rail; this page goes back
+on the rail as **TraderTV**, the hosts' rows, positions and P/L as below, without the bot parts (the key, Entry / Exit,
+allowance, skips, asks, the BOT chip and the head's LiveTrader Bots key). Links that open it open TraderTV.
+
 The followed traders' page is **Bots > LiveTrader Bots** (operator, 2026-10-15: "i want all content from the
 original tradertv live to be inside livetrader bots"; approved from a render of the desk on that day's answers, "i
 like it. build it."). It was "Following" until 2026-10-14, then **TraderTV LIVE**, its own rail item named "to the name

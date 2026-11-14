@@ -150,3 +150,34 @@ The Bots line's close never goes to Live (`execution.venue_door`: "a bot never t
 **Constants** (`backend/constants_loss_limit.py`): `LOSS_LIMIT_LINES` (`account`, `you`, `bots`),
 `LOSS_LIMIT_LINE_KEYS` (each line's setting key), `LOSS_LIMIT_SIDE_ORIGINS`, `LOSS_LIMIT_BOT_CLOSE_ORIGINS`;
 `EXECUTION_ORIGINS` gains `loss_limit_you` and `loss_limit_bots`.
+
+## Four lines: account, you, Claude, the brain (ADR 072, operator decisions 2026-11-13)
+
+**Confirmed for the build; replaces "Three lines" above when its batch lands.** The lines are `account`, `you`,
+`claude` and `brain`; the Bots line goes. Whose a fill is follows `traders.md` ("Whose an order is"): Earlier bots'
+fills count on the Account line only.
+
+- **Which line holds whom.** The Account line's trip holds every new entry on the account, Claude's and the brain's
+  included (ADR 068's exception for `origin: "claude"` goes). The You line holds only yours; the Claude line only
+  `origin: "claude"`; the brain's line only `origin: "brain"` (`gate.actor_of` -> `you` | `claude` | `brain`).
+- **A trader's line is its day stop.** Claude's `AGENT_DAY_STOP_USD` goes: a tripped Claude or brain line makes that
+  trader **Done for today** (`traders.md`: `done_for_today`, On refused `TRADER_DAY_STOP`); its open trade keeps its
+  exits. With Auto sell, the line sells only that trader's shares opened today, origin `loss_limit_claude` or
+  `loss_limit_brain`, never on Live.
+- **The setting** goes to `schema_version` 3: `{schema_version: 3, limit_usd, you_usd, claude_usd, brain_usd, warn,
+  no_new_buys, auto_sell, set_at}`; `claude_usd` and `brain_usd` whole dollars in the same bounds, default 500, null
+  for no line. A version 2 file reads with `limit_usd`, `you_usd` and the checkboxes unchanged and `claude_usd` /
+  `brain_usd` at 500; its `bots_usd` is dropped and the answer's `settings.notes` says "The Bots line is retired
+  (ADR 072)"; the next save writes version 3. A version 1 file reads as before, plus the two trader lines at 500.
+- **Today's record** goes to `schema_version` 3 with `LINE` one of `account` / `you` / `claude` / `brain`; a version 2
+  record's `bots` line is dropped and the others kept.
+- **On the wire.** `GET /api/loss-limit` answers `schema_version: 3`: `settings` with the four lines' dollars,
+  `stocks[].by` keyed `you`, `claude`, `brain`, `earlier_bots`, `lines` keyed by the four lines and `no_new_buys`
+  keyed `you`, `claude`, `brain`. `PUT /api/loss-limit` takes `claude_usd?` and `brain_usd?` and refuses `bots_usd`
+  (`400 LOSS_LIMIT_INVALID`, "The Bots line is retired").
+- **On the desk.** Settings > Loss limits is one column per trader (`traders.md`, "On the desk"), the Account line
+  above them. The notices and the voice name the trader: "Claude's daily loss limit reached on Paper ... Claude is
+  done for today; your own buys still work." Sent by: `loss_limit_claude` "Loss limit · Claude", `loss_limit_brain`
+  "Loss limit · The brain"; old `loss_limit_bots` rows keep "Loss limit · Bots".
+- **Constants:** `LOSS_LIMIT_LINES` (`account`, `you`, `claude`, `brain`); `EXECUTION_ORIGINS` gains
+  `loss_limit_claude` and `loss_limit_brain`.
