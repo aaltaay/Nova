@@ -283,6 +283,29 @@ venue order).
   recordings kept 3 (the recorder's 50-a-second hold replaced the other books); the replay read all 3 as
   pulls before and none after.
 
+**Size that is back never left** (operator audit 2026-11-13: "make sure this data is correct"). IBKR also moves
+rows down by rewriting each with the one above it, top first; a read that ends partway leaves the row being
+carried on no row at all, so its size is gone for one book and back in the next. SOC 2026-11-13: a new 0.7448
+bid arrived, the 0.7353 bid of 4,500 was on no row for 71 ms, and the watcher judged a 4,500-share pull; the
+0.75 ask of 56,100 read "big seller pulled" four times while it rested.
+- **The rule** (`detector.SymbolWatch._back`, `big_seller.BigWallTracker._follow`). A drop whose price shows
+  at least its size before the drop again, in any book before the drop is judged (`BOOK_WATCH_SETTLE_SEC`),
+  has none of it read pulled: what lit prints filled still reads traded (a level taken and posted again), and
+  with no print there is no `drop`, `pull` or flag, and the minute counts nothing. A price at the edge of the
+  rows counts -- the size it shows there is at least what rests there. A called big seller or buyer in `left`
+  whose full size is back is still judged at its settle time, so a print that arrives late counts: taken if
+  the prints read taken, else `holding` again with no end event.
+- **What it cannot tell.** An order really pulled and posted again at the same size inside the settle time
+  reads as never having left. The ladder still shows the row missing for that one book: the kept rows are
+  IBKR's, and Nova does not guess a row back into them.
+- **Measured** on Session Records of 2026-11-12 and 2026-11-13 (14 recordings): large drops marked pulled
+  1,984 -> 1,441; those with the same size back at the price within 1 s, 682 -> 52 (what is left came back
+  after the verdict). Checked against Nasdaq's own order-by-order record on 48 older stock-days: of 1,539
+  such drops Nasdaq could judge, 1,012 had nothing leave and 322 were a cancel (152 by the same test 30 s
+  earlier, so about one in nine was a real cancel posted again within a second -- what the rule cannot tell).
+  With the rule 258 of the 3,112 are still marked, 32 of them with nothing leaving; the 6,819 pulled marks
+  that stayed gone and the 4,135 traded marks read as before.
+
 **A big seller on the ask, a big buyer on the bid** (ADR 033 amendment, operator ask 2026-10-12, #846: the
 operator's material lists "high selling pressure / big sellers on the ask" as a reason to get out, and nothing
 told the operator that a large seller sat just over the price of a stock they hold). Owner
@@ -300,7 +323,7 @@ order.
   rule during the hold starts over. Chosen, not measured: a description of the book.
 - **Its life.** `holding` while the book shows at least the floors there (whatever the other levels do since);
   `left` when the book shows it under them -- judged `BOOK_WATCH_SETTLE_SEC` later, as every drop is
-  (`matching.py`); `eaten` (said "taken") when a lit, price-setting print goes through it (over a seller, under a
+  (`matching.py`), and `holding` again if its full size is back first (above); `eaten` (said "taken") when a lit, price-setting print goes through it (over a seller, under a
   buyer: `how: "through"`, at once) or the lit prints at its price inside the matching window cover at least
   `BOOK_WATCH_BIG_TAKEN_SHARE` (half) of the drop (`how: "traded"`); `pulled` when they do not (`how:
   "no_prints"`); `lost` when the book stops showing the price (`how: "cut_off"`: past the rows shown;

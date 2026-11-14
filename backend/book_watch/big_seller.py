@@ -13,6 +13,8 @@ A called price is followed through its life:
 - ``holding``: the book still shows at least the floors there (whatever the other levels do since).
 - ``left``: the book showed it fall under the floors; it is judged ``settle_sec`` later, as the
   watcher judges every drop (``matching.py``), so a print that arrives after the book still counts.
+  Its full size back at the price before then, and the verdict is ``holding`` again with no end
+  unless the prints read taken.
 - ``eaten`` (said "taken"): a lit, price-setting print went through it (over a seller, under a buyer):
   a displayed price cannot be traded through, so its size traded (``how: "through"``); or lit prints at
   its price inside the matching window cover at least ``BOOK_WATCH_BIG_TAKEN_SHARE`` of the drop
@@ -33,6 +35,8 @@ price look the same here; a description of the book, never an order, a stop move
 
 Pure: books (as ``book.SideView`` pairs) and prints in, ``big`` events out -- one when a price is
 called and one when it ends; ``reading`` is the state at a moment.
+
+maintainer: one-concern a called price's life (holding, left, taken, pulled, lost) is one state machine
 """
 from __future__ import annotations
 
@@ -211,8 +215,12 @@ class BigWallTracker:
             if wall.state != LEFT:
                 continue  # a print went through it first
             filled = claim(self.prints, d["t0"] - before, d["t1"] + after, wall.price, d["drop"])
-            wall.left = {"before": d["before"], "after": d["after"], "filled": filled}
             taken = filled >= self.p.taken_share * d["drop"]
+            if d.get("back") and not taken:
+                wall.state = HOLDING  # its full size came back and the prints do not read taken: it never left
+                self.version += 1
+                continue
+            wall.left = {"before": d["before"], "after": d["after"], "filled": filled}
             out += self._end(wall, EATEN if taken else PULLED, d["t1"], "traded" if taken else "no_prints")
         return out
 
@@ -270,6 +278,12 @@ class BigWallTracker:
         out: list[dict[str, Any]] = []
         for price, wall in list(self.walls[side].items()):
             if wall.state == LEFT:
+                if view.levels.get(price, 0.0) >= wall.size_now:
+                    # Its full size is back before its leaving was judged (a row IBKR was still moving
+                    # shows on no row for a book -- detector.py). The verdict still waits for its prints.
+                    for d in self.pending:
+                        if d["wall"] is wall:
+                            d["back"] = True
                 continue
             if not in_view(price, side, view.cutoff):
                 # Scrolled past the rows shown, or at the edge of them: unknown, never pulled.

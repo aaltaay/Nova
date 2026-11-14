@@ -14,6 +14,17 @@ The mirror of a pull -- size that traded at a price beyond the most the book eve
 showed there -- is ``hidden.py``'s (``hidden`` events: a hidden seller or buyer); a
 big seller or buyer resting just past the price is ``big_seller.py``'s (``big``).
 Events carry ``event``: ``drop`` | ``pull`` | ``flag`` | ``hidden`` | ``big`` | ``minute``.
+
+**Size that is back never left.** IBKR can move its rows down by rewriting each with the one above it,
+and a read that ends partway leaves the row being carried on no row at all until the next read: the size
+is gone for one book and back in the next, with nothing leaving the exchange. So when a drop's price shows
+its full size again before the drop is judged, nothing of it reads pulled (``_back``): what lit prints
+filled still reads traded (a level taken and posted again), and with no print there is no drop at all --
+no mark, no flag. An order really pulled and posted again at the same size inside
+``BOOK_WATCH_SETTLE_SEC`` reads the same; a price at the edge of the rows counts, since the size it
+shows there is at least what rests there.
+
+maintainer: one-concern one symbol's drops are judged in the order its books and prints arrived
 """
 from __future__ import annotations
 
@@ -45,7 +56,7 @@ from book_watch.constants_book_watch import (
 )
 from book_watch.big_seller import BigWallTracker
 from book_watch.hidden import DEFAULT_HIDDEN, HiddenParams, HiddenTracker, Stretch
-from book_watch.matching import DEFAULT_MATCH, MatchParams, Sweeps, claim
+from book_watch.matching import DEFAULT_MATCH, PRICE_EPS, MatchParams, Sweeps, claim
 
 SIDES = ("bid", "ask")
 _OPPOSITE = {"bid": "ask", "ask": "bid"}
@@ -94,6 +105,7 @@ class SymbolWatch:
         # Large drops with a sequence number, for the ladder (live.ladder_view).
         self.drops: deque[dict[str, Any]] = deque(maxlen=BOOK_WATCH_DROPS_KEEP)
         self.drop_seq = 0
+        self.returned = 0  # drops forgotten because the size was back before they were judged
         self.books = 0
         self.prints_seen = 0
         self.since: float | None = None
@@ -186,6 +198,7 @@ class SymbolWatch:
             for price in cur.levels:
                 self.tracked[(side, price)] = {"posted_ts": None, "dist_post": None, "opp_at_post": None}
             return
+        self._back(side, cur)
         for price, before in prev.levels.items():
             if not in_view(price, side, prev.cutoff):
                 continue
@@ -220,6 +233,18 @@ class SymbolWatch:
                 "opp_at_post": self.side_volume[_OPPOSITE[side]] if arrived else None,
             }
 
+    def _back(self, side: str, cur: SideView) -> None:
+        """Mark every waiting drop on ``side`` whose price shows its full size again: none of it was pulled."""
+        for drop in self.pending:
+            price = drop["price"]
+            if drop["side"] != side or drop.get("back") or cur.levels.get(price, 0.0) < drop["before"]:
+                continue
+            drop["back"] = True
+            since = (drop["t0"] if drop["t0"] is not None else drop["t1"]) - self.match.before_sec
+            if not any(p[0] > since and abs(p[1] - price) <= PRICE_EPS for p in self.prints):
+                # Nothing printed there: the order that was there all along keeps when it was first seen.
+                self.tracked[(side, price)] = {k: drop[k] for k in ("posted_ts", "dist_post", "opp_at_post")}
+
     def _forget(self, side: str) -> None:
         for key in [k for k in self.tracked if k[0] == side]:
             del self.tracked[key]
@@ -240,6 +265,12 @@ class SymbolWatch:
             filled += claim(self.prints, ts - before, ts + after, price, allow - filled, taken)
         filled += claim(self.prints, t0 - before, t1 + after, price, need - filled, taken)
         pulled = max(0.0, need - filled)
+        if drop.get("back"):
+            # The full size was back before this verdict: what did not print never left.
+            self.returned += 1
+            if filled <= 0:
+                return []
+            drop, pulled = {**drop, "drop": filled}, 0.0
         med = drop["median"]
         large = _large(pulled, med)
         if self.judged is not None:
