@@ -966,8 +966,9 @@ switches and the limits: `traders.md`.
   (refused at the door until the brain's batch stamps it `brain`) and `GET /api/bot/audit`, with `/ws/bot/eyes` and
   `/ws/bot/audit`. Gone: `/session/arm`, `/switch`, `/keys`, `/disarm`, `/allowlist`, `/proposals*`, `/focus*`,
   `/pnl`, `/triggers`. The session read no longer carries `bot_on`, `keys`, `armed`, `has_desk_arm`, `deactivated`,
-  `ready`, `ready_reason`, `live_fire_ready`, `gates`, `entries_today`, `runner`, `trade` or `shorts`; the stock
-  read's fact `bot` is `desk`; `/api/desk/venue`'s `left` is always empty; the restart check has no `bot_trade` or
+  `ready`, `ready_reason`, `live_fire_ready`, `gates`, `entries_today`, `runner` or `trade`, and `shorts` keeps only
+  `day_cover: {alarms}` (the day cover's alarms, `short_sale.cover_alarm`, which every desk window polls here and
+  `DayCoverAlarms` shows; the short chips went with the Bots page); the stock read's fact `bot` is `desk`; `/api/desk/venue`'s `left` is always empty; the restart check has no `bot_trade` or
   `stock_modes` kind.
 - **Every strategy reads Eyes** (`bot/setup_levels.py`): a stored level reads as watching; a level write is refused
   `410 BOT_STRATEGIES_WATCH` ("Every strategy watches on Level 1 and none trades ... Its numbers are in Settings >

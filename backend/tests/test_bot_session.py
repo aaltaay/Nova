@@ -43,9 +43,11 @@ def test_default_session_is_l0_dark():
 
 def test_the_retired_fields_left_the_answer_and_every_strategy_reads_eyes():
     view = get_session()
-    for gone in ("bot_on", "keys", "gates", "ready", "ready_reason", "runner", "trade", "entries_today", "shorts",
+    for gone in ("bot_on", "keys", "gates", "ready", "ready_reason", "runner", "trade", "entries_today",
                  "deactivated", "has_desk_arm", "armed", "live_fire_ready"):
         assert gone not in view
+    # The short chips went with the Bots page; the day cover's alarms stay (``DayCoverAlarms`` polls them).
+    assert set(view["shorts"]) == {"day_cover"}
     assert view["setup_levels"] == {sid: BOT_LEVEL_EYES for sid in BOT_SCANNER_SETUPS}
     scanners = [s for s in view["setups"] if s["scanner"]]
     assert scanners and all(s["level"] == s["effective"] == BOT_LEVEL_EYES for s in scanners)

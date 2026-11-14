@@ -65,8 +65,10 @@ def test_session_get_l0_open_without_key(bot_iso):
     # ADR 027 / 042 / 056 / 072: what left the answer stays gone.
     for gone in ("packs", "active_pack", "llm", "setup", "strategy", "readout", "readout_required", "advise",
                  "breakers", "soft_breaker", "day_lock", "hard_lock_until_date", "gates", "keys", "bot_on",
-                 "ready", "ready_reason", "runner", "trade", "entries_today", "shorts", "deactivated", "armed"):
+                 "ready", "ready_reason", "runner", "trade", "entries_today", "deactivated", "armed"):
         assert gone not in body
+    # The short chips went with the Bots page; the day cover's alarms stay (every window polls them).
+    assert set(body["shorts"]) == {"day_cover"}
     setups = {row["id"]: row["scanner"] for row in body["setups"]}
     assert setups == {"first_pullback": True, "bull_flag": True, "flat_top_breakout": True, "flat_top_5m": True,
                       "red_to_green": True, "gap_and_go": True, "pullback_dip": True, "abcd": True,
@@ -189,3 +191,18 @@ def test_the_session_patch_sets_your_risk_per_trade_and_nothing_else(bot_iso, ap
     assert brain.json()["detail"]["reason"] == BOT_REASON_CAPS_DESK_ONLY
 
     assert client.patch("/api/bot/session", json={"caps": {"venue": "paper"}}).status_code in (401, 403)
+
+
+def test_the_session_still_carries_the_day_covers_alarms(bot_iso):
+    """Codex P1 on #1324: the desk's day-cover alarm (``DayCoverAlarms`` reads ``shorts.day_cover.alarms``) must
+    survive the bots' retirement -- a short Nova could not cover at 15:55 is shouted on every window."""
+    from short_sale import cover_alarm
+
+    cover_alarm.reset_for_tests()
+    try:
+        assert client.get("/api/bot/session").json()["shorts"]["day_cover"]["alarms"] == []
+        cover_alarm.raise_("paper", "abcd", 300, kind="refused", text="the cover was refused", now=1_800_000_000.0)
+        [alarm] = client.get("/api/bot/session").json()["shorts"]["day_cover"]["alarms"]
+        assert alarm["id"] == "paper:ABCD" and alarm["qty"] == 300 and alarm["text"] == "the cover was refused"
+    finally:
+        cover_alarm.reset_for_tests()

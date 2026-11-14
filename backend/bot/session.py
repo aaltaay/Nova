@@ -87,8 +87,22 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
         # Sim time travel (ADR 020): the last scratch-account unwind this
         # process published, so a polling bot re-reads the ledger after it.
         "last_rewind": _last_rewind(),
+        # The day cover's alarms (ADR 048 decision 5): every desk window polls them here, so a short Nova could not
+        # cover at 15:55 is shouted on every screen. They outlive the bots (ADR 072): the cover is the desk's.
+        "shorts": _shorts(),
         "updated_ts": row.get("updated_ts"),
     }
+
+
+def _shorts() -> dict[str, Any]:
+    """``{day_cover: {alarms}}`` -- memory reads only, never a wait on IBKR."""
+    from short_sale import cover_alarm
+
+    try:
+        return {"day_cover": cover_alarm.view()}
+    except Exception as exc:
+        logger.warning("bot: the day cover's alarms could not be read", exc_info=True)
+        return {"day_cover": {"alarms": []}, "error": f"the day cover's alarms could not be read ({exc})"}
 
 
 def _last_rewind() -> dict[str, Any] | None:
