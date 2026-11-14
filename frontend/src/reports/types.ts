@@ -1,30 +1,30 @@
 /** Types for GET /api/journal/calendar — mirrors backend/journal/calendar.py */
+import type { Owner } from '../constantGroups/owners';
 
 export type DayResult = 'win' | 'loss' | 'flat';
 
 /**
- * Whose trades a Reports read was (ADR 069 decision 6, architecture/schema/journal.md): the venue and the view
- * every answer echoes, and yours and the bots' beside each total on Paper's All view.
+ * Whose trades a Reports read was (ADR 072, architecture/schema/journal.md): the venue and the view every answer
+ * echoes, and each of the four books -- you, Claude, the brain, Earlier bots -- beside each total on Paper's All view.
  */
 export type JournalVenue = 'live' | 'paper';
-export type JournalBook = 'you' | 'bots';
+export type JournalBook = Owner;
 
 export interface JournalView {
   owner: JournalBook | null;
   bot: string | null;
 }
 
-export interface BooksSplit<T> {
-  you: T;
-  bots: T;
-}
+/** One figure per book, in the books' order (`OWNERS`). */
+export type BooksSplit<T> = Record<Owner, T>;
 
 export interface BookSums {
   pnl: number;
   trade_count: number;
 }
 
-/** A holder with closed trades in the year shown (Paper), whatever the view: the Bots menu's counts. */
+/** A holder with closed trades in the year shown (Paper), whatever the view: the switch's counts. `bot` names an
+ * earlier bot; null for every other book. */
 export interface ReportsHolder {
   owner: JournalBook;
   bot: string | null;
@@ -142,7 +142,7 @@ export interface DrawdownCurvePoint {
   pnl: number;
   equity: number;
   drawdown: number;
-  /** Whose trade (ADR 069); an older backend sends neither. */
+  /** Whose trade (ADR 072); an older backend sends neither. */
   owner?: JournalBook;
   bot?: string | null;
 }

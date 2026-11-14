@@ -45,7 +45,7 @@ from constants import (
     JOURNAL_TRAIL_DEFAULT_LIMIT,
     JOURNAL_TRADES_DEFAULT_LIMIT,
 )
-from constants_owners import JOURNAL_VENUE_LIVE, JOURNAL_VENUE_PAPER, OWNER_BOTS
+from constants_owners import JOURNAL_VENUE_LIVE, JOURNAL_VENUE_PAPER, OWNER_EARLIER_BOTS
 from journal import paper_trips, split
 from journal.drawdown import compute_drawdown
 from journal.ibkr_import import import_trades_from_json, try_import_from_ibkr_gateway
@@ -61,10 +61,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/journal", tags=["journal"])
 
 Venue = Literal["live", "paper"]
-Owner = Literal["you", "bots"]
+Owner = Literal["you", "claude", "brain", "earlier_bots"]
 VenueQ = Annotated[Venue, Query(description="live (IBKR round trips and imported files) | paper")]
-OwnerQ = Annotated[Owner | None, Query(description="you | bots: one book (Paper)")]
-BotQ = Annotated[str | None, Query(description="One bot inside the bots' book, by its origin (Paper)")]
+OwnerQ = Annotated[Owner | None, Query(description="you | claude | brain | earlier_bots: one book (Paper)")]
+BotQ = Annotated[str | None, Query(description="One retired bot inside Earlier bots, by its origin (Paper)")]
 _R_SPLIT = ("trade_count", "scored_count", "skipped_no_stop", "expectancy_r", "avg_win_r", "avg_loss_r")
 _DD_SPLIT = ("trade_count", "final_equity", "peak_equity", "max_drawdown", "max_drawdown_pct")
 
@@ -95,11 +95,11 @@ def _closed(include_mock: bool, venue: str, owner: str | None = None, bot: str |
 
 def _view(venue: str, owner: str | None, bot: str | None) -> dict[str, Any]:
     """What every Reports answer echoes: the venue and the view it read."""
-    return {"venue": venue, "view": {"owner": OWNER_BOTS if bot else owner, "bot": bot}}
+    return {"venue": venue, "view": {"owner": OWNER_EARLIER_BOTS if bot else owner, "bot": bot}}
 
 
 def _splits(venue: str, owner: str | None, bot: str | None) -> bool:
-    """Paper's All view carries yours and the bots' beside each total."""
+    """Paper's All view carries each trader's beside each total."""
     return venue == JOURNAL_VENUE_PAPER and owner is None and bot is None
 
 

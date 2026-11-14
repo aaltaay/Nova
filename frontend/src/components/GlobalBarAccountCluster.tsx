@@ -176,10 +176,10 @@ export function GlobalBarAccountCluster({
     : GLOBAL_BAR_DAY_PNL_TITLE;
   const tavTitle = ledger && practiceVenue ? practiceTavTitle(practiceVenue, ledger.account_id) : GLOBAL_BAR_TAV_TITLE;
   const ready = chrome === 'ready';
-  // Every holder's shares, the way Day's P&L and Working already read the whole account (ADR 069 decision 9).
+  // Every holder's shares, the way Day's P&L and Working already read the whole account (ADR 072).
   const desk = useDeskPositions(positions);
   const held = heldPositionRows(desk.rows);
-  const heldStale = positionsStale || desk.botsStale;
+  const heldStale = positionsStale || desk.othersStale;
   const toggle = (which: ClusterMenu) => () => setMenu((cur) => clusterMenuOnClick(cur, which));
   const hover = (which: ClusterMenu) => () => setMenu((cur) => clusterMenuOnHover(cur, which));
 

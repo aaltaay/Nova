@@ -6,6 +6,7 @@
 import {
   NOW_MS, SMPL_DAY_VOLUME, aggregate, etMs, iso, smplDailyBars, smplMinuteBars, tenSecondBars, vwapOf, wireBars, type Bar,
 } from './market';
+import { SAMPLE_FILLS_TODAY, accountBooks, emptyBooks } from './practiceBooks';
 import { SIM_LAST, SIM_PREV_CLOSE, SIM_SYMBOL } from './sim';
 import { GAPPERS, ROWS, type ScannerRow } from './universe';
 
@@ -73,8 +74,13 @@ const PAPER = {
   // unrealized_at_bid: GAPX at its 1.91 bid.
   unrealized_pnl: 41.0, unrealized_at_bid: 28.5, day_pnl: 450.35,
   day_started_et: '2026-09-30T04:00:00-04:00', commissions_today: 14.5,
-  positions: [{ symbol: 'GAPX', qty: 1250, avg_cost: 1.8872, mark: 1.92, unrealized: 41.0 }],
-  working: [], fills_today: 7, schema_version: 1, updated_at: '2026-09-30T09:41:26-04:00',
+  // ADR 072: every position says whose shares it holds; the books add up to the account's day.
+  positions: [{
+    symbol: 'GAPX', qty: 1250, avg_cost: 1.8872, mark: 1.92, unrealized: 41.0,
+    by_owner: [{ owner: 'you', bot: null, qty: 1250, avg_cost: 1.8872, unrealized_pnl: 41.0, handed: false }],
+  }],
+  books: accountBooks(SAMPLE_FILLS_TODAY, 41.0),
+  working: [], fills_today: 7, schema_version: 3, updated_at: '2026-09-30T09:41:26-04:00',
 };
 
 /** The practice account; on Sim, the scratch account of the loaded replay. */
@@ -83,7 +89,7 @@ export function practiceAccount(venue: Venue) {
   return {
     ...PAPER, venue: 'sim', account_id: 'NOVA-SIM', cash: 25000, buying_power: 100000, net_liquidation: 25000,
     gross_position_value: 0, realized_pnl: 0, realized_today: 0, unrealized_pnl: 0, unrealized_at_bid: 0, day_pnl: 0,
-    commissions_today: 0,
+    commissions_today: 0, books: emptyBooks(),
     positions: [], fills_today: 0, replay_key: ['capture', 'RUNR', '2026-09-29'],
   };
 }

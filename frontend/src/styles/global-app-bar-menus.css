@@ -286,14 +286,24 @@
   background: var(--hover-bg);
 }
 
-/* Paper: each row says whose (ADR 069 decision 9); the fixed column keeps the P&L in one line down the card. */
+/* Paper and Sim: each row says whose (ADR 072) -- You, Claude, the brain or a retired bot; the fixed column keeps
+   the P&L in one line down the card. Shares handed to you add the dashed "The brain's · yours to close", so the
+   column widens while any row has them. */
 .global-app-bar__positions-menu:has(.has-whose) {
-  min-width: 26rem;
+  min-width: 27rem;
 }
 
 .global-app-bar__position-row.has-whose {
-  grid-template-columns: 4rem 1fr auto 5.75rem;
+  grid-template-columns: 4rem 1fr auto 6.75rem;
   align-items: center;
+}
+
+.global-app-bar__positions-menu:has(.is-handed) {
+  min-width: 34rem;
+}
+
+.global-app-bar__positions-menu:has(.is-handed) .global-app-bar__position-row.has-whose {
+  grid-template-columns: 4rem 1fr auto 13.5rem;
 }
 
 .global-app-bar__position-whose {

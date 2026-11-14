@@ -93,7 +93,8 @@ import is Live's. Live reads the journal as before, with the switch shown as You
 
 ## Three traders and Earlier bots on the Reports tab (ADR 072)
 
-**Confirmed for the build; replaces the section above when its batch lands.**
+**Built (batch 3); replaces the section above** (`journal.split`, `journal.store`, `journal.paper_trips`,
+`routes/journal.py`).
 
 - **The columns.** `owner` is `you` | `claude` | `brain` | `earlier_bots` | null (null reads as yours); `bot` is set
   only for `earlier_bots` (`bot`, `auto_entry`, `bot_api`, `live_trader`). One more column, `closed_by` (`you` |

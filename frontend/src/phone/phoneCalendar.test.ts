@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { monthGrid } from '../account/accountCalendar';
 import type { EquityPoint, HistoryDaily, PracticeHistory } from '../account/accountHistoryTypes';
-import { daySeries, phoneMonth } from './phoneCalendar';
+import { daySeries, phoneMonth, splitParts } from './phoneCalendar';
 
 const row = (date: string, realized: number): HistoryDaily => ({ date, realized, commissions: 1, fees: 0, fills: 2, archived: false });
 // 15:00 UTC is 10:00 or 11:00 ET: inside the practice day of its own date.
@@ -52,5 +52,25 @@ describe('daySeries', () => {
 
   it('is empty for a day the history has no point for', () => {
     expect(daySeries(history, '2026-11-12')).toEqual([]);
+  });
+});
+
+describe('splitParts', () => {
+  it("gives each trader that traded its share of the day's bar, a loss taking room as a gain does", () => {
+    const parts = splitParts({ you: 52.86, claude: -3.77, brain: 0, earlier_bots: 0 });
+    expect(parts.map((p) => p.owner)).toEqual(['you', 'claude']);
+    expect(parts[0].share).toBeCloseTo(52.86 / 56.63, 6);
+    expect(parts[1]).toMatchObject({ value: -3.77 });
+    expect(parts[1].share).toBeCloseTo(3.77 / 56.63, 6);
+  });
+
+  it('reads the books in the order every split reads them: you, Claude, the brain, Earlier bots', () => {
+    expect(splitParts({ you: 1, claude: 2, brain: 3, earlier_bots: -4 }).map((p) => p.owner))
+      .toEqual(['you', 'claude', 'brain', 'earlier_bots']);
+  });
+
+  it('draws no bar for no split, or a day nobody moved', () => {
+    expect(splitParts(null)).toEqual([]);
+    expect(splitParts({ you: 0, claude: 0.001, brain: 0, earlier_bots: 0 })).toEqual([]);
   });
 });

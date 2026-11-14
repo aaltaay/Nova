@@ -36,6 +36,15 @@
   --ph-chip-bg: rgba(92, 200, 250, 0.13);
   --ph-chip-line: rgba(92, 200, 250, 0.38);
   --ph-star: #F4D04D;
+
+  /* The three traders and Earlier bots (ADR 072; constantGroups/owners OWNER_COLORS), and each one's chip ink. */
+  --ph-you: #64D2FF;
+  --ph-claude: #D97757;
+  --ph-claude-ink: #F0A586;
+  --ph-brain: #8B5CF6;
+  --ph-brain-ink: #C4B5FD;
+  --ph-earlier: #8E8E93;
+  --ph-earlier-ink: #C7C7CC;
 }
 
 html, body {
@@ -328,16 +337,31 @@ html, body {
   font-size: 12px;
 }
 
+/* Whose a row is (three books v1): the owner's name in its colour; "Handed" in a dashed ring of the trader's colour. */
 .ph-who {
+  --ph-who: var(--ph-muted);
+  --ph-who-ink: var(--ph-dim);
   justify-self: start;
   padding: 1px 6px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.07);
-  color: var(--ph-dim);
+  background: color-mix(in srgb, var(--ph-who) 16%, transparent);
+  color: var(--ph-who-ink);
   font-size: 10px;
   font-weight: 600;
+  white-space: nowrap;
 }
-.ph-who[data-owner='bots'] { background: var(--ph-chip-bg); color: var(--ph-accent); }
+.ph-who[data-owner='you'] { --ph-who: var(--ph-you); --ph-who-ink: var(--ph-you); background: color-mix(in srgb, var(--ph-you) 12%, transparent); }
+.ph-who[data-owner='claude'] { --ph-who: var(--ph-claude); --ph-who-ink: var(--ph-claude-ink); }
+.ph-who[data-owner='brain'] { --ph-who: var(--ph-brain); --ph-who-ink: var(--ph-brain-ink); background: color-mix(in srgb, var(--ph-brain) 20%, transparent); }
+.ph-who[data-owner='earlier_bots'] { --ph-who: var(--ph-earlier); --ph-who-ink: var(--ph-earlier-ink); }
+.ph-who[data-handed] {
+  padding: 0 5px;
+  border: 1px dashed color-mix(in srgb, var(--ph-who) 75%, transparent);
+  background: transparent;
+}
+
+/* An owner's colour as a small square (the day row of three, the calendar's lines). */
+.ph-owner-dot { display: inline-block; flex: none; width: 7px; height: 7px; border-radius: 2px; }
 
 /* ── The banner that answers a tap ────────────────────────────────────── */
 .ph-banner {

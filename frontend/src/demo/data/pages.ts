@@ -2,25 +2,17 @@
  * Page-level Nova Marketing Sample Data (ADR 043): the Paper ledger's history, the bot session,
  * the setups board and the per-stock modes. Every figure reconciles with the account in desk.ts:
  * today's net realized 409.35 + open 41.00 = the day's 450.35; lifetime net realized 1,864.25.
+ * The ledger keeps the three traders' books (ADR 072, practiceBooks.ts), adding up to the account's.
  */
 import { DAY, etMs, r2 } from './market';
+import {
+  BOOKS, SAMPLE_FILLS_TODAY, bookComponents, byOwner, fillBooks, pointBooks, priorBooks, type Book,
+} from './practiceBooks';
 
 const at = (h: number, m: number, s = 0) => etMs(h, m, s) / 1000;
 
-function fill(ts: number, order_id: number, symbol: string, side: string, qty: number, price: number, source: string, bot_id: string | null, commission: number, fees: number, realized: number) {
-  return { ts, order_id, symbol, side, qty, price, source, bot_id, commission, fees, realized, fill_estimated: true, fill_basis: 'quote' };
-}
-
 /** Today's fills; net realized per fill = gross P&L - its commission - its fees. */
-const FILLS_TODAY = [
-  fill(at(7, 58, 12), 7001, 'FLTX', 'BUY', 2000, 0.8, 'manual', null, 2.0, 0, -2.0),
-  fill(at(8, 6, 40), 7002, 'FLTX', 'SELL', 2000, 0.84, 'manual', null, 2.0, 0.15, 77.85),
-  fill(at(8, 52, 3), 7003, 'SMPL', 'BUY', 10, 3.8, 'bot', 'nova-first-pullback', 1.0, 0, -1.0),
-  fill(at(9, 3, 31), 7004, 'SMPL', 'SELL', 10, 4.02, 'bot', 'nova-first-pullback', 1.0, 0.02, 1.18),
-  fill(at(9, 20, 8), 7005, 'RUNR', 'BUY', 600, 6.17, 'manual', null, 3.0, 0, -3.0),
-  fill(at(9, 29, 44), 7006, 'RUNR', 'SELL', 600, 6.74, 'manual', null, 3.0, 0.18, 338.82),
-  fill(at(9, 37, 15), 7007, 'GAPX', 'BUY', 1250, 1.8872, 'manual', null, 2.5, 0, -2.5),
-];
+const FILLS_TODAY = SAMPLE_FILLS_TODAY;
 const REALIZED_TODAY = r2(FILLS_TODAY.reduce((s, f) => s + f.realized, 0));
 const LIFETIME_REALIZED = 1864.25;
 const STARTING_CASH = 25_000;
@@ -41,29 +33,37 @@ const sum = <T extends Record<K, number>, K extends string>(xs: T[], k: K) => r2
 export function practiceHistory(range: string, venue: string) {
   const dayClose = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10), 20, 0) / 1000;
   const isDay = range === '1D';
-  const point = (ts: number, realized: number) => ({ ts, net_liquidation: r2(STARTING_CASH + realized), cash: r2(STARTING_CASH + realized), realized, unrealized: 0 });
+  // Each point carries every book's running realized (ADR 072): the four add up to the account's.
+  const run: Record<Book, number> = { you: 0, claude: 0, brain: 0, earlier_bots: 0 };
+  const point = (ts: number, realized: number) => ({ ts, net_liquidation: r2(STARTING_CASH + realized), cash: r2(STARTING_CASH + realized), realized, unrealized: 0, ...pointBooks(run) });
+  const priorRows = PRIOR.map(([date, r, n]) => ({ date, realized: r, commissions: r2(n * 1.6), fees: r2(n * 0.05), fills: n, archived: false, ...priorBooks(date, r, n) }));
+  const todayRow = { date: DAY, realized: REALIZED_TODAY, commissions: 14.5, fees: 0.35, fills: FILLS_TODAY.length, archived: false, ...fillBooks(FILLS_TODAY) };
   const equity = [];
   let realized = 0;
   if (isDay) {
     realized = r2(LIFETIME_REALIZED - REALIZED_TODAY);
+    for (const row of priorRows) for (const b of BOOKS) run[b] += row[b].realized;
     equity.push(point(at(4, 0), realized));
   } else {
     equity.push(point(Date.UTC(2026, 7, 31, 20, 0) / 1000, 0));
-    for (const [d, r] of PRIOR) {
-      realized = r2(realized + r);
-      equity.push(point(dayClose(d), realized));
+    for (const row of priorRows) {
+      realized = r2(realized + row.realized);
+      for (const b of BOOKS) run[b] += row[b].realized;
+      equity.push(point(dayClose(row.date), realized));
     }
   }
   for (const f of FILLS_TODAY) {
     realized = r2(realized + f.realized);
+    run[f.owner] += f.realized;
     equity.push(point(f.ts, realized));
   }
+  const rangeRows = isDay ? [todayRow] : [...priorRows, todayRow];
   const manual = FILLS_TODAY.filter((f) => f.source === 'manual');
   const bot = FILLS_TODAY.filter((f) => f.source === 'bot');
   return {
     venue, account_id: venue === 'sim' ? 'NOVA-SIM' : 'NOVA-PAPER', range,
     range_start: isDay ? at(4, 0) : Date.UTC(2026, 8, 1, 8) / 1000,
-    schema_version: 1, starting_cash: STARTING_CASH, ledger_opened_at: '2026-08-31T16:00:00-04:00',
+    schema_version: 3, starting_cash: STARTING_CASH, ledger_opened_at: '2026-08-31T16:00:00-04:00',
     equity,
     fills: FILLS_TODAY,
     by_source: isDay
@@ -75,14 +75,12 @@ export function practiceHistory(range: string, venue: string) {
         { source: 'manual', bot_id: null, realized: r2(LIFETIME_REALIZED - 46.2), fills: 142, commissions: 246.1, fees: 6.9 },
         { source: 'bot', bot_id: 'nova-first-pullback', realized: 46.2, fills: 18, commissions: 18.0, fees: 0.4 },
       ],
-    daily: [
-      ...PRIOR.map(([date, r, n]) => ({ date, realized: r, commissions: r2(n * 1.6), fees: r2(n * 0.05), fills: n, archived: false })),
-      { date: DAY, realized: REALIZED_TODAY, commissions: 14.5, fees: 0.35, fills: FILLS_TODAY.length, archived: false },
-    ],
+    by_owner: byOwner(rangeRows),
+    daily: [...priorRows, todayRow],
     archives: [],
     components: isDay
-      ? { realized: REALIZED_TODAY, unrealized: 41.0, commissions: 14.5, sec_finra_fees: 0.35, bot_realized: sum(bot, 'realized') }
-      : { realized: LIFETIME_REALIZED, unrealized: 41.0, commissions: 264.1, sec_finra_fees: 7.3, bot_realized: 46.2 },
+      ? { realized: REALIZED_TODAY, unrealized: 41.0, commissions: 14.5, sec_finra_fees: 0.35, ...bookComponents(rangeRows) }
+      : { realized: LIFETIME_REALIZED, unrealized: 41.0, commissions: 264.1, sec_finra_fees: 7.3, ...bookComponents(rangeRows) },
     warnings: [],
   };
 }

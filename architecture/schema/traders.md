@@ -6,10 +6,12 @@ commit as the code (Invariants #1 and #5).
 
 ## Three traders: you, Claude, the brain (ADR 072, operator decisions 2026-11-13)
 
-**Confirmed for the build; built batch by batch** (ADR 072 "Build order"). Until a batch lands, the sections it
-replaces still describe the desk: `recording-and-replay.md` "Your book and the bots' book", `loss-limit.md` "Three
-lines", `agent-trader.md` (Stop Claude, Take Claude's line, the -$500 in code) and `bot.md` (the Bots page, the Live
-Trader). Each batch's PR rewrites what it replaces in the same commit.
+**Built batch by batch** (ADR 072 "Build order"). Batch 3 ("Books, rules and the switches") is built: the owners, a
+trader's stock, the rules at the door, the handover, each AI trader's budget, the switches, `GET /api/traders` and
+`PUT /api/traders/{trader}/switch` (`recording-and-replay.md` "Three traders' books" is the wire it changed). Still to
+come (batch 4): `PUT /api/traders/{trader}/limits` and Settings' column per trader (`trader-limits.json` is read
+now, with its defaults), each AI trader's own loss line (`loss-limit.md` "Four lines"; until then Claude's, the
+brain's and Earlier bots' fills count on the Bots line), and the brain's own door.
 
 **The owners.** `owner` is one of `you`, `claude`, `brain` or `earlier_bots`, on Paper and Sim; on Live every row is
 `you`. `bot` is set only on `earlier_bots` rows and names the retired holder: `bot` (the strategy bot), `auto_entry`,
@@ -58,9 +60,10 @@ its own resting exits still fill). The marks are kept in `trader-handed.json` in
 and atomically: `{schema_version: 1, handed: [{venue: "paper" | "sim", trader, symbol, at}]}`. An entry ends when the
 trader's shares there are flat on that venue; a Sim entry also ends when the Sim account resets or a rewind goes back
 before `at`. A missing or unreadable file reads empty and is logged; it is never guessed from the switches. Your Sell, Cover, Flatten and the exit pair size from your own shares plus handed shares
-(`GET /api/ibkr/positions` on Paper and Sim adds `handed_qty` and `handed_from`). A close that reaches handed shares
-first cancels that trader's resting exits in the stock (source `cancel_working`, origin `takeover`), then sells your
-own shares and then the handed ones. Each part of a fill that closes handed shares is booked on that trader's book
+(`GET /api/ibkr/positions` on Paper and Sim counts them in `qty` and says so in `handed_qty` and `handed_from`). A
+close that reaches handed shares first cancels that trader's resting exits in the stock (source `cancel_working`,
+code `TAKEOVER`, inside the practice broker's placement: `owners.handover`), then sells your own shares and then the
+handed ones. Each part of a fill that closes handed shares is booked on that trader's book
 with `closed_by: "you"` (`fills[].parts[].closed_by`, and `fills[].closed_by` when any part has it). You never add to
 a handed position (`OWNERS_TRADERS_STOCK`). A retired bot's shares still open at the upgrade read as handed from
 `earlier_bots`.
@@ -76,9 +79,12 @@ a handed position (`OWNERS_TRADERS_STOCK`). A retired bot's shares still open at
   trader's loss line tripped today, decision 8), `TRADER_PAST_FLAT_BY` (at or after its flat-by time),
   `TRADER_OPERATOR_ONLY` (a request carrying `X-Agent-Seat`, or the brain's session key), `REMOTE_VIEW_ONLY` (the
   phone, ADR 070).
-- **Off** is never refused. It writes the file first, then cancels the trader's unfilled entries (source
-  `cancel_working`, origin `takeover`), Claude's armed breaks and reflexes; its exit legs keep resting; Claude's guard
-  skips the stock. Each step is an event on the trader's stream (`switch_off`, `handed`: "The brain is off: its 200
+- **Off** is never refused (`traders.off`). It writes the file first, hands every position the trader holds on
+  Paper and Sim (each marked at its venue's clock), then cancels its unfilled entries on both venues (source
+  `cancel_working`, code `TAKEOVER`; an entry's waiting exits go with it), Claude's armed breaks and reflexes; its
+  exit legs keep resting; Claude's guard skips the stock. The door refuses any new order stamped `claude` or `brain`
+  while its switch is Off (`TRADER_OFF`, `traders.door`); cancels, Nova's protective sources and the trader's own
+  loss line's Auto sell still go. Each step is an event on the trader's stream (`switch_off`, `handed`: "The brain is off: its 200
   XLAB are yours to close. Its stop at 4.19 keeps resting.").
 
 **The limits** (`backend/traders/limits.py`). File `trader-limits.json` in the operator cache, rewritten whole and
@@ -98,7 +104,9 @@ defaults with `error`; the next save writes a fresh file. A trader's daily loss 
   {pnl, loss_limit_usd, tripped_at}, limits: {max_shares, risk_usd, budget_usd, budget_used_usd, flat_by}, note:
   {text, at} | null}`. `state` is one of `off`, `watching`, `buy_set`, `in_trade`, `done`; `text` is the pill's words
   ("Brain · In XLAB +$42.00", "Brain · Off · XLAB is yours to close", "Brain · Done for today -$500"). Claude's
-  `state`, `symbol`, `note` and position are the seat's (`agent-trader.md`); the brain's are its door's.
+  `state`, `symbol`, `lane` and `note` are the seat's (`agent-trader.md`); until the brain's door lands (batch 4) the
+  brain reads `off`, `watching` or `in_trade` from its book. `position` and `handed` are the desk venue's account
+  (Paper while the desk is on Live); `today.loss_limit_usd` is Claude's day stop until the loss lines land.
 - `PUT /api/traders/{trader}/switch {on: boolean}` -> the `GET` shape, or the refusal above. `404 TRADER_UNKNOWN`
   for another name.
 - `PUT /api/traders/{trader}/limits {max_shares?, risk_usd?, budget_usd?, flat_by?}` -> the `GET` shape. `400

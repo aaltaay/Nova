@@ -70,7 +70,7 @@ def test_an_old_journal_migrates_in_place_and_its_rows_read_as_yours(isolated_db
     (old,) = store.get_closed_trades()
     assert (old["symbol"], old["venue"], old["owner"], old["bot"], old["pnl"]) == ("OLD", None, None, None, 5.0)
     assert [t["symbol"] for t in store.get_closed_trades(owner="you")] == ["OLD"]
-    assert store.get_closed_trades(owner="bots") == []
+    assert store.get_closed_trades(owner="claude") == []
     assert store.get_closed_trades(venue="paper") == []
     journal_db.init_db()                                         # safe to run again
     assert len(store.get_closed_trades()) == 1
@@ -84,7 +84,7 @@ def test_a_journal_read_as_it_is_answers_without_the_new_columns(tmp_path) -> No
     assert (row["symbol"], row["venue"], row["owner"], row["bot"]) == ("OLD", None, None, None)
     assert store.get_trades(database=path, owner="you")[0]["symbol"] == "OLD"
     assert store.get_trades(database=path, venue="paper") == []
-    assert store.get_trades(database=path, owner="bots") == []
+    assert store.get_trades(database=path, owner="earlier_bots") == []
     assert "venue" not in _columns(path)                         # read, never migrated
 
 
@@ -104,7 +104,7 @@ def _watch_fill(idempotency_key: str, order_id: int, side: str, price: float, *,
 
 @pytest.mark.parametrize(("source", "origin", "whose"), [
     ("manual", "ticket", ("you", None)),
-    ("bot", "live_trader", ("bots", "live_trader")),
+    ("bot", "live_trader", ("earlier_bots", "live_trader")),
 ])
 def test_an_ibkr_round_trip_is_the_opening_orders_holders(source, origin, whose) -> None:
     journal_db.init_db()

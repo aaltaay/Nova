@@ -1,27 +1,35 @@
-/* Your book and the bots' book on the Account page (ADR 069, mockup v1 F:\Nova\design\bot-human-books\v1).
-   Owner: account/OwnerSwitch.tsx, BooksCards.tsx, DayBars.tsx and the Whose cells. You are cyan, the bots
-   the page's own bot indigo (--acct-bot), Claude its seat's purple. */
+/* The three traders' books on the Account page (ADR 072, mockup three-books v1, F:\Nova\design\three-books\v1).
+   Owner: account/OwnerSwitch.tsx, BooksCards.tsx, DayBars.tsx, the calendar's per-trader lines and the Whose cells.
+   Each book wears its own colour (whose.css's tokens, OWNER_COLORS): you cyan, Claude coral, the brain purple,
+   Earlier bots grey. */
 
 .account-page {
   --acct-you: var(--nova-owner-you);
   --acct-claude: var(--nova-owner-claude);
+  --acct-claude-ink: var(--nova-owner-claude-ink);
+  --acct-brain: var(--nova-owner-brain);
+  --acct-brain-ink: var(--nova-owner-brain-ink);
+  --acct-earlier: var(--nova-owner-earlier);
 }
 
 /* -- the switch, on the tab row -- */
 .acct-owner { position: relative; display: flex; align-items: center; gap: 2px; margin-left: auto; padding: 3px;
   border: 1px solid var(--acct-hair); border-radius: 8px; background: var(--nova-panel); }
 .acct-owner__item { display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 11px; border: 0; border-radius: 6px;
-  background: transparent; color: var(--nova-text-muted); font-weight: 600; font-size: 12px; cursor: pointer; }
+  background: transparent; color: var(--nova-text-muted); font-weight: 600; font-size: 12px; white-space: nowrap; cursor: pointer; }
 .acct-owner__item.is-on { background: var(--nova-raised); color: var(--nova-text); }
-.acct-owner__item:disabled { cursor: default; }
+.acct-owner__item:disabled { cursor: default; opacity: 0.6; }
 .acct-owner__caret { font-size: 9px; opacity: 0.8; }
+.acct-owner__n { font-style: normal; font-weight: 500; font-size: 11px; color: var(--nova-text-muted); }
+/* The owner dots, here and in the hover card's portal on <body> (whose.css's tokens are global). */
 .acct-owner__dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 2px; background: var(--nova-text-muted); }
-.acct-owner__dot.is-you { background: var(--acct-you); }
-.acct-owner__dot.is-bots { background: var(--acct-bot); }
-.acct-owner__dot.is-claude { background: var(--acct-claude); }
-.acct-owner__menu { position: absolute; top: calc(100% + 4px); right: 0; z-index: 5; min-width: 170px; padding: 4px;
-  border: 1px solid var(--acct-hair); border-radius: 8px; background: var(--nova-panel); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); }
-.acct-owner__opt { display: flex; align-items: center; gap: 8px; width: 100%; height: 26px; padding: 0 8px; border: 0; border-radius: 5px;
+.acct-owner__dot.is-you { background: var(--nova-owner-you); }
+.acct-owner__dot.is-claude { background: var(--nova-owner-claude); }
+.acct-owner__dot.is-brain { background: var(--nova-owner-brain); }
+.acct-owner__dot.is-earlier_bots { background: var(--nova-owner-earlier); }
+.acct-owner__menu { position: absolute; top: calc(100% + 4px); right: 0; z-index: 5; min-width: 240px; padding: 4px;
+  border: 1px solid var(--acct-hair); border-radius: 8px; background: var(--nova-panel); box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45); }
+.acct-owner__opt { display: flex; align-items: center; gap: 8px; width: 100%; height: 27px; padding: 0 8px; border: 0; border-radius: 5px;
   background: transparent; color: var(--nova-text); font-size: 12px; text-align: left; cursor: pointer; }
 .acct-owner__opt.is-on, .acct-owner__opt:hover { background: var(--nova-raised); }
 .acct-owner__count { margin-left: auto; padding-left: 12px; color: var(--nova-text-muted); font-size: 11px; }
@@ -29,34 +37,79 @@
 /* The venue label follows the switch on the right, as the mockup draws it. */
 .acct-owner + .account-page__venue { margin-left: 12px; }
 
-/* -- the two books and the bots' budget -- */
-.acct-books { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 8px 0 6px; }
-.acct-book { border: 1px solid var(--acct-hair); border-radius: 8px; padding: 7px 9px; min-width: 0; }
+/* -- three books, one account; Earlier bots' slim line; each trader's budget -- */
+.acct-books__cap { margin: 8px 0 6px; font-size: 12px; color: var(--nova-text-muted); }
+.acct-books { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.acct-book { border: 1px solid var(--acct-hair); border-radius: 8px; padding: 7px 8px; min-width: 0; }
 .acct-book.is-you { background: color-mix(in srgb, var(--acct-you) 9%, transparent); border-color: color-mix(in srgb, var(--acct-you) 45%, transparent); }
-.acct-book.is-bots { background: color-mix(in srgb, var(--acct-bot) 14%, transparent); border-color: color-mix(in srgb, var(--acct-bot) 60%, transparent); }
+.acct-book.is-claude { background: color-mix(in srgb, var(--acct-claude) 11%, transparent); border-color: color-mix(in srgb, var(--acct-claude) 55%, transparent); }
+.acct-book.is-brain { background: color-mix(in srgb, var(--acct-brain) 13%, transparent); border-color: color-mix(in srgb, var(--acct-brain) 60%, transparent); }
 .acct-book.is-dim { opacity: 0.45; }
-.acct-book__k { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; }
+.acct-book__k { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; white-space: nowrap; }
 .acct-book.is-you .acct-book__k { color: var(--acct-you); }
-.acct-book.is-bots .acct-book__k { color: color-mix(in srgb, var(--acct-bot) 40%, white); }
-.acct-book__v { font-size: 17px; font-weight: 600; line-height: 22px; margin-top: 2px; }
-.acct-book__s { font-size: 10.5px; color: var(--nova-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.acct-budget { display: flex; align-items: baseline; gap: 8px; font-size: 12px; }
+.acct-book.is-claude .acct-book__k { color: var(--acct-claude-ink); }
+.acct-book.is-brain .acct-book__k { color: var(--acct-brain-ink); }
+.acct-book__v { font-size: 16px; font-weight: 600; line-height: 21px; margin-top: 3px; }
+.acct-book__s { margin-top: 1px; font-size: 10.5px; color: var(--nova-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.acct-erow { display: flex; align-items: center; gap: 7px; margin-top: 6px; padding: 6px 8px; border: 1px dashed color-mix(in srgb, var(--acct-earlier) 45%, transparent);
+  border-radius: 8px; font-size: 11.5px; color: var(--nova-text-muted); }
+.acct-erow.is-dim { opacity: 0.45; }
+.acct-erow b { color: var(--nova-text); font-weight: 600; }
+.acct-erow__note { margin-left: auto; }
+.acct-budgets { margin: 10px 0 8px; }
+.acct-budget { display: flex; align-items: baseline; gap: 8px; margin-top: 7px; font-size: 12px; }
+.acct-budget .acct-owner__dot { align-self: center; }
 .acct-budget__k { font-weight: 600; }
 .acct-budget__v { margin-left: auto; color: var(--nova-text-muted); }
-.acct-budget__meter { height: 6px; margin: 5px 0 2px; border-radius: 3px; background: var(--nova-raised); overflow: hidden; }
-.acct-budget__meter i { display: block; height: 100%; background: var(--acct-bot); }
-.acct-budget__note { margin-bottom: 8px; font-size: 10.5px; color: var(--nova-text-muted); }
+.acct-budget__meter { height: 5px; margin-top: 4px; border-radius: 3px; background: var(--nova-raised); overflow: hidden; }
+.acct-budget__meter i { display: block; height: 100%; }
+.acct-budget__meter.is-claude i { background: var(--acct-claude); }
+.acct-budget__meter.is-brain i { background: var(--acct-brain); }
+
+/* -- Day's P&L and Fills today, split by book under the account's figure -- */
+.acct-row--split { align-items: flex-start; padding: 4px 0; }
+.acct-row--split .acct-row__k { line-height: 15px; }
+.acct-row--split .acct-row__v { display: flex; flex-direction: column; align-items: flex-end; }
+.acct-split-mini { display: flex; justify-content: flex-end; gap: 8px; margin-top: 3px; font-size: 10.5px; color: var(--nova-text-muted); }
+.acct-split-mini > span { display: inline-flex; align-items: center; gap: 4px; }
 
 /* -- P&L by day -- */
 .acct-daybars { display: block; width: 100%; height: 160px; }
 .acct-daybars .is-you { fill: var(--acct-you); }
-.acct-daybars .is-bots { fill: var(--acct-bot); }
+.acct-daybars .is-claude { fill: var(--acct-claude); }
+.acct-daybars .is-brain { fill: var(--acct-brain); }
+.acct-daybars .is-earlier_bots { fill: var(--acct-earlier); }
 .acct-daybars__zero { stroke: color-mix(in srgb, var(--nova-text-muted) 55%, transparent); stroke-width: 1; }
-.acct-daybars__all { fill: none; stroke: var(--nova-text-muted); stroke-width: 2; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; }
+.acct-daybars__all { fill: none; stroke: var(--nova-text-muted); stroke-width: 1.6; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; }
+.acct-daybars__dot { fill: var(--nova-text-muted); }
 .acct-daybars__tick { fill: var(--nova-text-muted); font-size: 10px; }
 .acct-daybars__key { display: inline-block; width: 14px; border-top: 2px dashed var(--nova-text-muted); vertical-align: middle; }
+.acct-daylegend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-bottom: 6px; font-size: 12px; color: var(--nova-text-muted); }
+.acct-daylegend > span { display: inline-flex; align-items: center; gap: 6px; }
+.acct-daylegend b { font-weight: 600; }
 
-/* -- the calendar's split and the Whose cells (the chip and the Close: whose.css) -- */
-.acct-cal__split { display: flex; align-items: center; justify-content: flex-end; gap: 3px; font-size: 9.5px; line-height: 12px; }
-.acct-cal__split .acct-owner__dot { width: 6px; height: 6px; }
+/* -- the calendar: one line per trader under the day's Net, and the colour bar along the foot -- */
+.acct-cal__d.has-split { padding-bottom: 6px; }
+.acct-cal__o { display: flex; align-items: center; justify-content: flex-end; gap: 4px; font-size: 9.5px; line-height: 12px; }
+.acct-cal__o .acct-owner__dot { width: 6px; height: 6px; }
+.acct-cal__share { position: absolute; left: 4px; right: 4px; bottom: 3px; height: 2px; display: flex; gap: 1px; border-radius: 1px; overflow: hidden; }
+.acct-cal__share i { display: block; height: 100%; }
+.acct-cal__share .is-you { background: var(--acct-you); }
+.acct-cal__share .is-claude { background: var(--acct-claude); }
+.acct-cal__share .is-brain { background: var(--acct-brain); }
+.acct-cal__share .is-earlier_bots { background: var(--acct-earlier); }
+.acct-cal-month { display: inline; }
+.acct-cal-month > span { display: inline-flex; align-items: center; gap: 4px; }
+.acct-day-card__who { display: inline-flex; align-items: center; gap: 6px; color: var(--nova-text); }
+
+/* -- the Whose cells, and the tiles and symbols by holder (the chip itself: whose.css) -- */
 .acct-table td.acct-whose-cell { padding: 0 3px; white-space: nowrap; }
+.acct-srcs .acct-src.is-you .acct-ring { color: var(--acct-you); }
+.acct-srcs .acct-src.is-claude .acct-ring { color: var(--acct-claude); }
+.acct-srcs .acct-src.is-brain .acct-ring { color: var(--acct-brain); }
+.acct-srcs .acct-src.is-earlier_bots .acct-ring { color: var(--acct-earlier); }
+.acct-curve__marker.is-you { fill: var(--acct-you); }
+.acct-curve__marker.is-claude { fill: var(--acct-claude); }
+.acct-curve__marker.is-brain { fill: var(--acct-brain); }
+.acct-curve__marker.is-earlier_bots { fill: var(--acct-earlier); }
+.acct-curve__marker.is-nova { fill: var(--nova-text-muted); }

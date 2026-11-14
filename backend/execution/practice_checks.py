@@ -38,8 +38,8 @@ def held_qty(broker: Any, symbol: str) -> float:
 
 
 def _owner_refusal(cmd: ExecutionCommand, broker: Any, symbol: str) -> tuple[str, str] | None:
-    """Paper's books (ADR 069, ``owners.rules``): bots stay out of yours, never the other way, a close is its
-    sender's own shares, the bots' budget. Sim's ledger keeps one pile and answers None."""
+    """The traders' books on Paper and Sim (ADR 072, ``owners.rules``): a trader's stock is its own, not while it is
+    On, its budget, a close is its sender's own (and handed) shares, never the other way."""
     from owners import rules as owner_rules
 
     ledger = getattr(broker, "ledger", None)

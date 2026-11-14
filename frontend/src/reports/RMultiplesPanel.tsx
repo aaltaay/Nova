@@ -1,4 +1,5 @@
-/** R-multiple expectancy summary (Reports v2); Paper's All view adds yours and the bots' (ADR 069). */
+/** R-multiple expectancy summary (Reports v2); Paper's All view adds the four books, in order (ADR 072). */
+import { OWNERS } from '../constantGroups/owners';
 import type { RBookSummary, RMultiplesResponse } from './types';
 import { REPORTS_R_PAPER_STOP, reportsRPaperStops } from './booksConstants';
 import { fmtRMultiple } from './format';
@@ -20,10 +21,9 @@ const scored = (book: RBookSummary): SplitFigure | null =>
 function paperStops(data: RMultiplesResponse): string {
   const split = data.by_owner;
   if (!split) return `${REPORTS_R_PAPER_STOP}.`;
-  return reportsRPaperStops(
-    { skipped: split.you.skipped_no_stop, n: split.you.trade_count },
-    { skipped: split.bots.skipped_no_stop, n: split.bots.trade_count },
-  );
+  return reportsRPaperStops(OWNERS.filter((owner) => split[owner]).map((owner) => ({
+    owner, skipped: split[owner].skipped_no_stop, n: split[owner].trade_count,
+  })));
 }
 
 export function RMultiplesPanel({ data, loading, books = false }: Props) {

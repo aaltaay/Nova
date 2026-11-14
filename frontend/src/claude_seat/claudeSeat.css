@@ -1,18 +1,19 @@
-/* Claude's seat on the desk (ADR 068): the header pill and its panel, the toasts, the chart words, the Level 2
-   frame and the lines-full box. One violet for Claude everywhere; red-violet for its stop. */
+/* Claude's seat on the desk (ADR 068): the header pill with its On / Off switch and its panel (ADR 072, mockup
+   brain-switches v1), the toasts, the chart words and the Level 2 frame. One coral for Claude everywhere -- OWNER_COLORS
+   .claude, its pill's colour since ADR 072 (mockup three-books v1 section 7) -- and a red for its stop. */
 .claude-pill-wrap,
 .claude-panel,
 .claude-toasts,
 .claude-chart-words,
-.claude-line-frame,
-.claude-lines-full {
-  --claude: #8e7cf8;
-  --claude-ink: #d6ceff;
-  --claude-bg: #221d42;
-  --claude-border: #5a4cc0;
+.claude-line-frame {
+  --claude: #d97757;
+  --claude-ink: #f0a586;
+  --claude-bg: color-mix(in srgb, #d97757 12%, #161618);
+  --claude-border: color-mix(in srgb, #d97757 55%, transparent);
   --claude-stop: #ff6b5f;
   --claude-amber: #ff9f0a;
   --claude-red: #ff453a;
+  --claude-on: #30d158;
 }
 
 .claude-mark {
@@ -21,38 +22,98 @@
   align-items: center;
   justify-content: center;
   border-radius: 4px;
-  background: var(--claude, #8e7cf8);
+  background: var(--claude, #d97757);
   color: #fff;
 }
 .claude-mark--muted,
-.claude-mark--off,
-.claude-mark--paused { background: #555; }
+.claude-mark--off { background: #555; }
 .claude-mark--wait { background: var(--claude-amber, #ff9f0a); }
 .claude-mark--done { background: var(--claude-red, #ff453a); }
 
 .claude-pill-wrap { position: relative; display: inline-flex; flex: none; }
+/* The pill: the words open the panel, the switch at its right flips Claude On or Off. */
 .claude-pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   height: 24px;
-  padding: 0 9px 0 4px;
-  border-radius: 6px;
-  border: 1px solid var(--claude-border);
-  background: var(--claude-bg);
+  padding: 0 3px 0 0;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #1a1a1c;
   color: var(--nova-text, #f5f5f7);
-  font: inherit;
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
-  cursor: pointer;
 }
 .claude-pill:hover { border-color: var(--claude); }
-.claude-pill--off { opacity: 0.6; }
-.claude-pill--paused { opacity: 0.8; }
+.claude-pill--off { opacity: 0.62; }
 .claude-pill--wait { border-color: #6b4a12; background: #2a1e0b; }
 .claude-pill--done { border-color: #5a1c18; background: #2a0f0d; }
-.claude-pill__caret { color: var(--nova-text-muted, #98989d); font-weight: 500; }
+.claude-pill__open {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 100%;
+  padding: 0 2px 0 4px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+/* A refused press, under the pill in Nova's words until it is read (a click puts it away). */
+.claude-pill__why {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 1200;
+  width: max-content;
+  max-width: 340px;
+  padding: 5px 9px;
+  border: 1px solid #6b4a12;
+  border-radius: 7px;
+  background: #2a1e0b;
+  color: var(--claude-amber);
+  font: inherit;
+  font-size: 11.5px;
+  line-height: 1.4;
+  text-align: left;
+  white-space: normal;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
+}
+
+/* The On / Off switch (mockup brain-switches v1): green with the knob right while On. */
+.claude-switch {
+  position: relative;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: #3a3a3c;
+  cursor: pointer;
+}
+.claude-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #d1d1d6;
+  transition: left 0.12s ease-out;
+}
+.claude-switch.is-on { background: var(--claude-on); }
+.claude-switch.is-on::after { left: 14px; background: #fff; }
+.claude-switch.is-big { flex-basis: 42px; width: 42px; height: 24px; border-radius: 12px; }
+.claude-switch.is-big::after { width: 20px; height: 20px; }
+.claude-switch.is-big.is-on::after { left: 20px; }
+.claude-switch:disabled { opacity: 0.5; cursor: default; }
+.claude-switch:focus-visible { outline: 2px solid var(--claude); outline-offset: 2px; }
 
 .claude-panel {
   position: absolute;
@@ -61,7 +122,7 @@
   z-index: 1200;
   width: 392px;
   padding: 12px 13px;
-  border: 1px solid #4b3fa8;
+  border: 1px solid var(--claude-border);
   border-radius: 10px;
   background: #1f1f22;
   color: var(--nova-text, #f5f5f7);
@@ -71,6 +132,8 @@
   white-space: normal;
 }
 .claude-panel__head { display: flex; align-items: center; gap: 9px; }
+.claude-panel__grow { flex: 1; min-width: 0; }
+.claude-panel__switch { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; }
 .claude-panel__head .claude-mark { border-radius: 6px; }
 .claude-panel__title { font-size: 14px; font-weight: 600; }
 .claude-panel__sub { color: var(--nova-text-muted, #98989d); font-size: 11px; }
@@ -94,31 +157,14 @@
 .claude-panel__row > span:last-child { text-align: right; }
 .claude-panel__reflexes { padding: 5px 0; border-top: 1px solid #2c2c2e; }
 .claude-panel__reflexes ul { margin: 3px 0 0; padding-left: 16px; }
-.claude-panel__btns { display: flex; gap: 7px; margin-top: 9px; }
-.claude-btn {
-  flex: 1;
-  padding: 6px 4px;
-  border: 1px solid var(--nova-border, #3a3a3c);
-  border-radius: 7px;
-  background: var(--nova-raised, #2c2c2e);
-  color: var(--nova-text, #f5f5f7);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.claude-btn:disabled { opacity: 0.5; cursor: default; }
-.claude-btn--warn { border-color: #6a4410; color: var(--claude-amber); }
-.claude-btn--stop { border-color: #5a1c18; color: var(--claude-red); }
 .claude-panel__help {
-  display: flex;
-  gap: 7px;
-  margin-top: 4px;
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid #2c2c2e;
   color: var(--nova-text-dim, #6e6e73);
-  font-size: 10.5px;
-  line-height: 1.3;
+  font-size: 11px;
+  line-height: 1.45;
 }
-.claude-panel__help > div { flex: 1; text-align: center; }
 .claude-panel__events { margin-top: 8px; color: var(--nova-text-muted, #98989d); font-size: 11px; line-height: 1.55; }
 .claude-panel__events b { color: var(--nova-text, #f5f5f7); font-weight: 500; }
 .claude-panel__warn { margin: 6px 0 0; color: var(--claude-amber); font-size: 11px; }
@@ -141,7 +187,7 @@
   padding: 8px 11px;
   border: 1px solid var(--claude-border);
   border-radius: 8px;
-  background: #1d1a33;
+  background: #1f1a18;
   color: var(--nova-text, #f5f5f7);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
   font-size: 12.5px;
@@ -193,30 +239,3 @@
   font-weight: 700;
 }
 .claude-line-frame__tag .claude-mark { background: #fff; color: var(--claude); }
-
-.claude-lines-full {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  margin: 8px;
-  padding: 12px;
-  border: 1px dashed var(--claude-border);
-  border-radius: 8px;
-  background: #16132b;
-  text-align: center;
-  font-size: 12px;
-}
-.claude-lines-full__title { margin: 0; font-weight: 600; }
-.claude-lines-full__msg { margin: 0; color: var(--nova-text-muted, #98989d); }
-.claude-lines-full__chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
-.claude-lines-full .claude-btn { flex: none; padding: 6px 14px; }
-.claude-chip {
-  padding: 2px 8px;
-  border-radius: 5px;
-  background: var(--nova-raised, #2c2c2e);
-  font-size: 11px;
-  font-weight: 600;
-}
-.claude-chip--claude { border: 1px solid var(--claude-border); background: var(--claude-bg); color: var(--claude-ink); }
-

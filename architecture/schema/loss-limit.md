@@ -115,6 +115,10 @@ limit · Bots" (voice "Bots' loss limit."); rows from before ADR 056 keep their 
 
 ## Three lines: yours, the bots' and the account's (ADR 063, operator decisions 2026-10-20)
 
+**Until "Four lines" lands (ADR 072 batch 4):** the books are three traders' (`traders.md`), and the Bots line counts
+every book but yours -- Claude's, the brain's and Earlier bots' fills (`loss_limit.accounts.by_of`). Its Auto sell
+(origin `loss_limit_bots`) closes every holder's shares but yours.
+
 **Whose trade** (`loss_limit/accounts.by_of`, `loss_limit/count.py`). A trade belongs to the side whose
 order opened its shares, read from the practice ledger row's own stamps: the bots' when `order_source`
 is `bot` or `bot_id` is set (the rule `practice.history`'s by-source split uses), or when `order_origin`

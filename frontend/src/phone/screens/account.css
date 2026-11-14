@@ -1,4 +1,4 @@
-/* Account (frozen mockup R2-Account). */
+/* Account (frozen mockup R2-Account; three books v1, ADR 072). */
 .ph-acct__top {
   flex-shrink: 0;
   padding: 0 12px;
@@ -7,9 +7,13 @@
   gap: 10px;
 }
 
-.ph-acct__switches { flex-shrink: 0; padding: 4px 12px 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.ph-acct__books { height: 32px; padding: 3px; gap: 3px; border-radius: 11px; }
-.ph-acct__books button { font-size: 13px; color: var(--ph-dim); }
+/* One row (three books v1, choice 2): Overview and Calendar as two icons, the five books beside them. */
+.ph-acct__switches { flex-shrink: 0; padding: 4px 12px 8px; display: flex; gap: 8px; }
+.ph-acct__modes, .ph-acct__books { height: 32px; padding: 3px; gap: 3px; border-radius: 11px; }
+.ph-acct__modes { flex: none; }
+.ph-acct__modes button { width: 34px; min-width: 0; flex: none; display: flex; align-items: center; justify-content: center; color: var(--ph-dim); }
+.ph-acct__books { flex: 1 1 0; min-width: 0; }
+.ph-acct__books button { min-width: 0; font-size: 12px; color: var(--ph-dim); white-space: nowrap; }
 .ph-acct__books button:disabled { color: var(--ph-faint); }
 
 .ph-acct__value {
@@ -83,10 +87,11 @@
 .ph-cal__wd { flex-shrink: 0; display: grid; gap: 4px; font-size: 10px; color: var(--ph-faint); text-align: center; }
 .ph-cal__grid { flex: 1 1 0; min-height: 0; display: grid; grid-auto-rows: minmax(0, 1fr); gap: 4px; }
 .ph-cal__d {
+  position: relative;
   min-width: 0;
   min-height: 0;
   max-height: 64px;
-  padding: 3px 5px;
+  padding: 3px 5px 7px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -101,7 +106,21 @@
 .ph-cal__d i { font-style: normal; font-size: 10px; line-height: 1; color: var(--ph-muted); }
 .ph-cal__d b { font-size: 12px; font-weight: 700; line-height: 1; }
 .ph-cal__d u { text-decoration: none; font-size: 9px; line-height: 1; color: var(--ph-faint); }
-.ph-cal__grid[data-cols='7'] .ph-cal__d { padding: 3px; }
+.ph-cal__grid[data-cols='7'] .ph-cal__d { padding: 3px 3px 7px; }
+/* Each trader's share of the day along the square's foot (three books v1): each colour as wide as its share. */
+.ph-cal__split {
+  position: absolute;
+  left: 5px;
+  right: 5px;
+  bottom: 3px;
+  height: 3px;
+  display: flex;
+  gap: 1px;
+  border-radius: 1px;
+  overflow: hidden;
+}
+.ph-cal__split i { display: block; height: 100%; flex-basis: 0; min-width: 2px; }
+.ph-cal__grid[data-cols='7'] .ph-cal__split { left: 3px; right: 3px; }
 .ph-cal__grid[data-cols='7'] .ph-cal__d b { font-size: 10px; }
 .ph-cal__grid[data-cols='7'] .ph-cal__d u { display: none; }
 .ph-cal__d.is-blank { background: transparent; border-style: dashed; }
@@ -121,6 +140,10 @@
 .ph-cal__foot b { font-weight: 700; color: var(--ph-text); }
 .ph-cal__foot b.ph-good { color: var(--ph-good); }
 .ph-cal__foot b.ph-bad { color: var(--ph-bad); }
+/* Each trader's dot and figure: the month line under the grid, and the day's "By trader". */
+.ph-cal__parts { display: inline-flex; align-items: center; gap: 9px; }
+.ph-cal__parts > span { display: inline-flex; align-items: center; gap: 4px; }
+.ph-cal__parts b { font-weight: 700; }
 .ph-cal__day { flex-shrink: 0; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; white-space: nowrap; }
 .ph-cal__day > div { display: flex; justify-content: space-between; gap: 8px; min-width: 0; }
 .ph-cal__day > div > span:first-child { color: var(--ph-muted); }
@@ -143,6 +166,20 @@
 }
 .ph-cal__chart:disabled { color: var(--ph-faint); }
 .ph-acct__stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); white-space: nowrap; }
+/* The three traders' days, one row of three, each with its colour (three books v1, phone a). */
+.ph-acct__today { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--ph-hair); white-space: nowrap; }
+.ph-acct__today > div {
+  height: 46px;
+  min-width: 0;
+  padding: 0 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+.ph-acct__today > div + div { border-left: 1px solid var(--ph-hair); }
+.ph-acct__today i { font-style: normal; font-size: 10px; color: var(--ph-muted); display: flex; align-items: center; gap: 5px; }
+.ph-acct__today b { font-size: 15px; font-weight: 700; line-height: 1.1; }
 .ph-acct__stats > div {
   height: 46px;
   min-width: 0;
@@ -168,9 +205,12 @@
 .ph-acct__tabs { height: 38px; margin-top: 6px; gap: 22px; }
 
 .ph-acct__head, .ph-acct__row { display: grid; align-items: center; }
-.ph-acct__head.is-positions, .ph-acct__row.is-position { grid-template-columns: 76px 34px 1fr 1fr 1fr 1.3fr; }
-.ph-acct__head.is-orders, .ph-acct__row.is-order { grid-template-columns: 76px 34px 1.4fr 1fr 70px; }
-.ph-acct__head.is-fills, .ph-acct__row.is-fill { grid-template-columns: 76px 1.4fr 1fr 1fr; }
+/* Every list says whose in its second column: positions, orders and fills (three books v1). */
+.ph-acct__head.is-positions, .ph-acct__row.is-position {
+  grid-template-columns: 70px 54px minmax(0, 0.85fr) minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 1.35fr);
+}
+.ph-acct__head.is-orders, .ph-acct__row.is-order { grid-template-columns: 70px 54px minmax(0, 1.3fr) minmax(0, 1fr) 70px; }
+.ph-acct__head.is-fills, .ph-acct__row.is-fill { grid-template-columns: 70px 54px minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 0.9fr); }
 .ph-acct__head {
   height: 22px;
   flex-shrink: 0;
@@ -182,7 +222,7 @@
   letter-spacing: 0.08em;
   white-space: nowrap;
 }
-.ph-acct__head > div:nth-child(n + 3), .ph-acct__head.is-fills > div:nth-child(n + 2) { text-align: right; }
+.ph-acct__head > div:nth-child(n + 3) { text-align: right; }
 
 .ph-acct__stale {
   height: 22px;
@@ -208,7 +248,7 @@
   font-size: 13px;
 }
 .ph-acct__row > :first-child { display: flex; }
-.ph-acct__row > :nth-child(n + 3), .ph-acct__row.is-fill > :nth-child(n + 2) { text-align: right; }
+.ph-acct__row > :nth-child(n + 3) { text-align: right; }
 .ph-acct__row b { font-weight: 600; }
 .ph-acct__row.is-position > b:last-of-type { font-weight: 700; }
 .ph-acct__act { position: relative; z-index: 1; display: flex; justify-content: flex-end; }

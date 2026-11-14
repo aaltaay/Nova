@@ -38,35 +38,43 @@ describe('stageAt', () => {
   });
 });
 
-describe("the bots' card (ADR 069 decision 9)", () => {
+describe("another trader's card (ADR 072)", () => {
   afterEach(() => resetCloseRemindersForTests());
 
-  const both = [{ symbol: 'GRML', qty: 500, owner: 'you' as const }, { symbol: 'ORCL', qty: -19, owner: 'bots' as const }];
-  const due = (now: Date, venue = 'paper', positions: typeof both = both) =>
+  type Row = { symbol: string; qty: number; owner: 'you' | 'claude' | 'brain' | 'earlier_bots'; bot?: string | null };
+  const both: Row[] = [{ symbol: 'GRML', qty: 500, owner: 'you' }, { symbol: 'ORCL', qty: -19, owner: 'claude' }];
+  const due = (now: Date, venue = 'paper', positions: Row[] = both) =>
     dueCloseReminders({ positions, venue, stale: false, now, fired: none, current: [] });
 
-  it("raises nothing for the bots' shares before 15:56: their own sale runs first", () => {
+  it("raises nothing for another trader's shares before 15:56: Nova's own sale runs first", () => {
     expect(due(edt(2, 15, 50)).reminders.map((r) => r.symbol)).toEqual(['GRML']);
     expect(due(edt(2, 15, 55)).reminders.map((r) => r.symbol)).toEqual(['GRML']);
   });
 
   it('names them from 15:56 to the close, on a card of their own', () => {
     const cards = due(edt(2, 15, 56)).reminders;
-    expect(cards.map((r) => [r.symbol, r.qty, r.stage])).toEqual([['GRML', 500, 'final'], ['ORCL', -19, 'bots']]);
+    expect(cards.map((r) => [r.symbol, r.qty, r.stage, r.owner])).toEqual([
+      ['GRML', 500, 'final', undefined], ['ORCL', -19, 'others', 'claude'],
+    ]);
     expect(due(edt(2, 16, 0)).reminders).toEqual([]);
   });
 
-  it('never raises it off Paper, and never adds their shares to yours', () => {
+  it('gives each trader in one stock a card of its own, and never adds their shares to yours', () => {
     expect(due(edt(2, 15, 57), 'live').reminders.map((r) => r.stage)).toEqual(['final']);
-    const same = [{ symbol: 'ORCL', qty: 100, owner: 'you' as const }, { symbol: 'ORCL', qty: -19, owner: 'bots' as const }];
-    expect(due(edt(2, 15, 57), 'paper', same).reminders.map((r) => [r.qty, r.stage])).toEqual([[100, 'final'], [-19, 'bots']]);
+    const same: Row[] = [
+      { symbol: 'ORCL', qty: 100, owner: 'you' }, { symbol: 'ORCL', qty: -19, owner: 'claude' },
+      { symbol: 'ORCL', qty: 40, owner: 'brain' },
+    ];
+    expect(due(edt(2, 15, 57), 'paper', same).reminders.map((r) => [r.qty, r.stage, r.owner])).toEqual([
+      [100, 'final', undefined], [-19, 'others', 'claude'], [40, 'others', 'brain'],
+    ]);
   });
 
-  it("dismisses each book's card apart, and a dismissed card stays gone", () => {
-    const same = [{ symbol: 'ORCL', qty: 100, owner: 'you' as const }, { symbol: 'ORCL', qty: -19, owner: 'bots' as const }];
+  it("dismisses each trader's card apart, and a dismissed card stays gone", () => {
+    const same: Row[] = [{ symbol: 'ORCL', qty: 100, owner: 'you' }, { symbol: 'ORCL', qty: -19, owner: 'claude' }];
     noteCloseReminders(same, 'paper', false, edt(2, 15, 57));
     expect(getCloseReminders()).toHaveLength(2);
-    dismissCloseReminder('ORCL', 'bots');
+    dismissCloseReminder('ORCL', 'others', { owner: 'claude', bot: null });
     expect(getCloseReminders().map((r) => r.stage)).toEqual(['final']);
     noteCloseReminders(same, 'paper', false, edt(2, 15, 58));
     expect(getCloseReminders().map((r) => r.stage)).toEqual(['final']);
@@ -76,16 +84,25 @@ describe("the bots' card (ADR 069 decision 9)", () => {
 
   it('keeps the same card while nothing changes', () => {
     noteCloseReminders(both, 'paper', false, edt(2, 15, 57));
-    const before = getCloseReminders().find((r) => r.stage === 'bots');
+    const before = getCloseReminders().find((r) => r.stage === 'others');
     noteCloseReminders(both, 'paper', false, edt(2, 15, 58));
-    expect(getCloseReminders().find((r) => r.stage === 'bots')).toBe(before);
+    expect(getCloseReminders().find((r) => r.stage === 'others')).toBe(before);
   });
 
-  it('says what is left and how it goes, and claims no sale every bot may not have', () => {
-    const card = { symbol: 'ORCL', qty: -19, stage: 'bots' as const, venue: 'paper' as const, stale: false };
-    expect(closeReminderTitle(card)).toBe('15:56: the bots still hold 19 short ORCL');
-    expect(closeReminderBody(card)).toBe("Paper · the bots' shares · Close on their row buys them back; nothing is held overnight");
-    expect(closeReminderBody({ ...card, qty: 40 })).toContain('sells them');
+  it('names the trader the way a refusal does, and a retired bot by its name', () => {
+    const card = { symbol: 'ORCL', qty: -19, stage: 'others' as const, venue: 'paper' as const, stale: false,
+      owner: 'claude' as const, bot: null };
+    expect(closeReminderTitle(card)).toBe('15:56: Claude still holds 19 short ORCL');
+    expect(closeReminderBody(card))
+      .toBe("Paper · The 19 short is Claude's -- switch Claude off to close it yourself. Nothing is held overnight.");
+    expect(closeReminderTitle({ ...card, qty: 40, owner: 'earlier_bots', bot: 'live_trader' }))
+      .toBe('15:56: Live Trader still holds 40 ORCL');
+  });
+
+  it('keys a fired card by its trader, so one trader dismissed leaves the other', () => {
+    expect(fireKey('2026-10-02', 'paper', 'ORCL', 'others', { owner: 'claude', bot: null }))
+      .toBe('2026-10-02|paper|ORCL|others|claude');
+    expect(fireKey('2026-10-02', 'paper', 'ORCL', 'final', { owner: 'claude' })).toBe('2026-10-02|paper|ORCL|final');
   });
 });
 

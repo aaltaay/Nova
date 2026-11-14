@@ -1,6 +1,7 @@
 /**
- * Fetches journal calendar aggregates for the Reports tab. `viewQuery` is the venue and the All / You / Bots
- * pick (`reportsView.journalViewQuery`); a new pick drops the old figures rather than show them under it.
+ * Fetches journal calendar aggregates for the Reports tab. `viewQuery` is the venue and the All / You / Claude /
+ * The brain / Earlier bots pick (`reportsView.journalViewQuery`); a new pick drops the old figures rather than show
+ * them under it.
  */
 import { useEffect, useRef, useState } from 'react';
 import { API_BASE_URL, JOURNAL_POLL_INTERVAL_MS } from '../constants';

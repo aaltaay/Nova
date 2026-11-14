@@ -47,6 +47,7 @@ function CloseReminderCard({ reminder, liveCover, onOpenSymbol }: {
       data-testid="close-reminder"
       data-symbol={symbol}
       data-stage={reminder.stage}
+      data-owner={reminder.owner}
     >
       <div className="close-reminder__text">
         <strong className="close-reminder__title" data-testid="close-reminder-title">
@@ -72,7 +73,7 @@ function CloseReminderCard({ reminder, liveCover, onOpenSymbol }: {
         data-testid="close-reminder-dismiss"
         aria-label={CLOSE_REMIND_DISMISS}
         title={CLOSE_REMIND_DISMISS}
-        onClick={() => dismissCloseReminder(symbol, reminder.stage)}
+        onClick={() => dismissCloseReminder(symbol, reminder.stage, reminder)}
       >
         ×
       </button>
@@ -93,7 +94,8 @@ export function CloseReminders({ positions, venue, stale = false, liveCover = fa
   return (
     <div className="close-reminders" role="region" aria-label={CLOSE_REMIND_REGION} data-testid="close-reminders">
       {reminders.map(reminder => (
-        <CloseReminderCard key={`${reminder.symbol}-${reminder.stage === 'bots' ? 'bots' : 'yours'}`} reminder={reminder}
+        <CloseReminderCard key={`${reminder.symbol}-${reminder.stage === 'others' ? `${reminder.owner}-${reminder.bot ?? ''}` : 'yours'}`}
+          reminder={reminder}
           liveCover={liveCover} onOpenSymbol={onOpenSymbol} />
       ))}
     </div>

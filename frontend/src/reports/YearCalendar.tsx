@@ -1,10 +1,11 @@
 /**
- * Year grid of 12 month mini-calendars with daily P&L coloring. On Paper's All view each month adds yours and the
- * bots' under its total, and a day keeps its total with the split in its tooltip (ADR 069, mockup reports-v1).
+ * Year grid of 12 month mini-calendars with daily P&L coloring. On Paper's All view each month lists the four books
+ * under its total, and a day keeps one total with the traders who traded it in its tooltip (ADR 072, mockup
+ * three-books v1: "the twelve small months keep one total a day").
  */
 import type { CalendarDay, CalendarMonthSummary } from './types';
 import { DOW_LABELS, MONTH_NAMES, fmtPnlShort } from './format';
-import { pnlSplit, splitWords } from './reportsView';
+import { pnlSplit, splitWords, tradedBooks } from './reportsView';
 import { SplitLine } from './SplitLine';
 
 interface Props {
@@ -87,7 +88,7 @@ function MiniMonth({
                 cell.data
                   ? [
                       `${cell.data.date}: ${fmtPnlShort(cell.data.pnl)} (${cell.data.trade_count} trades)`,
-                      splitWords(pnlSplit(cell.data.by_owner, fmtPnlShort)),
+                      splitWords(pnlSplit(cell.data.by_owner, fmtPnlShort), tradedBooks(cell.data.by_owner)),
                     ].filter(Boolean).join(' · ')
                   : undefined
               }

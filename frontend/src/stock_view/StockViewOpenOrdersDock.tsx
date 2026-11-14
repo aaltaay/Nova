@@ -12,7 +12,7 @@ import {
   type StockViewDockSurface,
 } from '../constants';
 import { drawerSampleBanner } from '../constantGroups/trader_chrome';
-import { botsRowsFor, useDeskPositions } from '../ibkr';
+import { othersRowsFor, useDeskPositions } from '../ibkr';
 import { PositionsPanel } from '../ibkr/PositionsPanel';
 import type {
   IbkrAccountSummary,
@@ -106,7 +106,7 @@ export const StockViewOpenOrdersDock = memo(function StockViewOpenOrdersDock({
   // The sample, the rows shown and every count (QA V22): useDrawerDisplay.
   const { wantsWorkingSample, usingSample, displayOrders, displayClosed, openCount, filterCounts } =
     useDrawerDisplay({ surface, filter, orders, closedOrders, sampleHidden, symbolKey });
-  // Every holder's shares (ADR 069 decision 9); a Sell from this drawer still sizes from yours.
+  // Every holder's shares (ADR 072); a Sell from this drawer still sizes from yours.
   const desk = useDeskPositions(positions);
   const positionCount = desk.rows.length;
 
@@ -231,7 +231,7 @@ export const StockViewOpenOrdersDock = memo(function StockViewOpenOrdersDock({
                   positions={desk.rows}
                   orders={orders}
                   error={accountError}
-                  botsStale={desk.botsStale}
+                  othersStale={desk.othersStale}
                   selectedSymbol={symbolKey}
                   onSelectSymbol={onSelectSymbol}
                   onOpenTrading={onOpenTrading ?? onSelectSymbol}
@@ -269,7 +269,7 @@ export const StockViewOpenOrdersDock = memo(function StockViewOpenOrdersDock({
             symbol={symbolKey}
             mode={mode}
             position={symbolPosition}
-            botsRows={botsRowsFor(desk.rows, symbolKey)}
+            othersRows={othersRowsFor(desk.rows, symbolKey)}
             openPositions={desk.rows.filter((p) => p.qty !== 0).length}
           />
         </>

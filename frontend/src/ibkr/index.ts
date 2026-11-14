@@ -15,9 +15,10 @@ export { cancelIbkrOrderWithFeedback } from './cancelOrder';
 export { useIbkrStatus, type IbkrClientStatus } from './useIbkrStatus';
 export { useIbkrAccount } from './useIbkrAccount';
 export { useOptionalIbkrAccountContext } from './IbkrAccountContext';
-// ADR 069 decision 9: every positions list reads both books; nothing that sends an order takes these rows.
-export { botsRowsFor, type DeskPosition } from './deskPositions';
-export { useBotsQty, useDeskPositions } from './useDeskPositions';
+// ADR 072: every positions list reads every book; nothing that sends an order takes another trader's row.
+export { isOthersRow, othersRowsFor, ownShares, type DeskPosition, type OwnerHold } from './deskPositions';
+export { useDeskPositions, useOthersHold } from './useDeskPositions';
+export { RowWhose } from './RowWhose';
 export {
   getIbkrStatusSnapshot,
   refreshIbkrStatusNow,

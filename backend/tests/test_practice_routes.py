@@ -51,12 +51,12 @@ def client(monkeypatch):
 def test_account_answers_the_contract_for_both_venues(client) -> None:
     sim = client.get("/api/practice/account", params={"venue": "sim"})
     assert sim.status_code == 200
-    assert set(sim.json()) == CONTRACT | {"replay_key"}
+    assert set(sim.json()) == CONTRACT | {"replay_key", "books"}   # Sim keeps the books too (ADR 072)
     assert (sim.json()["venue"], sim.json()["account_id"]) == ("sim", "NOVA-SIM")
     paper = client.get("/api/practice/account", params={"venue": "Paper"})
     assert paper.status_code == 200
     body = paper.json()
-    assert set(body) == CONTRACT | {"books"}  # Paper's two books (ADR 069); Sim keeps one pile
+    assert set(body) == CONTRACT | {"books"}  # the three traders' books and Earlier bots' (ADR 072)
     assert (body["venue"], body["account_id"], body["starting_cash"]) == ("paper", "NOVA-PAPER", START)
     assert body["cash"] == START and body["buying_power"] == START * 4 and body["positions"] == []
 

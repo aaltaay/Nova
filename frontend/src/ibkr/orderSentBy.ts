@@ -13,7 +13,7 @@
 import type { IbkrOrder } from './types';
 
 /** `breaker`: Nova sold or covered for you (KILL, the daily loss limit, the day cover, a margin call) -- the rows to notice. */
-/** `claude`: Claude's seat (ADR 068), drawn as its violet badge. */
+/** `claude`: Claude's seat (ADR 068), drawn as its coral badge (ADR 072). */
 export type SentByTone = 'you' | 'nova' | 'breaker' | 'outside' | 'unknown' | 'claude';
 
 export type SentBy = { label: string; tip: string; tone: SentByTone };
@@ -111,7 +111,14 @@ const BY_ORIGIN: Record<string, SentBy> = {
     label: 'Claude',
     tone: 'claude',
     tip: "Claude's seat (ADR 068): Paper only. Claude sent it -- an entry with its stop and targets, a stop moved up, "
-      + 'a close or a cancel. Click the Claude pill in the header for why.',
+      + 'a close or a cancel.',
+  },
+  // ADR 072: the cancels a trader's switch turned Off makes, and those before your close of a stock it handed you.
+  takeover: {
+    label: 'Takeover',
+    tone: 'nova',
+    tip: "Takeover: Nova cancelled a trader's orders for you -- its unfilled entries when you switched it Off, or "
+      + 'its resting exits in a stock it handed you, just before your close there.',
   },
   margin_call: {
     label: 'Margin call',

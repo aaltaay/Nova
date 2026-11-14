@@ -1,7 +1,7 @@
 /**
  * Claude is heard (ADR 068, the approved design's 5): each new event that matters -- a buy set, a fill, a reflex
- * fired, a close, the line taken or given back, a refusal -- pops a toast and the desk's voice says it (the
- * header mute silences it). The first read of the day raises nothing: only what happens while the desk is open.
+ * fired, a close, a refusal, the switch turned Off and each trade it handed you (ADR 072) -- pops a toast and the
+ * desk's voice says it (the header mute silences it). The first read of the day raises nothing: only what happens while the desk is open.
  */
 import { useEffect, useRef, useState } from 'react';
 import { speakDesk } from '../sound';

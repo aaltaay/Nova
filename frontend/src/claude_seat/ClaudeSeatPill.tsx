@@ -1,8 +1,10 @@
 /**
- * The Claude pill in the header (ADR 068, the approved design's 1): always says what Claude is doing -- "Claude ·
- * Buy set SMPL 4.39", "Claude · In SMPL +$42.00", "Waiting for a Level 2 line", "Paused by you", "Done for today". A
- * click opens the panel (2). It always shows -- "Claude · Off" muted while the seat is off, so the operator sees
- * Claude is off -- never on the sample desk. It also hosts Claude's toasts (5), so the header mounts one element.
+ * The Claude pill in the header (ADR 068, the approved design's 1; ADR 072, mockup brain-switches v1 section 1):
+ * always says what Claude is doing -- "Claude · Buy set SMPL 4.39", "Claude · In SMPL +$42.00", "Waiting for a
+ * Level 2 line", "Done for today" -- and carries Claude's On / Off switch. Clicking the words opens the panel (2);
+ * the switch flips at once, and a refused On is said under the pill in Nova's words. It always shows -- "Claude ·
+ * Off" muted while the seat or the switch is off, so the operator sees Claude is off -- never on the sample desk. It
+ * also hosts Claude's toasts (5), so the header mounts one element.
  */
 import { useEffect, useRef, useState } from 'react';
 import { isSampleView } from '../sample_data/sampleNav';
@@ -11,11 +13,13 @@ import { pillShown, pillTone } from './claudeSeatWords';
 import { ClaudeMark } from './ClaudeMark';
 import { ClaudeSeatPanel } from './ClaudeSeatPanel';
 import { ClaudeSeatToasts } from './ClaudeSeatToasts';
+import { ClaudeSwitchButton, useClaudeSwitch } from './ClaudeSwitch';
 import './claudeSeat.css';
 
 export function ClaudeSeatPill() {
   const { status, error } = useClaudeSeat();
   const [open, setOpen] = useState(false);
+  const press = useClaudeSwitch();
   const root = useRef<HTMLSpanElement | null>(null);
 
   useEffect(() => {
@@ -41,21 +45,29 @@ export function ClaudeSeatPill() {
       <ClaudeSeatToasts />
       {pill ? (
         <span className="claude-pill-wrap" ref={root}>
-          <button
-            type="button"
-            className={`claude-pill claude-pill--${tone}`}
-            data-testid="claude-pill"
-            data-state={pill.state}
-            aria-expanded={open}
-            aria-haspopup="dialog"
-            title={error ? `Claude's seat: ${error}` : undefined}
-            onClick={() => setOpen(v => !v)}
-          >
-            <ClaudeMark tone={tone} />
-            <span className="claude-pill__text">{pill.text}</span>
-            <span className="claude-pill__caret" aria-hidden="true">▾</span>
-          </button>
-          {open ? <ClaudeSeatPanel status={pill} /> : null}
+          <span className={`claude-pill claude-pill--${tone}`} data-testid="claude-pill" data-state={pill.state}
+            data-switch={pill.switch ? (pill.switch.on ? 'on' : 'off') : undefined}>
+            <button
+              type="button"
+              className="claude-pill__open"
+              data-testid="claude-pill-open"
+              aria-expanded={open}
+              aria-haspopup="dialog"
+              title={error ? `Claude's seat: ${error}` : undefined}
+              onClick={() => setOpen(v => !v)}
+            >
+              <ClaudeMark tone={tone} />
+              <span className="claude-pill__text">{pill.text}</span>
+            </button>
+            {pill.switch ? <ClaudeSwitchButton sw={pill.switch} press={press} /> : null}
+          </span>
+          {press.why && !open ? (
+            <button type="button" className="claude-pill__why" role="alert" data-testid="claude-pill-why"
+              onClick={press.clearWhy}>
+              {press.why}
+            </button>
+          ) : null}
+          {open ? <ClaudeSeatPanel status={pill} press={press} /> : null}
         </span>
       ) : null}
     </>

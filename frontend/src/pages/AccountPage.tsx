@@ -13,11 +13,13 @@
  * A Calendar day clicked opens in the Ledger's place, and the Fills tab lists
  * that day's fills until the day closes (operator ask, 2026-10-26).
  *
- * Paper keeps your book and the bots' (ADR 069): the tab row's All / You / Bots
- * switch narrows every panel to one book or one bot (`account/ownerView`), All
- * shows yours and the bots' beside each total, and every page open starts on All.
- * Reports keeps the same switch and the same pick; its Bots menu counts the
- * journal's trades (ADR 069 decision 6, mockup reports-v1).
+ * Paper and Sim keep three traders' books -- you, Claude, the brain -- and
+ * Earlier bots' history (ADR 072, mockup three-books v1): the tab row's All /
+ * You / Claude / The brain / Earlier bots switch narrows every panel to one book
+ * or one retired bot (`account/ownerView`), All shows each book beside each
+ * total, and every page open starts on All. Every row is its own holder's;
+ * nothing sizes from another trader's row. Reports keeps the same switch and the
+ * same pick; there the picks count the journal's trades (mockup reports-v1).
  */
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from 'react';
 import '../account/account.css';
@@ -25,8 +27,8 @@ import '../account/account-panels.css';
 import '../account/account-day.css';
 import '../account/account-owners.css';
 import { AccountDetailsPanel } from '../account/AccountDetailsPanel';
-import { BooksCards } from '../account/BooksCards';
-import { dayShortLabel } from '../account/accountCalendar';
+import { BooksCards, bookRows } from '../account/BooksCards';
+import { dayShortLabel, monthShortLabel } from '../account/accountCalendar';
 import { dayBreakdowns, fillDay } from '../account/accountDayBreakdown';
 import { DayBreakdownPanel } from '../account/DayBreakdownPanel';
 import {
@@ -36,7 +38,7 @@ import {
 } from '../account/accountFigures';
 import { useAccountHistory } from '../account/accountHistoryResource';
 import { liveCommissionsToday, liveFillRows, practiceFillRows } from '../account/accountLive';
-import { positionsByOwner, positionsBySymbol, positionsFromIbkr, positionsFromPractice } from '../account/accountPositions';
+import { positionsByOwner, positionsFromIbkr, positionsFromPractice } from '../account/accountPositions';
 import { readAccountRangePref, writeAccountRangePref } from '../account/accountRangePref';
 import { CalendarPanel } from '../account/CalendarPanel';
 import { ComponentsPanel } from '../account/ComponentsPanel';
@@ -150,29 +152,24 @@ export function AccountPage({ onOpenTrader }: Props) {
   const hist = simEmpty ? null : loadedHist;
   const loadedCalendar = calendarHistory.data && calendarHistory.data.venue === practiceVenue ? calendarHistory.data : null;
   const calendarHist = simEmpty ? null : loadedCalendar;
-  // Your book and the bots' (ADR 069): Paper only; the view narrows every panel below.
-  const books = practiceVenue === 'paper' ? ledger?.books ?? null : null;
+  // The three traders' books (ADR 072): Paper and Sim; the view narrows every panel below.
+  const books = practiceVenue ? ledger?.books ?? null : null;
   const view = books ? ownerView : ALL_VIEW;
   const viewed = useMemo(() => viewHistory(hist, view), [hist, view]);
   const viewedCalendar = useMemo(() => viewHistory(calendarHist, view), [calendarHist, view]);
   const allSplits = useMemo(() => (books ? daySplits(calendarHist) : null), [books, calendarHist]);
+  // The books that ever traded (the whole ledger's holders): a card says "no trades yet" for one that never did.
+  const traded = useMemo(
+    () => (calendarHist?.by_owner ? new Set(calendarHist.by_owner.filter((r) => r.fills > 0).map((r) => r.owner)) : null),
+    [calendarHist],
+  );
   const viewDay = viewBookDay(books, view);
   const viewOpenPnl = viewDay ? viewDay.unrealized_pnl : figures.openPnl;
-  // Each holder's rows (ADR 069) for the tables; Account details keeps the account's own, one per stock.
+  // Each holder's rows (ADR 072) for the tables, each its own size; Account details keeps the account's own.
   const viewPositions = useMemo(
     () => (books && ledger ? positionsByOwner(ledger.positions).filter((p) => shows(view, p.owner, p.bot)) : positions),
     [books, ledger, positions, view],
   );
-  // Every bot's shares per stock: what a bots' row's Close sells, whichever bot the view picks.
-  const botsQty = useMemo(() => {
-    const out = new Map<string, number>();
-    if (books && ledger) {
-      for (const p of positionsByOwner(ledger.positions)) {
-        if (p.owner === 'bots') out.set(p.symbol, (out.get(p.symbol) ?? 0) + p.qty);
-      }
-    }
-    return out;
-  }, [books, ledger]);
   // Live: commissions and fills are what IBKR reported on the session's orders (QA W17).
   const liveOrders = practiceVenue || sampleDesk ? [] : [...ibkr.orders, ...closedOrders];
   const rows = accountDetailRows(
@@ -256,9 +253,10 @@ export function AccountPage({ onOpenTrader }: Props) {
                 range={range}
                 onRange={setRange}
                 booksSlot={books ? (
-                  <BooksCards books={books} view={view} month={monthSplit(allSplits, today.slice(0, 7))} hidden={hidden}
-                    hiddenText={ACCOUNT_TAV_HIDDEN} />
+                  <BooksCards books={books} view={view} month={monthSplit(allSplits, today.slice(0, 7))}
+                    monthName={monthShortLabel(today)} traded={traded} hidden={hidden} hiddenText={ACCOUNT_TAV_HIDDEN} />
                 ) : null}
+                bookRows={books && ledger ? { ...bookRows(books), fillsToday: ledger.fills_today } : null}
                 hidden={hidden}
                 onToggleHidden={() => setHidden((h) => !h)}
                 nowTs={nowTs}
@@ -269,7 +267,7 @@ export function AccountPage({ onOpenTrader }: Props) {
               <PerformancePanel
                 history={viewed}
                 absence={absence}
-                positions={positionsBySymbol(viewPositions)}
+                positions={viewPositions}
                 range={range}
                 onRange={setRange}
                 mode={mode}
@@ -299,7 +297,6 @@ export function AccountPage({ onOpenTrader }: Props) {
                 practice={practiceVenue != null}
                 venue={venue}
                 positions={viewPositions}
-                botsQty={botsQty}
                 working={ibkr.orders}
                 closed={closedOrders}
                 fills={fills}

@@ -1,4 +1,4 @@
-/** Per-tag win rate and P&L table (Reports v2); on Paper a tag's row counts the trades the view shows (ADR 069). */
+/** Per-tag win rate and P&L table (Reports v2); on Paper a tag's row counts the trades the pick shows (ADR 072). */
 import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import type { TagPerformanceRow, TagsResponse } from './types';
 import { REPORTS_TAGS_EMPTY_PAPER, REPORTS_TAGS_PAPER_HINT, REPORTS_TAGS_TITLE } from './booksConstants';

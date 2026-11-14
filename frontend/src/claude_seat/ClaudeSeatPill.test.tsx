@@ -1,38 +1,38 @@
 /** @vitest-environment jsdom */
 /**
- * The Claude pill and its panel (ADR 068): the pill says what Claude is doing; the panel's buttons reach the seat's
- * routes -- Stop Claude only after the operator says yes -- and a refusal is said under them. The lines-full box a
- * 3rd Level 2 shows offers Take Claude's line.
+ * The Claude pill and its panel (ADR 068; ADR 072, mockup brain-switches v1): the pill says what Claude is doing and
+ * carries Claude's On / Off switch, which flips at once through `PUT /api/traders/claude/switch` and says a refused
+ * On in Nova's words under the pill. Take Claude's line, Give it back and Stop Claude are gone.
  */
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClaudeSeatPill } from './ClaudeSeatPill';
 import { resetClaudeSeatForTests, setClaudeSeatForTests } from './claudeSeatStore';
 import { seatStatus } from './claudeSeatFixtures';
+import { CLAUDE_SWITCH_OFF_HELP } from './claudeSeatWords';
 import type { ClaudeSeatStatus } from './types';
 
-const confirmAppMock = vi.fn();
-vi.mock('../ux', () => ({ confirmApp: (...args: unknown[]) => confirmAppMock(...args) }));
-
 let served: ClaudeSeatStatus;
-const calls: { url: string; method: string }[] = [];
+const calls: { url: string; method: string; body: string | null }[] = [];
+const OFF = { on: false, at: null, can_turn_on: true, why_not_on: null };
+
+function answer(url: string, init?: RequestInit): Response {
+  const method = init?.method ?? 'GET';
+  if (url.endsWith('/api/traders/claude/switch') && method === 'PUT') {
+    const on = JSON.parse(String(init?.body)).on === true;
+    served = { ...served, switch: { ...OFF, on }, text: on ? served.text : 'Claude · Off' };
+    return new Response(JSON.stringify({ schema_version: 1, traders: {} }), { status: 200 });
+  }
+  return new Response(JSON.stringify(served), { status: 200 });
+}
 
 beforeEach(() => {
   served = seatStatus({ events: [] });
   calls.length = 0;
-  confirmAppMock.mockReset();
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
-    const method = init?.method ?? 'GET';
-    calls.push({ url, method });
-    if (url.endsWith('/stop-claude') && method === 'POST') {
-      return new Response(JSON.stringify({ problems: [], status: { ...served, state: 'off', on: false } }), { status: 200 });
-    }
-    if (url.endsWith('/yield') && method === 'POST') {
-      return new Response(JSON.stringify({ ...served, state: 'yielded', yielded: true, text: 'Claude · Paused by you' }),
-        { status: 200 });
-    }
-    return new Response(JSON.stringify(served), { status: 200 });
+    calls.push({ url, method: init?.method ?? 'GET', body: init?.body == null ? null : String(init.body) });
+    return answer(url, init);
   }));
   resetClaudeSeatForTests();
 });
@@ -43,14 +43,20 @@ afterEach(() => {
   resetClaudeSeatForTests();
 });
 
+/** The pill on `status`; the seat's own poll answers the same, so a read never undoes what the test set. */
+async function mounted(status: ClaudeSeatStatus = seatStatus()) {
+  served = status;
+  render(<ClaudeSeatPill />);
+  act(() => setClaudeSeatForTests(status));
+  return screen.findByTestId('claude-pill');
+}
+
 describe('ClaudeSeatPill', () => {
   it('says what Claude is doing, and opens the panel with its note, rows and reflexes', async () => {
-    render(<ClaudeSeatPill />);
-    act(() => setClaudeSeatForTests(seatStatus()));
-    const pill = await screen.findByTestId('claude-pill');
+    const pill = await mounted();
     expect(pill.textContent).toContain('Claude · Buy set SMPL 4.39');
     expect(pill.dataset.state).toBe('buy_set');
-    fireEvent.click(pill);
+    fireEvent.click(screen.getByTestId('claude-pill-open'));
     const panel = screen.getByTestId('claude-panel');
     expect(panel.textContent).toContain('SMPL +54% on news');
     expect(panel.textContent).toContain("Level 2 + Time & Sales on SMPL · Claude's lane");
@@ -59,10 +65,7 @@ describe('ClaudeSeatPill', () => {
   });
 
   it('says "Claude · Off", muted, on a day the seat was never on', async () => {
-    served = seatStatus({ state: 'off', on: false, events: [], text: 'Claude · Off' });
-    render(<ClaudeSeatPill />);
-    act(() => setClaudeSeatForTests(served));
-    const pill = await screen.findByTestId('claude-pill');
+    const pill = await mounted(seatStatus({ state: 'off', on: false, events: [], text: 'Claude · Off', switch: OFF }));
     expect(pill.textContent).toContain('Claude · Off');
     expect(pill.dataset.state).toBe('off');
     expect(pill.className).toContain('claude-pill--off');
@@ -74,46 +77,66 @@ describe('ClaudeSeatPill', () => {
     expect(screen.queryByTestId('claude-pill')).toBeNull();
   });
 
-  it('Take Claude\'s line posts /yield and the pill says Paused by you', async () => {
-    render(<ClaudeSeatPill />);
-    act(() => setClaudeSeatForTests(seatStatus()));
-    fireEvent.click(await screen.findByTestId('claude-pill'));
-    fireEvent.click(screen.getByTestId('claude-take-line'));
-    await waitFor(() => expect(calls.some(c => c.url.endsWith('/api/agent/trader/yield') && c.method === 'POST')).toBe(true));
-    await waitFor(() => expect(screen.getByTestId('claude-pill').textContent).toContain('Paused by you'));
-    expect(screen.getByTestId('claude-give-back')).toBeTruthy();
+  it('carries the switch on the pill, and the panel no Take line, Give back or Stop Claude', async () => {
+    await mounted();
+    const sw = screen.getByTestId('claude-switch');
+    expect(sw.getAttribute('role')).toBe('switch');
+    expect(sw.getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(screen.getByTestId('claude-pill-open'));
+    expect(screen.getByTestId('claude-panel-switch').getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByTestId('claude-panel-help').textContent).toBe(CLAUDE_SWITCH_OFF_HELP);
+    for (const gone of ['claude-take-line', 'claude-give-back', 'claude-stop']) expect(screen.queryByTestId(gone)).toBeNull();
+    expect(screen.queryByText(/Take Claude's line|Stop Claude|Give Claude/)).toBeNull();
   });
 
-  it('Stop Claude asks first and sends nothing on a no', async () => {
-    confirmAppMock.mockResolvedValueOnce(false);
-    render(<ClaudeSeatPill />);
-    act(() => setClaudeSeatForTests(seatStatus()));
-    fireEvent.click(await screen.findByTestId('claude-pill'));
-    fireEvent.click(screen.getByTestId('claude-stop'));
-    await waitFor(() => expect(confirmAppMock).toHaveBeenCalledTimes(1));
-    expect(String(confirmAppMock.mock.calls[0][0].message)).toContain("Sell Claude's shares and stop it?");
-    expect(calls.some(c => c.url.endsWith('/stop-claude'))).toBe(false);
+  it('turns Claude Off at once, asking nothing, and reads the seat again', async () => {
+    await mounted();
+    fireEvent.click(screen.getByTestId('claude-switch'));
+    await waitFor(() => expect(screen.getByTestId('claude-pill').dataset.switch).toBe('off'));
+    const put = calls.find(c => c.method === 'PUT');
+    expect(put?.url).toMatch(/\/api\/traders\/claude\/switch$/);
+    expect(JSON.parse(put?.body ?? '{}')).toEqual({ on: false });
+    expect(calls.some(c => c.url.endsWith('/api/agent/trader') && c.method === 'GET')).toBe(true);
+    expect(screen.getByTestId('claude-switch').getAttribute('aria-checked')).toBe('false');
+    expect(screen.getByTestId('claude-pill').className).toContain('claude-pill--off');
+    // Nothing asked, nothing sold: no POST to the seat's retired routes.
+    expect(calls.some(c => /yield|give-back|stop-claude/.test(c.url))).toBe(false);
   });
 
-  it('Stop Claude posts /stop-claude on a yes', async () => {
-    confirmAppMock.mockResolvedValueOnce(true);
-    render(<ClaudeSeatPill />);
-    act(() => setClaudeSeatForTests(seatStatus()));
-    fireEvent.click(await screen.findByTestId('claude-pill'));
-    fireEvent.click(screen.getByTestId('claude-stop'));
-    await waitFor(() => expect(calls.some(c => c.url.endsWith('/api/agent/trader/stop-claude') && c.method === 'POST'))
-      .toBe(true));
+  it('turns Claude On from the panel too', async () => {
+    await mounted(seatStatus({ switch: OFF }));
+    fireEvent.click(screen.getByTestId('claude-pill-open'));
+    fireEvent.click(screen.getByTestId('claude-panel-switch'));
+    await waitFor(() => expect(screen.getByTestId('claude-panel-switch').getAttribute('aria-checked')).toBe('true'));
+    expect(JSON.parse(calls.find(c => c.method === 'PUT')?.body ?? '{}')).toEqual({ on: true });
   });
 
-  it('says a refused button under it', async () => {
-    vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => (init?.method === 'POST'
-      ? new Response(JSON.stringify({ detail: { reason: 'AGENT_SEAT_OFF', error: "Claude's seat is off" } }), { status: 409 })
+  it("says a refused On under the pill in Nova's words, and never flips", async () => {
+    const words = 'Claude stays Off after 15:55 ET: Nova sells its shares then.';
+    vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => (init?.method === 'PUT'
+      ? new Response(JSON.stringify({ detail: { reason: 'TRADER_PAST_FLAT_BY', error: words } }), { status: 409 })
       : new Response(JSON.stringify(served), { status: 200 }))));
-    render(<ClaudeSeatPill />);
-    act(() => setClaudeSeatForTests(seatStatus()));
-    fireEvent.click(await screen.findByTestId('claude-pill'));
-    fireEvent.click(screen.getByTestId('claude-take-line'));
-    expect((await screen.findByTestId('claude-panel-why')).textContent).toBe("Claude's seat is off");
+    await mounted(seatStatus({ switch: OFF }));
+    fireEvent.click(screen.getByTestId('claude-switch'));
+    expect((await screen.findByTestId('claude-pill-why')).textContent).toBe(words);
+    expect(screen.getByTestId('claude-switch').getAttribute('aria-checked')).toBe('false');
+    fireEvent.click(screen.getByTestId('claude-pill-why'));
+    expect(screen.queryByTestId('claude-pill-why')).toBeNull();
+  });
+
+  it('says the refusal inside the panel while it is open', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => (init?.method === 'PUT'
+      ? new Response(JSON.stringify({ detail: { reason: 'TRADER_LIVE', error: 'Claude never trades Live.' } }), { status: 409 })
+      : new Response(JSON.stringify(served), { status: 200 }))));
+    await mounted(seatStatus({ switch: OFF }));
+    fireEvent.click(screen.getByTestId('claude-pill-open'));
+    fireEvent.click(screen.getByTestId('claude-panel-switch'));
+    expect((await screen.findByTestId('claude-panel-why')).textContent).toBe('Claude never trades Live.');
+    expect(screen.queryByTestId('claude-pill-why')).toBeNull();
+  });
+
+  it('draws no switch for a backend from before it', async () => {
+    await mounted(seatStatus({ switch: null }));
+    expect(screen.queryByTestId('claude-switch')).toBeNull();
   });
 });
-

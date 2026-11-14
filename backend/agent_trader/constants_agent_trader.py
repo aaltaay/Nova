@@ -27,7 +27,6 @@ SEAT_WAITING = "waiting_line"     # on, no Level 2 line free yet
 SEAT_WATCHING = "watching"        # on, holding its line, no order, no shares
 SEAT_SET = "buy_set"              # a break or a buy is resting
 SEAT_IN = "in_trade"              # holds shares
-SEAT_YIELDED = "yielded"          # the operator took the line: no new trades
 SEAT_DONE = "done"                # the day's loss stop is reached (or a trade count, when one is set)
 SEAT_IDLE = "idle"                # on, no stock chosen yet
 
@@ -90,7 +89,7 @@ ENTRY_BREAK = "break"
 AGENT_SEAT_TAKEN = "AGENT_SEAT_TAKEN"
 AGENT_NOT_HOLDER = "AGENT_NOT_HOLDER"
 AGENT_SEAT_OFF = "AGENT_SEAT_OFF"
-AGENT_YIELDED = "AGENT_YIELDED"
+AGENT_SWITCH_OFF = "AGENT_SWITCH_OFF"   # ADR 072: the operator's switch for Claude is Off
 AGENT_LIMIT = "AGENT_LIMIT"
 AGENT_NOT_PAPER = "AGENT_NOT_PAPER"
 AGENT_NO_LINE = "AGENT_NO_LINE"

@@ -1,17 +1,18 @@
 /**
  * The close-of-day reminder's numbers and words (operator ask, 2026-10-01: flat by 15:55 ET,
  * nothing held overnight). A Paper short names Nova's 15:55 day cover (ADR 048), and so does a Live short while
- * IBKR_SHORT_ENABLED is on (step 6: Live's cover runs only then). The bots' shares still held at 15:56 get their
- * own card (ADR 069 decision 9). Feature-local constants (AGENTS.md §6.1).
+ * IBKR_SHORT_ENABLED is on (step 6: Live's cover runs only then). Another trader's shares still held at 15:56 get
+ * a card of their own per trader (ADR 072), named as every refusal names them. Feature-local constants (AGENTS.md §6.1).
  */
+import { OWNER_NAMES, ownerBotName, ownerHoldSentence } from '../constantGroups/owners';
 import type { CloseReminder } from './closeReminderStore';
 
 /** Minutes after midnight ET: the first card, the escalation, and when the cards leave. */
 export const CLOSE_REMIND_WARN_MIN_ET = 15 * 60 + 50;
 export const CLOSE_REMIND_FINAL_MIN_ET = 15 * 60 + 55;
 export const CLOSE_REMIND_CLOSE_MIN_ET = 16 * 60;
-/** The bots' card waits a minute past their sale: it shows only when that sale did not finish. */
-export const CLOSE_REMIND_BOTS_MIN_ET = 15 * 60 + 56;
+/** Another trader's card waits a minute past Nova's 15:55 sale of its shares: it shows only when that sale did not finish. */
+export const CLOSE_REMIND_OTHERS_MIN_ET = 15 * 60 + 56;
 /** How often the cards re-read the clock and the positions. */
 export const CLOSE_REMIND_TICK_MS = 1_000;
 /** localStorage: the keys fired today, so a reload at 15:52 does not raise a dismissed card again. */
@@ -23,6 +24,12 @@ export const CLOSE_REMIND_DISMISS = 'Dismiss';
 export const closeReminderOpen = (symbol: string): string => `Open ${symbol}`;
 
 const VENUE_WORDS: Record<CloseReminder['venue'], string> = { live: 'Live', paper: 'Paper' };
+
+/** Whose an `others` card is: Claude, the brain, or the retired bot by name. */
+function holderName(r: Pick<CloseReminder, 'owner' | 'bot'>): string {
+  if (r.owner === 'earlier_bots') return ownerBotName(r.bot);
+  return r.owner ? OWNER_NAMES[r.owner] : OWNER_NAMES.earlier_bots;
+}
 
 function sizeWords(qty: number): string {
   const n = Math.abs(qty);
@@ -38,10 +45,12 @@ function dayCover(r: Pick<CloseReminder, 'qty' | 'venue'>, liveCover: boolean): 
   return r.qty < 0 && (r.venue === 'paper' || (r.venue === 'live' && liveCover));
 }
 
-export function closeReminderTitle(r: Pick<CloseReminder, 'symbol' | 'qty' | 'stage'> & Partial<Pick<CloseReminder, 'venue'>>,
-  liveCover = false): string {
+export function closeReminderTitle(
+  r: Pick<CloseReminder, 'symbol' | 'qty' | 'stage'> & Partial<Pick<CloseReminder, 'venue' | 'owner' | 'bot'>>,
+  liveCover = false,
+): string {
   const size = sizeWords(r.qty);
-  if (r.stage === 'bots') return `15:56: the bots still hold ${size} ${r.symbol}`;
+  if (r.stage === 'others') return `15:56: ${holderName(r)} still holds ${size} ${r.symbol}`;
   const covers = dayCover({ qty: r.qty, venue: r.venue ?? 'live' }, liveCover);
   if (r.stage === 'final') {
     return covers ? `15:55: Nova covers ${size} ${r.symbol} now -- the day cover`
@@ -51,11 +60,12 @@ export function closeReminderTitle(r: Pick<CloseReminder, 'symbol' | 'qty' | 'st
     : `Still holding ${size} ${r.symbol} at 15:50 -- be flat by 15:55`;
 }
 
-export function closeReminderBody(r: Pick<CloseReminder, 'venue' | 'stale'> & Partial<Pick<CloseReminder, 'qty' | 'stage'>>,
-  liveCover = false): string {
-  if (r.stage === 'bots') {
-    const close = (r.qty ?? 0) < 0 ? 'buys them back' : 'sells them';
-    return `${VENUE_WORDS[r.venue]} · the bots' shares · Close on their row ${close}; nothing is held overnight`;
+export function closeReminderBody(
+  r: Pick<CloseReminder, 'venue' | 'stale'> & Partial<Pick<CloseReminder, 'qty' | 'stage' | 'owner' | 'bot'>>,
+  liveCover = false,
+): string {
+  if (r.stage === 'others') {
+    return `${VENUE_WORDS[r.venue]} ·${ownerHoldSentence(r.owner ?? 'earlier_bots', r.qty ?? 0)} Nothing is held overnight.`;
   }
   const venue = `${VENUE_WORDS[r.venue]} position`;
   const stale = r.stale ? ' · last known: the Gateway dropped' : '';

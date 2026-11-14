@@ -110,6 +110,84 @@ test("Account's chart takes the desk's ranges, and the Calendar opens a day's ch
   expect(errors).toEqual([]);
 });
 
+test('Account says whose every row is, and the Calendar splits each day by trader; neither scrolls', async ({ page }) => {
+  const { errors } = attachErrorCollector(page);
+  // Yours, Claude's, and the brain's handed to you (three books v1, ADR 072).
+  const api = await mockPhoneApi(page, { positions: 3 });
+  await open(page, 'account');
+  await expect(page.getByTestId('phone-position-ABCD')).toBeVisible();
+  // One row: Overview and Calendar as two icons, then the five books.
+  await expect(page.getByTestId('phone-account-overview')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('phone-account-books').getByRole('button')).toHaveText(['All', 'You', 'Claude', 'Brain', 'Earlier']);
+  // The three traders' days, one row of three.
+  const today = page.getByTestId('phone-account-today');
+  await expect(today.locator('[data-owner="you"]')).toContainText('You · today');
+  await expect(today.locator('[data-owner="claude"]')).toContainText('+$66.00');
+  await expect(today.locator('[data-owner="brain"]')).toContainText('+$42.40');
+  // Every row says whose; the brain's shares handed to you read Handed, in the brain's colour.
+  await expect(page.getByTestId('phone-position-ABCD').locator('.ph-who')).toHaveText('You');
+  await expect(page.getByTestId('phone-position-WXYZ').locator('.ph-who')).toHaveText('Claude');
+  const handed = page.getByTestId('phone-position-QRST').locator('.ph-who');
+  await expect(handed).toHaveText('Handed');
+  await expect(handed).toHaveAttribute('data-owner', 'brain');
+  await expect(handed).toHaveAttribute('title', "The brain's · yours to close");
+  expect(await phoneOverflow(page)).toEqual([]);
+
+  // The fills say whose too: your close of the brain's handed shares is the brain's, closed by you.
+  await page.getByRole('button', { name: /^Fills/ }).click();
+  const list = page.getByTestId('phone-account-list');
+  await expect(list.locator('.ph-who').first()).toHaveText('Handed');
+  await expect(list.locator('.ph-who').first()).toHaveAttribute('title', 'The brain · closed by you');
+  await expect(list.locator('.ph-who').nth(1)).toHaveText('Brain');
+  expect(await phoneOverflow(page)).toEqual([]);
+  // One book: its own figure, and only its rows.
+  await page.getByTestId('phone-account-book-claude').click();
+  await expect(page.getByTestId('phone-account-net-name')).toHaveText('Claude, today');
+  await expect(list.locator('.ph-who').first()).toHaveText('Claude');
+  await expect(list.locator('.ph-who:not([data-owner="claude"])')).toHaveCount(0);
+  await page.getByTestId('phone-account-book-all').click();
+
+  await page.getByTestId('phone-account-calendar').click();
+  await expect(page.getByTestId('phone-calendar')).toBeVisible();
+  // Each traded square carries its colour bar; the day names each trader; the month line splits by colour.
+  await expect(page.locator('.ph-cal__split').first()).toBeVisible();
+  await expect(page.getByTestId('phone-calendar-by-trader')).toContainText('By trader');
+  await expect(page.getByTestId('phone-calendar-foot').locator('.ph-owner-dot').first()).toBeVisible();
+  expect(await phoneOverflow(page)).toEqual([]);
+  // On its side the page shrinks to fit. The bottom bar's five labels sit half a pixel past the edge there on
+  // every screen (Home and Scan too, before this change), so this guards what the Account and Calendar draw.
+  await page.setViewportSize(LANDSCAPE);
+  const tabLabel = /^off-screen: {2}"(Scan|Trade|Home|Top 9|Account)"$/;
+  const content = async () => (await phoneOverflow(page)).filter((line) => !tabLabel.test(line));
+  await expect.poll(content).toEqual([]);
+  await page.getByTestId('phone-account-overview').click();
+  await page.getByRole('button', { name: /^Positions/ }).click();
+  await expect(page.getByTestId('phone-position-QRST')).toBeVisible();
+  expect(await content()).toEqual([]);
+  expect(api.writes).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('Sim keeps the books, each row saying whose', async ({ page }) => {
+  await mockPhoneApi(page, { venue: 'sim' });
+  await open(page, 'account');
+  await expect(page.getByTestId('phone-position-ABCD')).toBeVisible();
+  await expect(page.getByTestId('phone-account-book-brain')).toBeEnabled();
+  await expect(page.getByTestId('phone-position-WXYZ').locator('.ph-who')).toHaveText('Claude');
+  expect(await phoneOverflow(page)).toEqual([]);
+});
+
+test('on Live the books grey out and say why: every trade is yours', async ({ page }) => {
+  await mockPhoneApi(page, { venue: 'live' });
+  await open(page, 'account');
+  await expect(page.getByTestId('phone-venue')).toHaveText('LIVE');
+  const brain = page.getByTestId('phone-account-book-brain');
+  await expect(brain).toBeDisabled();
+  await expect(brain).toHaveAttribute('data-why', /Claude and the brain never trade Live/);
+  await expect(page.getByTestId('phone-account-today')).toContainText('—');
+  expect(await phoneOverflow(page)).toEqual([]);
+});
+
 test('a viewport smaller than the drawing shrinks the whole page instead of scrolling', async ({ page }) => {
   await mockPhoneApi(page);
   await page.setViewportSize({ width: 360, height: 600 });

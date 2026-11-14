@@ -20,7 +20,7 @@ import threading
 from dataclasses import dataclass, field
 from typing import Any
 
-from constants_owners import HOLDER_YOU, JOURNAL_VENUE_PAPER, OWNER_BOTS
+from constants_owners import JOURNAL_VENUE_PAPER, OWNER_YOU
 from owners.whose import book_of, bot_of
 from practice.ledger import EVENT_PLACED, Ledger
 
@@ -49,6 +49,7 @@ class _Trip:
     pnl: float = 0.0
     costs: float = 0.0
     orders: list[int] = field(default_factory=list)
+    closed_by: str | None = None      # ``you``: you closed it after its trader handed it to you (ADR 072)
 
 
 def _entry_stops(ledger: Ledger) -> dict[int, float]:
@@ -86,6 +87,7 @@ def _row(ledger: Ledger, trip: _Trip, closed_ts: float, stops: dict[int, float])
                       f"{trip.open_order_id}:{trip.opened_ts:.3f}"),
         "owner": book_of(trip.holder),
         "bot": bot_of(trip.holder),
+        "closed_by": trip.closed_by,
     }
 
 
@@ -100,7 +102,7 @@ def round_trips(ledger: Ledger) -> list[dict[str, Any]]:
     for fill in ledger_fills(ledger):
         buy = fill["side"] == "BUY"
         for part in fill.get("parts") or ():
-            holder = part["bot"] if part["owner"] == OWNER_BOTS else HOLDER_YOU
+            holder = part["bot"] or part["owner"]   # a retired bot by its origin; you, Claude, the brain
             key = (fill["symbol"], holder)
             trip = open_trips.get(key)
             if trip is None:
@@ -111,6 +113,8 @@ def round_trips(ledger: Ledger) -> list[dict[str, Any]]:
             if part["closes"]:
                 trip.out_qty += qty
                 trip.out_notional += qty * price
+                if part.get("closed_by") == OWNER_YOU:
+                    trip.closed_by = OWNER_YOU
             else:
                 trip.in_qty += qty
                 trip.in_notional += qty * price

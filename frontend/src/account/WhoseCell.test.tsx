@@ -1,69 +1,92 @@
 /** @vitest-environment jsdom */
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  ownerBotsHoldSentence,
-  ownerCloseBotsConfirm,
-  ownerCloseBotsTitle,
-} from '../constantGroups/owners';
-import { CloseBotsButton, WhoseChip } from './WhoseCell';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { cleanup, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
+import { OWNER_COLORS, ownerHoldSentence } from '../constantGroups/owners';
+import { fillHolders } from './accountLive';
+import { threeBooksHistoryFixture } from './accountFixtures';
+import { WhoseChip, WhoseChips, whoseWords } from './WhoseCell';
 
-const closeBots = vi.hoisted(() => vi.fn(async () => undefined));
-vi.mock('./ownersApi', () => ({ closeBots }));
+const whoseCss = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), './whose.css'), 'utf8');
 
-afterEach(() => {
-  cleanup();
-  closeBots.mockReset();
-});
+afterEach(cleanup);
 
-describe('the words of a Close on a bots\' row (ADR 069 decision 4)', () => {
-  it('buys a short back and sells a long', () => {
-    expect(ownerCloseBotsConfirm(-19)).toBe('Buy back all 19?');
-    expect(ownerCloseBotsConfirm(1200)).toBe('Sell all 1,200?');
-    expect(ownerCloseBotsTitle('ORCL', -19)).toBe("Buy back every bot's ORCL short -- 19 shares in all -- at market. Your shares stay.");
-    expect(ownerCloseBotsTitle('ORCL', 19)).toBe("Sell every bot's ORCL -- 19 shares in all -- at market. Your shares stay.");
-  });
+const chip = () => screen.getByTestId('account-whose');
 
-  it('says where the shares are after a refusal', () => {
-    expect(ownerBotsHoldSentence(-19)).toBe(" The 19 short is the bots' -- Close on their row buys it back.");
-    expect(ownerBotsHoldSentence(40)).toBe(" The 40 shares are the bots' -- Close on their row sells them.");
-  });
-});
-
-describe('WhoseChip', () => {
-  it("names you, or the bot; the pill is the desk's look", () => {
-    render(<><WhoseChip owner="you" bot={null} /><WhoseChip owner="bots" bot="live_trader" pill /></>);
-    const [you, bot] = screen.getAllByTestId('account-whose');
+describe('WhoseChip (ADR 072, mockup three-books v1 section 6)', () => {
+  it('names each book in its own colour class', () => {
+    render(<><WhoseChip owner="you" /><WhoseChip owner="claude" /><WhoseChip owner="brain" pill /></>);
+    const [you, claude, brain] = screen.getAllByTestId('account-whose');
     expect([you.textContent, you.className]).toEqual(['You', 'acct-who is-you']);
-    expect([bot.textContent, bot.className]).toEqual(['Live Trader', 'acct-who is-bots is-pill']);
+    expect([claude.textContent, claude.className]).toEqual(['Claude', 'acct-who is-claude']);
+    expect([brain.textContent, brain.className]).toEqual(['The brain', 'acct-who is-brain is-pill']);
   });
 
-  it("still names Auto-entry on your row: the shares are yours to sell, the buy was its", () => {
-    render(<WhoseChip owner="you" bot="auto_entry" />);
-    expect(screen.getByTestId('account-whose').textContent).toBe('Auto-entry');
+  it("names a retired bot inside Earlier bots", () => {
+    render(<WhoseChip owner="earlier_bots" bot="live_trader" />);
+    expect(chip().textContent).toBe('Earlier bots · Live Trader');
+    expect(chip().className).toBe('acct-who is-earlier_bots');
+  });
+
+  it('says a trade you closed stays its trader\'s: "closed by you"', () => {
+    render(<WhoseChip owner="brain" closedByYou />);
+    expect(chip().textContent).toBe('The brain · closed by you');
+    expect(chip().querySelector('em')?.className).toBe('is-by');
+  });
+
+  it("dashes a switched-off trader's open position, yours to close", () => {
+    render(<WhoseChip owner="brain" handed />);
+    expect(chip().textContent).toBe("The brain's · yours to close");
+    expect(chip().className).toBe('acct-who is-brain is-handed');
+  });
+
+  it('never hands you your own shares; one of Nova\'s own closes reads Nova', () => {
+    expect(whoseWords({ owner: 'you', handed: true, closedByYou: true })).toEqual({ main: 'You', sub: null, by: false });
+    render(<WhoseChip owner={null} />);
+    expect([chip().textContent, chip().className]).toEqual(['Nova', 'acct-who is-nova']);
+  });
+
+  it('draws one chip per holder a fill split across', () => {
+    render(<WhoseChips tags={[{ owner: 'you' }, { owner: 'claude', closedByYou: true }]} />);
+    expect(screen.getAllByTestId('account-whose').map((c) => c.textContent)).toEqual(['You', 'Claude · closed by you']);
   });
 });
 
-describe('CloseBotsButton', () => {
-  it('draws the word on the desk and the X on the Account page', () => {
-    render(<><CloseBotsButton symbol="ORCL" qty={-19} paper look="word" /><CloseBotsButton symbol="INTC" qty={5} paper /></>);
-    expect(screen.getByTestId('account-close-bots-ORCL').textContent).toBe('Close');
-    expect(screen.getByTestId('account-close-bots-INTC').textContent).toBe('');
+describe('whose a fill was', () => {
+  it("reads each part's holder; a part you closed for Claude is Claude's, closed by you", () => {
+    const fills = threeBooksHistoryFixture(1_790_000_000).fills;
+    expect(fills.map((f) => fillHolders(f))).toEqual([
+      [{ owner: 'earlier_bots', bot: 'live_trader', closedByYou: false }],
+      [{ owner: 'earlier_bots', bot: 'live_trader', closedByYou: false }],
+      [{ owner: 'you', bot: null, closedByYou: false }],
+      [{ owner: 'you', bot: null, closedByYou: false }],
+      [{ owner: 'claude', bot: null, closedByYou: false }],
+      [{ owner: 'claude', bot: null, closedByYou: false }],
+      [{ owner: 'claude', bot: null, closedByYou: false }],
+      [{ owner: 'claude', bot: null, closedByYou: true }],
+    ]);
   });
 
-  it("says a refused Close's reason on the row", async () => {
-    closeBots.mockRejectedValueOnce(new Error('The bots hold no ORCL'));
-    render(<CloseBotsButton symbol="ORCL" qty={-19} paper look="word" />);
-    const close = screen.getByTestId('account-close-bots-ORCL');
-    fireEvent.click(close);
-    await act(async () => { fireEvent.click(close); });
-    expect(screen.getByTestId('account-close-bots-error').textContent).toContain('The bots hold no ORCL');
+  it('falls back to the order\'s owner, and says nothing for a ledger without books', () => {
+    const base = threeBooksHistoryFixture(1_790_000_000).fills[2];
+    const { parts: _p, ...noParts } = base;
+    expect(fillHolders({ ...noParts, owner: null, bot: null })).toEqual([{ owner: null, bot: null }]);
+    const { owner: _o, bot: _b, ...legacy } = noParts;
+    expect(fillHolders(legacy)).toBeUndefined();
+  });
+});
+
+describe('the books\' colours', () => {
+  it("whose.css's tokens are OWNER_COLORS: Claude coral, the brain purple, Earlier bots grey", () => {
+    const token = (name: string) => whoseCss.match(new RegExp(`--nova-owner-${name}:\\s*(#[0-9a-f]{6})`, 'i'))?.[1];
+    expect({ you: token('you'), claude: token('claude'), brain: token('brain'), earlier_bots: token('earlier') })
+      .toEqual(OWNER_COLORS);
   });
 
-  it('keeps a click off the row around it', () => {
-    const row = vi.fn();
-    render(<div onClick={row}><CloseBotsButton symbol="ORCL" qty={-19} paper look="word" /></div>);
-    fireEvent.click(screen.getByTestId('account-close-bots-ORCL'));
-    expect(row).not.toHaveBeenCalled();
+  it('a refusal names whose the shares are', () => {
+    expect(ownerHoldSentence('claude', 40)).toBe(" The 40 shares are Claude's -- switch Claude off to close them yourself.");
+    expect(ownerHoldSentence('earlier_bots', -19)).toBe(" The 19 short is a retired bot's.");
   });
 });

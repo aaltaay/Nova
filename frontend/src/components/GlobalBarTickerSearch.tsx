@@ -62,13 +62,14 @@ export function GlobalBarTickerSearch({ onLookup, tabs = NO_TABS, positions = NO
   const directory = useSymbolDirectory(wantDirectory);
   const { recents, remember, forget } = useTickerRecents(tabs);
   const query = useMemo(() => (browsing ? EMPTY_QUERY : parseTickerQuery(value)), [browsing, value]);
-  const { botsBook } = useDeskPositions();
+  const { othersBook } = useDeskPositions();
 
   const view = useMemo(() => {
-    // The bots' stocks are offered with yours (ADR 069 decision 9); a symbol offered twice lists once.
-    const held = [...positions, ...[...botsBook].map(([symbol, qty]) => ({ symbol, qty }))];
+    // The other traders' stocks are offered with yours (ADR 072); a symbol offered twice lists once.
+    const others = [...othersBook].map(([symbol, holds]) => ({ symbol, qty: holds.reduce((n, h) => n + h.qty, 0) }));
+    const held = [...positions, ...others];
     return searchView(query, { tabs, positions: held, rows, recents, directory: directory.directory }, directory);
-  }, [query, tabs, positions, botsBook, rows, recents, directory]);
+  }, [query, tabs, positions, othersBook, rows, recents, directory]);
   const { options } = view;
   const current = Math.max(0, Math.min(active ?? view.defaultIndex, options.length - 1));
   const open = focused && !dismissed && (options.length > 0 || view.footer != null);

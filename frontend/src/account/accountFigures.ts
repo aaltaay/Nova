@@ -12,6 +12,7 @@ import {
   ACCOUNT_SOURCE_OTHER_LABELS,
 } from '../constantGroups/account_page';
 import { JOURNAL_CALENDAR_TIMEZONE } from '../constantGroups/market_ui';
+import { OWNERS, type Owner } from '../constantGroups/owners';
 import { deskTradingDay } from '../utils/deskTradingDay';
 import type { HeaderAccountFigures } from '../components/headerAccountFigures';
 import type {
@@ -114,37 +115,55 @@ export interface SymbolPnlRow {
   open: number | null;
   costs: number;
   net: number;
+  /** By holder (ADR 072): whose book the row is, and which retired bot's; absent per symbol. */
+  owner?: Owner;
+  bot?: string | null;
 }
 
+type Money3 = { realized: number; commission: number; fees: number };
+
+/**
+ * One row per stock -- or, `byOwner`, per stock and holder (ADR 072, mockup three-books v1 item 6): each fill's
+ * parts go to their own holder's row, each position's open P&L to its holder's. A fill with no parts stays the
+ * stock's.
+ */
 export function symbolPnlRows(
   fills: HistoryFill[],
-  positions: ReadonlyArray<{ symbol: string; unrealized: number | null }>,
+  positions: ReadonlyArray<{ symbol: string; unrealized: number | null; owner?: Owner; bot?: string | null }>,
+  byOwner = false,
 ): { rows: SymbolPnlRow[]; total: SymbolPnlRow } {
   const bySymbol = new Map<string, SymbolPnlRow>();
-  const rowFor = (symbol: string): SymbolPnlRow => {
-    let row = bySymbol.get(symbol);
+  const rowFor = (symbol: string, owner?: Owner, bot?: string | null): SymbolPnlRow => {
+    const holder = byOwner && owner ? { owner, bot: bot ?? null } : {};
+    const key = byOwner && owner ? `${symbol}|${owner}|${bot ?? ''}` : symbol;
+    let row = bySymbol.get(key);
     if (!row) {
-      row = { symbol, realized: 0, open: null, costs: 0, net: 0 };
-      bySymbol.set(symbol, row);
+      row = { symbol, realized: 0, open: null, costs: 0, net: 0, ...holder };
+      bySymbol.set(key, row);
     }
     return row;
   };
+  // A fill's realized is net of its own costs; the table shows gross, costs
+  // and net side by side, so gross adds the costs back.
+  const add = (row: SymbolPnlRow, m: Money3) => {
+    row.realized += m.realized + m.commission + m.fees;
+    row.costs += m.commission + m.fees;
+  };
   for (const fill of fills) {
-    const row = rowFor(fill.symbol.toUpperCase());
-    // A fill's realized is net of its own costs; the table shows gross, costs
-    // and net side by side, so gross adds the costs back.
-    row.realized += fill.realized + fill.commission + fill.fees;
-    row.costs += fill.commission + fill.fees;
+    const symbol = fill.symbol.toUpperCase();
+    if (byOwner && fill.parts?.length) for (const part of fill.parts) add(rowFor(symbol, part.owner, part.bot), part);
+    else add(rowFor(symbol), fill);
   }
   for (const position of positions) {
     const open = finite(position.unrealized);
     if (open == null) continue;
-    const row = rowFor(position.symbol.toUpperCase());
+    const row = rowFor(position.symbol.toUpperCase(), position.owner, position.bot);
     row.open = (row.open ?? 0) + open;
   }
+  const order = (row: SymbolPnlRow): number => (row.owner ? OWNERS.indexOf(row.owner) : -1);
   const rows = [...bySymbol.values()]
     .map((row) => ({ ...row, net: row.realized + (row.open ?? 0) - row.costs }))
-    .sort((a, b) => a.symbol.localeCompare(b.symbol));
+    .sort((a, b) => a.symbol.localeCompare(b.symbol) || order(a) - order(b) || (a.bot ?? '').localeCompare(b.bot ?? ''));
   const total = rows.reduce<SymbolPnlRow>(
     (acc, row) => ({
       symbol: acc.symbol,
@@ -153,7 +172,7 @@ export function symbolPnlRows(
       costs: acc.costs + row.costs,
       net: acc.net + row.net,
     }),
-    { symbol: 'total', realized: 0, open: null, costs: 0, net: 0 },
+    { symbol: 'total', realized: 0, open: null, costs: 0, net: 0 } as SymbolPnlRow,
   );
   return { rows, total };
 }

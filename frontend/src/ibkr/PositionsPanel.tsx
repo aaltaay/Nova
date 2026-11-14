@@ -1,16 +1,16 @@
 import { fmtPrice } from '../utils/quoteFormat';
 import { useMemo, type ReactNode } from 'react';
-import { CloseBotsButton, WhoseChip } from '../account';
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { ClosePositionButton } from '../closed_orders';
 import { CLOSE_POSITION_ACCOUNT_ERROR_TITLE, POSITION_TABLE_SORT_HINT } from '../constants';
-import { OWNER_BOTS_UNREAD } from '../constantGroups/owners';
+import { OWNER_OTHERS_UNREAD, ownerHoldSentence } from '../constantGroups/owners';
 import { useTableSort, type SortColumn, type SortColumns } from '../table_sort';
 import { commissionCellTitle, formatCommission } from './orderCommission';
 import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';
 import { OrderTableColumnHeader, OrderTableDnd } from './OrderTableColumnHeader';
-import type { DeskPosition } from './deskPositions';
+import { isOthersRow, type DeskPosition } from './deskPositions';
+import { RowWhose } from './RowWhose';
 import { lastKnownBanner } from './disconnectCopy';
 import { positionSideClass, positionSideRowClass } from './orderDisplay';
 import { PositionSideTd } from './OrderSideCell';
@@ -30,14 +30,14 @@ import { TickerLink } from '../components/TickerLink';
 
 interface Props {
   summary: IbkrAccountSummary | null;
-  /** On Paper both books (ADR 069 decision 9): a bots' row takes their Close, never your Sell. */
+  /** On Paper and Sim every book (ADR 072): another trader's row says whose, and never takes your Close. */
   positions: DeskPosition[];
   orders: IbkrOrder[];
   /** Set when the last positions/orders poll failed — rows above are
    * last-good, not an honest "flat" read. */
   error?: string | null;
-  /** The read of the bots' shares failed: their rows are the last known, or missing. Your Close is untouched. */
-  botsStale?: boolean;
+  /** The read of the other traders' shares failed: their rows are the last known, or missing. Your Close is untouched. */
+  othersStale?: boolean;
   selectedSymbol: string | null;
   onSelectSymbol: (symbol: string) => void;
   onOpenTrading: (symbol: string) => void;
@@ -83,7 +83,7 @@ function renderPositionCell(
         </td>
       );
     case 'whose':
-      return <td key={col} className="ibkr-col--text ibkr-col--whose">{p.owner && <WhoseChip owner={p.owner} bot={p.bot} pill />}</td>;
+      return <td key={col} className="ibkr-col--text ibkr-col--whose"><RowWhose row={p} /></td>;
     case 'qty':
       return (
         <td key={col} className={`ibkr-col--num ${sideCls}`} title={sideTitle}>
@@ -153,7 +153,7 @@ export function PositionsPanel({
   positions,
   orders,
   error = null,
-  botsStale = false,
+  othersStale = false,
   selectedSymbol,
   onSelectSymbol,
   onOpenTrading,
@@ -192,7 +192,6 @@ export function PositionsPanel({
     () => (sort ? [{ key: sort.key as OrderSortKey, dir: sort.dir }] : []),
     [sort],
   );
-  const closing = new Set<string>();
 
   return (
     <div
@@ -233,11 +232,11 @@ export function PositionsPanel({
           {lastKnownBanner(error)}
         </div>
       )}
-      {botsStale && (
-        <div className="ibkr-empty ibkr-empty--error" data-testid="positions-bots-unread">{OWNER_BOTS_UNREAD}</div>
+      {othersStale && (
+        <div className="ibkr-empty ibkr-empty--error" data-testid="positions-others-unread">{OWNER_OTHERS_UNREAD}</div>
       )}
       {positions.length === 0 ? (
-        !error && !botsStale && (
+        !error && !othersStale && (
           <div className="ibkr-empty" data-testid="positions-empty">
             No open positions.
             {workingLine && (
@@ -271,9 +270,6 @@ export function PositionsPanel({
           </thead>
           <tbody>
             {sortedPositions.map((p) => {
-              // Their Close takes every bot's shares in the stock, so it sits on their first row there.
-              const botsClose = p.owner === 'bots' && !closing.has(p.symbol);
-              if (botsClose) closing.add(p.symbol);
               const rowKey = `${p.symbol}-${p.owner ?? ''}-${p.bot ?? ''}`;
               const sideCls = positionSideClass(p.qty);
               const sideRowCls = positionSideRowClass(p.qty);
@@ -282,10 +278,11 @@ export function PositionsPanel({
                 <>
                   {columns.map((col) => renderPositionCell(col, p, sideCls, sideTitle))}
                   {showFlatten ? (
-                    <td className="ibkr-col--actions">
-                      {p.owner === 'bots' ? (
-                        botsClose && <CloseBotsButton symbol={p.symbol} qty={p.bots_qty ?? p.qty} paper look="word" />
-                      ) : (
+                    // Another trader's row has no Close: you close its stock by switching it Off (ADR 072).
+                    <td className="ibkr-col--actions"
+                      title={isOthersRow(p) && p.owner ? ownerHoldSentence(p.owner, p.qty).trim() : undefined}
+                      data-testid={isOthersRow(p) ? 'positions-others-no-close' : undefined}>
+                      {isOthersRow(p) ? null : (
                         <ClosePositionButton
                           position={p}
                           mode={mode}

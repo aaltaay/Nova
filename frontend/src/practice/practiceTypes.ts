@@ -1,14 +1,18 @@
 /** Wire shape of GET /api/practice/account (ADR 020 "Contract"). */
 import type { IbkrOrder } from '../ibkr';
 import type { PracticeVenue } from '../constantGroups/practice';
+import type { Owner } from '../constantGroups/owners';
 
-/** One holder of a Paper position (ADR 069): yours, or a bot's (by its origin). */
+/** One holder of a position (ADR 072): you, Claude, the brain, or a retired bot (Earlier bots, by its origin). */
 export interface PracticeOwnerHolding {
-  owner: 'you' | 'bots';
+  owner: Owner;
+  /** The retired bot, on Earlier bots' rows only. */
   bot: string | null;
   qty: number;
   avg_cost: number;
   unrealized_pnl: number;
+  /** These shares are handed to you: a switched-off trader's, or a retired bot's. */
+  handed?: boolean;
 }
 
 export interface PracticePosition {
@@ -17,11 +21,11 @@ export interface PracticePosition {
   avg_cost: number | null;
   mark: number | null;
   unrealized: number | null;
-  /** Paper (ADR 069): every holder with shares; absent on Sim. */
+  /** Paper and Sim (ADR 072): every holder with shares. */
   by_owner?: PracticeOwnerHolding[];
 }
 
-/** One book's day (ADR 069). */
+/** One book's day (ADR 069, ADR 072). */
 export interface PracticeBookDay {
   day_pnl: number;
   realized_today: number;
@@ -30,14 +34,15 @@ export interface PracticeBookDay {
   commissions_today: number;
 }
 
-/** Paper's two books (ADR 069); the two `day_pnl` add up to the account's. */
+/** An AI trader's day and its budget (its limit, and what its open shares and working entries hold). */
+export type PracticeTraderDay = PracticeBookDay & { budget_usd: number; budget_used_usd: number };
+
+/** The account's four books (ADR 072); the four `day_pnl` add up to the account's. */
 export interface PracticeBooks {
   you: PracticeBookDay;
-  bots: PracticeBookDay & {
-    budget_usd: number;
-    budget_used_usd: number;
-    by_bot: Record<string, PracticeBookDay>;
-  };
+  claude: PracticeTraderDay;
+  brain: PracticeTraderDay;
+  earlier_bots: PracticeBookDay & { by_bot: Record<string, PracticeBookDay> };
 }
 
 export interface PracticeAccount {
@@ -58,7 +63,7 @@ export interface PracticeAccount {
   day_started_et: string | null;
   commissions_today: number;
   positions: PracticePosition[];
-  /** Paper (ADR 069): your book and the bots'; absent on Sim. */
+  /** Paper and Sim (ADR 072): the three traders' books and Earlier bots'. */
   books?: PracticeBooks;
   working: IbkrOrder[];
   fills_today: number;

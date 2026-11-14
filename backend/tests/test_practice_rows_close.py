@@ -83,6 +83,9 @@ def _open_ids() -> set[str]:
 # -- each sender's own bracket and cancel ---------------------------------------
 async def _claude(attempt: str):
     from agent_trader import orders
+    from traders import switches
+
+    switches.set_switch("claude", True, "test")                  # the operator's switch On (ADR 072)
 
     order = {"symbol": SYM, "qty": 1, "entry": 9.90, "stop": 9.50, "target": 10.50}
     placed = await orders.send_entry(order, tag=attempt)

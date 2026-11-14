@@ -8,9 +8,10 @@
   the execution door trades nothing else. An execution whose commission report has not arrived
   is a cost IBKR has not said yet (``Fill.cost`` None). IBKR not READY is an unknown.
 
-**Whose fill (ADR 061)** -- ``Fill.by``, from the order's own stamps (``owners.whose.by_of``, the rule's
-one owner since ADR 069: the same rule the Account page's books use). Nova's own closes are None: whose
-shares they close decides (``loss_limit.count``). Every Live fill is yours: a bot never trades Live
+**Whose fill (ADR 061)** -- ``Fill.by``, the loss line an order counts on (``by_of``), from the whose-trade rule
+the Account page's books use (``owners.whose.by_of``): yours on the You line, Claude's, the brain's and Earlier
+bots' on the Bots line until each AI trader's own line lands (ADR 072 build order 4). Nova's own closes are None:
+whose shares they close decides (``loss_limit.count``). Every Live fill is yours: neither AI trader trades Live
 (Invariant #7).
 
 Every read answers ``(count, unknown)``; ``unknown`` says why there is nothing to compare.
@@ -22,14 +23,23 @@ import logging
 import math
 from typing import Any
 
-from constants_loss_limit import LOSS_LIMIT_LINE_YOU
+from constants_loss_limit import LOSS_LIMIT_LINE_BOTS, LOSS_LIMIT_LINE_YOU
 from loss_limit.count import Count, Fill, Held, count
-from owners.whose import by_of  # the whose-trade rule's owner (ADR 069); loss_limit.sell reads it here too
+from owners.whose import by_of as _owner_of  # the whose-trade rule (ADR 072)
 
 logger = logging.getLogger(__name__)
 
 _IB_READ_TIMEOUT_SEC = 3.0
 _UNSET = 1e300      # IBKR's unset double is 1.797e308
+
+
+def by_of(row: dict[str, Any]) -> str | None:
+    """The loss line a practice ledger row counts on: ``you``, ``bots`` (every trader but you), or None for one of
+    Nova's own closes. ``loss_limit.sell`` reads it here too."""
+    owner = _owner_of(row)
+    if owner is None:
+        return None
+    return LOSS_LIMIT_LINE_YOU if owner == LOSS_LIMIT_LINE_YOU else LOSS_LIMIT_LINE_BOTS
 
 
 def _num(value: Any) -> float | None:

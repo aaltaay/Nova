@@ -1,63 +1,67 @@
-"""Whose an order is (ADR 063 decision 2, ADR 069 decision 1). Pure.
+"""Whose an order is (ADR 072 decision 2, ``architecture/schema/traders.md``). Pure.
 
-``by_of`` reads a practice ledger row's own stamps -- never its side, size or time: the bots' when its
-source is ``bot``, it carries a ``bot_id``, or it is a bot's own close (sent as source ``flatten`` with the
-bot's origin, ``BOT_CLOSE_ORIGINS``); a side line's Auto sell is that side's; your own Flatten is yours.
-Nova's own closes -- KILL, all stop, the day cover, a margin call, the Account line's Auto sell, a flatten
-with no origin -- are None: whose shares they close decides (``owners.split``). Everything else is yours.
+``by_of`` reads a practice ledger row's own stamps -- never its side, size or time -- in this order: origin
+``claude`` or ``loss_limit_claude`` is Claude's; ``brain`` or ``loss_limit_brain`` the brain's; a retired bot's
+(source ``bot``, a ``bot_id``, or one of the retired origins and the whole-book closes) Earlier bots'; your own
+Flatten and the You line's Auto sell yours. Nova's own closes -- KILL, the day cover, a margin call, the Account
+line's Auto sell, a lapsed lease, a flat-by close -- are None: whose shares they close decides (``owners.split``).
+Everything else is yours. A ledger written before ADR 072 reads with the same rule, so Claude's past fills are
+Claude's and every other bot's are Earlier bots'.
 
-``holder_of`` names who inside the book: ``you``, the bot's origin (``BOT_HOLDERS``; a bots' order with no
-origin it can name is the strategy bot's ``bot``), or ``bots`` -- a close of the whole bots' book (the Bots
-line's Auto sell, the operator's Close on a bots' row).
+``holder_of`` names who holds what the order opens: ``you``, ``claude``, ``brain``, a retired bot by its origin
+(the strategy bot's ``bot`` when it names none) or ``bots`` -- a close of every holder but you (ADR 069's whole
+bots' book: the Bots line's Auto sell, the retired Close on a bots' row).
 """
 from __future__ import annotations
 
 from typing import Any
 
-from constants_loss_limit import LOSS_LIMIT_SIDE_ORIGINS
 from constants_owners import (
-    BOT_CLOSE_ORIGINS,
-    BOT_HOLDERS,
     BOTS_BOOK_CLOSE_ORIGINS,
+    EARLIER_BOT_HOLDERS,
     HOLDER_BOTS_BOOK,
     HOLDER_NAMES,
     HOLDER_STRATEGY_BOT,
     HOLDER_YOU,
-    OWNER_BOTS,
+    OWNER_BRAIN,
+    OWNER_CLAUDE,
+    OWNER_EARLIER_BOTS,
     OWNER_YOU,
+    TRADER_LOSS_ORIGINS,
 )
 
-_SIDE_OF_ORIGIN = {origin: side for side, origin in LOSS_LIMIT_SIDE_ORIGINS.items()}
 _NOVA_SOURCES = frozenset({"flatten", "kill", "cancel_working"})
+_EARLIER_ORIGINS = frozenset({*EARLIER_BOT_HOLDERS, *BOTS_BOOK_CLOSE_ORIGINS})
+_YOUR_ORIGINS = frozenset({"ticket_flatten", "loss_limit_you"})
+_TRADER_ORIGINS = {OWNER_CLAUDE: OWNER_CLAUDE, OWNER_BRAIN: OWNER_BRAIN, **TRADER_LOSS_ORIGINS}
 
 
 def by_of(row: dict[str, Any]) -> str | None:
-    """Whose order a practice ledger row is: ``you`` | ``bots`` | None (one of Nova's own closes)."""
-    source = str(row.get("order_source") or "")
+    """Whose order a practice ledger row is: ``you`` | ``claude`` | ``brain`` | ``earlier_bots`` | None (one of
+    Nova's own closes)."""
     origin = row.get("order_origin")
-    if source == "bot" or row.get("bot_id") is not None or origin in BOT_CLOSE_ORIGINS:
-        return OWNER_BOTS
-    if origin in _SIDE_OF_ORIGIN:
-        return _SIDE_OF_ORIGIN[origin]
-    if origin == "ticket_flatten":
-        return OWNER_YOU          # your own Flatten
+    if origin in _TRADER_ORIGINS:
+        return _TRADER_ORIGINS[origin]
+    source = str(row.get("order_source") or "")
+    if source == "bot" or row.get("bot_id") is not None or origin in _EARLIER_ORIGINS:
+        return OWNER_EARLIER_BOTS
+    if origin in _YOUR_ORIGINS:
+        return OWNER_YOU
     if source in _NOVA_SOURCES:
         return None
     return OWNER_YOU
 
 
 def holder_of(row: dict[str, Any]) -> str | None:
-    """Who in the book holds what the order opens: ``you``, a bot's origin, ``bots`` (the whole bots' book's
-    close) or None (Nova's own close)."""
+    """Who holds what the order opens: ``you``, ``claude``, ``brain``, a retired bot's origin, ``bots`` (a close of
+    every holder but you) or None (Nova's own close)."""
     owner = by_of(row)
-    if owner is None:
-        return None
-    if owner == OWNER_YOU:
-        return HOLDER_YOU
+    if owner in (None, OWNER_YOU, OWNER_CLAUDE, OWNER_BRAIN):
+        return owner
     origin = row.get("order_origin")
     if origin in BOTS_BOOK_CLOSE_ORIGINS:
         return HOLDER_BOTS_BOOK
-    return origin if origin in BOT_HOLDERS else HOLDER_STRATEGY_BOT
+    return origin if origin in EARLIER_BOT_HOLDERS else HOLDER_STRATEGY_BOT
 
 
 def holder_of_order(source: str | None, origin: str | None, bot_id: str | None = None) -> str | None:
@@ -66,19 +70,24 @@ def holder_of_order(source: str | None, origin: str | None, bot_id: str | None =
 
 
 def book_of(holder: str | None) -> str | None:
-    """The book a holder's shares are in: ``you`` | ``bots``; None for Nova's own close."""
+    """The book a holder's shares are in: ``you`` | ``claude`` | ``brain`` | ``earlier_bots``; None for Nova's own
+    close."""
     if holder is None:
         return None
-    return OWNER_YOU if holder == HOLDER_YOU else OWNER_BOTS
+    if holder in (HOLDER_YOU, OWNER_CLAUDE, OWNER_BRAIN):
+        return holder
+    return OWNER_EARLIER_BOTS
 
 
 def bot_of(holder: str | None) -> str | None:
-    """The wire's ``bot``: the holder inside the bots' book, null for yours and for Nova's own close."""
-    return holder if book_of(holder) == OWNER_BOTS else None
+    """The wire's ``bot``: which retired bot, on Earlier bots' rows only (``bot`` for a whole-book close)."""
+    if book_of(holder) != OWNER_EARLIER_BOTS:
+        return None
+    return HOLDER_STRATEGY_BOT if holder == HOLDER_BOTS_BOOK else holder
 
 
 def name_of(holder: str | None) -> str:
-    """The holder in the words Nova says: "You", "The Live Trader", ..."""
+    """The holder in the words Nova says: "You", "Claude", "The brain", "The Live Trader", ..."""
     if holder is None:
         return "Nova"
     return HOLDER_NAMES.get(holder, HOLDER_NAMES[HOLDER_STRATEGY_BOT])

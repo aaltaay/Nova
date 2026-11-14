@@ -1,6 +1,6 @@
 # ADR 072 -- Three traders: you, Claude, the brain
 
-**Status:** Accepted (the design; the build follows in the batches below) · **Date:** 2026-11-13
+**Status:** Accepted (the design; the build follows in the batches below -- batches 2 and 3 built) · **Date:** 2026-11-13
 **Replaces:** [[069-your-book-and-the-bots-book]] decisions 1-5 and 9's bots' rows (two books become three; the bots'
 budget and Close on a bots' row go) · [[055-the-live-trader-bot]] (retired) · [[044-one-bots-page]] decisions 1-2 and 5-6
 and its 2026-10-15 amendments (the Bot switch, the family keys, a strategy's On, the squares, the Bots page) ·

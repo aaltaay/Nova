@@ -142,7 +142,8 @@
 .ph-home__holdrow + .ph-home__holdrow { border-top: 1px solid var(--ph-hair); }
 .ph-home__holdrow.is-position {
   display: grid;
-  grid-template-columns: 46px 34px minmax(0, 1fr) auto;
+  /* The who-chip column fits the longest word: Claude, Earlier, Handed (three books v1). */
+  grid-template-columns: 46px 52px minmax(0, 1fr) auto;
   column-gap: 6px;
 }
 .ph-home__holdrow.is-position > b:first-child { font-size: 13px; font-weight: 700; }

@@ -96,7 +96,8 @@ EXECUTION_ORIGINS = (
     "margin_call",    # ADR 048: equity under maintenance -- IBKR liquidates, so Paper and Sim do
     "live_trader",    # ADR 055: the Live Trader bot's steps and closes, Paper only
     "claude",         # ADR 068: Claude's seat -- its entries, closes and cancels, Paper only
-    "close_bots",     # ADR 069: your Close on a bots' row -- the bots' shares in one stock, Paper only
+    "close_bots",     # ADR 069: your Close on a bots' row -- retired with the bots (ADR 072); rows keep the label
+    "takeover",       # ADR 072: a switched-off trader's unfilled entries, and its exits before your close of a handed stock
 )
 EXECUTION_OPS = ("place", "bracket", "cancel", "replace", "exit_oco")
 # ADR 072: the retired senders. Their rows keep their labels; the door refuses any new order of theirs (a close or

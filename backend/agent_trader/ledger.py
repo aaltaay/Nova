@@ -84,10 +84,24 @@ def position(symbol: str, fills: list[dict[str, Any]] | None = None) -> float:
     return min(_own(symbol, rows), _held(symbol))
 
 
+def handed() -> set[str]:
+    """The stocks Claude handed to you when its switch went Off (ADR 072): no longer its to trade, guard or close."""
+    from traders import handed as marks
+
+    try:
+        broker = paper()
+        return {s for s, who in marks.active(AGENT_VENUE, broker.ledger, broker.reference.now_ts()).items()
+                if who == AGENT_ORIGIN}
+    except Exception as exc:
+        raise ReadError(f"Paper's handed positions could not be read: {exc}") from exc
+
+
 def positions(fills: list[dict[str, Any]] | None = None) -> dict[str, float]:
+    """Claude's own positions, without the stocks it handed to you."""
     rows = fills if fills is not None else fills_today()
     out: dict[str, float] = {}
-    for sym in {str(r.get("symbol") or "").upper() for r in rows}:
+    gone = handed()
+    for sym in {str(r.get("symbol") or "").upper() for r in rows} - gone:
         qty = position(sym, rows)
         if qty > _EPS:
             out[sym] = qty

@@ -1,11 +1,12 @@
 /**
  * The card under the header's Positions count: each stock held now, its
- * shares (a short says so), average cost and open P&L, and on Paper whose they
- * are (ADR 069 decision 9). A row opens that stock in the Trader; View All
- * Positions opens Account / Trading.
+ * shares (a short says so), average cost and open P&L, and on Paper and Sim whose
+ * they are -- You, Claude, the brain, a retired bot, and "The brain's · yours to
+ * close" on shares handed to you (ADR 072). A row opens that stock in the Trader;
+ * View All Positions opens Account / Trading.
  */
 import { fmtPrice } from '../utils/quoteFormat';
-import { WhoseChip } from '../account';
+import { RowWhose } from '../ibkr';
 import {
   GLOBAL_BAR_OFFLINE_PLACEHOLDER,
   GLOBAL_BAR_POSITIONS_EMPTY,
@@ -60,7 +61,7 @@ export function GlobalPositionsMenu({ rows, stale, onOpenSymbol, traderActive, c
             role="menuitem"
             className={`global-app-bar__position-row${r.owner ? ' has-whose' : ''}`}
             title={globalBarPositionOpenTitle(r.symbol)}
-            data-testid={`global-position-${r.symbol}${r.owner === 'bots' ? `-${r.bot ?? r.owner}` : ''}`}
+            data-testid={`global-position-${r.symbol}${r.owner && r.owner !== 'you' ? `-${r.bot ?? r.owner}` : ''}`}
             onClick={() => {
               onClose();
               onOpenSymbol(r.symbol);
@@ -80,7 +81,7 @@ export function GlobalPositionsMenu({ rows, stale, onOpenSymbol, traderActive, c
             </span>
             {r.owner && (
               <span className="global-app-bar__position-whose">
-                <WhoseChip owner={r.owner} bot={r.bot} pill />
+                <RowWhose row={r} />
               </span>
             )}
           </button>

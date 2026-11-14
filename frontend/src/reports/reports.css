@@ -586,8 +586,8 @@ body.is-resizing-side-panel * {
 }
 
 
-/* ── Yours and the bots' beside each total (ADR 069 decision 6, mockup reports-v1) ──
-   Paper's All view only. The books' colours are the Account page's (--acct-you, --acct-bot). */
+/* ── The four books beside each total (ADR 072, mockup three-books v1 "Account › Reports") ──
+   Paper's All view only. Each dot and curve bar takes its book's colour inline, from OWNER_COLORS. */
 
 .reports-split {
   display: flex;
@@ -619,22 +619,6 @@ body.is-resizing-side-panel * {
   width: 0.45rem;
   height: 0.45rem;
   border-radius: 2px;
-}
-
-.reports-split__dot.is-you {
-  background: var(--acct-you, #64d2ff);
-}
-
-.reports-split__dot.is-bots {
-  background: var(--acct-bot, #5e5ce6);
-}
-
-.reports-v2-curve-bar.is-you {
-  fill: var(--acct-you, #64d2ff);
-}
-
-.reports-v2-curve-bar.is-bots {
-  fill: var(--acct-bot, #5e5ce6);
 }
 
 /* The book's name for a screen reader; the dot says it on screen. */

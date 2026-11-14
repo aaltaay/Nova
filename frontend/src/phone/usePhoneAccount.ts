@@ -1,14 +1,14 @@
 /**
  * The account as the phone's Home and Account screens show it. It derives nothing of its own: it is
  * the desk's Account page read (pages/AccountPage.tsx) -- the IBKR summary on Live, Nova's practice
- * ledger on Paper and Sim, Paper's two books (ADR 069) -- gathered by the same helpers, so a figure
- * on the phone is the figure on the desk.
+ * ledger on Paper and Sim, the three traders' books and Earlier bots' (ADR 072) -- gathered by the same helpers, so
+ * a figure on the phone is the figure on the desk.
  */
 import { useMemo } from 'react';
 import { useAccountHistory } from '../account/accountHistoryResource';
 import type { PracticeHistory } from '../account/accountHistoryTypes';
-import { liveCommissionsToday, liveFillRows, practiceFillRows, type AccountFillRow } from '../account/accountLive';
-import { positionsByOwner, positionsFromIbkr, positionsFromPractice, type AccountPosition } from '../account/accountPositions';
+import { liveCommissionsToday, liveFillRows } from '../account/accountLive';
+import { positionsByOwner, positionsFromIbkr, positionsFromPractice } from '../account/accountPositions';
 import { ALL_VIEW, daySplits, shows, viewBookDay, viewHistory, type DaySplit, type OwnerView } from '../account/ownerView';
 import { useClosedOrders } from '../closed_orders/useClosedOrders';
 import { figuresFromPractice, figuresFromSummary, type HeaderAccountFigures } from '../components/headerAccountFigures';
@@ -23,18 +23,19 @@ import { usePracticeAccount } from '../practice/practiceAccountResource';
 import type { PracticeBooks } from '../practice/practiceTypes';
 import { useSimAccountClock } from '../practice/useSimAccountClock';
 import { useWorkspace } from '../workspace';
+import { ownerOf, positionWhose, whoseFillRows, type PhoneFillRow, type PhonePosition } from './phoneWhose';
 
 export interface PhoneAccount {
   /** The venue the numbers belong to: the desk's, Live while it is not known. */
   venue: DeskVenue;
   figures: HeaderAccountFigures;
-  /** One row per holder on Paper (yours, then each bot's); one row per stock elsewhere. Narrowed to `view`. */
-  positions: AccountPosition[];
+  /** One row per holder on Paper and Sim, each saying whose; one row per stock on Live. Narrowed to `view`. */
+  positions: PhonePosition[];
   /** Working orders on the venue. */
   working: IbkrOrder[];
-  /** Today's fills, newest first, narrowed to `view`. */
-  fills: AccountFillRow[];
-  /** Paper's two books; null on Live and Sim. */
+  /** Today's fills, newest first, narrowed to `view`; on Paper and Sim each says whose it was. */
+  fills: PhoneFillRow[];
+  /** The four books (you, Claude, the brain, Earlier bots) on Paper and Sim; null on Live. */
   books: PracticeBooks | null;
   /** Open P&L of the view (the book's on Paper, the account's otherwise). */
   openPnl: number | null;
@@ -48,7 +49,7 @@ export interface PhoneAccount {
   rangeHistory: PracticeHistory | null;
   /** Every day the ledger and its archives hold, narrowed to `view`: the calendar. Null unless asked for. */
   calendar: PracticeHistory | null;
-  /** Each date's yours and the bots' (Paper, All); null with no split or no calendar. */
+  /** Each date's realized per book (Paper and Sim, All); null with no split or no calendar. */
   daySplits: ReadonlyMap<string, DaySplit> | null;
   /** Why the calendar has nothing to show; null while it has. */
   calendarAbsence: string | null;
@@ -89,7 +90,8 @@ export function usePhoneAccount(view: OwnerView = ALL_VIEW, ask: PhoneAccountAsk
 
   const ledger = practiceVenue && practice.data?.venue === practiceVenue ? practice.data : null;
   const figures = ledger ? figuresFromPractice(ledger) : figuresFromSummary(ibkr.summary);
-  const books = practiceVenue === 'paper' ? ledger?.books ?? null : null;
+  // Paper and Sim keep the books (ADR 072); Live is one book, yours.
+  const books = practiceVenue ? ledger?.books ?? null : null;
   const shown = books ? view : ALL_VIEW;
   const hist = history.data && history.data.venue === practiceVenue ? history.data : null;
   const viewed = useMemo(() => viewHistory(hist, shown), [hist, shown]);
@@ -99,9 +101,14 @@ export function usePhoneAccount(view: OwnerView = ALL_VIEW, ask: PhoneAccountAsk
   const viewedEvery = useMemo(() => viewHistory(everyHist, shown), [everyHist, shown]);
   const splits = useMemo(() => (books && shown.book === 'all' ? daySplits(everyHist) : null), [books, shown, everyHist]);
 
-  const positions = useMemo(() => {
-    if (books && ledger) return positionsByOwner(ledger.positions).filter((p) => shows(shown, p.owner, p.bot));
-    return ledger ? positionsFromPractice(ledger.positions) : positionsFromIbkr(ibkr.positions);
+  const positions = useMemo((): PhonePosition[] => {
+    if (books && ledger) {
+      return positionsByOwner(ledger.positions)
+        .filter((p) => shows(shown, ownerOf(p.owner), p.bot))
+        .map((p) => ({ ...p, whose: positionWhose(p, ledger.positions) }));
+    }
+    const rows = ledger ? positionsFromPractice(ledger.positions) : positionsFromIbkr(ibkr.positions);
+    return rows.map((p) => ({ ...p, whose: null }));
   }, [books, ledger, ibkr.positions, shown]);
 
   const working = useMemo(
@@ -113,9 +120,9 @@ export function usePhoneAccount(view: OwnerView = ALL_VIEW, ask: PhoneAccountAsk
     () => (practiceVenue ? [] : [...ibkr.orders, ...closedOrders]),
     [practiceVenue, ibkr.orders, closedOrders],
   );
-  const fills = useMemo(() => {
-    const rows = practiceVenue ? practiceFillRows(viewed?.fills ?? []) : liveFillRows(liveOrders);
-    return [...rows].sort((a, b) => (b.ts ?? 0) - (a.ts ?? 0));
+  const fills = useMemo((): PhoneFillRow[] => {
+    if (practiceVenue) return whoseFillRows(viewed?.fills ?? []);
+    return liveFillRows(liveOrders).map((row) => ({ ...row, whose: null })).sort((a, b) => (b.ts ?? 0) - (a.ts ?? 0));
   }, [practiceVenue, viewed, liveOrders]);
 
   const bookDay = viewBookDay(books, shown);

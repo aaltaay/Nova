@@ -256,7 +256,10 @@ def test_the_door_never_limits_a_close_a_cover_flatten_or_claudes_seat(door, mon
     """The bots keep their own caps: Claude's seat is the bot that sends now (ADR 068, ADR 072)."""
     from sim.mode import set_venue
 
+    from traders import switches
+
     set_venue("paper", persist=False)
+    switches.set_switch("claude", True, "test")                                       # the operator's switch On
     _limit(shares=1, risk=1)
     assert _run(_place(500, side="SELL", key="sell")).ok is True                       # selling what you hold
     assert _run(_place(500, source="flatten", intent="flatten", side="SELL", key="flat")).ok is True

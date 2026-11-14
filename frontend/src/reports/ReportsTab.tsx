@@ -1,10 +1,10 @@
 /**
  * Reports tab -- TraderVue-style P&L calendar from journal trades + file import.
  *
- * Hosted on the Account page it follows the page's venue and its All / You / Bots pick (ADR 069 decision 6,
- * mockup reports-v1): Paper reads Paper's round trips, one per holder, with yours and the bots' beside each total
- * on All, and its Import row says an import is Live's. Live and Sim -- and any other host -- read the journal as
- * it was.
+ * Hosted on the Account page it follows the page's venue and its All / You / Claude / The brain / Earlier bots pick
+ * (ADR 072, mockup three-books v1 "Account › Reports"): Paper reads Paper's round trips, one per holder, with the
+ * four books beside each total on All, and its Import row says an import is Live's; the switch counts each pick's
+ * closed trades this year. Live and Sim -- and any other host -- read the journal as it was.
  */
 import { useEffect, useState } from 'react';
 import { AnalyticsSummary } from './AnalyticsSummary';
@@ -38,7 +38,7 @@ export function ReportsTab({ venue, view, onBotCounts }: Partial<ReportsHost> = 
     viewQuery,
   );
   const reportsV2 = useReportsV2(true, includeMock, refreshToken, viewQuery);
-  // The Bots menu counts the year shown, whatever the pick; a new pick's load keeps the last counts.
+  // The switch counts the year shown, whatever the pick; a new pick's load keeps the last counts.
   useEffect(() => {
     if (!books) onBotCounts?.(null);
     else if (yearData) onBotCounts?.(botCounts(yearData.holders));

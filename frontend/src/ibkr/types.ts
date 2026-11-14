@@ -202,8 +202,11 @@ export interface IbkrPosition {
   liquidation_price?: number | null;
   /** Where the liquidation price's margin came from: "IBKR what-if" or "published rules". */
   liquidation_source?: string | null;
-  /** Paper (ADR 069): `qty` is the shares yours to sell; the account holds this many. */
+  /** Paper and Sim (ADR 072): `qty` is the shares yours to close; the account holds this many. */
   account_qty?: number | null;
+  /** ADR 072: how many of `qty` were handed to you, and by whom (a switched-off trader, or a retired bot). */
+  handed_qty?: number | null;
+  handed_from?: 'claude' | 'brain' | 'earlier_bots' | null;
 }
 
 export type FillAuditLevel = 'ok' | 'warn' | 'danger';
@@ -231,8 +234,8 @@ export interface IbkrOrder {
   order_origin?: string | null;
   /** Practice rows only: the bot that placed it, when a bot did. */
   bot_id?: string | null;
-  /** Paper only (ADR 069): whose order it is, and which bot's, by its origin. */
-  owner?: 'you' | 'bots' | null;
+  /** Paper and Sim (ADR 072): whose order it is (null: one of Nova's own closes), and which retired bot's. */
+  owner?: 'you' | 'claude' | 'brain' | 'earlier_bots' | null;
   bot?: string | null;
   /**
    * Nova sent this SELL as a short entry (ADR 048): practice rows stamp it, Live rows take it from

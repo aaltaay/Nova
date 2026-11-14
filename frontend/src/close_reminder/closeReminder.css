@@ -32,12 +32,12 @@
 /* 15:55: the card pulses until it is dealt with -- a ring whose opacity the compositor animates by itself, so
    the pulse never repaints the page while the operator closes positions (#707). */
 .close-reminder.is-final,
-.close-reminder.is-bots {
+.close-reminder.is-others {
   position: relative;
 }
 
 .close-reminder.is-final::after,
-.close-reminder.is-bots::after {
+.close-reminder.is-others::after {
   content: '';
   position: absolute;
   inset: -1px;

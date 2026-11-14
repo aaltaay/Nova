@@ -1,23 +1,26 @@
 /**
  * Account, Calendar: the desk's Calendar panel on a phone (operator ask, 2026-11-13). One month of
  * weekday squares, each with the day's Net, Gross, Commissions or Trades; the tapped day's breakdown
- * sits under the month (a phone has no hover) and opens that day's chart on Overview. Every figure is
- * the desk's own (`account/accountCalendar`, `account/accountDayBreakdown`); the rows shrink to fit,
- * so the screen never scrolls.
+ * sits under the month (a phone has no hover) and opens that day's chart on Overview. On All, each square
+ * carries a colour bar along its foot (each trader's share of the day), the day's box names each trader that
+ * traded, and the month line splits by colour (three books v1, ADR 072). Every figure is the desk's own
+ * (`account/accountCalendar`, `account/accountDayBreakdown`, `account/ownerView`); the rows shrink to fit, so the
+ * screen never scrolls.
  */
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight, LineChart } from 'lucide-react';
 import { dayShortLabel, isoDate, monthGrid, monthLabel, parseIsoDate, shiftMonth } from '../../account/accountCalendar';
 import { dayBreakdowns, monthDayTotals, type DayBreakdown } from '../../account/accountDayBreakdown';
 import { todayPracticeDate } from '../../account/accountFigures';
-import { monthSplit } from '../../account/ownerView';
+import { monthSplit, type DaySplit } from '../../account/ownerView';
 import {
   ACCOUNT_CALENDAR_METRICS,
   accountFillCount,
   accountTradeCount,
   type AccountCalendarMetric,
 } from '../../constantGroups/account_page';
-import { phoneMonth } from '../phoneCalendar';
+import { OWNER_BY_TRADER, OWNER_COLORS, OWNER_NAMES } from '../../constantGroups/owners';
+import { phoneMonth, splitParts, type SplitPart } from '../phoneCalendar';
 import { signedMoney, toneClass } from '../phoneFormat';
 import type { PhoneAccount } from '../usePhoneAccount';
 
@@ -37,12 +40,31 @@ function squareFigure(metric: AccountCalendarMetric, day: DayBreakdown): { text:
 
 const countOf = (day: DayBreakdown): string => (day.detailed ? accountTradeCount(day.trades.length) : accountFillCount(day.fills));
 
+/** "You +$52.86 · Claude -$3.77": each trader's part in words, for a reader that cannot see the colours. */
+const partsWords = (parts: readonly SplitPart[], digits?: number): string =>
+  parts.map((p) => `${OWNER_NAMES[p.owner]} ${signedMoney(p.value, digits)}`).join(' · ');
+
+/** Each trader's dot and figure, in its colour's order (the month line, the day's "By trader"). */
+function PartFigures({ parts, digits }: { parts: readonly SplitPart[]; digits?: number }) {
+  return (
+    <span className="ph-cal__parts" title={partsWords(parts, digits)}>
+      {parts.map((p) => (
+        <span key={p.owner} data-owner={p.owner}>
+          <i className="ph-owner-dot" style={{ background: OWNER_COLORS[p.owner] }} aria-hidden />
+          <b className={toneClass(p.value)}>{signedMoney(p.value, digits)}</b>
+        </span>
+      ))}
+    </span>
+  );
+}
+
 function DayBox({ day, split, onChart }: {
   day: DayBreakdown | null;
-  split: { you: number; bots: number } | null;
+  split: DaySplit | null;
   onChart: (date: string) => void;
 }) {
   if (!day) return <div className="ph-card ph-cal__day is-empty" role="status">Tap a day to see it.</div>;
+  const parts = splitParts(split);
   const movers = [...day.stocks].sort((a, b) => Math.abs(b.net) - Math.abs(a.net)).slice(0, 3).map((s) => s.symbol);
   return (
     <div className="ph-card ph-cal__day" data-testid="phone-calendar-day">
@@ -55,8 +77,12 @@ function DayBox({ day, split, onChart }: {
         <span>{day.detailed ? 'Trades' : 'Fills'}</span>
         <span>{day.detailed ? `${day.trades.length} · ${day.won} won, ${day.lost} lost` : day.fills}</span>
       </div>
-      {split ? (
-        <div><span>You · Bots</span><span>{signedMoney(split.you, 0)} · {signedMoney(split.bots, 0)}</span></div>
+      {parts.length ? (
+        // Cents while two traders fit the line, whole dollars past that (three books v1, phone b).
+        <div data-testid="phone-calendar-by-trader">
+          <span>{OWNER_BY_TRADER}</span>
+          <PartFigures parts={parts} digits={parts.length > 2 ? 0 : undefined} />
+        </div>
       ) : null}
       {day.detailed ? (
         <div><span>Stocks</span><span>{day.stocks.length}{movers.length ? ` · ${movers.join(', ')}` : ''}</span></div>
@@ -103,6 +129,7 @@ export function AccountCalendar({ account, onChart }: { account: PhoneAccount; o
     ? tapped
     : days.has(today) && today.startsWith(prefix) ? today : traded[traded.length - 1] ?? null;
   const split = monthSplit(account.daySplits ? new Map(account.daySplits) : null, prefix);
+  const monthParts = splitParts(split);
   const total = metric === 'gross' ? totals.gross : metric === 'commissions' ? -totals.commissions : totals.net;
   const browse = (delta: number) => setBrowsed({ ...shiftMonth(month.year, month.month, delta), todayMonth });
   const names = shown.columns === 7 ? WEEKDAYS : WEEKDAYS.slice(1, 6);
@@ -136,19 +163,27 @@ export function AccountCalendar({ account, onChart }: { account: PhoneAccount; o
             }
             const figure = squareFigure(metric, day);
             const date = cell.date;
+            const parts = splitParts(account.daySplits?.get(date));
             return (
               <button
                 key={date}
                 type="button"
                 className={`ph-cal__d${cell.today ? ' is-today' : ''}${cell.archived ? ' is-arch' : ''}`}
                 aria-pressed={date === selected}
-                aria-label={`${dayShortLabel(date)} ${signedMoney(day.net)}`}
+                aria-label={`${dayShortLabel(date)} ${signedMoney(day.net)}${parts.length ? ` · ${partsWords(parts)}` : ''}`}
                 data-testid={`phone-calendar-${date}`}
                 onClick={() => setTapped(date)}
               >
                 <i>{cell.day}</i>
                 <b className={figure.tone}>{figure.text}</b>
                 <u>{metric === 'trades' ? accountFillCount(day.fills) : countOf(day)}</u>
+                {parts.length ? (
+                  <span className="ph-cal__split" aria-hidden data-testid={`phone-calendar-split-${date}`}>
+                    {parts.map((p) => (
+                      <i key={p.owner} data-owner={p.owner} style={{ flexGrow: p.share, background: OWNER_COLORS[p.owner] }} />
+                    ))}
+                  </span>
+                ) : null}
               </button>
             );
           })}
@@ -159,10 +194,8 @@ export function AccountCalendar({ account, onChart }: { account: PhoneAccount; o
           ) : (
             <span>Month <b className={metric === 'commissions' ? '' : toneClass(total)}>{signedMoney(total)}</b></span>
           )}
-          {metric === 'net' && split ? (
-            <span>
-              You <b className={toneClass(split.you)}>{signedMoney(split.you, 0)}</b> · Bots <b className={toneClass(split.bots)}>{signedMoney(split.bots, 0)}</b>
-            </span>
+          {metric === 'net' && monthParts.length ? (
+            <PartFigures parts={monthParts} digits={0} />
           ) : (
             <span>{totals.won} won · {totals.lost} lost</span>
           )}

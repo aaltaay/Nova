@@ -5,9 +5,9 @@
  *
  * @vitest-environment jsdom
  */
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PAPER_ACCOUNT_TODAY, paperHistoryFixture } from '../account/accountFixtures';
+import { PAPER_ACCOUNT_TODAY, paperHistoryFixture, threeBooksHistoryFixture, THREE_BOOKS_ACCOUNT } from '../account/accountFixtures';
 import { resetAccountHistoryResourcesForTests } from '../account/accountHistoryResource';
 import type { IbkrAccountSummary, IbkrOrder } from '../ibkr/types';
 import { AccountPage } from './AccountPage';
@@ -43,12 +43,14 @@ const PLAYHEAD = Date.parse('2026-09-18T10:00:00-04:00') / 1000;
 const SIM_ACCOUNT = { ...PAPER_ACCOUNT_TODAY, venue: 'sim', account_id: 'NOVA-SIM', replay_key: ['historical', 'GRML', '2026-09-18', '09:15', '11:30'] };
 
 let history: unknown = null;
+let account: unknown = null;
 
 beforeEach(() => {
   resetAccountHistoryResourcesForTests();
   mocks.fetch.mockReset();
   mocks.workspace.ibkrMode = 'sim';
   history = { ...paperHistoryFixture(PLAYHEAD), venue: 'sim', account_id: 'NOVA-SIM', archives: [] };
+  account = SIM_ACCOUNT;
   mocks.clock = {
     sim: true, sim_time_et: '2026-09-18T10:00:00-04:00', session_date: '2026-09-18', live_edge: false,
     replay_source: 'historical', replay_symbol: 'GRML', replay_date: '2026-09-18',
@@ -57,7 +59,7 @@ beforeEach(() => {
     const u = String(url);
     if (u.includes('/api/sim/clock')) return { ok: true, status: 200, json: async () => mocks.clock };
     if (u.includes('/api/practice/history')) return { ok: true, status: 200, json: async () => history };
-    if (u.includes('/api/practice/account')) return { ok: true, status: 200, json: async () => SIM_ACCOUNT };
+    if (u.includes('/api/practice/account')) return { ok: true, status: 200, json: async () => account };
     return { ok: false, status: 404, json: async () => ({}) };
   });
 });
@@ -85,5 +87,16 @@ describe('AccountPage on Sim', () => {
     render(<AccountPage onOpenTrader={() => {}} />);
     await waitFor(() => expect(screen.getByTestId('account-ledger-table')).toBeTruthy());
     expect(screen.queryByTestId('account-ledger-absent')).toBeNull();
+  });
+
+  it("gets the books like Paper (ADR 072): the same switch, the same cards, the same chips", async () => {
+    history = { ...threeBooksHistoryFixture(PLAYHEAD), venue: 'sim', account_id: 'NOVA-SIM' };
+    account = { ...THREE_BOOKS_ACCOUNT, venue: 'sim', account_id: 'NOVA-SIM', replay_key: SIM_ACCOUNT.replay_key };
+    render(<AccountPage onOpenTrader={() => {}} />);
+    await waitFor(() => expect(screen.getByTestId('account-books')).toBeTruthy());
+    expect(screen.getByTestId('account-owner-switch').querySelectorAll('button')).toHaveLength(5);
+    expect(screen.getByTestId('account-book-claude').textContent).toContain('+$63.76');
+    fireEvent.click(screen.getByTestId('account-pos-tab-fills'));
+    await waitFor(() => expect(screen.getByTestId('account-fill-whose-8').textContent).toBe('Claude · closed by you'));
   });
 });

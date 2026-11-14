@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ownerYoursToClose } from '../constantGroups/owners';
 import type { IbkrPosition } from '../ibkr/types';
 import { GlobalPositionsMenu } from './GlobalPositionsMenu';
 import { heldPositionRows } from './globalPositionsRows';
@@ -36,35 +37,52 @@ describe('heldPositionRows', () => {
   });
 });
 
-describe('heldPositionRows with both books (ADR 069 decision 9)', () => {
-  it('gives each holder of a stock its own row, yours first, and never adds them', () => {
+describe('heldPositionRows with every book (ADR 072)', () => {
+  it('gives each holder of a stock its own row, in book order, and never adds them', () => {
     const rows = heldPositionRows([
-      { ...pos('ORCL', -19), owner: 'bots', bot: 'live_trader' },
+      { ...pos('ORCL', -19), owner: 'earlier_bots', bot: 'live_trader' },
+      { ...pos('ORCL', 30), owner: 'brain', bot: null },
       { ...pos('ORCL', 100), owner: 'you', bot: null },
-      { ...pos('ORCL', -5), owner: 'bots', bot: 'claude' },
+      { ...pos('ORCL', -5), owner: 'claude', bot: null },
       { ...pos('AAPL', 10), owner: 'you', bot: null },
     ]);
     expect(rows.map((r) => [r.symbol, r.qty, r.bot ?? r.owner])).toEqual([
-      ['AAPL', 10, 'you'], ['ORCL', 100, 'you'], ['ORCL', -19, 'live_trader'], ['ORCL', -5, 'claude'],
+      ['AAPL', 10, 'you'], ['ORCL', 100, 'you'], ['ORCL', -5, 'claude'], ['ORCL', 30, 'brain'],
+      ['ORCL', -19, 'live_trader'],
     ]);
+  });
+
+  it('keeps how many of your shares were handed to you, and by whom', () => {
+    const [row] = heldPositionRows([{ ...pos('XLAB', 200), owner: 'you', bot: null, handed_qty: 200, handed_from: 'brain' }]);
+    expect(row).toMatchObject({ owner: 'you', handed_qty: 200, handed_from: 'brain' });
   });
 });
 
 describe('GlobalPositionsMenu', () => {
   const base = { stale: false, traderActive: false, closeTraderView: () => {}, onClose: () => {} };
 
-  it("says whose each row is on Paper, and a bots' row still opens the stock", () => {
+  it("says whose each row is on Paper, and another trader's row still opens the stock", () => {
     const onOpenSymbol = vi.fn();
     const rows = heldPositionRows([
-      { ...pos('ORCL', -19, { avg_cost: 125.9, unrealized_pnl: 19.19 }), owner: 'bots', bot: 'live_trader' },
+      { ...pos('ORCL', -19, { avg_cost: 125.9, unrealized_pnl: 19.19 }), owner: 'claude', bot: null },
       { ...pos('ORCL', 100), owner: 'you', bot: null },
     ]);
     render(<GlobalPositionsMenu {...base} rows={rows} onOpenSymbol={onOpenSymbol} />);
-    expect(screen.getAllByTestId('account-whose').map((chip) => chip.textContent)).toEqual(['You', 'Live Trader']);
-    const theirs = screen.getByTestId('global-position-ORCL-live_trader');
+    expect(screen.getAllByTestId('account-whose').map((chip) => chip.textContent)).toEqual(['You', 'Claude']);
+    const theirs = screen.getByTestId('global-position-ORCL-claude');
     expect(theirs.textContent).toContain('19 short @ $125.90');
     fireEvent.click(theirs);
     expect(onOpenSymbol).toHaveBeenCalledWith('ORCL');
+  });
+
+  it("says whose the shares handed to you were, dashed, and no You chip when every share was handed", () => {
+    const rows = heldPositionRows([{ ...pos('XLAB', 200), owner: 'you', bot: null, handed_qty: 200, handed_from: 'brain' }]);
+    render(<GlobalPositionsMenu {...base} rows={rows} onOpenSymbol={() => {}} />);
+    const chips = screen.getAllByTestId('account-whose');
+    expect(chips).toHaveLength(1);
+    expect(chips[0].textContent).toBe(ownerYoursToClose('brain'));
+    expect(chips[0].className).toContain('is-handed');
+    expect(chips[0].getAttribute('data-owner')).toBe('brain');
   });
 
   it('draws no chip where there is one book', () => {

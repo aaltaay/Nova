@@ -135,7 +135,7 @@ PRACTICE_MATCHER_INTERVAL_SEC = 1.0
 # before today's -- a weekend inside the window simply holds no session --
 # YTD at Jan 1 of the practice day's year, ALL at the ledger's open. Today is
 # the venue's clock: the playhead on Sim. Owner: practice/history.py.
-PRACTICE_HISTORY_SCHEMA_VERSION = 2  # ADR 069: fills, days and points carry whose
+PRACTICE_HISTORY_SCHEMA_VERSION = 3  # ADR 072: four books (you, Claude, the brain, Earlier bots) and closed_by
 PRACTICE_HISTORY_RANGE_DEFAULT = "1D"
 PRACTICE_HISTORY_RANGE_YTD = "YTD"
 PRACTICE_HISTORY_RANGE_ALL = "ALL"

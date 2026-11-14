@@ -51,7 +51,7 @@ import {
   placeMarketExit,
 } from './runNovaActionPlace';
 import { runShortHotkey, SHORT_HOTKEY_KINDS } from './runNovaActionShort';
-import { refusalNamingBots, type NovaActionRuntime } from './runNovaActionRuntime';
+import { refusalNamingTrader, type NovaActionRuntime } from './runNovaActionRuntime';
 import { runClipHotkey } from '../clips';
 import { orderCloses, viewLockReason } from '../market_view';
 
@@ -235,7 +235,7 @@ export async function runNovaAction(
     if (!built.ok) {
       return {
         ok: true,
-        text: `${cancelText} for ${symbol}. ${refusalNamingBots(built.error, runtime)}`,
+        text: `${cancelText} for ${symbol}. ${refusalNamingTrader(built.error, runtime)}`,
       };
     }
     const exit = await placeMarketExit(
@@ -268,7 +268,7 @@ export async function runNovaAction(
     const built = action.kind === 'exit_pos'
       ? buildExitFullPosition(runtime.position?.qty)
       : buildExitPositionPercent(runtime.position?.qty, action.params.percent ?? 50);
-    if (!built.ok) return { ok: false, text: refusalNamingBots(built.error, runtime) };
+    if (!built.ok) return { ok: false, text: refusalNamingTrader(built.error, runtime) };
 
     return placeMarketExit(
       runtime,
