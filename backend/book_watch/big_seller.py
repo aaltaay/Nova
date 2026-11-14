@@ -229,8 +229,11 @@ class BigWallTracker:
                 wall.state = HOLDING  # its full size came back and the prints do not read taken: it never left
                 self.version += 1
                 continue
-            wall.left = {"before": d["before"], "after": d["after"], "filled": filled}
-            if d["after"] >= self.p.smaller_share * d["before"]:
+            # The size there in the newest book before the verdict: a wall that shrank and then went is gone.
+            # One whose full size came back was taken and posted again: its leaving is the first drop's.
+            rests = d["after"] if d.get("back") else d.get("now", d["after"])
+            wall.left = {"before": d["before"], "after": rests, "filled": filled}
+            if rests >= self.p.smaller_share * d["before"]:
                 state = SMALLER  # most of it still rests there, under the floors: not gone
             else:
                 state = EATEN if taken else PULLED
@@ -291,6 +294,11 @@ class BigWallTracker:
         out: list[dict[str, Any]] = []
         for price, wall in list(self.walls[side].items()):
             if wall.state == LEFT:
+                if in_view(price, side, view.cutoff):
+                    # What the newest book shows there: "smaller" is said of this, not of the first drop.
+                    for d in self.pending:
+                        if d["wall"] is wall:
+                            d["now"] = shown.get(price, 0.0)
                 if view.levels.get(price, 0.0) >= wall.size_now:
                     # Its full size is back before its leaving was judged (a row IBKR was still moving
                     # shows on no row for a book -- detector.py). The verdict still waits for its prints.

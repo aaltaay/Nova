@@ -179,3 +179,30 @@ def test_a_print_on_an_exchange_the_book_does_not_show_takes_no_big_seller():
     events = w.on_book(5.0, B, asks(0)[:-1]) + w.on_book(9.0, B, asks(0)[:-1])
     (end,) = [e for e in events if e["event"] == "big"]
     assert end["state"] == "pulled" and end["left"]["filled"] == 0.0
+
+
+def test_a_big_seller_that_shrank_and_then_went_before_the_verdict_is_not_smaller():
+    """Codex review of PR #1319: 18,000 -> 9,500 -> gone 200 ms later read "9,500 still there"."""
+    w = SymbolWatch("TEST", num_rows=10)
+    _called(w)
+    events = w.on_book(5.0, B, asks(9_500)) + w.on_book(5.2, B, asks(0)[:-1]) + w.on_book(9.0, B, asks(0)[:-1])
+    (end,) = [e for e in events if e["event"] == "big"]
+    assert end["state"] == "pulled" and end["left"]["after"] == 0
+
+
+def test_a_smaller_big_seller_says_the_size_the_newest_book_shows():
+    w = SymbolWatch("TEST", num_rows=10)
+    _called(w)
+    events = w.on_book(5.0, B, asks(9_500)) + w.on_book(5.2, B, asks(9_200)) + w.on_book(9.0, B, asks(9_200))
+    (end,) = [e for e in events if e["event"] == "big"]
+    assert end["state"] == "smaller" and end["left"]["after"] == 9_200
+
+
+def test_the_sim_ladder_replay_passes_each_prints_exchange_to_the_watch():
+    """Codex review of PR #1319: both replay feeders called on_print without it, so every lit print counted."""
+    import inspect
+
+    from book_watch import ladder_replay
+
+    src = inspect.getsource(ladder_replay)
+    assert src.count("watch.on_print(") == src.count('exchange=row.get("exchange")') == 2

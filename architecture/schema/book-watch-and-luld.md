@@ -317,7 +317,9 @@ marks claimed more than the book could know.
   no drop, takes no big seller or buyer, and is a hidden stretch's `unseen` size, never its `printed`. It still
   holds a stretch's price, still trades through a price, and still counts in the pace. A print that names no
   exchange counts as before, and so does every print on a line whose rows name no venue (a Session Record keeps
-  none), so a replay of a Session Record reads as before unless it is given the venues.
+  none), so a replay of a Session Record reads as before unless it is given the venues. The Sim ladder's
+  replay (`ladder_replay.py`) passes each print's exchange too, so an archived book whose rows name their
+  venue is read by the live rule.
 - **What it cannot tell.** An exchange counts as shown once one row has named it, for the rest of the watch --
   even if it shows no row at the price or the moment of a print. An exchange with a row only now and then is
   counted as shown throughout. Dealers' rows name the dealer, and their trades print on the tape as FINRA,
@@ -356,7 +358,8 @@ order.
   buyer: `how: "through"`, at once) or the lit prints at its price inside the matching window cover at least
   `BOOK_WATCH_BIG_TAKEN_SHARE` (half) of the drop (`how: "traded"`); `pulled` when they do not (`how:
   "no_prints"`); `smaller`, instead of either, when at least `BOOK_WATCH_BIG_SMALLER_SHARE` (half) of its
-  size still rests there (`left.after`; `how` says what the part that left did, `"traded"` | `"no_prints"`) --
+  size still rests there (`left.after`: the size in the newest book before the verdict, so one that shrank and
+  then went inside the settle time reads pulled or taken; `how` says what the part that left did, `"traded"` | `"no_prints"`) --
   no longer big by the rule and not gone, never counted as a pull in `back`; `lost` when the book stops showing the price (`how: "cut_off"`: past the rows shown;
   `"collapsed"`; `"reset"`) -- unknown, never pulled. Off-exchange, cross, volume-only and odd-lot prints prove
   nothing (`BOOK_WATCH_SWEEP_SKIP_CONDITIONS`). After a print goes through a price, no new candidate starts
