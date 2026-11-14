@@ -24,6 +24,10 @@ Installing Tailscale and signing in are yours to do; Nova never does them.
    npm run build
    ```
 
+   The installed desk does this step and the next by itself (ADR 070 amendment 2026-11-14): once a minute it
+   rebuilds a page that is behind its checkout and starts the file server when nothing answers on 4181. Do them by
+   hand only without the desk, or with `NOVA_PHONE_PAGE=0`.
+
 5. **Serve it on the tunnel.** Start Nova's own file server for the built page; leave it running:
 
    ```bash

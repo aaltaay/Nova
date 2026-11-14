@@ -129,6 +129,20 @@ describe('createEngineSync', () => {
     return { s, views, written, follows, lastView };
   }
 
+  it('holds every pull while the phone page builds on the checkout (review on PR #1328)', async () => {
+    const { git, calls } = releaseGit();
+    const { s } = sync({ git });
+    let release!: () => void;
+    const building = s.whileCheckoutHeld(() => new Promise<void>((resolve) => { release = resolve; }));
+    const pulling = s.syncNow();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(calls.some((c) => c.startsWith('fetch'))).toBe(false);
+    release();
+    await building;
+    await pulling;
+    expect(calls.some((c) => c.startsWith('fetch'))).toBe(true);
+  });
+
   it("brings the checkout to the desk's release, then restarts the backend onto it", async () => {
     const reloadEngine = vi.fn(async () => ({ from: 'v1025', to: 'v1029' }));
     const { git } = releaseGit();
