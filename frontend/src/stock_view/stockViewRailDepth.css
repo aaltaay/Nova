@@ -48,6 +48,14 @@
   }
 }
 
+/* The depth chart (level2DepthChart.css) needs its own room over the ten rows: a pane too short for both
+   keeps the rows. */
+@container md-live (max-height: 379px) {
+  .stock-view-page .sv-rail .l2-depth {
+    display: none;
+  }
+}
+
 /* Level 2's floor in the quote card (operator report, 2026-11-13: "it was all small ... no bid, no ask, and
    no spread"). The stock read above it grows with the plan, and Level 2 took what was left: a long plan on a
    1440 px desk left the pane 211 px, under the 260 px where the bands hide and the rows sit at their 18 px

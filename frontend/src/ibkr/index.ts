@@ -1,6 +1,7 @@
 /** Public IBKR UI API — cross-feature imports must use this barrel (ADR 005). */
 
 export { DepthLadder, MontageSide } from './DepthLadder';
+export { Level2DepthChart } from './Level2DepthChart';
 export { Level2Frame } from './Level2Frame';
 export { Level2SpreadRow } from './Level2SpreadRow';
 export { PullsStrip, useBookWatchClock } from './BookWatchParts';

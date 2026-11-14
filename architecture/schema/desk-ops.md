@@ -1263,3 +1263,19 @@ Display only: nothing here touches the depth line, the book watcher or an order.
   window: `localStorage` `nova.level2.size` (a `prefStore` envelope, `{schema_version: 1, value:
   "small" | "medium" | "large"}`, in the prefs bundle), shared through the `storage` event; missing, or an
   unknown value, reads as large.
+- **The depth chart** (operator ask, 2026-11-13: "maybe having something like this would help", mockup v1,
+  then "build it as shown ... behind a right-click switch"; `ibkr/Level2DepthChart.tsx`,
+  `ibkr/level2DepthSwitch.ts`, `ibkr/level2DepthChart.css`). Off until the operator turns it on: the same
+  right-click menu holds a `menuitemcheckbox` row, "Depth chart", under the sizes, ticked while on. One
+  choice for every ladder and window: `localStorage` `nova.level2.depthChart` (a `prefStore` envelope,
+  `{schema_version: 1, value: true | false}`, in the prefs bundle), shared through the `storage` event;
+  missing reads as off. While on, a strip sits over the book in the live ladder and the Sim's
+  (`sim/HistoricalDepth.tsx`): the rows on screen summed per price and stacked outward from the inside
+  (`depthSteps`), bids to the left and offers to the right on one share scale, one cell per price, so a
+  tall step is a wall. Each side's total, in shares and dollars, sits at its far edge; the axis names the
+  far and inside prices; hovering a price reads the shares and dollars resting between the inside and it
+  and the size at it. A big seller or buyer the watcher is following (`state: "holding"`, its price on a
+  row) is marked amber on its step with its price and the size shown there. It draws nothing past the last
+  row and nothing for an empty book, and it reads the book the pane already has: no request, no mark, no
+  order. In the Trader's rail it hides while the pane is under 380 px high, so the ten rows keep their
+  floor.
