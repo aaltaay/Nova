@@ -482,7 +482,17 @@ is listed as `recorded: false`, never given an invented summary.
 window over IPC (`frontend/electron/updateBridge.mjs`; channels
 `nova:update:view` / `nova:update:subscribe` / `nova:update:act`; Trader
 pop-outs neither receive it nor may act): `{schema_version: 1, installed,
-notice, whats_new, file_issue, engine}`. `engine` (installed desk only, ADR 038
+notice, whats_new, file_issue, engine, phone_page}`. `phone_page` (installed
+desk only, ADR 070 amendment 2026-11-14; owner
+`frontend/electron/phonePageKeeper.mjs`) is `null` until the desk first looks,
+then `{root: string | null, build: "current" | "behind" | "building" | "failed"
+| null, served: boolean | null, last: {at, outcome: "built" | "started" |
+"failed", text} | null}`: `root` the owner's checkout the page is built from;
+`build` whether its `frontend/dist` is that checkout's code (`null`: not read
+yet, or no checkout); `served` whether `127.0.0.1:4181` answered the last look.
+The desk looks once a minute, rebuilds a page that is behind, and starts the
+server when nothing answers; the strip under the header shows only while
+`build` is `failed` or `served` is `false` after a start. `engine` (installed desk only, ADR 038
 amendment) is `{owner: string | null, attached_to_owner: boolean, running:
 "pull" | "restart" | null, last: {at, outcome: "pulled" | "restarted" |
 "current" | "failed", text} | null, auto}`. `auto` (ADR 038 amendment

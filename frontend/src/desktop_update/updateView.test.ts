@@ -25,6 +25,18 @@ const notes = {
 };
 
 describe('readUpdateView', () => {
+  it("reads the phone page the desk keeps, and nothing it does not know", () => {
+    const view = readUpdateView({
+      schema_version: 1,
+      installed: 'v1538',
+      phone_page: { root: 'C:\\Nova', build: 'failed', served: true, last: { at: 5, outcome: 'failed', text: 'npm install failed' } },
+    });
+    expect(view?.phonePage).toEqual({ root: 'C:\\Nova', build: 'failed', served: true, last: { at: 5, outcome: 'failed', text: 'npm install failed' } });
+    const odd = readUpdateView({ schema_version: 1, installed: 'v1538', phone_page: { build: 'melted', served: 'yes', last: { outcome: 'boom' } } });
+    expect(odd?.phonePage).toEqual({ root: null, build: null, served: null, last: null });
+    expect(readUpdateView({ schema_version: 1, installed: 'v1538' })?.phonePage).toBeNull();
+  });
+
   it('reads the notice and What\'s new the main process publishes', () => {
     const view = readUpdateView({
       schema_version: 1,
