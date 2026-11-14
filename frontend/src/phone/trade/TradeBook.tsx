@@ -60,7 +60,7 @@ function halfMarks(marks: SideMarks | null, level: DepthLevel | null, i: number)
 
 function halfStyle(level: DepthLevel | null, tier: number, marks: HalfMarks): CSSProperties | undefined {
   if (!level) return undefined;
-  return { background: marks.big ? L2_BIG_ROW_BG : tierBackground(tier) };
+  return { background: marks.big && !marks.big.light ? L2_BIG_ROW_BG : tierBackground(tier) };
 }
 
 const BookRow = memo(function BookRow({ bid, ask, bidTier, askTier, bidMarks = NO_MARKS, askMarks = NO_MARKS }: {

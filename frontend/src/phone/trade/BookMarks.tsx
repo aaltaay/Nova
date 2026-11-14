@@ -60,7 +60,7 @@ export function bannerWords(banner: BigBanner): string {
 export function BigBannerChip({ banner, side }: { banner: BigBanner | null; side: BookSide }) {
   if (!banner) return null;
   return (
-    <p className="ph-marks__banner" data-side={side} data-kind={banner.kind} style={{ opacity: banner.opacity }} role="status" data-testid={`phone-big-${side}`}>
+    <p className="ph-marks__banner" data-side={side} data-kind={banner.light ? 'light' : banner.kind} style={{ opacity: banner.opacity }} role="status" data-testid={`phone-big-${side}`}>
       <b>{bannerWords(banner)}</b>
     </p>
   );
@@ -71,7 +71,7 @@ export function BigRowParts({ row }: { row: BigRow | undefined }) {
   if (!row) return null;
   return (
     <>
-      {row.tag ? <span className="ph-marks__bigtag" data-testid="phone-big-tag">{row.tag}</span> : null}
+      {row.tag ? <span className={`ph-marks__bigtag${row.light ? ' is-light' : ''}`} data-testid="phone-big-tag">{row.tag}</span> : null}
       {row.takenPct !== null ? <span className="ph-marks__bigbar" aria-hidden="true"><span style={{ width: `${row.takenPct}%` }} /></span> : null}
     </>
   );
@@ -80,9 +80,10 @@ export function BigRowParts({ row }: { row: BigRow | undefined }) {
 /** The class a row's half takes from its marks: a big block's edges, a hidden price's outline, a pulled price. */
 export function rowMarkClass(big: BigRow | undefined, hidden: boolean, pulled: boolean): string {
   return [
-    big ? 'is-big' : '',
-    big?.first ? 'is-big-first' : '',
-    big?.last ? 'is-big-last' : '',
+    big?.light ? 'is-biglight' : '',
+    big && !big.light ? 'is-big' : '',
+    big && !big.light && big.first ? 'is-big-first' : '',
+    big && !big.light && big.last ? 'is-big-last' : '',
     hidden ? 'is-hidden' : '',
     pulled ? 'is-pulled' : '',
   ].filter(Boolean).join(' ');

@@ -107,6 +107,8 @@ def events(br: BigRecorded) -> list[dict[str, Any]]:
             "date": br.date, "symbol": br.symbol, "side": w["side"], "price": w["price"], "at": t0,
             "size": w["size_now"], "multiple": w.get("multiple"), "clear_sec": clear,
             "weight": "none" if clear is None else ("breakable" if clear < BREAKABLE_SEC else "heavy"),
+            # What the tracker itself said when it called the price: its own weight, and whether it was listed.
+            "called_weight": w.get("weight"), "over_book": w.get("over_book"), "shown": w.get("shown"),
             "ended": ENDS[end["state"]] if end else "open", "on_approach": end.get("on_approach") if end else None,
             "ended_at": end.get("ended_ts") if end else None,
             "from_call": _measure(br.rec, w["side"], w["price"], t0) or {},

@@ -53,6 +53,17 @@ describe('the held card line', () => {
     expect(line.detail).toMatch(/36x the other asks, 3¢ over; there since .*, first seen at 22,000\. Shown, never acted on\./);
   });
 
+  it('calls a light one a seller, quietly, with its seconds of volume; a heavy one stays big', () => {
+    const light = bigLine(read({ sellers: [wall({ weight: 'light', clear_sec: 12 })] }), false);
+    expect(light.tone).toBe('info');
+    expect(light.text).toBe('SELLER 20,000 @ 4.50 · light, 12 s of volume · 3¢ over · held 42 s');
+    expect(light.detail).toContain('light, under a minute');
+    const heavy = bigLine(read({ sellers: [wall({ weight: 'heavy', clear_sec: 95 })] }), false);
+    expect(heavy.tone).toBe('warn');
+    expect(heavy.text).toContain('BIG SELLER 20,000 @ 4.50');
+    expect(heavy.detail).toContain('heavy, a minute or more');
+  });
+
   it('says "3 min+" for a size there before the first book Nova read, and "at the price" for one at it', () => {
     expect(heldWords(200, true)).toBe('3 min+');
     expect(pastWords(0, 4.5, 'over')).toBe('at the price');
@@ -139,6 +150,11 @@ describe('the chart call', () => {
     expect(bigCall(holdingLong({ big: read({ watching: false, reason: 'stale' }) }), false)).toBeNull();
     const ended = bigCall(holdingLong({ big: read({ sellers: [wall({ state: 'eaten', how: 'through', ended_ts: T + 40 })] }) }), false)!;
     expect(ended.call).toMatchObject({ id: `big-eaten:${T}000-TEST-ask-4.5`, tone: 'info', ping: false, pin: null });
+  });
+
+  it('pins a light one as SELLER and never pings for it', () => {
+    const said = bigCall(holdingLong({ big: read({ sellers: [wall({ weight: 'light', clear_sec: 12 })] }) }), false)!;
+    expect(said.call).toMatchObject({ ping: false, pin: { label: 'SELLER', price: 4.5, at: null } });
   });
 
   it('a held short hears the big buyer when it is newer than the lowered stop offer', () => {

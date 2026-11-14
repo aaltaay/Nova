@@ -74,13 +74,14 @@ export function bigCall(i: MomentInputs, short: boolean): HeldCall | null {
   if (!w) return null;
   const line = bigLine(r, short);
   const there = w.state === 'holding' || w.state === 'left';
+  const label = `${w.light ? '' : 'BIG '}${short ? 'BUYER' : 'SELLER'}`;
   return {
     badge: null,
     at: there ? w.calledTs ?? w.firstSeenTs : w.endedTs ?? 0,
     call: {
       id: there ? `big:${w.id}` : `big-${w.state}:${w.id}`, tone: there ? 'wait' : 'info', title: line.text,
-      detail: line.detail, pin: there ? { label: short ? 'BIG BUYER' : 'BIG SELLER', price: w.price, at: null } : null,
-      ping: there,
+      detail: line.detail, pin: there ? { label, price: w.price, at: null } : null,
+      ping: there && !w.light,
     },
   };
 }

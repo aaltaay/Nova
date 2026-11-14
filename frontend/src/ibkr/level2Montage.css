@@ -601,6 +601,11 @@
   pointer-events: none;
 }
 
+/* A light wall (under a minute of the last minute's lit volume): the row keeps its tier colour inside a thin
+   dashed outline, and its tag is the seconds of volume on a dark chip. Never the white block of a heavy one. */
+.das-l2-row--biglight { outline: 1px dashed #0a0a0a; outline-offset: -3px; }
+.das-l2-bigtag--light { background: #0a0a0c; color: #cbd5e1; border: 1px dashed #94a3b8; font-weight: 600; }
+
 .das-l2-side--bid .das-l2-bigtag { left: 4px; }
 .das-l2-side--ask .das-l2-bigtag { right: 4px; }
 
@@ -655,6 +660,7 @@
 }
 
 .das-l2-bigbanner__chip--holding { background: #f3f4f6; color: #0a0a0a; }
+.das-l2-bigbanner__chip--light { background: rgba(10, 10, 12, 0.92); border: 1px dashed #94a3b8; color: #cbd5e1; font-weight: 600; }
 .das-l2-bigbanner__chip--taken { background: rgba(10, 10, 12, 0.92); border-color: #cbd5e1; color: #cbd5e1; }
 .das-l2-bigbanner__chip--pulled { background: rgba(10, 10, 12, 0.92); border: 1px dashed #f59e0b; color: #f59e0b; }
 .das-l2-bigbanner__chip--approach { background: #f59e0b; border-color: #f59e0b; color: #111111; }

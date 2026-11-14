@@ -15,6 +15,11 @@
 }
 /* The row's half clips its digits; the tag rides over the edge above, so the big row lets it out. */
 .ph-book__row > div.is-big { overflow: visible; }
+/* A light wall (under a minute of lit volume): the row keeps its colour inside a thin dashed outline, and its tag
+   is the seconds of volume on a dark chip -- the desk ladder's light mark. */
+.ph-book__row > div.is-biglight { position: relative; overflow: visible; outline: 1px dashed #0a0a0a; outline-offset: -2px; }
+.ph-marks__bigtag.is-light { background: #0a0a0c; color: #cbd5e1; border: 1px dashed #94a3b8; font-weight: 600; }
+.ph-marks__banner[data-kind='light'] b { background: rgba(10, 10, 12, 0.92); color: #cbd5e1; border: 1px dashed #94a3b8; font-weight: 600; }
 
 .ph-marks__bigtag {
   position: absolute;

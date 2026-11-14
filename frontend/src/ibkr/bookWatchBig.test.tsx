@@ -82,6 +82,17 @@ describe('the block', () => {
     expect(rows.get(1)?.tip).toContain('18,400 traded at 3.45 since.');
   });
 
+  it('marks a light one quietly: its seconds of volume for a tag, never "Big seller"', () => {
+    const rows = bigRows(state({ big: [wall({ weight: 'light', clear_sec: 12.3 })] }), 'ask', ASKS, NOW_MS);
+    expect(rows.get(1)).toMatchObject({ first: true, light: true, tag: '12 s' });
+    expect(rows.get(1)?.tip).toContain('Light');
+    const heavy = bigRows(state({ big: [wall({ weight: 'heavy', clear_sec: 95 })] }), 'ask', ASKS, NOW_MS);
+    expect(heavy.get(1)).toMatchObject({ light: false, tag: 'Big seller' });
+    // Not weighed yet (the first seconds of a line): quiet, and no seconds to show.
+    const unknown = bigRows(state({ big: [wall({ weight: 'unknown', clear_sec: null })] }), 'ask', ASKS, NOW_MS);
+    expect(unknown.get(1)).toMatchObject({ light: true, tag: null });
+  });
+
   it('draws nothing for a wall that left or ended, or on the other side', () => {
     expect(bigRows(state({ big: [wall({ state: 'left' })] }), 'ask', ASKS, NOW_MS).size).toBe(0);
     expect(bigRows(state({ big: [wall({ state: 'pulled', ended_ts: NOW_S })] }), 'ask', ASKS, NOW_MS).size).toBe(0);
@@ -93,6 +104,13 @@ describe('the banner', () => {
   it('names the wall with its size, share of the float and seconds of lit volume', () => {
     expect(text(state())).toBe('Big seller 3.45 · 48.2K · 1.9% of float · 40 s of lit volume');
     expect(bigBanner(state(), 'ask', NOW_MS)?.kind).toBe('holding');
+  });
+
+  it('says "Seller", not "Big seller", over a light one', () => {
+    const s = state({ big: [wall({ weight: 'light', clear_sec: 12.3 })] });
+    expect(text(s)).toBe('Seller 3.45 · 48.2K · 1.9% of float · 12 s of lit volume');
+    expect(bigBanner(s, 'ask', NOW_MS)).toMatchObject({ kind: 'holding', light: true });
+    expect(bigBanner(state(), 'ask', NOW_MS)?.light).toBe(false);
   });
 
   it('counts down what is left as it trades, and says when it came back', () => {

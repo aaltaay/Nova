@@ -25,7 +25,7 @@ import { formatDepthNumber, formatDepthPrice } from './depthNumberFormat';
 import { priceKey, pulledHere, pullMarks, type BookWatchState, type PulledHere } from './bookWatch';
 import { hiddenHere, hiddenMarks } from './bookWatchHidden';
 import { bigRows, type BigRow } from './bookWatchBig';
-import { BigBannerAt, BigRowParts, PullMarksAt, PullsStrip, useBookWatchClock } from './BookWatchParts';
+import { BigBannerAt, BigRowParts, bigRowClass,PullMarksAt, PullsStrip, useBookWatchClock } from './BookWatchParts';
 import { placeMarkers, splitMarkers, type DepthMarker, type PlacedMarker } from './depthMarkers';
 import { luldMarkers } from './luld';
 import { withBands } from './LuldRows';
@@ -128,8 +128,8 @@ const L2Row = memo(function L2Row({
 }) {
   return (
     <div
-      className={`das-l2-row ${empty ? 'das-l2-row--empty' : 'das-l2-row--tiered'}${pulled ? ' das-l2-row--pulled-here' : ''}${hidden ? ' das-l2-row--hidden-here' : ''}${big ? ` das-l2-row--big${big.first ? ' das-l2-row--big-first' : ''}${big.last ? ' das-l2-row--big-last' : ''}` : ''}`}
-      style={{ backgroundColor: big ? L2_BIG_ROW_BG : bg }}
+      className={`das-l2-row ${empty ? 'das-l2-row--empty' : 'das-l2-row--tiered'}${pulled ? ' das-l2-row--pulled-here' : ''}${hidden ? ' das-l2-row--hidden-here' : ''}${big ? ` ${bigRowClass(big)}` : ''}`}
+      style={{ backgroundColor: big && !big.light ? L2_BIG_ROW_BG : bg }}
       {...(big ? tipProps(big.tip, big.title) : tip ? tipProps(tip, tipTitle) : {})}
     >
       {inner}
