@@ -9,7 +9,9 @@ entry, no bracket, no setting: a buy, a sell, a stop, a flatten, a cancel, the p
 and (amendment 2026-11-13) the desk's venue and the Sim's playhead, each through the desk's own handler.
 
 The phone's Trade screen (amendment 2026-11-12) sends the desk's own order body here, so the fields it
-does not take (a venue, a time in force) are read past, never trusted: every order is Paper, DAY.
+does not take (a time in force) are read past: every order is DAY. The venue it names is the one the operator
+tapped on, and it is forwarded to the door unchanged, so a desk that moved between Paper and Sim since the tap
+is refused ``VENUE_CHANGED`` instead of trading the other account (review of PR #1325).
 """
 from __future__ import annotations
 
@@ -45,8 +47,11 @@ class ArmBody(BaseModel):
     armed: StrictBool
 
 
+Venue = Literal["live", "paper", "sim"]
+
+
 class VenueBody(BaseModel):
-    venue: Literal["live", "paper", "sim"]
+    venue: Venue
 
 
 class PhoneOrder(BaseModel):
@@ -66,6 +71,8 @@ class PhoneOrder(BaseModel):
     idempotency_key: str | None = Field(default=None, max_length=128)
     client_timing: desk.BrowserTimingRequest
     view: desk.ViewStamp
+    # The venue the operator tapped on, as the desk's ticket names it. None: the desk's venue at receipt.
+    venue: Venue | None = None
 
 
 def _refuse(code: str, text: str, status: int) -> HTTPException:
@@ -84,15 +91,21 @@ def require_session(x_nova_phone_session: str | None = Header(default=None)) -> 
     return str(x_nova_phone_session)
 
 
-def _trade_venue() -> str:
-    """The desk's venue when the phone may trade it (Paper or Sim). Refused in plain words on Live, before the door:
-    the door's own venue check is what holds when the desk moves between this read and the send."""
+def _trade_venue(tapped: str | None = None) -> str:
+    """The venue a phone write goes to: the one the operator tapped on when the phone names it, else the desk's now.
+
+    Refused in plain words when either is Live, before the door. The venue returned is handed to the door unchanged:
+    when the desk is no longer on it by the time the write is sent, the door refuses ``VENUE_CHANGED``, so a tap on
+    Paper never sells, flattens or cancels on Sim (or the other way round)."""
     where = _venue()
     if where not in PHONE_TRADE_VENUES:
         raise _refuse(PHONE_LIVE_LOOK_ONLY,
                       f"The desk is on {where.capitalize()}: from the phone, Live is look only. Send Live orders "
                       "from the PC. Nothing was sent.", 409)
-    return where
+    if tapped is not None and tapped not in PHONE_TRADE_VENUES:
+        raise _refuse(PHONE_LIVE_LOOK_ONLY,
+                      "That tap was on Live: from the phone, Live is look only. Nothing was sent.", 409)
+    return tapped or where
 
 
 def _status(token: str | None) -> dict[str, Any]:
@@ -151,7 +164,7 @@ def arm(body: ArmBody, token: str = Depends(require_session)) -> dict[str, Any]:
 
 @router.post("/order")
 async def place(body: PhoneOrder, request: Request, _token: str = Depends(require_session)) -> dict:
-    where = _trade_venue()
+    where = _trade_venue(body.venue)
     order = desk.OrderRequest(
         symbol=body.symbol.strip().upper(), side=body.side, qty=body.qty, order_type=body.order_type,
         limit_price=body.limit_price, stop_price=body.stop_price, reference_price=body.reference_price,
@@ -169,17 +182,22 @@ async def place(body: PhoneOrder, request: Request, _token: str = Depends(requir
 
 
 @router.delete("/order/{order_id}")
-async def cancel(order_id: int, request: Request, _token: str = Depends(require_session)) -> dict:
-    where = _trade_venue()
+async def cancel(
+    order_id: int, request: Request, venue: Venue | None = None, _token: str = Depends(require_session),
+) -> dict:
+    """Cancel one working order. ``venue``: the one the order was shown on; an order id means nothing elsewhere."""
+    where = _trade_venue(venue)
     return await desk.cancel_order(order_id, request, idempotency_key=None, venue=where)
 
 
 @router.delete("/orders")
 async def cancel_many(
-    request: Request, symbol: str | None = None, all_symbols: bool = False, _token: str = Depends(require_session),
+    request: Request, symbol: str | None = None, all_symbols: bool = False, venue: Venue | None = None,
+    _token: str = Depends(require_session),
 ) -> dict:
-    """Cancel every working order on the desk's venue on one symbol, or (``all_symbols=true``) on every symbol."""
-    where = _trade_venue()
+    """Cancel every working order on one symbol, or (``all_symbols=true``) on every symbol, on the venue the
+    operator tapped on (``venue``), else the desk's now."""
+    where = _trade_venue(venue)
     return await desk.cancel_orders_for_symbol(
         request, symbol=None if all_symbols else symbol, all_symbols=all_symbols, venue=where,
     )

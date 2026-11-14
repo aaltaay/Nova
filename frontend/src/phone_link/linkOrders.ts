@@ -12,6 +12,16 @@
 const SESSION_HEADER = 'X-Nova-Phone-Session';
 const TIMEOUT_MS = 8_000;
 
+/** The venue a tap was on, as the door reads it; undefined (the desk's venue at receipt) for anything else. */
+function tapVenue(venue: string | null | undefined): 'live' | 'paper' | 'sim' | undefined {
+  return venue === 'live' || venue === 'paper' || venue === 'sim' ? venue : undefined;
+}
+
+function venueQuery(venue: string | null | undefined, joiner: '?' | '&'): string {
+  const named = tapVenue(venue);
+  return named ? `${joiner}venue=${named}` : '';
+}
+
 /** What the link test knows at the moment of a tap. */
 export interface OrderContext {
   symbol: string;
@@ -21,6 +31,8 @@ export interface OrderContext {
   instance: string | null;
   /** The last Level 2 book this device received. */
   book: { seq: number; at: number | null; bid: number | null; ask: number | null } | null;
+  /** The venue the screen showed at the tap: the door refuses the order once the desk has left it. */
+  venue?: string | null;
 }
 
 export interface PhoneStatus {
@@ -204,9 +216,13 @@ export class PhoneDoor {
     }
   }
 
-  /** Cancel one working order on the desk's venue by its id. */
-  cancelOrder(orderId: number, label: string): Promise<Answer> {
-    return this.ask('DELETE', `/api/phone/order/${encodeURIComponent(String(orderId))}`, undefined, () => `Cancelled: ${label}.`);
+  /**
+   * Cancel one working order by its id, on the venue it was shown on (`venue`, read at the tap): an id means
+   * nothing on another venue, so the door refuses once the desk has left it.
+   */
+  cancelOrder(orderId: number, label: string, venue?: string | null): Promise<Answer> {
+    const path = `/api/phone/order/${encodeURIComponent(String(orderId))}${venueQuery(venue, '?')}`;
+    return this.ask('DELETE', path, undefined, () => `Cancelled: ${label}.`);
   }
 
   async status(): Promise<PhoneStatus | null> {
@@ -247,6 +263,7 @@ export class PhoneDoor {
       // A limit may rest outside regular hours; a market order never does.
       outside_rth: limitPrice != null,
       intent,
+      venue: tapVenue(ctx.venue),
       idempotency_key: `phone:${ctx.symbol}:${side}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`,
       ...stamp,
     };
@@ -302,8 +319,9 @@ export class PhoneDoor {
     return { ...answer, clock };
   }
 
-  cancelSymbol(symbol: string): Promise<Answer> {
-    return this.ask('DELETE', `/api/phone/orders?symbol=${encodeURIComponent(symbol)}`, undefined, (b) => {
+  /** Cancel every working order on one stock, on the venue the tap was on (`venue`). */
+  cancelSymbol(symbol: string, venue?: string | null): Promise<Answer> {
+    return this.ask('DELETE', `/api/phone/orders?symbol=${encodeURIComponent(symbol)}${venueQuery(venue, '&')}`, undefined, (b) => {
       const n = Array.isArray(b.cancelled) ? b.cancelled.length : 0;
       return n ? `Cancelled ${n} working order${n === 1 ? '' : 's'} on ${symbol}.` : `No working orders on ${symbol}.`;
     });

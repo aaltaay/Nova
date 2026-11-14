@@ -294,11 +294,11 @@ def test_a_stop_and_the_price_it_was_read_from_reach_the_desks_handler(phone):
 
 
 def test_the_desks_own_order_body_is_read_past_never_trusted(phone):
-    """The phone's ticket sends the body the desk's ticket sends: a venue, a time in force and a short flag in it
-    change nothing. Every phone order is Paper and never opens a short."""
+    """The phone's ticket sends the body the desk's ticket sends: a time in force and a short flag in it change
+    nothing, and the phone never opens a short. The venue it names is the one the operator tapped on, kept."""
     client, state = phone
     unlocked = _unlock(client)
-    body = {**ORDER, "venue": "live", "tif": "GTC", "short_entry": True, "take_profit_price": 9.0, "stop_loss_price": 1.0}
+    body = {**ORDER, "venue": "paper", "tif": "GTC", "short_entry": True, "take_profit_price": 9.0, "stop_loss_price": 1.0}
     assert client.post("/api/phone/order", headers=unlocked, json=body).status_code == 200
     order = state["sent"][0]
     assert (order.venue, order.short_entry, order.take_profit_price, order.stop_loss_price) == ("paper", False, None, None)
@@ -310,8 +310,9 @@ def test_the_desks_own_order_body_is_read_past_never_trusted(phone):
 def test_cancel_all_reaches_every_symbol_on_paper_only(phone):
     client, state = phone
     unlocked = _unlock(client)
-    # The desk's own client names the venue it acted on; the phone's is Paper whatever it says.
-    assert client.delete("/api/phone/orders?all_symbols=true&venue=live", headers=unlocked).status_code == 200
+    # The venue the cancel was tapped on is kept; none named is the desk's. A tap on Live is look only: nothing sent.
+    assert client.delete("/api/phone/orders?all_symbols=true&venue=live", headers=unlocked).status_code == 409
+    assert client.delete("/api/phone/orders?all_symbols=true", headers=unlocked).status_code == 200
     assert client.delete("/api/phone/orders?symbol=F&venue=paper", headers=unlocked).status_code == 200
     assert state["sent"] == [("cancel_symbol", None, True, "paper"), ("cancel_symbol", "F", False, "paper")]
     assert client.delete("/api/phone/orders?all_symbols=true", headers=REMOTE).status_code == 401

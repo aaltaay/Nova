@@ -331,10 +331,10 @@ the backend restarts. Every write but the unlock carries it in `X-Nova-Phone-Ses
 | `POST /api/phone/unlock` | `{pin}` | the status, plus `token` |
 | `POST /api/phone/lock` | -- | the status |
 | `POST /api/phone/arm` | `{armed: bool}` | the status. Locking always goes; unlocking only while the desk is on Paper or Sim |
-| `POST /api/phone/order` | `{symbol, side: "BUY"\|"SELL", qty, order_type: "MKT"\|"LMT"\|"STP", limit_price?, stop_price?, reference_price?, outside_rth?, intent?: "flatten", idempotency_key?, client_timing, view}` | what `POST /api/ibkr/order` answers |
-| `DELETE /api/phone/order/{order_id}` | -- | what `DELETE /api/ibkr/order/{order_id}` answers |
-| `DELETE /api/phone/orders?symbol=` | -- | what `DELETE /api/ibkr/orders?symbol=` answers |
-| `DELETE /api/phone/orders?all_symbols=true` | -- | what `DELETE /api/ibkr/orders?all_symbols=true` answers: every working order on the desk's venue (Paper or Sim), on every stock |
+| `POST /api/phone/order` | `{symbol, side: "BUY"\|"SELL", qty, order_type: "MKT"\|"LMT"\|"STP", limit_price?, stop_price?, reference_price?, outside_rth?, intent?: "flatten", venue?: "live"\|"paper"\|"sim", idempotency_key?, client_timing, view}` | what `POST /api/ibkr/order` answers |
+| `DELETE /api/phone/order/{order_id}?venue=` | -- | what `DELETE /api/ibkr/order/{order_id}` answers |
+| `DELETE /api/phone/orders?symbol=&venue=` | -- | what `DELETE /api/ibkr/orders?symbol=` answers |
+| `DELETE /api/phone/orders?all_symbols=true&venue=` | -- | what `DELETE /api/ibkr/orders?all_symbols=true` answers: every working order on the venue (Paper or Sim), on every stock |
 | `POST /api/phone/venue` | `{venue: "live"\|"paper"\|"sim"}` | the status, plus `left` (what `POST /api/desk/venue` answers: Nova's entries cancelled on the venue left) and `gateway` (the Live Gateway's words when the switch to Live asked for it and it had something to say, else null). Amendment 2026-11-13 |
 | `GET /api/phone/venue/effects` | -- | `{venue, lines: [str], unknown: [str]}`: what leaving the desk's venue now would cancel or change, in plain words; `unknown` names a check that could not be read. No session needed (a read) |
 | `POST /api/phone/sim/clock` | `{paused: bool}` or `{minute_from_open: int, symbol?: str}` | what `POST /api/sim/clock` answers. Any other key is `422`; off Sim the desk's own `409` |
@@ -349,17 +349,20 @@ Refusals are `{"detail": {"reason": <code>, "error": <words>}}`:
 | 409 | `PHONE_NO_VIEW` | a new entry whose `view` has no `book` or no `instance`: the phone received no Level 2 to price it from. A sell out of a long, a buy that covers and a Flatten are not held |
 | 422 | -- | an order without `client_timing` or `view`, or with a field the phone does not send |
 
-**What an order becomes.** The phone's route builds the desk's own `OrderRequest` with the desk's venue at that
-moment (`paper` or `sim`; amendment 2026-11-13) and calls the desk's own handler, so the command is the one a desk
-order makes (`source: "manual"`, or `flatten` with `intent: "flatten"`) with that `expected_venue`. The door refuses
-it `VENUE_CHANGED` if the desk has moved by the time it is sent; on Live, `PHONE_LIVE_LOOK_ONLY` refuses it first. Every gate of the door judges it: the
+**What an order becomes.** The phone's route builds the desk's own `OrderRequest` with the venue the operator
+tapped on (`venue`, the one the phone's screen showed; none named is the desk's venue at receipt), `paper` or `sim`
+(amendment 2026-11-13), and calls the desk's own handler, so the command is the one a desk order makes
+(`source: "manual"`, or `flatten` with `intent: "flatten"`) with that `expected_venue`. The door refuses it
+`VENUE_CHANGED` when the desk is no longer on that venue, so a tap on Paper never trades Sim (or the other way round)
+after the desk moved. A cancel's `venue` is handed on the same way: an order id means nothing on another venue. On
+Live, or for a tap on Live, `PHONE_LIVE_LOOK_ONLY` refuses it first. Every gate of the door judges it: the
 arm latch, the stale view (ADR 045), the size limit (ADR 064), the loss limit. It never carries `short_entry`, bracket
 legs or a `target_venue`.
 
 **The Trade screen sends the desk's own order body** (amendment 2026-11-12): the phone's ticket is the desk's ticket
-code (`hotkeys/runNovaAction`, `ibkr/placeOrder`) posting to this prefix, so a body may also carry `venue`, `tif`,
-`short_entry`, `take_profit_price` and `stop_loss_price`, and a cancel-many may carry `venue`. The route reads past
-all of them: the order is built with the desk's venue, the default time in force (DAY), no short entry and no legs.
+code (`hotkeys/runNovaAction`, `ibkr/placeOrder`) posting to this prefix, so a body may also carry `tif`,
+`short_entry`, `take_profit_price` and `stop_loss_price`. The route reads past all of them: the order is built with
+the default time in force (DAY), no short entry and no legs. The `venue` the desk's code names is kept (above).
 `stop_price` (a `STP` order's trigger) and `reference_price` (the bid or ask a limit was priced from) are passed on.
 An `order_type` other than `MKT`, `LMT` or `STP` is `422`.
 

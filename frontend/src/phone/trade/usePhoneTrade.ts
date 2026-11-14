@@ -128,7 +128,7 @@ export function usePhoneTrade(symbol: string): PhoneTrade {
     requestConfirm: () => Promise.resolve(true),
   }), [symbol, status.connected, status.spend_status, status.mode, accountError, position, botsQty, bid, ask, depthSubscribed]);
 
-  const { order } = session;
+  const { order, venue: shownVenue } = session;
   const act = useCallback((label: string, action: NovaActionRecord, how: 'sent' | 'done' = 'sent') => {
     order(label, async (): Promise<TicketAnswer> => {
       const result = await runNovaAction(action, runtime);
@@ -137,11 +137,13 @@ export function usePhoneTrade(symbol: string): PhoneTrade {
   }, [order, runtime]);
 
   const place = useCallback((label: string, payload: ManualOrderPayload, referencePrice?: number | null) => {
+    // The venue the ticket showed at the tap: the door refuses the order once the desk has left it.
+    const sent: ManualOrderPayload = { ...payload, venue: payload.venue ?? shownVenue };
     order(label, async (): Promise<TicketAnswer> => {
-      const result = await placeIbkrOrder(payload, newGestureKey('phone_ticket'), { referencePrice });
+      const result = await placeIbkrOrder(sent, newGestureKey('phone_ticket'), { referencePrice });
       return { ok: result.ok, text: result.ok ? `Order #${String(result.order_id ?? '?')} placed` : result.error ?? 'The desk refused the order.' };
     });
-  }, [order]);
+  }, [order, shownVenue]);
 
   const working = account.orders;
   const workingHere = useMemo(() => working.filter((o) => o.symbol.toUpperCase() === symbol), [working, symbol]);
