@@ -1,7 +1,8 @@
 /**
- * Settings (frozen mockup R2-More): where the desk is trading, the two locks, and how good the link
- * to the PC is. The venue and the padlock are the desk's own; this screen only shows them and asks
- * the desk to change what the phone's door allows -- today, Paper's padlock and this phone's lock.
+ * Settings (frozen mockup R2-More): where the desk is trading, the two locks, the Level 2 marks, and how
+ * good the link to the PC is. The venue and the padlock are the desk's own; this screen only shows them
+ * and asks the desk to change what the phone's door allows: the venue (the desk's own switch), the
+ * padlock on Paper and Sim, and this phone's lock (ADR 070 amendment 2026-11-13).
  */
 import { useEffect, useState } from 'react';
 import { Lock, LockOpen, Smartphone } from 'lucide-react';
@@ -9,6 +10,7 @@ import { LINK_LIMIT_MS } from '../../phone_link';
 import { BackButton, LinkPill, PhoneScreen } from '../PhoneChrome';
 import { PIN_NOT_SET } from '../PhonePinSheet';
 import { usePhoneSession, type Venue } from '../PhoneSession';
+import { setLevel2Marks, useLevel2Marks } from '../trade/level2MarksSwitch';
 import { lastLevel2Age } from '../trade/usePhoneTrade';
 import './settings.css';
 
@@ -17,7 +19,6 @@ const VENUES: readonly { id: Venue; name: string; note: string }[] = [
   { id: 'paper', name: 'PAPER', note: 'live prices' },
   { id: 'sim', name: 'SIM', note: "desk's replay" },
 ];
-const VENUE_ON_PC = 'The phone cannot change the venue yet. Change it on the PC; the phone follows.';
 const NOT_BUILT = 'Not built yet. It will arrive switched off, and stay off until you turn it on.';
 const HELP: readonly { name: string; note: string }[] = [
   { name: 'Stop with every Live buy', note: 'Held at IBKR · works if the PC goes down' },
@@ -42,7 +43,7 @@ export function SettingsScreen() {
   const rt = s.link.roundTrip;
   const reachable = s.link.reachable !== false;
   const book = lastLevel2Age();
-  const onPaper = s.venue === 'paper';
+  const marksOn = useLevel2Marks();
   const padlockWords = s.armed == null
     ? 'Waiting for the desk'
     : s.armed
@@ -50,8 +51,8 @@ export function SettingsScreen() {
       : 'Nothing is sent while it is locked';
   const padlockWhy = s.armed == null
     ? 'Waiting for the desk to say whether the padlock is open.'
-    : !s.armed && !onPaper
-      ? 'The phone opens the padlock on Paper only. Lock still works on any venue.'
+    : !s.armed && s.trades === false
+      ? 'From the phone, Live is look only: the padlock opens on Paper and Sim. Lock still works on any venue.'
       : undefined;
 
   return (
@@ -79,8 +80,10 @@ export function SettingsScreen() {
                   type="button"
                   data-venue={v.id}
                   aria-pressed={here}
-                  aria-disabled={!here}
-                  data-why={here ? undefined : VENUE_ON_PC}
+                  data-testid={`phone-settings-venue-${v.id}`}
+                  onClick={() => {
+                    if (!here) s.moveVenue(v.id);
+                  }}
                 >
                   <b>{v.name}</b>
                   <span>{here ? 'you are here' : v.note}</span>
@@ -88,7 +91,7 @@ export function SettingsScreen() {
               );
             })}
           </div>
-          <div className="ph-set__note">The venue is changed on the PC for now. The phone sends orders on Paper only.</div>
+          <div className="ph-set__note">A tap switches the desk too. From the phone, Live is look only.</div>
         </section>
 
         <section>
@@ -137,6 +140,29 @@ export function SettingsScreen() {
                   Unlock
                 </button>
               )}
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <div className="ph-label ph-set__label">Level 2</div>
+          <div className="ph-card ph-set__rows">
+            <div className="ph-set__row" data-testid="phone-settings-marks">
+              <span className="ph-set__words">
+                <b>The desk's marks on the book</b>
+                <i>Big orders, hidden size, pulls · the depth chart</i>
+              </span>
+              <button
+                type="button"
+                className="ph-set__switch"
+                role="switch"
+                aria-checked={marksOn}
+                aria-label={`The desk's Level 2 marks: ${marksOn ? 'on' : 'off'}`}
+                onClick={() => setLevel2Marks(!marksOn)}
+              >
+                <span><i /></span>
+              </button>
+              <span className="ph-set__off">{marksOn ? 'On' : 'Off'}</span>
             </div>
           </div>
         </section>

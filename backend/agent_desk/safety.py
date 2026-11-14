@@ -87,6 +87,32 @@ def _read(venue: str, readers: tuple[tuple[str, Callable[[str], list[Item]]], ..
     return items, unknown
 
 
+def _bot_switch(venue: str) -> list[Item]:
+    """The Bot as a venue switch leaves it: its Activate never carries into another venue
+    (``bot.venue_levels.switch``). An open Bot trade is named, in switch words, not a restart's."""
+    items = [i for i in _bot(venue) if i.get("kind") != "bot_trade"]
+    for row in restart_check.bot_trade():
+        if row.get("venue") in (None, venue):
+            sym = str(row.get("symbol") or "?")
+            items.append(_item(
+                "bot_trade", f"The Bot has a trade open on {sym}: the switch turns the Bot off; check that trade on the desk",
+                venue, sym,
+            ))
+    return items
+
+
+# What a venue switch changes on the desk itself, whatever it leaves behind: the Bot and the padlock.
+SWITCH_READERS: tuple[tuple[str, Callable[[str], list[Item]]], ...] = (("bot", _bot_switch), ("armed", _armed))
+
+
+def switch_changes(venue: str) -> tuple[list[Item], list[dict]]:
+    """``(items, unknown)``: the Bot and the padlock a switch away from ``venue`` would turn off.
+
+    The phone's venue menu reads it before the tap (ADR 070 amendment 2026-11-13); a check that cannot be
+    read is in ``unknown``, never "nothing there"."""
+    return _read(venue, SWITCH_READERS)
+
+
 def at_stake(venue: str, *, switching: bool = True, reloading: bool = False,
              readers: tuple[tuple[str, Callable[[str], list[Item]]], ...] | None = None,
              sim_readers: tuple[tuple[str, Callable[[str], list[Item]]], ...] | None = None) -> dict[str, Any]:

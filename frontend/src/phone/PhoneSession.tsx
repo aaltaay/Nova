@@ -1,7 +1,8 @@
 /**
  * What every phone screen shares (ADR 070): the door to the desk (`/api/phone`), the heartbeat that
  * reads it, the banner that answers every tap, and the PIN sheet. The phone decides nothing here:
- * the venue, the padlock and every refusal are the desk's, shown as the desk words them.
+ * the venue, the padlock and every refusal are the desk's, shown as the desk words them. A venue switch
+ * and a Sim step go through the desk's own handlers, so the desk and the phone move together.
  */
 import {
   createContext,
@@ -18,7 +19,8 @@ import { API_BASE_URL } from '../constants';
 import { useIbkrAccountContext } from '../ibkr/IbkrAccountContext';
 import { refreshIbkrStatusNow } from '../ibkr/ibkrStatusPoller';
 import { setOrderDoor } from '../ibkr/orderDoor';
-import { PhoneDoor, type Answer } from '../phone_link';
+import { PhoneDoor, type Answer, type SimClockMove } from '../phone_link';
+import { simClockResource, type SimClockState } from '../sim';
 import { setDeskClockOffsetMs } from '../utils/deskClock';
 import { createPhoneLink, type PhoneLinkView } from './phoneLink';
 import { PhonePinSheet } from './PhonePinSheet';
@@ -48,6 +50,8 @@ export interface PhoneSessionValue {
   venue: Venue | null;
   /** The desk's padlock: true when orders can go. Null before the first answer. */
   armed: boolean | null;
+  /** The phone may send orders on the desk's venue: Paper or Sim, never Live. Null before the first answer. */
+  trades: boolean | null;
   /** This phone holds a session the backend still accepts. */
   unlocked: boolean;
   /** When that session ends, epoch seconds. */
@@ -60,6 +64,10 @@ export interface PhoneSessionValue {
   setArmed: (armed: boolean) => void;
   /** End this phone's session. */
   lockPhone: () => void;
+  /** Move the desk's venue (the desk's own switch). Asks for the PIN first when this phone is locked. */
+  moveVenue: (next: Venue) => void;
+  /** Move the Sim's playhead (the desk's own clock). The shared Sim clock takes the desk's answer at once. */
+  moveSim: (label: string, move: SimClockMove) => void;
   /** Ask for the PIN; `then` runs once the phone is unlocked. */
   askPin: (then?: () => void) => void;
   /** Send one write through the door, with a banner from tap to answer. Asks for the PIN first when locked. */
@@ -82,6 +90,8 @@ const Ctx = createContext<PhoneSessionValue | null>(null);
 
 /** How long a banner that says "done" stays. A refusal stays until it is tapped. */
 const DONE_MS = 4_000;
+
+const VENUE_LABEL: Record<Venue, string> = { live: 'Live', paper: 'Paper', sim: 'Sim' };
 
 function asVenue(value: unknown): Venue | null {
   return value === 'live' || value === 'paper' || value === 'sim' ? value : null;
@@ -196,6 +206,18 @@ export function PhoneSessionProvider({ children }: { children: ReactNode }) {
     send(armed ? 'Open the padlock' : 'Lock the padlock', (d) => d.arm(armed));
   }, [send]);
 
+  const moveVenue = useCallback((next: Venue) => {
+    send(`Switch to ${VENUE_LABEL[next]}`, (d) => d.moveVenue(next));
+  }, [send]);
+
+  const moveSim = useCallback((label: string, move: SimClockMove) => {
+    send(label, async (d) => {
+      const answer = await d.simClock(move, label);
+      if (answer.ok && answer.clock) simClockResource.setData(answer.clock as SimClockState);
+      return answer;
+    });
+  }, [send]);
+
   const lockPhone = useCallback(() => {
     if (!door.hasSession()) return;
     show({ tone: 'sending', title: 'Locking this phone', note: 'Waiting for the desk.' });
@@ -220,6 +242,8 @@ export function PhoneSessionProvider({ children }: { children: ReactNode }) {
     link: view,
     venue: asVenue(status?.venue),
     armed: status ? status.armed : null,
+    // An older backend says `paper` only: it traded Paper alone.
+    trades: status ? status.trades ?? status.paper : null,
     unlocked,
     expiresAt: unlocked ? status?.expires_at ?? null : null,
     pinSet: status ? status.pin_set : null,
@@ -227,11 +251,13 @@ export function PhoneSessionProvider({ children }: { children: ReactNode }) {
     dismissBanner: () => show(null),
     setArmed,
     lockPhone,
+    moveVenue,
+    moveSim,
     askPin,
     send,
     order,
     notify: show,
-  }), [askPin, banner, door, lockPhone, order, send, setArmed, show, status, unlocked, view]);
+  }), [askPin, banner, door, lockPhone, moveSim, moveVenue, order, send, setArmed, show, status, unlocked, view]);
 
   return (
     <Ctx.Provider value={value}>

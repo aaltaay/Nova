@@ -100,6 +100,10 @@ export interface PhoneApiOptions {
   armed?: boolean;
   /** Your shares of the first symbol when the page opens; negative is a short opened on the desk. Default 500. */
   held?: number;
+  /** What `/api/phone/venue/effects` says leaving the venue would change. Default nothing. */
+  effects?: string[];
+  /** The Sim clock the desk answers on Sim (merged over the live edge on today's date). */
+  simClock?: Record<string, unknown>;
 }
 
 /** One order as the Trade screen sent it to `POST /api/phone/order`. */
@@ -128,6 +132,8 @@ export interface PhoneApi {
   orders: SentOrder[];
   /** Every cancel-many the screen sent: the query it carried. */
   cancels: string[];
+  /** Every Sim playhead move the screen sent through the door, as its body. */
+  simMoves: Record<string, unknown>[];
   /**
    * `accountDown`: the account, positions and orders reads fail from now on, as when the Gateway or the ledger drops.
    * `held`: your shares of the first symbol; an order that fills moves it, as the ledger would.
@@ -147,18 +153,26 @@ export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Prom
     unanswered: [],
     orders: [],
     cancels: [],
+    simMoves: [],
     state: {
       armed: opts.armed ?? false, unlocked: false, working: Array.from({ length: opts.working ?? 1 }, (_, i) => 7 + i), accountDown: false,
       held: opts.held ?? ((opts.positions ?? 2) > 0 ? 500 : 0),
     },
   };
-  const venue = opts.venue ?? 'paper';
+  // The desk's venue: a switch through the door moves it, as the desk's own route does.
+  let venue: 'paper' | 'sim' | 'live' = opts.venue ?? 'paper';
+  let simClock: Record<string, unknown> = {
+    live_edge: true, paused: false, scrubbed: false, minute_from_open: 360, minute_max: 960,
+    session_date: ET_DATE.format(new Date()), sim_time_et: new Date().toISOString(), replay_source: 'none', replay_symbol: null,
+    ...opts.simClock,
+  };
+  const clockNow = () => ({ sim: venue === 'sim', ...simClock });
   const pinSet = opts.pinSet ?? true;
   const nowSec = () => Date.now() / 1000;
   const status = (token: string | null) => ({
     schema_version: 1, pin_set: pinSet, unlocked: api.state.unlocked && token === TOKEN,
     expires_at: api.state.unlocked && token === TOKEN ? nowSec() + 7 * 3600 + 12 * 60 : null,
-    venue, paper: venue === 'paper', armed: api.state.armed, now: nowSec(),
+    venue, paper: venue === 'paper', trades: venue !== 'live', armed: api.state.armed, now: nowSec(),
   });
   const others = Array.from({ length: Math.max(0, (opts.positions ?? 2) - 1) }, (_, k) => {
     const i = k + 1;
@@ -206,6 +220,21 @@ export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Prom
         api.state.unlocked = false;
         return json(status(null));
       }
+      if (path === '/api/phone/venue') {
+        const next = (req.postDataJSON() as { venue?: 'paper' | 'sim' | 'live' } | null)?.venue;
+        if (next !== 'paper' && next !== 'sim' && next !== 'live') return json({ detail: 'venue' }, 422);
+        // The desk's switch always locks the padlock (ADR 018).
+        venue = next;
+        api.state.armed = false;
+        return json({ ...status(token), left: [], gateway: null });
+      }
+      if (path === '/api/phone/sim/clock') {
+        const body = (req.postDataJSON() ?? {}) as Record<string, unknown>;
+        api.simMoves.push(body);
+        if (typeof body.paused === 'boolean') simClock = { ...simClock, paused: body.paused, live_edge: false };
+        if (typeof body.minute_from_open === 'number') simClock = { ...simClock, minute_from_open: body.minute_from_open, scrubbed: true, live_edge: false };
+        return json(clockNow());
+      }
       if (path === '/api/phone/arm') {
         api.state.armed = (req.postDataJSON() as { armed?: boolean } | null)?.armed === true;
         return json(status(token));
@@ -244,6 +273,8 @@ export async function mockPhoneApi(page: Page, opts: PhoneApiOptions = {}): Prom
 
     switch (path) {
       case '/api/phone': return json(status(token));
+      case '/api/phone/venue/effects': return json({ venue, lines: opts.effects ?? [], unknown: [] });
+      case '/api/sim/clock': return json(clockNow());
       case '/api/config': return json({ discovery_provider: 'ibkr', data_feed: 'ibkr', scanner_persistent_enabled: true, scanner_persistent_authoritative: true });
       case '/api/ibkr/status': return json({
         connected: true, transport_connected: true, session: 'ready', mode: venue, venue, armed: api.state.armed,

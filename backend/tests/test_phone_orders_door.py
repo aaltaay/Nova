@@ -12,7 +12,7 @@ from ibkr import arm_pin
 from ibkr import safety as _safety
 from market_view import gate
 from phone import pin, session
-from phone.constants_phone import PHONE_NOT_PAPER, PHONE_PIN_HASH_ENV, PHONE_SESSION_HEADER
+from phone.constants_phone import PHONE_LIVE_LOOK_ONLY, PHONE_PIN_HASH_ENV, PHONE_SESSION_HEADER
 from practice import broker as practice_broker
 from practice.broker import for_venue, reset_for_tests
 from request_guard.middleware import RequestGuardMiddleware
@@ -136,15 +136,16 @@ def test_a_buy_from_a_phone_that_received_no_level_2_is_not_sent_and_its_ways_ou
     assert sell.get("reason_code") != "VIEW_STALE" and "detail" not in sell
 
 
-def test_the_desk_off_paper_refuses_the_phone_at_its_route_and_at_the_door(phone, monkeypatch):
+def test_the_desk_on_live_refuses_the_phone_at_its_route_and_a_move_at_the_door(phone, monkeypatch):
     client, unlocked = phone
-    set_venue("sim")
+    set_venue("live")
     res = client.post("/api/phone/order", headers=unlocked, json=_order())
-    assert res.status_code == 409 and res.json()["detail"]["reason"] == PHONE_NOT_PAPER
-    # The route's check passed and the desk moved before the send: the door itself holds the line.
+    assert res.status_code == 409 and res.json()["detail"]["reason"] == PHONE_LIVE_LOOK_ONLY
+    # The route read Paper and the desk moved to Sim before the send: the door itself holds the line.
     from phone import routes
 
-    monkeypatch.setattr(routes, "_paper_only", lambda: None)
+    set_venue("sim")
+    monkeypatch.setattr(routes, "_trade_venue", lambda: "paper")
     moved = client.post("/api/phone/order", headers=unlocked, json=_order()).json()
     assert (moved["ok"], moved["reason_code"]) == (False, "VENUE_CHANGED")
     assert for_venue("paper").working_orders() == []

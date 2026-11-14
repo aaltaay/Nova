@@ -13,6 +13,7 @@ import { ROUTE_EVENT, parseRoute, tabOf, type PhoneRoute } from './phoneRoute';
 import { PhoneSessionProvider } from './PhoneSession';
 import { PhoneWorkspaceProvider } from './PhoneWorkspace';
 import { AccountScreen } from './screens/AccountScreen';
+import { BookScreen } from './screens/BookScreen';
 import { ChartScreen } from './screens/ChartScreen';
 import { HomeScreen } from './screens/HomeScreen';
 import { ScanScreen } from './screens/ScanScreen';
@@ -46,6 +47,7 @@ function screenFor(route: PhoneRoute): ReactNode {
     case 'trade': return <TradeScreen symbol={route.symbol} />;
     case 'stock': return <StockScreen key={route.symbol} symbol={route.symbol} />;
     case 'chart': return <ChartScreen key={route.symbol} symbol={route.symbol} />;
+    case 'book': return <BookScreen key={route.symbol} symbol={route.symbol} />;
     default: return <HomeScreen />;
   }
 }

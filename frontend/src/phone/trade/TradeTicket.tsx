@@ -4,7 +4,9 @@
  *
  * Every Quick button is one of the desk's one-tap actions (tradeActions.ts); what a button will send is
  * written on it. Custom builds the order body the desk's ticket builds. A locked padlock greys the
- * buttons and answers a tap with NOT SENT; a view that is behind holds the buys and says so on them.
+ * buttons and answers a tap with NOT SENT; a view that is behind holds the buys and says so on them. On a
+ * venue the phone does not trade from here (Live, or a Sim replay the phone does not draw) every button is
+ * off and says why (`tradeVenueView`).
  */
 import { useCallback, useState } from 'react';
 import { Lock } from 'lucide-react';
@@ -50,8 +52,10 @@ function readSize(): number {
   return readPref<number>(SIZE_KEY, 100, (raw) => (typeof raw === 'number' && Number.isInteger(raw) && raw >= 1 && raw <= MAX_SHARES ? raw : null));
 }
 
-export function TradeTicket({ trade, buyingPower, onFlatten, onCancelAll }: {
+export function TradeTicket({ trade, blocked = null, buyingPower, onFlatten, onCancelAll }: {
   trade: PhoneTrade;
+  /** Why nothing is sent from this ticket on the desk's venue now, and the short word on its buttons. */
+  blocked?: { why: string; word: string } | null;
   buyingPower: number | null;
   /** Ask before flattening (the big warning lives with the dots). */
   onFlatten: () => void;
@@ -69,8 +73,7 @@ export function TradeTicket({ trade, buyingPower, onFlatten, onCancelAll }: {
   const [handQty, setHandQty] = useState<number | null>(null);
 
   const { symbol, bid, ask, heldQty, lag, armed } = trade;
-  const paper = session.venue === 'paper';
-  const offPaper = session.venue && !paper ? `The desk is on ${session.venue === 'live' ? 'Live' : 'Sim'}: the phone trades Paper only.` : null;
+  const offVenue = blocked?.why ?? null;
   const locked = armed === false;
   const long = heldQty > 0 ? heldQty : 0;
 
@@ -114,12 +117,12 @@ export function TradeTicket({ trade, buyingPower, onFlatten, onCancelAll }: {
 
   // A buy while short is a way out (the desk's own rule, `orderCloses`): lag never holds it, here or at the door.
   const buyLag = orderCloses('BUY', false, heldQty) ? null : lag;
-  const buyWhy = offPaper ?? buyLag;
+  const buyWhy = offVenue ?? buyLag;
   const half = sellShares(long, 50);
   const all = sellShares(long, 100);
   const noShares = `You hold no ${symbol} to sell.`;
   const sellWhy = (shares: number | null, part: string): string | null =>
-    offPaper ?? (shares == null ? (long > 0 ? `${part} needs 2 shares.` : noShares) : null);
+    offVenue ?? (shares == null ? (long > 0 ? `${part} needs 2 shares.` : noShares) : null);
 
   const sellButton = (percent: 50 | 100, at: 'ask' | 'bid') => {
     const shares = percent === 50 ? half : all;
@@ -137,7 +140,7 @@ export function TradeTicket({ trade, buyingPower, onFlatten, onCancelAll }: {
         onClick={guarded(() => trade.act(label, at === 'ask' ? sellAtAsk(percent) : sellAtBid(percent)))}
       >
         <b>SELL {part}{shares != null ? ` ${shares.toLocaleString('en-US')}` : ''}</b>
-        <i>{why ? (long > 0 ? 'needs 2 shares' : 'no shares') : at === 'ask' ? `at Ask ${priceWord(ask)} · rests` : `hit Bid ${priceWord(bid)} · now`}</i>
+        <i>{why ? (blocked ? blocked.word : long > 0 ? 'needs 2 shares' : 'no shares') : at === 'ask' ? `at Ask ${priceWord(ask)} · rests` : `hit Bid ${priceWord(bid)} · now`}</i>
       </button>
     );
   };
@@ -162,7 +165,7 @@ export function TradeTicket({ trade, buyingPower, onFlatten, onCancelAll }: {
             onClick={guarded(() => trade.act(`Buy ${size} market`, buyMarket(size)))}
           >
             <b>BUY {size.toLocaleString('en-US')}</b>
-            <i>{buyWhy ? (offPaper ? 'Paper only' : HELD_WORD) : 'market · fills now'}</i>
+            <i>{buyWhy ? (blocked ? blocked.word : HELD_WORD) : 'market · fills now'}</i>
           </button>
           <button
             type="button"
@@ -173,7 +176,7 @@ export function TradeTicket({ trade, buyingPower, onFlatten, onCancelAll }: {
             onClick={guarded(() => trade.act(`Buy ${size} limit`, buyLimit(size)))}
           >
             <b>BUY {size.toLocaleString('en-US')}</b>
-            <i>{buyWhy ? (offPaper ? 'Paper only' : HELD_WORD) : `limit ${priceWord(buyLimitPrice(ask))} · ${BUY_LIMIT_OFFSET_WORD}`}</i>
+            <i>{buyWhy ? (blocked ? blocked.word : HELD_WORD) : `limit ${priceWord(buyLimitPrice(ask))} · ${BUY_LIMIT_OFFSET_WORD}`}</i>
           </button>
           {/* The grid fills by column: the halves, then the whole; each column the Ask over the Bid. */}
           {sellButton(50, 'ask')}
@@ -190,8 +193,8 @@ export function TradeTicket({ trade, buyingPower, onFlatten, onCancelAll }: {
       <div className="ph-trade__pair">
         <button
           type="button"
-          disabled={Boolean(offPaper) || !long}
-          data-why={offPaper ?? (!long ? `A stop protects shares you hold. You hold no ${symbol}.` : undefined)}
+          disabled={Boolean(offVenue) || !long}
+          data-why={offVenue ?? (!long ? `A stop protects shares you hold. You hold no ${symbol}.` : undefined)}
           onClick={() => {
             setSide('SELL');
             setKind('STP');
@@ -202,7 +205,7 @@ export function TradeTicket({ trade, buyingPower, onFlatten, onCancelAll }: {
         >
           Set a stop…
         </button>
-        <button type="button" disabled={Boolean(offPaper)} data-why={offPaper ?? undefined} onClick={onCancelAll} data-testid="phone-cancel-all">Cancel all orders</button>
+        <button type="button" disabled={Boolean(offVenue)} data-why={offVenue ?? undefined} onClick={onCancelAll} data-testid="phone-cancel-all">Cancel all orders</button>
       </div>
     </>
   );
@@ -237,7 +240,7 @@ export function TradeTicket({ trade, buyingPower, onFlatten, onCancelAll }: {
         ? (price != null && ask != null && price >= ask ? 'fills now' : 'rests under the Ask')
         : (price != null && bid != null && price <= bid ? 'fills now' : 'rests');
   const about = price != null ? `${kind === 'MKT' ? 'about ' : ''}${money0(qty * price)}` : '';
-  const customWhy = offPaper
+  const customWhy = offVenue
     ?? (buy && kind !== 'STP' ? buyLag : null)
     ?? (!buy && !long ? noShares : null)
     ?? (kind !== 'MKT' && price == null ? 'Waiting for Level 2 to price it.' : null);
@@ -318,7 +321,7 @@ export function TradeTicket({ trade, buyingPower, onFlatten, onCancelAll }: {
           onClick={sendCustom}
         >
           <b>{sendWords}</b>
-          <i>{customWhy && buy && buyLag && !offPaper ? HELD_WORD : `${about ? `${about} · ` : ''}${how} · ${outside ? 'Day + extended hours' : 'Day'}`}</i>
+          <i>{customWhy && buy && buyLag && !offVenue ? HELD_WORD : `${about ? `${about} · ` : ''}${how} · ${outside ? 'Day + extended hours' : 'Day'}`}</i>
         </button>
         {locked ? (
           <button type="button" className="ph-trade__lockpill" onClick={() => session.setArmed(true)} data-testid="phone-trade-locked">
@@ -330,13 +333,13 @@ export function TradeTicket({ trade, buyingPower, onFlatten, onCancelAll }: {
         <button
           type="button"
           className="is-danger"
-          disabled={Boolean(offPaper) || !heldQty}
-          data-why={offPaper ?? (!heldQty ? `You hold no ${symbol} to flatten.` : undefined)}
+          disabled={Boolean(offVenue) || !heldQty}
+          data-why={offVenue ?? (!heldQty ? `You hold no ${symbol} to flatten.` : undefined)}
           onClick={onFlatten}
         >
           {heldQty ? `Flatten ${Math.abs(heldQty).toLocaleString('en-US')} at ${heldQty > 0 ? 'Bid' : 'Ask'}` : 'Flatten'}
         </button>
-        <button type="button" disabled={Boolean(offPaper)} data-why={offPaper ?? undefined} onClick={onCancelAll}>Cancel all orders</button>
+        <button type="button" disabled={Boolean(offVenue)} data-why={offVenue ?? undefined} onClick={onCancelAll}>Cancel all orders</button>
       </div>
     </>
   );

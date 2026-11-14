@@ -32,20 +32,35 @@ def leaving_text(move: tuple[str, str]) -> str:
             f"its working ones on {move[0]}")
 
 
-def has_work(old: str | None) -> bool:
-    """Whether anything Nova sent waits to fill on ``old`` (a cheap, memory-only check)."""
+def work_on(old: str | None) -> list[str]:
+    """What Nova sent that still waits to fill on ``old``, one plain line per stock and sender (memory only).
+
+    What ``leave`` would cancel there: the bot's entry and its working buys, and a stock mode's entering trade.
+    The phone's venue menu says these before the tap (ADR 070 amendment 2026-11-13)."""
     if old not in DESK_PRACTICE_VENUES:
-        return False
+        return []
     from bot.persist import load_session
     from stock_mode import store
 
     row = load_session()
+    lines: list[str] = []
     trade = row.get("trade")
     if isinstance(trade, dict) and trade.get("state") == "entering" and trade.get("venue") == old:
-        return True
-    if any(str(w.get("side") or "").upper() == "BUY" and w.get("venue") == old for w in row.get("working") or []):
-        return True
-    return any(t.get("venue") == old and t.get("state") == STOCK_MODE_TRADE_ENTERING for t in store.trades())
+        lines.append(f"the Bot's buy of {trade.get('symbol') or '?'}")
+    for w in row.get("working") or []:
+        if str(w.get("side") or "").upper() == "BUY" and w.get("venue") == old:
+            lines.append(f"the Bot's buy of {w.get('symbol') or '?'}")
+    for t in store.trades():
+        if t.get("venue") == old and t.get("state") == STOCK_MODE_TRADE_ENTERING:
+            by = _BY.get(str(t.get("kind")), str(t.get("kind") or "Nova"))
+            lines.append(f"Nova's {by.replace('_', '-')} buy of {t.get('symbol') or '?'}")
+    # The bot's entry is also among its working buys: one line per stock and sender.
+    return list(dict.fromkeys(lines))
+
+
+def has_work(old: str | None) -> bool:
+    """Whether anything Nova sent waits to fill on ``old`` (a cheap, memory-only check)."""
+    return bool(work_on(old))
 
 
 async def leave(old: str | None, new: str) -> list[dict[str, Any]]:

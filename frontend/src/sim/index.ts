@@ -20,7 +20,7 @@ export type { Landed, LandingHooks, LandingWindow, SimLandingPlan, SimMovePlan }
 // The scanner's quote panel on a Sim desk: the same rule and empty quote as a Trader tab. The notice
 // component itself is not exported here -- it pulls the workspace, and the chart imports this barrel.
 export { useSimReplayTarget } from './useSimReplayTarget';
-export { simRailNote, simVenueTagState } from './simReplayTarget';
+export { simRailNote, simReplayTarget, simVenueTagState } from './simReplayTarget';
 export {
   captureQuoteDetail,
   historicalQuoteDetail,
@@ -30,6 +30,8 @@ export {
 } from './historicalQuoteDetail';
 export { etTime } from './historicalReplayFormat';
 export { clockWindow } from './simStripFormat';
+// The phone's Sim strip and venue menu say the playhead as the desk's strip does (ADR 070 amendment 2026-11-13).
+export { formatClock, formatMinuteClock, formatShortDate, sessionOpeningLabel } from './simStripFormat';
 export {
   finiteOrNull,
   isObject,
