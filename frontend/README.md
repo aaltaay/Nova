@@ -20,9 +20,15 @@ cp ../.env.example ../.env   # from repo root; set Alpaca read-only keys
 # Browser dev server (http://localhost:5173)
 npm run dev
 
-# Electron shell with Vite HMR
+# Electron shell on the Vite dev server
 npm run electron:dev
 ```
+
+Open pages do not hot-update or reload when the checkout changes (#612): they
+show a "New code is on disk" notice and apply it only when you click Reload.
+For fast refresh while developing, start the dev server with
+`NOVA_DEV_LIVE_RELOAD=1` (see `architecture/schema/desk-ops.md`, "The browser
+development desk holds new code").
 
 ## Tests
 

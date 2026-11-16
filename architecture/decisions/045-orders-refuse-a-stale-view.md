@@ -85,6 +85,19 @@ A send the IB loop started and did not finish within 30 s is `SEND_UNKNOWN`: Nov
 
 **Consequences.** An order on a stock whose Time & Sales is missing trades is refused before anything is sent, with the reason, and the ticket is locked before the click. A shared stall locks every affected stock at once. Paper's positions follow the market even while IBKR's tape is down. Whether Reconnect Data shortens a stall is measured on each incident. The cause upstream -- the Gateway's link to IBKR (six 1100s on 2026-10-14 between 08:34 and 09:24, with no Wi-Fi reconnect logged) -- is outside Nova; the report is what goes to IBKR.
 
+## Amendment 2026-10-27 -- an open Level 2 with no book yet locks; a first-book watch says why (#913)
+
+**Decided by:** the operator, 2026-10-27, choosing option 1 of #913 ("lock while that stock's Level 2 is open and waiting for its first book; with no Level 2 open, orders keep the quote-based path").
+
+**What happened.** On 2026-10-13 BKYI's Level 2 read "Waiting for book data..." at 09:40:14 and 11:30:35 ET after Gateway connectivity drops, with no grant, book or refusal from IBKR, while its order ticket stayed open. The depth socket sent `subscribed` and a `beat` every 0.25 s, so the desk saw no silence; the gate's `_lag_ms` read the screen's null book stamp as no lag, so the door said `ok`. #924 decided the refused and ended line only.
+
+**Decision.**
+
+1. **No book yet is not live.** While Nova holds a live IBKR Level 2 line for a symbol (depth, or its Level 1 fallback) that has not delivered a book with a row since that request was made, the gate refuses a manual place, bracket or replace with `BOOK_WAITING` (`market_view.gate.desk_lock`, so the door, `GET /api/market-view/gate` and the Time & Sales socket's `gate` say the same). Any request -- the Trader's ladder, a recording, auto-record, a bot -- counts: the rule is about the stock's Level 2, not the window. Each new request, retry or reconnect starts again: a book from an earlier request or IBKR session never satisfies it. With no Level 2 open for the symbol, nothing changes (ADR 045's quote-based path). Never on a Sim desk off the live edge: its market is the replay, and a paused replay is not an unanswered request.
+2. **The desk locks first.** After every `subscribed` the ladder's symbol is locked until a `book` frame arrives, or a `beat` says the line already has its first book (`first_book: null`). Its button reads "Waiting for Level 2 · locked". A refused line keeps its own lock ("No Level 2 · locked").
+3. **A first-book watch, information only.** After `MARKET_VIEW_FIRST_BOOK_WAIT_SEC` (5 s) without a first book, the lock's words, the ladder's empty message and one log line say what IBKR has done: not answered the request, granted it but sent no rows, or (Level 1 fallback) sent no bid or ask. The watch never cancels the request, frees its slot, restarts the Gateway or changes any other gate; `ibkr/depth/release.py` stays the sole cancel owner.
+
+**Consequences.** An order is never priced from a Level 2 that has never shown a book. A stock whose Level 2 IBKR never answers stays locked until a book arrives or its line is let go; Flatten, KILL and cancels always work. Since the 2026-11-06 amendment below, a sell or a cover passes this lock like every other lag lock.
 
 ## Amendment 2026-11-06 -- Getting out is never locked, and Time & Sales says when the trade happened
 

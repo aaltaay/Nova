@@ -6,7 +6,7 @@ of earlier days through, and the practice day (Day P&L, practice orders) turned 
 so Saturday zeroed Friday's figures while the boards still showed Friday. Every case is read with the clock
 frozen at Monday 00:30 ET, Monday 10:00 ET and Saturday 10:00 ET of the week of 2026-10-19.
 
-The loss limit keeps the calendar clock on purpose (ADR 056): the last test pins that.
+The loss limit's count walks back the same way (ADR 056 amendment 2026-10-27, #1090): the last test pins that.
 """
 from __future__ import annotations
 
@@ -192,10 +192,13 @@ def test_history_keys_saturday_to_fridays_row() -> None:
     assert history._day_of(MON_1000.timestamp()) == "2026-10-19"
 
 
-def test_the_loss_limit_still_turns_over_on_the_calendar_day(paper) -> None:
-    """ADR 056's reset is a money gate: Saturday 04:00 starts a new count even though Day P&L reads Friday."""
+def test_the_loss_limit_counts_fridays_trades_through_the_weekend(paper) -> None:
+    """Saturday 04:00 no longer starts a new count: the loss limit reads Friday's day like Day P&L (#1090)."""
     paper.ref.now = et(10, 16, 11).timestamp()
     assert [s["symbol"] for s in loss_accounts._practice("paper").stocks] == ["IMCC"]
-    paper.ref.now = SAT_1000.timestamp()
+    for now in (SAT_1000, MON_0030):
+        paper.ref.now = now.timestamp()
+        assert [s["symbol"] for s in loss_accounts._practice("paper").stocks] == ["IMCC"]
+        assert paper.broker.ledger.day_started_ts == et(10, 16, 4).timestamp()
+    paper.ref.now = MON_1000.timestamp()
     assert loss_accounts._practice("paper").stocks == []
-    assert paper.broker.ledger.day_started_ts == et(10, 16, 4).timestamp()

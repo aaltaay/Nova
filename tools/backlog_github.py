@@ -80,22 +80,39 @@ def domain_labels(issue: dict[str, Any]) -> set[str]:
     return {n for n in label_names(issue) if n.startswith("domain:")}
 
 
+def _rest_pages(path: str, *, runner: Runner) -> list[dict[str, Any]]:
+    """Every page of a REST list, one flat array.
+
+    REST, not ``gh issue list`` / ``gh issue view``: those ride GraphQL, which
+    cloud agent sessions are refused, while the REST routes answer everywhere.
+    """
+    proc = run_gh(["api", "--paginate", "--slurp", path], runner=runner)
+    if proc.returncode != 0:
+        raise RuntimeError(f"gh api {path.split('?')[0]} failed: {proc.stderr.strip()}")
+    pages = json.loads(proc.stdout or "[]")
+    return [item for page in pages for item in (page if isinstance(page, list) else [page])]
+
+
 def fetch_issues(*, runner: Runner = subprocess.run) -> list[dict[str, Any]]:
     """Open backlog issues.
 
     Raises on a gh failure rather than returning an empty list: an empty
     backlog and an unreadable one must not look the same.
     """
-    proc = run_gh(
-        [
-            "issue", "list", "--repo", repo_slug(), "--state", "open", "--limit", "500",
-            "--json", "number,title,labels,milestone,url,createdAt,updatedAt",
-        ],
-        runner=runner,
-    )
-    if proc.returncode != 0:
-        raise RuntimeError(f"gh issue list failed: {proc.stderr.strip()}")
-    return json.loads(proc.stdout or "[]")
+    rows = _rest_pages(f"repos/{repo_slug()}/issues?state=open&per_page=100", runner=runner)
+    return [
+        {
+            "number": row["number"],
+            "title": row.get("title") or "",
+            "labels": [{"name": lbl.get("name", "")} for lbl in row.get("labels") or []],
+            "milestone": {"title": row["milestone"].get("title")} if row.get("milestone") else None,
+            "url": row.get("html_url") or "",
+            "createdAt": row.get("created_at") or "",
+            "updatedAt": row.get("updated_at") or "",
+        }
+        for row in rows
+        if "pull_request" not in row
+    ]
 
 
 def fetch_milestones(*, runner: Runner = subprocess.run) -> list[dict[str, Any]]:
@@ -106,10 +123,13 @@ def fetch_milestones(*, runner: Runner = subprocess.run) -> list[dict[str, Any]]
 
 
 def fetch_comments(number: int, *, runner: Runner = subprocess.run) -> list[dict[str, Any]]:
-    proc = run_gh(
-        ["issue", "view", str(number), "--repo", repo_slug(), "--json", "comments"],
-        runner=runner,
-    )
-    if proc.returncode != 0:
-        raise RuntimeError(f"gh issue view {number} failed: {proc.stderr.strip()}")
-    return json.loads(proc.stdout or "{}").get("comments") or []
+    rows = _rest_pages(f"repos/{repo_slug()}/issues/{number}/comments?per_page=100", runner=runner)
+    return [
+        {
+            "body": row.get("body") or "",
+            "createdAt": row.get("created_at") or "",
+            "author": {"login": (row.get("user") or {}).get("login", "")},
+            "url": row.get("html_url") or "",
+        }
+        for row in rows
+    ]

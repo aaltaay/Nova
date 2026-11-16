@@ -5,8 +5,9 @@ Day P&L, ``commissions_today`` and ``fills_today`` roll at
 already uses as session start -- and, like the boards and Orders (Today), they walk
 back over a weekend or holiday to the last exchange day (``session_day_start_ts``):
 Saturday 04:00 is no rollover, so Friday's Day P&L stays Friday's until Monday 04:00.
-``day_start_ts`` is the plain calendar clock, which turns every day at 04:00; the
-loss limit keeps it on purpose (ADR 056, an operator decision). Timestamps are converted by arithmetic, not
+The loss limit's day walks back the same way (ADR 056 amendment 2026-10-27,
+``loss_limit.state.day_start``). ``day_start_ts`` is the plain calendar clock, which
+turns every day at 04:00. Timestamps are converted by arithmetic, not
 ``datetime.fromtimestamp``: Windows refuses negative epochs and the Sim tests
 run replay clocks that start near zero.
 """
