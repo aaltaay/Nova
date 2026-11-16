@@ -32,10 +32,9 @@ from datetime import datetime, time as dtime
 from typing import Any, Awaitable, Callable, Iterable
 from zoneinfo import ZoneInfo
 
-from constants import IBKR_HISTORICAL_PACE_MAX
 from constants_setups import (
-    SETUPS_SEED_HISTORY_BUDGET,
     SETUPS_SEED_HISTORY_FAILED_RETRY_SEC,
+    SETUPS_SEED_HISTORY_HEADROOM,
     SETUPS_SEED_HISTORY_MAX_TRIES,
     SETUPS_SEED_HISTORY_MAX_WAIT_SEC,
     SETUPS_SEED_HISTORY_RETRY_SEC,
@@ -68,7 +67,7 @@ def late_start(bars: Iterable[Bar], since: float, now: float) -> float:
     return max(0.0, min(first, now) - since)
 
 
-def send_wait(now: float, last_send: float, window_used: int, chart_loading: bool) -> str | None:
+def send_wait(now: float, last_send: float, window_left: int, chart_loading: bool) -> str | None:
     """Why the scanner's next history request must wait, or ``None`` to send it now.
 
     One request every ``SETUPS_SEED_HISTORY_SPACING_SEC`` at most, never while a chart's own history
@@ -79,9 +78,8 @@ def send_wait(now: float, last_send: float, window_used: int, chart_loading: boo
         return "a chart's history is loading first"
     if now - last_send < SETUPS_SEED_HISTORY_SPACING_SEC:
         return f"the scanner asked {now - last_send:.0f}s ago"
-    if window_used >= SETUPS_SEED_HISTORY_BUDGET:
-        return (f"{window_used} of IBKR's {IBKR_HISTORICAL_PACE_MAX} historical requests in 10 minutes "
-                "are used: the rest are the charts'")
+    if window_left <= SETUPS_SEED_HISTORY_HEADROOM:
+        return f"{window_left} historical requests are left in the 10 minutes: those are the charts'"
     return None
 
 

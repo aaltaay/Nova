@@ -22,7 +22,6 @@ BOT_RETIRED_BREAKER_KEYS = (
     "soft_breaker_until", "hard_lock_until_date", "hard_lock_at", "hard_lock_pnl", "hard_lock_usd",
 )
 BOT_SESSION_FILENAME = "bot-session.json"
-BOT_PROPOSALS_FILENAME = "bot-proposals.json"
 BOT_AUDIT_FILENAME = "bot-audit.jsonl"
 BOT_STATE_OWNER = "bot.persist"
 
@@ -171,8 +170,6 @@ BOT_COVER_KINDS = frozenset({
 BOT_ENTRY_KINDS = BOT_BUY_KINDS | BOT_SHORT_KINDS
 # A bot API short's buy stop, over its limit (a session preset like the offsets: no free-form stop).
 BOT_DEFAULT_SHORT_STOP_OFFSET_USD = 0.10
-# The bot's own close of a short: a buy limit this far over the ask (marketable), the long close mirrored.
-BOT_DEFAULT_ASK_COVER_OFFSET_USD = 0.03
 
 # The sleeve (ADR 042): one per venue, for every Nova automatic buy (the bot and Auto-entry).
 BOT_DEFAULT_MAX_SHARES = 1
@@ -203,14 +200,14 @@ BOT_EYES_PUSH_SEC = 0.25
 BOT_TZ = "America/New_York"
 BOT_LOOPBACK_HOSTS = ("127.0.0.1", "::1", "localhost", "testclient")
 BOT_HEARTBEAT_STALE_SEC = 15
-BOT_DESK_ARM_HEADER = "X-Nova-Desk-Arm"
 
 BOT_REASON_L0_DARK = "BOT_L0_DARK"
 BOT_REASON_L1_NO_FIRE = "BOT_L1_NO_FIRE"
 BOT_REASON_NOT_ACTIVE = "BOT_NOT_ACTIVE"
-BOT_REASON_L3_PARKED = "BOT_L3_PARKED"
+# ADR 072: the bot API is the brain's door, and nothing opens it until the brain is built (Activate is retired).
+BOT_BRAIN_DOOR_CLOSED_TEXT = ("The bot API is the brain's door, and it opens with the brain (ADR 072): the bots are "
+                              "retired, so nothing can claim it or send through it yet")
 BOT_REASON_ARM_REQUIRED = "BOT_ARM_REQUIRED"
-BOT_REASON_ARM_DESK_ONLY = "BOT_ARM_DESK_ONLY"
 BOT_REASON_HEARTBEAT_STALE = "BOT_HEARTBEAT_STALE"
 BOT_REASON_KIND_BLOCKED = "BOT_KIND_BLOCKED"
 BOT_REASON_FREE_FORM_QTY = "BOT_FREE_FORM_QTY"
@@ -235,47 +232,24 @@ BOT_REASON_TRADING_LOCKED = "BOT_TRADING_LOCKED"
 # ADR 027: Strategy waits on the setup's pre-registered read-out; entries keep each setup's window.
 # No daily trade count (operator, 2026-10-27): the sleeve's entries a day and BOT_DAY_TRADE_CAP are retired.
 BOT_REASON_READOUT_NOT_PASSED = "BOT_READOUT_NOT_PASSED"
-BOT_REASON_OUTSIDE_WINDOW = "BOT_OUTSIDE_WINDOW"
 BOT_REASON_SETUP_NO_SCANNER = "BOT_SETUP_NO_SCANNER"
-# ADR 031 / 042: a level per setup with a scanner, 0 (Off) to 2 (Strategy), under the master.
-BOT_REASON_SETUP_LEVEL = "BOT_SETUP_LEVEL"
-# #847: a watch-only setup's On is refused (409) with the reason.
-BOT_REASON_SETUP_WATCH_ONLY = "BOT_SETUP_WATCH_ONLY"
-# ADR 042: there is no chosen setup any more (``PATCH {setup}``).
-BOT_REASON_SETUP_RETIRED = "BOT_SETUP_RETIRED"
-BOT_SETUP_RETIRED_TEXT = "There is no chosen setup any more: set each setup's own level (ADR 042)"
-# ADR 056: the loss breakers are gone (``PATCH {breakers}``); one daily loss limit lives in Settings.
-BOT_REASON_BREAKERS_RETIRED = "BOT_BREAKERS_RETIRED"
-BOT_BREAKERS_RETIRED_TEXT = ("The bot trip and the all-stop are gone: set the daily loss limit in Settings > "
-                             "Loss limits (ADR 056)")
-# Activate's refusals (ADR 042 B): each says what to do in plain words.
+# ADR 072: every strategy watches; none trades, and a level is no longer set.
+BOT_REASON_STRATEGIES_WATCH = "BOT_STRATEGIES_WATCH"
+BOT_STRATEGIES_WATCH_TEXT = ("Every strategy watches on Level 1 and none trades (ADR 072): there is no Off, Eyes or On to "
+                             "set any more. Its numbers are in Settings > Strategies.")
+# The bot API never touches Live, a venue it cannot read or a replay desk (ADR 042 J, ``bot.door``).
 BOT_REASON_LIVE_NOT_BUILT = "BOT_LIVE_NOT_BUILT"
-BOT_REASON_REPLAY_DESK = "BOT_REPLAY_DESK"
-BOT_REASON_VENUE_UNKNOWN = "BOT_VENUE_UNKNOWN"
-BOT_REASON_LEVEL_NOT_STRATEGY = "BOT_LEVEL_NOT_STRATEGY"
-BOT_REASON_NO_SETUP_AT_STRATEGY = "BOT_NO_SETUP_AT_STRATEGY"
-BOT_REASON_PADLOCK_LOCKED = "BOT_PADLOCK_LOCKED"
 BOT_LIVE_NOT_BUILT_TEXT = ("Nova's bot trades Paper and Sim only. Live trading by a bot is not built; "
                            "it waits on its own operator decision (ADR 042).")
-# Sim off its live edge with nothing loaded (ADR 052): a replay is what the bot trades there.
-BOT_REPLAY_NOTHING_LOADED_TEXT = ("Sim is off its live edge with nothing loaded: load a Session Record or a download "
-                                  "for the bot to trade, or follow the wall clock back to the live edge")
-# The bot list is full (``bot.eligibility``): a refusal, never a change that did not happen.
-BOT_REASON_ALLOWLIST_FULL = "BOT_ALLOWLIST_FULL"
 # A sleeve value outside its bounds is refused with them, never clamped in silence.
 BOT_REASON_CAPS_INVALID = "BOT_CAPS_INVALID"
-# Why Activate was cleared (``deactivated.reason``).
-BOT_DEACTIVATED_REASONS = ("restart", "padlock", "venue", "level", "no_setup", "operator")
-# #564 (operator decision 2026-09-24): while the session's commissions cannot be read on Live, no new
-# bot entry is sent. Exits, cancels, flatten and kill are never held.
-BOT_REASON_COMMISSIONS_UNKNOWN = "BOT_COMMISSIONS_UNKNOWN"
+# Your risk per trade is the desk's to set (``bot.caps``): a brain's PATCH is refused.
+BOT_REASON_CAPS_DESK_ONLY = "BOT_CAPS_DESK_ONLY"
 # The commission hold reads every second: a failing read is logged once, then at most this often.
 BOT_COMMISSIONS_WARN_EVERY_SEC = 60.0
 
-# -- ADR 030: Nova's own bot on Paper and Sim (backend/bot/first_pullback/). ADR 042: it
-# plays every setup at Strategy; it never trades Live. The brain id is kept from ADR 030
-# so a running session keeps its claim.
-BOT_RUNNER_BRAIN_ID = "nova-first-pullback"
+# -- The bot audit stream's trade lines (ADR 030): the retired bots wrote them (ADR 072), and the stream still
+# reads and shows them.
 BOT_AUDIT_ACTION_TRADE = "bot_trade"
 # The fixed outcome names of a bot trade line (operator ask 2026-10-16; architecture/schema/bot.md, "Fills on the
 # bot audit stream"): Nova's own bot's lines and the Live Trader's ("live_trader" is LT_AUDIT_ACTION).
@@ -285,23 +259,7 @@ BOT_TRADE_OUTCOMES = frozenset({
     "ok", "failed", "order", BOT_AUDIT_OUTCOME_PARTIAL, "filled", "half", "closing", "closed", "missed", "handed",
     "skipped", "asked", "answered", "refused", "settings", "note", "error",
 })
-BOT_FP_POLL_SEC = 0.5               # CHOSEN: the bot's loop
-BOT_FP_HEARTBEAT_SEC = 5.0          # CHOSEN: well inside BOT_HEARTBEAT_STALE_SEC
-BOT_FP_TRIGGER_MAX_AGE_SEC = 5.0    # CHOSEN: an older trigger (a restart, a warm-up) is not traded
-BOT_FP_TIME_STOP_MIN = 15           # CHOSEN: the scoreboard's window (SETUPS_SCORE_WINDOW_MIN)
-BOT_FP_CLOSE_ATTEMPTS = 2           # limit-at-the-bid tries before the protective flatten
-BOT_FP_CANCEL_WAIT_SEC = 5.0        # how long a cancel may stay unconfirmed before the bot says so
-# A trigger the bot or Auto-entry did not take (``bot.first_pullback.admit``): the skip codes.
-BOT_SKIP_NOT_ACTIVE = "BOT_NOT_ACTIVE"
-BOT_SKIP_SETUP_NOT_STRATEGY = "BOT_SETUP_NOT_STRATEGY"
-BOT_SKIP_NOT_FIRST = "BOT_NOT_FIRST_OF_DAY"
-BOT_SKIP_TAPE = "BOT_TAPE_NOT_GO"
-BOT_SKIP_NOT_A_TRADE = "BOT_NOT_A_TRADE"
-BOT_SKIP_STALE = "BOT_TRIGGER_STALE"
-BOT_SKIP_ONE_TRADE = "BOT_ONE_TRADE"
-BOT_SKIP_EXTENDED_HOURS = "BOT_EXTENDED_HOURS"
-BOT_SKIP_SIZE = "BOT_SIZE_ZERO"
-BOT_SKIP_VENUE_CHANGING = "BOT_VENUE_CHANGING"   # the desk is leaving the venue (ADR 042 F)
+BOT_FP_TRIGGER_MAX_AGE_SEC = 5.0    # CHOSEN: an older trigger (a restart, a warm-up) is handed to no listener
 
 # -- ADR 044: one Bots page. --------------------------------------------------------------
 # Each strategy's bot rules, on its template in play (the template's bot group: changing them never
@@ -312,55 +270,3 @@ BOT_GRADES_CHOICES = ((BOT_GRADES_AB, "A and B"), (BOT_GRADES_A, "A only"))
 BOT_GRADES_DEFAULT = BOT_GRADES_AB
 BOT_SETUPS_A_DAY_DEFAULT = 1
 BOT_SETUPS_A_DAY_MAX = 2
-BOT_SKIP_GRADE = "BOT_SKIP_GRADE"            # a grade the strategy does not buy
-# Today's 04:00 ET reset of yesterday's bot buys has not run, or failed (``hot_list.day_reset_block``). Until
-# 2026-10-06 this slot was BOT_SKIP_NOT_LISTED (the bot bought only starred stocks); old audit lines keep that code.
-BOT_SKIP_DAY_NOT_RESET = "BOT_SKIP_DAY_NOT_RESET"
-# ADR 048: Nova never trades against a position you hold -- a long entry while the account is short the
-# stock, a short entry while it is long, and an entry while the position cannot be read.
-BOT_SKIP_HELD_OTHER_SIDE = "BOT_SKIP_HELD_OTHER_SIDE"
-# ADR 049 (#778 step 5): a short trigger whose sell price cannot be set -- under SSR the short sells at the ask,
-# and with no ask on the book, or an ask at or over the buy stop, there is no short to send.
-BOT_SKIP_SHORT_PRICE = "BOT_SKIP_SHORT_PRICE"
-# ADR 049 section 12: a short setup is On only once its five-year test passed on the rules in play.
-# The Bot switch: ON is the master at Strategy and Activate in one step; OFF is the master at Eyes.
-BOT_AUDIT_ACTION_SWITCH = "bot_switch"
-# The three keys (operator decisions 2026-10-15; bot.md "The three keys"): a key per bot family, per practice
-# venue, under the Bot switch. A bot buys only while the Bot switch, its family's key and its own key are all on;
-# off stops new buys only. Owner of the file: ``bot.family_keys``.
-BOT_KEYS_FILENAME = "bot-keys.json"
-BOT_KEYS_SCHEMA_VERSION = 1
-BOT_FAMILY_STRATEGY = "strategy"
-BOT_FAMILY_LIVE_TRADER = "live_trader"
-BOT_FAMILIES = (BOT_FAMILY_STRATEGY, BOT_FAMILY_LIVE_TRADER)
-BOT_FAMILY_NAMES = {BOT_FAMILY_STRATEGY: "Strategy Bots", BOT_FAMILY_LIVE_TRADER: "LiveTrader Bots"}
-BOT_KEYS_VENUES = ("paper", "sim")       # Live has no family keys: bots never trade Live
-BOT_KEY_DEFAULT_ON = True                 # a key the file does not hold: the day before the keys traded this way
-BOT_AUDIT_ACTION_KEY = "bot_key"
-BOT_REASON_KEYS_UNREADABLE = "BOT_KEYS_UNREADABLE"
-BOT_REASON_KEY_UNKNOWN = "BOT_KEY_UNKNOWN"
-BOT_SKIP_FAMILY_OFF = "BOT_SKIP_FAMILY_OFF"
-# The squares, by ticker (``GET /api/bot/triggers``): the gates in the order Nova runs them.
-BOT_TRIGGERS_SCHEMA_VERSION = 1
-BOT_TRIGGER_GATES = (
-    ("bot_on", "Bot on"),
-    ("strategy_on", "Strategy on"),
-    ("grade", "Grade"),
-    ("setups_a_day", "Setups a day"),
-    ("bot_window", "Bot window"),
-    ("nova_buys", "Entry: Bot"),
-    ("level2_line", "Level 2 line"),
-    ("tape_go", "Tape GO"),
-    ("not_against", "Not against you"),
-)
-# ADR 049 (#778 step 5): the short check's own squares, behind the orange divider. A long trigger leaves them
-# empty; the SSR square is never red -- under SSR the short sells at the ask.
-BOT_TRIGGER_SHORT_GATES = (
-    ("short_borrow", "Borrow"),
-    ("short_ssr", "SSR"),
-    ("short_halt", "No halt 10 min"),
-    ("short_margin", "Margin 25%"),
-    ("short_hours", "Before 15:50"),
-)
-# Nothing records the template's bot rules at a trigger: these gates read today's.
-BOT_TRIGGER_JUDGED_NOW = ("grade", "setups_a_day", "bot_window")

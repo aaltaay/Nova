@@ -1,8 +1,8 @@
 """``/api/agent`` (ADR 050): the private endpoints agents use to find stock-days and show them on the desk.
 
 Loopback clients only. Every write -- and the desk's own long poll -- needs the desk's API key even on loopback
-(``auth.is_agent_mutate`` and ``require_agent_key``). Percentages on this wire are percent points. Nothing here
-places, stages or cancels an order, or arms the desk.
+(``auth.is_agent_mutate`` and ``require_agent_key``), except open-in-nova, which uses the install token.
+Percentages on this wire are percent points. Nothing here places, stages or cancels an order, or arms the desk.
 """
 from __future__ import annotations
 
@@ -44,12 +44,16 @@ ENDPOINTS = (
     ("GET", "/api/agent/movers", "find stock-days by the numbers (percent moves, price, float, time of the high)"),
     ("GET", "/api/agent/movers/{date}/{symbol}", "one stock-day as the index holds it"),
     ("POST", "/api/agent/show", "put the desk on a stock-day in the Sim, paused at a moment (a command)"),
+    ("POST", "/api/agent/open-in-nova", "open that stock-day paused; a separate Sim window during regular hours"),
+    ("GET", "/api/agent/open-token", "the install token for open-in-nova (loopback, not the API key)"),
     ("POST", "/api/agent/move", "move the Sim's playhead in the loaded day, or pause / play (a command)"),
     ("GET", "/api/agent/commands/{id}?wait=", "follow a command (waits up to `wait` seconds for a change)"),
     ("POST", "/api/agent/commands/{id}/cancel", "stop a command"),
     ("GET", "/api/agent/desk", "what the desk shows now, and what a venue switch would put at stake"),
     ("GET", "/api/agent/market-temperature?day=", "the small-cap temperature: today's (or a past session's) day / "
      "week / month labels and the numbers behind them, as the Market page shows them"),
+    ("GET", "/api/agent/market-now?words=&limit=", "the market right now: the day read, futures, sectors, the AI "
+     "groups, the world's money and the kept headlines, each with what is missing"),
     ("GET", "/api/agent/dictionary", "the operator's words for commands: read it before acting"),
     ("POST", "/api/agent/dictionary", "add or replace an entry the operator confirmed ({entry})"),
     ("DELETE", "/api/agent/dictionary/{id}", "drop an operator entry"),
@@ -138,6 +142,14 @@ def get_market_temperature(day: str | None = None) -> dict[str, Any]:
     return {"schema_version": AGENT_DESK_SCHEMA_VERSION, **temperature.report(chain, now)}
 
 
+@router.get("/market-now")
+def get_market_now(words: str | None = None, limit: int = Query(default=20, ge=1, le=100)) -> dict[str, Any]:
+    """Today's market as the desk reads it: answers from memory and the news store, never waits on IBKR."""
+    from agent_desk import market_now
+
+    return {"schema_version": AGENT_DESK_SCHEMA_VERSION, **market_now.report(words, limit, time.time())}
+
+
 # ── Commands for the desk ───────────────────────────────────────────────────
 
 class ShowRequest(BaseModel):
@@ -175,8 +187,8 @@ def _stake_check(*, switching: bool, reloading: bool, confirm: bool) -> None:
     if stake["safe"] or confirm:
         return
     names = "; ".join(i["text"] for i in stake["items"]) or "a check could not be read"
-    what = (f"the desk is on {current.capitalize()} -- a venue change disarms, turns the Bot off and cancels "
-            "Nova's working entries there" if switching and current != "sim" else "the Sim is loaded")
+    what = (f"the desk is on {current.capitalize()} -- a venue change disarms"
+            if switching and current != "sim" else "the Sim is loaded")
     raise _refuse(
         409, "AGENT_AT_STAKE",
         f"{what}, and this puts something at stake: {names}. Ask the operator; send confirm: true only after "
@@ -322,3 +334,8 @@ async def post_desk_report(command_id: str, body: DeskReport) -> dict[str, Any]:
     if command is None:
         raise _refuse(404, "AGENT_UNKNOWN_COMMAND", f"no command {command_id}")
     return {"command": command}
+
+
+from agent_desk.open_in_nova import register as register_open_in_nova
+
+register_open_in_nova(router)

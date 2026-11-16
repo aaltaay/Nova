@@ -203,6 +203,11 @@ def fill_refusal(ledger: Any, row: dict[str, Any], price: float,
     at the fill, never filled.
     """
     symbol, side, qty = str(row["symbol"]), str(row["side"]), float(row["qty"])
+    from owners import rules as owner_rules
+
+    owned = owner_rules.at_fill(ledger, row, price)  # Paper's books (ADR 069): holders and the bots' budget
+    if owned is not None:
+        return owned
     held = float(ledger.held_qty(symbol))
     if row.get("short_entry"):
         refused = short_entry_refusal(held, side)  # a long opened since it was placed: never flip
@@ -307,7 +312,7 @@ def admission_price(
 
     ``ref`` is the venue's ``fill_model.Reference`` (or None when it has none).
     """
-    if typ == "LMT" and limit_price is not None:
+    if typ in ("LMT", "STP LMT") and limit_price is not None:
         return float(limit_price)
     if typ == "STP" and stop_price is not None:
         return float(stop_price)

@@ -12,8 +12,8 @@ comes from after the playhead:
   only, so the day's levels -- the high of day, the premarket high, VWAP, tops and bottoms -- are
   the ones the chart shows by then;
 - **the daily map** is built from the days before the replayed one (``history.summary(replay=True)``);
-- **the bot** is its trade on this replay only (``bot.replay_desk``), as it stood at the playhead, and Nova's exit
-  of a stock you hold is the one taken on this replay (``stock_mode.replay``, #815).
+- **the desk** is the venue's risk per trade and the replay's own book as the depth line (``gather._desk``). (The
+  bot's trade and Nova's exit it once read retired with the bots, ADR 072.)
 
 Everything only the live feed knows -- the Level 2 and tape sensors, the flow score, book pulls,
 rvol, why it's moving, HOD Momo, borrow, halts, dilution, LULD, the boards -- is unknown on a replay,
@@ -96,21 +96,9 @@ def _luld(sym: str) -> dict[str, Any]:
     return luld_replay.view(sym)
 
 
-def _bot(sym: str) -> dict[str, Any]:
-    """The bot's state, its trade only when it is this replay's (as the rewind left it)."""
-    from stock_read.gather import _bot as live_bot
-    from bot.replay_desk import waits
-
-    out = live_bot(sym)
-    trade = out.get("trade")
-    if trade is not None and (trade.get("venue") != "sim" or waits(trade) is not None):
-        out["trade"] = None
-    return out
-
-
 def gather(symbol: str, now: float) -> dict[str, Any]:
     """The facts ``read.build`` reads, from the replay at ``now`` (the playhead)."""
-    from stock_read.gather import _nova_exit, _setups, _try
+    from stock_read.gather import _desk, _setups, _try
 
     sym = (symbol or "").strip().upper()
     errors: dict[str, str] = {k: REPLAY_UNKNOWN for k in ("l2", "flow", "pulls", "rvol", "prints", "shortable",
@@ -129,8 +117,7 @@ def gather(symbol: str, now: float) -> dict[str, Any]:
         "l2": None, "flow": None, "pulls": None, "rvol": None, "prints_per_min": None, "shortable": None,
         "halted": None, "board": None, "dilution": None,
         "luld": _try(errors, "luld", lambda: _luld(sym)),
-        "nova_exit": _try(errors, "nova_exit", lambda: _nova_exit(sym)),     # Nova's exit made on this replay
-        "bot": _try(errors, "bot", lambda: _bot(sym)),
+        "desk": _try(errors, "desk", lambda: _desk(sym)),
     }
 
 

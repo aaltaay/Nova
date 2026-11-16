@@ -92,9 +92,8 @@ def test_the_spike_alone_breaks_nothing():
     assert out["broke"] == [] and out["raise"] is None
 
 
-def test_the_stop_is_novas_then_yours_then_proposed():
-    assert build(nova_stop=5.95)["stop"] == {"price": 5.95, "source": "nova", "rule": "Nova's resting stop",
-                                             "printed": False}  # the 08:58 low 5.96 stayed over it
+def test_the_stop_is_yours_then_proposed():
+    """Nova's own resting stop retired with the bots' exits (ADR 072): the stop is yours, else one proposed."""
     mine = build()["stop"]
     assert mine["source"] == "yours" and mine["price"] == 5.45
     proposed = build(stop=None, risk=None)["stop"]
@@ -155,12 +154,10 @@ def test_the_stocks_own_rounds_are_used_over_25_dollars():
 def test_the_read_adds_held_with_the_checks_that_hold_for_a_position():
     ctx = {"price": 6.64, "bars": BARS, "level_map": MAP, "levels": {"vwap": 4.92}, "macd_hist": 0.062, "ema9": 5.5,
            "median_range": 0.3, "spread": 0.03, "flow": None, "bid_pulls": 0, "halted": None}
-    out = held_read({"nova_exit": None}, ctx, {"qty": 100, "avg": 5.075, "stop": 5.45, "risk": 0.445, "since": SINCE},
-                    NOW)
+    out = held_read({}, ctx, {"qty": 100, "avg": 5.075, "stop": 5.45, "risk": 0.445, "since": SINCE}, NOW)
     assert {c["id"] for c in out["checks"]} <= set(HELD_CHECK_IDS)
     assert {c["id"] for c in out["checks"]} >= {"macd", "ema9", "vwap", "spread"}
-    nova = held_read({"nova_exit": {"stop": 5.95}}, ctx, {"qty": 100, "avg": 5.075, "since": SINCE}, NOW)
-    assert nova["stop"]["source"] == "nova" and nova["stop"]["price"] == 5.95
+    assert out["stop"]["source"] == "yours" and out["stop"]["price"] == 5.45
 
 
 def test_the_route_adds_held_and_serves_the_flush_reading(monkeypatch):

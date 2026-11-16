@@ -1,5 +1,6 @@
 import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL } from '../constants';
+import type { DeskVenue } from '../constantGroups/desk_venue';
 import { sampleOrderRefusal } from '../sample_data/sampleOrderGuard';
 import {
   beginBrowserExecutionTiming,
@@ -21,6 +22,8 @@ export interface CancelOrderResult {
 export async function cancelIbkrOrder(
   orderId: number,
   timing: BrowserExecutionTiming = beginBrowserExecutionTiming('cancel_order'),
+  /** The venue a confirm named, for a caller that read one before its dialog (#1283). */
+  confirmedOn?: DeskVenue | null,
 ): Promise<CancelOrderResult> {
   // Defence in depth for the fabricated working-order rows (#357). The row
   // Cancel button is already withheld for them -- OrdersTodayView passes
@@ -38,7 +41,7 @@ export async function cancelIbkrOrder(
     // An order id is only meaningful on the venue that issued it (#655): the rows on
     // screen came from this venue, so the backend refuses VENUE_CHANGED if the desk has
     // moved since instead of cancelling that venue's order of the same number.
-    const venue = getIbkrAccountSnapshot().venue;
+    const venue = confirmedOn ?? getIbkrAccountSnapshot().venue;
     const query = venue ? `?venue=${encodeURIComponent(venue)}` : '';
     const response = await novaFetch(
       `${API_BASE_URL}/api/ibkr/order/${orderId}${query}`,

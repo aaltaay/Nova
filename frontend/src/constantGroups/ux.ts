@@ -53,6 +53,8 @@ export const ORDER_REJECT_TITLES: Record<string, string> = {
   IB_LOOP_WEDGED: 'IBKR is busy -- the order was not sent',
   // #725: the send started and did not finish: Working orders says whether IBKR has it.
   SEND_UNKNOWN: 'Check Working orders before sending again',
+  // #1283: acted on one venue, and the desk had left it.
+  VENUE_CHANGED: 'The desk moved -- the order was not sent',
 };
 /** User dismissed the confirm dialog -- not a reject. */
 export const ORDER_REJECT_SKIP_MESSAGES = [

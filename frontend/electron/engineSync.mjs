@@ -39,6 +39,7 @@ import {
 } from './engineFollow.mjs';
 import { ownerRootFromEngine, readEngineOwner, sameRoot, writeEngineOwner } from './engineOwnership.mjs';
 import { engineHome, getJson } from './engineRestart.mjs';
+import { attachPhonePageKeeper } from './phonePageKeeper.mjs';
 import { formatReleaseTag } from './releaseTag.mjs';
 
 export const RESTART_CHECK_PATH = '/api/diagnostics/restart-check';
@@ -459,6 +460,9 @@ export function createEngineSync({
     autoHolds: () => autoHolds().catch((err) => [`Could not read what is open: ${message(err)}`]),
     // Never holds up the install: a failure here is the new desk's to retry.
     handOffForInstall: guard('Restarting the backend for the install', handOffForInstall),
+    // Run `fn` while no pull or restart can start, and wait for one under way (the phone page's build reads
+    // the same checkout, review on PR #1328). Rejects as `fn` does.
+    whileCheckoutHeld: (fn) => exclusive(fn),
     followIfAsked: guard('Updating the backend', followIfAsked),
     follow: guard('Updating the backend by itself', follow),
   };
@@ -474,5 +478,14 @@ export function attachEngineSync({ bridge, ...deps }) {
   // Whenever the backend falls behind this desk later (or what held it clears), it follows by itself.
   const timer = setInterval(() => void sync.follow(), ENGINE_FOLLOW_TICK_MS);
   timer.unref?.();
+  // The phone page follows the same checkout: rebuilt once it moves, served (ADR 070 amendment 2026-11-14).
+  attachPhonePageKeeper({
+    bridge,
+    logger: deps.logger,
+    root: () => sync.view().owner,
+    busy: () => sync.view().running !== null,
+    lock: (fn) => sync.whileCheckoutHeld(fn),
+    revision: (root) => checkoutRevision(root, deps.git ?? runGit),
+  });
   return sync;
 }

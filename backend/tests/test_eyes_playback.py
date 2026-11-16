@@ -150,6 +150,17 @@ def test_the_day_is_read_as_it_grows_and_only_its_live_lines_count(tmp_path):
     assert day.generation == gen + 1 and len(day.lines) == 3
 
 
+def _old_proposal(lines: list[dict]) -> list[dict]:
+    """The day's lines with the proposal a build before ADR 072 journalled at its near moment: no lane raises one
+    now, but a day's journal written before still holds it, and the playback plays it back."""
+    at = next(i for i, e in enumerate(lines) if e["event"] == "near" and e.get("template") == "default")
+    near = lines[at]
+    prop = {"id": "old-proposal-1", "setup_id": near["setup_id"], "symbol": near["symbol"], "created_at": near["ts"],
+            "status": "open", "setup_type": "first_pullback", "template_id": "default"}
+    line = {**near, "event": "proposal", "status": "proposed", "proposal": prop}
+    return lines[:at + 1] + [line] + lines[at + 1:]
+
+
 def test_the_sim_desk_plays_the_journal_back_and_pops_a_proposal_up_only_when_played_across(tmp_path):
     set_store_for_tests(TemplateStore(tmp_path / "t.json"))
     rec = recording()
@@ -157,6 +168,8 @@ def test_the_sim_desk_plays_the_journal_back_and_pops_a_proposal_up_only_when_pl
     rep = EyesReplay(rec, [default_template(s) for s in BOT_SCANNER_SETUPS], source="sim",
                      playing={s: "default" for s in BOT_SCANNER_SETUPS}, journal=lines.append, pillars=_pillars)
     rep.run_to_end()
+    assert not [e for e in lines if e["event"] == "proposal"]             # ADR 072: no lane raises one
+    lines = _old_proposal(lines)
     [raised] = [e for e in lines if e["event"] == "proposal" and e["status"] == "proposed"]
     write(tmp_path / "journal" / f"{DAY}.jsonl", header(rec.bars[0].t) + [live(e) for e in lines])
     created = raised["proposal"]["created_at"]

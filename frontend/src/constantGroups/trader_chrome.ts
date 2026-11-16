@@ -166,8 +166,6 @@ export const focusRailEmpty = (title: string): string => `${title}: no rows righ
 /** The operator's watch list with nothing on it (watch_list/). */
 export const FOCUS_RAIL_WATCH_EMPTY = 'Nothing on your watch list yet. Right-click a ticker to add one.';
 export const focusRailMore = (count: number): string => `${count} more ↓`;
-export const FOCUS_RAIL_BOT_HELD_TITLE = 'Bot trades it · depth line held';
-export const FOCUS_RAIL_BOT_QUIET_TITLE = 'Bot trades it · quiet (no depth line)';
 export const FOCUS_RAIL_REC_TITLE = 'Recording';
 /** localStorage: collapsed flag + mirrored list (versioned; older shapes are ignored). */
 /** Focus rail column headers: click sorts, again flips, a third click returns
@@ -199,14 +197,6 @@ export const FOCUS_RAIL_CARD_STATUS_HEAD = 'Status';
 export const FOCUS_RAIL_CARD_REC_HEAD = 'Recording';
 export const FOCUS_RAIL_CARD_REC_BODY =
   'Nova is recording this symbol\'s tape and Level 2 to disk (Session Record), so the session can be replayed in Sim.';
-export const FOCUS_RAIL_CARD_BOT_HELD_HEAD = 'Bot trades it · watching';
-export const FOCUS_RAIL_CARD_BOT_HELD_BODY =
-  'Set to Bot (bot buys and sells), and Nova holds its Level 2 line (an open Trader tab or a recording), so the bot can see it. '
-  + 'Any bot entry still passes the gates on Strategy Bots.';
-export const FOCUS_RAIL_CARD_BOT_QUIET_HEAD = 'Bot trades it · quiet';
-export const FOCUS_RAIL_CARD_BOT_QUIET_BODY =
-  'Set to Bot, but Nova holds no Level 2 line for it, so the bot cannot act on it: it skips its triggers. '
-  + 'Open it in a Trader tab or record it to give the bot eyes.';
 export const FOCUS_RAIL_STORAGE_KEY = 'nova.trader.focusRail.v1';
 export const FOCUS_RAIL_DEFAULT_LIST = 'gappers';
 /** The rail's second half (operator ask 2026-09-24: "I wanna see HOD all the

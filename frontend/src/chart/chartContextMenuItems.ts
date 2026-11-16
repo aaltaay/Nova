@@ -4,15 +4,14 @@
  * Money rows, layers and the watch list toggle are real Nova actions. Create
  * Alert has no price-alert API, so it ships disabled with a reason (#116). The
  * priced order rows only fill a ticket that is listening, so they are locked
- * with a reason until one is (#566).
+ * with a reason until one is (#566). No row lets a bot trade the stock: the
+ * strategies only watch (ADR 072).
  * Line Style and Chart Settings still have no surface -- omit.
  */
 import { formatSeedPrice } from '../ibkr';
 import { SHORT_WHY_LONG } from '../constantGroups/short_ticket';
 import { CHART_POSITION_MENU_VIEW_DETAILS } from './positionOverlayConstants';
 import {
-  CHART_CONTEXT_MENU_BOT_ALLOWLIST_ADD,
-  CHART_CONTEXT_MENU_BOT_ALLOWLIST_REMOVE,
   CHART_CONTEXT_MENU_ALERT_REASON,
   CHART_CONTEXT_MENU_BUY,
   CHART_CONTEXT_MENU_CLOSE_POSITION,
@@ -42,8 +41,6 @@ export type ChartContextMenuItemId =
   | 'create_alert'
   | 'watch_list_add'
   | 'watch_list_remove'
-  | 'bot_allowlist_add'
-  | 'bot_allowlist_remove'
   | 'reset'
   | 'snapshot';
 
@@ -80,7 +77,6 @@ export interface ChartContextMenuInput {
   heldQty?: number | null;
   /** A mounted ticket for `symbol` takes prefills (`useOrderTicketListening`). */
   ticketReady: boolean;
-  allowlisted?: boolean;
   /** On the operator's watch list. */
   watched?: boolean;
 }
@@ -164,14 +160,6 @@ export function chartContextMenuItems(
     id: input.watched ? 'watch_list_remove' : 'watch_list_add',
     label: input.watched ? CHART_CONTEXT_MENU_WATCH_REMOVE : CHART_CONTEXT_MENU_WATCH_ADD,
     kind: 'action',
-  });
-  items.push({
-    id: input.allowlisted ? 'bot_allowlist_remove' : 'bot_allowlist_add',
-    label: input.allowlisted
-      ? CHART_CONTEXT_MENU_BOT_ALLOWLIST_REMOVE
-      : CHART_CONTEXT_MENU_BOT_ALLOWLIST_ADD,
-    kind: 'action',
-    dividerBefore: true,
   });
   items.push({ id: 'reset', label: CHART_CONTEXT_MENU_RESET, kind: 'view', dividerBefore: true });
   items.push({ id: 'snapshot', label: CHART_CONTEXT_MENU_SNAPSHOT, kind: 'view' });

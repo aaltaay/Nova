@@ -34,12 +34,13 @@ import { startGraphics } from './graphics.mjs';
 import { createScreenSampler } from './graphicsWatch.mjs';
 import { attachRendererGuards, recoverWindowIfErrorPage } from './rendererGuards.mjs';
 import { applySingleInstance, focusExistingWindow } from './singleInstance.mjs';
+import { createSeparateSimWindow, deliverOpen, readOpenRequest, reviewWindowUrl } from './openInNova.mjs';
 import { skipApiSidecar } from './sidecarSkip.mjs';
-import { wireDeskSound } from './deskSound.mjs';
+import { announceStreamWindow, wireDeskSound } from './deskSound.mjs';
 import { engineStep, openStartupSplash, STARTUP_STEPS } from './startupSplash.mjs';
 import { isAllowedRendererUrl, loadHostWindow } from './traderWindowLoad.mjs';
 import { openOrFocusTraderWindow } from './traderWindows.mjs';
-import { attachYouTubeReferer, isYouTubeSignInUrl, openStreamWindow, openYouTubeSignIn } from './streamPlayer.mjs';
+import { attachYouTubeReferer, currentStreamWindow, isYouTubeSignInUrl, openStreamWindow, openYouTubeSignIn } from './streamPlayer.mjs';
 import { openOrFocusTopNineWindow } from './topNineWindow.mjs';
 import {
   WINDOW_ID_MAIN,
@@ -259,6 +260,20 @@ ipcMain.handle('nova:restartApi', async () => {
   }
 });
 
+ipcMain.handle('nova:focus', () => {
+  if (!mainWindow && startup?.window) return focusExistingWindow(startup.window);
+  return focusExistingWindow(mainWindow, (win) => {
+    recoverWindowIfErrorPage(win, mainRecoverOpts());
+  });
+});
+
+ipcMain.handle('nova:openSimWindow', (_event, url) => {
+  const target = reviewWindowUrl(String(url || ''), viteUrl());
+  if (!target) throw new Error('Invalid Sim review URL');
+  createSeparateSimWindow(BrowserWindow, target, windowOptions());
+  return true;
+});
+
 ipcMain.handle('nova:openStockView', (_event, url) => {
   if (!isAllowedRendererUrl(url, { requireStockView: true })) {
     throw new Error('Invalid Trader URL');
@@ -287,10 +302,13 @@ ipcMain.handle('nova:focusWindow', (event) => {
   win.focus();
   return true;
 });
-ipcMain.handle('nova:openStream', (_event, videoId) => openStreamWindow(BrowserWindow, videoId, { icon: APP_ICON }));
+ipcMain.handle('nova:openStream', (_event, videoId) => openStreamWindow(BrowserWindow, videoId, {
+  icon: APP_ICON,
+  onChange: (open) => announceStreamWindow(BrowserWindow, open),
+}));
 ipcMain.handle('nova:youtubeSignIn', () => signInToYouTube());
 // The header mute: every Nova window's audio, the stream's pop-out included.
-wireDeskSound({ ipcMain, app, BrowserWindow });
+wireDeskSound({ ipcMain, app, BrowserWindow, streamWindow: currentStreamWindow });
 
 ipcMain.handle('nova:openExternal', async (_event, url) => {
   const parsed = new URL(String(url));
@@ -305,13 +323,18 @@ ipcMain.handle('nova:openExternal', async (_event, url) => {
 });
 
 if (
-  !applySingleInstance(app, () => {
+  !applySingleInstance(app, (argv) => {
     if (!mainWindow && startup?.window) {
       focusExistingWindow(startup.window);
-      return;
+    } else {
+      focusExistingWindow(mainWindow, (win) => {
+        recoverWindowIfErrorPage(win, mainRecoverOpts());
+      });
     }
-    focusExistingWindow(mainWindow, (win) => {
-      recoverWindowIfErrorPage(win, mainRecoverOpts());
+    const request = readOpenRequest(argv);
+    if (!request) return;
+    void deliverOpen(request, { apiBase: API_BASE, fetchImpl: fetch }).catch((err) => {
+      console.error('[nova] open in nova failed', err instanceof Error ? err.message : err);
     });
   })
 ) {

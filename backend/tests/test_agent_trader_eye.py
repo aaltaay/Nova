@@ -1,7 +1,7 @@
-"""Claude's eye and the line it takes when all 3 are held (ADR 068 decisions 3 and 12, amended 2026-10-27).
+"""Claude's eye (ADR 068 decisions 3 and 12). Claude's lines are its lane's (ADR 071, ``test_line_lanes_yours``).
 
 The eye reads IBKR's Level 1 samples (``hod_momo_metrics``: the day volume and the last that came with it), the
-scanner's rows and the setups universe; the lines are faked by symbol and viewer count.
+scanner's rows and the setups universe.
 """
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import pytest
 
 import hod_momo_metrics as metrics
-from agent_trader import eye, lines, room, seat, watcher
+from agent_trader import eye, lines, seat, watcher
 from agent_trader.constants_agent_trader import (
     AGENT_EYE_SPIKE_MIN_DOLLARS,
     AGENT_EYE_SPIKE_MOVE_PCT,
@@ -165,128 +165,3 @@ def test_the_eye_route_answers_and_long_polls_until_a_spike(market, monkeypatch)
     waited = asyncio.run(eye.eye(wait=5, after=NOW - 1))               # a spike newer than ``after``: at once
     assert [e["symbol"] for e in waited["spikes"]] == ["SPKE"]
     assert TestClient(app).get("/api/agent/trader/eye?wait=31").status_code == 422
-
-
-# -- the line Claude takes ----------------------------------------------------------------------------------
-@pytest.fixture
-def full_lines(monkeypatch):
-    """Three busy depth lines: KTTA and LEAD auto-record's alone, TABB a Trader tab's; auto-record's ranking."""
-    import ibkr.depth as depth
-    from leaderboard import auto_record
-    from line_lending import focus, sockets
-
-    viewers = {"KTTA": 1, "LEAD": 1, "TABB": 1}
-    monkeypatch.setattr(depth, "subscribed_symbols", lambda: list(viewers))
-    monkeypatch.setattr(depth, "viewer_count", lambda s: viewers.get(s, 0))
-    shown: dict[str, float] = {}
-    monkeypatch.setattr(focus, "read", lambda now=None: focus.FocusRead(known=True, last_shown=dict(shown)))
-    monkeypatch.setattr(sockets, "front_seen", lambda s: None)
-    stopped: list[tuple[str, str]] = []
-
-    async def _stop(symbol, reason, *, at_once=False):
-        stopped.append((symbol, reason))
-        auto_record._auto.pop(symbol, None)
-        viewers.pop(symbol, None)
-
-    auto_record.reset_for_tests()
-    monkeypatch.setattr(auto_record, "_stop", _stop)
-    auto_record._auto.update({"KTTA": NOW - 300, "LEAD": NOW - 900})
-    yield {"viewers": viewers, "shown": shown, "stopped": stopped, "auto": auto_record}
-    auto_record.reset_for_tests()
-
-
-def test_with_three_lines_held_claude_takes_the_idlest_auto_record_line(full_lines):
-    full_lines["shown"]["LEAD"] = NOW - 5                               # the operator looked at LEAD just now
-    taken = asyncio.run(room.make_room("SMPL", NOW))
-    assert taken == "KTTA" and full_lines["stopped"][0][0] == "KTTA"
-    assert "Claude" in full_lines["stopped"][0][1]
-    assert full_lines["auto"]._yielded[-1] == {"symbol": "KTTA", "for": "SMPL", "at": pytest.approx(time.time(), abs=60),
-                                               "to": "claude"}
-    assert asyncio.run(room.make_room("SMPL", NOW)) is None             # a line is free now: nothing more is taken
-
-
-def test_claude_never_takes_a_tab_line_or_an_auto_line_a_tab_also_watches(full_lines):
-    full_lines["viewers"].update({"KTTA": 2, "LEAD": 2})                # a Trader tab watches both auto lines too
-    assert asyncio.run(room.make_room("SMPL", NOW)) is None
-    assert full_lines["stopped"] == []
-    full_lines["auto"]._auto.clear()
-    assert asyncio.run(room.make_room("SMPL", NOW)) is None             # no auto line: the seat waits
-
-
-def test_claude_moving_off_its_own_line_takes_no_auto_line(full_lines):
-    """Codex review on PR #1247: the line Claude alone watches frees when it moves; auto-record keeps recording."""
-    full_lines["viewers"]["TABB"] = 1
-    full_lines["viewers"]["SOLO"] = 1                                   # Claude's own, nobody else's
-    del full_lines["viewers"]["LEAD"]
-    full_lines["auto"]._auto.pop("LEAD")
-    lines._held["SOLO"] = {"depth": True, "tape": True}
-    assert asyncio.run(room.make_room("NEXT", NOW)) is None and full_lines["stopped"] == []
-
-
-def test_an_auto_line_the_l2_recorder_also_records_is_not_taken(full_lines, monkeypatch):
-    """Codex review on PR #1247: the recorder keeps the line without a viewer; taking it would evict it."""
-    from l2 import recorder
-
-    monkeypatch.setattr(recorder, "is_recording", lambda s: s in ("KTTA", "LEAD"))
-    assert asyncio.run(room.make_room("SMPL", NOW)) is None and full_lines["stopped"] == []
-
-
-def test_the_watcher_says_which_line_it_took(full_lines, monkeypatch):
-    async def _hold(symbol):
-        return None
-
-    monkeypatch.setattr(lines, "acquire", _hold)
-    seat.claim(now=NOW)
-    seat.set_symbol("SMPL", now=NOW)
-    asyncio.run(watcher._line(NOW))
-    assert any(e["kind"] == "line_taken" and "KTTA" in e["text"] for e in seat.snapshot()["events"])
-
-
-# -- moving off a shared line -------------------------------------------------------------------------------
-@pytest.fixture
-def shared_line(monkeypatch):
-    """INIO and NEBX are the desk's; SXTP is Claude's and a tab watches it too (2026-10-27, SXTP -> AIOK)."""
-    import ibkr.depth as depth
-    from ibkr import tape_stream
-
-    viewers = {"INIO": 1, "NEBX": 1, "SXTP": 2}
-    lines._held["SXTP"] = {"depth": True, "tape": True}
-    monkeypatch.setattr(depth, "subscribed_symbols", lambda: list(viewers))
-    monkeypatch.setattr(depth, "viewer_count", lambda s: viewers.get(s, 0))
-    monkeypatch.setattr(depth, "is_live", lambda s: s in viewers)
-    asked: list[str] = []
-
-    async def _subscribe(sym, **kw):
-        asked.append(sym)
-        viewers[sym] = 0
-        return {"ok": True}
-
-    async def _release(symbol=None, *, at_once=False):
-        lines._held.pop(symbol, None)
-        viewers[symbol] -= 1
-
-    monkeypatch.setattr(depth, "subscribe_async", _subscribe)
-    monkeypatch.setattr(depth, "ws_viewer_opened", lambda s: viewers.__setitem__(s, viewers[s] + 1))
-    monkeypatch.setattr(lines, "release", _release)
-    monkeypatch.setattr(tape_stream, "is_subscribed", lambda s: True)
-    return {"viewers": viewers, "asked": asked}
-
-
-def test_moving_off_a_shared_line_with_every_line_in_use_keeps_claudes_slot(shared_line):
-    why = asyncio.run(lines.acquire("AIOK"))
-    assert "SXTP" in why and "AIOK" in why
-    assert lines.held_symbol() == "SXTP" and shared_line["viewers"]["SXTP"] == 2   # the slot is still Claude's
-    assert shared_line["asked"] == []                                             # no 4th line asked of IBKR
-
-
-def test_claude_moves_once_a_line_frees(shared_line):
-    del shared_line["viewers"]["INIO"]                                            # the operator closed INIO
-    assert asyncio.run(lines.acquire("AIOK")) is None
-    assert lines.held_symbol() == "AIOK" and shared_line["asked"] == ["AIOK"]
-    assert shared_line["viewers"]["SXTP"] == 1                                    # SXTP stays the tab's
-
-
-def test_moving_off_a_line_claude_alone_watches_lets_it_go_first(shared_line):
-    shared_line["viewers"]["SXTP"] = 1                                            # no tab on it
-    assert asyncio.run(lines.acquire("AIOK")) is None
-    assert lines.held_symbol() == "AIOK"

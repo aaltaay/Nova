@@ -5,8 +5,9 @@
  * end -- taken, pulled, out of view. The stop and target calls stay `momentModel`'s; these come after them.
  * A big seller is shown, never acted on: no order, no stop move, no gate.
  */
+import { plainPrice } from '../utils/priceTick';
 import { bigLine, pickWall } from './bigSeller';
-import { NOVA_CALL_SEC, STOCK_READ_FLUSH_AFTER_SEC } from './constants';
+import { BROKE_CALL_SEC, STOCK_READ_FLUSH_AFTER_SEC } from './constants';
 import { rowOf } from './heldRead';
 import type { MomentCall, MomentInputs } from './momentModel';
 import { fmtPx } from './planMath';
@@ -27,7 +28,7 @@ function flushCall(i: MomentInputs): HeldCall | null {
   if (!f || f.label !== 'flush' || i.held.since === null) return null;
   if (i.now - i.held.since < STOCK_READ_FLUSH_AFTER_SEC || i.now - f.at > FLUSH_FRESH_SEC) return null;
   const score = f.score !== null ? ` (30 s score ${f.score.toFixed(2)})` : '';
-  const live = (i.who?.venue ?? null) === 'live';
+  const live = i.venue === 'live';
   // One call (and one ping) per flush: readings a few seconds apart are the same flush.
   const id = `flush:${i.held.since}:${Math.floor(f.at / 15)}`;
   if (live) {
@@ -49,16 +50,16 @@ function flushCall(i: MomentInputs): HeldCall | null {
 function raiseCall(i: MomentInputs): HeldCall | null {
   const h = i.read?.held ?? null;
   const up = h?.raise ?? null;
-  if (!h || !up || h.stop?.source === 'nova') return null;   // Nova raises its own stop and says so
+  if (!h || !up || h.stop?.source === 'nova') return null;   // Nova's own resting stop is not yours to raise
   const next = rowOf(h, 'next');
   const nextWords = next ? ` · NEXT ${fmtPx(next.price)}` : '';
   return {
     badge: `BROKE $${up.round.toFixed(2)}${nextWords}`, at: up.at,
     call: {
       id: `broke:${h.since ?? 0}:${up.round}`, tone: 'go', title: `BROKE $${up.round.toFixed(2)}${nextWords}`,
-      detail: `${up.text}? A candle closed over $${up.round.toFixed(2)}; only a close moves a stop. Raise stop on the `
+      detail: `${up.text}? A candle closed over $${plainPrice(up.round)}; only a close moves a stop. Raise stop on the `
         + 'plan box sets it.',
-      pin: { label: `BROKE $${up.round.toFixed(2)}`, price: up.round, at: up.at }, ping: true,
+      pin: { label: `BROKE $${plainPrice(up.round)}`, price: up.round, at: up.at }, ping: true,
     },
   };
 }
@@ -73,13 +74,14 @@ export function bigCall(i: MomentInputs, short: boolean): HeldCall | null {
   if (!w) return null;
   const line = bigLine(r, short);
   const there = w.state === 'holding' || w.state === 'left';
+  const label = `${w.light ? '' : 'BIG '}${short ? 'BUYER' : 'SELLER'}`;
   return {
     badge: null,
     at: there ? w.calledTs ?? w.firstSeenTs : w.endedTs ?? 0,
     call: {
       id: there ? `big:${w.id}` : `big-${w.state}:${w.id}`, tone: there ? 'wait' : 'info', title: line.text,
-      detail: line.detail, pin: there ? { label: short ? 'BIG BUYER' : 'BIG SELLER', price: w.price, at: null } : null,
-      ping: there,
+      detail: line.detail, pin: there ? { label, price: w.price, at: null } : null,
+      ping: there && !w.light,
     },
   };
 }
@@ -96,6 +98,6 @@ export function heldCall(i: MomentInputs): HeldCall | null {
   const flush = flushCall(i);
   if (flush) return flush;
   const up = raiseCall(i);
-  const raise = up && i.now - up.call.pin!.at! <= NOVA_CALL_SEC * 20 ? up : null;
+  const raise = up && i.now - up.call.pin!.at! <= BROKE_CALL_SEC ? up : null;
   return newerCall(raise, bigCall(i, false));
 }

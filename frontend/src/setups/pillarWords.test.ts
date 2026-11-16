@@ -65,7 +65,7 @@ describe('a filtered setup on its card', () => {
     expect(stateWords(row({ ...base, phase: 'near' })).text).toBe('Filtered · near');
     expect(stateWords(row({ ...base, phase: 'triggered' })).text).toBe('Filtered · triggered 08:06');
     expect(stateWords(row({ ...base, phase: null })).text).toBe('Filtered');
-    expect(stateWords(row({ ...base, phase: 'near' })).tip).toMatch(/never proposes and the bot never takes it/);
+    expect(stateWords(row({ ...base, phase: 'near' })).tip).toMatch(/greyed, and it is not scored/);
     expect(toGoWords(row({ ...base, phase: 'near', distance: 0.01 })).text).toBe('1¢');
     expect(toGoWords(row({ ...base, phase: 'triggered', distance: null })).text).toBe('·');
   });

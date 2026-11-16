@@ -9,13 +9,10 @@ import type { ScannerRow } from '../types/scanner';
 import { floatGuide } from '../utils/shareFacts';
 import { ScannerTable } from './ScannerTable';
 
-// Row marks / hover actions read the recording + bot stores, whose
-// subscriptions start pollers; keep this a pure rendering test.
+// Row marks / hover actions read the recording store, whose
+// subscription starts a poller; keep this a pure rendering test.
 vi.mock('./useScannerRowFacts', () => ({
-  useScannerRowFacts: () => ({ recording: false, allowlisted: false, depthHeld: false }),
-}));
-vi.mock('../bot/useBotAllowlist', () => ({
-  useBotAllowlist: () => ({ symbols: [], isAllowed: () => false, add: vi.fn(), remove: vi.fn(), refresh: vi.fn() }),
+  useScannerRowFacts: () => ({ recording: false }),
 }));
 
 function row(symbol: string): ScannerRow {

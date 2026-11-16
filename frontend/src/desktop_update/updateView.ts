@@ -78,12 +78,26 @@ export type EngineSync = {
   auto: EngineAuto | null;
 };
 
+/** The phone page the desk keeps built and served (electron/phonePageKeeper.mjs, ADR 070 amendment 2026-11-14). */
+export type PhonePageOutcome = 'built' | 'started' | 'failed';
+
+export type PhonePage = {
+  /** The checkout the page is built from (the backend's owner), null when none is known. */
+  root: string | null;
+  build: 'current' | 'behind' | 'building' | 'failed' | null;
+  /** The page server on 127.0.0.1:4181 answered the last look; null before the first. */
+  served: boolean | null;
+  last: { at: number; outcome: PhonePageOutcome; text: string } | null;
+};
+
 export type UpdateView = {
   installed: string;
   notice: UpdateNotice | null;
   whatsNew: WhatsNew | null;
   /** Null outside the installed app (a dev desk runs from the checkout it would pull). */
   engine: EngineSync | null;
+  /** Null outside the installed app, and until the desk first looks. */
+  phonePage: PhonePage | null;
   /** Help > File an Issue…: when the operator last asked (ms); a new value opens the issue form. */
   fileIssueRequestedAt: number | null;
 };
@@ -212,6 +226,23 @@ function readEngine(value: unknown): EngineSync | null {
   };
 }
 
+const PHONE_BUILDS: readonly NonNullable<PhonePage['build']>[] = ['current', 'behind', 'building', 'failed'];
+const PHONE_OUTCOMES: readonly PhonePageOutcome[] = ['built', 'started', 'failed'];
+
+function readPhonePage(value: unknown): PhonePage | null {
+  const raw = obj(value);
+  if (!raw) return null;
+  const last = obj(raw.last);
+  const outcome = str(last?.outcome) as PhonePageOutcome;
+  const build = str(raw.build) as NonNullable<PhonePage['build']>;
+  return {
+    root: strOrNull(raw.root),
+    build: PHONE_BUILDS.includes(build) ? build : null,
+    served: typeof raw.served === 'boolean' ? raw.served : null,
+    last: last && PHONE_OUTCOMES.includes(outcome) ? { at: count(last.at), outcome, text: str(last.text) } : null,
+  };
+}
+
 /** One frame from the main process, or null when it is not a view this desk reads. */
 export function readUpdateView(value: unknown): UpdateView | null {
   const raw = obj(value);
@@ -221,6 +252,7 @@ export function readUpdateView(value: unknown): UpdateView | null {
     notice: readNotice(raw.notice),
     whatsNew: readWhatsNew(raw.whats_new),
     engine: readEngine(raw.engine),
+    phonePage: readPhonePage(raw.phone_page),
     fileIssueRequestedAt: count(obj(raw.file_issue)?.requested_at) || null,
   };
 }

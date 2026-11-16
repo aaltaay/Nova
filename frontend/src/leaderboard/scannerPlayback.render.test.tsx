@@ -13,10 +13,7 @@ import { replayFromAnswer } from './leaderboardRows';
 import { withScannerReplay } from './scannerReplayFeed';
 
 vi.mock('../components/useScannerRowFacts', () => ({
-  useScannerRowFacts: () => ({ recording: false, allowlisted: false, depthHeld: false }),
-}));
-vi.mock('../bot/useBotAllowlist', () => ({
-  useBotAllowlist: () => ({ symbols: [], isAllowed: () => false, add: vi.fn(), remove: vi.fn(), refresh: vi.fn() }),
+  useScannerRowFacts: () => ({ recording: false }),
 }));
 vi.mock('../ibkr/useIbkrStatus', () => ({ useIbkrStatus: () => ({ mode: 'sim', connected: true }) }));
 

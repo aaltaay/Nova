@@ -21,6 +21,7 @@ vi.mock('./placeConfirmPrefs', () => ({
 }));
 
 import { useManualOrderSubmission } from './useManualOrderSubmission';
+import { noteBackendGate, resetViewRegistryForTests } from '../market_view/viewRegistry';
 import {
   defaultTradeDefaultsPrefs,
   writeTradeDefaultsPrefs,
@@ -58,6 +59,25 @@ describe('useManualOrderSubmission gesture identity', () => {
     placeIbkrOrder.mockResolvedValue({ ok: true, order_id: 7, error: null });
   });
 
+  it('a lag stops a new buy at Confirm and never a sell or a cover (ADR 045 amendment 2026-11-06)', async () => {
+    noteBackendGate('AAPL', { code: 'TAPE_STALE', text: "AAPL's Time & Sales is behind." });
+    const buy = renderHook(() => useManualOrderSubmission(params()));
+    await act(async () => { await buy.result.current.executeOrder(); });
+    expect(placeIbkrOrder).not.toHaveBeenCalled();
+    expect(buy.result.current.result?.text ?? '').toContain('Time & Sales is behind');
+
+    const sell = renderHook(() => useManualOrderSubmission({ ...params(), side: 'SELL' as never }));
+    await act(async () => { await sell.result.current.executeOrder(); });
+    expect(placeIbkrOrder).toHaveBeenCalledTimes(1);
+
+    const cover = renderHook(() => useManualOrderSubmission({
+      ...params(), position: { symbol: 'AAPL', qty: -10 } as never,
+    }));
+    await act(async () => { await cover.result.current.executeOrder(); });
+    expect(placeIbkrOrder).toHaveBeenCalledTimes(2);
+    resetViewRegistryForTests();
+  });
+
   it('places once when Submit fires twice inside one tick', async () => {
     const { result } = renderHook(() => useManualOrderSubmission(params()));
     await act(async () => {
@@ -88,6 +108,34 @@ describe('useManualOrderSubmission gesture identity', () => {
     const key = placeIbkrOrder.mock.calls[0][1];
     expect(typeof key).toBe('string');
     expect(key).toMatch(/^manual:/);
+  });
+
+  it('sends the venue the confirm named, even when the desk moved behind it (#1283)', async () => {
+    skipConfirm = false;
+    const { result, rerender } = renderHook(
+      (props: { venue: 'paper' | 'live' }) => useManualOrderSubmission({ ...params(), venue: props.venue }),
+      { initialProps: { venue: 'paper' as 'paper' | 'live' } },
+    );
+    await act(async () => {
+      result.current.submit({ preventDefault: () => undefined } as never);
+    });
+    rerender({ venue: 'live' });
+    await act(async () => {
+      await result.current.executeOrder();
+    });
+    expect(placeIbkrOrder.mock.calls[0][0].venue).toBe('paper');
+  });
+
+  it('a short names its venue too: it goes out on its own branch of the build (#1283)', async () => {
+    const { result } = renderHook(() =>
+      useManualOrderSubmission({
+        ...params(), side: 'SELL', shortEntry: true, orderType: 'LMT', limitPrice: '10', buyStop: '10.5',
+      }),
+    );
+    await act(async () => {
+      await result.current.executeOrder();
+    });
+    expect(placeIbkrOrder.mock.calls[0][0]).toMatchObject({ short_entry: true, venue: 'paper' });
   });
 
   it('places the limit the confirm named, even when the price moved behind it', async () => {

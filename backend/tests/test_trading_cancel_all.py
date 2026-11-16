@@ -96,7 +96,7 @@ def test_cancel_orders_all_symbols_reports_partial_failure():
         "timings": None, "broker_status": None, "duplicate": False,
     })()
     bad = type("R", (), {
-        "ok": False, "error": "boom", "execution_id": "e2",
+        "ok": False, "error": "boom", "reason_code": "BROKER_REJECTED", "execution_id": "e2",
         "timings": None, "broker_status": None, "duplicate": False,
     })()
 

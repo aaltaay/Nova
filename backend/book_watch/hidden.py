@@ -19,6 +19,10 @@ beyond that most. The hold keeps a sweep out: a buyer taking the whole offer pri
 through it within milliseconds, and no one held anything. A stretch the book could not follow throughout (a side that collapsed, its price
 cut off below the rows shown, a reset) is never flagged.
 
+Only prints on exchanges the book shows are weighed (``seen``, ``detector.SymbolWatch.seen``): a print
+on an exchange with no row on this line still holds the stretch's price, and adds to ``unseen`` -- size
+that traded there where this book cannot look -- never to ``printed``.
+
 Counted: lit prints, odd lots included, while the book is fresh (a book within
 ``BOOK_WATCH_IDLE_SEC``: a Session Record can keep the tape after its depth line is gone). Never
 counted: off-exchange (FINRA) reports, cross prints and volume-only prints
@@ -52,6 +56,7 @@ from book_watch.constants_book_watch import (
     BOOK_WATCH_HIDDEN_SKIP_CONDITIONS,
     BOOK_WATCH_HIDDEN_UPDATE_SEC,
     BOOK_WATCH_IDLE_SEC,
+    BOOK_WATCH_SETTLE_SEC,
     BOOK_WATCH_STATS_WINDOW_SEC,
 )
 
@@ -87,8 +92,11 @@ class Stretch:
     shown_max: float = 0.0
     shown_now: float | None = None
     printed: float = 0.0
+    unseen: float = 0.0           # lit prints there on exchanges this book does not show: never weighed
     prints: int = 0
     refills: int = 0              # the size shown there grew again while it held
+    fell_ts: float | None = None  # when the size shown there last fell, and from what
+    fell_from: float = 0.0
     uncertain: str | None = None  # why the book could not follow it: "collapsed" | "cut_off" | "reset"
     state: str = HOLDING
     ended_ts: float | None = None
@@ -127,10 +135,11 @@ class HiddenTracker:
                 continue
             if prev is not None and collapsed(prev[side], views[side]):
                 st.uncertain = st.uncertain or "collapsed"
-            self._shown(st, views[side])
+            self._shown(st, views[side], ts)
 
     def on_print(self, ts: float, key: float, shares: float, *, lit: bool, conditions: Any,
-                 views: dict[str, SideView] | None, book_ts: float | None) -> list[dict[str, Any]]:
+                 views: dict[str, SideView] | None, book_ts: float | None,
+                 seen: bool = True) -> list[dict[str, Any]]:
         codes = set(str(conditions or ""))
         if codes & BOOK_WATCH_AUCTION_CONDITIONS:
             return self._end_all("auction", ts)
@@ -149,9 +158,13 @@ class HiddenTracker:
             st = None
         if st is None:
             st = self._open(side, key, ts)
+        st.last_ts = ts
+        if not seen:
+            # On an exchange this book does not show: it holds the price, and proves nothing hidden here.
+            st.unseen += shares
+            return out
         st.printed += shares
         st.prints += 1
-        st.last_ts = ts
         if st.trace is not None:
             st.trace.append((ts, st.printed, st.shown_max))
         if st.flagged_ts is None:
@@ -215,7 +228,7 @@ class HiddenTracker:
         newest = self.books[-1][0] if self.books else None
         for bts, views in self.books:  # what the book showed there from shown_before_sec before the first print
             if bts >= ts - self.p.shown_before_sec or bts == newest:
-                self._shown(st, views[side])
+                self._shown(st, views[side], bts)
         st.refills = 0  # the size growing before the first print is no refill
         self.active[side] = st
         if self.history is not None:
@@ -223,13 +236,19 @@ class HiddenTracker:
         return st
 
     @staticmethod
-    def _shown(st: Stretch, view: SideView) -> None:
+    def _shown(st: Stretch, view: SideView, ts: float) -> None:
         if not in_view(st.price, st.side, view.cutoff):
             st.uncertain = st.uncertain or "cut_off"
             return
         size = view.levels.get(st.price, 0.0)
-        if st.shown_now is not None and size > st.shown_now:
-            st.refills += 1
+        if st.shown_now is not None and size < st.shown_now:
+            st.fell_ts, st.fell_from = ts, st.shown_now
+        elif st.shown_now is not None and size > st.shown_now:
+            # Size back to no more than it was, within the settle time of its fall, never left (a row IBKR
+            # was still moving -- detector.py): no refill.
+            blink = (st.fell_ts is not None and ts - st.fell_ts < BOOK_WATCH_SETTLE_SEC
+                     and size <= st.fell_from)
+            st.refills += 0 if blink else 1
         st.shown_now = size
         st.shown_max = max(st.shown_max, size)
 
@@ -256,6 +275,7 @@ class HiddenTracker:
             "kind": KIND[st.side], "symbol": self.symbol, "ts": round(now, 3), "side": st.side,
             "price": st.price, "state": st.state, "hidden": st.hidden, "printed": st.printed,
             "shown_max": st.shown_max, "shown_now": st.shown_now, "prints": st.prints, "refills": st.refills,
+            "unseen": st.unseen,
             "started_ts": round(st.started_ts, 3), "last_print_ts": round(st.last_ts, 3),
             "flagged_ts": round(st.flagged_ts, 3) if st.flagged_ts is not None else None,
             "ended_ts": round(st.ended_ts, 3) if st.ended_ts is not None else None,

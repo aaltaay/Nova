@@ -4,7 +4,7 @@ The same menu every setup scanner and the plan take their targets from (``setup_
 read from the position: the menu's defaults from your average cost, today's map (the read's intraday
 zones) and the high of day (a short: the low of day). ``target`` is the first part's sell, ``target2`` the
 rest's (or None: everything at target 1) and ``target1_fraction`` the share sold at target 1 -- the keys
-the held block carries for Nova's exits (``stock_mode``) and the held card. Each target says when a
+the held block and the held card carry. Each target says when a
 1-minute candle since you held reached it (``traded_at``).
 """
 from __future__ import annotations

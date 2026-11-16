@@ -20,6 +20,8 @@ Practice fills follow the same rule (#511): on Paper, and on Sim at the live edg
 
 **Print times (#563).** ib_async 2.1.0 stamps each AllLast tick with the moment its message reached Nova (`Wrapper.lastTime`) and throws IBKR's own `time` argument away. A live print's `time` / `ts` is that arrival time, and it says so: `ts_source: "receive"`. IBKR's whole epoch second for the print rides beside it as `exchange_ts: integer | null`, on each live print on `/ws/ibkr/tape/{symbol}` and on each Session Record print row; `ibkr/tape_exchange_time.py` keeps the `time` argument with a thin override of `Wrapper.tickByTickAllLast`, installed on the IB that opens the tape line. `exchange_ts` is `null` when the override did not see the tick. Prints stay ordered by arrival, because the books they are classified against are arrival-timed too. Rows recorded before #563 say `ts_source: "exchange"` but hold arrival times as well, and carry no `exchange_ts`; they load as they are and are never rewritten. `l2.db` `tape_trades` and the archive keep no `exchange_ts`.
 
+**A Time & Sales row shows when the trade happened (ADR 045 amendment 2026-11-06).** Its Time is `exchange_ts`, arrival only when that is missing. Rows stay in arrival order, so a tape running behind shows as old times arriving now.
+
 **A 10-second candle has one clock and one writer (#721; operator report 2026-10-05: "two candles drawing
 together ... the previous candle should never move").** Built from prints -- the Trader's client bar
 (`chart/barsStore.upsertTapePrint10SecBar`) and the backend's `ibkr/tape_10sec` -- a candle is keyed by
@@ -200,9 +202,6 @@ the day before. Meanwhile the ladder read "Waiting for book data…" for good, b
   refusal (kept `IBKR_DEPTH_REFUSAL_KEEP_SEC`) instead of streaming beats. The frames a refused socket sends
   are kept in `frontend/src/ibkr/__fixtures__/depth_refused_frames.json`, written by the backend's own route
   test, and the desk's tests replay that file.
-- **Auto-record stops asking while IBKR is full** (owner `leaderboard/auto_record.py`). A start that fails
-  ends the tick and pauses new starts for `LEADERBOARD_AUTO_RECORD_FAILED_START_PAUSE_SEC`. Each try opens and
-  lets go of a Time & Sales and a Level 2 line, and the next stock would be refused the same way.
 - **Shared tape admission (#674)** (owner `ibkr/tape_admission.py`, memory only). AllLast requests reserve
   one slot per distinct symbol before qualification, through the request and its cancellation dispatch.
   Pending qualifications and quiet active lines count independently of depth and recording slots;
@@ -220,7 +219,7 @@ the day before. Meanwhile the ladder read "Waiting for book data…" for good, b
   (the late-print behavior remains owned by #922). Session changes discard pending work and learned
   ceilings; lines IBKR kept on 1102 are counted again, and an old qualification/error cannot mutate a
   replacement line. The 16-second same-instrument guard is unchanged.
-  `auto_record.tape_capacity` reports `{limit: integer | null, source: "unknown" | "configured" |
+  `lanes.tape_capacity` (was `auto_record.tape_capacity`, ADR 071) reports `{limit: integer | null, source: "unknown" | "configured" |
   "refusal" | "configured+refusal", used: integer, pending: string[], active: string[],
   uncertain: string[], free: integer | null, error: string | null}` (invalid configuration refuses
   automatic requests with an explicit `error`). Known-full automatic work waits without opening a tape
@@ -232,7 +231,6 @@ the day before. Meanwhile the ladder read "Waiting for book data…" for good, b
     counts: {cancelled, held, cancelled_on_answer, forgotten, taken_back}, late_grants: {count, last:
     {symbol, req_id, at, cancelled_at} | null}}` (memory only; every count an integer since the process
     started).
-  - `auto_record` adds `paused_until` (`number | null`, epoch seconds).
   - The depth socket's `error` frame is unchanged: `{type, symbol, message, evicted}`.
 
 Lines stuck before this change stay stuck until IB Gateway logs in again (an IBC restart, or the 23:45
@@ -305,11 +303,14 @@ kept arriving, so this is not a feed gap (above).
     symbol halted. Nothing here asks IBKR for anything. A line that turns dead or silent is logged once per
     silence and written to the perf day file as `{schema_version: 1, kind: "tape_silence", ts, symbol,
     reading}` (`architecture/schema/performance.md`).
-- **Missing trades, no wait** (`tape_silence.missed_trades(symbol)`, memory only; ADR 045 amendment
+- **Behind, not just quiet** (`tape_silence.missed_trades(symbol)`, memory only; ADR 045 amendment
   2026-10-14): `{since, last_print_ts, l1_trade_ts, text}` while Nova holds an AllLast line for the symbol on
   this IBKR session, it is not halted, and its Level 1 shows a trade `TAPE_DEAD_L1_LEAD_SEC` (3) after the
   line's last print (or opening) by IBKR's second -- the `dead` proof without `TAPE_SILENT_SEC`; else `null`.
-  The order gate (`TAPE_STALE`, execution.md) and Paper's resting fills (practice-fills.md) read it.
+  The order gate reads `tape_silence.behind(symbol)`, the same answer once it has held for
+  `TAPE_PRINT_WAIT_SEC` (2) of reads in a row (amendment 2026-11-06): normal delivery trails IBKR's second by
+  up to 1.7 s, so a print in flight lands first, and a line that stays behind, dead or late, still locks.
+  Paper's resting fills (practice-fills.md) read `missed_trades`; `TAPE_STALE` (execution.md) reads `behind`.
 - **The wire.** Each idle `ping` on `/ws/ibkr/tape/{symbol}` (every `TAPE_STREAM_HEARTBEAT_SEC` (1) without
   a print; it was 15, then 5 -- which let GENK's order through on 2026-10-14) carries `silence: reading | null`
   on a live line (`null` on a replay desk) and `gate: {code, text} | null`, the order gate's own answer for the
@@ -380,6 +381,67 @@ kept arriving, so this is not a feed gap (above).
   IBKR messages near each stall, Nova's Reconnect Data attempts and the question for IBKR, in Markdown. Nova
   never sends it.
 
+## Three lanes: who holds a Level 2 and a Time & Sales line (ADR 071, operator 2026-11-12 and 2026-11-13)
+
+On 2026-11-12 the operator held 100 XLAB on Paper from the phone; the page went to the background for 16 s, Nova
+cancelled XLAB's AllLast line ("no viewer left"), and IBKR's rule (one tick-by-tick request per instrument per
+15 s) kept Time & Sales dark for 13 s after they came back. On 2026-11-13 auto-record held all 3 Level 2 lines on
+stocks whose setups had ended (DGXX, SSII, MRLN): "I need the level 2 lane to always be for a human ... These auto
+recordings are hurting me more than helping me".
+
+- **Owner:** `backend/line_lanes/` -- `table.py` (pure: which stock each lane is on, and which lines a change ends
+  and opens), `lanes.py` (the only code that opens or ends a live Level 2 or AllLast line), `yours.py`,
+  `claude.py`, `bots.py` (what moves each lane), `recording.py` (below), `view.py` (on the wire). Memory only: after
+  a restart the first socket in front names your lane, the seat names Claude's, and the bots' next pick (within
+  `LANES_BOTS_TICK_SEC`, 15 s) names theirs.
+- **A lane is one Level 2 line and one AllLast line on one stock.** Three lanes, three owners: `you`, `claude`,
+  `bots`. No owner takes, borrows or is lent another's lane, and an empty lane stays empty. A stock two lanes are on
+  is one pair of lines; it ends only when the last lane leaves it.
+- **Only a lane opens a live line.** `ibkr.depth.subscribe_async` and `ibkr.tape_stream.subscribe_async` open a live
+  line only for a stock a lane is on; any other request is refused with `{ok: false, lane: true, error: <words>}`
+  (no IBKR request is sent). A replay slot (a Sim desk off the live edge) is not a line and is unchanged.
+- **Your lane** is on the last stock you opened in front: a `/ws/ibkr/depth/{symbol}` or `/ws/ibkr/tape/{symbol}`
+  socket opened with `front=1` (the Trader tab in front, a pop-out's tab, the Desk's Trader slot, the phone's
+  Trade screen) on a desk that is not replaying moves it there before the socket asks for its line. A socket with
+  `front=0` never moves it. No timer ends it: closing the pane, hiding the tab, locking the phone or losing the
+  link leave both lines up. It moves only when you open another stock in front, and then at once.
+- **Claude's lane** is on the stock the seat names (ADR 068 decision 2) and empty otherwise, whether the seat is on
+  or off. No one else uses it.
+- **The bots' lane becomes the brain's (ADR 072; confirmed for the build).** Owner `brain` replaces `bots`; the lane
+  is on the one stock the brain names (`{symbol, why}`) and empty until it names one; no other owner uses it, with
+  no rate limit and no minimum hold. The setup picker below (`bots.py`, `bots_pick.py`, `LANES_BOTS_TICK_SEC`) goes
+  with that batch. Until then:
+- **The bots' lane** is on one setup at a time, chosen every `LANES_BOTS_TICK_SEC` among the setups of the
+  templates in play that a bot may buy now (operator, 2026-11-13: "only what a bot may buy"): the strategy at
+  effective On on the desk's venue, the venue's bot active, Nova may buy there (never Live, never a replay desk),
+  and the stock's Buy is Nova. A setup in a trade first (its scoring window, or a Nova trade held on the stock),
+  then near its trigger, then armed; a watch-only setup (#847) and a short at Eyes or Off never qualify. The stock
+  on the lane keeps it while it qualifies; a better tier takes it from an armed or near one, never from one in a
+  trade. With none, the lane is empty. A setup with no lane reads `blind` on its row, as before.
+- **A line ends only when no lane is on its stock**, at once: no linger, no grace. Every socket still on it gets one
+  frame and is closed: depth `{type: "error", symbol, message, evicted: true, lane: Lanes}`, tape
+  `{type: "lane", symbol, message, lane: Lanes}`. A socket opened with `front=0` on a stock no lane is on gets the
+  same frame at once. `message` names where your Level 2 is ("Your Level 2 is on XLAB -- open TGHL to bring it
+  here"). The socket's pane does not ask again by itself (decision 4); opening the stock in front does. On the desk
+  (ADR 071 amendment 8, `frontend/src/ibkr/laneWait.ts`) the pane shows its own words from `lane.you`, asks with
+  `front=1` when it comes to the front or its words are clicked, and with `front=0` when its window's one
+  `GET /api/ibkr/lanes` poll (every 5 s while a pane waits) finds a lane on its stock -- never by its backoff, and
+  never by itself from the front.
+- **IBKR's 15 seconds:** a tape Nova cancelled may not be asked for again for `IBKR_TAPE_RESUBSCRIBE_GUARD_SEC` (16 s)
+  after the cancel, unchanged until decision 10's measurement.
+- **On the wire.** `GET /api/ibkr/lanes` and `/api/ibkr/status` `lanes`: `{schema_version: 1, you: Lane, claude:
+  Lane, bots: Lane & {setup: string | null, why: "trade" | "near" | "armed" | null, waiting: [{symbol, setup,
+  why}], error: string | null}, tape_capacity}` where `Lane = {symbol: string | null, since: number | null, depth:
+  boolean, tape: boolean, recording: boolean}` (`depth` / `tape`: the line is up; `recording`: Nova records it,
+  `recording-and-replay.md`; `waiting`: the setups that qualify and are not on the lane, best first; `error`: the
+  setup scanner, the bot session or the venue could not be read -- the lane then stays where it is, never a
+  guess). `tape_capacity` is the shared tape admission below (formerly `auto_record.tape_capacity`).
+- **Replaced:** auto-record's lines, line lending (`line_lending/`, `GET /api/ibkr/depth/lines`,
+  `PATCH /api/ibkr/depth/lending`), Claude's take-back and its borrowing of an auto-record or a tab line
+  (`agent_trader/room.py`, `tab_line.py`, `POST /api/agent/trader/take-back`), a resting Paper order's tape line
+  (`practice/tape_hold.py`, `execution.md`), idle eviction at the cap (`evict_for_capacity`), the 16 s tape linger
+  and the 0.75 s depth grace.
+
 ## The trading session ends at 20:00 ET (operator report, 2026-10-01 23:33)
 
 "How come these things are getting triggered right now? ... the entire market is closed, no?" -- the Bots
@@ -409,7 +471,15 @@ print as "the 09:30 open" and armed SDEV at 00:12).
 
 ## Chart bars say when IBKR history stopped answering (ADR 012, #555)
 
-`GET /api/ticker/{symbol}/bars` on the IBKR store-first path (not a Sim replay, not Alpaca) and every `bars_patch` frame on `/ws/ticker/{symbol}` carry, in `coverage` beside `filling`, `last_error: string | null` and `last_error_ts: number | null` (epoch seconds): the backend's reason and time for the last historical fetch of that (symbol, timeframe) that IBKR did not answer -- a timeout (504) or an error answer / failed qualify (502), never a Gateway-down 503 or a 400 / 404. Both are `null` when there is none; a success clears the pair at once, and a failure nobody has asked about again is forgotten after `IBKR_HISTORICAL_FAILURE_MEMORY_SEC` (owner `ibkr/historical_failures.py`, in memory only, never stored in `bars_coverage`). A failed pair is not sent to IBKR again, for any priority, for `IBKR_HISTORICAL_FAILURE_BACKOFF_SEC`: the request is shed and the pane's own retry asks again, so a farm outage stops spending the 60 / 10 min budget. A pane with no bars that is filling with `last_error` set reads "IBKR history did not answer — retrying" with the reason, not "Loading IBKR historical…"; a painted pane's header hint says the same.
+`GET /api/ticker/{symbol}/bars` on the IBKR store-first path (not a Sim replay, not Alpaca) and every `bars_patch` frame on `/ws/ticker/{symbol}` carry, in `coverage` beside `filling`, `last_error: string | null` and `last_error_ts: number | null` (epoch seconds): the backend's reason and time for the last historical fetch of that (symbol, timeframe) that IBKR did not answer -- a timeout (504) or an error answer / failed qualify (502), never a Gateway-down 503 or a 400 / 404. Both are `null` when there is none; a success clears the pair at once, and a failure nobody has asked about again is forgotten after `IBKR_HISTORICAL_FAILURE_MEMORY_SEC` (owner `ibkr/historical_failures.py`, in memory only, never stored in `bars_coverage`). A failed pair is not sent to IBKR again, for any priority, for `IBKR_HISTORICAL_FAILURE_BACKOFF_SEC`: the request is shed and the pane's own retry asks again, so a farm outage stops spending the 10-minute budget. IBKR refusing a request for pacing is an error answer too (502): ib_async hands the caller an empty list, and Nova keeps it from reading as "no bars" (`ibkr/bars.py`). A pane with no bars that is filling with `last_error` set reads "IBKR history did not answer — retrying" with the reason, not "Loading IBKR historical…"; a painted pane's header hint says the same.
+
+**A pane still waiting on its history (operator report 2026-11-04).** "after a whole minute ... the 10-second chart isn't moving". RIOX's 10-second pane held 11-03's tape-built bars at $9.13 and today's first few at $13.70, with no IBKR fill on record. `/bars` took any stored bar for a painted pane and asked as `warm`, which is shed while `IBKR_HISTORY_WARM_RESERVE` (30) or fewer of the 60 are left: it was shed at 08:31:19 with 30 left. The pane has no poll and its retry ran only while it had no bars, so nothing asked again; 15 minutes later it still had no history, and the two days' prices stretched its axis until today's candles lay flat.
+
+- `coverage` (IBKR store-first path) adds `history_pending: boolean` (owner `bars_store.history_pending`): true while the pane has no IBKR history it can show -- nothing stored, never filled (no `bars_coverage` row: the rows are the tape's or Level 1's own), or, intraday, last filled before this session's 04:00 ET (`market.session_key_for_ts`: 00:00-03:59, weekends and holidays belong to the last session). A daily pane's earlier sessions are its content. No bar count enters it: tape-built 10-second bars pass 100 in a busy quarter hour.
+- An interactive read while `history_pending` asks as `open_chart`, an empty pane's priority; a painted pane's refresh stays `warm`, so the only new `open_chart` asks are each pane's first fill of the session. An `open_chart` fill waiting out pacing has one wake per (symbol, timeframe) (`historical_service._reschedule_after_wait`).
+- The pane's capped retry (`chart/chartBarsStuckRetry.ts`) runs while it is `filling` with no bars or `history_pending`; a `bars_patch` or `/bars` answer without it stops the retry. An empty answer that leaves the client's tape candle in place (ADR 012, 2026-09-11) still writes its coverage to the entry (`chart/barsStore.ts`), so a pane whose first tape print beat its answer learns its history is pending too.
+- `/bars?timeframe=10Sec` reads today's session only (`IBKR_BARS_SESSION_ONLY_TIMEFRAMES`): the stored rows from the session's 04:00 ET. Earlier sessions' 10-second rows stay in the store; every other timeframe reads as before.
+- A painted pane's header hint names the day of an `as_of` that is not today's in ET (`formatCoverageStampEt`): "as of Nov 3 11:20 ET, filling…".
 
 **A daily bar stored mid-session is not the finished day (#839).** `archive.db` `bars_intraday` adds
 `written_ts REAL` (owner `bars_store.py`; added in place by `archive.db.migrate_bars_intraday_written_ts`,
@@ -442,7 +512,8 @@ and hour panes now count it on the desk (`chart/liveTradeApply.ts`): a bar's
 volume is what the day volume grew by between its first update and its last.
 The first day volume a pane sees is a baseline, so the bar it joined mid-way
 has no live count -- the store's figure, or nothing, never a partial one. A
-total that goes down restarts the baseline and leaves that bar unknown. Updates
+lower total the same day counts nothing (another counter on the line, below); a
+later day's lower total restarts the baseline and leaves that bar unknown. Updates
 arrive on price changes, so shares traded at an unchanged price just before a
 bar closes count in the next bar; the store's bar replaces a closed bar's figure
 when it lands, and a forming bar shows the larger of the two counts. 10Sec
@@ -450,6 +521,68 @@ volume stays the tape's own prints and daily volume the store's. No wire field
 changed. A store refresh no longer rebuilds the forming candle from the last
 trade (which flattened its open, high and low to one price every 30 s): the
 live tip is put back on top, merged with the store's bar for the same minute.
+
+**The store's live minute keeps every share** (operator report, 2026-11-04:
+"a bunch of volumes that are pointed towards a zero" on CRIS). `ibkr/l1_minute`
+puts an L1 update in the minute of IBKR's last-trade second, which trails the
+update's arrival (CRIS that morning: 0.76 s at the median, 13 s at most), while
+a quiet minute is written by the desk's clock once it ends. An update that
+arrived after that used to open a fresh bucket holding only itself, and its
+write replaced the minute's volume: 174 of CRIS's 271 live minutes held only
+their last one or two updates' shares (04:00 stored 641 while IBKR's day volume
+grew 130,136), 42.5M of the 82.9M shares IBKR counted. Against Massive's
+consolidated tape the stored live minutes held 58% of XLAB's volume
+(2026-10-16) and 55% of WETO's (2026-10-15), the median minute 3-5%, while the
+L1 line's own day-volume growth matched it (103%, median minute 1.000).
+
+- The symbol's newest minute stays in memory after it is written. An update
+  stamped in it joins it and the whole minute is written again; listeners
+  (the setup scanner) hear a minute once, when it is first written.
+- An update stamped before the newest minute never reopens a closed candle;
+  its shares count in the newest one. A written minute from an earlier day is
+  let go at ET midnight: IBKR repeats a line's last trade on the new day's
+  first update, and a minute held overnight would take that trade's shares
+  again.
+- `bars_store` never lowers a stored live minute's volume (`MAX`), so a smaller
+  count -- a restarted process that joined the minute late -- cannot replace a
+  larger one. A hist row is never touched, as before.
+- IBKR's own historical minutes, which replace these, measured 93% of the
+  consolidated tape on XLAB and 90% on WETO (94.5% of the L1 count on CRIS):
+  a minute's volume drops a few percent when its hist bar lands.
+- **Only growth above the session's highest day volume counts**
+  (`l1_minute.volume_increment`; the desk's forming bar the same,
+  `chart/liveTradeApply.stepLiveVolume`). The line carries a second counter or a
+  stale total now and then: XLAB 2026-10-16 19:59:58 read 171,624,612 (the
+  tape's own total), 166,339,148, 171,624,612. A lower total taken as a new
+  baseline counted each return to the real one again. 2,949 of 19,984 streamed
+  symbol-days gained shares no one traded, FRGT 2026-10-06 186M on a 220M day.
+  Counted this way, the line matched the consolidated tape on all 13 stock-days
+  checked (99.8-100.7%), where master's rule read up to 4.6x. A total above
+  `IBKR_L1_DAY_VOLUME_MAX` (50 billion; 10^6-scaled totals on 2026-09-18 / 09-21)
+  is no volume figure. A new session starts its own count, with or without a
+  last between the sessions.
+- **Minutes stored before these fixes** keep their wrong volume until a hist bar
+  replaces them. `tools/repair_live_minutes.py` (rule: `archive/live_minute_repair.py`)
+  is a dry run by default, reading `archive.db` read-only.
+  - It counts each minute from `l1_ticks`' streaming rows (IBKR's whole second;
+    the table reprice's rows, on the desk's clock, are left out) by master's rule
+    and by `volume_increment`.
+  - `--apply` moves a row only on a fingerprint: `fragment`, whose volume is its
+    last few updates' shares by master's rule; or `phantom`, which is master's
+    whole count where the builder's now differs. The row takes the builder's count.
+    Master also counted the lastSize of each update it took as a baseline, which
+    the archive does not keep, so a match may sit up to 10,000 shares a drop above.
+  - It never touches a hist row or a minute from the last 15 minutes. A minute
+    whose first update follows 60 s of silence (a restart, or a line back from
+    out of the line budget) only comes down: its count holds the shares traded
+    while the line was away. It writes a row only if it still holds the volume
+    the plan read.
+  - Scored against Massive's consolidated tape, the repaired live minutes of six
+    stock-days held 96-106% of their volume (13-134% as stored), median minute
+    1.000.
+  - `--json` report: `{schema_version: 1, days: [{day, whole, fragment, phantom,
+    other, gap, no_ticks, recent, shares_added, shares_removed}], totals: {the
+    same keys}, top: [{symbol, day, shares_moved}], applied: rows written | null}`.
 
 ## Earnings and splits on the daily charts (operator ask, 2026-10-12)
 

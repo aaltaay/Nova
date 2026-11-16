@@ -104,7 +104,8 @@ describe('GlobalBarAccountCluster (QA batch)', () => {
     expect(screen.getByTestId('global-bar-account').getAttribute('data-venue')).toBe('live');
     expect(screen.getByTestId('global-bar-account').getAttribute('data-source')).toBe('ibkr');
     expect(screen.getByTestId('global-bar-account-pill').getAttribute('data-account-id')).toBe('DU1234567');
-    expect(practiceVenues.every((venue) => venue === 'live')).toBe(true);
+    // The header reads this venue; the positions rows ask for nothing, the bots' book being Paper's.
+    expect(new Set(practiceVenues)).toEqual(new Set(['live', null]));
   });
 
   it('the sample desk shows its sample summary and polls no practice account (V4)', () => {

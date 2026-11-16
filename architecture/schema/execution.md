@@ -19,6 +19,8 @@ boolean` (the desk's venue needs the PIN), `live_arm_pin_set: boolean` and
 was armed on. The PIN is never in the repository or the frontend. Locking the
 padlock -- by anyone -- leaves the bot's Activate and Bot switch as they are (operator decision 2026-10-16; until
 then it cleared them): while it is locked no order is placed, a bot's included (`bot.md`, "The Bot switch").
+Under ADR 072 the brain arms Paper or Sim as `actor: "bot"`, as Claude's seat does (`agent-trader.md`, `POST /arm`):
+never Live, and never over a padlock the operator locked. Its switch On (`traders.md`) is not arming.
 
 ## Account identity on `/api/ibkr/status` (operator ask, 2026-09-21)
 
@@ -76,7 +78,8 @@ the order reached the backend 2-3 s after the click and rested above the market.
   (epoch ms), the Level 2 book and the quote the screen showed (null when it showed none), and the desk's own
   measures at that moment. The desk attaches it to every order it sends (`ibkr/placeOrder.ts`).
 - **The gate** (owner `market_view/gate.py`; constants `constants_market_view.py`). For a `manual` place,
-  bracket or replace that came through those routes (it carries `client_timing`), the execution door refuses,
+  bracket or replace that came through those routes (it carries `client_timing`) and opens a position (a close
+  is never refused, below), the execution door refuses,
   after the duplicate-key replay and before anything is validated or sent, HTTP 200 `{ok: false, reason_code,
   error}` like its other refusals:
   - `VIEW_STALE`: the book or quote the screen showed had been replaced for more than `ORDER_VIEW_MAX_LAG_MS`
@@ -88,10 +91,11 @@ the order reached the backend 2-3 s after the click and rested above the market.
   - `FEED_STALE`: an IBKR feed gap is open or settling (`ibkr/feed_pulse`), or the IB loop is stalled now for
     more than `ORDER_MAX_IB_STALL_MS` (500) (`perf/stall_watch.stalled_ms`) -- never on a Sim desk off the live
     edge, whose market is the replay;
-  - `TAPE_STALE` (amendment 2026-10-14, GENK order #255): the symbol's Time & Sales is missing trades -- Nova
+  - `TAPE_STALE` (amendment 2026-10-14, GENK order #255): the symbol's Time & Sales is behind -- Nova
     holds an AllLast line for it on this IBKR session, the symbol is not halted, and its Level 1 line reported a
     trade (IBKR's Last Timestamp or RTVolume time) at least `TAPE_DEAD_L1_LEAD_SEC` (3) after the line's last
-    print by IBKR's second (or after the line opened) -- with no further wait (`ibkr.tape_silence.missed_trades`).
+    print by IBKR's second (or after the line opened), and it has stayed so for `TAPE_PRINT_WAIT_SEC` (2)
+    (`ibkr.tape_silence.behind`; amendment 2026-11-06).
     No line, no judgment; never on a Sim desk off the live edge;
   - `BOOK_WAITING` (amendment 2026-10-27, #913, operator option 1): Nova holds a live IBKR Level 2 line for the
     symbol (depth or its Level 1 fallback, whoever asked for it) that has not delivered a book with a row since
@@ -107,11 +111,16 @@ the order reached the backend 2-3 s after the click and rested above the market.
   text: string | null, checked_at}` and the Time & Sales socket's `gate` (market-data.md), so the ticket's lock
   says what the door would ("one funnel", operator 2026-10-14).
 
+  **A close is never refused for lag (amendment 2026-11-06):** a SELL without `short_entry`, a BUY covering a
+  short and a replace of a working order that closes (`gate.closes`; unknown is not a close). A Live replace
+  reads the working order itself, so a bracket's stop and target count. Its verdict is `close` with the `code`
+  it would have been refused under, and it has no send deadline.
+
   The protective sources (`flatten`, `kill`, `cancel_working`), cancels and every command without
   `client_timing` (the bot, stock modes, the loss limit's Auto sell) are exempt. The arithmetic mixes the desk's and the
   backend's wall clocks, sound because the backend binds 127.0.0.1; an action more than 1 s in the backend's
   future is `VIEW_STALE` ("the clocks disagree"). The execution row's payload keeps `view` and `view_check:
-  {schema_version: 1, verdict: "ok" | "refused" | "exempt" | "missing", code, arrival_ms, book_lag_ms,
+  {schema_version: 1, verdict: "ok" | "refused" | "close" | "exempt" | "missing", code, arrival_ms, book_lag_ms,
   quote_lag_ms, feed_gap: boolean | null (null on a replay desk), ib_stall_ms, tape_missing_since: number | null, book_waiting_since: number | null}`
   (`tape_missing_since`: epoch seconds the symbol's tape stopped keeping up, when it had; absent on rows before
   2026-10-14; `book_waiting_since`: epoch seconds the symbol's live Level 2 request was made, while it had no
@@ -119,17 +128,18 @@ the order reached the backend 2-3 s after the click and rested above the market.
 - **The desk locks first** (owner `frontend/src/market_view/`). A symbol's view is stale while its Level 2 has
   had no frame or beat for `VIEW_SILENT_LOCK_MS` (750), a frame took more than `VIEW_TRANSIT_LOCK_MS` (500)
   from `sent` to arrival, or a received book has not been drawn for `VIEW_UNDRAWN_LOCK_MS` (500). Then Place,
-  the quick bar's and the hotkeys' priced actions and Fill now are locked with the reason (`data-why`); Flatten
-  and cancels never are. No age readout: locked or live.
+  the quick bar's and the hotkeys' priced actions and Fill now are locked with the reason (`data-why`) for a new
+  buy or short; a sell, a cover (`market_view.orderCloses`, hotkeys `actionCloses`), Flatten and cancels never
+  are. No age readout: locked or live.
   - **No Level 2 is not "behind"** (operator decision 2026-10-13, #913: lock, with the true reason). A Level 2
     IBKR refused or ended (the socket's `error`) locks the symbol's orders at once and steadily, until a book
-    arrives: "No Level 2 for VLO: <IBKR's reason> Orders are locked until a Level 2 is live. Flatten and
-    cancels still work.", on a button reading "No Level 2 · locked". A retry's `subscribed` does not open it.
+    arrives: "No Level 2 for VLO: <IBKR's reason> New buys and shorts wait until a Level 2 is live. Sells,
+    covers, Flatten and cancels still work.", on a button reading "No Level 2 · locked". A retry's `subscribed` does not open it.
     On 2026-10-13 a refused line read "Market view behind · locked" and flipped open and locked every 1.2 s.
   - **No book yet is not live** (operator decision 2026-10-27, #913 option 1). After each `subscribed` the
     symbol's orders lock until a `book` frame arrives or a `beat` carries `first_book: null`: "No book yet on
-    BKYI's Level 2. <the beat's `first_book.text`, once known> Orders are locked until its first book arrives.
-    Flatten and cancels still work.", on a button reading "Waiting for Level 2 · locked" (the backend's `BOOK_WAITING` `gate` reads
+    BKYI's Level 2. <the beat's `first_book.text`, once known> New buys and shorts wait until its first book
+    arrives. Sells, covers, Flatten and cancels still work.", on a button reading "Waiting for Level 2 · locked" (the backend's `BOOK_WAITING` `gate` reads
     the same). Heartbeats and repeated `subscribed` frames never open it. The ladder's empty message shows the
     beat's `first_book.text` once `overdue`.
   - **The backend's own lock** (amendment 2026-10-14). The Time & Sales socket's `gate` (`{code, text}` or
@@ -208,24 +218,68 @@ All buy/sell/cancel/replace requests enter `execution.service.execute` with:
 }
 ```
 
-**Who sent it** (operator report 2026-10-01: "Could you see who sold here? I don't remember selling it." -- the Paper bot trip sold 100 ACN, and the row read like any other market sell, because the ticket's Flatten, the header's KILL, the loss breakers of then and the bot's own last-resort exit all send source `flatten`). `origin` names which part of Nova sent an order, one of `constants_nova_os.EXECUTION_ORIGINS`: `ticket_flatten` (the ticket's, quick bar's or a hotkey's Flatten), `emergency_kill` (`POST /api/ibkr/flatten-account`, the header's KILL), `bot_trip` / `all_stop` (the retired loss breakers' flatten: rows from before ADR 056 only; nothing sends them now), `loss_limit` (ADR 056: the daily loss limit's Auto sell), `bot` (Nova's bot: entry, exits, last-resort close), `auto_entry`, `approve` (Who trades the stock), `bot_api` (the localhost bot API), `nova_exit` (Nova takes the exit), `day_cover` / `margin_call` (ADR 048: Nova's own closes on Paper and Sim) `live_trader` (ADR 055: the Live Trader bot's entries, adds and closes on Paper) and `claude` (ADR 068: Claude's seat, its entries, stop moves, closes and cancels, Paper only -- `venue_door` refuses any `claude` send while the desk is not on Paper; `agent-trader.md`); `null` for the operator's own ticket. A label, never a permission -- with one exception: a `cancel_working` cancel or `flatten` place stamped `day_cover` / `margin_call` / `loss_limit` -- or `live_trader`, on Paper and Sim only (ADR 055; a `live_trader` close never goes to Live) -- may name the venue that holds the position (on Live only the day cover's market BUY and the loss limit's Auto sell, each with `intent: "flatten"` checked against IBKR's own position, ADR 056) (`target_venue`, "Short selling" above). Only Nova's own code sets an origin; no HTTP caller can. The execution record's payload keeps it, a practice order row (Paper / Sim, working and closed, every bracket leg) carries it as `order_origin` beside `order_source`, and a Live row -- working (`GET /api/ibkr/orders`) or closed (`execution/closed_blotter.py`) -- takes both from today's execution row for this desk that sent it (`execution/sent_by.py`, #677: by permId, else order id, the symbols agreeing; a bracket's exit legs share their entry's sender, so a closed leg reads Nova's, not "Outside Nova"); a Live row no execution row claims carries neither. A row placed before 2026-10-01 has `order_origin: null`: a `flatten` there could be any of the five, and the desk says so rather than guessing. The Working and Closed order tables add a **Sent by** column (`frontend/src/ibkr/orderSentBy.ts`: You, You · Flatten, KILL, Bot trip, All-stop, Bot, Auto-entry, Approve, Bot API, Nova exit, Day cover, Margin call, Live Trader, Outside Nova; a breaker's, KILL's, the day cover's or a margin call's in amber), its reason on hover; a layout saved before it gets the column where the defaults put it (after Status), not off the far edge.
+**Who sent it** (operator report 2026-10-01: "Could you see who sold here? I don't remember selling it." -- the Paper bot trip sold 100 ACN, and the row read like any other market sell, because the ticket's Flatten, the header's KILL, the loss breakers of then and the bot's own last-resort exit all send source `flatten`). `origin` names which part of Nova sent an order, one of `constants_nova_os.EXECUTION_ORIGINS`: `ticket_flatten` (the ticket's, quick bar's or a hotkey's Flatten), `emergency_kill` (`POST /api/ibkr/flatten-account`, the header's KILL), `bot_trip` / `all_stop` (the retired loss breakers' flatten: rows from before ADR 056 only; nothing sends them now), `loss_limit` (ADR 056: the daily loss limit's Auto sell), `bot` (Nova's bot: entry, exits, last-resort close), `auto_entry`, `approve` (Who trades the stock), `bot_api` (the localhost bot API), `nova_exit` (Nova takes the exit), `day_cover` / `margin_call` (ADR 048: Nova's own closes on Paper and Sim) `live_trader` (ADR 055: the Live Trader bot's entries, adds and closes on Paper), `claude` (ADR 068: Claude's seat, its entries, stop moves, closes and cancels, Paper only -- `venue_door` refuses any `claude` send while the desk is not on Paper; `agent-trader.md`) and `close_bots` (ADR 069: your Close on a bots' row of the Account page, the bots' shares in one stock on Paper); `null` for the operator's own ticket. A label, never a permission -- with one exception: a `cancel_working` cancel or `flatten` place stamped `day_cover` / `margin_call` / `loss_limit` -- or `live_trader`, on Paper and Sim only (ADR 055; a `live_trader` close never goes to Live) -- may name the venue that holds the position (on Live only the day cover's market BUY and the loss limit's Auto sell, each with `intent: "flatten"` checked against IBKR's own position, ADR 056) (`target_venue`, "Short selling" above). Only Nova's own code sets an origin; no HTTP caller can. The execution record's payload keeps it, a practice order row (Paper / Sim, working and closed, every bracket leg) carries it as `order_origin` beside `order_source`, and a Live row -- working (`GET /api/ibkr/orders`) or closed (`execution/closed_blotter.py`) -- takes both from today's execution row for this desk that sent it (`execution/sent_by.py`, #677: by permId, else order id, the symbols agreeing; a bracket's exit legs share their entry's sender, so a closed leg reads Nova's, not "Outside Nova"); a Live row no execution row claims carries neither. A row placed before 2026-10-01 has `order_origin: null`: a `flatten` there could be any of the five, and the desk says so rather than guessing. The Working and Closed order tables add a **Sent by** column (`frontend/src/ibkr/orderSentBy.ts`: You, You · Flatten, KILL, Bot trip, All-stop, Bot, Auto-entry, Approve, Bot API, Nova exit, Day cover, Margin call, Live Trader, Outside Nova; a breaker's, KILL's, the day cover's or a margin call's in amber), its reason on hover; a layout saved before it gets the column where the defaults put it (after Status), not off the far edge.
+
+**Origins under ADR 072 (three traders, `traders.md`).** Built in batch 3: `takeover` is in the origins; the cancels
+it names are the practice broker's own, made inside the placement or the switch's Off (source `cancel_working`, code
+`TAKEOVER`, never a second send through the door), and `venue_door` refuses any `brain` send to Live beside
+`claude`'s. The door refuses a new order stamped `claude` or `brain` while its switch is Off (`TRADER_OFF`). Still to
+come (batch 4), as confirmed: `brain` joins the origins: the
+brain's entries, stop moves, closes and cancels through its door, on Paper and Sim only -- `venue_door` refuses any
+`brain` send to Live, as it does `claude`'s ("Neither Claude nor the brain trades Live."). `loss_limit_claude` and
+`loss_limit_brain` are a trader's loss line's Auto sell (`loss-limit.md`, "Four lines"), and `takeover` the cancels a
+switch turned Off makes and the cancels of a trader's resting exits before your close of a handed position. Nothing
+sends `bot`, `auto_entry`, `bot_api`, `live_trader` or `close_bots` again; their rows keep their labels and read as
+Earlier bots. Sent by adds "The brain", "Loss limit · Claude", "Loss limit · The brain" and "Takeover". The owner
+refusals at the door (`OWNERS_TRADERS_STOCK`, `OWNERS_TRADER_ON`, `OWNERS_BUDGET`) are in `traders.md`.
+
+**Built: retired senders are refused (ADR 072, `execution/retired_senders.py`).** Since the bots retired, the door
+refuses `BOTS_RETIRED`, in words and before anything is sent, a `place` / `bracket` / `replace` / `exit_oco` whose
+`origin` is `bot`, `auto_entry`, `approve`, `bot_api`, `nova_exit` or `live_trader`, or whose `source` is `bot` with
+an origin other than `claude`. A `cancel` and a protective source (`flatten`, `kill`, `cancel_working`) always go. This
+is the one place an origin is read as more than a label besides `target_venue` above (`bot.md`, "Built: the bots
+retire").
+
+**Prices follow the listed tick (Reg NMS Rule 612):** a cent at $1.00 and over, a hundredth of a cent under it, so a stock under $1 takes up to four decimals. `limit_price`, `stop_price` and the bracket legs carry them unrounded, and IBKR refuses a price off the tick (Error 110). The ticket, the hotkeys and every desk price read the rule from `frontend/src/utils/priceTick.ts`; a trail amount takes the stock's tick, not its own size.
 
 `STP LMT` requires both `limit_price` and `stop_price`. `TRAIL` uses `stop_price` as the IBKR trail dollar amount (`auxPrice`); trail percent is not a ticket field. `tif` defaults to `DAY` (`IBKR_ORDER_TIF_DEFAULT`), so a caller that omits it is unchanged; anything outside `DAY | GTC` is refused `TIF_INVALID`. `place` and every `bracket` leg carry `tif` and `outside_rth`; `replace` keeps the working order's own TIF. **Market orders need regular hours** (operator decision, 2026-09-21): a `MKT` place from a non-protective source is refused `MKT_OUTSIDE_RTH` ("use a limit at the ask") whenever the venue's clock is outside weekday 09:30-16:00 ET, NYSE holidays excluded -- no US exchange takes an unpriced order then and IBKR would hold it until the next open (Warning 399) while ignoring `outsideRth` on it (Warning 2109). The clock is the venue's (the replay playhead on Sim). Owner `execution/session_gate.py`; the practice broker repeats the check (`practice/order_rules.py`). Protective sources are exempt (flatten plans an extended-hours limit); `STP` orders are unchanged.
 
 **A practice order's own expiry** (#816, ADR 052 amendment). `good_for_sec` -- seconds, `null` by default -- gives a `place`, or a `bracket`'s entry, its own expiry on Paper and Sim: the practice broker sets the row's `expires_ts` to the earlier of its TIF's (the `DAY` close; none for `GTC`) and its placement plus `good_for_sec`, by the venue's clock (the playhead on Sim), and the row carries `good_for_sec`. At that second the order expires as a `DAY` order does at the close: an `expired` ledger event stamped at its own expiry, status `Expired`, `reason_code: PRACTICE_GOOD_FOR_EXPIRED` ("Expired unfilled: its 3 s ran out"); a print after it never fills it, even when one Sim jump crosses both, and a scrub back before it restores the order working. A bracket's exits keep the entry's TIF expiry and never carry `good_for_sec`; an entry that expires unfilled takes its waiting exits along (`PRACTICE_PARENT_CANCELLED`, "its entry expired unfilled"). A cancel that reaches an order already past its own expiry -- its good-for second or its `DAY` close -- records the expiry at that second instead and answers `ok: true`, `verified_gone: true`, `closed_by: <the expiry's code>`: by the venue's clock the order was gone before the cancel came. Anything but a finite number above zero is refused `GOOD_FOR_INVALID`; on Live the field is refused `GOOD_FOR_LIVE` (IBKR's GTD would need its own ADR, and Nova's bot never trades Live). `replace` and `cancel` ignore it -- a replace keeps the order's expiry. The execution record's payload keeps it beside `tif`. Nova's bot sends it on a Sim replay's entry only, as the sleeve's `working_ttl_sec`, so a jump of the playhead never fills its entry past that TTL; on Paper and at the live edge the bot's own TTL cancel is unchanged.
 
-**The ticket's Flatten** (QA R32 / R42, 2026-09-22): `POST /api/ibkr/order` may carry `intent: "flatten"` -- the rail's Flatten, the quick-bar Flatten and the `exit_pos` / `cancel_and_exit` Nova Actions send it. The route sends it as source `flatten` with `ExecutionCommand.intent: "flatten"` (a protective source: never clamped by the test quantity gate and placeable while disarmed, like KILL), and the execution door accepts it, inside the execution lock, only when it closes shares not already being closed -- the side reduces the venue's own position, and the size does not exceed that position less the closing orders already working on the venue (open orders) or committed and not yet listed; no `short_entry` and no legs. Anything else is refused `FLATTEN_NOT_A_CLOSE` before any send ("cancel that order first, or use KILL" when a close is already working), so two flattens can never both fill into a short. The practice broker also cancels, at the fill, a SELL that would fill past what is held (`PRACTICE_NO_SHORTS`). A protective order that fills inside the send frees its in-flight commitment at once (QA R31). The mirror holds for a cover: the practice broker cancels, at the fill, a BUY that would buy past the short (`PRACTICE_OVERCOVER`, ADR 048).
+**The ticket's Flatten** (QA R32 / R42, 2026-09-22): `POST /api/ibkr/order` may carry `intent: "flatten"` -- the rail's Flatten, the quick-bar Flatten and the `exit_pos` / `cancel_and_exit` Nova Actions send it. The route sends it as source `flatten` with `ExecutionCommand.intent: "flatten"` (a protective source: never clamped by the test quantity gate and placeable while disarmed, like KILL), and the execution door accepts it, inside the execution lock, only when it closes shares not already being closed -- the side reduces the venue's own position, and the size does not exceed that position less the closing orders already working on the venue (open orders) or committed and not yet listed; no `short_entry` and no legs. Anything else is refused `FLATTEN_NOT_A_CLOSE` before any send ("cancel that order first, or use KILL" when a close is already working), so two flattens can never both fill into a short. The practice broker also cancels, at the fill, a SELL that would fill past what is held (`PRACTICE_NO_SHORTS`). A protective order that fills inside the send frees its in-flight commitment at once (QA R31). The mirror holds for a cover: the practice broker cancels, at the fill, a BUY that would buy past the short (`PRACTICE_OVERCOVER`, ADR 048). On Paper and Sim the desk's position is the shares yours to close -- your own plus any handed to you (ADR 072, `/api/ibkr/positions`) -- so the Flatten sizes from them, and a close past them while another trader holds the stock is refused `OWNERS_NOT_YOURS` (or `OWNERS_TRADER_ON` while that trader is On) at the door and again at the fill (`recording-and-replay.md`, "Three traders' books"); an On trader's shares are yours to close once you switch it Off.
 
 **Manual-ticket protective legs** (operator decision on #91, 2026-09-20 -- supersedes "OCO / bracket stay off the manual ticket"): OCO stays off the manual ticket. A bracket reaches it only as the operator's optional default take-profit / stop-loss from Settings > Trade (`nova.trade.defaults.v1`), **off by default**. When on, an opening **Limit** entry (BUY while not short, or SELL with `short_entry`) posts `take_profit_price` + `stop_loss_price` with its `/api/ibkr/order` request, and the route sends `operation: "bracket"` (`entry_price` = the limit) through the same `execution.service.execute` -- never a second place path. Other entry types are refused while the defaults are on rather than sent unprotected; exits never carry legs; protective sources (`flatten`, `kill`, `cancel_working`) are refused a `bracket`. A bracket is checked like a place: whole shares, side agrees with `short_entry`, leg prices on the correct side of the entry, BuyingPower for a long entry, and no long bracket while the account is short that symbol.
 
 Receipt includes stage timings (`validation_ms`, `persisted_ms`, `broker_sent_ms`, `broker_ack_ms`, `filled_ms`). The receipt adds `venue` (`live | paper | sim`), the desk venue the order was sent on (`mode` is the broker's label: `paper` there can also be the legacy Gateway).
 
-**One venue per send** (#655, audit 2026-09-30; owner `execution/venue_door.py`). `execute` reads the desk's venue once, under its lock, and the order is validated against, committed on and sent to that venue -- a venue pill clicked mid-check refuses the order `VENUE_CHANGED` ("the desk moved ... it was not sent; place it again") and never sends it elsewhere. An order id is only meaningful on the venue that issued it (practice ids restart at 1 per venue; IBKR's are IBKR's), so in-flight commitments (`execution.inflight`), order watches (`execution.telemetry`: IBKR's by id, a practice venue's by `(venue, id)`) and releases are all per venue: a Paper sell still working never refuses a Live exit, and Paper's fill of order N never marks Live's order N filled. `expected_venue` on the command (cancel / replace by id) makes the door refuse `VENUE_CHANGED` when the desk is elsewhere; `DELETE /api/ibkr/order/{id}?venue=` and `PATCH` `venue` accept it, and the bot's and Who-trades cancels send their trade's venue. The desk's Cancel sends the venue its row came from: the account snapshot (`ibkr/ibkrAccountPoller.ts`) carries `venue`, a venue change clears the old venue's rows and reads the new one at once, and a read that finishes after the switch -- or another window's snapshot of another venue -- is dropped, so the desk never shows the old venue's orders or positions, not even as "last known" (#657). The Who-trades view resets on a venue change too.
+**One venue per send** (#655, audit 2026-09-30; owner `execution/venue_door.py`). `execute` reads the desk's venue once, under its lock, and the order is validated against, committed on and sent to that venue -- a venue pill clicked mid-check refuses the order `VENUE_CHANGED` ("the desk moved ... it was not sent; place it again") and never sends it elsewhere. An order id is only meaningful on the venue that issued it (practice ids restart at 1 per venue; IBKR's are IBKR's), so in-flight commitments (`execution.inflight`), order watches (`execution.telemetry`: IBKR's by id, a practice venue's by `(venue, id)`) and releases are all per venue: a Paper sell still working never refuses a Live exit, and Paper's fill of order N never marks Live's order N filled. `expected_venue` on the command makes the door refuse `VENUE_CHANGED` when the desk is elsewhere; `DELETE /api/ibkr/order/{id}?venue=`, `PATCH` `venue` and `POST /api/ibkr/order` `venue` accept it, and the bot's and Who-trades cancels send their trade's venue. The desk's Cancel sends the venue its row came from: the account snapshot (`ibkr/ibkrAccountPoller.ts`) carries `venue`, a venue change clears the old venue's rows and reads the new one at once, and a read that finishes after the switch -- or another window's snapshot of another venue -- is dropped, so the desk never shows the old venue's orders or positions, not even as "last known" (#657). The Who-trades view resets on a venue change too.
+
+**KILL stays on one venue, and stops if the desk leaves it** (#1281; the operator's decision, 2026-11-04: "Stop and say so"). The header's Emergency KILL reads the venue once, at the click (`getConfirmedDeskVenueSnapshot`, the venue the desk shows), and names it on both its legs: `DELETE /api/ibkr/orders?all_symbols=true&venue=` and `POST /api/ibkr/flatten-account?venue=`. The two other cancels of a whole book read it before their confirm and name it too: the Cancel All hotkey, and the header's Working menu (`DELETE /api/ibkr/orders?symbol=&venue=`, which shows what the cancels answered). A caller that names none gets the desk's venue on arrival, read once; either route answers 400 to a `venue` that is not live, paper or sim. Every cancel and close then carries `expected_venue`, and `flatten_account_with_retry` holds that venue across its passes: a second pass works the same venue and never reads the desk's again. At the first sign the desk left it -- it was elsewhere on arrival, a list was read after the move, or the door refused `VENUE_CHANGED` -- nothing more is sent and there is no second pass, so no close and no cancel by number reaches the venue the desk moved to. KILL does not finish on the venue it read: `target_venue` keeps its limits, so this adds no way to Live, and the protective exemptions are unchanged (KILL still runs disarmed). A flatten that stops answers `{ok: false, reason_code: "VENUE_CHANGED", venue, moved_to, results, cancels, left_open, working_orders, error, attempt}`. `left_open` (`["ABCD 100", "WXYZ -50"]`, signed) and `working_orders` (a count) come from that venue's own book whatever the desk shows (`kill_switch.sweep.held_positions` / `read_working`), each `null` when it cannot be read, never "flat". `error` says all of it for KILL's failure dialog, including that KILL cancels first, so a position left open may have no stop; what is left is the operator's to close on that venue. `DELETE /api/ibkr/orders`, with `symbol` or `all_symbols`, stops the same way: `ok: false`, `failed` lists the refused cancel, and `error` says the cancels stopped.
+
+**A desk order names the venue the operator acted on** (#1283; the policy is #1281's: stop and say so). `POST /api/ibkr/order` takes `venue` (`live | paper | sim`, optional), sent as `expected_venue`; the route answers 400 to one that does not exist. The desk reads it at the gesture, before any confirm (`getConfirmedDeskVenueSnapshot`): a hotkey once at the keypress, for every send that keypress makes, `cancel_and_exit`'s cancels included; the rail's and the position's Flatten at the click; Fill now at the click, for its cancel and its place; the ticket at Place. A desk that has left it refuses the send `VENUE_CHANGED` ("The desk moved from Paper to Live: nothing was sent."), a flatten included: `intent: "flatten"` passes the arm latch, not this check, and it was the one send a move's disarm did not stop. Nothing finishes on the venue that was left and nothing is resent, so what is open there is the operator's to close. Before any status has answered the desk has no venue to name, and the door reads its own as it always did; so does a caller that names none.
 Paper and live share this path; only Gateway credentials/port and safety gates differ. `auto_live` remains rejected -- a spend command whose `source` is not one of the listed values (e.g. `auto_live`) is refused `SOURCE_INVALID`; so are `approve` and `auto_paper`, the retired Phase D executor's sources (ADR 025), while ledger rows that already carry them still read. Short opening requires `short_entry: true` and the short check ("Short selling" above, ADR 048), `IBKR_SHORT_ENABLED` on Live (ADR 009).
 
-**Kill switch** (D-037, ADR 025; owner `backend/kill_switch/`): a persisted latch (`kill_switch_state.json` under the operator cache, `schema_version: 1`; unreadable or unknown version reads tripped) that `execution.service.execute` checks before every `place` / `bracket` from a non-protective source, manual and bot included -- refused `KILL_SWITCH`; `kill`, `flatten`, `cancel_working` and every cancel still reach the broker. `GET /api/kill-switch` -> `{tripped, reason, ts}`; `POST /api/kill-switch` trips it (latch first, then the working orders of every venue that has any are cancelled through the `kill` source -- Live while IBKR is connected, else a stated error "Gateway disconnected: Live orders were not swept"; Paper always, even with the Gateway down (#656); Sim while its scratch account is open -- each cancel through the execution door with `ExecutionCommand.target_venue`, which only a `kill` cancel may carry (anything else is refused `TARGET_VENUE_REFUSED`), and a failed read is a stated failure, never "nothing to cancel"; the stops that protect a held position stay resting, ADR 048, "Short selling" above) and answers the status plus `sweep: [{venue, cancelled, failed, kept, error, note}]`, `persisted`, `receipt_error` and the legacy summed `cancelled_order_ids` / `failed_cancel_order_ids` / `kept_order_ids` (the route is async, on the app's loop: #656's lock from a second loop is gone); `POST /api/kill-switch/reset` clears it and is the only thing that does. A trip writes a `kill_switch` receipt to the event log. The control is a card on the Bots page. The header's Emergency KILL (bot to L0, desk lock, cancel, flatten) is a separate composite. The Nova OS verdict, the `signal | confirm | auto_paper` ladder, the staged approval queue and `/api/strategy/executor/*` were removed (ADR 025).
+**Kill switch** (D-037, ADR 025; owner `backend/kill_switch/`): a persisted latch (`kill_switch_state.json` under the operator cache, `schema_version: 1`; unreadable or unknown version reads tripped) that `execution.service.execute` checks before every `place` / `bracket` from a non-protective source, manual and bot included -- refused `KILL_SWITCH`; `kill`, `flatten`, `cancel_working` and every cancel still reach the broker. `GET /api/kill-switch` -> `{tripped, reason, ts}`; `POST /api/kill-switch` trips it (latch first, then the working orders of every venue that has any are cancelled through the `kill` source -- Live while IBKR is connected, else a stated error "Gateway disconnected: Live orders were not swept"; Paper always, even with the Gateway down (#656); Sim while its scratch account is open -- each cancel through the execution door with `ExecutionCommand.target_venue`, which only a `kill` cancel may carry (anything else is refused `TARGET_VENUE_REFUSED`), and a failed read is a stated failure, never "nothing to cancel"; the stops that protect a held position stay resting, ADR 048, "Short selling" above) and answers the status plus `sweep: [{venue, cancelled, failed, kept, error, note}]`, `persisted`, `receipt_error` and the legacy summed `cancelled_order_ids` / `failed_cancel_order_ids` / `kept_order_ids` (the route is async, on the app's loop: #656's lock from a second loop is gone); `POST /api/kill-switch/reset` clears it and is the only thing that does. A trip writes a `kill_switch` receipt to the event log. The control is a card on the Bots page. The header's Emergency KILL (bot to L0, desk lock, cancel, flatten) is a separate composite, on one venue ("KILL stays on one venue" above). The Nova OS verdict, the `signal | confirm | auto_paper` ladder, the staged approval queue and `/api/strategy/executor/*` were removed (ADR 025).
 
 ---
+
+## A protective stop outside regular hours (ADR 007, operator decision 2026-11-05)
+
+Sent while the venue's clock stands outside regular hours with `outside_rth` true, the stop leg of a `bracket` or
+`exit_oco`, and Nova's exit stop, is `STP LMT` on Paper, Sim and Live, its limit 2% past the stop
+(`execution/stop_shape.py`). Otherwise it is a plain `STP`. `outside_rth` alone proves nothing: the ticket sets it from
+the saved trading-hours preference, so it is true on a 10:00 bracket too. The clock is the send's own venue: the wall
+clock on Live and Paper, the playhead on Sim, 13:00 on an early close. The shape is fixed when sent; moving the stop
+moves its limit. A practice stop-limit that gaps past its limit becomes a `LMT` by a `replaced` event carrying
+`order_type` (`architecture/practice-fills.md`).
+
+## Resizing a working stop on Paper and Sim (#1023)
+
+`replace` takes an optional `resize_qty`: the whole shares a working `STP` now covers, its price kept unless
+`stop_price` moves it. Paper and Sim only; Live refuses it `REPLACE_RESIZE_LIVE`, nothing sent. The venue refuses
+`PRACTICE_RESIZE_REFUSED` for anything but a stop that is live (not waiting on its entry) or a size that would take
+that side's working stops past the shares held, so a resized stop can never close past flat. The `replaced` ledger
+event carries `qty` only on a resize: older events read as before, with no schema bump.
 
 ## The exit-only pair and two halves (#681, ADR 007 amendment, operator ask 2026-10-12)
 
@@ -281,6 +335,83 @@ The operator chose, on 2026-10-20, an optional limit on their own hand orders on
 Every refusal ends "Selling what you hold, covering a short, cancels, Flatten and KILL still work." Max shares is read first. A bracket's entry is `entry_price`, else `limit_price`; a short's stop is its buy stop over the entry.
 
 **Approve.** `POST /api/stock-mode/{symbol}/approve` reads the same limit (`gate.check` with the plan's `qty`, `entry` and `stop`) on the desk's venue before it keeps the approval: over it, `409` with `detail.reason` the code above and `detail.error` the words. A limit lowered after the approval is refused by the door at the trigger; the approval is withdrawn, `reason: "the bracket was refused: <the words>"`.
+
+---
+
+## Paper and Sim orders from the phone (ADR 070 amendment, operator decision 2026-11-10)
+
+Another device may write to one prefix, `/api/phone` (owner `backend/phone/`). The request guard lets those writes
+through (every other one is still `403 REMOTE_VIEW_ONLY`), and the API key middleware does not ask them for
+`X-Nova-Api-Key`: the phone PIN's session opens them, and the desk's key never leaves the PC.
+
+**The PIN** (amended 2026-11-12: one PIN). The phone unlocks with the desk's own PIN, `NOVA_LIVE_ARM_PIN_HASH` in
+`.env` (`py -3 tools/set_live_arm_pin.py`). While a separate phone PIN is set (`NOVA_PHONE_PIN_HASH`, written by
+`py -3 tools/set_phone_pin.py`; 6 digits, the same hash form), the phone takes that one and not the desk's.
+`pin_set` is true when either exists. Every unlock reads the file, and the file wins over the API's environment,
+which still holds the hash the API started with: a changed PIN replaces the old one at once. Five wrong PINs in a
+row lock the phone for 300 s; the count is its own, apart from the count of wrong PINs typed on the PC. The unlock
+opens the phone's door only: it never arms the desk.
+
+**The session.** One random token in memory. It ends 8 hours after the unlock, on Lock, on a newer unlock, and when
+the backend restarts. Every write but the unlock carries it in `X-Nova-Phone-Session`.
+
+| Route | Body | Answer |
+|---|---|---|
+| `GET /api/phone` | -- | `{schema_version: 1, pin_set, unlocked, expires_at, venue, paper, armed, now}`; `unlocked` and `expires_at` read the session header when sent; `now` is the PC's clock (epoch s), which the phone's screens read once a second to time the link and correct their clock |
+| `POST /api/phone/unlock` | `{pin}` | the status, plus `token` |
+| `POST /api/phone/lock` | -- | the status |
+| `POST /api/phone/arm` | `{armed: bool}` | the status. Locking always goes; unlocking only while the desk is on Paper or Sim |
+| `POST /api/phone/order` | `{symbol, side: "BUY"\|"SELL", qty, order_type: "MKT"\|"LMT"\|"STP", limit_price?, stop_price?, reference_price?, outside_rth?, intent?: "flatten", venue?: "live"\|"paper"\|"sim", idempotency_key?, client_timing, view}` | what `POST /api/ibkr/order` answers |
+| `DELETE /api/phone/order/{order_id}?venue=` | -- | what `DELETE /api/ibkr/order/{order_id}` answers |
+| `DELETE /api/phone/orders?symbol=&venue=` | -- | what `DELETE /api/ibkr/orders?symbol=` answers |
+| `DELETE /api/phone/orders?all_symbols=true&venue=` | -- | what `DELETE /api/ibkr/orders?all_symbols=true` answers: every working order on the venue (Paper or Sim), on every stock |
+| `POST /api/phone/venue` | `{venue: "live"\|"paper"\|"sim"}` | the status, plus `left` (what `POST /api/desk/venue` answers: Nova's entries cancelled on the venue left) and `gateway` (the Live Gateway's words when the switch to Live asked for it and it had something to say, else null). Amendment 2026-11-13 |
+| `GET /api/phone/venue/effects` | -- | `{venue, lines: [str], unknown: [str]}`: what leaving the desk's venue now would cancel or change, in plain words; `unknown` names a check that could not be read. No session needed (a read) |
+| `POST /api/phone/sim/clock` | `{paused: bool}` or `{minute_from_open: int, symbol?: str}` | what `POST /api/sim/clock` answers. Any other key is `422`; off Sim the desk's own `409` |
+
+Refusals are `{"detail": {"reason": <code>, "error": <words>}}`:
+
+| Status | `reason` | When |
+|---|---|---|
+| 401 | `PHONE_LOCKED` | no session, an ended one, or a wrong token |
+| 403 | `PHONE_PIN_REQUIRED`, `PHONE_PIN_NOT_SET`, `PHONE_PIN_INVALID`, `PHONE_PIN_LOCKED` | the unlock |
+| 409 | `PHONE_LIVE_LOOK_ONLY` | an order, a cancel or opening the padlock while the desk is on Live: "from the phone, Live is look only ... Nothing was sent." |
+| 409 | `PHONE_NO_VIEW` | a new entry whose `view` has no `book` or no `instance`: the phone received no Level 2 to price it from. A sell out of a long, a buy that covers and a Flatten are not held |
+| 422 | -- | an order without `client_timing` or `view`, or with a field the phone does not send |
+
+**What an order becomes.** The phone's route builds the desk's own `OrderRequest` with the venue the operator
+tapped on (`venue`, the one the phone's screen showed; none named is the desk's venue at receipt), `paper` or `sim`
+(amendment 2026-11-13), and calls the desk's own handler, so the command is the one a desk order makes
+(`source: "manual"`, or `flatten` with `intent: "flatten"`) with that `expected_venue`. The door refuses it
+`VENUE_CHANGED` when the desk is no longer on that venue, so a tap on Paper never trades Sim (or the other way round)
+after the desk moved. A cancel's `venue` is handed on the same way: an order id means nothing on another venue. On
+Live, or for a tap on Live, `PHONE_LIVE_LOOK_ONLY` refuses it first. Every gate of the door judges it: the
+arm latch, the stale view (ADR 045), the size limit (ADR 064), the loss limit. It never carries `short_entry`, bracket
+legs or a `target_venue`.
+
+**The Trade screen sends the desk's own order body** (amendment 2026-11-12): the phone's ticket is the desk's ticket
+code (`hotkeys/runNovaAction`, `ibkr/placeOrder`) posting to this prefix, so a body may also carry `tif`,
+`short_entry`, `take_profit_price` and `stop_loss_price`. The route reads past all of them: the order is built with
+the default time in force (DAY), no short entry and no legs. The `venue` the desk's code names is kept (above).
+`stop_price` (a `STP` order's trigger) and `reference_price` (the bid or ask a limit was priced from) are passed on.
+An `order_type` other than `MKT`, `LMT` or `STP` is `422`.
+
+**The venue from the phone** (amendment 2026-11-13). `POST /api/phone/venue` calls the desk's own
+`POST /api/desk/venue` handler, so a switch from the phone is a switch of the desk: it disarms. A switch to Live
+then asks for the live Gateway (`ibkr.client.request_gateway_mode("live")`), as the desk's pill does; its words
+come back as `gateway` only when its `launch_action` is not `noop`. `GET /api/phone/venue/effects` reads, before the
+tap, what leaving the venue would do: the padlock when it is open (`agent_desk.safety.switch_changes`). A reader
+that fails is named in `unknown`, never read as nothing. Since the bots retired (ADR 072) there is no Bot dial to
+follow the venue and no Nova entry waiting to fill there (`stock_mode/leave.py` is gone), so the menu names neither
+and the switch's `left` is always empty.
+
+**Its clock and its view.** `client_timing` and `view` are required, so the stale-view gate never skips a phone order.
+The phone writes `action_wall_ms` on the PC's clock (its own clock plus the offset the link test measures from
+`GET /api/market-view/gate`'s `checked_at`), and `view.book` is the last Level 2 version its socket received, with the
+`instance` from that socket's `subscribed` frame. On the phone's screens the offset comes from the heartbeat
+(`GET /api/phone`'s `now`) and is set once for the page (`utils/deskClock`): the desk's view registry and the
+desk's order stamps read that clock, so `view` is the desk's own stamp -- the book version the phone drew, with
+`desk: {silent_ms, transit_ms, undrawn_ms}` measured on the PC's clock.
 
 ---
 

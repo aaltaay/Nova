@@ -1,5 +1,3 @@
-import { AUTO_RECORD_CHIP_LINE } from '../leaderboard';
-
 /** Maximum age of server recording evidence before tabs release their close lock. */
 export const CAPTURE_STATUS_FRESH_MS = 15_000;
 
@@ -18,9 +16,9 @@ export const recordingHairlineTitle = (symbol: string): string => `Recording ${s
 export const recordingChipTitle = (args: {
   symbol: string; elapsed: string; sessionElapsed: string; segment: number | null; prints: number; quotes: number;
   l2: number; lastWriteAgeSec: number | null; reacquired: number; dir: string | null;
-  /** Started by auto-record (ADR 023), not by hand. */
+  /** Recorded because a lane watches it (ADR 071), not by hand. */
   auto?: boolean;
-  /** Auto-record's setup and why, in words ("5-minute flat top · near its trigger"). */
+  /** Whose lane, and the bots' setup and why, in words ("the bots' lane · 5-minute flat top · near its trigger"). */
   autoWhy?: string | null;
 }): string => {
   const resumed = Boolean(args.segment && args.segment > 1);
@@ -31,7 +29,7 @@ export const recordingChipTitle = (args: {
     `${args.prints.toLocaleString()} prints · ${args.quotes.toLocaleString()} quotes · ${args.l2.toLocaleString()} L2 books`,
     args.lastWriteAgeSec == null ? 'Nothing written yet' : `Last write ${args.lastWriteAgeSec}s ago`,
   ];
-  if (args.auto) lines.push(AUTO_RECORD_CHIP_LINE);
+  if (args.auto) lines.push(LANE_RECORD_CHIP_LINE);
   if (args.auto && args.autoWhy) lines.push(args.autoWhy);
   if (args.reacquired) lines.push(`IBKR lines asked for again ${args.reacquired}x (a Gateway drop or a lost tape)`);
   if (args.dir) lines.push(args.dir);
@@ -39,13 +37,17 @@ export const recordingChipTitle = (args: {
   return lines.join('\n');
 };
 
-/** Why auto-record holds a line, after its setup (Records and the REC chip's card, operator ask 2026-10-14). */
+/** REC chip card: a recording a lane keeps (ADR 071). */
+export const LANE_RECORD_CHIP_LINE = 'lane -- recorded while a lane watches it; it ends when the lane leaves, and Records turns it off';
+/** Whose lane records the stock (ADR 071): Records and the REC chip's card. */
+export const LANE_OWNER_WORDS: Record<'you' | 'claude' | 'bots', string> = {
+  you: 'your lane', claude: "Claude's lane", bots: "the bots' lane",
+};
+/** Why the bots' lane is on a setup, after its name (Records and the REC chip's card, operator ask 2026-10-14). */
 export const AUTO_RECORD_WHY_WORDS: Record<string, string> = {
   trade: 'in a trade being scored',
   near: 'near its trigger',
   armed: 'armed, waiting on its trigger',
-  leader: 'a top gainer',
-  left: 'left both lists; its line goes first',
 };
 /** The REC chip's card stops its recording with the Record menu's hold, from any page. */
 export const RECORDING_CHIP_STOP = 'Hold to stop';
@@ -60,14 +62,15 @@ export const RECORDING_STOP_REASONS: Record<string, string> = {
   operator: 'was stopped',
   rotation: 'rolled to a new day',
   auto: 'was stopped by auto-record (window ended or line yielded)',
+  lane: 'ended with its lane',
   // #525: prints stopped while the recording ran; never a segment reason.
   tape: 'lost its IBKR tape -- no prints are being recorded',
 };
 /**
- * Stops somebody planned -- the operator's Stop, auto-record's own stop
- * (ADR 023) -- are quiet: never a toast, and the gap after them is not "missing".
+ * Stops somebody planned -- the operator's Stop, a lane's end (ADR 071), and auto-record's stops in recordings
+ * made before it -- are quiet: never a toast, and the gap after them is not "missing".
  */
-export const RECORDING_PLANNED_STOP_REASONS: ReadonlySet<string> = new Set(['operator', 'auto']);
+export const RECORDING_PLANNED_STOP_REASONS: ReadonlySet<string> = new Set(['operator', 'auto', 'lane']);
 export const recordingStoppedTitle = (symbol: string, reason: string): string =>
   `${symbol} recording ${RECORDING_STOP_REASONS[reason] ?? 'stopped'}`;
 export const recordingStoppedBody = (error: string | null, prints: number): string =>

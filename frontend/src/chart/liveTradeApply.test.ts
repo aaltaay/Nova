@@ -147,12 +147,49 @@ describe('stepLiveVolume', () => {
     expect(s.volume).toBe(20_000);
   });
 
-  it('restarts on a total that went down and leaves that bar unknown', () => {
+  it('counts nothing for a lower total the same day, so the return to the real one adds nothing', () => {
+    // XLAB 2026-10-16 19:59:58: the tape's own total and a counter 3% under it took turns on one line.
+    let s = stepLiveVolume(EMPTY_LIVE_VOLUME, at('2026-10-16T23:58:50Z'), 171_620_000);
+    s = stepLiveVolume(s, at('2026-10-16T23:59:01Z'), 171_624_609);
+    s = stepLiveVolume(s, at('2026-10-16T23:59:58Z'), 166_339_148);
+    expect(s).toMatchObject({ mark: 171_624_609, volume: 4_609 });
+    s = stepLiveVolume(s, at('2026-10-16T23:59:58Z'), 171_624_612);
+    expect(s.volume).toBe(4_612);
+    s = stepLiveVolume(s, at('2026-10-16T23:59:59Z'), 166_339_148);
+    expect(s).toMatchObject({ mark: 171_624_612, volume: 4_612 });
+  });
+
+  it('restarts on a later day and leaves that bar unknown', () => {
     let s = stepLiveVolume(EMPTY_LIVE_VOLUME, at('2026-09-24T20:03:50Z'), 1_000_000);
     s = stepLiveVolume(s, at('2026-09-24T20:04:01Z'), 1_010_000);
-    s = stepLiveVolume(s, at('2026-09-24T20:04:20Z'), 400);
+    s = stepLiveVolume(s, at('2026-09-25T12:04:20Z'), 400);
     expect(s).toMatchObject({ mark: 400, volume: null });
-    expect(stepLiveVolume(s, at('2026-09-24T20:05:02Z'), 900).volume).toBe(500);
+    expect(stepLiveVolume(s, at('2026-09-25T12:05:02Z'), 900).volume).toBe(500);
+  });
+
+  it('starts a later day over even when its first update carried no volume', () => {
+    // PR #1276 review: yesterday's mark 1,000,000, then today null, 400, 900.
+    let s = stepLiveVolume(EMPTY_LIVE_VOLUME, at('2026-09-24T20:03:50Z'), 1_000_000);
+    s = stepLiveVolume(s, at('2026-09-25T12:04:01Z'), null);
+    expect(s).toMatchObject({ mark: null, volume: null });
+    s = stepLiveVolume(s, at('2026-09-25T12:04:20Z'), 400);
+    expect(s).toMatchObject({ mark: 400, volume: null });
+    expect(stepLiveVolume(s, at('2026-09-25T12:05:02Z'), 900).volume).toBe(500);
+  });
+
+  it('starts a later day over even when its first total is above yesterday\'s', () => {
+    let s = stepLiveVolume(EMPTY_LIVE_VOLUME, at('2026-09-24T20:03:50Z'), 1_000_000);
+    s = stepLiveVolume(s, at('2026-09-25T13:30:01Z'), 1_400_000);
+    expect(s).toMatchObject({ mark: 1_400_000, volume: null });
+  });
+
+  it('takes no 10^6-scaled total for volume', () => {
+    // GRAL 2026-09-21: 2,106,490, then 2,071,000,800,607 in the same second.
+    let s = stepLiveVolume(EMPTY_LIVE_VOLUME, at('2026-09-21T16:35:50Z'), 2_000_000);
+    s = stepLiveVolume(s, at('2026-09-21T16:36:57Z'), 2_106_490);
+    s = stepLiveVolume(s, at('2026-09-21T16:36:57Z'), 2_071_000_800_607);
+    expect(s).toMatchObject({ mark: 2_106_490, volume: 106_490 });
+    expect(stepLiveVolume(s, at('2026-09-21T16:36:59Z'), 2_106_590).volume).toBe(106_590);
   });
 });
 

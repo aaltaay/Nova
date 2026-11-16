@@ -2,11 +2,11 @@
  * One Trader tab's stock read (ADR 036): the polled read, the day's setups that ended, the operator's
  * own plan, the venue sleeve's risk per trade, what the charts draw, the sheet and a chart focus -- shared
  * by the plan box on the rail, the tiles, the sheet over the charts and every chart pane's drawings. The read
- * places nothing; "Stage in ticket" only fills the tab's ticket. Who trades the stock (ADR 037) rides along:
- * the switch's view and writes, the moment on the chart and the plan's rows in Level 2.
+ * places nothing; "Stage in ticket" only fills the tab's ticket. The trade's moment (ADR 037) rides along: the call on
+ * the chart and the plan's rows in Level 2. Who trades the stock is the operator: the strategies only watch (ADR 072).
  */
 import { useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { LuldTrail } from '../ibkr';
+import type { DepthMarker, LuldTrail } from '../ibkr';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import { parseRiskUsd, saveSleeveRisk, useSleeveRisk, venueOrNull, type SleeveRisk } from '../setups';
 import { tickerLastTrade } from '../hooks/tickerStore';
@@ -28,7 +28,7 @@ import {
 } from './useStockRead';
 import type { BigWalls } from './bigSeller';
 import { useHeldTrade, type FlushReading, type HeldTrack } from './useHeldTrade';
-import { useWhoTrades, type WhoTradesState } from './useWhoTrades';
+import { useTradeMoment, type TradeMomentState } from './useTradeMoment';
 
 export type SheetTab = 'signals' | 'decisions' | 'history';
 
@@ -92,7 +92,7 @@ export interface StockReadContextValue {
   setManualPlan: (entry: number | null, stop: number | null, side?: 'long' | 'short') => void;
   /** The venue sleeve's risk per trade (else the stated fallback): sizes the operator's own buys. */
   riskUsd: number;
-  /** Saves it into the venue's sleeve: Nova's automatic buys size by it too. */
+  /** Saves it into the venue's sleeve. */
   setRiskUsd: (usd: number) => void;
   /** Where the risk per trade comes from, and any trouble reading or saving it. */
   risk: SleeveRisk;
@@ -111,8 +111,8 @@ export interface StockReadContextValue {
   /** Back to now: the 1-minute pane scrolls to its live edge. */
   clearFocus: () => void;
   topOfBook: { bid: number | null; ask: number | null } | null;
-  /** Who trades the stock (ADR 037). */
-  who: WhoTradesState;
+  /** The trade's moment, the plan's levels and their Level 2 rows (ADR 037). */
+  trade: TradeMomentState;
   /** The trade you hold (ADR 036 amendment 2026-10-01): the stop you set for it (never an order). */
   held: { track: HeldTrack; setStop: (stop: number | null) => void };
   /** Trial T1's tape reading while you hold, read every second. */
@@ -120,8 +120,6 @@ export interface StockReadContextValue {
   /** The big sellers and buyers on the held Level 2 line while you hold (#846), read every second; absent outside
    * a Trader tab's provider. */
   big?: PolledState<BigWalls>;
-  /** "Nova takes the exit": its sheet over the plan box. */
-  exitSheet: { open: boolean; setOpen: (open: boolean) => void };
   /** The account's position in the stock on the desk's venue; null when none (Level 2's LIQ chip). */
   position: TabPosition | null;
 }
@@ -193,14 +191,14 @@ export function StockReadProvider({
   topOfBook: { symbol: string; bid: number | null; ask: number | null } | null;
   /** The account's position in this stock on the desk's venue; null when none. */
   position?: TabPosition | null;
-  /** The desk venue (live | paper | sim): Who trades is the venue's own (#657). */
+  /** The desk venue (live | paper | sim): the position's memory is the venue's own (#657). */
   venue?: string | null;
   children: ReactNode;
 }) {
   const sym = symbol.trim().toUpperCase();
   const sample = useSampleDataOptional();
   // The tab's live last trade, read here (#707): it renders this provider on a print; the value it gives
-  // its readers changes only when what they show does (useWhoTrades keeps the price to itself).
+  // its readers changes only when what they show does (useTradeMoment keeps the price to itself).
   const lastPrice = useTickerSelect(sym, (state) => tickerLastTrade(state, sym)?.price ?? null);
   const [manual, setManual] = useState<ManualPlan>(NO_MANUAL);
   const [layers, setLayerState] = useState(() => readPref(STOCK_READ_LAYERS_KEY, DEFAULT_LAYERS, parseLayers));
@@ -213,7 +211,7 @@ export function StockReadProvider({
   }, [sym]);
 
   const live = active && !replay;
-  // The read and who trades answer on a Sim replay too: the backend reads the replay at the playhead there.
+  // The read answers on a Sim replay too: the backend reads the replay at the playhead there.
   const readable = active;
   const simNow = useSimAccountClock(replay && readable).nowTs;
   const sleeveVenue = venueOrNull(venue);
@@ -239,8 +237,6 @@ export function StockReadProvider({
   const read = useStockRead(sym, { active: readable, entry: manual.entry, stop: manual.stop, side: manual.side,
     held: heldTrade.query, nudge });
   useEffect(() => setLastRead(read.data), [read.data]);
-  const [exitOpen, setExitOpen] = useState(false);
-  useEffect(() => setExitOpen(false), [sym]);
   const history = useStockReadHistory(sym, live);
   const decisions = useStockReadDecisions(sym, live && sheet.open && sheet.tab === 'decisions');
   // The lanes' drawn states: a setup that fails or ends is read as past at once, not at the next poll.
@@ -261,8 +257,8 @@ export function StockReadProvider({
   const past5Now = pastNowOf(past5.data, sym, replay, simNow);
   const luld = useLuldTrail(sym, readable && drawn.eyes);
   const ownRead = readNowOf(read.data, replay, simNow);
-  const who = useWhoTrades({
-    symbol: sym, live: readable && !sample, read: ownRead, riskUsd, ttlSec: risk.ttlSec, position: pos,
+  const trade = useTradeMoment({
+    symbol: sym, live: readable && !sample, read: ownRead, riskUsd, position: pos,
     last: lastPrice, venue,
     flush: live ? heldTrade.flush.data : null,
     big: heldTrade.big.data,
@@ -341,16 +337,15 @@ export function StockReadProvider({
     focusAt,
     clearFocus,
     topOfBook: book,
-    who,
+    trade,
     held: { track: heldTrade.track, setStop: heldTrade.setStop },
     flush: heldTrade.flush,
     big: heldTrade.big,
-    exitSheet: { open: exitOpen, setOpen: setExitOpen },
     position: tabPosition,
   }), [sym, active, replay, read, ownRead, history, decisions, past, past5, pastNow, past5Now, luld, manual, setManualPlan,
     riskUsd, setRiskUsd, risk,
-    layers, drawn, setLayers, toggleLane, sheet, openSheet, closeSheet, focus, focusAt, clearFocus, book, who,
-    heldTrade.track, heldTrade.setStop, heldTrade.flush, heldTrade.big, exitOpen, tabPosition]);
+    layers, drawn, setLayers, toggleLane, sheet, openSheet, closeSheet, focus, focusAt, clearFocus, book, trade,
+    heldTrade.track, heldTrade.setStop, heldTrade.flush, heldTrade.big, tabPosition]);
 
   // The sample desk reads nothing live: no read, so no rail block, sheet or drawings.
   if (sample) return <>{children}</>;
@@ -360,4 +355,11 @@ export function StockReadProvider({
 /** The tab's stock read; null outside a Trader tab (the rail and panes then draw nothing). */
 export function useStockReadContext(): StockReadContextValue | null {
   return useContext(StockReadCtx) ?? null;
+}
+
+/** The plan's ENTRY / STOP / TARGET for this tab's Level 2 -- a Sim replay's plan at the playhead on a replay
+ * (ADR 052); none on the sample desk. */
+export function useLevel2Markers(): readonly DepthMarker[] | undefined {
+  const ctx = useStockReadContext();
+  return ctx ? ctx.trade.markers : undefined;
 }

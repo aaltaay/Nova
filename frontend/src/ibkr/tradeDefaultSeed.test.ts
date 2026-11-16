@@ -40,5 +40,7 @@ describe('tradeDefaultSeed', () => {
   it('formats prices', () => {
     expect(formatSeedPrice(10.1)).toBe('10.10');
     expect(formatSeedPrice(null)).toBe('');
+    expect(formatSeedPrice(0.3188)).toBe('0.3188');
+    expect(formatSeedPrice(0.0537, 5.37)).toBe('0.05');
   });
 });

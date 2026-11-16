@@ -1,0 +1,111 @@
+/* The depth chart over the Level 2 book (operator ask 2026-11-13, mockup v1). Owner: ibkr/Level2DepthChart.tsx.
+   Its type follows the pane's size (--l2-band-label, level2Montage.css). */
+.l2-depth {
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--nova-border-strong, #222);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--l2-band-label, 11px);
+  color: var(--nova-text-muted, var(--text-secondary));
+  font-variant-numeric: tabular-nums;
+}
+
+.l2-depth__totals,
+.l2-depth__axis {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.l2-depth__edge {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6em;
+  min-width: 0;
+}
+
+.l2-depth__edge--ask {
+  flex-direction: row-reverse;
+}
+
+.l2-depth__edge--bid .l2-depth__num {
+  color: var(--bid-color, #3dba7a);
+}
+
+.l2-depth__edge--ask .l2-depth__num {
+  color: var(--ask-color, #e35d6a);
+}
+
+.l2-depth__plot {
+  position: relative;
+  height: 4.6em;
+  min-height: 44px;
+  cursor: crosshair;
+  overflow: hidden;
+}
+
+.l2-depth__plot svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.l2-depth__area {
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+
+.l2-depth__area--bid {
+  fill: color-mix(in srgb, var(--bid-color, #3dba7a) 22%, transparent);
+  stroke: var(--bid-color, #3dba7a);
+}
+
+.l2-depth__area--ask {
+  fill: color-mix(in srgb, var(--ask-color, #e35d6a) 20%, transparent);
+  stroke: var(--ask-color, #e35d6a);
+}
+
+.l2-depth__mid,
+.l2-depth__cursor {
+  stroke: currentColor;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.l2-depth__mid {
+  stroke-opacity: 0.3;
+  stroke-dasharray: 2 3;
+}
+
+.l2-depth__cursor {
+  stroke-opacity: 0.6;
+}
+
+.l2-depth__wall {
+  stroke: #f59e0b;
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.l2-depth__walltag {
+  position: absolute;
+  padding: 1px 5px;
+  color: #fbbf24;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.l2-depth__read {
+  padding: 0 8px 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The switch in the pane's right-click menu, under the sizes. */
+.l2-size-menu__rule {
+  height: 1px;
+  margin: 0.3rem 0.2rem;
+  background: var(--nova-border, #2a3040);
+}

@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import constants_global_board as cg
 from constants_market_board import MARKET_HISTORY_HEADROOM
+from constants_scanner import IBKR_HISTORICAL_PACE_MAX
 from followed_traders.constants_followed import FOLLOWED_EXIT_HEADROOM
 from global_board import board, contracts, flows, jobs, keep, markets, reads, refresh
 from global_board.state import store
@@ -322,12 +323,21 @@ def _market_page_shows(monkeypatch, shows: bool) -> None:
     monkeypatch.setattr(market_state.store(), "wanted", lambda now: shows)
 
 
+def test_no_requests_left_never_reads_under_zero(monkeypatch):
+    """While IBKR's slowing holds the window, more can be spent than its number: the page says none are left."""
+    from ibkr import historical_service
+
+    monkeypatch.setattr(historical_service, "pacing_snapshot", lambda: {"window_max": 60, "window_used": 100})
+    assert reads.history_left() == 0
+
+
 def test_the_page_reads_while_more_than_its_headroom_is_left(monkeypatch):
     from ibkr import historical_service
 
     _market_page_shows(monkeypatch, False)
-    for used, ok in ((60 - cg.GLOBAL_HISTORY_HEADROOM - 1, True), (60 - cg.GLOBAL_HISTORY_HEADROOM, False)):
-        monkeypatch.setattr(historical_service, "pacing_snapshot", lambda u=used: {"window_max": 60, "window_used": u})
+    top = IBKR_HISTORICAL_PACE_MAX
+    for used, ok in ((top - cg.GLOBAL_HISTORY_HEADROOM - 1, True), (top - cg.GLOBAL_HISTORY_HEADROOM, False)):
+        monkeypatch.setattr(historical_service, "pacing_snapshot", lambda u=used: {"window_max": top, "window_used": u})
         assert reads.history_ok() is ok
 
 

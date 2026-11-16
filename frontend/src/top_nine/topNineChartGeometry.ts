@@ -47,7 +47,33 @@ const LEFT = 6;
 const TOP = 8;
 const TIME_H = 16;
 const VOL_H = 40;
+
+/** The room a chart keeps around its candles. The pop-up's tile keeps a price axis and a time row; a smaller
+ * tile (the phone's) keeps neither and draws its own tag over the plot. */
+export interface ChartInsets {
+  /** Right of the plot, for the price axis. */
+  axisW: number;
+  left: number;
+  top: number;
+  /** Under the volume bars, for the time labels. */
+  timeH: number;
+  volH: number;
+  /** A box smaller than this draws nothing. */
+  minW: number;
+  minH: number;
+  /** Minutes of candles shown, ending at the board's minute. */
+  minutes: number;
+}
+
+export const DESK_CHART_INSETS: ChartInsets = {
+  axisW: CHART_AXIS_W, left: LEFT, top: TOP, timeH: TIME_H, volH: VOL_H, minW: 80, minH: 60,
+  minutes: TOP_NINE_CHART_MINUTES,
+};
 const GAP_BREAK_MIN = 3;
+/** A price span under this fraction of the price is a flat chart. */
+const FLAT_SPAN = 1e-6;
+/** niceStep asks for about four ticks; a few more is a bug, never a chart. */
+const MAX_PRICE_TICKS = 12;
 
 function minuteOf(time: number): number {
   return Math.floor(time / 60);
@@ -83,6 +109,7 @@ function hhmm(minuteOfEpoch: number): string {
  * @param vwap the session VWAP points for the same bars.
  * @param lastPrice the board's price for the row (the last-price tag), or null to tag the last close.
  * @param endTime the board's minute in the same ET wall-clock seconds; null ends at the newest bar.
+ * @param insets the room kept around the candles; the pop-up's own when left out.
  */
 export function topNineChartGeometry(
   bars: readonly IndicatorBar[],
@@ -90,20 +117,22 @@ export function topNineChartGeometry(
   lastPrice: number | null,
   box: ChartBox,
   endTime: number | null = null,
+  insets: ChartInsets = DESK_CHART_INSETS,
 ): TopNineChartGeometry | null {
-  if (!bars.length || box.width < 80 || box.height < 60) return null;
+  const { axisW, left: LEFT, top: TOP, timeH, volH, minutes } = insets;
+  if (!bars.length || box.width < insets.minW || box.height < insets.minH) return null;
   const endMin = (endTime == null ? minuteOf(bars[bars.length - 1].time) : minuteOf(endTime)) + 1;
-  const startMin = endMin - TOP_NINE_CHART_MINUTES;
+  const startMin = endMin - minutes;
   const shown = bars.filter((b) => minuteOf(b.time) >= startMin && minuteOf(b.time) < endMin);
   if (!shown.length) return null;
   const vw = vwap.filter((p) => minuteOf(p.time) >= startMin && minuteOf(p.time) < endMin && Number.isFinite(p.value));
 
-  const plotRight = box.width - CHART_AXIS_W;
+  const plotRight = box.width - axisW;
   const plotW = plotRight - LEFT;
-  const volBottom = box.height - TIME_H - 2;
-  const volTop = volBottom - VOL_H;
+  const volBottom = box.height - timeH - 2;
+  const volTop = volBottom - volH;
   const priceBottom = volTop - 6;
-  const slot = plotW / TOP_NINE_CHART_MINUTES;
+  const slot = plotW / minutes;
   const xOf = (minute: number) => LEFT + (minute - startMin + 0.5) * slot;
 
   let lo = Math.min(...shown.map((b) => b.low), ...vw.map((p) => p.value));
@@ -112,7 +141,10 @@ export function topNineChartGeometry(
     lo = Math.min(lo, lastPrice);
     hi = Math.max(hi, lastPrice);
   }
-  const pad = (hi - lo) * 0.06 || hi * 0.02 || 0.01;
+  // A flat chart's VWAP can sit a rounding hair off its price (242.44999999999996 against 242.45):
+  // a span that small is flat, or the tick step falls below the price's own rounding.
+  const span = hi - lo;
+  const pad = span > Math.abs(hi) * FLAT_SPAN ? span * 0.06 : Math.abs(hi) * 0.02 || 0.01;
   lo -= pad;
   hi += pad;
   const yOf = (p: number) => TOP + ((hi - p) / (hi - lo)) * (priceBottom - TOP);
@@ -156,7 +188,11 @@ export function topNineChartGeometry(
   const step = niceStep(hi - lo, 4);
   const dec = decimalsFor(step);
   const priceTicks: { y: number; label: string }[] = [];
-  for (let v = Math.ceil(lo / step) * step; v < hi; v += step) {
+  // Counted, not summed: a step the price cannot add must still end the loop.
+  const first = Math.ceil(lo / step);
+  for (let i = 0; i < MAX_PRICE_TICKS; i += 1) {
+    const v = (first + i) * step;
+    if (!(v < hi)) break;
     const y = yOf(v);
     if (Math.abs(y - lastY) > 15) priceTicks.push({ y, label: v.toFixed(dec) });
   }

@@ -13,14 +13,16 @@ import { markPrice, markShares, markWhole, priceKey, type BookSide, type BookWat
 import type { BigFloat, HeldBig } from './bookWatchBigRead';
 import type { DepthLevel } from './types';
 
-export type BigBannerKind = 'holding' | 'taken' | 'pulled' | 'approach' | 'lost';
+export type BigBannerKind = 'holding' | 'taken' | 'pulled' | 'approach' | 'lost' | 'smaller';
 
 /** One row of a big seller's or buyer's block. */
 export interface BigRow {
   first: boolean;
   last: boolean;
-  /** On the block's first row: "Big seller" / "Big buyer". */
+  /** On the block's first row: "Big seller" / "Big buyer"; on a light one its seconds of volume ("12 s"). */
   tag: string | null;
+  /** Under a minute of the last minute's lit volume (or not weighed yet): the row keeps its colour, outlined. */
+  light: boolean;
   /** On its last row once something traded there: traded / (traded + size now), 0..100. */
   takenPct: number | null;
   title: string;
@@ -40,6 +42,8 @@ export interface BigBannerPart {
 
 export interface BigBanner {
   kind: BigBannerKind;
+  /** A holding wall under a minute of lit volume: "Seller", outlined, never "Big seller". */
+  light: boolean;
   parts: BigBannerPart[];
   opacity: number;
   title: string;
@@ -48,6 +52,7 @@ export interface BigBanner {
 
 const WHO: Record<BookSide, string> = { ask: 'Big seller', bid: 'Big buyer' };
 const ONE: Record<BookSide, string> = { ask: 'seller', bid: 'buyer' };
+const ONE_CAP: Record<BookSide, string> = { ask: 'Seller', bid: 'Buyer' };
 const RESTING: Record<BookSide, string> = { ask: 'offered', bid: 'bid' };
 const LIVE = new Set(['holding', 'left']);
 
@@ -81,6 +86,7 @@ function untraded(w: HeldBig): number {
 }
 
 function endKind(w: HeldBig): BigBannerKind {
+  if (w.state === 'smaller' && w.left) return 'smaller';
   if (w.state === 'eaten') return 'taken';
   if (w.state === 'pulled') return w.onApproach ? 'approach' : 'pulled';
   return 'lost';
@@ -106,6 +112,11 @@ export function bigTip(w: HeldBig, float: BigFloat | null, nowMs: number): strin
     lines.push(w.clearSec !== null
       ? `${clearWords(w.clearSec)} of trading at the last minute's lit volume.`
       : 'No lit trades in the last minute to time it against.');
+    lines.push(w.weight === 'heavy'
+      ? 'Heavy: a minute or more of that volume.'
+      : w.weight === 'light'
+        ? 'Light: under a minute of that volume, so not called big.'
+        : 'Not weighed yet: Nova has watched this line for under 10 seconds.');
   }
   if (w.back) {
     lines.push(`A big ${ONE[w.side]} at ${p} was pulled ${w.back.pulled === 1 ? 'once' : `${w.back.pulled} times`} in the ${L2_BIG_BACK_MIN} minutes before; the last (${markShares(w.back.lastSize)}) left ${ago(nowMs - w.back.lastEndedMs)}. Not necessarily the same ${ONE[w.side]}.`);
@@ -118,6 +129,9 @@ export function bigTip(w: HeldBig, float: BigFloat | null, nowMs: number): strin
   }
   if (kind === 'pulled') lines.push(`Pulled: it left the book and prints at ${p} took less than half of it (${markWhole(untraded(w))} left untraded).`);
   if (kind === 'approach') lines.push(`Pulled as the price came closer to it: ${markWhole(untraded(w))} left untraded. A hint consistent with spoofing, never a detection.`);
+  if (kind === 'smaller' && w.left) {
+    lines.push(`Smaller: ${markWhole(w.left.before - w.left.after)} left the book (${markWhole(w.left.filled)} traded at ${p}) and ${markWhole(w.left.after)} is still there, under the size Nova calls big. It is no longer followed.`);
+  }
   if (kind === 'lost') lines.push(`Out of view: the book stopped showing ${p} (past the rows shown, or the line restarted). Unknown, never called pulled.`);
   lines.push(L2_BIG_NOTE);
   return lines.join('\n');
@@ -132,13 +146,16 @@ export function bigRows(state: BookWatchState | null, side: BookSide, rows: read
     const key = priceKey(w.price);
     const at = rows.flatMap((r, i) => (priceKey(r.price) === key ? [i] : []));
     if (!at.length) continue;
-    const title = `${WHO[side]} at ${markPrice(w.price)}: ${markShares(w.sizeNow)}`;
+    const light = w.weight !== 'heavy';
+    const title = `${light ? ONE_CAP[side] : WHO[side]} at ${markPrice(w.price)}: ${markShares(w.sizeNow)}`;
     const tip = bigTip(w, state.bigFloat, nowMs);
     const taken = w.traded > 0 ? Math.round((w.traded / (w.traded + w.sizeNow)) * 100) : null;
+    const tag = light ? (w.clearSec !== null ? clearWords(w.clearSec) : null) : WHO[side];
     at.forEach((i, n) => out.set(i, {
       first: n === 0,
       last: n === at.length - 1,
-      tag: n === 0 ? WHO[side] : null,
+      tag: n === 0 ? tag : null,
+      light,
       takenPct: n === at.length - 1 ? taken : null,
       title,
       tip,
@@ -169,8 +186,10 @@ export function bigBanner(state: BookWatchState | null, side: BookSide, nowMs: n
   const p = markPrice(w.price);
   const tip = bigTip(w, float, nowMs);
   if (holding) {
+    const light = w.weight !== 'heavy';
+    const who = light ? ONE_CAP[side] : WHO[side];
     const parts: BigBannerPart[] = [
-      { key: 'lead', sep: '', text: WHO[side] },
+      { key: 'lead', sep: '', text: who },
       { key: 'price', sep: ' ', text: p },
       { key: 'size', sep: ' · ', text: markShares(w.sizeNow) },
     ];
@@ -180,16 +199,28 @@ export function bigBanner(state: BookWatchState | null, side: BookSide, nowMs: n
     if (float) parts.push({ key: 'float', sep: ' · ', text: `${floatPct(w.sizeNow, float)} of float${float.contradicted ? '?' : ''}` });
     if (w.clearSec !== null) parts.push({ key: 'pace', sep: ' · ', text: `${clearWords(w.clearSec)} of lit volume` });
     if (w.back) parts.push({ key: 'pace', sep: ' · ', text: `back · ${ordinal(w.back.pulled + 1)} in ${L2_BIG_BACK_MIN} min` });
-    return { kind: 'holding', parts, opacity: 1, title: `${WHO[side]} at ${p}`, tip };
+    return { kind: 'holding', light, parts, opacity: 1, title: `${who} at ${p}`, tip };
   }
   const kind = endKind(w) as Exclude<BigBannerKind, 'holding'>;
-  const mark: Record<typeof kind, string> = { taken: '✓ ', pulled: '✕ ', approach: '✕ ', lost: '' };
-  const verdict: Record<typeof kind, string> = { taken: 'taken', pulled: 'pulled', approach: 'pulled', lost: 'out of view' };
+  if (kind === 'smaller' && w.left) {
+    const did = w.how === 'traded' ? 'taken' : 'pulled';
+    const parts: BigBannerPart[] = [
+      { key: 'lead', sep: '', text: ONE_CAP[side] },
+      { key: 'price', sep: ' ', text: p },
+      { key: 'verdict', sep: ' ', text: 'smaller' },
+      { key: 'size', sep: ' · ', text: `${markShares(w.left.after)} still there` },
+      { key: 'detail', sep: ' · ', text: `${markShares(w.left.before - w.left.after)} ${did}` },
+    ];
+    return { kind, light: false, parts, opacity: opacity(w, nowMs), title: `${ONE_CAP[side]} at ${p}, smaller`, tip };
+  }
+  const mark: Record<typeof kind, string> = { taken: '✓ ', pulled: '✕ ', approach: '✕ ', lost: '', smaller: '' };
+  const verdict: Record<typeof kind, string> = { taken: 'taken', pulled: 'pulled', approach: 'pulled', lost: 'out of view', smaller: 'smaller' };
   const result: Record<typeof kind, string> = {
     taken: w.how === 'through' ? 'traded through' : `${markShares(w.traded)} traded`,
     pulled: `${markShares(untraded(w))} untraded`,
     approach: `${markShares(untraded(w))} untraded`,
     lost: 'unknown',
+    smaller: 'unknown',
   };
   const parts: BigBannerPart[] = [
     { key: 'lead', sep: '', text: `${mark[kind]}${WHO[side]}` },
@@ -198,5 +229,5 @@ export function bigBanner(state: BookWatchState | null, side: BookSide, nowMs: n
   ];
   if (kind === 'approach') parts.push({ key: 'detail', sep: ' ', text: 'as price came' });
   parts.push({ key: 'detail', sep: ' · ', text: result[kind] });
-  return { kind, parts, opacity: opacity(w, nowMs), title: `${WHO[side]} at ${p}`, tip };
+  return { kind, light: false, parts, opacity: opacity(w, nowMs), title: `${WHO[side]} at ${p}`, tip };
 }

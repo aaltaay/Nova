@@ -18,7 +18,6 @@ import { addToWatchList, resetWatchListForTests } from '../watch_list/watchListS
 
 const mocks = vi.hoisted(() => ({
   feed: null as LiveScannerFeed | null,
-  allow: [] as string[],
   recording: [] as string[],
   live: [] as string[],
   active: 'GRML' as string | null,
@@ -71,9 +70,6 @@ vi.mock('../workspace/WorkspaceContext', () => ({
     activeTraderSymbol: mocks.active, traderLiveTabs: mocks.live, openStockView: mocks.open, showScannerView: mocks.scanner,
   }),
 }));
-vi.mock('../bot/useBotAllowlist', () => ({
-  useBotAllowlist: () => ({ symbols: mocks.allow, isAllowed: (s: string) => mocks.allow.includes(s.toUpperCase()) }),
-}));
 vi.mock('../capture/sessionRecordStore', () => ({
   getRecordingSymbols: () => mocks.recording,
   isTabRecording: (s: string) => mocks.recording.includes(s.toUpperCase()),
@@ -117,7 +113,6 @@ beforeEach(() => {
   mocks.visible = null;
   mocks.hodReplay = null;
   mocks.feed = makeLiveScannerFeedStub({ gappers: [row('GRML', 131.2, 8.9, ago(30)), row('VXTL', 38.2, 3.42), row('CBRX', -5.4, 4.56)] });
-  mocks.allow = ['GRML', 'VXTL'];
   mocks.recording = ['GRML'];
   mocks.live = ['GRML'];
   mocks.active = 'GRML';
@@ -146,16 +141,15 @@ describe('FocusRail', () => {
     expect(mocks.open).toHaveBeenCalledWith('GRML');
   });
 
-  it('mirrors Gappers with REC and bot dots, highlights the active symbol, and opens on click', () => {
+  it('mirrors Gappers with REC dots and no bot dot, highlights the active symbol, and opens on click', () => {
     render(<FocusRail />);
     expect(screen.getByTestId('focus-rail-list-label').textContent).toBe('· Gappers 3');
     const grml = screen.getByTestId('focus-rail-row-GRML');
     expect(grml.className).toContain('is-active');
     expect(screen.getByTestId('focus-rail-rec-GRML')).toBeTruthy();
-    expect(screen.getByTestId('focus-rail-bot-GRML').getAttribute('data-held')).toBe('1');
-    // Allowlisted but no depth line held here: hollow, quiet.
-    expect(screen.getByTestId('focus-rail-bot-VXTL').getAttribute('data-held')).toBe('0');
-    expect(screen.queryByTestId('focus-rail-bot-CBRX')).toBeNull();
+    // The strategies only watch (ADR 072): no row carries a bot dot.
+    expect(screen.queryByTestId('focus-rail-bot-GRML')).toBeNull();
+    expect(screen.queryByTestId('focus-rail-bot-VXTL')).toBeNull();
     expect(grml.textContent).toContain('+131%');
     // The Scanner's news circle leads the row: red for a headline under 2 h old.
     expect(grml.firstElementChild?.getAttribute('data-testid')).toBe('focus-rail-news-GRML');
@@ -495,7 +489,7 @@ describe('FocusRail', () => {
       expect(news.textContent).toContain('GRML · News since the prior close');
       expect(news.textContent).toContain('GRML wins a Navy contract');
       expect(news.textContent).toContain('1 movers lists / market wraps hidden');
-      // One card: GRML's REC / bot status sits under its news, not in a second card.
+      // One card: GRML's REC status sits under its news, not in a second card.
       expect(card.contains(screen.getByTestId('focus-rail-card-status'))).toBe(true);
       // Crossing the dots on the way to the card keeps the news on screen.
       fireEvent.mouseEnter(screen.getByTestId('focus-rail-dots-GRML'));
@@ -514,21 +508,17 @@ describe('FocusRail', () => {
     }
   });
 
-  it('hovering the REC / bot dots opens the same card: the news, then what the dots mean', () => {
+  it('hovering the REC dot opens the same card: the news, then what the dot means', () => {
     render(<FocusRail />);
     fireEvent.mouseEnter(screen.getByTestId('focus-rail-dots-GRML'));
     const status = screen.getByTestId('focus-rail-card-status');
     expect(screen.getByTestId('focus-rail-card-news').textContent).toContain('GRML · News since the prior close');
     expect(status.textContent).toMatch(/^Status/);
     expect(screen.getByTestId('focus-rail-card-rec').textContent).toMatch(/recording this symbol's tape and Level 2/);
-    expect(screen.getByTestId('focus-rail-card-bot').getAttribute('data-held')).toBe('1');
-    expect(status.textContent).toMatch(/so the bot can see it/);
-    fireEvent.mouseEnter(screen.getByTestId('focus-rail-dots-VXTL'));
+    expect(screen.queryByTestId('focus-rail-card-bot')).toBeNull();
+    fireEvent.mouseEnter(screen.getByTestId('focus-rail-news-VXTL'));
     expect(screen.getAllByTestId('focus-rail-card')).toHaveLength(1);
     expect(screen.getByTestId('focus-rail-card-news').textContent).toContain('VXTL · News since the prior close');
-    expect(screen.getByTestId('focus-rail-card-bot').getAttribute('data-held')).toBe('0');
-    expect(screen.getByTestId('focus-rail-card-status').textContent).toMatch(/cannot act on it/);
-    expect(screen.queryByTestId('focus-rail-card-rec')).toBeNull();
     // A row with no dots has no status section.
     fireEvent.mouseEnter(screen.getByTestId('focus-rail-news-CBRX'));
     expect(screen.getByTestId('focus-rail-card-news').textContent).toContain('CBRX');

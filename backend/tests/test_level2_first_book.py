@@ -63,11 +63,12 @@ def _book(symbol: str = SYM) -> None:
     handlers.on_update_book(depth_ticker(bids=[(2.10, 500)], asks=[(2.12, 800)]), symbol)
 
 
-def _place(symbol: str = SYM, source: str = "manual"):
+def _place(symbol: str = SYM, source: str = "manual", side: str = "BUY"):
     act = time.time() * 1000.0
     view = {"schema_version": 1, "symbol": symbol, "action_wall_ms": act,
             "instance": instance_identity.INSTANCE_ID, "book": None, "quote": None, "desk": None}
-    return SimpleNamespace(operation="place", source=source, symbol=symbol, view=view,
+    return SimpleNamespace(operation="place", source=source, symbol=symbol, view=view, side=side,
+                           short_entry=False, order_id=None, normalized_symbol=lambda: symbol,
                            client_timing={"action_wall_ms": act}, backend_ingress_wall_ns=int((act + 20) * 1e6))
 
 
@@ -83,6 +84,9 @@ def test_beats_and_l1_ticks_without_a_book_keep_orders_locked():
     check = gate.check(_place())
     assert check.refused and check.code == BOOK_WAITING
     assert check.measures["book_waiting_since"] is not None and check.measures["book_lag_ms"] is None
+    # Getting out is never locked for lag (ADR 045 amendment 2026-11-06): the sell goes, and the row says why.
+    sell = gate.check(_place(side="SELL"))
+    assert not sell.refused and sell.verdict == "close" and sell.code == BOOK_WAITING
 
 
 def test_a_delayed_first_book_opens_the_ticket():

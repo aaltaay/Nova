@@ -2,9 +2,8 @@
  * switches its shapes on and off, and the Setups menu holding every lane's switch, the day's setups that
  * ended and how much their labels say (`LegendSetupsMenu`); after "show on chart" from the
  * decisions -- the moment in view with a way back to now. In the corner, the badge with the trade's
- * track and the Who trades chip under it, and the call (ENTER NOW, SELL NOW, what Nova did: ADR 037). The
- * legend ends where the price axis begins, and it says how far down the corner reaches: the words at the
- * pane's right edge start under it. */
+ * track, and the call (ENTER NOW, SELL NOW: ADR 037). The legend ends where the price axis begins, and it says
+ * how far down the corner reaches: the words at the pane's right edge start under it. */
 import { useEffect, useRef, type RefObject } from 'react';
 import { liquidityTip } from '../setups';
 import { tipProps } from '../ux';
@@ -15,7 +14,6 @@ import { LegendSetupsMenu, onLegendRow } from './LegendSetupsMenu';
 import { chartKey, type KeySection } from './paneKeyRows';
 import { CallBox, MomentTrack } from './MomentTrack';
 import { hhmmssEt } from './timeWords';
-import { WhoTradesChip } from './WhoTradesChip';
 import type { StockReadContextValue } from './StockReadContext';
 import type { StockRead } from './types';
 import './stockRead.css';
@@ -64,7 +62,7 @@ export function ChartLegend({ ctx, read, onFrame, right = null, containerRef, on
   const { layers } = ctx;
   const eyes = ctx.prefs.eyes;
   // Eyes off (ADR 044): no badge, except a call about shares you hold (the trade's moment is Holding or past it).
-  const moment = eyes || (ctx.who.moment?.step ?? 0) >= 2 ? ctx.who.moment : null;
+  const moment = eyes || (ctx.trade.moment?.step ?? 0) >= 2 ? ctx.trade.moment : null;
   const badge = moment?.badge ?? (layers.setups ? planBadgeText(read) : null);
   const tone = moment?.tone ?? read.plan?.state ?? 'manual';
   const focus = ctx.focus;
@@ -152,7 +150,6 @@ export function ChartLegend({ ctx, read, onFrame, right = null, containerRef, on
           </button>
         )}
         {moment?.track && <MomentTrack moment={moment} />}
-        <WhoTradesChip ctx={ctx} />
       </div>
     </div>
   );

@@ -14,7 +14,7 @@ import type { StockReadLayers } from './StockReadContext';
 import type { StockRead } from './types';
 import { heldQuery, normalizeFlush } from './useHeldTrade';
 import { readQuery } from './useStockRead';
-import { inputs, pfsaRead, pfsaView } from './whoTradesFixtures';
+import { inputs, pfsaRead } from './momentFixtures';
 
 const HELD = normalizeHeld(apusHeldWire)!;
 const LAYERS: StockReadLayers = { setups: true, levels: false, past: false, labels: 'compact', hidden: [], plan: 'auto' };
@@ -139,7 +139,7 @@ describe('the charts and Level 2', () => {
 });
 
 describe('the calls while you hold', () => {
-  const at = (over = {}, since = APUS_HELD_SINCE) => inputs({ read: read(), who: pfsaView('signal'), ...holding,
+  const at = (over = {}, since = APUS_HELD_SINCE) => inputs({ read: read(), ...holding,
     now: APUS_HELD_NOW, ...over }, { ...NO_HELD, since });
 
   it('BROKE offers the raise, and names the next level', () => {
@@ -154,7 +154,7 @@ describe('the calls while you hold', () => {
     const paper = momentOf(at({ flush }));
     expect(paper?.call).toMatchObject({ title: 'SELL NOW · FLUSH · IN TRIAL T1', tone: 'stop', ping: true });
     expect(paper?.call?.detail).toMatch(/never an order/);
-    const live = momentOf(at({ flush, who: pfsaView('signal', { venue: 'live' }) }));
+    const live = momentOf(at({ flush, venue: 'live' }));
     expect(live?.call).toMatchObject({ title: 'FLUSH ON THE TAPE · IN TRIAL T1', ping: false });
     expect(momentOf(at({ flush }, APUS_HELD_NOW - 5))?.call?.title).not.toMatch(/FLUSH/);
     expect(momentOf(at({ flush: { ...flush, at: APUS_HELD_NOW - 10 } }))?.call?.title).not.toMatch(/FLUSH/);
@@ -166,14 +166,11 @@ describe('the calls while you hold', () => {
     expect(printed?.call?.title).toBe('SELL NOW · STOP 5.45');
   });
 
-  it('says the bot holds the exit while it does', () => {
-    const trade = { kind: 'exit', state: 'holding', exits: 'nova', stop: 5.95, target: null, fill_price: 5.075,
-      qty: 100, filled_at: APUS_HELD_NOW - 100, sent_at: APUS_HELD_NOW - 100, trail: true, raised: [] };
-    const nova = read({ held: normalizeHeld({ ...apusHeldWire, raise: null,
+  it("offers no raise on Nova's own resting stop: the exit stays yours", () => {
+    const nova = read({ held: normalizeHeld({ ...apusHeldWire,
       stop: { price: 5.95, source: 'nova', rule: "Nova's resting stop" } }) });
-    const m = momentOf(inputs({ read: nova, who: pfsaView('signal', { trade: trade as never }), ...holding,
-      now: APUS_HELD_NOW }, { ...NO_HELD, since: APUS_HELD_SINCE }));
-    expect(m).toMatchObject({ step: 2, exitLabel: 'Target / stop' });
-    expect(m?.badge).toMatch(/^BOT HOLDS THE EXIT/);
+    const m = momentOf(inputs({ read: nova, ...holding, now: APUS_HELD_NOW }, { ...NO_HELD, since: APUS_HELD_SINCE }));
+    expect(m).toMatchObject({ step: 2, exitLabel: 'Your exit' });
+    expect(m?.badge).toMatch(/^IN THE TRADE/);
   });
 });

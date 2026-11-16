@@ -4,7 +4,7 @@
  * Strategies that fired for the ticker together share the row: a count bubble
  * and their chips, named on hover (HodMomoStripStrategies).
  * Row click selects (side panel follows); the ticker opens Trader (ADR 011 §7a).
- * Right-click opens the symbol menu (watch list, Record, let the bot trade it); a
+ * Right-click opens the symbol menu (watch list, Record, pin to the Trader); a
  * watched ticker's row carries the watch colour on its left edge.
  * `compact` is the same row for a narrow column (the Trader's Focus rail):
  * time · ticker · price · strategy chip(s); the strategy name, burst and gate

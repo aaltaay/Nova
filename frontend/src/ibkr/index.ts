@@ -1,6 +1,9 @@
 /** Public IBKR UI API — cross-feature imports must use this barrel (ADR 005). */
 
 export { DepthLadder, MontageSide } from './DepthLadder';
+export { Level2DepthChart } from './Level2DepthChart';
+export { Level2Frame } from './Level2Frame';
+export { Level2SpreadRow } from './Level2SpreadRow';
 export { PullsStrip, useBookWatchClock } from './BookWatchParts';
 export { applyBookWatchFrame, type BookWatchState } from './bookWatch';
 export type { DepthMarker } from './depthMarkers';
@@ -12,6 +15,10 @@ export { cancelIbkrOrderWithFeedback } from './cancelOrder';
 export { useIbkrStatus, type IbkrClientStatus } from './useIbkrStatus';
 export { useIbkrAccount } from './useIbkrAccount';
 export { useOptionalIbkrAccountContext } from './IbkrAccountContext';
+// ADR 072: every positions list reads every book; nothing that sends an order takes another trader's row.
+export { isOthersRow, othersRowsFor, ownShares, type DeskPosition, type OwnerHold } from './deskPositions';
+export { useDeskPositions, useOthersHold } from './useDeskPositions';
+export { RowWhose } from './RowWhose';
 export {
   getIbkrStatusSnapshot,
   refreshIbkrStatusNow,
@@ -27,6 +34,7 @@ export { lastKnownAsOfMessage, lastKnownBanner } from './disconnectCopy';
 export { watchDeskRequestRoute } from './deskRequestRouteFence';
 // ADR 050: an agent's show moves the desk through the same door as the venue pills.
 export { moveDeskToVenue, switchDeskVenue } from './deskVenueSwitch';
+export { confirmDeskVenue } from './confirmedDeskVenueStore';
 export { defaultTicketQty } from './applyTicketDefaults';
 export { formatSeedPrice } from './tradeDefaultSeed';
 export {
@@ -35,6 +43,8 @@ export {
 } from './deskSharedPoll';
 export { useTradingPinGate } from './useTradingPinGate';
 export { armDesk } from './armDesk';
+// ADR 072: the freeze latch's button, right of KILL in the header.
+export { FreezeOrdersButton } from './FreezeOrdersButton';
 export { simPlayhead, venueClockNow } from './marketOutsideRth';
 export { etMinutesNow, shouldUseOutsideRth } from './extendedSession';
 export { flattenSpendLockReason, isDisarmed, spendStatusLabel } from './spendLock';
@@ -94,9 +104,9 @@ export { normalizeOrderList } from './orderRowNormalize';
 export {
   CLOSED_COLUMN_META,
   DEFAULT_CLOSED_ORDER_COLUMNS,
-  normalizeColumnOrder,
   type ClosedOrderColumnId,
 } from './orderTableColumns';
+export { normalizeColumnOrder } from './orderTableColumnStore';
 export { sortOrders } from './orderTableSort';
 export { useOrderTableColumnOrder } from './useOrderTableColumnOrder';
 export { useOrderTableSort } from './useOrderTableSort';
@@ -105,18 +115,16 @@ export { GatewayDoorTrail } from './GatewayDoorTrail';
 export { HaltEtaChip } from './HaltEtaChip';
 export { ShortabilityChip } from './ShortabilityChip';
 export { WorkingOrdersPanel } from './WorkingOrdersPanel';
-// ADR 044 decision 6: who holds each Level 2 line, the loans, and the lending switch.
-export { fetchDepthLines, loanFor, normalizeDepthLines, setDepthLending } from './depthLines';
-export type {
-  DepthLine, DepthLineHolder, DepthLinesView, DepthLoan, DepthLoanEnded, LoanTapeState,
-} from './depthLines';
-export { depthLentText, tapeLentText } from './lentWords';
+// ADR 071: the three lanes -- who holds each Level 2 and Time & Sales line, and what Nova records.
+export { LANE_OWNERS, laneRecording, lanesOn, parseLanes, readLanes } from './lanes';
+export type { BotsLane, BotsLaneSetup, Lane, LaneOwner, LaneRecording, LanesView } from './lanes';
 // ADR 047 amendment (2026-10-12): the day's LULD band, step by step, for the 1-minute chart.
 export { fmtBand } from './luld';
 export { readLuldTrail } from './luldTrail';
 export type { LuldStep, LuldTrail } from './luldTrail';
 export type {
-  AutoRecordStatus,
+  AutoRecordMode,
+  AutoRecordSwitch,
   DepthLevel,
   IbkrAccountSummary,
   IbkrMode,

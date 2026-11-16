@@ -1,5 +1,6 @@
 /** Left-rail categories for the Settings overlay. */
 import { PRACTICE_SETTINGS_SUBTAB_LABEL } from '../constantGroups/practice';
+import { STRATEGIES_SETTINGS_NAV_LABEL } from '../constantGroups/bots_page';
 import { LOSS_LIMIT_NAV_LABEL } from '../loss_limit';
 
 export type SettingsSectionId =
@@ -9,7 +10,8 @@ export type SettingsSectionId =
   | 'alerts'
   | 'account'
   | 'sensors'
-  | 'loss_limits';
+  | 'loss_limits'
+  | 'strategies';
 
 export type TradeSettingsSubTab = 'stocks' | 'order_preferences' | 'practice';
 
@@ -27,6 +29,8 @@ export const SETTINGS_NAV: readonly SettingsNavItem[] = [
   { id: 'sensors', label: 'Sensors' },
   // ADR 056: one click from Settings, under Sensors.
   { id: 'loss_limits', label: LOSS_LIMIT_NAV_LABEL },
+  // ADR 072: each strategy's settings, which lived on the Bots page; the strategies only watch.
+  { id: 'strategies', label: STRATEGIES_SETTINGS_NAV_LABEL },
 ] as const;
 
 export const TRADE_SETTINGS_SUB_TABS: readonly {

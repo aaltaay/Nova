@@ -63,7 +63,7 @@ def test_every_setup_gets_a_lane_and_a_card_on_the_board(tmp_path):
     assert all(s["test"] is None for s in board["setups"] if s["side"] == "long")
     assert all(s["test"]["state"] == "queued" for s in board["setups"] if s["side"] == "short")
     cards = {s["id"]: s for s in board["setups"]}
-    assert cards["bull_flag"]["level"] == 1 and cards["bull_flag"]["proposing"] is True
+    assert cards["bull_flag"]["level"] == 1 and cards["bull_flag"]["proposing"] is False     # ADR 072: none proposes
     assert cards["first_pullback"]["level"] == 0 and cards["first_pullback"]["proposing"] is False
     assert cards["first_pullback"]["chosen"] is True and cards["bull_flag"]["chosen"] is False
     assert cards["red_to_green"]["window"] == {"start": "09:30", "end": "10:30", "state": "before"}
@@ -74,18 +74,18 @@ def test_every_setup_gets_a_lane_and_a_card_on_the_board(tmp_path):
     assert cards["bull_flag"]["counts"]["armed"] == 1 and cards["bull_flag"]["counts"]["watching"] == 1
 
 
-def test_a_setup_at_eyes_proposes_and_one_at_off_scores_in_silence(tmp_path):
+def test_no_setup_proposes_at_eyes_or_at_off_and_both_score(tmp_path):
+    """ADR 072: the strategies only watch -- a setup near its trigger with the tape at go scores and proposes
+    nothing, whatever its level."""
     bars = flag_day()
     eng, audits, clock = make(tmp_path, bars)
     run(eng, clock["t"])
     eng.on_l1_minute("last", SYM, {"price": 4.29, "ts": clock["t"], "bar_open": 4.27})
     run(eng, clock["t"])
-    props = eng.board(clock["t"])["proposals"]
-    assert [p["setup_type"] for p in props] == ["bull_flag"] and props[0]["trigger"] == 4.30
-    # The first pullback is near its own trigger with the tape at go too -- the flag is its shape --
-    # but it is at Off: it scores, it does not propose.
-    assert any(r["setup_type"] == "first_pullback" and r["state"] == "near" for r in eng.board(clock["t"])["rows"])
-    assert all(a["inputs"]["setup_type"] == "bull_flag" for a in audits if a["action"] == "setup_proposal")
+    assert eng.board(clock["t"])["proposals"] == []
+    near = {r["setup_type"] for r in eng.board(clock["t"])["rows"] if r["state"] == "near"}
+    assert {"bull_flag", "first_pullback"} <= near                 # the flag is the first pullback's shape too
+    assert not [a for a in audits if a["action"] == "setup_proposal"]
     (tmp_path / "off").mkdir()
     quiet, quiet_audits, qclock = make(tmp_path / "off", bars, levels={"chosen": "first_pullback", "levels": {}})
     run(quiet, qclock["t"])

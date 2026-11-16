@@ -120,7 +120,8 @@ def test_snapshot_carries_exactly_the_contract_fields() -> None:
     paper = ledger.snapshot("paper")
     assert set(paper) == CONTRACT
     assert paper["account_id"] == "NOVA-PAPER" and paper["schema_version"] == 1
-    assert [set(p) for p in paper["positions"]] == [{"symbol", "qty", "avg_cost", "mark", "unrealized"}]
+    # A ledger that keeps the books (ADR 069) adds each position's holders.
+    assert [set(p) for p in paper["positions"]] == [{"symbol", "qty", "avg_cost", "mark", "unrealized", "by_owner"}]
     assert [w["order_id"] for w in paper["working"]] == [2]
     sim = ledger.snapshot("sim", replay_key=("historical", "IMCC"))
     assert set(sim) == CONTRACT | {"replay_key"}

@@ -13,10 +13,9 @@ export function seatStatus(over: Partial<ClaudeSeatStatus> = {}): ClaudeSeatStat
     beat_at: SEAT_NOW - 40,
     lease_until: SEAT_NOW + 560,
     lapsed: false,
-    yielded: false,
+    switch: { on: true, at: SEAT_NOW - 900, can_turn_on: true, why_not_on: null },
     symbol: 'SMPL',
-    line: { symbol: 'SMPL', depth: true, tape: true, why_not: null, desk_lines: ['SPIK', 'FLTX'], desk_cap: 2,
-      all_lines: ['FLTX', 'SMPL', 'SPIK'], from_tab: null, taken_back: [] },
+    line: { symbol: 'SMPL', depth: true, tape: true, why_not: null },
     positions: [],
     working: [],
     breaks: [{

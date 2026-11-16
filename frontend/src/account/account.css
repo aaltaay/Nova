@@ -4,7 +4,7 @@
    styles/tokens-shell.css. */
 
 .account-page {
-  --acct-bot: #5e5ce6;
+  --acct-bot: var(--nova-owner-bot);
   --acct-hair: color-mix(in srgb, var(--nova-border) 60%, transparent);
   display: flex;
   flex-direction: column;

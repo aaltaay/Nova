@@ -16,6 +16,7 @@ import {
   noteRefused,
   noteSubscribed,
   onViewLockFlip,
+  orderCloses,
   recomputeViewLocks,
   resetViewRegistryForTests,
   subscribeViewLocks,
@@ -123,7 +124,7 @@ describe('a Level 2 IBKR refused (operator decision 2026-10-13, #913: lock, with
     noteRefused('VLO', WHY);
     noteSubscribed('VLO', 'proc-1', T0 + 1_200); // the retry, said before IBKR answers again
     const why = viewLockReason('VLO', T0 + 1_300);
-    expect(why).toBe(`No Level 2 for VLO: ${WHY} Orders are locked until a Level 2 is live. Flatten and cancels still work.`);
+    expect(why).toBe(`No Level 2 for VLO: ${WHY} New buys and shorts wait until a Level 2 is live. Sells, covers, Flatten and cancels still work.`);
     expect(viewLockLabel(why!)).toBe('No Level 2 · locked');
   });
 
@@ -160,6 +161,19 @@ describe('a Level 2 IBKR refused (operator decision 2026-10-13, #913: lock, with
     recomputeViewLocks(T0 + VIEW_SILENT_LOCK_MS + 100);
     expect(flips.map((w) => (w ? viewLockLabel(w) : null))).toEqual(['No Level 2 · locked', 'Market view behind · locked']);
     expect(currentViewLock('APUS')).toContain('behind the market');
+  });
+});
+
+// 2026-11-06 09:30 ET: 2,000 VIVK long, Time & Sales behind, and the ticket would not sell.
+describe('getting out is never locked (ADR 045 amendment 2026-11-06)', () => {
+  it('a sell, and a buy while short, close; a new buy and a short entry do not', () => {
+    expect(orderCloses('SELL', false, 2000)).toBe(true);
+    expect(orderCloses('SELL', false, null)).toBe(true);
+    expect(orderCloses('BUY', false, -500)).toBe(true);
+    expect(orderCloses('BUY', false, 0)).toBe(false);
+    expect(orderCloses('BUY', false, 2000)).toBe(false);
+    expect(orderCloses('BUY', false, null)).toBe(false);
+    expect(orderCloses('SELL', true, 0)).toBe(false);
   });
 });
 
@@ -202,7 +216,7 @@ describe("the backend's own lock (ADR 045 amendment 2026-10-14)", () => {
 
 describe('a Level 2 that is open with no book yet (operator decision 2026-10-27, #913 option 1)', () => {
   // BKYI 2026-10-13: IBKR never answered the request; the socket said subscribed and beat every 250 ms.
-  const WAIT = "No book yet on BKYI's Level 2. Orders are locked until its first book arrives. Flatten and cancels still work.";
+  const WAIT = "No book yet on BKYI's Level 2. New buys and shorts wait until its first book arrives. Sells, covers, Flatten and cancels still work.";
 
   it('locks while only subscribed and beats arrive, however timely', () => {
     noteSubscribed('BKYI', 'proc-1', T0);
@@ -225,7 +239,7 @@ describe('a Level 2 that is open with no book yet (operator decision 2026-10-27,
     const text = "IBKR has not answered BKYI's Level 2 request in 5 s.";
     noteBeat('BKYI', { seq: 0, now: (T0 + 6_000) / 1000, first_book: { state: 'unanswered', overdue: true, text } }, T0 + 6_000);
     expect(viewLockReason('BKYI', T0 + 6_010)).toBe(
-      `No book yet on BKYI's Level 2. ${text} Orders are locked until its first book arrives. Flatten and cancels still work.`,
+      `No book yet on BKYI's Level 2. ${text} New buys and shorts wait until its first book arrives. Sells, covers, Flatten and cancels still work.`,
     );
   });
 
@@ -257,7 +271,7 @@ describe('a Level 2 that is open with no book yet (operator decision 2026-10-27,
   });
 
   it("labels the backend's BOOK_WAITING lock the same way", () => {
-    const text = "BKYI's Level 2 is open but has sent no book yet. New orders on it wait for its first book. Flatten and cancels still work.";
+    const text = "BKYI's Level 2 is open but has sent no book yet. New buys and shorts on it wait for its first book. Sells, covers, Flatten and cancels still work.";
     noteBackendGate('BKYI', { code: 'BOOK_WAITING', text });
     expect(viewLockReason('BKYI', T0)).toBe(text);
     expect(viewLockLabel(text)).toBe('Waiting for Level 2 · locked');

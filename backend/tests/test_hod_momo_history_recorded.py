@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import cache  # noqa: E402
+import hod_momo_history  # noqa: E402
 from routes import hod_momo as hod_routes  # noqa: E402
 
 DAY = "2026-09-21"
@@ -67,3 +68,51 @@ def test_an_unreadable_snapshot_says_so_instead_of_reading_as_empty():
 
 def test_a_malformed_date_still_answers_an_empty_object():
     assert _client().get("/api/hod-momo/history/latest").json() == {}
+
+
+# ── Finding the day's file (#883) ──────────────────────────────────────────────
+
+def test_a_recorded_day_is_found_by_its_file_name():
+    cache.save_hod_momo_snapshot_for_date(DAY, [_alert("a", RAISED)], RAISED)
+    cache.save_hod_momo_highs_for_date("2026-09-22", {"session_highs": {}})   # a sibling prefix is never the day
+    assert cache.hod_momo_snapshot_on_file(DAY) is True
+    assert [a["id"] for a in cache.load_hod_momo_snapshot_for_date(DAY)["alerts"]] == ["a"]
+    assert hod_momo_history.get_history_day(DAY)["recorded"] is True
+    assert cache.hod_momo_snapshot_on_file("2026-09-22") is False
+
+
+def test_a_day_with_no_file_reads_not_recorded():
+    assert cache.hod_momo_snapshot_on_file("2026-07-15") is False
+    assert cache.load_hod_momo_snapshot_for_date("2026-07-15") == {}
+    assert hod_momo_history.get_history_day("2026-07-15") == {"recorded": False, "alerts": [], "error": None}
+
+
+def test_a_snapshot_of_an_unknown_schema_is_on_file_but_unreadable():
+    Path(cache._dated_path(cache.HOD_MOMO_ALERTS_PREFIX, DAY)).write_text(
+        '{"schema_version": 999, "date": "2026-09-21", "alerts": []}', encoding="utf-8",
+    )
+    day = hod_momo_history.get_history_day(DAY)
+    assert day["recorded"] is True and day["alerts"] == [] and DAY in day["error"]
+
+
+def test_a_request_date_is_only_compared_with_file_names(monkeypatch):
+    cache.save_hod_momo_snapshot_for_date(DAY, [_alert("a", RAISED)], RAISED)
+    joined: list[str] = []
+    real = cache._dated_path
+    monkeypatch.setattr(cache, "_dated_path", lambda prefix, date: joined.append(date) or real(prefix, date))
+    for odd in (f"../{DAY}", f"x/../{DAY}", f"{DAY}.json", ""):
+        assert cache.hod_momo_snapshot_on_file(odd) is False
+        assert cache.load_hod_momo_snapshot_for_date(odd) == {}
+        assert hod_momo_history.get_history_day(odd) == {"recorded": False, "alerts": [], "error": None}
+        assert hod_momo_history.get_history_alerts(odd) == []
+    assert joined == []
+    assert hod_momo_history.get_history_day(DAY)["recorded"] is True and joined == []
+
+
+def test_the_rollover_archive_still_merges_into_the_days_file():
+    cache.save_hod_momo_snapshot_for_date(DAY, [_alert("a", RAISED)], RAISED)
+    import hod_momo_persist
+    from hod_momo_models import alert_from_dict
+
+    hod_momo_persist.merge_archive_session_alerts(DAY, [alert_from_dict(_alert("b", RAISED + 60))])
+    assert [a["id"] for a in cache.load_hod_momo_snapshot_for_date(DAY)["alerts"]] == ["b", "a"]

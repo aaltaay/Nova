@@ -30,10 +30,28 @@ moved replaces its rows outright: the empty-update "last-good" hold covers a
 blip inside one session only. Before this a desk left open over Monday 04:00
 kept Friday's After Hours and Losers rows all premarket (operator report,
 2026-10-19).
-The HOD Momo feed rolls the same way: when its session rolls, `/ws/hod-momo`
-restates `{"type": "initial", "alerts": [], "total": 0}` to every open desk
-(`hod_momo_alerts.broadcast_initial`, also used by `DELETE
-/api/hod-momo/alerts`), since an `alert` frame only adds to a desk's list.
+The HOD Momo feed rolls the same way (#800): when its 04:00 ET session key
+moves, the backend archives the ending session's alerts under that day,
+clears the session's collections and restates `{"type": "initial", "alerts":
+[], "total": 0}` on `/ws/hod-momo` to every open desk, with no reconnect,
+since an `alert` frame only adds to a desk's list. It is the frame a desk
+gets on connect and after `DELETE /api/hod-momo/alerts`, and one path sends
+all three (`hod_momo_alerts.restate_feed`, `add_desk`): the list changes, and
+every frame about it goes out, under the feed's lock (`HodMomoState.feed_lock`,
+also held while the flush loop adds and sends due alerts). So each desk gets
+an alert raised before the restatement ahead of it and one raised after it
+behind it, and no alert of the ending session follows the restated list. A
+desk whose send fails is dropped and never stops the others; a check that
+finds the same session sends nothing; a cold start is no rollover and keeps
+the session's saved alerts. The desk (`useHodMomoStream`) reads any `initial`
+frame as the whole list: rows and count are replaced together, alerts still
+waiting in its batch are dropped, and a snapshot never pings or raises a
+watch-list toast -- only an `alert` frame it has not seen does. The Scanner's
+HOD Momo / Running Up lists and counts and the Trader's Focus rail read that
+one list (a pop-out window holds its own socket and gets the same frame). A
+Sim desk off the live edge keeps the alert history at its playhead
+(`HodMomoProvider`); the live list underneath is replaced all the same, so the
+live edge shows the new session.
 
 No socket frame on `/ws/scanner` or `/ws/hod-momo` carries a bare `NaN` /
 `Infinity`: a non-finite float is `null` (`scanner_wire.dumps_wire`,
@@ -720,77 +738,29 @@ backend) and then cannot tell the two apart. A malformed date answers `{}`. `GET
 board; `type=movers` reads the `gainers-` / `losers-` files. `/api/ibkr/status`
 adds `leaderboard_recorder: {recording, ok, error, since, run_id}`.
 
-**Auto-record.** The backend records, first, the setups of the templates in
-play that are in a scored trade (`trade`), near their trigger (`near`) or armed
-(`armed`) -- whenever any setup's template in play is inside its arming window
-(07:00-11:30 ET by default; red to green 09:30-10:30; the 5-minute flat top 07:00-15:30; ADR 042: until then a
-setup arming after 10:00 had no line, and red to green's triggers were never
-"go") -- then, 07:00-10:00 ET only, the top
-`LEADERBOARD_AUTO_RECORD_TOP_N` `LEADERS_RULES` names of the live Gainers
-board (ADR 041: the tape at a setup's trigger and through its trade is what the
-signal trials read). At 10:00 only the leaders' lines stop. A setup takes a
-leader's line once that line has run
-`LEADERBOARD_AUTO_RECORD_SETUP_MIN_KEEP_SEC`, never another setup's; a trade
-keeps its line past its window until its scoring window ends. It records
-through the Session Record path, using only **free** Level 2 lines
-(`IBKR_MAX_DEPTH_SYMBOLS` total), and yields its lowest-ranked line the
-moment the operator opens Level 2 on another symbol -- the operator never
-loses Level 2 (operator decision 2026-09-22). It never starts, stops or
-adopts a symbol the operator recorded by hand; its stops are planned
-(`reason: "auto"`, excluded from `missing_sec` like `operator`), never a loud
-unrequested stop; the operator pressing Record also takes a line back, and a
-symbol the operator stopped is not retaken that day. A line it gives back to the
-operator -- for Level 2, a Record, or a Time & Sales IBKR refused for its
-tick-by-tick cap (#698) -- is cancelled at once, never after the tape's 16 s
-remount linger, and stays theirs `LEADERBOARD_AUTO_RECORD_YIELD_HOLD_SEC` (30 s)
-while their subscribe lands (on 2026-10-02 the next tick took TNON's line back
-before AIXI's Level 2 had it). It never takes a slot a restart's resume is
-bringing back (`keepalive.pending_symbols()`). **What it holds survives a
-restart** (#698; owner `leaderboard/auto_record_state.py`): `auto-record.json`
-in the operator cache, `{schema_version: 1, date: "YYYY-MM-DD" (Nova's trading day, 04:00 ET), held:
-{SYMBOL: {since: number | null, why: "trade" | "near" | "armed" | "leader" |
-null}}, declined: string[], operator: string[]}` (`operator`: the recordings the
-operator started or took over today; a file without it names none), rewritten on
-every start, stop, operator take and operator stop; another day, an unknown version
-or an unreadable file reads as empty (logged). After a restart a recording it names
-that the keepalive resumed is auto-record's again (so it can rotate it or give it
-back), and a symbol the operator stopped stays declined that day. **The stock you
-look at always outranks a recording you did not start** (operator, 2026-10-02:
-"when I view a stock or a ticker, the recorder will empty a space for me"): a
-recording a restart brought back (`keepalive.restart_symbols()`) that the file does
-not name as the operator's is auto-record's too, so it gives way to the operator's
-Level 2 and stops at its window's close. At 10:36 that day the backend came up on
-the first build with the file, the process before it never wrote one, and SDEV,
-SSM and CELU -- all auto-record's -- read as the operator's: AZTA's Level 2 read
-"Symbol cap reached" for over an hour. When every line is still in use, the
-ladder's refusal names who holds each (`line_lending.view.cap_words`: recording,
-another Level 2, lent, replay) and how to free one, and it asks again every 1, 2,
-4, then 5 s -- it had asked every second. **The operator turns it off on
-Records** (operator ask 2026-10-14: "i need a way to turn off the recording";
-owner `leaderboard/auto_record_switch.py`): `auto-record-switch.json` in the
-operator cache, `{schema_version: 1, mode: "on" | "off_today" | "off", day:
-"YYYY-MM-DD" | null, set_at: number}` -- `day` is the desk day (from 04:00 ET,
-`practice.clock.day_start_ts`) an `off_today` was chosen on. Rewritten on every
-change; `off_today` reads as `on` from the next 04:00 ET; no file reads as `on`;
-an unknown version or an unreadable file reads as `on`, logged and stated in
-`switch.error`, never a silent guess. `POST /api/auto-record {mode}` saves it and
-answers the `auto_record` status below plus `stopped: string[]`; turning it off stops every line
-auto-record holds at once (planned stops, `reason: "auto"`, a trade being scored
-included) and never touches a recording the operator started. `NOVA_AUTO_RECORD=0`
-in `.env` still holds it off whatever the file says: the switch then reads `off`
-with `source: "env"`, and a POST answers 409 saying how to free it.
-`/api/ibkr/status` adds `auto_record: {active, window,
-windows: {open: "setups_and_leaders" | "setups" | "leaders" | "none", setups: {open,
-start, end, by_setup: [{setup, start, end, open}], error}, leaders: {open, start,
-end}}, symbols[], why: {SYMBOL: "trade" | "near" | "armed" | "leader" | "left"},
-setup: {SYMBOL: setup}, setups: [{symbol, why}], setups_error: string | null,
-leaders[], yielded[], last_error, switch: {mode, source: "operator" | "env" |
-"default", day, until: number | null, error: string | null}}` (`setups_error`: the
-setup scanner could not be read -- stated, never read as "no setups"; `setup`: the
-setup a held line was last wanted for, none for a leader; `switch.until`: when an
-`off_today` turns back on, epoch seconds); the operator taking a line back gives up the
-lowest-ranked first (`left`, then `leader`, `armed`, `near`, `trade`); `/api/diagnostics` adds the
-`leaderboard_recorder` and `auto_record` rows (group `recorder`).
+**Auto-record is retired (ADR 071, operator 2026-11-12 and 2026-11-13).** It recorded the setups of the templates
+in play (`trade`, `near`, `armed`) inside their arming windows and, 07:00-10:00 ET, the top
+`LEADERBOARD_AUTO_RECORD_TOP_N` `LEADERS_RULES` names of the live Gainers board, on any free Level 2 line, and gave a
+line back when the operator opened Level 2 elsewhere (ADR 023, ADR 041). On 2026-11-13 it held all 3 lines at 13:51
+ET on stocks whose setups had ended. Now only three lanes hold lines -- yours, Claude's seat's, the bots' -- and
+recording follows them (`market-data.md` "Three lanes", `recording-and-replay.md` "Recording follows the lanes").
+The setup picker (`trade` before `near` before `armed`, a short only at On, never a watch-only setup) moves to the
+bots' lane (`line_lanes/bots.py`), narrowed to the setups a bot may buy. Its restart file `auto-record.json` is no
+longer read; segments it ended keep `reason: "auto"`.
+
+**The recording switch** (operator ask 2026-10-14: "i need a way to turn off the recording"; owner
+`leaderboard/auto_record_switch.py`, kept under its name so the saved file still reads): `auto-record-switch.json` in
+the operator cache, `{schema_version: 1, mode: "on" | "off_today" | "off", day: "YYYY-MM-DD" | null, set_at:
+number}` -- `day` is the desk day (from 04:00 ET, `practice.clock.day_start_ts`) an `off_today` was chosen on.
+Rewritten on every change; `off_today` reads as `on` from the next 04:00 ET; no file reads as `on`; an unknown
+version or an unreadable file reads as `on`, logged and stated in `error`, never a silent guess. It now switches the
+lanes' recording. `POST /api/auto-record {mode}` saves it and answers `{lanes, recording_switch, stopped:
+string[]}` (`stopped`: the lanes' recordings turning it off ended, planned, `reason: "lane"`); it never touches a
+recording the operator started, nor a lane's lines. `NOVA_AUTO_RECORD=0` in `.env` still holds it off whatever the
+file says: the switch then reads `off` with `source: "env"`, and a POST answers 409 saying how to free it.
+`/api/ibkr/status` adds `recording_switch: {mode, source: "operator" | "env" | "default", day, until: number | null,
+error: string | null}` (`until`: when an `off_today` turns back on, epoch seconds); `/api/diagnostics` adds the
+`leaderboard_recorder` and `lanes` rows (group `recorder`).
 
 **Retention: keep everything, guard the drive** (operator decision on #485,
 2026-09-24). Nothing deletes leaderboard rows automatically -- recorded days
@@ -942,7 +912,8 @@ full for 30 s (coloured border, filled rank box, `3 → 2` pill, a countdown bar
 list. Tiles slide to their new place (0.5 s).
 
 **Sounds (operator ask, 2026-10-27).** On the list on screen only, under the switch `nova.topNine.sound` (prefStore,
-default on) and the header mute: a two-note chime when a stock that is not muted moves up or comes into the top nine
+default on; also the Moved up row of the header's sound menu, which sets the volume of both sounds, `desk-ops.md`, and the
+pop-up follows a change made there) and the header mute: a two-note chime when a stock that is not muted moves up or comes into the top nine
 (a stock moving down is the other side of someone's rise, so a muted stock's rise stays quiet), at most once per 30 s
 -- a switch inside that window plays nothing and is not queued; and three short beeps when a stock that is not muted
 shows `halted: true` and did not on the last board of the same list and source, which the 30 s does not hold back.
@@ -957,13 +928,22 @@ the history budget and its priorities are the backend's), with the desk's sessio
 anchor) and a last-price tag at the board's `price`. A minute with no trade stays a hole. No Level 1, Level 2 or tape
 line is opened for a tile.
 
-**The LULD band (operator ask, 2026-10-27, approved mockup).** Each tile reads `GET /api/luld/{symbol}/trail` (the
-Trader's 1-minute band, ADR 047; `book-watch-and-luld.md`) every 3 s and draws it the Trader's way: a rose line above
+**The LULD band (operator ask, 2026-10-27, approved mockup).** On **Gainers only** (`TOP_NINE_LULD_LISTS`), each
+tile reads `GET /api/luld/{symbol}/trail` (the Trader's 1-minute band, ADR 047; `book-watch-and-luld.md`) every 3 s
+and draws it the Trader's way: a rose line above
 and below the candles that steps where the band moved, each step at its share of its minute, solid where exact and
 dashed where approximate. The band in force is tagged at the right edge (`▲ 15.74` / `▼ 12.88`, `≈` when
 approximate), held at the top or bottom edge when out of view, moved off the last-price tag when they meet; it never
 widens the price scale. The route reads memory only, so a stock Nova holds no tape line for has no band, and the tile
-says so ("LULD — no tape line held"; the backend's reason in the hover). A halt step draws nothing.
+says so ("LULD — no tape line held"; the backend's reason in the hover). A halt step draws nothing. Gappers and After
+Hours draw no band, say nothing about one and ask for none (operator, 2026-10-27: "we dont need luld for gappers
+and after hours cuz there are no luld lines"): bands run 09:30-16:00 ET, Gappers is the premarket board and After
+Hours starts at 16:00. A tile that stays on screen across a list change stops asking when its list has no band.
+
+**Its name in the desk's records.** The pop-up reports to the perf recorder (ADR 026) and the focus sensor
+(ADR 033) as `window_id` `top-nine` (role `popout` in the desktop app, `browser` elsewhere), the key its bounds are
+kept under. Until 2026-10-27 it reported as `main`: its 5 s report overwrote the desk's on `GET /api/perf/live`,
+and the Electron focus report's `main` row could hand the desk the Top 9's minimized / focused state.
 
 **Prefs (prefStore, `schema_version` 1).** `nova.topNine.list` (`gappers` | `gainers` | `afterhours`): the list on
 screen; a grid button on the rail writes it before opening, and an open pop-up follows it (`storage` event), so a

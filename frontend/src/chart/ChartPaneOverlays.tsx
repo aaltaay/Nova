@@ -7,6 +7,7 @@
 import type { RefObject } from 'react';
 import type { IChartApi, ISeriesApi } from 'lightweight-charts';
 import type { ChartIndicatorId } from '../constants';
+import { ChartTradersPositions } from './ChartTradersPositions';
 import { ChartContextMenuHost } from './ChartContextMenuHost';
 import { ChartEventMarkers } from './ChartEventMarkers';
 import { ChartPositionTagHost } from './ChartPositionTag';
@@ -26,6 +27,8 @@ export function ChartPaneOverlays(props: {
   enabledIndicators: ChartIndicatorId[];
   onIndicatorToggle: (id: ChartIndicatorId) => void;
   renderOverlay?: RenderPaneOverlay;
+  /** False: no right-click menu on this pane (TickerChartProps.contextMenu). */
+  contextMenu?: boolean;
 }) {
   return (
     <>
@@ -36,18 +39,27 @@ export function ChartPaneOverlays(props: {
         containerRef={props.containerRef}
         barsRevision={props.barsRevision}
       />
-      <ChartContextMenuHost
+      <ChartTradersPositions
         symbol={props.symbol}
-        timeframe={props.timeframe}
-        barCount={props.barCount}
         chart={props.chart}
         candleSeriesRef={props.candleSeriesRef}
         containerRef={props.containerRef}
-        activeTool={props.activeTool}
-        onToolClick={props.onToolClick}
-        enabledIndicators={props.enabledIndicators}
-        onIndicatorToggle={props.onIndicatorToggle}
+        barsRevision={props.barsRevision}
       />
+      {props.contextMenu === false ? null : (
+        <ChartContextMenuHost
+          symbol={props.symbol}
+          timeframe={props.timeframe}
+          barCount={props.barCount}
+          chart={props.chart}
+          candleSeriesRef={props.candleSeriesRef}
+          containerRef={props.containerRef}
+          activeTool={props.activeTool}
+          onToolClick={props.onToolClick}
+          enabledIndicators={props.enabledIndicators}
+          onIndicatorToggle={props.onIndicatorToggle}
+        />
+      )}
       <ChartEventMarkers
         symbol={props.symbol}
         timeframe={props.timeframe}

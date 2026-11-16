@@ -225,17 +225,15 @@ def set_venue(target: str, *, persist: bool = True, left: list[dict] | None = No
     desk and would be handed a different one already armed. The Sim feed runs
     only on the Sim venue; Paper reads the live market exactly like Live.
 
-    Before the venue flips, Nova's entries still working on the venue it leaves
-    are cancelled there (ADR 042 F, ``stock_mode.leave``); the answer lists them
-    as ``left``. An async caller that already did it passes its list as ``left``.
+    ``left`` stays on the answer, always empty: Nova's own entries that a venue
+    change used to cancel (ADR 042 F) are retired with the bots (ADR 072). A caller
+    may still pass its own list.
     """
     global _override, _venue_loaded
     key = (target or "").strip().lower()
     if key not in DESK_VENUES:
         raise ValueError(f"unknown desk venue {target!r} (expected one of {', '.join(DESK_VENUES)})")
     previous = venue()
-    if left is None:
-        left = _leave_first(previous, key)
     _override = key
     _venue_loaded = True
     os.environ[NOVA_BROKER_ENV] = key
@@ -243,11 +241,7 @@ def set_venue(target: str, *, persist: bool = True, left: list[dict] | None = No
     from ibkr import safety as _safety
 
     _safety.set_armed(False, reason="venue changed")
-    # Buy: Nova never carries into another venue either (ADR 037 decision 3).
-    from stock_mode import store as _stock_mode
-
-    _stock_mode.venue_changed(key)
-    # Nor does the bot's level or its Activate: each venue keeps its own dial.
+    # Nor does the bot's level: each venue keeps its own dial.
     from bot import venue_levels as _bot_levels
 
     _bot_levels.venue_changed(previous, key)
@@ -265,15 +259,6 @@ def set_venue(target: str, *, persist: bool = True, left: list[dict] | None = No
         stop_sim_feed_threadsafe()
     logger.info("SIM: venue %s persisted=%s", key, persisted)
     return status_payload() | {"persisted": persisted, "left": list(left or [])}
-
-
-def _leave_first(previous: str, key: str) -> list[dict]:
-    """Nova's working entries on ``previous`` are cancelled before the desk moves (``stock_mode.leave``)."""
-    if previous == key:
-        return []
-    from stock_mode.leave import leave_sync
-
-    return leave_sync(previous, key)
 
 
 def set_sim_mode(enabled: bool, *, persist: bool = False) -> dict:

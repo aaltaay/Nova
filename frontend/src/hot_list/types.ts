@@ -1,6 +1,6 @@
 /**
  * Today's hot list on the wire (ADR 044, amended 2026-10-06): `GET /api/hot-list`. The list is watching
- * only: it never says who trades a stock (that is the stock's own Buy / Sell switch).
+ * only: it never trades a stock (ADR 072: the strategies only watch).
  */
 
 /** How a name came onto the list: the operator's ★, or an auto ☆ (the top of the Gainers board). */

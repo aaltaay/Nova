@@ -17,6 +17,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import constants_market_board as cmb
+from constants_scanner import IBKR_HISTORICAL_PACE_MAX
 from ibkr import brief_lines
 from market_board import ibkr_reads, jobs, refresh
 from market_board.state import store
@@ -140,8 +141,9 @@ def test_the_page_leaves_the_historical_budget_to_charts_and_the_tradertv_exits(
         sent.append(sym)
         return [{"date": "2026-10-15", "close": 100.0}]
 
-    used = {"n": 60 - cmb.MARKET_HISTORY_HEADROOM}
-    monkeypatch.setattr(historical_service, "pacing_snapshot", lambda: {"window_max": 60, "window_used": used["n"]})
+    used = {"n": IBKR_HISTORICAL_PACE_MAX - cmb.MARKET_HISTORY_HEADROOM}
+    monkeypatch.setattr(historical_service, "pacing_snapshot",
+                        lambda: {"window_max": IBKR_HISTORICAL_PACE_MAX, "window_used": used["n"]})
     monkeypatch.setattr(historical_service, "request_daily_bars", bars)
     monkeypatch.setattr(ibkr_reads, "_run", lambda coro, timeout, label: asyncio.run(coro))
     with pytest.raises(historical_service.HistoricalShed):

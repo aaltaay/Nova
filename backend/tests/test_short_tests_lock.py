@@ -1,5 +1,7 @@
 """A short setup's five-year test and its On lock (ADR 049 section 12), the read-out's SSR split and the
-scoreboard's schema 6 (#778 step 4). Nova never writes a result: these tests write the harness's file."""
+scoreboard's schema 6 (#778 step 4). Nova never writes a result: these tests write the harness's file.
+
+ADR 072: every strategy only watches, so a stored On reads as Eyes; research still never locks one."""
 from __future__ import annotations
 
 import json
@@ -8,16 +10,23 @@ import time
 
 import pytest
 
-from bot.autonomy import apply_patch
-from bot.persist import load_session
+from bot.persist import load_session, save_session
 from bot.session import get_session
 from bot.setup_levels import effective
+from constants_bot import BOT_LEVEL_EYES
 from constants_setups import SETUPS_DB_SCHEMA_VERSION
 from setup_scanner import readout, short_tests
 from setup_scanner.store import COLUMNS, SetupStore, _type
 from setup_templates.store import get_store
 
 SETUP = "bear_flag"
+
+
+def store_on() -> None:
+    """The short at On, as a session file from before ADR 072 stores it (nothing writes a level any more)."""
+    row = load_session()
+    row.update(level=2, setup_levels={SETUP: 2})
+    save_session(row)
 
 
 def write_result(setup: str = SETUP, **over) -> dict:
@@ -100,39 +109,39 @@ def test_a_result_file_is_named_only_by_a_known_short_setup():
 @pytest.mark.parametrize("result", [None, {"state": "running", "passed": None},
                                       {"state": "failed", "passed": False}, {"schema_version": 2},
                                       {"rules": {"rules_hash": "other-rules"}}])
-def test_research_never_refuses_on_or_downgrades_effective_strategy(result):
+def test_research_never_locks_a_short_and_a_stored_on_reads_eyes(result):
     if result is not None:
         write_result(**result)
-    apply_patch({"level": 2, "setup_levels": {SETUP: 2}}, desk=True)
-    assert effective(load_session())[SETUP] == 2
+    store_on()
+    assert effective(load_session())[SETUP] == BOT_LEVEL_EYES
     card = next(s for s in get_session()["setups"] if s["id"] == SETUP)
-    assert card["side"] == "short" and card["locked"] is None and card["effective"] == 2
+    assert card["side"] == "short" and card["locked"] is None and card["effective"] == BOT_LEVEL_EYES
     if result is None:
         assert card["test"]["state"] == "queued"
 
 
-def test_a_short_at_on_keeps_its_choice_when_tested_rules_change():
+def test_a_shorts_card_says_its_tested_rules_changed():
     write_result()
-    apply_patch({"level": 2, "setup_levels": {SETUP: 2}}, desk=True)
+    store_on()
     write_result(rules={"rules_hash": "other-rules"})
     card = next(s for s in get_session()["setups"] if s["id"] == SETUP)
-    assert card["level"] == 2 and card["effective"] == 2 and card["locked"] is None
+    assert card["level"] == card["effective"] == BOT_LEVEL_EYES and card["locked"] is None
     assert card["test"]["matches"] is False
 
 
-def test_corrupt_research_does_not_break_the_session_or_its_chosen_strategy():
-    apply_patch({"level": 2, "setup_levels": {SETUP: 2}}, desk=True)
+def test_corrupt_research_does_not_break_the_session():
+    store_on()
     folder = short_tests.folder()
     folder.mkdir(parents=True, exist_ok=True)
     (folder / f"{SETUP}.json").write_text("{invalid", encoding="utf-8")
     short_tests.reset_for_tests()
     card = next(s for s in get_session()["setups"] if s["id"] == SETUP)
     assert card["test"]["state"] == "error"
-    assert card["locked"] is None and card["effective"] == 2
+    assert card["locked"] is None and card["effective"] == BOT_LEVEL_EYES
 
 
-def test_unreadable_research_rules_do_not_break_the_session_or_its_choice(monkeypatch):
-    apply_patch({"level": 2, "setup_levels": {SETUP: 2}}, desk=True)
+def test_unreadable_research_rules_do_not_break_the_session(monkeypatch):
+    store_on()
 
     def unavailable():
         raise OSError("unavailable research template")
@@ -140,7 +149,7 @@ def test_unreadable_research_rules_do_not_break_the_session_or_its_choice(monkey
     monkeypatch.setattr("setup_templates.store.get_store", unavailable)
     card = next(s for s in get_session()["setups"] if s["id"] == SETUP)
     assert card["test"]["state"] == "error"
-    assert card["locked"] is None and card["effective"] == 2
+    assert card["locked"] is None and card["effective"] == BOT_LEVEL_EYES
 
 
 # -- the read-out: a breakdown short is judged with SSR off ---------------------------------------------

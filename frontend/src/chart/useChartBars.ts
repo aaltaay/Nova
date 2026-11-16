@@ -73,6 +73,7 @@ function coverageFromEntry(symbol: string, timeframe: string): {
   asOf: string | null;
   lastError: string | null;
   lastErrorTs: number | null;
+  historyPending: boolean;
 } {
   const cov = getBarsEntry(symbol, timeframe)?.coverage;
   return {
@@ -80,6 +81,7 @@ function coverageFromEntry(symbol: string, timeframe: string): {
     asOf: cov?.asOf ?? null,
     lastError: cov?.lastError ?? null,
     lastErrorTs: cov?.lastErrorTs ?? null,
+    historyPending: Boolean(cov?.historyPending),
   };
 }
 
@@ -110,6 +112,8 @@ export function useChartBars({
   /** IBKR history did not answer this pane's last fill (coverage `last_error`, #555). */
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [historyErrorTs, setHistoryErrorTs] = useState<number | null>(null);
+  /** Bars, but no IBKR history yet (coverage `history_pending`): the pane keeps asking. */
+  const [historyPending, setHistoryPending] = useState(false);
   const [indicatorBars, setIndicatorBars] = useState<IndicatorBar[]>([]);
 
   const barsRequestVersionRef = useRef(0);
@@ -154,6 +158,7 @@ export function useChartBars({
     setCoverageAsOf(next.asOf);
     setHistoryError(next.lastError);
     setHistoryErrorTs(next.lastErrorTs);
+    setHistoryPending(next.historyPending);
   }, []);
 
   const applyStoreBars = useCallback((
@@ -276,6 +281,7 @@ export function useChartBars({
     setCoverageAsOf(null);
     setHistoryError(null);
     setHistoryErrorTs(null);
+    setHistoryPending(false);
     const existing = getBarsEntry(symbol, timeframe);
     if (existing && existing.bars.length > 0 && Boolean(existing.coverage?.replay) === sim) {
       applyCoverage(symbol, timeframe);
@@ -380,12 +386,10 @@ useEffect(() => {
     }
   }, [chartActive, fetchBars, symbol, timeframe, applyCoverage, applyStoreBars]);
 
+  // A boolean, not the bar count: every tape-built candle would restart the backoff at its shortest wait.
+  const hasBars = indicatorBars.length > 0;
   useEffect(() => {
-    const stuck = isStuckLoadingBars({
-      filling,
-      hasBars: indicatorBars.length > 0,
-      chartActive,
-    });
+    const stuck = isStuckLoadingBars({ filling, hasBars, chartActive, historyPending });
     if (!stuck) return;
     const controller = new AbortController();
     const stop = startStuckBarsRetries(
@@ -399,7 +403,7 @@ useEffect(() => {
       stop();
       controller.abort();
     };
-  }, [symbol, timeframe, chartActive, filling, indicatorBars.length, fetchBars]);
+  }, [symbol, timeframe, chartActive, filling, hasBars, historyPending, fetchBars]);
 
   const emptyText = empty ? chartEmptyText(sim, replay.target, discoveryProvider, symbol) : null;
   return {

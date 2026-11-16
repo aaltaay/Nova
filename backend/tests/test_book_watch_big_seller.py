@@ -55,9 +55,11 @@ def watch(num_rows=10):
 
 def test_the_defaults_are_the_documented_rule():
     assert (BOOK_WATCH_BIG_MIN_SHARES, BOOK_WATCH_BIG_MIN_DOLLARS, BOOK_WATCH_BIG_MEDIAN_MULT,
-            BOOK_WATCH_BIG_MIN_HOLD_SEC) == (10_000, 20_000.0, 5.0, 3.0)
+            BOOK_WATCH_BIG_MIN_HOLD_SEC) == (2_000, 4_000.0, 5.0, 3.0)
     p = BigParams()
-    assert p.floor(4.5) == 10_000 and p.floor(1.0) == 20_000          # the dollars set it under $2
+    assert p.floor(4.5) == 2_000 and p.floor(1.0) == 4_000            # the dollars set it under $2
+    assert p.book_floor(4.5) == 10_000 and p.book_floor(1.0) == 20_000  # big against the book alone
+    assert (p.heavy_sec, p.heavy_off_sec) == (60.0, 40.0)
     assert p.window(3.0) == pytest.approx(0.05) and p.window(10.0) == pytest.approx(0.10)
     assert p.window(1.0) == pytest.approx(0.03)                        # never more than 3%
 
@@ -84,7 +86,8 @@ def test_size_under_the_multiple_of_the_book_around_it_is_not_big():
 
 def test_size_under_the_share_floor_is_not_big_however_thin_the_book():
     w = watch()
-    assert bigs(held(w, until=6.0, book=asks(9_000))) == []
+    thin = [lv(4.48, 100), lv(4.49, 100), lv(4.51, 100), lv(4.52, 100), lv(4.50, 1_900)]
+    assert bigs(held(w, until=6.0, book=thin)) == []
 
 
 def test_the_dollar_floor_sets_it_on_a_cheap_stock():
@@ -93,9 +96,80 @@ def test_the_dollar_floor_sets_it_on_a_cheap_stock():
 
     low_bids = [lv(0.96, 100), lv(0.95, 100), lv(0.94, 100), lv(0.93, 100)]
     w = watch()
-    assert bigs(held(w, until=6.0, book=cheap(15_000), bids=low_bids, last=0.99)) == []   # $15,000
+    assert bigs(held(w, until=6.0, book=cheap(3_000), bids=low_bids, last=0.99)) == []    # $3,000
     w = watch()
-    assert len(bigs(held(w, until=6.0, book=cheap(25_000), bids=low_bids, last=0.99))) == 1
+    assert len(bigs(held(w, until=6.0, book=cheap(5_000), bids=low_bids, last=0.99))) == 1
+
+
+# -- heavy and light: weighed against the last minute's lit volume --------------------
+
+def paced(w, per_sec, *, until=15.0, book=None):
+    """Books every second with ``per_sec`` lit shares printing at the price between them."""
+    events = w.on_print(0.5, 4.47, 100, lit=True)
+    t = 1.0
+    while t <= until:
+        events += w.on_book(t, BIDS, book if book is not None else asks())
+        events += w.on_print(t + 0.5, 4.47, per_sec, lit=True)
+        t += 1.0
+    return events
+
+
+def test_a_wall_under_a_minute_of_volume_is_light_and_shown_only_over_the_old_floors():
+    w = watch()
+    paced(w, 1_000)                                   # 20,000 at 1,000 a second: 20 s of volume
+    seller = w.big.reading(15.6)["sellers"][0]
+    assert seller["weight"] == "light" and seller["over_book"] is True and seller["shown"] is True
+    assert seller["clear_sec"] == pytest.approx(20, abs=2)
+    w = watch()
+    paced(w, 1_000, book=asks(5_000))                 # 5 s of volume and under 10,000 shares: followed, not shown
+    assert w.big.reading(15.6)["sellers"] == []
+    assert [x.weight for x in w.big.walls["ask"].values()] == ["light"]
+
+
+def test_a_small_wall_a_minute_or_more_of_volume_is_heavy_and_shown():
+    w = watch()
+    paced(w, 50, book=asks(5_000))                    # 5,000 at 50 a second: 100 s of volume
+    seller = w.big.reading(15.6)["sellers"][0]
+    assert seller["weight"] == "heavy" and seller["over_book"] is False and seller["shown"] is True
+    assert seller["size_now"] == 5_000
+
+
+def test_with_no_lit_trade_in_the_minute_a_wall_is_heavy_and_before_a_pace_it_is_unknown():
+    w = watch()
+    held(w, until=8.0, book=asks(5_000))              # called at 4 s: under 10 s of watching, no pace yet
+    assert [x.weight for x in w.big.walls["ask"].values()] == ["unknown"]
+    assert w.big.reading(8.0)["sellers"] == []
+    t = 9.0
+    while t <= 75.0:                                  # the one print at 0.5 s is over a minute old by now
+        w.on_book(t, BIDS, asks(5_000))
+        t += 1.0
+    seller = w.big.reading(75.0)["sellers"][0]
+    assert seller["weight"] == "heavy" and seller["clear_sec"] is None
+
+
+def test_a_heavy_wall_stays_heavy_until_it_is_well_under_the_line():
+    w = watch()
+    book = asks(5_000)
+    paced(w, 50, book=book)                           # 100 s: heavy
+    t = 16.0
+    while t <= 20.0:                                  # the pace rises: about 50 s of volume, between 40 and 60
+        w.on_book(t, BIDS, book)
+        w.on_print(t + 0.5, 4.47, 250, lit=True)
+        t += 1.0
+    seller = w.big.reading(20.6)["sellers"][0]
+    assert 40 < seller["clear_sec"] < 60 and seller["weight"] == "heavy"
+    while t <= 30.0:                                  # and rises again: well under 40 s
+        w.on_book(t, BIDS, book)
+        w.on_print(t + 0.5, 4.47, 2_000, lit=True)
+        t += 1.0
+    assert w.big.reading(30.6)["sellers"] == []       # light and under the old floors: no longer shown
+
+
+def test_a_wall_over_the_old_floors_leaves_at_them_as_before():
+    w = watch()
+    held(w, until=4.0)                                # 20,000, called
+    out = bigs(w.on_book(5.0, BIDS, asks(6_000)) + w.big.tick(6.0))
+    assert [e["state"] for e in out] == ["pulled"]    # under 10,000: it left, though 6,000 is over the low floor
 
 
 def test_a_size_past_the_window_is_not_called():

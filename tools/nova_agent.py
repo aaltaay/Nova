@@ -13,6 +13,7 @@ Usage (from the repo root):
     py -3 tools/nova_agent.py move --to high | --by -5 | --pause | --play
     py -3 tools/nova_agent.py desk                                     # what the desk shows now
     py -3 tools/nova_agent.py temperature [--day 2026-10-22]           # small caps: hot / cold day, week, month
+    py -3 tools/nova_agent.py market [--words nvidia,"data center"]    # the market right now, with headlines
     py -3 tools/nova_agent.py dict [list|match WORDS|add FILE.json|remove ID]
     py -3 tools/nova_agent.py cmd ID [--wait 20]
     add --json to any command for the raw answer.
@@ -96,6 +97,11 @@ def call(method: str, path: str, *, params: dict | None = None, body: dict | Non
         raise NovaError(exc.code, detail) from None
     except urllib.error.URLError as exc:
         raise SystemExit(f"Nova's backend does not answer at {API}: {exc.reason}") from None
+
+
+def market_now(words: str | None = None, limit: int = 20) -> Any:
+    """Today's market from the running backend (``GET /api/agent/market-now``)."""
+    return call("GET", "/api/agent/market-now", params={"limit": limit, **({"words": words} if words else {})})
 
 
 # ── Output ──────────────────────────────────────────────────────────────────
@@ -206,6 +212,9 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("desk")
     temp = sub.add_parser("temperature")
     temp.add_argument("--day", help="YYYY-MM-DD (default: the current session, so far)")
+    market = sub.add_parser("market")
+    market.add_argument("--words", help="comma list: only headlines with any of these")
+    market.add_argument("--limit", type=int, default=20)
     find = sub.add_parser("find")
     for name in ("high-min", "high-max", "low-max", "close-min", "close-max", "gap-min", "price-min", "price-max",
                  "float-max", "rvol-daily-min"):
@@ -265,6 +274,8 @@ def main(argv: list[str] | None = None) -> int:
             answer = call("GET", "/api/agent/market-temperature", params={"day": args.day} if args.day else None,
                           timeout=120)
             out(answer) if args.json else print_temperature(answer)
+        elif args.cmd == "market":
+            out(market_now(args.words, args.limit))
         elif args.cmd == "find":
             answer = call("GET", "/api/agent/movers", params={k.replace("-", "_"): v for k, v in
                                                                _movers_params(args).items()}, timeout=120)

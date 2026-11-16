@@ -6,11 +6,21 @@
  * you're not a bot"): on the desktop, Sign in to YouTube opens Google's own page in a window of its own, and the player
  * reloads when it closes (electron/streamPlayer.mjs). It plays only while the feed is reading the stream live; off air
  * it keeps its size and shows OFFLINE with why in place of the video, so an ended stream's recording never plays as if
- * it were live (operator, 2026-10-13: "dont shrink the display keep it just have icon that says OFFLINE"). The header
- * mute (sound/) mutes the player and holds its Sound on button, saying why. Nothing here reads or trades anything.
+ * it were live (operator, 2026-10-13: "dont shrink the display keep it just have icon that says OFFLINE"). Its sound is
+ * the header sound menu's YouTube row (sound/streamSound.ts): the header mute mutes the player and holds its Sound on
+ * button, saying why, and so does an open pop-out, which has the sound. Nothing here reads or trades anything.
  */
 import { useEffect, useRef, useState } from 'react';
-import { DESK_MUTE_REASON, useDeskMuted } from '../sound';
+import {
+  DESK_MUTE_REASON,
+  quietStream,
+  setDeskSoundOn,
+  setStreamPlayerState,
+  useDeskMuted,
+  useDeskSoundLevel,
+  useDeskSoundOn,
+  useStreamPopOutOpen,
+} from '../sound';
 import { tipProps } from '../ux/hoverTip';
 import { whyProps } from '../ux/whyTip';
 import {
@@ -22,6 +32,7 @@ import {
   FT_STREAM_MUTED,
   FT_STREAM_OFFLINE,
   FT_STREAM_POP_OUT,
+  FT_STREAM_POP_OUT_HAS_SOUND,
   FT_STREAM_POP_OUT_TIP,
   FT_STREAM_RELOAD,
   FT_STREAM_SIGN_IN,
@@ -43,35 +54,38 @@ interface Props {
 export function StreamPlayer({ videoId, title, offAir }: Props) {
   const live = offAir === null;
   const frame = useRef<HTMLIFrameElement>(null);
-  const [muted, setMuted] = useState(true);
-  // Back on air the player is a new one, muted to start.
-  const [wasLive, setWasLive] = useState(live);
-  if (wasLive !== live) {
-    setWasLive(live);
-    setMuted(true);
-  }
+  // Off air, closed or gone, the sound goes off: the next player is a new one, muted to start.
+  useEffect(() => {
+    setStreamPlayerState(live ? 'live' : 'offline');
+    return () => setStreamPlayerState('none');
+  }, [live]);
   // A new key reloads the player: after a sign-in, or by hand.
   const [load, setLoad] = useState(0);
   const reload = () => {
-    setMuted(true);
+    quietStream();
     setLoad((n) => n + 1);
   };
   useEffect(() => window.novaDesktop?.onYoutubeSignedIn?.(() => {
-    setMuted(true);
+    quietStream();
     setLoad((n) => n + 1);
   }), []);
   const signIn = window.novaDesktop?.youtubeSignIn;
   const deskMuted = useDeskMuted();
-  // The header mute silences the stream as it does every Nova sound.
+  const popOut = useStreamPopOutOpen();
+  const soundOn = useDeskSoundOn('stream');
+  const level = useDeskSoundLevel('stream');
+  // The header mute silences the stream as it does every Nova sound, and the pop-out has the sound while it is open.
+  const heard = soundOn && !deskMuted && !popOut;
   useEffect(() => {
-    if (!deskMuted || muted) return;
-    frame.current?.contentWindow?.postMessage(playerCommand('mute'), '*');
-    setMuted(true);
-  }, [deskMuted, muted]);
-  const toggleSound = () => {
-    frame.current?.contentWindow?.postMessage(playerCommand(muted ? 'unMute' : 'mute'), '*');
-    setMuted(!muted);
-  };
+    const player = frame.current?.contentWindow;
+    if (!heard) {
+      player?.postMessage(playerCommand('mute'), '*');
+      return;
+    }
+    player?.postMessage(playerCommand('setVolume', [level]), '*');
+    player?.postMessage(playerCommand('unMute'), '*');
+  }, [heard, level]);
+  const soundLock = deskMuted ? DESK_MUTE_REASON : popOut ? FT_STREAM_POP_OUT_HAS_SOUND : null;
   return (
     <section className="ft-card ft-stream" aria-label={FT_STREAM_TITLE} data-testid="ft-stream" data-on-air={live}>
       <div className="ft-stream__screen">
@@ -95,10 +109,10 @@ export function StreamPlayer({ videoId, title, offAir }: Props) {
         <div className="ft-stream__tools">
           {live && (
             <>
-              <button type="button" className="ft-btn ft-btn--overlay" onClick={toggleSound} aria-pressed={!muted}
-                disabled={deskMuted} {...whyProps(deskMuted, DESK_MUTE_REASON)}
-                {...(deskMuted ? {} : tipProps(muted ? FT_STREAM_UNMUTE : FT_STREAM_MUTE))} data-testid="ft-stream-sound">
-                {muted ? `🔇 ${FT_STREAM_MUTED}` : `🔊 ${FT_STREAM_SOUND_ON}`}
+              <button type="button" className="ft-btn ft-btn--overlay" onClick={() => setDeskSoundOn('stream', !soundOn)}
+                aria-pressed={heard} disabled={soundLock !== null} {...whyProps(soundLock !== null, soundLock)}
+                {...(soundLock ? {} : tipProps(heard ? FT_STREAM_MUTE : FT_STREAM_UNMUTE))} data-testid="ft-stream-sound">
+                {heard ? `🔊 ${FT_STREAM_SOUND_ON}` : `🔇 ${FT_STREAM_MUTED}`}
               </button>
               <button type="button" className="ft-btn ft-btn--overlay" onClick={reload} aria-label={FT_STREAM_RELOAD}
                 {...tipProps(FT_STREAM_RELOAD)} data-testid="ft-stream-reload">↻</button>

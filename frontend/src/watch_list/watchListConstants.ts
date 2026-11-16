@@ -29,7 +29,7 @@ export const WATCH_ACTION_WATCH = '★';
 export const WATCH_ACTION_WATCHING = '★ Listed';
 export const WATCH_ACTION_WATCH_TITLE =
   'Star it onto today\'s hot list: the scanners follow it all day, and a toast when it hits HOD Momo or a setup on '
-  + 'it arms, comes near or triggers. A star never lets the bot trade it: that is its Buy / Sell (Who trades)';
+  + 'it arms, comes near or triggers. A star is watching only: it never trades the stock';
 export const WATCH_ACTION_WATCHING_TITLE = 'On today\'s hot list -- click to take it off';
 /** The mark beside a listed ticker: ★ your star, ☆ an auto star (the top of the Gainers board). */
 export const watchMarkTitle = (symbol: string, how: 'star' | 'auto' = 'star'): string =>
@@ -40,7 +40,7 @@ export const watchMarkTitle = (symbol: string, how: 'star' | 'auto' = 'star'): s
     ? ': the scanners follow it all day, and one toast when it joined. Star it for its HOD Momo and setup toasts. '
     : ': the scanners follow it all day, and a toast when it hits HOD Momo or a setup on it arms, comes near or '
       + 'triggers. ')
-  + 'Watching only: the bot trades it only where its Buy / Sell says Bot';
+  + 'Watching only: a star never trades it, and the strategies only watch'
 
 /** Toasts: how long one stays after its newest raised event (hover holds it), and how many stack. */
 export const WATCH_TOAST_TTL_MS = 20_000;

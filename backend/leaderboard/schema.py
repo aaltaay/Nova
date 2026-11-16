@@ -2,7 +2,7 @@
 
 Version 2 (#498) adds the per-day catalyst tables Sim playback reads. Version 3 (#532) adds two
 nullable ``rows`` columns, ``float_contradicted`` and ``shares_outstanding`` -- the desk row's float
-check -- so ``LEADERS_RULES`` judges a recorded minute's float in playback as auto-record did live.
+check -- so ``LEADERS_RULES`` judges a recorded minute's float in playback as the desk row did live.
 An older file is migrated in place by creating the tables and adding the columns it lacks: the rows /
 coverage history (tens of GB on the desk) is never rewritten, and an existing row reads null
 (unchecked) in the new columns.

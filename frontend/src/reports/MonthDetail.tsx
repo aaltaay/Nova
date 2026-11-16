@@ -1,6 +1,12 @@
-/** Expanded month view: daily P&L cells + week totals (TraderVue-style). */
+/**
+ * Expanded month view: daily P&L cells + week totals (TraderVue-style). Paper's All view adds the four books (ADR
+ * 072, mockup three-books v1): a day's cell lists only the traders who closed a trade that day; the month line and
+ * the week column always list all four, in the books' order.
+ */
 import type { CalendarDay, MonthCalendarResponse } from './types';
 import { DOW_LABELS, MONTH_NAMES, fmtPnl, fmtPnlShort } from './format';
+import { pnlSplit, tradedBooks } from './reportsView';
+import { SplitLine } from './SplitLine';
 
 interface Props {
   data: MonthCalendarResponse;
@@ -34,6 +40,7 @@ export function MonthDetail({ data, onClose }: Props) {
               {fmtPnl(data.pnl)}
             </strong>
           </span>
+          <SplitLine split={pnlSplit(data.by_owner, fmtPnl)} />
           <span>{data.trade_count} trades</span>
           <button type="button" className="reports-month-close-btn" onClick={onClose}>
             Close
@@ -67,12 +74,16 @@ export function MonthDetail({ data, onClose }: Props) {
                   <span className="reports-day-num">{day}</span>
                   <span className="reports-day-pnl">{fmtPnlShort(cell?.pnl ?? 0)}</span>
                   <span className="reports-day-trades">{cell?.trade_count ?? 0} trades</span>
+                  {cell && cell.trade_count > 0 && (
+                    <SplitLine split={pnlSplit(cell.by_owner, fmtPnlShort)} books={tradedBooks(cell.by_owner)} />
+                  )}
                 </div>
               );
             })}
             <div className="reports-week-total">
               <span className="reports-day-pnl">{fmtPnlShort(week.pnl)}</span>
               <span className="reports-day-trades">{week.trade_count} trades</span>
+              {week.trade_count > 0 && <SplitLine split={pnlSplit(week.by_owner, fmtPnlShort)} />}
             </div>
           </div>
         ))}

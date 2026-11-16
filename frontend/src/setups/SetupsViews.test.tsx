@@ -93,15 +93,17 @@ describe('SetupsBoard', () => {
     fireEvent.click(stage);
     expect(onOpen).not.toHaveBeenCalled();
   });
-  it('shows state, levels, the tape read and a stage button only on a proposal', () => {
+  it('shows state, levels and a stage button only on a proposal; no Tape column (ADR 072)', () => {
     const onOpen = vi.fn();
     render(
       <SetupsBoard rows={SAMPLE_SETUPS_BOARD.rows} selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={onOpen} risk={RISK} />,
     );
     expect(screen.getByText('Near')).toBeTruthy();
     expect(screen.getByText('Leg up +7.2%')).toBeTruthy();
-    expect(screen.getByText('GO')).toBeTruthy();
-    expect(screen.getByText('BLIND')).toBeTruthy();
+    // ADR 072: the tape gates nothing, so the board shows no GO / WAIT / BLIND and no Open L2.
+    expect(screen.queryByText('GO')).toBeNull();
+    expect(screen.queryByText('BLIND')).toBeNull();
+    expect(screen.queryByText('Open L2')).toBeNull();
     expect(screen.getByText('2¢')).toBeTruthy();
     expect(screen.getByText('Target first')).toBeTruthy();
     // Every setup in its own words (ADR 031).
@@ -109,8 +111,7 @@ describe('SetupsBoard', () => {
     expect(screen.getByText('Red −3.2%')).toBeTruthy();
     expect(screen.getAllByText('Bull flag')).toHaveLength(1);
     expect(screen.getAllByText('Stage ticket')).toHaveLength(1);
-    fireEvent.click(screen.getByText('Open L2'));
-    expect(onOpen).toHaveBeenCalledWith('QMBL');
+    expect(onOpen).not.toHaveBeenCalled();
   });
 
   it('stages a BUY limit at the entry, sized by the risk per trade, and places nothing', () => {
@@ -155,7 +156,6 @@ describe('SetupsBoard', () => {
     const near = screen.getByText('Near');
     expect(near.getAttribute('data-tip-title')).toBe('Near · First pullback');
     expect(near.getAttribute('data-tip')).toMatch(/Price is a few cents under the trigger/);
-    expect(screen.getByText('BLIND').getAttribute('data-tip')).toMatch(/^BLIND: Nova holds no Level 2 line/);
     const flag = screen.getByText('Flag · 2 bars');
     expect(flag.getAttribute('data-tip')).toMatch(/The flag is in/);
     expect(flag.getAttribute('data-tip')).toMatch(/Pole: 3 green candles, \+7\.9% to 5\.62/);
@@ -328,15 +328,15 @@ describe('SetupsPanel', () => {
     const setups = SAMPLE_SETUPS_BOARD.setups!.map(s => (s.id === 'first_pullback' ? { ...s, templates_watched: 3 } : s));
     stream.value = { connected: true, board: { ...SAMPLE_SETUPS_BOARD, source: 'live', setups } };
     render(<SetupsPanel selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={vi.fn()} />);
-    // What each level does, said plainly: at Strategy the bot does place (ADR 042 draft).
+    // ADR 072: every strategy only watches, said plainly.
     const about = screen.getByTestId('setups-description').textContent ?? '';
-    expect(about).toMatch(/Eyes proposes when a setup is near its trigger/);
-    expect(about).toMatch(/Strategy also lets Nova buy its go triggers on Paper and Sim while the bot is Active/);
-    expect(about).not.toMatch(/never places/);
+    expect(about).toMatch(/Every strategy watches on Level 1 and none places an order, on any venue/);
+    expect(about).toMatch(/Settings > Strategies/);
+    expect(about).not.toMatch(/Eyes proposes|lets Nova buy/);
     expect(screen.getByTestId('setups-filter-all').textContent).toBe('All 6');
     expect(screen.getByTestId('setups-filter-first_pullback').textContent).toBe('First pullback 4');
     expect(screen.getByTestId('setups-filter-bull_flag').textContent).toBe('Bull flag 1');
-    expect(screen.getByText(/proposing: first pullback, bull flag/)).toBeTruthy();
+    expect(screen.getByText(/watching only: no strategy trades/)).toBeTruthy();
     // No scanner yet: the chip is locked and says why.
     const micro = screen.getByTestId('setups-filter-micro_pullback') as HTMLButtonElement;
     expect(micro.disabled).toBe(true);

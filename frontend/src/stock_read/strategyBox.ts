@@ -7,7 +7,7 @@
  * the rest of them?"): the same box in full colour right of the newest candle, saying where the setup stands, its
  * prices on the axis. Neither stretches the frame to target 2. Triggered (operator ask the same day, option A of the
  * mockups): with nothing behind it the trade was taken or missed, so the plan leaves the chart -- no box, no axis tags,
- * no frame -- and a mark over its trigger candle says when. A level an order or a position stands behind, and the
+ * no frame -- and a mark over its trigger candle says when. A level a position stands behind, and the
  * operator's own plan, still draw the zones and lines. The 10-second chart draws the same box on its own candles
  * (operator choice 2026-10-13, of three mockups, after AIXI's Gap and Go drew four unnamed lines there: "for which
  * strategy is this specifically?"), so the strategy is named on both. Pure: which plans are boxed, the scene's box
@@ -22,14 +22,14 @@ import { fmtPx, setupName } from './planMath';
 import type { SceneMark, SceneStrategy, SceneWord } from './sceneTypes';
 import { hhmmEt } from './timeWords';
 import type { SetupLevels, StockPlan } from './types';
-import type { OrderLevels } from './whoTradesModel';
+import type { OrderLevels } from './tradeLevels';
 
 const DAY_SEC = 86_400;
 const MIN = 60;
 /** The triggered plan's mark places its label before any other's. */
 const TRIGGER_MARK_RANK = Number.MAX_SAFE_INTEGER;
 
-/** A setup's plan with nothing but the plan behind its levels. An order or a position makes it real. */
+/** A setup's plan with nothing but the plan behind its levels. A position makes it real. */
 function planOnly(plan: StockPlan | null, lv: OrderLevels): plan is StockPlan {
   if (!plan || plan.source !== 'setup' || plan.state === 'manual') return false;
   return [lv.entry, lv.stop, lv.target, lv.target2].every(l => !l || l.behind === 'plan');

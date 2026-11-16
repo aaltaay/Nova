@@ -9,6 +9,9 @@
  * as on -- its limit starts at the ask: a short under SSR may execute only above the bid. A cover is a BUY,
  * never past flat; the door and the practice broker hold that line, and the ticket says it.
  */
+import { plainPrice } from '../utils/priceTick';
+import { ownerHoldSentence } from '../constantGroups/owners';
+import type { OwnerHold } from './deskPositions';
 import {
   SHORT_LIMIT_NOTE_SSR,
   SHORT_LIMIT_NOTE_SSR_UNKNOWN,
@@ -54,6 +57,8 @@ export function sideButtons(args: {
   known: boolean;
   allowShort: boolean;
   shortBlock: string | null;
+  /** Another trader's shares in the symbol, signed: the words only, never what the ticket sizes from (ADR 072). */
+  othersHold?: OwnerHold | null;
 }): SideButton[] {
   const sym = args.symbol.trim().toUpperCase();
   const held = args.known ? heldSide(args.qty) : 'flat';
@@ -61,7 +66,10 @@ export function sideButtons(args: {
     ? { side: 'buy', label: SHORT_TICKET_LABEL_COVER, lock: null, tone: 'cover' }
     : { side: 'buy', label: TICKER_TRADE_LABEL_BUY, lock: null, tone: 'buy' };
   let sellLock: string | null = null;
-  if (args.known && held === 'flat') sellLock = SHORT_WHY_FLAT_SELL(sym);
+  const other = args.othersHold;
+  if (args.known && held === 'flat') {
+    sellLock = SHORT_WHY_FLAT_SELL(sym) + (other && other.qty > 0 ? ownerHoldSentence(other.owner, other.qty) : '');
+  }
   if (args.known && held === 'short') sellLock = SHORT_WHY_SHORT_SELL(sym);
   const sell: SideButton = { side: 'sell', label: TICKER_TRADE_LABEL_SELL, lock: sellLock, tone: 'sell' };
   if (!args.allowShort) return [buy, sell];
@@ -109,7 +117,7 @@ export function sideNote(ticketSide: TicketSide, qty: number | null | undefined,
 
 function px(raw: string | number | null | undefined): string | null {
   const n = typeof raw === 'number' ? raw : Number(String(raw ?? '').trim());
-  return raw === '' || raw == null || !Number.isFinite(n) || n <= 0 ? null : n.toFixed(2);
+  return raw === '' || raw == null || !Number.isFinite(n) || n <= 0 ? null : plainPrice(n);
 }
 
 /**
@@ -155,7 +163,7 @@ export function buyStopRefusal(limit: string, buyStop: string): string | null {
 export function seedBuyStop(limit: string | number | null | undefined, offset: number): string {
   const lim = px(limit);
   if (lim === null || !(offset > 0)) return '';
-  return (Number(lim) + offset).toFixed(2);
+  return plainPrice(Number(lim) + offset);
 }
 
 /** Where a short's limit starts: the ask while SSR is on or not known (above the bid, as SSR requires), else the bid. */

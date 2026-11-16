@@ -6,7 +6,7 @@ import { normalizePastSetups, type Episode } from './pastSetups';
 import { shapeStory } from './ShapeTip';
 import type { StockReadLayers } from './StockReadContext';
 import type { SetupLane, StockRead } from './types';
-import { pfsaRead } from './whoTradesFixtures';
+import { pfsaRead } from './momentFixtures';
 
 /** IOVA 2026-09-29 on 5-minute candles (the mockup the operator approved): the 13.80 base near its trigger. */
 const ET0 = Date.UTC(2026, 8, 29, 13, 0) / 1000;      // 09:00 ET

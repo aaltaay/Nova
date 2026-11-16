@@ -1,6 +1,6 @@
 /** Cell renderers for Working Orders columns (keeps panel under size limit). */
+import { fmtPrice } from '../utils/quoteFormat';
 import type { ReactNode } from 'react';
-import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';
 import {
   formatOrderDateTime,
@@ -92,7 +92,7 @@ export function renderWorkingOrderCell(
     case 'limit':
       return (
         <td key={col} className="ibkr-col--num">
-          {formatMoney(plausiblePrice(o.limit_price))}
+          {fmtPrice(plausiblePrice(o.limit_price))}
         </td>
       );
     case 'stop': {
@@ -100,18 +100,18 @@ export function renderWorkingOrderCell(
       const stop = plausiblePrice(o.stop_price);
       const stopTitle =
         compact === 'TRAIL' || compact === 'TRAILINGSTOP'
-          ? `Trail ${formatMoney(stop)}`
+          ? `Trail ${fmtPrice(stop)}`
           : undefined;
       return (
         <td key={col} className="ibkr-col--num" title={stopTitle}>
-          {formatMoney(stop)}
+          {fmtPrice(stop)}
         </td>
       );
     }
     case 'avg_fill':
       return (
         <td key={col} className="ibkr-col--num">
-          {formatMoney(plausiblePrice(o.avg_fill_price))}
+          {fmtPrice(plausiblePrice(o.avg_fill_price))}
           {o.fill_estimated && o.avg_fill_price != null && (
             <span className="ibkr-fill-estimated" title={practiceFillTitle(o.fill_basis)}>
               est

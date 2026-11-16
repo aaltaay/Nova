@@ -235,16 +235,19 @@ class LiveReference:
         return out
 
     def l1_trade_while_tape_missing(self, symbol: str) -> Print | None:
-        """IBKR's Level 1 Last as ``(trade_ts, price)`` while the symbol's Time & Sales is missing trades, else None.
+        """IBKR's Level 1 Last as ``(trade_ts, price)`` while the symbol's Time & Sales is missing trades, or while no
+        lane holds it at all, else None.
 
         ADR 045 amendment 2026-10-14: the trade IBKR reported on the Level 1 line -- tick 4, reportable
         trades only, stamped with its Last Timestamp -- stands in for the print the tape did not deliver,
-        so a resting order fills when Live's would. While the tape keeps up this is None: prints alone fill.
+        so a resting order fills when Live's would. ADR 071 decision 9: a resting order holds no Time & Sales
+        line, so on a stock no lane is on Level 1's Last is the only trade Nova sees. While a tape line is up
+        and keeps up this is None: prints alone fill.
         """
-        from ibkr import tape_silence, ticks
+        from ibkr import tape_silence, tape_stream, ticks
 
         sym = symbol.upper()
-        if tape_silence.missed_trades(sym) is None:
+        if tape_stream.is_subscribed(sym) and tape_silence.missed_trades(sym) is None:
             return None
         row = ticks.last_quotes([sym]).get(sym) or {}
         if row.get("quote_quality") == IBKR_QUOTE_QUALITY_CLOSE_FALLBACK:

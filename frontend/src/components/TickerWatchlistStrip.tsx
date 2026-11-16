@@ -1,6 +1,6 @@
 /** The selected ticker's watchlist read in the side panel: the Five Pillars with their
- * reasons, where the setup scanners have it (its most advanced setup, ADR 031), and
- * the toggle that lets the bot trade it (ADR 042 F: a refusal is a notice).
+ * reasons and where the setup scanners have it (its most advanced setup, ADR 031). No
+ * toggle lets a bot trade it: the strategies only watch (ADR 072).
  * Any symbol gets its pillars (operator ask, 2026-09-23): a ranked one from the
  * watchlist poll, any other graded by the backend from its board row or live quote.
  * On a Sim replay desk the grade is the replayed day's own board row at the playhead, named
@@ -9,11 +9,8 @@ import {
   TAPE_VERDICT_LABELS,
   TICKER_WATCHLIST_STRIP_EMPTY,
   TICKER_WATCHLIST_STRIP_TITLE,
-  WATCHLIST_BOT_OFF_TITLE,
-  WATCHLIST_BOT_ON_TITLE,
   WATCHLIST_PILLAR_NAMES,
 } from '../constants';
-import { useBotAllowlist } from '../bot/useBotAllowlist';
 import {
   fmtPx,
   rowsBySymbol,
@@ -99,11 +96,9 @@ function sourceText(source: string | null, rank: number | null, replay: PillarsR
 
 export function TickerWatchlistStrip({ entry: ranked, symbol, rank = null }: Props) {
   const stream = useSetupsBoard();
-  const { isAllowed, add, remove } = useBotAllowlist();
   const graded = useSymbolPillars(symbol ?? ranked?.symbol ?? null, ranked ?? null, rank);
   const entry = graded.entry;
   const setup = entry ? rowsBySymbol(stream?.board?.rows).get(entry.symbol)?.[0] : undefined;
-  const allowed = entry ? isAllowed(entry.symbol) : false;
   const p = entry?.five_pillars;
   const source = sourceText(graded.source, graded.rank, graded.replay);
   return (
@@ -131,15 +126,6 @@ export function TickerWatchlistStrip({ entry: ranked, symbol, rank = null }: Pro
             ))}
           </ul>
           {setup && <SetupBlock row={setup} />}
-          <button
-            type="button"
-            className={`cq-wl-bot${allowed ? ' is-on' : ''}`}
-            aria-pressed={allowed}
-            title={allowed ? WATCHLIST_BOT_ON_TITLE : WATCHLIST_BOT_OFF_TITLE}
-            onClick={() => void (allowed ? remove(entry.symbol) : add(entry.symbol))}
-          >
-            {allowed ? '● Bot trades it' : '○ Let the bot trade it'}
-          </button>
         </>
       )}
     </section>

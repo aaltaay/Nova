@@ -148,16 +148,6 @@ class LaneHost:
             memo["now"], memo["gaps"] = now, feed_pulse.gaps_for_tape(now)
         return memo["gaps"]
 
-    def flow_reading(self, setup_id: str) -> dict | None:
-        """The newest flow reading on a triggered setup and its template's flush rule (ADR 034; Nova's bot)."""
-        for lane in getattr(self, "lanes", []):
-            got = lane.flow_last.get(setup_id)
-            if got is not None:
-                f = lane.p.flush
-                return {**got, "template_id": lane.p.template_id,
-                        "policy": {"mode": f.mode, "hold_sec": f.hold_sec, "trail_r": f.trail_r, "min_r": f.min_r}}
-        return None
-
     def tape_line(self, sym: str) -> dict:
         if self.tape is None:
             return {"depth": False, "tape": False}
@@ -244,20 +234,13 @@ class LaneHost:
 
     def can_propose(self, setup_type: str | None = None) -> bool:
         """Not on a replay desk; and for a setup, only at effective Eyes or above (ADR 031: Off is
-        silent). A setup at Strategy proposes too (ADR 042): the proposal says whether the bot or
-        Auto-entry takes it (``taker``)."""
+        silent). Since ADR 072 no lane raises a proposal; this still says whether the host may tell a
+        trigger to its listeners."""
         if self._replay_fn():
             return False
         if setup_type is None:
             return True
         return int((self.levels().get("levels") or {}).get(setup_type) or 0) >= BOT_LEVEL_EYES
-
-    def taker(self, sym: str, setup_type: str) -> str | None:
-        """``"bot"`` / ``"auto_entry"`` when Nova would take this setup's go trigger on ``sym`` by itself
-        (the bot is Active, the setup at Strategy, the stock set to Bot or Auto-entry), else None."""
-        from bot.first_pullback.admit import taker
-
-        return taker(sym, setup_type)
 
     # -- triggers to whoever trades them (ADR 030) --------------------------------
     def add_trigger_listener(self, fn: Callable[[dict], None]) -> None:

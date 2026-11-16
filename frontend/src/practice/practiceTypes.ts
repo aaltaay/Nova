@@ -1,6 +1,19 @@
 /** Wire shape of GET /api/practice/account (ADR 020 "Contract"). */
 import type { IbkrOrder } from '../ibkr';
 import type { PracticeVenue } from '../constantGroups/practice';
+import type { Owner } from '../constantGroups/owners';
+
+/** One holder of a position (ADR 072): you, Claude, the brain, or a retired bot (Earlier bots, by its origin). */
+export interface PracticeOwnerHolding {
+  owner: Owner;
+  /** The retired bot, on Earlier bots' rows only. */
+  bot: string | null;
+  qty: number;
+  avg_cost: number;
+  unrealized_pnl: number;
+  /** These shares are handed to you: a switched-off trader's, or a retired bot's. */
+  handed?: boolean;
+}
 
 export interface PracticePosition {
   symbol: string;
@@ -8,6 +21,28 @@ export interface PracticePosition {
   avg_cost: number | null;
   mark: number | null;
   unrealized: number | null;
+  /** Paper and Sim (ADR 072): every holder with shares. */
+  by_owner?: PracticeOwnerHolding[];
+}
+
+/** One book's day (ADR 069, ADR 072). */
+export interface PracticeBookDay {
+  day_pnl: number;
+  realized_today: number;
+  unrealized_pnl: number;
+  fills_today: number;
+  commissions_today: number;
+}
+
+/** An AI trader's day and its budget (its limit, and what its open shares and working entries hold). */
+export type PracticeTraderDay = PracticeBookDay & { budget_usd: number; budget_used_usd: number };
+
+/** The account's four books (ADR 072); the four `day_pnl` add up to the account's. */
+export interface PracticeBooks {
+  you: PracticeBookDay;
+  claude: PracticeTraderDay;
+  brain: PracticeTraderDay;
+  earlier_bots: PracticeBookDay & { by_bot: Record<string, PracticeBookDay> };
 }
 
 export interface PracticeAccount {
@@ -28,6 +63,8 @@ export interface PracticeAccount {
   day_started_et: string | null;
   commissions_today: number;
   positions: PracticePosition[];
+  /** Paper and Sim (ADR 072): the three traders' books and Earlier bots'. */
+  books?: PracticeBooks;
   working: IbkrOrder[];
   fills_today: number;
   schema_version: number;

@@ -94,36 +94,16 @@ def _prints_per_minute(sym: str, now: float) -> int | None:
                and now - float(p["ts"]) <= STOCK_READ_PRINTS_WINDOW_SEC)
 
 
-def _bot(sym: str) -> dict[str, Any]:
-    from bot.arming import is_desk_active
-    from bot.eligibility import eligible_symbols, holds_depth_line
+def _desk(sym: str) -> dict[str, Any]:
+    """The desk's venue, its risk per trade (the venue's sleeve, ``bot.sleeve``) and whether Nova holds the stock's
+    depth line. (The bot's level, Activate, list and trade it once carried retired with the bots, ADR 072.)"""
+    from bot.eligibility import holds_depth_line
     from bot.persist import load_session
-    from bot.setup_levels import levels_of
     from bot.sleeve import of as sleeve_of
     from sim.mode import venue
 
-    row = load_session()
-    both = levels_of(row)
-    where = venue()
-    trade = row.get("trade") if isinstance(row.get("trade"), dict) else None
-    return {"level": int(row.get("level") or 0), "active": bool(is_desk_active(row)), "chosen": both["chosen"],
-            "levels": both["levels"], "allowlisted": sym in eligible_symbols(row),
-            "depth_line": holds_depth_line(sym), "venue": where,
-            "risk_usd": sleeve_of(row).get("risk_usd"),
-            "trade": trade if trade and str(trade.get("symbol") or "").upper() == sym else None}
-
-
-def _nova_exit(sym: str) -> dict[str, Any] | None:
-    """Nova's exit of a stock you bought (``stock_mode.exit_trade``) on the desk's venue -- on a Sim replay the one
-    taken on it (ADR 052 amendment) -- while it holds."""
-    from sim.mode import venue
-    from stock_mode import gates, store
-    from stock_mode.exit_trade import KIND_EXIT
-
-    t = store.trade(venue(), sym, gates.replay_key())
-    if not t or t.get("kind") != KIND_EXIT or t.get("state") != "holding":
-        return None
-    return {"stop": t.get("stop"), "target": t.get("target"), "trail": bool(t.get("trail"))}
+    return {"venue": venue(), "risk_usd": sleeve_of(load_session()).get("risk_usd"),
+            "depth_line": holds_depth_line(sym)}
 
 
 def _board(sym: str) -> str | None:
@@ -174,9 +154,8 @@ def gather(symbol: str, now: float) -> dict[str, Any]:
         "prints_per_min": _try(errors, "prints", lambda: _prints_per_minute(sym, now)),
         "shortable": _try(errors, "shortable", lambda: shortability(sym)),
         "halted": _try(errors, "halted", lambda: halted_now([sym], now=now).get(sym)),
-        "bot": _try(errors, "bot", lambda: _bot(sym)),
+        "desk": _try(errors, "desk", lambda: _desk(sym)),
         "board": _try(errors, "board", lambda: _board(sym)),
-        "nova_exit": _try(errors, "nova_exit", lambda: _nova_exit(sym)),
         "dilution": _try(errors, "dilution", lambda: _dilution(sym, now)),
         "luld": _try(errors, "luld", lambda: _luld(sym, now)),
     }

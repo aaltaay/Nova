@@ -1,3 +1,4 @@
+import { plainPrice } from '../utils/priceTick';
 import { useRef, useState, type FormEvent } from 'react';
 import {
   beginBrowserExecutionTiming,
@@ -12,7 +13,7 @@ import {
   type ManualOrderType,
   type QuantityMode,
 } from './orderEntry';
-import { formatLegPrice, planProtectiveLegs } from './protectiveLegs';
+import { planProtectiveLegs } from './protectiveLegs';
 import { SHORT_LEGS_NOTE } from '../constantGroups/short_ticket';
 import { useTradeDefaultsPrefs } from '../settings';
 import type { DeskVenue } from '../constantGroups/desk_venue';
@@ -22,7 +23,7 @@ import { notifyOrderRejected } from './notifyOrderRejected';
 import { beginDeskAction } from './deskActionFlight';
 import { placeIbkrOrder, type PlaceOrderResult } from './placeOrder';
 import { readSkipPlaceConfirm } from './placeConfirmPrefs';
-import { viewLockReason } from '../market_view';
+import { orderCloses, viewLockReason } from '../market_view';
 import type {
   IbkrAccountSummary,
   IbkrMode,
@@ -60,8 +61,8 @@ interface Params {
 
 /** A short's confirm names its buy stop, and its cover target when Settings' legs add one. */
 function shortLegsText(payload: ManualOrderPayload): string {
-  const stop = payload.stop_loss_price != null ? ` Buy stop ${payload.stop_loss_price.toFixed(2)}` : '';
-  const target = payload.take_profit_price != null ? `, cover target ${payload.take_profit_price.toFixed(2)}` : '';
+  const stop = payload.stop_loss_price != null ? ` Buy stop ${plainPrice(payload.stop_loss_price)}` : '';
+  const target = payload.take_profit_price != null ? `, cover target ${plainPrice(payload.take_profit_price)}` : '';
   return stop ? `${stop}${target}.` : '';
 }
 
@@ -75,7 +76,8 @@ export function useManualOrderSubmission(params: Params) {
   const inFlightRef = useRef(false);
   const gestureKeyRef = useRef<string | null>(null);
   // The order the confirm names. The limit can follow the live book, so a
-  // tick between the click and Confirm must not change what is sent.
+  // tick between the click and Confirm must not change what is sent, and it
+  // holds the click's venue: a desk that leaves it sends nothing (#1283).
   const confirmedRef = useRef<BuildOrderResult | null>(null);
 
   // #657/#658: Settings owns this confirmed venue's TIF and optional TP/SL.
@@ -95,7 +97,7 @@ export function useManualOrderSubmission(params: Params) {
   const legsNote = legsPlan.kind === 'refuse'
     ? legsPlan.error
     : params.shortEntry && legsPlan.kind === 'attach'
-      ? SHORT_LEGS_NOTE(formatLegPrice(legsPlan.takeProfitPrice))
+      ? SHORT_LEGS_NOTE(plainPrice(legsPlan.takeProfitPrice))
       : legsPlan.note;
 
   function build(): BuildOrderResult {
@@ -129,6 +131,7 @@ export function useManualOrderSubmission(params: Params) {
         payload: {
           ...built.payload,
           tif: prefs.tif,
+          venue: params.venue,
           stop_loss_price: Number(params.buyStop),
           ...(legsPlan.kind === 'attach' ? { take_profit_price: legsPlan.takeProfitPrice } : {}),
         },
@@ -139,6 +142,7 @@ export function useManualOrderSubmission(params: Params) {
       payload: {
         ...built.payload,
         tif: prefs.tif,
+        venue: params.venue,
         ...(legsPlan.kind === 'attach'
           ? {
               take_profit_price: legsPlan.takeProfitPrice,
@@ -177,8 +181,10 @@ export function useManualOrderSubmission(params: Params) {
       fail('Orders remain locked by Nova environment safety settings.', 'ORDERS_GATE');
       return;
     }
-    // ADR 045: a Confirm clicked while Level 2 lags never sends (the backend would refuse it anyway).
-    const lagging = viewLockReason(params.symbol);
+    // ADR 045: a Confirm clicked on a new buy or short while the data lags never sends (the backend would refuse it).
+    const lagging = orderCloses(params.side, params.shortEntry, params.position?.qty)
+      ? null
+      : viewLockReason(params.symbol);
     if (lagging) {
       fail(lagging, 'VIEW_STALE');
       return;

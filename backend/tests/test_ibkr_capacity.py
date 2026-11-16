@@ -24,13 +24,17 @@ def test_pacing_names_what_spent_the_window():
 
 
 def test_the_view_reads_every_cap(monkeypatch):
+    import ibkr.depth as depth
     from ibkr import tape_admission, ticks
-    from line_lending import view as lending_view
+    from line_lanes import lanes
+    from line_lanes.table import Lanes
 
     monkeypatch.setattr(ticks, "ticker_budget_status", lambda: {
         "reqMktData_lines": 48, "reqMktData_limit": 100, "reqMktData_cap": 53, "reqMktData_refused": 0,
         "reqMktData_by_owner": {"scanner": 45, "hod": 23, "live_trader": 2, "depth": 0}})
-    monkeypatch.setattr(lending_view, "build", lambda: {"cap": 3, "lines": [{"symbol": "AAPL", "held_by": "tab"}]})
+    lanes._lanes = Lanes(you="AAPL", bots="AAPL")
+    monkeypatch.setattr(depth, "subscribed_symbols", lambda: ["AAPL", "NFLX", "RPLY"])
+    monkeypatch.setattr(depth, "is_live", lambda s: s != "RPLY")
     monkeypatch.setattr(historical_service, "pacing_snapshot", lambda: {
         "window_used": 60, "window_max": 60, "window_sec": 600.0, "next_token_wait_sec": 102.5,
         "by_kind": {"charts": 5, "tape": 10, "daily": 40, "market": 5}})
@@ -39,7 +43,9 @@ def test_the_view_reads_every_cap(monkeypatch):
     v = capacity.view(now=1.0)
     assert v["l1"] == {"used": 48, "cap": 53, "cap_learned": True, "reserve": 5, "refused": 0,
                        "by_owner": {"scanner": 45, "hod": 23, "live_trader": 2}}
-    assert v["l2"] == {"used": 1, "cap": 3, "symbols": [{"symbol": "AAPL", "held_by": "tab"}]}
+    assert v["l2"] == {"used": 3, "cap": 3, "symbols": [{"symbol": "AAPL", "held_by": "you+bots"},
+                                                        {"symbol": "NFLX", "held_by": "no lane"},
+                                                        {"symbol": "RPLY", "held_by": "replay"}]}
     assert v["history"]["used"] == 60 and v["history"]["next_free_sec"] == 102.5
     assert v["tape"] == {"used": 4, "cap": None, "symbols": ["AAPL", "NFLX"]}
 
@@ -56,9 +62,72 @@ def test_a_background_chart_fill_leaves_the_last_requests(monkeypatch):
     historical_service.reset_for_testing()
     monkeypatch.setattr(bars_store, "read", lambda *a, **k: None)
     monkeypatch.setattr(historical_service, "assert_ib_loop", lambda: None)
-    monkeypatch.setattr(historical_service, "_left", lambda: 10)
+    monkeypatch.setattr(historical_service, "_left", lambda _key: 10)
     with pytest.raises(historical_service.HistoricalShed, match="kept for open charts"):
         asyncio.run(historical_service.request_bars("AAPL", "1Min", 100, priority="background"))
+
+
+def test_a_daily_read_leaves_the_last_requests_unless_the_stock_is_about_to_be_shorted(monkeypatch):
+    """2026-10-27 17:23 ET: 16 SSR reads for the setup scanner filled the window; MBRX's charts waited 22 s."""
+    from datetime import date
+    from types import SimpleNamespace
+
+    sent: list[bool] = []
+
+    class _IB:
+        async def qualifyContractsAsync(self, contract):
+            return [contract]
+
+        async def reqHistoricalDataAsync(self, contract, **kwargs):
+            sent.append(kwargs["useRTH"])
+            return [SimpleNamespace(date=date(2026, 10, 26), open=9, high=10, low=8, close=9.5)]
+
+    historical_service.reset_for_testing()
+    monkeypatch.setattr(historical_service, "assert_ib_loop", lambda: None)
+    monkeypatch.setattr("ibkr.client.get_ib", lambda: _IB())
+    monkeypatch.setattr(historical_service, "_left", lambda _key: 10)
+    with pytest.raises(historical_service.HistoricalShed, match="kept for open charts"):
+        asyncio.run(historical_service.request_daily_bars("FADE", "5 D", use_rth=False))
+    assert sent == []
+    rows = asyncio.run(historical_service.request_daily_bars("FADE", "5 D", use_rth=False, urgent=True))
+    assert sent == [False] and rows[0]["low"] == 8.0
+    historical_service.reset_for_testing()
+
+
+def test_a_painted_charts_refresh_leaves_the_trades_read_back_their_share(monkeypatch):
+    """2026-10-27: ten charts refreshing every 45 s spent 56 of 60 and no TraderTV exit was read all morning."""
+    import bars_store
+    from constants_forex_board import FOREX_HISTORY_HEADROOM
+    from constants_global_board import GLOBAL_HISTORY_HEADROOM
+    from constants_market_board import MARKET_HISTORY_HEADROOM
+    from constants_scanner import IBKR_HISTORY_WARM_RESERVE
+    from constants_setups import SETUPS_SEED_HISTORY_HEADROOM
+    from followed_traders.constants_followed import FOLLOWED_EXIT_HEADROOM
+    from luld.constants_luld import LULD_BACKFILL_HEADROOM
+
+    # The exits and LULD read while more than their headroom is left: the refresh must stop above it.
+    assert IBKR_HISTORY_WARM_RESERVE > max(FOLLOWED_EXIT_HEADROOM, LULD_BACKFILL_HEADROOM)
+    # ... and the boards and the setup seeds stop above the refresh: at a request every 2 s each could spend the window.
+    assert min(MARKET_HISTORY_HEADROOM, GLOBAL_HISTORY_HEADROOM, FOREX_HISTORY_HEADROOM,
+               SETUPS_SEED_HISTORY_HEADROOM) > IBKR_HISTORY_WARM_RESERVE
+    historical_service.reset_for_testing()
+    monkeypatch.setattr(bars_store, "read", lambda *a, **k: None)
+    monkeypatch.setattr(historical_service, "assert_ib_loop", lambda: None)
+    monkeypatch.setattr(historical_service, "_left", lambda _key: IBKR_HISTORY_WARM_RESERVE)
+    with pytest.raises(historical_service.HistoricalShed, match="the trades read back"):
+        asyncio.run(historical_service.request_bars("AAPL", "1Min", 100, priority="warm"))
+
+
+def test_a_painted_chart_keeps_its_bars_when_its_refresh_is_held(monkeypatch):
+    import bars_store
+
+    painted = {"symbol": "AAPL", "timeframe": "1Min", "bars": [{"t": 1}], "coverage": {"fetched_ts": 1.0}}
+    historical_service.reset_for_testing()
+    monkeypatch.setattr(bars_store, "read", lambda *a, **k: painted)
+    monkeypatch.setattr(bars_store, "store_series_complete", lambda *a: False)
+    monkeypatch.setattr(historical_service, "assert_ib_loop", lambda: None)
+    monkeypatch.setattr(historical_service, "_left", lambda _key: 1)
+    assert asyncio.run(historical_service.request_bars("AAPL", "1Min", 100, priority="warm")) is painted
 
 
 def test_fills_admitted_together_recheck_the_reserve_before_they_send(monkeypatch):
@@ -71,7 +140,7 @@ def test_fills_admitted_together_recheck_the_reserve_before_they_send(monkeypatc
     monkeypatch.setattr(bars_store, "write_payload", lambda *a, **k: None)   # never the desk's own bar store
     monkeypatch.setattr(historical_service, "assert_ib_loop", lambda: None)
     left = {"n": 11}
-    monkeypatch.setattr(historical_service, "_left", lambda: left["n"])
+    monkeypatch.setattr(historical_service, "_left", lambda _key: left["n"])
     sent: list[str] = []
 
     async def fetch(symbol, timeframe, limit, interactive=False):

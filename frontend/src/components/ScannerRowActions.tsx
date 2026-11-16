@@ -1,18 +1,15 @@
 /**
  * Hover actions at the right end of a scanner row (shown while the row is
  * hovered or highlighted): Trader, Watch / Watching (the operator's watch
- * list), Record / Stop rec (hold), Allowlist / Allowlisted, Pin. State-aware labels so a button never
+ * list), Record / Stop rec (hold), Pin. State-aware labels so a button never
  * lies about what it will do. Clicks never reach the row (which would
- * re-select).
+ * re-select). No "let the bot trade" button: the strategies only watch and
+ * never trade (ADR 072).
  */
 import { useState, type MouseEvent, type KeyboardEvent } from 'react';
-import { useBotAllowlist } from '../bot/useBotAllowlist';
 import { HoldToStopButton } from '../capture/HoldToStopButton';
 import { startTabRecord, stopTabRecord } from '../capture/sessionRecordStore';
 import {
-  SCANNER_ACTION_ALLOWLIST,
-  SCANNER_ACTION_ALLOWLISTED,
-  SCANNER_ACTION_ALLOWLISTED_TITLE,
   SCANNER_ACTION_PIN,
   SCANNER_ACTION_PIN_TITLE,
   SCANNER_ACTION_RECORD,
@@ -24,7 +21,6 @@ import {
   SCANNER_ACTION_UNPIN,
   SCANNER_ACTION_UNPIN_TITLE,
 } from '../constantGroups/scanner_board';
-import { botTradeAddLabel } from '../constantGroups/bot';
 import { togglePinnedRow, usePinnedRow } from '../scanner/pinnedRowsStore';
 import { useScannerRowFacts } from './useScannerRowFacts';
 import {
@@ -45,8 +41,7 @@ type Props = {
 const swallow = (e: MouseEvent | KeyboardEvent) => e.stopPropagation();
 
 export function ScannerRowActions({ symbol, onOpenTrading }: Props) {
-  const { recording, allowlisted } = useScannerRowFacts(symbol);
-  const { add, remove } = useBotAllowlist();
+  const { recording } = useScannerRowFacts(symbol);
   const pinned = usePinnedRow(symbol);
   const watched = useIsWatched(symbol);
   // Which Record command is in flight: the locked button names it (ux/whyTip.ts).
@@ -116,16 +111,6 @@ export function ScannerRowActions({ symbol, onOpenTrading }: Props) {
           {SCANNER_ACTION_RECORD}
         </button>
       )}
-      <button
-        type="button"
-        className={`scanner-row-actions__btn${allowlisted ? ' is-state' : ''}`}
-        title={allowlisted ? SCANNER_ACTION_ALLOWLISTED_TITLE : botTradeAddLabel(symbol)}
-        aria-pressed={allowlisted}
-        data-testid="scanner-row-allowlist"
-        onClick={() => void (allowlisted ? remove(symbol) : add(symbol))}
-      >
-        {allowlisted ? SCANNER_ACTION_ALLOWLISTED : SCANNER_ACTION_ALLOWLIST}
-      </button>
       <button
         type="button"
         className={`scanner-row-actions__btn${pinned ? ' is-state' : ''}`}

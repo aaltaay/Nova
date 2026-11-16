@@ -109,6 +109,7 @@ def write_folder(root: Path) -> None:
 def patch(mp, massive_root: Path, table_root: Path) -> None:
     mp.setenv("NOVA_MARKET_DATA_DIR", str(massive_root))
     mp.setenv("NOVA_RVOL_DIR", str(table_root))
+    mp.setattr(rs, "RESERVE_GB", 0.0)     # the drive's reserve guards the desk, not a runner's free disk
     mp.setattr(slots, "heavy", lambda what, wait=0: contextlib.nullcontext())
     mp.setattr(tickers, "_list_date", lambda symbol, cik: NEW_OWNER_FROM if cik == "72" else None)
     frame = pd.DataFrame([{"ticker": "SPL", "execution_date": date.fromisoformat(SPLIT_DAY), "split_from": 10.0,

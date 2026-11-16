@@ -105,7 +105,7 @@ def held_positions(venue: str) -> dict[str, float] | None:
     try:
         return _live_held() if venue == DESK_VENUE_LIVE else _practice_held(venue)
     except Exception:
-        logger.exception("kill: %s's positions could not be read -- no stop is kept", venue)
+        logger.exception("%s's positions could not be read", venue)
         return None
 
 

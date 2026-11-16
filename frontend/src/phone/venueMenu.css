@@ -1,0 +1,67 @@
+/* The venue menu (ADR 070 amendment 2026-11-13, mockup v3). Owner: phone/VenueMenu.tsx.
+   It drops under the venue pill inside the screen (absolute, never fixed: the phone's frame is zoomed to fit),
+   over the screen's body; a tap outside it closes it. The pills keep the header's venue colours. */
+.ph-venue { display: inline-flex; align-items: center; gap: 3px; }
+.ph-venue[aria-expanded='true'] { box-shadow: 0 0 0 2px rgba(92, 200, 250, 0.55); }
+.ph-venue__chev { opacity: 0.8; }
+
+.ph-vmenu__shade { position: absolute; inset: 0; z-index: 14; background: transparent; cursor: default; }
+.ph-vmenu {
+  position: absolute;
+  top: 38px;
+  z-index: 15;
+  width: min(320px, calc(100% - 16px));
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: #161c28;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+  white-space: normal;
+}
+.ph-vmenu[data-side='left'] { left: 8px; }
+.ph-vmenu[data-side='right'] { right: 8px; }
+
+.ph-vmenu__row {
+  width: 100%;
+  height: 44px;
+  padding: 0 9px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border-radius: 9px;
+  text-align: left;
+}
+.ph-vmenu__row[aria-checked='true'] { background: rgba(255, 255, 255, 0.05); }
+.ph-vmenu__pill {
+  flex-shrink: 0;
+  min-width: 58px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1.5px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.ph-vmenu__row[data-venue='paper'] .ph-vmenu__pill { background: rgba(249, 115, 22, 0.16); border-color: rgba(249, 115, 22, 0.5); color: #FDBA74; }
+.ph-vmenu__row[data-venue='sim'] .ph-vmenu__pill { background: rgba(232, 121, 249, 0.14); border-color: rgba(232, 121, 249, 0.5); color: #F5D0FE; }
+.ph-vmenu__row[data-venue='live'] .ph-vmenu__pill { background: var(--ph-good-bg); border-color: rgba(61, 220, 132, 0.5); color: var(--ph-good); }
+.ph-vmenu__words { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; font-size: 11px; line-height: 1.25; color: var(--ph-muted); }
+.ph-vmenu__words b { color: var(--ph-text); font-size: 11.5px; font-weight: 600; }
+.ph-vmenu__words span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ph-vmenu__check { flex-shrink: 0; color: var(--ph-accent); }
+
+.ph-vmenu__stake {
+  margin: 4px 2px 2px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(245, 185, 66, 0.45);
+  background: var(--ph-warn-bg);
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: #f3dfb3;
+}
+.ph-vmenu__stake b { color: var(--ph-warn); }
+.ph-vmenu__calm { margin: 4px 2px 2px; padding: 5px 8px; font-size: 10.5px; line-height: 1.35; color: var(--ph-faint); }

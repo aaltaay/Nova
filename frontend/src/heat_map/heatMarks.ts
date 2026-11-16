@@ -151,7 +151,8 @@ export function heatMarkLayout(
     const x0 = g.X(a);
     const x1 = Math.max(g.X(b), x0 + 2);
     out.boxes.push({ x0, x1, y, h: rowH });
-    const text = `◆ ${heatMarkShares(h.hidden)} hidden`;
+    // What also traded there where this Level 2 cannot look, when any did (never counted as hidden).
+    const text = `◆ ${heatMarkShares(h.hidden)} hidden${h.unseen > 0 ? ` · ${heatMarkShares(h.unseen)} unseen` : ''}`;
     const cw = measure(text) + 2 * CHIP_PAD;
     out.chips.push({ x: placeX(x1 + CHIP_GAP + 2, x1, cw, g.plot), y, w: cw, text, color: HEAT_MARK_HIDDEN, solid: false });
   }

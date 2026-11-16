@@ -167,9 +167,6 @@ export interface BotSwitchState {
   why_off: string | null;
 }
 
-/** The bot families under the Bot switch, each with its key per venue (bot.md, "The three keys", 2026-10-15). */
-export type BotFamily = 'strategy' | 'live_trader';
-
 /** One family's key on the desk venue: off, its bots place no order, not even a sell. */
 export interface BotFamilyKeyState {
   on: boolean;

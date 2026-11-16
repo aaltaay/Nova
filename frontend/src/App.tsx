@@ -82,10 +82,10 @@ function AppShell() {
 
   return (
     <IbkrAccountProvider>
+      <SetupsStreamProvider enabled={!detached}>
       <SettingsProvider>
         <ScannerDataProvider>
           <HodMomoProvider>
-          <SetupsStreamProvider enabled={!detached}>
             <div className={`nova-app-stack${detached ? ' nova-app-stack--float' : ' nova-app-stack--rail'}`}>
             {/* Parent desk keeps the rail + full chrome. Pop-out floats are child trade desks — neither. */}
             {!detached && <NavRailHost />}
@@ -155,10 +155,10 @@ function AppShell() {
             {!detached && <CapacityStrip />}
             </div>
             </div>
-          </SetupsStreamProvider>
           </HodMomoProvider>
         </ScannerDataProvider>
       </SettingsProvider>
+      </SetupsStreamProvider>
     </IbkrAccountProvider>
   );
 }

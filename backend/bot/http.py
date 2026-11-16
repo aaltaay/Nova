@@ -5,7 +5,6 @@ from fastapi import HTTPException, Request
 
 from bot.errors import BotError
 from constants_bot import (
-    BOT_DESK_ARM_HEADER,
     BOT_LOOPBACK_HOSTS,
     BOT_REASON_NOT_LOOPBACK,
 )
@@ -21,15 +20,6 @@ def require_loopback(request: Request) -> None:
         status_code=403,
         detail={"reason": BOT_REASON_NOT_LOOPBACK, "error": "bot API is localhost only"},
     )
-
-
-def desk_arm_token(request: Request, body: dict | None = None) -> str | None:
-    header = (request.headers.get(BOT_DESK_ARM_HEADER) or "").strip()
-    if header:
-        return header
-    if body and body.get("desk_arm_token"):
-        return str(body["desk_arm_token"]).strip()
-    return None
 
 
 def brain_id(request: Request, body: dict | None = None) -> str | None:

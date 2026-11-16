@@ -246,7 +246,7 @@ def test_data_tools_match_the_old_server():
     old = {tool.name: tool for tool in asyncio.run(data.create_server(data.DataService()).list_tools())}
     unified = {tool.name: tool for tool in asyncio.run(
         nova_mcp.create_server(data.DataService(), http=False, warm=False).list_tools())}
-    assert set(unified) == set(old) | {"nova_chart"}
+    assert set(unified) == set(old) | {"nova_chart", "open_in_nova"}
     retired = {"nova_historical_chart", "nova_historical_chart_gallery", "nova_trade_charts"}
     assert retired.isdisjoint(unified)
     for name, tool in old.items():

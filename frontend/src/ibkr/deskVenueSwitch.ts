@@ -2,8 +2,8 @@
  * Switch the desk venue (ADR 020): the one door the header's Paper | Live | Sim pills and an
  * agent's show (ADR 050) both go through. POST /api/desk/venue {venue}; Sim falls back to the
  * legacy POST /api/sim when the venue route is missing (stale API process); Live keeps ensuring
- * the live Gateway. Leaving a venue cancels Nova's working entries there first (ADR 042 F): the
- * answer's `left` lists them, and each is a bot notice in this window. A later confirmed
+ * the live Gateway. The answer's `left` is empty since the bots retired (ADR 072); an old backend's
+ * `left` still shows as a notice in this window. A later confirmed
  * transition (another window, a status read) wins over this request's reply.
  */
 import { novaFetch } from '../api/novaFetch';

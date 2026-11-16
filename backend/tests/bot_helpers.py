@@ -1,24 +1,15 @@
-"""Shared bot test setup -- the master at Strategy, setups at Strategy, Activate, optional claim/heartbeat.
+"""Shared bot test setup: a held depth line, a practice venue, today's hot list file, the session's level.
 
-``ready_l2`` pins the venue clock inside the entry window (ADR 027) -- tests about
-that gate set their own. It puts the named setups at Strategy (ADR 042: the master
-is a ceiling, each setup has its own level), writes this venue's bot list directly
-(tests bypass stock mode's one-owner path; the routes go through it), writes today's
-hot list file without listing them (the 04:00 reset of yesterday's bot buys has run,
-``hot_list.day_reset_block``; being on the list is no rule, ADR 044 amended
-2026-10-06), and holds a depth line for each symbol (a reserved slot in
-``ibkr.depth.state``), because a bot fires only on a symbol on its list whose line
-the backend holds (``BOT_NO_DEPTH_LINE``, ADR 020 second pass). Lines are released
-by the autouse bot fixture in ``conftest.py``.
+ADR 072 retired the strategy bot, Activate and the bot list's writers, so nothing here turns a bot on. What stays
+is what the bot API's door and the living tests still read: ``hold_depth_line`` (a reserved slot in
+``ibkr.depth.state``, released by the autouse bot fixture in ``conftest.py``), ``on_practice``, ``list_hot``,
+``set_symbols`` (the session's own fields, written directly), ``set_level`` and ``headers``.
 """
 from __future__ import annotations
 
 from types import ModuleType
 
-from bot.arming import issue_arm_token, record_heartbeat
-from bot.autonomy import apply_desk_level, apply_patch
 from bot.persist import load_session, save_session
-from bot.session import require_l2_brain
 
 _HELD_DEPTH_LINES: set[str] = set()
 # The real ``ibkr.depth.state``, captured when a line is held (see release).
@@ -72,8 +63,7 @@ def on_practice(venue: str = "paper") -> None:
 
 def list_hot(*symbols: str, how: str = "star", at: float | None = None) -> None:
     """Put these stocks on today's hot list, written as the contract's ``hot-list.json`` (schema 1) in the
-    test's operator cache. With no stocks it only writes today's file: the 04:00 reset has run, so the bot
-    may buy (``hot_list.day_reset_block``)."""
+    test's operator cache. With no stocks it only writes today's file."""
     import json
     import time
 
@@ -104,70 +94,36 @@ def list_hot(*symbols: str, how: str = "star", at: float | None = None) -> None:
 
 
 def set_symbols(*symbols: str) -> None:
-    """Write this venue's bot list directly (and the Trader focus the Eyes gate reads), and today's hot list
-    file with none of them on it: the 04:00 reset has run, and the list never decides who trades a stock."""
+    """Write this venue's bot list directly (and the Trader focus the Eyes gate reads): the session file's own
+    fields, since nothing writes them any more (ADR 072)."""
     row = load_session()
     row["symbol_allowlist"] = [s.upper() for s in symbols]
     row["trader_live"] = [s.upper() for s in symbols]
     save_session(row)
-    list_hot()
 
 
-def ready_l2(
-    *,
-    brain: str | None = "brain-1",
-    heartbeat: bool = True,
-    symbols: tuple[str, ...] = ("ABCD",),
-    depth_line: bool = True,
-    setups: tuple[str, ...] = ("first_pullback",),
-    activate: bool = True,
-) -> str | None:
-    """On a practice venue (Paper unless the test chose Sim; ADR 042: Nova's bot never trades Live), the
-    master and ``setups`` at Strategy, ``symbols`` on the bot list, Activate on (its token)."""
-    on_practice()
-    open_entry_window()
-    apply_patch({"level": 2, "setup_levels": {s: 2 for s in setups}}, desk=True)
-    set_symbols(*symbols)
-    token = issue_arm_token() if activate else None
-    if depth_line:
-        hold_depth_line(*symbols)
-    if brain:
-        require_l2_brain(brain, claim=True)
-        if heartbeat:
-            record_heartbeat(brain)
-    return token
+def set_level(level: int) -> dict:
+    """Write the desk venue's master ``level`` directly (its PATCH retired with the Bots page, ADR 072)."""
+    row = load_session()
+    row["level"] = int(level)
+    return save_session(row)
 
 
-def open_entry_window(hour: int = 9, minute: int = 0) -> None:
-    """Pin the venue clock inside the material's 07:00-10:00 ET entry window."""
-    from datetime import datetime
-    from zoneinfo import ZoneInfo
-
-    from bot import entry_rules
-
-    at = datetime.now(ZoneInfo("America/New_York")).replace(hour=hour, minute=minute, second=0, microsecond=0)
-    entry_rules.set_clock_for_tests(lambda: at)
-
-
-def headers(api_key: str, *, arm: str | None = None, brain: str | None = None) -> dict[str, str]:
+def headers(api_key: str, *, brain: str | None = None) -> dict[str, str]:
     from constants import NOVA_API_KEY_HEADER
-    from constants_bot import BOT_DESK_ARM_HEADER
 
     out = {NOVA_API_KEY_HEADER: api_key}
-    if arm:
-        out[BOT_DESK_ARM_HEADER] = arm
     if brain:
         out["X-Nova-Brain-Session"] = brain
     return out
 
 
 __all__ = [
-    "apply_desk_level",
     "headers",
     "hold_depth_line",
     "list_hot",
-    "open_entry_window",
-    "ready_l2",
+    "on_practice",
     "release_depth_lines",
+    "set_level",
     "set_symbols",
 ]

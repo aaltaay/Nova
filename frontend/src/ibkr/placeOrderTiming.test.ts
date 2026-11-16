@@ -8,6 +8,7 @@ import {
 } from './cancelOrder';
 import {
   cancelAllOrdersForSymbol,
+  cancelAllWorkingOrders,
   placeIbkrOrder,
 } from './placeOrder';
 
@@ -160,6 +161,53 @@ describe('IBKR client timing contract', () => {
 
     expect(result.ok).toBe(false);
     expect(span.complete).toHaveBeenCalledWith(false);
+  });
+
+  it('an order carries the venue the operator acted on to the door (#1283)', async () => {
+    vi.mocked(novaFetch).mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, order_id: 7, error: null }), { status: 200 }),
+    );
+
+    await placeIbkrOrder(
+      { symbol: 'AAPL', side: 'SELL', qty: 1, order_type: 'MKT', outside_rth: false, venue: 'paper' },
+      'key',
+      { timing: timing() },
+    );
+
+    const body = JSON.parse(String(vi.mocked(novaFetch).mock.calls[0][1]?.body));
+    expect(body.venue).toBe('paper');
+  });
+
+  it('a stock\'s cancels name the venue they were confirmed on, and none otherwise', async () => {
+    const answer = () => new Response(
+      JSON.stringify({ ok: true, cancelled: [], failed: [], error: null }),
+      { status: 200 },
+    );
+    vi.mocked(novaFetch).mockImplementation(async () => answer());
+
+    await cancelAllOrdersForSymbol('AAPL', timing(), 'live');
+    await cancelAllOrdersForSymbol('AAPL', timing());
+
+    const urls = vi.mocked(novaFetch).mock.calls.map(([url]) => String(url));
+    expect(urls[0]).toMatch(/\/api\/ibkr\/orders\?symbol=AAPL&venue=live$/);
+    expect(urls[1]).toMatch(/\/api\/ibkr\/orders\?symbol=AAPL$/);
+  });
+
+  it('cancel-all names the venue KILL was pressed on, and none otherwise', async () => {
+    const answer = () => new Response(
+      JSON.stringify({ ok: true, cancelled: [], failed: [], error: null }),
+      { status: 200 },
+    );
+    vi.mocked(novaFetch).mockImplementation(async () => answer());
+
+    await cancelAllWorkingOrders(timing(), 'paper');
+    await cancelAllWorkingOrders(timing(), null);
+    await cancelAllWorkingOrders(timing());
+
+    const urls = vi.mocked(novaFetch).mock.calls.map(([url]) => String(url));
+    expect(urls[0]).toMatch(/\/api\/ibkr\/orders\?all_symbols=true&venue=paper$/);
+    expect(urls[1]).toMatch(/\/api\/ibkr\/orders\?all_symbols=true$/);
+    expect(urls[2]).toMatch(/\/api\/ibkr\/orders\?all_symbols=true$/);
   });
 
   it('requires transport and body success and records network failure', async () => {

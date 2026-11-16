@@ -113,6 +113,10 @@ RECORDINGS = (
 )
 
 CATALOG = (
+    {"name": "market now", "source": "the running desk: IBKR prices, Alpaca headlines",
+     "history": "today only, while the backend runs; headlines kept from the day the feed started",
+     "as_of": "this moment; missing[] states what has no answer yet",
+     "units": "percent points; prices dollars", "mcp": "market_now", "cli": "nova_agent.py market"},
     {"name": "trades", "source": "Massive flat files (SIP)", "history": "2016-01-04 on, every US stock",
      "as_of": "one stock-day; raw, never split-adjusted (adjust=true for today's terms)",
      "units": "price dollars, size shares (fractional on 2026 days), sip_timestamp ns; sets_price = the print may move last/candles",

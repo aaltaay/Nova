@@ -4,7 +4,15 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DESK_POLL_SNAP_KEY_PREFIX } from '../constantGroups/global_bar';
-import { TOP_NINE_LIST_KEY, TOP_NINE_NO_DESK, TOP_NINE_OPEN_WAIT_MS, TOP_NINE_SHARE, TOP_NINE_VIEWER_KEY } from './topNineConstants';
+import { DESK_SOUND_KEYS, resetDeskSoundsForTests } from '../sound';
+import {
+  TOP_NINE_LIST_KEY,
+  TOP_NINE_LULD_POLL_MS,
+  TOP_NINE_NO_DESK,
+  TOP_NINE_OPEN_WAIT_MS,
+  TOP_NINE_SHARE,
+  TOP_NINE_VIEWER_KEY,
+} from './topNineConstants';
 import { TOP_NINE_SCHEMA_VERSION, type TopNineRow, type TopNineSnapshot } from './topNineSnapshot';
 
 const chimeTopNine = vi.fn((_on: boolean) => 'played');
@@ -52,6 +60,7 @@ function send(s: TopNineSnapshot) {
 describe('TopNineApp', () => {
   beforeEach(() => {
     localStorage.clear();
+    resetDeskSoundsForTests();
     requestOpenOnDesk.mockClear();
     chimeTopNine.mockClear();
     beepTopNineHalt.mockClear();
@@ -88,6 +97,23 @@ describe('TopNineApp', () => {
     expect(screen.getByTestId('top-nine-pill-WORX').textContent).toBe('▼ 2 → 5');
     expect(screen.getByTestId('top-nine-tile-XLAB').getAttribute('data-mark')).toBe('none');
     expect(screen.getByTestId('top-nine-log').textContent).toContain('WORX ▼2→5');
+    // The countdown runs on the compositor (a transform), never a width the window must lay out every frame.
+    const bar = screen.getByTestId('top-nine-tile-ZTG').querySelector<HTMLElement>('.top-nine-tile__timer b');
+    expect(bar?.style.transform).toMatch(/^scaleX\(/);
+    expect(bar?.style.width).toBe('');
+  });
+
+  it('its sound button follows the header\'s menu, moved in the desk window', () => {
+    render(<TopNineApp />);
+    const btn = screen.getByTestId('top-nine-sound');
+    expect(btn.getAttribute('aria-pressed')).toBe('true');
+    act(() => {
+      localStorage.setItem(DESK_SOUND_KEYS.topNine, JSON.stringify({ schema_version: 1, value: false }));
+      window.dispatchEvent(new StorageEvent('storage', { key: DESK_SOUND_KEYS.topNine }));
+    });
+    expect(btn.getAttribute('aria-pressed')).toBe('false');
+    act(() => send(snap(AT_1014)));
+    expect(chimeTopNine).toHaveBeenLastCalledWith(false);
   });
 
   it('chimes for a switch on screen, and not for one whose only riser was muted by a right-click', () => {
@@ -154,6 +180,40 @@ describe('TopNineApp', () => {
     });
     expect(requestOpenOnDesk).toHaveBeenCalledWith('ZTG', { from: 'gainers', waitMs: TOP_NINE_OPEN_WAIT_MS });
     expect(screen.getByTestId('top-nine-notice').textContent).toBe(TOP_NINE_NO_DESK);
+  });
+
+  it('asks for the LULD band on Gainers only: Gappers and After Hours have none to draw', () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      const all = snap(AT_1013);
+      // XLAB tops Gappers too: its tile stays mounted across the switch and must stop asking.
+      all.lists.gappers = { rows: board(['XLAB', 'GAPA', 'GAPB']), total: 14 };
+      all.lists.afterhours = { rows: board(['AHA', 'AHB']), total: 2 };
+      localStorage.setItem(KEY, JSON.stringify({ ts: Date.now(), payload: all }));
+      const luldAsks = () => vi.mocked(fetch).mock.calls
+        .map(([url]) => String(url))
+        .filter((url) => url.includes('/api/luld/'))
+        .map((url) => url.split('/api/luld/')[1].split('/')[0]);
+
+      render(<TopNineApp />);
+      expect(luldAsks().sort()).toEqual([...AT_1013].sort());
+
+      for (const list of ['gappers', 'afterhours'] as const) {
+        vi.mocked(fetch).mockClear();
+        fireEvent.click(screen.getByTestId(`top-nine-tab-${list}`));
+        act(() => {
+          vi.advanceTimersByTime(TOP_NINE_LULD_POLL_MS * 3);
+        });
+        expect(screen.getByTestId('top-nine-app').getAttribute('data-list')).toBe(list);
+        expect(luldAsks()).toEqual([]);
+      }
+
+      vi.mocked(fetch).mockClear();
+      fireEvent.click(screen.getByTestId('top-nine-tab-gainers'));
+      expect(luldAsks()).toHaveLength(9);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('follows the list a rail button chose', () => {

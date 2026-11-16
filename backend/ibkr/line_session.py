@@ -161,10 +161,6 @@ def _lane(kind: str) -> _Lane:
             tape_stream._push_queue(symbol, {"type": "error", "symbol": symbol, "message": message, "released": True})
 
         async def ask_tape(symbol: str) -> dict:
-            from capture import feed_hold
-
-            if feed_hold.automatic_tape_only(symbol):
-                return await tape_stream.subscribe_async(symbol, automatic=True)
             return await tape_stream.subscribe_async(symbol)
 
         return _Lane(lambda s: tape_stream.viewer_count(s) > 0, tape_stream.is_subscribed,

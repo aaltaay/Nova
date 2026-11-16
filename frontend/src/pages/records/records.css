@@ -223,7 +223,6 @@
 .records-seg__opt:disabled { cursor: not-allowed; opacity: 0.6; }
 .records-ar__line { margin: 0 0 8px; line-height: 1.5; }
 .records-ar__line b { font-weight: 600; }
-.records-ar__open { color: var(--rec-green); }
 .records-ar__fine {
   margin: 0;
   color: var(--rec-dim);
@@ -233,48 +232,6 @@
   padding: 8px 14px 10px;
 }
 .records-ar__fine b { color: var(--rec-muted); font-weight: 600; }
-
-.records-sched { --label-w: 132px; position: relative; margin: 16px 0 10px; padding-left: var(--label-w); }
-.records-sched__row { position: relative; height: 17px; margin-bottom: 4px; }
-.records-sched__label {
-  position: absolute;
-  left: calc(-1 * var(--label-w));
-  top: 1px;
-  width: calc(var(--label-w) - 6px);
-  color: var(--rec-muted);
-  font-size: 11px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.records-sched__track { position: absolute; inset: 3px 0; background: var(--rec-track); border-radius: 3px; }
-.records-sched__win {
-  position: absolute;
-  top: 3px;
-  bottom: 3px;
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--rec-blue) 35%, transparent);
-}
-.records-sched__win.is-open { background: color-mix(in srgb, var(--rec-green) 55%, transparent); }
-.records-sched__axis { position: relative; height: 14px; color: var(--rec-dim); font-size: 10px; }
-.records-sched__axis span { position: absolute; transform: translateX(-50%); }
-.records-sched__now {
-  position: absolute;
-  top: 0;
-  bottom: 14px;
-  width: 1.5px;
-  background: var(--nova-text, #f5f5f7);
-  opacity: 0.85;
-}
-.records-sched__now span {
-  position: absolute;
-  top: -15px;
-  transform: translateX(-50%);
-  font-size: 10px;
-  background: var(--nova-raised, #3a3a3e);
-  border-radius: 3px;
-  padding: 0 4px;
-}
 
 /* ── the day ── */
 .records-dayhead { display: flex; align-items: baseline; gap: 14px; margin: 4px 0 8px; flex-wrap: wrap; }

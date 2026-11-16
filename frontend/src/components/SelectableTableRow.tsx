@@ -26,7 +26,7 @@ interface Props {
    * body then only calls `onSelect`. Defaults to true for rows with no
    * ticker button (Positions, Orders, Journal, ...). */
   openOnRowClick?: boolean;
-  /** Ticker lists: right-click opens the symbol menu (watch list, Record, let the bot trade it). */
+  /** Ticker lists: right-click opens the symbol menu (watch list, Record, pin to the Trader). */
   symbolMenu?: boolean;
   /** The row's own right-click (a working order's Cancel menu), where the symbol menu is not used. */
   onContextMenu?: (event: MouseEvent<HTMLTableRowElement>) => void;

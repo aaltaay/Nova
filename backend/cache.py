@@ -223,18 +223,42 @@ def _write_dated(prefix: str, date: str, payload: dict) -> None:
 
 def _read_dated_json(prefix: str, date: str) -> dict:
     """Load a dated snapshot. Missing version migrates; unknown version is {}."""
-    path = _dated_path(prefix, date)
+    return _read_dated_file(_dated_path(prefix, date), prefix)
+
+
+def _read_dated_file(path: str, prefix: str) -> dict:
+    """Load the dated snapshot of ``prefix`` at ``path``. Missing version migrates; unknown version is {}."""
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
         if not isinstance(data, dict):
             return {}
         accepted = accept_schema(
-            data, version_for_prefix(prefix), name=f"{prefix}-{date}",
+            data, version_for_prefix(prefix), name=os.path.splitext(os.path.basename(path))[0],
         )
         return accepted or {}
     except Exception:
         return {}
+
+
+def _find_dated_file(prefix: str, date: str) -> str | None:
+    """The dated file of ``prefix`` for ``date``, found by listing the cache folder; ``None`` when there is none.
+
+    A date that came with a request is only compared with the names of the files listed and never
+    becomes part of a path (CodeQL py/path-injection: the way ``eyes/journal.py`` finds a day).
+    """
+    pattern = re.compile(rf"^{re.escape(prefix)}-(\d{{4}}-\d{{2}}-\d{{2}})\.json$")
+    try:
+        with os.scandir(_CACHE_DIR) as entries:
+            for entry in entries:
+                match = pattern.match(entry.name)
+                if match and match.group(1) == date and entry.is_file():
+                    return entry.path
+    except FileNotFoundError:
+        return None  # no cache folder yet: no file of any day
+    except OSError:
+        logger.warning("cache: cannot list %s", _CACHE_DIR, exc_info=True)
+    return None
 
 
 def load_snapshot_for_date(cache_type: str, date: str) -> dict:

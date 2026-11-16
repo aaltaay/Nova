@@ -139,6 +139,14 @@ def test_a_short_goes_out_as_a_bracket_and_the_ledger_holds_it_short(paper) -> N
     assert row["liquidation_source"] == "published rules"
 
 
+def test_the_short_checks_ssr_read_may_spend_ibkrs_last_history(paper, monkeypatch) -> None:
+    """The ticket's and the door's facts ask SSR urgently; the setup scanner's asks leave the reserve (2026-10-27)."""
+    asks: list[dict] = []
+    monkeypatch.setattr(ssr, "request_history", lambda symbol, now=None, **k: asks.append(k) or False)
+    short_facts.gather(SYMBOL, "paper")
+    assert asks == [{"urgent": True}]
+
+
 def test_paper_needs_no_live_key_and_live_still_refuses_without_it(paper) -> None:
     assert _safety.short_enabled() is False        # IBKR_SHORT_ENABLED is never set by a test
     assert _send(_short("paper-ok")).ok is True

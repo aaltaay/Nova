@@ -257,6 +257,10 @@ async def _attempt(symbol: str, *, now: float, ready, acquire, start, release, r
     if resume["session_date"] != _today_et(now):
         _give_up(resume, "the session day ended")
         return
+    if not _lane_holds(symbol):
+        # ADR 071: only a lane holds a stock's lines; the lanes' recording starts it again when a lane is on it.
+        _give_up(resume, f"no lane is on {symbol}: Nova records it again once you, Claude or a bot watch it")
+        return
     if not ready():
         # IBKR is not usable; that is not the recorder's fault, so it costs no
         # attempt. Try again next tick.
@@ -294,6 +298,12 @@ async def _attempt(symbol: str, *, now: float, ready, acquire, start, release, r
     else:
         step = min(resume["attempt"], len(CAPTURE_RESUME_BACKOFF_SEC) - 1)
         resume["next_at"] = now + CAPTURE_RESUME_BACKOFF_SEC[step]
+
+
+def _lane_holds(symbol: str) -> bool:
+    from line_lanes import lanes
+
+    return not lanes.enforced() or lanes.on_lane(symbol)
 
 
 def _give_up(resume: dict[str, Any], reason: str) -> None:
@@ -419,7 +429,7 @@ async def run() -> None:
         await asyncio.to_thread(recorder.note_tape, symbol, **kwargs)  # the recorder lock can wait on disk
 
     async def acquire(symbol: str) -> str | None:
-        return await feed_hold.acquire(symbol, automatic=feed_hold.automatic_tape_only(symbol))
+        return await feed_hold.acquire(symbol)
 
     tape = TapeOps(end=lambda symbol, why: tape_stream.end_line(symbol, why, notify=False),
                    renew=feed_hold.renew_tape, note=note)

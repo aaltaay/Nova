@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from constants_bot import BOT_LEVEL_EYES, watch_only
+from constants_bot import watch_only
 from constants_setups import SETUPS_SCHEMA_VERSION
 from scanner_wire import wire_safe
 from setup_scanner import short_tests
@@ -30,14 +30,16 @@ def template_view(lane: Any) -> dict[str, Any] | None:
 
 
 def setup_summary(lane: Any, lanes: list[Any], levels: dict, now: float, *, can_propose: bool) -> dict[str, Any]:
-    """One setup's card: its level, whether it proposes, its template, window and today's counts."""
+    """One setup's card: its level, whether it proposes (never, since ADR 072), its template, window and today's
+    counts. ``can_propose`` is kept for the callers' signature."""
+    del can_propose
     setup = lane.setup
     level = int((levels.get("levels") or {}).get(setup) or 0)
     start, end = window(setup, lane.p.pattern)
     return {
         "id": setup, "side": lane.p.side, "test": short_tests.test(setup, lane.p.params_hash),
         "level": level, "chosen": levels.get("chosen") == setup,
-        "proposing": can_propose and level >= BOT_LEVEL_EYES and not watch_only(setup),
+        "proposing": False,   # ADR 072: the strategies only watch; no setup proposes or trades
         "watch_only": watch_only(setup),
         "template": template_view(lane),
         "templates_watched": sum(1 for other in lanes if other.setup == setup and not is_five_minute(other)),

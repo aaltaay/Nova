@@ -260,10 +260,13 @@
   background: rgb(255 255 255 / 6%);
 }
 
+/* The bar shrinks by transform, on the compositor: a width transition re-armed every second laid out the
+   whole window on every frame for the 30 s a mark runs (61 layouts/s, measured 2026-10-27). */
 .top-nine-tile__timer b {
   display: block;
   height: 100%;
-  transition: width 1s linear;
+  transform-origin: left center;
+  transition: transform 1s linear;
 }
 
 .is-up .top-nine-tile__timer b { background: var(--tn-up); }

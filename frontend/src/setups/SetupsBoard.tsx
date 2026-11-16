@@ -3,7 +3,8 @@
  * explained on hover (ux/hoverTip.ts). "Stage ticket" fills the manual ticket
  * with the venue sleeve's risk per trade over the setup's risk a share, and
  * never places; a human presses Place. A proposal Nova itself takes, or one that
- * is not a trade, locks it with the reason (ADR 042 draft). */
+ * is not a trade, locks it with the reason (ADR 042 draft). ADR 072: the tape gates nothing,
+ * so the board has no Tape column; the tape's readings stay in the journal. */
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
 import { useConfirmedDeskVenue } from '../ibkr';
@@ -13,7 +14,7 @@ import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import { tipProps } from '../ux/hoverTip';
 import { whyProps } from '../ux/whyTip';
 import { proposalStageLock, proposalStageSize } from './proposalVerdict';
-import { fmtCents, fmtPx, fmtR, isActionable, outcomeLabel, rowClass, stagedLimit, tapeRank } from './setupsFormat';
+import { fmtCents, fmtPx, fmtR, isActionable, outcomeLabel, rowClass, stagedLimit } from './setupsFormat';
 import { gradeWords } from './pillarWords';
 import { normalizeLiquidity, thinChip } from './liquidity';
 import { riskSourceWords, type SleeveRisk } from './sleeveRisk';
@@ -23,7 +24,6 @@ import {
   setupShort,
   setupTypeOf,
   stateWords,
-  tapeWords,
   toGoWords,
   triggerWords,
 } from './setupWords';
@@ -45,29 +45,6 @@ interface BoardProps {
 }
 
 const EMPTY = 'No setups right now. Every scanner watches the HOD Momo names on one-minute bars and lists a symbol once it starts its pattern.';
-
-function TapeCell({ row, onOpenTrading }: { row: SetupRow; onOpenTrading: (s: string) => void }) {
-  const tape = tapeWords(row);
-  if (!tape) return <span className="na-muted">—</span>;
-  const verdict = row.tape?.verdict;
-  return (
-    <span className="setups-tape">
-      <span className={`pillar-chip setups-tape--${verdict ?? 'none'}`} {...tipProps(tape.tip, tape.title)}>
-        {tape.text}
-      </span>
-      {verdict === 'blind' && (
-        <button
-          type="button"
-          className="setups-link"
-          onClick={e => { e.stopPropagation(); onOpenTrading(row.symbol); }}
-          {...tipProps('Open this symbol in the Trader. Its Level 2 line lets the bot read the tape here.', 'Open L2')}
-        >
-          Open L2
-        </button>
-      )}
-    </span>
-  );
-}
 
 function kindWords(row: SetupRow): { text: string; tip: string } {
   const type = setupTypeOf(row);
@@ -94,7 +71,6 @@ const COLUMNS: SortColumns<SetupRow> = {
   target: r => r.setup?.target1,
   // Nearest the trigger first; a triggered row shows how it went, not a distance.
   to_go: { value: r => (isActionable(r) && r.setup ? r.distance : null), first: 'asc' },
-  tape: tapeRank,
   grade: r => r.grade,
   tf5: r => (r.tf5 ? (r.tf5.agrees ? 1 : 0) : null),
   r: r => (r.state === 'triggered' ? r.bar_r : null),
@@ -189,7 +165,6 @@ function SetupBoardRow({ row, selected, onSelectSymbol, onOpenTrading, risk }: {
       <td className="num setups-distance" {...tipProps(toGo.tip, toGo.title)}>
         {row.state === 'triggered' ? outcomeLabel(row) : toGo.text === '·' ? '—' : toGo.text}
       </td>
-      <td><TapeCell row={row} onOpenTrading={onOpenTrading} /></td>
       <td className="setups-grade" {...tipProps(grade.tip, grade.title)}>{grade.text === '·' ? '—' : grade.text}</td>
       <td>
         {tf5 ? (
@@ -229,7 +204,6 @@ export function SetupsBoard({ rows, selectedSymbol, onSelectSymbol, onOpenTradin
             {head('risk', 'Risk', true, 'Entry minus the stop, per share.')}
             {head('target', 'Target', true, 'Target 1: the first part sells there, the rest at target 2 (each from the strategy\'s target menu); the stop stays where it is. A short covers at its targets.')}
             {head('to_go', 'To go', true)}
-            {head('tape', 'Tape')}
             {head('grade', 'Grade')}
             {head('tf5', '5m')}
             {head('r', 'R', true, 'What the strategy\'s exit made of a triggered setup, in R (gross: 1R is the risk) -- a score, not a fill.')}

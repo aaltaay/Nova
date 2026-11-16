@@ -23,6 +23,7 @@ REPO = Path(__file__).resolve().parents[1]
 SHOT = Path(__file__).with_name("nova_review_shot.mjs")
 NODE_CWD = REPO / "frontend"
 RENDERER_STDERR = subprocess.DEVNULL
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)      # the engine has no console: node would open a window
 MAX_SHOTS = 24
 MAX_SHOT_BYTES = 8 * 1024 * 1024
 
@@ -127,6 +128,7 @@ class ReviewShots:
                     stderr=RENDERER_STDERR,
                     text=True,
                     bufsize=1,
+                    creationflags=NO_WINDOW,
                 )
             except OSError as exc:
                 self._error = {"ok": False, "error": {"code": "REVIEW_SHOT_UNAVAILABLE", "detail": str(exc)}}

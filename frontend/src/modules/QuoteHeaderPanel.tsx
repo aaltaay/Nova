@@ -1,4 +1,5 @@
 /** Quote header: symbol, price, blocklist toggle, description, last-updated. */
+import { plainPrice } from '../utils/priceTick';
 import { useEffect, useState } from 'react';
 import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL, QUOTE_CARD_TITLE } from '../constants';
@@ -98,13 +99,13 @@ export function QuoteHeaderPanel({
             </div>
             {m.mainPrice != null && (
               <div className="cq-price-row">
-                <span className="cq-price">{m.mainPrice.toFixed(2)}</span>
+                <span className="cq-price">{plainPrice(m.mainPrice)}</span>
                 {m.mainChangeAbs != null && (
                   <span
                     className={`cq-change ${(m.mainChangePct ?? 0) >= 0 ? 'positive' : 'negative'}`}
                   >
                     {m.mainChangeAbs >= 0 ? '+' : ''}
-                    {m.mainChangeAbs.toFixed(2)} ({fmtPct(m.mainChangePct)})
+                    {plainPrice(m.mainChangeAbs, m.mainPrice)} ({fmtPct(m.mainChangePct)})
                   </span>
                 )}
               </div>
@@ -112,11 +113,11 @@ export function QuoteHeaderPanel({
             {m.isExtendedHours && m.extPrice != null && (
               <div className="cq-ext-row">
                 <span className="cq-ext-label">{m.extLabel}:</span>
-                <span className="cq-ext-price">{m.extPrice.toFixed(2)}</span>
+                <span className="cq-ext-price">{plainPrice(m.extPrice)}</span>
                 {m.extChangeAbs != null && (
                   <span className={`cq-ext-change ${m.extIsPositive ? 'positive' : 'negative'}`}>
                     {m.extChangeAbs >= 0 ? '+' : ''}
-                    {m.extChangeAbs.toFixed(2)} ({fmtPct(m.extChangePct)})
+                    {plainPrice(m.extChangeAbs, m.extPrice)} ({fmtPct(m.extChangePct)})
                   </span>
                 )}
               </div>

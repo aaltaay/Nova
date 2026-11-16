@@ -116,7 +116,7 @@ export function BigBannerAt({ watch, side, nowMs }: { watch: BookWatchState; sid
   return (
     <div className="das-l2-bigbanner" style={{ opacity: banner.opacity }}>
       <span
-        className={`das-l2-bigbanner__chip das-l2-bigbanner__chip--${banner.kind}`}
+        className={`das-l2-bigbanner__chip das-l2-bigbanner__chip--${banner.light ? 'light' : banner.kind}`}
         data-testid={`l2-big-${side}`}
         role="status"
         {...tipProps(banner.tip, banner.title)}
@@ -132,11 +132,17 @@ export function BigBannerAt({ watch, side, nowMs }: { watch: BookWatchState; sid
   );
 }
 
+/** A block row's classes: the dark framed block of a heavy wall, or the dashed outline of a light one. */
+export function bigRowClass(row: BigRow): string {
+  const base = row.light ? 'das-l2-row--biglight' : 'das-l2-row--big';
+  return `${base}${row.first ? ` ${base}-first` : ''}${row.last ? ` ${base}-last` : ''}`;
+}
+
 /** Inside a row of the block: the tag over the venue column of its top edge, and what traded there so far. */
 export function BigRowParts({ row }: { row: BigRow }) {
   return (
     <>
-      {row.tag && <span className="das-l2-bigtag" data-testid="l2-big-tag">{row.tag}</span>}
+      {row.tag && <span className={`das-l2-bigtag${row.light ? ' das-l2-bigtag--light' : ''}`} data-testid="l2-big-tag">{row.tag}</span>}
       {row.takenPct !== null && (
         <span className="das-l2-bigbar" aria-hidden="true">
           <span style={{ width: `${row.takenPct}%` }} />

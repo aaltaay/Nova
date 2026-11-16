@@ -5,9 +5,15 @@ reads come from ``bars_store``; this module replenishes the store and pushes
 ``bars_patch`` when a fill lands.
 
 Priority: open_chart > warm > background. Background is shed when an open
-chart is in flight or the pacing budget is tight -- not queued behind it. A
+chart is in flight or the pacing budget is tight -- not queued behind it.
+Each leaves the window's last requests to those under it: background the
+last ``IBKR_HISTORY_TRADING_RESERVE``, warm (a painted pane's refresh) the
+last ``IBKR_HISTORY_WARM_RESERVE``, so the trades read back (TraderTV
+exits, LULD) are never starved by charts that already show bars. A
 pair whose last fetch IBKR did not answer is shed for every priority until its
 backoff passes (``historical_failures``, #555); the pane's retry asks again.
+IBKR's word on pacing, or its answers slowing, holds the window for 10 minutes
+for everyone under an open chart (``HistoricalPacing.hold``).
 
 Nothing here may occupy the IB connect-loop: every pacing wait reschedules via
 ``call_later`` (never ``sleep``-then-send) and every ``bars_store`` call is a
@@ -34,6 +40,7 @@ from constants import (
     IBKR_BARS_DAILY_REPAIR_RETRY_SEC,
     IBKR_HISTORICAL_MAX_CONCURRENT,
     IBKR_HISTORY_TRADING_RESERVE,
+    IBKR_HISTORY_WARM_RESERVE,
 )
 from ibkr import historical_failures
 from ibkr.historical_derive import DERIVE_FROM_1MIN, derive_from_1min
@@ -62,6 +69,8 @@ class HistoricalShed(Exception):
 _open_chart_depth = 0
 _sem: asyncio.Semaphore | None = None
 _inflight: dict[tuple[str, str], asyncio.Task] = {}
+# The pairs with an open chart's fill waiting out a pacing wait (``_reschedule_after_wait``).
+_rescheduled: set[tuple[str, str]] = set()
 _pacing = HistoricalPacing()
 _repair_asked: dict[str, float] = {}
 
@@ -72,6 +81,7 @@ def reset_for_testing() -> None:
     _sem = None
     leftover = list(_inflight.values())
     _inflight.clear()
+    _rescheduled.clear()
     _repair_asked.clear()
     _pacing.reset()
     historical_failures.reset()
@@ -85,14 +95,45 @@ def open_chart_busy() -> bool:
 
 
 def pacing_snapshot() -> dict:
-    """Read-only view of the 60-req/10-min budget (see ``historical_pacing.py``)."""
+    """Read-only view of the 10-minute budget (see ``historical_pacing.py``)."""
     return _pacing.snapshot()
 
 
-def _left() -> int:
-    """Historical requests left in the 10-minute window."""
-    snap = _pacing.snapshot()
-    return int(snap["window_max"]) - int(snap["window_used"])
+def refused_for_pacing(said: str) -> None:
+    """IBKR refused a historical request for pacing. Runs inside its errorEvent, so it sends nothing."""
+    _pacing.hold(refused=True)
+    logger.warning("historical requests held for 10 minutes, open charts apart: IBKR said %s", said)
+
+
+def pacing_refusals() -> int:
+    """How many requests IBKR has refused for pacing (``ibkr/bars.py`` tells a refusal from an empty answer)."""
+    return _pacing.refusals()
+
+
+def _note_answer(seconds: float) -> None:
+    """One chart answer's time. IBKR slows without a word, so its slowing holds the window as its word does."""
+    if _pacing.note_answer(seconds):
+        _pacing.hold()
+        logger.warning("historical requests held for 10 minutes, open charts apart: IBKR is slowing its answers "
+                       "(%.1fs this one)", seconds)
+
+
+def _left(timeframe: str) -> int:
+    """Historical requests left for a send of this key in the 10-minute window."""
+    return _pacing.left(timeframe)
+
+
+def _reserve_shed(priority: Priority, timeframe: str) -> str | None:
+    """Why a fill of this priority may not spend the window now, or None: a background fill leaves the last
+    ``IBKR_HISTORY_TRADING_RESERVE`` to open charts and SSR, a painted chart's refresh the last
+    ``IBKR_HISTORY_WARM_RESERVE`` to those and the trades read back under them (TraderTV exits, LULD)."""
+    if priority == "background" and _left(timeframe) <= int(IBKR_HISTORY_TRADING_RESERVE):
+        return (f"{int(IBKR_HISTORY_TRADING_RESERVE)} or fewer historical requests left: kept for open charts and "
+                "the short check")
+    if priority == "warm" and _left(timeframe) <= int(IBKR_HISTORY_WARM_RESERVE):
+        return (f"{int(IBKR_HISTORY_WARM_RESERVE)} or fewer historical requests left: kept for open charts, the "
+                "short check and the trades read back")
+    return None
 
 
 def _semaphore() -> asyncio.Semaphore:
@@ -157,12 +198,12 @@ async def request_bars(
             return stored
         raise HistoricalShed("open chart has priority")
 
-    if priority == "background" and _left() <= int(IBKR_HISTORY_TRADING_RESERVE):
-        logger.info("historical fill shed %s %s: %d left for open charts and SSR", symbol, timeframe, _left())
+    reserved = _reserve_shed(priority, timeframe)
+    if reserved:
+        logger.info("historical fill shed %s %s: %d left, priority=%s", symbol, timeframe, _left(timeframe), priority)
         if stored and stored.get("bars"):
             return stored
-        raise HistoricalShed(f"{int(IBKR_HISTORY_TRADING_RESERVE)} or fewer historical requests left: kept for "
-                             "open charts and the short check")
+        raise HistoricalShed(reserved)
 
     backoff = historical_failures.backoff_remaining(symbol, timeframe)
     if backoff > 0:
@@ -234,12 +275,13 @@ async def _run_fetch(
                 _reschedule_after_wait(symbol, timeframe, limit, priority, extra)
                 raise HistoricalShed(f"pacing wait {extra:.1f}s")
             # Again here, holding the slot: fills admitted together must not spend the reserve between them.
-            if priority == "background" and _left() <= int(IBKR_HISTORY_TRADING_RESERVE):
-                logger.info("historical fill shed %s %s: %d left for open charts and SSR (in flight)",
-                            symbol, timeframe, _left())
-                raise HistoricalShed(f"{int(IBKR_HISTORY_TRADING_RESERVE)} or fewer historical requests left: "
-                                     "kept for open charts and the short check")
+            reserved = _reserve_shed(priority, timeframe)
+            if reserved:
+                logger.info("historical fill shed %s %s: %d left, priority=%s (in flight)",
+                            symbol, timeframe, _left(timeframe), priority)
+                raise HistoricalShed(reserved)
             _pacing.record(symbol, timeframe, duration)
+            sent = time.monotonic()
             try:
                 result = await ibkr_bars.fetch_bars_async(
                     symbol,
@@ -251,6 +293,8 @@ async def _run_fetch(
                 if historical_failures.remembered(exc.status_code):
                     historical_failures.note(symbol, timeframe, str(exc.detail))
                 raise
+            finally:
+                _note_answer(time.monotonic() - sent)
             historical_failures.clear(symbol, timeframe)
             coverage = {
                 **bars_store.coverage_from_bars(result.get("bars") or [], filling=False),
@@ -270,14 +314,23 @@ async def _run_fetch(
             _open_chart_depth = max(0, _open_chart_depth - 1)
 
 
-async def request_daily_bars(symbol: str, duration: str, *, use_rth: bool) -> list[dict[str, Any]]:
+def _daily_reserve(urgent: bool, key: str) -> None:
+    """``HistoricalShed`` when a background daily read would spend the trading reserve; an urgent one may not be."""
+    reserved = None if urgent else _reserve_shed("background", key)
+    if reserved:
+        raise HistoricalShed(reserved)
+
+
+async def request_daily_bars(symbol: str, duration: str, *, use_rth: bool, urgent: bool = False) -> list[dict[str, Any]]:
     """IBKR's daily TRADES bars, ``[{date, open, high, low, close}]`` oldest first (ADR 040, ADR 048).
 
     ``use_rth``: the regular session's bars, whose close is the official one, never the last
     after-hours trade the desk's stored daily bars end on; without it, the whole 04:00-20:00 day,
     today's bar running to now (the SSR read takes its low). Background priority, paced like every
-    other historical request: ``HistoricalShed`` while an open chart is loading or pacing asks for a
-    wait, and the caller asks again later. Nothing is stored or pushed. Must run on the IB connect-loop.
+    other historical request: ``HistoricalShed`` while an open chart is loading, pacing asks for a
+    wait or ``IBKR_HISTORY_TRADING_RESERVE`` or fewer are left, and the caller asks again later.
+    ``urgent``: the SSR read of the stock on the ticket or about to be shorted, which goes down to the
+    last request like an open chart. Nothing is stored or pushed. Must run on the IB connect-loop.
     """
     assert_ib_loop()
     from ib_async import Stock
@@ -291,12 +344,14 @@ async def request_daily_bars(symbol: str, duration: str, *, use_rth: bool) -> li
         raise HistoricalShed("open chart has priority")
     if _pacing.wait_seconds(sym, key, duration) > 0:
         raise HistoricalShed("pacing asks for a wait")
+    _daily_reserve(urgent, key)
     ib = _client.get_ib()
     if ib is None:
         raise ConnectionError("IBKR is not connected")
     async with _semaphore():
         if _pacing.wait_seconds(sym, key, duration) > 0:
             raise HistoricalShed("pacing asks for a wait")
+        _daily_reserve(urgent, key)   # again, holding the slot: reads admitted together must not spend the reserve
         _pacing.record(sym, key, duration)
         qualified = await ib.qualifyContractsAsync(Stock(sym, "SMART", "USD"))
         contract = next((c for c in qualified or [] if c is not None), None)
@@ -425,14 +480,24 @@ def _reschedule_after_wait(
     instead would keep the fill parked on the IB connect-loop holding a hist
     semaphore slot while ``reqMktData`` L1 ticks share that loop.
     ``request_bars`` re-checks pacing on wake.
+
+    One wake per pair. A waiting pane asks again every few seconds
+    (``chartBarsStuckRetry.ts``), and each ask during a long wait queued
+    its own wake: a series the fill leaves short of complete (a quiet
+    name's 10-second bars) was sent once per wake.
     """
     from ibkr.loop_supervisor import get_loop
 
     loop = get_loop()
     if loop is None or not loop.is_running():
         return
+    key = (symbol.upper(), timeframe)
+    if key in _rescheduled:
+        return
+    _rescheduled.add(key)
 
     def _again() -> None:
+        _rescheduled.discard(key)
         try:
             schedule_fill(symbol, timeframe, limit, priority=priority)
         except Exception:

@@ -1,0 +1,33 @@
+/* Whose a row is (ADR 072, mockup three-books v1 sections 6-7): the chip every positions, orders and fills list of the
+   desk draws, so it lives here and not with the Account page's own styles. One colour per book, the same as
+   OWNER_COLORS (constantGroups/owners.ts; whose.test.ts holds them equal): you cyan, Claude coral, the brain purple,
+   Earlier bots grey. A trade you closed for its trader says so in blue; a switched-off trader's open position,
+   handed to you, is dashed. */
+:root {
+  --nova-owner-you: #64d2ff;
+  --nova-owner-you-bg: #0d2633;
+  --nova-owner-you-line: #2f6f8c;
+  --nova-owner-claude: #d97757;
+  --nova-owner-claude-ink: #f0a586;
+  --nova-owner-brain: #8b5cf6;
+  --nova-owner-brain-ink: #b9a6ff;
+  --nova-owner-earlier: #8e8e93;
+  --nova-owner-earlier-ink: #c7c7cc;
+  --nova-owner-by-you: #6cb6ff;
+  /* A fill a bot sent, where a history carries no books: the Account page's generic bot tone. */
+  --nova-owner-bot: #5e5ce6;
+}
+.acct-who { display: inline-flex; align-items: center; gap: 4px; height: 18px; padding: 0 7px; border: 1px solid; border-radius: 999px;
+  font-size: 11px; font-weight: 600; line-height: 1; white-space: nowrap; color: var(--nova-text-muted);
+  border-color: color-mix(in srgb, var(--nova-text-muted) 45%, transparent); background: transparent; }
+.acct-who.is-you { color: var(--nova-owner-you); border-color: var(--nova-owner-you-line); background: var(--nova-owner-you-bg); }
+.acct-who.is-claude { color: var(--nova-owner-claude-ink); border-color: color-mix(in srgb, var(--nova-owner-claude) 60%, transparent);
+  background: color-mix(in srgb, var(--nova-owner-claude) 15%, transparent); }
+.acct-who.is-brain { color: var(--nova-owner-brain-ink); border-color: color-mix(in srgb, var(--nova-owner-brain) 65%, transparent);
+  background: color-mix(in srgb, var(--nova-owner-brain) 18%, transparent); }
+.acct-who.is-earlier_bots { color: var(--nova-owner-earlier-ink); border-color: color-mix(in srgb, var(--nova-owner-earlier) 50%, transparent);
+  background: color-mix(in srgb, var(--nova-owner-earlier) 12%, transparent); }
+.acct-who.is-handed { border-style: dashed; background: transparent; }
+.acct-who em { font-style: normal; font-weight: 500; color: var(--nova-text-muted); }
+.acct-who em.is-by { color: var(--nova-owner-by-you); }
+.acct-whose-chips { display: inline-flex; gap: 4px; }

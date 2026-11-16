@@ -98,15 +98,18 @@ def test_ignores_non_positive_price_and_timestamp():
     assert tape_10sec._open == {}
 
 
-def test_cold_10sec_paints_tape_bars_and_keeps_open_chart_then_warm(
+def test_cold_10sec_paints_tape_bars_and_asks_as_an_open_chart_until_history_lands(
     monkeypatch, tmp_path,
 ):
     """D-003: a cold 10Sec pane cannot sit empty after a flushed tape bucket.
 
     Empty interactive /bars must ask ``open_chart``. After one provisional
-    candle lands, /bars must return it (not []) and still schedule hist as
-    ``warm`` -- tape-only rows never fake ``store_series_complete``.
+    candle lands, /bars returns it (not []) and still asks ``open_chart``:
+    tape-built rows are not the pane's history, and a "warm" ask was shed at
+    the reserve and never sent again (RIOX 2026-11-04). Once a fill has
+    landed this session, the pane's refresh is "warm".
     """
+    import time as _time
     from unittest.mock import patch
 
     import chart_bars
@@ -115,6 +118,8 @@ def test_cold_10sec_paints_tape_bars_and_keeps_open_chart_then_warm(
     archive_db.init_db()
     wq.reset_for_tests()
     tape_10sec.reset_for_tests()
+    t0 = 1_700_000_000.0
+    monkeypatch.setattr(chart_bars, "_session_start", lambda now: t0 - 3600)
 
     with patch.object(chart_bars._ibkr_client, "is_ready", return_value=True):
         with patch.object(chart_bars, "_schedule_ibkr_fill") as fill:
@@ -130,7 +135,6 @@ def test_cold_10sec_paints_tape_bars_and_keeps_open_chart_then_warm(
     fill.assert_called_once()
     assert fill.call_args.kwargs["priority"] == "open_chart"
 
-    t0 = 1_700_000_000.0
     tape_10sec.on_print("mss", 1.66, 100, t0)
     tape_10sec.flush_elapsed(t0 + 10.0 + TAPE_10SEC_FLUSH_GRACE_SEC)
     wq.drain_once()
@@ -152,8 +156,57 @@ def test_cold_10sec_paints_tape_bars_and_keeps_open_chart_then_warm(
     assert len(out["bars"]) == 1
     assert out["bars"][0]["c"] == 1.66
     assert out["coverage"]["filling"] is True
+    assert out["coverage"]["history_pending"] is True
     fill.assert_called_once()
+    assert fill.call_args.kwargs["priority"] == "open_chart"
+
+    hist = [{"t": "2023-11-14T22:13:30Z", "o": 1.6, "h": 1.7, "l": 1.6, "c": 1.7, "v": 900}]
+    bars_store.write_payload({
+        "symbol": "MSS", "timeframe": "10Sec", "bars": hist,
+        "coverage": {**bars_store.coverage_from_bars(hist, filling=False), "fetched_ts": _time.time()},
+    })
+    with patch.object(chart_bars._ibkr_client, "is_ready", return_value=True):
+        with patch.object(chart_bars, "_schedule_ibkr_fill") as fill:
+            after = chart_bars.fetch_chart_bars(
+                "MSS", "10Sec", 1500, discovery_provider="ibkr", interactive=True,
+            )
+    assert after["coverage"]["history_pending"] is False
+    fill.assert_called_once()  # two bars are not a complete series
     assert fill.call_args.kwargs["priority"] == "warm"
+
+
+def test_the_10sec_pane_reads_todays_session_only(monkeypatch, tmp_path):
+    """RIOX 2026-11-04: 11-03's 10-second tape bars at $9.13 drew beside today's at $13.70, the price axis
+    ran $9-$15 and today's candles lay flat. The pane reads from the session's 04:00 ET; other panes do not."""
+    from unittest.mock import patch
+
+    import chart_bars
+
+    monkeypatch.setattr(archive_db, "cache_dir", lambda: tmp_path)
+    archive_db.init_db()
+    wq.reset_for_tests()
+    tape_10sec.reset_for_tests()
+    session_start = 1_793_782_800.0  # 2026-11-04 04:00 ET
+    yesterday = session_start - 60_220  # 2026-11-03 11:16:20 ET
+    today = session_start + 16_320  # 2026-11-04 08:32:00 ET
+    tape_10sec.on_print("riox", 9.13, 100, yesterday)
+    tape_10sec.on_print("riox", 13.70, 500, today)
+    tape_10sec.flush_elapsed(today + 10.0 + TAPE_10SEC_FLUSH_GRACE_SEC)
+    wq.enqueue_intraday_bar(
+        symbol="RIOX", ts=yesterday - 20, open_=9.1, high=9.2, low=9.1, close=9.13, volume=100.0,
+        timeframe="1Min",
+    )
+    wq.drain_once()
+    assert len(bars_store.read("RIOX", "10Sec", 1500)["bars"]) == 2
+
+    monkeypatch.setattr(chart_bars, "_session_start", lambda now: session_start)
+    with patch.object(chart_bars._ibkr_client, "is_ready", return_value=True):
+        with patch.object(chart_bars, "_schedule_ibkr_fill"):
+            ten = chart_bars.fetch_chart_bars("RIOX", "10Sec", 1500, discovery_provider="ibkr", interactive=True)
+            minute = chart_bars.fetch_chart_bars("RIOX", "1Min", 1000, discovery_provider="ibkr", interactive=True)
+    assert [b["c"] for b in ten["bars"]] == [13.70]
+    assert ten["coverage"]["as_of"] == "2026-11-04T13:32:00Z"
+    assert [b["c"] for b in minute["bars"]] == [9.13]
 
 
 def test_a_print_lands_in_the_candle_of_ibkrs_own_second(monkeypatch, tmp_path):

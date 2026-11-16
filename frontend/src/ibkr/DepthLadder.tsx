@@ -25,20 +25,22 @@ import { formatDepthNumber, formatDepthPrice } from './depthNumberFormat';
 import { priceKey, pulledHere, pullMarks, type BookWatchState, type PulledHere } from './bookWatch';
 import { hiddenHere, hiddenMarks } from './bookWatchHidden';
 import { bigRows, type BigRow } from './bookWatchBig';
-import { BigBannerAt, BigRowParts, PullMarksAt, PullsStrip, useBookWatchClock } from './BookWatchParts';
+import { BigBannerAt, BigRowParts, bigRowClass,PullMarksAt, PullsStrip, useBookWatchClock } from './BookWatchParts';
 import { placeMarkers, splitMarkers, type DepthMarker, type PlacedMarker } from './depthMarkers';
 import { luldMarkers } from './luld';
 import { withBands } from './LuldRows';
 import { LuldStrip } from './LuldStrip';
+import { Level2DepthChart } from './Level2DepthChart';
+import { Level2Frame } from './Level2Frame';
+import { Level2SpreadRow } from './Level2SpreadRow';
 import {
   depthEmptyMessage,
   depthLiveBadge,
   depthLiveBadgeText,
 } from './depthUiStatus';
-import { depthLentText, lentToClaude } from './lentWords';
 import { computeL2Heuristics } from './l2Heuristics';
 import { useIbkrDepth } from './useIbkrDepth';
-import { ClaudeLentWords, ClaudeLinesFullBox } from '../claude_seat';
+import { LaneWaitText } from './LaneWaitText';
 import type { DepthLevel } from './types';
 import { useRenderCount } from '../perf/useRenderCount';
 import { noteBookShown } from '../market_view';
@@ -50,7 +52,7 @@ interface Props {
   uiActive?: boolean;
   /** The plan's ENTRY / STOP / TARGET, drawn where they sit in the book (ADR 037). */
   markers?: readonly DepthMarker[];
-  /** A Trader tab's Level 2: its line may be lent while the tab is hidden (ADR 044 decision 6). */
+  /** A Trader tab's Level 2: its socket says `tab=1`, and only the tab in front moves your lane (ADR 071). */
   traderTab?: boolean;
 }
 
@@ -126,8 +128,8 @@ const L2Row = memo(function L2Row({
 }) {
   return (
     <div
-      className={`das-l2-row ${empty ? 'das-l2-row--empty' : 'das-l2-row--tiered'}${pulled ? ' das-l2-row--pulled-here' : ''}${hidden ? ' das-l2-row--hidden-here' : ''}${big ? ` das-l2-row--big${big.first ? ' das-l2-row--big-first' : ''}${big.last ? ' das-l2-row--big-last' : ''}` : ''}`}
-      style={{ backgroundColor: big ? L2_BIG_ROW_BG : bg }}
+      className={`das-l2-row ${empty ? 'das-l2-row--empty' : 'das-l2-row--tiered'}${pulled ? ' das-l2-row--pulled-here' : ''}${hidden ? ' das-l2-row--hidden-here' : ''}${big ? ` ${bigRowClass(big)}` : ''}`}
+      style={{ backgroundColor: big && !big.light ? L2_BIG_ROW_BG : bg }}
       {...(big ? tipProps(big.tip, big.title) : tip ? tipProps(tip, tipTitle) : {})}
     >
       {inner}
@@ -263,7 +265,7 @@ export function MontageSide({
 
 export function DepthLadder({ symbol, uiActive = true, markers, traderTab = false }: Props) {
   useRenderCount('DepthLadder');
-  const { book, connected, l1Fallback, error, watch, lent, luld, agentReserved, firstBookWait } =
+  const { book, connected, l1Fallback, error, watch, laneWait, luld, firstBookWait } =
     useIbkrDepth(symbol, uiActive, { traderTab });
   const { setTopOfBook } = useTopOfBook();
   // What left the book (ADR 033 amendment): the watcher reads depth, so an L1-only book carries none.
@@ -295,24 +297,10 @@ export function DepthLadder({ symbol, uiActive = true, markers, traderTab = fals
     return <div className="ibkr-depth-empty">Enter a symbol to view the order book.</div>;
   }
 
-  // The line went to one of Nova's setups (ADR 044): say whose, and when it comes back.
-  // Lent to Claude (ADR 068 decision 14): the same words in Claude's violet; a right-click takes it back.
-  if (lent && lentToClaude(lent)) {
-    return (
-      <ClaudeLentWords symbol={symbol} text={depthLentText(lent)} testId="ibkr-depth-lent"
-        className="ibkr-depth-empty ibkr-depth-lent" />
-    );
+  // No lane is on the stock (ADR 071): say where your lane is; a click on the words brings it here.
+  if (laneWait) {
+    return <LaneWaitText symbol={symbol} text={laneWait.text} className="ibkr-depth-empty" testId="ibkr-depth-lane" />;
   }
-  if (lent) {
-    return (
-      <div className="ibkr-depth-empty ibkr-depth-lent" data-testid="ibkr-depth-lent" role="status">
-        {depthLentText(lent)}
-      </div>
-    );
-  }
-
-  // All 3 lines in use and one is Claude's (ADR 068): say whose, with the button that frees one.
-  if (!book && error && agentReserved) return <ClaudeLinesFullBox message={error} />;
 
   // Keep the last book on screen across brief WS reconnects. Only show the
   // full "Connecting…" placeholder when we have nothing to display yet.
@@ -327,8 +315,6 @@ export function DepthLadder({ symbol, uiActive = true, markers, traderTab = fals
   const { askStacked, bidHeavy, wideSpread } = computeL2Heuristics(book);
   const bestBid = book.bids[0]?.price;
   const bestAsk = book.asks[0]?.price;
-  const spread =
-    bestBid != null && bestAsk != null ? Math.abs(bestAsk - bestBid) : null;
   const liveBadge = depthLiveBadge(connected, error, l1Fallback);
   const liveBadgeText = depthLiveBadgeText(liveBadge);
   const overnightOnly = isOvernightOnlyBook(book);
@@ -341,7 +327,7 @@ export function DepthLadder({ symbol, uiActive = true, markers, traderTab = fals
     : plan;
 
   return (
-    <div className="das-l2">
+    <Level2Frame>
       {liveBadgeText && (
         <div className="ibkr-depth-fallback-badge" title={liveBadgeText}>
           {liveBadgeText}
@@ -366,23 +352,14 @@ export function DepthLadder({ symbol, uiActive = true, markers, traderTab = fals
           <span className="ibkr-heuristic-badge ibkr-heuristic-idle">{L2_HEURISTIC_IDLE_LABEL}</span>
         )}
       </div>
+      <Level2SpreadRow bid={bestBid} ask={bestAsk} />
       <PullsStrip watch={ladderWatch} />
       <LuldStrip view={luld} />
+      <Level2DepthChart bids={book.bids} asks={book.asks} watch={ladderWatch} />
       <div className="das-l2-montage">
         <MontageSide side="bid" levels={book.bids} peak={peak} markers={sides.bid} watch={ladderWatch} nowMs={nowMs} />
         <MontageSide side="ask" levels={book.asks} peak={peak} markers={sides.ask} watch={ladderWatch} nowMs={nowMs} />
       </div>
-      {spread != null && (
-        <div className="das-l2-spread">
-          spread {fmtPrice(spread)}
-          {bestBid != null && bestAsk != null && (
-            <span className="das-l2-bbo">
-              {' '}
-              · {fmtPrice(bestBid)} × {fmtPrice(bestAsk)}
-            </span>
-          )}
-        </div>
-      )}
-    </div>
+    </Level2Frame>
   );
 }

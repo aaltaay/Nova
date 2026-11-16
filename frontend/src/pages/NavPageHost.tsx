@@ -1,7 +1,7 @@
 /**
  * Picks what the dashboard slot shows while Trader is not up: the dashboard
- * (children), or the Forex / Global / Market / Records / Account / Bots (Bots, LiveTrader Bots -- the TraderTV hosts' page --, Strategy
- * Bots) / Cryptos / Congress pages the nav rail routes to.
+ * (children), or the Forex / Global / Market / Records / Account / Cryptos / Congress / TraderTV pages the nav rail
+ * routes to. ADR 072 retired the Bots group; TraderTV is the hosts' page without the bots.
  */
 import { lazy, Suspense, type ReactNode } from 'react';
 import { TabLazyFallback } from '../components/TabLazyFallback';
@@ -9,11 +9,7 @@ import { useNavPage } from '../workspace/navRailStore';
 import { RecordsPage } from './RecordsPage';
 
 const AccountPage = lazy(() => import('./AccountPage').then((m) => ({ default: m.AccountPage })));
-const BotsPage = lazy(() => import('../bot/BotsPage').then((m) => ({ default: m.BotsPage })));
-const BotsGroupPage = lazy(() => import('../bot/BotsGroupPage').then((m) => ({ default: m.BotsGroupPage })));
-const LiveTraderBotsPage = lazy(() =>
-  import('../bot/LiveTraderBotsPage').then((m) => ({ default: m.LiveTraderBotsPage })),
-);
+const TraderTvPage = lazy(() => import('./TraderTvPage').then((m) => ({ default: m.TraderTvPage })));
 const CryptosPage = lazy(() => import('../cryptos').then((m) => ({ default: m.CryptosPage })));
 const MarketPage = lazy(() => import('../market_board').then((m) => ({ default: m.MarketPage })));
 const GlobalPage = lazy(() => import('../global_board').then((m) => ({ default: m.GlobalPage })));
@@ -70,25 +66,10 @@ export function NavPageHost({ onOpenTrader, children }: Props) {
       </Suspense>
     );
   }
-  // Bots is a group (operator decision 2026-10-15): Bots itself is empty for now; Strategy Bots is the page that was Bots.
-  if (page === 'bots') {
+  if (page === 'tradertv') {
     return (
       <Suspense fallback={<TabLazyFallback />}>
-        <BotsGroupPage />
-      </Suspense>
-    );
-  }
-  if (page === 'bots-live-trader') {
-    return (
-      <Suspense fallback={<TabLazyFallback />}>
-        <LiveTraderBotsPage onOpenTrader={onOpenTrader} />
-      </Suspense>
-    );
-  }
-  if (page === 'bots-strategy') {
-    return (
-      <Suspense fallback={<TabLazyFallback />}>
-        <BotsPage />
+        <TraderTvPage onOpenTrader={onOpenTrader} />
       </Suspense>
     );
   }

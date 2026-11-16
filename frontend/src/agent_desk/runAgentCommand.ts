@@ -8,6 +8,7 @@ import { moveDeskToVenue } from '../ibkr';
 import { LandingStopped, landSim, moveSim, type Landed, type LandingHooks } from '../sim';
 import type { AgentCommand, AgentCommandStatus, AgentReport, ShowPlan } from './agentDeskApi';
 import { AGENT_DESK_TEXT } from './agentDeskConstants';
+import { viewToSim } from './viewToSim';
 
 export type AgentNoticeState = 'running' | 'done' | 'failed' | 'cancelled';
 export interface AgentNotice { id: string; title: string; text: string; state: AgentNoticeState }
@@ -19,6 +20,21 @@ export interface RunDeps {
   moveVenue?: (venue: 'sim') => Promise<string | null>;
   land?: typeof landSim;
   move?: typeof moveSim;
+  /** Review window only. Does not change the main desk's symbol or venue. */
+  openSeparateSim?: (plan: ShowPlan) => void | Promise<void>;
+  /** Local Sim pill. The API already switched the view without cancelling orders. */
+  viewToSim?: () => void;
+  focusDesk?: () => void;
+}
+
+function openReviewWindow(plan: ShowPlan): void {
+  if (!plan.review_path) return;
+  const desktop = window.novaDesktop;
+  if (desktop?.openSimWindow) {
+    void desktop.openSimWindow(plan.review_path);
+    return;
+  }
+  window.open(plan.review_path, 'nova-sim-review');
 }
 
 const HHMM = /^\d{1,2}:\d{2}$/;
@@ -64,16 +80,32 @@ export async function runAgentCommand(command: AgentCommand, deps: RunDeps): Pro
   };
   const hooks: LandingHooks = { step, openTab: deps.openTab };
   try {
-    if (command.kind === 'show') {
-      if (command.plan.switch_venue) {
+    if (command.kind === 'show' || command.kind === 'open_in_nova') {
+      const plan = command.plan;
+      deps.focusDesk?.();
+      if (plan.separate_sim) {
+        if (!(await step('separate', 'Opening a separate Sim window'))) throw new LandingStopped('replaced');
+        await (deps.openSeparateSim ?? openReviewWindow)(plan);
+        const text = `Opened ${plan.symbol} in a separate Sim window on ${plan.date} at ${plan.park_et} ET, paused. The live desk stayed on its own view.`;
+        say('done', text);
+        await deps.report(command.id, {
+          status: 'done', step: 'separate', text,
+          result: { symbol: plan.symbol, date: plan.date, paused: true, separate_sim: true },
+        });
+        return;
+      }
+      if (plan.switch_view) {
+        if (!(await step('view', 'Switching the desk view to the Sim'))) throw new LandingStopped('replaced');
+        (deps.viewToSim ?? viewToSim)();
+      } else if (plan.switch_venue) {
         if (!(await step('venue', 'Switching the desk to the Sim'))) throw new LandingStopped('replaced');
         const refused = await (deps.moveVenue ?? moveDeskToVenue)('sim');
         if (refused) throw new Error(refused);
       }
-      const landed = await (deps.land ?? landSim)(command.plan, hooks);
-      const text = showDoneText(command.plan, landed);
+      const landed = await (deps.land ?? landSim)(plan, hooks);
+      const text = showDoneText(plan, landed);
       say('done', text);
-      await deps.report(command.id, { status: 'done', step: 'parked', text, result: result(landed, { at: command.plan.at }) });
+      await deps.report(command.id, { status: 'done', step: 'parked', text, result: result(landed, { at: plan.at }) });
       return;
     }
     const landed = await (deps.move ?? moveSim)(command.plan, hooks);

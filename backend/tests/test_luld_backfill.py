@@ -9,6 +9,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from constants import IBKR_HISTORICAL_PACE_MAX, IBKR_HISTORICAL_SMALL_PACE_MAX
+from ibkr.historical_trades import PACING_KEY
 from luld import backfill, live
 
 ET = ZoneInfo("America/New_York")
@@ -302,7 +304,7 @@ def test_an_open_chart_or_a_spent_budget_sheds_the_first_page(ib, monkeypatch):
     monkeypatch.setattr(historical_service, "_open_chart_depth", 0)
     pacing, _slots = historical_service.budget()
     for k in range(40):
-        pacing.record(f"S{k}", "1Min", "1 D")
+        pacing.record(f"S{k}", PACING_KEY, "1 D")
     with pytest.raises(HistoricalShed, match="fewer than 21"):
         read(end)
 
@@ -314,10 +316,11 @@ def test_every_page_spends_the_shared_pacing_budget_and_stops_before_the_headroo
     ib["ib"] = FakeIB([end - 300 + k * 0.05 for k in range(6000)])
     pacing, _slots = historical_service.budget()
     for k in range(37):
-        pacing.record(f"S{k}", "1Min", "1 D")
+        pacing.record(f"S{k}", PACING_KEY, "1 D")
     got = read(end)
     assert got["pages"] == 3 and got["complete"] is False                  # 40 used: a fourth would leave 19
-    assert pacing.snapshot()["window_used"] == 40
+    assert pacing.snapshot()["small_used"] == 40
+    assert pacing.snapshot()["window_used"] == 41                          # the 1-minute bars are not a small read
 
 
 def _bar(hms: str, average: float, count: int):
@@ -345,10 +348,22 @@ def test_no_bars_when_the_budget_is_spent_and_the_trades_stand(ib):
     end = t("09:43:06")
     ib["ib"] = FakeIB([end - 300 + k * 0.05 for k in range(6000)], bars=[_bar("09:33:00", 4.0, 60)])
     pacing, _slots = historical_service.budget()
-    for k in range(36):
+    for k in range(IBKR_HISTORICAL_PACE_MAX - 24):                         # the 1-minute bars read the whole window
         pacing.record(f"S{k}", "1Min", "1 D")
     got = read(end, back=600.0, max_pages=4)
     assert got["pages"] == 4 and got["minutes"] == [] and "historical requests left" in got["minutes_note"]
+
+
+def test_chart_traffic_does_not_spend_the_trades_read_back(ib):
+    """A tick read counts against IBKR's published 60; a day of 1-minute bars does not touch it."""
+    from ibkr import historical_service
+
+    end = t("09:43:06")
+    ib["ib"] = FakeIB([end - 300 + k * 0.05 for k in range(6000)])
+    pacing, _slots = historical_service.budget()
+    for k in range(IBKR_HISTORICAL_SMALL_PACE_MAX):
+        pacing.record(f"S{k}", "1Min", "1 D")
+    assert read(end)["pages"] == 5
 
 
 def test_minute_rows_turn_bars_into_trades_for_the_minutes_the_pages_missed():

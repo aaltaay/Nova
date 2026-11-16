@@ -31,6 +31,8 @@ BOOK_WATCH_SETTLE_SEC = 0.75
 BOOK_WATCH_PRINT_KEEP_SEC = 10.0
 # Prints on these venues trade off the lit book, so they never fill a level.
 BOOK_WATCH_OFF_BOOK_EXCHANGES = ("FINRA",)
+# The tape and the book name one exchange differently: the tape's name -> the book row's ``mm``.
+BOOK_WATCH_BOOK_NAME_OF_TAPE_VENUE = {"NASDAQ": "NSDQ"}
 
 # A pull is large when it is at least this many shares AND this many times the
 # median size of the visible levels on its side.
@@ -109,8 +111,24 @@ BOOK_WATCH_SWEEP_SKIP_CONDITIONS = BOOK_WATCH_HIDDEN_SKIP_CONDITIONS | BOOK_WATC
 # dollars set the floor (20,000 / $1.25 = 16,000 shares) -- AND this many times the median of the other
 # levels in view on its side: the book around it, so a busy book's ordinary size is never "big". The
 # watcher's large pull is 4x; a size that sits in the way has to stand out more than one that leaves.
-BOOK_WATCH_BIG_MIN_SHARES = 10_000
-BOOK_WATCH_BIG_MIN_DOLLARS = 20_000.0
+#
+# Weighed against the trading too (operator, 2026-11-14: "is it based on the volume or the relative volume ...
+# is it correct"). Measured on the ordinary-stock Session Records of 2026-09-21..11-13
+# (tools/big_seller_study.py; the operator's own read-out, kept off the repo): whether a print went through a
+# called wall within a minute turned on how many seconds of the last minute's lit volume it equalled, at a
+# minute; its share of the float, its multiple of the book and its dollars said nothing more once that was
+# known, and with floors of 2,000 shares and $4,000 the same 5x rule found several times as many walls a
+# minute or more that held as often as the ones over 10,000 shares and $20,000. So a wall is **heavy** at
+# BOOK_WATCH_BIG_HEAVY_SEC of lit volume or more (or with no lit trade in the last minute), **light** under it;
+# the floors a wall is followed from are the low ones, and the old floors are "big against the book alone"
+# (BOOK_WATCH_BIG_BOOK_*): a light wall is shown only over those. Floors under 2,000 shares were not measured.
+BOOK_WATCH_BIG_MIN_SHARES = 2_000
+BOOK_WATCH_BIG_MIN_DOLLARS = 4_000.0
+BOOK_WATCH_BIG_BOOK_SHARES = 10_000
+BOOK_WATCH_BIG_BOOK_DOLLARS = 20_000.0
+BOOK_WATCH_BIG_HEAVY_SEC = 60.0
+# A heavy wall stays heavy until it falls under this, so one at the line does not blink. Chosen, not measured.
+BOOK_WATCH_BIG_HEAVY_OFF_SEC = 40.0
 BOOK_WATCH_BIG_MEDIAN_MULT = 5.0
 # Fewer other levels in view than this and there is no book around it to weigh it against: no call.
 BOOK_WATCH_BIG_MIN_OTHER_LEVELS = 3
@@ -128,6 +146,10 @@ BOOK_WATCH_BIG_MIN_HOLD_SEC = 3.0
 # "pulled". A lit print through it (over a seller, under a buyer) reads taken at once: a displayed price
 # cannot be traded through (the sweep rule, matching.py).
 BOOK_WATCH_BIG_TAKEN_SHARE = 0.5
+# A called price that fell under the floors with at least this share of its size still resting there is
+# "smaller", not gone: the card says how much is still there and what the rest did (operator, 2026-11-13,
+# after AIRS 0.85 read "pulled" with 19,001 of 24,001 still offered). Chosen, not measured.
+BOOK_WATCH_BIG_SMALLER_SHARE = 0.5
 # Ended ones stay in the reading this long, so the held card can say "taken" or "pulled".
 BOOK_WATCH_BIG_SHOW_ENDED_SEC = 30.0
 # Ended ones kept per line (the journal keeps them all).
@@ -143,7 +165,8 @@ BOOK_WATCH_BIG_PACE_SEC = 60.0
 BOOK_WATCH_BIG_PACE_MIN_SEC = 10.0
 BOOK_WATCH_BIG_NOTE = (
     "Resting size much larger than the book around it, at or just past the price: one order or several at "
-    "one price look the same here. A description of the book, shown, never acted on."
+    "one price look the same here. Heavy is a minute or more of the last minute's lit volume; light is less. "
+    "A description of the book, shown, never acted on."
 )
 
 # Readings.

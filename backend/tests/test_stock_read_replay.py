@@ -13,7 +13,7 @@ from main import app
 from sim import session_clock as clock
 from sim.mode import set_venue
 from stock_read import routes
-from tests.test_bot_sim_replay import DAY, SYM, go, load_window
+from tests.sim_replay_helpers import DAY, SYM, go, load_window
 from tests.test_sim_practice import isolated  # noqa: F401 -- autouse: a private Sim store and clean replay
 
 client = TestClient(app)

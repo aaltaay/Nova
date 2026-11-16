@@ -29,7 +29,7 @@ from constants import (
     IBKR_SEND_RUNNING_GRACE_SEC,
     IBKR_SEND_UNKNOWN_MSG,
 )
-from execution import inflight, order_ref, store, telemetry
+from execution import inflight, order_ref, stop_shape, store, telemetry
 from execution.bracket_guard import BracketGuard
 from execution.models import ExecutionCommand, ExecutionReceipt, StageTimings
 from execution.nova_placed import persist_nova_placed_at
@@ -38,6 +38,7 @@ from ibkr import orders as _orders
 from ibkr import send_hop
 from ibkr.order_build import normalize_tif, tif_error
 from market_view import gate as _view_gate
+from short_sale.hours import venue_now
 
 logger = logging.getLogger(__name__)
 
@@ -154,6 +155,10 @@ async def replace(
         order_id=cmd.order_id, mode=mode, order_ref=ref,
     )
 
+    limit = cmd.limit_price if cmd.limit_price is not None else existing.get("limit_price")
+    if existing.get("order_type") == stop_shape.STOP_LIMIT and cmd.stop_price is not None and cmd.limit_price is None:
+        limit = stop_shape.limit_for(str(existing["side"]), cmd.stop_price)     # the limit moves with its stop
+
     def call() -> tuple[dict, telemetry.OrderWatch | None]:
         watch = _watch(
             cmd.order_id, execution_id, leg_role="replace", side=str(existing["side"]).upper(),
@@ -164,8 +169,7 @@ async def replace(
             side=str(existing["side"]),
             qty=float(existing["qty"]),
             order_type=str(existing.get("order_type") or "LMT"),
-            limit_price=cmd.limit_price if cmd.limit_price is not None
-            else existing.get("limit_price"),
+            limit_price=limit,
             stop_price=cmd.stop_price if cmd.stop_price is not None
             else existing.get("stop_price"),
             outside_rth=bool(existing.get("outside_rth")),
@@ -238,6 +242,7 @@ async def bracket(
             tif=cmd.tif,
             outside_rth=cmd.outside_rth,
             order_ref=ref,
+            stop_limit=stop_shape.exit_limit(cmd, venue_now("live")),
         )
         inflight.attach_order(execution_id, raw.get("parent_order_id"))
         watch = _watch(

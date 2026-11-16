@@ -482,7 +482,17 @@ is listed as `recorded: false`, never given an invented summary.
 window over IPC (`frontend/electron/updateBridge.mjs`; channels
 `nova:update:view` / `nova:update:subscribe` / `nova:update:act`; Trader
 pop-outs neither receive it nor may act): `{schema_version: 1, installed,
-notice, whats_new, file_issue, engine}`. `engine` (installed desk only, ADR 038
+notice, whats_new, file_issue, engine, phone_page}`. `phone_page` (installed
+desk only, ADR 070 amendment 2026-11-14; owner
+`frontend/electron/phonePageKeeper.mjs`) is `null` until the desk first looks,
+then `{root: string | null, build: "current" | "behind" | "building" | "failed"
+| null, served: boolean | null, last: {at, outcome: "built" | "started" |
+"failed", text} | null}`: `root` the owner's checkout the page is built from;
+`build` whether its `frontend/dist` is that checkout's code (`null`: not read
+yet, or no checkout); `served` whether `127.0.0.1:4181` answered the last look.
+The desk looks once a minute, rebuilds a page that is behind, and starts the
+server when nothing answers; the strip under the header shows only while
+`build` is `failed` or `served` is `false` after a start. `engine` (installed desk only, ADR 038
 amendment) is `{owner: string | null, attached_to_owner: boolean, running:
 "pull" | "restart" | null, last: {at, outcome: "pulled" | "restarted" |
 "current" | "failed", text} | null, auto}`. `auto` (ADR 038 amendment
@@ -785,7 +795,8 @@ Alpaca `/v2/assets` (listing metadata only, no price), ETFs and units
 included, sorted by symbol, cached in process for
 `SYMBOL_DIRECTORY_TTL_SEC`. A failed fetch keeps serving the last good
 directory with `error` set; no keys is `count: 0` with the reason. The
-header ticker search loads it on first focus and matches desk symbols first,
+header ticker search loads it on first focus and matches desk symbols first
+(your tabs and positions, and on Paper the bots' stocks, ADR 069 decision 9),
 then listed symbols by ticker prefix or company name; `/regex/` and `A*X`
 wildcards run over symbols only. Recent look-ups persist in `localStorage`
 `nova.search.recent` (`{schema_version: 1, symbols: string[]}`, newest first,
@@ -885,8 +896,11 @@ Owner `frontend/src/close_reminder/`, mounted once with the app bar (never on th
 takes its card with it. Once per position per day per stage: a dismissed card does not return at
 its stage. Sim is left out (its clock is the replay playhead); weekends too; there is no holiday
 calendar on the client. `localStorage` `nova.closeReminder.fired` (a `prefStore` envelope) holds `{schema_version: 1, date:
-"YYYY-MM-DD" (ET), keys: ["<date>|<venue>|<SYMBOL>|<warn | final>", ...]}`; another date or an unknown
+"YYYY-MM-DD" (ET), keys: ["<date>|<venue>|<SYMBOL>|<warn | final | bots>", ...]}`; another date or an unknown
 version is ignored. On Live the rows may be last-known (the Gateway dropped) and the card says so.
+On Paper the bots' shares get a card of their own from 15:56 to 16:00, stage `bots` (ADR 069 decision 9): a minute
+past their 15:55 sale, so it shows only when that sale did not finish; one card per stock for every bot's shares,
+beside yours, never added to it, and dismissed on its own.
 Nothing here places, stages or cancels an order.
 
 
@@ -900,14 +914,46 @@ windows). Display only: the voice reads the order rows the desk already polls, a
 sits on the order path and never places, stages, cancels or delays an order.
 
 - **The header's mute** (a speaker, left of the padlock) is one switch for every sound Nova makes: the
-  voice, the HOD Momo ping, the Setups ping, the Trader's call ping, the Nova OS alarm and the TraderTV
-  stream. Muting stops a sentence mid-word. On the desktop it also mutes every Nova window's audio, the
+  voice, the HOD Momo ping, the Setups ping, the Top 9 chime and halt beeps, the Trader's call ping, the
+  Nova OS alarm and the TraderTV stream. **A right click on the speaker flips it**, as does All sounds at
+  the top of the sound menu (operator, 2026-11-05: a left click opens the menu, so the one-click mute moved to
+  the right click). Muting stops a sentence mid-word. On the desktop it also mutes every Nova window's audio, the
   stream's pop-out included (`webContents.setAudioMuted`, applied to windows opened later too). Each
   source's own switch still works under it; while the header mute is on, each says so on hover, and the
   in-page stream's Sound on button is disabled with that reason. `localStorage` `nova.desk.sound.muted`
   (a `prefStore` envelope, `{schema_version: 1, value: boolean}`), shared by every window: a click in
   one window reaches the others through the `storage` event. Missing, or an unknown version, reads as
   sound on.
+- **The sound menu (operator ask, 2026-11-05: "a dropdown menu controlling the other sounds ... very nicely
+  divided"; approved mockup v1).** A left click on the speaker opens it under the speaker; a click outside or
+  Escape closes it. Display only: it changes what the desk plays and nothing else. All sounds on top, then four
+  sections: **Scanner** (HOD alerts, Setups), **Nine charts** (Moved up: the Top 9 chime and halt beeps, one
+  switch as before), **Trades** (Fill voice, Trader calls, Alarm), **YouTube** (TraderTV). Every row has a switch,
+  a 0-100 volume and, but for YouTube, a Play button that plays the desk's own sound through the same code at that
+  volume, even with the row off; Play is locked with its reason under the header mute and at volume 0. Releasing a
+  slider plays the row once while it is on. A row off or under the header mute dims, and keeps its switch and volume.
+- **One owner of every sound's switch and volume** (`sound/deskSounds.ts`): the menu and each source's own button
+  (the HOD strip's speaker, Setups' Sound on, the Trader's bell, the Top 9's Sound on switch, the attention strip's)
+  are the same setting, and a change in one window reaches the others through the `storage` event, the Top 9
+  pop-up included. The switches keep their keys and shapes: `nova.hodMomo.alertSound.enabled`, `nova.topNine.sound`,
+  `nova.stockRead.sound` (`prefStore`, `{schema_version: 1, value: boolean}`), `nova.setups.sound.v1` (`on` / `off`),
+  `nova_os_attention_muted` (`1` / `0`, inverted). New: `nova.desk.voice.on` (`prefStore` boolean, default on; off
+  also silences the spoken loss-limit lines and "Order rejected.", which only the header mute did before).
+  `nova.desk.sound.levels` (`prefStore`, `{schema_version: 1, value: {hod, setups, topNine, voice, calls, alarm,
+  stream}}`, each an integer 0-100; a missing or bad entry, or an unknown version, reads as its default). The
+  defaults are the levels the desk always played, as a share of its loudest sound: HOD 18, Setups 23, Moved up 91,
+  Fill voice 100, Trader calls 27, Alarm 18, TraderTV 50. A sound plays at its own gain times level / default, so a
+  desk that never moves a slider sounds as it did; volume 0 is silent, the source's `muted` result. The voice's level
+  is the utterance's `volume`.
+- **The YouTube row** (`sound/streamSound.ts`) turns the stream's sound on and off and sets its volume. Its switch is
+  held in memory, never stored, and starts off: a stream never starts talking on its own. The sound goes to one
+  player: the desktop pop-out while it is open, otherwise the in-page player (`followed-traders.md`, "On the desk").
+  The row shows Live while one of them is on air; with neither it is locked with why (off air, or not open). Opening
+  the pop-out turns the row on, as the pop-out always played with sound, and quiets the page; closing it turns the row
+  off. A player that goes away or reloads turns it off too. The header mute turns it off for the in-page player, which
+  stays muted until asked, as it always has; the pop-out comes back with the desk. The pop-out has one switch: while it
+  is open the desktop app tells every other page when it moves, so no page holds an old one. An in-page player's switch
+  belongs to its own page.
 - **What speaks: fills, on the desk's venue.** From the working and closed order rows
   (`/api/ibkr/orders`, `/api/ibkr/orders/closed`, as `ibkr/ibkrAccountPoller.ts` reads them): an order
   whose `filled_qty` grew says the shares filled since the last read -- "Bought 100 shares of A B C."
@@ -1007,6 +1053,242 @@ The policy is read once, when `main.py` builds the app; a change to `.env`
 needs an API restart. The bot and agent routes keep their own loopback checks
 on the caller's address (`/bot/*`, `/api/bot/*`, `/ws/bot/*`, `/api/agent/*`).
 
+**Another device is view-only (ADR 070).** A request that passed the Host and
+Origin rules is from another device when its Host is not a loopback name (or
+any `127.x` address) or the bind host -- so a name that is only in
+`NOVA_ALLOWED_HOSTS` is one -- or when it carries any of `Forwarded`,
+`X-Forwarded-For`, `X-Forwarded-Host`, `Tailscale-User-Login`. The headers are
+what tell a tunnel on this PC from the desk: it calls from `127.0.0.1`, and may
+rewrite the Host. From another device:
+
+- an HTTP `POST`, `PUT`, `PATCH` or `DELETE` on any path but `/api/phone` (the
+  phone PIN's Paper-only door, `architecture/schema/execution.md`) is refused before the
+  API key is read: status 403, `{"detail": "Nova is view-only from another
+  device: orders, cancels and settings go from the desk on the PC. Nothing was
+  sent.", "reason": "REMOTE_VIEW_ONLY"}`;
+- any request or socket under `/bot`, `/api/bot`, `/ws/bot` or `/api/agent` is
+  refused, reads too: status 403, `{"detail": "Nova's bot and agent routes
+  answer only on the PC, not from another device.", "reason":
+  "REMOTE_LOCAL_ONLY"}` (a socket where the server cannot answer the handshake:
+  close code 1008);
+- every other GET and socket passes, with no key, as on the PC.
+
+These are logged (the first of each reason at WARNING, the rest at DEBUG) and
+are not counted in the `api_refusals` row, which explains names and origins.
+
+## The phone link test (ADR 070)
+
+`frontend/link-test.html` (code `frontend/src/phone_link/`) is a second page in
+the desk's build, served over the private tunnel (`docs/phone-link.md`). It
+holds no API key and makes no write. For one symbol it opens
+`/ws/ibkr/depth/{symbol}` and `/ws/ibkr/tape/{symbol}` as the desk does, and
+asks `GET /api/market-view/gate?symbol=` once a second.
+
+- **Where the API is.** A page on a loopback name (or a file) uses
+  `http://127.0.0.1:8000`; a page on any other name uses port 8443 of that
+  name over HTTPS, where the tunnel serves the API whole.
+- **Round trip:** the gate request out and its answer back, ms. One that times
+  out (5 s), is refused or cannot be read counts as a 5,000 ms round trip, never
+  as a missing sample, and the page counts them.
+- **Not in the demo build** (`--mode demo`, ADR 043): this page does not load
+  the demo's stubbed transports, so it is left out of that build.
+- **Clock:** each answer's `checked_at` against the middle of its round trip
+  gives "the PC's clock minus this device's"; the quickest of the last 20 round
+  trips is kept, good to half its round trip.
+- **Age of a frame on arrival:** this device's clock, corrected, minus the
+  frame's own time on the PC's clock -- `sent` on a `book` and a `prints` frame,
+  `now` on a `beat`, `ts` on a single `print`. No age is shown before the clock
+  is measured.
+- **Traffic:** frames and bytes a second per socket.
+- Each measure shows its middle, 95th percentile and worst over the last 30 s.
+  The verdict passes when the 95th percentile of both the Level 2 age and the
+  round trip is at most 500 ms (the order door's `ORDER_MAX_ARRIVAL_MS`), fails
+  when either is over, and waits until both were measured. **Copy** puts the
+  figures on the clipboard as text.
+- **Left running:** a socket that closes dials again after 1 s. Both sockets
+  carry a heartbeat -- Level 2 a `beat` every 250 ms, the tape a `ping` every
+  second even when nobody trades -- so 3 s with no frame on either is a dead
+  socket whether or not it closed, and that one dials again. A drop runs from
+  the last frame heard to the first frame back. Under
+  the 30 s table, **Whole run** keeps what the window forgets: how long it ran,
+  and for the round trips and each feed how many samples, how many over 500 ms,
+  the worst, and its drops with the longest. The page asks the browser to keep
+  the screen on; time the page was hidden is shown and not measured, since the
+  browser stops a hidden page: no sample is taken, a round trip in flight across
+  a hide or a show is thrown away, and an open drop does not grow over it.
+
+
+## Nova on the phone: the screens (ADR 070, amendment 2026-11-11)
+
+`frontend/phone.html` (code `frontend/src/phone/`) is a third page in the desk's
+build, served over the private tunnel beside the link test. It holds no API key.
+It is not in the demo build. It adds no route and no socket of its own: every
+read below is one the desk already makes, and every write goes to `/api/phone`
+(`architecture/schema/execution.md`, "Paper and Sim orders from the phone").
+
+- **Where the API is:** as the link test works it out (a loopback page uses
+  `http://127.0.0.1:8000`; any other name uses port 8443 of that name over
+  HTTPS). The page sets it before any desk module loads.
+- **Where it is in the page:** the screen is named in the hash, so the phone's
+  Back gesture walks the screens: `#/home`, `#/scan`, `#/top9`, `#/account`,
+  `#/settings`, `#/trade[/SYM]`, `#/stock/SYM`, `#/chart/SYM`, `#/book/SYM`. An
+  unknown hash is Home.
+- **The heartbeat:** `GET /api/phone` once a second, with the session header
+  when the phone holds one. One answer gives the header its venue, the padlock
+  and whether the phone is unlocked, and times the link: the round trip (the
+  pill shows the middle of the last 30 s; green while 95 in 100 are at most
+  500 ms, amber over, red when the PC does not answer), the PC's clock against
+  the phone's (from `now`), and a count of the times the PC stopped answering.
+  A read that takes over 3 s is a miss. A hidden page reads nothing.
+- **What each screen reads** (all GETs and sockets the desk makes):
+
+  | Screen | Reads |
+  |---|---|
+  | Every screen | `/api/phone`, `/api/ibkr/status`, `/api/config`, the scanner routes and `/ws/scanner`, `/api/ibkr/account`, `/positions`, `/orders`, `/orders/closed` |
+  | Home | `/api/market/board` (the day read), `/api/practice/account`, `/api/loss-limit`, `/api/why?symbols=` (the Catalyst call for the five Gainers rows) |
+  | Scan | the scanner feed; `/api/why?symbols=` per row; `/api/hot-list` (the star, and the Hot list) |
+  | Top 9 | the scanner feed; per tile `/api/ticker/{symbol}/bars` (1-minute, store-first) and, on Gainers, `/api/luld/{symbol}/trail` |
+  | Account | `/api/practice/account`, `/api/practice/history?range=1D` (Paper and Sim), `/api/loss-limit`; the chart's range buttons read the same route with the desk's `range` (`1D` `5D` `1M` `3M` `YTD` `ALL`); the Calendar view, and one past day's chart opened from it, read `range=ALL` (only while either is open). The calendar's figures are the desk Calendar panel's (`account/accountCalendar`, `account/accountDayBreakdown`); the phone shows Monday to Friday unless a weekend traded that month. Its book pills read All / You / Claude / Brain / Earlier on one row beside the Overview and Calendar icons, the desk's switch (ADR 072, `traders.md`); the day card's "By trader" rows and the month foot's dots split the same way |
+  | Stock, big chart | `/ws/ticker/{symbol}` and the chart's bars; `/api/why?symbols=` |
+  | Trade | `/ws/ticker/{symbol}`, the chart's bars, `/ws/ibkr/depth/{symbol}` and `/ws/ibkr/tape/{symbol}` (opened only while Trade is up: Level 2 takes one of the desk's three books). A halt (`halt` on the ticker read) is said over the tape with the desk's own halt clock (`ibkr/haltEta`, the Level 2 header's chip): time gone and time left for a LULD pause and its auction, no countdown for a news halt or past ten minutes. On Sim, `/api/sim/clock` |
+  | Level 2 read (`#/book/SYM`) | the same `/ws/ibkr/depth/{symbol}` line as Trade |
+  | The venue menu | `/api/phone/venue/effects` while it is open; `/api/sim/clock` for the Sim row |
+- **The scanner list a screen declares.** Scan declares the list on screen, Top 9
+  its list, Home `gainers`, over `/ws/scanner` (`set_active_tab`), as a desk tab
+  does. The backend serves the union of every client's lists inside one Level 1
+  budget.
+- **A row's number.** Every Scan row, and each of Home's five Gainers rows,
+  leads with its place on the list as the scanner serves it (row i is number
+  i + 1, the number the desk's rank chip shows). A filter that hides rows does
+  not renumber the rest; the Hot list is numbered in its own order.
+- **Top 9 on the phone.** The pop-up is fed by the desk window in the same
+  browser; the phone builds the same snapshot from its own scanner feed
+  (`buildTopNineSnapshot`) once a second and steps the same marks
+  (`nextSnapshotMarks`). It takes no board before the feed's first answer, so the
+  first board marks nothing. A tile's chart keeps a 34 px gutter for the
+  last-price tag, no time row, and shows 30 minutes where the pop-up shows 90.
+- **The bid and ask on the stock page** are the quote in the ticker stream's
+  first frame: Level 1 sends no later bid or ask, and the phone opens Level 2
+  only on the Trade screen. Older than 3 s, the strip is grey and says its age.
+- **The chart** is the desk's chart with its header hidden. The phone claims the
+  pane's edge (the lines' names move to the phone's legend), and on the first
+  paint of a stock and timeframe shows one candle about every 6 px. Its price
+  scale is as narrow as its numbers (at least 36 px, 10 px type, no tick
+  marks), and the forming candle's countdown is a label on that scale, under
+  the last price (`TickerChart`'s `countdownOnScale`; operator, 2026-11-12:
+  "make them more compact ... don't forget the countdown"). The desk's chip
+  beside the candle is not drawn on the phone.
+- **Kept on the phone** (localStorage, `utils/prefStore` envelopes; a bad or
+  unknown value reads as the default): `nova.phone.scan.list`,
+  `nova.phone.chart.frame`, `nova.phone.chart.indicators`. The Top 9 list and the
+  scanner chips use the desk's own keys, so they are the phone browser's copy of
+  the same preference. The PIN's session token is never stored.
+- **How the page is served.** `tools/serve_phone_page.py` serves the built
+  `frontend/dist` on `127.0.0.1:4181` (GET and HEAD only; never another
+  interface), and the tunnel forwards port 443 to it. Connections stay open
+  (HTTP/1.1) and a burst is queued. `Cache-Control` is
+  `public, max-age=31536000, immutable` under `/assets/` (the name carries the
+  content's hash) and `no-cache` for everything else. Each file's type comes
+  from the tool's own table, never the operating system's.
+- **The chart's right-click menu is not mounted** (`TickerChart`'s
+  `contextMenu={false}`): it reads `/api/bot/*`, which another device is
+  refused (`REMOTE_LOCAL_ONLY`), and its Buy and Sell stage the desk's ticket.
+- **Every ticker on a phone screen opens the Trader** (the chip, a ticker in a
+  line of words, a Top 9 switch), as on the desk.
+- **The Trade screen** (amendment 2026-11-12; `phone/screens/TradeScreen.tsx`,
+  `phone/trade/`). The book and the tape are the desk's hooks (`useIbkrDepth`,
+  `useIbkrTape`), drawn as many rows as the box holds; a book's rows take the
+  desk's montage colours (one per price). Each book drawn is reported to the
+  view registry (`noteBookShown`), and the registry's lock reason is what holds
+  the buys. Sizes are written short in the narrow columns ("1.2K"); a tape
+  size is whole under 10,000.
+  - *Every order is the desk's ticket code.* A Quick button is a desk action
+    (`runNovaAction`): `buy_market`, `buy_limit_ask_offset` (Ask + $0.05),
+    `sell_pos_pct_ask` (50 or 100), `sell_pos_pct_bid_offset` (Bid - $0.03, 50
+    or 100), `cancel_and_exit`, `cancel_all_orders`. Custom posts through
+    `placeIbkrOrder`: side, Market / Limit / Stop, a price and a share count;
+    a stop is seeded 1% past the market on the order's side
+    (`seedStopPrice`). Both go to the page's order door (`ibkr/orderDoor`),
+    which on the phone is `/api/phone` with the session header.
+  - *The PC's clock.* The heartbeat's offset is set once for the page
+    (`utils/deskClock.setDeskClockOffsetMs`); the view registry, the order's
+    `view` and its `client_timing` read `deskNow()`. An order tapped before
+    the first offset is not sent.
+  - *The banner.* Sending; Sent once the desk answered ok; NOT SENT with the
+    desk's words, which stays; Filled when your position in the stock changes
+    after the account was read ("Filled · Bought 500 ABCD", then where you
+    stand). A second tap while one is on its way is ignored. A tap on a locked
+    phone asks for the PIN and is not sent when it opens ("Unlocked · tap
+    again to send"): prices move while a PIN is typed.
+  - *The header pill.* Data is how late the last Level 2 frame reached the
+    phone (the registry's `transit_ms`, or the silence once it passes 1 s);
+    Tap is the middle round trip of the last 30 s. Settings' link card shows
+    the last Data figure.
+  - *The two dots* show while there is a position in the stock, or a working
+    order on any stock. Tap: what it holds. Press and hold 600 ms: the
+    warning. Drag: it stays where it is left (`nova.phone.trade.dots`, a
+    share of the screen).
+  - *Kept on the phone:* `nova.phone.trade.symbol` (the Trade tab reopens
+    it), `.mode` (Quick or Custom), `.size`, `.frame`, `.chart` (the small
+    chart's height, 92 to 172 px), `.dots`.
+  - *The small chart* is the desk's chart with no time row, no logo, no
+    volume figure on the scale and no position badge (its line stays; the
+    legend says the average). The price and the countdown are its two labels. A tap opens
+    the big chart. The 10-second frame is on here: the tape is open.
+- **The big chart opens upright** (operator, 2026-11-12), from the round icon
+  in the corner of the stock page's chart. A phone on its side gets the wide
+  drawing. The sideways button asks the browser for the whole screen and then
+  to turn it (a page may turn the screen only from a tap, and only full
+  screen); a browser that refuses is said on the chart. Leaving the screen, or
+  the full screen, gives the turn back. The installed page stays upright by
+  itself (`orientation: portrait` in the manifest), so the other screens never
+  shrink into a turned phone.
+- **The venue menu** (amendment 2026-11-13; `phone/VenueMenu.tsx`). The venue
+  pill on every screen opens a menu under it: Paper, Sim, Live, the desk's
+  venue ticked. A tap on another row is `POST /api/phone/venue` (the desk
+  switches with it); the banner says Switched once the desk answered, and how
+  many of Nova's entries it cancelled. While the menu is open it reads
+  `GET /api/phone/venue/effects` and says those lines in amber before the tap,
+  or that nothing of Nova's waits on the venue; an `unknown` check is said as
+  unknown. The Sim row names what the desk has loaded (`/api/sim/clock`'s
+  `replay_symbol` and `session_date`, or the live edge). The Live row says the
+  phone looks only. Settings' venue row switches the same way. A tap outside
+  the menu, or Back, closes it.
+- **On Sim** (`phone/trade/SimStrip.tsx`) a strip under the Trade screen's
+  header reads `/api/sim/clock` (the desk's `simClockResource`): the playhead's
+  time and day, pause / play, and a step back or forward of the desk strip's
+  `SIM_STRIP_STEP_MINUTES`, each `POST /api/phone/sim/clock`. The book and the
+  tape follow the desk's Trader (`sim/simReplayTarget`): at the live edge and on
+  a Session Record of the stock they are the same sockets, the screen is drawn
+  again when the playhead crosses the edge, and a recording's price heads the
+  screen (`captureQuoteDetail`); anything else shows the desk's rail note
+  (`simRailNote`, or "this replay shows on the PC" for a Massive-file window)
+  in place of the book and the tape, and the ticket sends nothing.
+- **On Live** the ticket is drawn grey with its reason ("from the phone, Live is
+  look only"); the account, the orders and the market read as on the other
+  venues.
+- **Level 2's marks** (amendment 2026-11-13; `phone/trade/BookMarks.tsx`). The
+  depth socket's `book_watch` frames (`useIbkrDepth().watch`) go through the
+  desk ladder's own functions for the rows on screen: `bigRows` (a big seller
+  or buyer's rows: a dark block in a white frame, "Big seller" on its first
+  row, a slate bar of what traded there) and `bigBanner` (over the side's
+  column head: its lead, price, size and verdict; the float and pace go to the
+  read page), `hiddenHere` / `hiddenMarks` (a violet outline and `◆` mark),
+  `pullMarks` (amber `✕` marks between rows), aged by `useBookWatchClock`. An
+  L1-only book draws none.
+  - *The depth chart* is the desk's `Level2DepthChart` (`alwaysOn`, the desk's
+    switch not read), under the rows, while every row of the book (up to ten)
+    still fits beside it. It is one button: a tap opens `#/book/SYM`.
+  - *The read page* (`phone/screens/BookScreen.tsx`, `#/book/SYM`) holds the
+    same socket (it counts as the Trade screen's book): the spread line, the
+    depth chart large (a touch reads a price, as the desk's hover does), one
+    card per big seller or buyer (the banner's words in full: float, pace),
+    hidden seller or buyer (with what traded where the Level 2 does not look),
+    and pull, and each side's last minute (`pullsLine`). Back returns to Trade.
+  - *Kept on the phone:* `nova.phone.level2.marks` (on unless turned off in
+    Settings).
+- **No scroll:** a viewport under 360 x 720 (740 x 320 for the big chart on its
+  side) shrinks the whole page by `min(width / 360, height / 720)`.
 
 ## IBKR capacity on the desk (operator ask, 2026-10-16)
 
@@ -1029,8 +1311,14 @@ things this desk spends; the strip shows each as used of its cap, and who uses i
   line (Error 101, `cap_learned` true) -- the login's lines are shared with every platform it is signed in to -- else
   `IBKR_L1_STREAM_BUDGET`. `reserve` (`IBKR_L1_STREAM_RESERVE`) is kept free for an opening Trader tab. `by_owner`
   counts a line once per owner (one line can serve several).
-- **l2**, Level 2 books (`line_lending.view`): `IBKR_MAX_DEPTH_SYMBOLS` (3).
-- **history**, IBKR's historical requests (`historical_service.pacing_snapshot`): 60 in 10 minutes. `by_kind` names
+- **l2**, Level 2 books (`line_lanes.lanes`, ADR 071): `IBKR_MAX_DEPTH_SYMBOLS` (3), one per lane. `held_by` is the
+  lanes on the stock joined with `+` (`you`, `claude`, `bots`), `replay` for a Sim replay slot, or `no lane` for a live
+  line no lane holds (the idle guard cancels it when a lane needs the slot).
+- **history**, IBKR's historical requests (`historical_service.pacing_snapshot`): `cap` is
+  `IBKR_HISTORICAL_PACE_MAX` (300) in 10 minutes, the count IBKR answered at once when Nova measured it (ADR 012
+  amendment 2026-11-04), and its published 60 for the 10 minutes after it says pacing or slows its answers: everyone
+  but an open chart stops then, so `used` can read over `cap` and `next_free_sec` is the wait to come back under it.
+  Ten-second bars and tick reads also stay inside that 60 (`IBKR_HISTORICAL_SMALL_PACE_MAX`). `by_kind` names
   what spent the window: `charts` (chart bars), `tape` (trades read back: the TraderTV exits and ticker checks,
   LULD), `daily` (daily bars: the short check's SSR, the Market page's ETFs, Cryptos), `market` (the Market page's
   futures, indexes and crypto tiles), `global` (the Global page's futures, indexes, ETFs and exchange rates, ADR 060), `forex` (the Forex page's
@@ -1040,16 +1328,81 @@ things this desk spends; the strip shows each as used of its cap, and who uses i
 **Who comes first.** Level 1: the scanner and HOD Momo plan their lines inside what every other owner -- a Trader
 tab, the bots, the followed traders -- leaves (`l1_refused.plan_budget`), and a refused line is asked again in that
 order too: a Trader tab and the Live Trader bot first, the followed traders and the scanner next, HOD Momo last
-(`l1_refused._OWNER_RANK`). History, from first to last: an open chart and the short check's SSR read down to the last
-request; background chart fills stop while `IBKR_HISTORY_TRADING_RESERVE` (10) or fewer are left; the TraderTV exits,
-ticker checks and LULD at 20 or fewer (`FOLLOWED_EXIT_HEADROOM`, `LULD_BACKFILL_HEADROOM`); the Market, Global
-and Forex pages last, in turn, at 30 (`MARKET_HISTORY_HEADROOM`, `GLOBAL_HISTORY_HEADROOM`,
-`FOREX_HISTORY_HEADROOM`) -- the one on screen first: Global leaves 40 while the Market or Forex page shows and it
-does not (`GLOBAL_YIELD_HEADROOM`), Forex 40 while the Market or Global page shows and it does not
-(`FOREX_YIELD_HEADROOM`).
+(`l1_refused._OWNER_RANK`). History, from first to last, counting what is left of the whole window (of the 60 for ten-second bars and tick reads):
+an open chart (a stock being opened asks for every pane missing, short or stale this way, `ws/ticker`) and the SSR read
+of the stock on the ticket or about to be shorted (the short check, the order door, a bot's short) down to the last
+request; background chart fills,
+Cryptos' daily closes and every other SSR read stop while `IBKR_HISTORY_TRADING_RESERVE` (10) or fewer are left (the
+setup scanner asks SSR for each watched stock trading under its prior close; 2026-10-27, 16 of those reads in 16 s
+filled the window and a chart opened just after waited 22 s); the TraderTV exits,
+ticker checks and LULD at 20 or fewer (`FOLLOWED_EXIT_HEADROOM`, `LULD_BACKFILL_HEADROOM`); a painted chart's
+refresh (a `warm` fill, every 45 s while its bars are stale) at 30 or fewer (`IBKR_HISTORY_WARM_RESERVE`, 2026-10-27:
+with ten charts open it spent the whole window and no TraderTV exit was read all morning); the Market, Global
+and Forex pages last, in turn, at 100 (`MARKET_HISTORY_HEADROOM`, `GLOBAL_HISTORY_HEADROOM`,
+`FOREX_HISTORY_HEADROOM`), with the setup scanner's seeds (`SETUPS_SEED_HISTORY_HEADROOM`) -- the one on screen first:
+Global leaves 110 while the Market or Forex page shows and it does not (`GLOBAL_YIELD_HEADROOM`), Forex 110 while the
+Market or Global page shows and it does not (`FOREX_YIELD_HEADROOM`).
 
 **On the desk** (`frontend/src/capacity/`): a strip at the very bottom of the main window, read every 5 s, one cell
 per cap -- "Level 1 48 / 53", "Level 2 3 / 3", "History 60 / 60 · next in 2:27", "Time & Sales 4" -- each with a
 bar of its slots, amber at 80% of the cap and red when full. A cell's hover lists who uses it. A read that fails
 says "Capacity: not read" with why; it never shows a guessed count.
 
+
+## The Level 2 pane: the spread on top and its size (operator ask, 2026-11-06)
+
+"Move the spread to the top and enlarge everything, including the level 2 font ... if we do a right-click on
+the level 2, we can maybe make it small, medium, or large." Mockup v1 B approved (the rows fill the pane).
+Display only: nothing here touches the depth line, the book watcher or an order.
+
+- **The spread row** (`ibkr/Level2SpreadRow.tsx`) sits under the pane head, over the pulls line and the
+  book, in every Level 2: the live ladder, a Session Record replaying, and the Sim's recorded or venue book
+  (`sim/HistoricalDepth.tsx`, which had no spread line before). One line (operator, 2026-11-06: "the bid and
+  ask next to each other"): the best bid in the bid colour, the spread (`formatDepthPrice`, four digits under
+  $1) with its share of the ask, two decimals (`0.003` and `0.38%` for 0.7824 × 0.7854), and the best ask in
+  the ask colour, side by side in the middle. Nothing is drawn without both sides. The muted line under the
+  book is gone.
+- **The band over the tape** (`ibkr/TapeLastBand.tsx`, the rail's embedded Time & Sales only; mockup
+  tape-align v1 option 1): the same box (`.l2-band`) at the same height as the spread row, so the two panes'
+  column heads and rows start on one line. It shows the newest print's price in the tape rows' own side
+  colour (green at the ask, red at the bid, plain between) and its size (`formatTapePrice`,
+  `formatTapeSize`); with no print it shows a dash and keeps its height. The print is the newest the tape
+  holds, before the "Size ≥" display filter. It carries `data-l2-size` too, so it follows the pane's size.
+- **Short and narrow panes.** The rail's digits, column heads and bands cap their type against the pane's
+  height (container units) and never go under the size the pane had before. Under 260 px of pane height both
+  bands hide, so the ladder's ten rows keep their 18 px floor and a level past the rows still shows on the
+  last one. Under 300 px of pane width the spread row keeps its three numbers only (no words, no percent),
+  and the tape's band drops its "Last" word under 180 px.
+- **The floor under the book** (operator report, 2026-11-13: "it was all small ... no bid, no ask, and no
+  spread"). In the Trader's quote card the stock read sits over Level 2 and grows with the plan; Level 2 and
+  Time & Sales keep `--sv-depth-min` (290 px: the 260 px pane plus its head; half the card on a card too
+  short for that), and a read too long for what is left scrolls (`stock_view/stockViewRailDepth.css`,
+  `stock_read/stockRead.css`). A long plan on a tall desk no longer takes the spread row.
+- **The size** (`ibkr/level2Size.ts`, `ibkr/Level2Frame.tsx`): a right click anywhere on the pane opens a
+  cursor-anchored menu (`role="menu"`, three `menuitemradio` rows: Small, Medium, Large, the current one
+  ticked); a pick, a click outside or Escape closes it. The pane's root carries `data-l2-size`, and the
+  stylesheet (`ibkr/level2Montage.css`, `stock_view/stockViewTerminal.css`) turns it into one scale for every
+  font, tag and chip in the pane: **small** is the pane as it was (13 px digits in the rail, rows capped at
+  1.45 rem); **medium** scales 1.4× and caps the rail's rows at 2.75 rem (44 px); **large**, the default,
+  scales 1.8× and lifts the cap, so the ten rows share the pane (about 62 px rows and 24 px digits on the
+  operator's desk). The digits never pass a share of the book's height (the montage is a size container), so
+  a large pane in a short window shrinks its type instead of clipping it. One choice for every ladder and
+  window: `localStorage` `nova.level2.size` (a `prefStore` envelope, `{schema_version: 1, value:
+  "small" | "medium" | "large"}`, in the prefs bundle), shared through the `storage` event; missing, or an
+  unknown value, reads as large.
+- **The depth chart** (operator ask, 2026-11-13: "maybe having something like this would help", mockup v1,
+  then "build it as shown ... behind a right-click switch"; `ibkr/Level2DepthChart.tsx`,
+  `ibkr/level2DepthSwitch.ts`, `ibkr/level2DepthChart.css`). Off until the operator turns it on: the same
+  right-click menu holds a `menuitemcheckbox` row, "Depth chart", under the sizes, ticked while on. One
+  choice for every ladder and window: `localStorage` `nova.level2.depthChart` (a `prefStore` envelope,
+  `{schema_version: 1, value: true | false}`, in the prefs bundle), shared through the `storage` event;
+  missing reads as off. While on, a strip sits over the book in the live ladder and the Sim's
+  (`sim/HistoricalDepth.tsx`): the rows on screen summed per price and stacked outward from the inside
+  (`depthSteps`), bids to the left and offers to the right on one share scale, one cell per price, so a
+  tall step is a wall. Each side's total, in shares and dollars, sits at its far edge; the axis names the
+  far and inside prices; hovering a price reads the shares and dollars resting between the inside and it
+  and the size at it. A big seller or buyer the watcher is following (`state: "holding"`, its price on a
+  row) is marked amber on its step with its price and the size shown there. It draws nothing past the last
+  row and nothing for an empty book, and it reads the book the pane already has: no request, no mark, no
+  order. In the Trader's rail it hides while the pane is under 380 px high, so the ten rows keep their
+  floor.

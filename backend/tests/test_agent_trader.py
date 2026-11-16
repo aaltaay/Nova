@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 
 from agent_trader import clock as agent_clock
 from agent_trader import ledger, lines, rules, seat, view, watcher
-from agent_trader.constants_agent_trader import AGENT_LEASE_SEC, SEAT_IN, SEAT_SET, SEAT_WAITING, SEAT_YIELDED
+from agent_trader.constants_agent_trader import AGENT_LEASE_SEC, SEAT_IN, SEAT_SET, SEAT_WAITING
 from execution import inflight, service, telemetry
 from execution import venue_door
 from execution.models import ExecutionCommand
@@ -68,75 +68,7 @@ def test_the_seat_survives_a_restart_and_refuses_a_file_it_does_not_know():
     assert seat.holder() is None                              # an unknown file starts with the seat off
 
 
-# -- the line kept for Claude -----------------------------------------------------------------------------
-@pytest.fixture
-def depth_lines(monkeypatch):
-    """Depth lines and their viewer counts, by symbol."""
-    import ibkr.depth as depth
-
-    book: dict[str, int] = {}
-    monkeypatch.setattr(depth, "subscribed_symbols", lambda: list(book))
-    monkeypatch.setattr(depth, "viewer_count", lambda s: book.get(s, 0))
-    return book
-
-
-def test_the_desk_keeps_two_lines_of_its_own_while_the_seat_is_on(depth_lines):
-    depth_lines.update({"SPIK": 1, "FLTX": 1})
-    assert lines.desk_refusal("RUNR") is None                 # seat off: all 3 are the desk's
-    seat.claim()
-    why = lines.desk_refusal("RUNR")
-    assert why and "SPIK and FLTX are yours" in why and "Claude" in why
-    assert lines.desk_refusal("SPIK") is None                 # a symbol already on a line costs nothing
-    assert lines.desk_free(busy=2) == 0
-    seat.set_yielded(True, "test")
-    assert lines.desk_refusal("RUNR") is None                 # the operator took Claude's line back
-
-
-def test_a_line_claude_shares_with_a_tab_is_the_desks(depth_lines):
-    seat.claim()
-    lines._held["SMPL"] = {"depth": True, "tape": True}
-    depth_lines.update({"SMPL": 2})                           # Claude and a tab both watch SMPL
-    assert lines.desk_lines() == ["SMPL"] and lines.claude_only_lines() == 0
-    assert lines.desk_refusal("RUNR") is None                 # the desk's 2nd line
-    depth_lines["RUNR"] = 1
-    assert lines.desk_refusal("GAPX") is not None             # its 3rd waits
-    depth_lines["SMPL"] = 1                                   # the tab closed: SMPL is Claude's alone
-    assert lines.claude_only_lines() == 1 and lines.desk_free(busy=2) == 1
-
-
-def test_a_reconnect_does_not_leave_claude_thinking_it_holds_its_line(depth_lines, monkeypatch):
-    """Codex review on PR #1239: a reference outlives an IBKR session, so 'held' must mean 'up now'; Nova's renewal
-    of Claude's own line passes Claude's reservation; and Claude asks again without a second reference."""
-    import ibkr.depth as depth_mod
-    from ibkr import tape_stream
-
-    seat.claim()
-    live = {"SMPL": True}
-    asked: list[tuple[str, bool]] = []
-    opened: list[str] = []
-
-    async def _subscribe(sym, *, live=False, agent=False):
-        asked.append((sym, agent))
-        live_now[sym] = True
-        return {"ok": True}
-
-    live_now = live
-    monkeypatch.setattr(depth_mod, "is_live", lambda s: live_now.get(s, False))
-    monkeypatch.setattr(depth_mod, "subscribe_async", _subscribe)
-    monkeypatch.setattr(depth_mod, "ws_viewer_opened", lambda s: opened.append(s))
-    monkeypatch.setattr(tape_stream, "is_subscribed", lambda s: True)
-    lines._held["SMPL"] = {"depth": True, "tape": True}
-    depth_lines.update({"SPIK": 1, "FLTX": 1, "SMPL": 1})
-    assert lines.holds_depth("SMPL")
-    live_now["SMPL"] = False                                  # IBKR's session ended; the reference is still counted
-    assert not lines.holds_depth("SMPL")
-    assert lines.desk_refusal("SMPL") is None                 # line_session's renewal of Claude's line is admitted
-    assert lines.desk_refusal("RUNR") is not None             # the desk's 3rd still waits
-    assert asyncio.run(lines.acquire("SMPL")) is None
-    assert asked == [("SMPL", True)] and opened == []         # asked again, no second viewer reference
-    assert lines.holds_depth("SMPL")
-
-
+# -- Claude's lane (ADR 071 decision 5) ---------------------------------------------------------------------
 def test_claudes_status_never_carries_an_exceptions_text(monkeypatch):
     """CodeQL on PR #1239: a failed Paper read says fixed words; the detail goes to the log only."""
     def _boom():
@@ -147,11 +79,15 @@ def test_claudes_status_never_carries_an_exceptions_text(monkeypatch):
     assert rules.day_refusal(0, 0.0) is None
 
 
-def test_the_depth_door_refuses_a_desk_line_past_two_and_takes_claudes(monkeypatch):
+def test_the_depth_door_opens_only_a_stock_a_lane_is_on_and_claudes_is_one(monkeypatch):
+    """ADR 071: the real ``subscribe_async`` refuses a live line for a stock no lane is on, in the lanes' words, and
+    opens Claude's lane's stock -- no desk cap of 2, no reservation arithmetic."""
     import importlib
 
     import ibkr.client as client_mod
     import ibkr.depth as depth_mod
+    from line_lanes import lanes
+    from line_lanes.table import CLAUDE
     from tests.test_depth_stability import _FakeContract, _FakeIb
 
     importlib.reload(depth_mod)
@@ -163,25 +99,26 @@ def test_the_depth_door_refuses_a_desk_line_past_two_and_takes_claudes(monkeypat
     monkeypatch.setattr(depth_mod, "_load_ib_types", lambda: True)
     monkeypatch.setattr(depth_mod, "_Stock", lambda symbol, *a, **k: _FakeContract(0, symbol))
     depth_mod._subscribe_lock = None
-    seat.claim()
-    for sym in ("SPIK", "FLTX"):
-        assert asyncio.run(depth_mod.subscribe_async(sym))["ok"]
-        depth_mod.ws_viewer_opened(sym)
-    third = asyncio.run(depth_mod.subscribe_async("RUNR"))
-    assert third["ok"] is False and third["agent_reserved"] is True and "Claude" in third["error"]
-    assert asyncio.run(depth_mod.subscribe_async("SMPL", agent=True))["ok"]
-    assert sorted(depth_mod.subscribed_symbols()) == ["FLTX", "SMPL", "SPIK"]
+    lanes.enforce(True)
+    refused = asyncio.run(depth_mod.subscribe_async("RUNR"))
+    assert refused["ok"] is False and refused["lane"] is True and "No lane is on RUNR" in refused["error"]
+    assert depth_mod.subscribed_symbols() == []
+    lanes._lanes = lanes.table().__class__(claude="SMPL")             # the seat named SMPL
+    assert asyncio.run(depth_mod.subscribe_async("SMPL"))["ok"]
+    assert depth_mod.subscribed_symbols() == ["SMPL"]
+    assert lanes.table().on(CLAUDE) == "SMPL"
     depth_mod.reset_all()
 
 
-def test_the_level_2_panel_says_the_line_is_claudes():
-    from line_lending.view import cap_words
-    from routes.trading_depth_ws import refusal_text
+def test_the_level_2_panel_says_where_your_level_2_is():
+    from line_lanes import lanes
+    from routes.trading_depth_ws import refusal_frame
 
-    text = "All 3 Level 2 lines are in use: SPIK and FLTX are yours, SMPL is Claude's."
-    assert refusal_text("RUNR", {"cap": True, "agent_reserved": True, "error": text}) == text
-    words = cap_words("RUNR", [{"symbol": "SMPL", "held_by": "agent"}, {"symbol": "SPIK", "held_by": "tab"}])
-    assert "SMPL Claude's" in words
+    lanes._lanes = lanes.table().__class__(you="XLAB")
+    frame = refusal_frame("TGHL", {"ok": False, "lane": True,
+                                   "error": "Your Level 2 is on XLAB -- open TGHL in front to bring it here."})
+    assert frame["evicted"] is True and frame["lane"] == {"you": "XLAB", "claude": None, "bots": None}
+    assert "Your Level 2 is on XLAB" in frame["message"]
 
 
 # -- Claude's limits --------------------------------------------------------------------------------------
@@ -333,21 +270,25 @@ def paper(monkeypatch, short_market_open):
     monkeypatch.setattr(agent_clock, "now", lambda: m.now)
     monkeypatch.setattr(gate, "desk_lock", lambda symbol, **kw: None)
 
+    from line_lanes import lanes as lane_table
+    from line_lanes.table import Lanes
+
     async def _hold(symbol):
-        lines._held.clear()
-        lines._held[symbol.upper()] = {"depth": True, "tape": True}
+        lane_table._lanes = Lanes(claude=symbol.upper())                # Claude's lane, both lines up
         return None
 
     import ibkr.depth as depth_mod
     from ibkr import tape_stream
 
     monkeypatch.setattr(lines, "acquire", _hold)
-    monkeypatch.setattr(depth_mod, "is_live", lambda s: s.upper() in lines._held)
-    monkeypatch.setattr(tape_stream, "is_subscribed", lambda s: s.upper() in lines._held)
+    monkeypatch.setattr(depth_mod, "is_live", lambda s: s.upper() == lane_table.table().claude)
+    monkeypatch.setattr(tape_stream, "is_subscribed", lambda s: s.upper() == lane_table.table().claude)
     monkeypatch.setenv("NOVA_API_KEY", "agent-test-key")
     monkeypatch.setenv("NOVA_API_HOST", "127.0.0.1")
     from main import app
+    from traders import switches
 
+    switches.set_switch("claude", True, "test")                     # the operator switched Claude On (ADR 072)
     yield SimpleNamespace(market=m, broker=for_venue("paper"), client=TestClient(app), key=headers("agent-test-key"))
     for mod in (service, inflight, telemetry):
         mod.reset_for_tests()
@@ -460,27 +401,52 @@ def test_a_quiet_claude_is_closed_out_and_the_seat_freed(paper):
     assert seat.holder() is None and lines.held_symbol() is None
 
 
-def test_take_claudes_line_stops_new_trades_and_keeps_the_stop(paper):
+def test_switching_claude_off_hands_its_shares_to_you_and_keeps_its_stop(paper):
+    """ADR 072: Off hands Claude's position to you -- its stop keeps resting, it opens and closes nothing more there,
+    and your Sell reaches its shares after cancelling its exits (origin takeover)."""
     h = _seat(paper)
     paper.client.post("/api/agent/trader/order", headers=h, json={
         "kind": "limit", "symbol": "SMPL", "qty": 300, "entry": 4.25, "stop": 4.00, "target": 4.80, "why": "go"})
-    got = paper.client.post("/api/agent/trader/yield", headers=paper.key)
-    assert got.status_code == 200 and got.json()["state"] == SEAT_IN
-    assert "stop" in {r["leg_role"] for r in ledger.working()} and lines.held_symbol() is None
+    got = paper.client.put("/api/traders/claude/switch", headers=paper.key, json={"on": False})
+    assert got.status_code == 200, got.text
+    claude = got.json()["traders"]["claude"]
+    assert claude["on"] is False and claude["state"] == "off" and claude["text"] == "Claude · Off · SMPL is yours to close"
+    assert claude["handed"][0]["symbol"] == "SMPL" and claude["handed"][0]["qty"] == 300
+    assert "stop" in {r["leg_role"] for r in paper.broker.ledger.working_orders()}
+    assert ledger.positions() == {}                                  # the guard no longer watches it
     again = paper.client.post("/api/agent/trader/order", headers=h, json={
         "kind": "limit", "symbol": "SMPL", "qty": 100, "entry": 4.10, "stop": 4.00, "target": 4.60, "why": "x"})
-    assert again.json()["detail"]["reason"] == "AGENT_YIELDED"
-    paper.client.post("/api/agent/trader/close", headers=h, json={"symbol": "SMPL"})
-    assert view.status()["state"] == SEAT_YIELDED
+    assert again.json()["detail"]["reason"] == "AGENT_SWITCH_OFF"
+    events = [e["kind"] for e in view.status()["events"]]
+    assert "switch_off" in events and "handed" in events
+    mine = [p for p in paper.client.get("/api/ibkr/positions").json() if p["symbol"] == "SMPL"]
+    assert mine and mine[0]["qty"] == 300 and mine[0]["handed_qty"] == 300 and mine[0]["handed_from"] == "claude"
+    # Your Sell of the handed shares: Claude's resting exits go first (TAKEOVER), the fill is booked on Claude's book.
+    sold = paper.broker.place("SMPL", "SELL", 300, "MKT", source="manual")
+    assert sold["ok"], sold
+    assert not [r for r in paper.broker.ledger.working_orders() if r["symbol"] == "SMPL"]
+    cancelled = [r for r in paper.broker.ledger.closed_orders() if r.get("reason_code") == "TAKEOVER"]
+    assert {r["leg_role"] for r in cancelled} >= {"stop"}
+    from practice.history import ledger_fills
+
+    last = ledger_fills(paper.broker.ledger)[-1]
+    assert last["owner"] == "you" and last["closed_by"] == "you"
+    assert last["parts"][0]["owner"] == "claude" and last["parts"][0]["closed_by"] == "you"
 
 
-def test_stop_claude_cancels_sells_and_frees_everything(paper):
-    h = _seat(paper)
-    paper.client.post("/api/agent/trader/order", headers=h, json={
-        "kind": "limit", "symbol": "SMPL", "qty": 300, "entry": 4.25, "stop": 4.00, "target": 4.80, "why": "go"})
-    got = paper.client.post("/api/agent/trader/stop-claude", headers=paper.key)
-    assert got.status_code == 200 and got.json()["problems"] == []
-    assert ledger.position("SMPL") == 0 and seat.holder() is None
+def test_claude_turns_on_only_off_live_and_only_from_the_operator(paper):
+    off = paper.client.put("/api/traders/claude/switch", headers=paper.key, json={"on": False})
+    assert off.status_code == 200 and off.json()["traders"]["claude"]["on"] is False
+    by_claude = paper.client.put("/api/traders/claude/switch", headers={**paper.key, "X-Agent-Seat": "x"},
+                                 json={"on": True})
+    assert by_claude.status_code == 409 and by_claude.json()["detail"]["reason"] == "TRADER_OPERATOR_ONLY"
+    set_venue("live")
+    live = paper.client.put("/api/traders/claude/switch", headers=paper.key, json={"on": True})
+    assert live.status_code == 409 and live.json()["detail"]["reason"] == "TRADER_LIVE"
+    set_venue("paper")
+    on = paper.client.put("/api/traders/claude/switch", headers=paper.key, json={"on": True})
+    assert on.status_code == 200 and on.json()["traders"]["claude"]["on"] is True
+    assert paper.client.put("/api/traders/nobody/switch", headers=paper.key, json={"on": True}).status_code == 404
 
 
 def test_the_seat_waits_for_a_line_and_says_why(paper, monkeypatch):

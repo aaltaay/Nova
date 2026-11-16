@@ -380,9 +380,6 @@ export const ACCOUNT_DAY_PNL_LIVE_NOTE =
  * limit, so it is shown as that and the largest position is labelled as every
  * source's (QA W11) -- the old "300 / 1 sh" meter compared the two.
  */
-export const ACCOUNT_RISK_BOT_ORDER_SIZE = 'Bot order size';
-export const accountRiskBotOrderSize = (cap: string): string => `${cap} sh per bot order`;
-export const ACCOUNT_RISK_BOT_ORDER_SIZE_NONE = 'unavailable · bot session unavailable';
 export const ACCOUNT_RISK_LARGEST_POSITION = 'Largest position';
 export const accountRiskLargestPosition = (held: string, symbol: string | null): string =>
   held === '0' || !symbol ? 'flat · every source' : `${held} sh ${symbol} · every source`;
@@ -390,3 +387,5 @@ export const accountRiskLargestPosition = (held: string, symbol: string | null):
 export const ACCOUNT_TAG_SAMPLE = 'Sample';
 /** Orders (Today): a working order from an earlier day shows its date (QA W4). */
 export const accountOrderStampOtherDay = (date: string, time: string): string => `${date} ${time}`;
+/** ADR 072 (mockup three-books v1): the account's fills today, split by book under the count. */
+export const ACCOUNT_ROW_FILLS_TODAY = 'Fills today';

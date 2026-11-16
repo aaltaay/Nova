@@ -27,8 +27,6 @@ import {
   ACCOUNT_LEGEND_UNSETTLED_LIVE,
   ACCOUNT_LEGEND_UNSETTLED_NA,
   ACCOUNT_LIVE_NO_LEDGER,
-  ACCOUNT_RISK_BOT_ORDER_SIZE,
-  ACCOUNT_RISK_BOT_ORDER_SIZE_NONE,
   ACCOUNT_RISK_LARGEST_POSITION,
   ACCOUNT_RISK_LOSS_LIMIT,
   ACCOUNT_RISK_LOSS_LIMIT_WHERE,
@@ -43,6 +41,7 @@ import {
   ACCOUNT_ROW_DAY_PNL,
   ACCOUNT_ROW_EXCESS_LIQUIDITY,
   ACCOUNT_ROW_FEES_TODAY,
+  ACCOUNT_ROW_FILLS_TODAY,
   ACCOUNT_ROW_LONG_VALUE,
   ACCOUNT_ROW_OPEN_PNL,
   ACCOUNT_ROW_REALIZED_TODAY,
@@ -54,7 +53,6 @@ import {
   ACCOUNT_TAV_HIDDEN,
   ACCOUNT_TAV_LABEL,
   ACCOUNT_TODAY_SUFFIX,
-  accountRiskBotOrderSize,
   accountRiskLargestPosition,
   type AccountRange,
 } from '../constantGroups/account_page';
@@ -65,6 +63,7 @@ import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';
 import { Money, PanelHead, toneClass, toneOf } from './accountBits';
 import type { AccountDetailRows } from './accountFigures';
+import { BookSplitMini, type BookRows } from './BooksCards';
 import type { PracticeHistory } from './accountHistoryTypes';
 import { largestPosition, longMarketValue, positionSymbols, shortMarketValue, type AccountPosition } from './accountPositions';
 import { EquityCurve } from './EquityCurve';
@@ -78,7 +77,6 @@ interface Props {
   history: PracticeHistory | null;
   range: AccountRange;
   onRange: (range: AccountRange) => void;
-  maxSharesCap: number | null;
   hidden: boolean;
   onToggleHidden: () => void;
   nowTs: number;
@@ -86,6 +84,10 @@ interface Props {
   absence?: string | null;
   /** The sample desk: its account is Nova Marketing Sample Data, never "IBKR" (W31). */
   sample?: boolean;
+  /** Paper and Sim (ADR 072): the three books under the account's day line. */
+  booksSlot?: React.ReactNode;
+  /** Paper and Sim (ADR 072): Day's P&L and Fills today split by book, and the account's fills today. */
+  bookRows?: (BookRows & { fillsToday: number }) | null;
 }
 
 /** `100,014.74`: cents only while the ticks are closer than a dollar (W26). */
@@ -94,18 +96,20 @@ function valueTick(value: number, step: number): string {
   return value.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 
-function Row({ label, children, note }: { label: string; children: React.ReactNode; note?: boolean }) {
+function Row({ label, children, note, split }: {
+  label: string; children: React.ReactNode; note?: boolean; split?: React.ReactNode;
+}) {
   return (
-    <div className={`acct-row${note ? ' acct-row--note' : ''}`}>
+    <div className={`acct-row${note ? ' acct-row--note' : ''}${split ? ' acct-row--split' : ''}`}>
       <span className="acct-row__k">{label}</span>
-      <span className="acct-row__v">{children}</span>
+      <span className="acct-row__v">{children}{split}</span>
     </div>
   );
 }
 
 export function AccountDetailsPanel({
-  venue, figures, rows, positions, history, range, onRange, maxSharesCap, hidden, onToggleHidden, nowTs,
-  absence = null, sample = false,
+  venue, figures, rows, positions, history, range, onRange, hidden, onToggleHidden, nowTs,
+  absence = null, sample = false, booksSlot = null, bookRows = null,
 }: Props) {
   const practice = venue !== 'live';
   const live = venue === 'live' && !sample;
@@ -158,6 +162,7 @@ export function AccountDetailsPanel({
       <div className={`acct-hero__sub acct-num ${toneClass(toneOf(figures.dayPnl))}`} data-testid="account-day-line">
         {hidden ? ACCOUNT_TAV_HIDDEN : `${formatSignedMoney(figures.dayPnl)}  ${formatSignedPercent(dayPct)}`} {ACCOUNT_TODAY_SUFFIX}
       </div>
+      {booksSlot}
       <div className="acct-ranges" role="tablist" aria-label="Range">
         {ACCOUNT_HISTORY_RANGES.map((r) => (
           <button
@@ -203,7 +208,16 @@ export function AccountDetailsPanel({
       </div>
       <div className="acct-rows" data-testid="account-rows">
         <Row label={ACCOUNT_ROW_OPEN_PNL}><Money value={rows.openPnl} signed /></Row>
-        <Row label={ACCOUNT_ROW_DAY_PNL}><Money value={rows.dayPnl} signed /></Row>
+        <Row label={ACCOUNT_ROW_DAY_PNL}
+          split={bookRows && <BookSplitMini split={bookRows.dayPnl} money testId="account-day-pnl-split" />}>
+          <Money value={rows.dayPnl} signed />
+        </Row>
+        {bookRows && (
+          <Row label={ACCOUNT_ROW_FILLS_TODAY}
+            split={<BookSplitMini split={bookRows.fills} money={false} testId="account-fills-today-split" />}>
+            <span className="acct-num" data-testid="account-fills-today">{bookRows.fillsToday.toLocaleString('en-US')}</span>
+          </Row>
+        )}
         <Row label={ACCOUNT_ROW_REALIZED_TODAY}><Money value={rows.realizedToday} signed /></Row>
         <Row label={ACCOUNT_ROW_BUYING_POWER}><Money value={rows.buyingPower} /></Row>
         <Row label={ACCOUNT_ROW_EXCESS_LIQUIDITY}>
@@ -257,14 +271,8 @@ export function AccountDetailsPanel({
         <h3>{ACCOUNT_RISK_TITLE}</h3>
       </div>
       <div className="acct-risk" data-testid="account-risk">
-        {/* The cap sizes each bot order; it is not a position limit, so no meter compares the two (W11). */}
+        {/* No bot order size: the strategy bots are retired, the strategies only watch (ADR 072). */}
         <div className="acct-rrow">
-          <div className="acct-rrow__kv">
-            <span className="acct-row__k">{ACCOUNT_RISK_BOT_ORDER_SIZE}</span>
-            <span className={maxSharesCap == null ? 'acct-muted' : 'acct-num'} data-testid="account-bot-order-size">
-              {maxSharesCap == null ? ACCOUNT_RISK_BOT_ORDER_SIZE_NONE : accountRiskBotOrderSize(formatShareQty(maxSharesCap))}
-            </span>
-          </div>
           <div className="acct-rrow__kv">
             <span className="acct-row__k">{ACCOUNT_RISK_LARGEST_POSITION}</span>
             <span className="acct-num" data-testid="account-largest-position">

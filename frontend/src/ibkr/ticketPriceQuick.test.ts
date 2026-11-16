@@ -19,6 +19,15 @@ describe('quickPriceFromBook', () => {
   });
 });
 
+describe('quickPriceFromBook under $1', () => {
+  it('keeps four digits: a 0.3188 bid is never sent as 0.32', () => {
+    const book = { symbol: 'SOAR', bid: 0.3188, ask: 0.3192 };
+    expect(quickPriceFromBook('bid', book, 'SOAR')).toBe('0.3188');
+    expect(quickPriceFromBook('ask', book, 'SOAR')).toBe('0.3192');
+    expect(quickPriceFromBook('mid', book, 'SOAR')).toBe('0.319');
+  });
+});
+
 describe('followKindForSeed', () => {
   it('follows the side a Limit seed read from the book', () => {
     expect(followKindForSeed('ask_bid', 'BUY', 'LMT')).toBe('ask');

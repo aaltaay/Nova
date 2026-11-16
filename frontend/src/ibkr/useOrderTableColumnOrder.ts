@@ -3,14 +3,14 @@
  */
 import { useCallback, useState } from 'react';
 import { ORDER_TABLE_COLUMNS_STORAGE_KEY } from '../constants';
+import type { OrderTableId } from './orderTableColumns';
 import {
   defaultColumnStore,
   loadColumnStore,
   moveColumnOrder,
   saveColumnStore,
   type OrderTableColumnStore,
-  type OrderTableId,
-} from './orderTableColumns';
+} from './orderTableColumnStore';
 
 function readStore(): OrderTableColumnStore {
   return loadColumnStore(ORDER_TABLE_COLUMNS_STORAGE_KEY);

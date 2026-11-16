@@ -2,11 +2,14 @@
 Equity curve and max drawdown from closed trades sorted by closed_ts.
 
 Uses cumulative closed-trade P&L — not account balance — so the curve is
-honest even when the journal has partial history.
+honest even when the journal has partial history. Each point says whose trade
+it was (ADR 069): ``owner`` (null reads as yours) and the bots' ``bot``.
 """
 from __future__ import annotations
 
 from typing import Any
+
+from journal.split import book_of_trade, bot_of_trade
 
 
 def compute_drawdown(trades: list[dict]) -> dict[str, Any]:
@@ -36,6 +39,8 @@ def compute_drawdown(trades: list[dict]) -> dict[str, Any]:
                 "pnl": round(pnl, 2),
                 "equity": round(equity, 2),
                 "drawdown": round(dd, 2),
+                "owner": book_of_trade(trade),
+                "bot": bot_of_trade(trade),
             }
         )
 

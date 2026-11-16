@@ -1,57 +1,28 @@
 """Localhost bot HTTP API (ADR 016). Thin handlers -- logic lives in bot/.
 
-ADR 042: the bot's stock list is written only through stock mode's rules
-(``bot.allowlist``); Activate refuses with a plain reason (``bot.activation``); the
-localhost API refuses every kind on Live and on a replay desk (``bot.actions``).
-
-ADR 044: the Bot switch (``POST /api/bot/session/switch``, ``bot.switch``) is the desk's one
-control -- ``PATCH {level}`` and ``POST /arm`` stay for the localhost API; each bot family has its key under it
-(``POST /api/bot/session/keys``, ``bot.family_keys``) -- and the squares
-(``GET /api/bot/triggers``, ``bot.trigger_audit``) say, by ticker, why Nova bought or did not.
+ADR 072: the bots are retired. What stays is the bot API's door (``/api/bot/action`` with its session claim and
+heartbeat), which becomes the brain's -- until then nothing opens it (``bot.door``: Activate is gone) and the
+execution door refuses its sends in words (``execution.retired_senders``) -- and the bot audit stream, read-only
+history -- and ``PATCH /api/bot/session {caps}``, your risk per trade that Stage sizes by (``bot.caps``). The Bot
+switch, the family keys, Activate, the levels, the allowlist, proposals, focus, the day P&L meter and the squares are
+gone with the Bots page.
 """
 from __future__ import annotations
 
-import re
-import time
-from datetime import datetime
-
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Request
 
 from auth import require_bot_auth
-from bot.api_models import (
-    ActionBody,
-    AllowlistBody,
-    ArmBody,
-    FocusBody,
-    HeartbeatBody,
-    KeyBody,
-    LiveSyncBody,
-    ProposalBody,
-    SessionPatch,
-    SwitchBody,
-)
-from bot.arming import (
-    assert_desk_activate,
-    disarm_session,
-    issue_arm_token,
-    record_heartbeat,
-)
+from bot.api_models import ActionBody, CapsPatch, ClaimBody, HeartbeatBody
+from bot.arming import record_heartbeat
 from bot.audit import list_entries
-from bot.audit import record as audit_record
-from bot.autonomy import apply_patch
-from bot.day_pnl import read_account_day_pnl
 from bot.errors import BotError
-from bot.focus import add_focus, set_focus, snapshot as focus_snapshot
-from bot.focus import sync_trader_live
-from bot.http import brain_id, desk_arm_token, http_error, require_loopback
+from bot.http import brain_id, http_error, require_loopback
 from bot.persist import load_session
-from bot.proposals import accept, list_proposals, reject, submit
 from bot.session import get_session, require_l2_brain
 from bot.watch import halt_watch
 
 router = APIRouter(tags=["bot"], dependencies=[Depends(require_loopback)])
 _write = [Depends(require_bot_auth)]
-_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 @router.get("/api/bot/session")
@@ -62,138 +33,21 @@ def bot_session() -> dict:
 
 @router.patch("/api/bot/session", dependencies=_write)
 @router.patch("/bot/session", dependencies=_write)
-async def bot_session_patch(request: Request, body: SessionPatch) -> dict:
-    """The desk's controls. ``symbol_allowlist`` goes through stock mode (one owner, ADR 042):
-    each stock it cannot set is listed in ``refused`` with its reason, and the rest apply."""
-    from bot.allowlist import set_list
-    from constants_bot import BOT_REASON_ARM_DESK_ONLY
+def bot_session_caps(request: Request, body: CapsPatch) -> dict:
+    """Your risk per trade on a venue (``bot.caps``): the only write left on the session. The desk's alone."""
+    from bot.caps import apply as apply_caps
+    from constants_bot import BOT_REASON_CAPS_DESK_ONLY
 
     payload = body.model_dump(exclude_none=True)
     if brain_id(request, payload):
-        # Adapters never raise autonomy (ADR 016): the levels, the sleeve and the stocks are the desk's.
-        raise http_error(BotError("a brain cannot change the bot's levels, sleeve or stocks -- the desk does", 403,
-                                  BOT_REASON_ARM_DESK_ONLY))
-    symbols = payload.pop("symbol_allowlist", None)
+        raise http_error(BotError("a brain cannot set the risk per trade -- the desk does", 403,
+                                  BOT_REASON_CAPS_DESK_ONLY))
+    payload.pop("brain_session_id", None)
     try:
-        if payload:
-            raised = _strategies_raised(payload)
-            if raised:
-                # No bot turns on over a locked padlock (bot.padlock_gate, operator decision 2026-10-20).
-                from bot.padlock_gate import require_unlocked
-
-                require_unlocked()
-            apply_patch(payload, desk=True, arm_token=desk_arm_token(request, payload))
-            if raised:
-                # On flows up (operator ask 2026-10-16): a strategy turned On turns Strategy Bots and the Bot switch on.
-                from bot.cascade import family_on
-                from constants_bot import BOT_FAMILY_STRATEGY
-
-                family_on(BOT_FAMILY_STRATEGY)
-        refused = await set_list(symbols) if symbols is not None else []
+        apply_caps(payload)
     except BotError as exc:
         raise http_error(exc) from exc
-    view = get_session()
-    if symbols is not None:
-        view["refused"] = refused
-    return view
-
-
-def _strategies_raised(payload: dict) -> bool:
-    """Whether this PATCH turns a strategy On that is not On now."""
-    from bot.persist import load_session as _load
-    from bot.setup_levels import own_levels
-    from constants_bot import BOT_LEVEL_STRATEGY
-
-    levels = payload.get("setup_levels")
-    if not isinstance(levels, dict):
-        return False
-    before = own_levels(_load())
-    out = False
-    for sid, value in levels.items():
-        try:
-            out = out or (int(value) >= BOT_LEVEL_STRATEGY > int(before.get(sid) or 0))
-        except (TypeError, ValueError):  # maintainer: allow-swallow apply_patch refuses a bad level with its reason
-            continue
-    return out
-
-
-@router.post("/api/bot/session/arm", dependencies=_write)
-@router.post("/bot/session/arm", dependencies=_write)
-def bot_arm(request: Request, body: ArmBody | None = None) -> dict:
-    """Activate (ADR 042 B): refused with a plain reason on Live, a replay desk, an unreadable venue,
-    the master below Strategy, no setup at Strategy, or a locked padlock."""
-    from bot.activation import assert_can_activate
-
-    payload = body.model_dump(exclude_none=True) if body else {}
-    try:
-        assert_desk_activate(brain_id(request, payload))
-        assert_can_activate(load_session())
-        token = issue_arm_token()
-        audit_record(action="activate", outcome="ok", reason="Activated from the desk")
-        view = get_session()
-        view["desk_arm_token"] = token
-        return view
-    except BotError as exc:
-        raise http_error(exc) from exc
-
-
-@router.post("/api/bot/session/switch", dependencies=_write)
-@router.post("/bot/session/switch", dependencies=_write)
-def bot_switch(request: Request, body: SwitchBody) -> dict:
-    """The Bot switch (ADR 044): ON is the master at Strategy and Activate in one step, refused with
-    Activate's codes; OFF deactivates with the master at Eyes."""
-    from bot.switch import turn
-
-    payload = body.model_dump(exclude_none=True)
-    try:
-        assert_desk_activate(brain_id(request, payload))
-        token = turn(body.on)
-    except BotError as exc:
-        raise http_error(exc) from exc
-    view = get_session()
-    if token:
-        view["desk_arm_token"] = token
-    return view
-
-
-@router.post("/api/bot/session/keys", dependencies=_write)
-@router.post("/bot/session/keys", dependencies=_write)
-def bot_family_key(request: Request, body: KeyBody) -> dict:
-    """A family key (bot.md, "The three keys"): off, its bots place no order, nothing is sold; on turns the Bot
-    switch on too (``bot.cascade``), refused over a locked padlock (``bot.padlock_gate``)."""
-    from bot import family_keys
-
-    payload = body.model_dump(exclude_none=True)
-    try:
-        assert_desk_activate(brain_id(request, payload))
-        family_keys.turn(body.family, body.on)
-    except BotError as exc:
-        raise http_error(exc) from exc
-    token = None
-    if body.on:
-        # On flows up (operator ask 2026-10-16): a family key turned on turns the Bot switch on.
-        from bot.cascade import switch_on
-
-        token, _why = switch_on()
-    view = get_session()
-    if token:
-        view["desk_arm_token"] = token
-    return view
-
-
-@router.post("/api/bot/session/disarm", dependencies=_write)
-@router.post("/bot/session/disarm", dependencies=_write)
-def bot_disarm(request: Request, body: ArmBody | None = None) -> dict:
-    from bot.activation import record
-
-    payload = body.model_dump(exclude_none=True) if body else {}
-    try:
-        assert_desk_activate(brain_id(request, payload))
-        disarm_session("operator")
-        record("operator")
-        return get_session()
-    except BotError as exc:
-        raise http_error(exc) from exc
+    return get_session()
 
 
 @router.post("/api/bot/session/heartbeat", dependencies=_write)
@@ -209,29 +63,13 @@ def bot_heartbeat(request: Request, body: HeartbeatBody | None = None) -> dict:
 
 @router.post("/api/bot/session/claim", dependencies=_write)
 @router.post("/bot/session/claim", dependencies=_write)
-def bot_claim(request: Request, body: SessionPatch | None = None) -> dict:
+def bot_claim(request: Request, body: ClaimBody | None = None) -> dict:
     payload = body.model_dump(exclude_none=True) if body else {}
     try:
         require_l2_brain(brain_id(request, payload), claim=True)
         return get_session()
     except BotError as exc:
         raise http_error(exc) from exc
-
-
-@router.post("/api/bot/allowlist", dependencies=_write)
-@router.post("/bot/allowlist", dependencies=_write)
-async def bot_allowlist(body: AllowlistBody) -> dict:
-    """One stock on or off this venue's bot list, through stock mode's rules (ADR 042 F): ``add`` sets it
-    to Bot (Nova / Nova), ``remove`` to Signal only. A refusal is stock mode's ``{detail: {reason, error,
-    field}}``."""
-    from bot.allowlist import set_one
-    from stock_mode.errors import StockModeError
-
-    try:
-        await set_one(body.symbol, on=body.op != "remove")
-    except StockModeError as exc:
-        raise HTTPException(status_code=exc.status, detail=exc.detail()) from exc
-    return get_session()
 
 
 @router.get("/api/bot/watch")
@@ -252,97 +90,7 @@ async def bot_action(request: Request, body: ActionBody) -> dict:
         raise http_error(exc) from exc
 
 
-@router.get("/api/bot/proposals")
-@router.get("/bot/proposals")
-def bot_proposals() -> dict:
-    return {"proposals": list_proposals()}
-
-
-@router.post("/api/bot/proposals", dependencies=_write)
-@router.post("/bot/proposals", dependencies=_write)
-def bot_propose(request: Request, body: ProposalBody) -> dict:
-    payload = body.model_dump(exclude_none=True)
-    try:
-        return submit(payload, brain_session_id=brain_id(request, payload))
-    except BotError as exc:
-        raise http_error(exc) from exc
-
-
-@router.post("/api/bot/proposals/{proposal_id}/accept", dependencies=_write)
-@router.post("/bot/proposals/{proposal_id}/accept", dependencies=_write)
-def bot_accept(proposal_id: str) -> dict:
-    try:
-        return accept(proposal_id)
-    except BotError as exc:
-        raise http_error(exc) from exc
-
-
-@router.post("/api/bot/proposals/{proposal_id}/reject", dependencies=_write)
-@router.post("/bot/proposals/{proposal_id}/reject", dependencies=_write)
-def bot_reject(proposal_id: str) -> dict:
-    try:
-        return reject(proposal_id)
-    except BotError as exc:
-        raise http_error(exc) from exc
-
-
-@router.get("/api/bot/focus")
-@router.get("/bot/focus")
-def bot_focus() -> dict:
-    return focus_snapshot()
-
-
-@router.post("/api/bot/focus", dependencies=_write)
-@router.post("/bot/focus", dependencies=_write)
-def bot_focus_set(body: FocusBody) -> dict:
-    try:
-        if body.symbols is not None:
-            return set_focus(body.symbols)
-        if body.symbol:
-            return add_focus(body.symbol)
-        return focus_snapshot()
-    except BotError as exc:
-        raise http_error(exc) from exc
-
-
-@router.post("/api/bot/focus/sync", dependencies=_write)
-@router.post("/bot/focus/sync", dependencies=_write)
-def bot_focus_sync(body: LiveSyncBody) -> dict:
-    return sync_trader_live(body.live)
-
-
 @router.get("/api/bot/audit")
 @router.get("/bot/audit")
 def bot_audit(limit: int = 200) -> dict:
     return {"entries": list_entries(limit=limit)}
-
-
-@router.get("/api/bot/pnl")
-@router.get("/bot/pnl")
-def bot_pnl() -> dict:
-    """The account's day P&L meter (read-only; nothing compares it since ADR 056)."""
-    pnl, meter = read_account_day_pnl()
-    return {"day_pnl": pnl, "meter": meter}
-
-
-@router.get("/api/bot/triggers")
-@router.get("/bot/triggers")
-def bot_triggers(date: str | None = Query(None, description="YYYY-MM-DD; trading day (04:00 ET) by default")) -> dict:
-    """The squares, by ticker (ADR 044): every listed ticker now and every trigger of the day, gate by gate.
-    Read-only; a sync route, so the journal and the audit stream are read off the loop. Today is Nova's
-    trading day (``market.session_key_et``), never the calendar's: from midnight to 04:00 ET it is still the
-    day before, and a weekend or holiday keeps the last exchange day, as the Setups board and the entry count do."""
-    from bot.trigger_audit import answer
-    from market import session_key_for_ts
-    from scanner_wire import wire_safe
-
-    now = time.time()
-    today = session_key_for_ts(now)
-    day = date or today
-    try:
-        if not _DATE.match(day):
-            raise ValueError(day)
-        datetime.fromisoformat(day)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="date is YYYY-MM-DD") from None
-    return wire_safe(answer(day, now, today=day == today))

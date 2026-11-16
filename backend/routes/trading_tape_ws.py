@@ -4,15 +4,12 @@ A Sim desk off the live edge skips IBKR subscribe and reads the same viewer
 queues the feed injects; at the live edge (ADR 020 live-edge amendment) it
 opens the real tape line exactly as a Paper or Live desk does.
 
-A hidden Trader tab lends its AllLast line with its Level 2 line (ADR 044
-decision 6, ``line_lending``): the Trader tab's Time & Sales opens with
-``?tab=1`` and ``front=1`` while it is the tab in front. While a loan stands, a
-socket for the lender gets ``{"type": "lent", ...}`` and closes; one from the tab
-in front recalls the loan first. A standing socket whose line is lent reads the
-same frame from its queue and closes.
+The lanes hold every live line (ADR 071, ``line_lanes``): a socket opened in front (``front=1``) puts your lane on its
+stock first; for a stock no lane is on a socket reads ``{"type": "lane", symbol, message, lane}`` and closes, and the
+same frame comes when the lane leaves its stock. A socket closing never ends a lane's line.
 
 A line IBKR refuses or ends while the socket stands (10190, its tick-by-tick cap,
-arrives after the request) is brought back by ``line_lending.tape_heal`` (#698):
+arrives after the request) is brought back by ``line_lanes.tape_heal`` (#698):
 the socket forwards its words and ``retry_at``, then ``subscribed`` when the line
 is back. It used to stay open on a dead line until the tab was reopened.
 
@@ -39,8 +36,8 @@ from fastapi import WebSocket, WebSocketDisconnect
 from constants_market_view import FEED_STALE, MARKET_VIEW_GATE_SEND_SEC, VIEW_GATE_EXEMPT_TEXT
 from ibkr import tape_silence
 from ibkr import tape_stream as _tape
-from line_lending import socket_gate
-from line_lending.sockets import TAPE
+from line_lanes import lanes as _lanes
+from line_lanes import sockets as _lane
 from sim.mode import desk_connected, is_replay_desk
 
 logger = logging.getLogger(__name__)
@@ -49,24 +46,20 @@ logger = logging.getLogger(__name__)
 async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
     symbol = symbol.upper()
     await websocket.accept()
-    tab, front = socket_gate.flags(websocket.query_params)
+    tab, front = _lane.flags(websocket.query_params)
 
     if not desk_connected():
         await websocket.send_text(json.dumps({"type": "error", "message": "IBKR not connected"}))
         await websocket.close()
         return
 
-    # The line is lent (ADR 044): say so and close -- unless this is the tab in front, which recalled it.
-    lent = await socket_gate.gate(symbol, front=front)
-    if lent is not None:
-        await websocket.send_text(json.dumps(lent))
-        await websocket.close()
-        return
+    # In front: your lane goes to this stock now -- the old stock's lines end first (ADR 071).
+    await _lane.opening(symbol, front=front)
 
     if not is_replay_desk() and not _tape.is_subscribed(symbol):
         result = await _tape.subscribe_async(symbol)
         if not result["ok"]:
-            await websocket.send_text(json.dumps({"type": "error", "message": result["error"]}))
+            await websocket.send_text(json.dumps(_refused(symbol, result)))
             await websocket.close()
             return
 
@@ -76,20 +69,20 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
     try:
         _tape.ws_viewer_opened(symbol)
         viewer_opened = True
-        # No await between: the lending registry and the viewer count move together.
-        socket_token = socket_gate.opened(symbol, tab=tab, front=front, kind=TAPE)
+        # No await between: the sockets' registry and the viewer count move together.
+        socket_token = _lane.opened(symbol, tab=tab, front=front, kind=_lane.TAPE)
 
         if not is_replay_desk() and not _tape.is_subscribed(symbol):
             result = await _tape.subscribe_async(symbol)
             if not result["ok"]:
-                await websocket.send_text(json.dumps({"type": "error", "message": result["error"]}))
+                await websocket.send_text(json.dumps(_refused(symbol, result)))
                 return
 
         queue = _tape.open_viewer_queue(symbol)
-        # A loan of this line that began while this socket subscribed pushed its frame before the queue existed.
-        lent = socket_gate.lent_now(symbol, front=front)
-        if lent is not None:
-            await websocket.send_text(json.dumps(lent))
+        no_lane = None if is_replay_desk() else _lanes.refusal(symbol)
+        if no_lane is not None:
+            # The lane left this stock while this socket subscribed: its frame went out before the queue existed.
+            await websocket.send_text(json.dumps(_refused(symbol, {"error": no_lane, "lane": True})))
             await websocket.close()
             return
         await websocket.send_text(json.dumps({"type": "subscribed", "symbol": symbol}))
@@ -119,7 +112,7 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
                 await websocket.send_text(json.dumps({"type": "ping", "symbol": symbol, "silence": silence,
                                                       "gate": gate_sent}))
                 if not is_replay_desk():
-                    socket_gate.line_down(symbol, silence=silence)
+                    _lane.line_down(symbol, silence=silence)
                 continue
             if not await _send_batch(websocket, symbol, batch):
                 break
@@ -140,12 +133,18 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
     finally:
         if queue is not None:
             _tape.close_viewer_queue(symbol, queue)
-        socket_gate.closed(symbol, socket_token, TAPE)
-        if viewer_opened and _tape.ws_viewer_closed(symbol):
-            # The last viewer left: release the real line if one is open (a Sim
-            # tab holds one at the live edge). With no line this is a no-op, so
-            # a replay desk is unchanged.
+        _lane.closed(symbol, socket_token, _lane.TAPE)
+        if viewer_opened and _tape.ws_viewer_closed(symbol) and _lane.ends_line(symbol):
+            # The last viewer of a line no lane is on left. A lane's line ends only when its lane leaves (ADR 071);
+            # with no line this is a no-op, so a replay desk is unchanged.
             _tape.unsubscribe(symbol)
+
+
+def _refused(symbol: str, result: dict) -> dict:
+    """The frame for a subscribe that failed: the lanes' ``lane`` frame when no lane is on the stock (ADR 071)."""
+    if result.get("lane"):
+        return {"type": "lane", "symbol": symbol, "message": result.get("error"), "lane": _lanes.wire()}
+    return {"type": "error", "message": result.get("error")}
 
 
 async def _send_prints(websocket: WebSocket, symbol: str, prints: list[dict]) -> None:
@@ -169,8 +168,8 @@ async def _send_batch(websocket: WebSocket, symbol: str, batch: list[dict]) -> b
             prints.append(item)
             continue
         await _send_prints(websocket, symbol, prints)
-        if msg_type == "lent":
-            # Lent to a setup (ADR 044): the tab waits for it to come back, never by its backoff.
+        if msg_type == "lane":
+            # Its lane left the stock (ADR 071): the pane waits for the operator, never by its backoff.
             await websocket.send_text(json.dumps(item))
             await websocket.close()
             return False
@@ -193,7 +192,7 @@ async def _send_batch(websocket: WebSocket, symbol: str, batch: list[dict]) -> b
                 await websocket.close()
                 return False
             if not item.get("healing"):
-                socket_gate.line_down(symbol)  # IBKR refused or ended it: ask again, never wait on a dead line
+                _lane.line_down(symbol)  # IBKR refused or ended it: ask again, never wait on a dead line
         elif msg_type == "scrub_reset":
             await websocket.send_text(json.dumps({"type": "scrub_reset", "symbol": symbol}))
         else:
@@ -216,7 +215,7 @@ def _gate(symbol: str) -> dict | None:
 def _has_silence_watch(symbol: str) -> bool:
     if _tape.is_subscribed(symbol):
         return True
-    from line_lending import tape_heal
+    from line_lanes import tape_heal
 
     return tape_heal.unverified_reask(symbol) is not None
 
@@ -224,7 +223,7 @@ def _has_silence_watch(symbol: str) -> bool:
 def _silence(symbol: str, halt_seen_at: float | None) -> dict | None:
     """The line's silence for the ping (memory only); None when it cannot be read."""
     try:
-        from line_lending import tape_heal
+        from line_lanes import tape_heal
 
         reading = tape_silence.reading(symbol, halt_seen_at=halt_seen_at)
         recovery = tape_heal.silent_status(symbol)

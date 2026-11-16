@@ -1,7 +1,7 @@
 /**
- * Single owner for bot session / proposals / audit HTTP.
- * The Bots page hero, the Trader rail card and the page's cards share one snapshot. Across
- * Electron+Vite windows, one leader polls; followers apply the share.
+ * Single owner for bot session / audit HTTP. Since ADR 072 retired the bots and their Bots page, the day-cover
+ * alarms are what read it (the session's day cover); no proposal is asked for -- the route is gone and the snapshot's
+ * `proposals` stays empty. Across Electron+Vite windows, one leader polls; followers apply the share.
  */
 import {
   DESK_BOT_POLL_MS,
@@ -24,7 +24,7 @@ import {
 } from '../ibkr';
 import { SAMPLE_BOT_ABSENT } from '../sample_data/sampleCopy';
 import { isSampleView } from '../sample_data/sampleNav';
-import { fetchBotAudit, fetchBotProposals, fetchBotSession } from './api';
+import { fetchBotAudit, fetchBotSession } from './api';
 import { botUnreadableMessage, parseBotAudit, parseBotProposals, parseBotSession } from './botPayload';
 import type { BotAuditEntry, BotProposal, BotSession } from './types';
 
@@ -141,11 +141,8 @@ export async function pollBotSessionOnce(): Promise<void> {
   const epoch = applyEpoch;
   const route = watchDeskRequestRoute();
   try {
-    const [session, proposals, audit] = await Promise.all([
-      fetchBotSession(),
-      fetchBotProposals(),
-      fetchBotAudit(),
-    ]);
+    const [session, audit] = await Promise.all([fetchBotSession(), fetchBotAudit()]);
+    const proposals: never[] = [];   // ADR 072: no strategy proposes
     if (!route.isCurrent() || epoch !== applyEpoch || !isConfirmedDeskVenueSnapshotCurrent(scope)) return;
     if (!matchesSession(session, scope)) return;
     publishLocal({

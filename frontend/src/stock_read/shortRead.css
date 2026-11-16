@@ -26,8 +26,3 @@
   background: var(--short);
   color: #fff;
 }
-
-/* With Entry on Bot: "Long or short: the strategy decides · forming now: ...". */
-.sr-who__answer--sides {
-  color: var(--sr-muted);
-}

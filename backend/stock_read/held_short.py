@@ -16,8 +16,8 @@
 - **The ladder**: the stop and the average over the price, the broke and through rounds, a resistance, the
   price, and the next two zones under it -- highest price first, as the long ladder.
 
-Nothing here places or moves an order. ``stock_mode.exit_trade`` lowers Nova's own buy stop by the same
-rule (``lower_for``).
+Nothing here places or moves an order (``lower_for`` is the rule for lowering a buy stop). ADR 072 retired
+Nova's exit, the buy stop Nova held for you.
 """
 from __future__ import annotations
 
@@ -112,10 +112,8 @@ def proposed_stop(bars: list[dict[str, Any]], price: float, intraday: list[dict[
 
 
 def _stop(bars: list[dict[str, Any]], price: float | None, intraday: list[dict[str, Any]],
-          yours: float | None, nova: float | None, since: float | None) -> dict[str, Any] | None:
-    if nova is not None:
-        price_s, source, rule = nova, "nova", "Nova's resting buy stop"
-    elif yours is not None:
+          yours: float | None, since: float | None) -> dict[str, Any] | None:
+    if yours is not None:
         price_s, source, rule = yours, "yours", "your buy stop"
     elif price is not None:
         got = proposed_stop(bars, price, intraday)
@@ -175,14 +173,13 @@ def _levels(price: float | None, risk: float | None, stop: dict[str, Any] | None
 
 def build(*, bars: list[dict[str, Any]], price: float | None, level_map: dict[str, Any] | None, avg: float,
           qty: float, now: float, since: float | None = None, stop: float | None = None,
-          nova_stop: float | None = None, risk: float | None = None,
-          checks: list[dict[str, Any]] | None = None) -> dict[str, Any]:
-    """``held`` for a short you hold (``qty`` the shares short). ``stop``: your buy stop; ``nova_stop``: Nova's
-    resting buy stop when it holds the cover; ``risk``: the risk a share you measure R in."""
+          risk: float | None = None, checks: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    """``held`` for a short you hold (``qty`` the shares short). ``stop``: your buy stop; ``risk``: the risk a
+    share you measure R in."""
     lm = level_map or {}
     intraday = list(lm.get("intraday") or [])
     rnd = rounds.of(lm.get("price")) or rounds.of(price) or rounds.of(avg)
-    st = _stop(bars, price, intraday, _f(stop), _f(nova_stop), since)
+    st = _stop(bars, price, intraday, _f(stop), since)
     stop_px = st["price"] if st else None
     risk_v = _f(risk)
     if risk_v is None and stop_px is not None and stop_px > avg + EPS:

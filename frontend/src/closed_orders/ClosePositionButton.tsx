@@ -19,6 +19,7 @@ import {
 import { captureBrowserAction } from '../execution_latency';
 import { flattenLabel } from '../ibkr';
 import { closeFullPosition } from '../ibkr';
+import { getConfirmedDeskVenueSnapshot } from '../ibkr';
 import { flattenSpendLockReason, isDisarmed } from '../ibkr';
 import type { IbkrMode, IbkrPosition } from '../ibkr';
 import { alertApp, confirmApp } from '../ux';
@@ -73,6 +74,8 @@ export function ClosePositionButton({
     if (!canClose) return;
     // No padlock step: arming here would also unlock every order that opens.
     const actionTiming = captureBrowserAction('user_action');
+    // Read before the dialog: it names this account, so a desk that leaves it sends nothing (#1283).
+    const { venue } = getConfirmedDeskVenueSnapshot();
     const absQty = formatShareQty(Math.abs(position.qty));
     const closeSide = position.qty > 0 ? 'SELL' : 'BUY';
     // A short's flatten buys the borrowed shares back (ADR 048): the dialog says so.
@@ -94,6 +97,7 @@ export function ClosePositionButton({
         timingAction: actionTiming,
         referencePrice: position.market_price,
         mode,
+        venue,
       });
       if (res.ok) onClosed?.();
       else await alertApp({ title: 'Flatten failed', message: res.error, tone: 'danger' });

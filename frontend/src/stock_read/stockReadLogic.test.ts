@@ -255,10 +255,10 @@ describe('the charts', () => {
     expect(scene.keepInView).toEqual({ min: 5.33, max: 5.49 });
   });
 
-  it("keeps an armed plan's zones and lines, framed to target 2, where an order stands behind a level", () => {
+  it("keeps an armed plan's zones and lines, framed to target 2, where shares are held at a level", () => {
     const armed: StockRead = { ...read, plan: { ...read.plan!, state: 'armed', provisional: false } };
     const levels = {
-      entry: { price: 5.44, behind: 'order' as const }, stop: { price: 5.33, behind: 'plan' as const },
+      entry: { price: 5.44, behind: 'held' as const }, stop: { price: 5.33, behind: 'plan' as const },
       target: { price: 5.49, behind: 'plan' as const }, target2: { price: 5.99, behind: 'plan' as const },
     };
     const { scene, lines } = paneDraw(armed, { pane: 'full', layers: LAYERS, toTime: identity, levels });
@@ -267,7 +267,7 @@ describe('the charts', () => {
     // The pane frames the stop to the furthest target (#845): target 2 at 5.99 is a line on the chart.
     expect(scene.keepInView).toEqual({ min: 5.33, max: 5.99 });
     const byId = Object.fromEntries(lines.map(l => [l.id, l]));
-    expect(byId.entry).toMatchObject({ price: 5.44, style: 'solid', title: 'ENTRY · working', axisLabel: true });
+    expect(byId.entry).toMatchObject({ price: 5.44, style: 'solid', title: 'ENTRY · held', axisLabel: true });
     expect(byId.entry.line).toBeUndefined();
     // Only a plan behind the stop and the targets: dashed, and they say so (ADR 037).
     expect(byId.target).toMatchObject({ title: 'TARGET 1 · plan', style: 'dashed' });
@@ -277,25 +277,25 @@ describe('the charts', () => {
     expect(Object.keys(byId).sort()).toEqual(['entry', 'stop', 'target', 'target2']);
   });
 
-  it("names an order's lines on the 10-second pane, and never draws the plan on the 5-minute (operator report 2026-10-13)", () => {
+  it("names a position's lines on the 10-second pane, and never draws the plan on the 5-minute (operator report 2026-10-13)", () => {
     // AIXI's forming Gap and Go drew four unnamed dotted lines on both charts: "for which strategy is this specifically?"
-    // A setup's plan is its box there (`strategyBox.test.ts`); a level an order stands behind is a line, named.
+    // A setup's plan is its box there (`strategyBox.test.ts`); a level shares are held at is a line, named.
     const armed: StockRead = { ...read, plan: { ...read.plan!, state: 'armed', provisional: false } };
     const levels = {
-      entry: { price: 5.44, behind: 'order' as const }, stop: { price: 5.33, behind: 'plan' as const },
+      entry: { price: 5.44, behind: 'held' as const }, stop: { price: 5.33, behind: 'plan' as const },
       target: { price: 5.49, behind: 'plan' as const }, target2: { price: 5.99, behind: 'plan' as const },
     };
     const { scene, lines } = paneDraw(armed, { pane: 'thin', layers: LAYERS, toTime: identity, levels });
     expect(scene.boxes).toEqual([]);
     expect(scene.strategy ?? null).toBeNull();
     expect(lines.map(l => [l.id, l.title, l.width, l.axisLabel, l.line, l.style])).toEqual([
-      ['entry', 'ENTRY · working', 1, true, undefined, 'solid'], ['stop', 'STOP · plan', 1, true, undefined, 'dashed'],
+      ['entry', 'ENTRY · held', 1, true, undefined, 'solid'], ['stop', 'STOP · plan', 1, true, undefined, 'dashed'],
       ['target', 'TARGET 1 · plan', 1, true, undefined, 'dashed'],
       ['target2', 'TARGET 2 · plan', 1, true, undefined, 'dashed'],
     ]);
     // Named lines put their names in the edge column: none is left unnamed.
     expect(lineWords(lines).map(w => w.text))
-      .toEqual(['ENTRY · working', 'STOP · plan', 'TARGET 1 · plan', 'TARGET 2 · plan']);
+      .toEqual(['ENTRY · held', 'STOP · plan', 'TARGET 1 · plan', 'TARGET 2 · plan']);
     for (const plan of [read, armed]) {
       const map = paneDraw(plan, { pane: 'map', layers: LAYERS, toTime: identity, levels });
       expect(map.lines.filter(l => ['entry', 'stop', 'target', 'target2'].includes(l.id))).toEqual([]);

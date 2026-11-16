@@ -6,6 +6,7 @@ import {
   TICKER_TRADE_QTY_NUDGE,
   TICKER_TRADE_SHARE_PRESETS,
 } from '../constants';
+import type { DeskVenue } from '../constantGroups/desk_venue';
 import type { TradeDefaultTif } from '../constantGroups/trade_defaults';
 
 export type ManualOrderSide = 'BUY' | 'SELL';
@@ -62,6 +63,8 @@ export interface ManualOrderPayload {
    * position and sends it as a protective flatten, never clamped to 1 share.
    */
   intent?: 'flatten';
+  /** The venue the operator acted on, read before any confirm: a desk that has left it sends nothing (#1283). */
+  venue?: DeskVenue | null;
 }
 
 export type BuildOrderResult =

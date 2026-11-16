@@ -1,8 +1,8 @@
 """Bot persisted files.
 
-Owner: this module (session + proposals + audit JSONL).
-Invalidation: process start loads (and clears Activate: it never survives a start,
-``bot.activation``); L0 does not delete history; schema bump.
+Owner: this module (session + audit JSONL). ADR 072 retired proposals: ``bot-proposals.json`` stays on disk, unread.
+Invalidation: process start loads (and clears Activate in memory: it never survives a start,
+``bot.arming``); L0 does not delete history; schema bump.
 schema_version: BOT_SCHEMA_VERSION. A v1-4 session migrates on load (ADR 042:
 ``bot.venue_levels.migrate_v5``); an unknown version refuses loudly.
 """
@@ -21,7 +21,6 @@ from constants_bot import (
     BOT_VENUES,
     BOT_LEVEL_OFF,
     BOT_LEVEL_UNRESTRICTED,
-    BOT_PROPOSALS_FILENAME,
     BOT_RETIRED_BREAKER_KEYS,
     BOT_RETIRED_SESSION_KEYS,
     BOT_RETIRED_V5_KEYS,
@@ -36,15 +35,10 @@ logger = logging.getLogger(__name__)
 
 _lock = threading.RLock()
 _session: dict[str, Any] | None = None
-_proposals: dict[str, Any] | None = None
 
 
 def _session_path() -> Path:
     return cache_dir() / BOT_SESSION_FILENAME
-
-
-def _proposals_path() -> Path:
-    return cache_dir() / BOT_PROPOSALS_FILENAME
 
 
 def _audit_path() -> Path:
@@ -72,10 +66,6 @@ def default_session() -> dict[str, Any]:
         "trader_live": [],
         "updated_ts": time.time(),
     }
-
-
-def default_proposals() -> dict[str, Any]:
-    return {"schema_version": BOT_SCHEMA_VERSION, "items": []}
 
 
 def _refuse_unknown(raw: Any, label: str) -> None:
@@ -145,10 +135,10 @@ def load_session() -> dict[str, Any]:
         merged["schema_version"] = BOT_SCHEMA_VERSION
         _refuse_parked_level(merged)
         _session = merged
-        # Activate never survives a process start (ADR 018 / 042), in memory at once.
-        from bot.activation import clear_on_load
+        # Activate never survives a process start (ADR 018 / 042), in memory at once; ADR 072 retired it.
+        from bot.arming import clear_arm_fields
 
-        clear_on_load(merged)
+        clear_arm_fields(merged)
         _follow_desk_venue(merged)
         return _session
 
@@ -209,36 +199,6 @@ def save_session(payload: dict[str, Any] | None = None) -> dict[str, Any]:
         return data
 
 
-def load_proposals() -> dict[str, Any]:
-    global _proposals
-    with _lock:
-        if _proposals is not None:
-            return _proposals
-        path = _proposals_path()
-        if not path.exists():
-            _proposals = default_proposals()
-            return _proposals
-        raw = json.loads(path.read_text(encoding="utf-8"))
-        _refuse_unknown(raw, BOT_PROPOSALS_FILENAME)
-        _proposals = {
-            "schema_version": BOT_SCHEMA_VERSION,
-            "items": list(raw.get("items") or []),
-        }
-        return _proposals
-
-
-def save_proposals(payload: dict[str, Any]) -> dict[str, Any]:
-    global _proposals
-    with _lock:
-        data = {
-            "schema_version": BOT_SCHEMA_VERSION,
-            "items": list(payload.get("items") or []),
-        }
-        _proposals = data
-        _write_atomic(_proposals_path(), json.dumps(data, indent=2))
-        return data
-
-
 def append_audit_line(row: dict[str, Any]) -> None:
     line = json.dumps(row, default=str)
     with _lock:
@@ -292,25 +252,12 @@ def read_audit_tail(max_bytes: int) -> tuple[list[dict[str, Any]], bool]:
     return rows, start == 0
 
 
-def audit_signature() -> tuple[int, int] | None:
-    """``(mtime_ns, size)`` of the audit file, for a reader that caches what it folded; None when absent."""
-    try:
-        st = _audit_path().stat()
-    except FileNotFoundError:
-        return None
-    return int(st.st_mtime_ns), int(st.st_size)
-
-
 def reset_for_tests() -> None:
-    global _session, _proposals
-    from bot.activation import reset_for_tests as reset_activation
-
-    reset_activation()
+    global _session
     with _lock:
         _session = None
-        _proposals = None
         try:
-            for path in (_session_path(), _proposals_path(), _audit_path()):
+            for path in (_session_path(), _audit_path()):
                 if path.exists():
                     path.unlink()
         except (OSError, NotImplementedError):

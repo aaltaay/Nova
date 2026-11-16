@@ -4,19 +4,16 @@
 host's shared, cached reading when it has one (``LaneHost.flow``,
 ``EyesReplay.flow``), else summed here from the host's prints and books.
 
-``read_trades`` reads every trade inside its scoring window every
-``TAPE_FLOW_EVAL_SEC``: the template's flush exit acts on the scoring
-(``ScoreTracker.on_flow``), the newest reading is kept for Nova's bot
-(``lane.flow_last``), and a turn into or out of a burst or a flush is journalled
-as ``flow`` (what a flush did, as ``flush``). A short's trade (ADR 049) reads a burst of buying
-as its flush and covers at the ask. Nothing here places an order.
+``trades`` lists the setups inside their scoring window. ADR 072 (2026-11-13): the strategies read Level 1, so the
+tape's flush no longer acts on a setup's scoring and no trade's flow is read after its trigger (``read_trades`` and
+the flush exit it drove are gone). Nothing here places an order.
 """
 from __future__ import annotations
 
 from typing import Any
 
-from constants_setups import TAPE_FLOW_BURST, TAPE_FLOW_EVAL_SEC, TAPE_FLOW_FLUSH
-from setup_scanner import tape_flow, target_choices
+from constants_setups import TAPE_FLOW_BURST, TAPE_FLOW_FLUSH
+from setup_scanner import tape_flow
 
 LOUD = (TAPE_FLOW_BURST, TAPE_FLOW_FLUSH)
 
@@ -34,33 +31,3 @@ def trades(lane: Any, now: float) -> list[str]:
     """Setup ids whose trade is inside its scoring window."""
     return [sid for sid, tr in lane.trackers.items()
             if sid in lane.rows and tr.triggered_at <= now <= tr.triggered_at + tr.window_min * 60]
-
-
-def read_trades(lane: Any, now: float) -> None:
-    for sid in trades(lane, now):
-        if now < lane._flow_next.get(sid, 0.0):
-            continue
-        lane._flow_next[sid] = now + TAPE_FLOW_EVAL_SEC
-        row, tr = lane.rows[sid], lane.trackers[sid]
-        sym = row["symbol"]
-        det = lane.det.get(sym)
-        reading = flow(lane, sym, now)
-        price = det.last_price if det is not None else None
-        bid = (reading.get("metrics") or {}).get("best_bid")
-        ask = (reading.get("metrics") or {}).get("best_ask")
-        label, score = reading.get("label"), reading.get("score")
-        lane.flow_last[sid] = {"ts": now, "label": label, "score": score, "price": price, "bid": bid,
-                               "readings": reading.get("readings"), **({"ask": ask} if tr.side == "short" else {})}
-        was = lane._flow_said.get(sid)
-        if label != was and (label in LOUD or was in LOUD):
-            lane.journal("flow", sym, setup_id=sid, label=label, was=was, score=score,
-                         readings=reading.get("readings"), price=price,
-                         since_trigger=round(now - tr.triggered_at, 1))
-        lane._flow_said[sid] = label
-        act = tr.on_flow(label=label, price=price, bid=bid, ts=now, ask=ask)
-        target_choices.feed_flow(lane, sid, label=label, price=price, bid=bid, ts=now, ask=ask)
-        if act is not None:
-            lane.journal("flush", sym, setup_id=sid, action=act, score=score, price=price, bid=bid,
-                         stop=tr.bar_stop, exit_px=tr.exit_px, mode=lane.p.flush.mode,
-                         **({"ask": ask, "side": "short"} if tr.side == "short" else {}))
-            lane._score(sid)

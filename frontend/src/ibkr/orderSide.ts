@@ -7,6 +7,7 @@
  * now while an order placed outside Nova is still working). A row without them says the side is
  * not known.
  */
+import { plainPrice } from '../utils/priceTick';
 import type { ColumnMeta } from './orderTableColumns';
 import type { IbkrOrder, IbkrPosition } from './types';
 
@@ -81,7 +82,7 @@ export function liquidationTitle(p: Pick<IbkrPosition, 'liquidation_price' | 'li
   }
   const source = p.liquidation_source ? ` Margin: ${p.liquidation_source}.` : '';
   return (
-    `IBKR would liquidate this position near ${p.liquidation_price.toFixed(2)}: where the account's equity ` +
+    `IBKR would liquidate this position near ${plainPrice(p.liquidation_price)}: where the account's equity ` +
     `falls to its maintenance requirement, every other position held still.${source}`
   );
 }

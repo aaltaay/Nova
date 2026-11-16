@@ -69,13 +69,6 @@ function tenSecondBars(): Bar[] {
   return out;
 }
 
-/** The stock-mode view of a stock nobody has set: Signal only, on Paper. */
-const SIGNAL_ONLY_VIEW = {
-  schema_version: 1, symbol: 'APUS', generated_at: Date.UTC(2026, 8, 24, 19, 3) / 1000, venue: 'paper',
-  mode: 'signal', buy: 'you', sell: 'you', risk_usd: null, set_at: null, locks: { buy: null, sell: null },
-  notes: [], approval: null, trade: null, nova_entries_today: 0, last_event: null, bot: null,
-};
-
 /** `readFor(url)` answers each read (the forming flag by default). */
 async function openApus(page: Page, readFor: (url: string) => unknown = () => apusReadWire) {
   const api = await mockLiveTraderApi(page, { bars: false, positions: [] });
@@ -99,14 +92,8 @@ async function openApus(page: Page, readFor: (url: string) => unknown = () => ap
     contentType: 'application/json', body: JSON.stringify(apusHistoryWire) }));
   await page.route(/\/api\/stock-read\/APUS(\?.*)?$/, route => route.fulfill({ status: 200,
     contentType: 'application/json', body: JSON.stringify(readFor(route.request().url())) }));
-  // The Who trades row above Level 2 (ADR 037) reads this; unanswered, it adds an error line and
-  // takes Level 2's room (#639). Signal only on Paper: what a desk that has set nothing shows.
-  await page.route('**/api/stock-mode/APUS', route => route.fulfill({ status: 200, contentType: 'application/json',
-    body: JSON.stringify(SIGNAL_ONLY_VIEW) }));
   await page.goto('/?view=stock&symbol=APUS');
   await expect(page.getByTestId('chart-desk-toolbar')).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByTestId('bot-card-state')).toContainText('ON');
-  await expect(page.getByTestId('bot-card-error')).toHaveCount(0);
   return api;
 }
 
@@ -193,6 +180,26 @@ test.describe("The bot's read on one stock", () => {
 
     expect(mutations).toEqual([]);
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
+  });
+
+  test('the rail has nothing to scroll sideways while the price tick sits along the ruler', async ({ page }) => {
+    await openApus(page);
+    await page.getByTestId('stock-read-plan-fold').click();
+    const track = page.getByTestId('stock-read-ruler').locator('.sr-ruler__track');
+    await expect(track).toHaveAttribute('style', /translateX\((?!0%)/);
+    // A narrow rail, the desk's own, and the wide one the operator reported it on.
+    for (const width of ['300px', '', '950px']) {
+      const rail = await page.getByTestId('stock-read-rail').evaluate((el, w) => {
+        (el as HTMLElement).style.width = w;
+        return { scroll: el.scrollWidth, client: el.clientWidth };
+      }, width);
+      expect(rail.scroll, `rail at ${width || 'desk width'}`).toBeLessThanOrEqual(rail.client);
+      await shot(page, `rail-${width || 'desk'}`);
+    }
+    await page.getByTestId('stock-read-rail').evaluate(el => { (el as HTMLElement).style.width = ''; });
+    // The tick itself still shows: containment stops the track widening the rail, not painting.
+    await expect(page.getByTestId('stock-read-ruler').locator('.sr-ruler__now')).toBeVisible();
+    await shot(page, 'rail-no-sideways-scroll');
   });
 
   test("opens every signal, the bot's day and the history in the sheet", async ({ page }) => {

@@ -212,14 +212,14 @@ describe('FollowedTradersPage', () => {
   });
 
   it('draws what another feature gives it: after the title, in a card on today, beside an open row', async () => {
-    // Bots > LiveTrader Bots (operator, 2026-10-15): the LiveTrader Bots key, each host's bot, a copy's chip.
+    // A feature may draw in the page's slots (none does since ADR 072 retired the Live Trader): head, card, row.
     const slots: FollowedSlots = {
       Head: () => <span data-testid="slot-head">key</span>,
       Trader: ({ name, open }) => <span data-testid={`slot-trader-${name}`}>{open.map((t) => t.symbol).join(',')}</span>,
       OpenBadge: ({ trade }) => <span data-testid={`slot-badge-${trade.id}`}>BOT</span>,
     };
     await show(day(), () => undefined, undefined, slots);
-    expect(q('slot-head')!.previousElementSibling!.textContent).toBe('LiveTrader Bots');
+    expect(q('slot-head')!.previousElementSibling!.textContent).toBe('TraderTV');
     const card = q('ft-trader-ALPHA')!.querySelector('.ft-trader__card')!;
     expect(card.className).toContain('ft-trader__card--slot');
     expect(q('slot-trader-ALPHA')!.textContent).toBe('ABCD');

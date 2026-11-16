@@ -16,6 +16,10 @@ ADR 049 amendment (2026-10-13): research results never restrict a strategy's On 
 #847: a watch-only setup (the pullback dip) is never On: ``apply`` refuses it (409 ``BOT_SETUP_WATCH_ONLY``) and
 an On read from an older file reads as Eyes. Its Eyes draws it; it never proposes (``setup_scanner.lane_announce``).
 
+ADR 072 (2026-11-13): the strategies only watch. Every setup with a scanner reads Eyes, whatever the session file
+stored -- a stored Off or On reads as watching -- so nothing reads a setup at Strategy, and ``apply`` refuses
+(410 ``BOT_STRATEGIES_WATCH``). The stored levels are left in the file, unread.
+
 Owner: this module (the rules; the session file is ``bot.persist``'s).
 """
 from __future__ import annotations
@@ -28,9 +32,9 @@ from constants_bot import (
     BOT_LEVEL_EYES,
     BOT_LEVEL_OFF,
     BOT_LEVEL_STRATEGY,
-    BOT_REASON_SETUP_LEVEL,
-    BOT_REASON_SETUP_WATCH_ONLY,
+    BOT_REASON_STRATEGIES_WATCH,
     BOT_SCANNER_SETUPS,
+    BOT_STRATEGIES_WATCH_TEXT,
     BOT_SETUPS_WITH_SCANNER,
     watch_only,
     watch_only_text,
@@ -54,10 +58,9 @@ def master(row: dict[str, Any]) -> int:
 
 
 def own_levels(row: dict[str, Any]) -> dict[str, int]:
-    """``{SETUP: 0 | 1 | 2}`` for every setup with a scanner; a missing or unreadable one is Off."""
-    raw = row.get("setup_levels")
-    raw = raw if isinstance(raw, dict) else {}
-    return {sid: _level(raw.get(sid)) or BOT_LEVEL_OFF for sid in BOT_SCANNER_SETUPS}
+    """``{SETUP: 1}`` for every setup with a scanner: every strategy watches (ADR 072), whatever is stored."""
+    del row  # the stored levels are no longer read
+    return {sid: BOT_LEVEL_EYES for sid in BOT_SCANNER_SETUPS}
 
 
 def on_lock(setup: str) -> str | None:
@@ -68,13 +71,8 @@ def on_lock(setup: str) -> str | None:
 
 
 def effective(row: dict[str, Any]) -> dict[str, int]:
-    """``{SETUP: min(master, own)}``: research never changes the chosen level. Watch-only never reads On (#847)."""
-    top = master(row)
-    out = {sid: min(top, lvl) for sid, lvl in own_levels(row).items()}
-    for sid, lvl in out.items():
-        if lvl >= BOT_LEVEL_STRATEGY and on_lock(sid):
-            out[sid] = BOT_LEVEL_EYES
-    return out
+    """``{SETUP: 1}``: every strategy watches, never above Eyes and never silenced (ADR 072)."""
+    return own_levels(row)
 
 
 def at_strategy(row: dict[str, Any]) -> list[str]:
@@ -97,27 +95,12 @@ def name(setup: str | None) -> str:
 
 
 def apply(row: dict[str, Any], patch: Any) -> dict[str, tuple[int, int]]:
-    """``PATCH {setup_levels: {SETUP: 0 | 1 | 2}}`` for setups with a scanner.
-
-    Returns ``{SETUP: (before, after)}`` for each own level that changed; raises
-    ``BotError`` (400 ``BOT_SETUP_LEVEL``) and changes nothing on any bad entry.
-    """
-    if not isinstance(patch, dict):
-        raise BotError("setup_levels is an object of setup: level", 400, BOT_REASON_SETUP_LEVEL)
-    before = own_levels(row)
-    after = dict(before)
-    for sid, value in patch.items():
-        if sid not in BOT_SETUPS_WITH_SCANNER:
-            raise BotError(f"{name(sid)} has no scanner -- it has no level yet", 400, BOT_REASON_SETUP_LEVEL)
-        level = _level(value)
-        if level is None:
-            raise BotError(f"the level of {name(sid)} is 0 (Off), 1 (Eyes) or 2 (Strategy)", 400,
-                           BOT_REASON_SETUP_LEVEL)
-        if level >= BOT_LEVEL_STRATEGY and watch_only(sid):
-            raise BotError(str(on_lock(sid)), 409, BOT_REASON_SETUP_WATCH_ONLY)
-        after[sid] = level
-    row["setup_levels"] = after
-    return {sid: (before[sid], after[sid]) for sid in after if after[sid] != before[sid]}
+    """``PATCH {setup_levels}``: refused (410 ``BOT_STRATEGIES_WATCH``) -- every strategy watches (ADR 072). An empty
+    patch changes nothing."""
+    del row
+    if patch:
+        raise BotError(BOT_STRATEGIES_WATCH_TEXT, 410, BOT_REASON_STRATEGIES_WATCH)
+    return {}
 
 
 def migrate_chosen(dial: dict[str, Any], chosen: str | None) -> None:

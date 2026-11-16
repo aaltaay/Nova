@@ -1,6 +1,6 @@
 /**
- * The auto-record switch's one door: `POST /api/auto-record {mode}` (operator
- * ask 2026-10-14; `architecture/schema/scanner.md`, Auto-record). The status
+ * The recording switch's one door: `POST /api/auto-record {mode}` (operator
+ * ask 2026-10-14; ADR 071: On records what a lane watches). The status
  * poll is the truth afterwards -- the reply is never taken for it -- and a
  * refusal (`.env` holds it off, the file could not be written) is shown in words.
  */

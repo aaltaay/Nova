@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 
 import hod_momo as _hod_momo
 from cache import list_history_dates as _list_history_dates
+from hod_momo_alerts import add_desk, restate_feed
 from hod_momo_session import current_date_et
 from runtime_state import get_runtime_state
 from constants import HOD_MOMO_UNIVERSE_MODE, HOD_MOMO_UNIVERSE_MODE_FOCUS
@@ -59,12 +60,8 @@ def hod_momo_get_alerts(limit: int | None = None):
 
 @router.delete("/api/hod-momo/alerts")
 async def hod_momo_clear_alerts():
-    """Explicitly clear today's alerts (in-memory + today's on-disk snapshot)."""
-    result = _hod_momo.clear_today_alerts()
-    from hod_momo_alerts import broadcast_initial
-
-    await broadcast_initial()
-    return result
+    """Explicitly clear today's alerts (in-memory + today's on-disk snapshot) and restate the list to every desk."""
+    return await restate_feed(_hod_momo.clear_today_alerts)
 
 
 @router.get("/api/hod-momo/history/dates")
@@ -230,10 +227,9 @@ def hod_momo_debug_integrity():
 async def ws_hod_momo(websocket: WebSocket):
     """WebSocket: sends today's alerts on connect, then pushes live alerts."""
     await websocket.accept()
-    _hod_momo.add_ws_client(websocket)
     try:
-        initial = json.dumps(_hod_momo.get_ws_initial_payload())
-        await websocket.send_text(initial)
+        # Joined and sent today's list in one step, so no alert frame comes first.
+        await add_desk(websocket)
         while True:
             try:
                 await asyncio.wait_for(websocket.receive_text(), timeout=30.0)

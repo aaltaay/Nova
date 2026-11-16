@@ -172,6 +172,9 @@ async def _fetch_bars_uncached(
         logger.error("IBKR: qualify failed for bars %s: %s", symbol, desc, exc_info=True)
         raise HTTPException(status_code=502, detail=f"IBKR qualify failed: {desc}") from exc
 
+    from ibkr.historical_service import pacing_refusals
+
+    refusals = pacing_refusals()
     hist_started = time.perf_counter()
     try:
         async with timed("ibkr.historical_bars"):
@@ -221,6 +224,10 @@ async def _fetch_bars_uncached(
             status_code=504,
             detail=f"IBKR historical data did not answer within {timeout:.0f}s",
         )
+    if not raw and pacing_refusals() != refusals:
+        # A pacing refusal is an empty list too. Taken as "no bars" it would be stored and pushed, as a timeout was.
+        logger.warning("IBKR: historical bars refused for pacing: %s %s", symbol.upper(), timeframe)
+        raise HTTPException(status_code=502, detail="IBKR refused the history request for pacing")
 
     history_answers.note_answered(time.time())
     bars = _normalize_bars(raw or [], limit)

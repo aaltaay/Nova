@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { HOD_MOMO_ALERT_SOUND_COALESCE_MS, HOD_MOMO_ALERT_SOUND_KEY } from './hodMomoAlertSoundConstants';
+import { HOD_MOMO_ALERT_SOUND_COALESCE_MS } from './hodMomoAlertSoundConstants';
 import {
   hodMomoAlertDedupeKey,
   isHodMomoAlertSoundEnabled,
@@ -12,7 +12,7 @@ import {
   setHodMomoAlertSoundEnabled,
 } from './hodMomoAlertSound';
 import type { AlertObject } from './types';
-import { setDeskMuted } from '../sound';
+import { DESK_SOUND_KEYS, setDeskMuted } from '../sound';
 
 const start = vi.fn();
 const stop = vi.fn();
@@ -34,7 +34,7 @@ class FakeAudioContext {
   createGain() {
     return {
       connect: vi.fn(),
-      gain: { value: 0, exponentialRampToValueAtTime: ramp },
+      gain: { value: 0, setValueAtTime() {}, exponentialRampToValueAtTime: ramp },
     };
   }
 }
@@ -137,7 +137,7 @@ describe('hodMomoAlertSound', () => {
     expect(start).toHaveBeenCalledTimes(2);
 
     setHodMomoAlertSoundEnabled(false);
-    const stored = JSON.parse(localStorage.getItem(HOD_MOMO_ALERT_SOUND_KEY) ?? '');
+    const stored = JSON.parse(localStorage.getItem(DESK_SOUND_KEYS.hod) ?? '');
     expect(stored.value).toBe(false);
     resetHodMomoAlertSoundForTests();
     expect(isHodMomoAlertSoundEnabled()).toBe(false);

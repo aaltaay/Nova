@@ -60,7 +60,7 @@ LULD_BACKFILL_BACK_SEC = 2 * LULD_WINDOW_SEC
 # At most this many of IBKR's 1,000-trade pages, then one request of 1-minute bars for the minutes they missed:
 # five requests, IBKR's most for one stock in 2 s (``luld_check.py backfill`` measured 4,000 trades and the bars).
 LULD_BACKFILL_MAX_PAGES = 4
-# ... and never the last of IBKR's 60 historical requests in 10 minutes: these stay for the charts.
+# ... and never the last of IBKR's 60 tick reads in 10 minutes: these stay for the charts.
 LULD_BACKFILL_HEADROOM = 20
 LULD_BACKFILL_PAGE_TIMEOUT_SEC = 10.0
 # Shed (an open chart loading, pacing): ask again this soon. Failed: this soon, at most this many times.

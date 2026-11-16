@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { NOVA_ACTION_DEPTH_DISABLED_REASON } from '../constants';
+import { noteBackendGate, resetViewRegistryForTests } from '../market_view/viewRegistry';
 import { createDefaultNovaActions } from './novaActionDefaults';
 import type { NovaActionRecord } from './novaActionTypes';
 import { TopOfBookProvider, useTopOfBook, type TopOfBook } from './TopOfBookContext';
@@ -61,14 +62,15 @@ describe('TradingQuickBar', () => {
   afterEach(() => {
     act(() => root.unmount());
     mount.remove();
+    resetViewRegistryForTests();
   });
 
-  function render(book: TopOfBook | null = null) {
+  function render(book: TopOfBook | null = null, heldQty: number | null = null) {
     act(() => {
       root.render(
         <TopOfBookProvider>
           <BookSetter book={book} />
-          <TradingQuickBar />
+          <TradingQuickBar heldQty={heldQty} />
         </TopOfBookProvider>,
       );
     });
@@ -104,6 +106,20 @@ describe('TradingQuickBar', () => {
     expect(words('exit_pos')).toEqual(['Flatten']);
     expect(words('cancel_symbol')).toEqual(['Cxl', 'sym']);
     expect(buttons().find((b) => b.dataset.kind === 'cancel_symbol')!.textContent).toBe('Cxl sym');
+  });
+
+  it('a lag locks a new buy, never a sell, and a buy while short is a cover (ADR 045 amendment 2026-11-06)', () => {
+    const book: TopOfBook = { symbol: 'VIVK', bid: 0.86, ask: 0.87, depthSubscribed: true };
+    noteBackendGate('VIVK', { code: 'TAPE_STALE', text: "VIVK's Time & Sales is behind." });
+    render(book, 2000);
+    const named = (kind: string) => buttons().find((b) => b.dataset.kind === kind)!;
+    expect(named('buy_market').disabled).toBe(true);
+    expect(named('buy_market').dataset.why).toContain('Time & Sales is behind');
+    for (const kind of ['sell_limit_bid_offset', 'sell_limit_ask_offset', 'exit_pos_pct', 'exit_pos']) {
+      expect(named(kind).disabled).toBe(false);
+    }
+    render(book, -500);
+    expect(named('buy_market').disabled).toBe(false);
   });
 
   it('keeps every dispatch: a click runs that action', () => {

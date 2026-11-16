@@ -4,12 +4,11 @@
  * is not a trade calls no entry, and a setup that played out never reads TRIGGERED again.
  */
 import { describe, expect, it } from 'vitest';
-import { NOT_A_TRADE_NOVA } from './constants';
 import { momentOf, type MomentInputs } from './momentModel';
 import { planBadge } from './planMath';
 import { gradeChip, gradeTip, normalizePlanVerdict, notATrade, resultBadge, resultBadgeShort } from './planVerdict';
 import type { StockPlan } from './types';
-import { inputs, pfsaAt, pfsaRead, pfsaView } from './whoTradesFixtures';
+import { inputs, pfsaAt, pfsaRead } from './momentFixtures';
 import { planActions } from './planActions';
 
 const NOT_A_TRADE: Partial<StockPlan> = {
@@ -57,12 +56,11 @@ describe('the verdict on the wire', () => {
 describe('the moment on the chart', () => {
   const at = (over: Partial<MomentInputs>) => momentOf(inputs(over));
 
-  it('a trigger that is not a trade calls no entry, whatever the tape said, and says Nova buys none of it', () => {
+  it('a trigger that is not a trade calls no entry, whatever the tape said', () => {
     const m = at({ read: pfsaRead('triggered', NOT_A_TRADE) });
     expect(m).toMatchObject({ step: 1, tone: 'wait', badge: 'FIRST PULLBACK · TRIGGERED · NOT A TRADE' });
     expect(m?.call).toMatchObject({ tone: 'wait', title: 'NOT A TRADE', ping: false });
-    expect(m?.call?.detail).toBe('grade C: 1 of 5 pillars; it triggered with the tape at WAIT: no green on the tape yet. '
-      + "It blocks Nova's buys too: the bot, Auto-entry and Approve do not take it.");
+    expect(m?.call?.detail).toBe('grade C: 1 of 5 pillars; it triggered with the tape at WAIT: no green on the tape yet.');
     const onGo = at({ read: pfsaRead('triggered', { ...NOT_A_TRADE, tape: { verdict: 'go', reasons: [] },
       trade: { ok: false, reasons: ['grade C: 3 of 5 pillars'] } }) });
     expect(onGo?.call?.title).toBe('NOT A TRADE');                                // never ENTER NOW
@@ -81,15 +79,11 @@ describe('the moment on the chart', () => {
     expect(planBadge(read.plan!, read.setups[0])).toBe('STOP FIRST 08:08 · −1.00R');
   });
 
-  it('Approve says why instead of approving a plan that is not a trade, and that it blocks Nova too', () => {
-    const i = inputs({ read: pfsaRead('armed', NOT_A_TRADE), who: pfsaView('approve') });
+  it('Stage says why instead of staging a plan that is not a trade', () => {
+    const i = inputs({ read: pfsaRead('armed', NOT_A_TRADE) });
     const why = notATrade(i.read!.plan);
-    const { actions } = planActions({ moment: momentOf(i), inputs: i, bid: 4.25, listening: true, stageLocked: why,
-      notTrade: why, symbol: 'PFSA' });
-    expect(actions[0]).toMatchObject({ id: 'approve', locked: `${why} ${NOT_A_TRADE_NOVA}` });
-    const triggered = inputs({ read: pfsaRead('triggered', NOT_A_TRADE), who: pfsaView('approve') });
-    const now = planActions({ moment: momentOf(triggered), inputs: triggered, bid: 4.25, listening: true,
-      stageLocked: why, notTrade: why, symbol: 'PFSA' });
-    expect(now.actions[0]).toMatchObject({ id: 'approve-now', locked: `${why} ${NOT_A_TRADE_NOVA}` });
+    const actions = planActions({ moment: momentOf(i), inputs: i, bid: 4.25, listening: true, stageLocked: why,
+      symbol: 'PFSA' });
+    expect(actions[0]).toMatchObject({ id: 'stage', locked: why });
   });
 });

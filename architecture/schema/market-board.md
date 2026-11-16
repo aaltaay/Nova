@@ -185,9 +185,9 @@ before, no price before 09:30), the movers ranked by IBKR's scan (a scan holds n
 of the earlier passes' answers for the same `date` (another day's are dropped), and the next pass, after
 `MARKET_SHED_RETRY_SEC` rather than the TTL, reads the symbols with no answer first, then the oldest (2026-10-16:
 every pass had started over at XLK, so 25 of 26 ETFs never priced). Every historical request of the page -- these bars, a tile's
-5-minute line and prior close, the daily closes -- is shed while `MARKET_HISTORY_HEADROOM` (30) or fewer of IBKR's 60
-requests of the 10 minutes are left: charts, the TraderTV exits (which leave 20) and LULD read first (2026-10-16: the
-page's bars spent all 60, and the TraderTV exits waited over 30 minutes). Breadth has no bar fallback: it reads `unavailable` with "waiting for spare
+5-minute line and prior close, the daily closes -- is shed while `MARKET_HISTORY_HEADROOM` (100) or fewer of the 10-minute
+window are left: charts, the TraderTV exits (which leave 20) and LULD read first (2026-10-16: the
+page's bars spent the whole window, and the TraderTV exits waited over 30 minutes). Breadth has no bar fallback: it reads `unavailable` with "waiting for spare
 market-data lines".
 
 **Fenced errors.** An IBKR error on a `FUT`, `CONTFUT`, `IND`, `CASH` or `CRYPTO` contract is the Market page's: it
@@ -219,3 +219,9 @@ is recorded on that tile (`market_board.ibkr_reads.note_error`) and never sets t
 - Desk: `localStorage nova.marketBoard.periods.v1` `{schema_version: 1, sectors, industries, climate, top: {kind,
   period}}` (owner `frontend/src/market_board/periods.ts`; an unknown version or value falls back to `1D` /
   `biggest`, a saved `movers` among them).
+
+**The AI groups (operator, 2026-11-05).** `themes: {rule, groups: [{id, label, priced, total, change_pct: number |
+null, rows: [{symbol, last: number | null, change_pct: number | null}]}]}` -- `MARKET_THEMES`, Nova's own grouping of
+the AI trade (chips, memory and storage, power and build-out, neoclouds, platforms), each stock from a brief IBKR line
+(`theme_quotes:<id>`, not kept across restarts; older than `MARKET_THEME_FRESH_SEC` reads `null`). `change_pct` is the
+plain average of the priced stocks. On the wire for agents (`/api/agent/market-now`); the page does not draw it.

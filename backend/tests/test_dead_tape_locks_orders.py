@@ -27,10 +27,13 @@ T0 = datetime(2026, 10, 14, 9, 25, 11, tzinfo=ET).timestamp()  # GENK's last pri
 @pytest.fixture(autouse=True)
 def _live_feed(monkeypatch):
     versions.reset_for_tests()
-    from ibkr import feed_pulse
+    from ibkr import feed_pulse, tape_silence
     from perf import stall_watch
     import sim.mode
 
+    tape_silence.reset_for_tests()
+    # These tests judge one read; the wait for a print in flight has its own, below.
+    monkeypatch.setattr(tape_silence, "TAPE_PRINT_WAIT_SEC", 0.0)
     monkeypatch.setattr(feed_pulse, "gaps_for_tape", lambda now=None: [])
     monkeypatch.setattr(stall_watch, "stalled_ms", lambda name: 0.0)
     monkeypatch.setattr(sim.mode, "is_replay_desk", lambda: False)
@@ -58,7 +61,7 @@ def test_level_1_trades_the_tape_never_printed_are_missing_trades(monkeypatch):
     _line(monkeypatch)
     out = tape_silence.missed_trades("genk", now=T0 + 8)
     assert out is not None and out["since"] == T0 and out["l1_trade_ts"] == T0 + 8
-    assert out["text"].startswith("GENK's Time & Sales is missing trades: its last print came at 09:25:11 ET")
+    assert out["text"].startswith("GENK's Time & Sales is behind: its newest print is from 09:25:11 ET")
     assert "Level 1 shows trades up to 09:25:19 ET" in out["text"]
 
 
@@ -75,6 +78,57 @@ def test_a_tape_that_keeps_up_halts_or_has_no_line_is_not_missing_trades(monkeyp
     assert tape_silence.missed_trades("GENK", now=T0 + 8) is None
 
 
+def _real_wait(monkeypatch):
+    from constants_tape import TAPE_PRINT_WAIT_SEC
+    from ibkr import tape_silence
+
+    monkeypatch.setattr(tape_silence, "TAPE_PRINT_WAIT_SEC", TAPE_PRINT_WAIT_SEC)
+    return tape_silence
+
+
+def test_a_print_that_lands_right_after_its_level_1_trade_never_locks(monkeypatch):
+    """FROG, 2026-11-06 08:17:58: quiet for 29 s, Level 1 reports a trade, its print lands a second later."""
+    tape_silence = _real_wait(monkeypatch)
+    _line(monkeypatch, last=T0, exchange=T0, l1=T0 + 29)
+    assert tape_silence.behind("FROG", now=T0 + 29.2) is None
+    _line(monkeypatch, last=T0 + 30.1, exchange=T0 + 29, l1=T0 + 29)
+    assert tape_silence.behind("FROG", now=T0 + 30.2) is None
+    # The next trade after a quiet stretch starts its own wait.
+    _line(monkeypatch, last=T0 + 30.1, exchange=T0 + 29, l1=T0 + 60)
+    assert tape_silence.behind("FROG", now=T0 + 60.2) is None
+
+
+def test_a_tape_that_stays_behind_while_it_prints_still_reads_behind(monkeypatch):
+    """VIVK, 2026-11-06 09:30: prints kept arriving, each from seconds before Level 1's newest trade."""
+    tape_silence = _real_wait(monkeypatch)
+    reads = []
+    for ahead in (6, 7, 8):
+        now = T0 + ahead
+        _line(monkeypatch, last=now, exchange=now - 4, l1=now)
+        reads.append(tape_silence.behind("VIVK", now=now))
+    assert reads[:2] == [None, None]
+    assert reads[2]["text"] == ("VIVK's Time & Sales is behind: its newest print is from 09:25:15 ET, "
+                                "while IBKR's Level 1 shows trades up to 09:25:19 ET.")
+
+
+def test_a_dead_tape_still_locks_before_the_genk_order(monkeypatch):
+    """GENK's order came 8 s into the silence; the desk's Time & Sales asks every second."""
+    tape_silence = _real_wait(monkeypatch)
+    _line(monkeypatch, last=T0, exchange=T0, l1=T0 + 4)
+    assert tape_silence.behind("GENK", now=T0 + 4) is None
+    _line(monkeypatch, last=T0, exchange=T0, l1=T0 + 5)
+    assert tape_silence.behind("GENK", now=T0 + 5) is None
+    _line(monkeypatch, last=T0, exchange=T0, l1=T0 + 6)
+    assert tape_silence.behind("GENK", now=T0 + 6) is not None
+
+
+def test_nobody_asking_for_a_while_starts_the_wait_over(monkeypatch):
+    tape_silence = _real_wait(monkeypatch)
+    _line(monkeypatch, last=T0, exchange=T0, l1=T0 + 29)
+    assert tape_silence.behind("FROG", now=T0 + 29) is None
+    assert tape_silence.behind("FROG", now=T0 + 300) is None
+
+
 def test_a_line_that_never_printed_counts_from_its_opening(monkeypatch):
     from ibkr import tape_silence
 
@@ -84,7 +138,7 @@ def test_a_line_that_never_printed_counts_from_its_opening(monkeypatch):
 
 
 def test_unverified_reask_keeps_the_order_gate_locked_across_guard_and_resubscribe(monkeypatch):
-    from line_lending import tape_heal
+    from line_lanes import tape_heal
 
     now = time.time()
     outage = {"since": now - 40, "last_print_ts": now - 40, "last_print_exchange_ts": now - 40, "line_since": now - 300}
@@ -101,11 +155,12 @@ def test_unverified_reask_keeps_the_order_gate_locked_across_guard_and_resubscri
 # ── the gate: one judge ───────────────────────────────────────────────────
 
 
-def _cmd(symbol="GENK"):
+def _cmd(symbol="GENK", side="BUY"):
     act = time.time() * 1000.0
     view = {"schema_version": 1, "symbol": symbol, "action_wall_ms": act,
             "instance": instance_identity.INSTANCE_ID, "book": None, "quote": None, "desk": None}
-    return SimpleNamespace(operation="place", source="manual", symbol=symbol, view=view,
+    return SimpleNamespace(operation="place", source="manual", symbol=symbol, view=view, side=side, short_entry=False,
+                           normalized_symbol=lambda: symbol,
                            client_timing={"action_wall_ms": act}, backend_ingress_wall_ns=int((act + 20) * 1e6))
 
 
@@ -114,8 +169,8 @@ def test_the_genk_order_is_refused_while_its_tape_misses_trades(monkeypatch):
     _line(monkeypatch, last=now - 8, exchange=now - 8, l1=now)
     check = gate.check(_cmd())
     assert check.refused and check.code == TAPE_STALE
-    assert "GENK's Time & Sales is missing trades" in check.text
-    assert check.text.endswith("Nothing was sent. Flatten and cancels still work.")
+    assert "GENK's Time & Sales is behind" in check.text
+    assert check.text.endswith("Nothing was sent. Sells, covers, Flatten and cancels still work.")
     assert check.record()["tape_missing_since"] is not None
 
 
@@ -124,7 +179,8 @@ def test_the_desk_sees_the_doors_own_words_before_the_click(monkeypatch):
     _line(monkeypatch, last=now - 8, exchange=now - 8, l1=now)
     lock = gate.desk_lock("GENK", now=now)
     assert lock is not None and lock["code"] == TAPE_STALE
-    assert lock["text"].endswith("New orders on it wait until its prints are back. Flatten and cancels still work.")
+    assert lock["text"].endswith(
+        "New buys and shorts on it wait until its prints catch up. Sells, covers, Flatten and cancels still work.")
     assert "Nothing was sent" not in lock["text"]
 
 
@@ -150,6 +206,14 @@ def test_a_feed_gap_still_comes_first_and_a_replay_desk_is_never_held(monkeypatc
     assert gate.desk_lock("GENK", now=now)["code"] == FEED_STALE
     monkeypatch.setattr(sim.mode, "is_replay_desk", lambda: True)
     assert gate.desk_lock("GENK", now=now) is None
+
+
+def test_a_sell_is_never_held_by_the_tape(monkeypatch):
+    """VIVK, 2026-11-06: 2,000 long, Time & Sales 7 s behind, and the ticket would not sell."""
+    now = time.time()
+    _line(monkeypatch, last=now - 8, exchange=now - 8, l1=now)
+    check = gate.check(_cmd("VIVK", side="SELL"))
+    assert check.verdict == "close" and not check.refused and check.code == TAPE_STALE
 
 
 def test_flatten_and_cancels_are_never_held_by_the_tape(monkeypatch):
@@ -277,14 +341,14 @@ class _Live:
 
 @pytest.fixture
 def paper(monkeypatch):
-    from practice import matcher, tape_hold
+    from practice import matcher, resting_watch
     from practice.broker import PracticeBroker
     from practice.ledger import Ledger
 
     async def reconcile(wanted):
         return {}
 
-    monkeypatch.setattr(tape_hold, "reconcile", reconcile)
+    monkeypatch.setattr(resting_watch, "reconcile", reconcile)
     monkeypatch.setattr(matcher, "_note_silence", lambda symbol: None)
     matcher.reset_for_tests()
     ref = _Live()
@@ -333,7 +397,7 @@ def test_the_tape_socket_sends_the_gates_answer_on_pings_and_when_it_changes(mon
     from fastapi.testclient import TestClient
 
     from ibkr import tape_stream
-    from line_lending import socket_gate
+    from line_lanes import sockets as lane_sockets
 
     ws_mod = trading_tape_ws
 
@@ -344,17 +408,16 @@ def test_the_tape_socket_sends_the_gates_answer_on_pings_and_when_it_changes(mon
     silence = {"state": "dead", "since": T0, "text": "Registered tape is missing Level 1 trades", "pipeline": []}
     recovery_calls = []
     monkeypatch.setattr(ws_mod, "_silence", lambda symbol, halt_seen_at: silence)
-    monkeypatch.setattr(socket_gate, "line_down", lambda symbol, **kwargs: recovery_calls.append((symbol, kwargs)))
+    monkeypatch.setattr(lane_sockets, "line_down", lambda symbol, **kwargs: recovery_calls.append((symbol, kwargs)))
     monkeypatch.setattr(ws_mod, "_gate", lambda symbol: next(answers))
     monkeypatch.setattr(ws_mod, "MARKET_VIEW_GATE_SEND_SEC", 0.0)
 
-    async def gate(symbol, front=False):
+    async def opening(symbol, front=False):
         return None
 
-    monkeypatch.setattr(socket_gate, "gate", gate)
-    monkeypatch.setattr(socket_gate, "opened", lambda symbol, **kw: 1)
-    monkeypatch.setattr(socket_gate, "closed", lambda symbol, token, kind: None)
-    monkeypatch.setattr(socket_gate, "lent_now", lambda symbol, front=False: None)
+    monkeypatch.setattr(lane_sockets, "opening", opening)
+    monkeypatch.setattr(lane_sockets, "opened", lambda symbol, **kw: 1)
+    monkeypatch.setattr(lane_sockets, "closed", lambda symbol, token, kind=None: None)
     monkeypatch.setattr(tape_stream, "is_subscribed", lambda symbol: True)
     monkeypatch.setattr(tape_stream, "ws_viewer_opened", lambda symbol: None)
     monkeypatch.setattr(tape_stream, "ws_viewer_closed", lambda symbol: False)

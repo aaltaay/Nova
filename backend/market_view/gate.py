@@ -1,6 +1,8 @@
-"""The order gate: a desk order priced from a view that lags is refused (ADR 045).
+"""The order gate: a new desk order priced from a view that lags is refused (ADR 045).
 
-"If it lags, then we cannot place an order." A ``manual`` place, bracket or replace that came
+"If it lags, then we cannot place an order." Except getting out: a sell or a cover is never refused
+for lag ("we should never, ever just be locking the sell", amendment 2026-11-06; ``closes``), and only
+leaves its measures on the record. A ``manual`` place, bracket or replace that came
 through the desk's routes (it carries ``client_timing``) also carries ``view``: when the operator
 acted and which Level 2 book and quote the screen showed. ``check`` judges it against what Nova
 knows now, before anything is validated or sent; ``late_at_send`` checks the clock again just
@@ -45,7 +47,7 @@ GATED_OPERATIONS = ("place", "bracket", "replace")
 
 @dataclass
 class Check:
-    """The gate's answer: ``verdict`` is ``ok``, ``refused``, ``exempt`` or ``missing``."""
+    """The gate's answer: ``verdict`` is ``ok``, ``refused``, ``close`` (it went anyway), ``exempt`` or ``missing``."""
 
     verdict: str
     code: str | None = None
@@ -73,6 +75,51 @@ def applies(cmd: Any) -> bool:
         and getattr(cmd, "source", None) == "manual"
         and isinstance(getattr(cmd, "client_timing", None), dict)
     )
+
+
+def closes(cmd: Any) -> bool:
+    """A sell out of a long or a buy to cover: never refused for lag (amendment 2026-11-06).
+
+    Every SELL without ``short_entry`` reduces a long (Invariant #7; past the position is the door's OVERSELL or
+    NO_POSITION). A replace closes when the working order it reprices does; unknown is not a close.
+    """
+    operation = getattr(cmd, "operation", None)
+    if operation == "replace":
+        return _reprices_a_close(cmd)
+    if operation != "place" or getattr(cmd, "short_entry", False):
+        return False
+    if str(getattr(cmd, "side", "") or "").upper() == "SELL":
+        return True
+    from execution.position_checks import covers_short
+
+    return covers_short(cmd)
+
+
+def _reprices_a_close(cmd: Any) -> bool:
+    """Whether the working order a replace reprices is a way out, read from the order itself: a bracket's
+    exit legs have ids of their own, which no execution row holds as its ``order_id``."""
+    order_id = getattr(cmd, "order_id", None)
+    if order_id is None:
+        return False
+    try:
+        from execution import store_orders, venue_door
+        from ibkr import account, orders
+        from practice.broker import for_venue
+
+        venue, _why = venue_door.resolve(cmd)
+        oid = int(order_id)
+        if venue in ("paper", "sim"):
+            row = next((r for r in for_venue(venue).working_orders() if int(r.get("order_id") or 0) == oid), None)
+            return row is not None and row.get("effect") == "closes"
+        row = next((o for o in orders.open_orders(ibkr_only=True) if int(o.get("order_id") or 0) == oid), None)
+        if row is None:
+            return False
+        if str(row.get("side") or "").upper() == "SELL":
+            return oid not in store_orders.short_entries([oid])
+        return account.short_qty(str(row.get("symbol") or "")) > 0
+    except Exception:
+        logger.exception("view gate: order %s's side could not be read; judging it as an entry", order_id)
+        return False
 
 
 def _num(value: Any) -> float | None:
@@ -170,7 +217,17 @@ def _ib_stall_ms() -> float | None:
 
 
 def check(cmd: Any, *, now: float | None = None) -> Check:
-    """Judge a command's view at the door (``Check.verdict``; ``refused`` / ``missing`` refuse it)."""
+    """Judge a command's view at the door (``Check.verdict``; ``refused`` / ``missing`` refuse it).
+
+    A close is judged like any order, so its row keeps what the gate found, and goes anyway.
+    """
+    out = _judge(cmd, now=now)
+    if out.refused and closes(cmd):
+        return Check("close", out.code, None, out.measures)
+    return out
+
+
+def _judge(cmd: Any, *, now: float | None = None) -> Check:
     if not applies(cmd):
         return Check("exempt")
     view = getattr(cmd, "view", None)
@@ -262,15 +319,15 @@ def desk_lock(symbol: str, *, now: float | None = None,
     if behind is None and stall is not None and stall > ORDER_MAX_IB_STALL_MS:
         behind = f"its IBKR thread has been stuck for {_secs(stall)}"
     if behind is not None:
-        return _lock(FEED_STALE, f"Nova is behind the market right now ({behind}), so new orders wait until it catches up.")
+        return _lock(FEED_STALE, f"Nova is behind the market right now ({behind}), so new buys and shorts wait until it catches up.")
     first = _first_book(symbol, t)
     out["book_waiting_since"] = first["since"] if first else None
     if first is not None:
-        return _lock(BOOK_WAITING, f"{first['text']} New orders on it wait for its first book.")
+        return _lock(BOOK_WAITING, f"{first['text']} New buys and shorts on it wait for its first book.")
     tape = _tape_missing(symbol, t)
     out["tape_missing_since"] = tape["since"] if tape else None
     if tape is not None:
-        return _lock(TAPE_STALE, f"{tape['text']} New orders on it wait until its prints are back.")
+        return _lock(TAPE_STALE, f"{tape['text']} New buys and shorts on it wait until its prints catch up.")
     return None
 
 
@@ -294,7 +351,7 @@ def _tape_missing(symbol: str, now: float) -> dict[str, Any] | None:
     try:
         from ibkr import tape_silence
 
-        return tape_silence.missed_trades(symbol, now=now)
+        return tape_silence.behind(symbol, now=now)
     except Exception:
         logger.exception("view gate: %s's Time & Sales could not be judged", symbol)
         return {"since": None, "text": f"Nova could not tell whether {symbol}'s Time & Sales is current."}
@@ -302,8 +359,8 @@ def _tape_missing(symbol: str, now: float) -> dict[str, Any] | None:
 
 def send_deadline(cmd: Any) -> float | None:
     """The last moment (epoch seconds) a desk order may reach the broker: ``ORDER_MAX_SEND_MS`` after the
-    action. None for a command the gate does not judge. The IB loop refuses a Live send past it (#725)."""
-    if not applies(cmd) or not isinstance(getattr(cmd, "view", None), dict):
+    action. None for a command the gate does not judge, or a close. The IB loop refuses a Live send past it (#725)."""
+    if not applies(cmd) or not isinstance(getattr(cmd, "view", None), dict) or closes(cmd):
         return None
     act = action_ms(cmd)
     return None if act is None else (act + ORDER_MAX_SEND_MS) / 1000.0

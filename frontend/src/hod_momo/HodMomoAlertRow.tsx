@@ -1,3 +1,4 @@
+import { plainPrice } from '../utils/priceTick';
 import { memo } from 'react';
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
@@ -32,7 +33,7 @@ function fmtClock(iso: string, createdTs?: number): string {
 
 function fmtPrice(v: number | null | undefined): string {
   if (v == null) return '—';
-  return `$${v.toFixed(2)}`;
+  return `$${plainPrice(v)}`;
 }
 
 function fmtPct(v: number | null | undefined): string {

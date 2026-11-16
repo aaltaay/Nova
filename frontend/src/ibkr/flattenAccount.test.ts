@@ -32,6 +32,38 @@ describe('flattenAccount', () => {
     });
   });
 
+  it('names the venue KILL was pressed on', async () => {
+    novaFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true, attempt: 1, results: [], error: null }),
+    });
+    await flattenAccount('paper');
+    expect(novaFetch).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/ibkr\/flatten-account\?venue=paper$/),
+      { method: 'POST' },
+    );
+  });
+
+  it('names none before a status has said one', async () => {
+    novaFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true, attempt: 1, results: [], error: null }),
+    });
+    await flattenAccount(null);
+    expect(novaFetch).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/ibkr\/flatten-account$/),
+      { method: 'POST' },
+    );
+  });
+
+  it('passes on what a stopped flatten says is still open', async () => {
+    const error = 'The desk moved from Live to Paper, so KILL stopped and sent nothing to Paper. '
+      + 'Still open on Live: ABCD 100.';
+    novaFetch.mockResolvedValue({ ok: true, json: async () => ({ ok: false, error }) });
+    const result = await flattenAccount('live');
+    expect(result).toMatchObject({ ok: false, error });
+  });
+
   it('surfaces a failed flatten without inventing a second place path', async () => {
     novaFetch.mockResolvedValue({
       ok: true,

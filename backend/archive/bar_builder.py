@@ -3,6 +3,12 @@
 Tape was already archived; bars_1m had no production writer. This module
 aggregates prints into minute buckets and flushes completed minutes via
 ``record_bar``. Also supports offline backfill from ``tape_ibkr``.
+
+Every write is the minute's whole count, as in ``ibkr/l1_minute`` (2026-11-04): the
+newest minute stays in memory after it is written, so a print that arrives after it
+joins it and the whole minute is written again. A print stamped before the newest
+minute never reopens a closed one; its shares count in the newest. It used to write a
+one-print bar over the stored minute (``bars_1m`` replaces on conflict).
 """
 from __future__ import annotations
 
@@ -29,9 +35,10 @@ class _Bucket:
     close: float
     volume: float
     source: str
+    dirty: bool = True  # changed since it was last written
 
 
-_open: dict[tuple[str, str], _Bucket] = {}  # (symbol, source) → current minute
+_open: dict[tuple[str, str], _Bucket] = {}  # (symbol, source) → newest minute, kept after its write
 
 
 def _minute_floor(ts: float) -> float:
@@ -58,15 +65,9 @@ def on_tape_print(
     key = (symbol, source)
     minute_ts = _minute_floor(ts)
     bucket = _open.get(key)
-    if bucket is None:
-        _open[key] = _Bucket(
-            symbol=symbol, minute_ts=minute_ts,
-            open=price, high=price, low=price, close=price,
-            volume=max(0.0, float(size)), source=source,
-        )
-        return
-    if minute_ts > bucket.minute_ts:
-        _flush(bucket, queued=queued)
+    if bucket is None or minute_ts > bucket.minute_ts:
+        if bucket is not None and bucket.dirty:
+            _flush(bucket, queued=queued)
         _open[key] = _Bucket(
             symbol=symbol, minute_ts=minute_ts,
             open=price, high=price, low=price, close=price,
@@ -74,29 +75,28 @@ def on_tape_print(
         )
         return
     if minute_ts < bucket.minute_ts:
-        # Late print for an older minute — write a one-print bar (idempotent upsert).
-        _flush(
-            _Bucket(
-                symbol=symbol, minute_ts=minute_ts, open=price, high=price,
-                low=price, close=price, volume=max(0.0, float(size)),
-                source=source,
-            ),
-            queued=queued,
-        )
+        # Its minute is closed and never reopened; the shares are real and count in the newest minute.
+        shares = max(0.0, float(size))
+        if shares > 0:
+            bucket.volume += shares
+            bucket.dirty = True
         return
     bucket.high = max(bucket.high, price)
     bucket.low = min(bucket.low, price)
     bucket.close = price
     bucket.volume += max(0.0, float(size))
+    bucket.dirty = True
 
 
 def flush_elapsed(now: float, *, queued: bool = True) -> int:
-    """Flush minutes that already closed even if the tape went quiet (D-024)."""
+    """Write minutes that ended and changed since their last write, even if the tape went quiet (D-024).
+
+    A written minute stays for a print that arrives after it, until a newer minute replaces it.
+    """
     cutoff = float(now) - _MINUTE
     n = 0
-    for key, bucket in list(_open.items()):
-        if bucket.minute_ts <= cutoff:
-            _open.pop(key, None)
+    for bucket in list(_open.values()):
+        if bucket.dirty and bucket.minute_ts <= cutoff:
             _flush(bucket, queued=queued)
             n += 1
     return n
@@ -105,7 +105,7 @@ def flush_elapsed(now: float, *, queued: bool = True) -> int:
 def flush_symbol(symbol: str, *, source: str = ARCHIVE_SOURCE_IBKR) -> None:
     key = (symbol.upper(), source)
     bucket = _open.pop(key, None)
-    if bucket is not None:
+    if bucket is not None and bucket.dirty:
         _flush(bucket)
 
 
@@ -113,20 +113,21 @@ def flush_all() -> int:
     n = 0
     for key in list(_open.keys()):
         bucket = _open.pop(key, None)
-        if bucket is not None:
+        if bucket is not None and bucket.dirty:
             _flush(bucket)
             n += 1
     return n
 
 
 def _flush(bucket: _Bucket, *, queued: bool = False) -> None:
-    """Persist a completed minute.
+    """Persist a minute's whole count.
 
     ``queued=True`` is the live path: minute rollover is reached from the IB
     socket callback, where a blocking SQLite write starves market data
     (ADR 010). Offline backfill/rollup keeps the direct write so callers can
     read the rows back immediately.
     """
+    bucket.dirty = False
     try:
         if queued:
             from archive.write_queue import enqueue_bar

@@ -6,6 +6,7 @@
  * It is shown only: nothing blocks on it, and a trial on new days decides whether "against" ever warns.
  * Pure: a row in, a chip's words out.
  */
+import { plainPrice } from '../utils/priceTick';
 import { etHm, type Words } from './setupWords';
 import type { SetupRow } from './types';
 
@@ -26,7 +27,7 @@ export function tf5Words(row: SetupRow): (Words & { tone: Tf5Tone }) | null {
   const r = row.tf5;
   if (!r || typeof r.agrees !== 'boolean') return null;
   const when = WHEN[row.tf5_at ?? ''] ?? 'last';
-  const ema = `closed ${r.above_ema9 ? 'over' : 'under'} its 9 EMA (${r.ema9.toFixed(2)})`;
+  const ema = `closed ${r.above_ema9 ? 'over' : 'under'} its 9 EMA (${plainPrice(r.ema9)})`;
   const macd = `its MACD is ${r.macd_up ? 'up' : 'down'}`;
   const verdict = r.agrees
     ? 'The 5-minute chart agrees with this 1-minute setup.'

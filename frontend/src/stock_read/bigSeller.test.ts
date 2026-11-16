@@ -10,7 +10,7 @@ import { RDYN_SHORT_NOW, RDYN_SHORT_SINCE, rdynShortWire } from './heldFixtures'
 import { normalizeHeld } from './heldRead';
 import { NO_HELD, type MomentInputs } from './momentModel';
 import { momentOfSides } from './momentShort';
-import { inputs, pfsaRead, pfsaView } from './whoTradesFixtures';
+import { inputs, pfsaRead } from './momentFixtures';
 
 const T = 1_791_382_000;
 
@@ -53,6 +53,17 @@ describe('the held card line', () => {
     expect(line.detail).toMatch(/36x the other asks, 3¢ over; there since .*, first seen at 22,000\. Shown, never acted on\./);
   });
 
+  it('calls a light one a seller, quietly, with its seconds of volume; a heavy one stays big', () => {
+    const light = bigLine(read({ sellers: [wall({ weight: 'light', clear_sec: 12 })] }), false);
+    expect(light.tone).toBe('info');
+    expect(light.text).toBe('SELLER 20,000 @ 4.50 · light, 12 s of volume · 3¢ over · held 42 s');
+    expect(light.detail).toContain('light, under a minute');
+    const heavy = bigLine(read({ sellers: [wall({ weight: 'heavy', clear_sec: 95 })] }), false);
+    expect(heavy.tone).toBe('warn');
+    expect(heavy.text).toContain('BIG SELLER 20,000 @ 4.50');
+    expect(heavy.detail).toContain('heavy, a minute or more');
+  });
+
   it('says "3 min+" for a size there before the first book Nova read, and "at the price" for one at it', () => {
     expect(heldWords(200, true)).toBe('3 min+');
     expect(pastWords(0, 4.5, 'over')).toBe('at the price');
@@ -77,6 +88,18 @@ describe('the held card line', () => {
     const lost = bigLine(read({ sellers: [wall({ state: 'lost', how: 'cut_off', ended_ts: T + 50 })] }), false);
     expect(lost.text).toBe('BIG SELLER @ 4.50 · OUT OF VIEW');
     expect(lost.detail).toMatch(/whether it traded or was pulled is unknown/);
+  });
+
+  it('says smaller, with what is still there, when most of it still rests (AIRS 0.85, 2026-11-13)', () => {
+    const left = { before: 24_001, after: 19_001, filled: 0 };
+    const smaller = bigLine(read({ sellers: [wall({ state: 'smaller', how: 'no_prints', ended_ts: T + 50, left })] }), false);
+    expect(smaller.tone).toBe('warn');
+    expect(smaller.text).toBe('SELLER @ 4.50 SMALLER · 19,001 still there');
+    expect(smaller.detail).toBe('5,000 of the 24,001 offered at 4.50 left the book (0 traded there: pulled). '
+      + '19,001 is still offered there, under the size Nova calls big, so it is no longer followed.');
+    const traded = bigLine(read({ sellers: [wall({ state: 'smaller', how: 'traded', ended_ts: T + 50,
+      left: { ...left, filled: 5_000 } })] }), false);
+    expect(traded.detail).toContain('(5,000 traded there: taken)');
   });
 
   it('tells the nearest one still there before any that ended', () => {
@@ -129,12 +152,17 @@ describe('the chart call', () => {
     expect(ended.call).toMatchObject({ id: `big-eaten:${T}000-TEST-ask-4.5`, tone: 'info', ping: false, pin: null });
   });
 
+  it('pins a light one as SELLER and never pings for it', () => {
+    const said = bigCall(holdingLong({ big: read({ sellers: [wall({ weight: 'light', clear_sec: 12 })] }) }), false)!;
+    expect(said.call).toMatchObject({ ping: false, pin: { label: 'SELLER', price: 4.5, at: null } });
+  });
+
   it('a held short hears the big buyer when it is newer than the lowered stop offer', () => {
     const lowerAt = normalizeHeld(rdynShortWire)!.lower!.at;
     const buyer = wall({ side: 'bid', kind: 'big_buyer', price: 5.40, distance: 0.06, called_ts: lowerAt + 10 });
     const i = inputs({
       read: { ...pfsaRead('triggered'), symbol: 'RDYN', price: 5.46, plan: null, held: normalizeHeld(rdynShortWire) },
-      who: pfsaView('signal'), position: { qty: -416, avgCost: 5.77 }, last: 5.46, now: RDYN_SHORT_NOW,
+      position: { qty: -416, avgCost: 5.77 }, last: 5.46, now: RDYN_SHORT_NOW,
       big: read({ symbol: 'RDYN', sellers: [], buyers: [buyer] }),
     }, { ...NO_HELD, since: RDYN_SHORT_SINCE });
     const m = momentOfSides(i);

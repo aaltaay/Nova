@@ -78,17 +78,9 @@ def capacity():
     return tape_admission.view()
 
 
-def test_full_tape_with_free_depth_and_record_slots(gateway, monkeypatch):
-    from leaderboard import auto_record
-
-    monkeypatch.setattr(auto_record, "_busy_lines", lambda: [])
-    monkeypatch.setattr(auto_record, "_recording", lambda: [])
-    monkeypatch.setattr(auto_record, "_resuming", lambda: [])
-    auto_record.reset_for_tests()
+def test_full_tape_refuses_a_new_automatic_line_and_reuses_a_held_one(gateway, monkeypatch):
     run(tape.subscribe_async("AAA"))
     run(tape.subscribe_async("BBB"))
-    assert auto_record.free_lines() == 0
-    assert auto_record.free_lines(symbol="AAA") > 0
     refused = run(tape.subscribe_async("CCC", automatic=True))
     assert not refused["ok"] and "capacity" in refused["error"].lower()
     assert gateway.requests == ["AAA", "BBB"]

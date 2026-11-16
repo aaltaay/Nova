@@ -4,8 +4,9 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DESK_SOUND_MUTED_KEY, DESK_VOICE_MAX_QUEUED } from './constants';
-import { DeskMuteButton } from './DeskMuteButton';
+import { DeskSoundButton } from './DeskSoundButton';
 import { isDeskMuted, resetDeskMuteForTests, setDeskMuted, subscribeDeskMute } from './deskMute';
+import { resetDeskSoundsForTests, setDeskSoundLevel, setDeskSoundOn } from './deskSounds';
 import { deskVoiceProblem, resetDeskVoiceForTests, speakDesk } from './speech';
 
 class FakeUtterance {
@@ -13,6 +14,7 @@ class FakeUtterance {
   voice: unknown = null;
   lang = '';
   rate = 1;
+  volume = 1;
   onend: (() => void) | null = null;
   onerror: ((ev: { error: string }) => void) | null = null;
   constructor(text: string) {
@@ -40,6 +42,7 @@ function fakeSpeech() {
 beforeEach(() => {
   localStorage.clear();
   resetDeskMuteForTests();
+  resetDeskSoundsForTests();
   resetDeskVoiceForTests();
 });
 
@@ -141,27 +144,83 @@ describe('the desk voice', () => {
   });
 });
 
-describe('DeskMuteButton', () => {
-  it('mutes with one click and turns sound back on with another, saying so', () => {
-    const { said } = fakeSpeech();
-    render(<DeskMuteButton />);
+describe('the Fill voice row', () => {
+  it('says nothing with its switch off, and turning it off cuts a sentence', () => {
+    const { synth } = fakeSpeech();
+    speakDesk('Sold 100 shares of S O F I.');
+    setDeskSoundOn('voice', false);
+    expect(synth.cancel).toHaveBeenCalled();
+    expect(speakDesk('Order rejected.')).toBe('muted');
+    expect(synth.speak).toHaveBeenCalledTimes(1);
+  });
+
+  it('speaks at its volume, and volume 0 is silent', () => {
+    const { synth, said } = fakeSpeech();
+    setDeskSoundLevel('voice', 40);
+    speakDesk('Bought 1 share of A.');
+    expect(said[0].volume).toBe(0.4);
+    setDeskSoundLevel('voice', 0);
+    expect(speakDesk('Bought 1 share of A.')).toBe('muted');
+    expect(synth.speak).toHaveBeenCalledTimes(1);
+  });
+
+  it('Play is heard with the row off, never under the header mute', () => {
+    const { synth } = fakeSpeech();
+    setDeskSoundOn('voice', false);
+    expect(speakDesk('Bought 100 shares of A B C.', { evenIfOff: true })).toBe('spoken');
+    setDeskMuted(true);
+    expect(speakDesk('Bought 100 shares of A B C.', { evenIfOff: true })).toBe('muted');
+    expect(synth.speak).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('DeskSoundButton', () => {
+  it('a left click opens the menu and leaves the sound alone', () => {
+    render(<DeskSoundButton />);
     const btn = screen.getByTestId('global-bar-mute');
-    expect(btn.getAttribute('aria-pressed')).toBe('false');
-    expect(btn.getAttribute('aria-label')).toBe('Sound on');
+    expect(btn.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByTestId('desk-sound-menu')).toBeNull();
     fireEvent.click(btn);
+    expect(isDeskMuted()).toBe(false);
+    expect(btn.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByTestId('desk-sound-menu')).toBeTruthy();
+    fireEvent.click(btn);
+    expect(screen.queryByTestId('desk-sound-menu')).toBeNull();
+  });
+
+  it('a right click mutes in one click and turns sound back on with another, saying so', () => {
+    const { said } = fakeSpeech();
+    render(<DeskSoundButton />);
+    const btn = screen.getByTestId('global-bar-mute');
+    expect(btn.getAttribute('aria-label')).toBe('Sound on');
+    // The browser's own menu must not open over the desk.
+    expect(fireEvent.contextMenu(btn)).toBe(false);
     expect(isDeskMuted()).toBe(true);
-    expect(btn.getAttribute('aria-pressed')).toBe('true');
     expect(btn.getAttribute('aria-label')).toBe('Sound muted');
     expect(btn.title).toMatch(/every Nova sound is off/);
+    expect(screen.queryByTestId('desk-sound-menu')).toBeNull();
     expect(said).toHaveLength(0);
-    fireEvent.click(btn);
+    fireEvent.contextMenu(btn);
     expect(isDeskMuted()).toBe(false);
     expect(said.map(u => u.text)).toEqual(['Sound on.']);
   });
 
+  it('closes on a click outside and on Escape, not on a click inside', () => {
+    render(<DeskSoundButton />);
+    const btn = screen.getByTestId('global-bar-mute');
+    fireEvent.click(btn);
+    fireEvent.mouseDown(screen.getByTestId('desk-sound-menu'));
+    expect(screen.getByTestId('desk-sound-menu')).toBeTruthy();
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByTestId('desk-sound-menu')).toBeNull();
+    fireEvent.click(btn);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByTestId('desk-sound-menu')).toBeNull();
+  });
+
   it('shows why the voice cannot speak on hover', () => {
     vi.stubGlobal('speechSynthesis', undefined);
-    render(<DeskMuteButton />);
+    render(<DeskSoundButton />);
     act(() => {
       speakDesk('Bought 1 share of A.');
     });

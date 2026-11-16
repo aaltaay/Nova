@@ -25,11 +25,16 @@ def _l1() -> dict[str, Any]:
 
 
 def _l2() -> dict[str, Any]:
-    from line_lending import view
+    """Level 2 lines in use, each with the lanes on it (ADR 071): ``held_by`` is ``you`` / ``claude`` / ``bots`` joined
+    with ``+``, ``replay`` for a Sim replay slot, or ``no lane`` for a live line no lane holds (the idle guard's)."""
+    from constants_ibkr import IBKR_MAX_DEPTH_SYMBOLS
+    from ibkr import depth
+    from line_lanes import lanes
 
-    built = view.build()
-    lines = [{"symbol": row.get("symbol"), "held_by": row.get("held_by")} for row in built.get("lines") or ()]
-    return {"used": len(lines), "cap": int(built["cap"]), "symbols": lines}
+    table = lanes.table()
+    lines = [{"symbol": sym, "held_by": "+".join(table.owners_of(sym)) or ("no lane" if depth.is_live(sym) else "replay")}
+             for sym in sorted(depth.subscribed_symbols())]
+    return {"used": len(lines), "cap": int(IBKR_MAX_DEPTH_SYMBOLS), "symbols": lines}
 
 
 def _history() -> dict[str, Any]:

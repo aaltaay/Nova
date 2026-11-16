@@ -5,6 +5,7 @@
  * chip, source, commission and fees, the 04:00 ET rollovers, the starting
  * cash and the resets -- with the balance after each.
  */
+import { plainPrice } from '../utils/priceTick';
 import { useMemo, useState } from 'react';
 import {
   ACCOUNT_LEDGER_COL_ACTION,
@@ -134,7 +135,7 @@ function RowCells({ row }: { row: LedgerRow }) {
       <>
         <td>{ACCOUNT_LEDGER_TYPE_FILL}</td>
         <td>
-          <span className={f.side === 'BUY' ? 'acct-side--buy' : 'acct-side--sell'}>{f.side}</span> {formatShareQty(f.qty)} <TickerLink symbol={f.symbol} /> @ {f.price.toFixed(2)}<EstChip />
+          <span className={f.side === 'BUY' ? 'acct-side--buy' : 'acct-side--sell'}>{f.side}</span> {formatShareQty(f.qty)} <TickerLink symbol={f.symbol} /> @ {plainPrice(f.price)}<EstChip />
           {' · '}<span className={`acct-src${kind === 'bot' ? ' is-bot' : ''}`}>{sourceLabel(f.source, f.bot_id)}</span>
           {(f.commission || f.fees) ? (
             <span className="acct-muted"> · {ACCOUNT_LEDGER_COMM} {formatMoney(f.commission)}{f.fees ? ` · ${ACCOUNT_LEDGER_FEES} ${formatMoney(f.fees)}` : ''}</span>

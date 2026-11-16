@@ -23,6 +23,7 @@ import {
   RECORDS_PAGE_REPLAY_FAILED,
   RECORDS_PAGE_TITLE,
 } from '../constantGroups/nav_rail';
+import { laneRecording } from '../ibkr';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import { selectCaptureReplay } from '../sim/captureReplayLoad';
 import { useReplayActions } from '../sim/useReplayActions';
@@ -106,7 +107,7 @@ export function RecordsPage({ onOpenTrader }: Props) {
             <div className="records-top">
               <RecordingNowCard status={status} symbols={recordingSymbols} todayRows={todayRows} nowMs={nowMs}
                 onOpenTrader={onOpenTrader} control={control} />
-              <AutoRecordCard auto={status.auto_record} nowSec={nowMs / 1000} control={control} />
+              <AutoRecordCard rec={laneRecording(status.lanes, status.recording_switch)} nowSec={nowMs / 1000} control={control} />
             </div>
             {failure && (
               <p className="rail-page__note" role="alert" data-testid="records-page-replay-error">

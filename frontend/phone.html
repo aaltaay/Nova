@@ -1,0 +1,20 @@
+<!doctype html>
+<!--
+  Nova on the phone (ADR 070): the desk's own data and order door behind a
+  phone-shaped screen. Served over the private tunnel only; it holds no API
+  key. The manifest lets Chrome put it on the home screen, full screen.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0A0D12">
+<link rel="manifest" href="/phone/manifest.webmanifest">
+<link rel="icon" href="/phone/icon-192.png">
+<title>Nova</title>
+</head>
+<body>
+<div id="root"></div>
+<script type="module" src="/src/phone/phoneMain.tsx"></script>
+</body>
+</html>

@@ -21,16 +21,14 @@ import setup_scanner.engine as _setup_scanner
 from catalysts import board as _catalyst_board
 from catalysts import feed as _catalyst_feed
 from catalysts import issuance as _catalyst_issuance
+from market_news import feed as _market_news_feed
 from move_reason import borrow_feed as _borrow_feed
 from agent_trader import watcher as _agent_trader
 from alpaca import _get_discovery_provider
 from archive.scheduler import archive_maintenance_loop, maintenance_enabled
 import archive.write_queue as _archive_write_queue
-from bot.first_pullback import runner as _bot_first_pullback
-from bot.live_trader import watcher as _live_trader
 from bot.loops import commission_loop, ttl_loop
 from loss_limit import watch as _loss_limit
-from stock_mode import runner as _stock_mode_runner
 from hot_list import auto as _hot_list_auto
 from followed_traders import keeper as _followed_keeper
 from capture import keepalive as _capture_keepalive
@@ -49,10 +47,9 @@ from ibkr_bridge import (
     symbols_for_tab,
 )
 import loop_lag as _loop_lag
-from leaderboard import auto_record as _leaderboard_auto_record
 from leaderboard import queue as _leaderboard_queue
 from leaderboard import recorder as _leaderboard_recorder
-from line_lending import loans as _line_lending
+from line_lanes import runner as _line_lanes
 from practice import matcher as _practice_matcher
 from short_sale import runner as _short_runner
 from scan_loop import scan_loop
@@ -124,12 +121,6 @@ def spawn_runtime_tasks() -> list[asyncio.Task]:
         ("bot.commission_hold", commission_loop),
         # The daily loss limit (ADR 056, ADR 063): every account -- its line, yours and the bots'.
         ("loss_limit.watch", _loss_limit.watch_loop),
-        # The first-pullback bot (ADR 030): trades go triggers on Paper and Sim; never on Live.
-        ("bot.first_pullback", _bot_first_pullback.run),
-        # Who trades the stock (ADR 037): Auto-entry and Approve on Paper and Sim; never on Live.
-        ("stock_mode.runner", _stock_mode_runner.run),
-        # The Live Trader bot (ADR 055): copies a TraderTV host's bar on Paper; idle while no host's key is on.
-        ("bot.live_trader", _live_trader.run),
         # Claude's seat (ADR 068): its line, its breaks, its 15:55 close; Paper only, idle while the seat is off.
         ("agent_trader", _agent_trader.run),
         # Today's hot list (ADR 044): the 04:00 ET rollover, and the leaders' top N from 07:00 to 16:00 ET.
@@ -142,12 +133,13 @@ def spawn_runtime_tasks() -> list[asyncio.Task]:
         # Scanner leaderboard (ADR 023): always recording, enqueue + one writer.
         ("leaderboard.write_queue", _leaderboard_queue.drain_loop),
         ("leaderboard.recorder", _leaderboard_recorder.run),
-        # 07:00-10:00 ET: record the leaders on free Level 2 lines only.
-        ("leaderboard.auto_record", _leaderboard_auto_record.run),
-        # ADR 044: a hidden Trader tab lends its Level 2 line to a setup Nova may buy. Never places.
-        ("line_lending", _line_lending.run),
+        # ADR 071: the three lanes -- the bots' lane chosen, lines that are down asked for again, and Nova records
+        # what a lane watches. Never places.
+        ("line_lanes", _line_lanes.run),
         # Catalysts (ADR 024): SEC filings and the press-release wires, recorded as they publish.
         ("catalysts.feed", _catalyst_feed.run),
+        # The market's headlines, kept and searchable for agents (Alpaca's all-market news; never a price source).
+        ("market_news.feed", _market_news_feed.run),
         # Why it's moving (ADR 028): IBKR's short-stock file, recorded as it changes.
         ("move_reason.borrow_feed", _borrow_feed.run),
         # #619: once startup settles, full collections stop walking the process's code and module state.

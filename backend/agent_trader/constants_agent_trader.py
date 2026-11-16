@@ -21,20 +21,12 @@ AGENT_TICK_SEC = 0.5                # reflexes are checked this often (decision 
 AGENT_WAKE_MIN_SEC = 0.1            # ... and on each print or book of a watched stock, this far apart at most (decision 15)
 AGENT_WAKE_RING_SEC = 60.0          # the live prints kept per watched stock (>= the reflexes' and guard's look-back)
 
-# A hidden Trader tab's line (decision 14): looked for at most this often while the seat waits; the tab's words
-# ("watching RUNR", "in a trade on RUNR") brought up to date this often; after the operator takes a tab's line
-# back, the seat asks for no line this long, so the tab reconnects onto the line it was given back.
-AGENT_TAB_LINE_TRY_SEC = 2.0
-AGENT_TAB_TIER_SEC = 2.0
-AGENT_TAB_LINE_HOLD_SEC = 10.0
-
 # The seat's states, as the desk shows them.
 SEAT_OFF = "off"                  # nobody holds the seat
 SEAT_WAITING = "waiting_line"     # on, no Level 2 line free yet
 SEAT_WATCHING = "watching"        # on, holding its line, no order, no shares
 SEAT_SET = "buy_set"              # a break or a buy is resting
 SEAT_IN = "in_trade"              # holds shares
-SEAT_YIELDED = "yielded"          # the operator took the line: no new trades
 SEAT_DONE = "done"                # the day's loss stop is reached (or a trade count, when one is set)
 SEAT_IDLE = "idle"                # on, no stock chosen yet
 
@@ -97,7 +89,7 @@ ENTRY_BREAK = "break"
 AGENT_SEAT_TAKEN = "AGENT_SEAT_TAKEN"
 AGENT_NOT_HOLDER = "AGENT_NOT_HOLDER"
 AGENT_SEAT_OFF = "AGENT_SEAT_OFF"
-AGENT_YIELDED = "AGENT_YIELDED"
+AGENT_SWITCH_OFF = "AGENT_SWITCH_OFF"   # ADR 072: the operator's switch for Claude is Off
 AGENT_LIMIT = "AGENT_LIMIT"
 AGENT_NOT_PAPER = "AGENT_NOT_PAPER"
 AGENT_NO_LINE = "AGENT_NO_LINE"

@@ -13,7 +13,7 @@ import pytest
 
 from bot.errors import BotError
 from bot.setup_levels import apply, on_lock
-from constants_bot import BOT_REASON_SETUP_WATCH_ONLY, BOT_WATCH_ONLY_SETUPS, watch_only
+from constants_bot import BOT_REASON_STRATEGIES_WATCH, BOT_WATCH_ONLY_SETUPS, watch_only
 from setup_scanner import abcd_shape, target_choices
 from setup_scanner.bars import Bar
 from setup_scanner.detectors import make_detector
@@ -196,9 +196,10 @@ def test_it_is_watch_only_and_never_a_trade():
 
 
 def test_its_on_is_locked():
+    """Its own lock stays; since ADR 072 no setup's level can be set at all (410)."""
     with pytest.raises(BotError) as refused:
         apply({"level": 2, "setup_levels": {}}, {ABCD: 2})
-    assert refused.value.status_code == 409 and refused.value.reason == BOT_REASON_SETUP_WATCH_ONLY
+    assert refused.value.status_code == 410 and refused.value.reason == BOT_REASON_STRATEGIES_WATCH
     assert on_lock(ABCD)
 
 

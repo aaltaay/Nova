@@ -105,7 +105,7 @@ def test_a_buy_stop_is_proposed_over_the_price_and_printed_when_a_price_reaches_
 
 
 def test_the_read_measures_a_short_downward_and_names_the_day_cover():
-    f = {"nova_exit": None}
+    f: dict = {}
     ctx = {"price": 5.45, "bars": BARS, "level_map": MAP, "macd_hist": -0.05, "ema9": 5.60,
            "levels": {"vwap": 5.92}, "spread": 0.01}
     out = held_read(f, ctx, {"qty": 416, "avg": 5.77, "stop": 5.89, "since": SINCE, "side": "short"}, NOW)

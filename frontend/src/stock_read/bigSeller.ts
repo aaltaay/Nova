@@ -12,8 +12,8 @@ import { fmtPx } from './planMath';
 import { num, obj, str } from './normalize';
 import { hhmmssEt } from './timeWords';
 
-export type BigState = 'holding' | 'left' | 'eaten' | 'pulled' | 'lost';
-const STATES: ReadonlySet<string> = new Set<BigState>(['holding', 'left', 'eaten', 'pulled', 'lost']);
+export type BigState = 'holding' | 'left' | 'eaten' | 'pulled' | 'lost' | 'smaller';
+const STATES: ReadonlySet<string> = new Set<BigState>(['holding', 'left', 'eaten', 'pulled', 'lost', 'smaller']);
 
 export interface BigWall {
   id: string;
@@ -24,6 +24,10 @@ export interface BigWall {
   sizeNow: number;
   traded: number;
   multiple: number | null;
+  /** Its size over the last minute's lit volume, in seconds; null with no pace (or once it ended). */
+  clearSec: number | null;
+  /** `light`: under a minute of that volume -- a seller, not a big one. A backend that sends none reads heavy. */
+  light: boolean;
   firstSeenTs: number;
   /** Big in the first book Nova read: it may have been there longer. */
   seenFromStart: boolean;
@@ -68,6 +72,8 @@ function normalizeWall(raw: unknown): BigWall | null {
     sizeNow: num(w.size_now) ?? 0,
     traded: num(w.traded) ?? 0,
     multiple: num(w.multiple),
+    clearSec: num(w.clear_sec),
+    light: w.weight === 'light' || w.weight === 'unknown',
     firstSeenTs: firstSeen,
     seenFromStart: w.seen_from_start === true,
     calledTs: num(w.called_ts),
@@ -111,9 +117,9 @@ export function normalizeBigWalls(raw: unknown): BigWalls | null {
 // -- words --------------------------------------------------------------------------------------------
 
 const WORDS = {
-  long: { who: 'BIG SELLER', side: 'ask', what: 'offered', past: 'over', others: 'asks', taker: 'bought',
+  long: { who: 'BIG SELLER', one: 'SELLER', side: 'ask', what: 'offered', past: 'over', others: 'asks', taker: 'bought',
     gone: 'The seller is gone.' },
-  short: { who: 'BIG BUYER', side: 'bid', what: 'bid', past: 'under', others: 'bids', taker: 'sold',
+  short: { who: 'BIG BUYER', one: 'BUYER', side: 'bid', what: 'bid', past: 'under', others: 'bids', taker: 'sold',
     gone: 'The buyer is gone.' },
 } as const;
 
@@ -159,6 +165,15 @@ function endedWords(w: BigWall, short: boolean): { text: string; detail: string;
   const W = short ? WORDS.short : WORDS.long;
   const at = `${W.who} @ ${fmtPx(w.price)}`;
   const size = fmtShares(w.sizeFirst);
+  if (w.state === 'smaller' && w.left) {
+    // Most of it still rests there, under the size that counts as big: smaller, not gone.
+    const gone = w.left.before - w.left.after;
+    const did = w.how === 'traded' ? 'taken' : 'pulled';
+    return { tone: 'warn', text: `${W.one} @ ${fmtPx(w.price)} SMALLER · ${fmtShares(w.left.after)} still there`,
+      detail: `${fmtShares(gone)} of the ${fmtShares(w.left.before)} ${W.what} at ${fmtPx(w.price)} left the book `
+        + `(${fmtShares(w.left.filled)} traded there: ${did}). ${fmtShares(w.left.after)} is still ${W.what} there, `
+        + 'under the size Nova calls big, so it is no longer followed.' };
+  }
   if (w.state === 'eaten') {
     const how = w.how === 'through'
       ? `A print went through ${fmtPx(w.price)} at ${hhmmssEt(w.endedTs)}: the size ${W.what} there traded.`
@@ -206,17 +221,24 @@ export function bigLine(r: BigWalls | null, short: boolean, error: string | null
   if (w.state === 'holding' || w.state === 'left') {
     const past = pastWords(w.distance, w.price, W.past);
     const held = heldWords(w.heldSec, w.seenFromStart);
-    const head = `${W.who} ${fmtShares(w.sizeNow)} @ ${fmtPx(w.price)}`;
+    // A light one (under a minute of the last minute's lit volume) is a seller, never called big.
+    const vol = w.clearSec !== null ? heldWords(w.clearSec, false) : null;
+    const head = w.light
+      ? `${W.one} ${fmtShares(w.sizeNow)} @ ${fmtPx(w.price)}${vol ? ` · light, ${vol} of volume` : ''}`
+      : `${W.who} ${fmtShares(w.sizeNow)} @ ${fmtPx(w.price)}`;
+    const weighed = vol
+      ? ` ${vol} of the last minute's lit volume: ${w.light ? 'light, under a minute' : 'heavy, a minute or more'}.`
+      : '';
     const mult = w.multiple !== null ? `, ${w.multiple.toFixed(0)}x the other ${W.others}` : '';
     const traded = w.traded > 0 ? ` ${fmtShares(w.traded)} traded there so far.` : '';
     const since = w.seenFromStart ? `there before ${hhmmssEt(w.firstSeenTs)}` : `there since ${hhmmssEt(w.firstSeenTs)}`;
     const detail = `${fmtShares(w.sizeNow)} shares ${W.what} at ${fmtPx(w.price)}${mult}, ${past}; ${since}, first seen at `
-      + `${fmtShares(w.sizeFirst)}.${traded} Shown, never acted on.`;
+      + `${fmtShares(w.sizeFirst)}.${traded}${weighed} Shown, never acted on.`;
     if (w.state === 'left') {
       return { tone: 'warn', text: `${W.who} @ ${fmtPx(w.price)} · LEFT THE BOOK`, wall: w,
         detail: 'The book shows it gone; the tape says within a second whether it traded or was pulled.' };
     }
-    return { tone: 'warn', text: `${head} · ${past} · held ${held}`, detail, wall: w };
+    return { tone: w.light ? 'info' : 'warn', text: `${head} · ${past} · held ${held}`, detail, wall: w };
   }
   return { ...endedWords(w, short), wall: w };
 }

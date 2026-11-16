@@ -82,6 +82,27 @@ The implementation must verify the same lifecycle contract across venue
 adapters, including partial fills and the remaining stop after target 1.
 Autonomous Live bot entry remains refused under the constitution and ADR 042.
 
+## One protective stop outside regular hours (operator decision 2026-11-05, #604, #606)
+
+IBKR's plain stop does not work outside regular hours; its stop-limit can, with Outside RTH set. Decided: a protective
+exit sent outside regular hours -- a bracket's stop, an exit pair's stop, Nova's exit stop -- is a stop-limit on Paper,
+Sim and Live alike, its limit 2% past the stop (`execution/stop_shape.py`). In regular hours it stays a plain stop.
+
+- It rests at the venue, so it works with Nova or the feed down.
+- A gap through the limit leaves it unfilled, working at its limit: the stated price of this choice. Nothing chases it.
+- Outside regular hours is the venue's own clock: the wall clock on Live and Paper, the playhead on Sim, 13:00 on an
+  early close. `outside_rth` is the order's permission, not the session: the ticket sets it from a saved preference,
+  so a 10:00 bracket with Extended Hours on keeps a plain stop.
+- The order must also hold that permission. Without it a stop cannot work before the open, and from the open a plain
+  stop is the better shape.
+- The shape is chosen when the stop is sent. A stop-limit that lives past 09:30 stays one, and a plain stop that lives
+  past the close stays one: IBKR's published answers say it would not trigger then, while Paper and Sim still fill it.
+- Moving the stop moves its limit with it.
+- The 2% is a starting value, not measured on past premarket gaps.
+- How IBKR treats `outsideRth` on an API stop-limit rests on its published answers, not on a real order.
+
+Rejected: a stop Nova watches and sends itself (no protection while Nova, the feed or the Gateway is down).
+
 ## Rejected alternatives
 
 - Separate paper vs live code paths

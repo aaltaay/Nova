@@ -1,5 +1,6 @@
 // Shared TypeScript types for the IBKR trading module.
 // Mirrors the JSON shapes returned by backend/routes/trading.py.
+import type { LanesView } from './lanes';
 
 /** `paper` is Nova's practice account on the live feed, never the IBKR paper Gateway (ADR 020). */
 export type IbkrMode = 'paper' | 'live' | 'sim' | 'disconnected';
@@ -39,8 +40,10 @@ export interface IbkrStatus {
   capture_stopped?: RecordingStopped[];
   /** The always-on Scanner board recorder (ADR 023); quiet unless `ok` is false. */
   leaderboard_recorder?: LeaderboardRecorderStatus | null;
-  /** 07:00-10:00 ET auto-record of the top leaders on free Level 2 lines (ADR 023). */
-  auto_record?: AutoRecordStatus | null;
+  /** The three lanes (ADR 071): who holds each Level 2 and Time & Sales line, and what Nova records. */
+  lanes?: LanesView | null;
+  /** The recording switch (`auto-record-switch.json`); null when it could not be read. */
+  recording_switch?: AutoRecordSwitch | null;
   gateway_mode?: 'paper' | 'live';
   /** Session account classification from IB account ids (DU…=paper, U…=live). */
   broker_account_kind?: 'paper' | 'live' | 'unknown';
@@ -141,22 +144,7 @@ export interface LeaderboardRecorderStatus {
   run_id: string | null;
 }
 
-/** One setup's arming window, ET "HH:MM" (ADR 041). */
-export interface AutoRecordWindow {
-  setup: string;
-  start: string;
-  end: string;
-  open: boolean;
-}
-
-/** Which auto-record window is open (`auto_record_windows.window_state`). */
-export interface AutoRecordWindows {
-  open: 'setups_and_leaders' | 'setups' | 'leaders' | 'none';
-  setups: { open: boolean; start: string | null; end: string | null; by_setup: AutoRecordWindow[]; error: string | null };
-  leaders: { open: boolean; start: string; end: string };
-}
-
-/** The operator's auto-record switch (operator ask 2026-10-14; `scanner.md`, Auto-record). */
+/** The recording switch (operator ask 2026-10-14; ADR 071): On records what a lane watches. */
 export type AutoRecordMode = 'on' | 'off_today' | 'off';
 export interface AutoRecordSwitch {
   mode: AutoRecordMode;
@@ -167,22 +155,6 @@ export interface AutoRecordSwitch {
   until: number | null;
   /** The saved switch could not be read (it then reads On). */
   error: string | null;
-}
-
-/** `/api/ibkr/status` `auto_record` (ADR 023). */
-export interface AutoRecordStatus {
-  active: boolean;
-  window: string;
-  symbols: string[];
-  yielded: string[];
-  last_error: string | null;
-  /** Why each held symbol has its line: trade | near | armed | leader | left. */
-  why?: Record<string, string>;
-  /** The setup a held line was taken for; none for a leader. */
-  setup?: Record<string, string>;
-  windows?: AutoRecordWindows;
-  /** Absent from a backend older than the switch. */
-  switch?: AutoRecordSwitch;
 }
 
 export interface IbkrAccountSummary {
@@ -230,6 +202,11 @@ export interface IbkrPosition {
   liquidation_price?: number | null;
   /** Where the liquidation price's margin came from: "IBKR what-if" or "published rules". */
   liquidation_source?: string | null;
+  /** Paper and Sim (ADR 072): `qty` is the shares yours to close; the account holds this many. */
+  account_qty?: number | null;
+  /** ADR 072: how many of `qty` were handed to you, and by whom (a switched-off trader, or a retired bot). */
+  handed_qty?: number | null;
+  handed_from?: 'claude' | 'brain' | 'earlier_bots' | null;
 }
 
 export type FillAuditLevel = 'ok' | 'warn' | 'danger';
@@ -257,6 +234,9 @@ export interface IbkrOrder {
   order_origin?: string | null;
   /** Practice rows only: the bot that placed it, when a bot did. */
   bot_id?: string | null;
+  /** Paper and Sim (ADR 072): whose order it is (null: one of Nova's own closes), and which retired bot's. */
+  owner?: 'you' | 'claude' | 'brain' | 'earlier_bots' | null;
+  bot?: string | null;
   /**
    * Nova sent this SELL as a short entry (ADR 048): practice rows stamp it, Live rows take it from
    * the execution ledger. null / absent: not recorded (placed outside Nova, or an older backend).

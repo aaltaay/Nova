@@ -62,6 +62,12 @@ export const CHART_CRASH_AUTO_RETRY_MS = 3_000;
 export const CHART_CRASH_AUTO_RETRY_WINDOW_MS = 60_000;
 
 /**
+ * A day volume above this on a trade update is no volume figure and the forming bar counts nothing for
+ * it: IBKR's line carried 10^6-scaled totals on 2026-09-18 / 09-21. The backend's `IBKR_L1_DAY_VOLUME_MAX`.
+ */
+export const CHART_LIVE_DAY_VOLUME_MAX = 50_000_000_000;
+
+/**
  * Session VWAP is accumulated from this one timeframe for every pane, then
  * sampled onto the pane's own bar times (``chart/vwapSession.ts``). Accumulating
  * per pane anchors wherever that pane's IB duration + bar-limit trim happens to
@@ -412,10 +418,11 @@ export const TICKER_TRADE_SIDE_WIDTH_MAX_PX = 720;
 /** Desktop breakpoint (px): 2×2 charts + right rail; below stacks rail under charts. */
 export const STOCK_VIEW_DESKTOP_MIN_PX = 900;
 /**
- * Soft floor (px) for Stock View L2+T&S when space allows.
+ * Floor (px) for Stock View L2+T&S in the quote card (half the card on a short one): the 260 px pane
+ * where Level 2 still shows its spread row, plus the pane's head.
  * Mirrored as `--sv-depth-min` in stockViewTerminal.css.
  */
-export const STOCK_VIEW_DEPTH_MIN_PX = 260;
+export const STOCK_VIEW_DEPTH_MIN_PX = 290;
 /** localStorage key: user's saved Stock View quote-panel width (drag-to-resize). */
 export const STOCK_VIEW_SIDE_WIDTH_KEY = 'nova.stockView.sideWidthPx';
 /**

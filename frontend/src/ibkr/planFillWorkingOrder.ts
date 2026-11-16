@@ -7,9 +7,9 @@
  * does not make those MKTs fill. Fill now used to cancel+resubmit the
  * same unfillable MKT and treat broker-accept as success (#168).
  */
+import { fmtPrice } from '../utils/quoteFormat';
 import type { MarketSessionKind } from '../chart';
 import { FILL_NOW_SHORT_ENTRY_REFUSAL, FILL_WORKING_ORDER_CONFIRM_PREFIX } from '../constants';
-import { formatMoney } from '../utils/formatMoney';
 import { resolveFillSessionKind } from './extendedSession';
 import { remainingSharesWhole } from './orderQtyMath';
 import type { IbkrOrder } from './types';
@@ -107,7 +107,7 @@ function lmtConfirmMessage(
   const quoteName = side === 'SELL' ? 'bid' : 'ask';
   return (
     `Fill now will cancel the resting order and sweep ${side} ${qty} ${symbol} ` +
-    `at ${quoteName} ${formatMoney(limitPrice)} (extended-hours limit). ` +
+    `at ${quoteName} ${fmtPrice(limitPrice)} (extended-hours limit). ` +
     `No US exchange takes a market order outside regular hours.`
   );
 }

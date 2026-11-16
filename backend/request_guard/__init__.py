@@ -10,6 +10,11 @@ A WebSocket that carries an Origin must come from a page allowed for CORS
 desk (file://). A socket with no Origin (Python, Node, bots, tests) passes:
 every browser sends one. HTTP Origins are left to CORS and the API key.
 
+Another device is view-only (ADR 070): a request that did not come straight from
+this PC -- its Host is not a loopback name or the bind host, or it carries a
+forwarder's header -- may read, but its writes are refused before the API key is
+read, and it never reaches the bot and agent routes.
+
 constants_request_guard.py (names, texts, limits), policy.py (the pure rules),
 middleware.py (the ASGI middleware and its rate-limited refusal log),
 recent_refusals.py (every recent refusal in memory, which the desk diagnostics

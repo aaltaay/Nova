@@ -181,7 +181,8 @@ describe('actual depth ladder performance fixture (#797)', () => {
     render(true);
     expect(viewStampFor(SYMBOL, Date.now()).book).toEqual({ seq: 50, at: NOW + 0.05, bid: 10.02, ask: 10.03 });
     expect(viewLockReason(SYMBOL)).toBeNull();
-    expect(container.querySelector('.das-l2-bbo')?.textContent).toContain('10.02 × 10.03');
+    expect(container.querySelector('[data-testid="l2-spread-bid"]')?.textContent).toBe('10.02');
+    expect(container.querySelector('[data-testid="l2-spread-ask"]')?.textContent).toBe('10.03');
     expect(FakeSocket.instances).toHaveLength(1);
     assertAnnotations();
 

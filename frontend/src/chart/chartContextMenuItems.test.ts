@@ -64,7 +64,6 @@ describe('chartContextMenuItems', () => {
       'show_layers',
       'create_alert',
       'watch_list_add',
-      'bot_allowlist_add',
       'reset',
       'snapshot',
     ]);
@@ -97,13 +96,9 @@ describe('chartContextMenuItems', () => {
     expect(items.find((i) => i.id === 'watch_list_remove')?.label).toBe('Remove from watch list');
   });
 
-  it('lets the bot trade the stock, or stops it, from the live menu', () => {
-    const add = chartContextMenuItems(BASE).find((i) => i.id === 'bot_allowlist_add');
-    expect(add?.kind).toBe('action');
-    const remove = chartContextMenuItems({ ...BASE, allowlisted: true }).find(
-      (i) => i.id === 'bot_allowlist_remove',
-    );
-    expect(remove?.label).toBe('Stop the bot trading this stock');
+  it('offers no row that lets a bot trade the stock (ADR 072: the strategies only watch)', () => {
+    const ids: string[] = chartContextMenuItems({ ...BASE, hasPosition: true }).map((i) => i.id);
+    expect(ids.some((id) => id.startsWith('bot_'))).toBe(false);
   });
 
   it('exposes Show Layers and omits surfaces Nova cannot perform', () => {

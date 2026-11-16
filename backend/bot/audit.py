@@ -57,7 +57,7 @@ def record(
     if action in BOT_TRADE_AUDIT_ACTIONS and outcome not in BOT_TRADE_OUTCOMES:
         logger.error("bot audit: %s line with an outcome outside BOT_TRADE_OUTCOMES: %r", action, outcome)
     row = load_session()
-    from bot.gates import current_venue
+    from bot.door import current_venue
 
     entry = {
         "timestamp": time.time(),

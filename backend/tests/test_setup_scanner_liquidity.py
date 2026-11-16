@@ -121,12 +121,13 @@ def test_a_thin_stock_arms_on_the_record_but_never_proposes_and_its_trigger_says
     assert stored["triggered_at"] and stored["liquidity"]["state"] == "thin"            # still scored, kept thin
 
 
-def test_a_liquid_stock_proposes_as_before(tmp_path):
+def test_a_liquid_stock_reads_ok_and_proposes_nothing_either(tmp_path):
+    """ADR 072: the strategies only watch, so a liquid stock near its trigger raises no proposal either."""
     eng, _audits, _journal, clock = _armed(tmp_path, volume=2_000_000)        # $8.6M traded today
     eng.on_l1_minute("last", SYM, {"price": 4.35, "ts": clock["t"], "bar_open": 4.32})
     asyncio.run(eng.tick(clock["t"]))
     assert eng.board(clock["t"])["rows"][0]["liquidity"]["state"] == "ok"
-    assert len(eng.proposals) == 1
+    assert eng.proposals == {}
 
 
 def test_a_changed_verdict_at_a_closed_minute_is_journalled_and_the_playback_folds_it(tmp_path):

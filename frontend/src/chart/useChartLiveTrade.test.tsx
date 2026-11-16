@@ -37,6 +37,7 @@ type Point = { time: Time };
 function fakeSeries<T extends Point>() {
   let data: T[] = [];
   const api = {
+    applyOptions: () => {},
     setData: (next: T[]) => { data = [...next]; },
     update: (bar: T) => {
       const last = data.at(-1);

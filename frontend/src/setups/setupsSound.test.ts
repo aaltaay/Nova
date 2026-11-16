@@ -2,7 +2,6 @@
  * @vitest-environment jsdom
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SETUPS_SOUND_STORAGE_KEY } from '../constants';
 import {
   isSetupsSoundEnabled,
   noteSetupProposal,
@@ -10,7 +9,7 @@ import {
   setSetupsSoundEnabled,
   subscribeSetupsSound,
 } from './setupsSound';
-import { setDeskMuted } from '../sound';
+import { DESK_SOUND_KEYS, setDeskMuted } from '../sound';
 
 describe('setupsSound', () => {
   beforeEach(() => {
@@ -32,7 +31,7 @@ describe('setupsSound', () => {
         return { connect: vi.fn(), frequency: { value: 0 }, start, stop };
       }
       createGain() {
-        return { connect: vi.fn(), gain: { value: 0, exponentialRampToValueAtTime: vi.fn() } };
+        return { connect: vi.fn(), gain: { value: 0, setValueAtTime() {}, exponentialRampToValueAtTime: vi.fn() } };
       }
     }
     vi.stubGlobal('AudioContext', FakeAudio);
@@ -58,7 +57,7 @@ describe('setupsSound', () => {
     const off = subscribeSetupsSound(v => seen.push(v));
     setSetupsSoundEnabled(false);
     expect(isSetupsSoundEnabled()).toBe(false);
-    expect(window.localStorage.getItem(SETUPS_SOUND_STORAGE_KEY)).toBe('off');
+    expect(window.localStorage.getItem(DESK_SOUND_KEYS.setups)).toBe('off');
     expect(noteSetupProposal('p3')).toBe('muted');
     off();
     setSetupsSoundEnabled(true);

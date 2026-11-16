@@ -39,10 +39,10 @@ FOREX_QUIET_FROM_MIN_ET = 9 * 60 + 30
 FOREX_QUIET_TO_MIN_ET = 16 * 60
 
 # -- IBKR budget: Forex reads last, taking turns (ADR 062 decision 5) ------------------------------------------------
-FOREX_HISTORY_HEADROOM = 30                      # no historical request while this few of the 10-minute 60 are left:
-#   charts, the short check, the TraderTV exits and LULD (20) come first; the Market and Global pages stop at the
-#   same 30, so the three take turns.
-FOREX_YIELD_HEADROOM = 40                        # ... while the Market or Global page shows and this one does not
+FOREX_HISTORY_HEADROOM = 100                     # no historical request while this few of the 10-minute window are left:
+#   charts, the short check, the TraderTV exits and LULD come first; the Market and Global pages stop at the same
+#   line, so the three take turns.
+FOREX_YIELD_HEADROOM = 110                       # ... while the Market or Global page shows and this one does not
 FOREX_HISTORY_GAP_SEC = 2.0                      # between two of this page's historical requests
 FOREX_IBKR_TIMEOUT_SEC = 8.0                     # a contract qualify
 FOREX_HISTORY_TIMEOUT_SEC = 60.0                 # one historical request, end to end through the bridge

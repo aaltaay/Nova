@@ -227,22 +227,98 @@ def test_fetch_chart_bars_empty_store_schedules_open_chart_priority():
 
 
 def test_fetch_chart_bars_stale_stored_series_schedules_warm_priority():
-    """A pane that already painted something must not compete at open_chart
-    priority -- that starves a genuinely empty pane's fill (PROBLEM_LOG
-    2026-08-26 chart hist starvation)."""
+    """A pane that already painted this session's history must not compete at
+    open_chart priority -- that starves a genuinely empty pane's fill
+    (PROBLEM_LOG 2026-08-26 chart hist starvation)."""
+    now = time.time()
     with patch.object(chart_bars._ibkr_client, "is_ready", return_value=True):
         with patch.object(
             chart_bars, "_store_read",
-            return_value=_stored_series(30, fetched_ts=time.time() - 100000),
-        ):
+            return_value=_stored_series(30, fetched_ts=now - 600),
+        ), patch.object(chart_bars, "_session_start", return_value=now - 3600):
             with patch.object(chart_bars, "_schedule_ibkr_fill") as fill:
                 with patch("bars_store.store_series_complete", return_value=True):
-                    chart_bars.fetch_chart_bars(
+                    out = chart_bars.fetch_chart_bars(
                         "AAPL", "1Hour", 400,
                         discovery_provider="ibkr", interactive=True,
                     )
     fill.assert_called_once()
     assert fill.call_args.kwargs["priority"] == "warm"
+    assert out["coverage"]["history_pending"] is False
+
+
+def _fill_priority_for(timeframe: str, *, fetched_ts: float, session_start: float) -> tuple[str, dict]:
+    stored = {**_stored_series(30, fetched_ts=fetched_ts), "timeframe": timeframe}
+    with patch.object(chart_bars._ibkr_client, "is_ready", return_value=True):
+        with patch.object(chart_bars, "_store_read", return_value=stored), \
+                patch.object(chart_bars, "_session_start", return_value=session_start):
+            with patch.object(chart_bars, "_schedule_ibkr_fill") as fill:
+                with patch("bars_store.is_coverage_fresh", return_value=False):
+                    out = chart_bars.fetch_chart_bars(
+                        "RIOX", timeframe, 1500, discovery_provider="ibkr", interactive=True,
+                    )
+    fill.assert_called_once()
+    return fill.call_args.kwargs["priority"], out["coverage"]
+
+
+def test_a_pane_holding_only_the_tapes_bars_asks_as_an_open_chart():
+    """RIOX 2026-11-04: the 10-second store held tape-built bars and no IBKR fill (``fetched_ts`` 0), its
+    fill went out as "warm", was shed at 08:31:19 with 30 of 60 left, and the pane never got its history."""
+    now = time.time()
+    priority, coverage = _fill_priority_for("10Sec", fetched_ts=0.0, session_start=now - 3600)
+    assert priority == "open_chart"
+    assert coverage["history_pending"] is True
+    assert coverage["filling"] is True
+
+
+def test_an_intraday_pane_filled_on_an_earlier_day_asks_as_an_open_chart():
+    now = time.time()
+    priority, coverage = _fill_priority_for("1Min", fetched_ts=now - 7200, session_start=now - 3600)
+    assert priority == "open_chart"
+    assert coverage["history_pending"] is True
+
+
+def test_a_daily_pane_filled_on_an_earlier_day_is_painted():
+    """Earlier sessions are a daily pane's content: its refresh stays "warm"."""
+    now = time.time()
+    priority, coverage = _fill_priority_for("1Day", fetched_ts=now - 7200, session_start=now - 3600)
+    assert priority == "warm"
+    assert coverage["history_pending"] is False
+
+
+def test_an_empty_store_says_its_history_is_pending():
+    with patch.object(chart_bars._ibkr_client, "is_ready", return_value=True):
+        with patch.object(chart_bars, "_store_read", return_value=None):
+            with patch.object(chart_bars, "_schedule_ibkr_fill"):
+                out = chart_bars.fetch_chart_bars(
+                    "RIOX", "10Sec", 1500, discovery_provider="ibkr", interactive=True,
+                )
+    assert out["coverage"]["history_pending"] is True
+
+
+def test_history_pending_reads_the_last_fill_against_the_session():
+    import bars_store
+
+    start = 1_793_782_800.0  # 2026-11-04 04:00 ET
+    assert bars_store.history_pending(None, "10Sec", start) is True
+    assert bars_store.history_pending({"fetched_ts": 0.0}, "1Day", start) is True
+    assert bars_store.history_pending({"fetched_ts": start - 1}, "5Min", start) is True
+    assert bars_store.history_pending({"fetched_ts": start + 1}, "5Min", start) is False
+    assert bars_store.history_pending({"fetched_ts": start - 1}, "1Day", start) is False
+    assert bars_store.history_pending({"fetched_ts": start - 1}, "10Sec", None) is False
+
+
+def test_the_session_start_is_four_am_et_of_the_trading_day():
+    from zoneinfo import ZoneInfo
+
+    et = ZoneInfo("America/New_York")
+    four = datetime(2026, 11, 4, 4, 0, tzinfo=et).timestamp()
+    assert chart_bars._session_start(datetime(2026, 11, 4, 8, 32, tzinfo=et).timestamp()) == four
+    # 00:00-03:59 belongs to the last session; a Saturday to Friday's.
+    tuesday = datetime(2026, 11, 3, 4, 0, tzinfo=et).timestamp()
+    assert chart_bars._session_start(datetime(2026, 11, 4, 3, 59, tzinfo=et).timestamp()) == tuesday
+    friday = datetime(2026, 11, 6, 4, 0, tzinfo=et).timestamp()
+    assert chart_bars._session_start(datetime(2026, 11, 7, 12, 0, tzinfo=et).timestamp()) == friday
 
 
 def test_fetch_chart_bars_background_caller_stays_background_regardless_of_store():

@@ -74,6 +74,10 @@ os.environ["IBKR_GATEWAY_MODE"] = os.environ.get("IBKR_GATEWAY_MODE") or "paper"
 # watcher and writer threads running for the rest of the session; the perf
 # tests drive those modules directly (and runtime.start under their own switch).
 os.environ["NOVA_PERF"] = "0"
+# ADR 045 / #1244: the trading-path keeper raises the API's own pid -- in-process, pytest's -- to Above Normal every
+# 2 s, and the thread that boots the app to Above Normal too; one test that booted the app left both for the rest of
+# the run (and the keeper read this PC's IB Gateway). Off for every app a test boots; its tests use fake pids.
+os.environ["NOVA_PROCESS_PRIORITY"] = "0"
 # ADR 028: an app a test boots must not poll IBKR's short-stock file; the borrow tests drive the feed directly.
 os.environ["NOVA_BORROW_FEED"] = "0"
 # ADR 048's borrow recording writes on its own thread; its tests turn it on and write in-line.
@@ -100,28 +104,46 @@ import constants_hod_momo as hod_const
 import hod_momo as hm
 import hod_momo_metrics as metrics
 from hod_momo_state import HodMomoState
+from tests import priority_guard
+
+# What this run started with, before any test (#1244, #1079); None off Windows.
+_PYTEST_PRIORITY = priority_guard.read()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _testserver_is_this_pc():
+    """TestClient's Host stands for the desk on this PC: a name in NOVA_ALLOWED_HOSTS alone is
+    another device, which is view-only (ADR 070), and every test's POST would be refused."""
+    from request_guard import policy
+
+    before = policy.THIS_PC_NAMES
+    policy.THIS_PC_NAMES = before | {"testserver"}
+    yield
+    policy.THIS_PC_NAMES = before
+
+
+@pytest.fixture(autouse=True)
+def _hold_pytest_priority():
+    # A test that moves pytest's own CPU class or main-thread priority, either way, fails here and is put back, so
+    # the next test (and every child pytest starts) runs at what the run started with.
+    yield
+    moved = priority_guard.put_back(_PYTEST_PRIORITY)
+    if moved:
+        pytest.fail(moved, pytrace=False)
 
 
 @pytest.fixture(autouse=True)
 def _reset_bot_persist():
-    from bot import day_pnl, entry_rules, family_keys, fill_progress, replay_desk
+    from bot import day_pnl
     from bot.persist import reset_for_tests
     from setup_scanner import readout
-    from tests.bot_helpers import open_entry_window, release_depth_lines
+    from tests.bot_helpers import release_depth_lines
 
     reset_for_tests()
-    family_keys.reset_for_tests()     # the family keys' file is read once per cache dir (bot.md, "The three keys")
-    replay_desk.reset_for_tests()     # the bot's memory of a Sim replay is process-local (ADR 052)
-    fill_progress.reset_for_tests()   # the partial fills last said are process-local (2026-10-16)
     readout.reset_for_tests()
     day_pnl.reset_for_tests()   # #564: no commission hold carries between tests
-    # The venue clock inside the entry window, so bot tests exercise their own
-    # gate. The tests about the entry rules close it explicitly. (ADR 042: the
-    # read-out no longer gates the bot.)
-    open_entry_window()
     yield
     reset_for_tests()
-    entry_rules.set_clock_for_tests(None)
     readout.reset_for_tests()
     day_pnl.reset_for_tests()
     # Depth lines a bot test held (ready_l2 / hold_depth_line) must not leak
@@ -151,6 +173,25 @@ def _reset_order_state_memory():
     yield
     for module in (session_fills, unclaimed, reconnect_reconcile):
         module.reset_for_tests()
+
+
+@pytest.fixture(autouse=True)
+def _reset_lanes():
+    # The three lanes (ADR 071) live for the process; each test starts with them empty. The lanes' gate is open by
+    # default here, so a test that drives a line without putting a lane on its stock keeps working; the lanes' own
+    # tests (test_line_lanes_*.py) close it with ``lanes.enforce(True)``.
+    from line_lanes import bots, lanes, recording, sockets
+
+    def reset() -> None:
+        lanes.reset_for_tests()
+        bots.reset_for_tests()
+        recording.reset_for_tests()
+        sockets.reset_for_tests()
+        lanes.enforce(False)
+
+    reset()
+    yield
+    reset()
 
 
 def _clear_session_error_state() -> None:
@@ -451,6 +492,6 @@ def short_market_open(monkeypatch):
     monkeypatch.setattr(facts, "venue_now", lambda venue: now)
     monkeypatch.setattr(halts, "live", lambda symbol, now=None: halts.HaltRead("clear", f"{symbol} is trading."))
     monkeypatch.setattr(ssr, "live", lambda symbol, now=None: ssr.SsrRead("off", "No SSR (pinned by the test)."))
-    monkeypatch.setattr(ssr, "request_history", lambda symbol, now=None: False)
+    monkeypatch.setattr(ssr, "request_history", lambda symbol, now=None, urgent=False: False)
     monkeypatch.setattr(ssr_fill, "effective_on", lambda *a, **k: False)
     return now

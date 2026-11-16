@@ -6,7 +6,12 @@
  * stamp (QA W9); a working order from an earlier day shows its date (W4). On
  * Live the Fills tab reads IBKR's filled orders (W17). While a Calendar day is
  * open the Fills tab lists that day's fills, until the day closes.
+ *
+ * Paper and Sim (ADR 072, mockup three-books v1 item 6): every position, order
+ * and fill row says whose it is in that book's colour; there is no Close on
+ * another trader's row (you switch the trader off).
  */
+import { plainPrice } from '../utils/priceTick';
 import { useMemo, useState, type Ref } from 'react';
 import type { DeskVenue } from '../constantGroups/desk_venue';
 import {
@@ -55,6 +60,8 @@ import { sourceKind, sourceLabel } from './accountFigures';
 import type { AccountFillRow } from './accountLive';
 import type { AccountPosition } from './accountPositions';
 import { TickerLink } from '../components/TickerLink';
+import { OWNER_WHOSE_COL } from '../constantGroups/owners';
+import { WhoseChip, WhoseChips, type WhoseTag } from './WhoseCell';
 
 export type PosTab = 'positions' | 'orders' | 'fills';
 
@@ -148,8 +155,13 @@ const orderStampMs = (order: IbkrOrder): number => Date.parse(order.filled_at ??
 /** A Source cell's words, or null for its "—" (no stamp), so it sorts with the unknowns. */
 const knownSource = (label: string): string | null => (label === '—' ? null : label);
 
+/** A Whose cell sorts on its holders, in the books' order of their keys. */
+const whoseKey = (tags: readonly WhoseTag[] | undefined): string =>
+  (tags ?? []).map((t) => `${t.owner ?? 'nova'}${t.bot ?? ''}${t.closedByYou ? '+' : ''}`).join(',');
+
 const POSITION_COLUMNS: SortColumns<AccountPosition> = {
   symbol: (p) => p.symbol,
+  whose: (p) => `${p.owner ?? ''}${p.bot ?? ''}${p.handed ? '+' : ''}`,
   qty: (p) => p.qty,
   avg: (p) => p.avgCost,
   last: (p) => p.mark,
@@ -166,6 +178,7 @@ const FILL_COLUMNS: SortColumns<AccountFillRow> = {
   comm: (f) => f.commission,
   fees: (f) => f.fees,
   source: (f) => knownSource(sourceLabel(f.source, f.botId)),
+  whose: (f) => whoseKey(f.holders),
 };
 
 /** Orders sort on what each cell shows; the Source column reads the fills' stamps. */
@@ -179,6 +192,7 @@ function orderColumns(fillSource: ReadonlyMap<number, AccountFillRow>): SortColu
     price: orderPriceCell,
     status: orderStatusLabel,
     source: (o) => knownSource(orderSourceCell(o, fillSource.get(o.order_id)).label),
+    whose: (o) => `${o.owner ?? 'nova'}${o.bot ?? ''}`,
   };
 }
 
@@ -201,6 +215,10 @@ export function PositionsOrdersPanel({
   const held = positions.filter((p) => p.qty !== 0);
   const orderCols = useMemo(() => orderColumns(fillSource), [fillSource]);
   const positionSort = useTableSort('account.positions', held, POSITION_COLUMNS);
+  // Paper and Sim's rows are each holder's (ADR 072): the Whose column, wherever the rows say whose they are.
+  const whose = held.some((p) => p.owner != null);
+  const ordersWhose = practice && orders.some((o) => o.owner !== undefined);
+  const fillsWhose = listedFills.some((f) => f.holders != null);
   const orderSort = useTableSort('account.orders', shown, orderCols);
   const fillSort = useTableSort('account.fills', newestFills, FILL_COLUMNS);
   const foot = !practice
@@ -246,6 +264,7 @@ export function PositionsOrdersPanel({
             <thead>
               <tr>
                 <SortTh col="symbol" sort={positionSort.sort} onSort={positionSort.onSort}>{ACCOUNT_COL_SYMBOL}</SortTh>
+                {whose && <SortTh col="whose" sort={positionSort.sort} onSort={positionSort.onSort}>{OWNER_WHOSE_COL}</SortTh>}
                 <SortTh col="qty" sort={positionSort.sort} onSort={positionSort.onSort} className="r">{ACCOUNT_COL_QTY}</SortTh>
                 <SortTh col="avg" sort={positionSort.sort} onSort={positionSort.onSort} className="r">{ACCOUNT_COL_AVG}</SortTh>
                 <SortTh col="last" sort={positionSort.sort} onSort={positionSort.onSort} className="r">{ACCOUNT_COL_LAST}</SortTh>
@@ -255,13 +274,18 @@ export function PositionsOrdersPanel({
             </thead>
             <tbody>
               {positionSort.rows.length === 0 ? (
-                <tr><td colSpan={6} className="acct-muted">{ACCOUNT_POSITIONS_EMPTY}</td></tr>
+                <tr><td colSpan={whose ? 7 : 6} className="acct-muted">{ACCOUNT_POSITIONS_EMPTY}</td></tr>
               ) : positionSort.rows.map((p) => (
-                <tr key={p.symbol} data-testid={`account-position-${p.symbol}`}>
+                <tr key={`${p.symbol}-${p.owner ?? ''}-${p.bot ?? ''}`} data-testid={`account-position-${p.symbol}`} data-owner={p.owner ?? undefined}>
                   <td><TickerLink symbol={p.symbol} /></td>
+                  {whose && (
+                    <td className="acct-whose-cell">
+                      {p.owner && <WhoseChip owner={p.owner} bot={p.bot} handed={p.handed} />}
+                    </td>
+                  )}
                   <td className="r acct-num">{formatShareQty(p.qty)}</td>
                   <td className="r acct-num">{p.avgCost == null ? '—' : p.avgCost.toFixed(4)}{p.estimated && p.avgCost != null && <EstChip />}</td>
-                  <td className="r acct-num">{p.mark == null ? '—' : p.mark.toFixed(2)}</td>
+                  <td className="r acct-num">{p.mark == null ? '—' : plainPrice(p.mark)}</td>
                   <td className="r"><Money value={p.marketValue} /></td>
                   <td className="r"><Money value={p.unrealized} signed /></td>
                 </tr>
@@ -275,6 +299,7 @@ export function PositionsOrdersPanel({
               <tr>
                 <SortTh col="time" sort={orderSort.sort} onSort={orderSort.onSort}>{ACCOUNT_COL_TIME}</SortTh>
                 <SortTh col="symbol" sort={orderSort.sort} onSort={orderSort.onSort}>{ACCOUNT_COL_SYMBOL}</SortTh>
+                {ordersWhose && <SortTh col="whose" sort={orderSort.sort} onSort={orderSort.onSort}>{OWNER_WHOSE_COL}</SortTh>}
                 <SortTh col="side" sort={orderSort.sort} onSort={orderSort.onSort}>{ACCOUNT_COL_SIDE}</SortTh>
                 <SortTh col="qty" sort={orderSort.sort} onSort={orderSort.onSort} className="r">{ACCOUNT_COL_QTY}</SortTh>
                 <SortTh col="type" sort={orderSort.sort} onSort={orderSort.onSort}>{ACCOUNT_COL_TYPE}</SortTh>
@@ -285,7 +310,7 @@ export function PositionsOrdersPanel({
             </thead>
             <tbody>
               {orderSort.rows.length === 0 ? (
-                <tr><td colSpan={8} className="acct-muted">{ACCOUNT_ORDERS_EMPTY}</td></tr>
+                <tr><td colSpan={ordersWhose ? 9 : 8} className="acct-muted">{ACCOUNT_ORDERS_EMPTY}</td></tr>
               ) : orderSort.rows.map((o) => {
                 const bucket = orderBucket(o);
                 const src = orderSourceCell(o, fillSource.get(o.order_id));
@@ -294,6 +319,11 @@ export function PositionsOrdersPanel({
                   <tr key={orderKeys[orders.indexOf(o)]} data-testid={`account-order-${o.order_id}`} data-bucket={bucket}>
                     <td className="acct-num">{etOrderStamp(o.filled_at ?? o.updated_at ?? o.submitted_at, today)}</td>
                     <td><TickerLink symbol={o.symbol} /></td>
+                    {ordersWhose && (
+                      <td className="acct-whose-cell" data-testid={`account-order-whose-${o.order_id}`}>
+                        {o.owner !== undefined && <WhoseChip owner={o.owner} bot={o.bot} />}
+                      </td>
+                    )}
                     <td className={o.side === 'BUY' ? 'acct-side--buy' : 'acct-side--sell'}>{o.side}</td>
                     <td className="r acct-num">{formatShareQty(o.qty)}</td>
                     <td>{o.order_type}</td>
@@ -301,7 +331,7 @@ export function PositionsOrdersPanel({
                       className={`r acct-num${bucket === 'canceled' || bucket === 'expired' || price == null ? ' acct-muted' : ''}`}
                       title={price == null ? ACCOUNT_PRICE_NONE_TITLE : undefined}
                     >
-                      {price == null ? ACCOUNT_PRICE_NONE : price.toFixed(2)}{bucket === 'filled' && price != null && (o.fill_estimated || practice) && <EstChip />}
+                      {price == null ? ACCOUNT_PRICE_NONE : plainPrice(price)}{bucket === 'filled' && price != null && (o.fill_estimated || practice) && <EstChip />}
                     </td>
                     <td className={bucket === 'filled' || bucket === 'working' ? '' : 'acct-muted'}>{orderStatusLabel(o)}</td>
                     <td className={`acct-src${src.bot ? ' is-bot' : ''}`} data-testid={`account-order-source-${o.order_id}`}>
@@ -319,6 +349,7 @@ export function PositionsOrdersPanel({
               <tr>
                 <SortTh col="time" sort={fillSort.sort} onSort={fillSort.onSort}>{ACCOUNT_COL_TIME}</SortTh>
                 <SortTh col="symbol" sort={fillSort.sort} onSort={fillSort.onSort}>{ACCOUNT_COL_SYMBOL}</SortTh>
+                {fillsWhose && <SortTh col="whose" sort={fillSort.sort} onSort={fillSort.onSort}>{OWNER_WHOSE_COL}</SortTh>}
                 <SortTh col="side" sort={fillSort.sort} onSort={fillSort.onSort}>{ACCOUNT_COL_SIDE}</SortTh>
                 <SortTh col="qty" sort={fillSort.sort} onSort={fillSort.onSort} className="r">{ACCOUNT_COL_QTY}</SortTh>
                 <SortTh col="price" sort={fillSort.sort} onSort={fillSort.onSort} className="r">{ACCOUNT_COL_PRICE}</SortTh>
@@ -329,14 +360,19 @@ export function PositionsOrdersPanel({
             </thead>
             <tbody>
               {fillSort.rows.length === 0 ? (
-                <tr><td colSpan={8} className="acct-muted">{day ? ACCOUNT_FILLS_DAY_EMPTY : ACCOUNT_FILLS_EMPTY}</td></tr>
+                <tr><td colSpan={fillsWhose ? 9 : 8} className="acct-muted">{day ? ACCOUNT_FILLS_DAY_EMPTY : ACCOUNT_FILLS_EMPTY}</td></tr>
               ) : fillSort.rows.map((f) => (
                 <tr key={f.key} data-testid={`account-fill-${f.orderId}`}>
                   <td className="acct-num">{etTime(f.ts)}</td>
                   <td><TickerLink symbol={f.symbol} /></td>
+                  {fillsWhose && (
+                    <td className="acct-whose-cell" data-testid={`account-fill-whose-${f.orderId}`}>
+                      {f.holders && <WhoseChips tags={f.holders} />}
+                    </td>
+                  )}
                   <td className={f.side === 'BUY' ? 'acct-side--buy' : 'acct-side--sell'}>{f.side}</td>
                   <td className="r acct-num">{formatShareQty(f.qty)}</td>
-                  <td className="r acct-num">{f.price.toFixed(2)}{f.estimated && <EstChip />}</td>
+                  <td className="r acct-num">{plainPrice(f.price)}{f.estimated && <EstChip />}</td>
                   <td className="r acct-num">{formatMoney(f.commission)}</td>
                   <td className="r acct-num">{formatMoney(f.fees)}</td>
                   <td className={`acct-src${sourceKind(f.source) === 'bot' || f.botId ? ' is-bot' : ''}`}>{sourceLabel(f.source, f.botId)}</td>

@@ -17,6 +17,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from fastapi import HTTPException
 
+from constants_setups import SETUPS_SEED_HISTORY_HEADROOM
 from setup_scanner import hooks
 from setup_scanner.bars import Bar
 from setup_scanner.engine import SetupEngine
@@ -192,11 +193,12 @@ def test_several_names_at_once_are_asked_one_at_a_time(tmp_path):
 
 
 def test_send_wait_paces_the_scanners_requests():
-    assert send_wait(100.0, -math.inf, 0, False) is None
-    assert "loading" in send_wait(100.0, -math.inf, 0, True)
-    assert "asked 2s ago" in send_wait(100.0, 98.0, 0, False)
-    assert send_wait(100.0, 95.0, 29, False) is None
-    assert "the rest are the charts'" in send_wait(100.0, 95.0, 30, False)
+    room = SETUPS_SEED_HISTORY_HEADROOM + 1
+    assert send_wait(100.0, -math.inf, room, False) is None
+    assert "loading" in send_wait(100.0, -math.inf, room, True)
+    assert "asked 2s ago" in send_wait(100.0, 98.0, room, False)
+    assert send_wait(100.0, 95.0, room, False) is None
+    assert "those are the charts'" in send_wait(100.0, 95.0, SETUPS_SEED_HISTORY_HEADROOM, False)
 
 
 def test_a_seed_that_covers_the_day_asks_nothing(tmp_path):

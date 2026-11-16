@@ -10,7 +10,7 @@ interface Props {
   uiActive?: boolean;
   /** The plan's ENTRY / STOP / TARGET in the book (ADR 037). */
   markers?: readonly DepthMarker[];
-  /** A Trader tab's Level 2: its line may be lent while the tab is hidden (ADR 044 decision 6). */
+  /** A Trader tab's Level 2: its socket says `tab=1`, and only the tab in front moves your lane (ADR 071). */
   traderTab?: boolean;
 }
 

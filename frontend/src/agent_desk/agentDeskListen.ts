@@ -3,7 +3,7 @@
  * Nova is restarting (a growing wait) or when its API has no agent endpoints for this desk (an older backend
  * or no API key: rarely). Stops when `signal` aborts.
  */
-import { AgentDeskUnavailable, fetchNextCommand, reportCommand } from './agentDeskApi';
+import { AgentDeskUnavailable, fetchNextCommand, reportCommand, type ShowPlan } from './agentDeskApi';
 import {
   AGENT_DESK_RETRY_MAX_MS,
   AGENT_DESK_RETRY_MS,
@@ -17,6 +17,9 @@ export interface ListenDeps {
   next?: typeof fetchNextCommand;
   run?: typeof runAgentCommand;
   sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
+  openSeparateSim?: (plan: ShowPlan) => void | Promise<void>;
+  viewToSim?: () => void;
+  focusDesk?: () => void;
 }
 
 function sleepFor(ms: number, signal: AbortSignal): Promise<void> {
@@ -49,7 +52,10 @@ export async function listenForAgentCommands(signal: AbortSignal, deps: ListenDe
     }
     if (command && !signal.aborted) {
       try {
-        await run(command, { openTab: deps.openTab, notice: deps.notice, report: reportCommand });
+        await run(command, {
+          openTab: deps.openTab, notice: deps.notice, report: reportCommand,
+          openSeparateSim: deps.openSeparateSim, viewToSim: deps.viewToSim, focusDesk: deps.focusDesk,
+        });
       } catch (error) {
         // A report that could not reach Nova: the backend fails the command on its own when it hears no more.
         console.warn('agent desk: a command ended without its last report', error);

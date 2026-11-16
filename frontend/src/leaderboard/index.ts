@@ -6,7 +6,6 @@ export { bySecondNotice, withGappersBySecond } from './gappersBySecond';
 export { useGappersBySecond } from './useGappersBySecond';
 export { LeaderboardRecorderToast } from './LeaderboardRecorderToast';
 export {
-  AUTO_RECORD_CHIP_LINE,
   HOD_HISTORY_REQUEST_FAILED,
   HOD_REBUILD_ASK_AGAIN_MS,
   HOD_REBUILD_POLL_MS,

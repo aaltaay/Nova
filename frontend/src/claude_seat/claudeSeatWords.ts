@@ -2,20 +2,24 @@
  * Claude's seat in words and lines (ADR 068), pure: the pill's tone, the panel's rows, the lines a chart pane
  * draws for Claude's orders and armed breaks, and which events pop a toast. Nothing here reads the network.
  */
-import type { ClaudeBreak, ClaudeEvent, ClaudeOrder, ClaudeSeatState, ClaudeSeatStatus } from './types';
+import type { ClaudeBreak, ClaudeEvent, ClaudeOrder, ClaudeSeatState, ClaudeSeatStatus, ClaudeSwitch } from './types';
 
-export type ClaudeTone = 'off' | 'wait' | 'on' | 'paused' | 'done';
+export type ClaudeTone = 'off' | 'wait' | 'on' | 'done';
 
 export function seatTone(state: ClaudeSeatState): ClaudeTone {
   if (state === 'off') return 'off';
   if (state === 'waiting_line') return 'wait';
-  if (state === 'yielded') return 'paused';
   if (state === 'done') return 'done';
   return 'on';
 }
 
-/** The pill's tone: amber while Claude holds shares without a Level 2 (the operator took its tab line back). */
+/**
+ * The pill's tone: muted while the operator's switch is Off (ADR 072) -- Claude makes no new trade then, whatever it
+ * watches -- red once its day is done, amber while it holds shares without a Level 2.
+ */
 export function pillTone(status: ClaudeSeatStatus): ClaudeTone {
+  if (status.state === 'done') return 'done';
+  if (status.switch && !status.switch.on) return 'off';
   if (status.state === 'in_trade' && !status.line.depth) return 'wait';
   return seatTone(status.state);
 }
@@ -40,16 +44,12 @@ export function etClock(epochSec: number, seconds = false): string {
   });
 }
 
-function etDay(epochSec: number): string {
-  return new Date(epochSec * 1000).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-}
-
-/** The pill shows while the seat is on, and "Off" (muted) only on a day the seat was on; otherwise nothing. */
-export function pillShown(status: ClaudeSeatStatus | null, nowSec = Date.now() / 1000): boolean {
-  if (!status) return false;
-  if (status.state !== 'off') return true;
-  const last = status.events[0];
-  return last != null && etDay(last.at) === etDay(nowSec);
+/**
+ * The pill shows whenever the desk has read the seat: what Claude is doing while it is on, "Claude · Off" (muted)
+ * while it is off -- every day, so the operator sees Claude is off (operator, 2026-10-30).
+ */
+export function pillShown(status: ClaudeSeatStatus | null): boolean {
+  return status != null;
 }
 
 export type ClaudeLineKind = 'buy' | 'sell' | 'stop';
@@ -104,16 +104,18 @@ export function claudeChartLines(status: ClaudeSeatStatus | null, symbol: string
   return lines;
 }
 
-/** Events that pop a toast and that the desk's voice says. */
+/** Events that pop a toast and that the desk's voice says; the switch's own (ADR 072) included. */
 export const CLAUDE_TOAST_KINDS: ReadonlySet<string> = new Set([
-  'buy_set', 'break_set', 'fill', 'reflex_fired', 'close', 'day_close', 'yielded', 'line_back', 'refused',
-  'line_wait', 'off', 'tab_line', 'tab_line_back',
+  'buy_set', 'break_set', 'fill', 'reflex_fired', 'close', 'day_close', 'refused', 'line_wait', 'off',
+  'switch_off', 'handed',
 ]);
 
-/** "Claude set buy 510 SMPL ..." -- the event's own words after the name. */
+/** Events whose words are a whole sentence already ("Claude is off: its 300 SMPL are yours to close."). */
+const AS_WRITTEN: ReadonlySet<string> = new Set(['switch_off', 'handed']);
+
+/** "Claude set buy 510 SMPL ..." -- the event's own words after the name; the switch's sentences as written. */
 export function eventWords(e: ClaudeEvent): string {
-  // "You took SMPL's line back from Claude": the operator's own act, said in its own words.
-  return e.kind === 'tab_line_back' ? e.text : `Claude ${e.text}`;
+  return AS_WRITTEN.has(e.kind) ? e.text : `Claude ${e.text}`;
 }
 
 /** Events newer than ``since`` that toast, oldest first. */
@@ -138,14 +140,8 @@ export function buySetRow(status: ClaudeSeatStatus): string | null {
 /** The panel's "My line" row. */
 export function lineRow(status: ClaudeSeatStatus): string {
   const l = status.line;
-  if (status.yielded) return 'Yours: you took Claude\'s line';
-  if (l.symbol && l.depth && l.from_tab) {
-    return `Level 2 + Time & Sales on ${l.symbol} · your ${l.from_tab} tab's line (right-click the tab to take it back)`;
-  }
-  if (l.symbol && l.depth) {
-    const yours = l.desk_cap ?? 2;
-    return `Level 2 + Time & Sales on ${l.symbol} · 1 of 3 · you have ${yours}`;
-  }
+  // Claude's own lane (ADR 071): one of the three lines, never yours or the bots'.
+  if (l.symbol && l.depth) return `Level 2 + Time & Sales on ${l.symbol} · Claude's lane`;
   if (status.state === 'waiting_line') return l.why_not ?? 'Waiting for a Level 2 line';
   return 'None yet';
 }
@@ -161,12 +157,19 @@ export function todayRow(status: ClaudeSeatStatus): string {
 }
 
 export const CLAUDE_WHY_BUSY = 'Waiting for Nova to answer your last press.';
-export const CLAUDE_WHY_OFF = "Claude's seat is off: it holds no line and no trade.";
+/** The switch's words (approved mockup brain-switches v1, section 1-2). */
+export const CLAUDE_SWITCH_LABEL = "Claude's switch";
+export const CLAUDE_SWITCH_ON = 'On';
+export const CLAUDE_SWITCH_OFF = 'Off';
+export const CLAUDE_SWITCH_OFF_HELP = 'Off: no new trades. Its working entries are cancelled. Its open trade and its stop '
+  + 'stay as they are, and the trade is yours to close.';
+export const CLAUDE_SWITCH_ON_HELP = 'On: Claude may trade on Paper again. A trade it handed you stays yours until you close it.';
 
-/** Why a seat button is locked, or undefined while it works (ux/whyTip shows it). */
-export function lockWhy(busy: boolean, on: boolean): string | undefined {
+/** What pressing the switch does, for its tip: the refusal On would meet, else the flip. */
+export function switchTip(sw: ClaudeSwitch, busy: boolean): string {
   if (busy) return CLAUDE_WHY_BUSY;
-  return on ? undefined : CLAUDE_WHY_OFF;
+  if (sw.on) return `${CLAUDE_SWITCH_LABEL}: On. ${CLAUDE_SWITCH_OFF_HELP}`;
+  return sw.why_not_on?.error ?? `${CLAUDE_SWITCH_LABEL}: Off. ${CLAUDE_SWITCH_ON_HELP}`;
 }
 
 /** "checked in 40 s ago" from the lease's last beat. */

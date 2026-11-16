@@ -56,6 +56,8 @@ forward, and backfill skipped gaps from the window start afterwards. The
 snapshot adds `covered: boolean` (the playhead's second is downloaded); an
 uncovered playhead returns no tape prints, and candles are never built or
 flat-filled across a gap.
+Candles built from prints sit on the listed tick (`sim.chart_replay.penny_bar`): cents at $1 and over, four
+decimals under it.
 A complete candles (`bars`) job covers its window (`coverage` is the window,
 `progress_pct` 100). The selection's `download_status` is its job's status now,
 in the listing and in the snapshot -- a worker that died leaves `running` in
@@ -168,13 +170,9 @@ let go held IBKR's tick-by-tick lines; IBKR refused AMOD's with 10190 after the
 request, and the socket sat on a dead line reading ERROR until the operator switched
 tabs. Owner `line_lending/tape_heal.py`. While a `/ws/ibkr/tape/{symbol}` socket
 watches a symbol whose AllLast line IBKR refused or ended (or a heartbeat finds it
-down), one task per symbol brings it back: after a cap refusal (10190) it first
-cancels every line no viewer watches (`tape_line.release_idle`: a closed socket's
-line lingers 16 s for a remount, still counting against the cap), then, for the tab
-in front by the focus sensor (else a socket opened with `front=1`, or a panel
-outside a Trader tab), has auto-record give back its lowest-ranked line
-(`auto_record.make_room_for(symbol, tape_refused=True)`); a recording the operator
-started is never touched. It asks again once IBKR's 15 s same-instrument rule allows,
+down), one task per symbol brings it back, for a stock a lane is on (ADR 071: since
+only the lanes hold lines, nothing is given up to make room -- a cap refusal means
+lines IB Gateway still holds, and the message says so). It asks again once IBKR's 15 s same-instrument rule allows,
 plus `LINE_LENDING_TAPE_HEAL_BACKOFF_SEC` after refusals in a row (at once when a
 hidden tab comes to the front), never while IBKR is not ready, and never stops while
 a socket watches. The socket's frames: IBKR's own `{"type": "error", message}`, then
@@ -184,19 +182,21 @@ new line stood `LINE_LENDING_TAPE_HEAL_CONFIRM_SEC` without IBKR ending it. The 
 reads RETRYING while `retry_at` is set, and any print clears a stale error.
 
 Every manifest segment carries `reason: "operator" | "rotation" | "failure" |
-"restart" | "auto"` naming why it ended (`auto`: auto-record's planned stop, ADR 023) (`restart` is stamped by the startup finalizer,
+"restart" | "auto" | "lane"` naming why it ended (`auto`: auto-record's planned stop, ADR 023, in recordings made
+before ADR 071; `lane`: its stock left its lane, or the lane's recording ended -- planned, like `operator` and
+`auto`, below) (`restart` is stamped by the startup finalizer,
 whose `stopped_et` is the dead process's last write on disk -- `recovered_et`
 keeps when the recovery ran).
 `/api/capture/sessions` rows add `segments: integer`, `missing_sec: integer`
 (seconds between the first segment start and the last segment stop that no
-segment covers, except the gaps after a segment the operator stopped --
-`reason: "operator"` -- which were not recorded but went missing from nothing),
+segment covers, except the gaps after a segment stopped on purpose --
+`reason: "operator"`, `"auto"` or `"lane"` -- which were not recorded but went missing from nothing),
 `last_reason: string | null`, `spans: [[start, stop], ...]`
 (whole epoch seconds per segment, sorted; an open segment runs to now) and
 `gaps: [[start, stop, reason], ...]` (2026-10-14: each stretch between the first
 start and the last stop that no segment covers, sorted, with `reason` the segment
 reason that ended the stretch before it, `null` when that one named none; a gap
-after `operator` or `auto` was stopped on purpose, and every other gap is what
+after `operator`, `auto` or `lane` was stopped on purpose, and every other gap is what
 `missing_sec` adds up, so the two cannot disagree). Segment
 counts, spans and `replay_load.segments` include the segment still being
 written (`stopped_et: null` while this process records it; a manifest still
@@ -227,7 +227,42 @@ stops it. All three are empty lists while nothing is recording or pending. The U
 as quiet state (chip, hairline, window title) and an unrequested stop as the
 loud one.
 
+## Recording follows the lanes (ADR 071 decision 8, operator 2026-11-12 and 2026-11-13)
+
+Operator, 2026-11-12: "the recording only starts when bots, Claude, or I are watching at level 2. We don't need
+random recorders when nobody's watching anything". 2026-11-13, on three recordings of setups that had ended: "I no
+longer want to see these recordings being automatically recorded".
+
+- **Owner:** `backend/line_lanes/recording.py`, ticking with the bots' lane (`LANES_BOTS_TICK_SEC`) and at once on
+  every lane move. Memory only.
+- **What is recorded**, while the switch is On (below), on a desk whose lines are live:
+  - the bots' lane's stock, while it is on the lane;
+  - Claude's lane's stock, while it is on the lane;
+  - your lane's stock while you watch it -- a fresh window of the desk shows it in front (the focus sensor, ADR
+    033: a visible, not minimized window's Trader tab, a pop-out's, the Desk's Trader slot), or a socket opened with
+    `front=1` on it is still open and no desk window lists it as a hidden Trader tab (the phone, a browser) -- and
+    for `LANES_YOU_RECORD_TAIL_SEC` (300 s) after (operator, 2026-11-13: "a Trader tab I can see").
+- **A recording holds no line.** It records the lines its lane holds and ends, as a planned stop (segment
+  `reason: "lane"`), before its stock's lines end. Each stay on a lane is a segment of that stock's day.
+- **Record by hand** (`POST /api/capture {enabled: true, symbol}`) records a stock a lane is on and nothing else:
+  any other answers 409 `{detail: "<SYMBOL> is on no lane: open it in front to record it"}`. It ends with
+  `reason: "lane"` when the stock leaves every lane. A stop by hand ends it as before (`reason: "operator"`), and
+  the lanes' recording does not start that stock again that day.
+- **The resume after a failure** (`capture.keepalive`) brings a recording back only while its stock is on a lane.
+- **The switch** is unchanged: `auto-record-switch.json` and `POST /api/auto-record {mode: "on" | "off_today" |
+  "off"}` (`scanner.md`), now for the lanes' recording; `NOVA_AUTO_RECORD=0` still holds it off. Off stops the
+  lanes' recordings at once (planned, `reason: "lane"`); the lanes keep their lines. A Record by hand works with the
+  switch off.
+- **On the wire:** `/api/ibkr/status` `lanes` (`market-data.md`): each lane's `recording`; `recording_switch` is the
+  switch's `{mode, source, day, until, error}` (formerly `auto_record.switch`).
+- **Removed:** auto-record (`leaderboard/auto_record*.py` but the switch): the leaders, the arming windows,
+  rotation, the give-back to the operator, the failed-start pause, `/api/ibkr/status` `auto_record`, and its
+  restart file `auto-record.json` (left on disk, never read again).
+
 ## The Records page and turning recording off (operator ask, 2026-10-14)
+
+*ADR 071 (2026-11-13): the auto-record card below becomes the lanes' recording; the page's words change in the
+screens step, after a mockup the operator approves.*
 
 Operator, 2026-10-14: "i need a way to turn off the recording and i feel like this
 entire screen need better ux". Both recordings on screen were auto-record's (the
@@ -654,7 +689,8 @@ commission subtracted twice (QA W2; the daily loss limit counts trades opened to
 `NOVA-SIM` there. A filled practice row carries `fill_estimated: true` and
 `fill_basis: "quote" | "last_print" | "print_cross" | "stop_trigger" |
 "last_mark" | "live_quote" | "live_print" | "l1_last"` (`l1_last`: a resting Paper order filled on IBKR's Level 1
-Last while its Time & Sales missed trades, ADR 045 amendment 2026-10-14); a practice fill is never displayed
+Last while its Time & Sales missed trades, ADR 045 amendment 2026-10-14, or while no lane holds its stock's Time &
+Sales: a resting order holds no line, ADR 071 decision 9, and `practice/tape_hold.py` is removed); a practice fill is never displayed
 as a recorded print. Refusals: `SIM_NO_REPLAY`, `SIM_SYMBOL_MISMATCH`,
 `SIM_NO_TRADES`, `SIM_NO_PRICE`, `SIM_ORDER_TYPE` (Sim),
 `PRACTICE_NO_LIVE_PRINT` (Paper: no fresh last and no recent tape print --
@@ -831,7 +867,7 @@ since the broker's notice ran before that row carried the order id (QA R41).
 (default `1D`; owner `practice/history.py`, a pure derivation from the ledger
 events -- no live mark is ever read or invented) answers `venue`,
 `account_id`, `range`, `range_start` (epoch of the first practice day the
-range covers, `null` for `ALL`), `schema_version: 1`, `starting_cash`,
+range covers, `null` for `ALL`), `schema_version: 2` (ADR 069 added whose, below), `starting_cash`,
 `ledger_opened_at` (ISO ET) and:
 
 - `equity[]` -- `{ts, net_liquidation, cash, realized, unrealized}`, one point
@@ -873,6 +909,54 @@ contributes `daily` rows and its `archives` entry only. Sim answers from its
 scratch ledger with `archives: []`; nothing loaded is the shape with empty
 lists, never a guess. Unknown `venue` or `range` is a 400. Constants:
 `constants_practice.PRACTICE_HISTORY_*`.
+
+**Three traders' books (ADR 072, built; owners `backend/owners/` and `backend/traders/`).** Paper and Sim's scratch
+account each keep one cash and, inside it, three books -- `you`, `claude`, `brain` -- plus read-only `earlier_bots`:
+what the retired bots held and traded (ADR 069's bots' book). Whose an order is, a trader's stock, the rules at the
+door and the handover are `architecture/schema/traders.md`. Each fill splits across the stock's holders
+(`owners.split`: between you and everyone else ADR 063's rule; inside a side the sender's own shares first, then the
+others' in proportion) and each part is booked at its holder's own average cost (`owners.holdings`), so the account's
+position, cost and realized P&L are the holders' together. Sim's ledger splits like Paper's (`use_owners(True)` on
+both, and the broker stamps the ledger's `venue`); a rewind replays the books with the account. There is no new
+event and no `practice-paper.json` version: a `rollover` event also carries `holders: {<holder>: pnl}` (each
+holder's P&L at the boundary, at the equity's own marks), and one written before ADR 069 reads at the last fill
+prices. On Live every row stays the account's and yours.
+
+- `GET /api/practice/account?venue=paper|sim`: `books: {you, claude, brain, earlier_bots}`, each `{day_pnl,
+  realized_today, unrealized_pnl, fills_today, commissions_today}`; `claude` and `brain` add `budget_usd` (their
+  limit, `traders.limits`) and `budget_used_usd` (their open shares at the mark plus working entries at their own
+  price, `owners.budget.used_usd`); `earlier_bots` adds `by_bot: {<bot>: {same five}}`. The four `day_pnl` add up to
+  the account's (Earlier bots' takes what rounding, or a rollover from before ADR 069, leaves). Each `positions[]`
+  row adds `by_owner[]`: `{owner, bot, qty, avg_cost, unrealized_pnl, handed}` per holder with shares (`handed`:
+  those shares are yours to close). Working and closed order rows carry `owner` (null for one of Nova's own closes)
+  and `bot` (Earlier bots only).
+- `GET /api/ibkr/positions` on Paper and Sim is the shares **yours to close** (`owners.books.yours`): `qty`,
+  `avg_cost`, `market_value` and `unrealized_pnl` are your own shares' plus any handed to you; `handed_qty` says
+  how many of them are handed and `handed_from` from whom (`claude` | `brain` | `earlier_bots`, else null);
+  `account_qty` is the account's and `by_owner[]` every holder's. A stock only another trader holds is not listed.
+  Every Sell, Flatten, cover and exit on the desk sizes from `qty`. Live's rows are the account's.
+- **The desk's positions lists** (the header's count and menu, the positions tables, the dock footer, the chart's
+  line, the header search, the close-of-day reminder) read every book: your rows from `GET /api/ibkr/positions`,
+  the other traders' from `by_owner[]` of `GET /api/practice/account` (one row per holder, valued at the
+  position's `mark`), each tagged `owner` / `bot` (`ibkr/deskPositions.ts`). Nothing sizes an order from another
+  trader's row; a refusal only names it. There is no Close on another trader's row: you close a trader's stock by
+  switching it Off (`traders.md`).
+- `GET /api/practice/history` (`schema_version: 3`, Paper and Sim): each `fills[]` row adds `owner`, `bot` (the
+  order's) and `parts[]` -- `{owner, bot, qty, closes, realized, commission, fees, closed_by?}`, how the fill split,
+  each `realized` at its holder's own cost; a part your close took from shares handed to you is booked on the
+  trader that held them with `closed_by: "you"`, and the fill says `closed_by: "you"` when any part does. Each
+  `daily[]` row adds `you`, `claude`, `brain` and `earlier_bots` (`{realized, fills, commissions, fees}`, a fill
+  counting once for every holder it touched) and `by_bot`; each `equity[]` point adds `you_pnl`, `claude_pnl`,
+  `brain_pnl`, `earlier_bots_pnl`, their realized part (`*_realized`), `by_bot` and `by_bot_realized` (Earlier bots'
+  holders): each book's running P&L since the ledger opened, at the event's marks; `by_owner[]` is `{owner, bot,
+  realized, fills, commissions, fees}` per holder, first-fill order; `components` adds `you_realized`,
+  `claude_realized`, `brain_realized` and `earlier_bots_realized`, and `bot_realized` is every book's but yours.
+  Archived Paper ledgers split the same way. Version 2's `bots`, `bots_pnl` and `bots_realized` are gone.
+- **The Reports tab's journal** builds Paper's round trips from the same parts, one per holder, and reads them by
+  venue and view: `architecture/schema/journal.md` ("Three traders and Earlier bots on the Reports tab").
+- **Retired with the bots:** ADR 069's one bots' budget (`owners-budget.json` is left where it is and no longer
+  read; `GET` / `PUT /api/owners/budget` are gone) and Close on a bots' row (`POST /api/owners/close-bots`, origin
+  `close_bots`: rows keep the label). Each AI trader's budget is its limit in `trader-limits.json` (`traders.md`).
 
 ## Sim at now is live -- the live edge (ADR 020 amendment, operator decision 2026-09-21 evening)
 

@@ -1,9 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { isWatchOnlySetup } from '../constantGroups/bot';
-import { onLockOf } from '../bot/botLevels';
-import { statusOf } from '../bot/strategyBuckets';
-import { ruleLines, ruleSummary } from '../bot/templateFormat';
-import fixture from '../bot/setupTemplatesFixture.json';
 import { dipCandleWords, isDip } from './dipWords';
 import { funnelSteps, stateWords, triggerWords } from './setupWords';
 import type { SetupLevels, SetupRow } from './types';
@@ -26,8 +21,6 @@ function row(partial: Partial<SetupRow> = {}): SetupRow {
     bar_r: null, mfe: null, mae: null, ...partial,
   };
 }
-
-const DIP_VALUES = (fixture.setups.find(s => s.id === 'pullback_dip')!.templates[0].values) as Record<string, never>;
 
 describe('the pullback dip in words (#847, watch only)', () => {
   it('its "trigger" is the close it bought, with the candle, the stop under the pullback low and the targets', () => {
@@ -56,31 +49,4 @@ describe('the pullback dip in words (#847, watch only)', () => {
     expect(dipCandleWords({ detail: { entry_mode: 'green', red_bars: 2 } })).toBe('the first green close after 2 red candles');
   });
 
-  it('reads its template: the run, the entry candle, the stop and "watch only", never a bot window', () => {
-    const lines = Object.fromEntries(ruleLines('pullback_dip', DIP_VALUES));
-    expect(lines.Setup).toContain('Leg ≥ 5% to a new high of day · a 2–4 candle pullback (the entry candle included)');
-    expect(lines.Entry).toBe('A bottoming wick (lower wick ≥ 50% of the candle and $0.02, closing ≥ 60% up it), at its '
-      + 'close +$0.01 · arms 07:00–11:30');
-    expect(lines.Trade).toContain('Stop $0.01 under the pullback\'s low');
-    expect(lines.Trade).toContain('target 1 the pullback high');
-    expect(lines.Trade).toContain('watch only: scored, never traded');
-    expect(lines.Trade).not.toContain('bot ');
-    expect(ruleLines('pullback_dip', { ...DIP_VALUES, dip_entry: 'green' as never })[2][1])
-      .toMatch(/^The first green close after 1\+ red, at its close/);
-    expect(ruleSummary('pullback_dip', DIP_VALUES)).toBe(
-      'Bottoming wick in a 2–4 candle pullback off a 5%+ leg · stop under the pullback low · watch only');
-  });
-
-  it('locks its On for good, in the backend\'s words when it sends them', () => {
-    expect(isWatchOnlySetup('pullback_dip')).toBe(true);
-    expect(isWatchOnlySetup('first_pullback')).toBe(false);
-    expect(onLockOf('pullback_dip', 'long', 'On is locked: watch only')).toBe('On is locked: watch only');
-    expect(onLockOf('pullback_dip', 'long', null)).toMatch(/^On is locked/);
-    expect(onLockOf('first_pullback', 'long', 'x')).toBeNull();
-    expect(onLockOf('bear_flag', 'short', 'test queued')).toBeNull();
-    const status = statusOf({ id: 'pullback_dip', label: 'Pullback dip', side: 'long', own: 1, locked: 'x', test: null,
-      readout: null });
-    expect(status.text).toMatch(/^Watch only · /);
-    expect(status.tip).toContain('never trades it');
-  });
 });

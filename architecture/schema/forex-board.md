@@ -90,7 +90,7 @@ has answered or failed once in this process (or was kept from the last one); `re
   Asia (Sydney's 08:00 to Tokyo's 17:00), London and New York sessions (08:00-17:00 local), with their desks' share.
 - `sources[]`: `{id: "ibkr", label, ok: boolean | null, at, error}` -- `ok: null` until asked.
 - `budget`: `{history_left: number | null, history_headroom, waiting: "history" | "lines" | null}` -- the page sends no
-  historical request while `history_headroom` or fewer of IBKR's 60-a-10-minutes are left (`FOREX_HISTORY_HEADROOM`,
+  historical request while `history_headroom` or fewer of the 10-minute window are left (`FOREX_HISTORY_HEADROOM`,
   or `FOREX_YIELD_HEADROOM` while the Market or Global page shows and this one does not), and opens no line while
   fewer than `IBKR_BRIEF_MIN_FREE_LINES` are spare.
 

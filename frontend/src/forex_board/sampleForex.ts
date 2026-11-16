@@ -346,7 +346,7 @@ export function sampleForexBoard(period: Period = '1D'): ForexBoard {
     },
     sessions: sessionsOf(), currencies: rows, sun: sunOf(),
     sources: [{ id: 'ibkr', label: 'IBKR', ok: true, at: NOW - 5, error: null }],
-    budget: { history_left: 41, history_headroom: 30, waiting: null },
+    budget: { history_left: 241, history_headroom: 100, waiting: null },
   };
 }
 

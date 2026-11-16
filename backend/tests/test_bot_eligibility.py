@@ -4,13 +4,11 @@ from __future__ import annotations
 import pytest
 
 from bot.eligibility import (
-    add_symbol,
     assert_depth_line,
     assert_symbol_can_fire,
     assert_symbol_eligible,
     eligible_symbols,
     holds_depth_line,
-    remove_symbol,
 )
 from bot.errors import BotError
 from bot.persist import default_session
@@ -93,15 +91,6 @@ def test_depth_line_gate_requires_a_symbol():
         assert_depth_line("  ")
     assert exc.value.status_code == 400
     assert holds_depth_line("") is False
-
-
-def test_add_remove_round_trip():
-    row = default_session()
-    add_symbol(row, "abcd")
-    add_symbol(row, "ABCD")
-    assert row["symbol_allowlist"] == ["ABCD"]
-    remove_symbol(row, "abcd")
-    assert row["symbol_allowlist"] == []
 
 
 def test_schema_1_file_gains_v2_defaults():

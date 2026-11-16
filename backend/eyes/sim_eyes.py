@@ -1,14 +1,14 @@
-"""The Sim eyes (ADR 029, ADR 052): what the Setups board, every setup card, the Trader's chart
-and Nova's bot read on the Sim desk off the live edge.
+"""The Sim eyes (ADR 029, ADR 052): what the Setups board, every setup card and the Trader's chart
+read on the Sim desk off the live edge.
 
 With a replay loaded -- a Session Record, or a historical window (a Massive window or an IBKR
 download, ``eyes.history_recording``) -- the setup scanner's lanes follow the playhead over it:
-the loaded symbol, re-read with today's templates (``eyes.sim_target``). Its proposals are
-practice proposals on that desk (pushed on ``/ws/setups``, journalled, never on the bot's audit
-stream), and a playing lane's go trigger goes to the trigger listeners -- Nova's bot -- when the
-playhead plays across it: one no older than ``BOT_FP_TRIGGER_MAX_AGE_SEC`` at the playhead, on a
-forward step. A rebuild (a rewind, a template change, another replay) and a jump forward hand the
-bot nothing they passed. With nothing loaded off the edge, the board shows what Nova's live eyes
+the loaded symbol, re-read with today's templates (``eyes.sim_target``). It raises no proposal
+(ADR 072: the strategies only watch), and a playing lane's trigger goes to the trigger listeners
+when the playhead plays across it: one no older than ``BOT_FP_TRIGGER_MAX_AGE_SEC`` at the playhead,
+on a forward step. No bot listens since the strategy bot retired (ADR 072); the hook waits for the
+brain. A rebuild (a rewind, a template change, another replay) and a jump forward hand a listener
+nothing they passed. With nothing loaded off the edge, the board shows what Nova's live eyes
 recorded at the playhead (``eyes/playback.py``, operator ask 2026-09-24). At the live edge the live
 board stays.
 
@@ -163,7 +163,7 @@ class SimEyes:
                 self._listeners.remove(fn)
 
     def _announce(self, triggers: list[dict], playhead: float) -> None:
-        """Hand the bot the triggers the playhead played across: none older than the bot would take."""
+        """Hand the listeners the triggers the playhead played across: none older than a trader would take."""
         with self._lock:
             listeners = list(self._listeners)
         for event in triggers:
@@ -273,7 +273,7 @@ class SimEyes:
                             journal=journal, levels=self._levels, sizing=self._sizer())
         replay.advance(playhead)
         replay.take_alerts()            # a rebuild never re-raises what it passed on the way
-        replay.take_triggers()          # ... and never hands the bot a trigger it passed
+        replay.take_triggers()          # ... and never hands a listener a trigger it passed
         self._replay, self._past = replay, past
         self._templates_version = store.version()
         self._last_rebuild = time.monotonic()
@@ -352,11 +352,6 @@ class SimEyes:
         with self._lock:
             out, self._alerts = self._alerts, []
         return out
-
-    def flow_reading(self, setup_id: str) -> dict | None:
-        """The replay's newest flow reading on a triggered setup (Nova's bot's flush exit on a Sim replay)."""
-        replay = self._replay
-        return replay.flow_reading(setup_id) if replay is not None else None
 
     def symbol_view(self, symbol: str) -> dict[str, Any] | None:
         """The loaded symbol's lanes as the worker last published them (``eyes.sim_board.symbol_view``); asking

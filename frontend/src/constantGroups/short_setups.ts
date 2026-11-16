@@ -24,11 +24,10 @@ export function setupSideOf(x: { side?: string | null; setup_type?: string | nul
 /** The side tag beside a setup's name: green ▲ LONG, orange ▼ SHORT. */
 export const SETUP_SIDE_TAG = { long: '▲ LONG', short: '▼ SHORT' } as const;
 export const SETUP_SIDE_TAG_TIPS = {
-  long: 'A long setup: it buys at its entry, with its stop under it, and sells over it. At On, while the Bot is on, '
-    + 'Nova\'s bot buys its GO triggers on Paper and Sim.',
-  short: 'A short setup: it sells borrowed shares at its entry, with a buy stop over it, and covers (buys them back) '
-    + 'under it. At On, while the Bot is on, Nova\'s bot shorts its GO triggers on Paper and Sim: the buy stop goes in '
-    + 'with the entry, and Nova covers what is left at 15:55.',
+  long: 'A long setup: its entry is a buy, with the stop under it and the targets over it. Nova only watches it and '
+    + 'scores it (ADR 072); it places no order.',
+  short: 'A short setup: its entry sells borrowed shares, with a buy stop over it and the targets under it. Nova only '
+    + 'watches it and scores it (ADR 072); it places no order.',
 } as const;
 
 /** The canvas's oranges (a chart cannot read the CSS tokens): the stroke, the lead's fill and a faded fill. */
@@ -62,28 +61,7 @@ export const SHORT_SETUP_CHIPS: Record<string, string> = {
   ssr_bounce: '▼ SSR bounce',
 };
 
-/** One line on what each short setup trades. */
-export const SHORT_SETUP_BLURBS: Record<string, string> = {
-  backside_lower_high: 'A fade of 8%+ off the high of day, then a 1-3 candle bounce that stays under it — shorted 1c '
-    + 'under the bounce, with a buy stop over it.',
-  bear_flag: 'A pole of 3+ red candles down 5%+, then a 2-3 candle flag drifting up — shorted 1c under the flag, with '
-    + 'a buy stop over it.',
-  failed_breakout: 'A flat top tested 2+ times, a poke over it, then a close back under it within 2 candles — shorted '
-    + '1c under that candle, with a buy stop over the poke.',
-  lost_vwap: 'Over VWAP from the open, a close under it, then a retest that fails at VWAP — shorted 1c under the '
-    + 'retest, with a buy stop over VWAP.',
-  ssr_bounce: 'Under SSR and VWAP, a drop of 6%+ to the day\'s low, then a bounce: the short rests 1c under the level '
-    + 'it runs into, so a buyer lifts it above the bid, as SSR requires.',
-};
 
-/** Where a short's research stands: its five-year test decides its On (ADR 049 section 12). */
-export const SHORT_SETUP_RESEARCH: Record<string, { verdict: 'testing'; text: string; detail: string }> = Object
-  .fromEntries(SHORT_SETUP_IDS.map(id => [id, {
-    verdict: 'testing' as const,
-    text: 'Never traded on bars before: its five-year test on the desk\'s minute files decides whether it may be On '
-      + '(ADR 049). Its Test line says where that stands.',
-    detail: 'its five-year test decides whether it may be On',
-  }]));
 
 export const SHORT_KIND_LABELS: Record<string, string> = {
   backside_lower_high: 'Backside lower high', second_backside_lower_high: 'Second backside lower high',
@@ -179,8 +157,8 @@ export const SHORT_FUNNEL_WORDS: Record<string, { forming: string; armed: string
 
 /** The tape verdicts' hover heads for a short (the reasons and numbers follow). */
 export const SHORT_TAPE_VERDICT_TIPS: Record<string, string> = {
-  go: 'GO: red prints at the bid and no buyer holding the level. At Eyes it proposes the short; at On, while the Bot '
-    + 'is on, Nova\'s bot shorts it on Paper and Sim.',
+  go: 'GO: red prints at the bid and no buyer holding the level. Nova only reads it and scores the setup; it places '
+    + 'no order (ADR 072).',
   wait: 'WAIT: not yet. A buyer at the level that is not thinning, a burst of buying on the tape, or no red prints yet.',
   veto: 'VETO: no. The spread is too wide, a very big buyer sits at the level, or a hidden buyer is soaking up the selling.',
   blind: 'BLIND: Nova holds no Level 2 line for this symbol, so the tape cannot be read. Open its Level 2 in the Trader '
@@ -205,15 +183,3 @@ export const SHORT_GRADE_TIP = 'Grade: the short pillars (ran today, faded off t
   + 'news, borrow). A = all five pass, B = four, C = three or fewer: not a trade. An unknown pillar counts as not '
   + 'passing, never as failed.';
 
-/** The five-year test line on a short card (ADR 049 section 12). */
-export const SHORT_TEST_LABEL = 'Test';
-export const SHORT_TEST_STATE_WORDS: Record<string, string> = {
-  queued: 'queued', running: 'running', passed: 'passed', failed: 'failed', error: 'error',
-};
-export const SHORT_TEST_TIP = 'The five-year test runs this setup\'s rules (its template in play) over five years of '
-  + 'minute bars on the desk, with the scanner\'s own detector and exits, borrow assumed. It passes with at least 300 '
-  + 'trades, still positive without its best year, a profit factor over 1 at twice the costs, a mostly positive '
-  + 'neighbourhood and a permutation p of 0.05 or less. The result is information for you to judge; it never '
-  + 'locks On or changes the strategy level. Nobody writes a result by hand.';
-export const SHORT_TEST_STALE_TIP = 'The result is for other rules: the template in play changed since, so it tests '
-  + 'again.';

@@ -1,6 +1,6 @@
 /**
- * The bot's notices as toasts (bot/botNoticeStore.ts, ADR 042's visibility rule): a
- * refused "Let the bot trade", Nova's entries cancelled when the desk left a venue, and
+ * The desk's notices as toasts (bot/botNoticeStore.ts, ADR 042's visibility rule): Nova's
+ * entries cancelled when the desk left a venue, and
  * the daily loss limit's warning and trip (ADR 056, loss_limit/). Mounted once per
  * window with the symbol menu host, so a refusal raised from a pop-out shows in that
  * pop-out, and the loss limit's notices show in every window. A refusal or a trip stays
@@ -12,7 +12,6 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useLossLimitNotices } from '../loss_limit';
 import { DayCoverAlarms } from './DayCoverAlarms';
 import { dismissBotNotice, getBotNotices, pushBotNotice, subscribeBotNotices, type BotNotice } from './botNoticeStore';
-import { useLiveTraderAskToasts } from './LiveTraderAsks';
 import './botNotices.css';
 
 const BOT_NOTICE_TTL_MS = 15_000;
@@ -42,13 +41,11 @@ function NoticeCard({ notice }: { notice: BotNotice }) {
 export function BotNotices() {
   useLossLimitNotices(pushBotNotice);
   const notices = useSyncExternalStore(subscribeBotNotices, getBotNotices, getBotNotices);
-  const asks = useLiveTraderAskToasts();      // the Live Trader bot's asks (ADR 055) stack with the notices
   return (
     <>
       <DayCoverAlarms />
-      {notices.length > 0 || asks.length > 0 ? (
+      {notices.length > 0 ? (
         <div className="bot-notices" aria-label="Bot notices" data-testid="bot-notices">
-          {asks}
           {notices.map(n => <NoticeCard key={n.id} notice={n} />)}
         </div>
       ) : null}

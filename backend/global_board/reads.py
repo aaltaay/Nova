@@ -3,8 +3,8 @@
 - ``index_quotes``: each market's index from a line held for a moment (``ibkr.brief_lines``, ADR 054) -- refused
   (``NoHeadroom``) while fewer than ``IBKR_BRIEF_MIN_FREE_LINES`` lines are spare.
 - ``bars``: an instrument's bars through the paced historical service at background priority, under the pacing kind
-  ``global`` -- shed (``HistoricalShed``) while ``headroom()`` or fewer of the 10-minute 60 are left: the Market
-  and Forex pages' own 30, or 40 while one of them shows and this one does not.
+  ``global`` -- shed (``HistoricalShed``) while ``headroom()`` or fewer of the 10-minute window are left: the Market
+  and Forex pages' own line, or ten more while one of them shows and this one does not.
 - ``fx_close``: a currency's US dollars per unit, IBKR's last daily midpoint close of its pair.
 
 An instrument IBKR refuses (no permission, unknown contract) raises ``Refused`` with IBKR's code and words; the caller
@@ -56,14 +56,14 @@ def history_left() -> int | None:
 
     try:
         snap = historical_service.pacing_snapshot()
-        return int(snap["window_max"]) - int(snap["window_used"])
+        return max(0, int(snap["window_max"]) - int(snap["window_used"]))     # under zero in a hold
     except (KeyError, TypeError, ValueError):
         return None
 
 
 def headroom(now: float | None = None) -> int:
-    """How many of the 10-minute 60 Global leaves: the Market and Forex pages' own 30, so they take turns -- 40 while
-    one of them shows and Global does not, so the page on screen goes first."""
+    """How many of the 10-minute window Global leaves: the Market and Forex pages' own line, so they take turns -- ten
+    more while one of them shows and Global does not, so the page on screen goes first."""
     from forex_board.state import store as forex_store
     from global_board.state import store
     from market_board.state import store as market_store

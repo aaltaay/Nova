@@ -23,6 +23,8 @@ from fastapi.security import APIKeyHeader
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse, Response
 
+from phone.constants_phone import is_phone_path
+
 from constants import (
     DIAG_STOP_PATH,
     NOVA_API_KEY_HEADER,
@@ -79,20 +81,21 @@ def is_issue_report_mutate(method: str, path: str) -> bool:
     return method in _MUTATING and (normalized == "/api/issues" or normalized.startswith("/api/issues/"))
 
 
-def is_stock_mode_mutate(method: str, path: str) -> bool:
-    """The per-stock switch lets Nova place and cancel orders (ADR 037): keyed like a bot route."""
-    normalized = path.rstrip("/") or "/"
-    return method in _MUTATING and (normalized == "/api/stock-mode" or normalized.startswith("/api/stock-mode/"))
-
-
 def is_hot_list_mutate(method: str, path: str) -> bool:
     """Today's hot list decides what Nova may buy (ADR 044): keyed like a bot route."""
     normalized = path.rstrip("/") or "/"
     return method in _MUTATING and (normalized == "/api/hot-list" or normalized.startswith("/api/hot-list/"))
 
 
+def is_open_in_nova_path(path: str) -> bool:
+    """Open in Nova uses the install token, not ``X-Nova-Api-Key`` (the review page must not see that key)."""
+    return (path.rstrip("/") or "/") == "/api/agent/open-in-nova"
+
+
 def is_agent_mutate(method: str, path: str) -> bool:
     """The agent endpoints drive the desk (ADR 050): keyed like a bot route."""
+    if is_open_in_nova_path(path):
+        return False
     normalized = path.rstrip("/") or "/"
     return method in _MUTATING and (normalized == "/api/agent" or normalized.startswith("/api/agent/"))
 
@@ -187,9 +190,14 @@ class MutatingApiKeyMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next) -> Response:
         path = request.url.path
+        if is_open_in_nova_path(path):
+            return await call_next(request)
+        if is_phone_path(path):
+            # ADR 070: the phone's routes are opened by the phone PIN's session; the desk's key never leaves the PC.
+            return await call_next(request)
         mutating = request.method in _MUTATING
         bot = (is_bot_mutate(request.method, path) or is_setup_template_mutate(request.method, path)
-               or is_stock_mode_mutate(request.method, path) or is_hot_list_mutate(request.method, path))
+               or is_hot_list_mutate(request.method, path))
         issue = is_issue_report_mutate(request.method, path)
         agent = is_agent_mutate(request.method, path)
         api = path.startswith("/api/")
@@ -236,6 +244,7 @@ __all__ = [
     "check_api_key",
     "configure_api_auth",
     "is_agent_mutate",
+    "is_open_in_nova_path",
     "is_bot_http_path",
     "is_bot_mutate",
     "is_config_mutate",

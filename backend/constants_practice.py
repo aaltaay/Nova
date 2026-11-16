@@ -135,7 +135,7 @@ PRACTICE_MATCHER_INTERVAL_SEC = 1.0
 # before today's -- a weekend inside the window simply holds no session --
 # YTD at Jan 1 of the practice day's year, ALL at the ledger's open. Today is
 # the venue's clock: the playhead on Sim. Owner: practice/history.py.
-PRACTICE_HISTORY_SCHEMA_VERSION = 1
+PRACTICE_HISTORY_SCHEMA_VERSION = 3  # ADR 072: four books (you, Claude, the brain, Earlier bots) and closed_by
 PRACTICE_HISTORY_RANGE_DEFAULT = "1D"
 PRACTICE_HISTORY_RANGE_YTD = "YTD"
 PRACTICE_HISTORY_RANGE_ALL = "ALL"
@@ -254,6 +254,12 @@ PRACTICE_OCO_CANCELLED_REASON_DEFAULT = "One-cancels-other: the other exit fille
 EXIT_OCO_LIVE_CODE = "EXIT_OCO_LIVE"
 EXIT_OCO_LIVE_REASON = ("Live's exit pair -- a stop with targets beside it, or a bracket that sells in two "
                         "halves -- is not supported by the Live execution adapter: nothing was sent")
+# A protective stop outside regular hours is a stop-limit this far past its stop (ADR 007, 2026-11-05).
+PROTECTIVE_STOP_LIMIT_FRACTION = 0.02
+# ``replace`` with ``resize_qty`` (#1023): a working stop covers fewer or more shares, never past what is held.
+REPLACE_RESIZE_LIVE_CODE = "REPLACE_RESIZE_LIVE"
+REPLACE_RESIZE_LIVE_REASON = "Resizing a working stop is not supported on Live: nothing was sent"
+PRACTICE_RESIZE_REFUSED_CODE = "PRACTICE_RESIZE_REFUSED"
 EXIT_OCO_FIELDS_CODE = "EXIT_OCO_FIELDS"
 EXIT_OCO_GEOMETRY_CODE = "EXIT_OCO_GEOMETRY"
 # A pair that would open a position instead of closing one (a BUY pair with nothing short).

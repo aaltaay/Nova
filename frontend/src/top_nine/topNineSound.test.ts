@@ -2,8 +2,8 @@
  * @vitest-environment jsdom
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { setDeskMuted } from '../sound';
-import { TOP_NINE_CHIME_COOLDOWN_MS, TOP_NINE_CHIME_NOTES_HZ, TOP_NINE_HALT_NOTES_HZ } from './topNineConstants';
+import { DESK_TONE_TOP_NINE_CHIME, DESK_TONE_TOP_NINE_HALT, resetDeskTonesForTests, setDeskMuted } from '../sound';
+import { TOP_NINE_CHIME_COOLDOWN_MS } from './topNineConstants';
 import { beepTopNineHalt, chimeTopNine, resetTopNineSoundForTests } from './topNineSound';
 
 const start = vi.fn();
@@ -25,6 +25,7 @@ describe('topNineSound', () => {
     localStorage.clear();
     start.mockClear();
     resetTopNineSoundForTests();
+    resetDeskTonesForTests();
     vi.stubGlobal('AudioContext', FakeAudio);
   });
   afterEach(() => {
@@ -35,12 +36,12 @@ describe('topNineSound', () => {
   it('chimes once, stays quiet for 30 s, then chimes again', () => {
     const t0 = 1_000_000;
     expect(chimeTopNine(true, t0)).toBe('played');
-    expect(start).toHaveBeenCalledTimes(TOP_NINE_CHIME_NOTES_HZ.length);
+    expect(start).toHaveBeenCalledTimes(DESK_TONE_TOP_NINE_CHIME.hz.length);
     expect(chimeTopNine(true, t0 + 1_000)).toBe('cooldown');
     expect(chimeTopNine(true, t0 + TOP_NINE_CHIME_COOLDOWN_MS - 1)).toBe('cooldown');
     // A quiet switch inside the window is dropped, not queued: the window still runs from the first chime.
     expect(chimeTopNine(true, t0 + TOP_NINE_CHIME_COOLDOWN_MS)).toBe('played');
-    expect(start).toHaveBeenCalledTimes(TOP_NINE_CHIME_NOTES_HZ.length * 2);
+    expect(start).toHaveBeenCalledTimes(DESK_TONE_TOP_NINE_CHIME.hz.length * 2);
   });
 
   it('a muted chime starts no cooldown', () => {
@@ -51,7 +52,7 @@ describe('topNineSound', () => {
   it('beeps for a halt even inside the chime cooldown', () => {
     expect(chimeTopNine(true, 1_000)).toBe('played');
     expect(beepTopNineHalt(true)).toBe('played');
-    expect(start).toHaveBeenCalledTimes(TOP_NINE_CHIME_NOTES_HZ.length + TOP_NINE_HALT_NOTES_HZ.length);
+    expect(start).toHaveBeenCalledTimes(DESK_TONE_TOP_NINE_CHIME.hz.length + DESK_TONE_TOP_NINE_HALT.hz.length);
   });
 
   it('the header mute silences both', () => {

@@ -4,8 +4,9 @@ The practice broker turns ``good_for_sec`` into the row's ``expires_ts`` -- the 
 close and the placement plus the seconds -- and expires the order there as a DAY order at the close:
 an ``expired`` event at its own second (``PRACTICE_GOOD_FOR_EXPIRED``), never filled by a later print.
 A bracket's exits keep the TIF's close. A cancel that reaches an order already past its expiry records
-the expiry. The execution door refuses a bad value and refuses the field on Live; Nova's bot sends it on
-a Sim replay only, so Paper is unchanged.
+the expiry. The execution door refuses a bad value and refuses the field on Live. The strategy bot that
+sent it on a Sim replay retired (ADR 072), so these send it from the ticket's source; the door and the practice
+broker keep the field for whoever sends it next.
 """
 from __future__ import annotations
 
@@ -187,7 +188,7 @@ def test_a_cancel_inside_the_seconds_is_an_ordinary_cancel(paper) -> None:
 
 # -- the execution door ----------------------------------------------------------------------------------------
 def _bracket(key: str, **over) -> ExecutionCommand:
-    fields = dict(operation="bracket", idempotency_key=key, source="bot", symbol=SYM, side="BUY", qty=10,
+    fields = dict(operation="bracket", idempotency_key=key, source="manual", symbol=SYM, side="BUY", qty=10,
                   order_type="LMT", limit_price=9.9, entry_price=9.9, target_price=10.5, stop_price=9.5,
                   skip_risk=True)
     fields.update(over)
@@ -223,7 +224,7 @@ async def test_a_late_cancel_keeps_the_place_rows_expiry(paper) -> None:
     placed = await service.execute(_bracket("good-for-late-cancel", good_for_sec=3))
     paper.ref.now = NOW + 30
     cancel = await service.execute(ExecutionCommand(
-        operation="cancel", idempotency_key="good-for-late-cancel:x", source="bot",
+        operation="cancel", idempotency_key="good-for-late-cancel:x", source="manual",
         order_id=placed.parent_order_id or placed.order_id, symbol=SYM, skip_risk=True,
     ))
     assert cancel.ok
@@ -241,23 +242,3 @@ def test_the_record_keeps_it_beside_the_tif(paper) -> None:
     payload = build_reserve_payload(_bracket("rec", good_for_sec=3), requested_qty=10, sent_qty=10,
                                     requested_price=9.9, measurement={}, forced_one_share=False, venue="paper")
     assert (payload["tif"], payload["good_for_sec"]) == ("DAY", 3)
-
-
-# -- Nova's bot: on a replay only ---------------------------------------------------------------------------------
-def test_the_bot_sends_its_ttl_on_a_replay_and_nothing_on_paper() -> None:
-    from bot.first_pullback import orders
-
-    assert orders.good_for({"replay_key": ["historical", SYM, "2026-09-18", "07:00", "10:00"],
-                            "entry_ttl_sec": 3}) == 3.0
-    assert orders.good_for({"replay_key": None, "entry_ttl_sec": 3}) is None
-
-
-@pytest.mark.asyncio
-async def test_the_bots_paper_entry_is_unchanged(paper) -> None:
-    from bot.first_pullback import orders
-
-    trade = {"venue": "paper", "setup_id": "IMCC-paper", "symbol": SYM, "qty": 1, "entry_planned": 9.90,
-             "target1": 10.50, "stop": 9.50, "setup_type": "first_pullback", "entry_ttl_sec": 3}
-    placed = await orders.place_entry(trade)
-    entry = paper.broker.ledger.order_row(placed.parent_order_id)
-    assert (entry["good_for_sec"], entry["expires_ts"]) == (None, CLOSE)

@@ -21,7 +21,6 @@ from agent_trader.constants_agent_trader import (
     SEAT_SET,
     SEAT_WAITING,
     SEAT_WATCHING,
-    SEAT_YIELDED,
 )
 
 _EVENTS_SHOWN = 12
@@ -35,8 +34,6 @@ def state_of(st: dict[str, Any], *, holds_line: bool, positions: dict[str, float
         return SEAT_OFF
     if positions:
         return SEAT_IN
-    if st.get("yielded"):
-        return SEAT_YIELDED
     if done:
         return SEAT_DONE
     if not st.get("symbol"):
@@ -57,16 +54,12 @@ def text_of(state: str, sym: str | None, pnl: float | None, line_why: str | None
         SEAT_WATCHING: f"{AGENT_NAME} · Watching {sym}",
         SEAT_SET: f"{AGENT_NAME} · Buy set {sym}{at}",
         SEAT_IN: f"{AGENT_NAME} · In {sym}{money}",
-        SEAT_YIELDED: f"{AGENT_NAME} · Paused by you",
         SEAT_DONE: f"{AGENT_NAME} · Done for today{money}",
     }[state]
 
 
-def pill_text(state: str, base: str, *, holds: bool, lent_from: str | None) -> str:
-    """The pill's words, and where Claude's line is: "· on your SMPL tab's line" while a hidden tab lent it
-    (decision 14), "· no Level 2" while Claude holds shares without one (its stop and targets still rest)."""
-    if lent_from and holds and state in (SEAT_WATCHING, SEAT_SET, SEAT_IN):
-        return f"{base} · on your {lent_from} tab's line"
+def pill_text(state: str, base: str, *, holds: bool) -> str:
+    """The pill's words: "· no Level 2" while Claude holds shares without one (its stop and targets still rest)."""
     if state == SEAT_IN and not holds:
         return f"{base} · no Level 2"
     return base
@@ -89,9 +82,18 @@ def _order(row: dict[str, Any]) -> dict[str, Any]:
                                     "leg_role", "status", "parent_id")}
 
 
+def _switch(t: float) -> dict[str, Any]:
+    """The operator's switch for Claude (ADR 072, ``traders.switches``): ``{on, at, can_turn_on, why_not_on}``."""
+    from traders import switches
+
+    state, _ = switches.current(t)
+    why = switches.on_refusal("claude", t)
+    return {"on": bool(state["claude"]["on"]), "at": state["claude"]["at"], "can_turn_on": why is None,
+            "why_not_on": None if why is None else {"reason": why[0], "error": why[1]}}
+
+
 def status(now: float | None = None) -> dict[str, Any]:
-    from agent_trader import ledger, lines, reflexes, rules, seat, tab_line, watcher
-    from ibkr import depth
+    from agent_trader import ledger, lines, reflexes, rules, seat, watcher
 
     t = clock.now() if now is None else now
     st = seat.snapshot()
@@ -118,19 +120,16 @@ def status(now: float | None = None) -> dict[str, Any]:
         except Exception:
             marks[held] = None
     beat = st.get("beat_at")
-    lent_from = tab_line.lent_from()
     text = pill_text(state, text_of(state, shown, pnl, watcher.line_why(), _buy_at(shown, breaks, working)),
-                     holds=holds, lent_from=lent_from)
+                     holds=holds)
     return {
         "schema_version": AGENT_SCHEMA_VERSION, "generated_at": t, "name": AGENT_NAME, "venue": AGENT_VENUE,
         "state": state, "text": text,
         "on": bool(st.get("holder")), "since": st.get("since"), "beat_at": beat,
         "lease_until": (float(beat) + AGENT_LEASE_SEC) if beat else None, "lapsed": seat.lapsed(t),
-        "yielded": bool(st.get("yielded")), "symbol": sym,
+        "switch": _switch(t), "symbol": sym,
         "line": {"symbol": lines.held_symbol(), "depth": holds, "tape": bool(sym) and lines.holds_tape(sym),
-                 "why_not": watcher.line_why(), "desk_lines": lines.desk_lines(), "desk_cap": lines.desk_cap(),
-                 "all_lines": depth.subscribed_symbols(), "from_tab": lent_from,
-                 "taken_back": tab_line.taken_back()},
+                 "why_not": watcher.line_why()},
         "positions": [{"symbol": s, "qty": q, "mark": marks.get(s)} for s, q in positions.items()],
         "working": [_order(r) for r in working],
         "breaks": breaks,

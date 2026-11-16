@@ -20,11 +20,12 @@ silent, as the live engine does. A backtest proposes on every lane.
 ADR 034: the tape flow is read from a prefix-sum index over the whole recording
 (``tape_flow.FlowIndex``, the live rule summed another way), never before the
 start of the recorded stretch that holds the moment; a trade on keeps the lanes
-stepping so its flush exit is read.
+stepping so it is scored.
 
-ADR 052: a playing lane's trigger is kept (``take_triggers``) with its flow readings
-(``flow_reading``), so the Sim eyes can hand Nova's bot the triggers the playhead plays
-across; the recording may be a loaded historical window (``eyes.history_recording``).
+ADR 052: a playing lane's trigger is kept (``take_triggers``), so the Sim eyes can hand
+their trigger listeners the triggers the playhead plays across; the recording may be a
+loaded historical window (``eyes.history_recording``). ADR 072: no bot listens now (the
+strategy bot and its flush exit retired), so the hook waits for the brain.
 """
 from __future__ import annotations
 
@@ -151,7 +152,7 @@ class EyesReplay:
 
     def on_trigger(self, event: dict) -> None:
         """A playing lane's setup triggered at the replay's clock (ADR 052): kept for the Sim eyes, which hand
-        it to Nova's bot only when the playhead played across it. A backtest never reads them."""
+        it to their trigger listeners only when the playhead played across it. A backtest never reads them."""
         self.triggers.append({**event, "source": self.source})
 
     def risk_usd(self) -> float | None:
@@ -161,26 +162,9 @@ class EyesReplay:
     def order_shares(self, risk: float | None) -> int | None:
         return self._sizing.order_shares(risk) if self._sizing is not None else None
 
-    def taker(self, sym: str, setup_type: str) -> str | None:
-        """Who takes this setup's go trigger by itself on the Sim eyes (the bot, on a replay it trades), so a
-        proposal says so as on Paper; a backtest has nobody."""
-        ask = getattr(self._sizing, "taker", None)
-        return ask(sym, setup_type) if ask is not None else None
-
     def take_triggers(self) -> list[dict]:
         out, self.triggers = self.triggers, []
         return out
-
-    def flow_reading(self, setup_id: str) -> dict | None:
-        """The newest flow reading on a triggered setup and its template's flush rule (ADR 034): the bot's
-        flush exit on a Sim replay reads it here, as it reads the live engine's on Paper."""
-        for lane in self.lanes:
-            got = lane.flow_last.get(setup_id)
-            if got is not None:
-                f = lane.p.flush
-                return {**got, "template_id": lane.p.template_id,
-                        "policy": {"mode": f.mode, "hold_sec": f.hold_sec, "trail_r": f.trail_r, "min_r": f.min_r}}
-        return None
 
     def clock(self) -> float:
         return self.now

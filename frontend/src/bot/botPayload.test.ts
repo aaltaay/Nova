@@ -4,15 +4,10 @@
  * Bot API shapes (QA C12 / C70) and the sample desk's bot doors (V4).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { SAMPLE_BOT_ABSENT, SAMPLE_WRITE_REFUSAL } from '../sample_data/sampleCopy';
+import { SAMPLE_BOT_ABSENT } from '../sample_data/sampleCopy';
 import {
-  armBotSession,
   fetchBotAudit,
-  fetchBotProposals,
   fetchBotSession,
-  patchBotSession,
-  postBotAllowlist,
-  syncTraderLive,
 } from './api';
 import { parseBotSession } from './botPayload';
 import { _resetBotSessionPollerForTests, getBotSessionSnapshot, pollBotSessionOnce, runBotSessionWrite } from './botSessionPoller';
@@ -73,19 +68,18 @@ describe('bot answers the page cannot render are refused, not rendered (C12 / C7
     ['an empty object', answer({})],
     ['a JSON list', answer([])],
     ['JSON null', answer(null)],
-  ])('%s on /session, /proposals and /audit names the endpoint and the status', async (_label, reply) => {
+  ])('%s on /session and /audit names the endpoint and the status', async (_label, reply) => {
     vi.stubGlobal('fetch', vi.fn(async () => reply));
     await expect(fetchBotSession()).rejects.toThrow('Bot session: Nova answered an unreadable response (HTTP 200)');
-    await expect(fetchBotProposals()).rejects.toThrow('Bot proposals: Nova answered an unreadable response (HTTP 200)');
     await expect(fetchBotAudit()).rejects.toThrow('Bot audit: Nova answered an unreadable response (HTTP 200)');
   });
 
   it('the poller keeps a message, never a raw JS error, and never a broken session', async () => {
-    vi.stubGlobal('fetch', vi.fn(async (url: string) => (String(url).includes('/proposals') ? answer(null) : answer(SESSION))));
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => (String(url).includes('/audit') ? answer(null) : answer(SESSION))));
     await pollBotSessionOnce();
     const snap = getBotSessionSnapshot();
     expect(snap.session).toBeNull();
-    expect(snap.error).toBe('Bot proposals: Nova answered an unreadable response (HTTP 200)');
+    expect(snap.error).toBe('Bot audit: Nova answered an unreadable response (HTTP 200)');
     expect(snap.error).not.toMatch(/Cannot read properties/);
   });
 
@@ -96,17 +90,6 @@ describe('bot answers the page cannot render are refused, not rendered (C12 / C7
 });
 
 describe('the sample desk has no bot (V4)', () => {
-  it('refuses every bot write before any request', async () => {
-    const fetchSpy = vi.fn();
-    vi.stubGlobal('fetch', fetchSpy);
-    window.history.replaceState({}, '', '/?view=sample');
-    await expect(postBotAllowlist('SMPL', 'add')).rejects.toThrow(SAMPLE_WRITE_REFUSAL);
-    await expect(patchBotSession({ level: 1 })).rejects.toThrow(SAMPLE_WRITE_REFUSAL);
-    await expect(armBotSession()).rejects.toThrow(SAMPLE_WRITE_REFUSAL);
-    await syncTraderLive([]);
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
-
   it('the poller asks nothing and states the absence', async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);

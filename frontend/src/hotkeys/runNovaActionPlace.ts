@@ -2,6 +2,7 @@
  * Shared place helpers for runNovaAction (keeps executor under file-size limit).
  */
 
+import { plainPrice, roundToTick } from '../utils/priceTick';
 import {
   NOVA_ACTION_ACCOUNT_ERROR_MESSAGE,
   NOVA_ACTION_DEFAULT_OFFSET_DOLLARS,
@@ -19,7 +20,7 @@ import { planFlattenExit } from '../ibkr';
 import { placeIbkrOrder } from '../ibkr';
 import type { TopOfBook } from './TopOfBookContext';
 import type { NovaActionRecord, NovaActionResult } from './novaActionTypes';
-import type { NovaActionRuntime } from './runNovaActionRuntime';
+import { refusalNamingTrader, type NovaActionRuntime } from './runNovaActionRuntime';
 
 export function accountModeLabel(mode?: string): string {
   const m = (mode || '').toLowerCase();
@@ -90,6 +91,7 @@ export async function placeMarketExit(
         order_type: ticket.order_type,
         outside_rth: ticket.outside_rth,
         limit_price: ticket.limit_price,
+        venue: runtime.venue,
         ...(intent ? { intent } : {}),
       },
       idempotencyKey,
@@ -128,7 +130,7 @@ export async function placeLongPctLimit(
     return { ok: false, text: NOVA_ACTION_ACCOUNT_ERROR_MESSAGE };
   }
   const built = buildLongExitPercent(runtime.position?.qty, percent);
-  if (!built.ok) return { ok: false, text: built.error };
+  if (!built.ok) return { ok: false, text: refusalNamingTrader(built.error, runtime, 'long') };
 
   const tobOrErr = requireDepth(runtime, symbol);
   if ('ok' in tobOrErr && tobOrErr.ok === false) return tobOrErr;
@@ -153,7 +155,7 @@ export async function placeLongPctLimit(
         ? ` +$${offsetDollars.toFixed(2)}`
         : ` -$${offsetDollars.toFixed(2)}`;
   const summary =
-    `SELL ${built.qty} ${symbol} (${percent}% long) LMT @ $${limit.toFixed(2)} `
+    `SELL ${built.qty} ${symbol} (${percent}% long) LMT @ $${plainPrice(limit)} `
     + `(${ref}${off}) on ${mode} account.`;
   if (!(await maybeConfirm(runtime, summary))) {
     return { ok: false, text: 'Order cancelled' };
@@ -166,8 +168,9 @@ export async function placeLongPctLimit(
         side: 'SELL',
         qty: built.qty,
         order_type: 'LMT',
-        limit_price: Number(limit.toFixed(4)),
+        limit_price: roundToTick(limit),
         outside_rth,
+        venue: runtime.venue,
       },
       idempotencyKey,
       {
@@ -220,7 +223,7 @@ export async function placeBookOffsetLimit(
   const outside_rth = shouldUseOutsideRth(Boolean(action.params.outsideRth));
   const mode = accountModeLabel(runtime.accountMode);
   const summary =
-    `${side} ${shares} ${symbol} (LMT @ $${limit.toFixed(2)}${outside_rth ? ' EH' : ''}) `
+    `${side} ${shares} ${symbol} (LMT @ $${plainPrice(limit)}${outside_rth ? ' EH' : ''}) `
     + `on ${mode} account.`;
   if (!(await maybeConfirm(runtime, summary))) {
     return { ok: false, text: 'Order cancelled' };
@@ -232,8 +235,9 @@ export async function placeBookOffsetLimit(
         side,
         qty: shares,
         order_type: 'LMT',
-        limit_price: Number(limit.toFixed(4)),
+        limit_price: roundToTick(limit),
         outside_rth,
+        venue: runtime.venue,
       },
       idempotencyKey,
       {

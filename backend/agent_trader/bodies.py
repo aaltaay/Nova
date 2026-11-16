@@ -62,6 +62,3 @@ class CloseBody(BaseModel):
 class NoteBody(BaseModel):
     text: str = Field(min_length=1, max_length=400)
 
-
-class TakeBackBody(BaseModel):
-    symbol: str = Field(min_length=1, max_length=10)

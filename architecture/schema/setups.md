@@ -99,7 +99,7 @@ symbol stays `seeding` while IBKR's 1-minute history of today is asked for (`hoo
 charts' paced `historical_service.request_bars`, background priority, on the IB loop; nothing is asked
 when IBKR filled today's minutes and the stored ones start by then). Requests are asked one symbol at a time, oldest
 first; at most one every `SETUPS_SEED_HISTORY_SPACING_SEC`; never while a chart's history loads; only
-while fewer than `SETUPS_SEED_HISTORY_BUDGET` (30) of IBKR's 60 per 10 minutes went out. Then the
+while more than `SETUPS_SEED_HISTORY_HEADROOM` (100) of the 10-minute window are left. Then the
 symbol is seeded from the store again. The Level 1 line's minutes since the follow keep their place,
 so no minute counts twice. The minute now forming is never seeded. A name that leaves the followed set
 keeps its place in the queue. History that does not come (two unanswered asks, or 10 minutes) is given

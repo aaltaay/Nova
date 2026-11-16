@@ -44,6 +44,10 @@ TAPE_SILENT_BOOK_FRESH_SEC = 10.0
 # second (#722). On 2026-10-05 SAIQ's Level 1 counted 2.5M shares in the 332 s its tape printed
 # nothing, VEEA's 1.05M in 574 s. Both clocks are IBKR's, in whole seconds, so a few is enough.
 TAPE_DEAD_L1_LEAD_SEC = 3.0
+# How long that trade must stay unprinted before the order gate believes it. After a quiet stretch a
+# Level 1 trade lands just ahead of its print: on 2026-11-06 prints trailed IBKR's second by at most
+# 1.7 s across 99,487, while 7 of the day's 14 locks were this race, a second each (ADR 045).
+TAPE_PRINT_WAIT_SEC = 2.0
 # Lines whose last prints arrived this close together and that are all still silent went
 # silent together: one pipeline event (SAIQ and VEEA stopped at the same 09:35:42.388 arrival).
 TAPE_PIPELINE_SAME_SEC = 1.0

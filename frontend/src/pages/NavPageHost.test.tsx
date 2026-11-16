@@ -19,13 +19,11 @@ vi.mock('./AccountPage', () => ({
 vi.mock('../cryptos', () => ({
   CryptosPage: () => <div data-testid="cryptos-page-stub" />,
 }));
-vi.mock('../bot/BotsGroupPage', () => ({ BotsGroupPage: () => <div data-testid="bots-group-stub" /> }));
-vi.mock('../bot/LiveTraderBotsPage', () => ({
-  LiveTraderBotsPage: ({ onOpenTrader }: { onOpenTrader?: (s: string) => void }) => (
-    <button type="button" data-testid="lt-bots-stub" onClick={() => onOpenTrader?.('XYZ')} />
+vi.mock('./TraderTvPage', () => ({
+  TraderTvPage: ({ onOpenTrader }: { onOpenTrader?: (s: string) => void }) => (
+    <button type="button" data-testid="tradertv-stub" onClick={() => onOpenTrader?.('XYZ')} />
   ),
 }));
-vi.mock('../bot/BotsPage', () => ({ BotsPage: () => <div data-testid="strategy-bots-stub" /> }));
 
 describe('NavPageHost', () => {
   let container: HTMLDivElement;
@@ -83,7 +81,7 @@ describe('NavPageHost', () => {
     expect(container.querySelector('[data-testid="dashboard-stub"]')).toBeNull();
   });
 
-  it("gives LiveTrader Bots, the followed traders' page, the desk's way to open a ticker in the Trader", async () => {
+  it("gives TraderTV, the followed traders' page, the desk's way to open a ticker in the Trader (ADR 072)", async () => {
     const opened: string[] = [];
     await act(async () => {
       root.render(
@@ -93,13 +91,13 @@ describe('NavPageHost', () => {
       );
     });
     await act(async () => {
-      setNavPage('bots-live-trader');
+      setNavPage('tradertv');
     });
     await act(async () => {
       await Promise.resolve();
     });
     await act(async () => {
-      (container.querySelector('[data-testid="lt-bots-stub"]') as HTMLElement).click();
+      (container.querySelector('[data-testid="tradertv-stub"]') as HTMLElement).click();
     });
     expect(opened).toEqual(['XYZ']);
     expect(container.querySelector('[data-testid="dashboard-stub"]')).toBeNull();
@@ -123,26 +121,6 @@ describe('NavPageHost', () => {
     expect(container.querySelector('[data-testid="dashboard-stub"]')).toBeNull();
   });
 
-  it('routes the Bots group: Bots (empty for now), LiveTrader Bots and Strategy Bots (2026-10-15)', async () => {
-    await act(async () => {
-      root.render(
-        <NavPageHost onOpenTrader={() => {}}>
-          <div data-testid="dashboard-stub" />
-        </NavPageHost>,
-      );
-    });
-    for (const [page, stub] of [['bots', 'bots-group-stub'], ['bots-live-trader', 'lt-bots-stub'],
-      ['bots-strategy', 'strategy-bots-stub']] as const) {
-      await act(async () => {
-        setNavPage(page);
-      });
-      await act(async () => {
-        await Promise.resolve();
-      });
-      expect(container.querySelector(`[data-testid="${stub}"]`)).toBeTruthy();
-      expect(container.querySelector('[data-testid="dashboard-stub"]')).toBeNull();
-    }
-  });
 
   it('routes the Market page (lazy) from the store', async () => {
     await act(async () => {

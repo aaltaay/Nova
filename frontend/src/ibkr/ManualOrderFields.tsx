@@ -3,6 +3,7 @@
  * Sell / Short and Limit / Market / Stop, price with Bid / Mid / Ask, the qty
  * row, Extended hours beside `Cost · BP after`. Same fields and test ids.
  */
+import { priceStep } from '../utils/priceTick';
 import { memo } from 'react';
 import {
   TICKER_TRADE_LABEL_ORDER_TYPE,
@@ -48,6 +49,8 @@ interface Props {
   /** Live top of book for the quick-set; absent means the buttons grey out. */
   topOfBook?: TopOfBookLike | null;
   /** The book side the limit follows (lit); null when the operator typed a price. */
+  /** The stock's price: a trail amount moves in the stock's tick, not its own. */
+  referencePrice?: number | null;
   priceFollowing?: QuickPriceKind | null;
   /** Bid / Mid / Ask: follow that side (`kind` null stops). Without it a click only sets the price. */
   onPriceFollow?: (kind: QuickPriceKind | null, price: string | null) => void;
@@ -129,6 +132,7 @@ const ExtendedHoursCheck = memo(function ExtendedHoursCheck({ checked, disabled,
 export function ManualOrderFields({
   symbol = '',
   topOfBook = null,
+  referencePrice = null,
   priceFollowing = null,
   onPriceFollow,
   ticketSide,
@@ -237,7 +241,7 @@ export function ManualOrderFields({
             className="manual-order-price"
             type="number"
             min="0"
-            step="0.01"
+            step={priceStep(Number(limitPrice))}
             value={limitPrice}
             onChange={(event) => onLimitPriceChange(event.target.value)}
             disabled={disabled}
@@ -286,7 +290,7 @@ export function ManualOrderFields({
             className="manual-order-price"
             type="number"
             min="0"
-            step="0.01"
+            step={priceStep(Number(stopPrice))}
             value={stopPrice}
             onChange={(event) => onStopPriceChange(event.target.value)}
             disabled={disabled}
@@ -305,7 +309,7 @@ export function ManualOrderFields({
             className="manual-order-price"
             type="number"
             min="0"
-            step="0.01"
+            step={priceStep(referencePrice ?? 1)}
             value={stopPrice}
             onChange={(event) => onStopPriceChange(event.target.value)}
             disabled={disabled}

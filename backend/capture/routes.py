@@ -1,9 +1,9 @@
 """Capture HTTP routes.
 
-Record owns its IBKR lines (``capture.feed_hold``): the tape and depth lines for
-the recorded symbol are opened before the session starts and held until it
-stops, so a recording never depends on which panels are open or on the desk
-venue (#315). Lifecycle calls run on a worker thread -- ``capture.worker``
+Record holds a reference on its stock's tape and depth lines (``capture.feed_hold``) for as long as it
+records, so a panel closing never ends it (#315). The lines themselves are a lane's (ADR 071): Record
+records only a stock a lane is on (409 otherwise) and ends, as planned, when its stock leaves every lane
+(``line_lanes.recording.stop_for``). Lifecycle calls run on a worker thread -- ``capture.worker``
 refuses to run inside the event loop.
 """
 from __future__ import annotations
@@ -53,14 +53,14 @@ async def get_capture() -> dict:
     return {**out, "recorder": recorder_status()}
 
 
-def _auto_record_hook(name: str, symbol: str | None) -> None:
-    """Hand a symbol to the operator: auto-record never stops or retakes it (ADR 023)."""
+def _lanes_hook(name: str, symbol: str | None) -> None:
+    """Hand a symbol to the operator: the lanes' recording never stops or restarts it (ADR 071)."""
     try:
-        from leaderboard import auto_record
+        from line_lanes import recording
 
-        getattr(auto_record, name)(symbol)
+        getattr(recording, name)(symbol)
     except Exception:
-        logger.exception("AUTO-RECORD: %s hook failed for %s", name, symbol)
+        logger.exception("LANES recording: %s hook failed for %s", name, symbol)
 
 
 @router.post("/api/capture")
@@ -70,14 +70,12 @@ async def post_capture(body: CaptureToggleRequest) -> dict:
     if body.enabled:
         target = requested or (recording[0] if recording else "")
         if target and target not in recording:
-            # The operator's Record outranks auto-record's (ADR 023).
-            try:
-                from leaderboard import auto_record
+            # Only a stock a lane is on is recorded (ADR 071 decision 8): a lane holds its lines.
+            from line_lanes import lanes
 
-                if await auto_record.make_room_for(target, for_record=True):
-                    recording = capture_symbols() if is_capture_mode() else []
-            except Exception:
-                logger.exception("AUTO-RECORD: could not yield a line for Record %s", target)
+            if lanes.enforced() and not lanes.on_lane(target):
+                raise HTTPException(status_code=409,
+                                    detail=f"{target} is on no lane: open it in front to record it")
         # Refuse a fourth symbol before touching any IBKR line: opening and
         # closing a tape line costs IBKR's 15 s resubscribe guard.
         if target and target not in recording and len(recording) >= CAPTURE_MAX_CONCURRENT:
@@ -94,11 +92,11 @@ async def post_capture(body: CaptureToggleRequest) -> dict:
         out = await asyncio.to_thread(set_capture_mode, True, symbol=body.symbol, protect_active=True)
         if target and target in (out.get("capture_symbols") or []):
             keepalive.operator_started(target)
-            _auto_record_hook("operator_took", target)
+            _lanes_hook("operator_took", target)
     else:
         # Before the stop: the keepalive must never read this as a death.
         keepalive.operator_stopped(requested or None)
-        _auto_record_hook("operator_stopped", requested or None)
+        _lanes_hook("operator_stopped", requested or None)
         out = await asyncio.to_thread(set_capture_mode, False, symbol=body.symbol, protect_active=True)
     _release_orphans()
     if out.pop("conflict", False):

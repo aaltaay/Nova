@@ -3,7 +3,7 @@
  */
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { HOD_MOMO_ALERT_SOUND_KEY } from './hodMomoAlertSoundConstants';
+import { DESK_SOUND_KEYS } from '../sound';
 import {
   isHodMomoAlertSoundEnabled,
   resetHodMomoAlertSoundForTests,
@@ -33,7 +33,7 @@ describe('HodMomoSoundToggle', () => {
     expect(btn.getAttribute('aria-pressed')).toBe('true');
     fireEvent.click(btn);
     expect(isHodMomoAlertSoundEnabled()).toBe(false);
-    const stored = JSON.parse(localStorage.getItem(HOD_MOMO_ALERT_SOUND_KEY) ?? '');
+    const stored = JSON.parse(localStorage.getItem(DESK_SOUND_KEYS.hod) ?? '');
     expect(stored.value).toBe(false);
     unmount();
     resetHodMomoAlertSoundForTests();

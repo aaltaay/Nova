@@ -46,41 +46,51 @@ describe('LeaderboardRecorderToast', () => {
   });
 });
 
-describe('status fields and the planned "auto" stop (ADR 023)', () => {
-  it('parses the recorder and auto-record blocks; a malformed block is unknown, never a failure', () => {
+describe('status fields and the planned "auto" and "lane" stops (ADR 023, ADR 071)', () => {
+  it('parses the recorder, the lanes and the recording switch; a malformed block is unknown, never a failure', () => {
     const parsed = normalizeIbkrStatus({
       connected: true, mode: 'sim',
       leaderboard_recorder: { recording: true, ok: false, error: 'disk full', since: 5, run_id: 7 },
-      auto_record: { active: true, window: '07:00-10:00', symbols: ['GRML', 3], yielded: 'x', last_error: null },
+      lanes: { schema_version: 1, you: { symbol: 'grml', depth: true, tape: 'x', recording: true }, claude: 3, bots: null },
+      recording_switch: { mode: 'on', source: 'operator', day: null, until: null, error: null },
     })!;
     expect(parsed.leaderboard_recorder).toEqual({ recording: true, ok: false, error: 'disk full', since: 5, run_id: null });
-    expect(parsed.auto_record).toEqual({ active: true, window: '07:00-10:00', symbols: ['GRML'], yielded: [], last_error: null });
+    expect(parsed.lanes?.you).toEqual({ symbol: 'GRML', since: null, depth: true, tape: false, recording: true, error: null });
+    expect(parsed.lanes?.claude.symbol).toBeNull();
+    expect(parsed.lanes?.bots).toMatchObject({ symbol: null, setup: null, waiting: [] });
+    expect(parsed.recording_switch).toEqual({ mode: 'on', source: 'operator', day: null, until: null, error: null });
+    expect(normalizeIbkrStatus({ mode: 'sim', lanes: 'broken', recording_switch: { mode: 'maybe' } })).toMatchObject({
+      lanes: null, recording_switch: null,
+    });
     expect(normalizeIbkrStatus({ mode: 'sim', leaderboard_recorder: 'broken' })!.leaderboard_recorder).toBeNull();
     expect(normalizeIbkrStatus({ mode: 'sim', leaderboard_recorder: {} })!.leaderboard_recorder?.ok).toBe(true);
   });
 
-  it('an auto stop is labelled, quiet (no toast) and leaves no "missing" gap', () => {
+  it('an auto or lane stop is labelled, quiet (no toast) and leaves no "missing" gap', () => {
     expect(RECORDING_STOP_REASONS.auto).toMatch(/auto-record/);
+    expect(RECORDING_STOP_REASONS.lane).toBe('ended with its lane');
     const stopped = { symbol: 'GRML', at: 100, reason: 'auto', error: null, dir: null, counts: { prints: 5 }, resumed: false };
     const st = { mode: 'sim', connected: true, enabled: true, capture_stopped: [stopped] } as unknown as IbkrStatus;
     expect(stoppedViews(st, 0)).toEqual([]);
+    expect(stoppedViews({ ...st, capture_stopped: [{ ...stopped, reason: 'lane' }] } as IbkrStatus, 0)).toEqual([]);
     expect(stoppedViews({ ...st, capture_stopped: [{ ...stopped, reason: 'failure' }] } as IbkrStatus, 0)).toHaveLength(1);
     const clock = {
       sim: true, session_close_et: '2026-09-21T20:00:00-04:00',
       replay_load: { segments: [
         { started_et: '2026-09-21T07:00:00-04:00', stopped_et: '2026-09-21T08:00:00-04:00', reason: 'auto' },
+        { started_et: '2026-09-21T08:10:00-04:00', stopped_et: '2026-09-21T08:40:00-04:00', reason: 'lane' },
         { started_et: '2026-09-21T09:00:00-04:00', stopped_et: '2026-09-21T09:30:00-04:00', reason: 'failure' },
       ] },
     };
     expect(captureMissingSeconds(clock)).toBe(0);
   });
 
-  it('the REC chip card marks an auto-recorded symbol "auto"', () => {
+  it('the REC chip card marks a stock a lane records', () => {
     const card = recordingChipTitle({
       symbol: 'GRML', elapsed: '5m', sessionElapsed: '5m', segment: 1, prints: 1, quotes: 1, l2: 1,
       lastWriteAgeSec: 1, reacquired: 0, dir: null, auto: true,
     });
-    expect(card).toMatch(/^auto -- recorded by auto-record/m);
+    expect(card).toMatch(/^lane -- recorded while a lane watches it/m);
   });
 
   it("a Sim tab offers the desk day's own recording before today's", () => {

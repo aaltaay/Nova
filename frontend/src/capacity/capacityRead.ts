@@ -46,7 +46,13 @@ const KIND_LABELS: Record<string, string> = {
   forex: 'Forex page',
 };
 
-const HELD_BY_LABELS: Record<string, string> = { tab: 'Trader tab', auto_record: 'recording', bot: 'bot' };
+/** Who holds a Level 2 line (ADR 071): the lanes on its stock, joined with `+`; `no lane` / `replay` otherwise. */
+const HELD_BY_LABELS: Record<string, string> = {
+  you: 'your lane', claude: "Claude's lane", bots: "the bots' lane", 'no lane': 'no lane', replay: 'the Sim replay',
+};
+
+const heldBy = (raw: unknown): string =>
+  String(raw ?? '?').split('+').map(o => HELD_BY_LABELS[o] ?? o).join(' + ');
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
@@ -78,7 +84,7 @@ export function parseCapacity(body: unknown): CapacityModel | null {
   const next = num(history.next_free_sec) ?? 0;
   const l2Users: [string, number][] = Array.isArray(l2.symbols)
     ? (l2.symbols as { symbol?: unknown; held_by?: unknown }[]).map((row) => [
-        `${String(row.symbol ?? '?')} (${HELD_BY_LABELS[String(row.held_by)] ?? String(row.held_by ?? '?')})`,
+        `${String(row.symbol ?? '?')} (${heldBy(row.held_by)})`,
         1,
       ])
     : [];

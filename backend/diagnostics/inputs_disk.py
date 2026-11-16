@@ -4,12 +4,15 @@ cannot be read is stated with its reason, never a guess. ``gather.py`` feeds the
 """
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 from pathlib import Path
 from typing import Any
 
 from constants_data_root import DATA_DRIVE_WIN, DATA_SYSTEM_DRIVE_DEFAULT
+
+logger = logging.getLogger(__name__)
 
 
 def data_folder_inputs() -> dict[str, Any]:
@@ -81,8 +84,14 @@ def leaderboard_disk(db: Path) -> dict[str, Any]:
 
 
 def leaderboard_inputs() -> dict[str, Any]:
-    from leaderboard import auto_record, recorder, store
+    from leaderboard import recorder, store
+    from line_lanes import view as lanes_view
 
     db = store.path()
-    return {"recorder": recorder.status(), "auto": auto_record.status(), "store_path": str(db),
+    try:
+        lanes, switch = lanes_view.view(), lanes_view.recording_switch()
+    except Exception:
+        logger.exception("diagnostics: the lanes could not be read")
+        lanes, switch = None, None
+    return {"recorder": recorder.status(), "lanes": lanes, "switch": switch, "store_path": str(db),
             "disk": leaderboard_disk(db)}

@@ -13,11 +13,13 @@ import {
   DAY_COVER_ALARM_VENUES,
 } from '../constantGroups/bots_page';
 import { DESK_BOT_POLL_MS } from '../constants';
-import { prose } from './botsPageFormat';
 import type { CoverAlarm } from './types';
 import { useBotSession } from './useBotSession';
 import './dayCoverAlarms.css';
 import { TickerLink } from '../components/TickerLink';
+
+/** The backend writes ASCII " -- "; the alarm sets it as a dash. */
+const prose = (text: string | null | undefined): string => (text ?? '').replace(/ -- /g, ' — ');
 
 /** The alarms this window shows now: every one, less those hidden here until a moment still ahead. */
 export function shownAlarms(alarms: readonly CoverAlarm[], hidden: Readonly<Record<string, number>>, now: number): CoverAlarm[] {

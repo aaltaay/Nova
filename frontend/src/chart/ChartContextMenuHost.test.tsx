@@ -28,16 +28,6 @@ let positions: IbkrPosition[] = [];
 
 // The watch list is today's hot list (ADR 044): an in-memory one here.
 vi.mock('../hot_list', async () => (await import('../hot_list/hotListFake')).hotListFakeModule());
-vi.mock('../bot/useBotAllowlist', () => ({
-  useBotAllowlist: () => ({
-    symbols: [],
-    isAllowed: () => false,
-    add: vi.fn(),
-    remove: vi.fn(),
-    refresh: vi.fn(),
-  }),
-}));
-
 vi.mock('../ibkr/useIbkrStatus', () => ({
   useIbkrStatus: () => ({
     connected: true,

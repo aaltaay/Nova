@@ -14,7 +14,7 @@ import { TickerChartOverlays } from '../components/TickerChartOverlays';
 import type { DrawingSelectionState } from './chartDrawingSelection';
 import { ChartFillingOverlay, chartFillingHint } from './ChartFillingStatus';
 import type { IndicatorBar } from '../chartIndicators';
-import { formatCoverageClockEt } from '../tickerChartData';
+import { formatCoverageStampEt } from '../tickerChartData';
 import { SAMPLE_CHART_NO_BARS, SAMPLE_NETWORK_REFUSAL } from '../sample_data/sampleCopy';
 import type { VwapSource } from './useVwapSourceBars';
 
@@ -118,7 +118,7 @@ export function TickerChartCard({
   oscillatorEnabled: ChartOscillatorId[];
   variant: 'panel' | 'page' | 'grid';
 }) {
-  const coverageClock = formatCoverageClockEt(coverageAsOf);
+  const coverageClock = formatCoverageStampEt(coverageAsOf);
   return (
     <div
       ref={cardRef}

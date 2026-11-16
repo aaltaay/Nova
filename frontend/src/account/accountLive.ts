@@ -12,6 +12,7 @@ import type { IbkrOrder } from '../ibkr';
 import { plausiblePrice } from '../ibkr';
 import { uniqueOrders } from '../ibkr';
 import type { HistoryFill } from './accountHistoryTypes';
+import type { WhoseTag } from './WhoseCell';
 
 const finite = (n: number | null | undefined): number | null =>
   typeof n !== 'number' || !Number.isFinite(n) ? null : n;
@@ -52,6 +53,25 @@ export interface AccountFillRow {
   botId: string | null;
   /** Nova's practice broker priced it (the est chip); an IBKR fill is not an estimate. */
   estimated: boolean;
+  /** Paper and Sim (ADR 072): every holder the fill split across; absent on Live and an older ledger. */
+  holders?: WhoseTag[];
+}
+
+/**
+ * Whose a practice fill was (ADR 072): one tag per holder its parts went to -- a part you closed for its trader is
+ * that trader's, "closed by you" -- else the order's own owner; undefined when the ledger carries neither.
+ */
+export function fillHolders(fill: HistoryFill): WhoseTag[] | undefined {
+  if (Array.isArray(fill.parts) && fill.parts.length) {
+    const out: WhoseTag[] = [];
+    for (const p of fill.parts) {
+      const tag: WhoseTag = { owner: p.owner, bot: p.bot ?? null, closedByYou: p.closed_by === 'you' && p.owner !== 'you' };
+      if (!out.some((t) => t.owner === tag.owner && t.bot === tag.bot && t.closedByYou === tag.closedByYou)) out.push(tag);
+    }
+    return out;
+  }
+  if (fill.owner !== undefined) return [{ owner: fill.owner ?? null, bot: fill.bot ?? null }];
+  return undefined;
 }
 
 function isoSeconds(iso: string | null | undefined): number | null {
@@ -75,6 +95,7 @@ export function practiceFillRows(fills: readonly HistoryFill[]): AccountFillRow[
       source: f.source,
       botId: f.bot_id,
       estimated: true,
+      holders: fillHolders(f),
     }))
     .sort((a, b) => (b.ts ?? 0) - (a.ts ?? 0));
 }

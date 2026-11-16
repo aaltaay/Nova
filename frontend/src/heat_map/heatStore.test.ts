@@ -85,7 +85,7 @@ describe('books', () => {
     expect(heatOf('MID')!.snaps[1].bb).toBe(3999);                                               // else the last middle
   });
 
-  it('keeps why a line was refused or lent before the stock had any book or print', () => {
+  it('keeps why a line was refused, or no lane is on the stock, before it had any book or print', () => {
     noteHeatLine('NEWS', 'error', 'Max number of market depth requests reached');
     expect(heatOf('NEWS')).toBeNull();
     expect(heatPendingLine('NEWS')).toEqual({ state: 'error', why: 'Max number of market depth requests reached' });
@@ -93,10 +93,12 @@ describe('books', () => {
     expect(heatPendingLine('NEWS')).toBeNull();
   });
 
-  it('notes beats and a lent or refused line', () => {
+  it('notes beats and a refused line, or no lane on the stock', () => {
     noteHeatBook('GLND', [{ price: 3.99, size: 100 }], [{ price: 4.0, size: 100 }], false, T);
     noteHeatBeat('GLND', T + 5000);
     expect(heatOf('GLND')!.aliveT).toBeCloseTo(T / 1000 + 5, 3);
+    noteHeatLine('GLND', 'lane', 'Your Level 2 is on TGHL, not GLND');
+    expect(heatOf('GLND')!.line).toEqual({ state: 'lane', why: 'Your Level 2 is on TGHL, not GLND' });
     noteHeatLine('GLND', 'error', 'IBKR refused depth');
     expect(heatOf('GLND')!.line).toEqual({ state: 'error', why: 'IBKR refused depth' });
     noteHeatBook('GLND', [{ price: 3.99, size: 100 }], [{ price: 4.0, size: 100 }], false, T + 6000);

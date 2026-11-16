@@ -131,7 +131,7 @@ def _feed_capture(st: dict[str, Any], data: Any, playhead: float) -> None:
         pi += 1
         if st["last_book_ts"] is not None:
             watch.on_print(ts, row.get("price"), row.get("size"), lit=lit_print(row),
-                           conditions=row.get("conditions"))
+                           conditions=row.get("conditions"), exchange=row.get("exchange"))
     watch.tick(playhead)
     st["book_i"], st["print_i"], st["fed_to"] = b_end, p_end, playhead
 
@@ -353,7 +353,7 @@ def historical_frame(symbol: str, selected: Any, cutoff: float, book: dict[str, 
                         watch.on_book(ts, row.get("bids") or [], row.get("asks") or [])
                     else:
                         watch.on_print(ts, row.get("price"), row.get("size"), lit=lit_print(row),
-                                       conditions=row.get("conditions"))
+                                       conditions=row.get("conditions"), exchange=row.get("exchange"))
                 watch.tick(now)
                 view = _watch_view(watch, now, None, None, epoch=1, force_reset=True)
                 frame = {

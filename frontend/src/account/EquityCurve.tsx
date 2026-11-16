@@ -4,11 +4,13 @@
  * last-value tag, and fill markers coloured by source. Sized to its box.
  */
 import { useLayoutEffect, useRef, useState } from 'react';
+import type { Owner } from '../constantGroups/owners';
 import { lineGeometry, type Frame, type SeriesPoint, valueAt, xForTs } from './equityPath';
 
 export interface CurveMarker {
   ts: number;
-  tone: 'manual' | 'bot';
+  /** A fill's book (ADR 072), Nova's own close, or -- on an older ledger -- its source stamp. */
+  tone: 'manual' | 'bot' | 'nova' | Owner;
   title?: string;
 }
 

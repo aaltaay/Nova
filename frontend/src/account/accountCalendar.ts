@@ -36,6 +36,8 @@ const MONTH_NAMES = [
 ];
 
 export const monthLabel = (year: number, month: number): string => `${MONTH_NAMES[month]} ${year}`;
+/** `Nov` of a YYYY-MM-DD date: the book cards' month (ADR 072). */
+export const monthShortLabel = (date: string): string => MONTH_NAMES[Number(date.slice(5, 7)) - 1]?.slice(0, 3) ?? '';
 
 // A YYYY-MM-DD date read as a UTC midnight, so its weekday is the date's whatever this PC's zone.
 const DAY_LONG = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'long', month: 'short', day: 'numeric' });

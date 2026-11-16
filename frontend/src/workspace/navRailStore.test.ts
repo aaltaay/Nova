@@ -35,13 +35,14 @@ describe('navRailStore', () => {
     expect(consumeScannerTabRequest()).toBeNull();
   });
 
-  it('opens Strategy Bots, the page that was Bots, for a request that still names its old dashboard tab', () => {
+  it("opens nothing for a request that still names the retired Bots page's old tab (ADR 072)", () => {
     const seen: string[] = [];
     const onEvent = (e: Event) => seen.push((e as CustomEvent<{ tab: string }>).detail.tab);
     window.addEventListener(NAV_RAIL_SELECT_TAB_EVENT, onEvent);
+    const before = getNavPage();
     requestScannerTab('strategy');
     window.removeEventListener(NAV_RAIL_SELECT_TAB_EVENT, onEvent);
-    expect(getNavPage()).toBe('bots-strategy');
+    expect(getNavPage()).toBe(before);
     expect(peekScannerTabRequest()).toBeNull();
     expect(seen).toEqual([]);
   });

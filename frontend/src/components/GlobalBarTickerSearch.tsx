@@ -24,6 +24,7 @@ import {
   GLOBAL_BAR_SEARCH_RECENTS_HEADING,
   GLOBAL_BAR_SEARCH_TITLE,
 } from '../constants';
+import { useDeskPositions } from '../ibkr';
 import { useScannerDockRows } from '../scanner/useScannerDockRows';
 import { GlobalBarSearchRow } from './GlobalBarSearchRow';
 import { searchView } from './globalBarSearchView';
@@ -61,11 +62,14 @@ export function GlobalBarTickerSearch({ onLookup, tabs = NO_TABS, positions = NO
   const directory = useSymbolDirectory(wantDirectory);
   const { recents, remember, forget } = useTickerRecents(tabs);
   const query = useMemo(() => (browsing ? EMPTY_QUERY : parseTickerQuery(value)), [browsing, value]);
+  const { othersBook } = useDeskPositions();
 
-  const view = useMemo(
-    () => searchView(query, { tabs, positions, rows, recents, directory: directory.directory }, directory),
-    [query, tabs, positions, rows, recents, directory],
-  );
+  const view = useMemo(() => {
+    // The other traders' stocks are offered with yours (ADR 072); a symbol offered twice lists once.
+    const others = [...othersBook].map(([symbol, holds]) => ({ symbol, qty: holds.reduce((n, h) => n + h.qty, 0) }));
+    const held = [...positions, ...others];
+    return searchView(query, { tabs, positions: held, rows, recents, directory: directory.directory }, directory);
+  }, [query, tabs, positions, othersBook, rows, recents, directory]);
   const { options } = view;
   const current = Math.max(0, Math.min(active ?? view.defaultIndex, options.length - 1));
   const open = focused && !dismissed && (options.length > 0 || view.footer != null);

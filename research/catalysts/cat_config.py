@@ -53,15 +53,21 @@ def sec_user_agent() -> str:
     return os.environ.get("SEC_USER_AGENT") or SEC_USER_AGENT_DEFAULT
 
 
-def env_files(repo: Path = REPO) -> list[Path]:
-    """Where the desk .env may be: NOVA_ENV_PATH, this checkout's, then (from a linked worktree) the main checkout's."""
-    files = [Path(p) for p in [os.environ.get("NOVA_ENV_PATH")] if p] + [repo / ".env"]
+def checkouts(repo: Path = REPO) -> list[Path]:
+    """This checkout, then -- from a linked worktree -- the main checkout it was cut from, found through the
+    worktree's ``.git`` pointer file. Shared with ``research/leaderboard/lb_config.py`` (#1068)."""
+    found = [repo]
     pointer = repo / ".git"
     if pointer.is_file():  # a linked worktree: "gitdir: <main>/.git/worktrees/<name>"
         gitdir = pointer.read_text(encoding="utf-8").partition("gitdir:")[2].strip()
         if gitdir:
-            files.append(Path(gitdir).parents[2] / ".env")
-    return files
+            found.append(Path(gitdir).parents[2])
+    return found
+
+
+def env_files(repo: Path = REPO) -> list[Path]:
+    """Where the desk .env may be: NOVA_ENV_PATH, this checkout's, then (from a linked worktree) the main checkout's."""
+    return [Path(p) for p in [os.environ.get("NOVA_ENV_PATH")] if p] + [root / ".env" for root in checkouts(repo)]
 
 
 def load_env() -> None:

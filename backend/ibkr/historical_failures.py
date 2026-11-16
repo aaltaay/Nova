@@ -8,7 +8,7 @@ failure for a short window so that:
   ``last_error_ts``), and the pane says IBKR is not answering instead of
   "Loading";
 - ``historical_service`` does not send the same pair again within
-  ``IBKR_HISTORICAL_FAILURE_BACKOFF_SEC``, sparing the 60 / 10 min budget while
+  ``IBKR_HISTORICAL_FAILURE_BACKOFF_SEC``, sparing the 10-minute budget while
   IBKR's historical farm is down.
 
 A success clears the pair at once. Written on the IB loop, read from HTTP

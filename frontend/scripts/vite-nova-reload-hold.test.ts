@@ -18,7 +18,9 @@ import {
   type CodeState,
 } from './vite-nova-reload-hold';
 
-const ROOT = '/repo/frontend';
+// An absolute root on the machine running the test (`C:/repo/frontend` on the Windows desk), with the forward
+// slashes Vite's watcher and module graph use.
+const ROOT = path.resolve('/repo/frontend').replace(/\\/g, '/');
 
 describe('liveReloadRequested (NOVA_DEV_LIVE_RELOAD)', () => {
   it('turns the hold off only when asked', () => {
@@ -71,11 +73,11 @@ describe('isHeldPayload', () => {
 
 describe('envFilesForMode', () => {
   it('names the four files Vite reads', () => {
-    expect(envFilesForMode('development', '/repo/frontend')).toEqual([
-      '/repo/frontend/.env',
-      '/repo/frontend/.env.local',
-      '/repo/frontend/.env.development',
-      '/repo/frontend/.env.development.local',
+    expect(envFilesForMode('development', ROOT)).toEqual([
+      `${ROOT}/.env`,
+      `${ROOT}/.env.local`,
+      `${ROOT}/.env.development`,
+      `${ROOT}/.env.development.local`,
     ]);
     expect(envFilesForMode('development', false)).toEqual([]);
   });

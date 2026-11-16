@@ -2,6 +2,7 @@
  * One position shape whichever account is THE account on the venue: the
  * practice ledger's rows on Paper / Sim, IBKR's on Live. Pure.
  */
+import type { Owner } from '../constantGroups/owners';
 import type { IbkrPosition } from '../ibkr';
 import type { PracticePosition } from '../practice';
 
@@ -14,6 +15,11 @@ export interface AccountPosition {
   unrealized: number | null;
   /** Practice marks are Nova's estimates, never an IBKR quote. */
   estimated: boolean;
+  /** Paper and Sim (ADR 072): whose shares the row is -- one row per holder; absent on Live. */
+  owner?: Owner;
+  bot?: string | null;
+  /** These shares are handed to you: a switched-off trader's, or a retired bot's -- yours to close. */
+  handed?: boolean;
 }
 
 const finite = (n: number | null | undefined): number | null =>
@@ -45,6 +51,48 @@ export function positionsFromPractice(rows: PracticePosition[] | null | undefine
       estimated: true,
     };
   });
+}
+
+/** Paper and Sim's rows as each holder's (ADR 072): one row per holder -- you, Claude, the brain, a retired bot --
+ *  each at its own cost and its own size; nothing on one row sizes from another's. A row with no holders (an older
+ *  backend) stays as it is. */
+export function positionsByOwner(rows: PracticePosition[] | null | undefined): AccountPosition[] {
+  const valid = usableRows<PracticePosition>(rows);
+  return positionsFromPractice(valid).flatMap((base, i) => {
+    const holders = valid[i].by_owner;
+    if (!Array.isArray(holders) || !holders.length) return [base];
+    return holders.map((h) => ({
+      ...base,
+      qty: h.qty,
+      avgCost: finite(h.avg_cost),
+      marketValue: base.mark == null ? null : h.qty * base.mark,
+      unrealized: finite(h.unrealized_pnl),
+      owner: h.owner,
+      bot: h.bot,
+      handed: h.handed === true,
+    }));
+  });
+}
+
+/** Rows of one stock added up, one row per symbol (what the Symbol P&L table reads). */
+export function positionsBySymbol(rows: AccountPosition[]): AccountPosition[] {
+  const out = new Map<string, AccountPosition>();
+  const add = (a: number | null, b: number | null): number | null => (a == null || b == null ? null : a + b);
+  for (const row of rows) {
+    const seen = out.get(row.symbol);
+    if (!seen) {
+      out.set(row.symbol, { ...row, owner: undefined, bot: undefined, handed: undefined });
+      continue;
+    }
+    const qty = seen.qty + row.qty;
+    const size = Math.abs(seen.qty) + Math.abs(row.qty);
+    const avg = seen.avgCost != null && row.avgCost != null && size > 0
+      ? (Math.abs(seen.qty) * seen.avgCost + Math.abs(row.qty) * row.avgCost) / size
+      : null;
+    out.set(row.symbol, { ...seen, qty, avgCost: avg, marketValue: add(seen.marketValue, row.marketValue),
+                          unrealized: add(seen.unrealized, row.unrealized) });
+  }
+  return [...out.values()];
 }
 
 export function positionsFromIbkr(rows: IbkrPosition[] | null | undefined): AccountPosition[] {

@@ -186,7 +186,7 @@ export interface BotsFetchOpts {
   /** `GET /api/hot-list`; a write answers `onHotList` (else the same view). */
   hotList?: unknown;
   onHotList?: (method: string, href: string, body: Record<string, unknown>) => Json | undefined;
-  /** `GET /api/ibkr/depth/lines`; `PATCH /api/ibkr/depth/lending` flips `lending.on`. */
+  /** `GET /api/ibkr/lanes` (ADR 071). */
   lines?: unknown;
   /** `PUT /api/stock-mode/{symbol}`: the stock's view after it (default: the switch as sent), or a refusal. */
   onStockModePut?: (symbol: string, body: Record<string, unknown>) => Json | undefined;
@@ -268,15 +268,16 @@ export function hotListView(partial: Record<string, unknown> = {}): Record<strin
   };
 }
 
-/** IBKR's three Level 2 lines: GRML in front, a free line, a Record; lending on. */
+const EMPTY_LANE = { symbol: null, since: null, depth: false, tape: false, recording: false, error: null };
+
+/** IBKR's three Level 2 lines, one per lane (ADR 071): yours on GRML, Claude's empty, the bots' on AISP. */
 export function linesView(partial: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    schema_version: 1, cap: 3,
-    lines: [
-      { symbol: 'GRML', held_by: 'tab', front: true, viewers: 1 },
-      { symbol: 'NXL', held_by: 'tab', front: false, viewers: 1 },
-    ],
-    lending: { on: true, loans: [], recent: [] },
+    schema_version: 1, generated_at: 1_790_000_000, recording_error: null, tape_capacity: null,
+    you: { ...EMPTY_LANE, symbol: 'GRML', depth: true, tape: true, recording: true },
+    claude: EMPTY_LANE,
+    bots: { ...EMPTY_LANE, symbol: 'AISP', depth: true, tape: false, setup: 'first_pullback', why: 'near',
+      waiting: [{ symbol: 'RUNR', setup: 'bull_flag', why: 'armed' }] },
     ...partial,
   };
 }
@@ -293,7 +294,7 @@ export function refusal(status: number, reason: string, error: string): Json {
 export function botsFetchRouter(opts: BotsFetchOpts = {}) {
   let current = opts.session ?? session();
   let tripped = opts.killTripped ?? false;
-  let lines = (opts.lines ?? linesView()) as Record<string, unknown>;
+  const lines = opts.lines ?? linesView();
   return async (url: string, init?: RequestInit): Promise<Json> => {
     const href = String(url);
     const method = init?.method ?? 'GET';
@@ -306,11 +307,7 @@ export function botsFetchRouter(opts: BotsFetchOpts = {}) {
       const answer = method === 'GET' ? undefined : opts.onHotList?.(method, href, body);
       return answer ?? ok(opts.hotList ?? hotListView());
     }
-    if (href.includes('/ibkr/depth/lending')) {
-      lines = { ...lines, lending: { ...(lines.lending as object), on: body.on === true } };
-      return ok(lines);
-    }
-    if (href.includes('/ibkr/depth/lines')) return ok(lines);
+    if (href.includes('/ibkr/lanes')) return ok(lines);
     if (href.includes('/session/switch')) {
       const on = body.on === true;
       const next = opts.onSwitch?.(body) ?? { ...current, bot_on: on, active: on, armed: on, level: on ? 2 : 1,

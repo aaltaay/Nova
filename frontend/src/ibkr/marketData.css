@@ -7,6 +7,7 @@
    share no selector with it. */
 @import "./timeSales.css";
 @import "./level2Montage.css";
+@import "./level2DepthChart.css";
 @import "./luld.css";
 
 /* ── Side-by-side depth + tape ───────────────────────────────────────────── */

@@ -14,7 +14,7 @@ interface Props {
   connectedText?: string;
   statusTitle?: string;
   emptyLabel?: string;
-  /** A Trader tab's Time & Sales: its line may be lent with the tab's Level 2 (ADR 044 decision 6). */
+  /** A Trader tab's Time & Sales: its socket says `tab=1`, and only the tab in front moves your lane (ADR 071). */
   traderTab?: boolean;
 }
 

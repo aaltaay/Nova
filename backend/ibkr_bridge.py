@@ -189,15 +189,6 @@ def refresh_hod_active_set() -> list[str]:
         logger.warning("HOD active set: today's hot list could not be read -- none of its names admitted",
                        exc_info=True)
         hot = []
-    try:
-        from hot_list.following import bot_buy_symbols
-
-        # Ahead of the list: the stocks the bot buys, so a lane always reads them (memory reads only).
-        bots = bot_buy_symbols()
-    except Exception:
-        logger.warning("HOD active set: the bot's stocks could not be read -- none admitted ahead of the list",
-                       exc_info=True)
-        bots = []
     snap = _hod_active.build_active_set(
         gapper_rows=state.gapper_cache,
         gainer_rows=state.gainer_cache,
@@ -206,7 +197,6 @@ def refresh_hod_active_set() -> list[str]:
         afterhours_rows=state.afterhours_cache,
         priority_symbols=priority,
         hot_symbols=hot,
-        bot_symbols=bots,
         capacity=HOD_MOMO_ACTIVE_SET_CAPACITY,
     )
     return list(snap.active)

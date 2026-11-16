@@ -5,10 +5,9 @@
  * time" -- the upper half keeps the rail's list, the lower half shows HOD
  * Momo unless another list is picked, and folds to its header). Each half is
  * a FocusRailPane: header `<list> N ▾` (the caret picks a scanner tab module
- * from the registry), sortable columns, rows of REC dot, bot dot (filled =
- * allowlisted and this desk holds the depth line -- a live Trader tab or a
- * recording; hollow = allowlisted, quiet), symbol, price, signed gap, led by
- * the Scanner's own news circle. ↑ ↓ cycle in the focused half, Enter opens.
+ * from the registry), sortable columns, rows of REC dot, symbol, price, signed
+ * gap, led by the Scanner's own news circle (no bot dot: the strategies only
+ * watch and never trade, ADR 072). ↑ ↓ cycle in the focused half, Enter opens.
  * Opening a symbol from a scanner list (a Gainers row, the HOD strip, the
  * Desk board) moves a half to that list when it mirrors it (routeFocusList).
  * Data is the live scanner feed the workspace already holds -- and, for HOD
@@ -19,7 +18,6 @@
  */
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
-import { useBotAllowlist } from '../bot/useBotAllowlist';
 import { useWatchList } from '../watch_list';
 import { getRecordingSymbols, isTabRecording, subscribeSessionRecord } from '../capture';
 import {
@@ -140,8 +138,7 @@ export function FocusRail({ active: onScreen = true, store = SAVED_FOCUS_RAIL_ST
   const hodStream = hod?.stream ?? null;
   const hodReplay = hod?.replay ?? null;
   const settings = useSettingsOptional();
-  const { activeTraderSymbol, traderLiveTabs, openStockView } = useWorkspace();
-  const { isAllowed } = useBotAllowlist();
+  const { activeTraderSymbol, openStockView } = useWorkspace();
   const watchList = useWatchList();
   // Sim off the live edge replays another moment: today's live price, gap and
   // news stay off the rows; the list still opens tabs (QA W10). A feed that
@@ -214,13 +211,11 @@ export function FocusRail({ active: onScreen = true, store = SAVED_FOCUS_RAIL_ST
   const shared = useMemo<FocusPaneShared>(() => ({
     replayDesk,
     watchList,
-    isAllowed,
     isRecording: isTabRecording,
     active: activeTraderSymbol?.toUpperCase() ?? null,
-    traderLiveTabs,
     open: (symbol: string) => openStockView(symbol),
     modules,
-  }), [replayDesk, watchList, isAllowed, activeTraderSymbol, traderLiveTabs, openStockView, modules]);
+  }), [replayDesk, watchList, activeTraderSymbol, openStockView, modules]);
 
   if (state.collapsed) {
     const count = upper.count ?? upper.rows?.length ?? null;

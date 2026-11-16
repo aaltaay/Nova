@@ -37,7 +37,7 @@ def halt_watch(row: dict[str, Any]) -> dict[str, Any]:
         try:
             from ibkr import account as _account
 
-            position_qty = float(_account.long_qty(symbol) or 0)
+            position_qty = float(_account.long_qty(symbol, "bot_api") or 0)  # a brain's own (ADR 069)
         except Exception:
             # Unknown, never "flat": a brain reading 0 would think it holds nothing.
             logger.warning("bot watch: the %s position could not be read", symbol, exc_info=True)

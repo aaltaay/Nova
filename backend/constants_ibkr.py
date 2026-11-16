@@ -587,7 +587,7 @@ SCANNER_PRICE_STALE_SEC = 5.0
 # overlap dedupe. Do not stream the whole discovery universe.
 IBKR_L1_STREAM_BUDGET = 100                     # Error 101 ceiling; /api/ibkr/status reqMktData_limit
 IBKR_L1_STREAM_RESERVE = 5                      # headroom for open ticker / depth peers
-# A background chart fill sends no historical request while this few of the 60 a 10 minutes are left: an open chart
+# A background chart fill sends no historical request while this few of its 10-minute window are left: an open chart
 # and the short check's SSR read take the last ones (operator 2026-10-16: "There must be a priority").
 IBKR_HISTORY_TRADING_RESERVE = 10
 IBKR_L1_ACTIVE_TAB_MAX = 50                     # IBKR scanner row cap per tab

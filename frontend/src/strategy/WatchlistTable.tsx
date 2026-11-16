@@ -1,18 +1,16 @@
-/** The Watchlist table: Five Pillars as letter chips, the row's market facts, today's catalyst,
- * where the setup scanner has it, and the dot that lets the bot trade it. Nothing here places an order. */
+/** The Watchlist table: Five Pillars as letter chips, the row's market facts, today's catalyst and
+ * where the setup scanner has it. Nothing here places an order; no bot trades a row (ADR 072: the
+ * strategies only watch). */
 import { useMemo, useState } from 'react';
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { ScannerRowNumCell, ScannerRowNumHeader } from '../components/ScannerTable';
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
-import { useBotAllowlist } from '../bot/useBotAllowlist';
 import { useSetupsBoard } from '../setups';
 import { rowRank } from '../setups';
 import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import {
   CATALYST_COLUMN_LABEL,
   CATALYST_COLUMN_TITLE,
-  WATCHLIST_BOT_OFF_TITLE,
-  WATCHLIST_BOT_ON_TITLE,
   WATCHLIST_FILTER_LABELS,
   WATCHLIST_FOOTNOTE,
 } from '../constants';
@@ -37,7 +35,7 @@ import type { WatchlistEntry, WatchlistReplay } from './types';
 import type { SetupRow } from '../setups';
 import './watchlist.css';
 
-const FILTERS: WatchlistFilter[] = ['all', 'pillars5', 'setup_live', 'allowlist'];
+const FILTERS: WatchlistFilter[] = ['all', 'pillars5', 'setup_live'];
 
 const REPLAY_GAP_WORDS: Record<string, string> = {
   not_running: 'Nova was not running',
@@ -115,13 +113,11 @@ function ToneCell({ cell, badge = false }: { cell: Cell; badge?: boolean }) {
   return <span className={cls} title={cell.title}>{cell.text}</span>;
 }
 
-function WatchlistRow({ entry, index, setup, following, allowed, onToggleBot, selected, onSelect, onOpenTrading }: {
+function WatchlistRow({ entry, index, setup, following, selected, onSelect, onOpenTrading }: {
   entry: WatchlistEntry;
   index: number;
   setup: SetupRow | undefined;
   following: boolean;
-  allowed: boolean;
-  onToggleBot: (symbol: string, on: boolean) => void;
   selected: boolean;
   onSelect: (symbol: string) => void;
   onOpenTrading: (symbol: string) => void;
@@ -153,21 +149,6 @@ function WatchlistRow({ entry, index, setup, following, allowed, onToggleBot, se
         <span className="wl-score-num">{entry.composite_score.toFixed(0)}</span>
       </td>
       <td><ToneCell cell={setupCell(setup, following)} badge /></td>
-      <td className="wl-bot-cell">
-        <button
-          type="button"
-          className={`wl-bot-dot${allowed ? ' is-on' : ''}`}
-          aria-pressed={allowed}
-          title={allowed ? WATCHLIST_BOT_ON_TITLE : WATCHLIST_BOT_OFF_TITLE}
-          data-testid="watchlist-bot-toggle"
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleBot(entry.symbol, !allowed);
-          }}
-        >
-          {allowed ? '●' : '○'}
-        </button>
-      </td>
     </SelectableTableRow>
   );
 }
@@ -194,14 +175,10 @@ export function WatchlistTable({
   const [filter, setFilter] = useState<WatchlistFilter>('all');
   const activeReplay = useWatchlistReplay(replay);
   const stream = useSetupsBoard();
-  const { isAllowed, add, remove } = useBotAllowlist();
   const setups = useMemo(() => setupsBySymbol(stream?.board?.rows), [stream?.board?.rows]);
   const following = Boolean(stream?.connected);
-  const shown = useMemo(
-    () => applyFilter(entries, filter, setups, isAllowed),
-    [entries, filter, setups, isAllowed],
-  );
-  const sum = useMemo(() => summarize(entries, setups, isAllowed), [entries, setups, isAllowed]);
+  const shown = useMemo(() => applyFilter(entries, filter, setups), [entries, filter, setups]);
+  const sum = useMemo(() => summarize(entries, setups), [entries, setups]);
   const columns = useMemo<SortColumns<WatchlistEntry>>(() => ({
     symbol: e => e.symbol,
     pillars: e => e.five_pillars.pass_count,
@@ -216,10 +193,8 @@ export function WatchlistTable({
       const row = setups.get(e.symbol);
       return row ? -rowRank(row) : null;
     },
-    bot: e => isAllowed(e.symbol),
-  }), [setups, isAllowed]);
+  }), [setups]);
   const { rows: sorted, sort, onSort } = useTableSort('contenders', shown, columns);
-  const onToggleBot = (symbol: string, on: boolean) => void (on ? add(symbol) : remove(symbol));
 
   return (
     <div className="wl-table">
@@ -233,7 +208,6 @@ export function WatchlistTable({
           <span><b>{sum.total}</b> gappers &amp; gainers</span>
           <span><b>{sum.allPass}</b> pass all five pillars</span>
           <span><b>{sum.setupsLive}</b> setups live · <b>{sum.near}</b> near trigger</span>
-          <span><b>{sum.allowlisted}</b> set to Bot</span>
         </div>
         <div className="wl-filters" role="group" aria-label="Contenders filter">
           {FILTERS.map(f => (
@@ -270,7 +244,6 @@ export function WatchlistTable({
                 <SortTh col="news" sort={sort} onSort={onSort} title={CATALYST_COLUMN_TITLE}>{CATALYST_COLUMN_LABEL}</SortTh>
                 <SortTh col="score" sort={sort} onSort={onSort} title="0-100 composite: breaks ties among symbols with the same pillar count">Score</SortTh>
                 <SortTh col="setup" sort={sort} onSort={onSort} title="Its most advanced setup on the setup scanners (first pullback, bull flag, flat-top, red to green); hover a cell for what it means">Setup</SortTh>
-                <SortTh col="bot" sort={sort} onSort={onSort} className="wl-bot-cell" title="The bot trades it (bot buys and sells)">Bot</SortTh>
               </tr>
             </thead>
             <tbody>
@@ -281,8 +254,6 @@ export function WatchlistTable({
                   index={index}
                   setup={setups.get(entry.symbol)}
                   following={following}
-                  allowed={isAllowed(entry.symbol)}
-                  onToggleBot={onToggleBot}
                   selected={selectedSymbol === entry.symbol}
                   onSelect={onSelectSymbol}
                   onOpenTrading={onOpenTrading}

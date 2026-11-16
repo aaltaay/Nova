@@ -3,7 +3,7 @@
  * Kept out of the React hook so symbol-gating and clear-on-switch are unit-testable.
  */
 import { TAPE_UI_MAX_ROWS } from '../constants';
-import type { LineLent } from './lentWords';
+import type { LaneWaitWords } from './laneWait';
 
 export type TapeSide = 'ask' | 'bid' | 'between' | 'unknown';
 
@@ -11,7 +11,10 @@ export interface TapePrint {
   /** Stable canonical replay print identity; absent for the live feed. */
   replayId?: string;
   symbol: string;
+  /** When the print reached Nova: it keeps the rows in order. */
   time: string;
+  /** IBKR's own second for the trade: what the Time column shows (ADR 045 amendment 2026-11-06). */
+  exchangeTs?: number | null;
   price: number;
   size: number;
   exchange: string;
@@ -159,10 +162,10 @@ export interface TapeState {
   connected: boolean;
   error: string | null;
   /**
-   * The live line is lent to one of Nova's setups with the tab's Level 2 (ADR 044 decision 6):
-   * the pane says whose and when it comes back. Absent or null for every other feed.
+   * No lane is on the stock (ADR 071): the pane says where your lane is and how to bring it. Absent or
+   * null for every other feed.
    */
-  lent?: LineLent | null;
+  laneWait?: LaneWaitWords | null;
   /**
    * IBKR refused or ended the line and the backend asks again at this moment (epoch seconds, #698):
    * the pane says RETRYING, not ERROR. Absent or null otherwise.
@@ -184,7 +187,7 @@ export function tapeSymbolKey(symbol: string | null): string | null {
 
 /** Fresh empty tape — used on mount and immediately on symbol change. */
 export function emptyTapeState(): TapeState {
-  return { prints: [], connected: false, error: null, lent: null, retryAt: null, silence: null };
+  return { prints: [], connected: false, error: null, laneWait: null, retryAt: null, silence: null };
 }
 
 /**

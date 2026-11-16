@@ -182,7 +182,7 @@ def limit_from_book(kind: str, symbol: str, offset: float) -> float:
 
 
 def _venue() -> str | None:
-    from bot.gates import current_venue
+    from bot.door import current_venue
 
     return current_venue()
 

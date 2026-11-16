@@ -16,10 +16,16 @@ import {
 
 export type AgentCommandStatus = 'queued' | 'running' | 'done' | 'failed' | 'expired' | 'cancelled';
 
-export interface ShowPlan extends SimLandingPlan { at: string; park_et: string; park_words: string | null; switch_venue: boolean }
+export interface ShowPlan extends SimLandingPlan {
+  at: string; park_et: string; park_words: string | null; switch_venue: boolean;
+  /** Set by open-in-nova. A plain show leaves these off. */
+  separate_sim?: boolean; switch_view?: boolean; review_path?: string;
+}
+export interface OpenPlan extends ShowPlan { separate_sim: boolean; switch_view: boolean; review_path: string }
 export interface MovePlan extends SimMovePlan { target_words: string | null }
 export type AgentCommand =
   | { id: string; kind: 'show'; status: AgentCommandStatus; plan: ShowPlan }
+  | { id: string; kind: 'open_in_nova'; status: AgentCommandStatus; plan: OpenPlan }
   | { id: string; kind: 'move'; status: AgentCommandStatus; plan: MovePlan }
   | { id: string; kind: 'unreadable'; status: AgentCommandStatus; error: string };
 
@@ -52,6 +58,21 @@ function parseShow(plan: Record<string, unknown>): ShowPlan | null {
     at: isStr(plan.at) ? plan.at : 'run', park_et: isStr(plan.park_et) ? plan.park_et : '',
     park_words: isStr(plan.park_words) ? plan.park_words : null,
     switch_venue: plan.switch_venue === true,
+    separate_sim: plan.separate_sim === true,
+    switch_view: plan.switch_view === true,
+    review_path: isStr(plan.review_path) ? plan.review_path : undefined,
+  };
+}
+
+function parseOpen(plan: Record<string, unknown>): OpenPlan | null {
+  const show = parseShow(plan);
+  if (!show || typeof plan.separate_sim !== 'boolean') return null;
+  if (!isStr(plan.review_path) || !plan.review_path.startsWith('/review?')) return null;
+  return {
+    ...show,
+    separate_sim: plan.separate_sim,
+    switch_view: plan.switch_view === true,
+    review_path: plan.review_path,
   };
 }
 
@@ -72,8 +93,11 @@ export function parseAgentCommand(raw: unknown): AgentCommand | null {
   if (!isObj(raw) || !isStr(raw.id)) return null;
   const status = (isStr(raw.status) ? raw.status : 'running') as AgentCommandStatus;
   const plan = isObj(raw.plan) ? raw.plan : null;
-  const parsed = plan && raw.kind === 'show' ? parseShow(plan) : plan && raw.kind === 'move' ? parseMove(plan) : null;
+  const parsed = plan && raw.kind === 'show' ? parseShow(plan)
+    : plan && raw.kind === 'open_in_nova' ? parseOpen(plan)
+    : plan && raw.kind === 'move' ? parseMove(plan) : null;
   if (raw.kind === 'show' && parsed) return { id: raw.id, kind: 'show', status, plan: parsed as ShowPlan };
+  if (raw.kind === 'open_in_nova' && parsed) return { id: raw.id, kind: 'open_in_nova', status, plan: parsed as OpenPlan };
   if (raw.kind === 'move' && parsed) return { id: raw.id, kind: 'move', status, plan: parsed as MovePlan };
   return { id: raw.id, kind: 'unreadable', status, error: `the desk cannot read a ${String(raw.kind)} command` };
 }

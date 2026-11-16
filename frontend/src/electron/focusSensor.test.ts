@@ -86,6 +86,22 @@ describe('Electron focus sensor', () => {
     expect(report.windows[0].display.primary).toBe(true);
   });
 
+  it('gives the Top 9 pop-up its own row, so the desk never takes its minimized or focused state', () => {
+    const report = buildElectronFocusReport({
+      windows: [
+        fakeWindow('file:///C:/Nova/dist/index.html', { key: 'main' }),
+        fakeWindow('file:///C:/Nova/dist/index.html?view=top9', { focused: true, minimized: true, key: 'top9' }),
+      ],
+      screen: fakeScreen({ main: PRIMARY, top9: LEFT }),
+      reason: 'focus',
+    });
+    expect(report.focused_window_id).toBe('top-nine');
+    expect(report.windows.map((w: { window_id: string; minimized: boolean }) => [w.window_id, w.minimized])).toEqual([
+      ['main', false],
+      ['top-nine', true],
+    ]);
+  });
+
   it('names share clips\' hidden pages for the perf recorder and leaves them out of the focus report (ADR 039)', () => {
     const recorder = 'file:///C:/Program%20Files/Nova/resources/app.asar/electron/clipRecorder.html';
     const packedExport = 'file:///C:/Program%20Files/Nova/resources/app.asar/dist/clip-export.html';

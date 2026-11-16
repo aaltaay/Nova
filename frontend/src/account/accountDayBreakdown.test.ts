@@ -4,8 +4,8 @@
  * flat back to flat and counts on the day it closes.
  */
 import { describe, expect, it } from 'vitest';
-import { dayBreakdowns, fillDay, monthDayTotals, roundTrips } from './accountDayBreakdown';
-import { paperHistoryFixture } from './accountFixtures';
+import { dayBreakdowns, fillDay, monthDayTotals, ownerDayTrades, roundTrips } from './accountDayBreakdown';
+import { paperHistoryFixture, threeBooksHistoryFixture } from './accountFixtures';
 import type { HistoryFill } from './accountHistoryTypes';
 
 // Fri 2026-09-18 10:00 ET: the fixture's six fills land between 09:00 and 09:57 ET that day.
@@ -118,5 +118,27 @@ describe('monthDayTotals', () => {
     history.daily.push({ date: '2026-09-18', realized: -102, commissions: 100, fees: 0, fills: 2, archived: true });
     const total = monthDayTotals(dayBreakdowns(history), ['2026-09-18']);
     expect([total.commissions, total.trades, total.incompleteDays]).toEqual([110, 2, 1]);
+  });
+});
+
+describe('ownerDayTrades (ADR 072)', () => {
+  it("walks each holder's own parts from flat: a stock two traders touch is two trades", () => {
+    const history = threeBooksHistoryFixture(PLAYHEAD);
+    // One order filled for two holders, 60 shares yours and 40 Claude's, in and out: one trade each.
+    const shared: HistoryFill[] = [
+      { ...history.fills[2], symbol: 'ZZZ', side: 'BUY', qty: 100, parts: [
+        { owner: 'you', bot: null, qty: 60, closes: false, realized: -0.6, commission: 0.6, fees: 0 },
+        { owner: 'claude', bot: null, qty: 40, closes: false, realized: -0.4, commission: 0.4, fees: 0 },
+      ] },
+      { ...history.fills[3], symbol: 'ZZZ', side: 'SELL', qty: 100, parts: [
+        { owner: 'you', bot: null, qty: 60, closes: true, realized: 5, commission: 0.6, fees: 0 },
+        { owner: 'claude', bot: null, qty: 40, closes: true, realized: 3, commission: 0.4, fees: 0 },
+      ] },
+    ];
+    expect(ownerDayTrades(shared)?.get('2026-09-18')).toEqual({ you: 1, claude: 1, brain: 0, earlier_bots: 0 });
+  });
+
+  it('says nothing for a ledger without books', () => {
+    expect(ownerDayTrades(paperHistoryFixture(PLAYHEAD).fills)).toBeNull();
   });
 });

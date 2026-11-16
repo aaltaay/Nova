@@ -1,8 +1,12 @@
 /**
  * The card under the header's Positions count: each stock held now, its
- * shares (a short says so), average cost and open P&L. A row opens that stock
- * in the Trader; View All Positions opens Account / Trading.
+ * shares (a short says so), average cost and open P&L, and on Paper and Sim whose
+ * they are -- You, Claude, the brain, a retired bot, and "The brain's · yours to
+ * close" on shares handed to you (ADR 072). A row opens that stock in the Trader;
+ * View All Positions opens Account / Trading.
  */
+import { fmtPrice } from '../utils/quoteFormat';
+import { RowWhose } from '../ibkr';
 import {
   GLOBAL_BAR_OFFLINE_PLACEHOLDER,
   GLOBAL_BAR_POSITIONS_EMPTY,
@@ -14,7 +18,6 @@ import {
   GLOBAL_BAR_VIEW_ALL_POSITIONS,
   globalBarPositionOpenTitle,
 } from '../constantGroups/global_bar';
-import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';
 import { formatSignedMoney, pnlToneClass } from './globalBarMoney';
 import type { HeldPositionRow } from './globalPositionsRows';
@@ -53,12 +56,12 @@ export function GlobalPositionsMenu({ rows, stale, onOpenSymbol, traderActive, c
       ) : (
         rows.map((r) => (
           <button
-            key={r.symbol}
+            key={`${r.symbol}-${r.owner ?? ''}-${r.bot ?? ''}`}
             type="button"
             role="menuitem"
-            className="global-app-bar__position-row"
+            className={`global-app-bar__position-row${r.owner ? ' has-whose' : ''}`}
             title={globalBarPositionOpenTitle(r.symbol)}
-            data-testid={`global-position-${r.symbol}`}
+            data-testid={`global-position-${r.symbol}${r.owner && r.owner !== 'you' ? `-${r.bot ?? r.owner}` : ''}`}
             onClick={() => {
               onClose();
               onOpenSymbol(r.symbol);
@@ -68,7 +71,7 @@ export function GlobalPositionsMenu({ rows, stale, onOpenSymbol, traderActive, c
             <span className="global-app-bar__position-qty">
               {formatShareQty(Math.abs(r.qty))}
               {r.qty < 0 && <em> {GLOBAL_BAR_POSITIONS_SHORT}</em>}
-              {r.avgCost != null && <> @ {formatMoney(r.avgCost)}</>}
+              {r.avgCost != null && <> @ {fmtPrice(r.avgCost)}</>}
             </span>
             <span
               className={`global-app-bar__position-pnl ${pnlToneClass(r.openPnl)}`}
@@ -76,6 +79,11 @@ export function GlobalPositionsMenu({ rows, stale, onOpenSymbol, traderActive, c
             >
               {r.openPnl == null ? GLOBAL_BAR_OFFLINE_PLACEHOLDER : formatSignedMoney(r.openPnl)}
             </span>
+            {r.owner && (
+              <span className="global-app-bar__position-whose">
+                <RowWhose row={r} />
+              </span>
+            )}
           </button>
         ))
       )}

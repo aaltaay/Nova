@@ -1,0 +1,98 @@
+/* Header Freeze, right of KILL (ADR 072, approved mockup retire-bots v1). Owner: ibkr/FreezeOrdersButton.tsx.
+   Ice blue, not red: it sells nothing. Frozen, it turns amber and reads "Frozen · Unfreeze". */
+.freeze-orders {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.freeze-orders__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: var(--gbar-chip-h);
+  padding: 0 8px;
+  box-sizing: border-box;
+  border: 1px solid #1d4f66;
+  border-radius: var(--gbar-radius);
+  background: #0b2430;
+  color: #64d2ff;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.freeze-orders__btn:hover:not(:disabled) {
+  background: #0f3141;
+}
+
+.freeze-orders__btn:focus-visible {
+  outline: 2px solid #64d2ff;
+  outline-offset: 1px;
+}
+
+.freeze-orders__btn.is-frozen {
+  border-color: var(--nova-warning, #ff9f0a);
+  background: #3a2408;
+  color: var(--nova-warning, #ff9f0a);
+}
+
+.freeze-orders__btn.is-frozen:hover:not(:disabled) {
+  background: #4a2e0a;
+}
+
+.freeze-orders__btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+/* What it did: portaled to <body> under the button, so the header's scroll box never clips it. */
+.freeze-orders__did {
+  position: fixed;
+  z-index: 10080;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 420px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: #1d1d20;
+  color: #f5f5f7;
+  font-size: 12px;
+  line-height: 1.5;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.freeze-orders__did-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.freeze-orders__did-x {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #98989d;
+  cursor: pointer;
+}
+
+.freeze-orders__did-x:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f5f5f7;
+}
+
+.freeze-orders__did .is-bad {
+  color: var(--nova-danger, #ff453a);
+}
+
+.freeze-orders__did-foot {
+  color: #98989d;
+}

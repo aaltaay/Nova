@@ -15,7 +15,7 @@ export const VIEW_UNDRAWN_LOCK_MS = 500;
 /** How often a mounted lock reader re-judges the views (a lock clears or sets within this). */
 export const VIEW_LOCK_TICK_MS = 200;
 
-export const VIEW_LOCK_TAIL = 'Orders are locked until it catches up. Flatten and cancels still work.';
+export const VIEW_LOCK_TAIL = 'New buys and shorts wait until it catches up. Sells, covers, Flatten and cancels still work.';
 export const TICKET_VIEW_LOCKED_LABEL = 'Market view behind · locked';
 
 /**
@@ -23,7 +23,7 @@ export const TICKET_VIEW_LOCKED_LABEL = 'Market view behind · locked';
  * true reason). Not "behind": there is no Level 2 at all, so the lock says so and quotes IBKR's reason.
  */
 export const LEVEL2_REFUSED_LEAD = 'No Level 2 for';
-export const LEVEL2_REFUSED_TAIL = 'Orders are locked until a Level 2 is live. Flatten and cancels still work.';
+export const LEVEL2_REFUSED_TAIL = 'New buys and shorts wait until a Level 2 is live. Sells, covers, Flatten and cancels still work.';
 export const TICKET_LEVEL2_REFUSED_LABEL = 'No Level 2 · locked';
 
 /**
@@ -32,7 +32,7 @@ export const TICKET_LEVEL2_REFUSED_LABEL = 'No Level 2 · locked';
  * locks until a book arrives; the backend's `BOOK_WAITING` reads the same.
  */
 export const LEVEL2_WAITING_LEAD = 'No book yet on';
-export const LEVEL2_WAITING_TAIL = 'Orders are locked until its first book arrives. Flatten and cancels still work.';
+export const LEVEL2_WAITING_TAIL = 'New buys and shorts wait until its first book arrives. Sells, covers, Flatten and cancels still work.';
 export const TICKET_LEVEL2_WAITING_LABEL = 'Waiting for Level 2 · locked';
 export const BOOK_WAITING_CODE = 'BOOK_WAITING';
 

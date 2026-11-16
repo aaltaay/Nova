@@ -56,6 +56,7 @@ export function hiddenTip(h: HeldHidden): { title: string; tip: string } {
     endLine(h),
   ];
   if (h.refills > 0) lines.push(`The size shown there came back ${h.refills} time${h.refills === 1 ? '' : 's'}.`);
+  if (h.unseen > 0) lines.push(`Another ${markWhole(h.unseen)} traded there on exchanges this Level 2 does not show: not counted.`);
   lines.push(h.side === 'ask' ? L2_HIDDEN_READ_SELLER : L2_HIDDEN_READ_BUYER, L2_HIDDEN_NOTE);
   return { title: `${WHO[h.side]} at ${markPrice(h.price)}: ${markWhole(h.hidden)} beyond what it showed`, tip: lines.join('\n') };
 }

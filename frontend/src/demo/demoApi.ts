@@ -24,9 +24,9 @@ import { chartEvents } from './data/events';
 import { DAY, NOW_S } from './data/market';
 import { sampleProfile } from './data/profile';
 import {
-  botAudit, botSession, hotList, lossLimitView, orderSizeLimitView, practiceHistory, setupRows, setupsBoard, stockModes,
+  botAudit, botSession, hotList, lossLimitView, orderSizeLimitView, practiceHistory, setupRows, setupsBoard,
 } from './data/pages';
-import { decisions, history, pastSetups, stockMode, stockRead, targetChoices } from './data/read';
+import { decisions, history, pastSetups, stockRead, targetChoices } from './data/read';
 import { hodHistory, leaderboardBoard, leaderboardCoverage, leaderboardDays, simClock, simStatus } from './data/sim';
 import { CATALYSTS, GAINERS, GAPPERS, HOD_CONFIG, LOSERS, WATCHLIST } from './data/universe';
 
@@ -84,9 +84,18 @@ function sharedRoutes(nowS: number): [RegExp, Handler][] {
     [/^\/api\/ibkr\/capacity$/, () => ({
       schema_version: 1, generated_at: nowS,
       l1: { used: 34, cap: 100, cap_learned: false, reserve: 5, refused: 0, by_owner: { scanner: 28, hod: 14, detail: 2 } },
-      l2: { used: 1, cap: 3, symbols: [{ symbol: SMPL, held_by: 'tab' }] },
-      history: { used: 12, cap: 60, window_sec: 600, next_free_sec: 0, by_kind: { charts: 9, tape: 2, daily: 1, market: 0 } },
+      l2: { used: 1, cap: 3, symbols: [{ symbol: SMPL, held_by: 'you' }] },
+      history: { used: 12, cap: 300, window_sec: 600, next_free_sec: 0, by_kind: { charts: 9, tape: 2, daily: 1, market: 0 } },
       tape: { used: 1, cap: null, symbols: [SMPL] },
+    })],
+    // ADR 071: the three lanes -- your lane on the sample stock, Claude's and the bots' empty.
+    [/^\/api\/ibkr\/lanes$/, () => ({
+      schema_version: 1, generated_at: nowS,
+      you: { symbol: SMPL, since: nowS - 1_800, depth: true, tape: true, recording: false, error: null },
+      claude: { symbol: null, since: null, depth: false, tape: false, recording: false, error: null },
+      bots: { symbol: null, since: null, depth: false, tape: false, recording: false, error: null, setup: null, why: null,
+        waiting: [] },
+      tape_capacity: null, recording_error: null,
     })],
     [/^\/api\/ibkr\/feed$/, () => ({
       schema_version: 1, now: nowS, connected: true, in_session: true, last_data_ts: nowS - 0.2, silent_sec: 0.2,
@@ -132,8 +141,6 @@ function sharedRoutes(nowS: number): [RegExp, Handler][] {
     [/^\/api\/order-size-limit$/, () => orderSizeLimitView()],
     [/^\/api\/kill-switch$/, () => ({ tripped: false, reason: null, ts: null })],
     [/^\/api\/hot-list$/, () => hotList()],
-    [/^\/api\/stock-mode$/, () => stockModes(venue)],
-    [/^\/api\/stock-mode\/([^/]+)$/, (m) => stockMode(sym(m))],
     [/^\/api\/setups\/templates$/, () => setupTemplates],
     [/^\/api\/setups\/rows$/, () => ({ date: DAY, setup_type: 'all', template: null, rows: setupRows() })],
     [/^\/api\/setups\/scoreboard$/, () => ({ ...SAMPLE_SETUPS_SCOREBOARD, date_from: '2026-09-24' })],

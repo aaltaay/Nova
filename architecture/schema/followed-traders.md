@@ -401,6 +401,12 @@ whose ticker is checking or unchecked holds none; a corrected one holds the long
 
 ### On the desk
 
+**ADR 072 (built):** the Live Trader retired and the Bots group left the rail; this page is back on the rail as
+**TraderTV**, under Congress (`frontend/src/pages/TraderTvPage.tsx`, nav page `tradertv`), the hosts' rows, positions
+and P/L as below, without the bot parts (the key, Entry / Exit, allowance, skips, asks, the BOT chip and the head's
+LiveTrader Bots key). Links and toasts that opened LiveTrader Bots open TraderTV; the focus sensor still names it
+`followed`. The sample desk shows a stated absence.
+
 The followed traders' page is **Bots > LiveTrader Bots** (operator, 2026-10-15: "i want all content from the
 original tradertv live to be inside livetrader bots"; approved from a render of the desk on that day's answers, "i
 like it. build it."). It was "Following" until 2026-10-14, then **TraderTV LIVE**, its own rail item named "to the name
@@ -457,8 +463,13 @@ images again with each answer.
   earlier closed trades", which opens them all over the stack; open rows never fold. A window too small
   even for that scrolls the stack rather than hide a trade.
 - **The stream**, above the Activity: the feed's video (`capture.video_id`) in an embedded YouTube player
-  (`www.youtube.com/embed`, muted to start), LIVE, mute / unmute, Pop out (a small window of its own on the desktop, a
-  browser tab elsewhere), close, and Open on YouTube (the system browser). It plays **only while the stream is on
+  (`www.youtube.com/embed`, muted to start), LIVE, mute / unmute (the same switch as the header sound menu's YouTube
+  row, `desk-ops.md`; locked with why while the header mute is on or the pop-out has the sound), Pop out (a small window
+  of its own on the desktop, a browser tab elsewhere), close, and Open on YouTube (the system browser). On the desktop
+  the row reaches the pop-out through the main process: `nova:sound:stream` `{on, level}` mutes that window's audio and
+  asks YouTube's player in it for the volume; `nova:stream:window` tells the pages it opened or closed,
+  `nova:stream:switch` tells the other pages its switch moved, and `nova:stream:state` answers `{open, on}` for a page
+  that reloads. It plays **only while the stream is on
   air**: the capture live and read within `FOLLOWED_CAPTURE_STALE_SEC`, its `age_sec` advanced by the time since
   the answer arrived so a backend that stops answering never keeps it on air (amendment, operator 2026-10-13: "if we're on
   the live right now for today, then I don't want it to be allowing me to show some video in the past or history";

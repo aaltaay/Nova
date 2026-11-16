@@ -15,9 +15,11 @@ import { Tooltip } from 'radix-ui';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { BOT_SETUP_LABELS } from '../constantGroups/bot';
 import { getIbkrStatusSnapshot } from '../ibkr';
-import type { AutoRecordStatus } from '../ibkr';
+import { laneRecording, type LaneRecording } from '../ibkr';
 import {
   AUTO_RECORD_WHY_WORDS,
+  LANE_OWNER_WORDS,
+  LANE_RECORD_CHIP_LINE,
   captureStopHoldLabel,
   RECORDING_CHIP_RECORDS,
   RECORDING_CHIP_ROLE,
@@ -31,7 +33,6 @@ import {
 } from './constants';
 import { HoldToStopButton } from './HoldToStopButton';
 import { elapsedClockLabel, elapsedLabel, recordingView } from './recordingSignalModel';
-import { AUTO_RECORD_CHIP_LINE } from '../leaderboard';
 import { getRecordingSymbols, getSessionRecordVersion, stopTabRecord, subscribeSessionRecord } from './sessionRecordStore';
 import './recordingSignal.css';
 
@@ -42,11 +43,13 @@ interface Props {
   variant?: 'compact' | 'bar';
 }
 
-/** "5-minute flat top · near its trigger" for an auto-recorded symbol; null when Nova does not say. */
-function autoWhyLine(auto: AutoRecordStatus | null | undefined, symbol: string): string | null {
-  const setup = auto?.setup?.[symbol];
-  const why = auto?.why?.[symbol];
-  const parts = [setup ? BOT_SETUP_LABELS[setup] ?? setup : null, why ? AUTO_RECORD_WHY_WORDS[why] ?? why : null];
+/** "the bots' lane · 5-minute flat top · near its trigger" for a stock a lane records; null when none does. */
+function autoWhyLine(rec: LaneRecording, symbol: string): string | null {
+  const owners = (rec.owners[symbol] ?? []).map(o => LANE_OWNER_WORDS[o]);
+  const setup = rec.setup[symbol];
+  const why = rec.why[symbol];
+  const parts = [owners.join(' + ') || null, setup ? BOT_SETUP_LABELS[setup] ?? setup : null,
+    why ? AUTO_RECORD_WHY_WORDS[why] ?? why : null];
   return parts.filter(Boolean).join(' · ') || null;
 }
 
@@ -77,6 +80,7 @@ function CardActions({ symbol, onOpenRecords }: { symbol: string; onOpenRecords?
 export function RecordingChip({ onOpenSymbol, onOpenRecords, variant = 'compact' }: Props) {
   useSyncExternalStore(subscribeSessionRecord, getSessionRecordVersion, () => 0);
   const status = getIbkrStatusSnapshot();
+  const rec = laneRecording(status.lanes, status.recording_switch);
   const symbols = getRecordingSymbols();
   const key = symbols.join(',');
   const [now, setNow] = useState(() => Date.now());
@@ -97,13 +101,13 @@ export function RecordingChip({ onOpenSymbol, onOpenRecords, variant = 'compact'
         const segmentMs = view?.segmentSinceMs ?? view?.sinceMs ?? null;
         const elapsed = elapsedLabel(segmentMs);
         const value = recordingChipValue(symbol, elapsed);
-        // Auto-record stays quiet (ADR 023): its symbols are marked "auto" in the card, nowhere else.
-        const auto = (status.auto_record?.symbols ?? []).includes(symbol);
+        // A lane's recording stays quiet (ADR 071): its stocks are marked in the card, nowhere else.
+        const auto = rec.symbols.includes(symbol);
         const card = view
           ? recordingChipTitle({
-            ...view, elapsed, sessionElapsed: elapsedLabel(view.sinceMs), auto, autoWhy: autoWhyLine(status.auto_record, symbol),
+            ...view, elapsed, sessionElapsed: elapsedLabel(view.sinceMs), auto, autoWhy: autoWhyLine(rec, symbol),
           })
-          : `Recording ${symbol}${auto ? ` (${AUTO_RECORD_CHIP_LINE})` : ''}`;
+          : `Recording ${symbol}${auto ? ` (${LANE_RECORD_CHIP_LINE})` : ''}`;
         const open = (e: React.MouseEvent) => { e.preventDefault(); onOpenSymbol?.(symbol); };
         const chip = variant === 'bar' ? (
           <button

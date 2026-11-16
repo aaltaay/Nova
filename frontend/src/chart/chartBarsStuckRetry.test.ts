@@ -25,6 +25,12 @@ describe('isStuckLoadingBars', () => {
   it('is not stuck while the pane is inactive', () => {
     expect(isStuckLoadingBars({ filling: true, hasBars: false, chartActive: false })).toBe(false);
   });
+
+  it('is stuck with bars that are not yet its history (RIOX 2026-11-04: tape-built 10-second bars)', () => {
+    expect(isStuckLoadingBars({ filling: true, hasBars: true, chartActive: true, historyPending: true })).toBe(true);
+    expect(isStuckLoadingBars({ filling: false, hasBars: true, chartActive: true, historyPending: true })).toBe(false);
+    expect(isStuckLoadingBars({ filling: true, hasBars: true, chartActive: false, historyPending: true })).toBe(false);
+  });
 });
 
 describe('nextStuckRetryDelayMs', () => {

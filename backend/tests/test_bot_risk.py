@@ -5,7 +5,6 @@ import time
 
 import pytest
 
-from bot.autonomy import apply_desk_level
 from bot.errors import BotError
 from bot.persist import load_session
 from bot.risk import (
@@ -20,6 +19,7 @@ from bot.risk import (
     resolve_shares,
 )
 from bot.ttl import due_working
+from tests.bot_helpers import set_level
 from constants_bot import (
     BOT_DEFAULT_ASK_OFFSET_USD,
     BOT_DEFAULT_BID_EXIT_OFFSET_USD,
@@ -32,7 +32,7 @@ from constants_bot import (
 
 @pytest.fixture
 def l2_row():
-    apply_desk_level(2)
+    set_level(2)
     return load_session()
 
 

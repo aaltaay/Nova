@@ -13,6 +13,7 @@ import {
   WHY_GATEWAY_NOT_CONNECTED,
 } from '../constants';
 import * as closeMod from '../ibkr/closeFullPosition';
+import { _resetConfirmedDeskVenueStoreForTests, confirmDeskVenue } from '../ibkr/confirmedDeskVenueStore';
 import { spendLockReason } from '../ibkr/spendLock';
 import type { IbkrMode } from '../ibkr/types';
 import { ClosePositionButton } from './ClosePositionButton';
@@ -64,6 +65,35 @@ describe('ClosePositionButton', () => {
     });
     container.remove();
     vi.restoreAllMocks();
+  });
+
+  it('names the venue of the click, whatever the desk shows after the dialog (#1283)', async () => {
+    confirmDeskVenue('paper');
+    confirmAppMock.mockImplementation(async () => {
+      confirmDeskVenue('live'); // the desk moved while the dialog was open
+      return true;
+    });
+    const spy = vi.spyOn(closeMod, 'closeFullPosition').mockResolvedValue({
+      ok: true, order_id: 1, side: 'SELL', qty: 50, outside_rth: false, order_type: 'MKT',
+    });
+    act(() => {
+      root.render(
+        <ClosePositionButton
+          position={{
+            symbol: 'AAPL', qty: 50, market_price: 10, market_value: 500, avg_cost: 9, unrealized_pnl: 50, realized_pnl: 0,
+          }}
+          mode="paper"
+          connected
+          spendStatus="paper_armed"
+        />,
+      );
+    });
+    await act(async () => {
+      (container.querySelector('[data-testid="close-position-btn"]') as HTMLButtonElement).click();
+    });
+
+    expect(spy.mock.calls[0][2]).toMatchObject({ venue: 'paper' });
+    _resetConfirmedDeskVenueStoreForTests();
   });
 
   it('calls closeFullPosition (not cancel) after confirm', async () => {

@@ -11,9 +11,6 @@ import type { WatchlistEntry } from '../strategy/types';
 import { TickerWatchlistStrip } from './TickerWatchlistStrip';
 
 vi.mock('../setups/SetupsStreamContext', () => ({ useSetupsBoard: () => null }));
-vi.mock('../bot/useBotAllowlist', () => ({
-  useBotAllowlist: () => ({ isAllowed: () => false, add: vi.fn(), remove: vi.fn() }),
-}));
 
 function entry(symbol: string, passed = true): WatchlistEntry {
   const names = ['price', 'change_pct', 'relative_volume', 'catalyst', 'float'];

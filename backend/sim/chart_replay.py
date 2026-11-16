@@ -92,10 +92,13 @@ def print_candle(prints: list[dict], bucket: float) -> dict | None:
 
 
 CENT = Decimal("0.01")
+SUBPENNY = Decimal("0.0001")
 
 
-def _cent(value: float, rounding: str) -> float:
-    return float(Decimal(repr(float(value))).quantize(CENT, rounding=rounding))
+def _on_tick(value: float, rounding: str) -> float:
+    """``value`` on its listed tick: a cent at $1 and over, a hundredth of a cent under it."""
+    tick = CENT if float(value) >= 1 else SUBPENNY
+    return float(Decimal(repr(float(value))).quantize(tick, rounding=rounding))
 
 
 def penny_bar(bar: dict) -> dict:
@@ -105,13 +108,14 @@ def penny_bar(bar: dict) -> dict:
     sub-penny prints, so raw aggregation of the same minute reads as a
     mismatch against ``reqHistoricalData``. Rounding open/close half-up, high
     up and low down reproduces IB's bars exactly over the SPY reconciliation.
+    A stock under $1 keeps its four digits: on the cent its candles would all read alike.
     """
     return dict(
         bar,
-        open=_cent(bar["open"], ROUND_HALF_UP),
-        high=_cent(bar["high"], ROUND_CEILING),
-        low=_cent(bar["low"], ROUND_FLOOR),
-        close=_cent(bar["close"], ROUND_HALF_UP),
+        open=_on_tick(bar["open"], ROUND_HALF_UP),
+        high=_on_tick(bar["high"], ROUND_CEILING),
+        low=_on_tick(bar["low"], ROUND_FLOOR),
+        close=_on_tick(bar["close"], ROUND_HALF_UP),
     )
 
 

@@ -25,6 +25,7 @@ import {
   captureBrowserAction,
 } from '../execution_latency';
 import { flattenSpendLockReason } from '../ibkr';
+import { getConfirmedDeskVenueSnapshot } from '../ibkr';
 import { shouldUseOutsideRth } from '../ibkr';
 import {
   buildBuyMarketShares,
@@ -50,9 +51,9 @@ import {
   placeMarketExit,
 } from './runNovaActionPlace';
 import { runShortHotkey, SHORT_HOTKEY_KINDS } from './runNovaActionShort';
-import type { NovaActionRuntime } from './runNovaActionRuntime';
+import { refusalNamingTrader, type NovaActionRuntime } from './runNovaActionRuntime';
 import { runClipHotkey } from '../clips';
-import { viewLockReason } from '../market_view';
+import { orderCloses, viewLockReason } from '../market_view';
 
 export type { NovaActionRuntime } from './runNovaActionRuntime';
 
@@ -72,6 +73,17 @@ export const PROTECTIVE_KINDS: Partial<Record<NovaActionKind, 'cancel' | 'flatte
   cover_limit_ask_offset: 'flatten',
 };
 
+/** The kinds that only ever sell what is held: a SELL with no `short_entry`. */
+const SELL_KINDS: readonly NovaActionKind[] = [
+  'exit_pos_pct', 'sell_limit_bid_offset', 'sell_limit_ask_offset', 'sell_pos_pct_ask', 'sell_pos_pct_bid_offset',
+];
+
+/** A sell, or a buy while short: getting out is never locked for lag (ADR 045 amendment 2026-11-06). */
+export function actionCloses(kind: NovaActionKind, heldQty: number | null | undefined): boolean {
+  if (SELL_KINDS.includes(kind)) return true;
+  return (kind === 'buy_market' || kind === 'buy_limit_ask_offset') && orderCloses('BUY', false, heldQty);
+}
+
 /** Why *kind* cannot run now, or null when it may. */
 function gateFor(kind: NovaActionKind, runtime: NovaActionRuntime): NovaActionResult | null {
   const protective = PROTECTIVE_KINDS[kind];
@@ -89,7 +101,8 @@ function gateFor(kind: NovaActionKind, runtime: NovaActionRuntime): NovaActionRe
   if (!gate.allowed) {
     return { ok: false, text: gate.reason ?? NOVA_ACTION_SPEND_LOCKED_MESSAGE };
   }
-  const lagging = viewLockReason(runtime.symbol);  // ADR 045: priced from a Level 2 that lags
+  // ADR 045: a new buy or short priced from data that lags.
+  const lagging = actionCloses(kind, runtime.position?.qty) ? null : viewLockReason(runtime.symbol);
   return lagging ? { ok: false, text: lagging } : null;
 }
 
@@ -110,16 +123,18 @@ async function maybeConfirm(
 
 export async function runNovaAction(
   action: NovaActionRecord,
-  runtime: NovaActionRuntime,
+  desk: NovaActionRuntime,
 ): Promise<NovaActionResult> {
   // A share clip places nothing: it never reaches a gate or the order path (ADR 039).
   if (action.kind === 'clip_toggle' || action.kind === 'clip_save_last') {
-    return runClipHotkey(action.kind, runtime.symbol);
+    return runClipHotkey(action.kind, desk.symbol);
   }
   const actionTiming = captureBrowserAction('user_action');
   // One keypress is one gesture: every place this invocation makes carries
   // the same key, so a re-fired hotkey replays instead of doubling up.
   const idempotencyKey = newGestureKey(`nova_action:${action.kind}`);
+  // And one venue, read here: the confirm names this account, so a desk that leaves it sends nothing (#1281, #1283).
+  const runtime: NovaActionRuntime = { ...desk, venue: getConfirmedDeskVenueSnapshot().venue };
 
   if (action.kind === 'cancel_all_orders') {
     const gated = gateFor(action.kind, runtime);
@@ -138,6 +153,7 @@ export async function runNovaAction(
     try {
       const res = await cancelAllWorkingOrders(
         beginBrowserExecutionTiming('nova_action_cancel', actionTiming),
+        runtime.venue,
       );
       if (!res.ok && res.cancelled.length === 0) {
         return { ok: false, text: res.error ?? 'Cancel-all failed' };
@@ -178,6 +194,7 @@ export async function runNovaAction(
       const res = await cancelAllOrdersForSymbol(
         symbol,
         beginBrowserExecutionTiming('nova_action_cancel', actionTiming),
+        runtime.venue,
       );
       if (res.ok) {
         const n = res.cancelled.length;
@@ -203,6 +220,7 @@ export async function runNovaAction(
       const res = await cancelAllOrdersForSymbol(
         symbol,
         beginBrowserExecutionTiming('nova_action_cancel', actionTiming),
+        runtime.venue,
       );
       if (!res.ok) {
         return { ok: false, text: res.error ?? 'Cancel-all failed before flatten' };
@@ -217,7 +235,7 @@ export async function runNovaAction(
     if (!built.ok) {
       return {
         ok: true,
-        text: `${cancelText} for ${symbol}. ${built.error}`,
+        text: `${cancelText} for ${symbol}. ${refusalNamingTrader(built.error, runtime)}`,
       };
     }
     const exit = await placeMarketExit(
@@ -250,7 +268,7 @@ export async function runNovaAction(
     const built = action.kind === 'exit_pos'
       ? buildExitFullPosition(runtime.position?.qty)
       : buildExitPositionPercent(runtime.position?.qty, action.params.percent ?? 50);
-    if (!built.ok) return { ok: false, text: built.error };
+    if (!built.ok) return { ok: false, text: refusalNamingTrader(built.error, runtime) };
 
     return placeMarketExit(
       runtime,
@@ -284,6 +302,7 @@ export async function runNovaAction(
           qty: built.qty,
           order_type: 'MKT',
           outside_rth,
+          venue: runtime.venue,
         },
         idempotencyKey,
         {

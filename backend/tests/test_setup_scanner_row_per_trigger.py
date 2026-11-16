@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import asyncio
 
-from bot.trigger_cells import triggers
 from eyes.episodes import fold
 from setup_scanner.engine import SetupEngine
 from setup_scanner.pullback import PullbackDetector
@@ -109,13 +108,10 @@ def test_a_trigger_then_a_rearm_on_the_same_leg_then_a_second_trigger_keeps_both
               and e.get("template") == "default"}
     assert scored == {base: "stop_first", again: "target_first"}
 
-    # The past setups and the triggers audit read two trades, each with its own score.
+    # The past setups read two trades, each with its own score. (The triggers audit retired with the bots, ADR 072.)
     eps = [e for e in fold(journal).episodes(SYM) if e["setup_id"]]
     assert [(e["setup_id"], (e["score"] or {}).get("outcome")) for e in eps] == [
         (base, "stop_first"), (again, "target_first")]
-    got = triggers(journal)
-    assert [(t["setup_id"], t["kind"], t["nth"], t["outcome"]) for t in got] == [
-        (base, "first_pullback", 1, "stop_first"), (again, "second_pullback", 2, "target_first")]
 
 
 def test_a_restart_never_writes_a_setup_over_a_stored_trade(tmp_path):

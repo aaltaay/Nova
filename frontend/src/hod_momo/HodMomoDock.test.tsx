@@ -4,7 +4,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { HOD_MOMO_ALERT_SOUND_KEY } from './hodMomoAlertSoundConstants';
+import { DESK_SOUND_KEYS } from '../sound';
 import { resetHodMomoAlertSoundForTests } from './hodMomoAlertSound';
 import { HOD_MOMO_STRIP_ROW_PX, HOD_MOMO_STRIP_STORAGE_KEY } from './hodMomoStripConstants';
 import { consumeFocusListRequest } from '../workspace/focusListRequest';
@@ -131,7 +131,7 @@ function pointer(type: string, clientY: number): Event {
 describe('HodMomoDock (strip)', () => {
   beforeEach(() => {
     localStorage.removeItem(HOD_MOMO_STRIP_STORAGE_KEY);
-    localStorage.removeItem(HOD_MOMO_ALERT_SOUND_KEY);
+    localStorage.removeItem(DESK_SOUND_KEYS.hod);
     resetHodMomoAlertSoundForTests();
     workspaceMock.selectRowSymbol.mockReset();
     workspaceMock.openStockView.mockReset();

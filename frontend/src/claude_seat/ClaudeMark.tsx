@@ -1,4 +1,4 @@
-/** Claude's mark: the sparkles icon on a solid violet tile (ADR 068 design). */
+/** Claude's mark: the sparkles icon on a solid coral tile (ADR 068 design; Claude's colour since ADR 072). */
 import { Sparkles } from 'lucide-react';
 
 export function ClaudeMark({ size = 16, muted = false, tone }: { size?: number; muted?: boolean; tone?: string }) {

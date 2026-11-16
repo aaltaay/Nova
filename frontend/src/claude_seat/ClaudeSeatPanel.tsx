@@ -1,55 +1,48 @@
 /**
- * The panel under the Claude pill (ADR 068, the approved design's 2): what Claude sees and why, its order, its
- * line, its day, its reflexes, and the operator's two buttons -- Take Claude's line (or give it back) and Stop
- * Claude, which asks first. A refused button says why under it.
+ * The panel under the Claude pill (ADR 068, the approved design's 2; ADR 072, mockup brain-switches v1 section 2):
+ * what Claude sees and why, its order, its line, its day, its reflexes and events, and in its head the big On / Off
+ * switch -- the one write. The switch replaces Stop Claude and Take Claude's line: Off sells nothing, it hands
+ * Claude's open trade to you. A refused press is said under the rows in Nova's words.
  */
-import { useState } from 'react';
-import { confirmApp } from '../ux';
-import { giveClaudeLineBack, stopClaude, takeClaudesLine } from './claudeSeatApi';
-import { applyClaudeSeat } from './claudeSeatStore';
 import { TickerLink } from '../components/TickerLink';
-import { buySetRow, checkedIn, etClock, fmtPrice, fmtQty, lineRow, lockWhy, todayRow } from './claudeSeatWords';
+import {
+  CLAUDE_SWITCH_OFF,
+  CLAUDE_SWITCH_OFF_HELP,
+  CLAUDE_SWITCH_ON,
+  CLAUDE_SWITCH_ON_HELP,
+  buySetRow,
+  checkedIn,
+  etClock,
+  fmtPrice,
+  fmtQty,
+  lineRow,
+  todayRow,
+} from './claudeSeatWords';
 import { ClaudeMark } from './ClaudeMark';
+import { ClaudeSwitchButton, type ClaudeSwitchPress } from './ClaudeSwitch';
 import type { ClaudeSeatStatus } from './types';
 
 const EVENTS_SHOWN = 4;
 
-export const CLAUDE_STOP_CONFIRM = "Sell Claude's shares and stop it?";
-
-export function ClaudeSeatPanel({ status }: { status: ClaudeSeatStatus }) {
-  const [busy, setBusy] = useState(false);
-  const [why, setWhy] = useState<string | null>(null);
-  const run = async (act: () => Promise<ClaudeSeatStatus | null>) => {
-    setBusy(true);
-    setWhy(null);
-    try {
-      applyClaudeSeat(await act());
-    } catch (err) {
-      setWhy(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-  const stop = async () => {
-    const yes = await confirmApp({
-      title: 'Stop Claude',
-      message: `${CLAUDE_STOP_CONFIRM} Its working orders are cancelled and its Paper shares sold at market; the line is yours.`,
-      confirmLabel: 'Stop Claude',
-      tone: 'danger',
-    });
-    if (yes) await run(stopClaude);
-  };
+export function ClaudeSeatPanel({ status, press }: { status: ClaudeSeatStatus; press: ClaudeSwitchPress }) {
   const buySet = buySetRow(status);
   const seen = checkedIn(status);
   const position = status.positions[0];
+  const sw = status.switch;
   return (
     <div className="claude-panel" role="dialog" aria-label="Claude's seat" data-testid="claude-panel">
       <div className="claude-panel__head">
         <ClaudeMark size={24} />
-        <div>
+        <div className="claude-panel__grow">
           <div className="claude-panel__title">{status.text}</div>
           <div className="claude-panel__sub">Paper only{seen ? ` · ${seen}` : ''}</div>
         </div>
+        {sw ? (
+          <span className="claude-panel__switch">
+            {sw.on ? CLAUDE_SWITCH_ON : CLAUDE_SWITCH_OFF}
+            <ClaudeSwitchButton sw={sw} press={press} big />
+          </span>
+        ) : null}
       </div>
       {status.note ? (
         <div className="claude-panel__note" data-testid="claude-panel-note">
@@ -73,30 +66,12 @@ export function ClaudeSeatPanel({ status }: { status: ClaudeSeatStatus }) {
         </div>
       ) : null}
       {status.read_error ? <p className="claude-panel__warn" role="status">{status.read_error}</p> : null}
-      <div className="claude-panel__btns">
-        {status.yielded ? (
-          <button type="button" className="claude-btn" disabled={busy} data-why={lockWhy(busy, true)} data-testid="claude-give-back"
-            onClick={() => { void run(giveClaudeLineBack); }}>
-            Give Claude its line back
-          </button>
-        ) : (
-          <button type="button" className="claude-btn claude-btn--warn" disabled={busy || !status.on}
-            data-why={lockWhy(busy, status.on)} data-testid="claude-take-line" onClick={() => { void run(takeClaudesLine); }}>
-            Take Claude's line
-          </button>
-        )}
-        <button type="button" className="claude-btn claude-btn--stop" disabled={busy || !status.on}
-          data-why={lockWhy(busy, status.on)} data-testid="claude-stop" onClick={() => { void stop(); }}>
-          Stop Claude
-        </button>
-      </div>
-      <div className="claude-panel__help">
-        <div>{status.yielded
-          ? 'Claude takes a free line again and may trade.'
-          : 'The line is yours. I make no new trades; an open trade keeps its stop.'}</div>
-        <div>Cancels my orders and sells my shares now.</div>
-      </div>
-      {why ? <p className="claude-panel__warn" role="alert" data-testid="claude-panel-why">{why}</p> : null}
+      {press.why ? <p className="claude-panel__warn" role="alert" data-testid="claude-panel-why">{press.why}</p> : null}
+      {sw ? (
+        <div className="claude-panel__help" data-testid="claude-panel-help">
+          {sw.on ? CLAUDE_SWITCH_OFF_HELP : (sw.why_not_on?.error ?? CLAUDE_SWITCH_ON_HELP)}
+        </div>
+      ) : null}
       {status.events.length ? (
         <div className="claude-panel__events">
           {status.events.slice(0, EVENTS_SHOWN).map(e => (

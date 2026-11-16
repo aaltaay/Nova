@@ -93,7 +93,7 @@ export function seedPricesForSide(
       : '',
     stopPrice:
       orderType === 'TRAIL'
-        ? formatSeedPrice(seedTrailAmount(referencePrice, prefs.stopOffsetPct))
+        ? formatSeedPrice(seedTrailAmount(referencePrice, prefs.stopOffsetPct), referencePrice)
         : usesStopPrice(orderType)
           ? formatSeedPrice(
               seedStopPrice(side, referencePrice, prefs.stopOffsetPct),

@@ -24,8 +24,8 @@ export function watchUrl(id: string): string {
 }
 
 /** A command to the embedded player (YouTube's IFrame API over postMessage). */
-export function playerCommand(func: 'mute' | 'unMute'): string {
-  return JSON.stringify({ event: 'command', func, args: [] });
+export function playerCommand(func: 'mute' | 'unMute' | 'setVolume', args: readonly number[] = []): string {
+  return JSON.stringify({ event: 'command', func, args });
 }
 
 type Listener = () => void;

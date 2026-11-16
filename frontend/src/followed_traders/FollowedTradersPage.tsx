@@ -1,10 +1,10 @@
 /**
- * The followed traders' page (operator ask 2026-10-13; redesign approved the same day, mockup "E2"), Bots >
- * LiveTrader Bots since 2026-10-15: what each followed trader holds now and closed that day, priced with Nova's IBKR
+ * The followed traders' page (operator ask 2026-10-13; redesign approved the same day, mockup "E2"), TraderTV on
+ * the rail (LiveTrader Bots 2026-10-15, TraderTV again since ADR 072): what each followed trader holds now and closed that day, priced with Nova's IBKR
  * data, the proof behind every trade, the stream they trade on, and any past day the feed has. It fills the window
  * with no page scrollbar: a head row, one block per trader top to bottom, and the stream above the Activity on the
  * right. Every state is said, never an empty list. A trade's ticker opens the stock in the Trader (`onOpenTrader`).
- * Another feature draws its own pieces in `slots` (the hosts' bots, slots.ts). Schema:
+ * Another feature may draw its own pieces in `slots` (slots.ts; none since ADR 072). Schema:
  * architecture/schema/followed-traders.md. Nothing here places, stages or cancels an order.
  */
 import { useEffect, useRef, useState } from 'react';

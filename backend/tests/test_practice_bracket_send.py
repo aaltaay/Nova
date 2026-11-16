@@ -10,6 +10,7 @@ false failure.
 """
 from __future__ import annotations
 
+from datetime import datetime
 from types import SimpleNamespace
 
 import pytest
@@ -21,6 +22,7 @@ from ibkr import safety as _safety
 from practice import broker as practice_broker
 from practice import order_rules
 from practice.broker import for_venue, reset_for_tests
+from practice.clock import ET
 from routes import trading_execution as route
 from sim.fill_model import Reference
 from sim.mode import reset_for_tests as reset_venue, set_venue
@@ -80,6 +82,19 @@ def _bracket(key: str, entry: float = 9.90, **kw) -> ExecutionCommand:
     )
     base.update(kw)
     return ExecutionCommand(**base)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("hour, shape", [(8, "STP LMT"), (10, "STP"), (17, "STP LMT")])
+async def test_extended_hours_on_the_ticket_makes_a_stop_limit_only_off_the_venues_clock(
+    paper, monkeypatch, hour, shape,
+) -> None:
+    """The ticket's Extended Hours is a saved preference, true at 10:00 too: the session is the venue's clock."""
+    now = datetime(2026, 9, 21, hour, 0, tzinfo=ET).timestamp()
+    monkeypatch.setattr(FakeLive, "now_ts", lambda _self: now)
+    receipt = await service.execute(_bracket(f"shape-{hour}", outside_rth=True))
+    assert receipt.ok is True, receipt.error
+    assert paper.broker.ledger.order_row(int(receipt.stop_order_id))["order_type"] == shape
 
 
 @pytest.mark.asyncio

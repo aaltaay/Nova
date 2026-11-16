@@ -48,6 +48,17 @@ export interface TickerChartProps {
   layoutEpoch?: string | null;
   /** What the page draws inside the pane (the Trader tab's stock read, ADR 036). */
   renderPaneOverlay?: RenderPaneOverlay;
+  /**
+   * False leaves out the pane's right-click menu and everything it reads. The phone's chart (ADR 070) has none:
+   * a long press there would open a menu whose Buy and Sell stage the desk's ticket, and the menu reads the bot
+   * routes, which another device may not. Absent or true: the menu, as on every desk pane.
+   */
+  contextMenu?: boolean;
+  /**
+   * True draws the forming candle's countdown as a label on the price scale, under the last price, instead of a
+   * chip beside the candle. The phone's charts (ADR 070): a chip there covers the newest candles.
+   */
+  countdownOnScale?: boolean;
 }
 
 /**

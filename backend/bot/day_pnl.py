@@ -1,4 +1,4 @@
-"""The account's day P&L meter (``GET /api/bot/pnl``) and the #564 commission hold.
+"""The account's day P&L meter and the #564 commission hold (``GET /api/bot/pnl`` went with the Bots page, ADR 072).
 
 Nothing compares this figure any more: the loss breakers it fed are gone (ADR 056), and the daily
 loss limit counts only trades opened today (``loss_limit``). The meter stays read-only, and its Live
@@ -20,11 +20,12 @@ read refreshes the commission hold every ``BOT_COMMISSION_POLL_SEC`` (``bot.loop
   so (``REPLAY_NOTE``).
 
 #564 (operator decision 2026-09-24): a commission read that fails is a stated unknown, never $0.
-While it fails, the bot sends no new entry on Live (``commission_hold``, read by
-``entry_rules.assert_entry_allowed``: ``409 BOT_COMMISSIONS_UNKNOWN``) -- the unreadable file is the
+While it fails, a new Live bot entry was held (``409 BOT_COMMISSIONS_UNKNOWN``) -- the unreadable file is the
 same execution ledger every order is written to before it is sent. Exits, cancels, flatten and kill
 are never held; Paper and Sim read no commissions and are never held. Since the commissions are no
-longer part of the figure, a failed read no longer makes the day P&L unknown.
+longer part of the figure, a failed read no longer makes the day P&L unknown. ADR 072 retired the strategy
+bot's entry rules that read the hold, and no bot trades Live, so nothing reads ``commission_hold`` now: it is kept
+current (``bot.loops.commission_loop``) and said in the log.
 
 Owner: the commission hold -- in memory, set by every failed commission read and cleared by the
 next one that succeeds.

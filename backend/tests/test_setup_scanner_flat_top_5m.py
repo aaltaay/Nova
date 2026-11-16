@@ -185,7 +185,7 @@ def make_engine(tmp_path, seed: list[Bar], level: int = 1):
     return eng, audits, clock
 
 
-def test_its_lane_proposes_at_eyes_and_announces_its_trigger(tmp_path):
+def test_its_lane_announces_its_trigger_and_proposes_nothing(tmp_path):
     bars = flat_top_morning()
     eng, audits, clock = make_engine(tmp_path, bars)
     heard: list[dict] = []
@@ -196,9 +196,7 @@ def test_its_lane_proposes_at_eyes_and_announces_its_trigger(tmp_path):
 
     eng.on_l1_minute("last", SYM, {"price": 4.49, "ts": clock["t"], "bar_open": 4.48})
     asyncio.run(eng.tick(clock["t"]))
-    [prop] = lane.open_proposals()
-    assert prop["setup_type"] == FT5 and prop["trigger"] == LEVEL and prop["symbol"] == SYM
-    assert prop["setup_id"].endswith("@flat_top_5m")
+    assert lane.open_proposals() == []                     # ADR 072: the strategies only watch
 
     brk = Bar(bars[-1].t + 60, 4.48, 4.53, 4.48, 4.51, 20_000)
     clock["t"] = brk.t + 20
@@ -209,7 +207,8 @@ def test_its_lane_proposes_at_eyes_and_announces_its_trigger(tmp_path):
         clock["t"] = b.t + 61
         asyncio.run(eng.tick(clock["t"]))
     [event] = heard
-    assert event["setup_type"] == FT5 and event["setup"]["kind"] == "flat_top_5m"
+    assert event["setup_type"] == FT5 and event["setup"]["kind"] == "flat_top_5m" and event["symbol"] == SYM
+    assert event["setup_id"].endswith("@flat_top_5m") and event["setup"]["trigger"] == LEVEL
     assert event["setup"]["entry"] == 4.53 and event["setup"]["stop"] == 4.48
     [row] = eng.store.rows(setup_type=FT5)
     assert row["triggered_at"] == brk.t + 180 and row["kind"] == "flat_top_5m" and row["entry"] == 4.53
@@ -225,23 +224,3 @@ def test_at_off_it_watches_and_scores_in_silence(tmp_path):
     asyncio.run(eng.tick(clock["t"]))
     lane = eng.playing_lane(FT5)
     assert lane.det[SYM].state == "near" and lane.open_proposals() == []
-
-
-def test_the_bot_takes_its_trigger_at_on_and_holds_it_back_at_off():
-    """The bot's admission is one rule for every setup: at On (Strategy) on Paper the 5-minute flat top's go
-    trigger meets no blocker; at Off it is held back with the setup's level as the reason."""
-    from bot.first_pullback.admit import blockers
-    from bot.persist import load_session
-    from tests.bot_helpers import ready_l2
-
-    now = 1_790_000_000.0
-    event = {"symbol": "IMCC", "setup_id": "IMCC-2026-09-24-1@flat_top_5m", "setup_type": FT5,
-             "setup": {"kind": "flat_top_5m", "trigger": 10.0, "entry": 10.06, "stop": 10.01, "risk": 0.05,
-                       "target1": 10.16, "triggered_at": now, "nth": 1},
-             "tape": {"verdict": "go", "reasons": ["green"]}, "grade": "A",
-             "pillars": {"passed": 5, "known": 5, "total": 5}, "filtered": None, "spread": 0.02}
-    ready_l2(brain=None, symbols=("IMCC",), setups=("first_pullback",))
-    held = dict(blockers(event, load_session(), now=now))
-    assert "BOT_SETUP_NOT_STRATEGY" in held
-    ready_l2(brain=None, symbols=("IMCC",), setups=(FT5,))
-    assert dict(blockers(event, load_session(), now=now)) == {}

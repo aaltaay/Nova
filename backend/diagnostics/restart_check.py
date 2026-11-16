@@ -3,8 +3,8 @@
 ``GET /api/diagnostics/restart-check``. The desk reads it before "Restart backend now" and lists
 what is open; the nightly sync restarts the backend only when ``safe`` is true. Memory reads only
 -- no network and no IBKR request: the Session Records, the practice ledgers this process has
-loaded, IBKR's cached positions and open orders, the bot's trade, the stock modes held in memory
-(ADR 037) and the history downloads running -- and the clock, for the opening bell. A reader that
+loaded, IBKR's cached positions and open orders and the history downloads running -- and the clock, for
+the opening bell (the bot's trade and the stock modes retired with the bots, ADR 072). A reader that
 fails is named in ``unknown``; it is never read as "nothing open", so ``safe`` is null (not true)
 until every reader answered.
 """
@@ -18,10 +18,8 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from constants_diagnostics import (
-    DIAG_RESTART_APPROVAL_OPEN,
     DIAG_RESTART_BELL_END_MIN_ET,
     DIAG_RESTART_BELL_START_MIN_ET,
-    DIAG_RESTART_BOT_TRADE_OPEN,
     DIAG_RESTART_CHECK_SCHEMA_VERSION,
 )
 
@@ -136,50 +134,6 @@ def ibkr() -> list[Item]:
     return items
 
 
-def bot_trade() -> list[Item]:
-    from bot.session import raw
-
-    trade = raw().get("trade")
-    if not isinstance(trade, dict) or trade.get("state") not in DIAG_RESTART_BOT_TRADE_OPEN:
-        return []
-    sym = str(trade.get("symbol") or "?")
-    return [_item(
-        "bot_trade", f"Bot trade {sym} ({trade.get('state')}): its stop watch pauses; it resumes after the restart",
-        venue=str(trade.get("venue") or "") or None, symbol=sym,
-    )]
-
-
-def stock_modes() -> list[Item]:
-    """ADR 037's store lives in memory: a restart returns every stock to Signal only."""
-    from constants_stock_mode import (
-        STOCK_MODE_SIDE_NOVA,
-        STOCK_MODE_TRADE_ENTERING,
-        STOCK_MODE_TRADE_HOLDING,
-    )
-    from stock_mode import store
-
-    items: list[Item] = []
-    for sym, row in sorted(store.switches().items()):
-        if STOCK_MODE_SIDE_NOVA in (row.get("buy"), row.get("sell")):
-            items.append(_item(
-                "stock_mode", f"{sym} is set to Buy {row.get('buy')} / Sell {row.get('sell')}: "
-                "a restart returns it to Signal only", symbol=sym,
-            ))
-    for sym, row in sorted(store.approvals().items()):
-        if row.get("state") in DIAG_RESTART_APPROVAL_OPEN:
-            items.append(_item(
-                "stock_mode", f"Approval on {sym} ({row.get('state')}): a restart withdraws it", symbol=sym,
-            ))
-    for row in store.trades():
-        if row.get("state") in (STOCK_MODE_TRADE_ENTERING, STOCK_MODE_TRADE_HOLDING):
-            sym = str(row.get("symbol") or "?")
-            items.append(_item(
-                "stock_mode", f"Nova's {row.get('kind')} trade on {sym} ({row.get('state')}): a restart forgets it",
-                venue=str(row.get("venue") or "") or None, symbol=sym,
-            ))
-    return items
-
-
 def downloads() -> list[Item]:
     from sim.history_download import running_ids
 
@@ -195,8 +149,6 @@ READERS: tuple[tuple[str, Reader], ...] = (
     ("recording", recordings),
     ("practice", practice),
     ("ibkr", ibkr),
-    ("bot_trade", bot_trade),
-    ("stock_mode", stock_modes),
     ("download", downloads),
 )
 

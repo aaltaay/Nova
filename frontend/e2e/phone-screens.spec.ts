@@ -1,0 +1,346 @@
+import { test, expect, type Page } from '@playwright/test';
+import { attachErrorCollector } from './helpers/errorCollector';
+import { PHONE_PIN, mockPhoneApi, phoneOverflow } from './helpers/phoneApi';
+
+// Nova on the phone (ADR 070): every screen against a stand-in API. Nothing here reaches a real backend.
+const PORTRAIT = { width: 360, height: 720 };
+const LANDSCAPE = { width: 740, height: 320 };
+
+test.use({ viewport: PORTRAIT, hasTouch: true });
+
+async function open(page: Page, hash: string) {
+  await page.goto(`/phone.html#/${hash}`);
+}
+
+const SCREENS: readonly { hash: string; name: string; ready: string }[] = [
+  { hash: 'home', name: 'home', ready: 'phone-day-read' },
+  { hash: 'scan', name: 'scan', ready: 'phone-scan-row-ABCD' },
+  { hash: 'top9', name: 'top9', ready: 'phone-top9-grid' },
+  { hash: 'account', name: 'account', ready: 'phone-position-ABCD' },
+  { hash: 'settings', name: 'settings', ready: 'phone-settings-link' },
+  { hash: 'stock/ABCD', name: 'stock', ready: 'phone-stock-quote' },
+  { hash: 'trade/ABCD', name: 'trade', ready: 'phone-buy-market' },
+];
+
+for (const screen of SCREENS) {
+  test(`${screen.name} fits the phone: nothing scrolls, nothing is cut off, nothing is written`, async ({ page }) => {
+    const { errors } = attachErrorCollector(page);
+    const api = await mockPhoneApi(page);
+    await open(page, screen.hash);
+    await expect(page.getByTestId(`phone-screen-${screen.name}`)).toBeVisible();
+    await expect(page.getByTestId(screen.ready)).toBeVisible();
+    // Settings shows the venue as its three tiles; every other screen carries the pill.
+    if (screen.name !== 'settings') await expect(page.getByTestId('phone-venue')).toHaveText('PAPER');
+    // Trade's pill carries the book's age beside the link's.
+    await expect(page.getByTestId(screen.name === 'trade' ? 'phone-fresh' : 'phone-link').first()).toHaveAttribute('data-tone', 'good');
+    expect(await phoneOverflow(page)).toEqual([]);
+    // A screen that only reads sends no write at all, and asks for nothing the stand-in does not know.
+    expect(api.writes).toEqual([]);
+    expect(api.unanswered.filter((p) => !p.startsWith('/api/luld/'))).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+}
+
+test('the big chart opens upright from the corner icon, and is drawn wide for a phone on its side', async ({ page }) => {
+  // A desktop browser turns no screen: the sideways button must say so, and leave the chart as it was.
+  await page.addInitScript(() => {
+    Element.prototype.requestFullscreen = () => Promise.resolve();
+    Object.defineProperty(window.screen.orientation, 'lock', { configurable: true, value: () => Promise.reject(new Error('not on this device')) });
+  });
+  await mockPhoneApi(page);
+  await open(page, 'stock/ABCD');
+  // The position held is on the chart, as the desk's chart draws it: its line and its badge.
+  await expect(page.getByTestId('chart-position-tag')).toContainText('Long 500 @ $4.71');
+  await page.getByTestId('phone-stock-expand').click();
+  await expect(page.getByTestId('phone-screen-chart')).toBeVisible();
+  await expect(page.getByTestId('chart-position-tag')).toContainText('Long 500 @ $4.71');
+  // Upright: the whole chart, no request to turn the phone.
+  await expect(page.getByTestId('phone-chart')).toBeVisible();
+  await expect(page.getByTestId('ticker-chart-1Min')).toHaveAttribute('data-bar-count', /^[1-9]/);
+  const box = await page.getByTestId('phone-chart').boundingBox();
+  expect(box?.height ?? 0).toBeGreaterThan(480);
+  expect(await phoneOverflow(page)).toEqual([]);
+  await page.getByRole('button', { name: 'Turn the chart sideways' }).click();
+  await expect(page.getByTestId('phone-chart-not-turned')).toBeVisible();
+  expect(await phoneOverflow(page)).toEqual([]);
+  await page.getByRole('button', { name: /^Indicators/ }).click();
+  await expect(page.getByTestId('phone-chart-layers').getByRole('menuitemcheckbox', { name: 'MACD' })).toBeEnabled();
+  await page.getByRole('button', { name: /^Indicators/ }).click();
+
+  await page.setViewportSize(LANDSCAPE);
+  // The wide drawing has replaced the upright one.
+  await expect(page.locator('.ph-bigchart.is-upright')).toHaveCount(0);
+  await expect(page.getByTestId('phone-chart')).toBeVisible();
+  await expect(page.getByTestId('ticker-chart-1Min')).toHaveAttribute('data-bar-count', /^[1-9]/);
+  expect(await phoneOverflow(page)).toEqual([]);
+  // The layers the desk chart can switch are switches; the rest say why they are not.
+  await page.getByRole('button', { name: /^Indicators/ }).click();
+  const layers = page.getByTestId('phone-chart-layers');
+  await expect(layers.getByRole('menuitemcheckbox', { name: 'MACD' })).toBeEnabled();
+  await expect(layers.getByRole('menuitemcheckbox', { name: 'Levels' })).toBeDisabled();
+  expect(await phoneOverflow(page)).toEqual([]);
+});
+
+test("Account's chart takes the desk's ranges, and the Calendar opens a day's chart; neither scrolls", async ({ page }) => {
+  const { errors } = attachErrorCollector(page);
+  const api = await mockPhoneApi(page);
+  await open(page, 'account');
+  await expect(page.getByTestId('phone-position-ABCD')).toBeVisible();
+  await expect(page.getByTestId('phone-account-net-name')).toHaveText('Today, net');
+  await page.getByTestId('phone-account-range-5D').click();
+  await expect(page.getByTestId('phone-account-net-name')).toHaveText('5D, net');
+  expect(await phoneOverflow(page)).toEqual([]);
+
+  await page.getByTestId('phone-account-calendar').click();
+  await expect(page.getByTestId('phone-calendar')).toBeVisible();
+  // A day is already picked (today, or the month's last traded day), so its box is never empty.
+  await expect(page.getByTestId('phone-calendar-day')).toContainText('Gross · costs');
+  await expect(page.locator('.ph-cal__d[aria-pressed="true"]')).toHaveCount(1);
+  expect(await phoneOverflow(page)).toEqual([]);
+
+  await page.getByRole('button', { name: "See this day's chart" }).click();
+  await expect(page.getByTestId('phone-account-day')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('phone-position-ABCD')).toBeVisible();
+  // The list that came back is measured afresh: both positions fit, as before the Calendar was opened.
+  await expect(page.getByTestId('phone-position-WXYZ')).toBeVisible();
+  // A range takes the chart back from the day.
+  await page.getByTestId('phone-account-range-1D').click();
+  await expect(page.getByTestId('phone-account-day')).toHaveCount(0);
+  expect(api.writes).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('Account says whose every row is, and the Calendar splits each day by trader; neither scrolls', async ({ page }) => {
+  const { errors } = attachErrorCollector(page);
+  // Yours, Claude's, and the brain's handed to you (three books v1, ADR 072).
+  const api = await mockPhoneApi(page, { positions: 3 });
+  await open(page, 'account');
+  await expect(page.getByTestId('phone-position-ABCD')).toBeVisible();
+  // One row: Overview and Calendar as two icons, then the five books.
+  await expect(page.getByTestId('phone-account-overview')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('phone-account-books').getByRole('button')).toHaveText(['All', 'You', 'Claude', 'Brain', 'Earlier']);
+  // The three traders' days, one row of three.
+  const today = page.getByTestId('phone-account-today');
+  await expect(today.locator('[data-owner="you"]')).toContainText('You · today');
+  await expect(today.locator('[data-owner="claude"]')).toContainText('+$66.00');
+  await expect(today.locator('[data-owner="brain"]')).toContainText('+$42.40');
+  // Every row says whose; the brain's shares handed to you read Handed, in the brain's colour.
+  await expect(page.getByTestId('phone-position-ABCD').locator('.ph-who')).toHaveText('You');
+  await expect(page.getByTestId('phone-position-WXYZ').locator('.ph-who')).toHaveText('Claude');
+  const handed = page.getByTestId('phone-position-QRST').locator('.ph-who');
+  await expect(handed).toHaveText('Handed');
+  await expect(handed).toHaveAttribute('data-owner', 'brain');
+  await expect(handed).toHaveAttribute('title', "The brain's · yours to close");
+  expect(await phoneOverflow(page)).toEqual([]);
+
+  // The fills say whose too: your close of the brain's handed shares is the brain's, closed by you.
+  await page.getByRole('button', { name: /^Fills/ }).click();
+  const list = page.getByTestId('phone-account-list');
+  await expect(list.locator('.ph-who').first()).toHaveText('Handed');
+  await expect(list.locator('.ph-who').first()).toHaveAttribute('title', 'The brain · closed by you');
+  await expect(list.locator('.ph-who').nth(1)).toHaveText('Brain');
+  expect(await phoneOverflow(page)).toEqual([]);
+  // One book: its own figure, and only its rows.
+  await page.getByTestId('phone-account-book-claude').click();
+  await expect(page.getByTestId('phone-account-net-name')).toHaveText('Claude, today');
+  await expect(list.locator('.ph-who').first()).toHaveText('Claude');
+  await expect(list.locator('.ph-who:not([data-owner="claude"])')).toHaveCount(0);
+  await page.getByTestId('phone-account-book-all').click();
+
+  await page.getByTestId('phone-account-calendar').click();
+  await expect(page.getByTestId('phone-calendar')).toBeVisible();
+  // Each traded square carries its colour bar; the day names each trader; the month line splits by colour.
+  await expect(page.locator('.ph-cal__split').first()).toBeVisible();
+  await expect(page.getByTestId('phone-calendar-by-trader')).toContainText('By trader');
+  await expect(page.getByTestId('phone-calendar-foot').locator('.ph-owner-dot').first()).toBeVisible();
+  expect(await phoneOverflow(page)).toEqual([]);
+  // On its side the page shrinks to fit. The bottom bar's five labels sit half a pixel past the edge there on
+  // every screen (Home and Scan too, before this change), so this guards what the Account and Calendar draw.
+  await page.setViewportSize(LANDSCAPE);
+  const tabLabel = /^off-screen: {2}"(Scan|Trade|Home|Top 9|Account)"$/;
+  const content = async () => (await phoneOverflow(page)).filter((line) => !tabLabel.test(line));
+  await expect.poll(content).toEqual([]);
+  await page.getByTestId('phone-account-overview').click();
+  await page.getByRole('button', { name: /^Positions/ }).click();
+  await expect(page.getByTestId('phone-position-QRST')).toBeVisible();
+  expect(await content()).toEqual([]);
+  expect(api.writes).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('Sim keeps the books, each row saying whose', async ({ page }) => {
+  await mockPhoneApi(page, { venue: 'sim' });
+  await open(page, 'account');
+  await expect(page.getByTestId('phone-position-ABCD')).toBeVisible();
+  await expect(page.getByTestId('phone-account-book-brain')).toBeEnabled();
+  await expect(page.getByTestId('phone-position-WXYZ').locator('.ph-who')).toHaveText('Claude');
+  expect(await phoneOverflow(page)).toEqual([]);
+});
+
+test('on Live the books grey out and say why: every trade is yours', async ({ page }) => {
+  await mockPhoneApi(page, { venue: 'live' });
+  await open(page, 'account');
+  await expect(page.getByTestId('phone-venue')).toHaveText('LIVE');
+  const brain = page.getByTestId('phone-account-book-brain');
+  await expect(brain).toBeDisabled();
+  await expect(brain).toHaveAttribute('data-why', /Claude and the brain never trade Live/);
+  await expect(page.getByTestId('phone-account-today')).toContainText('—');
+  expect(await phoneOverflow(page)).toEqual([]);
+});
+
+test('a viewport smaller than the drawing shrinks the whole page instead of scrolling', async ({ page }) => {
+  await mockPhoneApi(page);
+  await page.setViewportSize({ width: 360, height: 600 });
+  await open(page, 'scan');
+  await expect(page.getByTestId('phone-scan-row-ABCD')).toBeVisible();
+  expect(await phoneOverflow(page)).toEqual([]);
+  const zoom = await page.locator('.ph-root').evaluate((el) => Number(getComputedStyle(el).zoom));
+  expect(zoom).toBeCloseTo(600 / 720, 2);
+});
+
+test('Scan pages a long list, and a row and its chip lead to different screens', async ({ page }) => {
+  await mockPhoneApi(page);
+  await open(page, 'scan');
+  const list = page.getByTestId('phone-scan-rows');
+  await expect(list.locator('.ph-scan__row')).toHaveCount(12);
+  await expect(page.getByTestId('phone-scan-count')).toHaveText('1 to 12 of 34');
+  await page.getByRole('button', { name: 'Next ›' }).click();
+  await expect(page.getByTestId('phone-scan-count')).toHaveText('13 to 24 of 34');
+  // The second page carries on from 13: a row's number is its place on the whole list.
+  await expect(list.locator('.ph-scan__rank').first()).toHaveText('13');
+  await page.getByRole('button', { name: '‹ Prev' }).click();
+  await expect(page.getByTestId('phone-scan-row-ABCD').locator('.ph-scan__rank')).toHaveText('1');
+  await expect(page.getByTestId('phone-scan-row-WXYZ').locator('.ph-scan__rank')).toHaveText('2');
+  // A filter hides rows and leaves the numbers of the rest alone: only the halted row (number 3) stays.
+  await page.getByTestId('phone-scan-filter').click();
+  await page.getByRole('menuitemcheckbox', { name: 'Halted' }).click();
+  await expect(list.locator('.ph-scan__row')).toHaveCount(1);
+  await expect(page.getByTestId('phone-scan-row-QRST').locator('.ph-scan__rank')).toHaveText('3');
+  await expect(page.getByTestId('phone-scan-count')).toContainText('33 hidden');
+  await page.getByRole('menuitemcheckbox', { name: 'Halted' }).click();
+  await page.getByTestId('phone-scan-filter').click();
+  await expect(list.locator('.ph-scan__row')).toHaveCount(12);
+
+  // The halted row says so, in the place the news goes.
+  await expect(page.getByTestId('phone-scan-row-QRST')).toContainText('Halted');
+  // The row whose news the scanner classified names it, with its age.
+  await expect(page.getByTestId('phone-scan-row-ABCD')).toContainText('News');
+  await expect(page.getByTestId('phone-scan-row-ABCD')).toContainText('9m ago');
+
+  await page.getByTestId('phone-chip-WXYZ').click();
+  await expect(page).toHaveURL(/#\/trade\/WXYZ$/);
+  await page.goBack();
+  await page.getByRole('button', { name: "Open WXYZ's stock page" }).click();
+  await expect(page).toHaveURL(/#\/stock\/WXYZ$/);
+  await expect(page.getByTestId('phone-stock-quote')).toContainText('4.82');
+});
+
+test('a Scan list that is not on the phone yet is locked and says why', async ({ page }) => {
+  await mockPhoneApi(page);
+  await open(page, 'scan');
+  await page.getByTestId('phone-scan-more').click();
+  const hod = page.getByRole('menuitemradio', { name: 'HOD Momo' });
+  await expect(hod).toBeDisabled();
+  await expect(hod).toHaveAttribute('data-why', /Not on the phone yet/);
+  await page.getByRole('menuitemradio', { name: 'Large Cap' }).click();
+  await expect(page.getByTestId('phone-scan-count')).toHaveText('1 to 5 of 5');
+  expect(await phoneOverflow(page)).toEqual([]);
+});
+
+test('the padlock asks for the phone PIN, refuses a wrong one in the door\'s words, and opens on the right one', async ({ page }) => {
+  const api = await mockPhoneApi(page);
+  await open(page, 'settings');
+  await expect(page.getByTestId('phone-settings-phone')).toContainText('This phone is locked');
+  await page.getByTestId('phone-settings-padlock').getByRole('button', { name: 'Unlock' }).click();
+  const sheet = page.getByTestId('phone-pin-sheet');
+  await expect(sheet).toBeVisible();
+  expect(await phoneOverflow(page)).toEqual([]);
+  for (const digit of '111111') await sheet.getByRole('button', { name: digit, exact: true }).click();
+  await expect(sheet).toContainText('That is not the phone PIN.');
+  expect(api.state.armed).toBe(false);
+
+  for (const digit of PHONE_PIN) await sheet.getByRole('button', { name: digit, exact: true }).click();
+  await expect(sheet).toBeHidden();
+  await expect(page.getByTestId('phone-banner')).toContainText('The padlock is open.');
+  await expect(page.getByTestId('phone-settings-padlock')).toContainText('Padlock open');
+  await expect(page.getByTestId('phone-settings-phone')).toContainText('This phone is unlocked');
+  await expect(page.getByTestId('phone-settings-phone')).toContainText('7 h');
+  expect(api.state.armed).toBe(true);
+  // Every write went through the phone's own door.
+  expect(api.writes).toEqual(['POST /api/phone/unlock', 'POST /api/phone/unlock', 'POST /api/phone/arm']);
+
+  await page.getByTestId('phone-settings-phone').getByRole('button', { name: 'Lock' }).click();
+  await expect(page.getByTestId('phone-settings-phone')).toContainText('This phone is locked');
+});
+
+test('Home cancels a working order through the door and says what the desk answered', async ({ page }) => {
+  const api = await mockPhoneApi(page);
+  await open(page, 'home');
+  const holdings = page.getByTestId('phone-holdings');
+  await expect(holdings).toContainText('Working');
+  await holdings.getByRole('button', { name: 'Cancel' }).click();
+  const sheet = page.getByTestId('phone-pin-sheet');
+  for (const digit of PHONE_PIN) await sheet.getByRole('button', { name: digit, exact: true }).click();
+  await expect(page.getByTestId('phone-banner')).toContainText('Cancelled: ABCD Sell 250 at 4.95.');
+  await expect(holdings).not.toContainText('Working');
+  expect(api.writes).toEqual(['POST /api/phone/unlock', 'DELETE /api/phone/order/7']);
+});
+
+test('a desk on Live is shown as it is, and the phone will not open its padlock: Live is look only', async ({ page }) => {
+  await mockPhoneApi(page, { venue: 'live' });
+  await open(page, 'settings');
+  await expect(page.getByTestId('phone-settings-venues').locator('[aria-pressed="true"]')).toHaveAttribute('data-venue', 'live');
+  const unlock = page.getByTestId('phone-settings-padlock').getByRole('button', { name: 'Unlock' });
+  await expect(unlock).toBeDisabled();
+  await expect(unlock).toHaveAttribute('data-why', /Live is look only/);
+});
+
+test('when the account stops answering, the last rows stay and the screen says they are not current', async ({ page }) => {
+  const api = await mockPhoneApi(page);
+  await open(page, 'account');
+  await expect(page.getByTestId('phone-position-ABCD')).toBeVisible();
+  await expect(page.getByTestId('phone-account-error')).toHaveCount(0);
+  api.state.accountDown = true;
+  await expect(page.getByTestId('phone-account-error')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('phone-position-ABCD')).toBeVisible();
+  expect(await phoneOverflow(page)).toEqual([]);
+
+  await page.getByRole('button', { name: 'Home' }).click();
+  await expect(page.getByTestId('phone-holdings-error')).toBeVisible();
+  await expect(page.getByTestId('phone-holdings')).toContainText('ABCD');
+  expect(await phoneOverflow(page)).toEqual([]);
+});
+
+test('a session that ended asks for the PIN on the next tap instead of sending a write that is refused', async ({ page }) => {
+  const api = await mockPhoneApi(page);
+  await open(page, 'home');
+  const holdings = page.getByTestId('phone-holdings');
+  await holdings.getByRole('button', { name: 'Cancel' }).click();
+  const sheet = page.getByTestId('phone-pin-sheet');
+  for (const digit of PHONE_PIN) await sheet.getByRole('button', { name: digit, exact: true }).click();
+  await expect(holdings).not.toContainText('Working');
+  // The backend restarts: the session is gone, and a new order is working.
+  api.state.unlocked = false;
+  api.state.working = [9];
+  api.writes.length = 0;
+  await expect(holdings).toContainText('Working', { timeout: 15_000 });
+  await page.waitForTimeout(1_500);
+  await holdings.getByRole('button', { name: 'Cancel' }).click();
+  await expect(sheet).toBeVisible();
+  // Nothing was sent before the PIN was asked for.
+  expect(api.writes).toEqual([]);
+});
+
+test("the phone's chart asks for nothing another device may not read, and a long press opens no desk menu", async ({ page }) => {
+  const api = await mockPhoneApi(page);
+  await open(page, 'stock/ABCD');
+  const chart = page.getByTestId('ticker-chart-1Min');
+  await expect(chart).toHaveAttribute('data-bar-count', /^[1-9]/);
+  // The desk pane's right-click menu reads the bot routes, which the API refuses to another device
+  // (REMOTE_LOCAL_ONLY), and its Buy and Sell stage the desk's ticket. The phone's chart mounts none of it.
+  await chart.locator('.chart-body').dispatchEvent('contextmenu', { clientX: 120, clientY: 400, bubbles: true, cancelable: true });
+  await page.waitForTimeout(1_500);
+  await expect(page.getByTestId('chart-context-menu')).toHaveCount(0);
+  const closed = api.asked.filter((p) => /^\/(api\/)?bot(\/|$)|^\/api\/agent(\/|$)|^\/ws\/bot/.test(p));
+  expect(closed).toEqual([]);
+});

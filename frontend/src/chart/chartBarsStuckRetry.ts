@@ -1,6 +1,10 @@
 /**
- * Backstop for a pane whose one-shot /bars fetch returned empty+filling and
- * has no periodic reconciliation poll (e.g. 10Sec -- see CHART_REFETCH_SEC).
+ * Backstop for a pane whose one-shot /bars fetch returned empty+filling, or
+ * bars that are not yet its history (coverage `history_pending`: the live
+ * tape's few, an earlier session's), and has no periodic reconciliation poll
+ * (e.g. 10Sec -- see CHART_REFETCH_SEC). RIOX's 10-second pane (2026-11-04)
+ * held tape-built bars, so this never ran: the one fill it asked for was
+ * shed and the pane showed no history for as long as RIOX stayed open.
  * The normal recovery path is a bars_patch WebSocket push once the
  * background historical fill completes (see useTickerStream). If that push
  * is missed (subscribe race, drop, reconnect), this keeps retrying the
@@ -15,10 +19,13 @@ export interface StuckBarsRetryState {
   filling: boolean;
   hasBars: boolean;
   chartActive: boolean;
+  historyPending?: boolean;
 }
 
-export function isStuckLoadingBars({ filling, hasBars, chartActive }: StuckBarsRetryState): boolean {
-  return chartActive && filling && !hasBars;
+export function isStuckLoadingBars({
+  filling, hasBars, chartActive, historyPending = false,
+}: StuckBarsRetryState): boolean {
+  return chartActive && filling && (!hasBars || historyPending);
 }
 
 export function nextStuckRetryDelayMs(currentDelayMs: number, minMs: number, maxMs: number): number {

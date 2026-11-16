@@ -67,9 +67,9 @@ SETUPS_SEED_HISTORY_RETRY_SEC = 5.0          # after IBKR's budget, a loading ch
 SETUPS_SEED_HISTORY_FAILED_RETRY_SEC = 30.0  # after IBKR did not answer (its own backoff is 30 s, #555)
 SETUPS_SEED_HISTORY_MAX_TRIES = 2            # unanswered asks before seeding with what the store has
 SETUPS_SEED_HISTORY_SPACING_SEC = 5.0        # between the scanner's own history requests
-# The scanner asks only while fewer of IBKR's historical requests than this went out in its 10-minute
-# window (60 allowed, IBKR_HISTORICAL_PACE_MAX): the rest are the charts'.
-SETUPS_SEED_HISTORY_BUDGET = 30
+# The scanner asks only while more than this many historical requests are left in the 10-minute window:
+# those are the charts'.
+SETUPS_SEED_HISTORY_HEADROOM = 100
 SETUPS_SEED_HISTORY_TIMEOUT_SEC = 30.0       # one ask on the IB loop (qualify + a 12 s background fetch)
 
 # -- 5-minute setups (operator decision 2026-09-30: "Mockup, then build"; on the mockup: build it,
@@ -307,8 +307,6 @@ TAPE_FLOW_W_DRIFT = 2.0
 TAPE_FLOW_W_BOOK = 1.0
 TAPE_FLOW_BURST_AT = 0.5                # a score at or over this is a burst
 TAPE_FLOW_FLUSH_AT = 0.5                # a score at or under minus this is a flush
-TAPE_FLOW_EVAL_SEC = 1.0                # a trade on is read this often after its trigger
-TAPE_FLOW_READING_STALE_SEC = 5.0       # the bot ignores a reading older than this
 TAPE_FLOW_BURST = "burst"
 TAPE_FLOW_FLUSH = "flush"
 TAPE_FLOW_NEUTRAL = "neutral"

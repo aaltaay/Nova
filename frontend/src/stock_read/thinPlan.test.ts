@@ -12,8 +12,8 @@ import { normalizeStockRead } from './normalize';
 import { thinPlan } from './planVerdict';
 import { apusReadWire } from './stockReadFixtures';
 import type { StockRead } from './types';
-import { inputs, pfsaRead } from './whoTradesFixtures';
-import { level2Markers, orderLevels } from './whoTradesModel';
+import { inputs, pfsaRead } from './momentFixtures';
+import { level2Markers, orderLevels } from './tradeLevels';
 
 const THIN = normalizeLiquidity({
   state: 'thin', reasons: ['traded $999K today, under $2.00M'], failed: ['day'], unknown: {},

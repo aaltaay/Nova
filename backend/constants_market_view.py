@@ -24,7 +24,7 @@ ORDER_CLOCK_SKEW_MS = 1000.0    # an action this far in the backend's future: th
 VIEW_STALE = "VIEW_STALE"
 ORDER_LATE = "ORDER_LATE"
 FEED_STALE = "FEED_STALE"
-# The symbol's Time & Sales is missing trades its Level 1 reports (ADR 045 amendment 2026-10-14).
+# The symbol's Time & Sales is behind the trades its Level 1 reports (ADR 045 amendment 2026-10-14).
 TAPE_STALE = "TAPE_STALE"
 VIEW_MISSING = "VIEW_MISSING"
 # A live Level 2 line that has not delivered a book with a row since its request (amendment 2026-10-27, #913).
@@ -37,5 +37,5 @@ MARKET_VIEW_FIRST_BOOK_WAIT_SEC = 5.0
 # answer as a ``gate`` frame when it changes; each idle ping carries it too (amendment 2026-10-14).
 MARKET_VIEW_GATE_SEND_SEC = 1.0
 
-# Getting flat must always work: these are never refused by the gate.
-VIEW_GATE_EXEMPT_TEXT = "Flatten and cancels still work."
+# Getting out must always work: these are never refused by the gate (amendment 2026-11-06).
+VIEW_GATE_EXEMPT_TEXT = "Sells, covers, Flatten and cancels still work."

@@ -46,6 +46,20 @@ def test_advisory_jobs_keep_full_test_commands_and_scope_guards():
     assert ci["concurrency"]["cancel-in-progress"] == "${{ github.event_name == 'pull_request' }}"
 
 
+def test_open_token_windows_runs_the_token_suite_and_is_not_a_merge_check():
+    ci = workflow("deploy.yml")
+    job = ci["jobs"]["open-token-windows"]
+    assert job["name"] == "Open token Windows"
+    assert job["runs-on"] == "windows-latest"
+    assert job["needs"] == ["changes"]
+    assert job["if"] == "always()"
+    assert any(
+        "pytest backend/tests/test_open_in_nova.py" in (step.get("run") or "")
+        for step in job["steps"]
+    )
+    assert "open-token-windows" not in ci["jobs"]["auto-merge"]["needs"]
+
+
 def test_auto_merge_decides_only_once_the_four_checks_finished():
     """Green only (operator decision 2026-10-13, "Merge only green PRs too").
 

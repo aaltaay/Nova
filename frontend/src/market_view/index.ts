@@ -11,6 +11,7 @@ export {
   noteSubscribed,
   onViewLockFlip,
   recomputeViewLocks,
+  orderCloses,
   viewLockLabel,
   viewLockReason,
   viewStampFor,

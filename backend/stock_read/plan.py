@@ -253,8 +253,7 @@ def trade_verdict(plan: dict[str, Any], lane: dict[str, Any] | None,
                   spread: float | None = None, liquidity: dict[str, Any] | None = None) -> dict[str, Any] | None:
     """Whether a setup plan is a trade, with every reason it is not; None for the operator's own plan.
 
-    The rule is ``setup_scanner.trade_verdict`` -- the one Nova's bot, Auto-entry, Approve and the
-    proposals ask too (ADR 042 H)."""
+    The rule is ``setup_scanner.trade_verdict`` (ADR 042 H)."""
     from setup_scanner.trade_verdict import verdict
 
     if plan.get("source") != "setup":

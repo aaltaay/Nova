@@ -26,7 +26,11 @@ from execution.qty_gate import apply_force_one_share
 from execution.record_payload import build_reserve_payload
 from execution.size_limit import gate as _size_limit
 from execution.store_facts import lookup_symbol_for_order_id
+from execution import retired_senders as _retired
+from traders import door as _trader_door
 from execution import venue_door, verification_gate
+from constants_nova_os import BOTS_RETIRED_CODE
+from constants_traders import TRADER_OFF
 from execution.venue_door import commit_position as _commit_position
 from ibkr import client as _client
 import loop_lag as _loop_lag
@@ -224,9 +228,13 @@ async def execute(
 
         if target_why:
             return _reject(execution_id, cmd, timings, target_why, venue_door.TARGET_REFUSED)
+        if retired_why := _retired.refusal(cmd):   # ADR 072: the bots are retired; closes and cancels still go
+            return _reject(execution_id, cmd, timings, retired_why, BOTS_RETIRED_CODE)
+        if off_why := _trader_door.refusal(cmd):  # ADR 072: a switched-off AI trader sends nothing new
+            return _reject(execution_id, cmd, timings, off_why, TRADER_OFF)
         targeted = cmd.target_venue is not None     # the desk may show another venue: never "moved"
         if not targeted and (why := venue_door.wrong_venue(cmd, send_venue)):
-            return _reject(execution_id, cmd, timings, why, "VENUE_CHANGED")
+            return _reject(execution_id, cmd, timings, why, venue_door.VENUE_CHANGED)
         if view_check.refused:  # "If it lags, then we cannot place an order" (ADR 045)
             timings.validation_completed_ns = time.perf_counter_ns()
             return _reject(execution_id, cmd, timings, view_check.text or "", view_check.code or "VIEW_STALE")
@@ -235,7 +243,7 @@ async def execute(
             timings.validation_completed_ns = time.perf_counter_ns()
             return _reject(execution_id, cmd, timings, detail, reason or "VALIDATION")
         if not targeted and (why := venue_door.moved(send_venue)):
-            return _reject(execution_id, cmd, timings, why, "VENUE_CHANGED")
+            return _reject(execution_id, cmd, timings, why, venue_door.VENUE_CHANGED)
 
         # Kill switch is checked BEFORE skip_risk (D-037): a tripped kill means
         # no Nova-originated spend of any source, so manual ticket places and

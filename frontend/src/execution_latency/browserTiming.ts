@@ -2,6 +2,7 @@ import {
   BROWSER_TIMING_RING_SIZE,
   BROWSER_VISIBLE_FRAME_COUNT,
 } from './constants';
+import { deskNow } from '../utils/deskClock';
 import type {
   BrowserActionSource,
   BrowserActionStamp,
@@ -27,7 +28,8 @@ const samples: BrowserTimingSample[] = [];
 
 function defaultClock(): BrowserTimingClock {
   return {
-    wallNow: () => Date.now(),
+    // The PC's clock: the backend compares these stamps with its own (0 offset on the desk).
+    wallNow: () => deskNow(),
     performanceNow: () => performance.now(),
     requestFrame: callback => {
       if (typeof requestAnimationFrame === 'function') {

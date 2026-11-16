@@ -45,6 +45,28 @@ def positions_if_sim() -> list[dict[str, Any]] | None:
     return broker.positions()
 
 
+def positions_for_you_if_practice() -> list[dict[str, Any]] | None:
+    """``GET /api/ibkr/positions`` on a practice venue: on Paper your own shares (ADR 069), the rows every
+    Sell, Flatten and exit on the desk sizes from; Sim's rows are the account's."""
+    broker = practice_broker()
+    if broker is None:
+        return None
+    yours = getattr(broker, "positions_for_you", None)
+    return yours() if callable(yours) else broker.positions()
+
+
+def held_by_if_practice(symbol: str, holder: str) -> float | None:
+    """``holder``'s signed shares in ``symbol`` its close may reach on Paper and Sim (ADR 072) -- for ``you`` your own
+    plus those handed to you (``owners.rules.closable``); None on IBKR's account, where its position answers."""
+    broker = practice_broker()
+    ledger = getattr(broker, "ledger", None)
+    if getattr(ledger, "owners", None) is None:
+        return None
+    from owners.rules import closable
+
+    return closable(ledger, symbol, holder)
+
+
 def summary_if_sim() -> dict[str, Any] | None:
     broker = practice_broker()
     if broker is None:

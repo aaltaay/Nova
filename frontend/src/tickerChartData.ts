@@ -70,6 +70,24 @@ export function formatCoverageClockEt(iso: string | null | undefined): string | 
   return `${hour}:${minute}`;
 }
 
+const ET_DAY_KEY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' });
+const ET_DAY_LABEL = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' });
+
+/**
+ * `formatCoverageClockEt` with the day in front when it is not today's (ET): "Nov 3 11:20". A 10-second
+ * pane holding an earlier day's bars read "as of 11:20 ET" at 08:32 the next morning (RIOX 2026-11-04).
+ */
+export function formatCoverageStampEt(iso: string | null | undefined, nowMs: number = Date.now()): string | null {
+  const clock = formatCoverageClockEt(iso);
+  if (!clock || !iso) return clock;
+  const at = new Date(iso);
+  const day = ET_DAY_KEY.format(at);
+  const today = ET_DAY_KEY.format(new Date(nowMs));
+  if (day === today) return clock;
+  const label = ET_DAY_LABEL.format(at);
+  return day.slice(0, 4) === today.slice(0, 4) ? `${label} ${clock}` : `${label} ${day.slice(0, 4)} ${clock}`;
+}
+
 export function timeframeSeconds(timeframe: string): number {
   const match = timeframe.match(/^(\d+)(Sec|Min|Hour)$/);
   if (!match) return 60;

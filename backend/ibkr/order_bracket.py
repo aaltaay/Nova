@@ -66,12 +66,14 @@ def place_bracket_order(
     tif: str | None = None,
     outside_rth: bool = False,
     order_ref: str | None = None,
+    stop_limit: float | None = None,
 ) -> dict:
     """
     Place a bracket order: a LMT entry with a linked LMT profit target and a
     linked STP loss. Uses ib_async's native IB.bracketOrder() helper.
     ``tif`` / ``outside_rth`` apply to all three legs (None tif = DAY).
     ``order_ref`` is the entry's reference; the exits carry it with their role.
+    ``stop_limit`` makes the loss a STP LMT (``execution.stop_shape``): a plain STP does not work outside hours.
     """
     from ibkr import orders as _orders
     from sim.mode import is_practice_venue
@@ -105,6 +107,8 @@ def place_bracket_order(
                 side, qty, entry_price, target_price, stop_price,
                 tif=tif, outsideRth=bool(outside_rth),
             )
+            if stop_limit is not None:
+                bracket.stopLoss.orderType, bracket.stopLoss.lmtPrice = "STP LMT", float(stop_limit)
             if order_ref:
                 bracket.parent.orderRef = order_ref
                 bracket.takeProfit.orderRef = leg_ref(order_ref, "target")

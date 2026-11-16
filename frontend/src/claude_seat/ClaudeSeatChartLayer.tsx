@@ -1,19 +1,20 @@
 /**
  * Claude's orders on the Trader's charts (ADR 068, the approved design's 3 -- operator: "i do like these lines you
  * got on the chart"): on the 10-second, 1-minute and 5-minute panes of the stock Claude trades, each working order
- * and each armed break is a violet price line with its price on the axis (the stop solid red-violet), named at the
- * pane's left: "Claude · buy 510 on a print at 4.39 (up to 4.41)", "Claude · sell 250 at 4.49", "Claude · stop 510
- * at 4.12". Lines come and go with the seat's status; nothing here places or moves an order.
+ * and each armed break is a coral price line (Claude's colour since ADR 072) with its price on the axis (the stop
+ * solid red), named at the pane's left: "Claude · buy 510 on a print at 4.39 (up to 4.41)", "Claude · sell 250 at
+ * 4.49", "Claude · stop 510 at 4.12". Lines come and go with the seat's status; nothing here places or moves an order.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { IPriceLine, ISeriesApi } from 'lightweight-charts';
 import type { ChartPaneOverlayProps } from '../chart';
+import { OWNER_COLORS } from '../constantGroups/owners';
 import { useClaudeSeat } from './claudeSeatStore';
 import { claudeChartLines, type ClaudeChartLine } from './claudeSeatWords';
 import './claudeSeat.css';
 
 const PANES = new Set(['10Sec', '1Min', '5Min']);
-const COLOR: Record<ClaudeChartLine['kind'], string> = { buy: '#9d8cff', sell: '#9d8cff', stop: '#ff6b5f' };
+const COLOR: Record<ClaudeChartLine['kind'], string> = { buy: OWNER_COLORS.claude, sell: OWNER_COLORS.claude, stop: '#ff6b5f' };
 const DASHED = 2;
 const SOLID = 0;
 

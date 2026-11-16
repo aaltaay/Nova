@@ -8,6 +8,7 @@ import { useEffect, useRef } from 'react';
 import type { IChartApi, ISeriesApi } from 'lightweight-charts';
 import { simPlayhead, useIbkrStatus } from '../ibkr';
 import { simClockResource } from '../sim';
+import { deskNow } from '../utils/deskClock';
 import { BarCountdownPrimitive } from './BarCountdownPrimitive';
 import { barCountdownPeriodSec } from './barCountdown';
 
@@ -18,6 +19,8 @@ interface Options {
   timeframe: string;
   /** Hidden Trader tab: stop ticking. */
   chartActive: boolean;
+  /** Draw it as a label on the price scale, under the last price, instead of a chip by the candle (the phone). */
+  onScale?: boolean;
 }
 
 /** Just past the next whole second, so the digits turn with the clock. */
@@ -30,6 +33,7 @@ export function useChartBarCountdown({
   candleSeriesRef,
   timeframe,
   chartActive,
+  onScale = false,
 }: Options): void {
   const primitiveRef = useRef<BarCountdownPrimitive | null>(null);
   const enabled = barCountdownPeriodSec(timeframe) !== null;
@@ -38,7 +42,7 @@ export function useChartBarCountdown({
   useEffect(() => {
     const series = candleSeriesRef.current;
     if (!chartApi || !series || !enabled) return undefined;
-    const primitive = new BarCountdownPrimitive(timeframe);
+    const primitive = new BarCountdownPrimitive(timeframe, onScale);
     series.attachPrimitive(primitive);
     primitiveRef.current = primitive;
     return () => {
@@ -49,7 +53,7 @@ export function useChartBarCountdown({
       }
       if (primitiveRef.current === primitive) primitiveRef.current = null;
     };
-  }, [chartApi, candleSeriesRef, enabled, timeframe]);
+  }, [chartApi, candleSeriesRef, enabled, timeframe, onScale]);
 
   useEffect(() => {
     const primitive = primitiveRef.current;
@@ -65,11 +69,12 @@ export function useChartBarCountdown({
     }
     let timer = 0;
     const tick = () => {
-      const now = Date.now();
+      // The PC's clock: the candles close on it (the page's own on the desk).
+      const now = deskNow();
       primitive.setNow(now);
       timer = window.setTimeout(tick, msToNextSecond(now));
     };
     tick();
     return () => window.clearTimeout(timer);
-  }, [chartApi, enabled, timeframe, chartActive, sim]);
+  }, [chartApi, enabled, timeframe, chartActive, sim, onScale]);
 }

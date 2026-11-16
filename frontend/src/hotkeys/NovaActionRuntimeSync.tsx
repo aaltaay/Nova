@@ -4,7 +4,7 @@
  */
 
 import { useEffect } from 'react';
-import { useIbkrStatus } from '../ibkr';
+import { useIbkrStatus, useOthersHold } from '../ibkr';
 import type { IbkrPosition } from '../ibkr';
 import { useHotkeyDispatchOptional } from './HotkeyDispatchContext';
 
@@ -21,6 +21,7 @@ export function NovaActionRuntimeSync({
 }: Props) {
   const dispatch = useHotkeyDispatchOptional();
   const status = useIbkrStatus();
+  const othersHold = useOthersHold(symbol);
 
   useEffect(() => {
     if (!dispatch) return;
@@ -31,11 +32,13 @@ export function NovaActionRuntimeSync({
       accountMode: status.mode,
       accountError,
       position,
+      othersHold,
     });
   }, [
     dispatch,
     symbol,
     position,
+    othersHold,
     accountError,
     status.connected,
     status.spend_status,

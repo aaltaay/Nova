@@ -16,6 +16,7 @@ import {
   TOP_NINE_LIST_EMPTY,
   TOP_NINE_LIST_KEY,
   TOP_NINE_LISTS,
+  TOP_NINE_LULD_LISTS,
   TOP_NINE_NO_DESK,
   TOP_NINE_OPEN_WAIT_MS,
   TOP_NINE_SIZE,
@@ -122,6 +123,7 @@ export default function TopNineApp() {
   const rows = silent ? [] : board?.rows ?? [];
   const refFor = useTileSlide(rows.map((r) => r.symbol).join(','));
   const endTime = snapshot ? etChartSeconds(snapshot.asOf * 1000) : null;
+  const luld = TOP_NINE_LULD_LISTS.includes(list);
 
   const source = silent ? null : snapshot?.source ?? null;
   let empty: string | null = null;
@@ -156,6 +158,7 @@ export default function TopNineApp() {
                 row={row}
                 move={marks.marks[row.symbol]}
                 endTime={endTime}
+                luld={luld}
                 now={now}
                 opening={opening === row.symbol}
                 muted={alerts.muted.has(row.symbol)}

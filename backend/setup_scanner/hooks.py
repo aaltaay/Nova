@@ -82,8 +82,9 @@ async def _ask_history(sym: str) -> tuple[str, str | None]:
     from ibkr import historical_service as hist
 
     now = time.monotonic()
-    wait = send_wait(now, _last_history_send, int(hist.pacing_snapshot().get("window_used") or 0),
-                     hist.open_chart_busy())
+    snap = hist.pacing_snapshot()
+    left = max(0, int(snap["window_max"]) - int(snap["window_used"]))    # under zero in a hold
+    wait = send_wait(now, _last_history_send, left, hist.open_chart_busy())
     if wait is not None:
         return SEED_SHED, wait
     _last_history_send = now
@@ -134,15 +135,15 @@ _bot_state_cache: tuple[float, dict] | None = None
 
 
 def default_bot_state() -> dict:
-    """The stamp on a journal line: the bot's level and Activate, the venue and its Strategy Bots key (cached
-    briefly)."""
+    """The stamp on a journal line: the bot session's level and Activate, and the venue (cached briefly). The
+    Strategy Bots key it also carried retired with the bots (ADR 072)."""
     global _bot_state_cache
     import time
 
     now = time.monotonic()
     if _bot_state_cache is not None and now - _bot_state_cache[0] < _BOT_STATE_TTL_SEC:
         return _bot_state_cache[1]
-    state: dict[str, Any] = {"level": None, "active": None, "venue": None, "strategy_key": None}
+    state: dict[str, Any] = {"level": None, "active": None, "venue": None}
     try:
         from bot.arming import is_desk_active
         from bot.persist import load_session
@@ -158,14 +159,6 @@ def default_bot_state() -> dict:
         state["venue"] = venue()
     except Exception:
         logger.debug("setup scanner: venue unread for the journal", exc_info=True)
-    try:
-        from bot import family_keys
-        from constants_bot import BOT_FAMILY_STRATEGY
-
-        if state["venue"] is not None:
-            state["strategy_key"] = family_keys.state(BOT_FAMILY_STRATEGY, state["venue"])[0]
-    except Exception:
-        logger.debug("setup scanner: the Strategy Bots key unread for the journal", exc_info=True)
     _bot_state_cache = (now, state)
     return state
 

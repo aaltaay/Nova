@@ -34,6 +34,8 @@ Origin = Literal[
     "margin_call",
     "live_trader",
     "claude",
+    "close_bots",   # the operator's Close on a bots' row (ADR 069), retired with the bots (ADR 072)
+    "takeover",     # ADR 072: a switched-off trader's entries, and its exits before your close of a handed stock
 ]
 
 
@@ -58,6 +60,8 @@ class ExecutionCommand:
     entry_price: float | None = None
     outside_rth: bool = False
     order_id: int | None = None
+    # A ``replace`` that resizes a working stop on Paper or Sim (#1023): the whole shares it now covers.
+    resize_qty: float | None = None
     setup: str | None = None
     shares: int | None = None
     skip_risk: bool = False
@@ -79,8 +83,9 @@ class ExecutionCommand:
     # closes already working (execution.flatten_intent), under the lock.
     intent: str | None = None
     # The venue the caller means (live | paper | sim). An order id is only meaningful on the
-    # venue that issued it, so a cancel or replace of a known id names it; the door refuses
-    # ``VENUE_CHANGED`` when the desk is elsewhere by the time it runs (audit 2026-09-30).
+    # venue that issued it, so a cancel or replace of a known id names it, and a desk order names the
+    # venue the operator acted on (#1283); the door refuses ``VENUE_CHANGED`` when the desk is
+    # elsewhere by the time it runs (audit 2026-09-30).
     expected_venue: str | None = None
     # The venue to send to instead of the desk's: the kill switch's sweep (spec D, #656) and Nova's
     # own closes -- the day cover and the margin call (ADR 048), the Live Trader bot's (ADR 055) and
@@ -90,7 +95,8 @@ class ExecutionCommand:
     target_venue: str | None = None
     # Who in Nova sent it (``Origin``): recorded with the order and shown in the Orders table's
     # "Sent by" so a loss limit's or a bot's order never reads as the operator's own. None for the
-    # operator's own ticket. A label, never a permission: no gate reads it.
+    # operator's own ticket. A label, never a permission -- one refusal reads it: a retired sender's new order
+    # (ADR 072, ``execution.retired_senders``) never goes; its closes and cancels still do.
     origin: Origin | None = None
     # What the operator's screen showed when they acted (ADR 045): ``action_wall_ms``, the Level 2
     # book's and the quote's versions, the desk's own measures. Only the desk's routes set it; the

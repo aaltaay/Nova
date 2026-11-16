@@ -7,6 +7,7 @@
  * stay in view; closing it brings the Ledger back. The page keys it by its
  * date, so another day opens with the short trade list.
  */
+import { plainPrice } from '../utils/priceTick';
 import { useEffect, useRef, useState } from 'react';
 import {
   ACCOUNT_COMP_COMMISSIONS,
@@ -134,7 +135,7 @@ function NetBar({ stock, widest }: { stock: DayStock; widest: number }) {
   );
 }
 
-const price = (n: number | null): string => (n == null ? '—' : n.toFixed(2));
+const price = (n: number | null): string => (n == null ? '—' : plainPrice(n));
 const hhmm = (ts: number): string => etTime(ts).slice(0, 5);
 
 export function DayBreakdownPanel({ day, onClose, onShowFills }: Props) {

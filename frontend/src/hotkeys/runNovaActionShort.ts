@@ -13,6 +13,7 @@
  * - Nova never flips: a Short while you are long, or a Cover with no short, is refused here before anything is
  *   sent (the door refuses both too).
  */
+import { plainPrice, roundToTick } from '../utils/priceTick';
 import {
   NOVA_ACTION_ACCOUNT_ERROR_MESSAGE,
   NOVA_ACTION_DEFAULT_OFFSET_DOLLARS,
@@ -27,7 +28,7 @@ import { getConfirmedDeskVenueSnapshot, placeIbkrOrder } from '../ibkr';
 import { readTradeDefaultsPrefs } from '../settings';
 import type { NovaActionRecord, NovaActionResult } from './novaActionTypes';
 import { accountModeLabel, placeMarketExit, requireDepth } from './runNovaActionPlace';
-import type { NovaActionRuntime } from './runNovaActionRuntime';
+import { refusalNamingTrader, type NovaActionRuntime } from './runNovaActionRuntime';
 import type { TopOfBook } from './TopOfBookContext';
 
 export const SHORT_HOTKEY_KINDS: ReadonlySet<NovaActionKind> = new Set<NovaActionKind>([
@@ -38,8 +39,6 @@ export const SHORT_HOTKEY_KINDS: ReadonlySet<NovaActionKind> = new Set<NovaActio
 ]);
 
 type Confirm = (runtime: NovaActionRuntime, summary: string) => Promise<boolean>;
-
-const cents = (px: number): number => Math.round(px * 100) / 100;
 
 /** The buy stop's offset over the limit: the hotkey's own, else the desk venue's Settings > Trade default. */
 export function shortStopOffset(action: NovaActionRecord): number {
@@ -55,9 +54,9 @@ export function planShortHotkey(
 ): { limit: number; stop: number; base: number } | { error: string } {
   const base = action.kind === 'short_limit_ask_offset' ? book.ask : book.bid;
   if (base == null || !(base > 0)) return { error: NOVA_ACTION_DEPTH_DISABLED_REASON };
-  const limit = cents(base + (action.params.offsetDollars ?? NOVA_ACTION_DEFAULT_SHORT_OFFSET_DOLLARS));
+  const limit = roundToTick(base + (action.params.offsetDollars ?? NOVA_ACTION_DEFAULT_SHORT_OFFSET_DOLLARS));
   if (!(limit > 0)) return { error: 'Computed limit price is invalid' };
-  return { limit, stop: cents(limit + shortStopOffset(action)), base };
+  return { limit, stop: roundToTick(limit + shortStopOffset(action)), base };
 }
 
 async function send(
@@ -73,7 +72,7 @@ async function send(
   const mode = accountModeLabel(runtime.accountMode);
   try {
     const res = await placeIbkrOrder(
-      { symbol, side, qty, order_type: 'LMT', outside_rth: false, ...extra },
+      { symbol, side, qty, order_type: 'LMT', outside_rth: false, venue: runtime.venue, ...extra },
       idempotencyKey,
       { timing: beginBrowserExecutionTiming('nova_action_place', actionTiming), referencePrice: base },
     );
@@ -101,7 +100,7 @@ export async function runShortHotkey(
   const mode = accountModeLabel(runtime.accountMode);
 
   if (action.kind === 'cover_pos') {
-    if (!(held < 0)) return { ok: false, text: SHORT_HOTKEY_NO_SHORT(symbol) };
+    if (!(held < 0)) return { ok: false, text: refusalNamingTrader(SHORT_HOTKEY_NO_SHORT(symbol), runtime, 'short') };
     return placeMarketExit(
       runtime, symbol, 'BUY', Math.abs(held), 'cover all', actionTiming, maybeConfirm, idempotencyKey, 'flatten',
     );
@@ -112,11 +111,11 @@ export async function runShortHotkey(
   const tob = tobOrErr as TopOfBook;
 
   if (action.kind === 'cover_limit_ask_offset') {
-    if (!(held < 0)) return { ok: false, text: SHORT_HOTKEY_NO_SHORT(symbol) };
+    if (!(held < 0)) return { ok: false, text: refusalNamingTrader(SHORT_HOTKEY_NO_SHORT(symbol), runtime, 'short') };
     if (tob.ask == null || !(tob.ask > 0)) return { ok: false, text: NOVA_ACTION_DEPTH_DISABLED_REASON };
-    const limit = cents(tob.ask + (action.params.offsetDollars ?? NOVA_ACTION_DEFAULT_OFFSET_DOLLARS));
+    const limit = roundToTick(tob.ask + (action.params.offsetDollars ?? NOVA_ACTION_DEFAULT_OFFSET_DOLLARS));
     const qty = Math.abs(held);
-    if (!(await maybeConfirm(runtime, `COVER ${qty} ${symbol} (BUY LMT @ $${limit.toFixed(2)}) on ${mode} account.`))) {
+    if (!(await maybeConfirm(runtime, `COVER ${qty} ${symbol} (BUY LMT @ $${plainPrice(limit)}) on ${mode} account.`))) {
       return { ok: false, text: 'Order cancelled' };
     }
     // The whole short, so a protective close: a disarmed desk can still cover at a limit, and the door's flatten
@@ -131,7 +130,7 @@ export async function runShortHotkey(
   if ('error' in plan) return { ok: false, text: plan.error };
   const shares = action.params.shares ?? NOVA_ACTION_DEFAULT_SHARES;
   const summary =
-    `SHORT ${shares} ${symbol} (LMT @ $${plan.limit.toFixed(2)}, buy stop $${plan.stop.toFixed(2)}) on ${mode} account.`;
+    `SHORT ${shares} ${symbol} (LMT @ $${plainPrice(plan.limit)}, buy stop $${plainPrice(plan.stop)}) on ${mode} account.`;
   if (!(await maybeConfirm(runtime, summary))) return { ok: false, text: 'Order cancelled' };
   return send(
     runtime, symbol, 'SELL', shares,

@@ -1,5 +1,5 @@
-/** Fetches Reports v2 analytics (tags, R-multiples, drawdown). */
-import { useEffect, useState } from 'react';
+/** Fetches Reports v2 analytics (tags, R-multiples, drawdown) for the venue and view in `viewQuery` (ADR 069). */
+import { useEffect, useRef, useState } from 'react';
 import { API_BASE_URL, JOURNAL_POLL_INTERVAL_MS } from '../constants';
 import type { DrawdownResponse, RMultiplesResponse, TagsResponse } from './types';
 
@@ -17,16 +17,24 @@ export function useReportsV2(
   enabled: boolean,
   includeMock: boolean,
   refreshToken = 0,
+  viewQuery = '',
 ): UseReportsV2Return {
   const [tags, setTags] = useState<TagsResponse | null>(null);
   const [rMultiples, setRMultiples] = useState<RMultiplesResponse | null>(null);
   const [drawdown, setDrawdown] = useState<DrawdownResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const shownQuery = useRef(viewQuery);
 
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
+    if (shownQuery.current !== viewQuery) {    // a new pick: never the old pick's figures under it
+      shownQuery.current = viewQuery;
+      setTags(null);
+      setRMultiples(null);
+      setDrawdown(null);
+    }
     // Per effect run (QA V42): see useCalendar -- a shared flag made the first
     // poll wait out a whole interval after any re-run.
     const inFlight = { current: false };
@@ -35,7 +43,8 @@ export function useReportsV2(
       if (inFlight.current) return;
       inFlight.current = true;
       try {
-        const mockQ = includeMock ? '?include_mock=true' : '';
+        const query = [includeMock ? 'include_mock=true' : '', viewQuery].filter(Boolean).join('&');
+        const mockQ = query ? `?${query}` : '';
         const [tagsRes, rRes, ddRes] = await Promise.all([
           fetch(`${JOURNAL_API}/tags${mockQ}`),
           fetch(`${JOURNAL_API}/r-multiples${mockQ}`),
@@ -72,7 +81,7 @@ export function useReportsV2(
       cancelled = true;
       clearInterval(interval);
     };
-  }, [enabled, includeMock, refreshToken]);
+  }, [enabled, includeMock, refreshToken, viewQuery]);
 
   return { tags, rMultiples, drawdown, loading, error };
 }

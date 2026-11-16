@@ -1,4 +1,5 @@
 /** Cell renderers for Closed Orders columns. */
+import { fmtPrice } from '../utils/quoteFormat';
 import type { ReactNode } from 'react';
 import {
   formatOrderDateTime,
@@ -12,7 +13,6 @@ import { FillLatencyTd } from '../ibkr';
 import { OrderSideTd, SentByTd } from '../ibkr';
 import { commissionCellTitle, formatCommission } from '../ibkr';
 import { displayFilledQty, practiceFillTitle } from '../ibkr';
-import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';
 import { formatClosedOrderId } from './formatClosedOrderId';
 import type { ClosedOrder } from './types';
@@ -87,13 +87,13 @@ export function renderClosedOrderCell(
     case 'limit':
       return (
         <td key={col} className="ibkr-col--num">
-          {formatMoney(plausiblePrice(o.limit_price))}
+          {fmtPrice(plausiblePrice(o.limit_price))}
         </td>
       );
     case 'avg_fill':
       return (
         <td key={col} className="ibkr-col--num">
-          {formatMoney(plausiblePrice(o.avg_fill_price))}
+          {fmtPrice(plausiblePrice(o.avg_fill_price))}
           {o.fill_estimated && o.avg_fill_price != null && (
             <span className="ibkr-fill-estimated" title={practiceFillTitle(o.fill_basis)}>
               est

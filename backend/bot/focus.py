@@ -1,10 +1,13 @@
-"""Bot focus shares the Trader max-3 live L2 slots."""
+"""Bot focus shares the Trader max-3 live L2 slots: what ``/ws/bot/eyes`` streams.
+
+ADR 072 retired ``POST /api/bot/focus/sync`` and the focus writes with the Bots page: the snapshot reads what the
+session file holds.
+"""
 from __future__ import annotations
 
 from typing import Any
 
-from bot.autonomy import assert_not_dark
-from bot.persist import load_session, save_session
+from bot.persist import load_session
 from constants import IBKR_MAX_DEPTH_SYMBOLS
 from constants_bot import BOT_LEVEL_OFF
 
@@ -23,43 +26,3 @@ def snapshot() -> dict[str, Any]:
         "live_cap": IBKR_MAX_DEPTH_SYMBOLS,
         "level": int(row.get("level") or BOT_LEVEL_OFF),
     }
-
-
-def set_focus(symbols: list[str]) -> dict[str, Any]:
-    assert_not_dark()
-    row = load_session()
-    cleaned: list[str] = []
-    for raw in symbols:
-        sym = _norm(raw)
-        if sym and sym not in cleaned:
-            cleaned.append(sym)
-    row["focus"] = cleaned
-    save_session(row)
-    return snapshot()
-
-
-def add_focus(symbol: str) -> dict[str, Any]:
-    assert_not_dark()
-    row = load_session()
-    focus = [_norm(s) for s in list(row.get("focus") or []) if _norm(s)]
-    sym = _norm(symbol)
-    if not sym:
-        return snapshot()
-    if sym not in focus:
-        focus.append(sym)
-    row["focus"] = focus
-    save_session(row)
-    return snapshot()
-
-
-def sync_trader_live(symbols: list[str]) -> dict[str, Any]:
-    """UI reports the actual live L2 tabs so Eyes stay honest."""
-    row = load_session()
-    cleaned: list[str] = []
-    for raw in symbols:
-        sym = _norm(raw)
-        if sym and sym not in cleaned:
-            cleaned.append(sym)
-    row["trader_live"] = cleaned[: IBKR_MAX_DEPTH_SYMBOLS]
-    save_session(row)
-    return snapshot()

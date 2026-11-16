@@ -8,6 +8,7 @@ import {
   GLOBAL_BAR_CANCEL_ALL_CONFIRM_LABEL,
   GLOBAL_BAR_CANCEL_ALL_CONFIRM_TITLE,
   GLOBAL_BAR_CANCEL_ALL_EMPTY_TITLE,
+  GLOBAL_BAR_CANCEL_ALL_FAILED_TITLE,
   GLOBAL_BAR_CANCEL_ALL_STOCKS,
   GLOBAL_BAR_CANCELED_FAILED_LABEL,
   GLOBAL_BAR_FILLED_TODAY_LABEL,
@@ -16,6 +17,7 @@ import {
   GLOBAL_BAR_WORKING_MENU_TITLE,
   GLOBAL_BAR_WORKING_ORDERS_LABEL,
 } from '../constants';
+import { getConfirmedDeskVenueSnapshot } from '../ibkr/confirmedDeskVenue';
 import { cancelAllOrdersForSymbol } from '../ibkr/placeOrder';
 import type { IbkrOrder } from '../ibkr/types';
 import { confirmApp, alertApp } from '../ux';
@@ -58,6 +60,8 @@ export function GlobalWorkingMenu({
       });
       return;
     }
+    // Read before the confirm: these rows are this venue's, so a desk that leaves it stops the cancels (#1281).
+    const { venue } = getConfirmedDeskVenueSnapshot();
     const ok = await confirmApp({
       title: GLOBAL_BAR_CANCEL_ALL_CONFIRM_TITLE,
       message: GLOBAL_BAR_CANCEL_ALL_CONFIRM_BODY,
@@ -66,10 +70,15 @@ export function GlobalWorkingMenu({
     if (!ok) return;
     setBusy(true);
     try {
+      const answers = new Set<string>();
       for (const sym of symbols) {
-        await cancelAllOrdersForSymbol(sym);
+        const res = await cancelAllOrdersForSymbol(sym, undefined, venue);
+        if (!res.ok) answers.add(res.error ?? `${sym}: cancel failed`);
       }
       onRefresh();
+      if (answers.size > 0) {
+        await alertApp({ title: GLOBAL_BAR_CANCEL_ALL_FAILED_TITLE, message: [...answers].join('\n') });
+      }
     } finally {
       setBusy(false);
       onClose();

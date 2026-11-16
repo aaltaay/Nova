@@ -2,6 +2,8 @@
 
 export const CHART_POSITION_LONG_COLOR = '#3B82F6';
 export const CHART_POSITION_SHORT_COLOR = '#F43F5E';
+/** Room over another trader's line for its words; with less, they sit under it (ADR 072). */
+export const CHART_TRADER_WORDS_ROOM_PX = 18;
 export const CHART_POSITION_LINE_WIDTH = 1;
 export const CHART_POSITION_MARKER_SIZE = 1.25;
 

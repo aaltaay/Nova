@@ -1,9 +1,9 @@
 """The hot list's file (ADR 044): ``hot-list.json`` in the operator cache, plus a read-only copy per day.
 
 Shape (schema 1): ``{schema_version, date, auto_n, entries: [{symbol, how, at, board, rank, change_pct}],
-yesterday: [symbol], reset_error?: string}`` -- ``reset_error`` is present only while today's 04:00 reset of the
-bot's buys failed (``service.today`` retries it every pass). A file written before 2026-10-06 may carry ``default: {buy, sell}`` (the side a new
-name started on); it is read and dropped: the list never sets who trades a stock. ``date`` is the trading day, which starts at 04:00 ET
+yesterday: [symbol]}``. A file written before ADR 072 may carry ``reset_error`` (today's 04:00 reset of the bot's
+buys, retired with the bots) and one written before 2026-10-06 ``default: {buy, sell}`` (the side a new name started
+on); each is read and dropped: the list never sets who trades a stock. ``date`` is the trading day, which starts at 04:00 ET
 (the practice day's boundary); ``at`` is epoch seconds; ``change_pct`` is the leaderboard row's, a
 fraction against the prior close (``null`` for a star). An unknown version or an unreadable file reads
 as an empty list with the error stated; nothing guesses.
@@ -134,8 +134,6 @@ def normalize(doc: dict[str, Any], name: str = HOT_LIST_FILE) -> dict[str, Any]:
             out["entries"].append(entry)
     raw_yesterday = doc.get("yesterday") if isinstance(doc.get("yesterday"), list) else []
     out["yesterday"] = list(dict.fromkeys(s for s in (valid_symbol(r) for r in raw_yesterday) if s))
-    if doc.get("reset_error") is not None:
-        out["reset_error"] = str(doc["reset_error"])
     if (len(out["entries"]) != len(raw_entries) or len(out["yesterday"]) != len(raw_yesterday)
             or out["auto_n"] != doc.get("auto_n")):
         logger.warning("hot list: %s held fields out of shape; they read as their defaults (entries %d -> %d)",
@@ -246,27 +244,6 @@ def current(now: float | None = None) -> tuple[dict[str, Any], str | None]:
     if doc is None or doc.get("date") != day:
         return empty(day), error
     return doc, None
-
-
-def day_reset_block(now: float | None = None) -> str | None:
-    """Why the bot may not buy yet today, or None. The 04:00 ET rollover (``service.today``, within
-    ``HOT_LIST_AUTO_TICK_SEC`` of 04:00 and at every start) resets yesterday's bot buys -- every venue's bot
-    list and every Auto-entry switch -- and writes today's file. Until today's file is on disk that reset is
-    not known to have run, so yesterday's choices could still buy: nothing buys."""
-    day = trading_day(now)
-    doc, error = read_raw()
-    if error is not None:
-        logger.warning("hot list: today's file cannot be read -- the 04:00 reset of the bot's buys is not known to "
-                       "have run, so the bot buys nothing: %s", error)
-        return ("the 04:00 ET reset of yesterday's bot buys cannot be confirmed: today's hot list file could not be "
-                "read (the backend log has the error)")
-    if doc is not None and doc.get("date") == day and doc.get("reset_error"):
-        return (f"the 04:00 ET reset of yesterday's bot buys failed ({doc['reset_error']}); Nova tries it again "
-                "every 30 s")
-    if doc is None or doc.get("date") != day:
-        return ("the 04:00 ET reset of yesterday's bot buys has not run yet today (it runs within 30 s of 04:00 and "
-                "at every start)")
-    return None
 
 
 def listed_symbols(now: float | None = None) -> list[str]:

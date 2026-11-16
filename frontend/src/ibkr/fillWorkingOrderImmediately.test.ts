@@ -3,6 +3,7 @@ import {
   confirmAndFillWorkingOrder,
   fillWorkingOrderImmediately,
 } from './fillWorkingOrderImmediately';
+import { noteBackendGate, resetViewRegistryForTests } from '../market_view/viewRegistry';
 import * as placeOrder from './placeOrder';
 import type { IbkrOrder } from './types';
 
@@ -12,6 +13,12 @@ vi.mock('../api/novaFetch', () => ({
 
 vi.mock('../ux', () => ({
   confirmApp: vi.fn(),
+}));
+
+const desk = vi.hoisted(() => ({ venue: 'paper' as string | null }));
+
+vi.mock('./confirmedDeskVenue', () => ({
+  getConfirmedDeskVenueSnapshot: () => ({ venue: desk.venue, generation: null }),
 }));
 
 import { novaFetch } from '../api/novaFetch';
@@ -45,6 +52,8 @@ const FTFT: IbkrOrder = {
 
 describe('fillWorkingOrderImmediately', () => {
   beforeEach(() => {
+    // A gate one test noted never reaches the next (a failed assertion skips the reset at its end).
+    resetViewRegistryForTests();
     vi.restoreAllMocks();
     vi.mocked(novaFetch).mockClear();
     vi.mocked(novaFetch).mockResolvedValue({
@@ -156,6 +165,27 @@ describe('fillWorkingOrderImmediately', () => {
     );
   });
 
+  it('a lag holds Fill now on a working buy, never on a working sell (ADR 045 amendment 2026-11-06)', async () => {
+    const cancel = vi.spyOn(placeOrder, 'placeIbkrOrder').mockResolvedValue({ ok: true, order_id: 7 } as never);
+    (novaFetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true, status: 200, json: async () => ({ ok: true }),
+    } as never);
+    noteBackendGate('AAPL', { code: 'TAPE_STALE', text: "AAPL's Time & Sales is behind." });
+    // The session is pinned: read from the clock, an evening run plans an overnight sweep, which refuses the
+    // buy for its missing ask before the lag is ever asked (PR #1302 CI, 21:05 ET).
+    const rth = { sessionKind: 'rth' as const };
+    const held = await fillWorkingOrderImmediately(ORDER, undefined, rth);
+    expect(held).toEqual({ ok: false, error: "AAPL's Time & Sales is behind." });
+    expect(novaFetch).not.toHaveBeenCalled();
+
+    const sold = await fillWorkingOrderImmediately({ ...ORDER, side: 'SELL' }, undefined, rth);
+    expect(sold.ok).toBe(true);
+    const cover = await fillWorkingOrderImmediately({ ...ORDER, effect: 'closes' }, undefined, rth);
+    expect(cover.ok).toBe(true);
+    resetViewRegistryForTests();
+    cancel.mockRestore();
+  });
+
   it('does not place when nothing remains', async () => {
     const spy = vi.spyOn(placeOrder, 'placeIbkrOrder');
     const res = await fillWorkingOrderImmediately({
@@ -226,5 +256,41 @@ describe('confirmAndFillWorkingOrder', () => {
       }),
     );
     expect(res.ok).toBe(true);
+  });
+
+  it('names the venue of the click on its cancel and its fill, whatever the desk shows after the confirm (#1283)', async () => {
+    desk.venue = 'paper';
+    const spy = vi.spyOn(placeOrder, 'placeIbkrOrder').mockResolvedValue({ ok: true, order_id: 99, error: null });
+    vi.mocked(confirmApp).mockImplementation(async () => {
+      desk.venue = 'live'; // the desk moved while the confirm was open
+      return true;
+    });
+
+    await confirmAndFillWorkingOrder(FTFT, {
+      sessionKind: 'premarket',
+      book: { symbol: 'FTFT', bid: 6.67, ask: 6.8 },
+    });
+
+    expect(String(vi.mocked(novaFetch).mock.calls[0][0])).toMatch(/\/api\/ibkr\/order\/115067\?venue=paper$/);
+    expect(spy.mock.calls[0][0]).toMatchObject({ symbol: 'FTFT', venue: 'paper' });
+    desk.venue = 'paper';
+  });
+
+  it('never fills on the venue the desk moved to: a cancel the door refuses ends it (#1283)', async () => {
+    const spy = vi.spyOn(placeOrder, 'placeIbkrOrder');
+    vi.mocked(confirmApp).mockResolvedValue(true);
+    vi.mocked(novaFetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: false, error: 'the desk is on live, not paper' }),
+    } as Response);
+
+    const res = await confirmAndFillWorkingOrder(FTFT, {
+      sessionKind: 'premarket',
+      book: { symbol: 'FTFT', bid: 6.67, ask: 6.8 },
+    });
+
+    expect(res).toMatchObject({ ok: false, error: 'the desk is on live, not paper' });
+    expect(spy).not.toHaveBeenCalled();
   });
 });

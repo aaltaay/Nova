@@ -7,18 +7,6 @@ import { SAMPLE_SETUPS_BOARD } from '../sample_data/sampleSetups';
 import { WatchlistTable } from './WatchlistTable';
 import type { WatchlistEntry } from './types';
 
-const add = vi.fn();
-const remove = vi.fn();
-const allowlist = new Set(['QMBL']);
-vi.mock('../bot/useBotAllowlist', () => ({
-  useBotAllowlist: () => ({
-    symbols: [...allowlist],
-    isAllowed: (s: string) => allowlist.has(s),
-    add,
-    remove,
-    refresh: vi.fn(),
-  }),
-}));
 vi.mock('../setups/SetupsStreamContext', () => ({
   useSetupsBoard: () => ({ board: SAMPLE_SETUPS_BOARD, connected: true }),
 }));
@@ -77,8 +65,6 @@ function rowOf(symbol: string): HTMLElement {
 
 afterEach(() => {
   cleanup();
-  add.mockReset();
-  remove.mockReset();
 });
 
 describe('WatchlistTable', () => {
@@ -110,21 +96,20 @@ describe('WatchlistTable', () => {
     expect(summary).toContain('3 gappers & gainers');
     expect(summary).toContain('1 pass all five pillars');
     expect(summary).toContain('2 setups live · 1 near trigger');
-    expect(summary).toContain('1 set to Bot');
+    expect(summary).not.toContain('set to Bot');
 
     fireEvent.click(screen.getByText('5/5 pillars'));
     expect(screen.queryByText('QMBL', { selector: 'button' })).toBeNull();
-    fireEvent.click(screen.getByText('Bot trades it'));
+    expect(screen.getByText('NVXA', { selector: 'button' })).toBeTruthy();
+    fireEvent.click(screen.getByText('Setup live'));
     expect(screen.getByText('QMBL', { selector: 'button' })).toBeTruthy();
-    expect(screen.queryByText('NVXA', { selector: 'button' })).toBeNull();
   });
 
-  it('toggles the bot allowlist from the dot', () => {
+  it('has no bot column or bot filter: the strategies only watch (ADR 072)', () => {
     renderTable();
-    fireEvent.click(within(rowOf('NVXA')).getByTestId('watchlist-bot-toggle'));
-    expect(add).toHaveBeenCalledWith('NVXA');
-    fireEvent.click(within(rowOf('QMBL')).getByTestId('watchlist-bot-toggle'));
-    expect(remove).toHaveBeenCalledWith('QMBL');
+    expect(screen.queryByTestId('watchlist-bot-toggle')).toBeNull();
+    expect(screen.queryByText('Bot trades it')).toBeNull();
+    expect(screen.queryByRole('columnheader', { name: /^Bot/ })).toBeNull();
   });
 
   it('renders replay provenance and distinguishes reconstructed rows, covered empty boards, missing coverage, loading and errors (#881)', () => {

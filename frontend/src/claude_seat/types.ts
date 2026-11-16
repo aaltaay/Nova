@@ -1,7 +1,7 @@
 /** `GET /api/agent/trader` (ADR 068, `architecture/schema/agent-trader.md`): what the desk shows of Claude. */
 
 export type ClaudeSeatState =
-  | 'off' | 'idle' | 'waiting_line' | 'watching' | 'buy_set' | 'in_trade' | 'yielded' | 'done';
+  | 'off' | 'idle' | 'waiting_line' | 'watching' | 'buy_set' | 'in_trade' | 'done';
 
 export interface ClaudeOrder {
   order_id: number;
@@ -54,13 +54,16 @@ export interface ClaudeLine {
   depth: boolean;
   tape: boolean;
   why_not: string | null;
-  desk_lines: string[];
-  desk_cap: number | null;
-  all_lines: string[];
-  /** The hidden Trader tab whose line Claude holds (ADR 068 decision 14); null when none lent it. */
-  from_tab: string | null;
-  /** Tabs the operator took back from Claude: never taken again while they are open. */
-  taken_back: string[];
+}
+
+/** The operator's On / Off switch for Claude (ADR 072, `architecture/schema/traders.md`). */
+export interface ClaudeSwitch {
+  on: boolean;
+  /** When it last flipped (epoch seconds), or null. */
+  at: number | null;
+  can_turn_on: boolean;
+  /** Why On would be refused now, in Nova's words; null while it would not be. */
+  why_not_on: { reason: string; error: string } | null;
 }
 
 export interface ClaudeSeatStatus {
@@ -71,7 +74,8 @@ export interface ClaudeSeatStatus {
   beat_at: number | null;
   lease_until: number | null;
   lapsed: boolean;
-  yielded: boolean;
+  /** Null on a backend from before the switch (ADR 072). */
+  switch: ClaudeSwitch | null;
   symbol: string | null;
   line: ClaudeLine;
   positions: { symbol: string; qty: number; mark: number | null }[];

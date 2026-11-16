@@ -49,7 +49,7 @@ def rows(broker) -> dict[int, dict]:
 
 async def send_pair() -> object:
     return await service.execute(ExecutionCommand(
-        operation="exit_oco", idempotency_key="sim-pair", source="manual", origin="nova_exit", symbol=SYM,
+        operation="exit_oco", idempotency_key="sim-pair", source="manual", origin=None, symbol=SYM,
         side="SELL", qty=100, order_type="STP", stop_price=9.50, target_price=10.50, target2_price=11.50,
         target1_qty=50, skip_risk=True))
 

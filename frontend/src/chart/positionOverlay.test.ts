@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { Time } from 'lightweight-charts';
+import { LineStyle, type Time } from 'lightweight-charts';
 import type { IbkrOrder, IbkrPosition } from '../ibkr/types';
 import { isoToEtTime } from '../tickerChartData';
 import { deskTradingDay } from '../utils/deskTradingDay';
 import { buildSeriesTimeIndex } from './chartDrawingTime';
+import { OWNER_COLORS } from '../constantGroups/owners';
 import {
   CHART_POSITION_LONG_COLOR,
   CHART_POSITION_SHORT_COLOR,
@@ -16,6 +17,8 @@ import {
   positionLineTitle,
   positionPriceLineOptions,
   seriesMarkersForFills,
+  traderPositionLineOptions,
+  traderPositionLineTitle,
 } from './positionOverlay';
 
 function pos(partial: Partial<IbkrPosition> & Pick<IbkrPosition, 'symbol' | 'qty'>): IbkrPosition {
@@ -108,6 +111,25 @@ describe('positionPriceLineOptions', () => {
     });
     expect(line.color).toBe(CHART_POSITION_SHORT_COLOR);
     expect(line.price).toBe(11.5);
+  });
+});
+
+describe("another trader's position line (ADR 072)", () => {
+  const snapshot = { symbol: 'ORCL', qty: -19, avgCost: 125.9, unrealizedPnl: 19.19 };
+
+  it('says whose it is, in the words of your line', () => {
+    expect(traderPositionLineTitle('Live Trader', snapshot)).toBe('Live Trader short 19 @ $125.90  +$19.19');
+    expect(traderPositionLineTitle('Claude', { ...snapshot, qty: 40, unrealizedPnl: null })).toBe('Claude long 40 @ $125.90');
+  });
+
+  it("is dashed in the trader's own colour, whichever way it is, and priced on the axis", () => {
+    const line = traderPositionLineOptions(125.9, 'claude');
+    expect(traderPositionLineOptions(125.9, 'brain').color).toBe(OWNER_COLORS.brain);
+    expect(line.price).toBe(125.9);
+    expect(line.color).toBe(OWNER_COLORS.claude);
+    expect(line.lineStyle).toBe(LineStyle.Dashed);
+    expect(line.axisLabelVisible).toBe(true);
+    expect(line.title).toBe('');
   });
 });
 

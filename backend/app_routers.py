@@ -31,7 +31,6 @@ from routes.advise import router as advise_router, ws_router as advise_ws_router
 from routes.halts import router as halts_router
 from routes.symbols import router as symbols_router
 from routes.bot import router as bot_router
-from bot.live_trader.routes import router as live_trader_router
 from routes.bot_ws import ws_router as bot_ws_router
 from sim.routes import router as sim_router
 from capture.routes import router as capture_router
@@ -43,6 +42,7 @@ from diagnostics.routes import router as diagnostics_router
 from leaderboard.routes import router as leaderboard_router
 from leaderboard.auto_record_routes import router as auto_record_router
 from loss_limit.routes import router as loss_limit_router
+from traders.routes import router as traders_router
 from execution.size_limit.routes import router as order_size_limit_router
 from setup_scanner.routes import router as setups_router
 from setup_templates.routes import install as install_setup_template_refusals
@@ -55,7 +55,6 @@ from issue_report.routes import router as issue_report_router
 from stock_read.routes import router as stock_read_router
 from screen_record.routes import router as screen_record_router
 from clips.routes import router as clips_router
-from stock_mode.routes import router as stock_mode_router
 from hot_list.routes import router as hot_list_router
 from crypto.routes import router as crypto_router
 from market_board.routes import router as market_board_router
@@ -72,6 +71,7 @@ from followed_traders import config as followed_traders_config
 from followed_traders.routes import router as followed_traders_router
 from volume_profile.routes import router as volume_profile_router
 from ahead.routes import router as ahead_router
+from phone.routes import router as phone_router
 
 
 def register_routers(app: FastAPI) -> None:
@@ -103,7 +103,6 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(halts_router)
     app.include_router(symbols_router)
     app.include_router(bot_router)
-    app.include_router(live_trader_router)  # ADR 055: the Live Trader bot's cards on Bots > LiveTrader Bots
     app.include_router(bot_ws_router)
     app.include_router(sim_router)
     app.include_router(capture_router)
@@ -111,10 +110,12 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(focus_router)
     app.include_router(practice_router)
     app.include_router(desk_router)
+    app.include_router(phone_router)  # ADR 070: the phone PIN's session and its Paper-only orders
     app.include_router(diagnostics_router)
     app.include_router(leaderboard_router)
     app.include_router(auto_record_router)
     app.include_router(loss_limit_router)
+    app.include_router(traders_router)
     app.include_router(order_size_limit_router)
     app.include_router(setups_router)
     app.include_router(setup_templates_router)
@@ -127,7 +128,6 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(stock_read_router)
     app.include_router(screen_record_router)
     app.include_router(clips_router)
-    app.include_router(stock_mode_router)
     app.include_router(hot_list_router)
     app.include_router(crypto_router)
     app.include_router(market_board_router)

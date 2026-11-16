@@ -41,7 +41,7 @@ class Refusal(NamedTuple):
 
 def _blank() -> dict[str, Any]:
     return {"schema_version": AGENT_SCHEMA_VERSION, "holder": None, "since": None, "beat_at": None,
-            "yielded": False, "yielded_at": None, "symbol": None, "breaks": [], "reflexes": [], "exits": {}, "note": None,
+            "symbol": None, "breaks": [], "reflexes": [], "exits": {}, "note": None,
             "events": []}
 
 
@@ -120,16 +120,18 @@ def is_on() -> bool:
     return holder() is not None
 
 
+def switch_on() -> bool:
+    """The operator's switch for Claude is On (ADR 072, ``traders.switches``): Off, Claude opens nothing new."""
+    from traders import switches
+
+    return switches.is_on("claude")
+
+
 def reserves_line() -> bool:
-    """The seat keeps one Level 2 line for Claude: on and not given up to the operator."""
+    """The seat keeps one Level 2 line for Claude: held, and its switch On."""
     with _lock:
-        st = _load()
-        return bool(st.get("holder")) and not st.get("yielded")
-
-
-def is_yielded() -> bool:
-    with _lock:
-        return bool(_load().get("yielded"))
+        held = bool(_load().get("holder"))
+    return held and switch_on()
 
 
 def symbol() -> str | None:
@@ -170,7 +172,7 @@ def claim(now: float | None = None, *, take_over: bool = False) -> tuple[str | N
             return None, Refusal(AGENT_SEAT_TAKEN, "Claude's seat is already held by another session; it frees when "
                                  "that session lets go or goes quiet for 10 minutes, or pick it up with take_over.")
         token = uuid.uuid4().hex
-        st.update(holder=token, since=t, beat_at=t, yielded=False, yielded_at=None)
+        st.update(holder=token, since=t, beat_at=t)
         _event_locked(st, t, "on", "Claude took its seat")
         _save()
         return token, None
@@ -193,21 +195,20 @@ def turn_off(reason: str, now: float | None = None) -> None:
         st = _load()
         if not st.get("holder"):
             return
-        st.update(holder=None, since=None, beat_at=None, yielded=False, yielded_at=None, symbol=None, breaks=[],
-                  reflexes=[], exits={})
+        st.update(holder=None, since=None, beat_at=None, symbol=None, breaks=[], reflexes=[], exits={})
         _event_locked(st, t, "off", reason)
         _save()
 
 
-def set_yielded(value: bool, text: str, now: float | None = None) -> None:
+def switch_off(steps: list[str], now: float | None = None) -> None:
+    """The operator switched Claude Off (``traders.off``): its armed breaks and reflexes are dropped -- its resting
+    exits stay -- and each step is an event (``switch_off``, then ``handed`` per position handed to you)."""
     t = clock.now() if now is None else now
     with _lock:
         st = _load()
-        st["yielded"] = bool(value)
-        st["yielded_at"] = t if value else None
-        if value:
-            st["breaks"] = []
-        _event_locked(st, t, "yielded" if value else "line_back", text)
+        st["breaks"], st["reflexes"] = [], []
+        for index, text in enumerate(steps):
+            _event_locked(st, t, "switch_off" if index == 0 else "handed", text)
         _save()
 
 
