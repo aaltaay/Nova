@@ -63,6 +63,8 @@ param(
 $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $startScript = Join-Path $repoRoot "scripts\Start-NovaDaily.ps1"
+# Daily triggers that keep their local time across daylight saving (#14).
+. (Join-Path $PSScriptRoot "NovaTaskTrigger.ps1")
 
 if (-not (Test-Path $startScript)) {
     throw "Missing $startScript"
@@ -108,14 +110,14 @@ if ($Trigger -eq "Daily" -or $Trigger -eq "Both") {
     } catch {
         throw "Invalid -AtTime '$AtTime'. Use something like 06:00 or 6:00AM."
     }
-    $triggers += New-ScheduledTaskTrigger -Daily -At $parsed
+    $triggers += New-NovaDailyTrigger $parsed
     if ($PremarketAtTime) {
         try {
             $preParsed = Get-Date $PremarketAtTime
         } catch {
             throw "Invalid -PremarketAtTime '$PremarketAtTime'. Use something like 03:40."
         }
-        $triggers += New-ScheduledTaskTrigger -Daily -At $preParsed
+        $triggers += New-NovaDailyTrigger $preParsed
     }
 }
 if ($Trigger -eq "AtLogon" -or $Trigger -eq "Both") {
@@ -202,7 +204,7 @@ if ($MorningCheckAtTime -and (Test-Path $checkScript)) {
         -Execute "powershell.exe" `
         -Argument $checkArg `
         -WorkingDirectory $repoRoot
-    $checkTrigger = New-ScheduledTaskTrigger -Daily -At $checkParsed
+    $checkTrigger = New-NovaDailyTrigger $checkParsed
     $existingCheck = Get-ScheduledTask -TaskName $MorningCheckTaskName -ErrorAction SilentlyContinue
     if ($existingCheck) {
         Unregister-ScheduledTask -TaskName $MorningCheckTaskName -Confirm:$false

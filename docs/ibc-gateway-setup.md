@@ -236,6 +236,13 @@ registers:
 - **06:00** local -- backstop start
 - AtLogon + session unlock -- wake-from-sleep backstop
 
+The daily times are saved as local time with no UTC offset, so they keep their
+clock time when daylight saving changes (`scripts/NovaTaskTrigger.ps1`, #14).
+Tasks registered before 2026-11-16 carry the summer offset and run an hour
+early in winter: run `Install-NovaDailyTask.ps1` once to fix them. A port
+counts as open when Windows lists it or it accepts a connection
+(`scripts/NovaPortProbe.ps1`): the listing alone missed the Gateway's 4001.
+
 ```powershell
 # Register all of the above (machine should be on Eastern Time)
 .\scripts\Install-NovaDailyTask.ps1

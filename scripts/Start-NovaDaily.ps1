@@ -74,10 +74,12 @@ function Write-DailyLog {
     Write-Host $line -ForegroundColor $color
 }
 
+# Windows' listing can miss an open port; a connection proves it (#14).
+. (Join-Path $PSScriptRoot "NovaPortProbe.ps1")
+
 function Test-PortListening {
     param([int]$Port)
-    $conn = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
-    return [bool]$conn
+    return (Test-NovaPortOpen $Port)
 }
 
 function Test-HttpOk {

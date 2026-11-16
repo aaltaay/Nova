@@ -24,6 +24,7 @@ $script:NovaMutexName = 'Local\NovaLocalhostWatchdog'
 $script:NovaPriorityHelper = Join-Path $PSScriptRoot 'NovaProcessPriority.ps1'
 # Guarded: a pull can land this file before the helper, and the watchdog restarts on the change.
 if (Test-Path -LiteralPath $script:NovaPriorityHelper) { . $script:NovaPriorityHelper }
+. (Join-Path $PSScriptRoot 'NovaPortProbe.ps1')
 
 function Write-NovaLog([string]$Message) {
   try {
@@ -47,18 +48,9 @@ function Set-NovaLauncherPriority([switch]$Always) {
 }
 
 function Test-NovaPort([int]$Port) {
-  # Prefer netstat - Get-NetTCPConnection often fails under limited/module-load contexts.
-  try {
-    $hit = netstat -ano 2>$null | Select-String -Pattern (":$Port\s+.*LISTENING") | Select-Object -First 1
-    if ($hit) { return $true }
-  } catch {}
-  try {
-    $c = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
-      Select-Object -First 1
-    return [bool]$c
-  } catch {
-    return $false
-  }
+  # The listing first (netstat, then Get-NetTCPConnection); a "no" is proved with a
+  # connection, because the listing can miss an open port (#14).
+  return (Test-NovaPortOpen $Port)
 }
 
 function Test-NovaApiHealthy {

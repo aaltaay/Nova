@@ -36,7 +36,8 @@ $viteBackoffMin = 10
 $scriptFiles = @(
   $PSCommandPath,
   (Join-Path $PSScriptRoot 'NovaLocalhost.Common.ps1'),
-  (Join-Path $PSScriptRoot 'NovaProcessPriority.ps1')
+  (Join-Path $PSScriptRoot 'NovaProcessPriority.ps1'),
+  (Join-Path $PSScriptRoot 'NovaPortProbe.ps1')
 )
 function Get-NovaScriptStamp {
   ($scriptFiles | ForEach-Object { (Get-Item -LiteralPath $_ -ErrorAction SilentlyContinue).LastWriteTimeUtc.Ticks }) -join ','

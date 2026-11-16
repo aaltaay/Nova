@@ -6,6 +6,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 try {
+    . (Join-Path $PSScriptRoot 'NovaTaskTrigger.ps1')
     $RepoRoot = (Resolve-Path -LiteralPath $RepoRoot).Path
     if (-not (Test-Path -LiteralPath (Join-Path $RepoRoot '.git') -PathType Container)) {
         Write-Output 'Repo maintenance: skipped (not a main Git checkout).'
@@ -52,6 +53,8 @@ try {
             $actions[0].WorkingDirectory -eq $RepoRoot -and
             $triggers[0].Enabled -and $triggers[0].DaysInterval -eq 1 -and
             ([DateTime]$triggers[0].StartBoundary).ToString('HH:mm') -eq $AtTime -and
+            # A start saved with a UTC offset runs an hour off after the clocks change (#14).
+            (Test-NovaTriggerFollowsClock $triggers[0]) -and
             $task.Settings.StartWhenAvailable -and
             $task.Settings.MultipleInstances -eq 'IgnoreNew' -and
             $task.Settings.RestartCount -eq 3 -and
@@ -68,7 +71,7 @@ try {
         exit 0
     }
     $action = New-ScheduledTaskAction -Execute $execute -Argument $arguments -WorkingDirectory $RepoRoot
-    $trigger = New-ScheduledTaskTrigger -Daily -At $at
+    $trigger = New-NovaDailyTrigger $at
     $settings = New-ScheduledTaskSettingsSet -Priority $priority -StartWhenAvailable -MultipleInstances IgnoreNew `
         -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
         -ExecutionTimeLimit (New-TimeSpan -Minutes 15) `
