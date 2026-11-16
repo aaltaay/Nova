@@ -51,11 +51,8 @@ function Write-CheckLog {
     Write-Host $line -ForegroundColor $color
 }
 
-function Test-PortListening {
-    param([int]$Port)
-    $conn = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
-    return [bool]$conn
-}
+# Windows' listing can miss an open port; a connection proves it (#14).
+. (Join-Path $PSScriptRoot "NovaPortProbe.ps1")
 
 function Get-Json {
     param([string]$Url, [int]$TimeoutSec = 8)
@@ -183,11 +180,19 @@ $failedLeg = $null
 $failedDetail = $null
 
 # 1. Gateway API port
-if ((Test-PortListening 4001) -or (Test-PortListening 4002)) {
-    Write-CheckLog "gateway_port listening" "PASS"
+$gatewayPort = 0
+$gatewayProof = ""
+foreach ($port in @(4001, 4002)) {
+    $gatewayProof = Get-NovaPortProof $port
+    if ($gatewayProof) { $gatewayPort = $port; break }
+}
+if ($gatewayProof -eq "listing") {
+    Write-CheckLog "gateway_port $gatewayPort listening" "PASS"
+} elseif ($gatewayProof -eq "connect") {
+    Write-CheckLog "gateway_port $gatewayPort accepts a connection (Windows does not list it)" "PASS"
 } else {
     $failedLeg = "gateway_port"
-    $failedDetail = "neither 4001 nor 4002 listening"
+    $failedDetail = "neither 4001 nor 4002 is listed or accepts a connection"
     Write-CheckLog $failedDetail "ERROR"
 }
 
