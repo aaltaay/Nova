@@ -465,6 +465,29 @@ timestamps and cannot populate `full_logins` or a known weekday failure;
 positively dated records retain their counts even if other evidence is partial.
 The shared `ibkr/relogin_reason.py` operator-diagnostic contract stays unchanged.
 
+**Open ports and daily task times (#14, 2026-11-16).** Two rules for every
+script under `scripts/`:
+
+- *A port is open when Windows lists it or it accepts a connection.*
+  `scripts/NovaPortProbe.ps1` owns the test: `Get-NovaPortProof <port>` returns
+  `"listing"`, `"connect"` or `""` (closed), and `Test-NovaPortOpen` its truth.
+  The listing (`netstat`, `Get-NetTCPConnection -State Listen`) is asked first;
+  a "no" is believed only after a connection to `127.0.0.1` and `::1` (400 ms
+  each, nothing sent) also fails. No other script decides a port is closed from
+  the listing; `Stop-NovaPorts.ps1` reads it only to find the owning process.
+  `morning-check.log` says which proof passed: `gateway_port 4001 listening` or
+  `gateway_port 4001 accepts a connection (Windows does not list it)`.
+- *A daily trigger is local time with no UTC offset.*
+  `scripts/NovaTaskTrigger.ps1` owns it: `New-NovaDailyTrigger <DateTime>`
+  writes `StartBoundary` as `yyyy-MM-ddTHH:mm:ss`, and
+  `Test-NovaTriggerFollowsClock` is false for a start that carries an offset or
+  `Z`. No script calls `New-ScheduledTaskTrigger -Daily` itself. A start saved
+  with an offset runs an hour off after a clock change, outside the verifier's
+  03:50-04:05 `unattended` window; `Ensure-NovaMaintenanceTask.ps1` re-registers
+  such a task, and `Install-NovaDailyTask.ps1` run once fixes the other two.
+
+Both rules are pinned by `backend/tests/test_port_probe_and_task_times.py`.
+
 ## Release notes and the update notice (operator ask, 2026-09-23)
 
 **The release record.** Each `vNNN` GitHub Release body carries one hidden
