@@ -95,7 +95,6 @@
   flex: 0 0 30px;
   width: 30px;
   height: 18px;
-  margin-left: 3px;
   padding: 0;
   border: 0;
   border-radius: 9px;
@@ -115,7 +114,7 @@
 }
 .brain-switch.is-on { background: var(--brain-green); }
 .brain-switch.is-on::after { left: 14px; background: #fff; }
-.brain-switch.is-big { flex-basis: 42px; width: 42px; height: 24px; margin-left: 0; border-radius: 12px; }
+.brain-switch.is-big { flex-basis: 42px; width: 42px; height: 24px; border-radius: 12px; }
 .brain-switch.is-big::after { width: 20px; height: 20px; }
 .brain-switch.is-big.is-on::after { left: 20px; }
 .brain-switch:disabled { opacity: 0.5; cursor: default; }

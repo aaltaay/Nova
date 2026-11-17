@@ -17,6 +17,7 @@ import {
   brainPillTitle,
   brainPillWords,
   brainPositionRow,
+  brainPositionText,
   brainSubLine,
   brainSwitchTip,
   brainTodayRow,
@@ -99,11 +100,16 @@ describe("the panel's rows", () => {
   });
 
   it('Position: "200 XLAB at 4.32 · now 4.53", a handed trade as yours to close, or None', () => {
-    expect(line(brainPositionRow(brainStatus()))).toBe('200 XLAB at 4.32 · now 4.53');
-    expect(line(brainPositionRow(brainStatus(BRAIN_HANDED)))).toBe('200 XLAB · yours to close · stop 4.19');
-    expect(line(brainPositionRow(brainStatus(BRAIN_OFF)))).toBe('None');
+    const text = (s: ReturnType<typeof brainStatus>) => brainPositionText(brainPositionRow(s));
+    expect(brainPositionRow(brainStatus())).toEqual({
+      short: false, qty: '200', symbol: 'XLAB', at: '4.32', now: '4.53', handed: false, stop: null,
+    });
+    expect(text(brainStatus())).toBe('200 XLAB at 4.32 · now 4.53');
+    expect(text(brainStatus(BRAIN_HANDED))).toBe('200 XLAB · yours to close · stop 4.19');
+    expect(brainPositionRow(brainStatus(BRAIN_OFF))).toBeNull();
+    expect(text(brainStatus(BRAIN_OFF))).toBe('None');
     const short = brainStatus({ position: { symbol: 'XLAB', qty: -200, avg_cost: 4.32, mark: null, unrealized_pnl: null } });
-    expect(line(brainPositionRow(short))).toBe('Short 200 XLAB at 4.32');
+    expect(text(short)).toBe('Short 200 XLAB at 4.32');
   });
 
   it('Today: the P&L, a meter that fills as the loss nears the day stop, and the stop', () => {

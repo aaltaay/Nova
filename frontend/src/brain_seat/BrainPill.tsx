@@ -24,7 +24,7 @@ function BrainPillText({ words }: { words: BrainPillWords }) {
     <span className="brain-pill__text">
       {words.lead}
       {words.rest ? <i> {words.rest}</i> : null}
-      {words.pnl ? <span className={`brain-num is-${words.pnl.tone}`}> {words.pnl.text}</span> : null}
+      {words.pnl ? <> <span className={`brain-num is-${words.pnl.tone}`}>{words.pnl.text}</span></> : null}
     </span>
   );
 }

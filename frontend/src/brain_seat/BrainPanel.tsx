@@ -10,6 +10,8 @@ import {
   BRAIN_NOT_RUNNING_TIP,
   BRAIN_PANEL_LABEL,
   BRAIN_PNL_UNKNOWN,
+  BRAIN_POSITION_HANDED,
+  BRAIN_POSITION_NONE,
   BRAIN_READING_HEAD,
   BRAIN_READING_LANE,
   BRAIN_READING_LEVEL1,
@@ -25,6 +27,7 @@ import {
   brainSubLine,
   brainTodayRow,
   type BrainPillWords,
+  type BrainPositionRow,
   type BrainSymbolWords,
 } from './brainWords';
 import { BrainMark } from './BrainMark';
@@ -38,6 +41,21 @@ function SymbolWords({ words }: { words: BrainSymbolWords }) {
       {words.before}
       {words.symbol ? <b><TickerLink symbol={words.symbol} look="own" /></b> : null}
       {words.after}
+    </span>
+  );
+}
+
+/** "200 XLAB at 4.32 · now 4.53": the figures in mono, as the mockup sets them. */
+function PositionWords({ row }: { row: BrainPositionRow | null }) {
+  if (!row) return <span>{BRAIN_POSITION_NONE}</span>;
+  return (
+    <span>
+      {row.short ? 'Short ' : null}
+      <span className="brain-num">{row.qty}</span> <b><TickerLink symbol={row.symbol} look="own" /></b>
+      {row.at ? <> at <span className="brain-num">{row.at}</span></> : null}
+      {row.now ? <> · now <span className="brain-num">{row.now}</span></> : null}
+      {row.handed ? ` · ${BRAIN_POSITION_HANDED}` : null}
+      {row.stop ? <> · stop <span className="brain-num">{row.stop}</span></> : null}
     </span>
   );
 }
@@ -75,7 +93,7 @@ export function BrainPanel({ status, words, press, readError }: {
         </div>
         <div className="brain-panel__row" data-testid="brain-panel-position">
           <span>Position</span>
-          <SymbolWords words={brainPositionRow(status)} />
+          <PositionWords row={brainPositionRow(status)} />
         </div>
         <div className="brain-panel__row" data-testid="brain-panel-today">
           <span>Today</span>

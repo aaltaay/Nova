@@ -135,23 +135,49 @@ export function brainLaneRow(lane: BrainSeatLane): BrainSymbolWords {
   return { before: 'Level 2 + Time & Sales on ', symbol: lane.symbol, after: '' };
 }
 
-/**
- * The panel's "Position" row: "200 XLAB at 4.32 · now 4.53"; a trade it handed you while Off reads
- * "200 XLAB · yours to close · stop 4.19"; "None" with neither.
- */
-export function brainPositionRow(status: BrainSeatStatus): BrainSymbolWords {
+/** The panel's "Position" row in its parts: the figures are set in mono, the ticker opens its Trader tab. */
+export interface BrainPositionRow {
+  /** A short says so before its size. */
+  short: boolean;
+  qty: string;
+  symbol: string;
+  /** Its average cost; null when the answer has none, or for a handed trade. */
+  at: string | null;
+  /** Its mark now; null when the answer has none, or for a handed trade. */
+  now: string | null;
+  /** The brain handed it to you while Off: yours to close. */
+  handed: boolean;
+  /** A handed trade's resting stop; null with none resting. */
+  stop: string | null;
+}
+
+export const BRAIN_POSITION_NONE = 'None';
+export const BRAIN_POSITION_HANDED = 'yours to close';
+
+/** The brain's open trade, else the trade it handed you while Off; null with neither. */
+export function brainPositionRow(status: BrainSeatStatus): BrainPositionRow | null {
   const p = status.position;
   if (p) {
-    const at = p.avg_cost === null ? '' : ` at ${fmtPrice(p.avg_cost)}`;
-    const now = p.mark === null ? '' : ` · now ${fmtPrice(p.mark)}`;
-    return { before: `${p.qty < 0 ? 'Short ' : ''}${fmtQty(Math.abs(p.qty))} `, symbol: p.symbol, after: `${at}${now}` };
+    return {
+      short: p.qty < 0, qty: fmtQty(Math.abs(p.qty)), symbol: p.symbol,
+      at: p.avg_cost === null ? null : fmtPrice(p.avg_cost), now: p.mark === null ? null : fmtPrice(p.mark),
+      handed: false, stop: null,
+    };
   }
   const h = status.handed[0];
-  if (h) {
-    const stop = h.stop_price === null ? '' : ` · stop ${fmtPrice(h.stop_price)}`;
-    return { before: `${fmtQty(Math.abs(h.qty))} `, symbol: h.symbol, after: ` · yours to close${stop}` };
-  }
-  return { before: 'None', symbol: null, after: '' };
+  if (!h) return null;
+  return {
+    short: h.qty < 0, qty: fmtQty(Math.abs(h.qty)), symbol: h.symbol, at: null, now: null, handed: true,
+    stop: h.stop_price === null ? null : fmtPrice(h.stop_price),
+  };
+}
+
+/** The row as one line: "200 XLAB at 4.32 · now 4.53", "200 XLAB · yours to close · stop 4.19", "None". */
+export function brainPositionText(row: BrainPositionRow | null): string {
+  if (!row) return BRAIN_POSITION_NONE;
+  return `${row.short ? 'Short ' : ''}${row.qty} ${row.symbol}${row.at ? ` at ${row.at}` : ''}`
+    + `${row.now ? ` · now ${row.now}` : ''}${row.handed ? ` · ${BRAIN_POSITION_HANDED}` : ''}`
+    + `${row.stop ? ` · stop ${row.stop}` : ''}`;
 }
 
 export interface BrainTodayRow {
