@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from constants_owners import OWNER_CLAUDE, OWNER_NAMES, TAKEOVER_CODE
+from constants_owners import OWNER_BRAIN, OWNER_CLAUDE, OWNER_NAMES, TAKEOVER_CODE
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +86,11 @@ async def turn_off(trader: str, by: str, now: float | None = None) -> list[str]:
         from agent_trader import seat
 
         seat.switch_off(steps, t)
+    elif trader == OWNER_BRAIN:
+        from brain import session as brain_session
+
+        for i, step in enumerate(steps):
+            brain_session.event("switch_off" if i == 0 else "handed", step, now=t)
     for step in steps:
         logger.info("TRADERS: %s", step)
     return steps

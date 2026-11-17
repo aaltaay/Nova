@@ -46,9 +46,12 @@ const KIND_LABELS: Record<string, string> = {
   forex: 'Forex page',
 };
 
-/** Who holds a Level 2 line (ADR 071): the lanes on its stock, joined with `+`; `no lane` / `replay` otherwise. */
+/**
+ * Who holds a Level 2 line (ADR 071): the lanes on its stock, joined with `+`; `no lane` / `replay` otherwise. Lane 3
+ * is the brain's (ADR 072 decision 10); a backend from before it still names the holder `bots`, shown as written.
+ */
 const HELD_BY_LABELS: Record<string, string> = {
-  you: 'your lane', claude: "Claude's lane", bots: "the bots' lane", 'no lane': 'no lane', replay: 'the Sim replay',
+  you: 'your lane', claude: "Claude's lane", brain: "the brain's lane", 'no lane': 'no lane', replay: 'the Sim replay',
 };
 
 const heldBy = (raw: unknown): string =>

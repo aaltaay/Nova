@@ -96,12 +96,13 @@ EXECUTION_ORIGINS = (
     "margin_call",    # ADR 048: equity under maintenance -- IBKR liquidates, so Paper and Sim do
     "live_trader",    # ADR 055: the Live Trader bot's steps and closes, Paper only
     "claude",         # ADR 068: Claude's seat -- its entries, closes and cancels, Paper only
+    "brain",          # ADR 072: the brain's door -- its entries, stop moves, closes and cancels, Paper only
     "close_bots",     # ADR 069: your Close on a bots' row -- retired with the bots (ADR 072); rows keep the label
     "takeover",       # ADR 072: a switched-off trader's unfilled entries, and its exits before your close of a handed stock
 )
 EXECUTION_OPS = ("place", "bracket", "cancel", "replace", "exit_oco")
 # ADR 072: the retired senders. Their rows keep their labels; the door refuses any new order of theirs (a close or
-# cancel of what they still hold still goes). ``bot_api`` sends again once it is the brain's door, stamped ``brain``.
+# cancel of what they still hold still goes). The brain sends through its own door (``backend/brain/``), stamped ``brain``; ``bot_api`` stays closed.
 RETIRED_SENDER_ORIGINS = ("bot", "auto_entry", "approve", "bot_api", "nova_exit", "live_trader")
 RETIRED_SENDER_OPS = ("place", "bracket", "replace", "exit_oco")
 BOTS_RETIRED_CODE = "BOTS_RETIRED"

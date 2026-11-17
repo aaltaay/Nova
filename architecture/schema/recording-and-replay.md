@@ -233,10 +233,10 @@ Operator, 2026-11-12: "the recording only starts when bots, Claude, or I are wat
 random recorders when nobody's watching anything". 2026-11-13, on three recordings of setups that had ended: "I no
 longer want to see these recordings being automatically recorded".
 
-- **Owner:** `backend/line_lanes/recording.py`, ticking with the bots' lane (`LANES_BOTS_TICK_SEC`) and at once on
+- **Owner:** `backend/line_lanes/recording.py`, ticking with the lanes (`LANES_TICK_SEC`) and at once on
   every lane move. Memory only.
 - **What is recorded**, while the switch is On (below), on a desk whose lines are live:
-  - the bots' lane's stock, while it is on the lane;
+  - the brain's lane's stock, while it is on the lane;
   - Claude's lane's stock, while it is on the lane;
   - your lane's stock while you watch it -- a fresh window of the desk shows it in front (the focus sensor, ADR
     033: a visible, not minimized window's Trader tab, a pop-out's, the Desk's Trader slot), or a socket opened with

@@ -18,7 +18,7 @@ export const recordingChipTitle = (args: {
   l2: number; lastWriteAgeSec: number | null; reacquired: number; dir: string | null;
   /** Recorded because a lane watches it (ADR 071), not by hand. */
   auto?: boolean;
-  /** Whose lane, and the bots' setup and why, in words ("the bots' lane · 5-minute flat top · near its trigger"). */
+  /** Whose lane, and the brain's own words for naming the stock ("the brain's lane · holding the 4.30 bid"). */
   autoWhy?: string | null;
 }): string => {
   const resumed = Boolean(args.segment && args.segment > 1);
@@ -40,14 +40,8 @@ export const recordingChipTitle = (args: {
 /** REC chip card: a recording a lane keeps (ADR 071). */
 export const LANE_RECORD_CHIP_LINE = 'lane -- recorded while a lane watches it; it ends when the lane leaves, and Records turns it off';
 /** Whose lane records the stock (ADR 071): Records and the REC chip's card. */
-export const LANE_OWNER_WORDS: Record<'you' | 'claude' | 'bots', string> = {
-  you: 'your lane', claude: "Claude's lane", bots: "the bots' lane",
-};
-/** Why the bots' lane is on a setup, after its name (Records and the REC chip's card, operator ask 2026-10-14). */
-export const AUTO_RECORD_WHY_WORDS: Record<string, string> = {
-  trade: 'in a trade being scored',
-  near: 'near its trigger',
-  armed: 'armed, waiting on its trigger',
+export const LANE_OWNER_WORDS: Record<'you' | 'claude' | 'brain', string> = {
+  you: 'your lane', claude: "Claude's lane", brain: "the brain's lane",
 };
 /** The REC chip's card stops its recording with the Record menu's hold, from any page. */
 export const RECORDING_CHIP_STOP = 'Hold to stop';

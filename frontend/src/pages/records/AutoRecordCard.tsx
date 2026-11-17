@@ -1,7 +1,7 @@
 /**
  * The recording switch's card on Records (operator ask 2026-10-14; ADR 071): On, Off for today, Off -- what
  * the lanes record now, and what turning it off stops. Nova records a stock while a lane watches it: yours,
- * Claude's seat's or the bots'. Every state comes from `/api/ibkr/status` `lanes` and `recording_switch`;
+ * Claude's seat's or the brain's. Every state comes from `/api/ibkr/status` `lanes` and `recording_switch`;
  * with no switch in the status the switch is locked and says why.
  */
 import { LANE_OWNER_WORDS } from '../../capture/constants';
@@ -44,7 +44,7 @@ function untilWords(until: number | null, nowSec: number): string {
   return `${hm(etMinute(until))} ET${sameDay ? '' : ' tomorrow'}`;
 }
 
-/** "XLAB (your lane), AISP (the bots' lane)". */
+/** "XLAB (your lane), AISP (the brain's lane)". */
 export function laneSymbolsWords(rec: LaneRecording): string {
   return joinWords(rec.symbols.map(s => {
     const owners = (rec.owners[s] ?? []).map((o: LaneOwner) => LANE_OWNER_WORDS[o]);

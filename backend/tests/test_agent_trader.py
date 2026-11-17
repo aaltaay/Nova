@@ -117,7 +117,7 @@ def test_the_level_2_panel_says_where_your_level_2_is():
     lanes._lanes = lanes.table().__class__(you="XLAB")
     frame = refusal_frame("TGHL", {"ok": False, "lane": True,
                                    "error": "Your Level 2 is on XLAB -- open TGHL in front to bring it here."})
-    assert frame["evicted"] is True and frame["lane"] == {"you": "XLAB", "claude": None, "bots": None}
+    assert frame["evicted"] is True and frame["lane"] == {"you": "XLAB", "claude": None, "brain": None}
     assert "Your Level 2 is on XLAB" in frame["message"]
 
 

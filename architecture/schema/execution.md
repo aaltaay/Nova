@@ -223,9 +223,9 @@ All buy/sell/cancel/replace requests enter `execution.service.execute` with:
 **Origins under ADR 072 (three traders, `traders.md`).** Built in batch 3: `takeover` is in the origins; the cancels
 it names are the practice broker's own, made inside the placement or the switch's Off (source `cancel_working`, code
 `TAKEOVER`, never a second send through the door), and `venue_door` refuses any `brain` send to Live beside
-`claude`'s. The door refuses a new order stamped `claude` or `brain` while its switch is Off (`TRADER_OFF`). Still to
-come (batch 4), as confirmed: `brain` joins the origins: the
-brain's entries, stop moves, closes and cancels through its door, on Paper and Sim only -- `venue_door` refuses any
+`claude`'s. The door refuses a new order stamped `claude` or `brain` while its switch is Off (`TRADER_OFF`). Built
+with the brain's door (`bot.md`): `brain` is in the origins: the
+brain's entries, stop moves, closes and cancels through its door, on Paper (its Sim door is still to come) -- `venue_door` refuses any
 `brain` send to Live, as it does `claude`'s ("Neither Claude nor the brain trades Live."). `loss_limit_claude` and
 `loss_limit_brain` are a trader's loss line's Auto sell (`loss-limit.md`, "Four lines"), and `takeover` the cancels a
 switch turned Off makes and the cancels of a trader's resting exits before your close of a handed position. Nothing

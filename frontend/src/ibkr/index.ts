@@ -117,7 +117,7 @@ export { ShortabilityChip } from './ShortabilityChip';
 export { WorkingOrdersPanel } from './WorkingOrdersPanel';
 // ADR 071: the three lanes -- who holds each Level 2 and Time & Sales line, and what Nova records.
 export { LANE_OWNERS, laneRecording, lanesOn, parseLanes, readLanes } from './lanes';
-export type { BotsLane, BotsLaneSetup, Lane, LaneOwner, LaneRecording, LanesView } from './lanes';
+export type { BrainLane, Lane, LaneOwner, LaneRecording, LanesView } from './lanes';
 // ADR 047 amendment (2026-10-12): the day's LULD band, step by step, for the 1-minute chart.
 export { fmtBand } from './luld';
 export { readLuldTrail } from './luldTrail';

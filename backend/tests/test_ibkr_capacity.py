@@ -32,7 +32,7 @@ def test_the_view_reads_every_cap(monkeypatch):
     monkeypatch.setattr(ticks, "ticker_budget_status", lambda: {
         "reqMktData_lines": 48, "reqMktData_limit": 100, "reqMktData_cap": 53, "reqMktData_refused": 0,
         "reqMktData_by_owner": {"scanner": 45, "hod": 23, "live_trader": 2, "depth": 0}})
-    lanes._lanes = Lanes(you="AAPL", bots="AAPL")
+    lanes._lanes = Lanes(you="AAPL", brain="AAPL")
     monkeypatch.setattr(depth, "subscribed_symbols", lambda: ["AAPL", "NFLX", "RPLY"])
     monkeypatch.setattr(depth, "is_live", lambda s: s != "RPLY")
     monkeypatch.setattr(historical_service, "pacing_snapshot", lambda: {
@@ -43,7 +43,7 @@ def test_the_view_reads_every_cap(monkeypatch):
     v = capacity.view(now=1.0)
     assert v["l1"] == {"used": 48, "cap": 53, "cap_learned": True, "reserve": 5, "refused": 0,
                        "by_owner": {"scanner": 45, "hod": 23, "live_trader": 2}}
-    assert v["l2"] == {"used": 3, "cap": 3, "symbols": [{"symbol": "AAPL", "held_by": "you+bots"},
+    assert v["l2"] == {"used": 3, "cap": 3, "symbols": [{"symbol": "AAPL", "held_by": "you+brain"},
                                                         {"symbol": "NFLX", "held_by": "no lane"},
                                                         {"symbol": "RPLY", "held_by": "replay"}]}
     assert v["history"]["used"] == 60 and v["history"]["next_free_sec"] == 102.5

@@ -8,7 +8,7 @@ import pytest
 
 from line_lanes import lanes
 from line_lanes import sockets as lane_sockets
-from line_lanes.table import BOTS, CLAUDE, YOU
+from line_lanes.table import BRAIN, CLAUDE, YOU
 
 
 class _Lines:
@@ -149,11 +149,11 @@ def test_claudes_lane_is_the_seats_and_never_yours(desk):
 def test_a_stock_two_lanes_are_on_is_one_pair_of_lines_and_ends_with_the_last(desk):
     book, tape = desk
     _open_pane("XLAB")
-    asyncio.run(lanes.put(BOTS, "XLAB"))
-    assert book.asked == ["XLAB"] and lanes.table().owners_of("XLAB") == (YOU, BOTS)
-    _open_pane("TGHL")                                              # you leave: the bots still watch XLAB
+    asyncio.run(lanes.put(BRAIN, "XLAB"))
+    assert book.asked == ["XLAB"] and lanes.table().owners_of("XLAB") == (YOU, BRAIN)
+    _open_pane("TGHL")                                              # you leave: the brain still watches XLAB
     assert "XLAB" in book.up and book.ended == []
-    asyncio.run(lanes.put(BOTS, None))
+    asyncio.run(lanes.put(BRAIN, None))
     assert book.ended == ["XLAB"] and tape.ended == ["XLAB"]
 
 
@@ -175,7 +175,7 @@ def test_a_recording_ends_before_its_stocks_lines_do(desk):
 
 def test_ensure_asks_again_for_a_lane_line_ibkr_ended(desk):
     book, tape = desk
-    asyncio.run(lanes.put(BOTS, "AISP"))
+    asyncio.run(lanes.put(BRAIN, "AISP"))
     tape.up.discard("AISP")                                         # IBKR ended the AllLast line
     asyncio.run(lanes.ensure())
     assert "AISP" in tape.up and tape.asked == ["AISP", "AISP"]

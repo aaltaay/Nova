@@ -1,19 +1,19 @@
 /**
  * What records now, on top of Records (operator ask 2026-10-14: "i need a way
  * to turn off the recording"). Each live Session Record says who started it --
- * a lane (whose, and the bots' setup and why; ADR 071) or you -- how long it has run, its counts and
+ * a lane (whose, and the brain's own words for naming its stock; ADR 071,
+ * ADR 072) or you -- how long it has run, its counts and
  * a timeline from its first start to now, with Open in Trader and a held Stop.
  * Hold to stop all ends every one. With nothing recording, the card says why
  * nothing will start and offers the door that would.
  */
 import { useState } from 'react';
 import { captureStopHoldLabel, HoldToStopButton, startTabRecord, stopAllRecords, stopTabRecord } from '../../capture';
-import { AUTO_RECORD_WHY_WORDS, LANE_OWNER_WORDS, recordingChipHolding } from '../../capture/constants';
+import { LANE_OWNER_WORDS, recordingChipHolding } from '../../capture/constants';
 import { elapsedClockLabel, recordingView } from '../../capture/recordingSignalModel';
 import { NAV_RAIL_RECORDING_MAX } from '../../constantGroups/nav_rail';
 import { laneRecording, type LaneOwner } from '../../ibkr';
 import type { IbkrClientStatus } from '../../ibkr/ibkrStatusPoller';
-import { setupLabel } from '../../setups';
 import type { CaptureSessionRow } from '../../sim/useSimSessionController';
 import { whyProps } from '../../ux/whyTip';
 import {
@@ -66,13 +66,12 @@ const isoSec = (iso: string | null | undefined): number | null => {
   return Number.isFinite(ms) ? ms / 1000 : null;
 };
 
-/** Who started it and why, in one line: "The bots' lane · First pullback · near its trigger". */
-function whoLine(owners: readonly LaneOwner[], setup: string | null, why: string | null): string {
+/** Who started it and why, in one line: "The brain's lane · holding the 4.30 bid" (the brain's words, as written). */
+function whoLine(owners: readonly LaneOwner[], why: string | null): string {
   if (!owners.length) return RECORDS_STARTED_BY_YOU;
   const lanes = owners.map(o => LANE_OWNER_WORDS[o]).join(' + ');
   const parts = [lanes.charAt(0).toUpperCase() + lanes.slice(1)];
-  if (setup) parts.push(setupLabel(setup));
-  if (why) parts.push(AUTO_RECORD_WHY_WORDS[why] ?? why);
+  if (why) parts.push(why);
   return parts.join(' · ');
 }
 
@@ -184,7 +183,7 @@ export function RecordingNowCard({ status, symbols, todayRows, nowMs, onOpenTrad
               <span className={`records-tag ${isAuto ? 'is-auto' : 'is-you'}`}>{isAuto ? RECORDS_TAG_AUTO : RECORDS_TAG_YOU}</span>
             </div>
             <div className="records-now__who">
-              <div className="records-now__why">{whoLine(owners, rec.setup[symbol] ?? null, rec.why[symbol] ?? null)}</div>
+              <div className="records-now__why">{whoLine(owners, rec.why[symbol] ?? null)}</div>
               <div className="records-now__line">
                 {recordsSegmentLine({
                   elapsed: elapsedClockLabel(view?.segmentSinceMs ?? view?.sinceMs ?? null),

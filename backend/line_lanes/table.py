@@ -10,8 +10,8 @@ from dataclasses import dataclass, replace
 
 YOU = "you"
 CLAUDE = "claude"
-BOTS = "bots"
-OWNERS = (YOU, CLAUDE, BOTS)
+BRAIN = "brain"
+OWNERS = (YOU, CLAUDE, BRAIN)
 
 
 @dataclass(frozen=True)
@@ -20,14 +20,14 @@ class Lanes:
 
     you: str | None = None
     claude: str | None = None
-    bots: str | None = None
+    brain: str | None = None
 
     def on(self, owner: str) -> str | None:
         return getattr(self, _owner(owner))
 
     def stocks(self) -> tuple[str, ...]:
         """Every stock a lane is on, once each, sorted: the IBKR line pairs in use (three at most)."""
-        return tuple(sorted({s for s in (self.you, self.claude, self.bots) if s}))
+        return tuple(sorted({s for s in (self.you, self.claude, self.brain) if s}))
 
     def owners_of(self, symbol: str) -> tuple[str, ...]:
         """The owners whose lane is on ``symbol``, in ``OWNERS`` order."""

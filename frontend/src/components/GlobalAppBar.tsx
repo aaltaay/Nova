@@ -3,7 +3,8 @@
  * every live page inherits it. One row, left to right on every view:
  *
  *   wordmark · session chip · ET clock · connection chip · venue pills · REC
- *   chips · CLIP chips (ADR 039) · screen recording chip (ADR 035) · [ticker search, centred] ·
+ *   chips · CLIP chips (ADR 039) · screen recording chip (ADR 035) · Claude's pill ·
+ *   the brain's pill (ADR 072) · [ticker search, centred] ·
  *   Emergency KILL · Freeze · Day's / Working / Positions / TAV
  *   / account pill · mute · padlock · gear
  *
@@ -22,6 +23,7 @@ import { GLOBAL_BAR_BRAND } from '../constants';
 import { RecordingChip } from '../capture/RecordingChip';
 import { RecordingSignals } from '../capture/RecordingSignals';
 import { ScreenRecordChip } from '../screen_record';
+import { BrainPill } from '../brain_seat';
 import { ClaudeSeatPill } from '../claude_seat';
 import { ClipChips, ClipExportHost, ClipToasts } from '../clips';
 import { GlobalBarBotRow } from '../bot/GlobalBarBotRow';
@@ -158,6 +160,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
           <ClipChips />
           <ScreenRecordChip />
           <ClaudeSeatPill />
+          <BrainPill />
         </div>
 
         <div className="global-app-bar__center" data-testid="global-bar-center">

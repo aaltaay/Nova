@@ -1,7 +1,7 @@
 """``GET /api/traders``: Claude and the brain as the header pills and their panels show them (``traders.md``).
 
-Read-only. Claude's state, stock, position and note are its seat's (``agent_trader.view``); the brain has no door
-yet (ADR 072 build order 4), so it reads Off or Watching with what its book holds. Figures are the desk venue's
+Read-only. Claude's state, stock, position and note are its seat's (``agent_trader.view``); the brain's are its
+door's (``brain.view``). Figures are the desk venue's
 account (Paper on Live, where neither trades).
 """
 from __future__ import annotations
@@ -109,11 +109,25 @@ def trader_view(trader: str, switch: dict[str, Any], now: float) -> dict[str, An
         tail = f" · {handed_rows[0]['symbol']} is yours to close" if handed_rows else ""
         out["text"] = (f"{_SHORT[trader]} · Done for today{_money(today['pnl'])}" if out["done_for_today"]
                        else f"{_SHORT[trader]} · Off{tail}")
-    elif trader == OWNER_BRAIN:
-        out["state"] = TRADER_STATE_IN_TRADE if position else TRADER_STATE_WATCHING
-        out["text"] = (f"Brain · In {position['symbol']}{_money(position['unrealized_pnl'])}" if position
-                       else "Brain · Watching")
+    if trader == OWNER_BRAIN:
+        _brain(out)
     return out
+
+
+def _brain(out: dict[str, Any]) -> None:
+    """The brain's door says its lane, note, reading list and events, and its state and words while it is On."""
+    from brain import view as brain_view
+
+    try:
+        brain_view.fill_trader(out)
+    except Exception:
+        logger.warning("TRADERS: the brain's door could not be read", exc_info=True)
+        out.setdefault("connected", False)
+        out.setdefault("reading", [])
+        out.setdefault("events", [])
+        if out["on"]:
+            out["state"] = TRADER_STATE_IN_TRADE if out.get("position") else TRADER_STATE_WATCHING
+            out["text"] = "Brain · On"
 
 
 def _claude(out: dict[str, Any]) -> None:

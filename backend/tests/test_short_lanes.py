@@ -110,32 +110,3 @@ def test_a_short_arms_triggers_downward_and_scores_with_its_side_and_ssr(tmp_pat
     last(eng, 5.25, clock["t"], 5.48)                              # under target 1: target first
     run(eng, clock["t"])
     assert eng.store.rows()[0]["outcome"] == "target_first"
-
-
-def test_the_bots_lane_takes_a_short_setup_only_while_its_strategy_is_on():
-    """#778 step 5 / ADR 071: the bot trades a short at On, and a trigger without the bots' lane reads BLIND."""
-    from types import SimpleNamespace
-
-    from constants_bot import BOT_LEVEL_EYES, BOT_LEVEL_STRATEGY
-    from line_lanes.bots_pick import pick
-
-    class Lane:
-        def __init__(self, short):
-            self.setup = SETUP if short else "first_pullback"
-            self.det = {"X": SimpleNamespace(state="near")}
-            self.active_id = {"X": f"{self.setup}-X"}
-            self.rows: dict = {}
-
-        def trades(self, now):
-            return []
-
-        def watching(self):
-            return ["X"]
-
-    def got(levels):
-        return [(c.symbol, c.why) for c in pick([Lane(short=True)], levels, {"X"}, 0.0)]
-
-    assert got({SETUP: BOT_LEVEL_EYES}) == []                                   # at Eyes or Off
-    assert [(c.symbol, c.why) for c in pick([Lane(short=False)], {"first_pullback": BOT_LEVEL_STRATEGY}, {"X"}, 0.0)
-            ] == [("X", "near")]
-    assert got({SETUP: BOT_LEVEL_STRATEGY}) == [("X", "near")]                  # the bear flag On

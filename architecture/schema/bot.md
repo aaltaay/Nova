@@ -463,8 +463,8 @@ the day before and are left out of the day's table and of its restart marks, 202
   no trade yet (IBKR's prior close is not one, #541), no board and no line, a read that failed, or a Sim
   replay desk (its quotes are the replay's, the boards live). `null` on a past day.
 
-**The bots' lane** (ADR 071 decision 6; owner `backend/line_lanes/bots.py`; replaces line lending, ADR 044
-decision 6). One Level 2 line and its Time & Sales line are the bots', on one setup at a time: the best setup a bot
+**The bots' lane** (history: ADR 071 decision 6, replaced by the brain's lane -- `market-data.md` "Three lanes",
+ADR 072 decision 10; `line_lanes/bots.py` is gone). One Level 2 line and its Time & Sales line are the bots', on one setup at a time: the best setup a bot
 may buy now -- the strategy at effective On on the desk's venue, the venue's Bot on, Nova may buy there, the stock's
 Buy is Nova (Bot or Auto-entry) -- in a trade first, then near its trigger, then armed (`market-data.md` "Three
 lanes"). A setup in a trade, or a stock Nova holds a trade on, keeps the lane until it ends. The lane is never lent,
@@ -1009,10 +1009,50 @@ page goes back on the rail as TraderTV without the bot parts, `followed-traders.
 and `POST /api/owners/close-bots`. The bot audit stream (`bot-audit.jsonl`, `/api/bot/audit`, `/ws/bot/audit`) stays
 readable; old lines keep their kinds.
 
-**The brain's door.** The localhost bot API (`POST /api/bot/action`, keyed by `brain_session_id`) becomes the brain's
-order door: every order it sends is stamped origin `brain` (source `bot` for an entry, as Claude's are), long only,
-on Paper or Sim, within the brain's limits and budget (`traders.md`) and only while its switch is On (`409
-BRAIN_SWITCH_OFF`). Its stock must be on lane 3 with a live Level 2 (`BOT_NO_DEPTH_LINE` keeps its words for the
-brain). It may name lane 3's stock (`POST /api/brain/watch {symbol, why}`). The brain's events (`switch_on`,
-`switch_off`, `handed`, `watch`, `buy_set`, `fill`, `close`, `refused`) and its note feed its header pill and panel.
-The exact routes are confirmed here before the brain's batch is built.
+**The brain's door** (`backend/brain/`, ADR 072 decision 10 as amended 2026-11-17). The brain is one program on
+this PC. It reaches Nova on loopback with the desk's `X-Nova-Api-Key` and its own `X-Nova-Brain-Session` id; the first
+id to claim holds the door until its heartbeat is `BRAIN_HEARTBEAT_STALE_SEC` (30 s) old. Every order it sends is
+stamped origin `brain` (source `bot` for an entry, as Claude's are) and passes the same door as every order (the
+padlock, Freeze, the owners' rules and budget, `TRADER_OFF`). The old `POST /api/bot/action` stays closed: its kinds
+were the bots' hotkeys, sized by sleeves and lists that retired with them.
+
+- `GET /api/brain` -> `{schema_version: 1, generated_at, venue, switch: {on, can_turn_on, why_not_on}, connected,
+  session: {held, mine, heartbeat_at}, lane: {symbol, why, since, depth, tape}, position: {symbol, qty, avg_cost,
+  mark, unrealized_pnl} | null, orders: [{order_id, symbol, side, qty, order_type, limit_price, stop_price, status}],
+  handed: [{symbol, qty, stop_price}], today: {pnl, loss_limit_usd, tripped_at}, limits: {max_shares, risk_usd, budget_usd, budget_used_usd, flat_by},
+  can_enter, why_not: {code, text} | null, note, reading, events, error}`. `can_enter` is false with `why_not` whenever an
+  entry sent now would be refused before its own shape is read: the same codes as below.
+- `POST /api/brain/claim` and `POST /api/brain/heartbeat` -> `{ok, session}`; `409 BRAIN_HELD` while another id's
+  heartbeat is fresh. Every other write is refused `409 BRAIN_NOT_CLAIMED` from a session that does not hold the
+  door, and counts as a heartbeat from the one that does.
+- `POST /api/brain/arm` -> the `GET` shape: arms Paper as an agent (ADR 018); `BRAIN_NOT_PAPER` off Paper, and
+  refused in words over a padlock the operator locked.
+- `POST /api/brain/watch {symbol: string | null, why: string}` -> `{ok, lane}`: names lane 3's stock (null empties
+  the lane). Allowed whatever the switch says: the lane is the brain's even before it trades. No rate limit.
+- `POST /api/brain/note {text, reading?: [{symbol, text}]}` -> `{ok}`: the brain's words for its pill and panel
+  (`text` up to 280 characters) and what it is reading now (up to 8 rows). A row on lane 3's stock reads `source:
+  "lane"`, any other `"level1"`.
+- `POST /api/brain/order {symbol, qty, limit, stop, target, why?: string}` -> the execution receipt, or
+  `409 {reason, error}`. A long bracket: a limit buy with its stop and target in one order (a marketable limit fills at once). Refused, in
+  this order: `BRAIN_SWITCH_OFF`, `BRAIN_NOT_PAPER` (the desk is not on Paper: the brain's Sim door is not built yet),
+  `BRAIN_SHAPE` (long only; whole shares 1 to `max_shares`; a stop under the limit; `(limit - stop) * qty` within
+  `risk_usd`; a target above the limit), `BRAIN_PAST_FLAT_BY`, `BRAIN_HALTED`, `BRAIN_NO_LINE` (the stock is not lane 3's or its Level 2 is not
+  up), `BRAIN_IN_TRADE` (it holds or has an entry working in another stock: one position), `BRAIN_DAY_STOP`,
+  `BRAIN_STALE` (ADR 045: the lane's Level 2, quote or tape is behind). The owners' rules and its budget refuse at the
+  execution door as for anyone.
+- `POST /api/brain/stop {symbol, stop}` raises its resting stop (a stop only moves up); `POST /api/brain/cancel {order_id}` cancels one of
+  its own working orders; `POST /api/brain/close {symbol, why?}` cancels its working orders there and sells its
+  shares at market (source `flatten`, origin `brain`). These three always go: a close is never refused by the
+  switch, the day stop or the clock.
+- **The day stop and flat by.** Until the loss lines land (ADR 072 build order 4) the brain's day stop is
+  `BRAIN_DAY_STOP_USD` (-$500) on its own book's realised and open P&L today: at it the brain reads Done for today,
+  no new entry until 04:00 ET, its open trade keeps its exits, and On is refused (`TRADER_DAY_STOP`). At its
+  `flat_by` (`trader-limits.json`, 15:55 ET) Nova cancels its working orders and sells its shares (`brain.watcher`,
+  every `BRAIN_TICK_SEC`), unless they were handed to you.
+- **A brain that stops answering sells nothing.** Its stop and target keep resting, flat by still closes it, and
+  its pill says "Brain · On · its program is not running". Nothing restarts it from Nova.
+- **Events** (`events`, newest first, the last 50 today): `claim`, `watch`, `armed`, `buy_set`, `fill`, `stop_moved`,
+  `close`, `refused`, `flat_by`, `silent`, `switch_on`, `switch_off`, `handed`: `{at, kind, symbol, text}`.
+
+**Left for a later batch:** the brain's door on Sim, its own loss line (`loss-limit.md`, "Four lines"), and the
+setups feed above.

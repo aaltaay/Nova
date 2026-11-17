@@ -43,6 +43,7 @@ from leaderboard.routes import router as leaderboard_router
 from leaderboard.auto_record_routes import router as auto_record_router
 from loss_limit.routes import router as loss_limit_router
 from traders.routes import router as traders_router
+from brain.routes import router as brain_router
 from execution.size_limit.routes import router as order_size_limit_router
 from setup_scanner.routes import router as setups_router
 from setup_templates.routes import install as install_setup_template_refusals
@@ -116,6 +117,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(auto_record_router)
     app.include_router(loss_limit_router)
     app.include_router(traders_router)
+    app.include_router(brain_router)
     app.include_router(order_size_limit_router)
     app.include_router(setups_router)
     app.include_router(setup_templates_router)
